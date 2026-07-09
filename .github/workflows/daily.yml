@@ -1,0 +1,47 @@
+name: daily-transcript-pipeline
+
+# 排程時間為 UTC。台灣時間 = UTC + 8。
+# 平日台灣時間 11:30 到 13:00，每 10 分鐘檢查一次。
+on:
+  schedule:
+    - cron: '30,40,50 3 * * 1-5'          # 台灣時間 11:30 / 11:40 / 11:50
+    - cron: '0,10,20,30,40,50 4 * * 1-5'  # 台灣時間 12:00 到 12:50
+    - cron: '0 5 * * 1-5'                 # 台灣時間 13:00
+  workflow_dispatch:                       # 手動觸發，第一次上線用來回補 5 支歷史影片
+    inputs:
+      backfill:
+        description: '設為 true 時，一次處理頻道保留的全部影片'
+        required: false
+        default: 'false'
+
+concurrency:
+  group: daily-pipeline          # 同一時間只允許一個工作在跑，避免重複處理同一支影片
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 安裝相依套件
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 執行每日流程
+        env:
+          NOTEBOOKLM_AUTH_JSON: ${{ secrets.NOTEBOOKLM_AUTH_JSON }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          YOUTUBE_CHANNEL_ID: ${{ vars.YOUTUBE_CHANNEL_ID }}
+          BACKFILL: ${{ github.event.inputs.backfill }}
+        run: python pipeline.py

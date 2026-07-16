@@ -2,3 +2,4 @@ notebooklm-py
 gspread>=6.0
 google-auth>=2.30
 requests>=2.32
+pypinyin>=0.53

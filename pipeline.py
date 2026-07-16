@@ -19,7 +19,7 @@ import re
 import sys
 import time
 import xml.etree.ElementTree as ET
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import gspread
 import requests
@@ -38,6 +38,19 @@ CHANNEL_ID = os.environ.get("YOUTUBE_CHANNEL_ID", "").strip() or DEFAULT_CHANNEL
 
 # 標題必須含此關鍵字才視為當日直播。頻道標題格式：2026/07/15(三)張震 股市盤中家教班
 TITLE_KEYWORDS = ["盤中家教班"]
+
+# 只處理這個日期（含）以後的影片。頻道 RSS 裡混有 2025 年的宣傳片，一律略過。
+MIN_DATE = date(2026, 1, 1)
+
+# 潤飾後長度佔原文的比例門檻。
+#   低於 FAIL：研判模型改成摘要而非潤飾，中止。
+#   介於 FAIL 與 WARN：印警告但照常寫入。中文逐字稿贅字多時，7 成上下是正常的。
+# 真正的「輸出被截斷」由 finishReason == MAX_TOKENS 直接攔截，不靠這個比例判斷。
+RATIO_FAIL = 0.45
+RATIO_WARN = 0.70
+
+# 一小時直播的逐字稿約 13000 字以上。低於此值印警告，提醒抽查上游是否索引不全。
+SHORT_TRANSCRIPT_HINT = 5000
 
 GEMINI_MODEL = "gemini-2.5-flash"
 
@@ -287,14 +300,26 @@ def split_transcript(text, size=CHUNK_SIZE, hard=CHUNK_HARD):
 
 
 POLISH_SYSTEM = """你負責整理一段中文直播逐字稿的其中一個片段。
-只做三件事：修正同音錯字、補上合理的斷句與標點、刪除純粹的口頭贅字。
-嚴格禁止：新增任何事實資訊、刪除任何事實資訊、改寫語意、摘要、補完語意不清的地方。
+
+你只能做這三件事：
+1. 修正同音錯字。
+2. 補上合理的斷句與標點。
+3. 刪除純粹的填充詞，僅限「嗯、啊、呃、那個、就是說」這類完全沒有實質意義的字。
+
+除了上述三項，原文的每一句話都必須保留下來，逐句對應輸出。
+
+嚴格禁止：
+- 禁止摘要、濃縮、改寫語意。
+- 禁止省略任何一句有實質內容的話，即使它重複、離題或聽起來不重要。
+- 禁止新增或刪除任何事實資訊。
+- 禁止補完語意不清的地方。
+
 若某處聽起來像是股票名稱但拼字有誤，可依常見台股名稱修正，其餘一律照原文保留。
 
 這是長逐字稿的其中一段，可能從句子中間開始或結束，這是正常的，照樣逐句處理即可。
-必須處理到片段的最後一個字，不可中途停止，不可省略後半段。
+必須處理到片段的最後一個字，不可中途停止。
 
-直接輸出整理後的文字，全文使用繁體中文。
+輸出的長度應該與輸入相近。直接輸出整理後的文字，全文使用繁體中文。
 不要加開場白、結語、標題、片段編號或任何說明。"""
 
 
@@ -304,20 +329,27 @@ def polish(transcript: str) -> str:
 
     out = []
     for i, c in enumerate(chunks, 1):
-        print(f"潤飾第 {i}/{len(chunks)} 段（{len(c)} 字）")
-        out.append(call_gemini(POLISH_SYSTEM, c, thinking=0, tag=f"polish {i}/{len(chunks)}"))
+        r = call_gemini(POLISH_SYSTEM, c, thinking=0, tag=f"polish {i}/{len(chunks)}")
+        cr = len(r) / max(len(c), 1)
+        flag = "" if cr >= RATIO_WARN else "  ← 這段壓縮偏多"
+        print(f"潤飾第 {i}/{len(chunks)} 段：{len(c)} → {len(r)} 字（{cr:.0%}）{flag}")
+        out.append(r)
         time.sleep(1)
 
     joined = "\n".join(out)
     ratio = len(joined) / max(len(transcript), 1)
     print(f"潤飾完成：{len(transcript)} → {len(joined)} 字（{ratio:.0%}）")
 
-    # 長度守門。這道檢查就是原本漏掉、導致靜默截斷沒被發現的那一道。
-    if ratio < 0.6:
+    # 輸出被截斷已由 finishReason == MAX_TOKENS 攔截。
+    # 這裡只防「模型改成摘要」，門檻放寬，避免對贅字多的短片誤判。
+    if ratio < RATIO_FAIL:
         raise RuntimeError(
-            f"潤飾後長度僅原文的 {ratio:.0%}，疑似仍有截斷或內容遭省略，"
-            f"中止流程以免寫入不完整資料。"
+            f"潤飾後長度僅原文的 {ratio:.0%}，低於 {RATIO_FAIL:.0%} 下限，"
+            f"研判模型改成了摘要而非逐句潤飾，中止以免寫入不完整資料。"
         )
+    if ratio < RATIO_WARN:
+        print(f"警告：潤飾後長度為原文的 {ratio:.0%}。逐字稿贅字多時這是正常的，"
+              f"但請抽查試算表的「修飾後逐字稿內容」是否有整段消失。")
     return joined
 
 
@@ -419,6 +451,9 @@ def process_one(ss, video):
         if not v1 or len(v1) < 200:
             raise RuntimeError(f"取回的逐字稿全文僅 {len(v1 or '')} 字，視為索引失敗")
         print(f"取得原始逐字稿 {len(v1)} 字")
+        if len(v1) < SHORT_TRANSCRIPT_HINT:
+            print(f"警告：逐字稿僅 {len(v1)} 字，對一小時直播而言偏短。"
+                  f"可能是 NotebookLM 索引不完整，或這支影片本身就短。")
 
         v2 = polish(v1)
         signals = extract_signals(v2, date_str)
@@ -439,8 +474,19 @@ def main():
     ss = open_sheets()
     feed = [v for v in fetch_feed() if is_target(v["title"])]
     print(f"RSS 取得 {len(feed)} 支符合關鍵字的影片")
+
+    old = [v for v in feed if v["date"] < MIN_DATE]
+    feed = [v for v in feed if v["date"] >= MIN_DATE]
+    if old:
+        print(f"略過 {len(old)} 支 {MIN_DATE:%Y/%m/%d} 之前的舊影片："
+              + "、".join(v["date"].strftime("%Y/%m/%d") for v in old))
+    print(f"待處理範圍內共 {len(feed)} 支")
+
     if not feed:
-        raise RuntimeError(f"RSS 沒有任何標題含 {TITLE_KEYWORDS} 的影片，請確認頻道 ID 與關鍵字設定。")
+        raise RuntimeError(
+            f"RSS 沒有任何標題含 {TITLE_KEYWORDS} 且日期在 {MIN_DATE:%Y/%m/%d} 之後的影片，"
+            f"請確認頻道 ID 與關鍵字設定。"
+        )
 
     done = {str(r["影片ID"]): str(r["處理狀態"]) for r in video_rows(ss)}
 

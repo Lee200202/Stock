@@ -1,29 +1,51 @@
 name: daily-transcript-pipeline
 
-# 排程時間為 UTC。台灣時間 = UTC + 8。
-# 平日台灣時間 11:30 到 13:00，每 10 分鐘檢查一次。
+# ------------------------------------------------------------------ #
+# 關於執行時間，兩件事必須先知道：
+#
+# 1. cron 一律是 UTC。台灣時間 = UTC + 8，台灣沒有日光節約，全年固定。
+#    台灣 11:37 = UTC 03:37。
+#
+# 2. GitHub 的排程是 best effort，官方文件明講「可能因為負載而延遲」。
+#    整點（:00）是全球排程最壅塞的時段，:30 次之，延遲 5 到 30 分鐘是常態。
+#    所以以下刻意全部避開 :00 與 :30，改用零散分鐘。
+#
+# 觸發次數從原本的 10 次減為 4 次。原因見下方 concurrency 的說明。
+# ------------------------------------------------------------------ #
 on:
   schedule:
-    - cron: '30,40,50 3 * * 1-5'          # 台灣時間 11:30 / 11:40 / 11:50
-    - cron: '0,10,20,30,40,50 4 * * 1-5'  # 台灣時間 12:00 到 12:50
-    - cron: '0 5 * * 1-5'                 # 台灣時間 13:00
-  workflow_dispatch:                       # 手動觸發，第一次上線用來回補 5 支歷史影片
+    - cron: '37 3 * * 1-5'    # 台灣 11:37
+    - cron: '13 4 * * 1-5'    # 台灣 12:13
+    - cron: '43 4 * * 1-5'    # 台灣 12:43
+    - cron: '13 5 * * 1-5'    # 台灣 13:13　最後一次，此時才判定今日無影片
+
+  workflow_dispatch:
     inputs:
       backfill:
-        description: '設為 true 時，一次處理頻道保留的全部影片'
+        description: '設為 true 時，一次處理 2026 年起尚未完成的全部影片'
         required: false
         default: 'false'
 
+# 同一時間只允許一個工作在跑。
+# 注意這會排隊：前一個還在跑，後面觸發的會等，等到前一個結束才開始。
+# 單支影片含 NotebookLM 索引最久可能 30 分鐘以上，原本每 10 分鐘觸發一次，
+# 佇列會一路往後推，這是實際開始時間遠晚於排程時間的主因之一。
 concurrency:
-  group: daily-pipeline          # 同一時間只允許一個工作在跑，避免重複處理同一支影片
+  group: daily-pipeline
   cancel-in-progress: false
 
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 180
 
     steps:
+      - name: 記錄排程與實際執行時間
+        run: |
+          echo "排程設定：${{ github.event.schedule || '手動觸發' }} (UTC)"
+          echo "實際執行：$(TZ=Asia/Taipei date '+%Y/%m/%d %H:%M:%S') 台北時間"
+          echo "若兩者差距超過 30 分鐘，就是 GitHub 排程佇列延遲，不是設定寫錯。"
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
@@ -42,6 +64,6 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
-          YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
+          YOUTUBE_CHANNEL_ID: ${{ vars.YOUTUBE_CHANNEL_ID }}
           BACKFILL: ${{ github.event.inputs.backfill }}
         run: python pipeline.py

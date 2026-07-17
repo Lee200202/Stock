@@ -1,23 +1,30 @@
 name: daily-transcript-pipeline
 
 # ------------------------------------------------------------------ #
-# 關於執行時間，兩件事必須先知道：
+# 排程設計的核心：這是「輪詢」，不是「執行一次」。
 #
-# 1. cron 一律是 UTC。台灣時間 = UTC + 8，台灣沒有日光節約，全年固定。
-#    台灣 11:37 = UTC 03:37。
+# 11:30 直播還在進行，YouTube 的 VOD 尚未生成，NotebookLM 索引不到。
+# 直播約 12:30 到 13:00 結束，YouTube 再花十幾分鐘轉檔，
+# 所以逐字稿真正拿得到的時間點落在 13:00 到 14:00 之間，而且每天不一定。
 #
-# 2. GitHub 的排程是 best effort，官方文件明講「可能因為負載而延遲」。
-#    整點（:00）是全球排程最壅塞的時段，:30 次之，延遲 5 到 30 分鐘是常態。
-#    所以以下刻意全部避開 :00 與 :30，改用零散分鐘。
+# 因此流程必須從 11:33 開始每 10 分鐘敲一次門，敲到有東西為止。
+# 敲不到不是失敗，是還沒好，工作要顯示綠色，不能發告警。
 #
-# 觸發次數從原本的 10 次減為 4 次。原因見下方 concurrency 的說明。
+# 這件事能成立的前提是「敲門要快」。pipeline.py 的 POLL_TIMEOUT 設為 4 分鐘，
+# 索引不到就立刻放棄讓下一輪接手。若像先前那樣一次等 30 分鐘，
+# 一次敲門就吃掉三個輪詢窗口，concurrency 又把後面全擋在佇列，
+# 結果就是排程看起來完全沒有在 11:30 執行。
+#
+# cron 一律 UTC。台灣 = UTC + 8，全年固定，沒有日光節約。
+# 分鐘刻意避開 :00 與 :30，那是全球排程最壅塞的時段。
 # ------------------------------------------------------------------ #
 on:
   schedule:
-    - cron: '37 3 * * 1-5'    # 台灣 11:37
-    - cron: '13 4 * * 1-5'    # 台灣 12:13
-    - cron: '43 4 * * 1-5'    # 台灣 12:43
-    - cron: '13 5 * * 1-5'    # 台灣 13:13　最後一次，此時才判定今日無影片
+    - cron: '33,43,53 3 * * 1-5'            # 台灣 11:33 11:43 11:53
+    - cron: '3,13,23,33,43,53 4 * * 1-5'    # 台灣 12:03 到 12:53
+    - cron: '3,13,23,33,43,53 5 * * 1-5'    # 台灣 13:03 到 13:53
+    - cron: '3,23,43 6 * * 1-5'             # 台灣 14:03 14:23 14:43
+    - cron: '3 7 * * 1-5'                   # 台灣 15:03　最後一次，此時才判定今日無影片
 
   workflow_dispatch:
     inputs:
@@ -25,11 +32,13 @@ on:
         description: '設為 true 時，一次處理 2026 年起尚未完成的全部影片'
         required: false
         default: 'false'
+      final:
+        description: '設為 true 時使用長逾時（30 分鐘），適合手動補跑'
+        required: false
+        default: 'false'
 
-# 同一時間只允許一個工作在跑。
-# 注意這會排隊：前一個還在跑，後面觸發的會等，等到前一個結束才開始。
-# 單支影片含 NotebookLM 索引最久可能 30 分鐘以上，原本每 10 分鐘觸發一次，
-# 佇列會一路往後推，這是實際開始時間遠晚於排程時間的主因之一。
+# 同一時間只允許一個工作在跑，後來的排隊。
+# 因為每次敲門最多 4 分鐘，10 分鐘的間隔足夠，不會堆積。
 concurrency:
   group: daily-pipeline
   cancel-in-progress: false
@@ -37,14 +46,18 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    # 輪詢階段每次都很短。真的抓到逐字稿時，潤飾加擷取約 10 到 20 分鐘。
+    # 60 分鐘足夠，同時避免卡死的工作長時間佔住 concurrency 佇列。
+    timeout-minutes: 60
 
     steps:
       - name: 記錄排程與實際執行時間
         run: |
           echo "排程設定：${{ github.event.schedule || '手動觸發' }} (UTC)"
           echo "實際執行：$(TZ=Asia/Taipei date '+%Y/%m/%d %H:%M:%S') 台北時間"
-          echo "若兩者差距超過 30 分鐘，就是 GitHub 排程佇列延遲，不是設定寫錯。"
+          echo ""
+          echo "若兩者差超過 30 分鐘，是 GitHub 排程佇列延遲，不是設定寫錯。"
+          echo "官方文件明講排程是 best effort，尖峰時段延遲 5 到 30 分鐘屬正常。"
 
       - uses: actions/checkout@v4
 
@@ -66,4 +79,5 @@ jobs:
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
           YOUTUBE_CHANNEL_ID: ${{ vars.YOUTUBE_CHANNEL_ID }}
           BACKFILL: ${{ github.event.inputs.backfill }}
+          FINAL_ATTEMPT: ${{ github.event.inputs.final }}
         run: python pipeline.py

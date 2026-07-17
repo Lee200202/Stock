@@ -87,6 +87,10 @@ GEMINI_API_KEY = env("GEMINI_API_KEY")
 BACKFILL = os.environ.get("BACKFILL", "false").strip().lower() == "true"
 FINAL_ATTEMPT = os.environ.get("FINAL_ATTEMPT", "false").strip().lower() == "true"
 
+# 純修代號模式。只把試算表既有的股票名稱重跑一次拼音比對，
+# 不碰 NotebookLM，不呼叫 Gemini，幾十秒就跑完。
+REPAIR_CODES = os.environ.get("REPAIR_CODES", "false").strip().lower() == "true"
+
 # ---------------------------------------------------------------- #
 # 輪詢逾時
 #
@@ -740,11 +744,89 @@ def process_one(ss, video, done_trades, done_holds):
         raise
 
 
+def repair_codes_only(ss):
+    """
+    純修代號。不碰 NotebookLM，不呼叫 Gemini，只把試算表既有的
+    股票名稱重跑一次 resolve_code，把代號待確認補起來。
+
+    存在理由：GAS 那邊只能做字面比對，修不了同音錯字。
+    「四星科」對「事欣科」字面相似度只有 0.33，但拼音 sixingke 對 shixinke
+    有 0.88，所以這件事只能在有 pypinyin 的 Python 這側做。
+
+    直接跑 backfill 是修不到的，因為已完成的影片會被整支跳過。
+    """
+    get_code_map()
+
+    total = {"fixed": 0, "ok": 0, "still": 0}
+    unresolved = []
+
+    for sheet_name, name_col, code_col in (("操作紀錄", 2, 3), ("會員持股", 2, 3)):
+        ws = ss.worksheet(sheet_name)
+        values = sheets_retry(ws.get_all_values)
+        if len(values) < 2:
+            print(f"{sheet_name} 是空的，略過")
+            continue
+
+        print(f"\n=== {sheet_name}　{len(values) - 1} 列 ===")
+
+        names, codes, dirty = [], [], False
+
+        for i, row in enumerate(values[1:], start=2):
+            old_name = (row[name_col - 1] if len(row) >= name_col else "").strip()
+            old_code = (row[code_col - 1] if len(row) >= code_col else "").strip()
+
+            if not old_name:
+                names.append([old_name])
+                codes.append([old_code])
+                continue
+
+            code, fixed, how = resolve_code(old_name, old_code)
+            names.append([fixed])
+            codes.append([code])
+
+            if code == UNRESOLVED:
+                total["still"] += 1
+                unresolved.append((sheet_name, i, old_name, how))
+                print(f"  第 {i:>3} 列　{old_name} -> 仍待確認（{how}）")
+            elif fixed != old_name or code != old_code:
+                total["fixed"] += 1
+                dirty = True
+                print(f"  第 {i:>3} 列　{old_name}（{old_code or '空白'}）"
+                      f" -> {fixed}（{code}）　{how}")
+            else:
+                total["ok"] += 1
+
+        if dirty:
+            sheets_retry(ws.update, range_name=f"B2:B{len(names) + 1}", values=names)
+            sheets_retry(ws.update, range_name=f"C2:C{len(codes) + 1}", values=codes)
+            print(f"  已寫回 {sheet_name}")
+        else:
+            print(f"  {sheet_name} 無需修改")
+
+    print("\n" + "=" * 50)
+    print(f"修正 {total['fixed']} 筆，本來就正確 {total['ok']} 筆，仍待確認 {total['still']} 筆")
+
+    if unresolved:
+        print("\n以下仍無法確定，需要人工看影片填入代號：")
+        for sheet, row, name, how in unresolved:
+            print(f"  {sheet} 第 {row} 列　{name}　{how}")
+
+    print("\n下一步：回到 Apps Script 執行 rebuildHoldingsTrackerJob()，")
+    print("      讓持股追蹤把新對上的代號算進去。")
+    return total
+
+
 def main():
     src = "Variables" if os.environ.get("YOUTUBE_CHANNEL_ID", "").strip() else "內建預設值"
     print(f"頻道 ID：{CHANNEL_ID}（{src}）")
 
     ss = open_sheets()
+
+    if REPAIR_CODES:
+        print("模式：純修代號。不碰 NotebookLM，不呼叫 Gemini。")
+        repair_codes_only(ss)
+        return
+
     feed = [v for v in fetch_feed() if is_target(v["title"])]
     print(f"RSS 取得 {len(feed)} 支符合關鍵字的影片")
 

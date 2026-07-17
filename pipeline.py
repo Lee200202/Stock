@@ -85,6 +85,31 @@ def env(name: str) -> str:
 SPREADSHEET_ID = env("SPREADSHEET_ID")
 GEMINI_API_KEY = env("GEMINI_API_KEY")
 BACKFILL = os.environ.get("BACKFILL", "false").strip().lower() == "true"
+FINAL_ATTEMPT = os.environ.get("FINAL_ATTEMPT", "false").strip().lower() == "true"
+
+# ---------------------------------------------------------------- #
+# 輪詢逾時
+#
+# 這是整套排程能不能在 11:30 開始運作的關鍵。
+#
+# 11:30 直播還在進行，VOD 尚未生成，NotebookLM 一定索引不到。
+# 若像先前那樣一次等 30 分鐘，11:33 那次會一路卡到 12:03，
+# concurrency 又把後面每一輪全擋在佇列，等於一整個中午只敲了三次門。
+#
+# 改成 4 分鐘。索引不到就立刻放棄，讓下一輪接手。
+# 回補模式與手動長跑則給足時間。
+# ---------------------------------------------------------------- #
+POLL_TIMEOUT = 240
+FULL_TIMEOUT = 1800
+INDEX_TIMEOUT = FULL_TIMEOUT if (BACKFILL or FINAL_ATTEMPT) else POLL_TIMEOUT
+
+# 過了這個時間仍拿不到逐字稿，才判定今天真的沒有影片
+GIVE_UP_HOUR = 15
+
+
+class NotReadyYet(Exception):
+    """VOD 還沒好。這不是錯誤，是還沒輪到。工作要顯示綠色。"""
+    pass
 
 
 # ---------------------------------------------------------------- #
@@ -233,15 +258,35 @@ def is_target(title: str) -> bool:
 # ---------------------------------------------------------------- #
 # 逐字稿：notebooklm-py 來源全文存取
 # ---------------------------------------------------------------- #
-async def fetch_fulltext(video_url, title):
+async def fetch_fulltext(video_url, title, timeout):
+    """
+    timeout 短的時候（輪詢），索引不完就丟 NotReadyYet，讓下一輪接手。
+    索引不完與真的出錯必須分開，不然每一輪都會亮紅燈並發告警。
+    """
     from notebooklm import NotebookLMClient
 
     async with NotebookLMClient.from_storage() as client:
         notebook = await client.notebooks.create(title=title)
         try:
-            source = await client.sources.add_url(notebook.id, video_url, wait=True, wait_timeout=1800)
+            try:
+                source = await client.sources.add_url(
+                    notebook.id, video_url, wait=True, wait_timeout=timeout
+                )
+            except Exception as e:
+                msg = str(e).lower()
+                # 逾時、還在處理、佇列中，都代表 VOD 還沒好，不是壞掉
+                if any(k in msg for k in ("timeout", "timed out", "processing", "pending", "queue")):
+                    raise NotReadyYet(f"NotebookLM 在 {timeout} 秒內尚未完成索引")
+                raise
+
             fulltext = await client.sources.get_fulltext(notebook.id, source.id)
-            return fulltext.content
+            content = fulltext.content or ""
+
+            # 索引剛開始時可能回傳極短的殘缺內容，這也算還沒好
+            if len(content) < 200:
+                raise NotReadyYet(f"取回的全文僅 {len(content)} 字，索引尚未完成")
+
+            return content
         finally:
             try:
                 await client.notebooks.delete(notebook.id)
@@ -640,9 +685,9 @@ def stage_transcript(ss, video, date_str):
     if v1 and len(v1) > 200:
         print(f"{date_str} 已有原始逐字稿 {len(v1)} 字但缺修飾後版本，只補潤飾")
     else:
-        v1 = asyncio.run(fetch_fulltext(video["url"], f"張震_{date_str}"))
-        if not v1 or len(v1) < 200:
-            raise RuntimeError(f"取回的逐字稿全文僅 {len(v1 or '')} 字，視為索引失敗")
+        mode = "長逾時" if INDEX_TIMEOUT == FULL_TIMEOUT else "輪詢短逾時"
+        print(f"向 NotebookLM 索取逐字稿（{mode}，上限 {INDEX_TIMEOUT} 秒）")
+        v1 = asyncio.run(fetch_fulltext(video["url"], f"張震_{date_str}", INDEX_TIMEOUT))
         print(f"取得原始逐字稿 {len(v1)} 字")
         if len(v1) < SHORT_TRANSCRIPT_HINT:
             print(f"警告：逐字稿僅 {len(v1)} 字，對一小時直播而言偏短。"
@@ -672,10 +717,21 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds):
 def process_one(ss, video, done_trades, done_holds):
     date_str = video["date"].strftime("%Y/%m/%d")
     print(f"\n=== 處理 {date_str}　{video['title']}　{video['id']} ===")
-    mark_status(ss, video["id"], date_str, video["title"], "處理中")
 
     try:
         _, v2 = stage_transcript(ss, video, date_str)
+    except NotReadyYet as e:
+        # 這不是失敗。VOD 還在轉檔，下一輪會再敲一次門。
+        mark_status(ss, video["id"], date_str, video["title"], "等待中", str(e)[:200])
+        print(f"尚未就緒：{e}")
+        print("這是正常的，直播結束後 YouTube 要一段時間轉檔。下一輪排程會再試。")
+        raise
+    except Exception as e:
+        mark_status(ss, video["id"], date_str, video["title"], "失敗", str(e)[:400])
+        raise
+
+    try:
+        mark_status(ss, video["id"], date_str, video["title"], "處理中")
         stage_extract(ss, video, date_str, v2, done_trades, done_holds)
         mark_status(ss, video["id"], date_str, video["title"], "完成")
         print(f"完成 {video['id']}")
@@ -722,10 +778,11 @@ def main():
         return
 
     today = datetime.now(TAIPEI).date()
+    now_h = datetime.now(TAIPEI).hour
     todays = [v for v in feed if v["date"] == today]
 
     if not todays:
-        if datetime.now(TAIPEI).hour >= 13:
+        if now_h >= GIVE_UP_HOUR:
             mark_status(ss, f"NO_VIDEO_{today}", today.strftime("%Y/%m/%d"), "", "今日無影片")
             print("今日無影片")
         else:
@@ -734,14 +791,17 @@ def main():
 
     v = todays[0]
     status = done.get(v["id"], "")
+
     if status == "完成":
-        print("今日影片已處理完成")
+        print("今日影片已處理完成，本輪無事可做")
         return
     if status == "處理中":
-        # daily.yml 的 concurrency 已保證不會有平行執行，
-        # 所以「處理中」只可能是前一次執行中途崩潰留下的殘留，直接重跑。
-        # 已完成的逐字稿會被 stage_transcript 沿用，不會重花一次額度。
+        # daily.yml 的 concurrency 保證不會平行執行，
+        # 所以「處理中」只可能是前一次中途崩潰留下的殘留，直接重跑。
+        # 已完成的逐字稿會被 stage_transcript 沿用，不會重花額度。
         print("偵測到前次殘留的『處理中』狀態，重新處理")
+    if status == "等待中":
+        print("前一輪 VOD 尚未就緒，本輪再敲一次門")
 
     process_one(ss, v, done_trades, done_holds)
 
@@ -749,6 +809,10 @@ def main():
 if __name__ == "__main__":
     try:
         main()
+    except NotReadyYet as e:
+        # 綠燈離開。VOD 還沒好不是壞掉，不該亮紅燈，也不該觸發失敗告警。
+        print(f"本輪未取得逐字稿：{e}")
+        sys.exit(0)
     except Exception as e:
         print(f"流程失敗：{e}", file=sys.stderr)
         sys.exit(1)

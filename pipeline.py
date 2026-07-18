@@ -602,10 +602,29 @@ def _pin(s: str) -> str:
     return "".join(lazy_pinyin(str(s)))
 
 
-def _pin1(s: str) -> str:
-    """首字的拼音。續 和 旭 都是 xu，這才是同音錯字該比的東西。"""
+def _norm_pin(p: str) -> str:
+    """
+    台灣國語音變正規化。這一步是同音錯字比對能不能成立的關鍵。
+
+    台灣人講國語普遍前後鼻音不分（chen 對 cheng、yin 對 ying、xin 對 xing），
+    捲舌音也不分（zh 對 z、ch 對 c、sh 對 s）。語音辨識忠實地反映了這個特徵，
+    所以「誠美材」會被聽成「陳美」，「英濟」會被聽成「引細」。
+
+    不做這一步的話，chen 對 cheng 的首字比對會判定為不同音，
+    放寬門檻不會生效，這些字就永遠對不上。
+    """
+    p = re.sub(r"([aeiou])ng", r"\1n", p)          # cheng -> chen
+    return p.replace("zh", "z").replace("ch", "c").replace("sh", "s")
+
+
+def _npin(s: str) -> str:
+    return _norm_pin(_pin(s))
+
+
+def _npin1(s: str) -> str:
+    """首字的正規化拼音。續 和 旭 都是 xu，誠 和 陳 正規化後都是 cen。"""
     s = str(s or "")
-    return lazy_pinyin(s[:1])[0] if s else ""
+    return _norm_pin(lazy_pinyin(s[:1])[0]) if s else ""
 
 
 def _base(s: str) -> str:
@@ -664,13 +683,14 @@ def resolve_code(name: str, hint: str):
         return best_c, m[best_c], f"字面相似 {best_s:.2f}"
 
     # 5. 拼音相似。首字「同音」時放寬門檻。
-    #    比的是拼音不是字：續 對 旭 兩字不同，但都念 xu，是同音錯字的強訊號。
-    nk, nk1 = _pin(name), _pin1(name)
+    #    比的是正規化後的拼音：續 對 旭 都是 xu，誠 對 陳 正規化後都是 cen。
+    #    台灣國語前後鼻音與捲舌音不分，不正規化的話這些永遠對不上。
+    nk, nk1 = _npin(name), _npin1(name)
     cands = []
     for c, n in m.items():
-        s = max(difflib.SequenceMatcher(None, nk, _pin(n)).ratio(),
-                difflib.SequenceMatcher(None, _pin(nb), _pin(_base(n))).ratio())
-        loose = (nk1 and nk1 == _pin1(n) and abs(len(name) - len(n)) <= 2)
+        s = max(difflib.SequenceMatcher(None, nk, _npin(n)).ratio(),
+                difflib.SequenceMatcher(None, _npin(nb), _npin(_base(n))).ratio())
+        loose = (nk1 and nk1 == _npin1(n) and abs(len(name) - len(n)) <= 2)
         if s >= (PINYIN_LOOSE if loose else PINYIN_CUTOFF):
             cands.append((s, c, loose))
     if cands:
@@ -971,14 +991,15 @@ def process_one(ss, video, done_trades, done_holds):
 def repair_codes_only(ss):
     """
     不碰 NotebookLM，不呼叫 Gemini，只把試算表既有的股票名稱
-    重跑一次 resolve_code，把代號待確認補起來。
+    重跑一次 resolve_code。
 
-    直接跑 backfill 是修不到的，因為已完成的影片會被整支跳過。
+    非個股（台塑集團、PMIC、高速傳輸股）整列刪除，不留在資料裡。
+    由後往前刪，這樣刪掉一列不會讓還沒處理的列號位移。
     """
     get_code_map()
 
-    total = {"fixed": 0, "ok": 0, "still": 0, "reject": 0}
-    unresolved, rejects = [], []
+    total = {"fixed": 0, "ok": 0, "still": 0, "deleted": 0}
+    unresolved, deleted = [], []
 
     for sheet_name, name_col, code_col in (("操作紀錄", 2, 3), ("會員持股", 2, 3)):
         ws = ss.worksheet(sheet_name)
@@ -988,38 +1009,31 @@ def repair_codes_only(ss):
             continue
 
         print(f"\n=== {sheet_name}　{len(values) - 1} 列 ===")
-        names, codes, dirty = [], [], False
+
+        keep_rows, to_delete = [], []
 
         for i, row in enumerate(values[1:], start=2):
             old_name = (row[name_col - 1] if len(row) >= name_col else "").strip()
             old_code = (row[code_col - 1] if len(row) >= code_col else "").strip()
 
             if not old_name:
-                names.append([old_name])
-                codes.append([old_code])
-                continue
-
-            # 已標記為非個股的不再處理
-            if old_code == "非個股":
-                names.append([old_name])
-                codes.append([old_code])
-                total["reject"] += 1
+                to_delete.append(i)
+                total["deleted"] += 1
                 continue
 
             code, fixed, how = resolve_code(old_name, old_code)
 
             if code == REJECT:
-                # 不直接刪列。刪列會讓後面所有列號位移，批次寫回會錯亂。
-                total["reject"] += 1
-                dirty = True
-                names.append([old_name])
-                codes.append(["非個股"])
-                rejects.append((sheet_name, i, old_name, how.replace("剔除：", "")))
-                print(f"  第 {i:>3} 列　{old_name} -> 標記為非個股（{how.replace('剔除：', '')}）")
+                to_delete.append(i)
+                total["deleted"] += 1
+                deleted.append((sheet_name, i, old_name, how.replace("剔除：", "")))
+                print(f"  第 {i:>3} 列　{old_name} -> 刪除（{how.replace('剔除：', '')}）")
                 continue
 
-            names.append([fixed])
-            codes.append([code])
+            new_row = list(row) + [""] * (max(name_col, code_col) - len(row))
+            new_row[name_col - 1] = fixed
+            new_row[code_col - 1] = code
+            keep_rows.append(new_row)
 
             if code == UNRESOLVED:
                 total["still"] += 1
@@ -1027,36 +1041,42 @@ def repair_codes_only(ss):
                 print(f"  第 {i:>3} 列　{old_name} -> 仍待確認（{how}）")
             elif fixed != old_name or code != old_code:
                 total["fixed"] += 1
-                dirty = True
                 print(f"  第 {i:>3} 列　{old_name}（{old_code or '空白'}）"
                       f" -> {fixed}（{code}）　{how}")
             else:
                 total["ok"] += 1
 
-        if dirty:
-            sheets_retry(ws.update, range_name=f"B2:B{len(names) + 1}", values=names)
-            sheets_retry(ws.update, range_name=f"C2:C{len(codes) + 1}", values=codes)
-            print(f"  已寫回 {sheet_name}")
-        else:
-            print(f"  {sheet_name} 無需修改")
+        # 由後往前刪，避免列號位移
+        for r in sorted(to_delete, reverse=True):
+            sheets_retry(ws.delete_rows, r)
+        if to_delete:
+            print(f"  已刪除 {len(to_delete)} 列非個股")
+
+        # 刪完之後才寫回名稱與代號，此時列號已經重新對齊
+        if keep_rows:
+            width = len(values[0])
+            padded = [r[:width] + [""] * (width - len(r)) for r in keep_rows]
+            sheets_retry(ws.update, range_name=f"A2:{chr(64 + width)}{len(padded) + 1}",
+                         values=padded)
+            print(f"  已寫回 {len(padded)} 列")
 
     print("\n" + "=" * 56)
     print(f"修正 {total['fixed']} 筆，本來就正確 {total['ok']} 筆，"
-          f"仍待確認 {total['still']} 筆，非個股 {total['reject']} 筆")
+          f"仍待確認 {total['still']} 筆，刪除非個股 {total['deleted']} 筆")
 
-    if rejects:
-        print("\n以下不是個股，代號欄已標記為「非個股」。")
-        print("確認無誤後可以直接在試算表刪掉這幾列：")
-        for sheet, row, name, why in rejects:
-            print(f"  {sheet} 第 {row} 列　{name}　{why}")
+    if deleted:
+        print("\n已刪除的非個股：")
+        for sheet, row, name, why in deleted:
+            print(f"  {sheet} 原第 {row} 列　{name}　{why}")
 
     if unresolved:
         print("\n以下是個股但對不上，需要人工看影片填入代號：")
         for sheet, row, name, how in unresolved:
             print(f"  {sheet} 第 {row} 列　{name}　{how}")
+        print("\n填法：直接在試算表的「代號」欄填四位數字，「股票名稱」欄改成正式簡稱，")
+        print("      然後回 Apps Script 執行 rebuildHoldingsTrackerJob()。")
 
-    print("\n下一步：回到 Apps Script 執行 rebuildHoldingsTrackerJob()，")
-    print("      讓持股追蹤把新對上的代號算進去。")
+    print("\n下一步：回到 Apps Script 執行 rebuildHoldingsTrackerJob()。")
     return total
 
 

@@ -56,11 +56,20 @@ SHORT_TRANSCRIPT_HINT = 5000
 
 # 股票名稱比對門檻。字面比對優先，過不了才用拼音比對抓同音錯字。
 # 實測：四星科 對 事欣科 拼音 0.88，紅傑科 對 宏捷科 拼音 1.00。
-# PINYIN_LOOSE 用於首字相同且長度相近的情形，例如 旭準 對 旭隼 只有 0.73，
-# 但首字都是「旭」，是很強的訊號。放寬的前提是非個股已經先被剔除。
+# PINYIN_LOOSE 用於首字同音且長度相近的情形，例如 旭準 對 旭隼 只有 0.73，
+# 但兩字都念 xu，是很強的訊號。放寬的前提是非個股已經先被剔除。
 NAME_CUTOFF = 0.75
 PINYIN_CUTOFF = 0.80
 PINYIN_LOOSE = 0.68
+
+# 跟全清單裡「最像的那一檔」都低於這個值，代表它根本不是股票名稱，直接刪除，
+# 不留成代號待確認。像「高速傳輸」這種產業名詞，人工去看影片也填不出代號。
+#
+# 實測：高速傳輸 0.44、記憶體 0.40、光通訊 0.40、散熱模組 0.38、PMIC 0.00。
+# 而真的是股票的同音錯字，最低是 引細 0.73，離 0.60 還有很大距離。
+# 0.40 到 0.60 之間掃過，誤刪真股票都是 0 個。
+DELETE_THRESHOLD = 0.60
+
 UNRESOLVED = "代號待確認"
 REJECT = "__REJECT__"
 
@@ -687,9 +696,12 @@ def resolve_code(name: str, hint: str):
     #    台灣國語前後鼻音與捲舌音不分，不正規化的話這些永遠對不上。
     nk, nk1 = _npin(name), _npin1(name)
     cands = []
+    best_p = 0.0
     for c, n in m.items():
         s = max(difflib.SequenceMatcher(None, nk, _npin(n)).ratio(),
                 difflib.SequenceMatcher(None, _npin(nb), _npin(_base(n))).ratio())
+        if s > best_p:
+            best_p = s
         loose = (nk1 and nk1 == _npin1(n) and abs(len(name) - len(n)) <= 2)
         if s >= (PINYIN_LOOSE if loose else PINYIN_CUTOFF):
             cands.append((s, c, loose))
@@ -698,7 +710,14 @@ def resolve_code(name: str, hint: str):
         s, c, loose = cands[0]
         return c, m[c], "拼音相似 %.2f%s" % (s, "，首字同音" if loose else "")
 
-    return UNRESOLVED, name, f"無法確定（字面 {best_s:.2f}）"
+    # 6. 跟全清單裡最像的那一檔都低於門檻，代表它根本不是股票名稱。
+    #    「高速傳輸」「記憶體」「光通訊」這種產業名詞落在這裡。
+    #    留成待確認沒有意義，人工去看影片也填不出代號，直接刪。
+    top = max(best_s, best_p)
+    if top < DELETE_THRESHOLD:
+        return REJECT, name, f"剔除：與所有上市櫃名稱都不像（最高 {top:.2f}），研判不是個股"
+
+    return UNRESOLVED, name, f"無法確定（最高相似 {top:.2f}）"
 
 
 def resolve_signals(signals: dict) -> dict:

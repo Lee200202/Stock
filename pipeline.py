@@ -104,6 +104,11 @@ FINAL_ATTEMPT = os.environ.get("FINAL_ATTEMPT", "false").strip().lower() == "tru
 # 不碰 NotebookLM，不呼叫 Gemini，幾十秒就跑完。
 REPAIR_CODES = os.environ.get("REPAIR_CODES", "false").strip().lower() == "true"
 
+# YouTube Data API 金鑰。有設定就優先用它取影片清單，
+# 因為 RSS（feeds/videos.xml）對 GitHub 機房 IP 會穩定回 404，重試無效。
+# 沒設定則退回 RSS，維持本機或非機房環境可用。
+YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY", "").strip()
+
 # ---------------------------------------------------------------- #
 # 輪詢逾時
 #
@@ -246,9 +251,59 @@ def date_from_title(title: str, fallback):
 
 def fetch_feed():
     """
-    YouTube 的 RSS 對機房 IP 常常回 500，同一個網址用瀏覽器開卻正常。
-    這是他們對 datacenter IP 的節流，不是網址寫錯。所以必須重試，
-    而且要帶 User-Agent，不然更容易被擋。
+    取影片清單。優先走 YouTube Data API，因為 RSS 對 GitHub 機房 IP
+    會穩定回 404（不是暫時節流，重試無效）。沒有 API 金鑰才退回 RSS，
+    讓本機或非機房環境仍可運作。
+    """
+    if YOUTUBE_API_KEY:
+        try:
+            return fetch_feed_api()
+        except Exception as e:
+            print(f"  YouTube Data API 失敗（{e}），改用 RSS 備援")
+    return fetch_feed_rss()
+
+
+def fetch_feed_api():
+    """
+    用 uploads 播放清單列出最近上傳。頻道 ID 的 UC 開頭換成 UU 即為
+    該頻道的 uploads 播放清單 ID。單次 1 unit 配額，穩定不擋機房 IP。
+    """
+    if not CHANNEL_ID.startswith("UC"):
+        raise RuntimeError(f"頻道 ID {CHANNEL_ID} 非 UC 開頭，無法推出 uploads 播放清單")
+    uploads = "UU" + CHANNEL_ID[2:]
+    url = "https://www.googleapis.com/youtube/v3/playlistItems"
+    params = {"part": "snippet", "maxResults": 25, "playlistId": uploads, "key": YOUTUBE_API_KEY}
+
+    r = requests.get(url, params=params, timeout=30)
+    if r.status_code != 200:
+        raise RuntimeError(f"HTTP {r.status_code}：{r.text[:200]}")
+
+    items = r.json().get("items", [])
+    out = []
+    for it in items:
+        sn = it.get("snippet", {})
+        rid = sn.get("resourceId", {})
+        vid = rid.get("videoId")
+        if not vid:
+            continue
+        title = (sn.get("title") or "").strip()
+        published = sn.get("publishedAt")
+        rss_date = datetime.fromisoformat(published.replace("Z", "+00:00")).astimezone(TAIPEI).date()
+        out.append({
+            "id": vid,
+            "title": title,
+            "date": date_from_title(title, rss_date),
+            "rss_date": rss_date,
+            "url": f"https://www.youtube.com/watch?v={vid}",
+        })
+    out.sort(key=lambda v: v["date"], reverse=True)
+    print(f"  YouTube Data API 取得 {len(out)} 支影片")
+    return out
+
+
+def fetch_feed_rss():
+    """
+    RSS 備援。對機房 IP 常被擋，所以帶 User-Agent 並重試。
     """
     url = f"https://www.youtube.com/feeds/videos.xml?channel_id={CHANNEL_ID}"
     headers = {
@@ -846,35 +901,38 @@ price 或 reason 若逐字稿未提及，填「未說明」。
 }"""
 
 
-ARTICLE_SYSTEM = """你依據逐字稿與已擷取的操作紀錄，撰寫一份每日整理文字稿。
+ARTICLE_SYSTEM = """你只依據下方「已擷取的操作紀錄」撰寫一份每日整理文字稿。
+除了這份清單，你手上沒有任何其他資料來源，禁止列入清單以外的任何股票名稱或代號。
 
 章節順序固定，不可增刪或調換：
 ① 文章標題
 ② 基本資訊
 ③ 盤勢總覽重點整理
+   只能依據清單中各筆的理由摘錄與說明重點做歸納，不得引入清單以外的內容或個股。
 ④ 會員操作紀錄與持股明細
-   ④-1 影片中明講之「今日買賣紀錄」
-        僅記錄本支影片中有明講「今天」執行的買入或賣出。
-        若未提及任何進出紀錄，寫：「本支影片未說明當日具體買賣紀錄。」
+   ④-1 今日買賣紀錄
+        只列出清單 buy 與 sell 兩類的項目，一檔都不能多、不能少。
+        清單這兩類皆為空時，寫：「本支影片未說明當日具體買賣紀錄。」
         表格欄位固定：股票名稱、代號、方向、價位說明、理由摘錄。
-        某欄位影片未提供資料就填「未說明」。
-   ④-2 影片中明講之「會員目前持有股票」
-        僅列出影片中有明確說「會員目前持有」或明顯語意等同的股票。
-        若影片中完全沒提會員持股，寫：「本支影片未說明會員目前持股清單。」
+        某欄位清單裡是「未說明」就照填「未說明」。
+   ④-2 會員目前持有股票
+        只列出清單 holdings 類的項目，一檔都不能多、不能少。
+        清單 holdings 為空時，寫：「本支影片未說明會員目前持股清單。」
         表格欄位固定：股票名稱、代號、目前立場、說明重點。
 ⑤ 分析師操作邏輯與教學重點
+   只能根據清單各筆的理由摘錄與說明重點整理，不得自行補充清單以外的觀點或個股。
 ⑥ 風險揭露與重要提醒
 ⑦ 會員手中目前持有股票總表
    把 ④-2 的持股，加上 ④-1 當日買入的標的，合併列成一張表。
    與 ④ 重複是正常的，不需要迴避。
-   表格欄位固定：股票名稱、代號、來源（影片明講持有／今日買入）。
+   表格欄位固定：股票名稱、代號、來源（清單標示持有／今日買入）。
    若兩者都沒有，寫：「本支影片未說明。」
 
 所有表格使用 Markdown 表格。
-代號一律直接抄用我提供的「已擷取的操作紀錄」裡的 code 欄位，那是比對過官方清單的結果。
+代號一律直接抄用清單裡的 code 欄位，那是比對過官方清單的結果。
 不要自己判斷或修改代號。code 為「代號待確認」時就照樣寫「代號待確認」。
 
-嚴格禁止新增逐字稿中沒有的資訊，禁止提供任何投資建議、目標價或看多看空判斷。
+嚴格禁止新增清單中沒有的資訊，禁止提供任何投資建議、目標價或看多看空判斷。
 全文繁體中文，直接輸出，不要加開場白。
 不要使用 emoji，不要使用破折號，項目符號一律用實心圓點或數字。"""
 
@@ -894,9 +952,9 @@ def build_article(v2: str, signals: dict, date_str: str) -> str:
     return call_gemini(
         ARTICLE_SYSTEM,
         f"影片日期：{date_str}\n\n"
-        f"已擷取的操作紀錄（代號已比對官方清單，請直接引用，不要改動）：\n"
-        f"{json.dumps(clean, ensure_ascii=False, indent=2)}\n\n"
-        f"完整逐字稿：\n{v2}",
+        f"已擷取的操作紀錄（唯一資料來源，代號已比對官方清單，"
+        f"禁止列入清單以外的任何股票，禁止改動代號）：\n"
+        f"{json.dumps(clean, ensure_ascii=False, indent=2)}",
         thinking=0, tag="article",
     )
 

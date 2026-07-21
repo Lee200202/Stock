@@ -75,6 +75,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: 還原 NotebookLM 登入狀態
+        env:
+          NOTEBOOKLM_AUTH_JSON: ${{ secrets.NOTEBOOKLM_AUTH_JSON }}
+        run: |
+          mkdir -p ~/.notebooklm
+          printf '%s' "$NOTEBOOKLM_AUTH_JSON" > ~/.notebooklm/storage_state.json
+          test -s ~/.notebooklm/storage_state.json \
+            || { echo "NOTEBOOKLM_AUTH_JSON 是空的，請到 Secrets 貼上本機 storage_state.json 的完整內容"; exit 1; }
+
       - name: 執行每日流程
         env:
           NOTEBOOKLM_AUTH_JSON: ${{ secrets.NOTEBOOKLM_AUTH_JSON }}
@@ -82,6 +91,7 @@ jobs:
           GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
           YOUTUBE_CHANNEL_ID: ${{ vars.YOUTUBE_CHANNEL_ID }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           BACKFILL: ${{ github.event.inputs.backfill }}
           FINAL_ATTEMPT: ${{ github.event.inputs.final }}
           REPAIR_CODES: ${{ github.event.inputs.repair_codes }}

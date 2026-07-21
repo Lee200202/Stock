@@ -40,6 +40,10 @@ on:
         description: '只修代號待確認。不碰逐字稿、不呼叫 Gemini，幾十秒跑完'
         required: false
         default: 'false'
+      fill_blanks:
+        description: '逐一檢視影片清單，把缺原始或修飾後逐字稿的列補齊'
+        required: false
+        default: 'false'
 
 # 同一時間只允許一個工作在跑，後來的排隊。
 # 因為每次敲門最多 4 分鐘，10 分鐘的間隔足夠，不會堆積。
@@ -95,4 +99,5 @@ jobs:
           BACKFILL: ${{ github.event.inputs.backfill }}
           FINAL_ATTEMPT: ${{ github.event.inputs.final }}
           REPAIR_CODES: ${{ github.event.inputs.repair_codes }}
+          FILL_BLANKS: ${{ github.event.inputs.fill_blanks }}
         run: python pipeline.py

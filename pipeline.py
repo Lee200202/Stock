@@ -104,6 +104,10 @@ FINAL_ATTEMPT = os.environ.get("FINAL_ATTEMPT", "false").strip().lower() == "tru
 # 不碰 NotebookLM，不呼叫 Gemini，幾十秒就跑完。
 REPAIR_CODES = os.environ.get("REPAIR_CODES", "false").strip().lower() == "true"
 
+# 補空白模式。逐一檢視「影片清單」，凡是缺原始或修飾後逐字稿的列，
+# 重新抓取、潤飾並重跑擷取，把空白補齊。
+FILL_BLANKS = os.environ.get("FILL_BLANKS", "false").strip().lower() == "true"
+
 # YouTube Data API 金鑰。有設定就優先用它取影片清單，
 # 因為 RSS（feeds/videos.xml）對 GitHub 機房 IP 會穩定回 404，重試無效。
 # 沒設定則退回 RSS，維持本機或非機房環境可用。
@@ -123,7 +127,7 @@ YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY", "").strip()
 # ---------------------------------------------------------------- #
 POLL_TIMEOUT = 240
 FULL_TIMEOUT = 1800
-INDEX_TIMEOUT = FULL_TIMEOUT if (BACKFILL or FINAL_ATTEMPT) else POLL_TIMEOUT
+INDEX_TIMEOUT = FULL_TIMEOUT if (BACKFILL or FINAL_ATTEMPT or FILL_BLANKS) else POLL_TIMEOUT
 
 # 過了這個時間仍拿不到逐字稿，才判定今天真的沒有影片
 GIVE_UP_HOUR = 15
@@ -874,25 +878,46 @@ EXTRACT_SYSTEM = """你從一段完整的直播逐字稿中，擷取講者「明
 分類定義：
 - buy：影片中明講「今天」執行的買入。
 - sell：影片中明講「今天」執行的賣出。
-- watch：明講不碰、觀望、先看看的標的。
+- watch：明講不碰、觀望、先看看，或明確點名討論、看好、推薦、留意，但當天沒有買賣的「個股」。reason 註明立場，例如「看好，未執行買入」「觀望」。
 - holdings：明確說「會員目前持有」或語意明顯等同的股票。
+
+召回要求（很重要）：
+- 逐字稿是完整一小時內容。請從頭掃到尾，逐段檢視，中段與後段和開頭一樣重要，不可只看開頭。
+- 只要講者「指名到一檔上市櫃個股」，不論在哪個段落、用什麼語氣，都要收進來，歸到最貼近的分類。
+- 講者常先談族群再點名個股。例如先說「航運」再說「長榮、陽明」，此時長榮、陽明是個股，一定要收；只有在「完全沒有指名任何一檔」時才可以略過該族群。
+- 同一檔在不同段落被多次提到，以最能代表當天結論的那次為準，只收一筆，reason 可綜合。
 
 name 欄位請填逐字稿裡實際聽到的名稱，即使你覺得可能是同音錯字也照填，不要自行更正。
 code 欄位若逐字稿中講者有明講代號就填，沒有就留空字串。
 不要自己回想或推測代號，比對官方清單是後續程式的工作。
 
-只擷取「單一上市櫃公司」。以下這些不是個股，不要放進來：
+只擷取「單一上市櫃公司」。以下這些不是個股，若沒有指名個股就不要放進來：
 - 集團或控股：台塑集團、鴻海集團、遠東集團
 - 族群或概念：高速傳輸股、AI概念股、權值股、航運股、記憶體族群
 - 產業或技術縮寫：PMIC、ABF、CoWoS、HBM、光通訊
 - 指數與市場泛稱：大盤、加權指數、台股、美股、期貨、選擇權
-若講者只說了族群而沒有指名個股，該類就當作沒有提到，不要硬找一檔填。
 
 price 或 reason 若逐字稿未提及，填「未說明」。
 
-逐字稿是完整的一小時內容。請從頭掃到尾，中段與後段的操作紀錄一樣重要，不可只看開頭。
-
 只回傳 JSON，不要有其他文字：
+{
+  "buy":   [{"name":"", "code":"", "price":"", "reason":""}],
+  "sell":  [{"name":"", "code":"", "price":"", "reason":""}],
+  "watch": [{"name":"", "code":"", "price":"", "reason":""}],
+  "holdings": [{"name":"", "code":"", "stance":"", "note":""}]
+}"""
+
+
+AUDIT_SYSTEM = """你是擷取完整性稽核員。給你「完整逐字稿」與「已擷取的操作紀錄 JSON」。
+你的任務：找出逐字稿中「有明確指名、但已擷取 JSON 漏掉」的個股，只補漏，不重列。
+
+判斷規則與 EXTRACT 相同：
+- 只收單一上市櫃個股。純族群、概念、指數、集團若沒有指名個股，不算漏。
+- buy/sell 限「今天」明講執行的買賣；watch 收點名討論、看好、推薦、觀望、不碰但未買賣的個股；holdings 限明講會員持有。
+- 名稱照逐字稿實際講的填，不更正、不猜代號。
+- 已經在 JSON 裡的個股（以名稱或代號比對）不要再列。
+
+只回傳與 EXTRACT 相同結構的 JSON，內容「只包含漏掉的項目」；沒有漏就四個陣列全空：
 {
   "buy":   [{"name":"", "code":"", "price":"", "reason":""}],
   "sell":  [{"name":"", "code":"", "price":"", "reason":""}],
@@ -945,6 +970,42 @@ def extract_signals(v2: str, date_str: str) -> dict:
     )
     raw = re.sub(r"^```json|^```|```$", "", raw.strip(), flags=re.MULTILINE).strip()
     return json.loads(raw)
+
+
+def audit_signals(v2: str, signals: dict, date_str: str) -> dict:
+    """
+    完整性稽核：對照逐字稿，找出第一次擷取漏掉的個股，補進 signals。
+    這是為了避免像「航運股裡點名的個股」被漏掉。找不到漏就原樣返回。
+    """
+    clean = {k: signals.get(k, []) for k in ("buy", "sell", "watch", "holdings")}
+    try:
+        raw = call_gemini(
+            AUDIT_SYSTEM,
+            f"影片日期：{date_str}\n\n"
+            f"已擷取的操作紀錄 JSON：\n{json.dumps(clean, ensure_ascii=False)}\n\n"
+            f"完整逐字稿：\n{v2}",
+            want_json=True, thinking=0, tag="audit",
+        )
+        raw = re.sub(r"^```json|^```|```$", "", raw.strip(), flags=re.MULTILINE).strip()
+        missed = json.loads(raw)
+    except Exception as e:
+        print(f"  完整性稽核略過（{e}）")
+        return signals
+
+    added = 0
+    for cat in ("buy", "sell", "watch", "holdings"):
+        have = {str(x.get("name", "")).strip() for x in signals.get(cat, [])}
+        for item in missed.get(cat, []) or []:
+            nm = str(item.get("name", "")).strip()
+            if nm and nm not in have:
+                signals.setdefault(cat, []).append(item)
+                have.add(nm)
+                added += 1
+    if added:
+        print(f"  完整性稽核補回 {added} 檔第一次擷取漏掉的個股")
+    else:
+        print("  完整性稽核：無漏抓")
+    return signals
 
 
 def build_article(v2: str, signals: dict, date_str: str) -> str:
@@ -1030,6 +1091,7 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds):
         return
 
     signals = extract_signals(v2, date_str)
+    signals = audit_signals(v2, signals, date_str)
     signals = resolve_signals(signals)
     signals["_video_id"] = video["id"]
     article = build_article(v2, signals, date_str)
@@ -1065,7 +1127,58 @@ def process_one(ss, video, done_trades, done_holds):
 # ---------------------------------------------------------------- #
 # 純修代號
 # ---------------------------------------------------------------- #
-def repair_codes_only(ss):
+def fill_video_blanks(ss):
+    """
+    逐一檢視「影片清單」，把缺原始或修飾後逐字稿的列補齊，
+    並在該日尚未擷取時補跑擷取。不動已完整的列。
+    """
+    done_trades = existing_dates(ss, "操作紀錄")
+    done_holds = existing_dates(ss, "會員持股")
+
+    targets = []
+    for r in video_rows(ss):
+        vid = str(r.get("影片ID") or "").strip()
+        if not vid or vid.startswith("NO_VIDEO_"):
+            continue
+        v1 = str(r.get("原始逐字稿內容") or "").strip()
+        v2 = str(r.get("修飾後逐字稿內容") or "").strip()
+        if len(v1) > 200 and len(v2) > 200:
+            continue
+        targets.append(r)
+
+    if not targets:
+        print("影片清單沒有需要補的空白")
+        return
+
+    print(f"影片清單待補空白 {len(targets)} 支")
+    for r in targets:
+        vid = str(r.get("影片ID")).strip()
+        title = str(r.get("標題") or "")
+        ds = norm_date(r.get("發布日期"))
+        if not ds:
+            m = TITLE_DATE.search(title)
+            if m:
+                ds = f"{m.group(1)}/{int(m.group(2)):02d}/{int(m.group(3)):02d}"
+        if not ds:
+            print(f"  {vid} 無法判斷日期，略過")
+            continue
+
+        video = {
+            "id": vid,
+            "title": title,
+            "date": datetime.strptime(ds, "%Y/%m/%d").date(),
+            "url": f"https://www.youtube.com/watch?v={vid}",
+        }
+        print(f"\n--- 補空白 {ds}　{vid} ---")
+        try:
+            process_one(ss, video, done_trades, done_holds)
+        except NotReadyYet as e:
+            print(f"  逐字稿尚未就緒，稍後再補：{e}")
+        except Exception as e:
+            print(f"  補空白失敗：{e}")
+
+
+
     """
     不碰 NotebookLM，不呼叫 Gemini，只把試算表既有的股票名稱
     重跑一次 resolve_code。
@@ -1169,6 +1282,11 @@ def main():
     if REPAIR_CODES:
         print("模式：純修代號。不碰 NotebookLM，不呼叫 Gemini。")
         repair_codes_only(ss)
+        return
+
+    if FILL_BLANKS:
+        print("模式：補空白。逐一檢視影片清單，補齊缺逐字稿的列。")
+        fill_video_blanks(ss)
         return
 
     feed = [v for v in fetch_feed() if is_target(v["title"])]

@@ -1333,7 +1333,7 @@ def fill_video_blanks(ss):
             print(f"  補空白失敗：{e}")
 
 
-
+def repair_codes_only(ss):
     """
     不碰 NotebookLM，不呼叫 Gemini，只把試算表既有的股票名稱
     重跑一次 resolve_code。
@@ -1439,6 +1439,15 @@ def main():
     ss = open_sheets()
     _SS = ss
     write_status_log(ss, "開始", "本輪開始執行")
+
+    # 這三個是互斥模式，同時勾選只有第一個會生效。
+    # 先前就發生過三個都勾、結果只跑了修代號的情況，所以這裡明講。
+    picked = [n for n, on in (("repair_codes", REPAIR_CODES),
+                              ("fill_blanks", FILL_BLANKS),
+                              ("backfill", BACKFILL)) if on]
+    if len(picked) > 1:
+        print(f"注意：同時勾選了 {'、'.join(picked)}，這些是互斥模式，"
+              f"本輪只會執行「{picked[0]}」。其餘請分次執行。")
 
     if REPAIR_CODES:
         print("模式：純修代號。不碰 NotebookLM，不呼叫 Gemini。")

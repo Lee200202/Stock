@@ -115,6 +115,12 @@ REPAIR_CODES = os.environ.get("REPAIR_CODES", "false").strip().lower() == "true"
 # 重新抓取、潤飾並重跑擷取，把空白補齊。
 FILL_BLANKS = os.environ.get("FILL_BLANKS", "false").strip().lower() == "true"
 
+# 重新分類模式。用試算表已存的「修飾後逐字稿」重跑擷取，
+# 把舊資料套用新版規則（例如觀望拆成觀望不碰與觀望注意），
+# 並覆蓋該日的操作紀錄、會員持股與每日推播內容。
+# 不碰 NotebookLM，所以不需要登入憑證，也不會重抓影片。
+RECLASSIFY = os.environ.get("RECLASSIFY", "false").strip().lower() == "true"
+
 # YouTube Data API 金鑰。有設定就優先用它取影片清單，
 # 因為 RSS（feeds/videos.xml）對 GitHub 機房 IP 會穩定回 404，重試無效。
 # 沒設定則退回 RSS，維持本機或非機房環境可用。
@@ -1187,8 +1193,29 @@ def build_article(v2: str, signals: dict, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 # 寫入
 # ---------------------------------------------------------------- #
-def write_results(ss, date_str, signals, article, done_trades, done_holds):
+def delete_rows_for_date(ss, sheet_name, date_str, date_col=1):
+    """把某一天的資料整批刪掉，供重新分類時覆蓋用。由後往前刪避免列號位移。"""
+    ws = ss.worksheet(sheet_name)
+    values = sheets_retry(ws.get_all_values)
+    targets = [i for i in range(len(values) - 1, 0, -1)
+               if norm_date(values[i][date_col - 1]) == date_str]
+    for r in targets:
+        sheets_retry(ws.delete_rows, r + 1)
+    if targets:
+        print(f"  {sheet_name} 刪除 {len(targets)} 筆舊資料")
+    return len(targets)
+
+
+def write_results(ss, date_str, signals, article, done_trades, done_holds, replace=False):
     video_id = signals.get("_video_id", "")
+
+    if replace:
+        # 重新分類：先清掉該日舊資料，再用新版規則寫回
+        delete_rows_for_date(ss, "操作紀錄", date_str)
+        delete_rows_for_date(ss, "會員持股", date_str)
+        delete_rows_for_date(ss, "每日推播內容", date_str)
+        done_trades.discard(date_str)
+        done_holds.discard(date_str)
 
     if date_str in done_trades:
         print(f"{date_str} 操作紀錄已存在，不重複寫入")
@@ -1350,6 +1377,58 @@ def fill_video_blanks(ss):
             print(f"  補空白失敗：{e}")
 
 
+def reclassify_from_transcripts(ss):
+    """
+    用試算表已存的「修飾後逐字稿」重跑擷取，把舊資料套用新版規則。
+    不呼叫 NotebookLM，所以不需要登入憑證，也不會重抓影片。
+    每一天處理完就立刻覆蓋寫回，中途失敗不會影響已完成的日期。
+    """
+    done_trades = existing_dates(ss, "操作紀錄")
+    done_holds = existing_dates(ss, "會員持股")
+
+    targets = []
+    for r in video_rows(ss):
+        vid = str(r.get("影片ID") or "").strip()
+        if not vid or vid.startswith("NO_VIDEO_"):
+            continue
+        v2 = str(r.get("修飾後逐字稿內容") or "").strip()
+        if len(v2) < 200:
+            continue
+        ds = norm_date(r.get("發布日期"))
+        if not ds:
+            m = TITLE_DATE.search(str(r.get("標題") or ""))
+            if m:
+                ds = f"{m.group(1)}/{int(m.group(2)):02d}/{int(m.group(3)):02d}"
+        if not ds:
+            continue
+        targets.append({"id": vid, "date": ds, "v2": v2})
+
+    if not targets:
+        print("沒有可重新分類的逐字稿。請先確認影片清單的「修飾後逐字稿內容」有值。")
+        return
+
+    targets.sort(key=lambda t: t["date"])
+    print(f"重新分類：共 {len(targets)} 天有逐字稿可重跑")
+
+    ok = 0
+    for t in targets:
+        print(f"\n--- 重新分類 {t['date']}（逐字稿 {len(t['v2'])} 字）---")
+        try:
+            signals = extract_signals(t["v2"], t["date"])
+            signals = audit_signals(t["v2"], signals, t["date"])
+            signals = resolve_signals(signals)
+            signals["_video_id"] = t["id"]
+            article = build_article(t["v2"], signals, t["date"])
+            write_results(ss, t["date"], signals, article,
+                          done_trades, done_holds, replace=True)
+            ok += 1
+        except Exception as e:
+            print(f"  {t['date']} 重新分類失敗，保留原資料：{e}")
+
+    print(f"\n重新分類完成 {ok}/{len(targets)} 天")
+    print("接著請到 Apps Script 執行 rebuildHoldingsTrackerJob()，讓持股追蹤反映新分類。")
+
+
 def repair_codes_only(ss):
     """
     不碰 NotebookLM，不呼叫 Gemini，只把試算表既有的股票名稱
@@ -1460,6 +1539,7 @@ def main():
     # 這三個是互斥模式，同時勾選只有第一個會生效。
     # 先前就發生過三個都勾、結果只跑了修代號的情況，所以這裡明講。
     picked = [n for n, on in (("repair_codes", REPAIR_CODES),
+                              ("reclassify", RECLASSIFY),
                               ("fill_blanks", FILL_BLANKS),
                               ("backfill", BACKFILL)) if on]
     if len(picked) > 1:
@@ -1469,6 +1549,12 @@ def main():
     if REPAIR_CODES:
         print("模式：純修代號。不碰 NotebookLM，不呼叫 Gemini。")
         repair_codes_only(ss)
+        return
+
+    if RECLASSIFY:
+        print("模式：重新分類。用已存的修飾後逐字稿重跑擷取，套用新版規則。")
+        print("不呼叫 NotebookLM，不需要登入憑證。")
+        reclassify_from_transcripts(ss)
         return
 
     if FILL_BLANKS:

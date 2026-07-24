@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import random
 import re
 import sys
 import time
@@ -76,8 +77,14 @@ REJECT = "__REJECT__"
 GEMINI_MODEL = "gemini-2.5-flash"
 
 # 潤飾切塊大小。逐字稿標點稀疏時靠 CHUNK_HARD 保底。
-CHUNK_SIZE = 5000
-CHUNK_HARD = 7500
+# 切得越大段數越少、呼叫次數越少，撞每分鐘配額的機會就越低，
+# 但單段輸出也越長。7000/9500 是兼顧兩者的設定。
+CHUNK_SIZE = 7000
+CHUNK_HARD = 9500
+
+# 段與段之間的間隔秒數。免費配額按每分鐘請求數計算，
+# 拉開間隔比事後重試有效得多。
+POLISH_GAP = 8
 
 # gemini-2.5-flash 輸出上限 65,535 tokens
 MAX_OUT = 65535
@@ -136,6 +143,32 @@ GIVE_UP_HOUR = 15
 class NotReadyYet(Exception):
     """VOD 還沒好。這不是錯誤，是還沒輪到。工作要顯示綠色。"""
     pass
+
+
+class RateLimited(Exception):
+    """Gemini 配額用盡（HTTP 429）。退避後仍失敗，代表這段時間內配額真的不夠。"""
+    pass
+
+
+class AuthExpired(Exception):
+    """
+    NotebookLM 登入狀態失效。Google 的 session cookie 有壽命，
+    大約數週會過期，也可能因為異地登入被提前作廢。
+    這種錯誤重試沒有用，必須換一份新的 storage_state.json。
+    """
+    pass
+
+
+AUTH_HINTS = (
+    "authentication expired", "authentication invalid", "not authenticated",
+    "accounts.google.com", "notebooklm login", "re-authenticate",
+    "unauthorized", "401", "403", "sign in", "login required",
+)
+
+
+def looks_like_auth_error(e) -> bool:
+    m = str(e).lower()
+    return any(k in m for k in AUTH_HINTS)
 
 
 # ---------------------------------------------------------------- #
@@ -215,6 +248,29 @@ def mark_status(ss, video_id, published, title, status, reason=""):
         sheets_retry(ws.append_row, [video_id, published, title, status, reason, "", ""])
     else:
         sheets_retry(ws.update, range_name=f"D{idx}:E{idx}", values=[[status, reason]])
+
+
+def write_status_log(ss, kind: str, detail: str = ""):
+    """
+    每一輪執行都往「系統狀態」寫一列。Apps Script 讀這張表，
+    就能在不接觸 GitHub 的情況下寄出健康狀態信與認證過期告警。
+    寫入失敗不可影響主流程。
+    """
+    try:
+        try:
+            ws = ss.worksheet("系統狀態")
+        except Exception:
+            ws = sheets_retry(ss.add_worksheet, title="系統狀態", rows=2000, cols=6)
+            sheets_retry(ws.append_row, ["時間", "類別", "說明", "模式", "執行環境"])
+        mode = ("補空白" if FILL_BLANKS else "回補" if BACKFILL else
+                "修代號" if REPAIR_CODES else "長逾時手動" if FINAL_ATTEMPT else "排程輪詢")
+        where = "GitHub Actions" if os.environ.get("GITHUB_ACTIONS") else "本機"
+        sheets_retry(ws.append_row, [
+            datetime.now(TAIPEI).strftime("%Y/%m/%d %H:%M:%S"),
+            kind, str(detail)[:800], mode, where,
+        ])
+    except Exception as e:
+        print(f"  （系統狀態寫入失敗，不影響主流程：{e}）")
 
 
 def cell(text: str) -> str:
@@ -377,15 +433,32 @@ async def fetch_fulltext(video_url, title, timeout):
     """
     from notebooklm import NotebookLMClient
 
-    async with NotebookLMClient.from_storage() as client:
-        notebook = await client.notebooks.create(title=title)
+    try:
+        client_cm = NotebookLMClient.from_storage()
+    except Exception as e:
+        if looks_like_auth_error(e):
+            raise AuthExpired(str(e)[:300])
+        raise
+
+    async with client_cm as client:
+        try:
+            notebook = await client.notebooks.create(title=title)
+        except Exception as e:
+            if looks_like_auth_error(e):
+                raise AuthExpired(str(e)[:300])
+            raise
         try:
             try:
                 source = await client.sources.add_url(
                     notebook.id, video_url, wait=True, wait_timeout=timeout
                 )
+            except NotReadyYet:
+                raise
             except Exception as e:
                 msg = str(e).lower()
+                # 認證失效要先判，否則會被下面的關鍵字誤判成「還沒好」而無限重試
+                if looks_like_auth_error(e):
+                    raise AuthExpired(str(e)[:300])
                 # 逾時、還在處理、佇列中，都代表 VOD 還沒好，不是壞掉
                 if any(k in msg for k in ("timeout", "timed out", "processing", "pending", "queue")):
                     raise NotReadyYet(f"NotebookLM 在 {timeout} 秒內尚未完成索引")
@@ -435,18 +508,42 @@ def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX
     }
 
     last = ""
-    for delay in (0, 5, 15, 40):
+    # 429 是「這一分鐘打太多」，退避要夠長才有意義。
+    # 原本 5/15/40 秒對免費配額太短，常常四次都撞在同一個配額窗口內。
+    for attempt, delay in enumerate((0, 12, 30, 75, 150, 240)):
         if delay:
-            time.sleep(delay)
+            # 加抖動，避免多個請求在同一秒同時醒來又一起撞牆
+            time.sleep(delay + random.uniform(0, 5))
 
-        r = requests.post(url, json=body, timeout=600)
+        try:
+            r = requests.post(url, json=body, timeout=600)
+        except requests.RequestException as e:
+            last = f"連線錯誤 {type(e).__name__}"
+            print(f"Gemini {tag} {last}，重試中")
+            continue
 
         if r.status_code != 200:
             last = f"HTTP {r.status_code}"
             if r.status_code not in TRANSIENT:
                 # 錯誤訊息不含金鑰，也不回傳原始回應內容
                 raise RuntimeError(f"Gemini 呼叫失敗（{tag}）：{last}")
-            print(f"Gemini {tag} 回傳 {r.status_code}，重試中")
+
+            # 伺服器指定的等待秒數優先於我們的表定退避
+            wait_hint = 0
+            try:
+                wait_hint = int(float(r.headers.get("Retry-After", 0)))
+            except Exception:
+                wait_hint = 0
+            if not wait_hint:
+                m = re.search(r'"retryDelay"\s*:\s*"(\d+)s"', r.text or "")
+                if m:
+                    wait_hint = int(m.group(1))
+            if wait_hint:
+                wait_hint = min(wait_hint, 300)
+                print(f"Gemini {tag} 回傳 {r.status_code}，伺服器要求等待 {wait_hint} 秒")
+                time.sleep(wait_hint + random.uniform(0, 3))
+            else:
+                print(f"Gemini {tag} 回傳 {r.status_code}，第 {attempt + 1} 次重試")
             continue
 
         data = r.json()
@@ -475,6 +572,8 @@ def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX
             raise RuntimeError(f"Gemini 回傳空內容（{tag}）")
         return text
 
+    if "429" in last:
+        raise RateLimited(f"Gemini 配額用盡（{tag}）：{last}")
     raise RuntimeError(f"Gemini 連續重試失敗（{tag}）：{last}")
 
 
@@ -837,18 +936,39 @@ POLISH_SYSTEM = """你負責整理一段中文直播逐字稿的其中一個片�
 不要加開場白、結語、標題、片段編號或任何說明。"""
 
 
+POLISH_DEGRADED = 0     # 本輪有幾段因配額不足而改用原文
+
+
 def polish(transcript: str) -> str:
+    """
+    逐段潤飾。某一段撞到配額上限時，改用原文那一段繼續，不讓整輪失敗。
+    理由：內容完整度（後續擷取靠它）比可讀性重要，而且整輪失敗會連already
+    拿到的逐字稿都寫不進去，下一輪又要重抓一次，反而更容易再撞配額。
+    """
+    global POLISH_DEGRADED
+    POLISH_DEGRADED = 0
+
     chunks = split_transcript(transcript)
     print(f"逐字稿 {len(transcript)} 字，切成 {len(chunks)} 段送出潤飾")
 
     out = []
     for i, c in enumerate(chunks, 1):
-        r = call_gemini(POLISH_SYSTEM, c, thinking=0, tag=f"polish {i}/{len(chunks)}")
-        cr = len(r) / max(len(c), 1)
-        flag = "" if cr >= RATIO_WARN else "  ← 這段壓縮偏多"
-        print(f"潤飾第 {i}/{len(chunks)} 段：{len(c)} → {len(r)} 字（{cr:.0%}）{flag}")
-        out.append(r)
-        time.sleep(1)
+        try:
+            r = call_gemini(POLISH_SYSTEM, c, thinking=0, tag=f"polish {i}/{len(chunks)}")
+            cr = len(r) / max(len(c), 1)
+            flag = "" if cr >= RATIO_WARN else "  ← 這段壓縮偏多"
+            print(f"潤飾第 {i}/{len(chunks)} 段：{len(c)} → {len(r)} 字（{cr:.0%}）{flag}")
+            out.append(r)
+        except RateLimited as e:
+            POLISH_DEGRADED += 1
+            print(f"潤飾第 {i}/{len(chunks)} 段配額不足，改用原文保留內容（{e}）")
+            out.append(c)
+        # 段間節流。免費配額是每分鐘計次，段與段之間拉開就少撞牆。
+        time.sleep(POLISH_GAP)
+
+    if POLISH_DEGRADED:
+        print(f"注意：本次有 {POLISH_DEGRADED}/{len(chunks)} 段未潤飾，"
+              f"內容完整但可讀性較差。稍後可用 fill_blanks 或 backfill 重跑改善。")
 
     joined = "\n".join(out)
     ratio = len(joined) / max(len(transcript), 1)
@@ -926,40 +1046,68 @@ AUDIT_SYSTEM = """你是擷取完整性稽核員。給你「完整逐字稿」�
 }"""
 
 
-ARTICLE_SYSTEM = """你只依據下方「已擷取的操作紀錄」撰寫一份每日整理文字稿。
-除了這份清單，你手上沒有任何其他資料來源，禁止列入清單以外的任何股票名稱或代號。
+ARTICLE_SYSTEM = """你是一位專業財經記者與投顧整理編輯，負責撰寫「張震 股市盤中家教班」
+每日影音內容的文字稿，語氣與結構貼近 168 聚財網 168-TV 欄位中張震相關文章的風格。
 
-章節順序固定，不可增刪或調換：
+資料來源限制（最重要）：
+你只依據下方「已擷取的操作紀錄」撰寫。除了這份清單，你沒有任何其他資料來源。
+禁止列入清單以外的任何股票名稱或代號，禁止引用其他日期的內容，
+禁止創造清單中沒有的價位、操作紀錄或會員持股。
+禁止產出含糊語句，例如可能有、應該是、大約。
+某一段資訊清單中沒有時，明確寫「本段內容：本支影片未說明，故不予記錄。」
+
+全文繁體中文。章節標題與表格欄位名稱完全照下列格式，不可省略或改名，依序輸出：
+
 ① 文章標題
+   觀察清單中的核心主題與關鍵字，產出 1 個具體標題，風格參考
+   「張震：換手太明顯，這就是財富重分配！」這類語氣，但不可直接複製。
+   輸出一行：文章標題：（你產生的標題）
+
 ② 基本資訊
+   以條列輸出：
+   節目名稱：張震 股市盤中家教班
+   播出平台：YouTube 直播 / 影片
+   播出日期：依提供的影片日期填寫
+   主要講者：張震
+   節目簡述：2 到 3 句，說明本集聚焦的主題與盤勢情境，只能根據清單內容歸納。
+
 ③ 盤勢總覽重點整理
-   只能依據清單中各筆的理由摘錄與說明重點做歸納，不得引入清單以外的內容或個股。
+   依清單中各筆的理由摘錄與說明重點，整理 3 到 7 點條列。
+   不得引入清單以外的個股、指數數據或外資動向。
+   清單資訊不足以支撐某一點時，就不要寫那一點。
+
 ④ 會員操作紀錄與持股明細
-   ④-1 今日買賣紀錄
-        只列出清單 buy 與 sell 兩類的項目，一檔都不能多、不能少。
-        清單這兩類皆為空時，寫：「本支影片未說明當日具體買賣紀錄。」
-        表格欄位固定：股票名稱、代號、方向、價位說明、理由摘錄。
-        某欄位清單裡是「未說明」就照填「未說明」。
-   ④-2 會員目前持有股票
-        只列出清單 holdings 類的項目，一檔都不能多、不能少。
-        清單 holdings 為空時，寫：「本支影片未說明會員目前持股清單。」
-        表格欄位固定：股票名稱、代號、目前立場、說明重點。
+   ④-1 當日明確說明之買入／賣出紀錄
+       只列出清單 buy 與 sell 兩類的項目，一檔都不能多、不能少。
+       兩類皆為空時，寫：「本支影片未說明當日具體買賣紀錄。」
+       表格欄位固定，完全照這個順序與名稱：
+       | 動作類型 | 股票名稱 | 股票代號 | 方向（買入／賣出） | 價位區間／成本說明 | 張震口頭說明與操作理由（摘錄重點） |
+       某欄位清單裡是「未說明」就照填「未說明」。
+   ④-2 影片中明講之「會員目前持有股票」
+       只列出清單 holdings 類的項目，一檔都不能多、不能少。
+       為空時，寫：「本支影片未說明會員目前持股清單。」
+       表格欄位固定，完全照這個順序與名稱：
+       | 股票名稱 | 股票代號 | 目前立場（續抱／加碼觀察／分批調節等） | 張震在本集節目中的說明重點 |
+
 ⑤ 分析師操作邏輯與教學重點
-   只能根據清單各筆的理由摘錄與說明重點整理，不得自行補充清單以外的觀點或個股。
+   將清單中的理由摘錄與說明重點，整理為 3 到 8 點條列，格式：
+   觀念一：（簡短標題）
+     說明：（2 到 3 句，忠實轉述清單內容）
+   不得自行補充清單以外的觀點、個股或散戶提醒。
+
 ⑥ 風險揭露與重要提醒
-⑦ 會員手中目前持有股票總表
-   把 ④-2 的持股，加上 ④-1 當日買入的標的，合併列成一張表。
-   與 ④ 重複是正常的，不需要迴避。
-   表格欄位固定：股票名稱、代號、來源（清單標示持有／今日買入）。
-   若兩者都沒有，寫：「本支影片未說明。」
+   必須包含下列兩點：
+   本文章內容僅為整理節目中之公開資訊與觀點，不構成任何形式之投資建議或獲利保證。
+   實際投資操作須自行評估風險與財務狀況，必要時請諮詢專業投資顧問。
+   清單中若有風險控管或警語相關內容，接著條列整理。
 
 所有表格使用 Markdown 表格。
-代號一律直接抄用清單裡的 code 欄位，那是比對過官方清單的結果。
-不要自己判斷或修改代號。code 為「代號待確認」時就照樣寫「代號待確認」。
-
-嚴格禁止新增清單中沒有的資訊，禁止提供任何投資建議、目標價或看多看空判斷。
-全文繁體中文，直接輸出，不要加開場白。
-不要使用 emoji，不要使用破折號，項目符號一律用實心圓點或數字。"""
+股票代號一律直接抄用清單裡的 code 欄位，那是比對過官方清單的結果，
+不要自己判斷或修改。code 為「代號待確認」時就照樣寫「代號待確認」。
+每個章節以條列與短段落結合呈現，避免單一超長段落。
+禁止提供任何投資建議、目標價或看多看空判斷。
+直接輸出，不要加開場白。不要使用 emoji，不要使用破折號，
+項目符號一律用實心圓點或數字。"""
 
 
 def extract_signals(v2: str, date_str: str) -> dict:
@@ -1110,6 +1258,9 @@ def process_one(ss, video, done_trades, done_holds):
         print(f"尚未就緒：{e}")
         print("這是正常的，直播結束後 YouTube 要一段時間轉檔。下一輪排程會再試。")
         raise
+    except AuthExpired as e:
+        mark_status(ss, video["id"], date_str, video["title"], "認證過期", str(e)[:400])
+        raise
     except Exception as e:
         mark_status(ss, video["id"], date_str, video["title"], "失敗", str(e)[:400])
         raise
@@ -1117,7 +1268,11 @@ def process_one(ss, video, done_trades, done_holds):
     try:
         mark_status(ss, video["id"], date_str, video["title"], "處理中")
         stage_extract(ss, video, date_str, v2, done_trades, done_holds)
-        mark_status(ss, video["id"], date_str, video["title"], "完成")
+        if POLISH_DEGRADED:
+            mark_status(ss, video["id"], date_str, video["title"], "完成",
+                        f"有 {POLISH_DEGRADED} 段因配額不足未潤飾，建議稍後重跑")
+        else:
+            mark_status(ss, video["id"], date_str, video["title"], "完成")
         print(f"完成 {video['id']}")
     except Exception as e:
         mark_status(ss, video["id"], date_str, video["title"], "失敗", str(e)[:400])
@@ -1273,11 +1428,17 @@ def fill_video_blanks(ss):
 # ---------------------------------------------------------------- #
 # 主流程
 # ---------------------------------------------------------------- #
+_SS = None      # 供 __main__ 的例外處理寫入系統狀態用
+
+
 def main():
+    global _SS
     src = "Variables" if os.environ.get("YOUTUBE_CHANNEL_ID", "").strip() else "內建預設值"
     print(f"頻道 ID：{CHANNEL_ID}（{src}）")
 
     ss = open_sheets()
+    _SS = ss
+    write_status_log(ss, "開始", "本輪開始執行")
 
     if REPAIR_CODES:
         print("模式：純修代號。不碰 NotebookLM，不呼叫 Gemini。")
@@ -1350,10 +1511,27 @@ def main():
 if __name__ == "__main__":
     try:
         main()
+        if _SS is not None:
+            write_status_log(_SS, "完成", f"本輪正常結束（未潤飾段數 {POLISH_DEGRADED}）")
     except NotReadyYet as e:
         # 綠燈離開。VOD 還沒好不是壞掉，不該亮紅燈，也不該觸發失敗告警。
         print(f"本輪未取得逐字稿：{e}")
+        if _SS is not None:
+            write_status_log(_SS, "等待中", str(e))
         sys.exit(0)
+    except AuthExpired as e:
+        # 認證過期。重試沒有用，必須換新的 storage_state.json。
+        print("流程失敗：NotebookLM 登入狀態已失效，需要重新產生 storage_state.json "
+              "並更新 GitHub Secret NOTEBOOKLM_AUTH_JSON。", file=sys.stderr)
+        print(f"原始訊息：{e}", file=sys.stderr)
+        if _SS is not None:
+            write_status_log(_SS, "認證過期",
+                             "NotebookLM 登入狀態失效，請在本機執行 notebooklm login "
+                             "後，把新的 storage_state.json 內容更新到 GitHub Secret "
+                             "NOTEBOOKLM_AUTH_JSON。原始訊息：" + str(e))
+        sys.exit(1)
     except Exception as e:
         print(f"流程失敗：{e}", file=sys.stderr)
+        if _SS is not None:
+            write_status_log(_SS, "失敗", str(e))
         sys.exit(1)

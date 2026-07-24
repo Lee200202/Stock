@@ -142,6 +142,21 @@ POLL_TIMEOUT = 240
 FULL_TIMEOUT = 1800
 INDEX_TIMEOUT = FULL_TIMEOUT if (BACKFILL or FINAL_ATTEMPT or FILL_BLANKS) else POLL_TIMEOUT
 
+# 整體時間預算。GitHub Actions 單一 job 上限 60 分鐘，超過會被強制中斷、
+# 亮紅燈，而且當下正在處理的那一天可能寫到一半。所以我們自己在 50 分鐘處
+# 主動收尾：處理完手上這一支就停，把「還沒輪到的」留給下一輪或下一次執行。
+# 這樣永遠不會撞到 GitHub 的硬上限。
+RUN_STARTED = time.monotonic()
+TIME_BUDGET = int(os.environ.get("TIME_BUDGET_SEC", "3000"))   # 50 分鐘
+
+
+def budget_left() -> float:
+    return TIME_BUDGET - (time.monotonic() - RUN_STARTED)
+
+
+def out_of_budget() -> bool:
+    return budget_left() <= 0
+
 # 過了這個時間仍拿不到逐字稿，才判定今天真的沒有影片
 GIVE_UP_HOUR = 15
 
@@ -518,6 +533,12 @@ def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX
     # 原本 5/15/40 秒對免費配額太短，常常四次都撞在同一個配額窗口內。
     for attempt, delay in enumerate((0, 12, 30, 75, 150, 240)):
         if delay:
+            # 如果等下去就會超過整體時間預算，不如現在就放棄這一段，
+            # 讓上層決定降級或收尾，總比等到一半被 GitHub 硬砍好。
+            if delay > budget_left() - 10:
+                last = last or "HTTP 429"
+                print(f"Gemini {tag} 退避 {delay} 秒會超出時間預算，提前放棄本段")
+                break
             # 加抖動，避免多個請求在同一秒同時醒來又一起撞牆
             time.sleep(delay + random.uniform(0, 5))
 
@@ -1351,6 +1372,9 @@ def fill_video_blanks(ss):
 
     print(f"影片清單待補空白 {len(targets)} 支")
     for r in targets:
+        if out_of_budget():
+            print(f"時間預算用盡，本輪先停，剩下的下次再補。")
+            break
         vid = str(r.get("影片ID")).strip()
         title = str(r.get("標題") or "")
         ds = norm_date(r.get("發布日期"))
@@ -1412,6 +1436,10 @@ def reclassify_from_transcripts(ss):
 
     ok = 0
     for t in targets:
+        if out_of_budget():
+            print(f"\n時間預算用盡（已跑約 {int((time.monotonic()-RUN_STARTED)/60)} 分），"
+                  f"本輪先停在這裡，剩下 {len(targets)-ok} 天下次再跑。")
+            break
         print(f"\n--- 重新分類 {t['date']}（逐字稿 {len(t['v2'])} 字）---")
         try:
             signals = extract_signals(t["v2"], t["date"])
@@ -1591,6 +1619,9 @@ def main():
         print(f"回補模式：共 {len(targets)} 支")
         targets.sort(key=lambda v: v["date"])       # 由舊到新，維持試算表時序
         for v in targets:
+            if out_of_budget():
+                print("時間預算用盡，本輪先停，剩下的下次再補。")
+                break
             process_one(ss, v, done_trades, done_holds)
         return
 

@@ -44,6 +44,10 @@ on:
         description: '逐一檢視影片清單，把缺原始或修飾後逐字稿的列補齊'
         required: false
         default: 'false'
+      reclassify:
+        description: '用已存的逐字稿重跑擷取，讓舊資料套用新規則（觀望拆兩類）。不需登入憑證'
+        required: false
+        default: 'false'
 
 # 同一時間只允許一個工作在跑，後來的排隊。
 # 因為每次敲門最多 4 分鐘，10 分鐘的間隔足夠，不會堆積。
@@ -100,4 +104,5 @@ jobs:
           FINAL_ATTEMPT: ${{ github.event.inputs.final }}
           REPAIR_CODES: ${{ github.event.inputs.repair_codes }}
           FILL_BLANKS: ${{ github.event.inputs.fill_blanks }}
+          RECLASSIFY: ${{ github.event.inputs.reclassify }}
         run: python pipeline.py

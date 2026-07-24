@@ -60,7 +60,7 @@ jobs:
     runs-on: ubuntu-latest
     # 輪詢階段每次都很短。真的抓到逐字稿時，潤飾加擷取約 10 到 20 分鐘。
     # 60 分鐘足夠，同時避免卡死的工作長時間佔住 concurrency 佇列。
-    timeout-minutes: 60
+    timeout-minutes: 55
 
     steps:
       - name: 記錄排程與實際執行時間

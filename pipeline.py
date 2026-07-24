@@ -882,7 +882,7 @@ def resolve_signals(signals: dict) -> dict:
     """每一筆都跑代號比對。判定為非個股的整筆剔除，不寫進試算表。"""
     stat = {"命中": 0, "修正": 0, "待確認": 0, "剔除": 0}
 
-    for key in ("buy", "sell", "watch", "holdings"):
+    for key in ("buy", "sell", "watch_avoid", "watch_watch", "holdings"):
         kept = []
         for r in signals.get(key, []):
             raw = str(r.get("name", "")).strip()
@@ -998,8 +998,14 @@ EXTRACT_SYSTEM = """你從一段完整的直播逐字稿中，擷取講者「明
 分類定義：
 - buy：影片中明講「今天」執行的買入。
 - sell：影片中明講「今天」執行的賣出。
-- watch：明講不碰、觀望、先看看，或明確點名討論、看好、推薦、留意，但當天沒有買賣的「個股」。reason 註明立場，例如「看好，未執行買入」「觀望」。
+- watch_avoid（觀望不碰）：語氣偏空、偏負面。明講不要碰、不建議進場、風險高、
+  轉弱、破線、套牢、避開、先出場觀察這類，情緒偏悲觀的個股。
+- watch_watch（觀望注意）：語氣偏多、偏正面，但當天沒有執行買賣。明講看好、
+  留意、追蹤、等回檔進場、有機會、可以觀察這類，情緒偏正向的個股。
 - holdings：明確說「會員目前持有」或語意明顯等同的股票。
+
+觀望兩類的判斷依據是「講者對這一檔的語氣傾向」，不是有沒有買賣。
+語氣中性、看不出偏多或偏空時，歸到 watch_watch。
 
 召回要求（很重要）：
 - 逐字稿是完整一小時內容。請從頭掃到尾，逐段檢視，中段與後段和開頭一樣重要，不可只看開頭。
@@ -1023,7 +1029,8 @@ price 或 reason 若逐字稿未提及，填「未說明」。
 {
   "buy":   [{"name":"", "code":"", "price":"", "reason":""}],
   "sell":  [{"name":"", "code":"", "price":"", "reason":""}],
-  "watch": [{"name":"", "code":"", "price":"", "reason":""}],
+  "watch_avoid":  [{"name":"", "code":"", "price":"", "reason":""}],
+  "watch_watch":  [{"name":"", "code":"", "price":"", "reason":""}],
   "holdings": [{"name":"", "code":"", "stance":"", "note":""}]
 }"""
 
@@ -1033,7 +1040,8 @@ AUDIT_SYSTEM = """你是擷取完整性稽核員。給你「完整逐字稿」�
 
 判斷規則與 EXTRACT 相同：
 - 只收單一上市櫃個股。純族群、概念、指數、集團若沒有指名個股，不算漏。
-- buy/sell 限「今天」明講執行的買賣；watch 收點名討論、看好、推薦、觀望、不碰但未買賣的個股；holdings 限明講會員持有。
+- buy/sell 限「今天」明講執行的買賣；未買賣但被點名的個股，語氣偏空歸 watch_avoid（觀望不碰），
+  語氣偏多或中性歸 watch_watch（觀望注意）；holdings 限明講會員持有。
 - 名稱照逐字稿實際講的填，不更正、不猜代號。
 - 已經在 JSON 裡的個股（以名稱或代號比對）不要再列。
 
@@ -1041,7 +1049,8 @@ AUDIT_SYSTEM = """你是擷取完整性稽核員。給你「完整逐字稿」�
 {
   "buy":   [{"name":"", "code":"", "price":"", "reason":""}],
   "sell":  [{"name":"", "code":"", "price":"", "reason":""}],
-  "watch": [{"name":"", "code":"", "price":"", "reason":""}],
+  "watch_avoid":  [{"name":"", "code":"", "price":"", "reason":""}],
+  "watch_watch":  [{"name":"", "code":"", "price":"", "reason":""}],
   "holdings": [{"name":"", "code":"", "stance":"", "note":""}]
 }"""
 
@@ -1088,6 +1097,13 @@ ARTICLE_SYSTEM = """你是一位專業財經記者與投顧整理編輯，負責
        為空時，寫：「本支影片未說明會員目前持股清單。」
        表格欄位固定，完全照這個順序與名稱：
        | 股票名稱 | 股票代號 | 目前立場（續抱／加碼觀察／分批調節等） | 張震在本集節目中的說明重點 |
+   ④-3 觀望個股（當日未執行買賣）
+       分成兩類分別列出，各自一張表：
+       「觀望不碰」列出清單 watch_avoid 的項目，語氣偏空、情緒偏悲觀。
+       「觀望注意」列出清單 watch_watch 的項目，語氣偏多、情緒偏正向。
+       某一類為空時，寫：「本支影片未說明。」
+       兩張表欄位皆固定，完全照這個順序與名稱：
+       | 股票名稱 | 股票代號 | 觀望類型（觀望不碰／觀望注意） | 價位說明 | 張震口頭說明重點 |
 
 ⑤ 分析師操作邏輯與教學重點
    將清單中的理由摘錄與說明重點，整理為 3 到 8 點條列，格式：
@@ -1125,7 +1141,7 @@ def audit_signals(v2: str, signals: dict, date_str: str) -> dict:
     完整性稽核：對照逐字稿，找出第一次擷取漏掉的個股，補進 signals。
     這是為了避免像「航運股裡點名的個股」被漏掉。找不到漏就原樣返回。
     """
-    clean = {k: signals.get(k, []) for k in ("buy", "sell", "watch", "holdings")}
+    clean = {k: signals.get(k, []) for k in ("buy", "sell", "watch_avoid", "watch_watch", "holdings")}
     try:
         raw = call_gemini(
             AUDIT_SYSTEM,
@@ -1141,7 +1157,7 @@ def audit_signals(v2: str, signals: dict, date_str: str) -> dict:
         return signals
 
     added = 0
-    for cat in ("buy", "sell", "watch", "holdings"):
+    for cat in ("buy", "sell", "watch_avoid", "watch_watch", "holdings"):
         have = {str(x.get("name", "")).strip() for x in signals.get(cat, [])}
         for item in missed.get(cat, []) or []:
             nm = str(item.get("name", "")).strip()
@@ -1178,7 +1194,8 @@ def write_results(ss, date_str, signals, article, done_trades, done_holds):
         print(f"{date_str} 操作紀錄已存在，不重複寫入")
     else:
         rows = []
-        for key, label in (("buy", "買入"), ("sell", "賣出"), ("watch", "不碰／觀望")):
+        for key, label in (("buy", "買入"), ("sell", "賣出"),
+                           ("watch_avoid", "觀望不碰"), ("watch_watch", "觀望注意")):
             for r in signals.get(key, []):
                 rows.append([date_str, r.get("name", ""), r.get("code", UNRESOLVED), label,
                              r.get("price", "未說明"), r.get("reason", "未說明"), video_id])

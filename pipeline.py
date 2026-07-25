@@ -1673,6 +1673,13 @@ def main():
 
     today = datetime.now(TAIPEI).date()
     now_h = datetime.now(TAIPEI).hour
+
+    # 週六日不開盤、正常沒有盤中直播。即使有人手動在週末觸發，
+    # 也不要標「今日無影片」或示警，直接安靜結束。
+    if today.weekday() >= 5:   # 5 週六, 6 週日
+        print("今天是週末，不開盤，略過。")
+        return
+
     todays = [v for v in feed if v["date"] == today]
 
     if not todays:

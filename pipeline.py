@@ -196,11 +196,14 @@ def looks_like_auth_error(e) -> bool:
 # 試算表
 # ---------------------------------------------------------------- #
 def sheets_retry(fn, *args, **kwargs):
-    """Google Sheets 偶發 503 / 429，重試四次後才放棄。"""
+    """
+    Google Sheets 偶發 503 / 429。429 是每分鐘寫入配額，退避要跨過整個
+    一分鐘窗口才有意義，所以最長等到 70 秒，並加抖動避免同時醒來又一起撞。
+    """
     last = None
-    for i, delay in enumerate((0, 3, 8, 20)):
+    for i, delay in enumerate((0, 10, 30, 70)):
         if delay:
-            time.sleep(delay)
+            time.sleep(delay + random.uniform(0, 3))
         try:
             return fn(*args, **kwargs)
         except gspread.exceptions.APIError as e:
@@ -1479,13 +1482,24 @@ def reclassify_from_transcripts(ss):
               f"其中觀望不碰 {stat['avoid']}、觀望注意 {stat['watch']}，皆已是最新分類，無需改寫。")
         return
 
-    # 逐格更新方向欄。只改動有變化的列，其餘不碰。
+    # 關鍵：一次批次寫回，不要逐格更新。
+    # 逐格 update_acell 一筆就是一次 API 寫入請求，113 筆等於 113 次，
+    # 而 Google Sheets 每分鐘每使用者寫入上限約 60 次，必爆 429。
+    # batch_update 把所有格子併成「一次」請求送出，就不會撞限額。
     col_letter = chr(ord("A") + ci_dir)
-    print(f"重新分類：需改寫 {len(changed)} 筆方向（觀望不碰 {stat['avoid']}、觀望注意 {stat['watch']}）")
-    for r, new_dir in changed:
-        sheets_retry(ws.update_acell, f"{col_letter}{r}", new_dir)
+    data = [{"range": f"{col_letter}{r}", "values": [[new_dir]]} for r, new_dir in changed]
+    print(f"重新分類：一次批次改寫 {len(changed)} 筆方向"
+          f"（觀望不碰 {stat['avoid']}、觀望注意 {stat['watch']}）")
 
-    print("方向欄改寫完成。買入與賣出未更動。")
+    # 每批最多 500 個範圍，超過就分批，批間稍作停頓，避免瞬間打太多。
+    BATCH = 500
+    for start in range(0, len(data), BATCH):
+        chunk = data[start:start + BATCH]
+        sheets_retry(ws.batch_update, chunk, value_input_option="RAW")
+        if start + BATCH < len(data):
+            time.sleep(2)
+
+    print("方向欄批次改寫完成。買入與賣出未更動。")
     print("接著請到 Apps Script 執行 rebuildHoldingsTrackerJob()，讓持股追蹤反映新分類。")
 
 

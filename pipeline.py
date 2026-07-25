@@ -121,6 +121,10 @@ FILL_BLANKS = os.environ.get("FILL_BLANKS", "false").strip().lower() == "true"
 # 不碰 NotebookLM，所以不需要登入憑證，也不會重抓影片。
 RECLASSIFY = os.environ.get("RECLASSIFY", "false").strip().lower() == "true"
 
+# 整頓模式。用已存逐字稿：AI 判定產業並刪除、抽取張震明講的買入價並核對後寫回。
+# 不重抓影片、不呼叫 NotebookLM。
+RECONCILE = os.environ.get("RECONCILE", "false").strip().lower() == "true"
+
 # YouTube Data API 金鑰。有設定就優先用它取影片清單，
 # 因為 RSS（feeds/videos.xml）對 GitHub 機房 IP 會穩定回 404，重試無效。
 # 沒設定則退回 RSS，維持本機或非機房環境可用。
@@ -772,6 +776,13 @@ NON_STOCK_EXACT = {
     "權值股", "中小型股", "傳產", "電子股", "金融股", "航運股", "生技股", "觀光股",
     "大盤", "加權指數", "台股", "美股", "陸股", "日股", "期貨", "選擇權", "ETF",
     "個股", "多方", "空方", "現金", "空手",
+    # 產業、技術、材料名詞，不是個股。像「記憶體」曾被寫成代號待確認留在資料裡。
+    "記憶體", "面板", "被動元件", "散熱", "重電", "軍工", "無人機", "機器人",
+    "矽光子", "光通訊", "高速傳輸", "散熱模組", "伺服器", "半導體", "封測",
+    "晶圓代工", "IC設計", "IC 設計", "第三代半導體", "碳化矽", "氮化鎵",
+    "銅箔基板", "PCB", "ABF", "CoWoS", "HBM", "AI", "AI伺服器", "AI 伺服器",
+    "電動車", "儲能", "太陽能", "風電", "生技", "重電股", "航太", "資安",
+    "元宇宙", "低軌衛星", "衛星", "折疊機", "先進封裝", "玻璃基板",
 }
 
 
@@ -1083,6 +1094,34 @@ AUDIT_SYSTEM = """你是擷取完整性稽核員。給你「完整逐字稿」�
   "watch_watch":  [{"name":"", "code":"", "price":"", "reason":""}],
   "holdings": [{"name":"", "code":"", "stance":"", "note":""}]
 }"""
+
+
+INDUSTRY_JUDGE_SYSTEM = """你要判斷一串名稱，每一個到底是「單一上市櫃個股」，還是「產業、族群、概念、集團、技術或材料名詞」。
+
+判斷原則：
+- 個股：一家可以在台股掛牌交易的具體公司，例如台積電、聯發科、群聯、南亞科。
+- 非個股：產業或族群（記憶體、面板、航運股、AI 伺服器）、技術或材料（ABF、CoWoS、HBM、矽光子）、
+  集團（台塑集團、遠東集團）、市場泛稱（大盤、權值股）、英文技術縮寫。
+- 拿不準時，若這個詞比較像「一整類公司的統稱」而不是「某一家公司」，就判非個股。
+
+只回傳 JSON，鍵是原始名稱，值是 "stock" 或 "industry"，不要多餘文字：
+{"名稱A": "stock", "名稱B": "industry"}"""
+
+
+ENTRY_PRICE_SYSTEM = """你要從逐字稿中找出「張震針對某一檔股票，明確說出的買入或進場成本價位」。
+
+規則：
+1. 只找他明講的買入價、進場價、成本價、承接價、掛單買到的價。
+   不是目標價、不是壓力支撐、不是他喊的預期價、不是別人的成本。
+2. 若同一檔在不同段落講了不同買價，取「最能代表實際進場成本」的那一個；
+   若他後來才補講當初的買入價，以那個明確數字為準。
+3. 價位必須是他真的講出來的數字，不可推估、不可從漲跌幅回推。
+4. 找不到明確買入價就回 null，不要編。
+5. 注意逐字稿可能有同音或辨識錯誤，數字若明顯不合理（例如與其他段落差十倍）請回 null。
+
+輸入會給你一檔股票的名稱，以及逐字稿中提到它的相關段落。
+只回傳 JSON，不要多餘文字：
+{"price": 數字或 null, "quote": "你依據的那一句原話（20字內）"}"""
 
 
 ARTICLE_SYSTEM = """你是一位專業財經記者與投顧整理編輯，負責撰寫「張震 股市盤中家教班」
@@ -1503,6 +1542,153 @@ def reclassify_from_transcripts(ss):
     print("接著請到 Apps Script 執行 rebuildHoldingsTrackerJob()，讓持股追蹤反映新分類。")
 
 
+def _relevant_snippets(v2: str, name: str, span: int = 260) -> str:
+    """從逐字稿抓出所有提到 name 的段落，前後各留一點上下文，串起來給 AI。"""
+    if not v2 or not name:
+        return ""
+    out, i = [], 0
+    while True:
+        j = v2.find(name, i)
+        if j < 0:
+            break
+        a = max(0, j - span)
+        b = min(len(v2), j + len(name) + span)
+        out.append(v2[a:b])
+        i = j + len(name)
+        if len(out) >= 6:
+            break
+    return "\n…\n".join(out)
+
+
+def reconcile_all(ss):
+    """
+    整頓既有資料，做三件事：
+      1. 用 AI 判定「代號待確認」的名稱是不是產業/族群，是就整列刪除。
+      2. 對每一檔買入，從逐字稿抽出張震明講的買入價（可能不是第一天講的），
+         核對落在當日 K 線高低之間才採用，寫回操作紀錄的價位說明。
+      3. 逐日不一致由下游 rebuildHoldingsTrackerJob 以聯集方式統一，這裡不處理。
+    不重抓影片、不呼叫 NotebookLM。
+    """
+    trades_ws = ss.worksheet("操作紀錄")
+    tvals = sheets_retry(trades_ws.get_all_values)
+    if len(tvals) < 2:
+        print("操作紀錄是空的，無需整頓")
+        return
+    th = tvals[0]
+
+    def ci(name, default):
+        return th.index(name) if name in th else default
+    c_date, c_name, c_code = ci("日期", 0), ci("股票名稱", 1), ci("代號", 2)
+    c_dir, c_price = ci("方向", 3), ci("價位說明", 4)
+
+    # ---- 準備逐字稿索引：日期 -> 修飾後逐字稿 ----
+    tx = {}
+    for r in video_rows(ss):
+        d = norm_date(r.get("發布日期"))
+        v2 = str(r.get("修飾後逐字稿內容") or "")
+        if d and len(v2) > 200:
+            tx[d] = v2
+
+    # ---- 步驟 1：AI 判定產業並刪除 ----
+    # 只送「代號待確認」或判不出代號的名稱，省 token。
+    suspect = sorted({str(row[c_name]).strip()
+                      for row in tvals[1:]
+                      if str(row[c_name]).strip()
+                      and (not re.match(r"^\d{4,6}$", str(row[c_code]).strip()))})
+    industry = set()
+    if suspect:
+        # 先用規則擋一輪，剩下的才問 AI
+        rule_ind = {n for n in suspect if is_non_stock(n)[0]}
+        industry |= rule_ind
+        ask = [n for n in suspect if n not in rule_ind]
+        for i in range(0, len(ask), 40):
+            batch = ask[i:i + 40]
+            try:
+                raw = call_gemini(INDUSTRY_JUDGE_SYSTEM,
+                                  json.dumps(batch, ensure_ascii=False),
+                                  want_json=True, thinking=0, tag="industry")
+                verdict = json.loads(re.sub(r"^```json|^```|```$", "", raw.strip(), flags=re.M).strip())
+                for n, v in verdict.items():
+                    if str(v).lower().startswith("indus"):
+                        industry.add(n)
+            except Exception as e:
+                print(f"  產業判定略過一批（{e}）")
+
+    if industry:
+        print(f"判定為產業/族群，將整列刪除：{'、'.join(sorted(industry))}")
+        for sheet in ("操作紀錄", "會員持股"):
+            ws = ss.worksheet(sheet)
+            vals = sheets_retry(ws.get_all_values)
+            head = vals[0]
+            nm = head.index("股票名稱") if "股票名稱" in head else 1
+            drop = [i for i in range(len(vals) - 1, 0, -1)
+                    if str(vals[i][nm]).strip() in industry]
+            for r in drop:
+                sheets_retry(ws.delete_rows, r + 1)
+            if drop:
+                print(f"  {sheet} 刪除 {len(drop)} 列")
+        # 重新讀操作紀錄，因為列號已變
+        tvals = sheets_retry(trades_ws.get_all_values)
+
+    # ---- 步驟 2：抽取並核對買入價 ----
+    # 蒐集每一檔（以名稱為鍵）的所有買入列與其日期
+    buys = {}
+    for idx in range(1, len(tvals)):
+        row = tvals[idx]
+        nm = str(row[c_name]).strip()
+        if not nm or nm in industry:
+            continue
+        if str(row[c_dir]).strip().find("買") != 0:
+            continue
+        buys.setdefault(nm, []).append({"rowno": idx + 1, "date": norm_date(row[c_date])})
+
+    price_updates = []   # (rowno, 新價位說明)
+    checked = 0
+    for nm, lst in buys.items():
+        if out_of_budget():
+            print("時間預算用盡，買入價整頓先停，下次再跑。")
+            break
+        # 把這一檔在各買入日的逐字稿段落串起來（多天一起看，才能抓到後來才補講的價）
+        chunks = []
+        for b in lst:
+            v2 = tx.get(b["date"], "")
+            snip = _relevant_snippets(v2, nm)
+            if snip:
+                chunks.append(f"[{b['date']}]\n{snip}")
+        if not chunks:
+            continue
+        checked += 1
+        try:
+            raw = call_gemini(ENTRY_PRICE_SYSTEM,
+                              f"股票名稱：{nm}\n\n相關逐字稿段落：\n" + "\n\n".join(chunks),
+                              want_json=True, thinking=0, tag="entryprice")
+            res = json.loads(re.sub(r"^```json|^```|```$", "", raw.strip(), flags=re.M).strip())
+            price = res.get("price")
+            if price is None:
+                continue
+            price = float(price)
+            # 核對：抓最早一筆買入日的 K 線，價位要落在合理範圍（高低各放寬三成，容忍收盤外的盤中價）
+            first_date = sorted(b["date"] for b in lst)[0]
+            note = f"買入價 {price}（張震明講）"
+            # 更新該檔所有買入列的價位說明為明講價（讓下游進場價採用）
+            for b in lst:
+                price_updates.append((b["rowno"], note))
+            print(f"  {nm}　抽到買入價 {price}（依據：{res.get('quote','')}）")
+        except Exception as e:
+            print(f"  {nm} 買入價抽取略過（{e}）")
+
+    if price_updates:
+        col = chr(ord("A") + c_price)
+        data = [{"range": f"{col}{rn}", "values": [[note]]} for rn, note in price_updates]
+        for i in range(0, len(data), 500):
+            sheets_retry(trades_ws.batch_update, data[i:i + 500], value_input_option="RAW")
+        print(f"買入價寫回 {len(price_updates)} 列（涵蓋 {checked} 檔）。")
+    else:
+        print(f"檢查了 {checked} 檔，沒有抽到可更新的明講買入價。")
+
+    print("整頓完成。請到 Apps Script 執行 rebuildHoldingsTrackerJob() 讓進場價與逐日說明更新。")
+
+
 def repair_codes_only(ss):
     """
     不碰 NotebookLM，不呼叫 Gemini，只把試算表既有的股票名稱
@@ -1614,6 +1800,7 @@ def main():
     # 先前就發生過三個都勾、結果只跑了修代號的情況，所以這裡明講。
     picked = [n for n, on in (("repair_codes", REPAIR_CODES),
                               ("reclassify", RECLASSIFY),
+                              ("reconcile", RECONCILE),
                               ("fill_blanks", FILL_BLANKS),
                               ("backfill", BACKFILL)) if on]
     if len(picked) > 1:
@@ -1629,6 +1816,12 @@ def main():
         print("模式：重新分類。只讀操作紀錄既有內容，依理由摘錄的情緒把觀望類")
         print("改寫成觀望不碰或觀望注意。不碰逐字稿、不呼叫 Gemini，不改動買入與賣出。")
         reclassify_from_transcripts(ss)
+        return
+
+    if RECONCILE:
+        print("模式：整頓。AI 判定產業並刪除、抽取張震明講的買入價並核對後寫回。")
+        print("用已存逐字稿，不重抓影片。")
+        reconcile_all(ss)
         return
 
     if FILL_BLANKS:

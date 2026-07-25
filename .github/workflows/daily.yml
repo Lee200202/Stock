@@ -48,6 +48,10 @@ on:
         description: '只讀操作紀錄，依理由摘錄的情緒把觀望類改寫成觀望不碰或觀望注意。不呼叫 Gemini，秒級完成'
         required: false
         default: 'false'
+      reconcile:
+        description: 'AI 整頓：判定產業並刪除、抽取張震明講的買入價並核對後寫回。用已存逐字稿，不重抓影片'
+        required: false
+        default: 'false'
 
 # 同一時間只允許一個工作在跑，後來的排隊。
 # 因為每次敲門最多 4 分鐘，10 分鐘的間隔足夠，不會堆積。
@@ -105,4 +109,5 @@ jobs:
           REPAIR_CODES: ${{ github.event.inputs.repair_codes }}
           FILL_BLANKS: ${{ github.event.inputs.fill_blanks }}
           RECLASSIFY: ${{ github.event.inputs.reclassify }}
+          RECONCILE: ${{ github.event.inputs.reconcile }}
         run: python pipeline.py

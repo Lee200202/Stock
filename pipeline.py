@@ -1401,59 +1401,91 @@ def fill_video_blanks(ss):
             print(f"  補空白失敗：{e}")
 
 
+# 情緒關鍵字。用來把舊的「觀望／不碰」依理由摘錄重新歸類。
+# 偏空詞出現就歸「觀望不碰」，否則歸「觀望注意」（中性也算注意）。
+NEG_HINTS = (
+    "不碰", "不要碰", "不建議", "不宜", "避開", "避免", "風險高", "危險",
+    "轉弱", "走弱", "破線", "破底", "跌破", "套牢", "被套", "認賠", "停損",
+    "出場觀察", "先出", "空方", "偏空", "看壞", "看空", "弱勢", "疲弱",
+    "小心", "留意風險", "崩", "殺", "利空", "觀望為宜", "暫不", "別追",
+)
+POS_HINTS = (
+    "看好", "偏多", "強勢", "轉強", "走強", "留意", "注意", "追蹤", "觀察",
+    "有機會", "可期待", "回檔進場", "拉回買", "布局", "卡位", "潛力",
+    "續強", "多方", "站上", "突破", "帶量", "值得", "不錯",
+)
+
+
+def sentiment_of(reason: str) -> str:
+    """依理由摘錄判斷情緒。偏空回 watch_avoid，偏多或中性回 watch_watch。"""
+    text = str(reason or "")
+    neg = sum(1 for k in NEG_HINTS if k in text)
+    pos = sum(1 for k in POS_HINTS if k in text)
+    if neg > pos:
+        return "watch_avoid"
+    if pos > neg:
+        return "watch_watch"
+    # 平手或都沒有：明確講「不碰」歸不碰，否則歸注意
+    return "watch_avoid" if ("不碰" in text) else "watch_watch"
+
+
+# 需要被重新歸類的舊方向值：只動觀望類，買入與賣出一律不碰。
+WATCH_LABELS = {"觀望", "不碰", "觀望不碰", "觀望注意", "觀望／不碰", "不碰／觀望"}
+
+
 def reclassify_from_transcripts(ss):
     """
-    用試算表已存的「修飾後逐字稿」重跑擷取，把舊資料套用新版規則。
-    不呼叫 NotebookLM，所以不需要登入憑證，也不會重抓影片。
-    每一天處理完就立刻覆蓋寫回，中途失敗不會影響已完成的日期。
+    重新分類（純表格版）。
+
+    只讀「操作紀錄」既有的內容：股票名稱、代號、方向、理由摘錄都已經是
+    比對過、正確的，不需要也不應該再去逐字稿重跑擷取。
+
+    做的事只有一件：把方向是舊「觀望／不碰」這類的列，
+    依「理由摘錄」的情緒關鍵字，改寫成「觀望不碰」或「觀望注意」。
+    買入、賣出完全不動。
+
+    完全不呼叫 NotebookLM，也完全不呼叫 Gemini，
+    所以沒有拼音誤判、沒有 429、幾秒就跑完。
     """
-    done_trades = existing_dates(ss, "操作紀錄")
-    done_holds = existing_dates(ss, "會員持股")
-
-    targets = []
-    for r in video_rows(ss):
-        vid = str(r.get("影片ID") or "").strip()
-        if not vid or vid.startswith("NO_VIDEO_"):
-            continue
-        v2 = str(r.get("修飾後逐字稿內容") or "").strip()
-        if len(v2) < 200:
-            continue
-        ds = norm_date(r.get("發布日期"))
-        if not ds:
-            m = TITLE_DATE.search(str(r.get("標題") or ""))
-            if m:
-                ds = f"{m.group(1)}/{int(m.group(2)):02d}/{int(m.group(3)):02d}"
-        if not ds:
-            continue
-        targets.append({"id": vid, "date": ds, "v2": v2})
-
-    if not targets:
-        print("沒有可重新分類的逐字稿。請先確認影片清單的「修飾後逐字稿內容」有值。")
+    ws = ss.worksheet("操作紀錄")
+    values = sheets_retry(ws.get_all_values)
+    if len(values) < 2:
+        print("操作紀錄沒有資料，無需重新分類")
         return
 
-    targets.sort(key=lambda t: t["date"])
-    print(f"重新分類：共 {len(targets)} 天有逐字稿可重跑")
+    header = values[0]
+    # 找欄位位置，避免寫死欄號
+    def col(name, default):
+        return header.index(name) if name in header else default
+    ci_dir = col("方向", 3)
+    ci_reason = col("理由摘錄", 5)
 
-    ok = 0
-    for t in targets:
-        if out_of_budget():
-            print(f"\n時間預算用盡（已跑約 {int((time.monotonic()-RUN_STARTED)/60)} 分），"
-                  f"本輪先停在這裡，剩下 {len(targets)-ok} 天下次再跑。")
-            break
-        print(f"\n--- 重新分類 {t['date']}（逐字稿 {len(t['v2'])} 字）---")
-        try:
-            signals = extract_signals(t["v2"], t["date"])
-            signals = audit_signals(t["v2"], signals, t["date"])
-            signals = resolve_signals(signals)
-            signals["_video_id"] = t["id"]
-            article = build_article(t["v2"], signals, t["date"])
-            write_results(ss, t["date"], signals, article,
-                          done_trades, done_holds, replace=True)
-            ok += 1
-        except Exception as e:
-            print(f"  {t['date']} 重新分類失敗，保留原資料：{e}")
+    changed = []          # (列號, 新方向)
+    stat = {"avoid": 0, "watch": 0, "skip": 0}
 
-    print(f"\n重新分類完成 {ok}/{len(targets)} 天")
+    for i in range(1, len(values)):
+        row = values[i]
+        direction = str(row[ci_dir]).strip() if ci_dir < len(row) else ""
+        if direction not in WATCH_LABELS:
+            continue      # 買入、賣出，或其他，不動
+        reason = row[ci_reason] if ci_reason < len(row) else ""
+        new_dir = "觀望不碰" if sentiment_of(reason) == "watch_avoid" else "觀望注意"
+        if new_dir != direction:
+            changed.append((i + 1, new_dir))
+        stat["avoid" if new_dir == "觀望不碰" else "watch"] += 1
+
+    if not changed:
+        print(f"重新分類完成：觀望類共 {stat['avoid'] + stat['watch']} 筆，"
+              f"其中觀望不碰 {stat['avoid']}、觀望注意 {stat['watch']}，皆已是最新分類，無需改寫。")
+        return
+
+    # 逐格更新方向欄。只改動有變化的列，其餘不碰。
+    col_letter = chr(ord("A") + ci_dir)
+    print(f"重新分類：需改寫 {len(changed)} 筆方向（觀望不碰 {stat['avoid']}、觀望注意 {stat['watch']}）")
+    for r, new_dir in changed:
+        sheets_retry(ws.update_acell, f"{col_letter}{r}", new_dir)
+
+    print("方向欄改寫完成。買入與賣出未更動。")
     print("接著請到 Apps Script 執行 rebuildHoldingsTrackerJob()，讓持股追蹤反映新分類。")
 
 
@@ -1580,8 +1612,8 @@ def main():
         return
 
     if RECLASSIFY:
-        print("模式：重新分類。用已存的修飾後逐字稿重跑擷取，套用新版規則。")
-        print("不呼叫 NotebookLM，不需要登入憑證。")
+        print("模式：重新分類。只讀操作紀錄既有內容，依理由摘錄的情緒把觀望類")
+        print("改寫成觀望不碰或觀望注意。不碰逐字稿、不呼叫 Gemini，不改動買入與賣出。")
         reclassify_from_transcripts(ss)
         return
 

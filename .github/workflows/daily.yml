@@ -45,7 +45,7 @@ on:
         required: false
         default: 'false'
       reclassify:
-        description: '用已存的逐字稿重跑擷取，讓舊資料套用新規則（觀望拆兩類）。不需登入憑證'
+        description: '只讀操作紀錄，依理由摘錄的情緒把觀望類改寫成觀望不碰或觀望注意。不呼叫 Gemini，秒級完成'
         required: false
         default: 'false'
 

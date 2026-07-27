@@ -90,49 +90,34 @@ jobs:
       - name: 還原 NotebookLM 登入狀態
         env:
           NOTEBOOKLM_AUTH_JSON: ${{ secrets.NOTEBOOKLM_AUTH_JSON }}
-          NOTEBOOKLM_MASTER_TOKEN: ${{ secrets.NOTEBOOKLM_MASTER_TOKEN }}
         run: |
-          # 認證有兩種來源，能用哪個就用哪個：
+          # notebooklm-py 0.7.3 的認證只有一種：Google web session cookie，
+          # 存在 storage_state.json，或用 NOTEBOOKLM_AUTH_JSON 傳進來。
+          # （0.7.3 沒有 --master-token，那是新版才有的，本專案不依賴它。）
           #
-          #   1. master_token（推薦）：一個長效的 Google master token，
-          #      cookie 過期時程式會自己用它重新鑄造一份新的，不必每週手動重登。
-          #      這是伺服器、CI 的正解，設了它就不會再天天過期。
-          #
-          #   2. storage_state（舊做法）：直接存 cookie。cookie 每隔幾天到幾週
-          #      就會過期，而 CI 每次跑完就銷毀、換出的新 cookie 無法寫回，
-          #      所以壽命特別短。沒有 master_token 時才退回用它。
-          #
-          # 兩個都設也沒關係，master_token 會自動接手 storage_state 過期後的重鑄。
-          PROFILE_DIR=~/.notebooklm/profiles/default
-          mkdir -p "$PROFILE_DIR"
-
-          WROTE_ANY=0
-          if [ -n "$NOTEBOOKLM_MASTER_TOKEN" ]; then
-            printf '%s' "$NOTEBOOKLM_MASTER_TOKEN" > "$PROFILE_DIR/master_token.json"
-            test -s "$PROFILE_DIR/master_token.json" && WROTE_ANY=1
-            echo "已寫入 master_token（cookie 過期會自動重鑄）"
-          fi
-          if [ -n "$NOTEBOOKLM_AUTH_JSON" ]; then
-            printf '%s' "$NOTEBOOKLM_AUTH_JSON" > ~/.notebooklm/storage_state.json
-            printf '%s' "$NOTEBOOKLM_AUTH_JSON" > "$PROFILE_DIR/storage_state.json"
-            test -s ~/.notebooklm/storage_state.json && WROTE_ANY=1
-            echo "已寫入 storage_state"
-          fi
-
-          if [ "$WROTE_ANY" != "1" ]; then
-            echo "兩個認證 Secret 都是空的。請至少設定 NOTEBOOKLM_MASTER_TOKEN"
-            echo "（在自己電腦跑 notebooklm login --master-token 產生），"
-            echo "或退而求其次設 NOTEBOOKLM_AUTH_JSON（本機 storage_state.json 的完整內容）。"
+          # cookie 會被 Google 輪換，2 到 3 天就過期。單純每次重貼舊 cookie
+          # 撐不久。真正的解法在最後一步「把跑完後更新過的新鮮 cookie 寫回 Secret」，
+          # 讓下一輪永遠拿到最新的，不再天天過期。
+          mkdir -p ~/.notebooklm/profiles/default
+          if [ -z "$NOTEBOOKLM_AUTH_JSON" ]; then
+            echo "NOTEBOOKLM_AUTH_JSON 是空的。請把本機"
+            echo "  ~/.notebooklm/profiles/default/storage_state.json"
+            echo "的完整內容貼到 GitHub Secret NOTEBOOKLM_AUTH_JSON。"
             exit 1
           fi
+          printf '%s' "$NOTEBOOKLM_AUTH_JSON" > ~/.notebooklm/storage_state.json
+          printf '%s' "$NOTEBOOKLM_AUTH_JSON" > ~/.notebooklm/profiles/default/storage_state.json
+          echo "已寫入 storage_state"
 
       - name: 執行每日流程
+        id: run_pipeline
         env:
           NOTEBOOKLM_AUTH_JSON: ${{ secrets.NOTEBOOKLM_AUTH_JSON }}
-          NOTEBOOKLM_MASTER_TOKEN: ${{ secrets.NOTEBOOKLM_MASTER_TOKEN }}
-          # cookie 過期時，允許程式在 RPC 中途自動用 master_token / headless 重新認證，
-          # 不要直接丟認證過期而中斷。這是讓「不再天天壞」成立的關鍵開關。
-          NOTEBOOKLM_HEADLESS_REAUTH: '1'
+          # 0.7.3 內建：偵測到 session 過期時，自動執行這個命令試圖重新取得 cookie。
+          # CI 上沒有你本機的瀏覽器可讀，能做的有限，所以這裡放一個一定不會報錯的
+          # 命令當佔位（真正讓 cookie 保持新鮮的是最後一步「寫回 Secret」）。
+          # 若你的版本確定有 auth refresh 子命令，可改成 'python -m notebooklm auth refresh'。
+          NOTEBOOKLM_REFRESH_CMD: 'true'
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
@@ -145,3 +130,39 @@ jobs:
           RECLASSIFY: ${{ github.event.inputs.reclassify }}
           RECONCILE: ${{ github.event.inputs.reconcile }}
         run: python pipeline.py
+
+      - name: 把更新過的新鮮 cookie 寫回 Secret
+        # 關鍵步驟：Google 在這次執行期間輪換過的 __Secure-1PSIDTS 等 cookie，
+        # 已由 notebooklm-py 寫回 runner 上的 storage_state.json。
+        # 這裡把那份新鮮的內容寫回 GitHub Secret NOTEBOOKLM_AUTH_JSON，
+        # 下一輪就拿到最新 cookie，不會再 2 到 3 天就過期。
+        #
+        # 需要一個有 secrets:write 權限的 PAT，存成 Secret PAT_SECRET_UPDATER。
+        # 沒設這個 PAT 時，這步安靜略過，退回原本「靠手動重貼」的行為，不會讓工作失敗。
+        #
+        # always()：就算主流程因為當天還沒有影片而正常結束，cookie 也可能已被更新，
+        # 一樣值得寫回；只有在檔案存在且和舊值不同時才寫。
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ secrets.PAT_SECRET_UPDATER }}
+          OLD_AUTH: ${{ secrets.NOTEBOOKLM_AUTH_JSON }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "未設定 PAT_SECRET_UPDATER，略過寫回（退回手動重貼模式）。"
+            exit 0
+          fi
+          STATE=~/.notebooklm/profiles/default/storage_state.json
+          [ -s "$STATE" ] || STATE=~/.notebooklm/storage_state.json
+          if [ ! -s "$STATE" ]; then
+            echo "找不到更新後的 storage_state，略過寫回。"
+            exit 0
+          fi
+          NEW="$(cat "$STATE")"
+          if [ "$NEW" = "$OLD_AUTH" ]; then
+            echo "cookie 沒有變化，不需要寫回。"
+            exit 0
+          fi
+          printf '%s' "$NEW" | gh secret set NOTEBOOKLM_AUTH_JSON \
+            --repo "$GITHUB_REPOSITORY" --body-file - \
+            && echo "已把新鮮 cookie 寫回 Secret NOTEBOOKLM_AUTH_JSON" \
+            || echo "寫回 Secret 失敗（PAT 權限不足？），下一輪仍用舊 cookie。"

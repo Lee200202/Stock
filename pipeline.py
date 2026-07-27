@@ -1333,9 +1333,15 @@ def stage_transcript(ss, video, date_str):
         if len(v1) < SHORT_TRANSCRIPT_HINT:
             print(f"警告：逐字稿僅 {len(v1)} 字，對一小時直播而言偏短。"
                   f"可能是 NotebookLM 索引不完整，或這支影片本身就短。")
+        # 一拿到原始逐字稿就先落地，v2 暫時留空。
+        # 這樣就算接下來的潤飾階段撞 429、逾時或任何失敗，
+        # 這份原始逐字稿也已經在 Excel 裡，不會白抓一次。
+        if v1 and len(v1) > 200:
+            write_transcripts(ss, video["id"], v1, "")
+            print("原始逐字稿已先寫入影片清單（潤飾前落地）")
 
     v2 = polish(v1)
-    write_transcripts(ss, video["id"], v1, v2)   # 潤飾完立刻落地，下次就不用重跑
+    write_transcripts(ss, video["id"], v1, v2)   # 潤飾完再補寫 v2
     return v1, v2
 
 

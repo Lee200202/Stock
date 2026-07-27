@@ -20,10 +20,10 @@ name: daily-transcript-pipeline
 # ------------------------------------------------------------------ #
 on:
   schedule:
-    - cron: '33,43,53 3 * * 1-5'            # 台灣 11:33 11:43 11:53
-    - cron: '3,13,23,33,43,53 4 * * 1-5'    # 台灣 12:03 到 12:53
-    - cron: '3,13,23,33,43,53 5 * * 1-5'    # 台灣 13:03 到 13:53
-    - cron: '3,23,43 6 * * 1-5'             # 台灣 14:03 14:23 14:43
+    - cron: '30,40,50 3 * * 1-5'            # 台灣 11:30 11:40 11:50
+    - cron: '0,10,20,30,40,50 4 * * 1-5'    # 台灣 12:00 到 12:50
+    - cron: '0,10,20,30,40,50 5 * * 1-5'    # 台灣 13:00 到 13:50
+    - cron: '0,20,40 6 * * 1-5'             # 台灣 14:00 14:20 14:40
     - cron: '3 7 * * 1-5'                   # 台灣 15:03　最後一次，此時才判定今日無影片
 
   workflow_dispatch:
@@ -90,15 +90,49 @@ jobs:
       - name: 還原 NotebookLM 登入狀態
         env:
           NOTEBOOKLM_AUTH_JSON: ${{ secrets.NOTEBOOKLM_AUTH_JSON }}
+          NOTEBOOKLM_MASTER_TOKEN: ${{ secrets.NOTEBOOKLM_MASTER_TOKEN }}
         run: |
-          mkdir -p ~/.notebooklm
-          printf '%s' "$NOTEBOOKLM_AUTH_JSON" > ~/.notebooklm/storage_state.json
-          test -s ~/.notebooklm/storage_state.json \
-            || { echo "NOTEBOOKLM_AUTH_JSON 是空的，請到 Secrets 貼上本機 storage_state.json 的完整內容"; exit 1; }
+          # 認證有兩種來源，能用哪個就用哪個：
+          #
+          #   1. master_token（推薦）：一個長效的 Google master token，
+          #      cookie 過期時程式會自己用它重新鑄造一份新的，不必每週手動重登。
+          #      這是伺服器、CI 的正解，設了它就不會再天天過期。
+          #
+          #   2. storage_state（舊做法）：直接存 cookie。cookie 每隔幾天到幾週
+          #      就會過期，而 CI 每次跑完就銷毀、換出的新 cookie 無法寫回，
+          #      所以壽命特別短。沒有 master_token 時才退回用它。
+          #
+          # 兩個都設也沒關係，master_token 會自動接手 storage_state 過期後的重鑄。
+          PROFILE_DIR=~/.notebooklm/profiles/default
+          mkdir -p "$PROFILE_DIR"
+
+          WROTE_ANY=0
+          if [ -n "$NOTEBOOKLM_MASTER_TOKEN" ]; then
+            printf '%s' "$NOTEBOOKLM_MASTER_TOKEN" > "$PROFILE_DIR/master_token.json"
+            test -s "$PROFILE_DIR/master_token.json" && WROTE_ANY=1
+            echo "已寫入 master_token（cookie 過期會自動重鑄）"
+          fi
+          if [ -n "$NOTEBOOKLM_AUTH_JSON" ]; then
+            printf '%s' "$NOTEBOOKLM_AUTH_JSON" > ~/.notebooklm/storage_state.json
+            printf '%s' "$NOTEBOOKLM_AUTH_JSON" > "$PROFILE_DIR/storage_state.json"
+            test -s ~/.notebooklm/storage_state.json && WROTE_ANY=1
+            echo "已寫入 storage_state"
+          fi
+
+          if [ "$WROTE_ANY" != "1" ]; then
+            echo "兩個認證 Secret 都是空的。請至少設定 NOTEBOOKLM_MASTER_TOKEN"
+            echo "（在自己電腦跑 notebooklm login --master-token 產生），"
+            echo "或退而求其次設 NOTEBOOKLM_AUTH_JSON（本機 storage_state.json 的完整內容）。"
+            exit 1
+          fi
 
       - name: 執行每日流程
         env:
           NOTEBOOKLM_AUTH_JSON: ${{ secrets.NOTEBOOKLM_AUTH_JSON }}
+          NOTEBOOKLM_MASTER_TOKEN: ${{ secrets.NOTEBOOKLM_MASTER_TOKEN }}
+          # cookie 過期時，允許程式在 RPC 中途自動用 master_token / headless 重新認證，
+          # 不要直接丟認證過期而中斷。這是讓「不再天天壞」成立的關鍵開關。
+          NOTEBOOKLM_HEADLESS_REAUTH: '1'
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}

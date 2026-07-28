@@ -146,12 +146,20 @@ POLL_TIMEOUT = 240
 FULL_TIMEOUT = 1800
 INDEX_TIMEOUT = FULL_TIMEOUT if (BACKFILL or FINAL_ATTEMPT or FILL_BLANKS) else POLL_TIMEOUT
 
-# 整體時間預算。GitHub Actions 單一 job 上限 60 分鐘，超過會被強制中斷、
-# 亮紅燈，而且當下正在處理的那一天可能寫到一半。所以我們自己在 50 分鐘處
-# 主動收尾：處理完手上這一支就停，把「還沒輪到的」留給下一輪或下一次執行。
-# 這樣永遠不會撞到 GitHub 的硬上限。
+# 整體時間預算。GitHub Actions 單一 job 若跑太久會消耗大量額度，也可能撞上
+# job timeout。內部輪詢循環靠這個預算收尾：一個 job 進來後最多敲門這麼久就停，
+# 交給下一次 cron 觸發接力。預設 1500 秒（25 分鐘），配合每 30 分鐘一次的 cron，
+# 相鄰兩次觸發就能無縫覆蓋 11:30 到 15:00。
 RUN_STARTED = time.monotonic()
-TIME_BUDGET = int(os.environ.get("TIME_BUDGET_SEC", "3000"))   # 50 分鐘
+TIME_BUDGET = int(os.environ.get("TIME_BUDGET_SEC", "1500"))   # 25 分鐘
+
+# 內部輪詢循環：進來後自己每隔幾分鐘敲一次門，而不是靠 GitHub cron 準點觸發多次。
+# GitHub 的 cron 是 best-effort，尖峰會大量漏跑，這是輪詢次數遠少於預期的主因。
+# 手動補跑（backfill / final / fill_blanks / repair_codes / reclassify / reconcile）
+# 不走循環，維持單次執行。
+POLL_LOOP = os.environ.get("POLL_LOOP", "true").strip().lower() == "true" and not (
+    BACKFILL or FINAL_ATTEMPT)
+POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL_SEC", "180"))   # 每 3 分鐘敲一次
 
 
 def budget_left() -> float:
@@ -1871,7 +1879,6 @@ def main():
         return
 
     today = datetime.now(TAIPEI).date()
-    now_h = datetime.now(TAIPEI).hour
 
     # 週六日不開盤、正常沒有盤中直播。即使有人手動在週末觸發，
     # 也不要標「今日無影片」或示警，直接安靜結束。
@@ -1879,28 +1886,87 @@ def main():
         print("今天是週末，不開盤，略過。")
         return
 
-    todays = [v for v in feed if v["date"] == today]
+    # ------------------------------------------------------------------ #
+    # 內部輪詢循環。
+    #
+    # 為什麼要這樣：GitHub 的 cron 是 best-effort，尖峰時段會大量漏跑或延遲，
+    # 塞很多個 cron 觸發點，實際跑起來的次數遠少於預期（你看到的 12:30 才 2 次
+    # 就是這個原因）。與其依賴 GitHub 準點觸發很多次，不如只讓它觸發「一次」，
+    # 進來之後由這支程式自己每隔幾分鐘敲一次門，敲到抓到逐字稿、或敲到收工時間
+    # （台灣 15:00）為止。這樣輪詢次數由我們自己精準控制，不再受 GitHub 影響。
+    #
+    # 每敲一次門就寫一列系統狀態，所以「本日輪詢次數」會如實反映實際敲門次數。
+    # 手動補跑（backfill / final / fill_blanks 等）不走這個循環，維持單次執行。
+    # ------------------------------------------------------------------ #
+    def handle_today_once():
+        """敲一次門。回傳 True 表示今天已完成或確定無影片，可以收工。"""
+        feed_now = [v for v in fetch_feed() if is_target(v["title"]) and v["date"] >= MIN_DATE]
+        done_now = {str(r["影片ID"]): str(r["處理狀態"]) for r in video_rows(ss)}
+        todays = [v for v in feed_now if v["date"] == today]
+        now_h = datetime.now(TAIPEI).hour
 
-    if not todays:
-        if now_h >= GIVE_UP_HOUR:
-            mark_status(ss, f"NO_VIDEO_{today}", today.strftime("%Y/%m/%d"), "", "今日無影片")
-            print("今日無影片")
-        else:
-            print(f"RSS 尚未出現 {today} 的影片，等下一輪")
+        if not todays:
+            if now_h >= GIVE_UP_HOUR:
+                mark_status(ss, f"NO_VIDEO_{today}", today.strftime("%Y/%m/%d"), "", "今日無影片")
+                print("已到收工時間仍無今日影片，判定今日無影片")
+                return True
+            print(f"RSS 尚未出現 {today} 的影片，稍後再敲")
+            return False
+
+        v = todays[0]
+        status = done_now.get(v["id"], "")
+        if status == "完成":
+            print("今日影片已處理完成，收工")
+            return True
+        if status == "處理中":
+            print("偵測到前次殘留的『處理中』狀態，重新處理")
+        if status == "等待中":
+            print("前一輪 VOD 尚未就緒，本輪再敲一次門")
+
+        try:
+            process_one(ss, v, done_trades, done_holds)
+            # process_one 成功且狀態為完成才收工；仍在等待則繼續循環
+            fresh = {str(r["影片ID"]): str(r["處理狀態"]) for r in video_rows(ss)}
+            return fresh.get(v["id"]) == "完成"
+        except NotReadyYet as e:
+            print(f"VOD 還沒好：{e}，稍後再敲")
+            write_status_log(ss, "等待中", str(e))
+            return False
+
+    # 不走內部循環的情況：手動補跑用長逾時、只敲一次就結束。
+    if not POLL_LOOP:
+        handle_today_once()
         return
 
-    v = todays[0]
-    status = done.get(v["id"], "")
+    # 走內部循環：每 POLL_INTERVAL 秒敲一次，直到收工或超過時間預算。
+    poll_n = 0
+    while True:
+        now = datetime.now(TAIPEI)
+        poll_n += 1
+        print(f"\n--- 第 {poll_n} 次輪詢　{now:%H:%M:%S} 台北時間 ---")
+        write_status_log(ss, "輪詢", f"第 {poll_n} 次輪詢")
 
-    if status == "完成":
-        print("今日影片已處理完成，本輪無事可做")
-        return
-    if status == "處理中":
-        print("偵測到前次殘留的『處理中』狀態，重新處理")
-    if status == "等待中":
-        print("前一輪 VOD 尚未就緒，本輪再敲一次門")
+        try:
+            if handle_today_once():
+                break
+        except AuthExpired:
+            raise   # 認證過期交給外層處理，寫「認證過期」狀態並結束
+        except Exception as e:
+            # 單次敲門的非致命錯誤，記錄後繼續下一輪，不讓整個循環中斷
+            print(f"本次輪詢出錯（不中斷循環）：{e}")
+            write_status_log(ss, "失敗", str(e))
 
-    process_one(ss, v, done_trades, done_holds)
+        # 收工時間到（台灣 15:00）或時間預算用盡就停。
+        # 到收工時間時 handle_today_once 內部已會標「今日無影片」，這裡不重複標。
+        if datetime.now(TAIPEI).hour >= GIVE_UP_HOUR:
+            print("已到收工時間，停止輪詢")
+            break
+        if out_of_budget():
+            print("時間預算用盡，本 job 先停，交給下一次 cron 觸發接力。")
+            break
+
+        print(f"等待 {POLL_INTERVAL} 秒後再敲……")
+        time.sleep(POLL_INTERVAL)
 
 
 if __name__ == "__main__":

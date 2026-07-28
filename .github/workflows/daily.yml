@@ -1,30 +1,34 @@
 name: daily-transcript-pipeline
 
 # ------------------------------------------------------------------ #
-# 排程設計的核心：這是「輪詢」，不是「執行一次」。
+# 排程設計：這是「輪詢」，不是「執行一次」。
 #
 # 11:30 直播還在進行，YouTube 的 VOD 尚未生成，NotebookLM 索引不到。
 # 直播約 12:30 到 13:00 結束，YouTube 再花十幾分鐘轉檔，
 # 所以逐字稿真正拿得到的時間點落在 13:00 到 14:00 之間，而且每天不一定。
 #
-# 因此流程必須從 11:33 開始每 10 分鐘敲一次門，敲到有東西為止。
-# 敲不到不是失敗，是還沒好，工作要顯示綠色，不能發告警。
+# 過去的做法是塞很多個 cron 觸發點，指望每 10 分鐘各觸發一次。
+# 但 GitHub 的 cron 是 best-effort，尖峰時段大量漏跑或延遲，
+# 實際跑起來的次數遠少於預期（曾出現 12:30 才輪詢 2 次的情況）。
 #
-# 這件事能成立的前提是「敲門要快」。pipeline.py 的 POLL_TIMEOUT 設為 4 分鐘，
-# 索引不到就立刻放棄讓下一輪接手。若像先前那樣一次等 30 分鐘，
-# 一次敲門就吃掉三個輪詢窗口，concurrency 又把後面全擋在佇列，
-# 結果就是排程看起來完全沒有在 11:30 執行。
+# 改法：cron 只需每 30 分鐘觸發一次，進到 pipeline.py 之後，
+# 由程式自己每 3 分鐘敲一次門（內部輪詢循環），一個 job 敲約 25 分鐘就收尾，
+# 交給下一次觸發接力。這樣輪詢次數由我們自己的程式精準控制，
+# 不再受 GitHub 準點與否影響，也不會消耗過多 Actions 額度。
 #
 # cron 一律 UTC。台灣 = UTC + 8，全年固定，沒有日光節約。
-# 分鐘刻意避開 :00 與 :30，那是全球排程最壅塞的時段。
+# 台灣 11:30 = UTC 03:30。
 # ------------------------------------------------------------------ #
 on:
   schedule:
-    - cron: '30,40,50 3 * * 1-5'            # 台灣 11:30 11:40 11:50
-    - cron: '0,10,20,30,40,50 4 * * 1-5'    # 台灣 12:00 到 12:50
-    - cron: '0,10,20,30,40,50 5 * * 1-5'    # 台灣 13:00 到 13:50
-    - cron: '0,20,40 6 * * 1-5'             # 台灣 14:00 14:20 14:40
-    - cron: '3 7 * * 1-5'                   # 台灣 15:03　最後一次，此時才判定今日無影片
+    - cron: '30 3 * * 1-5'    # 台灣 11:30
+    - cron: '0 4 * * 1-5'     # 台灣 12:00
+    - cron: '30 4 * * 1-5'    # 台灣 12:30
+    - cron: '0 5 * * 1-5'     # 台灣 13:00
+    - cron: '30 5 * * 1-5'    # 台灣 13:30
+    - cron: '0 6 * * 1-5'     # 台灣 14:00
+    - cron: '30 6 * * 1-5'    # 台灣 14:30
+    - cron: '3 7 * * 1-5'     # 台灣 15:03　最後一次，此時才判定今日無影片
 
   workflow_dispatch:
     inputs:
@@ -53,8 +57,8 @@ on:
         required: false
         default: 'false'
 
-# 同一時間只允許一個工作在跑，後來的排隊。
-# 因為每次敲門最多 4 分鐘，10 分鐘的間隔足夠，不會堆積。
+# 同一時間只允許一個工作在跑，後來的排隊。內部循環讓單一 job 約 25 分鐘收尾，
+# 30 分鐘的觸發間隔足夠讓前一個先結束，不會堆積。
 concurrency:
   group: daily-pipeline
   cancel-in-progress: false
@@ -62,9 +66,9 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
-    # 輪詢階段每次都很短。真的抓到逐字稿時，潤飾加擷取約 10 到 20 分鐘。
-    # 60 分鐘足夠，同時避免卡死的工作長時間佔住 concurrency 佇列。
-    timeout-minutes: 55
+    # 內部輪詢循環一個 job 約 25 分鐘（TIME_BUDGET_SEC=1500）。
+    # 30 分鐘 job 上限足夠，並避免卡死的工作長時間佔住 concurrency 佇列。
+    timeout-minutes: 30
 
     steps:
       - name: 記錄排程與實際執行時間
@@ -73,7 +77,8 @@ jobs:
           echo "實際執行：$(TZ=Asia/Taipei date '+%Y/%m/%d %H:%M:%S') 台北時間"
           echo ""
           echo "若兩者差超過 30 分鐘，是 GitHub 排程佇列延遲，不是設定寫錯。"
-          echo "官方文件明講排程是 best effort，尖峰時段延遲 5 到 30 分鐘屬正常。"
+          echo "官方文件明講排程是 best effort，尖峰時段延遲屬正常。"
+          echo "本專案改用內部輪詢循環，不再依賴 cron 準點觸發很多次。"
 
       - uses: actions/checkout@v4
 
@@ -84,25 +89,28 @@ jobs:
 
       - name: 安裝相依套件
         run: |
+          # 最原始、也最穩定的安裝方式：
+          #   notebooklm-py 主程式 + browser 支援 + Chromium。
+          # 認證走 storage_state（本機 notebooklm login 產生，貼進 Secret）。
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install "notebooklm-py[browser]"
+          python -m playwright install chromium
 
       - name: 還原 NotebookLM 登入狀態
         env:
           NOTEBOOKLM_AUTH_JSON: ${{ secrets.NOTEBOOKLM_AUTH_JSON }}
         run: |
-          # notebooklm-py 0.7.3 的認證只有一種：Google web session cookie，
-          # 存在 storage_state.json，或用 NOTEBOOKLM_AUTH_JSON 傳進來。
-          # （0.7.3 沒有 --master-token，那是新版才有的，本專案不依賴它。）
-          #
-          # cookie 會被 Google 輪換，2 到 3 天就過期。單純每次重貼舊 cookie
-          # 撐不久。真正的解法在最後一步「把跑完後更新過的新鮮 cookie 寫回 Secret」，
-          # 讓下一輪永遠拿到最新的，不再天天過期。
+          # 認證只有一種：Google web session cookie，存在 storage_state.json。
+          # 在本機執行 notebooklm login 完成一次性授權後，把
+          #   ~/.notebooklm/profiles/default/storage_state.json
+          # 的完整內容貼到 GitHub Secret NOTEBOOKLM_AUTH_JSON。
+          # cookie 會被 Google 輪換，過期時就在本機重新 notebooklm login，再更新 Secret。
           mkdir -p ~/.notebooklm/profiles/default
           if [ -z "$NOTEBOOKLM_AUTH_JSON" ]; then
-            echo "NOTEBOOKLM_AUTH_JSON 是空的。請把本機"
-            echo "  ~/.notebooklm/profiles/default/storage_state.json"
-            echo "的完整內容貼到 GitHub Secret NOTEBOOKLM_AUTH_JSON。"
+            echo "NOTEBOOKLM_AUTH_JSON 是空的。請在本機執行 notebooklm login，"
+            echo "再把 ~/.notebooklm/profiles/default/storage_state.json 的完整內容"
+            echo "貼到 GitHub Secret NOTEBOOKLM_AUTH_JSON。"
             exit 1
           fi
           printf '%s' "$NOTEBOOKLM_AUTH_JSON" > ~/.notebooklm/storage_state.json
@@ -110,14 +118,8 @@ jobs:
           echo "已寫入 storage_state"
 
       - name: 執行每日流程
-        id: run_pipeline
         env:
           NOTEBOOKLM_AUTH_JSON: ${{ secrets.NOTEBOOKLM_AUTH_JSON }}
-          # 0.7.3 內建：偵測到 session 過期時，自動執行這個命令試圖重新取得 cookie。
-          # CI 上沒有你本機的瀏覽器可讀，能做的有限，所以這裡放一個一定不會報錯的
-          # 命令當佔位（真正讓 cookie 保持新鮮的是最後一步「寫回 Secret」）。
-          # 若你的版本確定有 auth refresh 子命令，可改成 'python -m notebooklm auth refresh'。
-          NOTEBOOKLM_REFRESH_CMD: 'true'
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
@@ -130,39 +132,3 @@ jobs:
           RECLASSIFY: ${{ github.event.inputs.reclassify }}
           RECONCILE: ${{ github.event.inputs.reconcile }}
         run: python pipeline.py
-
-      - name: 把更新過的新鮮 cookie 寫回 Secret
-        # 關鍵步驟：Google 在這次執行期間輪換過的 __Secure-1PSIDTS 等 cookie，
-        # 已由 notebooklm-py 寫回 runner 上的 storage_state.json。
-        # 這裡把那份新鮮的內容寫回 GitHub Secret NOTEBOOKLM_AUTH_JSON，
-        # 下一輪就拿到最新 cookie，不會再 2 到 3 天就過期。
-        #
-        # 需要一個有 secrets:write 權限的 PAT，存成 Secret PAT_SECRET_UPDATER。
-        # 沒設這個 PAT 時，這步安靜略過，退回原本「靠手動重貼」的行為，不會讓工作失敗。
-        #
-        # always()：就算主流程因為當天還沒有影片而正常結束，cookie 也可能已被更新，
-        # 一樣值得寫回；只有在檔案存在且和舊值不同時才寫。
-        if: ${{ always() }}
-        env:
-          GH_TOKEN: ${{ secrets.PAT_SECRET_UPDATER }}
-          OLD_AUTH: ${{ secrets.NOTEBOOKLM_AUTH_JSON }}
-        run: |
-          if [ -z "$GH_TOKEN" ]; then
-            echo "未設定 PAT_SECRET_UPDATER，略過寫回（退回手動重貼模式）。"
-            exit 0
-          fi
-          STATE=~/.notebooklm/profiles/default/storage_state.json
-          [ -s "$STATE" ] || STATE=~/.notebooklm/storage_state.json
-          if [ ! -s "$STATE" ]; then
-            echo "找不到更新後的 storage_state，略過寫回。"
-            exit 0
-          fi
-          NEW="$(cat "$STATE")"
-          if [ "$NEW" = "$OLD_AUTH" ]; then
-            echo "cookie 沒有變化，不需要寫回。"
-            exit 0
-          fi
-          printf '%s' "$NEW" | gh secret set NOTEBOOKLM_AUTH_JSON \
-            --repo "$GITHUB_REPOSITORY" --body-file - \
-            && echo "已把新鮮 cookie 寫回 Secret NOTEBOOKLM_AUTH_JSON" \
-            || echo "寫回 Secret 失敗（PAT 權限不足？），下一輪仍用舊 cookie。"

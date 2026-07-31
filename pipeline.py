@@ -791,6 +791,12 @@ NON_STOCK_EXACT = {
     "銅箔基板", "PCB", "ABF", "CoWoS", "HBM", "AI", "AI伺服器", "AI 伺服器",
     "電動車", "儲能", "太陽能", "風電", "生技", "重電股", "航太", "資安",
     "元宇宙", "低軌衛星", "衛星", "折疊機", "先進封裝", "玻璃基板",
+    # 更多材料、零件、載板類產業名詞
+    "石英元件", "石英", "AB載板", "ABF載板", "載板", "IC載板", "軟板", "硬板",
+    "連接器", "銅箔", "玻纖布", "導線架", "封裝基板", "陶瓷基板", "散熱片",
+    "矽晶圓", "砷化鎵", "光阻", "特化", "電源管理", "類比IC", "感測器",
+    "光學鏡頭", "鏡頭", "驅動IC", "指紋辨識", "生物辨識", "邊緣運算",
+    "矽智財", "IP股", "重電概念", "綠能", "氫能", "核能", "小型核電",
 }
 
 
@@ -1234,31 +1240,53 @@ def audit_signals(v2: str, signals: dict, date_str: str) -> dict:
         return signals
 
     added = 0
+    skipped_industry = 0
     for cat in ("buy", "sell", "watch_avoid", "watch_watch", "holdings"):
         have = {str(x.get("name", "")).strip() for x in signals.get(cat, [])}
         for item in missed.get(cat, []) or []:
             nm = str(item.get("name", "")).strip()
-            if nm and nm not in have:
-                signals.setdefault(cat, []).append(item)
-                have.add(nm)
-                added += 1
+            if not nm or nm in have:
+                continue
+            # 補回前先判定：是產業/族群就不補（也不會再被當成漏抓一直提醒）。
+            # 像「石英元件」「AB載板」「光通訊」這種點名，是族群不是個股。
+            if is_non_stock(nm)[0]:
+                skipped_industry += 1
+                continue
+            signals.setdefault(cat, []).append(item)
+            have.add(nm)
+            added += 1
     if added:
         print(f"  完整性稽核補回 {added} 檔第一次擷取漏掉的個股")
-    else:
+    if skipped_industry:
+        print(f"  完整性稽核略過 {skipped_industry} 個產業/族群名稱（非個股，不補）")
+    if not added and not skipped_industry:
         print("  完整性稽核：無漏抓")
     return signals
 
 
 def build_article(v2: str, signals: dict, date_str: str) -> str:
     clean = {k: v for k, v in signals.items() if not k.startswith("_")}
-    return call_gemini(
-        ARTICLE_SYSTEM,
+    payload = (
         f"影片日期：{date_str}\n\n"
         f"已擷取的操作紀錄（唯一資料來源，代號已比對官方清單，"
         f"禁止列入清單以外的任何股票，禁止改動代號）：\n"
-        f"{json.dumps(clean, ensure_ascii=False, indent=2)}",
-        thinking=0, tag="article",
+        f"{json.dumps(clean, ensure_ascii=False, indent=2)}"
     )
+    try:
+        return call_gemini(ARTICLE_SYSTEM, payload, thinking=0, tag="article")
+    except RuntimeError as e:
+        # 內容特別多的那幾天，整理文章可能超過輸出上限被截斷（MAX_TOKENS）。
+        # 不要報錯要人工重跑，改為自動用「精簡版」指示再生一次：
+        # 只保留每檔一到兩句重點，去掉鋪陳與重複，通常就能壓進上限。
+        if "MAX_TOKENS" not in str(e):
+            raise
+        print("  article 因內容過多被截斷，改用精簡指示自動重生一次")
+        concise = ARTICLE_SYSTEM + (
+            "\n\n【本次特別要求】這次內容較多，請大幅精簡："
+            "每一檔最多一到兩句重點，去除所有鋪陳、形容與重複，"
+            "務必在有限篇幅內完整涵蓋每一檔，不可中途截斷或省略任何一檔。"
+        )
+        return call_gemini(concise, payload, thinking=0, tag="article-concise")
 
 
 # ---------------------------------------------------------------- #

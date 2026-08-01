@@ -205,9 +205,40 @@ def maybe_refresh_site():
     if not REFRESH_SITE:
         return
     if not APPS_SCRIPT_URL or not ADMIN_KEY:
-        print("\n要求刷新網站，但缺少 APPS_SCRIPT_URL 或 ADMIN_KEY，略過。")
-        print("請到 GitHub → Settings → Secrets 補上這兩個 Secret，")
-        print("ADMIN_KEY 必須與 Apps Script 指令碼屬性裡的那一組完全相同。")
+        # 明確講出「缺哪一個」，不要讓人兩個都去翻。
+        missing = []
+        if not APPS_SCRIPT_URL:
+            missing.append("APPS_SCRIPT_URL")
+        if not ADMIN_KEY:
+            missing.append("ADMIN_KEY")
+        print("\n" + "=" * 60)
+        print(f"要求刷新網站，但缺少：{'、'.join(missing)}　本次略過刷新。")
+        print("（資料整理本身沒有受影響，已經寫進試算表了。）")
+        print("=" * 60)
+        print("")
+        print("最快的補法：到 Apps Script 編輯器執行 showDeployInfo() 這支函式，")
+        print("它會把下面兩個值直接印在執行紀錄裡，複製貼上即可。")
+        print("")
+        if "APPS_SCRIPT_URL" in missing:
+            print("【APPS_SCRIPT_URL】網頁應用程式的部署網址")
+            print("  Apps Script → 右上角「部署」→ 管理部署作業 → 複製網頁應用程式網址。")
+            print("  長得像 https://script.google.com/macros/s/AKfycb.../exec")
+            print("  務必是 /exec 結尾。/dev 結尾那個只有你登入時能開，GitHub 打不進來。")
+            print("")
+        if "ADMIN_KEY" in missing:
+            print("【ADMIN_KEY】管理密鑰，這是你自己訂的字串，不是任何人發給你的")
+            print("  Apps Script → 專案設定 → 指令碼屬性，看 ADMIN_KEY 那一列的值。")
+            print("  還沒設過的話，執行 showDeployInfo() 會自動幫你產生一組。")
+            print("  GitHub 這邊要填「一模一樣」的字串，前後不能多空格。")
+            print("")
+        print("填的位置：GitHub → Settings → Secrets and variables → Actions")
+        print("          → New repository secret，名稱全大寫照打。")
+        print("")
+        print("設好之後，重跑一次本工作流程並勾選 refresh_site 即可。")
+        print("在那之前，想更新網站可以用另外兩種方式：")
+        print("  1. 網站技術說明頁最下方，輸入管理密鑰按「立即刷新網站內容」")
+        print("  2. Apps Script 編輯器直接執行 refreshSiteNow()")
+        print("=" * 60)
         return
 
     print("\n要求 Apps Script 立刻重算全站（約一到兩分鐘）……")
@@ -221,11 +252,29 @@ def maybe_refresh_site():
             headers={"User-Agent": "zhangzhen-pipeline"},
         )
         body = resp.text[:600]
-        print(f"刷新回應（HTTP {resp.status_code}）：{body}")
-        if '"ok":true' in body.replace(" ", ""):
+        clean = body.replace(" ", "")
+        if '"ok":true' in clean:
+            print(f"刷新回應（HTTP {resp.status_code}）：{body}")
             print("網站已刷新完成，重新整理頁面即可看到最新內容。")
+        elif '"ok":false' in clean:
+            # 端點有通、但被拒絕。九成是密鑰對不上。
+            print(f"刷新回應（HTTP {resp.status_code}）：{body}")
+            print("")
+            print("端點有回應，但被拒絕了。最常見的原因是兩邊的 ADMIN_KEY 不一致：")
+            print("  Apps Script → 專案設定 → 指令碼屬性，比對 ADMIN_KEY 的值")
+            print("  GitHub → Settings → Secrets，確認貼上時前後沒有多空格或換行")
+        elif "<html" in body.lower() or "<!doctype" in body.lower():
+            # 回傳網頁而不是 JSON，代表部署中的版本還是舊程式碼。
+            print(f"刷新回應（HTTP {resp.status_code}）：回傳的是 HTML 網頁，不是預期的 JSON。")
+            print("")
+            print("這代表部署中的版本還沒有包含遠端刷新入口。請到 Apps Script：")
+            print("  部署 → 管理部署作業 → 編輯（鉛筆圖示）→ 版本選「新版本」→ 部署")
+            print("貼上新的 Code.gs 之後，一定要重新部署新版本才會生效。")
+            print("另外確認部署設定的「誰可以存取」是「所有人」，")
+            print("設成僅限自己時，GitHub 會被導到 Google 登入頁而拿到 HTML。")
         else:
-            print("刷新指令已送出，但回應不是成功。請確認 ADMIN_KEY 與部署網址是否正確。")
+            print(f"刷新回應（HTTP {resp.status_code}）：{body}")
+            print("回應格式不如預期，請確認部署網址是否為 /exec 結尾。")
     except Exception as e:
         print(f"刷新網站失敗（不影響已寫入的資料）：{e}")
         print("可改用備援方式：到網站的技術說明頁最下方輸入管理密鑰按「立即刷新網站內容」，")

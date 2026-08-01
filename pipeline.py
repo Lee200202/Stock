@@ -264,14 +264,32 @@ def maybe_refresh_site():
             print("  Apps Script → 專案設定 → 指令碼屬性，比對 ADMIN_KEY 的值")
             print("  GitHub → Settings → Secrets，確認貼上時前後沒有多空格或換行")
         elif "<html" in body.lower() or "<!doctype" in body.lower():
-            # 回傳網頁而不是 JSON，代表部署中的版本還是舊程式碼。
+            # 回傳網頁而不是 JSON。有兩種完全不同的成因，解法也不同，必須分開判斷。
+            low = body.lower()
+            is_login = ("accounts.google.com" in low or "servicelogin" in low
+                        or "signin" in low)
             print(f"刷新回應（HTTP {resp.status_code}）：回傳的是 HTML 網頁，不是預期的 JSON。")
+            print(f"最終網址：{resp.url}")
+            print(f"內容開頭：{body[:200]}")
             print("")
-            print("這代表部署中的版本還沒有包含遠端刷新入口。請到 Apps Script：")
-            print("  部署 → 管理部署作業 → 編輯（鉛筆圖示）→ 版本選「新版本」→ 部署")
-            print("貼上新的 Code.gs 之後，一定要重新部署新版本才會生效。")
-            print("另外確認部署設定的「誰可以存取」是「所有人」，")
-            print("設成僅限自己時，GitHub 會被導到 Google 登入頁而拿到 HTML。")
+            if is_login:
+                print(">>> 這是 Google 登入頁，代表請求根本沒有進到你的程式碼。")
+                print("    成因：部署的「誰可以存取」不是「所有人」。")
+                print("    GitHub Actions 沒有 Google 帳號可以登入，會被擋在驗證這一關。")
+                print("    修法：管理部署作業 → 編輯 → 誰可以存取改成「所有人」。")
+                print("    注意「凡是擁有 Google 帳戶的使用者」也不行，必須是「所有人」。")
+            else:
+                print(">>> 這是網站本身的頁面，代表請求有進到你的程式，")
+                print("    但那份程式碼裡沒有 action=refresh 這個分支。")
+                print("    也就是說：部署中的版本還是舊的 Code.gs。")
+                print("")
+                print("    請依序確認：")
+                print("    1. Code.gs 裡真的有 params.action === 'refresh' 這段（搜尋 jsonOut_）")
+                print("    2. 管理部署作業 → 編輯（鉛筆）→ 版本選「新版本」→ 部署")
+                print("       ※ 用「新增部署作業」會產生另一組網址，舊網址仍指向舊版")
+                print("    3. 部署清單若有多筆，確認 APPS_SCRIPT_URL 是你剛才更新的那一筆")
+                print("       兩者的 /s/ 後面那串 ID 必須一致")
+                print("    4. 執行 showDeployInfo()，用它印出來的網址覆蓋 GitHub Secret")
         else:
             print(f"刷新回應（HTTP {resp.status_code}）：{body}")
             print("回應格式不如預期，請確認部署網址是否為 /exec 結尾。")

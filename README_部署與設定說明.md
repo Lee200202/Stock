@@ -52,8 +52,14 @@
 - OWNER_EMAIL（指令碼屬性）：失敗告警與稽核通知收件者。必要。
 - STATUS_EMAILS（指令碼屬性）：爬取狀態報告收件者，逗號分隔。建議。
 - FUGLE_API_KEY（指令碼屬性）：上櫃股票日K；個股現爬。選用。
-- ADMIN_KEY（指令碼屬性 + GitHub Secrets）：網站「立即刷新」管理密鑰。兩邊必須是同一組字串，GitHub 才能在跑完後遠端要求下游重算。建議。
+- ADMIN_KEY（指令碼屬性 + GitHub Secrets）：網站「立即刷新」管理密鑰，這是自己訂的字串，不是別人發的。兩邊必須是同一組，GitHub 才能在跑完後遠端要求下游重算。建議。
 - APPS_SCRIPT_URL（GitHub Secrets）：網頁應用程式的部署網址（/exec 結尾），供上游跑完後通知下游刷新。選用。
+
+這兩個值怎麼拿：在 Apps Script 編輯器執行 showDeployInfo()，執行紀錄會一次印出網址與密鑰，
+沒設過密鑰時會自動產生一組，並附上一串可直接貼到瀏覽器驗證端點的測試網址。
+手動找的話：網址在「部署 → 管理部署作業」，密鑰在「專案設定 → 指令碼屬性」。
+網址務必用 /exec 結尾那個（/dev 只有本人登入能開），部署的「誰可以存取」要設成「所有人」，
+而且改過 Code.gs 之後一定要重新部署新版本，否則線上跑的還是舊程式碼。
 
 使用者在問答小幫手貼的自己那把 Gemini 金鑰不屬於上表，只存在使用者瀏覽器的 localStorage，隨每次提問傳進後端、用完即丟，不寫入任何地方。
 
@@ -109,6 +115,7 @@ NotebookLM 認證重點：notebooklm-py 0.7.3 用 Google web session cookie（st
 - refresh_site：附掛動作，不是模式。跑完後立刻要求下游重算全站。可與上面任一項同勾，也可單獨勾（只刷新、不動資料）。
 
 Apps Script 端常用函式：
+- showDeployInfo()：印出 refresh_site 需要的兩個值，並檢查部署狀態。
 - refreshSiteNow()：一鍵刷新網站既有內容（清產業、修代號、補日K、基本面、重算追蹤、記績效）。不抓新影片。想立刻更新網站而不等下個交易日時用這個。
 - purgeIndustryRows()：立刻移除記憶體、台塑集團、AB載板等產業列。
 - rebuildHoldingsTrackerJob()：重算持股追蹤與逐日說明。

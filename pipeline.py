@@ -125,6 +125,14 @@ RECLASSIFY = os.environ.get("RECLASSIFY", "false").strip().lower() == "true"
 # 不重抓影片、不呼叫 NotebookLM。
 RECONCILE = os.environ.get("RECONCILE", "false").strip().lower() == "true"
 
+# 價位說明校對模式。逐列檢查價位說明，修正三類錯誤：
+#   1. 方向矛盾（方向是買入，說明卻寫「255 以上全部賣掉」）
+#   2. 不是股價的數字（「241億以下」是營收不是股價）
+#   3. 概數當精確價（「1400多」不可拿來算報酬）
+# 先用規則快篩，只有可疑的列才送 Gemini，所以大多數的列是零成本通過。
+# 用已存逐字稿，不重抓影片、不呼叫 NotebookLM。
+FIX_PRICES = os.environ.get("FIX_PRICES", "false").strip().lower() == "true"
+
 # YouTube Data API 金鑰。有設定就優先用它取影片清單，
 # 因為 RSS（feeds/videos.xml）對 GitHub 機房 IP 會穩定回 404，重試無效。
 # 沒設定則退回 RSS，維持本機或非機房環境可用。
@@ -160,6 +168,68 @@ TIME_BUDGET = int(os.environ.get("TIME_BUDGET_SEC", "1500"))   # 25 分鐘
 POLL_LOOP = os.environ.get("POLL_LOOP", "true").strip().lower() == "true" and not (
     BACKFILL or FINAL_ATTEMPT)
 POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL_SEC", "180"))   # 每 3 分鐘敲一次
+
+
+# ---------------------------------------------------------------- #
+# 「我現在就要看到網站更新」開關
+#
+# 這裡要先講清楚一件常被搞混的事：整理資料與更新網站是兩件事，在兩個地方。
+#
+#   上游 GitHub Actions 改的是「試算表」。它把資料整理好、寫進去，就結束了。
+#   下游 Apps Script 才是把試算表算成網站看到的樣子（持股追蹤、報酬、圖表）。
+#
+# 所以只在 GitHub 按 Run workflow，試算表確實會變，但網站畫面不會立刻跟著變，
+# 要等下游排程（平日 14:50 那一輪）跑過才會。這就是「為什麼我改完了網站還是舊的」。
+#
+# REFRESH_SITE 就是用來把這兩段接起來的：GitHub 這邊做完資料整理之後，
+# 直接打一通 HTTP 給 Apps Script 的網頁應用程式，要它立刻重算全站，
+# 不必等下一個交易日，也不必再自己去 Apps Script 編輯器按一次執行。
+#
+# 需要兩個 Secret 才會動作，缺一就安靜略過（不影響資料整理本身）：
+#   APPS_SCRIPT_URL：Apps Script 部署後的網頁應用程式網址（/exec 結尾）
+#   ADMIN_KEY      ：與 Apps Script 指令碼屬性中的 ADMIN_KEY 相同的那組密鑰
+# ---------------------------------------------------------------- #
+REFRESH_SITE = os.environ.get("REFRESH_SITE", "false").strip().lower() == "true"
+APPS_SCRIPT_URL = os.environ.get("APPS_SCRIPT_URL", "").strip()
+ADMIN_KEY = os.environ.get("ADMIN_KEY", "").strip()
+
+
+def maybe_refresh_site():
+    """
+    要求 Apps Script 立刻重算全站。只有 REFRESH_SITE=true 時才動作。
+
+    刷新本身可能要一兩分鐘（補日K、重算追蹤、記績效），所以逾時給到 300 秒。
+    失敗不視為整體失敗：資料已經寫進試算表了，網站晚一點由排程刷新也會正確，
+    所以這裡只印警告，不讓整個 workflow 亮紅燈。
+    """
+    if not REFRESH_SITE:
+        return
+    if not APPS_SCRIPT_URL or not ADMIN_KEY:
+        print("\n要求刷新網站，但缺少 APPS_SCRIPT_URL 或 ADMIN_KEY，略過。")
+        print("請到 GitHub → Settings → Secrets 補上這兩個 Secret，")
+        print("ADMIN_KEY 必須與 Apps Script 指令碼屬性裡的那一組完全相同。")
+        return
+
+    print("\n要求 Apps Script 立刻重算全站（約一到兩分鐘）……")
+    try:
+        # Apps Script 的 /exec 會 302 轉址到 googleusercontent，
+        # requests 預設會跟著轉址，正是我們要的行為。
+        resp = requests.get(
+            APPS_SCRIPT_URL,
+            params={"action": "refresh", "key": ADMIN_KEY},
+            timeout=300,
+            headers={"User-Agent": "zhangzhen-pipeline"},
+        )
+        body = resp.text[:600]
+        print(f"刷新回應（HTTP {resp.status_code}）：{body}")
+        if '"ok":true' in body.replace(" ", ""):
+            print("網站已刷新完成，重新整理頁面即可看到最新內容。")
+        else:
+            print("刷新指令已送出，但回應不是成功。請確認 ADMIN_KEY 與部署網址是否正確。")
+    except Exception as e:
+        print(f"刷新網站失敗（不影響已寫入的資料）：{e}")
+        print("可改用備援方式：到網站的技術說明頁最下方輸入管理密鑰按「立即刷新網站內容」，")
+        print("或在 Apps Script 編輯器直接執行 refreshSiteNow()。")
 
 
 def budget_left() -> float:
@@ -1143,6 +1213,77 @@ ENTRY_PRICE_SYSTEM = """你要從逐字稿中找出「張震針對某一檔股�
 {"price": 數字或 null, "side": "buy" 或 "sell", "note": "來源說明（例如：張震在 45 以上買入）", "quote": "你依據的那一句原話（20字內）"}"""
 
 
+PRICE_FIX_SYSTEM = """你是財經資料的校對員。給你「一檔股票在某一天的一筆紀錄」，
+包含：股票名稱、日期、操作方向、目前的價位說明、當天的股價區間、以及逐字稿中的相關段落。
+
+你的任務：判斷目前這句「價位說明」對不對，不對就改對。你不是在做摘要，是在做校對。
+
+═══ 第一原則：價位說明必須與操作方向一致 ═══
+
+價位說明描述的動作，必須跟「操作方向」欄講的是同一件事。這是最常見也最嚴重的錯誤。
+
+實際發生過的錯誤：
+  方向＝買入，價位說明＝「張震發訊息給會員，告知 255 以上鴻海全部賣掉」
+  這句話描述的是賣出，卻掛在買入那一列。兩者矛盾，必錯其一。
+
+遇到方向與內容矛盾時，一律以「方向」欄為準，因為方向是另外獨立判定的，可信度較高。
+請回頭在逐字稿裡找「符合該方向」的價位：
+  方向是買入 → 只找買進、承接、進場、掛單買到的價位。
+  方向是賣出 → 只找賣出、出場、獲利了結、停損的價位。
+  方向是觀望不碰 → 只找他說「跌破什麼價才會考慮」「什麼價以下才有機會」這類觀察價。
+  方向是觀望注意 → 只找他說「等回到什麼價位」「什麼價以上可以留意」這類觀察價。
+找不到符合該方向的價位，就回 price=null、note="未說明"。
+絕對不可以把賣出的價位寫進買入那一列，寧可留「未說明」。
+
+═══ 第二原則：數字必須真的是這一檔的股價 ═══
+
+實際發生過的錯誤：
+  鴻海，價位說明＝「241億以下」。241 億是營收或市值，不是股價，鴻海不在這個價位。
+
+下列數字一律不是股價，遇到就回 price=null：
+  金額單位：億、兆、萬元、千萬（營收、市值、成交金額）
+  數量單位：張、萬張、口、股（成交量、持股數）
+  財報數字：EPS、每股盈餘、毛利率、營益率、本益比、殖利率、年增率、月增率
+  指數點位：大盤、加權指數、費半、道瓊、那斯達克，以及任何「點」結尾的數字
+  百分比：漲跌幅、報酬率
+  年份、日期、時間、電話、代號
+
+我會提供「當天的股價區間」（最高、最低）。這是硬性驗證：
+  數字落在區間內 → 通過。
+  數字落在區間外但相差在三成以內 → 可能是他講的是條件價（例如「255 以上才賣」），
+    這種可以保留，但務必在 note 裡寫清楚那是條件價不是成交價。
+  數字與區間差距超過三成（例如區間 160-165，卻講 241）→ 這一定不是股價，回 price=null。
+若我沒有提供區間，就用常識判斷：台股個股股價幾乎都在 5 到 2000 元之間。
+
+═══ 第三原則：模糊數字不可以當成精確價 ═══
+
+實際發生過的錯誤：
+  價位說明＝「1400多」。這是概數，不是成交價，拿它算報酬會算出看起來精確但其實是編的數字。
+
+「1400多」「兩百出頭」「五百左右」「大概 90」「90 上下」「120 到 125 之間」這類：
+  price 一律回 null（不可以自作主張取 1400、也不可以取中間值 122.5）。
+  但 note 要保留他原本的講法，寫成「約 1400 多（概數，非成交價）」。
+  這樣讀者知道他講過大概的價位，程式也不會誤把概數當成本。
+
+「255 以上」「88 以下」這種帶門檻的說法不算模糊，那是明確的門檻數字，
+price 就填那個門檻，note 寫明條件，例如「255 以上全部賣出（條件價）」。
+
+═══ 輸出格式 ═══
+
+note 要寫成一句人看得懂的短句，25 個字以內，開頭直接講動作與價位，不要贅字。
+好的 note：「明講在 168 買入」「255 以上全部賣出（條件價）」「約 1400 多（概數，非成交價）」
+不好的 note：「張震在影片中有提到說他大概是在 168 這個價位附近買進的」（太長太囉嗦）
+
+沒有任何可用價位時：price=null、note="未說明"。這是完全可以接受的答案，
+留「未說明」永遠好過填一個編出來的數字。
+
+changed 欄位：你有改動原本的價位說明就填 true，判定原本就是對的、不需要改就填 false。
+reason 欄位：一句話說明你為什麼這樣判（例如「原說明描述賣出但方向是買入，已改抓買入價」）。
+
+只回傳 JSON，不要有其他文字：
+{"price": 數字或 null, "note": "修正後的價位說明", "changed": true 或 false, "reason": "判斷理由（30字內）", "quote": "你依據的那一句原話（20字內）"}"""
+
+
 ARTICLE_SYSTEM = """你是一位專業財經記者與投顧整理編輯，負責撰寫「張震 股市盤中家教班」
 每日影音內容的文字稿，語氣與結構貼近 168 聚財網 168-TV 欄位中張震相關文章的風格。
 
@@ -1743,6 +1884,250 @@ def reconcile_all(ss):
     print("整頓完成。請到 Apps Script 執行 rebuildHoldingsTrackerJob() 讓進場價與逐日說明更新。")
 
 
+# 明顯不是股價的單位與詞。命中就直接判定要修，不必先問 AI。
+NON_PRICE_UNITS = ("億", "兆", "萬元", "千萬", "萬張", "張", "口",
+                   "EPS", "每股", "毛利", "營益", "本益比", "殖利率",
+                   "營收", "點", "指數", "大盤", "%", "％")
+
+# 概數用語。命中代表這個數字不能當成交價。
+VAGUE_UNITS = ("多", "左右", "上下", "附近", "大概", "約", "出頭", "之間", "~", "～")
+
+# 方向與動作字眼的對應。價位說明裡出現「相反方向」的動作字眼就是矛盾。
+DIR_ACTION_WORDS = {
+    "買入": {"self": ("買", "承接", "進場", "掛進", "布局", "加碼"),
+             "opposite": ("賣", "出清", "出場", "獲利了結", "停損", "全部賣掉", "減碼")},
+    "賣出": {"self": ("賣", "出清", "出場", "獲利了結", "停損", "減碼"),
+             "opposite": ("買", "承接", "進場", "掛進", "布局", "加碼")},
+}
+
+
+def price_note_is_suspect(direction: str, note: str) -> tuple:
+    """
+    先用規則快篩，判斷這筆價位說明需不需要送 AI 校對。
+    回傳 (要不要修, 原因)。這一層擋掉大多數乾淨的列，省 token 也省時間。
+    """
+    d = str(direction or "").strip()
+    s = str(note or "").strip()
+
+    if not s or s == "未說明":
+        return (False, "")
+
+    # 1. 方向矛盾：價位說明裡出現與方向相反的動作字眼
+    rule = DIR_ACTION_WORDS.get(d)
+    if rule:
+        has_opposite = any(w in s for w in rule["opposite"])
+        has_self = any(w in s for w in rule["self"])
+        if has_opposite and not has_self:
+            return (True, f"方向是{d}，但價位說明描述的是相反動作")
+
+    # 2. 非股價單位
+    for u in NON_PRICE_UNITS:
+        if u in s:
+            return (True, f"含非股價單位「{u}」")
+
+    # 3. 概數
+    for u in VAGUE_UNITS:
+        if u in s:
+            return (True, f"含概數用語「{u}」")
+
+    # 4. 太長：正常的價位說明是「168 買入」這種短句。
+    #    超過 20 字幾乎都是把整段口述塞進來了，需要濃縮。
+    if len(s) > 20:
+        return (True, "價位說明過長，應濃縮成一句")
+
+    return (False, "")
+
+
+def load_daily_k(ss) -> dict:
+    """
+    從「日K快取」讀出 {代號: {日期: (最高, 最低)}}。
+    用來硬性驗證 AI 給的價位真的是那天的股價，而不是營收或指數。
+    快取是空的也不影響流程，只是少一道驗證。
+    """
+    try:
+        vals = sheets_retry(ss.worksheet("日K快取").get_all_values)
+    except Exception as e:
+        print(f"  讀不到日K快取（{e}），本次略過價位區間驗證")
+        return {}
+    if len(vals) < 2:
+        return {}
+
+    head = vals[0]
+
+    def ci(name, default):
+        return head.index(name) if name in head else default
+    c_code, c_date = ci("代號", 0), ci("日期", 1)
+    c_high, c_low = ci("高", 3), ci("低", 4)
+
+    out = {}
+    for row in vals[1:]:
+        try:
+            code = str(row[c_code]).strip()
+            date = norm_date(row[c_date])
+            hi = float(row[c_high])
+            lo = float(row[c_low])
+        except (ValueError, IndexError):
+            continue
+        if not code or not date or hi <= 0:
+            continue
+        out.setdefault(code, {})[date] = (hi, lo)
+    print(f"  日K快取載入 {len(out)} 檔，供價位區間驗證")
+    return out
+
+
+def fix_prices_all(ss):
+    """
+    價位說明校對。逐列檢查「操作紀錄」的價位說明，用 AI 修正三類錯誤：
+
+      1. 方向矛盾。方向是買入，說明卻寫「255 以上鴻海全部賣掉」。
+         以方向欄為準，回逐字稿重抓符合該方向的價位，找不到就留未說明。
+      2. 不是股價的數字。「241億以下」是營收不是股價，用日K區間硬性驗證後剔除。
+      3. 概數當精確價。「1400多」保留敘述但不給數字，避免被當成本算報酬。
+
+    只用已存的逐字稿，不重抓影片、不呼叫 NotebookLM。
+    先用規則快篩，只有可疑的列才送 AI，所以大部分的列是零成本通過的。
+    """
+    ws = ss.worksheet("操作紀錄")
+    vals = sheets_retry(ws.get_all_values)
+    if len(vals) < 2:
+        print("操作紀錄是空的，無需校對")
+        return
+
+    head = vals[0]
+
+    def ci(name, default):
+        return head.index(name) if name in head else default
+    c_date, c_name, c_code = ci("日期", 0), ci("股票名稱", 1), ci("代號", 2)
+    c_dir, c_price = ci("方向", 3), ci("價位說明", 4)
+
+    # 逐字稿索引：日期 -> 修飾後逐字稿
+    tx = {}
+    for r in video_rows(ss):
+        d = norm_date(r.get("發布日期"))
+        v2 = str(r.get("修飾後逐字稿內容") or "")
+        if d and len(v2) > 200:
+            tx[d] = v2
+    print(f"  可用逐字稿 {len(tx)} 天")
+
+    kmap = load_daily_k(ss)
+
+    # ---- 規則快篩 ----
+    suspects = []
+    for i in range(1, len(vals)):
+        row = vals[i]
+
+        def get(idx):
+            return str(row[idx]).strip() if idx < len(row) else ""
+        name, direction, note = get(c_name), get(c_dir), get(c_price)
+        if not name:
+            continue
+        need, why = price_note_is_suspect(direction, note)
+        if need:
+            suspects.append({
+                "rowno": i + 1, "name": name, "code": get(c_code),
+                "date": norm_date(get(c_date)), "dir": direction,
+                "note": note, "why": why,
+            })
+
+    total_rows = len(vals) - 1
+    if not suspects:
+        print(f"價位說明校對完成：{total_rows} 列全部通過規則快篩，沒有需要修正的。")
+        return
+    print(f"共 {total_rows} 列，規則快篩挑出 {len(suspects)} 列可疑，送 AI 校對：")
+    for s in suspects[:15]:
+        print(f"  第 {s['rowno']} 列　{s['date']} {s['name']} [{s['dir']}]"
+              f"　「{s['note'][:28]}」　← {s['why']}")
+    if len(suspects) > 15:
+        print(f"  ……另有 {len(suspects) - 15} 列")
+
+    # ---- 逐列送 AI 校對 ----
+    updates, stat = [], {"fixed": 0, "cleared": 0, "kept": 0, "skipped": 0}
+
+    for s in suspects:
+        if out_of_budget():
+            print("時間預算用盡，價位校對先停，下次再跑（已處理的會先寫回）。")
+            break
+
+        v2 = tx.get(s["date"], "")
+        snippet = _relevant_snippets(v2, s["name"]) if v2 else ""
+        if not snippet:
+            # 沒有逐字稿佐證就不敢改內容，但明顯不是股價的仍要清掉，
+            # 否則「241億以下」會一直留著被下游當成價位解析。
+            if any(u in s["note"] for u in NON_PRICE_UNITS):
+                updates.append((s["rowno"], "未說明"))
+                stat["cleared"] += 1
+                print(f"  第 {s['rowno']} 列　{s['name']}　無逐字稿佐證但確定非股價，清為未說明")
+            else:
+                stat["skipped"] += 1
+            continue
+
+        # 當天的股價區間，給 AI 當硬性驗證依據
+        rng = kmap.get(s["code"], {}).get(s["date"])
+        rng_text = (f"當天股價區間：最高 {rng[0]}，最低 {rng[1]}"
+                    if rng else "當天股價區間：日K快取沒有這一天的資料，請用常識判斷")
+
+        user = (
+            f"股票名稱：{s['name']}\n"
+            f"日期：{s['date']}\n"
+            f"操作方向：{s['dir']}\n"
+            f"目前的價位說明：{s['note']}\n"
+            f"系統初步判定的問題：{s['why']}\n"
+            f"{rng_text}\n\n"
+            f"逐字稿相關段落：\n{snippet}"
+        )
+
+        try:
+            raw = call_gemini(PRICE_FIX_SYSTEM, user, want_json=True, thinking=0, tag="pricefix")
+            res = json.loads(re.sub(r"^```json|^```|```$", "", raw.strip(), flags=re.M).strip())
+        except Exception as e:
+            print(f"  第 {s['rowno']} 列　{s['name']} 校對略過（{e}）")
+            stat["skipped"] += 1
+            continue
+
+        price = res.get("price")
+        new_note = str(res.get("note") or "").strip() or "未說明"
+
+        # ---- 程式端再驗一次。AI 說通過不算數，數字要自己對過 K 線才算。 ----
+        if price is not None and rng:
+            try:
+                pv = float(price)
+                hi, lo = rng
+                if pv > hi * 1.3 or pv < lo * 0.7:
+                    print(f"  第 {s['rowno']} 列　{s['name']}　AI 給的 {pv} 偏離當日區間 "
+                          f"{lo}-{hi} 超過三成，不採用，清為未說明")
+                    new_note = "未說明"
+            except (TypeError, ValueError):
+                new_note = "未說明"
+
+        if new_note == s["note"]:
+            stat["kept"] += 1
+            continue
+
+        updates.append((s["rowno"], new_note))
+        if new_note == "未說明":
+            stat["cleared"] += 1
+        else:
+            stat["fixed"] += 1
+        print(f"  第 {s['rowno']} 列　{s['name']} [{s['dir']}]"
+              f"　「{s['note'][:24]}」→「{new_note}」　（{res.get('reason', '')}）")
+
+    # ---- 批次寫回 ----
+    if updates:
+        col = chr(ord("A") + c_price)
+        data = [{"range": f"{col}{rn}", "values": [[note]]} for rn, note in updates]
+        for i in range(0, len(data), 500):
+            sheets_retry(ws.batch_update, data[i:i + 500], value_input_option="RAW")
+            if i + 500 < len(data):
+                time.sleep(2)
+        print(f"\n價位說明批次寫回 {len(updates)} 列。")
+    else:
+        print("\n沒有需要寫回的修正。")
+
+    print(f"校對統計：改寫 {stat['fixed']}、清為未說明 {stat['cleared']}、"
+          f"維持原樣 {stat['kept']}、略過 {stat['skipped']}")
+    print("接著請刷新網站（見下方說明），讓持股追蹤與表格反映新的價位說明。")
+
+
 def repair_codes_only(ss):
     """
     不碰 NotebookLM，不呼叫 Gemini，只把試算表既有的股票名稱
@@ -1854,6 +2239,7 @@ def main():
     # 先前就發生過三個都勾、結果只跑了修代號的情況，所以這裡明講。
     picked = [n for n, on in (("repair_codes", REPAIR_CODES),
                               ("reclassify", RECLASSIFY),
+                              ("fix_prices", FIX_PRICES),
                               ("reconcile", RECONCILE),
                               ("fill_blanks", FILL_BLANKS),
                               ("backfill", BACKFILL)) if on]
@@ -1861,21 +2247,39 @@ def main():
         print(f"注意：同時勾選了 {'、'.join(picked)}，這些是互斥模式，"
               f"本輪只會執行「{picked[0]}」。其餘請分次執行。")
 
+    # refresh_site 不算模式，它是附掛在任一模式之後的動作，可以與其他選項同時勾。
+    # 只勾它、其他都沒勾時，代表「資料不用動，我只想讓網站立刻用現有資料重算一次」，
+    # 這時不該往下跑抓影片的流程，刷新完就結束。
+    if REFRESH_SITE and not picked:
+        print("模式：只刷新網站。不動任何資料，只要求 Apps Script 用現有資料重算全站。")
+        maybe_refresh_site()
+        return
+
     if REPAIR_CODES:
         print("模式：純修代號。不碰 NotebookLM，不呼叫 Gemini。")
         repair_codes_only(ss)
+        maybe_refresh_site()
         return
 
     if RECLASSIFY:
         print("模式：重新分類。只讀操作紀錄既有內容，依理由摘錄的情緒把觀望類")
         print("改寫成觀望不碰或觀望注意。不碰逐字稿、不呼叫 Gemini，不改動買入與賣出。")
         reclassify_from_transcripts(ss)
+        maybe_refresh_site()
+        return
+
+    if FIX_PRICES:
+        print("模式：價位說明校對。修正方向矛盾、非股價數字、概數當精確價三類錯誤。")
+        print("先用規則快篩，只有可疑的列才送 Gemini。用已存逐字稿，不重抓影片。")
+        fix_prices_all(ss)
+        maybe_refresh_site()
         return
 
     if RECONCILE:
         print("模式：整頓。AI 判定產業並刪除、抽取張震明講的買入價並核對後寫回。")
         print("用已存逐字稿，不重抓影片。")
         reconcile_all(ss)
+        maybe_refresh_site()
         return
 
     if FILL_BLANKS:

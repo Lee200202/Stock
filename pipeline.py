@@ -333,6 +333,23 @@ AUTH_HINTS = (
     "authentication expired", "authentication invalid", "not authenticated",
     "accounts.google.com", "notebooklm login", "re-authenticate",
     "unauthorized", "401", "403", "sign in", "login required",
+    # ---- 以下是 NotebookLM 用戶端實際吐出來的形狀 ----
+    # 這個函式原本抓不到它們，於是登入失效被當成一般錯誤，
+    # 輪詢迴圈就每 180 秒重敲一次、一路敲到時間預算用完才停，
+    # 而每一次都必然失敗。認證過期重試永遠沒有用，要立刻停下來換 cookie。
+    #
+    # 典型訊息：
+    #   RPC CCqFvf returned null result with status code 16 (Unauthenticated).
+    #   RPCError rpc_code=16
+    #   Token refresh failed: Client error '400 Bad Request' ...
+    "unauthenticated",          # 注意與上面的 not authenticated 是不同字串
+    "status code 16",
+    "rpc_code=16",
+    "token refresh failed",
+    "invalid_grant",
+    "servicelogin",
+    "weblitesignin",
+    "confirmidentifier",
 )
 
 
@@ -988,7 +1005,64 @@ def _npin1(s: str) -> str:
 
 def _base(s: str) -> str:
     """去掉 -KY、*、投控 這類後綴。讓「譜瑞」能對上「譜瑞-KY」。"""
-    return re.sub(r"(-KY|-DR|\*|投控|控股)$", "", str(s or "")).strip()
+    # 連字號設成可有可無：語音辨識常把「世芯KY」寫成沒有連字號的樣子。
+    return re.sub(r"(-?KY|-?DR|\*|投控|控股)$", "", str(s or "")).strip()
+
+
+def _latin_core(s: str) -> str:
+    """
+    取出英數字骨架，大寫、去掉連字號與空白。
+    AES-KY -> AESKY，aes ky -> AESKY，AESY -> AESY。
+    """
+    return re.sub(r"[^A-Za-z0-9]", "", str(s or "")).upper()
+
+
+def _latin_stem(s: str) -> str:
+    """再去掉結尾的 KY / DR。AESKY -> AES。"""
+    return re.sub(r"(KY|DR)$", "", _latin_core(s))
+
+
+def _has_cjk(s: str) -> bool:
+    return bool(re.search(r"[\u4e00-\u9fff]", str(s or "")))
+
+
+# 純英文名稱的比對門檻。這一組候選很少（全上市櫃只有個位數檔），
+# 誤中的機率極低，所以門檻可以比中文名稱寬一點。
+LATIN_CUTOFF = 0.75
+
+
+def match_latin_stock(name: str, m: dict):
+    """
+    比對官方簡稱不含中文的個股，例如 AES-KY、IET-KY、TPK-KY。
+
+    為什麼需要獨立一條路：is_non_stock 有一條「無中文字就剔除」的規則，
+    用意是擋掉 HBM、CoWoS、AI 這類產業縮寫。但它會連帶把這幾檔
+    官方簡稱本來就是英文的股票一起殺掉，實際發生過的例子是
+    逐字稿寫成「AESY」，比對階段直接整列剔除。
+
+    做法是只拿「官方簡稱也不含中文」的那幾檔來比，候選集合極小；
+    同時比完整骨架與去掉 KY 後的字根，取高者。
+    AESY 對 AESKY 是 0.89，對 AES 是 0.86，兩邊都過得了門檻。
+
+    回傳 (代號, 名稱, 相似度) 或 None。
+    """
+    lat = _latin_core(name)
+    if len(lat) < 2:
+        return None
+    best_c, best_s = None, 0.0
+    for c, n in m.items():
+        if _has_cjk(n):
+            continue
+        nl = _latin_core(n)
+        if not nl:
+            continue
+        s = max(difflib.SequenceMatcher(None, lat, nl).ratio(),
+                difflib.SequenceMatcher(None, _latin_stem(lat), _latin_stem(nl)).ratio())
+        if s > best_s:
+            best_c, best_s = c, s
+    if best_c and best_s >= LATIN_CUTOFF:
+        return best_c, m[best_c], best_s
+    return None
 
 
 def resolve_code(name: str, hint: str):
@@ -1014,7 +1088,18 @@ def resolve_code(name: str, hint: str):
             return hint, m[hint], "代號直接命中"
         return hint, name, "代號格式合法，直接採用（不在對照表，可能是新上市或清單未更新）"
 
-    # 1. 非個股先剔除。必須在比對之前，否則「台塑集團」會被硬湊成「台積電」。
+    # 1. 純英文名稱的個股，必須在 is_non_stock 之前處理。
+    #    那裡有一條「無中文字就剔除」的規則用來擋 HBM、CoWoS 這類產業縮寫，
+    #    但會連帶殺掉 AES-KY、IET-KY、TPK-KY 這幾檔官方簡稱本來就是英文的股票。
+    #    先在這裡比一次，比中了就直接採用；比不中再往下走原本的剔除邏輯，
+    #    所以真正的產業縮寫仍然會被擋掉，不會因為這一步而放行。
+    if not _has_cjk(name):
+        hit = match_latin_stock(name, m)
+        if hit:
+            c, n, s = hit
+            return c, n, f"英文名稱相似 {s:.2f}"
+
+    # 2. 非個股先剔除。必須在比對之前，否則「台塑集團」會被硬湊成「台積電」。
     bad, why = is_non_stock(name)
     if bad:
         return REJECT, name, f"剔除：{why}"
@@ -2451,6 +2536,12 @@ def main():
 
     # 走內部循環：每 POLL_INTERVAL 秒敲一次，直到收工或超過時間預算。
     poll_n = 0
+    last_err, same_err_n = "", 0
+    # 同一個錯誤連續這麼多次就停。認證過期已經由 looks_like_auth_error 擋掉了，
+    # 這一道是防未來冒出沒見過的錯誤形狀：任何「每次都一樣的失敗」都不會因為
+    # 多等 180 秒而變好，繼續敲只是把時間預算燒完，還讓工作紀錄被同一行洗版。
+    MAX_SAME_ERR = 3
+
     while True:
         now = datetime.now(TAIPEI)
         poll_n += 1
@@ -2460,12 +2551,35 @@ def main():
         try:
             if handle_today_once():
                 break
+            last_err, same_err_n = "", 0     # 這一輪沒炸，重新計數
         except AuthExpired:
             raise   # 認證過期交給外層處理，寫「認證過期」狀態並結束
         except Exception as e:
+            msg = str(e)
+
+            # 認證失效有時是在這一層才看得出來（用戶端把它包成一般例外）。
+            # 判定成立就直接升級成 AuthExpired，讓外層寫「認證過期」並寄信通知，
+            # 不要留在迴圈裡空轉。
+            if looks_like_auth_error(e):
+                print(f"本次輪詢的錯誤研判為登入失效：{msg}")
+                raise AuthExpired(msg)
+
             # 單次敲門的非致命錯誤，記錄後繼續下一輪，不讓整個循環中斷
-            print(f"本次輪詢出錯（不中斷循環）：{e}")
-            write_status_log(ss, "失敗", str(e))
+            print(f"本次輪詢出錯（不中斷循環）：{msg}")
+            write_status_log(ss, "失敗", msg)
+
+            # 錯誤訊息裡的請求 ID 每次都不同，比對時要抽掉才看得出是不是同一種。
+            sig = re.sub(r"[0-9a-f]{6,}", "", msg)
+            if sig == last_err:
+                same_err_n += 1
+                if same_err_n >= MAX_SAME_ERR:
+                    print(f"同一個錯誤已連續 {same_err_n + 1} 次，重試不會有幫助，停止輪詢。")
+                    print("請檢查上面的錯誤訊息；若與登入或授權有關，"
+                          "請重新產生 storage_state.json 並更新 NOTEBOOKLM_AUTH_JSON。")
+                    write_status_log(ss, "失敗", f"同一錯誤連續 {same_err_n + 1} 次，停止輪詢：{msg}")
+                    break
+            else:
+                last_err, same_err_n = sig, 0
 
         # 收工時間到（台灣 15:00）或時間預算用盡就停。
         # 到收工時間時 handle_today_once 內部已會標「今日無影片」，這裡不重複標。

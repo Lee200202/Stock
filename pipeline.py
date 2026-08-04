@@ -189,6 +189,156 @@ POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL_SEC", "180"))   # 每 3 分鐘
 #   APPS_SCRIPT_URL：Apps Script 部署後的網頁應用程式網址（/exec 結尾）
 #   ADMIN_KEY      ：與 Apps Script 指令碼屬性中的 ADMIN_KEY 相同的那組密鑰
 # ---------------------------------------------------------------- #
+# 探測模式。只判斷「有沒有事情要做」，不碰 NotebookLM、不呼叫 Gemini、
+# 不需要登入憑證。工作流程用它決定要不要啟動後面那些昂貴的步驟。
+PREFLIGHT = os.environ.get("PREFLIGHT", "false").strip().lower() == "true"
+
+# VOD 最早可能出現的台灣時間（小時）。直播約 12:30 到 13:00 結束，
+# YouTube 轉檔再十幾分鐘，所以這之前敲門必定空手而回。
+# 探測模式用它判斷哪些觸發點是純粹浪費，可以直接跳過。
+VOD_EARLIEST_HOUR = int(os.environ.get("VOD_EARLIEST_HOUR", "12"))
+
+
+# ------------------------------------------------------------------ #
+# 登入憑證的續命機制
+#
+# 這是「為什麼上午失敗、下午又好了」的結構性原因。
+#
+# NotebookLM 用的是 Google 的 web session cookie。Google 會在使用過程中
+# 輪換這些 cookie：每用一次就可能發一組新的回來，用戶端把新的寫回
+# storage_state.json，下次用新的。在自己電腦上這個循環是完整的，
+# 所以平常用瀏覽器不會突然被登出。
+#
+# 但在 CI 上這個循環是斷的：storage_state.json 是每次從 Secret 還原出來的，
+# 工作結束就連同整台機器一起消失，輪換後的新 cookie 從來沒有被保存。
+# 於是每一次執行都拿著「同一份、越來越舊」的 cookie 去敲門。
+# Google 對舊 cookie 有一段寬限期，寬限期內時好時壞——這就是為什麼
+# 上午兩次失敗、下午卻能成功，而中間你什麼都沒改。等寬限期真的過完，
+# 就會變成穩定失敗，那時才需要重新登入。
+#
+# 解法是把輪換後的 cookie 存回一個跨執行都在的地方。
+# 這裡選試算表而不是 GitHub Secret，理由是不必額外申請可以寫入 Secret 的
+# 個人存取權杖：這支程式本來就有試算表的寫入權限，不引入新的憑證。
+#
+# 安全性：cookie 等同於這個 Google 帳號在 NotebookLM 的登入狀態。
+# 存放的試算表必須維持私有（只分享給你自己與服務帳號），
+# 絕對不要開成「知道連結的人都可以檢視」。
+# ------------------------------------------------------------------ #
+AUTH_SHEET = "登入憑證"
+# 本次執行開始時的憑證指紋。用清單包起來是為了讓巢狀函式也能改到它。
+_AUTH_FP = [""]
+AUTH_PATHS = [
+    os.path.expanduser("~/.notebooklm/storage_state.json"),
+    os.path.expanduser("~/.notebooklm/profiles/default/storage_state.json"),
+]
+
+
+def _read_local_auth():
+    """讀本機目前的 storage_state。讀不到或不是合法 JSON 就回 None。"""
+    for path in AUTH_PATHS:
+        try:
+            with open(path, encoding="utf-8") as f:
+                d = json.load(f)
+            if isinstance(d, dict) and d.get("cookies"):
+                return d
+        except Exception:
+            continue
+    return None
+
+
+def _write_local_auth(d: dict):
+    for path in AUTH_PATHS:
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(d, f)
+        except Exception as e:
+            print(f"  寫入 {path} 失敗：{e}")
+
+
+def _auth_fingerprint(d) -> str:
+    """用 cookie 的名稱與值算一個指紋，用來判斷有沒有被輪換過。"""
+    try:
+        items = sorted((c.get("name", ""), str(c.get("value", "")))
+                       for c in d.get("cookies", []))
+        return str(hash(tuple(items)))
+    except Exception:
+        return ""
+
+
+def load_saved_auth(ss) -> bool:
+    """
+    把試算表裡存的最新憑證覆蓋到本機。
+    回傳 True 代表用了試算表版本，False 代表沿用 Secret 還原出來的版本。
+    """
+    try:
+        ws = ss.worksheet(AUTH_SHEET)
+    except Exception:
+        return False   # 還沒建立這張分頁，第一次執行時是正常的
+    try:
+        raw = str(ws.acell("B2").value or "").strip()
+        saved_at = str(ws.acell("B1").value or "").strip()
+    except Exception as e:
+        print(f"讀取{AUTH_SHEET}失敗（不影響流程）：{e}")
+        return False
+    if not raw:
+        return False
+    try:
+        d = json.loads(raw)
+        if not (isinstance(d, dict) and d.get("cookies")):
+            raise ValueError("內容不是合法的 storage_state")
+    except Exception as e:
+        print(f"{AUTH_SHEET}的內容無法解析（{e}），改用 Secret 的版本")
+        return False
+
+    _write_local_auth(d)
+    print(f"已套用試算表保存的登入憑證（上次更新 {saved_at or '未知'}）")
+    return True
+
+
+def save_rotated_auth(ss, before_fp: str):
+    """
+    執行成功後把輪換過的憑證存回試算表。指紋沒變就不寫，避免無謂的寫入。
+    """
+    d = _read_local_auth()
+    if not d:
+        return
+    if _auth_fingerprint(d) == before_fp:
+        return
+    try:
+        try:
+            ws = ss.worksheet(AUTH_SHEET)
+        except Exception:
+            ws = ss.add_worksheet(title=AUTH_SHEET, rows=10, cols=2)
+            ws.update("A1", [["最後更新"], ["憑證內容"], ["說明"]])
+            ws.update("B3", [["這是 NotebookLM 的登入狀態，等同帳號登入憑證。"
+                              "請維持本試算表私有，不要開放連結分享。"
+                              "由程式自動維護，不需手動編輯。"]])
+        ws.update("B1", [[datetime.now(TAIPEI).strftime("%Y/%m/%d %H:%M:%S")]])
+        ws.update("B2", [[json.dumps(d, ensure_ascii=False)]])
+        print("登入憑證已輪換，新的版本已存回試算表，下次執行會沿用。")
+    except Exception as e:
+        print(f"保存輪換後的憑證失敗（不影響本次結果）：{e}")
+
+
+def write_preflight(has_work: str, reason: str):
+    """
+    把探測結果寫給 GitHub Actions。
+    後續步驟用 steps.preflight.outputs.has_work 判斷要不要跑。
+    不在 Actions 環境裡（例如本機測試）就只印出來。
+    """
+    print(f"\n探測結果：has_work={has_work}　（{reason}）")
+    path = os.environ.get("GITHUB_OUTPUT")
+    if not path:
+        return
+    try:
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(f"has_work={has_work}\n")
+            f.write(f"reason={reason}\n")
+    except Exception as e:
+        print(f"寫入 GITHUB_OUTPUT 失敗（不影響流程）：{e}")
+
+
 REFRESH_SITE = os.environ.get("REFRESH_SITE", "false").strip().lower() == "true"
 APPS_SCRIPT_URL = os.environ.get("APPS_SCRIPT_URL", "").strip()
 ADMIN_KEY = os.environ.get("ADMIN_KEY", "").strip()
@@ -2505,9 +2655,17 @@ def main():
         maybe_refresh_site()
         return
 
+    # 接下來的流程都會用到 NotebookLM。先把試算表保存的最新憑證套用上去：
+    # Secret 裡那份只是「種子」，真正在用的是輪換後、存回試算表的最新版本。
+    # 探測模式不碰 NotebookLM，所以不需要這一步。
+    if not PREFLIGHT:
+        load_saved_auth(ss)
+        _AUTH_FP[0] = _auth_fingerprint(_read_local_auth() or {})
+
     if FILL_BLANKS:
         print("模式：補空白。逐一檢視影片清單，補齊缺逐字稿的列。")
         fill_video_blanks(ss)
+        save_rotated_auth(ss, _AUTH_FP[0])
         return
 
     feed = [v for v in fetch_feed() if is_target(v["title"])]
@@ -2538,11 +2696,16 @@ def main():
             return
         print(f"回補模式：共 {len(targets)} 支")
         targets.sort(key=lambda v: v["date"])       # 由舊到新，維持試算表時序
+        if PREFLIGHT:
+            print(f"探測：補跑模式有 {len(targets)} 支待處理。")
+            write_preflight("true" if targets else "false", f"補跑 {len(targets)} 支")
+            return
         for v in targets:
             if out_of_budget():
                 print("時間預算用盡，本輪先停，剩下的下次再補。")
                 break
             process_one(ss, v, done_trades, done_holds)
+        save_rotated_auth(ss, _AUTH_FP[0])
         return
 
     today = datetime.now(TAIPEI).date()
@@ -2551,6 +2714,56 @@ def main():
     # 也不要標「今日無影片」或示警，直接安靜結束。
     if today.weekday() >= 5:   # 5 週六, 6 週日
         print("今天是週末，不開盤，略過。")
+        write_preflight("false", "週末不開盤")
+        return
+
+    # ------------------------------------------------------------------ #
+    # 探測模式（PREFLIGHT=true）
+    #
+    # 只用 YouTube API 與試算表判斷「現在到底有沒有事情要做」，
+    # 不碰 NotebookLM、不呼叫 Gemini、不需要登入憑證，幾秒就跑完。
+    #
+    # 為什麼值得單獨做這一步：真正花時間與額度的是 NotebookLM 與 Gemini，
+    # 而一天當中大多數的觸發點其實是空跑的（直播還沒結束、VOD 還沒生成）。
+    # 先探一次，沒事就讓整個工作提早結束，後面那些昂貴的步驟根本不會啟動，
+    # 連登入憑證都不會用到——憑證失效時也就不會在這些空跑的時段一直報錯。
+    # ------------------------------------------------------------------ #
+    if PREFLIGHT:
+        feed_now = [v for v in fetch_feed() if is_target(v["title"]) and v["date"] >= MIN_DATE]
+        done_now = {str(r["影片ID"]): str(r["處理狀態"]) for r in video_rows(ss)}
+        todays = [v for v in feed_now if v["date"] == today]
+        now_h = datetime.now(TAIPEI).hour
+
+        if not todays:
+            # 這裡要小心，不能一律「沒影片就跳過」。
+            #
+            # 內部輪詢是這套系統的核心：一個 job 進來之後每三分鐘敲一次門，
+            # 敲到 VOD 出現為止。如果影片還沒出現就直接跳過，等於把輪詢廢掉，
+            # 又退回去依賴 GitHub cron 準點觸發，而那正是當初要解決的問題。
+            #
+            # 所以只跳過「確定不可能有 VOD」的時段：直播進行中。
+            # 直播約在台灣 12:30 到 13:00 結束，YouTube 再花十幾分鐘轉檔，
+            # 因此 VOD_EARLIEST_HOUR 之前不管怎麼敲都不會有東西。
+            if now_h >= GIVE_UP_HOUR:
+                print("已到收工時間仍無今日影片。要跑最後一輪以標記「今日無影片」。")
+                write_preflight("true", "收工時間，需標記今日無影片")
+            elif now_h < VOD_EARLIEST_HOUR:
+                print(f"現在台灣 {now_h} 點，直播還在進行，VOD 不可能存在，本輪跳過。")
+                write_preflight("false", f"台灣 {now_h} 點，早於 VOD 最早可能時間")
+            else:
+                print(f"RSS 還沒出現 {today} 的影片，但已進入等待窗，要進去輪詢。")
+                write_preflight("true", "等待窗內，需輪詢等 VOD")
+            return
+
+        v = todays[0]
+        status = done_now.get(v["id"], "")
+        if status == "完成":
+            print(f"今日影片 {v['id']} 已處理完成，沒有事情要做。")
+            write_preflight("false", "今日影片已完成")
+            return
+
+        print(f"今日影片 {v['id']} 狀態為「{status or '未處理'}」，需要執行。")
+        write_preflight("true", f"待處理：{v['id']}（{status or '未處理'}）")
         return
 
     # ------------------------------------------------------------------ #
@@ -2603,6 +2816,7 @@ def main():
     # 不走內部循環的情況：手動補跑用長逾時、只敲一次就結束。
     if not POLL_LOOP:
         handle_today_once()
+        save_rotated_auth(ss, _AUTH_FP[0])
         return
 
     # 走內部循環：每 POLL_INTERVAL 秒敲一次，直到收工或超過時間預算。
@@ -2663,6 +2877,10 @@ def main():
 
         print(f"等待 {POLL_INTERVAL} 秒後再敲……")
         time.sleep(POLL_INTERVAL)
+
+    # 輪詢結束（收工、預算用盡或已完成）。把輪換過的憑證存回試算表，
+    # 讓下一次執行接續使用，而不是每次都退回 Secret 裡那份越來越舊的種子。
+    save_rotated_auth(ss, _AUTH_FP[0])
 
 
 if __name__ == "__main__":

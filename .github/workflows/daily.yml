@@ -18,6 +18,15 @@ name: daily-transcript-pipeline
 #
 # cron 一律 UTC。台灣 = UTC + 8，全年固定，沒有日光節約。
 # 台灣 11:30 = UTC 03:30。
+#
+# 讀工作紀錄時要記得這件事：GitHub 介面與日誌的時間戳全是 UTC，
+# 而程式裡印的「台北時間」是 UTC+8。同一件事在兩處會差八小時，
+# 例如日誌上的 03:54 就是台灣的 11:54，不是凌晨。
+#
+# 每個觸發點進來的第一件事是「探測」：只用 YouTube API 與試算表
+# 判斷現在有沒有事情要做，不碰 NotebookLM、不呼叫 Gemini、不需要憑證。
+# 直播進行中（台灣 12 點以前）或今日影片已處理完成的觸發點，
+# 幾秒內就結束，不會再往下走。
 # ------------------------------------------------------------------ #
 on:
   schedule:
@@ -102,7 +111,39 @@ jobs:
           pip install "notebooklm-py[browser]"
           python -m playwright install chromium
 
+      # ------------------------------------------------------------------ #
+      # 探測：現在到底有沒有事情要做
+      #
+      # 只用 YouTube API 與試算表判斷，不碰 NotebookLM、不呼叫 Gemini、
+      # 不需要登入憑證，幾秒就跑完。沒事就讓後面所有步驟整批跳過。
+      #
+      # 為什麼值得多這一步：一天有十幾個觸發點，但直播要到台灣 13:00 過後
+      # 才會生出 VOD，之前那些觸發全都是空跑，卻照樣還原憑證、啟動用戶端、
+      # 消耗執行時間。憑證失效時，這些空跑還會一路報錯洗版。
+      # 先探一次，就只在真的有影片可處理時才付出那些成本。
+      # ------------------------------------------------------------------ #
+      - name: 探測今天有沒有事情要做
+        id: preflight
+        env:
+          PREFLIGHT: 'true'
+          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          YOUTUBE_CHANNEL_ID: ${{ vars.YOUTUBE_CHANNEL_ID }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          BACKFILL: ${{ github.event.inputs.backfill }}
+          FILL_BLANKS: ${{ github.event.inputs.fill_blanks }}
+          # VOD 最早可能出現的台灣時間。這之前的觸發點一律跳過。
+          VOD_EARLIEST_HOUR: '12'
+        run: python pipeline.py
+
+      - name: 沒事可做，本輪結束
+        if: steps.preflight.outputs.has_work != 'true'
+        run: |
+          echo "探測結果：${{ steps.preflight.outputs.reason }}"
+          echo "本輪不需要動用 NotebookLM 與 Gemini，直接結束。"
+
       - name: 還原 NotebookLM 登入狀態
+        if: steps.preflight.outputs.has_work == 'true' 
         env:
           NOTEBOOKLM_AUTH_JSON: ${{ secrets.NOTEBOOKLM_AUTH_JSON }}
         run: |
@@ -156,6 +197,7 @@ jobs:
           EOF
 
       - name: 執行每日流程
+        if: steps.preflight.outputs.has_work == 'true'
         env:
           NOTEBOOKLM_AUTH_JSON: ${{ secrets.NOTEBOOKLM_AUTH_JSON }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}

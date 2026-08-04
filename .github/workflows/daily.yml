@@ -122,6 +122,25 @@ jobs:
       # 消耗執行時間。憑證失效時，這些空跑還會一路報錯洗版。
       # 先探一次，就只在真的有影片可處理時才付出那些成本。
       # ------------------------------------------------------------------ #
+      # 版本守衛。工作流程與 pipeline.py 必須是同一批更新的。
+      # 只更新其中一個時，後面的步驟會用一個誤導性的訊息失敗
+      # （例如探測步驟報「缺少 GEMINI_API_KEY」，讓人以為要去補 Secret，
+      # 但真正的問題是 pipeline.py 還是舊版）。這一步把它講清楚。
+      - name: 確認 pipeline.py 版本相符
+        run: |
+          if ! grep -q 'PIPELINE_FEATURES = "preflight,auth-rotation,lazy-gemini-key"' pipeline.py; then
+            echo "::error::pipeline.py 版本過舊，缺少探測、憑證輪換、延後檢查金鑰這幾項功能。"
+            echo ""
+            echo "這個工作流程需要搭配同一批更新的 pipeline.py 才能運作。"
+            echo "目前 repo 裡的 pipeline.py 還是舊版，請把最新版覆蓋上去後再推一次。"
+            echo ""
+            echo "常見的誤判：舊版會在載入時就硬性要求 GEMINI_API_KEY，"
+            echo "而探測步驟刻意不帶那把金鑰（它用不到），於是報「缺少環境變數 GEMINI_API_KEY」。"
+            echo "那個訊息會把人引導去補 Secret，但真正要做的是更新 pipeline.py。"
+            exit 1
+          fi
+          echo "pipeline.py 版本相符"
+
       - name: 探測今天有沒有事情要做
         id: preflight
         env:

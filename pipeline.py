@@ -103,7 +103,20 @@ def env(name: str) -> str:
 
 
 SPREADSHEET_ID = env("SPREADSHEET_ID")
-GEMINI_API_KEY = env("GEMINI_API_KEY")
+
+# Gemini 金鑰改成「用到才檢查」，不在載入時就硬性要求。
+#
+# 原因：有幾種模式根本不呼叫 Gemini——探測（只查影片清單與試算表）、
+# 純修代號（只跑拼音比對）、只刷新網站。把檢查放在載入時，
+# 這些模式就必須為了通過檢查而拿到一把它們用不到的金鑰，
+# 違反最小權限，也讓探測步驟白白多綁一個 Secret。
+# 真正要呼叫時才檢查，缺了照樣會有一模一樣的錯誤訊息，不會靜默出錯。
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
+
+
+def require_gemini_key():
+    if not GEMINI_API_KEY:
+        raise SystemExit("缺少環境變數 GEMINI_API_KEY，請到 GitHub Secrets 或 Variables 補上。")
 BACKFILL = os.environ.get("BACKFILL", "false").strip().lower() == "true"
 FINAL_ATTEMPT = os.environ.get("FINAL_ATTEMPT", "false").strip().lower() == "true"
 
@@ -830,6 +843,7 @@ def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX
     finishReason 必須檢查。MAX_TOKENS 時 API 仍回 200 加上半截文字，
     不檢查就會靜默寫入不完整資料。
     """
+    require_gemini_key()
     url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
            f"{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}")
 
@@ -2608,6 +2622,13 @@ def main():
     _SS = ss
     write_status_log(ss, "開始", "本輪開始執行")
 
+    # 會用到 Gemini 的模式，在這裡就先確認金鑰在不在。
+    # 延後到真正呼叫才檢查雖然不會出錯，但可能已經跑了好幾分鐘才炸，
+    # 所以正式流程仍在開頭擋一次，只有探測與純修代號例外。
+    if not (PREFLIGHT or REPAIR_CODES or (REFRESH_SITE and not any(
+            (RECLASSIFY, FIX_PRICES, RECONCILE, FILL_BLANKS, BACKFILL)))):
+        require_gemini_key()
+
     # 這三個是互斥模式，同時勾選只有第一個會生效。
     # 先前就發生過三個都勾、結果只跑了修代號的情況，所以這裡明講。
     picked = [n for n, on in (("repair_codes", REPAIR_CODES),
@@ -2619,6 +2640,21 @@ def main():
     if len(picked) > 1:
         print(f"注意：同時勾選了 {'、'.join(picked)}，這些是互斥模式，"
               f"本輪只會執行「{picked[0]}」。其餘請分次執行。")
+
+    # 探測遇到手動模式時，一律回報「有事要做」並立刻結束。
+    #
+    # 這一段是必要的防呆。手動模式（修代號、整頓、校對價位、補跑等）不走
+    # 每日排程那套「今天有沒有新影片」的判斷，若讓探測往下走，會有兩種壞結果：
+    #   1. 探測步驟自己把整頓工作做掉了，而真正的執行步驟卻因為
+    #      has_work 沒被設定而被跳過，看起來像是沒跑。
+    #   2. 需要 Gemini 的模式會在探測階段就要求金鑰，但探測步驟刻意沒有帶，
+    #      於是整個工作在第一步就失敗。
+    # 手動觸發本來就是人明確要它跑，不需要探測代為判斷。
+    if PREFLIGHT and (picked or REFRESH_SITE):
+        label = "、".join(picked) if picked else "只刷新網站"
+        print(f"探測：手動模式（{label}），直接放行。")
+        write_preflight("true", f"手動模式：{label}")
+        return
 
     # refresh_site 不算模式，它是附掛在任一模式之後的動作，可以與其他選項同時勾。
     # 只勾它、其他都沒勾時，代表「資料不用動，我只想讓網站立刻用現有資料重算一次」，

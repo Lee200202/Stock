@@ -130,8 +130,16 @@ jobs:
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
           YOUTUBE_CHANNEL_ID: ${{ vars.YOUTUBE_CHANNEL_ID }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          # 手動模式的旗標也要帶進來，探測才認得出「這是人手動觸發的」，
+          # 進而直接放行而不是套用每日排程那套判斷。
           BACKFILL: ${{ github.event.inputs.backfill }}
           FILL_BLANKS: ${{ github.event.inputs.fill_blanks }}
+          FINAL_ATTEMPT: ${{ github.event.inputs.final }}
+          REPAIR_CODES: ${{ github.event.inputs.repair_codes }}
+          RECLASSIFY: ${{ github.event.inputs.reclassify }}
+          RECONCILE: ${{ github.event.inputs.reconcile }}
+          FIX_PRICES: ${{ github.event.inputs.fix_prices }}
+          REFRESH_SITE: ${{ github.event.inputs.refresh_site }}
           # VOD 最早可能出現的台灣時間。這之前的觸發點一律跳過。
           VOD_EARLIEST_HOUR: '12'
         run: python pipeline.py

@@ -122,6 +122,39 @@ jobs:
           printf '%s' "$NOTEBOOKLM_AUTH_JSON" > ~/.notebooklm/profiles/default/storage_state.json
           echo "已寫入 storage_state"
 
+          # cookie 到期預警。
+          #
+          # 過期是一定會發生的事，Google 會定期輪換 session cookie。問題在於
+          # 現在只有「已經失效」才會知道，而那時當天的排程都已經白跑了。
+          # storage_state.json 裡每個 cookie 都帶 expires（Unix 秒），
+          # 取最早到期的那一個，就能在還沒壞之前先示警。
+          python3 - <<'EOF'
+          import json, os, time
+          try:
+              d = json.load(open(os.path.expanduser("~/.notebooklm/storage_state.json")))
+          except Exception as e:
+              print(f"::warning::讀不到 storage_state（{e}），略過到期檢查")
+              raise SystemExit(0)
+
+          exps = [c.get("expires", -1) for c in d.get("cookies", [])]
+          exps = [e for e in exps if isinstance(e, (int, float)) and e > 0]
+          if not exps:
+              print("cookie 沒有到期資訊（session cookie），無法預警")
+              raise SystemExit(0)
+
+          soonest = min(exps)
+          days = (soonest - time.time()) / 86400
+          when = time.strftime("%Y-%m-%d %H:%M", time.localtime(soonest))
+          print(f"最早到期的 cookie：{when}（約 {days:.1f} 天後）")
+          if days < 0:
+              print(f"::error::cookie 已於 {when} 過期，本次必定失敗。"
+                    "請在本機重跑 notebooklm login 並更新 NOTEBOOKLM_AUTH_JSON。")
+          elif days < 3:
+              print(f"::warning::cookie 只剩 {days:.1f} 天到期（{when}）。"
+                    "請盡快在本機重跑 notebooklm login 並更新 NOTEBOOKLM_AUTH_JSON，"
+                    "否則接下來的排程會開始失敗。")
+          EOF
+
       - name: 執行每日流程
         env:
           NOTEBOOKLM_AUTH_JSON: ${{ secrets.NOTEBOOKLM_AUTH_JSON }}

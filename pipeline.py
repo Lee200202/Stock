@@ -219,6 +219,14 @@ POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL_SEC", "180"))   # 每 3 分鐘
 # ---------------------------------------------------------------- #
 # 探測模式。只判斷「有沒有事情要做」，不碰 NotebookLM、不呼叫 Gemini、
 # 不需要登入憑證。工作流程用它決定要不要啟動後面那些昂貴的步驟。
+# 後台工單模式。逐字稿已經由管理者貼進試算表，這裡只負責把後面的流程跑完。
+#
+# 為什麼要搬到這裡跑：Apps Script 單次執行有 6 分鐘上限，而潤飾一份兩萬多字的
+# 逐字稿加上擷取、稽核、代號比對、價位校對、撰稿，遠遠超過那個上限。
+# 先前用「分段 + 觸發器接力」硬撐，一旦某一棒超時就整個中斷且沒有錯誤訊息，
+# 排查非常困難。GitHub Actions 沒有這個限制，而且執行紀錄看得到每一行輸出。
+ADMIN_JOB = os.environ.get("ADMIN_JOB", "false").strip().lower() == "true"
+
 PREFLIGHT = os.environ.get("PREFLIGHT", "false").strip().lower() == "true"
 
 # VOD 最早可能出現的台灣時間（小時）。直播約 12:30 到 13:00 結束，
@@ -1955,6 +1963,162 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds):
     write_results(ss, date_str, signals, article, done_trades, done_holds)
 
 
+# ---------------------------------------------------------------- #
+# 後台工單
+#
+# 管理者在網站後台貼上逐字稿之後，原文會先寫進「影片清單」，
+# 並在「後台工單」開一列狀態。這裡負責把後面的流程跑完，
+# 每做完一步就把進度寫回工單，網站的進度條讀的就是那一列。
+#
+# 好處是兩邊都看得到：網站上有進度條，GitHub 的執行紀錄有完整輸出，
+# 出事時直接看日誌就知道卡在哪一行，不必再猜。
+# ---------------------------------------------------------------- #
+ADMIN_JOB_SHEET = "後台工單"
+
+# 工單欄位順序，與 Apps Script 端的 SHEET_SCHEMA 一致。
+# 兩邊都用名稱找欄位，所以順序調整不會壞掉，但保持一致比較好讀。
+JOB_COLS = ["工單ID", "日期", "影片ID", "狀態", "步驟", "已完成", "總數",
+            "備註", "開始時間", "更新時間", "來源"]
+
+
+def _job_sheet(ss):
+    return ss.worksheet(ADMIN_JOB_SHEET)
+
+
+def find_pending_job(ss):
+    """找出最後一列狀態為處理中的工單。找不到回 None。"""
+    try:
+        ws = _job_sheet(ss)
+        vals = sheets_retry(ws.get_all_values)
+    except Exception as e:
+        print(f"讀不到{ADMIN_JOB_SHEET}：{e}")
+        return None
+    if len(vals) < 2:
+        return None
+
+    head = vals[0]
+
+    def ci(name, d):
+        return head.index(name) if name in head else d
+
+    c = {k: ci(k, i) for i, k in enumerate(JOB_COLS)}
+    for i in range(len(vals) - 1, 0, -1):
+        row = vals[i]
+
+        def g(k):
+            j = c[k]
+            return row[j] if j < len(row) else ""
+        if str(g("狀態")).strip() != "處理中":
+            continue
+        return {"row": i + 1, "cols": c, "ws": ws,
+                "id": g("工單ID"), "date": norm_date(g("日期")),
+                "videoId": str(g("影片ID")).strip(),
+                "step": str(g("步驟")).strip()}
+    return None
+
+
+def job_progress(job, step=None, done=None, total=None, note=None, status=None):
+    """把進度寫回工單。失敗不中斷流程——進度只是給人看的，不該拖垮主要工作。"""
+    if not job:
+        return
+    try:
+        ws, c, row = job["ws"], job["cols"], job["row"]
+        cells = []
+        if status is not None:
+            cells.append((c["狀態"], status))
+        if step is not None:
+            cells.append((c["步驟"], step))
+        if done is not None:
+            cells.append((c["已完成"], done))
+        if total is not None:
+            cells.append((c["總數"], total))
+        if note is not None:
+            cells.append((c["備註"], str(note)[:400]))
+        cells.append((c["更新時間"], datetime.now(TAIPEI).strftime("%Y/%m/%d %H:%M:%S")))
+        data = [{"range": gspread.utils.rowcol_to_a1(row, j + 1), "values": [[v]]}
+                for j, v in cells]
+        sheets_retry(ws.batch_update, data, value_input_option="RAW")
+    except Exception as e:
+        print(f"（寫入進度失敗，不影響流程：{e}）")
+
+    if step:
+        print(f"\n===== 步驟：{step}"
+              + (f"　{done}/{total}" if total else "")
+              + (f"　{note}" if note else "") + " =====")
+
+
+def run_admin_job(ss):
+    """
+    執行一張後台工單。整段流程與自動路徑完全相同，
+    差別只在逐字稿的來源是管理者貼上的，而不是從外部服務抓的。
+    """
+    job = find_pending_job(ss)
+    if not job:
+        print("沒有待處理的後台工單。")
+        return
+
+    vid, date_str = job["videoId"], job["date"]
+    print(f"工單 {job['id']}　{date_str}　影片 {vid}")
+
+    # ---- 取出管理者貼上的原文 ----
+    job_progress(job, step="讀取原文", done=0, total=6)
+    v1, v2 = existing_transcript(ss, vid, date_str)
+    if not v1 or len(v1) < 300:
+        raise RuntimeError(f"影片清單裡找不到 {vid} 的原始逐字稿，或內容太短（{len(v1 or '')} 字）。")
+    print(f"原始逐字稿 {len(v1)} 字")
+
+    # ---- 潤飾 ----
+    # 雲端已有夠長的修飾稿就沿用，讓工單可以從中斷處續跑而不必重跑一次潤飾。
+    if v2 and len(v2) > 200:
+        print(f"已有修飾後逐字稿 {len(v2)} 字，略過潤飾")
+        job_progress(job, step="潤飾", done=1, total=6, note="沿用既有修飾稿")
+    else:
+        job_progress(job, step="潤飾", done=1, total=6, note=f"原文 {len(v1)} 字")
+        v2 = polish(v1)
+        upsert_video_transcript(ss, vid, date_str, v2)
+        print(f"潤飾完成 {len(v1)} → {len(v2)} 字")
+
+    video = {
+        "id": vid,
+        "title": f"後台投稿 {date_str}",
+        "date": datetime.strptime(date_str, "%Y/%m/%d").date(),
+        "url": f"https://www.youtube.com/watch?v={vid}",
+    }
+
+    # ---- 擷取、稽核、代號、寫入、撰稿 ----
+    # 這一整段直接沿用自動路徑的 stage_extract，不另外實作。
+    # 兩條路走同一段程式，產出的品質與格式就不可能不一致。
+    job_progress(job, step="擷取與比對", done=2, total=6,
+                 note="擷取、完整性稽核、代號比對、價位校對、寫入、撰稿")
+    done_trades = existing_dates(ss, "操作紀錄")
+    done_holds = existing_dates(ss, "會員持股")
+    stage_extract(ss, video, date_str, v2, done_trades, done_holds)
+
+    mark_status(ss, vid, date_str, video["title"], "完成")
+    job_progress(job, step="刷新網站", done=5, total=6, note="資料已寫入，通知下游重算")
+
+    print("\n工單處理完成，接著通知下游重算全站。")
+    job_progress(job, step="完成", done=6, total=6, status="完成",
+                 note="全部完成。網站與郵件內容都已更新。")
+
+
+def upsert_video_transcript(ss, video_id, date_str, v2):
+    """把修飾後逐字稿寫回影片清單。"""
+    ws = ss.worksheet("影片清單")
+    vals = sheets_retry(ws.get_all_values)
+    head = vals[0]
+    c_id = head.index("影片ID") if "影片ID" in head else 0
+    c_v2 = head.index("修飾後逐字稿內容") if "修飾後逐字稿內容" in head else None
+    if c_v2 is None:
+        print("影片清單沒有『修飾後逐字稿內容』欄，略過寫回")
+        return
+    for i in range(1, len(vals)):
+        if str(vals[i][c_id]).strip() == video_id:
+            sheets_retry(ws.update_cell, i + 1, c_v2 + 1, v2[:SHEET_CELL_LIMIT])
+            return
+    print(f"影片清單裡找不到 {video_id}，修飾稿沒有寫回")
+
+
 def process_one(ss, video, done_trades, done_holds):
     date_str = video["date"].strftime("%Y/%m/%d")
     print(f"\n=== 處理 {date_str}　{video['title']}　{video['id']} ===")
@@ -2658,7 +2822,8 @@ def main():
 
     # 這三個是互斥模式，同時勾選只有第一個會生效。
     # 先前就發生過三個都勾、結果只跑了修代號的情況，所以這裡明講。
-    picked = [n for n, on in (("repair_codes", REPAIR_CODES),
+    picked = [n for n, on in (("admin_job", ADMIN_JOB),
+                              ("repair_codes", REPAIR_CODES),
                               ("reclassify", RECLASSIFY),
                               ("fix_prices", FIX_PRICES),
                               ("reconcile", RECONCILE),
@@ -2701,6 +2866,12 @@ def main():
         print("模式：重新分類。只讀操作紀錄既有內容，依理由摘錄的情緒把觀望類")
         print("改寫成觀望不碰或觀望注意。不碰逐字稿、不呼叫 Gemini，不改動買入與賣出。")
         reclassify_from_transcripts(ss)
+        maybe_refresh_site()
+        return
+
+    if ADMIN_JOB:
+        print("模式：後台工單。逐字稿已由管理者貼進試算表，這裡把後面的流程跑完。")
+        run_admin_job(ss)
         maybe_refresh_site()
         return
 

@@ -454,11 +454,31 @@ def maybe_refresh_site():
             low = body.lower()
             is_login = ("accounts.google.com" in low or "servicelogin" in low
                         or "signin" in low)
+            # Apps Script 自己的錯誤頁。特徵是標題就叫 Error，
+            # 而且載入的是 docs/script 的圖示。這代表 doGet 執行時拋了例外——
+            # 與「部署版本太舊」是完全不同的問題，處理方式也不一樣，
+            # 先前把兩者混在一起判讀，指引就把人帶錯方向。
+            is_gas_error = ("<title>error</title>" in low
+                            or "docs/script/images/favicon" in low)
             print(f"刷新回應（HTTP {resp.status_code}）：回傳的是 HTML 網頁，不是預期的 JSON。")
             print(f"最終網址：{resp.url}")
             print(f"內容開頭：{body[:200]}")
             print("")
-            if is_login:
+            if is_gas_error:
+                print(">>> 這是 Apps Script 的錯誤頁，代表 doGet 執行時拋出例外。")
+                print("    程式碼有進去跑，但中途出錯了，不是版本太舊的問題。")
+                print("")
+                print("    最常見的原因是「授權過期或不足」：")
+                print("    專案新增了會用到新服務的程式碼（例如對外連網、建立觸發器、寄信）之後，")
+                print("    必須重新授權一次，否則網頁應用程式一執行到那段就會直接拋例外。")
+                print("")
+                print("    怎麼修：")
+                print("    1. 到 Apps Script 編輯器，隨便選一個函式（例如 showDeployInfo）按執行")
+                print("    2. 跳出授權視窗就一路允許到底，把新的權限補齊")
+                print("    3. 部署 → 管理部署作業 → 編輯 → 版本選「新版本」→ 部署")
+                print("    4. 想看確切錯誤：把上面那個網址直接貼到瀏覽器，頁面會顯示例外訊息；")
+                print("       或到 Apps Script 左側「執行紀錄」看最近一次 doGet 的失敗原因")
+            elif is_login:
                 print(">>> 這是 Google 登入頁，代表請求根本沒有進到你的程式碼。")
                 print("    成因：部署的「誰可以存取」不是「所有人」。")
                 print("    GitHub Actions 沒有 Google 帳號可以登入，會被擋在驗證這一關。")

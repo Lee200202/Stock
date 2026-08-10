@@ -447,6 +447,40 @@ def maybe_refresh_site():
         ("perf", "記錄績效"),
     ]
 
+    # 動手之前先確認雙方版本一致。
+    #
+    # 貼了新程式碼但沒部署新版本，是這個專案最常見的坑，而症狀常常偽裝成
+    # 別的問題：舊版收到它不認得的 step 參數會直接忽略，照舊跑完整條鏈然後超時，
+    # 回應看起來像「這一步太慢」，跟版本沒對上完全看不出關係。
+    # 先問一次 ping，把這種情況攔在前面並講清楚。
+    print("\n先確認下游版本……", end=" ", flush=True)
+    try:
+        pr = requests.get(APPS_SCRIPT_URL, params={"action": "ping"},
+                          timeout=60, headers={"User-Agent": "zhangzhen-pipeline"})
+        pinfo = json.loads(pr.text[:2000])
+    except Exception as e:
+        print(f"失敗：{e}")
+        print("下游沒有回應或不是 JSON。請確認 APPS_SCRIPT_URL 正確且已部署。")
+        return
+
+    feats = pinfo.get("features") or []
+    print(f"build={pinfo.get('build', '未知')}")
+    if "refresh-step" not in feats:
+        print("")
+        print("=" * 60)
+        print("下游版本過舊：不支援分步重算（refresh-step）。")
+        print("=" * 60)
+        print("舊版會忽略 step 參數、照舊一次跑完整條鏈，必定超過 6 分鐘而失敗，")
+        print("而失敗的樣子跟「這一步太慢」一模一樣，很容易誤判。")
+        print("")
+        print("怎麼修：")
+        print("  1. 把最新的 Code.gs 貼進 Apps Script")
+        print("  2. 部署 → 管理部署作業 → 編輯（鉛筆）→ 版本選「新版本」→ 部署")
+        print("     ※ 只貼程式碼不重新部署是無效的，線上跑的仍是舊版")
+        print("  3. 用瀏覽器開 APPS_SCRIPT_URL?action=ping，")
+        print("     確認回應裡的 features 含有 refresh-step，再重跑本流程")
+        return
+
     print("\n要求 Apps Script 重算全站，分成 6 步依序執行……")
     ok_n, fail_n = 0, 0
 
@@ -468,7 +502,10 @@ def maybe_refresh_site():
         low = body.lower()
         if "<title>error</title>" in low or "docs/script/images/favicon" in low:
             fail_n += 1
-            print("下游回錯誤頁（多半是這一步本身超過 6 分鐘）")
+            print("下游回錯誤頁")
+            print(f"       這一步在下游拋出例外或被時間上限中止。")
+            print(f"       到 Apps Script 左側「執行紀錄」找最近一次 doGet，")
+            print(f"       它會顯示 {label} 這一支函式的實際錯誤。")
             continue
         if "<html" in low or "<!doctype" in low:
             fail_n += 1

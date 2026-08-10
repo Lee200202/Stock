@@ -518,46 +518,79 @@ def maybe_refresh_site():
     ok_n, fail_n = 0, 0
 
     for i, (key, label) in enumerate(STEPS, 1):
-        print(f"  [{i}/{len(STEPS)}] {label} ……", end=" ", flush=True)
-        try:
-            resp = requests.get(
-                APPS_SCRIPT_URL,
-                params={"action": "refresh", "key": ADMIN_KEY, "step": key},
-                timeout=400,
-                headers={"User-Agent": "zhangzhen-pipeline"},
-            )
-            body = resp.text[:400]
-        except Exception as e:
-            fail_n += 1
-            print(f"連線失敗：{e}")
-            continue
+        # 分批的步驟要重複呼叫到做完為止。
+        # 一次做不完是設計，不是失敗：每次只跑約九十秒就回報進度，
+        # 這樣每個請求都遠在時間上限之內，不會再被切斷連線。
+        rounds, MAX_ROUNDS = 0, 40
+        while True:
+            rounds += 1
+            tag = f"  [{i}/{len(STEPS)}] {label}"
+            if rounds > 1:
+                tag += f"（第 {rounds} 批）"
+            print(tag + " ……", end=" ", flush=True)
 
-        low = body.lower()
-        if "<title>error</title>" in low or "docs/script/images/favicon" in low:
-            fail_n += 1
-            print("下游回錯誤頁")
-            print(f"       這一步在下游拋出例外或被時間上限中止。")
-            print(f"       到 Apps Script 左側「執行紀錄」找最近一次 doGet，")
-            print(f"       它會顯示 {label} 這一支函式的實際錯誤。")
-            continue
-        if "<html" in low or "<!doctype" in low:
-            fail_n += 1
-            print("下游回 HTML，不是 JSON。請確認部署的是最新版本。")
-            continue
+            body, resp = None, None
+            for attempt in range(3):
+                try:
+                    resp = requests.get(
+                        APPS_SCRIPT_URL,
+                        params={"action": "refresh", "key": ADMIN_KEY, "step": key},
+                        timeout=300,
+                        headers={"User-Agent": "zhangzhen-pipeline"},
+                    )
+                    body = resp.text[:600]
+                    break
+                except requests.exceptions.RequestException as e:
+                    # 連線被切斷通常代表那一次跑太久。等一下再試，
+                    # 而且因為進度有存游標，重試會從中斷的地方接著做。
+                    if attempt == 2:
+                        print(f"連線失敗（已重試 3 次）：{e}")
+                    else:
+                        time.sleep(10)
+            if body is None:
+                fail_n += 1
+                break
 
-        try:
-            data = json.loads(body)
-        except Exception:
-            fail_n += 1
-            print(f"回應無法解析：{body[:120]}")
-            continue
+            low = body.lower()
+            if "<title>error</title>" in low or "docs/script/images/favicon" in low:
+                fail_n += 1
+                print("下游回錯誤頁")
+                print("       這一步在下游拋出例外或被時間上限中止。")
+                print("       到 Apps Script 左側「執行紀錄」找最近一次 doGet，")
+                print(f"       它會顯示 {label} 這一支函式的實際錯誤。")
+                break
+            if "<html" in low or "<!doctype" in low:
+                fail_n += 1
+                print("下游回 HTML，不是 JSON。請確認部署的是最新版本。")
+                break
 
-        if data.get("ok"):
+            try:
+                data = json.loads(body)
+            except Exception:
+                fail_n += 1
+                print(f"回應無法解析：{body[:120]}")
+                break
+
+            if not data.get("ok"):
+                fail_n += 1
+                print(f"失敗：{data.get('error', body[:120])}")
+                break
+
+            print(data.get("result", "完成"))
+
+            # 還沒做完就再打一次；做完了才換下一步。
+            if data.get("chunked") and not data.get("done"):
+                if rounds >= MAX_ROUNDS:
+                    fail_n += 1
+                    print(f"       已跑 {rounds} 批仍未完成，先停下來避免無限迴圈。")
+                    print("       下次執行會從目前進度接著做，或在編輯器執行")
+                    print("       resetDailyKCursor() 重設進度後重跑。")
+                    break
+                time.sleep(2)
+                continue
+
             ok_n += 1
-            print(f"完成 {data.get('result', '')}")
-        else:
-            fail_n += 1
-            print(f"失敗：{data.get('error', body[:120])}")
+            break
 
     print(f"\n重算結束：成功 {ok_n} 步，失敗 {fail_n} 步。")
     if fail_n:

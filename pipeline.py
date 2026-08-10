@@ -384,7 +384,10 @@ def maybe_refresh_site():
     """
     要求 Apps Script 立刻重算全站。只有 REFRESH_SITE=true 時才動作。
 
-    刷新本身可能要一兩分鐘（補日K、重算追蹤、記績效），所以逾時給到 300 秒。
+    分成六次請求依序呼叫，不是一次要求跑完。
+    下游是 Apps Script，網頁請求超過 6 分鐘會被直接砍掉，而整條重算鏈
+    遠超過那個上限，一次打必定失敗且看不出原因。
+
     失敗不視為整體失敗：資料已經寫進試算表了，網站晚一點由排程刷新也會正確，
     所以這裡只印警告，不讓整個 workflow 亮紅燈。
     """
@@ -427,82 +430,71 @@ def maybe_refresh_site():
         print("=" * 60)
         return
 
-    print("\n要求 Apps Script 立刻重算全站（約一到兩分鐘）……")
-    try:
-        # Apps Script 的 /exec 會 302 轉址到 googleusercontent，
-        # requests 預設會跟著轉址，正是我們要的行為。
-        resp = requests.get(
-            APPS_SCRIPT_URL,
-            params={"action": "refresh", "key": ADMIN_KEY},
-            timeout=300,
-            headers={"User-Agent": "zhangzhen-pipeline"},
-        )
-        body = resp.text[:600]
-        clean = body.replace(" ", "")
-        if '"ok":true' in clean:
-            print(f"刷新回應（HTTP {resp.status_code}）：{body}")
-            print("網站已刷新完成，重新整理頁面即可看到最新內容。")
-        elif '"ok":false' in clean:
-            # 端點有通、但被拒絕。九成是密鑰對不上。
-            print(f"刷新回應（HTTP {resp.status_code}）：{body}")
-            print("")
-            print("端點有回應，但被拒絕了。最常見的原因是兩邊的 ADMIN_KEY 不一致：")
-            print("  Apps Script → 專案設定 → 指令碼屬性，比對 ADMIN_KEY 的值")
-            print("  GitHub → Settings → Secrets，確認貼上時前後沒有多空格或換行")
-        elif "<html" in body.lower() or "<!doctype" in body.lower():
-            # 回傳網頁而不是 JSON。有兩種完全不同的成因，解法也不同，必須分開判斷。
-            low = body.lower()
-            is_login = ("accounts.google.com" in low or "servicelogin" in low
-                        or "signin" in low)
-            # Apps Script 自己的錯誤頁。特徵是標題就叫 Error，
-            # 而且載入的是 docs/script 的圖示。這代表 doGet 執行時拋了例外——
-            # 與「部署版本太舊」是完全不同的問題，處理方式也不一樣，
-            # 先前把兩者混在一起判讀，指引就把人帶錯方向。
-            is_gas_error = ("<title>error</title>" in low
-                            or "docs/script/images/favicon" in low)
-            print(f"刷新回應（HTTP {resp.status_code}）：回傳的是 HTML 網頁，不是預期的 JSON。")
-            print(f"最終網址：{resp.url}")
-            print(f"內容開頭：{body[:200]}")
-            print("")
-            if is_gas_error:
-                print(">>> 這是 Apps Script 的錯誤頁，代表 doGet 執行時拋出例外。")
-                print("    程式碼有進去跑，但中途出錯了，不是版本太舊的問題。")
-                print("")
-                print("    最常見的原因是「授權過期或不足」：")
-                print("    專案新增了會用到新服務的程式碼（例如對外連網、建立觸發器、寄信）之後，")
-                print("    必須重新授權一次，否則網頁應用程式一執行到那段就會直接拋例外。")
-                print("")
-                print("    怎麼修：")
-                print("    1. 到 Apps Script 編輯器，隨便選一個函式（例如 showDeployInfo）按執行")
-                print("    2. 跳出授權視窗就一路允許到底，把新的權限補齊")
-                print("    3. 部署 → 管理部署作業 → 編輯 → 版本選「新版本」→ 部署")
-                print("    4. 想看確切錯誤：把上面那個網址直接貼到瀏覽器，頁面會顯示例外訊息；")
-                print("       或到 Apps Script 左側「執行紀錄」看最近一次 doGet 的失敗原因")
-            elif is_login:
-                print(">>> 這是 Google 登入頁，代表請求根本沒有進到你的程式碼。")
-                print("    成因：部署的「誰可以存取」不是「所有人」。")
-                print("    GitHub Actions 沒有 Google 帳號可以登入，會被擋在驗證這一關。")
-                print("    修法：管理部署作業 → 編輯 → 誰可以存取改成「所有人」。")
-                print("    注意「凡是擁有 Google 帳戶的使用者」也不行，必須是「所有人」。")
-            else:
-                print(">>> 這是網站本身的頁面，代表請求有進到你的程式，")
-                print("    但那份程式碼裡沒有 action=refresh 這個分支。")
-                print("    也就是說：部署中的版本還是舊的 Code.gs。")
-                print("")
-                print("    請依序確認：")
-                print("    1. Code.gs 裡真的有 params.action === 'refresh' 這段（搜尋 jsonOut_）")
-                print("    2. 管理部署作業 → 編輯（鉛筆）→ 版本選「新版本」→ 部署")
-                print("       ※ 用「新增部署作業」會產生另一組網址，舊網址仍指向舊版")
-                print("    3. 部署清單若有多筆，確認 APPS_SCRIPT_URL 是你剛才更新的那一筆")
-                print("       兩者的 /s/ 後面那串 ID 必須一致")
-                print("    4. 執行 showDeployInfo()，用它印出來的網址覆蓋 GitHub Secret")
+    # 逐步呼叫，不要一次要求跑完整條鏈。
+    #
+    # 下游是 Apps Script，網頁請求超過 6 分鐘會被直接砍掉——那不是拋例外，
+    # 是執行被中止，所以下游的 try/catch 接不到，我們只會收到一張
+    # 看不出原因的錯誤頁。整條重算鏈遠超過 6 分鐘，一次打必定失敗。
+    #
+    # 拆成六次請求之後，每一步都在自己的額度內跑完，而且每一步的成敗
+    # 都看得到，卡在哪一步一目了然。
+    STEPS = [
+        ("purge", "清除產業列"),
+        ("codes", "代號比對"),
+        ("fund", "更新基本面"),
+        ("dailyk", "補齊日K"),
+        ("tracker", "重算持股追蹤"),
+        ("perf", "記錄績效"),
+    ]
+
+    print("\n要求 Apps Script 重算全站，分成 6 步依序執行……")
+    ok_n, fail_n = 0, 0
+
+    for i, (key, label) in enumerate(STEPS, 1):
+        print(f"  [{i}/{len(STEPS)}] {label} ……", end=" ", flush=True)
+        try:
+            resp = requests.get(
+                APPS_SCRIPT_URL,
+                params={"action": "refresh", "key": ADMIN_KEY, "step": key},
+                timeout=400,
+                headers={"User-Agent": "zhangzhen-pipeline"},
+            )
+            body = resp.text[:400]
+        except Exception as e:
+            fail_n += 1
+            print(f"連線失敗：{e}")
+            continue
+
+        low = body.lower()
+        if "<title>error</title>" in low or "docs/script/images/favicon" in low:
+            fail_n += 1
+            print("下游回錯誤頁（多半是這一步本身超過 6 分鐘）")
+            continue
+        if "<html" in low or "<!doctype" in low:
+            fail_n += 1
+            print("下游回 HTML，不是 JSON。請確認部署的是最新版本。")
+            continue
+
+        try:
+            data = json.loads(body)
+        except Exception:
+            fail_n += 1
+            print(f"回應無法解析：{body[:120]}")
+            continue
+
+        if data.get("ok"):
+            ok_n += 1
+            print(f"完成 {data.get('result', '')}")
         else:
-            print(f"刷新回應（HTTP {resp.status_code}）：{body}")
-            print("回應格式不如預期，請確認部署網址是否為 /exec 結尾。")
-    except Exception as e:
-        print(f"刷新網站失敗（不影響已寫入的資料）：{e}")
-        print("可改用備援方式：到網站的技術說明頁最下方輸入管理密鑰按「立即刷新網站內容」，")
-        print("或在 Apps Script 編輯器直接執行 refreshSiteNow()。")
+            fail_n += 1
+            print(f"失敗：{data.get('error', body[:120])}")
+
+    print(f"\n重算結束：成功 {ok_n} 步，失敗 {fail_n} 步。")
+    if fail_n:
+        print("失敗的步驟可以單獨重跑，其餘已完成的不必重來。")
+        print("若某一步固定失敗，到 Apps Script 左側「執行紀錄」看那一支函式的錯誤。")
+    else:
+        print("網站已是最新內容。")
 
 
 def budget_left() -> float:

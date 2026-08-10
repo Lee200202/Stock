@@ -457,10 +457,43 @@ def maybe_refresh_site():
     try:
         pr = requests.get(APPS_SCRIPT_URL, params={"action": "ping"},
                           timeout=60, headers={"User-Agent": "zhangzhen-pipeline"})
-        pinfo = json.loads(pr.text[:2000])
     except Exception as e:
-        print(f"失敗：{e}")
-        print("下游沒有回應或不是 JSON。請確認 APPS_SCRIPT_URL 正確且已部署。")
+        print(f"連線失敗：{e}")
+        print(f"設定的網址：{APPS_SCRIPT_URL}")
+        return
+
+    try:
+        pinfo = json.loads(pr.text[:4000])
+    except Exception:
+        # 這裡一定要把實際收到什麼印出來。
+        #
+        # 只說「不是 JSON」等於什麼都沒說，而這個錯誤最常見的成因是
+        # 「Secret 裡的網址指向另一個舊部署」——同一支 ping 在瀏覽器好好的，
+        # 在這裡卻拿到 HTML，因為兩邊打的根本不是同一個部署。
+        # 把最終網址與內容開頭印出來，一眼就能比對出來。
+        body = (pr.text or "")[:200].replace("\n", " ")
+        low = body.lower()
+        print(f"回應不是 JSON（HTTP {pr.status_code}）")
+        print(f"  設定的網址：{APPS_SCRIPT_URL}")
+        print(f"  最終網址　：{pr.url}")
+        print(f"  內容開頭　：{body}")
+        print("")
+        if "accounts.google.com" in low or "servicelogin" in low:
+            print("  >>> 這是 Google 登入頁。部署的「誰可以存取」不是「所有人」。")
+            print("      管理部署作業 → 編輯 → 誰可以存取改成「所有人」。")
+        elif "<title>error</title>" in low:
+            print("  >>> 這是 Apps Script 錯誤頁，doGet 執行時出錯。")
+            print("      到 Apps Script 左側「執行紀錄」看實際訊息。")
+        else:
+            print("  >>> 收到的是網頁而不是 JSON，代表這個部署的程式碼沒有 ping 分支，")
+            print("      也就是它跑的是舊版。最常見的原因是這裡設定的網址")
+            print("      與你剛才在瀏覽器測試成功的那一個，不是同一個部署。")
+            print("")
+            print("      怎麼確認：在 Apps Script 執行 showDeployInfo()，")
+            print("      比對它印出來的網址與上面「設定的網址」，")
+            print("      兩者 /macros/s/ 後面那一長串 ID 必須完全一致。")
+            print("      不一致就把 showDeployInfo() 印的那個更新到 GitHub Secret")
+            print("      的 APPS_SCRIPT_URL，然後重跑。")
         return
 
     feats = pinfo.get("features") or []

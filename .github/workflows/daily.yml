@@ -62,6 +62,10 @@ on:
         description: 'AI 整頓：判定產業並刪除、抽取張震明講的買入價並核對後寫回。用已存逐字稿，不重抓影片'
         required: false
         default: 'false'
+      admin_job:
+        description: '★後台工單★ 處理管理者從網站後台貼上的逐字稿。由後台按鈕自動觸發，通常不必手動勾'
+        required: false
+        default: 'false'
       fix_prices:
         description: '價位說明校對：修正方向矛盾（買入卻寫「255以上全部賣掉」）、非股價數字（241億）、概數（1400多）。用已存逐字稿'
         required: false
@@ -158,6 +162,7 @@ jobs:
           RECLASSIFY: ${{ github.event.inputs.reclassify }}
           RECONCILE: ${{ github.event.inputs.reconcile }}
           FIX_PRICES: ${{ github.event.inputs.fix_prices }}
+          ADMIN_JOB: ${{ github.event.inputs.admin_job }}
           REFRESH_SITE: ${{ github.event.inputs.refresh_site }}
           # VOD 最早可能出現的台灣時間。這之前的觸發點一律跳過。
           VOD_EARLIEST_HOUR: '12'
@@ -239,6 +244,7 @@ jobs:
           RECLASSIFY: ${{ github.event.inputs.reclassify }}
           RECONCILE: ${{ github.event.inputs.reconcile }}
           FIX_PRICES: ${{ github.event.inputs.fix_prices }}
+          ADMIN_JOB: ${{ github.event.inputs.admin_job }}
           # 跑完立刻刷新網站，不必等下游排程。需要下面兩個 Secret 才會動作。
           REFRESH_SITE: ${{ github.event.inputs.refresh_site }}
           APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}

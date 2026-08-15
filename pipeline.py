@@ -2218,20 +2218,58 @@ def run_admin_job(ss):
 
 
 def upsert_video_transcript(ss, video_id, date_str, v2):
-    """把修飾後逐字稿寫回影片清單。"""
+    """
+    把修飾後逐字稿寫回影片清單。
+
+    找列的順序是「先比影片ID、再比日期」。
+
+    先前只比影片ID，找不到就印一行訊息然後放棄——潤飾好的稿子就這樣掉了，
+    而且流程照樣顯示成功。後台投稿用 MANUAL-日期 當代號，當天影片清單那列
+    卻是真正的影片ID，正好會踩到這個洞：逐字稿分頁永遠等不到內容。
+    現在改成日期也算命中，最後才新增一列，絕不靜默丟棄。
+    """
     ws = ss.worksheet("影片清單")
     vals = sheets_retry(ws.get_all_values)
     head = vals[0]
-    c_id = head.index("影片ID") if "影片ID" in head else 0
-    c_v2 = head.index("修飾後逐字稿內容") if "修飾後逐字稿內容" in head else None
+
+    def ci(name, default=None):
+        return head.index(name) if name in head else default
+
+    c_id = ci("影片ID", 0)
+    c_date = ci("發布日期")
+    c_v2 = ci("修飾後逐字稿內容")
     if c_v2 is None:
         print("影片清單沒有『修飾後逐字稿內容』欄，略過寫回")
         return
+
+    by_id, by_date = None, None
     for i in range(1, len(vals)):
-        if str(vals[i][c_id]).strip() == video_id:
-            sheets_retry(ws.update_cell, i + 1, c_v2 + 1, v2[:SHEET_CELL_LIMIT])
-            return
-    print(f"影片清單裡找不到 {video_id}，修飾稿沒有寫回")
+        row = vals[i]
+        if str(row[c_id]).strip() == video_id:
+            by_id = i + 1
+            break
+        if by_date is None and c_date is not None:
+            if norm_date(row[c_date]) == date_str:
+                by_date = i + 1
+
+    target = by_id or by_date
+    if target:
+        sheets_retry(ws.update_cell, target, c_v2 + 1, v2[:SHEET_CELL_LIMIT])
+        how = "比對影片ID" if by_id else "比對日期"
+        print(f"修飾稿已寫回影片清單第 {target} 列（{how}，{len(v2)} 字）")
+        return
+
+    # 兩種都找不到才新增。寧可多一列，也不要把處理好的稿子丟掉。
+    row = [""] * len(head)
+    row[c_id] = video_id
+    if c_date is not None:
+        row[c_date] = date_str
+    row[c_v2] = v2[:SHEET_CELL_LIMIT]
+    c_status = ci("處理狀態")
+    if c_status is not None:
+        row[c_status] = "完成"
+    sheets_retry(ws.append_row, row, value_input_option="RAW")
+    print(f"影片清單沒有 {date_str} 的列，已新增一列並寫入修飾稿（{len(v2)} 字）")
 
 
 def process_one(ss, video, done_trades, done_holds):

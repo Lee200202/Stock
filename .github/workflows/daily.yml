@@ -70,6 +70,10 @@ on:
         description: '價位說明校對：修正方向矛盾（買入卻寫「255以上全部賣掉」）、非股價數字（241億）、概數（1400多）。用已存逐字稿'
         required: false
         default: 'false'
+      full_fix:
+        description: '★全面重整★ 把過去所有資料套用最新規則（補正代號、稽核與複審、價位校對、補日K、重算追蹤、重寫郵件）。由後台按鈕自動觸發，跑數小時，不碰逐字稿'
+        required: false
+        default: 'false'
       refresh_site:
         description: '★跑完後立刻刷新網站★ 勾 true 網站馬上更新，不必等下個交易日。可與上面任一模式一起勾，也可單獨勾（只刷新不改資料）'
         required: false
@@ -86,7 +90,10 @@ jobs:
     runs-on: ubuntu-latest
     # 內部輪詢循環一個 job 約 25 分鐘（TIME_BUDGET_SEC=1500）。
     # 30 分鐘 job 上限足夠，並避免卡死的工作長時間佔住 concurrency 佇列。
-    timeout-minutes: 30
+    #
+    # 全面重整例外：它要把整段歷史一天一天跑過，一百多個交易日要好幾個小時。
+    # 給 30 分鐘的話每次只前進一小段，得手動重按十幾次才跑得完。
+    timeout-minutes: ${{ github.event.inputs.full_fix == 'true' && 360 || 30 }}
 
     steps:
       - name: 記錄排程與實際執行時間
@@ -163,6 +170,7 @@ jobs:
           RECONCILE: ${{ github.event.inputs.reconcile }}
           FIX_PRICES: ${{ github.event.inputs.fix_prices }}
           ADMIN_JOB: ${{ github.event.inputs.admin_job }}
+          FULL_FIX: ${{ github.event.inputs.full_fix }}
           REFRESH_SITE: ${{ github.event.inputs.refresh_site }}
           # VOD 最早可能出現的台灣時間。這之前的觸發點一律跳過。
           VOD_EARLIEST_HOUR: '12'
@@ -245,6 +253,7 @@ jobs:
           RECONCILE: ${{ github.event.inputs.reconcile }}
           FIX_PRICES: ${{ github.event.inputs.fix_prices }}
           ADMIN_JOB: ${{ github.event.inputs.admin_job }}
+          FULL_FIX: ${{ github.event.inputs.full_fix }}
           # 跑完立刻刷新網站，不必等下游排程。需要下面兩個 Secret 才會動作。
           REFRESH_SITE: ${{ github.event.inputs.refresh_site }}
           APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}

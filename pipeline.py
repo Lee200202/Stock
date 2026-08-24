@@ -662,6 +662,35 @@ def drive_full_fix():
         print("到 Apps Script 執行 showDeployInfo() 會把兩個值都印出來。")
         return
 
+    # 先確認下游認得 fullfix 這一步。
+    #
+    # 不確認的話，部署沒更新時第一棒會拿到「不認得的步驟：fullfix」——
+    # 那句話完全看不出真正的問題是「Code.gs 貼了但沒有部署新版本」，
+    # 而那是這個專案最常見的坑。先問一次 ping 就能講清楚。
+    try:
+        pr = requests.get(APPS_SCRIPT_URL, params={"action": "ping"},
+                          timeout=60, headers={"User-Agent": "zhangzhen-pipeline"})
+        feats = json.loads(pr.text[:4000]).get("features") or []
+    except Exception as e:
+        print(f"連不上下游或回應不是 JSON：{e}")
+        print(f"設定的網址：{APPS_SCRIPT_URL}")
+        return
+
+    if "full-fix" not in feats:
+        print("")
+        print("=" * 60)
+        print("下游版本過舊：不支援全面重整（full-fix）。")
+        print("=" * 60)
+        print(f"目前部署的 build：{json.loads(pr.text[:4000]).get('build', '未知')}")
+        print("")
+        print("怎麼修：")
+        print("  1. 把最新的 Code.gs、AdminService.gs 貼進 Apps Script")
+        print("  2. 部署 → 管理部署作業 → 編輯（鉛筆）→ 版本選「新版本」→ 部署")
+        print("     ※ 只貼程式碼不重新部署是無效的，線上跑的仍是舊版")
+        print("  3. 用瀏覽器開 APPS_SCRIPT_URL?action=ping，")
+        print("     確認 features 裡有 full-fix，再重跑一次")
+        return
+
     print("\n開始驅動下游的全面重整。每一棒約四分半，做完會自己停。")
     rounds, fails = 0, 0
     while True:

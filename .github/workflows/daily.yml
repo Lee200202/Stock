@@ -74,6 +74,10 @@ on:
         description: '★全面重整★ 把過去所有資料套用最新規則（補正代號、稽核與複審、價位校對、補日K、重算追蹤、重寫郵件）。由後台按鈕自動觸發，跑數小時，不碰逐字稿'
         required: false
         default: 'false'
+      refresh_from:
+        description: '刷新從哪一步開始（purge / gate / codes / fund / dailyk / tracker / perf）。留空＝從頭。由後台的「從這一步重跑」自動帶入'
+        required: false
+        default: ''
       refresh_site:
         description: '★跑完後立刻刷新網站★ 勾 true 網站馬上更新，不必等下個交易日。可與上面任一模式一起勾，也可單獨勾（只刷新不改資料）'
         required: false
@@ -171,6 +175,7 @@ jobs:
           FIX_PRICES: ${{ github.event.inputs.fix_prices }}
           ADMIN_JOB: ${{ github.event.inputs.admin_job }}
           FULL_FIX: ${{ github.event.inputs.full_fix }}
+          REFRESH_FROM: ${{ github.event.inputs.refresh_from }}
           REFRESH_SITE: ${{ github.event.inputs.refresh_site }}
           # VOD 最早可能出現的台灣時間。這之前的觸發點一律跳過。
           VOD_EARLIEST_HOUR: '12'
@@ -254,6 +259,7 @@ jobs:
           FIX_PRICES: ${{ github.event.inputs.fix_prices }}
           ADMIN_JOB: ${{ github.event.inputs.admin_job }}
           FULL_FIX: ${{ github.event.inputs.full_fix }}
+          REFRESH_FROM: ${{ github.event.inputs.refresh_from }}
           # 跑完立刻刷新網站，不必等下游排程。需要下面兩個 Secret 才會動作。
           REFRESH_SITE: ${{ github.event.inputs.refresh_site }}
           APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}

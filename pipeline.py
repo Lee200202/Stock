@@ -670,7 +670,8 @@ def drive_full_fix():
     try:
         pr = requests.get(APPS_SCRIPT_URL, params={"action": "ping"},
                           timeout=60, headers={"User-Agent": "zhangzhen-pipeline"})
-        feats = json.loads(pr.text[:4000]).get("features") or []
+        pinfo = json.loads(pr.text[:4000])
+        feats = pinfo.get("features") or []
     except Exception as e:
         print(f"連不上下游或回應不是 JSON：{e}")
         print(f"設定的網址：{APPS_SCRIPT_URL}")
@@ -681,14 +682,36 @@ def drive_full_fix():
         print("=" * 60)
         print("下游版本過舊：不支援全面重整（full-fix）。")
         print("=" * 60)
-        print(f"目前部署的 build：{json.loads(pr.text[:4000]).get('build', '未知')}")
         print("")
-        print("怎麼修：")
-        print("  1. 把最新的 Code.gs、AdminService.gs 貼進 Apps Script")
-        print("  2. 部署 → 管理部署作業 → 編輯（鉛筆）→ 版本選「新版本」→ 部署")
-        print("     ※ 只貼程式碼不重新部署是無效的，線上跑的仍是舊版")
-        print("  3. 用瀏覽器開 APPS_SCRIPT_URL?action=ping，")
-        print("     確認 features 裡有 full-fix，再重跑一次")
+        print("這個網址回報的身分：")
+        print(f"  build      {pinfo.get('build', '未知')}")
+        print(f"  features   {'、'.join(feats) if feats else '（無）'}")
+        print(f"  scriptId   {pinfo.get('scriptId', '（舊版不回報）')}")
+        print(f"  它自己認得的網址  {pinfo.get('webAppUrl', '（舊版不回報）')}")
+        print("")
+        print("你設定的網址：")
+        print(f"  {APPS_SCRIPT_URL}")
+        if pr.url != APPS_SCRIPT_URL:
+            print(f"  實際到達　：{pr.url}")
+        print("")
+        print("拿上面三項去對，成因只有三種：")
+        print("")
+        print("A. scriptId 與你在編輯器網址裡看到的那一串不同")
+           # 編輯器網址長得像 script.google.com/home/projects/<scriptId>/edit
+        print("   → 你改的是另一個專案。打開 scriptId 對得上的那一個再貼一次。")
+        print("")
+        print("B. scriptId 相同，但「它自己認得的網址」與你設定的網址不同")
+        print("   → 這個專案有多個部署，你更新的是其中一個，")
+        print("     而 APPS_SCRIPT_URL 指向另一個。兩個選一個：")
+        print("     把 APPS_SCRIPT_URL 換成你剛更新的那個部署的網址，或")
+        print("     回去把這個網址對應的那一個部署也更新成新版本。")
+        print("")
+        print("C. 兩個網址都相同，但 build 還是舊的")
+        print("   → 更新部署時「版本」沒有選「新版本」，那個部署仍釘在舊版本。")
+        print("     管理部署作業 → 編輯（鉛筆）→ 版本下拉選「新版本」→ 部署。")
+        print("     選既有的版本號是無效的，那等於什麼都沒改。")
+        print("")
+        print("改完用瀏覽器開 APPS_SCRIPT_URL?action=ping 確認 features 有 full-fix，再重跑。")
         return
 
     print("\n開始驅動下游的全面重整。每一棒約四分半，做完會自己停。")

@@ -161,6 +161,16 @@ RECONCILE = os.environ.get("RECONCILE", "false").strip().lower() == "true"
 # 用已存逐字稿，不重抓影片、不呼叫 NotebookLM。
 FIX_PRICES = os.environ.get("FIX_PRICES", "false").strip().lower() == "true"
 
+# 全面重整模式。把下游的「全面重整」一棒一棒驅動完：補正名稱與代號、
+# 稽核與複審、價位校對、補齊日K、重算持股追蹤、重寫郵件。
+#
+# 為什麼由這裡驅動而不是讓 Apps Script 自己排觸發器：Apps Script 每個指令碼
+# 的觸發器上限是 20 個，裝滿之後 create() 直接拋例外，按鈕按下去只會跳
+# 「這個指令碼包含過多觸發條件」。改成從這裡逐次打網頁請求，每一棒都是一次
+# 獨立的請求、各自享有完整的執行額度，一個觸發器都不用，而且每一棒的結果
+# 都印在 Actions 日誌裡看得到。
+FULL_FIX = os.environ.get("FULL_FIX", "false").strip().lower() == "true"
+
 # YouTube Data API 金鑰。有設定就優先用它取影片清單，
 # 因為 RSS（feeds/videos.xml）對 GitHub 機房 IP 會穩定回 404，重試無效。
 # 沒設定則退回 RSS，維持本機或非機房環境可用。
@@ -188,6 +198,12 @@ INDEX_TIMEOUT = FULL_TIMEOUT if (BACKFILL or FINAL_ATTEMPT or FILL_BLANKS) else 
 # 相鄰兩次觸發就能無縫覆蓋 11:30 到 15:00。
 RUN_STARTED = time.monotonic()
 TIME_BUDGET = int(os.environ.get("TIME_BUDGET_SEC", "1500"))   # 25 分鐘
+
+# 全面重整要把整段歷史一天一天跑過，一百多個交易日要好幾個小時，
+# 25 分鐘的預算會讓它每次只前進一小段，得手動重按十幾次。
+# 沒有另外指定時就給五小時，workflow 那邊的 job 逾時也跟著放寬。
+if FULL_FIX and not os.environ.get("TIME_BUDGET_SEC", "").strip():
+    TIME_BUDGET = 18000
 
 # 內部輪詢循環：進來後自己每隔幾分鐘敲一次門，而不是靠 GitHub cron 準點觸發多次。
 # GitHub 的 cron 是 best-effort，尖峰會大量漏跑，這是輪詢次數遠少於預期的主因。
@@ -602,6 +618,67 @@ def maybe_refresh_site():
         print("若某一步固定失敗，到 Apps Script 左側「執行紀錄」看那一支函式的錯誤。")
     else:
         print("網站已是最新內容。")
+
+
+def drive_full_fix():
+    """
+    逐棒驅動下游的全面重整，直到做完或時間預算用盡。
+
+    每一棒是一次 ?action=refresh&step=fullfix 的請求。下游做一小段就回報
+    目前在哪一步、跑到第幾天，做不完就回 done=false，這裡再打一次。
+    進度存在下游的指令碼屬性裡，所以就算這個 job 被中斷，下次進來也是
+    從同一個地方接著做，不會重跑已經處理過的日期。
+    """
+    if not APPS_SCRIPT_URL or not ADMIN_KEY:
+        print("全面重整需要 APPS_SCRIPT_URL 與 ADMIN_KEY 兩個 Secret，缺一不可。")
+        print("到 Apps Script 執行 showDeployInfo() 會把兩個值都印出來。")
+        return
+
+    print("\n開始驅動下游的全面重整。每一棒約四分半，做完會自己停。")
+    rounds, fails = 0, 0
+    while True:
+        if out_of_budget():
+            print("\n時間預算用盡，本次先停。進度存在下游，重跑一次會從這裡接著做。")
+            return
+        rounds += 1
+        print(f"  第 {rounds} 棒 ……", end=" ", flush=True)
+
+        try:
+            r = requests.get(
+                APPS_SCRIPT_URL,
+                params={"action": "refresh", "key": ADMIN_KEY, "step": "fullfix"},
+                timeout=420,
+                headers={"User-Agent": "zhangzhen-pipeline"},
+            )
+            body = r.text[:800]
+        except requests.exceptions.RequestException as e:
+            fails += 1
+            print(f"連線失敗：{e}")
+            if fails >= 3:
+                print("連續三次連線失敗，停止。下游可能還在跑，稍後再重跑一次即可。")
+                return
+            time.sleep(15)
+            continue
+
+        low = body.lower()
+        if "<html" in low or "<!doctype" in low:
+            print("下游回 HTML 而不是 JSON，多半是沒有部署最新版本。")
+            return
+        try:
+            data = json.loads(body)
+        except Exception:
+            print(f"回應無法解析：{body[:160]}")
+            return
+        if not data.get("ok"):
+            print(f"失敗：{data.get('error', body[:160])}")
+            return
+
+        fails = 0
+        print(f"{data.get('result', '')}  進度 {data.get('processed', 0)}/{data.get('total', 0)}")
+        if data.get("done"):
+            print("\n全面重整完成。網站與郵件都已依新規則更新。")
+            return
+        time.sleep(2)
 
 
 def budget_left() -> float:
@@ -3000,13 +3077,15 @@ def main():
     # 會用到 Gemini 的模式，在這裡就先確認金鑰在不在。
     # 延後到真正呼叫才檢查雖然不會出錯，但可能已經跑了好幾分鐘才炸，
     # 所以正式流程仍在開頭擋一次，只有探測與純修代號例外。
-    if not (PREFLIGHT or REPAIR_CODES or (REFRESH_SITE and not any(
+    # 全面重整的 Gemini 呼叫全部發生在下游，這裡只是逐棒催它，不需要金鑰。
+    if not (PREFLIGHT or REPAIR_CODES or FULL_FIX or (REFRESH_SITE and not any(
             (RECLASSIFY, FIX_PRICES, RECONCILE, FILL_BLANKS, BACKFILL)))):
         require_gemini_key()
 
     # 這三個是互斥模式，同時勾選只有第一個會生效。
     # 先前就發生過三個都勾、結果只跑了修代號的情況，所以這裡明講。
     picked = [n for n, on in (("admin_job", ADMIN_JOB),
+                              ("full_fix", FULL_FIX),
                               ("repair_codes", REPAIR_CODES),
                               ("reclassify", RECLASSIFY),
                               ("fix_prices", FIX_PRICES),
@@ -3038,6 +3117,12 @@ def main():
     if REFRESH_SITE and not picked:
         print("模式：只刷新網站。不動任何資料，只要求 Apps Script 用現有資料重算全站。")
         maybe_refresh_site()
+        return
+
+    if FULL_FIX:
+        print("模式：全面重整。逐棒驅動下游把過去所有資料套用最新規則。")
+        print("不碰 NotebookLM，Gemini 由下游呼叫，這裡只負責一棒一棒催它做完。")
+        drive_full_fix()
         return
 
     if REPAIR_CODES:

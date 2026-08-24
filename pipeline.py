@@ -648,6 +648,28 @@ def maybe_refresh_site():
         print("網站已是最新內容。")
 
 
+def _full_fix_progress(last_seen):
+    """
+    問一次下游的全面重整進度。唯讀，不會做任何事。
+
+    回傳 (有沒有前進, 目前位置)。查不到就回 (None, "")，讓呼叫端當成連線問題。
+    """
+    try:
+        r = requests.get(
+            APPS_SCRIPT_URL,
+            params={"action": "refresh", "key": ADMIN_KEY, "step": "fullfixstate"},
+            timeout=60,
+            headers={"User-Agent": "zhangzhen-pipeline"},
+        )
+        d = json.loads(r.text[:800])
+    except Exception:
+        return None, ""
+    if not d.get("ok"):
+        return None, ""
+    where = f"{d.get('processed', 0)}/{d.get('total', 0)} {d.get('result', '')}"
+    return (where != last_seen), where
+
+
 def drive_full_fix():
     """
     逐棒驅動下游的全面重整，直到做完或時間預算用盡。
@@ -716,6 +738,7 @@ def drive_full_fix():
 
     print("\n開始驅動下游的全面重整。每一棒約四分半，做完會自己停。")
     rounds, fails = 0, 0
+    last_seen = ""      # 上一次看到的進度字串，用來判斷逾時後有沒有前進
     while True:
         if out_of_budget():
             print("\n時間預算用盡，本次先停。進度存在下游，重跑一次會從這裡接著做。")
@@ -727,17 +750,43 @@ def drive_full_fix():
             r = requests.get(
                 APPS_SCRIPT_URL,
                 params={"action": "refresh", "key": ADMIN_KEY, "step": "fullfix"},
-                timeout=420,
+                # 下游單棒的預算是 3.2 分鐘，正常兩百秒內就會回。
+                # 抓 300 秒：超過就代表那一棒被時間上限砍掉了，
+                # 早一點發現、早一點去查進度，不必白等七分鐘。
+                timeout=300,
                 headers={"User-Agent": "zhangzhen-pipeline"},
             )
             body = r.text[:800]
         except requests.exceptions.RequestException as e:
+            # 讀取逾時不等於那一棒沒做成。
+            #
+            # Apps Script 單次執行超過 6 分鐘會被直接中止，那不是拋例外，
+            # 是執行被砍掉，所以連線就那樣掛著、我們只能等到自己的讀取逾時。
+            # 但被砍掉之前寫進去的進度是留著的——游標、日期、步驟都在。
+            # 所以先問一次進度：有前進就當作這一棒有效，繼續打下一棒。
+            print(f"連線中斷（{type(e).__name__}），先查一下進度……", end=" ", flush=True)
+            moved, where = _full_fix_progress(last_seen)
+            if moved is None:
+                fails += 1
+                print("查不到進度。")
+                if fails >= 3:
+                    print("連續三次都查不到，停止。進度留在下游，稍後重跑會接續。")
+                    return
+                time.sleep(15)
+                continue
+            if moved:
+                fails = 0
+                last_seen = where
+                print(f"有前進：{where}　繼續。")
+                time.sleep(5)
+                continue
             fails += 1
-            print(f"連線失敗：{e}")
+            print(f"沒有前進（仍在 {where}）。")
             if fails >= 3:
-                print("連續三次連線失敗，停止。下游可能還在跑，稍後再重跑一次即可。")
+                print("連續三次沒有前進，停止。可能是某一步本身太慢，")
+                print("到 Apps Script 的執行紀錄看最近一次 doGet 的錯誤。")
                 return
-            time.sleep(15)
+            time.sleep(20)
             continue
 
         low = body.lower()
@@ -755,6 +804,7 @@ def drive_full_fix():
 
         fails = 0
         note = str(data.get("result", ""))
+        last_seen = f"{data.get('processed', 0)}/{data.get('total', 0)} {note}"
 
         # 下游把「今天的 Gemini 額度用完了」當成暫停而不是失敗回報。
         # 這裡也要跟著停：再打一棒只會再撞一次同樣的牆，進度不會前進，

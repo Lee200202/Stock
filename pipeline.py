@@ -171,6 +171,11 @@ FIX_PRICES = os.environ.get("FIX_PRICES", "false").strip().lower() == "true"
 # 都印在 Actions 日誌裡看得到。
 FULL_FIX = os.environ.get("FULL_FIX", "false").strip().lower() == "true"
 
+# 從哪一步開始刷新。空的就是從頭。
+# 用在「某一步失敗、修好之後只想從那裡接著跑」，不必整條鏈重來。
+# 刷新鏈的每一步彼此獨立，跳過前面幾步不會讓後面算錯。
+REFRESH_FROM = os.environ.get("REFRESH_FROM", "").strip()
+
 # YouTube Data API 金鑰。有設定就優先用它取影片清單，
 # 因為 RSS（feeds/videos.xml）對 GitHub 機房 IP 會穩定回 404，重試無效。
 # 沒設定則退回 RSS，維持本機或非機房環境可用。
@@ -467,6 +472,20 @@ def maybe_refresh_site():
         ("perf", "記錄績效"),
     ]
 
+    # 指定了起點就從那裡開始。找不到那個代號就當作沒指定，從頭跑——
+    # 打錯一個字就整條鏈不做，比從頭跑一次糟得多。
+    if REFRESH_FROM:
+        keys = [k for k, _ in STEPS]
+        if REFRESH_FROM in keys:
+            at = keys.index(REFRESH_FROM)
+            skipped = [lb for _, lb in STEPS[:at]]
+            STEPS = STEPS[at:]
+            print(f"指定從「{STEPS[0][1]}」開始，略過前面 {len(skipped)} 步："
+                  + "、".join(skipped))
+        else:
+            usable = "、".join(keys)
+            print(f"不認得的起始步驟 {REFRESH_FROM}，改為從頭跑。可用的有：{usable}")
+
     # 動手之前先確認雙方版本一致。
     #
     # 貼了新程式碼但沒部署新版本，是這個專案最常見的坑，而症狀常常偽裝成
@@ -534,7 +553,7 @@ def maybe_refresh_site():
         print("     確認回應裡的 features 含有 refresh-step，再重跑本流程")
         return
 
-    print("\n要求 Apps Script 重算全站，分成 6 步依序執行……")
+    print(f"\n要求 Apps Script 重算全站，分成 {len(STEPS)} 步依序執行……")
     ok_n, fail_n = 0, 0
 
     for i, (key, label) in enumerate(STEPS, 1):
@@ -595,6 +614,15 @@ def maybe_refresh_site():
                 fail_n += 1
                 print(f"失敗：{data.get('error', body[:120])}")
                 break
+
+            # 後台按了取消。下游不會主動叫停我們，只能在這一步回一句「別打了」，
+            # 所以這裡看到就整條鏈收工，不是只跳過這一步。
+            if data.get("cancelled"):
+                print(data.get("result", "已取消"))
+                print("")
+                print("刷新已在後台被取消，停止往下做。已完成的步驟都保留著，")
+                print("之後在後台用「從這一步重跑」挑一個接著做即可。")
+                return
 
             print(data.get("result", "完成"))
 

@@ -674,6 +674,27 @@ def drive_full_fix():
             return
 
         fails = 0
+        note = str(data.get("result", ""))
+
+        # 下游把「今天的 Gemini 額度用完了」當成暫停而不是失敗回報。
+        # 這裡也要跟著停：再打一棒只會再撞一次同樣的牆，進度不會前進，
+        # 而且會把這個 job 剩下的幾小時全部耗在等一個今天不會好的東西上。
+        if "QUOTA_PAUSED" in note:
+            print("")
+            print("=" * 60)
+            print("Gemini 今日額度已用完，本次到此為止。")
+            print("=" * 60)
+            print("進度全部保留在下游，沒有任何一天需要重跑。")
+            print("明天額度重置之後，到後台按「接著跑」，或再跑一次本工作流程")
+            print("並勾選 full_fix，就會從停住的那一天繼續。")
+            print("想一次跑完的話，把 GEMINI_API_KEY 換成付費專案的金鑰即可。")
+            return
+
+        if "已被取消" in note:
+            print("")
+            print("這次重整已在後台被取消，停止驅動。已完成的步驟都保留著。")
+            return
+
         print(f"{data.get('result', '')}  進度 {data.get('processed', 0)}/{data.get('total', 0)}")
         if data.get("done"):
             print("\n全面重整完成。網站與郵件都已依新規則更新。")

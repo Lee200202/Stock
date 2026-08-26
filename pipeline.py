@@ -401,16 +401,9 @@ APPS_SCRIPT_URL = os.environ.get("APPS_SCRIPT_URL", "").strip()
 ADMIN_KEY = os.environ.get("ADMIN_KEY", "").strip()
 
 
-def maybe_refresh_site(date_str: str = ""):
+def maybe_refresh_site():
     """
     要求 Apps Script 立刻重算全站。只有 REFRESH_SITE=true 時才動作。
-
-    date_str 指定「這次處理的是哪一天」。不帶就是今天。
-
-    這個參數是必要的，不是方便而已：補跑或後台投稿一個過去的日期時，
-    整條重算鏈仍然是今天在跑。下游的複審若不知道日期，就會去檢查今天那一天，
-    而剛剛才寫進去的那批列一列都不會被檢查——回報訊息還是「完成」，
-    資料卻沒有經過任何把關。
 
     分成六次請求依序呼叫，不是一次要求跑完。
     下游是 Apps Script，網頁請求超過 6 分鐘會被直接砍掉，而整條重算鏈
@@ -471,7 +464,7 @@ def maybe_refresh_site(date_str: str = ""):
         # 稽核與複審。下游分三次請求做完（完整性稽核 → 內容複審 → 重寫每日整理），
         # 這一步做完，網站與推播信裡就不會再出現「他今天在操作一檔早就出清的股票」。
         # 排在代號比對之前，因為稽核會補進新的列，那些列還沒有代號。
-        ("review", "稽核與複審"),
+        ("gate", "稽核與複審"),
         ("codes", "代號比對"),
         ("fund", "更新基本面"),
         ("dailyk", "補齊日K"),
@@ -560,28 +553,6 @@ def maybe_refresh_site(date_str: str = ""):
         print("     確認回應裡的 features 含有 refresh-step，再重跑本流程")
         return
 
-    # 步驟代號要與下游對得上。
-    #
-    # 稽核與複審這一步，下游 Code.gs 實作的名稱是 review，早期版本叫 gate。
-    # 名稱沒對上時下游只會回「不認得的步驟」，那一步就每天靜靜地失敗，
-    # 而複審沒跑過的資料看起來跟跑過的一模一樣，不會有任何徵兆。
-    # ping 已經回報它認得哪些步驟，直接照著改名，兩邊誰先更新都不會壞。
-    known = pinfo.get("steps") or []
-    if known:
-        aligned, dropped = [], []
-        for k, lb in STEPS:
-            if k in known:
-                aligned.append((k, lb))
-                continue
-            alt = next((a for a in ("review", "gate") if a in known), "")
-            if k in ("review", "gate") and alt:
-                print(f"  下游把「{lb}」叫做 {alt}（本地寫的是 {k}），自動改用下游的名稱")
-                aligned.append((alt, lb))
-            else:
-                dropped.append(f"{lb}（{k}）")
-        if dropped:
-            print("  下游沒有這些步驟，本次略過：" + "、".join(dropped))
-        STEPS = aligned
     print(f"\n要求 Apps Script 重算全站，分成 {len(STEPS)} 步依序執行……")
     ok_n, fail_n = 0, 0
 
@@ -597,16 +568,12 @@ def maybe_refresh_site(date_str: str = ""):
                 tag += f"（第 {rounds} 批）"
             print(tag + " ……", end=" ", flush=True)
 
-            req_params = {"action": "refresh", "key": ADMIN_KEY, "step": key}
-            if date_str:
-                req_params["date"] = date_str
-
             body, resp = None, None
             for attempt in range(3):
                 try:
                     resp = requests.get(
                         APPS_SCRIPT_URL,
-                        params=req_params,
+                        params={"action": "refresh", "key": ADMIN_KEY, "step": key},
                         timeout=300,
                         headers={"User-Agent": "zhangzhen-pipeline"},
                     )
@@ -1597,6 +1564,7 @@ def is_non_stock(name: str):
     return False, ""
 
 
+
 def _pin(s: str) -> str:
     return "".join(lazy_pinyin(str(s)))
 
@@ -1818,6 +1786,29 @@ def resolve_signals(signals: dict) -> dict:
     return signals
 
 
+POLISH_SYSTEM = """你負責整理一段中文直播逐字稿的其中一個片段。
+
+你只能做這三件事：
+1. 修正同音錯字。
+2. 補上合理的斷句與標點。
+3. 刪除純粹的填充詞，僅限「嗯、啊、呃、那個、就是說」這類完全沒有實質意義的字。
+
+除了上述三項，原文的每一句話都必須保留下來，逐句對應輸出。
+
+嚴格禁止：
+- 禁止摘要、濃縮、改寫語意。
+- 禁止省略任何一句有實質內容的話，即使它重複、離題或聽起來不重要。
+- 禁止新增或刪除任何事實資訊。
+- 禁止補完語意不清的地方。
+
+若某處聽起來像是股票名稱但拼字有誤，可依常見台股名稱修正，其餘一律照原文保留。
+
+這是長逐字稿的其中一段，可能從句子中間開始或結束，這是正常的，照樣逐句處理即可。
+必須處理到片段的最後一個字，不可中途停止。
+
+輸出的長度應該與輸入相近。直接輸出整理後的文字，全文使用繁體中文。
+不要加開場白、結語、標題、片段編號或任何說明。"""
+
 
 POLISH_DEGRADED = 0     # 本輪有幾段因配額不足而改用原文
 
@@ -1923,23 +1914,6 @@ buy 與 sell 的門檻特別高：逐字稿必須看得到「今天、剛剛、�
 看不到「今天執行」，就一律歸到觀望兩類，不可以因為他講了買賣兩個字
 就當成今天有買賣。明講現在還抱著、還沒賣、續抱的，歸 holdings。
 
-不指名就不要生（這一條最重要）：
-講者說「我不講哪一隻」「我不講是哪一檔」「你們自己猜我買什麼股票」
-「你們自己去找我買哪一隻」時，他是刻意不透露。那一段話不可以配給任何一檔。
-就算他描述了時間、漲跌幅、型態——今天早上假破低進場、拉了四十塊——
-也不可以從這些線索去猜是哪一檔，整筆不要收。
-name 必須是逐字稿裡真的出現過的名稱或代號，禁止從敘述、產業、漲跌幅反推。
-
-價位與理由不要接錯檔：
-他常常連續講好幾檔，價位很容易被接到隔壁那一檔身上。
-price 與 reason 必須出自同一段、針對同一檔講的話。
-無法確定那個數字是在講哪一檔時，price 填「未說明」。
-寧可少一個數字，也不要把甲的價位寫到乙頭上——一個錯的數字看起來
-和對的數字一模一樣，沒有人會發現。
-
-逐字稿是語音轉文字，同音錯字很多（加哲就是嘉澤、冒聯就是貿聯）。
-name 照聽到的填、不要自行更正，但也不要因為讀音有點像就硬配到另一檔。
-
 name 欄位請填逐字稿裡實際聽到的名稱，即使你覺得可能是同音錯字也照填，不要自行更正。
 code 欄位若逐字稿中講者有明講代號就填，沒有就留空字串。
 不要自己回想或推測代號，比對官方清單是後續程式的工作。
@@ -1983,8 +1957,6 @@ AUDIT_SYSTEM = """你是擷取完整性稽核員。給你「完整逐字稿」�
   我都賺錢賣」「當初跌停我沒賣，等上來到黑K棒上緣才賣」，那是完結的舊事，
   既不是今天的動作也不是現在的立場，不要補進來。
 - 只是報個價、講成交量、順口帶到而沒有任何立場的，也不算漏。
-- 講者刻意不講是哪一檔時（我不講哪一隻、你們自己猜我買什麼），那一段話
-  不屬於任何一檔，不可以配給任何個股，也不算漏，不要列。
 - buy 與 sell 限「今天、剛剛、這個盤中」明講執行的動作。看不到今天執行就不可以
   填 buy 或 sell，依結論改填觀望兩類；明講現在還抱著、續抱的才是 holdings。
 - 集團順帶點名不算漏。講「台塑集團」「鴻海集團」這種整體時會念到台塑、台化、
@@ -2353,19 +2325,9 @@ def stage_transcript(ss, video, date_str):
 
 def stage_extract(ss, video, date_str, v2, done_trades, done_holds):
     """階段二：擷取結構化紀錄。與階段一分開，因為它便宜、可重跑。"""
-    # 三樣都齊全才算做完：操作紀錄、會員持股、每日推播內容。
-    #
-    # 原本只看前兩樣。文章是在這個函式的最後才產生的，所以只要那天在撰稿前
-    # 中斷過一次（配額用盡、逾時、執行被中止），紀錄已經寫進去了、文章卻沒有，
-    # 之後每一次重跑都會在這裡直接 return，文章永遠補不回來。
-    # 而沒有文章就沒有推播列，dailyPushJob 每次都在「今天還沒處理完」那一行退出，
-    # 那天的信就再也不會寄，且不會有任何錯誤訊息——信箱只是安靜地沒有東西。
-    has_article = date_str in existing_dates(ss, "每日推播內容")
-    if date_str in done_trades and date_str in done_holds and has_article:
-        print(f"{date_str} 操作紀錄、會員持股與推播內容都已存在，略過擷取")
+    if date_str in done_trades and date_str in done_holds:
+        print(f"{date_str} 操作紀錄與會員持股都已存在，略過擷取")
         return
-    if date_str in done_trades and date_str in done_holds and not has_article:
-        print(f"{date_str} 紀錄已存在但缺推播內容，重跑擷取以補回文章")
 
     signals = extract_signals(v2, date_str)
     signals = audit_signals(v2, signals, date_str)
@@ -2467,7 +2429,7 @@ def run_admin_job(ss):
     job = find_pending_job(ss)
     if not job:
         print("沒有待處理的後台工單。")
-        return ""
+        return
 
     vid, date_str = job["videoId"], job["date"]
     print(f"工單 {job['id']}　{date_str}　影片 {vid}")
@@ -2512,10 +2474,6 @@ def run_admin_job(ss):
     print("\n工單處理完成，接著通知下游重算全站。")
     job_progress(job, step="完成", done=6, total=6, status="完成",
                  note="全部完成。網站與郵件內容都已更新。")
-
-    # 回傳處理的日期，讓呼叫端把它帶進重算鏈。
-    # 後台投稿的常常是過去某一天，下游要知道該複審哪一天。
-    return date_str
 
 
 def upsert_video_transcript(ss, video_id, date_str, v2):
@@ -3333,8 +3291,8 @@ def main():
 
     if ADMIN_JOB:
         print("模式：後台工單。逐字稿已由管理者貼進試算表，這裡把後面的流程跑完。")
-        job_date = run_admin_job(ss)
-        maybe_refresh_site(job_date)
+        run_admin_job(ss)
+        maybe_refresh_site()
         return
 
     if FIX_PRICES:
@@ -3362,9 +3320,6 @@ def main():
         print("模式：補空白。逐一檢視影片清單，補齊缺逐字稿的列。")
         fill_video_blanks(ss)
         save_rotated_auth(ss, _AUTH_FP[0])
-        # 補的可能橫跨好幾天，沒有單一日期可帶。下游會複審今天，
-        # 其餘日子由「過去資料複審」或資料指紋變動時自動補上。
-        maybe_refresh_site()
         return
 
     feed = [v for v in fetch_feed() if is_target(v["title"])]
@@ -3399,17 +3354,12 @@ def main():
             print(f"探測：補跑模式有 {len(targets)} 支待處理。")
             write_preflight("true" if targets else "false", f"補跑 {len(targets)} 支")
             return
-        last_done = ""
         for v in targets:
             if out_of_budget():
                 print("時間預算用盡，本輪先停，剩下的下次再補。")
                 break
             process_one(ss, v, done_trades, done_holds)
-            last_done = v["date"].strftime("%Y/%m/%d")
         save_rotated_auth(ss, _AUTH_FP[0])
-        # 補跑的是過去的日期，重算時要講清楚是哪一天，
-        # 否則下游的複審會去檢查今天，而今天根本沒有剛寫進去的那批列。
-        maybe_refresh_site(last_done)
         return
 
     today = datetime.now(TAIPEI).date()
@@ -3521,7 +3471,6 @@ def main():
     if not POLL_LOOP:
         handle_today_once()
         save_rotated_auth(ss, _AUTH_FP[0])
-        maybe_refresh_site(today.strftime("%Y/%m/%d"))
         return
 
     # 走內部循環：每 POLL_INTERVAL 秒敲一次，直到收工或超過時間預算。
@@ -3586,10 +3535,6 @@ def main():
     # 輪詢結束（收工、預算用盡或已完成）。把輪換過的憑證存回試算表，
     # 讓下一次執行接續使用，而不是每次都退回 Secret 裡那份越來越舊的種子。
     save_rotated_auth(ss, _AUTH_FP[0])
-
-    # 只有手動勾了 refresh_site 才會動作。排程執行時 REFRESH_SITE 是空的，
-    # 這一行等於不存在，網站仍由下游的每日派工在 14:40 之後重算。
-    maybe_refresh_site(today.strftime("%Y/%m/%d"))
 
 
 if __name__ == "__main__":

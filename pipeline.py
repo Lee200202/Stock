@@ -74,7 +74,22 @@ DELETE_THRESHOLD = 0.60
 UNRESOLVED = "代號待確認"
 REJECT = "__REJECT__"
 
-GEMINI_MODEL = "gemini-2.5-flash"
+# 模型。可用環境變數 GEMINI_MODEL 覆蓋，不必改程式碼。
+#
+# 2026/08 起 gemini-2.5-flash 對新用戶停止提供，API 會回 404 並在訊息裡
+# 直接寫出該換成哪一個。下面的 _model_from_404 會讀那句話自動換過去，
+# 所以就算這個預設值哪天又過期，流程也不會整個停擺——但看到日誌裡出現
+# 「自動改用」時，還是把 GEMINI_MODEL 這個變數更新一下，省下每次的第一次失敗。
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "").strip() or "gemini-3.6-flash"
+
+# 3.x 是推理模型，thinking 用 thinking_level 控制而不是 thinking_budget，
+# 而且關不掉，只能調到最低。各版本支援的層級不同：
+#   3.6-flash、3.5-flash、3-flash-preview　minimal / low / medium / high
+#   3.7-flash　　　　　　　　　　　　　　　 low / medium / high（沒有 minimal）
+# 這裡取「該模型支援的最低一級」，理由是我們要的是抄寫與分類，不是推理，
+# 思考 token 既花錢又計入輸出上限。
+THINK_LEVEL_MIN = {"gemini-3.7-flash": "low"}
+THINK_LEVEL_DEFAULT = "minimal"
 
 # 潤飾切塊大小。逐字稿標點稀疏時靠 CHUNK_HARD 保底。
 # 切得越大段數越少、呼叫次數越少，撞每分鐘配額的機會就越低，
@@ -84,7 +99,7 @@ CHUNK_HARD = 9500
 
 # 段與段之間的間隔秒數。免費配額按每分鐘請求數計算，
 # 拉開間隔比事後重試有效得多。
-POLISH_GAP = 8
+POLISH_GAP = 4
 
 # gemini-2.5-flash 輸出上限 65,535 tokens
 MAX_OUT = 65535
@@ -401,9 +416,16 @@ APPS_SCRIPT_URL = os.environ.get("APPS_SCRIPT_URL", "").strip()
 ADMIN_KEY = os.environ.get("ADMIN_KEY", "").strip()
 
 
-def maybe_refresh_site():
+def maybe_refresh_site(date_str: str = ""):
     """
     要求 Apps Script 立刻重算全站。只有 REFRESH_SITE=true 時才動作。
+
+    date_str 指定「這次處理的是哪一天」。不帶就是今天。
+
+    這個參數是必要的，不是方便而已：補跑或後台投稿一個過去的日期時，
+    整條重算鏈仍然是今天在跑。下游的複審若不知道日期，就會去檢查今天那一天，
+    而剛剛才寫進去的那批列一列都不會被檢查——回報訊息還是「完成」，
+    資料卻沒有經過任何把關。
 
     分成六次請求依序呼叫，不是一次要求跑完。
     下游是 Apps Script，網頁請求超過 6 分鐘會被直接砍掉，而整條重算鏈
@@ -464,7 +486,7 @@ def maybe_refresh_site():
         # 稽核與複審。下游分三次請求做完（完整性稽核 → 內容複審 → 重寫每日整理），
         # 這一步做完，網站與推播信裡就不會再出現「他今天在操作一檔早就出清的股票」。
         # 排在代號比對之前，因為稽核會補進新的列，那些列還沒有代號。
-        ("gate", "稽核與複審"),
+        ("review", "稽核與複審"),
         ("codes", "代號比對"),
         ("fund", "更新基本面"),
         ("dailyk", "補齊日K"),
@@ -553,6 +575,28 @@ def maybe_refresh_site():
         print("     確認回應裡的 features 含有 refresh-step，再重跑本流程")
         return
 
+    # 步驟代號要與下游對得上。
+    #
+    # 稽核與複審這一步，下游 Code.gs 實作的名稱是 review，早期版本叫 gate。
+    # 名稱沒對上時下游只會回「不認得的步驟」，那一步就每天靜靜地失敗，
+    # 而複審沒跑過的資料看起來跟跑過的一模一樣，不會有任何徵兆。
+    # ping 已經回報它認得哪些步驟，直接照著改名，兩邊誰先更新都不會壞。
+    known = pinfo.get("steps") or []
+    if known:
+        aligned, dropped = [], []
+        for k, lb in STEPS:
+            if k in known:
+                aligned.append((k, lb))
+                continue
+            alt = next((a for a in ("review", "gate") if a in known), "")
+            if k in ("review", "gate") and alt:
+                print(f"  下游把「{lb}」叫做 {alt}（本地寫的是 {k}），自動改用下游的名稱")
+                aligned.append((alt, lb))
+            else:
+                dropped.append(f"{lb}（{k}）")
+        if dropped:
+            print("  下游沒有這些步驟，本次略過：" + "、".join(dropped))
+        STEPS = aligned
     print(f"\n要求 Apps Script 重算全站，分成 {len(STEPS)} 步依序執行……")
     ok_n, fail_n = 0, 0
 
@@ -568,12 +612,16 @@ def maybe_refresh_site():
                 tag += f"（第 {rounds} 批）"
             print(tag + " ……", end=" ", flush=True)
 
+            req_params = {"action": "refresh", "key": ADMIN_KEY, "step": key}
+            if date_str:
+                req_params["date"] = date_str
+
             body, resp = None, None
             for attempt in range(3):
                 try:
                     resp = requests.get(
                         APPS_SCRIPT_URL,
-                        params={"action": "refresh", "key": ADMIN_KEY, "step": key},
+                        params=req_params,
                         timeout=300,
                         headers={"User-Agent": "zhangzhen-pipeline"},
                     )
@@ -845,6 +893,38 @@ GIVE_UP_HOUR = 15
 
 class NotReadyYet(Exception):
     """VOD 還沒好。這不是錯誤，是還沒輪到。工作要顯示綠色。"""
+    pass
+
+
+def looks_degenerate(text: str, out_tokens: int = 0) -> str:
+    """
+    判斷這次輸出是不是「卡在重複迴圈」，是的話回一句說明，不是就回空字串。
+
+    模型偶爾會在輸出結構重複的內容時原地打轉，一直吐同一段直到撞上限。
+    它的外觀是 finishReason=MAX_TOKENS，跟「內容真的太多」一模一樣，
+    於是很容易被誤判成「請調小 CHUNK_SIZE」，然後照著調也沒有用。
+
+    兩個訊號分辨得出來：
+      每個 token 的字數異常高。中文正常是 1 到 1.5 字，
+      重複的長字串會被壓成很少的 token，比值會衝到十幾。
+      同一段字在文字裡出現幾十次。
+    """
+    if not text:
+        return ""
+
+    if out_tokens > 1000 and len(text) / out_tokens > 5:
+        return f"每個 token 產生 {len(text) / out_tokens:.1f} 個字，遠高於中文正常值"
+
+    if len(text) > 4000:
+        probe = text[len(text) // 2: len(text) // 2 + 40]
+        if probe.strip() and text.count(probe) > 20:
+            return f"同一段 40 字的內容重複了 {text.count(probe)} 次"
+
+    return ""
+
+
+class Degenerate(RuntimeError):
+    """模型卡在重複迴圈。重試同樣的提示語通常沒有用，要改做法或改參數。"""
     pass
 
 
@@ -1205,22 +1285,57 @@ async def fetch_fulltext(video_url, title, timeout):
 # ---------------------------------------------------------------- #
 # Gemini
 # ---------------------------------------------------------------- #
+def _model_from_404(text: str) -> str:
+    """
+    從 404 的訊息裡讀出「該換成哪一個模型」。
+
+    Google 停用舊模型時，錯誤訊息會直接寫出替代者：
+      This model models/gemini-2.5-flash is no longer available to new users.
+      Please update your code to use models/gemini-3.6-flash ...
+    與其讓整條流程停在這裡等人改程式碼，不如照它說的換過去再試一次。
+    """
+    m = re.search(r"use\s+models/([A-Za-z0-9.\-]+)", text or "")
+    if m:
+        return m.group(1)
+    m = re.search(r"models/([A-Za-z0-9.\-]+)\s+for the latest", text or "")
+    return m.group(1) if m else ""
+
+
+def _thinking_cfg(model: str, thinking: int):
+    """
+    依模型家族決定怎麼設定思考。送錯欄位會直接被拒絕。
+
+    2.x　thinkingConfig.thinkingBudget，0 就是關掉。
+    3.x　thinkingConfig.thinkingLevel，關不掉，只能調到該版本的最低一級。
+    """
+    if re.match(r"gemini-3(\.|-)", model):
+        return {"thinkingLevel": THINK_LEVEL_MIN.get(model, THINK_LEVEL_DEFAULT)}
+    return {"thinkingBudget": thinking}
+
+
 def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX_OUT, tag=""):
     """
-    thinking=0 關閉思考。gemini-2.5-flash 的 thinking 預設開啟，
-    且思考 token 計入 maxOutputTokens，是造成輸出被截斷的主因之一。
+    thinking 盡量關到最低。思考 token 計入 maxOutputTokens，
+    不壓下去會讓回覆變成空的或半截——而那個症狀跟「內容太多」長得一模一樣。
 
     finishReason 必須檢查。MAX_TOKENS 時 API 仍回 200 加上半截文字，
     不檢查就會靜默寫入不完整資料。
+
+    兩種「換了就好」的錯誤在這裡自己處理掉，不佔用退避次數：
+      404 模型已停用　→　照訊息指定的新模型重打
+      400 思考參數不合　→　拿掉思考設定重打
     """
+    global GEMINI_MODEL
     require_gemini_key()
-    url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-           f"{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}")
+
+    model = GEMINI_MODEL
+    is_3x = bool(re.match(r"gemini-3(\.|-)", model))
 
     cfg = {
         "temperature": 0.1,
-        "maxOutputTokens": max_out,
-        "thinkingConfig": {"thinkingBudget": thinking},
+        # 3.x 的思考會吃掉輸出額度，額度給太小會直接回 MAX_TOKENS 且內容是空的。
+        "maxOutputTokens": max(max_out, 4096) if is_3x else max_out,
+        "thinkingConfig": _thinking_cfg(model, thinking),
     }
     if want_json:
         cfg["responseMimeType"] = "application/json"
@@ -1231,10 +1346,20 @@ def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX
         "generationConfig": cfg,
     }
 
+    def _url():
+        return (f"https://generativelanguage.googleapis.com/v1beta/models/"
+                f"{model}:generateContent?key={GEMINI_API_KEY}")
+
+    fixes = 0          # 已經做過幾次「換了就好」的修正，避免無限重打
+
     last = ""
     # 429 是「這一分鐘打太多」，退避要夠長才有意義。
     # 原本 5/15/40 秒對免費配額太短，常常四次都撞在同一個配額窗口內。
-    for attempt, delay in enumerate((0, 12, 30, 75, 150, 240)):
+    delays = (0, 12, 30, 75, 150, 240)
+    attempt = -1
+    while attempt + 1 < len(delays):
+        attempt += 1
+        delay = delays[attempt]
         if delay:
             # 如果等下去就會超過整體時間預算，不如現在就放棄這一段，
             # 讓上層決定降級或收尾，總比等到一半被 GitHub 硬砍好。
@@ -1246,7 +1371,7 @@ def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX
             time.sleep(delay + random.uniform(0, 5))
 
         try:
-            r = requests.post(url, json=body, timeout=600)
+            r = requests.post(_url(), json=body, timeout=600)
         except requests.RequestException as e:
             last = f"連線錯誤 {type(e).__name__}"
             print(f"Gemini {tag} {last}，重試中")
@@ -1254,9 +1379,42 @@ def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX
 
         if r.status_code != 200:
             last = f"HTTP {r.status_code}"
+            detail = (r.text or "")[:400]
+
+            # ---- 模型已停用。照訊息指定的新模型換過去再打一次。----
+            if r.status_code == 404 and fixes < 2:
+                alt = _model_from_404(detail)
+                if alt and alt != model:
+                    print(f"Gemini {tag}：模型 {model} 已停用，"
+                          f"依 API 指示自動改用 {alt}")
+                    print(f"  建議把 GitHub 的 GEMINI_MODEL 變數設成 {alt}，"
+                          f"省下每次的第一次失敗")
+                    model = alt
+                    GEMINI_MODEL = alt
+                    is_3x_now = bool(re.match(r"gemini-3(\.|-)", model))
+                    cfg["thinkingConfig"] = _thinking_cfg(model, thinking)
+                    if is_3x_now:
+                        cfg["maxOutputTokens"] = max(cfg["maxOutputTokens"], 4096)
+                    fixes += 1
+                    attempt -= 1          # 這一次不算重試，也不必等
+                    continue
+
+            # ---- 思考參數不合。拿掉再打一次。----
+            # 各版本能接受的欄位不同（thinkingBudget 對 thinkingLevel），
+            # 猜錯時整條流程會停在這裡，但這其實是「拿掉就好」的小事。
+            if (r.status_code == 400 and fixes < 3
+                    and "thinking" in detail.lower()
+                    and "thinkingConfig" in cfg):
+                print(f"Gemini {tag}：這個模型不接受目前的思考設定，改為不指定")
+                cfg.pop("thinkingConfig", None)
+                cfg["maxOutputTokens"] = max(cfg["maxOutputTokens"], 4096)
+                fixes += 1
+                attempt -= 1
+                continue
+
             if r.status_code not in TRANSIENT:
-                # 錯誤訊息不含金鑰，也不回傳原始回應內容
-                raise RuntimeError(f"Gemini 呼叫失敗（{tag}）：{last}")
+                # 錯誤訊息不含金鑰。回應內容只取前一段，夠判斷原因就好。
+                raise RuntimeError(f"Gemini 呼叫失敗（{tag}）：{last}　{detail[:200]}")
 
             # 伺服器指定的等待秒數優先於我們的表定退避
             wait_hint = 0
@@ -1292,9 +1450,18 @@ def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX
               f"思考={u.get('thoughtsTokenCount', 0)} 輸出={u.get('candidatesTokenCount')} "
               f"文字={len(text)} 字")
 
+        loop = looks_degenerate(text, u.get("candidatesTokenCount") or 0)
+        if loop:
+            raise Degenerate(
+                f"Gemini 卡在重複迴圈（{tag}）：{loop}。"
+                f"這不是內容太多，調小 CHUNK_SIZE 沒有用。"
+            )
+
         if finish == "MAX_TOKENS":
             raise RuntimeError(
-                f"Gemini 輸出遭截斷（{tag}）：finishReason=MAX_TOKENS。請調小 CHUNK_SIZE 後重跑。"
+                f"Gemini 輸出遭截斷（{tag}）：finishReason=MAX_TOKENS，"
+                f"輸出 {u.get('candidatesTokenCount')} tokens／{len(text)} 字。"
+                f"字數與 token 數的比值正常時，才是內容真的太多。"
             )
         if finish not in ("STOP", "", None):
             raise RuntimeError(f"Gemini 異常結束（{tag}）：finishReason={finish}")
@@ -1564,7 +1731,6 @@ def is_non_stock(name: str):
     return False, ""
 
 
-
 def _pin(s: str) -> str:
     return "".join(lazy_pinyin(str(s)))
 
@@ -1786,29 +1952,6 @@ def resolve_signals(signals: dict) -> dict:
     return signals
 
 
-POLISH_SYSTEM = """你負責整理一段中文直播逐字稿的其中一個片段。
-
-你只能做這三件事：
-1. 修正同音錯字。
-2. 補上合理的斷句與標點。
-3. 刪除純粹的填充詞，僅限「嗯、啊、呃、那個、就是說」這類完全沒有實質意義的字。
-
-除了上述三項，原文的每一句話都必須保留下來，逐句對應輸出。
-
-嚴格禁止：
-- 禁止摘要、濃縮、改寫語意。
-- 禁止省略任何一句有實質內容的話，即使它重複、離題或聽起來不重要。
-- 禁止新增或刪除任何事實資訊。
-- 禁止補完語意不清的地方。
-
-若某處聽起來像是股票名稱但拼字有誤，可依常見台股名稱修正，其餘一律照原文保留。
-
-這是長逐字稿的其中一段，可能從句子中間開始或結束，這是正常的，照樣逐句處理即可。
-必須處理到片段的最後一個字，不可中途停止。
-
-輸出的長度應該與輸入相近。直接輸出整理後的文字，全文使用繁體中文。
-不要加開場白、結語、標題、片段編號或任何說明。"""
-
 
 POLISH_DEGRADED = 0     # 本輪有幾段因配額不足而改用原文
 
@@ -1828,7 +1971,12 @@ def polish(transcript: str) -> str:
     out = []
     for i, c in enumerate(chunks, 1):
         try:
-            r = call_gemini(POLISH_SYSTEM, c, thinking=0, tag=f"polish {i}/{len(chunks)}")
+            # 輸出上限依這一段的長度給，不要一律開到 65535。
+            # 潤飾的輸出長度本來就與輸入相近，開太大只是讓「萬一卡住」
+            # 的那一次跑滿好幾分鐘才停。
+            cap = min(MAX_OUT, len(c) * 3 + 1500)
+            r = call_gemini(POLISH_SYSTEM, c, thinking=0, max_out=cap,
+                            tag=f"polish {i}/{len(chunks)}")
             cr = len(r) / max(len(c), 1)
             flag = "" if cr >= RATIO_WARN else "  ← 這段壓縮偏多"
             print(f"潤飾第 {i}/{len(chunks)} 段：{len(c)} → {len(r)} 字（{cr:.0%}）{flag}")
@@ -1837,8 +1985,16 @@ def polish(transcript: str) -> str:
             POLISH_DEGRADED += 1
             print(f"潤飾第 {i}/{len(chunks)} 段配額不足，改用原文保留內容（{e}）")
             out.append(c)
+        except Degenerate as e:
+            # 卡住的那一段用原文遞補。原文比較難讀，但內容是完整的，
+            # 而後續的擷取靠的是內容而不是可讀性。
+            POLISH_DEGRADED += 1
+            print(f"潤飾第 {i}/{len(chunks)} 段卡在重複迴圈，改用原文保留內容（{e}）")
+            out.append(c)
         # 段間節流。免費配額是每分鐘計次，段與段之間拉開就少撞牆。
-        time.sleep(POLISH_GAP)
+        # 最後一段之後不用等——後面沒有下一次呼叫了，那幾秒是白等的。
+        if i < len(chunks):
+            time.sleep(POLISH_GAP)
 
     if POLISH_DEGRADED:
         print(f"注意：本次有 {POLISH_DEGRADED}/{len(chunks)} 段未潤飾，"
@@ -1914,6 +2070,23 @@ buy 與 sell 的門檻特別高：逐字稿必須看得到「今天、剛剛、�
 看不到「今天執行」，就一律歸到觀望兩類，不可以因為他講了買賣兩個字
 就當成今天有買賣。明講現在還抱著、還沒賣、續抱的，歸 holdings。
 
+不指名就不要生（這一條最重要）：
+講者說「我不講哪一隻」「我不講是哪一檔」「你們自己猜我買什麼股票」
+「你們自己去找我買哪一隻」時，他是刻意不透露。那一段話不可以配給任何一檔。
+就算他描述了時間、漲跌幅、型態——今天早上假破低進場、拉了四十塊——
+也不可以從這些線索去猜是哪一檔，整筆不要收。
+name 必須是逐字稿裡真的出現過的名稱或代號，禁止從敘述、產業、漲跌幅反推。
+
+價位與理由不要接錯檔：
+他常常連續講好幾檔，價位很容易被接到隔壁那一檔身上。
+price 與 reason 必須出自同一段、針對同一檔講的話。
+無法確定那個數字是在講哪一檔時，price 填「未說明」。
+寧可少一個數字，也不要把甲的價位寫到乙頭上——一個錯的數字看起來
+和對的數字一模一樣，沒有人會發現。
+
+逐字稿是語音轉文字，同音錯字很多（加哲就是嘉澤、冒聯就是貿聯）。
+name 照聽到的填、不要自行更正，但也不要因為讀音有點像就硬配到另一檔。
+
 name 欄位請填逐字稿裡實際聽到的名稱，即使你覺得可能是同音錯字也照填，不要自行更正。
 code 欄位若逐字稿中講者有明講代號就填，沒有就留空字串。
 不要自己回想或推測代號，比對官方清單是後續程式的工作。
@@ -1957,6 +2130,8 @@ AUDIT_SYSTEM = """你是擷取完整性稽核員。給你「完整逐字稿」�
   我都賺錢賣」「當初跌停我沒賣，等上來到黑K棒上緣才賣」，那是完結的舊事，
   既不是今天的動作也不是現在的立場，不要補進來。
 - 只是報個價、講成交量、順口帶到而沒有任何立場的，也不算漏。
+- 講者刻意不講是哪一檔時（我不講哪一隻、你們自己猜我買什麼），那一段話
+  不屬於任何一檔，不可以配給任何個股，也不算漏，不要列。
 - buy 與 sell 限「今天、剛剛、這個盤中」明講執行的動作。看不到今天執行就不可以
   填 buy 或 sell，依結論改填觀望兩類；明講現在還抱著、續抱的才是 holdings。
 - 集團順帶點名不算漏。講「台塑集團」「鴻海集團」這種整體時會念到台塑、台化、
@@ -2080,82 +2255,64 @@ reason 欄位：一句話說明你為什麼這樣判（例如「原說明描述�
 {"price": 數字或 null, "note": "修正後的價位說明", "changed": true 或 false, "reason": "判斷理由（30字內）", "quote": "你依據的那一句原話（20字內）"}"""
 
 
-ARTICLE_SYSTEM = """你是一位專業財經記者與投顧整理編輯，負責撰寫「張震 股市盤中家教班」
-每日影音內容的文字稿，語氣與結構貼近 168 聚財網 168-TV 欄位中張震相關文章的風格。
+# ------------------------------------------------------------------ #
+# 撰稿
+#
+# 表格不交給模型產生。
+#
+# 原本整篇文章（含四張表、二十幾檔股票的每一列）都由模型輸出。那些表格是
+# 純資料——名稱、代號、方向、價位、理由，每一欄都已經在 signals 裡，
+# 模型做的只是把它們抄成 Markdown。讓它抄，換來三個問題：
+#
+#   1. 會抄錯。代號被改掉、股票被漏掉、價位被接到隔壁那一檔身上。
+#   2. 會卡住。連續輸出二十幾列格式完全相同的表格列，是誘發重複迴圈的
+#      典型情境。實際發生過：輸入只有 4127 tokens，輸出卻一路衝到上限
+#      65535 tokens、一百萬字，而且「請精簡」的重試產生了幾乎一模一樣的
+#      長度（差六個字）——那不是內容太多，是它在原地打轉。
+#   3. 很慢。一次跑滿上限要好幾分鐘，失敗還會再來一次。
+#
+# 現在模型只負責寫不出來的部分：標題、簡述、盤勢重點、教學重點。
+# 表格由程式照 signals 逐列組出來，抄錯的可能性是零，輸出量少了八成。
+# ------------------------------------------------------------------ #
 
-資料來源限制（最重要）：
-你只依據下方「已擷取的操作紀錄」撰寫。除了這份清單，你沒有任何其他資料來源。
-禁止列入清單以外的任何股票名稱或代號，禁止引用其他日期的內容，
-禁止創造清單中沒有的價位、操作紀錄或會員持股。
-禁止產出含糊語句，例如可能有、應該是、大約。
-某一段資訊清單中沒有時，明確寫「本段內容：本支影片未說明，故不予記錄。」
+ARTICLE_PROSE_SYSTEM = """你是財經記者，為「張震 股市盤中家教班」的每日整理撰寫文字部分。
+語氣貼近 168 聚財網 168-TV 欄位中張震相關文章。
 
-全文繁體中文。章節標題與表格欄位名稱完全照下列格式，不可省略或改名，依序輸出：
+你只依據下方「已擷取的操作紀錄」撰寫。除了這份清單，你沒有其他資料來源。
+禁止提到清單以外的股票，禁止引用其他日期，禁止創造清單裡沒有的價位或操作。
+禁止含糊語句，例如可能、應該、大約。
+禁止提供投資建議、目標價或看多看空判斷。
 
-① 文章標題
-   觀察清單中的核心主題與關鍵字，產出 1 個具體標題，風格參考
-   「張震：換手太明顯，這就是財富重分配！」這類語氣，但不可直接複製。
-   輸出一行：文章標題：（你產生的標題）
+你不需要輸出任何表格。表格由程式自己組，你只寫四樣東西：
 
-② 基本資訊
-   以條列輸出：
-   節目名稱：張震 股市盤中家教班
-   播出平台：YouTube 直播 / 影片
-   播出日期：依提供的影片日期填寫
-   主要講者：張震
-   節目簡述：2 到 3 句，說明本集聚焦的主題與盤勢情境，只能根據清單內容歸納。
+title
+  一個具體的標題，風格參考「張震：換手太明顯，這就是財富重分配！」，
+  但不可直接複製。從清單的核心主題取材，25 字以內。
 
-③ 盤勢總覽重點整理
-   依清單中各筆的理由摘錄與說明重點，整理 3 到 7 點條列。
-   不得引入清單以外的個股、指數數據或外資動向。
-   清單資訊不足以支撐某一點時，就不要寫那一點。
+summary
+  節目簡述，2 到 3 句，說明本集聚焦的主題與盤勢情境。只能根據清單歸納。
 
-④ 會員操作紀錄與持股明細
-   ④-1 當日明確說明之買入／賣出紀錄
-       只列出清單 buy 與 sell 兩類的項目，一檔都不能多、不能少。
-       兩類皆為空時，寫：「本支影片未說明當日具體買賣紀錄。」
-       表格欄位固定，完全照這個順序與名稱：
-       | 動作類型 | 股票名稱 | 股票代號 | 方向（買入／賣出） | 價位區間／成本說明 | 張震口頭說明與操作理由（摘錄重點） |
-       某欄位清單裡是「未說明」就照填「未說明」。
-   ④-2 影片中明講之「會員目前持有股票」
-       只列出清單 holdings 類的項目，一檔都不能多、不能少。
-       為空時，寫：「本支影片未說明會員目前持股清單。」
-       表格欄位固定，完全照這個順序與名稱：
-       | 股票名稱 | 股票代號 | 目前立場（續抱／加碼觀察／分批調節等） | 張震在本集節目中的說明重點 |
-   ④-3 觀望個股（當日未執行買賣）
-       分成兩類分別列出，各自一張表：
-       「觀望不碰」列出清單 watch_avoid 的項目，語氣偏空、情緒偏悲觀。
-       「觀望注意」列出清單 watch_watch 的項目，語氣偏多、情緒偏正向。
-       某一類為空時，寫：「本支影片未說明。」
-       兩張表欄位皆固定，完全照這個順序與名稱：
-       | 股票名稱 | 股票代號 | 觀望類型（觀望不碰／觀望注意） | 價位說明 | 張震口頭說明重點 |
+overview
+  盤勢總覽重點整理，3 到 7 點，每點一句話，20 到 45 字。
+  依清單各筆的理由摘錄與說明重點歸納，不得引入清單以外的個股或數據。
 
-⑤ 分析師操作邏輯與教學重點
-   將清單中的理由摘錄與說明重點，整理為 3 到 8 點條列，格式：
-   觀念一：（簡短標題）
-     說明：（2 到 3 句，忠實轉述清單內容）
-   不得自行補充清單以外的觀點、個股或散戶提醒。
+lessons
+  分析師操作邏輯與教學重點，3 到 6 點。每點有 title（簡短標題，12 字以內）
+  與 note（2 到 3 句，忠實轉述清單內容）。不得補充清單以外的觀點。
 
-⑥ 風險揭露與重要提醒
-   必須包含下列兩點：
-   本文章內容僅為整理節目中之公開資訊與觀點，不構成任何形式之投資建議或獲利保證。
-   實際投資操作須自行評估風險與財務狀況，必要時請諮詢專業投資顧問。
-   清單中若有風險控管或警語相關內容，接著條列整理。
+全文繁體中文。不要 emoji，不要破折號。
 
-所有表格使用 Markdown 表格。
-股票代號一律直接抄用清單裡的 code 欄位，那是比對過官方清單的結果，
-不要自己判斷或修改。code 為「代號待確認」時就照樣寫「代號待確認」。
-每個章節以條列與短段落結合呈現，避免單一超長段落。
-禁止提供任何投資建議、目標價或看多看空判斷。
-直接輸出，不要加開場白。不要使用 emoji，不要使用破折號，
-項目符號一律用實心圓點或數字。"""
+只回傳 JSON，不要有其他文字：
+{"title":"","summary":"","overview":["",""],"lessons":[{"title":"","note":""}]}"""
+
+
 
 
 def extract_signals(v2: str, date_str: str) -> dict:
     raw = call_gemini(
         EXTRACT_SYSTEM,
         f"影片日期：{date_str}\n\n完整逐字稿：\n{v2}",
-        want_json=True, thinking=0, tag="extract",
+        want_json=True, thinking=0, max_out=8192, tag="extract",
     )
     raw = re.sub(r"^```json|^```|```$", "", raw.strip(), flags=re.MULTILINE).strip()
     return json.loads(raw)
@@ -2173,7 +2330,7 @@ def audit_signals(v2: str, signals: dict, date_str: str) -> dict:
             f"影片日期：{date_str}\n\n"
             f"已擷取的操作紀錄 JSON：\n{json.dumps(clean, ensure_ascii=False)}\n\n"
             f"完整逐字稿：\n{v2}",
-            want_json=True, thinking=0, tag="audit",
+            want_json=True, thinking=0, max_out=4096, tag="audit",
         )
         raw = re.sub(r"^```json|^```|```$", "", raw.strip(), flags=re.MULTILINE).strip()
         missed = json.loads(raw)
@@ -2206,29 +2363,193 @@ def audit_signals(v2: str, signals: dict, date_str: str) -> dict:
     return signals
 
 
-def build_article(v2: str, signals: dict, date_str: str) -> str:
+ARTICLE_NONE = "本支影片未說明。"
+
+
+def _cell(v) -> str:
+    """把一個值放進 Markdown 表格。豎線與換行會破壞表格，換掉。"""
+    t = str(v if v is not None else "").strip()
+    t = t.replace("|", "／").replace("\n", " ").replace("\r", " ")
+    return t or "未說明"
+
+
+def _table(headers, rows) -> str:
+    """組一張 Markdown 表格。沒有資料就回空字串，由呼叫端決定要寫什麼。"""
+    if not rows:
+        return ""
+    out = ["| " + " | ".join(headers) + " |",
+           "|" + "|".join(["---"] * len(headers)) + "|"]
+    for r in rows:
+        out.append("| " + " | ".join(_cell(c) for c in r) + " |")
+    return "\n".join(out)
+
+
+def _article_prose(signals: dict, date_str: str) -> dict:
+    """
+    向模型要文字的部分。失敗就回 None，由呼叫端用資料自己補一份最低限度的敘述。
+
+    這一段刻意做得很小：輸出限制在 3072 tokens，只要 JSON。
+    文章跑不出來時，資料本身早就寫進試算表了，不該讓整張工單失敗。
+    """
     clean = {k: v for k, v in signals.items() if not k.startswith("_")}
     payload = (
         f"影片日期：{date_str}\n\n"
-        f"已擷取的操作紀錄（唯一資料來源，代號已比對官方清單，"
-        f"禁止列入清單以外的任何股票，禁止改動代號）：\n"
+        f"已擷取的操作紀錄（唯一資料來源）：\n"
         f"{json.dumps(clean, ensure_ascii=False, indent=2)}"
     )
     try:
-        return call_gemini(ARTICLE_SYSTEM, payload, thinking=0, tag="article")
-    except RuntimeError as e:
-        # 內容特別多的那幾天，整理文章可能超過輸出上限被截斷（MAX_TOKENS）。
-        # 不要報錯要人工重跑，改為自動用「精簡版」指示再生一次：
-        # 只保留每檔一到兩句重點，去掉鋪陳與重複，通常就能壓進上限。
-        if "MAX_TOKENS" not in str(e):
-            raise
-        print("  article 因內容過多被截斷，改用精簡指示自動重生一次")
-        concise = ARTICLE_SYSTEM + (
-            "\n\n【本次特別要求】這次內容較多，請大幅精簡："
-            "每一檔最多一到兩句重點，去除所有鋪陳、形容與重複，"
-            "務必在有限篇幅內完整涵蓋每一檔，不可中途截斷或省略任何一檔。"
-        )
-        return call_gemini(concise, payload, thinking=0, tag="article-concise")
+        raw = call_gemini(ARTICLE_PROSE_SYSTEM, payload, want_json=True,
+                          thinking=0, max_out=3072, tag="article-prose")
+        raw = re.sub(r"^```json|^```|```$", "", raw.strip(), flags=re.MULTILINE).strip()
+        d = json.loads(raw)
+        if not isinstance(d, dict):
+            raise ValueError("回傳的不是物件")
+        return d
+    except Exception as e:
+        print(f"  文章的文字部分產生失敗（{e}），改用資料自動敘述")
+        return None
+
+
+def _fallback_prose(signals: dict, date_str: str) -> dict:
+    """
+    模型不可用時的備援敘述。全部從資料算出來，不猜任何東西。
+    寧可平淡，也不要因為寫不出漂亮的句子就讓整天沒有文章可寄。
+    """
+    n_buy = len(signals.get("buy", []))
+    n_sell = len(signals.get("sell", []))
+    n_avoid = len(signals.get("watch_avoid", []))
+    n_watch = len(signals.get("watch_watch", []))
+    n_hold = len(signals.get("holdings", []))
+
+    parts = []
+    if n_buy or n_sell:
+        parts.append(f"當日明講的買賣共 {n_buy + n_sell} 檔")
+    if n_hold:
+        parts.append(f"會員持股 {n_hold} 檔")
+    if n_avoid or n_watch:
+        parts.append(f"觀望 {n_avoid + n_watch} 檔（不碰 {n_avoid}、注意 {n_watch}）")
+    body = "；".join(parts) if parts else "本支影片未說明具體個股"
+
+    return {
+        "title": f"{date_str} 張震 股市盤中家教班　當日重點整理",
+        "summary": f"本集整理自 {date_str} 的盤中直播。{body}。以下依類別列出。",
+        "overview": [],
+        "lessons": [],
+    }
+
+
+def render_article(date_str: str, signals: dict, prose: dict) -> str:
+    """
+    把資料與文字組成完整文章。這一支不呼叫任何外部服務，
+    同樣的輸入永遠得到同樣的輸出。
+    """
+    p = prose or {}
+    title = str(p.get("title") or "").strip() or f"{date_str} 張震 股市盤中家教班　當日重點整理"
+    summary = str(p.get("summary") or "").strip() or ARTICLE_NONE
+    overview = [str(x).strip() for x in (p.get("overview") or []) if str(x).strip()]
+    lessons = [x for x in (p.get("lessons") or []) if isinstance(x, dict)]
+
+    L = []
+    L.append(f"文章標題：{title}")
+    L.append("")
+
+    L.append("## ② 基本資訊")
+    L.append("")
+    L.append("- 節目名稱：張震 股市盤中家教班")
+    L.append("- 播出平台：YouTube 直播 / 影片")
+    L.append(f"- 播出日期：{date_str}")
+    L.append("- 主要講者：張震")
+    L.append(f"- 節目簡述：{summary}")
+    L.append("")
+
+    L.append("## ③ 盤勢總覽重點整理")
+    L.append("")
+    if overview:
+        for x in overview:
+            L.append(f"- {x}")
+    else:
+        L.append(f"- 本段內容：{ARTICLE_NONE}")
+    L.append("")
+
+    L.append("## ④ 會員操作紀錄與持股明細")
+    L.append("")
+
+    # ④-1 買賣
+    L.append("### ④-1 當日明確說明之買入／賣出紀錄")
+    L.append("")
+    trade_rows = []
+    for key, label in (("buy", "買入"), ("sell", "賣出")):
+        for r in signals.get(key, []):
+            trade_rows.append([label, r.get("name", ""), r.get("code", ""), label,
+                               r.get("price", "未說明"), r.get("reason", "未說明")])
+    t = _table(["動作類型", "股票名稱", "股票代號", "方向（買入／賣出）",
+                "價位區間／成本說明", "張震口頭說明與操作理由（摘錄重點）"], trade_rows)
+    L.append(t if t else "本支影片未說明當日具體買賣紀錄。")
+    L.append("")
+
+    # ④-2 持股
+    L.append("### ④-2 影片中明講之「會員目前持有股票」")
+    L.append("")
+    hold_rows = [[r.get("name", ""), r.get("code", ""),
+                  r.get("stance", "未說明"), r.get("note", "未說明")]
+                 for r in signals.get("holdings", [])]
+    t = _table(["股票名稱", "股票代號", "目前立場（續抱／加碼觀察／分批調節等）",
+                "張震在本集節目中的說明重點"], hold_rows)
+    L.append(t if t else "本支影片未說明會員目前持股清單。")
+    L.append("")
+
+    # ④-3 觀望
+    L.append("### ④-3 觀望個股（當日未執行買賣）")
+    L.append("")
+    for key, label in (("watch_avoid", "觀望不碰"), ("watch_watch", "觀望注意")):
+        L.append(f"**{label}**")
+        L.append("")
+        rows = [[r.get("name", ""), r.get("code", ""), label,
+                 r.get("price", "未說明"), r.get("reason", "未說明")]
+                for r in signals.get(key, [])]
+        t = _table(["股票名稱", "股票代號", "觀望類型（觀望不碰／觀望注意）",
+                    "價位說明", "張震口頭說明重點"], rows)
+        L.append(t if t else ARTICLE_NONE)
+        L.append("")
+
+    # ⑤ 教學重點
+    L.append("## ⑤ 分析師操作邏輯與教學重點")
+    L.append("")
+    if lessons:
+        names = ["一", "二", "三", "四", "五", "六", "七", "八"]
+        for i, x in enumerate(lessons):
+            idx = names[i] if i < len(names) else str(i + 1)
+            L.append(f"觀念{idx}：{str(x.get('title', '')).strip()}")
+            L.append(f"　　說明：{str(x.get('note', '')).strip()}")
+            L.append("")
+    else:
+        L.append(f"- 本段內容：{ARTICLE_NONE}")
+        L.append("")
+
+    # ⑥ 風險揭露
+    L.append("## ⑥ 風險揭露與重要提醒")
+    L.append("")
+    L.append("- 本文章內容僅為整理節目中之公開資訊與觀點，不構成任何形式之投資建議或獲利保證。")
+    L.append("- 實際投資操作須自行評估風險與財務狀況，必要時請諮詢專業投資顧問。")
+    L.append("")
+
+    return "\n".join(L).rstrip() + "\n"
+
+
+def build_article(v2: str, signals: dict, date_str: str) -> str:
+    """
+    產生每日整理。表格由程式組，只有文字部分交給模型。
+
+    v2 保留在簽名裡是為了不動呼叫端；文章只依據 signals，
+    刻意不看逐字稿——看了就有機會寫出清單以外的東西。
+    """
+    prose = _article_prose(signals, date_str)
+    if prose is None:
+        prose = _fallback_prose(signals, date_str)
+    article = render_article(date_str, signals, prose)
+    print(f"  文章組裝完成 {len(article)} 字"
+          f"（表格由程式產生，模型只寫標題與敘述）")
+    return article
 
 
 # ---------------------------------------------------------------- #
@@ -2325,9 +2646,19 @@ def stage_transcript(ss, video, date_str):
 
 def stage_extract(ss, video, date_str, v2, done_trades, done_holds):
     """階段二：擷取結構化紀錄。與階段一分開，因為它便宜、可重跑。"""
-    if date_str in done_trades and date_str in done_holds:
-        print(f"{date_str} 操作紀錄與會員持股都已存在，略過擷取")
+    # 三樣都齊全才算做完：操作紀錄、會員持股、每日推播內容。
+    #
+    # 原本只看前兩樣。文章是在這個函式的最後才產生的，所以只要那天在撰稿前
+    # 中斷過一次（配額用盡、逾時、執行被中止），紀錄已經寫進去了、文章卻沒有，
+    # 之後每一次重跑都會在這裡直接 return，文章永遠補不回來。
+    # 而沒有文章就沒有推播列，dailyPushJob 每次都在「今天還沒處理完」那一行退出，
+    # 那天的信就再也不會寄，且不會有任何錯誤訊息——信箱只是安靜地沒有東西。
+    has_article = date_str in existing_dates(ss, "每日推播內容")
+    if date_str in done_trades and date_str in done_holds and has_article:
+        print(f"{date_str} 操作紀錄、會員持股與推播內容都已存在，略過擷取")
         return
+    if date_str in done_trades and date_str in done_holds and not has_article:
+        print(f"{date_str} 紀錄已存在但缺推播內容，重跑擷取以補回文章")
 
     signals = extract_signals(v2, date_str)
     signals = audit_signals(v2, signals, date_str)
@@ -2429,7 +2760,7 @@ def run_admin_job(ss):
     job = find_pending_job(ss)
     if not job:
         print("沒有待處理的後台工單。")
-        return
+        return ""
 
     vid, date_str = job["videoId"], job["date"]
     print(f"工單 {job['id']}　{date_str}　影片 {vid}")
@@ -2474,6 +2805,10 @@ def run_admin_job(ss):
     print("\n工單處理完成，接著通知下游重算全站。")
     job_progress(job, step="完成", done=6, total=6, status="完成",
                  note="全部完成。網站與郵件內容都已更新。")
+
+    # 回傳處理的日期，讓呼叫端把它帶進重算鏈。
+    # 後台投稿的常常是過去某一天，下游要知道該複審哪一天。
+    return date_str
 
 
 def upsert_video_transcript(ss, video_id, date_str, v2):
@@ -2784,7 +3119,7 @@ def reconcile_all(ss):
             try:
                 raw = call_gemini(INDUSTRY_JUDGE_SYSTEM,
                                   json.dumps(batch, ensure_ascii=False),
-                                  want_json=True, thinking=0, tag="industry")
+                                  want_json=True, thinking=0, max_out=2048, tag="industry")
                 verdict = json.loads(re.sub(r"^```json|^```|```$", "", raw.strip(), flags=re.M).strip())
                 for n, v in verdict.items():
                     if str(v).lower().startswith("indus"):
@@ -2839,7 +3174,7 @@ def reconcile_all(ss):
         try:
             raw = call_gemini(ENTRY_PRICE_SYSTEM,
                               f"股票名稱：{nm}\n\n相關逐字稿段落：\n" + "\n\n".join(chunks),
-                              want_json=True, thinking=0, tag="entryprice")
+                              want_json=True, thinking=0, max_out=1024, tag="entryprice")
             res = json.loads(re.sub(r"^```json|^```|```$", "", raw.strip(), flags=re.M).strip())
             price = res.get("price")
             if price is None:
@@ -3067,7 +3402,8 @@ def fix_prices_all(ss):
         )
 
         try:
-            raw = call_gemini(PRICE_FIX_SYSTEM, user, want_json=True, thinking=0, tag="pricefix")
+            raw = call_gemini(PRICE_FIX_SYSTEM, user, want_json=True, thinking=0,
+                              max_out=1024, tag="pricefix")
             res = json.loads(re.sub(r"^```json|^```|```$", "", raw.strip(), flags=re.M).strip())
         except Exception as e:
             print(f"  第 {s['rowno']} 列　{s['name']} 校對略過（{e}）")
@@ -3291,8 +3627,8 @@ def main():
 
     if ADMIN_JOB:
         print("模式：後台工單。逐字稿已由管理者貼進試算表，這裡把後面的流程跑完。")
-        run_admin_job(ss)
-        maybe_refresh_site()
+        job_date = run_admin_job(ss)
+        maybe_refresh_site(job_date)
         return
 
     if FIX_PRICES:
@@ -3320,6 +3656,9 @@ def main():
         print("模式：補空白。逐一檢視影片清單，補齊缺逐字稿的列。")
         fill_video_blanks(ss)
         save_rotated_auth(ss, _AUTH_FP[0])
+        # 補的可能橫跨好幾天，沒有單一日期可帶。下游會複審今天，
+        # 其餘日子由「過去資料複審」或資料指紋變動時自動補上。
+        maybe_refresh_site()
         return
 
     feed = [v for v in fetch_feed() if is_target(v["title"])]
@@ -3354,12 +3693,17 @@ def main():
             print(f"探測：補跑模式有 {len(targets)} 支待處理。")
             write_preflight("true" if targets else "false", f"補跑 {len(targets)} 支")
             return
+        last_done = ""
         for v in targets:
             if out_of_budget():
                 print("時間預算用盡，本輪先停，剩下的下次再補。")
                 break
             process_one(ss, v, done_trades, done_holds)
+            last_done = v["date"].strftime("%Y/%m/%d")
         save_rotated_auth(ss, _AUTH_FP[0])
+        # 補跑的是過去的日期，重算時要講清楚是哪一天，
+        # 否則下游的複審會去檢查今天，而今天根本沒有剛寫進去的那批列。
+        maybe_refresh_site(last_done)
         return
 
     today = datetime.now(TAIPEI).date()
@@ -3471,6 +3815,7 @@ def main():
     if not POLL_LOOP:
         handle_today_once()
         save_rotated_auth(ss, _AUTH_FP[0])
+        maybe_refresh_site(today.strftime("%Y/%m/%d"))
         return
 
     # 走內部循環：每 POLL_INTERVAL 秒敲一次，直到收工或超過時間預算。
@@ -3535,6 +3880,10 @@ def main():
     # 輪詢結束（收工、預算用盡或已完成）。把輪換過的憑證存回試算表，
     # 讓下一次執行接續使用，而不是每次都退回 Secret 裡那份越來越舊的種子。
     save_rotated_auth(ss, _AUTH_FP[0])
+
+    # 只有手動勾了 refresh_site 才會動作。排程執行時 REFRESH_SITE 是空的，
+    # 這一行等於不存在，網站仍由下游的每日派工在 14:40 之後重算。
+    maybe_refresh_site(today.strftime("%Y/%m/%d"))
 
 
 if __name__ == "__main__":

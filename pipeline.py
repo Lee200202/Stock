@@ -401,9 +401,16 @@ APPS_SCRIPT_URL = os.environ.get("APPS_SCRIPT_URL", "").strip()
 ADMIN_KEY = os.environ.get("ADMIN_KEY", "").strip()
 
 
-def maybe_refresh_site():
+def maybe_refresh_site(date_str: str = ""):
     """
     要求 Apps Script 立刻重算全站。只有 REFRESH_SITE=true 時才動作。
+
+    date_str 指定「這次處理的是哪一天」。不帶就是今天。
+
+    這個參數是必要的，不是方便而已：補跑或後台投稿一個過去的日期時，
+    整條重算鏈仍然是今天在跑。下游的複審若不知道日期，就會去檢查今天那一天，
+    而剛剛才寫進去的那批列一列都不會被檢查——回報訊息還是「完成」，
+    資料卻沒有經過任何把關。
 
     分成六次請求依序呼叫，不是一次要求跑完。
     下游是 Apps Script，網頁請求超過 6 分鐘會被直接砍掉，而整條重算鏈
@@ -464,7 +471,7 @@ def maybe_refresh_site():
         # 稽核與複審。下游分三次請求做完（完整性稽核 → 內容複審 → 重寫每日整理），
         # 這一步做完，網站與推播信裡就不會再出現「他今天在操作一檔早就出清的股票」。
         # 排在代號比對之前，因為稽核會補進新的列，那些列還沒有代號。
-        ("gate", "稽核與複審"),
+        ("review", "稽核與複審"),
         ("codes", "代號比對"),
         ("fund", "更新基本面"),
         ("dailyk", "補齊日K"),
@@ -590,12 +597,16 @@ def maybe_refresh_site():
                 tag += f"（第 {rounds} 批）"
             print(tag + " ……", end=" ", flush=True)
 
+            req_params = {"action": "refresh", "key": ADMIN_KEY, "step": key}
+            if date_str:
+                req_params["date"] = date_str
+
             body, resp = None, None
             for attempt in range(3):
                 try:
                     resp = requests.get(
                         APPS_SCRIPT_URL,
-                        params={"action": "refresh", "key": ADMIN_KEY, "step": key},
+                        params=req_params,
                         timeout=300,
                         headers={"User-Agent": "zhangzhen-pipeline"},
                     )
@@ -1586,7 +1597,6 @@ def is_non_stock(name: str):
     return False, ""
 
 
-
 def _pin(s: str) -> str:
     return "".join(lazy_pinyin(str(s)))
 
@@ -1807,29 +1817,6 @@ def resolve_signals(signals: dict) -> dict:
           f"待確認 {stat['待確認']}，剔除非個股 {stat['剔除']}")
     return signals
 
-
-POLISH_SYSTEM = """你負責整理一段中文直播逐字稿的其中一個片段。
-
-你只能做這三件事：
-1. 修正同音錯字。
-2. 補上合理的斷句與標點。
-3. 刪除純粹的填充詞，僅限「嗯、啊、呃、那個、就是說」這類完全沒有實質意義的字。
-
-除了上述三項，原文的每一句話都必須保留下來，逐句對應輸出。
-
-嚴格禁止：
-- 禁止摘要、濃縮、改寫語意。
-- 禁止省略任何一句有實質內容的話，即使它重複、離題或聽起來不重要。
-- 禁止新增或刪除任何事實資訊。
-- 禁止補完語意不清的地方。
-
-若某處聽起來像是股票名稱但拼字有誤，可依常見台股名稱修正，其餘一律照原文保留。
-
-這是長逐字稿的其中一段，可能從句子中間開始或結束，這是正常的，照樣逐句處理即可。
-必須處理到片段的最後一個字，不可中途停止。
-
-輸出的長度應該與輸入相近。直接輸出整理後的文字，全文使用繁體中文。
-不要加開場白、結語、標題、片段編號或任何說明。"""
 
 
 POLISH_DEGRADED = 0     # 本輪有幾段因配額不足而改用原文
@@ -2480,7 +2467,7 @@ def run_admin_job(ss):
     job = find_pending_job(ss)
     if not job:
         print("沒有待處理的後台工單。")
-        return
+        return ""
 
     vid, date_str = job["videoId"], job["date"]
     print(f"工單 {job['id']}　{date_str}　影片 {vid}")
@@ -2525,6 +2512,10 @@ def run_admin_job(ss):
     print("\n工單處理完成，接著通知下游重算全站。")
     job_progress(job, step="完成", done=6, total=6, status="完成",
                  note="全部完成。網站與郵件內容都已更新。")
+
+    # 回傳處理的日期，讓呼叫端把它帶進重算鏈。
+    # 後台投稿的常常是過去某一天，下游要知道該複審哪一天。
+    return date_str
 
 
 def upsert_video_transcript(ss, video_id, date_str, v2):
@@ -3342,8 +3333,8 @@ def main():
 
     if ADMIN_JOB:
         print("模式：後台工單。逐字稿已由管理者貼進試算表，這裡把後面的流程跑完。")
-        run_admin_job(ss)
-        maybe_refresh_site()
+        job_date = run_admin_job(ss)
+        maybe_refresh_site(job_date)
         return
 
     if FIX_PRICES:
@@ -3371,6 +3362,9 @@ def main():
         print("模式：補空白。逐一檢視影片清單，補齊缺逐字稿的列。")
         fill_video_blanks(ss)
         save_rotated_auth(ss, _AUTH_FP[0])
+        # 補的可能橫跨好幾天，沒有單一日期可帶。下游會複審今天，
+        # 其餘日子由「過去資料複審」或資料指紋變動時自動補上。
+        maybe_refresh_site()
         return
 
     feed = [v for v in fetch_feed() if is_target(v["title"])]
@@ -3405,12 +3399,17 @@ def main():
             print(f"探測：補跑模式有 {len(targets)} 支待處理。")
             write_preflight("true" if targets else "false", f"補跑 {len(targets)} 支")
             return
+        last_done = ""
         for v in targets:
             if out_of_budget():
                 print("時間預算用盡，本輪先停，剩下的下次再補。")
                 break
             process_one(ss, v, done_trades, done_holds)
+            last_done = v["date"].strftime("%Y/%m/%d")
         save_rotated_auth(ss, _AUTH_FP[0])
+        # 補跑的是過去的日期，重算時要講清楚是哪一天，
+        # 否則下游的複審會去檢查今天，而今天根本沒有剛寫進去的那批列。
+        maybe_refresh_site(last_done)
         return
 
     today = datetime.now(TAIPEI).date()
@@ -3522,6 +3521,7 @@ def main():
     if not POLL_LOOP:
         handle_today_once()
         save_rotated_auth(ss, _AUTH_FP[0])
+        maybe_refresh_site(today.strftime("%Y/%m/%d"))
         return
 
     # 走內部循環：每 POLL_INTERVAL 秒敲一次，直到收工或超過時間預算。
@@ -3586,6 +3586,10 @@ def main():
     # 輪詢結束（收工、預算用盡或已完成）。把輪換過的憑證存回試算表，
     # 讓下一次執行接續使用，而不是每次都退回 Secret 裡那份越來越舊的種子。
     save_rotated_auth(ss, _AUTH_FP[0])
+
+    # 只有手動勾了 refresh_site 才會動作。排程執行時 REFRESH_SITE 是空的，
+    # 這一行等於不存在，網站仍由下游的每日派工在 14:40 之後重算。
+    maybe_refresh_site(today.strftime("%Y/%m/%d"))
 
 
 if __name__ == "__main__":

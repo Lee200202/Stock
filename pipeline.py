@@ -896,29 +896,50 @@ class NotReadyYet(Exception):
     pass
 
 
-def looks_degenerate(text: str, out_tokens: int = 0) -> str:
+def looks_degenerate(text: str, out_tokens: int = 0, finish: str = "STOP") -> str:
     """
     判斷這次輸出是不是「卡在重複迴圈」，是的話回一句說明，不是就回空字串。
 
-    模型偶爾會在輸出結構重複的內容時原地打轉，一直吐同一段直到撞上限。
-    它的外觀是 finishReason=MAX_TOKENS，跟「內容真的太多」一模一樣，
-    於是很容易被誤判成「請調小 CHUNK_SIZE」，然後照著調也沒有用。
+    先講一個關鍵前提，它決定了整個判斷的起點：
+    **卡住的輸出不可能以 STOP 結束。** 模型自己停下來，就代表它沒有在原地打轉；
+    真正的迴圈是停不下來的，一定會一路撞到 maxOutputTokens 才被切斷。
+    所以只有 finishReason=MAX_TOKENS 的輸出才需要問「是不是卡住了」。
 
-    兩個訊號分辨得出來：
-      每個 token 的字數異常高。中文正常是 1 到 1.5 字，
-      重複的長字串會被壓成很少的 token，比值會衝到十幾。
-      同一段字在文字裡出現幾十次。
+    這一條前提是後來補上的，補的原因是它先前咬到了正常的資料。
+
+    第一版沒有這個前提，只要文字超過四千字、中間四十字重複二十次以上就判定卡住。
+    那條規則對散文有效，對 JSON 完全是誤判：擷取的輸出每一檔股票都是
+      {"name": "", "code": "", "price": "未說明", "reason": "..."}
+    四十字的探針正好落在欄位邊界上，於是有幾檔股票就重複幾次。
+    2026/08/27 那一次擷取了二十幾檔，探針重複二十三次，一份完全正常、
+    以 STOP 結束、只有四千多字的擷取結果就被判成迴圈，整張工單掛掉。
+
+    加上 MAX_TOKENS 這個前提之後，正常結束的輸出根本不會走到重複檢查，
+    這一類誤判就不可能再發生。
+
+    真的卡住時的兩個訊號：
+      每個 token 的字數異常高。中文正常 1 到 1.5 字、JSON 大約 2 字，
+      而重複的長字串會被壓成很少的 token，比值會衝到十幾。
+      同一大段內容反覆出現，而且佔掉輸出的大半。
     """
     if not text:
         return ""
 
-    if out_tokens > 1000 and len(text) / out_tokens > 5:
-        return f"每個 token 產生 {len(text) / out_tokens:.1f} 個字，遠高於中文正常值"
+    # 自己停下來的輸出不是迴圈。這一行是整個函式最重要的一行。
+    if finish != "MAX_TOKENS":
+        return ""
 
-    if len(text) > 4000:
-        probe = text[len(text) // 2: len(text) // 2 + 40]
-        if probe.strip() and text.count(probe) > 20:
-            return f"同一段 40 字的內容重複了 {text.count(probe)} 次"
+    if out_tokens > 1000 and len(text) / out_tokens > 5:
+        return f"每個 token 產生 {len(text) / out_tokens:.1f} 個字，遠高於正常值"
+
+    # 探針拉長到 200 字，並且要求重複的部分佔輸出一半以上。
+    # 短探針會咬到 JSON 的欄位邊界，長探針要重複那麼多次，只有真的在複製貼上才會發生。
+    if len(text) > 20000:
+        mid = len(text) // 2
+        probe = text[mid: mid + 200]
+        n = text.count(probe) if probe.strip() else 0
+        if n > 10 and n * len(probe) > len(text) * 0.5:
+            return f"同一段 200 字的內容重複了 {n} 次，佔了輸出的大半"
 
     return ""
 
@@ -1450,7 +1471,7 @@ def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX
               f"思考={u.get('thoughtsTokenCount', 0)} 輸出={u.get('candidatesTokenCount')} "
               f"文字={len(text)} 字")
 
-        loop = looks_degenerate(text, u.get("candidatesTokenCount") or 0)
+        loop = looks_degenerate(text, u.get("candidatesTokenCount") or 0, finish)
         if loop:
             raise Degenerate(
                 f"Gemini 卡在重複迴圈（{tag}）：{loop}。"
@@ -2309,13 +2330,37 @@ lessons
 
 
 def extract_signals(v2: str, date_str: str) -> dict:
-    raw = call_gemini(
-        EXTRACT_SYSTEM,
-        f"影片日期：{date_str}\n\n完整逐字稿：\n{v2}",
-        want_json=True, thinking=0, max_out=8192, tag="extract",
-    )
-    raw = re.sub(r"^```json|^```|```$", "", raw.strip(), flags=re.MULTILINE).strip()
-    return json.loads(raw)
+    """
+    擷取結構化紀錄。這一步失敗，整張工單就沒有東西可寫，所以多給一次機會。
+
+    重試只針對「輸出空間不夠」這一種情形（MAX_TOKENS）：個股特別多的那幾天
+    JSON 會比平常長，8192 可能剛好不夠。額度加倍再試一次通常就過了，
+    總比讓一整天的資料因為差幾百個 token 而全部沒有進來。
+
+    卡在重複迴圈（Degenerate）不重試——同樣的提示語再打一次只會再卡一次。
+    """
+    prompt = f"影片日期：{date_str}\n\n完整逐字稿：\n{v2}"
+    caps = (8192, 16384)
+
+    last = None
+    for i, cap in enumerate(caps):
+        try:
+            raw = call_gemini(EXTRACT_SYSTEM, prompt, want_json=True, thinking=0,
+                              max_out=cap, tag="extract" if i == 0 else "extract-retry")
+            raw = re.sub(r"^```json|^```|```$", "", raw.strip(), flags=re.MULTILINE).strip()
+            return json.loads(raw)
+        except RuntimeError as e:
+            last = e
+            if "MAX_TOKENS" not in str(e) or i == len(caps) - 1:
+                raise
+            print(f"  擷取的輸出空間不夠（上限 {cap}），加倍到 {caps[i + 1]} 再試一次")
+        except json.JSONDecodeError as e:
+            # JSON 沒收尾多半也是被截斷。同樣值得用更大的額度再試一次。
+            last = e
+            if i == len(caps) - 1:
+                raise
+            print(f"  擷取回來的 JSON 不完整（{e}），加大額度再試一次")
+    raise last
 
 
 def audit_signals(v2: str, signals: dict, date_str: str) -> dict:

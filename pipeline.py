@@ -1977,11 +1977,15 @@ def resolve_signals(signals: dict) -> dict:
 POLISH_DEGRADED = 0     # 本輪有幾段因配額不足而改用原文
 
 
-def polish(transcript: str) -> str:
+def polish(transcript: str, on_chunk=None) -> str:
     """
     逐段潤飾。某一段撞到配額上限時，改用原文那一段繼續，不讓整輪失敗。
     理由：內容完整度（後續擷取靠它）比可讀性重要，而且整輪失敗會連already
     拿到的逐字稿都寫不進去，下一輪又要重抓一次，反而更容易再撞配額。
+
+    on_chunk(做完第幾段, 總共幾段) 是給後台進度條用的。
+    潤飾是整條流程裡最久的一段，兩萬字要跑兩三分鐘；沒有這個回呼，
+    後台就只能顯示「潤飾」兩個字不動，看的人分不出是在跑還是卡住了。
     """
     global POLISH_DEGRADED
     POLISH_DEGRADED = 0
@@ -2012,6 +2016,12 @@ def polish(transcript: str) -> str:
             POLISH_DEGRADED += 1
             print(f"潤飾第 {i}/{len(chunks)} 段卡在重複迴圈，改用原文保留內容（{e}）")
             out.append(c)
+        if on_chunk:
+            try:
+                on_chunk(i, len(chunks))
+            except Exception:
+                pass          # 回報進度失敗絕不能影響潤飾本身
+
         # 段間節流。免費配額是每分鐘計次，段與段之間拉開就少撞牆。
         # 最後一段之後不用等——後面沒有下一次呼叫了，那幾秒是白等的。
         if i < len(chunks):
@@ -2689,8 +2699,22 @@ def stage_transcript(ss, video, date_str):
     return v1, v2
 
 
-def stage_extract(ss, video, date_str, v2, done_trades, done_holds):
-    """階段二：擷取結構化紀錄。與階段一分開，因為它便宜、可重跑。"""
+def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None):
+    """
+    階段二：擷取結構化紀錄。與階段一分開，因為它便宜、可重跑。
+
+    on_step(步驟名稱, 說明) 是給後台進度條用的。自動排程那條路不傳它，
+    所以兩條路走的仍然是同一段程式——差別只在有沒有人在看。
+    先前這一整段在後台只顯示成一格「擷取與比對」，實際上裡面有五件事，
+    每一件都可能是失敗的那一件，合成一格等於把最有用的資訊丟掉。
+    """
+    def tell(name, note=""):
+        if on_step:
+            try:
+                on_step(name, note)
+            except Exception:
+                pass          # 回報進度失敗不影響主要工作
+
     # 三樣都齊全才算做完：操作紀錄、會員持股、每日推播內容。
     #
     # 原本只看前兩樣。文章是在這個函式的最後才產生的，所以只要那天在撰稿前
@@ -2705,11 +2729,26 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds):
     if date_str in done_trades and date_str in done_holds and not has_article:
         print(f"{date_str} 紀錄已存在但缺推播內容，重跑擷取以補回文章")
 
+    tell("擷取", f"逐字稿 {len(v2)} 字，抓出張震明講的操作")
     signals = extract_signals(v2, date_str)
+    n0 = sum(len(signals.get(k, [])) for k in
+             ("buy", "sell", "watch_avoid", "watch_watch", "holdings"))
+
+    tell("稽核", f"擷取到 {n0} 檔，回頭比對逐字稿看有沒有漏")
     signals = audit_signals(v2, signals, date_str)
+    n1 = sum(len(signals.get(k, [])) for k in
+             ("buy", "sell", "watch_avoid", "watch_watch", "holdings"))
+
+    tell("代號比對", f"共 {n1} 檔，逐一對照官方清單並修正同音錯字")
     signals = resolve_signals(signals)
     signals["_video_id"] = video["id"]
+    n2 = sum(len(signals.get(k, [])) for k in
+             ("buy", "sell", "watch_avoid", "watch_watch", "holdings"))
+
+    tell("撰稿", f"比對後剩 {n2} 檔，表格由程式組，模型只寫標題與敘述")
     article = build_article(v2, signals, date_str)
+
+    tell("寫入", f"把 {n2} 檔與 {len(article)} 字的整理寫進試算表")
     write_results(ss, date_str, signals, article, done_trades, done_holds)
 
 
@@ -2810,8 +2849,16 @@ def run_admin_job(ss):
     vid, date_str = job["videoId"], job["date"]
     print(f"工單 {job['id']}　{date_str}　影片 {vid}")
 
+    # 後台進度條的步驟。這一份必須與 Admin.html 的 STEPS 逐字相同，
+    # 否則進度條會對不到目前這一步，看起來像卡住不動。
+    #
+    # 先前只有六格，其中「擷取與比對」一格裡面包了五件事，每一件都可能是
+    # 失敗的那一件；看的人只知道卡在那一格，卻不知道是擷取沒過、代號對不上，
+    # 還是撰稿逾時。拆開之後，失敗停在哪一格就是哪一件事出問題。
+    TOTAL = 9
+
     # ---- 取出管理者貼上的原文 ----
-    job_progress(job, step="讀取原文", done=0, total=6)
+    job_progress(job, step="讀取原文", done=0, total=TOTAL)
     v1, v2 = existing_transcript(ss, vid, date_str)
     if not v1 or len(v1) < 300:
         raise RuntimeError(f"影片清單裡找不到 {vid} 的原始逐字稿，或內容太短（{len(v1 or '')} 字）。")
@@ -2821,10 +2868,18 @@ def run_admin_job(ss):
     # 雲端已有夠長的修飾稿就沿用，讓工單可以從中斷處續跑而不必重跑一次潤飾。
     if v2 and len(v2) > 200:
         print(f"已有修飾後逐字稿 {len(v2)} 字，略過潤飾")
-        job_progress(job, step="潤飾", done=1, total=6, note="沿用既有修飾稿")
+        job_progress(job, step="潤飾", done=1, total=TOTAL, note="沿用既有修飾稿，不重跑")
     else:
-        job_progress(job, step="潤飾", done=1, total=6, note=f"原文 {len(v1)} 字")
-        v2 = polish(v1)
+        job_progress(job, step="潤飾", done=1, total=TOTAL,
+                     note=f"原文 {len(v1)} 字，準備切段")
+
+        # 潤飾是整條流程裡最久的一段，兩萬字要跑兩三分鐘。
+        # 每做完一段就把「第幾段／共幾段」寫回工單，後台才看得出它在動。
+        def polish_tick(i, n):
+            job_progress(job, step="潤飾", done=1, total=TOTAL,
+                         note=f"第 {i} / {n} 段完成（每段約需 30 到 60 秒）")
+
+        v2 = polish(v1, on_chunk=polish_tick)
         upsert_video_transcript(ss, vid, date_str, v2)
         print(f"潤飾完成 {len(v1)} → {len(v2)} 字")
 
@@ -2835,20 +2890,24 @@ def run_admin_job(ss):
         "url": f"https://www.youtube.com/watch?v={vid}",
     }
 
-    # ---- 擷取、稽核、代號、寫入、撰稿 ----
+    # ---- 擷取、稽核、代號、撰稿、寫入 ----
     # 這一整段直接沿用自動路徑的 stage_extract，不另外實作。
-    # 兩條路走同一段程式，產出的品質與格式就不可能不一致。
-    job_progress(job, step="擷取與比對", done=2, total=6,
-                 note="擷取、完整性稽核、代號比對、價位校對、寫入、撰稿")
+    # 兩條路走同一段程式，產出的品質與格式就不可能不一致；
+    # 差別只在後台這一條會把每一步回報出來，自動排程那條沒有人在看。
+    STEP_AT = {"擷取": 2, "稽核": 3, "代號比對": 4, "撰稿": 5, "寫入": 6}
+
+    def on_step(name, note):
+        job_progress(job, step=name, done=STEP_AT.get(name, 2), total=TOTAL, note=note)
+
     done_trades = existing_dates(ss, "操作紀錄")
     done_holds = existing_dates(ss, "會員持股")
-    stage_extract(ss, video, date_str, v2, done_trades, done_holds)
+    stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=on_step)
 
     mark_status(ss, vid, date_str, video["title"], "完成")
-    job_progress(job, step="刷新網站", done=5, total=6, note="資料已寫入，通知下游重算")
+    job_progress(job, step="刷新網站", done=7, total=TOTAL, note="資料已寫入，通知下游重算")
 
     print("\n工單處理完成，接著通知下游重算全站。")
-    job_progress(job, step="完成", done=6, total=6, status="完成",
+    job_progress(job, step="完成", done=TOTAL, total=TOTAL, status="完成",
                  note="全部完成。網站與郵件內容都已更新。")
 
     # 回傳處理的日期，讓呼叫端把它帶進重算鏈。

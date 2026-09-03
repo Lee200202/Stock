@@ -2077,11 +2077,32 @@ EXTRACT_SYSTEM = """你從一段完整的直播逐字稿中，擷取講者「明
 - 拿某一檔當範例講技術面、講心態、回憶某一段行情，沒有給出現在怎麼看。
 - 只是報個價、講成交量、回答別人的問題時順口帶到，沒有任何立場。
 
-buy 與 sell 的門檻特別高：逐字稿必須看得到「今天、剛剛、這個盤中」實際執行了動作。
-  可以收的樣子：我今天買了、我們今天進場、剛剛掛的成交了、今天調節掉了。
+buy 與 sell 的門檻特別高：逐字稿必須看得到明確執行了動作，而且要講得出是哪一天。
+  可以收的樣子：我今天買了、我們今天進場、剛剛掛的成交了、今天調節掉了、
+                我昨天早盤請會員賣出、我昨天快十二點去把它買回來。
   不可以收的樣子：以前買的、上禮拜賣的、這個價位可以買、跌下來我會考慮。
-看不到「今天執行」，就一律歸到觀望兩類，不可以因為他講了買賣兩個字
-就當成今天有買賣。明講現在還抱著、還沒賣、續抱的，歸 holdings。
+看不到明確的執行動作，就一律歸到觀望兩類，不可以因為他講了買賣兩個字
+就當成有買賣。明講現在還抱著、還沒賣、續抱的，歸 holdings。
+
+這一筆算哪一天（when 欄位）：
+他很常在今天的直播裡回頭講「昨天收盤後我做了什麼」，因為昨天的直播只播到一半。
+那些動作發生在昨天，不是今天。實際判錯過的例子：
+  「我昨天直播你們只聽到上半場，我直播以後又做了動作……我昨天早盤請我的會員
+　　賣出晶心科創新高，大概賣 270 幾……那我昨天快 12 點的時候去把它買回來。」
+這兩筆都是昨天的操作，卻被記成今天，於是網站上昨天那一天完全看不到，
+今天卻多出兩筆從沒發生過的當日進出。
+  when 填 \"today\"：他說今天、剛剛、這個盤中、早上（指今天早上）。
+  when 填 \"prev\"　：他說昨天、昨天早盤、昨天收盤後、我昨天直播完之後。
+  分辨不出來就填 \"today\"，那是預設值；寧可放在今天，也不要猜。
+更早以前的（上禮拜、上個月）不要收，那是回顧舊單，本來就不該進表。
+
+同一天同一檔做了兩件事的先後（seq 欄位）：
+上面那個例子裡，昨天先賣（早盤 270 幾）、後買（近中午 250 幾）。
+這個順序不能弄反——先買後賣是「加碼之後獲利了結」，先賣後買是「賣掉再撿回來」，
+兩者的持有回合、進場價、報酬全部不一樣。
+  同一檔在同一天只有一個動作時，seq 填 1。
+  有兩個以上時，照他描述的先後填 1、2、3。
+  只有 buy 與 sell 需要填，觀望與 holdings 一律填 1。
 
 不指名就不要生（這一條最重要）：
 講者說「我不講哪一隻」「我不講是哪一檔」「你們自己猜我買什麼股票」
@@ -2148,20 +2169,39 @@ price 只放數字，或帶著數字的短句（238、255 以上、28 到 29）�
 時間詞、程度詞、型態詞（最近、前幾天、很便宜、突破均線、量能放大）都不是價位，
 這些一律填「未說明」。一個沒有數字的 price 欄位是沒有意義的。
 
-reason 要用你自己的話寫成一句通順的重點，不是把逐字稿剪一段貼上。
-他是口語，一句話裡有大量語助詞、重複與跳接，原句直接放進表格讀起來
-像沒整理過。請濃縮成 40 字以內、看得懂的完整句子，只留他真正的判斷
-（型態、價位、態度、理由），不要加任何他沒講的東西，
-也不要保留「好，注意」「有沒有看到」「來」這類口頭禪。
-不要加引號，不要寫成「他說……」，直接寫結論。
-實際改過的例子：
-  原句　「隱藏版光訊叫做 2402 的錩新，昨天漲 3 塊 1，今天漲兩塊 4，好，注意。」
-  應寫　「稱它是隱藏版光訊，昨日漲 3.1 元、今日再漲 2.4 元，續強可留意。」
+reason 要改寫成證券研究報告的句子，不是把逐字稿剪一段貼上。
 
-只回傳 JSON，不要有其他文字：
+你是專業的證券分析師與財經編輯。輸入是語音轉文字的口語，充滿情緒用語與
+模糊的形容詞（有鬼、沒用、出事）。你要從口語裡提煉出財經與技術面的真正涵義。
+
+一、去口語化與情緒化。消除情緒性字眼、主觀語氣與贅字。
+      「裡面有鬼」→「產業面存有潛在風險或疑慮」
+      「大漲沒用」→「單日反彈未能改變趨勢」
+二、提煉實質指標。精準抓出技術面（季線、缺口、跌停）、時間籌碼（整理時間、
+    等一個月）、價格區間（4000 元以上），這些要保留。
+三、邏輯重構。寫成「因為某個現象或指標，所以某個操作結論」的句型。
+四、格式固定：〔技術面／基本面／籌碼面現況〕＋〔操作建議〕，40 字以內。
+    不要加引號，不要寫成「他說……」，不要保留「好，注意」「有沒有看到」這類口頭禪。
+    絕對不可以加入他沒有講的東西——改寫是換句話說，不是補充。
+
+改寫對照：
+  「昨天跌停、今天也守不住，不要買。」
+    → 技術面弱勢，昨日跌停且今日支撐跌破，建議避開。
+  「季線連過都沒過去，今天大漲沒用，不要買。」
+    → 技術面受制於季線反壓，單日大漲視為無效反彈，維持觀望。
+  「ABF載板裡面有鬼，不敢買、不買。」
+    → ABF 載板產業面存有潛在疑慮，建議暫不介入。
+  「出事才兩天，不要急，等一個月後再說。」
+    → 事件利空剛發酵，籌碼尚未沉澱，建議觀望一個月後再評估。
+  「有缺口且沒整理好，4000塊以上有風險，不想買。」
+    → 技術面留有缺口且底部未打底完成，4000 元以上具風險，不建議追高。
+  「隱藏版光訊叫做2402的錩新，昨天漲3塊1，今天漲兩塊4，好，注意。」
+    → 具隱藏版光通訊題材，近兩日連續收漲，列為重點觀察。
+
+只回傳 JSON，不要有其他文字。when 只能是 "today" 或 "prev"，seq 是正整數：
 {
-  "buy":   [{"name":"", "code":"", "price":"", "reason":""}],
-  "sell":  [{"name":"", "code":"", "price":"", "reason":""}],
+  "buy":   [{"name":"", "code":"", "price":"", "reason":"", "when":"today", "seq":1}],
+  "sell":  [{"name":"", "code":"", "price":"", "reason":"", "when":"today", "seq":1}],
   "watch_avoid":  [{"name":"", "code":"", "price":"", "reason":""}],
   "watch_watch":  [{"name":"", "code":"", "price":"", "reason":""}],
   "holdings": [{"name":"", "code":"", "stance":"", "note":""}]
@@ -2595,6 +2635,75 @@ def price_reality_check(ss, signals: dict, date_str: str) -> dict:
         print(f"價位現實檢查：清掉不屬於該檔的價位 {cleared} 筆，降級為觀望 {demoted} 筆")
     return signals
 
+# ---------------------------------------------------------------- #
+# 日期歸屬
+#
+# 他很常在今天的直播裡回頭講「昨天收盤後我做了什麼」，因為昨天的直播
+# 只播到一半。那些動作發生在昨天，不是今天。
+#
+# 實際發生過：9/2 的影片裡講「我昨天早盤請會員賣出晶心科 270 幾，
+# 快 12 點又買回來 250 幾」。兩筆都被記成 9/2，於是 9/1 那天在網站上
+# 完全看不到這件事，9/2 卻多出兩筆從沒發生過的當日進出。
+#
+# 前一個交易日從日K快取取。用快取而不是「日期減一」，是因為週一的前一天
+# 是上週五，遇到連假還要再往前——減一天會落在沒有開盤的日子，
+# 那一天永遠不會有其他資料，這一筆就會孤零零地掛在一個空白的日期上。
+# ---------------------------------------------------------------- #
+
+
+def _prev_trading_day(ss, date_str: str) -> str:
+    """日K快取裡，早於 date_str 的最後一個交易日。取不到回空字串。"""
+    try:
+        kmap = _daily_k_cached(ss)
+    except Exception:
+        return ""
+    days = set()
+    for per_day in kmap.values():
+        days.update(per_day.keys())
+    earlier = sorted(d for d in days if d and d < date_str)
+    return earlier[-1] if earlier else ""
+
+
+def apply_when_and_seq(ss, signals: dict, date_str: str) -> dict:
+    """
+    把 when="prev" 的買賣改派到前一個交易日，並把 seq 正規化成正整數。
+
+    只有 buy 與 sell 會被改派。觀望與會員持股講的是「現在的看法」，
+    那個看法屬於今天這支影片，就算他順帶提到昨天也一樣。
+    """
+    prev = ""
+    moved = 0
+
+    for key in ("buy", "sell", "watch_avoid", "watch_watch", "holdings"):
+        for i, r in enumerate(signals.get(key, []) or []):
+            # seq：同日同檔的先後。沒填或填了怪東西就照陣列順序給一個。
+            try:
+                sq = int(r.get("seq") or 0)
+            except (TypeError, ValueError):
+                sq = 0
+            r["_seq"] = sq if sq > 0 else (i + 1)
+
+            r["_date"] = date_str
+            if key not in ("buy", "sell"):
+                continue
+            if str(r.get("when") or "today").strip().lower() != "prev":
+                continue
+
+            if not prev:
+                prev = _prev_trading_day(ss, date_str)
+            if not prev:
+                print(f"  日期歸屬　{r.get('name') or ''} 標為昨天，"
+                      f"但日K快取找不到前一個交易日，仍記在 {date_str}")
+                continue
+            r["_date"] = prev
+            moved += 1
+            _nm = r.get("name") or ""
+            print(f"  日期歸屬　{_nm}（{key}）是昨天的操作，改記在 {prev}")
+
+    if moved:
+        print(f"日期歸屬：{moved} 筆買賣改派到前一個交易日 {prev}")
+    return signals
+
 def build_article(v2: str, signals: dict, date_str: str) -> str:
     clean = {k: v for k, v in signals.items() if not k.startswith("_")}
     payload = (
@@ -2661,6 +2770,29 @@ def delete_rows_for_date(ss, sheet_name, date_str, date_col=1):
     return len(targets)
 
 
+def _purge_rows_of_video(ss, sheet_name, date_str, video_id):
+    """清掉某一天由某支影片寫進去的列。用在把資料改派到別的日期時避免重複。"""
+    if not video_id:
+        return 0
+    ws = ss.worksheet(sheet_name)
+    values = sheets_retry(ws.get_all_values)
+    if not values:
+        return 0
+    head = values[0]
+    c_vid = head.index("來源影片ID") if "來源影片ID" in head else -1
+    if c_vid < 0:
+        return 0
+    targets = [i for i in range(len(values) - 1, 0, -1)
+               if norm_date(values[i][0]) == date_str
+               and c_vid < len(values[i])
+               and str(values[i][c_vid] or "") == video_id]
+    for r in targets:
+        sheets_retry(ws.delete_rows, r + 1)
+    if targets:
+        print(f"  {sheet_name} 清掉 {date_str} 由本影片寫入的 {len(targets)} 筆舊資料")
+    return len(targets)
+
+
 def write_results(ss, date_str, signals, article, done_trades, done_holds, replace=False):
     video_id = signals.get("_video_id", "")
 
@@ -2679,11 +2811,23 @@ def write_results(ss, date_str, signals, article, done_trades, done_holds, repla
         for key, label in (("buy", "買入"), ("sell", "賣出"),
                            ("watch_avoid", "觀望不碰"), ("watch_watch", "觀望注意")):
             for r in signals.get(key, []):
-                rows.append([date_str, r.get("name", ""), r.get("code", UNRESOLVED), label,
-                             r.get("price", "未說明"), r.get("reason", "未說明"), video_id])
+                rows.append([r.get("_date") or date_str,
+                             r.get("name", ""), r.get("code", UNRESOLVED), label,
+                             r.get("price", "未說明"), r.get("reason", "未說明"),
+                             video_id, r.get("_seq", 1)])
+
+        # 改派到別的日期的那幾列，重跑時清不掉——delete_rows_for_date 只清
+        # 這支影片自己的日期。所以先按「日期＋影片ID」清一次，
+        # 不然每重跑一次就多一份重複，而且看起來像他真的又做了一次。
+        other = sorted({r[0] for r in rows if r[0] != date_str})
+        for od in other:
+            _purge_rows_of_video(ss, "操作紀錄", od, video_id)
+
         if rows:
             sheets_retry(ss.worksheet("操作紀錄").append_rows, rows)
-        print(f"操作紀錄寫入 {len(rows)} 筆")
+        print(f"操作紀錄寫入 {len(rows)} 筆"
+              + (f"（其中 {sum(1 for r in rows if r[0] != date_str)} 筆記在 "
+                 + "、".join(other) + "）" if other else ""))
         done_trades.add(date_str)
 
     if date_str in done_holds:
@@ -2757,6 +2901,7 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds):
     signals = audit_signals(v2, signals, date_str)
     signals = resolve_signals(signals, v2)
     signals = price_reality_check(ss, signals, date_str)
+    signals = apply_when_and_seq(ss, signals, date_str)
     signals["_video_id"] = video["id"]
     article = build_article(v2, signals, date_str)
     write_results(ss, date_str, signals, article, done_trades, done_holds)

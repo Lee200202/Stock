@@ -171,6 +171,15 @@ FIX_PRICES = os.environ.get("FIX_PRICES", "false").strip().lower() == "true"
 # 都印在 Actions 日誌裡看得到。
 FULL_FIX = os.environ.get("FULL_FIX", "false").strip().lower() == "true"
 
+# 全面重整的範圍。這個值不影響執行結果——真正決定範圍的是下游的狀態，
+# 這裡只是逐棒敲門，每一棒做什麼是下游決定的。
+# 帶著它只為了印進 Actions 日誌：近一周與全部歷史的耗時差十倍，
+# 事後回頭看某一次執行時，分不出跑的是哪一種會很難判斷。
+FULL_FIX_SCOPE = os.environ.get("FULL_FIX_SCOPE", "").strip() or "all"
+FULL_FIX_SCOPE_LABEL = {
+    "week": "近一周", "month": "近一個月", "all": "全部歷史",
+}.get(FULL_FIX_SCOPE, FULL_FIX_SCOPE)
+
 # 從哪一步開始刷新。空的就是從頭。
 # 用在「某一步失敗、修好之後只想從那裡接著跑」，不必整條鏈重來。
 # 刷新鏈的每一步彼此獨立，跳過前面幾步不會讓後面算錯。
@@ -701,6 +710,10 @@ def drive_full_fix():
     進度存在下游的指令碼屬性裡，所以就算這個 job 被中斷，下次進來也是
     從同一個地方接著做，不會重跑已經處理過的日期。
     """
+    print(f"全面重整　範圍：{FULL_FIX_SCOPE_LABEL}（{FULL_FIX_SCOPE}）")
+    print("　範圍由後台選定並存在下游的狀態裡，這裡印出來只是為了讓這一次執行看得出跑的是什麼。")
+    print("　補齊日K與重算追蹤不受範圍限制，那兩步永遠看全部歷史。")
+
     if not APPS_SCRIPT_URL or not ADMIN_KEY:
         print("全面重整需要 APPS_SCRIPT_URL 與 ADMIN_KEY 兩個 Secret，缺一不可。")
         print("到 Apps Script 執行 showDeployInfo() 會把兩個值都印出來。")

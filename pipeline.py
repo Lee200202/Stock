@@ -2111,6 +2111,23 @@ buy 與 sell 的門檻特別高：逐字稿必須看得到明確執行了動作�
 也不可以從這些線索去猜是哪一檔，整筆不要收。
 name 必須是逐字稿裡真的出現過的名稱或代號，禁止從敘述、產業、漲跌幅反推。
 
+他更常見的是「根本沒提到要講哪一檔」，只是在複述自己這禮拜做了什麼。
+那種段落沒有任何指名，也一樣不可以配給任何一檔。實際發生過的例子：
+  「這個禮拜的第三個動作……我請我的會員買 250 的，我們這邊全部賣掉，
+　　賣 275 左右賣掉……那我又告訴我的會員 250 幾 26 買回來……
+　　收盤收 262.5，這是我這個禮拜的第三個動作。」
+整段有價位、有動作、有日期，唯獨沒有股票名稱——當時模型生出了一檔
+「位速 3508」，而位速這兩個字在整份逐字稿裡出現零次。
+這種段落正確的做法是整筆不收，不是找一檔最像的填進去。
+
+再說一次，因為這是最容易犯的錯：
+你填進 name 的每一個字，都必須能在逐字稿裡原字找到。
+找不到就代表那是你想出來的，不管你多有把握，都不可以填。
+價位對得上、型態對得上、時間對得上，都不構成指名——
+他這一小時裡講了幾十檔，價位相近的到處都是。
+寧可少收一筆真的有講的，也不要生出一筆他從沒講過的：
+少收的那筆只是沒出現，生出來的那筆會被當成事實。
+
 價位與理由不要接錯檔：
 他常常連續講好幾檔，價位很容易被接到隔壁那一檔身上。
 price 與 reason 必須出自同一段、針對同一檔講的話。
@@ -2704,6 +2721,65 @@ def apply_when_and_seq(ss, signals: dict, date_str: str) -> dict:
         print(f"日期歸屬：{moved} 筆買賣改派到前一個交易日 {prev}")
     return signals
 
+# ---------------------------------------------------------------- #
+# 名稱必須真的在逐字稿裡
+#
+# 這是唯一一道不靠提示語、不靠模型自律的防線。
+#
+# 提示語已經寫了「不指名就不要生」，而且寫得很明白：他說「我不講哪一隻」
+# 時不可以從漲跌幅、型態、時間去猜是哪一檔。但那是「請它不要」，不是保證。
+#
+# 實際發生過：他講「這個禮拜的第三個動作……我請會員買 250 的，賣 275 左右，
+# 然後 250 幾 26 買回來」——整段沒有講任何股票名稱，模型卻生出了「位速 3508」。
+# 位速這兩個字在整份逐字稿裡出現零次。那一列的名稱、代號、股價、K 線
+# 全部是憑空產生的，而且每一欄都有值，看起來完全正常。
+#
+# 「這個字串有沒有出現在這兩萬字裡」是一個可以驗證的事實，不是判斷。
+# 沒出現就是模型自己想出來的，不管它多有把握，一律丟掉。
+#
+# 為什麼不會誤殺：name 的規格本來就是「照逐字稿裡實際聽到的填」，
+# 所以正確的擷取結果一定找得到。代號同理——講者有講代號才填。
+# 兩者有一個出現就放行，因為他有時候只講代號、有時候只講名字。
+# ---------------------------------------------------------------- #
+
+
+def _in_transcript(needle: str, hay: str) -> bool:
+    """字串有沒有出現在逐字稿裡。比對前把空白拿掉，標點不影響。"""
+    n = re.sub(r"\s", "", str(needle or ""))
+    if len(n) < 2:
+        return False
+    return n in hay
+
+
+def verify_names(signals: dict, transcript: str) -> dict:
+    """名稱與代號都沒出現在逐字稿裡的，整筆丟掉。"""
+    hay = re.sub(r"\s", "", transcript or "")
+    if len(hay) < 500:
+        # 逐字稿太短或根本沒拿到，這一關無從驗起。
+        # 這種時候不驗比亂驗好——全部丟掉會讓整天沒有資料。
+        print("  幻覺檢查略過（沒有可比對的逐字稿）")
+        return signals
+
+    dropped = 0
+    for key in ("buy", "sell", "watch_avoid", "watch_watch", "holdings"):
+        keep = []
+        for r in signals.get(key, []) or []:
+            nm = str(r.get("name", "")).strip()
+            cd = str(r.get("code", "")).strip()
+            if _in_transcript(nm, hay) or _in_transcript(cd, hay):
+                keep.append(r)
+                continue
+            dropped += 1
+            _cd = cd or "無代號"
+            print(f"  幻覺剔除　{nm}（{_cd}）：這個名稱與代號在逐字稿裡都沒有出現")
+        signals[key] = keep
+
+    if dropped:
+        print(f"幻覺檢查：剔除 {dropped} 筆逐字稿裡查無此名的紀錄")
+    else:
+        print("幻覺檢查：每一筆的名稱都在逐字稿裡找得到")
+    return signals
+
 def build_article(v2: str, signals: dict, date_str: str) -> str:
     clean = {k: v for k, v in signals.items() if not k.startswith("_")}
     payload = (
@@ -2881,8 +2957,16 @@ def stage_transcript(ss, video, date_str):
     return v1, v2
 
 
-def stage_extract(ss, video, date_str, v2, done_trades, done_holds):
-    """階段二：擷取結構化紀錄。與階段一分開，因為它便宜、可重跑。"""
+def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None):
+    """
+    階段二：擷取結構化紀錄。與階段一分開，因為它便宜、可重跑。
+
+    on_step(名稱, 說明) 是給後台工單用的進度回報。自動路徑不傳，那時是 None，
+    每一步只印在 Actions 的日誌裡——那條路沒有人在看進度條。
+    """
+    def step(name, note):
+        if on_step:
+            on_step(name, note)
     # 三樣都齊全才算做完：操作紀錄、會員持股、每日推播內容。
     #
     # 原本只看前兩樣。文章是在這個函式的最後才產生的，所以只要那天在撰稿前
@@ -2897,13 +2981,36 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds):
     if date_str in done_trades and date_str in done_holds and not has_article:
         print(f"{date_str} 紀錄已存在但缺推播內容，重跑擷取以補回文章")
 
+    def _n(sig):
+        """目前收了幾檔。放進進度說明裡，讓人看得出每一關動了什麼。"""
+        return sum(len(sig.get(k, []) or [])
+                   for k in ("buy", "sell", "watch_avoid", "watch_watch", "holdings"))
+
+    step("擷取", "從逐字稿讀出他講了哪幾檔")
     signals = extract_signals(v2, date_str)
+
+    step("稽核補漏", f"目前 {_n(signals)} 檔，回頭比對逐字稿看有沒有漏掉的")
     signals = audit_signals(v2, signals, date_str)
+
+    # 幻覺檢查要排在代號比對之前：比對會把名稱換成官方簡稱
+    # （加哲→嘉澤），換過之後就對不到逐字稿了。
+    step("查驗幻覺", f"目前 {_n(signals)} 檔，逐一確認名稱真的出現在逐字稿裡")
+    signals = verify_names(signals, v2)
+
+    step("代號比對", f"目前 {_n(signals)} 檔，對官方清單、修同音錯字、剔除非個股")
     signals = resolve_signals(signals, v2)
+
+    step("價位校對", f"目前 {_n(signals)} 檔，用日K驗證每一個數字是不是這一檔的")
     signals = price_reality_check(ss, signals, date_str)
+
+    step("日期歸屬", "把昨天的操作改記到昨天，並排出同一天的先後")
     signals = apply_when_and_seq(ss, signals, date_str)
     signals["_video_id"] = video["id"]
+
+    step("撰稿", f"共 {_n(signals)} 檔，產生每日整理")
     article = build_article(v2, signals, date_str)
+
+    step("寫入", f"把 {_n(signals)} 檔寫進試算表")
     write_results(ss, date_str, signals, article, done_trades, done_holds)
 
 
@@ -2921,6 +3028,12 @@ ADMIN_JOB_SHEET = "後台工單"
 
 # 工單欄位順序，與 Apps Script 端的 SHEET_SCHEMA 一致。
 # 兩邊都用名稱找欄位，所以順序調整不會壞掉，但保持一致比較好讀。
+# 後台工單的步驟。前端 Admin.html 的 STEPS 必須與這一份逐字相同，
+# 否則進度條會對不到目前這一步，看起來像卡住不動。
+ADMIN_STEP_NAMES = ["排程中", "讀取原文", "潤飾", "擷取", "稽核補漏", "查驗幻覺",
+                    "代號比對", "價位校對", "日期歸屬", "撰稿", "寫入",
+                    "刷新網站", "完成"]
+
 JOB_COLS = ["工單ID", "日期", "影片ID", "狀態", "步驟", "已完成", "總數",
             "備註", "開始時間", "更新時間", "來源"]
 
@@ -3005,7 +3118,7 @@ def run_admin_job(ss):
     print(f"工單 {job['id']}　{date_str}　影片 {vid}")
 
     # ---- 取出管理者貼上的原文 ----
-    job_progress(job, step="讀取原文", done=0, total=6)
+    job_progress(job, step="讀取原文", done=1, total=len(ADMIN_STEP_NAMES))
     v1, v2 = existing_transcript(ss, vid, date_str)
     if not v1 or len(v1) < 300:
         raise RuntimeError(f"影片清單裡找不到 {vid} 的原始逐字稿，或內容太短（{len(v1 or '')} 字）。")
@@ -3015,9 +3128,11 @@ def run_admin_job(ss):
     # 雲端已有夠長的修飾稿就沿用，讓工單可以從中斷處續跑而不必重跑一次潤飾。
     if v2 and len(v2) > 200:
         print(f"已有修飾後逐字稿 {len(v2)} 字，略過潤飾")
-        job_progress(job, step="潤飾", done=1, total=6, note="沿用既有修飾稿")
+        job_progress(job, step="潤飾", done=2, total=len(ADMIN_STEP_NAMES),
+                     note="沿用既有修飾稿")
     else:
-        job_progress(job, step="潤飾", done=1, total=6, note=f"原文 {len(v1)} 字")
+        job_progress(job, step="潤飾", done=2, total=len(ADMIN_STEP_NAMES),
+                 note=f"原文 {len(v1)} 字")
         v2 = polish(v1)
         upsert_video_transcript(ss, vid, date_str, v2)
         print(f"潤飾完成 {len(v1)} → {len(v2)} 字")
@@ -3032,17 +3147,26 @@ def run_admin_job(ss):
     # ---- 擷取、稽核、代號、寫入、撰稿 ----
     # 這一整段直接沿用自動路徑的 stage_extract，不另外實作。
     # 兩條路走同一段程式，產出的品質與格式就不可能不一致。
-    job_progress(job, step="擷取與比對", done=2, total=6,
-                 note="擷取、完整性稽核、代號比對、價位校對、寫入、撰稿")
+    #
+    # 先前這裡只回報一個「擷取與比對」，然後安靜地跑五到十分鐘。
+    # 那一格會亮很久，看起來像卡住——而它裡面其實有八件事在跑，
+    # 卡住的時候也分不出是卡在哪一件。現在每一件都回報。
     done_trades = existing_dates(ss, "操作紀錄")
     done_holds = existing_dates(ss, "會員持股")
-    stage_extract(ss, video, date_str, v2, done_trades, done_holds)
+
+    def _report(name, note):
+        idx = ADMIN_STEP_NAMES.index(name) if name in ADMIN_STEP_NAMES else 0
+        job_progress(job, step=name, done=idx, total=len(ADMIN_STEP_NAMES),
+                     note=note)
+
+    stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=_report)
 
     mark_status(ss, vid, date_str, video["title"], "完成")
-    job_progress(job, step="刷新網站", done=5, total=6, note="資料已寫入，通知下游重算")
+    _report("刷新網站", "資料已寫入，通知下游重算")
 
     print("\n工單處理完成，接著通知下游重算全站。")
-    job_progress(job, step="完成", done=6, total=6, status="完成",
+    job_progress(job, step="完成", done=len(ADMIN_STEP_NAMES),
+                 total=len(ADMIN_STEP_NAMES), status="完成",
                  note="全部完成。網站與郵件內容都已更新。")
 
 

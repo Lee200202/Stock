@@ -470,10 +470,15 @@ def maybe_refresh_site():
     # 都看得到，卡在哪一步一目了然。
     STEPS = [
         ("purge", "清除產業列"),
-        # 稽核與複審。下游分三次請求做完（完整性稽核 → 內容複審 → 重寫每日整理），
-        # 這一步做完，網站與推播信裡就不會再出現「他今天在操作一檔早就出清的股票」。
+        # 品質關卡的三段。做完之後，網站與推播信裡就不會再出現
+        # 「他今天在操作一檔早就出清的股票」。
         # 排在代號比對之前，因為稽核會補進新的列，那些列還沒有代號。
-        ("gate", "稽核與複審"),
+        #
+        # 先前這三段擠成一個 gate，畫面上與日誌上都只看得到一行，
+        # 那一行會停三到六分鐘，卡住時看不出卡在哪一段。
+        ("gate1", "稽核補漏"),
+        ("gate2", "內容複審"),
+        ("gate3", "重寫整理"),
         ("codes", "代號比對"),
         ("fund", "更新基本面"),
         ("dailyk", "補齊日K"),
@@ -575,8 +580,11 @@ def maybe_refresh_site():
             if k in known:
                 aligned.append((k, lb))
                 continue
+            # 下游還沒部署新版時，三段都退回舊的 gate。
+            # gate 呼叫一次推進一段，所以三段各打一次剛好把整套跑完，
+            # 名稱不同但做的事一模一樣。
             alt = next((a for a in ("review", "gate") if a in known), "")
-            if k in ("review", "gate") and alt:
+            if k in ("review", "gate", "gate1", "gate2", "gate3") and alt:
                 print(f"  下游把「{lb}」叫做 {alt}（本地寫的是 {k}），自動改用下游的名稱")
                 aligned.append((alt, lb))
             else:
@@ -1893,6 +1901,102 @@ def clean_price_field(v) -> str:
     return t
 
 
+BLANK_ = ("", "未說明", NOT_MENTIONED)
+
+
+def _merge_text(a: str, b: str) -> str:
+    """兩段說明併成一段。互相包含就留長的，否則接起來。"""
+    a = (a or "").strip()
+    b = (b or "").strip()
+    if not a or a in BLANK_:
+        return b or a
+    if not b or b in BLANK_:
+        return a
+    if b in a:
+        return a
+    if a in b:
+        return b
+    return a.rstrip("。；;") + "；" + b
+
+
+def _merge_price(a: str, b: str) -> str:
+    """兩個價位說明併成一個。有講的優先，兩個都有講就都留著。"""
+    a = (a or "").strip()
+    b = (b or "").strip()
+    if not a or a in BLANK_:
+        return b or a or "未說明"
+    if not b or b in BLANK_ or b in a:
+        return a
+    if a in b:
+        return b
+    return a + "、" + b
+
+
+def merge_duplicates(signals: dict) -> dict:
+    """
+    同一類裡同一檔只留一列，說明整併。
+
+    症狀：觀望注意那張表裡，陽明（2609）連續出現兩列——一列寫「股價在震盪後
+    有機會飆漲」，另一列寫「大戶持股比重持續增加，待航運股整理結束後可留意」。
+    兩列都是真的，他確實在節目的不同段落各講了一次；擷取時當成兩件事，
+    到了表格上就變成同一檔出現兩次，看起來像資料壞掉。
+
+    「他今天對這一檔的立場」只有一個，所以觀望與持股本來就不該有第二列。
+    兩次說明是同一個立場的兩個理由，該併成一句。
+
+    買賣不一樣：同一天分批買、分批賣是真的會發生，兩列各有各的價位，
+    合併會把「他做了兩次」抹平成一次。所以買賣只在價位說明也一模一樣時才併——
+    那種情況合理的解釋只剩重複擷取。
+
+    這一關排在代號比對之後：比對會把同音錯字與簡稱都收斂到官方名稱與代號
+    （加哲→嘉澤、隱藏版光訊→錩新），沒收斂之前同一檔的兩列可能長得完全不同，
+    比不出它們是同一個東西。
+    """
+    ALWAYS = ("watch_avoid", "watch_watch", "holdings")
+    BY_PRICE = ("buy", "sell")
+    merged = 0
+
+    for key in ALWAYS + BY_PRICE:
+        rows = signals.get(key) or []
+        if len(rows) < 2:
+            continue
+
+        hits = 0
+        out, index = [], {}
+        for r in rows:
+            code = str(r.get("code") or "").strip()
+            name = str(r.get("name") or "").strip()
+            ident = code if code and code != UNRESOLVED else name
+            if not ident:
+                out.append(r)
+                continue
+
+            # 買賣要連價位一起當鑰匙，不同價位就是不同的一筆操作
+            k = (ident, str(r.get("price") or "").strip()) if key in BY_PRICE else (ident,)
+            hit = index.get(k)
+            if hit is None:
+                index[k] = r
+                out.append(r)
+                continue
+
+            if key == "holdings":
+                hit["note"] = _merge_text(hit.get("note", ""), r.get("note", ""))
+                if str(hit.get("stance") or "").strip() in BLANK_:
+                    hit["stance"] = r.get("stance", "未說明")
+            else:
+                hit["reason"] = _merge_text(hit.get("reason", ""), r.get("reason", ""))
+                hit["price"] = _merge_price(hit.get("price", ""), r.get("price", ""))
+            hits += 1
+
+        if hits:
+            merged += hits
+            signals[key] = out
+
+    if merged:
+        print(f"合併重複：{merged} 列（同一類裡同一檔只留一列，說明併起來）")
+    return signals
+
+
 def resolve_signals(signals: dict, transcript: str = "") -> dict:
     """每一筆都跑代號比對。判定為非個股的整筆剔除，不寫進試算表。"""
     stat = {"命中": 0, "修正": 0, "待確認": 0, "剔除": 0, "名代衝突": 0, "價位清空": 0}
@@ -2037,6 +2141,13 @@ EXTRACT_SYSTEM = """你從一段完整的直播逐字稿中，擷取講者「明
 2. 禁止引用其他日期或其他來源的內容。
 3. 禁止產出含糊語句，例如可能、應該、大約。
 4. 某一類若逐字稿中完全沒有提到，該陣列回傳空陣列，不要編造。
+5. 同一檔在同一類裡只能出現一次。
+   他常在節目的不同段落各講同一檔一次——一次講價位，一次講籌碼或族群，
+   那是同一個立場的兩個理由，不是兩件事。兩次都收就會在表格上出現兩列
+   一模一樣的股票名稱與代號，讀的人會以為資料壞了。
+   遇到這種情況：把兩次說明併成一句寫進同一筆，價位取有講到的那一個。
+   例外只有一種——同一天分批買或分批賣，兩次的價位不同，那是真的兩筆操作，
+   要分開列。
 
 分類定義：
 - buy：影片中明講「今天」執行的買入。
@@ -2383,6 +2494,9 @@ ARTICLE_SYSTEM = """你是一位專業財經記者與投顧整理編輯，負責
 禁止列入清單以外的任何股票名稱或代號，禁止引用其他日期的內容，
 禁止創造清單中沒有的價位、操作紀錄或會員持股。
 禁止產出含糊語句，例如可能有、應該是、大約。
+同一檔在同一類的表格裡只能出現一列。
+清單裡若真的出現同一檔兩筆，把兩段說明併成一句寫在同一列，價位取有講到的那一個。
+只有同一天分批買賣（兩筆價位不同）才分兩列。
 某一段資訊清單中沒有時，明確寫「本段內容：本支影片未說明，故不予記錄。」
 
 全文繁體中文。章節標題與表格欄位名稱完全照下列格式，不可省略或改名，依序輸出：
@@ -3011,6 +3125,11 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None
     step("代號比對", f"目前 {_n(signals)} 檔，對官方清單、修同音錯字、剔除非個股")
     signals = resolve_signals(signals, v2)
 
+    # 合併要排在代號比對之後：比對會把同音錯字與簡稱收斂到官方名稱與代號，
+    # 沒收斂之前同一檔的兩列可能長得完全不同，比不出它們是同一個東西。
+    step("合併重複", f"目前 {_n(signals)} 檔，同一類裡同一檔只留一列")
+    signals = merge_duplicates(signals)
+
     step("價位校對", f"目前 {_n(signals)} 檔，用日K驗證每一個數字是不是這一檔的")
     signals = price_reality_check(ss, signals, date_str)
 
@@ -3042,7 +3161,7 @@ ADMIN_JOB_SHEET = "後台工單"
 # 後台工單的步驟。前端 Admin.html 的 STEPS 必須與這一份逐字相同，
 # 否則進度條會對不到目前這一步，看起來像卡住不動。
 ADMIN_STEP_NAMES = ["排程中", "讀取原文", "潤飾", "擷取", "稽核補漏", "查驗幻覺",
-                    "代號比對", "價位校對", "日期歸屬", "撰稿", "寫入",
+                    "代號比對", "合併重複", "價位校對", "日期歸屬", "撰稿", "寫入",
                     "刷新網站", "完成"]
 
 JOB_COLS = ["工單ID", "日期", "影片ID", "狀態", "步驟", "已完成", "總數",

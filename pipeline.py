@@ -1997,6 +1997,55 @@ def merge_duplicates(signals: dict) -> dict:
     return signals
 
 
+def resolve_watch_conflict(signals: dict) -> dict:
+    """
+    同一檔同時被收進觀望不碰與觀望注意時，收斂成一列。
+
+    這是真的發生過的：他用「甲不要追、要注意乙」這種對比句，乙的段落裡
+    先講乙的優點、後面才講乙現在還不能買。兩段分開讀會得到相反的結論，
+    於是表格上同一檔出現一列看好、一列看壞，讀的人不知道該信哪一個。
+
+    留哪一個：觀望不碰。理由不是它比較可能對，是兩種錯的代價不對稱——
+    把「不要碰」顯示成「留意」，讀的人可能照著進場；反過來只是錯過一個
+    想法。這個網站的立場一向是寧可少講，不要多講。
+
+    兩邊的理由都留著。看好的那一段通常正是條件（「過季線補缺口再說」），
+    而條件本來就該寫在說明裡，不是另外開一列。
+    """
+    avoid = signals.get("watch_avoid") or []
+    watch = signals.get("watch_watch") or []
+    if not avoid or not watch:
+        return signals
+
+    def _ident(r):
+        code = str(r.get("code") or "").strip()
+        name = str(r.get("name") or "").strip()
+        return code if code and code != UNRESOLVED else name
+
+    by_avoid = {}
+    for r in avoid:
+        k = _ident(r)
+        if k:
+            by_avoid.setdefault(k, r)
+
+    keep, moved = [], 0
+    for r in watch:
+        k = _ident(r)
+        hit = by_avoid.get(k) if k else None
+        if hit is None:
+            keep.append(r)
+            continue
+        hit["reason"] = _merge_text(hit.get("reason", ""), r.get("reason", ""))
+        hit["price"] = _merge_price(hit.get("price", ""), r.get("price", ""))
+        moved += 1
+        print(f"  立場衝突　{r.get('name', '')}（{k}）同時被收進觀望注意與觀望不碰，"
+              f"併成觀望不碰一列")
+
+    if moved:
+        signals["watch_watch"] = keep
+    return signals
+
+
 def resolve_signals(signals: dict, transcript: str = "") -> dict:
     """每一筆都跑代號比對。判定為非個股的整筆剔除，不寫進試算表。"""
     stat = {"命中": 0, "修正": 0, "待確認": 0, "剔除": 0, "名代衝突": 0, "價位清空": 0}
@@ -2154,6 +2203,26 @@ EXTRACT_SYSTEM = """你從一段完整的直播逐字稿中，擷取講者「明
    今天並沒有任何成交。整段的結論是「現在不要進場」，收進 watch_avoid。
    只有他明講今天、剛剛、這個盤中把它賣掉、獲利了結、出清，才算 sell。
    同一條規則反過來也成立：「我以前八百塊買的」不是今天的買入。
+7. 整段都在回顧往事、沒有一句在講「現在怎麼辦」的，一筆都不要收。
+   他很常花好幾分鐘講一段完整的成功故事：哪一年、幾根漲停、賣在哪一天、
+   後來腰斬多少。那是在建立信任，不是在給今天的指示。
+   判斷方式：把整段讀完，問「他有沒有告訴我今天該拿這一檔怎麼辦」。
+   沒有就整檔不收——不要因為裡面有價位、有動作、有情緒就生出一列。
+   實際判錯過的例子（富邦金 2881）：他講「九根半漲停，賣在460到450，
+   我在除權息前一天賣掉，現在腰斬了」，整段講的是很久以前那一次賣出，
+   結果被收成今天的觀望不碰、價位還填了 460到450。那一天他對富邦金
+   沒有任何當下的立場，正確答案是一列都不生。
+
+8. 同一天同一檔只能有一個立場，不可以一邊寫看好一邊寫看壞。
+   他常用「甲不要追、要注意乙」這種對比句，而乙的段落裡往往先講乙的優點，
+   後面才講乙現在還不能買。兩段分開讀會得到相反的結論，收進來就變成
+   同一檔同時是觀望注意與觀望不碰。
+   規則：把這一檔在整段逐字稿裡的所有段落合起來讀，以他對「現在能不能進場」
+   的最終態度為準，只生一列。
+   實際判錯過的例子（聯電 2303）：他先說「獲利比連接好太多，要去衝季線、
+   補這個缺口，好好留意這一塊」，接著自問自答「聯電可不可以買？聯電線還壓著，
+   我根本連動都不會想動」。結論是現在不動，所以是觀望不碰；
+   「等過季線補缺口再說」是條件，寫進說明裡，不是另外開一列看好的。
 
 分類定義：
 - buy：影片中明講「今天」執行的買入。
@@ -3137,6 +3206,9 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None
     # 沒收斂之前同一檔的兩列可能長得完全不同，比不出它們是同一個東西。
     step("合併重複", f"目前 {_n(signals)} 檔，同一類裡同一檔只留一列")
     signals = merge_duplicates(signals)
+    # 觀望兩類之間的衝突要在合併之後才處理：合併會先把各類裡的重複收乾淨，
+    # 剩下的才是「真的一多一空」。
+    signals = resolve_watch_conflict(signals)
 
     step("價位校對", f"目前 {_n(signals)} 檔，用日K驗證每一個數字是不是這一檔的")
     signals = price_reality_check(ss, signals, date_str)

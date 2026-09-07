@@ -135,6 +135,10 @@ def require_gemini_key():
 BACKFILL = os.environ.get("BACKFILL", "false").strip().lower() == "true"
 FINAL_ATTEMPT = os.environ.get("FINAL_ATTEMPT", "false").strip().lower() == "true"
 
+# 解析會員簡訊模式。處理「會員簡訊」分頁中待解析的簡訊。
+PARSE_SMS = os.environ.get("PARSE_SMS", "false").strip().lower() == "true"
+SMS_SINCE = os.environ.get("SMS_SINCE", "").strip()
+
 # 純修代號模式。只把試算表既有的股票名稱重跑一次拼音比對，
 # 不碰 NotebookLM，不呼叫 Gemini，幾十秒就跑完。
 REPAIR_CODES = os.environ.get("REPAIR_CODES", "false").strip().lower() == "true"
@@ -3634,6 +3638,324 @@ def upsert_video_transcript(ss, video_id, date_str, v2):
     print(f"影片清單沒有 {date_str} 的列，已新增一列並寫入修飾稿（{len(v2)} 字）")
 
 
+# ---------------------------------------------------------------- #
+# 會員簡訊解析（GitHub Actions 執行）
+# ---------------------------------------------------------------- #
+
+CM_PARSE_SYSTEM = (
+    "你在讀一則投顧分析師發給會員的盤中操作簡訊，要把它變成結構化的操作紀錄。\n\n"
+    "輸入是「一條指令」的內文，開頭的廣播序號（張震-1、震2、張震6GJ-1）已經去掉了。\n\n"
+    "action 只能是這五個之一：\n"
+    "  買入　　　叫會員現在買進、買回、加碼。\n"
+    "  賣出　　　叫會員現在賣出、獲利了結、減碼、出清。\n"
+    "  會員持股　明講會員手上有這一檔，而且要續抱、抱牢、不動作。\n"
+    "  觀望不碰　明講現在不可以買、不要碰、不要追。\n"
+    "  觀望注意　只是點名要留意、追蹤、準備突破，沒有叫人現在動作。\n\n"
+    "一條指令可以產生好幾筆。最常見的是換股：\n"
+    "  「請將手中璟德於257元以上全數獲利賣出，資金轉為65.5元以下市價買進2354鴻準」\n"
+    "  → 璟德 賣出 257、鴻準 買入 65.5，兩筆。\n"
+    "  「會員持股穩穩的，華城、晶心科、祥碩、嘉澤、鴻準等，皆持股續抱」\n"
+    "  → 五筆會員持股，都沒有價位。\n\n"
+    "price 是數字，只填「這一條裡真的寫出來的那個數字」。\n"
+    "  「請於775元以上全數獲利賣出」→ price 775、limit「以上」\n"
+    "  「請在264元以下買進」　　　　→ price 264、limit「以下」\n"
+    "  「請於紅盤之上全數獲利賣出」　→ price 留空，那不是數字\n"
+    "  「於成本之上獲利賣出」　　　　→ price 留空\n"
+    "  絕對不可以自己換算、推估或補一個看起來合理的數字。沒有就留空。\n\n"
+    "不可以生出來的東西：\n"
+    "1. 族群、概念、指數不是個股。「被動元件」「ABF」「矽晶圓」「航運股」「記憶體」等出現時不要開筆。\n"
+    "2. 大盤、指數、點數不是個股，不要開筆。\n"
+    "3. 沒有指名個股的鼓勵與提醒（「持股續抱即可」「一切依我通知操作」）不要開筆。\n"
+    "4. 除權息金額不是操作價位。「（除息2元）」裡的數字不可以填進 price。\n"
+    "5. 名稱照原文寫。他寫「璟德」就填璟德，不要改成你認為的正字，也不要自己補代號——他有寫代號才填，沒寫留空。\n\n"
+    "note 用 30 字以內寫這一筆在做什麼，要看得出條件。\n\n"
+    "只回傳 JSON：\n"
+    '{"items":[{"name":"","code":"","action":"","price":"","limit":"","note":""}]}\n'
+    '沒有任何一筆可以收時回 {"items":[]}。'
+)
+
+
+def report_sms_progress(status="處理中", step="準備", done=0, total=4, pct=0, note=""):
+    """回報簡訊解析進度至終端機與下游 Apps Script 狀態，驅動前台進度條"""
+    bar_width = 20
+    filled = int(bar_width * max(0, min(100, pct)) / 100)
+    bar = "=" * filled + (">" if filled < bar_width else "") + " " * max(0, bar_width - filled - (1 if filled < bar_width else 0))
+    print(f"[{bar}] {pct}% | {step} ({done}/{total}) | {note}")
+
+    if not APPS_SCRIPT_URL or not ADMIN_KEY:
+        return
+    try:
+        requests.get(
+            APPS_SCRIPT_URL,
+            params={
+                "action": "refresh",
+                "key": ADMIN_KEY,
+                "step": "smsstate",
+                "status": status,
+                "sub_step": step,
+                "done": done,
+                "total": total,
+                "pct": pct,
+                "note": str(note)[:200],
+            },
+            timeout=10,
+            headers={"User-Agent": "zhangzhen-pipeline"},
+        )
+    except Exception:
+        pass
+
+
+def verify_sms_item(it: dict, body: str, code_map: dict) -> dict | None:
+    if not isinstance(it, dict):
+        return None
+    name = str(it.get("name") or "").strip()
+    action = str(it.get("action") or "").strip()
+    if not name or action not in ["買入", "賣出", "會員持股", "觀望不碰", "觀望注意"]:
+        return None
+    if name not in body:
+        return None
+    if is_non_stock(name):
+        return None
+
+    hint = str(it.get("code") or "").strip()
+    code, official_name, how = resolve_code(name, hint)
+    if code == REJECT:
+        return None
+
+    price = str(it.get("price") or "").strip()
+    price_valid = False
+    if price and re.match(r"^\d+(\.\d+)?$", price):
+        if price in body:
+            # 排除除權息金額
+            if not re.search(r"除[權息][^）)]{0,6}" + re.escape(price), body):
+                price_valid = True
+
+    clean_price = price if price_valid else ""
+    limit = str(it.get("limit") or "").strip()
+    if limit not in ["以上", "以下"]:
+        limit = ""
+    price_text = (clean_price + " 元" + limit) if clean_price else "未說明"
+
+    return {
+        "name": official_name,
+        "code": code,
+        "action": action,
+        "price": clean_price,
+        "limit": limit,
+        "priceText": price_text,
+        "note": str(it.get("note") or "").strip()[:60],
+    }
+
+
+def get_existing_cmoney_ids(ss) -> set[str]:
+    cids = set()
+    for sheet_name in ("操作紀錄", "會員持股"):
+        try:
+            ws = ss.worksheet(sheet_name)
+            vals = sheets_retry(ws.get_all_values)
+            if len(vals) < 2:
+                continue
+            headers = [str(h).strip() for h in vals[0]]
+            c_src = headers.index("來源影片ID") if "來源影片ID" in headers else -1
+            if c_src < 0:
+                continue
+            for row in vals[1:]:
+                if c_src < len(row):
+                    src = str(row[c_src]).strip()
+                    if src.startswith("CMONEY-"):
+                        cids.add(src)
+        except Exception:
+            pass
+    return cids
+
+
+def parse_pending_sms(ss, since=""):
+    """
+    在 GitHub Actions 上解析「會員簡訊」中待解析的簡訊。
+    逐條進行 Gemini AI 結構化抽取，並依設定寫回「會員簡訊」、「操作紀錄」與「會員持股」。
+    具備即時工作流程進度條與日誌回報。
+    """
+    print("\n" + "=" * 60)
+    print("開始執行會員簡訊解析流程" + (f"（自 {since} 起）" if since else ""))
+    print("=" * 60)
+    report_sms_progress(status="處理中", step="準備", done=0, total=4, pct=5, note="連線試算表...")
+
+    try:
+        ws = ss.worksheet("會員簡訊")
+    except Exception as e:
+        print(f"找不到「會員簡訊」分頁：{e}")
+        report_sms_progress(status="完成", step="完成", done=4, total=4, pct=100, note="找不到會員簡訊分頁，略過")
+        return
+
+    records = sheets_retry(ws.get_all_values)
+    if not records or len(records) < 2:
+        print("「會員簡訊」分頁無資料。")
+        report_sms_progress(status="完成", step="完成", done=4, total=4, pct=100, note="分頁無資料")
+        return
+
+    headers = [str(h).strip() for h in records[0]]
+    def col_idx(name):
+        return headers.index(name) if name in headers else -1
+
+    c_id = col_idx("文章ID")
+    c_time = col_idx("發文時間")
+    c_text = col_idx("原文")
+    c_state = col_idx("解析狀態")
+    if c_id < 0 or c_text < 0 or c_state < 0:
+        print("會員簡訊分頁缺少必要欄位（文章ID、原文、解析狀態）。")
+        report_sms_progress(status="失敗", step="讀取待解析", done=1, total=4, pct=25, note="缺少必要欄位")
+        return
+
+    report_sms_progress(status="處理中", step="讀取待解析", done=1, total=4, pct=20, note="讀取試算表中待解析列...")
+
+    pending = []
+    since_norm = norm_date(since) if since else ""
+    for r_idx, row in enumerate(records[1:], start=2):
+        st = str(row[c_state]).strip() if c_state < len(row) else ""
+        t_str = str(row[c_time]).strip() if c_time >= 0 and c_time < len(row) else ""
+        d_str = norm_date(t_str.split(" ")[0]) if t_str else ""
+        if since_norm and d_str and d_str < since_norm:
+            continue
+        if since_norm or st == "待解析":
+            pending.append({
+                "row": r_idx,
+                "id": str(row[c_id]).strip() if c_id < len(row) else "",
+                "time": t_str,
+                "date": d_str,
+                "text": str(row[c_text]).strip() if c_text < len(row) else "",
+                "state": st,
+            })
+
+    if not pending:
+        print("沒有需要解析的會員簡訊。")
+        report_sms_progress(status="完成", step="完成", done=4, total=4, pct=100, note="沒有待解析的簡訊")
+        return
+
+    total_cnt = len(pending)
+    print(f"找到 {total_cnt} 則待解析簡訊。")
+    report_sms_progress(status="處理中", step="AI模型解析", done=2, total=4, pct=30, note=f"共 {total_cnt} 則，開始 AI 解析...")
+
+    code_map = get_code_map()
+    cm_mark = re.compile(r'(?:張震|震)\s*(?:6GJ)?\s*[-－—─]?\s*[0-9０-９]{0,2}\s*[:：]')
+    write_trades_enabled = os.environ.get("CMONEY_WRITE_TRADES", "false").strip().lower() == "true"
+    existing_cids = get_existing_cmoney_ids(ss)
+
+    parsed_results = []
+    for idx, p in enumerate(pending):
+        cur_pct = 30 + int(((idx + 1) / total_cnt) * 45)
+        sub_note = f"解析第 {idx+1}/{total_cnt} 則（文章 {p['id']}）"
+        report_sms_progress(status="處理中", step=f"AI模型解析 {idx+1}/{total_cnt}", done=2, total=4, pct=cur_pct, note=sub_note)
+
+        text = p["text"]
+        marks = list(cm_mark.finditer(text))
+        orders = []
+        if marks:
+            for m_i, m in enumerate(marks):
+                start = m.end()
+                end = marks[m_i + 1].start() if m_i + 1 < len(marks) else len(text)
+                body = text[start:end].strip()
+                if body:
+                    orders.append({"tag": m.group().strip(), "body": body})
+        elif text.strip():
+            orders.append({"tag": "簡訊", "body": text.strip()})
+
+        items = []
+        parse_err = False
+        for o in orders:
+            try:
+                raw_json = call_gemini(CM_PARSE_SYSTEM, o["body"], want_json=True, tag=f"sms_{p['id']}")
+                data = None
+                if isinstance(raw_json, dict):
+                    data = raw_json
+                else:
+                    j_str = str(raw_json).strip()
+                    m_json = re.search(r'\{.*\}', j_str, re.DOTALL)
+                    if m_json:
+                        data = json.loads(m_json.group())
+                raw_items = data.get("items", []) if isinstance(data, dict) else []
+                for it in raw_items:
+                    v = verify_sms_item(it, o["body"], code_map)
+                    if v:
+                        v["tag"] = o["tag"]
+                        items.append(v)
+            except Exception as ex:
+                print(f"  文章 {p['id']} 呼叫 Gemini 失敗：{ex}")
+                parse_err = True
+
+        parsed_results.append({
+            "pending": p,
+            "items": items,
+            "error": parse_err,
+        })
+        time.sleep(1)
+
+    # 寫入紀錄 (Step 3)
+    report_sms_progress(status="處理中", step="寫入紀錄", done=3, total=4, pct=80, note="正在寫入試算表...")
+    trades_to_append = []
+    holds_to_append = []
+    status_updates = []
+
+    for res in parsed_results:
+        p = res["pending"]
+        items = res["items"]
+        row_num = p["row"]
+        art_id = p["id"]
+        src_id = f"CMONEY-{art_id}"
+        post_date = p["date"] or datetime.now(TAIPEI).strftime("%Y/%m/%d")
+
+        if res["error"] and not items:
+            status_updates.append((row_num, c_state + 1, "解析失敗"))
+            continue
+
+        if not items:
+            status_updates.append((row_num, c_state + 1, "無可收錄"))
+            continue
+
+        if write_trades_enabled:
+            if src_id not in existing_cids:
+                t_cnt, h_cnt = 0, 0
+                for it in items:
+                    if it["action"] == "會員持股":
+                        holds_to_append.append([post_date, it["name"], it["code"], "續抱", it.get("note") or "簡訊通知持股續抱", src_id])
+                        h_cnt += 1
+                    else:
+                        trades_to_append.append([post_date, it["name"], it["code"], it["action"], it.get("priceText", "未說明"), it.get("note", "")[:60], src_id, ""])
+                        t_cnt += 1
+                status_updates.append((row_num, c_state + 1, f"已寫入 {t_cnt} 筆買賣、{h_cnt} 筆持股"))
+                existing_cids.add(src_id)
+            else:
+                status_updates.append((row_num, c_state + 1, "已解析（曾寫入）"))
+        else:
+            status_updates.append((row_num, c_state + 1, "已解析（未寫入）"))
+
+    if trades_to_append:
+        try:
+            ws_trades = ss.worksheet("操作紀錄")
+            sheets_retry(ws_trades.append_rows, trades_to_append, value_input_option="USER_ENTERED")
+            print(f"成功寫入操作紀錄 {len(trades_to_append)} 筆。")
+        except Exception as e:
+            print(f"寫入操作紀錄失敗：{e}")
+
+    if holds_to_append:
+        try:
+            ws_holds = ss.worksheet("會員持股")
+            sheets_retry(ws_holds.append_rows, holds_to_append, value_input_option="USER_ENTERED")
+            print(f"成功寫入會員持股 {len(holds_to_append)} 筆。")
+        except Exception as e:
+            print(f"寫入會員持股失敗：{e}")
+
+    if status_updates:
+        batch_data = [{"range": gspread.utils.rowcol_to_a1(rn, col), "values": [[val]]} for rn, col, val in status_updates]
+        sheets_retry(ws.batch_update, batch_data, value_input_option="RAW")
+        print(f"成功更新會員簡訊狀態 {len(status_updates)} 列。")
+
+    # 完成 (Step 4)
+    fin_note = f"共解析 {len(parsed_results)} 則簡訊，流程順利結束。"
+    report_sms_progress(status="完成", step="完成", done=4, total=4, pct=100, note=fin_note)
+    write_status_log(ss, "會員簡訊", fin_note)
+    print("會員簡訊解析全部完成。\n")
+
+
 def process_one(ss, video, done_trades, done_holds):
     date_str = video["date"].strftime("%Y/%m/%d")
     print(f"\n=== 處理 {date_str}　{video['title']}　{video['id']} ===")
@@ -4340,6 +4662,7 @@ def main():
     # 先前就發生過三個都勾、結果只跑了修代號的情況，所以這裡明講。
     picked = [n for n, on in (("admin_job", ADMIN_JOB),
                               ("full_fix", FULL_FIX),
+                              ("parse_sms", PARSE_SMS),
                               ("repair_codes", REPAIR_CODES),
                               ("reclassify", RECLASSIFY),
                               ("fix_prices", FIX_PRICES),
@@ -4395,6 +4718,12 @@ def main():
     if ADMIN_JOB:
         print("模式：後台工單。逐字稿已由管理者貼進試算表，這裡把後面的流程跑完。")
         run_admin_job(ss)
+        maybe_refresh_site()
+        return
+
+    if PARSE_SMS:
+        print("模式：解析會員簡訊。在 GitHub Actions 上處理待解析簡訊。")
+        parse_pending_sms(ss, since=SMS_SINCE)
         maybe_refresh_site()
         return
 
@@ -4574,6 +4903,10 @@ def main():
     if not POLL_LOOP:
         handle_today_once()
         save_rotated_auth(ss, _AUTH_FP[0])
+        try:
+            parse_pending_sms(ss)
+        except Exception as e:
+            print(f"（自動解析會員簡訊跳過或出錯，不影響主流程：{e}）")
         return
 
     # 走內部循環：每 POLL_INTERVAL 秒敲一次，直到收工或超過時間預算。
@@ -4638,6 +4971,13 @@ def main():
     # 輪詢結束（收工、預算用盡或已完成）。把輪換過的憑證存回試算表，
     # 讓下一次執行接續使用，而不是每次都退回 Secret 裡那份越來越舊的種子。
     save_rotated_auth(ss, _AUTH_FP[0])
+
+    # 融入既有工作流程：每次每日流程結束後，順道檢查並解析當日待解析的會員簡訊
+    if not BACKFILL:
+        try:
+            parse_pending_sms(ss)
+        except Exception as e:
+            print(f"（自動解析會員簡訊跳過或出錯，不影響主流程：{e}）")
 
 
 if __name__ == "__main__":

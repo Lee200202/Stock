@@ -3643,35 +3643,38 @@ def upsert_video_transcript(ss, video_id, date_str, v2):
 # ---------------------------------------------------------------- #
 
 CM_PARSE_SYSTEM = (
-    "你在讀一則投顧分析師發給會員的盤中操作簡訊，要把它變成結構化的操作紀錄。\n\n"
-    "輸入是「一條指令」的內文，開頭的廣播序號（張震-1、震2、張震6GJ-1）已經去掉了。\n\n"
-    "action 只能是這五個之一：\n"
-    "  買入　　　叫會員現在買進、買回、加碼。\n"
-    "  賣出　　　叫會員現在賣出、獲利了結、減碼、出清。\n"
-    "  會員持股　明講會員手上有這一檔，而且要續抱、抱牢、不動作。\n"
-    "  觀望不碰　明講現在不可以買、不要碰、不要追。\n"
+    "你在讀一則台灣投顧分析師發給 VIP 會員的盤中即時操作簡訊，要把它變成結構化的個股操作紀錄。\n\n"
+    "輸入是「一條指令」的內文，開頭的廣播序號（如 張震-1、震1、張震6GJ-1）已經去掉了。\n\n"
+    "【action 只能是這五個之一】\n"
+    "  買入　　　叫會員現在買進、買回、加碼、分批買、掛單買、「站買方」、「轉為...買進」。\n"
+    "  賣出　　　叫會員現在賣出、獲利了結、減碼、出清、賣掉、「站賣方」、「應站賣方」、「手中若有...者應站賣方」、「紅盤之上獲利賣出」。\n"
+    "  會員持股　明講會員手上有這一檔，而且要續抱、抱牢、不動作、不必急於動作、等待轉折、不要急於加碼。例如：「會員手中持股嘉澤，要耐心等3天...不要急於加碼」、「會員持股...皆續抱」。\n"
+    "  觀望不碰　明講現在不可以買、不要碰、避開、不要追。\n"
     "  觀望注意　只是點名要留意、追蹤、準備突破，沒有叫人現在動作。\n\n"
-    "一條指令可以產生好幾筆。最常見的是換股：\n"
-    "  「請將手中璟德於257元以上全數獲利賣出，資金轉為65.5元以下市價買進2354鴻準」\n"
-    "  → 璟德 賣出 257、鴻準 買入 65.5，兩筆。\n"
-    "  「會員持股穩穩的，華城、晶心科、祥碩、嘉澤、鴻準等，皆持股續抱」\n"
-    "  → 五筆會員持股，都沒有價位。\n\n"
-    "price 是數字，只填「這一條裡真的寫出來的那個數字」。\n"
-    "  「請於775元以上全數獲利賣出」→ price 775、limit「以上」\n"
-    "  「請在264元以下買進」　　　　→ price 264、limit「以下」\n"
-    "  「請於紅盤之上全數獲利賣出」　→ price 留空，那不是數字\n"
-    "  「於成本之上獲利賣出」　　　　→ price 留空\n"
-    "  絕對不可以自己換算、推估或補一個看起來合理的數字。沒有就留空。\n\n"
-    "不可以生出來的東西：\n"
-    "1. 族群、概念、指數不是個股。「被動元件」「ABF」「矽晶圓」「航運股」「記憶體」等出現時不要開筆。\n"
-    "2. 大盤、指數、點數不是個股，不要開筆。\n"
-    "3. 沒有指名個股的鼓勵與提醒（「持股續抱即可」「一切依我通知操作」）不要開筆。\n"
-    "4. 除權息金額不是操作價位。「（除息2元）」裡的數字不可以填進 price。\n"
-    "5. 名稱照原文寫。他寫「璟德」就填璟德，不要改成你認為的正字，也不要自己補代號——他有寫代號才填，沒寫留空。\n\n"
-    "note 用 30 字以內寫這一筆在做什麼，要看得出條件。\n\n"
-    "只回傳 JSON：\n"
-    '{"items":[{"name":"","code":"","action":"","price":"","limit":"","note":""}]}\n'
-    '沒有任何一筆可以收時回 {"items":[]}。'
+    "【重要：台灣上市櫃股票名稱特別提醒】\n"
+    "1. 許多台股名稱取自日常成語或形容詞，切勿誤判為非股票！\n"
+    "   - 「至上」（8112）：分析師寫「會員手中至上，請於91元以上全數賣出」，「至上」就是股票名稱（至上電子 8112），絕非形容詞！必須提取！\n"
+    "   - 「嘉澤」（3533）：分析師寫「會員手中持股嘉澤，要耐心等3天...不要急於加碼」，「嘉澤」為個股，動作為「會員持股」！\n"
+    "   - 「鴻海」（2317）、「緯創」（3231）：分析師寫「手中若有鴻海、緯創者，今天應站賣方」，應提取兩筆：鴻海（賣出）、緯創（賣出）！\n"
+    "   - 「力積電」（6770）：若原文寫「6770力積電」，請將名稱填「力積電」，代號填「6770」！\n"
+    "   - 其餘常見股名如「大同」「統一」「佳能」「巨大」「光寶科」「致茂」「晶心科」「祥碩」「華城」「東元」「裕隆」等，均為合法股票名稱。\n"
+    "2. 一條指令包含多檔時，每一檔都要獨立開一筆。\n"
+    "   - 「鴻準、裕隆、晶心科皆小漲，華城、東元只是洗盤...祥碩今天季線正式向上，抱牢...持股目前續抱」→ 每一檔皆開一筆「會員持股」。\n\n"
+    "【價位填寫規則】\n"
+    "  price 只填「這一條裡真的寫出來的純數字」（整數或小數），不帶單位：\n"
+    "    「請於775元以上全數獲利賣出」→ price: '775', limit: '以上'\n"
+    "    「請在264元以下買進」　　　　→ price: '264', limit: '以下'\n"
+    "    「請於91元以上全數賣出」　　　→ price: '91', limit: '以上'\n"
+    "  非數字價位描述（如「紅盤之上」「成本之上」「市價」）：price 與 limit 留空，條件寫在 note 中。\n"
+    "  除權息括號說明（如「（已除息3.8元）」「（除息2元）」）：裡面的數字是除息金額不是操作價位，不可以填進 price；但除權息註記不影響操作，該檔股票仍須正常提取！\n\n"
+    "【嚴格不可生出筆數的情況（防雜訊）】\n"
+    "1. 族群、概念、類股不是個股。如「被動元件」「ABF」「矽晶圓」「航運股」「記憶體」「高檔AI族群」等出現時，絕對不可為它們開筆。\n"
+    "2. 加權指數、大盤點數（如「測試46188點」）不是個股，不可開筆。\n"
+    "3. 純大盤看法或無指名個股的心理喊話（如「大盤連續反彈兩天」「今天大盤都沒量，什麼動作都不要做，持股續抱即可」），不可開筆。\n\n"
+    "【輸出格式】\n"
+    "只回傳純 JSON：\n"
+    '{"items":[{"name":"股票名稱","code":"代號(無則留空)","action":"買入/賣出/會員持股/觀望不碰/觀望注意","price":"純數字價位(無則留空)","limit":"以上/以下(無則留空)","note":"操作條件或說明重點(30字內)"}]}\n'
+    '沒有任何一筆可以收錄時回 {"items":[]}。'
 )
 
 
@@ -3712,12 +3715,20 @@ def verify_sms_item(it: dict, body: str, code_map: dict) -> dict | None:
     action = str(it.get("action") or "").strip()
     if not name or action not in ["買入", "賣出", "會員持股", "觀望不碰", "觀望注意"]:
         return None
+
+    # 防呆：若 name 開頭自帶 4-6 位數代號如 "6770力積電"，自動分離代號與純名稱
+    hint = str(it.get("code") or "").strip()
+    m_code = re.match(r"^(\d{4,6})\s*(.+)$", name)
+    if m_code:
+        if not hint:
+            hint = m_code.group(1)
+        name = m_code.group(2).strip()
+
     if name not in body:
         return None
     if is_non_stock(name):
         return None
 
-    hint = str(it.get("code") or "").strip()
     code, official_name, how = resolve_code(name, hint)
     if code == REJECT:
         return None
@@ -3801,6 +3812,17 @@ def parse_pending_sms(ss, since=""):
     c_time = col_idx("發文時間")
     c_text = col_idx("原文")
     c_state = col_idx("解析狀態")
+    c_detail = col_idx("解析明細")
+
+    # 若無「解析明細」欄位，自動於表頭追加，確保解析明細不會因未直接寫入買賣而遺失
+    if c_detail < 0:
+        c_detail = len(headers)
+        headers.append("解析明細")
+        try:
+            ws.update_cell(1, c_detail + 1, "解析明細")
+        except Exception as e:
+            print(f"追加解析明細欄位提示：{e}")
+
     if c_id < 0 or c_text < 0 or c_state < 0:
         print("會員簡訊分頁缺少必要欄位（文章ID、原文、解析狀態）。")
         report_sms_progress(status="失敗", step="讀取待解析", done=1, total=4, pct=25, note="缺少必要欄位")
@@ -3903,13 +3925,30 @@ def parse_pending_sms(ss, since=""):
         src_id = f"CMONEY-{art_id}"
         post_date = p["date"] or datetime.now(TAIPEI).strftime("%Y/%m/%d")
 
+        items_json = json.dumps([
+            {
+                "name": it["name"],
+                "code": it["code"],
+                "dir": it["action"],
+                "price": it.get("price", ""),
+                "priceText": it.get("priceText", "未說明"),
+                "reason": it.get("note", ""),
+            }
+            for it in items
+        ], ensure_ascii=False) if items else "[]"
+
         if res["error"] and not items:
             status_updates.append((row_num, c_state + 1, "解析失敗"))
+            status_updates.append((row_num, c_detail + 1, "[]"))
             continue
 
         if not items:
             status_updates.append((row_num, c_state + 1, "無可收錄"))
+            status_updates.append((row_num, c_detail + 1, "[]"))
             continue
+
+        # 寫入解析明細（第 9 欄），確保前台即使在 CMONEY_WRITE_TRADES=false 下也能正常讀出明細
+        status_updates.append((row_num, c_detail + 1, items_json))
 
         if write_trades_enabled:
             if src_id not in existing_cids:

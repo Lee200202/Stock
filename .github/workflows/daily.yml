@@ -47,7 +47,7 @@ on:
         required: false
         default: 'false'
       repair_codes:
-        description: '只修代號待確認。不碰逐字稿、不呼叫 Gemini，幾十秒跑完'
+        description: '重跑代號比對：修代號待確認，也一併清掉查無此股的假代號。不碰逐字稿、不呼叫 Gemini'
         required: false
         default: 'false'
       fill_blanks:

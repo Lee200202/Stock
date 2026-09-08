@@ -111,6 +111,10 @@ on:
         description: '後台產生的會員簡訊工單 ID，用於進度與逐日稽核'
         required: false
         default: ''
+      sms_resume:
+        description: '配額恢復後續跑：true 時只處理未完成列並沿用逐篇檢查點'
+        required: false
+        default: 'false'
       sms_member_id:
         description: '公開來源帳號 ID，由 Apps Script 後台自動帶入'
         required: false
@@ -191,7 +195,7 @@ jobs:
             exit 1
           fi
 
-          if ! grep -q 'PIPELINE_FEATURES = "preflight,auth-rotation,lazy-gemini-key,cmoney-audit-v2"' "$PIPELINE_SCRIPT"; then
+          if ! grep -q 'cmoney-audit-v3,natural-reasons,sms-checkpoint' "$PIPELINE_SCRIPT"; then
             echo "::error::$PIPELINE_SCRIPT 版本過舊，缺少新版會員簡訊稽核與安全續跑功能。"
             echo ""
             echo "這個工作流程需要搭配同一批更新的 pipeline.py 才能運作。"
@@ -202,7 +206,7 @@ jobs:
             echo "那個訊息會把人引導去補 Secret，但真正要做的是更新 pipeline.py。"
             exit 1
           fi
-          echo "pipeline.py 版本相符：cmoney-audit-v2 ($PIPELINE_SCRIPT)"
+          echo "pipeline.py 版本相符：cmoney-audit-v3 ($PIPELINE_SCRIPT)"
           echo "PIPELINE_SCRIPT=$PIPELINE_SCRIPT" >> $GITHUB_ENV
 
       - name: 探測今天有沒有事情要做
@@ -232,6 +236,7 @@ jobs:
           SMS_MODE: ${{ github.event.inputs.sms_mode }}
           SMS_IDS: ${{ github.event.inputs.sms_ids }}
           SMS_JOB_ID: ${{ github.event.inputs.sms_job_id }}
+          SMS_RESUME: ${{ github.event.inputs.sms_resume }}
           CMONEY_MEMBER_ID: ${{ github.event.inputs.sms_member_id || secrets.CMONEY_MEMBER_ID || vars.CMONEY_MEMBER_ID }}
           # VOD 最早可能出現的台灣時間。這之前的觸發點一律跳過。
           VOD_EARLIEST_HOUR: '12'
@@ -322,6 +327,7 @@ jobs:
           SMS_MODE: ${{ github.event.inputs.sms_mode }}
           SMS_IDS: ${{ github.event.inputs.sms_ids }}
           SMS_JOB_ID: ${{ github.event.inputs.sms_job_id }}
+          SMS_RESUME: ${{ github.event.inputs.sms_resume }}
           CMONEY_MEMBER_ID: ${{ github.event.inputs.sms_member_id || secrets.CMONEY_MEMBER_ID || vars.CMONEY_MEMBER_ID }}
           SMS_AI_GAP_SEC: ${{ vars.SMS_AI_GAP_SEC || '7' }}
           # 跑完立刻刷新網站，不必等下游排程。需要下面兩個 Secret 才會動作。

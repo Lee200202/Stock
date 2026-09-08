@@ -13,8 +13,6 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
-import html as html_lib
 import json
 import os
 import random
@@ -140,10 +138,6 @@ FINAL_ATTEMPT = os.environ.get("FINAL_ATTEMPT", "false").strip().lower() == "tru
 # 解析會員簡訊模式。處理「會員簡訊」分頁中待解析的簡訊。
 PARSE_SMS = os.environ.get("PARSE_SMS", "false").strip().lower() == "true"
 SMS_SINCE = os.environ.get("SMS_SINCE", "").strip()
-SMS_MODE = os.environ.get("SMS_MODE", "").strip().lower()
-SMS_IDS = os.environ.get("SMS_IDS", "").strip()
-SMS_JOB_ID = os.environ.get("SMS_JOB_ID", "").strip()
-CMONEY_MEMBER_ID = os.environ.get("CMONEY_MEMBER_ID", "").strip()
 
 # 純修代號模式。只把試算表既有的股票名稱重跑一次拼音比對，
 # 不碰 NotebookLM，不呼叫 Gemini，幾十秒就跑完。
@@ -3657,9 +3651,6 @@ CM_PARSE_SYSTEM = (
     "  會員持股　明講會員手上有這一檔，而且要續抱、抱牢、不動作、不必急於動作、等待轉折、不要急於加碼。例如：「會員手中持股嘉澤，要耐心等3天...不要急於加碼」、「會員持股...皆續抱」。\n"
     "  觀望不碰　明講現在不可以買、不要碰、避開、不要追。\n"
     "  觀望注意　只是點名要留意、追蹤、準備突破，沒有叫人現在動作。\n\n"
-    "【同一句含兩種會員狀態】\n"
-    "「未持有者請於260元以下買進，已持有者續抱、不加碼」必須輸出同一檔兩筆：買入與會員持股。\n"
-    "不要自行判斷歷史成本；程式會查全部操作紀錄。若先前已有更低買入價，程式會省略本次條件式買入，只保留續抱。\n\n"
     "【重要：台灣上市櫃股票名稱特別提醒】\n"
     "1. 許多台股名稱取自日常成語或形容詞，切勿誤判為非股票！\n"
     "   - 「至上」（8112）：分析師寫「會員手中至上，請於91元以上全數賣出」，「至上」就是股票名稱（至上電子 8112），絕非形容詞！必須提取！\n"
@@ -3687,7 +3678,7 @@ CM_PARSE_SYSTEM = (
 )
 
 
-def report_sms_progress(status="處理中", step="準備", done=0, total=8, pct=0, note="", **metrics):
+def report_sms_progress(status="處理中", step="準備", done=0, total=4, pct=0, note=""):
     """回報簡訊解析進度至終端機與下游 Apps Script 狀態，驅動前台進度條"""
     bar_width = 20
     filled = int(bar_width * max(0, min(100, pct)) / 100)
@@ -3697,25 +3688,19 @@ def report_sms_progress(status="處理中", step="準備", done=0, total=8, pct=
     if not APPS_SCRIPT_URL or not ADMIN_KEY:
         return
     try:
-        params = {
-            "action": "refresh",
-            "key": ADMIN_KEY,
-            "step": "smsstate",
-            "status": status,
-            "sub_step": step,
-            "done": done,
-            "index": done,
-            "total": total,
-            "pct": pct,
-            "note": str(note)[:200],
-            "job_id": SMS_JOB_ID,
-            "mode": SMS_MODE or "parse",
-            "audit_ready": "true" if status == "完成" else "false",
-        }
-        params.update({k: str(v) for k, v in metrics.items()})
         requests.get(
             APPS_SCRIPT_URL,
-            params=params,
+            params={
+                "action": "refresh",
+                "key": ADMIN_KEY,
+                "step": "smsstate",
+                "status": status,
+                "sub_step": step,
+                "done": done,
+                "total": total,
+                "pct": pct,
+                "note": str(note)[:200],
+            },
             timeout=10,
             headers={"User-Agent": "zhangzhen-pipeline"},
         )
@@ -3795,374 +3780,29 @@ def get_existing_cmoney_ids(ss) -> set[str]:
     return cids
 
 
-def get_prior_sms_buy_prices(ss, excluded_sources: set[str]) -> dict[str, list[tuple[str, float]]]:
-    """每檔保留既有操作紀錄的最低明講買入價；重解析中的文章先排除。"""
-    out: dict[str, list[tuple[str, float]]] = {}
-    try:
-        values = sheets_retry(ss.worksheet("操作紀錄").get_all_values)
-        if len(values) < 2:
-            return out
-        head = [str(x).strip() for x in values[0]]
-        indexes = {x: head.index(x) for x in ("日期", "代號", "方向", "價位說明", "來源影片ID") if x in head}
-        if len(indexes) < 5:
-            return out
-        for row in values[1:]:
-            src = str(row[indexes["來源影片ID"]]).strip() if indexes["來源影片ID"] < len(row) else ""
-            if src in excluded_sources:
-                continue
-            action = str(row[indexes["方向"]]).strip() if indexes["方向"] < len(row) else ""
-            if not action.startswith("買"):
-                continue
-            code = str(row[indexes["代號"]]).strip() if indexes["代號"] < len(row) else ""
-            price_text = str(row[indexes["價位說明"]]) if indexes["價位說明"] < len(row) else ""
-            m = re.search(r"(?<!\d)(\d+(?:\.\d+)?)", price_text)
-            if not code or not m:
-                continue
-            price = float(m.group(1))
-            day = norm_date(row[indexes["日期"]] if indexes["日期"] < len(row) else "")
-            if day:
-                out.setdefault(code, []).append((day + " 23:59:59", price))
-    except Exception as e:
-        print(f"讀取會員簡訊歷史買入價失敗，將保守保留本次動作：{e}")
-    return out
-
-
-def _delete_rows_by_source(ss, source_id: str) -> int:
-    removed = 0
-    for sheet_name in ("操作紀錄", "會員持股"):
-        try:
-            ws = ss.worksheet(sheet_name)
-            values = sheets_retry(ws.get_all_values)
-            if len(values) < 2:
-                continue
-            head = [str(x).strip() for x in values[0]]
-            if "來源影片ID" not in head:
-                continue
-            col = head.index("來源影片ID")
-            targets = [idx for idx, row in enumerate(values[1:], 2)
-                       if col < len(row) and str(row[col]).strip() == source_id]
-            for row_num in reversed(targets):
-                sheets_retry(ws.delete_rows, row_num)
-                removed += 1
-        except Exception as e:
-            print(f"移除 {sheet_name} 舊衍生列失敗（{source_id}）：{e}")
-            raise
-    return removed
-
-
-def _remove_old_source_rows_keep_latest(ss, sheet_name: str, keep_counts: dict[str, int]):
-    """新列成功附加後才刪舊列；每個來源保留尾端本次寫入的指定筆數。"""
-    ws = ss.worksheet(sheet_name)
-    values = sheets_retry(ws.get_all_values)
-    if len(values) < 2:
-        return
-    head = [str(x).strip() for x in values[0]]
-    if "來源影片ID" not in head:
-        return
-    col = head.index("來源影片ID")
-    targets: list[int] = []
-    for source_id, keep in keep_counts.items():
-        rows = [idx for idx, row in enumerate(values[1:], 2)
-                if col < len(row) and str(row[col]).strip() == source_id]
-        if len(rows) > keep:
-            targets.extend(rows[:len(rows) - keep] if keep else rows)
-    for row_num in sorted(set(targets), reverse=True):
-        sheets_retry(ws.delete_rows, row_num)
-
-
-CMONEY_LIST_API = "https://www.cmoney.tw/api/mach/api/Article/GetChannelsArticleByWeight"
-CMONEY_USER_URL = "https://www.cmoney.tw/forum/user/{member_id}"
-CMONEY_ARTICLE_URL = "https://www.cmoney.tw/forum/article/{article_id}"
-CMONEY_MARK_RE = re.compile(r"(?:張震|震)\s*(?:6GJ)?\s*[-－—─]?\s*[0-9０-９]{0,2}\s*[:：]")
-CMONEY_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
-    "Accept-Language": "zh-TW,zh;q=0.9",
-}
-SMS_HEADERS = ["文章ID", "發文時間", "標題", "原文", "解析狀態", "抓取時間", "通知狀態", "網址",
-               "解析明細", "內容指紋", "最後偵測", "修訂次數"]
-SMS_AUDIT_HEADERS = ["作業ID", "文章ID", "發文時間", "日期", "標題", "原文", "張震判定", "範圍判定",
-                     "處理狀態", "說明", "網址", "更新時間"]
-
-
-def _sms_now() -> str:
-    return datetime.now(TAIPEI).strftime("%Y/%m/%d %H:%M:%S")
-
-
-def _sms_fingerprint(text: str) -> str:
-    normalized = re.sub(r"\s+", " ", str(text or "")).strip()
-    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
-
-
-def _ensure_sms_sheet(ss, title: str, headers: list[str]):
-    try:
-        ws = ss.worksheet(title)
-    except Exception:
-        ws = sheets_retry(ss.add_worksheet, title=title, rows=2000, cols=max(12, len(headers)))
-    values = sheets_retry(ws.get_all_values)
-    current = [str(x).strip() for x in values[0]] if values else []
-    changed = False
-    for h in headers:
-        if h not in current:
-            current.append(h)
-            changed = True
-    if not current:
-        current = list(headers)
-        changed = True
-    if changed or not values:
-        sheets_retry(ws.update, range_name=f"A1:{gspread.utils.rowcol_to_a1(1, len(current))}",
-                     values=[current])
-    return ws, current
-
-
-def _cmoney_guest_token(session: requests.Session, member_id: str) -> str:
-    url = CMONEY_USER_URL.format(member_id=member_id)
-    r = session.get(url, headers=CMONEY_HEADERS, timeout=25)
-    r.raise_for_status()
-    for pat in (r'tokens\s*:\s*\{\s*at\s*:\s*"([^"]+)"',
-                r'"tokens"\s*:\s*\{\s*"at"\s*:\s*"([^"]+)"'):
-        m = re.search(pat, r.text)
-        if m:
-            return m.group(1)
-    raise RuntimeError("公開會員頁找不到訪客權杖，來源網站可能已改版")
-
-
-def _clean_cmoney_text(raw: str) -> str:
-    text = re.sub(r"<br\s*/?>", "\n", str(raw or ""), flags=re.I)
-    text = re.sub(r"<[^>]+>", "", text)
-    return html_lib.unescape(text).strip()
-
-
-def _api_article(raw: dict) -> dict:
-    content = raw.get("content") or {}
-    stamp = raw.get("createTime")
-    try:
-        stamp = float(stamp)
-        if stamp > 10_000_000_000:
-            stamp /= 1000
-        dt = datetime.fromtimestamp(stamp, TAIPEI)
-        time_text = dt.strftime("%Y/%m/%d %H:%M:%S") if 2000 <= dt.year <= 2099 else ""
-    except Exception:
-        time_text = ""
-    article_id = str(raw.get("id") or "").strip()
-    return {
-        "id": article_id,
-        "creatorId": str(content.get("creatorId") or "").strip(),
-        "title": _clean_cmoney_text(content.get("title")),
-        "text": _clean_cmoney_text(content.get("text")),
-        "time": time_text,
-        "date": norm_date(time_text),
-        "url": CMONEY_ARTICLE_URL.format(article_id=article_id),
-        "weight": raw.get("weight"),
-    }
-
-
-def _parse_cmoney_html(article_id: str, source: str) -> dict:
-    def meta(name: str) -> str:
-        p1 = re.search(r'<meta[^>]*(?:property|name)="' + re.escape(name) + r'"[^>]*content="([^"]*)"', source, re.I)
-        p2 = re.search(r'<meta[^>]*content="([^"]*)"[^>]*(?:property|name)="' + re.escape(name) + r'"', source, re.I)
-        return html_lib.unescape((p1 or p2).group(1)).strip() if (p1 or p2) else ""
-
-    segment = ""
-    at = source.find("articleContent__text")
-    if at >= 0:
-        end = source.find("articleContent__", at + 20)
-        segment = source[at:end if end > at else at + 20000]
-    pieces = [_clean_cmoney_text(x) for x in re.findall(r"<span[^>]*>([\s\S]*?)</span>", segment, re.I)]
-    body = "\n".join(x for x in pieces if x).strip() or meta("og:description") or meta("description")
-    published = meta("article:published_time")
-    m = re.match(r"^(20\d{2})-(\d{1,2})-(\d{1,2})T(\d{1,2}):(\d{2})(?::(\d{2}))?", published)
-    time_text = ""
-    if m:
-        try:
-            dt = datetime(*[int(x or 0) for x in m.groups()], tzinfo=TAIPEI)
-            time_text = dt.strftime("%Y/%m/%d %H:%M:%S")
-        except ValueError:
-            pass
-    if not time_text:
-        own = source[:source.find("nav__articleItemTime")] if source.find("nav__articleItemTime") > 0 else source
-        own = re.sub(r"<script\b[^>]*>[\s\S]*?</script>|<style\b[^>]*>[\s\S]*?</style>", " ", own, flags=re.I)
-        visible = re.sub(r"\s+", " ", _clean_cmoney_text(own))
-        full = re.search(r"(20\d{2})[\/\-.年](\d{1,2})[\/\-.月](\d{1,2})日?\s*(\d{1,2}):(\d{2})(?::(\d{2}))?", visible)
-        if full:
-            try:
-                dt = datetime(*[int(x or 0) for x in full.groups()], tzinfo=TAIPEI)
-                time_text = dt.strftime("%Y/%m/%d %H:%M:%S")
-            except ValueError:
-                pass
-        else:
-            rel = re.search(r"(今天|昨日|昨天|星期[一二三四五六日天])\s*(\d{1,2}):(\d{2})(?::(\d{2}))?", visible)
-            if rel:
-                ref = datetime.now(TAIPEI)
-                shown_h, shown_m, shown_s = int(rel.group(2)), int(rel.group(3)), int(rel.group(4) or 0)
-                target = ref.replace(hour=shown_h, minute=shown_m, second=shown_s, microsecond=0)
-                label = rel.group(1)
-                if label in ("昨日", "昨天"):
-                    target -= timedelta(days=1)
-                elif label.startswith("星期"):
-                    weekday_map = {"一": 0, "二": 1, "三": 2, "四": 3, "五": 4, "六": 5, "日": 6, "天": 6}
-                    back = (ref.weekday() - weekday_map[label[-1]]) % 7
-                    target -= timedelta(days=back)
-                    if back == 0 and (shown_h, shown_m, shown_s) > (ref.hour, ref.minute, ref.second):
-                        target -= timedelta(days=7)
-                time_text = target.strftime("%Y/%m/%d %H:%M:%S")
-    return {"id": str(article_id), "creatorId": "", "title": meta("og:title"), "text": body,
-            "time": time_text, "date": norm_date(time_text),
-            "url": CMONEY_ARTICLE_URL.format(article_id=article_id), "weight": None}
-
-
-def fetch_cmoney_articles(mode: str, ids_text: str = "") -> list[dict]:
-    if not CMONEY_MEMBER_ID.isdigit():
-        raise SystemExit("缺少 GitHub Variable CMONEY_MEMBER_ID，無法抓取會員簡訊")
-    session = requests.Session()
-    token = _cmoney_guest_token(session, CMONEY_MEMBER_ID)
-    since = norm_date(SMS_SINCE) if SMS_SINCE else (datetime.now(TAIPEI).date() - timedelta(days=6)).strftime("%Y/%m/%d")
-    through = datetime.now(TAIPEI).strftime("%Y/%m/%d")
-    found: list[dict] = []
-
-    if mode == "ids":
-        ids = list(dict.fromkeys(re.findall(r"\d{6,}", ids_text)))[:100]
-        if not ids:
-            raise SystemExit("依編號補抓沒有收到有效文章 ID")
-        for i, article_id in enumerate(ids, 1):
-            r = session.get(CMONEY_ARTICLE_URL.format(article_id=article_id), headers=CMONEY_HEADERS, timeout=25)
-            if r.status_code == 200:
-                found.append(_parse_cmoney_html(article_id, r.text))
-            else:
-                found.append({"id": article_id, "creatorId": "", "title": "", "text": "", "time": "", "date": "",
-                              "url": CMONEY_ARTICLE_URL.format(article_id=article_id), "error": f"HTTP {r.status_code}"})
-            report_sms_progress(step="探索文章", done=i, total=len(ids), pct=5 + int(i / len(ids) * 35),
-                                note=f"依編號抓取 {i}/{len(ids)}")
-        return found
-
-    score = None
-    for page in range(1, 5001):
-        params = {"count": 20}
-        if score is not None:
-            params["startScore"] = str(score)
-        headers = dict(CMONEY_HEADERS)
-        headers.update({"Authorization": f"Bearer {token}", "X-Version": "3.0",
-                        "Accept": "application/json", "Referer": CMONEY_USER_URL.format(member_id=CMONEY_MEMBER_ID)})
-        r = session.post(CMONEY_LIST_API, params=params, json={"items": [f"Member-All.{CMONEY_MEMBER_ID}"]},
-                         headers=headers, timeout=30)
-        if r.status_code in (401, 403):
-            token = _cmoney_guest_token(session, CMONEY_MEMBER_ID)
-            headers["Authorization"] = f"Bearer {token}"
-            r = session.post(CMONEY_LIST_API, params=params, json={"items": [f"Member-All.{CMONEY_MEMBER_ID}"]},
-                             headers=headers, timeout=30)
-        r.raise_for_status()
-        raw_items = r.json()
-        if not isinstance(raw_items, list):
-            raise RuntimeError("文章清單 API 格式已改變")
-        batch = [_api_article(x) for x in raw_items]
-        found.extend(batch)
-        report_sms_progress(step="探索文章", done=page, total=max(page, page + (1 if len(raw_items) == 20 else 0)),
-                            pct=min(40, 5 + page * 2), note=f"已掃描 {page} 頁、{len(found)} 篇")
-        if not raw_items or len(raw_items) < 20:
-            break
-        next_score = raw_items[-1].get("weight")
-        if next_score is None or str(next_score) == str(score):
-            raise RuntimeError("文章清單游標沒有前進，已停止避免重複抓取")
-        score = next_score
-        if mode == "recent":
-            valid = [x["date"] for x in batch if x.get("date")]
-            if valid and all(x < since for x in valid):
-                break
-    return found
-
-
-def save_cmoney_fetch(ss, articles: list[dict], mode: str) -> dict:
-    ws, headers = _ensure_sms_sheet(ss, "會員簡訊", SMS_HEADERS)
-    audit_ws, audit_headers = _ensure_sms_sheet(ss, "會員簡訊稽核", SMS_AUDIT_HEADERS)
-    existing_values = sheets_retry(ws.get_all_values)
-    c_id = headers.index("文章ID")
-    existing = {str(row[c_id]).strip(): (idx, row) for idx, row in enumerate(existing_values[1:], 2) if c_id < len(row)}
-    since = norm_date(SMS_SINCE) if SMS_SINCE else ((datetime.now(TAIPEI).date() - timedelta(days=6)).strftime("%Y/%m/%d") if mode == "recent" else "")
-    through = datetime.now(TAIPEI).strftime("%Y/%m/%d")
-    stats = {"scanned": len(articles), "zhang": 0, "saved": 0, "existed": 0, "errors": 0}
-    audit_rows = []
-    new_rows = []
-    job_id = SMS_JOB_ID or f"SMS-{datetime.now(TAIPEI):%Y%m%d-%H%M%S}"
-
-    for a in articles:
-        belongs = a.get("creatorId") == CMONEY_MEMBER_ID if a.get("creatorId") else mode == "ids"
-        is_zhang = bool(belongs and CMONEY_MARK_RE.search(a.get("text", "")))
-        valid_date = bool(a.get("date"))
-        in_range = valid_date and a["date"] <= through and (not since or a["date"] >= since)
-        error = str(a.get("error") or "")
-        status = "已排除"
-        note = "正文沒有張震廣播標記"
-        if error or not a.get("text"):
-            status, note = "抓取失敗", error or "文章沒有可讀正文"
-            stats["errors"] += 1
-        elif not is_zhang:
-            status, note = "已排除", "作者不符或正文沒有張震廣播標記"
-        elif not valid_date:
-            status, note = "日期錯誤", "找不到可驗證的發文時間，已隔離"
-            stats["zhang"] += 1; stats["errors"] += 1
-        elif not in_range:
-            status, note = "範圍外", "張震文章不在本次日期範圍"
-            stats["zhang"] += 1
-        else:
-            stats["zhang"] += 1
-            old = existing.get(a["id"])
-            if old:
-                status, note = "已存在", "正式資料已有同一文章 ID"
-                stats["existed"] += 1
-                old_row_num, old_row = old
-                old_text = old_row[headers.index("原文")] if headers.index("原文") < len(old_row) else ""
-                if _sms_fingerprint(old_text) != _sms_fingerprint(a["text"]):
-                    updates = {
-                        "發文時間": a["time"], "標題": a["title"], "原文": a["text"][:20000],
-                        "解析狀態": "待解析（補抓發現修訂）",
-                        "內容指紋": _sms_fingerprint(a["text"]), "最後偵測": _sms_now(),
-                    }
-                    for key, value in updates.items():
-                        sheets_retry(ws.update_cell, old_row_num, headers.index(key) + 1, value)
-                    status, note = "已更新", "來源內容有變更，已覆蓋並排回解析"
-            else:
-                row = [""] * len(headers)
-                values = {"文章ID": a["id"], "發文時間": a["time"], "標題": a["title"], "原文": a["text"][:20000],
-                          "解析狀態": "待解析", "抓取時間": _sms_now(), "通知狀態": "歷史補抓不寄送",
-                          "網址": a["url"], "解析明細": "[]", "內容指紋": _sms_fingerprint(a["text"]),
-                          "最後偵測": _sms_now(), "修訂次數": 0}
-                for key, value in values.items(): row[headers.index(key)] = value
-                new_rows.append(row); stats["saved"] += 1
-                status, note = "已收錄", "已寫入會員簡訊，等待 GitHub 解析"
-        audit_rows.append([job_id, a.get("id", ""), a.get("time", ""), a.get("date", ""), a.get("title", ""),
-                           a.get("text", "")[:20000] if is_zhang else "", "是" if is_zhang else "否",
-                           "範圍內" if in_range else "範圍外", status, note, a.get("url", ""), _sms_now()])
-
-    if new_rows:
-        sheets_retry(ws.append_rows, new_rows, value_input_option="RAW")
-    if audit_rows:
-        sheets_retry(audit_ws.append_rows, audit_rows, value_input_option="RAW")
-    print(f"會員簡訊抓取：掃描 {stats['scanned']}、張震 {stats['zhang']}、新收 {stats['saved']}、既有 {stats['existed']}、錯誤 {stats['errors']}")
-    return stats
-
-
 def parse_pending_sms(ss, since=""):
     """
     在 GitHub Actions 上解析「會員簡訊」中待解析的簡訊。
-    逐條進行 Gemini AI 結構化抽取，並寫回「會員簡訊」、「操作紀錄」與「會員持股」。
+    逐條進行 Gemini AI 結構化抽取，並依設定寫回「會員簡訊」、「操作紀錄」與「會員持股」。
     具備即時工作流程進度條與日誌回報。
     """
     print("\n" + "=" * 60)
     print("開始執行會員簡訊解析流程" + (f"（自 {since} 起）" if since else ""))
     print("=" * 60)
-    report_sms_progress(status="處理中", step="準備", done=0, total=8, pct=5, note="連線試算表...")
+    report_sms_progress(status="處理中", step="準備", done=0, total=4, pct=5, note="連線試算表...")
 
     try:
         ws = ss.worksheet("會員簡訊")
     except Exception as e:
         print(f"找不到「會員簡訊」分頁：{e}")
-        report_sms_progress(status="完成", step="完成", done=8, total=8, pct=100, note="找不到會員簡訊分頁，略過")
-        return set()
+        report_sms_progress(status="完成", step="完成", done=4, total=4, pct=100, note="找不到會員簡訊分頁，略過")
+        return
 
     records = sheets_retry(ws.get_all_values)
     if not records or len(records) < 2:
         print("「會員簡訊」分頁無資料。")
-        report_sms_progress(status="完成", step="完成", done=8, total=8, pct=100, note="分頁無資料")
-        return set()
+        report_sms_progress(status="完成", step="完成", done=4, total=4, pct=100, note="分頁無資料")
+        return
 
     headers = [str(h).strip() for h in records[0]]
     def col_idx(name):
@@ -4185,10 +3825,10 @@ def parse_pending_sms(ss, since=""):
 
     if c_id < 0 or c_text < 0 or c_state < 0:
         print("會員簡訊分頁缺少必要欄位（文章ID、原文、解析狀態）。")
-        report_sms_progress(status="失敗", step="讀取待解析", done=1, total=8, pct=25, note="缺少必要欄位")
-        return set()
+        report_sms_progress(status="失敗", step="讀取待解析", done=1, total=4, pct=25, note="缺少必要欄位")
+        return
 
-    report_sms_progress(status="處理中", step="篩選日期", done=3, total=8, pct=20, note="讀取試算表中待解析列...")
+    report_sms_progress(status="處理中", step="讀取待解析", done=1, total=4, pct=20, note="讀取試算表中待解析列...")
 
     pending = []
     since_norm = norm_date(since) if since else ""
@@ -4198,7 +3838,7 @@ def parse_pending_sms(ss, since=""):
         d_str = norm_date(t_str.split(" ")[0]) if t_str else ""
         if since_norm and d_str and d_str < since_norm:
             continue
-        if SMS_MODE == "reparse" or since_norm or st.startswith("待解析"):
+        if since_norm or st == "待解析":
             pending.append({
                 "row": r_idx,
                 "id": str(row[c_id]).strip() if c_id < len(row) else "",
@@ -4210,26 +3850,23 @@ def parse_pending_sms(ss, since=""):
 
     if not pending:
         print("沒有需要解析的會員簡訊。")
-        report_sms_progress(status="處理中", step="逐日稽核", done=6, total=8, pct=88, note="沒有待解析的簡訊，準備同步衍生資料")
-        return set()
-
-    pending.sort(key=lambda x: (x["time"], x["row"]))
+        report_sms_progress(status="完成", step="完成", done=4, total=4, pct=100, note="沒有待解析的簡訊")
+        return
 
     total_cnt = len(pending)
     print(f"找到 {total_cnt} 則待解析簡訊。")
-    report_sms_progress(status="處理中", step="AI解析", done=4, total=8, pct=30, note=f"共 {total_cnt} 則，開始 AI 解析...")
+    report_sms_progress(status="處理中", step="AI模型解析", done=2, total=4, pct=30, note=f"共 {total_cnt} 則，開始 AI 解析...")
 
     code_map = get_code_map()
     cm_mark = re.compile(r'(?:張震|震)\s*(?:6GJ)?\s*[-－—─]?\s*[0-9０-９]{0,2}\s*[:：]')
+    write_trades_enabled = os.environ.get("CMONEY_WRITE_TRADES", "false").strip().lower() == "true"
     existing_cids = get_existing_cmoney_ids(ss)
-    pending_sources = {f"CMONEY-{p['id']}" for p in pending}
-    prior_buy_prices = get_prior_sms_buy_prices(ss, pending_sources)
 
     parsed_results = []
     for idx, p in enumerate(pending):
         cur_pct = 30 + int(((idx + 1) / total_cnt) * 45)
         sub_note = f"解析第 {idx+1}/{total_cnt} 則（文章 {p['id']}）"
-        report_sms_progress(status="處理中", step=f"AI解析 {idx+1}/{total_cnt}", done=4, total=8, pct=cur_pct, note=sub_note)
+        report_sms_progress(status="處理中", step=f"AI模型解析 {idx+1}/{total_cnt}", done=2, total=4, pct=cur_pct, note=sub_note)
 
         text = p["text"]
         marks = list(cm_mark.finditer(text))
@@ -4267,49 +3904,18 @@ def parse_pending_sms(ss, since=""):
                 print(f"  文章 {p['id']} 呼叫 Gemini 失敗：{ex}")
                 parse_err = True
 
-        # 條件式訊息常同時說「未持有者 X 以下買進、已持有者續抱不加碼」。
-        # 若歷史已有更低的明講買入價，這次不是新的進場，買入列不呈現；
-        # 持股續抱仍保留。第一次出現，或這次價位更低時，才留下買入動作。
-        deduped, seen_items = [], set()
-        for it in items:
-            key = (it["code"], it["action"], it.get("price", ""), it.get("limit", ""))
-            if key not in seen_items:
-                seen_items.add(key); deduped.append(it)
-        items = deduped
-        conditional_hold = bool(re.search(r"未持有.{0,40}(?:買進|買入|買回).{0,80}已持有.{0,40}(?:續抱|不加碼)", text))
-        if conditional_hold:
-            held_codes = {x["code"] for x in items if x["action"] == "會員持股"}
-            for buy in [x for x in items if x["action"] == "買入" and x["code"] not in held_codes]:
-                items.append({"name": buy["name"], "code": buy["code"], "action": "會員持股",
-                              "price": "", "limit": "", "priceText": "未說明",
-                              "note": "已持有者續抱，不加碼", "tag": buy.get("tag", "簡訊")})
-        filtered = []
-        for it in items:
-            if it["action"] == "買入" and conditional_hold and it.get("price"):
-                current = float(it["price"])
-                history = prior_buy_prices.get(it["code"], [])
-                prior_values = [price for when, price in history if when < p["time"]]
-                prior = min(prior_values) if prior_values else None
-                if prior is not None and prior <= current:
-                    print(f"  {it['code']} {it['name']}：歷史買入 {prior:g} 低於本次 {current:g}，省略條件式買入，保留續抱")
-                    continue
-                prior_buy_prices.setdefault(it["code"], []).append((p["time"], current))
-            filtered.append(it)
-
         parsed_results.append({
             "pending": p,
-            "items": filtered,
+            "items": items,
             "error": parse_err,
         })
         time.sleep(1)
 
     # 寫入紀錄 (Step 3)
-    report_sms_progress(status="處理中", step="寫入資料", done=5, total=8, pct=80, note="正在寫入試算表...")
+    report_sms_progress(status="處理中", step="寫入紀錄", done=3, total=4, pct=80, note="正在寫入試算表...")
     trades_to_append = []
     holds_to_append = []
     status_updates = []
-    changed_dates: set[str] = set()
-    replace_counts: dict[str, dict[str, int]] = {}
 
     for res in parsed_results:
         p = res["pending"]
@@ -4317,13 +3923,7 @@ def parse_pending_sms(ss, since=""):
         row_num = p["row"]
         art_id = p["id"]
         src_id = f"CMONEY-{art_id}"
-        post_date = p["date"]
-
-        if not post_date:
-            status_updates.append((row_num, c_state + 1, "日期錯誤（已隔離）"))
-            status_updates.append((row_num, c_detail + 1, "[]"))
-            print(f"  文章 {art_id} 缺少可驗證日期，未寫入任何衍生資料")
-            continue
+        post_date = p["date"] or datetime.now(TAIPEI).strftime("%Y/%m/%d")
 
         items_json = json.dumps([
             {
@@ -4337,36 +3937,35 @@ def parse_pending_sms(ss, since=""):
             for it in items
         ], ensure_ascii=False) if items else "[]"
 
-        if res["error"]:
-            status_updates.append((row_num, c_state + 1, "解析失敗（未改動舊紀錄）"))
+        if res["error"] and not items:
+            status_updates.append((row_num, c_state + 1, "解析失敗"))
+            status_updates.append((row_num, c_detail + 1, "[]"))
             continue
 
         if not items:
-            if src_id in existing_cids:
-                _delete_rows_by_source(ss, src_id)
-                existing_cids.discard(src_id)
-                changed_dates.add(post_date)
             status_updates.append((row_num, c_state + 1, "無可收錄"))
             status_updates.append((row_num, c_detail + 1, "[]"))
             continue
 
-        # 寫入解析明細；前台表格與操作紀錄都以同一份驗證後結果為準。
+        # 寫入解析明細（第 9 欄），確保前台即使在 CMONEY_WRITE_TRADES=false 下也能正常讀出明細
         status_updates.append((row_num, c_detail + 1, items_json))
 
-        # 重新解析時採文章 ID 原子取代：先成功解析，再刪該篇舊衍生列並寫新版。
-        # 這讓過去每日總覽、持股追蹤、績效與郵件查詢都讀到同一份結果。
-        t_cnt, h_cnt = 0, 0
-        for it in items:
-            if it["action"] == "會員持股":
-                holds_to_append.append([post_date, it["name"], it["code"], "續抱", it.get("note") or "簡訊通知持股續抱", src_id])
-                h_cnt += 1
+        if write_trades_enabled:
+            if src_id not in existing_cids:
+                t_cnt, h_cnt = 0, 0
+                for it in items:
+                    if it["action"] == "會員持股":
+                        holds_to_append.append([post_date, it["name"], it["code"], "續抱", it.get("note") or "簡訊通知持股續抱", src_id])
+                        h_cnt += 1
+                    else:
+                        trades_to_append.append([post_date, it["name"], it["code"], it["action"], it.get("priceText", "未說明"), it.get("note", "")[:60], src_id, ""])
+                        t_cnt += 1
+                status_updates.append((row_num, c_state + 1, f"已寫入 {t_cnt} 筆買賣、{h_cnt} 筆持股"))
+                existing_cids.add(src_id)
             else:
-                trades_to_append.append([post_date, it["name"], it["code"], it["action"], it.get("priceText", "未說明"), it.get("note", "")[:60], src_id, ""])
-                t_cnt += 1
-        status_updates.append((row_num, c_state + 1, f"已寫入 {t_cnt} 筆買賣、{h_cnt} 筆持股"))
-        replace_counts[src_id] = {"操作紀錄": t_cnt, "會員持股": h_cnt}
-        existing_cids.add(src_id)
-        changed_dates.add(post_date)
+                status_updates.append((row_num, c_state + 1, "已解析（曾寫入）"))
+        else:
+            status_updates.append((row_num, c_state + 1, "已解析（未寫入）"))
 
     if trades_to_append:
         try:
@@ -4375,8 +3974,6 @@ def parse_pending_sms(ss, since=""):
             print(f"成功寫入操作紀錄 {len(trades_to_append)} 筆。")
         except Exception as e:
             print(f"寫入操作紀錄失敗：{e}")
-            report_sms_progress(status="失敗", step="寫入資料", done=5, total=8, pct=80, note=f"操作紀錄寫入失敗：{e}")
-            raise
 
     if holds_to_append:
         try:
@@ -4385,14 +3982,6 @@ def parse_pending_sms(ss, since=""):
             print(f"成功寫入會員持股 {len(holds_to_append)} 筆。")
         except Exception as e:
             print(f"寫入會員持股失敗：{e}")
-            report_sms_progress(status="失敗", step="寫入資料", done=5, total=8, pct=80, note=f"會員持股寫入失敗：{e}")
-            raise
-
-    if replace_counts:
-        _remove_old_source_rows_keep_latest(ss, "操作紀錄",
-                                            {s: n["操作紀錄"] for s, n in replace_counts.items()})
-        _remove_old_source_rows_keep_latest(ss, "會員持股",
-                                            {s: n["會員持股"] for s, n in replace_counts.items()})
 
     if status_updates:
         batch_data = [{"range": gspread.utils.rowcol_to_a1(rn, col), "values": [[val]]} for rn, col, val in status_updates]
@@ -4401,32 +3990,9 @@ def parse_pending_sms(ss, since=""):
 
     # 完成 (Step 4)
     fin_note = f"共解析 {len(parsed_results)} 則簡訊，流程順利結束。"
-    report_sms_progress(status="處理中", step="逐日稽核", done=6, total=8, pct=88, note=fin_note + " 正在同步衍生內容。")
+    report_sms_progress(status="完成", step="完成", done=4, total=4, pct=100, note=fin_note)
     write_status_log(ss, "會員簡訊", fin_note)
     print("會員簡訊解析全部完成。\n")
-    return changed_dates
-
-
-def refresh_sms_mail_dates(dates: set[str]):
-    """重寫簡訊變動日期的每日整理；Apps Script 會保留原寄送狀態。"""
-    if not dates or not APPS_SCRIPT_URL or not ADMIN_KEY:
-        return
-    ordered = sorted(dates)
-    for idx, day in enumerate(ordered, 1):
-        try:
-            r = requests.get(APPS_SCRIPT_URL,
-                             params={"action": "refresh", "key": ADMIN_KEY,
-                                     "step": "smsmail", "date": day},
-                             timeout=360, headers={"User-Agent": "zhangzhen-pipeline"})
-            data = r.json()
-            if not data.get("ok"):
-                raise RuntimeError(data.get("error") or data.get("reason") or r.text[:160])
-            print(f"會員簡訊衍生同步 {idx}/{len(ordered)}：{day} 郵件查詢已重寫")
-            report_sms_progress(step="同步衍生資料", done=7, total=8,
-                                pct=88 + int(idx / len(ordered) * 6),
-                                note=f"已同步 {idx}/{len(ordered)} 個日期：{day}")
-        except Exception as e:
-            print(f"警告：{day} 郵件查詢重寫失敗，資料列已寫入，稍後可由後台重試：{e}")
 
 
 def process_one(ss, video, done_trades, done_holds):
@@ -5195,23 +4761,9 @@ def main():
         return
 
     if PARSE_SMS:
-        if SMS_MODE in ("recent", "all", "ids"):
-            print(f"模式：會員簡訊 {SMS_MODE}。先抓取、辨識張震與嚴格日期，再解析寫入。")
-            report_sms_progress(step="準備", done=0, total=8, pct=2, note="連線來源網站與試算表")
-            articles = fetch_cmoney_articles(SMS_MODE, SMS_IDS)
-            report_sms_progress(step="辨識張震", done=2, total=8, pct=45, note=f"已取得 {len(articles)} 篇，開始身分與日期稽核")
-            stats = save_cmoney_fetch(ss, articles, SMS_MODE)
-            report_sms_progress(step="篩選日期", done=3, total=8, pct=58,
-                                note=f"新收 {stats['saved']}、既有 {stats['existed']}、錯誤 {stats['errors']}",
-                                **stats)
-        print("模式：解析會員簡訊。在 GitHub Actions 上處理待解析簡訊並寫入衍生資料。")
-        changed_dates = parse_pending_sms(ss, since=SMS_SINCE) or set()
-        refresh_sms_mail_dates(changed_dates)
-        report_sms_progress(step="同步衍生資料", done=7, total=8, pct=94,
-                            note="每日總覽與郵件查詢已同步，正在重算追蹤與績效")
+        print("模式：解析會員簡訊。在 GitHub Actions 上處理待解析簡訊。")
+        parse_pending_sms(ss, since=SMS_SINCE)
         maybe_refresh_site()
-        report_sms_progress(status="完成", step="完成", done=8, total=8, pct=100,
-                            note="抓取、解析、寫入、逐日稽核與衍生資料同步完成")
         return
 
     if FIX_PRICES:
@@ -5391,7 +4943,7 @@ def main():
         handle_today_once()
         save_rotated_auth(ss, _AUTH_FP[0])
         try:
-            refresh_sms_mail_dates(parse_pending_sms(ss) or set())
+            parse_pending_sms(ss)
         except Exception as e:
             print(f"（自動解析會員簡訊跳過或出錯，不影響主流程：{e}）")
         return
@@ -5462,7 +5014,7 @@ def main():
     # 融入既有工作流程：每次每日流程結束後，順道檢查並解析當日待解析的會員簡訊
     if not BACKFILL:
         try:
-            refresh_sms_mail_dates(parse_pending_sms(ss) or set())
+            parse_pending_sms(ss)
         except Exception as e:
             print(f"（自動解析會員簡訊跳過或出錯，不影響主流程：{e}）")
 
@@ -5491,8 +5043,6 @@ if __name__ == "__main__":
         sys.exit(1)
     except Exception as e:
         print(f"流程失敗：{e}", file=sys.stderr)
-        if PARSE_SMS:
-            report_sms_progress(status="失敗", step="失敗", done=0, total=8, pct=0, note=str(e)[:200])
         if _SS is not None:
             write_status_log(_SS, "失敗", str(e))
         sys.exit(1)

@@ -1,4 +1,5 @@
 name: daily-transcript-pipeline
+run-name: ${{ inputs.sms_job_id != '' && format('會員簡訊 {0}', inputs.sms_job_id) || (inputs.admin_job == 'true' && '後台逐字稿' || '每日資料流程') }}
 
 # ------------------------------------------------------------------ #
 # 排程設計：這是「輪詢」，不是「執行一次」。
@@ -181,27 +182,27 @@ jobs:
       # 但真正的問題是 pipeline.py 還是舊版）。這一步把它講清楚。
       - name: 確認 pipeline.py 版本相符
         run: |
-          if [ -f "pipeline/pipeline.py" ]; then
-            PIPELINE_SCRIPT="pipeline/pipeline.py"
-          elif [ -f "pipeline.py" ]; then
+          if [ -f "pipeline.py" ]; then
             PIPELINE_SCRIPT="pipeline.py"
+          elif [ -f "pipeline/pipeline.py" ]; then
+            PIPELINE_SCRIPT="pipeline/pipeline.py"
           else
             echo "::error::找不到 pipeline.py！請確認 pipeline.py 位於根目錄或 pipeline/ 目錄下。"
             exit 1
           fi
 
-          if ! grep -q 'PIPELINE_FEATURES = "preflight,auth-rotation,lazy-gemini-key"' "$PIPELINE_SCRIPT"; then
-            echo "::error::$PIPELINE_SCRIPT 版本過舊，缺少探測、憑證輪換、延後檢查金鑰這幾項功能。"
+          if ! grep -q 'PIPELINE_FEATURES = "preflight,auth-rotation,lazy-gemini-key,cmoney-audit-v2"' "$PIPELINE_SCRIPT"; then
+            echo "::error::$PIPELINE_SCRIPT 版本過舊，缺少新版會員簡訊稽核與安全續跑功能。"
             echo ""
             echo "這個工作流程需要搭配同一批更新的 pipeline.py 才能運作。"
-            echo "目前 repo 裡的 pipeline.py 還是舊版，請把最新版覆蓋上去後再推一次。"
+            echo "目前 checkout 中的 pipeline.py 與 workflow 不是同一版本，請一併提交並推送。"
             echo ""
             echo "常見的誤判：舊版會在載入時就硬性要求 GEMINI_API_KEY，"
             echo "而探測步驟刻意不帶那把金鑰（它用不到），於是報「缺少環境變數 GEMINI_API_KEY」。"
             echo "那個訊息會把人引導去補 Secret，但真正要做的是更新 pipeline.py。"
             exit 1
           fi
-          echo "pipeline.py 版本相符 ($PIPELINE_SCRIPT)"
+          echo "pipeline.py 版本相符：cmoney-audit-v2 ($PIPELINE_SCRIPT)"
           echo "PIPELINE_SCRIPT=$PIPELINE_SCRIPT" >> $GITHUB_ENV
 
       - name: 探測今天有沒有事情要做
@@ -234,7 +235,7 @@ jobs:
           CMONEY_MEMBER_ID: ${{ github.event.inputs.sms_member_id || secrets.CMONEY_MEMBER_ID || vars.CMONEY_MEMBER_ID }}
           # VOD 最早可能出現的台灣時間。這之前的觸發點一律跳過。
           VOD_EARLIEST_HOUR: '12'
-        run: python "${PIPELINE_SCRIPT:-pipeline/pipeline.py}"
+        run: python "${PIPELINE_SCRIPT:-pipeline.py}"
 
       - name: 沒事可做，本輪結束
         if: steps.preflight.outputs.has_work != 'true'
@@ -322,8 +323,9 @@ jobs:
           SMS_IDS: ${{ github.event.inputs.sms_ids }}
           SMS_JOB_ID: ${{ github.event.inputs.sms_job_id }}
           CMONEY_MEMBER_ID: ${{ github.event.inputs.sms_member_id || secrets.CMONEY_MEMBER_ID || vars.CMONEY_MEMBER_ID }}
+          SMS_AI_GAP_SEC: ${{ vars.SMS_AI_GAP_SEC || '7' }}
           # 跑完立刻刷新網站，不必等下游排程。需要下面兩個 Secret 才會動作。
           REFRESH_SITE: ${{ github.event.inputs.refresh_site }}
           APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
           ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
-        run: python "${PIPELINE_SCRIPT:-pipeline/pipeline.py}"
+        run: python "${PIPELINE_SCRIPT:-pipeline.py}"

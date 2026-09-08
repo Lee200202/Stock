@@ -109,7 +109,7 @@ TRANSIENT = (429, 500, 502, 503, 504)
 # 「去補一個 Secret」這個完全錯誤的方向——真正該做的是把 pipeline.py 更新。
 # 有了這個標記，就會直接說「檔案版本不符，請更新」。
 # ------------------------------------------------------------------ #
-PIPELINE_FEATURES = "preflight,auth-rotation,lazy-gemini-key"
+PIPELINE_FEATURES = "preflight,auth-rotation,lazy-gemini-key,cmoney-audit-v2"
 
 
 def env(name: str) -> str:
@@ -144,6 +144,9 @@ SMS_MODE = os.environ.get("SMS_MODE", "").strip().lower()
 SMS_IDS = os.environ.get("SMS_IDS", "").strip()
 SMS_JOB_ID = os.environ.get("SMS_JOB_ID", "").strip()
 CMONEY_MEMBER_ID = os.environ.get("CMONEY_MEMBER_ID", "").strip()
+# 會員簡訊通常一篇有數段指令。刻意限制為每分鐘約 8 次以下，避免免費額度
+# 因短時間連續解析多篇而觸發 429；仍可用 GitHub Variable 調整。
+SMS_AI_GAP = max(2.0, float(os.environ.get("SMS_AI_GAP_SEC", "7") or 7))
 
 # 純修代號模式。只把試算表既有的股票名稱重跑一次拼音比對，
 # 不碰 NotebookLM，不呼叫 Gemini，幾十秒就跑完。
@@ -4023,7 +4026,50 @@ def fetch_cmoney_articles(mode: str, ids_text: str = "") -> list[dict]:
         ids = list(dict.fromkeys(re.findall(r"\d{6,}", ids_text)))[:100]
         if not ids:
             raise SystemExit("依編號補抓沒有收到有效文章 ID")
+        # 先從來源帳號的清單 API 找。這裡的 createTime 是完整 Unix 時間，
+        # 也能驗證 creatorId；文章頁若顯示「星期三」，只能當最後備援。
+        wanted = set(ids)
+        by_id: dict[str, dict] = {}
+        score = None
+        for page in range(1, 1001):
+            params = {"count": 20}
+            if score is not None:
+                params["startScore"] = str(score)
+            headers = dict(CMONEY_HEADERS)
+            headers.update({"Authorization": f"Bearer {token}", "X-Version": "3.0",
+                            "Accept": "application/json",
+                            "Referer": CMONEY_USER_URL.format(member_id=CMONEY_MEMBER_ID)})
+            resp = session.post(CMONEY_LIST_API, params=params,
+                                json={"items": [f"Member-All.{CMONEY_MEMBER_ID}"]},
+                                headers=headers, timeout=30)
+            if resp.status_code in (401, 403):
+                token = _cmoney_guest_token(session, CMONEY_MEMBER_ID)
+                headers["Authorization"] = f"Bearer {token}"
+                resp = session.post(CMONEY_LIST_API, params=params,
+                                    json={"items": [f"Member-All.{CMONEY_MEMBER_ID}"]},
+                                    headers=headers, timeout=30)
+            resp.raise_for_status()
+            raw_items = resp.json()
+            if not isinstance(raw_items, list):
+                raise RuntimeError("文章清單 API 格式已改變")
+            for raw in raw_items:
+                article = _api_article(raw)
+                if article["id"] in wanted:
+                    by_id[article["id"]] = article
+            report_sms_progress(step="探索文章", done=min(len(by_id), len(ids)), total=len(ids),
+                                pct=5 + int(min(len(by_id), len(ids)) / len(ids) * 30),
+                                note=f"以來源清單驗證日期與作者：找到 {len(by_id)}/{len(ids)}")
+            if wanted.issubset(by_id) or not raw_items or len(raw_items) < 20:
+                break
+            next_score = raw_items[-1].get("weight")
+            if next_score is None or str(next_score) == str(score):
+                break
+            score = next_score
+
         for i, article_id in enumerate(ids, 1):
+            if article_id in by_id:
+                found.append(by_id[article_id])
+                continue
             r = session.get(CMONEY_ARTICLE_URL.format(article_id=article_id), headers=CMONEY_HEADERS, timeout=25)
             if r.status_code == 200:
                 found.append(_parse_cmoney_html(article_id, r.text))
@@ -4097,7 +4143,7 @@ def save_cmoney_fetch(ss, articles: list[dict], mode: str) -> dict:
         elif not is_zhang:
             status, note = "已排除", "作者不符或正文沒有張震廣播標記"
         elif not valid_date:
-            status, note = "日期錯誤", "找不到可驗證的發文時間，已隔離"
+            status, note = "日期待確認", "清單 API、文章 metadata 與頁面時間均無可驗證日期；已隔離，未歸入任何一天，可再次依編號補抓"
             stats["zhang"] += 1; stats["errors"] += 1
         elif not in_range:
             status, note = "範圍外", "張震文章不在本次日期範圍"
@@ -4249,6 +4295,7 @@ def parse_pending_sms(ss, since=""):
         for o in orders:
             try:
                 raw_json = call_gemini(CM_PARSE_SYSTEM, o["body"], want_json=True, tag=f"sms_{p['id']}")
+                time.sleep(SMS_AI_GAP)
                 data = None
                 if isinstance(raw_json, dict):
                     data = raw_json
@@ -4263,6 +4310,10 @@ def parse_pending_sms(ss, since=""):
                     if v:
                         v["tag"] = o["tag"]
                         items.append(v)
+            except RateLimited:
+                # 免費額度用盡時繼續處理下一段只會反覆等候並再次 429。
+                # 直接中止；此篇與後面的列都保持待解析，下一次可原地續跑。
+                raise
             except Exception as ex:
                 print(f"  文章 {p['id']} 呼叫 Gemini 失敗：{ex}")
                 parse_err = True
@@ -4301,7 +4352,6 @@ def parse_pending_sms(ss, since=""):
             "items": filtered,
             "error": parse_err,
         })
-        time.sleep(1)
 
     # 寫入紀錄 (Step 3)
     report_sms_progress(status="處理中", step="寫入資料", done=5, total=8, pct=80, note="正在寫入試算表...")
@@ -5489,6 +5539,16 @@ if __name__ == "__main__":
                              "後，把新的 storage_state.json 內容更新到 GitHub Secret "
                              "NOTEBOOKLM_AUTH_JSON。原始訊息：" + str(e))
         sys.exit(1)
+    except RateLimited as e:
+        # 這是可恢復的額度狀態，不是程式壞掉。GitHub 保持綠燈，後台顯示
+        # 「配額暫停」，既有衍生資料不變，下一次重新解析會從待解析列續跑。
+        print(f"會員簡訊解析暫停：{e}")
+        if PARSE_SMS:
+            report_sms_progress(status="配額暫停", step="AI解析", done=4, total=8, pct=50,
+                                note="Gemini HTTP 429：本次未覆蓋舊資料。配額恢復後按「重新解析」即可續跑。")
+        if _SS is not None:
+            write_status_log(_SS, "配額暫停", str(e))
+        sys.exit(0)
     except Exception as e:
         print(f"流程失敗：{e}", file=sys.stderr)
         if PARSE_SMS:

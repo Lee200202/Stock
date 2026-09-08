@@ -4418,7 +4418,7 @@ def parse_pending_sms(ss, since=""):
         if since_norm and d_str and d_str < since_norm:
             continue
         unresolved = (st.startswith("待解析") or "待寫入" in st or
-                      "解析失敗" in st or "日期錯誤" in st)
+                      "解析失敗" in st or "日期錯誤" in st or "無可收錄" in st)
         # 第一次按「重新解析」會依使用者選定範圍重跑；若上一輪因 429 暫停，
         # Apps Script 會帶 SMS_RESUME=true，此時只接續尚未完成的列。
         should_parse = ((SMS_MODE == "reparse" and (not SMS_RESUME or unresolved)) or

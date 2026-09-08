@@ -109,7 +109,7 @@ TRANSIENT = (429, 500, 502, 503, 504)
 # 「去補一個 Secret」這個完全錯誤的方向——真正該做的是把 pipeline.py 更新。
 # 有了這個標記，就會直接說「檔案版本不符，請更新」。
 # ------------------------------------------------------------------ #
-PIPELINE_FEATURES = "preflight,auth-rotation,lazy-gemini-key,cmoney-audit-v3,natural-reasons,sms-checkpoint"
+PIPELINE_FEATURES = "preflight,auth-rotation,lazy-gemini-key,cmoney-audit-v4,natural-reasons,sms-checkpoint,sms-item-verifier"
 
 
 def env(name: str) -> str:
@@ -3753,6 +3753,11 @@ CM_PARSE_SYSTEM = (
     "   - 其餘常見股名如「大同」「統一」「佳能」「巨大」「光寶科」「致茂」「晶心科」「祥碩」「華城」「東元」「裕隆」等，均為合法股票名稱。\n"
     "2. 一條指令包含多檔時，每一檔都要獨立開一筆。\n"
     "   - 「鴻準、裕隆、晶心科皆小漲，華城、東元只是洗盤...祥碩今天季線正式向上，抱牢...持股目前續抱」→ 每一檔皆開一筆「會員持股」。\n\n"
+    "【本流程必須正確收錄的操作範例】\n"
+    "- 「手中持有1519華城，請於775元以上全數獲利賣出」→ 華城（1519），賣出，775，以上。\n"
+    "- 「手中持股6533晶心科，請於271元以上獲利賣出」→ 晶心科（6533），賣出，271，以上。\n"
+    "- 「會員手中持股祥碩，盤中有大單買進，季線即將向上，準備突破，務必抱牢」→ 祥碩（5269），會員持股。句中的『大單買進』是盤面現象，不是叫會員買進。\n"
+    "- 「早上賣出的6533晶心科，請於265元以下買回來」→ 晶心科（6533），買入，265，以下。前面的賣出是歷史回顧，本次動作是買回。\n\n"
     "【價位填寫規則】\n"
     "  price 只填「這一條裡真的寫出來的純數字」（整數或小數），不帶單位：\n"
     "    「請於775元以上全數獲利賣出」→ price: '775', limit: '以上'\n"
@@ -3779,7 +3784,9 @@ CM_PARSE_SYSTEM = (
 CM_EMPTY_AUDIT_SYSTEM = CM_PARSE_SYSTEM + (
     "\n\n你現在執行第二次完整性稽核。第一次解析回傳空陣列，但程式已在原文找到合法台股名稱或代號，"
     "以及買進、賣出、續抱、觀望等操作詞。請重新逐句核對股票名稱與它緊鄰的動作。"
-    "有明確個股與當下動作就必須收錄；若只是歷史回顧、純行情敘述或未指名個股，仍回空陣列。"
+    "有明確個股與當下動作就必須收錄。『手中持有某股，請於某價以上賣出』、"
+    "『會員手中持股某股，務必抱牢』、『早上賣出的某股，請於某價以下買回』都不可回空陣列；"
+    "若只是歷史回顧、純行情敘述或未指名個股，仍回空陣列。"
     "不得為了補足筆數猜測名稱、代號、價位或動作。"
 )
 
@@ -3850,7 +3857,8 @@ def verify_sms_item(it: dict, body: str, code_map: dict) -> dict | None:
 
     if name not in body:
         return None
-    if is_non_stock(name):
+    non_stock, _ = is_non_stock(name)
+    if non_stock:
         return None
 
     code, official_name, how = resolve_code(name, hint)
@@ -3899,7 +3907,8 @@ def load_saved_sms_items(raw_detail: str) -> tuple[bool, list[dict]]:
         name = str(raw.get("name") or "").strip()
         code = str(raw.get("code") or "").strip()
         action = str(raw.get("dir") or raw.get("action") or "").strip()
-        if not name or not re.fullmatch(r"\d{4,6}", code) or action not in allowed or is_non_stock(name):
+        non_stock, _ = is_non_stock(name)
+        if not name or not re.fullmatch(r"\d{4,6}", code) or action not in allowed or non_stock:
             return False, []
 
         price_raw = raw.get("price", "")
@@ -4496,6 +4505,11 @@ def parse_pending_sms(ss, since=""):
         # 都不再花一次 Gemini 配額。
         if SMS_MODE == "merge" or "待寫入" in p.get("state", ""):
             saved_ok, items = load_saved_sms_items(p.get("detail", ""))
+            # 舊版因驗證器把 (False, "") tuple 當成 True，會把所有合法個股剔除，
+            # 因而留下「無可收錄」與空陣列。這類空結果不能再當成可信檢查點沿用。
+            if saved_ok and not items and "無可收錄" in p.get("state", ""):
+                saved_ok = False
+                print(f"  文章 {p['id']}：舊版無可收錄結果不可信，強制重新解析與完整性稽核")
             if saved_ok:
                 print(f"  文章 {p['id']}：沿用已保存解析明細 {len(items)} 筆，不呼叫 Gemini")
             else:

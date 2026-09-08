@@ -3777,7 +3777,7 @@ def verify_sms_item(it: dict, body: str, code_map: dict) -> dict | None:
 
 
 def load_saved_sms_items(raw_detail: str) -> tuple[bool, list[dict]]:
-    """讀取先前已驗證並保存的解析明細；格式不完整時回傳 False 讓 AI 補救。"""
+    """讀取先前已驗證並保存的解析明細；格式不完整時回傳 False 供隔離重解析。"""
     try:
         data = json.loads(str(raw_detail or "").strip())
     except (TypeError, ValueError, json.JSONDecodeError):
@@ -4338,12 +4338,19 @@ def parse_pending_sms(ss, since=""):
         text = p["text"]
         items = []
         parse_err = False
+        detail_invalid = False
         saved_ok = False
         if SMS_MODE == "merge":
             saved_ok, items = load_saved_sms_items(p.get("detail", ""))
             if saved_ok:
                 print(f"  文章 {p['id']}：沿用已保存解析明細 {len(items)} 筆，不呼叫 Gemini")
-        if not saved_ok:
+            else:
+                # 「併入」必須是純搬移，不應因一篇舊明細損壞而呼叫 Gemini、
+                # 撞到 429 後讓整批文章都無法落地。損壞列改列入待解析，
+                # 其餘有完整明細的文章照常寫入，之後由「重新解析」單獨補它。
+                detail_invalid = True
+                print(f"  文章 {p['id']}：既有解析明細缺漏或格式損壞，已隔離等待重新解析")
+        if not saved_ok and SMS_MODE != "merge":
             marks = list(cm_mark.finditer(text))
             orders = []
             if marks:
@@ -4415,6 +4422,7 @@ def parse_pending_sms(ss, since=""):
             "pending": p,
             "items": filtered,
             "error": parse_err,
+            "detail_invalid": detail_invalid,
         })
 
     # 寫入紀錄 (Step 3)
@@ -4450,6 +4458,10 @@ def parse_pending_sms(ss, since=""):
             }
             for it in items
         ], ensure_ascii=False) if items else "[]"
+
+        if res.get("detail_invalid"):
+            status_updates.append((row_num, c_state + 1, "待解析（既有明細缺漏）"))
+            continue
 
         if res["error"]:
             status_updates.append((row_num, c_state + 1, "解析失敗（未改動舊紀錄）"))
@@ -4514,8 +4526,12 @@ def parse_pending_sms(ss, since=""):
         print(f"成功更新會員簡訊狀態 {len(status_updates)} 列。")
 
     # 完成 (Step 4)
-    verb = "併入" if SMS_MODE == "merge" else "解析"
-    fin_note = f"共{verb} {len(parsed_results)} 則簡訊，流程順利結束。"
+    if SMS_MODE == "merge":
+        invalid_count = sum(1 for r in parsed_results if r.get("detail_invalid"))
+        merged_count = len(parsed_results) - invalid_count
+        fin_note = f"已併入 {merged_count} 則；另有 {invalid_count} 則明細缺漏，已隔離等待重新解析。"
+    else:
+        fin_note = f"共解析 {len(parsed_results)} 則簡訊，流程順利結束。"
     report_sms_progress(status="處理中", step="逐日稽核", done=6, total=8, pct=88, note=fin_note + " 正在同步衍生內容。")
     write_status_log(ss, "會員簡訊", fin_note)
     print("會員簡訊解析全部完成。\n")
@@ -5328,7 +5344,7 @@ def main():
         report_sms_progress(step="同步衍生資料", done=7, total=8, pct=94,
                             note="每日總覽與郵件查詢已同步，正在重算追蹤與績效")
         maybe_refresh_site()
-        done_note = ("未寫入通知已併入操作紀錄與會員持股，過去每日總覽、追蹤、績效與郵件查詢已同步"
+        done_note = ("可用的未寫入通知已併入過去資料；明細缺漏者已標記待解析，不影響其餘文章"
                      if SMS_MODE == "merge" else
                      "抓取、解析、寫入、逐日稽核與衍生資料同步完成")
         report_sms_progress(status="完成", step="完成", done=8, total=8, pct=100,

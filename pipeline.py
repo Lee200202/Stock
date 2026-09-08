@@ -109,7 +109,7 @@ TRANSIENT = (429, 500, 502, 503, 504)
 # 「去補一個 Secret」這個完全錯誤的方向——真正該做的是把 pipeline.py 更新。
 # 有了這個標記，就會直接說「檔案版本不符，請更新」。
 # ------------------------------------------------------------------ #
-PIPELINE_FEATURES = "preflight,auth-rotation,lazy-gemini-key,cmoney-audit-v4,natural-reasons,sms-checkpoint,sms-item-verifier"
+PIPELINE_FEATURES = "preflight,auth-rotation,lazy-gemini-key,cmoney-audit-v4,natural-reasons,sms-checkpoint,sms-item-verifier,dailyk-html-retry"
 
 
 def env(name: str) -> str:
@@ -579,7 +579,17 @@ def maybe_refresh_site():
         print("     ※ 只貼程式碼不重新部署是無效的，線上跑的仍是舊版")
         print("  3. 用瀏覽器開 APPS_SCRIPT_URL?action=ping，")
         print("     確認回應裡的 features 含有 refresh-step，再重跑本流程")
-        return
+        return {"ok": False, "done": 0, "failed": 1}
+
+    if "dailyk-safe-chunks" not in feats:
+        print("")
+        print("=" * 60)
+        print("下游版本過舊：補齊日K仍使用會重寫整張工作表的大批次版本。")
+        print("=" * 60)
+        print("請更新 Apps Script 的 Code.gs 與 Cachebuilder.gs，並建立『新版本』部署。")
+        print("部署後重新開 APPS_SCRIPT_URL?action=ping，確認 features 含 dailyk-safe-chunks。")
+        print("目前日K游標會保留；更新部署後可直接從 dailyk 接續，不必重跑前六步。")
+        return {"ok": False, "done": 0, "failed": 1}
 
     # 步驟代號要與下游對得上。
     #
@@ -628,6 +638,7 @@ def maybe_refresh_site():
         # 一次做不完是設計，不是失敗：每次只跑約九十秒就回報進度，
         # 這樣每個請求都遠在時間上限之內，不會再被切斷連線。
         rounds, MAX_ROUNDS = 0, 40
+        step_failed = False
         while True:
             rounds += 1
             sms_sync_progress(i - 1, label, rounds, "執行中")
@@ -645,7 +656,16 @@ def maybe_refresh_site():
                         timeout=300,
                         headers={"User-Agent": "zhangzhen-pipeline"},
                     )
-                    body = resp.text[:600]
+                    candidate = resp.text[:4000]
+                    candidate_low = candidate.lower()
+                    is_html = "<html" in candidate_low or "<!doctype" in candidate_low
+                    # 日K舊批次偶爾在完成部分工作後才被 Google 前端切斷，會回 HTML。
+                    # 游標與已寫入資料都在 Apps Script；短暫等待後重打同一步即可接續。
+                    if key == "dailyk" and is_html and attempt < 2:
+                        print(f"日K批次回 HTML（HTTP {resp.status_code}），等待後自動重試同一步 {attempt + 2}/3")
+                        time.sleep(10)
+                        continue
+                    body = candidate
                     break
                 except requests.exceptions.RequestException as e:
                     # 連線被切斷通常代表那一次跑太久。等一下再試，
@@ -656,34 +676,52 @@ def maybe_refresh_site():
                         time.sleep(10)
             if body is None:
                 fail_n += 1
+                step_failed = True
                 sms_sync_progress(i - 1, label, rounds, "連線失敗")
                 break
 
             low = body.lower()
             if "<title>error</title>" in low or "docs/script/images/favicon" in low:
                 fail_n += 1
+                step_failed = True
                 sms_sync_progress(i - 1, label, rounds, "下游錯誤")
                 print("下游回錯誤頁")
+                title_m = re.search(r"<title[^>]*>(.*?)</title>", body, re.I | re.S)
+                plain = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", body)).strip()
+                print(f"       HTTP {resp.status_code if resp is not None else '未知'}"
+                      + (f"，標題：{html_lib.unescape(title_m.group(1)).strip()}" if title_m else ""))
+                if plain:
+                    print(f"       錯誤頁摘要：{html_lib.unescape(plain)[:240]}")
                 print("       這一步在下游拋出例外或被時間上限中止。")
                 print("       到 Apps Script 左側「執行紀錄」找最近一次 doGet，")
                 print(f"       它會顯示 {label} 這一支函式的實際錯誤。")
                 break
             if "<html" in low or "<!doctype" in low:
                 fail_n += 1
+                step_failed = True
                 sms_sync_progress(i - 1, label, rounds, "回應格式錯誤")
-                print("下游回 HTML，不是 JSON。請確認部署的是最新版本。")
+                title_m = re.search(r"<title[^>]*>(.*?)</title>", body, re.I | re.S)
+                plain = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", body)).strip()
+                print(f"下游回 HTML，不是 JSON（HTTP {resp.status_code if resp is not None else '未知'}）。")
+                if title_m:
+                    print("       頁面標題：" + html_lib.unescape(title_m.group(1)).strip())
+                if plain:
+                    print("       回應摘要：" + html_lib.unescape(plain)[:240])
+                print("       日K 游標與已完成批次均保留，可直接從補齊日K接續。")
                 break
 
             try:
                 data = json.loads(body)
             except Exception:
                 fail_n += 1
+                step_failed = True
                 sms_sync_progress(i - 1, label, rounds, "回應無法解析")
                 print(f"回應無法解析：{body[:120]}")
                 break
 
             if not data.get("ok"):
                 fail_n += 1
+                step_failed = True
                 sms_sync_progress(i - 1, label, rounds, "失敗")
                 print(f"失敗：{data.get('error', body[:120])}")
                 break
@@ -705,6 +743,7 @@ def maybe_refresh_site():
             if data.get("chunked") and not data.get("done"):
                 if rounds >= MAX_ROUNDS:
                     fail_n += 1
+                    step_failed = True
                     print(f"       已跑 {rounds} 批仍未完成，先停下來避免無限迴圈。")
                     print("       下次執行會從目前進度接著做，或在編輯器執行")
                     print("       resetDailyKCursor() 重設進度後重跑。")
@@ -713,6 +752,11 @@ def maybe_refresh_site():
                 continue
 
             ok_n += 1
+            break
+
+        if step_failed:
+            print(f"       已停止在「{label}」；後續相依步驟本輪不執行。")
+            print(f"       修復後從 {key} 接續，即可再依序完成後面的重算。")
             break
 
     print(f"\n重算結束：成功 {ok_n} 步，失敗 {fail_n} 步。")

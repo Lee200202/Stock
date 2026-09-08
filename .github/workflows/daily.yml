@@ -206,7 +206,7 @@ jobs:
             echo "那個訊息會把人引導去補 Secret，但真正要做的是更新 pipeline.py。"
             exit 1
           fi
-          echo "pipeline.py 版本相符：cmoney-audit-v2 ($PIPELINE_SCRIPT)"
+          echo "pipeline.py 版本相符：cmoney-audit-v3 ($PIPELINE_SCRIPT)"
           echo "PIPELINE_SCRIPT=$PIPELINE_SCRIPT" >> $GITHUB_ENV
 
       - name: 探測今天有沒有事情要做

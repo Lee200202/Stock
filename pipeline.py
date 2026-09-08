@@ -3776,6 +3776,54 @@ def verify_sms_item(it: dict, body: str, code_map: dict) -> dict | None:
     }
 
 
+def load_saved_sms_items(raw_detail: str) -> tuple[bool, list[dict]]:
+    """讀取先前已驗證並保存的解析明細；格式不完整時回傳 False 讓 AI 補救。"""
+    try:
+        data = json.loads(str(raw_detail or "").strip())
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return False, []
+    if not isinstance(data, list):
+        return False, []
+
+    allowed = {"買入", "賣出", "會員持股", "觀望不碰", "觀望注意"}
+    out = []
+    for raw in data:
+        if not isinstance(raw, dict):
+            return False, []
+        name = str(raw.get("name") or "").strip()
+        code = str(raw.get("code") or "").strip()
+        action = str(raw.get("dir") or raw.get("action") or "").strip()
+        if not name or not re.fullmatch(r"\d{4,6}", code) or action not in allowed or is_non_stock(name):
+            return False, []
+
+        price_raw = raw.get("price", "")
+        if isinstance(price_raw, float) and price_raw.is_integer():
+            price_raw = int(price_raw)
+        price = str(price_raw or "").strip()
+        price_text = str(raw.get("priceText") or "").strip()
+        if not price:
+            m_price = re.search(r"(?<!\d)(\d+(?:\.\d+)?)(?!\d)", price_text)
+            price = m_price.group(1) if m_price else ""
+        if price and not re.fullmatch(r"\d+(?:\.\d+)?", price):
+            return False, []
+        limit = str(raw.get("limit") or "").strip()
+        if limit not in ("以上", "以下"):
+            limit = "以下" if "以下" in price_text else "以上" if "以上" in price_text else ""
+        if not price_text:
+            price_text = (price + " 元" + limit) if price else "未說明"
+        out.append({
+            "name": name,
+            "code": code,
+            "action": action,
+            "price": price,
+            "limit": limit,
+            "priceText": price_text,
+            "note": str(raw.get("reason") or raw.get("note") or "").strip()[:60],
+            "tag": "既有解析明細",
+        })
+    return True, out
+
+
 def get_existing_cmoney_ids(ss) -> set[str]:
     cids = set()
     for sheet_name in ("操作紀錄", "會員持股"):
@@ -4236,22 +4284,31 @@ def parse_pending_sms(ss, since=""):
 
     report_sms_progress(status="處理中", step="篩選日期", done=3, total=8, pct=20, note="讀取試算表中待解析列...")
 
+    existing_cids = get_existing_cmoney_ids(ss)
     pending = []
     since_norm = norm_date(since) if since else ""
     for r_idx, row in enumerate(records[1:], start=2):
         st = str(row[c_state]).strip() if c_state < len(row) else ""
         t_str = str(row[c_time]).strip() if c_time >= 0 and c_time < len(row) else ""
         d_str = norm_date(t_str.split(" ")[0]) if t_str else ""
+        art_id = str(row[c_id]).strip() if c_id < len(row) else ""
+        detail = str(row[c_detail]).strip() if c_detail < len(row) else ""
         if since_norm and d_str and d_str < since_norm:
             continue
-        if SMS_MODE == "reparse" or since_norm or st.startswith("待解析"):
+        should_parse = SMS_MODE == "reparse" or bool(since_norm) or st.startswith("待解析")
+        if SMS_MODE == "merge":
+            # 「已解析（未寫入）」是舊流程留下的中間狀態。即使來源列意外已存在，
+            # 後面的文章 ID 原子取代也會整理成一份，不會累積重複資料。
+            should_parse = "未寫入" in st
+        if should_parse:
             pending.append({
                 "row": r_idx,
-                "id": str(row[c_id]).strip() if c_id < len(row) else "",
+                "id": art_id,
                 "time": t_str,
                 "date": d_str,
                 "text": str(row[c_text]).strip() if c_text < len(row) else "",
                 "state": st,
+                "detail": detail,
             })
 
     if not pending:
@@ -4263,60 +4320,67 @@ def parse_pending_sms(ss, since=""):
 
     total_cnt = len(pending)
     print(f"找到 {total_cnt} 則待解析簡訊。")
-    report_sms_progress(status="處理中", step="AI解析", done=4, total=8, pct=30, note=f"共 {total_cnt} 則，開始 AI 解析...")
+    parse_label = "解析明細"
+    report_sms_progress(status="處理中", step=parse_label, done=4, total=8, pct=30,
+                        note=f"共 {total_cnt} 則，開始整理解析明細...")
 
     code_map = get_code_map()
     cm_mark = re.compile(r'(?:張震|震)\s*(?:6GJ)?\s*[-－—─]?\s*[0-9０-９]{0,2}\s*[:：]')
-    existing_cids = get_existing_cmoney_ids(ss)
     pending_sources = {f"CMONEY-{p['id']}" for p in pending}
     prior_buy_prices = get_prior_sms_buy_prices(ss, pending_sources)
 
     parsed_results = []
     for idx, p in enumerate(pending):
         cur_pct = 30 + int(((idx + 1) / total_cnt) * 45)
-        sub_note = f"解析第 {idx+1}/{total_cnt} 則（文章 {p['id']}）"
-        report_sms_progress(status="處理中", step=f"AI解析 {idx+1}/{total_cnt}", done=4, total=8, pct=cur_pct, note=sub_note)
+        sub_note = f"整理第 {idx+1}/{total_cnt} 則（文章 {p['id']}）"
+        report_sms_progress(status="處理中", step=f"{parse_label} {idx+1}/{total_cnt}", done=4, total=8, pct=cur_pct, note=sub_note)
 
         text = p["text"]
-        marks = list(cm_mark.finditer(text))
-        orders = []
-        if marks:
-            for m_i, m in enumerate(marks):
-                start = m.end()
-                end = marks[m_i + 1].start() if m_i + 1 < len(marks) else len(text)
-                body = text[start:end].strip()
-                if body:
-                    orders.append({"tag": m.group().strip(), "body": body})
-        elif text.strip():
-            orders.append({"tag": "簡訊", "body": text.strip()})
-
         items = []
         parse_err = False
-        for o in orders:
-            try:
-                raw_json = call_gemini(CM_PARSE_SYSTEM, o["body"], want_json=True, tag=f"sms_{p['id']}")
-                time.sleep(SMS_AI_GAP)
-                data = None
-                if isinstance(raw_json, dict):
-                    data = raw_json
-                else:
-                    j_str = str(raw_json).strip()
-                    m_json = re.search(r'\{.*\}', j_str, re.DOTALL)
-                    if m_json:
-                        data = json.loads(m_json.group())
-                raw_items = data.get("items", []) if isinstance(data, dict) else []
-                for it in raw_items:
-                    v = verify_sms_item(it, o["body"], code_map)
-                    if v:
-                        v["tag"] = o["tag"]
-                        items.append(v)
-            except RateLimited:
-                # 免費額度用盡時繼續處理下一段只會反覆等候並再次 429。
-                # 直接中止；此篇與後面的列都保持待解析，下一次可原地續跑。
-                raise
-            except Exception as ex:
-                print(f"  文章 {p['id']} 呼叫 Gemini 失敗：{ex}")
-                parse_err = True
+        saved_ok = False
+        if SMS_MODE == "merge":
+            saved_ok, items = load_saved_sms_items(p.get("detail", ""))
+            if saved_ok:
+                print(f"  文章 {p['id']}：沿用已保存解析明細 {len(items)} 筆，不呼叫 Gemini")
+        if not saved_ok:
+            marks = list(cm_mark.finditer(text))
+            orders = []
+            if marks:
+                for m_i, m in enumerate(marks):
+                    start = m.end()
+                    end = marks[m_i + 1].start() if m_i + 1 < len(marks) else len(text)
+                    body = text[start:end].strip()
+                    if body:
+                        orders.append({"tag": m.group().strip(), "body": body})
+            elif text.strip():
+                orders.append({"tag": "簡訊", "body": text.strip()})
+
+            for o in orders:
+                try:
+                    raw_json = call_gemini(CM_PARSE_SYSTEM, o["body"], want_json=True, tag=f"sms_{p['id']}")
+                    time.sleep(SMS_AI_GAP)
+                    data = None
+                    if isinstance(raw_json, dict):
+                        data = raw_json
+                    else:
+                        j_str = str(raw_json).strip()
+                        m_json = re.search(r'\{.*\}', j_str, re.DOTALL)
+                        if m_json:
+                            data = json.loads(m_json.group())
+                    raw_items = data.get("items", []) if isinstance(data, dict) else []
+                    for it in raw_items:
+                        v = verify_sms_item(it, o["body"], code_map)
+                        if v:
+                            v["tag"] = o["tag"]
+                            items.append(v)
+                except RateLimited:
+                    # 免費額度用盡時繼續處理下一段只會反覆等候並再次 429。
+                    # 直接中止；此篇與後面的列都保持待解析，下一次可原地續跑。
+                    raise
+                except Exception as ex:
+                    print(f"  文章 {p['id']} 呼叫 Gemini 失敗：{ex}")
+                    parse_err = True
 
         # 條件式訊息常同時說「未持有者 X 以下買進、已持有者續抱不加碼」。
         # 若歷史已有更低的明講買入價，這次不是新的進場，買入列不呈現；
@@ -4450,7 +4514,8 @@ def parse_pending_sms(ss, since=""):
         print(f"成功更新會員簡訊狀態 {len(status_updates)} 列。")
 
     # 完成 (Step 4)
-    fin_note = f"共解析 {len(parsed_results)} 則簡訊，流程順利結束。"
+    verb = "併入" if SMS_MODE == "merge" else "解析"
+    fin_note = f"共{verb} {len(parsed_results)} 則簡訊，流程順利結束。"
     report_sms_progress(status="處理中", step="逐日稽核", done=6, total=8, pct=88, note=fin_note + " 正在同步衍生內容。")
     write_status_log(ss, "會員簡訊", fin_note)
     print("會員簡訊解析全部完成。\n")
@@ -5254,14 +5319,20 @@ def main():
             report_sms_progress(step="篩選日期", done=3, total=8, pct=58,
                                 note=f"新收 {stats['saved']}、既有 {stats['existed']}、錯誤 {stats['errors']}",
                                 **stats)
-        print("模式：解析會員簡訊。在 GitHub Actions 上處理待解析簡訊並寫入衍生資料。")
+        if SMS_MODE == "merge":
+            print("模式：併入會員簡訊。優先沿用已保存解析明細並寫入過去衍生資料。")
+        else:
+            print("模式：解析會員簡訊。在 GitHub Actions 上處理待解析簡訊並寫入衍生資料。")
         changed_dates = parse_pending_sms(ss, since=SMS_SINCE) or set()
         refresh_sms_mail_dates(changed_dates)
         report_sms_progress(step="同步衍生資料", done=7, total=8, pct=94,
                             note="每日總覽與郵件查詢已同步，正在重算追蹤與績效")
         maybe_refresh_site()
+        done_note = ("未寫入通知已併入操作紀錄與會員持股，過去每日總覽、追蹤、績效與郵件查詢已同步"
+                     if SMS_MODE == "merge" else
+                     "抓取、解析、寫入、逐日稽核與衍生資料同步完成")
         report_sms_progress(status="完成", step="完成", done=8, total=8, pct=100,
-                            note="抓取、解析、寫入、逐日稽核與衍生資料同步完成")
+                            note=done_note)
         return
 
     if FIX_PRICES:
@@ -5544,7 +5615,7 @@ if __name__ == "__main__":
         # 「配額暫停」，既有衍生資料不變，下一次重新解析會從待解析列續跑。
         print(f"會員簡訊解析暫停：{e}")
         if PARSE_SMS:
-            report_sms_progress(status="配額暫停", step="AI解析", done=4, total=8, pct=50,
+            report_sms_progress(status="配額暫停", step="解析明細", done=4, total=8, pct=50,
                                 note="Gemini HTTP 429：本次未覆蓋舊資料。配額恢復後按「重新解析」即可續跑。")
         if _SS is not None:
             write_status_log(_SS, "配額暫停", str(e))

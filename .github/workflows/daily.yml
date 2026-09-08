@@ -100,7 +100,7 @@ on:
         required: false
         default: ''
       sms_mode:
-        description: '會員簡訊工作：recent / all / ids / parse'
+        description: '會員簡訊工作：recent / all / ids / reparse / merge'
         required: false
         default: ''
       sms_ids:

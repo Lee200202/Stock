@@ -195,7 +195,7 @@ jobs:
             exit 1
           fi
 
-          if ! grep -q 'cmoney-audit-v4,natural-reasons,sms-checkpoint,sms-item-verifier' "$PIPELINE_SCRIPT"; then
+          if ! grep -q 'cmoney-audit-v4,natural-reasons,sms-checkpoint,sms-item-verifier,dailyk-html-retry' "$PIPELINE_SCRIPT"; then
             echo "::error::$PIPELINE_SCRIPT 版本過舊，缺少新版會員簡訊稽核與安全續跑功能。"
             echo ""
             echo "這個工作流程需要搭配同一批更新的 pipeline.py 才能運作。"

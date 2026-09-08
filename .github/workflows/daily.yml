@@ -98,6 +98,22 @@ on:
         description: '會員簡訊重新解析起始日期（YYYY/MM/DD，留空則只處理待解析）'
         required: false
         default: ''
+      sms_mode:
+        description: '會員簡訊工作：recent / all / ids / parse'
+        required: false
+        default: ''
+      sms_ids:
+        description: '依編號補抓的文章 ID，逗號分隔'
+        required: false
+        default: ''
+      sms_job_id:
+        description: '後台產生的會員簡訊工單 ID，用於進度與逐日稽核'
+        required: false
+        default: ''
+      sms_member_id:
+        description: '公開來源帳號 ID，由 Apps Script 後台自動帶入'
+        required: false
+        default: ''
 
 # 同一時間只允許一個工作在跑，後來的排隊。內部循環讓單一 job 約 25 分鐘收尾，
 # 30 分鐘的觸發間隔足夠讓前一個先結束，不會堆積。
@@ -140,7 +156,11 @@ jobs:
           #   notebooklm-py 主程式 + browser 支援 + Chromium。
           # 認證走 storage_state（本機 notebooklm login 產生，貼進 Secret）。
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          if [ -f "requirements.txt" ]; then
+            pip install -r requirements.txt
+          elif [ -f "pipeline/requirements.txt" ]; then
+            pip install -r pipeline/requirements.txt
+          fi
           pip install "notebooklm-py[browser]"
           python -m playwright install chromium
 
@@ -161,8 +181,17 @@ jobs:
       # 但真正的問題是 pipeline.py 還是舊版）。這一步把它講清楚。
       - name: 確認 pipeline.py 版本相符
         run: |
-          if ! grep -q 'PIPELINE_FEATURES = "preflight,auth-rotation,lazy-gemini-key"' pipeline.py; then
-            echo "::error::pipeline.py 版本過舊，缺少探測、憑證輪換、延後檢查金鑰這幾項功能。"
+          if [ -f "pipeline/pipeline.py" ]; then
+            PIPELINE_SCRIPT="pipeline/pipeline.py"
+          elif [ -f "pipeline.py" ]; then
+            PIPELINE_SCRIPT="pipeline.py"
+          else
+            echo "::error::找不到 pipeline.py！請確認 pipeline.py 位於根目錄或 pipeline/ 目錄下。"
+            exit 1
+          fi
+
+          if ! grep -q 'PIPELINE_FEATURES = "preflight,auth-rotation,lazy-gemini-key"' "$PIPELINE_SCRIPT"; then
+            echo "::error::$PIPELINE_SCRIPT 版本過舊，缺少探測、憑證輪換、延後檢查金鑰這幾項功能。"
             echo ""
             echo "這個工作流程需要搭配同一批更新的 pipeline.py 才能運作。"
             echo "目前 repo 裡的 pipeline.py 還是舊版，請把最新版覆蓋上去後再推一次。"
@@ -172,7 +201,8 @@ jobs:
             echo "那個訊息會把人引導去補 Secret，但真正要做的是更新 pipeline.py。"
             exit 1
           fi
-          echo "pipeline.py 版本相符"
+          echo "pipeline.py 版本相符 ($PIPELINE_SCRIPT)"
+          echo "PIPELINE_SCRIPT=$PIPELINE_SCRIPT" >> $GITHUB_ENV
 
       - name: 探測今天有沒有事情要做
         id: preflight
@@ -180,7 +210,7 @@ jobs:
           PREFLIGHT: 'true'
           GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
-          YOUTUBE_CHANNEL_ID: ${{ vars.YOUTUBE_CHANNEL_ID }}
+          YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID || vars.YOUTUBE_CHANNEL_ID }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           # 手動模式的旗標也要帶進來，探測才認得出「這是人手動觸發的」，
           # 進而直接放行而不是套用每日排程那套判斷。
@@ -198,9 +228,13 @@ jobs:
           REFRESH_SITE: ${{ github.event.inputs.refresh_site }}
           PARSE_SMS: ${{ github.event.inputs.parse_sms }}
           SMS_SINCE: ${{ github.event.inputs.sms_since }}
+          SMS_MODE: ${{ github.event.inputs.sms_mode }}
+          SMS_IDS: ${{ github.event.inputs.sms_ids }}
+          SMS_JOB_ID: ${{ github.event.inputs.sms_job_id }}
+          CMONEY_MEMBER_ID: ${{ github.event.inputs.sms_member_id || secrets.CMONEY_MEMBER_ID || vars.CMONEY_MEMBER_ID }}
           # VOD 最早可能出現的台灣時間。這之前的觸發點一律跳過。
           VOD_EARLIEST_HOUR: '12'
-        run: python pipeline.py
+        run: python "${PIPELINE_SCRIPT:-pipeline/pipeline.py}"
 
       - name: 沒事可做，本輪結束
         if: steps.preflight.outputs.has_work != 'true'
@@ -269,7 +303,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
-          YOUTUBE_CHANNEL_ID: ${{ vars.YOUTUBE_CHANNEL_ID }}
+          YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID || vars.YOUTUBE_CHANNEL_ID }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           BACKFILL: ${{ github.event.inputs.backfill }}
           FINAL_ATTEMPT: ${{ github.event.inputs.final }}
@@ -284,8 +318,12 @@ jobs:
           REFRESH_FROM: ${{ github.event.inputs.refresh_from }}
           PARSE_SMS: ${{ github.event.inputs.parse_sms }}
           SMS_SINCE: ${{ github.event.inputs.sms_since }}
+          SMS_MODE: ${{ github.event.inputs.sms_mode }}
+          SMS_IDS: ${{ github.event.inputs.sms_ids }}
+          SMS_JOB_ID: ${{ github.event.inputs.sms_job_id }}
+          CMONEY_MEMBER_ID: ${{ github.event.inputs.sms_member_id || secrets.CMONEY_MEMBER_ID || vars.CMONEY_MEMBER_ID }}
           # 跑完立刻刷新網站，不必等下游排程。需要下面兩個 Secret 才會動作。
           REFRESH_SITE: ${{ github.event.inputs.refresh_site }}
           APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
           ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
-        run: python pipeline.py
+        run: python "${PIPELINE_SCRIPT:-pipeline/pipeline.py}"

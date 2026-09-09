@@ -91,6 +91,10 @@ on:
         description: '★跑完後立刻刷新網站★ 勾 true 網站馬上更新，不必等下個交易日。可與上面任一模式一起勾，也可單獨勾（只刷新不改資料）'
         required: false
         default: 'false'
+      check_keys:
+        description: '★金鑰健檢★ 逐把檢查 Gemini 金鑰能不能用、看得到哪些模型、該怎麼修。只讀清單不產生內容，不消耗生成配額。撞到 404 或配額問題時先勾這個'
+        required: false
+        default: 'false'
       parse_sms:
         description: '★解析會員簡訊★ 處理「會員簡訊」分頁中待解析的簡訊。由後台按鈕自動觸發，也可手動勾'
         required: false
@@ -231,6 +235,7 @@ jobs:
           FULL_FIX_SCOPE: ${{ github.event.inputs.full_fix_scope }}
           REFRESH_FROM: ${{ github.event.inputs.refresh_from }}
           REFRESH_SITE: ${{ github.event.inputs.refresh_site }}
+          CHECK_KEYS: ${{ github.event.inputs.check_keys }}
           PARSE_SMS: ${{ github.event.inputs.parse_sms }}
           SMS_SINCE: ${{ github.event.inputs.sms_since }}
           SMS_MODE: ${{ github.event.inputs.sms_mode }}
@@ -324,6 +329,10 @@ jobs:
         env:
           NOTEBOOKLM_AUTH_JSON: ${{ secrets.NOTEBOOKLM_AUTH_JSON }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # 想換模型時設這個 Variable 就好，不必改程式碼。
+          # 用得到的情境：備用金鑰所屬的專案看不到預設的型號（會回 404），
+          # 換一個大家都有的型號比重新申請金鑰快得多。留空就是 gemini-2.5-flash。
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           # 備用金鑰。免費層的每日請求數是以 Google 專案為單位計算的，
           # 不同專案各有各的額度：一把用完自動換下一把，全部用完才真的停。
           # 與 Apps Script 的 Aiservice.gs 是同一套命名。沒設就只用第一把，
@@ -348,6 +357,7 @@ jobs:
           FULL_FIX: ${{ github.event.inputs.full_fix }}
           FULL_FIX_SCOPE: ${{ github.event.inputs.full_fix_scope }}
           REFRESH_FROM: ${{ github.event.inputs.refresh_from }}
+          CHECK_KEYS: ${{ github.event.inputs.check_keys }}
           PARSE_SMS: ${{ github.event.inputs.parse_sms }}
           SMS_SINCE: ${{ github.event.inputs.sms_since }}
           SMS_MODE: ${{ github.event.inputs.sms_mode }}

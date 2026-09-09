@@ -248,8 +248,25 @@ jobs:
           echo "探測結果：${{ steps.preflight.outputs.reason }}"
           echo "本輪不需要動用 NotebookLM 與 Gemini，直接結束。"
 
+      - name: 本輪不需要 NotebookLM
+        if: steps.preflight.outputs.has_work == 'true' && steps.preflight.outputs.needs_notebooklm != 'true'
+        run: |
+          echo "這個模式用的是已經存在試算表裡的逐字稿，或根本不碰逐字稿，"
+          echo "所以跳過還原登入狀態與 cookie 到期檢查。"
+          echo "NotebookLM 的 cookie 就算過期了，也不影響這一輪。"
+
+      # 只有真的要去抓一份還沒有的逐字稿時才需要 NotebookLM。
+      #
+      # 後台工單（逐字稿是管理者貼進來的）、會員簡訊（來源是 CMoney）、
+      # 修代號、重新分類、價位校對、整頓、全面重整，用的都是已經存在
+      # 試算表裡的逐字稿，或根本不碰逐字稿。
+      #
+      # 先前這一步對「任何有事要做的觸發」都執行，於是 cookie 一過期，
+      # 連「貼逐字稿進來請你整理」這種完全用不到 NotebookLM 的工作
+      # 也一起失敗——而那份逐字稿明明就在試算表裡，什麼都不缺。
+      # needs_notebooklm 由探測步驟依模式算出來。
       - name: 還原 NotebookLM 登入狀態
-        if: steps.preflight.outputs.has_work == 'true' 
+        if: steps.preflight.outputs.has_work == 'true' && steps.preflight.outputs.needs_notebooklm == 'true'
         env:
           NOTEBOOKLM_AUTH_JSON: ${{ secrets.NOTEBOOKLM_AUTH_JSON }}
         run: |

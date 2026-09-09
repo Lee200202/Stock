@@ -3195,6 +3195,21 @@ price 只放數字，或帶著數字的短句（238、255 以上、28 到 29）�
 時間詞、程度詞、型態詞（最近、前幾天、很便宜、突破均線、量能放大）都不是價位，
 這些一律填「未說明」。一個沒有數字的 price 欄位是沒有意義的。
 
+中文數字要換成阿拉伯數字再填。逐字稿是語音轉文字，他講「四千元」就會原樣寫成
+中文，不會變成 4000：
+  「跌破四千元整數關卡」　　→ price: "4000"
+  「請於七百七十五元以上賣」→ price: "775 以上"
+  「兩百三十八塊附近」　　　→ price: "238"
+  「一千五百以下買進」　　　→ price: "1500 以下"
+這一條很重要。看不懂中文數字時，模型會去撿同一句裡別的數字充數——
+實際發生過：那一句講的是「跌破四千元整數關卡」，卻填了 38，
+於是系統拿 38 去對這一檔兩千多到四千多的股價區間，判定「這個數字不屬於這一檔」，
+連帶把本來正確的買入方向降級成觀望。寧可填「未說明」，也不要填一個不相干的數字。
+
+price 只能填「這一檔自己的價位」。同一段話裡若還提到別檔的價位、大盤點數、
+營收或成交量，那些都不是這一檔的 price。判斷方法很簡單：填進去之前先問
+「這個數字與這一檔目前的股價是同一個量級嗎」，不是就填「未說明」。
+
 reason 要改寫成證券研究報告的句子，不是把逐字稿剪一段貼上。
 
 你是專業的證券分析師與財經編輯。輸入是語音轉文字的口語，充滿情緒用語與
@@ -3603,6 +3618,57 @@ def _price_band(kmap: dict, code: str, date_str: str):
     return max(his), min(los)
 
 
+# ------------------------------------------------------------------ #
+# 中文數字價位
+#
+# 逐字稿是語音轉文字，他講「四千元整數關卡」就會原樣寫成中文，
+# 不會變成 4000。擷取的規則是「只填原文真的寫出來的純數字」，
+# 於是這種價位一律抓不到，模型只好去撿句子裡別的數字——
+# 實際發生過的就是：世芯-KY 那一筆講「跌破四千元整數關卡」，
+# 卻填了 38，然後被價位現實檢查判定「38 不在 2630-4530 之內」，
+# 連帶把正確的買入方向降級成觀望。錯的是數字，不是方向。
+#
+# 支援到「萬」就夠了：台股沒有十萬元以上的股票。
+# ------------------------------------------------------------------ #
+_CN_DIGITS = {"零": 0, "〇": 0, "一": 1, "二": 2, "兩": 2, "三": 3, "四": 4,
+              "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
+_CN_UNITS = {"十": 10, "百": 100, "千": 1000, "萬": 10000}
+_CN_NUM_RE = re.compile(r"[零〇一二兩三四五六七八九十百千萬]{1,8}")
+
+
+def cn_number(text: str):
+    """把「四千」「一千五百」「兩百三十八」換成數字。換不出來回 None。"""
+    t = str(text or "").strip()
+    if not t or any(ch not in _CN_DIGITS and ch not in _CN_UNITS for ch in t):
+        return None
+    total, section, last_digit = 0, 0, None
+    for ch in t:
+        if ch in _CN_DIGITS:
+            last_digit = _CN_DIGITS[ch]
+            section = last_digit
+        else:
+            unit = _CN_UNITS[ch]
+            if unit == 10000:
+                total = (total + max(section, 1 if last_digit is None else section)) * unit
+                section, last_digit = 0, None
+            else:
+                # 「十五」開頭省略了一
+                total += (section if last_digit is not None else 1) * unit
+                section, last_digit = 0, None
+    total += section
+    return total or None
+
+
+def cn_prices_in(text: str) -> list:
+    """把一段文字裡所有「中文數字＋元」的價位找出來。"""
+    out = []
+    for m in re.finditer(r"([零〇一二兩三四五六七八九十百千萬]{1,8})\s*(?:元|塊)", str(text or "")):
+        v = cn_number(m.group(1))
+        if v and 1 <= v <= 10000:
+            out.append(float(v))
+    return out
+
+
 def _first_price(text: str, patterns=None):
     """從一段文字裡取出一個看起來像股價的數字。取不到回 None。"""
     t = str(text or "")
@@ -3657,6 +3723,27 @@ def price_reality_check(ss, signals: dict, date_str: str) -> dict:
                 continue
 
             nm = r.get("name", "")
+
+            # 降級之前先試著把價位修回來。
+            #
+            # 逐字稿是語音轉文字，「跌破四千元整數關卡」不會變成 4000，
+            # 於是模型抓不到它、改去撿句子裡別的數字（實際發生過填成 38）。
+            # 那是「數字抓錯」，不是「講的是別檔」——理由摘錄裡的中文數字
+            # 只要落在這一檔的區間內，就證明方向本來是對的。
+            # 不先修就直接降級，等於把一筆正確的買入判成觀望。
+            fixed = None
+            for cand in cn_prices_in(" ".join(str(r.get(f) or "") for f in
+                                              ("reason", "note", "price", "stance"))):
+                if lo * (1 - PRICE_CLEAR_BAND) <= cand <= hi * (1 + PRICE_CLEAR_BAND):
+                    fixed = cand
+                    break
+            if fixed is not None:
+                print(f"  價位現實檢查　{nm}（{code}）原本的 {val} 不在 {lo}-{hi} 之內，"
+                      f"但理由裡的中文數字 {fixed:g} 在區間內，改用它，方向維持不變")
+                r["price"] = f"{fixed:g}"
+                keep.append(r)
+                continue
+
             way_off = (val > hi * PRICE_DEMOTE_X) or (val < lo / PRICE_DEMOTE_X)
 
             if key != "holdings":
@@ -3956,6 +4043,95 @@ def write_results(ss, date_str, signals, article, done_trades, done_holds, repla
     if date_str not in existing_dates(ss, "每日推播內容"):
         sheets_retry(ss.worksheet("每日推播內容").append_row,
                      [date_str, cell(article or f"本日內容：{NOT_MENTIONED}。"), "待寄送"])
+
+    # 寫完就馬上把殘留的「代號待確認」掃一遍。見 sweep_unresolved_codes 的說明。
+    sweep_unresolved_codes(ss, date_str)
+
+
+def sweep_unresolved_codes(ss, date_str: str = "") -> dict:
+    """
+    把「代號待確認」與代號空白的列再比對一次，並把還是對不上的講出來。
+
+    為什麼要有這一道：代號待確認會直接顯示在網站的表格上，讀的人看到一個
+    沒有代號的名稱，沒辦法判斷那是哪一檔、還是根本不是股票。而它出現的原因
+    多半是暫時的——擷取當下上櫃清單那一邊的來源掛掉，對照表只有上市的部分，
+    於是上櫃股全部對不到。過幾分鐘來源恢復，同一個名稱就查得到了。
+    實測「四星KY」在完整對照表下是拼音 1.00 命中 3661 世芯-KY，
+    根本不需要人工介入，只是當下沒對到而已。
+
+    與 repair_codes_only 的差別是「範圍」：那一支會重寫整張工作表，
+    適合手動整理過去資料；這一支只碰待確認的那幾格，寫入量小、
+    不會動到別人的資料，所以可以每次寫完就順手跑一次。
+
+    對不上的不刪除，只記錄。刪除是不可逆的，而這裡的判斷依據
+    （對照表當下完不完整）本身就可能是暫時的。
+    """
+    stat = {"fixed": 0, "still": 0, "rows": []}
+    try:
+        code_map = get_code_map()
+    except Exception as e:
+        print(f"  代號收尾略過（載不到對照表：{e}）")
+        return stat
+    if not code_map:
+        return stat
+
+    for sheet_name in ("操作紀錄", "會員持股"):
+        try:
+            ws = ss.worksheet(sheet_name)
+            values = sheets_retry(ws.get_all_values)
+        except Exception as e:
+            print(f"  代號收尾略過 {sheet_name}：{e}")
+            continue
+        if len(values) < 2:
+            continue
+        head = [str(h).strip() for h in values[0]]
+        try:
+            c_date, c_name, c_code = (head.index("日期"), head.index("股票名稱"),
+                                      head.index("代號"))
+        except ValueError:
+            continue
+
+        updates = []
+        for idx, row in enumerate(values[1:], start=2):
+            def g(i):
+                return str(row[i]).strip() if i < len(row) else ""
+            if date_str and norm_date(g(c_date)) != date_str:
+                continue
+            code, name = g(c_code), g(c_name)
+            if not name or (code and code != UNRESOLVED):
+                continue
+
+            new_code, official, how = resolve_code(name, "")
+            if new_code in (REJECT, UNRESOLVED):
+                stat["still"] += 1
+                stat["rows"].append(f"{sheet_name} 第 {idx} 列　{name}　{how}")
+                continue
+            updates.append({"range": gspread.utils.rowcol_to_a1(idx, c_code + 1),
+                            "values": [[new_code]]})
+            if official and official != name:
+                updates.append({"range": gspread.utils.rowcol_to_a1(idx, c_name + 1),
+                                "values": [[official]]})
+            stat["fixed"] += 1
+            print(f"  代號收尾　{sheet_name} 第 {idx} 列　{name} -> {official}（{new_code}）　{how}")
+
+        if updates:
+            sheets_retry(ws.batch_update, updates, value_input_option="RAW")
+
+    if stat["fixed"] or stat["still"]:
+        note = (f"代號收尾：補上 {stat['fixed']} 筆"
+                + (f"，仍有 {stat['still']} 筆對不上" if stat["still"] else "，全部都補齊了"))
+        print(note)
+        for line in stat["rows"]:
+            print("  仍待確認　" + line)
+        if stat["still"]:
+            print("  這幾筆會以「代號待確認」顯示在網站上。可到後台按「重跑代號比對」，")
+            print("  或直接在試算表的代號欄填四位數字並把名稱改成正式簡稱。")
+        try:
+            write_status_log(ss, "代號收尾", note + ("；" + "／".join(stat["rows"][:5])
+                                                    if stat["rows"] else ""))
+        except Exception:
+            pass
+    return stat
 
 
 # ---------------------------------------------------------------- #
@@ -6521,6 +6697,13 @@ def smoke_generate(key: str, model: str, timeout: int = 30) -> tuple[bool, int, 
         kind = _classify_quota(gr.text or "")
         label = "每日" if kind == "daily" else "每分鐘" if kind == "minute" else "種類不明"
         return True, 429, f"額度用完（{label}）：{api_error_text(gr.text, 200) or '無訊息'}"
+    if gr.status_code in TRANSIENT:
+        # 500／502／503／504 是「這一刻服務忙」，不是「這把金鑰不能用」。
+        # 503 的原文就寫著 high demand … usually temporary，等一下就好。
+        # 先前把它算成失敗，那把金鑰就被標記成不可用、整輪跳過——
+        # 明明只是那一秒鐘塞車，卻讓一把好金鑰整天不能用。
+        return True, gr.status_code, (f"服務暫時忙碌（HTTP {gr.status_code}），金鑰本身沒問題："
+                                      f"{api_error_text(gr.text, 160) or '無訊息'}")
     return (False, gr.status_code,
             _key_problem(gr.status_code, gr.text or "")
             or f"HTTP {gr.status_code}：{api_error_text(gr.text, 200)}")
@@ -6543,8 +6726,9 @@ def preflight_gemini_keys():
         if p["ok"]:
             print(f"  {key_label(i)}：可用　{p.get('gen_detail') or ''}".rstrip())
             continue
-        if p["status"] in (0, 429):
-            print(f"  {key_label(i)}：{p['detail'] or '暫時問不到'}，本輪照常保留")
+        if p["status"] in (0, 429) or p.get("gen_status") in TRANSIENT:
+            print(f"  {key_label(i)}："
+                  f"{p.get('gen_detail') or p['detail'] or '暫時問不到'}，本輪照常保留")
             continue
         why = p.get("gen_detail") or p["detail"]
         _KEY_STATE["dead"][i] = why
@@ -6605,7 +6789,9 @@ def report_gemini_keys():
         print(f"  2) generateContent　HTTP {p.get('gen_status') or '未執行'}"
               f"　{p.get('gen_detail') or p['detail'] or ''}")
         if p["ok"]:
-            print("  結論：可用（真的呼叫得動）")
+            busy = p.get("gen_status") in TRANSIENT
+            print("  結論：" + ("暫時忙碌，但金鑰本身可用（稍後會自己好）"
+                               if busy else "可用（真的呼叫得動）"))
             good.append(i)
         else:
             print("  結論：不可用")

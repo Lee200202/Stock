@@ -333,6 +333,9 @@ jobs:
           # 用得到的情境：備用金鑰所屬的專案看不到預設的型號（會回 404），
           # 換一個大家都有的型號比重新申請金鑰快得多。留空就是 gemini-2.5-flash。
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          # 換型號後若回 400 INVALID_ARGUMENT，多半是新型號的輸出上限比較低。
+          # 用這個把 maxOutputTokens 調小（留空＝65535）。
+          GEMINI_MAX_OUT: ${{ vars.GEMINI_MAX_OUT }}
           # 備用金鑰。免費層的每日請求數是以 Google 專案為單位計算的，
           # 不同專案各有各的額度：一把用完自動換下一把，全部用完才真的停。
           # 與 Apps Script 的 Aiservice.gs 是同一套命名。沒設就只用第一把，

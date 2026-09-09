@@ -109,7 +109,42 @@ TRANSIENT = (429, 500, 502, 503, 504)
 # 「去補一個 Secret」這個完全錯誤的方向——真正該做的是把 pipeline.py 更新。
 # 有了這個標記，就會直接說「檔案版本不符，請更新」。
 # ------------------------------------------------------------------ #
-PIPELINE_FEATURES = "preflight,auth-rotation,lazy-gemini-key,cmoney-audit-v4,natural-reasons,sms-checkpoint,sms-item-verifier,dailyk-html-retry"
+PIPELINE_FEATURES = ("preflight,auth-rotation,lazy-gemini-key,cmoney-audit-v4,natural-reasons,"
+                     "sms-checkpoint,sms-item-verifier,dailyk-html-retry,"
+                     "sms-scope-v6,sms-quota-breaker,sms-incremental-write,sms-prompt-v6")
+
+# ------------------------------------------------------------------ #
+# 會員簡訊：解析版本與配額防護
+#
+# 解析版本是這一版最重要的欄位。先前判斷「這篇解析過了沒有」只能看
+# 解析明細是不是空的，但抓取當下就會先塞一個 "[]" 佔位字串進去，
+# 於是「還沒解析」與「解析後真的沒有個股」在資料上長得一模一樣。
+# 併入過去資料那一步把佔位的 "[]" 當成有效檢查點，完全不呼叫 Gemini
+# 就把該列標成「已解析（無可收錄，稽核通過）」——這就是九月七日那篇
+# 「1519華城 775 以上全數獲利賣出」被判成無可收錄的原因。
+#
+# 改法：另開一欄「解析版本」，只有 Gemini 真的判定過才會寫值。
+#   空白      → 從來沒有被 AI 判定過，需要解析
+#   等於現值  → 已用現行提示詞判定過，無論收錄幾筆都不再重跑
+#   不等於    → 舊提示詞判定過，只有明確按「重新解析」時才重跑
+# 有了它就不必再用「無可收錄」這種狀態字串去猜，也不會每天把同一批
+# 沒有個股的純盤勢文章重新丟給 Gemini 燒配額。
+# ------------------------------------------------------------------ #
+SMS_PROMPT_VERSION = "sms-prompt-v6"
+
+# 單次執行最多允許的 Gemini 呼叫數。免費層每日請求數有限，而會員簡訊
+# 一篇可能拆成數段，沒有上限的話一次執行就能把一整天的額度用光，
+# 連帶讓當天的逐字稿擷取（tag=extract）拿不到配額而失敗。
+# 做不完不是失敗：沒輪到的列維持原狀，下一次執行接著做。
+SMS_AI_MAX_CALLS = max(1, int(os.environ.get("SMS_AI_MAX_CALLS", "45") or 45))
+
+# 單次執行最多處理幾篇需要 AI 的文章。與上面那條是兩道獨立的閘門，
+# 一篇拆很多段時由呼叫數擋，一篇一段時由篇數擋。
+SMS_MAX_AI_ARTICLES = max(1, int(os.environ.get("SMS_MAX_AI_ARTICLES", "25") or 25))
+
+# 連續幾篇文章撞到配額就中止本輪。免費層的每分鐘限制退避還有意義，
+# 每日限制退避永遠沒有意義，再等下去只是把 job 時間燒完。
+SMS_MAX_QUOTA_STRIKES = max(1, int(os.environ.get("SMS_MAX_QUOTA_STRIKES", "2") or 2))
 
 
 def env(name: str) -> str:
@@ -128,12 +163,57 @@ SPREADSHEET_ID = env("SPREADSHEET_ID")
 # 這些模式就必須為了通過檢查而拿到一把它們用不到的金鑰，
 # 違反最小權限，也讓探測步驟白白多綁一個 Secret。
 # 真正要呼叫時才檢查，缺了照樣會有一模一樣的錯誤訊息，不會靜默出錯。
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
+# 多把金鑰。與 Apps Script 的 Aiservice.gs 是同一套命名，兩邊要一致：
+#   GEMINI_API_KEY      第一把
+#   GEMINI_API_KEY_2..5 第二到第五把
+#   GEMINI_API_KEYS     多把用逗號寫在同一個變數裡
+#
+# 為什麼需要：免費層的每日請求數是「以 Google 專案為單位」計算的。
+# 不同專案各有各的額度，一把用完換下一把，全部用完才是真的沒有額度。
+# Apps Script 那邊早就支援了，這裡先前只讀一把，於是同樣是額度問題，
+# 後台還能繼續跑，GitHub 這條卻整天停擺。
+def _load_gemini_keys() -> list[str]:
+    out, seen = [], set()
+    def push(raw):
+        for part in str(raw or "").split(","):
+            t = part.strip()
+            if t and t not in seen:
+                seen.add(t)
+                out.append(t)
+    push(os.environ.get("GEMINI_API_KEY", ""))
+    push(os.environ.get("GEMINI_API_KEYS", ""))
+    for i in range(2, 6):
+        push(os.environ.get(f"GEMINI_API_KEY_{i}", ""))
+    return out
+
+
+GEMINI_KEYS = _load_gemini_keys()
+GEMINI_API_KEY = GEMINI_KEYS[0] if GEMINI_KEYS else ""
+
+# 今天已經用完的金鑰索引。用完的不要再撞——每撞一次都要等完整的退避，
+# 而且那一次仍然計入用量。
+_KEY_STATE = {"idx": 0, "dead": set()}
+
+
+def current_gemini_key() -> str:
+    return GEMINI_KEYS[_KEY_STATE["idx"]] if GEMINI_KEYS else ""
+
+
+def rotate_gemini_key(tag: str) -> bool:
+    """把目前這一把標記為今日用盡並換下一把。全部用完回 False。"""
+    _KEY_STATE["dead"].add(_KEY_STATE["idx"])
+    for i in range(len(GEMINI_KEYS)):
+        if i not in _KEY_STATE["dead"]:
+            _KEY_STATE["idx"] = i
+            print(f"Gemini {tag}：第 {i} 把金鑰接手（前一把今日額度已用盡，共 {len(GEMINI_KEYS)} 把）")
+            return True
+    return False
 
 
 def require_gemini_key():
-    if not GEMINI_API_KEY:
-        raise SystemExit("缺少環境變數 GEMINI_API_KEY，請到 GitHub Secrets 或 Variables 補上。")
+    if not GEMINI_KEYS:
+        raise SystemExit("缺少環境變數 GEMINI_API_KEY，請到 GitHub Secrets 或 Variables 補上。"
+                         "額度不夠時可另外設 GEMINI_API_KEY_2 到 _5，或用逗號寫在 GEMINI_API_KEYS。")
 BACKFILL = os.environ.get("BACKFILL", "false").strip().lower() == "true"
 FINAL_ATTEMPT = os.environ.get("FINAL_ATTEMPT", "false").strip().lower() == "true"
 
@@ -620,18 +700,15 @@ def maybe_refresh_site():
     ok_n, fail_n = 0, 0
 
     def sms_sync_progress(done, label, batch=0, result=""):
-        if not PARSE_SMS:
-            return
-        total = max(1, len(STEPS))
-        pct = min(99, 94 + int(max(0, done) / total * 5))
-        note = f"全站重算 {done}/{total}：{label}"
-        if batch > 1:
-            note += f"（第 {batch} 批）"
-        if result:
-            note += f"｜{result}"
-        report_sms_progress(step="同步衍生資料", done=7, total=8, pct=pct, note=note,
-                            sync_done=done, sync_total=total, sync_step=label,
-                            sync_batch=batch, sync_result=result)
+        """
+        保留成空函式，刻意不再回報到會員簡訊的進度條。
+
+        全站重算與會員簡訊是兩條獨立的鏈。把重算進度寫進簡訊狀態，
+        會讓「這一篇簡訊收錄了哪些個股」的畫面被「補齊日K 第 12 批」
+        這種訊息蓋掉，而且簡訊流程現在根本不會呼叫這條鏈。
+        呼叫點留著是為了不動這支函式其餘的控制流。
+        """
+        return
 
     for i, (key, label) in enumerate(STEPS, 1):
         # 分批的步驟要重複呼叫到做完為止。
@@ -973,8 +1050,88 @@ class NotReadyYet(Exception):
 
 
 class RateLimited(Exception):
-    """Gemini 配額用盡（HTTP 429）。退避後仍失敗，代表這段時間內配額真的不夠。"""
-    pass
+    """
+    Gemini 配額用盡（HTTP 429）。
+
+    daily=True 代表撞到的是「每日請求數」上限。這一種退避完全沒有意義：
+    額度要等到太平洋時間午夜才重置，在那之前不管等多久、重按幾次按鈕，
+    每一次都會再收一個 429，而每一次都仍然算進當日用量。
+    先前沒有分這兩種，於是按鈕被連按了八次、每次再花四分鐘退避六輪，
+    把時間與額度一起燒掉，卻一列資料都沒寫進去。
+    """
+
+    def __init__(self, message, daily=False, reset_at=""):
+        super().__init__(message)
+        self.daily = bool(daily)
+        self.reset_at = reset_at
+
+
+# ------------------------------------------------------------------ #
+# 配額熔斷器
+#
+# 一旦判定當日額度用盡，之後任何一次 call_gemini 都直接拋例外，
+# 連請求都不發。理由很實際：發出去也只會拿回 429，而那一次仍然
+# 計入用量，等於用自己的額度去確認自己沒有額度。
+#
+# 這一道同時保護逐字稿流程：會員簡訊把額度用完之後，同一個 job 後面的
+# extract 會立刻得到「配額用盡」而不是再退避六輪才失敗。
+# ------------------------------------------------------------------ #
+_QUOTA_STOP = {"daily": False, "reason": "", "reset_at": ""}
+_GEMINI_CALLS = {"n": 0}
+
+# 429 回應裡代表「每日」而非「每分鐘」的字樣。Google 兩種都用同一個
+# HTTP 狀態碼，只能靠 quota metric 的名稱分辨。
+_DAILY_QUOTA_HINTS = (
+    "perday", "per_day", "per day", "requests_per_day", "requestsperday",
+    "generaterequestsperdayperprojectpermodel", "free_tier_requests",
+    "daily limit", "quota_limit_value",
+)
+_MINUTE_QUOTA_HINTS = ("perminute", "per_minute", "per minute", "requests_per_minute")
+
+
+def _classify_quota(text: str) -> str:
+    """回傳 'daily'、'minute' 或 ''（分不出來）。"""
+    low = re.sub(r"\s+", "", str(text or "").lower())
+    if any(h.replace(" ", "") in low for h in _MINUTE_QUOTA_HINTS):
+        return "minute"
+    if any(h.replace(" ", "") in low for h in _DAILY_QUOTA_HINTS):
+        return "daily"
+    return ""
+
+
+def _next_quota_reset() -> str:
+    """
+    免費層的每日請求數在太平洋時間午夜重置。換算成台北時間印出來，
+    人才知道「什麼時候再按才有意義」，而不是每十五分鐘再按一次。
+
+    夏令時間用美國規則近似（三月第二個週日到十一月第一個週日），
+    差一小時不影響用途——這個時間只是給人看的下次可用時間。
+    """
+    now_utc = datetime.now(timezone.utc)
+    y = now_utc.year
+    def _nth_sunday(month, nth):
+        d = date(y, month, 1)
+        d += timedelta(days=(6 - d.weekday()) % 7)      # 當月第一個週日
+        return d + timedelta(days=7 * (nth - 1))
+    dst = _nth_sunday(3, 2) <= now_utc.date() < _nth_sunday(11, 1)
+    pacific = timezone(timedelta(hours=-7 if dst else -8))
+    local = now_utc.astimezone(pacific)
+    reset_pacific = datetime.combine(local.date() + timedelta(days=1),
+                                     datetime.min.time(), tzinfo=pacific)
+    return reset_pacific.astimezone(TAIPEI).strftime("%Y/%m/%d %H:%M")
+
+
+def mark_quota_exhausted(tag: str) -> str:
+    reset_at = _next_quota_reset()
+    _QUOTA_STOP.update({"daily": True, "reset_at": reset_at,
+                        "reason": f"Gemini 每日配額用盡（{tag}）"})
+    print(f"Gemini 每日配額用盡（{tag}）。額度約於台北時間 {reset_at} 重置，"
+          f"在那之前重按按鈕不會有用，本輪立即停止呼叫模型。")
+    return reset_at
+
+
+def quota_exhausted() -> bool:
+    return bool(_QUOTA_STOP["daily"])
 
 
 class AuthExpired(Exception):
@@ -1345,17 +1502,31 @@ async def fetch_fulltext(video_url, title, timeout):
 # ---------------------------------------------------------------- #
 # Gemini
 # ---------------------------------------------------------------- #
-def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX_OUT, tag=""):
+def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX_OUT, tag="",
+                max_429=6):
     """
     thinking=0 關閉思考。gemini-2.5-flash 的 thinking 預設開啟，
     且思考 token 計入 maxOutputTokens，是造成輸出被截斷的主因之一。
 
     finishReason 必須檢查。MAX_TOKENS 時 API 仍回 200 加上半截文字，
     不檢查就會靜默寫入不完整資料。
+
+    max_429 是這一次呼叫最多容忍幾個 429。逐字稿那條路徑一天只跑幾次，
+    等得起完整的退避表；會員簡訊一輪要跑幾十篇，每篇都退避六輪的話，
+    光是等待就會把 job 的時間預算耗盡，所以那邊會把它調小。
     """
     require_gemini_key()
-    url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-           f"{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}")
+
+    # 熔斷器：當日額度已確定用盡時直接停，不再送出必定失敗的請求。
+    if _QUOTA_STOP["daily"]:
+        raise RateLimited(f"{_QUOTA_STOP['reason']}；本輪已停止呼叫模型（{tag}）",
+                          daily=True, reset_at=_QUOTA_STOP["reset_at"])
+    _GEMINI_CALLS["n"] += 1
+    def endpoint():
+        # 每次重試都重新組一次網址。輪替金鑰之後要打到新的那一把，
+        # 不是繼續打已經用完的那一把。
+        return (f"https://generativelanguage.googleapis.com/v1beta/models/"
+                f"{GEMINI_MODEL}:generateContent?key={current_gemini_key()}")
 
     cfg = {
         "temperature": 0.1,
@@ -1372,9 +1543,15 @@ def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX
     }
 
     last = ""
+    hits_429 = 0
+    skip_delay = False
     # 429 是「這一分鐘打太多」，退避要夠長才有意義。
     # 原本 5/15/40 秒對免費配額太短，常常四次都撞在同一個配額窗口內。
     for attempt, delay in enumerate((0, 12, 30, 75, 150, 240)):
+        if skip_delay:
+            # 剛換過金鑰。新的那一把有自己的額度，沒有理由先等一段退避。
+            skip_delay = False
+            delay = 0
         if delay:
             # 如果等下去就會超過整體時間預算，不如現在就放棄這一段，
             # 讓上層決定降級或收尾，總比等到一半被 GitHub 硬砍好。
@@ -1386,7 +1563,7 @@ def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX
             time.sleep(delay + random.uniform(0, 5))
 
         try:
-            r = requests.post(url, json=body, timeout=600)
+            r = requests.post(endpoint(), json=body, timeout=600)
         except requests.RequestException as e:
             last = f"連線錯誤 {type(e).__name__}"
             print(f"Gemini {tag} {last}，重試中")
@@ -1397,6 +1574,26 @@ def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX
             if r.status_code not in TRANSIENT:
                 # 錯誤訊息不含金鑰，也不回傳原始回應內容
                 raise RuntimeError(f"Gemini 呼叫失敗（{tag}）：{last}")
+
+            if r.status_code == 429:
+                hits_429 += 1
+                # 每日與每分鐘要分開處理。每分鐘等一下有用，每日等到明天才有用。
+                kind = _classify_quota(r.text or "")
+                if kind == "daily":
+                    # 還有沒用完的金鑰就換一把繼續，不要停。
+                    if rotate_gemini_key(tag):
+                        hits_429 = 0
+                        skip_delay = True
+                        continue
+                    reset_at = mark_quota_exhausted(tag)
+                    raise RateLimited(f"Gemini 每日配額用盡（{tag}）：{last}",
+                                      daily=True, reset_at=reset_at)
+                if hits_429 >= max_429:
+                    # 分不出種類，但已經連撞這麼多次。當成本輪不可用停下來，
+                    # 由呼叫端決定要落地已完成的部分還是收尾。
+                    print(f"Gemini {tag} 連續 {hits_429} 次 429，本輪不再重試")
+                    raise RateLimited(f"Gemini 配額不足（{tag}）：{last}",
+                                      daily=False, reset_at="")
 
             # 伺服器指定的等待秒數優先於我們的表定退避
             wait_hint = 0
@@ -1443,7 +1640,7 @@ def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX
         return text
 
     if "429" in last:
-        raise RateLimited(f"Gemini 配額用盡（{tag}）：{last}")
+        raise RateLimited(f"Gemini 配額用盡（{tag}）：{last}", daily=False, reset_at="")
     raise RuntimeError(f"Gemini 連續重試失敗（{tag}）：{last}")
 
 
@@ -3777,59 +3974,131 @@ def upsert_video_transcript(ss, video_id, date_str, v2):
 # ---------------------------------------------------------------- #
 
 CM_PARSE_SYSTEM = (
-    "你在讀一則台灣投顧分析師發給 VIP 會員的盤中即時操作簡訊，要把它變成結構化的個股操作紀錄。\n\n"
+    "你在讀一則台灣投顧分析師「張震」發給 VIP 會員的盤中即時操作簡訊，"
+    "要把它變成結構化的個股操作紀錄。\n\n"
     "輸入是「一條指令」的內文，開頭的廣播序號（如 張震-1、震1、張震6GJ-1）已經去掉了。\n\n"
+
+    "【最重要的一件事】\n"
+    "這些簡訊是會員真金白銀的進出依據。只要句子裡出現「個股 + 當下該做的動作」，"
+    "就一定要收錄，漏掉一筆比多寫一筆嚴重得多。\n"
+    "但同樣不可以無中生有：沒指名個股的心理喊話、族群評論、大盤點數，一筆都不能開。\n\n"
+
     "【action 只能是這五個之一】\n"
-    "  買入　　　叫會員現在買進、買回、加碼、分批買、掛單買、「站買方」、「轉為...買進」。\n"
-    "  賣出　　　叫會員現在賣出、獲利了結、減碼、出清、賣掉、「站賣方」、「應站賣方」、「手中若有...者應站賣方」、「紅盤之上獲利賣出」。\n"
-    "  會員持股　明講會員手上有這一檔，而且要續抱、抱牢、不動作、不必急於動作、等待轉折、不要急於加碼。例如：「會員手中持股嘉澤，要耐心等3天...不要急於加碼」、「會員持股...皆續抱」。\n"
-    "  觀望不碰　明講現在不可以買、不要碰、避開、不要追。\n"
-    "  觀望注意　只是點名要留意、追蹤、準備突破，沒有叫人現在動作。\n\n"
+    "  買入　　　叫會員現在買進、買回、加碼、分批買、掛單買、「站買方」、「轉為…買進」、"
+    "「資金轉為…買進」、「將空出資金轉為買進」、「沒有漲停都買」。\n"
+    "  賣出　　　叫會員現在賣出、獲利了結、減碼、出清、賣掉、「站賣方」、「應站賣方」、"
+    "「手中若有…者應站賣方」、「已填息應減碼」、「請在今天賣出」、「於成本之上獲利賣出」、"
+    "「紅盤之上獲利賣出」。\n"
+    "  會員持股　明講會員手上有這一檔，而且要續抱、抱牢、不動作、不必急於動作、等待轉折、"
+    "不要急於加碼。例如「會員手中持股嘉澤，要耐心等3天…不要急於加碼」、「會員持股…皆續抱」、"
+    "「祥碩今天季線正式向上，抱牢」。\n"
+    "  觀望不碰　明講現在不可以買、不要碰、避開、不要追這一檔個股。\n"
+    "  觀望注意　只是點名要留意、追蹤、準備突破、「耐心等待某價再找賣點」，"
+    "沒有叫人現在動作。\n\n"
+
+    "【一句話含兩筆或多筆時，每一筆都要獨立輸出】\n"
+    "換股句是最常漏的一種。「賣出A、資金轉為買進B」必須輸出兩筆：A 賣出、B 買入。\n"
+    "  「全國會員請將手中璟德於257元以上全數獲利賣出，資金轉為65.5元以下市價買進2354鴻準」\n"
+    "    → 璟德 賣出 257 以上；鴻準(2354) 買入 65.5 以下。\n"
+    "  「手中持有威剛者，請於415元以上獲利賣出，資金轉為市價買進6770力積電，沒有漲停都買」\n"
+    "    → 威剛 賣出 415 以上；力積電(6770) 買入（市價，price 留空）。\n"
+    "  「建議一般會員賣出AES-KY，在1170元以上賣出，資金轉為買進3533嘉澤，請於2030元以下買進」\n"
+    "    → AES-KY 賣出 1170 以上；嘉澤(3533) 買入 2030 以下。\n\n"
+
     "【同一句含兩種會員狀態】\n"
     "「未持有者請於260元以下買進，已持有者續抱、不加碼」必須輸出同一檔兩筆：買入與會員持股。\n"
-    "不要自行判斷歷史成本；程式會查全部操作紀錄。若先前已有更低買入價，程式會省略本次條件式買入，只保留續抱。\n\n"
+    "  「新進會員，手中未持有2439美律者，請於94元以下買進！已持有者不加碼，續抱即可」\n"
+    "    → 美律(2439) 買入 94 以下；美律 會員持股。\n"
+    "  「會員手中未持有8112至上者，請於94元以下買進，已持有者續抱即可」\n"
+    "    → 至上(8112) 買入 94 以下；至上 會員持股。\n"
+    "不要自行判斷歷史成本；程式會查全部操作紀錄。若先前已有更低買入價，"
+    "程式會省略本次條件式買入，只保留續抱。\n\n"
+
     "【重要：台灣上市櫃股票名稱特別提醒】\n"
     "1. 許多台股名稱取自日常成語或形容詞，切勿誤判為非股票！\n"
-    "   - 「至上」（8112）：分析師寫「會員手中至上，請於91元以上全數賣出」，「至上」就是股票名稱（至上電子 8112），絕非形容詞！必須提取！\n"
-    "   - 「嘉澤」（3533）：分析師寫「會員手中持股嘉澤，要耐心等3天...不要急於加碼」，「嘉澤」為個股，動作為「會員持股」！\n"
-    "   - 「鴻海」（2317）、「緯創」（3231）：分析師寫「手中若有鴻海、緯創者，今天應站賣方」，應提取兩筆：鴻海（賣出）、緯創（賣出）！\n"
-    "   - 「力積電」（6770）：若原文寫「6770力積電」，請將名稱填「力積電」，代號填「6770」！\n"
-    "   - 其餘常見股名如「大同」「統一」「佳能」「巨大」「光寶科」「致茂」「晶心科」「祥碩」「華城」「東元」「裕隆」等，均為合法股票名稱。\n"
+    "   - 「至上」（8112）：分析師寫「會員手中至上，請於91元以上全數賣出」，"
+    "「至上」就是股票名稱（至上電子 8112），絕非形容詞！必須提取！\n"
+    "   - 「嘉澤」（3533）：「會員手中持股嘉澤，要耐心等3天…不要急於加碼」→ 會員持股。\n"
+    "   - 「鴻海」（2317）、「緯創」（3231）：「手中若有鴻海、緯創者，今天應站賣方」"
+    "→ 兩筆賣出。\n"
+    "   - 「力積電」（6770）：原文寫「6770力積電」時，名稱填「力積電」、代號填「6770」。\n"
+    "   - 其餘常見股名如「大同」「統一」「佳能」「巨大」「光寶科」「致茂」「晶心科」「祥碩」"
+    "「華城」「東元」「裕隆」「鴻準」「譜瑞」「旭隼」「大江」「璟德」「威剛」「所羅門」"
+    "「世紀鋼」「正德」「漢唐」「京元電」「建準」「陽明」「長榮」「美律」「世芯」「事欣科」"
+    "「大立光」「聯電」，均為合法股票名稱。\n"
     "2. 一條指令包含多檔時，每一檔都要獨立開一筆。\n"
-    "   - 「鴻準、裕隆、晶心科皆小漲，華城、東元只是洗盤...祥碩今天季線正式向上，抱牢...持股目前續抱」→ 每一檔皆開一筆「會員持股」。\n\n"
+    "   - 「鴻準、裕隆、晶心科皆小漲，華城、東元只是洗盤…祥碩今天季線正式向上，抱牢…"
+    "持股目前續抱」→ 鴻準、裕隆、晶心科、華城、東元、祥碩各開一筆「會員持股」。\n"
+    "   - 「會員持股穩穩的，華城、晶心科、祥碩、嘉澤、鴻準等，皆持股續抱」→ 五筆會員持股。\n\n"
+
     "【本流程必須正確收錄的操作範例】\n"
-    "- 「手中持有1519華城，請於775元以上全數獲利賣出」→ 華城（1519），賣出，775，以上。\n"
+    "- 「手中持有1519華城，請於775元以上全數獲利賣出，資金保留下來」"
+    "→ 華城（1519），賣出，775，以上。這種句子絕不可回空陣列。\n"
     "- 「手中持股6533晶心科，請於271元以上獲利賣出」→ 晶心科（6533），賣出，271，以上。\n"
-    "- 「會員手中持股祥碩，盤中有大單買進，季線即將向上，準備突破，務必抱牢」→ 祥碩（5269），會員持股。句中的『大單買進』是盤面現象，不是叫會員買進。\n"
-    "- 「早上賣出的6533晶心科，請於265元以下買回來」→ 晶心科（6533），買入，265，以下。前面的賣出是歷史回顧，本次動作是買回。\n\n"
+    "- 「早上賣出的6533晶心科，請於265元以下買回來」→ 晶心科（6533），買入，265，以下。"
+    "前面的賣出是歷史回顧，本次動作是買回。\n"
+    "- 「建議買進加碼一次3533嘉澤，請於1590元以下買進做多」→ 嘉澤（3533），買入，1590，以下。\n"
+    "- 「建議全國會員將昨日空出的部份資金，轉為買進做多6533晶心科，請於平盤250元以下買進做多」"
+    "→ 晶心科（6533），買入，250，以下。\n"
+    "- 「建議手中持股2609陽明，請於59.5元以上全數獲利賣出（之前除息2元）」"
+    "→ 陽明（2609），賣出，59.5，以上。括號裡的 2 是除息金額，不是操作價位。\n"
+    "- 「手中在235元有買鴻海者，建議255元以上獲利賣出一次」→ 鴻海（2317），賣出，255，以上。"
+    "235 是會員的持有成本，不是這次的操作價位，不可以填進 price。\n"
+    "- 「6770力積電，請於紅盤之上全數獲利賣出」→ 力積電（6770），賣出，price 與 limit 留空，"
+    "條件寫進 note。\n"
+    "- 「手中持有世紀鋼、持有正德者，請於成本之上獲利賣出」→ 世紀鋼、正德各一筆賣出，"
+    "price 留空。\n"
+    "- 「之前威剛沒有賣出者，請在今天賣出」→ 威剛，賣出，price 留空。\n"
+    "- 「會員手中持有長榮者，已填息應減碼！陽明還有大空間續抱」"
+    "→ 長榮 賣出（減碼）；陽明 會員持股。\n"
+    "- 「今日一般會員買璟德，已漲停，續抱」→ 璟德，會員持股。\n"
+    "- 「會員手中持股祥碩，盤中有大單買進，季線即將向上，準備突破，務必抱牢」"
+    "→ 祥碩（5269），會員持股。句中的『大單買進』是盤面現象，不是叫會員買進。\n"
+    "- 「上次AES沒賣出者，耐心等待1200元以上再找賣點，我也會再通知大家」"
+    "→ AES-KY，觀望注意。他明講「再找賣點、會再通知」，這一刻沒有要動作。\n"
+    "- 「手中若持有大立光者，要留意這兩天是賣點」→ 大立光，觀望注意。\n\n"
+
     "【價位填寫規則】\n"
-    "  price 只填「這一條裡真的寫出來的純數字」（整數或小數），不帶單位：\n"
+    "  price 只填「這一條裡真的寫出來、而且屬於這次操作」的純數字（整數或小數），不帶單位：\n"
     "    「請於775元以上全數獲利賣出」→ price: '775', limit: '以上'\n"
     "    「請在264元以下買進」　　　　→ price: '264', limit: '以下'\n"
-    "    「請於91元以上全數賣出」　　　→ price: '91', limit: '以上'\n"
-    "  非數字價位描述（如「紅盤之上」「成本之上」「市價」）：price 與 limit 留空，條件寫在 note 中。\n"
-    "  除權息括號說明（如「（已除息3.8元）」「（除息2元）」）：裡面的數字是除息金額不是操作價位，不可以填進 price；但除權息註記不影響操作，該檔股票仍須正常提取！\n\n"
+    "    「請於平盤250元以下買進做多」→ price: '250', limit: '以下'\n"
+    "  下面四種數字一律不可以填進 price，只能寫進 note：\n"
+    "    1. 除權息金額：「（已除息3.8元）」「（除息2元）」「今日除息8.88元秒填息」。\n"
+    "    2. 會員的歷史成本：「手中在235元有買鴻海者」的 235。\n"
+    "    3. 大盤點數：「測試46188點」「45234-46188點」「已測試454xx點」。\n"
+    "    4. 非數字價位描述：「紅盤之上」「成本之上」「市價」「平盤」單獨出現時。\n"
+    "  除權息註記不影響操作，該檔股票仍須正常提取！\n\n"
+
     "【嚴格不可生出筆數的情況（防雜訊）】\n"
-    "1. 族群、概念、類股不是個股。如「被動元件」「ABF」「矽晶圓」「航運股」「記憶體」「高檔AI族群」等出現時，絕對不可為它們開筆。\n"
+    "1. 族群、概念、類股不是個股。「被動元件」「ABF」「矽晶圓」「航運股」「記憶體」"
+    "「高檔AI族群」「電機類股」「機器人概念股」出現時，絕對不可為它們開筆。\n"
     "2. 加權指數、大盤點數（如「測試46188點」）不是個股，不可開筆。\n"
-    "3. 純大盤看法或無指名個股的心理喊話（如「大盤連續反彈兩天」「今天大盤都沒量，什麼動作都不要做，持股續抱即可」），不可開筆。\n\n"
+    "3. 純大盤看法或無指名個股的心理喊話，不可開筆。例如"
+    "「大盤連續反彈兩天」「今天大盤都沒量，什麼動作都不要做，持股續抱即可」"
+    "「存股的股票只能在31元以下買」「今日絕不可隨意殺低手中持股」"
+    "「一切進出動作依我通知操作」。這些句子沒有指名任何一檔，一筆都不能開。\n"
+    "4. 「台積電快不裝牛了」這種對別人家股票的行情評論，沒有叫會員動作，不開筆。\n\n"
+
     "【note 說明重點】\n"
     "note 必須是自然、完整的敘述句，先寫條件或原因，再銜接操作結論，句尾加句號。\n"
     "禁止用〔〕、【】、[]、+、＋或『技術面：』『操作建議：』等模板拼接。\n"
     "錯誤：〔股價突破季線〕＋〔可續抱〕\n"
     "正確：股價已突破季線並維持強勢，可續抱並持續觀察。\n"
     "不得補入原簡訊沒有提供的技術指標、價位或判斷。\n\n"
+
     "【輸出格式】\n"
     "只回傳純 JSON：\n"
     '{"items":[{"name":"股票名稱","code":"代號(無則留空)","action":"買入/賣出/會員持股/觀望不碰/觀望注意","price":"純數字價位(無則留空)","limit":"以上/以下(無則留空)","note":"操作條件或說明重點(30字內)"}]}\n'
-    '沒有任何一筆可以收錄時回 {"items":[]}。'
+    '真的沒有任何一檔個股被指名動作時，才回 {"items":[]}。'
 )
 
 CM_EMPTY_AUDIT_SYSTEM = CM_PARSE_SYSTEM + (
     "\n\n你現在執行第二次完整性稽核。第一次解析回傳空陣列，但程式已在原文找到合法台股名稱或代號，"
     "以及買進、賣出、續抱、觀望等操作詞。請重新逐句核對股票名稱與它緊鄰的動作。"
     "有明確個股與當下動作就必須收錄。『手中持有某股，請於某價以上賣出』、"
-    "『會員手中持股某股，務必抱牢』、『早上賣出的某股，請於某價以下買回』都不可回空陣列；"
+    "『會員手中持股某股，務必抱牢』、『早上賣出的某股，請於某價以下買回』、"
+    "『賣出某股，資金轉為買進另一股』都不可回空陣列；"
     "若只是歷史回顧、純行情敘述或未指名個股，仍回空陣列。"
     "不得為了補足筆數猜測名稱、代號、價位或動作。"
 )
@@ -3935,12 +4204,25 @@ def verify_sms_item(it: dict, body: str, code_map: dict) -> dict | None:
 
 
 def load_saved_sms_items(raw_detail: str) -> tuple[bool, list[dict]]:
-    """讀取先前已驗證並保存的解析明細；格式不完整時回傳 False 供隔離重解析。"""
+    """
+    讀取先前已驗證並保存的解析明細；格式不完整時回傳 False 供隔離重解析。
+
+    空白與 "[]" 是不一樣的兩件事，這裡也回不一樣的答案：
+      空白　→ (False, [])　從來沒有被 AI 判定過，要送 Gemini。
+      "[]"　→ 也回 (False, [])。抓取當下就會塞這個佔位值，
+              把它當成「解析過、沒有個股」是先前把 1519 華城那篇
+              判成無可收錄的直接原因。真正的空結果改由「解析版本」欄位認定。
+    """
+    text = str(raw_detail or "").strip()
+    if not text or text in ("[]", "[ ]"):
+        return False, []
     try:
-        data = json.loads(str(raw_detail or "").strip())
+        data = json.loads(text)
     except (TypeError, ValueError, json.JSONDecodeError):
         return False, []
     if not isinstance(data, list):
+        return False, []
+    if not data:
         return False, []
 
     allowed = {"買入", "賣出", "會員持股", "觀望不碰", "觀望注意"}
@@ -3952,8 +4234,15 @@ def load_saved_sms_items(raw_detail: str) -> tuple[bool, list[dict]]:
         code = str(raw.get("code") or "").strip()
         action = str(raw.get("dir") or raw.get("action") or "").strip()
         non_stock, _ = is_non_stock(name)
-        if not name or not re.fullmatch(r"\d{4,6}", code) or action not in allowed or non_stock:
+        if not name or action not in allowed or non_stock:
             return False, []
+        # 代號待確認是合法的保存結果，不是壞掉的明細。
+        # 先前只要有一筆待確認就把整篇判為損壞，於是那一篇每一輪都被重新
+        # 送進 Gemini，而重解析的結果仍然是待確認，永遠不會停。
+        if code and not re.fullmatch(r"\d{4,6}", code) and code != UNRESOLVED:
+            return False, []
+        if not code:
+            code = UNRESOLVED
 
         price_raw = raw.get("price", "")
         if isinstance(price_raw, float) and price_raw.is_integer():
@@ -4105,7 +4394,7 @@ CMONEY_HEADERS = {
     "Accept-Language": "zh-TW,zh;q=0.9",
 }
 SMS_HEADERS = ["文章ID", "發文時間", "標題", "原文", "解析狀態", "抓取時間", "通知狀態", "網址",
-               "解析明細", "內容指紋", "最後偵測", "修訂次數"]
+               "解析明細", "內容指紋", "最後偵測", "修訂次數", "解析版本", "判定時間"]
 SMS_AUDIT_HEADERS = ["作業ID", "文章ID", "發文時間", "日期", "標題", "原文", "張震判定", "範圍判定",
                      "處理狀態", "說明", "網址", "更新時間"]
 
@@ -4135,6 +4424,19 @@ def _ensure_sms_sheet(ss, title: str, headers: list[str]):
         current = list(headers)
         changed = True
     if changed or not values:
+        # 先把欄數撐開再寫表頭。
+        #
+        # 既有的「會員簡訊」分頁是用 12 欄建的，這一版多了解析版本與判定時間
+        # 兩欄。不先 resize 就直接寫 A1:N1，Sheets 會回
+        # 「exceeds grid limits」，而那個錯誤發生在整條流程的第一步，
+        # 看起來像是連分頁都讀不到，很難聯想到只是欄數不夠。
+        try:
+            have = ws.col_count
+            if have < len(current):
+                sheets_retry(ws.resize, rows=ws.row_count, cols=len(current))
+                print(f"　「{title}」欄數由 {have} 擴充到 {len(current)}，以容納新欄位")
+        except Exception as e:
+            print(f"　「{title}」擴充欄數失敗（{e}），將直接嘗試寫入表頭")
         sheets_retry(ws.update, range_name=f"A1:{gspread.utils.rowcol_to_a1(1, len(current))}",
                      values=[current])
     return ws, current
@@ -4380,9 +4682,11 @@ def save_cmoney_fetch(ss, articles: list[dict], mode: str) -> dict:
                 old_row_num, old_row = old
                 old_text = old_row[headers.index("原文")] if headers.index("原文") < len(old_row) else ""
                 if _sms_fingerprint(old_text) != _sms_fingerprint(a["text"]):
+                    # 內容變了就代表舊的 AI 判定不再對應這篇原文。
+                    # 清掉解析版本，讓它回到「空白待解析」那一桶重新判定。
                     updates = {
                         "發文時間": a["time"], "標題": a["title"], "原文": a["text"][:20000],
-                        "解析狀態": "待解析（補抓發現修訂）",
+                        "解析狀態": "待解析（補抓發現修訂）", "解析版本": "", "判定時間": "",
                         "內容指紋": _sms_fingerprint(a["text"]), "最後偵測": _sms_now(),
                     }
                     for key, value in updates.items():
@@ -4390,10 +4694,14 @@ def save_cmoney_fetch(ss, articles: list[dict], mode: str) -> dict:
                     status, note = "已更新", "來源內容有變更，已覆蓋並排回解析"
             else:
                 row = [""] * len(headers)
+                # 解析明細與解析版本刻意留空白，不寫 "[]"。
+                # 寫 "[]" 會讓「還沒解析」與「解析後真的沒有個股」在資料上
+                # 完全一樣，併入那一步就會把佔位值當成有效結果，直接標成
+                # 「無可收錄，稽核通過」而從來沒有問過 Gemini。
                 values = {"文章ID": a["id"], "發文時間": a["time"], "標題": a["title"], "原文": a["text"][:20000],
                           "解析狀態": "待解析", "抓取時間": _sms_now(), "通知狀態": "歷史補抓不寄送",
-                          "網址": a["url"], "解析明細": "[]", "內容指紋": _sms_fingerprint(a["text"]),
-                          "最後偵測": _sms_now(), "修訂次數": 0}
+                          "網址": a["url"], "解析明細": "", "內容指紋": _sms_fingerprint(a["text"]),
+                          "最後偵測": _sms_now(), "修訂次數": 0, "解析版本": "", "判定時間": ""}
                 for key, value in values.items(): row[headers.index(key)] = value
                 new_rows.append(row); stats["saved"] += 1
                 status, note = "已收錄", "已寫入會員簡訊，等待 GitHub 解析"
@@ -4409,31 +4717,154 @@ def save_cmoney_fetch(ss, articles: list[dict], mode: str) -> dict:
     return stats
 
 
-def parse_pending_sms(ss, since=""):
+# ------------------------------------------------------------------ #
+# 會員簡訊工作流程的步驟表
+#
+# 「四、將會員通知併入過去資料」從一格擴成十幾格。理由不是好看：
+# 先前整段收錄只回報一個「同步衍生資料」，跑十幾分鐘畫面都不動，
+# 卡在哪一段完全看不出來，而它真正在做的事有十幾件。
+# 逐日稽核之後的每一件都獨立成一格，卡住時一眼就看得到卡在哪。
+# ------------------------------------------------------------------ #
+SMS_MERGE_STEPS = [
+    "準備",
+    "盤點簡訊",
+    "逐日稽核",
+    "分類已解析與空白",
+    "建立收錄佇列",
+    "載入代號對照表",
+    "讀取歷史買價",
+    "AI 收錄個股",
+    "規則稽核與代號比對",
+    "條件式買賣去重",
+    "寫入操作紀錄",
+    "寫入會員持股",
+    "原子取代舊列",
+    "回寫解析狀態",
+    "完成",
+]
+
+SMS_FETCH_STEPS = ["準備", "探索文章", "辨識張震", "篩選日期"] + SMS_MERGE_STEPS[1:]
+
+# 每處理幾篇就落地一次。不是每篇一次，是因為試算表寫入有配額；
+# 也不是全部跑完才寫，那正是先前撞到 429 就一列都沒寫進去的原因。
+SMS_FLUSH_EVERY = max(1, int(os.environ.get("SMS_FLUSH_EVERY", "5") or 5))
+
+# 列的分類。這是這一版的核心：先分好類，才知道哪些要花 Gemini。
+SMS_ROW_DONE = "已收錄"           # 現行版本判定過，衍生列也寫好了
+SMS_ROW_EMPTY = "已判定無個股"    # 現行版本判定過，真的沒有可收錄個股
+SMS_ROW_WRITE = "待寫入"          # 判定過但衍生列還沒寫，不必再問 AI
+SMS_ROW_BLANK = "空白待解析"      # 從來沒有被 AI 判定過
+SMS_ROW_STALE = "舊版判定"        # 舊提示詞判定過
+SMS_ROW_FAILED = "解析失敗"
+SMS_ROW_QUARANTINE = "日期隔離"
+SMS_ROW_CLEANUP = "待清空舊列"    # 判定為無個股，但操作紀錄裡還留著舊的衍生列
+
+
+def classify_sms_row(state: str, detail: str, version: str, has_date: bool,
+                     written: bool) -> str:
+    """把一列會員簡訊歸到上面七類之一。只讀資料，不呼叫任何外部服務。"""
+    if not has_date:
+        return SMS_ROW_QUARANTINE
+    st = str(state or "").strip()
+    ver = str(version or "").strip()
+    ok, items = load_saved_sms_items(detail)
+
+    if ver == SMS_PROMPT_VERSION:
+        if not ok or not items:
+            # 判定過、結果是空的。這是可信的空結果，不再送 Gemini。
+            # 但如果操作紀錄裡還留著這篇的舊衍生列，那是前一次判定的殘留，
+            # 必須清掉，否則網站上會一直看到一筆早就被推翻的買賣。
+            return SMS_ROW_CLEANUP if written else SMS_ROW_EMPTY
+        return SMS_ROW_DONE if written else SMS_ROW_WRITE
+
+    if ver:
+        return SMS_ROW_STALE
+
+    # 沒有版本戳記。有可用明細的是舊版檢查點，照樣可以直接寫，不必問 AI。
+    if ok and items:
+        return SMS_ROW_WRITE
+    if "解析失敗" in st:
+        return SMS_ROW_FAILED
+    return SMS_ROW_BLANK
+
+
+def sms_scope_of(mode: str) -> str:
+    """把工作模式換算成「這一輪要處理哪些列」。"""
+    return {
+        "today": "today",         # 只更新當天
+        "recent": "range",
+        "all": "range",
+        "ids": "range",
+        "blanks": "blanks",       # 只補過去空白的收錄個股
+        "merge": "blanks",        # 併入過去資料＝補空白＋把待寫入寫下去
+        "reparse": "force",       # 明確要求全部重跑
+    }.get(str(mode or "").strip().lower(), "blanks")
+
+
+class SmsSteps:
+    """步驟回報器。把第幾格換算成百分比，順便把步驟清單帶給後台。"""
+
+    def __init__(self, steps: list[str], mode: str):
+        self.steps = list(steps)
+        self.mode = mode
+        self.idx = 0
+
+    def at(self, name: str, note: str = "", status: str = "處理中", **metrics):
+        if name in self.steps:
+            self.idx = self.steps.index(name)
+        total = max(1, len(self.steps) - 1)
+        pct = min(100, int(self.idx / total * 100))
+        report_sms_progress(status=status, step=name, done=self.idx, total=total,
+                            pct=pct, note=note, steps="|".join(self.steps), **metrics)
+
+    def note(self, name: str, note: str, **metrics):
+        self.at(name, note, **metrics)
+
+
+def parse_pending_sms(ss, since="", mode=None, today_only=False):
     """
-    在 GitHub Actions 上解析「會員簡訊」中待解析的簡訊。
-    逐條進行 Gemini AI 結構化抽取，並寫回「會員簡訊」、「操作紀錄」與「會員持股」。
-    具備即時工作流程進度條與日誌回報。
+    會員簡訊：解析、收錄個股、寫入操作紀錄與會員持股。
+
+    這一支要同時滿足兩件互相拉扯的事：
+      1. 新的一篇進來時要立刻更新，而且只更新那一筆。
+      2. 過去那些「收錄個股」還是空白的舊文章要補得回來。
+    做法是先把每一列歸類（已判定／空白／待寫入／失敗），只有空白與失敗
+    才會花 Gemini；已判定過的無論收錄幾筆都直接沿用。
+
+    另外三件必須成立的事：
+      - 每處理幾篇就把結果落地。撞到配額時已完成的部分要留在試算表裡，
+        不能像先前那樣整批回滾、跑八次一列都沒寫進去。
+      - 撞到「每日配額」立刻停，不退避。退避只對「每分鐘配額」有意義。
+      - 這裡不碰任何衍生資料（每日整理、持股追蹤、績效、日K）。
+        那些是另一條鏈的事，混在一起會讓一次簡訊更新跑掉半小時。
     """
+    mode = (mode if mode is not None else SMS_MODE) or ""
+    scope = "today" if today_only else sms_scope_of(mode)
+    # 只有真的會去來源網站抓文章的三種模式，才多前面那三格。
+    steps = SmsSteps(SMS_FETCH_STEPS if mode in ("recent", "all", "ids")
+                     else SMS_MERGE_STEPS, mode)
+
     print("\n" + "=" * 60)
-    print("開始執行會員簡訊解析流程" + (f"（自 {since} 起）" if since else ""))
+    print(f"會員簡訊工作流程　模式={mode or '自動'}　範圍={scope}"
+          + (f"　起始={since}" if since else ""))
     print("=" * 60)
-    report_sms_progress(status="處理中", step="準備", done=0, total=8, pct=5, note="連線試算表...")
+    steps.at("準備", "連線試算表並讀取會員簡訊分頁…")
 
     try:
-        ws = ss.worksheet("會員簡訊")
+        ws, headers = _ensure_sms_sheet(ss, "會員簡訊", SMS_HEADERS)
     except Exception as e:
-        print(f"找不到「會員簡訊」分頁：{e}")
-        report_sms_progress(status="完成", step="完成", done=8, total=8, pct=100, note="找不到會員簡訊分頁，略過")
+        print(f"找不到或無法建立「會員簡訊」分頁：{e}")
+        steps.at("完成", "找不到會員簡訊分頁，略過", status="完成")
         return set()
 
     records = sheets_retry(ws.get_all_values)
     if not records or len(records) < 2:
         print("「會員簡訊」分頁無資料。")
-        report_sms_progress(status="完成", step="完成", done=8, total=8, pct=100, note="分頁無資料")
+        steps.at("完成", "分頁無資料", status="完成")
         return set()
 
     headers = [str(h).strip() for h in records[0]]
+
     def col_idx(name):
         return headers.index(name) if name in headers else -1
 
@@ -4442,363 +4873,477 @@ def parse_pending_sms(ss, since=""):
     c_text = col_idx("原文")
     c_state = col_idx("解析狀態")
     c_detail = col_idx("解析明細")
-
-    # 若無「解析明細」欄位，自動於表頭追加，確保解析明細不會因未直接寫入買賣而遺失
-    if c_detail < 0:
-        c_detail = len(headers)
-        headers.append("解析明細")
-        try:
-            ws.update_cell(1, c_detail + 1, "解析明細")
-        except Exception as e:
-            print(f"追加解析明細欄位提示：{e}")
+    c_ver = col_idx("解析版本")
+    c_at = col_idx("判定時間")
 
     if c_id < 0 or c_text < 0 or c_state < 0:
         print("會員簡訊分頁缺少必要欄位（文章ID、原文、解析狀態）。")
-        report_sms_progress(status="失敗", step="讀取待解析", done=1, total=8, pct=25, note="缺少必要欄位")
+        steps.at("盤點簡訊", "缺少必要欄位", status="失敗")
+        return set()
+    if c_detail < 0 or c_ver < 0 or c_at < 0:
+        print("會員簡訊分頁缺少解析明細／解析版本／判定時間欄位，且自動補欄失敗。")
+        steps.at("盤點簡訊", "缺少解析版本欄位，請先讓抓取流程建立表頭", status="失敗")
         return set()
 
-    report_sms_progress(status="處理中", step="篩選日期", done=3, total=8, pct=20, note="讀取試算表中待解析列...")
-
+    # ---------------- 盤點 ---------------- #
+    steps.at("盤點簡訊", "讀取全部列並還原發文日期…")
     existing_cids = get_existing_cmoney_ids(ss)
-    pending = []
     since_norm = norm_date(since) if since else ""
+    today_str = datetime.now(TAIPEI).strftime("%Y/%m/%d")
+
+    rows = []
     for r_idx, row in enumerate(records[1:], start=2):
-        st = str(row[c_state]).strip() if c_state < len(row) else ""
-        t_str = str(row[c_time]).strip() if c_time >= 0 and c_time < len(row) else ""
+        def get(i):
+            return str(row[i]).strip() if 0 <= i < len(row) else ""
+        t_str = get(c_time)
         d_str = norm_date(t_str.split(" ")[0]) if t_str else ""
-        art_id = str(row[c_id]).strip() if c_id < len(row) else ""
-        detail = str(row[c_detail]).strip() if c_detail < len(row) else ""
-        if since_norm and d_str and d_str < since_norm:
-            continue
-        unresolved = (st.startswith("待解析") or "待寫入" in st or
-                      "解析失敗" in st or "日期錯誤" in st or "無可收錄" in st)
-        # 第一次按「重新解析」會依使用者選定範圍重跑；若上一輪因 429 暫停，
-        # Apps Script 會帶 SMS_RESUME=true，此時只接續尚未完成的列。
-        should_parse = ((SMS_MODE == "reparse" and (not SMS_RESUME or unresolved)) or
-                        (SMS_MODE != "reparse" and bool(since_norm)) or unresolved)
-        if SMS_MODE == "merge":
-            # 可用明細直接搬移；缺漏者同一輪自動重建。配額暫停後只接續未完成列。
-            should_parse = ("未寫入" in st or unresolved)
-        if should_parse:
-            pending.append({
-                "row": r_idx,
-                "id": art_id,
-                "time": t_str,
-                "date": d_str,
-                "text": str(row[c_text]).strip() if c_text < len(row) else "",
-                "state": st,
-                "detail": detail,
-            })
-
-    if not pending:
-        print("沒有需要解析的會員簡訊。")
-        report_sms_progress(status="處理中", step="逐日稽核", done=6, total=8, pct=88, note="沒有待解析的簡訊，準備同步衍生資料")
-        return set()
-
-    # 舊資料常是 Apps Script Date 字串；norm_date 已能直接還原。仍缺日期者，
-    # 再以文章 ID 查來源清單 API 的 createTime。只有兩層都失敗才隔離，
-    # 絕不猜測、也絕不把它塞到今天。
-    missing_date = [p for p in pending if not p["date"] and re.fullmatch(r"\d{6,}", p["id"])]
-    if missing_date:
-        report_sms_progress(status="處理中", step="篩選日期", done=3, total=8, pct=24,
-                            note=f"{len(missing_date)} 則缺日期，正按文章 ID 向來源回查")
-        try:
-            repaired = {a.get("id"): a for a in fetch_cmoney_articles(
-                "ids", ",".join(p["id"] for p in missing_date))}
-            repaired_n = 0
-            for p in missing_date:
-                src = repaired.get(p["id"]) or {}
-                fixed_date = norm_date(src.get("time") or src.get("date"))
-                if not fixed_date:
-                    continue
-                p["date"] = fixed_date
-                p["time"] = src.get("time") or (fixed_date + " 00:00:00")
-                sheets_retry(ws.update_cell, p["row"], c_time + 1, p["time"])
-                repaired_n += 1
-                print(f"  文章 {p['id']}：發文日期已由來源清單修復為 {fixed_date}")
-            report_sms_progress(status="處理中", step="篩選日期", done=3, total=8, pct=28,
-                                note=f"日期自動修復 {repaired_n}/{len(missing_date)} 則；其餘保持隔離")
-        except Exception as ex:
-            print(f"日期回查失敗，缺日期文章維持隔離，不會歸到今天：{ex}")
-
-    pending.sort(key=lambda x: (x["time"], x["row"]))
-
-    total_cnt = len(pending)
-    print(f"找到 {total_cnt} 則待解析簡訊。")
-    parse_label = "解析明細"
-    report_sms_progress(status="處理中", step=parse_label, done=4, total=8, pct=30,
-                        note=f"共 {total_cnt} 則，開始整理解析明細...")
-
-    code_map = get_code_map()
-    cm_mark = re.compile(r'(?:張震|震)\s*(?:6GJ)?\s*[-－—─]?\s*[0-9０-９]{0,2}\s*[:：]')
-    pending_sources = {f"CMONEY-{p['id']}" for p in pending}
-    prior_buy_prices = get_prior_sms_buy_prices(ss, pending_sources)
-
-    parsed_results = []
-    for idx, p in enumerate(pending):
-        cur_pct = 30 + int(((idx + 1) / total_cnt) * 45)
-        sub_note = f"整理第 {idx+1}/{total_cnt} 則（文章 {p['id']}）"
-        report_sms_progress(status="處理中", step=f"{parse_label} {idx+1}/{total_cnt}", done=4, total=8, pct=cur_pct, note=sub_note)
-
-        text = p["text"]
-        items = []
-        parse_err = False
-        detail_invalid = False
-        saved_ok = False
-        # 已有完整檢查點時直接沿用，無論這次是併入或 429 後續跑，
-        # 都不再花一次 Gemini 配額。
-        if SMS_MODE == "merge" or "待寫入" in p.get("state", ""):
-            saved_ok, items = load_saved_sms_items(p.get("detail", ""))
-            # 舊版因驗證器把 (False, "") tuple 當成 True，會把所有合法個股剔除，
-            # 因而留下「無可收錄」與空陣列。這類空結果不能再當成可信檢查點沿用。
-            if saved_ok and not items and "無可收錄" in p.get("state", ""):
-                saved_ok = False
-                print(f"  文章 {p['id']}：舊版無可收錄結果不可信，強制重新解析與完整性稽核")
-            if saved_ok:
-                print(f"  文章 {p['id']}：沿用已保存解析明細 {len(items)} 筆，不呼叫 Gemini")
-            else:
-                # 舊明細損壞時由本輪自動重建。每篇成功後立即存檢查點，
-                # 即使稍後 429，也只會從當篇接續，不會整批從零開始。
-                detail_invalid = True
-                print(f"  文章 {p['id']}：既有解析明細缺漏或格式損壞，改由 AI 自動重建")
-        if not saved_ok:
-            marks = list(cm_mark.finditer(text))
-            orders = []
-            if marks:
-                for m_i, m in enumerate(marks):
-                    start = m.end()
-                    end = marks[m_i + 1].start() if m_i + 1 < len(marks) else len(text)
-                    body = text[start:end].strip()
-                    if body:
-                        orders.append({"tag": m.group().strip(), "body": body})
-            elif text.strip():
-                orders.append({"tag": "簡訊", "body": text.strip()})
-
-            for o in orders:
-                try:
-                    raw_json = call_gemini(CM_PARSE_SYSTEM, o["body"], want_json=True, tag=f"sms_{p['id']}")
-                    time.sleep(SMS_AI_GAP)
-                    data = None
-                    if isinstance(raw_json, dict):
-                        data = raw_json
-                    else:
-                        j_str = str(raw_json).strip()
-                        m_json = re.search(r'\{.*\}', j_str, re.DOTALL)
-                        if m_json:
-                            data = json.loads(m_json.group())
-                    raw_items = data.get("items", []) if isinstance(data, dict) else []
-                    for it in raw_items:
-                        v = verify_sms_item(it, o["body"], code_map)
-                        if v:
-                            v["tag"] = o["tag"]
-                            items.append(v)
-                except RateLimited:
-                    # 免費額度用盡時繼續處理下一段只會反覆等候並再次 429。
-                    # 直接中止；此篇與後面的列都保持待解析，下一次可原地續跑。
-                    sheets_retry(ws.update_cell, p["row"], c_state + 1, "待解析（配額續跑）")
-                    raise
-                except Exception as ex:
-                    print(f"  文章 {p['id']} 呼叫 Gemini 失敗：{ex}")
-                    parse_err = True
-
-            # 第一次回空但原文同時有合法台股與操作詞時，自動做一次獨立複核。
-            # 真正的純盤勢或歷史回顧不會進這一關，因此不會為每篇加倍耗用額度。
-            if not items and not parse_err and sms_needs_empty_audit(text, code_map):
-                print(f"  文章 {p['id']}：初次無可收錄，但偵測到個股與操作語意，啟動第二次完整性稽核")
-                try:
-                    audit_raw = call_gemini(CM_EMPTY_AUDIT_SYSTEM, text, want_json=True,
-                                            tag=f"sms_empty_audit_{p['id']}")
-                    time.sleep(SMS_AI_GAP)
-                    audit_data = audit_raw if isinstance(audit_raw, dict) else None
-                    if audit_data is None:
-                        audit_match = re.search(r'\{.*\}', str(audit_raw), re.DOTALL)
-                        audit_data = json.loads(audit_match.group()) if audit_match else {}
-                    for raw_it in (audit_data.get("items", []) if isinstance(audit_data, dict) else []):
-                        verified = verify_sms_item(raw_it, text, code_map)
-                        if verified:
-                            verified["tag"] = "完整性複核"
-                            items.append(verified)
-                    print(f"  文章 {p['id']}：第二次完整性稽核收錄 {len(items)} 筆")
-                except RateLimited:
-                    sheets_retry(ws.update_cell, p["row"], c_state + 1, "待解析（配額續跑）")
-                    raise
-                except Exception as ex:
-                    print(f"  文章 {p['id']} 完整性稽核失敗，保留重試資格：{ex}")
-                    parse_err = True
-
-            if not parse_err:
-                detail_invalid = False
-
-        # 條件式訊息常同時說「未持有者 X 以下買進、已持有者續抱不加碼」。
-        # 若歷史已有更低的明講買入價，這次不是新的進場，買入列不呈現；
-        # 持股續抱仍保留。第一次出現，或這次價位更低時，才留下買入動作。
-        deduped, seen_items = [], set()
-        for it in items:
-            key = (it["code"], it["action"], it.get("price", ""), it.get("limit", ""))
-            if key not in seen_items:
-                seen_items.add(key); deduped.append(it)
-        items = deduped
-        conditional_hold = bool(re.search(r"未持有.{0,40}(?:買進|買入|買回).{0,80}已持有.{0,40}(?:續抱|不加碼)", text))
-        if conditional_hold:
-            held_codes = {x["code"] for x in items if x["action"] == "會員持股"}
-            for buy in [x for x in items if x["action"] == "買入" and x["code"] not in held_codes]:
-                items.append({"name": buy["name"], "code": buy["code"], "action": "會員持股",
-                              "price": "", "limit": "", "priceText": "未說明",
-                              "note": "已持有者續抱，不加碼", "tag": buy.get("tag", "簡訊")})
-        filtered = []
-        for it in items:
-            if it["action"] == "買入" and conditional_hold and it.get("price"):
-                current = float(it["price"])
-                history = prior_buy_prices.get(it["code"], [])
-                prior_values = [price for when, price in history if when < p["time"]]
-                prior = min(prior_values) if prior_values else None
-                if prior is not None and prior <= current:
-                    print(f"  {it['code']} {it['name']}：歷史買入 {prior:g} 低於本次 {current:g}，省略條件式買入，保留續抱")
-                    continue
-                prior_buy_prices.setdefault(it["code"], []).append((p["time"], current))
-            filtered.append(it)
-
-        # 逐篇檢查點：下一篇才遇到 429 時，這篇不必再呼叫 Gemini。
-        # 明細為 [] 也是有效結果，代表模型與規則稽核後沒有可收錄個股。
-        if not parse_err and not detail_invalid:
-            checkpoint = serialize_sms_items(filtered)
-            sheets_retry(ws.batch_update, [
-                {"range": gspread.utils.rowcol_to_a1(p["row"], c_state + 1),
-                 "values": [["已解析（待寫入）"]]},
-                {"range": gspread.utils.rowcol_to_a1(p["row"], c_detail + 1),
-                 "values": [[checkpoint]]},
-            ], value_input_option="RAW")
-
-        parsed_results.append({
-            "pending": p,
-            "items": filtered,
-            "error": parse_err,
-            "detail_invalid": detail_invalid,
+        art_id = get(c_id)
+        rows.append({
+            "row": r_idx, "id": art_id, "time": t_str, "date": d_str,
+            "text": get(c_text), "state": get(c_state), "detail": get(c_detail),
+            "version": get(c_ver),
+            "kind": classify_sms_row(get(c_state), get(c_detail), get(c_ver),
+                                     bool(d_str), f"CMONEY-{art_id}" in existing_cids),
         })
 
-    # 寫入紀錄 (Step 3)
-    report_sms_progress(status="處理中", step="寫入資料", done=5, total=8, pct=80, note="正在寫入試算表...")
-    trades_to_append = []
-    holds_to_append = []
-    status_updates = []
-    changed_dates: set[str] = set()
+    # ---------------- 逐日稽核 ---------------- #
+    # 收錄工作排在稽核之後：先把「哪一天有幾篇、幾篇還沒收錄個股」講清楚，
+    # 再去動資料。這樣即使後面因配額停下，也已經知道還差多少。
+    steps.at("逐日稽核", "逐日盤點各狀態筆數…")
+    tally = {}
+    for r in rows:
+        tally[r["kind"]] = tally.get(r["kind"], 0) + 1
+    audit_line = "、".join(f"{k} {v}" for k, v in sorted(tally.items())) or "無資料"
+    print(f"逐日稽核：共 {len(rows)} 則　{audit_line}")
+    day_gap = sorted({r["date"] for r in rows
+                      if r["kind"] in (SMS_ROW_BLANK, SMS_ROW_FAILED, SMS_ROW_WRITE) and r["date"]})
+    if day_gap:
+        print(f"尚未完成收錄的日期共 {len(day_gap)} 天：{'、'.join(day_gap[:12])}"
+              + ("…" if len(day_gap) > 12 else ""))
+    steps.note("逐日稽核", f"{audit_line}；待補 {len(day_gap)} 天",
+               blank=tally.get(SMS_ROW_BLANK, 0), doneRows=tally.get(SMS_ROW_DONE, 0),
+               emptyRows=tally.get(SMS_ROW_EMPTY, 0), pendingWrite=tally.get(SMS_ROW_WRITE, 0))
+
+    # ---------------- 分類與佇列 ---------------- #
+    steps.at("分類已解析與空白",
+             f"已用 AI 判定 {tally.get(SMS_ROW_DONE, 0) + tally.get(SMS_ROW_EMPTY, 0)} 則、"
+             f"空白待解析 {tally.get(SMS_ROW_BLANK, 0)} 則")
+
+    def in_scope(r):
+        if r["kind"] == SMS_ROW_QUARANTINE:
+            return False
+        if scope == "today":
+            return r["date"] == (since_norm or today_str)
+        if scope == "range":
+            return (not since_norm) or (r["date"] and r["date"] >= since_norm)
+        if scope == "force":
+            return (not since_norm) or (r["date"] and r["date"] >= since_norm)
+        return True                                     # blanks：看全部歷史
+
+    def wanted(r):
+        if not in_scope(r):
+            return False
+        if scope == "force":
+            return True                                 # 明確要求重跑，全部重判
+        return r["kind"] in (SMS_ROW_BLANK, SMS_ROW_FAILED, SMS_ROW_WRITE,
+                             SMS_ROW_STALE, SMS_ROW_CLEANUP)
+
+    steps.at("建立收錄佇列", "挑出這一輪要處理的列…")
+    queue = [r for r in rows if wanted(r)]
+    queue.sort(key=lambda x: (x["time"] or "", x["row"]))
+
+    need_ai = [r for r in queue
+               if scope == "force" or r["kind"] in (SMS_ROW_BLANK, SMS_ROW_FAILED, SMS_ROW_STALE)]
+    need_ai_rows = {r["row"] for r in need_ai}
+    reuse = [r for r in queue if r["row"] not in need_ai_rows]
+    if not queue:
+        msg = ("當天沒有需要更新的會員簡訊。" if scope == "today"
+               else "過去資料的收錄個股都已完成，沒有空白需要補。")
+        print(msg)
+        steps.at("完成", msg, status="完成")
+        return set()
+
+    # 單輪上限。做不完不是失敗：沒輪到的列維持原狀，下一次接著做。
+    capped = need_ai[:SMS_MAX_AI_ARTICLES]
+    capped_rows = {r["row"] for r in capped}
+    deferred_ai = len(need_ai) - len(capped)
+    if deferred_ai:
+        print(f"本輪最多處理 {SMS_MAX_AI_ARTICLES} 則需要 AI 的文章，"
+              f"其餘 {deferred_ai} 則留給下一次執行，避免一次把當日配額用光。")
+    # 順序很重要：不需要 AI 的先做。
+    #
+    # 那些列只是把已經判定好的明細寫進操作紀錄，一次模型呼叫都不花，
+    # 也不可能因為配額失敗。放在後面的話，只要前面任何一篇撞到 429，
+    # 這些「本來一定能完成」的列就會跟著被拖住，白白多等一天。
+    # 先做完它們並落地，再去碰會失敗的那一段。
+    reuse.sort(key=lambda x: (x["time"] or "", x["row"]))
+    capped.sort(key=lambda x: (x["time"] or "", x["row"]))
+    process = reuse + capped
+
+    print(f"本輪處理 {len(process)} 則：直接沿用明細 {len(reuse)} 則（先做，不花配額）、"
+          f"需要 AI {len(capped)} 則。")
+    steps.note("建立收錄佇列",
+               f"待處理 {len(process)} 則（需 AI {len(capped)}、沿用 {len(reuse)}）"
+               + (f"，另有 {deferred_ai} 則排入下一輪" if deferred_ai else ""),
+               queued=len(process), aiQueued=len(capped), reused=len(reuse),
+               deferred=deferred_ai)
+
+    # ---------------- 前置資料 ---------------- #
+    steps.at("載入代號對照表", "向證交所與櫃買中心取得上市櫃清單…")
+    code_map = get_code_map()
+    steps.note("載入代號對照表", f"對照表 {len(code_map)} 檔"
+               + ("" if _CODE_MAP_FULL else "（有一邊來源失敗，代號查核本輪放寬）"))
+
+    steps.at("讀取歷史買價", "讀取操作紀錄中既有的明講買入價…")
+    pending_sources = {f"CMONEY-{r['id']}" for r in process}
+    prior_buy_prices = get_prior_sms_buy_prices(ss, pending_sources)
+    steps.note("讀取歷史買價", f"已建立 {len(prior_buy_prices)} 檔的歷史買入價")
+
+    cm_mark = re.compile(r'(?:張震|震)\s*(?:6GJ)?\s*[-－—─]?\s*[0-9０-９]{0,2}\s*[:：]')
+
+    # ---------------- 落地緩衝與批次寫入 ---------------- #
+    trades_buf: list[list] = []
+    holds_buf: list[list] = []
+    status_buf: list[tuple] = []
     replace_counts: dict[str, dict[str, int]] = {}
+    changed_dates: set[str] = set()
+    written_articles = 0
+    ai_calls_used = 0
+    quota_note = ""
 
-    for res in parsed_results:
-        p = res["pending"]
-        items = res["items"]
-        row_num = p["row"]
-        art_id = p["id"]
-        src_id = f"CMONEY-{art_id}"
-        post_date = p["date"]
+    def flush(reason=""):
+        """把目前累積的結果寫進試算表。中途被中止時已寫入的部分都留著。"""
+        nonlocal trades_buf, holds_buf, status_buf, replace_counts
+        if not (trades_buf or holds_buf or status_buf):
+            return
+        if trades_buf:
+            steps.at("寫入操作紀錄", f"寫入 {len(trades_buf)} 筆買賣"
+                     + (f"（{reason}）" if reason else ""))
+            sheets_retry(ss.worksheet("操作紀錄").append_rows, trades_buf,
+                         value_input_option="USER_ENTERED")
+            print(f"  已寫入操作紀錄 {len(trades_buf)} 筆")
+        if holds_buf:
+            steps.at("寫入會員持股", f"寫入 {len(holds_buf)} 筆持股"
+                     + (f"（{reason}）" if reason else ""))
+            sheets_retry(ss.worksheet("會員持股").append_rows, holds_buf,
+                         value_input_option="USER_ENTERED")
+            print(f"  已寫入會員持股 {len(holds_buf)} 筆")
+        if replace_counts:
+            steps.at("原子取代舊列", f"移除 {len(replace_counts)} 篇文章的舊衍生列")
+            _remove_old_source_rows_keep_latest(
+                ss, "操作紀錄", {s: n["操作紀錄"] for s, n in replace_counts.items()})
+            _remove_old_source_rows_keep_latest(
+                ss, "會員持股", {s: n["會員持股"] for s, n in replace_counts.items()})
+        if status_buf:
+            steps.at("回寫解析狀態", f"更新 {len(status_buf)} 個欄位")
+            sheets_retry(ws.batch_update,
+                         [{"range": gspread.utils.rowcol_to_a1(rn, col), "values": [[val]]}
+                          for rn, col, val in status_buf],
+                         value_input_option="RAW")
+        trades_buf, holds_buf, status_buf, replace_counts = [], [], [], {}
 
-        if not post_date:
-            status_updates.append((row_num, c_state + 1, "日期錯誤（已隔離）"))
-            status_updates.append((row_num, c_detail + 1, "[]"))
-            print(f"  文章 {art_id} 缺少可驗證日期，未寫入任何衍生資料")
-            continue
-
-        items_json = serialize_sms_items(items)
-
-        if res.get("detail_invalid"):
-            status_updates.append((row_num, c_state + 1, "待解析（既有明細缺漏）"))
-            continue
-
-        if res["error"]:
-            status_updates.append((row_num, c_state + 1, "解析失敗（未改動舊紀錄）"))
-            continue
-
-        if not items:
-            if src_id in existing_cids:
-                _delete_rows_by_source(ss, src_id)
-                existing_cids.discard(src_id)
-                changed_dates.add(post_date)
-            status_updates.append((row_num, c_state + 1, "已解析（無可收錄，稽核通過）"))
-            status_updates.append((row_num, c_detail + 1, "[]"))
-            continue
-
-        # 寫入解析明細；前台表格與操作紀錄都以同一份驗證後結果為準。
-        status_updates.append((row_num, c_detail + 1, items_json))
-
-        # 重新解析時採文章 ID 原子取代：先成功解析，再刪該篇舊衍生列並寫新版。
-        # 這讓過去每日總覽、持股追蹤、績效與郵件查詢都讀到同一份結果。
-        t_cnt, h_cnt = 0, 0
+    def stamp(r, items, note_state):
+        """把一篇的結果排進緩衝。版本戳記一定要跟明細一起寫。"""
+        nonlocal written_articles
+        src_id = f"CMONEY-{r['id']}"
+        t_cnt = h_cnt = 0
         for it in items:
             if it["action"] == "會員持股":
-                holds_to_append.append([post_date, it["name"], it["code"], "續抱", it.get("note") or "簡訊通知持股續抱", src_id])
+                holds_buf.append([r["date"], it["name"], it["code"], "續抱",
+                                  it.get("note") or "簡訊通知持股續抱", src_id])
                 h_cnt += 1
             else:
-                trades_to_append.append([post_date, it["name"], it["code"], it["action"], it.get("priceText", "未說明"), it.get("note", "")[:60], src_id, ""])
+                trades_buf.append([r["date"], it["name"], it["code"], it["action"],
+                                   it.get("priceText", "未說明"), it.get("note", "")[:60],
+                                   src_id, ""])
                 t_cnt += 1
-        status_updates.append((row_num, c_state + 1, f"已寫入 {t_cnt} 筆買賣、{h_cnt} 筆持股"))
-        replace_counts[src_id] = {"操作紀錄": t_cnt, "會員持股": h_cnt}
-        existing_cids.add(src_id)
-        changed_dates.add(post_date)
+        if items:
+            replace_counts[src_id] = {"操作紀錄": t_cnt, "會員持股": h_cnt}
+            existing_cids.add(src_id)
+        elif src_id in existing_cids:
+            # 這一篇先前有衍生列，重判之後沒有個股，舊列必須清掉。
+            _delete_rows_by_source(ss, src_id)
+            existing_cids.discard(src_id)
+        status_buf.append((r["row"], c_state + 1, note_state))
+        status_buf.append((r["row"], c_detail + 1, serialize_sms_items(items)))
+        status_buf.append((r["row"], c_ver + 1, SMS_PROMPT_VERSION))
+        status_buf.append((r["row"], c_at + 1, _sms_now()))
+        changed_dates.add(r["date"])
+        written_articles += 1
 
-    if trades_to_append:
-        try:
-            ws_trades = ss.worksheet("操作紀錄")
-            sheets_retry(ws_trades.append_rows, trades_to_append, value_input_option="USER_ENTERED")
-            print(f"成功寫入操作紀錄 {len(trades_to_append)} 筆。")
-        except Exception as e:
-            print(f"寫入操作紀錄失敗：{e}")
-            report_sms_progress(status="失敗", step="寫入資料", done=5, total=8, pct=80, note=f"操作紀錄寫入失敗：{e}")
-            raise
+    # ---------------- 逐篇處理 ---------------- #
+    steps.at("AI 收錄個股", f"開始處理 {len(process)} 則…")
+    total_cnt = len(process)
+    quota_strikes = 0
+    stopped_early = ""
 
-    if holds_to_append:
-        try:
-            ws_holds = ss.worksheet("會員持股")
-            sheets_retry(ws_holds.append_rows, holds_to_append, value_input_option="USER_ENTERED")
-            print(f"成功寫入會員持股 {len(holds_to_append)} 筆。")
-        except Exception as e:
-            print(f"寫入會員持股失敗：{e}")
-            report_sms_progress(status="失敗", step="寫入資料", done=5, total=8, pct=80, note=f"會員持股寫入失敗：{e}")
-            raise
+    try:
+        for idx, r in enumerate(process):
+            art = r["id"]
+            base_note = f"第 {idx + 1}/{total_cnt} 則（文章 {art}）"
+            use_ai = r["row"] in capped_rows
 
-    if replace_counts:
-        _remove_old_source_rows_keep_latest(ss, "操作紀錄",
-                                            {s: n["操作紀錄"] for s, n in replace_counts.items()})
-        _remove_old_source_rows_keep_latest(ss, "會員持股",
-                                            {s: n["會員持股"] for s, n in replace_counts.items()})
+            if not use_ai:
+                ok, items = load_saved_sms_items(r["detail"])
+                if r["kind"] == SMS_ROW_CLEANUP:
+                    # 判定過、沒有個股，但舊衍生列還在。用空清單走一次 stamp，
+                    # 它會把該來源的舊列刪掉，不需要任何模型呼叫。
+                    ok, items = True, []
+                    print(f"  文章 {art}：已判定無個股，清除殘留的舊衍生列")
+                    steps.note("原子取代舊列", f"{base_note}：清除殘留舊列")
+                if not ok:
+                    # 排進來時判定為可沿用，這裡卻讀不出來，代表明細在這一輪被改過。
+                    print(f"  文章 {art}：明細已不可用，改排入下一輪重新解析")
+                    status_buf.append((r["row"], c_state + 1, "待解析（明細缺漏）"))
+                    status_buf.append((r["row"], c_ver + 1, ""))
+                    continue
+                steps.note("規則稽核與代號比對",
+                           f"{base_note}：沿用既有明細 {len(items)} 筆，不呼叫 Gemini")
+                print(f"  文章 {art}：沿用已保存解析明細 {len(items)} 筆，不呼叫 Gemini")
+            else:
+                if ai_calls_used >= SMS_AI_MAX_CALLS:
+                    stopped_early = (f"本輪已用滿 {SMS_AI_MAX_CALLS} 次模型呼叫，"
+                                     f"其餘文章保留原狀，下一次執行接著做。")
+                    print(stopped_early)
+                    break
+                if quota_exhausted():
+                    stopped_early = _QUOTA_STOP["reason"]
+                    break
 
-    if status_updates:
-        batch_data = [{"range": gspread.utils.rowcol_to_a1(rn, col), "values": [[val]]} for rn, col, val in status_updates]
-        sheets_retry(ws.batch_update, batch_data, value_input_option="RAW")
-        print(f"成功更新會員簡訊狀態 {len(status_updates)} 列。")
+                steps.note("AI 收錄個股", f"{base_note}：呼叫 Gemini 抽取買賣與持股",
+                           aiUsed=ai_calls_used)
+                try:
+                    items, parse_err, calls = _sms_extract_items(r, cm_mark, code_map)
+                    ai_calls_used += calls
+                except RateLimited as e:
+                    ai_calls_used += SMS_MAX_QUOTA_STRIKES     # 已經打出去的都算用量
+                    # 每日配額：立刻停。等待與重按都只會再拿到 429，且照樣計入用量。
+                    if getattr(e, "daily", False):
+                        raise
+                    # 每分鐘配額：容許跳過這一篇再試下一篇，但次數要有上限，
+                    # 否則一輪就會把剩下的每一篇都拿去撞牆。
+                    quota_strikes += 1
+                    status_buf.append((r["row"], c_state + 1, "待解析（配額續跑）"))
+                    print(f"  文章 {art}：撞到每分鐘配額（第 {quota_strikes} 次），"
+                          f"本篇保留待解析")
+                    if quota_strikes >= SMS_MAX_QUOTA_STRIKES:
+                        print(f"  連續 {quota_strikes} 篇撞到配額，本輪到此為止，"
+                              f"已完成的部分即將落地。")
+                        raise
+                    flush(f"配額跳篇後落地（{art}）")
+                    continue
+                if parse_err:
+                    print(f"  文章 {art}：解析失敗，保留原狀等待下一輪")
+                    status_buf.append((r["row"], c_state + 1, "解析失敗（未改動舊紀錄）"))
+                    continue
 
-    # 完成 (Step 4)
-    if SMS_MODE == "merge":
-        invalid_count = sum(1 for r in parsed_results if r.get("detail_invalid"))
-        merged_count = len(parsed_results) - invalid_count
-        fin_note = f"已併入 {merged_count} 則；另有 {invalid_count} 則明細缺漏，已隔離等待重新解析。"
-    else:
-        fin_note = f"共解析 {len(parsed_results)} 則簡訊，流程順利結束。"
-    report_sms_progress(status="處理中", step="逐日稽核", done=6, total=8, pct=88, note=fin_note + " 正在同步衍生內容。")
-    write_status_log(ss, "會員簡訊", fin_note)
-    print("會員簡訊解析全部完成。\n")
+            steps.note("條件式買賣去重", f"{base_note}：核對條件式買進與歷史買價")
+            items = _sms_dedupe_and_condition(items, r, prior_buy_prices)
+
+            if items:
+                state_text = (f"已寫入 {sum(1 for i in items if i['action'] != '會員持股')} 筆買賣、"
+                              f"{sum(1 for i in items if i['action'] == '會員持股')} 筆持股")
+            else:
+                state_text = "已解析（AI 判定無可收錄個股）"
+            stamp(r, items, state_text)
+            print(f"  文章 {art}：{state_text}")
+
+            # 沿用明細那一段做完就先落地。這一段不會失敗，成果應該立刻進試算表，
+            # 不要跟後面可能撞配額的 AI 段落綁在同一個交易裡。
+            if idx + 1 == len(reuse) and reuse:
+                flush("沿用明細段完成")
+            elif (idx + 1) % SMS_FLUSH_EVERY == 0:
+                flush(f"已完成 {idx + 1}/{total_cnt}")
+
+    except RateLimited as e:
+        # 這是本版最重要的一行：先落地，再往上拋。
+        # 先前是整批跑完才寫，429 一來全部回滾，於是連按八次都沒有寫進任何一列。
+        quota_note = str(e)
+        print(f"配額中止：{quota_note}　已完成的部分即將落地，不會回滾。")
+        flush("配額中止前落地")
+        report_sms_progress(
+            status="配額暫停", step="AI 收錄個股", done=steps.idx,
+            total=max(1, len(steps.steps) - 1), pct=min(99, int(steps.idx / max(1, len(steps.steps) - 1) * 100)),
+            note=(f"{quota_note}。已完成 {written_articles} 則並寫入試算表，"
+                  + (f"額度約於台北時間 {getattr(e, 'reset_at', '') } 重置，在那之前重按不會有用。"
+                     if getattr(e, "daily", False) and getattr(e, "reset_at", "") else
+                     "稍後再按同一顆按鈕即可從未完成的文章接續。")),
+            steps="|".join(steps.steps), written=written_articles,
+            cooldown_until=getattr(e, "reset_at", ""),
+            quota_kind="daily" if getattr(e, "daily", False) else "minute")
+        write_status_log(ss, "配額暫停",
+                         f"會員簡訊：{quota_note}；已落地 {written_articles} 則")
+        raise
+
+    flush("收尾")
+
+    remaining = deferred_ai + max(0, len(capped) - written_articles)
+    fin = (f"本輪完成 {written_articles} 則，模型呼叫 {ai_calls_used} 次。"
+           + (f"尚有 {remaining} 則待下一輪。" if remaining else "過去資料的收錄個股已全數補齊。")
+           + (f" {stopped_early}" if stopped_early else ""))
+    print(fin)
+    write_status_log(ss, "會員簡訊", fin)
+    steps.at("完成", fin, status="完成", written=written_articles,
+             aiUsed=ai_calls_used, remaining=remaining)
+    if changed_dates:
+        print("本輪異動日期：" + "、".join(sorted(changed_dates)))
+        print("（這一支不重算每日整理、持股追蹤、績效與日K。"
+              "需要更新網站時，到後台按一次刷新即可。）")
     return changed_dates
 
 
-def refresh_sms_mail_dates(dates: set[str]):
-    """重寫簡訊變動日期的每日整理；Apps Script 會保留原寄送狀態。"""
-    if not dates or not APPS_SCRIPT_URL or not ADMIN_KEY:
-        return
-    ordered = sorted(dates)
-    for idx, day in enumerate(ordered, 1):
+def _sms_extract_items(r, cm_mark, code_map):
+    """
+    對一篇簡訊呼叫 Gemini 並做規則稽核。回傳 (items, 是否失敗, 用掉幾次呼叫)。
+
+    max_429=2：會員簡訊一輪要跑幾十篇，每篇退避六輪的話光等待就會把
+    job 的時間預算耗盡，而且每一次退避後的重試仍然計入當日用量。
+    """
+    text = r["text"]
+    items, calls, parse_err = [], 0, False
+
+    marks = list(cm_mark.finditer(text))
+    orders = []
+    if marks:
+        for m_i, m in enumerate(marks):
+            start = m.end()
+            end = marks[m_i + 1].start() if m_i + 1 < len(marks) else len(text)
+            body = text[start:end].strip()
+            if body:
+                orders.append({"tag": m.group().strip(), "body": body})
+    elif text.strip():
+        orders.append({"tag": "簡訊", "body": text.strip()})
+
+    for o in orders:
         try:
-            r = requests.get(APPS_SCRIPT_URL,
-                             params={"action": "refresh", "key": ADMIN_KEY,
-                                     "step": "smsmail", "date": day},
-                             timeout=360, headers={"User-Agent": "zhangzhen-pipeline"})
-            data = r.json()
-            if not data.get("ok"):
-                raise RuntimeError(data.get("error") or data.get("reason") or r.text[:160])
-            print(f"會員簡訊衍生同步 {idx}/{len(ordered)}：{day} 郵件查詢已重寫")
-            report_sms_progress(step="同步衍生資料", done=7, total=8,
-                                pct=88 + int(idx / len(ordered) * 6),
-                                note=f"已同步 {idx}/{len(ordered)} 個日期：{day}")
-        except Exception as e:
-            print(f"警告：{day} 郵件查詢重寫失敗，資料列已寫入，稍後可由後台重試：{e}")
+            calls += 1
+            raw_json = call_gemini(CM_PARSE_SYSTEM, o["body"], want_json=True,
+                                   tag=f"sms_{r['id']}", max_429=2)
+            time.sleep(SMS_AI_GAP)
+            data = raw_json if isinstance(raw_json, dict) else None
+            if data is None:
+                m_json = re.search(r'\{.*\}', str(raw_json).strip(), re.DOTALL)
+                data = json.loads(m_json.group()) if m_json else {}
+            for it in (data.get("items", []) if isinstance(data, dict) else []):
+                v = verify_sms_item(it, o["body"], code_map)
+                if v:
+                    v["tag"] = o["tag"]
+                    items.append(v)
+        except RateLimited:
+            raise
+        except Exception as ex:
+            print(f"  文章 {r['id']} 呼叫 Gemini 失敗：{ex}")
+            parse_err = True
+
+    # 第一次回空但原文同時有合法台股與操作詞時，做一次獨立複核。
+    # 純盤勢或歷史回顧不會進這一關，所以不會為每篇都加倍耗用額度。
+    if not items and not parse_err and sms_needs_empty_audit(text, code_map):
+        print(f"  文章 {r['id']}：初次無可收錄，但偵測到個股與操作語意，啟動完整性稽核")
+        try:
+            calls += 1
+            audit_raw = call_gemini(CM_EMPTY_AUDIT_SYSTEM, text, want_json=True,
+                                    tag=f"sms_empty_audit_{r['id']}", max_429=2)
+            time.sleep(SMS_AI_GAP)
+            audit_data = audit_raw if isinstance(audit_raw, dict) else None
+            if audit_data is None:
+                m_a = re.search(r'\{.*\}', str(audit_raw), re.DOTALL)
+                audit_data = json.loads(m_a.group()) if m_a else {}
+            for raw_it in (audit_data.get("items", []) if isinstance(audit_data, dict) else []):
+                verified = verify_sms_item(raw_it, text, code_map)
+                if verified:
+                    verified["tag"] = "完整性複核"
+                    items.append(verified)
+            print(f"  文章 {r['id']}：完整性稽核後共收錄 {len(items)} 筆")
+        except RateLimited:
+            raise
+        except Exception as ex:
+            print(f"  文章 {r['id']} 完整性稽核失敗，保留重試資格：{ex}")
+            parse_err = True
+
+    return items, parse_err, calls
+
+
+def _sms_dedupe_and_condition(items, r, prior_buy_prices):
+    """
+    去重、補上條件式續抱，並在歷史已有更低買價時省略這次的條件式買進。
+
+    條件式訊息常同時說「未持有者 X 以下買進、已持有者續抱不加碼」。
+    若歷史已有更低的明講買入價，這次不是新的進場，買入列不呈現；
+    持股續抱仍保留。第一次出現，或這次價位更低時，才留下買入動作。
+    """
+    text = r["text"]
+    deduped, seen = [], set()
+    for it in items:
+        key = (it["code"], it["action"], it.get("price", ""), it.get("limit", ""))
+        if key not in seen:
+            seen.add(key)
+            deduped.append(it)
+    items = deduped
+
+    conditional_hold = bool(re.search(
+        r"未持有.{0,40}(?:買進|買入|買回).{0,80}已持有.{0,40}(?:續抱|不加碼)", text))
+    if conditional_hold:
+        held = {x["code"] for x in items if x["action"] == "會員持股"}
+        for buy in [x for x in items if x["action"] == "買入" and x["code"] not in held]:
+            items.append({"name": buy["name"], "code": buy["code"], "action": "會員持股",
+                          "price": "", "limit": "", "priceText": "未說明",
+                          "note": "已持有者續抱，不加碼", "tag": buy.get("tag", "簡訊")})
+
+    out = []
+    for it in items:
+        if it["action"] == "買入" and conditional_hold and it.get("price"):
+            current = float(it["price"])
+            history = prior_buy_prices.get(it["code"], [])
+            prior_values = [price for when, price in history if when < (r["time"] or "")]
+            prior = min(prior_values) if prior_values else None
+            if prior is not None and prior <= current:
+                print(f"  {it['code']} {it['name']}：歷史買入 {prior:g} 低於本次 {current:g}，"
+                      f"省略條件式買入，保留續抱")
+                continue
+            prior_buy_prices.setdefault(it["code"], []).append((r["time"] or "", current))
+        out.append(it)
+    return out
+
+
+def auto_parse_today_sms(ss):
+    """
+    每日流程收尾時順手解析「當天」的會員簡訊。
+
+    這裡的範圍限制是為了修一個實際發生過的事故。原本這一行是
+    parse_pending_sms(ss)，沒有任何範圍，而挑選條件把「無可收錄」也
+    當成未解決，於是每一次排程觸發都會把整個歷史裡所有沒有個股的
+    純盤勢文章重新丟給 Gemini 判一次。一天十幾個觸發點乘上二三十篇，
+    免費層的每日請求數在中午前就見底，接著當天的逐字稿擷取
+    （tag=extract）就會拿到 HTTP 429 而失敗——那正是
+    「Gemini 配額用盡（extract）」的來源。
+
+    當天的簡訊本來就只有幾篇，需要 AI 的通常是零到兩篇。
+    過去資料的補齊交給後台那顆按鈕，不要跟每日排程搶配額。
+    """
+    if quota_exhausted():
+        print("（Gemini 當日配額已用盡，略過會員簡訊解析）")
+        return
+    try:
+        parse_pending_sms(ss, mode="today", today_only=True)
+    except RateLimited as e:
+        # 這不是每日流程的失敗。簡訊沒解析到不影響逐字稿與操作紀錄。
+        print(f"（會員簡訊解析因配額暫停，不影響主流程：{e}）")
+    except Exception as e:
+        print(f"（自動解析會員簡訊跳過或出錯，不影響主流程：{e}）")
+
+
+def refresh_sms_mail_dates(dates: set[str]):
+    """
+    已停用。保留函式簽章只為了讓舊的呼叫點不會 NameError。
+
+    這一支原本會對每個異動日期打一次 step=smsmail，要下游重寫該日的
+    每日整理。它是「同步衍生資料」的一部分，而衍生資料的重算已經從
+    會員簡訊這條鏈整個拿掉了：一次簡訊更新不該連帶跑每日整理、
+    持股追蹤、績效與補齊日K。要更新網站時，到後台按刷新。
+    """
+    if dates:
+        print("（會員簡訊不再自動重寫每日整理；異動日期："
+              + "、".join(sorted(dates)) + "）")
 
 
 def process_one(ss, video, done_trades, done_holds):
@@ -5567,32 +6112,40 @@ def main():
         return
 
     if PARSE_SMS:
+        # 會員簡訊這一條鏈只做一件事：把簡訊變成操作紀錄與會員持股。
+        #
+        # 它刻意不再呼叫 maybe_refresh_site()，也不再重寫每日整理。
+        # 那條全站重算鏈裡包含補齊日K、重算持股追蹤、記錄績效，
+        # 動輒十幾分鐘到數十分鐘，而且與「這一篇簡訊有沒有收錄到個股」
+        # 是完全獨立的兩件事。綁在一起的後果是：更新一筆簡訊要等一次全站重算，
+        # 中間任何一步失敗還會讓已經寫好的簡訊資料被判成失敗。
+        # 要更新網站時，到後台按一次刷新，或等當日排程即可。
         if SMS_MODE in ("recent", "all", "ids"):
             print(f"模式：會員簡訊 {SMS_MODE}。先抓取、辨識張震與嚴格日期，再解析寫入。")
-            report_sms_progress(step="準備", done=0, total=8, pct=2, note="連線來源網站與試算表")
+            report_sms_progress(step="準備", done=0, total=len(SMS_FETCH_STEPS) - 1, pct=2,
+                                note="連線來源網站與試算表", steps="|".join(SMS_FETCH_STEPS))
             articles = fetch_cmoney_articles(SMS_MODE, SMS_IDS)
-            report_sms_progress(step="辨識張震", done=2, total=8, pct=45, note=f"已取得 {len(articles)} 篇，開始身分與日期稽核")
+            report_sms_progress(step="辨識張震", done=2, total=len(SMS_FETCH_STEPS) - 1, pct=18,
+                                note=f"已取得 {len(articles)} 篇，開始身分與日期稽核",
+                                steps="|".join(SMS_FETCH_STEPS))
             stats = save_cmoney_fetch(ss, articles, SMS_MODE)
-            report_sms_progress(step="篩選日期", done=3, total=8, pct=58,
+            report_sms_progress(step="篩選日期", done=3, total=len(SMS_FETCH_STEPS) - 1, pct=25,
                                 note=f"新收 {stats['saved']}、既有 {stats['existed']}、錯誤 {stats['errors']}",
-                                **stats)
-        if SMS_MODE == "merge":
-            print("模式：併入會員簡訊。優先沿用已保存解析明細並寫入過去衍生資料。")
-        else:
-            print("模式：解析會員簡訊。在 GitHub Actions 上處理待解析簡訊並寫入衍生資料。")
-        changed_dates = parse_pending_sms(ss, since=SMS_SINCE) or set()
-        refresh_sms_mail_dates(changed_dates)
-        report_sms_progress(step="同步衍生資料", done=7, total=8, pct=94,
-                            note="每日總覽與郵件查詢已同步，正在重算追蹤與績效")
-        sync_result = maybe_refresh_site()
-        if REFRESH_SITE and (not sync_result or not sync_result.get("ok")):
-            failed_n = (sync_result or {}).get("failed", "未知")
-            raise RuntimeError(f"會員簡訊已寫入，但全站衍生資料同步未完整（失敗步驟 {failed_n}）；可從失敗步驟續跑")
-        done_note = ("未寫入通知已併入過去資料；缺漏明細已自動重建，逐篇檢查點與全站衍生資料均已同步"
-                     if SMS_MODE == "merge" else
-                     "抓取、解析、寫入、逐日稽核與衍生資料同步完成")
-        report_sms_progress(status="完成", step="完成", done=8, total=8, pct=100,
-                            note=done_note)
+                                steps="|".join(SMS_FETCH_STEPS), **stats)
+
+        label = {
+            "today": "只更新當天的會員簡訊。",
+            "blanks": "只補過去資料中收錄個股仍空白的文章，已判定過的一律不重跑。",
+            "merge": "併入過去資料：沿用已判定明細，並用 AI 補齊仍空白的收錄個股。",
+            "reparse": "重新解析：依選定範圍強制重判，會消耗較多模型配額。",
+        }.get(SMS_MODE, "解析會員簡訊：處理待解析與空白的收錄個股。")
+        print("模式：" + label)
+
+        changed_dates = parse_pending_sms(ss, since=SMS_SINCE,
+                                          today_only=(SMS_MODE == "today")) or set()
+        if changed_dates:
+            print("提醒：本輪只更新了會員簡訊與操作紀錄／會員持股。"
+                  "每日整理、持股追蹤、績效與日K不在這條鏈裡，需要時請到後台刷新。")
         return
 
     if FIX_PRICES:
@@ -5771,10 +6324,7 @@ def main():
     if not POLL_LOOP:
         handle_today_once()
         save_rotated_auth(ss, _AUTH_FP[0])
-        try:
-            refresh_sms_mail_dates(parse_pending_sms(ss) or set())
-        except Exception as e:
-            print(f"（自動解析會員簡訊跳過或出錯，不影響主流程：{e}）")
+        auto_parse_today_sms(ss)
         return
 
     # 走內部循環：每 POLL_INTERVAL 秒敲一次，直到收工或超過時間預算。
@@ -5840,12 +6390,9 @@ def main():
     # 讓下一次執行接續使用，而不是每次都退回 Secret 裡那份越來越舊的種子。
     save_rotated_auth(ss, _AUTH_FP[0])
 
-    # 融入既有工作流程：每次每日流程結束後，順道檢查並解析當日待解析的會員簡訊
+    # 融入既有工作流程：每次每日流程結束後，順道解析「當天」待解析的會員簡訊。
     if not BACKFILL:
-        try:
-            refresh_sms_mail_dates(parse_pending_sms(ss) or set())
-        except Exception as e:
-            print(f"（自動解析會員簡訊跳過或出錯，不影響主流程：{e}）")
+        auto_parse_today_sms(ss)
 
 
 if __name__ == "__main__":
@@ -5872,13 +6419,26 @@ if __name__ == "__main__":
         sys.exit(1)
     except RateLimited as e:
         # 這是可恢復的額度狀態，不是程式壞掉。GitHub 保持綠燈，後台顯示
-        # 「配額暫停」，既有衍生資料不變，下一次重新解析會從待解析列續跑。
-        print(f"會員簡訊解析暫停：{e}")
+        # 「配額暫停」，已完成的部分都已經落地，不會回滾。
+        reset_at = getattr(e, "reset_at", "") or _QUOTA_STOP.get("reset_at", "")
+        print(f"流程因 Gemini 配額暫停：{e}")
+        if getattr(e, "daily", False):
+            print("這是「每日請求數」上限，不是「每分鐘」。在額度重置之前，"
+                  "不論等多久或重按幾次，每一次都只會再拿到一個 429，"
+                  f"而且仍然計入用量。下次可用時間約為台北時間 {reset_at}。")
         if PARSE_SMS:
-            report_sms_progress(status="配額暫停", step="解析明細", done=4, total=8, pct=50,
-                                note="Gemini HTTP 429：已完成文章的解析明細均已逐篇保存。配額恢復後按原按鈕，系統只接續未完成文章。")
+            # parse_pending_sms 已經把落地結果與 cooldown 回報過一次。
+            # 這裡只補「整體停在配額」這個結論，不覆蓋前面比較詳細的說明。
+            report_sms_progress(
+                status="配額暫停", step="AI 收錄個股", done=7,
+                total=len(SMS_MERGE_STEPS) - 1, pct=50,
+                note=(f"Gemini 配額暫停：{str(e)[:120]}。已完成文章都已寫入試算表，"
+                      + (f"額度約於台北時間 {reset_at} 重置。" if reset_at else "稍後再按同一顆按鈕即可接續。")),
+                steps="|".join(SMS_MERGE_STEPS),
+                cooldown_until=reset_at,
+                quota_kind="daily" if getattr(e, "daily", False) else "minute")
         if _SS is not None:
-            write_status_log(_SS, "配額暫停", str(e))
+            write_status_log(_SS, "配額暫停", str(e) + (f"；約於 {reset_at} 重置" if reset_at else ""))
         sys.exit(0)
     except Exception as e:
         print(f"流程失敗：{e}", file=sys.stderr)

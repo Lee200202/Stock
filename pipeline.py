@@ -172,48 +172,94 @@ SPREADSHEET_ID = env("SPREADSHEET_ID")
 # 不同專案各有各的額度，一把用完換下一把，全部用完才是真的沒有額度。
 # Apps Script 那邊早就支援了，這裡先前只讀一把，於是同樣是額度問題，
 # 後台還能繼續跑，GitHub 這條卻整天停擺。
-def _load_gemini_keys() -> list[str]:
+def _load_gemini_keys() -> list[tuple[str, str]]:
+    """
+    回傳 [(來源名稱, 金鑰)]。名稱要帶著走，出問題時才講得出「去修哪一個 Secret」。
+
+    分隔字元同時吃逗號與所有空白。GEMINI_API_KEYS 這種「一個變數裝多把」的
+    寫法，人最自然的貼法是一行一把；只用逗號切的話，整段連同換行會被當成
+    「一把很長的金鑰」，送出去就是一個看不懂的 404，而真正的原因只是貼法。
+    """
     out, seen = [], set()
-    def push(raw):
-        for part in str(raw or "").split(","):
+
+    def push(source: str, raw: str):
+        for part in re.split(r"[,\s]+", str(raw or "")):
             t = part.strip()
-            if t and t not in seen:
-                seen.add(t)
-                out.append(t)
-    push(os.environ.get("GEMINI_API_KEY", ""))
-    push(os.environ.get("GEMINI_API_KEYS", ""))
+            if not t or t in seen:
+                continue
+            # Google API 金鑰是英數與 -_ 的字串。混進引號、中文全形逗號或
+            # 說明文字時，先擋在這裡，不要等送出去才拿一個看不懂的 404。
+            if not re.fullmatch(r"[A-Za-z0-9_\-]{20,}", t):
+                print(f"警告：{source} 裡有一段不像 API 金鑰的內容（長度 {len(t)}），已略過。"
+                      f"金鑰只能是英數與 - _，多把請用逗號或換行分隔。")
+                continue
+            seen.add(t)
+            out.append((source, t))
+
+    push("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", ""))
+    push("GEMINI_API_KEYS", os.environ.get("GEMINI_API_KEYS", ""))
     for i in range(2, 6):
-        push(os.environ.get(f"GEMINI_API_KEY_{i}", ""))
+        push(f"GEMINI_API_KEY_{i}", os.environ.get(f"GEMINI_API_KEY_{i}", ""))
     return out
 
 
-GEMINI_KEYS = _load_gemini_keys()
+GEMINI_KEY_ENTRIES = _load_gemini_keys()
+GEMINI_KEYS = [k for _, k in GEMINI_KEY_ENTRIES]
 GEMINI_API_KEY = GEMINI_KEYS[0] if GEMINI_KEYS else ""
 
-# 今天已經用完的金鑰索引。用完的不要再撞——每撞一次都要等完整的退避，
-# 而且那一次仍然計入用量。
-_KEY_STATE = {"idx": 0, "dead": set()}
+# 這一輪不能再用的金鑰。分成兩種原因，因為處理方式完全不同：
+#   quota   今日額度用完。明天會自己好，不必動任何設定。
+#   broken  金鑰本身有問題（無效、專案沒開通 API、那個專案看不到這個模型）。
+#           明天不會自己好，要人去修，所以訊息必須指名是哪一個 Secret。
+_KEY_STATE = {"idx": 0, "dead": {}}
+
+
+def key_label(i: int) -> str:
+    if not (0 <= i < len(GEMINI_KEY_ENTRIES)):
+        return "未知金鑰"
+    return f"第 {i + 1} 把（{GEMINI_KEY_ENTRIES[i][0]}）"
 
 
 def current_gemini_key() -> str:
     return GEMINI_KEYS[_KEY_STATE["idx"]] if GEMINI_KEYS else ""
 
 
-def rotate_gemini_key(tag: str) -> bool:
-    """把目前這一把標記為今日用盡並換下一把。全部用完回 False。"""
-    _KEY_STATE["dead"].add(_KEY_STATE["idx"])
+def rotate_gemini_key(tag: str, why: str = "quota", detail: str = "") -> bool:
+    """把目前這一把標記為不可用並換下一把。沒有可用的了就回 False。"""
+    cur = _KEY_STATE["idx"]
+    # 存的是「可以直接印給人看的原因」，不是內部代號。
+    # 存代號的話，最後那句彙總會變成「第 1 把：broken」，等於沒講。
+    _KEY_STATE["dead"][cur] = "quota" if why == "quota" else (detail or "設定有問題")
+    reason = "今日額度已用盡" if why == "quota" else f"金鑰不可用（{detail or '設定有問題'}）"
     for i in range(len(GEMINI_KEYS)):
         if i not in _KEY_STATE["dead"]:
             _KEY_STATE["idx"] = i
-            print(f"Gemini {tag}：第 {i} 把金鑰接手（前一把今日額度已用盡，共 {len(GEMINI_KEYS)} 把）")
+            print(f"Gemini {tag}：{key_label(cur)} {reason}，改用 {key_label(i)}"
+                  f"（共 {len(GEMINI_KEYS)} 把）")
             return True
+    print(f"Gemini {tag}：{key_label(cur)} {reason}，而且已經沒有其他可用的金鑰了。")
     return False
+
+
+def broken_keys_report() -> str:
+    """
+    把「設定有問題」的金鑰列出來。這種明天不會自己好，要指名讓人去修。
+
+    只取原因的第一句。完整說明在前面每一次輪替時已經印過一次，
+    這裡是收尾的彙總，三把金鑰各印一整段會把真正的錯誤訊息推到看不見。
+    """
+    bad = []
+    for i, v in sorted(_KEY_STATE["dead"].items()):
+        if v == "quota":
+            continue
+        bad.append(f"{key_label(i)}：{str(v).split('。')[0]}")
+    return "；".join(bad)
 
 
 def require_gemini_key():
     if not GEMINI_KEYS:
         raise SystemExit("缺少環境變數 GEMINI_API_KEY，請到 GitHub Secrets 或 Variables 補上。"
-                         "額度不夠時可另外設 GEMINI_API_KEY_2 到 _5，或用逗號寫在 GEMINI_API_KEYS。")
+                         "額度不夠時可另外設 GEMINI_API_KEY_2 到 _5，或用逗號／換行寫在 GEMINI_API_KEYS。")
 BACKFILL = os.environ.get("BACKFILL", "false").strip().lower() == "true"
 FINAL_ATTEMPT = os.environ.get("FINAL_ATTEMPT", "false").strip().lower() == "true"
 
@@ -1089,6 +1135,32 @@ _DAILY_QUOTA_HINTS = (
 _MINUTE_QUOTA_HINTS = ("perminute", "per_minute", "per minute", "requests_per_minute")
 
 
+def _key_problem(status: int, text: str) -> str:
+    """
+    這個非 200 是不是「這一把金鑰自己的問題」。是的話回一句可以照著修的話。
+
+    分辨得出來很重要：金鑰問題換一把就能繼續，而且明天不會自己好，
+    必須指名要人去修；其他錯誤（模型拒答、請求格式錯）換金鑰沒有用。
+    """
+    low = str(text or "").lower()
+    if status == 404 and ("is not found" in low or "not found for api version" in low
+                          or "models/" in low):
+        return (f"這個專案看不到 {GEMINI_MODEL}。多半是該金鑰所屬的 Google 專案"
+                "沒有啟用 Generative Language API，或那個專案還沒有這個模型的存取權。"
+                "到 Google AI Studio 用同一個帳號重新產生金鑰，或在 Google Cloud "
+                "把 Generative Language API 開通後再試")
+    if status == 403 and ("permission" in low or "disabled" in low or "forbidden" in low
+                          or "service_disabled" in low):
+        return ("金鑰沒有權限或 API 被停用。到 Google Cloud 確認該專案的 "
+                "Generative Language API 是啟用狀態，且金鑰沒有設定 IP／來源限制")
+    if status in (400, 401) and ("api_key_invalid" in low or "api key not valid" in low
+                                 or "invalid authentication" in low):
+        return "金鑰無效。多半是貼的時候少了字元、多了引號或空白，請重新複製一次完整的金鑰"
+    if status == 404:
+        return f"回 404 但沒講原因。先確認該金鑰的專案能不能用 {GEMINI_MODEL}"
+    return ""
+
+
 def _classify_quota(text: str) -> str:
     """回傳 'daily'、'minute' 或 ''（分不出來）。"""
     low = re.sub(r"\s+", "", str(text or "").lower())
@@ -1521,6 +1593,16 @@ def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX
     if _QUOTA_STOP["daily"]:
         raise RateLimited(f"{_QUOTA_STOP['reason']}；本輪已停止呼叫模型（{tag}）",
                           daily=True, reset_at=_QUOTA_STOP["reset_at"])
+
+    # 每一把金鑰都已經證實不可用時，也要秒回。
+    # 不擋的話，逐字稿有幾段就會把「每一把都試一次、每一把都退避六輪」
+    # 重跑幾次，二十分鐘的 job 全部耗在等一個不會好的東西上。
+    if GEMINI_KEYS and len(_KEY_STATE["dead"]) >= len(GEMINI_KEYS):
+        report = broken_keys_report()
+        raise RuntimeError(
+            f"Gemini 呼叫失敗（{tag}）：本輪 {len(GEMINI_KEYS)} 把金鑰全部不可用，已停止嘗試。"
+            + (f"　{report}" if report else ""))
+
     _GEMINI_CALLS["n"] += 1
     def endpoint():
         # 每次重試都重新組一次網址。輪替金鑰之後要打到新的那一把，
@@ -1572,8 +1654,31 @@ def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX
         if r.status_code != 200:
             last = f"HTTP {r.status_code}"
             if r.status_code not in TRANSIENT:
-                # 錯誤訊息不含金鑰，也不回傳原始回應內容
-                raise RuntimeError(f"Gemini 呼叫失敗（{tag}）：{last}")
+                # 400／403／404 幾乎都是「這一把金鑰的問題」，不是整個流程壞掉：
+                #   404  這個專案看不到這個模型（Generative Language API 沒開通，
+                #        或該專案沒有 gemini-2.5-flash 的存取權）
+                #   403  金鑰沒有權限，或 API 被停用
+                #   400  API_KEY_INVALID，多半是貼錯、貼到一半、或多了引號
+                #
+                # 先前這裡直接拋 RuntimeError，於是輪替到第二把之後只要那一把
+                # 設定有問題，整個工單就死在半路——已經潤飾好的第 1 段也一起丟掉。
+                # 實際發生過：第一把額度用完換到第二把，第二把回 404，
+                # 「Gemini 呼叫失敗（polish 2/3）：HTTP 404」，工單結束、退出碼 1。
+                #
+                # 正確的作法與額度用完一樣：把這一把標記為不可用，換下一把繼續。
+                # 全部都不能用時才失敗，而且要指名是哪幾個 Secret 有問題。
+                broken = _key_problem(r.status_code, r.text or "")
+                if broken and len(GEMINI_KEYS) > 1:
+                    if rotate_gemini_key(tag, why="broken", detail=broken):
+                        hits_429 = 0
+                        skip_delay = True
+                        continue
+                hint = f"　{broken}" if broken else ""
+                report = broken_keys_report()
+                # 錯誤訊息不含金鑰內容，只講是第幾把、哪一個環境變數
+                raise RuntimeError(
+                    f"Gemini 呼叫失敗（{tag}）：{last}　目前用的是 {key_label(_KEY_STATE['idx'])}{hint}"
+                    + (f"　已知有問題的金鑰：{report}" if report else ""))
 
             if r.status_code == 429:
                 hits_429 += 1
@@ -2659,6 +2764,22 @@ def polish(transcript: str) -> str:
         except RateLimited as e:
             POLISH_DEGRADED += 1
             print(f"潤飾第 {i}/{len(chunks)} 段配額不足，改用原文保留內容（{e}）")
+            out.append(c)
+        except RuntimeError as e:
+            # 「呼叫沒成功」與「模型回了不對的東西」要分開。
+            #
+            # 前者（金鑰失效、專案沒開通 API、連 404）跟配額用盡是同一類問題：
+            # 這一段潤飾不了，但原文還在，用原文往下走仍然能擷取到完整內容。
+            # 實際踩過的坑：第二把金鑰回 404，整個工單當場結束、退出碼 1，
+            # 連第 1 段已經潤飾好的結果都一起丟掉，下一輪要從抓逐字稿重來。
+            #
+            # 後者（MAX_TOKENS、異常結束、空內容）代表切塊或設定要調，
+            # 降級會把問題藏起來，所以照舊往外拋。
+            msg = str(e)
+            if "Gemini 呼叫失敗" not in msg and "金鑰全部不可用" not in msg:
+                raise
+            POLISH_DEGRADED += 1
+            print(f"潤飾第 {i}/{len(chunks)} 段無法呼叫模型，改用原文保留內容（{msg[:160]}）")
             out.append(c)
         # 段間節流。免費配額是每分鐘計次，段與段之間拉開就少撞牆。
         time.sleep(POLISH_GAP)
@@ -6031,6 +6152,46 @@ def repair_codes_only(ss):
 _SS = None      # 供 __main__ 的例外處理寫入系統狀態用
 
 
+def preflight_gemini_keys():
+    """
+    開跑前先確認每一把金鑰能不能用。只列模型清單，不產生內容，不算生成配額。
+
+    值得多這一步：一把設定錯的金鑰（專案沒開通 API、貼錯、看不到這個模型）
+    只有在真的輪替到它的時候才會爆，而那通常是流程跑到一半、
+    第一把額度用完之後——最不希望出事的時間點。先問一次，
+    有問題的當場標記起來並印出要修哪一個 Secret，之後直接跳過它。
+    """
+    if not GEMINI_KEYS or len(GEMINI_KEYS) < 2:
+        return                      # 只有一把時沒有「跳過」的餘地，讓它照原路報錯
+    print(f"檢查 {len(GEMINI_KEYS)} 把 Gemini 金鑰……")
+    for i, (source, key) in enumerate(GEMINI_KEY_ENTRIES):
+        try:
+            r = requests.get(
+                f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}",
+                params={"key": key}, timeout=30)
+        except Exception as e:
+            print(f"  {key_label(i)}：連線失敗（{type(e).__name__}），本輪照常保留")
+            continue
+        if r.status_code == 200:
+            print(f"  {key_label(i)}：可用")
+            continue
+        if r.status_code == 429:
+            print(f"  {key_label(i)}：目前被限流，保留（額度問題會在實際呼叫時處理）")
+            continue
+        why = _key_problem(r.status_code, r.text or "") or f"HTTP {r.status_code}"
+        _KEY_STATE["dead"][i] = why
+        print(f"  {key_label(i)}：不可用　{why}")
+    usable = [i for i in range(len(GEMINI_KEYS)) if i not in _KEY_STATE["dead"]]
+    if not usable:
+        print("警告：沒有任何一把金鑰通過檢查。後面的步驟會用原文降級處理，"
+              "逐字稿不會遺失，但擷取與撰稿無法進行。")
+        return
+    _KEY_STATE["idx"] = usable[0]
+    if len(usable) < len(GEMINI_KEYS):
+        print(f"本輪可用 {len(usable)}/{len(GEMINI_KEYS)} 把，"
+              f"從 {key_label(usable[0])} 開始，不可用的直接跳過。")
+
+
 def main():
     global _SS
     src = "Variables" if os.environ.get("YOUTUBE_CHANNEL_ID", "").strip() else "內建預設值"
@@ -6047,6 +6208,9 @@ def main():
     if not (PREFLIGHT or REPAIR_CODES or FULL_FIX or (REFRESH_SITE and not any(
             (RECLASSIFY, FIX_PRICES, RECONCILE, FILL_BLANKS, BACKFILL)))):
         require_gemini_key()
+        # 順便確認每一把都真的能用。設定錯的那一把若等到輪替時才爆，
+        # 通常已經是流程跑到一半、第一把額度用完之後——最不該出事的時間點。
+        preflight_gemini_keys()
 
     # 這三個是互斥模式，同時勾選只有第一個會生效。
     # 先前就發生過三個都勾、結果只跑了修代號的情況，所以這裡明講。

@@ -222,8 +222,32 @@ def _load_gemini_keys() -> list[tuple[str, str]]:
     return out
 
 
-GEMINI_KEY_ENTRIES = _load_gemini_keys()
-GEMINI_KEYS = [k for _, k in GEMINI_KEY_ENTRIES]
+def _model_for_source(source: str) -> str:
+    """
+    每一把金鑰各自的型號。
+
+    需要「一把一個型號」是因為同一個帳號底下的專案，模型供應可能不一樣：
+    較早建立的專案還能用 gemini-2.5-flash，後來新開的專案已經拿不到
+    （Google 回 no longer available to new users），只能用別的世代。
+    全域統一換型號的話，等於為了兩把新金鑰把原本好好的那把也一起降級。
+
+    對應規則照 Secret 名稱走，直覺且不會猜錯：
+      GEMINI_API_KEY    → GEMINI_MODEL
+      GEMINI_API_KEY_2  → GEMINI_MODEL_2（沒設就沿用 GEMINI_MODEL）
+      GEMINI_API_KEY_3  → GEMINI_MODEL_3
+      …以此類推到 _5
+    """
+    m = re.fullmatch(r"GEMINI_API_KEY_(\d)", str(source or ""))
+    if m:
+        v = os.environ.get(f"GEMINI_MODEL_{m.group(1)}", "").strip()
+        if v:
+            return v
+    return GEMINI_MODEL
+
+
+GEMINI_KEY_ENTRIES = [(src, key, _model_for_source(src)) for src, key in _load_gemini_keys()]
+GEMINI_KEYS = [k for _, k, _ in GEMINI_KEY_ENTRIES]
+GEMINI_MODELS = [m for _, _, m in GEMINI_KEY_ENTRIES]
 GEMINI_API_KEY = GEMINI_KEYS[0] if GEMINI_KEYS else ""
 
 # 這一輪不能再用的金鑰。分成兩種原因，因為處理方式完全不同：
@@ -236,11 +260,18 @@ _KEY_STATE = {"idx": 0, "dead": {}}
 def key_label(i: int) -> str:
     if not (0 <= i < len(GEMINI_KEY_ENTRIES)):
         return "未知金鑰"
-    return f"第 {i + 1} 把（{GEMINI_KEY_ENTRIES[i][0]}）"
+    src, _, model = GEMINI_KEY_ENTRIES[i]
+    # 型號與預設不同時一併標出來，否則日誌上看不出這一把跑的是哪一個世代
+    tail = f"／{model}" if model != GEMINI_MODEL else ""
+    return f"第 {i + 1} 把（{src}{tail}）"
 
 
 def current_gemini_key() -> str:
     return GEMINI_KEYS[_KEY_STATE["idx"]] if GEMINI_KEYS else ""
+
+
+def current_gemini_model() -> str:
+    return GEMINI_MODELS[_KEY_STATE["idx"]] if GEMINI_MODELS else GEMINI_MODEL
 
 
 def rotate_gemini_key(tag: str, why: str = "quota", detail: str = "") -> bool:
@@ -1172,7 +1203,42 @@ class RateLimited(Exception):
 # extract 會立刻得到「配額用盡」而不是再退避六輪才失敗。
 # ------------------------------------------------------------------ #
 _QUOTA_STOP = {"daily": False, "reason": "", "reset_at": ""}
-_GEMINI_CALLS = {"n": 0}
+_GEMINI_CALLS = {"n": 0, "by_tag": {}}
+
+# ------------------------------------------------------------------ #
+# 每分鐘請求數的自我節流
+#
+# 免費層是「每分鐘請求數（RPM）」與「每日請求數（RPD）」兩道限制。
+# RPM 撞到只會浪費時間（退避、重試），但每一次撞牆的請求仍然計入 RPD，
+# 所以撞 RPM 等於在燒當天的總量——最划算的作法是根本不要撞。
+#
+# 這裡在「送出之前」就把間隔拉開，而不是等 429 回來才退避。
+# 預設 10 RPM（免費層常見值），也就是每次呼叫至少間隔 6 秒。
+# 實際額度依型號而異，撞到 429 時日誌會印出 Google 的原文，
+# 依那個數字調 GEMINI_RPM 即可。
+# ------------------------------------------------------------------ #
+GEMINI_RPM = max(1, int(os.environ.get("GEMINI_RPM", "").strip() or 10))
+_MIN_CALL_GAP = 60.0 / GEMINI_RPM
+_LAST_CALL = {"at": 0.0}
+
+
+def throttle_gemini():
+    """把兩次呼叫的間隔拉到至少 60/RPM 秒。已經隔夠久就不等。"""
+    wait = _MIN_CALL_GAP - (time.monotonic() - _LAST_CALL["at"])
+    if wait > 0:
+        time.sleep(wait)
+    _LAST_CALL["at"] = time.monotonic()
+
+
+def gemini_usage_report() -> str:
+    n = _GEMINI_CALLS["n"]
+    if not n:
+        return "本輪沒有呼叫 Gemini。"
+    parts = "、".join(f"{k} {v}" for k, v in
+                      sorted(_GEMINI_CALLS["by_tag"].items(), key=lambda x: -x[1])[:8])
+    mins = max(1.0, (time.monotonic() - RUN_STARTED) / 60)
+    return (f"本輪呼叫 Gemini {n} 次（約 {n / mins:.1f} 次/分，"
+            f"節流上限 {GEMINI_RPM} 次/分）　{parts}")
 
 # 429 回應裡代表「每日」而非「每分鐘」的字樣。Google 兩種都用同一個
 # HTTP 狀態碼，只能靠 quota metric 的名稱分辨。
@@ -1700,14 +1766,20 @@ def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX
             + (f"　{report}" if report else ""))
 
     _GEMINI_CALLS["n"] += 1
+    base_tag = re.sub(r"[\s0-9/]+$", "", str(tag or "?")) or "?"
+    _GEMINI_CALLS["by_tag"][base_tag] = _GEMINI_CALLS["by_tag"].get(base_tag, 0) + 1
     # 金鑰改用 params 傳，不再直接串進網址。
     #
     # 串字串的話，金鑰裡只要有一個需要編碼的字元（或貼進 Secret 時混進了
     # 看不見的字元），組出來的就是一個壞掉的網址，而回來的錯誤會是
     # 404 或 400，完全看不出問題出在網址而不是金鑰本身。
     # 交給 requests 編碼就不會有這個問題，也不必自己去猜金鑰的合法字元。
-    GEMINI_URL = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-                  f"{GEMINI_MODEL}:generateContent")
+    #
+    # 網址每次重算，因為輪替金鑰時型號也可能跟著換：不同專案的模型供應
+    # 不一樣，第一把用 2.5、備用那兩把用別的世代是正常設定。
+    def gemini_url():
+        return (f"https://generativelanguage.googleapis.com/v1beta/models/"
+                f"{current_gemini_model()}:generateContent")
 
     cfg = {
         "temperature": 0.1,
@@ -1746,7 +1818,10 @@ def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX
         try:
             # 每次重試都重新取一次金鑰。輪替之後要打到新的那一把，
             # 不是繼續打已經用完或壞掉的那一把。
-            r = requests.post(GEMINI_URL, params={"key": current_gemini_key()},
+            # 送出前先節流。等 429 回來才退避太慢，而且那一次撞牆
+            # 仍然計入當日總量，等於用自己的額度去確認自己太快。
+            throttle_gemini()
+            r = requests.post(gemini_url(), params={"key": current_gemini_key()},
                               json=body, timeout=600)
         except requests.RequestException as e:
             last = f"連線錯誤 {type(e).__name__}"
@@ -6260,7 +6335,7 @@ def repair_codes_only(ss):
 _SS = None      # 供 __main__ 的例外處理寫入系統狀態用
 
 
-def probe_gemini_key(key: str, timeout: int = 30) -> dict:
+def probe_gemini_key(key: str, timeout: int = 30, model: str = "") -> dict:
     """
     問一把金鑰「你到底能用哪些模型」。只讀清單，不產生內容，不耗生成配額。
 
@@ -6276,8 +6351,9 @@ def probe_gemini_key(key: str, timeout: int = 30) -> dict:
       usable       GEMINI_MODEL 在不在、而且支援 generateContent
       alternatives 這個專案有、而且支援 generateContent 的 gemini 系列型號
     """
+    model = model or GEMINI_MODEL
     out = {"ok": False, "status": 0, "models": 0, "usable": False,
-           "alternatives": [], "detail": ""}
+           "alternatives": [], "detail": "", "model": model}
     try:
         r = requests.get("https://generativelanguage.googleapis.com/v1beta/models",
                          params={"key": key, "pageSize": 200}, timeout=timeout)
@@ -6297,20 +6373,24 @@ def probe_gemini_key(key: str, timeout: int = 30) -> dict:
         return out
 
     out["models"] = len(models)
-    want = f"models/{GEMINI_MODEL}"
+    want = f"models/{model}"
     for m in models:
         name = str(m.get("name") or "")
         methods = m.get("supportedGenerationMethods") or []
         if name == want:
             out["usable"] = "generateContent" in methods
             if not out["usable"]:
-                out["detail"] = (f"這個專案看得到 {GEMINI_MODEL}，但它不支援 generateContent"
+                out["detail"] = (f"這個專案看得到 {model}，但它不支援 generateContent"
                                  f"（支援的是 {'、'.join(methods) or '無'}）")
         elif "generateContent" in methods and "gemini" in name:
-            out["alternatives"].append(name.replace("models/", ""))
+            short = name.replace("models/", "")
+            # 影像、語音、嵌入這些型號雖然也支援 generateContent，
+            # 但它們不是拿來產生文字的，收進候選只會推薦錯的東西。
+            if is_text_model(short):
+                out["alternatives"].append(short)
 
     if not out["usable"] and not out["detail"]:
-        out["detail"] = (f"這個專案的模型清單裡沒有 {GEMINI_MODEL}"
+        out["detail"] = (f"這個專案的模型清單裡沒有 {model}"
                          f"（看得到 {len(models)} 個模型）")
 
     # 真正要用的是 generateContent，那就直接試 generateContent。
@@ -6322,7 +6402,7 @@ def probe_gemini_key(key: str, timeout: int = 30) -> dict:
     #
     # 成本極小：max_output_tokens 設 1、輸入一個字，一次呼叫而已。
     # 它會計入生成配額，但為了問出真正的答案，這一次值得。
-    ok, status, detail = smoke_generate(key, GEMINI_MODEL, timeout)
+    ok, status, detail = smoke_generate(key, model, timeout)
     out["ok"], out["gen_status"], out["gen_detail"] = ok, status, detail
     return out
 
@@ -6335,6 +6415,23 @@ def probe_gemini_key(key: str, timeout: int = 30) -> dict:
 # 寧可先花時間到 Google Cloud Console 把專案處理好，也不要為了省事就跳到
 # 一個沒有驗證過的世代——那會讓「資料怎麼變了」變成下一個要查的問題。
 _MODEL_FAMILY_ORDER = ("2.5", "2.0")
+
+
+# 不是拿來產生文字的型號，一律不列入候選。
+#
+# 這一關是必要的：健檢實測時 gemini-2.5-flash-image 回 429，而 429 被判定成
+# 「金鑰沒問題，只是額度用完」，於是它被當成可用；它又剛好落在 2.5 系列、
+# 名字裡有 flash，排序時會排在所有 3.x 前面，變成第一順位建議。
+# 拿影像型號去跑逐字稿擷取，結果不會是「比較差」，而是整條流程壞掉。
+_NON_TEXT_MODEL_HINTS = (
+    "image", "imagen", "veo", "tts", "audio", "speech", "voice",
+    "embedding", "embed", "aqa", "vision", "live",
+)
+
+
+def is_text_model(name: str) -> bool:
+    n = str(name or "").lower()
+    return not any(h in n for h in _NON_TEXT_MODEL_HINTS)
 
 
 def _model_rank(name: str) -> tuple:
@@ -6361,8 +6458,8 @@ def _model_rank(name: str) -> tuple:
 
 
 def sort_model_candidates(names) -> list:
-    """依偏好順序排候選型號：2.5 系列 → 2.0 系列 → 其他 → 1.5。"""
-    return sorted(set(names), key=_model_rank)
+    """依偏好順序排候選型號：2.5 系列 → 2.0 系列 → 其他 → 1.5。只留文字型號。"""
+    return sorted({n for n in names if is_text_model(n)}, key=_model_rank)
 
 
 def pick_model_candidates(names, per_family: int = 3, total: int = 6) -> list:
@@ -6441,8 +6538,8 @@ def preflight_gemini_keys():
         return                      # 只有一把時沒有「跳過」的餘地，讓它照原路報錯
     print(f"檢查 {len(GEMINI_KEYS)} 把 Gemini 金鑰能不能用 {GEMINI_MODEL}……")
     alt_pool = []
-    for i, (source, key) in enumerate(GEMINI_KEY_ENTRIES):
-        p = probe_gemini_key(key)
+    for i, (source, key, model) in enumerate(GEMINI_KEY_ENTRIES):
+        p = probe_gemini_key(key, model=model)
         if p["ok"]:
             print(f"  {key_label(i)}：可用　{p.get('gen_detail') or ''}".rstrip())
             continue
@@ -6493,13 +6590,13 @@ def report_gemini_keys():
         print("多把可另外設 GEMINI_API_KEY_2 到 _5，或用逗號／換行寫在 GEMINI_API_KEYS。")
         return
     print(f"共讀到 {len(GEMINI_KEYS)} 把：" +
-          "、".join(f"{n}（{len(k)} 字）" for n, k in GEMINI_KEY_ENTRIES))
+          "、".join(f"{n}（{len(k)} 字，{m}）" for n, k, m in GEMINI_KEY_ENTRIES))
     print("")
 
     good, bad, alt_pool = [], [], []
-    for i, (source, key) in enumerate(GEMINI_KEY_ENTRIES):
-        print(f"── {key_label(i)} ──")
-        p = probe_gemini_key(key)
+    for i, (source, key, model) in enumerate(GEMINI_KEY_ENTRIES):
+        print(f"── {key_label(i)} ──　目標型號：{model}")
+        p = probe_gemini_key(key, model=model)
         # 兩個檢查都印出來。它們可能不一致，而不一致本身就是重要線索：
         # 清單看得到、卻叫不動，代表問題不在「有沒有這個模型」。
         print(f"  1) ListModels　　　　HTTP {p['status'] or '連線失敗'}"
@@ -6594,7 +6691,7 @@ def report_gemini_keys():
     winner, tried = "", []
     for cand in order:
         results, all_ok = [], True
-        for i, (source, key) in enumerate(GEMINI_KEY_ENTRIES):
+        for i, (source, key, _m) in enumerate(GEMINI_KEY_ENTRIES):
             c_ok, c_status, c_detail = smoke_generate(key, cand)
             results.append(f"{key_label(i)} HTTP {c_status or '連線失敗'}"
                            + ("" if c_ok else " ✗"))
@@ -7021,6 +7118,7 @@ def main():
 if __name__ == "__main__":
     try:
         main()
+        print(gemini_usage_report())
         if _SS is not None:
             write_status_log(_SS, "完成", f"本輪正常結束（未潤飾段數 {POLISH_DEGRADED}）")
     except NotReadyYet as e:

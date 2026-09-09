@@ -76,7 +76,14 @@ DELETE_THRESHOLD = 0.60
 UNRESOLVED = "代號待確認"
 REJECT = "__REJECT__"
 
-GEMINI_MODEL = "gemini-2.5-flash"
+# 模型可以用環境變數覆蓋。
+#
+# 需要這個逃生口的原因很實際：免費金鑰能看到哪些模型，是「以 Google 專案為單位」
+# 決定的，不同專案不一定一樣。曾經遇過第一把金鑰跑得好好的，另外兩把卻對同一個
+# 模型回 404（models/… is not found for API version v1beta）——那不是金鑰壞掉，
+# 是那兩個專案看不到這個模型。真的遇到時，用 GEMINI_MODEL 換一個大家都有的
+# 型號（例如 gemini-2.0-flash）比重新申請金鑰快得多，而且不必改程式碼。
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "").strip() or "gemini-2.5-flash"
 
 # 潤飾切塊大小。逐字稿標點稀疏時靠 CHUNK_HARD 保底。
 # 切得越大段數越少、呼叫次數越少，撞每分鐘配額的機會就越低，
@@ -408,6 +415,11 @@ ADMIN_JOB = os.environ.get("ADMIN_JOB", "false").strip().lower() == "true"
 
 PREFLIGHT = os.environ.get("PREFLIGHT", "false").strip().lower() == "true"
 
+# 金鑰健檢模式。逐把問「你能不能用這個模型」，印出結論與該怎麼修，然後結束。
+# 金鑰放在 GitHub Secrets，本機看不到也測不了，所以這個入口必須在 Actions 裡。
+# 只讀模型清單，不產生內容，不消耗生成配額。
+CHECK_KEYS = os.environ.get("CHECK_KEYS", "false").strip().lower() == "true"
+
 # VOD 最早可能出現的台灣時間（小時）。直播約 12:30 到 13:00 結束，
 # YouTube 轉檔再十幾分鐘，所以這之前敲門必定空手而回。
 # 探測模式用它判斷哪些觸發點是純粹浪費，可以直接跳過。
@@ -548,7 +560,7 @@ def save_rotated_auth(ss, before_fp: str):
 # 並檢查 cookie，於是 cookie 一過期，連「貼逐字稿進來請你整理」這種
 # 完全用不到 NotebookLM 的工作也一起失敗。
 def needs_notebooklm() -> bool:
-    if PREFLIGHT:
+    if PREFLIGHT or CHECK_KEYS:
         return False
     if ADMIN_JOB or PARSE_SMS or FULL_FIX or REPAIR_CODES or RECLASSIFY or FIX_PRICES or RECONCILE:
         return False
@@ -6192,48 +6204,191 @@ def repair_codes_only(ss):
 _SS = None      # 供 __main__ 的例外處理寫入系統狀態用
 
 
+def probe_gemini_key(key: str, timeout: int = 30) -> dict:
+    """
+    問一把金鑰「你到底能用哪些模型」。只讀清單，不產生內容，不耗生成配額。
+
+    用 ListModels 而不是 GET 單一模型，是因為前者才回答得了真正要問的問題：
+    這個專案「看得到」某個模型，不代表它「可以拿來 generateContent」。
+    回應裡的 supportedGenerationMethods 才是判準。先前用 GET 單一模型，
+    那兩把有問題的金鑰照樣過關，於是要等到流程跑到一半、真的輪替過去
+    呼叫 generateContent 時才拿到 404。
+
+    回傳 {ok, status, models, usable, alternatives, detail}
+      ok           這一把現在就能拿來跑 GEMINI_MODEL
+      models       這個專案看得到幾個模型
+      usable       GEMINI_MODEL 在不在、而且支援 generateContent
+      alternatives 這個專案有、而且支援 generateContent 的 gemini 系列型號
+    """
+    out = {"ok": False, "status": 0, "models": 0, "usable": False,
+           "alternatives": [], "detail": ""}
+    try:
+        r = requests.get("https://generativelanguage.googleapis.com/v1beta/models",
+                         params={"key": key, "pageSize": 200}, timeout=timeout)
+    except Exception as e:
+        out["detail"] = f"連線失敗（{type(e).__name__}）"
+        return out
+
+    out["status"] = r.status_code
+    if r.status_code != 200:
+        out["detail"] = _key_problem(r.status_code, r.text or "") or f"HTTP {r.status_code}"
+        return out
+
+    try:
+        models = r.json().get("models", []) or []
+    except Exception:
+        out["detail"] = "回應不是 JSON，端點可能改版"
+        return out
+
+    out["models"] = len(models)
+    want = f"models/{GEMINI_MODEL}"
+    for m in models:
+        name = str(m.get("name") or "")
+        methods = m.get("supportedGenerationMethods") or []
+        if name == want:
+            out["usable"] = "generateContent" in methods
+            if not out["usable"]:
+                out["detail"] = (f"這個專案看得到 {GEMINI_MODEL}，但它不支援 generateContent"
+                                 f"（支援的是 {'、'.join(methods) or '無'}）")
+        elif "generateContent" in methods and "gemini" in name:
+            out["alternatives"].append(name.replace("models/", ""))
+
+    if out["usable"]:
+        out["ok"] = True
+        return out
+    if not out["detail"]:
+        out["detail"] = (f"這個專案的模型清單裡沒有 {GEMINI_MODEL}"
+                         f"（看得到 {len(models)} 個模型）")
+    return out
+
+
 def preflight_gemini_keys():
     """
-    開跑前先確認每一把金鑰能不能用。只列模型清單，不產生內容，不算生成配額。
+    開跑前先確認每一把金鑰能不能用。
 
-    值得多這一步：一把設定錯的金鑰（專案沒開通 API、貼錯、看不到這個模型）
-    只有在真的輪替到它的時候才會爆，而那通常是流程跑到一半、
-    第一把額度用完之後——最不希望出事的時間點。先問一次，
-    有問題的當場標記起來並印出要修哪一個 Secret，之後直接跳過它。
+    值得多這一步：一把設定錯的金鑰只有在真的輪替到它的時候才會爆，
+    而那通常是流程跑到一半、第一把額度用完之後——最不希望出事的時間點。
+    先問一次，有問題的當場標記起來並印出要修哪一個 Secret，之後直接跳過它。
     """
     if not GEMINI_KEYS or len(GEMINI_KEYS) < 2:
         return                      # 只有一把時沒有「跳過」的餘地，讓它照原路報錯
-    print(f"檢查 {len(GEMINI_KEYS)} 把 Gemini 金鑰……")
+    print(f"檢查 {len(GEMINI_KEYS)} 把 Gemini 金鑰能不能用 {GEMINI_MODEL}……")
+    alt_pool = []
     for i, (source, key) in enumerate(GEMINI_KEY_ENTRIES):
-        try:
-            r = requests.get(
-                f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}",
-                params={"key": key}, timeout=30)
-        except Exception as e:
-            print(f"  {key_label(i)}：連線失敗（{type(e).__name__}），本輪照常保留")
+        p = probe_gemini_key(key)
+        if p["ok"]:
+            print(f"  {key_label(i)}：可用（看得到 {p['models']} 個模型）")
             continue
-        if r.status_code == 200:
-            print(f"  {key_label(i)}：可用")
-            continue
-        if r.status_code == 429:
+        if p["status"] == 429:
             print(f"  {key_label(i)}：目前被限流，保留（額度問題會在實際呼叫時處理）")
             continue
-        why = _key_problem(r.status_code, r.text or "") or f"HTTP {r.status_code}"
-        _KEY_STATE["dead"][i] = why
-        print(f"  {key_label(i)}：不可用　{why}")
+        if p["status"] == 0:
+            print(f"  {key_label(i)}：{p['detail']}，本輪照常保留")
+            continue
+        _KEY_STATE["dead"][i] = p["detail"]
+        print(f"  {key_label(i)}：不可用　{p['detail']}")
+        if p["alternatives"]:
+            alt_pool.append(set(p["alternatives"]))
+            print(f"    這一把可以用的 gemini 型號：{'、'.join(sorted(p['alternatives'])[:6])}")
+
     usable = [i for i in range(len(GEMINI_KEYS)) if i not in _KEY_STATE["dead"]]
     if not usable:
         print("警告：沒有任何一把金鑰通過檢查。後面的步驟會用原文降級處理，"
               "逐字稿不會遺失，但擷取與撰稿無法進行。")
+    else:
+        _KEY_STATE["idx"] = usable[0]
+        if len(usable) < len(GEMINI_KEYS):
+            print(f"本輪可用 {len(usable)}/{len(GEMINI_KEYS)} 把，"
+                  f"從 {key_label(usable[0])} 開始，不可用的直接跳過。")
+
+    # 全部不可用的金鑰都指向同一組替代型號時，直接把答案講出來。
+    # 這種情況換一個型號就好，不必重新申請金鑰。
+    if alt_pool and len(_KEY_STATE["dead"]) >= len(GEMINI_KEYS) - 1:
+        common = set.intersection(*alt_pool) if len(alt_pool) > 1 else alt_pool[0]
+        if common:
+            pick = sorted(common, key=lambda x: ("flash" not in x, len(x)))[:3]
+            print(f"　提示：那幾把金鑰都可以用 {'、'.join(pick)}。"
+                  f"把 GitHub Variable 或 Secret 的 GEMINI_MODEL 設成其中一個，"
+                  f"就能直接用它們，不必重新申請金鑰。")
+
+
+def report_gemini_keys():
+    """
+    金鑰健檢模式。逐把印出「能不能用、看得到什麼、該怎麼修」，然後結束。
+
+    存在的理由：金鑰放在 GitHub Secrets，本機看不到也測不了。
+    要確認一把金鑰到底怎麼了，只能在 Actions 裡面問，而這支就是那個入口。
+    只讀模型清單，不產生內容，不消耗生成配額。
+    """
+    print("=" * 60)
+    print(f"Gemini 金鑰健檢　目標模型：{GEMINI_MODEL}")
+    print("=" * 60)
+    if not GEMINI_KEYS:
+        print("一把金鑰都沒讀到。請確認 GitHub Secrets 裡有 GEMINI_API_KEY。")
+        print("多把可另外設 GEMINI_API_KEY_2 到 _5，或用逗號／換行寫在 GEMINI_API_KEYS。")
         return
-    _KEY_STATE["idx"] = usable[0]
-    if len(usable) < len(GEMINI_KEYS):
-        print(f"本輪可用 {len(usable)}/{len(GEMINI_KEYS)} 把，"
-              f"從 {key_label(usable[0])} 開始，不可用的直接跳過。")
+    print(f"共讀到 {len(GEMINI_KEYS)} 把：" +
+          "、".join(f"{n}（{len(k)} 字）" for n, k in GEMINI_KEY_ENTRIES))
+    print("")
+
+    good, bad, alt_pool = [], [], []
+    for i, (source, key) in enumerate(GEMINI_KEY_ENTRIES):
+        print(f"── {key_label(i)} ──")
+        p = probe_gemini_key(key)
+        print(f"  ListModels HTTP {p['status'] or '連線失敗'}　看得到 {p['models']} 個模型")
+        if p["ok"]:
+            print(f"  結論：可用，{GEMINI_MODEL} 支援 generateContent")
+            good.append(i)
+        elif p["status"] == 429:
+            print("  結論：金鑰本身正常，只是現在被限流或額度用完。明天會自己恢復。")
+            good.append(i)
+        else:
+            print(f"  結論：不可用　{p['detail']}")
+            bad.append(i)
+            if p["alternatives"]:
+                alt_pool.append(set(p["alternatives"]))
+                print(f"  這一把可以用的 gemini 型號："
+                      f"{'、'.join(sorted(p['alternatives'])[:10])}")
+        print("")
+
+    print("=" * 60)
+    print(f"結果：可用 {len(good)} 把、不可用 {len(bad)} 把")
+    if not bad:
+        print("三把都沒問題。若仍撞到 429，那是額度而不是設定，明天會自己恢復。")
+        return
+
+    print("")
+    print("不可用的那幾把，照這個順序處理：")
+    print("  1. 到 https://aistudio.google.com/apikey 看那把金鑰屬於哪一個專案。")
+    print("  2. 到 https://console.cloud.google.com/apis/library/generativelanguage.googleapis.com")
+    print("     切到同一個專案，確認「Generative Language API」是已啟用。")
+    print("  3. 到 https://console.cloud.google.com/apis/credentials 找到那把金鑰，")
+    print("     確認「API 限制」沒有把 Generative Language API 排除掉。")
+    print("  4. 最快的作法其實是：在 AI Studio 用「Create API key」重新產生一把，")
+    print("     並選一個「已經能用的專案」，然後更新對應的 GitHub Secret。")
+    if alt_pool:
+        common = set.intersection(*alt_pool) if len(alt_pool) > 1 else alt_pool[0]
+        if common:
+            pick = sorted(common, key=lambda x: ("flash" not in x, len(x)))[:5]
+            print("")
+            print(f"  另一條路：那幾把金鑰共同支援 {'、'.join(pick)}。")
+            print(f"  把 GEMINI_MODEL 設成其中一個（GitHub → Settings → Secrets and")
+            print(f"  variables → Actions → Variables → New variable），就能直接用它們，")
+            print(f"  不必重新申請金鑰。目前用的是 {GEMINI_MODEL}。")
+    print("=" * 60)
 
 
 def main():
     global _SS
+
+    # 金鑰健檢排在最前面：它不需要試算表、不需要 NotebookLM，也不該被
+    # 「今天有沒有影片」那套判斷擋住。要查金鑰的時候，通常正是別的東西壞掉的時候。
+    # 探測步驟刻意不帶 GEMINI_API_KEY（它平常用不到），在那裡做健檢會一把都讀不到。
+    # 所以探測時只負責放行，真正的健檢留到帶著金鑰的正式步驟。
+    if CHECK_KEYS and not PREFLIGHT:
+        report_gemini_keys()
+        return
+
     src = "Variables" if os.environ.get("YOUTUBE_CHANNEL_ID", "").strip() else "內建預設值"
     print(f"頻道 ID：{CHANNEL_ID}（{src}）")
 
@@ -6286,6 +6441,11 @@ def main():
     #   2. 需要 Gemini 的模式會在探測階段就要求金鑰，但探測步驟刻意沒有帶，
     #      於是整個工作在第一步就失敗。
     # 手動觸發本來就是人明確要它跑，不需要探測代為判斷。
+    if PREFLIGHT and CHECK_KEYS:
+        print("探測：金鑰健檢模式，直接放行。")
+        write_preflight("true", "金鑰健檢")
+        return
+
     if PREFLIGHT and (picked or REFRESH_SITE):
         label = "、".join(picked) if picked else "只刷新網站"
         print(f"探測：手動模式（{label}），直接放行。")

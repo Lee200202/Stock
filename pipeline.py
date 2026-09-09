@@ -183,15 +183,24 @@ def _load_gemini_keys() -> list[tuple[str, str]]:
     out, seen = [], set()
 
     def push(source: str, raw: str):
-        for part in re.split(r"[,\s]+", str(raw or "")):
-            t = part.strip()
+        for part in re.split(r"[,\r\n]+", str(raw or "")):
+            # 只去掉頭尾的空白與引號。有些人會把金鑰連同引號一起貼進 Secret，
+            # 那是很容易犯又很難看出來的錯，順手處理掉。
+            t = part.strip().strip("'\"").strip()
             if not t or t in seen:
                 continue
-            # Google API 金鑰是英數與 -_ 的字串。混進引號、中文全形逗號或
-            # 說明文字時，先擋在這裡，不要等送出去才拿一個看不懂的 404。
-            if not re.fullmatch(r"[A-Za-z0-9_\-]{20,}", t):
-                print(f"警告：{source} 裡有一段不像 API 金鑰的內容（長度 {len(t)}），已略過。"
-                      f"金鑰只能是英數與 - _，多把請用逗號或換行分隔。")
+            # 這裡刻意不檢查金鑰的字元組成。
+            #
+            # 先前有一版加了 [A-Za-z0-9_-]{20,} 的白名單，結果把三把完全正常、
+            # 長度 53 的金鑰全部擋掉，變成「缺少環境變數 GEMINI_API_KEY」——
+            # 明明設了卻說沒設，比原本的問題糟得多。金鑰的格式是 Google 說了算，
+            # 而且會改；我們這邊沒有任何權威可以宣告「長這樣才算金鑰」。
+            # 真的無效時，API 會回 400 API_KEY_INVALID，那一條路徑已經會
+            # 標記該把金鑰、換下一把並指名是哪一個 Secret 要修。
+            #
+            # 只擋一種：短到不可能是金鑰。這個門檻低到不會冤枉任何真金鑰。
+            if len(t) < 10:
+                print(f"警告：{source} 裡有一段太短（{len(t)} 字），不像金鑰，已略過。")
                 continue
             seen.add(t)
             out.append((source, t))
@@ -1604,11 +1613,14 @@ def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX
             + (f"　{report}" if report else ""))
 
     _GEMINI_CALLS["n"] += 1
-    def endpoint():
-        # 每次重試都重新組一次網址。輪替金鑰之後要打到新的那一把，
-        # 不是繼續打已經用完的那一把。
-        return (f"https://generativelanguage.googleapis.com/v1beta/models/"
-                f"{GEMINI_MODEL}:generateContent?key={current_gemini_key()}")
+    # 金鑰改用 params 傳，不再直接串進網址。
+    #
+    # 串字串的話，金鑰裡只要有一個需要編碼的字元（或貼進 Secret 時混進了
+    # 看不見的字元），組出來的就是一個壞掉的網址，而回來的錯誤會是
+    # 404 或 400，完全看不出問題出在網址而不是金鑰本身。
+    # 交給 requests 編碼就不會有這個問題，也不必自己去猜金鑰的合法字元。
+    GEMINI_URL = (f"https://generativelanguage.googleapis.com/v1beta/models/"
+                  f"{GEMINI_MODEL}:generateContent")
 
     cfg = {
         "temperature": 0.1,
@@ -1645,7 +1657,10 @@ def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX
             time.sleep(delay + random.uniform(0, 5))
 
         try:
-            r = requests.post(endpoint(), json=body, timeout=600)
+            # 每次重試都重新取一次金鑰。輪替之後要打到新的那一把，
+            # 不是繼續打已經用完或壞掉的那一把。
+            r = requests.post(GEMINI_URL, params={"key": current_gemini_key()},
+                              json=body, timeout=600)
         except requests.RequestException as e:
             last = f"連線錯誤 {type(e).__name__}"
             print(f"Gemini {tag} {last}，重試中")
@@ -6201,17 +6216,6 @@ def main():
     _SS = ss
     write_status_log(ss, "開始", "本輪開始執行")
 
-    # 會用到 Gemini 的模式，在這裡就先確認金鑰在不在。
-    # 延後到真正呼叫才檢查雖然不會出錯，但可能已經跑了好幾分鐘才炸，
-    # 所以正式流程仍在開頭擋一次，只有探測與純修代號例外。
-    # 全面重整的 Gemini 呼叫全部發生在下游，這裡只是逐棒催它，不需要金鑰。
-    if not (PREFLIGHT or REPAIR_CODES or FULL_FIX or (REFRESH_SITE and not any(
-            (RECLASSIFY, FIX_PRICES, RECONCILE, FILL_BLANKS, BACKFILL)))):
-        require_gemini_key()
-        # 順便確認每一把都真的能用。設定錯的那一把若等到輪替時才爆，
-        # 通常已經是流程跑到一半、第一把額度用完之後——最不該出事的時間點。
-        preflight_gemini_keys()
-
     # 這三個是互斥模式，同時勾選只有第一個會生效。
     # 先前就發生過三個都勾、結果只跑了修代號的情況，所以這裡明講。
     picked = [n for n, on in (("admin_job", ADMIN_JOB),
@@ -6226,6 +6230,27 @@ def main():
     if len(picked) > 1:
         print(f"注意：同時勾選了 {'、'.join(picked)}，這些是互斥模式，"
               f"本輪只會執行「{picked[0]}」。其餘請分次執行。")
+
+    # 會用到 Gemini 的模式，在這裡就先確認金鑰在不在。
+    # 延後到真正呼叫才檢查雖然不會出錯，但可能已經跑了好幾分鐘才炸。
+    #
+    # 判斷方式是「這個模式自己會不會呼叫 Gemini」，不是看有沒有勾 refresh_site。
+    # 舊的條件寫成「REFRESH_SITE 且沒有其中幾個模式就跳過檢查」，於是
+    # 後台工單（admin_job）因為派工時一律帶 refresh_site=true，整個檢查被跳過，
+    # 一路跑到「擷取」才在第一次呼叫模型時炸出「缺少環境變數 GEMINI_API_KEY」。
+    # 那時已經讀完原文、跑完潤飾，白花好幾分鐘，而錯誤訊息又出現在
+    # 完全看不出關聯的地方。
+    NO_GEMINI_MODES = {"repair_codes", "reclassify", "full_fix"}
+    # 只勾 refresh_site、沒有勾任何模式，代表「資料不用動，只要網站重算一次」，
+    # 那條路一次模型都不會呼叫，不該為了它要求金鑰。
+    refresh_only = REFRESH_SITE and not picked
+    needs_gemini = not (PREFLIGHT or refresh_only) and (
+        not picked or bool(set(picked) - NO_GEMINI_MODES))
+    if needs_gemini:
+        require_gemini_key()
+        # 順便確認每一把都真的能用。設定錯的那一把若等到輪替時才爆，
+        # 通常已經是流程跑到一半、第一把額度用完之後——最不該出事的時間點。
+        preflight_gemini_keys()
 
     # 探測遇到手動模式時，一律回報「有事要做」並立刻結束。
     #

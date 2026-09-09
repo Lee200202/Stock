@@ -1181,29 +1181,70 @@ _DAILY_QUOTA_HINTS = (
 _MINUTE_QUOTA_HINTS = ("perminute", "per_minute", "per minute", "requests_per_minute")
 
 
+def api_error_text(text: str, limit: int = 300) -> str:
+    """
+    把 Google 回的錯誤原文取出來，金鑰一律遮掉。
+
+    這一支存在的理由是上一版犯的錯：那時只用狀態碼猜一句話印出來，
+    把 Google 真正說的話整個丟掉。於是畫面上寫「這個專案看不到
+    gemini-2.5-flash」，但健檢問同一把金鑰卻回答看得到而且支援
+    generateContent——兩邊互相矛盾，而真正的訊息從來沒有被印出來過，
+    沒有任何辦法判斷誰對。猜測要標成猜測，原文一定要留著。
+    """
+    raw = str(text or "").strip()
+    if not raw:
+        return ""
+    msg = raw
+    try:
+        data = json.loads(raw)
+        if isinstance(data, dict):
+            err = data.get("error")
+            if isinstance(err, dict):
+                msg = str(err.get("message") or "").strip() or raw
+                status = str(err.get("status") or "").strip()
+                if status:
+                    msg = f"[{status}] {msg}"
+    except Exception:
+        pass
+    msg = re.sub(r"\s+", " ", msg)
+    # 金鑰若出現在錯誤訊息裡（Google 偶爾會回顯），一律遮掉
+    for k in GEMINI_KEYS:
+        if k and k in msg:
+            msg = msg.replace(k, "***")
+    msg = re.sub(r"([?&]key=)[^&\s]+", r"\1***", msg)
+    return msg[:limit]
+
+
 def _key_problem(status: int, text: str) -> str:
     """
     這個非 200 是不是「這一把金鑰自己的問題」。是的話回一句可以照著修的話。
 
     分辨得出來很重要：金鑰問題換一把就能繼續，而且明天不會自己好，
     必須指名要人去修；其他錯誤（模型拒答、請求格式錯）換金鑰沒有用。
+
+    回傳的字串一律以 Google 的原文為主體，我們的推測放在後面並標明是推測。
     """
     low = str(text or "").lower()
-    if status == 404 and ("is not found" in low or "not found for api version" in low
-                          or "models/" in low):
-        return (f"這個專案看不到 {GEMINI_MODEL}。多半是該金鑰所屬的 Google 專案"
-                "沒有啟用 Generative Language API，或那個專案還沒有這個模型的存取權。"
-                "到 Google AI Studio 用同一個帳號重新產生金鑰，或在 Google Cloud "
-                "把 Generative Language API 開通後再試")
+    detail = api_error_text(text)
+    tail = f"　Google 原文：{detail}" if detail else "　（回應沒有可讀的錯誤訊息）"
+
+    if status == 404 and ("is not found" in low or "not found for api version" in low):
+        # 刻意不在這裡寫死型號名稱。這一支也會被「逐一實測替代型號」呼叫，
+        # 寫死 GEMINI_MODEL 會讓測 gemini-2.5-pro 的結果印成「找不到
+        # gemini-2.5-flash」，看的人會以為程式測錯對象。
+        # Google 的原文裡本來就有正確的型號名稱，讓它自己說。
+        return ("這個專案的 generateContent 叫不動這個型號。"
+                f"注意：模型清單看得到不代表可以呼叫，兩者是不同的檢查。{tail}")
     if status == 403 and ("permission" in low or "disabled" in low or "forbidden" in low
                           or "service_disabled" in low):
         return ("金鑰沒有權限或 API 被停用。到 Google Cloud 確認該專案的 "
-                "Generative Language API 是啟用狀態，且金鑰沒有設定 IP／來源限制")
+                f"Generative Language API 是啟用狀態，且金鑰沒有設定 IP／來源限制。{tail}")
     if status in (400, 401) and ("api_key_invalid" in low or "api key not valid" in low
                                  or "invalid authentication" in low):
-        return "金鑰無效。多半是貼的時候少了字元、多了引號或空白，請重新複製一次完整的金鑰"
-    if status == 404:
-        return f"回 404 但沒講原因。先確認該金鑰的專案能不能用 {GEMINI_MODEL}"
+        return f"金鑰無效，請重新複製一次完整的金鑰。{tail}"
+    if status in (400, 403, 404):
+        # 沒有對上任何已知形狀。不要再自己編一個原因，把原文照實印出來。
+        return f"HTTP {status}，原因不在已知清單裡。{tail}"
     return ""
 
 
@@ -1719,6 +1760,12 @@ def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX
                 #
                 # 正確的作法與額度用完一樣：把這一把標記為不可用，換下一把繼續。
                 # 全部都不能用時才失敗，而且要指名是哪幾個 Secret 有問題。
+                # Google 的原文一定要印出來。上一版只印我們自己的推測，
+                # 於是「這個專案看不到 gemini-2.5-flash」與健檢的「看得到而且
+                # 支援 generateContent」互相矛盾，卻沒有任何資料可以判斷誰對。
+                raw_detail = api_error_text(r.text or "")
+                print(f"Gemini {tag} 回傳 {last}（{key_label(_KEY_STATE['idx'])}）"
+                      f"　Google 原文：{raw_detail or '無可讀訊息'}")
                 broken = _key_problem(r.status_code, r.text or "")
                 if broken and len(GEMINI_KEYS) > 1:
                     if rotate_gemini_key(tag, why="broken", detail=broken):
@@ -6253,13 +6300,56 @@ def probe_gemini_key(key: str, timeout: int = 30) -> dict:
         elif "generateContent" in methods and "gemini" in name:
             out["alternatives"].append(name.replace("models/", ""))
 
-    if out["usable"]:
-        out["ok"] = True
-        return out
-    if not out["detail"]:
+    if not out["usable"] and not out["detail"]:
         out["detail"] = (f"這個專案的模型清單裡沒有 {GEMINI_MODEL}"
                          f"（看得到 {len(models)} 個模型）")
+
+    # 真正要用的是 generateContent，那就直接試 generateContent。
+    #
+    # 這一步是上一版最關鍵的缺口。當時只查模型清單就宣布「可用」，
+    # 結果三把金鑰全部通過健檢，實際跑起來第 2、3 把卻對同一個模型回 404——
+    # 清單看得到不等於叫得動，兩者是不同的檢查，而失敗的是後者。
+    # 健檢一定要測「真正會失敗的那個動作」，否則它只是讓人放心，不是讓人知道。
+    #
+    # 成本極小：max_output_tokens 設 1、輸入一個字，一次呼叫而已。
+    # 它會計入生成配額，但為了問出真正的答案，這一次值得。
+    ok, status, detail = smoke_generate(key, GEMINI_MODEL, timeout)
+    out["ok"], out["gen_status"], out["gen_detail"] = ok, status, detail
     return out
+
+
+def smoke_generate(key: str, model: str, timeout: int = 30) -> tuple[bool, int, str]:
+    """
+    真的呼叫一次 generateContent。回 (能不能用, HTTP 狀態, 說明)。
+
+    輸入一個字、maxOutputTokens 設 1，成本可以忽略。之所以非做不可：
+    「模型清單看得到」與「叫得動」是兩件事，而會失敗的是後者。
+    只查清單的健檢會讓三把金鑰全部通過，然後在正式流程裡才 404——
+    健檢必須測真正會失敗的那個動作，否則它只是讓人放心，不是讓人知道。
+
+    額度用完（429）算「金鑰本身沒問題」：那是明天會自己好的狀態，
+    不該跟「設定錯了」混為一談。
+    """
+    try:
+        gr = requests.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+            params={"key": key},
+            json={"contents": [{"role": "user", "parts": [{"text": "hi"}]}],
+                  "generationConfig": {"maxOutputTokens": 1,
+                                       "thinkingConfig": {"thinkingBudget": 0}}},
+            timeout=timeout)
+    except Exception as e:
+        return False, 0, f"連線失敗（{type(e).__name__}）"
+
+    if gr.status_code == 200:
+        return True, 200, "generateContent 正常"
+    if gr.status_code == 429:
+        kind = _classify_quota(gr.text or "")
+        label = "每日" if kind == "daily" else "每分鐘" if kind == "minute" else "種類不明"
+        return True, 429, f"額度用完（{label}）：{api_error_text(gr.text, 200) or '無訊息'}"
+    return (False, gr.status_code,
+            _key_problem(gr.status_code, gr.text or "")
+            or f"HTTP {gr.status_code}：{api_error_text(gr.text, 200)}")
 
 
 def preflight_gemini_keys():
@@ -6277,16 +6367,14 @@ def preflight_gemini_keys():
     for i, (source, key) in enumerate(GEMINI_KEY_ENTRIES):
         p = probe_gemini_key(key)
         if p["ok"]:
-            print(f"  {key_label(i)}：可用（看得到 {p['models']} 個模型）")
+            print(f"  {key_label(i)}：可用　{p.get('gen_detail') or ''}".rstrip())
             continue
-        if p["status"] == 429:
-            print(f"  {key_label(i)}：目前被限流，保留（額度問題會在實際呼叫時處理）")
+        if p["status"] in (0, 429):
+            print(f"  {key_label(i)}：{p['detail'] or '暫時問不到'}，本輪照常保留")
             continue
-        if p["status"] == 0:
-            print(f"  {key_label(i)}：{p['detail']}，本輪照常保留")
-            continue
-        _KEY_STATE["dead"][i] = p["detail"]
-        print(f"  {key_label(i)}：不可用　{p['detail']}")
+        why = p.get("gen_detail") or p["detail"]
+        _KEY_STATE["dead"][i] = why
+        print(f"  {key_label(i)}：不可用　{why}")
         if p["alternatives"]:
             alt_pool.append(set(p["alternatives"]))
             print(f"    這一把可以用的 gemini 型號：{'、'.join(sorted(p['alternatives'])[:6])}")
@@ -6335,20 +6423,42 @@ def report_gemini_keys():
     for i, (source, key) in enumerate(GEMINI_KEY_ENTRIES):
         print(f"── {key_label(i)} ──")
         p = probe_gemini_key(key)
-        print(f"  ListModels HTTP {p['status'] or '連線失敗'}　看得到 {p['models']} 個模型")
+        # 兩個檢查都印出來。它們可能不一致，而不一致本身就是重要線索：
+        # 清單看得到、卻叫不動，代表問題不在「有沒有這個模型」。
+        print(f"  1) ListModels　　　　HTTP {p['status'] or '連線失敗'}"
+              f"　看得到 {p['models']} 個模型"
+              f"　清單裡{'有' if p['usable'] else '沒有'}可用的 {GEMINI_MODEL}")
+        print(f"  2) generateContent　HTTP {p.get('gen_status') or '未執行'}"
+              f"　{p.get('gen_detail') or p['detail'] or ''}")
         if p["ok"]:
-            print(f"  結論：可用，{GEMINI_MODEL} 支援 generateContent")
-            good.append(i)
-        elif p["status"] == 429:
-            print("  結論：金鑰本身正常，只是現在被限流或額度用完。明天會自己恢復。")
+            print("  結論：可用（真的呼叫得動）")
             good.append(i)
         else:
-            print(f"  結論：不可用　{p['detail']}")
+            print("  結論：不可用")
+            if p["usable"] and p.get("gen_status") not in (0, 200):
+                print("  注意：模型清單看得到，但實際呼叫失敗。"
+                      "問題不在「這個專案有沒有這個模型」，請看上面第 2 行的原文。")
             bad.append(i)
+            # 清單不可信（它剛剛才說看得到卻叫不動），所以替代型號也要
+            # 真的呼叫一次才算數。逐一試到找到能用的為止，最多試四個。
             if p["alternatives"]:
-                alt_pool.append(set(p["alternatives"]))
-                print(f"  這一把可以用的 gemini 型號："
-                      f"{'、'.join(sorted(p['alternatives'])[:10])}")
+                order = sorted(p["alternatives"],
+                               key=lambda x: (("flash" not in x), ("lite" in x), len(x)))
+                works = []
+                print(f"  正在逐一實測這一把可以呼叫哪些型號（清單裡有 "
+                      f"{len(p['alternatives'])} 個 gemini 型號）……")
+                for cand in order[:4]:
+                    c_ok, c_status, c_detail = smoke_generate(key, cand)
+                    mark = "可用" if c_ok else "不可用"
+                    print(f"    {cand:<28} HTTP {c_status or '連線失敗'}　{mark}"
+                          + ("" if c_ok else f"　{c_detail[:90]}"))
+                    if c_ok:
+                        works.append(cand)
+                if works:
+                    alt_pool.append(set(works))
+                    print(f"  這一把實測可用：{'、'.join(works)}")
+                else:
+                    print("  這一把連替代型號也都叫不動，問題不在型號，在金鑰或專案本身。")
         print("")
 
     print("=" * 60)
@@ -6369,9 +6479,9 @@ def report_gemini_keys():
     if alt_pool:
         common = set.intersection(*alt_pool) if len(alt_pool) > 1 else alt_pool[0]
         if common:
-            pick = sorted(common, key=lambda x: ("flash" not in x, len(x)))[:5]
+            pick = sorted(common, key=lambda x: ("flash" not in x, "lite" in x, len(x)))[:5]
             print("")
-            print(f"  另一條路：那幾把金鑰共同支援 {'、'.join(pick)}。")
+            print(f"  另一條路（已實測，不是猜的）：那幾把金鑰都真的呼叫得動 {'、'.join(pick)}。")
             print(f"  把 GEMINI_MODEL 設成其中一個（GitHub → Settings → Secrets and")
             print(f"  variables → Actions → Variables → New variable），就能直接用它們，")
             print(f"  不必重新申請金鑰。目前用的是 {GEMINI_MODEL}。")

@@ -96,7 +96,10 @@ CHUNK_HARD = 9500
 POLISH_GAP = 8
 
 # gemini-2.5-flash 輸出上限 65,535 tokens
-MAX_OUT = 65535
+# 不同型號的輸出上限不一樣。換型號時若新的那個上限比較低，
+# 送 65535 會直接被打回 400 INVALID_ARGUMENT，而那個錯誤看起來
+# 完全不像「數字設太大」。留一個環境變數可以調，不必改程式碼。
+MAX_OUT = int(os.environ.get("GEMINI_MAX_OUT", "").strip() or 65535)
 
 # Google 試算表單格上限 50,000 字元
 SHEET_CELL_LIMIT = 49000
@@ -1242,6 +1245,12 @@ def _key_problem(status: int, text: str) -> str:
     if status in (400, 401) and ("api_key_invalid" in low or "api key not valid" in low
                                  or "invalid authentication" in low):
         return f"金鑰無效，請重新複製一次完整的金鑰。{tail}"
+    if status == 400:
+        # 400 幾乎都不是金鑰的問題，是「這個型號不收我們送的參數」。
+        # 換型號時最常見：新型號的輸出上限比 MAX_OUT 低，或不接受把 thinking 關掉。
+        return (f"這個型號不接受我們送的參數（不是金鑰的問題）。"
+                f"常見原因：maxOutputTokens={MAX_OUT} 超過該型號上限"
+                f"（可用 GEMINI_MAX_OUT 調小），或它不允許把 thinking 關掉。{tail}")
     if status in (400, 403, 404):
         # 沒有對上任何已知形狀。不要再自己編一個原因，把原文照實印出來。
         return f"HTTP {status}，原因不在已知清單裡。{tail}"
@@ -6318,14 +6327,80 @@ def probe_gemini_key(key: str, timeout: int = 30) -> dict:
     return out
 
 
+# 換型號時的偏好順序。
+#
+# 這個順序是刻意的，不是照版本號由新到舊：先留在 2.5 系列，再退到 2.0，
+# 最後才考慮其他。理由是「換型號」會改變所有輸出的行為與品質，
+# 而這個專案的提示詞、切塊大小、輸出上限全是照著 2.5-flash 調出來的。
+# 寧可先花時間到 Google Cloud Console 把專案處理好，也不要為了省事就跳到
+# 一個沒有驗證過的世代——那會讓「資料怎麼變了」變成下一個要查的問題。
+_MODEL_FAMILY_ORDER = ("2.5", "2.0")
+
+
+def _model_rank(name: str) -> tuple:
+    n = str(name or "").lower()
+    fam = len(_MODEL_FAMILY_ORDER)          # 不在偏好清單裡的排後面
+    for idx, tag in enumerate(_MODEL_FAMILY_ORDER):
+        if tag in n:
+            fam = idx
+            break
+    if "1.5" in n:                          # 更舊的世代排到最後
+        fam = len(_MODEL_FAMILY_ORDER) + 1
+    # 穩定版優先於 preview / exp：預覽版會無預警下架，不適合排程長期使用
+    unstable = 1 if any(k in n for k in ("preview", "-exp", "experimental", "-latest")) else 0
+    # 同家族內盡量挑與現行設定同一級的（flash），再來 flash-lite，最後 pro
+    if "flash" in n and "lite" not in n:
+        tier = 0
+    elif "flash" in n:
+        tier = 1
+    elif "pro" in n:
+        tier = 2
+    else:
+        tier = 3
+    return (fam, unstable, tier, len(n), n)
+
+
+def sort_model_candidates(names) -> list:
+    """依偏好順序排候選型號：2.5 系列 → 2.0 系列 → 其他 → 1.5。"""
+    return sorted(set(names), key=_model_rank)
+
+
+def pick_model_candidates(names, per_family: int = 3, total: int = 6) -> list:
+    """
+    挑要實測的候選型號，但保證「每個世代都試得到」。
+
+    只取排序後的前幾名是不夠的：來源清單有二十幾個 gemini 型號，光是
+    2.5 系列的各種變體就可能把名額佔滿，於是永遠測不到 2.0，最後回報
+    「沒有共同可用的型號」——而實際上 2.0 明明可以用。
+    所以改成每個世代各取幾個，再照偏好順序串起來。
+    """
+    buckets: dict = {}
+    for n in sort_model_candidates(names):
+        fam = _model_rank(n)[0]
+        buckets.setdefault(fam, []).append(n)
+    out = []
+    for fam in sorted(buckets):
+        out.extend(buckets[fam][:per_family])
+    return out[:total]
+
+
 def smoke_generate(key: str, model: str, timeout: int = 30) -> tuple[bool, int, str]:
     """
     真的呼叫一次 generateContent。回 (能不能用, HTTP 狀態, 說明)。
 
-    輸入一個字、maxOutputTokens 設 1，成本可以忽略。之所以非做不可：
     「模型清單看得到」與「叫得動」是兩件事，而會失敗的是後者。
     只查清單的健檢會讓三把金鑰全部通過，然後在正式流程裡才 404——
     健檢必須測真正會失敗的那個動作，否則它只是讓人放心，不是讓人知道。
+
+    送出的請求刻意與正式呼叫「同一個形狀」：一樣帶 systemInstruction、
+    一樣的 temperature、一樣的 maxOutputTokens、一樣關掉 thinking。
+    只有輸入換成一個字，所以成本仍然可以忽略。
+
+    這一點很要緊。先前這裡用 maxOutputTokens=1 的簡化請求，那測到的是
+    「這個型號存不存在」，不是「我們的請求它收不收」——而換型號時最容易
+    出事的正是後者：新型號的輸出上限比較低、或不接受把 thinking 關掉，
+    都會回 400，卻在健檢裡完全看不出來。實測就遇過一個型號在簡化請求下
+    回 400，用正式形狀反而要另外判斷，兩者不能混為一談。
 
     額度用完（429）算「金鑰本身沒問題」：那是明天會自己好的狀態，
     不該跟「設定錯了」混為一談。
@@ -6334,8 +6409,10 @@ def smoke_generate(key: str, model: str, timeout: int = 30) -> tuple[bool, int, 
         gr = requests.post(
             f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
             params={"key": key},
-            json={"contents": [{"role": "user", "parts": [{"text": "hi"}]}],
-                  "generationConfig": {"maxOutputTokens": 1,
+            json={"systemInstruction": {"parts": [{"text": "回答只要一個字。"}]},
+                  "contents": [{"role": "user", "parts": [{"text": "hi"}]}],
+                  "generationConfig": {"temperature": 0.1,
+                                       "maxOutputTokens": MAX_OUT,
                                        "thinkingConfig": {"thinkingBudget": 0}}},
             timeout=timeout)
     except Exception as e:
@@ -6394,7 +6471,7 @@ def preflight_gemini_keys():
     if alt_pool and len(_KEY_STATE["dead"]) >= len(GEMINI_KEYS) - 1:
         common = set.intersection(*alt_pool) if len(alt_pool) > 1 else alt_pool[0]
         if common:
-            pick = sorted(common, key=lambda x: ("flash" not in x, len(x)))[:3]
+            pick = sort_model_candidates(common)[:3]
             print(f"　提示：那幾把金鑰都可以用 {'、'.join(pick)}。"
                   f"把 GitHub Variable 或 Secret 的 GEMINI_MODEL 設成其中一個，"
                   f"就能直接用它們，不必重新申請金鑰。")
@@ -6442,12 +6519,11 @@ def report_gemini_keys():
             # 清單不可信（它剛剛才說看得到卻叫不動），所以替代型號也要
             # 真的呼叫一次才算數。逐一試到找到能用的為止，最多試四個。
             if p["alternatives"]:
-                order = sorted(p["alternatives"],
-                               key=lambda x: (("flash" not in x), ("lite" in x), len(x)))
+                order = pick_model_candidates(p["alternatives"])
                 works = []
                 print(f"  正在逐一實測這一把可以呼叫哪些型號（清單裡有 "
                       f"{len(p['alternatives'])} 個 gemini 型號）……")
-                for cand in order[:4]:
+                for cand in order:
                     c_ok, c_status, c_detail = smoke_generate(key, cand)
                     mark = "可用" if c_ok else "不可用"
                     print(f"    {cand:<28} HTTP {c_status or '連線失敗'}　{mark}"
@@ -6468,23 +6544,86 @@ def report_gemini_keys():
         return
 
     print("")
-    print("不可用的那幾把，照這個順序處理：")
-    print("  1. 到 https://aistudio.google.com/apikey 看那把金鑰屬於哪一個專案。")
-    print("  2. 到 https://console.cloud.google.com/apis/library/generativelanguage.googleapis.com")
-    print("     切到同一個專案，確認「Generative Language API」是已啟用。")
-    print("  3. 到 https://console.cloud.google.com/apis/credentials 找到那把金鑰，")
-    print("     確認「API 限制」沒有把 Generative Language API 排除掉。")
-    print("  4. 最快的作法其實是：在 AI Studio 用「Create API key」重新產生一把，")
-    print("     並選一個「已經能用的專案」，然後更新對應的 GitHub Secret。")
-    if alt_pool:
-        common = set.intersection(*alt_pool) if len(alt_pool) > 1 else alt_pool[0]
-        if common:
-            pick = sorted(common, key=lambda x: ("flash" not in x, "lite" in x, len(x)))[:5]
-            print("")
-            print(f"  另一條路（已實測，不是猜的）：那幾把金鑰都真的呼叫得動 {'、'.join(pick)}。")
-            print(f"  把 GEMINI_MODEL 設成其中一個（GitHub → Settings → Secrets and")
-            print(f"  variables → Actions → Variables → New variable），就能直接用它們，")
-            print(f"  不必重新申請金鑰。目前用的是 {GEMINI_MODEL}。")
+    print(f"優先目標：讓那幾把金鑰也能用 {GEMINI_MODEL}，不要換世代。")
+    print("整套提示詞、切塊大小與輸出上限都是照現行型號調出來的，換世代等於")
+    print("把「資料怎麼變了」變成下一個要查的問題。所以先走 A，A 不行才走 B。")
+    print("")
+    print("【A】到 Google Cloud Console 處理那幾把金鑰的專案")
+    print("  A1. https://aistudio.google.com/apikey")
+    print("      點那把金鑰，看它屬於哪一個專案（記下專案名稱或 ID）。")
+    print("  A2. https://console.cloud.google.com/apis/library/generativelanguage.googleapis.com")
+    print("      左上角切到同一個專案 → 確認「Generative Language API」是「已啟用」。")
+    print("      沒啟用就按啟用，等一兩分鐘後再跑一次健檢。")
+    print("  A3. https://console.cloud.google.com/apis/credentials")
+    print("      找到那把金鑰 → 編輯 → 「API 限制」選「不限制金鑰」，")
+    print("      或明確勾選「Generative Language API」。")
+    print("      「應用程式限制」要選「無」——排程是從 GitHub 的機器打出去的，")
+    print("      設了 IP 或網站限制一定會被擋。")
+    print("  A4. 若錯誤原文是「no longer available to new users」，")
+    print("      那是模型生命週期的問題，A2 與 A3 修不好——那個專案建立得太晚，")
+    print("      Google 不再對它開放這個型號。這種情況下 A 這條路只剩兩個選項：")
+    print("      · 在該專案啟用計費（付費層的型號供應與免費層不同），啟用後重跑健檢確認；")
+    print("      · 或改用「與可用那把同一個專案」的金鑰——但同專案共用同一份額度，")
+    print("        那樣就失去多把金鑰的意義，只有在你要的是穩定性而不是額度時才划算。")
+    print("")
+    print("【B】A 都不行時，才退到較舊但仍在供應的世代")
+    print("  下面的實測結果已經照偏好排序：2.5 系列優先，其次 2.0 系列。")
+    print("  挑第一個「每一把金鑰都通過」的，設成 GEMINI_MODEL 即可。")
+    if not alt_pool:
+        print("=" * 60)
+        return
+
+    # 候選型號必須在「每一把」金鑰上都測過。
+    #
+    # 前面那一輪只測了壞掉的那幾把，因為只有它們需要替代方案。但要換型號，
+    # 換的是全域設定，好的那把也得跟著用——舊專案能用 2.5，不代表它一定能用
+    # 更新的型號。少測那一把，換過去就可能把原本唯一能用的金鑰也弄壞。
+    common = set.intersection(*alt_pool) if len(alt_pool) > 1 else alt_pool[0]
+    if not common:
+        print("")
+        print("  那幾把不可用的金鑰之間沒有共同可用的型號，只能逐把處理。")
+        print("=" * 60)
+        return
+
+    order = pick_model_candidates(common)
+    print("")
+    print("─" * 60)
+    print("【B】候選型號實測（依偏好排序：2.5 系列 → 2.0 系列 → 其他）")
+    print("正在確認候選型號在「每一把」金鑰上都能用……")
+    print("（前面只測了不可用的那幾把；換型號是換全域設定，好的那把也要一起測）")
+    winner, tried = "", []
+    for cand in order:
+        results, all_ok = [], True
+        for i, (source, key) in enumerate(GEMINI_KEY_ENTRIES):
+            c_ok, c_status, c_detail = smoke_generate(key, cand)
+            results.append(f"{key_label(i)} HTTP {c_status or '連線失敗'}"
+                           + ("" if c_ok else " ✗"))
+            if not c_ok:
+                all_ok = False
+        print(f"  {cand:<28} " + "　".join(results))
+        tried.append(cand)
+        if all_ok:
+            winner = cand
+            break
+
+    print("")
+    if winner:
+        same_family = any(t in winner for t in _MODEL_FAMILY_ORDER[:1])
+        print(f"★ 若【A】走不通，才把 GEMINI_MODEL 設成：{winner}")
+        print(f"  這個型號在全部 {len(GEMINI_KEYS)} 把金鑰上都實測通過，"
+              f"而且用的是與正式呼叫完全相同的請求形狀。")
+        if same_family:
+            print("  它與現行型號同屬 2.5 系列，輸出行為的差異最小，可以直接換。")
+        else:
+            print("  注意：它與現行型號不同世代。換過去之後建議抽查一天的擷取結果，"
+                  "確認股票、價位與分類沒有走樣，再讓它長期跑。")
+        print("  設定位置：GitHub → Settings → Secrets and variables → Actions")
+        print("            → Variables 分頁 → New repository variable")
+        print(f"            Name = GEMINI_MODEL　Value = {winner}")
+        print(f"  設好之後不必改程式碼，下一次執行就會生效。目前用的是 {GEMINI_MODEL}。")
+    else:
+        print(f"  試過 {'、'.join(tried)}，沒有一個是每一把金鑰都能用的。")
+        print("  這種情況只能逐把處理：把不可用的金鑰換成與可用那把同一個專案的金鑰。")
     print("=" * 60)
 
 

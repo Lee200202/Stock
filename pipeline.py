@@ -454,6 +454,12 @@ PREFLIGHT = os.environ.get("PREFLIGHT", "false").strip().lower() == "true"
 # 只讀模型清單，不產生內容，不消耗生成配額。
 CHECK_KEYS = os.environ.get("CHECK_KEYS", "false").strip().lower() == "true"
 
+# 簡訊優先重整。把「同一天同一檔，簡訊蓋過逐字稿」這條規則套用到全部歷史，
+# 並把「成本之上」換算成實際買入價。不呼叫 Gemini，純規則，幾十秒跑完。
+# 平常不必用——新資料寫入時就會自動套用；這個模式是給「規則改了、
+# 過去資料要跟上」的那一次用的。
+SMS_PRIORITY = os.environ.get("SMS_PRIORITY", "false").strip().lower() == "true"
+
 # VOD 最早可能出現的台灣時間（小時）。直播約 12:30 到 13:00 結束，
 # YouTube 轉檔再十幾分鐘，所以這之前敲門必定空手而回。
 # 探測模式用它判斷哪些觸發點是純粹浪費，可以直接跳過。
@@ -594,7 +600,7 @@ def save_rotated_auth(ss, before_fp: str):
 # 並檢查 cookie，於是 cookie 一過期，連「貼逐字稿進來請你整理」這種
 # 完全用不到 NotebookLM 的工作也一起失敗。
 def needs_notebooklm() -> bool:
-    if PREFLIGHT or CHECK_KEYS:
+    if PREFLIGHT or CHECK_KEYS or SMS_PRIORITY:
         return False
     if ADMIN_JOB or PARSE_SMS or FULL_FIX or REPAIR_CODES or RECLASSIFY or FIX_PRICES or RECONCILE:
         return False
@@ -4219,8 +4225,44 @@ def write_results(ss, date_str, signals, article, done_trades, done_holds,
     # 真的要重寄，到後台把那一天的寄送狀態手動改回待寄送。
     _upsert_daily_article(ss, date_str, article, keep_sent=not replace)
 
-    # 寫完就馬上把殘留的「代號待確認」掃一遍。見 sweep_unresolved_codes 的說明。
-    sweep_unresolved_codes(ss, date_str)
+    # 收尾三件事：補代號、簡訊優先、成本換算。
+    #
+    # 一次處理一天時就地做完，資料寫進去的下一秒就是正確的。
+    # 但回補模式一次要跑一百多天，而這三支各自會完整讀一次「操作紀錄」——
+    # 每天四趟往返、一百天就是四百趟，全部花在讀同一張越來越大的表上。
+    # 所以回補時先把日期記下來，等全部寫完再一次做完。
+    if _POST_WRITE_DEFER["on"]:
+        _POST_WRITE_DEFER["dates"].add(date_str)
+    else:
+        run_post_write_steps(ss, [date_str])
+
+
+# 回補模式的收尾佇列。見 write_results 裡的說明。
+_POST_WRITE_DEFER = {"on": False, "dates": set()}
+
+
+def run_post_write_steps(ss, dates):
+    """寫完資料之後的三件收尾。dates 為空就什麼都不做。"""
+    days = sorted({d for d in (dates or []) if d})
+    if not days:
+        return
+    for d in days:
+        sweep_unresolved_codes(ss, d)
+    apply_sms_priority(ss, days)
+    resolve_cost_prices(ss, days)
+
+
+def flush_post_write_steps(ss):
+    """回補結束時呼叫一次，把累積的日期一起收尾。"""
+    if not _POST_WRITE_DEFER["dates"]:
+        return
+    days = sorted(_POST_WRITE_DEFER["dates"])
+    print("")
+    print(f"回補收尾：對 {len(days)} 天一次做完補代號、簡訊優先與成本換算"
+          f"（{days[0]} 至 {days[-1]}）")
+    _POST_WRITE_DEFER["on"] = False
+    run_post_write_steps(ss, days)
+    _POST_WRITE_DEFER["dates"].clear()
 
 
 def _upsert_daily_article(ss, date_str: str, article: str, keep_sent: bool = True):
@@ -4248,6 +4290,282 @@ def _upsert_daily_article(ss, date_str: str, article: str, keep_sent: bool = Tru
         return
     sheets_retry(ws.append_row, [date_str, text, "待寄送"])
     print(f"每日整理新增 {date_str}（{len(text)} 字）")
+
+
+# ------------------------------------------------------------------ #
+# 會員簡訊優先
+#
+# 同一天同一檔可能有兩個來源：盤中的會員簡訊，與收盤後的逐字稿。
+# 兩者的可信度不對等，規則是講定的：
+#
+#   一、時間軸　簡訊是盤中發出的即時指令，逐字稿是收盤後的回顧。
+#              所以同一天裡，簡訊的動作一律排在逐字稿的動作之前。
+#              「序」欄就是給同日排序用的，追蹤那邊已經在讀它。
+#
+#   二、同方向　兩邊都說買（或都說賣）時，留簡訊那一筆。
+#              簡訊帶著明確價位（「請於 775 元以上全數獲利賣出」），
+#              逐字稿多半只有一句轉述，留下前者資訊比較完整。
+#
+#   三、不同方向　兩筆都留。那不是衝突，是他當天做了兩個動作，
+#              照時間排出來就是「先賣再買」或「先買再賣」。
+#              留一筆會讓持有回合算錯——少掉的那個動作等於沒發生過。
+#
+#   四、會員持股　簡訊講過的那一檔，以簡訊為準；簡訊沒提到的，
+#              才用逐字稿解析出來的持股。
+#
+# 這一支只動「重複」與「排序」，不改任何一筆的方向或價位——
+# 那是擷取與稽核的職責，不該在收尾階段偷偷改寫。
+# ------------------------------------------------------------------ #
+SMS_SOURCE_PREFIX = "CMONEY-"
+
+# 簡訊的動作排在這個號碼以內，逐字稿的一律加上這個底數。
+# 用固定底數而不是真的去比時間，是因為逐字稿沒有「幾點幾分」這種資訊，
+# 它整份就是收盤後的回顧；硬要編一個時間反而是假的。
+VIDEO_SEQ_BASE = 100
+
+
+def _is_sms_row(source: str) -> bool:
+    return str(source or "").strip().startswith(SMS_SOURCE_PREFIX)
+
+
+def _dir_kind(direction: str) -> str:
+    """把方向歸成三類。同類才算「同方向」。"""
+    d = str(direction or "").strip()
+    if d.startswith("買"):
+        return "buy"
+    if d.startswith("賣"):
+        return "sell"
+    return "watch"
+
+
+def apply_sms_priority(ss, dates=None) -> dict:
+    """
+    讓會員簡訊在同一天同一檔上蓋過逐字稿。dates 為 None 時看全部歷史。
+
+    回傳 {"dropped": 幾列被移除, "resequenced": 幾列重排, "days": 動到幾天}
+    """
+    stat = {"dropped": 0, "resequenced": 0, "days": 0}
+    want = set(dates or [])
+
+    # 會員持股是獨立的一張表，就算操作紀錄是空的也要處理。
+    # 先前把它放在最後、又在前面對操作紀錄做了 early return，
+    # 於是「那天只有持股、沒有買賣」時整段被跳過。
+    def _finish():
+        stat["dropped"] += _drop_video_holds_covered_by_sms(ss, want)
+        stat["days"] = max(stat["days"], 1 if stat["dropped"] else 0)
+        if stat["dropped"] or stat["resequenced"]:
+            print(f"簡訊優先：移除逐字稿重複 {stat['dropped']} 列，"
+                  f"重排同日先後 {stat['resequenced']} 列")
+        return stat
+
+    try:
+        ws = ss.worksheet("操作紀錄")
+        values = sheets_retry(ws.get_all_values)
+    except Exception as e:
+        print(f"  簡訊優先：讀不到操作紀錄（{e}），只處理會員持股")
+        return _finish()
+    if len(values) < 2:
+        return _finish()
+
+    head = [str(h).strip() for h in values[0]]
+    try:
+        c_date, c_name, c_code = head.index("日期"), head.index("股票名稱"), head.index("代號")
+        c_dir, c_src = head.index("方向"), head.index("來源影片ID")
+    except ValueError:
+        print("  簡訊優先：操作紀錄缺少必要欄位，只處理會員持股")
+        return _finish()
+    c_seq = head.index("序") if "序" in head else -1
+
+    def g(row, i):
+        return str(row[i]).strip() if 0 <= i < len(row) else ""
+
+    # 先照「日期＋代號」把兩個來源的列聚在一起
+    bucket = {}
+    for idx, row in enumerate(values[1:], start=2):
+        day = norm_date(g(row, c_date))
+        code = g(row, c_code)
+        if not day or not code:
+            continue
+        if want and day not in want:
+            continue
+        bucket.setdefault((day, code), []).append({
+            "row": idx, "dir": g(row, c_dir), "src": g(row, c_src),
+            "name": g(row, c_name), "kind": _dir_kind(g(row, c_dir)),
+            "sms": _is_sms_row(g(row, c_src)),
+        })
+
+    drop_rows, seq_updates, touched = [], [], set()
+
+    for (day, code), items in bucket.items():
+        sms = [x for x in items if x["sms"]]
+        vid = [x for x in items if not x["sms"]]
+        if not sms:
+            continue                      # 這一檔那天沒有簡訊，逐字稿說了算
+
+        sms_kinds = {x["kind"] for x in sms}
+        for v in vid:
+            if v["kind"] in sms_kinds:
+                # 同方向：簡訊那一筆資訊比較完整（帶價位），逐字稿這一筆是重複。
+                drop_rows.append(v["row"])
+                touched.add(day)
+                print(f"  簡訊優先　{day} {v['name']}（{code}）逐字稿的「{v['dir']}」"
+                      f"與簡訊同方向，移除逐字稿那一筆")
+        # 不同方向的逐字稿列留著，只把先後排好。
+
+    dropped_set = set(drop_rows)
+    if c_seq >= 0:
+        for (day, code), items in bucket.items():
+            keep = [x for x in items if x["row"] not in dropped_set]
+            if not keep or not any(x["sms"] for x in keep):
+                continue
+            n_sms = 0
+            for x in sorted(keep, key=lambda y: (not y["sms"], y["row"])):
+                if x["sms"]:
+                    n_sms += 1
+                    new_seq = n_sms
+                else:
+                    new_seq = VIDEO_SEQ_BASE + x["row"] % VIDEO_SEQ_BASE
+                seq_updates.append((x["row"], new_seq))
+                touched.add(day)
+
+    # 由後往前刪，列號才不會位移；刪完再寫序，此時列號已經重新對齊，
+    # 所以序要在刪除後重新讀一次位置——最簡單也最不會錯的作法是先寫序再刪。
+    if seq_updates and c_seq >= 0:
+        sheets_retry(ws.batch_update,
+                     [{"range": gspread.utils.rowcol_to_a1(r, c_seq + 1), "values": [[v]]}
+                      for r, v in seq_updates if r not in dropped_set],
+                     value_input_option="RAW")
+        stat["resequenced"] = len([1 for r, _ in seq_updates if r not in dropped_set])
+
+    for r in sorted(dropped_set, reverse=True):
+        sheets_retry(ws.delete_rows, r)
+    stat["dropped"] = len(dropped_set)
+    stat["days"] = len(touched)
+    return _finish()
+
+
+def _drop_video_holds_covered_by_sms(ss, want) -> int:
+    """會員持股：同一天同一檔簡訊已經講過，就不留逐字稿那一筆。"""
+    try:
+        ws = ss.worksheet("會員持股")
+        values = sheets_retry(ws.get_all_values)
+    except Exception:
+        return 0
+    if len(values) < 2:
+        return 0
+    head = [str(h).strip() for h in values[0]]
+    try:
+        c_date, c_code, c_src = head.index("日期"), head.index("代號"), head.index("來源影片ID")
+        c_name = head.index("股票名稱")
+    except ValueError:
+        return 0
+
+    def g(row, i):
+        return str(row[i]).strip() if 0 <= i < len(row) else ""
+
+    sms_keys, vid_rows = set(), []
+    for idx, row in enumerate(values[1:], start=2):
+        day, code = norm_date(g(row, c_date)), g(row, c_code)
+        if not day or not code or (want and day not in want):
+            continue
+        if _is_sms_row(g(row, c_src)):
+            sms_keys.add((day, code))
+        else:
+            vid_rows.append((idx, day, code, g(row, c_name)))
+
+    targets = [(i, nm, d, c) for i, d, c, nm in vid_rows if (d, c) in sms_keys]
+    for i, nm, d, c in sorted(targets, reverse=True):
+        print(f"  簡訊優先　{d} {nm}（{c}）會員持股以簡訊為準，移除逐字稿那一筆")
+        sheets_retry(ws.delete_rows, i)
+    return len(targets)
+
+
+# ------------------------------------------------------------------ #
+# 「成本之上」要換算成真正的成本
+#
+# 他很常說「請將力積電於成本之上賣出，我們要換股」。那句話對會員是清楚的
+# ——你自己知道當初買在哪裡——但寫進表格就變成一個沒有數字的價位說明，
+# 網站上顯示「成本之上」，既算不出報酬，讀的人也不知道那是多少。
+#
+# 成本本來就在資料裡：同一檔最近一次「買入」的價位說明。
+# 找得到就把它填進去並註明來源，找不到就維持原樣，不猜。
+# ------------------------------------------------------------------ #
+_COST_WORDS = re.compile(r"成本|本錢|買進價|買入價|進場價")
+
+
+def resolve_cost_prices(ss, dates=None) -> dict:
+    """把「成本之上／成本以下」換成實際的買入價。"""
+    stat = {"fixed": 0, "missing": 0}
+    want = set(dates or [])
+    try:
+        ws = ss.worksheet("操作紀錄")
+        values = sheets_retry(ws.get_all_values)
+    except Exception as e:
+        print(f"  成本換算略過（讀不到操作紀錄：{e}）")
+        return stat
+    if len(values) < 2:
+        return stat
+
+    head = [str(h).strip() for h in values[0]]
+    try:
+        c_date, c_code, c_dir = head.index("日期"), head.index("代號"), head.index("方向")
+        c_price, c_name = head.index("價位說明"), head.index("股票名稱")
+    except ValueError:
+        return stat
+    c_reason = head.index("理由摘錄") if "理由摘錄" in head else -1
+
+    def g(row, i):
+        return str(row[i]).strip() if 0 <= i < len(row) else ""
+
+    # 先把每一檔的「買入價歷史」建起來：日期 → 價位
+    buys = {}
+    rows = []
+    for idx, row in enumerate(values[1:], start=2):
+        day, code = norm_date(g(row, c_date)), g(row, c_code)
+        if not day or not re.fullmatch(r"\d{4,6}", code):
+            continue
+        rows.append((idx, day, code, row))
+        if g(row, c_dir).startswith("買"):
+            v = _first_price(g(row, c_price))
+            if v is None and c_reason >= 0:
+                v = _first_price(g(row, c_reason))
+            if v is not None:
+                buys.setdefault(code, []).append((day, v))
+    for code in buys:
+        buys[code].sort()
+
+    updates = []
+    for idx, day, code, row in rows:
+        if want and day not in want:
+            continue
+        price_text = g(row, c_price)
+        if _first_price(price_text) is not None:
+            continue                      # 已經有數字了，不必換算
+        if not _COST_WORDS.search(price_text) and not (
+                c_reason >= 0 and _COST_WORDS.search(g(row, c_reason))):
+            continue
+
+        prior = [(d, v) for d, v in buys.get(code, []) if d <= day]
+        if not prior:
+            stat["missing"] += 1
+            print(f"  成本換算　{day} {g(row, c_name)}（{code}）說了成本，"
+                  f"但這一檔在此之前沒有明講價位的買入紀錄，維持原樣")
+            continue
+        when, cost = prior[-1]
+        side = "以上" if re.search(r"之上|以上", price_text) else \
+               "以下" if re.search(r"之下|以下", price_text) else ""
+        new_text = f"成本 {cost:g} 元{side}".strip()
+        updates.append({"range": gspread.utils.rowcol_to_a1(idx, c_price + 1),
+                        "values": [[new_text]]})
+        stat["fixed"] += 1
+        print(f"  成本換算　{day} {g(row, c_name)}（{code}）"
+              f"「{price_text}」→「{new_text}」（取自 {when} 的買入）")
+
+    if updates:
+        sheets_retry(ws.batch_update, updates, value_input_option="RAW")
+    if stat["fixed"] or stat["missing"]:
+        print(f"成本換算：填入 {stat['fixed']} 筆，查無買入價 {stat['missing']} 筆")
+    return stat
 
 
 def sweep_unresolved_codes(ss, date_str: str = "") -> dict:
@@ -7139,6 +7457,7 @@ def main():
     # 這三個是互斥模式，同時勾選只有第一個會生效。
     # 先前就發生過三個都勾、結果只跑了修代號的情況，所以這裡明講。
     picked = [n for n, on in (("admin_job", ADMIN_JOB),
+                              ("sms_priority", SMS_PRIORITY),
                               ("full_fix", FULL_FIX),
                               ("parse_sms", PARSE_SMS),
                               ("repair_codes", REPAIR_CODES),
@@ -7160,7 +7479,7 @@ def main():
     # 一路跑到「擷取」才在第一次呼叫模型時炸出「缺少環境變數 GEMINI_API_KEY」。
     # 那時已經讀完原文、跑完潤飾，白花好幾分鐘，而錯誤訊息又出現在
     # 完全看不出關聯的地方。
-    NO_GEMINI_MODES = {"repair_codes", "reclassify", "full_fix"}
+    NO_GEMINI_MODES = {"repair_codes", "reclassify", "full_fix", "sms_priority"}
     # 只勾 refresh_site、沒有勾任何模式，代表「資料不用動，只要網站重算一次」，
     # 那條路一次模型都不會呼叫，不該為了它要求金鑰。
     refresh_only = REFRESH_SITE and not picked
@@ -7204,6 +7523,14 @@ def main():
         print("模式：全面重整。逐棒驅動下游把過去所有資料套用最新規則。")
         print("不碰 NotebookLM，Gemini 由下游呼叫，這裡只負責一棒一棒催它做完。")
         drive_full_fix()
+        return
+
+    if SMS_PRIORITY:
+        print("模式：簡訊優先重整。把「同一天同一檔，簡訊蓋過逐字稿」套用到全部歷史，")
+        print("並把「成本之上」換算成實際買入價。不呼叫 Gemini。")
+        apply_sms_priority(ss)
+        resolve_cost_prices(ss)
+        maybe_refresh_site()
         return
 
     if REPAIR_CODES:
@@ -7258,6 +7585,9 @@ def main():
         changed_dates = parse_pending_sms(ss, since=SMS_SINCE,
                                           today_only=(SMS_MODE == "today")) or set()
         if changed_dates:
+            # 簡訊剛寫進去，同一天若先前已有逐字稿的紀錄，現在才分得出勝負。
+            apply_sms_priority(ss, sorted(changed_dates))
+            resolve_cost_prices(ss, sorted(changed_dates))
             print("提醒：本輪只更新了會員簡訊與操作紀錄／會員持股。"
                   "每日整理、持股追蹤、績效與日K不在這條鏈裡，需要時請到後台刷新。")
         return
@@ -7321,11 +7651,20 @@ def main():
             print(f"探測：補跑模式有 {len(targets)} 支待處理。")
             write_preflight("true" if targets else "false", f"補跑 {len(targets)} 支")
             return
-        for v in targets:
-            if out_of_budget():
-                print("時間預算用盡，本輪先停，剩下的下次再補。")
-                break
-            process_one(ss, v, done_trades, done_holds)
+        # 收尾三件事（補代號、簡訊優先、成本換算）延到全部寫完再一次做。
+        # 每一天各做一次的話，那三支會各自完整讀一次操作紀錄——
+        # 一百多天就是四百多趟往返，而且表越寫越大、越後面越慢。
+        _POST_WRITE_DEFER["on"] = True
+        try:
+            for v in targets:
+                if out_of_budget():
+                    print("時間預算用盡，本輪先停，剩下的下次再補。")
+                    break
+                process_one(ss, v, done_trades, done_holds)
+        finally:
+            # 中途因預算或例外停下時，已經寫進去的那幾天也要收尾，
+            # 不然它們會停在「有資料但代號還沒補、簡訊還沒蓋過去」的狀態。
+            flush_post_write_steps(ss)
         save_rotated_auth(ss, _AUTH_FP[0])
         return
 

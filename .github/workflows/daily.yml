@@ -91,6 +91,10 @@ on:
         description: '★跑完後立刻刷新網站★ 勾 true 網站馬上更新，不必等下個交易日。可與上面任一模式一起勾，也可單獨勾（只刷新不改資料）'
         required: false
         default: 'false'
+      sms_priority:
+        description: '★簡訊優先重整★ 把「同一天同一檔，會員簡訊蓋過逐字稿」套用到全部歷史，並把「成本之上」換算成實際買入價。不呼叫 Gemini，秒級完成'
+        required: false
+        default: 'false'
       check_keys:
         description: '★金鑰健檢★ 逐把檢查 Gemini 金鑰能不能用、看得到哪些模型、該怎麼修。只讀清單不產生內容，不消耗生成配額。撞到 404 或配額問題時先勾這個'
         required: false
@@ -236,6 +240,7 @@ jobs:
           REFRESH_FROM: ${{ github.event.inputs.refresh_from }}
           REFRESH_SITE: ${{ github.event.inputs.refresh_site }}
           CHECK_KEYS: ${{ github.event.inputs.check_keys }}
+          SMS_PRIORITY: ${{ github.event.inputs.sms_priority }}
           PARSE_SMS: ${{ github.event.inputs.parse_sms }}
           SMS_SINCE: ${{ github.event.inputs.sms_since }}
           SMS_MODE: ${{ github.event.inputs.sms_mode }}
@@ -371,6 +376,7 @@ jobs:
           FULL_FIX_SCOPE: ${{ github.event.inputs.full_fix_scope }}
           REFRESH_FROM: ${{ github.event.inputs.refresh_from }}
           CHECK_KEYS: ${{ github.event.inputs.check_keys }}
+          SMS_PRIORITY: ${{ github.event.inputs.sms_priority }}
           PARSE_SMS: ${{ github.event.inputs.parse_sms }}
           SMS_SINCE: ${{ github.event.inputs.sms_since }}
           SMS_MODE: ${{ github.event.inputs.sms_mode }}

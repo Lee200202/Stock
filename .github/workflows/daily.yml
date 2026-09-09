@@ -336,6 +336,16 @@ jobs:
           # 換型號後若回 400 INVALID_ARGUMENT，多半是新型號的輸出上限比較低。
           # 用這個把 maxOutputTokens 調小（留空＝65535）。
           GEMINI_MAX_OUT: ${{ vars.GEMINI_MAX_OUT }}
+          # 每一把金鑰各自的型號。同一個帳號底下，較早建立的專案還能用
+          # gemini-2.5-flash，後來新開的專案已經拿不到，只能用別的世代。
+          # 沒設就沿用 GEMINI_MODEL，所以只要替需要的那幾把設定即可。
+          GEMINI_MODEL_2: ${{ vars.GEMINI_MODEL_2 }}
+          GEMINI_MODEL_3: ${{ vars.GEMINI_MODEL_3 }}
+          GEMINI_MODEL_4: ${{ vars.GEMINI_MODEL_4 }}
+          GEMINI_MODEL_5: ${{ vars.GEMINI_MODEL_5 }}
+          # 每分鐘請求數的自我節流。送出前就把間隔拉開，而不是等 429 才退避——
+          # 撞牆的請求照樣計入當日總量，等於用自己的額度確認自己太快。
+          GEMINI_RPM: ${{ vars.GEMINI_RPM || '10' }}
           # 備用金鑰。免費層的每日請求數是以 Google 專案為單位計算的，
           # 不同專案各有各的額度：一把用完自動換下一把，全部用完才真的停。
           # 與 Apps Script 的 Aiservice.gs 是同一套命名。沒設就只用第一把，

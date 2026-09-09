@@ -2223,6 +2223,22 @@ def _npin1(s: str) -> str:
     return _norm_pin(lazy_pinyin(s[:1])[0]) if s else ""
 
 
+# 講者說全名時會帶著的業別字。官方簡稱不會有這些。
+# 「集團」不放進來——那是 NON_STOCK_SUFFIX 的工作（台塑集團要整筆剔除，
+# 不是拿去比對成台塑）。
+_COMPANY_SUFFIX = ("電信", "金控", "銀行", "證券", "產險", "人壽", "投信",
+                   "科技", "工業", "企業", "實業", "電子", "光電", "半導體")
+
+
+def _strip_company_suffix(s: str) -> str:
+    """把「遠傳電信」變成「遠傳」。只去一層，去完太短就當作不能去。"""
+    t = str(s or "").strip()
+    for suf in _COMPANY_SUFFIX:
+        if t.endswith(suf) and len(t) - len(suf) >= 2:
+            return t[: -len(suf)]
+    return t
+
+
 def _base(s: str) -> str:
     """去掉 -KY、*、投控 這類後綴。讓「譜瑞」能對上「譜瑞-KY」。"""
     # 連字號設成可有可無：語音辨識常把「世芯KY」寫成沒有連字號的樣子。
@@ -2364,6 +2380,22 @@ def resolve_code(name: str, hint: str):
         for c, n in m.items():
             if _base(n) == nb:
                 return c, n, "去後綴後相同"
+
+    # 3.5 講全名時，把「電信、金控、證券」這類業別字去掉再比一次。
+    #
+    # 官方簡稱是簡稱，講者說的常常是全名：他說「遠傳電信」，清單上是「遠傳」。
+    # 帶著業別字去做模糊比對會比到完全不相干的公司——實際發生過
+    # 「遠傳電信」被比成「遠東新（1402）」，因為兩者首字同音、長度也近，
+    # 拼音 0.72 就過了門檻。去掉「電信」之後是精確命中 4904 遠傳，
+    # 差別在於一個是猜的、一個是確定的。
+    #
+    # 只有「去掉之後精確命中」才採用。去掉之後還要模糊比對的，
+    # 代表證據不夠，讓它照原本的流程走，不要為了湊答案而放寬兩次。
+    stem = _strip_company_suffix(name)
+    if stem and stem != name:
+        for c, n in m.items():
+            if n == stem or _base(n) == _base(stem):
+                return c, n, f"去掉業別字「{name[len(stem):]}」後精確命中"
 
     # 4. 字面相似。原名與去後綴版各比一次，取高者。
     best_c, best_s = None, 0.0
@@ -3183,6 +3215,12 @@ holdings 要的是「會員現在手上有」，而且那句持有聲明必須�
   講者很常拿美股當台股的風向球講，例如「輝達昨天大漲，今天台積電應該會強」。
   這種是行情背景，不是他要會員操作的標的，而且它們不在台股掛牌，一律不收。
   唯一例外：同一句話裡若因此指名了某檔台股，收那檔台股，不收外國公司。
+【提到公司名不等於在講這一檔的操作】
+他在解釋盤勢時會順口提到很多公司當例子或對照（「大師兄叫做台積電、台達電、日月光」、
+講電信類股時提到中華電信、遠傳電信）。那是背景說明，不是叫你對這一檔做什麼。
+要收錄的前提是「這一檔有一個當下的立場」：買、賣、續抱、不要碰、要留意。
+只出現名字、只講它漲跌、只拿它當比喻的，一筆都不要開。
+
 - 集團或控股：台塑集團、鴻海集團、遠東集團
 - 族群或概念：高速傳輸股、AI概念股、權值股、航運股、記憶體族群
 - 產業或技術縮寫：PMIC、ABF、CoWoS、HBM、光通訊
@@ -3209,6 +3247,18 @@ price 只放數字，或帶著數字的短句（238、255 以上、28 到 29）�
 price 只能填「這一檔自己的價位」。同一段話裡若還提到別檔的價位、大盤點數、
 營收或成交量，那些都不是這一檔的 price。判斷方法很簡單：填進去之前先問
 「這個數字與這一檔目前的股價是同一個量級嗎」，不是就填「未說明」。
+
+口語會省略位數，要補回來。四千多元的股票，他會說「38X」「破39」「39上下」，
+指的是 3800、3900，不是 38 塊。同一段話裡若有完整寫出來的數字（「3800多的四星KY」），
+以完整那個為準。判斷方式一樣是量級：一檔講到「4200不買、4000不買」的股票，
+它的價位就是四位數，填 38 一定是錯的。看不出量級時填「未說明」。
+
+【只講代號、沒講名稱的股票也要收】
+他很常只報號碼：「另外還有一個8150」「有機會突破季線的是2449、6239，還有8150」。
+這些都是明確點名的個股，必須各開一筆，不可以因為沒講中文名就跳過。
+  name 填他講的那個號碼（例如 "8150"），code 也填同一個號碼。
+  程式會用官方清單把名稱補上，不需要你去猜那是哪一家公司。
+名稱與號碼都有講的（「2449金元店」），name 填名稱、code 填號碼。
 
 reason 要改寫成證券研究報告的句子，不是把逐字稿剪一段貼上。
 
@@ -3659,6 +3709,19 @@ def cn_number(text: str):
     return total or None
 
 
+def _all_prices(text: str) -> list:
+    """把一段文字裡所有像股價的阿拉伯數字找出來，依出現順序回傳。"""
+    out = []
+    for m in re.finditer(r"(?<![\d.])(\d{1,5}(?:\.\d+)?)(?![\d.])", str(text or "")):
+        try:
+            v = float(m.group(1))
+        except ValueError:
+            continue
+        if 1 <= v <= 10000:
+            out.append(v)
+    return out
+
+
 def cn_prices_in(text: str) -> list:
     """把一段文字裡所有「中文數字＋元」的價位找出來。"""
     out = []
@@ -3731,15 +3794,45 @@ def price_reality_check(ss, signals: dict, date_str: str) -> dict:
             # 那是「數字抓錯」，不是「講的是別檔」——理由摘錄裡的中文數字
             # 只要落在這一檔的區間內，就證明方向本來是對的。
             # 不先修就直接降級，等於把一筆正確的買入判成觀望。
-            fixed = None
-            for cand in cn_prices_in(" ".join(str(r.get(f) or "") for f in
-                                              ("reason", "note", "price", "stance"))):
-                if lo * (1 - PRICE_CLEAR_BAND) <= cand <= hi * (1 + PRICE_CLEAR_BAND):
-                    fixed = cand
+            # 只看「講者說了什麼」，不看模型自己填的 price 欄。
+            # 把 price 也丟進來的話，等於拿那個可疑的數字去驗證它自己。
+            text_pool = " ".join(str(r.get(f) or "") for f in
+                                 ("reason", "note", "stance"))
+            in_band = lambda v: lo * (1 - PRICE_CLEAR_BAND) <= v <= hi * (1 + PRICE_CLEAR_BAND)
+
+            # 修復的優先順序，從最可信排到最不可信：
+            #   1. 理由裡真的寫出來、而且落在區間內的阿拉伯數字（「3800多的四星KY」）
+            #   2. 理由裡的中文數字（「跌破四千元整數關卡」）
+            #   3. 把抓到的數字乘 10 或 100（口語省略：四千多元的股票，
+            #      他會說「38X」「破39」，意思是 3800、3900）
+            # 三種都是「數字抓錯」而不是「講的是別檔」，方向本來就是對的。
+            fixed, how = None, ""
+            for cand in _all_prices(text_pool):
+                if in_band(cand):
+                    fixed, how = cand, "理由裡寫出來的數字"
                     break
+            if fixed is None:
+                for cand in cn_prices_in(text_pool):
+                    if in_band(cand):
+                        fixed, how = cand, "理由裡的中文數字"
+                        break
+            if fixed is None:
+                # 補位數之前，先確認講者真的說過這個數字。
+                #
+                # 沒有這個條件的話，任何「不在區間內」的數字都能靠乘 10 或 100
+                # 湊進區間——那會把「這句話講的其實是別檔」那種真的接錯檔的情況
+                # 也一併救回來，等於把整道保護拆掉。
+                # 講者說了 38、股價區間在幾千，才是口語省略位數；
+                # 理由裡根本沒有這個數字，那就是接錯檔。
+                said = re.search(r"(?<!\d)" + re.escape(f"{val:g}") + r"(?!\d)", text_pool)
+                if said:
+                    scaled = [val * m for m in (10, 100) if in_band(val * m)]
+                    if len(scaled) == 1:
+                        fixed, how = scaled[0], f"口語省略位數，{val:g} 應為 {scaled[0]:g}"
+
             if fixed is not None:
                 print(f"  價位現實檢查　{nm}（{code}）原本的 {val} 不在 {lo}-{hi} 之內，"
-                      f"但理由裡的中文數字 {fixed:g} 在區間內，改用它，方向維持不變")
+                      f"改用 {fixed:g}（{how}），方向維持不變")
                 r["price"] = f"{fixed:g}"
                 keep.append(r)
                 continue
@@ -3874,6 +3967,36 @@ def _in_transcript(needle: str, hay: str) -> bool:
     return n in hay
 
 
+# 逐字稿的拼音索引。整份轉一次就好，二十幾檔逐一比對時共用同一份。
+_HAY_PIN_CACHE = {"key": "", "pin": ""}
+
+
+def _hay_pinyin(hay: str) -> str:
+    if _HAY_PIN_CACHE["key"] != hay[:200] or not _HAY_PIN_CACHE["pin"]:
+        _HAY_PIN_CACHE["key"] = hay[:200]
+        _HAY_PIN_CACHE["pin"] = _npin(hay)
+    return _HAY_PIN_CACHE["pin"]
+
+
+def _sounds_in_transcript(needle: str, hay: str) -> bool:
+    """
+    這個名稱「唸起來」有沒有出現在逐字稿裡。
+
+    為什麼字面比對不夠：逐字稿是語音轉文字，講者說「鴻海」，稿子上可能是
+    「紅海」；「大立光」可能變成「大理光」，「友達」變成「有達」。
+    擷取那一步會把它正規化回正式簡稱，於是幻覺檢查拿正式簡稱回頭找，
+    字面上一個都找不到，整筆被當成模型編出來的丟掉——實際發生過一次
+    剔除四筆，其中三筆是真的有講到的股票。
+
+    比的是正規化後的拼音（前後鼻音、捲舌音都當成同一個音），
+    這正是代號比對那邊用來抓同音錯字的同一套規則。
+    """
+    n = re.sub(r"\s", "", str(needle or ""))
+    if len(n) < 2 or not _has_cjk(n):
+        return False
+    return _npin(n) in _hay_pinyin(hay)
+
+
 def verify_names(signals: dict, transcript: str) -> dict:
     """名稱與代號都沒出現在逐字稿裡的，整筆丟掉。"""
     hay = re.sub(r"\s", "", transcript or "")
@@ -3890,6 +4013,13 @@ def verify_names(signals: dict, transcript: str) -> dict:
             nm = str(r.get("name", "")).strip()
             cd = str(r.get("code", "")).strip()
             if _in_transcript(nm, hay) or _in_transcript(cd, hay):
+                keep.append(r)
+                continue
+            # 字面找不到時再用「唸起來像不像」比一次。語音轉文字會把股名
+            # 寫成同音錯字，只比字面會把真的有講到的股票當成幻覺丟掉。
+            if _sounds_in_transcript(nm, hay):
+                print(f"  幻覺檢查　{nm}（{cd or '無代號'}）：字面找不到，"
+                      f"但逐字稿裡有同音的說法，保留")
                 keep.append(r)
                 continue
             dropped += 1

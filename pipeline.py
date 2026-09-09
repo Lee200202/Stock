@@ -460,6 +460,35 @@ CHECK_KEYS = os.environ.get("CHECK_KEYS", "false").strip().lower() == "true"
 # 過去資料要跟上」的那一次用的。
 SMS_PRIORITY = os.environ.get("SMS_PRIORITY", "false").strip().lower() == "true"
 
+# 資料寫進試算表之後，自動要求下游把網站算成新的樣子。
+#
+# 為什麼要預設開啟：試算表變了不等於網站變了。持股追蹤與績效是從那些列
+# 重新算出來的，而重算是 Apps Script 的排程在做（14:50 與 15:05）。
+# 不自動觸發的話，盤中寫進去的新資料要等到下午才看得到，而且中間完全沒有
+# 徵兆——畫面上只會像「今天還沒有資料」。
+#
+# 只跑必要的三步（代號比對、重算追蹤、記錄績效），不是整條鏈：
+# 清產業列、稽核複審、更新基本面、補齊日K 各自有自己的排程，
+# 為了顯示一筆新紀錄把它們全跑一次要十幾分鐘，不划算。
+AUTO_REFRESH = os.environ.get("AUTO_REFRESH", "true").strip().lower() != "false"
+
+# 資料寫入後自動跑的那幾步。順序與刷新鏈一致：代號要先對，追蹤才有合格輸入。
+LIGHT_REFRESH_STEPS = ["codes", "tracker", "perf"]
+
+
+def auto_refresh_after_write(what: str = "資料"):
+    """資料寫進去之後，讓網站跟上。沒設 APPS_SCRIPT_URL／ADMIN_KEY 就安靜略過。"""
+    if not AUTO_REFRESH:
+        print(f"（AUTO_REFRESH=false，{what}已寫入但不自動刷新網站）")
+        return
+    if not APPS_SCRIPT_URL or not ADMIN_KEY:
+        return
+    if REFRESH_SITE:
+        return          # 使用者自己勾了完整刷新，等一下就會跑，不必先跑一次輕量的
+    print("")
+    print(f"{what}已寫入，接著讓網站跟上（代號比對→重算追蹤→記錄績效）……")
+    maybe_refresh_site(only=LIGHT_REFRESH_STEPS, force=True)
+
 # VOD 最早可能出現的台灣時間（小時）。直播約 12:30 到 13:00 結束，
 # YouTube 轉檔再十幾分鐘，所以這之前敲門必定空手而回。
 # 探測模式用它判斷哪些觸發點是純粹浪費，可以直接跳過。
@@ -636,9 +665,13 @@ APPS_SCRIPT_URL = os.environ.get("APPS_SCRIPT_URL", "").strip()
 ADMIN_KEY = os.environ.get("ADMIN_KEY", "").strip()
 
 
-def maybe_refresh_site():
+def maybe_refresh_site(only=None, force=False):
     """
-    要求 Apps Script 立刻重算全站。只有 REFRESH_SITE=true 時才動作。
+    要求 Apps Script 立刻重算全站。
+
+    force=True 時不看 REFRESH_SITE——那是給「資料剛寫進去，網站必須跟上」
+    這種情況用的：使用者沒有勾任何東西，但資料變了，畫面就該跟著變。
+    only=[...] 只跑指定的幾步。
 
     分成六次請求依序呼叫，不是一次要求跑完。
     下游是 Apps Script，網頁請求超過 6 分鐘會被直接砍掉，而整條重算鏈
@@ -647,7 +680,7 @@ def maybe_refresh_site():
     失敗不視為整體失敗：資料已經寫進試算表了，網站晚一點由排程刷新也會正確，
     所以這裡只印警告，不讓整個 workflow 亮紅燈。
     """
-    if not REFRESH_SITE:
+    if not (REFRESH_SITE or force):
         return
     if not APPS_SCRIPT_URL or not ADMIN_KEY:
         # 明確講出「缺哪一個」，不要讓人兩個都去翻。
@@ -727,9 +760,17 @@ def maybe_refresh_site():
         print(f"{who}：跳過補齊日K（與這次的改動無關，且會讓等待時間拉長數十倍）。"
               "歷史缺口由每日排程補；新出現的代號在重算追蹤時會即時補上。")
 
+    # only 指定時只跑那幾步。用在「資料剛寫進去，讓網站跟上就好」——
+    # 不必為了顯示一筆新紀錄而把清產業列、稽核複審、更新基本面、補齊日K
+    # 整套重跑一次（那要十幾分鐘，而且那幾步各自有自己的排程）。
+    if only:
+        want = list(only)
+        STEPS = [(k, lb) for k, lb in STEPS if k in want]
+        print(f"只執行必要的 {len(STEPS)} 步：" + "、".join(lb for _, lb in STEPS))
+
     # 指定了起點就從那裡開始。找不到那個代號就當作沒指定，從頭跑——
     # 打錯一個字就整條鏈不做，比從頭跑一次糟得多。
-    if REFRESH_FROM:
+    if REFRESH_FROM and not only:
         keys = [k for k, _ in STEPS]
         if REFRESH_FROM in keys:
             at = keys.index(REFRESH_FROM)
@@ -6396,6 +6437,10 @@ def process_one(ss, video, done_trades, done_holds):
         else:
             mark_status(ss, video["id"], date_str, video["title"], "完成")
         print(f"完成 {video['id']}")
+        # 每日排程不會帶 refresh_site（cron 沒有 inputs），所以這裡自己讓網站跟上。
+        # 回補模式例外：那時是一次跑很多天，收尾統一在最後做一次。
+        if not (_POST_WRITE_DEFER["on"] or BACKFILL):
+            auto_refresh_after_write(f"{date_str} 的逐字稿")
     except Exception as e:
         mark_status(ss, video["id"], date_str, video["title"], "失敗", str(e)[:400])
         raise
@@ -7548,6 +7593,11 @@ def main():
         resolve_cost_prices(ss)
         if REFRESH_SITE:
             maybe_refresh_site()
+            # 資料被大幅修正過，整條績效曲線要依新資料重畫，
+            # 不能只補今天那一個點——過去那些點是用舊資料算的。
+            print("")
+            print("接著重算績效歷史……")
+            maybe_refresh_site(only=["perfhist"], force=True)
         else:
             # 這個模式改的是「哪一筆算數、先後怎麼排」，而持股追蹤與績效
             # 是從那些列重新算出來的。只改資料不重算，網站上看到的還是舊結果，
@@ -7581,7 +7631,10 @@ def main():
     if ADMIN_JOB:
         print("模式：後台工單。逐字稿已由管理者貼進試算表，這裡把後面的流程跑完。")
         run_admin_job(ss)
-        maybe_refresh_site()
+        if REFRESH_SITE:
+            maybe_refresh_site()
+        else:
+            auto_refresh_after_write("後台投稿的逐字稿")
         return
 
     if PARSE_SMS:
@@ -7620,6 +7673,8 @@ def main():
             # 簡訊剛寫進去，同一天若先前已有逐字稿的紀錄，現在才分得出勝負。
             apply_sms_priority(ss, sorted(changed_dates))
             resolve_cost_prices(ss, sorted(changed_dates))
+            # 盤中寫進來的資料，畫面要馬上跟上，不要等到下午的排程。
+            auto_refresh_after_write("會員簡訊")
             print("提醒：本輪只更新了會員簡訊與操作紀錄／會員持股。"
                   "每日整理、持股追蹤、績效與日K不在這條鏈裡，需要時請到後台刷新。")
         return
@@ -7697,6 +7752,7 @@ def main():
             # 中途因預算或例外停下時，已經寫進去的那幾天也要收尾，
             # 不然它們會停在「有資料但代號還沒補、簡訊還沒蓋過去」的狀態。
             flush_post_write_steps(ss)
+            auto_refresh_after_write("回補的逐字稿")
         save_rotated_auth(ss, _AUTH_FP[0])
         return
 

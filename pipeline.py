@@ -721,10 +721,11 @@ def maybe_refresh_site():
     # 跳過是安全的：重算持股追蹤本來就會先掃一遍「一列都沒有」的代號並立刻補上
     # （通常零到三檔，幾秒鐘），所以今天新講到的股票照樣算得出進場價與報酬。
     # 真正需要整批補的是歷史缺口，那件事交給每日排程與後台的「立即刷新」去做。
-    if ADMIN_JOB and not REFRESH_FROM:
+    if (ADMIN_JOB or SMS_PRIORITY) and not REFRESH_FROM:
         STEPS = [(k, lb) for k, lb in STEPS if k != "dailyk"]
-        print("後台工單：跳過補齊日K（與這份逐字稿無關，且會讓等待時間拉長數十倍）。"
-              "歷史缺口由每日排程補；今天新出現的代號在重算追蹤時會即時補上。")
+        who = "後台工單" if ADMIN_JOB else "簡訊優先重整"
+        print(f"{who}：跳過補齊日K（與這次的改動無關，且會讓等待時間拉長數十倍）。"
+              "歷史缺口由每日排程補；新出現的代號在重算追蹤時會即時補上。")
 
     # 指定了起點就從那裡開始。找不到那個代號就當作沒指定，從頭跑——
     # 打錯一個字就整條鏈不做，比從頭跑一次糟得多。
@@ -4418,8 +4419,16 @@ def apply_sms_priority(ss, dates=None) -> dict:
             keep = [x for x in items if x["row"] not in dropped_set]
             if not keep or not any(x["sms"] for x in keep):
                 continue
+            # 簡訊彼此之間的先後，用文章編號排而不是用列的順序。
+            # 來源網站的文章編號是隨時間遞增的，而列的順序只是「哪一次補抓寫進去的」
+            # ——補抓一篇比較早的文章時，它會被 append 到最後面，
+            # 用列序排就會把早上的指令排到下午那筆的後面。
+            def _sms_order(y):
+                m = re.search(r"(\d+)", y["src"])
+                return int(m.group(1)) if m else 0
+
             n_sms = 0
-            for x in sorted(keep, key=lambda y: (not y["sms"], y["row"])):
+            for x in sorted(keep, key=lambda y: (not y["sms"], _sms_order(y), y["row"])):
                 if x["sms"]:
                     n_sms += 1
                     new_seq = n_sms
@@ -6015,6 +6024,7 @@ def parse_pending_sms(ss, since="", mode=None, today_only=False):
     changed_dates: set[str] = set()
     written_articles = 0
     ai_calls_used = 0
+    ai_done = 0                 # 真的送進 AI 而且判定成功的篇數
     quota_note = ""
 
     def flush(reason=""):
@@ -6121,6 +6131,7 @@ def parse_pending_sms(ss, since="", mode=None, today_only=False):
                 try:
                     items, parse_err, calls = _sms_extract_items(r, cm_mark, code_map)
                     ai_calls_used += calls
+                    ai_done += 1
                 except RateLimited as e:
                     ai_calls_used += SMS_MAX_QUOTA_STRIKES     # 已經打出去的都算用量
                     # 每日配額：立刻停。等待與重按都只會再拿到 429，且照樣計入用量。
@@ -6183,9 +6194,14 @@ def parse_pending_sms(ss, since="", mode=None, today_only=False):
 
     flush("收尾")
 
-    remaining = deferred_ai + max(0, len(capped) - written_articles)
-    fin = (f"本輪完成 {written_articles} 則，模型呼叫 {ai_calls_used} 次。"
-           + (f"尚有 {remaining} 則待下一輪。" if remaining else "過去資料的收錄個股已全數補齊。")
+    # 還剩幾則要算對，因為你會拿它決定「還要不要再按一次」。
+    #   deferred_ai            這一輪一開始就因為篇數上限被排到下一輪的
+    #   len(capped) - ai_done  排進來了但沒跑完的（撞到呼叫數上限或配額）
+    remaining = deferred_ai + max(0, len(capped) - ai_done)
+    fin = (f"本輪完成 {written_articles} 則（其中 {ai_done} 則送 AI 判定），"
+           f"模型呼叫 {ai_calls_used} 次。"
+           + (f"尚有 {remaining} 則需要 AI，請再按一次同一顆按鈕。"
+              if remaining else "過去資料的收錄個股已全數補齊，不必再按。")
            + (f" {stopped_early}" if stopped_early else ""))
     print(fin)
     write_status_log(ss, "會員簡訊", fin)
@@ -7530,7 +7546,23 @@ def main():
         print("並把「成本之上」換算成實際買入價。不呼叫 Gemini。")
         apply_sms_priority(ss)
         resolve_cost_prices(ss)
-        maybe_refresh_site()
+        if REFRESH_SITE:
+            maybe_refresh_site()
+        else:
+            # 這個模式改的是「哪一筆算數、先後怎麼排」，而持股追蹤與績效
+            # 是從那些列重新算出來的。只改資料不重算，網站上看到的還是舊結果，
+            # 而且不會有任何徵兆——所以這裡要講清楚，不要讓人以為做完了。
+            print("")
+            print("=" * 60)
+            print("資料已更新，但網站還沒重算。")
+            print("=" * 60)
+            print("持股追蹤的回合、進場價與報酬，都是從操作紀錄與會員持股重新算出來的；")
+            print("這一輪只改了那些列的取捨與先後，還沒有觸發重算。")
+            print("")
+            print("兩種做法擇一：")
+            print("  1. 重跑這個工作流程，同時勾選 sms_priority 與 refresh_site")
+            print("  2. 到後台「網站內容」分頁按一次「開始刷新」")
+            print("=" * 60)
         return
 
     if REPAIR_CODES:

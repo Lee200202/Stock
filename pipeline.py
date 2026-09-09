@@ -706,6 +706,20 @@ def maybe_refresh_site():
         ("perf", "記錄績效"),
     ]
 
+    # 後台投稿逐字稿時跳過補齊日K。
+    #
+    # 那一步是把整段歷史的 K 線一批八檔慢慢補回來（實測 221 檔要跑二十幾批），
+    # 與「這一份逐字稿擷取到了什麼」完全無關，卻佔掉整條刷新鏈絕大部分的時間，
+    # 讓投稿之後要等很久才看得到結果。
+    #
+    # 跳過是安全的：重算持股追蹤本來就會先掃一遍「一列都沒有」的代號並立刻補上
+    # （通常零到三檔，幾秒鐘），所以今天新講到的股票照樣算得出進場價與報酬。
+    # 真正需要整批補的是歷史缺口，那件事交給每日排程與後台的「立即刷新」去做。
+    if ADMIN_JOB and not REFRESH_FROM:
+        STEPS = [(k, lb) for k, lb in STEPS if k != "dailyk"]
+        print("後台工單：跳過補齊日K（與這份逐字稿無關，且會讓等待時間拉長數十倍）。"
+              "歷史缺口由每日排程補；今天新出現的代號在重算追蹤時會即時補上。")
+
     # 指定了起點就從那裡開始。找不到那個代號就當作沒指定，從頭跑——
     # 打錯一個字就整條鏈不做，比從頭跑一次糟得多。
     if REFRESH_FROM:
@@ -2381,22 +2395,6 @@ def resolve_code(name: str, hint: str):
             if _base(n) == nb:
                 return c, n, "去後綴後相同"
 
-    # 3.5 講全名時，把「電信、金控、證券」這類業別字去掉再比一次。
-    #
-    # 官方簡稱是簡稱，講者說的常常是全名：他說「遠傳電信」，清單上是「遠傳」。
-    # 帶著業別字去做模糊比對會比到完全不相干的公司——實際發生過
-    # 「遠傳電信」被比成「遠東新（1402）」，因為兩者首字同音、長度也近，
-    # 拼音 0.72 就過了門檻。去掉「電信」之後是精確命中 4904 遠傳，
-    # 差別在於一個是猜的、一個是確定的。
-    #
-    # 只有「去掉之後精確命中」才採用。去掉之後還要模糊比對的，
-    # 代表證據不夠，讓它照原本的流程走，不要為了湊答案而放寬兩次。
-    stem = _strip_company_suffix(name)
-    if stem and stem != name:
-        for c, n in m.items():
-            if n == stem or _base(n) == _base(stem):
-                return c, n, f"去掉業別字「{name[len(stem):]}」後精確命中"
-
     # 4. 字面相似。原名與去後綴版各比一次，取高者。
     best_c, best_s = None, 0.0
     for c, n in m.items():
@@ -2406,6 +2404,23 @@ def resolve_code(name: str, hint: str):
             best_c, best_s = c, s
     if best_s >= NAME_CUTOFF:
         return best_c, m[best_c], f"字面相似 {best_s:.2f}"
+
+    # 4.5 字面比不出來時，才把「電信、金控、證券」這類業別字去掉再比一次。
+    #
+    # 順序很重要，一定要在字面相似之後。放在前面會弄巧成拙：
+    # 「中華電信」去掉「電信」剩「中華」，而「中華（2204）」是中華車，
+    # 精確命中之後就直接回傳了——把本來正確的「中華電（2412）」蓋掉。
+    # 放在後面，中華電信會先以字面相似 0.86 命中中華電，根本走不到這裡；
+    # 而「遠傳電信」對「遠傳」的字面只有 0.67、過不了門檻，才會落到這一關，
+    # 去掉「電信」之後精確命中 4904 遠傳。
+    #
+    # 只有「去掉之後精確命中」才採用。去掉之後還要模糊比對的，
+    # 代表證據不夠，讓它照原本的流程走，不要為了湊答案而放寬兩次。
+    stem = _strip_company_suffix(name)
+    if stem and stem != name:
+        for c, n in m.items():
+            if n == stem or _base(n) == _base(stem):
+                return c, n, f"去掉業別字「{name[len(stem):]}」後精確命中"
 
     # 5. 拼音相似。首字「同音」時放寬門檻。
     #    比的是正規化後的拼音：續 對 旭 都是 xu，誠 對 陳 正規化後都是 cen。
@@ -4122,7 +4137,14 @@ def _purge_rows_of_video(ss, sheet_name, date_str, video_id):
     return len(targets)
 
 
-def write_results(ss, date_str, signals, article, done_trades, done_holds, replace=False):
+def write_results(ss, date_str, signals, article, done_trades, done_holds,
+                  replace=False, replace_video=False):
+    """
+    replace        整天重來：連別的來源（例如會員簡訊）寫的列一起清掉。
+                   只有「重新分類」這種明確要重算整天的模式才用。
+    replace_video  只把「這支影片自己寫過的列」換掉，別的來源不動。
+                   後台重新投稿同一份逐字稿走這一條。
+    """
     video_id = signals.get("_video_id", "")
 
     if replace:
@@ -4130,6 +4152,23 @@ def write_results(ss, date_str, signals, article, done_trades, done_holds, repla
         delete_rows_for_date(ss, "操作紀錄", date_str)
         delete_rows_for_date(ss, "會員持股", date_str)
         delete_rows_for_date(ss, "每日推播內容", date_str)
+        done_trades.discard(date_str)
+        done_holds.discard(date_str)
+
+    elif replace_video:
+        # 後台重新投稿：那個動作的意思就是「這一天請重跑」，
+        # 所以必須把舊的換掉，不能因為「這一天已經有資料」就整批不寫。
+        #
+        # 這正是先前的坑：管理者重貼一次逐字稿，工單一路跑到寫入才印一句
+        # 「2026/09/09 操作紀錄已存在，不重複寫入」，於是這一輪新擷取到的
+        # 鴻海、8150 全部沒有進去，撰稿產生的新文章也因為同一個判斷沒有覆蓋，
+        # 信件內容還是舊的。畫面上每一步都是綠的，資料卻完全沒有更新。
+        #
+        # 只清「這支影片寫的列」而不是整天，是因為同一天還有會員簡訊寫進來的
+        # 紀錄（來源影片ID 是 CMONEY-…）。那些是盤中的即時通知，
+        # 優先權比收盤後的逐字稿高，絕對不能被重跑逐字稿順手洗掉。
+        _purge_rows_of_video(ss, "操作紀錄", date_str, video_id)
+        _purge_rows_of_video(ss, "會員持股", date_str, video_id)
         done_trades.discard(date_str)
         done_holds.discard(date_str)
 
@@ -4170,12 +4209,45 @@ def write_results(ss, date_str, signals, article, done_trades, done_holds, repla
         print(f"會員持股寫入 {len(holds)} 筆")
         done_holds.add(date_str)
 
-    if date_str not in existing_dates(ss, "每日推播內容"):
-        sheets_retry(ss.worksheet("每日推播內容").append_row,
-                     [date_str, cell(article or f"本日內容：{NOT_MENTIONED}。"), "待寄送"])
+    # 每日整理：重跑時要覆蓋，不能因為「這一天已經有一列」就不動。
+    # 不覆蓋的話，網站與信件會永遠停在第一次跑出來的那一版。
+    # keep_sent：重跑會覆蓋文章內容，但不會把「已寄送」退回「待寄送」。
+    #
+    # 寄信是對外、且收不回來的動作。重貼一次逐字稿的意思是「資料要更新」，
+    # 不是「請再寄一封給所有訂閱者」——那會讓收信的人收到兩封幾乎一樣的信。
+    # 網站與郵件查詢讀的都是這一列，覆蓋之後那兩處立刻就是新的。
+    # 真的要重寄，到後台把那一天的寄送狀態手動改回待寄送。
+    _upsert_daily_article(ss, date_str, article, keep_sent=not replace)
 
     # 寫完就馬上把殘留的「代號待確認」掃一遍。見 sweep_unresolved_codes 的說明。
     sweep_unresolved_codes(ss, date_str)
+
+
+def _upsert_daily_article(ss, date_str: str, article: str, keep_sent: bool = True):
+    """
+    寫入或覆蓋「每日推播內容」。
+
+    先前只有「這一天還沒有列」才寫，於是重跑一次逐字稿之後，網站上的
+    每日整理與寄出去的信都還是第一版——資料改了、文章沒改，兩邊對不起來。
+    重跑就是要用新的內容，所以改成有列就覆蓋。
+
+    寄送狀態保持原樣（已寄過的不會因為重寫而再寄一次）；
+    只有整天重來時才把它退回待寄送。
+    """
+    text = cell(article or f"本日內容：{NOT_MENTIONED}。")
+    ws = ss.worksheet("每日推播內容")
+    values = sheets_retry(ws.get_all_values)
+    for idx, row in enumerate(values[1:], start=2):
+        if norm_date(row[0] if row else "") != date_str:
+            continue
+        sheets_retry(ws.update_cell, idx, 2, text)
+        sent = str(row[2]).strip() if len(row) > 2 else ""
+        if not sent or not keep_sent:
+            sheets_retry(ws.update_cell, idx, 3, "待寄送")
+        print(f"每日整理已覆蓋 {date_str}（{len(text)} 字，寄送狀態 {sent or '待寄送'}）")
+        return
+    sheets_retry(ws.append_row, [date_str, text, "待寄送"])
+    print(f"每日整理新增 {date_str}（{len(text)} 字）")
 
 
 def sweep_unresolved_codes(ss, date_str: str = "") -> dict:
@@ -4299,7 +4371,8 @@ def stage_transcript(ss, video, date_str):
     return v1, v2
 
 
-def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None):
+def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None,
+                  replace_video=False):
     """
     階段二：擷取結構化紀錄。與階段一分開，因為它便宜、可重跑。
 
@@ -4317,7 +4390,7 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None
     # 而沒有文章就沒有推播列，dailyPushJob 每次都在「今天還沒處理完」那一行退出，
     # 那天的信就再也不會寄，且不會有任何錯誤訊息——信箱只是安靜地沒有東西。
     has_article = date_str in existing_dates(ss, "每日推播內容")
-    if date_str in done_trades and date_str in done_holds and has_article:
+    if (not replace_video) and date_str in done_trades and date_str in done_holds and has_article:
         print(f"{date_str} 操作紀錄、會員持股與推播內容都已存在，略過擷取")
         return
     if date_str in done_trades and date_str in done_holds and not has_article:
@@ -4365,7 +4438,8 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None
     article = build_article(v2, signals, date_str)
 
     step("寫入", f"把 {_n(signals)} 檔寫進試算表")
-    write_results(ss, date_str, signals, article, done_trades, done_holds)
+    write_results(ss, date_str, signals, article, done_trades, done_holds,
+                  replace_video=replace_video)
 
 
 # ---------------------------------------------------------------- #
@@ -4513,7 +4587,11 @@ def run_admin_job(ss):
         job_progress(job, step=name, done=idx, total=len(ADMIN_STEP_NAMES),
                      note=note)
 
-    stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=_report)
+    # 後台重新投稿的意思就是「這一天請重跑」，所以要換掉這支影片先前寫的列。
+    # 不然會停在「這一天已經有資料，不重複寫入」，新擷取到的個股與新的
+    # 每日整理全部進不去，而畫面上每一步都是綠的。
+    stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=_report,
+                  replace_video=True)
 
     mark_status(ss, vid, date_str, video["title"], "完成")
     _report("刷新網站", "資料已寫入，通知下游重算")

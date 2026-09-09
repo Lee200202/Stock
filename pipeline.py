@@ -3772,10 +3772,25 @@ def cn_number(text: str):
     return total or None
 
 
+# 技術指標裡的數字不是股價：60分K、5分鐘、20MA、9週KD、日K線、5日均線。
+#
+# 實際算錯過一次：「股價拉回至低檔區，且60分K線顯示收斂末端翻揚」——
+# 那句話裡 60 是唯一的數字，被當成成交價，一路變成某一回合的出場價 60，
+# 算出 −15.49%，而那一天的收盤其實是 72.40。
+_INDICATOR_NUM_RE = re.compile(
+    r"\d+(?:\.\d+)?\s*(?:分\s*[KkＫ]|分鐘|分線|日\s*[KkＫ]|週\s*[KkＫ]|月\s*[KkＫ]|"
+    r"季\s*[KkＫ]|[KkＫ]\s*線|MA|ma|日均線|日均|週期)")
+
+
+def strip_indicator_numbers(text: str) -> str:
+    return _INDICATOR_NUM_RE.sub(" ", str(text or ""))
+
+
 def _all_prices(text: str) -> list:
     """把一段文字裡所有像股價的阿拉伯數字找出來，依出現順序回傳。"""
     out = []
-    for m in re.finditer(r"(?<![\d.])(\d{1,5}(?:\.\d+)?)(?![\d.])", str(text or "")):
+    for m in re.finditer(r"(?<![\d.])(\d{1,5}(?:\.\d+)?)(?![\d.])",
+                         strip_indicator_numbers(text)):
         try:
             v = float(m.group(1))
         except ValueError:
@@ -3788,7 +3803,8 @@ def _all_prices(text: str) -> list:
 def cn_prices_in(text: str) -> list:
     """把一段文字裡所有「中文數字＋元」的價位找出來。"""
     out = []
-    for m in re.finditer(r"([零〇一二兩三四五六七八九十百千萬]{1,8})\s*(?:元|塊)", str(text or "")):
+    for m in re.finditer(r"([零〇一二兩三四五六七八九十百千萬]{1,8})\s*(?:元|塊)",
+                         strip_indicator_numbers(text)):
         v = cn_number(m.group(1))
         if v and 1 <= v <= 10000:
             out.append(float(v))
@@ -5119,11 +5135,17 @@ CM_PARSE_SYSTEM = (
     "    「請於775元以上全數獲利賣出」→ price: '775', limit: '以上'\n"
     "    「請在264元以下買進」　　　　→ price: '264', limit: '以下'\n"
     "    「請於平盤250元以下買進做多」→ price: '250', limit: '以下'\n"
-    "  下面四種數字一律不可以填進 price，只能寫進 note：\n"
+    "  技術指標的數字絕對不是價位。「60分K線」的 60、「20MA」的 20、「5分鐘線」的 5、\n"
+    "  「9週KD」的 9、「季線」「月線」——這些是看盤工具，不是股價。\n"
+    "  實際出過事：「股價拉回至低檔區，且60分K線顯示收斂末端翻揚」被填了 price 60，\n"
+    "  那一檔當時股價七十幾，於是整個回合的報酬被算成 −15%。\n"
+    "  判斷方式：數字後面緊接著分K、分鐘、MA、KD、均線、K線的，一律不是價位。\n\n"
+    "  下面五種數字一律不可以填進 price，只能寫進 note：\n"
     "    1. 除權息金額：「（已除息3.8元）」「（除息2元）」「今日除息8.88元秒填息」。\n"
     "    2. 會員的歷史成本：「手中在235元有買鴻海者」的 235。\n"
     "    3. 大盤點數：「測試46188點」「45234-46188點」「已測試454xx點」。\n"
     "    4. 非數字價位描述：「紅盤之上」「成本之上」「市價」「平盤」單獨出現時。\n"
+    "    5. 天數與期間：「耐心等3天」的 3、「第2季」的 2、「連續買超3天」的 3。\n"
     "  除權息註記不影響操作，該檔股票仍須正常提取！\n\n"
 
     "【嚴格不可生出筆數的情況（防雜訊）】\n"

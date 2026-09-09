@@ -536,13 +536,37 @@ def save_rotated_auth(ss, before_fp: str):
         print(f"保存輪換後的憑證失敗（不影響本次結果）：{e}")
 
 
+# 哪些模式真的需要 NotebookLM。
+#
+# 只有「要去抓一份還沒有的逐字稿」才需要它：每日流程、回補、補空白。
+# 其餘全部用的是已經存在試算表裡的逐字稿，或根本不碰逐字稿：
+#   後台工單　　逐字稿是管理者自己貼進來的
+#   會員簡訊　　來源是 CMoney，與 NotebookLM 無關
+#   修代號／重新分類／價位校對／整頓／全面重整　用已存逐字稿
+#
+# 分清楚很重要。工作流程原本對「任何有事要做的觸發」都還原 NotebookLM 憑證
+# 並檢查 cookie，於是 cookie 一過期，連「貼逐字稿進來請你整理」這種
+# 完全用不到 NotebookLM 的工作也一起失敗。
+def needs_notebooklm() -> bool:
+    if PREFLIGHT:
+        return False
+    if ADMIN_JOB or PARSE_SMS or FULL_FIX or REPAIR_CODES or RECLASSIFY or FIX_PRICES or RECONCILE:
+        return False
+    if REFRESH_SITE and not any((BACKFILL, FILL_BLANKS)):
+        return False
+    return True
+
+
 def write_preflight(has_work: str, reason: str):
     """
     把探測結果寫給 GitHub Actions。
     後續步驟用 steps.preflight.outputs.has_work 判斷要不要跑。
     不在 Actions 環境裡（例如本機測試）就只印出來。
     """
+    nlm = "true" if needs_notebooklm() else "false"
     print(f"\n探測結果：has_work={has_work}　（{reason}）")
+    print(f"　本輪需要 NotebookLM：{nlm}"
+          + ("" if nlm == "true" else "（用已存逐字稿或不碰逐字稿，cookie 過期不影響）"))
     path = os.environ.get("GITHUB_OUTPUT")
     if not path:
         return
@@ -550,6 +574,7 @@ def write_preflight(has_work: str, reason: str):
         with open(path, "a", encoding="utf-8") as f:
             f.write(f"has_work={has_work}\n")
             f.write(f"reason={reason}\n")
+            f.write(f"needs_notebooklm={nlm}\n")
     except Exception as e:
         print(f"寫入 GITHUB_OUTPUT 失敗（不影響流程）：{e}")
 

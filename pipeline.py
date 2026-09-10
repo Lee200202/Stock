@@ -134,7 +134,7 @@ PIPELINE_FEATURES = ("preflight,auth-rotation,lazy-gemini-key,cmoney-audit-v4,na
                      "audit-reads-raw,polish-length-floor,extract-prompt-v8,evidence-v1,"
                      # 品質關卡改成逐筆分級：族群丟掉、講不出日期的改列歷史、
                      # 引用對不上的隔離，其餘照常發布。一筆壞資料不再擋住整天。
-                     "evidence-triage-v1,both-transcripts-v1,paste-only-transcript,polish-runaway-guard,unclear-name-judge-v2,raw-names-win,polish-keeps-names,market-overview,no-abort-v1,name-memo,decision-log,polish-parallel")
+                     "evidence-triage-v1,both-transcripts-v1,paste-only-transcript,polish-runaway-guard,unclear-name-judge-v2,raw-names-win,polish-keeps-names,market-overview,no-abort-v1,name-memo,decision-log,polish-parallel,evidence-lenient-v2,polish-reuse-guard")
 
 # ------------------------------------------------------------------ #
 # 會員簡訊：解析版本與配額防護
@@ -3879,8 +3879,16 @@ def resolve_unclear_names(signals: dict, transcript: str, ss=None) -> dict:
                             "keys": _keys_for(heard, (index_ctx.get(n) or []))})
             continue
 
-        if verdict == "stock" and real and re.sub(r"\s", "", real) != re.sub(r"\s", "", nm):
+        if verdict == "stock" and real:
             code2, official, how = resolve_code(real, "")
+            # 比代號，不要比名字。
+            #
+            # 原本比的是名字字串：模型回「聖暉」、現況是「聖暉*」，字串不同就
+            # 當成要改判，可是 resolve_code("聖暉") 又回到同一檔 5536 聖暉*，
+            # 於是日誌上出現「聖暉*（5536） → 聖暉*（5536）」這種空轉，
+            # 而且每一次都會多寫一筆判定紀錄。同一檔就是同一檔，看代號最準。
+            if code2 == str(r.get("code") or "").strip():
+                continue
             if code2 not in (REJECT, UNRESOLVED):
                 was = f"{nm}（{r.get('code') or '無代號'}）"
                 r["code"] = code2
@@ -4149,6 +4157,11 @@ _EV_PUNCT = str.maketrans({
     "，": ",", "。": ".", "：": ":", "；": ";", "！": "!", "？": "?",
     "（": "(", "）": ")", "「": '"', "」": '"', "『": '"', "』": '"',
     "、": ",", "—": "-", "－": "-", "～": "~", "·": "", "　": "",
+    # 模型很愛在引用裡插這幾個，而逐字稿裡一個都沒有。
+    # 少了它們，一個刪節號就足以讓一筆正確的紀錄被判成捏造。
+    "…": "", "‧": "", "《": "", "》": "", "〈": "", "〉": "",
+    "【": "", "】": "", "〔": "", "〕": "", "’": "", "‘": "",
+    "“": "", "”": "", "﹒": "", "•": "",
 })
 
 _EV_STRIP = re.compile(r"[\s,.:;!?\"'()\-~]+")
@@ -4356,13 +4369,29 @@ def validate_evidence(signals, transcript, date_str):
                     continue
 
             # 二、引用對不對得上原文。對不上就隔離：不丟掉，也不發布。
+            # 只要有「一句」引用對得上原文就算數，不必每一句都對得上。
+            #
+            # 原本是 all()——任何一句對不上就整筆隔離。而模型很常在逐字引用之外
+            # 再附一句自己整理過的摘要，那一句當然對不上，於是整筆被丟進待確認。
+            # 2026/09/10 實測：隔離的六筆（世星KY、加折、華城、國具、立基電、
+            # 初清程）全部是真的股票，誤判率 100%，網站上等於少了六檔。
+            #
+            # 這一關要證明的是「這一筆有原文根據」，一句逐字引用就證明得了。
+            # 全都對不上才是真的沒有根據——捏造出來的引用不會有任何一句對得上。
             quotes = row.get("evidence")
-            if not (isinstance(quotes, list) and quotes and all(
-                    isinstance(q, str) and _quote_is_real(q, hay) for q in quotes)):
-                _quarantine(row, name, "引用在原文裡找不到，或根本沒有附引用")
+            good = [q for q in quotes if isinstance(q, str) and _quote_is_real(q, hay)]                 if isinstance(quotes, list) else []
+            if not good:
+                _quarantine(row, name, "附的引用沒有一句在原文裡找得到")
                 continue
+            if len(good) < len(quotes):
+                note_decision('品質關卡', '部分引用對不上（仍發布）', name,
+                              f'{len(quotes)} 句引用裡有 {len(good)} 句對得上原文')
+            # 「有沒有指名這一檔」要看全部的引用，不是只看逐字對上的那幾句。
+            # 指名的那一句剛好被判為非逐字時，只看 good 會連帶把名字弄丟，
+            # 於是一筆有根據的紀錄被判成「證據未指名該股」。
+            evidence = _ev_norm(chr(10).join(str(q) for q in quotes))
+            quotes = good
 
-            evidence = _ev_norm("\n".join(quotes))
             aliases = [a for a in (row.get("aliases") or []) if isinstance(a, str)]
             if not any(len(_ev_norm(n)) >= 2 and _ev_norm(n) in evidence
                        for n in [name] + aliases):
@@ -5793,9 +5822,27 @@ def stage_transcript(ss, video, date_str):
     雲端已經有修飾後逐字稿就直接沿用，不重跑。
     """
     v1, v2 = existing_transcript(ss, video["id"], date_str)
+
+    # 沿用既有修飾稿之前，先確認它是完整的。
+    #
+    # 門檻原本是「超過 200 字」。那個數字擋得住空白，擋不住殘缺——
+    # 2026/09/10 實際發生：上一輪潤飾跑到一半掛掉，只寫回 3080 字（原文的 13%），
+    # 而 3080 > 200，於是這一輪把那份殘骸當成好的沿用、整個潤飾步驟跳過，
+    # 後面每一關讀到的「修飾稿」都是那 13%。
+    #
+    # 完整的修飾稿至少會有原文的一半（實測正常在 57%～60%）。
+    # 低於一半就是上一輪沒寫完，重跑一次潤飾，不要將就。
     if v2 and len(v2) > 200:
-        print(f"{date_str} 雲端已有修飾後逐字稿 {len(v2)} 字，略過轉錄與潤飾")
-        return v1, v2
+        enough = (not v1) or len(v2) >= len(v1) * 0.5
+        if enough:
+            print(f"{date_str} 雲端已有修飾後逐字稿 {len(v2)} 字，略過轉錄與潤飾")
+            return v1, v2
+        print(f"{date_str} 既有的修飾稿只有 {len(v2)} 字，"
+              f"僅原文 {len(v1)} 字的 {len(v2) / max(len(v1), 1):.0%}，"
+              f"研判是上一輪沒寫完的殘骸，重新潤飾一次。")
+        note_decision('潤飾', '重跑（既有修飾稿殘缺）', date_str,
+                      f'既有 {len(v2)} 字 / 原文 {len(v1)} 字')
+        v2 = ''
 
     if v1 and len(v1) > 200:
         print(f"{date_str} 已有原始逐字稿 {len(v1)} 字但缺修飾後版本，只補潤飾")

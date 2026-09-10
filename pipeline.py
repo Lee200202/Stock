@@ -134,7 +134,7 @@ PIPELINE_FEATURES = ("preflight,auth-rotation,lazy-gemini-key,cmoney-audit-v4,na
                      "audit-reads-raw,polish-length-floor,extract-prompt-v9,evidence-v1,evidence-v2,"
                      # 品質關卡改成逐筆分級：族群丟掉、講不出日期的改列歷史、
                      # 引用對不上的隔離，其餘照常發布。一筆壞資料不再擋住整天。
-                     "evidence-triage-v1,single-source-v2,paste-only-transcript,polish-runaway-guard,official-candidate-judge-v3,raw-names-win,polish-keeps-names,market-overview,no-abort-v1,name-memo,decision-log,polish-parallel,evidence-source-refs,polish-reuse-guard,key-inventory,review-keeps-going,memo-seed,model-aware-config")
+                     "evidence-triage-v1,single-source-v2,paste-only-transcript,polish-runaway-guard,official-candidate-judge-v3,raw-names-win,polish-keeps-names,market-overview,no-abort-v1,name-memo,decision-log,polish-parallel,evidence-source-refs,polish-reuse-guard,key-inventory,review-keeps-going,memo-seed")
 
 # ------------------------------------------------------------------ #
 # 會員簡訊：解析版本與配額防護
@@ -1921,33 +1921,6 @@ async def fetch_fulltext(video_url, title, timeout):
 # ---------------------------------------------------------------- #
 # Gemini
 # ---------------------------------------------------------------- #
-def gemini_generation_config(model: str, max_out: int, thinking: int, want_json: bool) -> dict:
-    """
-    依型號組 generationConfig。
-
-    不同世代收的參數不一樣，送錯就是一個 400，而那個 400 會被當成
-    「這把金鑰不能用」整把跳過：
-      2.0／1.5 系列　沒有 thinking，送 thinkingConfig 會被拒；
-                    輸出上限 8192，送 65535 也會被拒。
-      2.5 系列　　　 有 thinking，照原本的形狀送。
-      3.x 以後　　　 照原本的形狀送——實測第三把用 gemini-3.5-flash 時
-                    健檢回 200，代表它收這個形狀，不要去動會動的東西。
-
-    只改「沒有 thinking 的舊世代」這一種，其餘型號送出去的內容與先前一字不差。
-    """
-    m = str(model or "").lower()
-    legacy = bool(re.search(r"gemini-(1\.0|1\.5|2\.0)(?![\d])", m))
-    cfg = {"temperature": 0.1}
-    if legacy:
-        cfg["maxOutputTokens"] = min(int(max_out or 8192), 8192)
-    else:
-        cfg["maxOutputTokens"] = max_out
-        cfg["thinkingConfig"] = {"thinkingBudget": thinking}
-    if want_json:
-        cfg["responseMimeType"] = "application/json"
-    return cfg
-
-
 def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX_OUT, tag="",
                 max_429=6):
     """
@@ -1993,7 +1966,13 @@ def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX
         return (f"https://generativelanguage.googleapis.com/v1beta/models/"
                 f"{current_gemini_model()}:generateContent")
 
-    cfg = gemini_generation_config(current_gemini_model(), max_out, thinking, want_json)
+    cfg = {
+        "temperature": 0.1,
+        "maxOutputTokens": max_out,
+        "thinkingConfig": {"thinkingBudget": thinking},
+    }
+    if want_json:
+        cfg["responseMimeType"] = "application/json"
 
     body = {
         "systemInstruction": {"parts": [{"text": system_text}]},
@@ -2027,12 +2006,6 @@ def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX
             # 送出前先節流。等 429 回來才退避太慢，而且那一次撞牆
             # 仍然計入當日總量，等於用自己的額度去確認自己太快。
             throttle_gemini()
-            # 每一次送出前依「當下」的型號重組參數。
-            # 迴圈中途可能已經輪替到另一把金鑰，而那一把可能是不同世代的型號——
-            # 第 1 把用 2.5、第 3 把用 2.0 是正常設定。沿用迴圈外組好的那一份，
-            # 就會把 2.5 的形狀（thinkingConfig、65535 輸出上限）送給 2.0，必定 400。
-            body["generationConfig"] = gemini_generation_config(
-                current_gemini_model(), max_out, thinking, want_json)
             r = requests.post(gemini_url(), params={"key": current_gemini_key()},
                               json=body, timeout=600)
         except requests.RequestException as e:
@@ -8687,7 +8660,9 @@ def smoke_generate(key: str, model: str, timeout: int = 30) -> tuple[bool, int, 
             params={"key": key},
             json={"systemInstruction": {"parts": [{"text": "回答只要一個字。"}]},
                   "contents": [{"role": "user", "parts": [{"text": "hi"}]}],
-                  "generationConfig": gemini_generation_config(model, MAX_OUT, 0, False)},
+                  "generationConfig": {"temperature": 0.1,
+                                       "maxOutputTokens": MAX_OUT,
+                                       "thinkingConfig": {"thinkingBudget": 0}}},
             timeout=timeout)
     except Exception as e:
         return False, 0, f"連線失敗（{type(e).__name__}）"

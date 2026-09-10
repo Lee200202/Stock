@@ -203,7 +203,7 @@ jobs:
             exit 1
           fi
 
-          if ! grep -q 'name-memo,decision-log' "$PIPELINE_SCRIPT"; then
+          if ! grep -q 'polish-parallel' "$PIPELINE_SCRIPT"; then
             echo "::error::$PIPELINE_SCRIPT 版本過舊，缺少新版會員簡訊範圍控制與配額熔斷功能。"
             echo ""
             echo "這個工作流程需要搭配同一批更新的 pipeline.py 才能運作。"
@@ -351,6 +351,9 @@ jobs:
           # 每分鐘請求數的自我節流。送出前就把間隔拉開，而不是等 429 才退避——
           # 撞牆的請求照樣計入當日總量，等於用自己的額度確認自己太快。
           GEMINI_RPM: ${{ vars.GEMINI_RPM || '10' }}
+          # 潤飾的併發段數。預設 3；發車間隔仍由 GEMINI_RPM 控制，
+          # 所以調高它不會撞破每分鐘上限，只是讓各段的等待重疊起來。
+          POLISH_WORKERS: ${{ vars.POLISH_WORKERS || '3' }}
           # 資料寫進試算表之後自動讓網站跟上（代號比對→重算追蹤→記錄績效）。
           # 排程觸發沒有 inputs，refresh_site 一定是空的，所以不能靠它。
           # 設成 false 可以關掉，那時就要等 Apps Script 下午的排程。

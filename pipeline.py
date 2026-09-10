@@ -121,7 +121,15 @@ TRANSIENT = (429, 500, 502, 503, 504)
 # ------------------------------------------------------------------ #
 PIPELINE_FEATURES = ("preflight,auth-rotation,lazy-gemini-key,cmoney-audit-v4,natural-reasons,"
                      "sms-checkpoint,sms-item-verifier,dailyk-html-retry,"
-                     "sms-scope-v6,sms-quota-breaker,sms-incremental-write,sms-prompt-v6")
+                     "sms-scope-v6,sms-quota-breaker,sms-incremental-write,sms-prompt-v6,"
+                     # 代號對照表殘缺時不做模糊比對，並加上多來源與快取備援。
+                     # 2026/09/10 的事故（台積電被配成泰金-KY）就是缺這一條。
+                     "codemap-guard-v1,codemap-cache,extract-prompt-v7,"
+                     # 昨日買賣不混進當日文章、買入吸收同檔觀望、代號補好後同步文章。
+                     "article-prev-day,fold-watch-into-buy,article-code-sync,"
+                     # 稽核改讀原始逐字稿。潤飾把原文壓到 58% 時，
+                     # 讓稽核讀同一份等於叫它去找它看不見的東西。
+                     "audit-reads-raw,polish-length-floor,extract-prompt-v8")
 
 # ------------------------------------------------------------------ #
 # 會員簡訊：解析版本與配額防護
@@ -898,6 +906,7 @@ def maybe_refresh_site(only=None, force=False):
         """
         return
 
+    consecutive_fail = 0
     for i, (key, label) in enumerate(STEPS, 1):
         # 分批的步驟要重複呼叫到做完為止。
         # 一次做不完是設計，不是失敗：每次只跑約九十秒就回報進度，
@@ -924,11 +933,25 @@ def maybe_refresh_site(only=None, force=False):
                     candidate = resp.text[:4000]
                     candidate_low = candidate.lower()
                     is_html = "<html" in candidate_low or "<!doctype" in candidate_low
-                    # 日K舊批次偶爾在完成部分工作後才被 Google 前端切斷，會回 HTML。
-                    # 游標與已寫入資料都在 Apps Script；短暫等待後重打同一步即可接續。
-                    if key == "dailyk" and is_html and attempt < 2:
-                        print(f"日K批次回 HTML（HTTP {resp.status_code}），等待後自動重試同一步 {attempt + 2}/3")
-                        time.sleep(10)
+                    is_error_page = "<title>error</title>" in candidate_low
+
+                    # HTML 回應要重試，而且每一步都要，不是只有日K。
+                    #
+                    # Apps Script 的網頁應用程式會先 302 到 script.googleusercontent.com
+                    # 再把內容吐出來。那一層偶爾會回 404 加一頁 Google 的錯誤頁，
+                    # 與程式本身完全無關——同一個請求隔十秒再打就成功了。
+                    # 2026/09/10 就是這樣：ping 明明拿到了 build，下一個請求
+                    # 「清除產業列」卻收到 HTTP 404 的 HTML，整條刷新鏈就此停住，
+                    # 成功 0 步失敗 1 步，而下游其實一點問題都沒有。
+                    #
+                    # 例外是 <title>Error</title> 那種：那是 doGet 真的拋了例外，
+                    # 重試幾次結果都一樣，只會白等，讓它直接往下走去印錯誤。
+                    if is_html and not is_error_page and attempt < 2:
+                        wait = 8 * (attempt + 1)
+                        print(f"下游回 HTML（HTTP {resp.status_code}），"
+                              f"多半是 Apps Script 前端的暫時性 404，"
+                              f"等 {wait} 秒後重試同一步 {attempt + 2}/3")
+                        time.sleep(wait)
                         continue
                     body = candidate
                     break
@@ -1020,9 +1043,29 @@ def maybe_refresh_site(only=None, force=False):
             break
 
         if step_failed:
-            print(f"       已停止在「{label}」；後續相依步驟本輪不執行。")
-            print(f"       修復後從 {key} 接續，即可再依序完成後面的重算。")
-            break
+            # 一步失敗不再整條收工。
+            #
+            # 這九步之間的相依性沒有那麼緊：清產業列是清理、三段品質關卡各自獨立、
+            # 更新基本面與補日K是各自的資料來源，重算追蹤與記錄績效讀的是
+            # 試算表當下的內容。少做了前面某一步，後面幾步算出來的只是
+            # 「沒有套用那一步的結果」，不是錯的。
+            #
+            # 而整條收工的代價很大：2026/09/10 那次，第一步收到一個
+            # 與程式無關的暫時性 404，於是代號、基本面、日K、持股追蹤、
+            # 績效全部沒跑，網站停在前一天——為了一個十秒後就會自己好的錯誤。
+            #
+            # 只有連續失敗才停：連三步都失敗代表下游是真的壞了（沒部署、
+            # 密鑰不對、額度用完），這時繼續打下去只是把同樣的錯誤再印七次。
+            consecutive_fail += 1
+            print(f"       「{label}」這一步失敗。")
+            if consecutive_fail >= 3:
+                print("       連續三步都失敗，下游看起來是真的有問題，停止本輪。")
+                print(f"       修復後從 {key} 接續，即可再依序完成後面的重算。")
+                break
+            print("       這一步與後面幾步沒有硬相依，繼續往下做；")
+            print(f"       它可以事後在後台用「從這一步重跑」挑 {key} 單獨補。")
+        else:
+            consecutive_fail = 0
 
     print(f"\n重算結束：成功 {ok_n} 步，失敗 {fail_n} 步。")
     if fail_n:
@@ -2030,7 +2073,28 @@ POLISH_SYSTEM = """你負責整理一段中文直播逐字稿的其中一個片�
 這是長逐字稿的其中一段，可能從句子中間開始或結束，這是正常的，照樣逐句處理即可。
 必須處理到片段的最後一個字，不可中途停止。
 
-輸出的長度應該與輸入相近。直接輸出整理後的文字，全文使用繁體中文。
+【長度是硬性要求，不是建議】
+輸出至少要有輸入的八成長度。這一條比「讀起來順不順」重要得多。
+
+為什麼：這段文字不是給人讀的，是後面每一步的唯一資料來源——
+擷取哪幾檔、稽核有沒有漏、價位是多少，全部從你輸出的這份文字讀。
+你刪掉的每一句話，對後面所有步驟來說等於從來沒有被講過。
+
+實際發生過：某一天輸出只剩原文的 58%，讀起來確實通順很多，
+但「像我昨天叫人家賣力積電」那一句被當成重複的口語刪掉了，
+於是那一筆賣出整份表格都沒有，持股追蹤上那一回合永遠不會平倉。
+
+所以下面這些「看起來可以刪」的東西，一句都不要刪：
+- 重複。他會把同一件事講三遍加強語氣，三遍都要留。
+- 夾著內容的反問句與口頭禪：「你有沒有看到我昨天買的？」要留。
+- 離題的、講到一半跳走的、講完又繞回來的。
+- 講他自己過去戰績的那幾大段。
+- 任何出現股票名稱、代號、數字、日期的句子，一律逐字保留。
+
+你唯一可以刪的是「嗯、啊、呃、那個、就是說」這種單獨出現、
+拿掉之後句子完全不變的填充詞。刪到八成以下就是做錯了。
+
+直接輸出整理後的文字，全文使用繁體中文。
 不要加開場白、結語、標題、片段編號或任何說明。"""
 
 
@@ -2056,9 +2120,22 @@ LISTED_SOURCES = [
     {"label": "證交所 OpenAPI 上市公司基本資料", "kind": "json",
      "url": "https://openapi.twse.com.tw/v1/opendata/t187ap03_L",
      "code": ["公司代號"], "name": ["公司簡稱", "公司名稱"]},
+    # 每日收盤行情。它的用途不是行情，是「今天有掛牌的每一檔代號與名稱」——
+    # 這個端點比公司基本資料穩定得多，2026/09/10 那次基本資料與 CSV 兩個
+    # 來源同時失效時，只有它還活著。放第二順位。
+    {"label": "證交所 OpenAPI 每日收盤行情", "kind": "json",
+     "url": "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+     "code": ["Code", "證券代號"], "name": ["Name", "證券名稱"]},
+    {"label": "證交所 本益比殖利率表", "kind": "twse_rwd",
+     "url": "https://www.twse.com.tw/rwd/zh/afterTrading/BWIBBU_ALL?response=json",
+     "code": ["證券代號", "Code"], "name": ["證券名稱", "Name"]},
     {"label": "公開資訊觀測站 上市 CSV", "kind": "csv",
      "url": "https://mopsfin.twse.com.tw/opendata/t187ap03_L.csv",
      "code": ["公司代號"], "name": ["公司簡稱", "公司名稱"]},
+    # 最後一道防線：ISIN 國際證券辨識碼公告。它是一張 Big5 的 HTML 表，
+    # 解析起來最麻煩，但它從來沒改版過，而且是唯一一個「掛牌清單」的官方定義。
+    {"label": "證交所 ISIN 上市證券清單", "kind": "isin",
+     "url": "https://isin.twse.com.tw/isin/C_public.jsp?strMode=2"},
 ]
 
 OTC_SOURCES = [
@@ -2073,7 +2150,59 @@ OTC_SOURCES = [
      "url": "https://www.tpex.org.tw/openapi/v1/opendata_t187ap03_O",
      "code": ["SecuritiesCompanyCode", "公司代號"],
      "name": ["CompanyAbbreviation", "CompanyName", "公司簡稱"]},
+    {"label": "櫃買 OpenAPI 每日收盤行情", "kind": "json",
+     "url": "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes",
+     "code": ["SecuritiesCompanyCode", "Code"],
+     "name": ["CompanyName", "CompanyAbbreviation", "Name"]},
+    {"label": "櫃買 ISIN 上櫃證券清單", "kind": "isin",
+     "url": "https://isin.twse.com.tw/isin/C_public.jsp?strMode=4"},
 ]
+
+
+# ISIN 公告的表格裡，「上市認購(售)權證」以下是幾萬檔權證，
+# 「受益證券」「存託憑證」也不是我們要的個股。抓到這幾個段落標題就停。
+_ISIN_STOP = ("認購(售)權證", "受益證券", "存託憑證", "轉換公司債", "附認股權",
+              "認股權憑證", "上市指數投資證券", "上櫃指數投資證券")
+
+
+def _parse_isin(raw_bytes):
+    """
+    ISIN 國際證券辨識碼公告，回傳 [{code, name}]。
+
+    這是一張 Big5 的 HTML 表，格式從來沒變過：
+        <td bgcolor=#FAFAD2>1101　台泥</td><td>TW0001101004</td>...
+    代號與簡稱之間是全形空白。它不像 OpenAPI 那樣會改版，
+    所以留著當最後一道防線——其他來源全掛的時候，至少還有一份官方清單。
+    """
+    text = None
+    for enc in ("big5hkscs", "big5", "cp950", "utf-8"):
+        try:
+            text = raw_bytes.decode(enc)
+            break
+        except Exception:
+            continue
+    if text is None:
+        raise RuntimeError("編碼無法辨識")
+
+    # 只取到權證那一段之前。整份抓下來會多出好幾萬檔，
+    # 除了拖慢每一次模糊比對，也讓「不在清單裡」這句話失去意義。
+    cut = len(text)
+    for stop in _ISIN_STOP:
+        at = text.find(stop)
+        if 0 <= at < cut:
+            cut = at
+    text = text[:cut]
+
+    rows, seen = [], set()
+    for m in re.finditer(r">\s*(\d{4,6})[　\s]+([^<　]{1,20}?)\s*<", text):
+        c, n = m.group(1), m.group(2).strip()
+        if c in seen or not n:
+            continue
+        seen.add(c)
+        rows.append({"code": c, "name": n})
+    if not rows:
+        raise RuntimeError("表格格式與預期不符，解析後 0 筆")
+    return rows
 
 
 def _fetch_rows(src):
@@ -2082,6 +2211,9 @@ def _fetch_rows(src):
     if r.status_code != 200:
         raise RuntimeError(f"HTTP {r.status_code}")
 
+    if src["kind"] == "isin":
+        return _parse_isin(r.content)
+
     text = r.text
     if text.lstrip()[:1] == "<":
         raise RuntimeError("回傳的是網頁不是資料，這個端點多半已改版")
@@ -2089,6 +2221,14 @@ def _fetch_rows(src):
     if src["kind"] == "csv":
         import csv, io
         rows = list(csv.DictReader(io.StringIO(text.lstrip("﻿"))))
+    elif src["kind"] == "twse_rwd":
+        # 證交所新版 rwd 端點回的是 {"fields": [欄名...], "data": [[值...]]}，
+        # 不是一列一個物件。先併成字典，後面的取欄邏輯才通用。
+        d = r.json()
+        if str(d.get("stat", "OK")).upper() not in ("OK", ""):
+            raise RuntimeError(f"端點回覆 {d.get('stat')}")
+        fields = [str(x).strip() for x in (d.get("fields") or [])]
+        rows = [dict(zip(fields, row)) for row in (d.get("data") or [])]
     else:
         rows = r.json()
 
@@ -2111,8 +2251,12 @@ def _try_sources(sources, market):
             raw = _fetch_rows(s)
             out = {}
             for r in raw:
-                c, n = _pick(r, s["code"]), _pick(r, s["name"])
-                if re.fullmatch(r"\d{4,6}", c) and n:
+                if s["kind"] == "isin":
+                    c, n = r["code"], r["name"]
+                else:
+                    c, n = _pick(r, s["code"]), _pick(r, s["name"])
+                n = re.sub(r"\s+", "", str(n or ""))
+                if re.fullmatch(r"\d{4,6}", str(c or "")) and n:
                     out[c] = n
             if not out:
                 raise RuntimeError("解析後 0 筆，欄位名稱可能改了")
@@ -2123,6 +2267,102 @@ def _try_sources(sources, market):
     return {}
 
 
+# 上一次成功載入的對照表存在這張分頁。
+#
+# 為什麼要存：2026/09/10 那次，上市的兩個來源在同一天同時失效，
+# 對照表只剩 887 檔上櫃。程式沒有停下來，而是拿半份清單去做模糊比對，
+# 於是台積電被配成泰金-KY、萬海被配成萬在、辛耘被配成星雲——
+# 每一筆都寫進了試算表，名稱、代號、股價、K 線全部是另一家公司的，
+# 而且每一欄都填滿了，看起來完全正常。
+#
+# 名稱與代號一年也改不了幾檔，昨天的清單拿來用幾乎不會錯；
+# 拿半份清單硬猜則必定出事。所以來源掛掉時，優先吃快取。
+CODE_CACHE_SHEET = "代號對照快取"
+
+
+def _code_cache_load(market):
+    """讀出快取裡某個市場的 {代號: 簡稱}，附上那份快取的日期。
+
+    只用已經開好的試算表控制代碼（main 一進來就開好了）。
+    這裡不自己去開，是因為 open_sheets 缺憑證時是直接讓行程結束，
+    而快取只是備援——備援不該有能力把整輪跑掉。
+    """
+    if _SS is None:
+        return {}, ""
+    try:
+        ws = _SS.worksheet(CODE_CACHE_SHEET)
+        rows = sheets_retry(ws.get_all_values)
+    except Exception:
+        return {}, ""
+    if len(rows) < 2:
+        return {}, ""
+    head = [str(h).strip() for h in rows[0]]
+    try:
+        c_code, c_name, c_mkt = head.index("代號"), head.index("簡稱"), head.index("市場")
+    except ValueError:
+        return {}, ""
+    c_at = head.index("更新日期") if "更新日期" in head else -1
+
+    out, when = {}, ""
+    for r in rows[1:]:
+        def g(i):
+            return str(r[i]).strip() if 0 <= i < len(r) else ""
+        if g(c_mkt) != market:
+            continue
+        c, n = g(c_code), g(c_name)
+        if re.fullmatch(r"\d{4,6}", c) and n:
+            out[c] = n
+        if c_at >= 0 and g(c_at):
+            when = g(c_at)
+    return out, when
+
+
+def _code_cache_save(listed, otc):
+    """把這一次成功載入的清單存起來，供下次來源掛掉時頂著用。"""
+    if not listed or not otc:
+        return                      # 只存完整的。半份存進去只會把坑留給下次
+    if _SS is None:
+        return
+    try:
+        try:
+            ws = _SS.worksheet(CODE_CACHE_SHEET)
+        except Exception:
+            ws = _SS.add_worksheet(title=CODE_CACHE_SHEET,
+                                   rows=len(listed) + len(otc) + 10, cols=4)
+        today = datetime.now(TAIPEI).strftime("%Y/%m/%d")
+        body = [["代號", "簡稱", "市場", "更新日期"]]
+        for c, n in sorted(listed.items()):
+            body.append([c, n, "上市", today])
+        for c, n in sorted(otc.items()):
+            body.append([c, n, "上櫃", today])
+        sheets_retry(ws.clear)
+        # 先把格子撐到夠大再寫。上市加上櫃將近兩千檔，分頁預設只有一千列，
+        # 不先 resize 的話 gspread 會在「超出格線範圍」那裡直接失敗，
+        # 而那個錯誤訊息完全看不出是列數不夠。
+        sheets_retry(ws.resize, rows=max(len(body), 2), cols=4)
+        sheets_retry(ws.update, range_name="A1", values=body)
+        print(f"  對照表已存進「{CODE_CACHE_SHEET}」（{len(body) - 1} 檔），"
+              "來源掛掉時會拿它頂著")
+    except Exception as e:
+        print(f"  對照表快取寫入略過（{e}）")
+
+
+def reload_code_map(why: str = "") -> dict:
+    """
+    丟掉這一輪快取住的對照表，重新載入一次。
+
+    存在理由：_CODE_MAP 是行程內的單例，載到半份殘缺的表之後，
+    同一次執行裡再怎麼重試都是同一份殘缺的表。而來源掛掉多半是暫時的
+    ——擷取當下掛了，五分鐘後的收尾階段往往已經恢復。
+    不重新載入，收尾那一步就永遠只是把同樣的失敗再算一次。
+    """
+    global _CODE_MAP, _CODE_MAP_FULL
+    _CODE_MAP, _CODE_MAP_FULL = None, False
+    if why:
+        print(f"  重新載入代號對照表（{why}）")
+    return get_code_map()
+
+
 def get_code_map() -> dict:
     """{代號: 簡稱}，含上市與上櫃。"""
     global _CODE_MAP
@@ -2130,26 +2370,47 @@ def get_code_map() -> dict:
         return _CODE_MAP
 
     print("載入代號對照表")
-    m = {}
     listed = _try_sources(LISTED_SOURCES, "上市")
     otc = _try_sources(OTC_SOURCES, "上櫃")
+
+    notes = []
+    if not listed:
+        cached, when = _code_cache_load("上市")
+        if cached:
+            listed = cached
+            notes.append(f"上市取自 {when or '先前'} 的快取（{len(cached)} 檔）")
+            print(f"  上市：所有來源都失敗，改用 {when or '先前'} 的快取，{len(cached)} 檔")
+        else:
+            print("警告：上市清單全部來源都失敗，也沒有可用的快取。")
+    if not otc:
+        cached, when = _code_cache_load("上櫃")
+        if cached:
+            otc = cached
+            notes.append(f"上櫃取自 {when or '先前'} 的快取（{len(cached)} 檔）")
+            print(f"  上櫃：所有來源都失敗，改用 {when or '先前'} 的快取，{len(cached)} 檔")
+        else:
+            print("警告：上櫃清單全部來源都失敗，也沒有可用的快取。")
+
+    m = {}
     m.update(listed)
     m.update(otc)
-
     if not m:
-        raise RuntimeError("上市與上櫃的所有來源都失敗，無法進行代號比對。")
-
-    if not listed:
-        print("警告：上市清單全部來源都失敗，對照表只有上櫃的部分。")
-    if not otc:
-        print("警告：上櫃清單全部來源都失敗。上櫃股票將全部無法對到代號。")
+        raise RuntimeError("上市與上櫃的所有來源都失敗，連快取也沒有，無法進行代號比對。")
 
     global _CODE_MAP_FULL
     _CODE_MAP_FULL = bool(listed) and bool(otc)
 
+    _code_cache_save(listed, otc)
+
     _CODE_MAP = m
+    tail = "　".join(notes)
     print(f"代號對照表載入 {len(m)} 檔（上市 {len(listed)}，上櫃 {len(otc)}）"
-          + ("" if _CODE_MAP_FULL else "　※兩邊沒有都載到，代號查核這一輪放寬"))
+          + (f"　※{tail}" if tail else ""))
+    if not _CODE_MAP_FULL:
+        miss = "上市" if not listed else "上櫃"
+        print(f"※ {miss}清單這一輪是空的。模糊比對（字面相似、拼音相似）全部停用，")
+        print(f"   因為對不到的那些名稱極可能就是{miss}股，硬比只會配到另一家公司。")
+        print("   比不到的一律留成「代號待確認」，到後台補即可。")
     return m
 
 # ---------------------------------------------------------------- #
@@ -2443,6 +2704,23 @@ def resolve_code(name: str, hint: str):
             if _base(n) == nb:
                 return c, n, "去後綴後相同"
 
+    # 3.9 對照表殘缺時，模糊比對到此為止。
+    #
+    #     這是 2026/09/10 那次事故的直接修補。上市的來源全掛，表裡只剩 887 檔
+    #     上櫃股，程式照樣拿它去做拼音比對，結果是：
+    #         台積電 → 泰金-KY（0.80）　萬海 → 萬在（0.83）
+    #         辛耘 → 星雲（1.00）　世芯-KY → 力新（0.80）　創意 → 創業家（0.80）
+    #     每一筆都是上市股，正確答案本來就不在表裡。辛耘與星雲更是完全同音，
+    #     再怎麼調門檻都分不開——唯一能分開它們的是「表裡有沒有辛耘」。
+    #
+    #     所以殘缺時不比、不猜、也不剔除：
+    #       不比　　對不到的那些名字，極可能就在沒載到的那一半裡。
+    #       不剔除　「跟表裡每一檔都不像」在半份表上不成立，那句話會冤枉一半的股票。
+    #     一律留成待確認。清單恢復之後，sweep_unresolved_codes 會自動把它們補回去，
+    #     不需要人工介入——留白是可以自動修好的，寫錯的公司不會自己變回來。
+    if not _CODE_MAP_FULL:
+        return UNRESOLVED, name, "對照表殘缺（有一邊來源全掛），暫不做模糊比對，待清單恢復後自動重試"
+
     # 4. 字面相似。原名與去後綴版各比一次，取高者。
     best_c, best_s = None, 0.0
     for c, n in m.items():
@@ -2734,6 +3012,65 @@ def merge_duplicates(signals: dict) -> dict:
     return signals
 
 
+def fold_watch_into_buy(signals: dict) -> dict:
+    """
+    同一支影片裡他自己買了的那一檔，不可以同時列在觀望。
+
+    為什麼會同時出現
+    ----------------
+    他講一檔買進的股票時，通常會分兩段：一段講「我昨天買了」，
+    另一段講「我為什麼買它」——大戶持股增加、特定券商連買三天、回測季線。
+    第二段整段都是看好的話，讀起來就像一個獨立的觀望注意。
+
+    實際發生過（2026/09/10）：世芯-KY 昨天平盤下買進，同一份逐字稿裡
+    「大戶持股增加且散戶持股減少，特定券商連續買超，回測季線具備投資價值」
+    被收成另一列觀望注意。表格上於是同一檔既是他買的、又是他在觀望的，
+    而那一句其實就是他買的理由。
+
+    為什麼只對買入做
+    ----------------
+    賣出之後再講「等它回到某個價位我再接」是真的另一個立場，
+    那一列該留著。買入不一樣：買了就是持有，「值得買」不是另一個立場，
+    是同一件事的理由。所以只把觀望摺進買入，不動賣出。
+
+    理由與價位都併進買入那一列，不丟掉任何資訊。
+    """
+    buys = signals.get("buy") or []
+    if not buys:
+        return signals
+
+    def _ident(r):
+        code = str(r.get("code") or "").strip()
+        name = str(r.get("name") or "").strip()
+        return code if code and code != UNRESOLVED else name
+
+    by_buy = {}
+    for r in buys:
+        k = _ident(r)
+        if k:
+            by_buy.setdefault(k, r)
+
+    folded = 0
+    for key in ("watch_watch", "watch_avoid"):
+        keep = []
+        for r in signals.get(key) or []:
+            k = _ident(r)
+            hit = by_buy.get(k) if k else None
+            if hit is None:
+                keep.append(r)
+                continue
+            hit["reason"] = _merge_text(hit.get("reason", ""), r.get("reason", ""))
+            hit["price"] = _merge_price(hit.get("price", ""), r.get("price", ""))
+            folded += 1
+            print(f"  買入歸位　{r.get('name', '')}（{k}）這一檔他自己買了，"
+                  f"{'觀望注意' if key == 'watch_watch' else '觀望不碰'}那一列是買它的理由，併進買入")
+        signals[key] = keep
+
+    if folded:
+        print(f"買入歸位：{folded} 列觀望併進買入（同一支影片裡買了就不算觀望）")
+    return signals
+
+
 def resolve_watch_conflict(signals: dict) -> dict:
     """
     同一檔同時被收進觀望不碰與觀望注意時，收斂成一列。
@@ -2992,28 +3329,9 @@ def resolve_signals(signals: dict, transcript: str = "") -> dict:
     return signals
 
 
-POLISH_SYSTEM = """你負責整理一段中文直播逐字稿的其中一個片段。
-
-你只能做這三件事：
-1. 修正同音錯字。
-2. 補上合理的斷句與標點。
-3. 刪除純粹的填充詞，僅限「嗯、啊、呃、那個、就是說」這類完全沒有實質意義的字。
-
-除了上述三項，原文的每一句話都必須保留下來，逐句對應輸出。
-
-嚴格禁止：
-- 禁止摘要、濃縮、改寫語意。
-- 禁止省略任何一句有實質內容的話，即使它重複、離題或聽起來不重要。
-- 禁止新增或刪除任何事實資訊。
-- 禁止補完語意不清的地方。
-
-若某處聽起來像是股票名稱但拼字有誤，可依常見台股名稱修正，其餘一律照原文保留。
-
-這是長逐字稿的其中一段，可能從句子中間開始或結束，這是正常的，照樣逐句處理即可。
-必須處理到片段的最後一個字，不可中途停止。
-
-輸出的長度應該與輸入相近。直接輸出整理後的文字，全文使用繁體中文。
-不要加開場白、結語、標題、片段編號或任何說明。"""
+# POLISH_SYSTEM 定義在上面（潤飾那一段）。這裡先前有一份一字不差的副本，
+# 後定義的會覆蓋先定義的，所以改了上面那一份等於沒改——
+# 那種「我明明改了卻沒有效果」的坑不留給下一個人。已移除。
 
 
 POLISH_DEGRADED = 0     # 本輪有幾段因配額不足而改用原文
@@ -3140,31 +3458,115 @@ EXTRACT_SYSTEM = """你從一段完整的直播逐字稿中，擷取講者「明
      成交與看法同時存在時，成交優先——看法寫進 reason，分類照成交填。
    反過來也一樣：「我今天買回來，不過我覺得它還要再整理」仍然是 buy。
 
+10. 「候選名單」是觀望注意，不是觀望不碰。這一條判錯過一整批。
+    他有一個固定的段落，會把「我還沒買、但接下來要買」的股票一次列出來：
+      「這一支股票列在我的候選名單裡面，我就等你洗完」
+      「這一檔股票辛耘你們也可以抄起來」
+      「我連後面要什麼聖暉、信紘科、家登還有牧德，我以後要買的股票通通列出來給你看了」
+      「這一支股票是超級好股票喔，我以後搞不好也會買喔，不是現在」
+    這些話的結論是「這是好股票，我打算買，只是還要等」——那是觀望注意，
+    而且是他當天最看好的一批。
+    實際判錯過的例子（2026/09/10）：聖暉、信紘科、辛耘、牧德四檔全部被收成
+    觀望不碰，說明欄寫「暫不急於進場」「不建議進場」。字面上不算說錯，
+    但意思整個反了：讀的人看到「觀望不碰」，會把他最想買的名單當成地雷。
+    規則：出現「候選名單」「我以後會買」「我會買它」「抄起來」「列出來給你看」
+    「我一定會在第一檔去注意」這類話的，一律 watch_watch。
+    「現在還不買、要等洗完／等破某價／等整理完」是條件，寫進 reason，
+    不是改成 watch_avoid 的理由。
+    watch_avoid 留給他真的叫你別碰的：「不准給我碰」「不要買」「你就是追高」
+    「還沒跌完」「一定會殺破」。
+
+11. 拿來說明大盤現象的個股不要收。
+    他有很長的段落在講「外資一天買一天賣」「ETF 追高殺低」「昨天漲的今天跌」，
+    那些段落會點名很多檔，但那是在示範一個現象，不是在給這一檔的指示：
+      「前天外資買超第一名華邦電，昨天外資賣超第一名」
+      「群創賣超第一名，隔天又買超第一名，你有沒有看到？」
+      「昨天廣達是不是大漲 14 塊？你去買昨天大漲的廣達，今天馬上賠錢」
+      「2379 瑞昱好股票，他有沒有停在這邊三個月都沒有動？」
+    判斷方式：把那一段的主詞找出來。主詞是「這個行情／外資／ETF」而不是
+    「這一檔」的，整段不收。
+
+    但這一條只管「那一段」，不是把那一檔整份逐字稿都封殺。
+    同一檔很可能在別的段落有他真正的指示——第 8 條的聯電就是這樣：
+    它在外資買賣超那一段裡只是例子，可是他另外自問自答過
+    「聯電可不可以買？聯電線還壓著，我根本連動都不會想動」，
+    那一段是真的指示，要收，歸 watch_avoid。
+    所以順序是：先看有沒有「針對這一檔」的段落，有就收那一段；
+    完全只出現在示範段落裡的，才整檔不收。
+    這樣與召回要求也不衝突：召回要的是「他表達了對這一檔的當下態度」，
+    示範段落裡他表達的是對行情的態度。
+
+12. 同一檔的不同叫法要併成一筆。
+    語音辨識會把同一檔聽成好幾種寫法，而他自己也會混用簡稱與全名。
+    實際發生過（2026/09/10）：同一份逐字稿裡「四星」「四星 KY」「世芯-KY」
+    講的都是世芯-KY，結果表格上出現兩列不同代號的股票，
+    其中一列還是完全不相干的公司。
+    規則：輸出之前自己檢查一遍，兩個 name 指的是同一家公司時只留一筆，
+    用逐字稿裡最完整、最接近官方簡稱的那個寫法（上例用「世芯-KY」），
+    價位與理由合併。判斷依據是同一段話在講同一件事，不是字面像不像。
+
+13. 回顧「那一天我叫你賣在幾塊」時，那個價位不可以填進 price。
+    他很愛回放自己講對的那一次：
+      「禮拜一國巨漲到 605，我在盤中直播告訴你 597 以上要賣一次國巨，
+　　　　這是外資成本」
+    那是上禮拜一的指示，不是今天的。今天他對國巨的話是
+    「你越想解套國巨，你就越死」「它一定會殺破」「被動元件不准給我碰」，
+    所以今天國巨是 watch_avoid、price 留空，597 只能寫進 reason 並註明
+    那是他先前講的外資成本。
+    規則：price 只能是「他今天針對這一檔給出的價位」。
+    回顧句裡的數字一律不進 price，要提就在 reason 裡講清楚那是哪一天的事。
+
+14. 族群禁令要套到他當天點名的那幾檔上。
+    「被動元件不准給我碰，矽晶圓不准給我碰，ABF 載板不准給我碰」
+    「航運股還沒有跌完，你不要看到昨天漲就去買」
+    族群本身不是個股，不要為「被動元件」「航運股」生一列。
+    但同一份逐字稿裡他點名的該族群個股（國巨是被動元件、萬海是航運），
+    立場就照這個禁令走：watch_avoid，reason 寫出是哪一個族群的禁令。
+    唯一的例外是他對那一檔另外講了相反的話（「這一族群不要碰，但某某我有」）——
+    那時以他對那一檔自己講的為準，族群禁令寫進 reason 當背景。
+    族群禁令是預設值，不是覆蓋他對個股的直接指示。
+
 分類定義：
 - buy：影片中明講「今天」執行的買入。
 - sell：影片中明講「今天」執行的賣出。
   只要出現「我今天賣掉X」「今天把X賣了」「X我先賣一次」這種第一人稱的成交句，
   就是 sell，優先於任何觀望判斷。
-- watch_avoid（觀望不碰）：講者的結論是「現在不要進場」。
+- watch_avoid（觀望不碰）：他叫「你」現在不要進場。
   包含不要碰、不要買、不用買了、不建議進場、追高風險、已經漲上去了、
   漲太多、來不及了、會整理一段時間、急彈不要追、轉弱、破線、套牢、避開、
-  先出場觀察。只要結論是現在別買，一律歸這一類。
+  先出場觀察。怎麼與觀望注意分開，看下面那三問，不要只憑單一個詞判。
 - watch_watch（觀望注意）：講者的結論是「現在或回檔後值得留意」。
-  包含看好、留意、追蹤、等回檔進場、跌到某價位可以買、有機會、可以觀察。
+  包含看好、留意、追蹤、等回檔進場、跌到某價位可以買、有機會、可以觀察，
+  以及最重要的一種——他的候選名單：「我以後要買的」「列在候選名單」
+  「你們也可以抄起來」「等你洗完我就買」。那是他最看好的一批，一定歸這裡。
 - holdings：明確說「會員目前持有」或語意明顯等同的股票。
 
-觀望兩類怎麼分，只看一件事：講者對「現在進場」的態度。
+觀望兩類怎麼分，只看一件事：他對「進場」的態度，而且要讀完整段的結論，
+不要被前半句的鋪陳帶走。
 
-最重要的判斷規則：以整段話的結論為準，不要被前半句的鋪陳帶走。
-講者很常先講這檔公司多好、適合什麼人，最後才說現在不要買。
-那種情況結論是不要買，一律歸 watch_avoid。實際判錯過的兩個例子：
-  「適合退休、想穩定賺錢的投資人，現在已漲上去，不用買了」→ 結論是不用買 → watch_avoid
-  「作為範本，急跌後急彈不要買，會整理兩個月」→ 結論是不要買 → watch_avoid
-兩句的前半段都是正面的，但結論都是現在別進場。
+觀望兩類照這個順序判，先成立的先算，不要跳著看：
 
-只要出現「不要買」「不用買」「別追」「來不及」「漲上去了」這類字眼，
-不論前面講得多正面，一律 watch_avoid。
-真正看不出結論、完全中性時才歸到 watch_watch。
+  第一問　他有沒有叫「你」別碰這一檔？
+          「不准給我碰」「不要買」「不用買了」「別追」「來不及了」
+          「你就是追高」「還沒跌完」「一定會殺破」「漲上去了」
+          → 有，就是 watch_avoid，不論前面把這家公司講得多好。
+          他很常先講這檔多好、適合誰，最後才說現在不要買，結論在後面。
+            「適合退休、想穩定賺錢的投資人，現在已漲上去，不用買了」→ watch_avoid
+            「作為範本，急跌後急彈不要買，會整理兩個月」→ watch_avoid
+
+  第二問　他有沒有說「他自己」打算買這一檔？
+          「候選名單」「我以後要買」「我會買它」「抄起來」「列出來給你看」
+          「等你洗完我就買」
+          → 有，就是 watch_watch。
+          這一問的重點是主詞不一樣：第一問的主詞是你，第二問的主詞是他。
+          「現在還不買、要等洗完、要等破某價」是時機，寫進 reason，
+          不是把它推回 watch_avoid 的理由——他最後是要買的。
+
+  第三問　都不是的話，看好、留意、等回檔就 watch_watch；
+          看不出結論、完全中性也歸 watch_watch。
+
+兩問同時成立的極少見（他一邊叫你別碰、一邊說自己要買）。真的遇到就以
+watch_avoid 為準並在 reason 裡寫清楚兩句話，因為給讀者的指示比他自己的打算重要。
 
 召回要求（很重要）：
 - 逐字稿是完整一小時內容。請從頭掃到尾，逐段檢視，中段與後段和開頭一樣重要，不可只看開頭。
@@ -3199,6 +3601,19 @@ buy 與 sell 的門檻特別高：逐字稿必須看得到明確執行了動作�
   when 填 \"prev\"　：他說昨天、昨天早盤、昨天收盤後、我昨天直播完之後。
   分辨不出來就填 \"today\"，那是預設值；寧可放在今天，也不要猜。
 更早以前的（上禮拜、上個月）不要收，那是回顧舊單，本來就不該進表。
+
+昨天的動作常常藏在「講道理」的段落裡，那一段最容易整段被跳過。
+他講操作哲學時會拿自己昨天做的事當證明，句子讀起來像感想，其實是紀錄：
+  「像我昨天叫人家賣力積電，我一定在漲的時候賣，我絕對不在跌的時候賣股票」
+      → 力積電，sell，when=prev。他明講了昨天、明講了賣，這是一筆成交。
+  「我在昨天買，他跌一百多塊快兩百塊的時候，我去買四星KY」
+      → 世芯-KY，buy，when=prev。
+實際漏抓過（2026/09/10）：上面那句力積電整筆沒有被收，因為它出現在
+「我在大漲的時候賣股票、在跌的時候買股票」這一大段哲學裡，
+而同一檔在別的地方又被講成「力積電大漲三天賣掉了」「力積電小賺」，
+看起來像回顧。判斷方式很單純：只要出現「昨天」加上第一人稱的買賣動作
+（我賣了／我買了／我叫會員賣／我請會員買），就是一筆 when=prev 的成交，
+不論那一段的主題是什麼。同一檔在別處被當成戰績重述，不會把它變回舊事。
 
 同一天同一檔做了兩件事的先後（seq 欄位）：
 上面那個例子裡，昨天先賣（早盤 270 幾）、後買（近中午 250 幾）。
@@ -3401,6 +3816,24 @@ AUDIT_SYSTEM = """你是擷取完整性稽核員。給你「完整逐字稿」�
   要補的話補到 watch_watch，不可以補到 holdings 或 buy。
 - 一段話裡有兩檔以上時，聲明歸給緊鄰它的那一檔；看不出緊鄰哪一檔就不要補。
   他講的價位若與那一檔的股價差了一個數量級，代表那句話在講隔壁那一檔，不要補。
+- 藏在哲學段落裡的昨日買賣要補。他講「我在大漲的時候賣股票」這種操作原則時，
+  會夾一句「像我昨天叫人家賣力積電」當證明——那是一筆真的成交，
+  when 要填 prev。實際漏抓過（2026/09/10）：力積電那一筆整份表都沒有，
+  於是持股追蹤上那一回合永遠不會平倉。
+  判準是「昨天／今天 ＋ 第一人稱買賣動作」，不是那一段在談什麼。
+- 候選名單要補，而且一定歸 watch_watch。他會用一整段把「我以後要買的」
+  列出來：「這一支列在我的候選名單」「辛耘你們也可以抄起來」
+  「我連後面要什麼聖暉、信紘科、家登還有牧德，我以後要買的股票通通列出來」。
+  這種一次點名好幾檔的段落最容易漏，因為每一檔只被念到一次、沒有價位。
+  它們是他當天最看好的一批，漏掉等於整段最重要的結論沒進表。
+  同一段裡「現在還不買、要等洗完」是時機，不是改判 watch_avoid 的理由。
+- 拿來說明大盤現象的個股不算漏，不要補。他有很長的段落在示範
+  「外資一天買一天賣」「ETF 追高殺低」「昨天漲的今天跌」，
+  會連續點名華邦電、群創、聯電、廣達、瑞昱、宇瞻這些檔，
+  但那一段的主詞是行情不是個股，他對那幾檔沒有給任何指示。
+- 同一檔被聽成好幾種寫法時算同一檔，不要當成漏抓再補一次。
+  實際發生過（2026/09/10）：「四星」「四星 KY」「世芯-KY」是同一檔，
+  補成兩列之後，表格上出現兩個不同代號的股票。
 
 名稱與代號都講到時兩個都填，照聽到的填，不要自己挑一邊、也不要自行更正。
 兩者對不上時（例如「2402 的錩新」）後續程式會仲裁，你先修掉會讓它失去依據。
@@ -3566,6 +3999,15 @@ ARTICLE_SYSTEM = """你是一位專業財經記者與投顧整理編輯，負責
        不要加「動作類型」欄。那一欄每一列填的都是「當日操作」，
        而這張表本來就只收當日操作；真正的動作寫在方向欄裡，兩欄講的是同一件事。
        某欄位清單裡是「未說明」就照填「未說明」。
+   ④-1補 補記前一交易日的買賣
+       只有在輸入裡出現「補記前一交易日的買賣」那一段時才寫這一小節，
+       沒有那一段就整段不要出現，連標題都不要。
+       他很常在今天的直播裡才講出昨天收盤後做了什麼（昨天的直播只播到一半），
+       那些動作發生在昨天，紀錄也記在昨天，所以不可以混進上面的 ④-1——
+       讀信的人看到「當日買入」會以為今天可以照那個價位追。
+       格式與 ④-1 同一張表，但最前面多一欄「發生日期」：
+       | 發生日期 | 股票名稱 | 股票代號 | 方向 | 價位區間／成本說明 | 張震口頭說明與操作理由 |
+       表格上方寫一句：「以下是今天才講出來、但動作發生在前一個交易日的買賣。」
    ④-2 影片中明講之「會員目前持有股票」
        只列出清單 holdings 類的項目，一檔都不能多、不能少。
        為空時，寫：「本支影片未說明會員目前持股清單。」
@@ -4113,12 +4555,63 @@ def verify_names(signals: dict, transcript: str) -> dict:
     return signals
 
 def build_article(v2: str, signals: dict, date_str: str) -> str:
+    """
+    產生每日整理。
+
+    改記到昨天的那幾筆要分開放。
+    ------------------------------
+    apply_when_and_seq 會把「我昨天收盤後叫會員賣力積電」這種買賣改派到
+    前一個交易日，寫進試算表時也是寫在那一天。但撰稿這一步先前拿到的是
+    整包 signals，裡面買賣不分日期，於是同一筆在網站上是昨天、在信裡卻被
+    列進「當日明確說明之買入／賣出紀錄」。
+
+    實際發生過（2026/09/10）：世芯-KY 是昨天平盤下買的，日期歸屬正確地
+    改記到 09/09，網站的「當日買入」也正確地顯示「本日未說明」，
+    可是那天的信上白紙黑字寫著「④-1 當日明確說明之買入」有這一筆。
+    讀信的人會以為今天可以照那個價位追。
+
+    分開之後那幾筆仍然要寫進文章——它們是真的發生的操作，而且今天才第一次
+    被講出來——只是要標明是補記，不能混進當日。
+    """
+    def _public(r):
+        """底線開頭的是流程內部用的（_date、_seq），不要送進模型。"""
+        return {k: v for k, v in r.items() if not str(k).startswith("_")}
+
     clean = {k: v for k, v in signals.items() if not k.startswith("_")}
+
+    prev_rows = []
+    for key in ("buy", "sell"):
+        keep = []
+        for r in clean.get(key) or []:
+            d = str(r.get("_date") or date_str)
+            if d and d != date_str:
+                item = _public(r)
+                item["日期"] = d
+                item["方向"] = "買入" if key == "buy" else "賣出"
+                prev_rows.append(item)
+            else:
+                keep.append(r)
+        clean[key] = keep
+
+    for key in list(clean):
+        if isinstance(clean[key], list):
+            clean[key] = [_public(r) if isinstance(r, dict) else r for r in clean[key]]
+
+    extra = ""
+    if prev_rows:
+        extra = ("\n\n補記前一交易日的買賣（今天才講出來，但動作發生在那一天。"
+                 "這幾筆不可以列進「當日買入」或「當日賣出」，"
+                 "請在 ④-1 下面另起一小段標明是補記，並寫出實際日期）：\n"
+                 + json.dumps(prev_rows, ensure_ascii=False, indent=2))
+        print(f"  撰稿：{len(prev_rows)} 筆改記到前一交易日的買賣，"
+              f"會以「補記」另段呈現，不列入當日買賣")
+
     payload = (
         f"影片日期：{date_str}\n\n"
         f"已擷取的操作紀錄（唯一資料來源，代號已比對官方清單，"
         f"禁止列入清單以外的任何股票，禁止改動代號）：\n"
         f"{json.dumps(clean, ensure_ascii=False, indent=2)}"
+        f"{extra}"
     )
     try:
         return call_gemini(ARTICLE_SYSTEM, payload, thinking=0, tag="article")
@@ -4299,13 +4792,89 @@ def write_results(ss, date_str, signals, article, done_trades, done_holds,
 _POST_WRITE_DEFER = {"on": False, "dates": set()}
 
 
+def patch_article_codes(ss, changes) -> int:
+    """
+    代號補好之後，把已經寫好的每日整理裡那個「代號待確認」一起換掉。
+
+    為什麼需要
+    ----------
+    撰稿排在寫入之前，代號收尾排在寫入之後——順序本來就是這樣，
+    因為收尾要對著已經寫進去的列做。於是會出現一個很難解釋的畫面：
+    網站上牧德是 3563，同一天寄出去的信裡卻寫著「代號待確認」。
+    資料沒有錯，只是信是在代號補好之前定稿的，而信一旦存下來就不會自己更新。
+
+    重寫一次文章可以解決，但那要再燒一次模型額度，而需要改的其實只有
+    表格裡的那一格。所以這裡只做字面替換，不呼叫任何模型。
+
+    替換得很保守：只有「名稱」與「代號待確認」中間夾著表格分隔字元時才換。
+    敘述文字裡順口提到的名稱不會被動到，因為那後面不會緊接著代號欄。
+    """
+    if not changes:
+        return 0
+    by_day = {}
+    for c in changes:
+        d = str(c.get("date") or "")
+        if d:
+            by_day.setdefault(d, []).append(c)
+    if not by_day:
+        return 0
+
+    try:
+        ws = ss.worksheet("每日推播內容")
+        values = sheets_retry(ws.get_all_values)
+    except Exception as e:
+        print(f"  文章代號同步略過（讀不到每日推播內容：{e}）")
+        return 0
+
+    updates, total = [], 0
+    for idx, row in enumerate(values[1:], start=2):
+        day = norm_date(row[0] if row else "")
+        if day not in by_day:
+            continue
+        text = str(row[1]) if len(row) > 1 else ""
+        if not text or UNRESOLVED not in text:
+            continue
+        before = text
+        for c in by_day[day]:
+            name, official, code = c["name"], c["official"], c["code"]
+            # 名稱 →（表格分隔）→ 代號待確認。中間只允許 | 、空白、全形空白、tab。
+            pat = re.compile(re.escape(name) + r"([ 	　]*[|｜][ 	　]*)" + re.escape(UNRESOLVED))
+            text = pat.sub(lambda m: official + m.group(1) + code, text)
+            # 沒有表格線的版本（純文字或 tab 分隔）
+            pat2 = re.compile(re.escape(name) + r"([ 	　]+)" + re.escape(UNRESOLVED))
+            text = pat2.sub(lambda m: official + m.group(1) + code, text)
+        if text != before:
+            n = before.count(UNRESOLVED) - text.count(UNRESOLVED)
+            total += n
+            updates.append({"range": gspread.utils.rowcol_to_a1(idx, 2),
+                            "values": [[text[:SHEET_CELL_LIMIT]]]})
+            print(f"  文章代號同步　{day} 的每日整理補上 {n} 個代號，不必重寫文章")
+
+    if updates:
+        sheets_retry(ws.batch_update, updates, value_input_option="RAW")
+    return total
+
+
 def run_post_write_steps(ss, dates):
     """寫完資料之後的三件收尾。dates 為空就什麼都不做。"""
     days = sorted({d for d in (dates or []) if d})
     if not days:
         return
-    for d in days:
-        sweep_unresolved_codes(ss, d)
+
+    # 代號收尾故意不限日期。
+    #
+    # 原本是「這次寫了哪幾天就掃哪幾天」，那讓一個暫時性的來源故障變成永久傷害：
+    # 某天上櫃清單掛掉，那天的幾列留成「代號待確認」，隔天清單恢復了，
+    # 但隔天的收尾只掃隔天，昨天那幾列就永遠停在待確認，除非有人記得
+    # 到後台按「重跑代號比對」。而待確認是直接印在網站表格上的。
+    #
+    # 掃全部只是多讀兩張分頁、在本機多算幾次相似度，不呼叫任何 API，
+    # 寫入量也只有真的補好的那幾格。比起讓人工去記得按一個按鈕，這便宜太多。
+    swept = sweep_unresolved_codes(ss)
+    # 信是在代號補好之前定稿的。補完就順手把文章裡那幾格一起換掉，
+    # 否則網站顯示 3563、同一天的信卻寫著代號待確認，沒有人解釋得了。
+    patch_article_codes(ss, swept.get("changes") or [])
+
     apply_sms_priority(ss, days)
     resolve_cost_prices(ss, days)
 
@@ -4652,14 +5221,21 @@ def sweep_unresolved_codes(ss, date_str: str = "") -> dict:
     對不上的不刪除，只記錄。刪除是不可逆的，而這裡的判斷依據
     （對照表當下完不完整）本身就可能是暫時的。
     """
-    stat = {"fixed": 0, "still": 0, "rows": []}
+    stat = {"fixed": 0, "still": 0, "rows": [], "changes": []}
     try:
         code_map = get_code_map()
+        # 這一輪是拿半份表跑完的。收尾與擷取之間隔了好幾分鐘，
+        # 來源多半已經恢復；不重載就只是拿同一份殘缺的表再算一次同樣的失敗。
+        if not _CODE_MAP_FULL:
+            code_map = reload_code_map("上一次載到的對照表不完整，收尾前再試一次")
     except Exception as e:
         print(f"  代號收尾略過（載不到對照表：{e}）")
         return stat
     if not code_map:
         return stat
+    if not _CODE_MAP_FULL:
+        print("  代號收尾：對照表仍然殘缺，這一輪不做模糊比對，")
+        print("  待確認的列原樣留著，明天排程或下一次執行會自動再試一次。")
 
     for sheet_name in ("操作紀錄", "會員持股"):
         try:
@@ -4698,6 +5274,8 @@ def sweep_unresolved_codes(ss, date_str: str = "") -> dict:
                 updates.append({"range": gspread.utils.rowcol_to_a1(idx, c_name + 1),
                                 "values": [[official]]})
             stat["fixed"] += 1
+            stat["changes"].append({"date": norm_date(g(c_date)), "name": name,
+                                    "official": official or name, "code": new_code})
             print(f"  代號收尾　{sheet_name} 第 {idx} 列　{name} -> {official}（{new_code}）　{how}")
 
         if updates:
@@ -4755,13 +5333,50 @@ def stage_transcript(ss, video, date_str):
     return v1, v2
 
 
+def transcript_sources(v1: str, v2: str) -> dict:
+    """
+    每一關該讀哪一份逐字稿。
+
+    v1 是原始稿，v2 是潤飾稿。潤飾的規則寫得很明白（只准修錯字、補標點、
+    刪「嗯啊呃」），但那是請求不是保證——實際跑出來常常是原文的 58%，
+    那不是刪贅字，那是摘要。而被摘掉的內容，對後面每一步都等於從來沒被講過。
+
+      extract　潤飾稿比較乾淨，名稱好認，所以預設讀它；
+               但壓縮到警戒線以下就改讀原始稿，那時它已經不可信了。
+      audit　　永遠讀原始稿。這一關的職責就是「找出逐字稿講了、擷取漏掉的」，
+               讓它讀與擷取同一份，它就結構性地不可能發現潤飾刪掉的東西，
+               只能在剩下的文字裡靠語意去補——補出來的往往是他拿來舉例的那幾檔。
+               那正是「稽核每次跑出來都不一樣」的來源。
+      verify　 兩份接起來。稽核可能從原始稿補回一檔，而那個名字在潤飾稿裡
+               已經被刪掉了；只拿潤飾稿去驗，剛補回來的會立刻被當成幻覺剔除。
+      arbitrate 兩份接起來。名代衝突的仲裁數的是「各出現幾次」，
+               只數潤飾稿會讓票數失真。
+    """
+    v1 = str(v1 or "")
+    v2 = str(v2 or "")
+    if not v1:
+        return {"extract": v2, "audit": v2, "verify": v2, "arbitrate": v2,
+                "degraded": False, "ratio": 1.0}
+    if not v2:
+        return {"extract": v1, "audit": v1, "verify": v1, "arbitrate": v1,
+                "degraded": True, "ratio": 0.0}
+    ratio = len(v2) / len(v1)
+    degraded = ratio < RATIO_WARN
+    both = v1 + "\n" + v2
+    return {"extract": v1 if degraded else v2, "audit": v1,
+            "verify": both, "arbitrate": both,
+            "degraded": degraded, "ratio": ratio}
+
+
 def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None,
-                  replace_video=False):
+                  replace_video=False, v1=""):
     """
     階段二：擷取結構化紀錄。與階段一分開，因為它便宜、可重跑。
 
     on_step(名稱, 說明) 是給後台工單用的進度回報。自動路徑不傳，那時是 None，
     每一步只印在 Actions 的日誌裡——那條路沒有人在看進度條。
+
+    v1 是原始逐字稿，v2 是潤飾後的。稽核要看 v1，理由見下面 audit_signals 那一段。
     """
     def step(name, note):
         if on_step:
@@ -4785,27 +5400,52 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None
         return sum(len(sig.get(k, []) or [])
                    for k in ("buy", "sell", "watch_avoid", "watch_watch", "holdings"))
 
+    TX = transcript_sources(v1, v2)
+    if TX["degraded"]:
+        print(f"  潤飾後只剩原文的 {TX['ratio']:.0%}，壓縮過頭，"
+              f"擷取改讀原始逐字稿（潤飾稿可能整段消失）")
     step("擷取", "從逐字稿讀出他講了哪幾檔")
-    signals = extract_signals(v2, date_str)
+    signals = extract_signals(TX["extract"], date_str)
 
-    step("稽核補漏", f"目前 {_n(signals)} 檔，回頭比對逐字稿看有沒有漏掉的")
-    signals = audit_signals(v2, signals, date_str)
+    # 稽核一律讀原始逐字稿。
+    #
+    # 這一關的職責是「找出逐字稿講了、但擷取漏掉的」。讓它讀與擷取同一份
+    # 潤飾稿，它就結構性地不可能發現潤飾階段刪掉的東西——漏掉的那幾句
+    # 在它眼裡從來沒有存在過，於是它只能在剩下的文字裡找，
+    # 找不到就開始從語意去補，補出來的往往是講者拿來舉例的那幾檔。
+    # 那正是「稽核每次跑出來的結果都不一樣」的來源。
+    #
+    # 實際漏抓過（2026/09/10）：「像我昨天叫人家賣力積電」這一筆，
+    # 擷取沒收、稽核也沒補，而同一天稽核卻補了五檔他拿來講行情的例子。
+    if v1 and TX["audit"] != TX["extract"]:
+        print(f"  稽核比對原始逐字稿 {len(TX['audit'])} 字"
+              f"（擷取讀的是 {len(TX['extract'])} 字）")
+    step("稽核補漏", f"目前 {_n(signals)} 檔，回頭比對原始逐字稿看有沒有漏掉的")
+    signals = audit_signals(TX["audit"], signals, date_str)
 
     # 幻覺檢查要排在代號比對之前：比對會把名稱換成官方簡稱
     # （加哲→嘉澤），換過之後就對不到逐字稿了。
+    # 幻覺檢查同樣對原始稿。稽核可能從原始稿補回一檔，而那個名字
+    # 在潤飾稿裡已經被刪掉了——拿潤飾稿去驗，剛補回來的那一筆會立刻被當成幻覺剔除。
     step("查驗幻覺", f"目前 {_n(signals)} 檔，逐一確認名稱真的出現在逐字稿裡")
-    signals = verify_names(signals, v2)
+    signals = verify_names(signals, TX["verify"])
 
+    # 名稱與代號打架時的仲裁，數的是「這兩個字串在逐字稿裡各出現幾次」。
+    # 只數潤飾稿的話，被潤飾刪掉的那幾次就不算數，票數會失真——
+    # 兩份都給它，數的才是他真的講了幾次。
     step("代號比對", f"目前 {_n(signals)} 檔，對官方清單、修同音錯字、剔除非個股")
-    signals = resolve_signals(signals, v2)
+    signals = resolve_signals(signals, TX["arbitrate"])
 
     # 合併要排在代號比對之後：比對會把同音錯字與簡稱收斂到官方名稱與代號，
     # 沒收斂之前同一檔的兩列可能長得完全不同，比不出它們是同一個東西。
     step("合併重複", f"目前 {_n(signals)} 檔，把成交歸位、同一類裡同一檔只留一列")
     # 成交歸位排在合併之前：歸位之後那一檔可能與既有的賣出列撞在一起，
     # 讓後面的合併去收就好，不必在這裡另外處理。
-    signals = promote_executed_trades(signals, v2)
+    signals = promote_executed_trades(signals, TX["arbitrate"])
     signals = merge_duplicates(signals)
+    # 買了的那一檔不可以同時掛在觀望。要排在合併之後，因為合併才剛把
+    # 同音錯字與簡稱收斂到同一個代號，在那之前比不出兩列是同一檔。
+    signals = fold_watch_into_buy(signals)
     # 觀望兩類之間的衝突要在合併之後才處理：合併會先把各類裡的重複收乾淨，
     # 剩下的才是「真的一多一空」。
     signals = resolve_watch_conflict(signals)
@@ -4975,7 +5615,7 @@ def run_admin_job(ss):
     # 不然會停在「這一天已經有資料，不重複寫入」，新擷取到的個股與新的
     # 每日整理全部進不去，而畫面上每一步都是綠的。
     stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=_report,
-                  replace_video=True)
+                  replace_video=True, v1=v1)
 
     mark_status(ss, vid, date_str, video["title"], "完成")
     _report("刷新網站", "資料已寫入，通知下游重算")
@@ -6452,7 +7092,7 @@ def process_one(ss, video, done_trades, done_holds):
 
     try:
         mark_status(ss, video["id"], date_str, video["title"], "處理中")
-        stage_extract(ss, video, date_str, v2, done_trades, done_holds)
+        stage_extract(ss, video, date_str, v2, done_trades, done_holds, v1=v1)
         if POLISH_DEGRADED:
             mark_status(ss, video["id"], date_str, video["title"], "完成",
                         f"有 {POLISH_DEGRADED} 段因配額不足未潤飾，建議稍後重跑")
@@ -6532,6 +7172,11 @@ NEG_HINTS = (
     "轉弱", "走弱", "破線", "破底", "跌破", "套牢", "被套", "認賠", "停損",
     "出場觀察", "先出", "空方", "偏空", "看壞", "看空", "弱勢", "疲弱",
     "小心", "留意風險", "崩", "殺", "利空", "觀望為宜", "暫不", "別追",
+    # 2026/09/10 補：他叫人別碰時的實際說法，先前一個都沒收進來，
+    # 於是「航運股還沒有跌完，不要看到上漲就急著進場」被判成偏多。
+    "不准碰", "不准給我碰", "不能碰", "還沒跌完", "沒有跌完", "跌完",
+    "追高", "殺破", "會殺破", "解套賣壓", "不要追", "不要看到漲",
+    "急著進場", "馬上套", "容易套牢", "先觀望", "還在盤", "不用買",
 )
 POS_HINTS = (
     "看好", "偏多", "強勢", "轉強", "走強", "留意", "注意", "追蹤", "觀察",
@@ -6540,9 +7185,29 @@ POS_HINTS = (
 )
 
 
+# 候選名單的說法。這幾個詞出現時，不論旁邊有多少「暫不」「還沒」「等」，
+# 結論都是「他打算買這一檔」——那是觀望注意，而且是最看好的一批。
+#
+# 為什麼要獨立於加減分之外：他描述候選名單的句子天生同時帶正負詞，
+# 「列入後續追蹤名單，目前仍在洗盤整理，暫不進行買進操作」裡
+# 「追蹤」是正、「暫不」是負，數量剛好一比一，靠加總永遠是擲銅板。
+# 而這一批講錯的代價特別大：讀的人會把他最想買的名單當成地雷。
+CANDIDATE_HINTS = (
+    "候選名單", "候選", "口袋名單", "以後會買", "以後要買", "接下來要買",
+    "下一檔要買", "準備買", "打算買", "會買它", "抄起來", "列出來給你看",
+    "等洗完", "洗完再買", "等它整理完", "第一檔去注意", "先鎖定",
+)
+
+
 def sentiment_of(reason: str) -> str:
     """依理由摘錄判斷情緒。偏空回 watch_avoid，偏多或中性回 watch_watch。"""
     text = str(reason or "")
+    # 明確叫你別碰的最優先。他會同時說「這是好股票」與「不准碰」
+    # （被動元件那一段就是），這時候不能被前半句帶走。
+    if any(k in text for k in ("不准碰", "不准給我碰", "不要碰", "不能碰")):
+        return "watch_avoid"
+    if any(k in text for k in CANDIDATE_HINTS):
+        return "watch_watch"
     neg = sum(1 for k in NEG_HINTS if k in text)
     pos = sum(1 for k in POS_HINTS if k in text)
     if neg > pos:

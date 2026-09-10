@@ -132,7 +132,7 @@ PIPELINE_FEATURES = ("preflight,auth-rotation,lazy-gemini-key,cmoney-audit-v4,na
                      "audit-reads-raw,polish-length-floor,extract-prompt-v8,evidence-v1,"
                      # 品質關卡改成逐筆分級：族群丟掉、講不出日期的改列歷史、
                      # 引用對不上的隔離，其餘照常發布。一筆壞資料不再擋住整天。
-                     "evidence-triage-v1")
+                     "evidence-triage-v1,both-transcripts-v1")
 
 # ------------------------------------------------------------------ #
 # 會員簡訊：解析版本與配額防護
@@ -5128,37 +5128,51 @@ def transcript_sources(v1: str, v2: str) -> dict:
     刪「嗯啊呃」），但那是請求不是保證——實際跑出來常常是原文的 58%，
     那不是刪贅字，那是摘要。而被摘掉的內容，對後面每一步都等於從來沒被講過。
 
-    四關現在一律讀原始稿，理由有兩層。
+    兩份都給，不是二選一。
 
-    第一層是完整性。稽核的職責是「找出逐字稿講了、擷取漏掉的」，
-    讓它讀與擷取同一份潤飾稿，它就結構性地不可能發現潤飾刪掉的東西，
-    只能在剩下的文字裡靠語意去補——補出來的往往是他拿來舉例的那幾檔。
-    那正是「稽核每次跑出來都不一樣」的來源。
+    先前試過只讀潤飾稿，也試過只讀原始稿，兩種都會壞，而且壞在不同地方：
 
-    第二層是證據關卡。每一筆紀錄都要附上原文引用，而品質關卡會拿那些引用
-    回頭比對逐字稿。只要「模型讀的」與「關卡比對的」不是同一份，
-    老實照抄的引用也會對不上，於是整批被判成捏造。
-    兩邊都用原始稿，這個矛盾就不存在。
+      只讀潤飾稿　它把原文壓到 58%，被刪掉的內容對後面每一步都等於
+                　沒被講過。稽核的職責是「找出逐字稿講了、擷取漏掉的」，
+                　讓它讀同一份被刪過的文字，它結構性地不可能發現缺口，
+                　只能靠語意去補——補出來的往往是他拿來舉例的那幾檔。
 
-    代價是輸入 token 變多（23K 對 13K），一天一次，換掉的是
-    「每天的判讀都不一樣、而且沒有人知道為什麼」。
+      只讀原始稿　原始稿是語音轉文字的直出，字與字之間有空格，
+                　而且股名全是同音錯字：世芯-KY 在原始稿裡是「滿新KY」，
+                　嘉澤是「加哲」，祥碩是「享碩」，鴻準是「紅準」，
+                　永豐金內湖是「永風精內湖」。名稱還原正是潤飾那一步做的事。
+                　只讀原始稿，2026/09/10 那次把世芯-KY、緯創、辛耘
+                　三檔真的有講到的股票當成幻覺剔除，因為原始稿裡確實
+                　沒有這幾個字。
 
-    degraded / ratio 仍然算出來，只是不再拿去切換來源——它是給日誌看的，
-    壓縮率掉下來代表潤飾那一步在摘要，那件事本身要有人知道。
+    兩份一起給，各自補對方的洞：原始稿保完整，潤飾稿保名稱。
+    驗證與仲裁也吃兩份接起來的文字，否則「模型讀得到、驗證讀不到」
+    這個矛盾會把老實的紀錄判成幻覺。
+
+    代價是輸入 token 變成兩份（約 37K），一天一次。
+    換掉的是「每天判讀都不一樣，而且沒有人知道為什麼」。
+
+    degraded / ratio 仍然算，但只給日誌看：壓縮率掉下來代表潤飾在摘要，
+    那件事本身要有人知道。
     """
     v1 = str(v1 or "")
     v2 = str(v2 or "")
+    if not v1 and not v2:
+        return {"extract": "", "audit": "", "verify": "", "arbitrate": "",
+                "degraded": True, "ratio": 0.0, "both": False}
     if not v1:
         return {"extract": v2, "audit": v2, "verify": v2, "arbitrate": v2,
-                "degraded": False, "ratio": 1.0}
+                "degraded": False, "ratio": 1.0, "both": False}
     if not v2:
         return {"extract": v1, "audit": v1, "verify": v1, "arbitrate": v1,
-                "degraded": True, "ratio": 0.0}
+                "degraded": True, "ratio": 0.0, "both": False}
+
     ratio = len(v2) / len(v1)
-    degraded = ratio < RATIO_WARN
-    return {"extract": v1, "audit": v1,
-            "verify": v1, "arbitrate": v1,
-            "degraded": degraded, "ratio": ratio}
+    pair = ("【原始逐字稿（語音轉文字，字距與錯字都保留，內容最完整）】\n" + v1 +
+            "\n\n【修飾後逐字稿（同一場，錯字已修、名稱已還原，但可能刪掉整段）】\n" + v2)
+    return {"extract": pair, "audit": pair,
+            "verify": v1 + "\n" + v2, "arbitrate": v1 + "\n" + v2,
+            "degraded": ratio < RATIO_WARN, "ratio": ratio, "both": True}
 
 
 def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None,

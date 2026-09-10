@@ -132,7 +132,7 @@ PIPELINE_FEATURES = ("preflight,auth-rotation,lazy-gemini-key,cmoney-audit-v4,na
                      "audit-reads-raw,polish-length-floor,extract-prompt-v8,evidence-v1,"
                      # 品質關卡改成逐筆分級：族群丟掉、講不出日期的改列歷史、
                      # 引用對不上的隔離，其餘照常發布。一筆壞資料不再擋住整天。
-                     "evidence-triage-v1,both-transcripts-v1")
+                     "evidence-triage-v1,both-transcripts-v1,paste-only-transcript,polish-runaway-guard")
 
 # ------------------------------------------------------------------ #
 # 會員簡訊：解析版本與配額防護
@@ -640,13 +640,20 @@ def save_rotated_auth(ss, before_fp: str):
 # 並檢查 cookie，於是 cookie 一過期，連「貼逐字稿進來請你整理」這種
 # 完全用不到 NotebookLM 的工作也一起失敗。
 def needs_notebooklm() -> bool:
-    if PREFLIGHT or CHECK_KEYS or SMS_PRIORITY:
-        return False
-    if ADMIN_JOB or PARSE_SMS or FULL_FIX or REPAIR_CODES or RECLASSIFY or FIX_PRICES or RECONCILE:
-        return False
-    if REFRESH_SITE and not any((BACKFILL, FILL_BLANKS)):
-        return False
-    return True
+    """
+    這一輪需不需要 NotebookLM。現在恆為 False。
+
+    逐字稿改由人工貼進試算表之後，流程裡已經沒有任何一步會去 NotebookLM 取稿
+    （見 stage_transcript：沒有原始逐字稿就回報「等待中」，不再自己抓）。
+    所以還原登入狀態、檢查 cookie 到期這兩步都不必再跑，
+    NOTEBOOKLM_AUTH_JSON 過期也不會再讓任何一輪失敗。
+
+    保留這支函式而不是把工作流程裡那兩步刪掉，是刻意的：
+    工作流程的判斷式讀的是 needs_notebooklm，這裡回 False，那兩步就自然不會執行；
+    哪天要把自動取稿接回來，只要改這一支就好，不必再去動 YAML。
+    Secret 也留著別刪，同樣的理由。
+    """
+    return False
 
 
 def write_preflight(has_work: str, reason: str):
@@ -2038,6 +2045,19 @@ def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX
               f"文字={len(text)} 字")
 
         if finish == "MAX_TOKENS":
+            # 「切太大」與「模型自己跑不停」要分開講，因為處置完全不同。
+            #
+            # 實際發生過（2026/09/10 polish 3/4）：輸入 7126 字，
+            # 輸出 180454 字、65535 個 token 打到上限。那不是內容太多裝不下，
+            # 是模型陷入重複迴圈——同一段話一直寫下去。調小 CHUNK_SIZE
+            # 對它完全沒有幫助，而那一次還把第一把金鑰的當日額度燒掉一大塊。
+            runaway = len(text) > max(len(user_text), 1) * 3
+            if runaway:
+                raise RuntimeError(
+                    f"Gemini 輸出失控（{tag}）：輸入 {len(user_text)} 字卻吐出 {len(text)} 字"
+                    f"（{len(text) / max(len(user_text), 1):.0f} 倍）並打到輸出上限，"
+                    f"研判是重複迴圈，不是內容太多。"
+                )
             raise RuntimeError(
                 f"Gemini 輸出遭截斷（{tag}）：finishReason=MAX_TOKENS。請調小 CHUNK_SIZE 後重跑。"
             )
@@ -3369,8 +3389,18 @@ def polish(transcript: str) -> str:
 
     out = []
     for i, c in enumerate(chunks, 1):
+        tag = f"polish {i}/{len(chunks)}"
+        # 潤飾的輸出不該比輸入長。給的上限照這一段的大小算，不要用全域預設。
+        #
+        # 用預設的 65535 有兩個壞處。一是模型陷入重複迴圈時會一路寫到上限：
+        # 2026/09/10 那次輸入 7126 字、輸出 180454 字燒掉 65535 個 token，
+        # 而那些 token 是從當日免費額度扣的——一次失控的呼叫就吃掉一大塊，
+        # 後面幾段跟著沒額度。二是打到上限才停，等待時間也白花。
+        # 中文大約 1.4 字一個 token，給到輸入的 1.3 倍已經很寬鬆，
+        # 真的超過就代表它在重複，那一段本來就不該採用。
+        cap = min(MAX_OUT, int(len(c) / 1.4 * 1.3) + 256)
         try:
-            r = call_gemini(POLISH_SYSTEM, c, thinking=0, tag=f"polish {i}/{len(chunks)}")
+            r = call_gemini(POLISH_SYSTEM, c, thinking=0, tag=tag, max_out=cap)
             cr = len(r) / max(len(c), 1)
             flag = "" if cr >= RATIO_WARN else "  ← 這段壓縮偏多"
             print(f"潤飾第 {i}/{len(chunks)} 段：{len(c)} → {len(r)} 字（{cr:.0%}）{flag}")
@@ -3390,6 +3420,24 @@ def polish(transcript: str) -> str:
             # 後者（MAX_TOKENS、異常結束、空內容）代表切塊或設定要調，
             # 降級會把問題藏起來，所以照舊往外拋。
             msg = str(e)
+            # 輸出失控或被截斷：這一段用原文，不要讓整輪失敗。
+            #
+            # 原本這裡是往外拋，理由是「MAX_TOKENS 代表切塊要調，降級會把問題藏起來」。
+            # 那個理由在逐字稿還要靠潤飾稿當唯一來源的時候成立，現在不成立了：
+            # 擷取與稽核吃的是「原始稿 ＋ 潤飾稿」兩份，某一段沒潤飾到，
+            # 內容仍然完整地在原始稿那一份裡，只是那一段的錯字沒被修。
+            # 而往外拋的代價是整天的資料一筆都進不去——2026/09/10 就是這樣，
+            # 第 1、2 段明明已經潤飾好了，卻因為第 3 段的重複迴圈全部丟掉。
+            #
+            # 問題也沒有被藏起來：訊息照印，段數記在 POLISH_DEGRADED，
+            # 收尾與工單狀態都會講出來。
+            if ("輸出失控" in msg or "MAX_TOKENS" in msg or "輸出遭截斷" in msg
+                    or "異常結束" in msg or "回傳空內容" in msg):
+                POLISH_DEGRADED += 1
+                print(f"潤飾第 {i}/{len(chunks)} 段的輸出不能用，改用原文保留內容（{msg[:160]}）")
+                out.append(c)
+                time.sleep(POLISH_GAP)
+                continue
             if "Gemini 呼叫失敗" not in msg and "金鑰全部不可用" not in msg:
                 raise
             POLISH_DEGRADED += 1
@@ -5100,20 +5148,25 @@ def stage_transcript(ss, video, date_str):
 
     if v1 and len(v1) > 200:
         print(f"{date_str} 已有原始逐字稿 {len(v1)} 字但缺修飾後版本，只補潤飾")
-    else:
-        mode = "長逾時" if INDEX_TIMEOUT == FULL_TIMEOUT else "輪詢短逾時"
-        print(f"向 NotebookLM 索取逐字稿（{mode}，上限 {INDEX_TIMEOUT} 秒）")
-        v1 = asyncio.run(fetch_fulltext(video["url"], f"張震_{date_str}", INDEX_TIMEOUT))
-        print(f"取得原始逐字稿 {len(v1)} 字")
         if len(v1) < SHORT_TRANSCRIPT_HINT:
-            print(f"警告：逐字稿僅 {len(v1)} 字，對一小時直播而言偏短。"
-                  f"可能是 NotebookLM 索引不完整，或這支影片本身就短。")
-        # 一拿到原始逐字稿就先落地，v2 暫時留空。
-        # 這樣就算接下來的潤飾階段撞 429、逾時或任何失敗，
-        # 這份原始逐字稿也已經在 Excel 裡，不會白抓一次。
-        if v1 and len(v1) > 200:
-            write_transcripts(ss, video["id"], v1, "")
-            print("原始逐字稿已先寫入影片清單（潤飾前落地）")
+            print(f"注意：逐字稿只有 {len(v1)} 字，對一小時的直播而言偏短，"
+                  f"請確認貼進去的是完整的一份。")
+    else:
+        # 逐字稿改由人工貼進試算表，這裡不再自己去取。
+        #
+        # 原本這一段是向 NotebookLM 索取全文。那條路已經不用了：
+        # 現在的流程是管理者在後台把逐字稿貼進「影片清單」的原始逐字稿內容欄，
+        # 排程負責的是「貼進來之後的每一步」——潤飾、擷取、稽核、
+        # 代號、寫入、撰稿、刷新。
+        #
+        # 用 NotReadyYet 而不是一般的例外，是因為「還沒貼」不是壞掉：
+        # 它會被記成「等待中」、綠燈結束、不觸發失敗告警，下一棒再看一次。
+        # 這與先前「VOD 還在轉檔」走的是同一條路，行為完全一致。
+        raise NotReadyYet(
+            f"{date_str} 的原始逐字稿還沒有貼進試算表。"
+            "請到後台「投稿逐字稿」貼上當天的逐字稿並送出，"
+            "或直接填進「影片清單」的原始逐字稿內容欄；"
+            "貼好之後這條排程下一棒就會自動接著跑完後面的流程。")
 
     v2 = polish(v1)
     write_transcripts(ss, video["id"], v1, v2)   # 潤飾完再補寫 v2

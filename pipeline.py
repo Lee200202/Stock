@@ -29,6 +29,8 @@ import requests
 from google.oauth2.service_account import Credentials
 from pypinyin import lazy_pinyin
 import difflib
+import threading
+import concurrent.futures as cf
 
 TAIPEI = timezone(timedelta(hours=8))
 NOT_MENTIONED = "本支影片未說明"
@@ -132,7 +134,7 @@ PIPELINE_FEATURES = ("preflight,auth-rotation,lazy-gemini-key,cmoney-audit-v4,na
                      "audit-reads-raw,polish-length-floor,extract-prompt-v8,evidence-v1,"
                      # 品質關卡改成逐筆分級：族群丟掉、講不出日期的改列歷史、
                      # 引用對不上的隔離，其餘照常發布。一筆壞資料不再擋住整天。
-                     "evidence-triage-v1,both-transcripts-v1,paste-only-transcript,polish-runaway-guard,unclear-name-judge-v2,raw-names-win,polish-keeps-names,market-overview,no-abort-v1,name-memo,decision-log")
+                     "evidence-triage-v1,both-transcripts-v1,paste-only-transcript,polish-runaway-guard,unclear-name-judge-v2,raw-names-win,polish-keeps-names,market-overview,no-abort-v1,name-memo,decision-log,polish-parallel")
 
 # ------------------------------------------------------------------ #
 # 會員簡訊：解析版本與配額防護
@@ -1349,12 +1351,25 @@ _MIN_CALL_GAP = 60.0 / GEMINI_RPM
 _LAST_CALL = {"at": 0.0}
 
 
+# 節流與金鑰輪替都會動到全域狀態。潤飾改成並行之後，同一時間會有好幾條
+# 執行緒進到這裡，沒有鎖的話兩條可能同時算出「不用等」而一起送出去，
+# 那就撞破 RPM 了；金鑰輪替也可能被兩條同時推進而跳過一把。
+_GEMINI_LOCK = threading.Lock()
+
+
 def throttle_gemini():
-    """把兩次呼叫的間隔拉到至少 60/RPM 秒。已經隔夠久就不等。"""
-    wait = _MIN_CALL_GAP - (time.monotonic() - _LAST_CALL["at"])
-    if wait > 0:
-        time.sleep(wait)
-    _LAST_CALL["at"] = time.monotonic()
+    """
+    把兩次呼叫的間隔拉到至少 60/RPM 秒。已經隔夠久就不等。
+
+    並行時這裡等於「發車間隔」：幾條執行緒依序拿到鎖、各自錯開 6 秒出發，
+    但它們等待回應的時間是重疊的。所以 RPM 仍然守得住，
+    省下來的是「排隊等前一段回來」那一段——那才是潤飾最花時間的地方。
+    """
+    with _GEMINI_LOCK:
+        wait = _MIN_CALL_GAP - (time.monotonic() - _LAST_CALL["at"])
+        if wait > 0:
+            time.sleep(wait)
+        _LAST_CALL["at"] = time.monotonic()
 
 
 def gemini_usage_report() -> str:
@@ -3400,80 +3415,108 @@ def resolve_signals(signals: dict, transcript: str = "") -> dict:
 POLISH_DEGRADED = 0     # 本輪有幾段因配額不足而改用原文
 
 
+def _polish_one(i, total, c):
+    """
+    潤飾一段。回傳 (文字, 有沒有降級, 要印的那一行)。
+
+    這一支不印東西也不改全域狀態——它會被好幾條執行緒同時呼叫，
+    在裡面印會讓四段的訊息交錯在一起，看不出哪一行屬於哪一段。
+    印出來的事交給呼叫端，照順序一次印完。
+    """
+    tag = f"polish {i}/{total}"
+    # 潤飾的輸出不該比輸入長。上限照這一段的大小算，不要用全域預設。
+    #
+    # 用預設的 65535 有兩個壞處。一是模型陷入重複迴圈時會一路寫到上限：
+    # 2026/09/10 那次輸入 7126 字、輸出 180454 字燒掉 65535 個 token，
+    # 那些 token 從當日免費額度扣，一次失控就吃掉一大塊。
+    # 二是打到上限才停，等待時間也白花。
+    # 中文大約 1.4 字一個 token，給到輸入的 1.3 倍已經很寬鬆。
+    cap = min(MAX_OUT, int(len(c) / 1.4 * 1.3) + 256)
+    try:
+        r = call_gemini(POLISH_SYSTEM, c, thinking=0, tag=tag, max_out=cap)
+        cr = len(r) / max(len(c), 1)
+        flag = "" if cr >= RATIO_WARN else "  ← 這段壓縮偏多"
+        return r, False, f"潤飾第 {i}/{total} 段：{len(c)} → {len(r)} 字（{cr:.0%}）{flag}"
+
+    except RateLimited as e:
+        return c, True, f"潤飾第 {i}/{total} 段配額不足，改用原文保留內容（{e}）"
+
+    except RuntimeError as e:
+        # 「呼叫沒成功」與「模型回了不對的東西」分開處理，但兩者的落點一樣：
+        # 這一段用原文。內容完整度靠原始稿那一份撐著，只是錯字沒被修。
+        #
+        # 往外拋的代價是整天的資料一筆都進不去——2026/09/10 就是這樣，
+        # 第 1、2 段明明已經潤飾好了，卻因為第 3 段的重複迴圈全部丟掉。
+        # 問題也沒有被藏起來：訊息照印，段數記在 POLISH_DEGRADED。
+        msg = str(e)
+        if ("輸出失控" in msg or "MAX_TOKENS" in msg or "輸出遭截斷" in msg
+                or "異常結束" in msg or "回傳空內容" in msg):
+            note_decision("潤飾", "改用原文", f"第 {i}/{total} 段", msg[:200])
+            return c, True, f"潤飾第 {i}/{total} 段的輸出不能用，改用原文保留內容（{msg[:160]}）"
+        if "Gemini 呼叫失敗" not in msg and "金鑰全部不可用" not in msg:
+            raise
+        return c, True, f"潤飾第 {i}/{total} 段無法呼叫模型，改用原文保留內容（{msg[:160]}）"
+
+
 def polish(transcript: str) -> str:
     """
-    逐段潤飾。某一段撞到配額上限時，改用原文那一段繼續，不讓整輪失敗。
-    理由：內容完整度（後續擷取靠它）比可讀性重要，而且整輪失敗會連already
-    拿到的逐字稿都寫不進去，下一輪又要重抓一次，反而更容易再撞配額。
+    分段潤飾，各段並行送出。
+
+    為什麼要並行
+    ------------
+    四段序列跑，實測要六分鐘：每一段的模型延遲約六十幾秒，四段就是四分多鐘，
+    再加上段間 POLISH_GAP 八秒乘三、節流每次六秒。而這四段彼此完全不相干——
+    每一段都是獨立的一次呼叫，前一段的結果不會影響後一段怎麼潤。
+    排隊等前一段回來，等的是純粹浪費掉的時間。
+
+    並行之後，節流變成「發車間隔」：幾條執行緒依序拿到鎖、各自錯開六秒出發，
+    但等待回應的時間是重疊的。RPM 仍然守得住（發車間隔沒有變），
+    省下來的是排隊那一段。四段的實際牆鐘時間會從六分鐘掉到一分半上下。
+
+    併發數刻意保守
+    --------------
+    預設三條，可以用 POLISH_WORKERS 調。開太多沒有用：發車間隔由 RPM 決定，
+    六秒一班，開十條也只是九條在等著拿鎖。三條剛好讓等待重疊起來，
+    又不會在額度緊的時候一次打掉太多。
+
+    某一段撞到配額或失控時，那一段改用原文，其餘照常——
+    內容完整度（後續擷取靠它）比可讀性重要。
     """
     global POLISH_DEGRADED
     POLISH_DEGRADED = 0
 
     chunks = split_transcript(transcript)
-    print(f"逐字稿 {len(transcript)} 字，切成 {len(chunks)} 段送出潤飾")
+    total = len(chunks)
+    workers = max(1, min(int(os.environ.get("POLISH_WORKERS", "").strip() or 3), total))
+    print(f"逐字稿 {len(transcript)} 字，切成 {total} 段送出潤飾"
+          + (f"，{workers} 段同時進行" if workers > 1 else ""))
+
+    results = [None] * total
+
+    if workers == 1:
+        for i, c in enumerate(chunks, 1):
+            results[i - 1] = _polish_one(i, total, c)
+            if i < total:
+                time.sleep(POLISH_GAP)
+    else:
+        # 段間的 POLISH_GAP 在並行時不需要了：發車間隔已經由 throttle_gemini
+        # 依 RPM 控制，再睡一次只是把省下來的時間又還回去。
+        with cf.ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = {pool.submit(_polish_one, i, total, c): i
+                       for i, c in enumerate(chunks, 1)}
+            for fut in cf.as_completed(futures):
+                i = futures[fut]
+                results[i - 1] = fut.result()      # 例外照樣往外拋，行為與序列版一致
 
     out = []
-    for i, c in enumerate(chunks, 1):
-        tag = f"polish {i}/{len(chunks)}"
-        # 潤飾的輸出不該比輸入長。給的上限照這一段的大小算，不要用全域預設。
-        #
-        # 用預設的 65535 有兩個壞處。一是模型陷入重複迴圈時會一路寫到上限：
-        # 2026/09/10 那次輸入 7126 字、輸出 180454 字燒掉 65535 個 token，
-        # 而那些 token 是從當日免費額度扣的——一次失控的呼叫就吃掉一大塊，
-        # 後面幾段跟著沒額度。二是打到上限才停，等待時間也白花。
-        # 中文大約 1.4 字一個 token，給到輸入的 1.3 倍已經很寬鬆，
-        # 真的超過就代表它在重複，那一段本來就不該採用。
-        cap = min(MAX_OUT, int(len(c) / 1.4 * 1.3) + 256)
-        try:
-            r = call_gemini(POLISH_SYSTEM, c, thinking=0, tag=tag, max_out=cap)
-            cr = len(r) / max(len(c), 1)
-            flag = "" if cr >= RATIO_WARN else "  ← 這段壓縮偏多"
-            print(f"潤飾第 {i}/{len(chunks)} 段：{len(c)} → {len(r)} 字（{cr:.0%}）{flag}")
-            out.append(r)
-        except RateLimited as e:
+    for text, degraded, line in results:
+        print(line)
+        if degraded:
             POLISH_DEGRADED += 1
-            print(f"潤飾第 {i}/{len(chunks)} 段配額不足，改用原文保留內容（{e}）")
-            out.append(c)
-        except RuntimeError as e:
-            # 「呼叫沒成功」與「模型回了不對的東西」要分開。
-            #
-            # 前者（金鑰失效、專案沒開通 API、連 404）跟配額用盡是同一類問題：
-            # 這一段潤飾不了，但原文還在，用原文往下走仍然能擷取到完整內容。
-            # 實際踩過的坑：第二把金鑰回 404，整個工單當場結束、退出碼 1，
-            # 連第 1 段已經潤飾好的結果都一起丟掉，下一輪要從抓逐字稿重來。
-            #
-            # 後者（MAX_TOKENS、異常結束、空內容）代表切塊或設定要調，
-            # 降級會把問題藏起來，所以照舊往外拋。
-            msg = str(e)
-            # 輸出失控或被截斷：這一段用原文，不要讓整輪失敗。
-            #
-            # 原本這裡是往外拋，理由是「MAX_TOKENS 代表切塊要調，降級會把問題藏起來」。
-            # 那個理由在逐字稿還要靠潤飾稿當唯一來源的時候成立，現在不成立了：
-            # 擷取與稽核吃的是「原始稿 ＋ 潤飾稿」兩份，某一段沒潤飾到，
-            # 內容仍然完整地在原始稿那一份裡，只是那一段的錯字沒被修。
-            # 而往外拋的代價是整天的資料一筆都進不去——2026/09/10 就是這樣，
-            # 第 1、2 段明明已經潤飾好了，卻因為第 3 段的重複迴圈全部丟掉。
-            #
-            # 問題也沒有被藏起來：訊息照印，段數記在 POLISH_DEGRADED，
-            # 收尾與工單狀態都會講出來。
-            if ("輸出失控" in msg or "MAX_TOKENS" in msg or "輸出遭截斷" in msg
-                    or "異常結束" in msg or "回傳空內容" in msg):
-                POLISH_DEGRADED += 1
-                note_decision('潤飾', '改用原文', f'第 {i}/{len(chunks)} 段', msg[:200])
-                print(f"潤飾第 {i}/{len(chunks)} 段的輸出不能用，改用原文保留內容（{msg[:160]}）")
-                out.append(c)
-                time.sleep(POLISH_GAP)
-                continue
-            if "Gemini 呼叫失敗" not in msg and "金鑰全部不可用" not in msg:
-                raise
-            POLISH_DEGRADED += 1
-            print(f"潤飾第 {i}/{len(chunks)} 段無法呼叫模型，改用原文保留內容（{msg[:160]}）")
-            out.append(c)
-        # 段間節流。免費配額是每分鐘計次，段與段之間拉開就少撞牆。
-        time.sleep(POLISH_GAP)
+        out.append(text)
 
     if POLISH_DEGRADED:
-        print(f"注意：本次有 {POLISH_DEGRADED}/{len(chunks)} 段未潤飾，"
+        print(f"注意：本次有 {POLISH_DEGRADED}/{total} 段未潤飾，"
               f"內容完整但可讀性較差。稍後可用 fill_blanks 或 backfill 重跑改善。")
 
     joined = "\n".join(out)

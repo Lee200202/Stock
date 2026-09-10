@@ -129,7 +129,10 @@ PIPELINE_FEATURES = ("preflight,auth-rotation,lazy-gemini-key,cmoney-audit-v4,na
                      "article-prev-day,fold-watch-into-buy,article-code-sync,"
                      # 稽核改讀原始逐字稿。潤飾把原文壓到 58% 時，
                      # 讓稽核讀同一份等於叫它去找它看不見的東西。
-                     "audit-reads-raw,polish-length-floor,extract-prompt-v8,evidence-v1")
+                     "audit-reads-raw,polish-length-floor,extract-prompt-v8,evidence-v1,"
+                     # 品質關卡改成逐筆分級：族群丟掉、講不出日期的改列歷史、
+                     # 引用對不上的隔離，其餘照常發布。一筆壞資料不再擋住整天。
+                     "evidence-triage-v1")
 
 # ------------------------------------------------------------------ #
 # 會員簡訊：解析版本與配額防護
@@ -3625,73 +3628,187 @@ ARTICLE_SYSTEM = """你是一位專業財經記者與投顧整理編輯，負責
 SIGNAL_CATEGORIES = ('buy', 'sell', 'watch_avoid', 'watch_watch', 'holdings')
 
 
+# 證據比對的正規化。
+#
+# 引用是模型產生的，即使它老實地照抄，也會出現全形逗號變半形、
+# 破折號長度不同、括號換一種這類差異。用嚴格的子字串比對，
+# 一個標點就足以讓一筆完全正確的紀錄被判成「引用並非原文」。
+#
+# 所以先把兩邊都正規化掉這些差異再比；還是對不上時，用相似度給一次機會。
+# 0.88 這個門檻擋得住捏造——捏造出來的句子與原文的相似度通常在 0.5 以下——
+# 但放得過老實照抄卻標點跑掉的引用。
+EVIDENCE_MIN_RATIO = 0.88
+
+_EV_PUNCT = str.maketrans({
+    "，": ",", "。": ".", "：": ":", "；": ";", "！": "!", "？": "?",
+    "（": "(", "）": ")", "「": '"', "」": '"', "『": '"', "』": '"',
+    "、": ",", "—": "-", "－": "-", "～": "~", "·": "", "　": "",
+})
+
+_EV_STRIP = re.compile(r"[\s,.:;!?\"'()\-~]+")
+
+
+def _ev_norm(text) -> str:
+    return _EV_STRIP.sub("", str(text or "").translate(_EV_PUNCT))
+
+
+def _quote_is_real(quote, hay_norm) -> bool:
+    """這一句引用在原文裡找不找得到。先精確比，再放寬一次。"""
+    q = _ev_norm(quote)
+    if len(q) < 6:
+        return False
+    if q in hay_norm:
+        return True
+    # 放寬那一關只掃長度相近的窗格，不對整篇做一次昂貴的比對。
+    win = len(q)
+    step = max(win // 3, 1)
+    for i in range(0, max(len(hay_norm) - win, 0) + 1, step):
+        if difflib.SequenceMatcher(None, q, hay_norm[i:i + win]).ratio() >= EVIDENCE_MIN_RATIO:
+            return True
+    return False
+
+
+_WHEN_MARKERS = {"today": r"今天|今日|剛剛|剛才|早上|早盤|盤中",
+                 "yesterday": r"昨天|昨日",
+                 "prev_trading_day": r"上一個交易日|前一交易日"}
+
+
 def validate_evidence(signals, transcript, date_str):
-    """Fail before destructive writes when an AI result lacks verifiable evidence."""
+    """
+    逐筆分級，不是整批放行或整批擋下。
+
+    為什麼改掉原本的作法
+    --------------------
+    原本任何一筆有問題就 raise，整輪中止、舊資料保留。用意是對的
+    （沒驗證過的東西不該發布），但代價定錯了：2026/09/10 那一次十六檔裡
+    只有幾筆有問題，其中四筆還是「被動元件、ABF載板、航運股、程」
+    這種本來就該丟掉的族群與碎片，結果整天的資料一筆都沒進去，
+    網站停在前一天。一筆壞資料擋住十五筆好資料，那不是嚴謹，
+    是把嚴謹用錯地方。
+
+    而那幾種問題本來就各有正確的歸屬，提示詞裡也都寫好了：
+      族群、單字碎片　　→ 本來就不是個股，丟掉
+      買賣講不出時間　　→ history（「華城賣775，現在726」就是這種）
+      引用對不上原文　　→ uncertain，隔離起來等人看，不要發布
+      價位沒有原句　　　→ 把價位清掉，其餘留著
+    所以這裡改成把每一筆送到它該去的地方，然後把整份報告印出來。
+
+    什麼時候還是會中止
+    ------------------
+    只有兩種：回傳的根本不是紀錄物件（模型壞了），
+    或者所有可發布的類別加起來一筆都不剩——那一天等於沒有內容，
+    寫進去只會把既有資料洗成空的。
+    """
     if not isinstance(signals, dict):
-        raise ValueError('品質關卡：模型未回傳紀錄物件')
-    compact = lambda s: re.sub(r'\s+', '', str(s or ''))
-    hay = compact(transcript)
-    errors = []
-    for cat in SIGNAL_CATEGORIES + ('history', 'uncertain'):
-        rows = signals.get(cat)
-        if not isinstance(rows, list):
-            errors.append(cat + ' 缺少陣列')
-            continue
-        for row in rows:
+        raise ValueError("品質關卡：模型未回傳紀錄物件")
+
+    hay = _ev_norm(transcript)
+    for cat in SIGNAL_CATEGORIES + ("history", "uncertain"):
+        if not isinstance(signals.get(cat), list):
+            signals[cat] = []
+
+    dropped, to_history, to_uncertain, price_cleared = [], [], [], []
+
+    def _quarantine(row, name, why):
+        row["_疑點"] = why
+        signals["uncertain"].append(row)
+        to_uncertain.append(f"{name or '(空白)'}：{why}")
+
+    for cat in SIGNAL_CATEGORIES + ("history",):
+        keep = []
+        for row in signals.get(cat, []):
             if not isinstance(row, dict):
-                errors.append(cat + ' 含非物件紀錄')
+                dropped.append(f"{cat} 有一筆不是物件")
                 continue
-            name = str(row.get('name') or '').strip()
-            quotes = row.get('evidence')
-            if not isinstance(quotes, list) or not quotes or any(
-                    not isinstance(q, str) or len(compact(q)) < 6 or compact(q) not in hay for q in quotes):
-                errors.append(name + ' 缺原文證據或引用並非原文')
+            name = str(row.get("name") or "").strip()
+
+            # 一、本來就不是個股的直接丟。族群名進到這裡不是資料有問題，
+            #     是擷取多生了一列，留著只會在網站上出現一列「航運股」。
+            if cat in SIGNAL_CATEGORIES and not re.fullmatch(r"\d{4,6}", name):
+                bad, why = is_non_stock(name)
+                if bad or len(name) < 2:
+                    dropped.append(f"{name or '(空白)'}：{why or '名稱過短，研判是聽錯的碎片'}")
+                    continue
+
+            # 二、引用對不對得上原文。對不上就隔離：不丟掉，也不發布。
+            quotes = row.get("evidence")
+            if not (isinstance(quotes, list) and quotes and all(
+                    isinstance(q, str) and _quote_is_real(q, hay) for q in quotes)):
+                _quarantine(row, name, "引用在原文裡找不到，或根本沒有附引用")
                 continue
-            evidence = '\n'.join(quotes)
-            aliases = row.get('aliases') or []
-            if not isinstance(aliases, list) or any(not isinstance(a, str) for a in aliases):
-                errors.append(name + ' aliases 格式錯誤')
+
+            evidence = _ev_norm("\n".join(quotes))
+            aliases = [a for a in (row.get("aliases") or []) if isinstance(a, str)]
+            if not any(len(_ev_norm(n)) >= 2 and _ev_norm(n) in evidence
+                       for n in [name] + aliases):
+                _quarantine(row, name, "引用裡沒有出現這一檔的名稱")
                 continue
-            if not name or not any(len(compact(n)) >= 2 and compact(n) in compact(evidence)
-                                   for n in [name] + aliases):
-                errors.append(name + ' 證據未指名該股')
-            if cat in SIGNAL_CATEGORIES and is_non_stock(name)[0] and not re.fullmatch(r'\d{4}', name):
-                errors.append(name + ' 是族群或不合格名稱')
-            if cat in ('buy', 'sell'):
-                when = row.get('when')
-                te = compact(row.get('time_evidence'))
-                if not te or not any(te in compact(q) for q in quotes):
-                    errors.append(name + ' 缺少買賣時間原句')
-                if when not in ('today', 'yesterday', 'prev_trading_day', 'date'):
-                    errors.append(name + ' 買賣日期未確定，應移到歷史／待確認')
-                markers = {'today': r'今天|今日|剛剛|剛才|早上|早盤|盤中',
-                           'yesterday': r'昨天|昨日', 'prev_trading_day': r'上一個交易日|前一交易日'}
-                if when in markers and not re.search(markers[when], te):
-                    errors.append(name + ' 時間分類與原句不符')
-                if when == 'today' and re.search(r'昨天|昨日|前天|前幾天|當天|那一天|先前|以前', te):
-                    errors.append(name + ' 今日成交句混有回顧，請引用明確的當日動作句')
-                if when == 'date':
+
+            # 三、買賣要講得出時間。講不出來的是回顧，歸 history——
+            #     那正是「華城賣775，現在726」該去的地方。
+            if cat in ("buy", "sell"):
+                when = row.get("when")
+                te = _ev_norm(row.get("time_evidence"))
+                why = ""
+                if not te or not any(te in _ev_norm(q) for q in quotes):
+                    why = "沒有附上講出時間的那一句"
+                elif when not in ("today", "yesterday", "prev_trading_day", "date"):
+                    why = f"時間講不確定（when={when or '未填'}）"
+                elif when in _WHEN_MARKERS and not re.search(_WHEN_MARKERS[when], te):
+                    why = f"標成 {when}，但引用的那一句裡沒有對應的時間詞"
+                elif when == "today" and re.search(
+                        r"昨天|昨日|前天|前幾天|當天|那一天|先前|以前", te):
+                    why = "標成今天，但引用的那一句在講回顧"
+                elif when == "date":
                     try:
-                        event = datetime.strptime(row.get('event_date', ''), '%Y/%m/%d')
-                        source = datetime.strptime(date_str, '%Y/%m/%d')
-                        if event > source:
-                            raise ValueError('future')
-                        pat = rf'(?:{event.month}月{event.day}(?:日|號)|{event.month}/{event.day}(?!\d))'
-                        if not re.search(pat, te):
-                            raise ValueError('no date quote')
+                        ev = datetime.strptime(str(row.get("event_date") or ""), "%Y/%m/%d")
+                        src = datetime.strptime(date_str, "%Y/%m/%d")
+                        if ev > src:
+                            why = "日期晚於影片日期"
+                        elif not re.search(
+                                rf"(?:{ev.month}月{ev.day}(?:日|號)|{ev.month}/{ev.day}(?!\d))", te):
+                            why = "日期沒有在原文裡明講"
                     except (ValueError, TypeError):
-                        errors.append(name + ' 日期無原文明示或晚於影片日期')
-            price = str(row.get('price') or '未說明')
-            if cat != 'holdings' and price not in ('', '未說明'):
-                pe = compact(row.get('price_evidence'))
-                if not pe or not any(pe in compact(q) for q in quotes):
-                    errors.append(name + ' 價位缺原句')
-            row['_evidence_verified'] = True
-    if errors:
-        raise ValueError('品質關卡未通過，舊資料保留：' + '；'.join(errors))
-    if signals['uncertain']:
-        raise ValueError('品質關卡仍有待確認項目，舊資料保留：' +
-                         '、'.join(str(r.get('name', '')) for r in signals['uncertain']))
+                        why = "日期格式不正確"
+                if why:
+                    label = "買入" if cat == "buy" else "賣出"
+                    row["when"] = "unknown"
+                    row["_原分類"] = cat
+                    row["reason"] = f"{row.get('reason') or ''}（{why}，改列為日期未明的回顧）"
+                    signals["history"].append(row)
+                    to_history.append(f"{name}（原 {label}）：{why}")
+                    continue
+
+            # 四、價位要有原句。沒有就把數字清掉，其餘留著——
+            #     少一個數字，比留一個沒有依據的數字安全。
+            price = str(row.get("price") or "未說明")
+            if cat != "holdings" and price not in ("", "未說明"):
+                pe = _ev_norm(row.get("price_evidence"))
+                if not pe or not any(pe in _ev_norm(q) for q in quotes):
+                    price_cleared.append(f"{name}：{price}")
+                    row["price"] = "未說明"
+
+            row["_evidence_verified"] = True
+            keep.append(row)
+        signals[cat] = keep
+
+    published = sum(len(signals.get(c) or []) for c in SIGNAL_CATEGORIES)
+    print("品質關卡（逐筆分級，不整批擋下）：")
+    print(f"  通過 {published} 筆　歷史回顧 {len(signals['history'])} 筆　"
+          f"隔離待確認 {len(signals['uncertain'])} 筆")
+    for label, rows in (("丟掉（不是個股）", dropped), ("改列歷史回顧", to_history),
+                        ("隔離待確認", to_uncertain), ("清掉沒有原句的價位", price_cleared)):
+        for line in rows:
+            print(f"  {label}　{line}")
+    if signals["uncertain"]:
+        print("  隔離的項目不會寫進試算表，也不會出現在網站與郵件上；")
+        print("  它們留在「逐字稿判讀稽核」分頁，可到後台逐日編輯手動補。")
+
+    if published == 0 and not signals["history"]:
+        raise ValueError(
+            "品質關卡：這一天沒有任何一筆通過驗證，舊資料保留。"
+            + ("　隔離：" + "、".join(to_uncertain) if to_uncertain else "")
+            + ("　丟掉：" + "、".join(dropped) if dropped else ""))
     return signals
 
 def save_evidence_audit(ss, video_id, date_str, transcript, signals):
@@ -5011,16 +5128,23 @@ def transcript_sources(v1: str, v2: str) -> dict:
     刪「嗯啊呃」），但那是請求不是保證——實際跑出來常常是原文的 58%，
     那不是刪贅字，那是摘要。而被摘掉的內容，對後面每一步都等於從來沒被講過。
 
-      extract　潤飾稿比較乾淨，名稱好認，所以預設讀它；
-               但壓縮到警戒線以下就改讀原始稿，那時它已經不可信了。
-      audit　　永遠讀原始稿。這一關的職責就是「找出逐字稿講了、擷取漏掉的」，
-               讓它讀與擷取同一份，它就結構性地不可能發現潤飾刪掉的東西，
-               只能在剩下的文字裡靠語意去補——補出來的往往是他拿來舉例的那幾檔。
-               那正是「稽核每次跑出來都不一樣」的來源。
-      verify　 兩份接起來。稽核可能從原始稿補回一檔，而那個名字在潤飾稿裡
-               已經被刪掉了；只拿潤飾稿去驗，剛補回來的會立刻被當成幻覺剔除。
-      arbitrate 兩份接起來。名代衝突的仲裁數的是「各出現幾次」，
-               只數潤飾稿會讓票數失真。
+    四關現在一律讀原始稿，理由有兩層。
+
+    第一層是完整性。稽核的職責是「找出逐字稿講了、擷取漏掉的」，
+    讓它讀與擷取同一份潤飾稿，它就結構性地不可能發現潤飾刪掉的東西，
+    只能在剩下的文字裡靠語意去補——補出來的往往是他拿來舉例的那幾檔。
+    那正是「稽核每次跑出來都不一樣」的來源。
+
+    第二層是證據關卡。每一筆紀錄都要附上原文引用，而品質關卡會拿那些引用
+    回頭比對逐字稿。只要「模型讀的」與「關卡比對的」不是同一份，
+    老實照抄的引用也會對不上，於是整批被判成捏造。
+    兩邊都用原始稿，這個矛盾就不存在。
+
+    代價是輸入 token 變多（23K 對 13K），一天一次，換掉的是
+    「每天的判讀都不一樣、而且沒有人知道為什麼」。
+
+    degraded / ratio 仍然算出來，只是不再拿去切換來源——它是給日誌看的，
+    壓縮率掉下來代表潤飾那一步在摘要，那件事本身要有人知道。
     """
     v1 = str(v1 or "")
     v2 = str(v2 or "")
@@ -5117,11 +5241,31 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None
     # 同音錯字與簡稱收斂到同一個代號，在那之前比不出兩列是同一檔。
     # 觀望兩類之間的衝突要在合併之後才處理：合併會先把各類裡的重複收乾淨，
     # 剩下的才是「真的一多一空」。
-    for key in ('watch_watch', 'watch_avoid'):
-        opposite = 'watch_avoid' if key == 'watch_watch' else 'watch_watch'
-        ids = {r.get('code') for r in signals.get(opposite, []) if r.get('code') != UNRESOLVED}
-        if any(r.get('code') in ids for r in signals.get(key, [])):
-            raise ValueError('品質關卡：同檔觀望立場衝突，未採用固定偏空規則')
+    # 同一檔同時被收進觀望注意與觀望不碰時，隔離那一檔，不要整輪中止。
+    #
+    # 提示詞的規則是「無法判斷放 uncertain」，那條規則是對的；
+    # 但這裡原本是 raise，於是一檔判不準就把整天十幾檔一起擋在門外。
+    # 立場衝突本來就是「這一檔看不出結論」，那正是 uncertain 的定義——
+    # 把它送去 uncertain，其他檔照常發布。
+    avoid_ids = {r.get('code') for r in signals.get('watch_avoid', [])
+                 if r.get('code') and r.get('code') != UNRESOLVED}
+    if avoid_ids:
+        for key in ('watch_watch', 'watch_avoid'):
+            other = avoid_ids if key == 'watch_watch' else {
+                r.get('code') for r in signals.get('watch_watch', [])
+                if r.get('code') and r.get('code') != UNRESOLVED}
+            keep, moved = [], []
+            for r in signals.get(key, []):
+                if r.get('code') in other:
+                    r['_疑點'] = '同一檔同時被判成觀望注意與觀望不碰，看不出最終結論'
+                    moved.append(r)
+                else:
+                    keep.append(r)
+            for r in moved:
+                print(f"  立場衝突　{r.get('name', '')}（{r.get('code')}）"
+                      f"同時被收進觀望兩類，隔離待人工判定")
+                signals.setdefault('uncertain', []).append(r)
+            signals[key] = keep
 
     step("價位校對", f"目前 {_n(signals)} 檔，用日K驗證每一個數字是不是這一檔的")
     # Price plausibility alone cannot prove identity or a trade. Preserve the

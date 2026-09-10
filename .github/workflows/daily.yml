@@ -203,7 +203,7 @@ jobs:
             exit 1
           fi
 
-          if ! grep -q 'polish-parallel' "$PIPELINE_SCRIPT"; then
+          if ! grep -q 'evidence-lenient-v2' "$PIPELINE_SCRIPT"; then
             echo "::error::$PIPELINE_SCRIPT 版本過舊，缺少新版會員簡訊範圍控制與配額熔斷功能。"
             echo ""
             echo "這個工作流程需要搭配同一批更新的 pipeline.py 才能運作。"

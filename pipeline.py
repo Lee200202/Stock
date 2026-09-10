@@ -134,7 +134,7 @@ PIPELINE_FEATURES = ("preflight,auth-rotation,lazy-gemini-key,cmoney-audit-v4,na
                      "audit-reads-raw,polish-length-floor,extract-prompt-v9,evidence-v1,evidence-v2,"
                      # 品質關卡改成逐筆分級：族群丟掉、講不出日期的改列歷史、
                      # 引用對不上的隔離，其餘照常發布。一筆壞資料不再擋住整天。
-                     "evidence-triage-v1,single-source-v2,paste-only-transcript,polish-runaway-guard,official-candidate-judge-v3,raw-names-win,polish-keeps-names,market-overview,no-abort-v1,name-memo,decision-log,polish-parallel,evidence-source-refs,polish-reuse-guard,key-inventory")
+                     "evidence-triage-v1,single-source-v2,paste-only-transcript,polish-runaway-guard,official-candidate-judge-v3,raw-names-win,polish-keeps-names,market-overview,no-abort-v1,name-memo,decision-log,polish-parallel,evidence-source-refs,polish-reuse-guard,key-inventory,review-keeps-going,memo-seed")
 
 # ------------------------------------------------------------------ #
 # 會員簡訊：解析版本與配額防護
@@ -3575,6 +3575,24 @@ NAME_MEMO_HEADERS = ["聽到的名稱", "判定", "正式名稱", "代號", "情
 
 _NAME_MEMO = None
 
+# 已經確認過的判定，內建一份。
+#
+# 這幾筆是人工核對逐字稿確認過的，不必每天再花一次模型呼叫去問——
+# 更重要的是不必每天賭它會不會給出同一個答案。
+# 試算表「名稱判定紀錄」裡若有同名的人工紀錄，那一筆優先，
+# 所以這份內建的不會蓋掉你自己的修正。
+NAME_MEMO_SEED = [
+    # 「矽晶圓」聽成「細金元」。它是材料不是公司，整列要移除；
+    # 讀音比對只會在公司清單裡找最像的，永遠找不到正確答案。
+    {"heard": "細金元", "verdict": "industry", "real": "矽晶圓", "code": "",
+     "keys": [], "why": "與被動元件、ABF載板並列，講的是矽晶圓族群，不是個股"},
+    # 「譜瑞-KY」聽成「普位」。與祥碩並列、講的是手中持股。
+    {"heard": "普位", "verdict": "stock", "real": "譜瑞-KY", "code": "4966",
+     "keys": [], "why": "與祥碩並列，講手中持股，價位級距相符"},
+    {"heard": "譜位", "verdict": "stock", "real": "譜瑞-KY", "code": "4966",
+     "keys": [], "why": "同上，另一種聽寫"},
+]
+
 
 def name_memo_load(ss):
     """讀出判定紀錄。讀不到就當成空的，這一關只是加速，不該擋住流程。"""
@@ -3586,10 +3604,10 @@ def name_memo_load(ss):
         ws = ss.worksheet(NAME_MEMO_SHEET)
         rows = sheets_retry(ws.get_all_values)
     except Exception:
-        return _NAME_MEMO
+        rows = []
     if len(rows) < 2:
-        return _NAME_MEMO
-    head = [str(h).strip() for h in rows[0]]
+        rows = []
+    head = [str(h).strip() for h in rows[0]] if rows else []
 
     def col(name):
         return head.index(name) if name in head else -1
@@ -3613,8 +3631,15 @@ def name_memo_load(ss):
             "source": g("來源") or "ai",
             "hits": g("命中次數"),
         })
+    # 內建的那幾筆補在最後：試算表裡若有同名的，查表時會依「人工優先」
+    # 挑到你自己的那一筆，內建的只在沒有人管過的時候才生效。
+    have = {e["heard"] for e in _NAME_MEMO}
+    for seed in NAME_MEMO_SEED:
+        if seed["heard"] not in have:
+            _NAME_MEMO.append(dict(seed, row=0, source="內建"))
     if _NAME_MEMO:
-        print(f"  名稱判定紀錄：載入 {len(_NAME_MEMO)} 筆先前判定過的名稱")
+        print(f"  名稱判定紀錄：{len(_NAME_MEMO)} 筆（含內建 "
+              f"{sum(1 for e in _NAME_MEMO if e.get('source') == '內建')} 筆）")
     return _NAME_MEMO
 
 
@@ -3680,6 +3705,14 @@ UNCLEAR_JUDGE_SYSTEM = """你要為每一筆紀錄確認一件事：這個位置
       guess 可能是鴻準（2354），因為讀音完全相同。但他這一句沒有給任何理由
       （「那我懶得講」），沒有第二個地方提到它，也沒有價位可以驗證。
       這種就回 unsure。留白讓人補是安全的，配一家讀音像的公司不是。
+
+  「細金元不准給我碰」（前後並列被動元件、ABF載板）
+      這不是公司，是「矽晶圓」聽錯的，回 industry、real 填矽晶圓。
+      讀音比對只會在公司清單裡找最像的，永遠找不到正確答案。
+
+  「比如說祥碩、比如說普位，普位現在跌兩塊」
+      「普位」是「譜瑞-KY」（4966）聽錯的。與祥碩並列、講的是手中持股。
+      回 stock、real 填譜瑞-KY。
 
   「8月25號1580以下買加折」
       guess 是嘉澤（3533）。對的——1580 元的價位與嘉澤相符，這就是驗證。
@@ -4494,7 +4527,21 @@ def save_evidence_audit(ss, video_id, date_str, transcript, signals):
         for item in signals.get(cat, []):
             payload = json.dumps({'batch':batch, 'category':cat, 'item':item}, ensure_ascii=False)
             if len(payload) > SHEET_CELL_LIMIT:
-                raise ValueError('單筆證據超過試算表儲存限制，未截斷JSON，尚未覆蓋資料')
+                # 存不下就縮短引用，不要讓整輪失敗。
+                #
+                # 這一張是事後查核用的副本，真正的資料寫在操作紀錄與會員持股。
+                # 一筆引用太長就丟掉整天的成果，代價完全不成比例——而且
+                # 「引用很長」通常代表那一筆的證據特別充分，不是特別可疑。
+                #
+                # 縮短的方式保留可讀性與可追溯性：每一句截到 400 字、最多留四句，
+                # 並在紀錄上標明截斷過，日後看到不會誤以為原本就這麼短。
+                trimmed = dict(item)
+                trimmed['evidence'] = [str(q)[:400] for q in (item.get('evidence') or [])][:4]
+                trimmed['_證據已截斷'] = f'原始 {len(payload)} 字，超過單格上限 {SHEET_CELL_LIMIT}'
+                payload = json.dumps({'batch':batch, 'category':cat, 'item':trimmed},
+                                     ensure_ascii=False)[:SHEET_CELL_LIMIT]
+                print(f"  稽核副本　{item.get('name','')} 的證據過長，已縮短後保存"
+                      f"（不影響操作紀錄，那邊是完整的）")
             records.append([video_id,date_str,fingerprint,'evidence-v2',payload,now])
     records.append([video_id,date_str,fingerprint,'evidence-v2',json.dumps({
         'batch':batch,'category':'manifest','item':{'characters':len(transcript),
@@ -5867,6 +5914,20 @@ def transcript_sources(v1, v2):
     return {k: raw for k in ('extract','audit','verify','arbitrate')} | {'degraded': ratio < RATIO_WARN, 'ratio': ratio, 'both': False}
 
 
+def existing_video_rows(ss, video_id, date_str) -> int:
+    """這一天、這支影片先前已經寫進去幾列。用來判斷「覆蓋會不會虧」。"""
+    n = 0
+    for sheet in ("操作紀錄", "會員持股"):
+        try:
+            for row in sheets_retry(ss.worksheet(sheet).get_all_records):
+                if (str(row.get("來源影片ID") or "") == video_id
+                        and norm_date(row.get("日期")) == date_str):
+                    n += 1
+        except Exception:
+            continue
+    return n
+
+
 def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None,
                   replace_video=False, v1=""):
     """
@@ -5991,10 +6052,42 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None
     signals['_affected_dates'] = sorted(affected)
     signals['_quality_requires_review'] = bool(signals.get('_quality_requires_review') or signals.get('uncertain'))
     save_evidence_audit(ss, video['id'], date_str, TX['audit'], signals)
+
+    # 有待複核的項目時，只在「會虧」的情況下才不覆蓋。
+    #
+    # 原本是無條件中止。那個顧慮是對的——不該拿一份殘缺的結果去洗掉一整天
+    # 已經好好的資料。但無條件中止把顧慮變成了新的問題：只要有一項證據定位
+    # 修不好（這一輪就是 1 項），整天的十筆全部進不去，而那十筆每一筆都通過了
+    # 證據驗證。一項疑問擋住十筆已驗證的資料，那不是保守，是把保守用錯地方。
+    #
+    # 真正該問的是：寫進去之後，這一天會比現在好還是差？
+    #   這一天本來就沒有資料　→ 寫。十筆已驗證的遠好過一片空白。
+    #   新的比舊的多或一樣多　→ 寫。覆蓋不會讓人虧到東西。
+    #   新的比舊的少　　　　　→ 不覆蓋。那才是「用部分結果洗掉整日」的情況。
+    #
+    # 不覆蓋時也不中止：後面的步驟照跑，日誌與判定歷程照寫，
+    # 工單以「完成（保留舊資料）」收尾。人看得到發生什麼事，
+    # 而不是拿到一個 exit 1 與一整天的空白。
     if signals.get('_quality_requires_review'):
-        flush_decisions(ss, date_str)
-        raise ValueError('證據修復後仍有待確認項目；完整候選已保存於逐字稿判讀稽核，未以部分結果覆蓋整日資料。請核對來源/判定歷程。')
-    # 這一輪做了哪些判定，一起記進「判定歷程」給後台看。
+        fresh = sum(len(signals.get(k) or []) for k in SIGNAL_CATEGORIES)
+        old_n = existing_video_rows(ss, video['id'], date_str)
+        pending = len(signals.get('uncertain') or []) + len(signals.get('_repair_gaps') or [])
+        if old_n and fresh < old_n:
+            print(f"品質複核：這一輪只驗證出 {fresh} 筆，少於這一天既有的 {old_n} 筆，"
+                  f"不覆蓋，保留舊資料。")
+            print(f"　　待複核 {pending} 項已存進「逐字稿判讀稽核」，"
+                  f"可到後台逐日編輯處理後重跑。")
+            note_decision('品質複核', '保留舊資料（新結果較少）', date_str,
+                          f'新 {fresh} 筆 < 舊 {old_n} 筆，待複核 {pending} 項')
+            flush_decisions(ss, date_str)
+            step('完成', f'保留舊資料（新 {fresh} 筆 < 舊 {old_n} 筆），待複核 {pending} 項')
+            return sorted(affected)
+        print(f"品質複核：有 {pending} 項待複核，但這一輪驗證出的 {fresh} 筆"
+              f"{'多於' if old_n else '而這一天原本沒有'}既有的 {old_n} 筆，照常寫入。")
+        print("　　待複核的項目不會寫進試算表，留在「逐字稿判讀稽核」等人處理。")
+        note_decision('品質複核', '照常寫入（新結果不比舊的少）', date_str,
+                      f'新 {fresh} 筆 vs 舊 {old_n} 筆，待複核 {pending} 項')
+
     flush_decisions(ss, date_str)
 
     step("撰稿", f"共 {_n(signals)} 檔，產生每日整理")

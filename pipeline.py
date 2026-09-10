@@ -134,7 +134,7 @@ PIPELINE_FEATURES = ("preflight,auth-rotation,lazy-gemini-key,cmoney-audit-v4,na
                      "audit-reads-raw,polish-length-floor,extract-prompt-v8,evidence-v1,"
                      # 品質關卡改成逐筆分級：族群丟掉、講不出日期的改列歷史、
                      # 引用對不上的隔離，其餘照常發布。一筆壞資料不再擋住整天。
-                     "evidence-triage-v1,both-transcripts-v1,paste-only-transcript,polish-runaway-guard,unclear-name-judge-v2,raw-names-win,polish-keeps-names,market-overview,no-abort-v1,name-memo,decision-log,polish-parallel,evidence-lenient-v2,polish-reuse-guard")
+                     "evidence-triage-v1,both-transcripts-v1,paste-only-transcript,polish-runaway-guard,unclear-name-judge-v2,raw-names-win,polish-keeps-names,market-overview,no-abort-v1,name-memo,decision-log,polish-parallel,evidence-lenient-v2,polish-reuse-guard,key-inventory")
 
 # ------------------------------------------------------------------ #
 # 會員簡訊：解析版本與配額防護
@@ -195,6 +195,9 @@ SPREADSHEET_ID = env("SPREADSHEET_ID")
 # 不同專案各有各的額度，一把用完換下一把，全部用完才是真的沒有額度。
 # Apps Script 那邊早就支援了，這裡先前只讀一把，於是同樣是額度問題，
 # 後台還能繼續跑，GitHub 這條卻整天停擺。
+_KEY_REPORT_DONE = False
+
+
 def _load_gemini_keys() -> list[tuple[str, str]]:
     """
     回傳 [(來源名稱, 金鑰)]。名稱要帶著走，出問題時才講得出「去修哪一個 Secret」。
@@ -204,13 +207,22 @@ def _load_gemini_keys() -> list[tuple[str, str]]:
     「一把很長的金鑰」，送出去就是一個看不懂的 404，而真正的原因只是貼法。
     """
     out, seen = [], set()
+    report = []
+
+    def _fp(t: str) -> str:
+        """金鑰的指紋。用來認出「兩把其實是同一把」，又不會把金鑰本身印出去。
+
+        不能印金鑰的任何一段：GitHub 只遮蔽完整的 Secret 值，
+        印出後四碼它不會遮，那就等於把金鑰的一部分留在公開的執行紀錄裡。
+        雜湊前六碼足以分辨重複，而且反推不回去。"""
+        return hashlib.sha256(t.encode("utf-8")).hexdigest()[:6]
 
     def push(source: str, raw: str):
         for part in re.split(r"[,\r\n]+", str(raw or "")):
             # 只去掉頭尾的空白與引號。有些人會把金鑰連同引號一起貼進 Secret，
             # 那是很容易犯又很難看出來的錯，順手處理掉。
             t = part.strip().strip("'\"").strip()
-            if not t or t in seen:
+            if not t:
                 continue
             # 這裡刻意不檢查金鑰的字元組成。
             #
@@ -223,15 +235,46 @@ def _load_gemini_keys() -> list[tuple[str, str]]:
             #
             # 只擋一種：短到不可能是金鑰。這個門檻低到不會冤枉任何真金鑰。
             if len(t) < 10:
-                print(f"警告：{source} 裡有一段太短（{len(t)} 字），不像金鑰，已略過。")
+                report.append(f"  {source:<20} 太短（{len(t)} 字），不像金鑰，略過")
+                continue
+            if t in seen:
+                same = next((src for src, k in out if k == t), "前面某一把")
+                report.append(f"  {source:<20} 與 {same} 是同一把（指紋 {_fp(t)}），略過"
+                              f"——重複的金鑰不會增加額度")
                 continue
             seen.add(t)
             out.append((source, t))
+            report.append(f"  {source:<20} 已載入（長度 {len(t)}，指紋 {_fp(t)}）")
 
-    push("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", ""))
-    push("GEMINI_API_KEYS", os.environ.get("GEMINI_API_KEYS", ""))
-    for i in range(2, 6):
-        push(f"GEMINI_API_KEY_{i}", os.environ.get(f"GEMINI_API_KEY_{i}", ""))
+    slots = [("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", "")),
+             ("GEMINI_API_KEYS", os.environ.get("GEMINI_API_KEYS", ""))]
+    slots += [(f"GEMINI_API_KEY_{i}", os.environ.get(f"GEMINI_API_KEY_{i}", ""))
+              for i in range(2, 6)]
+
+    for name, raw in slots:
+        if not str(raw or "").strip():
+            report.append(f"  {name:<20} 未設定（環境變數是空的）")
+            continue
+        push(name, raw)
+
+    # 每一格都講出來，不要只說「載到幾把」。
+    #
+    # 實際發生過（2026/09/10）：明明貼了 GEMINI_API_KEY_3，健檢卻只說
+    # 「檢查 2 把」，而日誌裡沒有任何一行解釋第三把去哪了。
+    # 沒有線索就只能猜——是貼錯地方（Variables 不是 Secrets）、
+    # Secret 名字打錯（GEMINI_API_KEY3 少了底線）、還是貼成與前一把相同的值。
+    # 這幾種在這張表上一眼就分得出來。
+    # 盤點只印一次。這一支在一次執行裡會被呼叫好幾次（載入、輪替、健檢），
+    # 每次都印一遍會把日誌洗掉，而內容每次都一樣。
+    global _KEY_REPORT_DONE
+    if not _KEY_REPORT_DONE:
+        _KEY_REPORT_DONE = True
+        print("Gemini 金鑰盤點：")
+        for line in report:
+            print(line)
+        if not out:
+            print("  一把都沒有載到。金鑰要放在 Repository secrets，不是 Variables；")
+            print("  名稱要一字不差（注意 GEMINI_API_KEY_3 中間有底線）。")
     return out
 
 

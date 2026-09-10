@@ -203,7 +203,7 @@ jobs:
             exit 1
           fi
 
-          if ! grep -q 'sms-scope-v6,sms-quota-breaker,sms-incremental-write,sms-prompt-v6' "$PIPELINE_SCRIPT"; then
+          if ! grep -q 'audit-reads-raw,polish-length-floor,extract-prompt-v8' "$PIPELINE_SCRIPT"; then
             echo "::error::$PIPELINE_SCRIPT 版本過舊，缺少新版會員簡訊範圍控制與配額熔斷功能。"
             echo ""
             echo "這個工作流程需要搭配同一批更新的 pipeline.py 才能運作。"
@@ -214,7 +214,7 @@ jobs:
             echo "那個訊息會把人引導去補 Secret，但真正要做的是更新 pipeline.py。"
             exit 1
           fi
-          echo "pipeline.py 版本相符：sms-scope-v6 ($PIPELINE_SCRIPT)"
+          echo "pipeline.py 版本相符：audit-reads-raw ($PIPELINE_SCRIPT)"
           echo "PIPELINE_SCRIPT=$PIPELINE_SCRIPT" >> $GITHUB_ENV
 
       - name: 探測今天有沒有事情要做

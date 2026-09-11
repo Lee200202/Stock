@@ -724,6 +724,9 @@ def write_preflight(has_work: str, reason: str):
 
 
 REFRESH_SITE = os.environ.get("REFRESH_SITE", "false").strip().lower() == "true"
+# 13:45 收盤後補齊日K。工作流程依 github.event.schedule 認出那一條排程後帶進來。
+# 這一輪只補日K快取：不看影片、不呼叫 Gemini、不動任何操作紀錄。
+DAILYK_ONLY = os.environ.get("DAILYK_ONLY", "").strip().lower() == "true"
 APPS_SCRIPT_URL = os.environ.get("APPS_SCRIPT_URL", "").strip()
 ADMIN_KEY = os.environ.get("ADMIN_KEY", "").strip()
 
@@ -1092,6 +1095,13 @@ def maybe_refresh_site(only=None, force=False, date_str=""):
 
             # 還沒做完就再打一次；做完了才換下一步。
             if data.get("chunked") and not data.get("done"):
+                # 13:45 補日K那一輪 job 上限 30 分鐘。每批約 45 秒，四十批跑滿會超過上限，
+                # 被 GitHub 直接砍掉（亮紅燈、還會寄失敗通知）。
+                # 時間快到就收手：游標每批都存在 Apps Script，下次從這裡接著補。
+                if DAILYK_ONLY and budget_left() < 120:
+                    print(f"本輪時間快到，先停在 {data.get('processed', '?')}/{data.get('total', '?')}。")
+                    print("       游標已存在 Apps Script，下一次補日K會從這裡接著做，不是失敗。")
+                    return {"ok": False, "done": ok_n, "failed": fail_n, "partial": True}
                 if rounds >= MAX_ROUNDS:
                     fail_n += 1
                     step_failed = True
@@ -2480,6 +2490,7 @@ def get_code_map() -> dict:
 # ---------------------------------------------------------------- #
 NON_STOCK_SUFFIX = ("集團", "族群", "概念股", "概念", "類股", "板塊", "產業", "供應鏈", "相關股", "相關")
 NON_STOCK_EXACT = {
+    "日幣", "日圓", "日元", "美元", "美金", "台幣", "臺幣", "新台幣", "人民幣", "歐元",
     # 這一份與 Adminpipeline.gs 的 PIPE_NON_STOCK_EXACT 必須一模一樣。
     # 兩邊曾經走鐘到 python 100 個、apps script 42 個，於是同一個名稱
     # 在上游被擋、在後台卻放行（矽晶圓就是這樣漏出去的）。有測試在盯。
@@ -2689,6 +2700,16 @@ def resolve_code(name: str, hint: str):
     """
     name = str(name or "").strip()
     hint = str(hint or "").strip()
+
+    if name in NON_EQUITY_NAMES:
+        return REJECT, name, '貨幣，不是股票'
+    if name in CONFIRMED_NAMES:
+        code, fixed = CONFIRMED_NAMES[name]
+        if code:
+            return code, fixed, '管理者確認名稱'
+        official = get_code_map()
+        exact = next((c for c, n in official.items() if n == fixed), None)
+        return exact or UNRESOLVED, fixed, '管理者確認名稱；僅接受正式名稱完全相同的代號'
 
     m = get_code_map()
 
@@ -3366,6 +3387,9 @@ def resolve_signals(signals: dict, transcript: str = "") -> dict:
                 continue
 
             r["code"] = code
+            if raw in CONFIRMED_NAMES:
+                r["name"] = fixed
+                r["aliases"] = list(dict.fromkeys((r.get("aliases") or []) + [raw]))
             if code == UNRESOLVED:
                 stat["待確認"] += 1
                 print(f"  代號比對　{raw} -> 待確認（{how}）")
@@ -3501,7 +3525,7 @@ name 用本份原文出現的寫法；aliases 也只能列原文有的別稱。
 code 只填原文明講的代號，否則空白。正式名稱交給官方清單與上下文核對。
 原文已正確的名字必須保留，不改成音近字。不要把動詞「出清」拼成公司名。
 價格、漲跌金額、EPS、產業、相鄰股票不是公司身分的證明。「跌兩毛」不能推算股價級距。
-同音候選可以送 uncertain 並寫出上下文，不能憑同音直接選定另一家公司。
+管理者確認：普威＝譜瑞-KY（4966）；戲制台＝矽製材，代號未確認不得猜。日幣是貨幣，不是日馳或其他股票。其餘同音候選依上下文判讀，無法確認身分才送 uncertain。
 匿名這一檔、圖上股票、我不講名字不可由股價猜公司。
 
 【主詞與分類】
@@ -3517,7 +3541,7 @@ ignored：單純行情例子、法人交易、ETF換股、匿名標的、產業�
 history：自己的過去交易但日期不能確定；不是第三方交易的收容區。
 
 【時間】
-buy/sell 必填 when、time_evidence（短句原字，含動作與時間）、seq。
+buy/sell 填 when、seq，time_evidence 能找到就填。時間可以分布在前後段；漏附獨立時間短句不影響收錄。當下已執行的操作可依上下文判 today；明確歷史回顧仍不得猜成今天。
 today 必須是動作發生在影片當日；「今天漲，昨天我買」是 yesterday。
 yesterday 是影片日期減一個日曆日，不依日K快取猜。
 date 要填 event_date=YYYY/MM/DD 且原文有月日；prev_trading_day 只適用明講上一交易日。
@@ -3539,11 +3563,11 @@ market 每筆填 kind=level/volume/event/flow/view、text、evidence_refs。
 【JSON】
 必須回傳 buy,sell,holdings,watch_avoid,watch_watch,history,uncertain,ignored,market 九個陣列。
 一般每筆 name,code,aliases,evidence_refs,price,price_evidence,reason；holdings 另填 stance,note。
-history 另填 when=unknown、action=buy/sell。uncertain 明列疑點與可能分類。
+history 另填 when=unknown、action=buy/sell。uncertain 明列疑點與 suggested_category（九類英文鍵之一）；可判斷分類而只有引用定位或缺少時間短句的問題，直接收進該類並寫 review_note，不要隔離。
 不得以減少數量掩蓋不確定。沒有最低檔數；每個候選必須有收錄或排除的證據。
 """
 
-EXTRACT_SYSTEM = POLICY + "\n請獨立建立完整初稿。"
+EXTRACT_SYSTEM = POLICY + "\n這次合併擷取、分類、日期判斷、補漏及大盤摘要。輸入為JSON，source每個鍵是來源編號。完整讀完各段後在同一次回答自行覆核，特別檢查最後20%，只輸出完成的九類陣列，不輸出初稿或重複引句。長稿各批保留原始S編號，不假設記得其他請求。"
 
 
 AUDIT_SYSTEM = POLICY + "\n這是獨立覆核。重讀完整原文；逐筆校對初稿並補漏，輸出完整九類陣列，不只輸出差異。被刪除的初稿候選須列 ignored/uncertain 並附理由，不能消失。附 changes 說明修正。"
@@ -3786,6 +3810,11 @@ def resolve_unclear_names(signals, transcript, ss=None):
     for cat in SIGNAL_CATEGORIES + ('history',):
         for r in signals.get(cat, []):
             heard = str(r.get('原始語音名稱') or r.get('name') or '')
+            if heard in CONFIRMED_NAMES or r.get('name') in CONFIRMED_NAMES:
+                r['code'], r['name'], _ = resolve_code(heard if heard in CONFIRMED_NAMES else r['name'], '')
+                continue
+            if r.get('code') == '4966' and r.get('name') == '譜瑞-KY' and '普威' in (r.get('aliases') or []):
+                continue
             exact = [(c,n) for c,n in official.items() if simple(n) == simple(heard)]
             if len(exact) == 1:
                 r['code'], r['name'] = exact[0]
@@ -4143,9 +4172,9 @@ def evidence_gaps(signals, transcript, initial=None):
             if cat in ('buy', 'sell'):
                 te = _ev_norm(row.get('time_evidence'))
                 when = row.get('when')
-                if not te or te not in ev or when not in ('today','yesterday','date','prev_trading_day'):
+                if ((not te or te not in ev) and not row.get('_time_from_context')) or when not in ('today','yesterday','date','prev_trading_day'):
                     gaps.append(key + ' 時間句缺失/不明；找原句，未知日期改history')
-                elif when in _WHEN_MARKERS and not re.search(_WHEN_MARKERS[when], te):
+                elif when in _WHEN_MARKERS and not re.search(_WHEN_MARKERS[when], te) and not row.get("_time_from_context"):
                     gaps.append(key + ' 時間分類與原句不符')
     if initial:
         def names_of(obj):
@@ -4350,8 +4379,10 @@ def validate_evidence(signals, transcript, date_str):
 
     而那幾種問題本來就各有正確的歸屬，提示詞裡也都寫好了：
       族群、單字碎片　　→ 本來就不是個股，丟掉
-      買賣講不出時間　　→ history（「華城賣775，現在726」就是這種）
-      引用對不上原文　　→ uncertain，隔離起來等人看，不要發布
+      缺獨立時間短句　　→ 補前後文；上下文可判日期則保留並註記
+      明確歷史、日期不明 → history
+      引用定位缺漏　　　→ 先由完整原文補回，有分類的候選納入並註記
+      原文查無身分／分類 → uncertain，保留待確認
       價位沒有原句　　　→ 把價位清掉，其餘留著
     所以這裡改成把每一筆送到它該去的地方，然後把整份報告印出來。
 
@@ -4364,6 +4395,7 @@ def validate_evidence(signals, transcript, date_str):
     if not isinstance(signals, dict):
         raise ValueError("品質關卡：模型未回傳紀錄物件")
 
+    recover_context(signals, transcript)
     hay = _ev_norm(transcript)
     for cat in SIGNAL_CATEGORIES + ("history", "uncertain"):
         if not isinstance(signals.get(cat), list):
@@ -4435,14 +4467,14 @@ def validate_evidence(signals, transcript, date_str):
                 when = row.get("when")
                 te = _ev_norm(row.get("time_evidence"))
                 why = ""
-                if not te or not any(te in _ev_norm(q) for q in quotes):
+                if (not te or not any(te in _ev_norm(q) for q in quotes)) and not row.get("_time_from_context"):
                     why = "沒有附上講出時間的那一句"
                 elif when not in ("today", "yesterday", "prev_trading_day", "date"):
                     why = f"時間講不確定（when={when or '未填'}）"
-                elif when in _WHEN_MARKERS and not re.search(_WHEN_MARKERS[when], te):
+                elif when in _WHEN_MARKERS and not re.search(_WHEN_MARKERS[when], te) and not row.get("_time_from_context"):
                     why = f"標成 {when}，但引用的那一句裡沒有對應的時間詞"
                 elif when == "today" and re.search(
-                        r"昨天|昨日|前天|前幾天|當天|那一天|先前|以前", te):
+                        r"昨天|昨日|前天|前幾天|當天|那一天|先前|以前", te or evidence):
                     why = "標成今天，但引用的那一句在講回顧"
                 elif when == "date":
                     try:
@@ -4475,6 +4507,12 @@ def validate_evidence(signals, transcript, date_str):
                     row["price"] = "未說明"
 
             row["_evidence_verified"] = True
+            review_note = row.get('_review_note') or row.get('review_note')
+            if review_note:
+                field = 'note' if cat == 'holdings' else 'reason'
+                label = '（待確認註記：' + str(review_note) + '）'
+                if label not in str(row.get(field) or ''):
+                    row[field] = str(row.get(field) or '') + label
             keep.append(row)
         signals[cat] = keep
 
@@ -4542,8 +4580,8 @@ def save_evidence_audit(ss, video_id, date_str, transcript, signals):
                                      ensure_ascii=False)[:SHEET_CELL_LIMIT]
                 print(f"  稽核副本　{item.get('name','')} 的證據過長，已縮短後保存"
                       f"（不影響操作紀錄，那邊是完整的）")
-            records.append([video_id,date_str,fingerprint,'evidence-v2',payload,now])
-    records.append([video_id,date_str,fingerprint,'evidence-v2',json.dumps({
+            records.append([video_id,date_str,fingerprint,ASSESSMENT_VERSION,payload,now])
+    records.append([video_id,date_str,fingerprint,ASSESSMENT_VERSION,json.dumps({
         'batch':batch,'category':'manifest','item':{'characters':len(transcript),
         'status':'needs_review' if signals.get('_quality_requires_review') else 'verified_candidate',
         'gaps':signals.get('_repair_gaps',[])}},ensure_ascii=False),now])
@@ -4592,13 +4630,194 @@ def enforce_article_records(article, signals, date_str):
     return canonical_article(signals, date_str, article)
 
 
+"""Embedded helpers for context-based inclusion and bounded JSON assessment.
+
+The standalone pipeline is the deployed runtime; this file documents the helpers.
+"""
+
+CONFIRMED_NAMES = {'普威': ('4966', '譜瑞-KY'), '戲制台': ('', '矽製材'), '矽製材': ('', '矽製材')}
+NON_EQUITY_NAMES = {'日幣', '日圓', '日元', '美元', '美金', '台幣', '臺幣', '新台幣', '人民幣', '歐元'}
+ASSESSMENT_VERSION = 'context-json-v3'
+
+
+def compact_assessment(signals):
+    """Do not resend materialized quotes or internal metadata with source IDs."""
+    return {cat: [{k: v for k, v in r.items()
+                   if not k.startswith('_') and (k != 'evidence' or not r.get('evidence_refs'))}
+                  for r in signals.get(cat, []) if isinstance(r, dict)]
+            for cat in SIGNAL_CATEGORIES + ('history', 'uncertain', 'ignored', 'market')}
+
+
+def recover_context(signals, transcript):
+    """Repair citation location locally; retain the model's category with review notes."""
+    segments = source_segments(transcript)
+    hay = _ev_norm(transcript)
+    categories = SIGNAL_CATEGORIES + ('history', 'uncertain')
+    for cat in categories:
+        for row in signals.get(cat, []) or []:
+            if not isinstance(row, dict):
+                continue
+            name = str(row.get('name') or '')
+            names = [name] + [a for a in row.get('aliases', []) if isinstance(a, str)]
+            for heard, (_, corrected) in CONFIRMED_NAMES.items():
+                if name in (heard, corrected):
+                    names.extend([heard, corrected])
+            row['aliases'] = list(dict.fromkeys(n for n in names if n != name and _ev_norm(n) in hay))
+            names = [n for n in names if len(_ev_norm(n)) >= 2]
+            good = [q for q in row.get('evidence', []) if isinstance(q, str) and _quote_is_real(q, hay)]
+            ev = _ev_norm('\n'.join(good))
+            if not any(_ev_norm(n) in ev for n in names):
+                matches = [sid for sid, seg in segments.items()
+                           if any(_ev_norm(n) in _ev_norm(seg['text']) for n in names)]
+                if matches:
+                    refs = list(dict.fromkeys(list(row.get('evidence_refs') or []) + matches))
+                    row['evidence_refs'] = [sid for sid in refs if sid in segments]
+                    row['_source_spans'] = [[segments[sid]['start'], segments[sid]['end']]
+                                            for sid in row['evidence_refs']]
+                    good = list(dict.fromkeys(good + [segments[sid]['text'] for sid in matches]))
+                    row['_context_included'] = True
+                    row['_review_note'] = '依完整原文補回名稱上下文，保留原判讀分類'
+            row['evidence'] = good
+            # A missing separate time quote is a formatting gap, not proof of history.
+            if cat in ('buy', 'sell', 'uncertain') and not _ev_norm(row.get('time_evidence')):
+                when = row.get('when')
+                pattern = _WHEN_MARKERS.get(when)
+                matching = [q for q in good if pattern and re.search(pattern, q)]
+                if matching:
+                    row['time_evidence'] = matching[0]
+                elif good and when in ('today', 'yesterday', 'prev_trading_day'):
+                    row['_time_from_context'] = True
+                    row['_review_note'] = '日期依上下文判讀，未附獨立時間短句'
+    remaining = []
+    labels = {'買入': 'buy', '賣出': 'sell', '會員持股': 'holdings', '觀望注意': 'watch_watch', '觀望不碰': 'watch_avoid'}
+    for row in signals.get('uncertain', []) or []:
+        if not isinstance(row, dict):
+            remaining.append(row); continue
+        target = row.get('_原分類') or row.get('suggested_category') or row.get('category')
+        target = labels.get(target, target)
+        names = [row.get('name', '')] + row.get('aliases', [])
+        ev = _ev_norm('\n'.join(row.get('evidence') or []))
+        if target in SIGNAL_CATEGORIES and any(len(_ev_norm(n)) >= 2 and _ev_norm(n) in ev for n in names):
+            row['_context_included'] = True
+            row['_review_note'] = row.get('_疑點') or row.get('reason') or '依上下文納入，保留待確認註記'
+            signals.setdefault(target, []).append(row)
+        else:
+            remaining.append(row)
+    signals['uncertain'] = remaining
+    return signals
+
+
+def assessment_payload(date_str, segments, candidates=None, issues=None):
+    data = {'version': ASSESSMENT_VERSION, 'video_date': date_str,
+            'tasks': ['擷取全部標的', '上下文分類與日期', '逐段補漏自查', '大盤摘要'],
+            'confirmed_names': CONFIRMED_NAMES, 'non_equity_names': sorted(NON_EQUITY_NAMES),
+            'source': {sid: seg['text'] for sid, seg in segments.items()}}
+    if candidates is not None:
+        data['candidates'] = compact_assessment(candidates)
+    if issues:
+        data['issues'] = issues
+    return json.dumps(data, ensure_ascii=False, separators=(',', ':'))
+
+
+def assessment_batches(transcript, date_str):
+    # UTF-8 bytes are a conservative token upper estimate, not an exact tokenizer.
+    # Cap normal requests well below known 1M contexts to respect per-minute quotas.
+    context = min(int(os.environ.get('GEMINI_CONTEXT_TOKENS', '1048576')), 1048576)
+    cap = min(context, int(os.environ.get('GEMINI_ASSESSMENT_TOKEN_BUDGET', '120000')))
+    limit = cap - len(EXTRACT_SYSTEM.encode('utf-8')) - min(MAX_OUT, 20000) - 4096
+    if limit < 4096:
+        raise ValueError('JSON判讀輸入預算太小；請增加 GEMINI_ASSESSMENT_TOKEN_BUDGET')
+    result, batch = [], {}
+    for sid, seg in source_segments(transcript).items():
+        trial = dict(batch, **{sid: seg})
+        if batch and len(assessment_payload(date_str, trial).encode('utf-8')) > limit:
+            result.append(batch)
+            # Preserve the preceding two segments as boundary context, keeping global IDs.
+            batch = dict(list(batch.items())[-2:])
+            trial = dict(batch, **{sid: seg})
+        if len(assessment_payload(date_str, trial).encode('utf-8')) > limit:
+            raise ValueError('單一來源段落超過JSON判讀預算')
+        batch = trial
+    if batch:
+        result.append(batch)
+    return result
+
+
+def extract_context_json(transcript, date_str):
+    categories = SIGNAL_CATEGORIES + ('history', 'uncertain', 'ignored', 'market')
+    merged = {cat: [] for cat in categories}
+    seen = {cat: set() for cat in categories}
+    batches = assessment_batches(transcript, date_str)
+    print(f'JSON合併判讀：{len(transcript)} 字，分 {len(batches)} 批；擷取／分類／補漏／大盤一次處理')
+    for index, batch in enumerate(batches, 1):
+        raw = call_gemini(EXTRACT_SYSTEM, assessment_payload(date_str, batch),
+                          want_json=True, thinking=2048, tag=f'assess-json-{index}', max_out=min(MAX_OUT, 20000))
+        parsed = json.loads(re.sub(r'^```json|^```|```$', '', raw.strip(), flags=re.MULTILINE).strip())
+        if not isinstance(parsed, dict) or any(not isinstance(parsed.get(c), list) for c in categories):
+            raise ValueError('JSON合併判讀必須包含完整九類陣列；未寫入資料')
+        for cat in categories:
+            for row in parsed[cat]:
+                if not isinstance(row, dict):
+                    raise ValueError('JSON判讀列不是物件；未寫入資料')
+                # Internal validation flags are created by code, never by a model response.
+                row = {k: v for k, v in row.items() if not k.startswith('_')}
+                identity = json.dumps(row, ensure_ascii=False, sort_keys=True)
+                if identity not in seen[cat]:
+                    merged[cat].append(row); seen[cat].add(identity)
+    merged['_combined_pass'] = True
+    merged['_assessment_batches'] = len(batches)
+    return merged
+
+
+def audit_context_json(transcript, signals, date_str):
+    materialize_evidence(signals, transcript)
+    recover_context(signals, transcript)
+    gaps = evidence_gaps(signals, transcript)
+    # One bounded repair per batch, with compact candidates and no repeated quotes.
+    if gaps:
+        repaired = {cat: [] for cat in SIGNAL_CATEGORIES + ('history', 'uncertain', 'ignored', 'market')}
+        for batch in assessment_batches(transcript, date_str):
+            selected = {cat: [r for r in signals.get(cat, []) if isinstance(r, dict) and
+                             (not r.get('evidence_refs') or set(r['evidence_refs']) & set(batch))]
+                        for cat in repaired}
+            payload = assessment_payload(date_str, batch, selected, gaps)
+            # Recheck the FULL request after attaching candidates; never silently truncate.
+            cap = min(int(os.environ.get('GEMINI_CONTEXT_TOKENS', '1048576')),
+                      int(os.environ.get('GEMINI_ASSESSMENT_TOKEN_BUDGET', '120000')), 1048576)
+            if len((AUDIT_SYSTEM + payload).encode('utf-8')) + min(MAX_OUT, 20000) + 4096 > cap:
+                print('修復JSON超過預算，沿用已判讀內容並留下稽核註記')
+                repaired = None; break
+            raw = call_gemini(AUDIT_SYSTEM, payload, want_json=True, thinking=2048,
+                              tag='context-repair', max_out=min(MAX_OUT, 20000))
+            parsed = json.loads(re.sub(r'^```json|^```|```$', '', raw.strip(), flags=re.MULTILINE).strip())
+            if not isinstance(parsed, dict) or any(not isinstance(parsed.get(c), list) or
+                   any(not isinstance(r, dict) for r in parsed[c]) for c in repaired):
+                raise ValueError('JSON修復格式不完整；未寫入資料')
+            for cat in repaired:
+                repaired[cat].extend({k: v for k, v in r.items() if not k.startswith('_')} for r in parsed[cat])
+        if repaired is not None:
+            materialize_evidence(repaired, transcript)
+            recover_context(repaired, transcript)
+            gaps = evidence_gaps(repaired, transcript, signals)
+            signals = repaired
+    signals['_repair_gaps'] = gaps
+    validated = validate_evidence(signals, transcript, date_str)
+    validated['_quality_requires_review'] = bool(gaps or validated.get('uncertain'))
+    print(f'JSON本機校對完成：{len(gaps)} 項待複核')
+    return validated
+
+
 def extract_signals(v2, date_str):
+    if os.environ.get("GEMINI_COMBINED_ASSESSMENT", "true").lower() != "false":
+        return extract_context_json(v2, date_str)
     raw = call_gemini(EXTRACT_SYSTEM, f'影片日期：{date_str}\n原始逐字稿（來源編號只作定位）：\n' + indexed_source(v2),
                       want_json=True, thinking=1024, tag='extract', max_out=min(MAX_OUT, 16000))
     return json.loads(re.sub(r'^```json|^```|```$', '', raw.strip(), flags=re.MULTILINE).strip())
 
 
 def audit_signals(v2, signals, date_str):
+    if signals.pop("_combined_pass", False):
+        return audit_context_json(v2, signals, date_str)
     # Retry only the assessment, never repolish/re-fetch the transcript.
     materialize_evidence(signals, v2)
     prompt = (f'影片日期：{date_str}\n初稿（可能有錯）：\n' + json.dumps(signals, ensure_ascii=False) +
@@ -5098,7 +5317,7 @@ def verify_names(signals: dict, transcript: str) -> dict:
         for r in signals.get(key, []) or []:
             nm = str(r.get("name", "")).strip()
             cd = str(r.get("code", "")).strip()
-            if _in_transcript(nm, hay) or _in_transcript(cd, hay):
+            if _in_transcript(nm, hay) or _in_transcript(cd, hay) or any(_in_transcript(a, hay) for a in r.get("aliases", []) if a):
                 keep.append(r)
                 continue
             # 字面找不到時再用「唸起來像不像」比一次。語音轉文字會把股名
@@ -5138,6 +5357,10 @@ def build_article(v2: str, signals: dict, date_str: str) -> str:
     分開之後那幾筆仍然要寫進文章——它們是真的發生的操作，而且今天才第一次
     被講出來——只是要標明是補記，不能混進當日。
     """
+    if os.environ.get("GEMINI_ARTICLE_ENABLED", "false").lower() != "true":
+        print("每日整理：使用最終JSON資料產生六章文章，不另呼叫模型")
+        return canonical_article(signals, date_str)
+
     def _public(r):
         """底線開頭的是流程內部用的（_date、_seq），不要送進模型。"""
         return {k: v for k, v in r.items() if not str(k).startswith("_")}
@@ -6194,7 +6417,7 @@ def job_progress(job, step=None, done=None, total=None, note=None, status=None):
 def commit_evidence_manifest(ss, vid, date_str, raw):
     payload=json.dumps({'batch':run_tag(),'category':'manifest','item':{'status':'published'}},ensure_ascii=False)
     sheets_retry(ss.worksheet('逐字稿判讀稽核').append_row,
-                 [vid,date_str,hashlib.sha256(raw.encode('utf-8')).hexdigest(),'evidence-v2',payload,
+                 [vid,date_str,hashlib.sha256(raw.encode('utf-8')).hexdigest(),ASSESSMENT_VERSION,payload,
                   datetime.now(TAIPEI).strftime('%Y/%m/%d %H:%M:%S')],value_input_option='RAW')
 
 
@@ -6211,7 +6434,7 @@ def save_refresh_checkpoint(ss, vid, date_str, raw, affected, completed=None):
     rows=sheets_retry(ws.get_all_values)
     idx=next((i+1 for i,r in enumerate(rows[1:],1) if len(r)>1 and r[0]==vid and r[1]==date_str),None)
     data={'affected':affected,'completed':completed or []}
-    values=[vid,date_str,hashlib.sha256(raw.encode('utf-8')).hexdigest(),'evidence-v2',
+    values=[vid,date_str,hashlib.sha256(raw.encode('utf-8')).hexdigest(),ASSESSMENT_VERSION,
             json.dumps(data,ensure_ascii=False),datetime.now(TAIPEI).strftime('%Y/%m/%d %H:%M:%S')]
     if idx:
         sheets_retry(ws.update,range_name=f'A{idx}:F{idx}',values=[values])
@@ -6223,7 +6446,7 @@ def load_refresh_checkpoint(ss, vid, date_str, raw):
     rows=sheets_retry(refresh_checkpoint_sheet(ss).get_all_values)
     fingerprint=hashlib.sha256(raw.encode('utf-8')).hexdigest()
     for r in reversed(rows[1:]):
-        if len(r)>=5 and r[:4]==[vid,date_str,fingerprint,'evidence-v2']:
+        if len(r)>=5 and r[:4]==[vid,date_str,fingerprint,ASSESSMENT_VERSION]:
             return json.loads(r[4])
     return None
 
@@ -8932,7 +9155,8 @@ def main():
     NO_GEMINI_MODES = {"repair_codes", "reclassify", "full_fix", "sms_priority"}
     # 只勾 refresh_site、沒有勾任何模式，代表「資料不用動，只要網站重算一次」，
     # 那條路一次模型都不會呼叫，不該為了它要求金鑰。
-    refresh_only = REFRESH_SITE and not picked
+    # 補齊日K同理：只是請 Apps Script 補 K 線，一次模型都不會呼叫。
+    refresh_only = (REFRESH_SITE or DAILYK_ONLY) and not picked
     needs_gemini = not (PREFLIGHT or refresh_only) and (
         not picked or bool(set(picked) - NO_GEMINI_MODES))
     if needs_gemini:
@@ -8955,6 +9179,14 @@ def main():
         write_preflight("true", "金鑰健檢")
         return
 
+    # 13:45 那一條排程不看「今日影片完成沒有」。
+    # 後台工單跑完之後，每日排程會在「今日影片已完成」那一行直接結束，
+    # 補齊日K就永遠輪不到——這一條要繞過那個判斷。
+    if PREFLIGHT and DAILYK_ONLY and not picked:
+        print("探測：13:45 收盤後補齊日K，直接放行。")
+        write_preflight("true", "收盤後補齊日K")
+        return
+
     if PREFLIGHT and (picked or REFRESH_SITE):
         label = "、".join(picked) if picked else "只刷新網站"
         print(f"探測：手動模式（{label}），直接放行。")
@@ -8964,6 +9196,13 @@ def main():
     # refresh_site 不算模式，它是附掛在任一模式之後的動作，可以與其他選項同時勾。
     # 只勾它、其他都沒勾時，代表「資料不用動，我只想讓網站立刻用現有資料重算一次」，
     # 這時不該往下跑抓影片的流程，刷新完就結束。
+    if DAILYK_ONLY and not picked:
+        print("模式：收盤後補齊日K（13:45 排程）。只補日K快取，不動其他資料、不呼叫 Gemini。")
+        print("補日K是分批做的，一次約 45 秒，做不完會自動再打下一批；")
+        print("游標存在 Apps Script，這一輪沒補完的，明天同一時間會接著補。")
+        maybe_refresh_site(only=["dailyk"], force=True)
+        return
+
     if REFRESH_SITE and not picked:
         print("模式：只刷新網站。不動任何資料，只要求 Apps Script 用現有資料重算全站。")
         maybe_refresh_site()

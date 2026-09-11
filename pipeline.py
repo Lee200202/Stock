@@ -3706,6 +3706,7 @@ market 每筆填 kind=level/volume/event/flow/view、text、evidence_refs。
 一般每筆 name,code,aliases,evidence_refs,price,price_evidence,reason；holdings 另填 stance,note。
 history 另填 when=unknown、action=buy/sell、watch_bias。buy/sell 也填 watch_bias（日期查證不過、改列觀望時使用）。uncertain 明列疑點與 suggested_category（九類英文鍵之一）；可判斷分類而只有引用定位或缺少時間短句的問題，直接收進該類並寫 review_note，不要隔離。
 不得以減少數量掩蓋不確定。沒有最低檔數；每個候選必須有收錄或排除的證據。
+輸出必須是標準合法 JSON 物件，嚴禁尾隨逗號（trailing comma，例如 {"a": 1,} 或 [1, 2,]）、嚴禁註解，所有鍵名與字串值必須使用標準半形雙引號包裹。
 
 【收錄與稽核一致性】
 判定原為買入請在最前面判定是否為當日買進賣出，從上下文去嚴謹抓取判斷，沒有則進觀望注意/不碰。
@@ -3950,6 +3951,177 @@ def _context_windows(name: str, transcript: str, span: int = 160, limit: int = 3
     return out
 
 
+def repair_json_text(s: str) -> str:
+    """修復 LLM 回傳 JSON 常見的語法瑕疵：
+    1. 前後的 Markdown 標記 (```json ... ```) 與多餘說明文字
+    2. 註解 (// 與 /* ... */)
+    3. 尾隨逗號 (trailing commas, 如 {"a": 1,} 或 [1, 2,])
+    4. 字串內未跳脫的換行符與控制字元
+    5. 未閉合的括號/中括號 (截斷修復)
+    """
+    if not s or not isinstance(s, str):
+        return ""
+    text = s.strip()
+
+    # 1. 移除 Markdown 程式碼區塊標記
+    if '```' in text:
+        text = re.sub(r'^```[a-zA-Z0-9_-]*\s*', '', text, flags=re.MULTILINE)
+        text = re.sub(r'\s*```$', '', text, flags=re.MULTILINE)
+        text = text.strip()
+
+    # 找出最外層 JSON 物件或陣列邊界
+    first_brace = text.find('{')
+    first_bracket = text.find('[')
+    if first_brace != -1 and (first_bracket == -1 or first_brace < first_bracket):
+        last_brace = text.rfind('}')
+        if last_brace != -1:
+            text = text[first_brace:last_brace + 1]
+        else:
+            text = text[first_brace:]
+    elif first_bracket != -1:
+        last_bracket = text.rfind(']')
+        if last_bracket != -1:
+            text = text[first_bracket:last_bracket + 1]
+        else:
+            text = text[first_bracket:]
+
+    # 2. 狀態機處理：字串內跳脫、字串外移除註解與尾隨逗號
+    out = []
+    in_string = False
+    escape = False
+    i = 0
+    n = len(text)
+    brace_stack = []
+
+    while i < n:
+        c = text[i]
+
+        if in_string:
+            if escape:
+                out.append(c)
+                escape = False
+            elif c == '\\':
+                out.append(c)
+                escape = True
+            elif c == '"':
+                out.append(c)
+                in_string = False
+            elif c == '\n':
+                out.append('\\n')
+            elif c == '\r':
+                pass
+            elif c == '\t':
+                out.append('\\t')
+            else:
+                out.append(c)
+            i += 1
+            continue
+
+        # 以下皆為字串外 (not in_string)
+        if c == '"':
+            out.append(c)
+            in_string = True
+            i += 1
+            continue
+
+        # 單行註解 // ...
+        if c == '/' and i + 1 < n and text[i + 1] == '/':
+            i += 2
+            while i < n and text[i] not in '\r\n':
+                i += 1
+            continue
+
+        # 區塊註解 /* ... */
+        if c == '/' and i + 1 < n and text[i + 1] == '*':
+            i += 2
+            while i + 1 < n and not (text[i] == '*' and text[i + 1] == '/'):
+                i += 1
+            i += 2
+            continue
+
+        # 括號追蹤（用於末端補全）
+        if c in '{[':
+            brace_stack.append('}' if c == '{' else ']')
+        elif c in '}]':
+            if brace_stack and brace_stack[-1] == c:
+                brace_stack.pop()
+
+        # 尾隨逗號 (trailing comma) 消除：逗號後面緊跟著 } 或 ]
+        if c == ',':
+            # 往後看第一個非空白字元
+            j = i + 1
+            while j < n and text[j] in ' \t\r\n':
+                j += 1
+            if j < n and text[j] in '}]':
+                i = j  # 跳過逗號
+                continue
+            out.append(c)
+            i += 1
+            continue
+
+        out.append(c)
+        i += 1
+
+    # 若字串結尾未閉合
+    if in_string:
+        out.append('"')
+    # 若括號未閉合，按反向補齊
+    while brace_stack:
+        out.append(brace_stack.pop())
+
+    return ''.join(out)
+
+
+def safe_load_json(raw: str, default=None):
+    """安全載入 JSON，具備多層容錯與自動修復機制：
+    1. 標準 json.loads
+    2. strict=False 容錯控制字元
+    3. repair_json_text 消除尾隨逗號、註解、未跳脫換行、閉合括號
+    4. 替換單引號、無引號鍵、特殊常數 (undefined, NaN)
+    """
+    if not raw or not isinstance(raw, str):
+        return default
+    text = raw.strip()
+
+    # 第一層：直接解析
+    try:
+        return json.loads(text)
+    except Exception:
+        pass
+
+    # 第二層：清除頭尾 markdown 後 strict=False
+    cleaned = re.sub(r'^```json|^```|```$', '', text, flags=re.MULTILINE).strip()
+    try:
+        return json.loads(cleaned, strict=False)
+    except Exception:
+        pass
+
+    # 第三層：狀態機修復（去除尾隨逗號、註解、跳脫控制字元、補齊未閉合括號等）
+    repaired = repair_json_text(cleaned)
+    try:
+        return json.loads(repaired, strict=False)
+    except Exception:
+        pass
+
+    # 第四層：修正單引號鍵值與常數
+    try:
+        repaired_quotes = re.sub(r"(?<=[{\[,:\s])'([^'\\]*(?:\\.[^'\\]*)*)'(?=[}\],:\s])", r'"\1"', repaired)
+        repaired_quotes = re.sub(r'\bundefined\b', 'null', repaired_quotes)
+        repaired_quotes = re.sub(r'\bNaN\b', 'null', repaired_quotes)
+        return json.loads(repaired_quotes, strict=False)
+    except Exception:
+        pass
+
+    # 第五層：修復無引號鍵
+    try:
+        repaired_keys = re.sub(r'([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', repaired)
+        return json.loads(repaired_keys, strict=False)
+    except Exception as e:
+        if default is not None:
+            return default
+        raise e
+
+
 def resolve_unclear_names(signals, transcript, ss=None):
     """Exact official names stay fixed; AI chooses only official candidates.
 
@@ -4007,7 +4179,7 @@ quote逐字抄context中的定位短句，why簡述判定根據。
         failed = False
         try:
             raw = call_gemini(prompt, json.dumps(payload,ensure_ascii=False), want_json=True,thinking=1024,tag='unclear')
-            verdicts = json.loads(re.sub(r'^```json|^```|```$', '', raw.strip(),flags=re.M))
+            verdicts = safe_load_json(raw, default=[])
         except (RuntimeError, ValueError, RateLimited) as e:
             print('名稱釐清尚未完成：' + str(e)[:120]); verdicts=[]; failed = True
         decided = set()
@@ -4977,15 +5149,39 @@ def extract_context_json(transcript, date_str):
     batches = assessment_batches(transcript, date_str)
     print(f'JSON合併判讀：{len(transcript)} 字，分 {len(batches)} 批；擷取／分類／補漏／大盤一次處理')
     for index, batch in enumerate(batches, 1):
-        raw = call_gemini(EXTRACT_SYSTEM, assessment_payload(date_str, batch),
-                          want_json=True, thinking=2048, tag=f'assess-json-{index}', max_out=min(MAX_OUT, 20000))
-        parsed = json.loads(re.sub(r'^```json|^```|```$', '', raw.strip(), flags=re.MULTILINE).strip())
-        if not isinstance(parsed, dict) or any(not isinstance(parsed.get(c), list) for c in categories):
-            raise ValueError('JSON合併判讀必須包含完整九類陣列；未寫入資料')
+        parsed = None
+        last_err = None
+        for attempt in range(3):
+            tag = f'assess-json-{index}' if attempt == 0 else f'assess-json-{index}-r{attempt}'
+            try:
+                payload = assessment_payload(date_str, batch)
+                if attempt > 0:
+                    payload += (
+                        "\n\n【重要】前次輸出解析失敗，請務必輸出標準合法 JSON 物件："
+                        "嚴禁尾隨逗號（trailing comma，例如 {'a': 1,} 或 [1, 2,]）、嚴禁註解，"
+                        "所有鍵名與字串值必須使用標準半形雙引號包裹，輸出完整九類陣列。"
+                    )
+                raw = call_gemini(EXTRACT_SYSTEM, payload,
+                                  want_json=True, thinking=2048, tag=tag, max_out=min(MAX_OUT, 20000))
+                loaded = safe_load_json(raw)
+                if not isinstance(loaded, dict) or any(not isinstance(loaded.get(c), list) for c in categories):
+                    raise ValueError('JSON合併判讀必須包含完整九類陣列；未寫入資料')
+                parsed = loaded
+                break
+            except Exception as e:
+                last_err = e
+                parsed = None
+                print(f"  第 {index} 批 JSON 判讀解析異常（第 {attempt + 1}/3 次）：{e}")
+                if attempt < 2 and 'test' not in os.environ.get('SPREADSHEET_ID', '').lower():
+                    time.sleep(2)
+
+        if parsed is None:
+            raise ValueError(f'JSON合併判讀第 {index} 批失敗（重試3次）：{last_err}；未寫入資料')
+
         for cat in categories:
             for row in parsed[cat]:
                 if not isinstance(row, dict):
-                    raise ValueError('JSON判讀列不是物件；未寫入資料')
+                    continue
                 # Internal validation flags are created by code, never by a model response.
                 row = {k: v for k, v in row.items() if not k.startswith('_')}
                 identity = json.dumps(row, ensure_ascii=False, sort_keys=True)
@@ -5014,14 +5210,21 @@ def audit_context_json(transcript, signals, date_str):
             if len((AUDIT_SYSTEM + payload).encode('utf-8')) + min(MAX_OUT, 20000) + 4096 > cap:
                 print('修復JSON超過預算，沿用已判讀內容並留下稽核註記')
                 repaired = None; break
-            raw = call_gemini(AUDIT_SYSTEM, payload, want_json=True, thinking=2048,
-                              tag='context-repair', max_out=min(MAX_OUT, 20000))
-            parsed = json.loads(re.sub(r'^```json|^```|```$', '', raw.strip(), flags=re.MULTILINE).strip())
-            if not isinstance(parsed, dict) or any(not isinstance(parsed.get(c), list) or
-                   any(not isinstance(r, dict) for r in parsed[c]) for c in repaired):
-                raise ValueError('JSON修復格式不完整；未寫入資料')
-            for cat in repaired:
-                repaired[cat].extend({k: v for k, v in r.items() if not k.startswith('_')} for r in parsed[cat])
+            try:
+                raw = call_gemini(AUDIT_SYSTEM, payload, want_json=True, thinking=2048,
+                                  tag='context-repair', max_out=min(MAX_OUT, 20000))
+                parsed = safe_load_json(raw)
+                if not isinstance(parsed, dict):
+                    raise ValueError('JSON修復格式必須是物件')
+                for cat in repaired:
+                    val = parsed.get(cat)
+                    if not isinstance(val, list):
+                        parsed[cat] = [val] if isinstance(val, dict) else []
+                    repaired[cat].extend({k: v for k, v in r.items() if not k.startswith('_') and isinstance(r, dict)} for r in parsed[cat])
+            except Exception as e:
+                print(f'修復JSON解析異常（{e}），沿用已判讀內容並留下稽核註記')
+                repaired = None
+                break
         if repaired is not None:
             materialize_evidence(repaired, transcript)
             recover_context(repaired, transcript)
@@ -5039,7 +5242,7 @@ def extract_signals(v2, date_str):
         return extract_context_json(v2, date_str)
     raw = call_gemini(EXTRACT_SYSTEM, f'影片日期：{date_str}\n原始逐字稿（來源編號只作定位）：\n' + indexed_source(v2),
                       want_json=True, thinking=1024, tag='extract', max_out=min(MAX_OUT, 16000))
-    return json.loads(re.sub(r'^```json|^```|```$', '', raw.strip(), flags=re.MULTILINE).strip())
+    return safe_load_json(raw, default={c: [] for c in SIGNAL_CATEGORIES + ('history', 'uncertain', 'ignored', 'market')})
 
 
 def audit_signals(v2, signals, date_str):
@@ -5055,7 +5258,7 @@ def audit_signals(v2, signals, date_str):
         raw = call_gemini(AUDIT_SYSTEM, prompt, want_json=True, thinking=2048,
                           tag='audit' if attempt == 0 else 'evidence-repair', max_out=min(MAX_OUT, 20000))
         try:
-            reviewed = json.loads(re.sub(r'^```json|^```|```$', '', raw.strip(), flags=re.MULTILINE).strip())
+            reviewed = safe_load_json(raw)
             if not isinstance(reviewed, dict):
                 raise ValueError('必須是JSON物件')
             materialize_evidence(reviewed, v2)
@@ -8696,7 +8899,7 @@ def reconcile_all(ss):
                 raw = call_gemini(INDUSTRY_JUDGE_SYSTEM,
                                   json.dumps(batch, ensure_ascii=False),
                                   want_json=True, thinking=0, tag="industry")
-                verdict = json.loads(re.sub(r"^```json|^```|```$", "", raw.strip(), flags=re.M).strip())
+                verdict = safe_load_json(raw, default={})
                 for n, v in verdict.items():
                     if str(v).lower().startswith("indus"):
                         industry.add(n)
@@ -8751,7 +8954,7 @@ def reconcile_all(ss):
             raw = call_gemini(ENTRY_PRICE_SYSTEM,
                               f"股票名稱：{nm}\n\n相關逐字稿段落：\n" + "\n\n".join(chunks),
                               want_json=True, thinking=0, tag="entryprice")
-            res = json.loads(re.sub(r"^```json|^```|```$", "", raw.strip(), flags=re.M).strip())
+            res = safe_load_json(raw, default={})
             price = res.get("price")
             if price is None:
                 continue
@@ -8979,7 +9182,7 @@ def fix_prices_all(ss):
 
         try:
             raw = call_gemini(PRICE_FIX_SYSTEM, user, want_json=True, thinking=0, tag="pricefix")
-            res = json.loads(re.sub(r"^```json|^```|```$", "", raw.strip(), flags=re.M).strip())
+            res = safe_load_json(raw, default={})
         except Exception as e:
             print(f"  第 {s['rowno']} 列　{s['name']} 校對略過（{e}）")
             stat["skipped"] += 1

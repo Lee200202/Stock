@@ -2719,6 +2719,8 @@ def resolve_code(name: str, hint: str):
 
     if name in NON_EQUITY_NAMES:
         return REJECT, name, '貨幣，不是股票'
+    if name in CONFIRMED_INDUSTRY:
+        return REJECT, CONFIRMED_INDUSTRY[name], f'管理者確認：這是產業（{CONFIRMED_INDUSTRY[name]}），不是個股'
     if name in CONFIRMED_NAMES:
         code, fixed = CONFIRMED_NAMES[name]
         if code:
@@ -3436,18 +3438,100 @@ def resolve_signals(signals: dict, transcript: str = "") -> dict:
 POLISH_DEGRADED = 0     # 本輪有幾段因配額不足而改用原文
 
 
+# 潤飾稿的採用門檻：模型輸出與原文逐字對得上的比例。
+# 只補標點、分段時是 100%；順手修了幾個同音字、刪了幾個語助詞也還在九成以上。
+# 低於這個比例代表模型改寫或摘要了，標點與分段的位置已經不可信，整段改用原文。
+POLISH_MIN_COVER = 0.85
+
+_CJK_SPACE = re.compile(r'(?<=[　-〿㐀-鿿＀-￯])[ \t]+'
+                        r'|[ \t]+(?=[　-〿㐀-鿿＀-￯])')
+
+
+def _despace_cjk(text):
+    """拿掉語音辨識插在中文字之間的空白（「我 還 有 紅 準」→「我還有紅準」）；英文單字之間的空白保留。"""
+    return _CJK_SPACE.sub('', str(text or ''))
+
+
+def _norm_positions(text):
+    """逐字正規化（同 _ev_norm），並記下每個正規化後的字在原字串的位置。"""
+    chars, pos = [], []
+    for idx, ch in enumerate(str(text or '')):
+        for n in _ev_norm(ch):
+            chars.append(n)
+            pos.append(idx)
+    return ''.join(chars), pos
+
+
+def _merge_polish(raw, pol):
+    """
+    以原文的字為準，只採用模型加的標點與分段。
+
+    回傳 (合併稿, 對上比例, 換回原文的字數, 拿掉模型的字數)。
+
+    為什麼不再「整段對不上就整段丟掉」
+    ----------------------------------
+    先前只要模型輸出有一個字與原文不同，整段拒用、改回原文。2026/09/11 四段全部被拒：
+    模型拿掉了字間空白、補了標點，也順手改了幾個字，於是 23493 字的原文重新分段後
+    變成 23639 字（101%）——潤飾等於白做，「我 還 有 紅 準」那種字間空白也全部留著。
+
+    改成逐字對齊之後，模型做對的部分（標點、分段、拿掉空白）照單全收；
+    模型改掉的字一律換回原文，模型自己加的字一律拿掉。合併稿的每一個字都是原文的字：
+    股票名稱、數字、否定詞一個都不會被改，「原文正確的名稱在修飾稿也正確」由構造保證，
+    不必再靠提示詞拜託模型。
+    """
+    rn, rpos = _norm_positions(raw)
+    pn, ppos = _norm_positions(pol)
+    if not rn:
+        return _despace_cjk(raw), 1.0, 0, 0
+    sm = difflib.SequenceMatcher(None, rn, pn, autojunk=False)
+    out, cur, matched, restored, dropped = [], 0, 0, 0, 0
+    for tag, i1, i2, j1, j2 in sm.get_opcodes():
+        if tag == 'equal':
+            end = ppos[j2 - 1] + 1
+            out.append(pol[cur:end])          # 模型的字（與原文相同）連同前面的標點
+            cur = end
+            matched += i2 - i1
+            continue
+        if j1 < j2:
+            # 模型改動或自己加的字：前面的標點留著，字本身拿掉。
+            out.append(pol[cur:ppos[j1]])
+            cur = ppos[j2 - 1] + 1
+            dropped += j2 - j1
+        if i1 < i2:
+            # 換回原文。取原字串的那一段（連同其中的小數點、千分位），只拿掉字間空白，
+            # 不用正規化後的字——那會把「66.4」變成「664」。
+            out.append(_despace_cjk(raw[rpos[i1]:rpos[i2 - 1] + 1]))
+            restored += i2 - i1
+    out.append(pol[cur:])
+    return ''.join(out), matched / len(rn), restored, dropped
+
+
 def _polish_one(i, total, c):
     tag = f'polish {i}/{total}'
     try:
         r = call_gemini(POLISH_SYSTEM, c, thinking=0, tag=tag,
                         max_out=min(MAX_OUT, int(len(c) * 1.8) + 512))
-        numbers = lambda x: re.findall(r'\d+(?:[.,]\d+)*(?:[xX]+)?', x)
-        if _ev_norm(r) != _ev_norm(c) or numbers(r) != numbers(c):
-            raise ValueError('潤飾改動原文字詞或數字，已拒用並保留原文')
-        return format_readable_transcript(r), False, f'潤飾第 {i}/{total} 段：逐字內容檢查通過'
     except (RuntimeError, ValueError, RateLimited) as e:
         note_decision('潤飾', '原文分段', f'{i}/{total}', str(e)[:180])
-        return format_readable_transcript(c), True, f'潤飾第 {i}/{total} 段：{str(e)[:150]}；使用原文字詞重新分段'
+        return (format_readable_transcript(_despace_cjk(c)), True,
+                f'潤飾第 {i}/{total} 段：{str(e)[:150]}；改用原文（去掉字間空白）重新分段')
+
+    merged, cover, restored, dropped = _merge_polish(c, r)
+    if cover < POLISH_MIN_COVER:
+        why = f'模型輸出與原文只對上 {cover:.0%}（門檻 {POLISH_MIN_COVER:.0%}），研判改寫過多'
+        note_decision('潤飾', '原文分段', f'{i}/{total}', why)
+        return (format_readable_transcript(_despace_cjk(c)), True,
+                f'潤飾第 {i}/{total} 段：{why}；改用原文（去掉字間空白）重新分段')
+
+    out = format_readable_transcript(merged)
+    if restored or dropped:
+        note_decision('潤飾', '模型改字已換回原文', f'{i}/{total}',
+                      f'對上 {cover:.1%}；換回原文 {restored} 字、拿掉模型的 {dropped} 字')
+        how = f'模型改動的地方已換回原文（還原 {restored} 字、拿掉模型的 {dropped} 字）'
+    else:
+        how = '字詞與原文完全一致'
+    return out, False, (f'潤飾第 {i}/{total} 段：{len(c)} → {len(out)} 字，'
+                        f'採用模型的標點與分段；{how}')
 
 
 def polish(transcript: str) -> str:
@@ -3512,11 +3596,14 @@ def polish(transcript: str) -> str:
               f"內容完整但可讀性較差。稍後可用 fill_blanks 或 backfill 重跑改善。")
 
     joined = "\n".join(out)
-    ratio = len(joined) / max(len(transcript), 1)
-    print(f"潤飾完成：{len(transcript)} → {len(joined)} 字（{ratio:.0%}）")
+    # 比例要用正規化後的字數（拿掉空白與標點）來算。原始逐字稿每個字之間都有空白，
+    # 用原字數比的話，潤飾得越好（空白拿得越乾淨）比例越低，反而會被當成「改成摘要」。
+    ratio = len(_ev_norm(joined)) / max(len(_ev_norm(transcript)), 1)
+    print(f"潤飾完成：{len(transcript)} → {len(joined)} 字"
+          f"（篇幅為原文的 {len(joined) / max(len(transcript), 1):.0%}，字詞保留 {ratio:.0%}）")
 
     # 輸出被截斷已由 finishReason == MAX_TOKENS 攔截。
-    # 這裡只防「模型改成摘要」，門檻放寬，避免對贅字多的短片誤判。
+    # 合併稿的每個字都來自原文，正常情況這裡一定是 100%；留著當最後一道保險。
     if ratio < RATIO_FAIL:
         raise RuntimeError(
             f"潤飾後長度僅原文的 {ratio:.0%}，低於 {RATIO_FAIL:.0%} 下限，"
@@ -3541,7 +3628,7 @@ name 用本份原文出現的寫法；aliases 也只能列原文有的別稱。
 code 只填原文明講的代號，否則空白。正式名稱交給官方清單與上下文核對。
 原文已正確的名字必須保留，不改成音近字。不要把動詞「出清」拼成公司名。
 價格、漲跌金額、EPS、產業、相鄰股票不是公司身分的證明。「跌兩毛」不能推算股價級距。
-管理者確認：普威＝譜瑞-KY（4966）；戲制台＝矽製材，代號未確認不得猜。日幣是貨幣，不是日馳或其他股票。其餘同音候選依上下文判讀，無法確認身分才送 uncertain。
+管理者確認：普威、普位、譜位＝譜瑞-KY（4966），是個股，依上下文照常分類（與祥碩並列講手中部位就是 holdings）；細金元＝矽晶圓，是材料產業不是個股，只能放 ignored；戲制台＝矽製材，代號未確認不得猜。日幣是貨幣，不是日馳或其他股票。其餘同音候選依上下文判讀，無法確認身分才送 uncertain。
 匿名這一檔、圖上股票、我不講名字不可由股價猜公司。
 
 【主詞與分類】
@@ -4388,9 +4475,15 @@ def flush_decisions(ss, date_str: str):
         _DECISIONS.clear()
 
 
-def validate_evidence(signals, transcript, date_str):
+def validate_evidence(signals, transcript, date_str, after_codes=False):
     """
     逐筆分級，不是整批放行或整批擋下。
+
+    after_codes=True 表示在代號比對之後呼叫（正式流程就是這樣排的）：
+      代號已經由官方清單核過，不再因為「引用裡看不到那串數字」而清掉；
+      名稱可能已換成官方簡稱，引用裡留的是聽到的原字，所以「原始語音名稱」也算數。
+    沒有附上講出時間那一句的「買入」改列觀望注意（管理者規則，2026/09/11），
+    不再列成歷史回顧；賣出與其他時間問題照舊改列歷史回顧。
 
     為什麼改掉原本的作法
     --------------------
@@ -4426,6 +4519,7 @@ def validate_evidence(signals, transcript, date_str):
             signals[cat] = []
 
     dropped, to_history, to_uncertain, price_cleared = [], [], [], []
+    to_watch, moved_to_watch = [], []
 
     def _quarantine(row, name, why):
         row["_疑點"] = why
@@ -4441,6 +4535,7 @@ def validate_evidence(signals, transcript, date_str):
                 dropped.append(f"{cat} 有一筆不是物件")
                 continue
             name = str(row.get("name") or "").strip()
+            dest = cat          # 這一筆最後落在哪一類；只有「買入沒附時間句」會改成觀望注意
 
             # 一、本來就不是個股的直接丟。族群名進到這裡不是資料有問題，
             #     是擷取多生了一列，留著只會在網站上出現一列「航運股」。
@@ -4476,12 +4571,17 @@ def validate_evidence(signals, transcript, date_str):
             evidence = _ev_norm(chr(10).join(str(q) for q in good))
             quotes = good
             row['evidence'] = good
-            if row.get('code') and not re.search(r'(?<![0-9])' + re.escape(str(row['code'])) + r'(?![0-9])', '\n'.join(good)):
+            # 代號比對之前，代號是模型填的，要在引用裡看得到才算數；
+            # 代號比對之後，代號已由官方清單核過（或已標成待確認），不能再清掉。
+            if (not after_codes and row.get('code')
+                    and not re.search(r'(?<![0-9])' + re.escape(str(row['code'])) + r'(?![0-9])', '\n'.join(good))):
                 row['code'] = ''
 
             aliases = [a for a in (row.get("aliases") or []) if isinstance(a, str)]
+            # 代號比對會把名稱換成官方簡稱（想碩→祥碩），引用裡留的是聽到的原字，兩個都要認。
+            heard = str(row.get("原始語音名稱") or "").strip()
             if not any(len(_ev_norm(n)) >= 2 and _ev_norm(n) in evidence
-                       for n in [name] + aliases):
+                       for n in [name, heard] + aliases if n):
                 _quarantine(row, name, "引用裡沒有出現這一檔的名稱")
                 continue
 
@@ -4511,7 +4611,19 @@ def validate_evidence(signals, transcript, date_str):
                             why = "日期沒有在原文裡明講"
                     except (ValueError, TypeError):
                         why = "日期格式不正確"
-                if why:
+                if why == "沒有附上講出時間的那一句" and cat == "buy":
+                    # 管理者規則（2026/09/11）：買入只是沒附講出時間的那一句，改列觀望注意，
+                    # 不當成歷史回顧。列成回顧會讓這一檔從網站上消失（四星KY／世芯-KY 就是這樣
+                    # 不見的）；而他提到要買、或說會員有買卻沒交代哪一天，對讀者最有用的是
+                    # 「這一檔在留意名單上」。不進當日買入，所以不會開持有回合、不計入績效事件。
+                    # 價位仍要有原句（下面第四步），不因為換了類別就放寬。
+                    row["when"] = "unknown"
+                    row["_原分類"] = cat
+                    row["reason"] = f"{row.get('reason') or ''}（原判買入，{why}，改列觀望注意）"
+                    dest = "watch_watch"
+                    to_watch.append(f"{name}（原 買入）：{why}")
+                    note_decision('品質關卡', '買入改列觀望注意', name, why)
+                elif why:
                     label = "買入" if cat == "buy" else "賣出"
                     row["when"] = "unknown"
                     row["_原分類"] = cat
@@ -4533,12 +4645,15 @@ def validate_evidence(signals, transcript, date_str):
             row["_evidence_verified"] = True
             review_note = row.get('_review_note') or row.get('review_note')
             if review_note:
-                field = 'note' if cat == 'holdings' else 'reason'
+                field = 'note' if dest == 'holdings' else 'reason'
                 label = '（待確認註記：' + str(review_note) + '）'
                 if label not in str(row.get(field) or ''):
                     row[field] = str(row.get(field) or '') + label
-            keep.append(row)
+            (keep if dest == cat else moved_to_watch).append(row)
         signals[cat] = keep
+
+    # 改列觀望注意的買入等整輪跑完才併進去，不會在觀望注意那一輪被重驗第二次。
+    signals["watch_watch"].extend(moved_to_watch)
 
     # Market facts obey the same evidence rule as stocks, including every number.
     market_keep = []
@@ -4558,7 +4673,8 @@ def validate_evidence(signals, transcript, date_str):
     print("品質關卡（逐筆分級，不整批擋下）：")
     print(f"  通過 {published} 筆　歷史回顧 {len(signals['history'])} 筆　"
           f"隔離待確認 {len(signals['uncertain'])} 筆")
-    for label, rows in (("丟掉（不是個股）", dropped), ("改列歷史回顧", to_history),
+    for label, rows in (("丟掉（不是個股）", dropped), ("改列觀望注意", to_watch),
+                        ("改列歷史回顧", to_history),
                         ("隔離待確認", to_uncertain), ("清掉沒有原句的價位", price_cleared)):
         for line in rows:
             print(f"  {label}　{line}")
@@ -4659,8 +4775,20 @@ def enforce_article_records(article, signals, date_str):
 The standalone pipeline is the deployed runtime; this file documents the helpers.
 """
 
-CONFIRMED_NAMES = {'普威': ('4966', '譜瑞-KY'), '戲制台': ('', '矽製材'), '矽製材': ('', '矽製材')}
+# 管理者確認過的聽錯寫法。代號比對直接採用，不走拼音猜測，也不再送名稱釐清。
+#   普威／普位／譜位 → 譜瑞-KY（4966）：「比如說祥碩、比如說普位，普位現在跌兩塊」，
+#   與祥碩並列講的是手中持股。2026/09/10 的逐字稿寫成「普位」，只認「普威」時就掉進待確認。
+CONFIRMED_NAMES = {'普威': ('4966', '譜瑞-KY'), '普位': ('4966', '譜瑞-KY'), '譜位': ('4966', '譜瑞-KY'),
+                   '戲制台': ('', '矽製材'), '矽製材': ('', '矽製材')}
 NON_EQUITY_NAMES = {'日幣', '日圓', '日元', '美元', '美金', '台幣', '臺幣', '新台幣', '人民幣', '歐元'}
+# 管理者確認過「是產業、不是個股」的聽錯寫法。代號比對直接剔除整列。
+#   細金元 → 矽晶圓：「被動元件不准給我碰，細金元不准給我碰」，與被動元件、ABF 載板並列的是材料族群。
+#   拼音候選（精元、先進光、吉源-KY）全部不對，不能交給拼音比對或名稱釐清去猜。
+CONFIRMED_INDUSTRY = {'細金元': '矽晶圓', '矽晶圓': '矽晶圓'}
+# 人工補登的來源影片ID前綴，與 Apps Script（Adminservice.gs）的 MANUAL_ENTRY_PREFIX 相同。
+# 整天覆蓋（delete_rows_for_date）時這些列一律保留。先前這個常數只有 Apps Script 定義，
+# pipeline 端一走到那一行就是 NameError。
+MANUAL_ENTRY_PREFIX = 'MANUALENTRY-'
 ASSESSMENT_VERSION = 'context-json-v3'
 
 
@@ -4683,6 +4811,9 @@ def recover_context(signals, transcript):
                 continue
             name = str(row.get('name') or '')
             names = [name] + [a for a in row.get('aliases', []) if isinstance(a, str)]
+            # 代號比對後名稱已是官方簡稱，聽到的原字另存在「原始語音名稱」，找上下文時也要用它。
+            if row.get('原始語音名稱'):
+                names.append(str(row['原始語音名稱']))
             for heard, (_, corrected) in CONFIRMED_NAMES.items():
                 if name in (heard, corrected):
                     names.extend([heard, corrected])
@@ -4734,7 +4865,8 @@ def recover_context(signals, transcript):
 def assessment_payload(date_str, segments, candidates=None, issues=None):
     data = {'version': ASSESSMENT_VERSION, 'video_date': date_str,
             'tasks': ['擷取全部標的', '上下文分類與日期', '逐段補漏自查', '大盤摘要'],
-            'confirmed_names': CONFIRMED_NAMES, 'non_equity_names': sorted(NON_EQUITY_NAMES),
+            'confirmed_names': CONFIRMED_NAMES, 'confirmed_industries': CONFIRMED_INDUSTRY,
+            'non_equity_names': sorted(NON_EQUITY_NAMES),
             'source': {sid: seg['text'] for sid, seg in segments.items()}}
     if candidates is not None:
         data['candidates'] = compact_assessment(candidates)
@@ -4825,10 +4957,10 @@ def audit_context_json(transcript, signals, date_str):
             gaps = evidence_gaps(repaired, transcript, signals)
             signals = repaired
     signals['_repair_gaps'] = gaps
-    validated = validate_evidence(signals, transcript, date_str)
-    validated['_quality_requires_review'] = bool(gaps or validated.get('uncertain'))
-    print(f'JSON本機校對完成：{len(gaps)} 項待複核')
-    return validated
+    # 逐筆品質關卡（validate_evidence）不在這裡跑，改到代號比對之後，見 stage_extract。
+    signals['_quality_requires_review'] = bool(gaps or signals.get('uncertain'))
+    print(f'JSON本機校對完成：{len(gaps)} 項待複核（逐筆品質關卡在代號比對之後進行）')
+    return signals
 
 
 def extract_signals(v2, date_str):
@@ -4870,12 +5002,11 @@ def audit_signals(v2, signals, date_str):
     if reviewed is None:
         raise ValueError('證據修復仍非有效JSON；尚未覆蓋舊資料')
     reviewed['_repair_gaps'] = gaps
-    # Validation separates verified records from genuine uncertainty. A second
-    # guard below prevents a partial report from destructively replacing a day.
-    validated = validate_evidence(reviewed, v2, date_str)
-    validated['_quality_requires_review'] = bool(gaps or validated.get('uncertain'))
-    print('完整原文覆核：' + ('仍有未解問題，保留候選待複核' if validated['_quality_requires_review'] else '證據與候選涵蓋檢查通過'))
-    return validated
+    # 逐筆品質關卡改到代號比對之後（stage_extract），這裡只交出覆核結果。
+    # 「殘缺結果不得洗掉整天」的保護仍在 stage_extract 的品質複核那一段。
+    reviewed['_quality_requires_review'] = bool(gaps or reviewed.get('uncertain'))
+    print('完整原文覆核：' + ('仍有未解問題，保留候選待複核' if reviewed['_quality_requires_review'] else '證據與候選涵蓋檢查通過'))
+    return reviewed
 
 
 # ---------------------------------------------------------------- #
@@ -5489,6 +5620,50 @@ def _purge_rows_of_video(ss, sheet_name, date_str, video_id):
     return len(targets)
 
 
+def _is_protected_source(vid) -> bool:
+    """會員簡訊與人工補登寫的列。重跑逐字稿時一律不動。"""
+    v = str(vid or "").strip()
+    return v.startswith("CMONEY-") or v.startswith(MANUAL_ENTRY_PREFIX) or v == "人工補登"
+
+
+def _purge_transcript_rows_of_day(ss, sheet_name, date_str):
+    """
+    清掉某一天所有由逐字稿產生的列，不論當初是哪一個影片ID 寫的。
+
+    只清「同一個影片ID」會留下舊資料：同一天可能先用 YouTube 影片ID 跑過，
+    後台投稿用的卻是 MANUAL-日期；Apps Script 的稽核補登也是拿影片清單上那一天的
+    影片ID 寫進去的，未必與這一次相同。舊列留著，網站上就是新舊並存，
+    看起來像「後台重跑沒有覆蓋」。
+    保留的只有別的來源：會員簡訊（CMONEY-）、人工補登（MANUALENTRY-、人工補登）。
+    """
+    ws = ss.worksheet(sheet_name)
+    values = sheets_retry(ws.get_all_values)
+    if not values:
+        return 0
+    head = values[0]
+    c_vid = head.index("來源影片ID") if "來源影片ID" in head else -1
+    c_date = head.index("日期") if "日期" in head else 0
+    targets, kept, by_src = [], 0, {}
+    for i in range(len(values) - 1, 0, -1):
+        row = values[i]
+        if c_date >= len(row) or norm_date(row[c_date]) != date_str:
+            continue
+        vid = str(row[c_vid] or "") if 0 <= c_vid < len(row) else ""
+        if _is_protected_source(vid):
+            kept += 1
+            continue
+        targets.append(i)
+        by_src[vid or "（空白）"] = by_src.get(vid or "（空白）", 0) + 1
+    for r in targets:
+        sheets_retry(ws.delete_rows, r + 1)
+    if targets:
+        src = "、".join(f"{k} {n} 筆" for k, n in sorted(by_src.items()))
+        print(f"  {sheet_name} 換掉 {date_str} 由逐字稿產生的 {len(targets)} 筆舊資料（{src}）")
+    if kept:
+        print(f"  {sheet_name} 保留 {date_str} 會員簡訊／人工補登 {kept} 筆")
+    return len(targets)
+
+
 def write_results(ss, date_str, signals, article, done_trades, done_holds,
                   replace=False, replace_video=False):
     """
@@ -5519,9 +5694,17 @@ def write_results(ss, date_str, signals, article, done_trades, done_holds,
         # 只清「這支影片寫的列」而不是整天，是因為同一天還有會員簡訊寫進來的
         # 紀錄（來源影片ID 是 CMONEY-…）。那些是盤中的即時通知，
         # 優先權比收盤後的逐字稿高，絕對不能被重跑逐字稿順手洗掉。
+        #
+        # 影片當天：這一天所有由逐字稿產生的列全部換掉，不只「這支影片ID」寫的，
+        # 理由見 _purge_transcript_rows_of_day。會員簡訊與人工補登照舊保留。
+        _purge_transcript_rows_of_day(ss, "操作紀錄", date_str)
+        _purge_transcript_rows_of_day(ss, "會員持股", date_str)
+        # 改派到別天的列（例如「昨天叫會員賣力積電」記在前一個交易日）只清這支影片寫的，
+        # 那一天自己那支影片的資料不能動。
         for old_date in signals.get('_affected_dates', [date_str]):
-            _purge_rows_of_video(ss, "操作紀錄", old_date, video_id)
-            _purge_rows_of_video(ss, "會員持股", old_date, video_id)
+            if old_date != date_str:
+                _purge_rows_of_video(ss, "操作紀錄", old_date, video_id)
+                _purge_rows_of_video(ss, "會員持股", old_date, video_id)
         done_trades.discard(date_str)
         done_holds.discard(date_str)
 
@@ -6156,19 +6339,26 @@ def transcript_sources(v1, v2):
     raw = str(v1 or '')
     if not raw.strip():
         raise ValueError('缺少原始逐字稿；不得把修飾稿冒充原文。請補入已核對的來源。')
-    ratio = len(v2 or '') / max(len(raw), 1)
+    # 用正規化後的字數比。原文字間有空白、修飾稿沒有，直接比字數會把正常的潤飾誤判成壓縮過頭。
+    ratio = len(_ev_norm(v2)) / max(len(_ev_norm(raw)), 1)
     print(f'判讀來源：原始逐字稿 {len(raw)} 字，SHA256={hashlib.sha256(raw.encode("utf-8")).hexdigest()}；修飾稿只供閱讀')
     return {k: raw for k in ('extract','audit','verify','arbitrate')} | {'degraded': ratio < RATIO_WARN, 'ratio': ratio, 'both': False}
 
 
 def existing_video_rows(ss, video_id, date_str) -> int:
-    """這一天、這支影片先前已經寫進去幾列。用來判斷「覆蓋會不會虧」。"""
+    """
+    這一天由逐字稿寫進去的列有幾列（不論影片ID）。用來判斷「覆蓋會不會虧」。
+
+    後台重跑會把這一天所有逐字稿來源的列換掉（見 _purge_transcript_rows_of_day），
+    所以比較的對象也要是全部，不能只算同一個影片ID。
+    會員簡訊與人工補登不算在內——那些不會被換掉。
+    """
     n = 0
     for sheet in ("操作紀錄", "會員持股"):
         try:
             for row in sheets_retry(ss.worksheet(sheet).get_all_records):
-                if (str(row.get("來源影片ID") or "") == video_id
-                        and norm_date(row.get("日期")) == date_str):
+                if (norm_date(row.get("日期")) == date_str
+                        and not _is_protected_source(row.get("來源影片ID"))):
                     n += 1
         except Exception:
             continue
@@ -6240,8 +6430,22 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None
     # 名稱與代號打架時的仲裁，數的是「這兩個字串在逐字稿裡各出現幾次」。
     # 只數潤飾稿的話，被潤飾刪掉的那幾次就不算數，票數會失真——
     # 兩份都給它，數的才是他真的講了幾次。
-    step("代號比對", f"目前 {_n(signals)} 檔，對官方清單、修同音錯字、剔除非個股")
+    step("代號比對", f"目前 {_n(signals)} 檔，對官方清單、修同音錯字、剔除非個股，再逐筆過品質關卡")
     signals = resolve_signals(signals, TX["arbitrate"])
+
+    # 品質關卡排在代號比對之後。
+    #
+    # 先前它在稽核那一段裡跑，也就是代號比對之前，有兩個後果：
+    #   一、判斷「是不是個股、引用裡有沒有這一檔的名稱」時看的還是聽錯的原字，
+    #       官方清單還沒派上用場。
+    #   二、「沒有附上講出時間那一句」的買入在那裡就被改列歷史回顧，之後代號比對
+    #       才把「四星KY」對回世芯-KY，網站上這一檔就這樣不見了（2026/09/10）。
+    # 排到這裡之後，名稱已收斂成官方簡稱；聽到的原字另存在「原始語音名稱」，
+    # 關卡比對引用時兩個都認。代號已由官方清單核過，關卡不再清掉它。
+    signals = validate_evidence(signals, TX["audit"], date_str, after_codes=True)
+    signals['_quality_requires_review'] = bool(
+        signals.get('_quality_requires_review') or signals.get('_repair_gaps')
+        or signals.get('uncertain'))
 
     # 規則比不出來的，帶上下文問一次模型：這是產業，還是哪一家公司。
     # 只有真的有名稱對不上時才會發出這一個呼叫。

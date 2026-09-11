@@ -6433,10 +6433,14 @@ def write_results(ss, date_str, signals, article, done_trades, done_holds,
     protect = set(signals.get('_affected_dates') or []) | {date_str}
     guard = _day_counts(ss)
 
+    prior_sent = ""
     if replace:
         # 重新分類：先清掉該日舊資料，再用新版規則寫回
         delete_rows_for_date(ss, "操作紀錄", date_str)
         delete_rows_for_date(ss, "會員持股", date_str)
+        # 每日推播內容那一列刪掉之前先記下寄送狀態：已寄送的，新寫的那一列也要是已寄送，
+        # 否則整天重跑一次，當天的信就再寄一次（2026/09/11）。
+        prior_sent = _daily_article_status(ss, date_str)
         delete_rows_for_date(ss, "每日推播內容", date_str)
         done_trades.discard(date_str)
         done_holds.discard(date_str)
@@ -6508,13 +6512,13 @@ def write_results(ss, date_str, signals, article, done_trades, done_holds,
 
     # 每日整理：重跑時要覆蓋，不能因為「這一天已經有一列」就不動。
     # 不覆蓋的話，網站與信件會永遠停在第一次跑出來的那一版。
-    # keep_sent：重跑會覆蓋文章內容，但不會把「已寄送」退回「待寄送」。
+    # 寄送狀態一律保留：不論哪一種重跑，都不會把「已寄送」退回「待寄送」。
     #
     # 寄信是對外、且收不回來的動作。重貼一次逐字稿的意思是「資料要更新」，
     # 不是「請再寄一封給所有訂閱者」——那會讓收信的人收到兩封幾乎一樣的信。
     # 網站與郵件查詢讀的都是這一列，覆蓋之後那兩處立刻就是新的。
-    # 真的要重寄，到後台把那一天的寄送狀態手動改回待寄送。
-    _upsert_daily_article(ss, date_str, article, keep_sent=not replace)
+    # 同一天只寄第一封；Apps Script 另有一份「已寄出日期」紀錄把關（PUSH_SENT_KEY）。
+    _upsert_daily_article(ss, date_str, article, prior_sent=prior_sent)
 
     # 收尾三件事：補代號、簡訊優先、成本換算。
     #
@@ -6632,7 +6636,28 @@ def flush_post_write_steps(ss):
     _POST_WRITE_DEFER["dates"].clear()
 
 
-def _upsert_daily_article(ss, date_str: str, article: str, keep_sent: bool = True):
+def _daily_article_status(ss, date_str: str) -> str:
+    """每日推播內容裡這一天的寄送狀態；讀不到或沒有那一列就是空字串。"""
+    try:
+        values = sheets_retry(ss.worksheet("每日推播內容").get_all_values)
+    except Exception as e:
+        print(f"  讀不到每日推播內容的寄送狀態（{e}），寄不寄交給 Apps Script 的寄送紀錄判斷")
+        return ""
+    for row in values[1:]:
+        if norm_date(row[0] if row else "") == date_str and len(row) > 2:
+            sent = str(row[2]).strip()
+            if sent:
+                return sent
+    return ""
+
+
+def _kept_sent_status(prior: str) -> str:
+    """新寫的那一列用什麼寄送狀態：已寄送過的維持已寄送，其餘才是待寄送。"""
+    prior = str(prior or "").strip()
+    return prior if prior.startswith("已寄送") else "待寄送"
+
+
+def _upsert_daily_article(ss, date_str: str, article: str, prior_sent: str = ""):
     """
     寫入或覆蓋「每日推播內容」。
 
@@ -6640,8 +6665,10 @@ def _upsert_daily_article(ss, date_str: str, article: str, keep_sent: bool = Tru
     每日整理與寄出去的信都還是第一版——資料改了、文章沒改，兩邊對不起來。
     重跑就是要用新的內容，所以改成有列就覆蓋。
 
-    寄送狀態保持原樣（已寄過的不會因為重寫而再寄一次）；
-    只有整天重來時才把它退回待寄送。
+    寄送狀態：同一天只寄第一封，已寄送的不論怎麼重跑都維持已寄送。
+    先前「整天重來」會先刪掉那一列、再新增一列「待寄送」，於是每重跑一次當天，
+    Apps Script 就把信再寄一次（2026/09/11）。現在由呼叫端把刪除前的狀態帶進來
+    （prior_sent），新增的那一列沿用它。
     """
     text = cell(article or f"本日內容：{NOT_MENTIONED}。")
     ws = ss.worksheet("每日推播內容")
@@ -6651,12 +6678,14 @@ def _upsert_daily_article(ss, date_str: str, article: str, keep_sent: bool = Tru
             continue
         sheets_retry(ws.update_cell, idx, 2, text)
         sent = str(row[2]).strip() if len(row) > 2 else ""
-        if not sent or not keep_sent:
-            sheets_retry(ws.update_cell, idx, 3, "待寄送")
-        print(f"每日整理已覆蓋 {date_str}（{len(text)} 字，寄送狀態 {sent or '待寄送'}）")
+        if not sent:
+            sent = _kept_sent_status(prior_sent)
+            sheets_retry(ws.update_cell, idx, 3, sent)
+        print(f"每日整理已覆蓋 {date_str}（{len(text)} 字，寄送狀態 {sent}）")
         return
-    sheets_retry(ws.append_row, [date_str, text, "待寄送"])
-    print(f"每日整理新增 {date_str}（{len(text)} 字）")
+    sent = _kept_sent_status(prior_sent)
+    sheets_retry(ws.append_row, [date_str, text, sent])
+    print(f"每日整理新增 {date_str}（{len(text)} 字，寄送狀態 {sent}）")
 
 
 # ------------------------------------------------------------------ #

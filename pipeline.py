@@ -3721,8 +3721,10 @@ buy/sell：只有講者本人或其會員於「影片當日（今天／今日／
 一般觀眾建議、條件尚未達成、以後想買，都不是已執行的交易。
 holdings：明講現在仍持有、續抱、我還有、會員現有部位。昨日買而今天仍在談自己的部位可另列持股。
 講者說「我有這一隻」「你們都知道我有」「抱著」「成本多少」「絕對不賣」都是持股，就算同一段在講它今天跌。
+只在比喻或舉例裡被點到名的（例如「台積電、鴻海、四星KY、大立光、聯發科都在這一顆球裡面」）不是 holdings，放 ignored。
 watch_watch：明確候選、以後想買、等洗完、抄起來；只列名字但明確共用「候選名單」也要逐檔收錄，不要求每檔都有價格或長篇理由。
 講者要大家等某個價位或時點再買（900以下是買點、等補完缺口站回去、等禮拜一CPI公布後、碰到均線再說）也是 watch_watch，reason 寫出那個條件。
+展示營收、EPS 或線型並說出看法的個股（「這些公司以後都會漲回去」「一定要等他補完缺口、打第二隻腳再站回去」）也要逐檔收錄，同一段展示了兩三檔就兩三檔都要列。
 watch_avoid：有針對該股的禁令或負面指示（不准碰、會殺破、還要補缺口、不能承受就不要玩）。只說不要追高但可等拉回，應保留條件，不自動當全面不碰。
 過去的買賣本身不是 watch_watch 或 watch_avoid 的理由，見【日期未明與現況看法】。
 族群禁令可以連到原文明確點名且確有語意連結的公司；不可自行枚舉族群成分股。
@@ -3743,6 +3745,7 @@ date 要填 event_date=YYYY/MM/DD 且原文有月日；prev_trading_day 只適�
 
 【價位與說明】
 price 僅該事件說出的價格或範圍，沒有寫「未說明」。price_evidence 是短句原字。
+price 要寫成讀得懂的寫法：語音稿把數字黏在一起（例如「2385,23802405」）時，依上下文拆成「2380～2405」這種寫法；拆不出來就寫未說明。
 概數、X、以下/以上必須保留，不改成精確成交；法人成本、現價、張數不能充當會員成本。
 reason/note 忠實說明原話之事實描述（如「張正在昨天（9月9日）大跌時買進四星KY。」），其他判斷依據（如「因確切交易日期為昨日而非影片當日，故改列歷史回顧」、「日期未明的回顧……」等內部推論與管線改列註記）一律不用也不得寫進說明中！不能添加「產業前景存疑」等原文未作出的推論。
 reason/note 要具體：用講者的說法寫 1～3 句、約 30～90 字，交代他對這一檔講了什麼——價位或條件、理由（營收、EPS、大戶持股、外資成本、缺口、均線、ETF 進出）、時間點。
@@ -3751,8 +3754,9 @@ reason 只能用提到這一檔的句子；上一句、下一句在講另一檔�
 
 【大盤】
 market 每筆填 kind=level/volume/event/flow/view、text、evidence_refs。
-涵蓋原文明講的指數關卡、缺口、量與解讀、CPI/利率事件時間、美元/資金、整理週期與展望。
-每筆 text 約40至80字，5至9點且合計不超過600字；資料少就少寫，不湊點數。
+level/volume/event/flow 是盤勢（信件第③章）：涵蓋原文明講的指數關卡、缺口、量與解讀、CPI/PPI/利率決策的時間、美元/資金、融資餘額、整理週期與展望。每筆 text 約40至80字，5至9點且合計不超過600字。
+view 是講者今天的操作邏輯與教學重點（信件第⑤章）：3至6點，每點寫成「觀念標題：說明」，說明約40至90字，忠實轉述他教的做法與理由（例如下跌不賣、大漲才賣；成本限定、幾塊以下才買；看400張以上大戶持股；外部因素與內部因素；高價股要能承受震盪；等CPI、利率決策後再動作），可以帶到當天舉的個股與數字。
+資料少就少寫，不湊點數；每一點都要有 evidence_refs，數字必須出現在引用裡。
 數字、X、盤中/收盤、講者預測要區分。只把事件時間寫成講者所述，不補外部行事曆。
 
 【JSON】
@@ -4630,7 +4634,12 @@ def canonical_article(signals, date_str, article=''):
         for i, m in enumerate(matches):
             parts[m.group(1)] = article[m.start():matches[i+1].start() if i+1 < len(matches) else len(article)].strip()
     market = signals.get('market') or []
-    macro = '\n'.join('• ' + str(r.get('text') or '') for r in market if r.get('_evidence_verified'))
+    # ③ 放盤勢（指數、量、事件、資金），⑤ 放講者今天的操作邏輯與教學重點（kind=view）。
+    # 先前 ③ 把 view 也收進去、⑤ 又只收 view：同一點出現兩次，而 ⑤ 常常只剩一點。
+    macro = '\n'.join('• ' + str(r.get('text') or '') for r in market
+                      if r.get('_evidence_verified') and r.get('kind') != 'view')
+    lessons = [str(r.get('text') or '').strip() for r in market
+               if r.get('_evidence_verified') and r.get('kind') == 'view' and str(r.get('text') or '').strip()]
     if len(macro) > 650:
         # Do not truncate a number or sentence; only keep whole verified bullets.
         kept = []
@@ -4644,7 +4653,8 @@ def canonical_article(signals, date_str, article=''):
         '② 基本資訊\n\n• 節目名稱：張震 股市盤中家教班\n• 播出平台：YouTube 直播 / 影片\n• 播出日期：' + date_str + '\n• 主要講者：張震',
         '③ 盤勢總覽重點整理\n\n' + (macro or '本支影片沒有已驗證的大盤摘要；不補寫數字。'),
         render_record_chapter(signals, date_str).strip(),
-        parts.get('⑤') or '⑤ 分析師操作邏輯與教學重點\n\n' + '\n'.join('• ' + r.get('text','') for r in market if r.get('kind') == 'view' and r.get('_evidence_verified')) or '未說明',
+        parts.get('⑤') or '⑤ 分析師操作邏輯與教學重點\n\n' + ('\n'.join('• ' + t for t in lessons)
+                                                          or '本支影片沒有已驗證的操作邏輯整理。'),
         '⑥ 風險揭露與重要提醒\n\n• 本文章內容僅為整理節目中之公開資訊與觀點，不構成任何形式之投資建議或獲利保證。\n• 實際投資操作須自行評估風險與財務狀況，必要時請諮詢專業投資顧問。'])
 
 def _ev_norm(text) -> str:
@@ -5924,6 +5934,52 @@ def _sms_held_keys(ss, date_str):
     return keys
 
 
+_OWN_CUES = ("持有", "持股", "我有", "我們有", "會員有", "抱", "成本", "不賣", "不會賣", "買進", "買的",
+             "部位", "加碼", "套牢", "賺", "手中", "手上")
+
+
+def demote_holding_mentions(signals):
+    """
+    會員持股必須有「持有」的說法（我有、會員有、抱著、成本多少、不賣……）；
+    只在比喻或舉例裡被點到名的不是持股，退到 ignored。
+
+    2026/09/11：「台積電、鴻海、四星KY、大立光、聯發科都在這一顆球裡面」——聯發科只出現在
+    這一句比喻裡，卻被列進會員持股，說明寫「影片中提及聯發科在大球（大環境）裡面」。
+    說明裡找不到持有的說法、原句裡名稱前後 25 字也找不到，才退；寧可漏退也不誤退。
+    """
+    keep, moved = [], []
+    for r in signals.get('holdings', []) or []:
+        if not isinstance(r, dict):
+            keep.append(r)
+            continue
+        text = clean_meta_reason(str(r.get('note') or '') + '。' + str(r.get('reason') or ''))
+        if any(k in text for k in _OWN_CUES):
+            keep.append(r)
+            continue
+        names = [re.sub(r'(?:-?KY|[＊*])$', '', _ev_norm(n), flags=re.I)
+                 for n in [r.get('name'), r.get('原始語音名稱')] + list(r.get('aliases') or [])
+                 if isinstance(n, str) and n]
+        names = [n for n in names if len(n) >= 2]
+        owned = False
+        for q in r.get('evidence') or []:
+            for s in re.split(r'[。！？!?]', re.sub(r'\s', '', str(q))):
+                for n in names:
+                    for m in re.finditer(re.escape(n), s):
+                        if any(k in s[max(0, m.start() - 25):m.end() + 25] for k in _OWN_CUES):
+                            owned = True
+        if owned:
+            keep.append(r)
+            continue
+        r['_原分類'] = 'holdings'
+        signals.setdefault('ignored', []).append(r)
+        moved.append(str(r.get('name') or ''))
+        note_decision('品質關卡', '只被點名、沒有持有的說法，不列持股', str(r.get('name') or ''), text)
+    signals['holdings'] = keep
+    if moved:
+        print(f"  只被點名、沒有持有的說法，不列會員持股：{'、'.join(moved)}")
+    return signals
+
+
 def history_to_watch(signals, date_str, ss=None, transcript=''):
     """
     日期未明或非當日的買賣：逐字稿另有這一檔「現在」的看法才列入觀望，沒有就不列。
@@ -6239,18 +6295,58 @@ def append_rows_safe(ws, rows, value_input_option="RAW"):
                         insert_data_option="INSERT_ROWS")
 
 
-def _rows_per_day(ss, sheet_name):
-    """每一天各有幾列。讀不到回 None——不能把「讀不到」當成「被刪了」。"""
-    from collections import Counter
+RECORD_SHEETS = ("操作紀錄", "會員持股")
+
+
+def _record_sheet_values(ss):
+    """
+    一次請求讀回操作紀錄與會員持股兩張表。讀不到回 None。
+
+    Google 試算表每分鐘的讀取次數有上限（服務帳戶約 60 次）。寫入前後的核對、
+    刷新網站時的逐步核對，如果每張表各讀一次，一輪下來就撞到 429（2026/09/11 的
+    「Sheets 回傳 429，第 1 次重試」就是這樣來的）。兩張表併成一個 batchGet 請求。
+    """
     try:
-        values = sheets_retry(ss.worksheet(sheet_name).get_all_values)
+        res = sheets_retry(ss.values_batch_get, [f"'{n}'" for n in RECORD_SHEETS])
+        ranges = res.get('valueRanges') if isinstance(res, dict) else None
+        if isinstance(ranges, list) and len(ranges) == len(RECORD_SHEETS):
+            return {n: list(vr.get('values') or []) for n, vr in zip(RECORD_SHEETS, ranges)}
     except Exception:
-        return None
+        pass
+    out = {}
+    for n in RECORD_SHEETS:
+        try:
+            values = sheets_retry(ss.worksheet(n).get_all_values)
+        except Exception:
+            return None
+        if not isinstance(values, list):
+            return None
+        out[n] = values
+    return out
+
+
+def _count_days(values):
+    from collections import Counter
     if not values:
         return Counter()
     head = [str(h).strip() for h in values[0]]
     c = head.index("日期") if "日期" in head else 0
     return Counter(norm_date(r[c]) for r in values[1:] if len(r) > c and str(r[c]).strip())
+
+
+def _day_counts(ss):
+    """兩張紀錄表各自每一天有幾列，一次請求。讀不到回 None。"""
+    data = _record_sheet_values(ss)
+    return None if data is None else {n: _count_days(v) for n, v in data.items()}
+
+
+def _rows_per_day(ss, sheet_name):
+    """單一張表每一天各有幾列。讀不到回 None——不能把「讀不到」當成「被刪了」。"""
+    try:
+        values = sheets_retry(ss.worksheet(sheet_name).get_all_values)
+    except Exception:
+        return None
+    return _count_days(values) if isinstance(values, list) else None
 
 
 def _guard_other_days(ss, before, protect, date_str):
@@ -6262,11 +6358,12 @@ def _guard_other_days(ss, before, protect, date_str):
     不讓錯的資料安靜地留在網站上，而工單卻顯示完成。
     """
     lost = []
+    if not before:
+        return
+    now_all = _day_counts(ss) or {}
     for sheet, prev in before.items():
-        if prev is None:
-            continue
-        now = _rows_per_day(ss, sheet)
-        if now is None:
+        now = now_all.get(sheet)
+        if prev is None or now is None:
             continue
         for d, n in sorted(prev.items()):
             if d and d not in protect and now.get(d, 0) < n:
@@ -6334,7 +6431,7 @@ def write_results(ss, date_str, signals, article, done_trades, done_holds,
     """
     video_id = signals.get("_video_id", "")
     protect = set(signals.get('_affected_dates') or []) | {date_str}
-    guard = {sheet: _rows_per_day(ss, sheet) for sheet in ("操作紀錄", "會員持股")}
+    guard = _day_counts(ss)
 
     if replace:
         # 重新分類：先清掉該日舊資料，再用新版規則寫回
@@ -7114,6 +7211,7 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None
     # 由日期歸屬之後的 history_to_watch 依現況看法決定列不列。
     signals = demote_watch_retrospectives(signals)
     signals = demote_watch_examples(signals)
+    signals = demote_holding_mentions(signals)
 
     # 規則比不出來的，帶上下文問一次模型：這是產業，還是哪一家公司。
     # 只有真的有名稱對不上時才會發出這一個呼叫。
@@ -7352,15 +7450,22 @@ def load_refresh_checkpoint(ss, vid, date_str, raw):
 def _transcript_rows_of_day(ss, date_str):
     """這一天由逐字稿產生的列（不含會員簡訊與人工補登）。讀不到回 None，不能把「讀不到」當成「被刪了」。"""
     from collections import Counter
+    data = _record_sheet_values(ss)
+    if data is None:
+        return None
     got = Counter()
-    for sheet in ('操作紀錄', '會員持股'):
-        try:
-            for r in sheets_retry(ss.worksheet(sheet).get_all_records):
-                if norm_date(r.get('日期')) == date_str and not _is_protected_source(r.get('來源影片ID')):
-                    kind = str(r.get('方向') or r.get('目前立場') or '').strip()
-                    got[(sheet, str(r.get('股票名稱') or '').strip(), kind)] += 1
-        except Exception:
-            return None
+    for sheet, values in data.items():
+        if not values:
+            continue
+        head = [str(h).strip() for h in values[0]]
+        col = {h: i for i, h in enumerate(head)}
+
+        def g(row, key):
+            i = col.get(key, -1)
+            return str(row[i]).strip() if 0 <= i < len(row) else ''
+        for row in values[1:]:
+            if norm_date(g(row, '日期')) == date_str and not _is_protected_source(g(row, '來源影片ID')):
+                got[(sheet, g(row, '股票名稱'), g(row, '方向') or g(row, '目前立場'))] += 1
     return got
 
 
@@ -7382,6 +7487,12 @@ def finish_transcript_refresh(ss, vid, date_str, raw, affected):
         result=maybe_refresh_site(only=[name],force=True,date_str=d)
         if not result or not result.get('ok'):
             raise RuntimeError(marker+' 未完成；已保存刷新檢查點，續跑會略過已成功步驟')
+        # 只在會刪列的步驟之後重數：同步郵件內容（撰稿前代號補齊會刪掉判成非個股的列）
+        # 與代號比對。其餘幾步不動紀錄表，每一步都讀兩張表只會撞到每分鐘讀取上限（429）。
+        if name not in ('smsmail', 'codes'):
+            done.append(marker)
+            save_refresh_checkpoint(ss,vid,date_str,raw,dates,done)
+            continue
         after = _transcript_rows_of_day(ss, date_str)
         if before is not None and after is not None:
             lost = before - after

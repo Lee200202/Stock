@@ -3711,13 +3711,22 @@ code 只填原文明講的代號，否則空白。正式名稱交給官方清單
 管理者確認：普威、普位、譜位＝譜瑞-KY（4966），是個股，依上下文照常分類（與祥碩並列講手中部位就是 holdings）；細金元＝矽晶圓、戲制台＝矽智財（先前記作矽製材），都是產業不是個股，只能放 ignored。日幣是貨幣，不是日馳或其他股票。其餘同音候選依上下文判讀，無法確認身分才送 uncertain。
 匿名這一檔、圖上股票、我不講名字不可由股價猜公司。
 
+【先盤點，再分類】
+先把全文每一個被點名的公司都找出來（含聽錯的寫法、只講一次的、名單裡順口帶過的），每一個都要放進九類之一，連 ignored 也要列；寧可多收交給程式核對，不可漏收。
+2026/09/10 漏掉最多的是下面五種句型（名稱只是舉例，原文沒講到的公司不可因範例而加入）：
+一、手中持股順口帶過：「張正手中告訴你的買進的股票，比如說想碩、比如說普位」「對我還有紅準」「你們都知道我有詳」→ 每一檔各一筆 holdings。
+二、講買進價位或買到現在：「我從1820、2025、2135買到現在，買這三次我沒有賣掉」「這一檔本來就是我會員買的股票」→ holdings。
+三、一口氣念出的名單：「我連後面要什麼聖輝、新代、加折還有木德，我以後要買的股票通列出來給你看了」→ 名單裡每一檔各一筆 watch_watch（已是持股的仍列 holdings）。
+四、等條件或等別人賣完：「等ETF賣完這支股票就漲，買點就來了」「你沒有破900我不想買」→ watch_watch，reason 寫出那個條件。
+五、過去叫人賣、現在看壞：「越想解套國巨你就越死」「他一定會殺破」→ watch_avoid（見【日期未明與現況看法】）。
+
 【主詞與分類】
 判定原為買入／賣出時，必須在最前面判定是否為「當日買進／當日賣出」，從逐字稿上下文去嚴謹抓取判斷：
 buy/sell：只有講者本人或其會員於「影片當日（今天／今日／盤中）」實際執行或明確通知立即執行的動作，才列為當日買進／當日賣出。
-若從上下文判斷並非當日買進／賣出（沒有當日執行證據，包含原為昨天買進／賣出、先前買賣、歷史回顧、日期未明等）：
-- 原為買入者 → 直接列入 watch_watch（觀望注意）！
-- 原為賣出者 → 直接列入 watch_avoid（觀望不碰）！
-- 嚴禁列入當日 buy/sell，亦不再進 history。
+不是當日的買賣（昨天、先前、前幾天、歷史回顧、日期未明）嚴禁列入 buy/sell，也不能單憑「原為買入／賣出」決定觀望方向，一律依【日期未明與現況看法】：
+- 這一檔現在仍持有 → holdings，note 寫事實（例如「昨天在3850附近買進四星KY，今天漲30幾塊」）；
+- 這一檔現在另有看法（要買、要等、會漲、會殺破、不要碰）→ 直接列 watch_watch 或 watch_avoid，方向照現在的看法；
+- 兩者都沒有 → 只放 history，不會出現在網站上。
 一般觀眾建議、條件尚未達成、以後想買，都不是已執行的交易。
 holdings：明講現在仍持有、續抱、我還有、會員現有部位。昨日買而今天仍在談自己的部位可另列持股。
 講者說「我有這一隻」「你們都知道我有」「抱著」「成本多少」「絕對不賣」都是持股，就算同一段在講它今天跌。
@@ -3735,9 +3744,9 @@ ignored：單純行情例子、法人交易、ETF換股、匿名標的、產業�
 history：自己的過去交易，但不是當日、或日期不能確定；不是第三方交易的收容區。網站不單獨呈現回顧：原文另有這一檔現況看法的會列入觀望，沒有的不列（見【日期未明與現況看法】）。
 
 【時間】
-buy/sell 填 when、seq，time_evidence 能找到就填。時間可以分布在前後段；漏附獨立時間短句不影響收錄。當下已執行的操作可依上下文判 today；明確歷史回顧仍不得猜成今天。
-today 必須是動作發生在影片當日；「今天漲，昨天我買」是 yesterday。非當日的買賣不要直接放進觀望類，依【日期未明與現況看法】處理。
-yesterday 是影片日期減一個日曆日，不依日K快取猜。
+buy/sell 只收影片當日：填 when=today、seq，time_evidence 能找到就填。時間可以分布在前後段；漏附獨立時間短句不影響收錄。當下已執行的操作可依上下文判 today；明確歷史回顧仍不得猜成今天。
+today 必須是動作發生在影片當日；「今天漲，昨天我買」是昨天的買賣，不是當日，不列 buy/sell，依【日期未明與現況看法】處理。
+history 的 when：yesterday 是影片日期減一個日曆日，不依日K快取猜。
 date 要填 event_date=YYYY/MM/DD 且原文有月日；prev_trading_day 只適用明講上一交易日。
 前幾天、先前、以前、那一天、當天看圖回顧都不能當今天，也不能猜昨天。
 連漲三天是行情期間，不能當成交日期；賣完資金轉去別股，也不能推定兩筆同日。
@@ -3767,10 +3776,12 @@ history 另填 when（yesterday／date／unknown）、action=buy/sell、view、v
 輸出必須是標準合法 JSON 物件，嚴禁尾隨逗號（trailing comma，例如 {"a": 1,} 或 [1, 2,]）、嚴禁註解，所有鍵名與字串值必須使用標準半形雙引號包裹。
 
 【收錄與稽核一致性】
-判定原為買入請在最前面判定是否為當日買進賣出，從上下文去嚴謹抓取判斷；不是當日的，依【日期未明與現況看法】處理，不要直接放進觀望類。
+判定原為買入請在最前面判定是否為當日買進賣出，從上下文去嚴謹抓取判斷；不是當日的，依【日期未明與現況看法】處理：有現況看法才列觀望，沒有只放 history。
 【日期未明與現況看法】非當日或日期不明的買賣本身不是現況，不能單憑「原為買入／賣出」決定觀望方向。
-請到逐字稿其他段落找講者對這一檔「現在」的看多、看空或技術說明（價位關卡、法人成本、會漲會跌、等拉回、別攤平等），
-找到就填 view（原話事實摘要，不寫判斷依據）、view_refs（S 編號，至少一段要提到這一檔）、watch_bias（看多 watch_watch／看空 watch_avoid）；
+請到逐字稿其他段落找講者對這一檔「現在」的看多、看空或技術說明（價位關卡、法人成本、會漲會跌、等拉回、別攤平等）。
+找到就直接列 watch_watch（看多、要買、要等）或 watch_avoid（看空、會殺破、不要碰），reason 寫過去的事實加上現在的看法，evidence_refs 同時列過去那一段與現在看法那一段；
+例如國巨：「禮拜一國巨漲到605，我說597（外資成本）以上要賣一次」是過去，「越想解套國巨你就越死」「他一定會殺破」是現在的看法 → watch_avoid。
+若仍放在 history，也要填 view（原話事實摘要，不寫判斷依據）、view_refs（S 編號，至少一段要提到這一檔）、watch_bias（看多 watch_watch／看空 watch_avoid）；
 view 必須是他「現在」對這一檔的看法原話重點（要買、要等、會漲、會殺破、不要碰、大戶在買……）；
 只講過去賣在幾塊、現在幾塊（例如「華城賣775塊，現在726」）不是 view。
 找不到就把 view、watch_bias 留空，只放 history，不會出現在網站上。例如「大漲時賣出索羅門」「華城賣775塊」之後沒有再談這一檔現在怎麼看，就不要列。
@@ -3783,10 +3794,10 @@ uncertain 的 suggested_category 只用 buy/sell/holdings/watch_avoid/watch_watc
 覆核前後每個候選必須能由原名稱或 aliases 對應；分類可變但不可無聲消失。思考較深也不能增加原文沒有的交易、日期、價位或投資理由。
 """
 
-EXTRACT_SYSTEM = POLICY + "\n這次合併擷取、分類、日期判斷、補漏及大盤摘要。輸入為JSON，source每個鍵是來源編號。完整讀完各段後在同一次回答自行覆核，特別檢查最後20%，只輸出完成的九類陣列，不輸出初稿或重複引句。長稿各批保留原始S編號，不假設記得其他請求。"
+EXTRACT_SYSTEM = POLICY + "\n這次合併擷取、分類、日期判斷、補漏及大盤摘要。輸入為JSON，source每個鍵是來源編號。先依【先盤點，再分類】逐段找出每一個被點名的公司，再分類。完整讀完各段後在同一次回答自行覆核，特別檢查最後20%，只輸出完成的九類陣列，不輸出初稿或重複引句。長稿各批保留原始S編號，不假設記得其他請求。"
 
 
-AUDIT_SYSTEM = POLICY + "\n這是追加覆核。重讀本次提供的全部來源段落；分批時不假設收到其他批原文。逐筆校對初稿並補漏，輸出完整九類陣列，不只輸出差異。被刪除的初稿候選須列 ignored/uncertain 並附理由，不能消失。附 changes 說明修正。"
+AUDIT_SYSTEM = POLICY + "\n這是追加覆核。重讀本次提供的全部來源段落；分批時不假設收到其他批原文。逐筆校對初稿並補漏，補漏時逐段對照【先盤點，再分類】的五種句型，初稿沒收的公司要補進對應類別，輸出完整九類陣列，不只輸出差異。被刪除的初稿候選須列 ignored/uncertain 並附理由，不能消失。附 changes 說明修正。"
 
 
 # ---------------------------------------------------------------- #
@@ -5830,6 +5841,11 @@ def _current_view(row, segments):
     quotes = [segments[s]['text'] for s in (row.get('view_refs') or []) if s in segments]
     quotes += [q for q in (row.get('view_evidence') or []) if isinstance(q, str)]
     hits = [q for q in quotes if any(n in _ev_norm(q) for n in names)]
+    if not hits:
+        # 語音稿常把同一檔寫成同音字：名稱是「國巨」，看法那一句卻寫「越想解套國具你就越死」
+        # 「他一定會殺破」（2026/09/10）。字面對不上時比拼音，與品質關卡認同音字的規則相同。
+        pins = [_npin(n) for n in names if _has_cjk(n)]
+        hits = [q for q in quotes if any(p and p in _npin(re.sub(r'\s', '', q)) for p in pins)]
     return (view, hits) if hits else ('', [])
 
 
@@ -5934,8 +5950,10 @@ def _sms_held_keys(ss, date_str):
     return keys
 
 
+# 「對我還有紅準」「我從1820、2025、2135買到現在，買這三次我沒有賣掉」（台積電）也是持有的說法，
+# 先前少了這幾個詞，說明裡又剛好沒寫「持有」時，真的持股會被當成只被點名而退掉（2026/09/10 逐字稿）。
 _OWN_CUES = ("持有", "持股", "我有", "我們有", "會員有", "抱", "成本", "不賣", "不會賣", "買進", "買的",
-             "部位", "加碼", "套牢", "賺", "手中", "手上")
+             "部位", "加碼", "套牢", "賺", "手中", "手上", "我還有", "沒有賣", "沒賣", "買到現在", "會員買")
 
 
 def demote_holding_mentions(signals):
@@ -7155,6 +7173,27 @@ def existing_video_rows(ss, video_id, date_str) -> int:
     return n
 
 
+_ROSTER_LABELS = (("buy", "買入"), ("sell", "賣出"), ("holdings", "持股"), ("watch_watch", "觀望注意"),
+                  ("watch_avoid", "觀望不碰"), ("history", "回顧"), ("uncertain", "待確認"), ("ignored", "排除"))
+
+
+def signal_roster(signals, limit=12) -> str:
+    """
+    每一類收了哪幾檔，一行印出來。
+
+    先前日誌只印「目前 4 檔」，看不出模型到底讀到哪幾檔、把誰放進排除，
+    2026/09/10 漏掉祥碩、譜瑞、鴻準、聖暉、國巨等十檔時，查不出是哪一步漏的。
+    """
+    parts = []
+    for key, label in _ROSTER_LABELS:
+        names = [str(r.get('name') or '') for r in (signals.get(key) or []) if isinstance(r, dict)]
+        names = [n for n in names if n]
+        if names:
+            shown = '、'.join(names[:limit]) + (f' 等 {len(names)} 檔' if len(names) > limit else '')
+            parts.append(f"{label} {len(names)}：{shown}")
+    return '；'.join(parts) or '一檔都沒有'
+
+
 def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None,
                   replace_video=False, v1=""):
     """
@@ -7193,6 +7232,7 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None
               f"原始逐字稿仍是唯一判讀來源")
     step("擷取", "從逐字稿讀出他講了哪幾檔")
     signals = extract_signals(TX["extract"], date_str)
+    print(f"  擷取結果　{signal_roster(signals)}")
 
     # 稽核一律讀原始逐字稿。
     #
@@ -7209,6 +7249,7 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None
               f"（擷取讀的是 {len(TX['extract'])} 字）")
     step("稽核補漏", f"目前 {_n(signals)} 檔，回頭比對原始逐字稿看有沒有漏掉的")
     signals = audit_signals(TX["audit"], signals, date_str)
+    print(f"  稽核補漏後　{signal_roster(signals)}")
 
     # 幻覺檢查要排在代號比對之前：比對會把名稱換成官方簡稱
     # （加哲→嘉澤），換過之後就對不到逐字稿了。

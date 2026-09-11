@@ -2983,8 +2983,42 @@ def clean_price_field(v) -> str:
 BLANK_ = ("", "未說明", NOT_MENTIONED)
 
 
+def clean_meta_reason(text: str) -> str:
+    """清理理由說明中誤入的管線內部判斷依據與改列註記，保留忠實自然原意。"""
+    t = str(text or "").strip()
+    if not t:
+        return ""
+    # 移除括號內的管線判定註記（處理可能巢狀或多層括號）
+    keywords = ("日期未明", "改列", "原判", "原為", "依原文語氣", "依上下文", "歷史回顧")
+    changed = True
+    while changed:
+        changed = False
+        m = re.search(r"（[^（）]*?(?:" + "|".join(keywords) + r")[^（）]*?）", t)
+        if m:
+            t = t[:m.start()] + t[m.end():]
+            changed = True
+            continue
+        m = re.search(r"\([^()]*?(?:" + "|".join(keywords) + r")[^()]*?\)", t)
+        if m:
+            t = t[:m.start()] + t[m.end():]
+            changed = True
+
+    # 移除文中的改列因果句（例如：，因確切交易日期為昨日而非影片當日，故改列歷史回顧）
+    t = re.sub(r"[，,、]?\s*因(?:(?!故改列).)*?故改列.*?(?=[。！？!?（(]|$)", "", t)
+
+    # 清理標點符號與多餘空白
+    t = re.sub(r"\s+", " ", t).strip()
+    t = re.sub(r"[，,；;：:]\s*[。.]", "。", t)
+    t = re.sub(r"[，,；;：:]+$", "", t).strip()
+    t = re.sub(r"^[，,；;：:]+", "", t).strip()
+    t = re.sub(r"[。.]+$", "", t).strip()
+    if t and not re.search(r"[。！？!?]$", t):
+        t += "。"
+    return t
+
+
 def naturalize_reason(value: str) -> str:
-    """把模型偶爾產生的「〔現況〕＋〔建議〕」模板轉回完整自然句。"""
+    """把模型偶爾產生的「〔現況〕＋〔建議〕」模板轉回完整自然句，並清理內部判斷依據。"""
     text = re.sub(r"\s+", " ", str(value or "")).strip()
     if not text or text in BLANK_:
         return text
@@ -3001,8 +3035,7 @@ def naturalize_reason(value: str) -> str:
         text = re.sub(r"[〕】］\]]\s*[+＋]\s*[〔【［\[]", "，", text)
         text = text.strip("〔〕【】［］[] ")
     text = re.sub(r"\s*，\s*", "，", text).strip()
-    if text and not re.search(r"[。！？!?]$", text):
-        text += "。"
+    text = clean_meta_reason(text)
     return text
 
 
@@ -3632,32 +3665,35 @@ code 只填原文明講的代號，否則空白。正式名稱交給官方清單
 匿名這一檔、圖上股票、我不講名字不可由股價猜公司。
 
 【主詞與分類】
-buy/sell：講者本人或其會員已買賣，或明確通知立即執行。不是外資、ETF、其他分析師的買賣。
+判定原為買入／賣出時，必須在最前面判定是否為「當日買進／當日賣出」，從逐字稿上下文去嚴謹抓取判斷：
+buy/sell：只有講者本人或其會員於「影片當日（今天／今日／盤中）」實際執行或明確通知立即執行的動作，才列為當日買進／當日賣出。
+若從上下文判斷並非當日買進／賣出（沒有當日執行證據，包含原為昨天買進／賣出、先前買賣、歷史回顧、日期未明等）：
+- 原為買入者 → 直接列入 watch_watch（觀望注意）！
+- 原為賣出者 → 直接列入 watch_avoid（觀望不碰）！
+- 嚴禁列入當日 buy/sell，亦不再進 history。
 一般觀眾建議、條件尚未達成、以後想買，都不是已執行的交易。
 holdings：明講現在仍持有、續抱、我還有、會員現有部位。昨日買而今天仍在談自己的部位可另列持股。
-watch_watch：明確候選、以後想買、等洗完、抄起來；只列名字但明確共用「候選名單」也要逐檔收錄，不要求每檔都有價格或長篇理由。
-watch_avoid：有針對該股的禁令或負面指示。只說不要追高但可等拉回，應保留條件，不自動當全面不碰。
+watch_watch：明確候選、以後想買、等洗完、抄起來、或非當日買入之回顧；只列名字但明確共用「候選名單」也要逐檔收錄，不要求每檔都有價格或長篇理由。
+watch_avoid：有針對該股的禁令或負面指示、或非當日賣出之回顧。只說不要追高但可等拉回，應保留條件，不自動當全面不碰。
 族群禁令可以連到原文明確點名且確有語意連結的公司；不可自行枚舉族群成分股。
 同一檔最後指示、時間與持有/加碼範圍決定狀態，不採偏空優先；矛盾仍不能解開就 uncertain。
 目前已持有者又出現在未來買進清單時，優先保留明確持股事實，候選/加碼語意放 note，不把它當空手觀望。
 ignored：單純行情例子、法人交易、ETF換股、匿名標的、產業、指數、外國股票。填 name/reason/evidence_refs，保留排除理由供稽核，不塞進個股清單。
-history：自己的過去交易但日期不能確定；不是第三方交易的收容區。網站不單獨呈現回顧，程式會把它改列觀望，
-所以每筆必填 watch_bias：依上下文判斷講者現在對這一檔的態度——仍看好、列候選、等拉回再買、賣掉後仍看好 → watch_watch；
-看壞、叫人別碰、會殺破、別攤平或別等解套 → watch_avoid。reason 寫出這個判斷的原文依據。
+history：過去交易若未在最前面改列者，每筆必填 watch_bias：原為賣出一律 watch_avoid（觀望不碰）；原為買入一律 watch_watch（觀望注意）。
 
 【時間】
 buy/sell 填 when、seq，time_evidence 能找到就填。時間可以分布在前後段；漏附獨立時間短句不影響收錄。當下已執行的操作可依上下文判 today；明確歷史回顧仍不得猜成今天。
-today 必須是動作發生在影片當日；「今天漲，昨天我買」是 yesterday。
+today 必須是動作發生在影片當日；「今天漲，昨天我買」是 yesterday，非當日操作直接進觀望注意/不碰。
 yesterday 是影片日期減一個日曆日，不依日K快取猜。
 date 要填 event_date=YYYY/MM/DD 且原文有月日；prev_trading_day 只適用明講上一交易日。
-前幾天、先前、以前、那一天、當天看圖回顧都不能當今天，也不能猜昨天。放 history/unknown。
+前幾天、先前、以前、那一天、當天看圖回顧都不能當今天，也不能猜昨天。
 連漲三天是行情期間，不能當成交日期；賣完資金轉去別股，也不能推定兩筆同日。
 歷史交易與當下持股分列；同日分次、不同日期、不同交易順序不可合併。
 
-【價位】
+【價位與說明】
 price 僅該事件說出的價格或範圍，沒有寫「未說明」。price_evidence 是短句原字。
 概數、X、以下/以上必須保留，不改成精確成交；法人成本、現價、張數不能充當會員成本。
-reason/note 忠實說明主詞、動作日期、條件；不能添加「產業前景存疑」等原文未作出的推論。
+reason/note 忠實說明原話之事實描述（如「張正在昨天（9月9日）大跌時買進四星KY。」），其他判斷依據（如「因確切交易日期為昨日而非影片當日，故改列歷史回顧」、「日期未明的回顧……」等內部推論與管線改列註記）一律不用也不得寫進說明中！不能添加「產業前景存疑」等原文未作出的推論。
 
 【大盤】
 market 每筆填 kind=level/volume/event/flow/view、text、evidence_refs。
@@ -3672,6 +3708,9 @@ history 另填 when=unknown、action=buy/sell、watch_bias。buy/sell 也填 wat
 不得以減少數量掩蓋不確定。沒有最低檔數；每個候選必須有收錄或排除的證據。
 
 【收錄與稽核一致性】
+判定原為買入請在最前面判定是否為當日買進賣出，從上下文去嚴謹抓取判斷，沒有則進觀望注意/不碰。
+日期未明的回顧（原為買入），依原文語氣判定列入觀望注意；日期未明的回顧（原為賣出），依原文語氣判定應該為列入觀望不碰。
+說明只需忠實陳述事實，其他判斷依據不用寫進去說明。
 只缺引句定位、名稱在前段或獨立時間短句者，補齊相連段落後直接納入原分類並加 review_note；不是每筆都要同一句同時包含名稱、動作和時間。
 同一段點名多家公司時，逐檔核對主詞與動作；不能把相鄰股票的買入、價位或日期搬過來。共享候選名單可逐檔列入，但仍保留共同指示的引用。
 日期靠前後文判斷時填 time_basis 簡述原文依據，並列對應 evidence_refs；缺少時間短句不等於日期未知，也不等於今天。明確回顧仍用 history。
@@ -4645,14 +4684,11 @@ def validate_evidence(signals, transcript, date_str, after_codes=False):
                     except (ValueError, TypeError):
                         why = "日期格式不正確"
                 if why == "沒有附上講出時間的那一句" and cat == "buy":
-                    # 管理者規則（2026/09/11）：買入只是沒附講出時間的那一句，改列觀望注意，
-                    # 不當成歷史回顧。列成回顧會讓這一檔從網站上消失（四星KY／世芯-KY 就是這樣
-                    # 不見的）；而他提到要買、或說會員有買卻沒交代哪一天，對讀者最有用的是
-                    # 「這一檔在留意名單上」。不進當日買入，所以不會開持有回合、不計入績效事件。
-                    # 價位仍要有原句（下面第四步），不因為換了類別就放寬。
+                    # 管理者規則（2026/09/11）：買入判定在最前面判定是否為當日買進，沒有則進觀望注意。
+                    # 說明只寫事實原貌，其他判斷依據不用寫進說明。
                     row["when"] = "unknown"
                     row["_原分類"] = cat
-                    row["reason"] = f"{row.get('reason') or ''}（原判買入，{why}，改列觀望注意）"
+                    row["reason"] = naturalize_reason(row.get('reason') or '')
                     dest = "watch_watch"
                     to_watch.append(f"{name}（原 買入）：{why}")
                     note_decision('品質關卡', '買入改列觀望注意', name, why)
@@ -4660,7 +4696,7 @@ def validate_evidence(signals, transcript, date_str, after_codes=False):
                     label = "買入" if cat == "buy" else "賣出"
                     row["when"] = "unknown"
                     row["_原分類"] = cat
-                    row["reason"] = f"{row.get('reason') or ''}（{why}，改列為日期未明的回顧）"
+                    row["reason"] = naturalize_reason(row.get('reason') or '')
                     signals["history"].append(row)
                     to_history.append(f"{name}（原 {label}）：{why}")
                     note_decision('品質關卡', f'{label}改列歷史回顧', name, why)
@@ -5411,7 +5447,7 @@ def apply_when_and_seq(ss, signals, date_str):
                 row['when'] = 'unknown'
                 row['_原分類'] = cat
                 row['_date'] = ''
-                row['reason'] = f"{row.get('reason') or ''}（{why}，改列為日期未明的回顧）"
+                row['reason'] = naturalize_reason(row.get('reason') or '')
                 signals.setdefault('history', []).append(row)
                 moved.append(f"{row.get('name', '')}（原 {label}）：{why}")
                 note_decision('日期歸屬', f'{label}改列歷史回顧',
@@ -5437,6 +5473,13 @@ WATCH_BIAS_LABEL = {'watch_watch': '觀望注意', 'watch_avoid': '觀望不碰'
 
 def _watch_bias(row):
     """日期未明的回顧依上下文該列觀望注意還是觀望不碰。回傳 (類別, 判定依據)。"""
+    action = str(row.get('action') or row.get('_原分類') or '').strip()
+    # 使用者規則：日期未明的回顧（原為買入），依原文語氣判定列入觀望注意；
+    # 日期未明的回顧（原為賣出），依原文語氣判定應該為列入觀望不碰。
+    if action in ('sell', '賣出'):
+        return 'watch_avoid', '依原文語氣判定'
+    if action in ('buy', '買入'):
+        return 'watch_watch', '依原文語氣判定'
     b = str(row.get('watch_bias') or '').strip()
     b = {'觀望注意': 'watch_watch', '觀望不碰': 'watch_avoid'}.get(b, b)
     if b in WATCH_BIAS_LABEL:
@@ -5524,10 +5567,8 @@ def history_to_watch(signals, date_str, ss=None):
         r['when'] = 'unknown'
         r['_date'] = date_str
         r['_seq'] = len(signals.get(bias) or []) + 1
-        r['price'] = r.get('price') or '未說明'
-        note = '日期未明的回顧' + (f'（原為{action}）' if action else '') + f'，{basis}列入{label}'
-        if note not in str(r.get('reason') or ''):
-            r['reason'] = f"{r.get('reason') or ''}（{note}）"
+        # 使用者規則：說明只保留事實，其他判斷依據不用寫進說明
+        r['reason'] = naturalize_reason(r.get('reason') or '')
         signals.setdefault(bias, []).append(r)
         present |= keys
         moved.append(f'{name} → {label}（{basis}）')

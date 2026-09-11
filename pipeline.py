@@ -3628,7 +3628,7 @@ name 用本份原文出現的寫法；aliases 也只能列原文有的別稱。
 code 只填原文明講的代號，否則空白。正式名稱交給官方清單與上下文核對。
 原文已正確的名字必須保留，不改成音近字。不要把動詞「出清」拼成公司名。
 價格、漲跌金額、EPS、產業、相鄰股票不是公司身分的證明。「跌兩毛」不能推算股價級距。
-管理者確認：普威、普位、譜位＝譜瑞-KY（4966），是個股，依上下文照常分類（與祥碩並列講手中部位就是 holdings）；細金元＝矽晶圓，是材料產業不是個股，只能放 ignored；戲制台＝矽製材，代號未確認不得猜。日幣是貨幣，不是日馳或其他股票。其餘同音候選依上下文判讀，無法確認身分才送 uncertain。
+管理者確認：普威、普位、譜位＝譜瑞-KY（4966），是個股，依上下文照常分類（與祥碩並列講手中部位就是 holdings）；細金元＝矽晶圓、戲制台＝矽智財（先前記作矽製材），都是產業不是個股，只能放 ignored。日幣是貨幣，不是日馳或其他股票。其餘同音候選依上下文判讀，無法確認身分才送 uncertain。
 匿名這一檔、圖上股票、我不講名字不可由股價猜公司。
 
 【主詞與分類】
@@ -3641,7 +3641,9 @@ watch_avoid：有針對該股的禁令或負面指示。只說不要追高但可
 同一檔最後指示、時間與持有/加碼範圍決定狀態，不採偏空優先；矛盾仍不能解開就 uncertain。
 目前已持有者又出現在未來買進清單時，優先保留明確持股事實，候選/加碼語意放 note，不把它當空手觀望。
 ignored：單純行情例子、法人交易、ETF換股、匿名標的、產業、指數、外國股票。填 name/reason/evidence_refs，保留排除理由供稽核，不塞進個股清單。
-history：自己的過去交易但日期不能確定；不是第三方交易的收容區。
+history：自己的過去交易但日期不能確定；不是第三方交易的收容區。網站不單獨呈現回顧，程式會把它改列觀望，
+所以每筆必填 watch_bias：依上下文判斷講者現在對這一檔的態度——仍看好、列候選、等拉回再買、賣掉後仍看好 → watch_watch；
+看壞、叫人別碰、會殺破、別攤平或別等解套 → watch_avoid。reason 寫出這個判斷的原文依據。
 
 【時間】
 buy/sell 填 when、seq，time_evidence 能找到就填。時間可以分布在前後段；漏附獨立時間短句不影響收錄。當下已執行的操作可依上下文判 today；明確歷史回顧仍不得猜成今天。
@@ -3666,7 +3668,7 @@ market 每筆填 kind=level/volume/event/flow/view、text、evidence_refs。
 【JSON】
 必須回傳 buy,sell,holdings,watch_avoid,watch_watch,history,uncertain,ignored,market 九個陣列。
 一般每筆 name,code,aliases,evidence_refs,price,price_evidence,reason；holdings 另填 stance,note。
-history 另填 when=unknown、action=buy/sell。uncertain 明列疑點與 suggested_category（九類英文鍵之一）；可判斷分類而只有引用定位或缺少時間短句的問題，直接收進該類並寫 review_note，不要隔離。
+history 另填 when=unknown、action=buy/sell、watch_bias。buy/sell 也填 watch_bias（日期查證不過、改列觀望時使用）。uncertain 明列疑點與 suggested_category（九類英文鍵之一）；可判斷分類而只有引用定位或缺少時間短句的問題，直接收進該類並寫 review_note，不要隔離。
 不得以減少數量掩蓋不確定。沒有最低檔數；每個候選必須有收錄或排除的證據。
 
 【收錄與稽核一致性】
@@ -3674,7 +3676,7 @@ history 另填 when=unknown、action=buy/sell。uncertain 明列疑點與 sugges
 同一段點名多家公司時，逐檔核對主詞與動作；不能把相鄰股票的買入、價位或日期搬過來。共享候選名單可逐檔列入，但仍保留共同指示的引用。
 日期靠前後文判斷時填 time_basis 簡述原文依據，並列對應 evidence_refs；缺少時間短句不等於日期未知，也不等於今天。明確回顧仍用 history。
 uncertain 的 suggested_category 只用 buy/sell/holdings/watch_avoid/watch_watch；無法選定就留空並明列衝突，不虛構分類。只因證據格式不完整而待確認者優先修復收錄。
-管理者名稱對應只供還原本次原文已提及者，不因規則列出普威、祥碩、國巨或矽製材就自動新增這些公司。貨幣只在有原文依據時放 market/ignored，不進股票清單。
+管理者名稱對應只供還原本次原文已提及者，不因規則列出普威、普位、祥碩、國巨就自動新增這些公司；列為產業的細金元、戲制台也不得出現在股票清單。貨幣只在有原文依據時放 market/ignored，不進股票清單。
 覆核前後每個候選必須能由原名稱或 aliases 對應；分類可變但不可無聲消失。思考較深也不能增加原文沒有的交易、日期、價位或投資理由。
 """
 
@@ -3914,13 +3916,26 @@ def resolve_unclear_names(signals, transcript, ss=None):
 
     Previous automatically learned global aliases are deliberately not reused:
     an ASR sound cannot permanently bind every future context to one company.
+
+    產業判定（2026/09/11）：名稱對不上任何公司、而模型帶著上下文判定它是產業／族群／
+    材料名詞時，整列剔除，不再掛成「代號待確認」留在網站上（戲制台、細金元都是這種）。
+    只有代號比對也對不上公司的列才接受這個判定——已經對上官方清單的名字，
+    不會被模型一句話改成產業。管理者確認過的產業（CONFIRMED_INDUSTRY）不問模型直接剔除。
+
+    呼叫失敗不是「分不出來」：模型沒有回覆時，代號比對已經對上官方清單的列照舊保留，
+    只記成待複核；先前會把整批同音修正的名稱全部打成代號待確認。
     """
     official = get_code_map()
     simple = lambda s: re.sub(r'(?:-?KY|[＊*])$', '', _ev_norm(s), flags=re.I)
     payload, index = [], {}
+    drops = []                     # (類別, 列, 理由, 來源)
     for cat in SIGNAL_CATEGORIES + ('history',):
         for r in signals.get(cat, []):
             heard = str(r.get('原始語音名稱') or r.get('name') or '')
+            industry = CONFIRMED_INDUSTRY.get(heard) or CONFIRMED_INDUSTRY.get(str(r.get('name') or ''))
+            if industry:
+                drops.append((cat, r, f'管理者確認：這是產業（{industry}），不是個股', ''))
+                continue
             if heard in CONFIRMED_NAMES or r.get('name') in CONFIRMED_NAMES:
                 r['code'], r['name'], _ = resolve_code(heard if heard in CONFIRMED_NAMES else r['name'], '')
                 continue
@@ -3941,36 +3956,54 @@ def resolve_unclear_names(signals, transcript, ss=None):
             idx = len(payload) + 1
             payload.append({'id':idx,'heard':heard,'context':r.get('evidence') or [],
                             'candidates':candidates})
-            index[idx] = (r, candidates)
-    if not payload:
-        return signals
-    prompt = '''核對原始語音名稱的公司身分。只可從每筆candidates選代號，或回空白。
-完整讀context，確認這個名稱是公司而不是產業或「出清」等動詞。
+            index[idx] = (r, candidates, cat)
+    if payload:
+        prompt = '''核對原始語音名稱的身分：是哪一家公司，或根本不是公司。
+完整讀context，先判斷kind：stock（一家可在台股交易的公司）、industry（產業、族群、概念、技術或材料名詞，例如被動元件、ABF載板、矽晶圓、矽智財）或unsure。
+kind=stock時code只可從該筆candidates選；同音有多個合理候選仍分不出就code空白。
 同音與上下文共同支持可還原；不能用漲跌幾毛推算股價級距，也不能把相鄰公司的理由移過來。
-原文有正式名稱時優先沿用。同音有多個合理候選仍分不出就空白。
+原文有正式名稱時優先沿用。「出清」等動詞不是公司。
 quote逐字抄context中的定位短句，why簡述判定根據。
-只回JSON陣列 [{"id":1,"code":"","quote":"原句","why":"理由"}]。'''
-    try:
-        raw = call_gemini(prompt, json.dumps(payload,ensure_ascii=False), want_json=True,thinking=1024,tag='unclear')
-        verdicts = json.loads(re.sub(r'^```json|^```|```$', '', raw.strip(),flags=re.M))
-    except (RuntimeError, ValueError, RateLimited) as e:
-        print('名稱釐清尚未完成：' + str(e)[:120]); verdicts=[]
-    decided = set()
-    for v in verdicts if isinstance(verdicts,list) else []:
-        if not isinstance(v,dict) or v.get('id') not in index:
-            continue
-        idx=v['id'];r,candidates=index[idx]
-        code=str(v.get('code') or '')
-        quote=v.get('quote') or ''
-        if code in candidates and _quote_is_real(quote,_ev_norm('\n'.join(r.get('evidence') or []))):
-            r['name'],r['code']=candidates[code],code
-            r['_identity_reason']=v.get('why',''); decided.add(idx)
-            note_decision('名稱釐清','上下文確認',r['name'],r['_identity_reason'],'ai')
-    for idx,(r,_) in index.items():
-        if idx not in decided:
-            r['code']=UNRESOLVED
+只回JSON陣列 [{"id":1,"kind":"stock","code":"","quote":"原句","why":"理由"}]。'''
+        failed = False
+        try:
+            raw = call_gemini(prompt, json.dumps(payload,ensure_ascii=False), want_json=True,thinking=1024,tag='unclear')
+            verdicts = json.loads(re.sub(r'^```json|^```|```$', '', raw.strip(),flags=re.M))
+        except (RuntimeError, ValueError, RateLimited) as e:
+            print('名稱釐清尚未完成：' + str(e)[:120]); verdicts=[]; failed = True
+        decided = set()
+        for v in verdicts if isinstance(verdicts,list) else []:
+            if not isinstance(v,dict) or v.get('id') not in index:
+                continue
+            idx=v['id'];r,candidates,cat=index[idx]
+            code=str(v.get('code') or '')
+            quote=v.get('quote') or ''
+            real=_quote_is_real(quote,_ev_norm('\n'.join(r.get('evidence') or [])))
+            kind=str(v.get('kind') or '').strip().lower()
+            if kind=='industry' and real and str(r.get('code') or '') in ('', UNRESOLVED):
+                drops.append((cat, r, '名稱釐清判為產業：' + str(v.get('why') or '')[:80], 'ai'))
+                decided.add(idx)
+                continue
+            if code in candidates and real:
+                r['name'],r['code']=candidates[code],code
+                r['_identity_reason']=v.get('why',''); decided.add(idx)
+                note_decision('名稱釐清','上下文確認',r['name'],r['_identity_reason'],'ai')
+        for idx,(r,_,_) in index.items():
+            if idx in decided:
+                continue
+            nm = str(r.get('原始語音名稱') or r.get('name'))
             signals['_quality_requires_review']=True
-            signals.setdefault('_repair_gaps',[]).append('名稱尚待確認：'+str(r.get('原始語音名稱') or r.get('name')))
+            if failed and str(r.get('code') or '') not in ('', UNRESOLVED):
+                signals.setdefault('_repair_gaps',[]).append('名稱釐清未完成，沿用代號比對：'+nm)
+                continue
+            r['code']=UNRESOLVED
+            signals.setdefault('_repair_gaps',[]).append('名稱尚待確認：'+nm)
+    for cat, r, why, src in drops:
+        signals[cat] = [x for x in signals.get(cat, []) if x is not r]
+        nm = str(r.get('原始語音名稱') or r.get('name') or '')
+        print(f'  名稱釐清　{nm} -> 剔除（{why}）')
+        note_decision('名稱釐清', '判為產業，剔除', nm, why, src) if src else \
+            note_decision('名稱釐清', '判為產業，剔除', nm, why)
     return signals
 
 
@@ -4778,13 +4811,15 @@ The standalone pipeline is the deployed runtime; this file documents the helpers
 # 管理者確認過的聽錯寫法。代號比對直接採用，不走拼音猜測，也不再送名稱釐清。
 #   普威／普位／譜位 → 譜瑞-KY（4966）：「比如說祥碩、比如說普位，普位現在跌兩塊」，
 #   與祥碩並列講的是手中持股。2026/09/10 的逐字稿寫成「普位」，只認「普威」時就掉進待確認。
-CONFIRMED_NAMES = {'普威': ('4966', '譜瑞-KY'), '普位': ('4966', '譜瑞-KY'), '譜位': ('4966', '譜瑞-KY'),
-                   '戲制台': ('', '矽製材'), '矽製材': ('', '矽製材')}
+CONFIRMED_NAMES = {'普威': ('4966', '譜瑞-KY'), '普位': ('4966', '譜瑞-KY'), '譜位': ('4966', '譜瑞-KY')}
 NON_EQUITY_NAMES = {'日幣', '日圓', '日元', '美元', '美金', '台幣', '臺幣', '新台幣', '人民幣', '歐元'}
 # 管理者確認過「是產業、不是個股」的聽錯寫法。代號比對直接剔除整列。
 #   細金元 → 矽晶圓：「被動元件不准給我碰，細金元不准給我碰」，與被動元件、ABF 載板並列的是材料族群。
 #   拼音候選（精元、先進光、吉源-KY）全部不對，不能交給拼音比對或名稱釐清去猜。
-CONFIRMED_INDUSTRY = {'細金元': '矽晶圓', '矽晶圓': '矽晶圓'}
+#   戲制台 → 矽智財（先前記作「矽製材」）：IP 設計服務族群，不是一家公司。2026/09/10 掛成
+#   「代號待確認」留在網站上；管理者確認它是產業，整列剔除。
+CONFIRMED_INDUSTRY = {'細金元': '矽晶圓', '矽晶圓': '矽晶圓',
+                      '戲制台': '矽智財', '矽製材': '矽智財', '矽智財': '矽智財'}
 # 人工補登的來源影片ID前綴，與 Apps Script（Adminservice.gs）的 MANUAL_ENTRY_PREFIX 相同。
 # 整天覆蓋（delete_rows_for_date）時這些列一律保留。先前這個常數只有 Apps Script 定義，
 # pipeline 端一走到那一行就是 NameError。
@@ -5394,6 +5429,116 @@ def apply_when_and_seq(ss, signals, date_str):
     if moved:
         print(f"日期歸屬：{len(moved)} 筆買賣講不出確定日期，改列歷史回顧，"
               f"不進當日買賣也不計入績效事件。")
+    return signals
+
+
+WATCH_BIAS_LABEL = {'watch_watch': '觀望注意', 'watch_avoid': '觀望不碰'}
+
+
+def _watch_bias(row):
+    """日期未明的回顧依上下文該列觀望注意還是觀望不碰。回傳 (類別, 判定依據)。"""
+    b = str(row.get('watch_bias') or '').strip()
+    b = {'觀望注意': 'watch_watch', '觀望不碰': 'watch_avoid'}.get(b, b)
+    if b in WATCH_BIAS_LABEL:
+        return b, '依上下文判定'
+    text = '\n'.join([str(row.get('reason') or ''), str(row.get('note') or '')]
+                     + [str(q) for q in (row.get('evidence') or [])])
+    return sentiment_of(text), '依原文語氣判定'
+
+
+def _row_keys(row):
+    """認同一檔用的鍵：合法代號，加上名稱與聽到的原字。"""
+    code = str(row.get('code') or '').strip()
+    keys = {code} if re.fullmatch(r'\d{4,6}', code) else set()
+    for n in (row.get('name'), row.get('原始語音名稱')):
+        if n and len(_ev_norm(n)) >= 2:
+            keys.add(_ev_norm(n))
+    return keys
+
+
+def _sms_held_keys(ss, date_str):
+    """會員簡訊當天仍在買進或持有的標的。讀不到就當作沒有。"""
+    keys = set()
+    if ss is None:
+        return keys
+    for sheet in ('會員持股', '操作紀錄'):
+        try:
+            for r in sheets_retry(ss.worksheet(sheet).get_all_records):
+                if norm_date(r.get('日期')) != date_str or not _is_sms_row(r.get('來源影片ID')):
+                    continue
+                if sheet == '操作紀錄' and _dir_kind(r.get('方向')) != 'buy':
+                    continue
+                keys |= _row_keys({'code': r.get('代號'), 'name': r.get('股票名稱')})
+        except Exception:
+            continue
+    return keys
+
+
+def history_to_watch(signals, date_str, ss=None):
+    """
+    日期未明的回顧，依逐字稿上下文改列觀望注意或觀望不碰（管理者規則，2026/09/11）。
+
+    為什麼
+    ------
+    history 從來不寫進試算表，網站與郵件都看不到。2026/09/10 的國巨（「597 以上要賣一次國巨」
+    「你越想解套國巨，你就越死」）與力積電（「力積電大漲三天賣掉了」）都講得很清楚，
+    只是講不出是哪一天，於是整檔從網站上消失。
+
+    落點
+    ----
+    模型在 watch_bias 填的方向優先；沒有填的（例如品質關卡或日期歸屬才把它移進回顧的），
+    用 sentiment_of 依理由與原句的語氣判：明確叫人別碰、偏空 → 觀望不碰，其餘 → 觀望注意。
+    日期記在影片當天——那是他講這番話的日子；不當成當日買賣，不開持有回合、不計入績效事件。
+
+    不改列的情況
+    ------------
+    同一天這一檔已經有別的紀錄（買賣、持股、觀望）：以那一筆為準，不重複列。
+    會員簡訊當天仍持有或買進、而語氣判成觀望不碰：不列。觀望不碰會讓持股追蹤把那一檔平倉，
+    也會讓當天的會員持股從網站上被濾掉；一句日期不明的回顧不該蓋掉簡訊的即時通知。
+    """
+    rows = [r for r in (signals.get('history') or []) if isinstance(r, dict)]
+    if not rows:
+        return signals
+    present = set()
+    for cat in SIGNAL_CATEGORIES:
+        for r in signals.get(cat, []) or []:
+            if (r.get('_date') or date_str) == date_str:
+                present |= _row_keys(r)
+    sms_held = _sms_held_keys(ss, date_str)
+    moved, skipped = [], []
+    for r in rows:
+        name = str(r.get('name') or '')
+        keys = _row_keys(r)
+        if keys & present:
+            skipped.append(f'{name}：同一天已有其他紀錄，以那一筆為準')
+            note_decision('日期未明', '不另列觀望', name, '同一天已有其他紀錄')
+            continue
+        bias, basis = _watch_bias(r)
+        if bias == 'watch_avoid' and keys & sms_held:
+            skipped.append(f'{name}：語氣偏空，但會員簡訊當天仍持有，不列觀望不碰')
+            note_decision('日期未明', '不列觀望不碰（簡訊當天持有）', name, basis)
+            continue
+        label = WATCH_BIAS_LABEL[bias]
+        action = {'buy': '買入', 'sell': '賣出'}.get(str(r.get('action') or r.get('_原分類') or ''), '')
+        r['_原分類'] = r.get('_原分類') or 'history'
+        r['when'] = 'unknown'
+        r['_date'] = date_str
+        r['_seq'] = len(signals.get(bias) or []) + 1
+        r['price'] = r.get('price') or '未說明'
+        note = '日期未明的回顧' + (f'（原為{action}）' if action else '') + f'，{basis}列入{label}'
+        if note not in str(r.get('reason') or ''):
+            r['reason'] = f"{r.get('reason') or ''}（{note}）"
+        signals.setdefault(bias, []).append(r)
+        present |= keys
+        moved.append(f'{name} → {label}（{basis}）')
+        note_decision('日期未明', f'回顧改列{label}', name, basis)
+    signals['history'] = []
+    for line in moved:
+        print(f'  日期未明　{line}')
+    for line in skipped:
+        print(f'  日期未明　略過 {line}')
+    if moved:
+        print(f'日期未明：{len(moved)} 筆回顧依上下文改列觀望，不進當日買賣、不計入績效事件。')
     return signals
 
 
@@ -6497,6 +6642,9 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None
 
     step("日期歸屬", "把昨天的操作改記到昨天，並排出同一天的先後")
     signals = apply_when_and_seq(ss, signals, date_str)
+    # 日期未明的回顧依上下文改列觀望注意／觀望不碰（管理者規則，2026/09/11）。
+    # 排在日期歸屬之後：品質關卡與日期歸屬移進回顧的列也要一起處理。
+    signals = history_to_watch(signals, date_str, ss)
     signals["_video_id"] = video["id"]
     affected = source_record_dates(ss, video['id']) | {date_str}
     affected.update(r['_date'] for k in SIGNAL_CATEGORIES for r in signals.get(k, []))

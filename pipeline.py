@@ -3745,6 +3745,9 @@ date 要填 event_date=YYYY/MM/DD 且原文有月日；prev_trading_day 只適�
 price 僅該事件說出的價格或範圍，沒有寫「未說明」。price_evidence 是短句原字。
 概數、X、以下/以上必須保留，不改成精確成交；法人成本、現價、張數不能充當會員成本。
 reason/note 忠實說明原話之事實描述（如「張正在昨天（9月9日）大跌時買進四星KY。」），其他判斷依據（如「因確切交易日期為昨日而非影片當日，故改列歷史回顧」、「日期未明的回顧……」等內部推論與管線改列註記）一律不用也不得寫進說明中！不能添加「產業前景存疑」等原文未作出的推論。
+reason/note 要具體：用講者的說法寫 1～3 句、約 30～90 字，交代他對這一檔講了什麼——價位或條件、理由（營收、EPS、大戶持股、外資成本、缺口、均線、ETF 進出）、時間點。
+只寫「候選名單」「以後要買」幾個字不夠：名單裡某一檔原文另有說明就寫出來，沒有才寫共同的那一句。
+reason 只能用提到這一檔的句子；上一句、下一句在講另一檔（例如 ETF 正在出清的那一檔）時，不可以搬進這一檔的說明。
 
 【大盤】
 market 每筆填 kind=level/volume/event/flow/view、text、evidence_refs。
@@ -3764,7 +3767,9 @@ history 另填 when（yesterday／date／unknown）、action=buy/sell、view、v
 【日期未明與現況看法】非當日或日期不明的買賣本身不是現況，不能單憑「原為買入／賣出」決定觀望方向。
 請到逐字稿其他段落找講者對這一檔「現在」的看多、看空或技術說明（價位關卡、法人成本、會漲會跌、等拉回、別攤平等），
 找到就填 view（原話事實摘要，不寫判斷依據）、view_refs（S 編號，至少一段要提到這一檔）、watch_bias（看多 watch_watch／看空 watch_avoid）；
-找不到就把 view、watch_bias 留空，只放 history，不會出現在網站上。例如「大漲時賣出索羅門」之後沒有再談索羅門，就不要列。
+view 必須是他「現在」對這一檔的看法原話重點（要買、要等、會漲、會殺破、不要碰、大戶在買……）；
+只講過去賣在幾塊、現在幾塊（例如「華城賣775塊，現在726」）不是 view。
+找不到就把 view、watch_bias 留空，只放 history，不會出現在網站上。例如「大漲時賣出索羅門」「華城賣775塊」之後沒有再談這一檔現在怎麼看，就不要列。
 說明只需忠實陳述事實，其他判斷依據不用寫進去說明。
 只缺引句定位、名稱在前段或獨立時間短句者，補齊相連段落後直接納入原分類並加 review_note；不是每筆都要同一句同時包含名稱、動作和時間。
 同一段點名多家公司時，逐檔核對主詞與動作；不能把相鄰股票的買入、價位或日期搬過來。共享候選名單可逐檔列入，但仍保留共同指示的引用。
@@ -3909,7 +3914,7 @@ def name_memo_save(ss, learned):
         rows = [[e["heard"], e["verdict"], e.get("real", ""), e.get("code", ""),
                  "、".join(e.get("keys") or []), e.get("why", ""), "ai", today, 1, today]
                 for e in learned]
-        sheets_retry(ws.append_rows, rows, value_input_option="RAW")
+        append_rows_safe(ws, rows)
         print(f"  名稱判定紀錄：新增 {len(rows)} 筆，下次遇到同樣的名稱直接查表，不必再問模型")
     except Exception as e:
         print(f"  名稱判定紀錄寫入略過（{e}）")
@@ -4765,13 +4770,40 @@ def flush_decisions(ss, date_str: str):
         tag = run_tag()
         rows = [[now, tag, date_str, d["step"], d["action"],
                  d["subject"], d["detail"], d["source"]] for d in _DECISIONS]
-        sheets_retry(ws.append_rows, rows, value_input_option="RAW")
+        append_rows_safe(ws, rows)
         print(f"判定歷程：這一輪的 {len(rows)} 個判定已記進「{DECISION_SHEET}」"
               f"（執行代號 {tag}），後台看得到。")
     except Exception as e:
         print(f"判定歷程寫入略過（{e}）")
     finally:
         _DECISIONS.clear()
+
+
+def _price_near_name(price, quotes, names, span=25):
+    """
+    沒附價位原句時，價位裡的每個數字都要在「提到這一檔的那一句」、名稱前後 span 個字以內出現，才算有依據。
+
+    2026/09/10：「38x 你們就只要 3900 塊以下，我說我絕對不買四字頭的四星」——模型沒附
+    price_evidence，世芯-KY 的「3900以下」就被清掉，網站上只剩「未說明」。
+    只看同一段有沒有這個數字不夠：同一段常常同時講好幾檔，數字會被別檔借走，
+    所以限定在名稱附近。
+    """
+    nums = [n for n in re.findall(r'\d+(?:\.\d+)?', str(price or '')) if len(n.replace('.', '')) >= 2]
+    if not nums:
+        return False
+    simple = lambda s: re.sub(r'(?:-?KY|[＊*])$', '', _ev_norm(s), flags=re.I)
+    keys = [k for k in {simple(n) for n in names if isinstance(n, str) and n} if len(k) >= 2]
+    # 先切成句子再找：「嘉澤8月25號買的。另外那一檔沒破900不買」，900 是另一檔的，不能算給嘉澤。
+    sentences = [s for q in quotes for s in re.split(r'[。！？!?]', re.sub(r'\s', '', str(q))) if s]
+
+    def near(num):
+        for s in sentences:
+            for k in keys:
+                for m in re.finditer(re.escape(k), s):
+                    if num in s[max(0, m.start() - span):m.end() + span]:
+                        return True
+        return False
+    return bool(keys) and all(near(n) for n in nums)
 
 
 def validate_evidence(signals, transcript, date_str, after_codes=False):
@@ -4889,6 +4921,11 @@ def validate_evidence(signals, transcript, date_str, after_codes=False):
             if not named and after_codes and re.fullmatch(r"\d{4,6}", code):
                 named = bool(re.search(r"(?<![0-9])" + code + r"(?![0-9])", raw_ev))
             if not named:
+                # 官方簡稱的「*」「-KY」講者不會念出來（國巨*、世芯-KY → 國巨、四星）。
+                bare = [re.sub(r"(?:-?KY|[＊*])$", "", _ev_norm(x), flags=re.I)
+                        for x in [name, heard] + aliases if x]
+                named = any(len(b) >= 2 and b in evidence for b in bare)
+            if not named:
                 ev_pin = _npin(raw_ev)
                 named = any(len(n) >= 2 and _has_cjk(n) and _npin(n) in ev_pin
                             for n in (re.sub(r"\s", "", x) for x in [name, heard] + aliases if x))
@@ -4946,7 +4983,8 @@ def validate_evidence(signals, transcript, date_str, after_codes=False):
             price = str(row.get("price") or "未說明")
             if cat != "holdings" and price not in ("", "未說明"):
                 pe = _ev_norm(row.get("price_evidence"))
-                if not pe or not any(pe in _ev_norm(q) for q in quotes):
+                if ((not pe or not any(pe in _ev_norm(q) for q in quotes))
+                        and not _price_near_name(price, quotes, [name, heard] + aliases)):
                     price_cleared.append(f"{name}：{price}")
                     row["price"] = "未說明"
 
@@ -5033,7 +5071,7 @@ def save_evidence_audit(ss, video_id, date_str, transcript, signals):
         'batch':batch,'category':'manifest','item':{'characters':len(transcript),
         'status':'needs_review' if signals.get('_quality_requires_review') else 'verified_candidate',
         'gaps':signals.get('_repair_gaps',[])}},ensure_ascii=False),now])
-    sheets_retry(ws.append_rows, records, value_input_option='RAW')
+    append_rows_safe(ws, records)
 
 def source_record_dates(ss, video_id):
     dates = set()
@@ -5768,6 +5806,11 @@ def _current_view(row, segments):
     view = naturalize_reason(str(row.get('view') or '').strip())
     if not view or view in BLANK_:
         return '', []
+    # 現況看法要有講者對這一檔的指示（要買、要等、會漲、會殺破、不要碰、大戶在買……）。
+    # 2026/09/10 模型把「華城賣775塊」當成 view，華城就這樣被列進觀望注意——
+    # 過去賣在幾塊、現在幾塊，不是看法。
+    if not _has_directive(view):
+        return '', []
     # 官方簡稱常帶「*」或「-KY」（國巨*、聖暉*、世芯-KY），講者嘴裡講的是「國巨」「世芯」。
     # 比對原句前先拿掉這些後綴，規則與名稱釐清那一步相同，否則有講到也會被當成沒講到。
     simple = lambda s: re.sub(r'(?:-?KY|[＊*])$', '', _ev_norm(s), flags=re.I)
@@ -5787,7 +5830,7 @@ _RETRO_MARK = re.compile(r'歷史回顧|回顧過去|日期未明|過去(?:曾�
 _EXAMPLE_MARK = re.compile(r'節目中回顧|走勢情況|舉例|為例|停在這邊|說明盤勢|行情例子')
 _EXTRA_DIRECTIVES = ("要買", "會買", "可以買", "買點", "再買", "先買", "撿便宜", "等他", "等它", "等你",
                      "等禮拜", "不要碰", "不准", "別碰", "不能碰", "不應該", "不適合", "抱著", "續抱",
-                     "不用急", "缺口", "會漲", "漲回去", "會上去")
+                     "不用急", "缺口", "會漲", "漲回去", "會上去", "會跌", "再跌", "跌完", "不要", "不用")
 
 
 def _has_directive(text) -> bool:
@@ -6179,6 +6222,61 @@ def _purge_rows_of_video(ss, sheet_name, date_str, video_id):
     return len(targets)
 
 
+def append_rows_safe(ws, rows, value_input_option="RAW"):
+    """
+    附加到工作表，一律「插入新列」，絕不覆寫既有資料。
+
+    gspread 的 append_rows 預設用 Sheets API 的 OVERWRITE：API 從 A1 往下找「第一個連續的表格」，
+    把資料寫在那個表格的下一列。只要表格裡有一整列空白（手動清除內容就會留下），
+    新資料就從那一列開始寫，而且一路往下覆寫別天的資料。
+    2026/09/11 重跑 09/10 時，新列落在第 2～8 列，09/11 的操作紀錄被蓋掉只剩力積電一筆；
+    先前 09/11 那一輪寫在第 2 列，09/10 的資料也是這樣不見的。
+    改成 INSERT_ROWS 之後，就算落點在中間，也是插入新的列、原本的資料往下移，一筆都不會少。
+    """
+    if not rows:
+        return None
+    return sheets_retry(ws.append_rows, rows, value_input_option=value_input_option,
+                        insert_data_option="INSERT_ROWS")
+
+
+def _rows_per_day(ss, sheet_name):
+    """每一天各有幾列。讀不到回 None——不能把「讀不到」當成「被刪了」。"""
+    from collections import Counter
+    try:
+        values = sheets_retry(ss.worksheet(sheet_name).get_all_values)
+    except Exception:
+        return None
+    if not values:
+        return Counter()
+    head = [str(h).strip() for h in values[0]]
+    c = head.index("日期") if "日期" in head else 0
+    return Counter(norm_date(r[c]) for r in values[1:] if len(r) > c and str(r[c]).strip())
+
+
+def _guard_other_days(ss, before, protect, date_str):
+    """
+    寫完之後核對：這一次沒有要動的日期，列數一筆都不能少。
+
+    覆蓋只能針對當天。寫入已改成插入新列（append_rows_safe），理論上不會再動到別天；
+    這一關是保險——真的少了就停下來講清楚是哪張表、哪一天、少幾列，
+    不讓錯的資料安靜地留在網站上，而工單卻顯示完成。
+    """
+    lost = []
+    for sheet, prev in before.items():
+        if prev is None:
+            continue
+        now = _rows_per_day(ss, sheet)
+        if now is None:
+            continue
+        for d, n in sorted(prev.items()):
+            if d and d not in protect and now.get(d, 0) < n:
+                lost.append(f"{sheet} {d}：{n} → {now.get(d, 0)} 列")
+    if lost:
+        msg = f"寫入 {date_str} 時別天的資料被動到了：" + "；".join(lost)
+        note_decision('寫入', '別天資料減少', date_str, msg)
+        raise RuntimeError(msg + "。已停止，請先到試算表確認，再重跑受影響的日期。")
+
+
 def _is_protected_source(vid) -> bool:
     """會員簡訊與人工補登寫的列。重跑逐字稿時一律不動。"""
     v = str(vid or "").strip()
@@ -6228,10 +6326,15 @@ def write_results(ss, date_str, signals, article, done_trades, done_holds,
     """
     replace        整天重來：連別的來源（例如會員簡訊）寫的列一起清掉。
                    只有「重新分類」這種明確要重算整天的模式才用。
-    replace_video  只把「這支影片自己寫過的列」換掉，別的來源不動。
-                   後台重新投稿同一份逐字稿走這一條。
+    replace_video  把這一天由逐字稿產生的列換掉（不論當初是哪個影片ID），
+                   會員簡訊與人工補登不動。後台重新投稿走這一條。
+
+    不論哪一種，別天的資料一筆都不能少：寫入前先記下每一天有幾列，
+    寫完再核一次（_guard_other_days），少了就停下來講清楚。
     """
     video_id = signals.get("_video_id", "")
+    protect = set(signals.get('_affected_dates') or []) | {date_str}
+    guard = {sheet: _rows_per_day(ss, sheet) for sheet in ("操作紀錄", "會員持股")}
 
     if replace:
         # 重新分類：先清掉該日舊資料，再用新版規則寫回
@@ -6287,7 +6390,7 @@ def write_results(ss, date_str, signals, article, done_trades, done_holds,
             _purge_rows_of_video(ss, "操作紀錄", od, video_id)
 
         if rows:
-            sheets_retry(ss.worksheet("操作紀錄").append_rows, rows)
+            append_rows_safe(ss.worksheet("操作紀錄"), rows)
         print(f"操作紀錄寫入 {len(rows)} 筆"
               + (f"（其中 {sum(1 for r in rows if r[0] != date_str)} 筆記在 "
                  + "、".join(other) + "）" if other else ""))
@@ -6300,9 +6403,11 @@ def write_results(ss, date_str, signals, article, done_trades, done_holds,
                   stance_zh(r.get("stance")), r.get("note") or r.get("reason") or "未說明", video_id]
                  for r in signals.get("holdings", [])]
         if holds:
-            sheets_retry(ss.worksheet("會員持股").append_rows, holds)
+            append_rows_safe(ss.worksheet("會員持股"), holds)
         print(f"會員持股寫入 {len(holds)} 筆")
         done_holds.add(date_str)
+
+    _guard_other_days(ss, guard, protect, date_str)
 
     # 每日整理：重跑時要覆蓋，不能因為「這一天已經有一列」就不動。
     # 不覆蓋的話，網站與信件會永遠停在第一次跑出來的那一版。
@@ -8182,9 +8287,9 @@ def save_cmoney_fetch(ss, articles: list[dict], mode: str) -> dict:
                            "範圍內" if in_range else "範圍外", status, note, a.get("url", ""), _sms_now()])
 
     if new_rows:
-        sheets_retry(ws.append_rows, new_rows, value_input_option="RAW")
+        append_rows_safe(ws, new_rows)
     if audit_rows:
-        sheets_retry(audit_ws.append_rows, audit_rows, value_input_option="RAW")
+        append_rows_safe(audit_ws, audit_rows)
     print(f"會員簡訊抓取：掃描 {stats['scanned']}、張震 {stats['zhang']}、新收 {stats['saved']}、既有 {stats['existed']}、錯誤 {stats['errors']}")
     return stats
 
@@ -8492,14 +8597,12 @@ def parse_pending_sms(ss, since="", mode=None, today_only=False):
         if trades_buf:
             steps.at("寫入操作紀錄", f"寫入 {len(trades_buf)} 筆買賣"
                      + (f"（{reason}）" if reason else ""))
-            sheets_retry(ss.worksheet("操作紀錄").append_rows, trades_buf,
-                         value_input_option="USER_ENTERED")
+            append_rows_safe(ss.worksheet("操作紀錄"), trades_buf, value_input_option="USER_ENTERED")
             print(f"  已寫入操作紀錄 {len(trades_buf)} 筆")
         if holds_buf:
             steps.at("寫入會員持股", f"寫入 {len(holds_buf)} 筆持股"
                      + (f"（{reason}）" if reason else ""))
-            sheets_retry(ss.worksheet("會員持股").append_rows, holds_buf,
-                         value_input_option="USER_ENTERED")
+            append_rows_safe(ss.worksheet("會員持股"), holds_buf, value_input_option="USER_ENTERED")
             print(f"  已寫入會員持股 {len(holds_buf)} 筆")
         if replace_counts:
             steps.at("原子取代舊列", f"移除 {len(replace_counts)} 篇文章的舊衍生列")

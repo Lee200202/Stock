@@ -85,7 +85,7 @@ REJECT = "__REJECT__"
 # 模型回 404（models/… is not found for API version v1beta）——那不是金鑰壞掉，
 # 是那兩個專案看不到這個模型。真的遇到時，用 GEMINI_MODEL 換一個大家都有的
 # 型號（例如 gemini-2.0-flash）比重新申請金鑰快得多，而且不必改程式碼。
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "").strip() or "gemini-2.5-flash"
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "").strip() or "gemini-3.5-flash-lite"
 
 # 潤飾切塊大小。逐字稿標點稀疏時靠 CHUNK_HARD 保底。
 # 切得越大段數越少、呼叫次數越少，撞每分鐘配額的機會就越低，
@@ -989,11 +989,14 @@ def maybe_refresh_site(only=None, force=False, date_str=""):
 
             body, resp = None, None
             for attempt in range(3):
+                if DAILYK_ONLY and key == 'dailyk' and budget_left() < 120:
+                    print('本輪時間不足以開始下一批，保留日K游標供下次續補。')
+                    return {'ok': False, 'done': ok_n, 'failed': fail_n, 'partial': True}
                 try:
                     resp = requests.get(
                         APPS_SCRIPT_URL,
                         params={"action": "refresh", "key": ADMIN_KEY, "step": key, "date": date_str},
-                        timeout=300,
+                        timeout=min(300, max(1, int(budget_left() - 30))) if DAILYK_ONLY and key == 'dailyk' else 300,
                         headers={"User-Agent": "zhangzhen-pipeline"},
                     )
                     candidate = resp.text[:4000]
@@ -1931,6 +1934,24 @@ async def fetch_fulltext(video_url, title, timeout):
 # ---------------------------------------------------------------- #
 # Gemini
 # ---------------------------------------------------------------- #
+def gemini_generation_config(model, max_out=MAX_OUT, thinking=0, want_json=False):
+    """Shared by production and smoke tests; rebuilt after each model rotation."""
+    cfg = {"maxOutputTokens": min(max_out, MAX_OUT)}
+    if re.search(r'gemini-3(?:\.|-)', model):
+        level = (os.environ.get('GEMINI_THINKING_LEVEL', '').strip().lower() or 'medium')
+        if level not in ('low', 'medium', 'high'):
+            raise ValueError('GEMINI_THINKING_LEVEL 必須是 low、medium 或 high')
+        cfg['thinkingConfig'] = {'thinkingLevel': level}
+        cfg['maxOutputTokens'] = min(MAX_OUT, max(max_out, 4096))
+    else:
+        cfg['temperature'] = 0.1
+        if 'gemini-2.5' in model:
+            cfg['thinkingConfig'] = {'thinkingBudget': thinking}
+    if want_json:
+        cfg['responseMimeType'] = 'application/json'
+    return cfg
+
+
 def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX_OUT, tag="",
                 max_429=6):
     """
@@ -1976,13 +1997,7 @@ def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX
         return (f"https://generativelanguage.googleapis.com/v1beta/models/"
                 f"{current_gemini_model()}:generateContent")
 
-    cfg = {
-        "temperature": 0.1,
-        "maxOutputTokens": max_out,
-        "thinkingConfig": {"thinkingBudget": thinking},
-    }
-    if want_json:
-        cfg["responseMimeType"] = "application/json"
+    cfg = gemini_generation_config(current_gemini_model(), max_out, thinking, want_json)
 
     body = {
         "systemInstruction": {"parts": [{"text": system_text}]},
@@ -2016,6 +2031,7 @@ def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX
             # 送出前先節流。等 429 回來才退避太慢，而且那一次撞牆
             # 仍然計入當日總量，等於用自己的額度去確認自己太快。
             throttle_gemini()
+            body['generationConfig'] = gemini_generation_config(current_gemini_model(), max_out, thinking, want_json)
             r = requests.post(gemini_url(), params={"key": current_gemini_key()},
                               json=body, timeout=600)
         except requests.RequestException as e:
@@ -3565,12 +3581,20 @@ market 每筆填 kind=level/volume/event/flow/view、text、evidence_refs。
 一般每筆 name,code,aliases,evidence_refs,price,price_evidence,reason；holdings 另填 stance,note。
 history 另填 when=unknown、action=buy/sell。uncertain 明列疑點與 suggested_category（九類英文鍵之一）；可判斷分類而只有引用定位或缺少時間短句的問題，直接收進該類並寫 review_note，不要隔離。
 不得以減少數量掩蓋不確定。沒有最低檔數；每個候選必須有收錄或排除的證據。
+
+【收錄與稽核一致性】
+只缺引句定位、名稱在前段或獨立時間短句者，補齊相連段落後直接納入原分類並加 review_note；不是每筆都要同一句同時包含名稱、動作和時間。
+同一段點名多家公司時，逐檔核對主詞與動作；不能把相鄰股票的買入、價位或日期搬過來。共享候選名單可逐檔列入，但仍保留共同指示的引用。
+日期靠前後文判斷時填 time_basis 簡述原文依據，並列對應 evidence_refs；缺少時間短句不等於日期未知，也不等於今天。明確回顧仍用 history。
+uncertain 的 suggested_category 只用 buy/sell/holdings/watch_avoid/watch_watch；無法選定就留空並明列衝突，不虛構分類。只因證據格式不完整而待確認者優先修復收錄。
+管理者名稱對應只供還原本次原文已提及者，不因規則列出普威、祥碩、國巨或矽製材就自動新增這些公司。貨幣只在有原文依據時放 market/ignored，不進股票清單。
+覆核前後每個候選必須能由原名稱或 aliases 對應；分類可變但不可無聲消失。思考較深也不能增加原文沒有的交易、日期、價位或投資理由。
 """
 
 EXTRACT_SYSTEM = POLICY + "\n這次合併擷取、分類、日期判斷、補漏及大盤摘要。輸入為JSON，source每個鍵是來源編號。完整讀完各段後在同一次回答自行覆核，特別檢查最後20%，只輸出完成的九類陣列，不輸出初稿或重複引句。長稿各批保留原始S編號，不假設記得其他請求。"
 
 
-AUDIT_SYSTEM = POLICY + "\n這是獨立覆核。重讀完整原文；逐筆校對初稿並補漏，輸出完整九類陣列，不只輸出差異。被刪除的初稿候選須列 ignored/uncertain 並附理由，不能消失。附 changes 說明修正。"
+AUDIT_SYSTEM = POLICY + "\n這是追加覆核。重讀本次提供的全部來源段落；分批時不假設收到其他批原文。逐筆校對初稿並補漏，輸出完整九類陣列，不只輸出差異。被刪除的初稿候選須列 ignored/uncertain 並附理由，不能消失。附 changes 說明修正。"
 
 
 # ---------------------------------------------------------------- #
@@ -8865,8 +8889,8 @@ def smoke_generate(key: str, model: str, timeout: int = 30) -> tuple[bool, int, 
     健檢必須測真正會失敗的那個動作，否則它只是讓人放心，不是讓人知道。
 
     送出的請求刻意與正式呼叫「同一個形狀」：一樣帶 systemInstruction、
-    一樣的 temperature、一樣的 maxOutputTokens、一樣關掉 thinking。
-    只有輸入換成一個字，所以成本仍然可以忽略。
+    相同的模型參數組裝函式與 maxOutputTokens；2.5 使用 thinkingBudget，
+    3.x 使用 thinkingLevel=low 並省略 sampling 參數。僅輸入改成短測試，仍消耗生成配額。
 
     這一點很要緊。先前這裡用 maxOutputTokens=1 的簡化請求，那測到的是
     「這個型號存不存在」，不是「我們的請求它收不收」——而換型號時最容易
@@ -8883,9 +8907,7 @@ def smoke_generate(key: str, model: str, timeout: int = 30) -> tuple[bool, int, 
             params={"key": key},
             json={"systemInstruction": {"parts": [{"text": "回答只要一個字。"}]},
                   "contents": [{"role": "user", "parts": [{"text": "hi"}]}],
-                  "generationConfig": {"temperature": 0.1,
-                                       "maxOutputTokens": MAX_OUT,
-                                       "thinkingConfig": {"thinkingBudget": 0}}},
+                  "generationConfig": gemini_generation_config(model)},
             timeout=timeout)
     except Exception as e:
         return False, 0, f"連線失敗（{type(e).__name__}）"
@@ -9200,7 +9222,9 @@ def main():
         print("模式：收盤後補齊日K（13:45 排程）。只補日K快取，不動其他資料、不呼叫 Gemini。")
         print("補日K是分批做的，一次約 45 秒，做不完會自動再打下一批；")
         print("游標存在 Apps Script，這一輪沒補完的，明天同一時間會接著補。")
-        maybe_refresh_site(only=["dailyk"], force=True)
+        result = maybe_refresh_site(only=["dailyk"], force=True)
+        if not result or (not result.get('ok') and not result.get('partial')):
+            raise RuntimeError('補日K失敗；已完成批次與游標保留，請查看下游錯誤後續跑')
         return
 
     if REFRESH_SITE and not picked:

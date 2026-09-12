@@ -353,6 +353,7 @@ jobs:
           # 留空就是 gemini-3.5-flash-lite；各把模型覆寫未清除時仍優先採用。
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           GEMINI_THINKING_LEVEL: ${{ vars.GEMINI_THINKING_LEVEL || 'medium' }}
+          GEMINI_SEMANTIC_AUDIT: ${{ vars.GEMINI_SEMANTIC_AUDIT || 'true' }}
           GEMINI_COMBINED_ASSESSMENT: ${{ vars.GEMINI_COMBINED_ASSESSMENT || 'true' }}
           GEMINI_ASSESSMENT_TOKEN_BUDGET: ${{ vars.GEMINI_ASSESSMENT_TOKEN_BUDGET || '120000' }}
           GEMINI_CONTEXT_TOKENS: ${{ vars.GEMINI_CONTEXT_TOKENS || '1048576' }}

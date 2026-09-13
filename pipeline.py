@@ -731,7 +731,7 @@ APPS_SCRIPT_URL = os.environ.get("APPS_SCRIPT_URL", "").strip()
 ADMIN_KEY = os.environ.get("ADMIN_KEY", "").strip()
 
 
-def maybe_refresh_site(only=None, force=False, date_str=""):
+def maybe_refresh_site(only=None, force=False, date_str="", on_progress=None):
     """
     要求 Apps Script 立刻重算全站。
 
@@ -824,7 +824,7 @@ def maybe_refresh_site(only=None, force=False, date_str=""):
     # 跳過是安全的：重算持股追蹤本來就會先掃一遍「一列都沒有」的代號並立刻補上
     # （通常零到三檔，幾秒鐘），所以今天新講到的股票照樣算得出進場價與報酬。
     # 真正需要整批補的是歷史缺口，那件事交給每日排程與後台的「立即刷新」去做。
-    if (ADMIN_JOB or SMS_PRIORITY) and not REFRESH_FROM:
+    if (ADMIN_JOB or SMS_PRIORITY) and not REFRESH_FROM and not (only and 'dailyk' in only):
         STEPS = [(k, lb) for k, lb in STEPS if k != "dailyk"]
         who = "後台工單" if ADMIN_JOB else "簡訊優先重整"
         print(f"{who}：跳過補齊日K（與這次的改動無關，且會讓等待時間拉長數十倍）。"
@@ -989,14 +989,14 @@ def maybe_refresh_site(only=None, force=False, date_str=""):
 
             body, resp = None, None
             for attempt in range(3):
-                if DAILYK_ONLY and key == 'dailyk' and budget_left() < 120:
+                if (DAILYK_ONLY or ADMIN_JOB) and key == 'dailyk' and budget_left() < 120:
                     print('本輪時間不足以開始下一批，保留日K游標供下次續補。')
                     return {'ok': False, 'done': ok_n, 'failed': fail_n, 'partial': True}
                 try:
                     resp = requests.get(
                         APPS_SCRIPT_URL,
                         params={"action": "refresh", "key": ADMIN_KEY, "step": key, "date": date_str},
-                        timeout=min(300, max(1, int(budget_left() - 30))) if DAILYK_ONLY and key == 'dailyk' else 300,
+                        timeout=min(300, max(1, int(budget_left() - 30))) if (DAILYK_ONLY or ADMIN_JOB) and key == 'dailyk' else 300,
                         headers={"User-Agent": "zhangzhen-pipeline"},
                     )
                     candidate = resp.text[:4000]
@@ -1098,6 +1098,9 @@ def maybe_refresh_site(only=None, force=False, date_str=""):
                 return
 
             print(data.get("result", "完成"))
+            if on_progress:
+                on_progress(label + '：' + str(data.get('result') or '處理中') +
+                            ('（' + str(data.get('processed','?')) + '/' + str(data.get('total','?')) + '）' if data.get('chunked') else ''))
             sms_sync_progress(i if not (data.get("chunked") and not data.get("done")) else i - 1,
                               label, rounds, str(data.get("result", "完成"))[:120])
 
@@ -1106,7 +1109,7 @@ def maybe_refresh_site(only=None, force=False, date_str=""):
                 # 13:45 補日K那一輪 job 上限 30 分鐘。每批約 45 秒，四十批跑滿會超過上限，
                 # 被 GitHub 直接砍掉（亮紅燈、還會寄失敗通知）。
                 # 時間快到就收手：游標每批都存在 Apps Script，下次從這裡接著補。
-                if DAILYK_ONLY and budget_left() < 120:
+                if (DAILYK_ONLY or ADMIN_JOB) and key == "dailyk" and budget_left() < 120:
                     print(f"本輪時間快到，先停在 {data.get('processed', '?')}/{data.get('total', '?')}。")
                     print("       游標已存在 Apps Script，下一次補日K會從這裡接著做，不是失敗。")
                     return {"ok": False, "done": ok_n, "failed": fail_n, "partial": True}
@@ -1668,18 +1671,33 @@ def norm_date(v) -> str:
     return ""
 
 
+def select_transcript_row(rows, video_id, date_str):
+    """ID 優先；同 ID／同日多列以寫入時間、原文長度、列號決定，勿用第一筆。"""
+    candidates = [(i, r) for i, r in enumerate(rows, 2)
+                  if (video_id and str(r.get('影片ID') or '').strip() == video_id)
+                  or norm_date(r.get('發布日期')) == date_str]
+    def rank(pair):
+        i, r = pair
+        return (bool(video_id and str(r.get('影片ID') or '').strip() == video_id),
+                str(r.get('原文更新時間') or ''), len(str(r.get('原始逐字稿內容') or '')), i)
+    return max(candidates, key=rank) if candidates else (None, None)
+
+
 def existing_transcript(ss, video_id, date_str):
-    """
-    查雲端是否已經有這一天的逐字稿。影片ID 與日期任一對上就算數。
-    回傳 (原始逐字稿, 修飾後逐字稿)，沒有則回 ("", "")。
-    """
-    for row in video_rows(ss):
-        same_id = str(row.get("影片ID")) == video_id
-        same_date = norm_date(row.get("發布日期")) == date_str
-        if same_id or same_date:
-            return (str(row.get("原始逐字稿內容") or ""),
-                    str(row.get("修飾後逐字稿內容") or ""))
-    return "", ""
+    rows = video_rows(ss)
+    idx, row = select_transcript_row(rows, video_id, date_str)
+    variants = {str(r.get('原始逐字稿內容') or '') for r in rows
+                if norm_date(r.get('發布日期')) == date_str and r.get('原始逐字稿內容')}
+    if len(variants) > 1:
+        message = f'{date_str} 同日存在 {len(variants)} 份不同原文；採 ID／更新時間優先，請乾跑整併工具確認'
+        print('警告：' + message)
+        note_decision('讀取原文', '同日多份原文', date_str, message)
+    if row is None:
+        return '', ''
+    raw = str(row.get('原始逐字稿內容') or '')
+    how = '影片ID' if str(row.get('影片ID') or '').strip() == video_id else '日期／更新時間'
+    print(f'原文選列：第 {idx} 列，依 {how}；{len(raw)} 字；SHA256={hashlib.sha256(raw.encode("utf-8")).hexdigest()}')
+    return raw, str(row.get('修飾後逐字稿內容') or '')
 
 
 def existing_dates(ss, sheet_name) -> set:
@@ -1691,20 +1709,21 @@ def existing_dates(ss, sheet_name) -> set:
     return {norm_date(r.get("日期")) for r in rows} - {""}
 
 
-def find_video_row(ss, video_id):
-    ws = ss.worksheet("影片清單")
-    for idx, row in enumerate(sheets_retry(ws.get_all_records), start=2):
-        if str(row.get("影片ID")) == video_id:
-            return ws, idx
-    return ws, None
+def find_video_row(ss, video_id, date_str=''):
+    ws = ss.worksheet('影片清單')
+    idx, _ = select_transcript_row(sheets_retry(ws.get_all_records), video_id, date_str)
+    return ws, idx
 
 
-def mark_status(ss, video_id, published, title, status, reason=""):
-    ws, idx = find_video_row(ss, video_id)
+def mark_status(ss, video_id, published, title, status, reason=''):
+    ws, idx = find_video_row(ss, video_id, norm_date(published))
     if idx is None:
-        sheets_retry(ws.append_row, [video_id, published, title, status, reason, "", ""])
+        sheets_retry(ws.append_row, [video_id, published, title, status, reason, '', ''])
     else:
-        sheets_retry(ws.update, range_name=f"D{idx}:E{idx}", values=[[status, reason]])
+        sheets_retry(ws.update, range_name=f'D{idx}:E{idx}', values=[[status, reason]])
+        rows = sheets_retry(ws.get_all_records)
+        if not str(rows[idx-2].get('影片ID') or '').strip():
+            sheets_retry(ws.update_cell, idx, 1, video_id)
 
 
 def write_status_log(ss, kind: str, detail: str = ""):
@@ -1739,8 +1758,8 @@ def cell(text: str) -> str:
     return text
 
 
-def write_transcripts(ss, video_id, v1, v2):
-    ws, idx = find_video_row(ss, video_id)
+def write_transcripts(ss, video_id, v1, v2, date_str=""):
+    ws, idx = find_video_row(ss, video_id, date_str)
     if idx:
         sheets_retry(ws.update, range_name=f"F{idx}:G{idx}", values=[[cell(v1), cell(v2)]])
 
@@ -2271,22 +2290,18 @@ def _parse_isin(raw_bytes):
     if text is None:
         raise RuntimeError("編碼無法辨識")
 
-    # 只取到權證那一段之前。整份抓下來會多出好幾萬檔，
-    # 除了拖慢每一次模糊比對，也讓「不在清單裡」這句話失去意義。
-    cut = len(text)
-    for stop in _ISIN_STOP:
-        at = text.find(stop)
-        if 0 <= at < cut:
-            cut = at
-    text = text[:cut]
-
+    # 權證區可能排在股票前面，遇到權證就截斷會得到零檔。
+    # 逐列核對 CFI 的普通股類別與四碼代號，與區塊順序無關。
     rows, seen = [], set()
-    for m in re.finditer(r">\s*(\d{4,6})[　\s]+([^<　]{1,20}?)\s*<", text):
-        c, n = m.group(1), m.group(2).strip()
-        if c in seen or not n:
+    for tr in re.findall(r'<tr\b[^>]*>(.*?)</tr>', text, re.I|re.S):
+        cells = [html_lib.unescape(re.sub(r'<[^>]+>', '', c)).strip()
+                 for c in re.findall(r'<td\b[^>]*>(.*?)</td>',tr,re.I|re.S)]
+        if len(cells)<6 or not cells[5].startswith('ES'):
             continue
-        seen.add(c)
-        rows.append({"code": c, "name": n})
+        m=re.fullmatch(r'(\d{4})[\s　]+(.+)', cells[0])
+        if not m or m[1] in seen:
+            continue
+        seen.add(m[1]);rows.append({'code':m[1],'name':m[2].strip()})
     if not rows:
         raise RuntimeError("表格格式與預期不符，解析後 0 筆")
     return rows
@@ -2301,7 +2316,8 @@ def _fetch_rows(src):
     if src["kind"] == "isin":
         return _parse_isin(r.content)
 
-    text = r.text
+    # MOPS 回 UTF-8 BOM，HTTP 卻預設 ISO-8859-1；直接 r.text 會讓中文表頭全變亂碼。
+    text = r.content.decode('utf-8-sig') if src['kind']=='csv' else r.text
     if text.lstrip()[:1] == "<":
         raise RuntimeError("回傳的是網頁不是資料，這個端點多半已改版")
 
@@ -3768,7 +3784,7 @@ date 要填 event_date=YYYY/MM/DD 且原文有月日；prev_trading_day 只適�
 歷史交易與當下持股分列；同日分次、不同日期、不同交易順序不可合併。
 
 【價位與說明】
-price 僅該事件說出的價格或範圍，沒有寫「未說明」。price_evidence 是短句原字。
+price 僅該事件說出的價格或範圍，沒有寫「未說明」。price_evidence 是含該價位數字的原句，且該句所在的 S 編號必須列入 evidence_refs。數字離名稱較遠時，分別附價位段與能明確回指同一公司、同一事件的名稱段；不得只填報價句或只附名稱句。例如原文分開講「昨天來到3850」和「我在昨天買四星KY」，需附兩段才能保留3850；沒有完整證據則保留可證實的價位，不補猜。
 price 必須保留數值的用途（成交價、等待買點、缺口、法人成本）。語音稿把數字黏在一起（例如「2385,23802405」）而沒有明確的區間連接詞時，不得自行拆成上下界；保留可獨立確認的價位，其餘寫未說明。均線天數不是股價，EPS 前後互相矛盾時不挑一個順眼的數字當確定值。
 概數、X、以下/以上必須保留，不改成精確成交；法人成本、現價、張數不能充當會員成本。
 reason/note 忠實說明原話之事實描述（如「張正在昨天（9月9日）大跌時買進四星KY。」），其他判斷依據（如「因確切交易日期為昨日而非影片當日，故改列歷史回顧」、「日期未明的回顧……」等內部推論與管線改列註記）一律不用也不得寫進說明中！不能添加「產業前景存疑」等原文未作出的推論。
@@ -3791,11 +3807,14 @@ history 另填 when（yesterday／date／unknown）、action=buy/sell、view、v
 不得以減少數量掩蓋不確定。沒有最低檔數；每個候選必須有收錄或排除的證據。
 輸出必須是標準合法 JSON 物件，嚴禁尾隨逗號（trailing comma，例如 {"a": 1,} 或 [1, 2,]）、嚴禁註解，所有鍵名與字串值必須使用標準半形雙引號包裹。
 
+【來源版本與洞見】
+每次只依本次 source 原文判讀；舊候選、舊文章與既有資料只是待驗證材料，不能拿上一輪內容補回本輪沒說的股票、價位或理由。
+洞見整理為講者的「現象→明講原因→適用條件→待觀察訊號」。缺少哪一環就省略，不得自行宣稱未被定價、內幕或預測已獲證實。純歷史買賣與現有持股分開判讀；昨天買且今天仍抱著可列持股，不必擁有當日買入句；他人／外資成本不是會員成交價。
 【收錄與稽核一致性】
-判定原為買入請在最前面判定是否為當日買進賣出，從上下文去嚴謹抓取判斷；不是當日的，依【日期未明與現況看法】處理：有現況看法才列觀望，沒有只放 history。
+判定原為買入請在最前面判定是否為當日買進賣出，從上下文去嚴謹抓取判斷；不是當日的，先獨立判斷目前是否仍持有：有自身／會員部位證據就列 holdings；沒有部位但有現況看法才列觀望，兩者都沒有才放 history。
 【日期未明與現況看法】非當日或日期不明的買賣本身不是現況，不能單憑「原為買入／賣出」決定觀望方向。
 請到逐字稿其他段落找講者對這一檔「現在」的看多、看空或技術說明（價位關卡、法人成本、會漲會跌、等拉回、別攤平等）。
-找到就直接列 watch_watch（看多、要買、要等）或 watch_avoid（看空、會殺破、不要碰），reason 寫過去的事實加上現在的看法，evidence_refs 同時列過去那一段與現在看法那一段；
+找到現況看法且沒有持有證據時，列 watch_watch（看多、要買、要等）或 watch_avoid（看空、會殺破、不要碰）。若同時有持有證據，保留 holdings；另有對未持有者的買進條件才加觀望列。後文的候選名單不會抹掉前文會員持有事實；除非後文明講已出清。reason/note 寫事實，evidence_refs 同時列相關段落；
 例如國巨：「禮拜一國巨漲到605，我說597（外資成本）以上要賣一次」是過去，「越想解套國巨你就越死」「他一定會殺破」是現在的看法 → watch_avoid。
 若仍放在 history，也要填 view（原話事實摘要，不寫判斷依據）、view_refs（S 編號，至少一段要提到這一檔）、watch_bias（看多 watch_watch／看空 watch_avoid）；
 view 必須是他「現在」對這一檔的看法原話重點（要買、要等、會漲、會殺破、不要碰、大戶在買……）；
@@ -3813,7 +3832,7 @@ uncertain 的 suggested_category 只用 buy/sell/holdings/watch_avoid/watch_watc
 EXTRACT_SYSTEM = POLICY + "\n這次合併擷取、分類、日期判斷、補漏及大盤摘要。輸入為JSON，source每個鍵是來源編號。先依【先盤點，再分類】逐段找出每一個被點名的公司，再分類。完整讀完各段後在同一次回答自行覆核，特別檢查最後20%，只輸出完成的九類陣列，不輸出初稿或重複引句。長稿各批保留原始S編號，不假設記得其他請求。"
 
 
-AUDIT_SYSTEM = POLICY + "\n這是追加覆核。重讀本次提供的全部來源段落；分批時不假設收到其他批原文。逐筆校對初稿並補漏，補漏時逐段對照【先盤點，再分類】的五種句型，初稿沒收的公司要補進對應類別，輸出完整九類陣列，不只輸出差異。被刪除的初稿候選須列 ignored/uncertain 並附理由，不能消失。附 changes 說明修正。"
+AUDIT_SYSTEM = POLICY + "\n這是追加覆核。重讀本次提供的全部來源段落；分批時不假設收到其他批原文。逐筆校對初稿並補漏，補漏時逐段對照【先盤點，再分類】的五種句型，初稿沒收的公司要補進對應類別，輸出完整九類陣列，不只輸出差異。被刪除的初稿候選須列 ignored/uncertain 並附理由，不能消失。最後獨立核對每檔持有證據與候選名單：不因昨日買進或後文列候選而漏掉仍持有的部位；每個price_evidence需含價位數字且所在段已引用。附 changes 說明修正。"
 
 
 # ---------------------------------------------------------------- #
@@ -5118,13 +5137,31 @@ def save_evidence_audit(ss, video_id, date_str, transcript, signals):
         'gaps':signals.get('_repair_gaps',[])}},ensure_ascii=False),now])
     append_rows_safe(ws, records)
 
+def transcript_source_ids(ss, video_id, date_str):
+    """來源日期的歷代 ID；不能把補記目的日所有影片視為同一來源。"""
+    ids = {video_id, 'MANUAL-' + date_str.replace('/', '')}
+    for row in video_rows(ss):
+        if norm_date(row.get('發布日期')) == date_str:
+            ids.add(str(row.get('影片ID') or '').strip())
+            ids.update(str(row.get('來源別名') or '').split(','))
+    # 整併影片清單以前的來源仍可從附加式稽核追溯。
+    try:
+        for row in sheets_retry(ss.worksheet('逐字稿判讀稽核').get_all_records):
+            if norm_date(row.get('影片日期')) == date_str:
+                ids.add(str(row.get('來源影片ID') or '').strip())
+    except gspread.WorksheetNotFound:
+        pass
+    return {v for v in ids if v and not _is_protected_source(v)}
+
+
 def source_record_dates(ss, video_id):
+    ids = {video_id} if isinstance(video_id, str) else set(video_id)
     dates = set()
     for sheet in ('操作紀錄', '會員持股'):
         for row in sheets_retry(ss.worksheet(sheet).get_all_records):
-            if str(row.get('來源影片ID') or '') == video_id:
+            if str(row.get('來源影片ID') or '') in ids:
                 dates.add(norm_date(row.get('日期')))
-    return dates
+    return dates - {""}
 
 def render_record_chapter(signals, date_str):
     def table(headers, rows):
@@ -6322,7 +6359,7 @@ def delete_rows_for_date(ss, sheet_name, date_str, date_col=1):
 
 def _purge_rows_of_video(ss, sheet_name, date_str, video_id):
     """清掉某一天由某支影片寫進去的列。用在把資料改派到別的日期時避免重複。"""
-    if not video_id:
+    if not video_id or _is_protected_source(video_id):
         return 0
     ws = ss.worksheet(sheet_name)
     values = sheets_retry(ws.get_all_values)
@@ -6531,8 +6568,9 @@ def write_results(ss, date_str, signals, article, done_trades, done_holds,
         # 那一天自己那支影片的資料不能動。
         for old_date in signals.get('_affected_dates', [date_str]):
             if old_date != date_str:
-                _purge_rows_of_video(ss, "操作紀錄", old_date, video_id)
-                _purge_rows_of_video(ss, "會員持股", old_date, video_id)
+                for source_id in signals.get('_source_ids', [video_id]):
+                    _purge_rows_of_video(ss, "操作紀錄", old_date, source_id)
+                    _purge_rows_of_video(ss, "會員持股", old_date, source_id)
         done_trades.discard(date_str)
         done_holds.discard(date_str)
 
@@ -7186,7 +7224,7 @@ def stage_transcript(ss, video, date_str):
             "貼好之後這條排程下一棒就會自動接著跑完後面的流程。")
 
     v2 = polish(v1)
-    write_transcripts(ss, video["id"], v1, v2)   # 潤飾完再補寫 v2
+    write_transcripts(ss, video["id"], v1, v2, date_str)   # 潤飾完再補寫 v2
     return v1, v2
 
 
@@ -7239,6 +7277,14 @@ def signal_roster(signals, limit=40) -> str:
             shown = '、'.join(names[:limit]) + (f' 等 {len(names)} 檔' if len(names) > limit else '')
             parts.append(f"{label} {len(names)}：{shown}")
     return '；'.join(parts) or '一檔都沒有'
+
+
+class ExtractionOutcome(list):
+    """保留日期清單相容性，另將未覆蓋結局傳回各呼叫端。"""
+    def __init__(self, dates, retained=False, note=''):
+        super().__init__(sorted(dates))
+        self.retained = retained
+        self.note = note
 
 
 def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None,
@@ -7384,7 +7430,8 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None
     # 排在日期歸屬之後：品質關卡與日期歸屬移進回顧的列也要一起處理。
     signals = history_to_watch(signals, date_str, ss, transcript=TX["audit"])
     signals["_video_id"] = video["id"]
-    affected = source_record_dates(ss, video['id']) | {date_str}
+    signals['_source_ids'] = sorted(transcript_source_ids(ss, video['id'], date_str))
+    affected = source_record_dates(ss, signals['_source_ids']) | {date_str}
     affected.update(r['_date'] for k in SIGNAL_CATEGORIES for r in signals.get(k, []))
     signals['_affected_dates'] = sorted(affected)
     signals['_quality_requires_review'] = bool(signals.get('_quality_requires_review') or signals.get('uncertain'))
@@ -7418,7 +7465,7 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None
                           f'新 {fresh} 筆 < 舊 {old_n} 筆，待複核 {pending} 項')
             flush_decisions(ss, date_str)
             step('完成', f'保留舊資料（新 {fresh} 筆 < 舊 {old_n} 筆），待複核 {pending} 項')
-            return sorted(affected)
+            return ExtractionOutcome(affected, retained=True, note=f'這一次沒有覆蓋，保留舊資料（新 {fresh} 筆 < 舊 {old_n} 筆），待複核 {pending} 項')
         print(f"品質複核：有 {pending} 項待複核，但這一輪驗證出的 {fresh} 筆"
               f"{'多於' if old_n else '而這一天原本沒有'}既有的 {old_n} 筆，照常寫入。")
         print("　　待複核的項目不會寫進試算表，留在「逐字稿判讀稽核」等人處理。")
@@ -7435,7 +7482,7 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None
                   replace_video=replace_video)
     commit_evidence_manifest(ss, video['id'], date_str, v1)
     save_refresh_checkpoint(ss, video['id'], date_str, v1, sorted(affected))
-    return sorted(affected)
+    return ExtractionOutcome(affected)
 
 
 # ---------------------------------------------------------------- #
@@ -7459,7 +7506,7 @@ ADMIN_STEP_NAMES = ["排程中", "讀取原文", "潤飾", "擷取", "稽核補�
                     "撰稿", "寫入", "刷新網站", "完成"]
 
 JOB_COLS = ["工單ID", "日期", "影片ID", "狀態", "步驟", "已完成", "總數",
-            "備註", "開始時間", "更新時間", "來源"]
+            "備註", "開始時間", "更新時間", "來源", "原文SHA256"]
 
 
 def _job_sheet(ss):
@@ -7494,7 +7541,7 @@ def find_pending_job(ss):
         return {"row": i + 1, "cols": c, "ws": ws,
                 "id": g("工單ID"), "date": norm_date(g("日期")),
                 "videoId": str(g("影片ID")).strip(),
-                "step": str(g("步驟")).strip()}
+                "step": str(g("步驟")).strip(), "raw_sha256": str(g("原文SHA256")).strip()}
     return None
 
 
@@ -7586,7 +7633,7 @@ def _transcript_rows_of_day(ss, date_str):
     return got
 
 
-def finish_transcript_refresh(ss, vid, date_str, raw, affected):
+def finish_transcript_refresh(ss, vid, date_str, raw, affected, on_progress=None):
     state=load_refresh_checkpoint(ss,vid,date_str,raw) or {'affected':affected,'completed':[]}
     dates=state['affected'] or [date_str]
     done=state['completed']
@@ -7601,7 +7648,32 @@ def finish_transcript_refresh(ss, vid, date_str, raw, affected):
         marker=name+':'+d
         if marker in done:
             print('刷新檢查點：略過已完成 '+marker);continue
+        if ADMIN_JOB and budget_left()<330:
+            return {'ok':False,'pending':True,'note':'本輪刷新時間預算將到，已保存檢查點，將自動續跑剩餘步驟'}
         result=maybe_refresh_site(only=[name],force=True,date_str=d)
+        if name == 'perfhist' and result and result.get('pending') and result.get('blocked_by') == 'dailyk':
+            print('績效缺日K：自動接續補齊快取，完成後重算持股及績效。')
+            repair = maybe_refresh_site(only=['dailyk'], force=True, date_str=d,
+                                        **({'on_progress':on_progress} if on_progress else {}))
+            if repair and (repair.get('partial') or repair.get('pending')):
+                return {'ok': False, 'pending': True, 'note': '日K分批補齊中，已保存游標與刷新檢查點，將自動續跑'}
+            if not repair or not repair.get('ok'):
+                raise RuntimeError('補齊日K失敗；已保存刷新檢查點')
+            if 'tracker:'+d in done:
+                done.remove('tracker:'+d)
+                save_refresh_checkpoint(ss,vid,date_str,raw,dates,done)
+            if ADMIN_JOB and budget_left()<330:
+                return {'ok':False,'pending':True,'note':'日K已補齊，時間預算將到，下一輪自動續算持股與績效'}
+            # tracker 先前在空快取下跑過，補好 K 後必須再算一次。
+            tracker = maybe_refresh_site(only=['tracker'], force=True, date_str=d)
+            if not tracker or not tracker.get('ok'):
+                raise RuntimeError('補日K後重算持股追蹤失敗')
+            if 'tracker:'+d not in done:
+                done.append('tracker:'+d)
+                save_refresh_checkpoint(ss,vid,date_str,raw,dates,done)
+            result = maybe_refresh_site(only=['perfhist'], force=True, date_str=d)
+            if result and result.get('pending'):
+                return {'ok': False, 'pending': True, 'note': '已補日K但交易日曆仍未備齊，等待自動續跑；績效尚未完成'}
         if not result or not result.get('ok'):
             raise RuntimeError(marker+' 未完成；已保存刷新檢查點，續跑會略過已成功步驟')
         # 只在會刪列的步驟之後重數：同步郵件內容（撰稿前代號補齊會刪掉判成非個股的列）
@@ -7647,12 +7719,28 @@ def run_admin_job(ss):
     v1, v2 = existing_transcript(ss, vid, date_str)
     if not v1 or len(v1) < 300:
         raise RuntimeError(f"影片清單裡找不到 {vid} 的原始逐字稿，或內容太短（{len(v1 or '')} 字）。")
+    actual_hash = hashlib.sha256(v1.encode('utf-8')).hexdigest()
+    if job.get('raw_sha256') and job['raw_sha256'] != actual_hash:
+        message = '讀到的不是這次投稿的原文：工單與影片清單 SHA256 不符。請檢查同日多份逐字稿，再重新投稿；本輪未擷取或覆蓋。'
+        note_decision('讀取原文', '投稿指紋不符', date_str, message)
+        flush_decisions(ss, date_str)
+        job_progress(job, status='失敗', note=message)
+        raise RuntimeError(message)
+    if not job.get('raw_sha256'):
+        print('舊工單沒有投稿指紋，沿用相容模式；新投稿會自動校驗。')
+    flush_decisions(ss, date_str)
     print(f"原始逐字稿 {len(v1)} 字")
+
+    def refresh_progress(note):
+        job_progress(job,step='刷新網站',note=note)
 
     checkpoint=load_refresh_checkpoint(ss,vid,date_str,v1)
     if checkpoint and 'complete' not in checkpoint.get('completed',[]):
         job_progress(job,step='刷新網站',note='來源與規則版本相同，從刷新檢查點續跑')
-        finish_transcript_refresh(ss,vid,date_str,v1,checkpoint['affected'])
+        result = finish_transcript_refresh(ss,vid,date_str,v1,checkpoint['affected'],on_progress=refresh_progress)
+        if result.get('pending'):
+            job_progress(job, step='刷新網站', status='等待日K', note=result['note'])
+            return
         mark_status(ss,vid,date_str,'後台投稿 '+date_str,'完成')
         job_progress(job,step='完成',done=len(ADMIN_STEP_NAMES),total=len(ADMIN_STEP_NAMES),status='完成',
                      note='已從檢查點完成郵件內容、持股追蹤與績效；未重跑AI或重寄信件')
@@ -7699,11 +7787,19 @@ def run_admin_job(ss):
     affected = stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=_report,
                   replace_video=True, v1=v1)
 
+    if getattr(affected, 'retained', False):
+        mark_status(ss, vid, date_str, video['title'], '待複核', affected.note)
+        job_progress(job, step='完成', status='待複核', note=affected.note,
+                     done=len(ADMIN_STEP_NAMES), total=len(ADMIN_STEP_NAMES))
+        return
     mark_status(ss, vid, date_str, video["title"], "處理中")
     _report("刷新網站", "資料已寫入，通知下游重算")
 
     try:
-        finish_transcript_refresh(ss,vid,date_str,v1,affected or [date_str])
+        result = finish_transcript_refresh(ss,vid,date_str,v1,affected or [date_str],on_progress=refresh_progress)
+        if result.get('pending'):
+            job_progress(job, step='刷新網站', status='等待日K', note=result['note'])
+            return
     except Exception as e:
         job_progress(job, step='刷新網站', status='失敗', note='資料已寫入；' + str(e))
         raise
@@ -7738,17 +7834,9 @@ def upsert_video_transcript(ss, video_id, date_str, v2):
         print("影片清單沒有『修飾後逐字稿內容』欄，略過寫回")
         return
 
-    by_id, by_date = None, None
-    for i in range(1, len(vals)):
-        row = vals[i]
-        if str(row[c_id]).strip() == video_id:
-            by_id = i + 1
-            break
-        if by_date is None and c_date is not None:
-            if norm_date(row[c_date]) == date_str:
-                by_date = i + 1
-
-    target = by_id or by_date
+    records = [dict(zip(head, row)) for row in vals[1:]]
+    target, chosen = select_transcript_row(records, video_id, date_str)
+    by_id = bool(chosen and str(chosen.get('影片ID') or '').strip() == video_id)
     if target:
         sheets_retry(ws.update_cell, target, c_v2 + 1, v2[:SHEET_CELL_LIMIT])
         how = "比對影片ID" if by_id else "比對日期"
@@ -9180,10 +9268,15 @@ def process_one(ss, video, done_trades, done_holds):
         checkpoint = load_refresh_checkpoint(ss,video['id'],date_str,v1)
         affected = (checkpoint['affected'] if checkpoint and 'complete' not in checkpoint.get('completed',[])
                     else stage_extract(ss, video, date_str, v2, done_trades, done_holds, v1=v1))
+        if getattr(affected, 'retained', False):
+            mark_status(ss, video['id'], date_str, video['title'], '待複核', affected.note)
+            return
         # 每日排程不會帶 refresh_site（cron 沒有 inputs），所以這裡自己讓網站跟上。
         # 回補模式例外：那時是一次跑很多天，收尾統一在最後做一次。
         if not (_POST_WRITE_DEFER["on"] or BACKFILL):
-            finish_transcript_refresh(ss,video['id'],date_str,v1,affected or [date_str])
+            refresh_result = finish_transcript_refresh(ss,video['id'],date_str,v1,affected or [date_str])
+            if refresh_result.get('pending'):
+                raise RuntimeError(refresh_result['note'])
         mark_status(ss, video['id'], date_str, video['title'], '完成')
         print('完成 ' + video['id'])
     except Exception as e:
@@ -10315,6 +10408,13 @@ def main():
     refresh_only = (REFRESH_SITE or DAILYK_ONLY) and not picked
     needs_gemini = not (PREFLIGHT or refresh_only) and (
         not picked or bool(set(picked) - NO_GEMINI_MODES))
+    if ADMIN_JOB and not PREFLIGHT:
+        pending_job = find_pending_job(ss)
+        if pending_job and pending_job.get('step') == '刷新網站':
+            raw, _ = existing_transcript(ss, pending_job['videoId'], pending_job['date'])
+            cp = load_refresh_checkpoint(ss, pending_job['videoId'], pending_job['date'], raw)
+            if cp and 'complete' not in cp.get('completed', []):
+                needs_gemini = False
     if needs_gemini:
         require_gemini_key()
         # 順便確認每一把都真的能用。設定錯的那一把若等到輪替時才爆，

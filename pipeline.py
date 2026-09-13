@@ -5508,6 +5508,16 @@ def extract_context_json(transcript, date_str):
     return merged
 
 
+# 篇幅與摘要類的提醒：寫進稽核、交給覆核補寫，但不代表已發布的紀錄有錯。
+# 2026/09/13 重跑 9/10：18 項「待複核」幾乎都是這一類，卻讓整天的新結果進不去。
+_EDITORIAL_GAP = re.compile(r'^(?:盤勢|教學)內容偏短：|說明偏短：|^大盤摘要有未驗證的引用或數字：')
+
+
+def needs_review_gaps(gaps):
+    """需要人確認的疑點（證據定位、候選消失、排除覆核……），扣掉篇幅類提醒。"""
+    return [g for g in (gaps or []) if not _EDITORIAL_GAP.search(str(g))]
+
+
 def publication_gaps(signals, transcript):
     """把可量測的漏收、縮水交給既有全文覆核，不能僅靠 Prompt 的期望字數。"""
     gaps = []
@@ -5538,6 +5548,12 @@ def audit_context_json(transcript, signals, date_str, editorial_retry=True):
     # when local format checks pass; combine it with repair in the same request.
     semantic = os.environ.get('GEMINI_SEMANTIC_AUDIT', 'true').strip().lower() not in ('false', '0', 'off')
     review_gaps = gaps + publication_gaps(signals, transcript) + (['逐段獨立盤點，再比對初稿：補回漏列持股、條件買點及末段名單；核對持有者與未持有者的不同指示。不得因引句有效就認定分類正確。'] if semantic else [])
+    # 覆蓋重跑時，把前一版網站上的每一檔交給覆核逐一重新判定，而不是等寫入前才發現少了誰。
+    # 只是待驗證清單：原文沒有依據的不得補回（見 POLICY【來源版本與洞見】）。
+    prior = signals.get('_prior_published') or []
+    if prior:
+        review_gaps.append('前一版網站已發布：' + '、'.join(prior) + '。逐一以本次原文重新判定：原文有依據就收進對應類別；'
+                           '改判須附原文理由列 history 或 ignored，不可無聲略過；原文沒有依據的不得補回。')
     if review_gaps:
         repaired = {cat: [] for cat in SIGNAL_CATEGORIES + ('history', 'uncertain', 'ignored', 'market')}
         for batch in assessment_batches(transcript, date_str):
@@ -5587,6 +5603,7 @@ def audit_context_json(transcript, signals, date_str, editorial_retry=True):
                         saved = dict(row, suggested_category='', review_note='覆核回應遺漏原候選，保留原始證據待核對', _origin_category=cat)
                         repaired['uncertain'].append(saved)
                         gaps.append('覆核遺漏候選：' + str(row.get('name', '')))
+            repaired['_prior_published'] = prior
             signals = repaired
     # 一次全文覆核後仍漏收或縮水，最多再補一次；原文不足不准補造。
     if editorial_retry and publication_gaps(signals, transcript) and budget_left() > 330:
@@ -5594,8 +5611,10 @@ def audit_context_json(transcript, signals, date_str, editorial_retry=True):
         return audit_context_json(transcript, signals, date_str, editorial_retry=False)
     signals['_repair_gaps'] = gaps
     # 逐筆品質關卡（validate_evidence）不在這裡跑，改到代號比對之後，見 stage_extract。
-    signals['_quality_requires_review'] = bool(gaps or signals.get('uncertain'))
-    print(f'JSON本機校對完成：{len(gaps)} 項待複核（逐筆品質關卡在代號比對之後進行）')
+    review_only = needs_review_gaps(gaps)
+    signals['_quality_requires_review'] = bool(review_only or signals.get('uncertain'))
+    print(f'JSON本機校對完成：{len(review_only)} 項待複核、{len(gaps) - len(review_only)} 項篇幅提醒'
+          f'（篇幅提醒不擋發布；逐筆品質關卡在代號比對之後進行）')
     return signals
 
 
@@ -7329,11 +7348,175 @@ def signal_roster(signals, limit=40) -> str:
 
 
 class ExtractionOutcome(list):
-    """保留日期清單相容性，另將未覆蓋結局傳回各呼叫端。"""
-    def __init__(self, dates, retained=False, note=''):
+    """保留日期清單相容性，另將未覆蓋結局與待複核摘要傳回各呼叫端。"""
+    def __init__(self, dates, retained=False, note='', review=''):
         super().__init__(sorted(dates))
         self.retained = retained
         self.note = note
+        self.review = review
+
+
+# ------------------------------------------------------------------ #
+# 覆蓋前逐檔核對前一版
+#
+# 取代原本的「有待複核時，新筆數少於舊筆數就整批保留舊資料」。
+#
+# 筆數是很粗的代理指標，兩個方向都會錯。2026/09/13 重跑 9/10：
+#   新 19 筆 < 舊 22 筆被整批擋下，但少的多半是分類變準——台積電、譜瑞-KY
+#   上一版同時佔持股與觀望注意兩列，嘉澤由觀望改列持股，四星KY 改對到世芯-KY。
+#   反過來，真的漏掉的譜瑞-KY 持股、被排除的 00981A，筆數再多也看不出來。
+#   而觸發這道關卡的 18 項待複核，幾乎都是「教學偏短」這類篇幅提醒。
+#
+# 改成以「檔」為單位，核對前一版網站上的每一檔：
+#   本輪仍有收錄（分類可以不同）　　→ 採用本輪結果，分類變動記進判定歷程。
+#   本輪判定只有過去交易（history）→ 採用，照規則不公開，記進判定歷程。
+#   本輪排除、待確認或根本沒收到　　→ 沿用前一版那幾列並標記待複核。
+#                                     一次漏看不能把網站上的持股悄悄刪掉；
+#                                     前一版若本來就錯，管理者在逐日編輯刪掉後就不會再沿用。
+# 找不到的檔數多到不像單純漏看（至少 3 檔且佔前一版四成以上），研判本輪判讀不完整，
+# 整批不覆蓋、保留舊資料。讀不到前一版時同樣不覆蓋——不能把讀不到當成沒有。
+# ------------------------------------------------------------------ #
+_CAT_LABEL = {'buy': '買入', 'sell': '賣出', 'holdings': '會員持股',
+              'watch_watch': '觀望注意', 'watch_avoid': '觀望不碰'}
+_VALID_CODE = re.compile(r'(?:00981A|\d{4,6})')
+CARRY_ANOMALY_MIN = 3
+CARRY_ANOMALY_RATIO = 0.4
+
+
+def prior_published_rows(ss, date_str):
+    """前一版網站上這一天由逐字稿產生的紀錄（不含會員簡訊、人工補登）。讀不到回 None。"""
+    data = _record_sheet_values(ss)
+    if data is None:
+        return None
+    out = []
+    for sheet in RECORD_SHEETS:
+        values = data.get(sheet) or []
+        if not values:
+            continue
+        head = [str(h).strip() for h in values[0]]
+        col = {h: i for i, h in enumerate(head)}
+
+        def g(row, key):
+            i = col.get(key, -1)
+            return str(row[i]).strip() if 0 <= i < len(row) else ''
+        for row in values[1:]:
+            name = g(row, '股票名稱')
+            if (not name or norm_date(g(row, '日期')) != date_str
+                    or _is_protected_source(g(row, '來源影片ID'))):
+                continue
+            if sheet == '會員持股':
+                out.append({'_cat': 'holdings', 'name': name, 'code': g(row, '代號'),
+                            'stance': g(row, '目前立場'), 'note': g(row, '說明重點')})
+                continue
+            d = g(row, '方向')
+            # 與 Apps Script 的 buildSignalsFromSheet_ 同一套對應。
+            cat = ('buy' if d.startswith('買') else 'sell' if d.startswith('賣')
+                   else 'watch_avoid' if '不碰' in d else 'watch_watch')
+            try:
+                seq = int(float(g(row, '序') or 1))
+            except ValueError:
+                seq = 1
+            out.append({'_cat': cat, 'name': name, 'code': g(row, '代號'),
+                        'price': g(row, '價位說明') or '未說明', 'reason': g(row, '理由摘錄'), '_seq': seq})
+    return out
+
+
+def _identity_keys(row):
+    """認同一檔的鍵。排除、回顧這幾類沒有經過代號比對，名稱對不上時再查一次官方清單。"""
+    keys = set(_row_keys(row))
+    keys.update(_ev_norm(a) for a in (row.get('aliases') or [])
+                if isinstance(a, str) and len(_ev_norm(a)) >= 2)
+    if not any(_VALID_CODE.fullmatch(k) for k in keys):
+        try:
+            code = str(resolve_code(row.get('name') or '', '')[0] or '')
+        except Exception:
+            code = ''
+        if _VALID_CODE.fullmatch(code):
+            keys.add(code)
+    return keys
+
+
+def _unique(seq):
+    return list(dict.fromkeys(seq))
+
+
+def prior_identity_labels(prior):
+    """交給覆核的前一版清單：每檔一次，附上前一版的分類。"""
+    groups = {}
+    for r in prior or []:
+        groups.setdefault(r['name'], []).append(_CAT_LABEL[r['_cat']])
+    return [f"{name}（{'、'.join(_unique(cats))}）" for name, cats in groups.items()]
+
+
+def reconcile_with_prior(signals, prior, date_str):
+    """
+    逐檔核對前一版，見上面的說明。沒有異常時，要沿用的前一版列直接併進 signals。
+    回傳 changes（分類變動）、accepted（改列不公開）、carried（沿用待複核）、anomaly、identities。
+    """
+    def pool(cats):
+        found = {}
+        for cat in cats:
+            for r in signals.get(cat) or []:
+                if isinstance(r, dict):
+                    for k in _identity_keys(r):
+                        found.setdefault(k, []).append(cat)
+        return found
+    published = pool(SIGNAL_CATEGORIES)
+    past = pool(('history',))
+    parked = pool(('ignored', 'uncertain'))
+
+    groups = {}
+    for r in prior:
+        code = str(r.get('code') or '').strip()
+        ident = code if _VALID_CODE.fullmatch(code) else _ev_norm(r.get('name'))
+        groups.setdefault(ident, []).append(r)
+
+    changes, accepted, carried, carry_rows = [], [], [], []
+    for rows in groups.values():
+        keys = set().union(*(_row_keys(r) for r in rows))
+        name = rows[0]['name']
+        before = _unique(_CAT_LABEL[r['_cat']] for r in rows)
+        now = _unique(_CAT_LABEL[c] for k in keys for c in published.get(k, []))
+        if now:
+            if set(before) != set(now):
+                changes.append(f"{name}：{'、'.join(before)} → {'、'.join(now)}")
+            continue
+        if any(k in past for k in keys):
+            accepted.append(f"{name}（前一版{'、'.join(before)}）：本輪判定只有過去交易、沒有現況看法，依規則不公開")
+            continue
+        where = _unique(c for k in keys for c in parked.get(k, []))
+        why = ('本輪列為排除' if 'ignored' in where else '本輪列為待確認' if where else '本輪沒有收錄')
+        carried.append(f"{name}（{'、'.join(before)}，{why}）")
+        carry_rows.extend(rows)
+
+    anomaly = (len(carried) >= CARRY_ANOMALY_MIN
+               and len(carried) >= CARRY_ANOMALY_RATIO * len(groups))
+    if not anomaly:
+        for r in carry_rows:
+            row = {k: v for k, v in r.items() if k != '_cat'}
+            field = 'note' if r['_cat'] == 'holdings' else 'reason'
+            row[field] = naturalize_reason(row.get(field) or '') or '未說明'
+            row['_date'] = date_str
+            row['_carried_forward'] = True
+            signals.setdefault(r['_cat'], []).append(row)
+    return {'changes': changes, 'accepted': accepted, 'carried': carried,
+            'anomaly': anomaly, 'identities': len(groups)}
+
+
+def finish_admin_job(job, ss, vid, date_str, title, review, note):
+    """
+    資料已發布後的收尾。
+
+    本輪有待複核（沿用前一版的檔、隔離的疑點）時，工單寫待複核並列出是哪幾項，
+    不回報「全部更新成功」。影片清單仍記完成：資料已經發布，每日排程不必再重跑這一天。
+    """
+    mark_status(ss, vid, date_str, title, '完成')
+    total = len(ADMIN_STEP_NAMES)
+    if review:
+        job_progress(job, step='完成', done=total, total=total, status='待複核',
+                     note=review + '；網站、郵件查詢、持股追蹤與績效已依本輪結果更新，已寄出的信不重寄。')
+    else:
+        job_progress(job, step='完成', done=total, total=total, status='完成', note=note)
 
 
 def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None,
@@ -7389,6 +7572,10 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None
     if v1 and TX["audit"] != TX["extract"]:
         print(f"  稽核比對原始逐字稿 {len(TX['audit'])} 字"
               f"（擷取讀的是 {len(TX['extract'])} 字）")
+    # 覆蓋重跑時先讀前一版網站上的紀錄：覆核逐一重新判定，寫入前再逐檔核對（reconcile_with_prior）。
+    prior = prior_published_rows(ss, date_str) if replace_video else []
+    if prior:
+        signals['_prior_published'] = prior_identity_labels(prior)
     step("稽核補漏", f"目前 {_n(signals)} 檔，回頭比對原始逐字稿看有沒有漏掉的")
     signals = audit_signals(TX["audit"], signals, date_str)
     print(f"  稽核補漏後　{signal_roster(signals)}")
@@ -7417,7 +7604,7 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None
     # 關卡比對引用時兩個都認。代號已由官方清單核過，關卡不再清掉它。
     signals = validate_evidence(signals, TX["audit"], date_str, after_codes=True)
     signals['_quality_requires_review'] = bool(
-        signals.get('_quality_requires_review') or signals.get('_repair_gaps')
+        signals.get('_quality_requires_review') or needs_review_gaps(signals.get('_repair_gaps'))
         or signals.get('uncertain'))
     # 模型直接放進觀望類、理由卻寫著「歷史回顧」的，退回回顧，
     # 由日期歸屬之後的 history_to_watch 依現況看法決定列不列。
@@ -7484,42 +7671,56 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None
     affected.update(r['_date'] for k in SIGNAL_CATEGORIES for r in signals.get(k, []))
     signals['_affected_dates'] = sorted(affected)
     signals['_quality_requires_review'] = bool(signals.get('_quality_requires_review') or signals.get('uncertain'))
-    save_evidence_audit(ss, video['id'], date_str, TX['audit'], signals)
 
-    # 有待複核的項目時，只在「會虧」的情況下才不覆蓋。
-    #
-    # 原本是無條件中止。那個顧慮是對的——不該拿一份殘缺的結果去洗掉一整天
-    # 已經好好的資料。但無條件中止把顧慮變成了新的問題：只要有一項證據定位
-    # 修不好（這一輪就是 1 項），整天的十筆全部進不去，而那十筆每一筆都通過了
-    # 證據驗證。一項疑問擋住十筆已驗證的資料，那不是保守，是把保守用錯地方。
-    #
-    # 真正該問的是：寫進去之後，這一天會比現在好還是差？
-    #   這一天本來就沒有資料　→ 寫。十筆已驗證的遠好過一片空白。
-    #   新的比舊的多或一樣多　→ 寫。覆蓋不會讓人虧到東西。
-    #   新的比舊的少　　　　　→ 不覆蓋。那才是「用部分結果洗掉整日」的情況。
-    #
-    # 不覆蓋時也不中止：後面的步驟照跑，日誌與判定歷程照寫，
-    # 工單以「完成（保留舊資料）」收尾。人看得到發生什麼事，
-    # 而不是拿到一個 exit 1 與一整天的空白。
-    if signals.get('_quality_requires_review'):
-        fresh = sum(len(signals.get(k) or []) for k in SIGNAL_CATEGORIES)
-        old_n = existing_video_rows(ss, video['id'], date_str)
-        pending = len(signals.get('uncertain') or []) + len(signals.get('_repair_gaps') or [])
-        if old_n and fresh < old_n:
-            print(f"品質複核：這一輪只驗證出 {fresh} 筆，少於這一天既有的 {old_n} 筆，"
-                  f"不覆蓋，保留舊資料。")
-            print(f"　　待複核 {pending} 項已存進「逐字稿判讀稽核」，"
-                  f"可到後台逐日編輯處理後重跑。")
-            note_decision('品質複核', '保留舊資料（新結果較少）', date_str,
-                          f'新 {fresh} 筆 < 舊 {old_n} 筆，待複核 {pending} 項')
+    # 覆蓋前逐檔核對前一版，取代原本的筆數比較，理由見 reconcile_with_prior 上方。
+    review = []
+    if replace_video:
+        if prior is None:
+            msg = '讀不到試算表上這一天的既有紀錄，無法逐檔核對前一版'
+            print(f'覆蓋核對：{msg}，這一次不覆蓋，保留舊資料。')
+            note_decision('覆蓋核對', '保留舊資料（無法核對）', date_str, msg)
+            save_evidence_audit(ss, video['id'], date_str, TX['audit'], signals)
             flush_decisions(ss, date_str)
-            step('完成', f'保留舊資料（新 {fresh} 筆 < 舊 {old_n} 筆），待複核 {pending} 項')
-            return ExtractionOutcome(affected, retained=True, note=f'這一次沒有覆蓋，保留舊資料（新 {fresh} 筆 < 舊 {old_n} 筆），待複核 {pending} 項')
-        print(f"品質複核：有 {pending} 項待複核，但這一輪驗證出的 {fresh} 筆"
-              f"{'多於' if old_n else '而這一天原本沒有'}既有的 {old_n} 筆，照常寫入。")
-        print("　　待複核的項目不會寫進試算表，留在「逐字稿判讀稽核」等人處理。")
-        note_decision('品質複核', '照常寫入（新結果不比舊的少）', date_str,
-                      f'新 {fresh} 筆 vs 舊 {old_n} 筆，待複核 {pending} 項')
+            note = f'這一次沒有覆蓋，保留舊資料：{msg}，請稍後重新投稿'
+            step('完成', note)
+            return ExtractionOutcome(affected, retained=True, note=note)
+        rec = reconcile_with_prior(signals, prior, date_str)
+        for line in rec['changes']:
+            print(f'  覆蓋核對　分類變更　{line}')
+            note_decision('覆蓋核對', '分類變更', date_str, line)
+        for line in rec['accepted']:
+            print(f'  覆蓋核對　改列不公開　{line}')
+            note_decision('覆蓋核對', '改列不公開', date_str, line)
+        if rec['anomaly']:
+            names = '、'.join(rec['carried'])
+            print(f"覆蓋核對：前一版 {rec['identities']} 檔中有 {len(rec['carried'])} 檔在本輪結果找不到，"
+                  f"研判本輪判讀不完整，這一次不覆蓋，保留舊資料。{names}")
+            note_decision('覆蓋核對', '保留舊資料（本輪判讀不完整）', date_str, names)
+            signals['_quality_requires_review'] = True
+            save_evidence_audit(ss, video['id'], date_str, TX['audit'], signals)
+            flush_decisions(ss, date_str)
+            note = (f"這一次沒有覆蓋，保留舊資料：前一版 {len(rec['carried'])}/{rec['identities']} 檔"
+                    f"在本輪結果中找不到（{names}），研判本輪判讀不完整")
+            step('完成', note)
+            return ExtractionOutcome(affected, retained=True, note=note)
+        for line in rec['carried']:
+            print(f'  覆蓋核對　沿用前一版待複核　{line}')
+            note_decision('覆蓋核對', '沿用前一版待複核', date_str, line)
+        if rec['carried']:
+            review.append(f"沿用前一版 {len(rec['carried'])} 檔待複核：{'、'.join(rec['carried'])}")
+
+    gaps_all = signals.get('_repair_gaps') or []
+    pending = len(signals.get('uncertain') or []) + len(needs_review_gaps(gaps_all))
+    if pending:
+        review.append(f'待複核 {pending} 項（未寫入網站，已存「逐字稿判讀稽核」）')
+    signals['_quality_requires_review'] = bool(signals.get('_quality_requires_review') or review)
+    save_evidence_audit(ss, video['id'], date_str, TX['audit'], signals)
+    published = sum(len(signals.get(k) or []) for k in SIGNAL_CATEGORIES)
+    print(f"覆蓋核對：本輪發布 {published} 筆"
+          + (f"；{'；'.join(review)}" if review else '；沒有待複核項目')
+          + (f"；篇幅提醒 {len(gaps_all) - len(needs_review_gaps(gaps_all))} 項（不擋發布）"
+             if len(gaps_all) > len(needs_review_gaps(gaps_all)) else ''))
+    review_note = '；'.join(review)
 
     flush_decisions(ss, date_str)
 
@@ -7530,8 +7731,8 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None
     write_results(ss, date_str, signals, article, done_trades, done_holds,
                   replace_video=replace_video)
     commit_evidence_manifest(ss, video['id'], date_str, v1)
-    save_refresh_checkpoint(ss, video['id'], date_str, v1, sorted(affected))
-    return ExtractionOutcome(affected)
+    save_refresh_checkpoint(ss, video['id'], date_str, v1, sorted(affected), review=review_note)
+    return ExtractionOutcome(affected, review=review_note)
 
 
 # ---------------------------------------------------------------- #
@@ -7639,11 +7840,20 @@ def refresh_checkpoint_sheet(ss):
         sheets_retry(ws.append_row,['影片ID','影片日期','原文SHA256','規則版本','刷新JSON','更新時間'])
         return ws
 
-def save_refresh_checkpoint(ss, vid, date_str, raw, affected, completed=None):
+def save_refresh_checkpoint(ss, vid, date_str, raw, affected, completed=None, review=None):
     ws=refresh_checkpoint_sheet(ss)
     rows=sheets_retry(ws.get_all_values)
     idx=next((i+1 for i,r in enumerate(rows[1:],1) if len(r)>1 and r[0]==vid and r[1]==date_str),None)
     data={'affected':affected,'completed':completed or []}
+    # 待複核摘要跟著檢查點走：刷新中斷、續跑、背景日K做完時，收尾才講得出本輪有哪些待複核。
+    # review=None 表示沿用；寫入當下（stage_extract）一律明確帶值，舊一輪的摘要不會留到新一輪。
+    if review is None and idx:
+        try:
+            review = json.loads(rows[idx-1][4]).get('review')
+        except Exception:
+            review = None
+    if review:
+        data['review'] = review
     values=[vid,date_str,hashlib.sha256(raw.encode('utf-8')).hexdigest(),ASSESSMENT_VERSION,
             json.dumps(data,ensure_ascii=False),datetime.now(TAIPEI).strftime('%Y/%m/%d %H:%M:%S')]
     if idx:
@@ -7704,8 +7914,8 @@ def drain_background_refresh():
                     all_done = False
                     job_progress(job, step='刷新網站', status='等待日K', note='文章已更新；' + result['note'])
                 else:
-                    mark_status(ss, vid, day, '後台投稿 '+day, '完成')
-                    job_progress(job,step='完成',done=len(ADMIN_STEP_NAMES),total=len(ADMIN_STEP_NAMES),status='完成',note='文章已更新；背景日K與績效已完成；未重寄已寄信件')
+                    finish_admin_job(job, ss, vid, day, '後台投稿 '+day, result.get('review', ''),
+                                     '文章已更新；背景日K與績效已完成；未重寄已寄信件')
         except Exception as exc:
             all_done = False
             job = globals().get('_CURRENT_JOB')
@@ -7782,7 +7992,7 @@ def finish_transcript_refresh(ss, vid, date_str, raw, affected, on_progress=None
     save_refresh_checkpoint(ss,vid,date_str,raw,dates,done)
     if lost_all:
         flush_decisions(ss, date_str)
-    return {'ok':True, 'lost': lost_all}
+    return {'ok':True, 'lost': lost_all, 'review': state.get('review', '')}
 
 def run_admin_job(ss):
     """
@@ -7826,9 +8036,8 @@ def run_admin_job(ss):
         if result.get('pending'):
             job_progress(job, step='刷新網站', status='等待日K', note=result['note'])
             return
-        mark_status(ss,vid,date_str,'後台投稿 '+date_str,'完成')
-        job_progress(job,step='完成',done=len(ADMIN_STEP_NAMES),total=len(ADMIN_STEP_NAMES),status='完成',
-                     note='已從檢查點完成郵件內容、持股追蹤與績效；未重跑AI或重寄信件')
+        finish_admin_job(job, ss, vid, date_str, '後台投稿 '+date_str, result.get('review', ''),
+                         '已從檢查點完成郵件內容、持股追蹤與績效；未重跑AI或重寄信件')
         return
 
     # ---- 潤飾 ----
@@ -7883,15 +8092,16 @@ def run_admin_job(ss):
     try:
         result = finish_transcript_refresh(ss,vid,date_str,v1,affected or [date_str],on_progress=refresh_progress)
         if result.get('pending'):
-            job_progress(job, step='刷新網站', status='等待日K', note=result['note'])
+            review = getattr(affected, 'review', '')
+            job_progress(job, step='刷新網站', status='等待日K',
+                         note=result['note'] + (f'；{review}' if review else ''))
             return
     except Exception as e:
         job_progress(job, step='刷新網站', status='失敗', note='資料已寫入；' + str(e))
         raise
-    mark_status(ss, vid, date_str, video["title"], "完成")
-    job_progress(job, step="完成", done=len(ADMIN_STEP_NAMES),
-                 total=len(ADMIN_STEP_NAMES), status="完成",
-                 note="資料、郵件查詢、持股追蹤、績效全部更新成功；已寄出的信不會被修改或自動重寄。")
+    finish_admin_job(job, ss, vid, date_str, video["title"],
+                     result.get('review') or getattr(affected, 'review', ''),
+                     "資料、郵件查詢、持股追蹤、績效全部更新成功；已寄出的信不會被修改或自動重寄。")
 
 
 def upsert_video_transcript(ss, video_id, date_str, v2):

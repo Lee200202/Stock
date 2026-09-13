@@ -2359,7 +2359,7 @@ def _try_sources(sources, market):
                 else:
                     c, n = _pick(r, s["code"]), _pick(r, s["name"])
                 n = re.sub(r"\s+", "", str(n or ""))
-                if re.fullmatch(r"\d{4,6}", str(c or "")) and n:
+                if re.fullmatch(r"(?:00981A|\d{4,6})", str(c or "")) and n:
                     out[c] = n
             if not out:
                 raise RuntimeError("解析後 0 筆，欄位名稱可能改了")
@@ -2413,7 +2413,7 @@ def _code_cache_load(market):
         if g(c_mkt) != market:
             continue
         c, n = g(c_code), g(c_name)
-        if re.fullmatch(r"\d{4,6}", c) and n:
+        if re.fullmatch(r"(?:00981A|\d{4,6})", c) and n:
             out[c] = n
         if c_at >= 0 and g(c_at):
             when = g(c_at)
@@ -2505,6 +2505,7 @@ def get_code_map() -> dict:
 
     _code_cache_save(listed, otc)
 
+    m["00981A"] = "主動統一台股增長"
     _CODE_MAP = m
     tail = "　".join(notes)
     print(f"代號對照表載入 {len(m)} 檔（上市 {len(listed)}，上櫃 {len(otc)}）"
@@ -2769,7 +2770,7 @@ def resolve_code(name: str, hint: str):
     #    兩件事其實可以並存，差別只在「對照表這一刻健不健康」：
     #      兩邊都載到　→ 表裡沒有就是真的沒有，代號不可信，改用名稱比對。
     #      有一邊掛掉　→ 維持原本的照收，美琪瑪那個坑不會重開。
-    if re.fullmatch(r"\d{4,6}", hint):
+    if re.fullmatch(r"(?:00981A|\d{4,6})", hint):
         if hint in m:
             return hint, m[hint], "代號直接命中"
         if not _CODE_MAP_FULL:
@@ -2953,7 +2954,7 @@ def arbitrate_name_code(name: str, hint: str, transcript: str):
     """
     name = str(name or "").strip()
     hint = str(hint or "").strip()
-    if not name or not re.fullmatch(r"\d{4,6}", hint):
+    if not name or not re.fullmatch(r"(?:00981A|\d{4,6})", hint):
         return None
 
     m = get_code_map()
@@ -2989,6 +2990,29 @@ def arbitrate_name_code(name: str, hint: str, transcript: str):
 # 實際看過模型把「最近」「前幾天」「突破均線」填進 price，
 # 那些字串會一路流到網站的價位欄，讀的人會以為系統抓到了什麼價。
 _HAS_DIGIT = re.compile(r"\d")
+
+
+def display_price(value, evidence='', context='') -> str:
+    """公開摘要取最高明確價；交易原始多次價仍保留供成本計算。"""
+    text = str(value or '').strip()
+    if not text or re.search(r'^[−-]|\d[/／]\d|[xX]|\d\s*(?:日|天|張|%|％)|EPS|均線', text, re.I):
+        return '未說明'
+    # 管理者已逐字確認的黏連範例；其餘黏連不能靠等分位數猜。
+    text = text.replace('182020252135', '1820、2025、2135')
+    text = re.sub(r'(?<=\d),(?=\d{3}(?:\D|$))', '', text)
+    if re.search(r'\d{7,}', text):
+        return '未說明'
+    matches = list(re.finditer(r'\d+(?:\.\d+)?', text))
+    if not matches or any(not 0 < float(m.group()) <= 100000 for m in matches):
+        return '未說明'
+    high = max(matches, key=lambda m: float(m.group()))
+    num = high.group()
+    # 沒有日K仍能擋住「碰線200」；有明確元／塊證據才視作價格。
+    if float(num) in (5,10,20,60,120,200,240) and re.search(r'均線|技術線|碰.{0,6}線|線型', str(context)):
+        if not re.search(re.escape(num) + r'\s*(?:元|塊)', str(evidence)):
+            return '未說明'
+    suffix = re.match(r'\s*(以上|以下)', text[high.end():])
+    return f'{float(num):g}' + (suffix.group(1) if suffix else '')
 
 
 def clean_price_field(v) -> str:
@@ -3739,7 +3763,7 @@ code 只填原文明講的代號，否則空白。正式名稱交給官方清單
 原文已正確的股票名字必須保留，不改成音近字。不要把動詞「出清」拼成公司名。公開文章的講者姓名統一用節目資訊的「張震」，不要沿用語音誤字「張正」。
 價格、漲跌金額、EPS、產業、相鄰股票不是公司身分的證明。「跌兩毛」不能推算股價級距。
 例外：同音候選分不出時，講者明講的股價水準（例如「信化17880塊」）與「股王」「股后」這類稱號可以用來選定，並把那一句列進 evidence_refs。
-管理者確認：普威、普位、譜位＝譜瑞-KY（4966），是個股，依上下文照常分類（與祥碩並列講手中部位就是 holdings）；加折、加哲、加澤＝嘉澤（3533），不是家登，name 照原文寫加折，不要自己改成別家公司；出金城、初清程＝勤誠（8210），是 ETF 出清的那一檔（「ETF昨天來初清程」「出金城」「秦這麼好的股票」「還剩下95張，等他賣完這支股票就漲」），name 照原文寫出金城或初清程；細金元＝矽晶圓、戲制台＝矽智財（先前記作矽製材），都是產業不是個股，只能放 ignored。日幣是貨幣，不是日馳或其他股票。其餘同音候選依上下文判讀，無法確認身分才送 uncertain。
+管理者另確認：00981A＝主動統一台股增長 ETF；瑞獄＝瑞昱2379、雨沾＝宇瞻8271、維星＝微星2377、邦店＝華邦電2344、連電＝聯電2303、大力光＝大立光3008、利基電＝力積電6770、宜頂、移頂、以頂＝宜鼎5289。僅還原本次原文有提及者。管理者確認：普威、普位、譜位＝譜瑞-KY（4966），是個股，依上下文照常分類（與祥碩並列講手中部位就是 holdings）；加折、加哲、加澤＝嘉澤（3533），不是家登，name 照原文寫加折，不要自己改成別家公司；出金城、初清程＝勤誠（8210），是 ETF 出清的那一檔（「ETF昨天來初清程」「出金城」「秦這麼好的股票」「還剩下95張，等他賣完這支股票就漲」），name 照原文寫出金城或初清程；細金元＝矽晶圓、戲制台＝矽智財（先前記作矽製材），都是產業不是個股，只能放 ignored。日幣是貨幣，不是日馳或其他股票。其餘同音候選依上下文判讀，無法確認身分才送 uncertain。
 匿名這一檔、圖上股票、我不講名字不可由股價猜公司。
 
 【先盤點，再分類】
@@ -3761,7 +3785,7 @@ buy/sell：只有講者本人或其會員於「影片當日（今天／今日／
 一般觀眾建議、條件尚未達成、以後想買，都不是已執行的交易。
 holdings：明講現在仍持有、續抱、我還有、會員現有部位。昨日買而今天仍在談自己的部位可另列持股。
 講者說「我有這一隻」「你們都知道我有」「抱著」「成本多少」「絕對不賣」都是持股，就算同一段在講它今天跌。
-只在比喻或舉例裡被點到名的（例如「台積電、鴻海、四星KY、大立光、聯發科都在這一顆球裡面」）不是 holdings，放 ignored。
+只在比喻或舉例被點名，不代表持有。回讀它的當下行情與共同指示，依下列觀望規則收錄，不能直接排除。
 watch_watch：明確候選、以後想買、等洗完、抄起來；只列名字但明確共用「候選名單」也要逐檔收錄，不要求每檔都有價格或長篇理由。
 講者要大家等某個價位或時點再買（900以下是買點、等補完缺口站回去、等禮拜一CPI公布後、碰到均線再說）也是 watch_watch，reason 寫出那個條件。
 展示營收、EPS 或線型並說出看法的個股（「這些公司以後都會漲回去」「一定要等他補完缺口、打第二隻腳再站回去」）也要逐檔收錄，共同指示能明確回指這兩三家公司時才逐檔列；不能只因同段展示過就套用同一立場。
@@ -3770,8 +3794,8 @@ watch_avoid：有針對該股的禁令或負面指示（不准碰、會殺破、
 族群禁令可以連到原文明確點名且確有語意連結的公司；不可自行枚舉族群成分股。
 同一檔最後指示、時間與持有/加碼範圍決定狀態，不採偏空優先；矛盾仍不能解開就 uncertain。
 目前已持有者：持股事實放 holdings。若講者另外對「還沒有的人」給出買進條件或建議（等碰線、等禮拜一、幾塊以下、你要先買），同時列一筆 watch_watch，reason 只寫那個條件；例如「台積電只要碰到這一條線你們就去注意，他就會漲上去」→ 台積電 holdings 之外再列一筆 watch_watch；「你要先買四星KY」→ 世芯-KY 同樣再列 watch_watch。只說續抱、加碼，不另列觀望。
-ignored：單純行情例子、法人交易、ETF換股、匿名標的、產業、指數、外國股票。填 name/reason/evidence_refs，保留排除理由供稽核，不塞進個股清單。
-只拿來說明盤勢的股票（「這三個月停在這邊沒有動」「昨天漲今天跌」「外資一買一賣」「你去買昨天大漲的就賠錢」）放 ignored，除非講者對它另外給出要買、要等、不要碰的指示。
+ignored：貨幣、產業、指數、匿名標的、外國股票、確無本次原文依據者。台股及已確認 ETF 的行情例子、法人交易、ETF 換股也屬本日觀察範圍，不能因此排除。填 name/reason/evidence_refs，保留排除理由供稽核。
+原文點名的行情或法人例子也逐檔列觀望：追高容易套牢、轉弱、下跌風險或不能承受就不碰→watch_avoid；整理、資金動向、等待機會或未表達偏空的中性觀察→watch_watch。中性者 reason 必須如實寫「僅提及當下行情／資金動向，未提出進場指示」，不可說成推薦買進。ETF 00981A 也收錄，但 ETF 的買賣不能冒充會員買賣；被換股的公司與 ETF 本身分別寫對應事實。
 history：自己的過去交易，但不是當日、或日期不能確定；不是第三方交易的收容區。網站不單獨呈現回顧：原文另有這一檔現況看法的會列入觀望，沒有的不列（見【日期未明與現況看法】）。
 
 【時間】
@@ -3785,8 +3809,8 @@ date 要填 event_date=YYYY/MM/DD 且原文有月日；prev_trading_day 只適�
 
 【價位與說明】
 price 僅該事件說出的價格或範圍，沒有寫「未說明」。price_evidence 是含該價位數字的原句，且該句所在的 S 編號必須列入 evidence_refs。數字離名稱較遠時，分別附價位段與能明確回指同一公司、同一事件的名稱段；不得只填報價句或只附名稱句。例如原文分開講「昨天來到3850」和「我在昨天買四星KY」，需附兩段才能保留3850；沒有完整證據則保留可證實的價位，不補猜。
-price 必須保留數值的用途（成交價、等待買點、缺口、法人成本）。語音稿把數字黏在一起（例如「2385,23802405」）而沒有明確的區間連接詞時，不得自行拆成上下界；保留可獨立確認的價位，其餘寫未說明。均線天數不是股價，EPS 前後互相矛盾時不挑一個順眼的數字當確定值。
-概數、X、以下/以上必須保留，不改成精確成交；法人成本、現價、張數不能充當會員成本。
+price 的用途（成交價、等待買點、缺口、法人成本）寫入 reason，不在公開價位欄夾帶文字。多個明確價位以最高數字展示，以上／以下保留；多次買進價不是平均成本。語音稿把數字黏在一起（例如「2385,23802405」）而沒有明確的區間連接詞時，不得自行拆成上下界；保留可獨立確認的價位，其餘寫未說明。均線天數不是股價，EPS 前後互相矛盾時不挑一個順眼的數字當確定值。
+含 X 或無法確認的概數，price 寫未說明並在 reason 忠實描述；以下/以上保留，不改成精確成交；法人成本、現價、張數不能充當會員成本。
 reason/note 忠實說明原話之事實描述（如「張正在昨天（9月9日）大跌時買進四星KY。」），其他判斷依據（如「因確切交易日期為昨日而非影片當日，故改列歷史回顧」、「日期未明的回顧……」等內部推論與管線改列註記）一律不用也不得寫進說明中！不能添加「產業前景存疑」等原文未作出的推論。
 reason/note 要具體：原文充足時寫 2～4 句、約 70～160 字，依序交代目前狀態、價位或等待條件、原文明講的理由、後續觀察。只有名單提及者可以短於此範圍，絕不可用相鄰公司的理由補字數。
 只寫「候選名單」「以後要買」幾個字不夠：名單裡某一檔原文另有說明就寫出來，沒有才寫共同的那一句。
@@ -4934,7 +4958,7 @@ def validate_evidence(signals, transcript, date_str, after_codes=False):
 
             # 一、本來就不是個股的直接丟。族群名進到這裡不是資料有問題，
             #     是擷取多生了一列，留著只會在網站上出現一列「航運股」。
-            if cat in SIGNAL_CATEGORIES and not re.fullmatch(r"\d{4,6}", name):
+            if cat in SIGNAL_CATEGORIES and not re.fullmatch(r"(?:00981A|\d{4,6})", name):
                 bad, why = is_non_stock(name)
                 if bad or len(name) < 2:
                     reason = why or '名稱過短，研判是聽錯的碎片'
@@ -4982,7 +5006,7 @@ def validate_evidence(signals, transcript, date_str, after_codes=False):
             # 代號只在代號比對之後才算數——那時的代號已由官方清單核過，不是模型填的。
             raw_ev = re.sub(r"\s", "", "\n".join(str(q) for q in good))
             code = str(row.get("code") or "").strip()
-            if not named and after_codes and re.fullmatch(r"\d{4,6}", code):
+            if not named and after_codes and re.fullmatch(r"(?:00981A|\d{4,6})", code):
                 named = bool(re.search(r"(?<![0-9])" + code + r"(?![0-9])", raw_ev))
             if not named:
                 # 官方簡稱的「*」「-KY」講者不會念出來（國巨*、世芯-KY → 國巨、四星）。
@@ -5173,7 +5197,7 @@ def render_record_chapter(signals, date_str):
     today, past = [], []
     for cat, label in [('buy', '買入'), ('sell', '賣出')]:
         for r in signals.get(cat, []):
-            row = [r.get('name'), r.get('code'), label, r.get('price'), r.get('reason')]
+            row = [r.get('name'), r.get('code'), label, display_price(r.get('price'), r.get('price_evidence'), r.get('reason')), r.get('reason')]
             d = r.get('_date') or date_str
             (today if d == date_str else past).append(row if d == date_str else [d] + row)
     headers = ['股票名稱', '股票代號', '方向', '價位區間／成本說明', '張震口頭說明與操作理由']
@@ -5187,7 +5211,7 @@ def render_record_chapter(signals, date_str):
     text += '\n④-3 觀望個股（當日未執行買賣）\n'
     for cat, label in [('watch_avoid', '觀望不碰'), ('watch_watch', '觀望注意')]:
         text += '\n' + label + '\n\n' + table(['股票名稱', '股票代號', '價位說明', '張震口頭說明重點'],
-                  [[r.get('name'), r.get('code'), r.get('price'), r.get('reason')] for r in signals.get(cat, [])])
+                  [[r.get('name'), r.get('code'), display_price(r.get('price'), r.get('price_evidence'), r.get('reason')), r.get('reason')] for r in signals.get(cat, [])])
     return text
 
 def enforce_article_records(article, signals, date_str):
@@ -5209,7 +5233,11 @@ The standalone pipeline is the deployed runtime; this file documents the helpers
 #   原文只剩「秦」「程」「城」單字時，程式認不出是哪一檔，整檔就漏掉了。管理者確認是勤誠。
 CONFIRMED_NAMES = {'普威': ('4966', '譜瑞-KY'), '普位': ('4966', '譜瑞-KY'), '譜位': ('4966', '譜瑞-KY'),
                    '加折': ('3533', '嘉澤'), '加哲': ('3533', '嘉澤'), '加澤': ('3533', '嘉澤'),
-                   '出金城': ('8210', '勤誠'), '初清程': ('8210', '勤誠')}
+                   '出金城': ('8210', '勤誠'), '初清程': ('8210', '勤誠'),
+    '00981A': ('00981A', '主動統一台股增長'), '主動統一台股增長': ('00981A', '主動統一台股增長'),
+    '瑞獄': ('2379','瑞昱'), '雨沾': ('8271','宇瞻'), '維星': ('2377','微星'),
+    '邦店': ('2344','華邦電'), '連電': ('2303','聯電'), '大力光': ('3008','大立光'),
+    '利基電': ('6770','力積電'), '宜頂': ('5289','宜鼎'), '移頂': ('5289','宜鼎'), '以頂': ('5289','宜鼎')}
 NON_EQUITY_NAMES = {'日幣', '日圓', '日元', '美元', '美金', '台幣', '臺幣', '新台幣', '人民幣', '歐元'}
 # 管理者確認過「是產業、不是個股」的聽錯寫法。代號比對直接剔除整列。
 #   細金元 → 矽晶圓：「被動元件不准給我碰，細金元不准給我碰」，與被動元件、ABF 載板並列的是材料族群。
@@ -5382,14 +5410,36 @@ def extract_context_json(transcript, date_str):
     return merged
 
 
-def audit_context_json(transcript, signals, date_str):
+def publication_gaps(signals, transcript):
+    """把可量測的漏收、縮水交給既有全文覆核，不能僅靠 Prompt 的期望字數。"""
+    gaps = []
+    for row in signals.get('ignored', []):
+        name = str(row.get('name') or '')
+        if name in NON_EQUITY_NAMES or name in CONFIRMED_INDUSTRY or (name not in CONFIRMED_NAMES and is_non_stock(name)[0]):
+            continue
+        gaps.append('排除覆核：' + name + ' 若為本次點名台股／ETF，行情、法人、換股亦列觀望；用原文風險／等待條件判方向，不能虛構推薦。純過往交易無現況則 history。')
+    if len(re.sub(r'\s+', '', transcript)) >= 5000:
+        market = signals.get('market', [])
+        for kind, label, count in ((False,'盤勢',6),(True,'教學',5)):
+            rows = [r for r in market if (r.get('kind') == 'view') == kind]
+            if len(rows) < count or sum(len(str(r.get('text') or '')) for r in rows) < count * 70:
+                gaps.append(label + '內容偏短：重新找全文不同主題，原文充足時至少' + str(count) + '點、每點70–140字；資料不足須在 changes 說明，禁止重複或補造。')
+        for cat in SIGNAL_CATEGORIES:
+            for row in signals.get(cat, []):
+                note = str(row.get('note') if cat == 'holdings' else row.get('reason') or '')
+                if len(note) < 70 and sum(len(str(q)) for q in row.get('evidence', [])) >= 200:
+                    gaps.append(str(row.get('name')) + '說明偏短：重讀自身相關段落，補出現況、原因、條件與觀察訊號；不借相鄰公司的理由。')
+    return gaps
+
+
+def audit_context_json(transcript, signals, date_str, editorial_retry=True):
     materialize_evidence(signals, transcript)
     recover_context(signals, transcript)
     gaps = evidence_gaps(signals, transcript)
     # A valid quote cannot prove coverage or classification. Review semantics even
     # when local format checks pass; combine it with repair in the same request.
     semantic = os.environ.get('GEMINI_SEMANTIC_AUDIT', 'true').strip().lower() not in ('false', '0', 'off')
-    review_gaps = gaps or (['逐段獨立盤點，再比對初稿：補回漏列持股、條件買點及末段名單；核對持有者與未持有者的不同指示。不得因引句有效就認定分類正確。'] if semantic else [])
+    review_gaps = gaps + publication_gaps(signals, transcript) + (['逐段獨立盤點，再比對初稿：補回漏列持股、條件買點及末段名單；核對持有者與未持有者的不同指示。不得因引句有效就認定分類正確。'] if semantic else [])
     if review_gaps:
         repaired = {cat: [] for cat in SIGNAL_CATEGORIES + ('history', 'uncertain', 'ignored', 'market')}
         for batch in assessment_batches(transcript, date_str):
@@ -5425,7 +5475,7 @@ def audit_context_json(transcript, signals, date_str):
         if repaired is not None:
             materialize_evidence(repaired, transcript)
             recover_context(repaired, transcript)
-            gaps = evidence_gaps(repaired, transcript, signals)
+            gaps = evidence_gaps(repaired, transcript, signals) + publication_gaps(repaired, transcript)
             # Preserve omitted candidates for the audit sheet; never silently lose
             # evidence when a review response is shorter than the extraction.
             seen = set()
@@ -5440,6 +5490,10 @@ def audit_context_json(transcript, signals, date_str):
                         repaired['uncertain'].append(saved)
                         gaps.append('覆核遺漏候選：' + str(row.get('name', '')))
             signals = repaired
+    # 一次全文覆核後仍漏收或縮水，最多再補一次；原文不足不准補造。
+    if editorial_retry and publication_gaps(signals, transcript) and budget_left() > 330:
+        print('收錄／篇幅仍有缺口：合併再覆核一次（本輪最多一次），不另外重寫整封文章')
+        return audit_context_json(transcript, signals, date_str, editorial_retry=False)
     signals['_repair_gaps'] = gaps
     # 逐筆品質關卡（validate_evidence）不在這裡跑，改到代號比對之後，見 stage_extract。
     signals['_quality_requires_review'] = bool(gaps or signals.get('uncertain'))
@@ -5552,8 +5606,10 @@ def _price_band(kmap: dict, code: str, date_str: str):
     exact = days.get(date_str)
     if exact:
         return float(exact[0]), float(exact[1])
-    his = [float(v[0]) for v in days.values() if v and v[0]]
-    los = [float(v[1]) for v in days.values() if v and v[1]]
+    # 重跑歷史逐字稿不能偷用未來的行情驗價。
+    past = [v for day,v in days.items() if norm_date(day) and norm_date(day) <= date_str]
+    his = [float(v[0]) for v in past if v and v[0]]
+    los = [float(v[1]) for v in past if v and v[1]]
     if not his or not los:
         return None
     return max(his), min(los)
@@ -5623,7 +5679,7 @@ def _all_prices(text: str) -> list:
             v = float(m.group(1))
         except ValueError:
             continue
-        if 1 <= v <= 10000:
+        if 1 <= v <= 100000:
             out.append(v)
     return out
 
@@ -5634,7 +5690,7 @@ def cn_prices_in(text: str) -> list:
     for m in re.finditer(r"([零〇一二兩三四五六七八九十百千萬]{1,8})\s*(?:元|塊)",
                          strip_indicator_numbers(text)):
         v = cn_number(m.group(1))
-        if v and 1 <= v <= 10000:
+        if v and 1 <= v <= 100000:
             out.append(float(v))
     return out
 
@@ -5652,127 +5708,42 @@ def _first_price(text: str, patterns=None):
             v = float(m.group(1))
         except (TypeError, ValueError):
             continue
-        if 1 <= v <= 10000:
+        if 1 <= v <= 100000:
             return v
     return None
 
 
 def price_reality_check(ss, signals: dict, date_str: str) -> dict:
-    """把不屬於這一檔的數字清掉；靠那個數字撐起來的買賣與持有降級為觀望。"""
+    """價位與持有事實分開查；無日K仍檢查格式，不再猜倍數或改股票方向。"""
+    for cat in SIGNAL_CATEGORIES:
+        for row in signals.get(cat, []):
+            value = str(row.get('price') or '')
+            context = row.get('reason') or row.get('note') or ''
+            formatted = display_price(value, row.get('price_evidence') or '', context)
+            if formatted == '未說明' or cat in ('watch_watch','watch_avoid'):
+                row['price'] = formatted
+            if formatted == '未說明' and value.strip() in ('5','10','20','60','120','200','240') and re.search(r'均線|技術線|碰.{0,6}線|線型', context):
+                for field in ('reason','note'):
+                    if row.get(field):
+                        row[field] = re.sub(r'(?<!\d)' + re.escape(value.strip()) + r'(?!\d)(?:附近)?', '所提技術位置', row[field])
     try:
         kmap = _daily_k_cached(ss)
-    except Exception as e:
-        print(f"  價位現實檢查略過（讀不到日K快取：{e}）")
-        return signals
-    if not kmap:
-        return signals
-
-    cleared, demoted = 0, 0
-
-    for key in ("buy", "sell", "watch_avoid", "watch_watch", "holdings"):
-        keep = []
-        for r in signals.get(key, []) or []:
-            code = str(r.get("code", "")).strip()
-            band = _price_band(kmap, code, date_str) if re.fullmatch(r"\d{4,6}", code) else None
-            if not band:
-                keep.append(r)
+    except Exception as exc:
+        print(f'  價位已做本機格式檢查；日K區間暫無法核對：{exc}')
+        kmap = {}
+    for cat in SIGNAL_CATEGORIES:
+        for row in signals.get(cat, []):
+            code = str(row.get('code') or '')
+            band = _price_band(kmap, code, date_str)
+            value = display_price(row.get('price'), row.get('price_evidence'), row.get('reason'))
+            numbers = _all_prices(value)
+            if not band or not numbers:
                 continue
-            hi, lo = band
-
-            if key == "holdings":
-                val = _first_price(r.get("note") or r.get("stance"), _HOLD_PRICE_PATTERNS)
-            else:
-                val = _first_price(r.get("price"))
-            if val is None:
-                keep.append(r)
-                continue
-
-            inside = lo * (1 - PRICE_CLEAR_BAND) <= val <= hi * (1 + PRICE_CLEAR_BAND)
-            if inside:
-                keep.append(r)
-                continue
-
-            nm = r.get("name", "")
-
-            # 降級之前先試著把價位修回來。
-            #
-            # 逐字稿是語音轉文字，「跌破四千元整數關卡」不會變成 4000，
-            # 於是模型抓不到它、改去撿句子裡別的數字（實際發生過填成 38）。
-            # 那是「數字抓錯」，不是「講的是別檔」——理由摘錄裡的中文數字
-            # 只要落在這一檔的區間內，就證明方向本來是對的。
-            # 不先修就直接降級，等於把一筆正確的買入判成觀望。
-            # 只看「講者說了什麼」，不看模型自己填的 price 欄。
-            # 把 price 也丟進來的話，等於拿那個可疑的數字去驗證它自己。
-            text_pool = " ".join(str(r.get(f) or "") for f in
-                                 ("reason", "note", "stance"))
-            in_band = lambda v: lo * (1 - PRICE_CLEAR_BAND) <= v <= hi * (1 + PRICE_CLEAR_BAND)
-
-            # 修復的優先順序，從最可信排到最不可信：
-            #   1. 理由裡真的寫出來、而且落在區間內的阿拉伯數字（「3800多的四星KY」）
-            #   2. 理由裡的中文數字（「跌破四千元整數關卡」）
-            #   3. 把抓到的數字乘 10 或 100（口語省略：四千多元的股票，
-            #      他會說「38X」「破39」，意思是 3800、3900）
-            # 三種都是「數字抓錯」而不是「講的是別檔」，方向本來就是對的。
-            fixed, how = None, ""
-            for cand in _all_prices(text_pool):
-                if in_band(cand):
-                    fixed, how = cand, "理由裡寫出來的數字"
-                    break
-            if fixed is None:
-                for cand in cn_prices_in(text_pool):
-                    if in_band(cand):
-                        fixed, how = cand, "理由裡的中文數字"
-                        break
-            if fixed is None:
-                # 補位數之前，先確認講者真的說過這個數字。
-                #
-                # 沒有這個條件的話，任何「不在區間內」的數字都能靠乘 10 或 100
-                # 湊進區間——那會把「這句話講的其實是別檔」那種真的接錯檔的情況
-                # 也一併救回來，等於把整道保護拆掉。
-                # 講者說了 38、股價區間在幾千，才是口語省略位數；
-                # 理由裡根本沒有這個數字，那就是接錯檔。
-                said = re.search(r"(?<!\d)" + re.escape(f"{val:g}") + r"(?!\d)", text_pool)
-                if said:
-                    scaled = [val * m for m in (10, 100) if in_band(val * m)]
-                    if len(scaled) == 1:
-                        fixed, how = scaled[0], f"口語省略位數，{val:g} 應為 {scaled[0]:g}"
-
-            if fixed is not None:
-                print(f"  價位現實檢查　{nm}（{code}）原本的 {val} 不在 {lo}-{hi} 之內，"
-                      f"改用 {fixed:g}（{how}），方向維持不變")
-                r["price"] = f"{fixed:g}"
-                keep.append(r)
-                continue
-
-            way_off = (val > hi * PRICE_DEMOTE_X) or (val < lo / PRICE_DEMOTE_X)
-
-            if key != "holdings":
-                print(f"  價位現實檢查　{nm}（{code}）的 {val} 不在 {lo}-{hi} 之內，"
-                      f"價位說明清為未說明")
-                r["price"] = "未說明"
-                cleared += 1
-
-            if way_off and key in ("buy", "sell", "holdings"):
-                # 這一筆的依據是一個不屬於這一檔的數字，那句話講的是隔壁那一檔。
-                # 但不能直接刪掉——他確實點名了這一檔，只是立場被接錯了。
-                # 降到觀望注意是最保守的落點：留住「有提到」，去掉「有部位」。
-                was = _CAT_LABEL.get(key, key)
-                why = (f"原判定為{was}，但依據的價位 {val} 與這一檔的區間 "
-                       f"{lo}-{hi} 差了超過 {PRICE_DEMOTE_X:.0f} 倍，"
-                       f"研判是接錯檔，降為觀望")
-                print(f"  價位現實檢查　{nm}（{code}）{why}")
-                item = {"name": r.get("name", ""), "code": code, "price": "未說明",
-                        "reason": str(r.get("reason") or r.get("note") or "未說明")[:60],
-                        "降級原因": why}
-                signals.setdefault("watch_watch", []).append(item)
-                demoted += 1
-                continue
-
-            keep.append(r)
-        signals[key] = keep
-
-    if cleared or demoted:
-        print(f"價位現實檢查：清掉不屬於該檔的價位 {cleared} 筆，降級為觀望 {demoted} 筆")
+            high, low = band
+            if not low * (1-PRICE_CLEAR_BAND) <= numbers[0] <= high * (1+PRICE_CLEAR_BAND):
+                row['price'] = '未說明'
+                note_decision('價位校對','價位超出快取區間，未補猜',row.get('name',''),value)
+                print(f'  價位校對 {row.get("name", code)}：{value} 超出 {low}-{high}，價位未說明；分類維持原文判定')
     return signals
 
 # ---------------------------------------------------------------- #
@@ -5980,36 +5951,14 @@ def demote_watch_retrospectives(signals):
 
 
 def demote_watch_examples(signals):
-    """
-    只被拿來說明盤勢的股票不是觀望，退到 ignored。
-
-    2026/09/10：「2379 瑞昱好股票，他有沒有停在這邊三個月都沒有動」「8271 宇瞻，假設你買三個月
-    還在這邊」——講者拿來說明整個盤在盤整，對這兩檔沒有任何要買、要等、不要碰的指示，
-    卻被列進觀望注意，說明欄寫「節目中回顧其走勢情況」。
-    只在「理由像舉例」而且「沒有任何指示」兩者都成立時才退，寧可漏退也不誤退。
-    """
-    moved = []
-    for cat in ('watch_avoid', 'watch_watch'):
-        keep = []
-        for r in signals.get(cat, []) or []:
-            reason = str(r.get('reason') or '') if isinstance(r, dict) else ''
-            if reason and not r.get('view') and _EXAMPLE_MARK.search(reason) and not _has_directive(reason):
-                r['_原分類'] = r.get('_原分類') or cat
-                signals.setdefault('ignored', []).append(r)
-                moved.append(str(r.get('name') or ''))
-                note_decision('品質關卡', '舉例說明，不列觀望', str(r.get('name') or ''), reason)
-            else:
-                keep.append(r)
-        signals[cat] = keep
-    if moved:
-        print(f"  只拿來說明盤勢、沒有指示，不列觀望：{'、'.join(moved)}")
+    """相容舊呼叫；行情舉例已納入觀察範圍，不能在模型覆核後再刪掉。"""
     return signals
 
 
 def _row_keys(row):
     """認同一檔用的鍵：合法代號，加上名稱與聽到的原字。"""
     code = str(row.get('code') or '').strip()
-    keys = {code} if re.fullmatch(r'\d{4,6}', code) else set()
+    keys = {code} if re.fullmatch(r'(?:00981A|\d{4,6})', code) else set()
     for n in (row.get('name'), row.get('原始語音名稱')):
         if n and len(_ev_norm(n)) >= 2:
             keys.add(_ev_norm(n))
@@ -6043,7 +5992,7 @@ _OWN_CUES = ("持有", "持股", "我有", "我們有", "會員有", "抱", "成
 def demote_holding_mentions(signals):
     """
     會員持股必須有「持有」的說法（我有、會員有、抱著、成本多少、不賣……）；
-    只在比喻或舉例裡被點到名的不是持股，退到 ignored。
+    只在比喻或舉例裡被點到名的不是持股，留為中性觀察。
 
     2026/09/11：「台積電、鴻海、四星KY、大立光、聯發科都在這一顆球裡面」——聯發科只出現在
     這一句比喻裡，卻被列進會員持股，說明寫「影片中提及聯發科在大球（大環境）裡面」。
@@ -6073,7 +6022,9 @@ def demote_holding_mentions(signals):
             keep.append(r)
             continue
         r['_原分類'] = 'holdings'
-        signals.setdefault('ignored', []).append(r)
+        r['reason'] = text or '節目提及此標的，未說明目前持有或進場指示。'
+        r['price'] = '未說明'
+        signals.setdefault('watch_watch', []).append(r)
         moved.append(str(r.get('name') or ''))
         note_decision('品質關卡', '只被點名、沒有持有的說法，不列持股', str(r.get('name') or ''), text)
     signals['holdings'] = keep
@@ -7029,7 +6980,7 @@ def resolve_cost_prices(ss, dates=None) -> dict:
     rows = []
     for idx, row in enumerate(values[1:], start=2):
         day, code = norm_date(g(row, c_date)), g(row, c_code)
-        if not day or not re.fullmatch(r"\d{4,6}", code):
+        if not day or not re.fullmatch(r"(?:00981A|\d{4,6})", code):
             continue
         rows.append((idx, day, code, row))
         if g(row, c_dir).startswith("買"):
@@ -7633,6 +7584,37 @@ def _transcript_rows_of_day(ss, date_str):
     return got
 
 
+_DEFER_BACKGROUND = False
+_BACKGROUND_REFRESH = []
+
+def drain_background_refresh():
+    """文章已落地後才補日 K；中斷保留等待狀態供五分鐘觸發器續跑。"""
+    global _DEFER_BACKGROUND
+    _DEFER_BACKGROUND = False
+    all_done = True
+    while _BACKGROUND_REFRESH:
+        ss, vid, day, raw, affected, progress = _BACKGROUND_REFRESH.pop(0)
+        try:
+            job = globals().get('_CURRENT_JOB')
+            if job: job_progress(job,step='刷新網站',status='處理中',note='文章已更新；背景日K／績效開始')
+            if progress: progress('文章已更新；背景日K／績效開始，無須重新投稿')
+            result = finish_transcript_refresh(ss, vid, day, raw, affected, progress)
+            all_done = all_done and not result.get('pending')
+            job = globals().get('_CURRENT_JOB')
+            if job:
+                if result.get('pending'):
+                    all_done = False
+                    job_progress(job, step='刷新網站', status='等待日K', note='文章已更新；' + result['note'])
+                else:
+                    mark_status(ss, vid, day, '後台投稿 '+day, '完成')
+                    job_progress(job,step='完成',done=len(ADMIN_STEP_NAMES),total=len(ADMIN_STEP_NAMES),status='完成',note='文章已更新；背景日K與績效已完成；未重寄已寄信件')
+        except Exception as exc:
+            all_done = False
+            job = globals().get('_CURRENT_JOB')
+            if job: job_progress(job,step='刷新網站',status='等待日K',note='文章已更新；背景更新暫停，將自動續跑：'+str(exc))
+            print('背景更新暫停，保留檢查點：'+str(exc))
+    return all_done
+
 def finish_transcript_refresh(ss, vid, date_str, raw, affected, on_progress=None):
     state=load_refresh_checkpoint(ss,vid,date_str,raw) or {'affected':affected,'completed':[]}
     dates=state['affected'] or [date_str]
@@ -7650,6 +7632,9 @@ def finish_transcript_refresh(ss, vid, date_str, raw, affected, on_progress=None
             print('刷新檢查點：略過已完成 '+marker);continue
         if ADMIN_JOB and budget_left()<330:
             return {'ok':False,'pending':True,'note':'本輪刷新時間預算將到，已保存檢查點，將自動續跑剩餘步驟'}
+        if name == 'perfhist' and _DEFER_BACKGROUND:
+            _BACKGROUND_REFRESH.append((ss,vid,date_str,raw,dates,on_progress))
+            return {'ok':False,'pending':True,'note':'文章已更新；背景日K／績效將在 Gemini 用量摘要之後執行'}
         result=maybe_refresh_site(only=[name],force=True,date_str=d)
         if name == 'perfhist' and result and result.get('pending') and result.get('blocked_by') == 'dailyk':
             print('績效缺日K：自動接續補齊快取，完成後重算持股及績效。')
@@ -7711,6 +7696,8 @@ def run_admin_job(ss):
         print("沒有待處理的後台工單。")
         return
 
+    global _CURRENT_JOB
+    _CURRENT_JOB = job
     vid, date_str = job["videoId"], job["date"]
     print(f"工單 {job['id']}　{date_str}　影片 {vid}")
 
@@ -7732,7 +7719,7 @@ def run_admin_job(ss):
     print(f"原始逐字稿 {len(v1)} 字")
 
     def refresh_progress(note):
-        job_progress(job,step='刷新網站',note=note)
+        job_progress(job,step='刷新網站',note=('文章已更新；' if not _DEFER_BACKGROUND else '') + note)
 
     checkpoint=load_refresh_checkpoint(ss,vid,date_str,v1)
     if checkpoint and 'complete' not in checkpoint.get('completed',[]):
@@ -8003,7 +7990,7 @@ def sms_needs_empty_audit(text: str, code_map: dict) -> bool:
     if not re.search(r"買進|買入|買回|加碼|賣出|出清|獲利|續抱|抱牢|持股|不要買|不要碰|觀望|留意|追蹤", body):
         return False
     if any(re.search(r"(?<!\d)" + re.escape(str(code)) + r"(?!\d)", body)
-           for code in code_map if re.fullmatch(r"\d{4,6}", str(code))):
+           for code in code_map if re.fullmatch(r"(?:00981A|\d{4,6})", str(code))):
         return True
     names = {str(name).strip() for name in code_map.values() if len(str(name).strip()) >= 2}
     return any(name in body for name in names)
@@ -8055,7 +8042,7 @@ def verify_sms_item(it: dict, body: str, code_map: dict) -> dict | None:
 
     # 防呆：若 name 開頭自帶 4-6 位數代號如 "6770力積電"，自動分離代號與純名稱
     hint = str(it.get("code") or "").strip()
-    m_code = re.match(r"^(\d{4,6})\s*(.+)$", name)
+    m_code = re.match(r"^((?:00981A|\d{4,6}))\s*(.+)$", name)
     if m_code:
         if not hint:
             hint = m_code.group(1)
@@ -8132,7 +8119,7 @@ def load_saved_sms_items(raw_detail: str) -> tuple[bool, list[dict]]:
         # 代號待確認是合法的保存結果，不是壞掉的明細。
         # 先前只要有一筆待確認就把整篇判為損壞，於是那一篇每一輪都被重新
         # 送進 Gemini，而重解析的結果仍然是待確認，永遠不會停。
-        if code and not re.fullmatch(r"\d{4,6}", code) and code != UNRESOLVED:
+        if code and not re.fullmatch(r"(?:00981A|\d{4,6})", code) and code != UNRESOLVED:
             return False, []
         if not code:
             code = UNRESOLVED
@@ -9517,7 +9504,7 @@ def reconcile_all(ss):
     suspect = sorted({str(row[c_name]).strip()
                       for row in tvals[1:]
                       if str(row[c_name]).strip()
-                      and (not re.match(r"^\d{4,6}$", str(row[c_code]).strip()))})
+                      and (not re.match(r"^(?:00981A|\d{4,6})$", str(row[c_code]).strip()))})
     industry = set()
     if suspect:
         # 先用規則擋一輪，剩下的才問 AI
@@ -10820,10 +10807,13 @@ def main():
 
 if __name__ == "__main__":
     try:
+        _DEFER_BACKGROUND = ADMIN_JOB
         main()
-        print(gemini_usage_report())
+        print(gemini_usage_report(), flush=True)
+        background_done = drain_background_refresh()
         if _SS is not None:
-            write_status_log(_SS, "完成", f"本輪正常結束（未潤飾段數 {POLISH_DEGRADED}）")
+            write_status_log(_SS, "完成" if background_done else "背景待續跑",
+                             f"本輪正常結束（未潤飾段數 {POLISH_DEGRADED}）" if background_done else '文章已更新；背景日K／績效尚未完成，已保存檢查點')
     except NotReadyYet as e:
         # 綠燈離開。VOD 還沒好不是壞掉，不該亮紅燈，也不該觸發失敗告警。
         print(f"本輪未取得逐字稿：{e}")

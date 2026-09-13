@@ -778,6 +778,127 @@ APPS_SCRIPT_URL = os.environ.get("APPS_SCRIPT_URL", "").strip()
 ADMIN_KEY = os.environ.get("ADMIN_KEY", "").strip()
 
 
+# ------------------------------------------------------------------ #
+# 下游版本確認（ping）
+#
+# 貼了新程式碼但沒部署新版本，是這個專案最常見的坑，而症狀常常偽裝成別的問題：
+# 舊版收到它不認得的 step 參數會直接忽略，照舊跑完整條鏈然後超時。
+# 所以刷新前先問一次 ping，確認 build 與 features。
+#
+# 2026/09/10、09/13、09/13 晚上三次實際發生：同一個執行裡前一次 ping 拿到 build，
+# 下一次 ping 卻收到 HTTP 404 的 Google 網頁，整條刷新停下、工單標成失敗，
+# 日誌還叫人去改 GitHub Secret。那不是部署或網址錯誤：
+#   最終網址是 script.googleusercontent.com/macros/echo，代表 /exec 已經收下請求、
+#   執行了 doGet 並轉址，是 Apps Script 前端吐回應那一層偶發的 404，
+#   隔幾秒再打就好（步驟請求早就為此加了重試，ping 卻沒有）。
+#
+# 改成：
+#   一、同一次刷新流程（finish_transcript_refresh，一次最多七、八個步驟）只 ping 一次，
+#       成功就沿用到流程結束。每一步都再問一次只是多給暫時性錯誤幾次機會。
+#       範圍刻意只到一次流程：流程結束就清掉，不留一個跨呼叫的全域快取。
+#   二、失敗時與步驟請求同一套重試（等 8、16 秒，共 3 次）。
+#       Google 登入頁與 doGet 真的拋錯（<title>Error</title>）不重試，重試結果也一樣。
+#   三、仍失敗就依證據講清楚是哪一種，並標記是否暫時性，交給呼叫端改成等待續跑，
+#       不再一律說成「網址指向舊部署」。
+# ------------------------------------------------------------------ #
+_PING_SESSION = {'depth': 0, 'url': None, 'info': None}
+PING_ATTEMPTS = 3
+
+
+class ping_session:
+    """在這個區塊內，ping 成功一次就沿用；區塊結束即清除。可以巢狀。"""
+
+    def __enter__(self):
+        _PING_SESSION['depth'] += 1
+        return self
+
+    def __exit__(self, *exc):
+        _PING_SESSION['depth'] -= 1
+        if _PING_SESSION['depth'] <= 0:
+            _PING_SESSION.update(depth=0, url=None, info=None)
+        return False
+
+
+def _ping_failure_hint(status, final_url, body):
+    """依實際收到的內容判斷失敗種類。回傳 (是否暫時性, 說明列)。"""
+    low = (body or '').lower()
+    if 'accounts.google.com' in low or 'servicelogin' in low:
+        return False, ['這是 Google 登入頁：部署的「誰可以存取」不是「所有人」。',
+                       '管理部署作業 → 編輯 → 誰可以存取改成「所有人」，再重跑。']
+    if '<title>error</title>' in low:
+        return False, ['這是 Apps Script 錯誤頁：doGet 執行時拋出例外。',
+                       '到 Apps Script 左側「執行紀錄」找最近一次 doGet 看實際訊息。']
+    if 'script.googleusercontent.com/macros/echo' in str(final_url or ''):
+        return True, [f'最終網址是 script.googleusercontent.com/macros/echo：/exec 已收下請求並執行 doGet，部署本身存在。',
+                      f'HTTP {status} 是 Apps Script 前端回傳結果時的暫時性錯誤，不是網址或部署錯誤，不需要改 GitHub Secret。',
+                      '已保存刷新檢查點；後台工單會改為「等待續跑」，由既有觸發器自動續跑，也可以按「續跑卡住的工單」。']
+    return False, ['收到的是網頁而不是 JSON，而且沒有經過 Apps Script 的轉址。',
+                   '最常見的原因是 APPS_SCRIPT_URL 指向另一個舊部署（沒有 ping 分支）。',
+                   '在 Apps Script 執行 showDeployInfo()，比對它印出的網址與 GitHub Secret 的 APPS_SCRIPT_URL，',
+                   '/macros/s/ 後面那一長串 ID 必須完全一致。']
+
+
+def ping_downstream():
+    """
+    回傳 (ping 資訊, None) 或 (None, {'transient': bool, 'error': str})。
+    在 ping_session 區塊內，成功結果沿用到區塊結束；區塊外每次都問。
+    """
+    in_session = _PING_SESSION['depth'] > 0
+    cached = _PING_SESSION['info'] if in_session and _PING_SESSION['url'] == APPS_SCRIPT_URL else None
+    if cached:
+        print(f"\n下游版本（本輪已確認）　build={cached.get('build', '未知')}")
+        return cached, None
+    print("\n先確認下游版本……", end=" ", flush=True)
+    last = None
+    for attempt in range(PING_ATTEMPTS):
+        try:
+            pr = requests.get(APPS_SCRIPT_URL, params={"action": "ping"},
+                              timeout=60, headers={"User-Agent": "zhangzhen-pipeline"})
+            body = pr.text or ''
+            try:
+                info = json.loads(body[:4000])
+            except Exception:
+                info = None
+            if isinstance(info, dict):
+                if in_session:
+                    _PING_SESSION.update(url=APPS_SCRIPT_URL, info=info)
+                if attempt:
+                    print(f"（第 {attempt + 1} 次成功）", end=" ")
+                return info, None
+            last = ('html', pr.status_code, pr.url, body)
+            transient, _ = _ping_failure_hint(pr.status_code, pr.url, body)
+            low = body.lower()
+            retryable = transient or not ('accounts.google.com' in low or 'servicelogin' in low
+                                          or '<title>error</title>' in low)
+        except requests.exceptions.RequestException as e:
+            last = ('conn', None, APPS_SCRIPT_URL, str(e))
+            retryable = True
+        if not retryable or attempt == PING_ATTEMPTS - 1:
+            break
+        wait = 8 * (attempt + 1)
+        what = f"HTTP {last[1]} 網頁" if last[0] == 'html' else "連線失敗"
+        print(f"\n  ping 收到{what}，多半是 Apps Script 前端的暫時性錯誤，等 {wait} 秒後重試 {attempt + 2}/{PING_ATTEMPTS}",
+              end=" ", flush=True)
+        time.sleep(wait)
+
+    kind, status, final_url, body = last
+    if kind == 'conn':
+        print(f"連線失敗（已試 {PING_ATTEMPTS} 次）：{body}")
+        print(f"  設定的網址：{APPS_SCRIPT_URL}")
+        print("  已保存刷新檢查點；後台工單會改為「等待續跑」並自動續跑。")
+        return None, {'transient': True, 'error': f'下游連線失敗：{body[:120]}'}
+    snippet = body[:200].replace("\n", " ")
+    transient, lines = _ping_failure_hint(status, final_url, body)
+    print(f"回應不是 JSON（HTTP {status}，已試 {PING_ATTEMPTS} 次）")
+    print(f"  設定的網址：{APPS_SCRIPT_URL}")
+    print(f"  最終網址　：{final_url}")
+    print(f"  內容開頭　：{snippet}")
+    for line in lines:
+        print("  >>> " + line)
+    return None, {'transient': transient,
+                  'error': f"下游 ping 回 HTTP {status} 網頁" + ('（暫時性）' if transient else '')}
+
+
 def maybe_refresh_site(only=None, force=False, date_str="", on_progress=None):
     """
     要求 Apps Script 立刻重算全站。
@@ -907,48 +1028,12 @@ def maybe_refresh_site(only=None, force=False, date_str="", on_progress=None):
     # 別的問題：舊版收到它不認得的 step 參數會直接忽略，照舊跑完整條鏈然後超時，
     # 回應看起來像「這一步太慢」，跟版本沒對上完全看不出關係。
     # 先問一次 ping，把這種情況攔在前面並講清楚。
-    print("\n先確認下游版本……", end=" ", flush=True)
-    try:
-        pr = requests.get(APPS_SCRIPT_URL, params={"action": "ping"},
-                          timeout=60, headers={"User-Agent": "zhangzhen-pipeline"})
-    except Exception as e:
-        print(f"連線失敗：{e}")
-        print(f"設定的網址：{APPS_SCRIPT_URL}")
-        return
-
-    try:
-        pinfo = json.loads(pr.text[:4000])
-    except Exception:
-        # 這裡一定要把實際收到什麼印出來。
-        #
-        # 只說「不是 JSON」等於什麼都沒說，而這個錯誤最常見的成因是
-        # 「Secret 裡的網址指向另一個舊部署」——同一支 ping 在瀏覽器好好的，
-        # 在這裡卻拿到 HTML，因為兩邊打的根本不是同一個部署。
-        # 把最終網址與內容開頭印出來，一眼就能比對出來。
-        body = (pr.text or "")[:200].replace("\n", " ")
-        low = body.lower()
-        print(f"回應不是 JSON（HTTP {pr.status_code}）")
-        print(f"  設定的網址：{APPS_SCRIPT_URL}")
-        print(f"  最終網址　：{pr.url}")
-        print(f"  內容開頭　：{body}")
-        print("")
-        if "accounts.google.com" in low or "servicelogin" in low:
-            print("  >>> 這是 Google 登入頁。部署的「誰可以存取」不是「所有人」。")
-            print("      管理部署作業 → 編輯 → 誰可以存取改成「所有人」。")
-        elif "<title>error</title>" in low:
-            print("  >>> 這是 Apps Script 錯誤頁，doGet 執行時出錯。")
-            print("      到 Apps Script 左側「執行紀錄」看實際訊息。")
-        else:
-            print("  >>> 收到的是網頁而不是 JSON，代表這個部署的程式碼沒有 ping 分支，")
-            print("      也就是它跑的是舊版。最常見的原因是這裡設定的網址")
-            print("      與你剛才在瀏覽器測試成功的那一個，不是同一個部署。")
-            print("")
-            print("      怎麼確認：在 Apps Script 執行 showDeployInfo()，")
-            print("      比對它印出來的網址與上面「設定的網址」，")
-            print("      兩者 /macros/s/ 後面那一長串 ID 必須完全一致。")
-            print("      不一致就把 showDeployInfo() 印的那個更新到 GitHub Secret")
-            print("      的 APPS_SCRIPT_URL，然後重跑。")
-        return
+    # 動手之前先確認雙方版本一致（ping_downstream）。同一個執行只問一次，
+    # 暫時性錯誤會自己重試；問不到時回傳結構化的失敗，由呼叫端決定停下還是等待續跑。
+    pinfo, ping_fail = ping_downstream()
+    if ping_fail:
+        return {"ok": False, "done": 0, "failed": 1,
+                "transient": ping_fail["transient"], "error": ping_fail["error"]}
 
     feats = pinfo.get("features") or []
     print(f"build={pinfo.get('build', '未知')}")
@@ -1020,6 +1105,8 @@ def maybe_refresh_site(only=None, force=False, date_str="", on_progress=None):
         return
 
     consecutive_fail = 0
+    # 步驟失敗是不是暫時性的（連線中斷、Apps Script 前端回 HTML）。暫時性的交給呼叫端等待續跑。
+    transient_fail = False
     for i, (key, label) in enumerate(STEPS, 1):
         # 分批的步驟要重複呼叫到做完為止。
         # 一次做不完是設計，不是失敗：每次只跑約九十秒就回報進度，
@@ -1081,6 +1168,7 @@ def maybe_refresh_site(only=None, force=False, date_str="", on_progress=None):
             if body is None:
                 fail_n += 1
                 step_failed = True
+                transient_fail = True
                 sms_sync_progress(i - 1, label, rounds, "連線失敗")
                 break
 
@@ -1112,6 +1200,7 @@ def maybe_refresh_site(only=None, force=False, date_str="", on_progress=None):
                 if plain:
                     print("       回應摘要：" + html_lib.unescape(plain)[:240])
                 print("       日K 游標與已完成批次均保留，可直接從補齊日K接續。")
+                transient_fail = True
                 break
 
             try:
@@ -1208,7 +1297,8 @@ def maybe_refresh_site(only=None, force=False, date_str="", on_progress=None):
         print("若某一步固定失敗，到 Apps Script 左側「執行紀錄」看那一支函式的錯誤。")
     else:
         print("網站已是最新內容。")
-    return {"ok": fail_n == 0 and ok_n == len(STEPS), "done": ok_n, "failed": fail_n}
+    return {"ok": fail_n == 0 and ok_n == len(STEPS), "done": ok_n, "failed": fail_n,
+            "transient": bool(fail_n and transient_fail)}
 
 
 def _full_fix_progress(last_seen):
@@ -8245,7 +8335,8 @@ def drain_background_refresh():
             if job:
                 if result.get('pending'):
                     all_done = False
-                    job_progress(job, step='刷新網站', status='等待日K', note='文章已更新；' + result['note'])
+                    note = result['note'] if result['note'].startswith('文章已更新') else '文章已更新；' + result['note']
+                    job_progress(job, step='刷新網站', status=waiting_status(result), note=note)
                 else:
                     finish_admin_job(job, ss, vid, day, '後台投稿 '+day, result.get('review', ''),
                                      '文章已更新；背景日K與績效已完成；未重寄已寄信件')
@@ -8256,7 +8347,57 @@ def drain_background_refresh():
             print('背景更新暫停，保留檢查點：'+str(exc))
     return all_done
 
+def describe_row_changes(before, after):
+    """
+    比較刷新步驟前後這一天的逐字稿紀錄，分出「名稱補正」與「真的少了」。
+
+    計數的鍵是（分頁, 股票名稱, 方向）。撰稿前代號補齊會把代號待確認的列改成正式名稱
+    （2026/09/11「信化」→「信驊」），名稱一變，舊鍵就少一筆、新鍵多一筆。
+    先前只看「少了哪些鍵」，於是一筆改名被報成「少了 1 筆」，看起來像資料被刪。
+    同一分頁、同一方向裡，少掉的名稱與多出的名稱先配成改名；配不完的才是真的少了。
+    回傳 (改名說明列表, 減少說明列表, 減少筆數)。
+    """
+    from collections import Counter
+    groups = {}
+    for src, sign in ((before, 1), (after, -1)):
+        for (sheet, name, direction), n in src.items():
+            groups.setdefault((sheet, direction), Counter())[name] += sign * n
+    renamed, lost_items, lost_n = [], [], 0
+    for (sheet, direction), diff in sorted(groups.items()):
+        gone = [n for n, c in sorted(diff.items()) if c > 0 for _ in range(c)]
+        came = [n for n, c in sorted(diff.items()) if c < 0 for _ in range(-c)]
+        label = f'{sheet}{direction}'
+        if gone and came:
+            renamed.append(f"{label}「{'、'.join(gone)}」→「{'、'.join(came)}」")
+        if len(gone) > len(came):
+            k = len(gone) - len(came)
+            lost_n += k
+            lost_items.append(f"{label} 少了 {k} 筆（{'、'.join(gone)}" + (' 之中' if came else '') + '）')
+    return renamed, lost_items, lost_n
+
+
+def _transient_pending(marker, result, dates, done):
+    """下游暫時性失敗：不拋錯、不標失敗，回傳等待續跑。檢查點已保存，續跑會從這一步接著做。"""
+    ready = all(('smsmail:' + x) in done for x in dates)
+    print(f"刷新暫停在 {marker}：{result.get('error') or '下游暫時沒有回應'}；已保存刷新檢查點，將自動續跑。")
+    return {'ok': False, 'pending': True, 'transient': True,
+            'note': ('文章已更新；' if ready else '') +
+                    f"{marker} 暫停：Apps Script 暫時沒有回應（{result.get('error') or '連線中斷'}），"
+                    "已保存檢查點，將自動續跑，無須重新投稿"}
+
+
+def waiting_status(result):
+    """等待中的工單狀態：下游暫時性失敗是「等待續跑」，日K／績效相依資料未齊是「等待日K」。"""
+    return '等待續跑' if (result or {}).get('transient') else '等待日K'
+
+
 def finish_transcript_refresh(ss, vid, date_str, raw, affected, on_progress=None):
+    """刷新網站的步驟鏈。整條鏈共用一次下游版本確認（ping_session），不在每一步重問。"""
+    with ping_session():
+        return _finish_transcript_refresh(ss, vid, date_str, raw, affected, on_progress)
+
+
+def _finish_transcript_refresh(ss, vid, date_str, raw, affected, on_progress=None):
     state=load_refresh_checkpoint(ss,vid,date_str,raw) or {'affected':affected,'completed':[]}
     dates=state['affected'] or [date_str]
     done=state['completed']
@@ -8277,10 +8418,14 @@ def finish_transcript_refresh(ss, vid, date_str, raw, affected, on_progress=None
             _BACKGROUND_REFRESH.append((ss,vid,date_str,raw,dates,on_progress))
             return {'ok':False,'pending':True,'note':'文章已更新；背景日K／績效將在 Gemini 用量摘要之後執行'}
         result=maybe_refresh_site(only=[name],force=True,date_str=d)
+        if result and result.get('transient'):
+            return _transient_pending(marker, result, dates, done)
         if name == 'perfhist' and result and result.get('pending') and result.get('blocked_by') == 'dailyk':
             print('績效缺日K：自動接續補齊快取，完成後重算持股及績效。')
             repair = maybe_refresh_site(only=['dailyk'], force=True, date_str=d,
                                         **({'on_progress':on_progress} if on_progress else {}))
+            if repair and repair.get('transient'):
+                return _transient_pending('dailyk:' + d, repair, dates, done)
             if repair and (repair.get('partial') or repair.get('pending')):
                 return {'ok': False, 'pending': True, 'note': '日K分批補齊中，已保存游標與刷新檢查點，將自動續跑'}
             if not repair or not repair.get('ok'):
@@ -8292,12 +8437,16 @@ def finish_transcript_refresh(ss, vid, date_str, raw, affected, on_progress=None
                 return {'ok':False,'pending':True,'note':'日K已補齊，時間預算將到，下一輪自動續算持股與績效'}
             # tracker 先前在空快取下跑過，補好 K 後必須再算一次。
             tracker = maybe_refresh_site(only=['tracker'], force=True, date_str=d)
+            if tracker and tracker.get('transient'):
+                return _transient_pending('tracker:' + d, tracker, dates, done)
             if not tracker or not tracker.get('ok'):
                 raise RuntimeError('補日K後重算持股追蹤失敗')
             if 'tracker:'+d not in done:
                 done.append('tracker:'+d)
                 save_refresh_checkpoint(ss,vid,date_str,raw,dates,done)
             result = maybe_refresh_site(only=['perfhist'], force=True, date_str=d)
+            if result and result.get('transient'):
+                return _transient_pending(marker, result, dates, done)
             if result and result.get('pending'):
                 return {'ok': False, 'pending': True, 'note': '已補日K但交易日曆仍未備齊，等待自動續跑；績效尚未完成'}
         if not result or not result.get('ok'):
@@ -8310,10 +8459,14 @@ def finish_transcript_refresh(ss, vid, date_str, raw, affected, on_progress=None
             continue
         after = _transcript_rows_of_day(ss, date_str)
         if before is not None and after is not None:
-            lost = before - after
-            if lost:
-                items = '、'.join(f'{s}「{n}」{k}' for (s, n, k), c in sorted(lost.items()) for _ in range(c))
-                print(f'  注意：刷新步驟「{name}」之後，{date_str} 的逐字稿紀錄少了 {sum(lost.values())} 筆：{items}')
+            renamed, lost_items, lost_n = describe_row_changes(before, after)
+            if renamed:
+                items = '；'.join(renamed)
+                print(f'  名稱補正：刷新步驟「{name}」之後，{date_str} 有 {len(renamed)} 組名稱改成正式名稱（筆數不變，不是刪除）：{items}')
+                note_decision('刷新網站', f'{name} 之後名稱補正', date_str, items)
+            if lost_n:
+                items = '；'.join(lost_items)
+                print(f'  注意：刷新步驟「{name}」之後，{date_str} 的逐字稿紀錄少了 {lost_n} 筆：{items}')
                 note_decision('刷新網站', f'{name} 之後紀錄減少', date_str, items)
                 lost_all.append({'step': name, 'rows': items})
         if after is not None:
@@ -8367,7 +8520,7 @@ def run_admin_job(ss):
         job_progress(job,step='刷新網站',note='來源與規則版本相同，從刷新檢查點續跑')
         result = finish_transcript_refresh(ss,vid,date_str,v1,checkpoint['affected'],on_progress=refresh_progress)
         if result.get('pending'):
-            job_progress(job, step='刷新網站', status='等待日K', note=result['note'])
+            job_progress(job, step='刷新網站', status=waiting_status(result), note=result['note'])
             return
         finish_admin_job(job, ss, vid, date_str, '後台投稿 '+date_str, result.get('review', ''),
                          '已從檢查點完成郵件內容、持股追蹤與績效；未重跑AI或重寄信件')
@@ -8426,7 +8579,7 @@ def run_admin_job(ss):
         result = finish_transcript_refresh(ss,vid,date_str,v1,affected or [date_str],on_progress=refresh_progress)
         if result.get('pending'):
             review = getattr(affected, 'review', '')
-            job_progress(job, step='刷新網站', status='等待日K',
+            job_progress(job, step='刷新網站', status=waiting_status(result),
                          note=result['note'] + (f'；{review}' if review else ''))
             return
     except Exception as e:
@@ -11071,6 +11224,9 @@ def main():
         print("補日K是分批做的，一次約 45 秒，做不完會自動再打下一批；")
         print("游標存在 Apps Script，這一輪沒補完的，明天同一時間會接著補。")
         result = maybe_refresh_site(only=["dailyk"], force=True)
+        if result and result.get('transient'):
+            print('補日K：下游暫時沒有回應，游標與已完成批次保留，下一次排程接著補。')
+            return
         if not result or (not result.get('ok') and not result.get('partial')):
             raise RuntimeError('補日K失敗；已完成批次與游標保留，請查看下游錯誤後續跑')
         return

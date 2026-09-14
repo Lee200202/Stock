@@ -4058,7 +4058,7 @@ reason、note、market text 是公開文字，不寫人名當主詞或所有格�
 一、手中持股順口帶過：「張正手中告訴你的買進的股票，比如說想碩、比如說普位」「對我還有紅準」「你們都知道我有詳」→ 每一檔各一筆 holdings。
 二、講買進價位、買到現在或昨天買的還在手上：「我從1820、2025、2135買到現在，買這三次我沒有賣掉」「這一檔本來就是我會員買的股票，8月25號1580以下買加折」「我昨天買的四星KY，今天漲30幾塊」→ holdings（同一檔若另外叫還沒有的人去買，再加一筆 watch_watch）。
 三、一口氣念出的名單：「我連後面要什麼聖輝、新代、加折還有木德，我以後要買的股票通列出來給你看了」→ 名單裡每一檔各一筆 watch_watch（已是持股的仍列 holdings）。
-四、等條件或等別人賣完：「等ETF賣完這支股票就漲，買點就來了」「你沒有破900我不想買」→ watch_watch，reason 寫出那個條件。講的是哪一檔要從同一段的名稱找（ETF 出清的那一檔原文寫初清程、出金城＝勤誠）；同一段真的沒有名稱才放 ignored，不可由股價猜公司。
+四、等條件或等別人賣完：講者明講現在還不能買、還不行、不想買，要等 ETF 賣完或跌破某價才考慮（「今天破900你可以買嗎？還不行，00981A還沒賣完」「你沒有破900我不想買」）→ watch_avoid，reason 寫出等待條件；只給可照做的買點、沒說現在不能買（「900以下是買點」「等補完缺口站回去」）→ watch_watch。講的是哪一檔要從同一段的名稱找（ETF 出清的那一檔原文寫初清程、出金城＝勤誠）；同一段真的沒有名稱才放 ignored，不可由股價猜公司。
 五、過去叫人賣、現在看壞：「越想解套國巨你就越死」「他一定會殺破」→ watch_avoid（見【日期未明與現況看法】）。
 六、點名個股當負面示範：「昨天大漲今天大跌」「追高就賠」「外資買一天賣一天」「昨天買今天跌」「總比你去買環球金好」「買的人全部賠錢」「不准買」→ 各一筆 watch_avoid，不可寫成值得留意。
 七、族群點名並講本股業績好、不用擔心、會過季線（「業績很好不必擔心」「還有一隻叫3545敦泰」）→ watch_watch。
@@ -4083,7 +4083,8 @@ holdings：明講現在仍持有、續抱、我還有、會員現有部位。昨
 講者說「我有這一隻」「你們都知道我有」「抱著」「成本多少」「絕對不賣」都是持股，就算同一段在講它今天跌。
 只在比喻或舉例被點名，不代表持有。回讀它的當下行情與共同指示，依下列觀望規則收錄，不能直接排除。
 watch_watch：明確候選、以後想買、等洗完、抄起來；只列名字但明確共用「候選名單」也要逐檔收錄，不要求每檔都有價格或長篇理由。
-講者要大家等某個價位或時點再買（900以下是買點、等補完缺口站回去、等禮拜一CPI公布後、碰到均線再說）也是 watch_watch，reason 寫出那個條件。
+講者要大家等某個價位或時點再買（900以下是買點、等補完缺口站回去、等禮拜一CPI公布後、碰到均線再說）也是 watch_watch，reason 寫出那個條件；同時明講「現在還不能買」的依原則四列 watch_avoid。
+漲多下方缺口還沒補、還會跌、切勿追高、拿它當負面示範（大立光跌停、玉晶光跟跌）→ watch_avoid，不因句中出現「買」「等」改列 watch_watch。
 展示營收、EPS 或線型並說出看法的個股（「這些公司以後都會漲回去」「一定要等他補完缺口、打第二隻腳再站回去」）也要逐檔收錄，共同指示能明確回指這兩三家公司時才逐檔列；不能只因同段展示過就套用同一立場。
 watch_avoid 從寬：談到這一檔時語氣偏負面、偏空，或拿它當風險、追高受傷、法人一買一賣、操作失誤的示範，就列 watch_avoid，不必有明確禁令（例：不准碰、會殺破、還沒跌完、昨天大漲今天大跌、追高容易套牢、外資買一天賣一天、昨天買今天跌）。reason 寫出負面現象；若另有明確本股低檔買點，依買點列watch_watch並保留條件，不能自行補買點。
 watch_watch 只收明確正面看法或具體買點（看好、會漲、候選、等條件就買）；只有盤整或法人反覆換手、沒有偏多依據者放watch_avoid。正負並存看「現在進場」的結論；拿不準而負面較多歸 watch_avoid。不可替警示例子補寫「等待機會」「逢低布局」。
@@ -6176,13 +6177,20 @@ _NEGATIVE_CUE = re.compile(
     r'|大跌|長黑|跌停|重挫|急跌|風險(?:高|很大|大)|有風險|(?:注意|留意|小心).{0,4}風險|危險|小心|不建議|不宜|避開|避免'
     r'|還沒跌完|沒有跌完|賣壓|出貨|倒貨|賣超|(?:持續|一直|連續|大舉)賣|衰退|下滑|趨緩|虧損'
     r'|不會漲|會跌|再跌|暫不|觀望為宜|不用買|不要買|不要追|來不及|漲上去了|先出場'
-    r'|賠錢|虧錢|賠光|全部賠|受傷|腰斬|總比.{0,12}好')
+    r'|賠錢|虧錢|賠光|全部賠|受傷|腰斬|總比.{0,12}好'
+    r'|切勿|負面示範|反例|漲多|偏離合理|不合理|沒有這個價值|還會跌|下方缺口|尚未.{0,4}回補|還沒補'
+    r'|還不行|還不能|不能馬上|不急著|耐心等候|先不要')
 
 
 # 明講不要進場。9/14 環球晶的說明是「明確表示不准買」，舊的清單只認「不准碰」，沒有擋下。
-_PROHIBIT = re.compile(r'不准(?:給我)?(?:碰|買)|不要(?:碰|買)|不能(?:碰|買)|別(?:碰|買)|不(?:該|用|適合)(?:碰|買)|禁止買|暫不進場')
+_PROHIBIT = re.compile(r'不准(?:給我)?(?:碰|買)|不要(?:碰|買)|不能(?:馬上|現在)?(?:碰|買)|別(?:碰|買)|不(?:該|用|適合)(?:碰|買)|禁止買|暫不進場'
+                       r'|還不行|還不可以買|先不要買|千萬不要(?:買|追)|切勿.{0,6}(?:買|追)')
 # 禁止之後接著給出「等某件事發生才買」的條件。
+# 2026/09/14 管理者規則：講者明講「現在還不能買、要等」時，當下的結論是不進場，列觀望不碰（勤誠）；
+# 這個樣式只留給 _bearish_or_neutral_basis 以外的地方參考，不再把禁止翻成觀望注意。
 _WAIT_TO_BUY = re.compile(r'(?:等|等到|等待).{0,30}(?:再買|才(?:能|可以|會)?買|買點|再進場|才進場|就(?:可以)?買)')
+# 「等」要是動詞：評等、等級、同等、等於……不算（大立光「調降評等，加上自身股價漲多」曾被當成等條件）。
+_WAIT_VERB = r'(?<![評同相平均對次優劣初頭上高中])等(?![級於同])'
 
 
 def watch_tone(text):
@@ -6190,12 +6198,14 @@ def watch_tone(text):
     text = strip_speaker_names(str(text or ''))
     text = re.sub(r'(?:不是|並非|並不是|沒有說)(?:不准碰|不要碰|不能碰|不能買)', '', text)
     if re.search(_PROHIBIT, text):
-        # 「現在還不能買，等 00981A 賣完、賣不下去才買」是等條件的觀望注意（原則四），不是禁止。
-        if re.search(_WAIT_TO_BUY, text):
-            return 'watch_watch'
+        # 「現在還不能買，要等 00981A 賣完」：當下結論是不進場，觀望不碰（管理者規則 2026/09/14）。
         return 'watch_avoid'
     positive = re.sub(r'(?:並非|不是|不|沒有|未)(?:看好|推薦|建議買進|會漲|是好股票|會回升|會上攻|有買點|值得|可以)', '', text)
-    if re.search(r'看好|好股票|會漲|漲回去|回升|上攻|向上|候選|會再買|(?:再|才)(?:買進|進場)|以下.{0,8}買|以後.{0,8}買|未來.{0,8}買|低檔.{0,8}(?:買|佈局|布局)|買點|等.{0,30}(?:再買|買進|進場|站回|再注意|漲)|可以.{0,8}(?:買|留意)|值得.{0,8}(?:留意|追蹤)|營收.{0,8}成長', positive):
+    # 「低檔…買」「以下…買」中間不能隔著賣出或句讀：玉晶光「不應把低檔股票賣掉跑去追買高檔弱勢股」是負面示範。
+    if re.search(r'看好|好股票|會漲|漲回去|回升|上攻|向上|候選|會再買|(?:再|才)(?:買進|進場)'
+                 r'|以下[^賣追，。,；;]{0,8}買|以後[^賣追，。,；;]{0,8}買|未來[^賣追，。,；;]{0,8}買'
+                 r'|低檔[^賣追，。,；;]{0,8}(?:買|佈局|布局)|買點|' + _WAIT_VERB + r'[^，。,；;]{0,30}(?:再買|買進|進場|站回|再注意|漲)'
+                 r'|可以.{0,8}(?:買|留意)|值得.{0,8}(?:留意|追蹤)|營收.{0,8}成長', positive):
         return 'watch_watch'
     # 法人反覆換手本身是中性現象，不因「外資買…」的字面算偏多。
     if third_party_churn(text):
@@ -6379,9 +6389,77 @@ def preserve_explicit_holdings(signals, transcript):
     return signals
 
 
+def _row_names_for_recap(row):
+    """本檔所有寫法：名稱、原始語音、別稱，加上管理者確認的同代號聽錯寫法。星號與 -KY 尾巴不算。"""
+    raw = [row.get('name'), row.get('原始語音名稱')] + list(row.get('aliases') or [])
+    code = str(row.get('code') or '')
+    for n in raw:
+        if n in CONFIRMED_NAMES:
+            code = code or CONFIRMED_NAMES[n][0]
+    names = {n for n in raw if isinstance(n, str)}
+    if code:
+        names.update(a for a, (c, _) in CONFIRMED_NAMES.items() if c == code)
+        names.update(n for c, n in CONFIRMED_NAMES.values() if c == code)
+    simple = lambda s: re.sub(r'(?:-?KY|[＊*])$', '', re.sub(r'\s+', '', str(s)), flags=re.I)
+    return {simple(n) for n in names if len(simple(n)) >= 2}
+
+
+# 問句裡問的是價位或位置（「現在愛普幾塊？」「我在哪裡推薦的？」），那不是現在的指示；
+# 「對不對？」「推薦的是什麼？推薦的是這個」這類自問自答仍是陳述。
+
+
+def _past_recommendation_only(row, signals, transcript):
+    """這一檔在本輪原文裡是不是只有舊推薦／已結束交易的回顧，沒有現在的指示。
+
+    只看「含本檔名稱的句子」。先前把名稱前後兩三百字、以及模型附的長引句整段拿來比，
+    別檔的推薦回顧（愛普「當時沒人要買」）會算到世芯-KY 頭上；問句一律跳過又讓
+    裕隆「我現在推薦的是什麼？推薦的是這個」失去現在的推薦。
+    """
+    names = _row_names_for_recap(row)
+    if not names:
+        return False
+    hay = _ev_norm(transcript)
+    # 名稱窗口用去掉「*」「-KY」的寫法找（原文不會講「愛普*」）。
+    probe = dict(row, aliases=list(row.get('aliases') or []) + sorted(names))
+    pieces = [s for s, _ in _entity_scope(probe, signals, transcript)]
+    pieces += [q for q in (row.get('evidence') or []) if isinstance(q, str) and _quote_is_real(q, hay)]
+    # 語音稿常常一整段才一個問號，同一「句」裡會講好幾家公司。再從別家公司名稱處切開，
+    # 只留含本檔名稱的那一段——愛普「當時沒人要買」與「四星會到五字頭」同一句時，不能算到世芯-KY。
+    others = {_display_name(n) for n in (_CODE_MAP or {}).values()}
+    others.update(a for a, (c, _) in CONFIRMED_NAMES.items())
+    others.update(n for _, n in CONFIRMED_NAMES.values())
+    others = {re.sub(r'(?:-?KY|[＊*])$', '', o, flags=re.I) for o in others}
+    others = sorted({o for o in others if len(o) >= 2 and o not in names and not any(o in n or n in o for n in names)},
+                    key=len, reverse=True)
+    splitter = re.compile('|'.join(re.escape(o) for o in others)) if others else None
+    sentences = []
+    for piece in pieces:
+        for s in re.split(r'(?<=[。！？!?；;])', re.sub(r'\s+', '', piece)):
+            for frag in (splitter.split(s) if splitter else [s]):
+                if frag and any(n in frag for n in names) and frag not in sentences:
+                    sentences.append(frag)
+    if not sentences:
+        return False
+    text = ''.join(sentences)
+    recap = bool(re.search(r'推薦|介紹', text) and (re.search(r'當時|以前|先前|曾經|當初|那時|那裡|那邊|早就|沒人(?:要)?買|不(?:敢|肯|願意)買|等.{0,8}[漲長]上來.{0,6}(?:再|才|想)?買', text)
+        or re.search(r'(?:我|我們).{0,8}(?:推薦|介紹).{0,16}(?:在|是)?\d+(?:\.\d+)?(?:元|塊)', text))
+        # 已結束的交易拿來當教學例子：「買在920、賣這一天1360，賺了460塊」
+        or re.search(r'買.{0,24}賣.{0,24}賺了?\d+(?:\.\d+)?(?:元|塊)', text))
+    if not recap:
+        return False
+    for sentence in sentences:
+        if re.search(r'(?:幾塊|幾元|多少|哪裡|在哪)[^。！？!?]{0,12}[？?]', sentence):
+            continue
+        s2 = re.sub(r'(?:不|沒有|沒)(?:在)?(?:推薦|看好|留意|持有)', '', sentence)
+        if (re.search(r'(?:今天|現在|目前|接下來|明天|下週|未來|以後|後續).{0,18}(?:推薦|留意|進場|續抱|持有|看好|看壞|不碰|買點|要買|再買|觀察)', s2)
+                or re.search(r'(?:仍然?|還)(?:在)?(?:持有|抱著|看好)|我(?:們)?(?:手中)?還有|會員(?:目前)?持有', s2)
+                or re.search(r'(?:等|等待).{0,18}(?:拉回|跌到|突破|站上|站回|回測).{0,15}(?:買|進場|注意)', s2)):
+            return False
+    return True
+
+
 def exclude_past_recommendations(signals, transcript):
     """只回顧推荐價不形成今天的建議；附本機確認旗標避免覆蓋時又沿用舊列。"""
-    hay=_ev_norm(transcript)
     positions=set().union(*(_row_keys(r) for cat in ('buy','sell','holdings') for r in signals.get(cat,[])))
     ignored=[]
     for cat in ('watch_watch','watch_avoid','history','ignored'):
@@ -6389,30 +6467,7 @@ def exclude_past_recommendations(signals, transcript):
         for row in signals.get(cat,[]):
             # 模型不能自稱已通過本機判斷；每次都重新核對當輪原文。
             row.pop('_past_recommendation_only_verified',None)
-            scopes=_entity_scope(row,signals,transcript)
-            text='。'.join(q[0] for q in scopes)
-            quotes=[q for q in row.get('evidence',[]) if isinstance(q,str) and _quote_is_real(q,hay)]
-            names=[row.get('name'),row.get('原始語音名稱')]+list(row.get('aliases') or [])
-            text+='。'+'。'.join(q for q in quotes if any(n and _ev_norm(n) in _ev_norm(q) for n in names))
-            text=re.sub(r'\s+','',text)
-            recap=bool(re.search(r'推薦|介紹',text) and (re.search(r'當時|以前|先前|曾經|當初|那時|那裡|那邊|早就|沒人(?:要)?買|不(?:敢|肯|願意)買|等.{0,8}[漲長]上來.{0,6}(?:再|才|想)?買',text)
-                or re.search(r'(?:我|我們).{0,8}(?:推薦|介紹).{0,16}(?:在|是)?\d+(?:\.\d+)?(?:元|塊)',text))
-                # 已結束的交易拿來當教學例子：「買在920、賣這一天1360，賺了460塊」
-                or re.search(r'買.{0,24}賣.{0,24}賺了?\d+(?:\.\d+)?(?:元|塊)',text))
-            # 「現在」要是講者對這一檔的當下指示，不是問句（「現在愛普幾塊？」）、
-            # 也不是否定（「我現在不推薦華新」），而且不跨句。先前整段一起比，
-            # 9/14 的愛普就因為「現在愛普幾塊？給你們看我在哪裡推薦」被當成現在的推薦而留在觀望注意。
-            current=False
-            for sentence in re.split(r'(?<=[。！？!?；;])', text):
-                if not sentence or sentence.endswith(('？','?')):
-                    continue
-                s2=re.sub(r'(?:不|沒有|沒)(?:在)?(?:推薦|看好|留意|持有)','',sentence)
-                if (re.search(r'(?:今天|現在|目前|接下來|明天|下週|未來|以後|後續).{0,18}(?:推薦|留意|進場|續抱|持有|看好|看壞|不碰|買點|要買|再買|觀察)',s2)
-                        or re.search(r'(?:仍然?|還)(?:在)?(?:持有|抱著|看好)|我(?:們)?(?:手中)?還有|會員(?:目前)?持有',s2)
-                        or re.search(r'(?:等|等待).{0,18}(?:拉回|跌到|突破|站上|站回|回測).{0,15}(?:買|進場|注意)',s2)):
-                    current=True
-                    break
-            if recap and not current and not (_row_keys(row)&positions):
+            if not (_row_keys(row)&positions) and _past_recommendation_only(row, signals, transcript):
                 row['_past_recommendation_only_verified']=True
                 row['exclusion_reason']='past_recommendation_only'
                 row['view']='';row['view_refs']=[];row['view_evidence']=[]
@@ -6428,10 +6483,16 @@ def exclude_past_recommendations(signals, transcript):
 _NEUTRAL_CUE = re.compile(r'盤整|整理|橫盤|震盪|區間|觀察|看看|換手|換股|一買一賣|持平|原地|沒有(?:表態|看法|方向)')
 
 
+def _strict_bearish_basis(text) -> bool:
+    """明講不進場、負面現象或法人反覆換手（不含純中性描述）。"""
+    t = re.sub(r'(?:不是|並非|並不是|沒有說)(?:不准碰|不要碰|不能碰|不能買)', '', strip_speaker_names(str(text or '')))
+    return bool(re.search(_PROHIBIT, t) or _NEGATIVE_CUE.search(t) or third_party_churn(t))
+
+
 def _bearish_or_neutral_basis(text) -> bool:
     """說明裡有沒有「列觀望不碰」的依據：禁止、負面、法人反覆換手、或純中性描述。"""
     t = strip_speaker_names(str(text or ''))
-    if (re.search(_PROHIBIT, t) and not re.search(_WAIT_TO_BUY, t)) or _NEGATIVE_CUE.search(t) or third_party_churn(t):
+    if _strict_bearish_basis(t):
         return True
     # 中性描述只在沒有任何正面說法時才算依據。9/14 敦泰「業績很好不需擔憂，值得納入觀察清單」
     # 因為含「觀察」被當成中性、改到觀望不碰。
@@ -6496,6 +6557,12 @@ def normalize_watch_tones(signals):
             if cat=='watch_watch' and target=='watch_avoid' and not _bearish_or_neutral_basis(text):
                 note_decision('語氣核對','保留觀望注意',row.get('name',''),'說明沒有偏空或中性依據，不以關鍵字推翻：'+str(text or '')[:60])
                 print(f"  語氣核對　{row.get('name','')}　保留觀望注意（說明沒有偏空或中性依據）")
+                target=cat
+            # 反方向同樣要有把握：模型判觀望不碰、說明裡又有負面依據（跌停、追高套牢、負面示範、還不能買）時，
+            # 不因為句子裡剛好有「買」「等」之類的字就改成觀望注意（2026/09/14 大立光、玉晶光）。
+            if cat=='watch_avoid' and target=='watch_watch' and _strict_bearish_basis(text):
+                note_decision('語氣核對','保留觀望不碰',row.get('name',''),'說明有偏空依據，不以正面關鍵字推翻：'+str(text or '')[:60])
+                print(f"  語氣核對　{row.get('name','')}　保留觀望不碰（說明有偏空依據）")
                 target=cat
             if target!=cat:
                 note_decision('語氣核對','調整觀望方向',row.get('name',''),cat+' → '+target)
@@ -8636,7 +8703,7 @@ def prior_identity_labels(prior):
     return [f"{name}（{'、'.join(_unique(cats))}）" for name, cats in groups.items()]
 
 
-def reconcile_with_prior(signals, prior, date_str):
+def reconcile_with_prior(signals, prior, date_str, transcript=''):
     """
     逐檔核對前一版，見上面的說明。沒有異常時，要沿用的前一版列直接併進 signals。
     回傳 changes（分類變動）、accepted（改列不公開）、carried（沿用待複核）、anomaly、identities。
@@ -8661,7 +8728,7 @@ def reconcile_with_prior(signals, prior, date_str):
         ident = code if _VALID_CODE.fullmatch(code) else _ev_norm(r.get('name'))
         groups.setdefault(ident, []).append(r)
 
-    changes, accepted, carried, carry_rows = [], [], [], []
+    changes, accepted, carried, carry_rows, absent = [], [], [], [], []
     for rows in groups.values():
         keys = set().union(*(_row_keys(r) for r in rows))
         name = rows[0]['name']
@@ -8677,11 +8744,34 @@ def reconcile_with_prior(signals, prior, date_str):
         if any(k in past for k in keys):
             accepted.append(f"{name}（前一版{'、'.join(before)}）：本輪判定只有過去交易、沒有現況看法，依規則不公開")
             continue
+        if transcript:
+            # 沿用前一版之前，先用本輪原文核對一次。前一版本身錯了的列不能一路沿用下去：
+            # 2026/09/14 的愛普（舊推薦）、金益鼎（原文沒有這家公司）就是這樣連續兩輪被帶回網站。
+            probe = {'name': name, 'code': str(rows[0].get('code') or ''),
+                     'reason': rows[0].get('reason') or rows[0].get('note') or '', 'evidence': []}
+            hay = re.sub(r'\s', '', transcript)
+            spoken = [n for n in _row_names_for_recap(probe)
+                      if _in_transcript(n, hay) or (_has_cjk(n) and _sounds_in_transcript(n, hay))]
+            if not spoken:
+                # 先記下來，全部看完再決定：原文找不到的前一版太多，代表拿到的原文本身有問題
+                # （不是這支影片、讀到半截），那時要走「判讀不完整、保留舊資料」，不能順勢全部撤掉。
+                absent.append((name, before, rows))
+                continue
+            if _past_recommendation_only(probe, signals, transcript):
+                accepted.append(f"{name}（前一版{'、'.join(before)}）：本輪原文只有舊推薦回顧，不公開、不沿用")
+                continue
         where = _unique(c for k in keys for c in parked.get(k, []))
         why = ('本輪列為排除' if 'ignored' in where else '本輪列為待確認' if where else '本輪沒有收錄')
         carried.append(f"{name}（{'、'.join(before)}，{why}）")
         carry_rows.extend(rows)
 
+    if len(absent) >= CARRY_ANOMALY_MIN and len(absent) >= CARRY_ANOMALY_RATIO * len(groups):
+        for name, before, rows in absent:
+            carried.append(f"{name}（{'、'.join(before)}，本輪原文找不到，研判原文不完整）")
+            carry_rows.extend(rows)
+    else:
+        for name, before, rows in absent:
+            accepted.append(f"{name}（前一版{'、'.join(before)}）：本輪原文找不到這個名稱（也沒有同音寫法），不沿用")
     anomaly = (len(carried) >= CARRY_ANOMALY_MIN
                and len(carried) >= CARRY_ANOMALY_RATIO * len(groups))
     if not anomaly:
@@ -8925,7 +9015,7 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
             note = f'這一次沒有覆蓋，保留舊資料：{msg}，請稍後重新投稿'
             step('完成', note)
             return ExtractionOutcome(affected, retained=True, note=note)
-        rec = reconcile_with_prior(signals, prior, date_str)
+        rec = reconcile_with_prior(signals, prior, date_str, TX['audit'])
         for line in rec['changes']:
             print(f'  覆蓋核對　分類變更　{line}')
             note_decision('覆蓋核對', '分類變更', date_str, line)

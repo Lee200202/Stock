@@ -3191,6 +3191,10 @@ def display_price(value, evidence='', context='') -> str:
         return '未說明'
     high = max(matches, key=lambda m: float(m.group()))
     num = high.group()
+    context = str(context or '')
+    if re.search(r'(?:大跌|下跌|上漲|漲|跌|漲幅|跌幅)\s*'+re.escape(num)+r'\s*(?:元|塊)', context):
+        if not re.search(r'(?:成本|買點|現價|股價|目標價|買在|賣在|來到|收在)\s*(?:為|是|約|在)?\s*'+re.escape(num)+r'(?!\d)', context):
+            return '未說明'  # 漲跌金額是幅度，不能當絕對股價。
     # 沒有日K仍能擋住「碰線200」；有明確元／塊證據才視作價格。
     if float(num) in (5,10,20,60,120,200,240) and re.search(r'均線|技術線|碰.{0,6}線|線型', str(context)):
         if not re.search(re.escape(num) + r'\s*(?:元|塊)', str(evidence)):
@@ -3968,7 +3972,7 @@ code 只填原文明講的代號，否則空白。正式名稱交給官方清單
 reason、note、market text 是公開文字，不寫人名當主詞或所有格（不寫張震指出、張正提及、張正手中）；語音誤字「張正」不得出現。需要歸屬看法時省略主詞，以指出、提醒、認為開頭，或直接寫事實；禁止用「講者」替代被移除的人名。
 價格、漲跌金額、EPS、產業、相鄰股票不是公司身分的證明。「跌兩毛」不能推算股價級距。
 例外：同音候選分不出時，講者明講的股價水準（例如「信化17880塊」）與「股王」「股后」這類稱號可以用來選定，並把那一句列進 evidence_refs。
-管理者另確認：00981A＝主動統一台股增長 ETF；瑞獄＝瑞昱2379、雨沾＝宇瞻8271、維星＝微星2377、邦店＝華邦電2344、連電＝聯電2303、大力光＝大立光3008、利基電＝力積電6770、宜頂、移頂、以頂＝宜鼎5289。僅還原本次原文有提及者。管理者確認：普威、普位、譜位＝譜瑞-KY（4966），是個股，依上下文照常分類（與祥碩並列講手中部位就是 holdings）；加折、加哲、加澤＝嘉澤（3533），不是家登，name 照原文寫加折，不要自己改成別家公司；出金城、初清程＝勤誠（8210），是 ETF 出清的那一檔（「ETF昨天來初清程」「出金城」「秦這麼好的股票」「還剩下95張，等他賣完這支股票就漲」），name 照原文寫出金城或初清程；細金元＝矽晶圓、戲制台＝矽智財（先前記作矽製材），都是產業不是個股，只能放 ignored。日幣是貨幣，不是日馳或其他股票。其餘同音候選依上下文判讀，無法確認身分才送 uncertain。
+確認名稱見輸入 confirmed_names。普威、普位、譜位＝譜瑞-KY4966；加折、加哲、加澤＝嘉澤（3533），不是家登；出金城、初清程＝勤誠（8210）（被ETF出清的股票）。name保留原文，正式名稱後續核對。00981A是已確認ETF。日幣是貨幣；細金元＝矽晶圓、戲制台／矽製材＝矽智財，是產業，放ignored。只還原原文有提及者，不因確認表補股票；其他同音仍不明才uncertain。
 匿名這一檔、圖上股票、我不講名字不可由股價猜公司。
 
 【先盤點，再分類】
@@ -4008,8 +4012,11 @@ watch_watch 只收明確正面看法或具體買點（看好、會漲、候選�
 同一檔最後指示、時間與持有/加碼範圍決定狀態；矛盾仍不能解開就 uncertain。
 目前已持有者：持股事實放 holdings。若講者另外對「還沒有的人」給出買進條件或建議（等碰線、等禮拜一、幾塊以下、你要先買），同時列一筆 watch_watch，reason 只寫那個條件；例如「台積電只要碰到這一條線你們就去注意，他就會漲上去」→ 台積電 holdings 之外再列一筆 watch_watch；「你要先買四星KY」→ 世芯-KY 同樣再列 watch_watch。只說續抱、加碼，不另列觀望。
 ignored：貨幣、產業、指數、匿名標的、外國股票、確無本次原文依據者。台股及已確認 ETF 的行情例子、法人交易、ETF 換股也屬本日觀察範圍，不能因此排除。填 name/reason/evidence_refs，保留排除理由供稽核。
-原文點名的行情或法人例子也逐檔列觀望，方向依 watch_avoid 從寬標準；只有整理、橫盤或資金動向而沒有正面依據，列 watch_avoid。無正面指示的中性者列 watch_avoid，reason 如實寫當下行情／資金動向，不可說成推薦買進。ETF 00981A 也收錄，但 ETF 的買賣不能冒充會員買賣；被換股的公司與 ETF 本身分別寫對應事實。
+原文點名的行情或法人例子也逐檔列觀望，方向依 watch_avoid 從寬標準；整理、橫盤、資金動向等中性者列watch_avoid，如實描述，不冒充推薦買進。ETF 00981A 也收錄，但 ETF 的買賣不能冒充會員買賣；被換股的公司與 ETF 本身分別寫對應事實。
 history：自己的過去交易，但不是當日、或日期不能確定；不是第三方交易的收容區。網站不單獨呈現回顧：原文另有這一檔現況看法的會列入觀望，沒有的不列（見【日期未明與現況看法】）。
+
+【舊推薦回顧】
+只回顧「我推薦A在幾元」「我在那裡推薦A的」「當時推薦沒人買，等漲上來才買」是舊推薦／追價感嘆，不列觀望或持股，也不是成交。放既有ignored，exclusion_reason=past_recommendation_only，附原文，不新增公開分類。另有現在持股、當日成交或新的明確買進／觀察條件才依該事實收錄；「今天等突破再買」不能因也提過往推薦而丟掉。
 
 【時間】
 buy/sell 只收影片當日：填 when=today、seq，time_evidence 能找到就填。時間可以分布在前後段；漏附獨立時間短句不影響收錄。當下已執行的操作可依上下文判 today；明確歷史回顧仍不得猜成今天。
@@ -4022,7 +4029,7 @@ date 要填 event_date=YYYY/MM/DD 且原文有月日；prev_trading_day 只適�
 
 【價位與說明】
 price 僅該事件說出的價格或範圍，沒有寫「未說明」。price_evidence 是含該價位數字的原句，且該句所在的 S 編號必須列入 evidence_refs。數字離名稱較遠時，分別附價位段與能明確回指同一公司、同一事件的名稱段；不得只填報價句或只附名稱句。例如原文分開講「昨天來到3850」和「我在昨天買四星KY」，需附兩段才能保留3850；沒有完整證據則保留可證實的價位，不補猜。
-price 的用途（成交價、等待買點、缺口、法人成本）寫入 reason，不在公開價位欄夾帶文字。多個明確價位以最高數字展示，以上／以下保留；多次買進價不是平均成本。語音稿把數字黏在一起（例如「2385,23802405」）而沒有明確的區間連接詞時，不得自行拆成上下界；保留可獨立確認的價位，其餘寫未說明。均線天數不是股價，EPS 前後互相矛盾時不挑一個順眼的數字當確定值。
+price 的用途（成交價、等待買點、缺口、法人成本）寫入 reason，不在公開價位欄夾帶文字。多個明確價位以最高數字展示，以上／以下保留；多次買進價不是平均成本。語音稿把數字黏在一起（例如「2385,23802405」）而沒有明確的區間連接詞時，不得自行拆成上下界；保留可獨立確認的價位，其餘寫未說明。漲跌金額不是股價，price填未說明。說明刪除「原文作14」「川服(川湖)」等誤字括注，只留確認後數字／名稱，不乘十推估。均線天數不是股價，EPS 前後互相矛盾時不挑一個順眼的數字當確定值。
 含 X 或無法確認的概數，price 寫未說明並在 reason 忠實描述；以下/以上保留，不改成精確成交；法人成本、現價、張數不能充當會員成本。
 reason/note 忠實說明原話之事實描述（如「昨天（9月9日）大跌時買進四星KY。」），其他判斷依據（如「因確切交易日期為昨日而非影片當日，故改列歷史回顧」、「日期未明的回顧……」等內部推論與管線改列註記）一律不用也不得寫進說明中！不能添加「產業前景存疑」等原文未作出的推論。
 reason/note 要具體：原文充足時寫 2～4 句、約 70～160 字，依序交代目前狀態、價位或等待條件、原文明講的理由、後續觀察。只有名單提及者可以短於此範圍，絕不可用相鄰公司的理由補字數。
@@ -4031,8 +4038,8 @@ reason 只能用提到這一檔的句子；上一句、下一句在講另一檔�
 說明的洞見來自原文的因果脈絡：觀察到的現象 → 講者認為的原因或市場落差 → 對既有部位／新進資金各自的做法 → 後續確認條件。只填原文存在的環節；不得為湊齊格式自創未定價利多、內幕渠道、領先指標、停損點、目標價或獲利預測。「營收成長但股價跌」可呈現基本面與技術面的落差，但不能自行斷言市場定價錯誤或保證反彈。預期、看好、推測須歸屬講者；摘要不是系統自己的投資建議。
 
 【大盤】
-market 每筆填 kind=level/volume/event/flow/view、text、evidence_refs。
-level/volume/event/flow 是盤勢（信件第③章）：涵蓋原文明講的指數關卡、缺口、量與解讀、CPI/PPI/利率決策的時間、美元/資金、融資餘額、整理週期與展望。原文充足時整理 6～10 點，每點約 70～140 字，合計以 1400 字為目標上限。每點交代現象及講者的解讀，不拆成重複短句湊點數。
+market 每筆填 kind=level/volume/event/flow/view、text、evidence_refs。首筆盤勢填headline：依已引用內容擬20字內標題，不含姓名日期，不新增事實。
+level/volume/event/flow 是盤勢（信件第③章）：涵蓋原文明講的指數關卡、缺口、量與解讀、CPI/PPI/利率決策的時間、美元/資金、融資餘額、整理週期與展望。原文充足時整理 6～10 點，至少3個不同主題；不足三點時重讀原文補足，確無內容不得杜撰。每點約 70～140 字，合計以 1400 字為目標上限。每點交代現象及講者的解讀，不拆成重複短句湊點數。
 view 是講者今天的操作邏輯與教學重點（信件第⑤章）：逐段找出講者教觀眾怎麼想、怎麼做、要避免什麼的段落，不同主題各成一點（例：買賣節奏、追高與等拉回、續抱耐心、法人成本與解套賣壓、外資短線換手、重大事件前的部位、量縮整理怎麼做、候選名單與買點、減少頻繁進出、技術關卡、選股依據）。原文充足時整理 6～10 點（逐字稿超過五千字時至少 3 點），每點寫成「觀念標題：說明」，說明 3～5 句約 120～220 字：做法 → 明講的原因 → 適用對象與條件 → 當天例子 → 要避免的錯誤；缺的環節省略。個股說明裡的通用做法也提煉成一點。要區分已有部位者續抱與未持有者等待買點，條件性風險提醒不能寫成對所有人的全面禁令。同段有盤面與做法時拆成兩筆。
 資料少就少寫，不湊點數；每一點都要有 evidence_refs，列出觀念、原因、例子所在的全部段落；text 的數字必須出現在所列段落，否則整點會被剔除；教學點以觀念與做法為主，數字非必要就不寫。
 數字、X、盤中/收盤、講者預測要區分。只把事件時間寫成講者所述，不補外部行事曆。
@@ -4042,7 +4049,7 @@ view 是講者今天的操作邏輯與教學重點（信件第⑤章）：逐段
 一般每筆 name,code,aliases,evidence_refs,price,price_subject,price_evidence,reason；holdings 另填 stance（只能用中文：續抱、持有、加碼、減碼）與 note（講者對這一檔說了什麼，不可空白）。
 history 另填 when（yesterday／date／unknown）、action=buy/sell、view、view_refs、watch_bias（見【日期未明與現況看法】）。buy/sell 也填 view、view_refs、watch_bias（日期查證不過時使用）。uncertain 明列疑點與 suggested_category（九類英文鍵之一）；可判斷分類而只有引用定位或缺少時間短句的問題，直接收進該類並寫 review_note，不要隔離。
 不得以減少數量掩蓋不確定。沒有最低檔數；每個候選必須有收錄或排除的證據。
-輸出必須是標準合法 JSON 物件，嚴禁尾隨逗號（trailing comma，例如 {"a": 1,} 或 [1, 2,]）、嚴禁註解，所有鍵名與字串值必須使用標準半形雙引號包裹。
+只輸出標準合法JSON物件，鍵名及字串用半形雙引號；禁止註解、尾逗號（trailing comma）。
 
 【來源版本與洞見】
 每次只依本次 source 原文判讀；舊候選、舊文章與既有資料只是待驗證材料，不能拿上一輪內容補回本輪沒說的股票、價位或理由。
@@ -4685,8 +4692,7 @@ ARTICLE_SYSTEM = """你是一位專業財經記者與投顧整理編輯，負責
 全文繁體中文。章節標題與表格欄位名稱完全照下列格式，不可省略或改名，依序輸出：
 
 ① 文章標題
-   觀察清單中的核心主題與關鍵字，產出 1 個具體標題，風格參考
-   「張震：換手太明顯，這就是財富重分配！」這類語氣，但不可直接複製。
+   根據已驗證內容的核心主題，擬一個20字內標題；不含人名日期，不誇大、不新增觀點。
    輸出一行：文章標題：（你產生的標題）
 
 ② 基本資訊
@@ -4907,6 +4913,26 @@ def format_readable_transcript(text):
         out.append(buf)
     return '\n\n'.join(out)
 
+def article_title(signals):
+    """由已驗證盤勢產生短標題；刷新同批資料時仍得到同一標題。"""
+    rows=[r for r in signals.get('market',[]) if r.get('_evidence_verified') and r.get('kind')!='view']
+    for row in rows:
+        title=strip_speaker_names(str(row.get('headline') or '')).strip(' ①：:。！？「」')
+        source=str(row.get('text') or '')+' '.join(row.get('evidence') or [])
+        chars=re.findall(r'[\w]',title)
+        if (title and len(title)<=20 and not re.search(r'張震|張正|講者|盤勢與操作紀錄|\d{4}[/年]',title)
+            and all(n in source for n in re.findall(r'\d+(?:\.\d+)?',title))
+            and (not chars or sum(c in source for c in chars)/len(chars)>=0.8)):
+            return title
+    text=' '.join(str(r.get('text') or '') for r in rows)
+    themes=[label for pattern,label in (
+        (r'CPI|消費者物價指數','CPI動向'),(r'PPI|生產者物價指數','PPI動向'),
+        (r'利率|聯準會','利率決策'),(r'量縮|成交量縮','量縮整理'),(r'震盪|壓縮|橫盤','震盪盤勢'),
+        (r'外資|資金','外資動向'),(r'美元|匯率','匯率變化'),(r'融資','融資變化'),(r'缺口|支撐|關卡','技術關卡'))
+        if re.search(pattern,text)]
+    return '與'.join(themes[:2]) if themes else '市場觀察與操作重點'
+
+
 def canonical_article(signals, date_str, article=''):
     """Six-section scaffold; malformed AI headings can never block publication."""
     # Reuse prose only if section boundaries are unambiguous. Never append a
@@ -4932,7 +4958,7 @@ def canonical_article(signals, date_str, article=''):
             kept.append(line)
         macro = '\n'.join(kept)
     return '\n\n'.join([
-        parts.get('①') or '① 文章標題：張震：' + date_str + ' 盤勢與操作紀錄',
+        '① 文章標題：' + article_title(signals),
         '② 基本資訊\n\n• 節目名稱：張震 股市盤中家教班\n• 播出平台：YouTube 直播 / 影片\n• 播出日期：' + date_str + '\n• 主要講者：張震',
         '③ 盤勢總覽重點整理\n\n' + (macro or '本集未整理出可引用的盤勢重點。'),
         render_record_chapter(signals, date_str).strip(),
@@ -5460,7 +5486,7 @@ CONFIRMED_NAMES = {'普威': ('4966', '譜瑞-KY'), '普位': ('4966', '譜瑞-K
     '瑞獄': ('2379','瑞昱'), '雨沾': ('8271','宇瞻'), '維星': ('2377','微星'),
     '邦店': ('2344','華邦電'), '連電': ('2303','聯電'), '大力光': ('3008','大立光'),
     '利基電': ('6770','力積電'), '宜頂': ('5289','宜鼎'), '移頂': ('5289','宜鼎'), '以頂': ('5289','宜鼎'),
-    '木德': ('3563','牧德'), '四星KY': ('3661','世芯-KY'), '四星': ('3661','世芯-KY'),
+    '川服': ('2059','川湖'), '木德': ('3563','牧德'), '四星KY': ('3661','世芯-KY'), '四星': ('3661','世芯-KY'),
     '宏準': ('2354','鴻準'), '弘準': ('2354','鴻準'), '紅準': ('2354','鴻準'), '威星': ('2377','微星'), '想碩': ('5269','祥碩'), '享碩': ('5269','祥碩')}
 NON_EQUITY_NAMES = {'日幣', '日圓', '日元', '美元', '美金', '台幣', '臺幣', '新台幣', '人民幣', '歐元'}
 # 管理者確認過「是產業、不是個股」的聽錯寫法。代號比對直接剔除整列。
@@ -5686,14 +5712,20 @@ def public_narrative(text, row=None, signals=None):
     """正式名稱只改公開說明，證據原句及代號判讀歷程保持原樣。"""
     row, signals = row or {}, signals or {}
     text = naturalize_reason(text)
+    text = re.sub(r'[（(][^（）()]*?(?:原文(?:作|為|寫|說)|語音(?:作|為)|誤植|誤字)[^（）()]*[）)]', '', text)
+    if str(row.get('code') or '') == '5274':
+        text = text.replace('信化','信驊')
     for heard, fixed in sorted(_public_aliases(signals).items(), key=lambda pair:-len(pair[0])):
         if heard == '00981A':
             continue
         text = text.replace(heard, fixed)
+    for fixed in set(_public_aliases(signals).values()):
+        text = re.sub(re.escape(fixed)+r'\s*[（(]'+re.escape(fixed)+r'[）)]',lambda m:fixed,text)
     name, code = row.get('name'), str(row.get('code') or '')
     if name and re.fullmatch(r'(?:00981A|\d{4,6})', code):
         text = re.sub(re.escape(name) + r'\s*(?:[（(]\s*(?:00981A|\d{4,6})\s*[）)]|(?:00981A|\d{4,6})(?=為例|這檔|這支|這一檔)|代號\s*(?:00981A|\d{4,6})(?!\d))',
                       lambda m:name+'（'+code+'）', text)
+        text = re.sub(re.escape(name)+r'\s*[（(]'+re.escape(name)+r'[）)]',lambda m:name,text)
         text = re.sub('(?:'+re.escape(name)+'){2,}', lambda m:name, text)
     # 僅去掉相同事實的重複句，不用相似度刪掉不同日期／價格。
     parts, seen = [], set()
@@ -5824,6 +5856,39 @@ def preserve_explicit_holdings(signals, transcript):
     return signals
 
 
+def exclude_past_recommendations(signals, transcript):
+    """只回顧推荐價不形成今天的建議；附本機確認旗標避免覆蓋時又沿用舊列。"""
+    hay=_ev_norm(transcript)
+    positions=set().union(*(_row_keys(r) for cat in ('buy','sell','holdings') for r in signals.get(cat,[])))
+    ignored=[]
+    for cat in ('watch_watch','watch_avoid','history','ignored'):
+        keep=[]
+        for row in signals.get(cat,[]):
+            # 模型不能自稱已通過本機判斷；每次都重新核對當輪原文。
+            row.pop('_past_recommendation_only_verified',None)
+            scopes=_entity_scope(row,signals,transcript)
+            text='。'.join(q[0] for q in scopes)
+            quotes=[q for q in row.get('evidence',[]) if isinstance(q,str) and _quote_is_real(q,hay)]
+            names=[row.get('name'),row.get('原始語音名稱')]+list(row.get('aliases') or [])
+            text+='。'+'。'.join(q for q in quotes if any(n and _ev_norm(n) in _ev_norm(q) for n in names))
+            text=re.sub(r'\s+','',text)
+            recap=bool(re.search(r'推薦|介紹',text) and (re.search(r'當時|以前|先前|曾經|當初|那時|那裡|那邊|早就|沒人(?:要)?買|不(?:敢|肯|願意)買|等.{0,8}漲上來.{0,6}(?:再|才)買',text)
+                or re.search(r'(?:我|我們).{0,8}推薦.{0,16}(?:在|是)?\d+(?:\.\d+)?(?:元|塊)',text)))
+            current=bool(re.search(r'(?:今天|現在|目前|接下來|明天|下週|未來|以後|後續).{0,18}(?:推薦|留意|進場|續抱|持有|看好|看壞|不碰|買點|要買|再買|觀察)',text)
+                or re.search(r'(?:仍然?|還)(?:在)?(?:持有|抱著|看好)|我(?:們)?(?:手中)?還有|會員(?:目前)?持有',text)
+                or re.search(r'(?:等|等待).{0,18}(?:拉回|跌到|突破|站上|站回|回測).{0,15}(?:買|進場|注意)',text))
+            if recap and not current and not (_row_keys(row)&positions):
+                row['_past_recommendation_only_verified']=True
+                row['exclusion_reason']='past_recommendation_only'
+                row['view']='';row['view_refs']=[];row['view_evidence']=[]
+                ignored.append(row)
+                if cat!='ignored':note_decision('舊推薦核對','純回顧不公開',row.get('name',''),'只有先前推薦價／沒人買的回顧，無現在持有、操作或新條件')
+            else:keep.append(row)
+        signals[cat]=keep
+    signals.setdefault('ignored',[]).extend(ignored)
+    return signals
+
+
 def normalize_watch_tones(signals):
     """日期轉類後統一語氣；既有會員持股事實不因市場警語降級。"""
     out={'watch_watch':[],'watch_avoid':[]}
@@ -5841,6 +5906,7 @@ def publication_gaps(signals, transcript):
     gaps = []
     for row in signals.get('ignored', []):
         name = str(row.get('name') or '')
+        if row.get('_past_recommendation_only_verified'):continue
         if name in NON_EQUITY_NAMES or name in CONFIRMED_INDUSTRY or (name not in CONFIRMED_NAMES and is_non_stock(name)[0]):
             continue
         gaps.append('排除覆核：' + name + ' 若為本次點名台股／ETF，行情、法人、換股亦列觀望；用原文風險／等待條件判方向，不能虛構推薦。純過往交易無現況則 history。')
@@ -5954,9 +6020,72 @@ def ensure_min_lessons(signals, transcript, date_str):
     return signals
 
 
+SUMMARY_TOPUP_SYSTEM = LESSON_TOPUP_SYSTEM + """
+這輪合併補第③章盤勢與第⑤章教學。need_macro與need_view是各章不足的點數；只補有缺口的章，不重複existing。
+盤勢kind用level/volume/event/flow，每點70～140字，至少找出三個不同盤勢主題；教學kind=view，每點120～220字。
+補充盤勢第一點可附headline，依内容擬20字內標題，不含姓名日期。每筆text和headline數字必須有引用。
+來源不足可少給，禁止把同一句拆成三點或借用其他股票。仍只輸出market陣列與evidence_refs。"""
+
+
+def ensure_article_minimums(signals, transcript, date_str):
+    """盤勢／教學缺口合併一問，經引用驗證才補入；最多一次補問。"""
+    market=signals.setdefault('market',[])
+    unique={}
+    for row in market:
+        if not isinstance(row,dict) or not row.get('_evidence_verified') or not str(row.get('text') or '').strip():continue
+        key=(row.get('kind')=='view',_lesson_key(row.get('text')))
+        if key not in unique or len(row.get('text',''))>len(unique[key].get('text','')):unique[key]=row
+    market[:]=[r for r in market if not r.get('_evidence_verified')]+list(unique.values())
+    def verified(is_view):
+        return [r for r in market if r.get('_evidence_verified') and (r.get('kind')=='view')==is_view]
+    need_macro=max(0,3-len(verified(False)))
+    need_view=max(0,MIN_LESSONS-len(verified(True))) if len(_ev_norm(transcript))>=LESSON_MIN_SOURCE else 0
+    if not need_macro and not need_view:return signals
+    gaps=signals.setdefault('_repair_gaps',[])
+    if _QUOTA_STOP.get('daily') or budget_left()<300:
+        gaps.append('盤勢內容偏短：時間或配額不足，未合併補問')
+        return signals
+    if not GEMINI_KEYS:
+        gaps.append('盤勢內容偏短：缺少模型金鑰，未合併補問');return signals
+    print(f'章節補問：盤勢缺 {need_macro} 點，教學缺 {need_view} 點，合併一次')
+    batches=assessment_batches(transcript,date_str)
+    # 很長的稿依原本安全預算分批，這次只挑含最多盤勢關鍵字的一批補問；不無限追問。
+    batch=max(batches,key=lambda b:sum(len(re.findall(r'大盤|指數|外資|美元|融資|CPI|PPI|利率|買點|不要追高',v['text'])) for v in b.values()))
+    payload=json.dumps({'video_date':date_str,'need_macro':need_macro,'need_view':need_view,
+        'existing':[r.get('text','') for r in market], 'source':{k:v['text'] for k,v in batch.items()}},ensure_ascii=False,separators=(',',':'))
+    cap=min(int(os.environ.get('GEMINI_CONTEXT_TOKENS','1048576')),int(os.environ.get('GEMINI_ASSESSMENT_TOKEN_BUDGET','120000')),1048576)
+    if len((SUMMARY_TOPUP_SYSTEM+payload).encode('utf-8'))+min(MAX_OUT,8000)+4096>cap:
+        gaps.append('盤勢內容偏短：完整補問請求超過預算，沿用可驗證內容');return signals
+    try:
+        parsed=safe_load_json(call_gemini(SUMMARY_TOPUP_SYSTEM,payload,want_json=True,thinking=1024,tag='summary-topup',max_out=min(MAX_OUT,8000)))
+        rows=parsed.get('market',[]) if isinstance(parsed,dict) else []
+        if not isinstance(rows,list):rows=[]
+        seen={(r.get('kind')=='view',_lesson_key(r.get('text'))) for r in market}
+        for raw in rows:
+            if not isinstance(raw,dict) or raw.get('kind') not in ('level','volume','event','flow','view'):continue
+            is_view=raw['kind']=='view'
+            if (is_view and not need_view) or (not is_view and not need_macro):continue
+            row={k:raw[k] for k in ('kind','text','headline','evidence_refs') if k in raw}
+            row['text']=strip_speaker_names(str(row.get('text') or ''))
+            materialize_evidence({'market':[row]},transcript)
+            key=(is_view,_lesson_key(row['text']))
+            if key in seen or not market_item_verified(row,_ev_norm(transcript)):continue
+            row['_evidence_verified']=True;row['_summary_topup']=True
+            market.append(row);seen.add(key)
+            if is_view:need_view-=1
+            else:need_macro-=1
+    except (RuntimeError,ValueError,RateLimited) as e:
+        print(f'章節補問未完成：{str(e)[:120]}，沿用已驗證內容')
+    for is_view,label in ((False,'盤勢'),(True,'教學')):
+        if (not is_view or len(_ev_norm(transcript))>=LESSON_MIN_SOURCE) and len(verified(is_view))<3:
+            gaps.append(f'{label}內容偏短：補問後仍只有 {len(verified(is_view))} 點，未補造')
+    return signals
+
+
 def audit_context_json(transcript, signals, date_str, editorial_retry=True):
     materialize_evidence(signals, transcript)
     recover_context(signals, transcript)
+    signals = exclude_past_recommendations(signals, transcript)
     gaps = evidence_gaps(signals, transcript) + entity_claim_gaps(signals, transcript)
     # A valid quote cannot prove coverage or classification. Review semantics even
     # when local format checks pass; combine it with repair in the same request.
@@ -6003,6 +6132,7 @@ def audit_context_json(transcript, signals, date_str, editorial_retry=True):
         if repaired is not None:
             materialize_evidence(repaired, transcript)
             recover_context(repaired, transcript)
+            repaired = exclude_past_recommendations(repaired, transcript)
             gaps = evidence_gaps(repaired, transcript, signals) + publication_gaps(repaired, transcript) + entity_claim_gaps(repaired, transcript)
             # Preserve omitted candidates for the audit sheet; never silently lose
             # evidence when a review response is shorter than the extraction.
@@ -6244,8 +6374,8 @@ def _first_price(text: str, patterns=None):
     return None
 
 
-def price_reality_check(ss, signals: dict, date_str: str) -> dict:
-    """價位與持有事實分開查；無日K仍檢查格式，不再猜倍數或改股票方向。"""
+def normalize_price_fields(signals):
+    """先做不依賴行情的價位角色檢查，避免把跌幅寫進正式股價欄。"""
     for cat in SIGNAL_CATEGORIES:
         for row in signals.get(cat, []):
             value = str(row.get('price') or '')
@@ -6257,6 +6387,12 @@ def price_reality_check(ss, signals: dict, date_str: str) -> dict:
                 for field in ('reason','note'):
                     if row.get(field):
                         row[field] = re.sub(r'(?<!\d)' + re.escape(value.strip()) + r'(?!\d)(?:附近)?', '所提技術位置', row[field])
+    return signals
+
+
+def price_reality_check(ss, signals: dict, date_str: str) -> dict:
+    """原句格式先核對，已有日K才另做區間檢查。"""
+    signals = normalize_price_fields(signals)
     try:
         kmap = _daily_k_cached(ss)
     except Exception as exc:
@@ -7878,6 +8014,8 @@ def reconcile_with_prior(signals, prior, date_str):
         return found
     published = pool(SIGNAL_CATEGORIES)
     past = pool(('history',))
+    # 只有經本機對本次原文確認的舊推薦，才可撤掉前一版觀望；一般ignored仍保留安全網。
+    recaps={key for r in signals.get('ignored',[]) if r.get('_past_recommendation_only_verified') for key in _identity_keys(r)}
     parked = pool(('ignored', 'uncertain'))
 
     groups = {}
@@ -7895,6 +8033,9 @@ def reconcile_with_prior(signals, prior, date_str):
         if now:
             if set(before) != set(now):
                 changes.append(f"{name}：{'、'.join(before)} → {'、'.join(now)}")
+            continue
+        if keys & recaps:
+            accepted.append(f"{name}（前一版{'、'.join(before)}）：本輪確認只有舊推薦回顧，不公開、不沿用")
             continue
         if any(k in past for k in keys):
             accepted.append(f"{name}（前一版{'、'.join(before)}）：本輪判定只有過去交易、沒有現況看法，依規則不公開")
@@ -8071,17 +8212,17 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None
             signals[key] = keep
 
     step("價位校對", f"目前 {_n(signals)} 檔，核對原句價位與所屬公司；日K在背景更新")
-    # Price plausibility alone cannot prove identity or a trade. Preserve the
-    # quoted range; downstream pricing already validates it against event-day K.
+    signals = normalize_price_fields(signals)
     signals = naturalize_signal_reasons(signals)
 
     step("日期歸屬", "把昨天的操作改記到昨天，並排出同一天的先後")
     signals = apply_when_and_seq(ss, signals, date_str)
     # 日期未明的回顧依上下文改列觀望注意／觀望不碰（管理者規則，2026/09/11）。
     # 排在日期歸屬之後：品質關卡與日期歸屬移進回顧的列也要一起處理。
+    signals = exclude_past_recommendations(signals, TX["audit"])
     signals = history_to_watch(signals, date_str, ss, transcript=TX["audit"])
     # ⑤ 教學重點至少三點。排在寫入與稽核存檔之前，補回的點會一起進試算表、稽核與郵件。
-    signals = ensure_min_lessons(signals, TX["audit"], date_str)
+    signals = ensure_article_minimums(signals, TX["audit"], date_str)
     signals = sanitize_entity_claims(signals, TX["audit"])
     signals = preserve_explicit_holdings(signals, TX["audit"])
     signals = normalize_watch_tones(signals)
@@ -8131,6 +8272,7 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None
             review.append(f"沿用前一版 {len(rec['carried'])} 檔待複核：{'、'.join(rec['carried'])}")
 
     # 沿用前一版的列也要走公開文字整理；保留原始引用與待複核狀態。
+    signals = normalize_price_fields(signals)
     signals = naturalize_signal_reasons(signals)
     gaps_all = signals.get('_repair_gaps') or []
     pending = len(signals.get('uncertain') or []) + len(needs_review_gaps(gaps_all))

@@ -2095,7 +2095,7 @@ async def fetch_fulltext(video_url, title, timeout):
 # ---------------------------------------------------------------- #
 # Gemini
 # ---------------------------------------------------------------- #
-def gemini_generation_config(model, max_out=MAX_OUT, thinking=0, want_json=False):
+def gemini_generation_config(model, max_out=MAX_OUT, thinking=0, want_json=False, tag=''):
     """Shared by production and smoke tests; rebuilt after each model rotation."""
     cfg = {"maxOutputTokens": min(max_out, MAX_OUT)}
     if re.search(r'gemini-3(?:\.|-)', model):
@@ -2110,6 +2110,9 @@ def gemini_generation_config(model, max_out=MAX_OUT, thinking=0, want_json=False
             cfg['thinkingConfig'] = {'thinkingBudget': thinking}
     if want_json:
         cfg['responseMimeType'] = 'application/json'
+        if tag.startswith(('assess-json-', 'context-review')):
+            # 只限制九類容器，不把持股欄位硬套在盤勢上；語意與引句仍須本機核對。
+            cfg['responseJsonSchema'] = assessment_response_schema()
     return cfg
 
 
@@ -2158,7 +2161,7 @@ def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX
         return (f"https://generativelanguage.googleapis.com/v1beta/models/"
                 f"{model}:generateContent")
 
-    cfg = gemini_generation_config(current_gemini_model(), max_out, thinking, want_json)
+    cfg = gemini_generation_config(current_gemini_model(), max_out, thinking, want_json, tag)
 
     body = {
         "systemInstruction": {"parts": [{"text": system_text}]},
@@ -2212,7 +2215,7 @@ def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX
                 used = _KEY_STATE["idx"]
                 model = current_gemini_model()
                 key = current_gemini_key()
-            body['generationConfig'] = gemini_generation_config(model, max_out, thinking, want_json)
+            body['generationConfig'] = gemini_generation_config(model, max_out, thinking, want_json, tag)
             tries += 1
             r = requests.post(gemini_url(model), params={"key": key},
                               json=body, timeout=600)
@@ -2786,6 +2789,9 @@ def is_non_stock(name: str):
     n = re.sub(r'\s+', '', str(name or '')).replace('載版', '載板')
     if not n:
         return True, "空白"
+    # 正式英文簡稱也能是台股。只認官方已載入清單，不把任意英文放行。
+    if n in (_CODE_MAP or {}).values():
+        return False, "官方簡稱"
     if n in NON_STOCK_EXACT:
         return True, "市場泛稱"
     for s in NON_STOCK_SUFFIX:
@@ -4073,7 +4079,7 @@ uncertain 的 suggested_category 只用 buy/sell/holdings/watch_avoid/watch_watc
 覆核前後每個候選必須能由原名稱或 aliases 對應；分類可變但不可無聲消失。思考較深也不能增加原文沒有的交易、日期、價位或投資理由。
 """
 
-EXTRACT_SYSTEM = POLICY + "\n這次合併擷取、分類、日期判斷、補漏及大盤摘要。輸入為JSON，source每個鍵是來源編號。先依【先盤點，再分類】逐段找出每一個被點名的公司，再分類。完整讀完各段後在同一次回答自行覆核，特別檢查最後20%，只輸出完成的九類陣列，不輸出初稿或重複引句。長稿各批保留原始S編號，不假設記得其他請求。"
+EXTRACT_SYSTEM = POLICY + "\n合併擷取、分類、日期、補漏及摘要。source鍵為S編號；source_inventory是原文名稱候選，逐一分類或說明排除，不代表推薦或持有。再讀全文補諧音與末段漏項，輸出完整九類陣列；不抄引句、不假設記得其他批。"
 
 
 AUDIT_SYSTEM = POLICY + "\n這是追加覆核。重讀本次提供的全部來源段落；分批時不假設收到其他批原文。逐筆校對初稿並補漏，補漏時逐段對照【先盤點，再分類】的六種句型，初稿沒收的公司要補進對應類別，輸出完整九類陣列，不只輸出差異。逐筆重看 watch_watch，語氣偏負面或當風險示範者依從寬標準改列 watch_avoid；公開文字的人名改成省略主詞；教學主題不足時逐段補齊。被刪除的初稿候選須列 ignored/uncertain 並附理由，不能消失。最後獨立核對每檔持有證據與候選名單：不因昨日買進或後文列候選而漏掉仍持有的部位；每個price_evidence需含價位數字且所在段已引用。附 changes 說明修正。"
@@ -5546,7 +5552,52 @@ CONFIRMED_INDUSTRY = {'細金元': '矽晶圓', '矽晶圓': '矽晶圓',
 # 整天覆蓋（delete_rows_for_date）時這些列一律保留。先前這個常數只有 Apps Script 定義，
 # pipeline 端一走到那一行就是 NameError。
 MANUAL_ENTRY_PREFIX = 'MANUALENTRY-'
-ASSESSMENT_VERSION = 'context-json-v4'
+ASSESSMENT_VERSION = 'context-json-v16'
+
+
+def assessment_response_schema():
+    """API 層保證容器存在；空陣列合法，不為湊欄位虛構股票。"""
+    cats = SIGNAL_CATEGORIES + ('history', 'uncertain', 'ignored', 'market')
+    return {'type': 'object', 'required': list(cats),
+            'properties': {c: {'type': 'array', 'items': {'type': 'object',
+                           'additionalProperties': True}} for c in cats}}
+
+
+def source_inventory(segments):
+    """只做名稱定位，使用這輪已載入的官方表；不增加模型或行情呼叫。"""
+    names = {n: (c, n) for c, n in (_CODE_MAP or {}).items() if len(n) >= 2}
+    names.update(CONFIRMED_NAMES)
+    source = ''.join(s['text'] for s in segments.values())
+    found = []
+    for heard, (code, name) in sorted(names.items()):
+        if heard in NON_EQUITY_NAMES or heard in CONFIRMED_INDUSTRY or heard not in source:
+            continue
+        # M31 不可命中 M310；純數字通常是價位，沒有名稱就留給語意判讀。
+        if heard.isdigit():
+            continue
+        pattern = re.escape(heard)
+        if re.fullmatch(r'[A-Za-z0-9*-]+', heard):
+            pattern = r'(?<![A-Za-z0-9])' + pattern + r'(?![A-Za-z0-9])'
+        refs = [sid for sid, seg in segments.items() if re.search(pattern, seg['text'])]
+        if refs:
+            found.append({'name': heard, 'code': code, 'official_name': name, 'refs': refs})
+    return found
+
+
+def inventory_gaps(signals, transcript):
+    """兩輪都漏掉的名字，也必須出現在覆核缺口；不自動新增買賣或持有。"""
+    rows = [r for c in SIGNAL_CATEGORIES + ('history', 'uncertain', 'ignored')
+            for r in signals.get(c, []) if isinstance(r, dict)]
+    names = {str(n) for r in rows for n in [r.get('name', '')] + (r.get('aliases') or [])}
+    codes = {str(r.get('code', '')) for r in rows if r.get('code')}
+    gaps, seen = [], set()
+    for item in source_inventory(source_segments(transcript)):
+        if item['code'] in seen or item['code'] in codes or {item['name'], item['official_name']} & names:
+            continue
+        seen.add(item['code'])
+        gaps.append('原文盤點漏項：' + item['name'] + '（' + item['code'] + '，' +
+                    '、'.join(item['refs']) + '）；核對現況、持有者與動作，逐一分類或附排除理由，不可直接推定持有。')
+    return gaps
 
 
 def compact_assessment(signals):
@@ -5625,6 +5676,9 @@ def assessment_payload(date_str, segments, candidates=None, issues=None):
             'confirmed_names': {a:v for a,v in CONFIRMED_NAMES.items() if any(a in seg['text'] for seg in segments.values())}, 'confirmed_industries': CONFIRMED_INDUSTRY,
             'non_equity_names': sorted(NON_EQUITY_NAMES),
             'source': {sid: seg['text'] for sid, seg in segments.items()}}
+    inventory = source_inventory(segments)
+    if inventory:
+        data['source_inventory'] = inventory
     if candidates is not None:
         data['candidates'] = compact_assessment(candidates)
     if issues:
@@ -5682,7 +5736,7 @@ def extract_context_json(transcript, date_str):
                     raise ValueError('JSON合併判讀必須包含完整九類陣列；未寫入資料')
                 parsed = loaded
                 break
-            except Exception as e:
+            except (ValueError, TypeError) as e:
                 last_err = e
                 parsed = None
                 print(f"  第 {index} 批 JSON 判讀解析異常（第 {attempt + 1}/3 次）：{e}")
@@ -6009,7 +6063,7 @@ def normalize_watch_tones(signals):
 
 def publication_gaps(signals, transcript):
     """把可量測的漏收、縮水交給既有全文覆核，不能僅靠 Prompt 的期望字數。"""
-    gaps = []
+    gaps = inventory_gaps(signals, transcript)
     for row in signals.get('ignored', []):
         name = str(row.get('name') or '')
         if row.get('_past_recommendation_only_verified'):continue
@@ -6192,6 +6246,8 @@ def _parse_review_json(raw):
     parsed = safe_load_json(raw)
     if not isinstance(parsed, dict):
         raise ValueError('JSON修復格式必須是物件')
+    if any(not isinstance(parsed.get(c), list) for c in SIGNAL_CATEGORIES + ('history', 'uncertain', 'ignored', 'market')):
+        raise ValueError('JSON覆核必須包含完整九類陣列；不把漏回類別當成空資料')
     return parsed
 
 
@@ -8248,6 +8304,13 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None
         print(f"  潤飾後只剩原文的 {TX['ratio']:.0%}，壓縮過頭，"
               f"原始逐字稿仍是唯一判讀來源")
     step("擷取", "從逐字稿讀出他講了哪幾檔")
+    # 原本代號表在模型判讀後才載入，兩輪都沒抓到的股票完全沒有補漏基準。
+    try:
+        get_code_map()
+    except Exception as e:
+        print(f'原文盤點：官方表暫不可用，仍用確認名稱；後續代號比對再試（{type(e).__name__}）')
+    roster = source_inventory(source_segments(TX['extract']))
+    print('原文名稱盤點（候選，非分類）：' + ('、'.join(dict.fromkeys(r['name'] for r in roster)) or '無精確命中，交由全文判讀'))
     signals = extract_signals(TX["extract"], date_str)
     print(f"  擷取結果　{signal_roster(signals)}")
 

@@ -4119,7 +4119,7 @@ reason 只能用提到這一檔的句子；上一句、下一句在講另一檔�
 說明的洞見來自原文的因果脈絡：觀察到的現象 → 講者認為的原因或市場落差 → 對既有部位／新進資金各自的做法 → 後續確認條件。只填原文存在的環節；不得為湊齊格式自創未定價利多、內幕渠道、領先指標、停損點、目標價或獲利預測。「營收成長但股價跌」可呈現基本面與技術面的落差，但不能自行斷言市場定價錯誤或保證反彈。預期、看好、推測須歸屬講者；摘要不是系統自己的投資建議。
 
 【大盤】
-market 每筆填 kind=level/volume/event/flow/view、text、evidence_refs。首筆盤勢填headline：取講者本集最有力的一句觀點改寫，8～26字口語，驚嘆號或問句收尾（如「你買在高檔 神仙都難救！」），不含姓名日期，用原文的字，不新增事實；程式會加「張震：」。
+market 每筆填 kind=level/volume/event/flow/view、text、evidence_refs。首筆盤勢一定要填headline：取講者本集最有力的一句觀點，口語一句、不限字數，驚嘆號或問句收尾（如「你買在高檔 神仙都難救！」），不含姓名日期，用原文的字與數字，不新增事實；程式會加「張震：」。
 level/volume/event/flow 是盤勢（信件第③章）：涵蓋原文明講的指數關卡、缺口、量與解讀、CPI/PPI/利率決策的時間、美元/資金、融資餘額、整理週期與展望。原文充足時整理 6～10 點，至少3個不同主題；不足三點時重讀原文補足，確無內容不得杜撰。每點約 70～140 字，合計以 1400 字為目標上限。每點交代現象及講者的解讀，不拆成重複短句湊點數。
 view 是講者今天的操作邏輯與教學重點（信件第⑤章）：逐段找出講者教觀眾怎麼想、怎麼做、要避免什麼的段落，不同主題各成一點（例：買賣節奏、追高與等拉回、續抱耐心、法人成本與解套賣壓、外資短線換手、重大事件前的部位、量縮整理怎麼做、候選名單與買點、減少頻繁進出、技術關卡、選股依據）。原文充足時整理 6～10 點（逐字稿超過五千字時至少 3 點），每點寫成「觀念標題：說明」，說明 3～5 句約 120～220 字：做法 → 明講的原因 → 適用對象與條件 → 當天例子 → 要避免的錯誤；缺的環節省略。個股說明裡的通用做法也提煉成一點。要區分已有部位者續抱與未持有者等待買點，條件性風險提醒不能寫成對所有人的全面禁令。同段有盤面與做法時拆成兩筆。
 資料少就少寫，不湊點數；每一點都要有 evidence_refs，列出觀念、原因、例子所在的全部段落；text 的數字必須出現在所列段落，否則整點會被剔除；教學點以觀念與做法為主，數字非必要就不寫。
@@ -4984,7 +4984,7 @@ ARTICLE_SYSTEM = """你是一位專業財經記者與投顧整理編輯，負責
 ① 文章標題
    觀察清單中的核心主題與關鍵字，產出 1 個具體標題，格式「張震：＿＿＿！」，
    風格參考 168 聚財網「張震：換手太明顯，這就是財富重分配！」「張震：你買在高檔 神仙都難救！」
-   這類講者口吻的觀點句，但不可直接複製；冒號後 8～26 字，不含日期，不新增清單沒有的事實。
+   這類講者口吻的觀點句，但不可直接複製；不限字數，不含日期，不新增清單沒有的事實。
    輸出一行：文章標題：（你產生的標題）
 
 ② 基本資訊
@@ -5208,35 +5208,61 @@ def format_readable_transcript(text):
 TITLE_PREFIX = '張震：'
 
 
-def article_title(signals):
-    """由已驗證盤勢產生標題；刷新同批資料時仍得到同一標題。
+def article_title_detail(signals):
+    """文章標題與它的來源。回傳 (標題, 來源, 未採用的模型標題與原因)。
 
-    格式照 168 聚財網〈168看電視〉張震文章：「張震：你買在高檔 神仙都難救！」
-    「張震：高檔熱門股已經有人在出貨了 別逼我買！」——講者本集最有力的一句觀點，口語、第一人稱可，
-    驚嘆號或問句收尾。模型只給後半句（headline），「張震：」由程式加，不讓模型寫人名。
-    標題的字要八成以上出現在同一筆已驗證的盤勢說明或原句裡，數字必須出現在原句，不新增事實。
+    格式照 168 聚財網〈168看電視〉張震文章：「張震：你買在高檔 神仙都難救！」——
+    講者本集最有力的一句觀點。模型只給後半句（headline），「張震：」由程式加。
+    不限字數（管理者 2026/09/14）。仍要擋的是「新增事實」：
+      數字必須出現在已驗證的盤勢／教學原句裡；字要八成以上出自那些說明與原句。
+    比對範圍是全部已驗證的盤勢與教學，不是只有帶標題的那一筆——
+    講者最有力的那句話常常在教學段，只比同一筆會把好標題擋掉。
+    三層來源依序：模型標題 → 第一個教學重點的觀念標題 → 盤勢主題。
     """
-    rows=[r for r in signals.get('market',[]) if r.get('_evidence_verified') and r.get('kind')!='view']
+    rows = [r for r in signals.get('market', []) if r.get('_evidence_verified')]
+    source_flat = re.sub(r'\s', '', ''.join(str(r.get('text') or '') + ''.join(str(q) for q in (r.get('evidence') or []))
+                                            for r in rows))
+    rejected = []
+    ordered = [r for r in rows if r.get('kind') != 'view'] + [r for r in rows if r.get('kind') == 'view']
+    for row in ordered:
+        raw = str(row.get('headline') or '').strip()
+        if not raw:
+            continue
+        title = re.sub(r'^(?:張震|張正)\s*[：:]\s*', '', raw)
+        title = strip_speaker_names(title).strip(' ①：:。「」')
+        body = title.rstrip('！!？?')
+        chars = re.findall(r'[\w]', body)
+        why = ''
+        if not body:
+            why = '空白'
+        elif re.search(r'張震|張正|講者|盤勢與操作紀錄|\d{4}[/年]', body):
+            why = '含人名或日期'
+        elif not all(n in source_flat for n in re.findall(r'\d+(?:\.\d+)?', body)):
+            why = '數字不在原句'
+        elif chars and sum(c in source_flat for c in chars) / len(chars) < 0.8:
+            why = '用字多半不在原句'
+        if why:
+            rejected.append((raw, why))
+            continue
+        ending = title[len(body):][:1] or '！'
+        return TITLE_PREFIX + body + {'!': '！', '?': '？'}.get(ending, ending), '模型標題', rejected
     for row in rows:
-        title=str(row.get('headline') or '').strip()
-        title=re.sub(r'^(?:張震|張正)\s*[：:]\s*','',title)
-        title=strip_speaker_names(title).strip(' ①：:。「」')
-        body=title.rstrip('！!？?')
-        source=str(row.get('text') or '')+' '.join(row.get('evidence') or [])
-        source_flat=re.sub(r'\s','',source)
-        chars=re.findall(r'[\w]',body)
-        if (body and len(body)<=26 and not re.search(r'張震|張正|講者|盤勢與操作紀錄|\d{4}[/年]',body)
-            and all(n in source_flat for n in re.findall(r'\d+(?:\.\d+)?',body))
-            and (not chars or sum(c in source_flat for c in chars)/len(chars)>=0.8)):
-            ending=title[len(body):][:1] or '！'
-            return TITLE_PREFIX+body+{'!':'！','?':'？'}.get(ending,ending)
-    text=' '.join(str(r.get('text') or '') for r in rows)
-    themes=[label for pattern,label in (
-        (r'CPI|消費者物價指數','CPI動向'),(r'PPI|生產者物價指數','PPI動向'),
-        (r'利率|聯準會','利率決策'),(r'量縮|成交量縮','量縮整理'),(r'震盪|壓縮|橫盤','震盪盤勢'),
-        (r'外資|資金','外資動向'),(r'美元|匯率','匯率變化'),(r'融資','融資變化'),(r'缺口|支撐|關卡','技術關卡'))
-        if re.search(pattern,text)]
-    return TITLE_PREFIX+('與'.join(themes[:2]) if themes else '市場觀察與操作重點')
+        if row.get('kind') != 'view':
+            continue
+        m = re.match(r'\s*([^：:。！？!?\n]{2,40})[：:]', str(row.get('text') or ''))
+        if m and not re.search(r'張震|張正|講者|\d{4}[/年]', m.group(1)):
+            return TITLE_PREFIX + m.group(1).strip() + '！', '教學重點的觀念標題', rejected
+    text = ' '.join(str(r.get('text') or '') for r in rows if r.get('kind') != 'view')
+    themes = [label for pattern, label in (
+        (r'CPI|消費者物價指數', 'CPI動向'), (r'PPI|生產者物價指數', 'PPI動向'),
+        (r'利率|聯準會', '利率決策'), (r'量縮|成交量縮', '量縮整理'), (r'震盪|壓縮|橫盤', '震盪盤勢'),
+        (r'外資|資金', '外資動向'), (r'美元|匯率', '匯率變化'), (r'融資', '融資變化'), (r'缺口|支撐|關卡', '技術關卡'))
+        if re.search(pattern, text)]
+    return TITLE_PREFIX + ('與'.join(themes[:2]) if themes else '市場觀察與操作重點'), '盤勢主題（沒有可用的模型標題）', rejected
+
+
+def article_title(signals):
+    return article_title_detail(signals)[0]
 
 
 def canonical_article(signals, date_str, article=''):
@@ -5647,7 +5673,7 @@ def validate_evidence(signals, transcript, date_str, after_codes=False):
     signals["watch_watch"].extend(moved_to_watch)
 
     # Market facts obey the same evidence rule as stocks, including every number.
-    market_keep = []
+    market_keep, orphan_headline = [], ''
     for item in signals.get('market', []):
         # ③⑤ 章同樣是公開文字，句首人名一併拿掉；不影響下面的數字核對。
         item['text'] = strip_speaker_names(item.get('text'))
@@ -5656,6 +5682,11 @@ def validate_evidence(signals, transcript, date_str, after_codes=False):
             market_keep.append(item)
         else:
             signals.setdefault('_repair_gaps', []).append('大盤摘要有未驗證的引用或數字：' + str(item.get('text','')))
+            orphan_headline = orphan_headline or str(item.get('headline') or '')
+    # 模型只在第一筆盤勢放標題；那一筆因為別的數字沒過核對被剔除時，標題不能跟著消失
+    # （之後只剩「利率決策與震盪盤勢」這種主題備援）。標題本身仍由 article_title 逐字核對。
+    if orphan_headline and market_keep and not any(r.get('headline') for r in market_keep):
+        market_keep[0]['headline'] = orphan_headline
     signals['market'] = market_keep
     published = sum(len(signals.get(c) or []) for c in SIGNAL_CATEGORIES)
     print("品質關卡（逐筆分級，不整批擋下）：")
@@ -6695,7 +6726,7 @@ def ensure_min_lessons(signals, transcript, date_str):
 SUMMARY_TOPUP_SYSTEM = LESSON_TOPUP_SYSTEM + """
 這輪合併補第③章盤勢與第⑤章教學。need_macro與need_view是各章不足的點數；只補有缺口的章，不重複existing。
 盤勢kind用level/volume/event/flow，每點70～140字，至少找出三個不同盤勢主題；教學kind=view，每點120～220字。
-補充盤勢第一點可附headline：講者最有力的一句觀點，8～26字口語，驚嘆號或問句收尾，不含姓名日期，用原文的字。每筆text和headline數字必須有引用。
+補充盤勢第一點可附headline：講者最有力的一句觀點，口語一句、不限字數，驚嘆號或問句收尾，不含姓名日期，用原文的字。每筆text和headline數字必須有引用。
 來源不足可少給，禁止把同一句拆成三點或借用其他股票。仍只輸出market陣列與evidence_refs。"""
 
 
@@ -9062,6 +9093,10 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     # 只印「稽核補漏後」的話，網站上最後長什麼樣子在日誌裡看不到（2026/09/14 裕隆、鴻準就是在這之後被改類）。
     print(f"  最終分類　{signal_roster(signals)}")
     step("撰稿", f"共 {_n(signals)} 檔，產生每日整理")
+    _title, _title_src, _title_rejected = article_title_detail(signals)
+    print(f"  文章標題　{_title}（來源：{_title_src}）")
+    for _raw, _why in _title_rejected:
+        print(f"  文章標題　未採用模型標題「{_raw}」：{_why}")
     article = build_article(v2, signals, date_str)
 
     step("寫入", f"把 {_n(signals)} 檔寫進試算表")

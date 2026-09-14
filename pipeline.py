@@ -2095,6 +2095,21 @@ async def fetch_fulltext(video_url, title, timeout):
 # ---------------------------------------------------------------- #
 # Gemini
 # ---------------------------------------------------------------- #
+# 九類 JSON 結構約束（v16 新增）尚未以正式模型實測。某個型號不接受時，Google 回 400，
+# 而既有流程把 400 當成「這一把金鑰不能用」換下一把——每一把都會被同樣拒絕，
+# 最後全部金鑰被標壞、整張工單中斷。所以被拒一次就本輪停用結構約束，退回原本的 JSON 模式重送。
+_SCHEMA_STATE = {'on': True, 'why': ''}
+
+
+def _schema_rejected(status, text, cfg):
+    """這個 400 是不是在拒絕 responseJsonSchema（不是金鑰、也不是其他參數的問題）。"""
+    if status != 400 or 'responseJsonSchema' not in (cfg or {}):
+        return False
+    low = str(text or '').lower()
+    return ('schema' in low or 'unknown name' in low or 'invalid json payload' in low
+            or 'response_json' in low)
+
+
 def gemini_generation_config(model, max_out=MAX_OUT, thinking=0, want_json=False, tag=''):
     """Shared by production and smoke tests; rebuilt after each model rotation."""
     cfg = {"maxOutputTokens": min(max_out, MAX_OUT)}
@@ -2110,7 +2125,7 @@ def gemini_generation_config(model, max_out=MAX_OUT, thinking=0, want_json=False
             cfg['thinkingConfig'] = {'thinkingBudget': thinking}
     if want_json:
         cfg['responseMimeType'] = 'application/json'
-        if tag.startswith(('assess-json-', 'context-review')):
+        if _SCHEMA_STATE['on'] and tag.startswith(('assess-json-', 'context-review')):
             # 只限制九類容器，不把持股欄位硬套在盤勢上；語意與引句仍須本機核對。
             cfg['responseJsonSchema'] = assessment_response_schema()
     return cfg
@@ -2226,6 +2241,13 @@ def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX
 
         if r.status_code != 200:
             last = f"HTTP {r.status_code}"
+            if _schema_rejected(r.status_code, r.text, body.get('generationConfig')):
+                _SCHEMA_STATE.update(on=False, why=api_error_text(r.text or '')[:160])
+                print(f"Gemini {tag} 不接受九類 JSON 結構約束（{_SCHEMA_STATE['why'] or 'HTTP 400'}），"
+                      f"本輪改用一般 JSON 模式重送；不是金鑰問題，不換鑰匙、不標記壞掉。")
+                slot -= 1          # 這一次不佔退避表的格子
+                skip_delay = True
+                continue
             if r.status_code not in TRANSIENT:
                 # 400／403／404 幾乎都是「這一把金鑰的問題」，不是整個流程壞掉：
                 #   404  這個專案看不到這個模型（Generative Language API 沒開通，
@@ -3011,6 +3033,13 @@ def resolve_code(name: str, hint: str):
             if _base(n) == nb:
                 return c, n, "去後綴後相同"
 
+    # 3.5 管理者確認的讀音（2026/09/14 裕隆：玉龍、浴龍……任何同音寫法）。
+    #     排在正式名稱與去後綴之後：原文明寫的正式名稱（宇隆）永遠優先。
+    if _has_cjk(name):
+        for target, (sound_code, sound_name) in CONFIRMED_SOUNDS.items():
+            if len(name) == len(target) and _npin(name) == _npin(target):
+                return sound_code, sound_name, f"管理者確認讀音（與{target}同音）"
+
     # 3.9 對照表殘缺時，模糊比對到此為止。
     #
     #     這是 2026/09/10 那次事故的直接修補。上市的來源全掛，表裡只剩 887 檔
@@ -3719,6 +3748,19 @@ def resolve_signals(signals: dict, transcript: str = "") -> dict:
                 if confirmed:
                     print(f"  代號比對　{raw} 的原字是「{confirmed}」（管理者確認），改以原字比對")
                     raw, hint = confirmed, ""
+                elif transcript and len(raw) >= 2 and _has_cjk(raw):
+                    # 2026/09/14：原文「金星科」被模型寫成「金益鼎」，而金益鼎剛好是官方簡稱（8390），
+                    # 字面比對直接命中，網站上出現一家原文從沒講過、讀音也不同的公司。
+                    # 模型寫的名稱在原文找不到、唸起來也不像，而聽到的原字找得到時，以原字重新比對。
+                    hay_all = re.sub(r"\s", "", transcript)
+                    if not _in_transcript(raw, hay_all) and not _sounds_in_transcript(raw, hay_all):
+                        heard = next((a for a in heard_names if len(a) >= 2 and a != raw
+                                      and (_in_transcript(a, hay_all) or _sounds_in_transcript(a, hay_all))), "")
+                        if heard:
+                            print(f"  代號比對　{raw} 不在原文、讀音也對不上，改以原字「{heard}」比對")
+                            note_decision('代號比對', '改用原字', raw, f'模型名稱不在原文，原字為「{heard}」')
+                            r["未採用模型名稱"] = raw
+                            raw, hint = heard, ""
 
             # 沒有數字的價位說明先清掉，免得一路流到網站的價位欄。
             if "price" in r:
@@ -3726,6 +3768,29 @@ def resolve_signals(signals: dict, transcript: str = "") -> dict:
                 if cleaned != str(r.get("price") or "").strip():
                     stat["價位清空"] += 1
                 r["price"] = cleaned
+
+            # 名稱判定紀錄裡管理者確認過（來源＝人工）的，優先於一切比對，不問模型。
+            memo = manual_memo_match(r)
+            if memo:
+                heard_m, e = memo
+                if e.get('verdict') in ('industry', 'not_stock'):
+                    stat["剔除"] += 1
+                    print(f"  代號比對　{heard_m} -> 剔除（名稱判定紀錄：人工確認為{e.get('real') or '非個股'}）")
+                    note_decision('代號比對', '剔除（人工判定紀錄）', heard_m, e.get('real') or e.get('why') or '')
+                    note_name_event(heard_m, e.get('verdict'), e.get('real'), '', '名稱判定紀錄（人工）', '人工')
+                    continue
+                r["code"], fixed_m = e["code"], e.get("real") or r.get("name")
+                if heard_m != fixed_m:
+                    r["原始語音名稱"] = r.get("原始語音名稱") or heard_m
+                    r["aliases"] = list(dict.fromkeys((r.get("aliases") or []) + [heard_m]))
+                    stat["修正"] += 1
+                else:
+                    stat["命中"] += 1
+                r["name"] = fixed_m
+                print(f"  代號比對　{heard_m} -> {e['code']} {fixed_m}（名稱判定紀錄：人工確認）")
+                note_name_event(heard_m, 'stock', fixed_m, e['code'], '名稱判定紀錄（人工）', '人工')
+                kept.append(r)
+                continue
 
             if hint and transcript and not re.search(r'(?<![A-Za-z0-9])' + re.escape(hint) + r'(?![A-Za-z0-9])', transcript):
                 r['未採用模型代號'] = hint
@@ -3750,6 +3815,9 @@ def resolve_signals(signals: dict, transcript: str = "") -> dict:
             if code == REJECT:
                 stat["剔除"] += 1
                 print(f"  代號比對　{raw} -> 剔除（{how.replace('剔除：', '')}）")
+                note_name_event(raw, 'industry' if raw in CONFIRMED_INDUSTRY else 'not_stock',
+                                fixed if raw in CONFIRMED_INDUSTRY else '', '', how,
+                                '內建確認' if raw in CONFIRMED_INDUSTRY else '規則')
                 continue
 
             r["code"] = code
@@ -3759,11 +3827,14 @@ def resolve_signals(signals: dict, transcript: str = "") -> dict:
             if code == UNRESOLVED:
                 stat["待確認"] += 1
                 print(f"  代號比對　{raw} -> 待確認（{how}）")
+                note_name_event(raw, 'unsure', '', '', how, '規則')
             elif fixed != raw:
                 stat["修正"] += 1
                 r["name"] = fixed
                 r["原始語音名稱"] = raw
                 print(f"  代號比對　{raw} -> {code} {fixed}（{how}）")
+                note_name_event(raw, 'stock', fixed, code, how,
+                                '內建確認' if raw in CONFIRMED_NAMES or '管理者確認' in how else '規則')
             else:
                 stat["命中"] += 1
             kept.append(r)
@@ -3989,7 +4060,10 @@ reason、note、market text 是公開文字，不寫人名當主詞或所有格�
 三、一口氣念出的名單：「我連後面要什麼聖輝、新代、加折還有木德，我以後要買的股票通列出來給你看了」→ 名單裡每一檔各一筆 watch_watch（已是持股的仍列 holdings）。
 四、等條件或等別人賣完：「等ETF賣完這支股票就漲，買點就來了」「你沒有破900我不想買」→ watch_watch，reason 寫出那個條件。講的是哪一檔要從同一段的名稱找（ETF 出清的那一檔原文寫初清程、出金城＝勤誠）；同一段真的沒有名稱才放 ignored，不可由股價猜公司。
 五、過去叫人賣、現在看壞：「越想解套國巨你就越死」「他一定會殺破」→ watch_avoid（見【日期未明與現況看法】）。
-六、點名個股當負面示範：「昨天大漲今天大跌」「追高就賠」「外資買一天賣一天」「昨天買今天跌」→ 各一筆 watch_avoid。
+六、點名個股當負面示範：「昨天大漲今天大跌」「追高就賠」「外資買一天賣一天」「昨天買今天跌」「總比你去買環球金好」「買的人全部賠錢」「不准買」→ 各一筆 watch_avoid，不可寫成值得留意。
+七、族群點名並講本股業績好、不用擔心、會過季線（「業績很好不必擔心」「還有一隻叫3545敦泰」）→ watch_watch。
+
+name 只能用原文聽到的字或 confirmed_names／source_inventory 的正式名稱；讀音不同的公司不可替換（金星科不是金益鼎），reason/note 不寫本檔以外、原文沒有的公司名。
 
 【主詞歸屬與語氣】
 逐句分清交易者、被買賣的標的、建議適用對象。ETF交易個股時，ETF是交易者，不能承接個股買點。price_subject填該價位所屬的原文名稱；不明則price未說明。
@@ -4022,7 +4096,7 @@ ignored：貨幣、產業、指數、匿名標的、外國股票、確無本次�
 history：自己的過去交易，但不是當日、或日期不能確定；不是第三方交易的收容區。網站不單獨呈現回顧：原文另有這一檔現況看法的會列入觀望，沒有的不列（見【日期未明與現況看法】）。
 
 【舊推薦回顧】
-只回顧「我推薦A在幾元」「我在那裡推薦A的」「當時推薦沒人買，等漲上來才買」是舊推薦／追價感嘆，不列觀望或持股，也不是成交。放既有ignored，exclusion_reason=past_recommendation_only，附原文，不新增公開分類。另有現在持股、當日成交或新的明確買進／觀察條件才依該事實收錄；「今天等突破再買」不能因也提過往推薦而丟掉。
+只回顧「我推薦A在幾元」「我在那裡推薦A的」「當時推薦沒人買，等漲上來才買」「A介紹幾塊、現在幾塊」是舊推薦／追價感嘆，不列觀望或持股，也不是成交；「買在920賣在1360賺460塊」這種已結束交易的教學例子同樣只放 history。reason 不可替它補「值得留意」「具成長潛力」。放既有ignored，exclusion_reason=past_recommendation_only，附原文，不新增公開分類。另有現在持股、當日成交或新的明確買進／觀察條件才依該事實收錄；「今天等突破再買」不能因也提過往推薦而丟掉。
 
 【時間】
 buy/sell 只收影片當日：填 when=today、seq，time_evidence 能找到就填。時間可以分布在前後段；漏附獨立時間短句不影響收錄。當下已執行的操作可依上下文判 today；明確歷史回顧仍不得猜成今天。
@@ -4044,7 +4118,7 @@ reason 只能用提到這一檔的句子；上一句、下一句在講另一檔�
 說明的洞見來自原文的因果脈絡：觀察到的現象 → 講者認為的原因或市場落差 → 對既有部位／新進資金各自的做法 → 後續確認條件。只填原文存在的環節；不得為湊齊格式自創未定價利多、內幕渠道、領先指標、停損點、目標價或獲利預測。「營收成長但股價跌」可呈現基本面與技術面的落差，但不能自行斷言市場定價錯誤或保證反彈。預期、看好、推測須歸屬講者；摘要不是系統自己的投資建議。
 
 【大盤】
-market 每筆填 kind=level/volume/event/flow/view、text、evidence_refs。首筆盤勢填headline：依已引用內容擬20字內標題，不含姓名日期，不新增事實。
+market 每筆填 kind=level/volume/event/flow/view、text、evidence_refs。首筆盤勢填headline：取講者本集最有力的一句觀點改寫，8～26字口語，驚嘆號或問句收尾（如「你買在高檔 神仙都難救！」），不含姓名日期，用原文的字，不新增事實；程式會加「張震：」。
 level/volume/event/flow 是盤勢（信件第③章）：涵蓋原文明講的指數關卡、缺口、量與解讀、CPI/PPI/利率決策的時間、美元/資金、融資餘額、整理週期與展望。原文充足時整理 6～10 點，至少3個不同主題；不足三點時重讀原文補足，確無內容不得杜撰。每點約 70～140 字，合計以 1400 字為目標上限。每點交代現象及講者的解讀，不拆成重複短句湊點數。
 view 是講者今天的操作邏輯與教學重點（信件第⑤章）：逐段找出講者教觀眾怎麼想、怎麼做、要避免什麼的段落，不同主題各成一點（例：買賣節奏、追高與等拉回、續抱耐心、法人成本與解套賣壓、外資短線換手、重大事件前的部位、量縮整理怎麼做、候選名單與買點、減少頻繁進出、技術關卡、選股依據）。原文充足時整理 6～10 點（逐字稿超過五千字時至少 3 點），每點寫成「觀念標題：說明」，說明 3～5 句約 120～220 字：做法 → 明講的原因 → 適用對象與條件 → 當天例子 → 要避免的錯誤；缺的環節省略。個股說明裡的通用做法也提煉成一點。要區分已有部位者續抱與未持有者等待買點，條件性風險提醒不能寫成對所有人的全面禁令。同段有盤面與做法時拆成兩筆。
 資料少就少寫，不湊點數；每一點都要有 evidence_refs，列出觀念、原因、例子所在的全部段落；text 的數字必須出現在所列段落，否則整點會被剔除；教學點以觀念與做法為主，數字非必要就不寫。
@@ -4141,7 +4215,7 @@ def name_memo_load(ss):
         rows = sheets_retry(ws.get_all_values)
     except Exception:
         rows = []
-    if len(rows) < 2:
+    if not isinstance(rows, list) or len(rows) < 2:
         rows = []
     head = [str(h).strip() for h in rows[0]] if rows else []
 
@@ -4199,25 +4273,185 @@ def name_memo_lookup(memo, heard, context_text):
     return hits[0]
 
 
-def name_memo_save(ss, learned):
-    """把這一輪新判定的寫回去。寫不進去不影響本輪結果。"""
-    if not learned:
+# ------------------------------------------------------------------ #
+# 名稱辨識的累積與重用（2026/09/14 接上）
+#
+# 上面這組讀寫函式先前定義了卻沒有任何地方呼叫：每一輪的代號比對、名稱釐清結果
+# 只印在 GitHub 日誌，下一輪一樣從頭猜，要新增一個確認過的聽錯寫法（例如玉龍＝裕隆）
+# 只能改程式。現在：
+#   一、每一輪把「聽到的名稱 → 判定」寫進「名稱判定紀錄」：同一組判定再出現就累加命中次數。
+#   二、下一輪讀回來。只有「來源」是「人工」的那幾列會直接套用（管理者在表上把來源改成人工即可），
+#       不必改程式、不必問模型、每次結果一致。
+#   三、模型或規則判出來的（來源 ai／規則）不自動套用——同一個語音寫法在不同段落可能是不同公司，
+#       自動學習會把一次錯判永久化（resolve_unclear_names 的說明）。累積到 3 次而且只對過同一檔時，
+#       日誌會提示可以改成人工確認。
+# ------------------------------------------------------------------ #
+_NAME_EVENTS = []
+NAME_MEMO_SUGGEST_HITS = 3
+
+
+def note_name_event(heard, verdict, real='', code='', why='', source='規則'):
+    """記一筆名稱辨識結果。正式名稱原樣命中的不記（沒有辨識可言）。"""
+    heard = re.sub(r'\s', '', str(heard or ''))
+    if not heard:
+        return
+    if verdict == 'stock' and heard == _display_name(real) and source != '人工':
+        return
+    _NAME_EVENTS.append({'heard': heard, 'verdict': verdict, 'real': str(real or ''),
+                         'code': str(code or ''), 'why': str(why or '')[:120], 'source': source})
+
+
+def _manual_memo_entries():
+    """試算表上來源為「人工」的判定。代號必須在這一輪的官方清單裡，打錯的代號不採用。"""
+    out = []
+    for e in (_NAME_MEMO or []):
+        if e.get('source') != '人工':
+            continue
+        if e.get('verdict', 'stock') == 'stock':
+            code = str(e.get('code') or '')
+            if not code or (_CODE_MAP and code not in _CODE_MAP):
+                continue
+        out.append(e)
+    return out
+
+
+def manual_memo_match(row):
+    """這一列聽到的名稱在「名稱判定紀錄」有沒有人工確認過的判定。回傳 (聽到的名稱, 紀錄) 或 None。"""
+    entries = _manual_memo_entries()
+    if not entries:
+        return None
+    names = [re.sub(r'\s', '', str(n)) for n in [row.get('原始語音名稱'), row.get('name')] + list(row.get('aliases') or [])
+             if isinstance(n, str) and n.strip()]
+    context = str(row.get('reason') or '') + str(row.get('note') or '') + ''.join(str(q) for q in (row.get('evidence') or []))
+    for heard in dict.fromkeys(names):
+        hit = name_memo_lookup(entries, heard, context)
+        if hit:
+            return heard, hit
+    return None
+
+
+def _col_letter(index):
+    s, n = '', index + 1
+    while n:
+        n, rem = divmod(n - 1, 26)
+        s = chr(65 + rem) + s
+    return s
+
+
+def name_memo_record(ss, events):
+    """把這一輪的名稱辨識寫進「名稱判定紀錄」：同一組（聽到的名稱、判定、代號）只累加命中次數。寫不進去不影響結果。"""
+    if not events:
         return
     try:
         try:
             ws = ss.worksheet(NAME_MEMO_SHEET)
         except Exception:
-            ws = ss.add_worksheet(title=NAME_MEMO_SHEET, rows=500,
-                                  cols=len(NAME_MEMO_HEADERS))
+            ws = ss.add_worksheet(title=NAME_MEMO_SHEET, rows=500, cols=len(NAME_MEMO_HEADERS))
             sheets_retry(ws.append_row, NAME_MEMO_HEADERS)
-        today = datetime.now(TAIPEI).strftime("%Y/%m/%d")
-        rows = [[e["heard"], e["verdict"], e.get("real", ""), e.get("code", ""),
-                 "、".join(e.get("keys") or []), e.get("why", ""), "ai", today, 1, today]
-                for e in learned]
-        append_rows_safe(ws, rows)
-        print(f"  名稱判定紀錄：新增 {len(rows)} 筆，下次遇到同樣的名稱直接查表，不必再問模型")
+        rows = sheets_retry(ws.get_all_values)
+        if not isinstance(rows, list):
+            rows = []
+        if not rows:
+            sheets_retry(ws.append_row, NAME_MEMO_HEADERS)
+            rows = [NAME_MEMO_HEADERS]
+        head = [str(h).strip() for h in rows[0]]
+        missing = [h for h in NAME_MEMO_HEADERS if h not in head]
+        if missing:
+            print(f"  名稱判定紀錄的表頭少了 {'、'.join(missing)}，這一輪不寫入（避免欄位錯位）")
+            return
+        ci = {h: head.index(h) for h in NAME_MEMO_HEADERS}
+        cell_of = lambda r, h: str(r[ci[h]]).strip() if ci[h] < len(r) else ''
+        index, by_heard = {}, {}
+        for n, r in enumerate(rows[1:], start=2):
+            heard = re.sub(r'\s', '', cell_of(r, '聽到的名稱'))
+            if not heard:
+                continue
+            key = (heard, cell_of(r, '判定') or 'stock', cell_of(r, '代號'))
+            try:
+                hits = int(float(cell_of(r, '命中次數') or 0))
+            except ValueError:
+                hits = 0
+            index[key] = [n, hits, cell_of(r, '來源')]
+            by_heard.setdefault(heard, []).append(key)
+        today = datetime.now(TAIPEI).strftime('%Y/%m/%d')
+        seen, updates, new = set(), [], {}
+        for e in events:
+            key = (e['heard'], e['verdict'], e['code'])
+            if key in seen:                      # 同一輪同一組只算一次
+                continue
+            seen.add(key)
+            if key in index:
+                index[key][1] += 1
+                updates.append({'range': _col_letter(ci['命中次數']) + str(index[key][0]), 'values': [[index[key][1]]]})
+                updates.append({'range': _col_letter(ci['最後命中']) + str(index[key][0]), 'values': [[today]]})
+            else:
+                row = [''] * len(head)
+                for h, v in (('聽到的名稱', e['heard']), ('判定', e['verdict']), ('正式名稱', e['real']),
+                             ('代號', e['code']), ('情境關鍵詞', ''), ('依據', e['why']), ('來源', e['source']),
+                             ('建立日期', today), ('命中次數', 1), ('最後命中', today)):
+                    row[ci[h]] = v
+                new[key] = row
+                index[key] = [0, 1, e['source']]
+                by_heard.setdefault(e['heard'], []).append(key)
+        if updates:
+            sheets_retry(ws.batch_update, updates, value_input_option='RAW')
+        if new:
+            append_rows_safe(ws, list(new.values()))
+        print(f"  名稱判定紀錄：本輪 {len(seen)} 組名稱辨識，新增 {len(new)} 列、累加 {len(updates) // 2} 列")
+        for heard in sorted({k[0] for k in seen}):
+            keys = by_heard.get(heard, [])
+            if len({k[1:] for k in keys}) != 1 or any(index[k][2] == '人工' for k in keys):
+                continue
+            key = keys[0]
+            if index[key][1] >= NAME_MEMO_SUGGEST_HITS and key[1] == 'stock' and key[2]:
+                print(f"  名稱判定紀錄：「{heard}」已 {index[key][1]} 輪都判成代號 {key[2]}，"
+                      f"確認無誤可在表上把來源改成「人工」，之後直接套用、不再重判")
     except Exception as e:
-        print(f"  名稱判定紀錄寫入略過（{e}）")
+        print(f"  名稱判定紀錄寫入略過（{type(e).__name__}：{str(e)[:120]}）")
+
+
+# 每一輪辨識的完整日誌（與 GitHub Actions 上看到的相同），存一份在試算表，GitHub 日誌過期後仍查得到。
+RECOGNITION_LOG_SHEET = '辨識日誌'
+RECOGNITION_LOG_HEADERS = ['執行代號', '影片日期', '影片ID', '原文SHA256', '片段', '共幾段', '日誌內容', '建立時間']
+RECOGNITION_LOG_CHUNK = 45000
+
+
+class _TeeOut:
+    """印到畫面的同時留一份。"""
+    def __init__(self, target):
+        self.target, self.parts = target, []
+
+    def write(self, s):
+        self.parts.append(str(s))
+        return self.target.write(s)
+
+    def flush(self):
+        return self.target.flush()
+
+    def __getattr__(self, name):
+        return getattr(self.target, name)
+
+
+def save_recognition_log(ss, video_id, date_str, raw, text):
+    """寫不進去只印一行，不影響本輪結果。"""
+    text = str(text or '').strip()
+    if not text:
+        return
+    try:
+        try:
+            ws = ss.worksheet(RECOGNITION_LOG_SHEET)
+        except Exception:
+            ws = ss.add_worksheet(title=RECOGNITION_LOG_SHEET, rows=1000, cols=len(RECOGNITION_LOG_HEADERS))
+            sheets_retry(ws.append_row, RECOGNITION_LOG_HEADERS)
+        chunks = [text[i:i + RECOGNITION_LOG_CHUNK] for i in range(0, len(text), RECOGNITION_LOG_CHUNK)]
+        now = datetime.now(TAIPEI).strftime('%Y/%m/%d %H:%M:%S')
+        sha = hashlib.sha256(str(raw or '').encode('utf-8')).hexdigest()
+        tag = run_tag()
+        append_rows_safe(ws, [[tag, date_str, video_id, sha, i + 1, len(chunks), c, now]
+                              for i, c in enumerate(chunks)])
+        print(f"辨識日誌：{len(text)} 字已存進「{RECOGNITION_LOG_SHEET}」（執行代號 {tag}）")
+    except Exception as e:
+        print(f"辨識日誌寫入略過（{type(e).__name__}：{str(e)[:120]}）")
 
 
 UNCLEAR_JUDGE_SYSTEM = """你要為每一筆紀錄確認一件事：這個位置，他講的到底是哪一家公司。
@@ -4599,11 +4833,14 @@ quote逐字抄context中的定位短句，why簡述判定根據。
             kind=str(v.get('kind') or '').strip().lower()
             if kind=='industry' and real and str(r.get('code') or '') in ('', UNRESOLVED):
                 drops.append((cat, r, '名稱釐清判為產業：' + str(v.get('why') or '')[:80], 'ai'))
+                note_name_event(r.get('原始語音名稱') or r.get('name'), 'industry', '', '', v.get('why') or '', 'ai')
                 decided.add(idx)
                 continue
             if code in candidates and real:
+                heard_ai = r.get('原始語音名稱') or r.get('name')
                 r['name'],r['code']=candidates[code],code
                 r['_identity_reason']=v.get('why',''); decided.add(idx)
+                note_name_event(heard_ai, 'stock', r['name'], code, '名稱釐清：' + str(v.get('why') or ''), 'ai')
                 note_decision('名稱釐清','上下文確認',r['name'],r['_identity_reason'],'ai')
         for idx,(r,_,_) in index.items():
             if idx in decided:
@@ -4744,7 +4981,9 @@ ARTICLE_SYSTEM = """你是一位專業財經記者與投顧整理編輯，負責
 全文繁體中文。章節標題與表格欄位名稱完全照下列格式，不可省略或改名，依序輸出：
 
 ① 文章標題
-   根據已驗證內容的核心主題，擬一個20字內標題；不含人名日期，不誇大、不新增觀點。
+   觀察清單中的核心主題與關鍵字，產出 1 個具體標題，格式「張震：＿＿＿！」，
+   風格參考 168 聚財網「張震：換手太明顯，這就是財富重分配！」「張震：你買在高檔 神仙都難救！」
+   這類講者口吻的觀點句，但不可直接複製；冒號後 8～26 字，不含日期，不新增清單沒有的事實。
    輸出一行：文章標題：（你產生的標題）
 
 ② 基本資訊
@@ -4965,24 +5204,38 @@ def format_readable_transcript(text):
         out.append(buf)
     return '\n\n'.join(out)
 
+TITLE_PREFIX = '張震：'
+
+
 def article_title(signals):
-    """由已驗證盤勢產生短標題；刷新同批資料時仍得到同一標題。"""
+    """由已驗證盤勢產生標題；刷新同批資料時仍得到同一標題。
+
+    格式照 168 聚財網〈168看電視〉張震文章：「張震：你買在高檔 神仙都難救！」
+    「張震：高檔熱門股已經有人在出貨了 別逼我買！」——講者本集最有力的一句觀點，口語、第一人稱可，
+    驚嘆號或問句收尾。模型只給後半句（headline），「張震：」由程式加，不讓模型寫人名。
+    標題的字要八成以上出現在同一筆已驗證的盤勢說明或原句裡，數字必須出現在原句，不新增事實。
+    """
     rows=[r for r in signals.get('market',[]) if r.get('_evidence_verified') and r.get('kind')!='view']
     for row in rows:
-        title=strip_speaker_names(str(row.get('headline') or '')).strip(' ①：:。！？「」')
+        title=str(row.get('headline') or '').strip()
+        title=re.sub(r'^(?:張震|張正)\s*[：:]\s*','',title)
+        title=strip_speaker_names(title).strip(' ①：:。「」')
+        body=title.rstrip('！!？?')
         source=str(row.get('text') or '')+' '.join(row.get('evidence') or [])
-        chars=re.findall(r'[\w]',title)
-        if (title and len(title)<=20 and not re.search(r'張震|張正|講者|盤勢與操作紀錄|\d{4}[/年]',title)
-            and all(n in source for n in re.findall(r'\d+(?:\.\d+)?',title))
-            and (not chars or sum(c in source for c in chars)/len(chars)>=0.8)):
-            return title
+        source_flat=re.sub(r'\s','',source)
+        chars=re.findall(r'[\w]',body)
+        if (body and len(body)<=26 and not re.search(r'張震|張正|講者|盤勢與操作紀錄|\d{4}[/年]',body)
+            and all(n in source_flat for n in re.findall(r'\d+(?:\.\d+)?',body))
+            and (not chars or sum(c in source_flat for c in chars)/len(chars)>=0.8)):
+            ending=title[len(body):][:1] or '！'
+            return TITLE_PREFIX+body+{'!':'！','?':'？'}.get(ending,ending)
     text=' '.join(str(r.get('text') or '') for r in rows)
     themes=[label for pattern,label in (
         (r'CPI|消費者物價指數','CPI動向'),(r'PPI|生產者物價指數','PPI動向'),
         (r'利率|聯準會','利率決策'),(r'量縮|成交量縮','量縮整理'),(r'震盪|壓縮|橫盤','震盪盤勢'),
         (r'外資|資金','外資動向'),(r'美元|匯率','匯率變化'),(r'融資','融資變化'),(r'缺口|支撐|關卡','技術關卡'))
         if re.search(pattern,text)]
-    return '與'.join(themes[:2]) if themes else '市場觀察與操作重點'
+    return TITLE_PREFIX+('與'.join(themes[:2]) if themes else '市場觀察與操作重點')
 
 
 def canonical_article(signals, date_str, article=''):
@@ -5539,7 +5792,27 @@ CONFIRMED_NAMES = {'普威': ('4966', '譜瑞-KY'), '普位': ('4966', '譜瑞-K
     '邦店': ('2344','華邦電'), '連電': ('2303','聯電'), '大力光': ('3008','大立光'),
     '利基電': ('6770','力積電'), '宜頂': ('5289','宜鼎'), '移頂': ('5289','宜鼎'), '以頂': ('5289','宜鼎'),
     '川服': ('2059','川湖'), '木德': ('3563','牧德'), '四星KY': ('3661','世芯-KY'), '四星': ('3661','世芯-KY'),
-    '宏準': ('2354','鴻準'), '弘準': ('2354','鴻準'), '紅準': ('2354','鴻準'), '威星': ('2377','微星'), '想碩': ('5269','祥碩'), '享碩': ('5269','祥碩')}
+    '宏準': ('2354','鴻準'), '弘準': ('2354','鴻準'), '紅準': ('2354','鴻準'), '威星': ('2377','微星'), '想碩': ('5269','祥碩'), '享碩': ('5269','祥碩'),
+    # 2026/09/14 原文：「權力金第一支叫利望、第二支M31、第三支金星科（精星科）」是矽智財權利金三檔；
+    # 「3545蹲態」代號講出來；「漢糖／漢堂」同段講 2404；「秦城」是等 00981A 賣完、破 900 的勤誠。
+    '紅蠢': ('2354','鴻準'), '降碩': ('5269','祥碩'), '詳碩': ('5269','祥碩'),
+    '利望': ('3529','力旺'), '金星科': ('6533','晶心科'), '精星科': ('6533','晶心科'),
+    '蹲態': ('3545','敦泰'), '漢糖': ('2404','漢唐'), '漢堂': ('2404','漢唐'), '秦城': ('8210','勤誠'),
+    '玉金光': ('3406','玉晶光'), '環球金': ('6488','環球晶'), '國具': ('2327','國巨*'),
+    # 管理者確認（2026/09/14）：玉龍、浴龍等同音寫法＝裕隆汽車 2201（納智捷、日產代理）。
+    # 與宇隆 2233 同音，管理者指定為裕隆；原文明寫「宇隆」的仍對 2233（正式名稱優先）。
+    # 這裡只列語音稿常見、而且不會出現在一般詞裡的寫法——公開說明會把這些字直接換成裕隆，
+    # 所以「區域龍頭」的域龍、「與龍頭」的與龍、「位於龍潭」的於龍、成語「魚龍混雜」、人名常見的余／于都不列；
+    # 其餘同音寫法由下面的 CONFIRMED_SOUNDS 在代號比對時處理。
+    '玉龍': ('2201','裕隆'), '浴龍': ('2201','裕隆'), '育龍': ('2201','裕隆'), '預龍': ('2201','裕隆'), '御龍': ('2201','裕隆'), '遇龍': ('2201','裕隆'),
+    '愈龍': ('2201','裕隆'), '欲龍': ('2201','裕隆'), '喻龍': ('2201','裕隆'), '郁龍': ('2201','裕隆'), '譽龍': ('2201','裕隆'), '豫龍': ('2201','裕隆'),
+    '裕龍': ('2201','裕隆'), '雨龍': ('2201','裕隆'), '羽龍': ('2201','裕隆'), '語龍': ('2201','裕隆'), '宇龍': ('2201','裕隆'), '玉隆': ('2201','裕隆'),
+    '浴隆': ('2201','裕隆'), '育隆': ('2201','裕隆'), '預隆': ('2201','裕隆'), '御隆': ('2201','裕隆'), '遇隆': ('2201','裕隆'), '愈隆': ('2201','裕隆'),
+    '欲隆': ('2201','裕隆'), '喻隆': ('2201','裕隆'), '郁隆': ('2201','裕隆'), '譽隆': ('2201','裕隆'), '豫隆': ('2201','裕隆'), '雨隆': ('2201','裕隆'),
+    '羽隆': ('2201','裕隆'), '語隆': ('2201','裕隆')}
+# 管理者確認的讀音：名稱唸起來與左邊完全相同（不分聲調，前後鼻音視為同音）時，對到右邊那一檔。
+# 只在「正式名稱完全相同」「去後綴後相同」都比不到時才用，所以原文明寫的宇隆仍是 2233。
+CONFIRMED_SOUNDS = {'裕隆': ('2201', '裕隆')}
 NON_EQUITY_NAMES = {'日幣', '日圓', '日元', '美元', '美金', '台幣', '臺幣', '新台幣', '人民幣', '歐元'}
 # 管理者確認過「是產業、不是個股」的聽錯寫法。代號比對直接剔除整列。
 #   細金元 → 矽晶圓：「被動元件不准給我碰，細金元不准給我碰」，與被動元件、ABF 載板並列的是材料族群。
@@ -5547,12 +5820,38 @@ NON_EQUITY_NAMES = {'日幣', '日圓', '日元', '美元', '美金', '台幣', 
 #   戲制台 → 矽智財（先前記作「矽製材」）：IP 設計服務族群，不是一家公司。2026/09/10 掛成
 #   「代號待確認」留在網站上；管理者確認它是產業，整列剔除。
 CONFIRMED_INDUSTRY = {'細金元': '矽晶圓', '矽晶圓': '矽晶圓',
-                      '戲制台': '矽智財', '矽製材': '矽智財', '矽智財': '矽智財'}
+                      '戲制台': '矽智財', '矽製材': '矽智財', '矽智財': '矽智財',
+                      # 2026/09/14：細制裁／細緻才＝矽智財；權力金＝矽智財權利金族群；長虹棒＝長紅K棒（技術名詞，不是 5534 長虹）
+                      '細制裁': '矽智財', '細製裁': '矽智財', '細緻才': '矽智財',
+                      '權力金': '矽智財權利金', '全力金': '矽智財權利金', '長虹棒': '長紅K棒'}
 # 人工補登的來源影片ID前綴，與 Apps Script（Adminservice.gs）的 MANUAL_ENTRY_PREFIX 相同。
 # 整天覆蓋（delete_rows_for_date）時這些列一律保留。先前這個常數只有 Apps Script 定義，
 # pipeline 端一走到那一行就是 NameError。
 MANUAL_ENTRY_PREFIX = 'MANUALENTRY-'
 ASSESSMENT_VERSION = 'context-json-v16'
+
+
+def _confirmed_names_for(flat_source):
+    """送給模型的確認名稱：程式內建的，加上「名稱判定紀錄」裡人工確認、沒有限定情境的。"""
+    names = {a: v for a, v in CONFIRMED_NAMES.items() if a in flat_source}
+    for e in _manual_memo_entries():
+        if e.get('verdict', 'stock') == 'stock' and not e.get('keys') and e['heard'] in flat_source:
+            names.setdefault(e['heard'], (e['code'], e.get('real') or ''))
+    return names
+
+
+def _confirmed_industries():
+    out = dict(CONFIRMED_INDUSTRY)
+    for e in _manual_memo_entries():
+        if e.get('verdict') == 'industry' and not e.get('keys'):
+            out.setdefault(e['heard'], e.get('real') or '產業')
+    return out
+
+
+def assessment_token_budget():
+    """JSON 判讀單次請求的保守上限（UTF-8 bytes 當 token 上界估）。
+    9/14 實際輸入約 2.3 萬 token；120000 時長稿只剩百來 bytes 空間，規則多一句就被迫分批。"""
+    return int(os.environ.get('GEMINI_ASSESSMENT_TOKEN_BUDGET', '').strip() or '150000')
 
 
 def assessment_response_schema():
@@ -5563,36 +5862,102 @@ def assessment_response_schema():
                            'additionalProperties': True}} for c in cats}}
 
 
+def _display_name(name):
+    """官方簡稱尾巴的「*」只是證交所的註記，比對原文與公開說明都不用它。"""
+    return re.sub(r'[*＊]+$', '', str(name or '').strip())
+
+
 def source_inventory(segments):
-    """只做名稱定位，使用這輪已載入的官方表；不增加模型或行情呼叫。"""
-    names = {n: (c, n) for c, n in (_CODE_MAP or {}).items() if len(n) >= 2}
-    names.update(CONFIRMED_NAMES)
-    source = ''.join(s['text'] for s in segments.values())
-    found = []
-    for heard, (code, name) in sorted(names.items()):
-        if heard in NON_EQUITY_NAMES or heard in CONFIRMED_INDUSTRY or heard not in source:
-            continue
-        # M31 不可命中 M310；純數字通常是價位，沒有名稱就留給語意判讀。
-        if heard.isdigit():
+    """只做名稱定位，使用這輪已載入的官方表；不增加模型或行情呼叫。
+
+    語音稿每個字中間都有空白（「大 立 光」），v16 直接拿原文比對，9/14 只找到 00981A 與 M31。
+    改成去空白比對之後，另外要處理兩種誤中：
+      一、較長名稱裡的一段：大立光裡的「大立」、聯發科裡的「聯發」、精星科（晶心科的聽錯寫法）裡的「精星」、
+          長虹棒（長紅K棒）裡的「長虹」——被較長的官方名、確認別名或確認產業詞整段蓋住的，不列。
+      二、兩個字的官方簡稱常是日常用語（世界、全國、大量、數字）：仍列為候選提示，但標 weak，
+          不因模型沒交代它就產生「盤點漏項」。
+    跨段落邊界的名稱不列（分段優先切在句號，名稱被切開的機會很小）。
+    """
+    names = _inventory_names()
+    refs = {}
+    for sid, seg in segments.items():
+        for heard in _segment_inventory(seg['text'], names):
+            refs.setdefault(heard, []).append(sid)
+    found_items = []
+    for heard in sorted(refs):
+        code, name, confirmed = names[heard]
+        item = {'name': heard, 'code': code, 'official_name': name, 'refs': refs[heard][:5]}
+        if len(heard) <= 2 and not confirmed and not re.fullmatch(r'[A-Za-z0-9*-]+', heard):
+            item['weak'] = True
+        found_items.append(item)
+    return found_items
+
+
+# 盤點會在分批估算時對同一段反覆計算（逐段加進去試算請求大小），整份重算一次要十幾秒。
+# 以「名稱表版本＋段落原文」快取每一段的命中，同一輪只算一次。
+_INVENTORY_CACHE = {'key': None, 'names': {}, 'segments': {}}
+
+
+def _inventory_names():
+    manual = [e for e in _manual_memo_entries() if e.get('verdict', 'stock') == 'stock' and not e.get('keys')]
+    key = (id(_CODE_MAP), len(_CODE_MAP or {}), len(CONFIRMED_NAMES), len(CONFIRMED_INDUSTRY),
+           tuple((e['heard'], e['code']) for e in manual))
+    if _INVENTORY_CACHE['key'] != key:
+        names = {}
+        for code, name in (_CODE_MAP or {}).items():
+            heard = _display_name(name)
+            if len(heard) >= 2:
+                names.setdefault(heard, (code, name, False))
+        for heard, (code, name) in CONFIRMED_NAMES.items():
+            names[heard] = (code, name, True)
+        for e in manual:
+            names.setdefault(e['heard'], (e['code'], e.get('real') or '', True))
+        _INVENTORY_CACHE.update(key=key, names=names, segments={})
+    return _INVENTORY_CACHE['names']
+
+
+def _segment_inventory(text, names):
+    """一段原文裡，沒有被較長名稱整段蓋住的候選名稱。"""
+    cache = _INVENTORY_CACHE['segments']
+    if text in cache:
+        return cache[text]
+    flat = re.sub(r'\s', '', text)
+    spans = {}
+    for heard in list(names) + list(CONFIRMED_INDUSTRY):
+        if heard in NON_EQUITY_NAMES or heard.isdigit() or heard not in flat:
             continue
         pattern = re.escape(heard)
         if re.fullmatch(r'[A-Za-z0-9*-]+', heard):
             pattern = r'(?<![A-Za-z0-9])' + pattern + r'(?![A-Za-z0-9])'
-        refs = [sid for sid, seg in segments.items() if re.search(pattern, seg['text'])]
-        if refs:
-            found.append({'name': heard, 'code': code, 'official_name': name, 'refs': refs})
-    return found
+        occ = [(m.start(), m.end()) for m in re.finditer(pattern, flat)]
+        if occ:
+            spans[heard] = occ
+    kept = []
+    for heard, occ in spans.items():
+        if heard in CONFIRMED_INDUSTRY or heard not in names:
+            continue
+        longer = [sp for h, o in spans.items() if len(h) > len(heard) for sp in o]
+        if all(any(a <= s and e <= b for a, b in longer) for s, e in occ):
+            continue
+        kept.append(heard)
+    if len(cache) > 20000:
+        cache.clear()
+    cache[text] = kept
+    return kept
 
 
 def inventory_gaps(signals, transcript):
     """兩輪都漏掉的名字，也必須出現在覆核缺口；不自動新增買賣或持有。"""
     rows = [r for c in SIGNAL_CATEGORIES + ('history', 'uncertain', 'ignored')
             for r in signals.get(c, []) if isinstance(r, dict)]
-    names = {str(n) for r in rows for n in [r.get('name', '')] + (r.get('aliases') or [])}
+    names = {_display_name(n) for r in rows for n in [r.get('name', '')] + (r.get('aliases') or [])
+             + [r.get('原始語音名稱', '')] if isinstance(n, str)}
     codes = {str(r.get('code', '')) for r in rows if r.get('code')}
     gaps, seen = [], set()
     for item in source_inventory(source_segments(transcript)):
-        if item['code'] in seen or item['code'] in codes or {item['name'], item['official_name']} & names:
+        if item.get('weak'):
+            continue
+        if item['code'] in seen or item['code'] in codes or {item['name'], _display_name(item['official_name'])} & names:
             continue
         seen.add(item['code'])
         gaps.append('原文盤點漏項：' + item['name'] + '（' + item['code'] + '，' +
@@ -5671,9 +6036,11 @@ def recover_context(signals, transcript):
 
 
 def assessment_payload(date_str, segments, candidates=None, issues=None):
+    # 語音稿每個字之間有空白，確認名稱要拿去掉空白的原文比對（否則「大 力 光」永遠對不上「大力光」）。
+    flat_source = re.sub(r'\s', '', ''.join(seg['text'] for seg in segments.values()))
     data = {'version': ASSESSMENT_VERSION, 'video_date': date_str,
             'tasks': ['擷取全部標的', '上下文分類與日期', '逐段補漏自查', '大盤摘要'],
-            'confirmed_names': {a:v for a,v in CONFIRMED_NAMES.items() if any(a in seg['text'] for seg in segments.values())}, 'confirmed_industries': CONFIRMED_INDUSTRY,
+            'confirmed_names': _confirmed_names_for(flat_source), 'confirmed_industries': _confirmed_industries(),
             'non_equity_names': sorted(NON_EQUITY_NAMES),
             'source': {sid: seg['text'] for sid, seg in segments.items()}}
     inventory = source_inventory(segments)
@@ -5690,7 +6057,7 @@ def assessment_batches(transcript, date_str):
     # UTF-8 bytes are a conservative token upper estimate, not an exact tokenizer.
     # Cap normal requests well below known 1M contexts to respect per-minute quotas.
     context = min(int(os.environ.get('GEMINI_CONTEXT_TOKENS', '1048576')), 1048576)
-    cap = min(context, int(os.environ.get('GEMINI_ASSESSMENT_TOKEN_BUDGET', '120000')))
+    cap = min(context, assessment_token_budget())
     limit = cap - len(EXTRACT_SYSTEM.encode('utf-8')) - min(MAX_OUT, 20000) - 4096
     if limit < 4096:
         raise ValueError('JSON判讀輸入預算太小；請增加 GEMINI_ASSESSMENT_TOKEN_BUDGET')
@@ -5736,7 +6103,12 @@ def extract_context_json(transcript, date_str):
                     raise ValueError('JSON合併判讀必須包含完整九類陣列；未寫入資料')
                 parsed = loaded
                 break
-            except (ValueError, TypeError) as e:
+            except (ValueError, TypeError, RuntimeError) as e:
+                # v16 把重試縮成只接格式錯誤，連帶「回傳空內容」「finishReason 異常」這種
+                # 換一次就好的模型輸出問題也變成整張工單中斷。這兩類放回來；
+                # 額度用完（RateLimited）、全部金鑰不可用、呼叫失敗仍直接往上拋，不在這裡空轉。
+                if isinstance(e, RuntimeError) and not re.search(r'回傳空內容|異常結束|輸出失控|輸出遭截斷', str(e)):
+                    raise
                 last_err = e
                 parsed = None
                 print(f"  第 {index} 批 JSON 判讀解析異常（第 {attempt + 1}/3 次）：{e}")
@@ -5791,6 +6163,8 @@ _SOFT_POSITIVE = re.compile(
     r'|(?:外資|投信|法人|大戶|主力|自營商).{0,4}(?:持續|連續|一直|大舉|開始|都在)?(?:買進|買超|加碼|回補|在買)'
     r'|長紅|潛力|受惠|利多|低估|便宜'
     r'|(?:營收|獲利|業績|EPS|接單).{0,6}(?:成長|創新高|增加|大增|轉好)|體質(?:好|佳|不錯)|基本面(?:好|佳|不錯|強)'
+    r'|(?:業績|獲利|基本面|體質)(?:很|非常|相當|都)?(?:好|佳|良好|強)|基期(?:較|很|相對)?低|不(?:用|必|需)擔(?:心|憂)'
+    r'|會過季線|過季線之上|值得(?:佈局|布局|納入)'
     r'|看多|偏多|轉強|走強|強勢', re.I)
 # 被否定的正面詞不算（不穩健、沒有價值、不適合資金少的人切入、不值得追蹤）。
 _SOFT_NEGATED = re.compile(
@@ -5801,14 +6175,24 @@ _NEGATIVE_CUE = re.compile(
     r'跌破|破底|破線|套牢|被套|套住|認賠|停損|轉弱|走弱|偏空|看壞|看空|弱勢|疲弱|利空|利多出盡|追高|殺破|殺下來|崩'
     r'|大跌|長黑|跌停|重挫|急跌|風險(?:高|很大|大)|有風險|(?:注意|留意|小心).{0,4}風險|危險|小心|不建議|不宜|避開|避免'
     r'|還沒跌完|沒有跌完|賣壓|出貨|倒貨|賣超|(?:持續|一直|連續|大舉)賣|衰退|下滑|趨緩|虧損'
-    r'|不會漲|會跌|再跌|暫不|觀望為宜|不用買|不要買|不要追|來不及|漲上去了|先出場')
+    r'|不會漲|會跌|再跌|暫不|觀望為宜|不用買|不要買|不要追|來不及|漲上去了|先出場'
+    r'|賠錢|虧錢|賠光|全部賠|受傷|腰斬|總比.{0,12}好')
+
+
+# 明講不要進場。9/14 環球晶的說明是「明確表示不准買」，舊的清單只認「不准碰」，沒有擋下。
+_PROHIBIT = re.compile(r'不准(?:給我)?(?:碰|買)|不要(?:碰|買)|不能(?:碰|買)|別(?:碰|買)|不(?:該|用|適合)(?:碰|買)|禁止買|暫不進場')
+# 禁止之後接著給出「等某件事發生才買」的條件。
+_WAIT_TO_BUY = re.compile(r'(?:等|等到|等待).{0,30}(?:再買|才(?:能|可以|會)?買|買點|再進場|才進場|就(?:可以)?買)')
 
 
 def watch_tone(text):
     """正面條件與禁止分開；不以孤立的跌、不要追高抹掉低檔買點。"""
     text = strip_speaker_names(str(text or ''))
     text = re.sub(r'(?:不是|並非|並不是|沒有說)(?:不准碰|不要碰|不能碰|不能買)', '', text)
-    if re.search(r'不准(?:給我)?碰|不要碰|不能碰|不能買|不適合(?:碰|買)|暫不進場', text):
+    if re.search(_PROHIBIT, text):
+        # 「現在還不能買，等 00981A 賣完、賣不下去才買」是等條件的觀望注意（原則四），不是禁止。
+        if re.search(_WAIT_TO_BUY, text):
+            return 'watch_watch'
         return 'watch_avoid'
     positive = re.sub(r'(?:並非|不是|不|沒有|未)(?:看好|推薦|建議買進|會漲|是好股票|會回升|會上攻|有買點|值得|可以)', '', text)
     if re.search(r'看好|好股票|會漲|漲回去|回升|上攻|向上|候選|會再買|(?:再|才)(?:買進|進場)|以下.{0,8}買|以後.{0,8}買|未來.{0,8}買|低檔.{0,8}(?:買|佈局|布局)|買點|等.{0,30}(?:再買|買進|進場|站回|再注意|漲)|可以.{0,8}(?:買|留意)|值得.{0,8}(?:留意|追蹤)|營收.{0,8}成長', positive):
@@ -5851,10 +6235,16 @@ def public_narrative(text, row=None, signals=None):
     for heard, fixed in sorted(_public_aliases(signals).items(), key=lambda pair:-len(pair[0])):
         if heard == '00981A':
             continue
-        text = text.replace(heard, fixed)
+        # 「國巨」→「國巨*」每套一次就多一顆星，信裡出現「國巨***」（管線兩次加上 Apps Script 一次）。
+        # 說明文字一律用不帶星號的名稱，而且已經是正式名稱的字不再替換。
+        fixed = _display_name(fixed)
+        if heard != fixed:
+            tail = fixed[len(heard):] if fixed.startswith(heard) else ''
+            guard = r'(?![*＊]' + ('|' + re.escape(tail) if tail else '') + ')'
+            text = re.sub(re.escape(heard) + guard, lambda m: fixed, text)
     for fixed in set(_public_aliases(signals).values()):
         text = re.sub(re.escape(fixed)+r'\s*[（(]'+re.escape(fixed)+r'[）)]',lambda m:fixed,text)
-    name, code = row.get('name'), str(row.get('code') or '')
+    name, code = _display_name(row.get('name')), str(row.get('code') or '')
     if name and re.fullmatch(r'(?:00981A|\d{4,6})', code):
         text = re.sub(re.escape(name) + r'\s*(?:[（(]\s*(?:00981A|\d{4,6})\s*[）)]|(?:00981A|\d{4,6})(?=為例|這檔|這支|這一檔)|代號\s*(?:00981A|\d{4,6})(?!\d))',
                       lambda m:name+'（'+code+'）', text)
@@ -5866,7 +6256,7 @@ def public_narrative(text, row=None, signals=None):
         key = re.sub(r'回顧|過往|目前|\s|[，,]', '', part)
         if key and key not in seen:
             seen.add(key);parts.append(part.strip())
-    return '。'.join(parts) + ('。' if parts else '')
+    return re.sub(r'[*＊]+', '', '。'.join(parts) + ('。' if parts else ''))
 
 
 def _entity_scope(row, signals, transcript):
@@ -6005,11 +6395,23 @@ def exclude_past_recommendations(signals, transcript):
             names=[row.get('name'),row.get('原始語音名稱')]+list(row.get('aliases') or [])
             text+='。'+'。'.join(q for q in quotes if any(n and _ev_norm(n) in _ev_norm(q) for n in names))
             text=re.sub(r'\s+','',text)
-            recap=bool(re.search(r'推薦|介紹',text) and (re.search(r'當時|以前|先前|曾經|當初|那時|那裡|那邊|早就|沒人(?:要)?買|不(?:敢|肯|願意)買|等.{0,8}漲上來.{0,6}(?:再|才)買',text)
-                or re.search(r'(?:我|我們).{0,8}推薦.{0,16}(?:在|是)?\d+(?:\.\d+)?(?:元|塊)',text)))
-            current=bool(re.search(r'(?:今天|現在|目前|接下來|明天|下週|未來|以後|後續).{0,18}(?:推薦|留意|進場|續抱|持有|看好|看壞|不碰|買點|要買|再買|觀察)',text)
-                or re.search(r'(?:仍然?|還)(?:在)?(?:持有|抱著|看好)|我(?:們)?(?:手中)?還有|會員(?:目前)?持有',text)
-                or re.search(r'(?:等|等待).{0,18}(?:拉回|跌到|突破|站上|站回|回測).{0,15}(?:買|進場|注意)',text))
+            recap=bool(re.search(r'推薦|介紹',text) and (re.search(r'當時|以前|先前|曾經|當初|那時|那裡|那邊|早就|沒人(?:要)?買|不(?:敢|肯|願意)買|等.{0,8}[漲長]上來.{0,6}(?:再|才|想)?買',text)
+                or re.search(r'(?:我|我們).{0,8}(?:推薦|介紹).{0,16}(?:在|是)?\d+(?:\.\d+)?(?:元|塊)',text))
+                # 已結束的交易拿來當教學例子：「買在920、賣這一天1360，賺了460塊」
+                or re.search(r'買.{0,24}賣.{0,24}賺了?\d+(?:\.\d+)?(?:元|塊)',text))
+            # 「現在」要是講者對這一檔的當下指示，不是問句（「現在愛普幾塊？」）、
+            # 也不是否定（「我現在不推薦華新」），而且不跨句。先前整段一起比，
+            # 9/14 的愛普就因為「現在愛普幾塊？給你們看我在哪裡推薦」被當成現在的推薦而留在觀望注意。
+            current=False
+            for sentence in re.split(r'(?<=[。！？!?；;])', text):
+                if not sentence or sentence.endswith(('？','?')):
+                    continue
+                s2=re.sub(r'(?:不|沒有|沒)(?:在)?(?:推薦|看好|留意|持有)','',sentence)
+                if (re.search(r'(?:今天|現在|目前|接下來|明天|下週|未來|以後|後續).{0,18}(?:推薦|留意|進場|續抱|持有|看好|看壞|不碰|買點|要買|再買|觀察)',s2)
+                        or re.search(r'(?:仍然?|還)(?:在)?(?:持有|抱著|看好)|我(?:們)?(?:手中)?還有|會員(?:目前)?持有',s2)
+                        or re.search(r'(?:等|等待).{0,18}(?:拉回|跌到|突破|站上|站回|回測).{0,15}(?:買|進場|注意)',s2)):
+                    current=True
+                    break
             if recap and not current and not (_row_keys(row)&positions):
                 row['_past_recommendation_only_verified']=True
                 row['exclusion_reason']='past_recommendation_only'
@@ -6029,8 +6431,51 @@ _NEUTRAL_CUE = re.compile(r'盤整|整理|橫盤|震盪|區間|觀察|看看|換
 def _bearish_or_neutral_basis(text) -> bool:
     """說明裡有沒有「列觀望不碰」的依據：禁止、負面、法人反覆換手、或純中性描述。"""
     t = strip_speaker_names(str(text or ''))
-    return bool(re.search(r'不准(?:給我)?碰|不要碰|不能碰|不能買|不適合(?:碰|買)|暫不進場', t)
-                or _NEGATIVE_CUE.search(t) or third_party_churn(t) or _NEUTRAL_CUE.search(t))
+    if (re.search(_PROHIBIT, t) and not re.search(_WAIT_TO_BUY, t)) or _NEGATIVE_CUE.search(t) or third_party_churn(t):
+        return True
+    # 中性描述只在沒有任何正面說法時才算依據。9/14 敦泰「業績很好不需擔憂，值得納入觀察清單」
+    # 因為含「觀察」被當成中性、改到觀望不碰。
+    positive = _SOFT_NEGATED.sub('', t)
+    return bool(_NEUTRAL_CUE.search(t)) and not _SOFT_POSITIVE.search(positive) and watch_tone(t) != 'watch_watch'
+
+
+def repair_misnamed_subjects(signals, transcript):
+    """說明把本檔寫成另一家原文沒講過的公司時，換回本檔名稱。
+
+    2026/09/14：鴻準的說明開頭寫「弘塑近期雖然下跌，但外資持續買進」。弘塑（3131）原文一次都沒出現，
+    是模型把「紅準／紅蠢」聽成另一家。只在這幾個條件同時成立時才換，其餘只記判定歷程：
+      一、說明裡沒有本檔自己的名稱；
+      二、那家公司的名稱在原文找不到、唸起來也不像；
+      三、它的第一個字與本檔名稱（或聽到的原字）第一個字同音——模型聽錯的典型樣子。
+    """
+    hay = re.sub(r'\s', '', transcript or '')
+    if not hay or not _CODE_MAP:
+        return signals
+    officials = {_display_name(n) for n in _CODE_MAP.values() if len(_display_name(n)) >= 2 and _has_cjk(_display_name(n))}
+    for cat in SIGNAL_CATEGORIES:
+        for row in signals.get(cat, []) or []:
+            if not isinstance(row, dict):
+                continue
+            own = {_display_name(n) for n in [row.get('name'), row.get('原始語音名稱')] + list(row.get('aliases') or [])
+                   if isinstance(n, str) and len(_display_name(n)) >= 2}
+            if not own:
+                continue
+            for field in ('reason', 'note'):
+                text = str(row.get(field) or '')
+                if not text or any(n in text for n in own):
+                    continue
+                strangers = sorted({n for n in officials if n in text and n not in own
+                                    and not _in_transcript(n, hay) and not _sounds_in_transcript(n, hay)})
+                heads = {_npin(n[0]) for n in own if _has_cjk(n[0])}
+                alike = [n for n in strangers if _npin(n[0]) in heads]
+                if len(alike) == 1:
+                    row[field] = text.replace(alike[0], _display_name(row.get('name')))
+                    note_decision('說明核對', '更正誤植公司名', row.get('name', ''),
+                                  f'說明寫成原文沒有的「{alike[0]}」，換回本檔名稱')
+                    print(f"  說明核對　{row.get('name','')}：說明誤寫成「{alike[0]}」（原文沒有），已換回本檔名稱")
+                elif strangers:
+                    note_decision('說明核對', '說明出現原文沒有的公司名', row.get('name', ''), '、'.join(strangers[:3]))
+    return signals
 
 
 def normalize_watch_tones(signals):
@@ -6183,7 +6628,7 @@ def ensure_min_lessons(signals, transcript, date_str):
 SUMMARY_TOPUP_SYSTEM = LESSON_TOPUP_SYSTEM + """
 這輪合併補第③章盤勢與第⑤章教學。need_macro與need_view是各章不足的點數；只補有缺口的章，不重複existing。
 盤勢kind用level/volume/event/flow，每點70～140字，至少找出三個不同盤勢主題；教學kind=view，每點120～220字。
-補充盤勢第一點可附headline，依内容擬20字內標題，不含姓名日期。每筆text和headline數字必須有引用。
+補充盤勢第一點可附headline：講者最有力的一句觀點，8～26字口語，驚嘆號或問句收尾，不含姓名日期，用原文的字。每筆text和headline數字必須有引用。
 來源不足可少給，禁止把同一句拆成三點或借用其他股票。仍只輸出market陣列與evidence_refs。"""
 
 
@@ -6213,7 +6658,7 @@ def ensure_article_minimums(signals, transcript, date_str):
     batch=max(batches,key=lambda b:sum(len(re.findall(r'大盤|指數|外資|美元|融資|CPI|PPI|利率|買點|不要追高',v['text'])) for v in b.values()))
     payload=json.dumps({'video_date':date_str,'need_macro':need_macro,'need_view':need_view,
         'existing':[r.get('text','') for r in market], 'source':{k:v['text'] for k,v in batch.items()}},ensure_ascii=False,separators=(',',':'))
-    cap=min(int(os.environ.get('GEMINI_CONTEXT_TOKENS','1048576')),int(os.environ.get('GEMINI_ASSESSMENT_TOKEN_BUDGET','120000')),1048576)
+    cap=min(int(os.environ.get('GEMINI_CONTEXT_TOKENS','1048576')),assessment_token_budget(),1048576)
     if len((SUMMARY_TOPUP_SYSTEM+payload).encode('utf-8'))+min(MAX_OUT,8000)+4096>cap:
         gaps.append('盤勢內容偏短：完整補問請求超過預算，沿用可驗證內容');return signals
     try:
@@ -6285,7 +6730,7 @@ def audit_context_json(transcript, signals, date_str, editorial_retry=True):
             payload = assessment_payload(date_str, batch, selected, review_gaps)
             # Recheck the FULL request after attaching candidates; never silently truncate.
             cap = min(int(os.environ.get('GEMINI_CONTEXT_TOKENS', '1048576')),
-                      int(os.environ.get('GEMINI_ASSESSMENT_TOKEN_BUDGET', '120000')), 1048576)
+                      assessment_token_budget(), 1048576)
             if len((AUDIT_SYSTEM + payload).encode('utf-8')) + min(MAX_OUT, 20000) + 4096 > cap:
                 print('修復JSON超過預算，沿用已判讀內容並留下稽核註記')
                 gaps.append('語意覆核未完成：完整請求超過設定預算')
@@ -8270,6 +8715,40 @@ def finish_admin_job(job, ss, vid, date_str, title, review, note):
 def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None,
                   replace_video=False, v1=""):
     """
+    辨識一支影片。實際工作在 _stage_extract_impl；這一層負責讓每一輪的辨識經歷都落進試算表：
+      開始前　讀「名稱判定紀錄」，人工確認的判定這一輪直接套用；
+      結束後　把這一輪的名稱辨識累加回去，完整日誌存進「辨識日誌」。
+    中途失敗也照樣寫（已經辨識到的部分與失敗訊息都留下），寫入失敗不影響本輪結果。
+    """
+    global _NAME_MEMO
+    _NAME_MEMO = None
+    try:
+        name_memo_load(ss)
+    except Exception as e:
+        print(f"  名稱判定紀錄讀取略過（{type(e).__name__}）")
+    _NAME_EVENTS.clear()
+    previous, tee = sys.stdout, _TeeOut(sys.stdout)
+    sys.stdout = tee
+    try:
+        return _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_step=on_step,
+                                   replace_video=replace_video, v1=v1)
+    except BaseException as e:
+        print(f"辨識中斷：{type(e).__name__}：{str(e)[:300]}")
+        raise
+    finally:
+        sys.stdout = previous
+        events = list(_NAME_EVENTS)
+        _NAME_EVENTS.clear()
+        text = ''.join(tee.parts)
+        skipped = '略過擷取' in text and len(text.strip()) < 300
+        if not skipped:
+            name_memo_record(ss, events)
+            save_recognition_log(ss, str((video or {}).get('id') or ''), date_str, v1 or v2, text)
+
+
+def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_step=None,
+                        replace_video=False, v1=""):
+    """
     階段二：擷取結構化紀錄。與階段一分開，因為它便宜、可重跑。
 
     on_step(名稱, 說明) 是給後台工單用的進度回報。自動路徑不傳，那時是 None，
@@ -8425,6 +8904,7 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None
     signals = sanitize_entity_claims(signals, TX["audit"])
     signals = preserve_explicit_holdings(signals, TX["audit"])
     signals = normalize_watch_tones(signals)
+    signals = repair_misnamed_subjects(signals, TX["audit"])
     signals = naturalize_signal_reasons(signals)
     signals["_video_id"] = video["id"]
     signals['_source_ids'] = sorted(transcript_source_ids(ss, video['id'], date_str))

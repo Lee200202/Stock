@@ -4304,6 +4304,16 @@ def _context_windows(name: str, transcript: str, span: int = 160, limit: int = 3
     return out
 
 
+def _gap_has_newline(out) -> bool:
+    """out 結尾的空白裡有沒有換行。只在換行分隔時補逗號，同一行裡的異常不猜。"""
+    k = len(out) - 1
+    while k >= 0 and out[k] in ' \t\r\n':
+        if out[k] == '\n':
+            return True
+        k -= 1
+    return False
+
+
 def repair_json_text(s: str) -> str:
     """修復 LLM 回傳 JSON 常見的語法瑕疵：
     1. 前後的 Markdown 標記 (```json ... ```) 與多餘說明文字
@@ -4311,6 +4321,12 @@ def repair_json_text(s: str) -> str:
     3. 尾隨逗號 (trailing commas, 如 {"a": 1,} 或 [1, 2,])
     4. 字串內未跳脫的換行符與控制字元
     5. 未閉合的括號/中括號 (截斷修復)
+    6. 重複逗號（,,）、緊接在 { 或 [ 後面的逗號
+    7. 換行分隔的兩個值之間漏了逗號（} {、" "、] "）
+    8. 沒加引號的鍵，包含中文鍵（名稱: "x"）
+    以上都只在字串外處理，不改動任何字串內容，也不補造資料。
+    2026/09/14 覆核回應在第 156 行出現「Expecting property name enclosed in double quotes」，
+    整份覆核因此作廢；那個錯誤正是 6 或 8 會造成的。
     """
     if not s or not isinstance(s, str):
         return ""
@@ -4346,6 +4362,12 @@ def repair_json_text(s: str) -> str:
     n = len(text)
     brace_stack = []
 
+    def last_sig():
+        k = len(out) - 1
+        while k >= 0 and out[k] in ' \t\r\n':
+            k -= 1
+        return out[k] if k >= 0 else ''
+
     while i < n:
         c = text[i]
 
@@ -4372,10 +4394,30 @@ def repair_json_text(s: str) -> str:
 
         # 以下皆為字串外 (not in_string)
         if c == '"':
+            # 前一個值已經結束（} ] 或字串結尾）卻直接接下一個字串，且中間換了行：漏了逗號
+            if last_sig() in ('}', ']', '"') and _gap_has_newline(out):
+                out.append(',')
             out.append(c)
             in_string = True
             i += 1
             continue
+
+        if c in '{[' and last_sig() in ('}', ']', '"') and _gap_has_newline(out):
+            out.append(',')
+
+        # 沒加引號的鍵：在 { 或 , 之後、一路到冒號前都不是 JSON 語法字元（中文鍵也算）
+        if c not in ' \t\r\n{}[],:"/' and last_sig() in ('{', ','):
+            j = i
+            while j < n and text[j] not in ' \t\r\n{}[],:"':
+                j += 1
+            k = j
+            while k < n and text[k] in ' \t':
+                k += 1
+            token = text[i:j]
+            if k < n and text[k] == ':' and not re.fullmatch(r'-?\d+(?:\.\d+)?|true|false|null', token):
+                out.append('"' + token.replace('"', '\\"') + '"')
+                i = j
+                continue
 
         # 單行註解 // ...
         if c == '/' and i + 1 < n and text[i + 1] == '/':
@@ -4401,6 +4443,10 @@ def repair_json_text(s: str) -> str:
 
         # 尾隨逗號 (trailing comma) 消除：逗號後面緊跟著 } 或 ]
         if c == ',':
+            # 重複逗號、或緊接在 { [ 後面的逗號：直接略過這一個
+            if last_sig() in (',', '{', '['):
+                i += 1
+                continue
             # 往後看第一個非空白字元
             j = i + 1
             while j < n and text[j] in ' \t\r\n':
@@ -5922,13 +5968,40 @@ def exclude_past_recommendations(signals, transcript):
     return signals
 
 
+# 中性描述：只有盤整、觀察、換手，沒有正面指示。管理者規則：這種列觀望不碰。
+_NEUTRAL_CUE = re.compile(r'盤整|整理|橫盤|震盪|區間|觀察|看看|換手|換股|一買一賣|持平|原地|沒有(?:表態|看法|方向)')
+
+
+def _bearish_or_neutral_basis(text) -> bool:
+    """說明裡有沒有「列觀望不碰」的依據：禁止、負面、法人反覆換手、或純中性描述。"""
+    t = strip_speaker_names(str(text or ''))
+    return bool(re.search(r'不准(?:給我)?碰|不要碰|不能碰|不能買|不適合(?:碰|買)|暫不進場', t)
+                or _NEGATIVE_CUE.search(t) or third_party_churn(t) or _NEUTRAL_CUE.search(t))
+
+
 def normalize_watch_tones(signals):
-    """日期轉類後統一語氣；既有會員持股事實不因市場警語降級。"""
+    """日期轉類後統一語氣；既有會員持股事實不因市場警語降級。
+
+    關鍵字只能在「說明裡有依據」時推翻模型讀完整份逐字稿的判定（2026/09/14）：
+      改成觀望注意：說明裡有明確買點或正面看法（watch_tone 判定）。
+      改成觀望不碰：說明裡有禁止、負面、法人反覆換手或純中性描述。
+    模型判觀望注意、說明裡卻兩種依據都沒有時，保留模型的判定並記進判定歷程。
+    先前是一律改成觀望不碰——關鍵字清單認不得的正面說法（裕隆「資產價值非常高、具備長線價值」、
+    鴻準「外資持續買進、相對穩健」）就這樣被無聲地改到「語氣偏空，暫不進場」。
+    """
     out={'watch_watch':[],'watch_avoid':[]}
     for cat in out:
         for row in signals.get(cat, []):
-            target=watch_tone(row.get('view') or row.get('reason'))
-            if target!=cat:note_decision('語氣核對','調整觀望方向',row.get('name',''),cat+' → '+target)
+            text=row.get('view') or row.get('reason')
+            target=watch_tone(text)
+            if cat=='watch_watch' and target=='watch_avoid' and not _bearish_or_neutral_basis(text):
+                note_decision('語氣核對','保留觀望注意',row.get('name',''),'說明沒有偏空或中性依據，不以關鍵字推翻：'+str(text or '')[:60])
+                print(f"  語氣核對　{row.get('name','')}　保留觀望注意（說明沒有偏空或中性依據）")
+                target=cat
+            if target!=cat:
+                note_decision('語氣核對','調整觀望方向',row.get('name',''),cat+' → '+target)
+                print(f"  語氣核對　{row.get('name','')}　{WATCH_BIAS_LABEL[cat]} → {WATCH_BIAS_LABEL[target]}"
+                      f"　依據：{str(text or '')[:50]}")
             out[target].append(row)
     signals.update(out)
     return signals
@@ -6115,6 +6188,23 @@ def ensure_article_minimums(signals, transcript, date_str):
     return signals
 
 
+def _parse_review_json(raw):
+    parsed = safe_load_json(raw)
+    if not isinstance(parsed, dict):
+        raise ValueError('JSON修復格式必須是物件')
+    return parsed
+
+
+def _json_error_hint(e) -> str:
+    """JSON 錯誤訊息加上出錯位置附近的片段，下次才看得出模型到底吐了什麼。"""
+    msg = str(e)
+    doc, pos = getattr(e, 'doc', None), getattr(e, 'pos', None)
+    if isinstance(doc, str) and isinstance(pos, int):
+        near = doc[max(0, pos - 60):pos + 40].replace('\n', '⏎')
+        msg += f'；附近：…{near}…'
+    return msg[:240]
+
+
 def audit_context_json(transcript, signals, date_str, editorial_retry=True):
     materialize_evidence(signals, transcript)
     recover_context(signals, transcript)
@@ -6147,9 +6237,17 @@ def audit_context_json(transcript, signals, date_str, editorial_retry=True):
             try:
                 raw = call_gemini(AUDIT_SYSTEM, payload, want_json=True, thinking=2048,
                                   tag='context-review', max_out=min(MAX_OUT, 20000))
-                parsed = safe_load_json(raw)
-                if not isinstance(parsed, dict):
-                    raise ValueError('JSON修復格式必須是物件')
+                try:
+                    parsed = _parse_review_json(raw)
+                except ValueError as e:
+                    # 回應格式壞掉不代表判讀錯，重送同一份請求一次（擷取那一步也是這樣做）。
+                    # 2026/09/14 第二次覆核就是這樣整份作廢，補漏結果沒有進來。
+                    print(f'  覆核回應 JSON 格式異常（{_json_error_hint(e)}），重送一次')
+                    if budget_left() <= 240:
+                        raise
+                    raw = call_gemini(AUDIT_SYSTEM, payload, want_json=True, thinking=2048,
+                                      tag='context-review-retry', max_out=min(MAX_OUT, 20000))
+                    parsed = _parse_review_json(raw)
                 for cat in repaired:
                     val = parsed.get(cat)
                     if not isinstance(val, list):
@@ -6158,8 +6256,11 @@ def audit_context_json(transcript, signals, date_str, editorial_retry=True):
                         raise ValueError('覆核陣列含非物件項目')
                     repaired[cat].extend({k: v for k, v in r.items() if not k.startswith('_')} for r in parsed[cat])
             except Exception as e:
-                print(f'修復JSON解析異常（{e}），沿用已判讀內容並留下稽核註記')
+                print(f'修復JSON解析異常（{_json_error_hint(e)}），沿用已判讀內容並留下稽核註記')
                 gaps.append('語意覆核未完成：請求或回應格式異常')
+                # 覆核沒完成，送出去要它補的收錄與篇幅缺口也就還在。照實記進去，
+                # 否則下面會印出「0 項篇幅提醒」，與實際不符（2026/09/14 盤勢其實缺 2 點）。
+                gaps.extend(g for g in publication_gaps(signals, transcript) if g not in gaps)
                 repaired = None
                 break
         if repaired is not None:
@@ -6192,6 +6293,8 @@ def audit_context_json(transcript, signals, date_str, editorial_retry=True):
     signals['_quality_requires_review'] = bool(review_only or signals.get('uncertain'))
     print(f'JSON本機校對完成：{len(review_only)} 項待複核、{len(gaps) - len(review_only)} 項篇幅提醒'
           f'（篇幅提醒不擋發布；逐筆品質關卡在代號比對之後進行）')
+    for g in gaps:
+        print(f"  {'待複核' if g in review_only else '篇幅提醒'}　{str(g)[:160]}")
     return signals
 
 
@@ -8322,6 +8425,9 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None
 
     flush_decisions(ss, date_str)
 
+    # 稽核補漏之後還有品質關卡、日期歸屬、語氣核對會移動分類。
+    # 只印「稽核補漏後」的話，網站上最後長什麼樣子在日誌裡看不到（2026/09/14 裕隆、鴻準就是在這之後被改類）。
+    print(f"  最終分類　{signal_roster(signals)}")
     step("撰稿", f"共 {_n(signals)} 檔，產生每日整理")
     article = build_article(v2, signals, date_str)
 

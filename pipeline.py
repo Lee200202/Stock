@@ -7766,6 +7766,146 @@ def verify_names(signals: dict, transcript: str) -> dict:
         print("幻覺檢查：每一筆的名稱都在逐字稿裡找得到")
     return signals
 
+# ---------------------------------------------------------------- #
+# 逐字稿排版
+#
+# 逐字稿是一萬五到兩萬五千字的一整坨，沒有段落、沒有標點節奏，
+# 要核對某一檔講了什麼，得整頁慢慢找。先前網站上有一顆「智慧排版」按鈕，
+# 讀者按下去才排版，等一分鐘，而且只快取六小時——同一天被不同人打開，
+# 就重排一次，配額白花，第一個打開的人每次都要等（管理者要求，2026/09/16）。
+#
+# 現在改成寫入那一步順手排好，存進試算表：之後誰打開都是現成的。
+#
+# 排版不是改寫，一個字都不能動。所以有一道還原檢查：把分好的段落接回去，
+# 去掉空白之後必須與原文逐字相同，不同就整批退回機械分段。
+# 模型偶爾會「順手」把話修順或漏掉半句，而那種錯在畫面上看不出來——
+# 版面很漂亮，只是內容少了一塊，那比排版難看嚴重得多。
+# ---------------------------------------------------------------- #
+
+TX_LAYOUT_COL = '排版稿JSON'
+TX_LAYOUT_FP_COL = '排版稿指紋'
+TX_LAYOUT_CHUNK = 7000
+
+TX_FORMAT_SYSTEM = """你要把一段直播逐字稿整理成好讀的版面。這是排版工作，不是改寫。
+
+=== 絕對禁止 ===
+一個字都不能改。不可以改寫、摘要、省略、補字、修正錯字或調整用詞。
+講者講錯話、重複、語句不通順，都照原樣保留。
+你唯一能做的事是決定「在哪裡分段」以及「每一段的小標」。
+
+=== 在哪裡分段 ===
+以下六種情況出現時就換一段。判斷依據是「講者換了話題」，不是字數到了就切——
+切在半句話中間會比不分段更難讀。
+1. 換一檔股票。從一檔講到另一檔，是最明確的分段點。
+2. 從大盤轉到個股，或從個股回到大盤。
+3. 從講行情轉到講操作。
+4. 開始回答會員提問，或提問結束回到盤勢。
+5. 插入題外話（時事、抱怨、講古），那整段自成一段。
+6. 時間推進（「等一下開盤」「收盤前再看」）。
+
+每段大約三到八句，超過十句一定要找地方切開，但寧可一段十句也不要切在一句話的中間。
+
+=== 小標 ===
+每一段給一個 12 字以內的小標，用原文出現過的詞，不要自己造詞、不要下結論。
+講某一檔就用那一檔的名字，講大盤就寫大盤在幹嘛。
+
+只輸出 {"sections":[{"title":"小標","text":"原文原封不動"}]}。"""
+
+
+def _tx_rule_sections(text):
+    """機械分段。不呼叫模型，永遠可用；與 Apps Script 的 splitTranscriptByRule_ 同一套規則。"""
+    out, buf = [], ''
+    for line in str(text or '').replace('\r', '').split('\n'):
+        for sentence in re.findall(r'[^。！？]+[。！？]?|[。！？]', line.strip()):
+            if buf and len(buf) + len(sentence) > 320:
+                out.append(buf)
+                buf = ''
+            buf += sentence
+        if len(buf) >= 160:
+            out.append(buf)
+            buf = ''
+    if buf:
+        out.append(buf)
+    return [{'title': '', 'paras': out}]
+
+
+def _tx_same_text(a, b):
+    return re.sub(r'\s', '', str(a or '')) == re.sub(r'\s', '', str(b or ''))
+
+
+def format_transcript_sections(text):
+    """回傳 [{title, paras}]。模型排版過不了還原檢查就退回機械分段。"""
+    body = str(text or '')
+    if len(body) < 200:
+        return _tx_rule_sections(body)
+    chunks, rest = [], body
+    while len(rest) > TX_LAYOUT_CHUNK:
+        cut = rest.rfind('。', 0, TX_LAYOUT_CHUNK)
+        if cut < TX_LAYOUT_CHUNK // 2:
+            cut = TX_LAYOUT_CHUNK - 1
+        chunks.append(rest[:cut + 1])
+        rest = rest[cut + 1:]
+    if rest.strip():
+        chunks.append(rest)
+
+    sections = []
+    for i, chunk in enumerate(chunks, 1):
+        try:
+            raw = call_gemini(TX_FORMAT_SYSTEM, chunk, want_json=True, thinking=0,
+                              max_out=8192, tag=f'tx-layout-{i}')
+            got = json.loads(repair_json_text(raw))
+            parts = [str(x.get('text') or '') for x in (got.get('sections') or [])]
+            if not parts or not _tx_same_text(''.join(parts), chunk):
+                print(f'  逐字稿排版：第 {i} 批還原檢查沒過，這一批用機械分段')
+                sections.extend(_tx_rule_sections(chunk))
+                continue
+            for sec in got.get('sections') or []:
+                body_text = str(sec.get('text') or '').strip()
+                if not body_text:
+                    continue
+                sections.append({'title': str(sec.get('title') or '')[:12],
+                                 'paras': _tx_rule_sections(body_text)[0]['paras']})
+        except (RuntimeError, RateLimited, ValueError, json.JSONDecodeError) as exc:
+            print(f'  逐字稿排版：第 {i} 批失敗（{str(exc)[:80]}），這一批用機械分段')
+            sections.extend(_tx_rule_sections(chunk))
+    return sections or _tx_rule_sections(body)
+
+
+def transcript_fingerprint(text):
+    return hashlib.sha256(re.sub(r'\s', '', str(text or '')).encode('utf-8')).hexdigest()[:16]
+
+
+def save_transcript_layout(ss, video_id, date_str, text):
+    """排好版存進影片清單。失敗只是少一個現成的版面，不影響當天發布。"""
+    try:
+        ws, idx = find_video_row(ss, video_id, date_str)
+        if idx is None:
+            return False
+        header = sheets_retry(ws.row_values, 1)
+        for name in (TX_LAYOUT_COL, TX_LAYOUT_FP_COL):
+            if name not in header:
+                header.append(name)
+                sheets_retry(ws.update_cell, 1, len(header), name)
+        fp = transcript_fingerprint(text)
+        col_json = header.index(TX_LAYOUT_COL) + 1
+        col_fp = header.index(TX_LAYOUT_FP_COL) + 1
+        if str(sheets_retry(ws.cell, idx, col_fp).value or '') == fp:
+            print('  逐字稿排版：這一份原文已經排過，沿用既有版面')
+            return True
+        sections = format_transcript_sections(text)
+        payload = json.dumps(sections, ensure_ascii=False)
+        if len(payload) > 45000:          # 儲存格上限五萬字元，留一點餘裕
+            sections = _tx_rule_sections(text)
+            payload = json.dumps(sections, ensure_ascii=False)
+        sheets_retry(ws.update_cell, idx, col_json, payload)
+        sheets_retry(ws.update_cell, idx, col_fp, fp)
+        print(f'  逐字稿排版：{len(sections)} 段已存進試算表，逐字稿分頁直接讀')
+        return True
+    except Exception as exc:
+        print(f'  逐字稿排版未完成（不影響今天的發布）：{str(exc)[:120]}')
+        return False
+
+
 def build_article(v2: str, signals: dict, date_str: str) -> str:
     """
     產生每日整理。
@@ -9263,6 +9403,8 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     step("寫入", f"把 {_n(signals)} 檔寫進試算表")
     write_results(ss, date_str, signals, article, done_trades, done_holds,
                   replace_video=replace_video)
+    # 逐字稿排版：寫入之後順手排好存起來，讀者打開就是現成的（2026/09/16）。
+    save_transcript_layout(ss, video['id'], date_str, v2)
     commit_evidence_manifest(ss, video['id'], date_str, v1)
     save_refresh_checkpoint(ss, video['id'], date_str, v1, sorted(affected), review=review_note)
     return ExtractionOutcome(affected, review=review_note)

@@ -4083,7 +4083,7 @@ reason、note、market text 是公開文字，不寫人名當主詞或所有格�
 四、等條件或等別人賣完：講者明講現在還不能買、還不行、不想買，要等 ETF 賣完或跌破某價才考慮（「今天破900你可以買嗎？還不行，00981A還沒賣完」「你沒有破900我不想買」）→ watch_avoid，reason 寫出等待條件；只給可照做的買點、沒說現在不能買（「900以下是買點」「等補完缺口站回去」）→ watch_watch。講的是哪一檔要從同一段的名稱找（ETF 出清的那一檔原文寫初清程、出金城＝勤誠）；同一段真的沒有名稱才放 ignored，不可由股價猜公司。
 五、過去叫人賣、現在看壞：「越想解套國巨你就越死」「他一定會殺破」→ watch_avoid（見【日期未明與現況看法】）。
 六、點名個股當負面示範：「昨天大漲今天大跌」「追高就賠」「外資買一天賣一天」「昨天買今天跌」「總比你去買環球金好」「買的人全部賠錢」「不准買」→ 各一筆 watch_avoid，不可寫成值得留意。
-七、族群點名並講本股業績好、不用擔心、會過季線（「業績很好不必擔心」「還有一隻叫3545敦泰」）→ watch_watch。\n八、先講一段技術面或基本面、最後才報出名字（「真正最近開始要轉強的是這一隻……就基本面來講，拉回再佈局等他……這個叫台達電」）→ 那一整段都是這一檔的，列 watch_watch，reason 寫出「還沒過季線、拉回再佈局」這個條件。名字出現在段落結尾不影響收錄；同一段裡「這一隻」「這一支股票」指的就是最後報出來的那一檔。\n九、除權息、填息、法人成本這種「對這一檔現在怎麼看」的說明也要收（「台積電今天沒有填不用緊張，後面一定填」→ watch_watch，reason 寫他明講的理由），不要當成大盤背景而排除。
+七、族群點名並講本股業績好、不用擔心、會過季線（「業績很好不必擔心」「還有一隻叫3545敦泰」）→ watch_watch。\n八之一、「某某集團裡面這一支股票」講的是集團裡的另一家公司，不是集團母公司本身：2026/09/16「連陽，我也沒有跟你們講，連電集團裡面這一支股票獲利很好，上半年賺5塊8」——買在130出頭的是聯陽（3014），不是聯電（2303）；聯電那天只是「昨天跌4塊、今天漲三塊半」的追高反例。同一段裡有兩個名字時，持有、買進、成本一律歸給離那句話最近、而且語意上真的被講的那一檔。\n八、先講一段技術面或基本面、最後才報出名字（「真正最近開始要轉強的是這一隻……就基本面來講，拉回再佈局等他……這個叫台達電」）→ 那一整段都是這一檔的，列 watch_watch，reason 寫出「還沒過季線、拉回再佈局」這個條件。名字出現在段落結尾不影響收錄；同一段裡「這一隻」「這一支股票」指的就是最後報出來的那一檔。\n九、除權息、填息、法人成本這種「對這一檔現在怎麼看」的說明也要收（「台積電今天沒有填不用緊張，後面一定填」→ watch_watch，reason 寫他明講的理由），不要當成大盤背景而排除。
 
 name 只能用原文聽到的字或 confirmed_names／source_inventory 的正式名稱；讀音不同的公司不可替換（金星科不是金益鼎），reason/note 不寫本檔以外、原文沒有的公司名。
 
@@ -5864,7 +5864,11 @@ CONFIRMED_NAMES = {'普威': ('4966', '譜瑞-KY'), '普位': ('4966', '譜瑞-K
     '邦店': ('2344','華邦電'), '連電': ('2303','聯電'), '大力光': ('3008','大立光'),
     '利基電': ('6770','力積電'), '宜頂': ('5289','宜鼎'), '移頂': ('5289','宜鼎'), '以頂': ('5289','宜鼎'),
     '川服': ('2059','川湖'), '木德': ('3563','牧德'), '四星KY': ('3661','世芯-KY'), '四星': ('3661','世芯-KY'),
-    '宏準': ('2354','鴻準'), '弘準': ('2354','鴻準'), '紅準': ('2354','鴻準'), '威星': ('2377','微星'), '想碩': ('5269','祥碩'), '享碩': ('5269','祥碩'),
+    '宏準': ('2354','鴻準'), '弘準': ('2354','鴻準'), '紅準': ('2354','鴻準'),
+    # 2026/09/16：「連陽我也沒有跟你們講，連電集團裡面這一支股票獲利很好」——
+    # 會員買在130出頭的是聯陽（3014，聯電集團成員），不是聯電（2303）。
+    # 聯陽沒有進確認名單時，句子裡唯一對得上的名字只剩「連電」，整段獲利與K線就掛到聯電頭上。
+    '連陽': ('3014','聯陽'), '聯揚': ('3014','聯陽'), '連揚': ('3014','聯陽'), '威星': ('2377','微星'), '想碩': ('5269','祥碩'), '享碩': ('5269','祥碩'),
     # 2026/09/14 原文：「權力金第一支叫利望、第二支M31、第三支金星科（精星科）」是矽智財權利金三檔；
     # 「3545蹲態」代號講出來；「漢糖／漢堂」同段講 2404；「秦城」是等 00981A 賣完、破 900 的勤誠。
     '紅蠢': ('2354','鴻準'), '降碩': ('5269','祥碩'), '詳碩': ('5269','祥碩'),
@@ -6602,6 +6606,94 @@ def strip_foreign_price_claims(signals: dict, transcript: str) -> dict:
     return signals
 
 
+# ---------------------------------------------------------------- #
+# 持股主詞：這一句「我買的」講的是哪一檔
+#
+# 2026/09/16 的持股追蹤上出現「聯電 2303　持有中　進場價 142.50　上半年獲利良好，
+# 雖然K線盤整仍需抱牢」。原文那一段是：
+#   「我會員的一支股票，我買130出頭的……哪一支股票？連陽，我也沒有跟你們講，
+#     連電集團裡面這一支股票獲利很好，上半年賺5塊8，全年可以賺10塊」
+# 買在130出頭的是聯陽（3014，聯電集團的成員），聯電（2303）在整份原文裡只是
+# 「昨天跌4塊、今天漲三塊半」的追高反例。兩個名字隔了六個字，模型挑了後面那個。
+#
+# 這一關跟價位歸屬（strip_foreign_price_claims）是同一個道理，只是問的東西不同：
+# 那裡問「這個數字離誰最近」，這裡問「這句『我買的』離誰最近」。
+# 判錯的代價也不同——價位錯只是少一個數字，持股錯會開一個不存在的持有回合，
+# 然後每天用真實股價幫一筆不存在的部位算報酬，那是這個網站最嚴重的一種錯。
+#
+# 一樣只在「別檔明顯更近」時才動手，而且不直接刪：降成觀望注意並記進稽核，
+# 說明留著。真的是這一檔時，句子裡通常就有它的名字，不會被降。
+# ---------------------------------------------------------------- #
+
+_OWN_CUE = re.compile(r'我買|買在|我的會員|我會員|會員的|我持有|我還有|我沒有賣|抱著|我滿在')
+_GROUP_CUE = re.compile(r'(.{2,4})集團(?:裡面|的)?(?:這一支|這一隻|這支|這隻)')
+
+
+def verify_holding_subject(signals: dict, transcript: str) -> dict:
+    """會員持股的名字要離「我買的」那一句最近；明顯是隔壁那一檔的就降成觀望。
+
+    只跟「今天有進表格的那幾檔」比。拿整份官方清單去比，兩個字的公司名會跟日常用語
+    撞在一起（大量、全台、世界），反而把對的持股降掉——那比漏掉這一關嚴重得多。
+    """
+    flat = re.sub(r'\s+', '', str(transcript or ''))
+    holdings = signals.get('holdings') or []
+    if len(flat) < 200 or not holdings:
+        return signals
+    index = _mention_index(flat)
+    here = {str(r.get('code') or '') for cat in SIGNAL_CATEGORIES for r in (signals.get(cat) or []) if r.get('code')}
+    index = {code: spots for code, spots in index.items() if code in here}
+    cues = [m.start() for m in _OWN_CUE.finditer(flat)]
+    if not index:
+        return signals
+
+    # 每一句「我買的」各自認一個主人：離它最近的那一檔。
+    # 只有一檔時沒有人可以比，這一段就空著——但下面的「集團裡面那一支」照樣成立，
+    # 那一條靠的是句子本身怎麼講，不是比距離。
+    owners = {}
+    for cue in (cues if len(index) >= 2 else []):
+        best, owner = 10 ** 9, ''
+        for code, spots in index.items():
+            for spot in spots:
+                gap = abs(spot - cue)
+                if gap < best:
+                    best, owner = gap, code
+        if owner and best <= _ATTR_MAX_GAP:
+            owners.setdefault(owner, best)
+
+    # 「X集團裡面這一支股票」：主詞是集團裡的另一家，X 本身不算主人。
+    parents = set()
+    for m in _GROUP_CUE.finditer(flat):
+        head = m.start() + len(m.group(0)) - len(m.group(0).split('集團')[1]) - 2
+        for code, spots in index.items():
+            if any(0 <= head - spot <= 4 for spot in spots):
+                parents.add(code)
+
+    keep = []
+    for row in holdings:
+        code = str(row.get('code') or '')
+        if code not in index or not re.fullmatch(r'(?:00981A|\d{4,6})', code):
+            keep.append(row)
+            continue
+        if code in parents:
+            why = '原文講的是「這個集團裡面那一支」，不是集團母公司本身'
+        elif owners and code not in owners:
+            other = sorted(owners.items(), key=lambda kv: kv[1])[0][0]
+            why = f'「我買的」那幾句都離 {other} 比較近，這一檔不是那句話的主詞'
+        else:
+            keep.append(row)
+            continue
+        name = str(row.get('name') or code)
+        demoted = dict(row)
+        demoted['reason'] = str(row.get('note') or row.get('reason') or '')
+        demoted.pop('stance', None)
+        signals.setdefault('watch_watch', []).append(demoted)
+        signals.setdefault('_repair_gaps', []).append(f'{name}：不採信為會員持股（{why}），改列觀望注意')
+        note_decision('持股主詞', '不採信為會員持股', name, why)
+        print(f'  持股主詞　{name}：{why}，不開持有回合，改列觀望注意')
+    signals['holdings'] = keep
+    return signals
+
+
 def sanitize_entity_claims(signals, transcript):
     """覆核仍失敗時只收回不支持的敘述，保留本股可證實事實並留下疑點。"""
     for cat in SIGNAL_CATEGORIES:
@@ -6852,8 +6944,11 @@ def publication_gaps(signals, transcript):
         for cat in SIGNAL_CATEGORIES:
             for row in signals.get(cat, []):
                 note = str(row.get('note') if cat == 'holdings' else row.get('reason') or '')
-                if len(note) < 70 and sum(len(str(q)) for q in row.get('evidence', [])) >= 200:
-                    gaps.append(str(row.get('name')) + '說明偏短：重讀自身相關段落，補出現況、原因、條件與觀察訊號；不借相鄰公司的理由。')
+                # 門檻與提示詞的 40～120 字一致。先前訂在 70 字，於是 v25 把說明收短之後，
+                # 每一檔都被標成「偏短」並要求補四個環節——兩條規則互相拉扯，
+                # 2026/09/16 那一輪十六檔全部中標（管理者回報）。
+                if len(note) < 40 and sum(len(str(q)) for q in row.get('evidence', [])) >= 200:
+                    gaps.append(str(row.get('name')) + '說明偏短：補出他對這一檔明講的判斷與價位或等待條件，一到三句、40～120 字；不借相鄰公司的理由。')
     return gaps
 
 
@@ -7902,8 +7997,27 @@ def _tx_rule_sections(text):
     return [{'title': '', 'paras': out}]
 
 
+def _tx_norm(text):
+    """比對前的正規化：空白與全形／半形不算改字，其餘一個字都不能動。
+
+    2026/09/16 四批有兩批沒過還原檢查而退回機械分段。模型把原文照抄回來時，
+    常把全形的問號、逗號或英數字換成半形——內容一個字都沒少，卻被判成改寫。
+    """
+    flat = re.sub(r'\s', '', str(text or ''))
+    out = []
+    for ch in flat:
+        code = ord(ch)
+        if code == 0x3000:
+            continue
+        if 0xFF01 <= code <= 0xFF5E:      # 全形 ASCII → 半形
+            out.append(chr(code - 0xFEE0))
+            continue
+        out.append(ch)
+    return ''.join(out)
+
+
 def _tx_same_text(a, b):
-    return re.sub(r'\s', '', str(a or '')) == re.sub(r'\s', '', str(b or ''))
+    return _tx_norm(a) == _tx_norm(b)
 
 
 def format_transcript_sections(text):
@@ -9397,6 +9511,8 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     signals = sanitize_entity_claims(signals, TX["audit"])
     # 說明裡的成本／買賣價若明顯是隔壁那一檔的，刪掉那一句（管理者回報鴻準238，2026/09/16）。
     signals = strip_foreign_price_claims(signals, TX["audit"])
+    # 會員持股的主詞要對：記錯會開一個不存在的持有回合（管理者回報聯電／聯陽，2026/09/16）。
+    signals = verify_holding_subject(signals, TX["audit"])
     signals = preserve_explicit_holdings(signals, TX["audit"])
     signals = normalize_watch_tones(signals)
     signals = repair_misnamed_subjects(signals, TX["audit"])

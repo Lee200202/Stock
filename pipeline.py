@@ -134,7 +134,7 @@ PIPELINE_FEATURES = ("preflight,auth-rotation,lazy-gemini-key,cmoney-audit-v4,na
                      "audit-reads-raw,polish-length-floor,extract-prompt-v9,evidence-v1,evidence-v2,"
                      # 品質關卡改成逐筆分級：族群丟掉、講不出日期的改列歷史、
                      # 引用對不上的隔離，其餘照常發布。一筆壞資料不再擋住整天。
-                     "evidence-triage-v1,single-source-v2,paste-only-transcript,polish-runaway-guard,official-candidate-judge-v3,raw-names-win,polish-keeps-names,market-overview,no-abort-v1,name-memo,decision-log,polish-parallel,evidence-source-refs,polish-reuse-guard,key-inventory,review-keeps-going,memo-seed")
+                     "price-attribution-v27,evidence-triage-v1,single-source-v2,paste-only-transcript,polish-runaway-guard,official-candidate-judge-v3,raw-names-win,polish-keeps-names,market-overview,no-abort-v1,name-memo,decision-log,polish-parallel,evidence-source-refs,polish-reuse-guard,key-inventory,review-keeps-going,memo-seed")
 
 # ------------------------------------------------------------------ #
 # 會員簡訊：解析版本與配額防護
@@ -3260,10 +3260,10 @@ _META_CLAUSE = re.compile(r"歷史回顧|列為觀望|列入觀望|改列|日期
                           r"|(?:觀察|教學|觀望)範疇|歸類為|分類為")
 
 
-def _drop_meta_clauses(t: str) -> str:
-    """按頂層的逗號、分號、句號切子句，丟掉含內部判斷字眼的子句；括號裡的標點不切。"""
+def _split_clauses(t: str):
+    """按頂層的逗號、分號、句號切子句；括號裡的標點不切。回傳 [(子句, 標點)]。"""
     parts, buf, depth = [], "", 0
-    for ch in t:
+    for ch in str(t or ""):
         if ch in "（(":
             depth += 1
         elif ch in "）)" and depth:
@@ -3275,6 +3275,12 @@ def _drop_meta_clauses(t: str) -> str:
             buf += ch
     if buf:
         parts.append((buf, ""))
+    return parts
+
+
+def _drop_meta_clauses(t: str) -> str:
+    """丟掉含內部判斷字眼的子句；斷句規則與價位歸屬共用同一套。"""
+    parts = _split_clauses(t)
     kept = []
     for clause, punct in parts:
         if not clause.strip():
@@ -4131,7 +4137,7 @@ price 的用途（成交價、等待買點、缺口、法人成本）寫入 reas
 reason/note 忠實說明原話之事實描述（如「昨天（9月9日）大跌時買進四星KY。」），其他判斷依據（如「因確切交易日期為昨日而非影片當日，故改列歷史回顧」、「日期未明的回顧……」等內部推論與管線改列註記）一律不用也不得寫進說明中！不能添加「產業前景存疑」等原文未作出的推論。「為什麼把這一檔歸到這一類」同樣是內部流程，不寫進說明：不要出現「並未將某某列為當日會員買進或持有的個股明細」「故列入市場教學與觀察範疇」「因此列為觀望」「屬於教學範疇」這類句子。讀的人要看的是講者對這一檔講了什麼（現在的位置、價位或條件、他要人怎麼做），分類本身已經寫在表格標題上。
 reason/note 要具體但簡短：原文充足時寫 1～3 句、約 40～120 字，第一句先講重點（他對這一檔現在的判斷或要人怎麼做），再補價位或等待條件與原文明講的理由。超過 120 字就是把同一件事換句話再說一次或夾帶了分類理由，一律刪到剩重點。只有名單提及者可以更短，絕不可用相鄰公司的理由補字數。
 只寫「候選名單」「以後要買」幾個字不夠：名單裡某一檔原文另有說明就寫出來，沒有才寫共同的那一句。
-reason 只能用提到這一檔的句子；上一句、下一句在講另一檔（例如 ETF 正在出清的那一檔）時，不可以搬進這一檔的說明。
+reason 只能用提到這一檔的句子；上一句、下一句在講另一檔（例如 ETF 正在出清的那一檔）時，不可以搬進這一檔的說明。他很常講完一檔直接接下一檔（「紅海講完講紅準」「講完這個來講那個」），上一檔的成本、買點、賺賠數字絕不可以接到下一檔頭上：2026/09/15「張正當時叫你們買的是238」講的是鴻海，下一句才換鴻準，238 不是鴻準的成本。要把成本或買賣價寫進說明之前，先確認那個數字所在的句子講的就是這一檔（名字或代號在同一句、或緊鄰的那一句）；確認不了就不要寫那個數字。
 說明的洞見來自原文的因果脈絡：觀察到的現象 → 講者認為的原因或市場落差 → 對既有部位／新進資金各自的做法 → 後續確認條件。只填原文存在的環節；不得為湊齊格式自創未定價利多、內幕渠道、領先指標、停損點、目標價或獲利預測。「營收成長但股價跌」可呈現基本面與技術面的落差，但不能自行斷言市場定價錯誤或保證反彈。預期、看好、推測須歸屬講者；摘要不是系統自己的投資建議。
 
 【大盤】
@@ -5851,7 +5857,11 @@ CONFIRMED_NAMES = {'普威': ('4966', '譜瑞-KY'), '普位': ('4966', '譜瑞-K
     '羽隆': ('2201','裕隆'), '語隆': ('2201','裕隆')}
 # 管理者確認的讀音：名稱唸起來與左邊完全相同（不分聲調，前後鼻音視為同音）時，對到右邊那一檔。
 # 只在「正式名稱完全相同」「去後綴後相同」都比不到時才用，所以原文明寫的宇隆仍是 2233。
-CONFIRMED_SOUNDS = {'裕隆': ('2201', '裕隆')}
+CONFIRMED_SOUNDS = {'裕隆': ('2201', '裕隆'),
+                    # 2026/09/15 他整段講「紅海」指的是鴻海：「紅海沒事啦」「紅海講完講紅準」。
+                    # 放讀音表而不是別名表：紅海本身是常用詞（紅海市場、紅海策略），
+                    # 別名表會把文章裡的一般用詞也換成公司名。
+                    '鴻海': ('2317', '鴻海')}
 NON_EQUITY_NAMES = {'日幣', '日圓', '日元', '美元', '美金', '台幣', '臺幣', '新台幣', '人民幣', '歐元'}
 # 管理者確認過「是產業、不是個股」的聽錯寫法。代號比對直接剔除整列。
 #   細金元 → 矽晶圓：「被動元件不准給我碰，細金元不准給我碰」，與被動元件、ABF 載板並列的是材料族群。
@@ -6377,6 +6387,148 @@ def entity_claim_gaps(signals, transcript):
         if alias in re.sub(r'\s+', '', transcript) and alias not in names and fixed not in names:
             gaps.append('全文已點名 '+alias+'，候選盤點遺漏；重讀其現在持有／觀望語境。')
     return gaps
+
+
+# ---------------------------------------------------------------- #
+# 價位歸屬：這個數字在原文裡是講誰的
+#
+# 2026/09/15 的信上，鴻準寫著「成本在238附近，籌碼安定且下方有大量支撐」。
+# 籌碼與大量支撐是他對鴻準講的沒錯，238 卻不是。原文那一段是：
+#   「……紅海（鴻海）在做一個收斂壓縮，張正當時叫你們買的是238嘛……賺10塊……
+#     好，來，紅海講完講紅準（鴻準），跟你講我買這邊啊……我沒有賣我就抱著」
+# 238 出現在鴻海那一句裡，離鴻海 20 個字、離鴻準 51 個字。他講完一檔直接接下一檔，
+# 兩個名字擠在同一段，模型就把上一檔的成本接到了下一檔頭上。
+#
+# 提示詞早就寫了「上一句、下一句在講另一檔時不可以搬進這一檔的說明」，
+# 但那是請它注意，不是保證。價位現實檢查也擋不住：它比對的是 price 欄位，
+# 而這個數字是寫在說明的句子裡，繞過了那一關。
+#
+# 這一關直接回原文問：這個數字離哪一檔的名字最近？
+#   名字用讀音比對，因為逐字稿是語音轉文字（鴻海→紅海、鴻準→紅準、勤誠→秦城）。
+#   只有在「別檔明顯更近」時才動手：別檔比本檔近，而且近得夠明顯（10 個字以上）。
+#   兩邊都遠（例如整段講「這一支股票900以下不要賣」完全沒提名字）就不動——
+#   那時沒有證據說它是錯的，寧可留著，也不要把對的說明剪掉。
+#   數字整份原文都找不到，才是另一種錯：那是憑空生出來的，一律刪掉。
+#
+# 只看成本與買賣價這類「屬於某一檔」的數字。三天、五千多億、年成長 181%
+# 不是某一檔的價位，不在這一關的範圍內。
+# ---------------------------------------------------------------- #
+
+_PRICE_CLAIM_RE = re.compile(
+    r"(?:成本|買在|買進|買入|承接|進場|賣在|賣出|賣掉|買點|叫你們買的是)[^，。；、]{0,10}?(\d{2,6}(?:\.\d{1,2})?)")
+_ATTR_MARGIN = 10        # 別檔要近這麼多個字以上，才算「明顯更近」
+_ATTR_MAX_GAP = 200      # 超過這個距離的名字不算數，那已經是別的段落了
+_ATTR_MEMO = {}
+
+
+def _char_pinyin(flat: str):
+    """逐字的讀音，索引與原文一一對應，才能算「離哪個名字幾個字」。"""
+    out = []
+    for ch in flat:
+        out.append(_norm_pin(lazy_pinyin(ch)[0]) if '\u4e00' <= ch <= '\u9fff' else ch.lower())
+    return out
+
+
+def _name_sound(name: str):
+    clean = re.sub(r'[*＊\s]', '', str(name or ''))
+    if not 2 <= len(clean) <= 4:
+        return None
+    return tuple(_norm_pin(lazy_pinyin(ch)[0]) if '\u4e00' <= ch <= '\u9fff' else ch.lower() for ch in clean)
+
+
+def _mention_index(flat: str):
+    """原文裡每一檔被點到的位置（讀音比對，聽錯的寫法一樣找得到）。"""
+    key = hash(flat)
+    if _ATTR_MEMO.get('key') == key:
+        return _ATTR_MEMO['index']
+    pins = _char_pinyin(flat)
+    grams = {}
+    for size in (2, 3, 4):
+        for i in range(len(pins) - size + 1):
+            grams.setdefault(tuple(pins[i:i + size]), []).append(i)
+    try:
+        code_map = get_code_map()
+    except Exception:
+        code_map = {}
+    names = {}
+    pairs = list(code_map.items()) + [(code, name) for code, name in CONFIRMED_NAMES.values()]
+    for code, name in pairs:
+        sound = _name_sound(name)
+        spots = grams.get(sound) if sound else None
+        if spots:
+            names.setdefault(str(code), set()).update(spots)
+    _ATTR_MEMO.update(key=key, index=names)
+    return names
+
+
+def _price_attribution(flat, index, code, number, discussed):
+    """回傳 ('ok'|'foreign'|'absent', 說明)。只有 foreign／absent 會動說明文字。"""
+    spots = [m.start() for m in re.finditer(re.escape(number), flat)]
+    if not spots:
+        return 'absent', '原文沒有這個數字'
+    mine = index.get(str(code)) or set()
+    best_self, best_other, other_code = 10 ** 9, 10 ** 9, ''
+    for spot in spots:
+        for pos in mine:
+            best_self = min(best_self, abs(pos - spot))
+        for other, places in index.items():
+            if other == str(code) or other not in discussed:
+                continue
+            for pos in places:
+                gap = abs(pos - spot)
+                if gap < best_other:
+                    best_other, other_code = gap, other
+    if best_other <= _ATTR_MAX_GAP and best_other + _ATTR_MARGIN <= best_self:
+        return 'foreign', f'離 {other_code} 只有 {best_other} 個字，離本檔 {best_self} 個字'
+    return 'ok', ''
+
+
+def strip_foreign_price_claims(signals: dict, transcript: str) -> dict:
+    """說明裡的成本與買賣價，若原文中明顯是在講別檔，整句刪掉並記進稽核。"""
+    flat = re.sub(r'\s+', '', str(transcript or ''))
+    if len(flat) < 200:
+        return signals
+    index = _mention_index(flat)
+    # 「別檔」只算真的被討論過的：今天有進表格的，或原文點到兩次以上的。
+    discussed = {str(r.get('code') or '') for cat in list(SIGNAL_CATEGORIES) + ['history', 'uncertain', 'ignored']
+                 for r in (signals.get(cat) or []) if r.get('code')}
+    discussed |= {code for code, spots in index.items() if len(spots) >= 2}
+    for cat in SIGNAL_CATEGORIES:
+        for row in signals.get(cat, []) or []:
+            code = str(row.get('code') or '')
+            if not re.fullmatch(r'(?:00981A|\d{4,6})', code):
+                continue
+            for field in ('reason', 'note'):
+                text = str(row.get(field) or '')
+                if not text:
+                    continue
+                kept, dropped = [], []
+                for clause, punct in _split_clauses(text):
+                    verdict, why, hit = 'ok', '', ''
+                    for number in _PRICE_CLAIM_RE.findall(clause):
+                        verdict, why = _price_attribution(flat, index, code, number, discussed)
+                        if verdict != 'ok':
+                            hit = number
+                            break
+                    if verdict == 'ok':
+                        kept.append([clause, punct])
+                        continue
+                    dropped.append((hit, why))
+                    # 被丟掉的那一句原本結束了一個句子時，句號讓給前一句。
+                    if punct == '。' and kept:
+                        kept[-1][1] = '。'
+                if not dropped:
+                    continue
+                row[field] = ''.join(c + t for c, t in kept).strip('，,；;')
+                for number, why in dropped:
+                    name = str(row.get('name') or code)
+                    signals.setdefault('_repair_gaps', []).append(
+                        f'{name}：說明裡的價位 {number} 已移除（{why}）')
+                    note_decision('價位歸屬', '刪掉別檔的價位', name, f'{number}：{why}')
+                    print(f'  價位歸屬 {name}：說明裡的 {number} 不是這一檔的（{why}），已刪掉那一句')
+                if str(row.get('price') or '') in [n for n, _ in dropped]:
+                    row['price'] = '未說明'
+    return signals
 
 
 def sanitize_entity_claims(signals, transcript):
@@ -9030,6 +9182,8 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     # ③ 教學重點至少三點。排在寫入與稽核存檔之前，補回的點會一起進試算表、稽核與郵件。
     signals = ensure_article_minimums(signals, TX["audit"], date_str)
     signals = sanitize_entity_claims(signals, TX["audit"])
+    # 說明裡的成本／買賣價若明顯是隔壁那一檔的，刪掉那一句（管理者回報鴻準238，2026/09/16）。
+    signals = strip_foreign_price_claims(signals, TX["audit"])
     signals = preserve_explicit_holdings(signals, TX["audit"])
     signals = normalize_watch_tones(signals)
     signals = repair_misnamed_subjects(signals, TX["audit"])

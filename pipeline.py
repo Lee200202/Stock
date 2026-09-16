@@ -3227,9 +3227,12 @@ def display_price(value, evidence='', context='') -> str:
     high = max(matches, key=lambda m: float(m.group()))
     num = high.group()
     context = str(context or '')
-    if re.search(r'(?:大跌|下跌|上漲|漲|跌|漲幅|跌幅)\s*'+re.escape(num)+r'\s*(?:元|塊)', context):
+    # 漲跌金額是幅度、除息與配息金額是每股配發，兩者都不是股價。
+    # 2026/09/16 台積電那一列的價位寫著 7，來源是「今天除息7元沒有秒填息」——
+    # 當天股價 2380，版面上並排就是「現價 2380　價位說明 7」，讀的人只會覺得壞掉。
+    if re.search(r'(?:大跌|下跌|上漲|漲|跌|漲幅|跌幅|除息|除權|配息|發放|股利|填息)\s*'+re.escape(num)+r'\s*(?:元|塊)', context):
         if not re.search(r'(?:成本|買點|現價|股價|目標價|買在|賣在|來到|收在)\s*(?:為|是|約|在)?\s*'+re.escape(num)+r'(?!\d)', context):
-            return '未說明'  # 漲跌金額是幅度，不能當絕對股價。
+            return '未說明'
     # 沒有日K仍能擋住「碰線200」；有明確元／塊證據才視作價格。
     if float(num) in (5,10,20,60,120,200,240) and re.search(r'均線|技術線|碰.{0,6}線|線型', str(context)):
         if not re.search(re.escape(num) + r'\s*(?:元|塊)', str(evidence)):
@@ -4132,7 +4135,7 @@ date 要填 event_date=YYYY/MM/DD 且原文有月日；prev_trading_day 只適�
 
 【價位與說明】
 price 僅該事件說出的價格或範圍，沒有寫「未說明」。price_evidence 是含該價位數字的原句，且該句所在的 S 編號必須列入 evidence_refs。數字離名稱較遠時，分別附價位段與能明確回指同一公司、同一事件的名稱段；不得只填報價句或只附名稱句。例如原文分開講「昨天來到3850」和「我在昨天買四星KY」，需附兩段才能保留3850；沒有完整證據則保留可證實的價位，不補猜。
-price 的用途（成交價、等待買點、缺口、法人成本）寫入 reason，不在公開價位欄夾帶文字。多個明確價位以最高數字展示，以上／以下保留；多次買進價不是平均成本。語音稿把數字黏在一起（例如「2385,23802405」）而沒有明確的區間連接詞時，不得自行拆成上下界；保留可獨立確認的價位，其餘寫未說明。漲跌金額不是股價，price填未說明。說明刪除「原文作14」「川服(川湖)」等誤字括注，只留確認後數字／名稱，不乘十推估。均線天數不是股價，EPS 前後互相矛盾時不挑一個順眼的數字當確定值。
+price 的用途（成交價、等待買點、缺口、法人成本）寫入 reason，不在公開價位欄夾帶文字。多個明確價位以最高數字展示，以上／以下保留；多次買進價不是平均成本。語音稿把數字黏在一起（例如「2385,23802405」）而沒有明確的區間連接詞時，不得自行拆成上下界；保留可獨立確認的價位，其餘寫未說明。漲跌金額不是股價，price填未說明；除息、除權、配息、股利的每股金額同樣不是股價（「今天除息7元」的 7 不是台積電的價位），price 一律填未說明，金額寫進 reason。說明刪除「原文作14」「川服(川湖)」等誤字括注，只留確認後數字／名稱，不乘十推估。均線天數不是股價，EPS 前後互相矛盾時不挑一個順眼的數字當確定值。
 含 X 或無法確認的概數，price 寫未說明並在 reason 忠實描述；以下/以上保留，不改成精確成交；法人成本、現價、張數不能充當會員成本。
 reason/note 忠實說明原話之事實描述（如「昨天（9月9日）大跌時買進四星KY。」），其他判斷依據（如「因確切交易日期為昨日而非影片當日，故改列歷史回顧」、「日期未明的回顧……」等內部推論與管線改列註記）一律不用也不得寫進說明中！不能添加「產業前景存疑」等原文未作出的推論。「為什麼把這一檔歸到這一類」同樣是內部流程，不寫進說明：不要出現「並未將某某列為當日會員買進或持有的個股明細」「故列入市場教學與觀察範疇」「因此列為觀望」「屬於教學範疇」這類句子。讀的人要看的是講者對這一檔講了什麼（現在的位置、價位或條件、他要人怎麼做），分類本身已經寫在表格標題上。
 reason/note 要具體但簡短：原文充足時寫 1～3 句、約 40～120 字，第一句先講重點（他對這一檔現在的判斷或要人怎麼做），再補價位或等待條件與原文明講的理由。超過 120 字就是把同一件事換句話再說一次或夾帶了分類理由，一律刪到剩重點。只有名單提及者可以更短，絕不可用相鄰公司的理由補字數。
@@ -5920,18 +5923,31 @@ def _sound_hits(flat_source):
     2026/09/16：他整段講「紅海」（鴻海 2317），盤點卻一個字都沒提到——
     盤點與提示詞的確認名單都是字面比對，而「紅海」只在讀音表裡，
     於是這一檔對整條流程是隱形的，模型沒收、稽核也不知道有東西沒收。
-    讀音表的項目本來就是「本身是常用詞、不能做全文替換」的那些，
-    但「這一份原文裡確實出現了」這件事必須讓模型知道。
+
+    分批估算會拿越來越長的前綴反覆呼叫這一支（9/16 那一輪 784 次）。
+    逐字注音兩萬字要好幾秒，每次從頭算等於把整輪多花好幾分鐘——
+    這與先前盤點拖慢分批是同一種錯。所以注音是累加的：
+    新的字串以舊的為開頭時，只算多出來的那一段，再重掃一次比對（比對不花錢）。
     """
-    out = {}
     flat = re.sub(r'\s', '', str(flat_source or ''))
     if not flat or not CONFIRMED_SOUNDS:
-        return out
-    # 分批估算會對同一份原文反覆呼叫；兩萬字逐字注音一次要好幾秒，只算一次。
-    key = (hash(flat), len(CONFIRMED_SOUNDS))
-    if _SOUND_MEMO.get('key') == key:
-        return dict(_SOUND_MEMO['hits'])
-    pins = _char_pinyin(flat)
+        return {}
+
+    known = _SOUND_MEMO.get('flat') or ''
+    pins = _SOUND_MEMO.get('pins') or []
+    if flat == known:
+        pins = pins
+    elif known and flat.startswith(known):
+        pins = pins + _char_pinyin(flat[len(known):])
+        _SOUND_MEMO.update(flat=flat, pins=pins)
+    elif known and flat in known:
+        # 舊表是超集合：直接用子字串篩，不必再算注音。
+        return {heard: pair for heard, pair in (_SOUND_MEMO.get('table') or {}).items() if heard in flat}
+    else:
+        pins = _char_pinyin(flat)
+        _SOUND_MEMO.update(flat=flat, pins=pins)
+
+    out = {}
     for target, (code, name) in CONFIRMED_SOUNDS.items():
         want = _name_sound(target)
         if not want:
@@ -5939,10 +5955,10 @@ def _sound_hits(flat_source):
         size = len(want)
         for i in range(len(pins) - size + 1):
             if tuple(pins[i:i + size]) == want:
-                heard = flat[i:i + size]
-                out.setdefault(heard, (code, name))
-    _SOUND_MEMO.update(key=key, hits=dict(out))
+                out.setdefault(flat[i:i + size], (code, name))
+    _SOUND_MEMO.update(flat=flat, pins=pins, table=dict(out))
     return out
+
 
 def _confirmed_names_for(flat_source):
     """送給模型的確認名稱：程式內建的，加上「名稱判定紀錄」裡人工確認、沒有限定情境的。"""
@@ -6178,6 +6194,8 @@ def assessment_payload(date_str, segments, candidates=None, issues=None):
 
 
 def assessment_batches(transcript, date_str):
+    # 整份原文的讀音命中先算一次，下面每一批只做子字串比對。
+    _sound_hits(transcript)
     # UTF-8 bytes are a conservative token upper estimate, not an exact tokenizer.
     # Cap normal requests well below known 1M contexts to respect per-minute quotas.
     context = min(int(os.environ.get('GEMINI_CONTEXT_TOKENS', '1048576')), 1048576)

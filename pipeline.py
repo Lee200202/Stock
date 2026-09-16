@@ -4083,7 +4083,7 @@ reason、note、market text 是公開文字，不寫人名當主詞或所有格�
 四、等條件或等別人賣完：講者明講現在還不能買、還不行、不想買，要等 ETF 賣完或跌破某價才考慮（「今天破900你可以買嗎？還不行，00981A還沒賣完」「你沒有破900我不想買」）→ watch_avoid，reason 寫出等待條件；只給可照做的買點、沒說現在不能買（「900以下是買點」「等補完缺口站回去」）→ watch_watch。講的是哪一檔要從同一段的名稱找（ETF 出清的那一檔原文寫初清程、出金城＝勤誠）；同一段真的沒有名稱才放 ignored，不可由股價猜公司。
 五、過去叫人賣、現在看壞：「越想解套國巨你就越死」「他一定會殺破」→ watch_avoid（見【日期未明與現況看法】）。
 六、點名個股當負面示範：「昨天大漲今天大跌」「追高就賠」「外資買一天賣一天」「昨天買今天跌」「總比你去買環球金好」「買的人全部賠錢」「不准買」→ 各一筆 watch_avoid，不可寫成值得留意。
-七、族群點名並講本股業績好、不用擔心、會過季線（「業績很好不必擔心」「還有一隻叫3545敦泰」）→ watch_watch。
+七、族群點名並講本股業績好、不用擔心、會過季線（「業績很好不必擔心」「還有一隻叫3545敦泰」）→ watch_watch。\n八、先講一段技術面或基本面、最後才報出名字（「真正最近開始要轉強的是這一隻……就基本面來講，拉回再佈局等他……這個叫台達電」）→ 那一整段都是這一檔的，列 watch_watch，reason 寫出「還沒過季線、拉回再佈局」這個條件。名字出現在段落結尾不影響收錄；同一段裡「這一隻」「這一支股票」指的就是最後報出來的那一檔。\n九、除權息、填息、法人成本這種「對這一檔現在怎麼看」的說明也要收（「台積電今天沒有填不用緊張，後面一定填」→ watch_watch，reason 寫他明講的理由），不要當成大盤背景而排除。
 
 name 只能用原文聽到的字或 confirmed_names／source_inventory 的正式名稱；讀音不同的公司不可替換（金星科不是金益鼎），reason/note 不寫本檔以外、原文沒有的公司名。
 
@@ -4162,7 +4162,7 @@ history 另填 when（yesterday／date／unknown）、action=buy/sell、view、v
 【日期未明與現況看法】非當日或日期不明的買賣本身不是現況，不能單憑「原為買入／賣出」決定觀望方向。
 請到逐字稿其他段落找講者對這一檔「現在」的看多、看空或技術說明（價位關卡、法人成本、會漲會跌、等拉回、別攤平等）。
 找到現況看法且沒有持有證據時，列 watch_watch（明確看多或有本股條件買點）或 watch_avoid（看空、風險或中性觀察）。若同時有持有證據，保留 holdings；另有對未持有者的買進條件才加觀望列。後文的候選名單不會抹掉前文會員持有事實；除非後文明講已出清。reason/note 寫事實，evidence_refs 同時列相關段落；
-例如國巨：「禮拜一國巨漲到605，我說597（外資成本）以上要賣一次」是過去，「越想解套國巨你就越死」「他一定會殺破」是現在的看法 → watch_avoid。
+例如國巨：「禮拜一國巨漲到605，我說597（外資成本）以上要賣一次」是過去，「越想解套國巨你就越死」「他一定會殺破」是現在的看法 → watch_avoid。\n2026/09/16 同一檔又出現一次：「現在國具有沒有回到520幾」是回顧，但「不要聽那些分析師套牢的叫你趕快買、幫他們解套」是現在的看法（叫人不要買）→ watch_avoid。提醒別人不要接、不要幫誰解套，都算現況看法，不是純回顧。
 若仍放在 history，也要填 view（原話事實摘要，不寫判斷依據）、view_refs（S 編號，至少一段要提到這一檔）、watch_bias（看多 watch_watch／看空 watch_avoid）；
 view 必須是他「現在」對這一檔的看法原話重點（要買、要等、會漲、會殺破、不要碰、大戶在買……）；
 只講過去賣在幾塊、現在幾塊（例如「華城賣775塊，現在726」）不是 view。
@@ -5261,6 +5261,7 @@ def article_title_detail(signals):
             rejected.append((raw, why))
             continue
         ending = title[len(body):][:1] or '！'
+        body = _title_one_sentence(body)
         return TITLE_PREFIX + body + {'!': '！', '?': '？'}.get(ending, ending), '模型標題', rejected
     for row in rows:
         if row.get('kind') != 'view':
@@ -5276,6 +5277,32 @@ def article_title_detail(signals):
         if re.search(pattern, text)]
     return TITLE_PREFIX + ('與'.join(themes[:2]) if themes else '市場觀察與操作重點'), '盤勢主題（沒有可用的模型標題）', rejected
 
+
+# 標題只留一句。2026/09/16 模型回了「大家有沒有看到成交量？你現在的手機裡面預估今天成交量
+# 多少？5000億昨天成交量多少？6000億」——三個問句串在一起，信件標題整行都是它。
+# v19 拿掉二十字上限是為了不要把好句子切一半，不是為了讓整段話當標題。
+# 規則：以問號、驚嘆號、逗號斷句，取第一個「像標題」的句子（至少六個字）；
+# 真的只有一個長句時，才在最後一個逗號處收尾。
+_TITLE_CUT = re.compile(r'[？?！!。；;]')
+
+
+def _title_one_sentence(text: str) -> str:
+    """只在「好幾句話被串成一句」時取第一句；一句話裡有幾個逗號不動它。
+
+    界線刻意畫在句尾標點，不是字數：
+      v19 的「這個禮拜很熱鬧不代表你要跟著人家熱鬧，兩個大人在打架你不要參進去，
+      坐在旁邊看就好」是一句話，照字數切會把它砍成半句——那正是 v19 拿掉字數上限的原因。
+      9/16 的「大家有沒有看到成交量？你現在的手機裡面預估今天成交量多少？5000億昨天成交量多少？6000億」
+      是三個問句，取第一句就夠了。
+    """
+    body = str(text or '').strip()
+    parts = [x.strip() for x in _TITLE_CUT.split(body) if x.strip()]
+    if len(parts) <= 1:
+        return body
+    for part in parts:
+        if len(part) >= 6:
+            return part
+    return parts[0]
 
 def article_title(signals):
     return article_title_detail(signals)[0]
@@ -5880,12 +5907,47 @@ MANUAL_ENTRY_PREFIX = 'MANUALENTRY-'
 ASSESSMENT_VERSION = 'context-json-v16'
 
 
+_SOUND_MEMO = {}
+
+
+def _sound_hits(flat_source):
+    """原文裡用讀音對得上 CONFIRMED_SOUNDS 的寫法。
+
+    2026/09/16：他整段講「紅海」（鴻海 2317），盤點卻一個字都沒提到——
+    盤點與提示詞的確認名單都是字面比對，而「紅海」只在讀音表裡，
+    於是這一檔對整條流程是隱形的，模型沒收、稽核也不知道有東西沒收。
+    讀音表的項目本來就是「本身是常用詞、不能做全文替換」的那些，
+    但「這一份原文裡確實出現了」這件事必須讓模型知道。
+    """
+    out = {}
+    flat = re.sub(r'\s', '', str(flat_source or ''))
+    if not flat or not CONFIRMED_SOUNDS:
+        return out
+    # 分批估算會對同一份原文反覆呼叫；兩萬字逐字注音一次要好幾秒，只算一次。
+    key = (hash(flat), len(CONFIRMED_SOUNDS))
+    if _SOUND_MEMO.get('key') == key:
+        return dict(_SOUND_MEMO['hits'])
+    pins = _char_pinyin(flat)
+    for target, (code, name) in CONFIRMED_SOUNDS.items():
+        want = _name_sound(target)
+        if not want:
+            continue
+        size = len(want)
+        for i in range(len(pins) - size + 1):
+            if tuple(pins[i:i + size]) == want:
+                heard = flat[i:i + size]
+                out.setdefault(heard, (code, name))
+    _SOUND_MEMO.update(key=key, hits=dict(out))
+    return out
+
 def _confirmed_names_for(flat_source):
     """送給模型的確認名稱：程式內建的，加上「名稱判定紀錄」裡人工確認、沒有限定情境的。"""
     names = {a: v for a, v in CONFIRMED_NAMES.items() if a in flat_source}
     for e in _manual_memo_entries():
         if e.get('verdict', 'stock') == 'stock' and not e.get('keys') and e['heard'] in flat_source:
             names.setdefault(e['heard'], (e['code'], e.get('real') or ''))
+    for heard, pair in _sound_hits(flat_source).items():
+        names.setdefault(heard, pair)
     return names
 
 
@@ -5932,6 +5994,15 @@ def source_inventory(segments):
     for sid, seg in segments.items():
         for heard in _segment_inventory(seg['text'], names):
             refs.setdefault(heard, []).append(sid)
+    sound_flat = ''.join(seg['text'] for seg in segments.values())
+    for heard, (code, name) in _sound_hits(sound_flat).items():
+        if heard in refs or heard in names:
+            continue
+        names[heard] = (code, name, True)
+        for sid, seg in segments.items():
+            if heard in re.sub(r'\s', '', seg['text']):
+                refs.setdefault(heard, []).append(sid)
+
     found_items = []
     for heard in sorted(refs):
         code, name, confirmed = names[heard]
@@ -7784,7 +7855,9 @@ def verify_names(signals: dict, transcript: str) -> dict:
 
 TX_LAYOUT_COL = '排版稿JSON'
 TX_LAYOUT_FP_COL = '排版稿指紋'
-TX_LAYOUT_CHUNK = 7000
+# 2026/09/16：7000 字一批時，模型把輸出額度花在思考上（thinking 5863、輸出 2325），
+# 第一批直接 MAX_TOKENS 截斷退回機械分段。分批調小、輸出額度放到上限。
+TX_LAYOUT_CHUNK = 3500
 
 TX_FORMAT_SYSTEM = """你要把一段直播逐字稿整理成好讀的版面。這是排版工作，不是改寫。
 
@@ -7852,7 +7925,7 @@ def format_transcript_sections(text):
     for i, chunk in enumerate(chunks, 1):
         try:
             raw = call_gemini(TX_FORMAT_SYSTEM, chunk, want_json=True, thinking=0,
-                              max_out=8192, tag=f'tx-layout-{i}')
+                              max_out=MAX_OUT, tag=f'tx-layout-{i}')
             got = json.loads(repair_json_text(raw))
             parts = [str(x.get('text') or '') for x in (got.get('sections') or [])]
             if not parts or not _tx_same_text(''.join(parts), chunk):

@@ -2532,7 +2532,7 @@ def _fetch_rows(src):
 
     if src["kind"] == "csv":
         import csv, io
-        rows = list(csv.DictReader(io.StringIO(text.lstrip("﻿"))))
+        rows = list(csv.DictReader(io.StringIO(text.lstrip("\ufeff"))))
     elif src["kind"] == "twse_rwd":
         # 證交所新版 rwd 端點回的是 {"fields": [欄名...], "data": [[值...]]}，
         # 不是一列一個物件。先併成字典，後面的取欄邏輯才通用。
@@ -4080,13 +4080,13 @@ reason、note、market text 是公開文字，不寫人名當主詞或所有格�
 【先盤點，再分類】
 先把全文每一個被點名的公司都找出來（含聽錯的寫法、只講一次的、名單裡順口帶過的），每一個都要放進九類之一，連 ignored 也要列；寧可多收交給程式核對，不可漏收。
 2026/09/10 漏掉最多的是下面六種句型（名稱只是舉例，原文沒講到的公司不可因範例而加入）：
-一、手中持股順口帶過：「張正手中告訴你的買進的股票，比如說想碩、比如說普位」「對我還有紅準」「你們都知道我有詳」→ 每一檔各一筆 holdings。
+一、手中持股順口帶過：「張正手中告訴你的買進的股票，比如說想碩、比如說普位」「對我還有紅準」「你們都知道我有詳」「我為什麼一直抱著降碩？…我的享碩還賺」「你們想賣的趕快賣，我的會員不准賣」→ 每一檔各一筆 holdings。
 二、講買進價位、買到現在或昨天買的還在手上：「我從1820、2025、2135買到現在，買這三次我沒有賣掉」「這一檔本來就是我會員買的股票，8月25號1580以下買加折」「我昨天買的四星KY，今天漲30幾塊」→ holdings（同一檔若另外叫還沒有的人去買，再加一筆 watch_watch）。
 三、一口氣念出的名單：「我連後面要什麼聖輝、新代、加折還有木德，我以後要買的股票通列出來給你看了」→ 名單裡每一檔各一筆 watch_watch（已是持股的仍列 holdings）。
-四、等條件或等別人賣完：講者明講現在還不能買、還不行、不想買，要等 ETF 賣完或跌破某價才考慮（「今天破900你可以買嗎？還不行，00981A還沒賣完」「你沒有破900我不想買」）→ watch_avoid，reason 寫出等待條件；只給可照做的買點、沒說現在不能買（「900以下是買點」「等補完缺口站回去」）→ watch_watch。講的是哪一檔要從同一段的名稱找（ETF 出清的那一檔原文寫初清程、出金城＝勤誠）；同一段真的沒有名稱才放 ignored，不可由股價猜公司。
+四、等條件或等別人賣完：講者明講現在還不能買、還不行、不想買，要等 ETF 賣完或跌破某價才考慮（「今天破900你可以買嗎？還不行，00981A還沒賣完」「你沒有破900我不想買」）→ watch_avoid，reason 寫出等待條件；只給可照做的買點、沒說現在不能買（「900以下是買點」「等補完缺口站回去」）→ watch_watch。講的是哪一檔要從同一段的名稱找（ETF 出清的那一檔原文寫初清程、出金城＝勤誠）；同一段真的沒有名稱才放 ignored，不可由股價猜公司。等的事今天已經發生（ETF 已全部出清、賣在最低點），講者接著說「不會跌了」「賣完就漲」→ watch_watch，reason 寫已發生的事與偏多結論，不可寫成「等待賣壓減輕」；「前幾天講會跌破900，真的破了」是已應驗的回顧，不是今天看空（2026/09/17 勤誠，見句型十）。
 五、過去叫人賣、現在看壞：「越想解套國巨你就越死」「他一定會殺破」→ watch_avoid（見【日期未明與現況看法】）。
-六、點名個股當負面示範：「昨天大漲今天大跌」「追高就賠」「外資買一天賣一天」「昨天買今天跌」「總比你去買環球金好」「買的人全部賠錢」「不准買」→ 各一筆 watch_avoid，不可寫成值得留意。
-七、族群點名並講本股業績好、不用擔心、會過季線（「業績很好不必擔心」「還有一隻叫3545敦泰」）→ watch_watch。\n八之一、「某某集團裡面這一支股票」講的是集團裡的另一家公司，不是集團母公司本身：2026/09/16「連陽，我也沒有跟你們講，連電集團裡面這一支股票獲利很好，上半年賺5塊8」——買在130出頭的是聯陽（3014），不是聯電（2303）；聯電那天只是「昨天跌4塊、今天漲三塊半」的追高反例。同一段裡有兩個名字時，持有、買進、成本一律歸給離那句話最近、而且語意上真的被講的那一檔。\n八、先講一段技術面或基本面、最後才報出名字（「真正最近開始要轉強的是這一隻……就基本面來講，拉回再佈局等他……這個叫台達電」）→ 那一整段都是這一檔的，列 watch_watch，reason 寫出「還沒過季線、拉回再佈局」這個條件。名字出現在段落結尾不影響收錄；同一段裡「這一隻」「這一支股票」指的就是最後報出來的那一檔。\n九、除權息、填息、法人成本這種「對這一檔現在怎麼看」的說明也要收（「台積電今天沒有填不用緊張，後面一定填」→ watch_watch，reason 寫他明講的理由），不要當成大盤背景而排除。
+六、點名個股當負面示範：「昨天大漲今天大跌」「追高就賠」「外資買一天賣一天」「昨天買今天跌」「總比你去買環球金好」「買的人全部賠錢」「不准買」→ 各一筆 watch_avoid，不可寫成值得留意。負面示範的主角必須是這一檔股票本身；被嘲笑的是 ETF、法人、網紅、散戶的操作（買高殺低、賣在最低點、當沖賠錢），講者對被賣的那一檔結論是不會跌、會漲時，那一檔不是負面示範。
+七、族群點名並講本股業績好、不用擔心、會過季線（「業績很好不必擔心」「還有一隻叫3545敦泰」）→ watch_watch。\n八之一、「某某集團裡面這一支股票」講的是集團裡的另一家公司，不是集團母公司本身：2026/09/16「連陽，我也沒有跟你們講，連電集團裡面這一支股票獲利很好，上半年賺5塊8」——買在130出頭的是聯陽（3014），不是聯電（2303）；聯電那天只是「昨天跌4塊、今天漲三塊半」的追高反例。同一段裡有兩個名字時，持有、買進、成本一律歸給離那句話最近、而且語意上真的被講的那一檔。\n八、先講一段技術面或基本面、最後才報出名字（「真正最近開始要轉強的是這一隻……就基本面來講，拉回再佈局等他……這個叫台達電」）→ 那一整段都是這一檔的，列 watch_watch，reason 寫出「還沒過季線、拉回再佈局」這個條件。名字出現在段落結尾不影響收錄；同一段裡「這一隻」「這一支股票」指的就是最後報出來的那一檔。\n九、除權息、填息、法人成本這種「對這一檔現在怎麼看」的說明也要收（「台積電今天沒有填不用緊張，後面一定填」→ watch_watch，reason 寫他明講的理由），不要當成大盤背景而排除。\n十、反話與「賣壓竭盡」是看多，不是看空（2026/09/17 祥碩、勤誠被誤列觀望不碰）：「今天跌5塊你就說他不好？你們想賣的趕快賣，我的會員不准賣」「你們套牢的可以賣給我，賣完我就拉上去」「假破底＝沒量跌破新低」「殺不下去就會漲上來」「賣壓竭盡的時候就是股票要大漲的時候」「只要ETF賣在低點的股票，不會跌了」→ 講者結論偏多：會員有部位列 holdings，對還沒有的人有看法或條件再列 watch_watch；不可因句中的「賣」「破底」「賣壓」「跌」「賣在低點」改列 watch_avoid。「不准賣」是續抱指示，不是「不准買」。reason 第一句寫偏多結論（例如「ETF 已在低點全部出清，認為賣壓竭盡、不會再跌」），不要只寫等待或負面現象。假破底、站上季線、目標價要歸給原文實際在講的那一檔，不可搬到並列的另一檔。
 
 name 只能用原文聽到的字或 confirmed_names／source_inventory 的正式名稱；讀音不同的公司不可替換（金星科不是金益鼎），reason/note 不寫本檔以外、原文沒有的公司名。
 
@@ -4111,7 +4111,7 @@ watch_watch：明確候選、以後想買、等洗完、抄起來；只列名字
 講者要大家等某個價位或時點再買（900以下是買點、等補完缺口站回去、等禮拜一CPI公布後、碰到均線再說）也是 watch_watch，reason 寫出那個條件；同時明講「現在還不能買」的依原則四列 watch_avoid。
 漲多下方缺口還沒補、還會跌、切勿追高、拿它當負面示範（大立光跌停、玉晶光跟跌）→ watch_avoid，不因句中出現「買」「等」改列 watch_watch。
 展示營收、EPS 或線型並說出看法的個股（「這些公司以後都會漲回去」「一定要等他補完缺口、打第二隻腳再站回去」）也要逐檔收錄，共同指示能明確回指這兩三家公司時才逐檔列；不能只因同段展示過就套用同一立場。
-watch_avoid 從寬：談到這一檔時語氣偏負面、偏空，或拿它當風險、追高受傷、法人一買一賣、操作失誤的示範，就列 watch_avoid，不必有明確禁令（例：不准碰、會殺破、還沒跌完、昨天大漲今天大跌、追高容易套牢、外資買一天賣一天、昨天買今天跌）。reason 寫出負面現象；若另有明確本股低檔買點，依買點列watch_watch並保留條件，不能自行補買點。
+watch_avoid 從寬：談到這一檔時語氣偏負面、偏空，或拿它當風險、追高受傷、法人一買一賣、操作失誤的示範，就列 watch_avoid，不必有明確禁令（例：不准碰、會殺破、還沒跌完、昨天大漲今天大跌、追高容易套牢、外資買一天賣一天、昨天買今天跌）。反話、假破底、賣壓竭盡、別人（ETF、法人、散戶）賣在低點而講者結論看多，不算語氣偏負面（見句型十）。reason 寫出負面現象；若另有明確本股低檔買點，依買點列watch_watch並保留條件，不能自行補買點。
 watch_watch 只收明確正面看法或具體買點（看好、會漲、候選、等條件就買）；只有盤整或法人反覆換手、沒有偏多依據者放watch_avoid。正負並存看「現在進場」的結論；拿不準而負面較多歸 watch_avoid。不可替警示例子補寫「等待機會」「逢低布局」。
 過去的買賣本身不是 watch_watch 或 watch_avoid 的理由，見【日期未明與現況看法】。
 族群禁令可以連到原文明確點名且確有語意連結的公司；不可自行枚舉族群成分股。
@@ -4144,7 +4144,7 @@ reason 只能用提到這一檔的句子；上一句、下一句在講另一檔�
 說明的洞見來自原文的因果脈絡：觀察到的現象 → 講者認為的原因或市場落差 → 對既有部位／新進資金各自的做法 → 後續確認條件。只填原文存在的環節；不得為湊齊格式自創未定價利多、內幕渠道、領先指標、停損點、目標價或獲利預測。「營收成長但股價跌」可呈現基本面與技術面的落差，但不能自行斷言市場定價錯誤或保證反彈。預期、看好、推測須歸屬講者；摘要不是系統自己的投資建議。
 
 【大盤】
-market 每筆填 kind=level/volume/event/flow/view、text、evidence_refs。首筆盤勢一定要填headline：取講者本集最有力的一句觀點，口語一句、不限字數，驚嘆號或問句收尾（如「你買在高檔 神仙都難救！」），不含姓名日期，用原文的字與數字，不新增事實。
+market 每筆填 kind=level/volume/event/flow/view、text、evidence_refs。首筆盤勢一定要填headline：取講者本集最有力的一句觀點，口語一句、至少15字（不設上限），驚嘆號或問句收尾（如「你買在高檔 神仙都難救，低檔買進才是真正會賺錢的做法！」），不含姓名日期，用原文的字與數字，不新增事實。
 level/volume/event/flow 是盤勢（信件第①章）：涵蓋原文明講的指數關卡、缺口、量與解讀、CPI/PPI/利率決策的時間、美元/資金、融資餘額、整理週期與展望。原文充足時整理 6～10 點，至少3個不同主題；不足三點時重讀原文補足，確無內容不得杜撰。每點約 70～140 字，合計以 1400 字為目標上限。每點交代現象及講者的解讀，不拆成重複短句湊點數。
 view 是講者今天的操作邏輯與教學重點（信件第③章）：逐段找出講者教觀眾怎麼想、怎麼做、要避免什麼的段落，不同主題各成一點（例：買賣節奏、追高與等拉回、續抱耐心、法人成本與解套賣壓、外資短線換手、重大事件前的部位、量縮整理怎麼做、候選名單與買點、減少頻繁進出、技術關卡、選股依據）。原文充足時整理 6～10 點（逐字稿超過五千字時至少 3 點），每點寫成「觀念標題：說明」，說明 3～5 句約 120～220 字：做法 → 明講的原因 → 適用對象與條件 → 當天例子 → 要避免的錯誤；缺的環節省略。個股說明裡的通用做法也提煉成一點。要區分已有部位者續抱與未持有者等待買點，條件性風險提醒不能寫成對所有人的全面禁令。同段有盤面與做法時拆成兩筆。
 資料少就少寫，不湊點數；每一點都要有 evidence_refs，列出觀念、原因、例子所在的全部段落；text 的數字必須出現在所列段落，否則整點會被剔除；教學點以觀念與做法為主，數字非必要就不寫。
@@ -4182,7 +4182,7 @@ uncertain 的 suggested_category 只用 buy/sell/holdings/watch_avoid/watch_watc
 EXTRACT_SYSTEM = POLICY + "\n合併擷取、分類、日期、補漏及摘要。source鍵為S編號；source_inventory是原文名稱候選，逐一分類或說明排除，不代表推薦或持有。再讀全文補諧音與末段漏項，輸出完整九類陣列；不抄引句、不假設記得其他批。"
 
 
-AUDIT_SYSTEM = POLICY + "\n這是追加覆核。重讀本次提供的全部來源段落；分批時不假設收到其他批原文。逐筆校對初稿並補漏，補漏時逐段對照【先盤點，再分類】的六種句型，初稿沒收的公司要補進對應類別，輸出完整九類陣列，不只輸出差異。逐筆重看 watch_watch，語氣偏負面或當風險示範者依從寬標準改列 watch_avoid；公開文字的人名改成省略主詞；教學主題不足時逐段補齊。被刪除的初稿候選須列 ignored/uncertain 並附理由，不能消失。最後獨立核對每檔持有證據與候選名單：不因昨日買進或後文列候選而漏掉仍持有的部位；每個price_evidence需含價位數字且所在段已引用。附 changes 說明修正。"
+AUDIT_SYSTEM = POLICY + "\n這是追加覆核。重讀本次提供的全部來源段落；分批時不假設收到其他批原文。逐筆校對初稿並補漏，補漏時逐段對照【先盤點，再分類】的六種句型，初稿沒收的公司要補進對應類別，輸出完整九類陣列，不只輸出差異。逐筆重看 watch_watch，語氣偏負面或當風險示範者依從寬標準改列 watch_avoid，但反話、假破底、賣壓竭盡、ETF 賣在低點而結論看多者照句型十保留；逐筆重看 watch_avoid，這幾種看多說法被誤列時改回 holdings 或 watch_watch；公開文字的人名改成省略主詞；教學主題不足時逐段補齊。被刪除的初稿候選須列 ignored/uncertain 並附理由，不能消失。最後獨立核對每檔持有證據與候選名單：不因昨日買進或後文列候選而漏掉仍持有的部位；每個price_evidence需含價位數字且所在段已引用。附 changes 說明修正。"
 
 
 # ---------------------------------------------------------------- #
@@ -5005,12 +5005,12 @@ ARTICLE_SYSTEM = """你是一位專業財經記者與投顧整理編輯，負責
 某一段資訊清單中沒有時，明確寫「本段內容：本支影片未說明，故不予記錄。」
 
 全文繁體中文。章節標題與表格欄位名稱完全照下列格式，不可省略或改名，依序輸出。
-第一行是文章標題，不編號；其後四章依序編 ①②③④，不寫「基本資訊」一章：
+第一行是文章標題，不編號；其後三章依序編 ①②③，不寫「基本資訊」一章，也不寫風險揭露（信件頁尾固定呈現，文章裡再寫一次就重複了）：
 
 文章標題
    觀察清單中的核心主題與關鍵字，產出 1 個具體標題，講者口吻的一句觀點、驚嘆號或問句收尾，不加人名前綴，
    風格參考 168 聚財網「張震：換手太明顯，這就是財富重分配！」「張震：你買在高檔 神仙都難救！」
-   這類講者口吻的觀點句，但不可直接複製；不限字數，不含日期，不新增清單沒有的事實。
+   這類講者口吻的觀點句，但不可直接複製；至少15字、不設上限，不含日期，不新增清單沒有的事實。
    輸出一行：文章標題：（你產生的標題）
 
 ① 盤勢總覽重點整理
@@ -5078,12 +5078,6 @@ ARTICLE_SYSTEM = """你是一位專業財經記者與投顧整理編輯，負責
    標題與說明都直接寫出來，不要用括號把它們包起來。
    上面那兩行的「簡短標題」「2 到 3 句」是在描述你要寫什麼，不是要照抄的格式。
    不得自行補充清單以外的觀點、個股或散戶提醒。
-
-④ 風險揭露與重要提醒
-   必須包含下列兩點：
-   本文章內容僅為整理節目中之公開資訊與觀點，不構成任何形式之投資建議或獲利保證。
-   實際投資操作須自行評估風險與財務狀況，必要時請諮詢專業投資顧問。
-   清單中若有風險控管或警語相關內容，接著條列整理。
 
 所有表格使用 Markdown 表格。
 表頭一律只寫欄位名稱本身，不要在後面加括號說明。
@@ -5227,16 +5221,41 @@ def format_readable_transcript(text):
 TITLE_PREFIX = ''
 
 
+# 標題至少 15 個字（2026/09/17 管理者：「操作重音與心態！」太短，讀的人看不出這一集在講什麼）。
+# 算字只算中文、英文與數字，標點與空白不算；Apps Script 的 articleTitle_ 用同一套算法。
+TITLE_MIN_CHARS = 15
+_TITLE_CHAR = re.compile(r'[A-Za-z0-9_\u3400-\u9fff]')
+
+
+def _title_chars(text) -> int:
+    return len(_TITLE_CHAR.findall(str(text or '')))
+
+
+def _title_extend(head, detail, limit=40):
+    """觀念標題太短時，接上說明的前幾個子句，接到滿 15 字為止；超過 limit 字就不用這一條。"""
+    title = str(head or '').strip()
+    for clause in re.split(r'[，,。；;！!？?\n]', str(detail or '')):
+        if _title_chars(title) >= TITLE_MIN_CHARS:
+            break
+        clause = clause.strip(' 　：:「」')
+        if _title_chars(clause) < 2 or re.search(r'張震|張正|講者|\d{4}[/年]', clause):
+            continue
+        title += '，' + clause
+    if _title_chars(title) < TITLE_MIN_CHARS or _title_chars(title) > limit:
+        return ''
+    return title
+
+
 def article_title_detail(signals):
     """文章標題與它的來源。回傳 (標題, 來源, 未採用的模型標題與原因)。
 
     格式照 168 聚財網〈168看電視〉張震文章：「張震：你買在高檔 神仙都難救！」——
     講者本集最有力的一句觀點。模型只給後半句（headline），「張震：」由程式加。
-    不限字數（管理者 2026/09/14）。仍要擋的是「新增事實」：
+    不設上限（管理者 2026/09/14），但至少 15 字（管理者 2026/09/17）。仍要擋的是「新增事實」：
       數字必須出現在已驗證的盤勢／教學原句裡；字要八成以上出自那些說明與原句。
     比對範圍是全部已驗證的盤勢與教學，不是只有帶標題的那一筆——
     講者最有力的那句話常常在教學段，只比同一筆會把好標題擋掉。
-    三層來源依序：模型標題 → 第一個教學重點的觀念標題 → 盤勢主題。
+    三層來源依序：模型標題 → 教學重點的觀念標題（不足 15 字時接上說明的子句）→ 盤勢主題加上說明。
     """
     rows = [r for r in signals.get('market', []) if r.get('_evidence_verified')]
     source_flat = re.sub(r'\s', '', ''.join(str(r.get('text') or '') + ''.join(str(q) for q in (r.get('evidence') or []))
@@ -5260,61 +5279,76 @@ def article_title_detail(signals):
             why = '數字不在原句'
         elif chars and sum(c in source_flat for c in chars) / len(chars) < 0.8:
             why = '用字多半不在原句'
+        ending = title[len(body):][:1] or '！'
+        body = _title_one_sentence(body)
+        if not why and _title_chars(body) < TITLE_MIN_CHARS:
+            why = f'不到 {TITLE_MIN_CHARS} 字'
         if why:
             rejected.append((raw, why))
             continue
-        ending = title[len(body):][:1] or '！'
-        body = _title_one_sentence(body)
         return TITLE_PREFIX + body + {'!': '！', '?': '？'}.get(ending, ending), '模型標題', rejected
     for row in rows:
         if row.get('kind') != 'view':
             continue
-        m = re.match(r'\s*([^：:。！？!?\n]{2,40})[：:]', str(row.get('text') or ''))
-        if m and not re.search(r'張震|張正|講者|\d{4}[/年]', m.group(1)):
-            return TITLE_PREFIX + m.group(1).strip() + '！', '教學重點的觀念標題', rejected
+        text = str(row.get('text') or '')
+        m = re.match(r'\s*([^：:。！？!?\n]{2,40})[：:]', text)
+        if not m or re.search(r'張震|張正|講者|\d{4}[/年]', m.group(1)):
+            continue
+        title = _title_extend(m.group(1), strip_speaker_names(text[m.end():]))
+        if title:
+            return TITLE_PREFIX + title + '！', '教學重點的觀念標題', rejected
     text = ' '.join(str(r.get('text') or '') for r in rows if r.get('kind') != 'view')
     themes = [label for pattern, label in (
         (r'CPI|消費者物價指數', 'CPI動向'), (r'PPI|生產者物價指數', 'PPI動向'),
         (r'利率|聯準會', '利率決策'), (r'量縮|成交量縮', '量縮整理'), (r'震盪|壓縮|橫盤', '震盪盤勢'),
         (r'外資|資金', '外資動向'), (r'美元|匯率', '匯率變化'), (r'融資', '融資變化'), (r'缺口|支撐|關卡', '技術關卡'))
         if re.search(pattern, text)]
-    return TITLE_PREFIX + ('與'.join(themes[:2]) if themes else '市場觀察與操作重點'), '盤勢主題（沒有可用的模型標題）', rejected
+    title = ('與'.join(themes[:2]) + '，本集盤勢與操作重點整理') if themes else '本集市場觀察與會員操作重點整理'
+    return TITLE_PREFIX + title, '盤勢主題（沒有可用的模型標題）', rejected
 
 
 # 標題只留一句。2026/09/16 模型回了「大家有沒有看到成交量？你現在的手機裡面預估今天成交量
 # 多少？5000億昨天成交量多少？6000億」——三個問句串在一起，信件標題整行都是它。
 # v19 拿掉二十字上限是為了不要把好句子切一半，不是為了讓整段話當標題。
-# 規則：以問號、驚嘆號、逗號斷句，取第一個「像標題」的句子（至少六個字）；
-# 真的只有一個長句時，才在最後一個逗號處收尾。
-_TITLE_CUT = re.compile(r'[？?！!。；;]')
+# 規則：以問號、驚嘆號、句號斷句，從第一個「像標題」的句子（至少六個字）開始；
+# 2026/09/17 起標題至少 15 字，第一句不夠長時接上下一句，接到滿 15 字為止。
+_TITLE_CUT = re.compile(r'([？?！!。；;])')
 
 
 def _title_one_sentence(text: str) -> str:
-    """只在「好幾句話被串成一句」時取第一句；一句話裡有幾個逗號不動它。
+    """只在「好幾句話被串成一句」時收短；一句話裡有幾個逗號不動它。
 
     界線刻意畫在句尾標點，不是字數：
       v19 的「這個禮拜很熱鬧不代表你要跟著人家熱鬧，兩個大人在打架你不要參進去，
       坐在旁邊看就好」是一句話，照字數切會把它砍成半句——那正是 v19 拿掉字數上限的原因。
       9/16 的「大家有沒有看到成交量？你現在的手機裡面預估今天成交量多少？5000億昨天成交量多少？6000億」
-      是三個問句，取第一句就夠了。
+      是三個問句；第一句只有 10 個字，接上第二句到滿 15 字就停。
     """
     body = str(text or '').strip()
-    parts = [x.strip() for x in _TITLE_CUT.split(body) if x.strip()]
-    if len(parts) <= 1:
+    pieces = _TITLE_CUT.split(body)
+    sentences = [(pieces[i].strip(), pieces[i + 1] if i + 1 < len(pieces) else '')
+                 for i in range(0, len(pieces), 2) if pieces[i].strip()]
+    if len(sentences) <= 1:
         return body
-    for part in parts:
-        if len(part) >= 6:
-            return part
-    return parts[0]
+    start = next((i for i, (s, _) in enumerate(sentences) if len(s) >= 6), 0)
+    out = ''
+    for s, mark in sentences[start:]:
+        out += s
+        if _title_chars(out) >= TITLE_MIN_CHARS:
+            return out
+        out += mark
+    return out.rstrip('？?！!。；;')
 
 def article_title(signals):
     return article_title_detail(signals)[0]
 
 
 def canonical_article(signals, date_str, article=''):
-    """固定結構：標題一行（不編號）＋ ① 盤勢 ② 會員操作紀錄 ③ 教學 ④ 風險揭露。
+    """固定結構：標題一行（不編號）＋ ① 盤勢 ② 會員操作紀錄 ③ 教學。
 
     2026/09/15 v22 管理者要求：標題不寫編號、拿掉「基本資訊」、盤勢總覽起算 ①。
+    2026/09/17 v44 管理者要求：拿掉 ④ 風險揭露。信尾「不想再收到這封信？」上方本來就有免責聲明，
+    兩處講同一件事；風險揭露改由 Apps Script 的信尾固定呈現（mailRiskHtml_），文章不再寫。
     全文一律由已驗證資料重建，不沿用模型文章的任何段落（article 參數只為相容舊呼叫），
     所以模型把章節寫壞、寫成舊的六章，都不會影響發布。
     """
@@ -5338,8 +5372,7 @@ def canonical_article(signals, date_str, article=''):
         '① 盤勢總覽重點整理\n\n' + (macro or '本集未整理出可引用的盤勢重點。'),
         render_record_chapter(signals, date_str).strip(),
         '③ 分析師操作邏輯與教學重點\n\n' + ('\n'.join('• ' + t for t in lessons)
-                                                          or '本集未整理出可引用的操作教學。'),
-        '④ 風險揭露與重要提醒\n\n• 本文章內容僅為整理節目中之公開資訊與觀點，不構成任何形式之投資建議或獲利保證。\n• 實際投資操作須自行評估風險與財務狀況，必要時請諮詢專業投資顧問。'])
+                                                          or '本集未整理出可引用的操作教學。')])
 
 def _ev_norm(text) -> str:
     return _EV_STRIP.sub("", str(text or "").translate(_EV_PUNCT))
@@ -6307,7 +6340,12 @@ _SOFT_POSITIVE = re.compile(
     r'|(?:營收|獲利|業績|EPS|接單).{0,6}(?:成長|創新高|增加|大增|轉好)|體質(?:好|佳|不錯)|基本面(?:好|佳|不錯|強)'
     r'|(?:業績|獲利|基本面|體質)(?:很|非常|相當|都)?(?:好|佳|良好|強)|基期(?:較|很|相對)?低|不(?:用|必|需)擔(?:心|憂)'
     r'|會過季線|過季線之上|值得(?:佈局|布局|納入)'
+    # 2026/09/17 祥碩「站上季線，目標價看2000元」；沒站上、目標價下修、外資或券商給的目標價不算。
+    r'|(?<![沒未])站(?:上|穩)(?:季線|月線|半年線|年線)|(?<![沒未])突破(?:下降)?壓力線'
+    r'|目標價(?![^，。；;]{0,4}(?:下修|調降|下調|砍))[^，。；;]{0,6}(?:看|定在|上看|\d)'
     r'|看多|偏多|轉強|走強|強勢', re.I)
+# 外資、券商給的目標價是別人的看法，不算講者的正面評價。
+_THIRD_PARTY_TARGET = re.compile(r'(?:外資|法人|券商|投信|投顧|大摩|小摩|高盛|摩根)[^，。；;]{0,8}目標價')
 # 被否定的正面詞不算（不穩健、沒有價值、不適合資金少的人切入、不值得追蹤）。
 _SOFT_NEGATED = re.compile(
     r'(?:不|沒有?|並非|不是|未|缺乏|談不上|不再)(?:太|很|夠|具備|具有|算|會|值得|再)?'
@@ -6321,6 +6359,17 @@ _NEGATIVE_CUE = re.compile(
     r'|賠錢|虧錢|賠光|全部賠|受傷|腰斬|總比.{0,12}好'
     r'|切勿|負面示範|反例|漲多|偏離合理|不合理|沒有這個價值|還會跌|下方缺口|尚未.{0,4}回補|還沒補'
     r'|還不行|還不能|不能馬上|不急著|耐心等候|先不要')
+# 「壞消息已經出完」的說法：字面帶破底、賣壓、跌，講的卻是看多（2026/09/17）。
+#   祥碩「假破底後站上季線，目標價看2000元」——「破底」被當成負面線索；
+#   勤誠「等待賣壓減輕、散戶在低點賣完後，將是真正可以賺錢準備大漲的時機」——「賣壓」被當成負面線索。
+# 兩檔的說明本身都是偏多，卻在語氣核對被改到「語氣偏空，暫不進場」。
+# 這些片語只從「負面線索」裡拿掉，本身不算正面依據；同一段另有「還不能買」時照舊由禁止優先（9/14 勤誠）。
+_REVERSAL_CUE = re.compile(
+    r'假(?:跌)?破(?:底|低|線)?|沒(?:有)?量(?:的)?跌破(?:新低|低點)'
+    r'|賣壓(?:已經?|都|也|逐漸|慢慢)?(?:減輕|減少|竭盡|衰竭|消化(?:完畢?|掉)|出盡|宣洩(?:完畢?)?|賣完|到完|解除|有限|不大)'
+    r'|(?:消化|宣洩)(?:完畢?|掉)?(?:最後(?:的|一波)?)賣壓|(?:消化|宣洩)(?:完畢?|掉)(?:的)?賣壓'
+    r'|(?:殺|跌|賣)不下去'
+    r'|不會(?:再)?跌(?:破)?')
 
 
 # 明講不要進場。9/14 環球晶的說明是「明確表示不准買」，舊的清單只認「不准碰」，沒有擋下。
@@ -6343,7 +6392,10 @@ def watch_tone(text):
         return 'watch_avoid'
     positive = re.sub(r'(?:並非|不是|不|沒有|未)(?:看好|推薦|建議買進|會漲|是好股票|會回升|會上攻|有買點|值得|可以)', '', text)
     # 「低檔…買」「以下…買」中間不能隔著賣出或句讀：玉晶光「不應把低檔股票賣掉跑去追買高檔弱勢股」是負面示範。
+    # 「準備大漲」「賣完就漲」「不會跌了」是講者的偏多結論（2026/09/17 勤誠）；「昨天大漲」不算。
     if re.search(r'看好|好股票|會漲|漲回去|回升|上攻|向上|候選|會再買|(?:再|才)(?:買進|進場)'
+                 r'|(?<![不沒])(?:準備|即將|將會?|就要|要|會)大漲|(?<!是)不會再?跌'
+                 r'|(?:賣|殺)(?:完|光)[^，。,；;]{0,14}(?:就|會|將)[^，。,；;]{0,4}(?:漲|拉上去|上去)'
                  r'|以下[^賣追，。,；;]{0,8}買|以後[^賣追，。,；;]{0,8}買|未來[^賣追，。,；;]{0,8}買'
                  r'|低檔[^賣追，。,；;]{0,8}(?:買|佈局|布局)|買點|' + _WAIT_VERB + r'[^，。,；;]{0,30}(?:再買|買進|進場|站回|再注意|漲)'
                  r'|可以.{0,8}(?:買|留意)|值得.{0,8}(?:留意|追蹤)|營收.{0,8}成長', positive):
@@ -6351,7 +6403,8 @@ def watch_tone(text):
     # 法人反覆換手本身是中性現象，不因「外資買…」的字面算偏多。
     if third_party_churn(text):
         return 'watch_avoid'
-    if _SOFT_POSITIVE.search(_SOFT_NEGATED.sub('', positive)) and not _NEGATIVE_CUE.search(text):
+    soft = _THIRD_PARTY_TARGET.sub('', _SOFT_NEGATED.sub('', positive))
+    if _SOFT_POSITIVE.search(soft) and not _NEGATIVE_CUE.search(_REVERSAL_CUE.sub('', text)):
         return 'watch_watch'
     return 'watch_avoid'
 
@@ -6857,7 +6910,8 @@ _NEUTRAL_CUE = re.compile(r'盤整|整理|橫盤|震盪|區間|觀察|看看|換
 def _strict_bearish_basis(text) -> bool:
     """明講不進場、負面現象或法人反覆換手（不含純中性描述）。"""
     t = re.sub(r'(?:不是|並非|並不是|沒有說)(?:不准碰|不要碰|不能碰|不能買)', '', strip_speaker_names(str(text or '')))
-    return bool(re.search(_PROHIBIT, t) or _NEGATIVE_CUE.search(t) or third_party_churn(t))
+    # 假破底、賣壓竭盡、不會再跌不是負面現象（2026/09/17 祥碩、勤誠）。
+    return bool(re.search(_PROHIBIT, t) or _NEGATIVE_CUE.search(_REVERSAL_CUE.sub('', t)) or third_party_churn(t))
 
 
 def _bearish_or_neutral_basis(text) -> bool:
@@ -6868,7 +6922,7 @@ def _bearish_or_neutral_basis(text) -> bool:
     # 中性描述只在沒有任何正面說法時才算依據。9/14 敦泰「業績很好不需擔憂，值得納入觀察清單」
     # 因為含「觀察」被當成中性、改到觀望不碰。
     positive = _SOFT_NEGATED.sub('', t)
-    return bool(_NEUTRAL_CUE.search(t)) and not _SOFT_POSITIVE.search(positive) and watch_tone(t) != 'watch_watch'
+    return bool(_NEUTRAL_CUE.search(t)) and not _SOFT_POSITIVE.search(_THIRD_PARTY_TARGET.sub('', positive)) and watch_tone(t) != 'watch_watch'
 
 
 def repair_misnamed_subjects(signals, transcript):
@@ -6919,6 +6973,8 @@ def normalize_watch_tones(signals):
     模型判觀望注意、說明裡卻兩種依據都沒有時，保留模型的判定並記進判定歷程。
     先前是一律改成觀望不碰——關鍵字清單認不得的正面說法（裕隆「資產價值非常高、具備長線價值」、
     鴻準「外資持續買進、相對穩健」）就這樣被無聲地改到「語氣偏空，暫不進場」。
+    2026/09/17 同一件事換個樣子：祥碩「假破底後站上季線，目標價看2000元」、勤誠「賣壓減輕…準備大漲」
+    的「破底」「賣壓」被當成偏空依據。這類「壞消息出完」的片語見 _REVERSAL_CUE，不再算負面。
     """
     out={'watch_watch':[],'watch_avoid':[]}
     for cat in out:
@@ -7069,7 +7125,7 @@ def ensure_min_lessons(signals, transcript, date_str):
 SUMMARY_TOPUP_SYSTEM = LESSON_TOPUP_SYSTEM + """
 這輪合併補第①章盤勢與第③章教學。need_macro與need_view是各章不足的點數；只補有缺口的章，不重複existing。
 盤勢kind用level/volume/event/flow，每點70～140字，至少找出三個不同盤勢主題；教學kind=view，每點120～220字。
-補充盤勢第一點可附headline：講者最有力的一句觀點，口語一句、不限字數，驚嘆號或問句收尾，不含姓名日期，用原文的字。每筆text和headline數字必須有引用。
+補充盤勢第一點可附headline：講者最有力的一句觀點，口語一句、至少15字（不設上限），驚嘆號或問句收尾，不含姓名日期，用原文的字。每筆text和headline數字必須有引用。
 來源不足可少給，禁止把同一句拆成三點或借用其他股票。仍只輸出market陣列與evidence_refs。"""
 
 
@@ -7957,70 +8013,142 @@ def verify_names(signals: dict, transcript: str) -> dict:
 # 要核對某一檔講了什麼，得整頁慢慢找。先前網站上有一顆「智慧排版」按鈕，
 # 讀者按下去才排版，等一分鐘，而且只快取六小時——同一天被不同人打開，
 # 就重排一次，配額白花，第一個打開的人每次都要等（管理者要求，2026/09/16）。
-#
 # 現在改成寫入那一步順手排好，存進試算表：之後誰打開都是現成的。
 #
-# 排版不是改寫，一個字都不能動。所以有一道還原檢查：把分好的段落接回去，
-# 去掉空白之後必須與原文逐字相同，不同就整批退回機械分段。
-# 模型偶爾會「順手」把話修順或漏掉半句，而那種錯在畫面上看不出來——
-# 版面很漂亮，只是內容少了一塊，那比排版難看嚴重得多。
+# v44（2026/09/17）改了兩件事，起因是 9/17 手動投稿的逐字稿沒有排版，網站只剩一整段「這一段」：
+#   一、模型不再抄回原文。原文先切成編號的句子，模型只回「第幾句開始是新的一段」與小標，
+#       段落由程式用原句組回去——一個字都不可能被改，也就不需要還原檢查。
+#       9/16 四批有兩批就是抄回來時差了幾個字、沒過還原檢查而退回機械分段；抄原文也最吃輸出額度。
+#   二、排版不再只有「寫入那一步」一次機會。寫入之後被中斷、從檢查點續跑、或配額用完，
+#       那一天就永遠沒有版面。現在網站（Apps Script 每 15 分鐘一棒）會補排近期缺版面、
+#       版面與原文指紋對不上、或上次只拿到機械分段的日子；這裡寫入後仍先排一次，讀者通常不必等。
+# 兩邊存同一種格式：排版稿JSON（[{title, paras}]）、排版稿指紋（原文去空白的 SHA-256 前 16 碼）、
+# 排版稿方式（ai／mixed／rule）。指紋算的是網站實際顯示的那一份原文（見 display_transcript_text）。
 # ---------------------------------------------------------------- #
 
 TX_LAYOUT_COL = '排版稿JSON'
 TX_LAYOUT_FP_COL = '排版稿指紋'
-# 2026/09/16：7000 字一批時，模型把輸出額度花在思考上（thinking 5863、輸出 2325），
-# 第一批直接 MAX_TOKENS 截斷退回機械分段。分批調小、輸出額度放到上限。
-TX_LAYOUT_CHUNK = 3500
+TX_LAYOUT_METHOD_COL = '排版稿方式'
+# 一批送多少字給模型。模型只回分段位置與小標，輸出很短，這個大小是為了讓它看得懂上下文。
+TX_LAYOUT_CHUNK = 4000
 
-TX_FORMAT_SYSTEM = """你要把一段直播逐字稿整理成好讀的版面。這是排版工作，不是改寫。
-
-=== 絕對禁止 ===
-一個字都不能改。不可以改寫、摘要、省略、補字、修正錯字或調整用詞。
-講者講錯話、重複、語句不通順，都照原樣保留。
-你唯一能做的事是決定「在哪裡分段」以及「每一段的小標」。
+TX_FORMAT_SYSTEM = """你要替一段直播逐字稿分段並下小標。原文已經拆成編號的句子，格式是「[編號] 句子」。
+你只決定兩件事：從第幾句開始是新的一段、這一段的小標。不要輸出原文，不要改寫、摘要或補字。
 
 === 在哪裡分段 ===
-以下六種情況出現時就換一段。判斷依據是「講者換了話題」，不是字數到了就切——
-切在半句話中間會比不分段更難讀。
-1. 換一檔股票。從一檔講到另一檔，是最明確的分段點。
+判斷依據是「講者換了話題」，不是字數到了就切。以下情況換一段：
+1. 換一檔股票或一個族群。從一檔講到另一檔，是最明確的分段點。
 2. 從大盤轉到個股，或從個股回到大盤。
-3. 從講行情轉到講操作。
+3. 從講行情轉到講操作或觀念（為什麼要抱、什麼時候賣、怎麼選股）。
 4. 開始回答會員提問，或提問結束回到盤勢。
-5. 插入題外話（時事、抱怨、講古），那整段自成一段。
-6. 時間推進（「等一下開盤」「收盤前再看」）。
-
-每段大約三到八句，超過十句一定要找地方切開，但寧可一段十句也不要切在一句話的中間。
+5. 題外話（開場寒暄、時事、抱怨、講古、節目宣傳）自成一段。
+6. 時間推進（等一下開盤、收盤前再看）。
+一段通常 8 到 40 句；同一檔講很久時，可以依技術面、基本面、操作建議再切細。
 
 === 小標 ===
-每一段給一個 12 字以內的小標，用原文出現過的詞，不要自己造詞、不要下結論。
-講某一檔就用那一檔的名字，講大盤就寫大盤在幹嘛。
+每一段一個 6 到 12 個字的小標，讓人掃過去就知道這一段在講什麼、要不要細看。
+講到股票就放股票名稱（照原文的寫法），講大盤就寫大盤在做什麼，講觀念就寫是什麼觀念。
+用原文出現過的詞，不下結論、不加原文沒有的評價。
+好的小標：「台積電填息看法」「會員問記憶體」「大盤量縮等升息」「不要用單日漲跌選股」「節目開場閒聊」
+不好的小標：「內容一」「講者說明」「這一段」「其他」（沒有資訊）
 
-只輸出 {"sections":[{"title":"小標","text":"原文原封不動"}]}。"""
+=== 輸出 ===
+只輸出 JSON：{"sections":[{"start":1,"title":"小標"},{"start":14,"title":"小標"}]}
+start 是這一段第一句的編號，由小到大排列；第一段的 start 必須是這一批第一句的編號。"""
+
+# 中文字與全形標點之間的空白是語音轉文字留下來的（9/17 投稿的原文每個字之間都有空格），
+# 潤飾稿也常殘留幾個（「我會不 會開直播」「又 要看大盤」）。只要一邊是中文字就拿掉
+# （「兩年前的 9 月 17 號」→「兩年前的9月17號」）；英文字與英文字之間的空白保留（「CPU GPU」）。
+_TX_CJK = '\u3000-\u303f\u3400-\u9fff\uff00-\uffef'
+_TX_CJK_GAP = re.compile('(?<=[' + _TX_CJK + '])[ \t\u00a0]+(?=[' + _TX_CJK + '0-9A-Za-z])'
+                         '|(?<=[0-9A-Za-z])[ \t\u00a0]+(?=[' + _TX_CJK + '])')
+_TX_PIECE = re.compile(r'[^。！？!?]+[。！？!?]*[」』”）)]*|[。！？!?]+[」』”）)]*')
+_TX_BAD_TITLE = re.compile(r'^(?:這一段|內容[一二三四五六七八九十\d]*|講者說明|其他|段落\d*|第.段)$')
+# 與 Apps Script displayTranscriptText_ 的 words() 同一組：這些符號不同不算「字不一樣」。
+_TX_WORDS_STRIP = re.compile(r'[\s，。！？、；：,.!?;:「」『』“”‘’（）()【】\[\]《》<>〈〉〔〕\-—－_＊*…‧﹒•·～~]')
 
 
-def _tx_rule_sections(text):
-    """機械分段。不呼叫模型，永遠可用；與 Apps Script 的 splitTranscriptByRule_ 同一套規則。"""
+def tidy_transcript_text(text):
+    """拿掉中文字旁邊的空白。不動任何字。"""
+    return _TX_CJK_GAP.sub('', str(text or '').replace('\r', ''))
+
+
+def display_transcript_text(row):
+    """網站逐字稿分頁實際顯示的那一份（與 Apps Script getTranscript 同一套規則）。
+
+    潤飾稿與原文的字不一樣（潤飾時改了字）就顯示原文；潤飾稿太短而原文夠長也顯示原文。
+    排版與指紋都要用這一份，否則排好的版面對不上畫面上的字。
+    """
+    raw = str(row.get('原始逐字稿內容') or '')
+    polished = str(row.get('修飾後逐字稿內容') or '')
+    if raw and _TX_WORDS_STRIP.sub('', raw) != _TX_WORDS_STRIP.sub('', polished):
+        text = raw
+    else:
+        text = polished or raw
+    if len(text) < 200 and len(raw) >= 200:
+        text = raw
+    return text
+
+
+def _tx_sentences(text):
+    """切成句子。每一個字都會落在某一句裡；太長的句子（沒有標點的原文）在逗號或每 80 字處切開。"""
+    out = []
+    for line in tidy_transcript_text(text).split('\n'):
+        line = line.strip()
+        if not line:
+            continue
+        for piece in _TX_PIECE.findall(line):
+            while len(piece) > 100:
+                cut = max(piece.rfind('，', 0, 100), piece.rfind('、', 0, 100))
+                cut = cut + 1 if cut >= 40 else 80
+                out.append(piece[:cut])
+                piece = piece[cut:]
+            if piece:
+                out.append(piece)
+    return out
+
+
+def _tx_paras(sentences):
+    """把句子組成段落：約 180～320 字一段，盡量停在句號、問號、驚嘆號。"""
     out, buf = [], ''
-    for line in str(text or '').replace('\r', '').split('\n'):
-        for sentence in re.findall(r'[^。！？]+[。！？]?|[。！？]', line.strip()):
-            if buf and len(buf) + len(sentence) > 320:
-                out.append(buf)
-                buf = ''
-            buf += sentence
-        if len(buf) >= 160:
+    for s in sentences:
+        if buf and len(buf) + len(s) > 320:
+            out.append(buf)
+            buf = ''
+        buf += s
+        if len(buf) >= 180 and re.search(r'[。！？!?][」』”）)]*$', buf):
             out.append(buf)
             buf = ''
     if buf:
         out.append(buf)
-    return [{'title': '', 'paras': out}]
+    return out
+
+
+def _tx_rule_title(sentences):
+    """沒有模型可用時的小標：這一段第一句的開頭，至少讓人知道從哪裡講起。"""
+    head = re.sub(r'[，。！？!?、；;：:「」『』（）()\s]', '', ''.join(sentences[:2]))
+    head = re.sub(r'^(?:好|來|那|啊|哦|對|所以|然後|其實說真的)+', '', head) or head
+    return (head[:10] + '…') if len(head) > 10 else (head or '逐字稿')
+
+
+def _tx_rule_sections(text, sentences=None, size=1500):
+    """機械分段。不呼叫模型，永遠可用；約 1500 字一段，每段用第一句當小標。"""
+    sentences = _tx_sentences(text) if sentences is None else sentences
+    out, group, n = [], [], 0
+    for s in sentences:
+        group.append(s)
+        n += len(s)
+        # 沒有標點的原始稿找不到句尾，超過 1.3 倍就直接切
+        if n >= size * 1.3 or (n >= size and re.search(r'[。！？!?][」』”）)]*$', s)):
+            out.append({'title': _tx_rule_title(group), 'paras': _tx_paras(group)})
+            group, n = [], 0
+    if group:
+        out.append({'title': _tx_rule_title(group), 'paras': _tx_paras(group)})
+    return out
 
 
 def _tx_norm(text):
-    """比對前的正規化：空白與全形／半形不算改字，其餘一個字都不能動。
-
-    2026/09/16 四批有兩批沒過還原檢查而退回機械分段。模型把原文照抄回來時，
-    常把全形的問號、逗號或英數字換成半形——內容一個字都沒少，卻被判成改寫。
-    """
+    """比對用的正規化：空白與全形／半形不算改字，其餘一個字都不能動。"""
     flat = re.sub(r'\s', '', str(text or ''))
     out = []
     for ch in flat:
@@ -8038,77 +8166,155 @@ def _tx_same_text(a, b):
     return _tx_norm(a) == _tx_norm(b)
 
 
-def format_transcript_sections(text):
-    """回傳 [{title, paras}]。模型排版過不了還原檢查就退回機械分段。"""
-    body = str(text or '')
-    if len(body) < 200:
-        return _tx_rule_sections(body)
-    chunks, rest = [], body
-    while len(rest) > TX_LAYOUT_CHUNK:
-        cut = rest.rfind('。', 0, TX_LAYOUT_CHUNK)
-        if cut < TX_LAYOUT_CHUNK // 2:
-            cut = TX_LAYOUT_CHUNK - 1
-        chunks.append(rest[:cut + 1])
-        rest = rest[cut + 1:]
-    if rest.strip():
-        chunks.append(rest)
+def _tx_clean_title(title):
+    t = re.sub(r'[「」『』"\'【】\[\]]', '', str(title or '')).strip(' 　：:，,。')
+    if not t or _TX_BAD_TITLE.match(t):
+        return ''
+    return t[:14]
 
-    sections = []
-    for i, chunk in enumerate(chunks, 1):
+
+def _tx_breaks(reply, first, last):
+    """模型回的分段位置。只收本批範圍內、由小到大的編號；第一段一律從本批第一句開始。"""
+    got = json.loads(repair_json_text(reply)) if isinstance(reply, str) else (reply or {})
+    starts = {}
+    for sec in (got.get('sections') or []):
         try:
-            raw = call_gemini(TX_FORMAT_SYSTEM, chunk, want_json=True, thinking=0,
-                              max_out=MAX_OUT, tag=f'tx-layout-{i}')
-            got = json.loads(repair_json_text(raw))
-            parts = [str(x.get('text') or '') for x in (got.get('sections') or [])]
-            if not parts or not _tx_same_text(''.join(parts), chunk):
-                print(f'  逐字稿排版：第 {i} 批還原檢查沒過，這一批用機械分段')
-                sections.extend(_tx_rule_sections(chunk))
-                continue
-            for sec in got.get('sections') or []:
-                body_text = str(sec.get('text') or '').strip()
-                if not body_text:
-                    continue
-                sections.append({'title': str(sec.get('title') or '')[:12],
-                                 'paras': _tx_rule_sections(body_text)[0]['paras']})
+            n = int(sec.get('start'))
+        except (TypeError, ValueError):
+            continue
+        if first <= n <= last and n not in starts:
+            starts[n] = _tx_clean_title(sec.get('title'))
+    if not starts:
+        raise ValueError('模型沒有回可用的分段位置')
+    keys = sorted(starts)
+    if keys[0] != first:
+        starts[first] = starts.pop(keys[0])
+    return [(k, starts[k]) for k in sorted(starts)]
+
+
+def transcript_layout(text):
+    """回傳 {'sections': [{title, paras}], 'method': 'ai'|'mixed'|'rule'}。模型失敗的那一批用機械分段。"""
+    sentences = _tx_sentences(text)
+    if sum(len(s) for s in sentences) < 200:
+        return {'sections': _tx_rule_sections(text, sentences, size=10 ** 9), 'method': 'rule'}
+    chunks, cur, n = [], [], 0          # 每批是 (第一句編號, 句子們)，編號從 1 起算、全篇連續
+    for i, s in enumerate(sentences, 1):
+        if cur and n + len(s) > TX_LAYOUT_CHUNK:
+            chunks.append((i - len(cur), cur))
+            cur, n = [], 0
+        cur.append(s)
+        n += len(s)
+    if cur:
+        chunks.append((len(sentences) - len(cur) + 1, cur))
+
+    sections, ai = [], 0
+    for i, (first, group) in enumerate(chunks, 1):
+        last = first + len(group) - 1
+        prompt = '\n'.join(f'[{first + k}] {s}' for k, s in enumerate(group))
+        try:
+            if _QUOTA_STOP['daily'] or budget_left() < 60:
+                raise RuntimeError('配額或時間預算不足')
+            reply = call_gemini(TX_FORMAT_SYSTEM, prompt, want_json=True, thinking=0,
+                                max_out=MAX_OUT, tag=f'tx-layout-{i}')
+            breaks = _tx_breaks(reply, first, last)
         except (RuntimeError, RateLimited, ValueError, json.JSONDecodeError) as exc:
-            print(f'  逐字稿排版：第 {i} 批失敗（{str(exc)[:80]}），這一批用機械分段')
-            sections.extend(_tx_rule_sections(chunk))
-    return sections or _tx_rule_sections(body)
+            print(f'  逐字稿排版：第 {i} 批改用機械分段（{str(exc)[:80]}）')
+            sections.extend(_tx_rule_sections('', group))
+            continue
+        ai += 1
+        bounds = [k for k, _ in breaks] + [last + 1]
+        for (start, title), end in zip(breaks, bounds[1:]):
+            part = sentences[start - 1:end - 1]
+            if not part:
+                continue
+            # 模型切得太碎（不到 150 字）就併進上一段，保留上一段的小標
+            if sections and sum(len(s) for s in part) < 150 and sections[-1].get('_ai'):
+                sections[-1]['_sents'].extend(part)
+                sections[-1]['paras'] = _tx_paras(sections[-1]['_sents'])
+                continue
+            sections.append({'title': title or _tx_rule_title(part), 'paras': _tx_paras(part),
+                             '_sents': list(part), '_ai': True})
+    for sec in sections:
+        sec.pop('_sents', None)
+        sec.pop('_ai', None)
+    method = 'ai' if ai == len(chunks) else ('mixed' if ai else 'rule')
+    return {'sections': sections or _tx_rule_sections(text, sentences), 'method': method}
+
+
+def format_transcript_sections(text):
+    """回傳 [{title, paras}]（舊呼叫端相容）。"""
+    return transcript_layout(text)['sections']
 
 
 def transcript_fingerprint(text):
-    return hashlib.sha256(re.sub(r'\s', '', str(text or '')).encode('utf-8')).hexdigest()[:16]
+    # 去掉空白再算：只差空白的兩份原文是同一份。U+FEFF 另外列出，與 Apps Script 的 \s 範圍一致。
+    return hashlib.sha256(re.sub(r'[\s\ufeff]', '', str(text or '')).encode('utf-8')).hexdigest()[:16]
 
 
-def save_transcript_layout(ss, video_id, date_str, text):
-    """排好版存進影片清單。失敗只是少一個現成的版面，不影響當天發布。"""
+def stored_layout_method(sections, method):
+    """舊版（v29）沒有「排版稿方式」欄：每一段都有小標的是模型排的，有空白小標的是機械分段。"""
+    method = str(method or '').strip()
+    if method:
+        return method
+    return 'ai' if sections and all(str(s.get('title') or '').strip() for s in sections) else 'rule'
+
+
+def ensure_transcript_layout(ss, date_str, force=False):
+    """這一天網站顯示的那一份逐字稿，排好版存進影片清單。失敗只是少一個現成版面，不影響發布。
+
+    已經有版面、指紋對得上、而且是模型排的就不重排；只拿到機械分段的，這裡會再試一次模型。
+    """
     try:
-        ws, idx = find_video_row(ss, video_id, date_str)
-        if idx is None:
+        ws = ss.worksheet('影片清單')
+        values = sheets_retry(ws.get_all_values)
+        if len(values) < 2:
             return False
-        header = sheets_retry(ws.row_values, 1)
-        for name in (TX_LAYOUT_COL, TX_LAYOUT_FP_COL):
+        header = list(values[0])
+        rows = [dict(zip(header, list(r) + [''] * (len(header) - len(r)))) for r in values[1:]]
+        idx, row = select_transcript_row(rows, '', date_str)     # 與網站同一套選列（不帶影片ID）
+        if row is None:
+            print(f'  逐字稿排版：{date_str} 在影片清單找不到逐字稿')
+            return False
+        text = display_transcript_text(row)
+        if len(text) < 200:
+            return False
+        fp = transcript_fingerprint(text)
+        stored = str(row.get(TX_LAYOUT_COL) or '').strip()
+        if not force and stored and str(row.get(TX_LAYOUT_FP_COL) or '').strip() == fp:
+            try:
+                old = json.loads(stored)
+            except ValueError:
+                old = []
+            if old and stored_layout_method(old, row.get(TX_LAYOUT_METHOD_COL)) == 'ai':
+                print('  逐字稿排版：這一份原文已經排過，沿用既有版面')
+                return True
+        layout = transcript_layout(text)
+        payload = json.dumps(layout['sections'], ensure_ascii=False)
+        if len(payload) > 45000:          # 儲存格上限五萬字元，留一點餘裕
+            print(f'  逐字稿排版：版面 {len(payload)} 字元超過儲存格上限，這一次不存')
+            return False
+        for name in (TX_LAYOUT_COL, TX_LAYOUT_FP_COL, TX_LAYOUT_METHOD_COL):
             if name not in header:
                 header.append(name)
+                if ws.col_count < len(header):
+                    sheets_retry(ws.add_cols, len(header) - ws.col_count)
                 sheets_retry(ws.update_cell, 1, len(header), name)
-        fp = transcript_fingerprint(text)
-        col_json = header.index(TX_LAYOUT_COL) + 1
-        col_fp = header.index(TX_LAYOUT_FP_COL) + 1
-        if str(sheets_retry(ws.cell, idx, col_fp).value or '') == fp:
-            print('  逐字稿排版：這一份原文已經排過，沿用既有版面')
-            return True
-        sections = format_transcript_sections(text)
-        payload = json.dumps(sections, ensure_ascii=False)
-        if len(payload) > 45000:          # 儲存格上限五萬字元，留一點餘裕
-            sections = _tx_rule_sections(text)
-            payload = json.dumps(sections, ensure_ascii=False)
-        sheets_retry(ws.update_cell, idx, col_json, payload)
-        sheets_retry(ws.update_cell, idx, col_fp, fp)
-        print(f'  逐字稿排版：{len(sections)} 段已存進試算表，逐字稿分頁直接讀')
+        data = [{'range': gspread.utils.rowcol_to_a1(idx, header.index(TX_LAYOUT_COL) + 1), 'values': [[payload]]},
+                {'range': gspread.utils.rowcol_to_a1(idx, header.index(TX_LAYOUT_FP_COL) + 1), 'values': [[fp]]},
+                {'range': gspread.utils.rowcol_to_a1(idx, header.index(TX_LAYOUT_METHOD_COL) + 1),
+                 'values': [[layout['method']]]}]
+        sheets_retry(ws.batch_update, data, value_input_option='RAW')
+        label = {'ai': '模型分段', 'mixed': '部分模型分段', 'rule': '機械分段（網站稍後自動重試）'}[layout['method']]
+        print(f"  逐字稿排版：{len(layout['sections'])} 段已存進試算表（{label}）")
         return True
     except Exception as exc:
-        print(f'  逐字稿排版未完成（不影響今天的發布）：{str(exc)[:120]}')
+        print(f'  逐字稿排版未完成（不影響今天的發布，網站會自動補排）：{str(exc)[:120]}')
         return False
+
+
+def save_transcript_layout(ss, video_id, date_str, text=''):
+    """舊呼叫端相容：排的是網站實際顯示的那一份，不是呼叫端手上的文字。"""
+    return ensure_transcript_layout(ss, date_str)
 
 
 def build_article(v2: str, signals: dict, date_str: str) -> str:
@@ -9611,7 +9817,8 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     write_results(ss, date_str, signals, article, done_trades, done_holds,
                   replace_video=replace_video)
     # 逐字稿排版：寫入之後順手排好存起來，讀者打開就是現成的（2026/09/16）。
-    save_transcript_layout(ss, video['id'], date_str, v2)
+    # 排的是網站顯示的那一份；沒排成（中斷、配額）網站每 15 分鐘會補排（2026/09/17 v44）。
+    ensure_transcript_layout(ss, date_str)
     commit_evidence_manifest(ss, video['id'], date_str, v1)
     save_refresh_checkpoint(ss, video['id'], date_str, v1, sorted(affected), review=review_note)
     return ExtractionOutcome(affected, review=review_note)
@@ -9977,6 +10184,8 @@ def run_admin_job(ss):
     checkpoint=load_refresh_checkpoint(ss,vid,date_str,v1)
     if checkpoint and 'complete' not in checkpoint.get('completed',[]):
         job_progress(job,step='刷新網站',note='來源與規則版本相同，從刷新檢查點續跑')
+        # 從檢查點續跑不會經過擷取那一段，排版要在這裡補（9/17 手動投稿就沒有版面）。
+        ensure_transcript_layout(ss, date_str)
         result = finish_transcript_refresh(ss,vid,date_str,v1,checkpoint['affected'],on_progress=refresh_progress)
         if result.get('pending'):
             job_progress(job, step='刷新網站', status=waiting_status(result), note=result['note'])

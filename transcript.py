@@ -54,6 +54,8 @@ import gspread
 import requests
 from google.oauth2.service_account import Credentials
 
+from market_holidays import is_trading_day, why_closed
+
 # ---------------------------------------------------------------- #
 # 設定
 # ---------------------------------------------------------------- #
@@ -1209,8 +1211,11 @@ def cmd_auto(args) -> int:
     date_str = target.strftime("%Y/%m/%d")
     log(f"自動抓取　目標日期 {date_str}　頻道 {CHANNEL_ID}")
 
-    if target.weekday() >= 5 and not args.force:
-        log("週末沒有盤中直播，不執行。（要硬跑請加 --force）")
+    closed = why_closed(target)
+    if closed and not args.force:
+        # 國定假日休市時沒有盤中直播。不擋的話這一天會一路空跑到 14:00，
+        # 還會在系統狀態留下「敲了 N 次仍未取得」，看起來像壞掉。
+        log(f"{closed}，沒有盤中直播，不執行。（要硬跑請加 --force）")
         return 0
 
     now = datetime.now(TAIPEI)

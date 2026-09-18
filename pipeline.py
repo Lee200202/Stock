@@ -27,6 +27,8 @@ from datetime import date, datetime, timedelta, timezone
 import gspread
 import requests
 from google.oauth2.service_account import Credentials
+
+from market_holidays import why_closed
 from pypinyin import lazy_pinyin
 import difflib
 import threading
@@ -10180,7 +10182,13 @@ CM_PARSE_SYSTEM = (
     "禁止用〔〕、【】、[]、+、＋或『技術面：』『操作建議：』等模板拼接。\n"
     "錯誤：〔股價突破季線〕＋〔可續抱〕\n"
     "正確：股價已突破季線並維持強勢，可續抱並持續觀察。\n"
-    "不得補入原簡訊沒有提供的技術指標、價位或判斷。\n\n"
+    "簡訊常常只寫一句「某某連續大漲，務必抱牢」，那樣的 note 太空泛，"
+    "讀的人看不出為什麼。若使用者訊息附有【當日逐字稿摘錄】，"
+    "就從摘錄中找出這一檔的理由（族群、法人動向、技術位置、講者的持有理由等），"
+    "併進 note，寫成 40 到 70 字、看得出前因後果的一句或兩句話。\n"
+    "但邊界不變：只能用簡訊或逐字稿摘錄裡真的講過的內容。"
+    "沒有附摘錄、或摘錄裡沒提到這一檔時，就照簡訊原意寫，維持原本的簡短寫法，"
+    "絕對不可以自己補技術指標、價位、法人動向或任何推測。\n\n"
 
     "【輸出格式】\n"
     "只回傳純 JSON：\n"
@@ -11207,7 +11215,10 @@ def parse_pending_sms(ss, since="", mode=None, today_only=False):
                 steps.note("AI 收錄個股", f"{base_note}：呼叫 Gemini 抽取買賣與持股",
                            aiUsed=ai_calls_used)
                 try:
-                    items, parse_err, calls = _sms_extract_items(r, cm_mark, code_map)
+                    excerpt = _sms_transcript_excerpt(
+                        ss, r.get("date", ""), r["text"], code_map)
+                    items, parse_err, calls = _sms_extract_items(
+                        r, cm_mark, code_map, excerpt)
                     ai_calls_used += calls
                     ai_done += 1
                 except RateLimited as e:
@@ -11292,7 +11303,68 @@ def parse_pending_sms(ss, since="", mode=None, today_only=False):
     return changed_dates
 
 
-def _sms_extract_items(r, cm_mark, code_map):
+# 當天逐字稿的快取。一輪要跑幾十篇簡訊，同一天的稿只讀一次試算表。
+_SMS_TX_CACHE = {}
+
+
+def _sms_transcript_excerpt(ss, date_str, body, code_map, limit=2800):
+    """當天有逐字稿時，挑出提到同一批個股的句子，給說明重點當依據。
+
+    為什麼只給「摘錄」而不是整份稿：一份稿兩萬多字，一輪幾十篇簡訊各帶一次，
+    token 會爆掉，而且模型在長文裡反而更容易抓錯檔。這裡先用股名做交集
+    ——只有同時出現在簡訊與逐字稿裡的個股才撈——再取含有那些名字的句子。
+
+    找不到稿、或稿裡沒提到這幾檔，就回空字串，呼叫端會維持原本的簡短寫法。
+    """
+    if not date_str:
+        return ""
+    if date_str not in _SMS_TX_CACHE:
+        try:
+            raw, polished = existing_transcript(ss, "", date_str)
+        except Exception as e:
+            print(f"  （讀不到 {date_str} 的逐字稿，說明重點維持原樣：{e}）")
+            raw, polished = "", ""
+        _SMS_TX_CACHE[date_str] = polished or raw or ""
+    tx = _SMS_TX_CACHE[date_str]
+    if len(tx) < 200:
+        return ""
+
+    names = {n for n in code_map.values() if isinstance(n, str) and len(n) >= 2}
+    names |= {n for n in code_map.keys()
+              if isinstance(n, str) and not n.isdigit() and len(n) >= 2}
+    # -KY、*（興櫃）這類後綴在簡訊裡常被省略：對照表寫「譜瑞-KY」，
+    # 簡訊與講稿都只說「譜瑞」。不脫掉後綴就整檔漏撈。
+    def _stem(n):
+        return re.sub(r"[-＊*]KY$|[-＊*]$", "", n).strip()
+
+    hits = set()
+    for n in names:
+        for cand in {n, _stem(n)}:
+            if len(cand) >= 2 and cand in body and cand in tx:
+                hits.add(cand)
+    hits = sorted(hits, key=len, reverse=True)
+    if not hits:
+        return ""
+
+    picked, seen, total = [], set(), 0
+    for sent in re.split(r"(?<=[。！？])", tx):
+        sent = sent.strip()
+        if len(sent) < 8 or sent in seen:
+            continue
+        if any(n in sent for n in hits):
+            seen.add(sent)
+            picked.append(sent)
+            total += len(sent)
+            if total >= limit:
+                break
+    if not picked:
+        return ""
+    print(f"  說明重點補充：{date_str} 逐字稿提到 {len(hits)} 檔，"
+          f"取 {len(picked)} 句共 {total} 字")
+    return ("\n".join(picked))[:limit]
+
+
+def _sms_extract_items(r, cm_mark, code_map, excerpt=""):
     """
     對一篇簡訊呼叫 Gemini 並做規則稽核。回傳 (items, 是否失敗, 用掉幾次呼叫)。
 
@@ -11317,7 +11389,13 @@ def _sms_extract_items(r, cm_mark, code_map):
     for o in orders:
         try:
             calls += 1
-            raw_json = call_gemini(CM_PARSE_SYSTEM, o["body"], want_json=True,
+            user_text = o["body"]
+            if excerpt:
+                # 摘錄放在後面並標清楚來源，模型才不會把它當成簡訊本文而誤開筆。
+                user_text += ("\n\n【當日逐字稿摘錄】"
+                              "（只用來補充說明重點，不得據此新增或刪除任何一檔）\n"
+                              + excerpt)
+            raw_json = call_gemini(CM_PARSE_SYSTEM, user_text, want_json=True,
                                    tag=f"sms_{r['id']}", max_429=2)
             time.sleep(SMS_AI_GAP)
             data = raw_json if isinstance(raw_json, dict) else None
@@ -12822,9 +12900,11 @@ def main():
 
     # 週六日不開盤、正常沒有盤中直播。即使有人手動在週末觸發，
     # 也不要標「今日無影片」或示警，直接安靜結束。
-    if today.weekday() >= 5:   # 5 週六, 6 週日
-        print("今天是週末，不開盤，略過。")
-        write_preflight("false", "週末不開盤")
+    closed = why_closed(today)
+    if closed:
+        # 週末或國定假日休市：沒有盤中直播，不要標「今日無影片」也不要示警。
+        print(f"今天{closed}，略過。")
+        write_preflight("false", closed)
         return
 
     # ------------------------------------------------------------------ #

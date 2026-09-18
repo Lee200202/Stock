@@ -2,3 +2,7 @@ gspread>=6.0,<7
 google-auth>=2.0,<3
 requests>=2.31,<3
 pypinyin>=0.51,<1
+
+# transcript.py 用 Gemini 直接聽 YouTube 產生逐字稿。
+# 釘版本：Interactions API 還算新，次版本更新曾改過參數名稱。
+google-genai==2.24.0

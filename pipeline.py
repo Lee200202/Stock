@@ -429,7 +429,7 @@ CMONEY_MEMBER_ID = os.environ.get("CMONEY_MEMBER_ID", "").strip()
 SMS_AI_GAP = max(2.0, float(os.environ.get("SMS_AI_GAP_SEC", "7") or 7))
 
 # 純修代號模式。只把試算表既有的股票名稱重跑一次拼音比對，
-# 不碰 NotebookLM，不呼叫 Gemini，幾十秒就跑完。
+# 不抓逐字稿，不呼叫 Gemini，幾十秒就跑完。
 REPAIR_CODES = os.environ.get("REPAIR_CODES", "false").strip().lower() == "true"
 
 # 補空白模式。逐一檢視「影片清單」，凡是缺原始或修飾後逐字稿的列，
@@ -439,11 +439,11 @@ FILL_BLANKS = os.environ.get("FILL_BLANKS", "false").strip().lower() == "true"
 # 重新分類模式。用試算表已存的「修飾後逐字稿」重跑擷取，
 # 把舊資料套用新版規則（例如觀望拆成觀望不碰與觀望注意），
 # 並覆蓋該日的操作紀錄、會員持股與每日推播內容。
-# 不碰 NotebookLM，所以不需要登入憑證，也不會重抓影片。
+# 不抓逐字稿，也不會重抓影片。
 RECLASSIFY = os.environ.get("RECLASSIFY", "false").strip().lower() == "true"
 
 # 整頓模式。用已存逐字稿：AI 判定產業並刪除、抽取張震明講的買入價並核對後寫回。
-# 不重抓影片、不呼叫 NotebookLM。
+# 不重抓影片、不抓逐字稿。
 RECONCILE = os.environ.get("RECONCILE", "false").strip().lower() == "true"
 
 # 價位說明校對模式。逐列檢查價位說明，修正三類錯誤：
@@ -451,7 +451,7 @@ RECONCILE = os.environ.get("RECONCILE", "false").strip().lower() == "true"
 #   2. 不是股價的數字（「241億以下」是營收不是股價）
 #   3. 概數當精確價（「1400多」不可拿來算報酬）
 # 先用規則快篩，只有可疑的列才送 Gemini，所以大多數的列是零成本通過。
-# 用已存逐字稿，不重抓影片、不呼叫 NotebookLM。
+# 用已存逐字稿，不重抓影片。
 FIX_PRICES = os.environ.get("FIX_PRICES", "false").strip().lower() == "true"
 
 # 全面重整模式。把下游的「全面重整」一棒一棒驅動完：補正名稱與代號、
@@ -488,7 +488,7 @@ YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY", "").strip()
 #
 # 這是整套排程能不能在 11:30 開始運作的關鍵。
 #
-# 11:30 直播還在進行，VOD 尚未生成，NotebookLM 一定索引不到。
+# 逐字稿由 transcript.py 寫進試算表，這裡只等它出現。
 # 若像先前那樣一次等 30 分鐘，11:33 那次會一路卡到 12:03，
 # concurrency 又把後面每一輪全擋在佇列，等於一整個中午只敲了三次門。
 #
@@ -540,7 +540,7 @@ POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL_SEC", "180"))   # 每 3 分鐘
 #   APPS_SCRIPT_URL：Apps Script 部署後的網頁應用程式網址（/exec 結尾）
 #   ADMIN_KEY      ：與 Apps Script 指令碼屬性中的 ADMIN_KEY 相同的那組密鑰
 # ---------------------------------------------------------------- #
-# 探測模式。只判斷「有沒有事情要做」，不碰 NotebookLM、不呼叫 Gemini、
+# 探測模式。只判斷「有沒有事情要做」，不呼叫 Gemini、
 # 不需要登入憑證。工作流程用它決定要不要啟動後面那些昂貴的步驟。
 # 後台工單模式。逐字稿已經由管理者貼進試算表，這裡只負責把後面的流程跑完。
 #
@@ -598,166 +598,13 @@ def auto_refresh_after_write(what: str = "資料"):
 VOD_EARLIEST_HOUR = int(os.environ.get("VOD_EARLIEST_HOUR", "12"))
 
 
-# ------------------------------------------------------------------ #
-# 登入憑證的續命機制
-#
-# 這是「為什麼上午失敗、下午又好了」的結構性原因。
-#
-# NotebookLM 用的是 Google 的 web session cookie。Google 會在使用過程中
-# 輪換這些 cookie：每用一次就可能發一組新的回來，用戶端把新的寫回
-# storage_state.json，下次用新的。在自己電腦上這個循環是完整的，
-# 所以平常用瀏覽器不會突然被登出。
-#
-# 但在 CI 上這個循環是斷的：storage_state.json 是每次從 Secret 還原出來的，
-# 工作結束就連同整台機器一起消失，輪換後的新 cookie 從來沒有被保存。
-# 於是每一次執行都拿著「同一份、越來越舊」的 cookie 去敲門。
-# Google 對舊 cookie 有一段寬限期，寬限期內時好時壞——這就是為什麼
-# 上午兩次失敗、下午卻能成功，而中間你什麼都沒改。等寬限期真的過完，
-# 就會變成穩定失敗，那時才需要重新登入。
-#
-# 解法是把輪換後的 cookie 存回一個跨執行都在的地方。
-# 這裡選試算表而不是 GitHub Secret，理由是不必額外申請可以寫入 Secret 的
-# 個人存取權杖：這支程式本來就有試算表的寫入權限，不引入新的憑證。
-#
-# 安全性：cookie 等同於這個 Google 帳號在 NotebookLM 的登入狀態。
-# 存放的試算表必須維持私有（只分享給你自己與服務帳號），
-# 絕對不要開成「知道連結的人都可以檢視」。
-# ------------------------------------------------------------------ #
-AUTH_SHEET = "登入憑證"
-# 本次執行開始時的憑證指紋。用清單包起來是為了讓巢狀函式也能改到它。
-_AUTH_FP = [""]
-AUTH_PATHS = [
-    os.path.expanduser("~/.notebooklm/storage_state.json"),
-    os.path.expanduser("~/.notebooklm/profiles/default/storage_state.json"),
-]
-
-
-def _read_local_auth():
-    """讀本機目前的 storage_state。讀不到或不是合法 JSON 就回 None。"""
-    for path in AUTH_PATHS:
-        try:
-            with open(path, encoding="utf-8") as f:
-                d = json.load(f)
-            if isinstance(d, dict) and d.get("cookies"):
-                return d
-        except Exception:
-            continue
-    return None
-
-
-def _write_local_auth(d: dict):
-    for path in AUTH_PATHS:
-        try:
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(d, f)
-        except Exception as e:
-            print(f"  寫入 {path} 失敗：{e}")
-
-
-def _auth_fingerprint(d) -> str:
-    """用 cookie 的名稱與值算一個指紋，用來判斷有沒有被輪換過。"""
-    try:
-        items = sorted((c.get("name", ""), str(c.get("value", "")))
-                       for c in d.get("cookies", []))
-        return str(hash(tuple(items)))
-    except Exception:
-        return ""
-
-
-def load_saved_auth(ss) -> bool:
-    """
-    把試算表裡存的最新憑證覆蓋到本機。
-    回傳 True 代表用了試算表版本，False 代表沿用 Secret 還原出來的版本。
-    """
-    try:
-        ws = ss.worksheet(AUTH_SHEET)
-    except Exception:
-        return False   # 還沒建立這張分頁，第一次執行時是正常的
-    try:
-        raw = str(ws.acell("B2").value or "").strip()
-        saved_at = str(ws.acell("B1").value or "").strip()
-    except Exception as e:
-        print(f"讀取{AUTH_SHEET}失敗（不影響流程）：{e}")
-        return False
-    if not raw:
-        return False
-    try:
-        d = json.loads(raw)
-        if not (isinstance(d, dict) and d.get("cookies")):
-            raise ValueError("內容不是合法的 storage_state")
-    except Exception as e:
-        print(f"{AUTH_SHEET}的內容無法解析（{e}），改用 Secret 的版本")
-        return False
-
-    _write_local_auth(d)
-    print(f"已套用試算表保存的登入憑證（上次更新 {saved_at or '未知'}）")
-    return True
-
-
-def save_rotated_auth(ss, before_fp: str):
-    """
-    執行成功後把輪換過的憑證存回試算表。指紋沒變就不寫，避免無謂的寫入。
-    """
-    d = _read_local_auth()
-    if not d:
-        return
-    if _auth_fingerprint(d) == before_fp:
-        return
-    try:
-        try:
-            ws = ss.worksheet(AUTH_SHEET)
-        except Exception:
-            ws = ss.add_worksheet(title=AUTH_SHEET, rows=10, cols=2)
-            ws.update("A1", [["最後更新"], ["憑證內容"], ["說明"]])
-            ws.update("B3", [["這是 NotebookLM 的登入狀態，等同帳號登入憑證。"
-                              "請維持本試算表私有，不要開放連結分享。"
-                              "由程式自動維護，不需手動編輯。"]])
-        ws.update("B1", [[datetime.now(TAIPEI).strftime("%Y/%m/%d %H:%M:%S")]])
-        ws.update("B2", [[json.dumps(d, ensure_ascii=False)]])
-        print("登入憑證已輪換，新的版本已存回試算表，下次執行會沿用。")
-    except Exception as e:
-        print(f"保存輪換後的憑證失敗（不影響本次結果）：{e}")
-
-
-# 哪些模式真的需要 NotebookLM。
-#
-# 只有「要去抓一份還沒有的逐字稿」才需要它：每日流程、回補、補空白。
-# 其餘全部用的是已經存在試算表裡的逐字稿，或根本不碰逐字稿：
-#   後台工單　　逐字稿是管理者自己貼進來的
-#   會員簡訊　　來源是 CMoney，與 NotebookLM 無關
-#   修代號／重新分類／價位校對／整頓／全面重整　用已存逐字稿
-#
-# 分清楚很重要。工作流程原本對「任何有事要做的觸發」都還原 NotebookLM 憑證
-# 並檢查 cookie，於是 cookie 一過期，連「貼逐字稿進來請你整理」這種
-# 完全用不到 NotebookLM 的工作也一起失敗。
-def needs_notebooklm() -> bool:
-    """
-    這一輪需不需要 NotebookLM。現在恆為 False。
-
-    逐字稿改由人工貼進試算表之後，流程裡已經沒有任何一步會去 NotebookLM 取稿
-    （見 stage_transcript：沒有原始逐字稿就回報「等待中」，不再自己抓）。
-    所以還原登入狀態、檢查 cookie 到期這兩步都不必再跑，
-    NOTEBOOKLM_AUTH_JSON 過期也不會再讓任何一輪失敗。
-
-    保留這支函式而不是把工作流程裡那兩步刪掉，是刻意的：
-    工作流程的判斷式讀的是 needs_notebooklm，這裡回 False，那兩步就自然不會執行；
-    哪天要把自動取稿接回來，只要改這一支就好，不必再去動 YAML。
-    Secret 也留著別刪，同樣的理由。
-    """
-    return False
-
-
 def write_preflight(has_work: str, reason: str):
     """
     把探測結果寫給 GitHub Actions。
     後續步驟用 steps.preflight.outputs.has_work 判斷要不要跑。
     不在 Actions 環境裡（例如本機測試）就只印出來。
     """
-    nlm = "true" if needs_notebooklm() else "false"
     print(f"\n探測結果：has_work={has_work}　（{reason}）")
-    print(f"　本輪需要 NotebookLM：{nlm}"
-          + ("" if nlm == "true" else "（用已存逐字稿或不碰逐字稿，cookie 過期不影響）"))
     path = os.environ.get("GITHUB_OUTPUT")
     if not path:
         return
@@ -765,7 +612,6 @@ def write_preflight(has_work: str, reason: str):
         with open(path, "a", encoding="utf-8") as f:
             f.write(f"has_work={has_work}\n")
             f.write(f"reason={reason}\n")
-            f.write(f"needs_notebooklm={nlm}\n")
     except Exception as e:
         print(f"寫入 GITHUB_OUTPUT 失敗（不影響流程）：{e}")
 
@@ -1711,44 +1557,6 @@ def quota_exhausted() -> bool:
     return bool(_QUOTA_STOP["daily"])
 
 
-class AuthExpired(Exception):
-    """
-    NotebookLM 登入狀態失效。Google 的 session cookie 有壽命，
-    大約數週會過期，也可能因為異地登入被提前作廢。
-    這種錯誤重試沒有用，必須換一份新的 storage_state.json。
-    """
-    pass
-
-
-AUTH_HINTS = (
-    "authentication expired", "authentication invalid", "not authenticated",
-    "accounts.google.com", "notebooklm login", "re-authenticate",
-    "unauthorized", "401", "403", "sign in", "login required",
-    # ---- 以下是 NotebookLM 用戶端實際吐出來的形狀 ----
-    # 這個函式原本抓不到它們，於是登入失效被當成一般錯誤，
-    # 輪詢迴圈就每 180 秒重敲一次、一路敲到時間預算用完才停，
-    # 而每一次都必然失敗。認證過期重試永遠沒有用，要立刻停下來換 cookie。
-    #
-    # 典型訊息：
-    #   RPC CCqFvf returned null result with status code 16 (Unauthenticated).
-    #   RPCError rpc_code=16
-    #   Token refresh failed: Client error '400 Bad Request' ...
-    "unauthenticated",          # 注意與上面的 not authenticated 是不同字串
-    "status code 16",
-    "rpc_code=16",
-    "token refresh failed",
-    "invalid_grant",
-    "servicelogin",
-    "weblitesignin",
-    "confirmidentifier",
-)
-
-
-def looks_like_auth_error(e) -> bool:
-    m = str(e).lower()
-    return any(k in m for k in AUTH_HINTS)
-
-
 # ---------------------------------------------------------------- #
 # 試算表
 # ---------------------------------------------------------------- #
@@ -2035,61 +1843,6 @@ def parse_feed_xml(text):
 def is_target(title: str) -> bool:
     return any(k in (title or "") for k in TITLE_KEYWORDS)
 
-
-# ---------------------------------------------------------------- #
-# 逐字稿：notebooklm-py 來源全文存取
-# ---------------------------------------------------------------- #
-async def fetch_fulltext(video_url, title, timeout):
-    """
-    timeout 短的時候（輪詢），索引不完就丟 NotReadyYet，讓下一輪接手。
-    索引不完與真的出錯必須分開，不然每一輪都會亮紅燈並發告警。
-    """
-    from notebooklm import NotebookLMClient
-
-    try:
-        client_cm = NotebookLMClient.from_storage()
-    except Exception as e:
-        if looks_like_auth_error(e):
-            raise AuthExpired(str(e)[:300])
-        raise
-
-    async with client_cm as client:
-        try:
-            notebook = await client.notebooks.create(title=title)
-        except Exception as e:
-            if looks_like_auth_error(e):
-                raise AuthExpired(str(e)[:300])
-            raise
-        try:
-            try:
-                source = await client.sources.add_url(
-                    notebook.id, video_url, wait=True, wait_timeout=timeout
-                )
-            except NotReadyYet:
-                raise
-            except Exception as e:
-                msg = str(e).lower()
-                # 認證失效要先判，否則會被下面的關鍵字誤判成「還沒好」而無限重試
-                if looks_like_auth_error(e):
-                    raise AuthExpired(str(e)[:300])
-                # 逾時、還在處理、佇列中，都代表 VOD 還沒好，不是壞掉
-                if any(k in msg for k in ("timeout", "timed out", "processing", "pending", "queue")):
-                    raise NotReadyYet(f"NotebookLM 在 {timeout} 秒內尚未完成索引")
-                raise
-
-            fulltext = await client.sources.get_fulltext(notebook.id, source.id)
-            content = fulltext.content or ""
-
-            # 索引剛開始時可能回傳極短的殘缺內容，這也算還沒好
-            if len(content) < 200:
-                raise NotReadyYet(f"取回的全文僅 {len(content)} 字，索引尚未完成")
-
-            return content
-        finally:
-            try:
-                await client.notebooks.delete(notebook.id)
-            except Exception:
-                pass
 
 
 # ---------------------------------------------------------------- #
@@ -9273,7 +9026,7 @@ def stage_transcript(ss, video, date_str):
     else:
         # 逐字稿改由人工貼進試算表，這裡不再自己去取。
         #
-        # 原本這一段是向 NotebookLM 索取全文。那條路已經不用了：
+        # 逐字稿不在這裡取，由 transcript.py 寫進試算表：
         # 現在的流程是管理者在後台把逐字稿貼進「影片清單」的原始逐字稿內容欄，
         # 排程負責的是「貼進來之後的每一步」——潤飾、擷取、稽核、
         # 代號、寫入、撰稿、刷新。
@@ -11705,9 +11458,6 @@ def process_one(ss, video, done_trades, done_holds):
         print(f"尚未就緒：{e}")
         print("這是正常的，直播結束後 YouTube 要一段時間轉檔。下一輪排程會再試。")
         raise
-    except AuthExpired as e:
-        mark_status(ss, video["id"], date_str, video["title"], "認證過期", str(e)[:400])
-        raise
     except Exception as e:
         mark_status(ss, video["id"], date_str, video["title"], "失敗", str(e)[:400])
         raise
@@ -11844,7 +11594,7 @@ def reclassify_from_transcripts(ss):
     依「理由摘錄」的情緒關鍵字，改寫成「觀望不碰」或「觀望注意」。
     買入、賣出完全不動。
 
-    完全不呼叫 NotebookLM，也完全不呼叫 Gemini，
+    完全不呼叫 Gemini，
     所以沒有拼音誤判、沒有 429，幾秒就跑完。
     """
     ws = ss.worksheet("操作紀錄")
@@ -11925,7 +11675,7 @@ def reconcile_all(ss):
       2. 對每一檔買入，從逐字稿抽出張震明講的買入價（可能不是第一天講的），
          核對落在當日 K 線高低之間才採用，寫回操作紀錄的價位說明。
       3. 逐日不一致由下游 rebuildHoldingsTrackerJob 以聯集方式統一，這裡不處理。
-    不重抓影片、不呼叫 NotebookLM。
+    不重抓影片、不抓逐字稿。
     """
     trades_ws = ss.worksheet("操作紀錄")
     tvals = sheets_retry(trades_ws.get_all_values)
@@ -12154,7 +11904,7 @@ def fix_prices_all(ss):
       2. 不是股價的數字。「241億以下」是營收不是股價，用日K區間硬性驗證後剔除。
       3. 概數當精確價。「1400多」保留敘述但不給數字，避免被當成本算報酬。
 
-    只用已存的逐字稿，不重抓影片、不呼叫 NotebookLM。
+    只用已存的逐字稿，不重抓影片。
     先用規則快篩，只有可疑的列才送 AI，所以大部分的列是零成本通過的。
     """
     ws = ss.worksheet("操作紀錄")
@@ -12300,7 +12050,7 @@ def fix_prices_all(ss):
 
 def repair_codes_only(ss):
     """
-    不碰 NotebookLM，不呼叫 Gemini，只把試算表既有的股票名稱
+    不呼叫 Gemini，只把試算表既有的股票名稱
     重跑一次 resolve_code。
 
     非個股（台塑集團、PMIC、高速傳輸股）整列刪除，不留在資料裡。
@@ -12796,7 +12546,7 @@ def report_gemini_keys():
 def main():
     global _SS
 
-    # 金鑰健檢排在最前面：它不需要試算表、不需要 NotebookLM，也不該被
+    # 金鑰健檢排在最前面：它不需要試算表，也不該被
     # 「今天有沒有影片」那套判斷擋住。要查金鑰的時候，通常正是別的東西壞掉的時候。
     # 探測步驟刻意不帶 GEMINI_API_KEY（它平常用不到），在那裡做健檢會一把都讀不到。
     # 所以探測時只負責放行，真正的健檢留到帶著金鑰的正式步驟。
@@ -12906,7 +12656,7 @@ def main():
 
     if FULL_FIX:
         print("模式：全面重整。逐棒驅動下游把過去所有資料套用最新規則。")
-        print("不碰 NotebookLM，Gemini 由下游呼叫，這裡只負責一棒一棒催它做完。")
+        print("Gemini 由下游呼叫，這裡只負責一棒一棒催它做完。")
         drive_full_fix()
         return
 
@@ -12940,7 +12690,7 @@ def main():
         return
 
     if REPAIR_CODES:
-        print("模式：純修代號。不碰 NotebookLM，不呼叫 Gemini。")
+        print("模式：純修代號。不呼叫 Gemini。")
         repair_codes_only(ss)
         maybe_refresh_site()
         return
@@ -13013,17 +12763,10 @@ def main():
         maybe_refresh_site()
         return
 
-    # 接下來的流程都會用到 NotebookLM。先把試算表保存的最新憑證套用上去：
     # Secret 裡那份只是「種子」，真正在用的是輪換後、存回試算表的最新版本。
-    # 探測模式不碰 NotebookLM，所以不需要這一步。
-    if not PREFLIGHT:
-        load_saved_auth(ss)
-        _AUTH_FP[0] = _auth_fingerprint(_read_local_auth() or {})
-
     if FILL_BLANKS:
         print("模式：補空白。逐一檢視影片清單，補齊缺逐字稿的列。")
         fill_video_blanks(ss)
-        save_rotated_auth(ss, _AUTH_FP[0])
         return
 
     feed = [v for v in fetch_feed() if is_target(v["title"])]
@@ -13073,7 +12816,6 @@ def main():
             # 不然它們會停在「有資料但代號還沒補、簡訊還沒蓋過去」的狀態。
             flush_post_write_steps(ss)
             auto_refresh_after_write("回補的逐字稿")
-        save_rotated_auth(ss, _AUTH_FP[0])
         return
 
     today = datetime.now(TAIPEI).date()
@@ -13089,9 +12831,9 @@ def main():
     # 探測模式（PREFLIGHT=true）
     #
     # 只用 YouTube API 與試算表判斷「現在到底有沒有事情要做」，
-    # 不碰 NotebookLM、不呼叫 Gemini、不需要登入憑證，幾秒就跑完。
+    # 不呼叫 Gemini，幾秒就跑完。
     #
-    # 為什麼值得單獨做這一步：真正花時間與額度的是 NotebookLM 與 Gemini，
+    # 為什麼值得單獨做這一步：真正花時間與額度的是 Gemini，
     # 而一天當中大多數的觸發點其實是空跑的（直播還沒結束、VOD 還沒生成）。
     # 先探一次，沒事就讓整個工作提早結束，後面那些昂貴的步驟根本不會啟動，
     # 連登入憑證都不會用到——憑證失效時也就不會在這些空跑的時段一直報錯。
@@ -13184,14 +12926,13 @@ def main():
     # 不走內部循環的情況：手動補跑用長逾時、只敲一次就結束。
     if not POLL_LOOP:
         handle_today_once()
-        save_rotated_auth(ss, _AUTH_FP[0])
         auto_parse_today_sms(ss)
         return
 
     # 走內部循環：每 POLL_INTERVAL 秒敲一次，直到收工或超過時間預算。
     poll_n = 0
     last_err, same_err_n = "", 0
-    # 同一個錯誤連續這麼多次就停。認證過期已經由 looks_like_auth_error 擋掉了，
+    # 同一個錯誤連續這麼多次就停。
     # 這一道是防未來冒出沒見過的錯誤形狀：任何「每次都一樣的失敗」都不會因為
     # 多等 180 秒而變好，繼續敲只是把時間預算燒完，還讓工作紀錄被同一行洗版。
     MAX_SAME_ERR = 3
@@ -13206,17 +12947,8 @@ def main():
             if handle_today_once():
                 break
             last_err, same_err_n = "", 0     # 這一輪沒炸，重新計數
-        except AuthExpired:
-            raise   # 認證過期交給外層處理，寫「認證過期」狀態並結束
         except Exception as e:
             msg = str(e)
-
-            # 認證失效有時是在這一層才看得出來（用戶端把它包成一般例外）。
-            # 判定成立就直接升級成 AuthExpired，讓外層寫「認證過期」並寄信通知，
-            # 不要留在迴圈裡空轉。
-            if looks_like_auth_error(e):
-                print(f"本次輪詢的錯誤研判為登入失效：{msg}")
-                raise AuthExpired(msg)
 
             # 單次敲門的非致命錯誤，記錄後繼續下一輪，不讓整個循環中斷
             print(f"本次輪詢出錯（不中斷循環）：{msg}")
@@ -13228,8 +12960,6 @@ def main():
                 same_err_n += 1
                 if same_err_n >= MAX_SAME_ERR:
                     print(f"同一個錯誤已連續 {same_err_n + 1} 次，重試不會有幫助，停止輪詢。")
-                    print("請檢查上面的錯誤訊息；若與登入或授權有關，"
-                          "請重新產生 storage_state.json 並更新 NOTEBOOKLM_AUTH_JSON。")
                     write_status_log(ss, "失敗", f"同一錯誤連續 {same_err_n + 1} 次，停止輪詢：{msg}")
                     break
             else:
@@ -13247,9 +12977,6 @@ def main():
         print(f"等待 {POLL_INTERVAL} 秒後再敲……")
         time.sleep(POLL_INTERVAL)
 
-    # 輪詢結束（收工、預算用盡或已完成）。把輪換過的憑證存回試算表，
-    # 讓下一次執行接續使用，而不是每次都退回 Secret 裡那份越來越舊的種子。
-    save_rotated_auth(ss, _AUTH_FP[0])
 
     # 融入既有工作流程：每次每日流程結束後，順道解析「當天」待解析的會員簡訊。
     if not BACKFILL:
@@ -13271,17 +12998,6 @@ if __name__ == "__main__":
         if _SS is not None:
             write_status_log(_SS, "等待中", str(e))
         sys.exit(0)
-    except AuthExpired as e:
-        # 認證過期。重試沒有用，必須換新的 storage_state.json。
-        print("流程失敗：NotebookLM 登入狀態已失效，需要重新產生 storage_state.json "
-              "並更新 GitHub Secret NOTEBOOKLM_AUTH_JSON。", file=sys.stderr)
-        print(f"原始訊息：{e}", file=sys.stderr)
-        if _SS is not None:
-            write_status_log(_SS, "認證過期",
-                             "NotebookLM 登入狀態失效，請在本機執行 notebooklm login "
-                             "後，把新的 storage_state.json 內容更新到 GitHub Secret "
-                             "NOTEBOOKLM_AUTH_JSON。原始訊息：" + str(e))
-        sys.exit(1)
     except RateLimited as e:
         # 這是可恢復的額度狀態，不是程式壞掉。GitHub 保持綠燈，後台顯示
         # 「配額暫停」，已完成的部分都已經落地，不會回滾。

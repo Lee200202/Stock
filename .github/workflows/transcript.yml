@@ -1,0 +1,182 @@
+name: transcript-notebooklm
+run-name: >-
+  ${{ inputs.mode != '' && inputs.mode != 'auto'
+      && format('逐字稿 {0}', inputs.mode)
+      || '逐字稿自動抓取' }}
+
+# ------------------------------------------------------------------ #
+# 這個工作流程只做一件事：把當天那一集的逐字稿放進試算表的「影片清單」。
+# 後面的潤飾、擷取、寫網站、寄信全部由 daily.yml 的 pipeline.py 接手。
+#
+# 為什麼要跟 daily.yml 分開跑：
+#   取稿是整條鏈裡最容易壞的一段——cookie 會被 Google 輪換到過期、
+#   VOD 要等 YouTube 轉檔。把它獨立出來之後，它壞掉不會拖累其他
+#   完全用得到的流程（後台工單、會員簡訊、修代號都不需要 NotebookLM），
+#   日誌也只剩這一件事，出問題時好查。
+#
+# 排程是「輪詢」，不是「執行一次」：
+#   cron 只負責把程式叫起來，進去之後 Notebooklm.py 自己每 3 分鐘敲一次門，
+#   一個 job 敲約 25 分鐘就收尾，交給下一次觸發接力。
+#   這樣做是因為 GitHub 的 cron 是 best effort，尖峰時段大量漏跑或延遲，
+#   靠塞很多個 cron 點指望它準點觸發，實際跑起來的次數遠少於預期。
+#
+# cron 一律 UTC。台灣 = UTC + 8，全年固定，沒有日光節約。
+#   台灣 11:20 = UTC 03:20。
+# 讀日誌時要記得：GitHub 介面的時間戳全是 UTC，程式裡印的是台北時間，
+# 同一件事在兩處差八小時。日誌上的 03:54 就是台灣的 11:54，不是凌晨。
+#
+# 實際拿得到逐字稿的時間：直播約 11:20 開到 13:00，YouTube 再花十幾分鐘
+# 轉出 VOD，NotebookLM 才索引得到。所以 11:20～12:50 這段幾乎一定是
+# 「還沒好」——這段期間程式只用 YouTube API 問一句「還在直播嗎」，
+# 還在直播就直接跳過，不會去戳 NotebookLM。省額度，也不會洗版。
+# ------------------------------------------------------------------ #
+on:
+  schedule:
+    - cron: '20,45 3 * * 1-5'      # 台灣 11:20 11:45
+    - cron: '10,35 4 * * 1-5'      # 台灣 12:10 12:35
+    - cron: '0,25,50 5 * * 1-5'    # 台灣 13:00 13:25 13:50
+    - cron: '15,40 6 * * 1-5'      # 台灣 14:15 14:40（最後一輪跑到 15:00 收工）
+
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: '要做什麼'
+        required: false
+        default: 'auto'
+        type: choice
+        options:
+          - 'auto'      # 照常抓取
+          - 'status'    # 只看狀態，什麼都不改
+          - 'hold'      # 標記手動保留，擋住自動抓取
+          - 'release'   # 解除手動保留
+      date:
+        description: '目標日期 YYYY/MM/DD，留空＝今天'
+        required: false
+        default: ''
+      force:
+        description: '無視平日／時段／直播中的限制，硬跑一次（補抓過去某一天時用）'
+        required: false
+        default: 'false'
+      once:
+        description: '只敲一次就結束，不進 25 分鐘的輪詢迴圈'
+        required: false
+        default: 'false'
+
+concurrency:
+  group: notebooklm-transcript
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  transcript:
+    runs-on: ubuntu-latest
+    # 內部輪詢預算是 25 分鐘，給 35 分鐘上限：正常結束用不到，
+    # 卡死的工作也不會長時間佔住 concurrency 佇列。
+    timeout-minutes: 35
+
+    steps:
+      - name: 記錄排程與實際執行時間
+        run: |
+          echo "排程設定：${{ github.event.schedule || '手動觸發' }} (UTC)"
+          echo "實際執行：$(TZ=Asia/Taipei date '+%Y/%m/%d %H:%M:%S') 台北時間"
+          echo ""
+          echo "兩者差超過 30 分鐘是 GitHub 排程佇列延遲，不是設定寫錯。"
+          echo "官方文件明講排程是 best effort，本流程用內部輪詢補這個不準。"
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 安裝相依套件
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f "requirements.txt" ]; then
+            pip install -r requirements.txt
+          else
+            pip install -r pipeline/requirements.txt
+          fi
+          # notebooklm-py 的認證走 storage_state（本機 notebooklm login 產生），
+          # browser extra 會帶進 playwright，再裝 chromium。
+          pip install "notebooklm-py[browser]"
+          python -m playwright install --with-deps chromium
+
+      # ------------------------------------------------------------------ #
+      # 還原登入憑證
+      #
+      # 認證只有一種：Google web session cookie，存在 storage_state.json。
+      # 在本機執行 notebooklm login 完成一次性授權後，把
+      #   ~/.notebooklm/profiles/default/storage_state.json
+      # 的完整內容貼到 GitHub Secret NOTEBOOKLM_AUTH_JSON。
+      #
+      # 程式跑起來後會先從試算表的「登入憑證」分頁讀更新的版本蓋過這一份，
+      # 讀不到才用這裡還原的。兩者都沒有時才會真的失敗。
+      # status 模式不碰 NotebookLM，所以缺憑證也照跑。
+      # ------------------------------------------------------------------ #
+      - name: 還原 NotebookLM 登入狀態
+        if: inputs.mode != 'status' && inputs.mode != 'hold' && inputs.mode != 'release'
+        env:
+          NOTEBOOKLM_AUTH_JSON: ${{ secrets.NOTEBOOKLM_AUTH_JSON }}
+        run: |
+          mkdir -p ~/.notebooklm/profiles/default
+          if [ -z "$NOTEBOOKLM_AUTH_JSON" ]; then
+            echo "::warning::NOTEBOOKLM_AUTH_JSON 是空的。請在本機執行 notebooklm login，"
+            echo "再把 ~/.notebooklm/profiles/default/storage_state.json 的完整內容"
+            echo "貼到 GitHub Secret NOTEBOOKLM_AUTH_JSON。"
+            echo "本輪仍會嘗試從試算表「登入憑證」分頁讀取。"
+            exit 0
+          fi
+          printf '%s' "$NOTEBOOKLM_AUTH_JSON" > ~/.notebooklm/storage_state.json
+          printf '%s' "$NOTEBOOKLM_AUTH_JSON" > ~/.notebooklm/profiles/default/storage_state.json
+          echo "已寫入 storage_state"
+
+      - name: 執行
+        env:
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          YOUTUBE_CHANNEL_ID: ${{ vars.YOUTUBE_CHANNEL_ID }}
+          # 排程觸發時一律用預設值；手動觸發才讓上面那些輸入生效。
+          MODE: ${{ inputs.mode || 'auto' }}
+          TARGET_DATE: ${{ inputs.date }}
+          FORCE: ${{ inputs.force }}
+          ONCE: ${{ inputs.once }}
+        run: |
+          # 注意：GitHub 的 run: 預設是 bash -e。
+          # 「[ 條件 ] && 指令」這種寫法在條件不成立時整句回 1，會讓整個步驟
+          # 當場結束——看起來像程式沒跑，其實是 shell 自己退掉了。所以一律用 if。
+          ARGS=()
+          case "$MODE" in
+            status)  ARGS=(status) ;;
+            hold)    ARGS=(hold) ;;
+            release) ARGS=(hold --release) ;;
+            *)       ARGS=(auto)
+                     if [ "$FORCE" = "true" ]; then ARGS+=(--force); fi
+                     if [ "$ONCE"  = "true" ]; then ARGS+=(--once);  fi ;;
+          esac
+
+          if [ -n "$TARGET_DATE" ]; then
+            # 這個值會變成命令列參數。手動觸發只有維護者按得到，但仍然先驗格式，
+            # 免得打錯字變成別的參數，錯誤訊息會讓人找很久。
+            if ! printf '%s' "$TARGET_DATE" | grep -Eq '^[0-9]{4}[/-][0-9]{1,2}[/-][0-9]{1,2}$'; then
+              echo "::error::日期格式錯誤「$TARGET_DATE」，要寫成 YYYY/MM/DD"
+              exit 1
+            fi
+            ARGS+=(--date "$TARGET_DATE")
+          fi
+
+          echo "執行：python Notebooklm.py ${ARGS[*]}"
+          code=0
+          python Notebooklm.py "${ARGS[@]}" || code=$?
+
+          # 0  有進展或沒事做（寫入成功、已有稿、手動優先停手、還沒好等下一輪）。
+          #    「還沒好」是常態，不該亮紅燈，否則每天中午都在發假告警。
+          # 2  登入憑證失效。這一定要亮紅燈：重試永遠不會成功，
+          #    必須有人去本機重跑 notebooklm login 換一份新的。
+          # 1  其他失敗。
+          echo "結束碼：$code"
+          exit $code

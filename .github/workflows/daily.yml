@@ -4,9 +4,8 @@ run-name: ${{ inputs.sms_job_id != '' && format('會員簡訊 {0}', inputs.sms_j
 # ------------------------------------------------------------------ #
 # 排程設計：這是「輪詢」，不是「執行一次」。
 #
-# 11:30 直播還在進行，YouTube 的 VOD 尚未生成，NotebookLM 索引不到。
-# 直播約 12:30 到 13:00 結束，YouTube 再花十幾分鐘轉檔，
-# 所以逐字稿真正拿得到的時間點落在 13:00 到 14:00 之間，而且每天不一定。
+# 這條流程處理的是「逐字稿已經在試算表裡之後」的每一步：潤飾、擷取、
+# 稽核、代號比對、寫入、撰稿、刷新。逐字稿本身由 transcript.yml 負責。
 #
 # 過去的做法是塞很多個 cron 觸發點，指望每 10 分鐘各觸發一次。
 # 但 GitHub 的 cron 是 best-effort，尖峰時段大量漏跑或延遲，
@@ -25,7 +24,7 @@ run-name: ${{ inputs.sms_job_id != '' && format('會員簡訊 {0}', inputs.sms_j
 # 例如日誌上的 03:54 就是台灣的 11:54，不是凌晨。
 #
 # 每個觸發點進來的第一件事是「探測」：只用 YouTube API 與試算表
-# 判斷現在有沒有事情要做，不碰 NotebookLM、不呼叫 Gemini、不需要憑證。
+# 判斷現在有沒有事情要做，不呼叫 Gemini，幾秒就跑完。
 # 直播進行中（台灣 12 點以前）或今日影片已處理完成的觸發點，
 # 幾秒內就結束，不會再往下走。
 # ------------------------------------------------------------------ #
@@ -172,28 +171,25 @@ jobs:
 
       - name: 安裝相依套件
         run: |
-          # 最原始、也最穩定的安裝方式：
-          #   notebooklm-py 主程式 + browser 支援 + Chromium。
-          # 認證走 storage_state（本機 notebooklm login 產生，貼進 Secret）。
+          # 只裝 requirements.txt。
+          #
+          # 這條流程只讀試算表既有的逐字稿，不抓影片、不需要瀏覽器，
+          # 所以幾個純 Python 套件就夠，十幾秒裝完。
           python -m pip install --upgrade pip
           if [ -f "requirements.txt" ]; then
             pip install -r requirements.txt
           elif [ -f "pipeline/requirements.txt" ]; then
             pip install -r pipeline/requirements.txt
           fi
-          pip install "notebooklm-py[browser]"
-          python -m playwright install chromium
 
       # ------------------------------------------------------------------ #
       # 探測：現在到底有沒有事情要做
       #
-      # 只用 YouTube API 與試算表判斷，不碰 NotebookLM、不呼叫 Gemini、
-      # 不需要登入憑證，幾秒就跑完。沒事就讓後面所有步驟整批跳過。
+      # 只用 YouTube API 與試算表判斷，不呼叫 Gemini，幾秒就跑完。
+      # 沒事就讓後面所有步驟整批跳過。
       #
-      # 為什麼值得多這一步：一天有十幾個觸發點，但直播要到台灣 13:00 過後
-      # 才會生出 VOD，之前那些觸發全都是空跑，卻照樣還原憑證、啟動用戶端、
-      # 消耗執行時間。憑證失效時，這些空跑還會一路報錯洗版。
-      # 先探一次，就只在真的有影片可處理時才付出那些成本。
+      # 為什麼值得多這一步：一天有十幾個觸發點，多數時候逐字稿還沒進來，
+      # 那些觸發全是空跑。先探一次，就只在真的有資料可處理時才往下走。
       # ------------------------------------------------------------------ #
       # 版本守衛。工作流程與 pipeline.py 必須是同一批更新的。
       # 只更新其中一個時，後面的步驟會用一個誤導性的訊息失敗
@@ -269,84 +265,12 @@ jobs:
         if: steps.preflight.outputs.has_work != 'true'
         run: |
           echo "探測結果：${{ steps.preflight.outputs.reason }}"
-          echo "本輪不需要動用 NotebookLM 與 Gemini，直接結束。"
-
-      - name: 本輪不需要 NotebookLM
-        if: steps.preflight.outputs.has_work == 'true' && steps.preflight.outputs.needs_notebooklm != 'true'
-        run: |
-          echo "這個模式用的是已經存在試算表裡的逐字稿，或根本不碰逐字稿，"
-          echo "所以跳過還原登入狀態與 cookie 到期檢查。"
-          echo "NotebookLM 的 cookie 就算過期了，也不影響這一輪。"
-
-      # 只有真的要去抓一份還沒有的逐字稿時才需要 NotebookLM。
-      #
-      # 後台工單（逐字稿是管理者貼進來的）、會員簡訊（來源是 CMoney）、
-      # 修代號、重新分類、價位校對、整頓、全面重整，用的都是已經存在
-      # 試算表裡的逐字稿，或根本不碰逐字稿。
-      #
-      # 先前這一步對「任何有事要做的觸發」都執行，於是 cookie 一過期，
-      # 連「貼逐字稿進來請你整理」這種完全用不到 NotebookLM 的工作
-      # 也一起失敗——而那份逐字稿明明就在試算表裡，什麼都不缺。
-      # needs_notebooklm 由探測步驟依模式算出來。
-      - name: 還原 NotebookLM 登入狀態
-        if: steps.preflight.outputs.has_work == 'true' && steps.preflight.outputs.needs_notebooklm == 'true'
-        env:
-          NOTEBOOKLM_AUTH_JSON: ${{ secrets.NOTEBOOKLM_AUTH_JSON }}
-        run: |
-          # 認證只有一種：Google web session cookie，存在 storage_state.json。
-          # 在本機執行 notebooklm login 完成一次性授權後，把
-          #   ~/.notebooklm/profiles/default/storage_state.json
-          # 的完整內容貼到 GitHub Secret NOTEBOOKLM_AUTH_JSON。
-          # cookie 會被 Google 輪換，過期時就在本機重新 notebooklm login，再更新 Secret。
-          mkdir -p ~/.notebooklm/profiles/default
-          if [ -z "$NOTEBOOKLM_AUTH_JSON" ]; then
-            echo "NOTEBOOKLM_AUTH_JSON 是空的。請在本機執行 notebooklm login，"
-            echo "再把 ~/.notebooklm/profiles/default/storage_state.json 的完整內容"
-            echo "貼到 GitHub Secret NOTEBOOKLM_AUTH_JSON。"
-            exit 1
-          fi
-          printf '%s' "$NOTEBOOKLM_AUTH_JSON" > ~/.notebooklm/storage_state.json
-          printf '%s' "$NOTEBOOKLM_AUTH_JSON" > ~/.notebooklm/profiles/default/storage_state.json
-          echo "已寫入 storage_state"
-
-          # cookie 到期預警。
-          #
-          # 過期是一定會發生的事，Google 會定期輪換 session cookie。問題在於
-          # 現在只有「已經失效」才會知道，而那時當天的排程都已經白跑了。
-          # storage_state.json 裡每個 cookie 都帶 expires（Unix 秒），
-          # 取最早到期的那一個，就能在還沒壞之前先示警。
-          python3 - <<'EOF'
-          import json, os, time
-          try:
-              d = json.load(open(os.path.expanduser("~/.notebooklm/storage_state.json")))
-          except Exception as e:
-              print(f"::warning::讀不到 storage_state（{e}），略過到期檢查")
-              raise SystemExit(0)
-
-          exps = [c.get("expires", -1) for c in d.get("cookies", [])]
-          exps = [e for e in exps if isinstance(e, (int, float)) and e > 0]
-          if not exps:
-              print("cookie 沒有到期資訊（session cookie），無法預警")
-              raise SystemExit(0)
-
-          soonest = min(exps)
-          days = (soonest - time.time()) / 86400
-          when = time.strftime("%Y-%m-%d %H:%M", time.localtime(soonest))
-          print(f"最早到期的 cookie：{when}（約 {days:.1f} 天後）")
-          if days < 0:
-              print(f"::error::cookie 已於 {when} 過期，本次必定失敗。"
-                    "請在本機重跑 notebooklm login 並更新 NOTEBOOKLM_AUTH_JSON。")
-          elif days < 3:
-              print(f"::warning::cookie 只剩 {days:.1f} 天到期（{when}）。"
-                    "請盡快在本機重跑 notebooklm login 並更新 NOTEBOOKLM_AUTH_JSON，"
-                    "否則接下來的排程會開始失敗。")
-          EOF
+          echo "本輪沒有要處理的資料，直接結束。"
 
       - name: 執行每日流程
         if: steps.preflight.outputs.has_work == 'true'
         env:
           DAILYK_ONLY: ${{ github.event.schedule == '45 5 * * 1-5' && 'true' || '' }}
-          NOTEBOOKLM_AUTH_JSON: ${{ secrets.NOTEBOOKLM_AUTH_JSON }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           # 想換模型時設這個 Variable 就好，不必改程式碼。
           # 用得到的情境：備用金鑰所屬的專案看不到預設的型號（會回 404），

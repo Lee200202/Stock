@@ -1,0 +1,148 @@
+name: 測試－逐字稿端對端演練
+run-name: >-
+  ${{ inputs.live == 'true' && '端對端演練（含真的抓稿）' || '端對端演練（不花額度）' }}
+
+# ------------------------------------------------------------------ #
+# 手動觸發的演練。**只寫測試試算表，永遠不碰正式表。**
+#
+# 沒有 schedule，是刻意的：這是要人看著結果的演練，不是排程。
+# 自動跑會在無人注意時消耗 Gemini 額度，也會讓測試表長出沒人看的資料。
+#
+# 隔離靠三道防線，全部在 scripts/test_transcript_e2e.py 裡：
+#   1. 必須有 TEST_SPREADSHEET_ID
+#   2. 必須有 PROD_SPREADSHEET_ID，且兩者不同
+#   3. 真的打開試算表，名稱必須含「測試」或 test
+# 三道都過才會寫任何一個字。ID 貼錯成正式表時第三道會擋下來。
+#
+# 為什麼要在 GitHub 上跑而不是本機：
+#   要驗的是「排程時間到被激活」與「每 3 分鐘敲一次門」這兩件事，
+#   而那正是 Actions 真實執行的環境。在本機跑驗不到 Secrets、
+#   時區、相依套件這些實際會出問題的地方。
+# ------------------------------------------------------------------ #
+on:
+  workflow_dispatch:
+    inputs:
+      live:
+        description: '★會花 Gemini 額度★ true＝連「真的抓一集」與「手動優先」一起驗；false＝只驗前四幕'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+      date:
+        description: '第 5 幕要抓哪一天 YYYY/MM/DD，留空＝頻道最近一集'
+        required: false
+        default: ''
+      rounds:
+        description: '第 4 幕要看幾輪輪詢（每輪 3 分鐘）'
+        required: false
+        default: '2'
+      run_pipeline:
+        description: '演練完接著跑潤飾稽核流程（也只對測試表）。要先有逐字稿才有意義'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+concurrency:
+  group: transcript-e2e-test
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    # 第 4 幕預設 2 輪約 6 分鐘，第 5 幕聽打一集約 5～15 分鐘，
+    # 再加潤飾稽核。給 60 分鐘有餘裕，卡住也不會佔太久。
+    timeout-minutes: 60
+
+    steps:
+      - name: 這次要跑什麼
+        run: |
+          echo "現在時間：$(TZ=Asia/Taipei date '+%Y/%m/%d %H:%M:%S') 台北"
+          echo "會花額度：${{ inputs.live }}"
+          echo "目標日期：${{ inputs.date || '（頻道最近一集）' }}"
+          echo "輪詢輪數：${{ inputs.rounds }}"
+          echo "接著跑潤飾稽核：${{ inputs.run_pipeline }}"
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 安裝相依套件
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # 先擋在最前面。Secret 沒設好就不要浪費後面的時間，
+      # 而且訊息要說清楚是哪一個沒設，不要讓人去猜。
+      - name: 檢查測試環境隔離
+        env:
+          TEST_SPREADSHEET_ID: ${{ secrets.TEST_SPREADSHEET_ID }}
+          PROD_SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+        run: |
+          fail=0
+          if [ -z "$TEST_SPREADSHEET_ID" ]; then
+            echo "::error::沒有設 Secret TEST_SPREADSHEET_ID。請先另開一張測試試算表。"
+            fail=1
+          fi
+          if [ -z "$PROD_SPREADSHEET_ID" ]; then
+            echo "::error::沒有設 Secret SPREADSHEET_ID（正式表，用來比對）。"
+            fail=1
+          fi
+          if [ -n "$TEST_SPREADSHEET_ID" ] && [ "$TEST_SPREADSHEET_ID" = "$PROD_SPREADSHEET_ID" ]; then
+            echo "::error::TEST_SPREADSHEET_ID 與正式的 SPREADSHEET_ID 相同，會污染正式資料。"
+            fail=1
+          fi
+          [ "$fail" = "0" ] && echo "隔離檢查通過（兩張表確定不同）"
+          exit $fail
+
+      - name: 端對端演練
+        env:
+          TEST_SPREADSHEET_ID: ${{ secrets.TEST_SPREADSHEET_ID }}
+          PROD_SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          YOUTUBE_CHANNEL_ID: ${{ vars.YOUTUBE_CHANNEL_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+          GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          GEMINI_FALLBACK_MODEL: ${{ vars.GEMINI_FALLBACK_MODEL }}
+          PYTHONUNBUFFERED: '1'
+        run: |
+          ARGS=(--rounds "${{ inputs.rounds }}")
+          if [ "${{ inputs.live }}" = "true" ]; then ARGS+=(--live); fi
+          if [ -n "${{ inputs.date }}" ]; then ARGS+=(--date "${{ inputs.date }}"); fi
+          echo "執行：python scripts/test_transcript_e2e.py ${ARGS[*]}"
+          python scripts/test_transcript_e2e.py "${ARGS[@]}"
+
+      # 逐字稿進到測試表之後，接著驗它走得完潤飾、擷取、稽核那一整條。
+      # SPREADSHEET_ID 在這裡被覆寫成測試表，所以 pipeline.py 也只動測試表。
+      - name: 潤飾稽核流程（只對測試表）
+        if: inputs.run_pipeline == 'true'
+        env:
+          SPREADSHEET_ID: ${{ secrets.TEST_SPREADSHEET_ID }}
+          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          YOUTUBE_CHANNEL_ID: ${{ vars.YOUTUBE_CHANNEL_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          GEMINI_THINKING_LEVEL: ${{ vars.GEMINI_THINKING_LEVEL || 'medium' }}
+          FINAL_ATTEMPT: 'true'
+          # 不通知下游刷新：測試表沒有對應的 Apps Script，
+          # 打過去只會去敲正式站，那正是要避免的事。
+          REFRESH_SITE: 'false'
+          APPS_SCRIPT_URL: ''
+          PYTHONUNBUFFERED: '1'
+        run: |
+          echo "SPREADSHEET_ID 已指向測試表，pipeline.py 不會碰正式資料。"
+          python pipeline.py

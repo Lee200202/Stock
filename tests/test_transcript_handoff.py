@@ -4,7 +4,7 @@
 
 兩支程式不互相呼叫，只透過試算表「影片清單」的「原始逐字稿內容」欄溝通：
 
-    transcript.py  （transcript.yml，11:20 起每 3 分鐘）
+    transcript.py  （transcript.yml，11:05 起每 3 分鐘）
         ↓ 寫入 原始逐字稿內容
     pipeline.py    （daily.yml，11:20 起，內部每 3 分鐘）
         ↓ stage_transcript 看到原文就往下走
@@ -131,15 +131,40 @@ class ScheduleAlignment(unittest.TestCase):
     def test_pipeline_polls_internally(self):
         """daily.yml 那邊要有內部輪詢，才接得到中途才寫進來的逐字稿。
 
-        只靠 cron 準點的話，11:20 那輪看不到（逐字稿 11:30 才到），
+        只靠 cron 準點的話，11:20 那輪看不到（逐字稿可能 11:30 才到），
         就得等 11:35 那輪——而 GitHub 的 cron 常常漏跑。
         """
         self.assertEqual(pl.POLL_INTERVAL, 180)
         self.assertGreaterEqual(pl.TIME_BUDGET, 900)
 
     def test_transcript_side_starts_no_later_than_pipeline(self):
-        """取稿要先開始，不然下游會一直等一個還沒開始抓的東西。"""
-        self.assertEqual(T.POLL_START, "11:20")
+        """取稿要先開始，不然下游會一直等一個還沒開始抓的東西。
+
+        起點是照實測定的：影片在直播結束時才進頻道清單，
+        最近五集落在 11:04～11:24，所以 11:05 起跑才接得住早收的那幾天。
+        """
+        h, m = (int(x) for x in T.POLL_START.split(":"))
+        self.assertLessEqual(h * 60 + m, 11 * 60 + 5,
+                             "起點不能晚於 11:05，否則早收的日子會白等十幾分鐘")
+
+    def test_cron_and_poll_start_agree(self):
+        """cron 與程式的 POLL_START 必須一起改。
+
+        只改 cron 的話，提早觸發的那一輪會停在「還沒到 POLL_START」而空轉——
+        看起來有跑，其實什麼都沒做。
+        """
+        import yaml
+        wf = ROOT / ".github" / "workflows" / "transcript.yml"
+        d = yaml.safe_load(wf.read_text(encoding="utf-8"))
+        first = min(
+            (int(hh) + 8) % 24 * 60 + int(mm)
+            for c in d[True]["schedule"]
+            for mm in c["cron"].split()[0].split(",")
+            for hh in c["cron"].split()[1].split(","))
+        h, m = (int(x) for x in T.POLL_START.split(":"))
+        self.assertLessEqual(h * 60 + m, first,
+                             f"POLL_START({T.POLL_START}) 晚於最早的 cron"
+                             f"({first // 60:02d}:{first % 60:02d})，那一輪會空轉")
 
 
 if __name__ == "__main__":

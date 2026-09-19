@@ -85,8 +85,15 @@ SRC_MANUAL = "手動"
 SRC_HOLD = "手動保留"
 SRC_AUTO = "自動"
 
-# 排程。直播 11:19 前後結束，回放再 3～5 分鐘，所以 14:00 收工綽綽有餘。
-POLL_START = os.environ.get("POLL_START", "11:20").strip()
+# 排程。實測最近幾集「進入頻道清單」的時間：
+#   9/14 11:15　9/15 11:07　9/16 11:04　9/17 11:24　9/18 11:18
+# 影片是在直播「結束時」才進清單，不是開播時，所以範圍落在 11:04～11:24。
+# 起點設 11:05 才接得住早收的那幾天；設 11:20 的話，9/15、9/16 那種日子
+# 明明 11:07 就抓得到，卻要白等十幾分鐘。
+#
+# 提早的代價幾乎是零：影片還沒出現時只用 YouTube API 問一句（約 2 units），
+# 不呼叫 Gemini。撞到直播中也只會回報「直播中」然後等下一輪。
+POLL_START = os.environ.get("POLL_START", "11:05").strip()
 POLL_UNTIL = os.environ.get("POLL_UNTIL", "14:00").strip()
 POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL_SEC", "180"))
 TIME_BUDGET = int(os.environ.get("TIME_BUDGET_SEC", "1500"))
@@ -326,16 +333,37 @@ def open_sheets():
         raise SystemExit("缺少 SPREADSHEET_ID。就是試算表網址中 /d/ 與 /edit 之間那一長串。")
     creds, who = _sheets_credentials()
     gc = gspread.authorize(creds)
+    def _blocked(code, extra=""):
+        return SystemExit(
+            f"開不了試算表（HTTP {code}）。\n"
+            f"\n"
+            f"  要分享給這個信箱（權限給「編輯者」）：\n"
+            f"      {who}\n"
+            f"\n"
+            f"  試算表 →「共用」→ 貼上上面那個信箱 → 權限選「編輯者」\n"
+            f"  →「通知使用者」取消勾選 →「共用」。\n"
+            f"\n"
+            f"  另一個可能：專案沒有啟用 Google Sheets API 與 Google Drive API。\n"
+            + (f"\n原始訊息：{extra[:300]}" if extra else ""))
+
+    # gspread 6 會把 HTTP 錯誤換成別的型別再丟出來，不是原本的 APIError：
+    #   403 → 內建的 PermissionError（而且訊息是空的）
+    #   404 → SpreadsheetNotFound
+    # 只接 APIError 的話這兩種最常見的狀況都會漏掉，使用者看到的是一長串
+    # traceback 加一行 PermissionError，完全看不出「要去分享試算表給誰」。
     try:
         return sheets_retry(gc.open_by_key, SPREADSHEET_ID)
+    except PermissionError as e:
+        raise _blocked(403, str(e))
+    except gspread.exceptions.SpreadsheetNotFound as e:
+        raise SystemExit(
+            f"找不到這張試算表（HTTP 404）。SPREADSHEET_ID 可能貼錯了。\n"
+            f"  ID 是網址中 /d/ 與 /edit 之間那一長串。\n"
+            f"原始訊息：{str(e)[:200]}")
     except gspread.exceptions.APIError as e:
         code = getattr(getattr(e, "response", None), "status_code", None)
         if code in (403, 404):
-            raise SystemExit(
-                f"開不了試算表（HTTP {code}）。兩個最常見的原因：\n"
-                f"  1. 試算表沒有分享給 {who}（要給編輯者權限）\n"
-                f"  2. 專案沒有啟用 Google Sheets API 與 Google Drive API\n"
-                f"原始訊息：{str(e)[:300]}")
+            raise _blocked(code, str(e))
         raise
 
 
@@ -688,6 +716,9 @@ RETRY_WAIT = (30, 90)           # 兩次合計超過一分鐘，順便避開每�
 PROBE_PROMPT = "請只回覆：OK"
 PROBE_TIMEOUT = int(os.environ.get("KEY_PROBE_TIMEOUT_SECONDS", "30"))
 NON_RETRYABLE = {401, 403, 404}  # 金鑰無效、沒權限、模型不存在：重試不會成功
+# 串流連線被中途切斷時，從中斷處接續幾次（實測約 4 分半就會斷一次）。
+STREAM_RESUME_ATTEMPTS = 3
+STREAM_RESUME_WAIT = 5
 
 # 模型負載過高。這是**模型層級**的問題，不是金鑰層級的。
 #
@@ -1009,48 +1040,110 @@ class Transcriber:
         return False
 
     def _run(self, request):
-        """背景模式送出並輪詢；模型不支援 background 時改用串流。"""
-        if self.model in self.stream_models:
-            return self._run_stream(request)
-        try:
-            interaction = self.client.interactions.create(**request, background=True)
-        except Exception as exc:
-            status, message = _err(exc)
-            if status == 400 and "background" in message.lower():
-                log(f"    {self.model} 不支援背景模式，改用串流")
-                self.stream_models.add(self.model)
-                return self._run_stream(request)
-            raise
+        """送出請求並取得結果。
 
+        長影片處理久，預設走背景模式再輪詢，避免連線逾時。
+        部分模型（實測 gemini-3.5-flash-lite）不支援背景，會立刻回 HTTP 400
+        「does not support background interactions」——那種請求沒被處理、不佔額度，
+        所以直接改用串流重送，不算一次重試，之後這個模型都走串流。
+        """
+        if self.model not in self.stream_models:
+            try:
+                interaction = self.client.interactions.create(**request, background=True)
+            except Exception as exc:
+                status, message = _err(exc)
+                if not (status == 400 and "does not support background" in message.lower()):
+                    raise
+                self.stream_models.add(self.model)
+                log(f"    {self.model} 不支援背景模式，改用串流")
+            else:
+                return self._wait(interaction)
+        return self._run_stream(request)
+
+    def _wait(self, interaction):
+        """背景模式：輪詢到結束。"""
         deadline = time.monotonic() + SEGMENT_TIMEOUT
-        while True:
-            state = str(getattr(interaction, "status", "") or "")
-            if state not in ("queued", "in_progress", "running", ""):
-                return interaction
+        while str(getattr(interaction, "status", "")) in ("queued", "in_progress"):
             if time.monotonic() > deadline:
-                raise TimeoutError(f"背景作業超過 {SEGMENT_TIMEOUT // 60} 分鐘仍未完成")
+                # 放棄前先取消，否則背景工作還在跑、還在計額度。
+                try:
+                    self.client.interactions.cancel(id=interaction.id)
+                except Exception:
+                    pass
+                raise TimeoutError(f"等待 Gemini 超過 {SEGMENT_TIMEOUT // 60} 分鐘")
             time.sleep(POLL_SECONDS)
-            interaction = self.client.interactions.get(interaction.id)
+            interaction = self.client.interactions.get(id=interaction.id)
+        return interaction
 
     def _run_stream(self, request):
-        chunks = []
-        stream = self.client.interactions.create(**request, stream=True,
-                                                 timeout=SEGMENT_TIMEOUT)
-        status = "completed"
-        errors = None
-        for event in stream:
-            piece = getattr(event, "delta", None) or getattr(event, "text", None)
-            if isinstance(piece, str):
-                chunks.append(piece)
-            s = getattr(event, "status", None)
-            if isinstance(s, str) and s:
-                status = s
-            # 失敗原因在這裡。串流模式下 API 不拋例外，而是把 high demand
-            # 之類的訊息放進 errors，狀態標成 failed。不收起來就查不出原因。
-            e = getattr(event, "errors", None) or getattr(event, "error", None)
-            if e:
-                errors = e
-        return _StreamResult(status=status, output_text="".join(chunks), errors=errors)
+        """串流模式：連線開著，邊收邊累積文字，直到 interaction.completed。
+
+        事件的形狀不能猜，這是實際的樣子：
+            event.event_type == "step.delta"          → event.delta.text 才是文字
+            event.event_type == "interaction.completed" → event.interaction.status 才是最終狀態
+            event.event_type == "error"                → event.error
+        我第一版寫成讀 event.delta 與 event.status，結果一個字都沒收到，
+        於是每一段都被判成「無輸出」而失敗（2026/09/19 實測）。
+
+        另外長影片處理期間連線會被中途切斷（實測約 4 分半後
+        「peer closed connection without sending complete message body」）。
+        這時用 interaction ID ＋ 最後一個 event_id 從中斷處接續，
+        已收到的文字保留、不重送影片、不多花額度。
+        """
+        client = self.client
+        stream = client.interactions.create(**request, stream=True, timeout=SEGMENT_TIMEOUT)
+        parts, completed = [], None
+        interaction_id = last_event_id = None
+        resumes = 0
+
+        while True:
+            disconnect = None
+            try:
+                for event in stream:
+                    ev_id = getattr(event, "event_id", None)
+                    if ev_id:
+                        last_event_id = ev_id
+                    kind = getattr(event, "event_type", None)
+                    if kind == "interaction.created":
+                        interaction_id = getattr(
+                            getattr(event, "interaction", None), "id", None) or interaction_id
+                    elif kind == "step.delta":
+                        delta = getattr(event, "delta", None)
+                        if getattr(delta, "type", None) == "text":
+                            parts.append(getattr(delta, "text", "") or "")
+                    elif kind == "interaction.completed":
+                        completed = getattr(event, "interaction", None)
+                    elif kind == "error":
+                        return _StreamResult(status="failed", output_text="",
+                                             errors=getattr(event, "error", None))
+            except Exception as exc:
+                status, message = _err(exc)
+                # 只有「連線中斷」（沒有 HTTP 狀態碼）而且拿得到 interaction ID 才接續
+                if status is not None or not interaction_id or resumes >= STREAM_RESUME_ATTEMPTS:
+                    raise
+                disconnect = message
+            finally:
+                close = getattr(stream, "close", None)
+                if close:
+                    close()
+
+            if disconnect is None:
+                break
+            resumes += 1
+            log(f"    串流中斷（{disconnect[:100]}），{STREAM_RESUME_WAIT} 秒後從中斷處接續（第 {resumes} 次）")
+            time.sleep(STREAM_RESUME_WAIT)
+            if last_event_id is None:
+                parts.clear()      # 還沒收到可定位的事件：從頭收，避免文字重複
+            stream = client.interactions.get(id=interaction_id, stream=True,
+                                             last_event_id=last_event_id,
+                                             timeout=SEGMENT_TIMEOUT)
+
+        if completed is None:
+            raise RuntimeError("串流在收到完成事件前就結束了")
+        text = "".join(parts) or _output_text(completed)
+        return _StreamResult(status=str(getattr(completed, "status", "")),
+                             output_text=text,
+                             errors=getattr(completed, "errors", None))
 
     def _probe(self, key):
         """送一個極小的文字請求，幾秒內確認這把金鑰＋模型現在可用。

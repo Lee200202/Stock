@@ -259,7 +259,9 @@ class TestSchedule(unittest.TestCase):
             N.parse_hhmm("1120")
 
     def test_defaults_match_the_agreed_schedule(self):
-        self.assertEqual(N.POLL_START, "11:20")
+        # 起點照實測定：影片在直播結束時才進頻道清單，
+        # 最近五集落在 11:04～11:24，所以 11:05 起跑。
+        self.assertEqual(N.POLL_START, "11:05")
         self.assertEqual(N.POLL_INTERVAL, 180)
 
     def test_weekend_is_skipped(self):
@@ -751,6 +753,106 @@ class TestSheetErrorMessages(unittest.TestCase):
         src = inspect.getsource(N.open_sheets)
         self.assertIn("except PermissionError", src)
         self.assertIn("SpreadsheetNotFound", src)
+
+
+class FakeEvent:
+    def __init__(self, **kw):
+        for k, v in kw.items():
+            setattr(self, k, v)
+
+
+class FakeDelta:
+    def __init__(self, text):
+        self.type = "text"
+        self.text = text
+
+
+class TestStreamEventShape(unittest.TestCase):
+    """串流事件的形狀不能猜。
+
+    2026/09/19 實測踩到：第一版寫成讀 event.delta 與 event.status，
+    但真正的形狀是 event.event_type=="step.delta" → event.delta.text，
+    最終狀態在 event.event_type=="interaction.completed" → event.interaction.status。
+    結果一個字都沒收到，每一段都被判成「無輸出」而失敗——
+    而且失敗訊息只說「狀態 in_progress」，完全看不出是解析錯了。
+    """
+
+    def _stream(self, events):
+        class Stream:
+            def __init__(self, evs):
+                self.evs = evs
+
+            def __iter__(self):
+                return iter(self.evs)
+
+            def close(self):
+                pass
+        return Stream(events)
+
+    def _transcriber(self, events):
+        import types
+        tr = N.Transcriber(["k1"], model="m1", fallback=[], probe=False)
+        stream = self._stream(events)
+        tr.clients[0] = types.SimpleNamespace(
+            interactions=types.SimpleNamespace(
+                create=lambda **kw: stream,
+                get=lambda **kw: stream))
+        return tr
+
+    def test_collects_text_from_step_delta(self):
+        done = FakeEvent(event_type="interaction.completed",
+                         interaction=FakeEvent(status="completed", output_text=""))
+        events = [
+            FakeEvent(event_type="interaction.created", event_id="1",
+                      interaction=FakeEvent(id="i1")),
+            FakeEvent(event_type="step.delta", event_id="2", delta=FakeDelta("前半段")),
+            FakeEvent(event_type="step.delta", event_id="3", delta=FakeDelta("後半段")),
+            done,
+        ]
+        r = self._transcriber(events)._run_stream({"model": "m1"})
+        self.assertEqual(r.output_text, "前半段後半段")
+        self.assertEqual(r.status, "completed")
+
+    def test_ignores_non_text_deltas(self):
+        """delta.type 不是 text 的事件（思考過程之類）不能混進逐字稿。"""
+        events = [
+            FakeEvent(event_type="step.delta", event_id="1",
+                      delta=FakeEvent(type="thinking", text="不該收這個")),
+            FakeEvent(event_type="step.delta", event_id="2", delta=FakeDelta("只要這個")),
+            FakeEvent(event_type="interaction.completed",
+                      interaction=FakeEvent(status="completed", output_text="")),
+        ]
+        r = self._transcriber(events)._run_stream({"model": "m1"})
+        self.assertEqual(r.output_text, "只要這個")
+
+    def test_error_event_becomes_failed(self):
+        events = [
+            FakeEvent(event_type="error", event_id="1",
+                      error="high demand, please try again later"),
+        ]
+        r = self._transcriber(events)._run_stream({"model": "m1"})
+        self.assertEqual(r.status, "failed")
+        self.assertTrue(N._is_overload(None, str(r.errors)),
+                        "串流裡的 error 事件要認得出是負載過高")
+
+    def test_stream_without_completed_event_is_an_error(self):
+        """沒收到完成事件就結束 → 要丟例外，不能把半截當成成功。"""
+        events = [FakeEvent(event_type="step.delta", event_id="1", delta=FakeDelta("半截"))]
+        with self.assertRaises(RuntimeError):
+            self._transcriber(events)._run_stream({"model": "m1"})
+
+    def test_handler_reads_the_right_attributes(self):
+        import inspect
+        src = inspect.getsource(N.Transcriber._run_stream)
+        for must in ('"step.delta"', '"interaction.completed"',
+                     'getattr(delta, "type", None)', 'getattr(delta, "text"'):
+            self.assertIn(must, src, must)
+
+    def test_background_timeout_cancels_the_job(self):
+        """背景模式逾時要先取消，否則工作還在跑、還在計額度。"""
+        import inspect
+        src = inspect.getsource(N.Transcriber._wait)
+        self.assertIn("interactions.cancel", src)
 
 
 if __name__ == "__main__":

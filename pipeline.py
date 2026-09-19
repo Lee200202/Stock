@@ -594,10 +594,16 @@ def auto_refresh_after_write(what: str = "資料"):
     print(f"{what}已寫入，接著讓網站跟上（代號比對→重算追蹤→記錄績效）……")
     maybe_refresh_site(only=LIGHT_REFRESH_STEPS, force=True)
 
-# VOD 最早可能出現的台灣時間（小時）。直播約 12:30 到 13:00 結束，
-# YouTube 轉檔再十幾分鐘，所以這之前敲門必定空手而回。
-# 探測模式用它判斷哪些觸發點是純粹浪費，可以直接跳過。
-VOD_EARLIEST_HOUR = int(os.environ.get("VOD_EARLIEST_HOUR", "12"))
+# VOD 最早可能出現的台灣時間（小時）。
+#
+# 實測（2026/09）：直播平日約 10:00 開播、11:01～11:19 結束，
+# YouTube 回放再花 3～5 分鐘處理好，所以最早 11:25 前後就拿得到。
+# 原本設 12 是舊時程（那時直播到 12:30～13:00）留下的，沒跟著改的話，
+# 11:20 與 11:50 那兩輪會被當成「必定空手」而跳過，白白晚半小時。
+#
+# 只在「頻道上還沒有今天那支影片」時才用得到：影片已經列出來的話，
+# 探測直接判定有事要做，不會走到這個判斷。
+VOD_EARLIEST_HOUR = int(os.environ.get("VOD_EARLIEST_HOUR", "11"))
 
 
 def write_preflight(has_work: str, reason: str):
@@ -9055,10 +9061,10 @@ def stage_transcript(ss, video, date_str):
         # 它會被記成「等待中」、綠燈結束、不觸發失敗告警，下一棒再看一次。
         # 這與先前「VOD 還在轉檔」走的是同一條路，行為完全一致。
         raise NotReadyYet(
-            f"{date_str} 的原始逐字稿還沒有貼進試算表。"
-            "請到後台「投稿逐字稿」貼上當天的逐字稿並送出，"
-            "或直接填進「影片清單」的原始逐字稿內容欄；"
-            "貼好之後這條排程下一棒就會自動接著跑完後面的流程。")
+            f"{date_str} 的原始逐字稿還沒有進到試算表。"
+            "正常情況下 transcript.yml 會在 11:25 前後用 Gemini 聽打並寫進來，"
+            "這一棒只要等下一輪即可；真的一直沒有，就到後台「投稿逐字稿」"
+            "自己貼一份，貼好之後下一棒會自動接著跑完後面的流程。")
 
     v2 = polish(v1)
     write_transcripts(ss, video["id"], v1, v2, date_str)   # 潤飾完再補寫 v2

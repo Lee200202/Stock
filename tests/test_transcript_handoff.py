@@ -23,7 +23,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 os.environ.setdefault("SPREADSHEET_ID", "test")
 os.environ.setdefault("GEMINI_API_KEY", "AIzaSyDUMMY_local_import_only_0000000000")
-_spec = importlib.util.spec_from_file_location("pl", ROOT / "pipeline.py")
+_spec = importlib.util.spec_from_file_location("pl", ROOT / "pipeline" / "pipeline.py")
 pl = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(pl)
 
@@ -43,7 +43,7 @@ class WritesWhereTheNextStageReads(unittest.TestCase):
         self.assertEqual(T.VIDEO_SHEET, "影片清單")
 
     def test_same_column_names(self):
-        src = (ROOT / "pipeline.py").read_text(encoding="utf-8")
+        src = (ROOT / "pipeline" / "pipeline.py").read_text(encoding="utf-8")
         for col in (T.COL_RAW, T.COL_POLISHED, T.COL_DATE, T.COL_ID):
             self.assertIn(f"'{col}'", src, f"pipeline.py 沒有讀 {col}")
 

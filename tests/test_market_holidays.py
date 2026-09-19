@@ -22,7 +22,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-import market_holidays as H   # noqa: E402
+from pipeline import market_holidays as H   # noqa: E402
 
 
 class ListContents(unittest.TestCase):
@@ -86,8 +86,18 @@ class Behaviour(unittest.TestCase):
         self.assertTrue(H.is_trading_day(far))
 
 
+GS = ROOT / "apps-script" / "Holidays.gs"
+
+
+@unittest.skipUnless(GS.exists(),
+                     "apps-script/ 不在這份 checkout 裡（下游程式碼另外保管）")
 class PythonAndAppsScriptStayInSync(unittest.TestCase):
-    """兩邊分開手改遲早會不一致，所以一律由 scripts/update_holidays.py 產生。"""
+    """兩邊分開手改遲早會不一致，所以一律由 scripts/update_holidays.py 產生。
+
+    apps-script/ 只存在於完整的工作目錄，部署用的儲存庫不放它
+    （那些檔案是貼進 Apps Script 編輯器的，不經過 GitHub Actions）。
+    所以檔案不在時整組略過，而不是報錯——報錯會讓真正的失敗被淹掉。
+    """
 
     def gas_dates(self):
         gs = (ROOT / "apps-script" / "Holidays.gs").read_text(encoding="utf-8")
@@ -108,25 +118,33 @@ class WiredIntoAllThreeDecisionPoints(unittest.TestCase):
 
     def test_transcript_uses_why_closed(self):
         src = (ROOT / "transcript.py").read_text(encoding="utf-8")
-        self.assertIn("from market_holidays import", src)
+        self.assertIn("from pipeline.market_holidays import", src)
         self.assertIn("why_closed(target)", src)
         self.assertNotIn("target.weekday() >= 5 and not args.force", src)
 
     def test_pipeline_uses_why_closed(self):
-        src = (ROOT / "pipeline.py").read_text(encoding="utf-8")
+        src = (ROOT / "pipeline" / "pipeline.py").read_text(encoding="utf-8")
         self.assertIn("from market_holidays import why_closed", src)
         self.assertIn("why_closed(today)", src)
 
+    @unittest.skipUnless((ROOT / "apps-script" / "MailService.gs").exists(),
+                         "apps-script/ 不在這份 checkout 裡")
     def test_apps_script_uses_why_closed(self):
         src = (ROOT / "apps-script" / "MailService.gs").read_text(encoding="utf-8")
         self.assertIn("return !whyClosed_(new Date());", src)
 
-    def test_holiday_module_shipped_next_to_nested_pipeline(self):
-        """pipeline/pipeline.py 會被單獨部署，同目錄要有 market_holidays.py，
-        否則那份會在 import 就炸掉。"""
+    def test_lives_only_in_pipeline_folder(self):
+        """只留 pipeline/ 底下那一份。
+
+        根目錄再放一份 pipeline.py 的話，它會以模組名 `pipeline` 蓋過
+        `pipeline/` 這個命名空間套件，讓 `from pipeline.market_holidays import`
+        反而去載入 pipeline.py——這是實際踩過的坑。
+        """
         self.assertTrue((ROOT / "pipeline" / "market_holidays.py").exists())
-        self.assertEqual((ROOT / "market_holidays.py").read_bytes(),
-                         (ROOT / "pipeline" / "market_holidays.py").read_bytes())
+        self.assertFalse((ROOT / "market_holidays.py").exists(),
+                         "根目錄不該再有一份，會與 pipeline/ 套件同名衝突")
+        self.assertFalse((ROOT / "pipeline.py").exists(),
+                         "根目錄不該再有 pipeline.py，會蓋過 pipeline/ 套件")
 
 
 if __name__ == "__main__":

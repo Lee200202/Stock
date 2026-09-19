@@ -33,7 +33,7 @@ from datetime import date, datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from market_holidays import is_trading_day   # noqa: E402
+from pipeline.market_holidays import is_trading_day   # noqa: E402
 
 
 def die(msg):

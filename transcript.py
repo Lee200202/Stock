@@ -54,7 +54,7 @@ import gspread
 import requests
 from google.oauth2.service_account import Credentials
 
-from market_holidays import is_trading_day, why_closed
+from pipeline.market_holidays import is_trading_day, why_closed
 
 # ---------------------------------------------------------------- #
 # 設定

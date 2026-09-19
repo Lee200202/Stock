@@ -28,7 +28,23 @@ import gspread
 import requests
 from google.oauth2.service_account import Credentials
 
-from market_holidays import why_closed
+# market_holidays.py 就在本檔旁邊。
+# 直接執行（python pipeline/pipeline.py）時 sys.path[0] 就是這個目錄，找得到；
+# 被測試以檔案路徑載入時 sys.path[0] 是專案根目錄，那裡沒有這個模組。
+#
+# 退路刻意不用 sys.path.insert：那會把 pipeline/ 永久插進搜尋路徑，
+# 同一個程序裡後面的 `from pipeline import ...` 就會找不到套件
+# （實測跑整套測試時就是這樣壞的）。改成直接依路徑載入，不動全域狀態。
+try:
+    from market_holidays import why_closed
+except ModuleNotFoundError:
+    import importlib.util as _ilu
+    _mh_spec = _ilu.spec_from_file_location(
+        "market_holidays",
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "market_holidays.py"))
+    _mh = _ilu.module_from_spec(_mh_spec)
+    _mh_spec.loader.exec_module(_mh)
+    why_closed = _mh.why_closed
 from pypinyin import lazy_pinyin
 import difflib
 import threading

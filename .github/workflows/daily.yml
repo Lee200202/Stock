@@ -197,17 +197,14 @@ jobs:
       # 但真正的問題是 pipeline.py 還是舊版）。這一步把它講清楚。
       - name: 確認 pipeline.py 版本相符
         run: |
-          if [ -f "pipeline.py" ]; then
-            PIPELINE_SCRIPT="pipeline.py"
-          elif [ -f "pipeline/pipeline.py" ]; then
-            PIPELINE_SCRIPT="pipeline/pipeline.py"
-          else
-            echo "::error::找不到 pipeline.py！請確認 pipeline.py 位於根目錄或 pipeline/ 目錄下。"
-            exit 1
-          fi
-
-          if [ -f pipeline.py ] && [ -f pipeline/pipeline.py ] && ! cmp -s pipeline.py pipeline/pipeline.py; then
-            echo '::error::兩份 pipeline.py 不一致；請先執行 python scripts/sync_quality.py 並一併提交。'
+          # 只有一份，就在 pipeline/ 底下。
+          #
+          # 以前根目錄還放一份副本，兩份要靠人同步，所以這裡得先挑一份再比對。
+          # 那個副本已經移除：根目錄的 pipeline.py 會以模組名 pipeline 蓋過
+          # pipeline/ 這個套件，讓 `from pipeline.market_holidays import` 載錯東西。
+          PIPELINE_SCRIPT="pipeline/pipeline.py"
+          if [ ! -f "$PIPELINE_SCRIPT" ]; then
+            echo "::error::找不到 $PIPELINE_SCRIPT。"
             exit 1
           fi
           if ! grep -q 'evidence-v2' "$PIPELINE_SCRIPT"; then
@@ -259,7 +256,7 @@ jobs:
           CMONEY_MEMBER_ID: ${{ github.event.inputs.sms_member_id || secrets.CMONEY_MEMBER_ID || vars.CMONEY_MEMBER_ID }}
           # VOD 最早可能出現的台灣時間。這之前的觸發點一律跳過。
           VOD_EARLIEST_HOUR: '12'
-        run: python "${PIPELINE_SCRIPT:-pipeline.py}"
+        run: python "${PIPELINE_SCRIPT:-pipeline/pipeline.py}"
 
       - name: 沒事可做，本輪結束
         if: steps.preflight.outputs.has_work != 'true'
@@ -348,4 +345,4 @@ jobs:
           REFRESH_SITE: ${{ github.event.inputs.refresh_site }}
           APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
           ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
-        run: python "${PIPELINE_SCRIPT:-pipeline.py}"
+        run: python "${PIPELINE_SCRIPT:-pipeline/pipeline.py}"

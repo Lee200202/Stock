@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-從證交所抓台股休市日，重新產生 market_holidays.py 與 apps-script/Holidays.gs。
+從證交所抓台股休市日，重新產生 pipeline/market_holidays.py 與 apps-script/Holidays.gs。
 
 每年年底證交所公布次年行事曆之後跑一次：
 
@@ -79,7 +79,7 @@ def main(argv):
             py_lines.append(f'    "{d}",  # ({wd}) {name}')
             gs_lines.append(f"  '{d}',  // ({wd}) {name}")
 
-    py = ROOT / "market_holidays.py"
+    py = ROOT / "pipeline" / "market_holidays.py"
     src = py.read_text(encoding="utf-8")
     a = src.index("MARKET_HOLIDAYS = (\n") + len("MARKET_HOLIDAYS = (\n")
     b = src.index("\n)\n", a)

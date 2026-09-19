@@ -145,4 +145,4 @@ jobs:
           PYTHONUNBUFFERED: '1'
         run: |
           echo "SPREADSHEET_ID 已指向測試表，pipeline.py 不會碰正式資料。"
-          python pipeline.py
+          python pipeline/pipeline.py

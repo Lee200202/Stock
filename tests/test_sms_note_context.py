@@ -19,7 +19,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 os.environ.setdefault("SPREADSHEET_ID", "test")
 os.environ.setdefault("GEMINI_API_KEY", "AIzaSyDUMMY_local_import_only_0000000000")
-_spec = importlib.util.spec_from_file_location("pl", ROOT / "pipeline.py")
+_spec = importlib.util.spec_from_file_location("pl", ROOT / "pipeline" / "pipeline.py")
 pl = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(pl)
 
@@ -119,7 +119,7 @@ class PromptRules(unittest.TestCase):
         這個專案的底線是「只呈現影片中明確講過的內容」。放寬 note 的同時
         必須把邊界寫死，否則模型會開始補技術指標與價位。
         """
-        src = (ROOT / "pipeline.py").read_text(encoding="utf-8")
+        src = (ROOT / "pipeline" / "pipeline.py").read_text(encoding="utf-8")
         i = src.index("【note 說明重點】")
         block = src[i:i + 1200]
         self.assertIn("當日逐字稿摘錄", block)
@@ -128,13 +128,8 @@ class PromptRules(unittest.TestCase):
 
     def test_excerpt_is_labelled_in_user_message(self):
         """摘錄要標清楚來源，否則模型會把它當成簡訊本文而誤開筆。"""
-        src = (ROOT / "pipeline.py").read_text(encoding="utf-8")
+        src = (ROOT / "pipeline" / "pipeline.py").read_text(encoding="utf-8")
         self.assertIn("不得據此新增或刪除任何一檔", src)
-
-    def test_root_and_nested_pipeline_stay_identical(self):
-        self.assertEqual((ROOT / "pipeline.py").read_bytes(),
-                         (ROOT / "pipeline" / "pipeline.py").read_bytes())
-
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

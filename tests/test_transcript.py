@@ -705,5 +705,53 @@ class TestStreamResultCarriesErrors(unittest.TestCase):
         self.assertEqual(src.count("raise ModelOverloaded"), 2)
 
 
+class TestSheetErrorMessages(unittest.TestCase):
+    """開不了試算表時，訊息要直接講出「該分享給誰」。
+
+    2026/09/18 實測踩到：gspread 6 把 HTTP 錯誤換成別的型別再丟出來——
+    403 變成內建的 PermissionError（訊息還是空的）、404 變成 SpreadsheetNotFound，
+    都不是 APIError。原本只接 APIError，於是這兩種最常見的狀況完全沒被接到，
+    使用者看到的是一長串 traceback 加一行空的 PermissionError，
+    看不出要去分享試算表、更看不出要分享給哪個信箱。
+    """
+
+    EMAIL = "sheets-writer@proj.iam.gserviceaccount.com"
+
+    def _run(self, raises):
+        import types as _t
+        import gspread as _g
+        saved_creds, saved_auth = N._sheets_credentials, _g.authorize
+        saved_id = N.SPREADSHEET_ID
+        N.SPREADSHEET_ID = "dummy"
+        N._sheets_credentials = lambda: (object(), self.EMAIL)
+        _g.authorize = lambda c: _t.SimpleNamespace(
+            open_by_key=lambda k: (_ for _ in ()).throw(raises))
+        try:
+            with self.assertRaises(SystemExit) as cm:
+                N.open_sheets()
+            return str(cm.exception)
+        finally:
+            N._sheets_credentials, _g.authorize = saved_creds, saved_auth
+            N.SPREADSHEET_ID = saved_id
+
+    def test_403_names_the_service_account(self):
+        msg = self._run(PermissionError())
+        self.assertIn("403", msg)
+        self.assertIn(self.EMAIL, msg)
+        self.assertIn("編輯者", msg)
+
+    def test_404_points_at_the_id(self):
+        import gspread
+        msg = self._run(gspread.exceptions.SpreadsheetNotFound("nope"))
+        self.assertIn("404", msg)
+        self.assertIn("SPREADSHEET_ID", msg)
+
+    def test_handler_covers_the_types_gspread_actually_raises(self):
+        import inspect
+        src = inspect.getsource(N.open_sheets)
+        self.assertIn("except PermissionError", src)
+        self.assertIn("SpreadsheetNotFound", src)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

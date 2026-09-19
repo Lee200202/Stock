@@ -80,6 +80,53 @@ def expect(got, want, what):
     return ok
 
 
+
+
+def run_capture(fn):
+    """跑一段並把它印的東西收下來，原樣轉印。
+
+    為什麼要收：退出碼 0 代表的情況有很多種——寫入成功、已有稿、
+    手動優先停手、還沒到時間、日期不對……只驗退出碼的話，一幕可能
+    「因為完全不同的理由」而通過，測了等於沒測。
+    2026/09/19 實測就踩到：第 2、4 幕其實停在「日期還沒到」，
+    連 YouTube 都沒查，但退出碼一樣是 0，看起來全過。
+    """
+    import io
+    import contextlib
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        code = fn()
+    out = buf.getvalue()
+    for line in out.splitlines():
+        print("  │ " + line)
+    return code, out
+
+
+def says(out, phrase, what):
+    """驗「它是為了什麼理由結束的」，這比退出碼精確得多。"""
+    ok = phrase in out
+    mark = "\033[1;32m通過\033[0m" if ok else "\033[1;31m不符\033[0m"
+    print(f"  [{mark}] {what}：訊息{'有' if ok else '沒有'}出現「{phrase}」")
+    return ok
+
+
+class Unblocked:
+    """暫時關掉週末／休市的擋門，讓演練在任何一天都跑得到後面那幾關。
+
+    正式排程不會這樣做。這裡只是為了讓「時段」「沒有影片」「輪詢」
+    這三件事在週六日或休市日也驗得到。
+    """
+
+    def __init__(self, T):
+        self.T = T
+
+    def __enter__(self):
+        self.saved = self.T.why_closed
+        self.T.why_closed = lambda d: ""
+        return self
+
+    def __exit__(self, *a):
+        self.T.why_closed = self.saved
 def main():
     ap = argparse.ArgumentParser(description="逐字稿取稿端對端演練（只對測試表）")
     ap.add_argument("--date", help="第 5 幕要抓哪一天，預設抓頻道最近一集")
@@ -94,29 +141,34 @@ def main():
 
     results = []
 
+    # 演練用「今天」當標的。cmd_auto 的時段是相對目標日期算的，
+    # 拿過去或未來的日期當標的，它會停在「日期還沒到／已過」就返回，
+    # 根本走不到後面那幾關——那正是 2026/09/19 那次假性通過的原因。
+    today = date.today()
+
     # ---- 第 1 幕：時間還沒到 ---- #
     banner(1, "時間還沒到，排程應該直接返回")
     T.POLL_START, T.POLL_UNTIL = "23:58", "23:59"
-    # 要挑一個「真的會開盤」的日子，否則會走到休市那個分支，
-    # 退出碼一樣是 0，但驗到的就不是「時間還沒到」這件事了。
-    probe = date.today()
-    for _ in range(14):
-        if is_trading_day(probe):
-            break
-        probe -= timedelta(days=1)
-    print(f"  用 {probe:%Y/%m/%d}（交易日）測「時間還沒到」")
-    code = T.cmd_auto(argparse.Namespace(date=probe, once=True, force=False))
-    results.append(expect(code, 0, "退出碼（沒到時間要綠燈結束）"))
+    print(f"  目標 {today:%Y/%m/%d}（今天），時段設在 23:58－23:59")
+    with Unblocked(T):
+        code, out = run_capture(lambda: T.cmd_auto(
+            argparse.Namespace(date=today, once=True, force=False)))
+    results.append(expect(code, 0, "退出碼"))
+    results.append(says(out, "還沒到 23:58", "是因為「還沒到時段」而返回"))
 
-    # ---- 第 2 幕：時間到了，但那一天沒有影片 ---- #
-    banner(2, "時段內，但目標日沒有影片")
+    # ---- 第 2 幕：時段內，但找不到影片 ---- #
+    banner(2, "時段內，但那一天沒有影片")
     T.POLL_START, T.POLL_UNTIL = "00:00", "23:59"
-    # 挑一個一定沒有影片的未來平日
-    future = date.today() + timedelta(days=30)
-    while not is_trading_day(future):
-        future += timedelta(days=1)
-    code = T.cmd_auto(argparse.Namespace(date=future, once=True, force=False))
+    saved_find = T.find_video
+    T.find_video = lambda d: None        # 模擬頻道上還沒有當天那一集
+    try:
+        with Unblocked(T):
+            code, out = run_capture(lambda: T.cmd_auto(
+                argparse.Namespace(date=today, once=True, force=False)))
+    finally:
+        T.find_video = saved_find
     results.append(expect(code, 0, "退出碼（沒影片是常態，不該紅燈）"))
+    results.append(says(out, "還沒出現在頻道清單上", "是因為「查不到影片」而返回"))
 
     # ---- 第 3 幕：回放就緒判斷 ---- #
     banner(3, "回放就緒判斷（不呼叫 Gemini）")
@@ -139,16 +191,27 @@ def main():
 
     # ---- 第 4 幕：真的跑輪詢迴圈 ---- #
     banner(4, f"每 {T.POLL_INTERVAL} 秒敲一次門，看 {args.rounds} 輪")
-    print("  這一幕故意指向沒有影片的未來日期，所以每一輪都會回報「還沒出現」，")
-    print("  重點是看它有沒有按規律重試、有沒有在時間預算內收工。")
-    saved_budget = T.TIME_BUDGET
+    print("  目標日期用今天、時段整天打開，但把 find_video 換成「永遠找不到」。")
+    print("  這樣每一輪都會走到 YouTube 那一關並回報「還沒出現」，")
+    print("  才驗得到它有沒有按規律重試、有沒有在預算內收工。")
+    saved_budget, saved_find = T.TIME_BUDGET, T.find_video
     T.TIME_BUDGET = T.POLL_INTERVAL * args.rounds + 5
+    T.POLL_START, T.POLL_UNTIL = "00:00", "23:59"
+    tries = []
+    T.find_video = lambda d: tries.append(d) or None
     t0 = time.monotonic()
-    code = T.cmd_auto(argparse.Namespace(date=future, once=False, force=False))
+    try:
+        with Unblocked(T):
+            code, out = run_capture(lambda: T.cmd_auto(
+                argparse.Namespace(date=today, once=False, force=False)))
+    finally:
+        T.find_video = saved_find
+        budget_used, T.TIME_BUDGET = T.TIME_BUDGET, saved_budget
     spent = time.monotonic() - t0
-    budget_used = T.TIME_BUDGET
-    T.TIME_BUDGET = saved_budget
     results.append(expect(code, 0, "退出碼"))
+    results.append(expect(len(tries) >= args.rounds, True,
+                          f"真的敲了 {args.rounds} 輪以上（實際 {len(tries)} 輪）"))
+    results.append(says(out, "交給下一次排程接力", "是因為預算用盡而收工，不是別的理由"))
     print(f"  實際跑了 {spent / 60:.1f} 分鐘（本幕預算 {budget_used / 60:.1f} 分鐘）")
 
     if not args.live:

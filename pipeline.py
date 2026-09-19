@@ -1584,11 +1584,29 @@ def sheets_retry(fn, *args, **kwargs):
 
 def open_sheets():
     info = json.loads(env("GOOGLE_SHEETS_SERVICE_ACCOUNT"))
+    who = info.get("client_email", "（讀不到）")
     creds = Credentials.from_service_account_info(
         info, scopes=["https://www.googleapis.com/auth/spreadsheets"]
     )
     gc = gspread.authorize(creds)
-    return sheets_retry(gc.open_by_key, SPREADSHEET_ID)
+    # gspread 6 會把 HTTP 錯誤換成別的型別：403 變成內建的 PermissionError
+    # （訊息是空的）、404 變成 SpreadsheetNotFound。不特別接的話，
+    # 使用者看到的是一長串 traceback，看不出「要去把試算表分享給誰」。
+    try:
+        return sheets_retry(gc.open_by_key, SPREADSHEET_ID)
+    except PermissionError:
+        raise SystemExit(
+            f"開不了試算表（HTTP 403）。\n"
+            f"\n"
+            f"  要分享給這個信箱（權限給「編輯者」）：\n"
+            f"      {who}\n"
+            f"\n"
+            f"  試算表 →「共用」→ 貼上上面那個信箱 → 權限選「編輯者」。\n"
+            f"  另一個可能：專案沒有啟用 Google Sheets API 與 Google Drive API。")
+    except gspread.exceptions.SpreadsheetNotFound:
+        raise SystemExit(
+            f"找不到這張試算表（HTTP 404）。SPREADSHEET_ID 可能貼錯了。\n"
+            f"  ID 是網址中 /d/ 與 /edit 之間那一長串。")
 
 
 def video_rows(ss):

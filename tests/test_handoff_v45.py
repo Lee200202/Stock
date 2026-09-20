@@ -83,4 +83,3 @@ class HandoffV45(unittest.TestCase):
             self.assertNotIn("(ROOT/'pipeline.py').write_bytes",sync.read_text(encoding='utf-8'))
 
 if __name__=='__main__':unittest.main()
-

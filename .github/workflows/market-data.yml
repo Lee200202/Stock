@@ -1,7 +1,7 @@
 name: market-data-cache
 on:
   schedule:
-    - cron: '17 1-13 * * 1-5' # 台北09:17–21:17，每小時；盤後國際資料仍更新
+    - cron: '20 9,13 * * 1-5' # 台北17:20／21:20：盤後台股與國際日資料；盤中由GAS共用快取
     - cron: '35 11 * * 1-5' # 台北19:35，只補Yahoo歷史分K備援
   workflow_dispatch:
     inputs:
@@ -23,13 +23,30 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - name: 休市日預檢
+        id: calendar
+        env:
+          SCHEDULE: ${{ github.event.schedule }}
+        run: |
+          python - <<'PY'
+          import os
+          from datetime import datetime
+          from zoneinfo import ZoneInfo
+          from pipeline.market_holidays import is_trading_day
+          skip = os.environ.get('SCHEDULE') == '35 11 * * 1-5' and not is_trading_day(datetime.now(ZoneInfo('Asia/Taipei')).date())
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f: f.write('run='+str(not skip).lower()+'\n')
+          print('台股休市，略過分K補抓' if skip else '繼續更新適用市場')
+          PY
       - uses: actions/setup-python@v5
+        if: steps.calendar.outputs.run == 'true'
         with:
           python-version: '3.11'
           cache: pip
           cache-dependency-path: requirements-market.txt
       - run: pip install -r requirements-market.txt
+        if: steps.calendar.outputs.run == 'true'
       - name: 更新行情快取（不跑AI、不寄信）
+        if: steps.calendar.outputs.run == 'true'
         env:
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
           GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}

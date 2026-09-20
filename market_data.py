@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 import requests
 import gspread
 from transcript import open_sheets, sheets_retry
+from pipeline.market_holidays import is_trading_day
 
 TZ = ZoneInfo('Asia/Taipei')
 HEADERS = ['代號', '更新時間', '資料JSON', '來源', '狀態']
@@ -131,8 +132,36 @@ def macro_card(frame, key, label, unit):
     prev = valid[-2][1]
     return dict(key=key,label=label,unit=unit,value=value,change=value-prev,
                 percent=(value/prev-1)*100 if prev else None,
-                time=at.strftime('%Y/%m/%d'),source='Yahoo Finance 日資料（非即時）',
+                time=at.strftime('%Y/%m/%d'),source='Yahoo Finance 日資料（非即時）',candles=daily_bars(frame),
                 line=[dict(time=d.strftime('%Y/%m/%d'),value=v) for d,v in valid])
+
+
+def daily_bars(frame):
+    bars=[]
+    for at,r in frame.iterrows():
+        values=[number(r.get(k)) for k in ('Open','High','Low','Close','Volume')]
+        o,h,l,c,v=values
+        if any(x is None for x in values[:4]) or min(o,h,l,c)<=0 or h<max(o,c,l) or l>min(o,c,h):continue
+        bars.append([at.strftime('%Y/%m/%d')]+[round(x,6) for x in values[:4]]+[max(0,v or 0)])
+    return bars[-270:]
+
+
+def futures_card(rows, previous=None):
+    # 只用最近交易日、一般盤、實際近月單一契約。換月不把價差拼成假漲跌。
+    rows=[r for r in rows if r.get('Contract')=='TX' and r.get('TradingSession')=='一般'
+          and re.fullmatch(r'\d{6}',r.get('ContractMonth(Week)','')) and number(r.get('Last')) is not None]
+    if not rows:raise ValueError('期交所沒有台指期一般盤有效收盤')
+    day=max(r['Date'] for r in rows)
+    row=min((r for r in rows if r['Date']==day),key=lambda r:r['ContractMonth(Week)'])
+    contract=row['ContractMonth(Week)'];date=f'{day[:4]}/{day[4:6]}/{day[6:8]}'
+    bars=(previous or {}).get('candles',[]) if (previous or {}).get('contract')==contract else []
+    bar=[date]+[number(row.get(k)) for k in ('Open','High','Low','Last','Volume')]
+    if any(x is None for x in bar[1:]):raise ValueError('台指期 OHLC 不完整')
+    merged={b[0]:b for b in bars};merged[date]=bar;bars=[merged[k] for k in sorted(merged)][-270:]
+    return dict(key='tx',label='台指期 '+contract,unit='點',contract=contract,value=bar[4],
+      change=number(row.get('Change')),percent=number(row.get('%','').replace('%','')),
+      time=date,source='期交所一般盤收盤；單一近月契約，換月重新累積',candles=bars,
+      line=[dict(time=b[0],value=b[4]) for b in bars])
 
 
 class Store:
@@ -173,10 +202,11 @@ def fetch_twse(session):
     return parse_twse(report,companies,industry_labels(page.content.decode('utf-8')))
 
 
-def update_dashboard(ss, fetcher, yahoo):
+def update_dashboard(ss, fetcher, yahoo, taiwan=True):
     store=Store(ss,'市場總覽快取')
     errors=[]
     try:
+        if not taiwan:raise ValueError('台股休市，略過台股來源，保留最近交易日')
         taiex,sectors=fetch_twse(requests.Session())
         # 已存的每日收盤點累積成折線；盤中另由 GAS 的 Fugle 指數覆蓋。
         old=store.rows.get('taiex')
@@ -184,14 +214,29 @@ def update_dashboard(ss, fetcher, yahoo):
         points={r['time']:r for r in series}
         points[taiex['time']]={'time':taiex['time'],'value':taiex['value']}
         taiex['line']=[points[k] for k in sorted(points)][-90:]
+        taiex['candles']=json.loads(old[1][2]).get('candles',[]) if old else []
+        if yahoo:
+            try:
+                frame=fetcher.history('^TWII',period='1y',interval='1d')
+                taiex['candles']=daily_bars(frame)
+                taiex['line']=[dict(time=b[0],value=b[4]) for b in taiex['candles']][-90:]
+                taiex['historySource']='Yahoo 加權指數日K，與盤中指數分開顯示'
+            except Exception as exc:print('::warning::大盤歷史K：'+str(exc))
         store.put('taiex',taiex,'TWSE');store.put('sectors',sectors,'TWSE')
         print('證交所大盤與產業成交比重：'+taiex['time'])
     except Exception as exc:
-        errors.append('證交所：'+str(exc));print('::warning::'+errors[-1])
+        if taiwan:errors.append('證交所：'+str(exc));print('::warning::'+errors[-1])
+        else:print('台股休市，略過台股來源，保留最近交易日；國際資料獨立更新')
+    if taiwan:
+        try:
+            response=requests.get('https://openapi.taifex.com.tw/v1/DailyMarketReportFut',timeout=25);response.raise_for_status()
+            old=store.rows.get('tx');previous=json.loads(old[1][2]) if old else None
+            store.put('tx',futures_card(response.json(),previous),'TAIFEX')
+        except Exception as exc:errors.append('台指期：'+str(exc));print('::warning::'+errors[-1])
     if yahoo:
         for key,symbol,label,unit in MACROS:
             try:
-                frame=fetcher.history(symbol,period='3mo',interval='1d')
+                frame=fetcher.history(symbol,period='1y',interval='1d')
                 store.put(key,macro_card(frame,key,label,unit),'Yahoo Finance 日資料')
             except Exception as exc:
                 errors.append(label+'：'+str(exc));print('::warning::'+errors[-1])
@@ -239,8 +284,12 @@ def main():
     parser.add_argument('--limit',type=int,default=40)
     args=parser.parse_args()
     yahoo=os.environ.get('YAHOO_DATA_ENABLED','true').lower()=='true'
+    scheduled=os.environ.get('GITHUB_EVENT_NAME')=='schedule'
+    taiwan=not scheduled or is_trading_day(datetime.now(TZ).date())
+    if scheduled and not taiwan and args.mode=='hours':
+        print('台股休市，略過分K補抓；不開啟試算表');return
     ss=open_sheets();fetcher=Fetcher()
-    if args.mode in ('dashboard','all'):update_dashboard(ss,fetcher,yahoo)
-    if args.mode in ('hours','all') and yahoo:update_hours(ss,fetcher,args.codes.split(',') if args.codes else [],min(100,max(1,args.limit)))
+    if args.mode in ('dashboard','all'):update_dashboard(ss,fetcher,yahoo,taiwan)
+    if args.mode in ('hours','all') and yahoo and taiwan:update_hours(ss,fetcher,args.codes.split(',') if args.codes else [],min(100,max(1,args.limit)))
 
 if __name__=='__main__':main()

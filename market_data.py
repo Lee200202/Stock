@@ -191,6 +191,7 @@ class Store:
             sheets_retry(self.ws.append_row,row,value_input_option='RAW',insert_data_option='INSERT_ROWS')
             index=max([v[0] for v in self.rows.values()]+[1])+1
         self.rows[key]=(index,row)
+        if isinstance(data,dict):print(f'市場快取 {key}：{data.get("time",data.get("date",""))}，歷史K {len(data.get("candles",[]))} 根，已寫入')
 
 
 def fetch_twse(session):
@@ -263,7 +264,8 @@ def update_hours(ss, fetcher, codes, limit):
     count=0
     for code in codes:
         if count>=limit or fetcher.limited:break
-        if code not in mapping:continue
+        if code not in mapping:
+            print('::warning::'+code+' 不在現有官方市場對照，無法確認 .TW／.TWO，保留既有資料、不猜代號');continue
         old=store.rows.get(code)
         if old and old[1][1][:10]==now.strftime('%Y/%m/%d'):continue
         count+=1

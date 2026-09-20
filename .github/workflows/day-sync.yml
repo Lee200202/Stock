@@ -1,0 +1,30 @@
+name: day-edit-sync
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'queue 接續逐日編輯；performance 重建7/8起績效，不重抓逐字稿'
+        type: choice
+        options: [queue, performance]
+        default: queue
+permissions:
+  contents: read
+concurrency:
+  group: day-edit-sync
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests==2.32.5
+      - name: 接續後端檢查點
+        env:
+          MODE: ${{ inputs.mode }}
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
+        run: python scripts/day_sync.py

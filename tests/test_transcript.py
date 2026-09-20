@@ -205,12 +205,12 @@ class TestSaveTranscript(unittest.TestCase):
                            [{N.COL_DATE: "2026/09/17", N.COL_RAW: ""}])
         ss = FakeSpreadsheet(ws)
         N.save_transcript(ss, {"id": "abc", "title": "標題"},
-                          "2026/09/17", "全文" * 500, N.SRC_AUTO)
+                          "2026/09/17", "全文" * 500, N.SRC_MANUAL)
         written = dict(ws.updates)
         self.assertEqual([], ws.appended)
         # 原文寫在 F 欄、來源寫在 K 欄，都由表頭名稱推算，不是寫死的欄號
         self.assertIn("F2", written)
-        self.assertEqual(written["K2"], [[N.SRC_AUTO]])
+        self.assertEqual(written["K2"], [[N.SRC_MANUAL]])
         self.assertEqual(written["I2"], [[N.sha256("全文" * 500)]])
 
     def test_appends_when_day_absent(self):

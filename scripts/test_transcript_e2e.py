@@ -250,7 +250,7 @@ def main():
     else:
         print(f"\033[1;32m全部 {len(results)} 項符合預期。\033[0m")
     print("\n接下來把逐字稿交給潤飾稽核流程（同樣指向測試表）：")
-    print("  SPREADSHEET_ID=$TEST_SPREADSHEET_ID python pipeline.py")
+    print("  SPREADSHEET_ID=$TEST_SPREADSHEET_ID python pipeline/pipeline.py")
     return 1 if bad else 0
 
 

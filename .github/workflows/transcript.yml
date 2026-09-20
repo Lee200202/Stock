@@ -112,6 +112,12 @@ jobs:
             pip install -r pipeline/requirements.txt
           fi
 
+      - uses: actions/cache/restore@v4
+        with:
+          path: .transcript-cache
+          key: transcript-segments-v45-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: transcript-segments-v45-
+
       - name: 執行
         env:
           # Gemini。額度是每把金鑰、每個模型分開算的，所以可以填多把：
@@ -131,6 +137,7 @@ jobs:
           GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
 
           # 排程觸發時一律用預設值；手動觸發才讓上面那些輸入生效。
+          TRANSCRIPT_CACHE_DIR: .transcript-cache
           MODE: ${{ inputs.mode || 'auto' }}
           TARGET_DATE: ${{ inputs.date }}
           FORCE: ${{ inputs.force }}
@@ -170,3 +177,9 @@ jobs:
           # 1  其他失敗。
           echo "結束碼：$code"
           exit $code
+
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: .transcript-cache
+          key: transcript-segments-v45-${{ github.run_id }}-${{ github.run_attempt }}

@@ -1,0 +1,39 @@
+name: market-data-cache
+on:
+  schedule:
+    - cron: '17 1-13 * * 1-5' # 台北09:17–21:17，每小時；盤後國際資料仍更新
+    - cron: '35 11 * * 1-5' # 台北19:35，只補Yahoo歷史分K備援
+  workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        options: [dashboard, hours, all]
+        default: dashboard
+      codes:
+        description: '選填個股代號，以逗號分隔，例如6533'
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: market-data-cache
+  cancel-in-progress: false
+jobs:
+  cache:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: requirements-market.txt
+      - run: pip install -r requirements-market.txt
+      - name: 更新行情快取（不跑AI、不寄信）
+        env:
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
+          YAHOO_DATA_ENABLED: ${{ vars.YAHOO_DATA_ENABLED || 'true' }}
+          MODE: ${{ inputs.mode || (github.event.schedule == '35 11 * * 1-5' && 'hours' || 'dashboard') }}
+          CODES: ${{ inputs.codes }}
+        run: python market_data.py --mode "$MODE" --codes "$CODES"

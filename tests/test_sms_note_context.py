@@ -131,5 +131,50 @@ class PromptRules(unittest.TestCase):
         src = (ROOT / "pipeline" / "pipeline.py").read_text(encoding="utf-8")
         self.assertIn("不得據此新增或刪除任何一檔", src)
 
+class EnrichmentV46(unittest.TestCase):
+    def test_raw_transcript_wins_over_polished(self):
+        from unittest.mock import patch
+        pl._SMS_TX_CACHE.clear()
+        with patch.object(pl,'existing_transcript',return_value=(TX, '台積電完全不同的修飾稿。'*40)):
+            out=pl._sms_transcript_excerpt(None,'2026/09/18',SMS,CODE_MAP)
+        self.assertIn('晶心科',out)
+        self.assertNotIn('不同的修飾稿',out)
+
+    def test_confirmed_alias_and_following_reason_are_kept(self):
+        pl._SMS_TX_CACHE['2026/09/18']='金 星 科今天量縮。這一檔的法人持續買超，量能結構沒有走壞。台積電今天跌很多。'+'大盤震盪。'*60
+        out=pl._sms_transcript_excerpt(None,'2026/09/18','晶心科抱牢',CODE_MAP)
+        self.assertIn('法人持續買超',out)
+        self.assertNotIn('台積電',out)
+
+    def test_late_context_preserves_order_and_is_idempotent(self):
+        raw='晶心科法人持續買超，量能結構沒有走壞。'
+        candidate={'name':'晶心科','code':'6533','_evidence_verified':True,'evidence':[raw],
+                   'note':'法人持續買超，量能結構沒有走壞。會員應續抱。'}
+        note=pl.sms_context_note('271元以上獲利賣出。',candidate,raw)
+        self.assertTrue(note.startswith('271元以上獲利賣出。'))
+        self.assertIn('量能結構',note)
+        self.assertNotIn('應續抱',note)
+        self.assertEqual(pl.sms_context_note(note,candidate,raw),note)
+
+    def test_late_context_rejects_unverified_or_invented_numbers(self):
+        raw='晶心科法人持續買超。'
+        candidate={'name':'晶心科','code':'6533','evidence':[raw],'reason':'營收成長99%。'}
+        self.assertEqual(pl.sms_context_note('抱牢。',candidate,raw),'抱牢。')
+        candidate['_evidence_verified']=True
+        self.assertEqual(pl.sms_context_note('抱牢。',candidate,raw),'抱牢。')
+        candidate['evidence']=['原文沒有的引句']
+        self.assertEqual(pl.sms_context_note('抱牢。',candidate,raw),'抱牢。')
+
+    def test_saved_notes_no_longer_truncated(self):
+        import json
+        note='法人持續買超且量能維持穩定，股價在整理後逐步改善。營收與產品需求是本次說明的觀察重點，後续還需配合產業變化核對。盤面震盪時應關注量價與籌碼是否出現新的變化，保留原先操作條件並避免將不同股票的價位混用。'
+        ok,items=pl.load_saved_sms_items(json.dumps([{'name':'晶心科','code':'6533','action':'會員持股','note':note}]))
+        self.assertTrue(ok)
+        self.assertGreater(len(items[0]['note']),80)
+
+    def test_prompt_has_one_consistent_length_target(self):
+        self.assertNotIn('30字內',pl.CM_PARSE_SYSTEM)
+        self.assertIn('70 到 160',pl.CM_PARSE_SYSTEM)
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

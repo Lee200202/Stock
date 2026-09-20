@@ -1665,7 +1665,9 @@ def select_transcript_row(rows, video_id, date_str):
                   or norm_date(r.get('發布日期')) == date_str]
     def rank(pair):
         i, r = pair
-        return (bool(video_id and str(r.get('影片ID') or '').strip() == video_id),
+        manual = str(r.get('逐字稿來源') or '').strip() in ('手動', '手動保留') or (
+            not r.get('逐字稿來源') and bool(str(r.get('原始逐字稿內容') or '').strip()))
+        return (manual, bool(video_id and str(r.get('影片ID') or '').strip() == video_id),
                 str(r.get('原文更新時間') or ''), len(str(r.get('原始逐字稿內容') or '')), i)
     return max(candidates, key=rank) if candidates else (None, None)
 
@@ -1681,6 +1683,8 @@ def existing_transcript(ss, video_id, date_str):
         note_decision('讀取原文', '同日多份原文', date_str, message)
     if row is None:
         return '', ''
+    if row.get('逐字稿來源') == '手動保留':
+        raise NotReadyYet('此日已設手動保留，等待管理者貼上原稿')
     raw = str(row.get('原始逐字稿內容') or '')
     how = '影片ID' if str(row.get('影片ID') or '').strip() == video_id else '日期／更新時間'
     print(f'原文選列：第 {idx} 列，依 {how}；{len(raw)} 字；SHA256={hashlib.sha256(raw.encode("utf-8")).hexdigest()}')
@@ -1746,9 +1750,42 @@ def cell(text: str) -> str:
 
 
 def write_transcripts(ss, video_id, v1, v2, date_str=""):
-    ws, idx = find_video_row(ss, video_id, date_str)
+    ws = ss.worksheet('影片清單')
+    idx, row = select_transcript_row(sheets_retry(ws.get_all_records), video_id, date_str)
     if idx:
-        sheets_retry(ws.update, range_name=f"F{idx}:G{idx}", values=[[cell(v1), cell(v2)]])
+        if str(row.get('原始逐字稿內容') or '') != v1 or row.get('逐字稿來源') == '手動保留':
+            raise NotReadyYet('潤飾期間原稿已更新／改為手動保留，下一輪改讀新稿')
+        # 潤飾只寫 G，不把先前讀到的原稿寫回 F 蓋過剛貼的新稿。
+        sheets_retry(ws.update, range_name=f"G{idx}", values=[[cell(v2)]])
+
+
+def ready_transcript_video(rows, target):
+    """試算表已落地的稿先交棒，不再依賴 YouTube 重複列出同一支影片。"""
+    day = target.strftime('%Y/%m/%d')
+    _, row = select_transcript_row(rows, '', day)
+    if not row or row.get('逐字稿來源') == '手動保留':
+        return None
+    if len(str(row.get('原始逐字稿內容') or '').strip()) <= 200:
+        return None
+    return {'id': str(row.get('影片ID') or 'MANUAL-' + day.replace('/', '')),
+            'date': target, 'title': str(row.get('標題') or day + ' 盤中家教班')}
+
+
+def today_pipeline_inputs(ss, target):
+    rows = video_rows(ss)
+    ready = ready_transcript_video(rows, target)
+    done = {str(r.get('影片ID') or ''): str(r.get('處理狀態') or '') for r in rows}
+    _, selected = select_transcript_row(rows, '', target.strftime('%Y/%m/%d'))
+    if selected and selected.get('逐字稿來源') == '手動保留':
+        vid = str(selected.get('影片ID') or 'MANUAL-' + target.strftime('%Y%m%d'))
+        done[vid] = '手動保留'
+        return [{'id': vid, 'date': target, 'title': str(selected.get('標題') or '')}], done
+    if ready:
+        print('試算表原稿已就緒，直接交棒：' + ready['id'])
+        _, chosen = select_transcript_row(rows, '', target.strftime('%Y/%m/%d'))
+        done[ready['id']] = str(chosen.get('處理狀態') or '')
+        return [ready], done
+    return [v for v in fetch_feed() if is_target(v['title']) and v['date'] == target], done
 
 
 # ---------------------------------------------------------------- #
@@ -9611,6 +9648,12 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     step("寫入", f"把 {_n(signals)} 檔寫進試算表")
     write_results(ss, date_str, signals, article, done_trades, done_holds,
                   replace_video=replace_video)
+    try:
+        if enrich_sms_notes_from_signals(ss, date_str, signals, v1):
+            queue_sms_content_sync(ss, [date_str])
+    except Exception as exc:
+        print(f'簡訊說明補充尚未完成，保留原說明：{exc}')
+        note_decision('簡訊說明', '補充未完成', date_str, str(exc))
     # 逐字稿排版：寫入之後順手排好存起來，讀者打開就是現成的（2026/09/16）。
     # 排的是網站顯示的那一份；沒排成（中斷、配額）網站每 15 分鐘會補排（2026/09/17 v44）。
     ensure_transcript_layout(ss, date_str)
@@ -10225,14 +10268,15 @@ CM_PARSE_SYSTEM = (
     "簡訊常常只寫一句「某某連續大漲，務必抱牢」，那樣的 note 太空泛，"
     "讀的人看不出為什麼。若使用者訊息附有【當日逐字稿摘錄】，"
     "就從摘錄中找出這一檔的理由（族群、法人動向、技術位置、講者的持有理由等），"
-    "併進 note，寫成 40 到 70 字、看得出前因後果的一句或兩句話。\n"
+    "併進 note，寫成 2 到 4 句、約 70 到 160 字，第一句保留本則簡訊的操作結論，其後補原因與條件。\n"
+    "摘錄只補背景，不得更改簡訊的股票、action、price、limit；不同時點的看法不可冒充同一條新指令。\n"
     "但邊界不變：只能用簡訊或逐字稿摘錄裡真的講過的內容。"
     "沒有附摘錄、或摘錄裡沒提到這一檔時，就照簡訊原意寫，維持原本的簡短寫法，"
     "絕對不可以自己補技術指標、價位、法人動向或任何推測。\n\n"
 
     "【輸出格式】\n"
     "只回傳純 JSON：\n"
-    '{"items":[{"name":"股票名稱","code":"代號(無則留空)","action":"買入/賣出/會員持股/觀望不碰/觀望注意","price":"純數字價位(無則留空)","limit":"以上/以下(無則留空)","note":"操作條件或說明重點(30字內)"}]}\n'
+    '{"items":[{"name":"股票名稱","code":"代號(無則留空)","action":"買入/賣出/會員持股/觀望不碰/觀望注意","price":"純數字價位(無則留空)","limit":"以上/以下(無則留空)","note":"操作結論與有依據的原因；有摘錄約70至160字，來源不足可短"}]}\n'
     '真的沒有任何一檔個股被指名動作時，才回 {"items":[]}。'
 )
 
@@ -10342,7 +10386,7 @@ def verify_sms_item(it: dict, body: str, code_map: dict) -> dict | None:
         "price": clean_price,
         "limit": limit,
         "priceText": price_text,
-        "note": naturalize_reason(str(it.get("note") or "").strip())[:80],
+        "note": public_narrative(naturalize_reason(str(it.get("note") or "").strip()), {"name": official_name, "code": code}),
     }
 
 
@@ -10409,7 +10453,7 @@ def load_saved_sms_items(raw_detail: str) -> tuple[bool, list[dict]]:
             "price": price,
             "limit": limit,
             "priceText": price_text,
-            "note": naturalize_reason(str(raw.get("reason") or raw.get("note") or "").strip())[:80],
+            "note": public_narrative(naturalize_reason(str(raw.get("reason") or raw.get("note") or "").strip()), {"name": name, "code": code}),
             "tag": "既有解析明細",
         })
     return True, out
@@ -11196,7 +11240,7 @@ def parse_pending_sms(ss, since="", mode=None, today_only=False):
                 h_cnt += 1
             else:
                 trades_buf.append([r["date"], it["name"], it["code"], it["action"],
-                                   it.get("priceText", "未說明"), it.get("note", "")[:60],
+                                   it.get("priceText", "未說明"), it.get("note", ""),
                                    src_id, ""])
                 t_cnt += 1
         if items:
@@ -11334,12 +11378,17 @@ def parse_pending_sms(ss, since="", mode=None, today_only=False):
            + (f" {stopped_early}" if stopped_early else ""))
     print(fin)
     write_status_log(ss, "會員簡訊", fin)
-    steps.at("完成", fin, status="完成", written=written_articles,
+    if changed_dates:
+        try:
+            queue_sms_content_sync(ss, changed_dates)
+            fin += " 郵件查詢內容已排入背景同步；已寄出的信不重寄。"
+        except Exception as exc:
+            fin += f" 郵件查詢同步未排入：{exc}；請至後台刷新郵件內容。"
+    steps.at("完成", fin, status="完成" if not remaining else "待續跑", written=written_articles,
              aiUsed=ai_calls_used, remaining=remaining)
     if changed_dates:
         print("本輪異動日期：" + "、".join(sorted(changed_dates)))
-        print("（這一支不重算每日整理、持股追蹤、績效與日K。"
-              "需要更新網站時，到後台按一次刷新即可。）")
+        print("（每日整理內容已排背景同步；日K另走既有排程。）")
     return changed_dates
 
 
@@ -11364,44 +11413,151 @@ def _sms_transcript_excerpt(ss, date_str, body, code_map, limit=2800):
         except Exception as e:
             print(f"  （讀不到 {date_str} 的逐字稿，說明重點維持原樣：{e}）")
             raw, polished = "", ""
-        _SMS_TX_CACHE[date_str] = polished or raw or ""
-    tx = _SMS_TX_CACHE[date_str]
+        _SMS_TX_CACHE[date_str] = raw or ""  # 修飾稿只供閱讀，不是補充事實的依據。
+    tx = re.sub(r"\s+", "", _SMS_TX_CACHE[date_str])
     if len(tx) < 200:
         return ""
 
-    names = {n for n in code_map.values() if isinstance(n, str) and len(n) >= 2}
-    names |= {n for n in code_map.keys()
-              if isinstance(n, str) and not n.isdigit() and len(n) >= 2}
-    # -KY、*（興櫃）這類後綴在簡訊裡常被省略：對照表寫「譜瑞-KY」，
-    # 簡訊與講稿都只說「譜瑞」。不脫掉後綴就整檔漏撈。
-    def _stem(n):
-        return re.sub(r"[-＊*]KY$|[-＊*]$", "", n).strip()
-
-    hits = set()
-    for n in names:
-        for cand in {n, _stem(n)}:
-            if len(cand) >= 2 and cand in body and cand in tx:
-                hits.add(cand)
-    hits = sorted(hits, key=len, reverse=True)
-    if not hits:
-        return ""
-
-    picked, seen, total = [], set(), 0
-    for sent in re.split(r"(?<=[。！？])", tx):
-        sent = sent.strip()
-        if len(sent) < 8 or sent in seen:
+    # 正式名稱／已確認誤字依同一代號連結；不能因聽打寫「金星科」就漏掉晶心科。
+    body = re.sub(r"\s+", "", body)
+    aliases = {}
+    for code, name in code_map.items():
+        if not isinstance(name, str) or len(name) < 2:
             continue
-        if any(n in sent for n in hits):
-            seen.add(sent)
-            picked.append(sent)
-            total += len(sent)
-            if total >= limit:
-                break
-    if not picked:
+        stem = re.sub(r"(?:[-＊*]?KY|[-＊*])$", "", name).strip()
+        aliases[str(code)] = {name, stem, str(code)}
+    for heard, pair in CONFIRMED_NAMES.items():
+        if str(pair[0]) in aliases:
+            aliases[str(pair[0])].add(heard)
+    selected = {c: forms for c, forms in aliases.items()
+                if any(len(n)>=2 and n in body for n in forms)}
+    # 遇到另一家公司就切開，保留代名詞接續的原因，不把相鄰公司的理由搬過來。
+    forms = sorted({n for names in aliases.values() for n in names if len(n)>=2}, key=len, reverse=True)
+    if not selected or not forms:
         return ""
-    print(f"  說明重點補充：{date_str} 逐字稿提到 {len(hits)} 檔，"
-          f"取 {len(picked)} 句共 {total} 字")
-    return ("\n".join(picked))[:limit]
+    markers = list(re.finditer("|".join(map(re.escape, forms)), tx))
+    buckets = {c: [] for c in selected}
+    for i, match in enumerate(markers):
+        code = next((c for c, names in selected.items() if match.group() in names), None)
+        if code is None:
+            continue
+        end = markers[i+1].start() if i+1<len(markers) else len(tx)
+        chunk = tx[match.start():min(end, match.start()+480)].strip()
+        if len(chunk)>=8 and chunk not in buckets[code]:
+            buckets[code].append(chunk)
+    # 輪流取每一檔，避免全文前段的股票吃光預算，後面的完全沒有依據。
+    picked = []
+    for i in range(4):
+        for code, chunks in buckets.items():
+            if i < len(chunks):
+                picked.append("股票 "+code+"："+chunks[i])
+    out = "\n".join(picked)[:limit]
+    if out:
+        print(f"  說明重點補充：{date_str} 原始逐字稿，{len(buckets)} 檔，{len(out)} 字")
+    return out
+
+
+def queue_sms_content_sync(ss, dates):
+    """只排郵件查詢內容同步，交給既有五分鐘觸發器；不重寄、不綁日K。"""
+    head=['日期','版本','狀態','更新時間','備註']
+    ws, _ = _ensure_sms_sheet(ss,'簡訊內容同步',head)
+    values=sheets_retry(ws.get_all_values)
+    if not values or values[0]!=head:
+        raise RuntimeError('簡訊內容同步表頭不符，尚未排入')
+    existing={r[0]:i for i,r in enumerate(values[1:],2) if r}
+    updates=[];rows=[]
+    for day in sorted(set(dates)):
+        row=[day,str(time.time_ns()),'等待同步',_sms_now(),'只更新郵件查詢內容；已寄出的信不重寄']
+        if day in existing:updates.append({'range':f'A{existing[day]}:E{existing[day]}','values':[row]})
+        else:rows.append(row)
+    if updates:sheets_retry(ws.batch_update,updates,value_input_option='RAW')
+    if rows:append_rows_safe(ws,rows,value_input_option='RAW')
+
+
+def sms_context_note(original, candidate, transcript):
+    """只補已通過本輪原文核對的背景句；簡訊操作指令始終留在第一句。"""
+    if not candidate.get('_evidence_verified') or candidate.get('_carried_forward'):
+        return original
+    quotes = candidate.get('evidence') or []
+    if isinstance(quotes, str):
+        quotes = [quotes]
+    if not quotes or not all(_quote_is_real(q, _ev_norm(transcript)) for q in quotes):
+        return original
+    text = public_narrative(candidate.get('reason') or candidate.get('note') or '', candidate)
+    result = public_narrative(original, candidate).strip()
+    # 操作、成本與目標價歸原簡訊；補說明只搬本股的基本面、籌碼與技術背景。
+    for sentence in re.split(r'(?<=[。！？；])', text):
+        sentence = sentence.strip()
+        if not sentence or _ev_norm(sentence) in _ev_norm(result):
+            continue
+        if re.search(r'買進|買入|賣出|出清|續抱|抱牢|持有|持股|加碼|減碼|成本|目標價|推薦|建議|不碰|未說明|待確認', sentence):
+            continue
+        numbers = re.findall(r'\d+(?:\.\d+)?', sentence)
+        if any(not re.search(r'(?<![\d.])'+re.escape(n)+r'(?![\d.])', ''.join(quotes)) for n in numbers):
+            continue
+        if len(result)+len(sentence)>200:
+            break  # 不在半句截斷，也不為湊字數重複操作結論。
+        result = result.rstrip('。；')+'。'+sentence
+    return result
+
+
+def enrich_sms_notes_from_signals(ss, date_str, signals, transcript):
+    """逐字稿比早盤簡訊晚到時，利用本輪已驗證內容補說明，零額外模型呼叫。
+
+    僅批次寫 CMONEY 列的說明與解析明細；不變動股票、日期、方向、價位或寄送狀態。
+    """
+    by_code = {}
+    for category in SIGNAL_CATEGORIES:
+        for item in signals.get(category, []):
+            if item.get('_evidence_verified') and (item.get('_date') or date_str)==date_str:
+                by_code.setdefault(str(item.get('code') or ''), []).append(item)
+    if not by_code:
+        return 0
+    count = 0
+    for tab, field in [('操作紀錄','理由摘錄'),('會員持股','說明重點')]:
+        ws=ss.worksheet(tab);values=sheets_retry(ws.get_all_values)
+        if not values:
+            continue
+        head=values[0]
+        if not all(k in head for k in ['日期','代號','來源影片ID',field]):
+            continue
+        ci={k:head.index(k) for k in ['日期','代號','來源影片ID',field]}
+        changes=[]
+        for i,row in enumerate(values[1:],2):
+            if len(row)<=max(ci.values()):
+                continue
+            if row[ci['日期']]!=date_str or not str(row[ci['來源影片ID']]).startswith('CMONEY-'):
+                continue
+            original=str(row[ci[field]])
+            note=original
+            for candidate in by_code.get(str(row[ci['代號']]),[]):
+                note=sms_context_note(note,candidate,transcript)
+            if note!=original:
+                changes.append({'range':gspread.utils.rowcol_to_a1(i,ci[field]+1),'values':[[note]]})
+        if changes:
+            sheets_retry(ws.batch_update,changes,value_input_option='RAW')
+            count+=len(changes)
+    # 同步保存的解析明細，避免下一次「沿用已解析」又把短說明蓋回來。
+    ws=ss.worksheet('會員簡訊');values=sheets_retry(ws.get_all_values)
+    if values and all(k in values[0] for k in ['發文時間','解析明細']):
+        ti=values[0].index('發文時間');di=values[0].index('解析明細');updates=[]
+        for i,row in enumerate(values[1:],2):
+            if len(row)<=max(ti,di) or str(row[ti])[:10].replace('-','/')!=date_str:
+                continue
+            try:items=json.loads(row[di])
+            except (ValueError,TypeError):continue
+            if not isinstance(items,list):continue
+            changed=False
+            for item in items:
+                if not isinstance(item,dict):continue
+                field='reason' if 'reason' in item else 'note';old=item.get(field) or '';note=old
+                for candidate in by_code.get(str(item.get('code') or ''),[]):
+                    note=sms_context_note(note,candidate,transcript)
+                if note!=old:item[field]=note;changed=True
+            if changed:updates.append({'range':gspread.utils.rowcol_to_a1(i,di+1),'values':[[json.dumps(items,ensure_ascii=False)]]})
+        if updates:sheets_retry(ws.batch_update,updates,value_input_option='RAW')
+    print(f'簡訊說明補充：{date_str} 更新 {count} 筆；只用同日原文已驗證背景，不更改操作指令')
+    return count
 
 
 def _sms_extract_items(r, cm_mark, code_map, excerpt=""):
@@ -12864,7 +13020,7 @@ def main():
             # 盤中寫進來的資料，畫面要馬上跟上，不要等到下午的排程。
             auto_refresh_after_write("會員簡訊")
             print("提醒：本輪只更新了會員簡訊與操作紀錄／會員持股。"
-                  "每日整理、持股追蹤、績效與日K不在這條鏈裡，需要時請到後台刷新。")
+                  "郵件查詢內容另有背景同步佇列；日K沿用既有排程。")
         return
 
     if FIX_PRICES:
@@ -12887,7 +13043,7 @@ def main():
         fill_video_blanks(ss)
         return
 
-    feed = [v for v in fetch_feed() if is_target(v["title"])]
+    feed = [v for v in fetch_feed() if is_target(v["title"])] if BACKFILL else []
     print(f"RSS 取得 {len(feed)} 支符合關鍵字的影片")
 
     old = [v for v in feed if v["date"] < MIN_DATE]
@@ -12897,7 +13053,7 @@ def main():
               + "、".join(v["date"].strftime("%Y/%m/%d") for v in old))
     print(f"待處理範圍內共 {len(feed)} 支")
 
-    if not feed:
+    if BACKFILL and not feed:
         raise RuntimeError(
             f"RSS 沒有任何標題含 {TITLE_KEYWORDS} 且日期在 {MIN_DATE:%Y/%m/%d} 之後的影片，"
             f"請確認頻道 ID 與關鍵字設定。"
@@ -12959,9 +13115,7 @@ def main():
     # 連登入憑證都不會用到——憑證失效時也就不會在這些空跑的時段一直報錯。
     # ------------------------------------------------------------------ #
     if PREFLIGHT:
-        feed_now = [v for v in fetch_feed() if is_target(v["title"]) and v["date"] >= MIN_DATE]
-        done_now = {str(r["影片ID"]): str(r["處理狀態"]) for r in video_rows(ss)}
-        todays = [v for v in feed_now if v["date"] == today]
+        todays, done_now = today_pipeline_inputs(ss, today)
         now_h = datetime.now(TAIPEI).hour
 
         if not todays:
@@ -12987,6 +13141,9 @@ def main():
 
         v = todays[0]
         status = done_now.get(v["id"], "")
+        if status == "手動保留":
+            write_preflight("false", "等待管理者貼稿，保留人工輸入")
+            return
         if status == "完成":
             print(f"今日影片 {v['id']} 已處理完成，沒有事情要做。")
             write_preflight("false", "今日影片已完成")
@@ -13010,9 +13167,7 @@ def main():
     # ------------------------------------------------------------------ #
     def handle_today_once():
         """敲一次門。回傳 True 表示今天已完成或確定無影片，可以收工。"""
-        feed_now = [v for v in fetch_feed() if is_target(v["title"]) and v["date"] >= MIN_DATE]
-        done_now = {str(r["影片ID"]): str(r["處理狀態"]) for r in video_rows(ss)}
-        todays = [v for v in feed_now if v["date"] == today]
+        todays, done_now = today_pipeline_inputs(ss, today)
         now_h = datetime.now(TAIPEI).hour
 
         if not todays:
@@ -13025,6 +13180,9 @@ def main():
 
         v = todays[0]
         status = done_now.get(v["id"], "")
+        if status == "手動保留":
+            print("此日保留人工輸入，停止自動處理；貼稿後由下一輪接手")
+            return True
         if status == "完成":
             print("今日影片已處理完成，收工")
             return True

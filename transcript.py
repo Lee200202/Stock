@@ -27,7 +27,7 @@ transcript.py —— 每日逐字稿抓取（自動 + 手動，手動優先）
     「手動保留」，自動化立刻停手，不覆蓋、不重抓。
 
 排程（台灣時間，平日）
-    11:20 起每 3 分鐘敲一次，最晚到 14:00。
+    11:05 起每 3 分鐘敲一次，最晚到 14:00。
     直播 11:19 前後結束、回放再等 3～5 分鐘，所以通常 11:25～11:40 就抓得到。
 
 退出碼
@@ -46,6 +46,7 @@ import random
 import re
 import sys
 import time
+from pathlib import Path
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
@@ -184,6 +185,36 @@ class Done(Exception):
         super().__init__(reason)
         self.reason = reason
         self.code = code
+
+
+class SegmentCache(dict):
+    """每完成一段就原子存檔，GitHub 下一個 job 可接續；未完成段不當原稿。"""
+    def __init__(self, path):
+        super().__init__()
+        self.path = path
+        if path.exists():
+            try:
+                for item in json.loads(path.read_text(encoding='utf-8')):
+                    start, end, text = item
+                    if isinstance(start,int) and isinstance(end,int) and end>start and isinstance(text,str) and text.strip():
+                        dict.__setitem__(self,(start,end),text)
+            except (ValueError, TypeError, OSError):
+                self.clear()
+
+    def __setitem__(self, key, value):
+        super().__setitem__(key, value)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        temp = self.path.with_suffix('.tmp')
+        temp.write_text(json.dumps([[a,b,t] for (a,b),t in self.items()],ensure_ascii=False),encoding='utf-8')
+        temp.replace(self.path)
+
+
+def segment_cache_for(video):
+    folder = os.environ.get('TRANSCRIPT_CACHE_DIR','').strip()
+    if not folder:
+        return _SEGMENT_CACHE.setdefault(video.id,{})
+    identity = json.dumps([video.id,video.duration_sec,SEGMENT_MINUTES,SYSTEM_INSTRUCTION,VOCABULARY],ensure_ascii=False)
+    return SegmentCache(Path(folder)/ (hashlib.sha256(identity.encode()).hexdigest()+'.json'))
 
 
 def log(msg: str = ""):
@@ -383,16 +414,17 @@ def video_sheet(ss):
         return ws, list(FULL_HEADER)
 
     header = [str(h).strip() for h in sheets_retry(ws.row_values, 1)]
-    if len(header) >= len(FULL_HEADER):
-        return ws, header
-    for i, have in enumerate(header):
+    for i, have in enumerate(header[:7]):
         if have != FULL_HEADER[i]:
             log(f"注意：「{VIDEO_SHEET}」第 {i + 1} 欄是「{have}」，"
                 f"與預期的「{FULL_HEADER[i]}」不同，不自動補欄，請人工確認表頭。")
             return ws, header
-    add = FULL_HEADER[len(header):]
-    if ws.col_count < len(FULL_HEADER):
-        sheets_retry(ws.add_cols, len(FULL_HEADER) - ws.col_count)
+    # 排版欄可能早於來源欄加入，不能用總欄數猜「已補齊」。既有欄位一律不搬動。
+    add = [h for h in FULL_HEADER if h not in header]
+    if not add:
+        return ws, header
+    if ws.col_count < len(header) + len(add):
+        sheets_retry(ws.add_cols, len(header) + len(add) - ws.col_count)
     sheets_retry(ws.update,
                  range_name=gspread.utils.rowcol_to_a1(1, len(header) + 1),
                  values=[add])
@@ -420,7 +452,8 @@ def pick_row(rows, video_id, date_str):
 
     def rank(pair):
         i, r = pair
-        return (bool(video_id and str(r.get(COL_ID) or "").strip() == video_id),
+        return (source_of(r) in (SRC_MANUAL, SRC_HOLD),
+                bool(video_id and str(r.get(COL_ID) or "").strip() == video_id),
                 str(r.get(COL_UPDATED) or ""),
                 len(str(r.get(COL_RAW) or "")), i)
     return max(cands, key=rank)
@@ -465,6 +498,16 @@ def write_status_log(ss, kind: str, detail: str = ""):
 def save_transcript(ss, video, date_str, text, source, note=""):
     """把日期與逐字稿寫進「影片清單」。同一天已經有列就更新，沒有就新增。"""
     ws, header, idx, row = read_state(ss, video.get("id", ""), date_str)
+    if any(h not in header for h in FULL_HEADER):
+        raise RuntimeError('影片清單缺必要欄位，尚未寫入；請核對表頭')
+    if source == SRC_AUTO:
+        if source_of(row) in (SRC_MANUAL, SRC_HOLD):
+            raise Done('聽打期間收到手動投稿／保留，保留人工內容，自動結果不覆蓋。')
+        if len(str(row.get(COL_RAW) or '').strip()) >= MIN_TRANSCRIPT:
+            raise Done('聽打期間已有完整原稿，本次不重複寫入。')
+        # Sheets API 沒有與 GAS 共用的 compare-and-swap。自動結果只追加，
+        # 即使人工在這次讀取後才貼稿，也不會覆寫它。三端選列均手動優先。
+        idx = None
     now = datetime.now(TAIPEI).strftime("%Y/%m/%d %H:%M:%S")
     body = cell(text)
     values = {
@@ -477,6 +520,8 @@ def save_transcript(ss, video, date_str, text, source, note=""):
         COL_UPDATED: now,
         COL_SHA: sha256(body),
         COL_SOURCE: source,
+        COL_POLISHED: '',
+        '排版稿JSON': '', '排版稿指紋': '', '排版稿方式': '',
     }
 
     if idx is None:
@@ -846,6 +891,8 @@ class Transcriber:
                 sections.append(done[key])
                 continue
             log(f"  第 {n}/{total} 段　{hms(start)}–{hms(end)}")
+            if time.monotonic() - RUN_STARTED > TIME_BUDGET - 60:
+                raise NotReadyYet('本輪時間不足，已完成片段保留，下一棒接續')
             text = self._range(video_url, start, end)
             block = f"【{hms(start)} – {hms(end)}】\n{text.strip()}"
             done[key] = block
@@ -855,6 +902,12 @@ class Transcriber:
     def summary(self) -> str:
         return (f"模型 {'、'.join(self.models_used) or self.model}"
                 f"　金鑰 #{'、#'.join(str(k) for k in self.keys_used) or 1}")
+
+    def _timeout(self):
+        left = TIME_BUDGET - (time.monotonic() - RUN_STARTED) - 30
+        if left <= 0:
+            raise NotReadyYet('本輪時間預算用盡，已完成片段保留')
+        return max(1, min(SEGMENT_TIMEOUT, left))
 
     # ---- 內部 ---- #
     def _available(self):
@@ -1049,7 +1102,7 @@ class Transcriber:
         """
         if self.model not in self.stream_models:
             try:
-                interaction = self.client.interactions.create(**request, background=True)
+                interaction = self.client.interactions.create(**request, background=True, timeout=self._timeout())
             except Exception as exc:
                 status, message = _err(exc)
                 if not (status == 400 and "does not support background" in message.lower()):
@@ -1062,7 +1115,7 @@ class Transcriber:
 
     def _wait(self, interaction):
         """背景模式：輪詢到結束。"""
-        deadline = time.monotonic() + SEGMENT_TIMEOUT
+        deadline = time.monotonic() + self._timeout()
         while str(getattr(interaction, "status", "")) in ("queued", "in_progress"):
             if time.monotonic() > deadline:
                 # 放棄前先取消，否則背景工作還在跑、還在計額度。
@@ -1072,7 +1125,7 @@ class Transcriber:
                     pass
                 raise TimeoutError(f"等待 Gemini 超過 {SEGMENT_TIMEOUT // 60} 分鐘")
             time.sleep(POLL_SECONDS)
-            interaction = self.client.interactions.get(id=interaction.id)
+            interaction = self.client.interactions.get(id=interaction.id, timeout=self._timeout())
         return interaction
 
     def _run_stream(self, request):
@@ -1091,7 +1144,8 @@ class Transcriber:
         已收到的文字保留、不重送影片、不多花額度。
         """
         client = self.client
-        stream = client.interactions.create(**request, stream=True, timeout=SEGMENT_TIMEOUT)
+        stream = client.interactions.create(**request, stream=True, timeout=self._timeout())
+        deadline = time.monotonic() + self._timeout()
         parts, completed = [], None
         interaction_id = last_event_id = None
         resumes = 0
@@ -1100,6 +1154,8 @@ class Transcriber:
             disconnect = None
             try:
                 for event in stream:
+                    if time.monotonic() > deadline:
+                        raise NotReadyYet('本輪聽打時間已到，已完成片段保留，下輪接續')
                     ev_id = getattr(event, "event_id", None)
                     if ev_id:
                         last_event_id = ev_id
@@ -1117,6 +1173,13 @@ class Transcriber:
                         return _StreamResult(status="failed", output_text="",
                                              errors=getattr(event, "error", None))
             except Exception as exc:
+                if isinstance(exc, NotReadyYet):
+                    if interaction_id:
+                        try:
+                            client.interactions.cancel(id=interaction_id, timeout=10)
+                        except Exception:
+                            pass
+                    raise
                 status, message = _err(exc)
                 # 只有「連線中斷」（沒有 HTTP 狀態碼）而且拿得到 interaction ID 才接續
                 if status is not None or not interaction_id or resumes >= STREAM_RESUME_ATTEMPTS:
@@ -1136,7 +1199,7 @@ class Transcriber:
                 parts.clear()      # 還沒收到可定位的事件：從頭收，避免文字重複
             stream = client.interactions.get(id=interaction_id, stream=True,
                                              last_event_id=last_event_id,
-                                             timeout=SEGMENT_TIMEOUT)
+                                             timeout=self._timeout())
 
         if completed is None:
             raise RuntimeError("串流在收到完成事件前就結束了")
@@ -1270,7 +1333,7 @@ def tick(ss, target: date, force: bool) -> bool:
     # 已完成的片段留著跨輪重用。一集切 2～3 段，若第 1 段成功、第 2 段撞上
     # 模型壅塞，沒有這個快取的話下一輪會把第 1 段整個重做——既浪費額度，
     # 也讓每一輪都更容易再撞上壅塞。
-    cache = _SEGMENT_CACHE.setdefault(video.id, {})
+    cache = segment_cache_for(video)
     tr = Transcriber(keys)
     try:
         text = tr.transcribe(video.url, video.duration_sec, cache=cache)

@@ -1,0 +1,69 @@
+[
+  {
+    "label": "desktop",
+    "dimensions": {
+      "viewport": 1440,
+      "body": 1440,
+      "mail": 1378,
+      "tableBoxes": [],
+      "animation": "none",
+      "missingPriceNoWrap": 5
+    },
+    "errors": []
+  },
+  {
+    "label": "mobile",
+    "dimensions": {
+      "viewport": 390,
+      "body": 390,
+      "mail": 358,
+      "tableBoxes": [],
+      "animation": "none",
+      "missingPriceNoWrap": 5
+    },
+    "errors": []
+  },
+  {
+    "label": "narrow",
+    "dimensions": {
+      "viewport": 320,
+      "body": 320,
+      "mail": 288,
+      "tableBoxes": [],
+      "animation": "none",
+      "missingPriceNoWrap": 5
+    },
+    "errors": []
+  },
+  {
+    "label": "market-empty-320",
+    "width": 290
+  },
+  {
+    "label": "market-empty-1440",
+    "width": 1380
+  },
+  {
+    "label": "admin-pending",
+    "percent": 60,
+    "errors": []
+  },
+  {
+    "label": "待複核",
+    "warning": true
+  },
+  {
+    "label": "等待日K",
+    "warning": true
+  },
+  {
+    "label": "admin-390",
+    "overflow": false,
+    "stepClips": []
+  },
+  {
+    "label": "admin-320",
+    "overflow": false,
+    "stepClips": []
+  }
+]

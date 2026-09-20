@@ -1,0 +1,65 @@
+[
+  {
+    "label": "desktop",
+    "dimensions": {
+      "viewport": 1440,
+      "body": 1440,
+      "mail": 1378,
+      "tableBoxes": [
+        {
+          "width": 1298,
+          "scroll": 1298
+        },
+        {
+          "width": 1298,
+          "scroll": 1298
+        },
+        {
+          "width": 1298,
+          "scroll": 1298
+        }
+      ],
+      "animation": "none",
+      "missingPriceNoWrap": 5
+    },
+    "errors": []
+  },
+  {
+    "label": "mobile",
+    "dimensions": {
+      "viewport": 390,
+      "body": 390,
+      "mail": 358,
+      "tableBoxes": [
+        {
+          "width": 326,
+          "scroll": 600
+        },
+        {
+          "width": 326,
+          "scroll": 600
+        },
+        {
+          "width": 326,
+          "scroll": 600
+        }
+      ],
+      "animation": "none",
+      "missingPriceNoWrap": 5
+    },
+    "errors": []
+  },
+  {
+    "label": "admin-pending",
+    "percent": 60,
+    "errors": []
+  },
+  {
+    "label": "待複核",
+    "warning": true
+  },
+  {
+    "label": "等待日K",
+    "warning": true
+  }
+]

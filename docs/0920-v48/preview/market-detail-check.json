@@ -1,0 +1,23 @@
+[
+  {
+    "width": 320,
+    "overflow": false,
+    "chartErrors": [],
+    "periodSwitch": true,
+    "crosshair": true
+  },
+  {
+    "width": 390,
+    "overflow": false,
+    "chartErrors": [],
+    "periodSwitch": true,
+    "crosshair": true
+  },
+  {
+    "width": 1440,
+    "overflow": false,
+    "chartErrors": [],
+    "periodSwitch": true,
+    "crosshair": true
+  }
+]

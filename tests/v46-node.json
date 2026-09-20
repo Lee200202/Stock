@@ -1,0 +1,187 @@
+[
+  {
+    "file": "tests\\test_admin_calendar_loading.js",
+    "exit": 0,
+    "output": "PASS: admin calendars stay disabled while dates load, match front loading look, and enable by rule once data arrives.\n"
+  },
+  {
+    "file": "tests\\test_article_sections_v22_gas.js",
+    "exit": 0,
+    "output": "PASS: v22 article sections (untitled heading, no basic info, ①–③ with legacy renumbering, v44 no risk chapter) and mail text following site reading settings.\n"
+  },
+  {
+    "file": "tests\\test_article_v12_gas.js",
+    "exit": 0,
+    "output": "PASS: v12 typo annotations, amount versus price, headline, canonical mail and unbroken missing-price label.\n"
+  },
+  {
+    "file": "tests\\test_classify_v17_gas.js",
+    "exit": 0,
+    "output": "PASS: v17 GAS 168-style title and idempotent narrative names without asterisks.\n"
+  },
+  {
+    "file": "tests\\test_cmoney_diagnose_gas.js",
+    "exit": 0,
+    "output": "PASS: CMoney diagnosis is read-only and points to fetch, save or parse-dispatch stage.\n"
+  },
+  {
+    "file": "tests\\test_cmoney_reconcile_gas.js",
+    "exit": 0,
+    "output": "PASS: CMoney auto reconcile saves missed posts once, dispatches parse, alerts admin, respects window, budget and duplicates.\n"
+  },
+  {
+    "file": "tests\\test_context_gas.js",
+    "exit": 0,
+    "output": "PASS: Apps Script confirmed aliases, unresolved name preservation, currency exclusion.\n"
+  },
+  {
+    "file": "tests\\test_dailyk_audit_v39_gas.js",
+    "exit": 0,
+    "output": "PASS: v39 auditDailyKCache checks every tracked stock against TWSE MI_INDEX / TPEx dailyQuotes (units, OHLC, staleness, coverage), repairDailyKCache refetches, and checkVolumeUnit flags lot-stored rows.\n"
+  },
+  {
+    "file": "tests\\test_dailyk_pacing_v40_gas.js",
+    "exit": 0,
+    "output": "PASS: v40 daily K backfill paced at 55 req/min (also across executions), uses the full 6-minute execution with a measured write reserve, one request per stock (364-day range), chains tracker → performance after a finished round, chunk skips a finished post-16:30 round, trigger moved to 16:45 only.\n"
+  },
+  {
+    "file": "tests\\test_dailyk_resume_gas.js",
+    "exit": 0,
+    "output": "PASS: Fugle range no longer poisoned by short probes and splits long ranges; 320-code daily K backfill resumes by code with auto-continue, no duplicates; transient/fatal/404 handling, lease, new-pass rules, chunk path, TWSE month safety.\n"
+  },
+  {
+    "file": "tests\\test_gas.js",
+    "exit": 0,
+    "output": "PASS: 29 script syntax checks; evidence, durable day-sync, failure, cancellation, article and one-mail-per-day regression checks.\n"
+  },
+  {
+    "file": "tests\\test_gemini_key_switch_gas.js",
+    "exit": 0,
+    "output": "PASS: GAS Gemini 503 key switch, shared backoff, single/user key unchanged, daily quota rotation intact.\n"
+  },
+  {
+    "file": "tests\\test_kline_fill_v42_gas.js",
+    "exit": 0,
+    "output": "PASS: v42 charts always fill the width with wheel zoom (no right-aligned blank mode), MACD from the first bar, taller panes (520/220/220/220, mobile 420/180/180).\n"
+  },
+  {
+    "file": "tests\\test_kline_short_data_v41_gas.js",
+    "exit": 0,
+    "output": "PASS: v41 per-stock K-line JSON caches written with putAll (≤100 per call, 6h, empty stocks cached), one bundle request for day/week/60-min with client memo, short-history layout (disabled ranges, always fill width with wheel zoom, collapsed MACD/KD), MACD from the first bar, sync only from user-driven sub-charts, repairDailyKVolume disabled.\n"
+  },
+  {
+    "file": "tests\\test_kline_volume_v38_gas.js",
+    "exit": 0,
+    "output": "PASS: v38 K-line full range and range buttons, separate volume chart, 60-min bars in Taipei time, volume units verified against TWSE (daily cache = shares, hourly = lots, site shows lots).\n"
+  },
+  {
+    "file": "tests\\test_mail_darkmode_v26_gas.js",
+    "exit": 0,
+    "output": "PASS: mail cells keep their background and explicit colors in dark mode; stock codes no longer render as a black/white box.\n"
+  },
+  {
+    "file": "tests\\test_mail_layout_v21_gas.js",
+    "exit": 0,
+    "output": "PASS: v21 mail layout — no title prefix, stacked aligned tables without horizontal scroll, section cards, daily name wrap and site overrides.\n"
+  },
+  {
+    "file": "tests\\test_mail_risk_v44_gas.js",
+    "exit": 0,
+    "output": "PASS: v44 risk disclosure appears once, above the unsubscribe note; chapter ④ removed from new and stored articles; site view shows it once.\n"
+  },
+  {
+    "file": "tests\\test_mail_v35_gas.js",
+    "exit": 0,
+    "output": "PASS: v35 unsubscribe links use the recorded /exec URL, watch-stock alerts are gone end to end, and the instant mail shares the daily mail design.\n"
+  },
+  {
+    "file": "tests\\test_market_v46_gas.js",
+    "exit": 0,
+    "output": "PASS: hourly source priority, duplicate volume, adjustment conflict, missing-day diagnostics, monthly and live refresh.\n"
+  },
+  {
+    "file": "tests\\test_overwrite_gas.js",
+    "exit": 0,
+    "output": "PASS: SHA256, source selection, overwrite gate, latest published batch, dry-run/backup/idempotent merge, retry/cooldown/cancellation/limit.\nPASS: review warning, automatic daily-K waiting, cancellation affordance and progress polling.\nPASS: actual submission gate, unchanged duplicate count, current raw write, cleared polish and matching job SHA256.\n"
+  },
+  {
+    "file": "tests\\test_perf_history_stale_gas.js",
+    "exit": 0,
+    "output": "PASS: performance history rewrites from stale-exit date, sells and legacy rounds unchanged, full rebuild intact.\n"
+  },
+  {
+    "file": "tests\\test_polish_display_gas.js",
+    "exit": 0,
+    "output": "PASS: transcript display keeps punctuated polish, rejects changed words.\n"
+  },
+  {
+    "file": "tests\\test_project_check_v37_gas.js",
+    "exit": 0,
+    "output": "PASS: v37 doGet explains a missing Config.gs (page + JSON) and checkProjectFiles pinpoints missing, stale or mismatched files.\n"
+  },
+  {
+    "file": "tests\\test_prompt_v7_gas.js",
+    "exit": 0,
+    "output": "PASS: GAS speaker-name strip, loosened reclassify prompt, build v7+.\n"
+  },
+  {
+    "file": "tests\\test_quality_v6_gas.js",
+    "exit": 0,
+    "output": "PASS: shared public prices, invalid technical prices, provisional OHLC, missing/stale cache, official priority, no mutation.\n"
+  },
+  {
+    "file": "tests\\test_refresh_transient_gas.js",
+    "exit": 0,
+    "output": "PASS: transient refresh waits and auto-resumes, limit message, submit/cancel/merge guards, admin waiting UI.\n"
+  },
+  {
+    "file": "tests\\test_review_gas.js",
+    "exit": 0,
+    "output": "PASS: pending performance, resumable all, failure status, contiguous writes, progress boundaries and accessibility.\nPASS: semantic article headings, HTML escaping and themed mail shell.\n"
+  },
+  {
+    "file": "tests\\test_semantics_v10_gas.js",
+    "exit": 0,
+    "output": "PASS: v10 public subjects, canonical names/codes, price units, deduplication, holdings/mail tables, evidence preservation and frontend parity.\n"
+  },
+  {
+    "file": "tests\\test_sms_audit_range_gas.js",
+    "exit": 0,
+    "output": "PASS: SMS daily audit keeps the full sheet range after automatic same-day jobs; manual reparse and crawl jobs keep their own range.\n"
+  },
+  {
+    "file": "tests\\test_sms_revision_v32_gas.js",
+    "exit": 0,
+    "output": "PASS: after-hours edits are detected by the reconcile pass, notified once, and cost only two column reads when nothing changed.\n"
+  },
+  {
+    "file": "tests\\test_sms_sync_v46_gas.js",
+    "exit": 0,
+    "output": "PASS: SMS content queue retry/version safety/no resend; aligned progress states and task placement.\n"
+  },
+  {
+    "file": "tests\\test_subscription_mail_v36_gas.js",
+    "exit": 0,
+    "output": "PASS: v36 subscription mails share the instant-notification design (hero, cards, pills, footer) and ?tab=subscribe opens the subscribe tab.\n"
+  },
+  {
+    "file": "tests\\test_test_mail_gas.js",
+    "exit": 0,
+    "output": "PASS: one-shot test mail sends exactly one unchanged daily mail, and stock descriptions drop classification rationale everywhere.\n"
+  },
+  {
+    "file": "tests\\test_tracker_rounds_gas.js",
+    "exit": 0,
+    "output": "PASS: same-day holding vs avoid, unconfirmed early holding no longer deletes later holdings, stale exit at last-mention close (on or before), unchanged avoid/unconfirmed rules.\n"
+  },
+  {
+    "file": "tests\\test_tx_layout_v44_gas.js",
+    "exit": 0,
+    "output": "PASS: v44 transcript layout — breaks-only model reply, stored with fingerprint and method, auto re-layout every 15 min, CJK spaces tidied.\n"
+  },
+  {
+    "file": "tests\\test_tx_render_v29_gas.js",
+    "exit": 0,
+    "output": "PASS: transcript uses the layout produced by the daily run and renders as mail-style cards.\n"
+  }
+]

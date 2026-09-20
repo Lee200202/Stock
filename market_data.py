@@ -82,11 +82,21 @@ def parse_twse(report, companies, labels):
 
 
 class Fetcher:
-    """Yahoo 未公布可保證的固定免費配額；保守串行，429 立即停本轮，不換 IP。"""
-    def __init__(self, gap=5):
+    """Yahoo 未公布可保證的固定免費配額；批次下載減少呼叫，429 立即停本轮，不換 IP。"""
+    BATCH_SIZE = 10  # 每批最多 10 檔，兼顧穩定性
+
+    def __init__(self, gap=2):
         self.last = 0
-        self.gap = max(5, gap)
+        self.gap = max(2, gap)
         self.limited = False
+
+    def _throttle(self):
+        time.sleep(max(0, self.last + self.gap - time.monotonic()))
+        self.last = time.monotonic()
+
+    def _check_rate_limit(self, exc):
+        if 'ratelimit' in type(exc).__name__.lower() or '429' in str(exc) or 'Too Many' in str(exc):
+            self.limited = True
 
     def history(self, symbol, **kwargs):
         if self.limited:
@@ -94,8 +104,7 @@ class Fetcher:
         import yfinance as yf
         if hasattr(yf, 'config') and hasattr(yf.config, 'debug'):
             yf.config.debug.hide_exceptions = False
-        time.sleep(max(0, self.last+self.gap-time.monotonic()))
-        self.last = time.monotonic()
+        self._throttle()
         history_kwargs = dict(auto_adjust=False, back_adjust=False,
             repair=False, actions=False, prepost=False, timeout=20, **kwargs)
         if not (hasattr(yf, 'config') and hasattr(yf.config, 'debug')):
@@ -103,8 +112,36 @@ class Fetcher:
         try:
             return yf.Ticker(symbol).history(**history_kwargs)
         except Exception as exc:
-            if 'ratelimit' in type(exc).__name__.lower() or '429' in str(exc) or 'Too Many' in str(exc):
-                self.limited = True
+            self._check_rate_limit(exc)
+            raise
+
+    def batch_download(self, symbols, **kwargs):
+        """用 yf.download 批量抓取多檔，回傳 {symbol: DataFrame}。
+        一次 HTTP 帶多檔代號，內部多執行緒並行，比逐檔快 5-10 倍。"""
+        if self.limited:
+            raise RuntimeError('本輪 Yahoo 已限流，等待下一次排程')
+        import yfinance as yf
+        self._throttle()
+        try:
+            df = yf.download(
+                tickers=symbols, group_by='ticker', threads=True,
+                auto_adjust=False, back_adjust=False, repair=False,
+                actions=False, prepost=False, timeout=30, **kwargs)
+            if df.empty:
+                return {}
+            if len(symbols) == 1:
+                return {symbols[0]: df}
+            result = {}
+            for sym in symbols:
+                try:
+                    sub = df[sym].dropna(how='all')
+                    if not sub.empty:
+                        result[sym] = sub
+                except (KeyError, TypeError):
+                    pass
+            return result
+        except Exception as exc:
+            self._check_rate_limit(exc)
             raise
 
 
@@ -200,6 +237,37 @@ class Store:
         self.rows[key]=(index,row)
         if isinstance(data,dict):print(f'市場快取 {key}：{data.get("time",data.get("date",""))}，歷史K {len(data.get("candles",[]))} 根，已寫入')
 
+    def batch_put(self, items):
+        """items = [(key, data, source), ...]，一次寫入多筆，減少 Sheets API 呼叫。"""
+        updates = []
+        appends = []
+        next_idx = max([v[0] for v in self.rows.values()] + [1]) + 1
+        now_str = datetime.now(TZ).strftime('%Y/%m/%d %H:%M:%S')
+        written = 0
+        for key, data, source in items:
+            encoded = json.dumps(data, ensure_ascii=False, separators=(',', ':'), allow_nan=False)
+            if key in self.rows and self.rows[key][1][2] == encoded:
+                print(key + ' 資料未變，略過寫入'); continue
+            if len(encoded) > 45000:
+                print('::warning::' + key + ' 超過單格長度，保留舊快取'); continue
+            row = [key, now_str, encoded, source, '完成']
+            if key in self.rows:
+                idx = self.rows[key][0]
+                updates.append({'range': f'A{idx}:E{idx}', 'values': [row]})
+                self.rows[key] = (idx, row)
+            else:
+                appends.append(row)
+                self.rows[key] = (next_idx, row)
+                next_idx += 1
+            written += 1
+        if updates:
+            sheets_retry(self.ws.batch_update, updates, value_input_option='RAW')
+        if appends:
+            for r in appends:
+                sheets_retry(self.ws.append_row, r, value_input_option='RAW', insert_data_option='INSERT_ROWS')
+        if written:
+            print(f'批次寫入 {written} 筆（更新 {len(updates)}＋新增 {len(appends)}）')
+
 
 def fetch_twse(session):
     def get(url):
@@ -273,29 +341,92 @@ def update_hours(ss, fetcher, codes, limit):
                       for r in ss.worksheet(tab).get_all_records()})
     # 先補最久未更新的，限額不會讓後面的代號永遠輪不到。
     codes=sorted(set(codes),key=lambda c:store.rows.get(c,(0,['','']))[1][1])
-    count=0
+
+    # ── 第一步：收集所有需要抓取的代號，跳過已抓過和資料已齊的 ──
+    todo = []  # [(code, yahoo_symbol, previous_bars, missing_ranges)]
+    today_str = now.strftime('%Y/%m/%d')
     for code in codes:
-        if count>=limit or fetcher.limited:break
+        if len(todo) >= limit:
+            break
         if code not in mapping:
-            print('::warning::'+code+' 不在現有官方市場對照，無法確認 .TW／.TWO，保留既有資料、不猜代號');continue
-        old=store.rows.get(code)
-        if old and old[1][1][:10]==now.strftime('%Y/%m/%d'):continue
-        count+=1
+            print('::warning::' + code + ' 不在現有官方市場對照，無法確認 .TW／.TWO，保留既有資料、不猜代號')
+            continue
+        old = store.rows.get(code)
+        if old and old[1][1][:10] == today_str:
+            continue  # 今天已抓過，節省呼叫次數
+        previous = json.loads(old[1][2]) if old else []
+        ranges = hourly_missing_ranges(previous, now)
+        if not ranges:
+            print(code + ' 分K已齊，略過外部請求')
+            continue
+        todo.append((code, mapping[code], previous, ranges))
+
+    if not todo:
+        print('所有代號分K已齊或今天已更新，無需抓取')
+        return
+
+    print(f'待抓取 {len(todo)} 檔：{", ".join(c for c,_,_,_ in todo)}')
+
+    # ── 第二步：分批用 yf.download 批量抓取 ──
+    BATCH = Fetcher.BATCH_SIZE
+    write_buffer = []  # [(key, data, source)]
+
+    for i in range(0, len(todo), BATCH):
+        if fetcher.limited:
+            break
+        batch = todo[i:i + BATCH]
+        symbols = [sym for _, sym, _, _ in batch]
+
+        # 取本批所有缺漏區間的最大範圍，一次下載涵蓋全部
+        all_starts = [r[0] for _, _, _, ranges in batch for r in ranges]
+        all_ends = [r[1] for _, _, _, ranges in batch for r in ranges]
+        dl_start, dl_end = min(all_starts), max(all_ends)
+
         try:
-            previous=json.loads(old[1][2]) if old else []
-            by={b[0]:b for b in previous if valid_bar(b)}
-            ranges=hourly_missing_ranges(previous,now)
-            if not ranges:
-                print(code+' 分K已齊，略過外部請求');continue
-            for start,end in ranges:
-                frame=fetcher.history(mapping[code],start=start,end=end,interval='60m')
-                for b in hourly_rows(frame,now):by.setdefault(b[0],b)
-            bars=[by[k] for k in sorted(by)]
-            if not bars:raise ValueError('來源無有效分K')
-            store.put(code,bars,'Yahoo Finance 60m；股轉張；未還原')
-            print(code+' 備援分K '+str(len(bars))+' 根')
+            print(f'批次 {i//BATCH+1}：下載 {len(symbols)} 檔（{dl_start} ~ {dl_end}）')
+            results = fetcher.batch_download(symbols, start=dl_start, end=dl_end, interval='60m')
+
+            for code, sym, previous, ranges in batch:
+                frame = results.get(sym)
+                if frame is None or (hasattr(frame, 'empty') and frame.empty):
+                    print(f'::warning::{code} 批次未取得資料，保留原快取')
+                    continue
+                by = {b[0]: b for b in previous if valid_bar(b)}
+                for b in hourly_rows(frame, now):
+                    by.setdefault(b[0], b)
+                bars = [by[k] for k in sorted(by)]
+                if not bars:
+                    print(f'::warning::{code} 來源無有效分K')
+                    continue
+                write_buffer.append((code, bars, 'Yahoo Finance 60m；股轉張；未還原'))
+                print(f'{code} 備援分K {len(bars)} 根')
+
         except Exception as exc:
-            print('::warning::'+code+' 待補，保留原快取：'+str(exc))
+            if fetcher.limited:
+                print('::warning::Yahoo 限流，停止本輪批次')
+                break
+            # 批次失敗，降級逐檔抓取
+            print(f'::warning::批次下載失敗（{exc}），改為逐檔抓取')
+            for code, sym, previous, ranges in batch:
+                if fetcher.limited:
+                    break
+                try:
+                    by = {b[0]: b for b in previous if valid_bar(b)}
+                    for start, end in ranges:
+                        frame = fetcher.history(sym, start=start, end=end, interval='60m')
+                        for b in hourly_rows(frame, now):
+                            by.setdefault(b[0], b)
+                    bars = [by[k] for k in sorted(by)]
+                    if not bars:
+                        raise ValueError('來源無有效分K')
+                    write_buffer.append((code, bars, 'Yahoo Finance 60m；股轉張；未還原'))
+                    print(f'{code} 備援分K {len(bars)} 根（逐檔降級）')
+                except Exception as exc2:
+                    print(f'::warning::{code} 待補，保留原快取：{exc2}')
+
+    # ── 第三步：批次寫入 Google Sheets ──
+    if write_buffer:
+        store.batch_put(write_buffer)
 
 
 def valid_bar(b):

@@ -1,0 +1,71 @@
+// BEGIN PUBLIC NARRATIVE V10
+var PUBLIC_CONFIRMED_NAMES = __ALIASES__;
+/** 官方簡稱尾巴的「*」是證交所註記，說明文字不用。 */
+function narrativeName_(name) { return String(name || '').replace(/[*＊]+$/, ''); }
+/** 把 heard 換成 fixed，重複套用不會越換越長（「世芯」→「世芯-KY」不會變成「世芯-KY-KY」）。 */
+function replaceNarrativeName_(text, heard, fixed) {
+  if (!heard || heard === fixed) return text;
+  var esc = function (v) { return v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); };
+  if (fixed.indexOf(heard) === 0 && fixed.length > heard.length) {
+    return text.replace(new RegExp(esc(heard) + '(?!' + esc(fixed.slice(heard.length)) + ')', 'g'), fixed);
+  }
+  return text.split(heard).join(fixed);
+}
+/* 內部判斷字眼：這一列「為什麼被歸到這一類」是流程，不是講者說的話。
+   與 pipeline.py 的 _META_CLAUSE 同一份清單；寫在這裡，已經存進試算表的舊說明呈現時也會乾淨。
+   2026/09/15 的台積電寫成「……但在當日節目中並未將台積電列為當日會員實際買進或持有的個股明細，
+   故列入市場教學與觀察範疇」，讀的人要的是他對台積電講了什麼（管理者回報，2026/09/16）。 */
+var META_CLAUSE_RE_ = /歷史回顧|列為觀望|列入觀望|改列|日期未明|依原文語氣|依上下文判|原判|原為買入|原為賣出|不列入當日|非影片當日|非當日執行|依規則|歷史買進|歷史賣出|並未將|未將本檔|(?:並)?未列(?:為|入)|個股明細|故列入|因此列入|列入市場教學|(?:觀察|教學|觀望)範疇|歸類為|分類為/;
+/** 按頂層逗號、分號、句號切子句，丟掉含內部判斷字眼的那幾句；括號裡的標點不切。 */
+function stripMetaClauses_(text) {
+  var str = String(text || ''), parts = [], buf = '', depth = 0;
+  for (var i = 0; i < str.length; i++) {
+    var ch = str.charAt(i);
+    if (ch === '（' || ch === '(') { depth++; }
+    else if ((ch === '）' || ch === ')') && depth) { depth--; }
+    if (!depth && '，,；;。'.indexOf(ch) >= 0) { parts.push([buf, ch]); buf = ''; }
+    else { buf += ch; }
+  }
+  if (buf) { parts.push([buf, '']); }
+  var kept = [];
+  parts.forEach(function (x) {
+    if (!x[0].replace(/\s/g, '')) { return; }
+    if (!META_CLAUSE_RE_.test(x[0])) { kept.push([x[0], x[1]]); return; }
+    // 丟掉的那一句原本結束了一個句子時，句號讓給前一句，不要把兩句黏成一句。
+    if (x[1] === '。' && kept.length) { kept[kept.length - 1][1] = '。'; }
+  });
+  return kept.map(function (x) { return x[0] + x[1]; }).join('');
+}
+/** 說明名稱與代號對齊，原始逐字稿與引用不經過這個函式。 */
+function publicNarrative_(text, row) {
+  row = row || {};
+  text = String(text || '').replace(/(^|[，,。；;：:、「『（(\s]|雖然|但是|但|而且|而|並且|並|且|因為|所以)(?:張震|張正|講者)(?:老師)?(?:本人)?(?:的(?=會員))?/g,'$1');
+  text = stripMetaClauses_(text);
+  text=text.replace(/[（(][^（）()]*?(?:原文(?:作|為|寫|說)|語音(?:作|為)|誤植|誤字)[^（）()]*[）)]/g,'');
+  if(String(row.code||'')==='5274')text=text.replace(/信化/g,'信驊');
+  Object.keys(PUBLIC_CONFIRMED_NAMES).sort(function(a,b){return b.length-a.length;}).forEach(function(heard){
+    if(heard==='00981A')return;
+    var fixed=narrativeName_(PUBLIC_CONFIRMED_NAMES[heard][1]);
+    text=replaceNarrativeName_(text,heard,fixed);
+  });
+  Object.keys(PUBLIC_CONFIRMED_NAMES).forEach(function(heard){
+    var fixed=narrativeName_(PUBLIC_CONFIRMED_NAMES[heard][1]), escaped=fixed.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    text=text.replace(new RegExp(escaped+'\\s*[（(]'+escaped+'[）)]','g'),fixed);
+  });
+  // 「國巨」→「國巨*」每套一次多一顆星，信裡出現「國巨***」（2026/09/14）；說明一律用不帶星號的名稱。
+  var name=narrativeName_(row.name), code=String(row.code || ''), raw=row['原始語音名稱'];
+  if(raw && raw.length>=2 && name && (!PUBLIC_CONFIRMED_NAMES[raw] || PUBLIC_CONFIRMED_NAMES[raw][0]===code)) text=replaceNarrativeName_(text,raw,name);
+  if(name && /^(?:00981A|\d{4,6})$/.test(code)) {
+    var escaped=name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    text=text.replace(new RegExp(escaped+'\\s*(?:[（(]\\s*(?:00981A|\\d{4,6})\\s*[）)]|(?:00981A|\\d{4,6})(?=為例|這檔|這支|這一檔)|代號\\s*(?:00981A|\\d{4,6})(?!\\d))','g'),name+'（'+code+'）');
+    text=text.replace(new RegExp(escaped+'\\s*[（(]'+escaped+'[）)]','g'),name);
+    text=text.replace(new RegExp('(?:'+escaped+'){2,}','g'),name);
+  }
+  var seen={},parts=[];
+  text.split(/[。；;]/).forEach(function(part){
+    var key=part.replace(/回顧|過往|目前|\s|[，,]/g,'');
+    if(key && !seen[key]){seen[key]=true;parts.push(part.trim());}
+  });
+  return (parts.join('。')+(parts.length?'。':'')).replace(/[*＊]+/g,'');
+}
+// END PUBLIC NARRATIVE V10

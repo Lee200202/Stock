@@ -1,0 +1,157 @@
+def third_party_churn(text):
+    """法人反覆交易是現況觀察，不是會員過去成交。"""
+    return bool(re.search(r'外資|法人|投信|ETF', str(text), re.I) and
+                re.search(r'一買一賣|買一天賣一天|一天買一天賣|先買再賣|先賣再買|反覆.{0,6}(?:買賣|換手)', str(text)))
+
+
+def watch_tone(text):
+    """正面條件與禁止分開；不以孤立的跌、不要追高抹掉低檔買點。"""
+    text = strip_speaker_names(str(text or ''))
+    text = re.sub(r'(?:不是|並非|並不是|沒有說)(?:不准碰|不要碰|不能碰|不能買)', '', text)
+    if re.search(r'不准(?:給我)?碰|不要碰|不能碰|不能買|不適合(?:碰|買)|暫不進場', text):
+        return 'watch_avoid'
+    positive = re.sub(r'(?:不|沒有)(?:看好|推薦|建議買進)', '', text)
+    if re.search(r'看好|好股票|會漲|漲回去|回升|上攻|向上|候選|以後.{0,8}買|未來.{0,8}買|低檔.{0,8}(?:買|佈局|布局)|買點|等.{0,30}(?:再買|買進|進場|站回|漲)|可以.{0,8}(?:買|留意)|值得.{0,8}(?:留意|追蹤)|營收.{0,8}成長', positive):
+        return 'watch_watch'
+    return 'watch_avoid'
+
+
+def _public_aliases(signals):
+    aliases = {a: name for a, (_, name) in CONFIRMED_NAMES.items() if a != name}
+    for cat in SIGNAL_CATEGORIES + ('history',):
+        for row in signals.get(cat, []):
+            if not row.get('code') or row.get('code') == UNRESOLVED:
+                continue
+            for heard in [row.get('原始語音名稱')] + list(row.get('aliases') or []):
+                if not isinstance(heard, str) or len(heard) < 2 or re.fullmatch(r'[\dA-Za-z]+', heard):
+                    continue
+                # 不把另一家已知公司的別名洗成目前這家公司。
+                if heard in CONFIRMED_NAMES and CONFIRMED_NAMES[heard][0] != row['code']:
+                    continue
+                if heard != row.get('name'):
+                    aliases[heard] = row['name']
+    return aliases
+
+
+def public_narrative(text, row=None, signals=None):
+    """正式名稱只改公開說明，證據原句及代號判讀歷程保持原樣。"""
+    row, signals = row or {}, signals or {}
+    text = naturalize_reason(text)
+    for heard, fixed in sorted(_public_aliases(signals).items(), key=lambda pair:-len(pair[0])):
+        if heard == '00981A':
+            continue
+        text = text.replace(heard, fixed)
+    name, code = row.get('name'), str(row.get('code') or '')
+    if name and re.fullmatch(r'(?:00981A|\d{4,6})', code):
+        text = re.sub(re.escape(name) + r'\s*[（(]?\s*(?:00981A|\d{4,6})(?![\d元塊])\s*[）)]?',
+                      lambda m:name+'（'+code+'）', text)
+        text = re.sub('(?:'+re.escape(name)+'){2,}', lambda m:name, text)
+    # 僅去掉相同事實的重複句，不用相似度刪掉不同日期／價格。
+    parts, seen = [], set()
+    for part in re.split(r'[。；;]', text):
+        key = re.sub(r'回顧|過往|目前|\s|[，,]', '', part)
+        if key and key not in seen:
+            seen.add(key);parts.append(part.strip())
+    return '。'.join(parts) + ('。' if parts else '')
+
+
+def _entity_scope(row, signals, transcript):
+    """只用本股名稱附近、且未跨過其他公司名字的原文；僅作歸屬疑點偵測。"""
+    source = re.sub(r'\s+', '', transcript)
+    code = str(row.get('code') or '')
+    raw_names = [row.get('name'),row.get('原始語音名稱')] + list(row.get('aliases') or [])
+    for raw in raw_names:
+        if raw in CONFIRMED_NAMES:
+            code = CONFIRMED_NAMES[raw][0];break
+    names = {n for n in raw_names if isinstance(n,str) and len(n)>=2}
+    names.update(a for a,(c,_) in CONFIRMED_NAMES.items() if code and c==code)
+    others = {a for a,(c,_) in CONFIRMED_NAMES.items() if c != code and a not in names}
+    for cat in SIGNAL_CATEGORIES + ('history','ignored'):
+        for other in signals.get(cat, []):
+            ns = {str(n) for n in [other.get('name'),other.get('原始語音名稱')]+list(other.get('aliases') or []) if n and len(str(n))>=2}
+            if not ns & names and (not code or str(other.get('code') or '') != code):
+                others.update(ns)
+    cuts = sorted((m.start(),m.end()) for name in others for m in re.finditer(re.escape(name),source))
+    chunks=[]
+    for name in sorted(names,key=len,reverse=True):
+        for m in re.finditer(re.escape(name),source):
+            before=max([m.start()-180,0]+[b for a,b in cuts if b<=m.start()])
+            after=min([m.end()+160,len(source)]+[a for a,b in cuts if a>=m.end()])
+            chunks.append((source[before:after],source[m.start():after]))
+    return chunks
+
+
+def _entity_issue(row, signals, transcript):
+    scopes=_entity_scope(row,signals,transcript)
+    own=' '.join(s[0] for s in scopes)
+    name=str(row.get('name') or '')
+    subject=str(row.get('price_subject') or '')
+    code=str(row.get('code') or (CONFIRMED_NAMES.get(name) or ('',''))[0])
+    owner_code=(CONFIRMED_NAMES.get(subject) or ('',''))[0]
+    mismatch=bool(subject and subject not in own and owner_code and code and owner_code!=code)
+    is_etf=code=='00981A' or '00981A' in list(row.get('aliases') or [])
+    price=display_price(row.get('price'))
+    number=re.search(r'\d+(?:\.\d+)?',price)
+    # ETF 的價格必須有本體名稱與數字的直接原句，不能僅因同段「ETF交易某股」就採用。
+    if is_etf and number:
+        pe=re.sub(r'\s+','',str(row.get('price_evidence') or ''))
+        names=[name,'00981A','統一台股增長','主動統一台股增長']
+        direct=any(re.search(re.escape(n)+r'.{0,18}'+re.escape(number.group())+r'(?!\d)',pe) for n in names if n)
+        mismatch=mismatch or not direct
+    note=str(row.get('note') or row.get('reason') or '')
+    nums=set(re.findall(r'(\d{2,5})(?=(?:多|幾)?(?:塊|元))',note))
+    missing=[n for n in nums if n not in own and n in transcript]
+    # 至少兩個數字都只在其他語境，才刪除錯接的說明；單一疑點留覆核。
+    foreign_note=len(missing)>=2 and bool(scopes)
+    return mismatch,foreign_note,scopes
+
+
+def entity_claim_gaps(signals, transcript):
+    gaps=[]
+    for cat in SIGNAL_CATEGORIES:
+        for row in signals.get(cat, []):
+            bad_price,bad_note,_=_entity_issue(row,signals,transcript)
+            if bad_price:gaps.append(str(row.get('name'))+'價位主詞不明或屬別檔：分清ETF交易者與個股標的，price_subject和原句須對同一檔。')
+            if bad_note:gaps.append(str(row.get('name'))+'說明的多個數字只在其他標的語境：重讀本股持有事實，不搬昨日買進與今日漲跌。')
+    names=' '.join(str(r.get('name',''))+' '+str(r.get('aliases','')) for cat in SIGNAL_CATEGORIES+('history','ignored','uncertain') for r in signals.get(cat,[]))
+    # 故意只檢查明確語音別名，不能以範例或近似名字填滿缺漏。
+    for alias in ('四星KY','加折','普位','出金城'):
+        fixed=CONFIRMED_NAMES.get(alias,('',''))[1]
+        if alias in transcript and alias not in names and fixed not in names:
+            gaps.append('全文已點名 '+alias+'，候選盤點遺漏；重讀其現在持有／觀望語境。')
+    return gaps
+
+
+def sanitize_entity_claims(signals, transcript):
+    """覆核仍失敗時只收回不支持的敘述，保留本股可證實事實並留下疑點。"""
+    for cat in SIGNAL_CATEGORIES:
+        for row in signals.get(cat, []):
+            bad_price,bad_note,scopes=_entity_issue(row,signals,transcript)
+            field='note' if cat=='holdings' else 'reason'
+            if bad_price:
+                old=re.findall(r'\d+(?:\.\d+)?',str(row.get('price') or ''))
+                row['price']='未說明'
+                clauses=re.split(r'[。；;]',str(row.get(field) or ''))
+                row[field]='。'.join(c for c in clauses if c and not any(n in c for n in old))
+            if bad_note:
+                row[field]=''
+            if (bad_price or bad_note) and not row.get(field) and scopes:
+                row[field]=min((s[1] for s in scopes if len(s[1])>=6),key=len,default='未說明')[:160]
+            if bad_price or bad_note:
+                note_decision('主詞核對','已移除跨股價位／敘述',row.get('name',''),'保留自身可驗證原句，未把ETF的操作當成會員操作')
+                signals.setdefault('_repair_gaps',[]).append(str(row.get('name'))+'主詞歸屬仍有疑點，已收回不支持價位或說明')
+    return signals
+
+
+def normalize_watch_tones(signals):
+    """日期轉類後統一語氣；既有會員持股事實不因市場警語降級。"""
+    out={'watch_watch':[],'watch_avoid':[]}
+    for cat in out:
+        for row in signals.get(cat, []):
+            target=watch_tone(row.get('view') or row.get('reason'))
+            if target!=cat:note_decision('語氣核對','調整觀望方向',row.get('name',''),cat+' → '+target)
+            out[target].append(row)
+    signals.update(out)
+    return signals
+
+

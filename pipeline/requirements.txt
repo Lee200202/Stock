@@ -1,0 +1,4 @@
+gspread>=6.0,<7
+google-auth>=2.0,<3
+requests>=2.31,<3
+pypinyin>=0.51,<1

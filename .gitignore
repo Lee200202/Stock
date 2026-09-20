@@ -1,5 +1,5 @@
-*.json
-.idea/
-.vscode/
-__pycache__/
+﻿__pycache__/
 *.pyc
+.market-runtime/
+apps-script/
+backups/

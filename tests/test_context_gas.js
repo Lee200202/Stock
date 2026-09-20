@@ -1,0 +1,16 @@
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
+const assert = require('assert');
+const root = path.resolve(__dirname, '..');
+const ctx = vm.createContext({console});
+vm.runInContext(fs.readFileSync(path.join(root,'apps-script/Presentationquality.gs'),'utf8'),ctx);
+vm.runInContext(fs.readFileSync(path.join(root, 'apps-script/Adminpipeline.gs'), 'utf8'), ctx);
+const map = {byName: {'日馳': '1526', '譜瑞-KY': '4966'}, byCode: {'1526': {name: '日馳'}, '4966': {name: '譜瑞-KY'}}};
+assert(ctx.pipeResolveName_('日幣', map).reject);
+assert(ctx.pipeNonStockReason_('日幣'));
+assert.equal(ctx.pipeResolveName_('普威', map).code, '4966');
+assert.equal(ctx.pipeResolveName_('普威', map).name, '譜瑞-KY');
+for (const name of ['戲制台','矽製材','矽智財']) assert(ctx.pipeResolveName_(name,map).reject);
+assert.equal(ctx.pipeResolveName_('日馳', map).code, '1526');
+console.log('PASS: Apps Script confirmed aliases, unresolved name preservation, currency exclusion.');

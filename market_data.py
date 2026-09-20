@@ -181,6 +181,8 @@ class Store:
 
     def put(self,key,data,source):
         encoded=json.dumps(data,ensure_ascii=False,separators=(',',':'),allow_nan=False)
+        if key in self.rows and self.rows[key][1][2] == encoded:
+            print(key+' 資料未變，略過寫入'); return
         if len(encoded)>45000:
             raise ValueError(key+' 超過單格長度，保留舊快取')
         row=[key,datetime.now(TZ).strftime('%Y/%m/%d %H:%M:%S'),encoded,source,'完成']
@@ -218,8 +220,7 @@ def update_dashboard(ss, fetcher, yahoo, taiwan=True):
         taiex['candles']=json.loads(old[1][2]).get('candles',[]) if old else []
         if yahoo:
             try:
-                frame=fetcher.history('^TWII',period='1y',interval='1d')
-                taiex['candles']=daily_bars(frame)
+                taiex['candles']=incremental_daily(fetcher,'^TWII',taiex['candles'])
                 taiex['line']=[dict(time=b[0],value=b[4]) for b in taiex['candles']][-90:]
                 taiex['historySource']='Yahoo 加權指數日K，與盤中指數分開顯示'
             except Exception as exc:print('::warning::大盤歷史K：'+str(exc))
@@ -237,8 +238,14 @@ def update_dashboard(ss, fetcher, yahoo, taiwan=True):
     if yahoo:
         for key,symbol,label,unit in MACROS:
             try:
-                frame=fetcher.history(symbol,period='1y',interval='1d')
-                store.put(key,macro_card(frame,key,label,unit),'Yahoo Finance 日資料')
+                old=store.rows.get(key);previous=json.loads(old[1][2]) if old else {}
+                bars=incremental_daily(fetcher,symbol,previous.get('candles',[]))
+                if len(bars)<2:raise ValueError('來源未提供足夠日K')
+                value,prev=bars[-1][4],bars[-2][4]
+                card=dict(key=key,label=label,unit=unit,value=value,change=value-prev,
+                  percent=(value/prev-1)*100,time=bars[-1][0],source='Yahoo Finance 日資料（非即時）',
+                  candles=bars,line=[dict(time=b[0],value=b[4]) for b in bars])
+                store.put(key,card,'Yahoo Finance 日資料')
             except Exception as exc:
                 errors.append(label+'：'+str(exc));print('::warning::'+errors[-1])
                 if fetcher.limited:break
@@ -270,13 +277,52 @@ def update_hours(ss, fetcher, codes, limit):
         if old and old[1][1][:10]==now.strftime('%Y/%m/%d'):continue
         count+=1
         try:
-            frame=fetcher.history(mapping[code],start=now.date()-timedelta(days=59),end=now.date(),interval='60m')
-            bars=hourly_rows(frame,now)
+            previous=json.loads(old[1][2]) if old else []
+            by={b[0]:b for b in previous if valid_bar(b)}
+            ranges=hourly_missing_ranges(previous,now)
+            if not ranges:
+                print(code+' 分K已齊，略過外部請求');continue
+            for start,end in ranges:
+                frame=fetcher.history(mapping[code],start=start,end=end,interval='60m')
+                for b in hourly_rows(frame,now):by.setdefault(b[0],b)
+            bars=[by[k] for k in sorted(by)]
             if not bars:raise ValueError('來源無有效分K')
             store.put(code,bars,'Yahoo Finance 60m；股轉張；未還原')
             print(code+' 備援分K '+str(len(bars))+' 根')
         except Exception as exc:
             print('::warning::'+code+' 待補，保留原快取：'+str(exc))
+
+
+def valid_bar(b):
+    return (isinstance(b,list) and len(b)==6 and all(number(x) is not None for x in b[1:])
+            and min(b[1:5])>0 and b[5]>=0 and b[2]>=max(b[1],b[3],b[4]) and b[3]<=min(b[1],b[2],b[4]))
+
+
+def hourly_missing_ranges(bars,now):
+    have={b[0] for b in bars if valid_bar(b)}
+    start=now.date()-timedelta(days=59)
+    if have:start=max(start,datetime.strptime(min(have)[:10],'%Y/%m/%d').date())
+    missing=[]
+    while start<now.date():
+        if is_trading_day(start) and any(f'{start:%Y/%m/%d} {h:02}:00' not in have for h in range(9,14)):
+            missing.append(start)
+        start+=timedelta(days=1)
+    groups=[]
+    for day in missing:
+        if groups and day==groups[-1][1]:groups[-1]=(groups[-1][0],day+timedelta(days=1))
+        else:groups.append((day,day+timedelta(days=1)))
+    return groups
+
+
+def incremental_daily(fetcher,symbol,previous):
+    """已完整的歷史不重抓；最後一日可能尚未收盤，與新日資料一起更新。"""
+    previous=[b for b in previous if valid_bar(b)]
+    if not previous:return daily_bars(fetcher.history(symbol,period='1y',interval='1d'))
+    by={b[0]:b for b in previous};last=max(by)
+    fresh=daily_bars(fetcher.history(symbol,start=last.replace('/','-'),interval='1d'))
+    for b in fresh:
+        if b[0]>=last or b[0] not in by:by[b[0]]=b
+    return [by[k] for k in sorted(by)][-270:]
 
 
 def main():

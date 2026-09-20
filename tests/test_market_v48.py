@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import market_data as m
@@ -27,3 +27,36 @@ class IncrementalTests(unittest.TestCase):
         self.assertFalse(m.valid_bar(['2026/09/18',10,9,8,11,100]))
         self.assertFalse(m.valid_bar(['2026/09/18',10,12,8,11,None]))
         self.assertTrue(m.valid_bar(['2026/09/18',10,12,8,11,0]))
+
+    def test_fetcher_configures_debug_hide_exceptions_and_omits_raise_errors(self):
+        mock_yf = Mock()
+        mock_ticker = Mock()
+        mock_yf.Ticker.return_value = mock_ticker
+        mock_ticker.history.return_value = 'history_result'
+        fetcher = m.Fetcher(gap=0)
+        fetcher.last = 0
+        fetcher.gap = 0
+        with patch.dict('sys.modules', {'yfinance': mock_yf}):
+            res = fetcher.history('2330.TW', period='1d')
+            self.assertEqual(res, 'history_result')
+            self.assertFalse(mock_yf.config.debug.hide_exceptions)
+            self.assertNotIn('raise_errors', mock_ticker.history.call_args.kwargs)
+            self.assertEqual(mock_ticker.history.call_args.kwargs['period'], '1d')
+
+    def test_fetcher_fallback_raise_errors_when_no_yf_config(self):
+        class OldYf:
+            pass
+        mock_ticker = Mock()
+        mock_ticker.history.return_value = 'history_result'
+        OldYf.Ticker = Mock(return_value=mock_ticker)
+        fetcher = m.Fetcher(gap=0)
+        fetcher.last = 0
+        fetcher.gap = 0
+        with patch.dict('sys.modules', {'yfinance': OldYf}):
+            res = fetcher.history('2330.TW', period='1d')
+            self.assertEqual(res, 'history_result')
+            self.assertTrue(mock_ticker.history.call_args.kwargs['raise_errors'])
+
+
+if __name__ == '__main__':
+    unittest.main()

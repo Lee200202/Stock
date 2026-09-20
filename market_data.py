@@ -92,11 +92,16 @@ class Fetcher:
         if self.limited:
             raise RuntimeError('本輪 Yahoo 已限流，等待下一次排程')
         import yfinance as yf
+        if hasattr(yf, 'config') and hasattr(yf.config, 'debug'):
+            yf.config.debug.hide_exceptions = False
         time.sleep(max(0, self.last+self.gap-time.monotonic()))
         self.last = time.monotonic()
+        history_kwargs = dict(auto_adjust=False, back_adjust=False,
+            repair=False, actions=False, prepost=False, timeout=20, **kwargs)
+        if not (hasattr(yf, 'config') and hasattr(yf.config, 'debug')):
+            history_kwargs['raise_errors'] = True
         try:
-            return yf.Ticker(symbol).history(auto_adjust=False, back_adjust=False,
-                repair=False, actions=False, prepost=False, timeout=20, raise_errors=True, **kwargs)
+            return yf.Ticker(symbol).history(**history_kwargs)
         except Exception as exc:
             if 'ratelimit' in type(exc).__name__.lower() or '429' in str(exc) or 'Too Many' in str(exc):
                 self.limited = True

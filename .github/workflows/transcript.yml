@@ -137,7 +137,7 @@ jobs:
           GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
 
           # 排程觸發時一律用預設值；手動觸發才讓上面那些輸入生效。
-          POLL_START: '11:25'
+          POLL_START: '11:30'
           POLL_INTERVAL_SEC: '300'
           TRANSCRIPT_CACHE_DIR: .transcript-cache
           MODE: ${{ inputs.mode || 'auto' }}

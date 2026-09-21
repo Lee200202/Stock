@@ -1,5 +1,6 @@
-﻿__pycache__/
+__pycache__/
 *.pyc
 .market-runtime/
 apps-script/
 backups/
+release/

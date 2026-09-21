@@ -2,6 +2,7 @@
 import argparse
 import html
 import json
+import logging
 import math
 import os
 import re
@@ -102,12 +103,14 @@ class Fetcher:
         if self.limited:
             raise RuntimeError('本輪 Yahoo 已限流，等待下一次排程')
         import yfinance as yf
-        if hasattr(yf, 'config') and hasattr(yf.config, 'debug'):
-            yf.config.debug.hide_exceptions = False
+        config=getattr(yf,'config',None)
+        network=getattr(config,'network',None) or getattr(config,'debug',None)
+        if network is not None:
+            network.hide_exceptions = False
         self._throttle()
         history_kwargs = dict(auto_adjust=False, back_adjust=False,
             repair=False, actions=False, prepost=False, timeout=20, **kwargs)
-        if not (hasattr(yf, 'config') and hasattr(yf.config, 'debug')):
+        if network is None:
             history_kwargs['raise_errors'] = True
         try:
             return yf.Ticker(symbol).history(**history_kwargs)
@@ -117,19 +120,30 @@ class Fetcher:
 
     def batch_download(self, symbols, **kwargs):
         """用 yf.download 批量抓取多檔，回傳 {symbol: DataFrame}。
-        一次 HTTP 帶多檔代號，內部多執行緒並行，比逐檔快 5-10 倍。"""
+        yfinance 仍對每個代號發請求；限制為兩個工作執行緒，批次只是回傳與寫入的組織方式。"""
         if self.limited:
             raise RuntimeError('本輪 Yahoo 已限流，等待下一次排程')
         import yfinance as yf
         self._throttle()
+        owner=self
+        class LimitCapture(logging.Handler):
+            def emit(self, record):
+                message=record.getMessage()
+                if any(s in message.lower() for s in ('ratelimit','429','too many requests')):
+                    owner.limited=True
+        capture=LimitCapture();logger=logging.getLogger('yfinance');logger.addHandler(capture)
         try:
             df = yf.download(
-                tickers=symbols, group_by='ticker', threads=True,
+                tickers=symbols, group_by='ticker', threads=2,
                 auto_adjust=False, back_adjust=False, repair=False,
                 actions=False, prepost=False, timeout=30, **kwargs)
+            if self.limited:raise RuntimeError('Yahoo 429；本輪停止後續批次')
             if df.empty:
                 return {}
             if len(symbols) == 1:
+                if getattr(df.columns,'nlevels',1)>1:
+                    try:df=df[symbols[0]]
+                    except KeyError:df=df.xs(symbols[0],axis=1,level=-1)
                 return {symbols[0]: df}
             result = {}
             for sym in symbols:
@@ -143,6 +157,8 @@ class Fetcher:
         except Exception as exc:
             self._check_rate_limit(exc)
             raise
+        finally:
+            logger.removeHandler(capture)
 
 
 def hourly_rows(frame, now):
@@ -367,66 +383,31 @@ def update_hours(ss, fetcher, codes, limit):
 
     print(f'待抓取 {len(todo)} 檔：{", ".join(c for c,_,_,_ in todo)}')
 
-    # ── 第二步：分批用 yf.download 批量抓取 ──
-    BATCH = Fetcher.BATCH_SIZE
-    write_buffer = []  # [(key, data, source)]
-
-    for i in range(0, len(todo), BATCH):
-        if fetcher.limited:
-            break
-        batch = todo[i:i + BATCH]
-        symbols = [sym for _, sym, _, _ in batch]
-
-        # 取本批所有缺漏區間的最大範圍，一次下載涵蓋全部
-        all_starts = [r[0] for _, _, _, ranges in batch for r in ranges]
-        all_ends = [r[1] for _, _, _, ranges in batch for r in ranges]
-        dl_start, dl_end = min(all_starts), max(all_ends)
-
-        try:
-            print(f'批次 {i//BATCH+1}：下載 {len(symbols)} 檔（{dl_start} ~ {dl_end}）')
-            results = fetcher.batch_download(symbols, start=dl_start, end=dl_end, interval='60m')
-
-            for code, sym, previous, ranges in batch:
-                frame = results.get(sym)
-                if frame is None or (hasattr(frame, 'empty') and frame.empty):
-                    print(f'::warning::{code} 批次未取得資料，保留原快取')
-                    continue
-                by = {b[0]: b for b in previous if valid_bar(b)}
-                for b in hourly_rows(frame, now):
-                    by.setdefault(b[0], b)
-                bars = [by[k] for k in sorted(by)]
-                if not bars:
-                    print(f'::warning::{code} 來源無有效分K')
-                    continue
-                write_buffer.append((code, bars, 'Yahoo Finance 60m；股轉張；未還原'))
-                print(f'{code} 備援分K {len(bars)} 根')
-
-        except Exception as exc:
-            if fetcher.limited:
-                print('::warning::Yahoo 限流，停止本輪批次')
-                break
-            # 批次失敗，降級逐檔抓取
-            print(f'::warning::批次下載失敗（{exc}），改為逐檔抓取')
-            for code, sym, previous, ranges in batch:
-                if fetcher.limited:
-                    break
-                try:
-                    by = {b[0]: b for b in previous if valid_bar(b)}
-                    for start, end in ranges:
-                        frame = fetcher.history(sym, start=start, end=end, interval='60m')
-                        for b in hourly_rows(frame, now):
-                            by.setdefault(b[0], b)
-                    bars = [by[k] for k in sorted(by)]
-                    if not bars:
-                        raise ValueError('來源無有效分K')
-                    write_buffer.append((code, bars, 'Yahoo Finance 60m；股轉張；未還原'))
-                    print(f'{code} 備援分K {len(bars)} 根（逐檔降級）')
-                except Exception as exc2:
-                    print(f'::warning::{code} 待補，保留原快取：{exc2}')
-
-    # ── 第三步：批次寫入 Google Sheets ──
-    if write_buffer:
-        store.batch_put(write_buffer)
+    # 相同缺口才併批。取所有股票的最大區間會把已齊的歷史也重抓。
+    grouped=defaultdict(list)
+    merged={code:{b[0]:b for b in previous if valid_bar(b)} for code,_,previous,_ in todo}
+    for code,sym,previous,ranges in todo:
+        for start,end in ranges:grouped[(start,end)].append((code,sym))
+    deadline=time.monotonic()+17*60
+    for (start,end),items in sorted(grouped.items()):
+        for i in range(0,len(items),Fetcher.BATCH_SIZE):
+            if fetcher.limited or time.monotonic()>deadline:return
+            batch=items[i:i+Fetcher.BATCH_SIZE]
+            try:
+                results=fetcher.batch_download([sym for _,sym in batch],start=start,end=end,interval='60m')
+                writes=[]
+                for code,sym in batch:
+                    frame=results.get(sym)
+                    if frame is None or frame.empty:
+                        print(f'::warning::{code} 缺口 {start}–{end} 無資料，保留舊值');continue
+                    for bar in hourly_rows(frame,now):merged[code].setdefault(bar[0],bar)
+                    bars=[merged[code][k] for k in sorted(merged[code])]
+                    if bars:writes.append((code,bars,'Yahoo Finance 60m；股轉張；未還原'))
+                if writes:store.batch_put(writes)
+            except Exception as exc:
+                print(f'::warning::缺口批次暫不可用，已完成批次保留：{exc}')
+                # 不中途再重送整段，避免下載失敗與降級造成雙倍流量。
+                if fetcher.limited:return
 
 
 def valid_bar(b):

@@ -28,7 +28,7 @@ transcript.py —— 每日逐字稿抓取（自動 + 手動，手動優先）
 
 排程（台灣時間，平日）
     11:05 起每 3 分鐘敲一次，最晚到 14:00。
-    直播 11:19 前後結束、回放再等 3～5 分鐘，所以通常 11:30～11:40 就抓得到。
+    直播 11:19 前後結束、回放再等 3～5 分鐘，所以通常 11:25～11:40 就抓得到。
 
 退出碼
     0  有進展或沒事做（寫入成功、已有稿、手動優先停手、回放還沒好）
@@ -94,9 +94,9 @@ SRC_AUTO = "自動"
 #
 # 提早的代價幾乎是零：影片還沒出現時只用 YouTube API 問一句（約 2 units），
 # 不呼叫 Gemini。撞到直播中也只會回報「直播中」然後等下一輪。
-POLL_START = os.environ.get("POLL_START", "11:30").strip()
+POLL_START = os.environ.get("POLL_START", "11:05").strip()
 POLL_UNTIL = os.environ.get("POLL_UNTIL", "14:00").strip()
-POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL_SEC", "300"))
+POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL_SEC", "180"))
 TIME_BUDGET = int(os.environ.get("TIME_BUDGET_SEC", "1500"))
 
 # 直播結束後要等幾分鐘才送給 Gemini。YouTube 要先把回放處理好，

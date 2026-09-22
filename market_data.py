@@ -204,6 +204,96 @@ def daily_bars(frame):
     return bars[-270:]
 
 
+def parse_finmind_futures(data, previous=None):
+    if not data:
+        raise ValueError('FinMind 台指期資料為空')
+    # 篩選標準單一契約（月份為 6 碼數字）
+    valid_rows = [r for r in data if r.get('futures_id') == 'TX'
+                  and re.fullmatch(r'\d{6}', str(r.get('contract_date', '')))
+                  and number(r.get('close')) is not None and number(r.get('close')) > 0]
+    if not valid_rows:
+        raise ValueError('FinMind 無有效台指期合約報價')
+
+    by_date = defaultdict(list)
+    for r in valid_rows:
+        by_date[r['date']].append(r)
+
+    latest_date = max(by_date.keys())
+    latest_rows = by_date[latest_date]
+    day_session_rows = [r for r in latest_rows if r.get('trading_session') == 'position']
+    target_rows = day_session_rows if day_session_rows else latest_rows
+    best_contract_row = max(target_rows, key=lambda r: number(r.get('volume')) or 0)
+    contract = str(best_contract_row['contract_date'])
+
+    bars = []
+    prev_bars = (previous or {}).get('candles', []) if (previous or {}).get('contract') == contract else []
+    bar_map = {b[0]: b for b in prev_bars}
+
+    for dt in sorted(by_date.keys()):
+        match_rows = [r for r in by_date[dt] if str(r.get('contract_date')) == contract]
+        if not match_rows:
+            continue
+        pos_match = [r for r in match_rows if r.get('trading_session') == 'position']
+        chosen = pos_match[0] if pos_match else match_rows[0]
+        o = number(chosen.get('open'))
+        h = number(chosen.get('max'))
+        l = number(chosen.get('min'))
+        c = number(chosen.get('close'))
+        v = number(chosen.get('volume')) or 0
+        if None in (o, h, l, c) or min(o, h, l, c) <= 0:
+            continue
+        fmt_date = dt.replace('-', '/')
+        bar_map[fmt_date] = [fmt_date, o, h, l, c, v]
+
+    bars = [bar_map[k] for k in sorted(bar_map)][-270:]
+    if not bars:
+        raise ValueError('無法組合有效台指期 K 棒')
+
+    last_bar = bars[-1]
+    val = last_bar[4]
+    chg = number(best_contract_row.get('spread'))
+    pct = number(best_contract_row.get('spread_per'))
+    if chg is None and len(bars) >= 2:
+        chg = val - bars[-2][4]
+        pct = (chg / bars[-2][4]) * 100 if bars[-2][4] else None
+
+    date_str = latest_date.replace('-', '/')
+    return dict(
+        key='tx',
+        label='台指期 ' + contract,
+        unit='點',
+        contract=contract,
+        value=val,
+        change=chg,
+        percent=pct,
+        time=date_str,
+        source='FinMind 台指期資料（期交所近月契約）',
+        candles=bars,
+        line=[dict(time=b[0], value=b[4]) for b in bars]
+    )
+
+
+def fetch_futures_card(fetcher=None, previous=None, session=None):
+    token = os.environ.get('FINMIND_API_TOKEN', '').strip()
+    s = session or requests.Session()
+    start_date = (datetime.now(TZ) - timedelta(days=90)).strftime('%Y-%m-%d')
+    url = f'https://api.finmindtrade.com/api/v4/data?dataset=TaiwanFuturesDaily&data_id=TX&start_date={start_date}'
+    if token:
+        url += f'&token={token}'
+    try:
+        r = s.get(url, timeout=20)
+        if r.status_code == 200:
+            data = r.json().get('data', [])
+            if data:
+                return parse_finmind_futures(data, previous=previous)
+    except Exception as exc:
+        print('::warning::FinMind 台指期請求失敗，切換期交所備援：' + str(exc))
+
+    response = s.get('https://openapi.taifex.com.tw/v1/DailyMarketReportFut', timeout=25)
+    response.raise_for_status()
+    return futures_card(response.json(), previous)
+
+
 def futures_card(rows, previous=None):
     # 只用最近交易日、一般盤、實際近月單一契約。換月不把價差拼成假漲跌。
     rows=[r for r in rows if r.get('Contract')=='TX' and r.get('TradingSession')=='一般'
@@ -320,9 +410,10 @@ def update_dashboard(ss, fetcher, yahoo, taiwan=True):
         else:print('台股休市，略過台股來源，保留最近交易日；國際資料獨立更新')
     if taiwan:
         try:
-            response=requests.get('https://openapi.taifex.com.tw/v1/DailyMarketReportFut',timeout=25);response.raise_for_status()
             old=store.rows.get('tx');previous=json.loads(old[1][2]) if old else None
-            store.put('tx',futures_card(response.json(),previous),'TAIFEX')
+            card=fetch_futures_card(fetcher, previous=previous)
+            store.put('tx',card,card.get('source','FinMind / TAIFEX'))
+            print('台指期更新成功：'+card['label']+'，最新價：'+str(card['value']))
         except Exception as exc:errors.append('台指期：'+str(exc));print('::warning::'+errors[-1])
     if yahoo:
         for key,symbol,label,unit in MACROS:

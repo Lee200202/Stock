@@ -204,6 +204,20 @@ def daily_bars(frame):
     return bars[-270:]
 
 
+def hourly_bars(frame):
+    bars = []
+    if frame is None or frame.empty:
+        return []
+    for at, r in frame.iterrows():
+        values = [number(r.get(k)) for k in ('Open', 'High', 'Low', 'Close', 'Volume')]
+        o, h, l, c, v = values
+        if any(x is None for x in values[:4]) or min(o, h, l, c) <= 0 or h < max(o, c, l) or l > min(o, c, h):
+            continue
+        local = at.tz_convert(TZ).to_pydatetime() if at.tz is not None else at.to_pydatetime()
+        bars.append([local.strftime('%Y/%m/%d %H:%M')] + [round(x, 4) for x in values[:4]] + [max(0, v or 0)])
+    return bars[-180:]
+
+
 def parse_finmind_futures(data, previous=None):
     if not data:
         raise ValueError('FinMind 台指期資料為空')
@@ -402,6 +416,13 @@ def update_dashboard(ss, fetcher, yahoo, taiwan=True):
                 taiex['candles']=incremental_daily(fetcher,'^TWII',taiex['candles'])
                 taiex['line']=[dict(time=b[0],value=b[4]) for b in taiex['candles']][-90:]
                 taiex['historySource']='Yahoo 加權指數日K，與盤中指數分開顯示'
+                try:
+                    df60 = fetcher.history('^TWII', interval='60m', period='1mo')
+                    h_bars = hourly_bars(df60)
+                    if h_bars:
+                        taiex['candles60m'] = h_bars
+                except Exception as e_h:
+                    print('::warning::大盤60分K：' + str(e_h))
             except Exception as exc:print('::warning::大盤歷史K：'+str(exc))
         store.put('taiex',taiex,'TWSE');store.put('sectors',sectors,'TWSE')
         print('證交所大盤與產業成交比重：'+taiex['time'])
@@ -412,6 +433,13 @@ def update_dashboard(ss, fetcher, yahoo, taiwan=True):
         try:
             old=store.rows.get('tx');previous=json.loads(old[1][2]) if old else None
             card=fetch_futures_card(fetcher, previous=previous)
+            if taiex.get('candles60m'):
+                twii60 = taiex['candles60m']
+                basis = (card['value'] - twii60[-1][4]) if (card.get('value') and twii60) else 0
+                card['candles60m'] = [
+                    [b[0], round(b[1] + basis, 2), round(b[2] + basis, 2), round(b[3] + basis, 2), round(b[4] + basis, 2), b[5]]
+                    for b in twii60
+                ]
             store.put('tx',card,card.get('source','FinMind / TAIFEX'))
             print('台指期更新成功：'+card['label']+'，最新價：'+str(card['value']))
         except Exception as exc:errors.append('台指期：'+str(exc));print('::warning::'+errors[-1])
@@ -425,6 +453,13 @@ def update_dashboard(ss, fetcher, yahoo, taiwan=True):
                 card=dict(key=key,label=label,unit=unit,value=value,change=value-prev,
                   percent=(value/prev-1)*100,time=bars[-1][0],source='Yahoo Finance 日資料（非即時）',
                   candles=bars,line=[dict(time=b[0],value=b[4]) for b in bars])
+                try:
+                    df60 = fetcher.history(symbol, interval='60m', period='1mo')
+                    h_bars = hourly_bars(df60)
+                    if h_bars:
+                        card['candles60m'] = h_bars
+                except Exception:
+                    pass
                 store.put(key,card,'Yahoo Finance 日資料')
             except Exception as exc:
                 errors.append(label+'：'+str(exc));print('::warning::'+errors[-1])

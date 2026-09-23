@@ -98,6 +98,14 @@ POLL_START = os.environ.get("POLL_START", "11:05").strip()
 POLL_UNTIL = os.environ.get("POLL_UNTIL", "14:00").strip()
 POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL_SEC", "180"))
 TIME_BUDGET = int(os.environ.get("TIME_BUDGET_SEC", "1500"))
+# 他請假、臨時停播的日子（2026/09/24 就是：開盤，但他前一天在節目裡說「明天我放假」）。
+# 休市日由 why_closed 擋掉，這一個擋的是「有開盤、沒有節目」。
+#
+# 為什麼不是 11:05 就判定：那時候他可能只是還沒開台。頻道上完全沒有今天的影片
+# ——不是排定中、不是直播中、也不是已結束——要到節目照理已經播完才算數。
+# 節目大約 11:00 到 12:30，所以預設 12:30；之後仍然沒有任何一支就是今天沒有。
+NO_SHOW_AFTER = os.environ.get("NO_SHOW_AFTER", "12:30").strip()
+NO_SHOW_KIND = "今日無直播"
 
 # 直播結束後要等幾分鐘才送給 Gemini。YouTube 要先把回放處理好，
 # 太早送過去會拿到「影片無法存取」或半截內容。
@@ -1270,7 +1278,7 @@ class _StreamResult:
 _SEGMENT_CACHE = {}
 
 
-def tick(ss, target: date, force: bool) -> bool:
+def tick(ss, target: date, force: bool, seen: dict = None) -> bool:
     """敲一次門。
 
     回 True 代表這一輪真的寫進去了；回 False 代表還沒好，等下一輪。
@@ -1298,6 +1306,9 @@ def tick(ss, target: date, force: bool) -> bool:
 
     # ---- 第二關：YouTube。當天那一集出現了沒有、回放好了沒有 ----
     video = find_video(target)
+    # 呼叫端要分得出「還沒貼出來」與「根本沒有這一集」，見 NO_SHOW_AFTER。
+    if seen is not None:
+        seen["video"] = video is not None
     if not video:
         log(f"{date_str} 的影片還沒出現在頻道清單上（標題要含 {TITLE_KEYWORDS}）。")
         return False
@@ -1362,6 +1373,20 @@ def tick(ss, target: date, force: bool) -> bool:
 # ---------------------------------------------------------------- #
 # 子指令
 # ---------------------------------------------------------------- #
+def already_marked_no_show(ss, date_str: str) -> bool:
+    """今天是不是已經判定過沒有節目。
+
+    判定一次就夠了：後面幾棒排程（12:45、13:10、13:35）直接跳過，
+    不必再去敲 YouTube，也不會在系統狀態留下一長串「仍未取得」。
+    """
+    try:
+        rows = sheets_retry(ss.worksheet(STATUS_SHEET).get_all_records)
+    except Exception:
+        return False
+    return any(str(r.get("類別") or "") == NO_SHOW_KIND
+               and str(r.get("時間") or "").startswith(date_str) for r in rows)
+
+
 def cmd_auto(args) -> int:
     target = args.date or datetime.now(TAIPEI).date()
     date_str = target.strftime("%Y/%m/%d")
@@ -1385,6 +1410,13 @@ def cmd_auto(args) -> int:
             return 0
 
     ss = open_sheets()
+
+    if not args.force and already_marked_no_show(ss, date_str):
+        log(f"{date_str} 稍早已判定今天沒有節目，這一棒不再探詢。")
+        return 0
+
+    no_show_at = at_taipei(target, NO_SHOW_AFTER)
+    seen = {}
     round_no = 0
     try:
         while True:
@@ -1392,11 +1424,25 @@ def cmd_auto(args) -> int:
             log("")
             log(f"─── 第 {round_no} 次探詢 ───")
             try:
-                if tick(ss, target, args.force):
+                if tick(ss, target, args.force, seen=seen):
                     log("逐字稿已寫進試算表。後面的潤飾與擷取由 pipeline.py 接手。")
                     return 0
             except NotReadyYet as e:
                 log(f"還沒好：{e}")
+
+            # 節目時間已經過了，頻道上卻連一支今天的影片都沒有
+            # ——不是排定中、不是直播中、也不是已結束。那就是今天沒有節目。
+            # 他會在前一天的節目裡講（2026/09/23：「明天我放假，我們下次見面是下個禮拜二」），
+            # 但那句話沒有人輸入系統，所以只能從頻道判斷。
+            if (not args.force and seen.get("video") is False
+                    and datetime.now(TAIPEI) >= no_show_at):
+                log(f"已過 {NO_SHOW_AFTER}，頻道上沒有今天的影片，也沒有排定或進行中的直播。")
+                log("判定今天沒有節目，停止今天的自動取稿。")
+                write_status_log(ss, NO_SHOW_KIND,
+                                 f"{date_str} 探詢 {round_no} 次，頻道沒有今天的影片，"
+                                 f"也沒有排定或進行中的直播；已停止今天的自動取稿。"
+                                 f"（休市日由 why_closed 另外擋掉，這是有開盤但沒有節目）")
+                return 0
 
             if args.once:
                 log("單次模式，不等下一輪。")

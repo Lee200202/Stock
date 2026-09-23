@@ -1692,12 +1692,30 @@ def existing_transcript(ss, video_id, date_str):
 
 
 def existing_dates(ss, sheet_name) -> set:
-    """某張表已經有哪些日期的資料。用來避免重複寫入操作紀錄與會員持股。"""
+    """某張表已經有哪些日期「由逐字稿產生」的資料。
+
+    只算逐字稿那條鏈寫的列。會員簡訊（CMONEY-）與人工補登（MANUALENTRY-、
+    人工補登）不算——它們是另一條鏈，不代表這一天的逐字稿已經處理過。
+
+    先前這裡是「這一天有沒有任何一列」，於是盤中的會員簡訊一寫進操作紀錄，
+    當天就被當成「已處理」。2026/09/23 實際發生：簡訊在盤中寫了力積電一筆，
+    收盤後的逐字稿跑完整輪、擷取到 9 檔觀望不碰與 6 檔觀望注意，
+    到了寫入那一步卻只印一句「操作紀錄已存在，不重複寫入」，17 筆全部丟掉。
+    會員持股那天沒有簡訊列，所以 2 筆持股照樣寫進去——一半進、一半沒進，
+    看起來更像「他今天只講了兩檔」。網站與信件的②-3 於是都是「本支影片未說明」。
+
+    後台重新投稿沒事，因為那條路走 replace_video，會先 discard 這一天；
+    自動路徑沒有那一步，就整批被擋掉。Apps Script 的 hasTranscriptRecordsOnDate_
+    一直都排除這兩種來源，這裡補上同一個判斷。
+
+    每日推播內容沒有「來源影片ID」欄，取到 None 不算受保護，行為不變。
+    """
     try:
         rows = sheets_retry(ss.worksheet(sheet_name).get_all_records)
     except Exception:
         return set()
-    return {norm_date(r.get("日期")) for r in rows} - {""}
+    return {norm_date(r.get("日期")) for r in rows
+            if not _is_protected_source(r.get("來源影片ID"))} - {""}
 
 
 def find_video_row(ss, video_id, date_str=''):
@@ -1711,7 +1729,14 @@ def mark_status(ss, video_id, published, title, status, reason=''):
     if idx is None:
         sheets_retry(ws.append_row, [video_id, published, title, status, reason, '', ''])
     else:
-        sheets_retry(ws.update, range_name=f'D{idx}:E{idx}', values=[[status, reason]])
+        if status == '處理中' and not reason:
+            # 只改狀態，保留 E 欄目前的步驟。
+            # 先前這裡連 E 一起寫成空字串，而後台是用 E 欄判斷「跑到哪一步」：
+            # processingDetail 一空，畫面就從「執行中」退回「等待中」，
+            # 看起來像剛剛那幾步沒發生過。
+            sheets_retry(ws.update, range_name=f'D{idx}', values=[[status]])
+        else:
+            sheets_retry(ws.update, range_name=f'D{idx}:E{idx}', values=[[status, reason]])
         rows = sheets_retry(ws.get_all_records)
         if not str(rows[idx-2].get('影片ID') or '').strip():
             sheets_retry(ws.update_cell, idx, 1, video_id)
@@ -9075,10 +9100,14 @@ def sweep_unresolved_codes(ss, date_str: str = "") -> dict:
 # ---------------------------------------------------------------- #
 # 兩階段處理
 # ---------------------------------------------------------------- #
-def stage_transcript(ss, video, date_str):
+def stage_transcript(ss, video, date_str, on_step=None):
     """
     階段一：取得逐字稿。最貴也最容易壞的一段。
     雲端已經有修飾後逐字稿就直接沿用，不重跑。
+
+    on_step(名稱, 說明) 給後台進度用。潤飾是整條流程裡最久的一段
+    （一小時的直播切成兩、三段送出，每段好幾十秒），先前這一段完全沒有回報，
+    畫面上會一直停在「讀取原文」，看起來像卡住。
     """
     v1, v2 = existing_transcript(ss, video["id"], date_str)
 
@@ -9125,6 +9154,8 @@ def stage_transcript(ss, video, date_str):
             "這一棒只要等下一輪即可；真的一直沒有，就到後台「投稿逐字稿」"
             "自己貼一份，貼好之後下一棒會自動接著跑完後面的流程。")
 
+    if on_step:
+        on_step('潤飾', f'{len(v1)} 字送出潤飾，完成後進入擷取')
     v2 = polish(v1)
     write_transcripts(ss, video["id"], v1, v2, date_str)   # 潤飾完再補寫 v2
     return v1, v2
@@ -11759,7 +11790,7 @@ def process_one(ss, video, done_trades, done_holds):
 
     try:
         auto_step('讀取原文')
-        v1, v2 = stage_transcript(ss, video, date_str)
+        v1, v2 = stage_transcript(ss, video, date_str, on_step=auto_step)
     except NotReadyYet as e:
         # 這不是失敗。VOD 還在轉檔，下一輪會再敲一次門。
         mark_status(ss, video["id"], date_str, video["title"], "等待中", str(e)[:200])

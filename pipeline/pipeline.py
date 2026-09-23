@@ -6267,7 +6267,7 @@ def watch_tone(text):
     if third_party_churn(text):
         return 'watch_avoid'
     soft = _THIRD_PARTY_TARGET.sub('', _SOFT_NEGATED.sub('', positive))
-    if _SOFT_POSITIVE.search(soft) and not _NEGATIVE_CUE.search(_REVERSAL_CUE.sub('', text)):
+    if (_SOFT_POSITIVE.search(soft) or _SETUP_READY.search(soft))             and not _NEGATIVE_CUE.search(_REVERSAL_CUE.sub('', text)):
         return 'watch_watch'
     return 'watch_avoid'
 
@@ -6768,6 +6768,25 @@ def exclude_past_recommendations(signals, transcript):
 
 # 中性描述：只有盤整、觀察、換手，沒有正面指示。管理者規則：這種列觀望不碰。
 _NEUTRAL_CUE = re.compile(r'盤整|整理|橫盤|震盪|區間|觀察|看看|換手|換股|一買一賣|持平|原地|沒有(?:表態|看法|方向)')
+# 「整理完了、剛要啟動」是講者的核心選股邏輯，不是中性描述（2026/09/23）。
+#
+# 那天他自己把話講得很清楚：「不要去追逐已經上漲三個月的高點，而是要注意跌三個月、
+# 橫向拉回打底完成、剛要啟動翻陽的股票」，並點名漢唐與聖暉是同一種型態。
+# 但兩檔的下場相反：漢唐的說明裡有「轉強」「低檔佈局」，被既有清單認得，留在觀望注意；
+# 聖暉的說明寫「整理三個月、剛要啟動、整理完準備噴出、打底完成」，一個字都不在清單裡，
+# 而「整理」又命中 _NEUTRAL_CUE，於是被判成「純中性描述」改到「語氣偏空，暫不進場」。
+# 祥碩一樣：「月K線MACD將翻紅，目前盤整是為了讓散戶賣出」——「盤整」命中中性，
+# 洗盤與月K翻紅這兩個偏多依據則沒有任何規則認得。兩檔都不是被負面線索打下來的，
+# 是掉到 watch_tone 的預設值 watch_avoid。
+#
+# 只認「整理／打底已經完成、或正要啟動」這一組；單純「還在整理」照舊算中性。
+_SETUP_READY = re.compile(
+    r'(?:打底|築底|整理|盤整|橫盤|橫向(?:拉回)?)[^，。；;]{0,6}(?:完成|完畢|完了|結束)'
+    r'|(?:整理|盤整|打底|築底)(?:完|夠(?:久|了))'
+    r'|(?:剛|正)?(?:要|即將|準備|開始|就要)(?:啟動|發動|噴出|噴上去|翻揚|翻陽|轉強)'
+    r'|準備(?:噴出|大漲|發動)|翻陽'
+    r'|(?:月K|月線|季線|週K|周K|日K|MACD|KD)(?:線)?[^，。；;]{0,8}(?:翻紅|翻揚|翻正|向上|黃金交叉)'
+    r'|洗盤|(?:盤整|整理|下跌)[^，。；;]{0,8}(?:是)?為了[^，。；;]{0,8}(?:讓)?(?:散戶|你們)[^，。；;]{0,4}(?:賣|出場|下車)')
 
 
 def _strict_bearish_basis(text) -> bool:
@@ -6777,6 +6796,26 @@ def _strict_bearish_basis(text) -> bool:
     return bool(re.search(_PROHIBIT, t) or _NEGATIVE_CUE.search(_REVERSAL_CUE.sub('', t)) or third_party_churn(t))
 
 
+# ETF 是交易者，不能承接個股的買點（提示語：「ETF交易個股時，ETF是交易者，不能承接個股買點」）。
+#
+# 2026/09/23：00981A 的說明是「在低點出清持股的對象，提醒須等待其賣完後才能評估個股進場時機」。
+# 那個「進場時機」講的是被它賣掉的那幾檔個股，不是這支 ETF；但語氣核對讀到
+# 「等待…進場」就把它從觀望不碰改成觀望注意，等於把別人的買點記到 ETF 頭上。
+# 提示語本來就要求這種行情／法人例子列中性的 watch_avoid。
+_ETF_CODE = re.compile(r'^00\d{2,3}[A-Z]?$')
+_WAIT_OTHERS_TO_SELL = re.compile(
+    r'(?:等|等待|等到)[^，。；;]{0,20}(?:賣完|出清|賣光|賣一賣|清完|出完)'
+    r'|(?:賣完|出清|賣光|清完)[^，。；;]{0,16}(?:才|再|之後|以後)[^，。；;]{0,10}(?:進場|買|評估|考慮)')
+
+
+def _etf_borrowing_someone_elses_entry(row, text) -> bool:
+    code = str((row or {}).get('code') or '').strip()
+    name = str((row or {}).get('name') or '')
+    if not (_ETF_CODE.match(code) or 'ETF' in name.upper()):
+        return False
+    return bool(_WAIT_OTHERS_TO_SELL.search(strip_speaker_names(str(text or ''))))
+
+
 def _bearish_or_neutral_basis(text) -> bool:
     """說明裡有沒有「列觀望不碰」的依據：禁止、負面、法人反覆換手、或純中性描述。"""
     t = strip_speaker_names(str(text or ''))
@@ -6784,8 +6823,10 @@ def _bearish_or_neutral_basis(text) -> bool:
         return True
     # 中性描述只在沒有任何正面說法時才算依據。9/14 敦泰「業績很好不需擔憂，值得納入觀察清單」
     # 因為含「觀察」被當成中性、改到觀望不碰。
-    positive = _SOFT_NEGATED.sub('', t)
-    return bool(_NEUTRAL_CUE.search(t)) and not _SOFT_POSITIVE.search(_THIRD_PARTY_TARGET.sub('', positive)) and watch_tone(t) != 'watch_watch'
+    positive = _THIRD_PARTY_TARGET.sub('', _SOFT_NEGATED.sub('', t))
+    # 「整理完成、剛要啟動」不是中性描述，見 _SETUP_READY。
+    return (bool(_NEUTRAL_CUE.search(t)) and not _SOFT_POSITIVE.search(positive)
+            and not _SETUP_READY.search(positive) and watch_tone(t) != 'watch_watch')
 
 
 def repair_misnamed_subjects(signals, transcript):
@@ -6853,6 +6894,11 @@ def normalize_watch_tones(signals):
             if cat=='watch_avoid' and target=='watch_watch' and _strict_bearish_basis(text):
                 note_decision('語氣核對','保留觀望不碰',row.get('name',''),'說明有偏空依據，不以正面關鍵字推翻：'+str(text or '')[:60])
                 print(f"  語氣核對　{row.get('name','')}　保留觀望不碰（說明有偏空依據）")
+                target=cat
+            if cat=='watch_avoid' and target=='watch_watch' and _etf_borrowing_someone_elses_entry(row, text):
+                note_decision('語氣核對','保留觀望不碰',row.get('name',''),
+                              'ETF 是交易者，「等它賣完再進場」是被它賣的那幾檔的買點：'+str(text or '')[:60])
+                print(f"  語氣核對　{row.get('name','')}　保留觀望不碰（ETF 不承接個股買點）")
                 target=cat
             if target!=cat:
                 note_decision('語氣核對','調整觀望方向',row.get('name',''),cat+' → '+target)

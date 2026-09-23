@@ -9655,11 +9655,17 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     write_results(ss, date_str, signals, article, done_trades, done_holds,
                   replace_video=replace_video)
     try:
-        if enrich_sms_notes_from_signals(ss, date_str, signals, v1):
-            queue_sms_content_sync(ss, [date_str])
+        enrich_sms_notes_from_signals(ss, date_str, signals, v1)
     except Exception as exc:
         print(f'簡訊說明補充尚未完成，保留原說明：{exc}')
         note_decision('簡訊說明', '補充未完成', date_str, str(exc))
+    # 簡訊先到、逐字稿後到時，即使個股說明文字沒有變，六章文章也可能已變。
+    # 同步佇列只重建網站郵件查詢，不重寄；正式刷新若先完成，這一筆是可重複的保險。
+    try:
+        queue_sms_content_sync(ss, [date_str])
+    except Exception as exc:
+        print(f'郵件查詢備援同步尚未排入，正式刷新仍會同步：{exc}')
+        note_decision('郵件查詢', '備援同步未排入', date_str, str(exc))
     # 逐字稿排版：寫入之後順手排好存起來，讀者打開就是現成的（2026/09/16）。
     # 排的是網站顯示的那一份；沒排成（中斷、配額）網站每 15 分鐘會補排（2026/09/17 v44）。
     ensure_transcript_layout(ss, date_str)
@@ -11735,7 +11741,24 @@ def process_one(ss, video, done_trades, done_holds):
     date_str = video["date"].strftime("%Y/%m/%d")
     print(f"\n=== 處理 {date_str}　{video['title']}　{video['id']} ===")
 
+    # 自動取稿沒有後台工單列，先前只顯示「原文落地／等待稽核」直到完成。
+    # 直接更新同一支影片的狀態與最後一步；進度供後台讀取，失敗不拖垮判讀。
+    progress_row = None
+    def auto_step(name, note=''):
+        nonlocal progress_row
+        try:
+            if progress_row is None:
+                ws, progress_row = find_video_row(ss, video['id'], date_str)
+            else:
+                ws = ss.worksheet('影片清單')
+            if progress_row is not None:
+                sheets_retry(ws.update, range_name=f'D{progress_row}:E{progress_row}',
+                             values=[['處理中', (name + '｜' + note)[:250]]])
+        except Exception as e:
+            print(f'  自動流程進度回報略過（{type(e).__name__}）')
+
     try:
+        auto_step('讀取原文')
         v1, v2 = stage_transcript(ss, video, date_str)
     except NotReadyYet as e:
         # 這不是失敗。VOD 還在轉檔，下一輪會再敲一次門。
@@ -11751,16 +11774,20 @@ def process_one(ss, video, done_trades, done_holds):
         mark_status(ss, video["id"], date_str, video["title"], "處理中")
         checkpoint = load_refresh_checkpoint(ss,video['id'],date_str,v1)
         affected = (checkpoint['affected'] if checkpoint and 'complete' not in checkpoint.get('completed',[])
-                    else stage_extract(ss, video, date_str, v2, done_trades, done_holds, v1=v1))
+                    else stage_extract(ss, video, date_str, v2, done_trades, done_holds,
+                                       on_step=auto_step, v1=v1))
         if getattr(affected, 'retained', False):
             mark_status(ss, video['id'], date_str, video['title'], '待複核', affected.note)
             return
         # 每日排程不會帶 refresh_site（cron 沒有 inputs），所以這裡自己讓網站跟上。
         # 回補模式例外：那時是一次跑很多天，收尾統一在最後做一次。
         if not (_POST_WRITE_DEFER["on"] or BACKFILL):
+            auto_step('刷新網站', '同步郵件、追蹤與績效')
             refresh_result = finish_transcript_refresh(ss,video['id'],date_str,v1,affected or [date_str])
             if refresh_result.get('pending'):
-                raise RuntimeError(refresh_result['note'])
+                mark_status(ss, video['id'], date_str, video['title'], '等待續跑', refresh_result['note'])
+                print('刷新待續跑：' + refresh_result['note'])
+                return
         mark_status(ss, video['id'], date_str, video['title'], '完成')
         print('完成 ' + video['id'])
     except Exception as e:

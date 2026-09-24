@@ -1,3 +1,7 @@
+目前交付：**2026-09-24-tracker-axis-v63**。持股追蹤交易軸的左右端點已改成逐列對齊，桌面與手機均完成離線版面檢查。請依 [v63 持股追蹤線條對齊與部署](docs/0924-v63/持股追蹤線條對齊與部署.md) 更新原 Apps Script 網頁應用程式；[六檔部署包](release/zhangzhen-tracker-axis-v63.zip) 保留 v61／v62 的近期日 K、價格與快取修正。GitHub 推送不會自動部署網站。
+
+以下 v62 說明保留作歷史紀錄。
+
 目前交付：**2026-09-24-tracker-cache-v62**。`snapshotPerformanceJob()` 已寫入績效、但持股清單超過快取上限時，改以精簡／分段快取保留完整資料，避免每次重讀試算表；v61 的全股票近期日 K 與計價修正也包含在內。請依 [快取修正與正式部署](docs/0924-v62/持股追蹤快取與正式部署.md) 更新原 Apps Script 網頁應用程式；[五檔部署包](release/zhangzhen-tracker-cache-v62.zip) 已提供。GitHub 推送不會自動部署網站。
 
 以下 v61 說明保留作歷史紀錄。

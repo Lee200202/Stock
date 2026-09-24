@@ -1,3 +1,5 @@
+目前交付：**2026-09-24-day-sync-cancel-v60**，請先讀 [取消工單與重建績效](docs/0924-v60/取消工單與重建績效.md)。GitHub Actions 新增指定工單取消及取消後重建模式；Apps Script 三個更新檔留在本機專案資料夾，必須另行部署。
+
 目前交付：**2026-09-24-quality-v59**，請先讀 [v58 部署與驗證](docs/0924-v58/部署與驗證.md)。持股追蹤改成進場日最低、出場日最高（明講價以灰字附註），表格改用交易軸。GitHub 只放 GitHub Actions 會用到的 Python（`pipeline/`、`transcript.py`、`scripts/`）、workflow 與部署文件；Apps Script 33 檔、測試檔與截圖只在本機資料夾，由管理者整份替換後部署新版本。
 
 以下 v56 說明保留作歷史紀錄。

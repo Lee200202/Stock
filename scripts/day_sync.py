@@ -1,5 +1,6 @@
 """逐日編輯的 Actions 協調器；游標在 GAS，重送不重做已完成步驟，不寄信。"""
 import os
+import sys
 import time
 import requests
 
@@ -24,7 +25,44 @@ def main():
     url, key = os.environ['APPS_SCRIPT_URL'], os.environ['ADMIN_KEY']
     session = requests.Session()
     deadline = time.monotonic() + 23 * 60
-    data = call(session, url, key, op='performance' if os.environ.get('MODE') == 'performance' else 'state')
+    mode = os.environ.get('MODE') or 'queue'
+    if mode not in ('queue', 'performance', 'cancel', 'cancel-performance'):
+        raise RuntimeError('不支援的同步模式：' + mode)
+    data = call(session, url, key, op='state')
+    state = data.get('state') or {}
+    active = state.get('status') in ('處理中', '等待續跑')
+    if mode in ('cancel', 'cancel-performance'):
+        if active:
+            job_id = state.get('id')
+            if not job_id:
+                raise RuntimeError('後端沒有回傳工單 ID，未執行取消')
+            data = call(session, url, key, op='cancel', id=job_id)
+            state = data.get('state') or {}
+            if state.get('id') != job_id or state.get('status') not in ('已取消', '完成'):
+                raise RuntimeError('無法確認原工單已取消，停止後續重建')
+            print(f'{state["status"]} {job_id}：{data.get("message", "")}')
+            if mode == 'cancel-performance':
+                while (data.get('health') or {}).get('running'):
+                    if time.monotonic() >= deadline:
+                        raise RuntimeError('已取消工單，但原步驟仍在執行；請稍後重跑 performance')
+                    time.sleep(15)
+                    data = call(session, url, key, op='state')
+                    state = data.get('state') or {}
+                    if state.get('id') != job_id:
+                        raise RuntimeError('等待收尾期間出現新工單，未開始績效重建')
+        else:
+            print('目前沒有進行中或等待續跑的工單。')
+        if mode == 'cancel':
+            return
+        data = call(session, url, key, op='performance')
+    elif mode == 'performance':
+        if active and str(state.get('id', '')).startswith('PERF-'):
+            print('接續現有績效重建工單。')
+        elif active:
+            raise RuntimeError('已有逐日更新工單 ' + str(state.get('id', '')) +
+                               '；請使用 cancel-performance 明確取消後重建，或先以 queue 完成該工單')
+        else:
+            data = call(session, url, key, op='performance')
     while time.monotonic() < deadline:
         state = data.get('state') or {}
         if not state or state.get('status') in ('完成', '已取消'):
@@ -38,4 +76,8 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except RuntimeError as exc:
+        print(f'::error::{exc}', file=sys.stderr)
+        sys.exit(1)

@@ -3,9 +3,9 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'queue 接續逐日編輯；performance 重建7/8起績效，不重抓逐字稿'
+        description: 'queue 接續；performance 重建；cancel 只取消目前工單；cancel-performance 取消後重建'
         type: choice
-        options: [queue, performance]
+        options: [queue, performance, cancel, cancel-performance]
         default: queue
 permissions:
   contents: read

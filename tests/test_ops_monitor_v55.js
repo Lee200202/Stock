@@ -39,6 +39,9 @@ assert.equal(ctx.dailyPushStartTime_('2026/09/25'), '1200', '今日設定不影�
 pushStatus = '已寄送';
 assert(!ctx.apiAdminSetDailyPushStart('key', '15:00').ok, '寄送後不可變更');
 pushStatus = '待寄送';
+props.dailyPushSentDates = JSON.stringify({ '2026/09/24': '2026/09/24 12:05' });
+assert(!ctx.apiAdminSetDailyPushStart('key', '15:00').ok, '重建待寄列也不能繞過已寄旗標');
+delete props.dailyPushSentDates;
 props.OPS_HEARTBEAT_AT = String(Date.now() - 3 * 60000);
 const status = ctx.apiAdminTodayStatus('key');
 assert(status.ok, status.reason);

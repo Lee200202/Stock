@@ -53,7 +53,7 @@ function apiAdminSetDailyPushStart(key, hhmm) {
     if (!match || Number(match[2]) % 5 !== 0) { throw new Error('請選擇 12:00–21:55 之間、每五分鐘一格的時間。'); }
     var today = todayStr_();
     var push = readSheetObjects_('每日推播內容').filter(function (r) { return fmtDate_(r['日期']) === today; })[0];
-    if (push && /已寄|寄送中|部分寄送/.test(String(push['寄送狀態'] || ''))) {
+    if (pushSentAt_(today) || (push && /已寄|寄送中|部分寄送/.test(String(push['寄送狀態'] || '')))) {
       throw new Error('今日郵件已開始寄送，不能再變更最早寄送時間。');
     }
     var value = match[1] + match[2];

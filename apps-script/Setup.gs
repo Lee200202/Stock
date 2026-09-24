@@ -84,7 +84,7 @@ var SHEET_SCHEMA = {
   '寄送帳本': ['訊息ID', '種類', '日期', '內容版本', '收件者', '狀態', '嘗試次數', '最後錯誤', '更新時間', '服務接受時間'],
   '自動工單': ['工單ID', '日期', '影片ID', '狀態', '步驟', '已完成', '總數', '備註', '開始時間', '更新時間', '來源', '原文SHA256', '執行網址', '程式版本'],
   '今日影片候選': ['日期', '影片ID', '標題', '網址', '偵測時間'],
-  '持股追蹤': ['代號', '股票名稱', '首次買入日', '進場價', '進場價來源', '最近賣出日', '出場價', '狀態', '提及次數', '首次理由', '逐日說明', '更新時間', '回合數', '本回合進場日', '出場原因', '回合明細', '參考價位', '參考價位來源', '首次進場方式', '本回合進場方式', '累積報酬', '各回合報酬', '回合JSON', '最新說明日期'],
+  '持股追蹤': ['代號', '股票名稱', '首次買入日', '進場價', '進場價來源', '最近賣出日', '出場價', '狀態', '提及次數', '首次理由', '逐日說明', '更新時間', '回合數', '本回合進場日', '出場原因', '回合明細', '參考價位', '參考價位來源', '首次進場方式', '本回合進場方式', '累積報酬', '各回合報酬', '回合JSON', '最新說明日期', '進場明講', '出場明講'],
   // GitHub Actions 每一輪的執行結果。狀態信與認證過期告警都讀這張表。
   '系統狀態': ['時間', '類別', '說明', '模式', '執行環境'],
   // AI 稽核提出的修正建議。核准後才會套用，保留稽核軌跡。
@@ -994,7 +994,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-09-24-ops-exit-v57';
+var PROJECT_BUILD_ = '2026-09-24-quality-v58';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
@@ -1013,12 +1013,12 @@ var PROJECT_FILES_ = [
   { file: 'DB.gs', names: ['writeSubscriptionFields_', 'findSubscription_'] },
   { file: 'Evidencequality.gs', names: ['rawTranscript_', 'validEvidence_', 'queueDayEditSync_', 'dayEditSyncTick_', 'queueCostSync_'], marker: ['dayEditSyncTick_', 'COST:'] },
   { file: 'Logic.gs', names: ['markChainStep_', 'REFRESH_STEPS_'] },
-  { file: 'MailService.gs', names: ['createSubscription', 'mailHero_', 'publicWebAppUrl_', 'escAttr_', 'mailRiskHtml_', 'deliverMessage_', 'deliveryLedger_', 'mailPlainText_', 'isExecUrl_'], marker: ['deliverMessage_', 'no-url'] },
+  { file: 'MailService.gs', names: ['createSubscription', 'mailHero_', 'publicWebAppUrl_', 'escAttr_', 'mailRiskHtml_', 'deliverMessage_', 'deliveryLedger_', 'mailPlainText_', 'isExecUrl_', 'mailStockName_'], marker: ['mdToHtml_', 'mailStockName_(cells[0])'] },
   { file: 'Presentationquality.gs', names: ['displayPrice_', 'narrativeName_', 'titleChars_'], marker: ['articleTitle_', 'TITLE_MIN_CHARS_'] },
   { file: 'Quoteservice.gs', names: ['getFugleKey_', 'fugleFetch_', 'sharesToLots_', 'volumeInLots_', 'hourSlot_', 'readHourlyRows_', 'fugleHistPace_', 'kcPutAll_', 'getCandlesBundle'], marker: ['repairDailyKVolume', 'disabled: true'] },
   { file: 'Refreshrunner.gs', names: ['runRefreshAllChunk_', 'withRefreshAllLease_'] },
   { file: 'Setup.gs', names: ['setupSpreadsheet', 'setWebAppUrl', 'webAppUrlReport_', 'checkProjectFiles', 'checkAutomationReadiness', 'ensureAutomationTick', 'withSheetSnapshot_'] },
-  { file: 'SheetService.gs', names: ['fmtDate_', 'withLock_', 'ensureTranscriptLayoutJob', 'transcriptFingerprint_', 'stripTranscribeEcho_', 'readCostOverrides_', 'searchTerms_', 'repairLiwangExitPriceNow'], marker: ['transcriptDisplayText_', 'repairMissingTrackerExitPrice'] },
+  { file: 'SheetService.gs', names: ['fmtDate_', 'withLock_', 'ensureTranscriptLayoutJob', 'transcriptFingerprint_', 'stripTranscribeEcho_', 'readCostOverrides_', 'searchTerms_', 'repairLiwangExitPriceNow', 'rangeCandle_', 'statedNote_', 'trackerRoundList_'], marker: ['rebuildHoldingsTrackerJob', '進場明講'] },
   { file: 'Transcriptstore.gs', names: ['transcriptSha256_', 'selectTranscriptRow_'] }
 ];
 
@@ -1026,13 +1026,13 @@ var PROJECT_FILES_ = [
 var PROJECT_HTML_ = [
   { file: 'MarketDetail', marker: 'minmax(max(140px,calc((100% - 72px) / 3)),1fr)' },
   { file: 'MarketCharts', marker: 'window.marketRollingBounds' },
-  { file: 'Market', marker: 'class="seg-up"' },
-  { file: 'Index', marker: 'id="perfStale"' },
-  { file: 'JavaScript', marker: 'function watchEmptyText(pending)' },
-  { file: 'Stylesheet', marker: '寬鬆格線（2026/09/24' },
-  { file: 'Changelog', marker: '後台改版、逐收件者寄送帳本與退訂確認頁' },
+  { file: 'Market', marker: '開盤不久，走勢累積中' },
+  { file: 'Index', marker: 'id="dPxRange"' },
+  { file: 'JavaScript', marker: 'function pxRangeHtml(t)' },
+  { file: 'Stylesheet', marker: 'v58 持股追蹤取價' },
+  { file: 'Changelog', marker: 'v58 持股追蹤改成「進場日最低、出場日最高」' },
   { file: 'Tech', marker: 'id="techLive"' },
-  { file: 'Admin', marker: '今日郵件與資料時間線' },
+  { file: 'Admin', marker: 'he-form' },
   { file: 'AdminLegacy', marker: '改版前的舊版後台' },
   { file: 'Settings', marker: '手機預覽' },
   { file: 'Unsubscribed', marker: 'apiUnsubscribeConfirm' }

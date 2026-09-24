@@ -29,12 +29,14 @@ Object.assign(ctx, {
   },
   mergeDailyK_: (oldRows, newRows) => oldRows.concat(newRows),
   writeDailyKRows_: items => { cache = items[0].rows; },
-  rebuildHoldingsTrackerJob: () => { rebuilt++; tracker['出場價'] = cache.find(x => x.date === '2026/09/23').close; },
+  // v58 起出場價取出場日當日最高
+  rebuildHoldingsTrackerJob: () => { rebuilt++; tracker['出場價'] = cache.find(x => x.date === '2026/09/23').high; },
   rebuildPerformanceHistoryJob: d => { history = d; }
 });
 const repaired = ctx.repairMissingTrackerExitPrice('3529');
 assert.equal(repaired.close, 2750);
-assert.equal(repaired.trackerExit, 2750);
+assert.equal(repaired.trackerExit, 2800);
+assert.equal(repaired.high, 2800);
 assert.equal(rebuilt, 1);
 assert.equal(history, '2026/09/23');
 

@@ -523,6 +523,11 @@ html[data-view="mobile"] .step { font-size: calc(11px * var(--rd-fs)); padding: 
 .mtool, .erow, .amsg, .sms-chunk, .sms-calendar-pick, .sms-filter-details, .sms-merge-note span, .sms-bucket .bk,
 .audit-detail, .panel pre { border-radius: var(--r-md); }
 .astat { border-radius: var(--r-md); overflow: hidden; }
+/* v58（2026/09/24 正式站 800px 寬實測）：三格排成兩欄時，1px 格線的灰底會在右上角露出一塊灰色空格。
+   改成分開的圓角小卡，沒排滿的位置只是留白；一排最多三格。 */
+.astat { gap: 12px; background: none; border: 0; overflow: visible;
+  grid-template-columns: repeat(auto-fill, minmax(max(150px, calc((100% - 24px) / 3)), 1fr)); }
+.astat > div { border: 1px solid var(--rule); border-radius: var(--r-md); padding: 14px 16px; }
 .runbar .where { border-radius: var(--r-pill); }
 .steps .step { border-radius: var(--r-sm); }
 .panel:not([hidden]) .card, .panel:not([hidden]) .mtool, .astat > div, .steps .step { animation: none; }
@@ -634,6 +639,25 @@ details.dz-card[open] > summary { margin-bottom: 10px; }
 .he { grid-area: he; display: grid; grid-template-columns:minmax(150px,1fr) minmax(170px,1.4fr) auto; gap: 10px; align-items: center; min-width:0; }
 .he .h-cost,.he .h-note { box-sizing:border-box; width:100%; min-width:0; min-height:46px; padding:10px 14px; border-radius:10px; font:inherit; font-size:max(16px,calc(14px * var(--rd-fs))); }
 .he button { min-height:46px; }
+/* v58：成本修正收起來。這一格只剩一顆小按鈕，靠右；展開的輸入列橫跨整列、在這一列下方。 */
+.he { display: flex; justify-content: flex-end; }
+.he .h-edit { width: auto; min-height: 38px; padding: 7px 16px; }
+.he-form { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(140px, 1fr) minmax(180px, 1.6fr) auto auto;
+  gap: 10px; align-items: center; padding: 6px 0 4px; }
+.he-form[hidden] { display: none; }
+.he-form .h-cost, .he-form .h-note { box-sizing: border-box; width: 100%; min-width: 0; min-height: 46px; padding: 10px 14px;
+  border-radius: 10px; font: inherit; font-size: max(16px, calc(14px * var(--rd-fs))); }
+.he-form button { min-height: 46px; }
+.hrow.editing { background: color-mix(in srgb, var(--wait) 6%, transparent); }
+.hhead .he-h { text-align: right; }
+@media (max-width: 720px) {
+  .he-form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .he-form .h-note { grid-column: 1 / -1; grid-row: 2; }
+  .he-form .h-cost { grid-column: 1 / -1; }
+}
+html[data-view="mobile"] .he-form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+html[data-view="mobile"] .he-form .h-note { grid-column: 1 / -1; grid-row: 2; }
+html[data-view="mobile"] .he-form .h-cost { grid-column: 1 / -1; }
 
 /* 逐日編輯黏底儲存列（I23）：計入手機安全區，不蓋住最後一列 */
 .savebar { position: sticky; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); z-index: 20; margin-top: 12px;
@@ -666,7 +690,9 @@ details.dz-card[open] > summary { margin-bottom: 10px; }
 .astat { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
 .health { gap: 12px; }
 .steps { display: flex !important; flex-direction: column; gap: 4px; }
-.steps .step { display: flex; align-items: center; gap: 10px; text-align: left; padding: 9px 12px; font-size: calc(13px * var(--rd-fs)); }
+.steps .step { display: flex; align-items: center; gap: 10px; text-align: left; padding: 9px 12px; font-size: calc(13px * var(--rd-fs)); 
+  border: 0; background: none; border-radius: var(--r-sm); } /* v58：直式清單不畫框線，靠狀態圓點區分；進行中那一步留淡色底 */
+.steps .step.on { background: color-mix(in srgb, var(--beam) 10%, transparent); }
 .steps .step::before {
   content: ""; flex: 0 0 auto; width: 18px; height: 18px; border-radius: 50%;
   border: 2px solid currentColor; opacity: .55; box-sizing: border-box;
@@ -706,7 +732,8 @@ html[data-view="mobile"] .btnrow:not(.acct-row) > button.danger { order: 9; }
 html[data-view="mobile"] .astat { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
 html[data-view="mobile"] .health { gap: 12px; }
 html[data-view="mobile"] .steps { display: flex !important; flex-direction: column; gap: 4px; }
-html[data-view="mobile"] .steps .step { display: flex; align-items: center; gap: 10px; text-align: left; padding: 9px 12px; font-size: calc(13px * var(--rd-fs)); }
+html[data-view="mobile"] .steps .step { display: flex; align-items: center; gap: 10px; text-align: left; padding: 9px 12px; font-size: calc(13px * var(--rd-fs));  border: 0; background: none; border-radius: var(--r-sm); }
+html[data-view="mobile"] .steps .step.on { background: color-mix(in srgb, var(--beam) 10%, transparent); }
 html[data-view="mobile"] .steps .step::before {
   content: ""; flex: 0 0 auto; width: 18px; height: 18px; border-radius: 50%;
   border: 2px solid currentColor; opacity: .55; box-sizing: border-box;
@@ -4124,7 +4151,7 @@ var mergeTxFingerprint='';
   function fmt(v) { return v === null || v === undefined || v === '' ? '—' : Number(v).toLocaleString('zh-TW', { maximumFractionDigits: 2 }); }
   function draw() {
     if (!items.length) { $('heldList').innerHTML = '<div class="erow-empty">目前沒有持有中的股票。</div>'; return; }
-    $('heldList').innerHTML = '<div class="hrow hhead" aria-hidden="true"><span>股票</span><span>本回合開始</span><span>目前成本</span><span>現價／報酬</span><span>新成本與備註</span></div>' +
+    $('heldList').innerHTML = '<div class="hrow hhead" aria-hidden="true"><span>股票</span><span>本回合開始</span><span>目前成本</span><span>現價／報酬</span><span class="he-h">成本修正</span></div>' +
       items.map(function (x, i) {
         var ret = (x.ret === null || x.ret === undefined) ? '—' : (x.ret > 0 ? '+' : '') + Number(x.ret).toFixed(2) + '%';
         return '<div class="hrow' + (x.override ? ' fixed' : '') + '" data-i="' + i + '">' +
@@ -4132,13 +4159,24 @@ var mergeTxFingerprint='';
           '<span class="hd" data-label="本回合開始">' + esc(x.roundStart) + '</span>' +
           '<span class="hc" data-label="目前成本"><b>' + fmt(x.entry) + '</b><small title="' + esc(x.entrySrc) + '">' + esc(String(x.entrySrc || '').slice(0, 60)) + '</small></span>' +
           '<span class="hp" data-label="現價／報酬">' + fmt(x.current) + '<small class="' + (x.ret > 0 ? 'up' : x.ret < 0 ? 'down' : '') + '">' + ret + '</small></span>' +
-          '<span class="he">' +
+          '<span class="he"><button type="button" class="ghost sm h-edit" aria-expanded="false" aria-controls="hf' + i + '">' +
+            (x.override ? '調整修正' : '修改成本') + '</button></span>' +
+          /* 輸入欄平常收起來（v58）：清單先看得清楚，按了才在這一列下方展開一整行。 */
+          '<div class="he-form" id="hf' + i + '" hidden>' +
             '<input class="h-cost" inputmode="decimal" placeholder="新成本" value="' + (x.override ? esc(x.override.cost) : '') + '" aria-label="' + esc(x.name) + ' 新成本">' +
             '<input class="h-note" placeholder="備註（選填）" value="' + (x.override ? esc(x.override.note || '') : '') + '" aria-label="備註">' +
             '<button class="h-save">儲存</button>' +
-          '</span></div>';
+            '<button type="button" class="ghost h-cancel">收起</button>' +
+          '</div></div>';
       }).join('');
     $('heldList').querySelectorAll('.hrow[data-i]').forEach(function (row) {
+      var form = row.querySelector('.he-form'), edit = row.querySelector('.h-edit');
+      var toggle = function (open) {
+        form.hidden = !open; row.classList.toggle('editing', open); edit.setAttribute('aria-expanded', String(open));
+        if (open) { row.querySelector('.h-cost').focus(); }
+      };
+      edit.addEventListener('click', function () { toggle(form.hidden); });
+      row.querySelector('.h-cancel').addEventListener('click', function () { toggle(false); edit.focus(); });
       row.querySelector('.h-save').addEventListener('click', function () { save(row, Number(row.dataset.i)); });
     });
   }

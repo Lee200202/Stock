@@ -1552,6 +1552,12 @@ function mailPreheader_(text) {
   return t ? '<div class="mc-pre" style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;">' + esc_(t) + '</div>' : '';
 }
 
+/* 信件表格的股票名稱不帶官方簡稱的「*」（v58，2026/09/24 正式站郵件查詢看到「國巨*」）。
+   網站的名稱欄與說明早就拿掉了；已存進試算表的舊文章不必重寫，呈現時拿掉即可。 */
+function mailStockName_(v) {
+  return String(v == null ? '' : v).replace(/[*＊]+(\s*)$/, '$1');
+}
+
 function wrapMail_(inner, email, token, kind, pre) {
   var head =
     '<div class="mc-brand" style="padding:2px 4px 10px;font-size:12px;letter-spacing:0.14em;' +
@@ -1798,7 +1804,7 @@ function mdToHtml_(md) {
         html.push('<tr>' +
           '<td bgcolor="' + bg + '" class="' + cls + ' mc-name" style="background:' + bg + ';padding:10px 10px 11px 12px;border-top:1px solid ' + ln + ';' +
             'border-left:4px solid ' + bar + ';vertical-align:top;font-weight:700;font-size:15px;line-height:1.5;color:#12161A;overflow-wrap:anywhere;">' +
-            (cells[0] || '') +
+            mailStockName_(cells[0]) +
             (codeIdx >= 0 && cells[codeIdx] ? '<br><span class="mc-code" style="font-weight:400;font-size:13.5px;letter-spacing:0.04em;color:' +
               MAIL_CODE_COLOR_ + ';white-space:nowrap;">' + cells[codeIdx] + '</span>' : '') + '</td>' +
           '<td bgcolor="' + bg + '" class="' + cls + ' mc-desc mc-side" style="background:' + bg + ';padding:10px 12px 11px;border-top:1px solid ' + ln + ';' +
@@ -1810,7 +1816,7 @@ function mdToHtml_(md) {
       var midStyle = plain.length <= 8 && mid.indexOf('mc-chip') < 0
         ? 'white-space:nowrap;word-break:normal;overflow-wrap:normal;' : 'overflow-wrap:anywhere;';
       html.push('<tr>' +
-        cell(cells[0] || '', 'border-left:4px solid ' + bar + ';font-weight:700;font-size:15px;line-height:1.5;color:#12161A;overflow-wrap:anywhere;', 'mc-name') +
+        cell(mailStockName_(cells[0]), 'border-left:4px solid ' + bar + ';font-weight:700;font-size:15px;line-height:1.5;color:#12161A;overflow-wrap:anywhere;', 'mc-name') +
         cell(codeIdx >= 0 ? (cells[codeIdx] || '') : '', 'font-size:13.5px;letter-spacing:0.04em;color:' +
              MAIL_CODE_COLOR_ + ';white-space:nowrap;', 'mc-code') +
         cell(mid || '—', 'font-size:13.5px;color:#26312C;' + midStyle, 'mc-mid') +

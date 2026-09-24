@@ -182,7 +182,9 @@
 }
 @media (max-width: 720px) {
   .market-cards { grid-template-columns:minmax(0,1fr); }
-  .market-card { padding:20px; }
+  /* 第一張（加權指數）也要一起設：520px 以下另一條 .market-card:first-child 規則比較優先，
+     只設 .market-card 時加權指數卡比其他卡寬 8px（v58，2026/09/24 手機實測）。 */
+  .market-card, .market-card:first-child { padding:20px; }
   .market-card-layout, .market-card:first-child .market-card-layout { flex-direction:column; }
   .market-card-info, .market-card:first-child .market-card-info { flex:none; max-width:none; min-width:0; }
 }
@@ -214,6 +216,9 @@ html[data-view="mobile"] .market-card:first-child .market-card-info { flex:none;
       window.marketRollingBounds(key,parsed.map(function(r){return r.ms;}),win);
     if(bounds){var from=bounds.rolling?bounds.dataStart:bounds.start;parsed=parsed.filter(function(r){return r.ms>=from&&r.ms<=bounds.end;});}
     if(!parsed.length){return '<div class="market-chart-empty">等待本盤資料</div>';}
+    /* 剛開盤只有一兩筆（2026/09/24 正式站：台指期夜盤 15:04 只有 15:00 一點）：橫軸照實涵蓋整個時段，
+       一個點落在最左邊、其餘整片空白。只有 1 筆時改一行說明，不畫空的大圖（v58）；兩筆以上就是真的一段線。 */
+    if(parsed.length<2){return '<div class="market-chart-empty">開盤不久，走勢累積中（目前只有 '+parsed[0].time.slice(11,16)+' 一筆）</div>';}
     var vals=parsed.map(function(r){return r.value;});
     /* 平盤基準（v54，Codex 規格 94）：沒有已驗證的昨收就不拿第一筆冒充，整條用中性色、不畫平盤虛線。 */
     var baseKnown=isFinite(basePrice)&&basePrice>0;

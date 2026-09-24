@@ -1129,20 +1129,27 @@ function publicNarrative_(text, row) {
       (can ? '<span class="px" data-bandpx="' + r.code + '">\u00b7\u00b7\u00b7</span>' : '') +
       '</div>';
   }
-  function absentChip(label) {
-    return '<div class="chip absent"><span class="tag">' + label + '</span>' +
-      '<span class="nm">本支影片未說明</span></div>';
+  /* 跑馬燈只放有內容的類別（v58，2026/09/24 正式站實測）。
+     先前沒有內容的類別也塞一塊刪除線的「本支影片未說明」；沒有直播的日子四塊全是它，
+     在跑馬燈上反覆跑過去。每一類有幾檔上面的計數膠囊已經寫了，這裡不必再佔位。
+     四類都空時只留一個中性標籤說明為什麼。 */
+  function bandEmptyText() {
+    if (OVERVIEW_NOSHOW) { return '今天沒有直播節目'; }
+    if (OVERVIEW_PENDING) { return '影片整理中，個股稍後出現'; }
+    return '今天的影片沒有點名個股';
   }
   function renderBand(d) {
     var parts = [];
-    if (d.buy.length) { d.buy.forEach(function (r) { parts.push(chip('buy', '買入', r)); }); }
-    else { parts.push(absentChip('買入')); }
-    if (d.sell.length) { d.sell.forEach(function (r) { parts.push(chip('sell', '賣出', r)); }); }
-    else { parts.push(absentChip('賣出')); }
-    if (wAvoid(d).length) { wAvoid(d).forEach(function (r) { parts.push(chip('watch', '觀望不碰', r)); }); }
-    else { parts.push(absentChip('觀望不碰')); }
-    if (wWatch(d).length) { wWatch(d).forEach(function (r) { parts.push(chip('note', '觀望注意', r)); }); }
-    else { parts.push(absentChip('觀望注意')); }
+    d.buy.forEach(function (r) { parts.push(chip('buy', '買入', r)); });
+    d.sell.forEach(function (r) { parts.push(chip('sell', '賣出', r)); });
+    wAvoid(d).forEach(function (r) { parts.push(chip('watch', '觀望不碰', r)); });
+    wWatch(d).forEach(function (r) { parts.push(chip('note', '觀望注意', r)); });
+    $('band').classList.toggle('is-still', !parts.length);
+    if (!parts.length) {
+      $('band').innerHTML = '<span class="band-copy"><div class="chip absent-all"><span class="nm">' +
+        esc(bandEmptyText()) + '</span></div></span>';
+      return;
+    }
     var html = parts.join('');
     $('band').innerHTML = '<span class="band-copy">' + html + '</span>' +
       '<span class="band-copy" aria-hidden="true">' + html + '</span>';
@@ -1205,8 +1212,8 @@ function publicNarrative_(text, row) {
 
     if (!d.hasData) {
       $('heroDate').textContent = '尚無紀錄';
-      $('band').innerHTML = absentChip('買入') + absentChip('賣出') +
-        absentChip('觀望不碰') + absentChip('觀望注意');
+      $('band').classList.add('is-still');
+      $('band').innerHTML = '<span class="band-copy"><div class="chip absent-all"><span class="nm">還沒有任何紀錄</span></div></span>';
       renderLedger(null);
       ['tblBuy', 'tblSell', 'tblWatchAvoid', 'tblWatchWatch'].forEach(function (id) {
         $(id).innerHTML = emptyBlock('還沒有任何紀錄', '等第一支影片處理完成後，這裡就會有內容。');
@@ -1217,12 +1224,15 @@ function publicNarrative_(text, row) {
     var p = d.date.split('/');
     $('heroDate').innerHTML = p[0] + '<span class="sl">/</span>' + p[1] + '<span class="sl">/</span>' + p[2];
 
-    renderLedger(d);
-    renderBand(d);
+    // 旗標要在畫跑馬燈之前設好：四類都空時，跑馬燈要知道是沒有節目還是還在整理
     OVERVIEW_PENDING = !!d.videoPending;
     OVERVIEW_NOSHOW = !!d.noShow;
-    $('tblBuy').innerHTML = tradeTable(d.buy, 'dir-buy');
-    $('tblSell').innerHTML = tradeTable(d.sell, 'dir-sell');
+    renderLedger(d);
+    renderBand(d);
+    // 沒有直播的日子，當日買賣的空白說明與觀望一致（v58）；不寫「影片裡沒有被提到」
+    var tradeEmpty = OVERVIEW_NOSHOW ? '今天沒有直播節目，當日買賣以上方會員通知為準。' : '';
+    $('tblBuy').innerHTML = tradeTable(d.buy, 'dir-buy', { empty: tradeEmpty });
+    $('tblSell').innerHTML = tradeTable(d.sell, 'dir-sell', { empty: tradeEmpty });
     $('tblWatchAvoid').innerHTML = tradeTable(wAvoid(d), 'dir-watch', { empty: watchEmptyText(OVERVIEW_PENDING) });
     $('tblWatchWatch').innerHTML = tradeTable(wWatch(d), 'dir-note', { empty: watchEmptyText(OVERVIEW_PENDING) });
 
@@ -1309,8 +1319,8 @@ function publicNarrative_(text, row) {
                      '　' + (t.basis || '')).trim();
     $('trackerBasis').innerHTML =
       '<span>' + esc(trackerView === 'held'
-        ? '未實現損益以明講價或當日收盤計，觀望不碰視為出場。'
-        : '已實現損益以出場日收盤計。') + '</span>' +
+        ? '進場價取進場日當日最低，灰字是張震明講的價位；觀望不碰視為出場。'
+        : '進場取進場日最低、出場取出場日最高，灰字是張震明講的價位。') + '</span>' +
       (basisFull ? ' <button type="button" class="whyb" id="basisWhy" ' +
                    'aria-expanded="false" aria-label="計算方式的完整說明">?</button>' +
                    '<span class="whytext" id="basisWhyText" hidden>' + esc(basisFull) + '</span>'
@@ -1336,58 +1346,96 @@ function publicNarrative_(text, row) {
     renderTrackerRows(t, showing);
   }
 
+  /* 張震明講的價位（v58）：進場價一律是進場日最低、出場價是出場日最高，
+     明講的「73.5 以下買進」只作參照，放在價格下方一行灰字。 */
+  function statedTag(note) {
+    return note ? '<span class="stated">' + esc(note) + '</span>' : '';
+  }
+
+  /* 取價區間圖（v58）：進場日、出場日各一條「當日最低～最高」，
+     實心點＝採用的價（進場取最低、出場取最高），空心圈＝張震明講的價位，兩條共用同一個刻度。
+     持有中的第二條是目前價。資料來自回合JSON；舊資料沒有區間時整塊不顯示。 */
+  function pxRangeHtml(t) {
+    var list = (t && t.roundList) || [], r = list[list.length - 1];
+    if (!r || !(r.entryLo > 0) || !(r.entryHi > 0)) { return ''; }
+    var md = function (d) { var m = String(d || '').match(/^\d{4}\/(\d{2})\/(\d{2})$/); return m ? Number(m[1]) + '/' + Number(m[2]) : ''; };
+    var rows = [{ k: '進場', d: md(r.entryDate), lo: r.entryLo, hi: r.entryHi, used: t.entry || r.entry,
+                  usedK: t.entrySrc && /管理者修正成本/.test(t.entrySrc) ? '管理者修正' : '當日最低', stated: r.entryStated, note: r.entryNote }];
+    var entryUsed = t.entry || r.entry;
+    if (!t.stillHeld && r.exitLo > 0 && r.exitHi > 0) {
+      rows.push({ k: '出場', d: md(r.exitDate), lo: r.exitLo, hi: r.exitHi, used: t.current || r.exit, usedK: '當日最高',
+                  stated: r.exitStated, note: r.exitNote, from: entryUsed, ret: t.ret });
+    } else if (t.stillHeld && t.current > 0) {
+      rows.push({ k: '目前', d: '', lo: null, hi: null, used: t.current, usedK: '目前價', from: entryUsed, ret: t.ret });
+    }
+    var vals = [];
+    rows.forEach(function (x) { [x.lo, x.hi, x.used, x.stated].forEach(function (v) { if (v > 0) { vals.push(Number(v)); } }); });
+    var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
+    var pad = (max - min) * 0.1 || max * 0.01 || 1;
+    min -= pad; max += pad;
+    var pos = function (v) { return Math.max(0, Math.min(100, (v - min) / (max - min) * 100)).toFixed(2) + '%'; };
+    return '<div class="pxr-h">取價區間</div>' + rows.map(function (x) {
+      var band = (x.lo > 0 && x.hi > 0)
+        ? '<span class="pxr-band" style="left:' + pos(x.lo) + ';right:calc(100% - ' + pos(x.hi) + ')" title="當日最低 ' + fmtPx(x.lo) + '～最高 ' + fmtPx(x.hi) + '"></span>' : '';
+      var ring = x.stated > 0 ? '<span class="pxr-ring" style="left:' + pos(x.stated) + '" title="' + esc(x.note || ('明講 ' + x.stated)) + '"></span>' : '';
+      /* 報酬寫在線軸上（v58）：從進場價到目前價／出場價畫一段，上漲紅、下跌綠，數字放在這一段的正中間。 */
+      var move = '';
+      if (x.from > 0 && x.used > 0 && x.ret !== null && x.ret !== undefined) {
+        var a = Math.min(x.from, x.used), b = Math.max(x.from, x.used), mid = (x.from + x.used) / 2;
+        move = '<span class="pxr-move ' + signCls(x.ret) + '" style="left:' + pos(a) + ';right:calc(100% - ' + pos(b) + ')"></span>' +
+               '<span class="pxr-ret ' + signCls(x.ret) + '" style="left:' + pos(mid) + '">' + fmtRet(x.ret) + '</span>';
+      }
+      return '<div class="pxr-row">' +
+        '<div class="pxr-k"><b>' + x.k + '</b>' + (x.d ? '<small>' + x.d + '</small>' : '') + '</div>' +
+        '<div class="pxr-track" role="img" aria-label="' + esc(x.k + (x.lo ? ' 當日 ' + x.lo + ' 至 ' + x.hi : '') + '，採用 ' + x.used + (x.stated ? '，明講 ' + x.stated : '')) + '">' +
+          band + move + ring + '<span class="pxr-dot pxr-' + (x.k === '進場' ? 'in' : x.k === '出場' ? 'out' : 'now') + '" style="left:' + pos(x.used) + '"></span></div>' +
+        '<div class="pxr-v"><b>' + fmtPx(x.used) + '</b><small>' + x.usedK + '</small>' +
+          (x.note ? '<span class="stated">' + esc(x.note) + '</span>' : '') + '</div>' +
+      '</div>';
+    }).join('') +
+    '<div class="pxr-legend"><span><i class="pxr-dot-l"></i>採用價</span><span><i class="pxr-ring-l"></i>張震明講</span>' +
+      '<span><i class="pxr-band-l"></i>當日最低～最高</span></div>';
+  }
+
+  /* 交易軸（v58，2026/09/24 管理者）：一格畫完一筆交易——左端進場（日期、進場日最低價），
+     右端目前價或出場價（出場日最高價），中間的線寫報酬，上漲紅、下跌綠；張震明講的價位是灰字。
+     原本分開的「狀態、持有天數、進場價、目前價、報酬、提及」六欄都收進這一格或拿掉，空間留給最新說明。 */
+  function md_(d) {
+    var m = String(d || '').match(/^\d{4}\/(\d{2})\/(\d{2})$/);
+    return m ? Number(m[1]) + '/' + Number(m[2]) : '';
+  }
+  function tradeAxis(i, isHeld) {
+    var cls = i.ret === null || i.ret === undefined ? 'na' : (i.ret > 0 ? 'up' : i.ret < 0 ? 'down' : 'flat');
+    var inDate = md_(i.roundStart || i.firstBuy), outDate = isHeld ? '目前' : (md_(i.lastSell) || '出場');
+    var retTxt = (i.ret === null || i.ret === undefined) ? (i.why ? '待補' : '\u2014') : fmtRet(i.ret);
+    var cum = ((i.rounds || 1) > 1 && i.cumRet !== null && i.cumRet !== undefined)
+      ? '<span class="tx-cum ' + signCls(i.cumRet) + '" title="各回合連乘：' + esc(i.roundRets || '') + '">累積 ' + fmtRet(i.cumRet) + '</span>' : '';
+    return '<div class="tx tx-' + cls + '" title="' + esc((i.entrySrc || '') + (i.why ? '　' + i.why : '')) + '">' +
+      '<div class="tx-end tx-in"><small>' + (inDate ? inDate + ' 進場' : '進場') + '</small><b>' + fmtPx(i.entry) + '</b>' + statedTag(i.entryNote) + '</div>' +
+      '<div class="tx-mid" aria-label="' + (isHeld ? '未實現報酬 ' : '已實現報酬 ') + esc(retTxt) + '"><span class="tx-line"></span>' +
+        '<span class="tx-ret">' + retTxt + '</span>' + cum + '</div>' +
+      '<div class="tx-end tx-out"><small>' + esc(outDate) + (isHeld ? '' : ' 出場') + '</small><b>' + fmtPx(i.current) + '</b>' +
+        (isHeld ? '' : statedTag(i.exitNote)) + '</div>' +
+      (i.ret === null && i.why ? '<div class="tx-why">' + esc(i.why) + '</div>' : '') +
+    '</div>';
+  }
+
   function renderTrackerRows(t, items) {
     var isHeld = trackerView === 'held';
-    $('trackerTable').innerHTML = '<div class="card flush scrollx"><table class="tbl-trk">' +
-      '<colgroup><col class="c-name"><col class="c-code"><col class="c-state">' +
-      '<col class="c-date"><col class="c-num"><col class="c-px"><col class="c-px">' +
-      '<col class="c-ret"><col class="c-num"><col class="c-reason"></colgroup>' +
-      '<thead><tr>' +
-      '<th class="sticky">股票名稱</th><th>代號</th><th>狀態</th>' +
-      '<th>' + (isHeld ? '本回合進場' : '出場日') + '</th>' +
-      '<th class="r">持有天數</th>' +
-      '<th class="r">進場價</th><th class="r">' + (isHeld ? '目前價' : '出場價') + '</th>' +
-      '<th class="r">' + (isHeld ? '未實現報酬' : '已實現報酬') + '</th>' +
-      '<th class="r">提及</th><th>' + (isHeld ? '最新說明' : '出場原因') + '</th>' +
-      '</tr></thead><tbody>' +
+    $('trackerTable').innerHTML = '<div class="card flush"><table class="tbl-hold">' +
+      '<colgroup><col class="c-stock"><col class="c-axis"><col class="c-note"></colgroup>' +
+      '<thead><tr><th>股票</th><th>' + (isHeld ? '進場 → 目前' : '進場 → 出場') + '</th>' +
+      '<th>' + (isHeld ? '最新說明' : '出場原因') + '</th></tr></thead><tbody>' +
       items.map(function (i) {
-        /* 狀態欄：買了又賣、賣了又買的標的標出目前是第幾回合，
-           滑過去可以看到完整的回合明細，才不會以為只有一段。 */
         var rounds = i.rounds || 1;
-        /* 「第 N 回合」放在「持有中」下面，兩行（v54，管理者要求）。
-           並排時狀態欄要 128px 才放得下，下面那一欄的空間就被吃掉。 */
-        var stateTxt = '<span class="state-stack"><span class="pillstate ' + (i.stillHeld ? 'held' : 'out') + '">' +
-          (i.stillHeld ? '持有中' : '已出場') + '</span>' +
-          (rounds > 1 ? '<span class="roundtag">第 ' + rounds + ' 回合</span>' : '') + '</span>';
-        /* 進場價旁的「持／明／參」小標拿掉（v54，管理者要求簡化）。
-           成本是哪一天、怎麼來的仍然完整保留：滑鼠停在進場價上看得到，個股面板的「成本來源」也有。 */
-        var entryTitle = (i.entrySrc || '') +
-          (i.refPrice ? '　參考價位 ' + fmtPx(i.refPrice) + (i.refSrc ? '（' + i.refSrc + '）' : '') : '');
-        /* 最新說明：最近一句有意義的說明，附上是哪一天講的（v54）。已出場列顯示出場原因。 */
         var lastCol = i.stillHeld ? datedNote(i.latestReason || i.firstReason, i.latestReasonDate)
                                   : (i.exitReason || datedNote(i.latestReason || i.firstReason, i.latestReasonDate));
-        /* 多回合的標的，報酬欄除了本回合，另外用小字標出累積報酬。
-           兩者意義不同：本回合是現在這一段，累積是同一筆錢滾過每一段的結果。 */
-        /* 累積報酬的時間點（v54，Codex 規格 27）：本回合報酬用即時價，累積與各回合用重算當天的收盤，
-           數字對不上時讀的人要看得出是時間點不同，不是算錯。 */
-        var asOf = String(i.roundsAsOf || '').match(/^\d{4}\/(\d{2})\/(\d{2})$/);
-        var asOfTxt = asOf ? Number(asOf[1]) + '/' + Number(asOf[2]) : '';
-        var cumTag = (rounds > 1 && i.cumRet !== null && i.cumRet !== undefined)
-          ? '<span class="cumret ' + signCls(i.cumRet) + '" title="各回合連乘' + (asOfTxt ? '（以 ' + asOfTxt + ' 重算時的收盤計；上面的本回合報酬用目前價格）' : '') + '：' +
-            esc(i.roundRets || '') + '">累積 ' + fmtRet(i.cumRet) + (asOfTxt ? '（至 ' + asOfTxt + '）' : '') + '</span>' : '';
         return '<tr' + (i.valid ? ' class="clickable" data-code="' + i.code + '"' : '') + '>' +
-          '<td class="sticky">' + nameCell(i.name, i.valid ? i.code : '') + '</td>' +
-          '<td class="code' + (i.valid ? '' : ' flat') + '">' + esc(i.code) + '</td>' +
-          '<td class="state" title="' + esc(i.roundDetail || '') + '">' + stateTxt + '</td>' +
-          '<td class="code tdate" data-label="' + (isHeld ? '進場日' : '出場日') + '">' + esc(isHeld ? (i.roundStart || i.firstBuy) : (i.lastSell || i.firstBuy)) + '</td>' +
-          '<td class="px r tdays" data-label="天數">' + i.days + '</td>' +
-          '<td class="px r tentry" data-label="進場價" title="' + esc(entryTitle) + '">' + fmtPx(i.entry) + '</td>' +
-          '<td class="px r tcur" data-label="' + (isHeld ? '目前價' : '出場價') + '" title="' + esc(i.curSrc || '') + '">' + fmtPx(i.current) + '</td>' +
-          '<td class="px r tret ' + signCls(i.ret) + '" data-label="' + (isHeld ? '未實現報酬' : '已實現報酬') + '" title="' + esc(i.why) + '">' +
-            (i.ret === null && i.why ? '<span class="flat" style="font-size:calc(11.5px * var(--rd-fs))">' + esc(i.why) + '</span>' : fmtRet(i.ret)) +
-            cumTag + '</td>' +
-          '<td class="px r tment" data-label="提及">' + i.mentions + '</td>' +
-          '<td class="reason" data-label="' + (isHeld ? '最新說明' : '出場原因') + '">' + esc(lastCol) + '</td></tr>';
+          '<td class="h-stock" title="' + esc(i.roundDetail || '') + '"><span class="h-name">' + nameCell(i.name, i.valid ? i.code : '') + '</span>' +
+            '<span class="h-code' + (i.valid ? '' : ' flat') + '">' + esc(i.code) + '</span>' +
+            (rounds > 1 ? '<span class="roundtag">第 ' + rounds + ' 回合</span>' : '') + '</td>' +
+          '<td class="h-axis">' + tradeAxis(i, isHeld) + '</td>' +
+          '<td class="h-note">' + esc(lastCol) + '</td></tr>';
       }).join('') + '</tbody></table></div>';
 
     bindRows($('p-tracker'));
@@ -1719,6 +1767,14 @@ function publicNarrative_(text, row) {
       perfSeries = perfChart.addLineSeries({ lineWidth: 2 });
     }
     perfChart.applyOptions(chartOptions());
+    /* 績效圖（v58，2026/09/24 正式站實測）：圖佔掉大半個畫面，滑鼠滾輪被圖表拿去縮放，頁面捲不下去。
+       這張圖只看走勢，滾輪還給頁面（拖曳、手指縮放保留）；垂直格線拿掉，只留水平刻度線。
+       個股 K 線不受影響（AGENTS v42：K 線的滾輪縮放一律開啟）。 */
+    perfChart.applyOptions({
+      grid: { vertLines: { visible: false } },
+      handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+      handleScale: { mouseWheel: false, pinch: true, axisPressedMouseMove: true }
+    });
 
     /* 算不出來的那幾天要整個略過，不能畫成 0。
        Number(null) 與 Number('') 都是 0，直接丟進圖裡就會變成一條平在 0 的線，
@@ -2026,6 +2082,8 @@ function publicNarrative_(text, row) {
     if (t === undefined) { return; }           // 還沒回來，維持骨架
 
     if (!t) {
+      var pr0 = $('dPxRange');                 // 上一檔的取價區間不能留著
+      if (pr0) { pr0.hidden = true; pr0.innerHTML = ''; }
       var r = DETAIL.record;
       if (r === undefined) { return; }         // 等逐日紀錄一起到
 
@@ -2050,6 +2108,25 @@ function publicNarrative_(text, row) {
     }
 
     var rounds = t.rounds || 1;
+    var chart = pxRangeHtml(t);
+    if (chart) {
+      /* 取價區間圖已經畫出進場日、進場價、明講價、目前（出場）價與報酬（v58，管理者要求），
+         上面只留圖上沒有的：首次提到的日期、多回合的累積報酬、參考價位、出場原因與缺資料的原因。 */
+      $('dTracker').innerHTML =
+        kv(t.firstOpenBy === '會員持股聲明' ? '首次明講會員持有' : '首次提到買入', t.firstBuy || '\u2014') +
+        (rounds > 1 ? kv('持有回合', '第 ' + rounds + ' 回合') : '') +
+        (t.rounds > 1 && t.cumRet !== null && t.cumRet !== undefined
+          ? kv('累積報酬', '<span class="' + signCls(t.cumRet) + '">' + fmtRet(t.cumRet) + '</span>' +
+               '<span class="srcnote">各回合連乘　' + esc(t.roundRets || '') + '</span>') : '') +
+        (t.openBy === '會員持股聲明' ? kv('進場依據', '明講「會員目前持有」，非當日成交') : '') +
+        (t.refPrice ? kv('參考價位', fmtPx(t.refPrice) +
+          '<span class="srcnote">' + esc(t.refSrc || '') + '　僅供參考，未用於報酬計算</span>') : '') +
+        (t.exitReason
+          ? kv('出場原因', String(t.exitReason).split('\n').filter(String)
+               .map(function (line) { return '<span class="exl">' + esc(line) + '</span>'; }).join(''))
+          : '') +
+        (t.why ? kv('說明', t.why, true) : '');
+    } else {
     $('dTracker').innerHTML =
       kv('狀態', (t.stillHeld ? '<span class="up">持有中</span>' : '<span class="flat">已出場</span>') +
         (rounds > 1 ? '<span class="srcnote">第 ' + rounds + ' 回合</span>' : '')) +
@@ -2057,13 +2134,13 @@ function publicNarrative_(text, row) {
          t.firstBuy || '\u2014') +
       (rounds > 1 ? kv('本回合進場', t.roundStart || '\u2014') : '') +
       kv('持有天數', t.days + ' 天' + (rounds > 1 ? '（本回合）' : '')) +
-      kv('進場價', fmtPx(t.entry) + (t.entrySrc ? '<span class="srcnote">' + esc(t.entrySrc) + '</span>' : '')) +
+      kv('進場價', '<span title="' + esc(t.entrySrc || '') + '">' + fmtPx(t.entry) + '</span>' + statedTag(t.entryNote)) +
       (t.openBy === '會員持股聲明'
         ? kv('進場依據', '影片中明講「會員目前持有」，非當日成交'
-             + '<span class="srcnote">沒有對應的買入紀錄，進場價取當日收盤</span>') : '') +
+             + '<span class="srcnote">沒有對應的買入紀錄，進場價取聲明當日最低</span>') : '') +
       (t.refPrice ? kv('參考價位', fmtPx(t.refPrice) +
         '<span class="srcnote">' + esc(t.refSrc || '') + '　僅供參考，未用於報酬計算</span>') : '') +
-      kv(t.stillHeld ? '目前價' : '出場價', fmtPx(t.current)) +
+      kv(t.stillHeld ? '目前價' : '出場價', fmtPx(t.current) + (t.stillHeld ? '' : statedTag(t.exitNote))) +
       kv(t.stillHeld ? '未實現報酬' : '已實現報酬', '<span class="' + signCls(t.ret) + '">' + fmtRet(t.ret) + '</span>') +
       (t.rounds > 1 && t.cumRet !== null && t.cumRet !== undefined
         ? kv('累積報酬', '<span class="' + signCls(t.cumRet) + '">' + fmtRet(t.cumRet) + '</span>' +
@@ -2078,6 +2155,10 @@ function publicNarrative_(text, row) {
         : '') +
       kv('影片提及', t.mentions != null ? t.mentions + ' 次' : '—') +
       (t.why ? kv('說明', t.why, true) : '');
+    }
+
+    var pr = $('dPxRange');
+    if (pr) { pr.innerHTML = chart; pr.hidden = !chart; }
 
     /* 回合明細：買了又賣、賣了又買時，把每一段都列出來。
        只有一個回合時不顯示，避免佔版面講一件已經看得到的事。 */

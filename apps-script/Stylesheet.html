@@ -3445,5 +3445,123 @@ html[data-view="mobile"] .stats .stat .v, html[data-view="mobile"] .stats .stat 
 @media (prefers-reduced-motion: reduce) {
   .led-pill, .optcard, .chartbar.seg .pill { transition: none; }
 }
+/* ---------- v58 持股追蹤取價（2026/09/24）：明講灰字與取價區間圖 ----------
+   進場價＝進場日當日最低、出場價＝出場日當日最高；張震明講的價位放在價格下方一行灰字。
+   區間圖：每一列一條「當日最低～最高」的淡色帶，實心點是採用的價，空心圈是明講價，進場與出場共用刻度。
+   不加分隔線，列與列之間只靠留白分開。 */
+.stated { display: block; margin-top: 3px; font-family: "Noto Sans TC", sans-serif; font-weight: 400;
+  font-size: calc(11.5px * var(--rd-fs)); line-height: 1.45; letter-spacing: 0; color: var(--muted); white-space: normal; }
+table.tbl-trk td.tentry .stated, table.tbl-trk td.tcur .stated { text-align: right; word-break: keep-all; overflow-wrap: normal; }
+/* 價格欄多了一行灰字：88px 會把「明講 255 以上賣出」切成「以／上賣出」，放寬到 120px，灰字只在空格處斷行 */
+.tbl-trk col.c-px { width: calc(120px * var(--rd-fs)); }
+.pxrange { margin: 14px 0 2px; padding: 16px 20px 14px; border: 1px solid var(--rule); border-radius: var(--r-md); background: var(--panel); }
+.pxrange[hidden] { display: none; }
+.pxr-h { font-size: calc(12px * var(--rd-fs)); font-weight: 600; letter-spacing: .06em; color: var(--muted); margin-bottom: 6px; }
+.pxr-row { display: grid; grid-template-columns: 4.4em minmax(0, 1fr) 9.5em; gap: 18px; align-items: center; padding: 10px 0; }
+.pxr-k b { display: block; font-size: calc(13.5px * var(--rd-fs)); font-weight: 600; }
+.pxr-k small, .pxr-v small { display: block; font-size: calc(11.5px * var(--rd-fs)); color: var(--muted); line-height: 1.5; }
+.pxr-track { position: relative; height: 24px; }
+.pxr-track::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 2px; margin-top: -1px;
+  border-radius: 2px; background: color-mix(in srgb, var(--muted) 16%, transparent); }
+.pxr-band { position: absolute; top: 50%; height: 10px; margin-top: -5px; min-width: 6px; border-radius: 999px;
+  background: color-mix(in srgb, var(--beam) 24%, transparent); }
+.pxr-dot, .pxr-ring { position: absolute; top: 50%; width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px; border-radius: 50%; box-sizing: border-box; }
+.pxr-dot { background: var(--beam); box-shadow: 0 0 0 3px var(--panel); }
+.pxr-dot.pxr-now { background: var(--ink); }
+.pxr-ring { border: 2px solid var(--muted); background: var(--panel); }
+.pxr-v { text-align: right; min-width: 0; }
+.pxr-v b { font-family: "IBM Plex Mono", monospace; font-size: calc(15px * var(--rd-fs)); font-weight: 600; }
+.pxr-legend { display: flex; flex-wrap: wrap; gap: 6px 20px; margin-top: 8px; font-size: calc(11.5px * var(--rd-fs)); color: var(--muted); }
+.pxr-legend span { display: inline-flex; align-items: center; gap: 7px; }
+.pxr-legend i { display: inline-block; flex: none; box-sizing: border-box; }
+.pxr-dot-l { width: 10px; height: 10px; border-radius: 50%; background: var(--beam); }
+.pxr-ring-l { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--muted); }
+.pxr-band-l { width: 22px; height: 7px; border-radius: 999px; background: color-mix(in srgb, var(--beam) 24%, transparent); }
+@media (max-width: 560px) {
+  .pxrange { padding: 14px 14px 12px; }
+  .pxr-row { grid-template-columns: 3.2em minmax(0, 1fr) 7.2em; gap: 12px; }
+}
+html[data-view="mobile"] .pxrange { padding: 14px 14px 12px; }
+html[data-view="mobile"] .pxr-row { grid-template-columns: 3.2em minmax(0, 1fr) 7.2em; gap: 12px; }
+/* ---------- v58 持股追蹤表：股票｜交易軸｜最新說明 ----------
+   狀態、持有天數、提及拿掉；進場價、目前價、報酬收進交易軸一格：左端進場、右端目前或出場，報酬寫在線上。
+   欄與欄之間不畫直線，列與列之間只留一條淡線。 */
+table.tbl-hold { table-layout: fixed; }
+.tbl-hold col.c-stock { width: calc(150px * var(--rd-fs)); }
+.tbl-hold col.c-axis  { width: calc(330px * var(--rd-fs)); }
+.tbl-hold col.c-note  { width: auto; }
+.tbl-hold th, .tbl-hold td { border-left: 0; border-right: 0; vertical-align: middle; padding-top: 16px; padding-bottom: 16px; }
+.tbl-hold th { padding-top: 12px; padding-bottom: 12px; }
+.tbl-hold td.h-stock { vertical-align: top; }
+.h-stock .h-name { display: block; font-weight: 600; font-size: calc(15px * var(--rd-fs)); line-height: 1.4; }
+.h-stock .h-code { display: block; margin-top: 2px; font-family: "IBM Plex Mono", monospace; font-size: calc(12px * var(--rd-fs)); color: var(--muted); }
+.h-stock .roundtag { display: inline-block; margin: 6px 0 0; font-size: calc(11px * var(--rd-fs)); white-space: nowrap; }
+.tbl-hold td.h-note { line-height: 1.75; overflow-wrap: anywhere; }
+.tx { display: grid; grid-template-columns: auto minmax(64px, 1fr) auto; column-gap: 12px; align-items: start; }
+.tx-end { min-width: 0; }
+.tx-end small { display: block; font-size: calc(11.5px * var(--rd-fs)); color: var(--muted); line-height: 1.4; white-space: nowrap; }
+.tx-end b { display: block; font-family: "IBM Plex Mono", monospace; font-size: calc(15px * var(--rd-fs)); font-weight: 600; line-height: 1.35; white-space: nowrap; }
+.tx-out { text-align: right; }
+.tx-end .stated { max-width: 10em; word-break: keep-all; }
+.tx-out .stated { margin-left: auto; }
+.tx-mid { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 40px;
+  padding-top: calc(15px * var(--rd-fs)); } /* 兩端靠上對齊，線軸對準價格那一行（左邊多一行明講灰字時右邊不會往下掉） */
+.tx-line { position: absolute; left: 0; right: 0; top: calc(26px * var(--rd-fs)); height: 2px; margin-top: -1px; border-radius: 2px; background: var(--muted); opacity: .45; }
+.tx-line::before, .tx-line::after { content: ""; position: absolute; top: 50%; width: 9px; height: 9px; margin-top: -4.5px; border-radius: 50%; background: inherit; }
+.tx-line::before { left: -4px; } .tx-line::after { right: -4px; }
+.tx-up .tx-line { background: var(--rise); opacity: .8; } .tx-down .tx-line { background: var(--fall); opacity: .8; }
+.tx-ret { position: relative; padding: 1px 10px; border-radius: var(--r-pill); background: var(--panel); font-family: "IBM Plex Mono", monospace;
+  font-size: calc(13.5px * var(--rd-fs)); font-weight: 600; white-space: nowrap; color: var(--muted); }
+.tx-up .tx-ret { color: var(--rise); } .tx-down .tx-ret { color: var(--fall); }
+.tx-cum { position: relative; margin-top: 2px; padding: 0 8px; border-radius: var(--r-pill); background: var(--panel);
+  font-family: "IBM Plex Mono", monospace; font-size: calc(11px * var(--rd-fs)); white-space: nowrap; }
+.tx-why { grid-column: 1 / -1; margin-top: 6px; font-size: calc(12px * var(--rd-fs)); color: var(--muted); line-height: 1.5; }
+tbody tr.clickable:hover .tx-ret, tbody tr.clickable:hover .tx-cum { background: var(--panel-2); }
+/* 取價區間圖：從進場價到目前價的一段，報酬寫在正中間 */
+.pxr-move { position: absolute; top: 50%; height: 3px; margin-top: -1.5px; border-radius: 2px; background: var(--muted); opacity: .7; }
+.pxr-move.up { background: var(--rise); } .pxr-move.down { background: var(--fall); }
+.pxr-ret { position: absolute; top: -12px; transform: translateX(-50%); padding: 0 8px; border-radius: var(--r-pill); background: var(--panel);
+  font-family: "IBM Plex Mono", monospace; font-size: calc(12px * var(--rd-fs)); font-weight: 600; white-space: nowrap; line-height: 1.5; }
+.pxr-row:has(.pxr-ret) { padding-top: 22px; }
+/* 手機與「版面設定＝手機」：每一檔一張卡——名稱與代號一列、交易軸整列、說明整列 */
+@media (max-width: 760px) {
+  table.tbl-hold, .tbl-hold tbody, .tbl-hold tr, .tbl-hold td { display: block; width: auto; }
+  .tbl-hold colgroup, .tbl-hold thead { display: none; }
+  .tbl-hold tr { padding: 16px 18px; border-top: 1px solid var(--rule); }
+  .tbl-hold tr:first-child { border-top: 0; }
+  .tbl-hold td { padding: 0; border: 0; }
+  .tbl-hold td.h-stock { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin-bottom: 12px; }
+  .h-stock .h-name, .h-stock .h-code { display: inline; }
+  .h-stock .roundtag { margin: 0; }
+  .tbl-hold td.h-note { margin-top: 12px; }
+}
+html[data-view="mobile"] table.tbl-hold, html[data-view="mobile"] .tbl-hold tbody, html[data-view="mobile"] .tbl-hold tr, html[data-view="mobile"] .tbl-hold td { display: block; width: auto; }
+html[data-view="mobile"] .tbl-hold colgroup, html[data-view="mobile"] .tbl-hold thead { display: none; }
+html[data-view="mobile"] .tbl-hold tr { padding: 16px 18px; border-top: 1px solid var(--rule); }
+html[data-view="mobile"] .tbl-hold tr:first-child { border-top: 0; }
+html[data-view="mobile"] .tbl-hold td { padding: 0; border: 0; }
+html[data-view="mobile"] .tbl-hold td.h-stock { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin-bottom: 12px; }
+html[data-view="mobile"] .h-stock .h-name, html[data-view="mobile"] .h-stock .h-code { display: inline; }
+html[data-view="mobile"] .h-stock .roundtag { margin: 0; }
+html[data-view="mobile"] .tbl-hold td.h-note { margin-top: 12px; }
+/* 大字級時交易軸變寬，提早改卡片 */
+@media (max-width: 1100px) {
+  html[data-fs="l"] table.tbl-hold, html[data-fs="l"] .tbl-hold tbody, html[data-fs="l"] .tbl-hold tr, html[data-fs="l"] .tbl-hold td,
+  html[data-fs="x"] table.tbl-hold, html[data-fs="x"] .tbl-hold tbody, html[data-fs="x"] .tbl-hold tr, html[data-fs="x"] .tbl-hold td { display: block; width: auto; }
+  html[data-fs="l"] .tbl-hold colgroup, html[data-fs="l"] .tbl-hold thead, html[data-fs="x"] .tbl-hold colgroup, html[data-fs="x"] .tbl-hold thead { display: none; }
+  html[data-fs="l"] .tbl-hold tr, html[data-fs="x"] .tbl-hold tr { padding: 16px 18px; border-top: 1px solid var(--rule); }
+  html[data-fs="l"] .tbl-hold td, html[data-fs="x"] .tbl-hold td { padding: 0; border: 0; }
+  html[data-fs="l"] .tbl-hold td.h-note, html[data-fs="x"] .tbl-hold td.h-note { margin-top: 12px; }
+  html[data-fs="l"] .tbl-hold td.h-stock, html[data-fs="x"] .tbl-hold td.h-stock { margin-bottom: 12px; }
+}
+/* 技術說明六段步進器：按鈕本身已是圓角膠囊，下方那條分隔線多餘（v58，正式站實測），拿掉改用留白 */
+.tech-v45 .tech-steps { border-bottom: 0; margin-bottom: 10px; }
+/* 跑馬燈四類都空（沒有直播、整理中）時只留一個中性標籤：不捲動、置中、不畫分隔線（v58） */
+.mui-marquee.is-still { animation: none; width: 100%; justify-content: center; }
+.chip.absent-all { color: var(--muted); cursor: default; border-right: 0; }
+.chip.absent-all:hover { background: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .pxr-dot, .pxr-ring, .pxr-band { transition: left .2s ease, right .2s ease; }
+}
 /* ====== v54 樣式層結束 ====== */
 </style>

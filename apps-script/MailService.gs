@@ -787,9 +787,14 @@ function deliverySummaryForDate_(d) {
     readSheetObjects_(DELIVERY_SHEET_).forEach(function (r) {
       if (fmtDate_(r['日期']) !== d) { return; }
       var id = String(r['訊息ID']), st = String(r['狀態'] || 'pending');
-      var x = out[id] || (out[id] = { kind: String(r['種類']), total: 0, accepted: 0, failed: 0, unknown: 0, open: 0, lastError: '' });
+      var x = out[id] || (out[id] = { kind: String(r['種類']), total: 0, accepted: 0, failed: 0, unknown: 0, open: 0, lastError: '', firstAcceptedAt: '', lastAcceptedAt: '' });
       x.total++;
-      if (st === 'accepted') { x.accepted++; } else if (st === 'failed') { x.failed++; }
+      if (st === 'accepted') {
+        x.accepted++;
+        var at = String(r['服務接受時間'] || r['更新時間'] || '');
+        if (at && (!x.firstAcceptedAt || at < x.firstAcceptedAt)) { x.firstAcceptedAt = at; }
+        if (at && at > x.lastAcceptedAt) { x.lastAcceptedAt = at; }
+      } else if (st === 'failed') { x.failed++; }
       else if (st === 'unknown' || st === 'sending') { x.unknown++; } else { x.open++; }
       if (r['最後錯誤']) { x.lastError = String(r['最後錯誤']).slice(0, 80); }
     });

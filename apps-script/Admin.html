@@ -762,24 +762,39 @@ html[data-view="mobile"] .audit-legend { flex-basis:100%; }
 .ops-head { display:flex; align-items:center; justify-content:space-between; gap:18px; flex-wrap:wrap; margin-bottom:20px; }
 .ops-head h2 { margin:0 0 5px; }
 .ops-head p { margin:0; color:var(--muted); }
-.ops-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,290px),1fr)); gap:16px; margin:18px 0 24px; }
-.ops-card { padding:20px; border-radius:var(--r-lg,18px); background:var(--panel-2); min-width:0; }
-.ops-card h3 { margin:0 0 12px; font-size:calc(16px * var(--rd-fs)); }
-.ops-card strong { display:block; margin-bottom:8px; font-size:calc(21px * var(--rd-fs)); line-height:1.35; overflow-wrap:anywhere; }
+.ops-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin:18px 0 24px; }
+.ops-card { padding:22px 24px; border-radius:var(--r-lg,18px); background:var(--panel-2); min-width:0; }
+.ops-card h3 { margin:0 0 14px; font-size:calc(14px * var(--rd-fs)); font-weight:600; color:var(--muted); }
+.ops-card strong { display:block; margin-bottom:10px; font-size:calc(22px * var(--rd-fs)); line-height:1.35; overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }
 .ops-card p,.ops-note { color:var(--muted); line-height:1.75; margin:6px 0; }
 .ops-card[data-tone="err"] strong { color:var(--rise); }
 .ops-card[data-tone="warn"] strong { color:var(--wait); }
 .ops-card[data-tone="ok"] strong { color:var(--fall); }
-.ops-flow { display:grid; gap:10px; margin:14px 0 24px; }
-.ops-flow-item { display:grid; grid-template-columns:6.5em minmax(0,1fr); gap:14px; padding:14px 16px; background:var(--panel-2); border-radius:14px; }
-.ops-flow-item time { font-variant-numeric:tabular-nums; color:var(--beam); white-space:nowrap; }
+.ops-flow { display:grid; gap:2px; margin:14px 0 24px; border-radius:18px; overflow:hidden; background:var(--panel-2); padding:12px 20px; }
+.ops-flow-item { display:grid; grid-template-columns:7.5em minmax(0,1fr); gap:16px; padding:13px 4px; position:relative; }
+.ops-flow-item + .ops-flow-item { border-top:1px solid var(--rule); }
+.ops-flow-item time { font-variant-numeric:tabular-nums; color:var(--beam); white-space:nowrap; font-weight:650; }
 .ops-flow-item b { display:block; margin-bottom:3px; }
 .ops-flow-item small { display:block; color:var(--muted); line-height:1.6; overflow-wrap:anywhere; }
+.ops-flow-item[data-tone="ok"] time { color:var(--fall); }
+.ops-flow-item[data-tone="warn"] time { color:var(--wait); }
+.ops-mail-setting { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:24px; margin-bottom:24px; }
+.ops-mail-setting h3 { margin-bottom:7px; }
+.ops-mail-setting .ops-time-actions { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.ops-mail-setting input[type="time"] { box-sizing:border-box; width:150px; min-height:48px; padding:10px 14px; background:var(--panel); color:var(--ink); border:1px solid var(--rule); border-radius:13px; font-family:inherit; font-size:17px; font-weight:600; font-variant-numeric:tabular-nums; color-scheme:dark; }
+.ops-mail-setting input[type="time"]:focus-visible { outline:2px solid var(--beam); outline-offset:2px; }
+.ops-mail-setting input[type="time"]::-webkit-calendar-picker-indicator { filter:invert(.8); cursor:pointer; }
+.ops-mail-setting .ops-preset { display:flex; gap:6px; flex-wrap:wrap; }
+.ops-mail-setting .ops-preset button { min-height:36px; padding:6px 10px; border-radius:999px; font-variant-numeric:tabular-nums; }
+.ops-mail-setting #opsSaveStatus { grid-column:1/-1; margin:0; }
 .ops-events { list-style:none; padding:0; margin:12px 0 0; display:grid; gap:8px; }
 .ops-events li { padding:10px 14px; border-radius:12px; background:var(--panel-2); line-height:1.6; overflow-wrap:anywhere; }
-@media (max-width:720px) { .ops-flow-item { grid-template-columns:1fr; gap:3px; } .ops-head > button { width:100%; } }
+.ops-section-title { margin:30px 0 10px; }
+@media (max-width:1150px) { .ops-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .ops-mail-setting { grid-template-columns:1fr; } }
+@media (max-width:720px) { .ops-grid { grid-template-columns:1fr; } .ops-flow-item { grid-template-columns:1fr; gap:3px; } .ops-head > button { width:100%; } .ops-card { padding:18px; } }
 html[data-view="mobile"] .ops-flow-item { grid-template-columns:1fr; gap:3px; }
 html[data-view="mobile"] .ops-head > button { width:100%; }
+html[data-view="mobile"] .ops-grid,html[data-view="mobile"] .ops-mail-setting { grid-template-columns:1fr; }
 
 @media (prefers-reduced-motion: reduce) {
   .panel details.dz > summary::before { transition: none; }
@@ -1520,9 +1535,9 @@ html[data-view="mobile"] .ops-head > button { width:100%; }
         <div class="ops-head"><div><h2>自動化監控</h2><p>取稿、判讀、寄信與資料更新的今日進度。每分鐘自動檢查。</p></div><button class="ghost" id="opsRefresh" type="button">立即檢查</button></div>
         <p id="opsStatus" class="ops-note" role="status" aria-live="polite">開啟分頁後載入。</p>
         <div id="opsCards" class="ops-grid"></div>
-        <div class="ops-card"><h3>今日整理信最早寄送時間</h3><p>預設 12:00。文章與品質關卡完成後，五分鐘排程會在設定時間之後寄出；已開始寄送的信不能改。</p><div class="btnrow"><input id="opsMailTime" type="time" min="12:00" max="21:55" step="300" aria-label="今日最早寄送時間"><button id="opsSaveMailTime" type="button">儲存今日時間</button></div><p id="opsSaveStatus" role="status" aria-live="polite"></p></div>
-        <h3>今日預定時間線</h3><div id="opsFlow" class="ops-flow"></div>
-        <h3>最近執行紀錄</h3><ul id="opsEvents" class="ops-events"></ul>
+        <div class="ops-card ops-mail-setting"><div><h3>今日整理信最早寄送時間</h3><p>預設 12:00。文章與品質關卡完成後才寄；這是起始時間，實際寄送以帳本紀錄為準。</p></div><div class="ops-time-actions"><input id="opsMailTime" type="time" min="12:00" max="21:55" step="300" aria-label="今日整理信最早寄送時間"><div class="ops-preset" aria-label="常用時間"><button type="button" class="ghost" data-ops-time="12:00">12:00</button><button type="button" class="ghost" data-ops-time="15:00">15:00</button><button type="button" class="ghost" data-ops-time="18:00">18:00</button></div><button id="opsSaveMailTime" type="button">儲存今日時間</button></div><p id="opsSaveStatus" role="status" aria-live="polite"></p></div>
+        <h3 class="ops-section-title">今日郵件與資料時間線</h3><div id="opsFlow" class="ops-flow"></div>
+        <h3 class="ops-section-title">最近執行紀錄</h3><ul id="opsEvents" class="ops-events"></ul>
       </div>
     </section>
 
@@ -4028,27 +4043,35 @@ var mergeTxFingerprint='';
   function card(title, value, detail, tone) {
     return '<article class="ops-card" data-tone="' + esc(tone || 'idle') + '"><h3>' + esc(title) + '</h3><strong>' + esc(value) + '</strong><p>' + esc(detail || '') + '</p></article>';
   }
-  function flow(time, title, detail) {
-    return '<div class="ops-flow-item"><time>' + esc(time) + '</time><div><b>' + esc(title) + '</b><small>' + esc(detail) + '</small></div></div>';
+  function flow(time, title, detail, tone) {
+    return '<div class="ops-flow-item" data-tone="' + esc(tone || 'idle') + '"><time>' + esc(time) + '</time><div><b>' + esc(title) + '</b><small>' + esc(detail) + '</small></div></div>';
   }
   function render(r) {
-    var o = r.ops || {}, d = o.deliveries || {}, alerts = o.alerts || [];
+    var o = r.ops || {}, d = o.deliveries || {}, m = o.mailByKind || {}, daily = m.daily || {}, smsMail = m.sms || {}, alerts = o.alerts || [];
+    function clock(v) { return v ? String(v).slice(11, 16) : ''; }
+    function sent(g) { return '服務接受 ' + (g.accepted || 0) + '/' + (g.total || 0) + ' 位' + (g.open ? '；待續送 ' + g.open : '') + (g.failed ? '；失敗 ' + g.failed : '') + (g.unknown ? '；結果不明 ' + g.unknown : ''); }
+    var dkToday = !!(o.dailyK && o.dailyK.finishedAt && String(o.dailyK.finishedAt).slice(0, 10) === r.today);
+    var dailyTitle = o.noShow ? '今日無直播' : daily.accepted ? '已交郵件服務' : /已寄/.test(o.mailStatus || '') ? '帳本待核對' : o.mailStatus || '尚未寄送';
+    var smsTitle = smsMail.accepted ? '已交郵件服務' : o.smsCount ? '有簡訊，待核寄送' : '今天尚無新簡訊';
     $('opsStatus').textContent = (alerts.length ? '需留意：' + alerts.join('；') : '目前沒有偵測到流程異常。') + '　最後檢查：' + r.today + ' ' + r.now + '（台北時間）';
-    $('opsMailTime').value = o.mailStart || '12:00';
+    if (document.activeElement !== $('opsMailTime')) { $('opsMailTime').value = o.mailStart || '12:00'; }
     var heartbeat = o.heartbeatAge == null ? '尚無啟動紀錄' : o.heartbeatAt + ' 啟動（' + o.heartbeatAge + ' 分鐘前）';
     $('opsCards').innerHTML =
-      card('五分鐘總排程', heartbeat, o.triggerError ? '無法讀取觸發器：' + o.triggerError : (o.missingTriggers || []).length ? '缺少：' + o.missingTriggers.join('、') : '排程觸發器已安裝；啟動紀錄只代表已開始，請對照下方實際作業。', o.triggerError || (o.missingTriggers || []).length || (o.trading && o.heartbeatAge > 20) ? 'err' : 'ok') +
-      card('逐字稿與判讀', o.noShow ? '今日無直播' : o.plannedNoShow ? '預告停播' : o.videoStatus || '等待影片', '原文 ' + (o.rawChars || 0) + ' 字，修飾 ' + (o.polishedChars || 0) + ' 字。', o.videoStatus === '完成' ? 'ok' : 'idle') +
-      card('每日整理與郵件', o.mailStatus || '尚未產生', '服務接受 ' + (d.accepted || 0) + '／' + (d.total || 0) + '；待續送 ' + (d.open || 0) + '，失敗 ' + (d.failed || 0) + '，結果不明 ' + (d.unknown || 0) + '。' + (o.mailQuotaLeft == null ? '' : ' 可用額度 ' + o.mailQuotaLeft + '。'), d.failed || d.unknown ? 'err' : d.open ? 'warn' : /已寄/.test(o.mailStatus || '') ? 'ok' : 'idle') +
-      card('會員簡訊', String(o.smsCount || 0) + ' 則', '來源輪詢與解析工單詳見會員簡訊分頁。', o.smsCount ? 'ok' : 'idle') +
-      card('日 K 背景補齊', o.dailyK ? (o.dailyK.finishedAt ? '已完成' : '進行中') : '尚無狀態', o.dailyK ? (o.dailyK.finishedAt || '目前代號：' + (o.dailyK.lastCode || '起點')) + (o.dailyK.lastError ? '；' + o.dailyK.lastError : '') : '16:45 排程開始，完成後才做持股與績效背景重算。', o.dailyK && o.dailyK.lastError ? 'warn' : o.dailyK && o.dailyK.finishedAt ? 'ok' : 'idle') +
-      card('績效快照', o.perfLast || '尚無', '當日持股與績效需在資料、日 K 就緒後計算。', o.perfLast === r.today ? 'ok' : 'idle');
+      card('主排程', o.heartbeatAge == null ? '尚無啟動' : o.heartbeatAge + ' 分鐘前', heartbeat + '。' + ((o.missingTriggers || []).length ? '缺少：' + o.missingTriggers.join('、') : '必要觸發器已安裝。'), o.triggerError || (o.missingTriggers || []).length || (o.trading && o.heartbeatAge > 20) ? 'err' : 'ok') +
+      card('取稿與判讀', o.noShow ? '今日無直播' : o.plannedNoShow ? '預告停播' : o.videoStatus || '等待影片', '原文 ' + (o.rawChars || 0) + ' 字 · 修飾 ' + (o.polishedChars || 0) + ' 字。', o.videoStatus === '完成' ? 'ok' : 'idle') +
+      card('會員簡訊來源', String(o.smsCount || 0) + ' 則', '來源文章數；不等於已寄出的郵件數。', o.smsCount ? 'ok' : 'idle') +
+      card('每日總覽郵件', dailyTitle, daily.messages ? sent(daily) + (clock(daily.firstAt) ? ' · 首次 ' + clock(daily.firstAt) : '') : (o.noShow ? '沒有節目，不應寄出每日整理。' : '寄送帳本今天沒有接受紀錄。'), daily.failed || daily.unknown || (/已寄/.test(o.mailStatus || '') && !daily.accepted) ? 'err' : daily.open ? 'warn' : daily.accepted || o.noShow ? 'ok' : 'idle') +
+      card('盤中即時郵件', smsTitle, smsMail.messages ? smsMail.messages + ' 則通知 · ' + sent(smsMail) + (clock(smsMail.lastAt) ? ' · 最近 ' + clock(smsMail.lastAt) : '') : '寄送帳本今天沒有接受紀錄。', smsMail.failed || smsMail.unknown ? 'err' : smsMail.open || (o.smsCount && !smsMail.accepted) ? 'warn' : smsMail.accepted ? 'ok' : 'idle') +
+      card('寄送額度與異常', o.mailQuotaLeft == null ? '額度未知' : o.mailQuotaLeft + ' 封可用', '全部郵件：' + sent(d) + '。', d.failed || d.unknown ? 'err' : d.open ? 'warn' : 'idle') +
+      card('日 K 與出場價', (o.blankExits || []).length ? (o.blankExits.length + ' 檔待補價') : dkToday ? '今日補齊完成' : '等待今日補齊', (o.blankExits || []).length ? o.blankExits.slice(0, 3).join('、') : o.dailyK ? (o.dailyK.finishedAt || '目前代號：' + (o.dailyK.lastCode || '起點')) : '16:45 開始，完整一輪後重算持股。', (o.blankExits || []).length ? 'err' : dkToday ? 'ok' : 'idle') +
+      card('盤中行情採樣', !o.marketScheduled ? '未排程' : o.marketSample && o.marketSample.at ? (o.marketSample.ok ? '已有採樣' : '最近採樣異常') : '等待採樣', o.marketSample && o.marketSample.at ? o.marketSample.at + (o.marketSample.note ? ' · ' + o.marketSample.note : '') : '由五分鐘總排程執行；休市或非盤中時段不取樣。', o.marketSample && o.marketSample.at && !o.marketSample.ok ? 'warn' : 'idle') +
+      card('歷史 60 分 K／績效', o.hourlyScheduled ? '排程已安裝' : '分 K 排程缺少', '19:15 歷史分 K；績效最後一筆 ' + (o.perfLast || '尚無') + '。' + (o.hourlyProgress ? '最近進度：' + o.hourlyProgress + '。' : '尚無分 K 進度紀錄。') + (o.hourlyScheduled ? '' : '部署後執行 installMarketDataJobs()。'), o.hourlyScheduled ? 'idle' : 'warn');
     $('opsFlow').innerHTML =
-      flow('09:05–15:30', '會員簡訊來源', '交易日每 10 分鐘核對；新文進來後派解析。') +
-      flow('11:30–17:00', '影片與逐字稿', '每 10 分鐘尋找今日影片；有稿後進入判讀工單。') +
-      flow((o.mailStart || '12:00') + '–22:00', '每日整理信', '每五分鐘檢查。設定時間是最早可寄時間，實際寄出還取決於文章與品質關卡。') +
-      flow('14:05–15:05', '盤後資料第一輪', '小時 K、代號、基本面、持股追蹤與績效按排程依次更新。') +
-      flow('16:45 起', '日 K 補齊與背景重算', '一輪補齊完成後才重算持股追蹤與績效。');
+      flow('09:05 起', '盤中會員簡訊', smsMail.accepted ? '首次 ' + clock(smsMail.firstAt) + ' 交郵件服務；' + sent(smsMail) + '。' : '每 10 分鐘核對來源；目前' + (o.smsCount ? '有來源文章，未見服務接受紀錄。' : '沒有來源文章。'), smsMail.accepted ? 'ok' : 'idle') +
+      flow('11:30 起', '影片與逐字稿', o.noShow ? '今日無直播，已停止取稿。' : '偵測影片後才派判讀；目前 ' + (o.videoStatus || '等待影片') + '。', o.videoStatus === '完成' ? 'ok' : 'idle') +
+      flow(o.mailStart || '12:00', '每日總覽信最早寄送', daily.accepted ? '實際首次 ' + clock(daily.firstAt) + '；' + sent(daily) + '。' : o.noShow ? '今日無直播，不寄送。' : '文章完成後五分鐘排程才會嘗試；目前無服務接受紀錄。', daily.accepted ? 'ok' : 'idle') +
+      flow('16:45 起', '日 K 與持股背景重算', dkToday ? '今日日 K 完成於 ' + o.dailyK.finishedAt + '；出場價待補 ' + (o.blankExits || []).length + ' 檔。' : '補 K 一輪完成才重算持股與績效；上次完成 ' + (o.dailyK && o.dailyK.finishedAt || '尚無') + '。', dkToday ? 'ok' : 'idle') +
+      flow('19:15', '歷史 60 分 K', o.hourlyScheduled ? '獨立排程已安裝；請用分 K 覆蓋稽核確認資料。' : '尚未安裝獨立排程。', o.hourlyScheduled ? 'ok' : 'warn');
     $('opsEvents').innerHTML = (r.timeline || []).slice().reverse().slice(0, 20).map(function (e) {
       return '<li><b>' + esc(e.time || '—') + '　' + esc(e.kind) + '</b>　' + esc(e.text) + '</li>';
     }).join('') || '<li>今日尚無執行紀錄。</li>';
@@ -4073,6 +4096,9 @@ var mergeTxFingerprint='';
   }
   window.__loadOps = load;
   $('opsRefresh').addEventListener('click', function () { load(true); });
+  document.querySelectorAll('[data-ops-time]').forEach(function (btn) {
+    btn.addEventListener('click', function () { $('opsMailTime').value = btn.getAttribute('data-ops-time'); $('opsSaveStatus').textContent = '已選 ' + $('opsMailTime').value + '；按「儲存今日時間」才會生效。'; });
+  });
   $('opsSaveMailTime').addEventListener('click', function () {
     var time = $('opsMailTime').value, btn = this, auth = KEY;
     if (!/^\d\d:\d\d$/.test(time)) { $('opsSaveStatus').textContent = '請選擇有效時間。'; return; }

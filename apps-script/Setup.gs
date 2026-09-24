@@ -994,7 +994,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-09-24-no-show-v56';
+var PROJECT_BUILD_ = '2026-09-24-ops-exit-v57';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
@@ -1018,7 +1018,7 @@ var PROJECT_FILES_ = [
   { file: 'Quoteservice.gs', names: ['getFugleKey_', 'fugleFetch_', 'sharesToLots_', 'volumeInLots_', 'hourSlot_', 'readHourlyRows_', 'fugleHistPace_', 'kcPutAll_', 'getCandlesBundle'], marker: ['repairDailyKVolume', 'disabled: true'] },
   { file: 'Refreshrunner.gs', names: ['runRefreshAllChunk_', 'withRefreshAllLease_'] },
   { file: 'Setup.gs', names: ['setupSpreadsheet', 'setWebAppUrl', 'webAppUrlReport_', 'checkProjectFiles', 'checkAutomationReadiness', 'ensureAutomationTick', 'withSheetSnapshot_'] },
-  { file: 'SheetService.gs', names: ['fmtDate_', 'withLock_', 'ensureTranscriptLayoutJob', 'transcriptFingerprint_', 'stripTranscribeEcho_', 'readCostOverrides_', 'searchTerms_'], marker: ['transcriptDisplayText_', 'stripTranscribeEcho_'] },
+  { file: 'SheetService.gs', names: ['fmtDate_', 'withLock_', 'ensureTranscriptLayoutJob', 'transcriptFingerprint_', 'stripTranscribeEcho_', 'readCostOverrides_', 'searchTerms_', 'repairLiwangExitPriceNow'], marker: ['transcriptDisplayText_', 'repairMissingTrackerExitPrice'] },
   { file: 'Transcriptstore.gs', names: ['transcriptSha256_', 'selectTranscriptRow_'] }
 ];
 
@@ -1032,7 +1032,7 @@ var PROJECT_HTML_ = [
   { file: 'Stylesheet', marker: '寬鬆格線（2026/09/24' },
   { file: 'Changelog', marker: '後台改版、逐收件者寄送帳本與退訂確認頁' },
   { file: 'Tech', marker: 'id="techLive"' },
-  { file: 'Admin', marker: '--step-max' },
+  { file: 'Admin', marker: '今日郵件與資料時間線' },
   { file: 'AdminLegacy', marker: '改版前的舊版後台' },
   { file: 'Settings', marker: '手機預覽' },
   { file: 'Unsubscribed', marker: 'apiUnsubscribeConfirm' }
@@ -1116,9 +1116,13 @@ function checkAutomationReadiness() {
     everyFiveMin:triggers.indexOf('everyFiveMinJob')>=0,
     dailyK:triggers.indexOf('backfillDailyKJob')>=0,
     hourlyHistory:triggers.indexOf('backfillHourlyHistoryJob')>=0,
-    marketSnapshots:triggers.indexOf('marketSnapshotJob')>=0,
+    // 市場快照已由每五分鐘總排程呼叫；沒有獨立觸發器不代表未運作。
+    marketSnapshots:triggers.indexOf('everyFiveMinJob')>=0||triggers.indexOf('marketSnapshotJob')>=0,
     webapp:!!publicWebAppUrl_(),fugle:hasFugle_(),daySync:daySyncState_(),marketRows:marketRows_('市場總覽快取').length};
   result.ready=result.everyFiveMin&&result.webapp;
+  result.hourlyHistoryMode=result.hourlyHistory?'每日 19:15 獨立排程':'缺少 19:15 歷史 60 分 K 排程，執行 installMarketDataJobs()';
+  result.marketSnapshotMode=triggers.indexOf('everyFiveMinJob')>=0?'五分鐘總排程':result.marketSnapshots?'獨立五分鐘排程':'未排程';
+  try { var ms=JSON.parse(p.getProperty('marketSnapshotStatus')||'{}');result.marketSnapshotLast={at:ms.at||'',ok:ms.ok===true,note:ms.note||''}; } catch(e) {}
   var github=githubCfg_();result.transcriptBackup=!!(result.everyFiveMin&&github.repo&&github.token);
   // 盤中即時通知（v54 追加）：每分鐘輪詢觸發器、會員帳號、訂閱人數、今日封數
   try{result.instantMail={pollTrigger:triggers.indexOf('cmoneyPollJob')>=0,memberId:cmEnabled_(),subscribers:cmSubscribers_().length,

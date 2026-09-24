@@ -988,6 +988,43 @@ function closeOnOrBefore_(candles, dateStr) {
   return pick ? { price: pick.close, date: pick.date } : { price: '', date: '' };
 }
 
+/** 補單檔已出場日的正式收盤，再重算持股與該日起的歷史績效；不使用盤中現價。 */
+function repairMissingTrackerExitPrice(code) {
+  code = String(code || '').trim();
+  if (!/^\d{4}$/.test(code)) { throw new Error('請提供四位台股代號'); }
+  var row = readSheetObjects_('持股追蹤').filter(function (r) { return String(r['代號']).trim() === code; })[0];
+  if (!row || String(row['狀態']) !== '已出場') { throw new Error(code + ' 目前沒有已出場回合'); }
+  var day = fmtDate_(row['最近賣出日']);
+  if (!day || day > todayStr_()) { throw new Error(code + ' 的出場日無效'); }
+  var existing = getCachedDailyK(code), exact = existing.filter(function (k) { return k.date === day && validDailyK_(k); })[0];
+  if (!exact) {
+    var token = acquireDailyKLease_(Date.now() + 180000, 0);
+    if (!token) { throw new Error('日K整輪補齊正在寫入；請等它完成後重試'); }
+    try {
+      // 查前後各一天以涵蓋行情商的日期區間邊界；只接受出場日自己的K棒。
+      var from = fugleShiftDay_(day.replace(/\//g, '-'), -1);
+      var to = fugleShiftDay_(day.replace(/\//g, '-'), 1);
+      var fresh = hasFugle_() ? fugleHistorical_(code, from, to)
+                : (typeof hasFinMind_ === 'function' && hasFinMind_() ? fetchFinmindDailyK_(code, from, to) : []);
+      exact = fresh.filter(function (k) { return k.date === day && validDailyK_(k); })[0];
+      if (!exact) { throw new Error(code + ' ' + day + ' 行情來源沒有有效日K；保留原資料，請查停牌或來源缺口'); }
+      writeDailyKRows_([{ code: code, rows: mergeDailyK_(existing, fresh), months: null }]);
+    } finally { releaseDailyKLease_(token); }
+  }
+  rebuildHoldingsTrackerJob();
+  var result = { code: code, exitDate: day, close: exact.close,
+    trackerExit: (readSheetObjects_('持股追蹤').filter(function (r) { return String(r['代號']).trim() === code; })[0] || {})['出場價'] };
+  if (Number(result.trackerExit) !== Number(exact.close)) {
+    throw new Error('已補日K但持股追蹤出場價未對上；請執行 explainHoldingsTracker("' + code + '") 檢查：' + JSON.stringify(result));
+  }
+  rebuildPerformanceHistoryJob(day);
+  Logger.log(JSON.stringify(result));
+  return result;
+}
+
+/** Apps Script 編輯器一鍵修復本次力旺 3529 出場價。 */
+function repairLiwangExitPriceNow() { return repairMissingTrackerExitPrice('3529'); }
+
 /**
  * 在 Apps Script 編輯器執行，檢查「日K快取」的涵蓋範圍。只讀不寫，也不呼叫外部服務。
  *
@@ -1441,8 +1478,17 @@ function rebuildHoldingsTrackerJob(options) {
           ? '逾 ' + STALE_TRADING_DAYS + ' 個交易日未再提及，取最後一次提及日 ' + rd.close.date +
             (sc.date === rd.close.date ? ' 收盤' : '（當天無日K）之前最近交易日 ' + sc.date + ' 收盤')
           : '最後一次提及日 ' + rd.close.date + ' 以前沒有日K，出場價待補齊日K後重算';
+      } else if (rd.closeKind === '觀望不碰') {
+        // 立場轉變不是成交。只取該日或之前最近交易日收盤，絕不借用未來K棒。
+        // 當日日K稍後補齊時，下一次重算會自然換成當日收盤。
+        var avoidClose = closeOnOrBefore_(candles, rd.close.date);
+        rd.exit = avoidClose.price;
+        rd.exitDate = avoidClose.date || rd.close.date;
+        rd.exitSrc = avoidClose.price
+          ? (avoidClose.date === rd.close.date ? '轉為觀望不碰，取當日收盤'
+              : '轉為觀望不碰；當日無日K，暫取之前最近交易日 ' + avoidClose.date + ' 收盤，待補當日K後重算')
+          : '轉為觀望不碰；該日以前無日K，出場價待補齊日K後重算';
       } else if (rd.close) {
-        // 觀望不碰不是成交，一律用當日收盤，不採用任何明講價。
         var useHint = (rd.closeKind === '賣出') ? rd.close.hint : null;
         /* 出場價的往前下限＝這一回合實際成交的那一天。
            賣出不可能發生在買進之前，往前找越過那一天就是在編造。 */
@@ -1468,8 +1514,6 @@ function rebuildHoldingsTrackerJob(options) {
         } else if (r2.unverified) {
           rd.exitSrc = '張震明講 ' + r2.unverified + '，日K快取查無觸價紀錄';
           stat.unverified++;
-        } else if (rd.closeKind === '觀望不碰') {
-          rd.exitSrc = '轉為觀望不碰，取當日收盤';
         } else {
           rd.exitSrc = r2.src;
         }
@@ -1591,7 +1635,7 @@ function rebuildHoldingsTrackerJob(options) {
                   rd.closeKind === '觀望不碰' ? '轉觀望不碰視為出場' : '逾期未再提及視為出場');
       if (rd.exit) { tail += ' ' + rd.exit; }
       if (rd.exitDate && rd.exitDate !== rd.close.date) {
-        tail += rd.closeKind === '逾期未再提及' ? '（取 ' + rd.exitDate + ' 收盤）' : '（' + rd.exitDate + ' 觸價）';
+        tail += rd.closeKind === '賣出' ? '（' + rd.exitDate + ' 觸價）' : '（取 ' + rd.exitDate + ' 收盤）';
       }
       if (rd.ret !== null && rd.ret !== undefined) {
         tail += '（' + (rd.ret > 0 ? '+' : '') + rd.ret.toFixed(2) + '%）';

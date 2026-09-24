@@ -628,6 +628,10 @@ function marketSnapshotJob(){
 }
 
 function installMarketSnapshotJob(){
+  if(ScriptApp.getProjectTriggers().some(function(t){return t.getHandlerFunction()==='everyFiveMinJob';})){
+    Logger.log('市場快照已由 everyFiveMinJob 每五分鐘執行；不新增重複觸發器。');
+    return;
+  }
   if(!ScriptApp.getProjectTriggers().some(function(t){return t.getHandlerFunction()==='marketSnapshotJob';})){
     ScriptApp.newTrigger('marketSnapshotJob').timeBased().everyMinutes(5).create();
   }
@@ -636,7 +640,8 @@ function installMarketSnapshotJob(){
 
 function marketSnapshotStatus(){
   var result=JSON.parse(PropertiesService.getScriptProperties().getProperty('marketSnapshotStatus')||'{}');
-  result.trigger=ScriptApp.getProjectTriggers().some(function(t){return t.getHandlerFunction()==='marketSnapshotJob';});
+  result.trigger=ScriptApp.getProjectTriggers().some(function(t){return ['marketSnapshotJob','everyFiveMinJob'].indexOf(t.getHandlerFunction())>=0;});
+  result.mode=ScriptApp.getProjectTriggers().some(function(t){return t.getHandlerFunction()==='everyFiveMinJob';})?'五分鐘總排程':result.trigger?'獨立排程':'未排程';
   Logger.log(JSON.stringify(result));return result;
 }
 

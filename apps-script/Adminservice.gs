@@ -552,8 +552,19 @@ function apiAdminTodayStatus(key) {
     var dsum = {};
     try { dsum = deliverySummaryForDate_(today); } catch (e) { dsum = {}; }
     var dkeys = Object.keys(dsum), tot = { total: 0, accepted: 0, failed: 0, unknown: 0, open: 0 }, lastErr = '';
+    var byMail = { daily: { messages: 0, total: 0, accepted: 0, failed: 0, unknown: 0, open: 0, firstAt: '', lastAt: '' },
+                   sms: { messages: 0, total: 0, accepted: 0, failed: 0, unknown: 0, open: 0, firstAt: '', lastAt: '' } };
     dkeys.forEach(function (k) { ['total', 'accepted', 'failed', 'unknown', 'open'].forEach(function (f) { tot[f] += dsum[k][f]; });
-      if (dsum[k].lastError) { lastErr = dsum[k].lastError; } });
+      if (dsum[k].lastError) { lastErr = dsum[k].lastError; }
+      var g = byMail[dsum[k].kind];
+      if (g) {
+        g.messages++;
+        ['total', 'accepted', 'failed', 'unknown', 'open'].forEach(function (f) { g[f] += dsum[k][f]; });
+        var first = dsum[k].firstAcceptedAt, last = dsum[k].lastAcceptedAt;
+        if (first && (!g.firstAt || first < g.firstAt)) { g.firstAt = first; }
+        if (last && last > g.lastAt) { g.lastAt = last; }
+      }
+    });
     var quotaLeft = null;
     try { quotaLeft = MailApp.getRemainingDailyQuota(); } catch (e) { quotaLeft = null; }
     if (dkeys.length) {
@@ -591,11 +602,28 @@ function apiAdminTodayStatus(key) {
     });
     timeline.sort(function (a, b) { return a.time < b.time ? -1 : a.time > b.time ? 1 : 0; });
     if (polls) { timeline.unshift({ time: '', kind: '輪詢', text: '今天取稿輪詢 ' + polls + ' 次（不逐筆列出）', where: '' }); }
+    dkeys.forEach(function (id) {
+      var mail = dsum[id];
+      if (!mail.firstAcceptedAt) { return; }
+      timeline.push({ time: mail.firstAcceptedAt.slice(11, 16), kind: mail.kind === 'sms' ? '盤中即時信' : '每日整理信',
+        text: '郵件服務接受 ' + mail.accepted + '/' + mail.total + ' 位' + (mail.open ? '；待續送 ' + mail.open + ' 位' : ''), where: '寄送帳本' });
+    });
+    timeline.sort(function (a, b) { return a.time < b.time ? -1 : a.time > b.time ? 1 : 0; });
     var triggerNames = [], triggerError = '';
     try { triggerNames = ScriptApp.getProjectTriggers().map(function (t) { return t.getHandlerFunction(); }); }
     catch (e) { triggerError = String(e.message || e).slice(0, 120); }
     var heartbeatAt = Number(PropertiesService.getScriptProperties().getProperty('OPS_HEARTBEAT_AT') || 0);
     var heartbeatAge = heartbeatAt ? Math.round((Date.now() - heartbeatAt) / 60000) : null;
+    var marketSample = {};
+    try { marketSample = JSON.parse(PropertiesService.getScriptProperties().getProperty('marketSnapshotStatus') || '{}'); } catch (e) {}
+    var blankExits = [];
+    try { readSheetObjects_('持股追蹤').forEach(function (r) {
+      if (String(r['狀態'] || '') === '已出場' && r['最近賣出日'] && !Number(r['出場價'])) {
+        blankExits.push(String(r['股票名稱'] || r['代號']) + ' ' + fmtDate_(r['最近賣出日']));
+      }
+    }); } catch (e) {}
+    var hourlyScheduled = triggerNames.indexOf('backfillHourlyHistoryJob') >= 0;
+    var marketScheduled = triggerNames.indexOf('everyFiveMinJob') >= 0 || triggerNames.indexOf('marketSnapshotJob') >= 0;
     var activeHours = trading && hm >= 900 && hm <= 2200;
     var missingTriggers = triggerError ? [] : ['everyFiveMinJob', 'cmoneyPollJob', 'backfillDailyKJob', 'rebuildHoldingsTrackerJob', 'snapshotPerformanceJob']
       .filter(function (name) { return triggerNames.indexOf(name) < 0; });
@@ -605,10 +633,28 @@ function apiAdminTodayStatus(key) {
     if (activeHours && (heartbeatAge === null || heartbeatAge > 20)) { alerts.push('五分鐘排程超過 20 分鐘沒有啟動紀錄'); }
     if (tot.failed || tot.unknown) { alerts.push('郵件有失敗或結果不明的收件者，請查看寄送帳本'); }
     if (fails.length) { alerts.push('今日系統狀態記錄 ' + fails.length + ' 次失敗'); }
+    if (push && /已寄/.test(String(push['寄送狀態'] || '')) && !byMail.daily.accepted) {
+      alerts.push('每日推播標為已寄，但寄送帳本未見服務接受紀錄');
+    }
+    if (noShow && byMail.daily.accepted) { alerts.push('今日無直播卻有每日整理信服務接受紀錄，請核對寄送日期'); }
+    if (blankExits.length) { alerts.push('持股追蹤有 ' + blankExits.length + ' 檔出場價待補：' + blankExits.slice(0, 3).join('、')); }
+    if (!hourlyScheduled && trading) { alerts.push('歷史 60 分 K 的 19:15 排程未安裝'); }
+    var marketSampleAge = null;
+    if (marketSample.at) {
+      var msTime = new Date(String(marketSample.at).replace(/\//g, '-').replace(' ', 'T') + '+08:00').getTime();
+      if (isFinite(msTime)) { marketSampleAge = Math.round((Date.now() - msTime) / 60000); }
+    }
+    if (marketScheduled && typeof marketSnapshotWindow_ === 'function' && marketSnapshotWindow_(new Date()) &&
+        (marketSampleAge === null || marketSampleAge > 20 || marketSample.ok !== true)) {
+      alerts.push('盤中行情採樣超過 20 分鐘未成功，請查看 marketSnapshotStatus()');
+    }
     return { ok: true, today: today, now: Utilities.formatDate(new Date(), TZ, 'HH:mm'), items: items,
       timeline: timeline.slice(-40), ops: { trading: trading, noShow: noShow, plannedNoShow: plannedNoShow && !video, videoStatus: vStatus,
         rawChars: v1, polishedChars: v2, mailStatus: push ? String(push['寄送狀態'] || '') : '',
-        deliveries: tot, mailKinds: dkeys.length, mailQuotaLeft: quotaLeft, smsCount: sms,
+        deliveries: tot, mailByKind: byMail, mailKinds: dkeys.length, mailQuotaLeft: quotaLeft, smsCount: sms,
+        blankExits: blankExits, hourlyScheduled: hourlyScheduled, marketScheduled: marketScheduled,
+        hourlyProgress: String(PropertiesService.getScriptProperties().getProperty('hourHistoryProgress') || '').slice(0, 100),
+        marketSample: { at: marketSample.at || '', age: marketSampleAge, ok: marketSample.ok === true, note: String(marketSample.note || '').slice(0, 100) },
         perfLast: perfLast, dailyK: dk ? { finishedAt: dk.finishedAt || '', lastCode: dk.lastCode || '', lastError: dk.lastError || '' } : null,
         heartbeatAge: heartbeatAge, heartbeatAt: heartbeatAt ? Utilities.formatDate(new Date(heartbeatAt), TZ, 'HH:mm') : '',
         mailStart: dailyPushStartTime_(today).replace(/^(..)(..)$/, '$1:$2'),

@@ -1,3 +1,5 @@
+目前交付：**2026-09-24-quality-v55**。手機排版與後台自動化監控的完整 33 個 Apps Script 部署檔已收入 `apps-script/`；請依 [v55 部署與驗證](docs/0924-v55/部署與驗證.md) 更新原 Apps Script 網頁應用程式。GitHub 推送不會自動部署網站；原有 Python 正本保留最新版本。
+
 目前交付：**2026-09-24-quality-v54**，請先讀 [v54 部署說明](docs/0923-v54/部署說明.md) 與 [需求清單與驗收](docs/0923-v54/需求清單與驗收.md)。GitHub 更新 `pipeline/pipeline.py` 與 `transcript.py`；Apps Script 共 33 檔（21 個 .gs、12 個 .html，新增 AdminLegacy.html）由管理者在原專案整份替換並部署新版本。以下舊版敘述保留為歷史，部署以本段文件為準。
 
 > **目前交付：2026-09-19-quality-v46**。請先看 [完整修改、各流程與部署手冊](docs/0919-v46/修改與部署流程.md)。Apps Script 共21個.gs與9個.html，全部部署；根目錄pipeline.py不得恢復。下方舊版本僅供歷史參考。

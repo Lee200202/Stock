@@ -1,0 +1,411 @@
+<div class="doc tech-v45" data-flow-v45>
+<h2>從直播到每日整理</h2>
+<p class="tech-lede">給讀者與新管理者的完整說明：為什麼做這個網站、它解決什麼、每一步怎麼運作，以及它做不到的地方。每一段先用三、四行講重點，其餘用圖、對話與可以按的示範說明。</p>
+<nav class="tech-steps" id="techSteps" aria-label="技術說明章節">
+<button type="button" class="step-b" data-step="0"><span class="step-n">01</span>資料旅程</button>
+<button type="button" class="step-b" data-step="1"><span class="step-n">02</span>收錄邊界</button>
+<button type="button" class="step-b" data-step="2"><span class="step-n">03</span>價格依據</button>
+<button type="button" class="step-b" data-step="3"><span class="step-n">04</span>持股回合</button>
+<button type="button" class="step-b" data-step="4"><span class="step-n">05</span>品質把關</button>
+<button type="button" class="step-b" data-step="5"><span class="step-n">06</span>自動維運</button></nav>
+<section class="tech-chunk is-active" id="tech-chunk-0" data-step="0">
+<div class="flow-kicker">01 / 06 · 資料旅程</div>
+<h2>每天的直播，整理成可回查的紀錄</h2>
+<p>網站把原稿、個股說明與每日整理放在一起；你可以回到日期與原句核對，不必只相信一段摘要。</p>
+<div class="rpt" role="list" aria-label="報告摘要">
+<div class="rpt-row" role="listitem"><b class="rpt-k k-why">動機</b><p>每天一小時的直播裡，買賣、持股、觀望與教學混在一起講；簡訊、影片、截圖散在不同地方。<br>想回頭查「某一檔是哪一天、在什麼價位、為什麼買」時，只能重看影片。</p></div>
+<div class="rpt-row" role="listitem"><b class="rpt-k k-goal">目的</b><p>把每一天講過的話，整理成<mark class="m-when">按日期</mark>與<mark class="m-who">按個股</mark>都查得到的紀錄；<br>每一筆都能連回原句，說不出依據的就寫「未說明」，不補、不猜。</p></div>
+<div class="rpt-row" role="listitem"><b class="rpt-k k-pain">痛點</b><p>語音辨識會聽錯股名（立即電→力積電）；同一句話裡的「賣」可能是散戶在賣、不是會員賣；<br>「以前推薦 100」是回顧不是今天的建議；價格要分清楚是哪一檔的、是股價還是張數。</p></div>
+<div class="rpt-row" role="listitem"><b class="rpt-k k-fix">解法</b><p>模型負責讀懂上下文，程式負責核對：<span class="num-hl">官方代號</span>、<span class="num-hl">原句是否存在</span>、<span class="num-hl">數字單位</span>、<span class="num-hl">分類與說明是否矛盾</span>。<br>矛盾的列隔離待複核，不為了畫面完整而放行；每一個判定都留紀錄可回查。</p></div>
+<div class="rpt-row" role="listitem"><b class="rpt-k k-val">價值</b><div class="rpt-body"><p>省下的是「查找與核對」的時間，不是提高投資勝率。下面的數字每次打開時從試算表讀，不寫死：</p>
+<div class="live-stats" id="techLive" aria-live="polite">
+<div><b data-live="days">—</b><span>有紀錄的天數</span></div>
+<div><b data-live="records">—</b><span>收錄的個股紀錄</span></div>
+<div><b data-live="codes">—</b><span>出現過的個股</span></div>
+<div><b data-live="sms">—</b><span>會員簡訊則數</span></div>
+<div><b data-live="manual">—</b><span>人工補登筆數</span></div>
+<div><b data-live="mails">—</b><span>每日整理篇數</span></div>
+</div><p class="live-note" id="techLiveNote">讀取中…</p></div></div>
+</div>
+<figure class="tech-figure"><figcaption><span class="tech-tag">前後比較</span><strong>想找「力積電上次講的成本」要幾步？</strong><span>示範：步驟數依實際操作估，不是量測出的省時比例。</span></figcaption>
+<div class="rpt-compare"><div class="rc-old"><b>以前</b><ol><li>想起大概是哪一週</li><li>翻聊天紀錄找簡訊截圖</li><li>打開好幾支影片拖時間軸</li><li>自己記下價位，沒辦法確定有沒有漏</li></ol></div>
+<div class="rc-new"><b>現在</b><ol><li>右上角查「力積電」或「立即電」</li><li>每一次提到都列出來，附日期與價位</li><li>點日期回到那天的逐字稿原句核對</li></ol></div></div></figure>
+<div class="tech-dialog chat" role="note"><span class="tech-speaker">讀者會問</span><p>11:05 到了，為什麼網站還沒出現今天的分析？</p><span class="tech-speaker">系統怎麼做</span><p><mark>取稿、判讀、發布是三個不同進度。</mark>影片回放未就緒時只顯示等待；原稿進入試算表後，下一棒才會開始稽核。後台會分別列出目前步驟、最後更新時間及可查看的日誌。</p></div>
+<figure class="tech-figure tech-lab" id="flowLab">
+<figcaption><span class="tech-tag">互動示範</span><strong>一份原稿如何走到網站？</strong><span>以下是情境演示，不是目前工單。</span></figcaption>
+<div class="tech-options" role="group" aria-label="流程情境"><button type="button" data-demo-case="normal" aria-pressed="true">正常交棒</button><button type="button" data-demo-case="manual" aria-pressed="false">手動稿優先</button><button type="button" data-demo-case="retry" aria-pressed="false">下游暫時中斷</button><button type="button" data-demo-case="sms" aria-pressed="false">簡訊先到</button></div>
+<ol class="tech-route" id="demoRoute"><li>取稿</li><li>原稿落地</li><li>稽核</li><li>文章發布</li><li>背景追蹤</li></ol>
+<div class="tech-demo-message" aria-live="polite"><b id="demoPhase"></b><p id="demoText"></p></div>
+<div class="tech-options"><button type="button" id="demoPrev">上一步</button><button type="button" id="demoPlay">播放流程</button><button type="button" id="demoNext">下一步</button><span id="demoCount"></span></div>
+</figure>
+<ol class="flow-map" aria-label="每天的直播，整理成可回查的紀錄">
+<li><span class="flow-index" aria-hidden="true">1</span>
+<h3>01｜取得原稿</h3>
+<p>公開影片回放就緒後分段聽打；也可以由管理者直接貼稿。</p></li>
+<li><span class="flow-index" aria-hidden="true">2</span>
+<h3>02｜核對內容</h3>
+<p>潤飾只處理標點與分段，分類依原始逐字稿判讀。</p></li>
+<li><span class="flow-index" aria-hidden="true">3</span>
+<h3>03｜發布整理</h3>
+<p>核對名稱、語氣與價位，更新網站及郵件查詢。</p></li>
+<li><span class="flow-index" aria-hidden="true">4</span>
+<h3>04｜更新追蹤</h3>
+<p>日 K、持股回合與績效在背景接續完成。</p></li></ol>
+<aside class="flow-note">手動稿永遠優先。自動聽打也可能辨識錯字；原稿可回查、待確認可修正，不能把模型輸出視為事實保證。</aside>
+<div class="table-scroll"><table class="tech-compare"><thead><tr><th>資料進來時</th><th>系統處理</th><th>管理者看到</th></tr></thead><tbody><tr><td>手動貼稿或手動保留</td><td>自動取稿停手；已貼的稿進入同一條稽核線</td><td>手動來源、原文指紋、判讀步驟</td></tr><tr><td>自動聽打完成</td><td>原稿寫入影片清單；daily 排程讀到後進 pipeline</td><td>取稿完成，再逐步顯示潤飾與稽核</td></tr><tr><td>模型或下游暫時中斷</td><td>保存片段或刷新檢查點，下一棒接續</td><td>等待續跑與最後成功步驟，不顯示全部成功</td></tr></tbody></table></div>
+<div class="chunk-foot">
+<button type="button" class="chunk-next" data-go="1">收錄邊界 →</button></div></section>
+<section class="tech-chunk" id="tech-chunk-1" data-step="1" hidden>
+<div class="flow-kicker">02 / 06 · 收錄邊界</div>
+<h2>先分清楚，現在到底做了什麼</h2>
+<p>當日買賣、會員目前持有與觀望方向分開判斷；同一句話提到「買」不一定代表今天成交。</p>
+<div class="tech-dialog chat" role="note"><span class="tech-speaker">原句</span><p>「以前 1580 以下推薦，當時沒人買；現在漲上來才追。」</p><span class="tech-speaker">判讀</span><p><mark>只是在回顧舊推薦，不能推定今天買進或現在看多。</mark>若另外明講「目前持有」或提出新的可執行買點，才依那一句另行收錄。</p></div>
+<figure class="tech-figure"><figcaption><span class="tech-tag">決策圖</span><strong>一句話要經過哪些分岔？</strong></figcaption>
+<div class="tech-decision"><div class="decision-start">這一句談的是哪一檔、哪一天？</div><span class="tech-arrow" aria-hidden="true">↓</span><div class="decision-grid"><div><b>今天明確成交</b><span>買進 / 賣出</span></div><div><b>明講目前持有</b><span>會員持股專區</span></div><div><b>現在有立場</b><span>看好 / 條件買點 → 注意<br>禁買 / 風險 / 中性 → 不碰</span></div><div><b>只有舊推薦故事</b><span>不新增觀望列</span></div></div></div>
+<div class="tech-options" role="group" aria-label="分類案例"><button type="button" data-tone-case="0" aria-pressed="true">只是以前推薦</button><button type="button" data-tone-case="1" aria-pressed="false">低檔有明確買點</button><button type="button" data-tone-case="2" aria-pressed="false">還不能買</button></div><div class="tech-demo-message" id="toneExample" aria-live="polite"></div></figure>
+<div class="tech-dialog chat"><span class="tech-speaker">讀者</span><p>原句：「<mark class="m-who">鴻準</mark>最近<mark class="m-who">散戶</mark>一直<mark class="m-act">賣</mark>，<mark class="m-who">大戶</mark>持股增加，<mark class="m-who">會員</mark>要<mark class="m-cond">抱牢</mark>。」有「賣」字，算賣出嗎？</p><span class="tech-speaker">系統</span><p>先看<mark class="m-who">誰</mark>在做：賣的是散戶，不是會員；對會員的指示是<mark class="m-cond">抱牢</mark>。所以不寫成當日賣出，鴻準列在會員持股，說明寫「散戶賣、大戶增加」是講者看多的理由。</p></div>
+<p class="mark-legend" aria-label="色筆圖例"><mark class="m-who">主體</mark><mark class="m-act">行為</mark><mark class="m-when">時間</mark><mark class="m-cond">條件</mark><span>同一個動詞，要先看是誰做、什麼時候、有沒有條件。</span></p>
+<div class="tech-dialog chat"><span class="tech-speaker">讀者</span><p>「不要追高」一定是觀望不碰嗎？</p><span class="tech-speaker">判讀</span><p>要看同一檔的後半句。若同時給出可照做的低檔買點，依那個條件列注意；若明講「現在還不能買，要等條件」，就不能把尚未發生的條件寫成買點。</p></div>
+<ol class="flow-map" aria-label="先分清楚，現在到底做了什麼">
+<li><span class="flow-index" aria-hidden="true">1</span>
+<h3>當日操作</h3>
+<p>明確的當日買入或賣出，才記當日操作。</p></li>
+<li><span class="flow-index" aria-hidden="true">2</span>
+<h3>會員持股</h3>
+<p>有目前持有的聲明，保留在獨立會員持股專區。</p></li>
+<li><span class="flow-index" aria-hidden="true">3</span>
+<h3>觀望注意</h3>
+<p>本股有明確正面依據，或可以照做的條件式買點。</p></li>
+<li><span class="flow-index" aria-hidden="true">4</span>
+<h3>觀望不碰</h3>
+<p>禁買、風險警示、法人反覆換手，或中性觀察。</p></li></ol>
+<aside class="flow-note">「以前幾元推薦、沒人買，漲上來才追」若只是舊推薦回顧，不新增觀望列。貨幣與產業名稱也不變成個股。</aside>
+<div class="chunk-foot">
+<button type="button" class="chunk-prev" data-go="0">← 資料旅程</button>
+<button type="button" class="chunk-next" data-go="2">價格依據 →</button></div></section>
+<section class="tech-chunk" id="tech-chunk-2" data-step="2" hidden>
+<div class="flow-kicker">03 / 06 · 價格依據</div>
+<h2>數字正確，還要確定是誰的價格</h2>
+<p>先確認原文中的數字、單位與所屬公司，再決定能不能放進價位欄。</p>
+<div class="tech-dialog chat" role="note"><span class="tech-speaker">容易混淆</span><p>「ETF 賣出勤誠 168 張，勤誠 900 以下才看買點。」</p><span class="tech-speaker">核對順序</span><p><mark>168 是張數；900 才可能是勤誠的條件價。</mark>兩者都不能轉成 ETF 的股價。遇到「今天跌 600 元」也先標成漲跌額，不寫成現價。</p></div>
+<figure class="tech-figure"><figcaption><span class="tech-tag">數字歸屬</span><strong>先找主詞，再辨識單位</strong></figcaption>
+<div class="tech-route ownership"><div><b>ETF</b><span>執行賣出的主體</span></div><span class="tech-arrow">→</span><div><b>勤誠 · 168 張</b><span>交易標的與數量</span></div><span class="tech-arrow">→</span><div><b>勤誠 · 900 以下</b><span>同一檔的條件價</span></div></div>
+<p><mark>不能把交易者 ETF 和被交易的勤誠合成同一筆價格。</mark>核對公司名稱、相鄰原句與單位後，才填公開價位欄。</p>
+<p class="own-sent" aria-label="點數字看歸屬（示範）">示範原句：「<mark class="m-who">ETF</mark> 賣出<mark class="m-who">勤誠</mark> <button type="button" class="own-num" data-own="168">168</button> 張，<mark class="m-who">勤誠</mark> <button type="button" class="own-num" data-own="900">900</button> 以下才看買點，今天大跌 <button type="button" class="own-num" data-own="600">600</button> 元。」</p>
+<div class="tech-demo-message" id="ownDetail" aria-live="polite">點原句裡的數字，看它屬於誰、代表什麼。</div>
+<div class="table-scroll"><table class="tech-compare"><thead><tr><th>原句數字</th><th>代表什麼</th><th>價位欄</th></tr></thead><tbody><tr><td>今天跌 600 元</td><td>漲跌金額</td><td>未說明</td></tr><tr><td>每股配息 7 元</td><td>股利</td><td>未說明</td></tr><tr><td>900 以下才是買點</td><td>有條件的價格</td><td>900 以下</td></tr><tr><td>聽到「14」，數字不完整</td><td>不確定的原句</td><td>不乘十猜價</td></tr></tbody></table></div></figure>
+<ol class="flow-map" aria-label="數字正確，還要確定是誰的價格">
+<li><span class="flow-index" aria-hidden="true">1</span>
+<h3>原句數字</h3>
+<p>保留可證實的價格與以上／以下條件，不把模糊數字乘十猜價。</p></li>
+<li><span class="flow-index" aria-hidden="true">2</span>
+<h3>所屬公司</h3>
+<p>ETF 賣出勤誠，不等於 ETF 本身有勤誠的買點或股價。</p></li>
+<li><span class="flow-index" aria-hidden="true">3</span>
+<h3>排除非股價</h3>
+<p>漲跌額、股利、EPS、天數與張數，不當成成本或目標價。</p></li>
+<li><span class="flow-index" aria-hidden="true">4</span>
+<h3>行情與績效</h3>
+<p>缺日 K 先補資料；沒有涵蓋的日期照實標示，不能拿未來價格冒充。</p></li></ol>
+<aside class="flow-note">「未說明」代表目前沒有可採用的價位依據。展示的最高可證實價，不等於實際多次交易的平均成本。</aside>
+<div class="chunk-foot">
+<button type="button" class="chunk-prev" data-go="1">← 收錄邊界</button>
+<button type="button" class="chunk-next" data-go="3">持股回合 →</button></div></section>
+<section class="tech-chunk" id="tech-chunk-3" data-step="3" hidden>
+<div class="flow-kicker">04 / 06 · 持股回合</div>
+<h2>從第一次提到，到最後一次提及</h2>
+<p>一檔股票可以有多個持有回合；紀錄與績效都要按時間順序重建，不能只看最新一句話。</p>
+<figure class="tech-figure"><figcaption><span class="tech-tag">持股時間軸</span><strong>何時確認出場，與用哪天定價，是兩件事</strong></figcaption>
+<ol class="tech-timeline"><li><time>8/06</time><div><b>首次買入</b><p>建立回合，記錄成本依據。</p></div></li><li><time>8/07</time><div><b>再次提及</b><p>新增當天說明，更新最後提及日。</p></div></li><li class="timeline-focus"><time>8/10</time><div><b>最後一次提及</b><p><mark>若之後逾期，以這一天收盤計算出場。</mark></p></div></li><li><time>之後</time><div><b>超過 10 個交易日未再提及</b><p>此時才確認逾期出場；不把確認當天的價格拿來計算。</p></div></li></ol>
+<div class="tl-lab"><label for="tlSlider">拖動觀測日期（示範）：<b id="tlDay">8/06</b></label>
+<input type="range" id="tlSlider" min="0" max="5" step="1" value="0" aria-describedby="tlState">
+<p class="tech-demo-message" id="tlState" aria-live="polite"></p></div>
+</figure><div class="tech-dialog chat"><span class="tech-speaker">讀者</span><p>8/10 沒有日 K，能用 8/11 代替嗎？</p><span class="tech-speaker">定價</span><p>不能向未來取價。會找 8/10 或之前最近的有效收盤；快取未涵蓋則顯示原因，待資料補齊再重算。</p></div>
+<ol class="flow-map" aria-label="從第一次提到，到最後一次提及">
+<li><span class="flow-index" aria-hidden="true">1</span>
+<h3>建立回合</h3>
+<p>依買入與持有聲明建檔；持有聲明另經確認規則。</p></li>
+<li><span class="flow-index" aria-hidden="true">2</span>
+<h3>持續追蹤</h3>
+<p>累積每天講了什麼，同日持股聲明不因另一列觀望不碰失效。</p></li>
+<li><span class="flow-index" aria-hidden="true">3</span>
+<h3>結束回合</h3>
+<p>明確賣出或符合出場規則時結束；觀望風險也會參與回合判斷。</p></li>
+<li><span class="flow-index" aria-hidden="true">4</span>
+<h3>十日未提及</h3>
+<p>超過 10 個交易日未提及，回溯以最後提及日收盤計算出場。</p></li></ol>
+<aside class="flow-note">例如最後提及是 8/10，逾期後以 8/10 收盤計算，不取逾期當天收盤。該日無 K 線時只向前找，不能向後取價。</aside>
+<div class="chunk-foot">
+<button type="button" class="chunk-prev" data-go="2">← 價格依據</button>
+<button type="button" class="chunk-next" data-go="4">品質把關 →</button></div></section>
+<section class="tech-chunk" id="tech-chunk-4" data-step="4" hidden>
+<div class="flow-kicker">05 / 06 · 品質把關</div>
+<h2>把不確定留下，不把錯誤藏起來</h2>
+<p>模型負責理解上下文；程式再核對名稱、原句、數字與分類衝突。</p>
+<figure class="tech-figure"><figcaption><span class="tech-tag">資料關聯圖</span><strong>改一筆，為什麼要重算好幾處？</strong><span>試算表的邏輯關聯，並非資料庫強制外鍵。點選方塊查看用途。</span></figcaption>
+<div class="tech-erd"><button type="button" data-entity="video" aria-pressed="true"><b>影片清單</b><code>影片ID · 原文 SHA256</code><span>原始逐字稿 / 來源 / 處理狀態</span></button><span class="tech-arrow" aria-hidden="true">1 → 多</span><button type="button" data-entity="audit" aria-pressed="false"><b>逐字稿判讀稽核</b><code>影片ID · 執行批次</code><span>證據 / 候選 / 排除原因</span></button><span class="tech-arrow" aria-hidden="true">↓ 驗證後</span><button type="button" data-entity="records" aria-pressed="false"><b>操作紀錄 / 會員持股</b><code>來源影片ID · 日期 · 代號</code><span>方向 / 價位 / 說明</span></button><span class="tech-arrow" aria-hidden="true">多 → 一日</span><button type="button" data-entity="article" aria-pressed="false"><b>每日推播內容</b><code>日期 · 寄送狀態</code><span>文章 / 郵件查詢 / 防重寄</span></button></div><div class="tech-demo-message" id="entityDetail" aria-live="polite">影片清單保存原稿版本；同日覆蓋時先核對本次 SHA256，避免讀到舊稿。</div></figure>
+<figure class="tech-figure sandbox" id="sandbox"><figcaption><span class="tech-tag">失敗恢復沙盒</span><strong>模型忙碌、新稿插隊、按了取消，會不會全部重來？</strong><span>示範：只在這個頁面模擬，不呼叫模型、不碰正式工單。</span></figcaption>
+<ol class="sb-steps" id="sbSteps"><li>取稿</li><li>聽打 1/3</li><li>聽打 2/3</li><li>聽打 3/3</li><li>稽核</li><li>發布</li></ol>
+<div class="tech-options" role="group" aria-label="沙盒操作"><button type="button" data-sb="next">往下一步</button><button type="button" data-sb="503">模擬 503（模型忙碌）</button><button type="button" data-sb="paste">管理者貼入新稿</button><button type="button" data-sb="cancel">取消本次</button><button type="button" data-sb="reset">重設</button></div>
+<ol class="sb-log" id="sbLog" aria-live="polite"></ol></figure>
+<div class="tech-dialog chat"><span class="tech-speaker">管理者</span><p>重跑後筆數變少，會把舊資料全刪掉嗎？</p><span class="tech-speaker">覆蓋核對</span><p>先逐檔比對原文與前一版。確認只剩舊推薦才排除；仍待確認者留下稽核與保留理由。簡訊與人工補登的來源保護繼續有效。</p></div>
+<ol class="flow-map" aria-label="把不確定留下，不把錯誤藏起來">
+<li><span class="flow-index" aria-hidden="true">1</span>
+<h3>原稿指紋</h3>
+<p>後台投稿以 SHA256 核對這次原文，避免把上一次稿件重跑。</p></li>
+<li><span class="flow-index" aria-hidden="true">2</span>
+<h3>名稱與語氣</h3>
+<p>官方代號、確認別名與當下語氣共同核對，不只看到關鍵字就改類。</p></li>
+<li><span class="flow-index" aria-hidden="true">3</span>
+<h3>覆蓋比對</h3>
+<p>逐檔檢查前一版；待確認與保留舊資料都留下原因。</p></li>
+<li><span class="flow-index" aria-hidden="true">4</span>
+<h3>公開文字</h3>
+<p>移除錯字括注與判定流程，只呈現有依據的內容；不補造篇幅。</p></li></ol>
+<aside class="flow-note">同一份原稿仍可能因模型回應不同而有差異。系統用結構約束、證據核對與判定歷程縮小差異，不宣稱每次生成逐字一致。</aside>
+<div class="chunk-foot">
+<button type="button" class="chunk-prev" data-go="3">← 持股回合</button>
+<button type="button" class="chunk-next" data-go="5">自動維運 →</button></div></section>
+<section class="tech-chunk" id="tech-chunk-5" data-step="5" hidden>
+<div class="flow-kicker">06 / 06 · 自動維運</div>
+<h2>兩條排程，以試算表交棒</h2>
+<p>取得原稿與內容判讀分開執行；有稿就交棒，手動保留就停手，暫時性錯誤則保存進度再接續。</p>
+<div class="tech-dialog chat" role="note"><span class="tech-speaker">排查順序</span><p>先看後台選定日期的「取稿」與「pipeline 稽核」狀態，再開各自的 GitHub 日誌。原稿已落地卻沒有判讀進度，查自動派工；資料已寫入但郵件查詢仍舊，查同步佇列。</p><p><mark>不要只靠一條進度百分比判斷完成。</mark>文章可先發布，日 K 與績效可稍後補齊。</p></div>
+<figure class="tech-figure"><figcaption><span class="tech-tag">排程泳道</span><strong>誰負責啟動，哪一棒負責接手？</strong></figcaption>
+<div class="tech-options" role="group" aria-label="一天的情境（示範）"><button type="button" data-day="normal" aria-pressed="true">正常</button><button type="button" data-day="late" aria-pressed="false">影片晚到</button><button type="button" data-day="busy" aria-pressed="false">模型忙碌</button><button type="button" data-day="noshow" aria-pressed="false">沒有直播</button></div>
+<ol class="day-lane" id="dayLane" aria-live="polite"></ol>
+<div class="tech-swim"><div><b>GitHub · 取稿</b><p>11:05 起 → 找影片 → 等回放 → 分段聽打 → 寫原稿</p></div><div><b>GitHub · 判讀</b><p>11:20 起 → 讀已落地原稿 → 稽核 → 發布文章 → 刷新檢查點</p></div><div><b>GAS · 五分鐘維運</b><p>檢查漏派工 → 同步郵件查詢 → 接續背景工作 → 更新後台狀態</p></div><div><b>GAS · 市場取樣</b><p>每五分鐘 → 實際期貨報價 → 日夜盤分存 → 網站讀共用快取</p></div></div>
+<p><mark>背景取樣不依賴有人開網頁。</mark>網站顯示資料時間；行情來源沒有回應時保留舊資料，空缺不能合成價格補上。</p></figure>
+<div class="tech-dialog chat"><span class="tech-speaker">管理者</span><p>Actions 顯示成功，是否代表網站、績效和郵件都完成？</p><span class="tech-speaker">驗收</span><p>還要看內容狀態與背景狀態。沒有新任務的空跑也會成功；網站文章完成後，日 K 與績效仍可能等待。後台保留最後步驟與兩條日誌入口，供逐段核對。</p></div>
+<ol class="flow-map" aria-label="兩條排程，以試算表交棒">
+<li><span class="flow-index" aria-hidden="true">1</span>
+<h3>11:05 起｜取稿</h3>
+<p>交易日開始輪詢；回放尚未就緒就等，不把等待當失敗。</p></li>
+<li><span class="flow-index" aria-hidden="true">2</span>
+<h3>11:20 起｜判讀</h3>
+<p>先讀試算表；已有原稿就進潤飾稽核，不必再等 YouTube 清單。</p></li>
+<li><span class="flow-index" aria-hidden="true">3</span>
+<h3>內容完成｜可查閱</h3>
+<p>文章發布與背景績效分開顯示，後台不把部分完成標成全部成功。</p></li>
+<li><span class="flow-index" aria-hidden="true">4</span>
+<h3>背景工作｜續跑</h3>
+<p>完成的聽打片段與刷新步驟保留進度，避免每一棒從頭開始。</p></li></ol>
+<aside class="flow-note">GitHub 排程可能延遲，因此 11:05 是預定起跑時間，不是保證完成時間。休市日跳過；未收錄年份提醒後照常執行。</aside>
+<details><summary>管理者速查：日 K 與進度</summary>
+<div class="table-scroll"><table><thead><tr><th>時機</th><th>功能</th></tr></thead><tbody><tr><td>16:45</td><td>backfillDailyKJob</td></tr><tr><td>查看進度</td><td>backfillDailyKStatus</td></tr><tr><td>單檔回合</td><td>explainHoldingsTracker</td></tr></tbody></table></div>
+<p>有進度就接著跑；不要重複重設游標，也不要為了更新程式重裝整套觸發器。</p></details>
+<div class="chunk-foot">
+<button type="button" class="chunk-prev" data-go="4">← 品質把關</button>
+<button type="button" class="chunk-next" data-go="0">資料旅程 →</button></div></section>
+<div class="tech-fixed">
+<h2>常見問題</h2>
+<div class="qa">
+<details><summary>為什麼文章有了，績效還在等待？</summary>
+<div class="a">內容先發布，日 K 與績效在背景更新。請看後台的內容狀態與背景狀態，不要只看一條百分比。</div></details>
+<details><summary>可以自己貼逐字稿嗎？</summary>
+<div class="a">可以。後台投稿沿用既有潤飾與稽核流程；也可先設手動保留。舊資料有原文但沒標來源，同樣按手動稿保護。</div></details>
+<details><summary>K 線與即時價格為什麼不同？</summary>
+<div class="a">日線、週線、月線、60 分線與即時報價各有來源與更新時間。60 分線由富果歷史行情補齊，Yahoo 只補空缺；市場總覽另外標明盤中指數與國際日資料。盤中預覽不寫入正式績效；請以畫面標示的時間與資料範圍判讀。</div></details>
+<details><summary>訂閱如何取消？</summary>
+<div class="a">每日總覽與會員即時通知可分別選擇。信尾提供取消訂閱連結，不需登入。</div></details></div>  <h2>關於作者</h2>
+
+
+
+  <div class="card author" style="margin-top:16px;">
+
+    <div class="av">李</div>
+
+    <div>
+
+      <div style="font-weight:600; font-size: calc(16px * var(--rd-fs));">李世勛　Shih-Hsun Lee</div>
+
+      <div class="r">國立臺北大學統計學研究所。做機器學習、深度學習、NLP 與大型語言模型，主要應用在量化金融。</div>
+
+      <div class="r" style="margin-top:6px;">
+
+        <a href="mailto:lindanny0213@gmail.com">lindanny0213@gmail.com</a>　·　
+
+        <a href="https://github.com/Lee200202" target="_blank" rel="noopener">github.com/Lee200202</a>　·　
+
+        <a href="https://www.notion.so/Shih-Hsun-Lee-8bc6e964fe0a46c199c362a0909eabbb" target="_blank" rel="noopener">作品集</a>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+
+
+
+
+
+</div>
+<p class="tech-note">本站與該頻道沒有隸屬關係，內容為公開資訊整理，不構成投資建議。網站記錄匿名使用情形；瀏覽器識別碼不含 Email 或 IP。</p></div>
+<script>
+(function(){
+  var root=document.getElementById('flowLab');if(!root){return;}
+  var scenarios={
+    normal:[['取稿','回放就緒後分段聽打；已完成片段可沿用。'],['原稿落地','原文與來源寫進影片清單，下一棒可讀取。'],['稽核','名稱、語氣、原句與價位逐項核對，實際步驟回報後台。'],['文章發布','寫入紀錄與會員持股，更新網站及郵件查詢。'],['背景追蹤','日 K 與績效接續更新；寄送狀態另行核對。']],
+    manual:[['手動優先','管理者已貼稿或宣告手動保留，自動聽打停手。'],['核對版本','對照本次原文指紋，不能讀到同日舊稿。'],['共用稽核','手動稿同樣經過分類與證據核對。'],['文章發布','人工補登與簡訊来源受到保護，已寄信件不重寄。'],['背景追蹤','以本次採用的紀錄重算，保留舊資料時明確顯示。']],
+    retry:[['取稿','已完成片段保存，暫時網路問題不必整集重抓。'],['原稿落地','原文已可回查，與下游是否暫時忙碌分開。'],['稽核完成','判讀結果寫入，避免刷新出錯就重新花模型額度。'],['等待續跑','下游暫時無回應：記住最後成功步驟，後台顯示等待。'],['接續刷新','下一棒依檢查點執行剩餘步驟，不宣稱尚未完成的績效已完成。']],
+    sms:[['簡訊先到','簡訊記錄先發布，操作方向以簡訊來源為準。'],['逐字稿稍後到','當天原文提供同股的完整說明依據。'],['補足說明','只引用同一檔已驗證的原句，不新增簡訊沒說的交易。'],['同步查詢','逐字稿寫入後排同步佇列，重建網站的郵件查詢。'],['背景追蹤','文章與持股繼續更新；已寄出的信不自動重寄。']]
+  },mode='normal',step=0,timer=null;
+  var nodes=[].slice.call(root.querySelectorAll('#demoRoute li'));
+  function stop(){clearInterval(timer);timer=null;document.getElementById('demoPlay').textContent='播放流程';}
+  function draw(){nodes.forEach(function(n,i){n.textContent=scenarios[mode][i][0];n.classList.toggle('active',i===step);n.classList.toggle('done',i<step);});document.getElementById('demoPhase').textContent=scenarios[mode][step][0];document.getElementById('demoText').textContent=scenarios[mode][step][1];document.getElementById('demoCount').textContent=(step+1)+' / 5';document.getElementById('demoPrev').disabled=step===0;document.getElementById('demoNext').disabled=step===4;}
+  root.querySelectorAll('[data-demo-case]').forEach(function(b){b.onclick=function(){stop();mode=b.dataset.demoCase;step=0;root.querySelectorAll('[data-demo-case]').forEach(function(x){x.setAttribute('aria-pressed',String(x===b));});draw();};});
+  document.getElementById('demoPrev').onclick=function(){stop();step=Math.max(0,step-1);draw();};
+  document.getElementById('demoNext').onclick=function(){stop();step=Math.min(4,step+1);draw();};
+  document.getElementById('demoPlay').onclick=function(){
+    if(timer){stop();return;}if(step===4){step=0;draw();}
+    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){step=Math.min(4,step+1);draw();return;}
+    this.textContent='暫停';timer=setInterval(function(){if(document.hidden||root.offsetParent===null){stop();return;}step++;draw();if(step>=4){stop();}},1800);
+  };
+  document.addEventListener('visibilitychange',function(){if(document.hidden){stop();}});draw();
+  var cases=['「當時推薦 1580，沒人買，漲上來才追。」→ 只有舊推薦故事，不新增觀望列。','「不要追高；900 以下才是買點。」→ 同一檔有可執行條件，列觀望注意。','「現在還不能買，等缺口補完再說。」→ 條件尚未發生，列觀望不碰。'];
+  document.querySelectorAll('[data-tone-case]').forEach(function(b){b.onclick=function(){document.getElementById('toneExample').textContent=cases[Number(b.dataset.toneCase)];document.querySelectorAll('[data-tone-case]').forEach(function(x){x.setAttribute('aria-pressed',String(x===b));});};});
+  document.getElementById('toneExample').textContent=cases[0];
+  var info={video:'影片清單保存原稿版本；同日覆蓋時先核對本次 SHA256，避免讀到舊稿。',audit:'每輪保留候選與證據。被排除或待確認的原因留在內部稽核，不混進公開說明。',records:'同一天可有操作與持股聲明。來源影片ID讓覆蓋只替換應更新的紀錄，並保護簡訊及人工補登。',article:'每日文章對應一個日期；同步查詢更新內容，但保留已寄送狀態，避免自動重寄。'};
+  document.querySelectorAll('[data-entity]').forEach(function(b){b.onclick=function(){document.getElementById('entityDetail').textContent=info[b.dataset.entity];document.querySelectorAll('[data-entity]').forEach(function(x){x.setAttribute('aria-pressed',String(x===b));});};});
+})();
+/* v54 技術說明互動（全部本機模擬）：數字歸屬、持股時間軸、失敗恢復沙盒、一天泳道、即時數字。 */
+(function () {
+  function $t(id) { return document.getElementById(id); }
+  // 03 點數字看歸屬
+  var own = { '168': '168 是「張數」：ETF 賣出勤誠的數量。不是價格，不進價位欄，也不是 ETF 的股價。',
+              '900': '900 是勤誠自己的條件價：「900 以下才看買點」。條件還沒發生時，勤誠列觀望不碰，說明保留這個條件。',
+              '600': '600 是「漲跌金額」：今天跌了 600 元。不是現價，價位欄寫「未說明」。' };
+  document.querySelectorAll('.own-num').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('.own-num').forEach(function (x) { x.classList.toggle('on', x === b); });
+      $t('ownDetail').textContent = own[b.dataset.own];
+    });
+  });
+  // 04 持股時間軸
+  var tl = [['8/06', '持有中：8/06 首次買入，建立回合，成本依那天講的價位。'],
+            ['8/07', '持有中：8/07 再次提到，最後提及日更新為 8/07。'],
+            ['8/10', '持有中：8/10 最後一次提到。之後的每一天都在數「幾個交易日沒再提」。'],
+            ['8/17', '持有中：已 5 個交易日沒提，還沒到 10 個，不算出場。'],
+            ['8/25', '已出場：超過 10 個交易日沒再提 → 確認出場；出場價回頭用 8/10（最後提及日）的收盤，不用 8/25。'],
+            ['9/01', '仍是已出場。若之後又明講買入，會開「第 2 回合」，與第 1 回合分開計算。']];
+  var sl = $t('tlSlider');
+  function drawTl() { var i = Number(sl.value); $t('tlDay').textContent = tl[i][0]; $t('tlState').textContent = tl[i][1]; }
+  if (sl) { sl.addEventListener('input', drawTl); drawTl(); }
+  // 05 失敗恢復沙盒
+  var sbSteps = [].slice.call(document.querySelectorAll('#sbSteps li')), at = 0, gen = 1, cancelled = false;
+  function sbLog(t) { var li = document.createElement('li'); li.textContent = t; $t('sbLog').appendChild(li); }
+  function sbDraw() { sbSteps.forEach(function (li, i) { li.className = i < at ? 'done' : i === at && !cancelled ? 'on' : ''; }); }
+  function sbReset() { at = 0; gen = 1; cancelled = false; $t('sbLog').innerHTML = ''; sbLog('第 1 版原稿開始處理（檢查點：無）。'); sbDraw(); }
+  document.querySelectorAll('[data-sb]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var k = b.dataset.sb;
+      if (k === 'reset') { sbReset(); return; }
+      if (cancelled && k !== 'paste') { sbLog('本次已取消：不會自動重來，也不會被巡檢復活；要處理請重新送出或貼新稿。'); return; }
+      if (k === 'next') {
+        if (at >= sbSteps.length) { sbLog('已發布。日K與績效在背景接續，網站先看得到文章。'); return; }
+        sbLog('完成「' + sbSteps[at].textContent + '」，檢查點記在第 ' + (at + 1) + ' 步。'); at++;
+      } else if (k === '503') {
+        sbLog('模型回 503：換下一把金鑰重送「' + (sbSteps[at] ? sbSteps[at].textContent : '發布') + '」。前面 ' + at + ' 步已存，不重做、不多花額度。');
+      } else if (k === 'paste') {
+        gen++; cancelled = false; at = 0;
+        sbLog('管理者貼入第 ' + gen + ' 版原稿：手動稿優先，舊版那一輪之後寫回的結果會被版本核對擋下，不會蓋掉新稿。從頭處理第 ' + gen + ' 版。');
+      } else if (k === 'cancel') {
+        cancelled = true; sbLog('取消本次：停在「' + (sbSteps[at] ? sbSteps[at].textContent : '發布') + '」之前。已完成的步驟保留；今天其他排程照常。要整天停手請用後台「今天暫停自動取稿」。');
+      }
+      sbDraw();
+    });
+  });
+  if ($t('sbLog')) { sbReset(); }
+  // 06 一天泳道
+  var days = {
+    normal: [['11:05', 'Apps Script 準時派工取稿（GitHub 自己的排程常晚數小時，只當備援）'], ['11:10', '原稿落地 → 派工判讀，15 步逐步亮起'], ['11:50', '文章發布，網站與郵件查詢更新'], ['12:00 起', '每五分鐘檢查一次，品質關卡過了就寄每日總覽'], ['16:45', '補日K只補缺口；17:30／19:30 保底記錄績效']],
+    late: [['11:05', '頻道還沒有回放：只顯示「等待影片」，不是失敗'], ['11:30', '每隔一段時間再問一次'], ['12:40', '回放出現，開始分段聽打；已聽完的片段保存'], ['13:20', '判讀完成、文章發布'], ['13:25', '寄每日總覽；會員簡訊在盤中已照常即時寄出']],
+    busy: [['11:10', '模型回 503：換金鑰重送，不算一次失敗'], ['11:15', '每一把都忙：退避等待，檢查點保留'], ['11:40', '模型恢復，從最後完成的那一步接續'], ['12:05', '文章發布；後台寫「等待續跑」的那段時間照實記錄'], ['—', '不因為暫時忙碌把整天標成失敗，也不重做已完成的步驟']],
+    noshow: [['11:05', '開始找今天的影片'], ['12:30', '頻道上沒有今天這一集：判定今日無直播，停止取稿'], ['12:31', '管理者收到狀態信；訂閱者不會收到每日總覽'], ['盤中', '會員簡訊照常即時通知，網站首頁照常顯示'], ['晚上', '行情與持股追蹤照常更新；郵件查詢那一天留空']]
+  };
+  function drawDay(k) {
+    $t('dayLane').innerHTML = days[k].map(function (r) { return '<li><time>' + r[0] + '</time><span>' + r[1] + '</span></li>'; }).join('');
+    document.querySelectorAll('[data-day]').forEach(function (x) { x.setAttribute('aria-pressed', String(x.dataset.day === k)); });
+  }
+  document.querySelectorAll('[data-day]').forEach(function (b) { b.addEventListener('click', function () { drawDay(b.dataset.day); }); });
+  if ($t('dayLane')) { drawDay('normal'); }
+  // 01 即時數字：切到這一頁才讀一次（v54，H7：數字不寫死）
+  var loaded = false;
+  window.__loadTechStats = function () {
+    if (loaded || !$t('techLive') || !(window.google && google.script && google.script.run)) { return; }
+    loaded = true;
+    google.script.run.withSuccessHandler(function (r) {
+      if (!r || !r.ok) { $t('techLiveNote').textContent = '數字暫時讀不到，下次打開再試。'; loaded = false; return; }
+      document.querySelectorAll('[data-live]').forEach(function (e) {
+        var v = r[e.dataset.live]; e.textContent = v == null ? '—' : Number(v).toLocaleString('zh-TW');
+      });
+      $t('techLiveNote').textContent = '資料截至 ' + r.asOf + '，自 ' + r.since + ' 起；這些是紀錄的規模，不是投資績效。';
+    }).withFailureHandler(function () { loaded = false; $t('techLiveNote').textContent = '數字暫時讀不到，下次打開再試。'; })
+      .apiGetTechStats();
+  };
+})();
+/* 六段式閱讀：步進器、上一段／下一段、網址記住停在哪一段。
+
+   一次只顯示一段。切段之後要做三件事：捲回面板頂端（不然新的一段會從
+   上一段的捲動位置開始，看起來像沒換）、重算逐句浮現（隱藏時高度是 0，
+   位置算不出來）、以及把章節導覽換成這一段的標題。 */
+(function () {
+  var doc = document.querySelector('#p-tech .doc') || document.querySelector('.doc');
+  if (!doc) { return; }
+  var steps = doc.querySelector('#techSteps');
+  var chunks = [].slice.call(doc.querySelectorAll('.tech-chunk'));
+  if (!steps || chunks.length < 2) { return; }
+
+  var buttons = [].slice.call(steps.querySelectorAll('.step-b'));
+  var seen = {};
+
+  function show(index, push) {
+    index = Math.max(0, Math.min(chunks.length - 1, Number(index) || 0));
+    chunks.forEach(function (c, i) {
+      c.hidden = i !== index;
+      c.classList.toggle('is-active', i === index);
+    });
+    seen[index] = true;
+    buttons.forEach(function (b, i) {
+      b.classList.toggle('on', i === index);
+      b.setAttribute('aria-current', i === index ? 'step' : 'false');
+      b.setAttribute('aria-controls', 'tech-chunk-' + i);
+      b.classList.toggle('seen', !!seen[i] && i !== index);
+    });
+    if (push !== false) {
+      try { history.replaceState(null, '', '#tech/chunk-' + index); } catch (e) {}
+    }
+    var panel = document.querySelector('#p-tech') || doc;
+    var top = panel.getBoundingClientRect().top + window.scrollY - 12;
+    // 共用子目錄那一支：平滑捲動不動時會自己退回直接跳。
+    if (window.__scrollToY) { window.__scrollToY(top); }
+    else { try { window.scrollTo({ top: top, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, top); } }
+    if (window.__techReveal) { window.__techReveal(); }
+    if (window.__docnavRebuild) { window.__docnavRebuild(); }
+  }
+
+  buttons.forEach(function (b) {
+    b.addEventListener('click', function () { show(b.dataset.step); });
+  });
+  doc.querySelectorAll('.chunk-foot [data-go]').forEach(function (b) {
+    b.addEventListener('click', function () { show(b.dataset.go); });
+  });
+
+  var hash = String(location.hash || '').match(/chunk-(\d)/);
+  show(hash ? hash[1] : 0, false);
+  window.addEventListener('hashchange', function () {
+    var h = String(location.hash || '').match(/chunk-(\d)/);
+    if (h) { show(h[1], false); }
+  });
+
+  /* 切到技術說明分頁時也要重算一次：面板先前是 hidden，那時量不到高度。 */
+  var wake = window.__techReveal;
+  window.__techReveal = function () {
+    if (wake) { wake(); }
+    if (window.__docnavRebuild) { window.__docnavRebuild(); }
+    if (window.__loadTechStats) { window.__loadTechStats(); }
+  };
+})();
+</script>

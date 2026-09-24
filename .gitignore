@@ -10,3 +10,4 @@ tests/
 docs/**/*.png
 docs/**/preview*/
 docs/**/preview-*.html
+scripts/preview_*.js

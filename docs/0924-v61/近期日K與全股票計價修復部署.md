@@ -17,7 +17,7 @@
 3. 在 Apps Script 函式下拉選單執行 **`repairRecentTrackedDailyKNow()` 一次**。它會用所有追蹤代號建清單，逐檔只抓 9/19～9/24 中缺少的交易日 K。單次最多 20 檔；若回傳 `done:false`，約一分鐘後由 `repairRecentTrackedDailyKContinueJob` 自動續跑。不要在仍有續跑觸發器時反覆按第一支函式，也不要同時啟動常規全歷史補 K。每批先寫入資料，再保存 `lastCode`；重試不會抹掉原有 K。
 4. 執行 **`auditRecentTrackedDailyKNow()`** 查看 `processed/total`、`finishedAt`、`missingCount` 和 `failed`。只有 `finishedAt` 有值代表清單掃完；`missingCount=0` 才代表這個指定區間沒有待補缺口。若有 `fatal:true` 或沒有續跑，先看執行紀錄的行情來源／額度錯誤，修好後再執行 `repairRecentTrackedDailyKNow()`，它會從上次游標接續。`failed` 中可能含停牌、尚未上市或來源回空的代號，須逐一核對，不要用猜的價格補空白。
 5. 9/24 **16:30 前**正式日 K 可能尚未供應，工具會有意略過當天。畫面當下的 9/24 可能是盤中預覽 K，不等於「日K快取」已收正式棒。16:30 後可再次執行 `repairRecentTrackedDailyKNow()` 開新輪，已齊的日期不重抓；也可等原本 16:45 的每日排程。
-6. 確認所需 K 已入表後，執行 **`rebuildHoldingsTrackerJob()`**。這一步重算所有股票的回合、明確買賣的日低／日高、非交易回合的收盤基準及口頭價附註。再執行 **`rebuildRecentPerformanceHistoryNow()`**，它從 9/19 後第一個有績效的交易日起重算歷史；確認回傳 `ok:true`、不是 `skipped:true`。最後執行 **`snapshotPerformanceJob()`** 覆寫今天的績效快照。三支函式請依序執行，等上一支完成再按下一支，避免並行讀到舊回合。
+6. 確認所需 K 已入表後，執行 **`rebuildRecentHoldingsTrackerNow()`**。這一步重算所有股票的回合、明確買賣的日低／日高、非交易回合的收盤基準及口頭價附註，並略過一般 `rebuildHoldingsTrackerJob()` 會順帶執行的較長歷史補 K，符合此次效率要求。再執行 **`rebuildRecentPerformanceHistoryNow()`**，它從 9/19 後第一個有績效的交易日起重算歷史；確認回傳 `ok:true`、不是 `skipped:true`。最後執行 **`snapshotPerformanceJob()`** 覆寫今天的績效快照。三支函式請依序執行，等上一支完成再按下一支，避免並行讀到舊回合。
 7. 用網站重新整理各股票面板及「持股追蹤／過去操作」。核對 9/21～9/23 K 棒存在（以實際交易日及來源資料為準）；**明確買入／賣出**的進出場價分別等於回合成交日 K 的「低／高」，首次已持有與非交易性出場則標明「收盤基準」，口頭價另列附註。網站可能持有幾分鐘的讀取快取，等待後再重整。
 
 ## 查 5536 這個例子，也可用在其他代號

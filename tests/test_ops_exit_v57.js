@@ -72,4 +72,14 @@ assert.equal(status.ops.marketScheduled, true);
 assert.equal(status.ops.hourlyScheduled, false);
 assert(status.timeline.some(x => x.kind === '每日整理信' && x.time === '12:05'));
 assert(status.timeline.some(x => x.kind === '盤中即時信' && x.time === '11:15'));
+
+const mail = vm.createContext({
+  fmtDate_: x => x,
+  TZ: 'Asia/Taipei',
+  Utilities: { formatDate: () => '2026/09/24 12:05:00' },
+  readSheetObjects_: () => [{ '日期': '2026/09/24', '訊息ID': 'daily|2026/09/24', '種類': 'daily',
+    '狀態': 'accepted', '服務接受時間': '2026/09/24 12:05:00' }]
+});
+vm.runInContext(source('MailService.gs'), mail);
+assert.equal(mail.deliverySummaryForDate_('2026/09/24')['daily|2026/09/24'].firstAcceptedAt, '2026/09/24 12:05:00');
 console.log('ops and exit v57 ok');

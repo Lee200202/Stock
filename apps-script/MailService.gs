@@ -783,6 +783,11 @@ function deliverMessage_(subs, o) {
 /** 後台用：某一天各則信的投遞摘要（服務接受／失敗／不明／待續送）。只讀。 */
 function deliverySummaryForDate_(d) {
   var out = {};
+  function stamp(v) {
+    if (v instanceof Date && !isNaN(v.getTime())) { return Utilities.formatDate(v, TZ, 'yyyy/MM/dd HH:mm:ss'); }
+    var s = String(v || '');
+    return /^\d{4}[\/-]\d{2}[\/-]\d{2} \d{2}:\d{2}/.test(s) ? s.replace(/-/g, '/') : '';
+  }
   try {
     readSheetObjects_(DELIVERY_SHEET_).forEach(function (r) {
       if (fmtDate_(r['日期']) !== d) { return; }
@@ -791,7 +796,7 @@ function deliverySummaryForDate_(d) {
       x.total++;
       if (st === 'accepted') {
         x.accepted++;
-        var at = String(r['服務接受時間'] || r['更新時間'] || '');
+        var at = stamp(r['服務接受時間'] || r['更新時間']);
         if (at && (!x.firstAcceptedAt || at < x.firstAcceptedAt)) { x.firstAcceptedAt = at; }
         if (at && at > x.lastAcceptedAt) { x.lastAcceptedAt = at; }
       } else if (st === 'failed') { x.failed++; }

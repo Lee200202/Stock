@@ -6,19 +6,19 @@
 
 舊的 `fetchCodeOnDemand` 看到某代號**已有任一根 K 棒**就返回，因此「有 9/18 及 9/24，卻缺 9/21～9/23」不會被補。持股追蹤的舊版取價在缺成交日 K 時，可能沿用口頭價或之後的 K 棒，造成 5536 顯示 920。這是程式路徑的分析；線上實際原因還要看下方診斷輸出。若「持股成本覆寫」有對應代號及回合開始日，人工成本依既有設計優先，也可能讓計算價保持 920。
 
-新版本對所有回合一律要求**有效的進場日 K**才填進場價；實際買入的計算價取該日最低，實際賣出的計算價取該日最高。講者說的買賣價只放「進場明講／出場明講」和來源附註，不直接拿來算報酬。對於僅首次提到已持有、轉觀望、逾期未提及的回合，回合判定仍依現有規則；畫面會註明狀態原因，不能把它誤稱為當日實際成交。缺 K 時價格與相關報酬留空，等補 K 後再重算。
+新版本對所有回合一律要求**有效的進場日 K**才填進場價；**明確買入**的計算價取該日最低，**明確賣出**的計算價取該日最高。講者說的買賣價只放「進場明講／出場明講」和來源附註，不直接拿來算報酬。首次提到「已持有」沒有當天買進，採該日收盤作追蹤基準；轉觀望或逾期未提及沒有明確賣出，取當天或之前最近交易日收盤。畫面會註明這些是狀態判定，不能稱為當日實際成交。缺 K 時價格與相關報酬留空，等補 K 後再重算。
 
 ## 部署檔
 
-本次只改原 Apps Script 專案中的四個檔案：`Cachebuilder.gs`、`SheetService.gs`、`Config.gs`、`Setup.gs`。不要把 GitHub Actions 的 Python 當成網站部署；GitHub 推送也不會替換 Apps Script。部署包 `release/zhangzhen-recent-k-price-v61.zip` 內含這四檔及本手冊。其餘 Apps Script 檔案保留目前線上版本，不要從更舊的壓縮包覆蓋。
+本次只改原 Apps Script 專案中的五個檔案：`Cachebuilder.gs`、`SheetService.gs`、`JavaScript.html`、`Config.gs`、`Setup.gs`。不要把 GitHub Actions 的 Python 當成網站部署；GitHub 推送也不會替換 Apps Script。部署包 `release/zhangzhen-recent-k-price-v61.zip` 內含這五檔及本手冊。其餘 Apps Script 檔案保留目前線上版本，不要從更舊的壓縮包覆蓋。
 
-1. 在原 Apps Script 專案各自替換上述四檔並儲存。先執行 `checkProjectFiles()`；必須看到版本 `2026-09-24-recent-k-price-v61`，且沒有缺檔／版本不一致。**此步只核對程式檔，不會補資料。**
+1. 在原 Apps Script 專案各自替換上述五檔並儲存。先執行 `checkProjectFiles()`；必須看到版本 `2026-09-24-recent-k-price-v61`，且沒有缺檔／版本不一致。**此步只核對程式檔，不會補資料。**
 2. 到「部署」→「管理部署」→現有網頁應用程式的鉛筆→版本選「新增版本」→部署。沿用原部署網址，勿建立另一個供訂閱者使用的新網址。開啟原 `/exec?action=ping`，確認 `build` 是 `2026-09-24-recent-k-price-v61`，`features` 包含 `recent-k-gap-price-v61`。若仍是 v60，代表編輯器已改但正式網頁未切到新版本。
 3. 在 Apps Script 函式下拉選單執行 **`repairRecentTrackedDailyKNow()` 一次**。它會用所有追蹤代號建清單，逐檔只抓 9/19～9/24 中缺少的交易日 K。單次最多 20 檔；若回傳 `done:false`，約一分鐘後由 `repairRecentTrackedDailyKContinueJob` 自動續跑。不要在仍有續跑觸發器時反覆按第一支函式，也不要同時啟動常規全歷史補 K。每批先寫入資料，再保存 `lastCode`；重試不會抹掉原有 K。
 4. 執行 **`auditRecentTrackedDailyKNow()`** 查看 `processed/total`、`finishedAt`、`missingCount` 和 `failed`。只有 `finishedAt` 有值代表清單掃完；`missingCount=0` 才代表這個指定區間沒有待補缺口。若有 `fatal:true` 或沒有續跑，先看執行紀錄的行情來源／額度錯誤，修好後再執行 `repairRecentTrackedDailyKNow()`，它會從上次游標接續。`failed` 中可能含停牌、尚未上市或來源回空的代號，須逐一核對，不要用猜的價格補空白。
 5. 9/24 **16:30 前**正式日 K 可能尚未供應，工具會有意略過當天。畫面當下的 9/24 可能是盤中預覽 K，不等於「日K快取」已收正式棒。16:30 後可再次執行 `repairRecentTrackedDailyKNow()` 開新輪，已齊的日期不重抓；也可等原本 16:45 的每日排程。
-6. 確認所需 K 已入表後，執行 **`rebuildHoldingsTrackerJob()`**。這一步重算所有股票的回合、進場最低、出場最高及口頭價附註。再執行 **`rebuildRecentPerformanceHistoryNow()`**，它從 9/19 後第一個有績效的交易日起重算歷史；確認回傳 `ok:true`、不是 `skipped:true`。最後執行 **`snapshotPerformanceJob()`** 覆寫今天的績效快照。三支函式請依序執行，等上一支完成再按下一支，避免並行讀到舊回合。
-7. 用網站重新整理各股票面板及「持股追蹤／過去操作」。核對 9/21～9/23 K 棒存在（以實際交易日及來源資料為準）；進場價等於回合進場日 K 的「低」，出場價等於回合出場日 K 的「高」，而口頭價另列附註。網站可能持有幾分鐘的讀取快取，等待後再重整。
+6. 確認所需 K 已入表後，執行 **`rebuildHoldingsTrackerJob()`**。這一步重算所有股票的回合、明確買賣的日低／日高、非交易回合的收盤基準及口頭價附註。再執行 **`rebuildRecentPerformanceHistoryNow()`**，它從 9/19 後第一個有績效的交易日起重算歷史；確認回傳 `ok:true`、不是 `skipped:true`。最後執行 **`snapshotPerformanceJob()`** 覆寫今天的績效快照。三支函式請依序執行，等上一支完成再按下一支，避免並行讀到舊回合。
+7. 用網站重新整理各股票面板及「持股追蹤／過去操作」。核對 9/21～9/23 K 棒存在（以實際交易日及來源資料為準）；**明確買入／賣出**的進出場價分別等於回合成交日 K 的「低／高」，首次已持有與非交易性出場則標明「收盤基準」，口頭價另列附註。網站可能持有幾分鐘的讀取快取，等待後再重整。
 
 ## 查 5536 這個例子，也可用在其他代號
 

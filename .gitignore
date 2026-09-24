@@ -5,3 +5,8 @@ apps-script/
 backups/
 release/
 docs/0924-v57/preview-admin.html
+# 只放 GitHub Actions 需要的檔案（2026/09/24 管理者）：測試檔與截圖不上傳
+tests/
+docs/**/*.png
+docs/**/preview*/
+docs/**/preview-*.html

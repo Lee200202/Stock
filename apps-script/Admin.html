@@ -3996,6 +3996,8 @@ var mergeTxFingerprint='';
       if (cm && !/show/.test(cm.className)) {
         if (show1.label === '今日節目' && show1.tone === 'ok') {
           cm.className = 'amsg show ok'; cm.textContent = '今天的影片已經自動取稿並整理完成，不需要手動操作。要重抓其他日子再選日期。';
+        } else if (show1.value === '預告停播') {
+          cm.className = 'amsg show'; cm.textContent = '前一集已預告請假，今天暫停密集輪詢；後續排程仍會查片，12:30 後確認。';
         } else if (show1.value === '今日無直播' || show1.value === '休市') {
           cm.className = 'amsg show'; cm.textContent = (show1.value === '休市' ? '今天休市' : '今天沒有直播節目') + '，自動取稿已停止；會員簡訊與行情照常更新。';
         }
@@ -4036,7 +4038,7 @@ var mergeTxFingerprint='';
     var heartbeat = o.heartbeatAge == null ? '尚無啟動紀錄' : o.heartbeatAt + ' 啟動（' + o.heartbeatAge + ' 分鐘前）';
     $('opsCards').innerHTML =
       card('五分鐘總排程', heartbeat, o.triggerError ? '無法讀取觸發器：' + o.triggerError : (o.missingTriggers || []).length ? '缺少：' + o.missingTriggers.join('、') : '排程觸發器已安裝；啟動紀錄只代表已開始，請對照下方實際作業。', o.triggerError || (o.missingTriggers || []).length || (o.trading && o.heartbeatAge > 20) ? 'err' : 'ok') +
-      card('逐字稿與判讀', o.noShow ? '今日無直播' : o.videoStatus || '等待影片', '原文 ' + (o.rawChars || 0) + ' 字，修飾 ' + (o.polishedChars || 0) + ' 字。', o.videoStatus === '完成' ? 'ok' : 'idle') +
+      card('逐字稿與判讀', o.noShow ? '今日無直播' : o.plannedNoShow ? '預告停播' : o.videoStatus || '等待影片', '原文 ' + (o.rawChars || 0) + ' 字，修飾 ' + (o.polishedChars || 0) + ' 字。', o.videoStatus === '完成' ? 'ok' : 'idle') +
       card('每日整理與郵件', o.mailStatus || '尚未產生', '服務接受 ' + (d.accepted || 0) + '／' + (d.total || 0) + '；待續送 ' + (d.open || 0) + '，失敗 ' + (d.failed || 0) + '，結果不明 ' + (d.unknown || 0) + '。' + (o.mailQuotaLeft == null ? '' : ' 可用額度 ' + o.mailQuotaLeft + '。'), d.failed || d.unknown ? 'err' : d.open ? 'warn' : /已寄/.test(o.mailStatus || '') ? 'ok' : 'idle') +
       card('會員簡訊', String(o.smsCount || 0) + ' 則', '來源輪詢與解析工單詳見會員簡訊分頁。', o.smsCount ? 'ok' : 'idle') +
       card('日 K 背景補齊', o.dailyK ? (o.dailyK.finishedAt ? '已完成' : '進行中') : '尚無狀態', o.dailyK ? (o.dailyK.finishedAt || '目前代號：' + (o.dailyK.lastCode || '起點')) + (o.dailyK.lastError ? '；' + o.dailyK.lastError : '') : '16:45 排程開始，完成後才做持股與績效背景重算。', o.dailyK && o.dailyK.lastError ? 'warn' : o.dailyK && o.dailyK.finishedAt ? 'ok' : 'idle') +
@@ -4428,6 +4430,12 @@ function pollCrawl(){
       if(r.job.kind==='auto'){renderJob(r.job);if(['處理中','等待續跑'].indexOf(r.job.status)>=0){startPoll();}}}
     if(st.complete){cur=4;status='完成';note='影片清單已標完成；寄送狀態仍以每日推播為準。';}
     if(st.manual&&!st.ready){cur=0;status='等待中';note='今天為手動保留，等待人工原文，不會自動聽打。';}
+    if(!st.ready&&!st.manual&&r.noShowState==='預告停播'){
+      cur=0;status='預告停播';note='前一集原文已預告請假，今天尚未偵測到影片。已停止密集輪詢；後續排程單次查片，12:30 後確認。';
+    }
+    if(!st.ready&&!st.manual&&r.noShowState==='今日無直播'){
+      cur=4;status='今日無直播';note='已過節目時段且當日頻道沒有影片，今天的自動取稿已結束。';
+    }
     if(window.__setHoldBtn){window.__setHoldBtn(!!(st.manual&&!st.ready));}
     if(r.githubWarning){note+='\nGitHub 即時狀態暫時無法讀取：'+r.githubWarning+'。上方 pipeline 步驟仍取自試算表。';}
     var phase=String(st.processingDetail||'').split('｜')[0],sub=STEPS.indexOf(phase);

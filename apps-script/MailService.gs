@@ -1148,6 +1148,7 @@ function statusReportJob() {
      判定由上游 transcript.py 做（頻道上連一支今天的影片都沒有，
      不是排定中、不是直播中、也不是已結束），寫進系統狀態，這裡只讀結論。 */
   var noShow = logs.some(function (r) { return String(r['類別'] || '') === '今日無直播'; });
+  var plannedNoShow = !noShow && logs.some(function (r) { return String(r['類別'] || '') === '預告停播'; });
   if (noShow) { props.setProperty(STATUS_OK_KEY_, today); }
 
   var ok = (status === '完成' && v2 > 200 && (trades.length || holds.length));
@@ -1156,7 +1157,7 @@ function statusReportJob() {
     // 那時寧可少寄一封，也不要因為沒記到而讓下一棒又寄一封「需要注意」。
     props.setProperty(STATUS_OK_KEY_, today);
   }
-  var head = noShow ? '今日無直播'
+  var head = noShow ? '今日無直播' : plannedNoShow ? '預告停播，待當日頻道確認'
     : ok ? '正常' : (status === '等待中' ? '進行中' : '需要注意');
 
   var html = '<p><b>' + today + ' 爬取狀態：' + head + '</b></p>' +
@@ -1181,6 +1182,9 @@ function statusReportJob() {
       '不需要另外處理。行情與持股追蹤照常更新。</p>' +
       '<p class=\"m\">如果他其實有播、只是標題或時間不一樣，' +
       '到後台「投稿逐字稿」把原稿貼進來，後面的流程會自己接上。</p>';
+  } else if (plannedNoShow && !video) {
+    html += '<p>前一集原文已預告請假，當日尚未發現影片。系統已停止密集輪詢，' +
+      '後續排程會單次查片；節目時段後仍無影片才正式判定今日無直播。</p>';
   } else if (!video) {
     if (runs.length === 0) {
       html += '<p style="color:#b00;">目前輪詢次數為 0，代表這個時段 GitHub Actions 一次都還沒被觸發' +

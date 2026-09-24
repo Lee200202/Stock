@@ -106,6 +106,7 @@ TIME_BUDGET = int(os.environ.get("TIME_BUDGET_SEC", "1500"))
 # 節目大約 11:00 到 12:30，所以預設 12:30；之後仍然沒有任何一支就是今天沒有。
 NO_SHOW_AFTER = os.environ.get("NO_SHOW_AFTER", "12:30").strip()
 NO_SHOW_KIND = "今日無直播"
+PLANNED_NO_SHOW_KIND = "預告停播"
 
 # 直播結束後要等幾分鐘才送給 Gemini。YouTube 要先把回放處理好，
 # 太早送過去會拿到「影片無法存取」或半截內容。
@@ -1407,7 +1408,7 @@ def tick(ss, target: date, force: bool, seen: dict = None) -> bool:
 # ---------------------------------------------------------------- #
 # 子指令
 # ---------------------------------------------------------------- #
-def already_marked_no_show(ss, date_str: str) -> bool:
+def already_marked_status(ss, date_str: str, kind: str) -> bool:
     """今天是不是已經判定過沒有節目。
 
     判定一次就夠了：後面幾棒排程（12:45、13:10、13:35）直接跳過，
@@ -1417,8 +1418,39 @@ def already_marked_no_show(ss, date_str: str) -> bool:
         rows = sheets_retry(ss.worksheet(STATUS_SHEET).get_all_records)
     except Exception:
         return False
-    return any(str(r.get("類別") or "") == NO_SHOW_KIND
+    return any(str(r.get("類別") or "") == kind
                and str(r.get("時間") or "").startswith(date_str) for r in rows)
+
+
+def already_marked_no_show(ss, date_str: str) -> bool:
+    return already_marked_status(ss, date_str, NO_SHOW_KIND)
+
+
+def planned_no_show(text: str) -> bool:
+    """只接受上一集明確說「明天不播／我請假」的話；市場休假討論不算。"""
+    compact = re.sub(r"\s+", "", text or "")
+    cues = (
+        r"明天我(?:要|會)?(?:放假|請假|休息)(?!嗎|呢|？|\?)",
+        r"明天(?:我們|節目)?(?:不直播|不播|不上|沒有直播|沒有節目)(?!嗎|呢|？|\?)",
+        r"明天怎麼沒有上.{0,50}(?:請假|放假|休息)",
+    )
+    for cue in cues:
+        for match in re.finditer(cue, compact):
+            before = compact[max(0, match.start() - 4):match.start()]
+            if not re.search(r"(?:如果|假如|假設)$", before):
+                return True
+    return False
+
+
+def prior_show_notice(ss, target: date) -> bool:
+    """只讀前一個交易日的原始稿，絕不採用可能改寫語意的修飾稿。"""
+    prior = target - timedelta(days=1)
+    for _ in range(10):
+        if is_trading_day(prior):
+            _, _, _, row = read_state(ss, "", prior.strftime("%Y/%m/%d"))
+            return planned_no_show(str(row.get(COL_RAW) or ""))
+        prior -= timedelta(days=1)
+    return False
 
 
 def cmd_auto(args) -> int:
@@ -1450,6 +1482,14 @@ def cmd_auto(args) -> int:
         return 0
 
     no_show_at = at_taipei(target, NO_SHOW_AFTER)
+    # 前一集已明講請假時，11:05 仍查一次影片；若沒有便結束這一棒。
+    # 後面的 cron 各查一次，避免臨時開播漏抓；12:30 才正式記「今日無直播」。
+    planned = False
+    if not args.force:
+        try:
+            planned = prior_show_notice(ss, target)
+        except Exception as e:
+            log(f"前一集請假公告讀取失敗，維持一般輪詢：{e}")
     seen = {}
     round_no = 0
     try:
@@ -1466,8 +1506,8 @@ def cmd_auto(args) -> int:
 
             # 節目時間已經過了，頻道上卻連一支今天的影片都沒有
             # ——不是排定中、不是直播中、也不是已結束。那就是今天沒有節目。
-            # 他會在前一天的節目裡講（2026/09/23：「明天我放假，我們下次見面是下個禮拜二」），
-            # 但那句話沒有人輸入系統，所以只能從頻道判斷。
+            # 前一交易日原文若已明講請假，前面只會降低探詢頻率；
+            # 正式「今日無直播」仍須在這裡用當日頻道結果確認。
             if (not args.force and seen.get("video") is False
                     and datetime.now(TAIPEI) >= no_show_at):
                 log(f"已過 {NO_SHOW_AFTER}，頻道上沒有今天的影片，也沒有排定或進行中的直播。")
@@ -1476,6 +1516,14 @@ def cmd_auto(args) -> int:
                                  f"{date_str} 探詢 {round_no} 次，頻道沒有今天的影片，"
                                  f"也沒有排定或進行中的直播；已停止今天的自動取稿。"
                                  f"（休市日由 why_closed 另外擋掉，這是有開盤但沒有節目）")
+                return 0
+
+            if planned and seen.get("video") is False and not args.force:
+                log("前一集原文已預告停播，當前仍無影片；本棒停止密集輪詢，下一排程再查一次。")
+                if not already_marked_status(ss, date_str, PLANNED_NO_SHOW_KIND):
+                    write_status_log(ss, PLANNED_NO_SHOW_KIND,
+                                     f"{date_str} 前一交易日原文預告停播；已查當日頻道無影片，"
+                                     f"停止密集輪詢，{NO_SHOW_AFTER} 再確認。")
                 return 0
 
             if args.once:

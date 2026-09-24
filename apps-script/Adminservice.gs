@@ -523,6 +523,7 @@ function apiAdminTodayStatus(key) {
       }
     } catch (e) {}
     var noShow = logs.some(function (r) { return String(r['類別'] || '') === '今日無直播'; });
+    var plannedNoShow = logs.some(function (r) { return String(r['類別'] || '') === '預告停播'; });
     var fails = logs.filter(function (r) { return String(r['類別']) === '失敗'; });
     var polls = logs.filter(function (r) { var k = String(r['類別']); return k === '開始' || k === '輪詢'; }).length;
     var vStatus = video ? String(video['處理狀態'] || '') : '';
@@ -534,6 +535,7 @@ function apiAdminTodayStatus(key) {
     function add(label, value, tone, hint) { items.push({ label: label, value: value, tone: tone, hint: hint || '' }); }
     if (!trading) { add('今天', '休市', 'idle', '休市日不取稿、不寄信，行情照常更新。'); }
     else if (noShow) { add('今日節目', '今日無直播', 'idle', '上游確認頻道今天沒有這一集，已停止取稿；訂閱者不會收到每日整理。'); }
+    else if (plannedNoShow && !video) { add('今日節目', '預告停播', 'idle', '前一集已預告請假；已停止密集輪詢，後續排程會單次查片，12:30 後確認。'); }
     else if (vStatus === '完成') { add('今日節目', '整理完成', 'ok'); }
     else if (video) { add('今日節目', vStatus || '處理中', 'warn', '影片已抓到，正在判讀；進度看下方「處理進度」。'); }
     else { add('今日節目', '尚未偵測到影片', hm >= 1400 ? 'warn' : 'idle',
@@ -603,7 +605,7 @@ function apiAdminTodayStatus(key) {
     if (tot.failed || tot.unknown) { alerts.push('郵件有失敗或結果不明的收件者，請查看寄送帳本'); }
     if (fails.length) { alerts.push('今日系統狀態記錄 ' + fails.length + ' 次失敗'); }
     return { ok: true, today: today, now: Utilities.formatDate(new Date(), TZ, 'HH:mm'), items: items,
-      timeline: timeline.slice(-40), ops: { trading: trading, noShow: noShow, videoStatus: vStatus,
+      timeline: timeline.slice(-40), ops: { trading: trading, noShow: noShow, plannedNoShow: plannedNoShow && !video, videoStatus: vStatus,
         rawChars: v1, polishedChars: v2, mailStatus: push ? String(push['寄送狀態'] || '') : '',
         deliveries: tot, mailKinds: dkeys.length, mailQuotaLeft: quotaLeft, smsCount: sms,
         perfLast: perfLast, dailyK: dk ? { finishedAt: dk.finishedAt || '', lastCode: dk.lastCode || '', lastError: dk.lastError || '' } : null,
@@ -5843,12 +5845,29 @@ function transcriptTodayState_(day){
     complete:!!chosen&&chosen['處理狀態']==='完成',processingStatus:chosen?String(chosen['處理狀態']||''):'',
     processingDetail:chosen?String(chosen['失敗原因']||''):''};
 }
+/** 取稿、每日流程共用的停播狀態；五分鐘觸發器只讀時間與類別兩欄。 */
+function todayNoShowState_(day){
+  try{
+    var sh=getSheet_('系統狀態'),last=sh.getLastRow();if(last<2)return '';
+    var rows=sh.getRange(2,1,last-1,2).getDisplayValues(),planned=false;
+    for(var i=rows.length-1;i>=0;i--){
+      if(String(rows[i][0]).indexOf(day)!==0)continue;
+      if(rows[i][1]==='今日無直播')return '今日無直播';
+      if(rows[i][1]==='預告停播')planned=true;
+    }
+    return planned?'預告停播':'';
+  }catch(e){Logger.log('停播狀態暫時無法讀取，照一般取稿：'+e);return '';}
+}
 /** GitHub cron今天沒有觸發時，由獨立的GAS時鐘補派；原文落地後也補接pipeline。 */
 function transcriptAutomationTick_(){
   var now=new Date(),day=Utilities.formatDate(now,TZ,'yyyy/MM/dd'),hm=Number(Utilities.formatDate(now,TZ,'HHmm'));
   if(Number(Utilities.formatDate(now,TZ,'u'))>5||isMarketHoliday_(now)||hm<1105||hm>1530){return;}
   var state=transcriptTodayState_(day);
   if(state.complete||(!state.ready&&state.manual)){return;}
+  if(!state.ready){
+    var noShow=todayNoShowState_(day);
+    if(noShow==='今日無直播'||(noShow==='預告停播'&&hm<1230)){return;}
+  }
   var workflow=state.ready?'daily.yml':'transcript.yml',g=githubCfg_();if(!g.repo||!g.token){return;}
   var runs=transcriptWorkflowRuns_(workflow);
   if(runs.some(function(r){return r.status!=='completed';})){return;}
@@ -5912,7 +5931,7 @@ function apiAdminCrawlState(key,dateStr){
     })[0]||null;
     var job=displayJob_();if(job&&fmtDate_(job.date)!==day)job=null;
     var slim=function(x){return x?{id:String(x.id),url:x.html_url,status:x.status,conclusion:x.conclusion,at:x.created_at}:null;};
-    return {ok:true,day:day,transcript:state,run:slim(r),pipelineRun:slim(p),job:job,githubWarning:githubWarning};
+    return {ok:true,day:day,transcript:state,noShowState:todayNoShowState_(day),run:slim(r),pipelineRun:slim(p),job:job,githubWarning:githubWarning};
   }catch(e){return {ok:false,reason:String(e.message||e)};}
 }
 function apiAdminCancelCrawl(key,runId){

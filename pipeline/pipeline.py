@@ -1839,6 +1839,20 @@ def today_pipeline_inputs(ss, target):
     return [v for v in fetch_feed() if is_target(v['title']) and v['date'] == target], done
 
 
+def no_show_state(ss, target):
+    """取稿流程的共用停播訊號；只用同日狀態，讀取失敗照常探詢。"""
+    day = target.strftime('%Y/%m/%d')
+    try:
+        rows = sheets_retry(ss.worksheet('系統狀態').get_all_records)
+    except Exception:
+        return ''
+    kinds = {str(r.get('類別') or '') for r in rows
+             if str(r.get('時間') or '').startswith(day)}
+    if '今日無直播' in kinds:
+        return '今日無直播'
+    return '預告停播' if '預告停播' in kinds else ''
+
+
 # ---------------------------------------------------------------- #
 # 影片偵測（YouTube 公開 RSS，不需金鑰，不下載影音）
 # ---------------------------------------------------------------- #
@@ -13761,6 +13775,11 @@ def main():
         now_h = datetime.now(TAIPEI).hour
 
         if not todays:
+            no_show = no_show_state(ss, today)
+            if no_show == '今日無直播' or (no_show == '預告停播' and now_h < GIVE_UP_HOUR):
+                print(f'取稿流程已記錄「{no_show}」，當日無影片；每日判讀不再輪詢。')
+                write_preflight("false", no_show)
+                return
             # 這裡要小心，不能一律「沒影片就跳過」。
             #
             # 內部輪詢是這套系統的核心：一個 job 進來之後每三分鐘敲一次門，
@@ -13813,6 +13832,15 @@ def main():
         now_h = datetime.now(TAIPEI).hour
 
         if not todays:
+            no_show = no_show_state(ss, today)
+            if no_show == '預告停播' and now_h >= GIVE_UP_HOUR:
+                write_status_log(ss, '今日無直播',
+                                 f'{today:%Y/%m/%d} 前一集已預告停播，15:00 後當日頻道仍無影片；每日流程確認結束。')
+                print('已過 15:00 且當日頻道無影片，將預告停播確認為今日無直播')
+                return True
+            if no_show:
+                print(f'取稿流程已記錄「{no_show}」，當日無影片；停止本輪。')
+                return True
             if now_h >= GIVE_UP_HOUR:
                 mark_status(ss, f"NO_VIDEO_{today}", today.strftime("%Y/%m/%d"), "", "今日無影片")
                 print("已到收工時間仍無今日影片，判定今日無影片")

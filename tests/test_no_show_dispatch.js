@@ -45,4 +45,18 @@ status = '今日無直播';
 hourMinute = '1300';
 ctx.transcriptAutomationTick_();
 assert.equal(dispatched, 1, '正式判定無直播後不得再補派');
+
+let completed = false;
+const mail = vm.createContext({
+  readSheetObjects_: name => name === '系統狀態'
+    ? [{ '時間': '2026/09/24 12:31:00', '類別': '今日無直播' }]
+    : name === '影片清單' && completed
+      ? [{ '發布日期': '2026/09/24', '處理狀態': '完成', '原始逐字稿內容': '原'.repeat(300) }]
+      : [],
+  fmtDate_: v => v
+});
+vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'apps-script', 'MailService.gs'), 'utf8'), mail);
+assert.equal(mail.noVideoToday_('2026/09/24'), '今日無直播');
+completed = true;
+assert.equal(mail.noVideoToday_('2026/09/24'), '', '人工補稿完成後，舊停播標記不得擋寄信');
 console.log('no-show dispatch ok');

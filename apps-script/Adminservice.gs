@@ -528,6 +528,7 @@ function apiAdminTodayStatus(key) {
     var polls = logs.filter(function (r) { var k = String(r['類別']); return k === '開始' || k === '輪詢'; }).length;
     var vStatus = video ? String(video['處理狀態'] || '') : '';
     var v1 = video ? String(video['原始逐字稿內容'] || '').length : 0, v2 = video ? String(video['修飾後逐字稿內容'] || '').length : 0;
+    if (vStatus === '完成' && v1 > 200) { noShow = false; plannedNoShow = false; }
     var dk = null; try { dk = dailyKState_(); } catch (e) {}
     var behind = perfLast ? tradingDaysAfter_(perfLast, latestTradingDayStr_()) : 0;
 

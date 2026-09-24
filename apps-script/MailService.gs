@@ -801,7 +801,14 @@ function deliverySummaryForDate_(d) {
 function noVideoToday_(today) {
   try {
     if (readSheetObjects_('系統狀態').some(function (r) {
-      return String(r['時間'] || '').indexOf(today) === 0 && String(r['類別'] || '') === '今日無直播'; })) { return '今日無直播'; }
+      return String(r['時間'] || '').indexOf(today) === 0 && String(r['類別'] || '') === '今日無直播'; })) {
+      // 停播判定後若管理者補貼真實原稿並完成整理，以完成的影片列為準。
+      var completed=readSheetObjects_('影片清單').some(function(r){
+        return fmtDate_(r['發布日期'])===today && String(r['處理狀態']||'')==='完成' &&
+          String(r['原始逐字稿內容']||'').trim().length>200;
+      });
+      return completed?'':'今日無直播';
+    }
   } catch (e) {}
   return '';
 }
@@ -1147,8 +1154,8 @@ function statusReportJob() {
 
      判定由上游 transcript.py 做（頻道上連一支今天的影片都沒有，
      不是排定中、不是直播中、也不是已結束），寫進系統狀態，這裡只讀結論。 */
-  var noShow = logs.some(function (r) { return String(r['類別'] || '') === '今日無直播'; });
-  var plannedNoShow = !noShow && logs.some(function (r) { return String(r['類別'] || '') === '預告停播'; });
+  var noShow = status !== '完成' && logs.some(function (r) { return String(r['類別'] || '') === '今日無直播'; });
+  var plannedNoShow = !noShow && !video && logs.some(function (r) { return String(r['類別'] || '') === '預告停播'; });
   if (noShow) { props.setProperty(STATUS_OK_KEY_, today); }
 
   var ok = (status === '完成' && v2 > 200 && (trades.length || holds.length));

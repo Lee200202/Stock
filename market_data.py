@@ -288,7 +288,8 @@ def parse_finmind_futures(data, previous=None):
 
 
 def fetch_futures_card(fetcher=None, previous=None, session=None):
-    token = os.environ.get('FINMIND_API_TOKEN', '').strip()
+    default_token = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiczcxMTMzMzEwNUBnbS5udHB1LmVkdS50dyIsImVtYWlsIjoiczcxMTMzMzEwNUBnbS5udHB1LmVkdS50dyIsInRva2VuX3ZlcnNpb24iOjB9.ENGoo6kpdfREEoPVzw1w7pB3kOi3IZbMT892M5vNEn4'
+    token = os.environ.get('FINMIND_API_TOKEN', '').strip() or default_token
     s = session or requests.Session()
     start_date = (datetime.now(TZ) - timedelta(days=90)).strftime('%Y-%m-%d')
     url = f'https://api.finmindtrade.com/api/v4/data?dataset=TaiwanFuturesDaily&data_id=TX&start_date={start_date}'

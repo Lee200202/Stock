@@ -819,6 +819,27 @@ def _quota_summary(message: str) -> str:
                      for metric, limit, model in found)
 
 
+# 聽打請求的「封套」回聲（v54，2026/09/23）。
+# 9/23 正式逐字稿第 10 段混進「請聽打這段影片0:00:00到0:30:00的完整逐字稿。可能出現的專有名詞：……」，
+# 那是我們自己送出的請求文字被模型照抄回來，不是節目內容。只拿掉能確證是這份模板的兩種字串：
+#   一、「請聽打這段影片 h:mm:ss 到 h:mm:ss 的完整逐字稿」——時間格式與句型都是 _request 組出來的；
+#   二、「可能出現的專有名詞：」後面接的逗號清單（四項以上、每項不超過 16 字、不含句號）。
+# 講者講的話不會是這兩種形狀，所以不會誤刪；其他疑似回聲一律不猜，留給人工複核。
+# pipeline.py 的 strip_transcribe_echo 與 Apps Script 的 stripTranscribeEcho_ 是同一組規則。
+_TX_ECHO_PROMPT = re.compile(r'請聽打這段影片\s*\d{1,2}:\d{2}:\d{2}\s*到\s*\d{1,2}:\d{2}:\d{2}\s*的完整逐字稿[。．.]?[ \t]*\n?')
+_TX_ECHO_VOCAB = re.compile(r'可能出現的專有名詞\s*[：:]\s*(?:[^,，、\s。！？\n]{1,16}\s*[,，、]\s*){3,}[^,，、\s。！？\n]{1,16}[。．.]?[ \t]*\n?')
+
+def strip_transcribe_echo(text):
+    """回傳 (乾淨文字, 被拿掉的片段清單)。"""
+    removed = []
+
+    def cut(m):
+        removed.append(m.group(0).strip()[:80])
+        return ''
+    out = _TX_ECHO_VOCAB.sub(cut, _TX_ECHO_PROMPT.sub(cut, str(text or '')))
+    return out, removed
+
+
 def _output_text(result) -> str:
     text = getattr(result, "output_text", None)
     if text:
@@ -1080,6 +1101,15 @@ class Transcriber:
 
                 self.healthy_until[(key, self.model)] = time.monotonic() + 300
                 complete = status not in ("incomplete", "budget_exceeded", "max_tokens")
+                # 模型把請求文字照抄回來時拿掉（見 strip_transcribe_echo）。整段只剩回聲＝這一段沒有聽打到，當失敗重送。
+                text, echo = strip_transcribe_echo(text)
+                if echo:
+                    log(f"    {hms(start)}–{hms(end)} 回應混入聽打請求文字 {len(echo)} 處，已拿掉：{echo[0][:40]}…")
+                    if not text.strip():
+                        all_quota = False
+                        last_error = "回應只有聽打請求的回聲，沒有逐字稿"
+                        log(f"    失敗　{last_error}")
+                        continue
                 return text, complete
 
             if all_quota:
@@ -1156,6 +1186,7 @@ class Transcriber:
         deadline = time.monotonic() + self._timeout()
         parts, completed = [], None
         interaction_id = last_event_id = None
+        step_type = None
         resumes = 0
 
         while True:
@@ -1171,9 +1202,12 @@ class Transcriber:
                     if kind == "interaction.created":
                         interaction_id = getattr(
                             getattr(event, "interaction", None), "id", None) or interaction_id
+                    elif kind in ("step.start", "step.started"):
+                        # 只收模型輸出那一步的文字；使用者輸入若被串流回來不能當逐字稿（v54）。
+                        step_type = getattr(getattr(event, "step", None), "type", None)
                     elif kind == "step.delta":
                         delta = getattr(event, "delta", None)
-                        if getattr(delta, "type", None) == "text":
+                        if getattr(delta, "type", None) == "text" and step_type in (None, "model_output"):
                             parts.append(getattr(delta, "text", "") or "")
                     elif kind == "interaction.completed":
                         completed = getattr(event, "interaction", None)

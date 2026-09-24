@@ -1,4 +1,4 @@
-目前交付：**2026-09-23-quality-v52**，請先讀 [9/23 自動化交棒與部署驗收](docs/2026-09-23-automation-handoff.md)。GitHub 更新 `pipeline/pipeline.py`；Apps Script 檔案由管理者在原專案部署。自動取稿與 pipeline 分別顯示真實進度、暫時中斷可續跑、晚到逐字稿會排入郵件查詢同步。以下舊版敘述保留為歷史，部署以本段文件為準。
+目前交付：**2026-09-24-quality-v54**，請先讀 [v54 部署說明](docs/0923-v54/部署說明.md) 與 [需求清單與驗收](docs/0923-v54/需求清單與驗收.md)。GitHub 更新 `pipeline/pipeline.py` 與 `transcript.py`；Apps Script 共 33 檔（21 個 .gs、12 個 .html，新增 AdminLegacy.html）由管理者在原專案整份替換並部署新版本。以下舊版敘述保留為歷史，部署以本段文件為準。
 
 > **目前交付：2026-09-19-quality-v46**。請先看 [完整修改、各流程與部署手冊](docs/0919-v46/修改與部署流程.md)。Apps Script 共21個.gs與9個.html，全部部署；根目錄pipeline.py不得恢復。下方舊版本僅供歷史參考。
 

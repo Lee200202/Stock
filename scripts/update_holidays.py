@@ -48,17 +48,47 @@ def fetch(year: int):
     return sorted(set(rows))
 
 
+HISTORICAL_HOLIDAYS = {
+    2025: [
+        ("2025-01-01", "中華民國開國紀念日"),
+        ("2025-01-23", "市場無交易，僅辦理結算交割作業"),
+        ("2025-01-24", "市場無交易，僅辦理結算交割作業"),
+        ("2025-01-27", "農曆除夕及春節"),
+        ("2025-01-28", "農曆除夕及春節"),
+        ("2025-01-29", "農曆除夕及春節"),
+        ("2025-01-30", "農曆除夕及春節"),
+        ("2025-01-31", "農曆除夕及春節"),
+        ("2025-02-28", "和平紀念日"),
+        ("2025-04-03", "兒童節及民族掃墓節"),
+        ("2025-04-04", "兒童節及民族掃墓節"),
+        ("2025-05-01", "勞動節"),
+        ("2025-05-30", "端午節"),
+        ("2025-09-29", "孔子誕辰紀念日/ 教師節補假"),
+        ("2025-10-06", "中秋節"),
+        ("2025-10-10", "國慶日"),
+        ("2025-10-24", "臺灣光復節補假"),
+        ("2025-12-25", "行憲紀念日"),
+    ]
+}
+
+
 def main(argv):
     this_year = datetime.date.today().year
-    years = [int(a) for a in argv] or [this_year, this_year + 1]
+    years = [int(a) for a in argv] or [2025, this_year, this_year + 1]
 
     all_rows, covered = [], []
     for y in years:
+        rows = []
         try:
             rows = fetch(y)
         except Exception as e:
-            print(f"  {y}：抓取失敗（{e}），略過")
-            continue
+            if y in HISTORICAL_HOLIDAYS:
+                rows = HISTORICAL_HOLIDAYS[y]
+            else:
+                print(f"  {y}：抓取失敗（{e}），略過")
+                continue
+        if not rows and y in HISTORICAL_HOLIDAYS:
+            rows = HISTORICAL_HOLIDAYS[y]
         if not rows:
             print(f"  {y}：證交所尚未公布，略過")
             continue

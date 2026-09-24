@@ -1,3 +1,7 @@
+目前交付：**2026-09-24-recent-k-price-v61**。全追蹤股票只補 9/19～9/24 近期日 K 缺口，持股進場取當日最低、出場取當日最高，口頭價只作附註；詳見 [部署與函式執行順序](docs/0924-v61/近期日K與全股票計價修復部署.md)。[四個 Apps Script 更新檔部署包](release/zhangzhen-recent-k-price-v61.zip) 已提供，但 GitHub 推送不會自動部署網站，須在原 Apps Script 專案替換四檔並更新既有網頁部署。
+
+以下 v60 說明保留作歷史紀錄。
+
 目前交付：**2026-09-24-day-sync-cancel-v60**，請先讀 [取消工單與重建績效](docs/0924-v60/取消工單與重建績效.md)。GitHub Actions 新增指定工單取消及取消後重建模式；Apps Script 三個更新檔留在本機專案資料夾，必須另行部署。
 
 目前交付：**2026-09-24-quality-v59**，請先讀 [v58 部署與驗證](docs/0924-v58/部署與驗證.md)。持股追蹤改成進場日最低、出場日最高（明講價以灰字附註），表格改用交易軸。GitHub 只放 GitHub Actions 會用到的 Python（`pipeline/`、`transcript.py`、`scripts/`）、workflow 與部署文件；Apps Script 33 檔、測試檔與截圖只在本機資料夾，由管理者整份替換後部署新版本。

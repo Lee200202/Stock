@@ -399,12 +399,29 @@ def fetch_twse(session):
     return parse_twse(report,companies,industry_labels(page.content.decode('utf-8')))
 
 
+def update_sectors(ss):
+    store=Store(ss,'市場總覽快取')
+    _,sectors=fetch_twse(requests.Session())
+    today=datetime.now(TZ).strftime('%Y/%m/%d')
+    if is_trading_day(datetime.now(TZ).date()) and datetime.now(TZ).hour>=15 and sectors['date']!=today:
+        raise ValueError('證交所最新產業資料仍是 '+sectors['date']+'，預期 '+today+'；保留原快取並等待下次排程')
+    store.put('sectors',sectors,'TWSE')
+    print('產業成交比重已核對：'+sectors['date']+'，'+str(len(sectors['rows']))+' 個產業')
+    return sectors
+
+
 def update_dashboard(ss, fetcher, yahoo, taiwan=True):
     store=Store(ss,'市場總覽快取')
     errors=[]
+    taiex=None
     try:
         if not taiwan:raise ValueError('台股休市，略過台股來源，保留最近交易日')
         taiex,sectors=fetch_twse(requests.Session())
+        expected=datetime.now(TZ).strftime('%Y/%m/%d')
+        if is_trading_day(datetime.now(TZ).date()) and datetime.now(TZ).hour>=15 and sectors['date']!=expected:
+            raise ValueError('證交所最新產業資料仍是 '+sectors['date']+'，預期 '+expected+'；保留原快取並等待下次排程')
+        # 先落地最需要盤後更新的產業比重；Yahoo 補圖耗時或限流時，不得拖到整輪結束才寫。
+        store.put('sectors',sectors,'TWSE')
         # 已存的每日收盤點累積成折線；盤中另由 GAS 的 Fugle 指數覆蓋。
         old=store.rows.get('taiex')
         series=json.loads(old[1][2]).get('line',[]) if old else []
@@ -425,7 +442,7 @@ def update_dashboard(ss, fetcher, yahoo, taiwan=True):
                 except Exception as e_h:
                     print('::warning::大盤60分K：' + str(e_h))
             except Exception as exc:print('::warning::大盤歷史K：'+str(exc))
-        store.put('taiex',taiex,'TWSE');store.put('sectors',sectors,'TWSE')
+        store.put('taiex',taiex,'TWSE')
         print('證交所大盤與產業成交比重：'+taiex['time'])
     except Exception as exc:
         if taiwan:errors.append('證交所：'+str(exc));print('::warning::'+errors[-1])
@@ -434,7 +451,7 @@ def update_dashboard(ss, fetcher, yahoo, taiwan=True):
         try:
             old=store.rows.get('tx');previous=json.loads(old[1][2]) if old else None
             card=fetch_futures_card(fetcher, previous=previous)
-            if taiex.get('candles60m'):
+            if taiex and taiex.get('candles60m'):
                 twii60 = taiex['candles60m']
                 basis = (card['value'] - twii60[-1][4]) if (card.get('value') and twii60) else 0
                 card['candles60m'] = [
@@ -571,7 +588,7 @@ def incremental_daily(fetcher,symbol,previous):
 
 def main():
     parser=argparse.ArgumentParser()
-    parser.add_argument('--mode',choices=['dashboard','hours','all'],default='dashboard')
+    parser.add_argument('--mode',choices=['dashboard','sectors','hours','all'],default='dashboard')
     parser.add_argument('--codes',default='')
     parser.add_argument('--limit',type=int,default=40)
     args=parser.parse_args()
@@ -581,7 +598,14 @@ def main():
     if scheduled and not taiwan and args.mode=='hours':
         print('台股休市，略過分K補抓；不開啟試算表');return
     ss=open_sheets();fetcher=Fetcher()
-    if args.mode in ('dashboard','all'):update_dashboard(ss,fetcher,yahoo,taiwan)
+    if args.mode=='sectors':
+        if taiwan:update_sectors(ss)
+        else:print('台股休市，不補產業成交比重')
+        return
+    if args.mode in ('dashboard','all'):
+        errors=update_dashboard(ss,fetcher,yahoo,taiwan)
+        if any(e.startswith('證交所：') for e in errors):
+            raise RuntimeError('產業成交比重未更新：'+next(e for e in errors if e.startswith('證交所：')))
     if args.mode in ('hours','all') and yahoo and taiwan:update_hours(ss,fetcher,args.codes.split(',') if args.codes else [],min(100,max(1,args.limit)))
 
 if __name__=='__main__':main()

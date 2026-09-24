@@ -1,3 +1,7 @@
+目前交付：**2026-09-24-sector-catchup-v64**。今日產業成交比重新增 GitHub 專用補抓與 Apps Script 獨立保底；取稿狀態信改成與盤中通知一致的卡片版面且寄送失敗可重試；績效圖「五成」基準線不再重複。請依 [v64 詳細部署與驗證](docs/0924-v64/產業補抓與通知部署.md) 更新原 Apps Script 網頁應用程式；[八檔部署包](release/zhangzhen-sector-monitor-v64.zip) 已提供。GitHub 推送不會自動部署網站。
+
+以下 v63 說明保留作歷史紀錄。
+
 目前交付：**2026-09-24-tracker-axis-v63**。持股追蹤交易軸的左右端點已改成逐列對齊，桌面與手機均完成離線版面檢查。請依 [v63 持股追蹤線條對齊與部署](docs/0924-v63/持股追蹤線條對齊與部署.md) 更新原 Apps Script 網頁應用程式；[六檔部署包](release/zhangzhen-tracker-axis-v63.zip) 保留 v61／v62 的近期日 K、價格與快取修正。GitHub 推送不會自動部署網站。
 
 以下 v62 說明保留作歷史紀錄。

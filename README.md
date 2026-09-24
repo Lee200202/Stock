@@ -1,3 +1,7 @@
+目前交付：**2026-09-24-tracker-cache-v62**。`snapshotPerformanceJob()` 已寫入績效、但持股清單超過快取上限時，改以精簡／分段快取保留完整資料，避免每次重讀試算表；v61 的全股票近期日 K 與計價修正也包含在內。請依 [快取修正與正式部署](docs/0924-v62/持股追蹤快取與正式部署.md) 更新原 Apps Script 網頁應用程式；[五檔部署包](release/zhangzhen-tracker-cache-v62.zip) 已提供。GitHub 推送不會自動部署網站。
+
+以下 v61 說明保留作歷史紀錄。
+
 目前交付：**2026-09-24-recent-k-price-v61**。全追蹤股票只補 9/19～9/24 近期日 K 缺口；明確買入／賣出取當日低／高，首次明講已持有及非交易性出場取收盤基準，口頭價只作附註。詳見 [部署與函式執行順序](docs/0924-v61/近期日K與全股票計價修復部署.md)。[五個 Apps Script 更新檔部署包](release/zhangzhen-recent-k-price-v61.zip) 已提供，但 GitHub 推送不會自動部署網站，須在原 Apps Script 專案替換五檔並更新既有網頁部署。
 
 以下 v60 說明保留作歷史紀錄。

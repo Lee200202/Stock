@@ -45,6 +45,8 @@ class CalendarYearlyTests(unittest.TestCase):
             text = (ROOT / '.github' / 'workflows' / name).read_text(encoding='utf-8')
             self.assertIn('交易日預檢' if name != 'market-data.yml' else '休市日預檢', text)
             self.assertIn('is_trading_day' if name == 'market-data.yml' else 'why_closed', text)
+        market = (ROOT / '.github' / 'workflows' / 'market-data.yml').read_text(encoding='utf-8')
+        self.assertIn("GITHUB_EVENT_NAME') != 'workflow_dispatch'", market)
 
 
 if __name__ == '__main__':

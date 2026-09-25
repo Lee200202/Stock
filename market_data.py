@@ -593,9 +593,9 @@ def main():
     parser.add_argument('--limit',type=int,default=40)
     args=parser.parse_args()
     yahoo=os.environ.get('YAHOO_DATA_ENABLED','true').lower()=='true'
-    scheduled=os.environ.get('GITHUB_EVENT_NAME')=='schedule'
-    taiwan=not scheduled or is_trading_day(datetime.now(TZ).date())
-    if scheduled and not taiwan:
+    automatic=os.environ.get('GITHUB_EVENT_NAME') in ('schedule','push')
+    taiwan=not automatic or is_trading_day(datetime.now(TZ).date())
+    if automatic and not taiwan:
         print('台股休市或年度行事曆未驗證，略過市場資料排程；不開啟試算表');return
     ss=open_sheets();fetcher=Fetcher()
     if args.mode=='sectors':

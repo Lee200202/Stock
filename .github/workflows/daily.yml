@@ -164,12 +164,29 @@ jobs:
 
       - uses: actions/checkout@v4
 
+      - name: 交易日預檢
+        id: calendar
+        if: github.event_name == 'schedule'
+        run: |
+          python - <<'PY'
+          from datetime import datetime
+          from zoneinfo import ZoneInfo
+          from pipeline.market_holidays import why_closed
+          import os
+          reason = why_closed(datetime.now(ZoneInfo('Asia/Taipei')).date())
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write('run=' + str(not bool(reason)).lower() + '\n')
+          print('略過每日流程排程：' + reason if reason else '今日是台股交易日')
+          PY
+
       - uses: actions/setup-python@v5
+        if: github.event_name != 'schedule' || steps.calendar.outputs.run == 'true'
         with:
           python-version: '3.11'
           cache: 'pip'
 
       - name: 安裝相依套件
+        if: github.event_name != 'schedule' || steps.calendar.outputs.run == 'true'
         run: |
           # 只裝 requirements.txt。
           #
@@ -196,6 +213,7 @@ jobs:
       # （例如探測步驟報「缺少 GEMINI_API_KEY」，讓人以為要去補 Secret，
       # 但真正的問題是 pipeline.py 還是舊版）。這一步把它講清楚。
       - name: 確認 pipeline.py 版本相符
+        if: github.event_name != 'schedule' || steps.calendar.outputs.run == 'true'
         run: |
           # 只有一份，就在 pipeline/ 底下。
           #
@@ -223,6 +241,7 @@ jobs:
 
       - name: 探測今天有沒有事情要做
         id: preflight
+        if: github.event_name != 'schedule' || steps.calendar.outputs.run == 'true'
         env:
           PREFLIGHT: 'true'
           # 13:45 那一條排程只補日K；探測要認得它，直接放行。

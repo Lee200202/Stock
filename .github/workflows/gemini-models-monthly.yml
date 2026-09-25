@@ -1,0 +1,60 @@
+name: Gemini 模型月度盤點
+on:
+  schedule:
+    - cron: '40 2 1-7 * *' # 每月首個台股交易日台北 10:40，完成後同月不重跑
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: 交易日及本月盤點狀態預檢
+        id: calendar
+        run: |
+          python - <<'PY'
+          from datetime import datetime
+          from zoneinfo import ZoneInfo
+          import json, os, pathlib
+          from pipeline.market_holidays import why_closed
+          today = datetime.now(ZoneInfo('Asia/Taipei')).date()
+          reason = why_closed(today)
+          file = pathlib.Path('data/gemini-models.json')
+          done = False
+          if file.exists():
+              try: done = json.loads(file.read_text(encoding='utf-8')).get('checked_month') == today.strftime('%Y-%m')
+              except (ValueError, OSError): pass
+          run = not reason and not done
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out: out.write('run='+str(run).lower()+'\n')
+          print(reason or ('本月已盤點' if done else '執行本月模型盤點'))
+          PY
+      - uses: actions/setup-python@v5
+        if: steps.calendar.outputs.run == 'true'
+        with:
+          python-version: '3.11'
+      - run: python -m pip install requests
+        if: steps.calendar.outputs.run == 'true'
+      - name: 官方清單與每把金鑰短回覆查驗
+        if: steps.calendar.outputs.run == 'true'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+          GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+        run: python scripts/audit_gemini_models.py
+      - name: 保存不含金鑰的本月清單
+        if: steps.calendar.outputs.run == 'true'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/gemini-models.json
+          git commit -m 'Audit available Gemini models for current month'
+          git push origin HEAD:main
+      - uses: actions/upload-artifact@v4
+        if: steps.calendar.outputs.run == 'true'
+        with:
+          name: gemini-model-audit
+          path: data/gemini-models.json
+          if-no-files-found: warn

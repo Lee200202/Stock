@@ -1,0 +1,36 @@
+name: 台股隔年休市日盤點
+on:
+  schedule:
+    # 台北十月至十二月每週一查到公布為止；成功後檔案不再變動。
+    - cron: '15 1 * 10-12 1'
+    # 年初仍未公布時繼續追蹤，避免跨年清單空白。
+    - cron: '15 1 * 1 1'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: calendar-yearly
+  cancel-in-progress: false
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install requests
+      - name: 核對證交所隔年行事曆
+        run: python scripts/refresh_next_holidays.py
+      - name: 檢查並提交
+        run: |
+          if git diff --quiet -- pipeline/market_holidays.py; then
+            echo '休市日清單沒有新變更'; exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add pipeline/market_holidays.py
+          git commit -m 'Update verified TWSE holiday calendar'
+          git push

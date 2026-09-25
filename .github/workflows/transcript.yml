@@ -97,13 +97,30 @@ jobs:
 
       - uses: actions/checkout@v4
 
+      - name: 交易日預檢
+        id: calendar
+        if: github.event_name == 'schedule'
+        run: |
+          python - <<'PY'
+          from datetime import datetime
+          from zoneinfo import ZoneInfo
+          from pipeline.market_holidays import why_closed
+          import os
+          reason = why_closed(datetime.now(ZoneInfo('Asia/Taipei')).date())
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write('run=' + str(not bool(reason)).lower() + '\n')
+          print('略過逐字稿排程：' + reason if reason else '今日是台股交易日')
+          PY
+
       - uses: actions/setup-python@v5
+        if: github.event_name != 'schedule' || steps.calendar.outputs.run == 'true'
         with:
           python-version: '3.11'
           cache: 'pip'
 
       # 只要幾個純 Python 套件，十幾秒就裝完。不需要瀏覽器。
       - name: 安裝相依套件
+        if: github.event_name != 'schedule' || steps.calendar.outputs.run == 'true'
         run: |
           python -m pip install --upgrade pip
           if [ -f "requirements.txt" ]; then
@@ -113,12 +130,14 @@ jobs:
           fi
 
       - uses: actions/cache/restore@v4
+        if: github.event_name != 'schedule' || steps.calendar.outputs.run == 'true'
         with:
           path: .transcript-cache
           key: transcript-segments-v45-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: transcript-segments-v45-
 
       - name: 執行
+        if: github.event_name != 'schedule' || steps.calendar.outputs.run == 'true'
         env:
           # Gemini。額度是每把金鑰、每個模型分開算的，所以可以填多把：
           #   逗號分隔，或另外設 GEMINI_API_KEY_2、GEMINI_API_KEY_3。
@@ -179,7 +198,7 @@ jobs:
           exit $code
 
       - uses: actions/cache/save@v4
-        if: always()
+        if: always() && (github.event_name != 'schedule' || steps.calendar.outputs.run == 'true')
         with:
           path: .transcript-cache
           key: transcript-segments-v45-${{ github.run_id }}-${{ github.run_attempt }}

@@ -37,9 +37,9 @@ jobs:
           from datetime import datetime
           from zoneinfo import ZoneInfo
           from pipeline.market_holidays import is_trading_day
-          skip = os.environ.get('SCHEDULE') in ('35 11 * * 1-5', '16 8,9,10 * * 1-5') and not is_trading_day(datetime.now(ZoneInfo('Asia/Taipei')).date())
+          skip = bool(os.environ.get('SCHEDULE')) and not is_trading_day(datetime.now(ZoneInfo('Asia/Taipei')).date())
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f: f.write('run='+str(not skip).lower()+'\n')
-          print('台股休市，略過分K補抓' if skip else '繼續更新適用市場')
+          print('台股休市或行事曆未驗證，略過市場資料排程' if skip else '繼續更新適用市場')
           PY
       - uses: actions/setup-python@v5
         if: steps.calendar.outputs.run == 'true'

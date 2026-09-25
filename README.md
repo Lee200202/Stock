@@ -1,3 +1,7 @@
+目前交付：**2026-09-25-calendar-model-v66**。隔年台股休市日定期查證、休市前置攔截（會員簡訊保留）、Gemini 模型月度盤點及網站 AI 選單按金鑰更新。請依 [v66 詳細部署流程](docs/0925-v66/隔年休市與模型月盤點部署.md) 對目前正式站 v63 完整替換 Apps Script 33 檔；[完整部署包](release/zhangzhen-full-v66.zip) 已備妥（v65 專案另有七檔差異包）。GitHub 推送不會自動部署網站。
+
+以下 v64 說明保留作歷史紀錄。
+
 目前交付：**2026-09-24-sector-catchup-v64**。今日產業成交比重新增 GitHub 專用補抓與 Apps Script 獨立保底；取稿狀態信改成與盤中通知一致的卡片版面且寄送失敗可重試；績效圖「五成」基準線不再重複。請依 [v64 詳細部署與驗證](docs/0924-v64/產業補抓與通知部署.md) 更新原 Apps Script 網頁應用程式；[八檔部署包](release/zhangzhen-sector-monitor-v64.zip) 已提供。GitHub 推送不會自動部署網站。
 
 以下 v63 說明保留作歷史紀錄。
@@ -82,7 +86,7 @@
 ## 二、檔案清單
 
 上游（GitHub，Python）：
-- `pipeline.py`：GitHub Actions 使用的主程式。`pipeline/pipeline.py` 保留同版副本供分目錄部署使用。
+- `pipeline/pipeline.py`：GitHub Actions 使用的唯一 Python 主程式；根目錄不得再建立 `pipeline.py`，避免蓋過 `pipeline/` 套件。
 - daily.yml：GitHub Actions 工作流程。放在 .github/workflows/daily.yml。
 - requirements.txt：Python 相依套件。
 

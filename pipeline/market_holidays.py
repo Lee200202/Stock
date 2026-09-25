@@ -8,11 +8,10 @@
 沒有盤中直播，系統仍會照跑、照判「今日無影片」、照寄狀態信與告警。
 那些信是假的，看久了就會把真正的異常一起忽略掉。
 
-重要：**年份不在清單裡時，一律當成交易日**
+重要：**年份不在清單裡時，暫停自動交易日流程並明確告警**
 ------------------------------------------
-寧可多跑一天（頂多是一次沒有影片的空跑），也不要因為忘記更新清單而
-安靜地跳過整年的交易日——後者不會有任何錯誤訊息，等發現時已經漏很多天。
-遇到沒收錄的年份會印一行提醒，看得到就會記得更新。
+不知道隔年的休市日便無法保證不在假日執行。年度盤點工作會從十月起
+定期重試；若到跨年仍未取得正式清單，停下排程並在工作紀錄明確說明。
 
 怎麼更新
 --------
@@ -85,9 +84,9 @@ def is_market_holiday(d: date) -> bool:
     if d.year not in COVERED_YEARS:
         if d.year not in _warned:
             _warned.add(d.year)
-            print(f"注意：休市日清單沒有 {d.year} 年的資料，這一年一律當成交易日。"
-                  f"請執行 python scripts/update_holidays.py 更新。")
-        return False
+            print(f"警告：休市日清單沒有 {d.year} 年的資料；自動流程暫停。"
+                  f"請檢查台股隔年休市日盤點工作。")
+        return True
     return d.strftime("%Y-%m-%d") in MARKET_HOLIDAYS
 
 
@@ -100,6 +99,9 @@ def why_closed(d: date) -> str:
     """給日誌用的一句話。回空字串代表這天有開盤。"""
     if d.weekday() >= 5:
         return "週末不開盤"
+    if d.year not in COVERED_YEARS:
+        is_market_holiday(d)  # 留下明確日誌
+        return "休市日清單尚未驗證，暫停自動流程"
     if is_market_holiday(d):
         return "台股休市日"
     return ""

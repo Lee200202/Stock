@@ -7,10 +7,10 @@ permissions:
   contents: write
 jobs:
   audit:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: 交易日及本月盤點狀態預檢
         id: calendar
         run: |
@@ -30,7 +30,7 @@ jobs:
           with open(os.environ['GITHUB_OUTPUT'], 'a') as out: out.write('run='+str(run).lower()+'\n')
           print(reason or ('本月已盤點' if done else '執行本月模型盤點'))
           PY
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         if: steps.calendar.outputs.run == 'true'
         with:
           python-version: '3.11'

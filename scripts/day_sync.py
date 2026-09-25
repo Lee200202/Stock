@@ -5,24 +5,39 @@ import time
 import requests
 
 
+class SyncError(RuntimeError):
+    """Apps Script 明確回覆的失敗原因（中文），原樣寫進 Actions 的錯誤標註。"""
+
+
 def call(session, url, key, **params):
+    last = ''
     for attempt in range(3):
         try:
             response = session.get(url, params=dict(action='day-sync', key=key, **params), timeout=(20, 360))
+            status = response.status_code
             response.raise_for_status()
             data = response.json()
             if not data.get('ok'):
-                raise RuntimeError(data.get('error', '同步未完成'))
+                raise SyncError(data.get('error') or '同步未完成（Apps Script 沒有附原因）')
             return data
-        except (requests.RequestException, ValueError):
+        except requests.HTTPError:
+            last = f'Apps Script 回 HTTP {status}'
+        except requests.Timeout:
+            last = 'Apps Script 逾時沒有回應'
+        except requests.RequestException:
             # 不輸出 exception：requests 的訊息可能包含 URL 裡的管理密鑰。
-            if attempt == 2:
-                raise RuntimeError('GAS 暫時未回有效 JSON；游標保留，由後端 watchdog 接續') from None
-            time.sleep(8 * (attempt + 1))
+            last = '連不上 Apps Script'
+        except ValueError:
+            last = 'Apps Script 回的不是 JSON（多半是 Google 登入頁或暫時錯誤頁）'
+        if attempt == 2:
+            raise SyncError(last + '；游標保留，由後端每五分鐘排程接續') from None
+        time.sleep(8 * (attempt + 1))
 
 
 def main():
-    url, key = os.environ['APPS_SCRIPT_URL'], os.environ['ADMIN_KEY']
+    url, key = os.environ.get('APPS_SCRIPT_URL', ''), os.environ.get('ADMIN_KEY', '')
+    if not url or not key:
+        raise SyncError('GitHub Secret APPS_SCRIPT_URL 或 ADMIN_KEY 沒有設定')
     session = requests.Session()
     deadline = time.monotonic() + 23 * 60
     mode = os.environ.get('MODE') or 'queue'
@@ -75,9 +90,27 @@ def main():
     print('本棒時間到，後端檢查點與 watchdog 將接續。')
 
 
+def report_failure(reason):
+    """失敗原因同時寫進 Actions 標註與步驟摘要（v67，0925 規格 R6：先前只有 exit 1）。"""
+    reason = ' '.join(str(reason).split())[:300] or '未知原因'
+    print(f'逐日編輯同步失敗：{reason}')
+    print(f'::error title=逐日編輯同步::{reason}', flush=True)
+    summary = os.environ.get('GITHUB_STEP_SUMMARY')
+    if summary:
+        try:
+            with open(summary, 'a', encoding='utf-8') as fh:
+                fh.write('### 逐日編輯同步失敗\n\n' + reason +
+                         '\n\n後台「今日與投稿」與「自動化監控」的時間軸會記同一段原因。\n')
+        except OSError:
+            pass
+
+
 if __name__ == '__main__':
     try:
         main()
     except RuntimeError as exc:
-        print(f'::error::{exc}', file=sys.stderr)
+        report_failure(exc)
+        sys.exit(1)
+    except Exception as exc:  # 非預期錯誤也要有中文原因；只印類別，避免帶出含密鑰的網址
+        report_failure(f'非預期錯誤 {type(exc).__name__}')
         sys.exit(1)

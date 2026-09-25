@@ -23,10 +23,10 @@ concurrency:
   cancel-in-progress: false
 jobs:
   cache:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: 休市日預檢
         id: calendar
         env:
@@ -41,7 +41,7 @@ jobs:
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f: f.write('run='+str(not skip).lower()+'\n')
           print('台股休市或行事曆未驗證，略過市場資料排程' if skip else '繼續更新適用市場')
           PY
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         if: steps.calendar.outputs.run == 'true'
         with:
           python-version: '3.11'

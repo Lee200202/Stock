@@ -142,7 +142,7 @@ concurrency:
 
 jobs:
   run:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # 內部輪詢循環一個 job 約 25 分鐘（TIME_BUDGET_SEC=1500）。
     # 30 分鐘 job 上限足夠，並避免卡死的工作長時間佔住 concurrency 佇列。
     #
@@ -162,7 +162,7 @@ jobs:
           echo "官方文件明講排程是 best effort，尖峰時段延遲屬正常。"
           echo "本專案改用內部輪詢循環，不再依賴 cron 準點觸發很多次。"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: 交易日預檢
         id: calendar
@@ -179,7 +179,7 @@ jobs:
           print('略過每日流程排程：' + reason if reason else '今日是台股交易日')
           PY
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         if: github.event_name != 'schedule' || steps.calendar.outputs.run == 'true'
         with:
           python-version: '3.11'

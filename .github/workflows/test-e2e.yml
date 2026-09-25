@@ -56,7 +56,7 @@ permissions:
 
 jobs:
   e2e:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # 第 4 幕預設 2 輪約 6 分鐘，第 5 幕聽打一集約 5～15 分鐘，
     # 再加潤飾稽核。給 60 分鐘有餘裕，卡住也不會佔太久。
     timeout-minutes: 60
@@ -70,9 +70,9 @@ jobs:
           echo "輪詢輪數：${{ inputs.rounds }}"
           echo "接著跑潤飾稽核：${{ inputs.run_pipeline }}"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
           cache: 'pip'

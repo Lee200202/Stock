@@ -88,9 +88,14 @@ function lineDateLabel_(d) {
   return ('0' + m[2]).slice(-2) + '/' + ('0' + m[3]).slice(-2) + '（' + wd + '）';
 }
 function lineMd_(d) { var m = String(d || '').match(/\d{4}[\/\-](\d{1,2})[\/\-](\d{1,2})/); return m ? ('0' + m[1]).slice(-2) + '/' + ('0' + m[2]).slice(-2) : ''; }
-function lineSiteUrl_(tab) { var base = typeof publicWebAppUrl_ === 'function' ? publicWebAppUrl_() : ''; return base ? base + '?tab=' + tab : ''; }
+function lineSiteUrl_(tab) {
+  var base = (typeof publicSiteUrl_ === 'function' && publicSiteUrl_()) ? publicSiteUrl_() :
+             (typeof publicWebAppUrl_ === 'function' ? publicWebAppUrl_() : '');
+  return base ? base + '?tab=' + tab : '';
+}
 function lineStockUrl_(code) {
-  var base = typeof publicWebAppUrl_ === 'function' ? publicWebAppUrl_() : '';
+  var base = (typeof publicSiteUrl_ === 'function' && publicSiteUrl_()) ? publicSiteUrl_() :
+             (typeof publicWebAppUrl_ === 'function' ? publicWebAppUrl_() : '');
   return base && /^\d{4,6}[A-Z]?$/.test(String(code)) ? base + '?stock=' + code : '';
 }
 function lineAddFriendUrl_() {

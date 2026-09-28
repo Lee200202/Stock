@@ -53,6 +53,7 @@ function siteBridge_(e) {
     apiStopAllMail: apiStopAllMail,
     apiSubscribe: apiSubscribe,
     apiSuggestCodes: apiSuggestCodes,
+    apiUnsubscribeConfirm: apiUnsubscribeConfirm,
     apiUpdateSubscription: apiUpdateSubscription,
     apiValidateKey: apiValidateKey
   };

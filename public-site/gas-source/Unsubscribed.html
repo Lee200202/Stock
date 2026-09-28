@@ -4,8 +4,9 @@
   <base target="_top">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <!-- 退訂確認頁（v54）。刻意不載入整站樣式與外部字型：手機 Gmail 內建瀏覽器打開時要馬上看得到按鈕。
-       打開這一頁不會改任何東西；按下按鈕才停止（先前 GET 直接取消，信件掃描或預先載入會誤觸）。 -->
+  <!-- 退訂確認頁（v54/v76）。支援 GitHub Pages 靜態橋接與 Apps Script 後端雙模式。
+       打開這一頁不會改任何設定；按下按鈕才送出確認（先前 GET 直接取消，信件掃描或預先載入會誤觸）。 -->
+  <title><?= appTitle ?> 取消訂閱</title>
   <style>
     :root { --bg:#F3F5F2; --card:#FFFFFF; --ink:#12161A; --muted:#5E6962; --line:#D5DBD6; --beam:#04795C; --warn:#8A6410; --bad:#B42318; }
     @media (prefers-color-scheme: dark) { :root { --bg:#0E1211; --card:#161C1A; --ink:#E3EAE6; --muted:#9AA8A0; --line:#2A3531; --beam:#21C68C; --warn:#DBA544; --bad:#FF6B6B; } }
@@ -34,43 +35,75 @@
     <div class="k"><?= appTitle ?></div>
     <h1 id="title">取消訂閱</h1>
     <div class="card">
-      <? if (email && token) { ?>
-        <p>要停止寄到 <span class="mail"><?= email ?></span> 的通知嗎？</p>
+      <div id="unsub-active" style="display:none;">
+        <p>要停止寄到 <span class="mail" id="unsub-mail"></span> 的通知嗎？</p>
         <p style="color:var(--muted);font-size:14px">打開這一頁不會改任何設定，按下按鈕才生效，不需要登入。</p>
-        <div class="btns">
-          <? if (type) { ?>
-            <button type="button" class="primary" data-scope="<?= type ?>">只停止「<?= typeLabel ?>」</button>
-            <button type="button" data-scope="all">停止所有通知</button>
-          <? } else { ?>
-            <button type="button" class="primary" data-scope="all">停止所有通知</button>
-          <? } ?>
-        </div>
+        <div class="btns" id="unsub-btns"></div>
         <div class="msg" id="msg" role="status" aria-live="polite"></div>
-      <? } else { ?>
+      </div>
+      <div id="unsub-empty" style="display:none;">
         <p>這個連結不完整。請直接從信件最下方的「取消訂閱」打開，或到網站的「訂閱通知」管理。</p>
-      <? } ?>
+      </div>
     </div>
-    <? if (homeUrl) { ?>
-      <div class="home"><a class="btn" href="<?= homeUrl ?>" target="_top">回到網站</a></div>
-    <? } ?>
+    <div class="home"><a class="btn" id="home-link" href="<?= webAppUrl ?>" target="_top">回到網站</a></div>
   </main>
   <script>
     (function () {
-      var email = <?= email ?>, token = <?= token ?>;  // Apps Script 在 <script> 裡的 <?= ?> 會輸出成 JS 字串字面值
+      var params = new URLSearchParams(location.search);
+      var email = (params.get('email') || '').trim();
+      var token = (params.get('token') || '').trim();
+      var type = (params.get('type') || '').trim();
+      var labels = { daily: '每日總覽', sms: '盤中即時通知' };
+      var typeLabel = labels[type] || '';
+      var activeEl = document.getElementById('unsub-active');
+      var emptyEl = document.getElementById('unsub-empty');
+      var mailEl = document.getElementById('unsub-mail');
+      var btnsEl = document.getElementById('unsub-btns');
       var msg = document.getElementById('msg');
-      var buttons = Array.prototype.slice.call(document.querySelectorAll('button[data-scope]'));
+      var title = document.getElementById('title');
+      if (!email || !token) {
+        emptyEl.style.display = 'block';
+        return;
+      }
+      mailEl.textContent = email;
+      if (type && typeLabel) {
+        var b1 = document.createElement('button');
+        b1.type = 'button';
+        b1.className = 'primary';
+        b1.setAttribute('data-scope', type);
+        b1.textContent = '只停止「' + typeLabel + '」';
+        btnsEl.appendChild(b1);
+        var b2 = document.createElement('button');
+        b2.type = 'button';
+        b2.setAttribute('data-scope', 'all');
+        b2.textContent = '停止所有通知';
+        btnsEl.appendChild(b2);
+      } else {
+        var bAll = document.createElement('button');
+        bAll.type = 'button';
+        bAll.className = 'primary';
+        bAll.setAttribute('data-scope', 'all');
+        bAll.textContent = '停止所有通知';
+        btnsEl.appendChild(bAll);
+      }
+      activeEl.style.display = 'block';
+
+      var buttons = Array.prototype.slice.call(btnsEl.querySelectorAll('button[data-scope]'));
       function done(r) {
         buttons.forEach(function (b) { b.disabled = !!(r && r.ok); });
         msg.className = 'msg ' + (r && r.ok ? 'ok' : 'err');
         msg.textContent = (r && r.message) || '沒有收到回覆，請再按一次。';
-        if (r && r.ok) { document.getElementById('title').textContent = r.state === 'partial' ? '已停止這一類通知' : '已取消訂閱'; }
+        if (r && r.ok) { title.textContent = r.state === 'partial' ? '已停止這一類通知' : '已取消訂閱'; }
         else { buttons.forEach(function (b) { b.disabled = false; }); }
       }
       buttons.forEach(function (b) {
         b.addEventListener('click', function () {
           buttons.forEach(function (x) { x.disabled = true; });
           msg.className = 'msg ok'; msg.textContent = '處理中…';
-          if (!(window.google && google.script && google.script.run)) { done({ ok: false, message: '這個瀏覽器無法送出，請改用系統瀏覽器（Chrome／Safari）打開這個連結。' }); return; }
+          if (!(window.google && google.script && google.script.run)) {
+            done({ ok: false, message: '這個瀏覽器無法送出，請改用系統瀏覽器（Chrome／Safari）打開這個連結。' });
+            return;
+          }
           google.script.run.withSuccessHandler(done).withFailureHandler(function (e) {
             done({ ok: false, message: '連線失敗（' + (e && e.message ? e.message : '網路中斷') + '），請再按一次。' });
           }).apiUnsubscribeConfirm(email, token, b.getAttribute('data-scope'));

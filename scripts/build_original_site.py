@@ -45,10 +45,14 @@ def build(output: Path, api_url: str) -> None:
     if not re.fullmatch(r"https://[A-Za-z0-9.-]+/(?:api/?|api\?[A-Za-z0-9=&_-]+)", api_url):
         raise ValueError("SITE_API_URL must be an HTTPS /api endpoint")
     output.mkdir(parents=True, exist_ok=True)
+    config = (SOURCE / "Config.gs").read_text(encoding="utf-8")
+    title_match = re.search(r"var APP_TITLE = '([^']+)';", config)
+    app_title = title_match.group(1) if title_match else "張震股市盤中家教班　逐日追蹤"
     values = {
         "initialTab": "",
         "initialStock": "",
         "webAppUrl": PUBLIC_URL,
+        "appTitle": app_title,
         "disclaimer": "本網站整理公開節目內容，不構成投資建議或獲利保證。",
     }
     index = (SOURCE / "Index.html").read_text(encoding="utf-8")
@@ -58,11 +62,7 @@ def build(output: Path, api_url: str) -> None:
     # GAS sets this through HtmlService.setTitle(APP_TITLE), outside Index.html.
     # Keep the browser tab identical when the same source is served by Pages.
     if "<title>" not in page:
-        config = (SOURCE / "Config.gs").read_text(encoding="utf-8")
-        title_match = re.search(r"var APP_TITLE = '([^']+)';", config)
-        if not title_match:
-            raise ValueError("APP_TITLE missing from original Config.gs")
-        page = page.replace('<meta charset="utf-8">', '<meta charset="utf-8">\n  <title>' + html.escape(title_match.group(1)) + '</title>', 1)
+        page = page.replace('<meta charset="utf-8">', '<meta charset="utf-8">\n  <title>' + html.escape(app_title) + '</title>', 1)
     if "<?" in page:
         raise ValueError("Unexpanded Apps Script template tag")
     bridge = (ROOT / "public-site" / "original-bridge.js").read_text(encoding="utf-8")
@@ -73,15 +73,15 @@ def build(output: Path, api_url: str) -> None:
     if count != 1:
         raise ValueError("Body tag missing in Index")
     (output / "index.html").write_text(page, encoding="utf-8")
-    for template, filename in (("Admin", "admin.html"), ("AdminLegacy", "admin-legacy.html")):
-        admin = render(SOURCE / f"{template}.html", values)
-        if "<?" in admin:
+    for template, filename in (("Admin", "admin.html"), ("AdminLegacy", "admin-legacy.html"), ("Unsubscribed", "unsubscribe.html")):
+        content = render(SOURCE / f"{template}.html", values)
+        if "<?" in content:
             raise ValueError(f"Unexpanded Apps Script template tag in {template}")
-        admin, count = re.subn(r"<body([^>]*)>",
-            r'<body\1>\n<script src="original-bridge.js"></script>', admin, count=1)
+        content, count = re.subn(r"<body([^>]*)>",
+            r'<body\1>\n<script src="original-bridge.js"></script>', content, count=1)
         if count != 1:
             raise ValueError(f"Body tag missing in {template}")
-        (output / filename).write_text(admin, encoding="utf-8")
+        (output / filename).write_text(content, encoding="utf-8")
     (output / "original-bridge.js").write_text(bridge, encoding="utf-8")
     (output / ".nojekyll").write_text("", encoding="utf-8")
     print("原站 HTML/CSS/JavaScript 已原樣組裝；後端請求經 SITE_API_URL 橋接")

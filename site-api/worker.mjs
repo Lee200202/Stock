@@ -25,7 +25,7 @@ const METHODS = new Set([
   'apiListTranscriptDates', 'apiLogUsage', 'apiLookupSubscription',
   'apiResetSession', 'apiSearchByDate', 'apiSearchStock',
   'apiSendUnsubscribeLink', 'apiStopAllMail', 'apiSubscribe',
-  'apiSuggestCodes', 'apiUpdateSubscription', 'apiValidateKey', ...ADMIN_METHODS
+  'apiSuggestCodes', 'apiUnsubscribeConfirm', 'apiUpdateSubscription', 'apiValidateKey', ...ADMIN_METHODS
 ]);
 
 function reply(body, status, origin) {

@@ -5,8 +5,13 @@
   const endpoint = '__SITE_API_URL__';
   const params = new URLSearchParams(location.search);
   const routePage = params.get('page');
+  const routeAction = params.get('action');
   if (routePage === 'admin' || routePage === 'admin-legacy') {
     location.replace(new URL(routePage === 'admin' ? 'admin.html' : 'admin-legacy.html', location.href).href);
+    return;
+  }
+  if (routePage === 'unsubscribe' || routeAction === 'unsubscribe') {
+    location.replace(new URL('unsubscribe.html' + location.search, location.href).href);
     return;
   }
   if (/^(overview|market|tracker|perf|subscribe|mail|sms|tx|tech)$/.test(params.get('tab') || '')) {
@@ -22,8 +27,11 @@
     const target = new URL(link.href, location.href);
     if (target.origin !== location.origin || target.pathname !== new URL('./', location.href).pathname) return;
     const page = target.searchParams.get('page');
+    const action = target.searchParams.get('action');
     if (page === 'admin' || page === 'admin-legacy') {
       link.href = new URL(page === 'admin' ? 'admin.html' : 'admin-legacy.html', location.href).href;
+    } else if (page === 'unsubscribe' || action === 'unsubscribe') {
+      link.href = new URL('unsubscribe.html' + target.search, location.href).href;
     }
   }, true);
 

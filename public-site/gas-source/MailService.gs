@@ -147,7 +147,7 @@ function subscriptionItemsHtml_(on) {
 
 /** 信件裡「到網站管理訂閱」的網址：直接打開訂閱分頁。還沒有正式網址就不放按鈕。 */
 function subscribePageUrl_() {
-  var base = publicWebAppUrl_();
+  var base = typeof siteBaseUrl_ === 'function' ? siteBaseUrl_() : publicWebAppUrl_();
   return base ? base + '?tab=subscribe' : '';
 }
 
@@ -309,6 +309,22 @@ function publicWebAppUrl_() {
   return '';
 }
 
+/* 對外公開網站網址（GitHub Pages）。
+   避開 Apps Script 網頁應用程式在同一瀏覽器多個 Google 帳號登入時的「找不到檔案」限制。 */
+var PUBLIC_SITE_URL_RE_ = /^https:\/\/[A-Za-z0-9.-]+\//;
+function publicSiteUrl_() {
+  var saved = '';
+  try { saved = String(PropertiesService.getScriptProperties().getProperty('PUBLIC_SITE_URL') || '').trim(); } catch (e) {}
+  if (PUBLIC_SITE_URL_RE_.test(saved)) { return saved.replace(/\/?$/, '/'); }
+  var fixed = (typeof PUBLIC_SITE_URL_DEFAULT === 'string') ? PUBLIC_SITE_URL_DEFAULT.trim() : '';
+  if (PUBLIC_SITE_URL_RE_.test(fixed)) { return fixed.replace(/\/?$/, '/'); }
+  return '';
+}
+
+function siteBaseUrl_() {
+  return publicSiteUrl_() || publicWebAppUrl_();
+}
+
 /** doGet 從 /exec 被打開時記下正式網址；只在變了的時候寫，不是每次都寫。 */
 function rememberWebAppUrl_() {
   try {
@@ -321,17 +337,21 @@ function rememberWebAppUrl_() {
   }
 }
 
-/* 退訂連結（v54，Codex 規格 73–77）。
-
-   一、不再退回 ScriptApp.getService().getUrl()：排程裡它回 /dev，只有專案擁有者開得起來——
-       「電腦（登入擁有者）開得了、手機開不了」正是這個樣子（2026/09/23 管理者回報，是否就是這次的原因仍待核對那封信的實際網址）。
-       取不到正式網址就回空字串，寄信那一端看到空字串會暫停寄送（見 deliverMessage_），不寄出打不開的退訂按鈕。
-   二、kind＝daily／sms 時帶 type，確認頁可以只停這一類；不帶 type 的是訂閱確認信、管理信。
-   三、連結本身不再直接取消：打開是一張確認頁，按下按鈕才停止（信件掃描或預先載入不會誤觸）。 */
+/* 退訂連結（v76）。
+   一、優先導向 GitHub Pages 的 unsubscribe.html，
+       避開 Google Apps Script 在多帳號登入時出現的「找不到檔案」限制。
+       確認頁送出時，透過安全橋接由後端驗證專屬 token 執行退訂，非不安全的一鍵退訂。
+   二、若無公開網站，退回 GAS 正式網址（/exec）的 ?action=unsubscribe。
+   三、kind＝daily／sms 時帶 type，確認頁可以只停這一類；不帶 type 的是訂閱確認信、管理信。 */
 function unsubscribeUrl_(email, token, kind) {
+  var pub = publicSiteUrl_();
+  if (pub) {
+    return pub + 'unsubscribe.html?email=' + encodeURIComponent(email) + '&token=' + encodeURIComponent(token) +
+      (kind === 'daily' || kind === 'sms' ? '&type=' + kind : '');
+  }
   var base = publicWebAppUrl_();
   if (!base) {
-    Logger.log('退訂連結：沒有可用的正式網址（/exec），不產生連結。請打開一次網站，或在編輯器執行 setWebAppUrl()。');
+    Logger.log('退訂連結：沒有可用的正式網址（Pages 或 /exec），不產生連結。');
     return '';
   }
   return base + '?action=unsubscribe&email=' + encodeURIComponent(email) + '&token=' + encodeURIComponent(token) +
@@ -730,8 +750,8 @@ function deliveryPendingAll_() {
 function deliverMessage_(subs, o) {
   var led = deliveryLedger_(o.messageId, o);
   var start = Date.now(), stopped = '', fresh = 0;
-  // 沒有正式網址就不寄（v54，Codex 規格 74）：寄出去的信退訂按鈕會打不開。全部留在 pending，網址設定好之後續送。
-  if (!publicWebAppUrl_()) { stopped = 'no-url'; }
+  // 沒有可用網址（Pages 或 /exec）就不寄：寄出去的信退訂按鈕會打不開。全部留在 pending，網址設定好之後續送。
+  if (!siteBaseUrl_()) { stopped = 'no-url'; }
   var quota = (o.quota == null) ? null : Number(o.quota);
   var emails = subs.map(function (s) { return String(s['Email']).trim(); });
   var todo = subs.filter(function (s) { return !DELIVERY_DONE_[led.state(String(s['Email']).trim())]; });
@@ -1556,9 +1576,8 @@ function wrapMail_(inner, email, token, kind, pre) {
         : '<div style="font-size:12px;color:#8A6410;">退訂連結暫時無法產生，請回覆這封信告知要停止哪一種通知。</div>') +
       '<div style="border-top:1px solid #E4E8E6;margin:12px 0 10px;"></div>' +
       '<div style="font-size:12px;line-height:1.7;color:#667069;">' +
-        '開啟網站或退訂連結若出現 Google「找不到檔案」：先用無痕視窗，只登入一個 Google 帳號後再開原連結。' +
-        '電腦若要同時使用多個帳號，可在 Chrome 右上角新增使用者設定檔，每個設定檔只登入一個帳號；手機可改用無痕分頁或另一個瀏覽器 App。' +
-        '若無痕仍無法開啟，請回覆本信回報，不要改用 /dev 網址。' +
+        '本站前台與退訂頁面已移至 GitHub Pages，點擊按鈕直接開啟，不受 Google 多帳號登入影響，無需登入即可操作。' +
+        '若遇到開啟問題，建議改用系統瀏覽器（Chrome／Safari）打開。' +
       '</div>' +
     '</div>';
   return mailShell_(mailPreheader_(pre) + head + inner + foot);

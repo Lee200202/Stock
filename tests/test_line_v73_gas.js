@@ -2,7 +2,8 @@
 // 驗收清單出自 docs/0927-review/LINE-訂閱與對話工作流規劃.md 第六節；用假的試算表、假的 LINE API 跑真正的 Line.gs。
 const fs = require('fs'), path = require('path'), vm = require('vm'), assert = require('assert'), crypto = require('crypto');
 const root = path.resolve(__dirname, '..');
-const read = f => fs.readFileSync(path.join(root, 'apps-script', f), 'utf8');
+const gasDir = fs.existsSync(path.join(root, 'apps-script')) ? path.join(root, 'apps-script') : path.join(root, 'public-site', 'gas-source');
+const read = f => fs.readFileSync(path.join(gasDir, f), 'utf8');
 
 const SECRET = '0123456789abcdef0123456789abcdef';
 const BOT = 'U' + 'b'.repeat(32), OTHER_BOT = 'U' + 'c'.repeat(32);

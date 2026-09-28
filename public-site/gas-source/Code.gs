@@ -27,9 +27,22 @@ function doGet(e) {
   }
 
 
-  /* 退訂（v54）：GET 只顯示確認頁，按下頁面上的按鈕才真的停止（google.script.run → apiUnsubscribeConfirm）。
-     信件掃描、連結預覽或預先載入會發 GET，先前 GET 直接改訂閱狀態，有被誤觸的風險。 */
+  /* 退訂（v54/v76）：GET 只顯示確認頁，按下頁面上的按鈕才真的停止（google.script.run → apiUnsubscribeConfirm）。
+     若有設定 GitHub Pages 公開網站，自動轉導至 GitHub Pages 上的 unsubscribe.html，
+     避開 Google 帳號多重登入衝突（找不到檔案）；未設定時仍回傳 GAS 確認頁。 */
   if (params.action === 'unsubscribe') {
+    var publicSite = (typeof publicSiteUrl_ === 'function') ? publicSiteUrl_() : '';
+    if (publicSite && params.email && params.token) {
+      var target = publicSite + 'unsubscribe.html?email=' + encodeURIComponent(params.email) +
+        '&token=' + encodeURIComponent(params.token) + (params.type ? '&type=' + encodeURIComponent(params.type) : '');
+      return HtmlService.createHtmlOutput(
+        '<!DOCTYPE html><html><head><meta charset="utf-8">' +
+        '<meta http-equiv="refresh" content="0;url=' + target + '">' +
+        '<script>location.replace(' + JSON.stringify(target) + ');</script></head>' +
+        '<body style="font-family:sans-serif;padding:24px;text-align:center;">' +
+        '<p>正在前往退訂頁面… 若未自動跳轉，請<a href="' + target + '">按此前往</a>。</p></body></html>'
+      ).setTitle('取消訂閱').addMetaTag('viewport', 'width=device-width, initial-scale=1');
+    }
     return renderUnsubscribePage_({ mode: 'confirm', email: params.email, token: params.token, type: params.type });
   }
 

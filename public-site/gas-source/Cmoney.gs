@@ -1339,7 +1339,7 @@ function cmMailBody_(a, revised) {
   var time = String(a.time || '');
   var clock = (time.match(/(\d{1,2}:\d{2})(?::\d{2})?\s*$/) || [])[1] || '';
   var date = (time.match(/^(\d{4}\/\d{2}\/\d{2})/) || [])[1] || '';
-  var site = (typeof publicWebAppUrl_ === 'function') ? publicWebAppUrl_() : '';
+  var site = (typeof publicSiteUrl_ === 'function' && publicSiteUrl_()) ? publicSiteUrl_() : ((typeof publicWebAppUrl_ === 'function') ? publicWebAppUrl_() : '');
 
   // 標題卡與每日整理同一個樣式（mc-hero／mc-hero-k），網站的深色模式規則也就一併適用。
   var hero =
@@ -1579,8 +1579,8 @@ function diagnoseInstantMail(articleId) {
   log('今日即時通知封數：已寄 ' + q.st.sent + '，上限 ' + (Number(cmProp_('CMONEY_MAIL_MAX', '60')) || 60) + '（CMONEY_MAIL_MAX）　Gmail 今日剩餘額度：' + (mq == null ? '讀不到' : mq));
   if (q.left <= 0) { say('今天的即時通知封數已達上限（CMONEY_MAIL_MAX），明天重算；訂閱人數多時可調高這個指令碼屬性。'); }
   if (mq === 0) { say('Gmail 今日寄信額度已用完，明天恢復。'); }
-  var url = publicWebAppUrl_();
-  log('正式網址（/exec）：' + (url || '沒有　<<< 寄信會暫停'));
+  var url = (typeof siteBaseUrl_ === 'function') ? siteBaseUrl_() : ((typeof publicSiteUrl_ === 'function' && publicSiteUrl_()) ? publicSiteUrl_() : publicWebAppUrl_());
+  log('網站網址（Pages / /exec）：' + (url || '沒有　<<< 寄信會暫停'));
   if (!url) { say('沒有正式網址，寄信暫停：在編輯器執行 setWebAppUrl()。'); }
   var pend = deliveryPendingAll_(), ids = Object.keys(pend).filter(function (k) { return pend[k].kind === 'sms'; });
   log('待續送的即時通知：' + (ids.length ? ids.join('、') : '沒有'));

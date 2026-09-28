@@ -1,6 +1,20 @@
 // Free Cloudflare Worker: public Pages frontend -> existing Apps Script backend.
 // No credentials are sent to the browser. Admin functions are never proxied.
 const ALLOWED = 'https://lee200202.github.io';
+const ADMIN_METHODS = ('apiAdminCancelCrawl apiAdminCancelDaySync apiAdminCancelFix ' +
+  'apiAdminCancelFullFix apiAdminCancelJob apiAdminCancelRefresh apiAdminCancelSmsJob ' +
+  'apiAdminChainState apiAdminCrawlState apiAdminCrawlTranscript apiAdminDayRows ' +
+  'apiAdminDaySyncState apiAdminDecisions apiAdminDeleteRow apiAdminDeleteSms ' +
+  'apiAdminDeleteSmsBatch apiAdminDispatch apiAdminFixState apiAdminFullFixState ' +
+  'apiAdminHeldList apiAdminHoldToday apiAdminInstallSectorCatchup apiAdminJobStatus ' +
+  'apiAdminKCoverage apiAdminLineLookup apiAdminLineRetry apiAdminLineSaveConfig ' +
+  'apiAdminLineStatus apiAdminListSms apiAdminLogin apiAdminManualDays ' +
+  'apiAdminManualEntry apiAdminMergeTranscripts apiAdminOpsDay apiAdminPreviewCleanup ' +
+  'apiAdminRebuildMail apiAdminReclassify apiAdminResumeFullFix apiAdminResumeJob ' +
+  'apiAdminRetryFullFixStep apiAdminRunInfo apiAdminSetDailyPushStart ' +
+  'apiAdminSetHoldingCost apiAdminSmsDays apiAdminSmsState apiAdminStartDaySync ' +
+  'apiAdminStartFullFix apiAdminStartRefreshFrom apiAdminStartSmsJob apiAdminSubmit ' +
+  'apiAdminTodayStatus apiAdminUpdateRow').split(' ');
 const METHODS = new Set([
   'apiAsk', 'apiFormatTranscript', 'apiGetCandlesBundle', 'apiGetDashboard',
   'apiGetHoldingsTracker', 'apiGetLineEntry', 'apiGetMailContent',
@@ -11,7 +25,7 @@ const METHODS = new Set([
   'apiListTranscriptDates', 'apiLogUsage', 'apiLookupSubscription',
   'apiResetSession', 'apiSearchByDate', 'apiSearchStock',
   'apiSendUnsubscribeLink', 'apiStopAllMail', 'apiSubscribe',
-  'apiSuggestCodes', 'apiUpdateSubscription', 'apiValidateKey'
+  'apiSuggestCodes', 'apiUpdateSubscription', 'apiValidateKey', ...ADMIN_METHODS
 ]);
 
 function reply(body, status, origin) {
@@ -44,6 +58,9 @@ export default {
     try { body = JSON.parse(raw); } catch { return reply({ok: false, error: 'json'}, 400, origin); }
     if (!METHODS.has(body.method) || !Array.isArray(body.args) || body.args.length > 5) {
       return reply({ok: false, error: 'method-not-allowed'}, 400, origin);
+    }
+    if (body.method.startsWith('apiAdmin') && (typeof body.args[0] !== 'string' || !body.args[0])) {
+      return reply({ok: false, error: 'admin-key-required'}, 401, origin);
     }
     try {
       const downstream = await fetch(env.GAS_WEBAPP_URL + '?action=site-bridge', {

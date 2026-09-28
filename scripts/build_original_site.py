@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "public-site" / "gas-source"
 INCLUDE = re.compile(r"<\?!=\s*include\('([A-Za-z]+)'\);?\s*\?>")
 VALUE = re.compile(r"<\?=\s*([A-Za-z]+)\s*\?>")
-PUBLIC_URL = "https://script.google.com/macros/s/AKfycbyLQjAd-CnQ6D6_JP3OY1WwXDkafCJthzeP3G4FDkT4t26PY9Gx1rhrXJjiHVZExQhoaw/exec"
+PUBLIC_URL = "https://lee200202.github.io/Stock/"
 
 
 def render(source: Path, values: dict[str, str]) -> str:
@@ -52,22 +52,28 @@ def build(output: Path, api_url: str) -> None:
         "disclaimer": "本網站整理公開節目內容，不構成投資建議或獲利保證。",
     }
     index = (SOURCE / "Index.html").read_text(encoding="utf-8")
-    marker = "<?!= include('JavaScript'); ?>"
-    if index.count(marker) != 1:
+    if index.count("<?!= include('JavaScript'); ?>") != 1:
         raise ValueError("Original JavaScript include location changed")
-    index = index.replace(marker, '<script src="original-bridge.js"></script>\n' + marker, 1)
-    staged = output / "_index_template.html"
-    staged.write_text(index, encoding="utf-8")
-    try:
-        page = render(staged, values)
-    finally:
-        staged.unlink(missing_ok=True)
+    page = render(SOURCE / "Index.html", values)
     if "<?" in page:
         raise ValueError("Unexpanded Apps Script template tag")
     bridge = (ROOT / "public-site" / "original-bridge.js").read_text(encoding="utf-8")
     bridge = bridge.replace("__SITE_API_URL__", api_url)
-    # 原檔的 CSS、HTML、JS 全部不改；橋接器在原站 JavaScript 前執行。
+    # 市場模組在 JavaScript.html 之前就有 script；橋接器必須在 body 開頭。
+    page, count = re.subn(r"<body([^>]*)>",
+        r'<body\1>\n<script src="original-bridge.js"></script>', page, count=1)
+    if count != 1:
+        raise ValueError("Body tag missing in Index")
     (output / "index.html").write_text(page, encoding="utf-8")
+    for template, filename in (("Admin", "admin.html"), ("AdminLegacy", "admin-legacy.html")):
+        admin = render(SOURCE / f"{template}.html", values)
+        if "<?" in admin:
+            raise ValueError(f"Unexpanded Apps Script template tag in {template}")
+        admin, count = re.subn(r"<body([^>]*)>",
+            r'<body\1>\n<script src="original-bridge.js"></script>', admin, count=1)
+        if count != 1:
+            raise ValueError(f"Body tag missing in {template}")
+        (output / filename).write_text(admin, encoding="utf-8")
     (output / "original-bridge.js").write_text(bridge, encoding="utf-8")
     (output / ".nojekyll").write_text("", encoding="utf-8")
     print("原站 HTML/CSS/JavaScript 已原樣組裝；後端請求經 SITE_API_URL 橋接")

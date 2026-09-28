@@ -58,7 +58,29 @@ function siteBridge_(e) {
   };
   var method = String(body.method || '');
   if (!Object.prototype.hasOwnProperty.call(methods, method)) {
-    return { ok: false, error: 'method-not-allowed' };
+    /* 後台原版面也可從 Pages 開，但絕不能只靠前端隱藏按鈕。
+       所有後台請求在這裡再驗一次 ADMIN_KEY；登入交原函式驗證並回原有訊息。 */
+    var adminNames = ('apiAdminCancelCrawl apiAdminCancelDaySync apiAdminCancelFix ' +
+      'apiAdminCancelFullFix apiAdminCancelJob apiAdminCancelRefresh apiAdminCancelSmsJob ' +
+      'apiAdminChainState apiAdminCrawlState apiAdminCrawlTranscript apiAdminDayRows ' +
+      'apiAdminDaySyncState apiAdminDecisions apiAdminDeleteRow apiAdminDeleteSms ' +
+      'apiAdminDeleteSmsBatch apiAdminDispatch apiAdminFixState apiAdminFullFixState ' +
+      'apiAdminHeldList apiAdminHoldToday apiAdminInstallSectorCatchup apiAdminJobStatus ' +
+      'apiAdminKCoverage apiAdminLineLookup apiAdminLineRetry apiAdminLineSaveConfig ' +
+      'apiAdminLineStatus apiAdminListSms apiAdminLogin apiAdminManualDays ' +
+      'apiAdminManualEntry apiAdminMergeTranscripts apiAdminOpsDay apiAdminPreviewCleanup ' +
+      'apiAdminRebuildMail apiAdminReclassify apiAdminResumeFullFix apiAdminResumeJob ' +
+      'apiAdminRetryFullFixStep apiAdminRunInfo apiAdminSetDailyPushStart ' +
+      'apiAdminSetHoldingCost apiAdminSmsDays apiAdminSmsState apiAdminStartDaySync ' +
+      'apiAdminStartFullFix apiAdminStartRefreshFrom apiAdminStartSmsJob apiAdminSubmit ' +
+      'apiAdminTodayStatus apiAdminUpdateRow').split(' ');
+    if (adminNames.indexOf(method) < 0) { return { ok: false, error: 'method-not-allowed' }; }
+    var adminKey = PropertiesService.getScriptProperties().getProperty('ADMIN_KEY');
+    if (method !== 'apiAdminLogin' && (!adminKey || String(args[0] || '') !== adminKey)) {
+      return { ok: false, error: 'admin-unauthorized' };
+    }
+    if (typeof globalThis[method] !== 'function') { return { ok: false, error: 'method-unavailable' }; }
+    methods[method] = globalThis[method];
   }
   try { return { ok: true, result: methods[method].apply(null, args) }; }
   catch (err) { return { ok: false, error: String(err && err.message || err).slice(0, 200) }; }

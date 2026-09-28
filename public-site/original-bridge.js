@@ -4,12 +4,28 @@
   'use strict';
   const endpoint = '__SITE_API_URL__';
   const params = new URLSearchParams(location.search);
+  const routePage = params.get('page');
+  if (routePage === 'admin' || routePage === 'admin-legacy') {
+    location.replace(new URL(routePage === 'admin' ? 'admin.html' : 'admin-legacy.html', location.href).href);
+    return;
+  }
   if (/^(overview|market|tracker|perf|subscribe|mail|sms|tx|tech)$/.test(params.get('tab') || '')) {
     document.body.dataset.tab = params.get('tab');
   }
   if (/^\d{4,6}[A-Z]?$/.test(params.get('stock') || '')) {
     document.body.dataset.stock = params.get('stock');
   }
+  // GAS 的同站 ?page=... 在靜態主機要對應到原樣組裝的 HTML 頁。
+  document.addEventListener('click', event => {
+    const link = event.target.closest?.('a[href]');
+    if (!link) return;
+    const target = new URL(link.href, location.href);
+    if (target.origin !== location.origin || target.pathname !== new URL('./', location.href).pathname) return;
+    const page = target.searchParams.get('page');
+    if (page === 'admin' || page === 'admin-legacy') {
+      link.href = new URL(page === 'admin' ? 'admin.html' : 'admin-legacy.html', location.href).href;
+    }
+  }, true);
 
   function runner(success, failure) {
     return new Proxy({}, {

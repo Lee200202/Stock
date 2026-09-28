@@ -150,6 +150,10 @@ function lineReply_(replyToken, messages) {
   }
   return 'HTTP ' + r.code + ' ' + lineErrText_(r);
 }
+function lineSendLoading_(uid) {
+  if (!uid) { return; }
+  try { lineApi_('post', '/v2/bot/chat/loading/start', { chatId: uid, loadingSeconds: 5 }); } catch (e) {}
+}
 
 /* ------------------------------------------------------------------ *
  * Webhook：doPost（Code.gs）→ 這裡
@@ -277,8 +281,12 @@ function lineHandleEvent_(ev, channel) {
   else if (ev.type === 'postback') { msgs = lineRoute_(uid, channel, lineParseData_(ev.postback && ev.postback.data)); }
   else if (ev.type === 'message') {
     var m = ev.message || {};
-    // 貼圖、照片和無關文字不主動打擾；有明確查詢意圖才回覆。
-    msgs = m.type === 'text' ? lineRoute_(uid, channel, lineParseText_(m.text)) : [];
+    if (m.type === 'text') {
+      lineSendLoading_(uid);
+      msgs = lineRoute_(uid, channel, lineParseText_(m.text, uid));
+    } else {
+      msgs = [lineText_('目前僅支援文字與股票代號查詢，請直接輸入代號（例如 2330）或點選下方選單！', lineQuickMain_())];
+    }
   } else { out.skipped = 'ignored'; }
   if (msgs.length && ev.replyToken) {
     out.reply = lineReply_(ev.replyToken, msgs);
@@ -313,24 +321,45 @@ function lineParseData_(data) {
 
 var LINE_ADVICE_RE_ = /(?:明天|今天|現在|何時|什麼時候)?(?:能不能|可不可以|可以|該不該|要不要|該|能|要)(?:買|賣|進場|出場|加碼|停損|抱)(?:嗎|呢)?|會(?:漲|跌)(?:嗎|到)?|目標價|進場點|買點在哪|推薦(?:哪|什麼)/;
 
-function lineParseText_(raw) {
+function lineParseText_(raw, uid) {
   var t = String(raw || '')
     .replace(/[！-～]/g, function (c) { var x = String.fromCharCode(c.charCodeAt(0) - 0xFEE0); return /[0-9A-Za-z]/.test(x) ? x : c; })
     .replace(/\s+/g, '').trim();
-  if (!t) { return { a: 'unknown' }; }
+  if (!t) { return { a: 'outofscope', kind: 'empty', raw: raw }; }
   if (t.length > 120) { return { a: 'toolong' }; }
   // 套話檢查用原文（英文的「ignore previous」要靠空白）與去空白後的文字各看一次
   if (typeof isPromptProbe_ === 'function' && (isPromptProbe_(String(raw || '')) || isPromptProbe_(t))) { return { a: 'probe' }; }
   var m;
   if ((m = t.match(/^(?:管理者)?綁定(\d{6})$/))) { return { a: 'bind', code: m[1] }; }
   if (/^(?:說明|使用說明|幫助|help|功能|選單|怎麼用|\?|？)$/i.test(t)) { return { a: 'help' }; }
+
+  // 特殊隱藏機關：啟用／關閉盤中通知
+  if (/^(?:我要|請幫我|幫我)?(?:啟用|開啟|加訂)(?:盤中即時通知|盤中通知)$/.test(t) || /^(?:我要啟用盤中通知|我要開啟盤中通知|啟用盤中通知|開啟盤中通知)$/.test(t)) {
+    return { a: 'secretsms', on: true };
+  }
+  if (/^(?:關閉|停止|取消)(?:盤中即時通知|盤中通知)$/.test(t)) {
+    return { a: 'secretsms', on: false };
+  }
+
+  // 訂閱操作與諮詢
   if (/^(?:全部停止|停止通知|停止所有通知|取消訂閱|全部取消|退訂)$/.test(t)) { return { a: 'unsub', k: 'all' }; }
   if (/^(?:停止|取消|關閉)(?:每日總覽|每日)$/.test(t)) { return { a: 'unsub', k: 'daily' }; }
   if (/^(?:停止|取消|關閉)(?:盤中即時通知|盤中通知|即時通知|盤中)$/.test(t)) { return { a: 'unsub', k: 'sms' }; }
   if (/^(?:兩種都要|全部訂閱|都要|兩個都要)$/.test(t)) { return { a: 'sub', k: 'daily' }; }
   if (/^(?:開啟|訂閱|加訂)(?:每日總覽|每日)$/.test(t)) { return { a: 'sub', k: 'daily' }; }
-  if (/^(?:開啟|訂閱|加訂)(?:盤中即時通知|盤中通知|即時通知|盤中)$/.test(t)) { return { a: 'private' }; }
   if (/^(?:訂閱|管理訂閱|通知設定|我的訂閱|訂閱狀態|設定)$/.test(t)) { return { a: 'manage' }; }
+  if (/(?:如何|怎麼|怎樣|我要)?(?:訂閱|電子報|email|信箱|信件).*(?:訂閱|電子報|email|信箱|信件)|^(?:我要如何訂閱電子報|如何訂閱電子報|怎麼訂閱電子報|訂閱電子報|電子報)$/i.test(t)) {
+    return { a: 'subhelp' };
+  }
+
+  // 日常問候與感謝
+  if (/^(?:哈[囉嘍羅]|嗨|你好|您好|早安|午安|晚安|嗨嗨|hi|hello|hey)$/i.test(t)) { return { a: 'greeting' }; }
+  if (/^(?:謝謝|多謝|感謝|感恩|3q|thx|thanks)$/i.test(t)) { return { a: 'thanks' }; }
+
+  // 接續對話確認（例如詢問「您是指華城嗎？」後回覆「是」或「對」）
+  if (/^(?:是|是的|對|對的|好|好的|沒錯)$/.test(t)) { return { a: 'confirm_stock' }; }
+
+  // 業務核心選單
   if (/^(?:今日整理|今天整理|今日總覽|每日總覽|每日整理|今天|今日|今天有影片嗎|今天有直播嗎|今天有沒有影片|今天有沒有直播)$/.test(t)) { return { a: 'today' }; }
   if (/^(?:最新盤中通知|盤中通知|最新通知|會員通知|盤中|最新簡訊|簡訊)$/.test(t)) { return { a: 'private' }; }
   if (/^(?:持股追蹤|持股|目前持股|會員持股)$/.test(t)) { return { a: 'tracker' }; }
@@ -338,24 +367,36 @@ function lineParseText_(raw) {
   if (/^(?:查詢|查個股|查股票|個股)$/.test(t)) { return { a: 'askstock' }; }
   if (LINE_ADVICE_RE_.test(t)) { return { a: 'advice', q: lineStockKeyword_(t.replace(LINE_ADVICE_RE_, '')) }; }
   if ((m = t.match(/^(?:查詢?)?(00\d{3,4}[A-Z]?|\d{4,6}[A-Z]?)(?!\d)/))) { return { a: 'stock', c: m[1] }; }
+
   // 句子中的股票意圖交由官方名稱／代號表解析；不把整句當成公司名。
-  if (/(?:查|找|紀錄|買賣|操作|提到|看法|持股)/.test(t) && /[㐀-鿿]|\d{4}/.test(t)) {
+  if (/(?:查|找|紀錄|買賣|操作|提到|看法|持股|何時|什麼時候)/.test(t) && /[㐀-鿿]|\d{4}/.test(t)) {
     return { a: 'stock', q: t };
   }
+
   var kw = lineStockKeyword_(t);
   // 單獨輸入公司名仍可查，但一般閒聊不能每句都誤當股票再回「找不到」。
   if (kw.length >= 2 && kw.length <= 12 && /[㐀-鿿]/.test(kw)) {
     var knownStock = lineResolveStock_(kw);
     if (knownStock.code || knownStock.choices) { return { a: 'stock', q: kw }; }
+    // 檢查是否有同音/近音相似候選
+    var sim = lineFindSimilarStocks_(kw);
+    if (sim.length) { return { a: 'stock', q: kw }; }
   }
-  return { a: 'unknown' };
+
+  // 權限判別：計算與數學運算
+  if (/^[\d\s+\-*/xX÷=()（）.%]+$/.test(t) || /(?:1\+1|計算|算一下|幾加幾|多少乘多少)/.test(t)) {
+    return { a: 'outofscope', kind: 'calc', raw: t };
+  }
+
+  // 其餘超出權限之提問（天氣、生活常識、閒聊等）
+  return { a: 'outofscope', kind: 'general', raw: t };
 }
-/** 「台積電最近講什麼」→「台積電」 */
+/** 「台積電最近講什麼」→「台積電」、「華成何時被提到」→「華成」 */
 function lineStockKeyword_(t) {
   return String(t || '')
-    .replace(/^(?:請問|查詢?|幫我查|我想知道)/, '')
-    .replace(/(?:最近|最新|上次|之前)?(?:講了?什麼|說了?什麼|怎麼說|怎麼看|提到什麼|的紀錄|紀錄|的說明|說明|的看法|看法|呢|嗎|？|\?|！|!|。)+$/, '')
-    .replace(/(?:最近|最新|上次|之前)$/, '')
+    .replace(/^(?:請問|查詢?|幫我查|我想查|我想知道|請教|查一下|看一下|聽說|張震說|張震講)/, '')
+    .replace(/(?:最近|最新|上次|之前|今天|近期)?(?:何時被提到|何時提到|什麼時候提到|什麼時候講過|何時講過|何時提及|何時買|何時賣|講了?什麼|說了?什麼|怎麼說|怎麼看|提到什麼|被提到|被提及|的紀錄|紀錄|的說明|說明|的看法|看法|的操作|怎麼操作|如何操作|的走勢|走勢如何|呢|嗎|？|\?|！|!|。)+$/, '')
+    .replace(/(?:何時被提到|何時提到|什麼時候提到|什麼時候講過|何時講過|何時提及|何時買|何時賣|最近|最新|上次|之前)$/, '')
     .trim();
 }
 
@@ -365,21 +406,27 @@ function lineRoute_(uid, ch, act) {
   switch (act.a) {
     case 'sub': return lineSubReply_(uid, ch, act.k, true);
     case 'unsub': return lineSubReply_(uid, ch, act.k, false);
+    case 'secretsms': return lineSecretSmsReply_(uid, ch, act.on === true || act.on === '1');
     case 'manage': return [lineManageFlex_(lineFindSub_(uid, ch))];
+    case 'subhelp': return lineSubHelpReply_();
     case 'today': return lineTodayReply_();
-    case 'sms': return [];
+    case 'sms': return lineSmsReply_();
     case 'private': return [lineText_('目前公開訂閱只提供每日總覽。你可以輸入「訂閱每日總覽」。')];
     case 'tracker': return lineTrackerReply_();
     case 'market': return lineMarketReply_();
     case 'help': return [lineHelpFlex_()];
+    case 'greeting': return lineGreetingReply_();
+    case 'thanks': return lineThanksReply_();
+    case 'confirm_stock': return lineConfirmStockReply_(uid);
     case 'askstock': return [lineText_('請輸入股票代號或名稱，例如「2330」或「台積電」。', lineQuickMain_())];
-    case 'stock': return lineStockReply_(act.c || act.q || '');
+    case 'stock': return lineStockReply_(act.c || act.q || '', uid);
     case 'advice': return lineAdviceReply_(act.q || '');
     case 'bind': return lineBindReply_(uid, ch, act.code);
     case 'probe': return [lineText_(LINE_SAFE_REPLY_, lineQuickMain_())];
     case 'toolong': return [lineText_('訊息太長了。請輸入股票代號或名稱，或點下方的按鈕。', lineQuickMain_())];
+    case 'outofscope': return lineOutOfScopeReply_(act.kind, act.raw);
     case 'tab': return [];
-    default: return [];
+    default: return lineOutOfScopeReply_('general', act.raw);
   }
 }
 
@@ -463,7 +510,7 @@ function lineSubReply_(uid, ch, k, on) {
   if (!keys.length) { return [lineManageFlex_(lineFindSub_(uid, ch))]; }
   var r = lineUpsertSub_(uid, ch, function (s) {
     keys.forEach(function (x) { s[x] = on; });
-    s.sms = false; // 舊版勾選不可在新版管理卡顯示成仍會寄送。
+    if (!on && (k === 'sms' || k === 'all')) { s.sms = false; }
     if (on) { s.consentAt = lineNow_(); s.consentVer = LINE_CONSENT_VERSION_; s.friend = 'follow'; }
     s.lastSeen = lineNow_();
   });
@@ -651,23 +698,199 @@ function lineResolveStock_(q) {
   if (hits.length > 1) {
     return { q: q, more: hits.length > 10, choices: hits.slice(0, 10).map(function (n) { return { code: byName[n], name: nameOf(byName[n]) }; }) };
   }
-  return { none: true, q: q };
+  // 若包含「何時被提到」等問句贅詞，嘗試剝除後再比對一次
+  var stripped = lineStockKeyword_(q);
+  if (stripped && stripped !== q && stripped.length >= 2) {
+    var subRes = lineResolveStock_(stripped);
+    if (!subRes.none) { return subRes; }
+  }
+  return { none: true, q: (stripped && stripped.length >= 2 ? stripped : q) };
 }
+
+/**
+ * 尋找可能打錯字或同音/近音的股票候選
+ * 例如：華成 → 華城（1519）、台績電 → 台積電（2330）
+ */
+function lineFindSimilarStocks_(q) {
+  q = String(q || '').replace(/[*＊\s]/g, '').replace(/[－–]/g, '-').trim();
+  if (!q || q.length < 2 || q.length > 8) { return []; }
+  var map = {};
+  try { map = loadCodeMap_() || {}; } catch (e) { map = {}; }
+  var byCode = map.byCode || {}, byName = map.byName || {};
+  var table = (typeof PUBLIC_CONFIRMED_NAMES === 'object' && PUBLIC_CONFIRMED_NAMES) || {};
+  var nameOf = function (c) {
+    return typeof narrativeName_ === 'function' ? narrativeName_((byCode[c] || {}).name || '') : String((byCode[c] || {}).name || '');
+  };
+
+  var SOUND_MAP = {
+    '成': ['城'], '城': ['成'],
+    '績': ['積'], '積': ['績'],
+    '連': ['聯'], '聯': ['連'],
+    '紅': ['鴻'], '弘': ['鴻'], '鴻': ['紅', '弘'],
+    '光': ['廣'], '廣': ['光'],
+    '技': ['際'], '際': ['技'],
+    '偉': ['緯'], '緯': ['偉'],
+    '闖': ['創'], '創': ['闖'],
+    '揚': ['陽'], '陽': ['揚'],
+    '碩': ['享', '祥'], '享': ['碩', '祥'], '祥': ['碩', '享'],
+    '銳': ['瑞', '譜'], '瑞': ['銳', '譜'], '譜': ['銳', '瑞'],
+    '澤': ['嘉', '家'], '嘉': ['澤', '家'], '家': ['澤', '嘉'],
+    '晶': ['金', '精'], '金': ['晶', '精'], '精': ['晶', '金'],
+    '湖': ['服', '福'], '川': ['穿'],
+    '立': ['力', '利'], '力': ['立', '利'], '利': ['立', '力'],
+    '達': ['答'], '答': ['達'],
+    '巨': ['具'], '具': ['巨'],
+    '泰': ['態'], '態': ['泰'],
+    '宇': ['雨', '語', '玉'], '玉': ['宇', '雨', '裕'], '裕': ['玉', '雨', '宇']
+  };
+
+  var candidates = {}, candidateList = [];
+  var addCandidate = function (code, score) {
+    if (!code || !byCode[code] || candidates[code]) { return; }
+    var nm = nameOf(code) || (byCode[code] && byCode[code].name) || code;
+    var recs = lineStockRecords_(code);
+    var finalScore = score + (recs.length > 0 ? 50 : 0);
+    candidates[code] = true;
+    candidateList.push({ code: code, name: nm, score: finalScore });
+  };
+
+  // 1. 同音替換比對
+  for (var i = 0; i < q.length; i++) {
+    var ch = q.charAt(i);
+    var alts = SOUND_MAP[ch] || [];
+    for (var a = 0; a < alts.length; a++) {
+      var variant = q.slice(0, i) + alts[a] + q.slice(i + 1);
+      if (byName[variant]) { addCandidate(byName[variant], 100); }
+      if (byName[variant + '*']) { addCandidate(byName[variant + '*'], 98); }
+      if (table[variant]) { addCandidate(table[variant][0], 105); }
+    }
+  }
+
+  // 2. 字元重疊比對
+  var allNames = Object.keys(byName);
+  for (var j = 0; j < allNames.length; j++) {
+    var rawName = allNames[j];
+    var normName = rawName.replace(/[*＊]+$/, '').replace(/-KY$/i, '');
+    if (normName === q) { continue; }
+    if (Math.abs(normName.length - q.length) <= 1) {
+      var matches = 0;
+      for (var k = 0; k < q.length; k++) {
+        if (normName.indexOf(q.charAt(k)) >= 0) { matches++; }
+      }
+      if (q.length === 2 && matches === 1 && normName.charAt(0) === q.charAt(0)) {
+        addCandidate(byName[rawName], 40);
+      } else if (q.length >= 3 && matches >= 2) {
+        addCandidate(byName[rawName], 60 + matches * 10);
+      }
+    }
+  }
+
+  candidateList.sort(function (a, b) { return b.score - a.score; });
+  return candidateList.slice(0, 4);
+}
+
 function lineStockRecords_(code) {
   var res = null;
   try { res = searchStock(code); } catch (e) { res = null; }
   return (res && res.trades || []).filter(function (t) { return String(t.code) === String(code); });
 }
-function lineStockReply_(q) {
+
+function lineStockReply_(q, uid) {
   var r = lineResolveStock_(q);
   if (r.choices) {
     return [lineText_('「' + lineClip_(r.q, 12) + '」對到好幾檔' + (r.more ? '（只列前十檔）' : '') + '，請選一檔：',
       r.choices.map(function (c) { return linePb_(c.name + ' ' + c.code, 'a=stock&c=' + c.code, c.name + '（' + c.code + '）'); }))];
   }
-  if (r.none) { return [lineText_('找不到「' + lineClip_(r.q, 12) + '」這檔股票。請輸入代號（例如 2330）或完整名稱。', lineQuickMain_())]; }
+  if (r.none) {
+    var similar = lineFindSimilarStocks_(r.q);
+    if (similar.length) {
+      if (similar.length === 1) {
+        var best = similar[0];
+        if (uid) { try { CacheService.getScriptCache().put('linesuggest_' + uid, best.code, 300); } catch (e) {} }
+        return [lineText_('找不到「' + lineClip_(r.q, 12) + '」，請問您是指「' + best.name + '（' + best.code + '）」嗎？', [
+          linePb_('查詢 ' + best.name, 'a=stock&c=' + best.code, '查詢 ' + best.name + '（' + best.code + '）'),
+          linePb_('查其他股票', 'a=askstock', '查其他股票'),
+          linePb_('今日整理', 'a=today', '今日整理')
+        ])];
+      }
+      return [lineText_('找不到「' + lineClip_(r.q, 12) + '」，您是否想查詢下列可能股票？',
+        similar.slice(0, 4).map(function (c) {
+          return linePb_(c.name + ' ' + c.code, 'a=stock&c=' + c.code, c.name + '（' + c.code + '）');
+        }).concat([linePb_('查其他股票', 'a=askstock', '查其他股票')]))];
+    }
+    return [lineText_('找不到「' + lineClip_(r.q, 12) + '」這檔股票。請輸入代號（例如 2330）或完整名稱。', lineQuickMain_())];
+  }
   var list = lineStockRecords_(r.code), label = (r.name || r.code) + '（' + r.code + '）';
   if (!list.length) { return [lineText_(label + '目前沒有可核對的已發布紀錄。', lineQuickMain_())]; }
   return [lineStockFlex_(r, list)];
+}
+
+function lineConfirmStockReply_(uid) {
+  var code = '';
+  if (uid) {
+    try {
+      code = CacheService.getScriptCache().get('linesuggest_' + uid) || '';
+      if (code) { CacheService.getScriptCache().remove('linesuggest_' + uid); }
+    } catch (e) { code = ''; }
+  }
+  if (code) { return lineStockReply_(code, uid); }
+  return [lineText_('請問您想查詢哪一檔股票呢？請輸入股票代號（例如 2330）或完整名稱。', lineQuickMain_())];
+}
+
+function lineOutOfScopeReply_(kind, raw) {
+  if (kind === 'calc') {
+    return [lineText_('抱歉，本服務主要專注於張震分析師節目之「每日總覽重點」、「個股歷史提及紀錄」與「通知訂閱」，計算與數學運算不在我的服務範圍內喔。\n\n您可以試試：\n• 輸入股票代號或名稱（例如「2330」或「台積電」）\n• 點選下方「今日整理」查看最新分析\n• 點選「市場總覽」查看加權指數與台指期行情', lineQuickMain_())];
+  }
+  return [lineText_('抱歉，此問題不在我的工作與服務範圍內喔。我專責提供張震分析師的節目觀點、個股歷史提及紀錄與訂閱服務。\n\n歡迎輸入股票代號（例如「2330」）或點選下方按鈕查詢！', lineQuickMain_())];
+}
+
+function lineSecretSmsReply_(uid, ch, on) {
+  if (on) {
+    lineUpsertSub_(uid, ch, function (s) {
+      s.sms = true;
+      s.consentAt = lineNow_();
+      s.consentVer = LINE_CONSENT_VERSION_;
+      s.friend = 'follow';
+      s.lastSeen = lineNow_();
+    });
+    return [lineText_('✨【特殊隱藏功能已啟用】\n已為您開啟「盤中即時通知」！\n\n日後當有會員即時簡訊或盤中重要通知時，系統將會即時發送至本聊天室。\n\n若日後想關閉，可直接輸入「關閉盤中通知」或點選「管理訂閱」。祝您投資順利！', [
+      linePb_('今日整理', 'a=today', '今日整理'),
+      linePb_('管理訂閱', 'a=manage', '管理訂閱'),
+      linePb_('關閉盤中通知', 'a=secretsms&on=0', '關閉盤中通知')
+    ])];
+  } else {
+    lineUpsertSub_(uid, ch, function (s) {
+      s.sms = false;
+      s.lastSeen = lineNow_();
+    });
+    return [lineText_('已為您關閉「盤中即時通知」。日後將不再接收盤中即時推送。\n（每日總覽若有開啟不受影響）', [
+      linePb_('管理訂閱', 'a=manage', '管理訂閱'),
+      linePb_('今日整理', 'a=today', '今日整理')
+    ])];
+  }
+}
+
+function lineGreetingReply_() {
+  return [lineText_('您好！我是逐日追蹤機器人。\n\n您可以輸入股票代號或名稱（例如「2330」或「台積電」）查詢分析師提及紀錄，或點選下方按鈕查看最新資訊！', lineQuickMain_())];
+}
+
+function lineThanksReply_() {
+  return [lineText_('不客氣！祝您投資順利。若需要查詢其他股票或最新盤勢，隨時輸入代號或點選下方選單即可。', lineQuickMain_())];
+}
+
+function lineSubHelpReply_() {
+  var mail = lineSiteUrl_('mail');
+  var lines = [
+    '訂閱通知說明：',
+    '• LINE 每日總覽：可在本聊天室點選「管理訂閱」開啟，每個交易日直播整理完成後主動推送。',
+    '• Email 電子報（每日整理）：請前往官方網站的「訂閱通知」頁面輸入您的 Email 即可完成訂閱。'
+  ];
+  if (mail) { lines.push('網站網址：' + mail); }
+  return [lineText_(lines.join('\n'), [
+    linePb_('管理訂閱', 'a=manage', '管理訂閱'),
+    linePb_('今日整理', 'a=today', '今日整理'),
+    mail ? lineUri_('前往網站', mail) : linePb_('查個股', 'a=askstock', '查個股')
+  ].filter(Boolean))];
 }
 /** 「明天能不能買？」：說明做不到，再附上最近一次提及的紀錄（有的話）。 */
 function lineAdviceReply_(q) {
@@ -789,7 +1012,9 @@ function lineLastAccepted_(uid) {
 }
 function lineManageFlex_(s) {
   var last = s && s.uid ? lineLastAccepted_(s.uid) : {};
-  var rows = ['daily'].map(function (k) {
+  var kinds = ['daily'];
+  if (s && s.sms) { kinds.push('sms'); }
+  var rows = kinds.map(function (k) {
     var on = !!(s && s[k]);
     return fxBox_('vertical', [
       fxBox_('horizontal', [fxText_(LINE_KIND_NAME_[k], { size: 'sm', weight: 'bold', color: LINE_C_.ink, flex: 1 }),
@@ -798,12 +1023,12 @@ function lineManageFlex_(s) {
       last[k] ? fxText_('最近一次 LINE 已接受：' + String(last[k]).slice(5, 16), { size: 'xxs', color: LINE_C_.muted, margin: 'xs' }) : null
     ], { backgroundColor: LINE_C_.soft, cornerRadius: '10px', paddingAll: '12px' });
   });
-  var btns = ['daily'].map(function (k) {
+  var btns = kinds.map(function (k) {
     return s && s[k] ? fxBtn_(linePb_('停止' + LINE_KIND_NAME_[k], 'a=unsub&k=' + k, '停止' + LINE_KIND_NAME_[k]), 'secondary')
                      : fxBtn_(linePb_('開啟' + LINE_KIND_NAME_[k], 'a=sub&k=' + k, '開啟' + LINE_KIND_NAME_[k]));
   });
-  if (s && s.daily) { btns.push(fxBtn_(linePb_('全部停止', 'a=unsub&k=all', '全部停止'), 'link')); }
-  var on = ['daily'].filter(function (k) { return s && s[k]; }).map(function (k) { return LINE_KIND_NAME_[k]; });
+  if (s && (s.daily || s.sms)) { btns.push(fxBtn_(linePb_('全部停止', 'a=unsub&k=all', '全部停止'), 'link')); }
+  var on = kinds.filter(function (k) { return s && s[k]; }).map(function (k) { return LINE_KIND_NAME_[k]; });
   return lineFlex_('LINE 通知設定：' + (on.length ? '已開啟' + on.join('、') : '目前沒有開啟任何通知'), fxBubble_(
     fxHeader_('管理訂閱', 'LINE 通知設定'), rows.concat([fxNote_('這裡只管 LINE 通知；Email 訂閱請到網站「訂閱通知」。')]), btns));
 }

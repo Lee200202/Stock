@@ -1,5 +1,5 @@
 // Free Cloudflare Worker: public Pages frontend -> existing Apps Script backend.
-// No credentials are sent to the browser. Admin functions are never proxied.
+// The bridge token stays server-side. Admin methods still require the existing admin key.
 const ALLOWED = 'https://lee200202.github.io';
 const ADMIN_METHODS = ('apiAdminCancelCrawl apiAdminCancelDaySync apiAdminCancelFix ' +
   'apiAdminCancelFullFix apiAdminCancelJob apiAdminCancelRefresh apiAdminCancelSmsJob ' +
@@ -7,8 +7,11 @@ const ADMIN_METHODS = ('apiAdminCancelCrawl apiAdminCancelDaySync apiAdminCancel
   'apiAdminDaySyncState apiAdminDecisions apiAdminDeleteRow apiAdminDeleteSms ' +
   'apiAdminDeleteSmsBatch apiAdminDispatch apiAdminFixState apiAdminFullFixState ' +
   'apiAdminHeldList apiAdminHoldToday apiAdminInstallSectorCatchup apiAdminJobStatus ' +
-  'apiAdminKCoverage apiAdminLineLookup apiAdminLineRetry apiAdminLineSaveConfig ' +
-  'apiAdminLineStatus apiAdminListSms apiAdminLogin apiAdminManualDays ' +
+  'apiAdminKCoverage apiAdminLineBindCode apiAdminLineClearTesters ' +
+  'apiAdminLineLookup apiAdminLineRetry apiAdminLineSaveConfig ' +
+  'apiAdminLineSetupRichMenu apiAdminLineStatus apiAdminLineTestPush ' +
+  'apiAdminLineValidate apiAdminListSms apiAdminLogin apiAdminManualDays ' +
+  'apiAdminSetSmsEmail ' +
   'apiAdminManualEntry apiAdminMergeTranscripts apiAdminOpsDay apiAdminPreviewCleanup ' +
   'apiAdminRebuildMail apiAdminReclassify apiAdminResumeFullFix apiAdminResumeJob ' +
   'apiAdminRetryFullFixStep apiAdminRunInfo apiAdminSetDailyPushStart ' +

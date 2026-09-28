@@ -14,7 +14,15 @@ GAS = (COPY / "SiteBridge.gs").read_text(encoding="utf-8")
 
 def invoked(*filenames: str) -> set[str]:
     content = "\n".join((COPY / name).read_text(encoding="utf-8") for name in filenames)
-    return set(re.findall(r"\.(api[A-Z][A-Za-z0-9_]*)\s*\(", content))
+    # 後台工具有 run[fn](KEY) 動態呼叫；fn 是字串，舊檢查漏掉它，部署後才出現 method-not-allowed。
+    direct = re.findall(r"\.(api[A-Z][A-Za-z0-9_]*)\s*\(", content)
+    quoted = re.findall(r"['\"](apiAdmin[A-Z][A-Za-z0-9_]*)['\"]", content)
+    return set(direct + quoted)
+
+
+def admin_allowlist(source: str, start: str) -> set[str]:
+    block = source.split(start, 1)[1].split(".split(' ')", 1)[0]
+    return set(re.findall(r"apiAdmin[A-Z][A-Za-z0-9_]*", block))
 
 
 def main() -> None:
@@ -25,9 +33,13 @@ def main() -> None:
     for name in public:
         if f"{name}: {name}" not in GAS or f"'{name}'" not in WORKER:
             raise SystemExit(f"Missing public bridge method: {name}")
+    gas_admin = admin_allowlist(GAS, "var adminNames =")
+    worker_admin = admin_allowlist(WORKER, "const ADMIN_METHODS =")
     for name in admin:
-        if name not in GAS or name not in WORKER:
+        if name.startswith("apiAdmin") and (name not in gas_admin or name not in worker_admin):
             raise SystemExit(f"Missing admin bridge method: {name}")
+        if not name.startswith("apiAdmin") and (f"{name}: {name}" not in GAS or f"'{name}'" not in WORKER):
+            raise SystemExit(f"Missing public method used by admin: {name}")
     if "getProperty('ADMIN_KEY')" not in GAS:
         raise SystemExit("Admin bridge lost its backend key check")
 

@@ -29,7 +29,6 @@ function apiLookupSubscription(email) {
     ok: true,
     email: String(hit.row['Email'] || ''),
     daily: items.indexOf('每日總覽') >= 0,
-    sms: items.indexOf('會員簡訊') >= 0,
     createdAt: fmtDate_(hit.row['建立時間'])
   };
 }
@@ -46,19 +45,21 @@ function apiUpdateSubscription(email, payload) {
   if (!hit) { return { ok: false, message: '這個信箱目前沒有生效中的訂閱。' }; }
   payload = payload || {};
 
+  // 公開管理頁只改每日總覽；舊的盤中訂閱只能在後台開啟，公開頁不可意外覆寫。
+  var oldItems = String(hit.row['訂閱項目'] || '');
   var items = [];
   if (payload.daily) { items.push('每日總覽'); }
-  if (payload.sms) { items.push('會員簡訊'); }
+  if (oldItems.indexOf('會員簡訊') >= 0) { items.push('會員簡訊'); }
 
   if (!items.length) {
     writeSubscriptionFields_(hit, {'狀態':'已取消'});
-    return { ok: true, message: '兩項都沒有勾選，已停止接收所有信件。之後可以回網站重新訂閱。' };
+    return { ok: true, message: '已停止接收每日總覽。之後可以回網站重新訂閱。' };
   }
 
   // 關注股票提醒已拿掉：順手清空舊的代號欄，免得日後誰又依它寄信。
-  writeSubscriptionFields_(hit, {'訂閱項目':items.join('、'), '關注股票代號':'', '狀態':'生效中'});
+  writeSubscriptionFields_(hit, {'訂閱項目':items.join('、'), '關注股票代號':'', '狀態':'生效'});
 
-  return { ok: true, message: '已儲存：' + items.join('、').replace('會員簡訊', '盤中即時通知') + '。' };
+  return { ok: true, message: '每日總覽已' + (payload.daily ? '開啟' : '停止') + '；其他既有設定保留。' };
   });
 }
 
@@ -381,17 +382,48 @@ function apiSuggestCodes(keyword) {
 
 /** 建立訂閱 */
 /** 會員通知分頁：有簡訊的日期，給日曆用。 */
-function apiListSmsDates() {
+function apiListSmsDates(key) {
+  adminAuth_(key);
   return smsDates_();
 }
 
 /** 會員通知分頁的資料。date 有給就只回那一天。含原文與解析出來的每一列。 */
-function apiGetMemberSms(limit, date) {
+function apiGetMemberSms(limit, date, key) {
+  adminAuth_(key);
   return memberSmsData_(limit, date);
 }
 
 function apiSubscribe(payload) {
-  return createSubscription(payload);
+  // 即使舊版前台或直接呼叫 API 送來 sms=true，公開入口也只能加訂每日總覽。
+  return createSubscription({ email: payload && payload.email, daily: true, sms: false });
+}
+
+/** 後台專用：需先取得收件者同意。單獨更新盤中通知，不改每日總覽。 */
+function apiAdminSetSmsEmail(key, email, enabled, consentConfirmed) {
+  try { adminAuth_(key); } catch (e) { return { ok: false, reason: String(e.message || e) }; }
+  email = String(email || '').trim();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { return { ok: false, reason: '請輸入正確 Email。' }; }
+  if (enabled && consentConfirmed !== true) { return { ok: false, reason: '須先確認收件者已同意。' }; }
+  var result = withLock_(function () {
+    var hit = findSubscription_(email);
+    if (!hit) {
+      if (!enabled) { return { ok: false, reason: '找不到這個信箱的訂閱。' }; }
+      var token = Utilities.getUuid().replace(/-/g, '');
+      getSheet_('使用者訂閱清單').appendRow([email, '會員簡訊', '', todayStr_(), token, '生效']);
+      return { ok: true, isNew: true, token: token, message: '盤中通知已開啟。' };
+    }
+    var daily = String(hit.row['訂閱項目'] || '').indexOf('每日總覽') >= 0 && String(hit.row['狀態'] || '') !== '已取消';
+    var items = (daily ? ['每日總覽'] : []).concat(enabled ? ['會員簡訊'] : []);
+    writeSubscriptionFields_(hit, { '訂閱項目': items.join('、'), '狀態': items.length ? '生效' : '已取消' });
+    return { ok: true, message: enabled ? '盤中通知已開啟；原有每日總覽設定保留。' : '盤中通知已停止；原有每日總覽設定保留。' };
+  });
+  if (result.isNew) {
+    try { sendWelcomeMail_(email, result.token, false, [], true, true); }
+    catch (e) { result.message += ' 訂閱確認信寄送失敗，請核對信箱與寄送紀錄。'; }
+    delete result.token;
+    delete result.isNew;
+  }
+  return result;
 }
 
 /** 使用者上下文：回傳常查詢股票（規格書 4.6 節） */

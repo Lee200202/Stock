@@ -1,6 +1,6 @@
 /**
  * 檔案：Line.gs
- * LINE 官方帳號（v73，2026/09/27）：加好友、訂閱開關、查詢、每日總覽與盤中即時通知推送。
+ * LINE 官方帳號：加好友、訂閱開關、查詢與每日總覽推送。
  * 規劃：docs/0927-review/LINE-訂閱與對話工作流規劃.md　部署：docs/0927-line/部署與驗證.md
  *
  * 路線
@@ -13,7 +13,7 @@
  *
  * 通知（與 Email 分開記帳；Email 已寄不代表 LINE 已送，反之亦然）
  *   每日總覽　lineDailyTick_：交易日、最早寄送時間到 22:00、有影片、文章存在、品質關卡「完成」才建一筆 daily|日期。
- *   盤中通知　cmNotifyNew_ 一開頭呼叫 lineQueueSms_：sms|文章ID（修訂另帶內容版本），發文 60 分鐘內送，過時標「逾時未補送」。
+ *   舊版盤中通知入口保留空函式相容；LINE 不再排送或提供公開查詢。
  *   寄送器　　lineDeliverTick_：按訂閱快照展開收件者，逐人 push 並帶 X-Line-Retry-Key；
  *             2xx／409＝LINE 已接受，逾時／5xx 用同一把 key 重試，其他 4xx 記原因不重試，429 月額度用完就停。
  *             「已接受」不等於使用者已看到，後台不寫「已送達」。
@@ -275,8 +275,8 @@ function lineHandleEvent_(ev, channel) {
   else if (ev.type === 'postback') { msgs = lineRoute_(uid, channel, lineParseData_(ev.postback && ev.postback.data)); }
   else if (ev.type === 'message') {
     var m = ev.message || {};
-    msgs = m.type === 'text' ? lineRoute_(uid, channel, lineParseText_(m.text))
-      : [lineText_('目前只看得懂文字。輸入「說明」看看可以做什麼。', lineQuickMain_())];
+    // 貼圖、照片和無關文字不主動打擾；有明確查詢意圖才回覆。
+    msgs = m.type === 'text' ? lineRoute_(uid, channel, lineParseText_(m.text)) : [];
   } else { out.skipped = 'ignored'; }
   if (msgs.length && ev.replyToken) {
     out.reply = lineReply_(ev.replyToken, msgs);
@@ -315,7 +315,7 @@ function lineParseText_(raw) {
   var t = String(raw || '')
     .replace(/[！-～]/g, function (c) { var x = String.fromCharCode(c.charCodeAt(0) - 0xFEE0); return /[0-9A-Za-z]/.test(x) ? x : c; })
     .replace(/\s+/g, '').trim();
-  if (!t) { return { a: 'help' }; }
+  if (!t) { return { a: 'unknown' }; }
   if (t.length > 120) { return { a: 'toolong' }; }
   // 套話檢查用原文（英文的「ignore previous」要靠空白）與去空白後的文字各看一次
   if (typeof isPromptProbe_ === 'function' && (isPromptProbe_(String(raw || '')) || isPromptProbe_(t))) { return { a: 'probe' }; }
@@ -325,19 +325,27 @@ function lineParseText_(raw) {
   if (/^(?:全部停止|停止通知|停止所有通知|取消訂閱|全部取消|退訂)$/.test(t)) { return { a: 'unsub', k: 'all' }; }
   if (/^(?:停止|取消|關閉)(?:每日總覽|每日)$/.test(t)) { return { a: 'unsub', k: 'daily' }; }
   if (/^(?:停止|取消|關閉)(?:盤中即時通知|盤中通知|即時通知|盤中)$/.test(t)) { return { a: 'unsub', k: 'sms' }; }
-  if (/^(?:兩種都要|全部訂閱|都要|兩個都要)$/.test(t)) { return { a: 'sub', k: 'both' }; }
+  if (/^(?:兩種都要|全部訂閱|都要|兩個都要)$/.test(t)) { return { a: 'sub', k: 'daily' }; }
   if (/^(?:開啟|訂閱|加訂)(?:每日總覽|每日)$/.test(t)) { return { a: 'sub', k: 'daily' }; }
-  if (/^(?:開啟|訂閱|加訂)(?:盤中即時通知|盤中通知|即時通知|盤中)$/.test(t)) { return { a: 'sub', k: 'sms' }; }
+  if (/^(?:開啟|訂閱|加訂)(?:盤中即時通知|盤中通知|即時通知|盤中)$/.test(t)) { return { a: 'private' }; }
   if (/^(?:訂閱|管理訂閱|通知設定|我的訂閱|訂閱狀態|設定)$/.test(t)) { return { a: 'manage' }; }
   if (/^(?:今日整理|今天整理|今日總覽|每日總覽|每日整理|今天|今日|今天有影片嗎|今天有直播嗎|今天有沒有影片|今天有沒有直播)$/.test(t)) { return { a: 'today' }; }
-  if (/^(?:最新盤中通知|盤中通知|最新通知|會員通知|盤中|最新簡訊|簡訊)$/.test(t)) { return { a: 'sms' }; }
+  if (/^(?:最新盤中通知|盤中通知|最新通知|會員通知|盤中|最新簡訊|簡訊)$/.test(t)) { return { a: 'private' }; }
   if (/^(?:持股追蹤|持股|目前持股|會員持股)$/.test(t)) { return { a: 'tracker' }; }
   if (/^(?:市場總覽|市場|大盤|加權指數|台指期|行情)$/.test(t)) { return { a: 'market' }; }
   if (/^(?:查詢|查個股|查股票|個股)$/.test(t)) { return { a: 'askstock' }; }
   if (LINE_ADVICE_RE_.test(t)) { return { a: 'advice', q: lineStockKeyword_(t.replace(LINE_ADVICE_RE_, '')) }; }
   if ((m = t.match(/^(?:查詢?)?(00\d{3,4}[A-Z]?|\d{4,6}[A-Z]?)(?!\d)/))) { return { a: 'stock', c: m[1] }; }
+  // 句子中的股票意圖交由官方名稱／代號表解析；不把整句當成公司名。
+  if (/(?:查|找|紀錄|買賣|操作|提到|看法|持股)/.test(t) && /[㐀-鿿]|\d{4}/.test(t)) {
+    return { a: 'stock', q: t };
+  }
   var kw = lineStockKeyword_(t);
-  if (kw.length >= 2 && kw.length <= 12 && /[㐀-鿿]/.test(kw)) { return { a: 'stock', q: kw }; }
+  // 單獨輸入公司名仍可查，但一般閒聊不能每句都誤當股票再回「找不到」。
+  if (kw.length >= 2 && kw.length <= 12 && /[㐀-鿿]/.test(kw)) {
+    var knownStock = lineResolveStock_(kw);
+    if (knownStock.code || knownStock.choices) { return { a: 'stock', q: kw }; }
+  }
   return { a: 'unknown' };
 }
 /** 「台積電最近講什麼」→「台積電」 */
@@ -357,7 +365,8 @@ function lineRoute_(uid, ch, act) {
     case 'unsub': return lineSubReply_(uid, ch, act.k, false);
     case 'manage': return [lineManageFlex_(lineFindSub_(uid, ch))];
     case 'today': return lineTodayReply_();
-    case 'sms': return lineSmsReply_();
+    case 'sms': return [];
+    case 'private': return [lineText_('目前公開訂閱只提供每日總覽。你可以輸入「訂閱每日總覽」。')];
     case 'tracker': return lineTrackerReply_();
     case 'market': return lineMarketReply_();
     case 'help': return [lineHelpFlex_()];
@@ -368,7 +377,7 @@ function lineRoute_(uid, ch, act) {
     case 'probe': return [lineText_(LINE_SAFE_REPLY_, lineQuickMain_())];
     case 'toolong': return [lineText_('訊息太長了。請輸入股票代號或名稱，或點下方的按鈕。', lineQuickMain_())];
     case 'tab': return [];
-    default: return [lineText_('我看不懂這句話。可以輸入股票代號或名稱（例如 2330），或點下方的按鈕。', lineQuickMain_())];
+    default: return [];
   }
 }
 
@@ -430,9 +439,9 @@ function lineTouch_(uid, ch) {
 }
 
 function lineOnFollow_(uid, ch, ev) {
-  var r = lineUpsertSub_(uid, ch, function (s) { s.friend = 'follow'; s.lastSeen = lineNow_(); });
+  var r = lineUpsertSub_(uid, ch, function (s) { s.friend = 'follow'; s.sms = false; s.lastSeen = lineNow_(); });
   try { CacheService.getScriptCache().put('linetouch_' + uid, '1', 3600); } catch (e) {}
-  return [lineWelcomeFlex_(r.sub, !r.created && (r.sub.daily || r.sub.sms))];
+  return [lineWelcomeFlex_(r.sub, !r.created && r.sub.daily)];
 }
 /** 封鎖或刪除好友：停止推送，但保留原本的選項（解除封鎖時照舊）；也不是 Email 退訂。 */
 function lineOnUnfollow_(uid, ch) {
@@ -446,10 +455,13 @@ var LINE_KIND_WHEN_ = {
 };
 
 function lineSubReply_(uid, ch, k, on) {
-  var keys = (k === 'both' || k === 'all') ? ['daily', 'sms'] : (k === 'daily' || k === 'sms') ? [k] : [];
+  // 舊圖文選單的 postback 也會進來；公開入口不得重開盤中推送。
+  if (on && (k === 'sms' || k === 'both')) { return [lineText_('目前公開訂閱只提供每日總覽。')]; }
+  var keys = k === 'all' ? ['daily', 'sms'] : k === 'daily' || (!on && k === 'sms') ? [k] : [];
   if (!keys.length) { return [lineManageFlex_(lineFindSub_(uid, ch))]; }
   var r = lineUpsertSub_(uid, ch, function (s) {
     keys.forEach(function (x) { s[x] = on; });
+    s.sms = false; // 舊版勾選不可在新版管理卡顯示成仍會寄送。
     if (on) { s.consentAt = lineNow_(); s.consentVer = LINE_CONSENT_VERSION_; s.friend = 'follow'; }
     s.lastSeen = lineNow_();
   });
@@ -465,15 +477,15 @@ function lineSubConfirm_(s, before, keys, on) {
     if (same.length) { lines.push(names(same) + '原本就已開啟。'); }
     keys.forEach(function (x) { lines.push(LINE_KIND_WHEN_[x]); });
     lines.push('輸入「管理訂閱」可以查看或停用；Email 訂閱不受影響。');
-    ['daily', 'sms'].forEach(function (x) { if (!s[x]) { quick.push(linePb_('開啟' + LINE_KIND_NAME_[x], 'a=sub&k=' + x, '開啟' + LINE_KIND_NAME_[x])); } });
+    ['daily'].forEach(function (x) { if (!s[x]) { quick.push(linePb_('開啟' + LINE_KIND_NAME_[x], 'a=sub&k=' + x, '開啟' + LINE_KIND_NAME_[x])); } });
     quick.push(linePb_('今日整理', 'a=today', '今日整理'));
   } else {
     if (changed.length) { lines.push('已停止：' + names(changed) + '。'); }
     if (same.length) { lines.push(names(same) + '原本就沒有開啟。'); }
-    var still = ['daily', 'sms'].filter(function (x) { return s[x]; });
+    var still = ['daily'].filter(function (x) { return s[x]; });
     lines.push(still.length ? names(still) + '仍維持開啟。' : '目前沒有開啟任何 LINE 通知。');
     lines.push('Email 訂閱不受影響；之後可以在「管理訂閱」重新開啟。');
-    keys.forEach(function (x) { if (!s[x]) { quick.push(linePb_('重新開啟' + LINE_KIND_NAME_[x], 'a=sub&k=' + x, '開啟' + LINE_KIND_NAME_[x])); } });
+    keys.forEach(function (x) { if (x === 'daily' && !s[x]) { quick.push(linePb_('重新開啟' + LINE_KIND_NAME_[x], 'a=sub&k=' + x, '開啟' + LINE_KIND_NAME_[x])); } });
   }
   quick.push(linePb_('管理訂閱', 'a=manage', '管理訂閱'));
   return lineText_(lines.join('\n'), quick);
@@ -535,6 +547,9 @@ function lineTodayState_() {
   if (closed) { return { state: 'closed', date: today, why: closed }; }
   var noShow = noVideoToday_(today);
   if (noShow === '今日無直播') { return { state: 'noshow', date: today }; }
+  if (typeof cmContentSyncPending_ === 'function' && cmContentSyncPending_(today)) {
+    return { state: 'pending', date: today, why: '簡訊與逐字稿說明尚在合併' };
+  }
   var row = lineDailyRow_(today), g = (typeof gateState_ === 'function' ? gateState_() : null) || {};
   if (row && row.article && !noShow && g.date === today && g.status === '完成') {
     return { state: 'ready', date: today, article: row.article };
@@ -545,9 +560,9 @@ function lineTodayReply_() {
   var st = lineTodayState_(), mail = lineSiteUrl_('mail'), quick = lineQuickMain_();
   if (st.state === 'ready') { return [lineDailyFlex_(lineDailyInfo_(st.date, st.article), '今日整理')]; }
   if (st.state === 'closed') {
-    return [lineText_('今天' + (st.why === '週末不開盤' ? '是週末' : '台股休市') + '，沒有每日整理。會員簡訊若有發布，仍會送盤中即時通知。', quick)];
+    return [lineText_('今天' + (st.why === '週末不開盤' ? '是週末' : '台股休市') + '，沒有每日整理。', quick)];
   }
-  if (st.state === 'noshow') { return [lineText_('今天沒有直播，沒有每日整理。會員簡訊若有發布，仍會送盤中即時通知。', quick)]; }
+  if (st.state === 'noshow') { return [lineText_('今天沒有直播，沒有每日整理。', quick)]; }
   var hhmm = Number(Utilities.formatDate(new Date(), 'Asia/Taipei', 'HHmm'));
   return [lineText_('還在判讀：今天的影片整理完成、通過品質檢查後才會發布（' + st.why + '）。' +
     (hhmm < 1200 ? '通常在中午過後。' : '') + (mail ? '\n之前的整理可以到網站「郵件查詢」看：' + mail : ''), quick)];
@@ -599,7 +614,7 @@ function lineMarketCards_() {
 }
 
 function lineResolveStock_(q) {
-  q = String(q || '').replace(/[*＊\s]/g, '');
+  q = String(q || '').replace(/[*＊\s]/g, '').replace(/[－–]/g, '-');
   if (!q) { return { none: true, q: q }; }
   var map = {};
   try { map = loadCodeMap_() || {}; } catch (e) { map = {}; }
@@ -611,6 +626,24 @@ function lineResolveStock_(q) {
   else if (byName[q]) { code = byName[q]; }
   else if (byName[q + '*']) { code = byName[q + '*']; }
   if (code) { return { code: code, name: nameOf(code) || (table[q] ? narrativeName_(table[q][1]) : '') }; }
+  // 自然語句先找明確代號，再用最長正式名稱／已確認別名。不能把「我要查詢…買賣狀況」整句送去模糊比對。
+  var embedded = q.match(/(?:^|[^0-9])(00\d{3,4}[A-Z]?|\d{4,6}[A-Z]?)(?!\d)/i);
+  if (embedded && byCode[embedded[1]]) {
+    code = embedded[1];
+    return { code: code, name: nameOf(code) };
+  }
+  var names = Object.keys(byName).concat(Object.keys(table));
+  var mentions = names.map(function (n) {
+    var stem = n.replace(/[*＊]+$/, '');
+    var normalized = stem.toUpperCase().replace(/[-＿_]/g, '');
+    var haystack = q.toUpperCase().replace(/[-＿_]/g, '');
+    return stem.length >= 2 && haystack.indexOf(normalized) >= 0 ? { name: n, length: normalized.length,
+      code: String(byName[n] || (table[n] && table[n][0]) || '') } : null;
+  }).filter(function (x) { return x && x.code && byCode[x.code]; }).sort(function (a, b) { return b.length - a.length; });
+  if (mentions.length && (mentions[0].length >= 3 || /查|找|紀錄|買賣|操作|提到|持股/.test(q))) {
+    var best = mentions[0];
+    return { code: best.code, name: nameOf(best.code) };
+  }
   var hits = Object.keys(byName).filter(function (n) { return n.replace(/[*＊]+$/, '').indexOf(q) >= 0; });
   if (hits.length === 1) { return { code: byName[hits[0]], name: nameOf(byName[hits[0]]) }; }
   if (hits.length > 1) {
@@ -631,7 +664,7 @@ function lineStockReply_(q) {
   }
   if (r.none) { return [lineText_('找不到「' + lineClip_(r.q, 12) + '」這檔股票。請輸入代號（例如 2330）或完整名稱。', lineQuickMain_())]; }
   var list = lineStockRecords_(r.code), label = (r.name || r.code) + '（' + r.code + '）';
-  if (!list.length) { return [lineText_(label + '目前沒有可核對的紀錄：節目與會員簡訊都還沒提到這一檔。', lineQuickMain_())]; }
+  if (!list.length) { return [lineText_(label + '目前沒有可核對的已發布紀錄。', lineQuickMain_())]; }
   return [lineStockFlex_(r, list)];
 }
 /** 「明天能不能買？」：說明做不到，再附上最近一次提及的紀錄（有的話）。 */
@@ -677,7 +710,7 @@ function linePb_(label, data, display, extra) {
 function lineUri_(label, uri) { return { type: 'uri', label: lineClip_(label, 20), uri: uri }; }
 function lineQuickMain_() {
   return [linePb_('今日整理', 'a=today', '今日整理'), linePb_('查個股', 'a=askstock', '查個股', { inputOption: 'openKeyboard' }),
-          linePb_('盤中通知', 'a=sms', '盤中通知'), linePb_('持股追蹤', 'a=tracker', '持股追蹤'),
+          linePb_('持股追蹤', 'a=tracker', '持股追蹤'),
           linePb_('市場總覽', 'a=market', '市場總覽'), linePb_('管理訂閱', 'a=manage', '管理訂閱')];
 }
 function fxText_(text, o) {
@@ -717,7 +750,7 @@ function fxBullet_(text, maxLines) {
 
 function lineWelcomeFlex_(s, back) {
   if (back) {
-    var on = ['daily', 'sms'].filter(function (x) { return s[x]; }).map(function (x) { return LINE_KIND_NAME_[x]; });
+    var on = ['daily'].filter(function (x) { return s[x]; }).map(function (x) { return LINE_KIND_NAME_[x]; });
     return lineFlex_('歡迎回來，目前開啟：' + on.join('、'), fxBubble_(fxHeader_('歡迎回來', '你之前開啟的 LINE 通知會照舊送出'), [
       fxText_('目前開啟：' + on.join('、') + '。', { size: 'sm', color: LINE_C_.ink }),
       fxNote_('要調整或停止，點下方「管理訂閱」，或輸入「停止通知」。')
@@ -727,13 +760,13 @@ function lineWelcomeFlex_(s, back) {
     return fxBox_('vertical', [fxText_(LINE_KIND_NAME_[k], { size: 'sm', weight: 'bold', color: LINE_C_.ink }), fxText_(LINE_KIND_WHEN_[k], { size: 'xs', color: LINE_C_.muted, margin: 'xs' })],
       { backgroundColor: LINE_C_.soft, cornerRadius: '10px', paddingAll: '12px' });
   };
-  return lineFlex_('歡迎使用逐日追蹤。通知目前都還沒開啟，請選擇每日總覽、盤中即時通知或兩種都要。', fxBubble_(
+  return lineFlex_('歡迎使用逐日追蹤。通知尚未開啟，可選擇訂閱每日總覽。', fxBubble_(
     fxHeader_('歡迎', '歡迎使用逐日追蹤'), [
       fxText_('你可以查節目已發布的個股紀錄與市場資料。通知目前都還沒開啟。', { size: 'sm', color: LINE_C_.ink }),
-      item('daily'), item('sms'),
-      fxNote_('選「每日總覽」「盤中即時通知」或「兩種都要」；之後隨時可以更改。加好友不代表同意接收推送。')
-    ], [fxBtn_(linePb_('兩種都要', 'a=sub&k=both', '兩種都要')), fxBtn_(linePb_('每日總覽', 'a=sub&k=daily', '開啟每日總覽'), 'secondary'),
-        fxBtn_(linePb_('盤中即時通知', 'a=sub&k=sms', '開啟盤中即時通知'), 'secondary'), fxBtn_(linePb_('先看今日整理', 'a=today', '今日整理'), 'link')]));
+      item('daily'),
+      fxNote_('加好友不代表同意接收推送。訂閱後可隨時在聊天室停止。')
+    ], [fxBtn_(linePb_('訂閱每日總覽', 'a=sub&k=daily', '訂閱每日總覽')),
+        fxBtn_(linePb_('先看今日整理', 'a=today', '今日整理'), 'link')]));
 }
 
 function lineLastAccepted_(uid) {
@@ -754,7 +787,7 @@ function lineLastAccepted_(uid) {
 }
 function lineManageFlex_(s) {
   var last = s && s.uid ? lineLastAccepted_(s.uid) : {};
-  var rows = ['daily', 'sms'].map(function (k) {
+  var rows = ['daily'].map(function (k) {
     var on = !!(s && s[k]);
     return fxBox_('vertical', [
       fxBox_('horizontal', [fxText_(LINE_KIND_NAME_[k], { size: 'sm', weight: 'bold', color: LINE_C_.ink, flex: 1 }),
@@ -763,20 +796,20 @@ function lineManageFlex_(s) {
       last[k] ? fxText_('最近一次 LINE 已接受：' + String(last[k]).slice(5, 16), { size: 'xxs', color: LINE_C_.muted, margin: 'xs' }) : null
     ], { backgroundColor: LINE_C_.soft, cornerRadius: '10px', paddingAll: '12px' });
   });
-  var btns = ['daily', 'sms'].map(function (k) {
+  var btns = ['daily'].map(function (k) {
     return s && s[k] ? fxBtn_(linePb_('停止' + LINE_KIND_NAME_[k], 'a=unsub&k=' + k, '停止' + LINE_KIND_NAME_[k]), 'secondary')
                      : fxBtn_(linePb_('開啟' + LINE_KIND_NAME_[k], 'a=sub&k=' + k, '開啟' + LINE_KIND_NAME_[k]));
   });
-  if (s && (s.daily || s.sms)) { btns.push(fxBtn_(linePb_('全部停止', 'a=unsub&k=all', '全部停止'), 'link')); }
-  var on = ['daily', 'sms'].filter(function (k) { return s && s[k]; }).map(function (k) { return LINE_KIND_NAME_[k]; });
+  if (s && s.daily) { btns.push(fxBtn_(linePb_('全部停止', 'a=unsub&k=all', '全部停止'), 'link')); }
+  var on = ['daily'].filter(function (k) { return s && s[k]; }).map(function (k) { return LINE_KIND_NAME_[k]; });
   return lineFlex_('LINE 通知設定：' + (on.length ? '已開啟' + on.join('、') : '目前沒有開啟任何通知'), fxBubble_(
     fxHeader_('管理訂閱', 'LINE 通知設定'), rows.concat([fxNote_('這裡只管 LINE 通知；Email 訂閱請到網站「訂閱通知」。')]), btns));
 }
 
 function lineHelpFlex_() {
-  var rows = [['今日整理', '今天的盤勢摘要與個股數'], ['輸入代號或名稱', '最近一次被提到的紀錄'], ['盤中通知', '最新一則會員簡訊'],
+  var rows = [['今日整理', '今天的盤勢摘要與個股數'], ['輸入代號、名稱或一句話', '例如：我要查詢世芯KY買賣狀況'],
               ['持股追蹤', '網站目前持有中的回合'], ['市場總覽', '加權指數與台指期的最新快取'], ['管理訂閱', '開啟或停止 LINE 通知']];
-  return lineFlex_('使用說明：可以輸入今日整理、股票代號、盤中通知、持股追蹤、市場總覽、管理訂閱。', fxBubble_(
+  return lineFlex_('使用說明：可以輸入今日整理、股票代號或查詢句子、持股追蹤、市場總覽、管理訂閱。', fxBubble_(
     fxHeader_('使用說明', '可以這樣問'),
     rows.map(function (r) { return fxBox_('vertical', [fxText_(r[0], { size: 'sm', weight: 'bold', color: LINE_C_.ink }), fxText_(r[1], { size: 'xs', color: LINE_C_.muted })]); })
       .concat([fxNote_('這裡只整理節目已發布的紀錄，不提供買賣建議。電腦版 LINE 沒有下方選單，直接輸入上面的文字即可。')]),
@@ -798,7 +831,7 @@ function lineDailyFlex_(info, kicker) {
     body.push({ type: 'separator', margin: 'md' });
   }
   body.push(fxBox_('horizontal', [num(c.buy, '買入', LINE_C_.buy), num(c.sell, '賣出', LINE_C_.sell), num(c.hold, '持有', LINE_C_.hold), num(c.watch, '觀望', LINE_C_.watch)], { margin: 'md' }));
-  body.push(fxNote_('只整理節目與會員簡訊已發布的內容，不是買賣建議。'));
+  body.push(fxNote_('整理已驗證的節目內容，不是買賣建議。'));
   var url = lineSiteUrl_('mail');
   return lineFlex_('每日總覽 ' + dl + '｜' + title, fxBubble_(fxHeader_((kicker || '每日總覽') + '｜' + dl, title), body,
     [url ? fxBtn_(lineUri_('查看完整整理', url)) : null, fxBtn_(linePb_('管理通知', 'a=manage', '管理訂閱'), 'link')]));
@@ -834,8 +867,15 @@ function lineStockFlex_(r, list) {
   var earlier = list.slice(1).filter(function (x) { var k = x.date + x.direction; if (seen[k]) { return false; } seen[k] = 1; return true; }).slice(0, 3);
   if (earlier.length) {
     body.push({ type: 'separator', margin: 'md' });
-    body.push(fxText_('之前的提及', { size: 'xs', weight: 'bold', color: LINE_C_.muted }));
-    earlier.forEach(function (x) { body.push(fxText_(lineDateLabel_(x.date) + '　' + lineDirLabel_(x.direction).label, { size: 'xs', color: LINE_C_.muted })); });
+    body.push(fxText_('歷次提及', { size: 'xs', weight: 'bold', color: LINE_C_.muted }));
+    [t].concat(earlier).forEach(function (x) {
+      var direction = lineDirLabel_(x.direction);
+      body.push(fxBox_('horizontal', [
+        fxText_('●', { size: 'sm', color: direction.color, flex: 0 }),
+        fxText_(lineDateLabel_(x.date), { size: 'xs', color: LINE_C_.muted, margin: 'sm', flex: 0 }),
+        fxText_(direction.label, { size: 'xs', weight: 'bold', color: direction.color, margin: 'md', flex: 1 })
+      ], { spacing: 'none' }));
+    });
   }
   body.push(fxNote_('這是節目當天的紀錄，不代表現在的買賣建議。'));
   var url = lineStockUrl_(r.code);
@@ -1058,6 +1098,11 @@ function lineDeliverTick_(opts) {
 
 function lineDeliverOne_(t, msg, mode, ctx) {
   var now = Date.now(), res = { accepted: 0, failed: 0, retry: 0 };
+  // 公開 LINE 推送只保留每日總覽。舊版已排隊的盤中訊息在部署後也不能漏發。
+  if (msg.kind === 'sms') {
+    lineOutboxSet_(t, msg, { state: 'done', total: 0, open: 0, note: '公開盤中推送已停用；未送出' });
+    return res;
+  }
   var expired = !!(msg.expiresMs && now > msg.expiresMs);
   var led;
   if (msg.state === 'queued') {
@@ -1149,19 +1194,9 @@ function lineAlertOnce_(why) {
   } catch (e) {}
 }
 
-/** 盤中即時通知：cmNotifyNew_ 一開頭呼叫（Email 有沒有訂閱者、寄成沒有都不影響這裡）。 */
+/** 舊呼叫點保留為無作用相容函式；盤中資訊不進公開 LINE 推送。 */
 function lineQueueSms_(a, revised) {
-  if (!a || !a.id || !lineConfigured_() || linePushMode_() === 'off') { return { skipped: true }; }
-  var ver = typeof deliveryVersion_ === 'function' ? deliveryVersion_(a.text) : '';
-  var id = 'sms|' + a.id + (revised ? '|rev|' + ver : '');
-  var posted = lineParseTaipei_(a.time) || Date.now(), expires = posted + LINE_SMS_WINDOW_MIN_ * 60000, late = Date.now() > expires;
-  var q = lineQueue_({ id: id, kind: 'sms', date: fmtDate_(String(a.time || '').slice(0, 10)) || todayStr_(), version: ver,
-    source: '會員簡訊 ' + a.id + (revised ? '（修訂）' : ''), expiresAt: expires, state: late ? 'expired' : 'queued',
-    note: late ? '發文超過 60 分鐘才進來，不補送' : '', messages: [lineSmsFlex_(a, !!revised)] });
-  if (q.created && !late) {
-    try { lineDeliverTick_({ only: id, budgetMs: 45000 }); } catch (e) { Logger.log('LINE：盤中通知立即寄送失敗，下一棒續送 ' + e); }
-  }
-  return q;
+  return { skipped: 'public-sms-disabled' };
 }
 
 /** 每日總覽：與 Email 同一套放行條件，但各自記帳；Email 寄過不代表 LINE 寄過。 */
@@ -1358,6 +1393,7 @@ function apiAdminLineClearTesters(key) {
 /** 送一則測試到綁定的測試帳號（不寫寄送帳本；會計入當月推送量）。kind：daily／sms。 */
 function apiAdminLineTestPush(key, kind) {
   try { adminAuth_(key); } catch (e) { return { ok: false, reason: String(e.message || e) }; }
+  if (kind !== 'daily') { return { ok: false, reason: 'LINE 測試推送目前只提供每日總覽。' }; }
   if (!lineConfigured_()) { return { ok: false, reason: '還沒設定存取權杖與頻道密鑰。' }; }
   var bot = lineBotId_();
   var to = lineSubsRead_().rows.filter(function (s) { return bot && s.tester && s.friend !== 'blocked' && s.channel === bot; });
@@ -1386,12 +1422,10 @@ function lineValidateAll_() {
   var fakeSub = { uid: 'U00000000000000000000000000000000', daily: true, sms: false };
   var samples = [
     ['歡迎', lineWelcomeFlex_(fakeSub, false)], ['歡迎回來', lineWelcomeFlex_(fakeSub, true)], ['管理訂閱', lineManageFlex_(fakeSub)],
-    ['開啟確認', lineSubConfirm_({ daily: true, sms: true }, { daily: false, sms: false }, ['daily', 'sms'], true)],
-    ['停止確認', lineSubConfirm_({ daily: true, sms: false }, { daily: true, sms: true }, ['sms'], false)],
+    ['開啟確認', lineSubConfirm_({ daily: true, sms: false }, { daily: false, sms: false }, ['daily'], true)],
+    ['停止確認', lineSubConfirm_({ daily: false, sms: false }, { daily: true, sms: false }, ['daily'], false)],
     ['使用說明', lineHelpFlex_()],
     ['每日總覽', lineDailyFlex_({ date: '2026/09/23', title: '記憶體報價止跌，法人回補後的操作重點整理', points: ['加權指數量縮整理，季線附近有撐。', '記憶體族群報價止跌，法人連三天回補。'], counts: { buy: 1, sell: 1, hold: 3, watch: 4 } }, '每日總覽')],
-    ['盤中通知', lineSmsFlex_({ id: '0', time: '2026/09/23 10:10', text: '張震-1:請於73.5元以下買進6770力積電做多\n張震-2:手中持股續抱', url: 'https://www.cmoney.tw/' }, false)],
-    ['盤中通知修訂', lineSmsFlex_({ id: '0', time: '2026/09/23 10:10', text: '張震-1:內容已更新', url: '' }, true)],
     ['個股', lineStockFlex_({ code: '6770', name: '力積電' }, [{ date: '2026/09/23', direction: '買入', price: '73.5以下', reason: '記憶體報價止跌，法人連三天回補。' }, { date: '2026/09/18', direction: '觀望注意', price: '', reason: '' }])],
     ['持股追蹤', lineTrackerFlex_([{ name: '力積電', code: '6770', entryDate: '2026/09/23', latestReasonDate: '2026/09/25', roundsAsOf: '2026/09/25' }], {})],
     ['市場總覽', lineMarketFlex_([{ label: '加權指數', value: 23456.78, change: -123.4, percent: -0.52, time: '2026/09/26 13:30:00', source: 'Yahoo Finance', unit: '點' }])]
@@ -1427,13 +1461,14 @@ function lineRichMenuDefs_() {
     ];
   };
   var cell = function (i, action) { return { bounds: { x: (i % 2) * CW, y: TAB + Math.floor(i / 2) * CH, width: CW, height: CH }, action: action }; };
-  var site = typeof publicWebAppUrl_ === 'function' ? publicWebAppUrl_() : '';
+  var site = typeof publicSiteUrl_ === 'function' && publicSiteUrl_() ? publicSiteUrl_() :
+             (typeof publicWebAppUrl_ === 'function' ? publicWebAppUrl_() : '');
   return [
     { alias: LINE_RICH_ALIAS_.query, image: 'richmenu-query.png', def: { size: { width: W, height: 1686 }, selected: true, name: 'zz-query-v1', chatBarText: '查資料',
       areas: tabs('query').concat([cell(0, linePb_('今日整理', 'a=today', '今日整理')), cell(1, linePb_('查個股', 'a=askstock', '查個股', { inputOption: 'openKeyboard' })),
         cell(2, linePb_('持股追蹤', 'a=tracker', '持股追蹤')), cell(3, linePb_('市場總覽', 'a=market', '市場總覽'))]) } },
-    { alias: LINE_RICH_ALIAS_.notify, image: 'richmenu-notify.png', def: { size: { width: W, height: 1686 }, selected: true, name: 'zz-notify-v1', chatBarText: '通知',
-      areas: tabs('notify').concat([cell(0, linePb_('管理訂閱', 'a=manage', '管理訂閱')), cell(1, linePb_('最新盤中通知', 'a=sms', '盤中通知')),
+    { alias: LINE_RICH_ALIAS_.notify, image: 'richmenu-notify.png', def: { size: { width: W, height: 1686 }, selected: true, name: 'zz-notify-v2', chatBarText: '通知',
+      areas: tabs('notify').concat([cell(0, linePb_('管理訂閱', 'a=manage', '管理訂閱')), cell(1, linePb_('今日整理', 'a=today', '今日整理')),
         cell(2, linePb_('使用說明', 'a=help', '使用說明')), cell(3, site ? lineUri_('開啟網站', site) : linePb_('今日整理', 'a=today', '今日整理'))]) } }
   ];
 }

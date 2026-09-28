@@ -67,8 +67,11 @@ function siteBridge_(e) {
       'apiAdminDaySyncState apiAdminDecisions apiAdminDeleteRow apiAdminDeleteSms ' +
       'apiAdminDeleteSmsBatch apiAdminDispatch apiAdminFixState apiAdminFullFixState ' +
       'apiAdminHeldList apiAdminHoldToday apiAdminInstallSectorCatchup apiAdminJobStatus ' +
-      'apiAdminKCoverage apiAdminLineLookup apiAdminLineRetry apiAdminLineSaveConfig ' +
-      'apiAdminLineStatus apiAdminListSms apiAdminLogin apiAdminManualDays ' +
+      'apiAdminKCoverage apiAdminLineBindCode apiAdminLineClearTesters ' +
+      'apiAdminLineLookup apiAdminLineRetry apiAdminLineSaveConfig ' +
+      'apiAdminLineSetupRichMenu apiAdminLineStatus apiAdminLineTestPush ' +
+      'apiAdminLineValidate apiAdminListSms apiAdminLogin apiAdminManualDays ' +
+      'apiAdminSetSmsEmail ' +
       'apiAdminManualEntry apiAdminMergeTranscripts apiAdminOpsDay apiAdminPreviewCleanup ' +
       'apiAdminRebuildMail apiAdminReclassify apiAdminResumeFullFix apiAdminResumeJob ' +
       'apiAdminRetryFullFixStep apiAdminRunInfo apiAdminSetDailyPushStart ' +

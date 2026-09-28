@@ -1695,6 +1695,17 @@ html[data-view="mobile"] .line-copy { grid-template-columns:1fr; }
           </div>
         </div>
       </div>
+      <div class="card">
+        <h2>後台專用郵件通知</h2>
+        <p class="hint">盤中通知只由管理者替已同意的收件者設定；每日總覽訂閱維持原狀。停止後不再寄送，既有寄送帳本保留。</p>
+        <div class="line-form">
+          <div class="field"><label for="privateSmsEmail">收件者 Email</label><input id="privateSmsEmail" type="email" autocomplete="off" placeholder="you@example.com"></div>
+          <div class="field"><label for="privateSmsAction">操作</label><select id="privateSmsAction"><option value="on">開啟盤中通知</option><option value="off">停止盤中通知</option></select></div>
+        </div>
+        <div class="lockrow"><input id="privateSmsConsent" type="checkbox"><label for="privateSmsConsent">已確認收件者同意接收盤中通知</label></div>
+        <div class="btnrow"><button id="privateSmsSave" type="button">儲存此信箱</button></div>
+        <div class="amsg" id="privateSmsMsg" role="status"></div>
+      </div>
     </section>
 
     <!-- 自動化監控：沿用今日狀態的權限和資料，僅在分頁可見時輪詢。 -->
@@ -1743,7 +1754,6 @@ html[data-view="mobile"] .line-copy { grid-template-columns:1fr; }
           <button type="button" class="ghost" id="lineValidate">驗證卡片格式</button>
           <button type="button" class="ghost" id="lineRich">建立圖文選單</button>
           <button type="button" class="ghost" id="lineTestDaily">送一則每日總覽測試</button>
-          <button type="button" class="ghost" id="lineTestSms">送一則盤中通知測試</button>
           <button type="button" class="danger" id="lineClearTesters">清除測試帳號</button>
         </div>
         <div class="amsg" id="lineToolMsg"></div>
@@ -4878,7 +4888,7 @@ setTimeout(initCrawlDayPills, 50);
       card('本月訊息額度', qBig, q && q.ok ? (q.type === 'limited' ? '剩 ' + q.remaining + ' 則（每位收件者算一則；回覆不計）。' : '這個方案沒有月上限。') + '讀取時間 ' + (q.at || '') + '。' : (q && q.error ? '原因：' + q.error : '設定存取權杖後才讀得到。'), qTone) +
       card('待送與異常', ((ob.queued || 0) + (ob.sending || 0)) + ' 則待送', (ob.oldestOpen ? '最舊 ' + ob.oldestOpen + '。' : '') + '逾時未補送 ' + (ob.expired || 0) + '、完成 ' + (ob.done || 0) + '。', ob.sending || ob.queued ? 'warn' : ob.expired ? 'err' : 'ok') +
       card('Webhook', st.lastWebhookAt ? '最後 ' + String(st.lastWebhookAt).slice(5, 16) : '尚未收到', '今日驗簽失敗：網站 ' + (st.gasSigFail || 0) + '、轉送服務 ' + (st.cloudSigFail || 0) + (st.relayBuild ? '（轉送服務 ' + st.relayBuild + '）' : '') + '。', (st.gasSigFail || st.cloudSigFail) ? 'warn' : st.lastWebhookAt ? 'ok' : 'idle') +
-      card('推送模式', MODE[d.mode], d.mode === 'on' ? '每日總覽與盤中通知送給所有開啟的好友。' : d.mode === 'test' ? '只送綁定的測試帳號，其他好友不會收到。' : '不排也不送；查詢與訂閱開關照常。', d.mode === 'on' ? 'ok' : 'warn');
+      card('推送模式', MODE[d.mode], d.mode === 'on' ? '每日總覽送給已訂閱的好友。' : d.mode === 'test' ? '只送綁定的測試帳號，其他好友不會收到。' : '不排也不送；查詢與訂閱開關照常。', d.mode === 'on' ? 'ok' : 'warn');
     if (document.activeElement !== $('lineRelay')) { $('lineRelay').value = d.relayUrl || ''; }
     if (document.activeElement !== $('lineFriend')) { $('lineFriend').value = /line\.me\/R\/ti\/p\//.test(d.addFriendUrl || '') ? '' : (d.addFriendUrl || ''); }
     if (document.activeElement !== $('lineQr')) { $('lineQr').value = d.qrUrl || ''; }
@@ -4903,7 +4913,7 @@ setTimeout(initCrawlDayPills, 50);
   $('lineSave').onclick = function () {
     var btn = this, cfg = { token: $('lineToken').value.trim(), secret: $('lineSecret').value.trim(), relayUrl: $('lineRelay').value.trim(),
       addFriendUrl: $('lineFriend').value.trim(), qrUrl: $('lineQr').value.trim(), mode: $('lineMode').value, siteEntry: $('lineSiteEntry').checked };
-    if (cfg.mode === 'on' && !confirm('改成「正式推送」後，每日總覽與盤中通知會送給所有開啟通知的好友，並計入當月訊息量。確定嗎？')) { return; }
+    if (cfg.mode === 'on' && !confirm('改成「正式推送」後，每日總覽會送給已訂閱好友，並計入當月訊息量。確定嗎？')) { return; }
     btn.disabled = true; show($('lineSaveMsg'), 'warn', '儲存中…');
     google.script.run.withSuccessHandler(function (r) {
       btn.disabled = false;
@@ -4926,7 +4936,15 @@ setTimeout(initCrawlDayPills, 50);
   $('lineRich').onclick = function () { if (!confirm('會建立並驗證新的兩頁圖文選單，成功後切換為預設，再清理舊版選單。繼續？')) { return; } tool(this, 'apiAdminLineSetupRichMenu', undefined, function (r) { return (r.ok ? '完成。\n' : '失敗：' + r.reason + '\n') + (r.log || []).join('\n'); }); };
   function testFmt(r) { return r.results ? r.results.map(function (x) { return x.user + '：' + (x.ok ? 'LINE 已接受' : x.error); }).join('\n') : r.reason; }
   $('lineTestDaily').onclick = function () { tool(this, 'apiAdminLineTestPush', 'daily', testFmt); };
-  $('lineTestSms').onclick = function () { tool(this, 'apiAdminLineTestPush', 'sms', testFmt); };
+  $('privateSmsSave').onclick = function () {
+    var btn = this, email = $('privateSmsEmail').value.trim(), on = $('privateSmsAction').value === 'on';
+    if (on && !$('privateSmsConsent').checked) { show($('privateSmsMsg'), 'err', '請先確認收件者已同意。'); return; }
+    btn.disabled = true; show($('privateSmsMsg'), 'warn', '儲存中…');
+    google.script.run.withSuccessHandler(function (r) {
+      btn.disabled = false; show($('privateSmsMsg'), r && r.ok ? 'ok' : 'err', (r && (r.message || r.reason)) || '儲存失敗');
+    }).withFailureHandler(function (e) { btn.disabled = false; show($('privateSmsMsg'), 'err', '儲存失敗：' + (e && e.message || e)); })
+      .apiAdminSetSmsEmail(KEY, email, on, $('privateSmsConsent').checked);
+  };
   $('lineClearTesters').onclick = function () { if (!confirm('清除所有測試帳號的綁定？')) { return; } tool(this, 'apiAdminLineClearTesters', undefined, function (r) { return r.ok ? '已清除 ' + r.cleared + ' 個測試帳號。' : r.reason; }); };
   function lookup(q) {
     if (!q) { return; }

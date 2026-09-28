@@ -1,5 +1,7 @@
 # LINE Webhook：Cloudflare 免費版部署
 
+> **2026/09/28 更新：**本頁是初次架設轉送器的步驟。現行公開 LINE 只提供每日總覽；盤中 LINE 推送已停用。已經建好 Worker／Queues／Secret 者不用重建，請改照 [v77 更新與驗收](../0928-daily-only/部署與驗收.md) 部署新版圖片及程式。下文舊版的「開啟盤中通知」「送盤中測試」步驟不要再執行。
+
 本路徑用 **Workers Free + Queues Free** 取代原文件第 3 節的 Cloud Run／Cloud Tasks／Secret Manager。這不是在 Google Cloud Console 裡選「免費額度」；請離開那個畫面，不啟用新 GCP 服務。既有 Apps Script 網站、試算表、LINE Messaging API Channel 照常使用。
 
 ```mermaid

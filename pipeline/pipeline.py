@@ -10887,7 +10887,8 @@ CM_PARSE_SYSTEM = (
     "簡訊常常只寫一句「某某連續大漲，務必抱牢」，那樣的 note 太空泛，"
     "讀的人看不出為什麼。若使用者訊息附有【當日逐字稿摘錄】，"
     "就從摘錄中找出這一檔的理由（族群、法人動向、技術位置、講者的持有理由等），"
-    "併進 note，寫成 2 到 4 句、約 70 到 160 字，第一句保留本則簡訊的操作結論，其後補原因與條件。\n"
+    "與本則簡訊的操作事實一起重新撰寫 note，不要直接照貼或把兩段文字相接；寫成 2 到 4 句、約 70 到 160 字，"
+    "第一句清楚保留簡訊的股票、操作方向與條件，其後用逐字稿原句補原因與適用條件。\n"
     "摘錄只補背景，不得更改簡訊的股票、action、price、limit；不同時點的看法不可冒充同一條新指令。\n"
     "但邊界不變：只能用簡訊或逐字稿摘錄裡真的講過的內容。"
     "沒有附摘錄、或摘錄裡沒提到這一檔時，就照簡訊原意寫，維持原本的簡短寫法，"
@@ -12125,10 +12126,73 @@ def sms_context_note(original, candidate, transcript):
     return result
 
 
-def enrich_sms_notes_from_signals(ss, date_str, signals, transcript):
-    """逐字稿比早盤簡訊晚到時，利用本輪已驗證內容補說明，零額外模型呼叫。
+SMS_TWO_SOURCE_REWRITE_SYSTEM = (
+    '你是繁體中文股票節目紀錄編輯。輸入每項有同一檔股票的盤中通知原說明、方向、價位，'
+    '以及已逐字核對的當天影片引句與判讀。請把兩個來源重新寫成一段自然的說明重點，'
+    '先清楚交代盤中通知當時的操作或續抱結論，再用影片的背景說明原因與條件。'
+    '這是整理已發生內容，不提供新的買賣建議；不同時間的說法要區分，不可把影片的看法冒充新的盤中指令。'
+    '不能換股票、方向、價位或否定詞，不能加入輸入沒有的數字、法人動向、預測或人名主詞。'
+    '不要照貼盤中原說明或逐字稿，不寫來源分類理由；有足夠原句時寫2至4句約70至160字，來源不足可以短。'
+    '只回JSON物件：{"notes":[{"id":"輸入id","text":"重寫說明"}]}。每個id只回一筆。'
+)
 
-    僅批次寫 CMONEY 列的說明與解析明細；不變動股票、日期、方向、價位或寄送狀態。
+
+def rewrite_sms_notes_from_two_sources(entries):
+    """同日一次呼叫重寫所有有雙來源證據的簡訊；格式或證據不合時退回原本保守說明。"""
+    if not entries:
+        return {}
+    payload = [{'id': e['id'], 'stock': e['stock'], 'code': e['code'],
+                'direction': e['direction'], 'price': e['price'],
+                'sms_note': e['original'], 'transcript_note': e['context'],
+                'transcript_quotes': e['quotes']}
+               for e in entries]
+    try:
+        raw = call_gemini(SMS_TWO_SOURCE_REWRITE_SYSTEM,
+                          json.dumps({'items': payload}, ensure_ascii=False),
+                          want_json=True, thinking=0, max_out=min(MAX_OUT, 12000),
+                          tag='sms-two-source')
+        data = raw if isinstance(raw, dict) else safe_load_json(raw)
+    except Exception as exc:
+        print(f'簡訊雙來源重寫暫停：{exc}；保留已驗證的原說明與背景')
+        return {}
+    source = {e['id']: e for e in entries}
+    accepted = {}
+    for row in (data.get('notes', []) if isinstance(data, dict) else []):
+        if not isinstance(row, dict) or row.get('id') not in source:
+            continue
+        e = source[row['id']]
+        note = public_narrative(str(row.get('text') or '').strip(), {'name': e['stock'], 'code': e['code']})
+        if not 12 <= len(note) <= 240:
+            continue
+        if _ev_norm(note) == _ev_norm(e['original']):
+            continue
+        allowed_numbers = set(re.findall(r'\d+(?:\.\d+)?',
+                          e['original'] + e['context'] + ''.join(e['quotes'])))
+        if set(re.findall(r'\d+(?:\.\d+)?', note)) - allowed_numbers:
+            continue
+        # 原簡訊的明講價位是操作事實；重寫不能把它漏掉或換成影片裡的別檔價。
+        stated_price = str(e.get('price') or '').strip()
+        if stated_price and stated_price not in ('未說明', '待確認'):
+            price_numbers = set(re.findall(r'\d+(?:\.\d+)?', stated_price))
+            if price_numbers and not price_numbers.issubset(set(re.findall(r'\d+(?:\.\d+)?', note))):
+                continue
+        direction = str(e['direction'])
+        if re.search(r'^買', direction) and not re.search(r'買進|買入|買回|佈局', note):
+            continue
+        if re.search(r'^賣', direction) and not re.search(r'賣出|賣掉|出清|減碼', note):
+            continue
+        if re.search(r'持股|持有', direction) and not re.search(r'持有|持股|續抱|抱牢', note):
+            continue
+        accepted[e['id']] = note
+    print(f'簡訊雙來源重寫：送出 {len(entries)} 筆，通過本機檢查 {len(accepted)} 筆')
+    return accepted
+
+
+def enrich_sms_notes_from_signals(ss, date_str, signals, transcript):
+    """逐字稿比早盤簡訊晚到時，批次用兩個來源重寫同檔說明。
+
+    模型無法回覆時沿用已驗證的保守補述；僅更新 CMONEY 列與解析明細，
+    不變動股票、日期、方向、價位或寄送狀態，也不重寄既有信。
     """
     by_code = {}
     for category in SIGNAL_CATEGORIES:
@@ -12137,9 +12201,53 @@ def enrich_sms_notes_from_signals(ss, date_str, signals, transcript):
                 by_code.setdefault(str(item.get('code') or ''), []).append(item)
     if not by_code:
         return 0
+    # 先盤點同日要補的列，模型整批重寫一次，避免一檔一呼叫把額度與時間用完。
+    table_data = []
+    rewrite_entries = []
+    for tab, field in [('操作紀錄', '理由摘錄'), ('會員持股', '說明重點')]:
+        ws = ss.worksheet(tab)
+        values = sheets_retry(ws.get_all_values)
+        table_data.append((tab, field, ws, values))
+        if not values or not all(k in values[0] for k in ['日期', '代號', '股票名稱', '來源影片ID', field]):
+            continue
+        direction_key = '方向' if '方向' in values[0] else '目前立場'
+        if direction_key not in values[0]:
+            continue
+        ci = {k: values[0].index(k) for k in ['日期', '代號', '股票名稱', '來源影片ID', field, direction_key]}
+        if '價位說明' in values[0]:
+            ci['價位說明'] = values[0].index('價位說明')
+        for i, row in enumerate(values[1:], 2):
+            if len(row) <= max(ci.values()) or row[ci['日期']] != date_str or not str(row[ci['來源影片ID']]).startswith('CMONEY-'):
+                continue
+            code, original = str(row[ci['代號']]), str(row[ci[field]])
+            candidates = by_code.get(code, [])
+            if not candidates:
+                continue
+            fallback = original
+            for candidate in candidates:
+                fallback = sms_context_note(fallback, candidate, transcript)
+            if fallback == original:
+                continue
+            quotes = []
+            for candidate in candidates:
+                q = candidate.get('evidence') or []
+                quotes.extend([q] if isinstance(q, str) else q)
+            rewrite_entries.append({
+                'id': f'{tab}:{i}', 'stock': str(row[ci['股票名稱']]), 'code': code,
+                'direction': str(row[ci[direction_key]]),
+                'price': str(row[ci['價位說明']]) if '價位說明' in ci else '',
+                'original': original, 'context': fallback, 'quotes': quotes,
+            })
+    rewritten = rewrite_sms_notes_from_two_sources(rewrite_entries)
+    # 解析明細沒有工作表列號；同檔同句若對到不同方向或價位就不猜哪一筆。
+    detail_candidates = {}
+    for e in rewrite_entries:
+        if e['id'] in rewritten:
+            detail_candidates.setdefault((e['code'], e['original']), set()).add(rewritten[e['id']])
+    original_to_rewritten = {key: next(iter(notes)) for key, notes in detail_candidates.items()
+                             if len(notes) == 1}
     count = 0
-    for tab, field in [('操作紀錄','理由摘錄'),('會員持股','說明重點')]:
-        ws=ss.worksheet(tab);values=sheets_retry(ws.get_all_values)
+    for tab, field, ws, values in table_data:
         if not values:
             continue
         head=values[0]
@@ -12156,6 +12264,7 @@ def enrich_sms_notes_from_signals(ss, date_str, signals, transcript):
             note=original
             for candidate in by_code.get(str(row[ci['代號']]),[]):
                 note=sms_context_note(note,candidate,transcript)
+            note = rewritten.get(f'{tab}:{i}', note)
             if note!=original:
                 changes.append({'range':gspread.utils.rowcol_to_a1(i,ci[field]+1),'values':[[note]]})
         if changes:
@@ -12177,6 +12286,7 @@ def enrich_sms_notes_from_signals(ss, date_str, signals, transcript):
                 field='reason' if 'reason' in item else 'note';old=item.get(field) or '';note=old
                 for candidate in by_code.get(str(item.get('code') or ''),[]):
                     note=sms_context_note(note,candidate,transcript)
+                note=original_to_rewritten.get((str(item.get('code') or ''), old), note)
                 if note!=old:item[field]=note;changed=True
             if changed:updates.append({'range':gspread.utils.rowcol_to_a1(i,di+1),'values':[[json.dumps(items,ensure_ascii=False)]]})
         if updates:sheets_retry(ws.batch_update,updates,value_input_option='RAW')

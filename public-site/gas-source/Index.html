@@ -66,7 +66,6 @@
          其他分頁是「看資料」，助手是「問問題」——而問問題通常是在看資料的
          過程中冒出來的，那時要離開現在這一頁才能問，問完又要自己走回來。
          做成浮動面板之後，看到一半想問就開，問完關掉，原本那一頁還在。 -->
-    <button class="tab" role="tab" aria-selected="false" data-tab="sms"><svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M9 11h6M9 14h4"/></svg>會員通知</button>
     <button class="tab" data-tab="tx" role="tab" aria-selected="false"><svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>逐字稿</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="tech"><svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>技術說明</button>
     <!-- 後台移到頂列的鎖頭圖示了。它跟其他分頁不是同一種東西：
@@ -156,10 +155,6 @@
 
   <!-- ============ 每日總覽 ============ -->
   <section class="panel" id="p-overview" role="tabpanel">
-    <div class="sect latest-sms">
-      <div class="sect-h"><h2>最新會員操作通知</h2></div>
-      <div id="latestSmsHome"></div>
-    </div>
     <div class="sect">
       <div class="sect-h"><h2>當日買入</h2></div>
       <div id="tblBuy"></div>
@@ -267,9 +262,6 @@
             <label class="optcard"><input type="checkbox" id="subDaily" checked>
               <span class="optcard-t">每日總覽</span>
               <span class="optcard-d">每個交易日影片整理完成後寄出一封</span></label>
-            <label class="optcard"><input type="checkbox" id="subSms">
-              <span class="optcard-t">盤中即時通知</span>
-              <span class="optcard-d">會員通知發出後幾分鐘內寄出</span></label>
           </div>
         </div>
         <button class="act mui-shimmer" id="subBtn">建立訂閱</button>
@@ -298,12 +290,6 @@
               <span class="sub">收盤後一封，整理當天講到的每一檔與操作方向。</span>
             </label>
           </div>
-          <div class="mg-row">
-            <input type="checkbox" id="mgSms">
-            <label for="mgSms">盤中即時通知
-              <span class="sub">盤中發出的操作指令，有就寄，沒有就不寄。</span>
-            </label>
-          </div>
 
           <div class="mg-actions">
             <button class="act mui-shimmer" id="mgSaveBtn">儲存變更</button>
@@ -318,10 +304,9 @@
         <div class="sect-h"><h2>用 LINE 收通知</h2></div>
         <div class="line-join-grid">
           <div>
-            <p class="notice" style="margin:0 0 12px;">加入官方帳號後，在聊天室選要收哪一種通知；加好友本身不會開啟推送。LINE 與 Email 各自設定，停掉一邊不影響另一邊。</p>
+            <p class="notice" style="margin:0 0 12px;">加入官方帳號後，可在聊天室開啟每日總覽通知；加好友本身不會開啟推送。LINE 與 Email 各自設定，停掉一邊不影響另一邊。</p>
             <ul class="line-join-list">
               <li><b>每日總覽</b>交易日有直播、影片判讀完成後送一則。</li>
-              <li><b>盤中即時通知</b>會員簡訊發出後幾分鐘內送出。</li>
               <li><b>查詢</b>輸入代號或名稱，看最近一次被提到的紀錄。</li>
             </ul>
             <a class="act line-join-btn" id="lineJoinBtn" href="#" target="_blank" rel="noopener">加入 LINE 好友</a>
@@ -330,32 +315,6 @@
         </div>
       </div>
 
-    </div>
-  </section>
-
-  <!-- ============ 會員通知 ============ -->
-  <section class="panel" id="p-sms" role="tabpanel" hidden>
-    <div class="sect">
-      <div class="sect-h"><h2>盤中發給會員的操作通知</h2></div>
-      <p class="notice" style="margin:0 0 14px;">
-        這一頁與影片那條線是兩件事。影片是收盤前後的完整解盤，說明為什麼；
-        這裡是盤中當下的指令，只說做什麼與什麼價位。內容轉貼自公開論壇，原文照登不改寫。
-        日曆上有標記的日期才有通知，同一天可能有好幾則，各自標著發文時間。
-      </p>
-
-      <div class="mailcal-wrap">
-        <div class="mailcal" id="smsCal">
-          <div class="mailcal-head">
-            <button class="mailcal-nav" id="smsCalPrev" aria-label="上個月">‹</button>
-            <span class="mailcal-title" id="smsCalTitle">—</span>
-            <button class="mailcal-nav" id="smsCalNext" aria-label="下個月">›</button>
-          </div>
-          <div class="mailcal-grid" id="smsCalGrid"></div>
-          <div class="mailcal-legend"><span class="dot-has"></span>有通知　<span class="dot-none"></span>沒有紀錄</div>
-        </div>
-      </div>
-
-      <div id="smsList" style="margin-top:18px;"></div>
     </div>
   </section>
 
@@ -494,7 +453,7 @@
 <footer>
   <div class="wrap">
     <p><?= disclaimer ?></p>
-    <p style="margin-top:6px;">會員通知即時更新；影片整理通常在 11:30 到 13:30 完成；行情每 5 分鐘更新。</p>
+    <p style="margin-top:6px;">影片整理通常在中午前後完成；行情快取約每 5 分鐘更新，請以標示的資料時間為準。</p>
     <details class="access-help">
       <summary>網站連結顯示「找不到檔案」？</summary>
       <p>若網站在 Google 的錯誤頁就停住，本站無法在那張頁面顯示通知。先用無痕視窗開啟原連結，且只登入一個 Google 帳號。</p>

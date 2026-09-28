@@ -125,11 +125,11 @@ var SUB_KINDS_ = [
   { key: 'daily', name: '每日總覽', when: '交易日 12:00 起',
     desc: '當天內容一備妥就寄出：影片中明講的買入、賣出、觀望不碰、觀望注意與會員持股整理。' },
   { key: 'sms', name: '盤中即時通知', when: '盤中，通常在開盤後到中午之間',
-    desc: '他在盤中發給會員的操作簡訊一出現就轉寄給你。信裡放原文，不改寫也不摘要；結構化的股票與價位稍後會整理到網站的「會員通知」分頁。' }
+    desc: '管理者確認同意後才會開啟。盤中資料有新內容時寄出；可使用信尾連結隨時停止。' }
 ];
 
 function subscriptionItemsHtml_(on) {
-  return SUB_KINDS_.map(function (k) {
+  return SUB_KINDS_.filter(function (k) { return k.key === 'daily' || !!on.sms; }).map(function (k) {
     var yes = !!on[k.key];
     return '<div style="border-left:3px solid ' + (yes ? '#04795C' : '#C3CBC6') + ';background:' +
         (yes ? '#F3F6F4' : '#FFFFFF') + ';border-radius:0 10px 10px 0;padding:10px 14px 8px;margin:0 0 10px;">' +
@@ -167,13 +167,13 @@ function sendWelcomeMail_(email, token, daily, codes, isNew, sms) {
 
     mailSection_('關於這些信件',
       mailBullet_('內容只整理影片中明確講述的部分。影片沒提到的會標示「本支影片未說明」，不會用其他日期的資料回補，也不會推測。') +
-      mailBullet_('沒有直播的日子不寄每日總覽；會員簡訊的盤中即時通知照常寄出。') +
+      mailBullet_('沒有直播的日子不寄每日總覽。' + (sms ? '已開啟的其他通知依各自規則寄送。' : '')) +
       mailBullet_('這些是紀錄整理，不是投資建議。')) +
 
     mailSection_('想調整或停掉',
       '<p style="margin:0 0 12px;font-size:14px;line-height:1.75;color:#26312C;">' +
-        '到網站的「訂閱通知」分頁，在「管理現有訂閱」填入這個 Email，就能逐項勾選要保留的內容。' +
-        '再用訂閱表單勾選新的通知，會<b>加進</b>原本的訂閱，不會取消已訂的項目；要取消請用「管理現有訂閱」或信尾的取消訂閱。</p>' +
+        '到網站的「訂閱通知」分頁，可以開啟或停止每日總覽；其他通知由管理者處理。' +
+        '要停止所有信件，請用網站的「停止接收所有信件」或信尾的取消訂閱。</p>' +
       (site ? mailPill_(site, '到網站管理訂閱', true) : '') +
       mailNote_('不想再收信，按最下面的「取消訂閱」，在確認頁選擇要停止的通知即可，不需要登入。'));
 
@@ -261,8 +261,8 @@ function sendUnsubscribeLink(email) {
 
     mailSection_('想調整內容',
       '<p style="margin:0 0 12px;font-size:14px;line-height:1.75;color:#26312C;">' +
-        '到網站的「訂閱」分頁，在「管理現有訂閱」填入這個 Email，就會列出目前訂了什麼，' +
-        '逐項勾選要保留的內容再儲存即可。</p>' +
+        '到網站的「訂閱」分頁可調整每日總覽。要停止所有通知，請用「停止接收所有信件」；' +
+        '其他通知請洽管理者或使用信尾退訂連結。</p>' +
       (site ? mailPill_(site, '到網站管理訂閱', true) : '') +
       mailNote_('若這不是你本人要求的，忽略這封信即可，訂閱不會有任何變動。不想再收信，按最下面的「取消訂閱」。'));
 
@@ -918,6 +918,9 @@ function dailyPushJob() {
   var noShow = noVideoToday_(today);
   if (noShow) {
     return pushWhy_(today, noShow + '：不寄每日總覽（盤中即時通知照常寄出）');
+  }
+  if (typeof cmContentSyncPending_ === 'function' && cmContentSyncPending_(today)) {
+    return pushWhy_(today, '簡訊與逐字稿說明正在合併，等郵件內容同步完成後再寄');
   }
 
   // 寄信之前必須先過品質關卡（完整性稽核 → 內容複審 → 重寫每日整理）。

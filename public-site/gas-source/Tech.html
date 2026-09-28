@@ -115,7 +115,7 @@
     <ol class="tech-real" id="techReal">
       <li><time>10:10</time><div><b>會員簡訊進來</b><p>「請於 73.5 元以下買進 6770 力積電做多」。原文先存下來，不等影片。</p></div><button type="button" data-go="sms">會員簡訊原文</button></li>
       <li><time>10:10–10:14</time><div><b>解析這則簡訊</b><p>力積電以「買入、73.5 以下」寫進當日紀錄，首頁的當日買入馬上出現這一檔。</p></div><button type="button" data-go="actions">當日買賣與觀望</button></li>
-      <li><time>解析後</time><div><b>寄出盤中即時通知</b><p id="techDemoSms">正在讀取這一則的寄送紀錄。</p></div><button type="button" data-go="ledger">每封信寄給誰</button></li>
+      <li><time>解析後</time><div><b>與影片內容核對</b><p id="techDemoSms">核對同一天、同一檔的原句，再重新整理說明。</p></div><button type="button" data-go="article">查看每日整理</button></li>
       <li><time>11:05–11:07</time><div><b>影片回放出現，開始聽打</b><p>網站排程在 11:05 找到回放，交給雲端工作機分段聽打，約兩分鐘後原稿存檔。</p></div><button type="button" data-go="video">影片與原稿</button></li>
       <li><time>11:10–11:15</time><div><b>第一輪判讀，文章發布</b><p>逐檔核對股名、主詞與數字後寫入紀錄，產生當天的整理文章。影片裡「準備要季線翻陽的立即電」其實是力積電，這一天卻被模型寫成同是記憶體股的華邦電；之後我把這個例子寫進判讀規則，<mark class="hl">同族群換名現在會被擋下</mark>。</p></div><button type="button" data-go="audit">每輪判讀留底</button></li>
       <li><time>11:48–11:55</time><div><b>影片更新後再判讀一次</b><p>第二輪的語氣核對把聖暉、祥碩從「觀望注意」改成「觀望不碰」，但兩檔的說明其實都偏多。</p></div><button type="button" data-go="audit">每輪判讀留底</button></li>
@@ -228,18 +228,18 @@
   <section class="tech-section tech-faq" id="tech-faq">
     <h2>常見問題</h2>
     <div class="qa">
-      <details><summary>網站多久更新一次？</summary><div class="a">會員簡訊在發出後幾分鐘內出現；影片整理通常在中午到下午一點半之間完成；行情每五分鐘更新；日 K、持股與績效在收盤後 16:45 起補齊。</div></details>
+      <details><summary>網站多久更新一次？</summary><div class="a">影片整理通常在中午到下午一點半之間完成；行情每五分鐘更新；日 K、持股與績效在收盤後 16:45 起補齊。個別來源可能延遲，請看畫面上的更新時間。</div></details>
       <details><summary>為什麼文章有了，績效還在等待？</summary><div class="a">文章先發布，日 K、持股回合和績效在背景更新。後台會分開列出內容與背景狀態。</div></details>
       <details><summary>為什麼有些價位寫「未說明」？</summary><div class="a">節目沒有講到價位，或聽不清楚、對不到是哪一檔的數字，就寫未說明，不猜也不補。</div></details>
       <details><summary>持股什麼時候算出場？</summary><div class="a">明講賣出、轉成觀望不碰，或超過 10 個交易日沒有再提到，就算出場；出場價取出場日當天最高。</div></details>
       <details><summary>搜尋可以用聽錯的字嗎？</summary><div class="a">可以。對照表裡的常見誤字（例如立即電、秦城）都找得到正確的股票。</div></details>
       <details><summary>資料錯了怎麼辦？</summary><div class="a">我可以在後台逐日編輯修正，網站與郵件查詢會自動同步，已寄出的信不會重寄。發現錯誤可以用右下角的「問問題」或 Email 告訴我。</div></details>
       <details><summary>我可以自己貼逐字稿嗎？</summary><div class="a">可以。手動稿與自動稿走同一條判讀流程；選「手動保留」可以讓自動聽打先停手。舊資料有原文但沒有來源標記的，也視同手動稿保護。</div></details>
-      <details><summary>沒有影片但有會員簡訊，會寄什麼？</summary><div class="a">不產生那天的每日總覽信，網站郵件查詢可以留空；會員簡訊若發布，盤中即時通知照常寄出。</div></details>
+      <details><summary>沒有影片，會寄每日總覽嗎？</summary><div class="a">不會。當天沒有可驗證的影片原稿，就不產生每日總覽信；網站郵件查詢可以留空。</div></details>
       <details><summary>日 K 和盤中價格為什麼不同？</summary><div class="a">兩者來源與更新時間不同。盤中預覽不會寫進正式績效；請看畫面上的資料時間。</div></details>
       <details><summary>網站會記錄我的資料嗎？</summary><div class="a">只記錄匿名的使用情形，瀏覽器識別碼不含 Email 或 IP。訂閱時才會存 Email，用來寄信與管理訂閱。</div></details>
-      <details><summary>可以用 LINE 收通知嗎？</summary><div class="a">LINE 官方帳號上線後，網站「訂閱通知」頁會出現加入好友的按鈕。加好友不會自動開啟推送，要在聊天室選每日總覽、盤中即時通知或兩種都要；LINE 與 Email 各自設定、各自記錄寄送結果。聊天室也能輸入代號或名稱，查最近一次被提到的紀錄，但不提供買賣建議。</div></details>
-      <details><summary>怎麼取消訂閱？</summary><div class="a">每日總覽與盤中即時通知可以分開管理。信尾的網站連結在手機上也打得開，不必登入。</div></details>
+      <details><summary>可以用 LINE 收通知嗎？</summary><div class="a">可以在網站「訂閱通知」頁加入官方帳號，並在聊天室開啟每日總覽。加好友本身不會開啟推送；LINE 與 Email 各自設定。聊天室也能輸入代號或名稱，查已發布的紀錄，但不提供買賣建議。</div></details>
+      <details><summary>怎麼取消訂閱？</summary><div class="a">每日總覽可以從網站管理訂閱，或用信尾連結取消；手機也能開啟該連結，不必登入。</div></details>
     </div>
   </section>
   <section class="tech-section tech-author" id="tech-author">
@@ -263,7 +263,7 @@
   var DESC = {
     video: '每天直播的原稿，可能是自動聽打，也可能是我手動貼上。每支影片以影片 ID 連到之後的判讀留底與個股紀錄，一支影片會產生很多筆。',
     candidate: '網站排程發現、但回放還沒就緒的影片；就緒後才開始聽打。',
-    sms: '會員簡訊原文，每則以文章 ID 分辨。解析後連到當日紀錄與會員持有，盤中通知也從這裡寄出；一則簡訊可能提到好幾檔。',
+    sms: '盤中來源原文，每則以文章 ID 分辨。解析後可與當日影片核對，同一則可能提到好幾檔。',
     smsaudit: '逐篇核對來源網站和這裡的簡訊有沒有漏抓，供後台查。',
     manual: '機器沒擷取到、由我人工補上的個股紀錄；重跑影片時不會被蓋掉。',
     names: '股名聽錯的經驗，例如「立即電」是力積電。只有人工確認過的才會自動套用。',
@@ -285,7 +285,7 @@
     performance: '每個交易日持有中回合的平均報酬，績效走勢讀這裡。',
     article: '每天的整理文章與寄送狀態，網站郵件查詢與每日總覽信都讀它。',
     mailsync: '簡訊和影片先後到時，記下哪一天的郵件內容還要同步。',
-    subscribers: '訂閱者的 Email，以及每日總覽、盤中通知兩種選擇。',
+    subscribers: '訂閱者的 Email，以及每日總覽的訂閱狀態。',
     ledger: '每封信、每位收件者一列，記錄郵件服務有沒有接受；漏寄可以查到是誰。',
     line: 'LINE 官方帳號的好友與各自的通知開關，以及每一則推送、每一位好友的結果。和 Email 分開記錄：停掉一邊不影響另一邊，Email 寄過也不代表 LINE 送過。',
     web: '網站畫面不另外存分頁，打開時直接讀這些表，資料更新後重新整理就看得到。',
@@ -520,7 +520,7 @@
     transcribe: [['candidate', 'video', 'autojob'], '交易日 11:05 起，網站排程每五分鐘看一次回放；出現後交給雲端工作機分段聽打，原稿存回「影片與原稿」。'],
     review: [['video', 'audit', 'names', 'codes', 'stocks', 'logs', 'checkpoint'], '模型逐句找出每一檔、誰的動作、現在的立場；程式再核對股名、代號與數字。找不到原句的不發布，只留在判讀留底。'],
     record: [['actions', 'holdings', 'corrections', 'article'], '通過核對的當日買賣、觀望與會員持有寫進紀錄，同時產生當天的整理文章。簡訊與人工補登的內容不會被影片蓋掉。'],
-    publish: [['article', 'mailsync', 'subscribers', 'ledger', 'line', 'sms', 'web'], '網站直接讀紀錄與文章。每日總覽在文章通過品質關卡後寄出，盤中通知在簡訊進來後寄出；Email 與 LINE 各自記下每一位收件者的結果。'],
+    publish: [['article', 'mailsync', 'subscribers', 'ledger', 'line', 'sms', 'web'], '網站直接讀已發布紀錄與文章。每日總覽在文章通過品質關卡後寄出；Email 與 LINE 各自記下每一位收件者的結果。'],
     quote: [['dailyk', 'live', 'hour', 'market', 'fundamental', 'tracker', 'cost', 'performance', 'web'], '每個交易日 16:45 起補齊每日行情，再依持股回合重算報酬與每日績效。文章已經先發布，不用等這一步。']
   };
   all('[data-flow]').forEach(function (b) { b.addEventListener('click', function () {
@@ -545,8 +545,8 @@
   var days = {
     late: [['11:05', '回放還沒出現，後台顯示等待影片'], ['稍後', '下一次檢查才找到影片；已聽完的片段會保留'], ['原稿存檔後', '接著判讀與發布，完成時間不固定']],
     busy: [['判讀中', '模型暫時忙碌，換下一把金鑰或稍後重試'], ['下一次', '從已完成的片段或步驟接著做'], ['完成後', '內容與背景狀態分開更新']],
-    noshow: [['取稿時段', '找不到當天的影片，後台標示沒有直播'], ['寄信', '不寄每日總覽；有會員簡訊仍寄盤中即時通知'], ['網站', '郵件查詢那一天留空']],
-    holiday: [['當天', '休市日，或隔年休市日尚未核實時，台股自動工作暫停'], ['簡訊', '會員簡訊照常接收，也可以寄盤中通知'], ['績效', '休市日不新增每日績效']]
+    noshow: [['取稿時段', '找不到當天的影片，後台標示沒有直播'], ['寄信', '不寄每日總覽'], ['網站', '郵件查詢那一天留空']],
+    holiday: [['當天', '休市日，或隔年休市日尚未核實時，台股自動工作暫停'], ['內容', '已發布的資料仍可查詢'], ['績效', '休市日不新增每日績效']]
   };
   function drawDay(k) { one('#dayLane').innerHTML = days[k].map(function (x) { return '<li><time>' + x[0] + '</time><span>' + x[1] + '</span></li>'; }).join(''); }
   all('[data-day]').forEach(function (b) { b.addEventListener('click', function () { select(all('[data-day]'), b); drawDay(b.dataset.day); }); }); drawDay('late');
@@ -628,7 +628,7 @@
     smsfirst: [[['wait', '影片還沒回放'], ['skip', '還沒有原稿'], ['ok', '首頁先放簡訊的買賣，觀望區寫整理中'], ['ok', '照常']], '簡訊和影片可以先後到，但不能互相蓋掉；影片後到時，只補充同一檔、能在原稿找到的說明。'],
     wrong: [[['ok', '完成'], ['stop', '9/23 語氣核對把偏多的兩檔改成觀望不碰'], ['resume', '我在後台改回後，網站與郵件查詢自動同步'], ['resume', '重算持股與績效']], '這類錯誤機器自己看不出來，要人判斷；改完之後，我把原因寫成新的規則與測試。'],
     toobig: [[['ok', '完成'], ['ok', '完成'], ['stop', '9/24 首頁顯示「資料讀取失敗」'], ['ok', '完成']], '原因是持股清單超過暫存的單筆大小；後來改成資料太大時不放進暫存，並且讀不到時一定要顯示原因。'],
-    holiday: [[['skip', '休市，不取稿'], ['skip', '不判讀'], ['skip', '不寄每日總覽'], ['skip', '不寫每日績效']], '會員簡訊照常接收，也照常寄盤中通知；隔年休市日尚未核實時，台股自動工作也會先暫停。']
+    holiday: [[['skip', '休市，不取稿'], ['skip', '不判讀'], ['skip', '不寄每日總覽'], ['skip', '不寫每日績效']], '隔年休市日尚未核實時，台股自動工作也會先暫停；既有資料仍可查詢。']
   };
   function drawFail(k) {
     select(all('[data-fail]'), one('[data-fail="' + k + '"]'));
@@ -648,7 +648,7 @@
     ['stop', '不是', '報酬是理想上限的示意', '進場取當天最低、出場取當天最高，也沒有扣手續費、稅和滑價，不能當成實際成交報酬。'],
     ['warn', '有條件', '可能延遲', '行情來源可能延遲，請看畫面上的資料時間；盤中預覽不寫進正式績效。'],
     ['warn', '會', '所以每一筆都留原句', '聽不清楚的股名留給我確認、數字寫「未說明」，不猜也不補。'],
-    ['warn', '不會', '沒有直播就不寄每日總覽', '會員簡訊發布的話，盤中即時通知照常寄出。'],
+    ['warn', '不會', '沒有直播就不寄每日總覽', '當天沒有可驗證的影片原稿，郵件查詢可留空。'],
     ['ok', '查得到', '每一封信都有寄送紀錄', '先確認訂閱狀態，再由我查那一封信有沒有被郵件服務接受。'],
     ['warn', '不一定', '文字可能不同，核對規則相同', '模型每次寫出來的文字可能不一樣，但分類、股名和數字都要通過同樣的核對才會發布。']
   ];
@@ -671,7 +671,7 @@
       all('[data-live]').forEach(function (e) { var v = r[e.dataset.live]; e.textContent = v == null ? '—' : Number(v).toLocaleString('zh-TW'); });
       one('#techLiveNote').textContent = '截至 ' + r.asOf + '，自 ' + r.since + ' 起的紀錄規模。這些數字不代表投資績效。';
       var demo = r.demo || {};
-      one('#techDemoSms').textContent = '這則簡訊觸發盤中即時通知，' + demoText(demo.sms, '盤中通知');
+      one('#techDemoSms').textContent = '這則來源記下當時的操作；影片後到時，只用同一天同一檔、可核對的原句重寫說明。';
       one('#techDemoDaily').textContent = '文章通過品質關卡後才寄，' + demoText(demo.daily, '每日總覽');
     }).withFailureHandler(function () { loaded = false; one('#techLiveNote').textContent = '目前讀不到資料量，稍後再開啟可以重試。'; }).apiGetTechStats();
   };

@@ -463,6 +463,7 @@
      以及頂列右上角的放大鏡（個股查詢）。兩邊要走完全同一段流程，
      否則其中一邊會漏掉「收起頁首視覺區」或「第一次進來才載入資料」。 */
   function activateTab(name, btn) {
+    if (name === 'sms') { name = 'overview'; btn = document.querySelector('button.tab[data-tab="overview"]'); }
     document.querySelectorAll('button.tab').forEach(function (b) {
       b.setAttribute('aria-selected', 'false');
     });
@@ -630,7 +631,7 @@
      只有簡訊進來、影片還在處理的空窗期，這句話是錯的。 */
   function watchEmptyText(pending) {
     // 今天沒有直播節目（v54）：觀望名單從缺是正常的，不是還沒整理完。
-    if (OVERVIEW_NOSHOW) { return '今天沒有直播節目，觀望名單從缺；上方是今天的會員通知。'; }
+    if (OVERVIEW_NOSHOW) { return '今天沒有直播節目，觀望名單從缺。'; }
     if (!pending) { return '本日未說明：這一類在當天的影片裡沒有被提到。'; }
     var hm = Number(new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(11, 16).replace(':', ''));
     return hm >= 1430
@@ -1193,7 +1194,7 @@ function publicNarrative_(text, row) {
   }
 
   /* ---------------- 首頁 ---------------- */
-  loadLatestSmsHome();
+  // 公開頁只呈現完成稽核的每日總覽；盤中原文僅保留在管理後台。
   setInterval(function () {
     if (document.visibilityState !== 'visible') { return; }
     var parts = new Intl.DateTimeFormat('en-US', { timeZone:'Asia/Taipei', weekday:'short', hour:'2-digit',
@@ -1201,7 +1202,7 @@ function publicNarrative_(text, row) {
     var p = {}; parts.forEach(function (x) { p[x.type] = x.value; });
     var hm = Number(p.hour) * 100 + Number(p.minute);
     if (['Mon','Tue','Wed','Thu','Fri'].indexOf(p.weekday) >= 0 && hm >= 900 && hm <= 1500) {
-      loadLatestSmsHome(true);
+      // 當日資料已由後端更新，公開頁不另拉盤中原文。
     }
   }, 60000);
   ['tblBuy', 'tblSell', 'tblWatchAvoid', 'tblWatchWatch'].forEach(function (id) { $(id).innerHTML = skel(3); });
@@ -1248,7 +1249,7 @@ function publicNarrative_(text, row) {
     renderLedger(d);
     renderBand(d);
     // 沒有直播的日子，當日買賣的空白說明與觀望一致（v58）；不寫「影片裡沒有被提到」
-    var tradeEmpty = OVERVIEW_NOSHOW ? '今天沒有直播節目，當日買賣以上方會員通知為準。' : '';
+    var tradeEmpty = OVERVIEW_NOSHOW ? '今天沒有直播節目，沒有影片判讀的當日買賣。' : '';
     $('tblBuy').innerHTML = tradeTable(d.buy, 'dir-buy', { empty: tradeEmpty });
     $('tblSell').innerHTML = tradeTable(d.sell, 'dir-sell', { empty: tradeEmpty });
     $('tblWatchAvoid').innerHTML = tradeTable(wAvoid(d), 'dir-watch', { empty: watchEmptyText(OVERVIEW_PENDING) });
@@ -3386,7 +3387,7 @@ function publicNarrative_(text, row) {
   }
 
   /* ---------------- 訂閱 ----------------
-     「關注股票被明講賣出時提醒」拿掉了（2026/09/16 管理者要求）：訂閱只剩每日總覽與盤中即時通知。 */
+     公開入口只開每日總覽；後台另行管理既有來源通知，不從這裡改動。 */
 
   $('subBtn').addEventListener('click', function () {
     var msg = $('subMsg');
@@ -3405,7 +3406,7 @@ function publicNarrative_(text, row) {
     }).apiSubscribe({
       email: $('subEmail').value.trim(),
       daily: $('subDaily').checked,
-      sms: $('subSms') ? $('subSms').checked : false
+      sms: false
     });
   });
 
@@ -3579,8 +3580,7 @@ function publicNarrative_(text, row) {
     }
     $('draftBox').innerHTML =
       cell('Email', d.email || '尚未提供', !!d.email) +
-      cell('每日總覽', d.daily === null ? '尚未確認' : (d.daily ? '要' : '不要'), d.daily === true) +
-      cell('盤中即時通知', d.sms === null || d.sms === undefined ? '尚未確認' : (d.sms ? '要' : '不要'), d.sms === true);
+      cell('每日總覽', d.daily === null ? '尚未確認' : (d.daily ? '要' : '不要'), d.daily === true);
     $('draftBox').hidden = false;
   }
 
@@ -3719,7 +3719,6 @@ function publicNarrative_(text, row) {
     $('mgWho').textContent = r.email;
     $('mgSince').textContent = r.createdAt ? '訂閱於 ' + r.createdAt : '';
     $('mgDaily').checked = !!r.daily;
-    $('mgSms').checked = !!r.sms;
     $('mgPanel').hidden = false;
     mgMsg('', '');
   }
@@ -3752,10 +3751,7 @@ function publicNarrative_(text, row) {
   });
 
   $('mgSaveBtn').addEventListener('click', function () {
-    var payload = { daily: $('mgDaily').checked, sms: $('mgSms').checked };
-    if (!payload.daily && !payload.sms) {
-      if (!window.confirm('兩項都沒有勾，等於不會再收到任何信件。要繼續嗎？')) { return; }
-    }
+    var payload = { daily: $('mgDaily').checked };
     $('mgSaveBtn').disabled = true;
     mgMsg('', '儲存中');
     google.script.run.withSuccessHandler(function (r) {

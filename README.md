@@ -1,6 +1,6 @@
-GitHub Pages 原站介面：為避開 Apps Script 多帳號登入時的 Google 錯誤頁，`public-site/gas-source/` 保存目前 GAS 原檔，建站時原樣組裝前台與後台 HTML/CSS/JavaScript，並經免費 Worker 呼叫原 GAS 後端。部署先後與未完成事項見 [GitHub Pages 原站介面部署與驗收](docs/0928-github-pages/部署與驗收.md)。GAS v75 與 Worker Secret 尚需管理者部署；部署完成前 Pages 保留上一個成功版本，不把簡化鏡像當成完成版。
+**待部署版本：2026-09-28-daily-only-v77。** GitHub Pages 以 `public-site/gas-source/` 的完整 GAS 原檔組裝原站前後台，經 Worker 呼叫同一個 GAS 後端；保留動畫、表格與超連結。公開網站與 LINE 僅提供每日總覽訂閱，盤中 Email 改由後台管理；同日逐字稿與盤中來源可重寫為一段已核對的說明。完整檔案、部署先後與驗收請看 [v77 部署與驗收](docs/0928-daily-only/部署與驗收.md)。GitHub 發布不會更新正式 GAS，部署後要以 `/exec?action=ping` 核對 build。
 
-目前交付：**2026-09-27-line-v73**。新增 LINE 官方帳號訂閱、查詢與推送流程，Cloud Run 驗簽後以 Cloud Tasks 持久交接，再由 Apps Script 依獨立訂閱與寄送帳本處理。程式已通過離線測試，**尚未部署 GAS、Cloud Run 或啟用 LINE 發送**。GAS 完整檔案在 `release/zhangzhen-full-v73.zip`，轉送服務在 `line-webhook/`；請按 [v73 部署與驗證](docs/0927-line/部署與驗證.md) 逐步設定，推送預設關閉。
+以下 v73 為歷史紀錄：最初的 LINE 設計與部署方式見 [v73 部署與驗證](docs/0927-line/部署與驗證.md)；現行部署以最上方 v77 文件為準。免費 Cloudflare 轉送器仍在 `line-webhook/`。
 
 目前交付：**2026-09-25-tables-v69**（含尚未部署的 v68）。手機表格改成卡片、不再需要左右滑（修正個股面板「每天講了什麼」說明重點滑不動）、表格字級與欄寬、後台日曆同高、會員簡訊收錄清單排版，後台帳號選單移到右上角。請依 [v69 部署與驗證](docs/0925-v69/部署與驗證.md) 對正式站 v67 替換 8 檔並部署，再以 `day-edit-sync` mode=performance 重算。Apps Script 原始碼只在本機資料夾。
 

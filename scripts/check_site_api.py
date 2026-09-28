@@ -9,7 +9,11 @@ BASE = os.getenv("SITE_API_URL", "https://zhangzhen-site-api.rainforecast2026-6f
 req = urllib.request.Request(
     BASE,
     data=json.dumps({"method": "apiGetDashboard", "args": []}).encode(),
-    headers={"Content-Type": "application/json", "Origin": "https://lee200202.github.io"},
+    headers={
+        "Content-Type": "application/json",
+        "Origin": "https://lee200202.github.io",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    },
     method="POST",
 )
 try:
@@ -25,3 +29,4 @@ except urllib.error.HTTPError as error:
     except (ValueError, UnicodeDecodeError):
         detail = "non-json"
     raise SystemExit(f"橋接 HTTP {error.code}: {detail}") from None
+

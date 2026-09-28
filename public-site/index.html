@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#11211c">
+  <title>盤勢有據｜公開紀錄</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="top">
+    <div class="shell top-in">
+      <a class="brand" href="#daily"><span class="brand-mark">▥</span>盤勢有據</a>
+      <span class="top-state" id="topState">正在讀取公開紀錄</span>
+    </div>
+  </header>
+  <nav class="tabs shell" aria-label="網站分頁">
+    <a href="#daily" data-view="daily">每日總覽</a>
+    <a href="#stocks" data-view="stocks">查個股</a>
+    <a href="#tracker" data-view="tracker">持股追蹤</a>
+    <a href="#market" data-view="market">市場總覽</a>
+    <a href="#performance" data-view="performance">績效走勢</a>
+    <a href="#sms" data-view="sms">會員通知</a>
+    <a href="#transcript" data-view="transcript">逐字稿</a>
+  </nav>
+  <main class="shell">
+    <div class="status" id="siteStatus" role="status">讀取資料中…</div>
+    <section class="view" id="daily" aria-labelledby="dailyTitle">
+      <div class="heading"><div><p class="eyebrow">每日紀錄</p><h1 id="dailyTitle">每日總覽</h1></div>
+        <label class="picker">選擇日期 <select id="dayPicker"></select></label></div>
+      <div id="dailyBody"></div>
+    </section>
+    <section class="view" id="stocks" aria-labelledby="stocksTitle" hidden>
+      <div class="heading"><div><p class="eyebrow">查詢</p><h1 id="stocksTitle">查個股</h1></div></div>
+      <label class="search-label" for="stockSearch">輸入名稱或代號</label>
+      <input id="stockSearch" class="search" type="search" placeholder="例如 台積電、2330" autocomplete="off">
+      <div id="stockResults"></div>
+    </section>
+    <section class="view" id="tracker" aria-labelledby="trackerTitle" hidden>
+      <div class="heading"><div><p class="eyebrow">持有回合</p><h1 id="trackerTitle">持股追蹤</h1></div></div>
+      <p class="hint">價格與報酬沿用已發布的試算表結果。點選標的可查看逐日說明。</p>
+      <div id="trackerBody"></div>
+    </section>
+    <section class="view" id="market" aria-labelledby="marketTitle" hidden>
+      <div class="heading"><div><p class="eyebrow">行情快照</p><h1 id="marketTitle">市場總覽</h1></div></div>
+      <p class="hint">顯示來源最後一次成功更新的資料；圖表與報價均標示時間，不將舊資料稱為即時。</p>
+      <div id="marketBody"></div>
+    </section>
+    <section class="view" id="performance" aria-labelledby="performanceTitle" hidden>
+      <div class="heading"><div><p class="eyebrow">已發布績效</p><h1 id="performanceTitle">績效走勢</h1></div></div>
+      <div id="performanceBody"></div>
+    </section>
+    <section class="view" id="sms" aria-labelledby="smsTitle" hidden>
+      <div class="heading"><div><p class="eyebrow">原文紀錄</p><h1 id="smsTitle">會員通知</h1></div></div>
+      <div id="smsBody"></div>
+    </section>
+    <section class="view" id="transcript" aria-labelledby="transcriptTitle" hidden>
+      <div class="heading"><div><p class="eyebrow">影片來源</p><h1 id="transcriptTitle">逐字稿</h1></div>
+        <label class="picker">選擇日期 <select id="transcriptPicker"></select></label></div>
+      <div id="transcriptBody"></div>
+    </section>
+  </main>
+  <footer class="shell foot">
+    <p>本頁由 GitHub Actions 從已公開的試算表紀錄產生，沒有 Google 帳號登入要求。資料按排程更新，請以頁面時間為準。</p>
+    <p>內容為節目紀錄整理，不構成投資建議；行情可能延遲。</p>
+  </footer>
+</body>
+</html>

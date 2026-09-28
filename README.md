@@ -1,3 +1,5 @@
+公開閱讀站：為避開 Apps Script 多帳號登入時的 Google 錯誤頁，新增由試算表公開欄位生成的 GitHub Pages 鏡像。首次啟用、資料範圍與驗收請看 [GitHub 公開閱讀站部署與驗收](docs/0928-github-pages/部署與驗收.md)。這是唯讀內容站；後台、訂閱寫入與 AI 問答仍在原服務。
+
 目前交付：**2026-09-27-line-v73**。新增 LINE 官方帳號訂閱、查詢與推送流程，Cloud Run 驗簽後以 Cloud Tasks 持久交接，再由 Apps Script 依獨立訂閱與寄送帳本處理。程式已通過離線測試，**尚未部署 GAS、Cloud Run 或啟用 LINE 發送**。GAS 完整檔案在 `release/zhangzhen-full-v73.zip`，轉送服務在 `line-webhook/`；請按 [v73 部署與驗證](docs/0927-line/部署與驗證.md) 逐步設定，推送預設關閉。
 
 目前交付：**2026-09-25-tables-v69**（含尚未部署的 v68）。手機表格改成卡片、不再需要左右滑（修正個股面板「每天講了什麼」說明重點滑不動）、表格字級與欄寬、後台日曆同高、會員簡訊收錄清單排版，後台帳號選單移到右上角。請依 [v69 部署與驗證](docs/0925-v69/部署與驗證.md) 對正式站 v67 替換 8 檔並部署，再以 `day-edit-sync` mode=performance 重算。Apps Script 原始碼只在本機資料夾。

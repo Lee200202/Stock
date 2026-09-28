@@ -358,6 +358,7 @@ function lineParseText_(raw, uid) {
 
   // 接續對話確認（例如詢問「您是指華城嗎？」後回覆「是」或「對」）
   if (/^(?:是|是的|對|對的|好|好的|沒錯)$/.test(t)) { return { a: 'confirm_stock' }; }
+  if (/^(?:不是|不對|否|不是的|沒有)$/.test(t)) { return { a: 'deny_stock' }; }
 
   // 業務核心選單
   if (/^(?:今日整理|今天整理|今日總覽|每日總覽|每日整理|今天|今日|今天有影片嗎|今天有直播嗎|今天有沒有影片|今天有沒有直播)$/.test(t)) { return { a: 'today' }; }
@@ -369,7 +370,7 @@ function lineParseText_(raw, uid) {
   if ((m = t.match(/^(?:查詢?)?(00\d{3,4}[A-Z]?|\d{4,6}[A-Z]?)(?!\d)/))) { return { a: 'stock', c: m[1] }; }
 
   // 句子中的股票意圖交由官方名稱／代號表解析；不把整句當成公司名。
-  if (/(?:查|找|紀錄|買賣|操作|提到|看法|持股|何時|什麼時候)/.test(t) && /[㐀-鿿]|\d{4}/.test(t)) {
+  if (/(?:查|找|紀錄|買賣|操作|提到|提過|點名|提及|看法|怎麼看|怎麼說|持股|何時|什麼時候|歷年|代號|價位|時間點)/.test(t) && /[㐀-鿿]|\d{4}/.test(t)) {
     return { a: 'stock', q: t };
   }
 
@@ -391,10 +392,62 @@ function lineParseText_(raw, uid) {
   // 其餘超出權限之提問（天氣、生活常識、閒聊等）
   return { a: 'outofscope', kind: 'general', raw: t };
 }
+
+function lineStripQuestionWords_(text) {
+  var s = String(text || '').replace(/[，。？！、；：\s,?!;:_—~～-]+/g, '');
+  if (!s) return '';
+  var patterns = [
+    /^(?:請問|查詢?|我要查詢?|我想查詢?|幫我查詢?|請幫我查詢?|幫我看|我想看|我想知道|請教|查一下|看一下|聽說|張震說|張震講)+/g,
+    /(?:張震說|張震講|張震看|張震是怎麼說的|張震是怎麼看的|張震怎麼說|張震怎麼看|張震|分析師|老師)/g,
+    /(?:股票代號|個股代號|代號|股票|個股|這檔股票|這檔|這支|這一支)/g,
+    /(?:歷年|這幾年|今年|去年|歷史|過去|最近|最新|上次|之前|今天|今日|現在|目前|近期)/g,
+    /(?:有否提過|有沒有提過|有提過嗎|有說過嗎|有講過嗎|有提過|有說過|有講過|有否提及|有沒有提及|有提及嗎|有推薦過嗎|有推薦嗎)/g,
+    /(?:何時被提到|何時提到|什麼時候提到|什麼時候講過|何時講過|何時提及|何時買|何時賣|講了?什麼|說了?什麼|提到什麼)/g,
+    /(?:提過|提到|提及|說過|講過|點名|推薦|介紹)/g,
+    /(?:買賣價位|買進價位|賣出價位|進場價位|出場價位|價位時間點|時間點為何|時間點|買賣點|進場點|出場點|目標價|買賣價格|價位|價格)/g,
+    /(?:買賣狀況|買賣紀錄|買賣|買進|買入|賣出|操作|持股|續抱|做多|做空)/g,
+    /(?:有否|有沒有|是否有|為何|如何|怎樣|什麼時候|何時|落在哪裡|落在哪|在哪裡|在哪|幾塊|多少|能不能|可不可以|可以嗎|該不該|要不要)/g,
+    /(?:走勢如何|走勢|行情|看法|怎麼看|怎麼說|說明|紀錄|資料)/g,
+    /(?:是在|是|在|位於)+$/g,
+    /(?:呢|嗎|？|\?|！|!|。|，|、|；|：)+$/g
+  ];
+  patterns.forEach(function (re) { s = s.replace(re, ''); });
+  return s.trim();
+}
+
+function lineExtractStockFromSentence_(text) {
+  text = String(text || '').replace(/[＊*\s]/g, '').trim();
+  if (!text) return '';
+  var codeMatch = text.match(/(?:^|[^\d])(00\d{3,4}[A-Z]?|\d{4,6}[A-Z]?)(?!\d)/i);
+  if (codeMatch) return codeMatch[1];
+  var stripped = lineStripQuestionWords_(text);
+  if (stripped.length >= 2 && stripped.length <= 8) return stripped;
+
+  var clean = text.replace(/[，。？！、；：\s,?!;:_—~～-]+/g, '');
+  var bestCandidate = '', bestScore = 0;
+  for (var len = 4; len >= 2; len--) {
+    for (var pos = 0; pos <= clean.length - len; pos++) {
+      var chunk = clean.slice(pos, pos + len);
+      if (/^(?:代號|歷年|有否|提過|買賣|價位|時間|為何|如何|怎樣|紀錄|說明|看法|股票|今天|最近|最新|之前|張震|老師)$/.test(chunk)) continue;
+      var sim = lineFindSimilarStocks_(chunk);
+      if (sim && sim.length && sim[0].score > bestScore) {
+        bestScore = sim[0].score;
+        bestCandidate = chunk;
+      }
+    }
+    if (bestCandidate) break;
+  }
+  return bestCandidate || stripped || text;
+}
+
 /** 「台積電最近講什麼」→「台積電」、「華成何時被提到」→「華成」 */
 function lineStockKeyword_(t) {
+  var extracted = lineExtractStockFromSentence_(t);
+  if (extracted && extracted.length >= 2 && extracted.length <= 12) {
+    return extracted;
+  }
   return String(t || '')
-    .replace(/^(?:請問|查詢?|幫我查|我想查|我想知道|請教|查一下|看一下|聽說|張震說|張震講)/, '')
+    .replace(/^(?:請問|查詢?|我要查詢?|我想查詢?|幫我查詢?|請幫我查詢?|幫我看|我想看|我想知道|請教|查一下|看一下|聽說|張震說|張震講)/, '')
     .replace(/(?:最近|最新|上次|之前|今天|近期)?(?:何時被提到|何時提到|什麼時候提到|什麼時候講過|何時講過|何時提及|何時買|何時賣|講了?什麼|說了?什麼|怎麼說|怎麼看|提到什麼|被提到|被提及|的紀錄|紀錄|的說明|說明|的看法|看法|的操作|怎麼操作|如何操作|的走勢|走勢如何|呢|嗎|？|\?|！|!|。)+$/, '')
     .replace(/(?:何時被提到|何時提到|什麼時候提到|什麼時候講過|何時講過|何時提及|何時買|何時賣|最近|最新|上次|之前)$/, '')
     .trim();
@@ -418,6 +471,7 @@ function lineRoute_(uid, ch, act) {
     case 'greeting': return lineGreetingReply_();
     case 'thanks': return lineThanksReply_();
     case 'confirm_stock': return lineConfirmStockReply_(uid);
+    case 'deny_stock': return [lineText_('好的，請直接輸入您想查詢的股票名稱或代號（例如「2330」或「聯發科」），我來為您查詢！', lineQuickMain_())];
     case 'askstock': return [lineText_('請輸入股票代號或名稱，例如「2330」或「台積電」。', lineQuickMain_())];
     case 'stock': return lineStockReply_(act.c || act.q || '', uid);
     case 'advice': return lineAdviceReply_(act.q || '');
@@ -689,7 +743,7 @@ function lineResolveStock_(q) {
     return stem.length >= 2 && haystack.indexOf(normalized) >= 0 ? { name: n, length: normalized.length,
       code: String(byName[n] || (table[n] && table[n][0]) || '') } : null;
   }).filter(function (x) { return x && x.code && byCode[x.code]; }).sort(function (a, b) { return b.length - a.length; });
-  if (mentions.length && (mentions[0].length >= 3 || /查|找|紀錄|買賣|操作|提到|持股/.test(q))) {
+  if (mentions.length && (mentions[0].length >= 3 || /查|找|紀錄|買賣|操作|提到|提過|點名|提及|看法|怎麼看|怎麼說|持股|代號|價位|時間/.test(q))) {
     var best = mentions[0];
     return { code: best.code, name: nameOf(best.code) };
   }
@@ -698,11 +752,12 @@ function lineResolveStock_(q) {
   if (hits.length > 1) {
     return { q: q, more: hits.length > 10, choices: hits.slice(0, 10).map(function (n) { return { code: byName[n], name: nameOf(byName[n]) }; }) };
   }
-  // 若包含「何時被提到」等問句贅詞，嘗試剝除後再比對一次
+  // 若包含自然語句問句或贅詞，嘗試抽取核心股票關鍵詞後再比對一次
   var stripped = lineStockKeyword_(q);
   if (stripped && stripped !== q && stripped.length >= 2) {
     var subRes = lineResolveStock_(stripped);
     if (!subRes.none) { return subRes; }
+    return { none: true, q: (subRes.q || stripped) };
   }
   return { none: true, q: (stripped && stripped.length >= 2 ? stripped : q) };
 }

@@ -364,6 +364,17 @@ assert(/找不到「華成」，請問您是指「華城（1519）」嗎？/.tes
 // 接話回覆「是」
 w.say(C, '是');
 assert(/華城（1519）/.test(w.lastReply().messages[0].altText), '確認後直接調出該股票紀錄');
+// 長句自然對話辨別股票：華成代號歷年有否提過，買賣價位時間點為何
+w.say(C, '華成代號歷年有否提過，買賣價位時間點為何');
+assert(/找不到「華成」，請問您是指「華城（1519）」嗎？/.test(w.lastReply().messages[0].text), '長句中精準辨別出股票名稱華成並提示華城');
+// 接話回覆「好」
+w.say(C, '好');
+assert(/華城（1519）/.test(w.lastReply().messages[0].altText), '接話「好」直接調出該股票紀錄');
+// 無逗號長句自然對話
+w.say(C, '華成代號歷年有否提過買賣價位時間點為何');
+assert(/找不到「華成」，請問您是指「華城（1519）」嗎？/.test(w.lastReply().messages[0].text), '無標點長句中精準辨別出股票名稱華成並提示華城');
+w.say(C, '不是');
+assert(/請直接輸入您想查詢的股票名稱或代號/.test(w.lastReply().messages[0].text), '否定確認引導輸入正確代號');
 w.say(C, '力積電明天能不能買？');
 reply = w.lastReply().messages;
 assert(/^我能整理已發布的節目紀錄，不能替你決定買賣。最近一次提及力積電是 09\/23，當時歸類為「當日買入」。/.test(reply[0].text));

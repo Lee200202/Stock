@@ -55,6 +55,14 @@ def build(output: Path, api_url: str) -> None:
     if index.count("<?!= include('JavaScript'); ?>") != 1:
         raise ValueError("Original JavaScript include location changed")
     page = render(SOURCE / "Index.html", values)
+    # GAS sets this through HtmlService.setTitle(APP_TITLE), outside Index.html.
+    # Keep the browser tab identical when the same source is served by Pages.
+    if "<title>" not in page:
+        config = (SOURCE / "Config.gs").read_text(encoding="utf-8")
+        title_match = re.search(r"var APP_TITLE = '([^']+)';", config)
+        if not title_match:
+            raise ValueError("APP_TITLE missing from original Config.gs")
+        page = page.replace('<meta charset="utf-8">', '<meta charset="utf-8">\n  <title>' + html.escape(title_match.group(1)) + '</title>', 1)
     if "<?" in page:
         raise ValueError("Unexpanded Apps Script template tag")
     bridge = (ROOT / "public-site" / "original-bridge.js").read_text(encoding="utf-8")

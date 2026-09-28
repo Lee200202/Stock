@@ -1,4 +1,4 @@
-公開閱讀站：為避開 Apps Script 多帳號登入時的 Google 錯誤頁，新增由試算表公開欄位生成的 GitHub Pages 鏡像。首次啟用、資料範圍與驗收請看 [GitHub 公開閱讀站部署與驗收](docs/0928-github-pages/部署與驗收.md)。這是唯讀內容站；後台、訂閱寫入與 AI 問答仍在原服務。
+GitHub Pages 原站介面：為避開 Apps Script 多帳號登入時的 Google 錯誤頁，`public-site/gas-source/` 保存目前 GAS 原檔，建站時原樣組裝 HTML/CSS/JavaScript，並經免費 Worker 呼叫原 GAS 後端。部署先後與未完成事項見 [GitHub Pages 原站介面部署與驗收](docs/0928-github-pages/部署與驗收.md)。GAS v75 與 Worker Secret 尚需管理者部署；部署完成前 Pages 保留上一個成功版本，不把簡化鏡像當成完成版。
 
 目前交付：**2026-09-27-line-v73**。新增 LINE 官方帳號訂閱、查詢與推送流程，Cloud Run 驗簽後以 Cloud Tasks 持久交接，再由 Apps Script 依獨立訂閱與寄送帳本處理。程式已通過離線測試，**尚未部署 GAS、Cloud Run 或啟用 LINE 發送**。GAS 完整檔案在 `release/zhangzhen-full-v73.zip`，轉送服務在 `line-webhook/`；請按 [v73 部署與驗證](docs/0927-line/部署與驗證.md) 逐步設定，推送預設關閉。
 

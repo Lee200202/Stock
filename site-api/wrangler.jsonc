@@ -1,0 +1,9 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "zhangzhen-site-api",
+  "main": "./worker.mjs",
+  "compatibility_date": "2026-09-28",
+  "vars": {
+    "GAS_WEBAPP_URL": "https://script.google.com/macros/s/AKfycbyLQjAd-CnQ6D6_JP3OY1WwXDkafCJthzeP3G4FDkT4t26PY9Gx1rhrXJjiHVZExQhoaw/exec"
+  }
+}

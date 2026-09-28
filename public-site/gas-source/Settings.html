@@ -1,0 +1,254 @@
+<!-- ==================================================================
+     版面設定（前後台共用）
+
+     為什麼做成獨立的 include
+     ------------------------
+     這一塊要出現在前台與後台兩個頁面的同一個位置，行為也必須完全一樣——
+     同一個齒輪、同一組選項、同一組 localStorage 鍵，在前台調過的設定，
+     進後台要看得到。
+
+     兩邊各抄一份的話，之後改了一邊忘了另一邊，兩個頁面就會慢慢長歪，
+     而那種差異沒有人會特地去比對，只會在某天發現「後台的字距怎麼跟前台不一樣」。
+     深淺色與手機／電腦切換當初就是各抄一份，現在一併收進來了。
+
+     六軸都在這裡
+     ------------
+     深淺色、版面、字體大小、內容欄寬、字距、行距。
+
+     先前深淺色與版面是頂列上兩顆獨立的控制項，齒輪只管後面三軸。
+     那個分法沒有道理：六個都在回答同一個問題——「這個網站在我這台裝置上
+     要長什麼樣子」——卻散在三個地方，而且頂列被它們佔掉一大半，
+     窄螢幕上站名都擠不下。
+
+     設定值掛在哪裡
+     --------------
+     全部掛在 html 元素上（data-theme / data-view / data-fs / data-w /
+     data-ls / data-lh）。樣式規則全部在 Stylesheet，這裡只負責掛屬性。
+
+     深淺色與版面各自保留原本的 localStorage 鍵（theme、view），
+     沒有併進 zzTxRead——那兩個鍵已經存在使用者的瀏覽器裡，換鍵等於
+     所有人的設定被清掉一次。
+
+     這一塊的指令碼跑在頁首、比 JavaScript.html 早，
+     所以深色模式在第一次繪製之前就套好了，不會先閃一下白底。
+     ================================================================== -->
+
+<div class="setwrap">
+  <button class="setbtn" id="setBtn" aria-expanded="false" aria-controls="setMenu"
+          aria-label="版面設定" title="版面設定">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+    </svg>
+  </button>
+  <div class="setmenu" id="setMenu" role="dialog" aria-label="版面設定" hidden>
+    <div class="setmenu-h">版面設定</div>
+    <div class="txset" id="txSet"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  /* 六軸分成兩組儲存。
+
+     theme 與 view 各有自己的鍵，因為那兩個鍵早就存在使用者的瀏覽器裡了；
+     其餘四軸（字體大小、欄寬、字距、行距）共用 zzTxRead 一個鍵。
+
+     設定值同時放在記憶體與 localStorage：記憶體是真正在用的那一份，
+     localStorage 只負責「下次再來還記得」。
+
+     兩份的理由是這個網站跑在 Apps Script 的沙箱 iframe 裡，
+     瀏覽器擋第三方儲存時 localStorage 會直接拋錯。只讀 localStorage 的話，
+     按了選項 → 存入失敗 → 重新讀回來還是空的 → 畫面完全沒有反應，
+     使用者會以為按鈕壞了。分成兩份之後，那種環境下至少這一次瀏覽是有效的，
+     只是關掉分頁就忘記——那是儲存被擋的必然結果，不是壞掉。 */
+  var KEY = 'zzTxRead';
+  var THEME_KEY = 'theme';
+  var VIEW_KEY = 'view';
+  var AXES = ['fs', 'w', 'ls', 'lh'];
+
+  function read(k) {
+    try { return localStorage.getItem(k) || ''; } catch (e) { return ''; }
+  }
+  function write(k, v) {
+    try {
+      if (v) { localStorage.setItem(k, v); } else { localStorage.removeItem(k); }
+    } catch (e) { /* 記不住就算了 */ }
+  }
+
+  var state = (function () {
+    var o = { fs: '', w: '', ls: '', lh: '' };
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (raw) {
+        var p = JSON.parse(raw);
+        AXES.forEach(function (k) { o[k] = p[k] || ''; });
+      }
+    } catch (e) { /* 讀不到就用空的 */ }
+    return o;
+  })();
+
+  /* 深淺色。空字串代表「跟隨系統」——那是預設，也是沒選過時的狀態。
+     跟隨系統要記成一個明確的選項，不能用「沒有值」代表：
+     使用者可能在系統是深色時特地選淺色，再選回跟隨系統，
+     那時必須把已存的值刪掉，而不是留著淺色。 */
+  var theme = read(THEME_KEY);
+  var view = read(VIEW_KEY) === 'mobile' ? 'mobile' : '';
+
+  var root = document.documentElement;
+
+  function applyTheme() {
+    if (theme === 'dark' || theme === 'light') {
+      root.setAttribute('data-theme', theme);
+    } else if (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) {
+      root.setAttribute('data-theme', 'dark');
+    } else {
+      root.setAttribute('data-theme', 'light');
+    }
+  }
+
+  function applyView() {
+    if (view === 'mobile') { root.setAttribute('data-view', 'mobile'); }
+    else { root.removeAttribute('data-view'); }
+  }
+
+  function applyAxes() {
+    AXES.forEach(function (k) {
+      if (state[k]) { root.setAttribute('data-' + k, state[k]); }
+      else { root.removeAttribute('data-' + k); }
+    });
+  }
+
+  // 主題與版面在建面板之前就先套好，不然會先閃一下預設樣子
+  applyTheme();
+  applyView();
+  applyAxes();
+
+  /* 宿主頁面的掛勾。
+
+     圖表要重新上色（深淺色）、分頁列要重算溢出（版面），這些都是
+     JavaScript.html 或 Admin.html 裡的東西，這個共用元件不該知道它們存在。
+     所以只發一個通知，宿主自己決定要做什麼；沒登記就什麼都不做。 */
+  function notify(what) {
+    try {
+      if (typeof window.__onLayoutChange === 'function') { window.__onLayoutChange(what); }
+    } catch (e) { /* 宿主的掛勾出錯不該讓設定面板壞掉 */ }
+  }
+
+  function seg(k, label, opts) {
+    return '<div class="txset-row" data-row="' + k + '">' +
+      '<span class="txset-l">' + label + '</span>' +
+      '<span class="segs">' +
+      opts.map(function (o) {
+        return '<button type="button" data-k="' + k + '" data-v="' + o[0] +
+               '" aria-pressed="false">' + o[1] + '</button>';
+      }).join('') + '</span></div>';
+  }
+
+  var box = document.getElementById('txSet');
+  var btn = document.getElementById('setBtn');
+  var menu = document.getElementById('setMenu');
+  if (!box || !btn || !menu) { return; }
+
+  box.innerHTML =
+    /* 每一列都是三個選項（v54，管理者 2026/09/23 檢查「是否每一列都三個選項、名稱會不會誤導」）。
+       字級 100／125／150%；字距最多 0.04em（再寬中文會散開、數字會斷開）。
+       先前的「小（92%）」「特寬欄（2000px）」「特寬字距（.085em）」拿掉；存過這些值的人照樣生效，只是面板上不再提供。
+       「手機版」改叫「手機預覽」：它是在電腦上用手機寬度看，不是另一個網站。 */
+    seg('theme', '深淺色', [['light', '淺色'], ['dark', '深色'], ['', '跟隨系統']]) +
+    seg('view', '版面寬度', [['', '依螢幕自動'], ['mobile', '手機預覽']]) +
+    seg('fs', '字體大小', [['m', '標準 100%'], ['l', '大 125%'], ['x', '特大 150%']]) +
+    seg('w', '內容欄寬', [['n', '窄'], ['m', '標準'], ['w', '寬']]) +
+    seg('ls', '字距', [['m', '標準'], ['w', '略寬'], ['x', '寬']]) +
+    seg('lh', '行距', [['t', '緊湊'], ['m', '標準'], ['l', '寬鬆']]) +
+    '<p class="txset-hint">設定存在這個瀏覽器裡，前台與後台共用。' +
+    '字體大小會放大整個網站的文字、表格與按鈕；字距、行距只作用在長文（說明、郵件、逐字稿）。' +
+    '選「手機預覽」時內容欄寬固定為手機寬度，欄寬那一列暫時不生效。</p>';
+
+  /* 面板上的按下狀態。
+
+     深淺色與版面用「值相等」判斷，而且空字串本身就是一個有效值
+     （跟隨系統、自動）；其餘四軸沒選過時所有按鈕都不亮，代表用預設。 */
+  function paint() {
+    box.querySelectorAll('.segs button').forEach(function (b) {
+      var k = b.dataset.k, v = b.dataset.v, on;
+      if (k === 'theme') { on = (theme || '') === v; }
+      else if (k === 'view') { on = view === v; }
+      else { on = state[k] === v && v !== ''; }
+      b.setAttribute('aria-pressed', String(on));
+    });
+    syncViewLock();
+  }
+
+  /* 版面切換會改 --wrap，而欄寬設定也在改同一個東西。
+     切成手機版時要把欄寬那一列標成停用，否則按了沒反應會像壞掉。 */
+  function syncViewLock() {
+    var mobile = view === 'mobile';
+    box.querySelectorAll('.segs button[data-k="w"]').forEach(function (b) {
+      b.disabled = mobile;
+    });
+    var row = box.querySelector('.txset-row[data-row="w"]');
+    if (row) { row.classList.toggle('is-off', mobile); }
+  }
+
+  box.querySelectorAll('.segs button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var k = b.dataset.k, v = b.dataset.v;
+
+      if (k === 'theme') {
+        theme = v;
+        write(THEME_KEY, v);
+        applyTheme();
+        paint();
+        notify('theme');
+        return;
+      }
+      if (k === 'view') {
+        view = v;
+        // 自動是預設，存空字串會讓下次讀回來變成「沒選過」——效果一樣，
+        // 但寫成 auto 比較讀得懂，也與先前存進去的值相容。
+        write(VIEW_KEY, v || 'auto');
+        applyView();
+        paint();
+        notify('view');
+        return;
+      }
+
+      // 其餘四軸：再按一次同一個選項就取消，回到預設
+      state[k] = (state[k] === v) ? '' : v;
+      write(KEY, JSON.stringify(state));
+      applyAxes();
+      paint();
+      notify(k);
+    });
+  });
+
+  paint();
+
+  function close() { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); }
+  function open() { menu.hidden = false; btn.setAttribute('aria-expanded', 'true'); }
+
+  btn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    if (menu.hidden) { open(); } else { close(); }
+  });
+  // 點面板裡面不要關掉，不然按一個選項就收起來，要調六軸得開六次。
+  menu.addEventListener('click', function (e) { e.stopPropagation(); });
+  document.addEventListener('click', close);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !menu.hidden) { close(); }
+  });
+
+  /* 系統主題變了而使用者選的是「跟隨系統」時要跟著換。
+     沒有這一段的話，選了跟隨系統之後其實只跟隨到開頁面那一刻。 */
+  if (window.matchMedia) {
+    var mq = matchMedia('(prefers-color-scheme: dark)');
+    var onSys = function () { if (!theme) { applyTheme(); notify('theme'); } };
+    if (mq.addEventListener) { mq.addEventListener('change', onSys); }
+    else if (mq.addListener) { mq.addListener(onSys); }
+  }
+
+  // 宿主在自己初始化完成後可能想同步一次（例如圖表建好之後）
+  window.__syncSetMenu = paint;
+})();
+</script>

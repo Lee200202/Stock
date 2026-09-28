@@ -1,0 +1,681 @@
+<div class="doc tech-story" data-tech-story-v72>
+  <header class="tech-intro">
+    <h2 data-toc="開頭">想找一檔股票上次講了什麼，我做了這個網站</h2>
+    <p>每天中午的直播大約一小時，<mark class="hl">買賣、持股、觀望和教學常常混在同一段話裡</mark>；盤中另外還有會員簡訊，發在別的地方。以前想查「力積電上次提到的成本」，我得先猜是哪一週，再翻簡訊、拖影片時間軸，語音稿還可能把它寫成「立即電」。</p>
+    <p>所以我做了這個網站：<mark class="hl">把每天講過的話整理成可以按日期、按股票查的紀錄，每一筆都能回到原句核對</mark>。說不出依據的就寫「未說明」，不補、不猜。</p>
+    <p>我是李世勛。網站整理公開直播與會員簡訊，與頻道沒有隸屬關係，也不提供投資建議。這一頁依序說明四件事：資料怎麼流動、9 月 23 日實際走過的一天、四種最常見的錯誤怎麼擋下，以及這些紀錄做得到和做不到的事。</p>
+    <div class="tech-cards" id="techLive" aria-live="polite">
+      <div class="tech-card"><b data-live="days">—</b><span>天有紀錄</span><small>有當日紀錄或會員持股的日子</small></div>
+      <div class="tech-card"><b data-live="records">—</b><span>筆個股紀錄</span><small>當日買賣、觀望與會員持股</small></div>
+      <div class="tech-card"><b data-live="codes">—</b><span>檔股票</span><small>出現過的不同股票代號</small></div>
+      <div class="tech-card"><b data-live="sms">—</b><span>則會員簡訊</span><small>盤中發給會員的通知</small></div>
+      <div class="tech-card"><b data-live="mails">—</b><span>篇每日整理</span><small>有直播的日子才會產生</small></div>
+      <div class="tech-card"><b data-live="manual">—</b><span>筆人工補登</span><small>機器沒擷取到、由我補上的</small></div>
+    </div>
+    <p id="techLiveNote" class="tech-live-note">正在讀取目前的紀錄規模。</p>
+  </header>
+
+  <section class="tech-section" id="tech-overview">
+    <h2 data-toc="資料全貌">資料從哪裡來，最後去了哪裡</h2>
+    <p>所有資料都存在同一份 Google 試算表，分成三十多張分頁。我依<mark class="hl">資料流動的順序把它們分成六組</mark>：來源、判讀、紀錄、行情、衍生結果，最後才是網站與寄信；維護時用的紀錄放在最下面一列。</p>
+    <p>圖上的箭頭表示「誰的資料被誰用到」。例如一支影片會產生好幾筆個股紀錄，這些紀錄和每天的行情一起算出持股回合，最後才變成網站上的持股追蹤與績效走勢。每張卡片的大字是它的用途，小字是試算表裡的分頁名稱。</p>
+    <div class="tg-bar">
+      <p class="tech-map-hint tg-hint-wide">點任何一張卡片，會標出它的上游與下游，並說明它的用途；跨好幾欄的線平常收起來，點了才畫出。</p>
+      <p class="tech-map-hint tg-hint-narrow">圖比畫面寬，可以左右拖移；點任何一張卡片，看它的上游與下游，說明會出現在圖的下方。</p>
+      <button type="button" class="tg-reset" id="techGraphReset" hidden>取消標示</button>
+    </div>
+    <div class="tg-jump" role="group" aria-label="跳到圖上的某一組">
+      <button type="button" data-jump-domain="source">1 來源</button><button type="button" data-jump-domain="review">2 判讀</button><button type="button" data-jump-domain="record">3 紀錄</button><button type="button" data-jump-domain="quote">4 行情</button><button type="button" data-jump-domain="derived">5 衍生</button><button type="button" data-jump-domain="publish">6 網站</button>
+    </div>
+    <div class="tech-graph" id="techGraph" aria-label="資料關聯圖">
+      <div class="tg-scroll" id="techScroll">
+        <div class="tg-canvas" id="techCanvas">
+          <svg class="tg-lines" id="techLines" aria-hidden="true" focusable="false"></svg>
+          <div class="tech-domains" id="techDomains">
+            <section class="tech-domain" data-domain="source"><h3>1　來源</h3><div class="tech-node-list">
+              <button type="button" data-entity="video"><b>影片與原稿</b><small>影片清單</small></button>
+              <button type="button" data-entity="candidate"><b>等待中的影片</b><small>今日影片候選</small></button>
+              <button type="button" data-entity="sms"><b>會員簡訊原文</b><small>會員簡訊</small></button>
+              <button type="button" data-entity="smsaudit"><b>簡訊漏抓核對</b><small>會員簡訊稽核</small></button>
+              <button type="button" data-entity="manual"><b>人工補登</b><small>人工補登</small></button>
+            </div></section>
+            <section class="tech-domain" data-domain="review"><h3>2　判讀</h3><div class="tech-node-list">
+              <button type="button" data-entity="names"><b>股名辨識經驗</b><small>名稱判定紀錄</small></button>
+              <button type="button" data-entity="stocks"><b>公司名稱與代號</b><small>股票對照表</small></button>
+              <button type="button" data-entity="codes"><b>代號備援清單</b><small>代號對照快取</small></button>
+              <button type="button" data-entity="audit"><b>每輪判讀留底</b><small>逐字稿判讀稽核</small></button>
+              <button type="button" data-entity="logs"><b>辨識過程</b><small>辨識日誌</small></button>
+              <button type="button" data-entity="checkpoint"><b>中斷時做到哪</b><small>逐字稿刷新檢查點</small></button>
+            </div></section>
+            <section class="tech-domain" data-domain="record"><h3>3　紀錄</h3><div class="tech-node-list">
+              <button type="button" data-entity="actions"><b>當日買賣與觀望</b><small>操作紀錄</small></button>
+              <button type="button" data-entity="holdings"><b>會員目前持有</b><small>會員持股</small></button>
+              <button type="button" data-entity="corrections"><b>待確認的修正</b><small>修正建議</small></button>
+            </div></section>
+            <section class="tech-domain" data-domain="quote"><h3>4　行情</h3><div class="tech-node-list">
+              <button type="button" data-entity="dailyk"><b>每日開高低收</b><small>日K快取</small></button>
+              <button type="button" data-entity="live"><b>盤中報價與快照</b><small>即時快取・盤中快照</small></button>
+              <button type="button" data-entity="hour"><b>60 分 K 與分 K</b><small><span>小時K・</span><span>分K歷史・</span><span>Yahoo分K</span></small></button>
+              <button type="button" data-entity="market"><b>大盤與國際行情</b><small>市場總覽快取</small></button>
+              <button type="button" data-entity="fundamental"><b>基本面</b><small>基本面快取</small></button>
+            </div></section>
+            <section class="tech-domain" data-domain="derived"><h3>5　衍生結果</h3><div class="tech-node-list">
+              <button type="button" data-entity="cost"><b>管理者修正成本</b><small>持股成本覆寫</small></button>
+              <button type="button" data-entity="tracker"><b>持股回合</b><small>持股追蹤</small></button>
+              <button type="button" data-entity="performance"><b>每日績效</b><small>每日績效</small></button>
+            </div></section>
+            <section class="tech-domain" data-domain="publish"><h3>6　網站與寄信</h3><div class="tech-node-list">
+              <button type="button" data-entity="article"><b>每日整理文章</b><small>每日推播內容</small></button>
+              <button type="button" data-entity="mailsync"><b>待同步的郵件</b><small>簡訊內容同步</small></button>
+              <button type="button" data-entity="subscribers"><b>訂閱名單</b><small>使用者訂閱清單</small></button>
+              <button type="button" data-entity="ledger"><b>每封信寄給誰</b><small>寄送帳本</small></button>
+              <button type="button" data-entity="line"><b>LINE 訂閱與推送</b><small>LINE 訂閱清單・LINE 寄送帳本</small></button>
+              <button type="button" data-entity="web" class="tg-virtual"><b>網站畫面</b><small>不另存分頁</small></button>
+            </div></section>
+            <section class="tech-domain" data-domain="ops"><h3>維護用紀錄</h3><div class="tech-node-list">
+              <button type="button" data-entity="adminjob"><b>手動投稿進度</b><small>後台工單</small></button>
+              <button type="button" data-entity="autojob"><b>自動取稿進度</b><small>自動工單</small></button>
+              <button type="button" data-entity="status"><b>排程與錯誤</b><small>系統狀態</small></button>
+              <button type="button" data-entity="usage"><b>匿名使用情形</b><small>使用紀錄</small></button>
+              <button type="button" data-entity="memory"><b>問答助理記憶</b><small>使用者上下文記憶</small></button>
+              <button type="button" data-entity="index"><b>封存索引</b><small>資料索引</small></button>
+            </div></section>
+          </div>
+          <div class="tg-pop" id="techEntityDetail" role="status" aria-live="polite" hidden></div>
+        </div>
+      </div>
+    </div>
+    <p class="tech-sub">照工作順序看：點一步，這一步讀寫的分頁會在上圖一起亮起來。</p>
+    <div class="tech-flow" id="techFlow" role="group" aria-label="從來源到網站的工作順序">
+      <button type="button" data-flow="source"><i>1</i><b>簡訊與影片進來</b></button>
+      <button type="button" data-flow="transcribe"><i>2</i><b>等待回放、聽打</b></button>
+      <button type="button" data-flow="review"><i>3</i><b>判讀與核對</b></button>
+      <button type="button" data-flow="record"><i>4</i><b>寫入紀錄</b></button>
+      <button type="button" data-flow="publish"><i>5</i><b>網站與寄信</b></button>
+      <button type="button" data-flow="quote"><i>6</i><b>補行情與績效</b></button>
+    </div>
+    <p class="tech-result" id="techFlowDetail" role="status" aria-live="polite">點上面其中一步，看它讀寫哪些分頁。</p>
+    <details class="tech-text-map"><summary>閱讀文字版資料關聯與流程</summary>
+      <ol>
+        <li>一支影片（影片與原稿）會產生多輪判讀留底、多筆當日買賣與觀望、多筆會員持有，用影片 ID 對應。</li>
+        <li>一則會員簡訊可以提到好幾檔，寫成多筆當日紀錄與會員持有，也寄給多位收件者；用簡訊編號對應<small>（紀錄裡寫成 CMONEY-文章ID）</small>。手動投稿與人工補登另有自己的編號<small>（MANUAL-日期、MANUALENTRY- 開頭）</small>，重跑影片時不會被蓋掉。</li>
+        <li>一個股票代號連到很多天的紀錄與每日行情。</li>
+        <li>同一檔的多筆當日紀錄與會員持有，串成一段一段的持股回合；每日行情提供進場當天最低、出場當天最高與每天收盤。管理者修正成本只對應其中一個回合。</li>
+        <li>每個持股回合在每個交易日記一筆每日績效。</li>
+        <li>一天的當日紀錄合成一篇整理文章；一篇文章或一則簡訊會寄給多位收件者，每一位都有寄送紀錄。</li>
+        <li>手動投稿與自動取稿的進度各自記下原稿指紋與做到第幾步，中斷時讓下一次接著做。</li>
+      </ol>
+    </details>
+    <p class="tech-terms">名詞對照：網站排程是 Google Apps Script，每五分鐘執行一次；雲端工作機是 GitHub Actions，負責聽打與判讀；原稿指紋是 SHA-256，用來確認原稿有沒有被換過。</p>
+  </section>
+
+  <section class="tech-section" id="tech-day">
+    <h2 data-toc="9月23日">9 月 23 日，一則簡訊和一支影片實際走過的路</h2>
+    <p>上一段是規則，這一段是那天實際留下的紀錄。<mark class="hl">時間取自工作紀錄與會員簡訊，價格取自證交所當天的行情</mark>。這一天剛好包含了簡訊先到、影片後到、模型聽錯名字與人工改正，幾乎是一個完整的樣本。右邊的按鈕會回到上圖，標出那一張分頁。</p>
+    <ol class="tech-real" id="techReal">
+      <li><time>10:10</time><div><b>會員簡訊進來</b><p>「請於 73.5 元以下買進 6770 力積電做多」。原文先存下來，不等影片。</p></div><button type="button" data-go="sms">會員簡訊原文</button></li>
+      <li><time>10:10–10:14</time><div><b>解析這則簡訊</b><p>力積電以「買入、73.5 以下」寫進當日紀錄，首頁的當日買入馬上出現這一檔。</p></div><button type="button" data-go="actions">當日買賣與觀望</button></li>
+      <li><time>解析後</time><div><b>寄出盤中即時通知</b><p id="techDemoSms">正在讀取這一則的寄送紀錄。</p></div><button type="button" data-go="ledger">每封信寄給誰</button></li>
+      <li><time>11:05–11:07</time><div><b>影片回放出現，開始聽打</b><p>網站排程在 11:05 找到回放，交給雲端工作機分段聽打，約兩分鐘後原稿存檔。</p></div><button type="button" data-go="video">影片與原稿</button></li>
+      <li><time>11:10–11:15</time><div><b>第一輪判讀，文章發布</b><p>逐檔核對股名、主詞與數字後寫入紀錄，產生當天的整理文章。影片裡「準備要季線翻陽的立即電」其實是力積電，這一天卻被模型寫成同是記憶體股的華邦電；之後我把這個例子寫進判讀規則，<mark class="hl">同族群換名現在會被擋下</mark>。</p></div><button type="button" data-go="audit">每輪判讀留底</button></li>
+      <li><time>11:48–11:55</time><div><b>影片更新後再判讀一次</b><p>第二輪的語氣核對把聖暉、祥碩從「觀望注意」改成「觀望不碰」，但兩檔的說明其實都偏多。</p></div><button type="button" data-go="audit">每輪判讀留底</button></li>
+      <li><time>12:01–12:21</time><div><b>人工改回並同步</b><p>我在後台逐日編輯把兩檔改回觀望注意，網站與郵件查詢跟著同步了三次。這次之後，<mark class="hl">語氣核對改成只看讀者看得到的那段說明</mark>。</p></div><button type="button" data-go="actions">當日買賣與觀望</button></li>
+      <li><time>中午以後</time><div><b>寄出每日總覽</b><p id="techDemoDaily">文章通過品質關卡後才寄。正在讀取當天的寄送紀錄。</p></div><button type="button" data-go="article">每日整理文章</button></li>
+      <li><time>收盤後</time><div><b>建立持股回合</b><p>力積電這一回合的進場日是 9/23，進場價取當天最低 71.90；簡訊講的 73.5 以下只作附註。當天收盤是 73.10。</p></div><button type="button" data-go="tracker">持股回合</button></li>
+      <li><time>之後幾天</time><div><b>記進每日績效</b><p>補齊日 K 後重算持股回合，9/23 才記進每日績效。那幾天補日 K 沒有跑完，走勢圖一度停在 9/18；現在每個交易日 17:30 與 19:30 另有保底記錄。</p></div><button type="button" data-go="performance">每日績效</button></li>
+    </ol>
+    <p class="tech-sub">換成其他日子，會怎麼走：</p>
+    <div class="tech-options" role="group" aria-label="觀看不同的一天">
+      <button type="button" data-day="late" aria-pressed="true">影片晚到</button><button type="button" data-day="busy" aria-pressed="false">模型忙碌</button><button type="button" data-day="noshow" aria-pressed="false">沒有直播</button><button type="button" data-day="holiday" aria-pressed="false">休市日</button>
+    </div>
+    <ol class="tech-dayline" id="dayLane" aria-live="polite"></ol>
+  </section>
+
+  <section class="tech-section" id="tech-names">
+    <h2 data-toc="股名聽錯">語音辨識會把股名聽錯，所以搜尋也認得錯字</h2>
+    <p>聽打是用語音辨識做的，股名常常被寫成讀音相近的字。我的做法分成三層：<mark class="hl">先保留原稿，再查已確認的對照表，最後才看附近的句子</mark>。對照表裡的寫法直接對到正確公司；像「紅海」這種也是一般詞的寫法，要附近真的在講股票才換；找不到可靠對應的，就留下原字給我確認，<mark class="hl">不猜一家讀音相近的公司</mark>。</p>
+    <p>讀者這一端也受惠：搜尋時打常見的誤字，一樣找得到那次紀錄。</p>
+    <div class="tech-lab">
+      <p class="tech-demo-h">點一個聽錯的字，看網站怎麼處理</p>
+      <div class="tech-options" role="group" aria-label="聽錯的字">
+        <button type="button" data-heard="0" aria-pressed="true">立即電</button><button type="button" data-heard="1" aria-pressed="false">出金城</button><button type="button" data-heard="2" aria-pressed="false">加折</button><button type="button" data-heard="3" aria-pressed="false">紅海</button><button type="button" data-heard="4" aria-pressed="false">玉龍</button><button type="button" data-heard="5" aria-pressed="false">與龍</button><button type="button" data-heard="6" aria-pressed="false">連帽</button><button type="button" data-heard="7" aria-pressed="false">立即電寫成華邦電</button>
+      </div>
+      <div class="tech-verdict" id="heardResult" aria-live="polite"></div>
+      <p class="tech-legend"><span class="tone-ok">直接對應</span><span class="tone-warn">要看上下文</span><span class="tone-stop">不換、不猜</span></p>
+    </div>
+  </section>
+
+  <section class="tech-section" id="tech-subject">
+    <h2 data-toc="誰在賣">同一句有「賣」，要先看誰在賣</h2>
+    <p>一句話裡出現「買」「賣」，不代表會員今天有買賣。我把每一句拆成四個問題來看：<mark class="hl">講的是哪一檔、誰的動作、已經做了還是條件、說的是哪一天</mark>。當日買賣、目前持有與觀望方向分開存，網站與郵件也保留獨立的會員持股專區。</p>
+    <p>例如「鴻準最近散戶一直賣，大戶持股增加，會員要抱牢」，賣的是散戶，會員的動作是續抱；如果只找「賣」這個字，持股就會被錯誤平倉。又如「以前 1580 推薦，當時沒人買」，只是回顧舊推薦，不能變成今天的買入或看多。</p>
+    <div class="tech-lab tech-decision">
+      <p class="tech-demo-h">點一句話，看它會被放進哪一類</p>
+      <div class="tech-options is-long" role="group" aria-label="分類案例">
+        <button type="button" data-tone-case="0" aria-pressed="true">以前 1580 推薦，沒人買</button><button type="button" data-tone-case="1" aria-pressed="false">勤誠 900 以下是買點</button><button type="button" data-tone-case="2" aria-pressed="false">現在還不能買，要等 ETF 賣完</button><button type="button" data-tone-case="3" aria-pressed="false">散戶一直賣，會員要抱牢</button><button type="button" data-tone-case="4" aria-pressed="false">請於 73.5 元以下買進力積電</button><button type="button" data-tone-case="5" aria-pressed="false">外資買一天賣一天</button><button type="button" data-tone-case="6" aria-pressed="false">假跌破後站上季線</button><button type="button" data-tone-case="7" aria-pressed="false">總比去買友達好</button>
+      </div>
+      <div class="decision-grid" id="toneDecisions" role="group" aria-label="五種結果，也可以直接點">
+        <button type="button" data-decision="buy" class="dc-buy"><b>當日買賣</b><span>今天明確的買進或賣出</span></button>
+        <button type="button" data-decision="hold" class="dc-hold"><b>會員持股</b><span>明講會員現在手上有</span></button>
+        <button type="button" data-decision="watch" class="dc-watch"><b>觀望注意</b><span>本股有正面依據或可照做的買點</span></button>
+        <button type="button" data-decision="avoid" class="dc-avoid"><b>觀望不碰</b><span>禁買、負面示範或反覆換手</span></button>
+        <button type="button" data-decision="none" class="dc-none"><b>不新增</b><span>只是回顧，沒有現在的立場</span></button>
+      </div>
+      <p class="tech-result" id="toneExample" aria-live="polite"></p>
+    </div>
+  </section>
+
+  <section class="tech-section" id="tech-number">
+    <h2 data-toc="數字歸屬">「168 張」和「900 以下」都是真數字，只有一個是股價</h2>
+    <p>一句話裡的數字，可能是張數、條件價、漲跌金額、EPS、股利或均線天數。我的順序是<mark class="hl">先找這個數字離哪一檔的名字最近，再看它的單位</mark>，最後才決定能不能放進價位欄。例如「ETF 賣出勤誠 168 張，勤誠 900 以下才看買點」同時講到交易者、股票、數量和條件價，只有 900 是價位。</p>
+    <p>數字聽不清楚、或對不到是哪一檔的，公開欄位就寫「未說明」。展示出來的價位有原句依據，但仍不等於多次交易的平均成本。</p>
+    <div class="tech-lab tech-number-lab">
+      <p class="tech-demo-h">點原句裡的數字，看它能不能放進價位欄</p>
+      <p class="tech-quote">ETF 賣出勤誠 <button type="button" class="own-num" data-own="168" aria-pressed="false">168</button> 張；勤誠 <button type="button" class="own-num" data-own="900" aria-pressed="false">900</button> 以下才看買點；高價股今天跌 <button type="button" class="own-num" data-own="600" aria-pressed="false">600</button> 元；聖暉上半年 EPS <button type="button" class="own-num" data-own="23.73" aria-pressed="false">23.73</button> 元；台積電除息 <button type="button" class="own-num" data-own="7" aria-pressed="false">7</button> 元；月線是 <button type="button" class="own-num" data-own="20" aria-pressed="false">20</button> 日均線。</p>
+      <div class="tech-verdict" id="ownDetail" aria-live="polite"><p>選一個數字，看它屬於哪一檔、代表什麼。</p></div>
+      <p class="tech-legend"><span class="tone-ok">可以當價位</span><span class="tone-stop">不能當股價</span></p>
+    </div>
+  </section>
+
+  <section class="tech-section" id="tech-hold">
+    <h2 data-toc="持股回合">持股有開始和結束，績效必須跟著日期重算</h2>
+    <p>同一檔可以賣出後再買回，所以我用一段一段的「持有回合」記錄。<mark class="hl">明確買入或第一次說目前持有時，進場取當日最低；明確賣出、轉成觀望不碰，或超過 10 個交易日未提及時，出場取出場日當日最高</mark>。後兩種情況若當天沒有日 K，只找當天以前最近的交易日，<strong>不能向後取價</strong>。後台若人工修正該回合成本，以修正值優先；節目講到的價位只作附註。</p>
+    <p>每日績效是當天所有持有中回合的未實現報酬平均；歷史走勢用進場價和每天收盤重算，出場價只影響已結束的回合。<mark class="hl">進場用最低、出場用最高，是能取得的理想上限示意</mark>，沒有計入手續費、稅和滑價，不能當成實際成交報酬。</p>
+    <div class="tech-lab tech-slider">
+      <p class="tech-demo-h">拖動日期，看一個回合什麼時候結束</p>
+      <ol class="tech-timeline" id="techTimeline"><li><time>8/06</time><div>首次買入，建立回合</div></li><li><time>8/07</time><div>再次提及</div></li><li><time>8/10</time><div>最後一次提及</div></li><li><time>8/17</time><div>尚未超過十個交易日</div></li><li><time>8/25</time><div>確認逾期，回溯到最後提及日定價</div></li><li><time>9/01</time><div>若重新買入，另開新回合</div></li></ol>
+      <label for="tlSlider">觀測日期：<b id="tlDay">8/06</b></label><input type="range" id="tlSlider" min="0" max="5" step="1" value="0" aria-describedby="tlState">
+      <p class="tech-result" id="tlState" aria-live="polite"></p>
+    </div>
+  </section>
+
+  <section class="tech-section" id="tech-failure">
+    <h2 data-toc="出錯時">有一段失敗時，我希望後台說清楚停在哪裡</h2>
+    <p>每天的工作分成四段：<mark class="hl">取稿、判讀、網站文章、背景計算</mark>（補日 K、重算持股與績效）。影片可能晚到，模型可能忙，網站排程的一次執行也有六分鐘的時間限制。所以每一段各自記下做到哪裡：已經聽完的片段、已經寫好的文章和補到哪一檔股票，都留著讓下一次接著做。</p>
+    <p>我的原則是<mark class="hl">錯誤要被看見，不能被藏起來</mark>：文章發布了，不代表績效也算完；讀不到資料時要說讀不到，不能只留一個空白畫面。需要人判斷的錯誤，就明確標出來讓我處理。</p>
+    <div class="tech-lab">
+      <p class="tech-demo-h">選一個狀況，看四段工作分別會怎樣</p>
+      <div class="tech-options" role="group" aria-label="出錯的狀況">
+        <button type="button" data-fail="late" aria-pressed="true">影片晚到</button><button type="button" data-fail="busy" aria-pressed="false">模型忙碌</button><button type="button" data-fail="timeout" aria-pressed="false">一次跑不完</button><button type="button" data-fail="smsfirst" aria-pressed="false">簡訊比影片先到</button><button type="button" data-fail="wrong" aria-pressed="false">分類被改錯</button><button type="button" data-fail="toobig" aria-pressed="false">首頁資料太大</button><button type="button" data-fail="holiday" aria-pressed="false">休市日</button>
+      </div>
+      <div class="tech-lanes" id="failLanes" aria-live="polite"></div>
+      <p class="tech-result" id="failNote" aria-live="polite"></p>
+      <p class="tech-legend"><span class="tone-ok">完成</span><span class="tone-wait">等待</span><span class="tone-resume">自動接著做</span><span class="tone-stop">需要人處理</span><span class="tone-skip">今天不做</span></p>
+    </div>
+    <details class="tech-admin"><summary>管理者附錄：卡住時從哪裡查</summary>
+      <ol><li>先在後台選日期，看取稿、判讀、內容、背景四段狀態與最後更新時間。</li>
+      <li>原稿沒到：看「自動取稿進度」與取稿工作的紀錄<small>（自動工單、transcript-gemini）</small>；手動保留會擋下自動取稿。</li>
+      <li>原稿已有但文章沒有：看判讀步驟、原稿指紋與辨識過程<small>（後台工單或自動工單、辨識日誌）</small>。</li>
+      <li>文章已有而郵件查詢還是舊的：看「待同步的郵件」；寄送結果以「每封信寄給誰」核對，不能只看雲端工作機顯示成功。</li>
+      <li>日 K 缺口與單檔持股：在編輯器執行 <code>backfillDailyKStatus()</code> 與 <code>explainHoldingsTracker(代號)</code>；修好後依序重算持股與績效。</li></ol>
+    </details>
+  </section>
+
+  <section class="tech-section" id="tech-limit">
+    <h2 data-toc="限制">這些紀錄能幫你回查，也有明確的限制</h2>
+    <p>這個網站擅長的是<mark class="hl">追溯節目說過什麼、在哪一天、用什麼價位說的</mark>。它不擅長、也不打算做的是預測漲跌或告訴你該不該買。語音辨識和模型都可能看錯，重跑同一份原稿，文字也可能不同；網站用原句、代號和數字核對來縮小錯誤，<strong>不宣稱每次產生的內容一字不差</strong>。</p>
+    <p>時間也有限制：雲端工作機的排程可能延遲，影片回放可能晚於直播結束，行情來源也可能延遲。畫面上的時間請當成資料時間，不是即時保證；行情暫時沒有資料時，網站保留可用的舊值並標示時間，不把缺口編成價格。</p>
+    <div class="tech-lab">
+      <p class="tech-demo-h">點一個問題，看網站能不能回答</p>
+      <div class="tech-options is-long" role="group" aria-label="讀者的問題">
+        <button type="button" data-can="0" aria-pressed="true">力積電上次講的成本？</button><button type="button" data-can="1" aria-pressed="false">這檔現在該買嗎？</button><button type="button" data-can="2" aria-pressed="false">報酬就是我能賺的？</button><button type="button" data-can="3" aria-pressed="false">盤中價格是即時的？</button><button type="button" data-can="4" aria-pressed="false">會不會聽錯股名？</button><button type="button" data-can="5" aria-pressed="false">沒直播會寄信嗎？</button><button type="button" data-can="6" aria-pressed="false">沒收到信怎麼辦？</button><button type="button" data-can="7" aria-pressed="false">重跑結果一定一樣？</button>
+      </div>
+      <div class="tech-verdict" id="canResult" aria-live="polite"></div>
+      <p class="tech-legend"><span class="tone-ok">可以</span><span class="tone-warn">有條件</span><span class="tone-stop">不行</span></p>
+    </div>
+  </section>
+
+  <section class="tech-section tech-faq" id="tech-faq">
+    <h2>常見問題</h2>
+    <div class="qa">
+      <details><summary>網站多久更新一次？</summary><div class="a">會員簡訊在發出後幾分鐘內出現；影片整理通常在中午到下午一點半之間完成；行情每五分鐘更新；日 K、持股與績效在收盤後 16:45 起補齊。</div></details>
+      <details><summary>為什麼文章有了，績效還在等待？</summary><div class="a">文章先發布，日 K、持股回合和績效在背景更新。後台會分開列出內容與背景狀態。</div></details>
+      <details><summary>為什麼有些價位寫「未說明」？</summary><div class="a">節目沒有講到價位，或聽不清楚、對不到是哪一檔的數字，就寫未說明，不猜也不補。</div></details>
+      <details><summary>持股什麼時候算出場？</summary><div class="a">明講賣出、轉成觀望不碰，或超過 10 個交易日沒有再提到，就算出場；出場價取出場日當天最高。</div></details>
+      <details><summary>搜尋可以用聽錯的字嗎？</summary><div class="a">可以。對照表裡的常見誤字（例如立即電、秦城）都找得到正確的股票。</div></details>
+      <details><summary>資料錯了怎麼辦？</summary><div class="a">我可以在後台逐日編輯修正，網站與郵件查詢會自動同步，已寄出的信不會重寄。發現錯誤可以用右下角的「問問題」或 Email 告訴我。</div></details>
+      <details><summary>我可以自己貼逐字稿嗎？</summary><div class="a">可以。手動稿與自動稿走同一條判讀流程；選「手動保留」可以讓自動聽打先停手。舊資料有原文但沒有來源標記的，也視同手動稿保護。</div></details>
+      <details><summary>沒有影片但有會員簡訊，會寄什麼？</summary><div class="a">不產生那天的每日總覽信，網站郵件查詢可以留空；會員簡訊若發布，盤中即時通知照常寄出。</div></details>
+      <details><summary>日 K 和盤中價格為什麼不同？</summary><div class="a">兩者來源與更新時間不同。盤中預覽不會寫進正式績效；請看畫面上的資料時間。</div></details>
+      <details><summary>網站會記錄我的資料嗎？</summary><div class="a">只記錄匿名的使用情形，瀏覽器識別碼不含 Email 或 IP。訂閱時才會存 Email，用來寄信與管理訂閱。</div></details>
+      <details><summary>可以用 LINE 收通知嗎？</summary><div class="a">LINE 官方帳號上線後，網站「訂閱通知」頁會出現加入好友的按鈕。加好友不會自動開啟推送，要在聊天室選每日總覽、盤中即時通知或兩種都要；LINE 與 Email 各自設定、各自記錄寄送結果。聊天室也能輸入代號或名稱，查最近一次被提到的紀錄，但不提供買賣建議。</div></details>
+      <details><summary>怎麼取消訂閱？</summary><div class="a">每日總覽與盤中即時通知可以分開管理。信尾的網站連結在手機上也打得開，不必登入。</div></details>
+    </div>
+  </section>
+  <section class="tech-section tech-author" id="tech-author">
+    <h2>關於作者</h2>
+    <p><strong>李世勛　Shih-Hsun Lee</strong><br>國立臺北大學統計學研究所。研究機器學習、深度學習、NLP 與大型語言模型，主要應用在量化金融。</p>
+    <p>這個網站是我把語音辨識、大型語言模型與規則核對放進真實每日流程的練習。我最在意的是分工：<mark class="hl">模型負責讀懂口語，程式負責核對原句、代號和數字，人負責最後把關</mark>。每一次出錯，我都盡量把原因寫成規則與測試，讓同樣的錯不再發生第二次。</p>
+    <p><a href="mailto:lindanny0213@gmail.com">Email</a>　·　<a href="https://github.com/Lee200202" target="_blank" rel="noopener">GitHub</a>　·　<a href="https://www.notion.so/Shih-Hsun-Lee-8bc6e964fe0a46c199c362a0909eabbb" target="_blank" rel="noopener">作品集</a></p>
+    <p class="tech-disclaimer">本站與該頻道沒有隸屬關係；內容是公開資訊整理，不構成投資建議。網站記錄匿名使用情形，瀏覽器識別碼不含 Email 或 IP。</p>
+  </section>
+</div>
+<script>
+(function () {
+  var root = document.querySelector('[data-tech-story-v72]'); if (!root) return;
+  function one(s) { return root.querySelector(s); }
+  function all(s) { return Array.prototype.slice.call(root.querySelectorAll(s)); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function select(buttons, picked) { buttons.forEach(function (b) { var on = b === picked; b.setAttribute('aria-pressed', String(on)); b.classList.toggle('is-selected', on); }); }
+  var reduce = false; try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+
+  /* ---------- 關聯圖（v72）：線上不寫字；圖比畫面寬時可以左右拖移；說明框不蓋住被點的卡片 ---------- */
+  var DESC = {
+    video: '每天直播的原稿，可能是自動聽打，也可能是我手動貼上。每支影片以影片 ID 連到之後的判讀留底與個股紀錄，一支影片會產生很多筆。',
+    candidate: '網站排程發現、但回放還沒就緒的影片；就緒後才開始聽打。',
+    sms: '會員簡訊原文，每則以文章 ID 分辨。解析後連到當日紀錄與會員持有，盤中通知也從這裡寄出；一則簡訊可能提到好幾檔。',
+    smsaudit: '逐篇核對來源網站和這裡的簡訊有沒有漏抓，供後台查。',
+    manual: '機器沒擷取到、由我人工補上的個股紀錄；重跑影片時不會被蓋掉。',
+    names: '股名聽錯的經驗，例如「立即電」是力積電。只有人工確認過的才會自動套用。',
+    stocks: '官方公司名稱、代號與產業。一個代號連到很多天的紀錄與行情。',
+    codes: '官方清單暫時讀不到時使用的代號備援。',
+    audit: '每一輪判讀的候選、原句證據與沒通過的項目。同一支影片可以留很多輪，出錯時查得回去。',
+    logs: '每輪辨識的過程，查模型在哪一步改了名稱。',
+    checkpoint: '網站刷新做到哪一步；中途斷掉時，下一次從這裡接著做。',
+    actions: '每天的買入、賣出與觀望，附原句說明；依來源分辨是影片、簡訊或人工補登。',
+    holdings: '「會員目前持有」的聲明，和當日買賣分開存；持股回合依這裡與當日紀錄重建。',
+    corrections: '等我確認的修正建議。',
+    dailyk: '每檔每天的開高低收與成交量。進場取當天最低、出場取當天最高，都從這裡查。',
+    live: '盤中報價與每五分鐘的快照，網站顯示現價用；盤中預覽不寫進正式績效。',
+    hour: '60 分 K 與分 K 歷史，個股圖表讀取；缺口只補，不編造。',
+    market: '大盤、期貨、匯率與原油的摘要和資料時間。',
+    fundamental: '個股基本面摘要，減少重複向外查詢。',
+    cost: '我在後台指定的成本，只影響對應的那一個回合；系統原本的判斷會留著。',
+    tracker: '把同一檔從買入到出場串成一段一段的回合，算出每一回合的報酬。',
+    performance: '每個交易日持有中回合的平均報酬，績效走勢讀這裡。',
+    article: '每天的整理文章與寄送狀態，網站郵件查詢與每日總覽信都讀它。',
+    mailsync: '簡訊和影片先後到時，記下哪一天的郵件內容還要同步。',
+    subscribers: '訂閱者的 Email，以及每日總覽、盤中通知兩種選擇。',
+    ledger: '每封信、每位收件者一列，記錄郵件服務有沒有接受；漏寄可以查到是誰。',
+    line: 'LINE 官方帳號的好友與各自的通知開關，以及每一則推送、每一位好友的結果。和 Email 分開記錄：停掉一邊不影響另一邊，Email 寄過也不代表 LINE 送過。',
+    web: '網站畫面不另外存分頁，打開時直接讀這些表，資料更新後重新整理就看得到。',
+    adminjob: '我手動投稿時的進度，記下日期、原稿指紋與做到第幾步。',
+    autojob: '自動取稿與判讀的進度，可以對照雲端工作機的紀錄。',
+    status: '排程與錯誤的紀錄，後台用它顯示實際執行的情況。',
+    usage: '匿名的頁面使用情形，用來觀察哪些功能有人用。',
+    memory: '問答助理的匿名對話摘要，和股票績效無關。',
+    index: '舊資料封存到哪一個分頁的索引。'
+  };
+  // [來源, 去處, 1＝主線／2＝跨好幾欄、平常收起來，點到兩端其中一張才畫]。線上不寫字（v72 管理者：圖上不放多餘資訊，避免排版混亂）；關係的說明放在點選後的文字裡。
+  var EDGES = [
+    ['candidate', 'video'], ['video', 'audit', 1], ['video', 'actions', 1], ['video', 'holdings', 2],
+    ['video', 'checkpoint'], ['sms', 'actions', 1], ['sms', 'holdings', 2], ['smsaudit', 'sms'],
+    ['manual', 'actions', 2], ['names', 'audit'], ['codes', 'stocks'], ['stocks', 'actions'],
+    ['audit', 'logs'], ['audit', 'corrections'], ['stocks', 'dailyk', 2],
+    ['actions', 'tracker', 1], ['holdings', 'tracker', 1], ['dailyk', 'tracker', 1], ['cost', 'tracker'],
+    ['tracker', 'performance', 1], ['dailyk', 'performance'],
+    ['actions', 'article', 1], ['holdings', 'article', 2], ['sms', 'mailsync', 2], ['mailsync', 'article'],
+    ['article', 'ledger', 1], ['sms', 'ledger', 2], ['subscribers', 'ledger'], ['article', 'line', 2], ['sms', 'line', 2],
+    ['article', 'web'], ['tracker', 'web'], ['performance', 'web'], ['live', 'web', 2], ['hour', 'web', 2],
+    ['market', 'web', 2], ['fundamental', 'web', 2],
+    ['video', 'adminjob', 2], ['video', 'autojob'], ['adminjob', 'status'], ['autojob', 'status'],
+    ['usage', 'memory'], ['index', 'actions', 2]
+  ];
+  var graph = one('#techGraph'), scroller = one('#techScroll'), canvas = one('#techCanvas'), svg = one('#techLines');
+  var pop = one('#techEntityDetail'), resetBtn = one('#techGraphReset');
+  var nodeButtons = all('[data-entity]'), btn = {};
+  nodeButtons.forEach(function (b) { btn[b.dataset.entity] = b; });
+  // 分頁小字只在「・」之後換行，不把一個分頁名稱切成兩半
+  nodeButtons.forEach(function (b) {
+    var sm = b.querySelector('small'); if (!sm || sm.querySelector('span')) return;
+    var parts = sm.textContent.split('・');
+    sm.innerHTML = parts.map(function (s, i) { return '<span>' + esc(s) + (i < parts.length - 1 ? '・' : '') + '</span>'; }).join('');
+  });
+  function title(k) { var b = btn[k]; return b ? b.querySelector('b').textContent : k; }
+  function sheet(k) { var b = btn[k]; return b ? b.querySelector('small').textContent : ''; }
+  // 捲動區比 700px 窄（手機）時，說明放在圖的正下方，不蓋在卡片上
+  function panelMode() { return !scroller.clientWidth || scroller.clientWidth < 700; }
+  var edgeOn = function () { return false; }, focusKey = '';
+
+  /* 畫線：同一張卡片同一邊有幾條線，就沿那一邊平均排開出入口；同一欄的線往外彎，最右欄往左彎。 */
+  function drawLines() {
+    if (!svg || !canvas.offsetWidth) return;
+    var g = canvas.getBoundingClientRect();
+    svg.setAttribute('viewBox', '0 0 ' + g.width + ' ' + g.height);
+    var R = {};
+    Object.keys(btn).forEach(function (k) { if (btn[k].offsetWidth) { R[k] = btn[k].getBoundingClientRect(); } });
+    var cx = function (r) { return r.left + r.width / 2; }, cy = function (r) { return r.top + r.height / 2; };
+    var segs = [], ports = {};
+    EDGES.forEach(function (e, i) {
+      var ra = R[e[0]], rb = R[e[1]];
+      if (!ra || !rb) return;
+      var horiz = Math.abs(cx(rb) - cx(ra)) > Math.max(ra.width, rb.width) * 0.6;
+      var same = !horiz && Math.abs(cx(rb) - cx(ra)) < 4;
+      var dir = horiz ? (cx(rb) > cx(ra) ? 1 : -1) : (cy(rb) > cy(ra) ? 1 : -1);
+      var sameSide = ra.right + 80 > g.right ? 'SL' : 'SR';
+      var sg = { i: i, e: e, horiz: horiz, same: same, dir: dir, bend: sameSide === 'SL' ? -1 : 1 };
+      sg.outSide = horiz ? (dir > 0 ? 'R' : 'L') : same ? sameSide : (dir > 0 ? 'B' : 'T');
+      sg.inSide = horiz ? (dir > 0 ? 'L' : 'R') : same ? sameSide : (dir > 0 ? 'T' : 'B');
+      (ports[e[0] + '|' + sg.outSide] = ports[e[0] + '|' + sg.outSide] || []).push({ s: sg, end: 'a', other: rb });
+      (ports[e[1] + '|' + sg.inSide] = ports[e[1] + '|' + sg.inSide] || []).push({ s: sg, end: 'b', other: ra });
+      segs.push(sg);
+    });
+    Object.keys(ports).forEach(function (key) {
+      var list = ports[key], k = key.split('|')[0], side = key.split('|')[1], r = R[k];
+      var alongY = side === 'L' || side === 'R' || side === 'SL' || side === 'SR';
+      list.sort(function (p, q) { return alongY ? cy(p.other) - cy(q.other) : cx(p.other) - cx(q.other); });
+      list.forEach(function (p, n) {
+        var t = (n + 1) / (list.length + 1);
+        p.s[p.end] = alongY
+          ? [side === 'L' || side === 'SL' ? r.left : r.right, r.top + 8 + (r.height - 16) * t]
+          : [r.left + 16 + (r.width - 32) * t, side === 'T' ? r.top : r.bottom];
+      });
+    });
+    var X = function (v) { return (v - g.left).toFixed(1); }, Y = function (v) { return (v - g.top).toFixed(1); };
+    var html = '<defs>' +
+      '<marker id="tgArrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L8,4L0,8z"/></marker>' +
+      '<marker id="tgArrowOn" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L8,4L0,8z"/></marker></defs>';
+    segs.forEach(function (sg) {
+      var A = sg.a, B = sg.b, p1, p2;
+      if (sg.horiz) {
+        var c = Math.max(22, Math.abs(B[0] - A[0]) / 2) * sg.dir;
+        p1 = [A[0] + c, A[1]]; p2 = [B[0] - c, B[1]];
+      } else if (sg.same) {
+        var bulge = (26 + Math.min(34, Math.abs(B[1] - A[1]) / 8)) * sg.bend;
+        p1 = [A[0] + bulge, A[1]]; p2 = [B[0] + bulge, B[1]];
+      } else {
+        var c2 = Math.max(18, Math.abs(B[1] - A[1]) / 2) * sg.dir;
+        p1 = [A[0], A[1] + c2]; p2 = [B[0], B[1] - c2];
+      }
+      html += '<path class="tg-edge' + (sg.e[2] === 1 ? ' is-main' : sg.e[2] === 2 ? ' is-quiet' : '') + '" data-i="' + sg.i + '" marker-end="url(#tgArrow)" d="M' + X(A[0]) + ',' + Y(A[1]) +
+        ' C' + X(p1[0]) + ',' + Y(p1[1]) + ' ' + X(p2[0]) + ',' + Y(p2[1]) + ' ' + X(B[0]) + ',' + Y(B[1]) + '"/>';
+    });
+    svg.innerHTML = html;
+    paintEdges();
+    if (focusKey && !pop.hidden && !panelMode()) placePop(btn[focusKey]);
+    updateFades();
+  }
+  function paintEdges() {
+    Array.prototype.forEach.call(svg.querySelectorAll('[data-i]'), function (el) {
+      var on = edgeOn(EDGES[Number(el.getAttribute('data-i'))]);
+      el.classList.toggle('is-on', on);
+      el.setAttribute('marker-end', on ? 'url(#tgArrowOn)' : 'url(#tgArrow)');
+    });
+  }
+  function highlight(keys, primary, filter) {
+    nodeButtons.forEach(function (b) {
+      var on = keys.indexOf(b.dataset.entity) >= 0;
+      b.classList.toggle('is-related', on);
+      b.setAttribute('aria-pressed', String(on && b.dataset.entity === primary));
+    });
+    all('.tech-domain').forEach(function (d) { d.classList.toggle('is-related', !!d.querySelector('.is-related')); });
+    graph.classList.toggle('has-focus', keys.length > 0);
+    edgeOn = filter || function () { return false; };
+    paintEdges();
+    resetBtn.hidden = !keys.length;
+  }
+  function relList(label, keys) {
+    if (!keys.length) return '';
+    return '<div class="tg-rel"><span class="tg-rel-k">' + label + '</span>' + keys.map(function (k) {
+      return '<button type="button" data-jump="' + k + '">' + esc(title(k)) + '</button>';
+    }).join('') + '</div>';
+  }
+  /* 說明框：在幾個候選位置（卡片左右上下、各欄的左右緣）裡挑一個——絕不蓋住被點的卡片，
+     盡量不蓋住它的上下游（標亮的卡片），其次少蓋其他卡片，再其次離被點的卡片近。 */
+  function overlap(a, q) { var w = Math.min(a.r, q.r) - Math.max(a.l, q.l), h = Math.min(a.b, q.b) - Math.max(a.t, q.t); return w > 0 && h > 0 ? w * h : 0; }
+  function placePop(b) {
+    if (!b) return;
+    var g = canvas.getBoundingClientRect(), r = b.getBoundingClientRect(), w = pop.offsetWidth || 320, h = pop.offsetHeight || 200;
+    var box = function (x) { return { l: x.left - g.left, t: x.top - g.top, r: x.right - g.left, b: x.bottom - g.top }; };
+    var me = box(r), W = g.width, H = g.height;
+    var others = nodeButtons.filter(function (n) { return n !== b && n.offsetWidth; }).map(function (n) { var q = box(n.getBoundingClientRect()); q.hot = n.classList.contains('is-related'); return q; });
+    var xs = [me.r + 16, me.l - 16 - w, me.l, me.r - w], ys = [me.t, me.b + 12, me.t - h - 12, (me.t + me.b - h) / 2, 8, H - h - 8];
+    all('.tech-domain').forEach(function (d) { if (d.dataset.domain === 'ops') return; var q = box(d.getBoundingClientRect()); xs.push(q.l, q.r - w); });
+    var best = null;
+    xs.forEach(function (x0) { ys.forEach(function (y0) {
+      var x = Math.max(8, Math.min(W - w - 8, x0)), y = Math.max(8, Math.min(H - h - 8, y0));
+      var p = { l: x, t: y, r: x + w, b: y + h };
+      var s = overlap(p, { l: me.l - 6, t: me.t - 6, r: me.r + 6, b: me.b + 6 }) ? 1e12 : 0;
+      others.forEach(function (q) { var a = overlap(p, q); if (a) s += a * (q.hot ? 60 : 1); });
+      s += (Math.abs(x + w / 2 - (me.l + me.r) / 2) + Math.abs(y + h / 2 - (me.t + me.b) / 2)) * 12;
+      if (!best || s < best.s) best = { s: s, x: x, y: y };
+    }); });
+    var left = best.x, top = best.y;
+    pop.style.left = Math.round(left) + 'px'; pop.style.top = Math.round(top) + 'px';
+    // 捲動區比圖窄時，把卡片與說明捲進畫面
+    var want = Math.min(r.left - g.left, left) - 16, span = Math.max(r.right - g.left, left + w) + 16 - want;
+    if (scroller.scrollWidth > scroller.clientWidth) {
+      var target = span <= scroller.clientWidth ? want : r.left - g.left - 16;
+      if (target < scroller.scrollLeft || target + Math.min(span, scroller.clientWidth) > scroller.scrollLeft + scroller.clientWidth) {
+        scroller.scrollTo({ left: Math.max(0, target), behavior: reduce ? 'auto' : 'smooth' });
+      }
+    }
+  }
+  function focusEntity(k, scrollPage) {
+    if (!btn[k]) return;
+    focusKey = k;
+    var up = [], down = [];
+    EDGES.forEach(function (e) { if (e[1] === k && up.indexOf(e[0]) < 0) up.push(e[0]); if (e[0] === k && down.indexOf(e[1]) < 0) down.push(e[1]); });
+    highlight([k].concat(up, down), k, function (e) { return e[0] === k || e[1] === k; });
+    select(all('[data-flow]'), null);
+    one('#techFlowDetail').textContent = '點上面其中一步，看它讀寫哪些分頁。';
+    pop.innerHTML = '<button type="button" class="tg-x" aria-label="關閉說明">×</button>' +
+      '<h4>' + esc(title(k)) + '</h4><div class="tg-sheet">分頁：' + esc(sheet(k)) + '</div>' +
+      '<p>' + esc(DESC[k] || '') + '</p>' + relList('資料來自', up) + relList('資料用在', down);
+    pop.hidden = false;
+    var b = btn[k];
+    if (panelMode()) {
+      pop.classList.add('is-panel');
+      if (pop.parentNode !== graph) graph.appendChild(pop);
+      var g = canvas.getBoundingClientRect(), r = b.getBoundingClientRect();
+      var x = r.left - g.left - (scroller.clientWidth - r.width) / 2;
+      scroller.scrollTo({ left: Math.max(0, x), behavior: reduce ? 'auto' : 'smooth' });
+    } else {
+      pop.classList.remove('is-panel');
+      if (pop.parentNode !== canvas) canvas.appendChild(pop);
+      placePop(b);
+    }
+    if (scrollPage) {
+      var y = graph.getBoundingClientRect().top + window.scrollY - 120;
+      if (window.__scrollToY) window.__scrollToY(y); else window.scrollTo(0, y);
+    }
+  }
+  function clearFocus() {
+    focusKey = ''; pop.hidden = true;
+    highlight([], '', null);
+  }
+  nodeButtons.forEach(function (b) { b.addEventListener('click', function () { if (!dragMoved) focusEntity(b.dataset.entity, false); }); });
+  pop.addEventListener('click', function (e) {
+    var j = e.target.closest('[data-jump]');
+    if (j) { focusEntity(j.getAttribute('data-jump'), false); return; }
+    if (e.target.closest('.tg-x')) clearFocus();
+  });
+  resetBtn.addEventListener('click', clearFocus);
+  root.addEventListener('keydown', function (e) { if (e.key === 'Escape' && focusKey) clearFocus(); });
+
+  /* 左右拖移：觸控用瀏覽器原生捲動；滑鼠按住拖曳也能移動，拖過 6px 就不當成點擊。兩側漸層提示還有內容。 */
+  var dragStart = null, dragMoved = false;
+  scroller.addEventListener('pointerdown', function (e) {
+    if (e.pointerType !== 'mouse' || scroller.scrollWidth <= scroller.clientWidth) return;
+    dragStart = { x: e.clientX, left: scroller.scrollLeft }; dragMoved = false;
+  });
+  window.addEventListener('pointermove', function (e) {
+    if (!dragStart) return;
+    var dx = e.clientX - dragStart.x;
+    if (Math.abs(dx) > 6) { dragMoved = true; scroller.classList.add('is-dragging'); }
+    if (dragMoved) { scroller.scrollLeft = dragStart.left - dx; }
+  });
+  window.addEventListener('pointerup', function () {
+    if (!dragStart) return;
+    dragStart = null; scroller.classList.remove('is-dragging');
+    setTimeout(function () { dragMoved = false; }, 0);
+  });
+  function updateFades() {
+    var max = scroller.scrollWidth - scroller.clientWidth;
+    graph.classList.toggle('can-left', scroller.scrollLeft > 4);
+    graph.classList.toggle('can-right', max > 4 && scroller.scrollLeft < max - 4);
+    // 圖需要左右拖移時，才顯示拖移提示與跳到各組的按鈕
+    root.classList.toggle('tg-scrollable', max > 2);
+  }
+  scroller.addEventListener('scroll', updateFades, { passive: true });
+  all('[data-jump-domain]').forEach(function (b) { b.addEventListener('click', function () {
+    var d = one('.tech-domain[data-domain="' + b.getAttribute('data-jump-domain') + '"]');
+    if (!d) return;
+    var x = d.getBoundingClientRect().left - canvas.getBoundingClientRect().left - 12;
+    scroller.scrollTo({ left: Math.max(0, x), behavior: reduce ? 'auto' : 'smooth' });
+  }); });
+
+  var flows = {
+    source: [['candidate', 'video', 'sms', 'smsaudit', 'manual'], '會員簡訊在盤中隨時進來，網站排程每分鐘檢查一次；影片要等直播回放出現。我也可以直接貼上原稿。休市日暫停台股的自動工作，但簡訊照常處理。'],
+    transcribe: [['candidate', 'video', 'autojob'], '交易日 11:05 起，網站排程每五分鐘看一次回放；出現後交給雲端工作機分段聽打，原稿存回「影片與原稿」。'],
+    review: [['video', 'audit', 'names', 'codes', 'stocks', 'logs', 'checkpoint'], '模型逐句找出每一檔、誰的動作、現在的立場；程式再核對股名、代號與數字。找不到原句的不發布，只留在判讀留底。'],
+    record: [['actions', 'holdings', 'corrections', 'article'], '通過核對的當日買賣、觀望與會員持有寫進紀錄，同時產生當天的整理文章。簡訊與人工補登的內容不會被影片蓋掉。'],
+    publish: [['article', 'mailsync', 'subscribers', 'ledger', 'line', 'sms', 'web'], '網站直接讀紀錄與文章。每日總覽在文章通過品質關卡後寄出，盤中通知在簡訊進來後寄出；Email 與 LINE 各自記下每一位收件者的結果。'],
+    quote: [['dailyk', 'live', 'hour', 'market', 'fundamental', 'tracker', 'cost', 'performance', 'web'], '每個交易日 16:45 起補齊每日行情，再依持股回合重算報酬與每日績效。文章已經先發布，不用等這一步。']
+  };
+  all('[data-flow]').forEach(function (b) { b.addEventListener('click', function () {
+    var item = flows[b.dataset.flow];
+    clearFocus();
+    select(all('[data-flow]'), b);
+    highlight(item[0], '', function (e) { return item[0].indexOf(e[0]) >= 0 && item[0].indexOf(e[1]) >= 0; });
+    one('#techFlowDetail').textContent = item[1];
+  }); });
+  all('[data-go]').forEach(function (b) { b.addEventListener('click', function () { focusEntity(b.getAttribute('data-go'), true); }); });
+
+  var redraw = 0;
+  function schedule() { clearTimeout(redraw); redraw = setTimeout(drawLines, 120); }
+  window.addEventListener('resize', function () {
+    if (focusKey) focusEntity(focusKey, false);
+    schedule();
+  });
+  if (window.ResizeObserver) { try { new ResizeObserver(schedule).observe(canvas); } catch (e) {} }
+  if (document.fonts && document.fonts.ready) { document.fonts.ready.then(schedule); }
+
+  /* ---------- 其他日子 ---------- */
+  var days = {
+    late: [['11:05', '回放還沒出現，後台顯示等待影片'], ['稍後', '下一次檢查才找到影片；已聽完的片段會保留'], ['原稿存檔後', '接著判讀與發布，完成時間不固定']],
+    busy: [['判讀中', '模型暫時忙碌，換下一把金鑰或稍後重試'], ['下一次', '從已完成的片段或步驟接著做'], ['完成後', '內容與背景狀態分開更新']],
+    noshow: [['取稿時段', '找不到當天的影片，後台標示沒有直播'], ['寄信', '不寄每日總覽；有會員簡訊仍寄盤中即時通知'], ['網站', '郵件查詢那一天留空']],
+    holiday: [['當天', '休市日，或隔年休市日尚未核實時，台股自動工作暫停'], ['簡訊', '會員簡訊照常接收，也可以寄盤中通知'], ['績效', '休市日不新增每日績效']]
+  };
+  function drawDay(k) { one('#dayLane').innerHTML = days[k].map(function (x) { return '<li><time>' + x[0] + '</time><span>' + x[1] + '</span></li>'; }).join(''); }
+  all('[data-day]').forEach(function (b) { b.addEventListener('click', function () { select(all('[data-day]'), b); drawDay(b.dataset.day); }); }); drawDay('late');
+
+  /* ---------- 共用的結果卡：顏色標示結論，下面寫原因 ---------- */
+  var TONE = { ok: 'tone-ok', warn: 'tone-warn', stop: 'tone-stop' };
+  function verdict(box, tone, badge, headline, body) {
+    box.className = 'tech-verdict ' + (TONE[tone] || '');
+    box.innerHTML = '<span class="tv-badge">' + esc(badge) + '</span><b>' + esc(headline) + '</b><p>' + esc(body) + '</p>';
+  }
+
+  /* ---------- 股名聽錯 ---------- */
+  var heard = [
+    ['ok', '直接對應', '立即電 → 力積電（6770）', '對照表裡有「立即電」「立基電」這兩種寫法，直接對到力積電。搜尋打「立即電」也找得到。'],
+    ['ok', '直接對應', '出金城 → 勤誠（8210）', '這是 ETF 出清勤誠那段被聽成的寫法；「初清程」「秦城」也都對到勤誠。'],
+    ['ok', '直接對應', '加折 → 嘉澤（3533）', '對照表明寫加折、加哲、加澤是嘉澤，而且特別註明不是家登，避免換成同族群的另一家。'],
+    ['warn', '要看上下文', '紅海 → 鴻海（2317）？', '「紅海」也是一般詞。只有附近真的在講股票、價位時才對到鴻海；單獨出現就不換。'],
+    ['ok', '直接對應', '玉龍 → 裕隆（2201）', '對照表只收不會出現在一般詞裡的寫法，例如玉龍、浴龍，這些直接對到裕隆。'],
+    ['stop', '不換', '與龍 → 不換', '「與龍」「魚龍」「于龍」可能是一般詞或人名，換掉反而出錯，所以刻意不列進對照表。'],
+    ['stop', '不猜', '連帽 → 留原字，留給我確認', '對照表沒有，讀音也對不到可靠的公司。模型不能自己聯想成開頭相同或名稱相近的公司，這一筆留原字，等我確認。'],
+    ['stop', '擋下', '立即電寫成華邦電 → 改列待確認', '9/23 模型把力積電寫成同是記憶體股的華邦電。華邦電在原文裡找不到、讀音也不像，這種同族群換名現在會被擋下，不會發布。']
+  ];
+  function drawHeard(i) { select(all('[data-heard]'), all('[data-heard]')[i]); var h = heard[i]; verdict(one('#heardResult'), h[0], h[1], h[2], h[3]); }
+  all('[data-heard]').forEach(function (b) { b.addEventListener('click', function () { drawHeard(Number(b.dataset.heard)); }); }); drawHeard(0);
+
+  /* ---------- 分類：上面的句子和下面的結果方塊都可以點 ---------- */
+  var tone = [
+    ['none', '只有舊推薦故事，沒有現在的立場，不新增今天的觀望列。'],
+    ['watch', '勤誠本身有可照做的低檔條件，列觀望注意，說明保留「900 以下」這個條件。'],
+    ['avoid', '條件還沒發生，而且明講現在不能買，列觀望不碰；不能把還沒發生的條件寫成買點。'],
+    ['hold', '賣的是散戶，會員的動作是續抱，記在會員持股，不會被平倉。'],
+    ['buy', '會員簡訊裡今天明確的買進指令，記當日買入，價位寫「73.5 以下」。'],
+    ['avoid', '法人反覆換手，當成中性偏空的訊號，列觀望不碰。'],
+    ['watch', '假跌破代表賣壓已經出完，接著站上季線，這是看多的說法，列觀望注意。'],
+    ['avoid', '友達在這句話裡是被拿來比較的反例，列觀望不碰；主角那一檔另外判斷。']
+  ];
+  function drawTone(i) {
+    select(all('[data-tone-case]'), all('[data-tone-case]')[i]);
+    var cat = tone[i][0];
+    all('[data-decision]').forEach(function (d) { var on = d.dataset.decision === cat; d.classList.toggle('is-selected', on); d.setAttribute('aria-pressed', String(on)); });
+    one('#toneExample').textContent = tone[i][1];
+  }
+  all('[data-tone-case]').forEach(function (b) { b.addEventListener('click', function () { drawTone(Number(b.dataset.toneCase)); }); });
+  all('[data-decision]').forEach(function (d) { d.addEventListener('click', function () {
+    for (var i = 0; i < tone.length; i++) { if (tone[i][0] === d.dataset.decision) { drawTone(i); return; } }
+  }); });
+  drawTone(0);
+
+  /* ---------- 數字歸屬 ---------- */
+  var own = {
+    '168': ['stop', '張數', '168 是 ETF 賣出勤誠的張數，不是股價。'],
+    '900': ['ok', '條件價', '900 是勤誠的條件價，公開價位寫「900 以下」；條件還沒發生時，說明要保留等待條件。'],
+    '600': ['stop', '漲跌金額', '600 是當天的跌幅金額，不是現價；沒有其他可證實的價格時，公開價位寫「未說明」。'],
+    '23.73': ['stop', 'EPS', '23.73 是每股盈餘，是基本面數字，不是股價。'],
+    '7': ['stop', '股利金額', '7 是除息的每股股利，和漲跌金額一樣不能當股價。'],
+    '20': ['stop', '均線天數', '20 是均線的天數，不是價格，更不能乘以倍數去猜價。']
+  };
+  all('.own-num').forEach(function (b) { b.addEventListener('click', function () {
+    select(all('.own-num'), b); var o = own[b.dataset.own];
+    verdict(one('#ownDetail'), o[0], o[0] === 'ok' ? '可以當價位' : '不能當股價', b.dataset.own + '：' + o[1], o[2]);
+  }); });
+
+  /* ---------- 持股回合 ---------- */
+  var times = [
+    ['8/06', '首次買入，進場價取 8/06 當日最低；講出的價格只作附註。'], ['8/07', '再次提及，更新最後提及日。'], ['8/10', '最後一次提及，仍在持有中。'],
+    ['8/17', '尚未超過 10 個交易日，仍算持有。'], ['8/25', '這時才確認逾期出場；回溯取 8/10 當日最高，缺日 K 只往前找。'], ['9/01', '如果後來重新買入，另開第二個回合。']
+  ];
+  var slider = one('#tlSlider');
+  function drawTimeline() { var i = Number(slider.value); one('#tlDay').textContent = times[i][0]; one('#tlState').textContent = times[i][1]; all('#techTimeline li').forEach(function (li, n) { li.classList.toggle('is-current', n === i); li.classList.toggle('is-past', n < i); }); }
+  slider.addEventListener('input', drawTimeline); drawTimeline();
+
+  /* ---------- 出錯時：四段工作的狀態 ---------- */
+  var LANES = ['取稿', '判讀', '網站文章', '背景計算'];
+  var STATE = { ok: ['tone-ok', '完成'], wait: ['tone-wait', '等待'], resume: ['tone-resume', '自動接著做'], stop: ['tone-stop', '需要人處理'], skip: ['tone-skip', '今天不做'] };
+  var fails = {
+    late: [[['wait', '回放還沒出現，每五分鐘再看一次'], ['skip', '還沒有原稿，先不判讀'], ['wait', '首頁觀望區寫「影片整理中」'], ['ok', '照常']], '影片晚到不算錯誤，只是等待；有簡訊的話，首頁先放簡訊的買賣。'],
+    busy: [[['ok', '原稿已存檔'], ['resume', '換下一把金鑰或稍後重試，已完成的片段保留'], ['wait', '等判讀完成才發布'], ['wait', '等文章發布後才開始']], '模型忙碌時不重頭來，下一次從做到的地方接著做。'],
+    timeout: [[['ok', '完成'], ['ok', '完成'], ['ok', '已發布'], ['resume', '補日 K 做到哪一檔就記下，下一次從那一檔接著做']], '網站排程一次最多跑六分鐘，所以背景工作每 25 檔先寫一次進度，不會每次從第一檔重來。'],
+    smsfirst: [[['wait', '影片還沒回放'], ['skip', '還沒有原稿'], ['ok', '首頁先放簡訊的買賣，觀望區寫整理中'], ['ok', '照常']], '簡訊和影片可以先後到，但不能互相蓋掉；影片後到時，只補充同一檔、能在原稿找到的說明。'],
+    wrong: [[['ok', '完成'], ['stop', '9/23 語氣核對把偏多的兩檔改成觀望不碰'], ['resume', '我在後台改回後，網站與郵件查詢自動同步'], ['resume', '重算持股與績效']], '這類錯誤機器自己看不出來，要人判斷；改完之後，我把原因寫成新的規則與測試。'],
+    toobig: [[['ok', '完成'], ['ok', '完成'], ['stop', '9/24 首頁顯示「資料讀取失敗」'], ['ok', '完成']], '原因是持股清單超過暫存的單筆大小；後來改成資料太大時不放進暫存，並且讀不到時一定要顯示原因。'],
+    holiday: [[['skip', '休市，不取稿'], ['skip', '不判讀'], ['skip', '不寄每日總覽'], ['skip', '不寫每日績效']], '會員簡訊照常接收，也照常寄盤中通知；隔年休市日尚未核實時，台股自動工作也會先暫停。']
+  };
+  function drawFail(k) {
+    select(all('[data-fail]'), one('[data-fail="' + k + '"]'));
+    var f = fails[k];
+    one('#failLanes').innerHTML = f[0].map(function (x, i) {
+      var st = STATE[x[0]];
+      return '<div class="tech-lane ' + st[0] + '"><span class="tl-name">' + LANES[i] + '</span><span class="tl-state">' + st[1] + '</span><p>' + esc(x[1]) + '</p></div>';
+    }).join('');
+    one('#failNote').textContent = f[1];
+  }
+  all('[data-fail]').forEach(function (b) { b.addEventListener('click', function () { drawFail(b.dataset.fail); }); }); drawFail('late');
+
+  /* ---------- 限制：網站能不能回答 ---------- */
+  var cans = [
+    ['ok', '可以', '搜尋個股就看得到', '每次提及都列出日期、價位與原句；點日期可以回到那天的逐字稿核對。'],
+    ['stop', '不行', '網站不提供投資建議', '這裡只整理節目講過的內容，不判斷現在該不該買。'],
+    ['stop', '不是', '報酬是理想上限的示意', '進場取當天最低、出場取當天最高，也沒有扣手續費、稅和滑價，不能當成實際成交報酬。'],
+    ['warn', '有條件', '可能延遲', '行情來源可能延遲，請看畫面上的資料時間；盤中預覽不寫進正式績效。'],
+    ['warn', '會', '所以每一筆都留原句', '聽不清楚的股名留給我確認、數字寫「未說明」，不猜也不補。'],
+    ['warn', '不會', '沒有直播就不寄每日總覽', '會員簡訊發布的話，盤中即時通知照常寄出。'],
+    ['ok', '查得到', '每一封信都有寄送紀錄', '先確認訂閱狀態，再由我查那一封信有沒有被郵件服務接受。'],
+    ['warn', '不一定', '文字可能不同，核對規則相同', '模型每次寫出來的文字可能不一樣，但分類、股名和數字都要通過同樣的核對才會發布。']
+  ];
+  function drawCan(i) { select(all('[data-can]'), all('[data-can]')[i]); var c = cans[i]; verdict(one('#canResult'), c[0], c[1], c[2], c[3]); }
+  all('[data-can]').forEach(function (b) { b.addEventListener('click', function () { drawCan(Number(b.dataset.can)); }); }); drawCan(0);
+
+  /* ---------- 即時數字與 9/23 的寄送紀錄 ---------- */
+  function demoText(d, who) {
+    if (d && d.total > 0) {
+      return '寄給 ' + Number(d.accepted).toLocaleString('zh-TW') + ' 位訂閱' + who + '的讀者' + (d.total > d.accepted ? '（共 ' + d.total + ' 位，其餘未被郵件服務接受）' : '') + '；每一位的結果都記在「每封信寄給誰」。';
+    }
+    if (d && d.state) { return '這一則的通知狀態記為「' + d.state + '」。'; }
+    return '那時還沒有逐人記錄這一封的寄送結果，所以這裡不寫人數。';
+  }
+  var loaded = false;
+  window.__loadTechStats = function () {
+    if (loaded || !(window.google && google.script && google.script.run)) return;
+    loaded = true; google.script.run.withSuccessHandler(function (r) {
+      if (!r || !r.ok) { loaded = false; one('#techLiveNote').textContent = '目前讀不到資料量，稍後再開啟可以重試。'; return; }
+      all('[data-live]').forEach(function (e) { var v = r[e.dataset.live]; e.textContent = v == null ? '—' : Number(v).toLocaleString('zh-TW'); });
+      one('#techLiveNote').textContent = '截至 ' + r.asOf + '，自 ' + r.since + ' 起的紀錄規模。這些數字不代表投資績效。';
+      var demo = r.demo || {};
+      one('#techDemoSms').textContent = '這則簡訊觸發盤中即時通知，' + demoText(demo.sms, '盤中通知');
+      one('#techDemoDaily').textContent = '文章通過品質關卡後才寄，' + demoText(demo.daily, '每日總覽');
+    }).withFailureHandler(function () { loaded = false; one('#techLiveNote').textContent = '目前讀不到資料量，稍後再開啟可以重試。'; }).apiGetTechStats();
+  };
+  window.__techReveal = function () { window.__loadTechStats(); schedule(); if (window.__docnavRebuild) window.__docnavRebuild(); };
+  schedule();
+})();
+</script>

@@ -6,11 +6,9 @@ on:
     paths:
       - .github/workflows/public-site.yml
       - public-site/**
-      - scripts/build_public_site.py
+      - scripts/build_original_site.py
+      - site-api/**
   workflow_dispatch:
-  schedule:
-    - cron: '*/15 1-9 * * 1-5' # 台北平日 09:00–17:45；GitHub 排程可能延遲，不宣稱即時
-    - cron: '0 0,12 * * *'    # 早晚兜底：涵蓋休市日仍可能出現的會員通知
 
 permissions:
   contents: read
@@ -23,6 +21,7 @@ concurrency:
 
 jobs:
   publish:
+    if: vars.SITE_API_URL != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment:
@@ -33,14 +32,14 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
-          cache: pip
-          cache-dependency-path: requirements.txt
-      - run: pip install -r requirements.txt
-      - name: 匯出已公開紀錄
+      - name: 後端橋接實測（失敗就保留上一版網站）
         env:
-          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
-          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
-        run: python scripts/build_public_site.py --output _site
+          SITE_API_URL: ${{ vars.SITE_API_URL }}
+        run: python scripts/check_site_api.py
+      - name: 以原始 Apps Script 畫面檔案組裝網站
+        env:
+          SITE_API_URL: ${{ vars.SITE_API_URL }}
+        run: python scripts/build_original_site.py --output _site
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:

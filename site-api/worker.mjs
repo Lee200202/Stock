@@ -66,14 +66,32 @@ export default {
       return reply({ok: false, error: 'admin-key-required'}, 401, origin);
     }
     try {
-      const downstream = await fetch(env.GAS_WEBAPP_URL + '?action=site-bridge', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-        body: JSON.stringify({...body, bridgeToken: env.SITE_BRIDGE_TOKEN}),
-        redirect: 'follow',
-        signal: AbortSignal.timeout(60000)
-      });
-      if (!downstream.ok) return reply({ok: false, error: 'backend-http-' + downstream.status}, 502, origin);
+      let downstream;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          downstream = await fetch(env.GAS_WEBAPP_URL + '?action=site-bridge', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json; charset=utf-8'},
+            body: JSON.stringify({...body, bridgeToken: env.SITE_BRIDGE_TOKEN}),
+            redirect: 'follow',
+            signal: AbortSignal.timeout(60000)
+          });
+          if (downstream.ok) break;
+          // Google Apps Script 暫時性冷啟動（例如 script.googleusercontent.com 回 404 或 503）自動重試一次
+          if (attempt === 0 && (downstream.status === 404 || downstream.status >= 500)) {
+            await new Promise(r => setTimeout(r, 1200));
+            continue;
+          }
+          break;
+        } catch (err) {
+          if (attempt === 0) {
+            await new Promise(r => setTimeout(r, 1200));
+            continue;
+          }
+          throw err;
+        }
+      }
+      if (!downstream || !downstream.ok) return reply({ok: false, error: 'backend-http-' + (downstream ? downstream.status : 'error')}, 502, origin);
       const contentType = downstream.headers.get('content-type') || '';
       if (!/json/i.test(contentType)) return reply({ok: false, error: 'backend-not-json'}, 502, origin);
       const result = await downstream.json();

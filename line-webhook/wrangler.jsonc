@@ -1,0 +1,19 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "zhangzhen-line-relay",
+  "main": "./worker.mjs",
+  "compatibility_date": "2026-09-25",
+  "assets": { "directory": "./static", "binding": "ASSETS" },
+  "queues": {
+    "producers": [{ "queue": "zhangzhen-line-events", "binding": "LINE_EVENTS" }],
+    "consumers": [{
+      "queue": "zhangzhen-line-events",
+      "max_batch_size": 1,
+      "max_batch_timeout": 1,
+      "max_retries": 12,
+      "retry_delay": 30,
+      "max_concurrency": 2,
+      "dead_letter_queue": "zhangzhen-line-dead"
+    }]
+  }
+}

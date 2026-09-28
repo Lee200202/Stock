@@ -1807,20 +1807,20 @@ function mdToHtml_(md) {
         var pxTag = px && !/^未說明$/.test(px) ? chip('價位 ' + px, rt || tone) + ' ' : '';
         html.push('<tr>' +
           '<td bgcolor="' + bg + '" class="' + cls + ' mc-name" style="background:' + bg + ';padding:10px 10px 11px 12px;border-top:1px solid ' + ln + ';' +
-            'border-left:4px solid ' + bar + ';vertical-align:top;font-weight:700;font-size:15px;line-height:1.5;color:#12161A;overflow-wrap:anywhere;">' +
+            'border-left:4px solid ' + bar + ';vertical-align:top;font-weight:700;font-size:15px;line-height:1.5;color:#12161A;word-break:keep-all;overflow-wrap:break-word;">' +
             mailStockName_(cells[0]) +
             (codeIdx >= 0 && cells[codeIdx] ? '<br><span class="mc-code" style="font-weight:400;font-size:13.5px;letter-spacing:0.04em;color:' +
               MAIL_CODE_COLOR_ + ';white-space:nowrap;">' + cells[codeIdx] + '</span>' : '') + '</td>' +
           '<td bgcolor="' + bg + '" class="' + cls + ' mc-desc mc-side" style="background:' + bg + ';padding:10px 12px 11px;border-top:1px solid ' + ln + ';' +
-            'vertical-align:top;font-size:13.5px;line-height:1.75;color:#26312C;overflow-wrap:anywhere;">' + pxTag + (wdesc || '未說明') + '</td>' +
+            'vertical-align:top;font-size:13.5px;line-height:1.75;color:#26312C;overflow-wrap:break-word;word-break:break-word;">' + pxTag + (wdesc || '未說明') + '</td>' +
           '</tr>');
         return;
       }
       var plain = mid.replace(/<[^>]+>/g, '');
       var midStyle = plain.length <= 8 && mid.indexOf('mc-chip') < 0
-        ? 'white-space:nowrap;word-break:normal;overflow-wrap:normal;' : 'overflow-wrap:anywhere;';
+        ? 'white-space:nowrap;word-break:normal;overflow-wrap:normal;' : 'overflow-wrap:break-word;word-break:break-word;';
       html.push('<tr>' +
-        cell(mailStockName_(cells[0]), 'border-left:4px solid ' + bar + ';font-weight:700;font-size:15px;line-height:1.5;color:#12161A;overflow-wrap:anywhere;', 'mc-name') +
+        cell(mailStockName_(cells[0]), 'border-left:4px solid ' + bar + ';font-weight:700;font-size:15px;line-height:1.5;color:#12161A;word-break:keep-all;overflow-wrap:break-word;', 'mc-name') +
         cell(codeIdx >= 0 ? (cells[codeIdx] || '') : '', 'font-size:13.5px;letter-spacing:0.04em;color:' +
              MAIL_CODE_COLOR_ + ';white-space:nowrap;', 'mc-code') +
         cell(mid || '—', 'font-size:13.5px;color:#26312C;' + midStyle, 'mc-mid') +
@@ -1832,7 +1832,7 @@ function mdToHtml_(md) {
       if (desc) {
         html.push('<tr><td colspan="3" bgcolor="' + bg + '" class="' + cls + ' mc-desc" style="background:' + bg + ';padding:2px 12px 12px;' +
                   'border-left:4px solid ' + bar + ';vertical-align:top;font-size:13.5px;line-height:1.75;color:#26312C;' +
-                  'overflow-wrap:anywhere;">' + desc + '</td></tr>');
+                  'overflow-wrap:break-word;word-break:break-word;">' + desc + '</td></tr>');
       }
     });
 

@@ -26,23 +26,23 @@
 .market-board { width:100%; min-width:0; }
 .market-empty { grid-column:1/-1; padding:32px; border:1px solid var(--rule); border-radius:18px; background:var(--panel); line-height:1.9; width:auto; max-width:none; min-width:0; word-break:normal; }
 .market-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:24px; flex-wrap:wrap; margin-bottom:12px; }
-.market-heading h2 { margin:0 0 6px; font-size:calc(23px * var(--rd-fs)); font-weight:700; letter-spacing:.02em; }
-.market-heading p { color:var(--muted); line-height:1.6; margin:0; font-size:calc(14px * var(--rd-fs)); }
+.market-heading h2 { margin:0 0 6px; font-size:calc(23px * var(--rd-fs)); font-weight:700; letter-spacing:.02em; text-wrap:balance; word-break:keep-all; }
+.market-heading p { color:var(--muted); line-height:1.7; margin:0; font-size:calc(14.5px * var(--rd-fs)); text-wrap:pretty; }
 
 /* 卡片網格：大盤長寬度與其他 chunk 對齊，並保留充裕留白 */
-.market-cards { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin:18px 0 24px; }
+.market-cards { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:22px; margin:20px 0 28px; }
 
 /* 點選卡片即可開啟互動圖表，微懸浮與陰影轉場反饋 */
 .market-card {
-  padding:20px 22px; border:1px solid var(--rule); border-radius:14px;
-  background:var(--panel); min-width:0; box-shadow:0 1px 4px rgba(0,0,0,.035);
+  padding:24px 26px; border:1px solid var(--rule); border-radius:18px;
+  background:var(--panel); min-width:0; box-shadow:var(--shadow);
   cursor:pointer; user-select:none; position:relative;
   transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease;
   display:flex; flex-direction:column; justify-content:space-between;
 }
 .market-card:hover {
   transform:translateY(-2px); border-color:var(--beam);
-  box-shadow:0 6px 20px rgba(0,0,0,.07);
+  box-shadow:0 8px 24px rgba(0,0,0,.08);
 }
 .market-card:active { transform:translateY(1px); }
 .market-card:focus-visible { outline:2px solid var(--beam); outline-offset:2px; }
@@ -54,56 +54,65 @@
 .market-card:first-child .market-chart-wrap { width:100%; max-width:none; margin:0 auto; }
 
 /* 左右分欄：左文字資訊、右折線圖，留出適當呼吸空白 */
-.market-card-layout { display:flex; align-items:stretch; justify-content:space-between; gap:20px; width:100%; }
+.market-card-layout { display:flex; align-items:stretch; justify-content:space-between; gap:22px; width:100%; }
 .market-card-info { display:flex; flex-direction:column; justify-content:space-between; flex:0 0 210px; min-width:180px; max-width:260px; }
 
-.market-card-head { margin-bottom:8px; }
-.market-card-title-row { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:4px; }
+.market-card-head { margin-bottom:10px; }
+.market-card-title-row { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; }
 .market-card h3 {
-  margin:0; font-size:calc(16.5px * var(--rd-fs)); font-weight:600;
-  color:var(--ink); display:flex; align-items:center; gap:6px;
+  margin:0; font-size:calc(17px * var(--rd-fs)); font-weight:600;
+  color:var(--ink); display:flex; align-items:center; gap:8px;
+  text-wrap:balance; word-break:keep-all;
 }
 .market-card-arrow { font-size:calc(16px * var(--rd-fs)); color:var(--muted); opacity:.6; transition:transform .2s ease, opacity .2s ease, color .2s ease; }
 .market-card:hover .market-card-arrow { transform:translateX(3px); opacity:1; color:var(--beam); }
 
-.market-price-wrap { display:flex; align-items:baseline; gap:6px; margin:2px 0 4px; }
+.market-price-wrap { display:flex; align-items:baseline; gap:8px; margin:4px 0 6px; }
 .market-value { font-variant-numeric:tabular-nums; font-size:calc(clamp(24px,2.2vw,32px) * var(--rd-fs)); font-weight:700; line-height:1.15; white-space:nowrap; overflow-wrap:normal; color:var(--ink); }
-.market-unit { font-size:calc(12px * var(--rd-fs)); color:var(--muted); font-weight:normal; }
+.market-unit { font-size:calc(12px * var(--rd-fs)); color:var(--muted); font-weight:normal; white-space:nowrap; }
 
-.market-delta { display:block; margin:0 0 6px; font-size:calc(14.5px * var(--rd-fs)); font-weight:600; font-variant-numeric:tabular-nums; }
+.market-delta { display:block; margin:0 0 6px; font-size:calc(14.5px * var(--rd-fs)); font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap; }
 
 /* 60分K 背離狀態徽章（<= 6字極簡標籤） */
-.market-div-wrap { margin:4px 0 6px; display:inline-flex; align-items:center; }
+.market-div-wrap { margin:6px 0 4px; display:inline-flex; align-items:center; flex-wrap:nowrap; }
 .market-div-badge {
-  display:inline-flex; align-items:center; gap:5px; padding:3px 9px;
-  border-radius:6px; font-size:calc(11.5px * var(--rd-fs)); font-weight:600; width:fit-content; line-height:1.3;
+  display:inline-flex; align-items:center; gap:5px; padding:3px 10px;
+  border-radius:6px; font-size:calc(12px * var(--rd-fs)); font-weight:600; width:fit-content; line-height:1.35; white-space:nowrap;
 }
-.market-div-badge.div-bearish { background:rgba(255,112,123,.12); color:var(--rise); border:1px solid rgba(255,112,123,.3); }
-.market-div-badge.div-bullish { background:rgba(74,209,176,.12); color:var(--fall); border:1px solid rgba(74,209,176,.3); }
+.market-div-badge.div-bearish { background:rgba(255,112,123,.14); color:var(--rise); border:1px solid rgba(255,112,123,.35); }
+.market-div-badge.div-bullish { background:rgba(74,209,176,.14); color:var(--fall); border:1px solid rgba(74,209,176,.35); }
 .market-div-badge.div-neutral { background:var(--panel-2); color:var(--muted); border:1px solid var(--rule); }
 .div-dot { font-size:8px; line-height:1; }
-.market-div-basis { font-size:calc(12px * var(--rd-fs)); color:var(--muted); margin-left:6px; font-weight:500; }
+.market-div-basis { font-size:calc(11.5px * var(--rd-fs)); color:var(--muted); margin-left:6px; font-weight:500; white-space:nowrap; }
 
 /* 右側折線圖區塊 */
 .market-card-chart { flex:1 1 0; min-width:0; display:flex; flex-direction:column; justify-content:center; }
 .market-chart-wrap { width:100%; display:flex; flex-direction:column; }
 .market-spark { width:100%; height:150px; display:block; }
-.market-line-labels { display:flex; justify-content:space-between; gap:15px; font-size:calc(11px * var(--rd-fs)); color:var(--muted); margin-top:4px; padding:0 2px; }
+.market-spark path { stroke-linecap:round; stroke-linejoin:round; }
+.market-line-labels { display:flex; justify-content:space-between; gap:12px; font-size:calc(11.5px * var(--rd-fs)); color:var(--muted); margin-top:6px; padding:0 4px; text-wrap:nowrap; }
+.market-line-labels span { white-space:nowrap; }
 .market-chart-empty { padding:28px 16px; text-align:center; background:var(--panel-2); border-radius:12px; }
 
+/* 台指期 日盤/夜盤 切換膠囊 */
+.market-tx-tabs { display:inline-flex; align-items:center; background:var(--panel-2); border:1px solid var(--rule); border-radius:999px; padding:2px; gap:2px; margin-left:auto; }
+.market-tx-tab { background:transparent; border:none; border-radius:999px; padding:2px 10px; font-size:calc(11.5px * var(--rd-fs)); color:var(--muted); cursor:pointer; font-weight:500; transition:all .15s ease; white-space:nowrap; }
+.market-tx-tab:hover { color:var(--ink); }
+.market-tx-tab.active { background:var(--panel); color:var(--ink); font-weight:700; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+
 /* 附註與來源資訊 */
-.market-turnover { display:flex; flex-direction:column; gap:4px; padding:8px 0; margin:6px 0; border-top:1px solid var(--rule); border-bottom:1px solid var(--rule); font-size:calc(12px * var(--rd-fs)); color:var(--muted); line-height:1.5; }
+.market-turnover { display:flex; flex-direction:column; gap:5px; padding:9px 0; margin:6px 0; border-top:1px solid var(--rule); border-bottom:1px solid var(--rule); font-size:calc(12px * var(--rd-fs)); color:var(--muted); line-height:1.5; }
 .market-turnover span b { color:var(--ink); font-weight:600; }
-.market-source { font-size:calc(11px * var(--rd-fs)); color:var(--muted); margin-top:6px; line-height:1.5; overflow-wrap:anywhere; }
+.market-source { font-size:calc(11.5px * var(--rd-fs)); color:var(--muted); margin-top:6px; line-height:1.5; overflow-wrap:break-word; text-wrap:pretty; }
 
 /* 產業成交比重 */
-.market-sector { box-sizing:border-box; padding:22px; border-radius:14px; margin-bottom:20px; width:100%; }
-.market-source-details { padding:12px 16px; border:1px solid var(--rule); border-radius:12px; color:var(--muted); font-size:calc(13px * var(--rd-fs)); line-height:1.65; }
+.market-sector { box-sizing:border-box; padding:26px 28px; border-radius:18px; margin-bottom:24px; width:100%; }
+.market-source-details { padding:14px 18px; border:1px solid var(--rule); border-radius:14px; color:var(--muted); font-size:calc(13.5px * var(--rd-fs)); line-height:1.75; }
 .market-source-details summary { cursor:pointer; color:var(--ink); font-weight:600; }
-.market-source-details p { margin:10px 0 0; }
+.market-source-details p { margin:10px 0 0; text-wrap:pretty; }
 .market-sector-row { display:grid; grid-template-columns:minmax(110px,180px) minmax(0,1fr) 64px; align-items:center; gap:15px; margin:16px 0; font-size:calc(14px * var(--rd-fs)); }
 .market-sector-row[hidden] { display:none!important; }
-.market-sector-row span { overflow-wrap:anywhere; text-wrap:balance; }
+.market-sector-row span { overflow-wrap:break-word; text-wrap:balance; word-break:keep-all; }
 .market-meter { height:16px; background:var(--panel-2); border-radius:6px; overflow:hidden; }
 .market-meter i { display:block; height:100%; background:var(--beam); min-width:1px; border-radius:6px; }
 .market-sector-row b { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
@@ -313,9 +322,18 @@ html[data-view="mobile"] .market-card:first-child .market-card-info { flex:none;
   }
 
   var cardData={};
+  var lastMarketData=null;
 
   // 點選卡片開啟完整互動圖表（含 60分K、日K、指標分析）
   el('marketCards').addEventListener('click',function(e){
+    var txBtn=e.target.closest('[data-set-tx]');
+    if(txBtn){
+      e.stopPropagation();
+      e.preventDefault();
+      cardViewModes['tx_session']=txBtn.dataset.setTx;
+      if(lastMarketData){render(lastMarketData);}
+      return;
+    }
     var card=e.target.closest('[data-open-market]');
     if(card&&cardData[card.dataset.openMarket]){
       window.openMarketDetail(cardData[card.dataset.openMarket]);
@@ -324,6 +342,14 @@ html[data-view="mobile"] .market-card:first-child .market-card-info { flex:none;
 
   el('marketCards').addEventListener('keydown',function(e){
     if(e.key==='Enter'||e.key===' '){
+      var txBtn=e.target.closest('[data-set-tx]');
+      if(txBtn){
+        e.stopPropagation();
+        e.preventDefault();
+        cardViewModes['tx_session']=txBtn.dataset.setTx;
+        if(lastMarketData){render(lastMarketData);}
+        return;
+      }
       var card=e.target.closest('[data-open-market]');
       if(card&&cardData[card.dataset.openMarket]){
         e.preventDefault();
@@ -333,8 +359,33 @@ html[data-view="mobile"] .market-card:first-child .market-card-info { flex:none;
   });
 
   function render(data){
+    lastMarketData=data;
     cardData={};(data.cards||[]).forEach(function(c){cardData[c.key]=c;});
     el('marketCards').innerHTML=(data.cards||[]).map(function(c){
+      var activeC=c, txSwitch='';
+      if(c.key==='tx'&&c.sessions){
+        var defaultSess=(c.session==='AFTERHOURS'?'afterhours':'regular');
+        var curSess=cardViewModes['tx_session']||defaultSess;
+        if(c.sessions[curSess]){
+          var s=c.sessions[curSess];
+          activeC=Object.assign({},c,{
+            value:s.value,
+            change:s.change,
+            percent:s.percent,
+            time:s.time,
+            session:s.session,
+            tradeVolume:s.tradeVolume,
+            line:s.line||c.line
+          });
+        }
+        if(c.sessions.regular&&c.sessions.afterhours){
+          txSwitch='<span class="market-tx-tabs" role="group" aria-label="台指期時段切換">' +
+            '<button type="button" class="market-tx-tab'+(curSess==='regular'?' active':'')+'" data-set-tx="regular">日盤</button>' +
+            '<button type="button" class="market-tx-tab'+(curSess==='afterhours'?' active':'')+'" data-set-tx="afterhours">夜盤</button>' +
+            '</span>';
+        }
+      }
+      c=activeC;
       var value=Number(c.change),color=value>0?'var(--rise)':value<0?'var(--fall)':'var(--muted)';
       var delta=c.change==null?'漲跌未取得':(value>0?'+':'')+window.marketNum(value,c.key)+'（'+(value>0?'+':'')+window.marketNum(c.percent,c.key,2)+'%）';
       var amount=c.turnover?'<div class="market-turnover"><span>累計成交金額 <b>'+num(c.turnover/1e8)+' 億元</b></span>'+(c.estimatedTurnover?'<span>線性預估 <b>'+num(c.estimatedTurnover/1e8)+' 億元</b></span>':'')+'</div>':'';
@@ -347,16 +398,28 @@ html[data-view="mobile"] .market-card:first-child .market-card-info { flex:none;
       // 沒有漲跌就沒有已驗證的平盤，不拿第一筆冒充（v54）。
       var basePrice=hasChange?(numVal-numChg):NaN;
 
+      var divBadge = '';
+      if (typeof window.detectDivergence === 'function' && Array.isArray(c.candles60m) && c.candles60m.length >= 5) {
+        var dRes = window.detectDivergence(c.candles60m);
+        if (dRes && dRes.status !== 'neutral') {
+          var isBear = dRes.status === 'bearish';
+          divBadge = '<div class="market-div-wrap"><span class="market-div-badge ' + (isBear ? 'div-bearish' : 'div-bullish') + '">' +
+            '<span class="div-dot" aria-hidden="true">●</span>' + esc(dRes.badgeText) +
+            '</span><span class="market-div-basis">依60分K</span></div>';
+        }
+      }
+
       return '<article class="market-card" data-open-market="'+esc(c.key)+'" tabindex="0" role="button" aria-label="查看 '+esc(c.label)+' 互動圖表">' +
         '<div class="market-card-layout">' +
           '<div class="market-card-info">' +
             '<div class="market-card-head">' +
               '<div class="market-card-title-row">' +
                 '<h3>'+esc(c.key==='tx'?'台指期':c.label)+(c.key==='tx'?'<small class="market-contract">'+esc(c.contract||'')+' · '+(c.session==='AFTERHOURS'?'夜盤':'日盤')+'</small>':'')+'<span class="market-card-arrow" aria-hidden="true">›</span></h3>' +
+                txSwitch +
               '</div>' +
               '<div class="market-price-wrap"><span class="market-value">'+window.marketNum(c.value,c.key)+'</span><span class="market-unit">'+esc(c.unit)+'</span></div>' +
               '<span class="market-delta" style="color:'+color+'">'+delta+'</span>' +
-            '</div>' +
+              divBadge +
             '</div>' +
             amount + tradeVol + estVol +
             '<div class="market-source" title="'+esc(c.source)+'">資料 '+esc(c.time)+' · '+(/Yahoo/.test(c.source||'')?'可能延遲':'來源時間')+'</div>' +

@@ -90,13 +90,15 @@ function lineDateLabel_(d) {
 function lineMd_(d) { var m = String(d || '').match(/\d{4}[\/\-](\d{1,2})[\/\-](\d{1,2})/); return m ? ('0' + m[1]).slice(-2) + '/' + ('0' + m[2]).slice(-2) : ''; }
 function lineSiteUrl_(tab) {
   var base = (typeof publicSiteUrl_ === 'function' && publicSiteUrl_()) ? publicSiteUrl_() :
-             (typeof publicWebAppUrl_ === 'function' ? publicWebAppUrl_() : '');
-  return base ? base + '?tab=' + tab : '';
+             (typeof PUBLIC_SITE_URL_DEFAULT === 'string' && PUBLIC_SITE_URL_DEFAULT ? PUBLIC_SITE_URL_DEFAULT : 'https://lee200202.github.io/Stock/');
+  base = (base || 'https://lee200202.github.io/Stock/').replace(/\/?$/, '/');
+  return tab ? base + '?tab=' + encodeURIComponent(tab) : base;
 }
 function lineStockUrl_(code) {
   var base = (typeof publicSiteUrl_ === 'function' && publicSiteUrl_()) ? publicSiteUrl_() :
-             (typeof publicWebAppUrl_ === 'function' ? publicWebAppUrl_() : '');
-  return base && /^\d{4,6}[A-Z]?$/.test(String(code)) ? base + '?stock=' + code : '';
+             (typeof PUBLIC_SITE_URL_DEFAULT === 'string' && PUBLIC_SITE_URL_DEFAULT ? PUBLIC_SITE_URL_DEFAULT : 'https://lee200202.github.io/Stock/');
+  base = (base || 'https://lee200202.github.io/Stock/').replace(/\/?$/, '/');
+  return /^\d{4,6}[A-Z]?$/.test(String(code)) ? base + '?stock=' + encodeURIComponent(code) : base;
 }
 function lineAddFriendUrl_() {
   var s = lineSettings_();
@@ -845,7 +847,7 @@ function lineSmsFlex_(a, revised) {
   if (!body.length) { body.push(fxText_('（這則通知沒有文字內容）', { size: 'sm', color: LINE_C_.muted })); }
   if (lines.length > 2) { body.push(fxText_('原文共 ' + lines.length + ' 行，完整內容請看原文。', { size: 'xxs', color: LINE_C_.muted })); }
   body.push(fxNote_('原文照登，未經改寫。股票與價位稍後整理到網站的會員通知頁。'));
-  var src = /^https:\/\//.test(String(a.url || '')) ? String(a.url) : '', site = lineSiteUrl_('sms');
+  var src = /^https:\/\//.test(String(a.url || '')) ? String(a.url) : '', site = lineSiteUrl_('mail');
   var kicker = (revised ? '內容已修訂' : '盤中即時通知') + (clock ? '｜' + clock : '');
   return lineFlex_((revised ? '會員通知內容已修訂 ' : '盤中即時通知 ') + clock + '｜' + lineClip_(lines[0] || '', 80),
     fxBubble_(fxHeader_(kicker, lineDateLabel_(time) + ' 會員通知', revised ? LINE_C_.amber : LINE_C_.hero), body,
@@ -1461,8 +1463,9 @@ function lineRichMenuDefs_() {
     ];
   };
   var cell = function (i, action) { return { bounds: { x: (i % 2) * CW, y: TAB + Math.floor(i / 2) * CH, width: CW, height: CH }, action: action }; };
-  var site = typeof publicSiteUrl_ === 'function' && publicSiteUrl_() ? publicSiteUrl_() :
-             (typeof publicWebAppUrl_ === 'function' ? publicWebAppUrl_() : '');
+  var site = (typeof publicSiteUrl_ === 'function' && publicSiteUrl_()) ? publicSiteUrl_() :
+             (typeof PUBLIC_SITE_URL_DEFAULT === 'string' && PUBLIC_SITE_URL_DEFAULT ? PUBLIC_SITE_URL_DEFAULT : 'https://lee200202.github.io/Stock/');
+  site = (site || 'https://lee200202.github.io/Stock/').replace(/\/?$/, '/');
   return [
     { alias: LINE_RICH_ALIAS_.query, image: 'richmenu-query.png', def: { size: { width: W, height: 1686 }, selected: true, name: 'zz-query-v1', chatBarText: '查資料',
       areas: tabs('query').concat([cell(0, linePb_('今日整理', 'a=today', '今日整理')), cell(1, linePb_('查個股', 'a=askstock', '查個股', { inputOption: 'openKeyboard' })),

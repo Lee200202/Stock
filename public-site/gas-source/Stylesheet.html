@@ -65,6 +65,19 @@ html, body {
 }
 
 h1, h2, h3 { font-family: "Noto Serif TC", serif; font-weight: 700; margin: 0; letter-spacing: .01em; }
+h1, h2, h3, h4, .sect-h h2, .mc-h2, .mc-h3, .hero h1, .brand-name {
+  text-wrap: balance;
+  word-break: keep-all;
+}
+p, li, .reason, .pxnote, .lede, .tech-story p, .tech-story li {
+  text-wrap: pretty;
+  line-height: 1.78;
+}
+.chip, .mc-chip, .badge, .market-tag, .market-div-badge, .dir-chip, .pillstate,
+.roundtag, .tl-d, .tl-new, .market-contract, .mc-tone-k, .btn, .pill {
+  white-space: nowrap;
+  word-break: keep-all;
+}
 a { color: inherit; }
 .mono, .num { font-family: "IBM Plex Mono", ui-monospace, monospace; font-feature-settings: "tnum" 1; }
 
@@ -435,7 +448,7 @@ table { width: 100%; border-collapse: collapse; font-size: calc(14px * var(--rd-
    格子沒變，整張表就會擠成一團——這是「表格內容有點擠」的來源。 */
 th, td {
   text-align: left;
-  padding: calc(10px * var(--rd-fs)) calc(14px * var(--rd-fs));
+  padding: calc(12px * var(--rd-fs)) calc(16px * var(--rd-fs));
   border-bottom: 1px solid var(--rule); vertical-align: top;
 }
 th { font-size: calc(11.5px * var(--rd-fs)); color: var(--muted); font-weight: 500; letter-spacing: .05em; background: var(--panel-2); white-space: nowrap; }
@@ -917,7 +930,7 @@ html[data-view="mobile"] .stats, html[data-view="mobile"] .tabbar {
    股票名稱、代號、價格欄一律不換行，否則會被逐字擠成直排。 */
 .tbl-daily td, .tbl-daily th { white-space: nowrap; }
 .tbl-sms td.smsdir { font-weight: 700; }
-.tbl-daily td.reason { white-space: normal; overflow-wrap: anywhere; }
+.tbl-daily td.reason { white-space: normal; overflow-wrap: break-word; text-wrap: pretty; line-height: 1.65; }
 
 /* ---------- 價位說明欄溢位修正 ---------- */
 /* 症狀：「張震發訊息給會員，告知 255 以上鴻海全部賣掉」這種長敘述，
@@ -929,16 +942,16 @@ html[data-view="mobile"] .stats, html[data-view="mobile"] .tabbar {
         而是直接溢出到相鄰欄的位置上。
      3. 沒有 overflow 限制，溢出的部分就這樣畫在隔壁欄的文字上面。
 
-   所以價位說明改用專屬的 .pxnote，不再沿用 .px：允許換行、允許任意斷點
-   （「255以上鴻海全部賣掉」中間沒有空格，不設 anywhere 斷不開），
-   欄寬由 110px 放寬到 200px，並補一道 overflow: hidden 當最後一層保險。 */
+   所以價位說明改用專屬的 .pxnote，不再沿用 .px：允許換行、允許適當斷點、
+   防止單字斷行孤字，欄寬由 110px 放寬到 200px，並補一道 overflow: hidden 當最後一層保險。 */
 .tbl-daily td.pxnote, .tbl-rec td.pxnote {
   white-space: normal;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   word-break: break-word;
+  text-wrap: pretty;
   overflow: hidden;
   font-size: calc(12.5px * var(--rd-fs));
-  line-height: 1.55;
+  line-height: 1.6;
   vertical-align: top;
 }
 /* reason 欄同樣補上 overflow 保險。它本來就會換行，
@@ -971,7 +984,7 @@ html[data-view="mobile"] .stats, html[data-view="mobile"] .tabbar {
    把多出來的空間平均塞給每一欄（那會讓代號欄莫名其妙變得很寬）。 */
 .tbl-trk col.c-reason { width: auto; }
 .tbl-trk td, .tbl-trk th { white-space: nowrap; }
-.tbl-trk td.reason { white-space: normal; overflow-wrap: anywhere; }
+.tbl-trk td.reason { white-space: normal; overflow-wrap: break-word; text-wrap: pretty; line-height: 1.65; }
 /* 96+66+132+104+62+104+104+96+62+300 = 1126，取 1140 留一點餘裕。
    整表寬度超過手機視窗，由 .scrollx 提供水平滾動，欄位不會被擠成一團。 */
 .card.scrollx table.tbl-trk { min-width: calc(1280px * var(--rd-fs)); }
@@ -983,11 +996,8 @@ html[data-view="mobile"] .stats, html[data-view="mobile"] .tabbar {
 .tbl-rec col.c-dir    { width: calc( 96px * var(--rd-fs)); }
 .tbl-rec col.c-px     { width: calc(168px * var(--rd-fs)); }
 .tbl-rec col.c-reason { width: auto; }
-/* anywhere 只給長文字欄。原本整張表都吃 anywhere，
-   於是日期與方向欄一旦塞不下就從中間斷開——
-   「觀望不／碰」「2026/／09/04」都是這樣來的。
-   短欄位寧可讓它撐出去（外層 .scrollx 會給水平捲軸），也不要斷在字中間。 */
-.tbl-rec td.pxnote, .tbl-rec td.reason { overflow-wrap: anywhere; }
+/* 長文字欄防止單字斷行。短欄位寧可讓它撐出去（外層 .scrollx 會給水平捲軸），也不要斷在字中間。 */
+.tbl-rec td.pxnote, .tbl-rec td.reason { overflow-wrap: break-word; text-wrap: pretty; line-height: 1.65; }
 .tbl-rec th, .tbl-rec td.code, .tbl-rec td[class^="dir-"] { white-space: nowrap; }
 /* 108 + 92 = 200 固定，其餘由兩個文字欄分。最小 720 時
    價位說明約 245、說明重點約 275，都還讀得下去。 */
@@ -1004,7 +1014,7 @@ html[data-view="mobile"] .stats, html[data-view="mobile"] .tabbar {
 .tbl-find col.c-px     { width: calc(112px * var(--rd-fs)); }
 .tbl-find col.c-reason { width: auto; }
 .tbl-find th, .tbl-find td.code, .tbl-find td[class^="dir-"] { white-space: nowrap; }
-.tbl-find td.pxnote, .tbl-find td.reason { white-space: normal; overflow-wrap: anywhere; vertical-align: top; }
+.tbl-find td.pxnote, .tbl-find td.reason { white-space: normal; overflow-wrap: break-word; text-wrap: pretty; vertical-align: top; line-height: 1.65; }
 .card.scrollx table.tbl-find { min-width: calc(940px * var(--rd-fs)); }
 .card.scrollx th.sticky, .card.scrollx td.sticky {
   position: sticky; left: 0; z-index: 2;
@@ -3840,7 +3850,7 @@ html[data-view="mobile"] .card.scrollx table.tbl-rec td.pxnote::before, html[dat
 /* 整句的選項（分類的句子、讀者的問題）欄寬加大，一句盡量一行；手機一列一句 */
 .tech-story .tech-options.is-long { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
 .tech-story .tech-options.is-long button { text-align: left; padding-inline: 16px; }
-.tech-story .tech-options button { min-width: 0; min-height: 50px; padding: 10px 14px; border: 1px solid var(--rule); border-radius: 12px; background: var(--panel-2); color: var(--ink); font-size: calc(14.5px * var(--rd-fs)); line-height: 1.4; text-align: center; cursor: pointer; overflow-wrap: anywhere; text-wrap: balance; }
+.tech-story .tech-options button { min-width: 0; min-height: 50px; padding: 10px 14px; border: 1px solid var(--rule); border-radius: 12px; background: var(--panel-2); color: var(--ink); font-size: calc(14.5px * var(--rd-fs)); line-height: 1.4; text-align: center; cursor: pointer; overflow-wrap: break-word; text-wrap: balance; word-break: keep-all; }
 .tech-story .tech-options button:hover { border-color: var(--beam); }
 .tech-story .tech-options button[aria-pressed="true"], .tech-story .tech-flow button[aria-pressed="true"] { background: color-mix(in srgb, var(--beam) 16%, var(--panel)); border-color: var(--beam); box-shadow: inset 0 0 0 1px var(--beam); color: var(--ink); font-weight: 600; }
 .tech-story .tech-result, .tech-story .tech-section > p.tech-result { margin: 0; padding: 14px 18px; border-left: 4px solid var(--beam); border-radius: 0 12px 12px 0; background: var(--panel-2); font-size: calc(15px * var(--rd-fs)); line-height: 1.7; color: var(--ink); max-width: none; }
@@ -3920,9 +3930,9 @@ html[data-view="mobile"] .card.scrollx table.tbl-rec td.pxnote::before, html[dat
 .tech-story .tg-pop .tg-x { position: absolute; top: 6px; right: 6px; width: 36px; height: 36px; border: 0; border-radius: 8px; background: none; color: var(--muted); font-size: 20px; line-height: 1; cursor: pointer; }
 /* 工作順序：六步拉滿全寬 */
 .tech-story .tech-flow { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; margin: 10px 0 14px; }
-.tech-story .tech-flow button { position: relative; min-width: 0; min-height: 70px; padding: 12px 14px; text-align: left; color: var(--ink); background: var(--panel-2); border: 1px solid var(--rule); border-radius: 12px; cursor: pointer; overflow-wrap: anywhere; }
+.tech-story .tech-flow button { position: relative; min-width: 0; min-height: 70px; padding: 12px 14px; text-align: left; color: var(--ink); background: var(--panel-2); border: 1px solid var(--rule); border-radius: 12px; cursor: pointer; overflow-wrap: break-word; text-wrap: balance; word-break: keep-all; }
 .tech-story .tech-flow button i { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--panel); border: 1px solid var(--rule); font-style: normal; font-size: calc(12px * var(--rd-fs)); color: var(--muted); margin-bottom: 4px; }
-.tech-story .tech-flow b { display: block; font-size: calc(14.5px * var(--rd-fs)); line-height: 1.4; }
+.tech-story .tech-flow b { display: block; font-size: calc(14px * var(--rd-fs)); line-height: 1.4; text-wrap: balance; word-break: keep-all; }
 .tech-story .tech-flow button:not(:last-child)::after { content: "→"; position: absolute; right: -12px; top: 50%; transform: translateY(-50%); color: var(--beam); font-size: 13px; }
 .tech-story .tech-text-map { margin-top: 22px; }
 .tech-story .tech-text-map li { font-size: calc(14.5px * var(--rd-fs)); }

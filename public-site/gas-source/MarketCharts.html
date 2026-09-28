@@ -5,7 +5,8 @@
    時間軸仍是 6 小時、右邊留白。後端有給 windowStart／windowEnd 時以後端為準。 */
 window.MARKET_ROLLING_KEYS = { dxy: 1, usdtwd: 1, wti: 1, brent: 1 };
 window.marketRollingBounds = function(key, msList, given) {
-  if (!window.MARKET_ROLLING_KEYS[key]) { return null; }
+  var isTwStock = /^\d{4,6}[A-Z]?$/.test(String(key || ''));
+  if (key === 'taiex' || key === 'tx' || isTwStock) { return null; }
   var ms = (msList || []).filter(function(t) { return isFinite(t); }).sort(function(a, b) { return a - b; });
   if (!ms.length) { return null; }
   var H = 21600000, GAP = 1800000, STEP = 300000, T = ms[ms.length - 1], S = T - H, dataStart = null, prev = null;
@@ -43,14 +44,15 @@ window.marketNum = function(v, key, digits) {
   return Number(v).toLocaleString('zh-TW', { minimumFractionDigits: d, maximumFractionDigits: d });
 };
 window.marketSessionBounds = function(key, session, time) {
-  if(key!=='taiex'&&key!=='tx'){return null;}
+  var isTwStock = /^\d{4,6}[A-Z]?$/.test(String(key || ''));
+  if(key!=='taiex'&&key!=='tx'&&!isTwStock){return null;}
   var str=String(time||'').replace(/\//g,'-').replace(' ','T');
   if(/^\d{2}:\d{2}/.test(str)){str=new Date().toISOString().slice(0,10)+'T'+str+':00+08:00';}
   if(str.indexOf('T')>=0&&!/Z$|[+-]\d{2}:\d{2}$/.test(str)){str+='+08:00';}
   var t=new Date(str);if(!isFinite(t.getTime())){return null;}
   var local=new Date(t.getTime()+28800000),ymd=local.toISOString().slice(0,10);
   var midnight=Date.parse(ymd+'T00:00:00+08:00'),start,end,a,b;
-  if(key==='taiex'){start=midnight+9*3600000;end=midnight+13.5*3600000;a='09:00';b='13:30';}
+  if(key==='taiex'||isTwStock){start=midnight+9*3600000;end=midnight+13.5*3600000;a='09:00';b='13:30';}
   else if(session==='AFTERHOURS'||session==='afterhours'){
     if(local.getUTCHours()<8){midnight-=86400000;}
     start=midnight+15*3600000;end=midnight+29*3600000;a='15:00';b='次日 05:00';

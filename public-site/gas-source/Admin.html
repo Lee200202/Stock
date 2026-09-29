@@ -656,8 +656,9 @@ details.dz-card[open] > summary { margin-bottom: 10px; }
 .he .h-cost,.he .h-note { box-sizing:border-box; width:100%; min-width:0; min-height:46px; padding:10px 14px; border-radius:10px; font:inherit; font-size:max(16px,calc(14px * var(--rd-fs))); }
 .he button { min-height:46px; }
 /* v58：成本修正收起來。這一格只剩一顆小按鈕，靠右；展開的輸入列橫跨整列、在這一列下方。 */
-.he { display: flex; justify-content: flex-end; }
+.he { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
 .he .h-edit { width: auto; min-height: 38px; padding: 7px 16px; }
+.he .h-source { width: auto; min-height: 38px; padding: 7px 16px; }
 .he-form { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(140px, 1fr) minmax(180px, 1.6fr) auto auto;
   gap: 10px; align-items: center; padding: 6px 0 4px; }
 .he-form[hidden] { display: none; }
@@ -1367,11 +1368,10 @@ html[data-view="mobile"] .line-copy { grid-template-columns:1fr; }
     <section class="panel" id="p-held" role="tabpanel" hidden>
       <div class="card">
         <div class="card-h">
-          <h2>現有持股：直接改成本</h2>
+          <h2>現有持股：核對來源與修正</h2>
           <button type="button" class="ghost sm" id="heldLoadBtn">重新讀取清單</button>
         </div>
-        <p class="hint">列出持股追蹤裡「持有中」的每一檔。成本不對時直接在這裡填新的數字，<b>不必回到開倉那一天</b>去改原始紀錄。
-          儲存後自動重算持股追蹤與績效（約 1–3 分鐘），郵件不會重寫。清空後儲存＝還原系統推算的成本。改過的列會標「已修正」，系統原判保留在試算表「持股成本覆寫」分頁。</p>
+        <p class="hint">股票名稱、代號、方向與說明要改原始紀錄：按該列的<b>修正來源</b>會直接打開回合開始日，儲存後自動同步郵件、追蹤與績效。成本可在這裡單獨修正，儲存後自動重算追蹤與績效。現價取行情、報酬由成本計算，不直接手填，以免畫面與正式行情矛盾。回合開始日取原始買入或持股紀錄；日期錯誤請在逐日編輯刪除原列，於正確日期補登。</p>
         <div class="amsg" id="heldMsg"></div>
         <div id="heldList" class="held-list"><div class="erow-empty">切到這一頁時讀取。</div></div>
         <div id="heldProg" style="display:none;margin-top:14px">
@@ -3753,7 +3753,12 @@ function makeAdminCal(opts) {
       if (k) { st.have[k] = 1; render(); }
     },
     selected: function () { return st.sel; },
-    select: function (d) { st.sel = parseDateKey(d) || d; render(); },
+    select: function (d) {
+      st.sel = parseDateKey(d) || d;
+      var parts = st.sel.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
+      if (parts) { st.year = Number(parts[1]); st.month = Number(parts[2]) - 1; }
+      render();
+    },
     fail: function (msg) {
       st.failMsg = String(msg || '讀不到日期資料');
       render();
@@ -3774,6 +3779,8 @@ function makeAdminCal(opts) {
 (function () {
   var mCal = null;
   var mDate = '';
+  var mJumpDate = '';
+  var mJumpCode = '';
   var mLoaded = false;
   var mRows = [];            // 後端回來的原始清單，用來判斷哪一列被改過
   var mChainDate = '';
@@ -3804,12 +3811,29 @@ function makeAdminCal(opts) {
           return;
         }
         mCal.setData(r.dates || [], r.today || '');
+        if (mJumpDate) { jumpToSourceDay(); }
       })
       .withFailureHandler(function () {
         mLoaded = false;
         mCal.fail('連線失敗，切走再切回來可重試。');
       })
       .apiAdminManualDays(KEY);
+  };
+
+  function jumpToSourceDay() {
+    if (!mJumpDate || !mCal || !mCal.ready()) { return; }
+    mDate = mJumpDate;
+    mJumpDate = '';
+    mCal.select(mDate);
+    show($('mDateMsg'), 'ok', '已選 ' + mDate + '。下方可核對來源紀錄並修正。');
+    loadRows();
+    $('mRowsCard').scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});
+  }
+  window.__openHeldSource = function (date, code) {
+    mJumpDate = date;
+    mJumpCode = code;
+    document.querySelector('button.tab[data-tab="manual"]').click();
+    jumpToSourceDay();
   };
 
   /* ---- 當天的紀錄 ---- */
@@ -3860,6 +3884,19 @@ function makeAdminCal(opts) {
         }
         mRows = r.rows || [];
         drawRows();
+        if (mJumpCode) {
+          var targetCode = mJumpCode;
+          mJumpCode = '';
+          var sourceRow = Array.prototype.find.call($('mRows').querySelectorAll('.erow[data-i]'), function (el) {
+            return mRows[Number(el.dataset.i)].code === targetCode;
+          });
+          if (sourceRow) {
+            sourceRow.scrollIntoView({behavior:'auto',block:'center'});
+            sourceRow.querySelector('.e-name').focus({preventScroll:true});
+          } else {
+            show($('mRowsMsg'), 'warn', '所選回合開始日沒有 ' + targetCode + ' 的原始列。請核對同日名稱或代號，必要時在正確日期補登。');
+          }
+        }
       })
       .withFailureHandler(function () {
         $('mRows').innerHTML = '<div class="erow-empty">連線失敗，請按「重新讀取這一天」。</div>';
@@ -4531,7 +4568,7 @@ var mergeTxFingerprint='';
   function fmt(v) { return v === null || v === undefined || v === '' ? '—' : Number(v).toLocaleString('zh-TW', { maximumFractionDigits: 2 }); }
   function draw() {
     if (!items.length) { $('heldList').innerHTML = '<div class="erow-empty">目前沒有持有中的股票。</div>'; return; }
-    $('heldList').innerHTML = '<div class="hrow hhead" aria-hidden="true"><span>股票</span><span>本回合開始</span><span>目前成本</span><span>現價／報酬</span><span class="he-h">成本修正</span></div>' +
+    $('heldList').innerHTML = '<div class="hrow hhead" aria-hidden="true"><span>股票</span><span>本回合開始</span><span>目前成本</span><span>現價／報酬</span><span class="he-h">修正方式</span></div>' +
       items.map(function (x, i) {
         var ret = (x.ret === null || x.ret === undefined) ? '—' : (x.ret > 0 ? '+' : '') + Number(x.ret).toFixed(2) + '%';
         return '<div class="hrow' + (x.override ? ' fixed' : '') + '" data-i="' + i + '">' +
@@ -4539,7 +4576,7 @@ var mergeTxFingerprint='';
           '<span class="hd" data-label="本回合開始">' + esc(x.roundStart) + '</span>' +
           '<span class="hc" data-label="目前成本"><b>' + fmt(x.entry) + '</b><small title="' + esc(x.entrySrc) + '">' + esc(String(x.entrySrc || '').slice(0, 60)) + '</small></span>' +
           '<span class="hp" data-label="現價／報酬">' + fmt(x.current) + '<small class="' + (x.ret > 0 ? 'up' : x.ret < 0 ? 'down' : '') + '">' + ret + '</small></span>' +
-          '<span class="he"><button type="button" class="ghost sm h-edit" aria-expanded="false" aria-controls="hf' + i + '">' +
+          '<span class="he"><button type="button" class="ghost sm h-source" aria-label="修正 ' + esc(x.name) + ' 的來源紀錄">修正來源</button><button type="button" class="ghost sm h-edit" aria-expanded="false" aria-controls="hf' + i + '">' +
             (x.override ? '調整修正' : '修改成本') + '</button></span>' +
           /* 輸入欄平常收起來（v58）：清單先看得清楚，按了才在這一列下方展開一整行。 */
           '<div class="he-form" id="hf' + i + '" hidden>' +
@@ -4556,6 +4593,10 @@ var mergeTxFingerprint='';
         if (open) { row.querySelector('.h-cost').focus(); }
       };
       edit.addEventListener('click', function () { toggle(form.hidden); });
+      row.querySelector('.h-source').addEventListener('click', function () {
+        var item = items[Number(row.dataset.i)];
+        window.__openHeldSource(item.roundStart, item.code);
+      });
       row.querySelector('.h-cancel').addEventListener('click', function () { toggle(false); edit.focus(); });
       row.querySelector('.h-save').addEventListener('click', function () { save(row, Number(row.dataset.i)); });
     });

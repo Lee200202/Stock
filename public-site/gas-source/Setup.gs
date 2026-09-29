@@ -1144,7 +1144,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-09-29-rerun-guards-v80';
+var PROJECT_BUILD_ = '2026-09-29-hold-line-v81';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
@@ -1165,12 +1165,12 @@ var PROJECT_FILES_ = [
   { file: 'DB.gs', names: ['writeSubscriptionFields_', 'findSubscription_'] },
   { file: 'Evidencequality.gs', names: ['rawTranscript_', 'validEvidence_', 'queueDayEditSync_', 'dayEditSyncTick_', 'queueCostSync_'], marker: ['dayEditSyncTick_', 'COST:'] },
   { file: 'Logic.gs', names: ['markChainStep_', 'REFRESH_STEPS_'] },
-  { file: 'MailService.gs', names: ['createSubscription', 'mailHero_', 'publicWebAppUrl_', 'escAttr_', 'mailRiskHtml_', 'deliverMessage_', 'deliveryLedger_', 'mailPlainText_', 'isExecUrl_', 'mailStockName_', 'noVideoToday_'], marker: ['wrapMail_', '不受 Google 多帳號登入影響'] },
+  { file: 'MailService.gs', names: ['createSubscription', 'mailHero_', 'publicWebAppUrl_', 'escAttr_', 'mailRiskHtml_', 'deliverMessage_', 'deliveryLedger_', 'mailPlainText_', 'isExecUrl_', 'mailStockName_', 'noVideoToday_', 'pushReadyChannels_'], marker: ['pushAfterGate_', 'pushReadyChannels_'] },
   { file: 'Presentationquality.gs', names: ['displayPrice_', 'narrativeName_', 'titleChars_'], marker: ['articleTitle_', 'TITLE_MIN_CHARS_'] },
   { file: 'Quoteservice.gs', names: ['getFugleKey_', 'fugleFetch_', 'sharesToLots_', 'volumeInLots_', 'hourSlot_', 'readHourlyRows_', 'fugleHistPace_', 'kcPutAll_', 'getCandlesBundle'], marker: ['repairDailyKVolume', 'disabled: true'] },
   { file: 'Refreshrunner.gs', names: ['runRefreshAllChunk_', 'withRefreshAllLease_'] },
   { file: 'Setup.gs', names: ['setupSpreadsheet', 'setWebAppUrl', 'webAppUrlReport_', 'checkProjectFiles', 'checkAutomationReadiness', 'ensureAutomationTick', 'withSheetSnapshot_', 'opsTimed_', 'opsRuntimeFor_'], marker: ['everyFiveMinJobRun_', 'lineDeliverTick_'] },
-  { file: 'SheetService.gs', names: ['fmtDate_', 'withLock_', 'ensureTranscriptLayoutJob', 'transcriptFingerprint_', 'stripTranscribeEcho_', 'readCostOverrides_', 'searchTerms_', 'repairLiwangExitPriceNow', 'rangeCandle_', 'statedNote_', 'trackerRoundList_'], marker: ['getHoldingsTracker', '進場一律取進場日當日最低價'] },
+  { file: 'SheetService.gs', names: ['fmtDate_', 'withLock_', 'ensureTranscriptLayoutJob', 'transcriptFingerprint_', 'stripTranscribeEcho_', 'readCostOverrides_', 'searchTerms_', 'repairLiwangExitPriceNow', 'rangeCandle_', 'statedNote_', 'trackerRoundList_', 'isManualHoldSource_', 'holdConfirmForOpen_'], marker: ['getHoldingsTracker', 'manual: isManualHoldSource_'] },
   { file: 'Transcriptstore.gs', names: ['transcriptSha256_', 'selectTranscriptRow_'] }
 ];
 
@@ -1184,7 +1184,7 @@ var PROJECT_HTML_ = [
   { file: 'Stylesheet', marker: '.access-alert[hidden]' },
   { file: 'Changelog', marker: 'v72 技術說明留白、卡片與互動判別' },
   { file: 'Tech', marker: 'data-tech-story-v72' },
-  { file: 'Admin', marker: 'function smsTimeCell(v)' },
+  { file: 'Admin', marker: 'window.__openHeldSource' },
   { file: 'AdminLegacy', marker: '改版前的舊版後台' },
   { file: 'Settings', marker: '手機預覽' },
   { file: 'Unsubscribed', marker: 'apiUnsubscribeConfirm' }

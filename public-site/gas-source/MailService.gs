@@ -2484,7 +2484,15 @@ function runQualityGate_() {
   // 換一棒就是換一次完整的時間額度，代價只是晚五秒。
   try { scheduleDailyPush_(); }
   catch (e2) { Logger.log('排推播失敗，改為直接寄：' + e2);
-               try { dailyPushJob(); } catch (e3) { Logger.log('推播失敗：' + e3); } }
+               pushReadyChannels_(); }
+}
+
+/** Email 與 LINE 各自記帳；其中一個通路失敗仍讓另一個完成。 */
+function pushReadyChannels_() {
+  try { dailyPushJob(); } catch (e) { Logger.log('Email 每日總覽推播失敗：' + e); }
+  if (typeof lineDailyTick_ === 'function') {
+    try { lineDailyTick_(); } catch (e2) { Logger.log('LINE 每日總覽推播失敗，五分鐘排程續送：' + e2); }
+  }
 }
 
 function scheduleDailyPush_() {
@@ -2507,7 +2515,7 @@ function cleanupPushTriggers_() {
  */
 function pushAfterGate_() {
   cleanupPushTriggers_();
-  dailyPushJob();
+  pushReadyChannels_();
 }
 
 /**

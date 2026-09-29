@@ -973,7 +973,7 @@ var HOLD_CONFIRM_DAYS = 3;
  * 回傳 'confirmed' | 'unconfirmed' | 'pending'
  *
  *   confirmed    期限內有再被提到，是真的持股。
- *   unconfirmed  期限已過但完全沒有再被提到，判定為擷取錯誤，整個回合移除。
+ *   unconfirmed  期限已過但完全沒有再被提到，僅移除該筆自動擷取的開倉聲明。
  *   pending      期限還沒過完（例如昨天才剛講的），現在還不能judge。
  *                這一段最容易寫錯：若不分辨 pending，剛講完的持股會在
  *                隔天的重算裡被當成「沒有後續」而立刻刪掉，等於永遠留不住。
@@ -995,6 +995,15 @@ function holdConfirmState_(openDate, recs, tradingDays) {
     return r.date > openDate && r.date <= windowEnd;
   });
   return mentioned ? 'confirmed' : 'unconfirmed';
+}
+
+/** 只讓後台「人工補登」明確確認的持股略過語音辨識三日複述門檻。 */
+function isManualHoldSource_(source) {
+  return /^MANUALENTRY-\d{8}$/.test(String(source || '').trim());
+}
+
+function holdConfirmForOpen_(open, recs, tradingDays) {
+  return open && open.manual ? 'confirmed' : holdConfirmState_(open.date, recs, tradingDays);
 }
 
 /**
@@ -1224,8 +1233,8 @@ function rebuildHoldingsTrackerJobRun_(options) {
   // 也就是信件裡「影片中明講之會員目前持有股票」那一段的來源。
   //
   // 它是第二種開倉方式：沒有對應買入紀錄時，第一次被明講持有就開一個回合。
-  // 但那天並沒有成交，所以進場價只能取當日收盤，而且同一天若又出現
-  // 觀望不碰或賣出，這一筆就不予採信（詳見 buildRounds_）。
+  // 但那天並沒有成交，成本依當日最低價作為追蹤基準；同日若又出現
+  // 觀望不碰或賣出，依 buildRounds_ 的主詞與時序規則處理。
   var holdOnlyOpened = {};
   readSheetObjects_('會員持股').forEach(function (r) {
     var code = String(r['代號'] || '').trim();
@@ -1241,6 +1250,9 @@ function rebuildHoldingsTrackerJobRun_(options) {
       reason: naturalReason_(r['說明重點']) || r['目前立場'] || '會員持股',
       direction: '會員持股',
       kind: 'hold',
+      // 人工補登是管理者明確確認的資料，不再套用辨識稿的三日複述門檻。
+      // 必須讀取實際來源欄；僅在下方檢查 rd.open.manual 卻未傳入時，這個例外從未生效。
+      manual: isManualHoldSource_(r['來源影片ID']),
       seq: 0,          // 會員持股沒有序欄，排序一律走優先級
       price: '',
       hint: null
@@ -1320,8 +1332,7 @@ function rebuildHoldingsTrackerJobRun_(options) {
     for (var pass = 0; pass <= recs.length; pass++) {
       rounds = buildRounds_(recs.filter(function (r) { return !r._unconfirmedOpen; }), tradingDays);
       var bad = rounds.filter(function (rd) {
-        var isManual = rd.open && (rd.open.manual || (rd.open.source && String(rd.open.source).indexOf('MANUAL') === 0));
-        return rd.openKind === 'hold' && !isManual && holdConfirmState_(rd.open.date, recs, tradingDays) === 'unconfirmed';
+        return rd.openKind === 'hold' && holdConfirmForOpen_(rd.open, recs, tradingDays) === 'unconfirmed';
       });
       if (!bad.length) { break; }
       bad.forEach(function (rd) {
@@ -1343,7 +1354,7 @@ function rebuildHoldingsTrackerJobRun_(options) {
 
     var pendingHold = false;
     rounds.forEach(function (rd) {
-      if (rd.openKind === 'hold' && holdConfirmState_(rd.open.date, recs, tradingDays) === 'pending') {
+      if (rd.openKind === 'hold' && holdConfirmForOpen_(rd.open, recs, tradingDays) === 'pending') {
         rd.pending = true; pendingHold = true;
       }
     });
@@ -2475,7 +2486,7 @@ function auditUnconfirmedHoldings() {
     return String(r['股票名稱'] || '').trim();
   });
   var groups = {};
-  function push_(name, code, date, dir, reason, seq) {
+  function push_(name, code, date, dir, reason, seq, source) {
     if (!name) { return; }
     var valid = /^(?:00981A|\d{4,6})$/.test(String(code || '').trim());
     var key = valid ? String(code).trim() : ('NAME:' + name);
@@ -2484,16 +2495,17 @@ function auditUnconfirmedHoldings() {
     }
     groups[key].records.push({
       date: fmtDate_(date), reason: reason || '', direction: dir || '',
-      kind: classifyDirection_(dir), seq: Number(seq) || 0, price: '', hint: null
+      kind: classifyDirection_(dir), seq: Number(seq) || 0, price: '', hint: null,
+      manual: isManualHoldSource_(source)
     });
   }
   trades.forEach(function (r) {
     push_(String(r['股票名稱']).trim(), r['代號'], r['日期'], String(r['方向']),
-          r['理由摘錄'], r['序']);
+          r['理由摘錄'], r['序'], r['來源影片ID']);
   });
   readSheetObjects_('會員持股').forEach(function (r) {
     push_(String(r['股票名稱'] || '').trim(), r['代號'], r['日期'], '會員持股',
-          r['說明重點'] || r['目前立場'] || '會員持股');
+          r['說明重點'] || r['目前立場'] || '會員持股', 0, r['來源影片ID']);
   });
 
   var tradingDays = (function () {
@@ -2510,7 +2522,7 @@ function auditUnconfirmedHoldings() {
     var recs = sortRecords_(g.records);
     buildRounds_(recs, tradingDays).forEach(function (rd) {
       if (rd.openKind !== 'hold') { return; }
-      var st = holdConfirmState_(rd.open.date, recs, tradingDays);
+      var st = holdConfirmForOpen_(rd.open, recs, tradingDays);
       var after = recs.filter(function (r) { return r.date > rd.open.date; });
       out[st].push(g.name + '（' + (g.valid ? g.code : '代號待確認') + '）　開倉 ' +
                    rd.open.date + '　之後被提及 ' + after.length + ' 次' +

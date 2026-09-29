@@ -44,6 +44,6 @@ assert.match(mail, /function pushAfterGate_\(\) \{\s*cleanupPushTriggers_\(\);\s
 
 const admin = fs.readFileSync('public-site/gas-source/Admin.html', 'utf8');
 assert.match(admin, /window\.__openHeldSource/);
-assert.match(admin, /class="ghost sm h-source"/);
-assert.match(admin, /現價來自行情、報酬由成本計算/);
+assert.match(admin, /id="heldSaveTopBtn"/);
+assert.match(admin, /現價來自行情/);
 console.log('manual holding confirmation, independent push, and source navigation passed');

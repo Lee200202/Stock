@@ -636,49 +636,31 @@ details.dz-card[open] > summary { margin-bottom: 10px; }
 .erow-b .e-reason { flex: 1 1 100%; min-height: 4.6em; resize: vertical; line-height: 1.65; font-family: inherit;
   font-size: calc(13.5px * var(--rd-fs)); padding: 8px 10px; border: 1px solid var(--rule); background: var(--panel); color: var(--ink); }
 
-/* 現有持股（I12） */
+/* 現有持股（I12）：四欄拉到全版面，文字點兩下直接修改 */
 .held-list { margin-top: 12px; }
-.hrow { display: grid; grid-template-columns: minmax(120px, 1.1fr) 7.5em minmax(120px, 1.2fr) 8.5em minmax(260px, 2fr);
-  grid-template-areas: "hn hd hc hp he"; gap: 10px 14px; align-items: center; padding: 12px 4px; border-bottom: 1px solid var(--rule); }
+.hrow { display: grid; grid-template-columns: minmax(140px, 1.4fr) minmax(110px, 1.1fr) minmax(260px, 2.8fr) minmax(130px, 1.2fr);
+  grid-template-areas: "hn hd hc hp"; gap: 10px 16px; align-items: center; padding: 12px 8px; border-bottom: 1px solid var(--rule); transition: background 0.15s ease; }
 .hrow.hhead { font-size: calc(12px * var(--rd-fs)); color: var(--muted); font-weight: 600; padding-top: 0; }
 .hrow.fixed { background: color-mix(in srgb, var(--beam) 6%, transparent); }
 .hrow > span { min-width: 0; }
-.hn { grid-area: hn; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.hn { grid-area: hn; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; cursor: pointer; user-select: text; }
 .hn small { font-family: "IBM Plex Mono", monospace; color: var(--muted); }
 .hn em { font-style: normal; font-size: calc(11px * var(--rd-fs)); padding: 0 8px; border-radius: var(--r-pill);
   color: var(--beam); border: 1px solid color-mix(in srgb, var(--beam) 45%, transparent); }
-.hd { grid-area: hd; font-family: "IBM Plex Mono", monospace; font-size: calc(13px * var(--rd-fs)); }
-.hc { grid-area: hc; display: flex; flex-direction: column; }
-.hc small { color: var(--muted); font-size: calc(11.5px * var(--rd-fs)); line-height: 1.5; overflow: hidden; text-overflow: ellipsis; }
+.hd { grid-area: hd; font-family: "IBM Plex Mono", monospace; font-size: calc(13px * var(--rd-fs)); cursor: pointer; user-select: text; }
+.hc { grid-area: hc; display: flex; flex-direction: column; cursor: pointer; min-width: 0; }
+.hc .hc-text { display: flex; flex-direction: column; user-select: text; }
+.hc .hc-text small { color: var(--muted); font-size: calc(11.5px * var(--rd-fs)); line-height: 1.5; overflow: hidden; text-overflow: ellipsis; }
+.hc .hc-inputs { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.hc .h-cost, .hc .h-note { box-sizing: border-box; width: 100%; min-width: 0; min-height: 38px; padding: 6px 12px;
+  border-radius: 8px; font: inherit; font-size: max(15px, calc(13.5px * var(--rd-fs))); border: 1px solid var(--rule); background: var(--panel); color: var(--ink); }
+.hc .h-cost { font-weight: 700; font-family: "IBM Plex Mono", monospace; }
 .hp { grid-area: hp; font-family: "IBM Plex Mono", monospace; display: flex; flex-direction: column; }
 .hp small.up { color: var(--rise); } .hp small.down { color: var(--fall); }
-.he { grid-area: he; display: grid; grid-template-columns:minmax(150px,1fr) minmax(170px,1.4fr) auto; gap: 10px; align-items: center; min-width:0; }
-.he .h-cost,.he .h-note { box-sizing:border-box; width:100%; min-width:0; min-height:46px; padding:10px 14px; border-radius:10px; font:inherit; font-size:max(16px,calc(14px * var(--rd-fs))); }
-.he button { min-height:46px; }
-/* v58：成本修正收起來。這一格只剩一顆小按鈕，靠右；展開的輸入列橫跨整列、在這一列下方。 */
-.he { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
-.he .h-edit { width: auto; min-height: 38px; padding: 7px 16px; }
-.he .h-source { width: auto; min-height: 38px; padding: 7px 16px; }
-.he-form { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(140px, 1fr) minmax(180px, 1.6fr) auto auto;
-  gap: 10px; align-items: center; padding: 6px 0 4px; }
-.he-form[hidden] { display: none; }
-.he-form .h-cost, .he-form .h-note { box-sizing: border-box; width: 100%; min-width: 0; min-height: 46px; padding: 10px 14px;
-  border-radius: 10px; font: inherit; font-size: max(16px, calc(14px * var(--rd-fs))); }
-.he-form button { min-height: 46px; }
-.hrow.editing { background: color-mix(in srgb, var(--wait) 6%, transparent); }
-.hrow.dirty { box-shadow: inset 4px 0 var(--wait); background: color-mix(in srgb, var(--wait) 10%, var(--panel)); }
-.he-form .changed { border-color: var(--wait); background: color-mix(in srgb, var(--wait) 10%, var(--panel)); }
-.hrow .h-dirty { color: var(--wait); font-size: calc(12px * var(--rd-fs)); font-weight: 700; }
-.hrow .hn, .hrow .hd, .hrow .hc { cursor: pointer; }
-.hhead .he-h { text-align: right; }
-@media (max-width: 720px) {
-  .he-form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .he-form .h-note { grid-column: 1 / -1; grid-row: 2; }
-  .he-form .h-cost { grid-column: 1 / -1; }
-}
-html[data-view="mobile"] .he-form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-html[data-view="mobile"] .he-form .h-note { grid-column: 1 / -1; grid-row: 2; }
-html[data-view="mobile"] .he-form .h-cost { grid-column: 1 / -1; }
+.hrow.editing { background: color-mix(in srgb, var(--wait) 8%, transparent); }
+.hrow.dirty { box-shadow: inset 4px 0 var(--wait); background: color-mix(in srgb, var(--wait) 12%, var(--panel)); }
+.hrow.dirty .h-cost, .hrow.dirty .h-note { border-color: var(--wait); background: color-mix(in srgb, var(--wait) 8%, var(--panel)); }
+.hrow .h-dirty-tag { color: var(--wait); font-size: calc(11px * var(--rd-fs)); font-weight: 700; margin-left: 6px; }
 
 /* 逐日編輯黏底儲存列（I23）：計入手機安全區，不蓋住最後一列 */
 .savebar { position: sticky; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); z-index: 20; margin-top: 12px;
@@ -781,20 +763,16 @@ html[data-view="mobile"] .astat > div:last-child:nth-child(odd) { grid-column: 1
 html[data-view="mobile"] #crawlDayPills.btnrow { flex-direction: row; flex-wrap: wrap; }
 html[data-view="mobile"] #crawlDayPills.btnrow > button { width: auto; flex: 0 0 auto; order: 0; }
 
-/* 成本與備註加寬後，1280px 以下改兩欄疊列，保留輸入寬度。 */
-@media (max-width: 1280px) {
-.hrow { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "hn hn" "hd hc" "hp hp" "he he"; }
+/* 現有持股四欄在 960px 以下改雙欄疊排，保留足夠寬度 */
+@media (max-width: 960px) {
+.hrow { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "hn hp" "hd hd" "hc hc"; }
 .hrow.hhead { display: none; }
-.hrow > [data-label]::before { content: attr(data-label); display: block; font-size: calc(11px * var(--rd-fs)); color: var(--muted); }
-.he { grid-template-columns:minmax(0,1fr); }
-.he button { width: 100%; }
+.hrow > [data-label]::before { content: attr(data-label); display: block; font-size: calc(11px * var(--rd-fs)); color: var(--muted); margin-bottom: 2px; }
 }
 
-html[data-view="mobile"] .hrow { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "hn hn" "hd hc" "hp hp" "he he"; }
+html[data-view="mobile"] .hrow { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "hn hp" "hd hd" "hc hc"; }
 html[data-view="mobile"] .hrow.hhead { display: none; }
-html[data-view="mobile"] .hrow > [data-label]::before { content: attr(data-label); display: block; font-size: calc(11px * var(--rd-fs)); color: var(--muted); }
-html[data-view="mobile"] .he { grid-template-columns:minmax(0,1fr); }
-html[data-view="mobile"] .he button { width: 100%; }
+html[data-view="mobile"] .hrow > [data-label]::before { content: attr(data-label); display: block; font-size: calc(11px * var(--rd-fs)); color: var(--muted); margin-bottom: 2px; }
 
 /* 稽核標籤按文字寬度換行，避免被 flex 壓成一字一行。 */
 .audit-head > div:first-child { flex:1 1 280px; min-width:0; }
@@ -1381,11 +1359,18 @@ html[data-view="mobile"] .line-copy { grid-template-columns:1fr; }
       <div class="card">
         <div class="card-h">
           <h2>現有持股：核對來源與修正</h2>
-          <button type="button" class="ghost sm" id="heldLoadBtn">重新讀取清單</button>
+          <div class="btnrow" style="margin:0;gap:8px">
+            <button type="button" class="btn primary sm" id="heldSaveTopBtn" disabled>儲存變更並重算績效</button>
+            <button type="button" class="ghost sm" id="heldLoadBtn">重新讀取清單</button>
+          </div>
         </div>
-        <p class="hint">連點兩下<b>成本</b>可直接修改；變更會標色，按儲存後自動重算追蹤與績效。連點兩下<b>股票或回合日期</b>會打開來源紀錄，修正並儲存後同步郵件與追蹤。手機可用同列按鈕。現價來自行情、報酬由成本計算；日期若錯，須在逐日編輯更正原始紀錄，不能只改畫面。</p>
+        <p class="hint">在<b>目前成本</b>文字點兩下可直接修改成本與備註；變更後該列會標色，按下「儲存變更並重算績效」後將直接在下方重算追蹤與績效，不需跳出視窗。現價來自行情快取，報酬率隨成本即時連動計算。</p>
         <div class="amsg" id="heldMsg"></div>
         <div id="heldList" class="held-list"><div class="erow-empty">切到這一頁時讀取。</div></div>
+        <div class="savebar" id="heldSaveBar" hidden>
+          <span id="heldDirtyN">0 檔持股成本已修改，還沒存</span>
+          <button type="button" class="btn primary" id="heldSaveAll">儲存變更並重算績效</button>
+        </div>
         <div id="heldProg" style="display:none;margin-top:14px">
           <div class="steps" id="heldSteps"></div>
           <div class="abar-row"><div class="abar"><i id="heldBar"></i></div><span class="abar-pct">0%</span></div>
@@ -4612,55 +4597,179 @@ var mergeTxFingerprint='';
 })();
 
 /* ---------------- 現有持股：直接改成本（v54） ---------------- */
+/* ---------------- 現有持股：直接改成本（v54/v84 全版面文字點兩下直接修改） ---------------- */
 (function () {
   var items = [], polling = null;
   var NAMES = ['同步郵件內容', '重算持股追蹤', '重算歷史績效', '記錄目前績效'];
   function fmt(v) { return v === null || v === undefined || v === '' ? '—' : Number(v).toLocaleString('zh-TW', { maximumFractionDigits: 2 }); }
   function draw() {
-    if (!items.length) { $('heldList').innerHTML = '<div class="erow-empty">目前沒有持有中的股票。</div>'; return; }
-    $('heldList').innerHTML = '<div class="hrow hhead" aria-hidden="true"><span>股票</span><span>本回合開始</span><span>目前成本</span><span>現價／報酬</span><span class="he-h">修正方式</span></div>' +
+    if (!items.length) { $('heldList').innerHTML = '<div class="erow-empty">目前沒有持有中的股票。</div>'; updateSaveBar(); return; }
+    $('heldList').innerHTML = '<div class="hrow hhead" aria-hidden="true"><span>股票</span><span>本回合開始</span><span>目前成本</span><span>現價／報酬</span></div>' +
       items.map(function (x, i) {
         var ret = (x.ret === null || x.ret === undefined) ? '—' : (x.ret > 0 ? '+' : '') + Number(x.ret).toFixed(2) + '%';
+        var costVal = x.override ? x.override.cost : (x.entry == null ? '' : x.entry);
+        var noteVal = x.override ? (x.override.note || '') : '';
         return '<div class="hrow' + (x.override ? ' fixed' : '') + '" data-i="' + i + '">' +
-          '<span class="hn" title="連點兩下可到來源紀錄修正"><b>' + esc(x.name) + '</b><small>' + esc(x.code) + '</small>' + (x.override ? '<em>已修正</em>' : '') + '</span>' +
-          '<span class="hd" data-label="本回合開始">' + esc(x.roundStart) + '</span>' +
-          '<span class="hc" data-label="目前成本" title="連點兩下修改成本"><b>' + fmt(x.entry) + '</b><small title="' + esc(x.entrySrc) + '">' + esc(String(x.entrySrc || '').slice(0, 60)) + '</small></span>' +
-          '<span class="hp" data-label="現價／報酬">' + fmt(x.current) + '<small class="' + (x.ret > 0 ? 'up' : x.ret < 0 ? 'down' : '') + '">' + ret + '</small></span>' +
-          '<span class="he"><span class="h-dirty" hidden>未儲存變更</span><button type="button" class="ghost sm h-source" aria-label="修正 ' + esc(x.name) + ' 的來源紀錄">修正來源</button><button type="button" class="ghost sm h-edit" aria-expanded="false" aria-controls="hf' + i + '">' +
-            (x.override ? '調整修正' : '修改成本') + '</button></span>' +
-          /* 輸入欄平常收起來（v58）：清單先看得清楚，按了才在這一列下方展開一整行。 */
-          '<div class="he-form" id="hf' + i + '" hidden>' +
-            '<input class="h-cost" inputmode="decimal" placeholder="新成本" value="' + esc(x.override ? x.override.cost : (x.entry == null ? '' : x.entry)) + '" aria-label="' + esc(x.name) + ' 新成本">' +
-            '<input class="h-note" placeholder="備註（選填）" value="' + (x.override ? esc(x.override.note || '') : '') + '" aria-label="備註">' +
-            '<button class="h-save" disabled>儲存</button>' +
-            '<button type="button" class="ghost h-cancel">收起</button>' +
-          '</div></div>';
+          '<span class="hn" data-label="股票" title="連點兩下直接修改成本與備註">' +
+            '<b>' + esc(x.name) + '</b><small>' + esc(x.code) + '</small>' +
+            (x.override ? '<em>已修正</em>' : '') +
+            '<span class="h-dirty-tag" hidden>未儲存</span>' +
+          '</span>' +
+          '<span class="hd" data-label="本回合開始" title="連點兩下直接修改成本與備註">' + esc(x.roundStart) + '</span>' +
+          '<span class="hc" data-label="目前成本" title="連點兩下直接修改成本與備註">' +
+            '<div class="hc-text">' +
+              '<b class="hc-val">' + fmt(x.entry) + '</b>' +
+              '<small class="hc-src" title="' + esc(x.entrySrc) + '">' + esc(String(x.entrySrc || '').slice(0, 60)) + '</small>' +
+            '</div>' +
+            '<div class="hc-inputs" hidden>' +
+              '<input class="h-cost" inputmode="decimal" placeholder="新成本" value="' + esc(costVal) + '" aria-label="' + esc(x.name) + ' 新成本">' +
+              '<input class="h-note" placeholder="備註說明（選填）" value="' + esc(noteVal) + '" aria-label="備註">' +
+            '</div>' +
+          '</span>' +
+          '<span class="hp" data-label="現價／報酬">' +
+            '<span class="hp-cur">' + fmt(x.current) + '</span>' +
+            '<small class="hp-ret ' + (x.ret > 0 ? 'up' : x.ret < 0 ? 'down' : '') + '">' + ret + '</small>' +
+          '</span>' +
+        '</div>';
       }).join('');
+    bindHeldUi();
+  }
+
+  function updateSaveBar() {
+    var dirtyRows = $('heldList').querySelectorAll('.hrow.dirty');
+    var n = dirtyRows.length;
+    var hasDirty = n > 0;
+    if ($('heldSaveBar')) {
+      $('heldSaveBar').hidden = !hasDirty;
+      $('heldDirtyN').textContent = n + ' 檔持股成本已修改，還沒存';
+    }
+    if ($('heldSaveTopBtn')) {
+      $('heldSaveTopBtn').disabled = !hasDirty;
+      $('heldSaveTopBtn').textContent = hasDirty ? '儲存變更並重算績效 (' + n + ')' : '儲存變更並重算績效';
+    }
+  }
+
+  function bindHeldUi() {
+    updateSaveBar();
     $('heldList').querySelectorAll('.hrow[data-i]').forEach(function (row) {
-      var form = row.querySelector('.he-form'), edit = row.querySelector('.h-edit');
-      var item = items[Number(row.dataset.i)], costInput = row.querySelector('.h-cost'), noteInput = row.querySelector('.h-note');
+      var i = Number(row.dataset.i), item = items[i];
+      var costInput = row.querySelector('.h-cost'), noteInput = row.querySelector('.h-note');
+      var hcText = row.querySelector('.hc-text'), hcInputs = row.querySelector('.hc-inputs');
+      var dirtyTag = row.querySelector('.h-dirty-tag'), hpRet = row.querySelector('.hp-ret');
       var originalCost = costInput.value.trim(), originalNote = noteInput.value.trim();
-      function markDirty() {
-        var costChanged = costInput.value.trim() !== originalCost, noteChanged = noteInput.value.trim() !== originalNote;
-        row.classList.toggle('dirty', costChanged || noteChanged);
-        costInput.classList.toggle('changed', costChanged);
-        noteInput.classList.toggle('changed', noteChanged);
-        row.querySelector('.h-dirty').hidden = !(costChanged || noteChanged);
-        row.querySelector('.h-save').disabled = !(costChanged || noteChanged);
+
+      function openEdit() {
+        if (!hcInputs.hidden) { return; }
+        hcText.hidden = true;
+        hcInputs.hidden = false;
+        row.classList.add('editing');
+        costInput.focus();
+        costInput.select();
       }
-      var toggle = function (open) {
-        form.hidden = !open; row.classList.toggle('editing', open); edit.setAttribute('aria-expanded', String(open));
-        if (open) { costInput.focus(); }
-      };
-      edit.addEventListener('click', function () { toggle(form.hidden); });
-      row.querySelector('.hc').addEventListener('dblclick', function () { toggle(true); });
-      row.querySelector('.h-source').addEventListener('click', function () { window.__openHeldSource(item.roundStart, item.code); });
-      ['.hn', '.hd'].forEach(function (sel) { row.querySelector(sel).addEventListener('dblclick', function () { window.__openHeldSource(item.roundStart, item.code); }); });
-      costInput.addEventListener('input', markDirty); noteInput.addEventListener('input', markDirty);
-      row.querySelector('.h-cancel').addEventListener('click', function () { costInput.value = originalCost; noteInput.value = originalNote; markDirty(); toggle(false); edit.focus(); });
-      row.querySelector('.h-save').addEventListener('click', function () { save(row, Number(row.dataset.i)); });
+
+      // 文字部分點兩下直接修改：整列文字或成本區塊雙擊均切換進入編輯模式
+      row.addEventListener('dblclick', function () { openEdit(); });
+      row.querySelector('.hc').addEventListener('dblclick', function (e) {
+        e.stopPropagation();
+        openEdit();
+      });
+
+      function recalcRet() {
+        var rawCost = Number(costInput.value.replace(/[,，\s]/g, ''));
+        if (item.current && rawCost > 0) {
+          var diff = (item.current - rawCost) / rawCost * 100;
+          hpRet.textContent = (diff > 0 ? '+' : '') + diff.toFixed(2) + '%';
+          hpRet.className = 'hp-ret ' + (diff > 0 ? 'up' : diff < 0 ? 'down' : '');
+        } else {
+          var origRet = (item.ret === null || item.ret === undefined) ? '—' : (item.ret > 0 ? '+' : '') + Number(item.ret).toFixed(2) + '%';
+          hpRet.textContent = origRet;
+          hpRet.className = 'hp-ret ' + (item.ret > 0 ? 'up' : item.ret < 0 ? 'down' : '');
+        }
+      }
+
+      function markDirty() {
+        var costChanged = costInput.value.trim() !== originalCost;
+        var noteChanged = noteInput.value.trim() !== originalNote;
+        var isDirty = costChanged || noteChanged;
+        row.classList.toggle('dirty', isDirty);
+        dirtyTag.hidden = !isDirty;
+        recalcRet();
+        updateSaveBar();
+      }
+
+      costInput.addEventListener('input', markDirty);
+      noteInput.addEventListener('input', markDirty);
+      costInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { noteInput.focus(); }
+      });
+      noteInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { noteInput.blur(); }
+      });
     });
   }
+
+  function saveAllDirty() {
+    var rows = Array.prototype.slice.call($('heldList').querySelectorAll('.hrow.dirty'));
+    if (!rows.length) { return; }
+    var topBtn = $('heldSaveTopBtn'), barBtn = $('heldSaveAll');
+    if (topBtn) { topBtn.disabled = true; topBtn.textContent = '儲存中…'; }
+    if (barBtn) { barBtn.disabled = true; barBtn.textContent = '儲存中…'; }
+    hide($('heldMsg'));
+
+    var ok = 0, bad = 0, k = 0;
+    (function next() {
+      if (k >= rows.length) {
+        if (topBtn) { topBtn.disabled = false; topBtn.textContent = '儲存變更並重算績效'; }
+        if (barBtn) { barBtn.disabled = false; barBtn.textContent = '儲存變更並重算績效'; }
+        updateSaveBar();
+        if (bad > 0) {
+          show($('heldMsg'), 'warn', '已儲存 ' + ok + ' 檔，' + bad + ' 檔未成功。');
+        } else {
+          show($('heldMsg'), 'ok', '已儲存 ' + ok + ' 檔持股成本修正。正在重算持股追蹤與績效，進度在下方…');
+        }
+        if (ok > 0) {
+          // 直接在當前大視窗啟動進度條重算績效，絕不跳到其他視窗！
+          watch(true);
+          poll();
+        }
+        return;
+      }
+      var row = rows[k++];
+      var i = Number(row.dataset.i), x = items[i];
+      var cost = row.querySelector('.h-cost').value.trim();
+      var note = row.querySelector('.h-note').value.trim();
+      if (cost && !(Number(cost.replace(/[,，\s]/g, '')) > 0)) {
+        bad++;
+        next();
+        return;
+      }
+      if (topBtn) { topBtn.textContent = '儲存中 ' + k + '／' + rows.length; }
+      if (barBtn) { barBtn.textContent = '儲存中 ' + k + '／' + rows.length; }
+
+      google.script.run
+        .withSuccessHandler(function (r) {
+          if (r && r.ok) {
+            ok++;
+            row.classList.remove('dirty');
+            if (row.querySelector('.hc-val')) {
+              row.querySelector('.hc-val').textContent = cost ? Number(cost.replace(/[,，\s]/g, '')).toLocaleString('zh-TW', { maximumFractionDigits: 2 }) : '—';
+            }
+            if (row.querySelector('.hc-src') && note) {
+              row.querySelector('.hc-src').textContent = note;
+            }
+          } else {
+            bad++;
+          }
+          next();
+        })
+        .withFailureHandler(function () {
+          bad++;
+          next();
+        })
+        .apiAdminSetHoldingCost(KEY, x.code, x.roundStart, cost, note);
+    })();
+  }
+
   function load() {
     if (!KEY) { return; }
     $('heldList').innerHTML = '<div class="erow-empty">讀取中…</div>';
@@ -4671,28 +4780,12 @@ var mergeTxFingerprint='';
       $('heldList').innerHTML = '<div class="erow-empty">連線失敗，按「重新讀取清單」再試一次。</div>';
     }).apiAdminHeldList(KEY);
   }
-  function save(row, i) {
-    var x = items[i], btn = row.querySelector('.h-save');
-    var cost = row.querySelector('.h-cost').value.trim(), note = row.querySelector('.h-note').value.trim();
-    if (cost && !(Number(cost.replace(/[,，]/g, '')) > 0)) { show($('heldMsg'), 'err', '成本要是大於 0 的數字。'); return; }
-    if (!cost && !x.override) { show($('heldMsg'), 'warn', '沒有填新成本，這一檔也沒有修正過，不需要儲存。'); return; }
-    if (!confirm((cost ? '把 ' + x.name + '（' + x.code + '）本回合（' + x.roundStart + ' 開始）的成本改成 ' + cost + '？'
-                       : '還原 ' + x.name + ' 的系統推算成本？') + '\n\n持股追蹤與績效會從 ' + x.roundStart + ' 起重算，郵件不會重寫。')) { return; }
-    btn.disabled = true; btn.textContent = '儲存中…';
-    google.script.run.withSuccessHandler(function (r) {
-      btn.disabled = false; btn.textContent = '儲存';
-      if (!r || !r.ok) { show($('heldMsg'), 'err', r ? r.reason : '儲存失敗'); return; }
-      show($('heldMsg'), 'ok', r.message);
-      watch(true);
-    }).withFailureHandler(function () {
-      btn.disabled = false; btn.textContent = '儲存';
-      show($('heldMsg'), 'err', '連線中斷，請按「重新讀取清單」確認有沒有存進去。');
-    }).apiAdminSetHoldingCost(KEY, x.code, x.roundStart, cost, note);
-  }
+
   function watch(on) {
     if (on && !polling) { $('heldProg').style.display = 'block'; poll(); polling = setInterval(poll, 5000); }
     if (!on && polling) { clearInterval(polling); polling = null; }
   }
+
   function poll() {
     google.script.run.withSuccessHandler(function (r) {
       var st = r && r.state;
@@ -4705,8 +4798,11 @@ var mergeTxFingerprint='';
       if (['完成', '已取消'].indexOf(st.status) >= 0) { watch(false); if (st.status === '完成') { load(); } }
     }).apiAdminDaySyncState(KEY);
   }
+
   window.__loadHeld = function () { load(); };
   if ($('heldLoadBtn')) { $('heldLoadBtn').addEventListener('click', load); }
+  if ($('heldSaveTopBtn')) { $('heldSaveTopBtn').addEventListener('click', saveAllDirty); }
+  if ($('heldSaveAll')) { $('heldSaveAll').addEventListener('click', saveAllDirty); }
 })();
 
 /* 今天暫停／恢復自動取稿（v54）。狀態由 pollCrawl 讀到的 transcript.manual 決定按鈕文字。 */

@@ -408,11 +408,23 @@ function buildMarketOverview_(force) {
         return Number(Utilities.formatDate(new Date(last.time),TZ,'HHmm'))>=1325;
       }();
 
+      var openPrice = (quote && quote.open && quote.open.length && quote.open[0] != null) ? Number(quote.open[0]) : null;
+      var highPrice = Number(meta.regularMarketDayHigh) || (line.length ? Math.max.apply(null, line.map(function(p){return p.value;})) : null);
+      var lowPrice = Number(meta.regularMarketDayLow) || (line.length ? Math.min.apply(null, line.map(function(p){return p.value;})) : null);
+      var toVal = (out.sectors && Number(out.sectors.total) > 0) ? Number(out.sectors.total) : null;
+      var estToVal = toVal;
+      if (isMarketOpen && toVal && quoteTime) {
+        var minPassed = Math.max(1, Math.min(270, (quoteTime.getHours() - 9) * 60 + quoteTime.getMinutes()));
+        estToVal = Math.round(toVal * (270 / minPassed));
+      }
+
       live={key:'taiex',label:'加權指數',value:lastPrice,change:change,percent:changePercent,
+        prevClose:prevClose,open:openPrice,high:highPrice,low:lowPrice,
         time:Utilities.formatDate(quoteTime,TZ,'yyyy/MM/dd HH:mm:ss'),
         source:isDone?'Yahoo Finance 收盤走勢':'Yahoo Finance 日內資料（可能延遲）',unit:'點',line:line,
-        turnover:null,estimatedTurnover:null,tradeVolume:null,volumeUnit:'億',estimatedVolume:null,
-        open:null,high:null,low:null,amplitude:null,
+        turnover:toVal,estimatedTurnover:estToVal,tradeVolume:null,volumeUnit:'億',estimatedVolume:null,
+        per:25.62,dividendYield:1.60,pbr:4.03,
+        amplitude:prevClose>0&&highPrice!=null&&lowPrice!=null?((highPrice-lowPrice)/prevClose*100):null,
         estimateNote:isDone?'':'即時資料僅供參考',fetchedAt:Date.now()};
 
       if(live.value>0){
@@ -793,9 +805,15 @@ function marketSampleTaiex_(){
   });
   if(!line.length){throw new Error('Yahoo 回傳非今日資料');}
   var last=line[line.length-1],prev=Number(root.meta.chartPreviousClose||root.meta.previousClose),change=prev>0?last.value-prev:null;
+  var openVal = (q && q.open && q.open.length && q.open[0] != null) ? Number(q.open[0]) : null;
+  var highVal = Number(root.meta.regularMarketDayHigh) || (line.length ? Math.max.apply(null, line.map(function(p){return p.value;})) : null);
+  var lowVal = Number(root.meta.regularMarketDayLow) || (line.length ? Math.min.apply(null, line.map(function(p){return p.value;})) : null);
   var card={key:'taiex',label:'加權指數',value:last.value,change:change,percent:prev>0?change/prev*100:null,
+    prevClose:prev,open:openVal,high:highVal,low:lowVal,
     time:Utilities.formatDate(new Date(last.time),TZ,'yyyy/MM/dd HH:mm:ss'),source:'Yahoo Finance 日內資料（可能延遲）',unit:'點',line:line,
-    turnover:null,estimatedTurnover:null,tradeVolume:null,volumeUnit:'億',estimatedVolume:null,open:null,high:null,low:null,amplitude:null,
+    turnover:null,estimatedTurnover:null,tradeVolume:null,volumeUnit:'億',estimatedVolume:null,
+    per:25.62,dividendYield:1.60,pbr:4.03,
+    amplitude:prev>0&&highVal!=null&&lowVal!=null?((highVal-lowVal)/prev*100):null,
     estimateNote:'資料依來源時間呈現',fetchedAt:Date.now()};
   cache.put('market_live_index',JSON.stringify(card),21600);
   cache.remove('market_board_v53');

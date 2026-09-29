@@ -5844,7 +5844,17 @@ function apiAdminStartRefreshFrom(key, index) {
     adminAuth_(key);
     var order = REFRESH_ORDER_;
     var i = Number(index);
-    if (!(i >= 0 && i < order.length)) { i = 0; }
+    // 前後台版本不同或選單未載入時，不能悄悄從第一步重跑。
+    if (index === '' || index === null || index === undefined ||
+        !Number.isInteger(i) || !(i >= 0 && i < order.length)) {
+      return { ok: false, reason: '起始步驟不正確；未派工，請重新整理後台再選一次。' };
+    }
+    var current = chainState_();
+    if (current && current.status === '執行中' && !current.cancelled) {
+      return { ok: false, reason: '上一輪刷新仍在執行（' +
+               (current.name || current.step || '未知步驟') +
+               '）。請先查看進度；確定要改跑其他步驟時，先取消上一輪。' };
+    }
 
     // 上一次留下來的取消旗標要先拔掉，否則新的一輪一進來就被自己擋掉。
     clearChainCancel_();

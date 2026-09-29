@@ -2417,6 +2417,7 @@ function renderChain(st){
   // 取消之後也要停止輪詢，否則這個分頁會一直對 GitHub API 敲門。
   refDone = last || failed || cancelled || pending;
   $('refCancelBtn').disabled = refDone;
+  $('refFromBtn').disabled = st.status === '執行中' && !cancelled;
 
   var refBox = $('refSteps');
   refBox.innerHTML = CHAIN_NAMES.map(function(nm,i){
@@ -2869,8 +2870,13 @@ function startRefreshFrom(i, btn, label){
 }
 
 $('refFromBtn').addEventListener('click', function(){
-  var i = Number($('refFromStep').value);
+  var raw = $('refFromStep').value;
+  var i = Number(raw);
   var nm = CHAIN_NAMES[i] || '';
+  if(raw === '' || !Number.isInteger(i) || !nm){
+    show($('refMsg'),'err','步驟清單尚未載入或已過期。請先按「查看進度」，再選一次步驟。');
+    return;
+  }
   if(!confirm('從「' + nm + '」開始刷新？' + '\\n\\n' +
       '前面幾步不會重做。這七步彼此獨立，跳過前面不會讓後面算錯。')) return;
   startRefreshFrom(i, $('refFromBtn'), '從此步驟重跑');

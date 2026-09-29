@@ -892,7 +892,7 @@ def maybe_refresh_site(only=None, force=False, date_str="", on_progress=None):
                   + "、".join(skipped))
         else:
             usable = "、".join(keys)
-            print(f"不認得的起始步驟 {REFRESH_FROM}，改為從頭跑。可用的有：{usable}")
+            raise ValueError(f"不認得的起始步驟 {REFRESH_FROM}；未執行刷新，避免意外從頭重算。可用的有：{usable}")
 
     # 動手之前先確認雙方版本一致。
     #
@@ -1226,7 +1226,7 @@ def drive_full_fix():
     except Exception as e:
         print(f"連不上下游或回應不是 JSON：{e}")
         print(f"設定的網址：{APPS_SCRIPT_URL}")
-        return
+        raise RuntimeError('全面重整未啟動：下游 ping 無法解析；下游游標保留') from e
 
     if "full-fix" not in feats:
         print("")
@@ -1263,7 +1263,7 @@ def drive_full_fix():
         print("     選既有的版本號是無效的，那等於什麼都沒改。")
         print("")
         print("改完用瀏覽器開 APPS_SCRIPT_URL?action=ping 確認 features 有 full-fix，再重跑。")
-        return
+        raise RuntimeError('全面重整未啟動：下游缺少 full-fix 能力')
 
     print("\n開始驅動下游的全面重整。每一棒約四分半，做完會自己停。")
     rounds, fails = 0, 0
@@ -1285,7 +1285,17 @@ def drive_full_fix():
                 timeout=300,
                 headers={"User-Agent": "zhangzhen-pipeline"},
             )
-            body = r.text[:800]
+            # 回應的進度說明可能超過 800 字；截掉尾端會讓已完成的
+            # Apps Script 工作被誤判成無效 JSON，不能用截斷內容解析。
+            body = r.text
+            if "<html" in body.lower() or "<!doctype" in body.lower():
+                raise requests.exceptions.RequestException(
+                    f"Apps Script 回傳網頁（HTTP {r.status_code}）")
+            try:
+                data = json.loads(body)
+            except ValueError as e:
+                raise requests.exceptions.RequestException(
+                    f"Apps Script 回應不是完整 JSON（HTTP {r.status_code}）：{e}") from e
         except requests.exceptions.RequestException as e:
             # 讀取逾時不等於那一棒沒做成。
             #
@@ -1299,8 +1309,7 @@ def drive_full_fix():
                 fails += 1
                 print("查不到進度。")
                 if fails >= 3:
-                    print("連續三次都查不到，停止。進度留在下游，稍後重跑會接續。")
-                    return
+                    raise RuntimeError("全面重整連續三次讀不到進度；下游游標保留，請從中斷處續跑") from e
                 time.sleep(15)
                 continue
             if moved:
@@ -1312,24 +1321,12 @@ def drive_full_fix():
             fails += 1
             print(f"沒有前進（仍在 {where}）。")
             if fails >= 3:
-                print("連續三次沒有前進，停止。可能是某一步本身太慢，")
-                print("到 Apps Script 的執行紀錄看最近一次 doGet 的錯誤。")
-                return
+                raise RuntimeError("全面重整連續三次沒有前進；請查 Apps Script 執行紀錄，再從中斷處續跑") from e
             time.sleep(20)
             continue
 
-        low = body.lower()
-        if "<html" in low or "<!doctype" in low:
-            print("下游回 HTML 而不是 JSON，多半是沒有部署最新版本。")
-            return
-        try:
-            data = json.loads(body)
-        except Exception:
-            print(f"回應無法解析：{body[:160]}")
-            return
         if not data.get("ok"):
-            print(f"失敗：{data.get('error', body[:160])}")
-            return
+            raise RuntimeError("全面重整下游失敗：" + str(data.get('error', body[:160])))
 
         fails = 0
         note = str(data.get("result", ""))
@@ -1356,7 +1353,10 @@ def drive_full_fix():
 
         print(f"{data.get('result', '')}  進度 {data.get('processed', 0)}/{data.get('total', 0)}")
         if data.get("done"):
-            print("\n全面重整完成。網站與郵件都已依新規則更新。")
+            if note == '全部完成':
+                print("\n全面重整完成。網站與郵件都已依新規則更新。")
+            else:
+                raise RuntimeError("全面重整已停止，未完成：" + (note or '下游未提供完成原因'))
             return
         time.sleep(2)
 

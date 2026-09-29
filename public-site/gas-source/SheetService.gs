@@ -1930,7 +1930,7 @@ function readCostOverrides_() {
     readSheetObjects_('持股成本覆寫').forEach(function (r) {
       var code = String(r['代號'] || '').trim(), d = fmtDate_(r['回合開始日']), cost = Number(r['成本']);
       if (!code || !d || !(cost > 0)) { return; }
-      out[code + '|' + d] = { cost: cost, note: String(r['備註'] || '').trim(), at: String(r['修改時間'] || '').trim() };
+      out[code + '|' + d] = { cost: cost, note: String(r['備註'] || '').trim(), at: String(r['修改時間'] || '').trim(), name: String(r['股票名稱'] || '').trim() };
     });
   } catch (e) { /* 分頁不存在＝沒有任何覆寫 */ }
   return out;

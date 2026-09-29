@@ -961,20 +961,24 @@ function apiAdminHeldList(key) {
     var held = (t.held || (t.items || []).filter(function (i) { return i.stillHeld; }));
     return { ok: true, items: held.map(function (i) {
       var o = ov[String(i.code) + '|' + (i.roundStart || i.firstBuy)] || null;
-      return { code: i.code, name: i.name, valid: !!i.valid, roundStart: i.roundStart || i.firstBuy,
+      return { code: i.code, name: (o && o.name) ? o.name : i.name, valid: !!i.valid, roundStart: i.roundStart || i.firstBuy,
                entry: i.entry, entrySrc: i.entrySrc || '', current: i.current, ret: i.ret,
-               override: o ? { cost: o.cost, note: o.note, at: o.at } : null };
+               override: o ? { cost: o.cost, note: o.note, at: o.at, name: o.name } : null };
     }) };
   } catch (e) { return { ok: false, reason: String(e.message || e) }; }
 }
 
-function apiAdminSetHoldingCost(key, code, roundStart, cost, note) {
+function apiAdminSetHoldingCost(key, code, roundStart, cost, note, customName, newCode, newRoundStart) {
   try {
     adminAuth_(key);
     code = String(code || '').trim();
     var d = fmtDate_(roundStart), c = Number(String(cost || '').replace(/[,，\s]/g, ''));
     if (!/^\d{4,6}[A-Z]?$/.test(code)) { return { ok: false, reason: '代號格式不對：' + code }; }
     if (!d) { return { ok: false, reason: '缺少回合開始日。' }; }
+    var targetCode = String(newCode || code).trim();
+    var targetDate = fmtDate_(newRoundStart || d);
+    if (!/^\d{4,6}[A-Z]?$/.test(targetCode)) { return { ok: false, reason: '新代號格式不對：' + targetCode }; }
+    if (!targetDate) { return { ok: false, reason: '新回合開始日格式不對：' + newRoundStart }; }
     var clear = cost === '' || cost === null || cost === undefined;
     if (!clear && !(c > 0 && c < 100000)) { return { ok: false, reason: '成本要是大於 0 的數字（收到：' + cost + '）。' }; }
     var held = (getHoldingsTracker().held || []).filter(function (i) {
@@ -986,20 +990,24 @@ function apiAdminSetHoldingCost(key, code, roundStart, cost, note) {
       var vals = sh.getDataRange().getValues(), head = vals[0].map(String);
       var ci = function (k) { return head.indexOf(k); };
       for (var r = vals.length - 1; r >= 1; r--) {
-        if (String(vals[r][ci('代號')]).trim() === code && fmtDate_(vals[r][ci('回合開始日')]) === d) { sh.deleteRow(r + 1); }
+        var rowCode = String(vals[r][ci('代號')]).trim();
+        var rowDate = fmtDate_(vals[r][ci('回合開始日')]);
+        if ((rowCode === code && rowDate === d) || (rowCode === targetCode && rowDate === targetDate)) {
+          sh.deleteRow(r + 1);
+        }
       }
       if (!clear) {
         var row = head.map(function () { return ''; });
-        row[ci('代號')] = code; row[ci('股票名稱')] = held ? held.name : '';
-        row[ci('回合開始日')] = d; row[ci('成本')] = c; row[ci('備註')] = String(note || '').slice(0, 200);
+        row[ci('代號')] = targetCode; row[ci('股票名稱')] = customName || (held ? held.name : '');
+        row[ci('回合開始日')] = targetDate; row[ci('成本')] = c; row[ci('備註')] = String(note || '').slice(0, 200);
         row[ci('修改時間')] = nowStamp_();
         row[ci('修改前成本')] = held && held.entry != null ? held.entry : '';
         row[ci('修改前來源')] = held ? String(held.entrySrc || '') : '';
         sh.appendRow(row);
       }
     });
-    var q = queueCostSync_(d);
-    return { ok: true, message: (clear ? '已還原 ' + code + ' 的系統成本' : '已把 ' + code + (held ? ' ' + held.name : '') + ' 的成本改成 ' + c) +
+    var q = queueCostSync_(d < targetDate ? d : targetDate);
+    return { ok: true, message: (clear ? '已還原 ' + code + ' 的系統成本' : '已把 ' + targetCode + '（' + (customName || (held ? held.name : '')) + '）的成本改成 ' + c) +
              '。持股追蹤與績效會從 ' + q.date + ' 起重算，約 1–3 分鐘；進度在下方。' };
   } catch (e) { return { ok: false, reason: String(e.message || e) }; }
 }

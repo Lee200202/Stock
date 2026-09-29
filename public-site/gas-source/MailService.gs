@@ -1764,13 +1764,14 @@ function mdToHtml_(md) {
              'font-size:12px;line-height:1.5;font-weight:600;color:#3E4944;white-space:nowrap;">' + text + '</th>';
     };
     /* 全部改成兩欄：名稱與代號上下對齊；右邊放價位、方向與說明。
-       持股沒有重複的「持有」狀態格，觀望沒有大片空白價位格。 */
+       持股沒有重複的「持有」狀態格，觀望沒有大片空白價位格。
+       第一欄收緊至 13%（約 88px），把大片留白空間留給說明重點。 */
     var watchLayout = !!(tone && (tone.key === 'watch' || tone.key === 'avoid')) && dirCol < 0;
     html.push('<table class="mc-table" role="presentation" width="100%" cellpadding="0" cellspacing="0" ' +
               'style="width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0;margin:6px 0 12px;' +
               'border:1px solid ' + edge + ';border-radius:12px;overflow:hidden;font-family:' + MAIL_FONT_ +
               ';font-size:13.5px;line-height:1.7;">' +
-              '<colgroup><col style="width:23%"><col style="width:77%"></colgroup>' +
+              '<colgroup><col style="width:13%"><col style="width:87%"></colgroup>' +
               '<thead><tr>' + th('股票／代號') + th('說明重點') + '</tr></thead><tbody>');
 
     rows.forEach(function (cells) {

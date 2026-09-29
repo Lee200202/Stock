@@ -2759,10 +2759,19 @@ button, a, input, select, textarea {
 .mail-content .mc-h2, .mail-content .mc-h3 { color: var(--ink) !important; margin-top: 0; }
 .mail-content .mc-h3 { margin-top: 14px !important; }
 .mail-content .mc-sec p, .mail-content .mc-sec .mail-bullet, .mail-content .mc-desc { color: var(--ink) !important; }
-.mail-content .mail-bullet b { color: var(--ink) !important; }
-.mail-content table.mc-table { min-width: 0 !important; font-size: calc(13.5px * var(--rd-fs)) !important; }
+.mail-content table.mc-table { min-width: 0 !important; width: 100% !important; table-layout: fixed !important; font-size: calc(13.5px * var(--rd-fs)) !important; }
+.mail-content table.mc-table col:first-child { width: 96px !important; }
+.mail-content table.mc-table col:last-child { width: auto !important; }
 .mail-content table.mc-table td, .mail-content table.mc-table th {
   position: static !important; min-width: 0 !important; padding: 8px 12px !important;
+}
+.mail-content table.mc-table th.mc-th:first-child,
+.mail-content table.mc-table td.mc-name {
+  width: 96px !important; max-width: 100px !important; padding: 8px 6px 10px 10px !important; box-sizing: border-box !important;
+}
+.mail-content table.mc-table th.mc-th:last-child,
+.mail-content table.mc-table td.mc-desc {
+  width: auto !important; padding-left: 12px !important;
 }
 .mail-content table.mc-table td { white-space: normal; }
 .mail-content table.mc-table td.mc-desc { padding-top: 0 !important; padding-bottom: 12px !important; }

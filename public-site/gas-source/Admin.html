@@ -636,8 +636,22 @@ details.dz-card[open] > summary { margin-bottom: 10px; }
 .erow-b .e-reason { flex: 1 1 100%; min-height: 4.6em; resize: vertical; line-height: 1.65; font-family: inherit;
   font-size: calc(13.5px * var(--rd-fs)); padding: 8px 10px; border: 1px solid var(--rule); background: var(--panel); color: var(--ink); }
 
-/* 現有持股（I12）：四欄拉到全版面，文字點兩下直接修改 */
+/* 現有持股（I12）：四欄拉到全版面，文字點兩下直接展開外圍框線卡片修改 */
 .held-list { margin-top: 12px; }
+.hrow-wrap { transition: all 0.2s ease; margin-bottom: 4px; }
+.hrow-wrap.dirty, .hrow-wrap.editing {
+  border: 1.5px solid var(--wait);
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--wait) 7%, var(--panel));
+  margin: 10px 0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+.hrow-wrap.dirty .hrow-view {
+  border-bottom: 0;
+  background: transparent;
+  padding: 12px 14px;
+}
 .hrow { display: grid; grid-template-columns: minmax(140px, 1.4fr) minmax(110px, 1.1fr) minmax(260px, 2.8fr) minmax(130px, 1.2fr);
   grid-template-areas: "hn hd hc hp"; gap: 10px 16px; align-items: center; padding: 12px 8px; border-bottom: 1px solid var(--rule); transition: background 0.15s ease; }
 .hrow.hhead { font-size: calc(12px * var(--rd-fs)); color: var(--muted); font-weight: 600; padding-top: 0; }
@@ -651,24 +665,57 @@ details.dz-card[open] > summary { margin-bottom: 10px; }
 .hc { grid-area: hc; display: flex; flex-direction: column; cursor: pointer; min-width: 0; }
 .hc .hc-text { display: flex; flex-direction: column; user-select: text; }
 .hc .hc-text small { color: var(--muted); font-size: calc(11.5px * var(--rd-fs)); line-height: 1.5; overflow: hidden; text-overflow: ellipsis; }
-.hc .hc-inputs { display: flex; flex-direction: column; gap: 6px; width: 100%; }
-.hc .h-cost, .hc .h-note { box-sizing: border-box; width: 100%; min-width: 0; min-height: 38px; padding: 6px 12px;
-  border-radius: 8px; font: inherit; font-size: max(15px, calc(13.5px * var(--rd-fs))); border: 1px solid var(--rule); background: var(--panel); color: var(--ink); }
-.hc .h-cost { font-weight: 700; font-family: "IBM Plex Mono", monospace; }
 .hp { grid-area: hp; font-family: "IBM Plex Mono", monospace; display: flex; flex-direction: column; }
-.hp small.up { color: var(--rise); } .hp small.down { color: var(--fall); }
-.hrow.editing { background: color-mix(in srgb, var(--wait) 8%, transparent); }
-.hrow.dirty { box-shadow: inset 4px 0 var(--wait); background: color-mix(in srgb, var(--wait) 12%, var(--panel)); }
-.hrow.dirty .h-cost, .hrow.dirty .h-note { border-color: var(--wait); background: color-mix(in srgb, var(--wait) 8%, var(--panel)); }
-.hrow .h-dirty-tag { color: var(--wait); font-size: calc(11px * var(--rd-fs)); font-weight: 700; margin-left: 6px; }
+.hp small.up, .herow-preview small.up { color: var(--rise); font-weight: 700; }
+.hp small.down, .herow-preview small.down { color: var(--fall); font-weight: 700; }
 
-/* 逐日編輯黏底儲存列（I23）：計入手機安全區，不蓋住最後一列 */
-.savebar { position: sticky; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); z-index: 20; margin-top: 12px;
-  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
-  padding: 10px 12px 10px 16px; border-radius: var(--r-md); border: 1px solid color-mix(in srgb, var(--wait) 45%, var(--rule));
-  background: color-mix(in srgb, var(--wait) 10%, var(--panel)); box-shadow: 0 6px 18px rgba(0,0,0,.10); }
+/* 卡片式編輯（對齊逐日編輯 erow 與使用者截圖形式，外圍帶框線） */
+.herow-card { padding: 14px 16px; background: var(--panel); border-radius: var(--r-md); }
+.hrow-wrap.editing .herow-card, .hrow-wrap.dirty .herow-card { background: transparent; }
+.herow-card .erow-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.herow-card .h-name, .herow-card .h-code {
+  border: none; border-bottom: 1px dashed var(--rule); border-radius: 0; background: transparent;
+  padding: 3px 6px; font-family: inherit; font-size: calc(14px * var(--rd-fs)); font-weight: 700; color: var(--ink);
+}
+.herow-card .h-name { flex: 0 1 150px; min-width: 90px; }
+.herow-card .h-code { flex: 0 0 80px; font-family: "IBM Plex Mono", monospace; font-size: calc(13px * var(--rd-fs)); font-weight: 400; color: var(--muted); }
+.herow-card .h-name:focus, .herow-card .h-code:focus { border-bottom-color: var(--beam); outline: none; color: var(--ink); }
+.herow-card .erow-b { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+.herow-card .herow-field { display: flex; align-items: center; gap: 6px; }
+.herow-card .herow-label { font-size: calc(12px * var(--rd-fs)); color: var(--muted); white-space: nowrap; }
+.herow-card .h-date, .herow-card .h-cost {
+  font-family: "IBM Plex Mono", monospace; font-size: calc(13.5px * var(--rd-fs)); color: var(--ink); background: var(--panel);
+  border: 1px solid var(--rule); border-radius: var(--r-sm); padding: 7px 10px;
+}
+.herow-card .h-date { width: 125px; }
+.herow-card .h-cost { width: 115px; font-weight: 700; }
+.herow-card .herow-preview { display: flex; align-items: center; gap: 8px; font-family: "IBM Plex Mono", monospace; font-size: calc(13px * var(--rd-fs)); color: var(--muted); padding: 4px 6px; }
+.herow-card .erow-c { margin-bottom: 10px; }
+.herow-card .h-note {
+  box-sizing: border-box; width: 100%; min-height: 4.8em; resize: vertical; line-height: 1.65;
+  font-family: inherit; font-size: calc(13.5px * var(--rd-fs)); padding: 8px 12px; border: 1px solid var(--rule);
+  border-radius: var(--r-sm); background: var(--panel); color: var(--ink);
+}
+.herow-card .h-note:focus, .herow-card .h-cost:focus, .herow-card .h-date:focus { border-color: var(--beam); outline: none; }
+.herow-card .erow-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+.tag.wait { border-color: var(--wait); color: var(--wait); font-weight: 700; }
+.h-dirty-tag { margin-left: 6px; }
+
+/* 逐日編輯與大視窗整體儲存列（I23）：外圍帶框線，計入手機安全區 */
+.savebar { position: sticky; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); z-index: 20; margin-top: 16px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  padding: 12px 18px; border-radius: var(--r-md); border: 1.5px solid var(--wait);
+  background: color-mix(in srgb, var(--wait) 12%, var(--panel)); box-shadow: 0 6px 20px rgba(0,0,0,.25); }
 .savebar[hidden] { display: none; }
 .savebar span { font-weight: 600; font-size: calc(13.5px * var(--rd-fs)); }
+#heldSaveBar .held-save-info { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+#heldSaveBar .held-save-title { font-weight: 700; font-size: calc(14px * var(--rd-fs)); color: var(--ink); }
+#heldSaveBar .held-save-desc { color: var(--muted); font-size: calc(12px * var(--rd-fs)); display: block; margin-top: 2px; }
+#heldSaveBar #heldSaveAll { font-weight: 700; border-radius: var(--r-pill); padding: 10px 22px; font-size: calc(13.5px * var(--rd-fs)); background: var(--wait); color: #111; border: 1px solid var(--wait); cursor: pointer; }
+#heldSaveBar #heldSaveAll:hover { filter: brightness(1.1); }
+#heldSaveBar #heldSaveAll:disabled { opacity: 0.6; cursor: not-allowed; }
+#heldSaveTopBtn:not(:disabled) { border-color: var(--wait); background: color-mix(in srgb, var(--wait) 20%, var(--panel)); color: var(--wait); }
 .erow.dirty { box-shadow: inset 3px 0 0 var(--wait); }
 /* 行情完整性表（K8） */
 .kcov { margin-top: 12px; border: 1px solid var(--rule); border-radius: var(--r-md); overflow: hidden; background: var(--panel); }
@@ -1364,12 +1411,18 @@ html[data-view="mobile"] .line-copy { grid-template-columns:1fr; }
             <button type="button" class="ghost sm" id="heldLoadBtn">重新讀取清單</button>
           </div>
         </div>
-        <p class="hint">在<b>目前成本</b>文字點兩下可直接修改成本與備註；變更後該列會標色，按下「儲存變更並重算績效」後將直接在下方重算追蹤與績效，不需跳出視窗。現價來自行情快取，報酬率隨成本即時連動計算。</p>
+        <p class="hint">在<b>股票名稱、本回合開始或目前成本</b>文字點兩下可直接展開卡片編輯（外圍琥珀金框線，如逐日編輯形式）；變更後按下「儲存變更並重算績效」將直接在下方重算追蹤與績效，不需跳出視窗。現價來自行情快取，報酬率隨成本即時連動計算。</p>
         <div class="amsg" id="heldMsg"></div>
         <div id="heldList" class="held-list"><div class="erow-empty">切到這一頁時讀取。</div></div>
         <div class="savebar" id="heldSaveBar" hidden>
-          <span id="heldDirtyN">0 檔持股成本已修改，還沒存</span>
-          <button type="button" class="btn primary" id="heldSaveAll">儲存變更並重算績效</button>
+          <div class="held-save-info">
+            <span class="tag wait" style="border-color:var(--wait);color:var(--wait);font-weight:700">未儲存變更</span>
+            <b id="heldDirtyN" class="held-save-title">0 檔持股已修改，尚未儲存</b>
+            <small class="held-save-desc">點擊右側按鈕將一次儲存所有變更，並直接在下方啟動重算持股追蹤與歷史績效進度條</small>
+          </div>
+          <div class="held-save-actions">
+            <button type="button" class="btn primary" id="heldSaveAll">儲存變更並重算績效</button>
+          </div>
         </div>
         <div id="heldProg" style="display:none;margin-top:14px">
           <div class="steps" id="heldSteps"></div>
@@ -4596,12 +4649,12 @@ var mergeTxFingerprint='';
   setInterval(function () { if (!document.hidden && !$('p-ops').hidden) { load(false); } }, 60000);
 })();
 
-/* ---------------- 現有持股：直接改成本（v54） ---------------- */
-/* ---------------- 現有持股：直接改成本（v54/v84 全版面文字點兩下直接修改） ---------------- */
+/* ---------------- 現有持股：文字點兩下展開外框卡片修改與大視窗整體儲存（v54/v84） ---------------- */
 (function () {
   var items = [], polling = null;
   var NAMES = ['同步郵件內容', '重算持股追蹤', '重算歷史績效', '記錄目前績效'];
   function fmt(v) { return v === null || v === undefined || v === '' ? '—' : Number(v).toLocaleString('zh-TW', { maximumFractionDigits: 2 }); }
+
   function draw() {
     if (!items.length) { $('heldList').innerHTML = '<div class="erow-empty">目前沒有持有中的股票。</div>'; updateSaveBar(); return; }
     $('heldList').innerHTML = '<div class="hrow hhead" aria-hidden="true"><span>股票</span><span>本回合開始</span><span>目前成本</span><span>現價／報酬</span></div>' +
@@ -4609,39 +4662,73 @@ var mergeTxFingerprint='';
         var ret = (x.ret === null || x.ret === undefined) ? '—' : (x.ret > 0 ? '+' : '') + Number(x.ret).toFixed(2) + '%';
         var costVal = x.override ? x.override.cost : (x.entry == null ? '' : x.entry);
         var noteVal = x.override ? (x.override.note || '') : '';
-        return '<div class="hrow' + (x.override ? ' fixed' : '') + '" data-i="' + i + '">' +
-          '<span class="hn" data-label="股票" title="連點兩下直接修改成本與備註">' +
-            '<b>' + esc(x.name) + '</b><small>' + esc(x.code) + '</small>' +
-            (x.override ? '<em>已修正</em>' : '') +
-            '<span class="h-dirty-tag" hidden>未儲存</span>' +
-          '</span>' +
-          '<span class="hd" data-label="本回合開始" title="連點兩下直接修改成本與備註">' + esc(x.roundStart) + '</span>' +
-          '<span class="hc" data-label="目前成本" title="連點兩下直接修改成本與備註">' +
-            '<div class="hc-text">' +
-              '<b class="hc-val">' + fmt(x.entry) + '</b>' +
-              '<small class="hc-src" title="' + esc(x.entrySrc) + '">' + esc(String(x.entrySrc || '').slice(0, 60)) + '</small>' +
+        return '<div class="hrow-wrap' + (x.override ? ' fixed' : '') + '" data-i="' + i + '">' +
+          '<!-- 4 欄標準檢視列 -->' +
+          '<div class="hrow hrow-view" title="在股票、本回合開始或成本文字點兩下可展開編輯卡片">' +
+            '<span class="hn" data-label="股票">' +
+              '<b>' + esc(x.name) + '</b><small>' + esc(x.code) + '</small>' +
+              (x.override ? '<em>已修正</em>' : '') +
+              '<span class="tag wait h-dirty-tag" hidden>未儲存</span>' +
+            '</span>' +
+            '<span class="hd" data-label="本回合開始">' + esc(x.roundStart) + '</span>' +
+            '<span class="hc" data-label="目前成本">' +
+              '<div class="hc-text">' +
+                '<b class="hc-val">' + fmt(x.entry) + '</b>' +
+                '<small class="hc-src" title="' + esc(x.entrySrc) + '">' + esc(String(x.entrySrc || '').slice(0, 60)) + '</small>' +
+              '</div>' +
+            '</span>' +
+            '<span class="hp" data-label="現價／報酬">' +
+              '<span class="hp-cur">' + fmt(x.current) + '</span>' +
+              '<small class="hp-ret ' + (x.ret > 0 ? 'up' : x.ret < 0 ? 'down' : '') + '">' + ret + '</small>' +
+            '</span>' +
+          '</div>' +
+          '<!-- 卡片式編輯（如圖中 erow 形式，外圍帶框線） -->' +
+          '<div class="herow-card" hidden>' +
+            '<div class="erow-h">' +
+              '<input class="h-name" value="' + esc(x.name) + '" placeholder="股票名稱" aria-label="股票名稱">' +
+              '<input class="h-code" value="' + esc(x.code) + '" placeholder="代號" inputmode="numeric" maxlength="6" aria-label="代號">' +
+              '<span class="tag">會員持股</span>' +
+              (x.override ? '<span class="tag man">已修正</span>' : '') +
+              '<span class="tag wait h-dirty-tag" hidden>未儲存</span>' +
             '</div>' +
-            '<div class="hc-inputs" hidden>' +
-              '<input class="h-cost" inputmode="decimal" placeholder="新成本" value="' + esc(costVal) + '" aria-label="' + esc(x.name) + ' 新成本">' +
-              '<input class="h-note" placeholder="備註說明（選填）" value="' + esc(noteVal) + '" aria-label="備註">' +
+            '<div class="erow-b">' +
+              '<div class="herow-field">' +
+                '<span class="herow-label">本回合開始</span>' +
+                '<input class="h-date" value="' + esc(x.roundStart) + '" placeholder="YYYY/MM/DD" aria-label="本回合開始日">' +
+              '</div>' +
+              '<div class="herow-field">' +
+                '<span class="herow-label">目前成本</span>' +
+                '<input class="h-cost" inputmode="decimal" value="' + esc(costVal) + '" placeholder="新成本" aria-label="成本">' +
+              '</div>' +
+              '<div class="herow-preview">' +
+                '<span class="hp-cur">現價 ' + fmt(x.current) + '</span>' +
+                '<small class="hp-ret ' + (x.ret > 0 ? 'up' : x.ret < 0 ? 'down' : '') + '">' + ret + '</small>' +
+              '</div>' +
             '</div>' +
-          '</span>' +
-          '<span class="hp" data-label="現價／報酬">' +
-            '<span class="hp-cur">' + fmt(x.current) + '</span>' +
-            '<small class="hp-ret ' + (x.ret > 0 ? 'up' : x.ret < 0 ? 'down' : '') + '">' + ret + '</small>' +
-          '</span>' +
+            '<div class="erow-c">' +
+              '<textarea class="h-note" rows="3" placeholder="說明（理由摘錄 / 成本來源備註）">' + esc(noteVal) + '</textarea>' +
+            '</div>' +
+            '<div class="erow-actions">' +
+              '<button type="button" class="btn sm ghost h-save-btn">儲存</button>' +
+              '<button type="button" class="btn sm danger h-cancel-btn">收起</button>' +
+              (x.override ? '<button type="button" class="btn sm ghost h-clear-btn" style="color:var(--muted)">還原系統成本</button>' : '') +
+            '</div>' +
+          '</div>' +
         '</div>';
       }).join('');
     bindHeldUi();
   }
 
   function updateSaveBar() {
-    var dirtyRows = $('heldList').querySelectorAll('.hrow.dirty');
-    var n = dirtyRows.length;
+    var dirtyWraps = $('heldList').querySelectorAll('.hrow-wrap.dirty');
+    var n = dirtyWraps.length;
     var hasDirty = n > 0;
     if ($('heldSaveBar')) {
       $('heldSaveBar').hidden = !hasDirty;
-      $('heldDirtyN').textContent = n + ' 檔持股成本已修改，還沒存';
+      var dirtyTitle = $('heldSaveBar').querySelector('.held-save-title');
+      if (dirtyTitle) {
+        dirtyTitle.textContent = n + ' 檔持股已修改，尚未儲存';
+      }
     }
     if ($('heldSaveTopBtn')) {
       $('heldSaveTopBtn').disabled = !hasDirty;
@@ -4651,66 +4738,202 @@ var mergeTxFingerprint='';
 
   function bindHeldUi() {
     updateSaveBar();
-    $('heldList').querySelectorAll('.hrow[data-i]').forEach(function (row) {
-      var i = Number(row.dataset.i), item = items[i];
-      var costInput = row.querySelector('.h-cost'), noteInput = row.querySelector('.h-note');
-      var hcText = row.querySelector('.hc-text'), hcInputs = row.querySelector('.hc-inputs');
-      var dirtyTag = row.querySelector('.h-dirty-tag'), hpRet = row.querySelector('.hp-ret');
-      var originalCost = costInput.value.trim(), originalNote = noteInput.value.trim();
+    $('heldList').querySelectorAll('.hrow-wrap[data-i]').forEach(function (wrap) {
+      var i = Number(wrap.dataset.i), item = items[i];
+      var hrowView = wrap.querySelector('.hrow-view');
+      var herowCard = wrap.querySelector('.herow-card');
+      var nameInput = wrap.querySelector('.h-name');
+      var codeInput = wrap.querySelector('.h-code');
+      var dateInput = wrap.querySelector('.h-date');
+      var costInput = wrap.querySelector('.h-cost');
+      var noteInput = wrap.querySelector('.h-note');
+      var dirtyTags = wrap.querySelectorAll('.h-dirty-tag');
+      var hpRets = wrap.querySelectorAll('.hp-ret');
+      var saveBtn = wrap.querySelector('.h-save-btn');
+      var cancelBtn = wrap.querySelector('.h-cancel-btn');
+      var clearBtn = wrap.querySelector('.h-clear-btn');
 
-      function openEdit() {
-        if (!hcInputs.hidden) { return; }
-        hcText.hidden = true;
-        hcInputs.hidden = false;
-        row.classList.add('editing');
-        costInput.focus();
-        costInput.select();
+      var origName = nameInput.value.trim();
+      var origCode = codeInput.value.trim();
+      var origDate = dateInput.value.trim();
+      var origCost = costInput.value.trim();
+      var origNote = noteInput.value.trim();
+
+      function openCard(focusTarget) {
+        herowCard.hidden = false;
+        hrowView.hidden = true;
+        wrap.classList.add('editing');
+        if (focusTarget === 'name') {
+          nameInput.focus(); nameInput.select();
+        } else if (focusTarget === 'date') {
+          dateInput.focus(); dateInput.select();
+        } else {
+          costInput.focus(); costInput.select();
+        }
       }
 
-      // 文字部分點兩下直接修改：整列文字或成本區塊雙擊均切換進入編輯模式
-      row.addEventListener('dblclick', function () { openEdit(); });
-      row.querySelector('.hc').addEventListener('dblclick', function (e) {
+      function closeCard() {
+        herowCard.hidden = true;
+        hrowView.hidden = false;
+        wrap.classList.remove('editing');
+      }
+
+      // 股票（名稱或代號）點兩下直接展開並 focus 股票名稱
+      wrap.querySelector('.hn').addEventListener('dblclick', function (e) {
         e.stopPropagation();
-        openEdit();
+        openCard('name');
+      });
+      // 本回合開始點兩下直接展開並 focus 日期
+      wrap.querySelector('.hd').addEventListener('dblclick', function (e) {
+        e.stopPropagation();
+        openCard('date');
+      });
+      // 目前成本點兩下直接展開並 focus 成本
+      wrap.querySelector('.hc').addEventListener('dblclick', function (e) {
+        e.stopPropagation();
+        openCard('cost');
+      });
+      // 整列點兩下直接展開
+      hrowView.addEventListener('dblclick', function () {
+        openCard('cost');
+      });
+
+      cancelBtn.addEventListener('click', function () {
+        closeCard();
       });
 
       function recalcRet() {
         var rawCost = Number(costInput.value.replace(/[,，\s]/g, ''));
+        var retText = '—', retCls = 'hp-ret';
         if (item.current && rawCost > 0) {
           var diff = (item.current - rawCost) / rawCost * 100;
-          hpRet.textContent = (diff > 0 ? '+' : '') + diff.toFixed(2) + '%';
-          hpRet.className = 'hp-ret ' + (diff > 0 ? 'up' : diff < 0 ? 'down' : '');
+          retText = (diff > 0 ? '+' : '') + diff.toFixed(2) + '%';
+          retCls = 'hp-ret ' + (diff > 0 ? 'up' : diff < 0 ? 'down' : '');
         } else {
-          var origRet = (item.ret === null || item.ret === undefined) ? '—' : (item.ret > 0 ? '+' : '') + Number(item.ret).toFixed(2) + '%';
-          hpRet.textContent = origRet;
-          hpRet.className = 'hp-ret ' + (item.ret > 0 ? 'up' : item.ret < 0 ? 'down' : '');
+          retText = (item.ret === null || item.ret === undefined) ? '—' : (item.ret > 0 ? '+' : '') + Number(item.ret).toFixed(2) + '%';
+          retCls = 'hp-ret ' + (item.ret > 0 ? 'up' : item.ret < 0 ? 'down' : '');
         }
+        hpRets.forEach(function (el) {
+          el.textContent = retText;
+          el.className = retCls;
+        });
       }
 
-      function markDirty() {
-        var costChanged = costInput.value.trim() !== originalCost;
-        var noteChanged = noteInput.value.trim() !== originalNote;
-        var isDirty = costChanged || noteChanged;
-        row.classList.toggle('dirty', isDirty);
-        dirtyTag.hidden = !isDirty;
+      function checkDirty() {
+        var isNameChanged = nameInput.value.trim() !== origName;
+        var isCodeChanged = codeInput.value.trim() !== origCode;
+        var isDateChanged = dateInput.value.trim() !== origDate;
+        var isCostChanged = costInput.value.trim() !== origCost;
+        var isNoteChanged = noteInput.value.trim() !== origNote;
+        var isDirty = isNameChanged || isCodeChanged || isDateChanged || isCostChanged || isNoteChanged;
+
+        wrap.classList.toggle('dirty', isDirty);
+        dirtyTags.forEach(function (tag) { tag.hidden = !isDirty; });
         recalcRet();
         updateSaveBar();
       }
 
-      costInput.addEventListener('input', markDirty);
-      noteInput.addEventListener('input', markDirty);
-      costInput.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') { noteInput.focus(); }
+      [nameInput, codeInput, dateInput, costInput, noteInput].forEach(function (input) {
+        input.addEventListener('input', checkDirty);
+        input.addEventListener('change', checkDirty);
       });
-      noteInput.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') { noteInput.blur(); }
+
+      saveBtn.addEventListener('click', function () {
+        saveRow(wrap, i);
       });
+
+      if (clearBtn) {
+        clearBtn.addEventListener('click', function () {
+          if (!window.confirm('要還原「' + origName + '」的系統成本計算嗎？')) { return; }
+          clearRow(wrap, i);
+        });
+      }
     });
   }
 
+  function saveRow(wrap, i, cb) {
+    var x = items[i];
+    var nameInput = wrap.querySelector('.h-name');
+    var codeInput = wrap.querySelector('.h-code');
+    var dateInput = wrap.querySelector('.h-date');
+    var costInput = wrap.querySelector('.h-cost');
+    var noteInput = wrap.querySelector('.h-note');
+    var saveBtn = wrap.querySelector('.h-save-btn');
+
+    var newName = nameInput.value.trim();
+    var newCode = codeInput.value.trim();
+    var newDate = dateInput.value.trim();
+    var cost = costInput.value.trim();
+    var note = noteInput.value.trim();
+
+    if (cost && !(Number(cost.replace(/[,，\s]/g, '')) > 0)) {
+      alert('成本要是大於 0 的數字');
+      if (cb) { cb(false); }
+      return;
+    }
+
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '儲存中…'; }
+    hide($('heldMsg'));
+
+    google.script.run
+      .withSuccessHandler(function (r) {
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '儲存'; }
+        if (!r || !r.ok) {
+          show($('heldMsg'), 'err', (r ? r.reason : '儲存失敗'));
+          if (cb) { cb(false); }
+          return;
+        }
+        wrap.classList.remove('dirty');
+        wrap.querySelectorAll('.h-dirty-tag').forEach(function (tag) { tag.hidden = true; });
+
+        // 更新檢視列文字
+        var bName = wrap.querySelector('.hn b'); if (bName && newName) { bName.textContent = newName; }
+        var smCode = wrap.querySelector('.hn small'); if (smCode && newCode) { smCode.textContent = newCode; }
+        var spanDate = wrap.querySelector('.hd'); if (spanDate && newDate) { spanDate.textContent = newDate; }
+        var bVal = wrap.querySelector('.hc-val');
+        if (bVal) {
+          bVal.textContent = cost ? Number(cost.replace(/[,，\s]/g, '')).toLocaleString('zh-TW', { maximumFractionDigits: 2 }) : '—';
+        }
+        var smSrc = wrap.querySelector('.hc-src');
+        if (smSrc && note) { smSrc.textContent = note; }
+
+        show($('heldMsg'), 'ok', r.message);
+        updateSaveBar();
+        watch(true);
+        poll();
+        if (cb) { cb(true); }
+      })
+      .withFailureHandler(function () {
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '儲存'; }
+        show($('heldMsg'), 'err', '連線中斷，請稍後再試。');
+        if (cb) { cb(false); }
+      })
+      .apiAdminSetHoldingCost(KEY, x.code, x.roundStart, cost, note, newName, newCode, newDate);
+  }
+
+  function clearRow(wrap, i) {
+    var x = items[i];
+    hide($('heldMsg'));
+    google.script.run
+      .withSuccessHandler(function (r) {
+        if (!r || !r.ok) {
+          show($('heldMsg'), 'err', (r ? r.reason : '還原失敗'));
+          return;
+        }
+        show($('heldMsg'), 'ok', r.message);
+        watch(true);
+        poll();
+        load();
+      })
+      .withFailureHandler(function () {
+        show($('heldMsg'), 'err', '連線中斷，請重試。');
+      })
+      .apiAdminSetHoldingCost(KEY, x.code, x.roundStart, '', '');
+  }
+
   function saveAllDirty() {
-    var rows = Array.prototype.slice.call($('heldList').querySelectorAll('.hrow.dirty'));
-    if (!rows.length) { return; }
+    var wraps = Array.prototype.slice.call($('heldList').querySelectorAll('.hrow-wrap.dirty'));
+    if (!wraps.length) { return; }
     var topBtn = $('heldSaveTopBtn'), barBtn = $('heldSaveAll');
     if (topBtn) { topBtn.disabled = true; topBtn.textContent = '儲存中…'; }
     if (barBtn) { barBtn.disabled = true; barBtn.textContent = '儲存中…'; }
@@ -4718,55 +4941,31 @@ var mergeTxFingerprint='';
 
     var ok = 0, bad = 0, k = 0;
     (function next() {
-      if (k >= rows.length) {
+      if (k >= wraps.length) {
         if (topBtn) { topBtn.disabled = false; topBtn.textContent = '儲存變更並重算績效'; }
         if (barBtn) { barBtn.disabled = false; barBtn.textContent = '儲存變更並重算績效'; }
         updateSaveBar();
         if (bad > 0) {
           show($('heldMsg'), 'warn', '已儲存 ' + ok + ' 檔，' + bad + ' 檔未成功。');
         } else {
-          show($('heldMsg'), 'ok', '已儲存 ' + ok + ' 檔持股成本修正。正在重算持股追蹤與績效，進度在下方…');
+          show($('heldMsg'), 'ok', '已儲存 ' + ok + ' 檔持股修正。正在重算持股追蹤與績效，進度在下方…');
         }
         if (ok > 0) {
-          // 直接在當前大視窗啟動進度條重算績效，絕不跳到其他視窗！
+          // 原地啟動進度條重算績效，絕不跳到其他視窗！
           watch(true);
           poll();
         }
         return;
       }
-      var row = rows[k++];
-      var i = Number(row.dataset.i), x = items[i];
-      var cost = row.querySelector('.h-cost').value.trim();
-      var note = row.querySelector('.h-note').value.trim();
-      if (cost && !(Number(cost.replace(/[,，\s]/g, '')) > 0)) {
-        bad++;
-        next();
-        return;
-      }
-      if (topBtn) { topBtn.textContent = '儲存中 ' + k + '／' + rows.length; }
-      if (barBtn) { barBtn.textContent = '儲存中 ' + k + '／' + rows.length; }
+      var wrap = wraps[k++];
+      var i = Number(wrap.dataset.i);
+      if (topBtn) { topBtn.textContent = '儲存中 ' + k + '／' + wraps.length; }
+      if (barBtn) { barBtn.textContent = '儲存中 ' + k + '／' + wraps.length; }
 
-      google.script.run
-        .withSuccessHandler(function (r) {
-          if (r && r.ok) {
-            ok++;
-            row.classList.remove('dirty');
-            if (row.querySelector('.hc-val')) {
-              row.querySelector('.hc-val').textContent = cost ? Number(cost.replace(/[,，\s]/g, '')).toLocaleString('zh-TW', { maximumFractionDigits: 2 }) : '—';
-            }
-            if (row.querySelector('.hc-src') && note) {
-              row.querySelector('.hc-src').textContent = note;
-            }
-          } else {
-            bad++;
-          }
-          next();
-        })
-        .withFailureHandler(function () {
-          bad++;
-          next();
-        })
-        .apiAdminSetHoldingCost(KEY, x.code, x.roundStart, cost, note);
+      saveRow(wrap, i, function (good) {
+        if (good) { ok++; } else { bad++; }
+        next();
+      });
     })();
   }
 

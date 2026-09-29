@@ -238,12 +238,13 @@ html[data-view="mobile"] .market-card:first-child .market-card-info { flex:none;
     var span=Math.max(300000,end-start),lastPoint=null;
     var X=function(ms){return 8+(ms-start)/span*484;},Y=function(v){return 140-(v-lo)/(hi-lo)*128;};
     /* 每一段依它在平盤上方或下方上色（v54，Codex 規格 94、95）：上紅、下綠、貼著平盤用中性色；
-       跨過平盤的那一段在交點切開——交點只是作圖用的幾何點，不是成交資料。缺口（相隔超過 15 分鐘）不連線。 */
+       跨過平盤的那一段在交點切開——交點只是作圖用的幾何點，不是成交資料。
+       同盤次內取樣點位保持連續連線，平滑呈現當日行情，不因取樣間隔中斷折線。 */
     var segs={up:'',down:'',flat:''};
     var put=function(cls,x1,y1,x2,y2){segs[cls]+='M'+x1.toFixed(1)+','+y1.toFixed(1)+'L'+x2.toFixed(1)+','+y2.toFixed(1)+' ';};
     parsed.forEach(function(r,i){
       lastPoint={x:X(r.ms),y:Y(r.value),v:r.value};
-      if(i===0||r.ms-parsed[i-1].ms>15*60000){return;}
+      if(i===0){return;}
       var a=parsed[i-1],xa=X(a.ms),ya=Y(a.value),xb=X(r.ms),yb=Y(r.value);
       if(!baseKnown){put('flat',xa,ya,xb,yb);return;}
       var da=a.value-basePrice,db=r.value-basePrice;
@@ -251,11 +252,12 @@ html[data-view="mobile"] .market-card:first-child .market-card-info { flex:none;
       var t=da/(da-db),xc=xa+(xb-xa)*t,yc=Y(basePrice);
       put(da>0?'up':'down',xa,ya,xc,yc);put(db>0?'up':'down',xc,yc,xb,yb);
     });
-    // 只有一個點或全是孤立點時，至少把點畫出來
-    var dots=parsed.filter(function(r,i){var p=parsed[i-1],n=parsed[i+1];
-      return (!p||r.ms-p.ms>15*60000)&&(!n||n.ms-r.ms>15*60000);}).map(function(r){
-      var c=!baseKnown?'var(--muted)':r.value>basePrice?'var(--rise)':r.value<basePrice?'var(--fall)':'var(--muted)';
-      return '<circle cx="'+X(r.ms).toFixed(1)+'" cy="'+Y(r.value).toFixed(1)+'" r="1.8" fill="'+c+'"/>';}).join('');
+    // 只有一個點時，至少把點畫出來（兩筆以上已有完整折線）
+    var dots=parsed.length===1?
+      (function(r){
+        var c=!baseKnown?'var(--muted)':r.value>basePrice?'var(--rise)':r.value<basePrice?'var(--fall)':'var(--muted)';
+        return '<circle cx="'+X(r.ms).toFixed(1)+'" cy="'+Y(r.value).toFixed(1)+'" r="2" fill="'+c+'"/>';
+      })(parsed[0]):'';
     var yBase=baseKnown?Y(basePrice):null;
     var color=!baseKnown?'var(--muted)':lastPoint.v>basePrice?'var(--rise)':lastPoint.v<basePrice?'var(--fall)':'var(--muted)';
     var hm=function(ms){return new Date(ms+28800000).toISOString().slice(11,16);};

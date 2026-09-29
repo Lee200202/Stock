@@ -298,12 +298,12 @@
         window.marketRollingBounds(card.key,points.map(function(p){return (p.time-28800)*1000;}),{start:card.windowStart,end:card.windowEnd});
       var plotPoints=points;
       if(bounds){
-        var bySlot=new Map();points.forEach(function(p){bySlot.set(Math.floor(p.time/300)*300,p);});
-        plotPoints=[];
-        for(var t=bounds.start/1000+28800;t<=bounds.end/1000+28800;t+=300){
-          var actual=bySlot.get(t);plotPoints.push(actual?{time:t,value:actual.value,volume:actual.volume}:{time:t});
+        plotPoints=points.slice();
+        var lastSec=points.length?points[points.length-1].time:0;
+        var endSec=Math.floor(bounds.end/1000)+28800;
+        for(var t=Math.max(lastSec+300,Math.floor(bounds.start/1000)+28800);t<=endSec;t+=300){
+          plotPoints.push({time:t});
         }
-        points=plotPoints.filter(function(p){return p.value!=null;});
         txt('priceTitle',(bounds.rolling?bounds.title+' · ':'')+bounds.startLabel+' — '+bounds.endLabel+' · 台北時間');
       }
       var main=pane('priceChart',plotPoints,'baseline');

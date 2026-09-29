@@ -412,6 +412,9 @@ function everyFiveMinJobRun_() {
   }
   if (hhmm >= 800 && hhmm < 900) { safe_('modelCatalogMonthlyTick_', modelCatalogMonthlyTick_); }
 
+  // 行情快照耗時極短（<1秒），優先執行以確保盤中每五分鐘穩定採樣，不被後續長時工作阻斷（v84）
+  safe_('marketSnapshotJob', marketSnapshotJob);
+
   // 先守住取稿、待寄郵件與簡訊補抓，不能被行情工作耗盡六分鐘額度。
   safe_('transcriptAutomationTick_', transcriptAutomationTick_);
   // 郵件查詢的待同步內容先落地；行情／K線更新可能耗盡本輪六分鐘。
@@ -430,7 +433,6 @@ function everyFiveMinJobRun_() {
   if (weekday && hhmm >= 1230 && hhmm <= 1800 && dueEvery_('statusReport', 15)) {
     safe_('statusReportJob', statusReportJob);
   }
-  safe_('marketSnapshotJob', marketSnapshotJob);
   // GitHub 的盤後排程可能延後或整次缺席；今日產業比重仍未落地時，每 15 分鐘獨立向證交所補抓。
   if (weekday && hhmm >= 1530 && hhmm <= 2200 && dueEvery_('sectorCatchup', 15)) {
     safe_('sectorCatchupJob', sectorCatchupJob);

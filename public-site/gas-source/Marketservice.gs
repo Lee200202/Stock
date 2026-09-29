@@ -594,7 +594,7 @@ function buildTxActualLine_(quote) {
     });
   };
   var lock = LockService.getScriptLock();
-  if (!lock.tryLock(500)) return readLine();
+  if (!lock.tryLock(3000)) return readLine();
   try {
     var key = prefix + segment, rows;
     try { rows = JSON.parse(store.getProperty(key) || '[]'); } catch (e) { rows = []; }

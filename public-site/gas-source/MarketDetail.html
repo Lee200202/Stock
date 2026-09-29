@@ -14,7 +14,7 @@
 #marketOverlay h2{font-size:calc(16px * var(--rd-fs, 1));margin:0;font-weight:600}
 #marketOverlay p{margin:8px 0}
 #marketOverlay .muted{color:var(--dim);font-size:calc(14px * var(--rd-fs, 1))}
-#marketOverlay .tools,#marketOverlay .metrics{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
+#marketOverlay .tools{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
 #marketOverlay a,#marketOverlay button{color:var(--ink);background:var(--panel);border:1px solid var(--line);padding:8px 18px;border-radius:999px;text-decoration:none;font:inherit;font-size:calc(13.5px * var(--rd-fs, 1));min-height:40px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .18s ease}
 #marketOverlay button:disabled{opacity:.35;cursor:not-allowed;transform:none!important}
 #marketOverlay button:hover:not(:disabled){background:var(--hover);border-color:var(--dim);transform:translateY(-1px)}
@@ -22,11 +22,13 @@
 #marketOverlay button:focus-visible,#marketOverlay a:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 #marketOverlay .tools{margin:16px 0;gap:8px}
 #marketOverlay .tools span.tools-label{color:var(--dim);font-size:calc(13px * var(--rd-fs, 1));margin-right:4px;font-weight:500}
-#marketOverlay .metrics{justify-content:flex-start;gap:12px 20px;padding:16px 20px;border:1px solid var(--line);border-radius:18px;background:var(--panel);margin:16px 0}
-#marketOverlay .metrics{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));align-items:start}
-#marketOverlay .metric{min-width:0}
-#marketOverlay .metric small{display:block;color:var(--dim);font-size:calc(12px * var(--rd-fs, 1));margin-bottom:2px;white-space:nowrap}
-#marketOverlay .metric b{font-variant-numeric:tabular-nums;font-size:calc(17px * var(--rd-fs, 1));word-break:break-word}
+#marketOverlay .metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:12px 14px;padding:16px 20px;border:1px solid var(--line);border-radius:20px;background:var(--panel);margin:16px 0;align-items:stretch}
+#marketOverlay .metrics[data-cols="auto"]{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+#marketOverlay .metric{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:10px 14px;border:1px solid var(--line);border-radius:999px;background:color-mix(in srgb, var(--ink) 2.5%, var(--panel));box-shadow:0 1px 3px rgba(0,0,0,.02);min-width:0;min-height:62px;box-sizing:border-box;transition:all .18s ease}
+#marketOverlay .metric:hover{border-color:var(--dim);background:color-mix(in srgb, var(--ink) 4.5%, var(--panel));transform:translateY(-1px)}
+#marketOverlay .metric small{display:block;color:var(--dim);font-size:calc(12px * var(--rd-fs, 1));font-weight:500;line-height:1.2;margin-bottom:3px;white-space:nowrap}
+#marketOverlay .metric b{display:block;font-variant-numeric:tabular-nums;font-size:calc(15.5px * var(--rd-fs, 1));font-weight:700;color:var(--ink);line-height:1.2;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+#marketOverlay .metric b.metric-long{font-size:calc(13px * var(--rd-fs, 1));letter-spacing:-0.02em}
 #marketOverlay .pane{margin:18px 0;border:1px solid var(--line);border-radius:18px;padding:18px;background:var(--panel);min-width:0;overflow:hidden}
 #marketOverlay .pane-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;min-height:36px;margin-bottom:8px}
 #marketOverlay .chart{height:460px;width:100%}
@@ -45,6 +47,12 @@
 
 #marketOverlay .tag{color:var(--gold);font-size:calc(12px * var(--rd-fs, 1));letter-spacing:.05em}
 #marketOverlay #status{min-height:24px}
+@media(max-width:768px){
+  #marketOverlay .metrics{grid-template-columns:repeat(2,1fr);gap:10px;padding:12px}
+  #marketOverlay .metric{padding:8px 10px;min-height:54px}
+  #marketOverlay .metric b{font-size:calc(14.5px * var(--rd-fs, 1))}
+  #marketOverlay .metric b.metric-long{font-size:calc(12px * var(--rd-fs, 1))}
+}
 @media(max-width:640px){
   #marketOverlay main{padding:16px 12px}
   #marketOverlay h1{font-size:calc(22px * var(--rd-fs, 1))}
@@ -53,8 +61,6 @@
   #marketOverlay .small-chart{height:170px}
   #marketOverlay .tools{gap:6px}
   #marketOverlay .tools button{padding:6px 12px;font-size:calc(13px * var(--rd-fs, 1))}
-  #marketOverlay .metrics{padding:14px;gap:12px}
-  #marketOverlay .metric b{font-size:calc(18px * var(--rd-fs, 1))}
 }
 @media(prefers-reduced-motion:reduce){#marketOverlay *{scroll-behavior:auto!important}}
 /* v67：週期膠囊分段（與個股面板共用 .seg）＋其餘單選改文字分段；蓋掉本頁「每顆按鈕都是膠囊」的通用樣式 */
@@ -607,11 +613,15 @@
       if(card.estimatedTurnover){metrics.push(['線性預估金額',num(card.estimatedTurnover/1e8)+' 億']);}
     }
 
+    el('metrics').dataset.cols = (card.key === 'taiex') ? '5' : 'auto';
     el('metrics').replaceChildren();
     metrics.forEach(function(pair){
       var box=document.createElement('div');box.className='metric';
       var small=document.createElement('small'),b=document.createElement('b');
       small.textContent=pair[0];b.textContent=pair[1];
+      if(String(pair[1]||'').length > 13){
+        b.className='metric-long';
+      }
       box.append(small,b);el('metrics').append(box);
     });
 

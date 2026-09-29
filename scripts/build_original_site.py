@@ -73,7 +73,7 @@ def build(output: Path, api_url: str) -> None:
     if count != 1:
         raise ValueError("Body tag missing in Index")
     (output / "index.html").write_text(page, encoding="utf-8")
-    for template, filename in (("Admin", "admin.html"), ("AdminLegacy", "admin-legacy.html"), ("Unsubscribed", "unsubscribe.html")):
+    for template, filename in (("Admin", "admin.html"), ("Admin", "admin-legacy.html"), ("Unsubscribed", "unsubscribe.html")):
         content = render(SOURCE / f"{template}.html", values)
         if "<?" in content:
             raise ValueError(f"Unexpanded Apps Script template tag in {template}")

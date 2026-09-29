@@ -4044,4 +4044,18 @@ html[data-view="mobile"] .line-join-grid { grid-template-columns: 1fr; }
 html[data-view="mobile"] .line-join-qr { display: none; }
 html[data-view="mobile"] a.act.line-join-btn { width: 100%; }
 /* ====== v54 樣式層結束 ====== */
+/* 每日表格名稱與代號併欄；會員簡訊的獨立表格維持原結構。 */
+.tbl-daily.tbl-merged col.c-name { width: calc(150px * var(--rd-fs)); }
+.tbl-daily.tbl-merged .daily-stock { display:flex; flex-direction:column; align-items:flex-start; min-width:0; }
+.tbl-daily.tbl-merged .daily-stock-code { display:block; color:var(--muted); font-size:calc(12.5px * var(--rd-fs)); font-weight:400; line-height:1.45; white-space:nowrap; }
+@media (max-width:899px) {
+  .card.scrollx table.tbl-daily.tbl-merged tr { grid-template-areas:"name px chg" "note note note" "reason reason reason"; }
+  .card.scrollx table.tbl-daily.tbl-merged.tbl-simple tr { grid-template-areas:"name px chg" "reason reason reason"; }
+}
+html[data-view="mobile"] .card.scrollx table.tbl-daily.tbl-merged tr,
+html[data-fs="l"] .card.scrollx table.tbl-daily.tbl-merged tr,
+html[data-fs="x"] .card.scrollx table.tbl-daily.tbl-merged tr { grid-template-areas:"name px chg" "note note note" "reason reason reason"; }
+html[data-view="mobile"] .card.scrollx table.tbl-daily.tbl-merged.tbl-simple tr,
+html[data-fs="l"] .card.scrollx table.tbl-daily.tbl-merged.tbl-simple tr,
+html[data-fs="x"] .card.scrollx table.tbl-daily.tbl-merged.tbl-simple tr { grid-template-areas:"name px chg" "reason reason reason"; }
 </style>

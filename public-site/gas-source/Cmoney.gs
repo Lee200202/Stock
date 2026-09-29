@@ -3055,9 +3055,14 @@ function cmContentSyncPending_(date){
 }
 function cmSyncContentTick_(){
   if(Date.now()-dkExecStart_(Date.now())>120000){return;}
+  // 多數五分鐘輪次根本沒有待同步簡訊。先只讀三欄佇列，避免每次都讀整張每日文章。
+  var pendingSh=getSheet_('簡訊內容同步'),last=pendingSh.getLastRow();
+  if(last<2){return;}
+  var pending=pendingSh.getRange(2,1,last-1,3).getDisplayValues().some(function(r){return r[0]&&r[2]!=='完成';});
+  if(!pending){return;}
   var lock=LockService.getScriptLock();if(!lock.tryLock(500)){return;}
   try{
-    var sh=getSheet_('簡訊內容同步'),rows=sh.getDataRange().getDisplayValues();
+    var sh=pendingSh,rows=sh.getDataRange().getDisplayValues();
     var available={};getSheet_('每日推播內容').getDataRange().getValues().slice(1).forEach(function(r){if(r[1]){available[fmtDate_(r[0])]=true;}});
     for(var i=rows.length-1;i>0;i--){
       var r=rows[i];if(r[2]==='完成'||!r[0]){continue;}

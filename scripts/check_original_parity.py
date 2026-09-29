@@ -29,7 +29,7 @@ def main() -> None:
     public = invoked("Index.html", "JavaScript.html", "Market.html",
                      "MarketDetail.html", "MarketCharts.html", "Tech.html",
                      "Settings.html", "Unsubscribed.html")
-    admin = invoked("Admin.html", "AdminLegacy.html")
+    admin = invoked("Admin.html")
     for name in public:
         if f"{name}: {name}" not in GAS or f"'{name}'" not in WORKER:
             raise SystemExit(f"Missing public bridge method: {name}")

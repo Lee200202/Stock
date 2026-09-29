@@ -666,6 +666,10 @@ details.dz-card[open] > summary { margin-bottom: 10px; }
   border-radius: 10px; font: inherit; font-size: max(16px, calc(14px * var(--rd-fs))); }
 .he-form button { min-height: 46px; }
 .hrow.editing { background: color-mix(in srgb, var(--wait) 6%, transparent); }
+.hrow.dirty { box-shadow: inset 4px 0 var(--wait); background: color-mix(in srgb, var(--wait) 10%, var(--panel)); }
+.he-form .changed { border-color: var(--wait); background: color-mix(in srgb, var(--wait) 10%, var(--panel)); }
+.hrow .h-dirty { color: var(--wait); font-size: calc(12px * var(--rd-fs)); font-weight: 700; }
+.hrow .hn, .hrow .hd, .hrow .hc { cursor: pointer; }
 .hhead .he-h { text-align: right; }
 @media (max-width: 720px) {
   .he-form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
@@ -692,8 +696,6 @@ html[data-view="mobile"] .he-form .h-cost { grid-column: 1 / -1; }
 .kcov-h { background: var(--panel-2); color: var(--muted); font-weight: 600; font-size: calc(12px * var(--rd-fs)); }
 .kcov-row span { min-width: 0; overflow-wrap: anywhere; }
 .kcov-row small { display: block; color: var(--muted); font-size: calc(11.5px * var(--rd-fs)); }
-.legacy-link { margin: 26px 0 40px; text-align: center; font-size: calc(12.5px * var(--rd-fs)); color: var(--muted); }
-.legacy-link a { color: var(--beam); }
 
 /* ---------- 手機（I7）：窄螢幕與「版面設定＝手機」兩份 ---------- */
 @media (max-width: 720px) {
@@ -824,9 +826,15 @@ html[data-view="mobile"] .audit-legend { flex-basis:100%; }
 .ops-mail-setting { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:24px; margin-bottom:24px; }
 .ops-mail-setting h3 { margin-bottom:7px; }
 .ops-mail-setting .ops-time-actions { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
-.ops-mail-setting input[type="time"] { box-sizing:border-box; width:150px; min-height:48px; padding:10px 14px; background:var(--panel); color:var(--ink); border:1px solid var(--rule); border-radius:13px; font-family:inherit; font-size:17px; font-weight:600; font-variant-numeric:tabular-nums; color-scheme:dark; }
-.ops-mail-setting input[type="time"]:focus-visible { outline:2px solid var(--beam); outline-offset:2px; }
-.ops-mail-setting input[type="time"]::-webkit-calendar-picker-indicator { filter:invert(.8); cursor:pointer; }
+.ops-time-picker { position:relative; }
+.ops-time-picker .ops-time-toggle { min-width:130px; font-variant-numeric:tabular-nums; }
+.ops-time-panel { position:absolute; top:calc(100% + 8px); left:0; z-index:30; width:min(330px, calc(100vw - 60px)); padding:14px; border:1px solid var(--rule); border-radius:16px; background:var(--panel); box-shadow:0 16px 42px rgba(0,0,0,.22); }
+.ops-time-panel[hidden] { display:none; }
+.ops-time-panel b { display:block; font-size:calc(12px * var(--rd-fs)); margin:8px 0; }
+.ops-time-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:5px; }
+.ops-time-grid button { min-height:40px; padding:5px; border-radius:10px; font-variant-numeric:tabular-nums; }
+.ops-time-grid button[aria-pressed="true"] { background:var(--beam); color:var(--panel); border-color:var(--beam); }
+.ops-time-panel p { margin:10px 0 0; }
 .ops-mail-setting .ops-preset { display:flex; gap:6px; flex-wrap:wrap; }
 .ops-mail-setting .ops-preset button { min-height:36px; padding:6px 10px; border-radius:999px; font-variant-numeric:tabular-nums; }
 .ops-mail-setting #opsSaveStatus { grid-column:1/-1; margin:0; }
@@ -852,12 +860,15 @@ html[data-view="mobile"] .ops-grid,html[data-view="mobile"] .ops-mail-setting { 
 /* 帳號選單（v69）：右上角、設定齒輪左邊，外觀與旁邊兩顆 .tbtn 相同 */
 .acct-menu { position: relative; }
 .acct-menu[hidden] { display: none; }
-.acct-menu > summary { list-style: none; }
-.acct-menu > summary::-webkit-details-marker { display: none; }
-.acct-menu[open] > summary { color: var(--ink); border-color: var(--ink); }
+.acct-toggle.tbtn { width:auto; padding:0 13px; gap:7px; border-radius:999px; }
+.acct-toggle span { font-size:calc(12px * var(--rd-fs)); font-weight:600; }
+.acct-toggle[aria-expanded="true"] { color:var(--ink); border-color:var(--beam); }
 .acct-pop { position: absolute; right: 0; top: calc(100% + 8px); z-index: 60; display: flex; flex-direction: column; gap: 4px; min-width: 176px;
   padding: 6px; border: 1px solid var(--rule); border-radius: 12px; background: var(--panel); box-shadow: 0 8px 24px rgba(0, 0, 0, .14); }
+.acct-pop[hidden] { display:none; }
+.acct-pop p { margin:4px 8px 6px; color:var(--muted); font-size:calc(12px * var(--rd-fs)); }
 .acct-pop button { width: 100%; justify-content: flex-start; text-align: left; border: 0 !important; min-height: 40px; border-radius: 8px !important; }
+@media(max-width:480px) { .acct-toggle span { display:none; } .acct-toggle.tbtn { width:44px; padding:0; justify-content:center; } }
 /* 今日狀態前三格：固定同一列（A5） */
 #stat.astat { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 @media (max-width: 420px) { #stat.astat { grid-template-columns: 1fr; } }
@@ -1010,13 +1021,14 @@ html[data-view="mobile"] .line-copy { grid-template-columns:1fr; }
            深淺色與手機／電腦切換原本是頂列上另外兩顆，現在都收進齒輪裡。
            那兩顆當初是前後台各抄一份的，抄兩份的東西遲早會長歪。 -->
       <!-- 帳號（v69，管理者：帳號圖示移到右上角、設定齒輪左邊）：登入後才出現；忘記這台裝置／登出收在選單裡 -->
-      <details class="acct-menu" id="acctMenu" hidden>
-        <summary class="tbtn" aria-label="帳號選單" title="帳號"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg></summary>
-        <div class="acct-pop" role="menu">
-          <button type="button" class="ghost" id="forgetBtn" role="menuitem">忘記這台裝置</button>
-          <button type="button" class="ghost" id="logoutBtn" role="menuitem">登出</button>
+      <div class="acct-menu" id="acctMenu" hidden>
+        <button type="button" class="tbtn acct-toggle" id="acctToggle" aria-label="開啟帳號選單" aria-expanded="false" aria-controls="acctPop" title="帳號"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg><span>帳號</span></button>
+        <div class="acct-pop" id="acctPop" hidden>
+          <p>管理者帳號</p>
+          <button type="button" class="ghost" id="forgetBtn">忘記這台裝置</button>
+          <button type="button" class="ghost" id="logoutBtn">登出後台</button>
         </div>
-      </details>
+      </div>
       <?!= include('Settings'); ?>
     </div>
   </div>
@@ -1371,7 +1383,7 @@ html[data-view="mobile"] .line-copy { grid-template-columns:1fr; }
           <h2>現有持股：核對來源與修正</h2>
           <button type="button" class="ghost sm" id="heldLoadBtn">重新讀取清單</button>
         </div>
-        <p class="hint">股票名稱、代號、方向與說明要改原始紀錄：按該列的<b>修正來源</b>會直接打開回合開始日，儲存後自動同步郵件、追蹤與績效。成本可在這裡單獨修正，儲存後自動重算追蹤與績效。現價取行情、報酬由成本計算，不直接手填，以免畫面與正式行情矛盾。回合開始日取原始買入或持股紀錄；日期錯誤請在逐日編輯刪除原列，於正確日期補登。</p>
+        <p class="hint">連點兩下<b>成本</b>可直接修改；變更會標色，按儲存後自動重算追蹤與績效。連點兩下<b>股票或回合日期</b>會打開來源紀錄，修正並儲存後同步郵件與追蹤。手機可用同列按鈕。現價來自行情、報酬由成本計算；日期若錯，須在逐日編輯更正原始紀錄，不能只改畫面。</p>
         <div class="amsg" id="heldMsg"></div>
         <div id="heldList" class="held-list"><div class="erow-empty">切到這一頁時讀取。</div></div>
         <div id="heldProg" style="display:none;margin-top:14px">
@@ -1737,7 +1749,7 @@ html[data-view="mobile"] .line-copy { grid-template-columns:1fr; }
         <div class="ops-head"><div><h2>自動化監控</h2><p>取稿、判讀、寄信與資料更新的今日進度。每分鐘自動檢查。</p></div><button class="ghost" id="opsRefresh" type="button">立即檢查</button></div>
         <p id="opsStatus" class="ops-note" role="status" aria-live="polite">開啟分頁後載入。</p>
         <div id="opsCards" class="ops-grid"></div>
-        <div class="ops-card ops-mail-setting"><div><h3>今日整理信最早寄送時間</h3><p>預設 12:00。文章與品質關卡完成後才寄；這是起始時間，實際寄送以帳本紀錄為準。</p></div><div class="ops-time-actions"><input id="opsMailTime" type="time" min="12:00" max="21:55" step="300" aria-label="今日整理信最早寄送時間"><div class="ops-preset" aria-label="常用時間"><button type="button" class="ghost" data-ops-time="12:00">12:00</button><button type="button" class="ghost" data-ops-time="15:00">15:00</button><button type="button" class="ghost" data-ops-time="18:00">18:00</button></div><button id="opsSaveMailTime" type="button">儲存今日時間</button></div><p id="opsSaveStatus" role="status" aria-live="polite"></p></div>
+        <div class="ops-card ops-mail-setting"><div><h3>今日整理信最早寄送時間</h3><p>預設 12:00。文章與品質關卡完成後才寄；這是起始時間，實際寄送以帳本紀錄為準。</p></div><div class="ops-time-actions"><div class="ops-time-picker" id="opsTimePicker"><input id="opsMailTime" type="hidden" value="12:00"><button id="opsTimeToggle" class="ghost ops-time-toggle" type="button" aria-expanded="false" aria-controls="opsTimePanel">12:00 ▾</button><div id="opsTimePanel" class="ops-time-panel" hidden><b>小時</b><div id="opsHourGrid" class="ops-time-grid"></div><b>分鐘（每五分鐘）</b><div id="opsMinuteGrid" class="ops-time-grid"></div><p class="hint">選好後按「儲存今日時間」才會生效。</p></div></div><div class="ops-preset" aria-label="常用時間"><button type="button" class="ghost" data-ops-time="12:00">12:00</button><button type="button" class="ghost" data-ops-time="15:00">15:00</button><button type="button" class="ghost" data-ops-time="18:00">18:00</button></div><button id="opsSaveMailTime" type="button">儲存今日時間</button></div><p id="opsSaveStatus" role="status" aria-live="polite"></p></div>
         <h3 class="ops-section-title">今日郵件與資料時間線</h3><div id="opsFlow" class="ops-flow"></div>
         <div class="ops-events-head"><h3 class="ops-section-title">執行紀錄</h3>
           <label class="ops-day"><span>日期</span><select id="opsDay" aria-label="要看哪一天的執行紀錄"><option value="">今天</option></select></label></div>
@@ -1798,8 +1810,6 @@ html[data-view="mobile"] .line-copy { grid-template-columns:1fr; }
         <?!= include('Changelog'); ?>
       </div>
     </section>
-
-    <p class="legacy-link">要對照改版前的後台：<a href="<?= webAppUrl ?>?page=admin-legacy" target="_top">舊版後台</a>（只供對照，功能與這一版共用同一組後端）。</p>
 
    </div>
   </div>
@@ -2637,7 +2647,21 @@ $('cancelBtn').addEventListener('click', function(){
 
 $('forgetBtn').addEventListener('click', function(){
   clearKey();
+  $('acctPop').hidden = true;
+  $('acctToggle').setAttribute('aria-expanded', 'false');
   alert('已清除這台裝置記住的密鑰。下次進來要重新輸入。');
+});
+
+$('acctToggle').addEventListener('click', function(){
+  var open = $('acctPop').hidden;
+  $('acctPop').hidden = !open;
+  this.setAttribute('aria-expanded', String(open));
+});
+document.addEventListener('click', function(ev){
+  if (!$('acctMenu').contains(ev.target)) { $('acctPop').hidden = true; $('acctToggle').setAttribute('aria-expanded','false'); }
+});
+document.addEventListener('keydown', function(ev){
+  if (ev.key === 'Escape' && !$('acctPop').hidden) { $('acctPop').hidden = true; $('acctToggle').setAttribute('aria-expanded','false'); $('acctToggle').focus(); }
 });
 
 $('logoutBtn').addEventListener('click', function(){
@@ -2647,7 +2671,7 @@ $('logoutBtn').addEventListener('click', function(){
   if(smsTimer){ clearInterval(smsTimer); smsTimer = null; }
   KEY = '';
   $('app').style.display = 'none';
-  if ($('acctMenu')) { $('acctMenu').hidden = true; $('acctMenu').open = false; }
+  if ($('acctMenu')) { $('acctMenu').hidden = true; $('acctPop').hidden = true; $('acctToggle').setAttribute('aria-expanded','false'); }
   $('loginWrap').style.display = 'block';
   $('key').value = loadKey();
 });
@@ -4399,6 +4423,30 @@ var mergeTxFingerprint='';
 /* 監控頁只在可見時輪詢；舊回應不可覆蓋新資料。 */
 (function () {
   var serial = 0, busy = false, lastAt = 0;
+  var timeDirty = false;
+  function setOpsTime(value, dirty) {
+    if (!/^\d\d:\d\d$/.test(value)) { return; }
+    $('opsMailTime').value = value;
+    $('opsTimeToggle').textContent = value + ' ▾';
+    if (dirty) { timeDirty = true; }
+    var parts = value.split(':');
+    $('opsHourGrid').querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.hour === parts[0])); });
+    $('opsMinuteGrid').querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.minute === parts[1])); });
+  }
+  function closeOpsTime() { $('opsTimePanel').hidden = true; $('opsTimeToggle').setAttribute('aria-expanded', 'false'); }
+  function buildOpsTime() {
+    var hours = [], mins = [];
+    for (var h = 12; h <= 21; h++) { hours.push('<button type="button" class="ghost" data-hour="' + h + '">' + h + '</button>'); }
+    for (var m = 0; m < 60; m += 5) { var mm = String(m).padStart(2, '0'); mins.push('<button type="button" class="ghost" data-minute="' + mm + '">' + mm + '</button>'); }
+    $('opsHourGrid').innerHTML = hours.join(''); $('opsMinuteGrid').innerHTML = mins.join('');
+    $('opsHourGrid').addEventListener('click', function (e) { var b = e.target.closest('[data-hour]'); if (b) { setOpsTime(b.dataset.hour + ':' + $('opsMailTime').value.slice(3), true); } });
+    $('opsMinuteGrid').addEventListener('click', function (e) { var b = e.target.closest('[data-minute]'); if (b) { setOpsTime($('opsMailTime').value.slice(0, 2) + ':' + b.dataset.minute, true); closeOpsTime(); $('opsTimeToggle').focus(); } });
+    setOpsTime('12:00', false);
+  }
+  buildOpsTime();
+  $('opsTimeToggle').addEventListener('click', function () { var opening = $('opsTimePanel').hidden; $('opsTimePanel').hidden = !opening; this.setAttribute('aria-expanded', String(opening)); });
+  document.addEventListener('click', function (e) { if (!$('opsTimePicker').contains(e.target)) { closeOpsTime(); } });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('opsTimePanel').hidden) { closeOpsTime(); $('opsTimeToggle').focus(); } });
   function card(title, value, detail, tone, actionHtml) {
     return '<article class="ops-card" data-tone="' + esc(tone || 'idle') + '"><h3>' + esc(title) + '</h3><strong>' + esc(value) + '</strong><p>' + esc(detail || '') + '</p>' + (actionHtml || '') + '</article>';
   }
@@ -4424,13 +4472,15 @@ var mergeTxFingerprint='';
       (need.limit ? '；今天額度約 ' + need.limit + ' 位（已用 ' + (need.usedToday || 0) + '）。' : '。') +
       (need.tone === 'err' ? '超過額度，會有人收不到：訂閱者多於約 30 位時改用 Google Workspace 帳號（每天 1,500 位）或交易型郵件服務。' :
        need.tone === 'warn' ? '已超過額度 80%，留意訂閱人數。' : '');
-    var rtTitle = rt && rt.recorded ? '約 ' + rt.minutes + '／' + rt.limit + ' 分' : '尚無紀錄';
+    var rtTitle = rt && rt.recorded ? '約 ' + rt.minutes + ' 分' : '尚無紀錄';
     var rtDetail = rt && rt.recorded ? rt.handlers.slice(0, 3).map(function (h) { return h.name + ' ' + h.min + ' 分（' + h.runs + ' 次）'; }).join('；') +
-      '。只算觸發器叫起來的執行；兩支同時結束可能少記一筆。' : '部署 v67 後，每支觸發器結束時累加耗時；一般帳號一天約 90 分鐘上限。';
-    var rtTone = !(rt && rt.recorded) ? 'idle' : rt.minutes > rt.limit ? 'err' : rt.minutes > 70 ? 'warn' : 'ok';
+      '。' + ((rt.handlers[0] && rt.handlers[0].stages && rt.handlers[0].stages.length) ? '主排程最耗時：' + rt.handlers[0].stages.map(function(s){return s.name+' '+s.min+' 分';}).join('、') + '。' : '') +
+      '本站按台北日期估算，與 Google 的 24 小時配額窗口不同；個人帳號參考 90 分、Workspace 360 分，請在 Apps Script「執行項目」核對實際配額錯誤。' :
+      '觸發器結束時累加耗時；個人帳號參考 90 分、Workspace 360 分。';
+    var rtTone = !(rt && rt.recorded) ? 'idle' : rt.minutes > 90 ? 'warn' : 'ok';
     var smsTitle = smsMail.accepted ? '已交郵件服務' : o.smsCount ? '有簡訊，待核寄送' : '今天尚無新簡訊';
     $('opsStatus').textContent = (alerts.length ? '需留意：' + alerts.join('；') : '目前沒有偵測到流程異常。') + '　最後檢查：' + r.today + ' ' + r.now + '（台北時間）';
-    if (document.activeElement !== $('opsMailTime')) { $('opsMailTime').value = o.mailStart || '12:00'; }
+    if (!timeDirty) { setOpsTime(o.mailStart || '12:00', false); }
     var heartbeat = o.heartbeatAge == null ? '尚無啟動紀錄' : o.heartbeatAt + ' 啟動（' + o.heartbeatAge + ' 分鐘前）';
     $('opsCards').innerHTML =
       card('主排程', o.heartbeatAge == null ? '尚無啟動' : o.heartbeatAge + ' 分鐘前', heartbeat + '。' + ((o.missingTriggers || []).length ? '缺少：' + o.missingTriggers.join('、') : '必要觸發器已安裝。'), o.triggerError || (o.missingTriggers || []).length || (o.trading && o.heartbeatAge > 20) ? 'err' : 'ok') +
@@ -4541,7 +4591,7 @@ var mergeTxFingerprint='';
   window.__loadOps = load;
   $('opsRefresh').addEventListener('click', function () { load(true); });
   document.querySelectorAll('[data-ops-time]').forEach(function (btn) {
-    btn.addEventListener('click', function () { $('opsMailTime').value = btn.getAttribute('data-ops-time'); $('opsSaveStatus').textContent = '已選 ' + $('opsMailTime').value + '；按「儲存今日時間」才會生效。'; });
+    btn.addEventListener('click', function () { setOpsTime(btn.getAttribute('data-ops-time'), true); closeOpsTime(); $('opsSaveStatus').textContent = '已選 ' + $('opsMailTime').value + '；按「儲存今日時間」才會生效。'; });
   });
   $('opsSaveMailTime').addEventListener('click', function () {
     var time = $('opsMailTime').value, btn = this, auth = KEY;
@@ -4551,7 +4601,7 @@ var mergeTxFingerprint='';
       btn.disabled = false;
       if (auth !== KEY) { return; }
       $('opsSaveStatus').textContent = r && r.ok ? '已設定 ' + r.today + ' 最早 ' + r.time + ' 寄送；就緒後由下一次五分鐘排程執行。' : '儲存失敗：' + (r && r.reason ? r.reason : '沒有回應');
-      if (r && r.ok) { load(true); }
+      if (r && r.ok) { timeDirty = false; closeOpsTime(); load(true); }
     }).withFailureHandler(function (e) {
       btn.disabled = false;
       if (auth !== KEY) { return; }
@@ -4572,32 +4622,42 @@ var mergeTxFingerprint='';
       items.map(function (x, i) {
         var ret = (x.ret === null || x.ret === undefined) ? '—' : (x.ret > 0 ? '+' : '') + Number(x.ret).toFixed(2) + '%';
         return '<div class="hrow' + (x.override ? ' fixed' : '') + '" data-i="' + i + '">' +
-          '<span class="hn"><b>' + esc(x.name) + '</b><small>' + esc(x.code) + '</small>' + (x.override ? '<em>已修正</em>' : '') + '</span>' +
+          '<span class="hn" title="連點兩下可到來源紀錄修正"><b>' + esc(x.name) + '</b><small>' + esc(x.code) + '</small>' + (x.override ? '<em>已修正</em>' : '') + '</span>' +
           '<span class="hd" data-label="本回合開始">' + esc(x.roundStart) + '</span>' +
-          '<span class="hc" data-label="目前成本"><b>' + fmt(x.entry) + '</b><small title="' + esc(x.entrySrc) + '">' + esc(String(x.entrySrc || '').slice(0, 60)) + '</small></span>' +
+          '<span class="hc" data-label="目前成本" title="連點兩下修改成本"><b>' + fmt(x.entry) + '</b><small title="' + esc(x.entrySrc) + '">' + esc(String(x.entrySrc || '').slice(0, 60)) + '</small></span>' +
           '<span class="hp" data-label="現價／報酬">' + fmt(x.current) + '<small class="' + (x.ret > 0 ? 'up' : x.ret < 0 ? 'down' : '') + '">' + ret + '</small></span>' +
-          '<span class="he"><button type="button" class="ghost sm h-source" aria-label="修正 ' + esc(x.name) + ' 的來源紀錄">修正來源</button><button type="button" class="ghost sm h-edit" aria-expanded="false" aria-controls="hf' + i + '">' +
+          '<span class="he"><span class="h-dirty" hidden>未儲存變更</span><button type="button" class="ghost sm h-source" aria-label="修正 ' + esc(x.name) + ' 的來源紀錄">修正來源</button><button type="button" class="ghost sm h-edit" aria-expanded="false" aria-controls="hf' + i + '">' +
             (x.override ? '調整修正' : '修改成本') + '</button></span>' +
           /* 輸入欄平常收起來（v58）：清單先看得清楚，按了才在這一列下方展開一整行。 */
           '<div class="he-form" id="hf' + i + '" hidden>' +
-            '<input class="h-cost" inputmode="decimal" placeholder="新成本" value="' + (x.override ? esc(x.override.cost) : '') + '" aria-label="' + esc(x.name) + ' 新成本">' +
+            '<input class="h-cost" inputmode="decimal" placeholder="新成本" value="' + esc(x.override ? x.override.cost : (x.entry == null ? '' : x.entry)) + '" aria-label="' + esc(x.name) + ' 新成本">' +
             '<input class="h-note" placeholder="備註（選填）" value="' + (x.override ? esc(x.override.note || '') : '') + '" aria-label="備註">' +
-            '<button class="h-save">儲存</button>' +
+            '<button class="h-save" disabled>儲存</button>' +
             '<button type="button" class="ghost h-cancel">收起</button>' +
           '</div></div>';
       }).join('');
     $('heldList').querySelectorAll('.hrow[data-i]').forEach(function (row) {
       var form = row.querySelector('.he-form'), edit = row.querySelector('.h-edit');
+      var item = items[Number(row.dataset.i)], costInput = row.querySelector('.h-cost'), noteInput = row.querySelector('.h-note');
+      var originalCost = costInput.value.trim(), originalNote = noteInput.value.trim();
+      function markDirty() {
+        var costChanged = costInput.value.trim() !== originalCost, noteChanged = noteInput.value.trim() !== originalNote;
+        row.classList.toggle('dirty', costChanged || noteChanged);
+        costInput.classList.toggle('changed', costChanged);
+        noteInput.classList.toggle('changed', noteChanged);
+        row.querySelector('.h-dirty').hidden = !(costChanged || noteChanged);
+        row.querySelector('.h-save').disabled = !(costChanged || noteChanged);
+      }
       var toggle = function (open) {
         form.hidden = !open; row.classList.toggle('editing', open); edit.setAttribute('aria-expanded', String(open));
-        if (open) { row.querySelector('.h-cost').focus(); }
+        if (open) { costInput.focus(); }
       };
       edit.addEventListener('click', function () { toggle(form.hidden); });
-      row.querySelector('.h-source').addEventListener('click', function () {
-        var item = items[Number(row.dataset.i)];
-        window.__openHeldSource(item.roundStart, item.code);
-      });
-      row.querySelector('.h-cancel').addEventListener('click', function () { toggle(false); edit.focus(); });
+      row.querySelector('.hc').addEventListener('dblclick', function () { toggle(true); });
+      row.querySelector('.h-source').addEventListener('click', function () { window.__openHeldSource(item.roundStart, item.code); });
+      ['.hn', '.hd'].forEach(function (sel) { row.querySelector(sel).addEventListener('dblclick', function () { window.__openHeldSource(item.roundStart, item.code); }); });
+      costInput.addEventListener('input', markDirty); noteInput.addEventListener('input', markDirty);
+      row.querySelector('.h-cancel').addEventListener('click', function () { costInput.value = originalCost; noteInput.value = originalNote; markDirty(); toggle(false); edit.focus(); });
       row.querySelector('.h-save').addEventListener('click', function () { save(row, Number(row.dataset.i)); });
     });
   }

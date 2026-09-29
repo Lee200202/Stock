@@ -252,13 +252,22 @@ var DAY_MARK_KEY = 'dayMarks';
 
 /** 執行一件事，出錯只記錄不往外拋。 */
 function safe_(name, fn) {
+  var started = Date.now();
   try { fn(); }
   catch (e) { Logger.log('每五分鐘一棒：' + name + ' 失敗（不影響其他工作）：' + e); }
+  finally {
+    if (OPS_STAGE_SAMPLE_) {
+      var s = OPS_STAGE_SAMPLE_[name] || { ms: 0, n: 0 };
+      s.ms += Math.max(0, Date.now() - started); s.n++;
+      OPS_STAGE_SAMPLE_[name] = s;
+    }
+  }
 }
 
 /* 觸發器每日累計執行時間（v67，0925 規格 R2）。
 
-   一般帳號的觸發器一天總執行時間約 90 分鐘，超過後當天所有觸發器停擺，而且沒有任何畫面會講。
+   Google 公布的觸發器每日總執行時間：個人帳號 90 分、Workspace 360 分；
+   本卡是台北日期估算，Google 的配額以首次請求起算的 24 小時窗口重置，不得直接拿兩者當同一個餘額。
    cmoneyPollJob 每分鐘一次、everyFiveMinJob 與 marketSnapshotJob 各每五分鐘一次，再加下午的固定工作，
    一天下來累計多少過去只能去「執行項目」逐筆加總。
 
@@ -269,11 +278,13 @@ function safe_(name, fn) {
    skipOnClosed：休市日由觸發器叫起來就直接返回（R3）。手動執行、逐日編輯同步不受影響。 */
 var OPS_RUNTIME_PREFIX_ = 'OPS_RUNTIME_';
 var OPS_RUNTIME_LIMIT_MIN_ = 90;
+var OPS_STAGE_SAMPLE_ = null;
 
 function opsTimed_(name, body, args, skipOnClosed) {
   var ev = args && args.length ? args[0] : null;
   var byTrigger = !!(ev && typeof ev === 'object' && ev.triggerUid);
   var t0 = Date.now();
+  if (name === 'everyFiveMinJob') { OPS_STAGE_SAMPLE_ = {}; }
   try {
     if (byTrigger && skipOnClosed && typeof whyClosed_ === 'function') {
       var closed = whyClosed_(new Date());
@@ -284,11 +295,12 @@ function opsTimed_(name, body, args, skipOnClosed) {
     }
     return body.apply(null, Array.prototype.slice.call(args || []));
   } finally {
-    if (byTrigger) { opsRuntimeAdd_(name, Date.now() - t0); }
+    if (byTrigger) { opsRuntimeAdd_(name, Date.now() - t0, name === 'everyFiveMinJob' ? OPS_STAGE_SAMPLE_ : null); }
+    if (name === 'everyFiveMinJob') { OPS_STAGE_SAMPLE_ = null; }
   }
 }
 
-function opsRuntimeAdd_(name, ms) {
+function opsRuntimeAdd_(name, ms, stages) {
   try {
     var pr = PropertiesService.getScriptProperties();
     var now = new Date();
@@ -305,6 +317,12 @@ function opsRuntimeAdd_(name, ms) {
     try { o = JSON.parse(raw || '{}') || {}; } catch (e) { o = {}; }
     var r = o[name] || { ms: 0, n: 0, max: 0 };
     r.ms += Math.max(0, ms); r.n += 1; r.max = Math.max(r.max || 0, ms);
+    if (stages) {
+      r.stages = r.stages || {};
+      Object.keys(stages).forEach(function(k){
+        var v=r.stages[k]||{ms:0,n:0};v.ms+=stages[k].ms;v.n+=stages[k].n;r.stages[k]=v;
+      });
+    }
     o[name] = r;
     pr.setProperty(key, JSON.stringify(o));
   } catch (e) { Logger.log('觸發器耗時無法記錄（不影響工作本身）：' + e); }
@@ -317,9 +335,14 @@ function opsRuntimeFor_(dateStr) {
   try { o = JSON.parse(PropertiesService.getScriptProperties().getProperty(OPS_RUNTIME_PREFIX_ + day) || '{}') || {}; } catch (e) { o = {}; }
   var total = 0, list = Object.keys(o).map(function (k) {
     total += o[k].ms || 0;
-    return { name: k, min: Math.round((o[k].ms || 0) / 6000) / 10, runs: o[k].n || 0, maxSec: Math.round((o[k].max || 0) / 1000) };
+    var stages=Object.keys(o[k].stages||{}).map(function(s){return {name:s,min:Math.round((o[k].stages[s].ms||0)/6000)/10,runs:o[k].stages[s].n||0};})
+      .sort(function(a,b){return b.min-a.min;}).slice(0,3);
+    return { name: k, min: Math.round((o[k].ms || 0) / 6000) / 10, runs: o[k].n || 0,
+      maxSec: Math.round((o[k].max || 0) / 1000), stages:stages };
   }).sort(function (a, b) { return b.min - a.min; });
-  return { date: dateStr || '', minutes: Math.round(total / 6000) / 10, limit: OPS_RUNTIME_LIMIT_MIN_, handlers: list, recorded: list.length > 0 };
+  return { date: dateStr || '', minutes: Math.round(total / 6000) / 10, limit: OPS_RUNTIME_LIMIT_MIN_,
+    workspaceLimit:360, basis:'台北日期的牆鐘估算；Google 配額採另一個 24 小時窗口',
+    handlers: list, recorded: list.length > 0 };
 }
 
 /** 每 n 分鐘才做一次。用上次執行時間判斷，不依賴觸發器的精準度。 */
@@ -360,6 +383,19 @@ function everyFiveMinJobRun_() {
   var hhmm = Number(Utilities.formatDate(now, tz, 'HHmm'));
   var today = Utilities.formatDate(now, tz, 'yyyy/MM/dd');
   var weekday = Number(Utilities.formatDate(now, tz, 'u')) <= 5;
+
+  // 夜盤需要持續採樣；逐字稿、整張文章與持股檢查在夜間沒有新資料，避免每五分鐘空讀。
+  if (hhmm < 800 || hhmm >= 2230) {
+    safe_('marketSnapshotJob', marketSnapshotJob);
+    if (dueEvery_('nightDeliveryRetry', 30)) { safe_('deliveryRetryTick_', deliveryRetryTick_); }
+    if (typeof lineDeliverTick_ === 'function' && dueEvery_('nightLineDelivery', 15)) { safe_('lineDeliverTick_', lineDeliverTick_); }
+    if (dueEvery_('nightRecovery', 15)) {
+      safe_('watchdogJob', watchdogJob);
+      safe_('resumePendingTranscriptRefresh_', resumePendingTranscriptRefresh_);
+      safe_('cmSyncContentTick_', cmSyncContentTick_);
+    }
+    return;
+  }
 
   // 假日不跑影片、稽核、行情或日報；會員簡訊可能仍發文，保留接收、解析與即時信。
   // 隔年清單從十月起每週追查；未公布時跨年後會明確暫停自動交易日工作。
@@ -1144,7 +1180,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-09-29-performance-count-v82';
+var PROJECT_BUILD_ = '2026-09-29-layout-runtime-v83';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
@@ -1161,15 +1197,15 @@ var PROJECT_FILES_ = [
   { file: 'Aiservice.gs', names: ['validateKey', 'assistantModelCatalog_', 'sanitizeDraft_', 'draftReady_', 'isPromptProbe_', 'guardReply_', 'explicitSubscribeConfirm_'], marker: ['assistantModelCatalog_', 'supportedGenerationMethods'] },
   { file: 'Articlequality.gs', names: ['enforceArticleRecords_', 'attachArticleEvidence_'] },
   { file: 'Cachebuilder.gs', names: ['budgetLeft_', 'trackedCodes_', 'readSnapshotRows_', 'officialDailyAll_', 'auditDailyKCache', 'repairDailyKCache', 'afterDailyKDoneJob', 'rescheduleDailyKTrigger', 'warmKCaches_', 'dailyKFloors_', 'resetDailyKFloor', 'isTradingDateStr_', 'ensurePerformanceContinuityJob_'], marker: ['snapshotPerformanceJobRun_', 't.summary.priced'] },
-  { file: 'Cmoney.gs', names: ['cmMailBody_', 'cmNotifyNew_', 'cmSyncContentTick_', 'cmTranscriptExcerpt_', 'deliveryRetryTick_', 'diagnoseInstantMail', 'cmSetNotifyState_', 'resendInstantMail'], marker: ['cmNotifyNew_', 'lineQueueSms_'] },
+  { file: 'Cmoney.gs', names: ['cmMailBody_', 'cmNotifyNew_', 'cmSyncContentTick_', 'cmTranscriptExcerpt_', 'deliveryRetryTick_', 'diagnoseInstantMail', 'cmSetNotifyState_', 'resendInstantMail'], marker: ['cmSyncContentTick_', 'pendingSh.getRange'] },
   { file: 'DB.gs', names: ['writeSubscriptionFields_', 'findSubscription_'] },
   { file: 'Evidencequality.gs', names: ['rawTranscript_', 'validEvidence_', 'queueDayEditSync_', 'dayEditSyncTick_', 'queueCostSync_'], marker: ['dayEditSyncTick_', 'COST:'] },
   { file: 'Logic.gs', names: ['markChainStep_', 'REFRESH_STEPS_'] },
-  { file: 'MailService.gs', names: ['createSubscription', 'mailHero_', 'publicWebAppUrl_', 'escAttr_', 'mailRiskHtml_', 'deliverMessage_', 'deliveryLedger_', 'mailPlainText_', 'isExecUrl_', 'mailStockName_', 'noVideoToday_', 'pushReadyChannels_'], marker: ['pushAfterGate_', 'pushReadyChannels_'] },
+  { file: 'MailService.gs', names: ['createSubscription', 'mailHero_', 'publicWebAppUrl_', 'escAttr_', 'mailRiskHtml_', 'deliverMessage_', 'deliveryLedger_', 'mailPlainText_', 'isExecUrl_', 'mailStockName_', 'noVideoToday_', 'pushReadyChannels_'], marker: ['mdToHtml_', "th('股票／代號')"] },
   { file: 'Presentationquality.gs', names: ['displayPrice_', 'narrativeName_', 'titleChars_'], marker: ['articleTitle_', 'TITLE_MIN_CHARS_'] },
   { file: 'Quoteservice.gs', names: ['getFugleKey_', 'fugleFetch_', 'sharesToLots_', 'volumeInLots_', 'hourSlot_', 'readHourlyRows_', 'fugleHistPace_', 'kcPutAll_', 'getCandlesBundle'], marker: ['repairDailyKVolume', 'disabled: true'] },
   { file: 'Refreshrunner.gs', names: ['runRefreshAllChunk_', 'withRefreshAllLease_'] },
-  { file: 'Setup.gs', names: ['setupSpreadsheet', 'setWebAppUrl', 'webAppUrlReport_', 'checkProjectFiles', 'checkAutomationReadiness', 'ensureAutomationTick', 'withSheetSnapshot_', 'opsTimed_', 'opsRuntimeFor_'], marker: ['everyFiveMinJobRun_', 'lineDeliverTick_'] },
+  { file: 'Setup.gs', names: ['setupSpreadsheet', 'setWebAppUrl', 'webAppUrlReport_', 'checkProjectFiles', 'checkAutomationReadiness', 'ensureAutomationTick', 'withSheetSnapshot_', 'opsTimed_', 'opsRuntimeFor_'], marker: ['opsTimed_', 'OPS_STAGE_SAMPLE_'] },
   { file: 'SheetService.gs', names: ['fmtDate_', 'withLock_', 'ensureTranscriptLayoutJob', 'transcriptFingerprint_', 'stripTranscribeEcho_', 'readCostOverrides_', 'searchTerms_', 'repairLiwangExitPriceNow', 'rangeCandle_', 'statedNote_', 'trackerRoundList_', 'isManualHoldSource_', 'holdConfirmForOpen_'], marker: ['rebuildHoldingsTrackerJobRun_', 'manual: isManualHoldSource_'] },
   { file: 'Transcriptstore.gs', names: ['transcriptSha256_', 'selectTranscriptRow_'] }
 ];
@@ -1179,13 +1215,12 @@ var PROJECT_HTML_ = [
   { file: 'MarketDetail', marker: 'function placePeriodThumb()' },
   { file: 'MarketCharts', marker: 'window.marketRollingBounds' },
   { file: 'Market', marker: '開盤不久，走勢累積中' },
-  { file: 'Index', marker: '計入報酬檔數' },
-  { file: 'JavaScript', marker: '計入<span class="th-long">報酬檔數' },
-  { file: 'Stylesheet', marker: '.access-alert[hidden]' },
+  { file: 'Index', marker: '持有檔數包含暫時缺價' },
+  { file: 'JavaScript', marker: 'tbl-merged' },
+  { file: 'Stylesheet', marker: '.tbl-daily.tbl-merged' },
   { file: 'Changelog', marker: 'v72 技術說明留白、卡片與互動判別' },
   { file: 'Tech', marker: 'data-tech-story-v72' },
-  { file: 'Admin', marker: 'window.__openHeldSource' },
-  { file: 'AdminLegacy', marker: '改版前的舊版後台' },
+  { file: 'Admin', marker: 'opsTimePanel' },
   { file: 'Settings', marker: '手機預覽' },
   { file: 'Unsubscribed', marker: 'apiUnsubscribeConfirm' }
 ];

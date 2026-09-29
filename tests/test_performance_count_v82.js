@@ -63,11 +63,11 @@ vm.runInContext(code.slice(from, to), ctx);
 
 const setup = fs.readFileSync(path.join(root, 'Setup.gs'), 'utf8');
 const config = fs.readFileSync(path.join(root, 'Config.gs'), 'utf8');
-assert(setup.includes("var PROJECT_BUILD_ = '2026-09-29-performance-count-v82'"));
-assert(config.includes("var GAS_BUILD = '2026-09-29-performance-count-v82'"));
+assert(setup.includes("var PROJECT_BUILD_ = '2026-09-29-layout-runtime-v83'"));
+assert(config.includes("var GAS_BUILD = '2026-09-29-layout-runtime-v83'"));
 assert(setup.includes("marker: ['snapshotPerformanceJobRun_', 't.summary.priced']"));
-assert(setup.includes("{ file: 'Index', marker: '計入報酬檔數' }"));
-assert(setup.includes("{ file: 'JavaScript', marker: '計入<span"));
+assert(setup.includes("{ file: 'Index', marker: '持有檔數包含暫時缺價' }"));
+assert(setup.includes("{ file: 'JavaScript', marker: 'tbl-merged' }"));
 assert(String(ctx.snapshotPerformanceJobRun_).includes('t.summary.priced'),
   'project-file check must inspect a marker inside its target function');
 

@@ -1695,9 +1695,8 @@ function normalizeArticleSections_(md) {
     版面（2026/09/15）：
       文章標題　　深色標題卡，不寫編號、不加「張震：」前綴（管理者要求）。
       ①②③④　　每一章是一張白底圓角卡片，章名前一條色條（舊文章先經 normalizeArticleSections_ 換號）。
-      股票表格　改成「疊列表格」：第一列是 股票名稱｜代號｜價位，說明另起一列橫跨整張表。
-                四欄並排時說明欄在手機上被擠成兩三個字一行、整張表要兩指往右拖才看得完；
-                疊列之後手機不必左右滑動，而且每一張表都用同一組欄寬，持股、觀望各表左右對齊。
+      股票表格　名稱與代號上下對齊，右欄合併方向、價位和說明；持股不重複列「持有」。
+                手機不必左右滑動，空白價位欄不再佔寬度。
       字級　　　內文 14px、表格 13.5px、章名 16px，篇幅比先前短約三分之一。
       網站　　　每個元素掛 class（mc-name、mc-code、mc-mid、mc-desc、mc-chip⋯），
                 郵件查詢分頁用 CSS 乘上版面設定的字體大小／字距／行距（見 Stylesheet）。 */
@@ -1752,34 +1751,27 @@ function mdToHtml_(md) {
     var hbg = tone ? tone.hbg : '#E4E8E5';
     var hcls = 'tn-h ' + (tone ? 'tn-' + tone.key : 'tn-none');
 
-    // 欄位角色：第一欄名稱、代號欄、最後一欄說明，其餘（方向、價位）併進第三格。
+    // 第一欄合併名稱與代號；方向、價位若有，放在說明前面，不佔空欄。
     var codeIdx = -1;
     heads.forEach(function (h, i) { if (codeIdx < 0 && /代號/.test(h)) { codeIdx = i; } });
     if (codeIdx < 0 && heads.length > 2) { codeIdx = 1; }
     var descIdx = heads.length - 1;
     var mids = [];
     heads.forEach(function (h, i) { if (i !== 0 && i !== codeIdx && i !== descIdx) { mids.push(i); } });
-    var midHead = mids.length ? mids.map(function (i) { return /價位|成本/.test(heads[i]) ? '價位' : heads[i]; }).join('／')
-                              : (tone && tone.key === 'hold' ? '狀態' : '價位');
 
     var th = function (text) {
       return '<th bgcolor="' + hbg + '" class="' + hcls + ' mc-th" style="background:' + hbg + ';padding:7px 12px;text-align:left;' +
              'font-size:12px;line-height:1.5;font-weight:600;color:#3E4944;white-space:nowrap;">' + text + '</th>';
     };
-    /* 觀望兩表不再有價位欄（v54，管理者 2026/09/23）：「觀望不碰、觀望注意的價位說明呈現出來看不出重點」，
-       而且九成是「未說明」。改成兩欄——左邊名稱與代號上下兩行，右邊整格給說明；
-       真的有已證實價位的，在說明最前面放一個「價位 597」小標籤。買入／賣出／持股表保留價位欄。 */
+    /* 全部改成兩欄：名稱與代號上下對齊；右邊放價位、方向與說明。
+       持股沒有重複的「持有」狀態格，觀望沒有大片空白價位格。 */
     var watchLayout = !!(tone && (tone.key === 'watch' || tone.key === 'avoid')) && dirCol < 0;
     html.push('<table class="mc-table" role="presentation" width="100%" cellpadding="0" cellspacing="0" ' +
               'style="width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0;margin:6px 0 12px;' +
               'border:1px solid ' + edge + ';border-radius:12px;overflow:hidden;font-family:' + MAIL_FONT_ +
               ';font-size:13.5px;line-height:1.7;">' +
-              /* 名稱欄收窄到約四個字（v54）：手機寬 360px 時 30% 約 100px。說明另起一列橫跨，不跟名稱搶寬度。 */
-              (watchLayout
-                ? '<colgroup><col style="width:26%"><col style="width:74%"></colgroup>' +
-                  '<thead><tr>' + th(heads[0] || '股票名稱') + th(heads[descIdx] || '說明重點') + '</tr></thead><tbody>'
-                : '<colgroup><col style="width:30%"><col style="width:22%"><col style="width:48%"></colgroup>' +
-                  '<thead><tr>' + th(heads[0] || '股票名稱') + th('代號') + th(midHead) + '</tr></thead><tbody>'));
+              '<colgroup><col style="width:23%"><col style="width:77%"></colgroup>' +
+              '<thead><tr>' + th('股票／代號') + th('說明重點') + '</tr></thead><tbody>');
 
     rows.forEach(function (cells) {
       var rt = rowTone(cells);
@@ -1787,11 +1779,6 @@ function mdToHtml_(md) {
       var ln = rt ? rt.line : '#E4E8E6';
       var bar = rt ? rt.bar : '#C3CBC6';
       var cls = rt ? 'tn-' + rt.key : 'tn-none';
-      var cell = function (inner, extra, role) {
-        // 底色同時寫成 bgcolor 屬性：收件匣改寫或丟掉 style 時格子仍有底色，不會露出卡片的底。
-        return '<td bgcolor="' + bg + '" class="' + cls + ' ' + role + '" style="background:' + bg + ';padding:9px 12px 2px;border-top:1px solid ' + ln + ';' +
-               'vertical-align:top;' + (extra || '') + '">' + inner + '</td>';
-      };
       var vals = mids.map(function (i) { return { i: i, v: String(cells[i] || '').trim() }; })
         .filter(function (x) { return x.v; });
       var mid = vals.map(function (x) {
@@ -1800,12 +1787,11 @@ function mdToHtml_(md) {
         return vals.length > 1 && x.v.replace(/&[a-z]+;|&#\d+;/g, 'x').length <= 10
           ? '<span style="white-space:nowrap;">' + x.v + '</span>' : x.v;
       }).join(' ');
-      if (!mids.length) { mid = rt && rt.key === 'hold' ? chip('持有', rt) : ''; }
-      if (watchLayout) {
-        var px = vals.map(function (x) { return x.v; }).join(' ');
-        var wdesc = descIdx > 0 ? stripMetaClauses_(String(cells[descIdx] || '')) : '';
-        var pxTag = px && !/^未說明$/.test(px) ? chip('價位 ' + px, rt || tone) + ' ' : '';
-        html.push('<tr>' +
+      if (!mids.length || /^未說明$/.test(mid)) { mid = ''; }
+      var wdesc = descIdx > 0 ? stripMetaClauses_(String(cells[descIdx] || '')) : '';
+      var pxTag = mid ? '<span class="mc-mid" style="display:inline-block;margin:0 8px 4px 0;color:#26312C;font-size:13.5px;">' +
+        (watchLayout ? chip('價位 ' + mid, rt || tone) : mid) + '</span>' : '';
+      html.push('<tr>' +
           '<td bgcolor="' + bg + '" class="' + cls + ' mc-name" style="background:' + bg + ';padding:10px 10px 11px 12px;border-top:1px solid ' + ln + ';' +
             'border-left:4px solid ' + bar + ';vertical-align:top;font-weight:700;font-size:15px;line-height:1.5;color:#12161A;word-break:keep-all;overflow-wrap:break-word;">' +
             mailStockName_(cells[0]) +
@@ -1814,26 +1800,6 @@ function mdToHtml_(md) {
           '<td bgcolor="' + bg + '" class="' + cls + ' mc-desc mc-side" style="background:' + bg + ';padding:10px 12px 11px;border-top:1px solid ' + ln + ';' +
             'vertical-align:top;font-size:13.5px;line-height:1.75;color:#26312C;overflow-wrap:break-word;word-break:break-word;">' + pxTag + (wdesc || '未說明') + '</td>' +
           '</tr>');
-        return;
-      }
-      var plain = mid.replace(/<[^>]+>/g, '');
-      var midStyle = plain.length <= 8 && mid.indexOf('mc-chip') < 0
-        ? 'white-space:nowrap;word-break:normal;overflow-wrap:normal;' : 'overflow-wrap:break-word;word-break:break-word;';
-      html.push('<tr>' +
-        cell(mailStockName_(cells[0]), 'border-left:4px solid ' + bar + ';font-weight:700;font-size:15px;line-height:1.5;color:#12161A;word-break:keep-all;overflow-wrap:break-word;', 'mc-name') +
-        cell(codeIdx >= 0 ? (cells[codeIdx] || '') : '', 'font-size:13.5px;letter-spacing:0.04em;color:' +
-             MAIL_CODE_COLOR_ + ';white-space:nowrap;', 'mc-code') +
-        cell(mid || '—', 'font-size:13.5px;color:#26312C;' + midStyle, 'mc-mid') +
-        '</tr>');
-      // 說明欄再過一次內部判斷字眼的過濾：已經寫進試算表的舊文章（例如 2026/09/15 台積電那句
-      // 「並未將台積電列為當日會員實際買進或持有的個股明細，故列入市場教學與觀察範疇」）
-      // 不必重寫也能乾淨呈現。新資料在 pipeline 寫入時就已經清過。
-      var desc = descIdx > 0 ? stripMetaClauses_(String(cells[descIdx] || '')) : '';
-      if (desc) {
-        html.push('<tr><td colspan="3" bgcolor="' + bg + '" class="' + cls + ' mc-desc" style="background:' + bg + ';padding:2px 12px 12px;' +
-                  'border-left:4px solid ' + bar + ';vertical-align:top;font-size:13.5px;line-height:1.75;color:#26312C;' +
-                  'overflow-wrap:break-word;word-break:break-word;">' + desc + '</td></tr>');
-      }
     });
 
     html.push('</tbody></table>');

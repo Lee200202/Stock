@@ -184,17 +184,16 @@ function doGet(e) {
    * 沒有密鑰的人只會看到一個登入框。
    * 加 noindex 是不希望它被搜尋引擎收錄。
    */
-  // ?page=admin-legacy：v54 改版前的後台原樣留存（AdminLegacy.html），只供對照；密鑰驗證與 API 與新版相同。
+  // 舊後台網址轉向同一個現行後台，避免收藏的連結失效。
   if (params.page === 'admin' || params.page === 'admin-legacy') {
     try {
       // 用 Template 而不是 HtmlOutput，才能把網頁應用程式的絕對網址注入進去。
       // 後台頁面裡的「回首頁」連結需要它：沙箱 iframe 內的相對網址
       // 會指向 googleusercontent.com，那不是進入點，點了只會得到空白頁。
-      var legacyAdmin = params.page === 'admin-legacy';
-      var at = HtmlService.createTemplateFromFile(legacyAdmin ? 'AdminLegacy' : 'Admin');
+      var at = HtmlService.createTemplateFromFile('Admin');
       at.webAppUrl = ScriptApp.getService().getUrl();
       return at.evaluate()
-        .setTitle(legacyAdmin ? '舊版後台（改版前留存）' : '後台')
+        .setTitle('後台')
         // viewport 要與前台逐字相同。少了 viewport-fit=cover，有瀏海的機型
         // 左右會多出一條空白，前後台一比就看得出不是同一個站。
         .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover')

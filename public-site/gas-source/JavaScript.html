@@ -616,12 +616,12 @@
   }
 
   // 買入／賣出兩張表共用同一組欄寬，切分頁時欄位不會跳
-  var DAILY_COLS = '<colgroup><col class="c-name"><col class="c-code"><col class="c-px">' +
+  var DAILY_COLS = '<colgroup><col class="c-name"><col class="c-px">' +
     '<col class="c-chg"><col class="c-note"><col class="c-reason"></colgroup>';
   /* 觀望兩張表不再有「價位說明」欄（v54，管理者要求）。
      實測 9/23 十四檔觀望裡十一檔是「未說明」，那一欄只在佔寬度；
      真的有已證實價位的，改在說明前面放一個小膠囊。空間全部留給說明重點。 */
-  var WATCH_COLS = '<colgroup><col class="c-name"><col class="c-code"><col class="c-px">' +
+  var WATCH_COLS = '<colgroup><col class="c-name"><col class="c-px">' +
     '<col class="c-chg"><col class="c-reason"></colgroup>';
   var OVERVIEW_PENDING = false;
   var OVERVIEW_NOSHOW = false;
@@ -649,6 +649,11 @@
   function nameCell(name, code) {
     if (!isCode(code)) { return esc(cleanName(name)); }
     return '<span class="namecell">' + esc(cleanName(name)) + '<span class="arrow">&#8250;</span></span>';
+  }
+
+  function dailyNameCell(name, code) {
+    return '<span class="daily-stock">' + nameCell(name, code) +
+      '<small class="daily-stock-code">' + esc(code || '代號待確認') + '</small></span>';
   }
 
   /* 價位說明欄的內容。
@@ -780,10 +785,10 @@ function publicNarrative_(text, row) {
     if (!rows || !rows.length) {
       return emptyLine(opts.empty || (watch ? watchEmptyText(false) : '本日未說明：這一類在當天的影片裡沒有被提到。'));
     }
-    return '<div class="card flush scrollx"><table class="tbl-daily' + (watch ? ' tbl-watch' : '') + '">' +
+    return '<div class="card flush scrollx"><table class="tbl-daily tbl-merged' + (watch ? ' tbl-watch tbl-simple' : '') + '">' +
       (watch ? WATCH_COLS : DAILY_COLS) +
       '<thead><tr>' +
-      '<th class="sticky">股票名稱</th><th>代號</th>' +
+      '<th class="sticky">股票／代號</th>' +
       '<th class="r">' + (opts.history ? '今日價' : '現價') + '</th><th class="r">漲跌</th>' +
       (watch ? '' : '<th>價位說明</th>') + '<th>說明重點</th></tr></thead><tbody>' +
       rows.map(function (r) {
@@ -792,8 +797,7 @@ function publicNarrative_(text, row) {
         var px = displayPrice_(r.price, r.price_evidence, r.reason);
         var chipPx = (watch && px && px !== '未說明') ? '<span class="pxchip">價位 ' + esc(px) + '</span>' : '';
         return '<tr class="' + rowClass + (can ? ' clickable" data-code="' + r.code + '"' : '"') + '>' +
-          '<td class="sticky ' + dirClass + '">' + nameCell(r.name, r.code) + '</td>' +
-          '<td class="code">' + esc(r.code) + '</td>' +
+          '<td class="sticky ' + dirClass + '">' + dailyNameCell(r.name, r.code) + '</td>' +
           '<td class="px r" data-px="' + esc(r.code) + '">' + (can ? '&#183;&#183;&#183;' : '—') + '</td>' +
           '<td class="px r" data-chg="' + esc(r.code) + '">' + (can ? '&#183;&#183;&#183;' : '—') + '</td>' +
           (watch ? '' : priceCell(r)) +
@@ -809,19 +813,17 @@ function publicNarrative_(text, row) {
 
   function holdTable(rows) {
     if (!rows || !rows.length) { return emptyLine('本日未說明：當天沒有提到會員目前持股。'); }
-    return '<div class="card flush scrollx"><table class="tbl-daily">' + DAILY_COLS +
+    return '<div class="card flush scrollx"><table class="tbl-daily tbl-merged tbl-simple">' + WATCH_COLS +
       '<thead><tr>' +
-      '<th class="sticky">股票名稱</th><th>代號</th>' +
+      '<th class="sticky">股票／代號</th>' +
       '<th class="r">現價</th><th class="r">漲跌</th>' +
-      '<th>目前立場</th><th>說明重點</th></tr></thead><tbody>' +
+      '<th>說明重點</th></tr></thead><tbody>' +
       rows.map(function (r) {
         var can = isCode(r.code);
         return '<tr class="tone-hold' + (can ? ' clickable" data-code="' + r.code + '"' : '"') + '>' +
-          '<td class="sticky dir-hold">' + nameCell(r.name, r.code) + '</td>' +
-          '<td class="code">' + esc(r.code) + '</td>' +
+          '<td class="sticky dir-hold">' + dailyNameCell(r.name, r.code) + '</td>' +
           '<td class="px r" data-px="' + esc(r.code) + '">' + (can ? '&#183;&#183;&#183;' : '—') + '</td>' +
           '<td class="px r" data-chg="' + esc(r.code) + '">' + (can ? '&#183;&#183;&#183;' : '—') + '</td>' +
-          '<td class="stance">' + esc(r.stance) + '</td>' +
           '<td class="reason">' + esc(datedNote(publicNarrative_(r.note,r), r.noteDate)) + '</td></tr>';
       }).join('') + '</tbody></table></div>';
   }
@@ -2061,12 +2063,10 @@ function publicNarrative_(text, row) {
   function renderPerfTable() {
     var s = perfSlice().slice().reverse();
     $('perfTable').innerHTML = '<div class="card flush"><table><thead><tr>' +
-      // 手機只顯示短表頭，完整定義在表格上方。
-      '<th>日期</th><th class="r">計入<span class="th-long">報酬檔數</span></th><th class="r">持有<span class="th-long">檔數</span></th>' +
+      '<th>日期</th><th class="r">持有<span class="th-long">檔數</span></th>' +
       '<th class="r">平均<span class="th-long">報酬</span></th><th class="r">正報酬<span class="th-long">比例</span></th></tr></thead><tbody>' +
       s.map(function (r) {
         return '<tr><td class="code">' + esc(r.date) + '</td>' +
-          '<td class="px r">' + (r.total == null ? '\u2014' : r.total) + '</td>' +
           '<td class="px r">' + r.holding + '</td>' +
           '<td class="px r ' + signCls(r.avgReturn) + '">' + fmtRet(r.avgReturn) + '</td>' +
           // 算不出來的日子是 null，不能呼叫 toFixed（先前整張表會因此畫不出來）。

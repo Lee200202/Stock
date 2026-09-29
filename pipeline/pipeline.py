@@ -13903,15 +13903,14 @@ def main():
             # 敲到 VOD 出現為止。如果影片還沒出現就直接跳過，等於把輪詢廢掉，
             # 又退回去依賴 GitHub cron 準點觸發，而那正是當初要解決的問題。
             #
-            # 所以只跳過「確定不可能有 VOD」的時段：直播進行中。
-            # 直播約在台灣 12:30 到 13:00 結束，YouTube 再花十幾分鐘轉檔，
-            # 因此 VOD_EARLIEST_HOUR 之前不管怎麼敲都不會有東西。
+            # 有已落地的原稿會在上方直接放行。沒有原稿時，12 點前不讓
+            # daily.yml 再開一條可能與 transcript.yml 重疊的聽打工作。
             if now_h >= GIVE_UP_HOUR:
                 print("已到收工時間仍無今日影片。要跑最後一輪以標記「今日無影片」。")
                 write_preflight("true", "收工時間，需標記今日無影片")
             elif now_h < VOD_EARLIEST_HOUR:
-                print(f"現在台灣 {now_h} 點，直播還在進行，VOD 不可能存在，本輪跳過。")
-                write_preflight("false", f"台灣 {now_h} 點，早於 VOD 最早可能時間")
+                print(f"現在台灣 {now_h} 點，原稿尚未落地；先等取稿工作，避免重複聽打。")
+                write_preflight("false", f"台灣 {now_h} 點，原稿未落地，等待取稿工作")
             else:
                 print(f"RSS 還沒出現 {today} 的影片，但已進入等待窗，要進去輪詢。")
                 write_preflight("true", "等待窗內，需輪詢等 VOD")

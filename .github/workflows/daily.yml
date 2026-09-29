@@ -25,7 +25,7 @@ run-name: ${{ inputs.sms_job_id != '' && format('會員簡訊 {0}', inputs.sms_j
 #
 # 每個觸發點進來的第一件事是「探測」：只用 YouTube API 與試算表
 # 判斷現在有沒有事情要做，不呼叫 Gemini，幾秒就跑完。
-# 直播進行中（台灣 12 點以前）或今日影片已處理完成的觸發點，
+# 原稿尚未落地且在台灣 12 點以前，或今日影片已處理完成的觸發點，
 # 幾秒內就結束，不會再往下走。
 # ------------------------------------------------------------------ #
 on:
@@ -273,7 +273,7 @@ jobs:
           SMS_JOB_ID: ${{ github.event.inputs.sms_job_id }}
           SMS_RESUME: ${{ github.event.inputs.sms_resume }}
           CMONEY_MEMBER_ID: ${{ github.event.inputs.sms_member_id || secrets.CMONEY_MEMBER_ID || vars.CMONEY_MEMBER_ID }}
-          # VOD 最早可能出現的台灣時間。這之前的觸發點一律跳過。
+          # 已落地原稿不受此限制；尚無原稿時，12 點前等 transcript.yml，避免雙重聽打。
           VOD_EARLIEST_HOUR: '12'
         run: python "${PIPELINE_SCRIPT:-pipeline/pipeline.py}"
 

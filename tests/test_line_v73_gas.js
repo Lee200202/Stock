@@ -73,12 +73,17 @@ function world(opts) {
   const calls = { replies: [], pushes: [], admin: [], other: [] };
   const accepted = {};   // retry key → request id（模擬 LINE 端：同一把 key 第二次回 409）
   const W = { sheets, props, cache, calls, env: Object.assign({ closed: '', noVideo: '', gate: null, article: '', smsItems: [], trades: {}, held: [] }, opts.env || {}),
-    pushPlan: null, fetchAllThrows: 0, quota: { type: 'none', value: null, used: 0 } };
+    pushPlan: null, fetchAllThrows: 0, relayImageBytes: null, menuName: 'zz-notify-v1', quota: { type: 'none', value: null, used: 0 } };
   function res(code, json, headers) {
     return { getResponseCode: () => code, getContentText: () => JSON.stringify(json || {}), getAllHeaders: () => headers || {},
              getBlob: () => ({ getBytes: () => [137, 80, 78, 71] }) };
   }
   function route(url, p) {
+    if (/\/static\/richmenu-/.test(url)) {
+      const name = url.split('/').pop(), original = fs.readFileSync(path.join(root, 'line-webhook', 'static', name));
+      const bytes = W.relayImageBytes || Array.from(original);
+      return { getResponseCode: () => 200, getContentText: () => '', getAllHeaders: () => ({}), getBlob: () => ({ getBytes: () => bytes }) };
+    }
     const body = p && p.payload && typeof p.payload === 'string' ? JSON.parse(p.payload) : null;
     const pathname = url.replace(/^https:\/\/api(?:-data)?\.line\.me/, '');
     if (pathname === '/v2/bot/message/reply') { calls.replies.push(body); return res(200, {}); }
@@ -100,6 +105,8 @@ function world(opts) {
         ? res(200, { userId: BOT, basicId: '@zzdemo', displayName: '逐日追蹤' }) : res(401, { message: 'Authentication failed' });
     }
     calls.other.push({ url, method: p.method, body });
+    if (pathname === '/v2/bot/richmenu/alias/zz-notify' && p.method === 'get') { return res(200, { richMenuId: 'rm-notify' }); }
+    if (pathname === '/v2/bot/richmenu/rm-notify' && p.method === 'get') { return res(200, { name: W.menuName }); }
     if (/\/v2\/bot\/richmenu$/.test(pathname)) { return res(200, { richMenuId: 'rm-' + calls.other.length }); }
     if (/\/v2\/bot\/richmenu\/list$/.test(pathname)) { return res(200, { richmenus: [{ richMenuId: 'old1', name: 'zz-query-v0' }, { richMenuId: 'keep', name: '別人的選單' }] }); }
     return res(200, {});
@@ -118,7 +125,9 @@ function world(opts) {
     Utilities: {
       formatDate: fmt, Charset: { UTF_8: 'utf8' }, getUuid: () => crypto.randomUUID(),
       base64Encode: b => Buffer.from(b.map(x => x & 255)).toString('base64'),
-      computeHmacSha256Signature: (v, k) => Array.from(crypto.createHmac('sha256', k).update(v, 'utf8').digest()).map(x => (x > 127 ? x - 256 : x))
+      computeHmacSha256Signature: (v, k) => Array.from(crypto.createHmac('sha256', k).update(v, 'utf8').digest()).map(x => (x > 127 ? x - 256 : x)),
+      DigestAlgorithm: { SHA_256: 'sha256' },
+      computeDigest: (_, bytes) => Array.from(crypto.createHash('sha256').update(Buffer.from(bytes.map(x => x & 255))).digest()).map(x => (x > 127 ? x - 256 : x))
     },
     ScriptApp: { getProjectTriggers: () => [] },
     TZ: 'Asia/Taipei', CACHE: { get: k => (k in cache ? cache[k] : null), put: (k, v) => { cache[k] = String(v); } },
@@ -127,6 +136,7 @@ function world(opts) {
     todayStr_: () => fmt(new FakeDate(), '', 'yyyy/MM/dd'), nowStamp_: () => fmt(new FakeDate(), '', 'yyyy/MM/dd HH:mm:ss'),
     fmtDate_: v => (v ? String(v).trim().replace(/-/g, '/').slice(0, 10) : ''),
     whyClosed_: () => W.env.closed, noVideoToday_: () => W.env.noVideo, gateState_: () => W.env.gate, dailyPushStartTime_: () => '1200',
+    cmContentSyncPending_: () => !!W.env.smsPending,
     normalizeArticleSections_: s => s, publicWebAppUrl_: () => EXEC,
     deliveryVersion_: t => crypto.createHash('sha256').update(String(t)).digest('hex').slice(0, 10),
     searchByDate: d => ({ found: true, buy: [1], sell: [], holdings: [1, 2], watchAvoid: [1], watchWatch: [1, 2] }),
@@ -453,6 +463,9 @@ assert.strictEqual(w.ctx.lineDailyTick_().skipped, 'noshow', '沒有影片不寄
 w = dailyWorld({ gate: { date: '2026/09/28', status: '處理中' } });
 assert(/^pending/.test(w.ctx.lineDailyTick_().skipped), '品質關卡沒過不發半成品');
 assert.strictEqual(w.outbox().length, 0);
+w = dailyWorld({ smsPending: true });
+assert(/^pending/.test(w.ctx.lineDailyTick_().skipped), '簡訊與逐字稿尚未重寫完成時 LINE 不可先送');
+assert.strictEqual(w.outbox().length, 0);
 w = dailyWorld();
 q = w.ctx.lineDailyTick_();
 assert.strictEqual(q.created, true);
@@ -531,10 +544,18 @@ menus.forEach(m => {
 });
 const labels = JSON.parse(JSON.stringify(menus.flatMap(m => Array.from(m.def.areas, a => a.action.label).filter(Boolean))));
 assert.deepStrictEqual(labels, ['今日整理', '查個股', '持股追蹤', '市場總覽', '管理訂閱', '今日整理', '使用說明', '開啟網站']);
+assert.strictEqual(w.ctx.lineRichMenuHealth_().ok, false, '舊版通知選單必須提醒管理者');
+const createdBeforeStale = w.calls.other.filter(c => /\/v2\/bot\/richmenu$/.test(c.url)).length;
+w.relayImageBytes = [137, 80, 78, 71];
+assert(/不是目前版本/.test(w.ctx.lineSetupRichMenus_().reason), '轉送服務的舊圖片不可重新上傳');
+assert.strictEqual(w.calls.other.filter(c => /\/v2\/bot\/richmenu$/.test(c.url)).length, createdBeforeStale, '圖片未通過時不可建立半套選單');
+w.relayImageBytes = null;
 ['今日整理', '查個股', '持股追蹤', '市場總覽', '管理訂閱', '盤中通知', '說明'].forEach(t => assert.notStrictEqual(JSON.parse(P(t)).a, 'unknown', '電腦版文字指令：' + t));
 // 建立流程：先刪自己的舊選單（不動別人的）、建兩個、上傳圖片、建別名、設預設
 r = w.ctx.lineSetupRichMenus_();
 assert.strictEqual(r.ok, true, JSON.stringify(r));
+w.menuName = 'zz-notify-v2';
+assert.strictEqual(w.ctx.lineRichMenuHealth_().ok, true, '重建後的通知別名應可核對新版名稱');
 const deleted = w.calls.other.filter(c => c.method === 'delete').map(c => c.url);
 assert(deleted.some(u => /richmenu\/old1$/.test(u)) && !deleted.some(u => /richmenu\/keep$/.test(u)));
 assert(w.calls.other.some(c => /api-data\.line\.me\/v2\/bot\/richmenu\/rm-\d+\/content$/.test(c.url)));

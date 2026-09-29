@@ -1615,7 +1615,7 @@ function lineStatusData_() {
     mode: linePushMode_(), siteEntry: s.siteEntry === true, relayUrl: s.relayUrl || '', addFriendUrl: lineAddFriendUrl_(), qrUrl: s.qrUrl || '',
     gasTarget: (typeof publicWebAppUrl_ === 'function' ? publicWebAppUrl_() : ''),
     callbackUrl: s.relayUrl ? String(s.relayUrl).replace(/\/+$/, '') + '/callback' : '',
-    counts: lineCounts_(), stats: st, quota: null, outbox: { queued: 0, sending: 0, done: 0, expired: 0, failed: 0, oldestOpen: '' }, recent: []
+    counts: lineCounts_(), stats: st, quota: null, menu: lineRichMenuHealth_(), outbox: { queued: 0, sending: 0, done: 0, expired: 0, failed: 0, oldestOpen: '' }, recent: []
   };
   if (out.configured.token) { try { out.quota = lineQuota_(false); } catch (e) { out.quota = { ok: false, error: String(e.message || e) }; } }
   try {
@@ -1811,15 +1811,43 @@ function lineRichMenuDefs_() {
     { alias: LINE_RICH_ALIAS_.query, image: 'richmenu-query.png', def: { size: { width: W, height: 1686 }, selected: true, name: 'zz-query-v1', chatBarText: '查資料',
       areas: tabs('query').concat([cell(0, linePb_('今日整理', 'a=today', '今日整理')), cell(1, linePb_('查個股', 'a=askstock', '查個股', { inputOption: 'openKeyboard' })),
         cell(2, linePb_('持股追蹤', 'a=tracker', '持股追蹤')), cell(3, linePb_('市場總覽', 'a=market', '市場總覽'))]) } },
-    { alias: LINE_RICH_ALIAS_.notify, image: 'richmenu-notify.png', def: { size: { width: W, height: 1686 }, selected: true, name: 'zz-notify-v2', chatBarText: '通知',
+    { alias: LINE_RICH_ALIAS_.notify, image: 'richmenu-notify.png', sha256: 'fe8cf11f982bfc1911a9c4a6bc5550d5f8e19863732d80c45abd23599ca8d8dd', def: { size: { width: W, height: 1686 }, selected: true, name: 'zz-notify-v2', chatBarText: '通知',
       areas: tabs('notify').concat([cell(0, linePb_('管理訂閱', 'a=manage', '管理訂閱')), cell(1, linePb_('今日整理', 'a=today', '今日整理')),
         cell(2, linePb_('使用說明', 'a=help', '使用說明')), cell(3, site ? lineUri_('開啟網站', site) : linePb_('今日整理', 'a=today', '今日整理'))]) } }
   ];
+}
+/** 只核對 LINE 上的通知選單別名與版本；個別好友覆蓋選單仍須用手機驗收。 */
+function lineRichMenuHealth_() {
+  var expected = lineRichMenuDefs_()[1].def.name;
+  if (!lineProp_('LINE_CHANNEL_ACCESS_TOKEN')) { return { ok: false, expected: expected, reason: '未設定存取權杖' }; }
+  var alias = lineApi_('get', '/v2/bot/richmenu/alias/' + LINE_RICH_ALIAS_.notify);
+  var id = alias.json && alias.json.richMenuId;
+  if (alias.code !== 200 || !id) { return { ok: false, expected: expected, reason: '通知選單別名尚未建立或讀取失敗：' + lineErrText_(alias) }; }
+  var menu = lineApi_('get', '/v2/bot/richmenu/' + encodeURIComponent(id));
+  var actual = menu.json && menu.json.name;
+  if (menu.code !== 200 || !actual) { return { ok: false, expected: expected, reason: '通知選單讀取失敗：' + lineErrText_(menu) }; }
+  return { ok: actual === expected, expected: expected, actual: actual,
+           reason: actual === expected ? '別名已指向新版；仍需用手機核對圖片' : '別名仍指向舊版，請重新建立圖文選單' };
+}
+function lineImageSha256_(bytes) {
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, bytes)
+    .map(function (b) { return ('0' + (b & 255).toString(16)).slice(-2); }).join('');
 }
 function lineSetupRichMenus_() {
   var relay = String(lineSettings_().relayUrl || '').replace(/\/+$/, '');
   if (!relay) { return { ok: false, reason: '先在後台填「轉送服務網址」（圖文選單圖片由它提供）。' }; }
   var log = [], defs = lineRichMenuDefs_();
+  // 圖片先全數驗證，避免來源還是舊版時已經建立半套新選單。
+  var images = {};
+  for (var k = 0; k < defs.length; k++) {
+    var source = defs[k], img;
+    try { img = UrlFetchApp.fetch(relay + '/static/' + source.image, { muteHttpExceptions: true }); } catch (e) { img = null; }
+    if (!img || img.getResponseCode() !== 200) { return { ok: false, reason: '讀不到圖片 ' + relay + '/static/' + source.image + '（轉送服務部署了嗎？）' }; }
+    images[source.alias] = img.getBlob().getBytes();
+    if (source.sha256 && lineImageSha256_(images[source.alias]) !== source.sha256) {
+      return { ok: false, reason: source.image + ' 不是目前版本。先從 line-webhook/ 部署轉送服務，再按「建立圖文選單」。' };
+    }
+  }
   // 新選單連圖片都驗過後才切換別名；舊選單在切換失敗時仍可用。
   var list = lineApi_('get', '/v2/bot/richmenu/list');
   var oldMenus = ((list.json && list.json.richmenus) || []).filter(function (m) { return /^zz-(?:query|notify)-/.test(String(m.name || '')); });
@@ -1829,10 +1857,7 @@ function lineSetupRichMenus_() {
     var c = lineApi_('post', '/v2/bot/richmenu', m.def);
     if (c.code !== 200 || !c.json || !c.json.richMenuId) { return { ok: false, reason: '建立 ' + m.def.name + ' 失敗：' + lineErrText_(c), log: log }; }
     ids[m.alias] = c.json.richMenuId;
-    var img;
-    try { img = UrlFetchApp.fetch(relay + '/static/' + m.image, { muteHttpExceptions: true }); } catch (e) { img = null; }
-    if (!img || img.getResponseCode() !== 200) { return { ok: false, reason: '讀不到圖片 ' + relay + '/static/' + m.image + '（轉送服務部署了嗎？）', log: log }; }
-    var up = lineApi_('post', '/v2/bot/richmenu/' + ids[m.alias] + '/content', null, { data: true, bytes: img.getBlob().getBytes(), contentType: 'image/png' });
+    var up = lineApi_('post', '/v2/bot/richmenu/' + ids[m.alias] + '/content', null, { data: true, bytes: images[m.alias], contentType: 'image/png' });
     if (up.code !== 200) { return { ok: false, reason: '上傳圖片失敗：' + lineErrText_(up), log: log }; }
     log.push('建立 ' + m.def.name + ' 並上傳圖片');
   }
@@ -1871,6 +1896,7 @@ function lineSetupCheck() {
   L.push('LINE 帳號：' + (d.bot.name || '（未查）') + '　Basic ID ' + (d.bot.basicId || '—') + '　bot ' + (d.bot.userId || '—'));
   L.push('推送模式：' + ({ off: '關閉', test: '只送測試帳號', on: '正式推送' })[d.mode] + '　網站顯示加入好友：' + (d.siteEntry ? '是' : '否'));
   L.push('轉送服務：' + (d.relayUrl || '未填') + '　→ LINE Developers 的 Webhook URL 填：' + (d.callbackUrl || '（先填轉送服務網址）'));
+  L.push('通知圖文選單：' + (d.menu.ok ? d.menu.actual + '（別名已更新，圖片仍需手機核對）' : d.menu.reason));
   L.push('轉送服務的環境變數 GAS_WEBAPP_URL 填：' + (d.gasTarget || '（沒有正式 /exec 網址，先執行 setWebAppUrl()）'));
   L.push('好友 ' + d.counts.friends + '（封鎖 ' + d.counts.blocked + '）　每日總覽 ' + d.counts.daily + '　盤中通知 ' + d.counts.sms + '　測試帳號 ' + d.counts.testers);
   L.push('最後收到 Webhook：' + (d.stats.lastWebhookAt || '尚無') + '　今日驗簽失敗：網站 ' + (d.stats.gasSigFail || 0) + '、轉送服務 ' + (d.stats.cloudSigFail || 0));

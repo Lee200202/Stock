@@ -163,7 +163,7 @@ function world(opts) {
   W.lastReply = () => calls.replies[calls.replies.length - 1];
   W.seed = rows => {
     const sh = getSheet('LINE 訂閱清單');
-    rows.forEach(r => sh.rows.push([r.uid, r.channel === undefined ? BOT : r.channel, r.friend || 'follow', r.daily ? '開啟' : '關閉', r.sms ? '開啟' : '關閉', '', '', '', '', '', r.tester ? '管理者' : '']));
+    rows.forEach(r => sh.rows.push([r.uid, r.channel === undefined ? BOT : r.channel, r.friend || 'follow', r.daily ? '開啟' : '關閉', r.sms ? '開啟' : '關閉', '', r.consentVer || '', '', '', '', r.tester ? '管理者' : '']));
   };
   W.outbox = () => W.objs('LINE 待送訊息');
   W.ledger = id => W.objs('LINE 寄送帳本').filter(r => !id || r['訊息ID'] === id);
@@ -317,7 +317,7 @@ assert(/訂閱通知說明/.test(w.lastReply().messages[0].text));
 // 測試特殊隱藏機關：啟用盤中通知
 assert.strictEqual(P('我要啟用盤中通知'), '{"a":"secretsms","on":true}');
 w.say(A, '我要啟用盤中通知');
-assert(/特殊隱藏功能已啟用/.test(w.lastReply().messages[0].text));
+assert(/已開啟盤中通知/.test(w.lastReply().messages[0].text));
 assert.strictEqual(w.sub(A)['盤中通知'], '開啟', '隱藏關鍵字成功啟用盤中通知');
 
 // 測試關閉盤中通知
@@ -415,24 +415,24 @@ w.env.noVideo = '尚無完成的影片逐字稿';
 w.say(C, '今日整理');
 assert(/還在判讀：今天的影片整理完成、通過品質檢查後才會發布（尚無完成的影片逐字稿）。通常在中午過後/.test(w.lastReply().messages[0].text));
 
-// ================================================================ 七、公開 LINE 不排送盤中內容；舊待送列也停止
+// ================================================================ 七、只有明確輸入啟用指令的好友會收到盤中內容
 function smsWorld(extra) {
   const W = world(extra);
-  W.seed([{ uid: uid('1'), sms: true }, { uid: uid('5'), sms: true, daily: true, tester: true }]);
+  W.seed([{ uid: uid('1'), sms: true, consentVer: 'v1-2026-09-27:sms-keyword' },
+    { uid: uid('5'), sms: true, daily: true, tester: true }]);
   return W;
 }
 clock.now = at('2026/09/28 10:15');
 w = smsWorld();
 const art = { id: '1845', time: '2026/09/28 10:12', text: '通知原文', url: '' };
 let q = w.ctx.lineQueueSms_(art, false);
-assert.strictEqual(q.skipped, 'public-sms-disabled');
-assert.strictEqual(w.outbox().length + w.calls.pushes.length, 0);
+assert.strictEqual(q.created, true);
+assert.deepStrictEqual(w.calls.pushes.map(p=>p.to),[uid('1')],'舊旗標不能自動成為盤中訂閱');
 w.ctx.lineQueue_({ id: 'sms|legacy', kind: 'sms', date: '2026/09/28', version: 'v1', source: '舊列',
   expiresAt: clock.now + 3600000, messages: [w.ctx.lineText_('舊通知')] });
 w.ctx.lineDeliverTick_({ force: true });
-assert.strictEqual(w.calls.pushes.length, 0, '舊待送列部署後也不得外送');
+assert.strictEqual(w.calls.pushes.length, 2, '明確同意者可接收符合時效的待送訊息');
 assert.strictEqual(w.outbox()[0]['狀態'], 'done');
-assert(/公開盤中推送已停用/.test(w.outbox()[0]['備註']));
 
 // ================================================================ 九、每日總覽：與 Email 同一套放行條件；休市、無直播、品質關卡未過都不送
 const ARTICLE = '文章標題：記憶體報價止跌，法人回補後的操作重點整理！\n\n① 盤勢總覽重點整理\n\n• 加權指數量縮整理，季線附近有撐，觀察明天量能。\n• 記憶體族群報價止跌，法人連三天回補。\n• 第三點不會出現在卡片。\n\n② 會員操作紀錄與持股明細\n\n• 不是盤勢';
@@ -471,12 +471,12 @@ clock.now = at('2026/10/10 10:05');   // 國慶日
 w = smsWorld({ env: { closed: '台股休市日' } });
 assert.strictEqual(w.ctx.lineDailyTick_().skipped, 'closed');
 w.ctx.lineQueueSms_({ id: '1900', time: '2026/10/10 10:01', text: '張震-1:假日提醒', url: '' }, false);
-assert.strictEqual(w.calls.pushes.length, 0, '休市日不送公開盤中通知');
+assert.strictEqual(w.calls.pushes.length, 1, '休市日已明確同意的盤中通知照送');
 // 無影片但有會員簡訊
 clock.now = at('2026/09/29 10:05');
 w = smsWorld({ env: { noVideo: '今日無直播' } });
 w.ctx.lineQueueSms_({ id: '1901', time: '2026/09/29 10:01', text: '張震-1:無直播日', url: '' }, false);
-assert.strictEqual(w.calls.pushes.length, 0);
+assert.strictEqual(w.calls.pushes.length, 1, '無影片仍可送已核對的盤中通知');
 clock.now = at('2026/09/29 13:00');
 assert.strictEqual(w.ctx.lineDailyTick_().skipped, 'noshow');
 

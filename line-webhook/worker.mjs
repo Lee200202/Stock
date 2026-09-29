@@ -1,6 +1,6 @@
 // Workers Free + Queues Free：驗過 LINE 原始簽章並成功入列，才向 LINE 回 200。
 // GAS 收到原始 body 與簽章後還會再驗一次；所有訂閱與去重仍在 Line.gs。
-const BUILD = '2026-09-28-line-free-relay-v1';
+const BUILD = '2026-09-29-line-free-relay-v2';
 const MAX_BYTES = 120_000; // Queues 每筆上限 128 KB，保留信封開銷。
 const FINAL_ERRORS = new Set(['signature', 'destination-mismatch', 'bad-envelope', 'bad-body']);
 const encoder = new TextEncoder();
@@ -24,7 +24,17 @@ function ready(env) {
   return !!(env.LINE_CHANNEL_SECRET && /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(env.GAS_WEBAPP_URL || '') && env.LINE_EVENTS);
 }
 
-async function callback(request, env) {
+async function startLoading(events, env) {
+  if (!env.LINE_CHANNEL_ACCESS_TOKEN) return;
+  const users = [...new Set(events.filter(e => e.type === 'message' && e.message?.type === 'text' && e.source?.type === 'user')
+    .map(e => e.source.userId).filter(Boolean))];
+  await Promise.allSettled(users.map(userId => fetch('https://api.line.me/v2/bot/chat/loading/start', {
+    method: 'POST', headers: { 'Authorization': `Bearer ${env.LINE_CHANNEL_ACCESS_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chatId: userId, loadingSeconds: 45 }), signal: AbortSignal.timeout(3000)
+  })));
+}
+
+async function callback(request, env, ctx) {
   if (!ready(env)) return response({ ok: false, error: 'not-configured' }, 503);
   if (request.method !== 'POST') return response({ ok: false }, 405);
   const raw = new Uint8Array(await request.arrayBuffer());
@@ -45,6 +55,9 @@ async function callback(request, env) {
       console.error('queue enqueue failed', String(error).slice(0, 120));
       return response({ ok: false, error: 'enqueue' }, 503);
     }
+    // 入列成功才啟動等待動畫；用 waitUntil，不讓 LINE Webhook 因圖示 API 變慢。
+    // 權杖為選填 secret；未設定時 GAS 接手後仍會啟動同一動畫。
+    if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(startLoading(payload.events, env));
   }
   return response({ ok: true });
 }
@@ -66,12 +79,12 @@ async function forward(envelope, env) {
   return 'retry';
 }
 
-export { validSignature, callback, forward };
+export { validSignature, callback, forward, startLoading };
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const path = new URL(request.url).pathname;
-    if (path === '/healthz') return response({ ok: true, build: BUILD, configured: ready(env) });
-    if (path === '/callback') return callback(request, env);
+    if (path === '/healthz') return response({ ok: true, build: BUILD, configured: ready(env), loadingConfigured: !!env.LINE_CHANNEL_ACCESS_TOKEN });
+    if (path === '/callback') return callback(request, env, ctx);
     if (path === '/static/richmenu-query.png' || path === '/static/richmenu-notify.png') {
       // Assets 的根目錄已指向 ./static；舊後台仍使用 /static/... URL。
       const assetUrl = new URL(request.url);

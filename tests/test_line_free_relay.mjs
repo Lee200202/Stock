@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
-import worker, { validSignature, callback, forward } from '../line-webhook/worker.mjs';
+import worker, { validSignature, callback, forward, startLoading } from '../line-webhook/worker.mjs';
 
 const secret = '0123456789abcdef0123456789abcdef';
 const gas = 'https://script.google.com/macros/s/test-deployment/exec';
@@ -32,6 +32,19 @@ assert.deepEqual(assetPaths, ['/richmenu-query.png']);
 
 const originalFetch = globalThis.fetch;
 try {
+  let loading = null;
+  globalThis.fetch = async (url, opts) => {
+    loading = { url, authorization: opts.headers.Authorization, body: JSON.parse(opts.body) };
+    return new Response(null, { status: 202 });
+  };
+  await startLoading([{ type: 'message', message: { type: 'text' }, source: { type: 'user', userId: 'Ufirst' } }],
+    { LINE_CHANNEL_ACCESS_TOKEN: 'test-only' });
+  assert.equal(loading.url, 'https://api.line.me/v2/bot/chat/loading/start');
+  assert.deepEqual(loading.body, { chatId: 'Ufirst', loadingSeconds: 45 });
+  assert.equal(loading.authorization, 'Bearer test-only');
+  loading = null;
+  await startLoading([{ type: 'message', message: { type: 'text' }, source: { type: 'user', userId: 'Ufirst' } }], env);
+  assert.equal(loading, null);
   globalThis.fetch = async (url, opts) => {
     assert.equal(url, gas + '?action=line');
     assert.equal(JSON.parse(opts.body).body, body);

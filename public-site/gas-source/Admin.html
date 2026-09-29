@@ -63,7 +63,7 @@
 #loginWrap .card { width: 100%; }
 .acol.sms-wide, .acol:has(#p-smsadmin:not([hidden])) { width:min(1280px, 100%); }
 .sms-admin-panel { width:100%; }
-.sms-admin-card { padding:clamp(18px, 2.5vw, 32px); }
+.sms-admin-card { padding:clamp(18px, 2.5vw, 32px); border-radius:28px; }
 .sms-admin-card .mtool { padding:clamp(16px, 2vw, 26px); }
 .sms-admin-card .mt-sub { padding-top:20px; margin-top:20px; }
 .sms-admin-card textarea { min-height:96px; }
@@ -582,6 +582,22 @@ html[data-view="mobile"] .step { font-size: calc(11px * var(--rd-fs)); padding: 
 .hitem.t-ok .hk i { color: var(--fall); } .hitem.t-warn .hk i { color: var(--wait); } .hitem.t-err .hk i { color: var(--rise); }
 .hitem .hv { font-size: calc(16px * var(--rd-fs)); font-weight: 600; overflow-wrap: anywhere; }
 .hitem .hh { font-size: calc(12.5px * var(--rd-fs)); color: var(--muted); line-height: 1.7; overflow-wrap: anywhere; }
+/* 狀態用整張卡片及文字一起編碼；深色與淺色主題都維持可讀對比。 */
+.hitem.t-ok,.ops-card[data-tone="ok"] { background:#176449; border-color:#176449; color:#fff; }
+.hitem.t-warn,.ops-card[data-tone="warn"] { background:#f0bd4e; border-color:#b78624; color:#241c09; }
+.hitem.t-err,.ops-card[data-tone="err"] { background:#a8323c; border-color:#a8323c; color:#fff; }
+.hitem.t-ok .hk,.hitem.t-ok .hk i,.hitem.t-ok .hh,.ops-card[data-tone="ok"] h3,.ops-card[data-tone="ok"] p,.ops-card[data-tone="ok"] strong,
+.hitem.t-err .hk,.hitem.t-err .hk i,.hitem.t-err .hh,.ops-card[data-tone="err"] h3,.ops-card[data-tone="err"] p,.ops-card[data-tone="err"] strong { color:#fff; }
+.hitem.t-warn .hk,.hitem.t-warn .hk i,.hitem.t-warn .hh,.ops-card[data-tone="warn"] h3,.ops-card[data-tone="warn"] p,.ops-card[data-tone="warn"] strong { color:#241c09; }
+.ops-card[data-tone="ok"] .ghost,.ops-card[data-tone="err"] .ghost { color:#fff; border-color:#fff; }
+.ops-card[data-tone="warn"] .ghost { color:#241c09; border-color:#241c09; }
+.automation-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px; margin-top:12px; }
+.automation-grid .hitem { margin:0; min-height:115px; }
+.today-sms-table { width:100%; border-collapse:collapse; table-layout:fixed; }
+.today-sms-table th,.today-sms-table td { padding:11px 10px; border-bottom:1px solid var(--rule); text-align:left; vertical-align:top; overflow-wrap:anywhere; line-height:1.55; }
+.today-sms-table th { color:var(--muted); font-size:calc(12px * var(--rd-fs)); }
+.today-sms-table th:first-child { width:24%; } .today-sms-table th:nth-child(2) { width:13%; } .today-sms-table th:nth-child(3) { width:16%; }
+@media(max-width:640px) { .today-sms-table thead { display:none; } .today-sms-table,.today-sms-table tbody,.today-sms-table tr,.today-sms-table td { display:block; width:100%; box-sizing:border-box; } .today-sms-table tr { padding:10px 0; border-bottom:1px solid var(--rule); } .today-sms-table td { padding:3px 0; border:0; } .today-sms-table td::before { content:attr(data-label) '：'; color:var(--muted); font-size:calc(12px * var(--rd-fs)); } }
 .hstamp { grid-column: 1 / -1; font-size: calc(11.5px * var(--rd-fs)); color: var(--muted); text-align: right; }
 .timeline { list-style: none; margin: 10px 0 0; padding: 0; border-left: 2px solid var(--rule); }
 .timeline li { display: grid; grid-template-columns: 3.4em 6.5em minmax(0, 1fr); gap: 8px; padding: 6px 0 6px 12px; position: relative;
@@ -794,9 +810,8 @@ html[data-view="mobile"] .audit-legend { flex-basis:100%; }
 .ops-card h3 { margin:0 0 14px; font-size:calc(14px * var(--rd-fs)); font-weight:600; color:var(--muted); }
 .ops-card strong { display:block; margin-bottom:10px; font-size:calc(22px * var(--rd-fs)); line-height:1.35; overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }
 .ops-card p,.ops-note { color:var(--muted); line-height:1.75; margin:6px 0; }
-.ops-card[data-tone="err"] strong { color:var(--rise); }
-.ops-card[data-tone="warn"] strong { color:var(--wait); }
-.ops-card[data-tone="ok"] strong { color:var(--fall); }
+.ops-card[data-tone="err"] strong,.ops-card[data-tone="ok"] strong { color:#fff; }
+.ops-card[data-tone="warn"] strong { color:#241c09; }
 .ops-flow { display:grid; gap:2px; margin:14px 0 24px; border-radius:18px; overflow:hidden; background:var(--panel-2); padding:12px 20px; }
 .ops-flow-item { display:grid; grid-template-columns:7.5em minmax(0,1fr); gap:16px; padding:13px 4px; position:relative; }
 .ops-flow-item + .ops-flow-item { border-top:1px solid var(--rule); }
@@ -832,6 +847,7 @@ html[data-view="mobile"] .ops-grid,html[data-view="mobile"] .ops-mail-setting { 
 .panel button, #loginWrap button, .acct-row button { border-radius: 12px; }
 .panel button.ghost, #loginWrap button.ghost { border-radius: 10px; }
 .panel .seg button, .panel .pillstate { border-radius: var(--r-pill); }
+.panel .sms-admin-card button { border-radius: var(--r-pill); }
 /* 帳號選單（v69）：右上角、設定齒輪左邊，外觀與旁邊兩顆 .tbtn 相同 */
 .acct-menu { position: relative; }
 .acct-menu[hidden] { display: none; }
@@ -1070,13 +1086,20 @@ html[data-view="mobile"] .line-copy { grid-template-columns:1fr; }
           <h2>今日狀態</h2>
           <button type="button" class="ghost sm" id="todayBtn">查看最新狀態</button>
         </div>
-        <p class="hint">綠色＝正常，黃色＝還在跑或需要留意，紅色＝需要處理。滑過或點開每一格看原因。</p>
+        <p class="hint">綠色＝已有完成證據；黃色＝執行中或待核對；紅色＝需要處理。休市及尚未到排程時間以灰色呈現。</p>
+        <div class="automation-grid" id="todayAutomation" aria-live="polite"><div class="erow-empty">讀取取稿、稽核與寄送狀態中…</div></div>
+        <p class="hint"><a href="https://github.com/Lee200202/Stock/actions/workflows/transcript.yml" target="_blank" rel="noopener">取稿即時日誌</a>　·　<a href="https://github.com/Lee200202/Stock/actions/workflows/daily.yml" target="_blank" rel="noopener">Pipeline 即時日誌</a>　·　下方時間軸顯示 Apps Script 留下的紀錄。</p>
         <div class="astat" id="stat"></div>
         <div class="health" id="todayHealth"><div class="erow-empty">讀取中…</div></div>
         <details class="dz timeline-dz">
           <summary><span class="dz-t">今天的時間軸</span><span class="dz-hint">系統狀態、工單、逐日編輯同步、成本覆寫與績效寫入，依時間排</span></summary>
           <ol class="timeline" id="todayTimeline"></ol>
         </details>
+      </div>
+
+      <div class="card" id="todaySmsCard">
+        <div class="card-h"><h2>今日會員簡訊寫入</h2><span class="hint">僅後台顯示；列出已寫入的買賣與持股，不把待解析原文當成交。</span></div>
+        <div id="todaySmsOps" role="status" aria-live="polite">讀取中…</div>
       </div>
 
       <div class="card">
@@ -4276,7 +4299,16 @@ var mergeTxFingerprint='';
     var btn = $('todayBtn'); if (btn) { btn.disabled = true; }
     google.script.run.withSuccessHandler(function (r) {
       busy = false; lastAt = Date.now(); if (btn) { btn.disabled = false; }
-      if (!r || !r.ok) { $('todayHealth').innerHTML = '<div class="erow-empty">讀不到今日狀態：' + esc(r ? r.reason : '沒有回應') + '</div>'; return; }
+      if (!r || !r.ok) { $('todayHealth').innerHTML = '<div class="erow-empty">讀不到今日狀態：' + esc(r ? r.reason : '沒有回應') + '</div>'; $('todayAutomation').innerHTML = '<div class="erow-empty">流程狀態無法確認</div>'; $('todaySmsOps').textContent = '會員簡訊狀態無法確認'; return; }
+      $('todayAutomation').innerHTML = (r.automation || []).map(function (it) {
+        return '<div class="hitem t-' + esc(it.tone) + '"><span class="hk">' + esc(it.label) + '<i>' + (TONE_LABEL[it.tone] || '待命') + '</i></span>' +
+          '<b class="hv">' + esc(it.value) + '</b><span class="hh">' + esc(it.detail) + '</span></div>';
+      }).join('') || '<div class="erow-empty">目前沒有可核對的流程狀態</div>';
+      var smsRows = r.smsOperations || [];
+      $('todaySmsOps').innerHTML = smsRows.length ? '<table class="today-sms-table"><thead><tr><th>個股</th><th>方向</th><th>價位</th><th>說明重點</th></tr></thead><tbody>' +
+        smsRows.map(function (x) { return '<tr><td data-label="個股"><b>' + esc(x.name || '待確認') + '</b> ' + esc(x.code) + '</td><td data-label="方向">' + esc(x.direction) +
+          '</td><td data-label="價位">' + esc(x.price || '未說明') + '</td><td data-label="說明重點">' + esc(x.detail || '尚無說明') + '</td></tr>'; }).join('') +
+        '</tbody></table>' : '<p class="hint">今日會員簡訊尚無已寫入的個股列。若來源已有文章，請至「會員簡訊」查看解析與派工狀態。</p>';
       $('todayHealth').innerHTML = (r.items || []).map(function (it) {
         return '<div class="hitem t-' + esc(it.tone) + '" title="' + esc(it.hint || '') + '" tabindex="0">' +
           '<span class="hk">' + esc(it.label) + '<i>' + (TONE_LABEL[it.tone] || '') + '</i></span>' +
@@ -4305,6 +4337,8 @@ var mergeTxFingerprint='';
     }).withFailureHandler(function () {
       busy = false; if (btn) { btn.disabled = false; }
       $('todayHealth').innerHTML = '<div class="erow-empty">連線失敗，按「查看最新狀態」再試一次。</div>';
+      $('todayAutomation').innerHTML = '<div class="erow-empty">流程狀態連線失敗，尚不能確認是否正常。</div>';
+      $('todaySmsOps').textContent = '會員簡訊資料連線失敗';
     }).apiAdminTodayStatus(KEY);
   }
   window.__loadToday = function () { load(false); };

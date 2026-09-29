@@ -684,6 +684,22 @@ function apiAdminTodayStatus(key) {
     var video = readSheetObjects_('影片清單').filter(function (r) { return fmtDate_(r['發布日期']) === today; })[0];
     var trades = readSheetObjects_('操作紀錄').filter(function (r) { return fmtDate_(r['日期']) === today; });
     var holds = readSheetObjects_('會員持股').filter(function (r) { return fmtDate_(r['日期']) === today; });
+    // 和今日狀態共用已讀取的兩張表，不另開一支逐筆查詢 API。
+    // 只顯示會員簡訊確實寫入的列；原文、待解析與逐字稿紀錄不能混成已執行買賣。
+    var smsOperations = [];
+    trades.forEach(function (r) {
+      if (String(r['來源影片ID'] || '').indexOf('CMONEY-') !== 0) { return; }
+      smsOperations.push({ time: String(r['時間'] || r['發文時間'] || ''), name: String(r['股票名稱'] || ''),
+        code: String(r['代號'] || ''), direction: String(r['方向'] || ''), price: String(r['價位說明'] || ''),
+        detail: String(r['理由摘錄'] || ''), source: String(r['來源影片ID'] || '') });
+    });
+    holds.forEach(function (r) {
+      if (String(r['來源影片ID'] || '').indexOf('CMONEY-') !== 0) { return; }
+      smsOperations.push({ time: String(r['時間'] || r['發文時間'] || ''), name: String(r['股票名稱'] || ''),
+        code: String(r['代號'] || ''), direction: '會員持股', price: '',
+        detail: String(r['說明重點'] || ''), source: String(r['來源影片ID'] || '') });
+    });
+    smsOperations.sort(function (a, b) { return b.source.localeCompare(a.source) || b.time.localeCompare(a.time); });
     var push = readSheetObjects_('每日推播內容').filter(function (r) { return fmtDate_(r['日期']) === today; })[0];
     // 與前台同一套交易日過濾（v67，R4）：休市日誤寫的列不算「最後一筆」
     var perfLast = readSheetObjects_('每日績效').map(function (r) { return fmtDate_(r['日期']); })
@@ -828,7 +844,27 @@ function apiAdminTodayStatus(key) {
     if (trading && hm >= 1700 && sectorDate !== today) {
       alerts.push('今日產業成交比重尚未更新（現有 '+(sectorDate || '無資料')+'）；排程每 15 分鐘自動補抓，查看 sectorCatchupStatus()');
     }
+    // 四個節點各有自己的證據：排程心跳、原文欄、發布欄、寄送帳本。
+    // 不能因 GitHub 排程顯示 success（可能只是休市略過）就一律標成綠色。
+    var coreMissing = triggerNames.indexOf('everyFiveMinJob') < 0 || triggerNames.indexOf('cmoneyPollJob') < 0;
+    var pipelineDone = vStatus === '完成' && v1 > 200 && !!push;
+    var pipelineBusy = v1 > 200 && !pipelineDone;
+    var automation = [
+      { label: 'Apps Script 排程', value: triggerError ? '讀取失敗' : coreMissing ? '缺少必要觸發器' : heartbeatAge === null ? '尚無啟動紀錄' : heartbeatAge + ' 分鐘前啟動',
+        tone: triggerError || coreMissing || (trading && hm >= 900 && heartbeatAge !== null && heartbeatAge > 20) ? 'err' : heartbeatAge === null ? 'warn' : 'ok',
+        detail: '心跳只證明五分鐘總排程啟動；不能代表後續取稿、判讀或寄信成功。' },
+      { label: '自動取稿', value: !trading ? '休市暫停' : noShow ? '今日無直播' : v1 > 200 ? '原文已落地（' + v1 + ' 字）' : hm < TX_AUTO_START_HM_ ? '等待 11:05' : '等待原文',
+        tone: !trading || noShow || hm < TX_AUTO_START_HM_ ? 'idle' : v1 > 200 ? 'ok' : hm >= 1400 ? 'err' : 'warn',
+        detail: '原文以「影片清單」當日欄位核對；GitHub 執行狀態及即時日誌請看下方取稿進度。' },
+      { label: 'Pipeline 稽核', value: !trading || noShow ? '不執行' : pipelineDone ? '已發布每日整理' : pipelineBusy ? '原文已到，等待判讀／發布' : '等待原文',
+        tone: !trading || noShow || !v1 ? 'idle' : pipelineDone ? 'ok' : hm >= 1500 ? 'err' : 'warn',
+        detail: '完成須同時有原文、影片處理狀態「完成」及當日每日推播列；細節見 GitHub daily.yml 日誌。' },
+      { label: '每日郵件', value: !trading || noShow ? '不寄每日總覽' : byMail.daily.accepted ? '郵件服務接受 ' + byMail.daily.accepted + ' 位' : push ? '待寄或帳本待核對' : '等待文章',
+        tone: !trading || noShow || !push ? 'idle' : byMail.daily.failed || byMail.daily.unknown ? 'err' : byMail.daily.accepted ? 'ok' : hm >= 2200 ? 'err' : 'warn',
+        detail: '依寄送帳本判定；「服務接受」不等於收件者已讀。未有影片時不寄每日總覽。' }
+    ];
     return { ok: true, today: today, now: Utilities.formatDate(new Date(), TZ, 'HH:mm'), items: items,
+      automation: automation, smsOperations: smsOperations.slice(0, 40),
       timeline: timeline.slice(-40), ops: { trading: trading, noShow: noShow, plannedNoShow: plannedNoShow && !video, videoStatus: vStatus,
         rawChars: v1, polishedChars: v2, mailStatus: push ? String(push['寄送狀態'] || '') : '',
         deliveries: tot, mailByKind: byMail, mailKinds: dkeys.length, mailQuotaLeft: quotaLeft, smsCount: sms,

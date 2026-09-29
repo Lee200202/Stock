@@ -348,6 +348,8 @@ function buildMarketOverview_(force) {
 
   var live=null,hit=CACHE.get('market_live_index');
   if(hit){try{live=JSON.parse(hit);}catch(e){}}
+  // 昨日或更早的 Yahoo 快取不能在盤中冒充今日報價。休市時仍可看前次收盤。
+  if(isMarketOpen&&live&&String(live.time||'').slice(0,10)!==stamp){live=null;}
 
   // 檢查快取中的折線是否為完整收盤資料（最後一根時間在 13:25 以上）
   var hasCompleteLine=live&&live.line&&live.line.length>0&&function(){
@@ -392,7 +394,12 @@ function buildMarketOverview_(force) {
           }
         }
       }
-      var lastPrice=Number(meta.regularMarketPrice)||(line.length?line[line.length-1].value:0);
+      // Yahoo 的 meta.regularMarketPrice 可能仍停在數日前；以當日時間戳為準。
+      var todayLine=line.filter(function(p){return Utilities.formatDate(new Date(p.time),TZ,'yyyy/MM/dd')===stamp;});
+      if(isMarketOpen&&!todayLine.length){throw new Error('Yahoo 尚無今日加權指數時間戳');}
+      if(isMarketOpen){line=todayLine;}
+      var quoteTime=line.length?new Date(line[line.length-1].time):new Date(Number(meta.regularMarketTime||0)*1000);
+      var lastPrice=line.length?Number(line[line.length-1].value):Number(meta.regularMarketPrice);
       var prevClose=Number(meta.chartPreviousClose||meta.previousClose);
       var change=prevClose>0?lastPrice-prevClose:0;
       var changePercent=prevClose>0?(change/prevClose)*100:0;
@@ -402,7 +409,7 @@ function buildMarketOverview_(force) {
       }();
 
       live={key:'taiex',label:'加權指數',value:lastPrice,change:change,percent:changePercent,
-        time:Utilities.formatDate(new Date(meta.regularMarketTime*1000),TZ,'yyyy/MM/dd HH:mm:ss'),
+        time:Utilities.formatDate(quoteTime,TZ,'yyyy/MM/dd HH:mm:ss'),
         source:isDone?'Yahoo Finance 收盤走勢':'Yahoo Finance 日內資料（可能延遲）',unit:'點',line:line,
         turnover:null,estimatedTurnover:null,tradeVolume:null,volumeUnit:'億',estimatedVolume:null,
         open:null,high:null,low:null,amplitude:null,
@@ -414,12 +421,13 @@ function buildMarketOverview_(force) {
         live=null;
       }
     }catch(e){
-      out.warnings.push('大盤即時不可用，顯示最近快取');
+      out.warnings.push('加權指數今日資料尚未取得；不把前次收盤標成即時');
+      if(live){live.source+='（保留快取，來源時間 '+String(live.time||'未標示')+'）';}
       CACHE.put('market_index_blocked','1',60);
     }
   }
 
-  if(!live&&hit){
+  if(!live&&hit&&!isMarketOpen){
     try{
       live=JSON.parse(hit);
       if(isMarketOpen&&Date.now()-(live.fetchedAt||0)>=300000){
@@ -442,6 +450,11 @@ function buildMarketOverview_(force) {
       out.cards=out.cards.filter(function(r){return r.key!=='taiex';});
       out.cards.unshift(live);
     }
+  }
+  if(isMarketOpen&&!live){
+    out.cards.forEach(function(c){if(c.key==='taiex'){
+      c.source='前次收盤｜今日盤中資料尚未取得';c.quoteMode='待今日資料';c.line=[];c.value=null;c.change=null;c.percent=null;
+    }});
   }
   attachLiveFuture_(out);
 
@@ -757,6 +770,36 @@ function marketSnapshotJobRun_() {
     // 前台下次打開要拿到剛才採樣的資料，而非舊的整站市場包。
     CACHE.remove('market_board_v53');
   }catch(e){props.setProperty('marketSnapshotStatus',JSON.stringify({at:nowStamp_(),ok:false,note:String(e.message||e)}));}
+  // 台指期與加權指數分開取樣；期交所暫時失敗不應阻止大盤補點。
+  try{marketSampleTaiex_();}catch(e){Logger.log('加權指數取樣稍後續試：'+String(e.message||e));}
+}
+
+/** 每五分鐘只抓一個 Yahoo 加權指數端點，不把舊交易日的價格寫成今天。 */
+function marketSampleTaiex_(){
+  var now=new Date(),stamp=Utilities.formatDate(now,TZ,'yyyy/MM/dd'),hm=Number(Utilities.formatDate(now,TZ,'HHmm'));
+  if(hm<900||hm>1340||isMarketHoliday_(now)){return;}
+  var cache=CacheService.getScriptCache();
+  if(cache.get('market_index_blocked')){return;}
+  var old=null;try{old=JSON.parse(cache.get('market_live_index')||'null');}catch(e){}
+  if(old&&Date.now()-Number(old.fetchedAt||0)<270000){return;}
+  var res=UrlFetchApp.fetch('https://query1.finance.yahoo.com/v8/finance/chart/%5ETWII?interval=5m&range=1d',
+    {muteHttpExceptions:true,headers:{'User-Agent':'Mozilla/5.0'}});
+  if(res.getResponseCode()!==200){if([401,403,429].indexOf(res.getResponseCode())>=0){cache.put('market_index_blocked','1',120);}throw new Error('Yahoo HTTP '+res.getResponseCode());}
+  var root=JSON.parse(res.getContentText()).chart.result[0],q=root.indicators.quote[0],line=[];
+  (root.timestamp||[]).forEach(function(ts,i){
+    if(q.close[i]==null){return;}
+    var t=new Date(ts*1000),date=Utilities.formatDate(t,TZ,'yyyy/MM/dd'),clock=Utilities.formatDate(t,TZ,'HH:mm');
+    if(date===stamp&&clock>='09:00'&&clock<='13:30'){line.push({time:t.toISOString(),value:Number(q.close[i]),volume:q.volume[i]==null?null:Number(q.volume[i])});}
+  });
+  if(!line.length){throw new Error('Yahoo 回傳非今日資料');}
+  var last=line[line.length-1],prev=Number(root.meta.chartPreviousClose||root.meta.previousClose),change=prev>0?last.value-prev:null;
+  var card={key:'taiex',label:'加權指數',value:last.value,change:change,percent:prev>0?change/prev*100:null,
+    time:Utilities.formatDate(new Date(last.time),TZ,'yyyy/MM/dd HH:mm:ss'),source:'Yahoo Finance 日內資料（可能延遲）',unit:'點',line:line,
+    turnover:null,estimatedTurnover:null,tradeVolume:null,volumeUnit:'億',estimatedVolume:null,open:null,high:null,low:null,amplitude:null,
+    estimateNote:'資料依來源時間呈現',fetchedAt:Date.now()};
+  cache.put('market_live_index',JSON.stringify(card),21600);
+  cache.remove('market_board_v53');
+  PropertiesService.getScriptProperties().setProperty('marketIndexSnapshotStatus',JSON.stringify({at:nowStamp_(),ok:true,quoteAt:card.time,points:line.length}));
 }
 
 function installMarketSnapshotJob(){
@@ -772,6 +815,7 @@ function installMarketSnapshotJob(){
 
 function marketSnapshotStatus(){
   var result=JSON.parse(PropertiesService.getScriptProperties().getProperty('marketSnapshotStatus')||'{}');
+  result.index=JSON.parse(PropertiesService.getScriptProperties().getProperty('marketIndexSnapshotStatus')||'{}');
   result.trigger=ScriptApp.getProjectTriggers().some(function(t){return ['marketSnapshotJob','everyFiveMinJob'].indexOf(t.getHandlerFunction())>=0;});
   result.mode=ScriptApp.getProjectTriggers().some(function(t){return t.getHandlerFunction()==='everyFiveMinJob';})?'五分鐘總排程':result.trigger?'獨立排程':'未排程';
   Logger.log(JSON.stringify(result));return result;

@@ -1760,18 +1760,20 @@ function mdToHtml_(md) {
     heads.forEach(function (h, i) { if (i !== 0 && i !== codeIdx && i !== descIdx) { mids.push(i); } });
 
     var th = function (text) {
-      return '<th bgcolor="' + hbg + '" class="' + hcls + ' mc-th" style="background:' + hbg + ';padding:7px 12px;text-align:left;' +
-             'font-size:12px;line-height:1.5;font-weight:600;color:#3E4944;white-space:nowrap;">' + text + '</th>';
+      var isFirst = text === '股票／代號';
+      return '<th bgcolor="' + hbg + '" class="' + hcls + ' mc-th" style="background:' + hbg + ';padding:8px ' + (isFirst ? '14px' : '16px') + ';text-align:left;' +
+             'font-size:12px;line-height:1.5;font-weight:600;color:#3E4944;white-space:nowrap;' +
+             (isFirst ? 'border-right:1px solid ' + edge + ';' : '') + '">' + text + '</th>';
     };
     /* 全部改成兩欄：名稱與代號上下對齊；右邊放價位、方向與說明。
        持股沒有重複的「持有」狀態格，觀望沒有大片空白價位格。
-       第一欄收緊至 13%（約 88px），把大片留白空間留給說明重點。 */
+       第一欄設為 18%（約 122px）並帶有縱向分隔線與充足內距，既不留大片空白、也絕不擁擠貼在一起。 */
     var watchLayout = !!(tone && (tone.key === 'watch' || tone.key === 'avoid')) && dirCol < 0;
     html.push('<table class="mc-table" role="presentation" width="100%" cellpadding="0" cellspacing="0" ' +
               'style="width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0;margin:6px 0 12px;' +
               'border:1px solid ' + edge + ';border-radius:12px;overflow:hidden;font-family:' + MAIL_FONT_ +
               ';font-size:13.5px;line-height:1.7;">' +
-              '<colgroup><col style="width:13%"><col style="width:87%"></colgroup>' +
+              '<colgroup><col style="width:18%"><col style="width:82%"></colgroup>' +
               '<thead><tr>' + th('股票／代號') + th('說明重點') + '</tr></thead><tbody>');
 
     rows.forEach(function (cells) {
@@ -1793,12 +1795,12 @@ function mdToHtml_(md) {
       var pxTag = mid ? '<span class="mc-mid" style="display:inline-block;margin:0 8px 4px 0;color:#26312C;font-size:13.5px;">' +
         (watchLayout ? chip('價位 ' + mid, rt || tone) : mid) + '</span>' : '';
       html.push('<tr>' +
-          '<td bgcolor="' + bg + '" class="' + cls + ' mc-name" style="background:' + bg + ';padding:10px 10px 11px 12px;border-top:1px solid ' + ln + ';' +
-            'border-left:4px solid ' + bar + ';vertical-align:top;font-weight:700;font-size:15px;line-height:1.5;color:#12161A;word-break:keep-all;overflow-wrap:break-word;">' +
+          '<td bgcolor="' + bg + '" class="' + cls + ' mc-name" style="background:' + bg + ';padding:11px 14px 12px;border-top:1px solid ' + ln + ';' +
+            'border-left:4px solid ' + bar + ';border-right:1px solid ' + ln + ';vertical-align:top;font-weight:700;font-size:15px;line-height:1.5;color:#12161A;word-break:keep-all;overflow-wrap:break-word;">' +
             mailStockName_(cells[0]) +
             (codeIdx >= 0 && cells[codeIdx] ? '<br><span class="mc-code" style="font-weight:400;font-size:13.5px;letter-spacing:0.04em;color:' +
               MAIL_CODE_COLOR_ + ';white-space:nowrap;">' + cells[codeIdx] + '</span>' : '') + '</td>' +
-          '<td bgcolor="' + bg + '" class="' + cls + ' mc-desc mc-side" style="background:' + bg + ';padding:10px 12px 11px;border-top:1px solid ' + ln + ';' +
+          '<td bgcolor="' + bg + '" class="' + cls + ' mc-desc mc-side" style="background:' + bg + ';padding:11px 16px 12px;border-top:1px solid ' + ln + ';' +
             'vertical-align:top;font-size:13.5px;line-height:1.75;color:#26312C;overflow-wrap:break-word;word-break:break-word;">' + pxTag + (wdesc || '未說明') + '</td>' +
           '</tr>');
     });

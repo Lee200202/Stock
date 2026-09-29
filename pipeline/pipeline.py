@@ -726,7 +726,9 @@ def ping_downstream():
                               timeout=60, headers={"User-Agent": "zhangzhen-pipeline"})
             body = pr.text or ''
             try:
-                info = json.loads(body[:4000])
+                # ping 的 features 清單會隨版本增長；截斷回應會把有效 JSON
+                # 誤判成網頁。只限制診斷日誌的長度，不限制解析長度。
+                info = json.loads(body)
             except Exception:
                 info = None
             if isinstance(info, dict):
@@ -1003,7 +1005,7 @@ def maybe_refresh_site(only=None, force=False, date_str="", on_progress=None):
                         timeout=min(300, max(1, int(budget_left() - 30))) if (DAILYK_ONLY or ADMIN_JOB) and key == 'dailyk' else 300,
                         headers={"User-Agent": "zhangzhen-pipeline"},
                     )
-                    candidate = resp.text[:4000]
+                    candidate = resp.text
                     candidate_low = candidate.lower()
                     is_html = "<html" in candidate_low or "<!doctype" in candidate_low
                     is_error_page = "<title>error</title>" in candidate_low
@@ -1184,7 +1186,7 @@ def _full_fix_progress(last_seen):
             timeout=60,
             headers={"User-Agent": "zhangzhen-pipeline"},
         )
-        d = json.loads(r.text[:800])
+        d = r.json()
     except Exception:
         return None, ""
     if not d.get("ok"):
@@ -1219,7 +1221,7 @@ def drive_full_fix():
     try:
         pr = requests.get(APPS_SCRIPT_URL, params={"action": "ping"},
                           timeout=60, headers={"User-Agent": "zhangzhen-pipeline"})
-        pinfo = json.loads(pr.text[:4000])
+        pinfo = pr.json()
         feats = pinfo.get("features") or []
     except Exception as e:
         print(f"連不上下游或回應不是 JSON：{e}")

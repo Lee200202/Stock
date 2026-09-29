@@ -849,9 +849,10 @@ function apiAdminTodayStatus(key) {
     var coreMissing = triggerNames.indexOf('everyFiveMinJob') < 0 || triggerNames.indexOf('cmoneyPollJob') < 0;
     var pipelineDone = vStatus === '完成' && v1 > 200 && !!push;
     var pipelineBusy = v1 > 200 && !pipelineDone;
+    var mailExpected = mailNeed.dailySubs > 0;
     var automation = [
       { label: 'Apps Script 排程', value: triggerError ? '讀取失敗' : coreMissing ? '缺少必要觸發器' : heartbeatAge === null ? '尚無啟動紀錄' : heartbeatAge + ' 分鐘前啟動',
-        tone: triggerError || coreMissing || (trading && hm >= 900 && heartbeatAge !== null && heartbeatAge > 20) ? 'err' : heartbeatAge === null ? 'warn' : 'ok',
+        tone: triggerError || coreMissing || (heartbeatAge !== null && heartbeatAge > 20) ? 'err' : heartbeatAge === null ? 'warn' : 'ok',
         detail: '心跳只證明五分鐘總排程啟動；不能代表後續取稿、判讀或寄信成功。' },
       { label: '自動取稿', value: !trading ? '休市暫停' : noShow ? '今日無直播' : v1 > 200 ? '原文已落地（' + v1 + ' 字）' : hm < TX_AUTO_START_HM_ ? '等待 11:05' : '等待原文',
         tone: !trading || noShow || hm < TX_AUTO_START_HM_ ? 'idle' : v1 > 200 ? 'ok' : hm >= 1400 ? 'err' : 'warn',
@@ -859,8 +860,8 @@ function apiAdminTodayStatus(key) {
       { label: 'Pipeline 稽核', value: !trading || noShow ? '不執行' : pipelineDone ? '已發布每日整理' : pipelineBusy ? '原文已到，等待判讀／發布' : '等待原文',
         tone: !trading || noShow || !v1 ? 'idle' : pipelineDone ? 'ok' : hm >= 1500 ? 'err' : 'warn',
         detail: '完成須同時有原文、影片處理狀態「完成」及當日每日推播列；細節見 GitHub daily.yml 日誌。' },
-      { label: '每日郵件', value: !trading || noShow ? '不寄每日總覽' : byMail.daily.accepted ? '郵件服務接受 ' + byMail.daily.accepted + ' 位' : push ? '待寄或帳本待核對' : '等待文章',
-        tone: !trading || noShow || !push ? 'idle' : byMail.daily.failed || byMail.daily.unknown ? 'err' : byMail.daily.accepted ? 'ok' : hm >= 2200 ? 'err' : 'warn',
+      { label: '每日郵件', value: byMail.daily.failed || byMail.daily.unknown ? '寄送帳本有異常' : !trading || noShow ? '不寄每日總覽' : !mailExpected ? '目前無每日訂閱者' : byMail.daily.accepted ? '郵件服務接受 ' + byMail.daily.accepted + ' 位' : push ? '待寄或帳本待核對' : '等待文章',
+        tone: byMail.daily.failed || byMail.daily.unknown ? 'err' : !trading || noShow || !mailExpected || !push ? 'idle' : byMail.daily.accepted ? 'ok' : hm >= 2200 ? 'err' : 'warn',
         detail: '依寄送帳本判定；「服務接受」不等於收件者已讀。未有影片時不寄每日總覽。' }
     ];
     return { ok: true, today: today, now: Utilities.formatDate(new Date(), TZ, 'HH:mm'), items: items,

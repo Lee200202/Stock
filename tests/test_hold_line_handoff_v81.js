@@ -5,6 +5,13 @@ const vm = require('node:vm');
 const sheet = fs.readFileSync('public-site/gas-source/SheetService.gs', 'utf8');
 const context = vm.createContext({ HOLD_CONFIRM_DAYS: 3 });
 vm.runInContext(sheet, context);
+const setup = fs.readFileSync('public-site/gas-source/Setup.gs', 'utf8');
+const registry = vm.createContext({});
+vm.runInContext(setup.slice(setup.indexOf('var PROJECT_BUILD_ ='), setup.indexOf('// 全域物件。')), registry);
+const sheetEntry = registry.PROJECT_FILES_.find(x => x.file === 'SheetService.gs');
+assert(sheetEntry && sheetEntry.marker, 'SheetService version marker is required');
+assert(String(context[sheetEntry.marker[0]]).includes(sheetEntry.marker[1]),
+  'checkProjectFiles must inspect the function containing the v81 marker');
 const days = ['2026/09/01', '2026/09/02', '2026/09/03', '2026/09/04'];
 const lone = [{ date: '2026/09/01' }];
 assert.equal(context.isManualHoldSource_('MANUALENTRY-20260929'), true);

@@ -61,8 +61,8 @@ var SHEET_SCHEMA = {
   '日K快取': ['代號', '日期', '開', '高', '低', '收', '量'],
   // 盤中現價落地快取。前端直接讀這張，不對外請求。
   '即時快取': ['代號', '名稱', '現價', '昨收', '漲跌', '漲跌幅', '成交量', '更新時間', '開', '高', '低', '行情日期'],
-  // 每日收盤後記一筆整體績效，供績效走勢折線圖使用。往前補不了。
-  '每日績效': ['日期', '追蹤檔數', '持有檔數', '平均報酬', '正報酬比例'],
+  // 每日收盤後記一筆整體績效；歷史可由日K與持股回合重算。
+  '每日績效': ['日期', '計入報酬檔數', '持有檔數', '平均報酬', '正報酬比例'],
   // 盤中每 5 分鐘寫入一次，收盤後聚合成小時K 就清空。這張表是暫存，不保留。
   '盤中快照': ['日期', '時間', '代號', '成交價', '累計成交量'],
   // 60 分 K。當日部分由 Fugle 提供，收盤後落地。往前補不了。
@@ -1144,7 +1144,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-09-29-hold-line-v81';
+var PROJECT_BUILD_ = '2026-09-29-performance-count-v82';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
@@ -1160,7 +1160,7 @@ var PROJECT_FILES_ = [
   { file: 'Adminservice.gs', names: ['adminAuth_', 'apiAdminLogin', 'PIPE_RECLASSIFY_SYSTEM', 'apiAdminTodayStatus', 'apiAdminHeldList', 'apiAdminSetHoldingCost', 'apiAdminHoldToday', 'apiAdminKCoverage', 'apiAdminOpsDay', 'apiAdminInstallSectorCatchup'], marker: ['transcriptAutomationTick_', 'TX_AUTO_START_HM_'] },
   { file: 'Aiservice.gs', names: ['validateKey', 'assistantModelCatalog_', 'sanitizeDraft_', 'draftReady_', 'isPromptProbe_', 'guardReply_', 'explicitSubscribeConfirm_'], marker: ['assistantModelCatalog_', 'supportedGenerationMethods'] },
   { file: 'Articlequality.gs', names: ['enforceArticleRecords_', 'attachArticleEvidence_'] },
-  { file: 'Cachebuilder.gs', names: ['budgetLeft_', 'trackedCodes_', 'readSnapshotRows_', 'officialDailyAll_', 'auditDailyKCache', 'repairDailyKCache', 'afterDailyKDoneJob', 'rescheduleDailyKTrigger', 'warmKCaches_', 'dailyKFloors_', 'resetDailyKFloor', 'isTradingDateStr_', 'ensurePerformanceContinuityJob_'], marker: ['fetchMissingDailyK_', 'setDailyKFloor_'] },
+  { file: 'Cachebuilder.gs', names: ['budgetLeft_', 'trackedCodes_', 'readSnapshotRows_', 'officialDailyAll_', 'auditDailyKCache', 'repairDailyKCache', 'afterDailyKDoneJob', 'rescheduleDailyKTrigger', 'warmKCaches_', 'dailyKFloors_', 'resetDailyKFloor', 'isTradingDateStr_', 'ensurePerformanceContinuityJob_'], marker: ['snapshotPerformanceJobRun_', 't.summary.priced'] },
   { file: 'Cmoney.gs', names: ['cmMailBody_', 'cmNotifyNew_', 'cmSyncContentTick_', 'cmTranscriptExcerpt_', 'deliveryRetryTick_', 'diagnoseInstantMail', 'cmSetNotifyState_', 'resendInstantMail'], marker: ['cmNotifyNew_', 'lineQueueSms_'] },
   { file: 'DB.gs', names: ['writeSubscriptionFields_', 'findSubscription_'] },
   { file: 'Evidencequality.gs', names: ['rawTranscript_', 'validEvidence_', 'queueDayEditSync_', 'dayEditSyncTick_', 'queueCostSync_'], marker: ['dayEditSyncTick_', 'COST:'] },
@@ -1179,8 +1179,8 @@ var PROJECT_HTML_ = [
   { file: 'MarketDetail', marker: 'function placePeriodThumb()' },
   { file: 'MarketCharts', marker: 'window.marketRollingBounds' },
   { file: 'Market', marker: '開盤不久，走勢累積中' },
-  { file: 'Index', marker: 'id="siteLoadAlert"' },
-  { file: 'JavaScript', marker: 'dashboardWait = setTimeout' },
+  { file: 'Index', marker: '計入報酬檔數' },
+  { file: 'JavaScript', marker: '計入<span class="th-long">報酬檔數' },
   { file: 'Stylesheet', marker: '.access-alert[hidden]' },
   { file: 'Changelog', marker: 'v72 技術說明留白、卡片與互動判別' },
   { file: 'Tech', marker: 'data-tech-story-v72' },

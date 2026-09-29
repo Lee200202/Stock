@@ -2152,7 +2152,7 @@ function backfillPerformanceJob() {
 
   var rows = [];
   dates.forEach(function (d) {
-    var rets = [], held = 0, entered = 0;
+    var rets = [], held = 0;
 
     base.forEach(function (r) {
       var code = String(r['代號']).trim();
@@ -2161,7 +2161,6 @@ function backfillPerformanceJob() {
       var entry = Number(r['進場價']);
 
       if (buy > d) { return; }                       // 那天還沒進場
-      entered++;                                     // 到 d 為止已進場（累積追蹤檔數）
       if (sell && sell < d) { return; }              // 那天已經出場
       held++;                                        // 那天仍持有（不論有無收盤價）
 
@@ -2174,7 +2173,7 @@ function backfillPerformanceJob() {
     var avg = rets.length ? rets.reduce(function (a, b) { return a + b; }, 0) / rets.length : 0;
     var pos = rets.length ? rets.filter(function (x) { return x > 0; }).length / rets.length * 100 : 0;
 
-    rows.push([d, entered, held,
+    rows.push([d, rets.length, held,
                rets.length ? Math.round(avg * 100) / 100 : '',
                rets.length ? Math.round(pos * 10) / 10 : '']);
   });
@@ -2184,7 +2183,7 @@ function backfillPerformanceJob() {
   withLock_(function () {
     var sh = getSheet_('每日績效');
     sh.clearContents();
-    sh.getRange(1, 1, 1, 5).setValues([['日期', '追蹤檔數', '持有檔數', '平均報酬', '正報酬比例']]);
+    sh.getRange(1, 1, 1, 5).setValues([['日期', '計入報酬檔數', '持有檔數', '平均報酬', '正報酬比例']]);
     sh.getRange(2, 1, rows.length, 5).setValues(rows);
   });
 
@@ -2277,6 +2276,20 @@ function snapshotPerformanceJobRun_() {
   var t = getHoldingsTracker();
   if (!t.summary) { Logger.log('尚無可統計的持股，略過'); return; }
 
+  // 舊欄第二格有時寫「曾追蹤總數」、有時寫「持有數」，不能直接改表頭冒充新定義。
+  // 首次執行時用既有日K與回合重算全部歷史；失敗就保留舊表，避免混寫。
+  var countHeader = String(getSheet_('每日績效').getRange(1, 2).getValue() || '').trim();
+  if (countHeader === '追蹤檔數') {
+    var migrated = rebuildPerformanceHistoryJob();
+    if (!migrated || !migrated.ok || migrated.skipped) {
+      Logger.log('每日績效仍是舊欄位，完整歷史尚未重算；今天先不混寫。');
+      return;
+    }
+  } else if (countHeader !== '計入報酬檔數') {
+    Logger.log('每日績效第二欄表頭不符，停止寫入：' + countHeader);
+    return;
+  }
+
   /* 只寫交易日（v67，0925 規格 R4）：2026/09/25 中秋休市時「每日績效」仍多了一筆 09/25，
      前台讀取端會濾掉，但後台「績效最後一筆」讀原始分頁而誤報正常。休市日手動執行時寫到最近一個交易日（覆蓋同一列）。 */
   var today = typeof latestTradingDayStr_ === 'function' ? latestTradingDayStr_() : todayStr_();
@@ -2284,7 +2297,7 @@ function snapshotPerformanceJobRun_() {
     var sh = getSheet_('每日績效');
     var values = sh.getDataRange().getValues();
 
-    var row = [today, t.summary.total, t.summary.holding, t.summary.avgReturn, t.summary.positiveRatio];
+    var row = [today, t.summary.priced, t.summary.holding, t.summary.avgReturn, t.summary.positiveRatio];
 
     for (var i = 1; i < values.length; i++) {
       if (fmtDate_(values[i][0]) === today) {
@@ -2331,6 +2344,13 @@ function snapshotPerformanceJobRun_() {
  * ==================================================================== */
 function rebuildPerformanceHistoryJob(fromDate) {
   var start = Date.now();
+
+  // 部分重算會保留起點之前的舊列。舊版第二欄口徑不一致，必須整張重建。
+  var migratingOldCount = String(getSheet_('每日績效').getRange(1, 2).getValue() || '').trim() === '追蹤檔數';
+  if (migratingOldCount && fromDate) {
+    Logger.log('每日績效仍是舊欄位，改為全表重算以統一計數口徑。');
+    fromDate = '';
+  }
 
   // 交易日曆與收盤價：兩者都從日K快取來，一次讀完。
   var closes = {};          // closes[code][date] = 收盤價
@@ -2430,6 +2450,10 @@ function rebuildPerformanceHistoryJob(fromDate) {
   }
   if (noJson) {
     Logger.log('※ 有 ' + noJson + ' 檔沒有回合JSON（舊版寫的列），這次不列入統計。');
+    if (migratingOldCount) {
+      Logger.log('舊績效表暫不遷移，避免缺少回合JSON 時清掉既有歷史。請先重算持股追蹤。');
+      return { ok: false, reason: '持股追蹤有 ' + noJson + ' 檔缺少回合JSON' };
+    }
   }
 
   /* 某一檔在 D 這一天的未實現報酬。沒持有、或算不出價就回 null。 */
@@ -2470,12 +2494,12 @@ function rebuildPerformanceHistoryJob(fromDate) {
       pos = Math.round(priced.filter(function (x) { return x > 0; }).length
                        / priced.length * 1000) / 10;
     }
-    out.push([d, total, total, avg === null ? '' : avg, pos === null ? '' : pos]);
+    out.push([d, priced.length, total, avg === null ? '' : avg, pos === null ? '' : pos]);
   });
 
   withLock_(function () {
     var sh = getSheet_('每日績效');
-    var headers = ['日期', '追蹤檔數', '持有檔數', '平均報酬', '正報酬比例'];
+    var headers = ['日期', '計入報酬檔數', '持有檔數', '平均報酬', '正報酬比例'];
     if (from) {
       /* 指定起點時只換掉那一段，起點之前的歷史點原樣保留。
          全表重寫會把「還沒有回合JSON 的那段更早期歷史」一起清掉。 */
@@ -2549,7 +2573,8 @@ function getPerformanceSeries() {
     if (!byDate[d]) { order.push(d); }
     byDate[d] = {
       date: d,
-      total: Number(r['追蹤檔數']) || 0,
+      // 舊欄位混過不同口徑，遷移前不顯示假精確數字。
+      total: numOrNull_(r['計入報酬檔數']),
       holding: Number(r['持有檔數']) || 0,
       /* 空白代表「那一天算不出來」，不是 0。
          Number('') 會回 0，把「不知道」變成「零報酬」——這是走勢圖出現

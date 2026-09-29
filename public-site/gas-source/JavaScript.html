@@ -2061,12 +2061,12 @@ function publicNarrative_(text, row) {
   function renderPerfTable() {
     var s = perfSlice().slice().reverse();
     $('perfTable').innerHTML = '<div class="card flush"><table><thead><tr>' +
-      // 手機只顯示短表頭（v69）：「追蹤檔數」在窄欄會斷成「追蹤檔／數」
-      '<th>日期</th><th class="r">追蹤<span class="th-long">檔數</span></th><th class="r">持有<span class="th-long">檔數</span></th>' +
+      // 手機只顯示短表頭，完整定義在表格上方。
+      '<th>日期</th><th class="r">計入<span class="th-long">報酬檔數</span></th><th class="r">持有<span class="th-long">檔數</span></th>' +
       '<th class="r">平均<span class="th-long">報酬</span></th><th class="r">正報酬<span class="th-long">比例</span></th></tr></thead><tbody>' +
       s.map(function (r) {
         return '<tr><td class="code">' + esc(r.date) + '</td>' +
-          '<td class="px r">' + r.total + '</td>' +
+          '<td class="px r">' + (r.total == null ? '\u2014' : r.total) + '</td>' +
           '<td class="px r">' + r.holding + '</td>' +
           '<td class="px r ' + signCls(r.avgReturn) + '">' + fmtRet(r.avgReturn) + '</td>' +
           // 算不出來的日子是 null，不能呼叫 toFixed（先前整張表會因此畫不出來）。

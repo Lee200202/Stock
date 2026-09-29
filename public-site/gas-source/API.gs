@@ -117,8 +117,28 @@ function apiGetDashboard() {
   var hit = CACHE.get(DASH_CACHE_KEY_);
   if (hit) { try { return JSON.parse(hit); } catch (e) {} }
   // 唯讀：同一個請求內同一張表只讀一次（v54，Codex 規格 67）。
+  var todayData = withSheetSnapshot_(function () { return getTodayOverview(); });
+  var trackerData = null;
+  try { trackerData = withSheetSnapshot_(function () { return getHoldingsTracker(); }); } catch (e) {}
+  var lineEntry = null;
+  try { lineEntry = apiGetLineEntry(); } catch (e) {}
+  var quoteCodes = [];
+  if (todayData) {
+    (todayData.buy || []).concat(todayData.sell || []).concat(todayData.watchAvoid || []).concat(todayData.watchWatch || []).forEach(function (x) {
+      if (x && x.code && /^(?:00\d{3,4}|\d{4,6})[A-Z]?$/.test(x.code) && quoteCodes.indexOf(x.code) < 0) {
+        quoteCodes.push(x.code);
+      }
+    });
+  }
+  var quotes = {};
+  if (quoteCodes.length) {
+    try { quotes = getQuotesFor(quoteCodes.slice(0, 30)); } catch (e) {}
+  }
   var out = {
-    today: withSheetSnapshot_(function () { return getTodayOverview(); }),
+    today: todayData,
+    tracker: trackerData,
+    quotes: quotes,
+    lineEntry: lineEntry,
     updatedAt: Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy/MM/dd HH:mm')
   };
   try {

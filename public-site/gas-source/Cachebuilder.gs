@@ -377,10 +377,19 @@ function debugDailyKFetch(code) {
   return output;
 }
 
+var _IN_MEMORY_CODEMAP = null;
 /** 讀對照表。空的時候自動先建一次，不要讓呼叫端莫名其妙地炸。 */
 function loadCodeMap_() {
+  if (_IN_MEMORY_CODEMAP && _IN_MEMORY_CODEMAP.byCode && Object.keys(_IN_MEMORY_CODEMAP.byCode).length > 100) {
+    return _IN_MEMORY_CODEMAP;
+  }
   var hit = CACHE.get('codemap-v6');
-  if (hit) { return JSON.parse(hit); }
+  if (hit) {
+    try {
+      var cached = JSON.parse(hit);
+      if (cached && cached.byCode) { _IN_MEMORY_CODEMAP = cached; return cached; }
+    } catch (e) {}
+  }
 
   var rows = readSheetObjects_('股票對照表');
 
@@ -407,6 +416,7 @@ function loadCodeMap_() {
   byCode['00981A'] = {name:'主動統一台股增長',market:'上市',industry:'ETF'};
   byName['主動統一台股增長'] = '00981A';
   var out = { byCode: byCode, byName: byName };
+  _IN_MEMORY_CODEMAP = out;
   var payload = JSON.stringify(out);
   if (payload.length < 95000) { CACHE.put('codemap-v6', payload, 21600); }
   return out;

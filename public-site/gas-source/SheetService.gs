@@ -94,18 +94,13 @@ function getTodayOverview() {
 
   var dates = trades.map(function (r) { return fmtDate_(r['日期']); })
     .concat(holds.map(function (r) { return fmtDate_(r['日期']); }))
-    .concat(smsList.map(function (r) { return cmDate_(r['發文時間']); }))
+    .concat(videos.map(function (r) { return fmtDate_(r['發布日期']); }))
     .filter(String);
   var latest = dates.sort().pop() || '';
 
   var todayTrades = trades.filter(function (r) { return fmtDate_(r['日期']) === latest; });
   var todayHolds = holds.filter(function (r) { return fmtDate_(r['日期']) === latest; });
-  var todaySms = smsList.filter(function (r) { return cmDate_(r['發文時間']) === latest; });
-
-  // 會員通知即時併入總覽：若最新日有簡訊明細，即時合併至當日買賣與持股
-  if (todaySms.length) {
-    mergeSmsItemsIntoTrades_(latest, todayTrades, todayHolds);
-  }
+  // 會員簡訊買賣狀況僅在後台呈現，不直接併入公開前台總覽
 
   var video = videos.filter(function (r) { return fmtDate_(r['發布日期']) === latest; })[0] || null;
 
@@ -125,8 +120,6 @@ function getTodayOverview() {
   var status = '';
   if (video && video['處理狀態']) {
     status = video['處理狀態'];
-  } else if (todaySms.length) {
-    status = '會員通知已即時併入總覽（盤後影片處理中）';
   }
   /* 影片還沒整理完（v54）。只有簡訊進來、影片還在處理時，觀望兩類是空的——
      那不是「當天影片沒有提到」，是還沒整理出來。前端據此改顯示「整理中」。 */
@@ -1327,7 +1320,8 @@ function rebuildHoldingsTrackerJobRun_(options) {
     for (var pass = 0; pass <= recs.length; pass++) {
       rounds = buildRounds_(recs.filter(function (r) { return !r._unconfirmedOpen; }), tradingDays);
       var bad = rounds.filter(function (rd) {
-        return rd.openKind === 'hold' && holdConfirmState_(rd.open.date, recs, tradingDays) === 'unconfirmed';
+        var isManual = rd.open && (rd.open.manual || (rd.open.source && String(rd.open.source).indexOf('MANUAL') === 0));
+        return rd.openKind === 'hold' && !isManual && holdConfirmState_(rd.open.date, recs, tradingDays) === 'unconfirmed';
       });
       if (!bad.length) { break; }
       bad.forEach(function (rd) {

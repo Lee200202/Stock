@@ -596,7 +596,7 @@ html[data-view="mobile"] .step { font-size: calc(11px * var(--rd-fs)); padding: 
 .today-sms-table { width:100%; border-collapse:collapse; table-layout:fixed; }
 .today-sms-table th,.today-sms-table td { padding:11px 10px; border-bottom:1px solid var(--rule); text-align:left; vertical-align:top; overflow-wrap:anywhere; line-height:1.55; }
 .today-sms-table th { color:var(--muted); font-size:calc(12px * var(--rd-fs)); }
-.today-sms-table th:first-child { width:24%; } .today-sms-table th:nth-child(2) { width:13%; } .today-sms-table th:nth-child(3) { width:16%; }
+.today-sms-table th:first-child { width:15%; } .today-sms-table th:nth-child(2) { width:22%; } .today-sms-table th:nth-child(3) { width:13%; } .today-sms-table th:nth-child(4) { width:15%; }
 @media(max-width:640px) { .today-sms-table thead { display:none; } .today-sms-table,.today-sms-table tbody,.today-sms-table tr,.today-sms-table td { display:block; width:100%; box-sizing:border-box; } .today-sms-table tr { padding:10px 0; border-bottom:1px solid var(--rule); } .today-sms-table td { padding:3px 0; border:0; } .today-sms-table td::before { content:attr(data-label) '：'; color:var(--muted); font-size:calc(12px * var(--rd-fs)); } }
 .hstamp { grid-column: 1 / -1; font-size: calc(11.5px * var(--rd-fs)); color: var(--muted); text-align: right; }
 .timeline { list-style: none; margin: 10px 0 0; padding: 0; border-left: 2px solid var(--rule); }
@@ -1080,6 +1080,11 @@ html[data-view="mobile"] .line-copy { grid-template-columns:1fr; }
     <!-- ============ 分頁一：投稿逐字稿 ============ -->
     <section class="panel" id="p-post" role="tabpanel">
 
+      <div class="card" id="todaySmsCard">
+        <div class="card-h"><h2>今日會員簡訊買賣狀況</h2><span class="hint">僅後台顯示；列出會員簡訊已寫入之買賣與持股明細，不把待解析原文當成交。</span></div>
+        <div id="todaySmsOps" role="status" aria-live="polite">讀取中…</div>
+      </div>
+
       <!-- 今日狀態（v54）：一眼看出今天自動化跑到哪、哪裡要處理。只讀，不改資料。 -->
       <div class="card" id="todayCard">
         <div class="card-h">
@@ -1095,11 +1100,6 @@ html[data-view="mobile"] .line-copy { grid-template-columns:1fr; }
           <summary><span class="dz-t">今天的時間軸</span><span class="dz-hint">系統狀態、工單、逐日編輯同步、成本覆寫與績效寫入，依時間排</span></summary>
           <ol class="timeline" id="todayTimeline"></ol>
         </details>
-      </div>
-
-      <div class="card" id="todaySmsCard">
-        <div class="card-h"><h2>今日會員簡訊寫入</h2><span class="hint">僅後台顯示；列出已寫入的買賣與持股，不把待解析原文當成交。</span></div>
-        <div id="todaySmsOps" role="status" aria-live="polite">讀取中…</div>
       </div>
 
       <div class="card">
@@ -2063,7 +2063,7 @@ function render(d){
   initCrawlDayPills();
 
   if(d.job) renderJob(d.job); else $('progCard').style.display='none';
-  if (window.__loadToday) { window.__loadToday(); }
+  if (window.__loadToday) { window.__loadToday(true); }
 }
 
 function cell(k,v){
@@ -4311,9 +4311,11 @@ var mergeTxFingerprint='';
           '<b class="hv">' + esc(it.value) + '</b><span class="hh">' + esc(it.detail) + '</span></div>';
       }).join('') || '<div class="erow-empty">目前沒有可核對的流程狀態</div>';
       var smsRows = r.smsOperations || [];
-      $('todaySmsOps').innerHTML = smsRows.length ? '<table class="today-sms-table"><thead><tr><th>個股</th><th>方向</th><th>價位</th><th>說明重點</th></tr></thead><tbody>' +
-        smsRows.map(function (x) { return '<tr><td data-label="個股"><b>' + esc(x.name || '待確認') + '</b> ' + esc(x.code) + '</td><td data-label="方向">' + esc(x.direction) +
-          '</td><td data-label="價位">' + esc(x.price || '未說明') + '</td><td data-label="說明重點">' + esc(x.detail || '尚無說明') + '</td></tr>'; }).join('') +
+      $('todaySmsOps').innerHTML = smsRows.length ? '<table class="today-sms-table"><thead><tr><th>時間</th><th>個股</th><th>方向</th><th>價位</th><th>說明重點</th></tr></thead><tbody>' +
+        smsRows.map(function (x) {
+          var dirCls = x.direction === '買進' ? 'dir-buy' : x.direction === '賣出' ? 'dir-sell' : 'dir-hold';
+          return '<tr><td data-label="時間">' + esc(x.time || '—') + '</td><td data-label="個股"><b>' + esc(x.name || '待確認') + '</b> <span class="mc-code">' + esc(x.code) + '</span></td><td data-label="方向"><span class="badge ' + dirCls + '">' + esc(x.direction) +
+            '</span></td><td data-label="價位">' + esc(x.price || '未說明') + '</td><td data-label="說明重點">' + esc(x.detail || '尚無說明') + '</td></tr>'; }).join('') +
         '</tbody></table>' : '<p class="hint">今日會員簡訊尚無已寫入的個股列。若來源已有文章，請至「會員簡訊」查看解析與派工狀態。</p>';
       $('todayHealth').innerHTML = (r.items || []).map(function (it) {
         return '<div class="hitem t-' + esc(it.tone) + '" title="' + esc(it.hint || '') + '" tabindex="0">' +
@@ -4347,8 +4349,9 @@ var mergeTxFingerprint='';
       $('todaySmsOps').textContent = '會員簡訊資料連線失敗';
     }).apiAdminTodayStatus(KEY);
   }
-  window.__loadToday = function () { load(false); };
+  window.__loadToday = function (force) { load(!!force); };
   if ($('todayBtn')) { $('todayBtn').addEventListener('click', function () { load(true); }); }
+  if (KEY) { setTimeout(function () { load(true); }, 50); }
   // 停在今日頁時每分鐘自動更新；切走或頁面在背景就不打。
   timer = setInterval(function () {
     var p = $('p-post');
@@ -4394,8 +4397,10 @@ var mergeTxFingerprint='';
     var heartbeat = o.heartbeatAge == null ? '尚無啟動紀錄' : o.heartbeatAt + ' 啟動（' + o.heartbeatAge + ' 分鐘前）';
     $('opsCards').innerHTML =
       card('主排程', o.heartbeatAge == null ? '尚無啟動' : o.heartbeatAge + ' 分鐘前', heartbeat + '。' + ((o.missingTriggers || []).length ? '缺少：' + o.missingTriggers.join('、') : '必要觸發器已安裝。'), o.triggerError || (o.missingTriggers || []).length || (o.trading && o.heartbeatAge > 20) ? 'err' : 'ok') +
-      (closed ? card('取稿與判讀', '休市', closedTxt + '；交易日 ' + (o.autoStart || '11:05') + ' 起自動取稿。', 'closed') :
-      card('取稿與判讀', o.noShow ? '今日無直播' : o.plannedNoShow ? '預告停播' : o.videoStatus || '等待影片', '原文 ' + (o.rawChars || 0) + ' 字 · 修飾 ' + (o.polishedChars || 0) + ' 字。', o.videoStatus === '完成' ? 'ok' : 'idle')) +
+      (closed ? card('自動取稿與爬取', '休市', closedTxt + '；交易日 ' + (o.autoStart || '11:05') + ' 起自動取稿。', 'closed') :
+      card('自動取稿與爬取', o.noShow ? '今日無直播' : o.plannedNoShow ? '預告停播' : o.videoStatus || '等待影片', '原文 ' + (o.rawChars || 0) + ' 字 · 修飾 ' + (o.polishedChars || 0) + ' 字。', o.videoStatus === '完成' ? 'ok' : 'idle')) +
+      (closed ? card('Pipeline 稽核', '休市不執行', closedTxt, 'closed') :
+      card('Pipeline 稽核', o.noShow ? '今日無直播' : o.videoStatus === '完成' && o.rawChars > 200 ? '已發布每日整理' : o.rawChars > 200 ? '原文已到，等待判讀' : '等待原文', '完成須同時有原文、影片處理狀態「完成」及當日推播列。', o.videoStatus === '完成' ? 'ok' : 'idle')) +
       card('會員簡訊來源', String(o.smsCount || 0) + ' 則', '來源文章數；不等於已寄出的郵件數。', o.smsCount ? 'ok' : 'idle') +
       (closed ? card('每日總覽郵件', '休市不寄', closedTxt + '。' + prevTxt, 'closed') :
       card('每日總覽郵件', dailyTitle, (daily.messages ? sent(daily) + (clock(daily.firstAt) ? ' · 首次 ' + clock(daily.firstAt) : '') + '。' : (o.noShow ? '沒有節目，不應寄出每日整理。' : '寄送帳本今天沒有接受紀錄。')) + prevTxt, daily.failed || daily.unknown || (/已寄/.test(o.mailStatus || '') && !daily.accepted) ? 'err' : daily.open ? 'warn' : daily.accepted || o.noShow ? 'ok' : 'idle')) +

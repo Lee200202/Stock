@@ -26,7 +26,7 @@ function ready(env) {
 
 async function startLoading(events, env) {
   if (!env.LINE_CHANNEL_ACCESS_TOKEN) return;
-  const users = [...new Set(events.filter(e => e.type === 'message' && e.message?.type === 'text' && e.source?.type === 'user')
+  const users = [...new Set(events.filter(e => ((e.type === 'message' && e.message?.type === 'text') || e.type === 'postback') && e.source?.type === 'user')
     .map(e => e.source.userId).filter(Boolean))];
   await Promise.allSettled(users.map(userId => fetch('https://api.line.me/v2/bot/chat/loading/start', {
     method: 'POST', headers: { 'Authorization': `Bearer ${env.LINE_CHANNEL_ACCESS_TOKEN}`, 'Content-Type': 'application/json' },

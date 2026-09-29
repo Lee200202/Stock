@@ -37,13 +37,13 @@
 
   // 同頁不同元件若同時要同一份唯讀資料，共用正在進行的請求與短暫結果。
   // 管理／訂閱／寫入 API 不快取；主頁重新整理仍會向後端取最新資料。
-  const sharedReads = new Set(['apiGetDashboard', 'apiGetHoldingsTracker', 'apiGetMarketOverview', 'apiListRecordDates']);
+  const sharedReads = new Set(['apiGetDashboard', 'apiGetHoldingsTracker', 'apiGetMarketOverview', 'apiListRecordDates', 'apiGetLineEntry', 'apiGetQuotesFor', 'apiGetStockSummary']);
   const inFlight = new Map();
   const recentReads = new Map();
   async function callApi(name, args) {
     const key = sharedReads.has(name) ? `${name}:${JSON.stringify(args)}` : null;
     const cached = key && recentReads.get(key);
-    if (cached && Date.now() - cached.at < 15000) return cached.value;
+    if (cached && Date.now() - cached.at < 60000) return cached.value;
     if (key && inFlight.has(key)) return inFlight.get(key);
     const promise = (async () => {
       const controller = new AbortController();
@@ -57,6 +57,11 @@
         const payload = await response.json();
         if (!response.ok || !payload.ok) throw new Error(payload.error || `HTTP ${response.status}`);
         if (key) recentReads.set(key, {at: Date.now(), value: payload.result});
+        // 若 dashboard 一次打包了持股追蹤與 LINE 入口，順手填入快取，省下後續輪詢 roundtrip
+        if (name === 'apiGetDashboard' && payload.result) {
+          if (payload.result.tracker) recentReads.set('apiGetHoldingsTracker:[]', {at: Date.now(), value: payload.result.tracker});
+          if (payload.result.lineEntry) recentReads.set('apiGetLineEntry:[]', {at: Date.now(), value: payload.result.lineEntry});
+        }
         return payload.result;
       } finally { clearTimeout(timer); if (key) inFlight.delete(key); }
     })();

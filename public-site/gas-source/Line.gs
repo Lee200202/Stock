@@ -278,7 +278,10 @@ function lineHandleEvent_(ev, channel) {
   if (!uid) { out.skipped = 'not-one-to-one'; }
   else if (ev.type === 'follow') { msgs = lineOnFollow_(uid, channel, ev); }
   else if (ev.type === 'unfollow') { lineOnUnfollow_(uid, channel); out.result = 'blocked'; }
-  else if (ev.type === 'postback') { msgs = lineRoute_(uid, channel, lineParseData_(ev.postback && ev.postback.data)); }
+  else if (ev.type === 'postback') {
+    lineSendLoading_(uid);
+    msgs = lineRoute_(uid, channel, lineParseData_(ev.postback && ev.postback.data));
+  }
   else if (ev.type === 'message') {
     var m = ev.message || {};
     if (m.type === 'text') {
@@ -432,11 +435,13 @@ function lineExtractStockFromSentence_(text) {
 
   var clean = text.replace(/[，。？！、；：\s,?!;:_—~～-]+/g, '');
   var bestCandidate = '', bestScore = 0;
+  var codeMap = null;
+  try { codeMap = loadCodeMap_() || {}; } catch (e) { codeMap = {}; }
   for (var len = 4; len >= 2; len--) {
     for (var pos = 0; pos <= clean.length - len; pos++) {
       var chunk = clean.slice(pos, pos + len);
       if (/^(?:代號|歷年|有否|提過|買賣|價位|時間|為何|如何|怎樣|紀錄|說明|看法|股票|今天|最近|最新|之前|張震|老師)$/.test(chunk)) continue;
-      var sim = lineFindSimilarStocks_(chunk);
+      var sim = lineFindSimilarStocks_(chunk, codeMap);
       if (sim && sim.length && sim[0].score > bestScore) {
         bestScore = sim[0].score;
         bestCandidate = chunk;
@@ -775,11 +780,11 @@ function lineResolveStock_(q) {
  * 尋找可能打錯字或同音/近音的股票候選
  * 例如：華成 → 華城（1519）、台績電 → 台積電（2330）
  */
-function lineFindSimilarStocks_(q) {
+function lineFindSimilarStocks_(q, passedMap) {
   q = String(q || '').replace(/[*＊\s]/g, '').replace(/[－–]/g, '-').trim();
   if (!q || q.length < 2 || q.length > 8) { return []; }
-  var map = {};
-  try { map = loadCodeMap_() || {}; } catch (e) { map = {}; }
+  var map = (passedMap && passedMap.byCode) ? passedMap : {};
+  if (!map.byCode) { try { map = loadCodeMap_() || {}; } catch (e) { map = {}; } }
   var byCode = map.byCode || {}, byName = map.byName || {};
   var table = (typeof PUBLIC_CONFIRMED_NAMES === 'object' && PUBLIC_CONFIRMED_NAMES) || {};
   var nameOf = function (c) {
@@ -794,18 +799,21 @@ function lineFindSimilarStocks_(q) {
     '光': ['廣'], '廣': ['光'],
     '技': ['際'], '際': ['技'],
     '偉': ['緯'], '緯': ['偉'],
-    '闖': ['創'], '創': ['闖'],
+    '闖': ['創'], '創': ['闖', '億'],
     '揚': ['陽'], '陽': ['揚'],
     '碩': ['享', '祥'], '享': ['碩', '祥'], '祥': ['碩', '享'],
     '銳': ['瑞', '譜'], '瑞': ['銳', '譜'], '譜': ['銳', '瑞'],
-    '澤': ['嘉', '家'], '嘉': ['澤', '家'], '家': ['澤', '嘉'],
+    '澤': ['嘉', '家'], '嘉': ['澤', '家', '加', '佳'], '家': ['澤', '嘉'],
     '晶': ['金', '精'], '金': ['晶', '精'], '精': ['晶', '金'],
     '湖': ['服', '福'], '川': ['穿'],
     '立': ['力', '利'], '力': ['立', '利'], '利': ['立', '力'],
     '達': ['答'], '答': ['達'],
     '巨': ['具'], '具': ['巨'],
     '泰': ['態'], '態': ['泰'],
-    '宇': ['雨', '語', '玉'], '玉': ['宇', '雨', '裕'], '裕': ['玉', '雨', '宇']
+    '宇': ['雨', '語', '玉'], '玉': ['宇', '雨', '裕'], '裕': ['玉', '雨', '宇'],
+    '毅': ['意', '益', '億', '易', '義', '一'], '意': ['毅', '億', '益', '易', '義'],
+    '源': ['原', '員'], '原': ['源', '員'],
+    '柱': ['準', '竹'], '準': ['柱', '準']
   };
 
   var candidates = {}, candidateList = [];
@@ -828,6 +836,12 @@ function lineFindSimilarStocks_(q) {
       if (byName[variant + '*']) { addCandidate(byName[variant + '*'], 98); }
       if (table[variant]) { addCandidate(table[variant][0], 105); }
     }
+  }
+
+  // 同音替換已找到高分候選時直接回傳，省下對 2000 檔股票逐一迴圈字串比對的時間
+  if (candidateList.length && candidateList[0].score >= 100) {
+    candidateList.sort(function (a, b) { return b.score - a.score; });
+    return candidateList.slice(0, 4);
   }
 
   // 2. 字元重疊比對

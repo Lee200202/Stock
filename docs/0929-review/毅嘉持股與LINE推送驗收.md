@@ -20,10 +20,10 @@
 ## 部署順序
 
 1. GitHub 的 `main` 已存最新版來源；Apps Script 不會自動跟著 GitHub 更新。編輯器中整份覆蓋並儲存：`SheetService.gs`、`MailService.gs`、`Admin.html`、`Config.gs`、`Setup.gs`。五份務必同版。
-2. 在 Apps Script 編輯器執行 `checkProjectFiles()`；必須顯示全部檔案符合 `2026-09-29-hold-line-v81`。接著執行 `explainHoldingsTracker('2402')`（只讀），看 9/1 自動聲明與 9/29 人工確認如何組成回合。
+2. 在 Apps Script 編輯器執行 `checkProjectFiles()`；必須顯示全部檔案符合 `2026-09-29-hold-line-v81`。接著執行無參數的 `auditUnconfirmedHoldings()`（只讀），在執行紀錄搜尋「毅嘉」，核對人工確認列。若要看單檔逐步判定，可在編輯器暫時寫一支包裝函式呼叫 `explainHoldingsTracker('2402')`；函式選單本身不能直接傳參數。
 3. 在「部署 → 管理部署作業」選既有網頁應用程式，按鉛筆「編輯」，版本選「新版本」，填說明、按「部署」。保留原部署與 `/exec` 網址；不用新建第二個部署，也不用重裝全部觸發器。
 4. 開正式 `/exec?action=ping`，確認 `build` 是 `2026-09-29-hold-line-v81`，features 有 `manual-hold-confirm-v81`、`line-gate-handoff-v81`、`held-source-link-v81`。若不是，重查部署選到哪個版本。
-5. 編輯器執行 `rebuildHoldingsTrackerJob()`，完成後執行 `rebuildPerformanceHistoryJob()` 和 `snapshotPerformanceJob()`。再用 `explainHoldingsTracker('2402')` 與前台持股追蹤核對毅嘉。這會重算衍生結果，不重送已寄 Email。
+5. 編輯器執行 `rebuildHoldingsTrackerJob()`，完成後執行 `rebuildPerformanceHistoryJob()` 和 `snapshotPerformanceJob()`。再跑 `auditUnconfirmedHoldings()` 並對照前台持股追蹤的毅嘉。這會重算衍生結果，不重送已寄 Email。
 6. 後台 LINE 頁確認「正式推送」、訂閱人數、Webhook、額度與待送帳本；測試卡片已在 9/29 驗證，正式日報要看「LINE 已接受」人數。會員簡訊下一次真實發文時，核對「會員簡訊」通知狀態、Email 寄送帳本和 LINE 推送紀錄，同一文章 ID 不重送；發文 60 分鐘後的補抓不補寄 LINE。
 
 ## 仍須觀察

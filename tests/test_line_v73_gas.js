@@ -409,9 +409,12 @@ w.say(C, '大盤');
 assert(/目前沒有可核對的市場資料快取/.test(w.lastReply().messages[0].text));
 w.env.market = { taiex: { label: '加權指數', value: 23456.78, change: -123.4, percent: -0.52, time: '2026/09/26 13:30:00', source: 'Yahoo Finance 收盤走勢' } };
 w.say(C, '市場總覽');
+assert(/目前沒有可核對的市場資料快取/.test(w.lastReply().messages[0].text), '盤中不可把前日快取當現在指數');
+w.env.market.taiex.time = '2026/09/28 10:10:00';
+w.say(C, '市場總覽');
 card = w.lastReply().messages[0];
 assert(/23,456.78/.test(flexTexts(card)) && /-123.40（-0.52%）/.test(flexTexts(card)));
-assert(/資料時間 09\/26 13:30（約 2685 分鐘前|非今日資料/.test(flexTexts(card)), '過期資料標出資料時間');
+assert(/資料時間 09\/28 10:10/.test(flexTexts(card)), '標示來源資料時間');
 assert(/不是即時成交/.test(flexTexts(card)) && !/即時行情|即時報價/.test(flexTexts(card)));
 assert(!w.calls.other.some(c => /yahoo|finance/i.test(c.url)), '查詢不臨時打行情 API');
 // 今日：休市／沒有直播／還在判讀／已發布
@@ -524,6 +527,9 @@ const samples = {
   stock: w.ctx.lineStockFlex_({ code: '00981A', name: LONG }, [{ date: '2026/09/23', direction: '觀望不碰', price: '20日均線', reason: '理由'.repeat(400) }]),
   tracker: w.ctx.lineTrackerFlex_(Array.from({ length: 12 }, (_, i) => ({ name: LONG, code: '00981A', entryDate: '2026/09/0' + (i % 9 + 1), latestReasonDate: '' })), {}),
   market: w.ctx.lineMarketFlex_([{ label: '加權指數', value: 23456.7, change: 0, percent: 0, time: '', source: '' }]),
+  holdingVisual: w.ctx.lineHoldingVisualFlex_({ name: '力積電', code: '6770', entry: 70, current: 75, entryDate: '2026/09/23', curSrc: '最近收盤' }),
+  macroVisual: w.ctx.lineMacroFlex_([{ label: '美元指數', value: 100.2, change: 0.1 }]),
+  sectorVisual: w.ctx.lineSectorsFlex_({ date: '2026/09/26', rows: [{ name: '電子', percent: 61 }, { name: '金融', percent: 12 }] }),
   confirm: w.ctx.lineSubConfirm_({ daily: true, sms: false }, { daily: false, sms: false }, ['daily'], true),
   quick: w.ctx.lineText_('x', w.ctx.lineQuickMain_())
 };
@@ -531,6 +537,28 @@ Object.entries(samples).forEach(([k, m]) => checkMessage(m, k));
 assert(!/20日均線/.test(flexTexts(samples.stock)), '均線天數不能當價位');
 assert(!/javascript:/.test(flexTexts(samples.smsEmpty)), '原文網址不是 https 就不放按鈕');
 assert(/另有 4 檔/.test(flexTexts(samples.tracker)));
+assert(/日 K 快取不足三筆/.test(flexTexts(samples.holdingVisual)), '無 K 線不應虛構走勢');
+assert.equal(w.ctx.lineChartUrl_([100, 101], 100), '', '不足三點不能畫線');
+const curve = w.ctx.lineChartUrl_([100, 101, 102], 100);
+assert(/^https:\/\/line-webhook-x\.a\.run\.app\/chart\.png\?/.test(curve), '圖形由已設定的轉送服務產生');
+w.ctx.kcDecode_ = raw => JSON.parse(raw).map(a => ({ date: a[0], close: a[1] }));
+w.ctx.CACHE.put('dk2_6770', JSON.stringify([['2026/09/23', 71], ['2026/09/24', 72], ['2026/09/25', 74]]));
+const holdingChart = w.ctx.lineHoldingVisualFlex_({ name: '力積電', code: '6770', entry: 70, current: 75, entryDate: '2026/09/23' });
+checkMessage(holdingChart, 'holding chart');
+assert(JSON.stringify(holdingChart).includes('/chart.png?'), '有快取日 K 才畫實際持股走勢');
+w.ctx.CACHE.put('dk2_6770', JSON.stringify([['2026/09/22', 70], ['2026/09/23', 71], ['2026/09/24', 72], ['2026/09/25', 74]]));
+const exitedValues = w.ctx.lineHoldingSeries_({ code: '6770', entryDate: '2026/09/22', stillHeld: false, lastSell: '2026/09/24', current: 75 });
+assert.deepEqual(Array.from(exitedValues), [70, 71, 72, 75], '已出場走勢不能接出場後日 K');
+const marketChart = w.ctx.lineMarketFlex_([{ label: '加權指數', value: 102, change: 2, time: '2026/09/29 09:15:00',
+  line: [{ time: '2026-09-29T01:05:00Z', value: 100 }, { time: '2026-09-29T01:10:00Z', value: 101 }, { time: '2026-09-29T01:15:00Z', value: 102 }] }]);
+checkMessage(marketChart, 'market chart');
+assert(JSON.stringify(marketChart).includes('/chart.png?'), '當日市場價點畫折線');
+const staleChart = w.ctx.lineMarketFlex_([{ label: '加權指數', value: 102, change: 2, time: '2026/09/29 09:15:00',
+  line: [{ time: '2026-09-28T01:05:00Z', value: 100 }, { time: '2026-09-28T01:10:00Z', value: 101 }, { time: '2026-09-28T01:15:00Z', value: 102 }] }]);
+assert(!JSON.stringify(staleChart).includes('/chart.png?'), '舊日價點不可冒充當日走勢');
+const nightValues = w.ctx.lineMarketSeries_({ activeSession: 'afterhours', time: '2026/09/30 00:30:00',
+  line: [{ time: '2026-09-29T12:00:00Z', value: 101 }, { time: '2026-09-29T13:00:00Z', value: 102 }, { time: '2026-09-29T16:30:00Z', value: 103 }] });
+assert.deepEqual(Array.from(nightValues), [101, 102, 103], '夜盤跨午夜仍是同一時段');
 
 // ================================================================ 十一、圖文選單：兩頁分頁切換、熱區不超出、文字指令在電腦版也能用
 const menus = w.ctx.lineRichMenuDefs_();

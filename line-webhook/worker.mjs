@@ -1,6 +1,7 @@
 // Workers Free + Queues Free：驗過 LINE 原始簽章並成功入列，才向 LINE 回 200。
 // GAS 收到原始 body 與簽章後還會再驗一次；所有訂閱與去重仍在 Line.gs。
-const BUILD = '2026-09-29-line-free-relay-v2';
+import { chartResponse } from './chart.mjs';
+const BUILD = '2026-09-29-line-chart-v3';
 const MAX_BYTES = 120_000; // Queues 每筆上限 128 KB，保留信封開銷。
 const FINAL_ERRORS = new Set(['signature', 'destination-mismatch', 'bad-envelope', 'bad-body']);
 const encoder = new TextEncoder();
@@ -85,6 +86,7 @@ export default {
     const path = new URL(request.url).pathname;
     if (path === '/healthz') return response({ ok: true, build: BUILD, configured: ready(env), loadingConfigured: !!env.LINE_CHANNEL_ACCESS_TOKEN });
     if (path === '/callback') return callback(request, env, ctx);
+    if (path === '/chart.png' && request.method === 'GET') return chartResponse(request);
     if (path === '/static/richmenu-query.png' || path === '/static/richmenu-notify.png') {
       // Assets 的根目錄已指向 ./static；舊後台仍使用 /static/... URL。
       const assetUrl = new URL(request.url);

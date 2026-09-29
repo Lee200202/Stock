@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
+import { inflateSync } from 'node:zlib';
 import worker, { validSignature, callback, forward, startLoading } from '../line-webhook/worker.mjs';
+import { chartResponse } from '../line-webhook/chart.mjs';
 
 const secret = '0123456789abcdef0123456789abcdef';
 const gas = 'https://script.google.com/macros/s/test-deployment/exec';
@@ -29,6 +31,17 @@ assert.equal((await callback(new Request('https://relay.example/callback', { met
 assert.equal((await worker.fetch(new Request('https://relay.example/healthz'), env)).status, 200);
 assert.equal((await worker.fetch(new Request('https://relay.example/static/richmenu-query.png'), env)).status, 200);
 assert.deepEqual(assetPaths, ['/richmenu-query.png']);
+const chart = chartResponse(new Request('https://relay.example/chart.png?ref=100&v=99,101,100,103'));
+assert.equal(chart.status, 200);
+assert.equal(chart.headers.get('content-type'), 'image/png');
+const chartBytes = new Uint8Array(await chart.arrayBuffer());
+assert.deepEqual(Array.from(chartBytes.slice(0, 8)), [137, 80, 78, 71, 13, 10, 26, 10]);
+const idatAt = 8 + 25, idatSize = new DataView(chartBytes.buffer).getUint32(idatAt);
+assert.equal(new TextDecoder().decode(chartBytes.slice(idatAt + 4, idatAt + 8)), 'IDAT');
+assert.equal(inflateSync(chartBytes.slice(idatAt + 8, idatAt + 8 + idatSize)).length, 180 * (480 * 4 + 1));
+assert.equal((await worker.fetch(new Request('https://relay.example/chart.png?ref=100&v=99,101,100'), env)).status, 200);
+assert.equal(chartResponse(new Request('https://relay.example/chart.png?ref=100&v=99,101')).status, 400);
+assert.equal(chartResponse(new Request('https://relay.example/chart.png?ref=100&v=99,NaN,101')).status, 400);
 
 const originalFetch = globalThis.fetch;
 try {

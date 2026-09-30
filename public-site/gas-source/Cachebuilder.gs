@@ -1310,6 +1310,17 @@ function afterDailyKDoneJob() {
       if (t.getHandlerFunction() === DK_AFTER_HANDLER_) { ScriptApp.deleteTrigger(t); }
     });
   } catch (e) { /* 刪不掉一次性觸發器不影響這次重算 */ }
+  // v90：富果回 0 根的近幾個交易日，先用官方收盤行情補齊再重算（9/29、9/30 全部代號都缺）。
+  // 補到的日子早於今天時，那幾天的歷史績效也要重算：交給 queueCostSync_ 從最早那一天一路做完。
+  try {
+    var official = officialDailyKFill_({ waitMs: 30000 });
+    officialDkReport_(official, '補日K之後');
+    if (official.filled && official.earliest < todayStr_()) {
+      queueCostSync_(official.earliest);
+      try { warmKCaches_(); } catch (e2) { /* 預熱失敗只影響速度 */ }
+      return { tracker: 'queued', perf: 'queued', official: official.filled };
+    }
+  } catch (e) { Logger.log('官方收盤行情補日K失敗（照常重算）：' + e); }
   try {
     rebuildHoldingsTrackerJob();
   } catch (e) {
@@ -1976,6 +1987,168 @@ function officialDailyAll_(dateStr) {
     });
   }
   return { rows: out, twse: got.twse, tpex: got.tpex };
+}
+
+/* ==================================================================== *
+ * 官方收盤行情補日K（v90，2026/09/30 管理者：當日買賣的價格要自動補進持股追蹤）
+ *
+ * 9/29、9/30 兩天富果歷史日K對追蹤中的 242 檔全部回 0 根，16:45 那一輪照樣標「已完成」；
+ * 持股追蹤的瑞鼎（9/30 買入）因此一直是「進場日缺有效日K，待補當日最低價」，
+ * 其他持股的現價與報酬也停在 9/24 的日K。
+ *
+ * 證交所 MI_INDEX（上市）與櫃買 dailyQuotes（上櫃）是 auditDailyKCache 核對用的官方收盤行情，
+ * 一天兩個請求就涵蓋全部股票。這裡只補「近幾個交易日、追蹤中的代號、沒有有效日K」的那幾格：
+ *   不覆蓋既有有效日K（富果與官方上市股已逐日核對過相同）；量是成交股數（股），與日K快取同單位；
+ *   停牌或當天沒有成交（官方欄位是 --）的不補；官方還沒公布的那一天不補，下一棒再試。
+ * 補到了就從最早那一天重算持股追蹤與績效（queueCostSync_，不重寫郵件、不重寄）。
+ *
+ * 兩個入口共用同一份日K寫入租約，不會與 16:45 的補日K同時寫：
+ *   officialDailyKTick_   每五分鐘排程 14:40–22:00、每 15 分鐘看一次；當天做過就不再動
+ *   afterDailyKDoneJob    16:45 補日K整輪完成後，重算持股追蹤之前先補一次
+ * 編輯器手動：fillOfficialDailyKNow()。
+ * ==================================================================== */
+var OFFICIAL_DK_READY_HM_ = 1440;          // 收盤行情約 14:00–14:30 公布，留一點緩衝
+var OFFICIAL_DK_LOOKBACK_ = 5;             // 往回看幾個交易日：連假後富果漏掉的幾天一起補
+var OFFICIAL_DK_JOB_ = 'officialDailyKJob';
+var OFFICIAL_DK_DONE_PROP_ = 'OFFICIAL_DK_DONE';
+
+/** 最近幾個交易日（新到舊）；今天要等收盤行情公布時間之後才算進去。 */
+function officialDkDays_(now) {
+  now = now || new Date();
+  var hm = Number(Utilities.formatDate(now, TZ, 'HHmm'));
+  var out = [];
+  for (var i = 0; i < 20 && out.length < OFFICIAL_DK_LOOKBACK_; i++) {
+    var s = Utilities.formatDate(new Date(now.getTime() - i * 86400000), TZ, 'yyyy/MM/dd');
+    if (isTradingDateStr_(s) && (i > 0 || hm >= OFFICIAL_DK_READY_HM_)) { out.push(s); }
+  }
+  return out;
+}
+
+/** { 日期: [缺有效日K的追蹤代號…] }。只讀。 */
+function officialDkGaps_(days, codes, index) {
+  var gaps = {};
+  days.forEach(function (day) {
+    var miss = codes.filter(function (c) {
+      return !(index[c] || []).some(function (r) { return r.date === day && validDailyK_(r); });
+    });
+    if (miss.length) { gaps[day] = miss; }
+  });
+  return gaps;
+}
+
+/**
+ * 用官方收盤行情補近幾個交易日的日K缺口。只補缺的格子。
+ * opts.days 指定日期；opts.deadline 截止時間（預設 4 分鐘）；opts.waitMs 等寫入權多久。
+ * 回傳 { busy, filled（根數）, codes, days:{日期:補幾檔}, unpublished:[日期], earliest }
+ */
+function officialDailyKFill_(opts) {
+  opts = opts || {};
+  var deadline = opts.deadline || (Date.now() + 4 * 60 * 1000);
+  var res = { busy: false, filled: 0, codes: [], days: {}, unpublished: [], partial: [], earliest: '' };
+  var token = acquireDailyKLease_(deadline + 60 * 1000, opts.waitMs || 0);
+  if (!token) { res.busy = true; return res; }
+  try {
+    var codes = trackedCodes_();
+    _DK_INDEX = null;
+    var index = loadAllDailyK_();
+    var gaps = officialDkGaps_(opts.days || officialDkDays_(), codes, index);
+    var fresh = {};
+    Object.keys(gaps).sort().forEach(function (day) {
+      if (Date.now() > deadline) { return; }
+      var o = officialDailyAll_(day);
+      if (!o.twse && !o.tpex) { res.unpublished.push(day); return; }
+      /* 上市、上櫃兩張表各一個請求，其中一張偶爾回不來（9/30 晚間實測：9/29 上市有、上櫃沒回，
+         聖暉 5536 那天就沒補到，卻已標成做完）。缺一張時隔兩秒再要一次，還是缺就記 partial，
+         當天不標做完，下一棒（15 分鐘後）再補。 */
+      if (!o.twse || !o.tpex) {
+        Utilities.sleep(2000);
+        var again = officialDailyAll_(day);
+        Object.keys(again.rows || {}).forEach(function (c) { if (!o.rows[c]) { o.rows[c] = again.rows[c]; } });
+        o.twse = o.twse || again.twse; o.tpex = o.tpex || again.tpex;
+      }
+      var n = 0;
+      gaps[day].forEach(function (c) {
+        var r = o.rows[c];
+        if (!r) { return; }
+        var row = { date: day, open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume };
+        if (!validDailyK_(row)) { return; }        // 停牌、當天沒有成交
+        (fresh[c] = fresh[c] || []).push(row);
+        n++;
+      });
+      res.days[day] = n;
+      if ((!o.twse || !o.tpex) && n < gaps[day].length) { res.partial.push(day); }
+      if (n && (!res.earliest || day < res.earliest)) { res.earliest = day; }
+    });
+    // 只重寫補到的那幾個月份：同月既有的列原樣帶回，新的一根併進去（既有有效日K優先）。
+    var items = Object.keys(fresh).map(function (c) {
+      var months = {};
+      fresh[c].forEach(function (r) { months[r.date.slice(0, 7)] = 1; });
+      var keep = (index[c] || []).filter(function (r) { return months[r.date.slice(0, 7)]; });
+      return { code: c, rows: mergeDailyK_(keep, fresh[c]), months: months };
+    });
+    if (items.length) { writeDailyKRows_(items); }
+    res.codes = Object.keys(fresh).sort();
+    res.filled = res.codes.reduce(function (s, c) { return s + fresh[c].length; }, 0);
+    return res;
+  } finally { releaseDailyKLease_(token); }
+}
+
+/** 補日K結果寫進系統狀態與執行紀錄（後台時間軸看得到補了哪幾天、幾檔）。 */
+function officialDkReport_(res, source) {
+  var parts = Object.keys(res.days || {}).sort().map(function (d) { return d.slice(5) + ' ' + res.days[d] + ' 檔'; });
+  var text = (res.busy ? '另一個補日K正在寫入，這次略過' :
+              (res.filled ? '補上 ' + parts.join('、') : '近 ' + OFFICIAL_DK_LOOKBACK_ + ' 個交易日沒有可補的缺口')) +
+             (res.unpublished && res.unpublished.length ? '；官方尚未公布：' + res.unpublished.join('、') : '') +
+             (res.partial && res.partial.length ? '；上市或上櫃其中一張沒回，稍後再補：' + res.partial.join('、') : '');
+  Logger.log('官方收盤行情補日K（' + source + '）：' + text);
+  if (res.filled || (res.unpublished && res.unpublished.length) || (res.partial && res.partial.length)) {
+    try { getSheet_('系統狀態').appendRow([nowStamp_(), '官方日K補齊', text, 'dailyk-official', source]); } catch (e) {}
+  }
+  return text;
+}
+
+/** 每五分鐘排程呼叫：當天還沒做過就排一次背景工作（讀整張日K表要時間，不放在五分鐘那一棒裡做）。 */
+function officialDailyKTick_() {
+  var p = PropertiesService.getScriptProperties();
+  if (p.getProperty(OFFICIAL_DK_DONE_PROP_) === todayStr_()) { return 'done'; }
+  var pending = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === OFFICIAL_DK_JOB_; });
+  if (pending) { return 'scheduled'; }
+  try {
+    ScriptApp.newTrigger(OFFICIAL_DK_JOB_).timeBased().after(30 * 1000).create();
+    return 'scheduled';
+  } catch (e) {
+    // 觸發器滿了：一天一次，直接在這一棒做（有截止時間，不會把五分鐘排程拖過六分鐘）。
+    Logger.log('官方收盤行情補日K排不進觸發器，改在這一棒執行：' + e);
+    officialDailyKJobRun_({ deadline: Date.now() + 90 * 1000 });
+    return 'inline';
+  }
+}
+
+function officialDailyKJob() {
+  return typeof opsTimed_ === 'function' ? opsTimed_('officialDailyKJob', officialDailyKJobRun_, arguments, true) : officialDailyKJobRun_.apply(null, arguments);
+}
+function officialDailyKJobRun_(opts) {
+  try {
+    ScriptApp.getProjectTriggers().forEach(function (t) {
+      if (t.getHandlerFunction() === OFFICIAL_DK_JOB_) { ScriptApp.deleteTrigger(t); }
+    });
+  } catch (e) { /* 刪不掉一次性觸發器不影響這次補齊 */ }
+  var o = opts && typeof opts.deadline === 'number' ? opts : {};
+  var res = officialDailyKFill_({ deadline: o.deadline, waitMs: 20000 });
+  officialDkReport_(res, o.source || '盤後自動');
+  if (res.busy) { return res; }                       // 下一棒再試
+  if (res.filled) { queueCostSync_(res.earliest); }   // 從最早補到的那一天重算持股追蹤與績效
+  // 今天的收盤行情已經公布（或今天本來就不缺）才算做完；還沒公布就留給下一棒。
+  var today = todayStr_();
+  if (res.unpublished.indexOf(today) < 0 && !res.partial.length && Number(Utilities.formatDate(new Date(), TZ, 'HHmm')) >= OFFICIAL_DK_READY_HM_) {
+    PropertiesService.getScriptProperties().setProperty(OFFICIAL_DK_DONE_PROP_, today);
+  }
+  return res;
+}
+
+/** 在編輯器執行：立刻用官方收盤行情補近幾個交易日的日K缺口，補到就重算持股追蹤與績效。 */
+function fillOfficialDailyKNow() {
+  return officialDailyKJobRun_({ deadline: Date.now() + 5 * 60 * 1000, source: '編輯器手動' });
 }
 
 /** yyyy/MM/dd 加減天數。 */

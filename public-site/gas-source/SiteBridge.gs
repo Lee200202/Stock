@@ -18,7 +18,9 @@ function siteBridge_(e) {
   catch (err) { return { ok: false, error: 'invalid-json' }; }
   if (!body || body.bridgeToken !== token) { return { ok: false, error: 'unauthorized' }; }
   var args = body.args;
-  if (!Array.isArray(args) || args.length > 5) { return { ok: false, error: 'invalid-args' }; }
+  // v90：上限 8（與網站 API Worker 一致）。後台「現有持股」改名稱、代號或回合開始日時要帶 8 個參數，
+  // 先前上限 5，Pages 後台按儲存一律失敗（2026/09/30 管理者回報按鈕無法使用）。
+  if (!Array.isArray(args) || args.length > 8) { return { ok: false, error: 'invalid-args' }; }
 
   /* 不用 globalThis[method] 任意呼叫：即使前台遭注入，也絕不能調到後台、
      寄信、排程、讀密鑰或清表函式。只列原站公開 HTML 實際用的 API。 */

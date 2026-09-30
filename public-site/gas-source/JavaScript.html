@@ -1434,6 +1434,12 @@ function publicNarrative_(text, row) {
     };
   }
 
+  /* v90：管理者修正過的成本來源只顯示管理者的說明；舊後端的「管理者修正成本 X（時間，說明）；系統原判：…」取說明那一段。 */
+  function costSrcText(s) {
+    var m = /^管理者修正成本 [\d.]+（[^，]*，([\s\S]*?)）；系統原判：/.exec(String(s || ''));
+    return m ? m[1] : String(s || '');
+  }
+
   function niceTicks(min, max, count) {
     var span = max - min;
     if (!(span > 0)) { return [min]; }
@@ -1681,7 +1687,7 @@ function publicNarrative_(text, row) {
     var cum = ((i.rounds || 1) > 1 && i.cumRet !== null && i.cumRet !== undefined)
       ? '<span class="tx-cum ' + signCls(i.cumRet) + '" title="各回合連乘：' + esc(i.roundRets || '') + '">累積 ' + fmtRet(i.cumRet) + '</span>' : '';
     var sold = /明講賣出/.test(String(i.exitReason || ''));
-    return '<div class="tx tx-' + cls + '" title="' + esc((i.entrySrc || '') + (i.why ? '　' + i.why : '')) + '">' +
+    return '<div class="tx tx-' + cls + '" title="' + esc(costSrcText(i.entrySrc) + (i.why ? '　' + i.why : '')) + '">' +
       '<div class="tx-end tx-in"><small>' + (inDate ? inDate + ' 進場' : '進場') + '</small><b>' + fmtPx(i.entry) + '</b>' + statedTag(entryGrey) + '</div>' +
       '<div class="tx-mid" aria-label="' + (isHeld ? '未實現報酬 ' : sold ? '已實現報酬 ' : '追蹤期間變化 ') + esc(retTxt) + '"><span class="tx-line"></span>' +
         '<span class="tx-ret">' + retTxt + '</span>' + cum + '</div>' +
@@ -2431,7 +2437,7 @@ function publicNarrative_(text, row) {
          t.firstBuy || '\u2014') +
       (rounds > 1 ? kv('本回合進場', t.roundStart || '\u2014') : '') +
       kv('持有天數', t.days + ' 天' + (rounds > 1 ? '（本回合）' : '')) +
-      kv('進場價', '<span title="' + esc(t.entrySrc || '') + '">' + fmtPx(t.entry) + '</span>' + statedTag(t.entryNote)) +
+      kv('進場價', '<span title="' + esc(costSrcText(t.entrySrc)) + '">' + fmtPx(t.entry) + '</span>' + statedTag(t.entryNote)) +
       (t.openBy === '會員持股聲明'
         ? kv('進場依據', '影片中明講「會員目前持有」，非當日成交'
              + '<span class="srcnote">沒有對應的買入紀錄，取聲明當日最低作追蹤基準</span>') : '') +

@@ -785,8 +785,15 @@ function apiAdminTodayStatus(key) {
     add('績效最後一筆', perfLast || '尚無', behind > 1 ? 'warn' : 'ok',
         behind > 1 ? '落後 ' + (behind - 1) + ' 個交易日；17:30／19:30 會自動補記，也可到「維護工具」按開始刷新。' : '');
     if (dk) {
-      add('補日K', dk.finishedAt ? '已完成（' + String(dk.finishedAt).slice(5, 16) + '）' : '進行中：做到 ' + (dk.lastCode || '開頭'),
-          dk.finishedAt ? 'ok' : 'warn', dk.lastError ? '最近的問題：' + String(dk.lastError).slice(0, 80) : '');
+      /* v90：整輪「做完」不等於有資料。9/30 那一輪 242 檔全部回 0 根，卡片卻是綠色「已完成」。
+         失敗過半改黃色並寫出來；官方收盤行情補齊（officialDailyKTick_）會接手補，結果寫在時間軸「官方日K補齊」。 */
+      var dkTotal = (dk.ok || 0) + (dk.failed || 0) + (dk.skipped || 0);
+      var dkMostlyFailed = dk.finishedAt && dk.failed && dk.failed * 2 > dkTotal;
+      add('補日K', dk.finishedAt ? (dkMostlyFailed ? '做完但多數失敗' : '已完成') + '（' + String(dk.finishedAt).slice(5, 16) + '）' : '進行中：做到 ' + (dk.lastCode || '開頭'),
+          dk.finishedAt && !dkMostlyFailed ? 'ok' : 'warn',
+          (dk.finishedAt ? '成功 ' + (dk.ok || 0) + '、失敗 ' + (dk.failed || 0) + '、略過 ' + (dk.skipped || 0) + '。' : '') +
+          (dkMostlyFailed ? '富果沒有回資料；盤後會改用證交所／櫃買官方收盤行情補近幾個交易日，看時間軸「官方日K補齊」。' : '') +
+          (dk.lastError ? '最近的問題：' + String(dk.lastError).slice(0, 80) : ''));
     }
     /* 逐日編輯同步（R6）：等待續跑或帶錯誤就變紅，原因與 Actions 日誌同一段。 */
     try {

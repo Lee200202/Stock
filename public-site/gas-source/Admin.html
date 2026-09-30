@@ -886,15 +886,14 @@ html[data-view="mobile"] .ops-grid,html[data-view="mobile"] .ops-mail-setting { 
 /* 帳號選單（v69）：右上角、設定齒輪左邊，外觀與旁邊兩顆 .tbtn 相同 */
 .acct-menu { position: relative; }
 .acct-menu[hidden] { display: none; }
-.acct-toggle.tbtn { width:auto; padding:0 13px; gap:7px; border-radius:999px; }
-.acct-toggle span { font-size:calc(12px * var(--rd-fs)); font-weight:600; }
+.acct-toggle.tbtn { justify-content:center; }   /* v90：只留圖示，與旁邊的首頁、版面設定同一個方形按鈕；文字在 aria-label／title */
 .acct-toggle[aria-expanded="true"] { color:var(--ink); border-color:var(--beam); }
 .acct-pop { position: absolute; right: 0; top: calc(100% + 8px); z-index: 60; display: flex; flex-direction: column; gap: 4px; min-width: 176px;
   padding: 6px; border: 1px solid var(--rule); border-radius: 12px; background: var(--panel); box-shadow: 0 8px 24px rgba(0, 0, 0, .14); }
 .acct-pop[hidden] { display:none; }
 .acct-pop p { margin:4px 8px 6px; color:var(--muted); font-size:calc(12px * var(--rd-fs)); }
 .acct-pop button { width: 100%; justify-content: flex-start; text-align: left; border: 0 !important; min-height: 40px; border-radius: 8px !important; }
-@media(max-width:480px) { .acct-toggle span { display:none; } .acct-toggle.tbtn { width:44px; padding:0; justify-content:center; } }
+
 /* 今日狀態前三格：固定同一列（A5） */
 #stat.astat { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 @media (max-width: 420px) { #stat.astat { grid-template-columns: 1fr; } }
@@ -1051,7 +1050,7 @@ html[data-view="mobile"] .line-copy { grid-template-columns:1fr; }
            那兩顆當初是前後台各抄一份的，抄兩份的東西遲早會長歪。 -->
       <!-- 帳號（v69，管理者：帳號圖示移到右上角、設定齒輪左邊）：登入後才出現；忘記這台裝置／登出收在選單裡 -->
       <div class="acct-menu" id="acctMenu" hidden>
-        <button type="button" class="tbtn acct-toggle" id="acctToggle" aria-label="開啟帳號選單" aria-expanded="false" aria-controls="acctPop" title="帳號"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg><span>帳號</span></button>
+        <button type="button" class="tbtn acct-toggle" id="acctToggle" aria-label="開啟帳號選單" aria-expanded="false" aria-controls="acctPop" title="帳號"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg></button>
         <div class="acct-pop" id="acctPop" hidden>
           <p>管理者帳號</p>
           <button type="button" class="ghost" id="forgetBtn">忘記這台裝置</button>
@@ -4659,6 +4658,13 @@ var mergeTxFingerprint='';
   var items = [], polling = null;
   var NAMES = ['同步郵件內容', '重算持股追蹤', '重算歷史績效', '記錄目前績效'];
   function fmt(v) { return v === null || v === undefined || v === '' ? '—' : Number(v).toLocaleString('zh-TW', { maximumFractionDigits: 2 }); }
+  /* v90（管理者）：修正過成本的持股只顯示管理者寫的說明（例如「取 2026/09/30 當日最低 225.5；明講 240 以下買進。」）。
+     舊後端回「管理者修正成本 X（時間，說明）；系統原判：…」一長串，這裡只取說明那一段。 */
+  function costSrc(x) {
+    if (x.override && x.override.note) { return x.override.note; }
+    var m = /^管理者修正成本 [\d.]+（[^，]*，([\s\S]*?)）；系統原判：/.exec(String(x.entrySrc || ''));
+    return m ? m[1] : String(x.entrySrc || '');
+  }
 
   function draw() {
     if (!items.length) { $('heldList').innerHTML = '<div class="erow-empty">目前沒有持有中的股票。</div>'; updateSaveBar(); return; }
@@ -4679,7 +4685,7 @@ var mergeTxFingerprint='';
             '<span class="hc" data-label="目前成本">' +
               '<div class="hc-text">' +
                 '<b class="hc-val">' + fmt(x.entry) + '</b>' +
-                '<small class="hc-src" title="' + esc(x.entrySrc) + '">' + esc(String(x.entrySrc || '').slice(0, 60)) + '</small>' +
+                '<small class="hc-src" title="' + esc(costSrc(x)) + '">' + esc(costSrc(x)) + '</small>' +
               '</div>' +
             '</span>' +
             '<span class="hp" data-label="現價／報酬">' +
@@ -4880,7 +4886,7 @@ var mergeTxFingerprint='';
     if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '儲存中…'; }
     hide($('heldMsg'));
 
-    google.script.run
+    var run = google.script.run
       .withSuccessHandler(function (r) {
         if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '儲存'; }
         if (!r || !r.ok) {
@@ -4908,12 +4914,19 @@ var mergeTxFingerprint='';
         poll();
         if (cb) { cb(true); }
       })
-      .withFailureHandler(function () {
+      .withFailureHandler(function (e) {
         if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '儲存'; }
-        show($('heldMsg'), 'err', '連線中斷，請稍後再試。');
+        // 把真正的原因寫出來（先前一律「連線中斷」，看不出是橋接拒收參數）
+        show($('heldMsg'), 'err', '儲存失敗：' + ((e && e.message) || '連線中斷，請稍後再試。'));
         if (cb) { cb(false); }
-      })
-      .apiAdminSetHoldingCost(KEY, x.code, x.roundStart, cost, note, newName, newCode, newDate);
+      });
+    /* v90：只改成本或說明時只送 5 個參數。舊版網站橋接（GAS SiteBridge、Worker）最多收 5 個，
+       送 8 個一律失敗，Pages 後台的「儲存」就像按不動；改名稱、代號或回合開始日才帶後三個。 */
+    if (newName !== x.name || newCode !== String(x.code) || newDate !== x.roundStart) {
+      run.apiAdminSetHoldingCost(KEY, x.code, x.roundStart, cost, note, newName, newCode, newDate);
+    } else {
+      run.apiAdminSetHoldingCost(KEY, x.code, x.roundStart, cost, note);
+    }
   }
 
   function clearRow(wrap, i) {

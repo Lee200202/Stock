@@ -1625,8 +1625,10 @@ function rebuildHoldingsTrackerJobRun_(options) {
     rounds.forEach(function (rd) {
       var ov = costOverrides[String(g.code) + '|' + rd.open.date];
       if (!ov || !(ov.cost > 0)) { return; }
-      rd.entrySrc = '管理者修正成本 ' + ov.cost + '（' + (ov.at || '') + (ov.note ? '，' + ov.note : '') + '）；系統原判：' +
-                    (rd.entry ? rd.entry + '，' : '') + (rd.entrySrc || '未取得');
+      /* v90（2026/09/30 管理者）：成本來源只寫管理者填的說明（例如「取 2026/09/30 當日最低 225.5；明講 240 以下買進。」），
+         先前把修改時間與整段系統原判也串進來，後台與網站看到一長串。系統原判照樣留在判定歷程，查得回去。 */
+      var systemSrc = (rd.entry ? rd.entry + '，' : '') + (rd.entrySrc || '未取得');
+      rd.entrySrc = ov.note || ('管理者修正成本 ' + ov.cost);
       rd.entry = ov.cost;
       rd.entryOverridden = true;
       if (rd.exit) { rd.ret = Math.round((rd.exit - rd.entry) / rd.entry * 10000) / 100; }
@@ -1634,7 +1636,7 @@ function rebuildHoldingsTrackerJobRun_(options) {
         rd.ret = Math.round((candles[candles.length - 1].close - rd.entry) / rd.entry * 10000) / 100;
       } else if (!rd.close) { rd.ret = null; }
       stat.overridden = (stat.overridden || 0) + 1;
-      tr_(g, '回合 ' + rd.open.date + ' 套用管理者修正成本 ' + ov.cost);
+      tr_(g, '回合 ' + rd.open.date + ' 套用管理者修正成本 ' + ov.cost + '（' + (ov.at || '修改時間未記') + '）；系統原判：' + systemSrc);
     });
 
     if (lastRound.entry) { stat.ok++; } else if (g.valid) { stat.noPrice++; }
@@ -1930,7 +1932,11 @@ function readCostOverrides_() {
     readSheetObjects_('持股成本覆寫').forEach(function (r) {
       var code = String(r['代號'] || '').trim(), d = fmtDate_(r['回合開始日']), cost = Number(r['成本']);
       if (!code || !d || !(cost > 0)) { return; }
-      out[code + '|' + d] = { cost: cost, note: String(r['備註'] || '').trim(), at: String(r['修改時間'] || '').trim(), name: String(r['股票名稱'] || '').trim() };
+      // 修改時間是試算表的日期值；String() 會變成「Wed Sep 30 2026 18:40:59 GMT+0800 (Taiwan Standard Time)」
+      // 出現在網站的成本來源裡（v90，2026/09/30 瑞鼎），一律轉成台北時間到分鐘。
+      var at = r['修改時間'];
+      at = Object.prototype.toString.call(at) === '[object Date]' ? Utilities.formatDate(at, TZ, 'yyyy/MM/dd HH:mm') : String(at || '').trim().slice(0, 16);
+      out[code + '|' + d] = { cost: cost, note: String(r['備註'] || '').trim(), at: at, name: String(r['股票名稱'] || '').trim() };
     });
   } catch (e) { /* 分頁不存在＝沒有任何覆寫 */ }
   return out;

@@ -1,7 +1,8 @@
 // Free Cloudflare Worker: public Pages frontend -> existing Apps Script backend.
 // The bridge token stays server-side. Admin methods still require the existing admin key.
 const ALLOWED = 'https://lee200202.github.io';
-const BUILD = 'site-api-v88';
+const BUILD = 'site-api-v90';
+const MAX_ARGS = 8;
 const ADMIN_METHODS = ('apiAdminCancelCrawl apiAdminCancelDaySync apiAdminCancelFix ' +
   'apiAdminCancelFullFix apiAdminCancelJob apiAdminCancelRefresh apiAdminCancelSmsJob ' +
   'apiAdminChainState apiAdminCrawlState apiAdminCrawlTranscript apiAdminDayRows ' +
@@ -123,7 +124,9 @@ export default {
     if (!raw || new TextEncoder().encode(raw).length > 64000) return reply({ok: false, error: 'size'}, 413, origin);
     let body;
     try { body = JSON.parse(raw); } catch { return reply({ok: false, error: 'json'}, 400, origin); }
-    if (!METHODS.has(body.method) || !Array.isArray(body.args) || body.args.length > 5) {
+    // v90：上限原本是 5，後台「現有持股」存成本要帶 8 個參數（金鑰、代號、回合開始日、成本、備註、名稱、新代號、新開始日），
+    // 在 Pages 後台按儲存一律回 method-not-allowed。最多的是 apiAdminSetHoldingCost 的 8 個。
+    if (!METHODS.has(body.method) || !Array.isArray(body.args) || body.args.length > MAX_ARGS) {
       return reply({ok: false, error: 'method-not-allowed'}, 400, origin);
     }
     if (body.method.startsWith('apiAdmin') && (typeof body.args[0] !== 'string' || !body.args[0])) {

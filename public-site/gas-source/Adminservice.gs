@@ -736,7 +736,22 @@ function apiAdminTodayStatus(key) {
     if (trading && !noShow) {
       add('逐字稿', video ? (v1 + ' 字／修飾 ' + v2 + ' 字') : '—', v2 > 200 ? 'ok' : video ? 'warn' : 'idle');
       add('今日紀錄', trades.length + ' 筆操作、' + holds.length + ' 筆持股', (trades.length || holds.length) ? 'ok' : 'idle');
-      add('每日推播', push ? String(push['寄送狀態'] || '未寄送') : '尚未產生', push && /已寄/.test(String(push['寄送狀態'])) ? 'ok' : 'idle');
+      /* v87：沒寄出時把原因與品質關卡狀態寫在這一格（先前只記在指令碼屬性，要到編輯器執行 whyNoMail() 才看得到）。 */
+      var pushSent = push && /已寄/.test(String(push['寄送狀態']));
+      var pushHint = '';
+      if (push && !pushSent) {
+        try {
+          var pw = JSON.parse(PropertiesService.getScriptProperties().getProperty('dailyPushLastReason') || 'null');
+          if (pw && pw.date === today) { pushHint = '最近一次沒寄的原因：' + pw.why + '（' + String(pw.at || '').slice(11, 16) + '）。'; }
+        } catch (e) {}
+        try {
+          var gs = typeof gateState_ === 'function' ? gateState_() : null;
+          pushHint += gs && gs.date === today
+            ? '品質關卡：' + gs.status + '　' + (gs.phase || '') + '　第 ' + (gs.tries || 1) + ' 次' + (gs.lastError ? '（' + String(gs.lastError).slice(0, 80) + '）' : '') + '。'
+            : '品質關卡：今天還沒開始（12:00 起由五分鐘排程排入）。';
+        } catch (e) {}
+      }
+      add('每日推播', push ? String(push['寄送狀態'] || '未寄送') : '尚未產生', pushSent ? 'ok' : (push && hm >= 1300 ? 'warn' : 'idle'), pushHint);
     }
     add('會員簡訊', sms + ' 則', sms ? 'ok' : 'idle', sms ? '' : '今天還沒有會員簡訊；平日 09:05 起每 10 分鐘自動檢查。');
     /* 郵件投遞健康（v54，Codex 規格 88）：讀寄送帳本。「服務接受」是 MailApp 收下了，不等於已送到收件匣。 */

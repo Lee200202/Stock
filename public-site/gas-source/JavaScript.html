@@ -1216,8 +1216,8 @@ function publicNarrative_(text, row) {
     $('siteLoadAlert').hidden = false;
     $('stamp').textContent = '資料載入逾時';
     $('stamp').classList.add('err');
-  }, 30000);
-  google.script.run.withSuccessHandler(function (res) {
+  }, 90000);   // v87：傳輸層與這裡都會自動重試，90 秒還沒回來才提示
+  function onDashboard(res) {
     dashboardDone = true;
     clearTimeout(dashboardWait);
     $('siteLoadAlert').hidden = true;
@@ -1261,15 +1261,28 @@ function publicNarrative_(text, row) {
     if (r.tracker) { applyTrackerStats(r.tracker); }
     if (r.quotes && typeof renderQuotes === 'function') { renderQuotes(r.quotes, $('p-overview')); }
     else { fillQuotes($('p-overview')); }
-  }).withFailureHandler(function () {
-    dashboardDone = true;
-    clearTimeout(dashboardWait);
-    $('siteLoadAlert').hidden = false;
-    // 加 err 讓它在窄螢幕上也留著。時間戳可以藏，「資料讀取失敗」不行。
-    $('stamp').textContent = '資料讀取失敗';
-    $('stamp').classList.add('err');
-    renderLedger(null);
-  }).apiGetDashboard();
+  }
+  /* v87：後端偶爾回 404／逾時（2026/09/30 管理者回報）。先前一次失敗就整頁顯示載入失敗；
+     現在先安靜重試兩次（5、15 秒後），都失敗才顯示提示。之後任何一次成功都會把提示收起來。 */
+  var dashboardTries = 0;
+  function loadDashboard() {
+    google.script.run.withSuccessHandler(onDashboard).withFailureHandler(function () {
+      dashboardTries++;
+      if (dashboardTries <= 2) {
+        $('stamp').textContent = '重新連線中…';
+        setTimeout(loadDashboard, dashboardTries === 1 ? 5000 : 15000);
+        return;
+      }
+      dashboardDone = true;
+      clearTimeout(dashboardWait);
+      $('siteLoadAlert').hidden = false;
+      // 加 err 讓它在窄螢幕上也留著。時間戳可以藏，「資料讀取失敗」不行。
+      $('stamp').textContent = '資料讀取失敗';
+      $('stamp').classList.add('err');
+      renderLedger(null);
+    }).apiGetDashboard();
+  }
+  loadDashboard();
 
   function applyTrackerStats(t) {
     if (!t) return;

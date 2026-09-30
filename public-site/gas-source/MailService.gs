@@ -1577,12 +1577,8 @@ function wrapMail_(inner, email, token, kind, pre) {
            'style="display:inline-block;border:1px solid #C3CBC6;border-radius:999px;background:#FFFFFF;' +
            'padding:12px 20px;min-height:44px;box-sizing:border-box;font-size:14px;color:#12161A;text-decoration:none;font-weight:600;cursor:pointer;-webkit-text-size-adjust:none;touch-action:manipulation;">取消訂閱</a>'
         : '<div style="font-size:12px;color:#8A6410;">退訂連結暫時無法產生，請回覆這封信告知要停止哪一種通知。</div>') +
-      '<div style="border-top:1px solid #E4E8E6;margin:12px 0 10px;"></div>' +
-      '<div style="font-size:12px;line-height:1.7;color:#667069;">' +
-        '本站前台與退訂頁面已移至 GitHub Pages，點擊按鈕直接開啟，不受 Google 多帳號登入影響，無需登入即可操作。' +
-        '若遇到開啟問題，建議改用系統瀏覽器（Chrome／Safari）打開。' +
-      '</div>' +
     '</div>';
+  /* v87（2026/09/30 管理者）：信尾不再寫「前台已移至 GitHub Pages…改用系統瀏覽器」那一段，佔版位又與讀者無關。 */
   return mailShell_(mailPreheader_(pre) + head + inner + foot);
 }
 
@@ -2502,21 +2498,33 @@ function gateReady_(d) {
     // 還在跑就讓它跑完。真的卡住（很久沒更新）才重排。
     if (st.status === '處理中' && !gateStale_(st)) { return false; }
 
+    /* 連續 GATE_MAX_TRIES 次沒完成就自動放行（v87，2026/09/30 管理者：當天信沒寄出、希望自動化處理）。
+       先前改成「保留待寄送，等人執行 forceSendToday()」，結果關卡兩次失敗的日子整天沒有信，
+       而原因只記在指令碼屬性，後台看不到。寄出的是 pipeline 已逐句核對過的文章（網站與郵件查詢同一篇），
+       只是少了這一輪的 AI 複審；放行寫進系統狀態與關卡紀錄，後台今日狀態看得到。 */
     if ((Number(st.tries) || 0) >= GATE_MAX_TRIES) {
-      Logger.log(d + ' 品質關卡已連續 ' + st.tries + ' 次未完成，' +
-                 '保留待寄送，修正品質問題後重跑。');
-      return false;
+      return gateAutoRelease_(d, st, '品質關卡連續 ' + st.tries + ' 次沒有完成' +
+        (st.lastError ? '（' + String(st.lastError).slice(0, 80) + '）' : ''));
     }
-    // 排得出來就等它跑完；排不出來就直接放行。
-    // 寧可寄一封沒複審過的信，也不要因為排程問題整天沒有信。
     if (scheduleQualityGate_(d, (Number(st.tries) || 0) + 1)) { return false; }
-    Logger.log(d + ' 排不出品質關卡，保留待寄送。');
-    return false;
+    return gateAutoRelease_(d, gateState_() || st, '排不出品質關卡的觸發器');
   }
 
   if (scheduleQualityGate_(d, 1)) { return false; }
-  Logger.log(d + ' 排不出品質關卡，保留待寄送。');
-  return false;
+  return gateAutoRelease_(d, gateState_() || { date: d }, '排不出品質關卡的觸發器');
+}
+
+/** 品質關卡自動放行：標成完成（寄信與 LINE 每日總覽都依這個狀態），留紀錄。 */
+function gateAutoRelease_(d, st, why) {
+  st = st || {};
+  st.date = d; st.status = '完成'; st.phase = '完成'; st.autoReleased = true; st.updatedAt = nowStamp_();
+  st.log = (st.log || []).concat(['— 自動放行：' + why + '；寄出 pipeline 已核對的文章，未經本輪複審 —']);
+  setGateState_(st);
+  Logger.log(d + ' ' + why + '，自動放行每日總覽。');
+  try {
+    getSheet_('系統狀態').appendRow([nowStamp_(), '推播放行', d + ' ' + why + '，已自動放行每日總覽（寄出 pipeline 已核對的文章，未經本輪 AI 複審）。', 'gate', 'Apps Script']);
+  } catch (e) {}
+  return true;
 }
 
 /**

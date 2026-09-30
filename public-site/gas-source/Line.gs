@@ -356,7 +356,7 @@ function lineParseText_(raw, uid) {
   if (/^(?:停止|取消|關閉)(?:盤中即時通知|盤中通知|即時通知|盤中)$/.test(t)) { return { a: 'unsub', k: 'sms' }; }
   if (/^(?:兩種都要|全部訂閱|都要|兩個都要)$/.test(t)) { return { a: 'sub', k: 'daily' }; }
   if (/^(?:開啟|訂閱|加訂)(?:每日總覽|每日)$/.test(t)) { return { a: 'sub', k: 'daily' }; }
-  if (/^(?:訂閱|管理訂閱|通知設定|我的訂閱|訂閱狀態|設定)$/.test(t)) { return { a: 'manage' }; }
+  if (/^(?:訂閱|管理訂閱|通知設定|我的訂閱|訂閱狀態|設定|通知狀態|我的通知狀態|為什麼沒收到|為何沒收到|沒收到通知)$/.test(t)) { return { a: 'manage' }; }
   if (/(?:如何|怎麼|怎樣|我要)?(?:訂閱|電子報|email|信箱|信件).*(?:訂閱|電子報|email|信箱|信件)|^(?:我要如何訂閱電子報|如何訂閱電子報|怎麼訂閱電子報|訂閱電子報|電子報)$/i.test(t)) {
     return { a: 'subhelp' };
   }
@@ -1226,23 +1226,41 @@ function lineManageFlex_(s) {
   var last = s && s.uid ? lineLastAccepted_(s.uid) : {};
   var kinds = ['daily'];
   if (s && s.sms) { kinds.push('sms'); }
+  // v87：盤中通知以「真的會送」為準；舊的按鈕設定顯示「未生效」並說明怎麼確認，不再顯示「已開啟」卻收不到。
+  var smsPending = !!(s && s.sms && !lineSmsActive_(s));
   var rows = kinds.map(function (k) {
-    var on = !!(s && s[k]);
+    var on = k === 'sms' ? lineSmsActive_(s) : !!(s && s[k]);
+    var label = on ? '已開啟' : (k === 'sms' && smsPending ? '未生效' : '未開啟');
     return fxBox_('vertical', [
       fxBox_('horizontal', [fxText_(LINE_KIND_NAME_[k], { size: 'sm', weight: 'bold', color: LINE_C_.ink, flex: 1 }),
-        fxText_(on ? '已開啟' : '未開啟', { size: 'xs', weight: 'bold', color: on ? LINE_C_.accent : LINE_C_.off, align: 'end', flex: 0 })]),
-      fxText_(LINE_KIND_WHEN_[k], { size: 'xs', color: LINE_C_.muted, margin: 'xs' }),
+        fxText_(label, { size: 'xs', weight: 'bold', color: on ? LINE_C_.accent : (label === '未生效' ? LINE_C_.amber : LINE_C_.off), align: 'end', flex: 0 })]),
+      fxText_(k === 'sms' && smsPending ? '這是舊的按鈕設定，不會推送。輸入「開啟盤中通知」或按下方按鈕確認後才會送出。' : LINE_KIND_WHEN_[k], { size: 'xs', color: LINE_C_.muted, margin: 'xs' }),
       last[k] ? fxText_('最近一次 LINE 已接受：' + String(last[k]).slice(5, 16), { size: 'xxs', color: LINE_C_.muted, margin: 'xs' }) : null
     ], { backgroundColor: LINE_C_.soft, cornerRadius: '10px', paddingAll: '12px' });
   });
   var btns = kinds.map(function (k) {
+    if (k === 'sms' && smsPending) { return fxBtn_(linePb_('確認開啟盤中通知', 'a=secretsms&on=1', '開啟盤中通知')); }
     return s && s[k] ? fxBtn_(linePb_('停止' + LINE_KIND_NAME_[k], 'a=unsub&k=' + k, '停止' + LINE_KIND_NAME_[k]), 'secondary')
                      : fxBtn_(linePb_('開啟' + LINE_KIND_NAME_[k], 'a=sub&k=' + k, '開啟' + LINE_KIND_NAME_[k]));
   });
   if (s && (s.daily || s.sms)) { btns.push(fxBtn_(linePb_('全部停止', 'a=unsub&k=all', '全部停止'), 'link')); }
-  var on = kinds.filter(function (k) { return s && s[k]; }).map(function (k) { return LINE_KIND_NAME_[k]; });
-  return lineFlex_('LINE 通知設定：' + (on.length ? '已開啟' + on.join('、') : '目前沒有開啟任何通知'), fxBubble_(
-    fxHeader_('管理訂閱', 'LINE 通知設定'), rows.concat([fxNote_('這裡只管 LINE 通知；Email 訂閱請到網站「訂閱通知」。')]), btns));
+  var on = kinds.filter(function (k) { return k === 'sms' ? lineSmsActive_(s) : s && s[k]; }).map(function (k) { return LINE_KIND_NAME_[k]; });
+  var notes = [];
+  var why = lineDeliveryBlock_(s);
+  if (why) { notes.push(fxText_(why, { size: 'xs', weight: 'bold', color: LINE_C_.amber, margin: 'md' })); }
+  notes.push(fxNote_('這裡只管 LINE 通知；Email 訂閱請到網站「訂閱通知」。'));
+  return lineFlex_('LINE 通知設定：' + (on.length ? '已開啟' + on.join('、') : '目前沒有開啟任何通知') + (why ? '。' + why : ''), fxBubble_(
+    fxHeader_('管理訂閱', 'LINE 通知設定'), rows.concat(notes), btns));
+}
+
+/** 這個帳號目前為什麼收不到推送（整體設定層面）；收得到就回空字串。管理卡片與診斷共用。 */
+function lineDeliveryBlock_(s) {
+  var mode = linePushMode_(), bot = lineBotId_();
+  if (!lineConfigured_()) { return '推送尚未設定完成，暫時不會收到通知。'; }
+  if (mode === 'off') { return '推送目前暫停，管理者恢復後才會收到通知。'; }
+  if (s && s.channel && bot && s.channel !== bot) { return '這個帳號記在另一個 LINE 頻道，目前的官方帳號不會推送給它；封鎖後再加一次好友可以重新登記。'; }
+  if (mode === 'test' && !(s && s.tester)) { return '目前只推送給測試帳號，這個帳號暫時收不到。'; }
+  return '';
 }
 
 function lineHelpFlex_() {
@@ -1497,8 +1515,41 @@ function lineRecipients_(kind, mode) {
   // 測試與正式頻道共用一份試算表時，尚未確認 botUserId 絕不可跨頻道發送。
   if (!bot) { return []; }
   return lineSubsRead_().rows.filter(function (s) {
-    return s.friend !== 'blocked' && s.channel === bot && (kind === 'daily' ? s.daily : s.sms && /:sms-keyword$/.test(s.consentVer)) && (mode !== 'test' || s.tester);
+    return s.friend !== 'blocked' && s.channel === bot && (kind === 'daily' ? s.daily : lineSmsActive_(s)) && (mode !== 'test' || s.tester);
   });
+}
+
+/** 盤中通知真正會送的條件（v78 起）：開啟，而且用文字指令「開啟盤中通知」確認過。
+    寄送器、管理卡片與診斷都用這一支——先前卡片只看開關，舊的按鈕設定顯示「已開啟」卻從來不會收到（v87）。 */
+function lineSmsActive_(s) { return !!(s && s.sms && /:sms-keyword$/.test(String(s.consentVer || ''))); }
+
+/** 每一位好友為什麼收到或收不到（v87 診斷）。只算人數，不列 ID。 */
+function lineRecipientBreakdown_(kind, mode) {
+  var bot = lineBotId_(), n = { total: 0, eligible: 0, noBot: !bot, otherChannel: 0, blocked: 0, off: 0, needKeyword: 0, notTester: 0 };
+  var rows = [];
+  try { rows = lineSubsRead_().rows; } catch (e) { n.error = String(e && e.message || e); return n; }
+  rows.forEach(function (s) {
+    n.total++;
+    if (!bot || s.channel !== bot) { n.otherChannel++; return; }
+    if (s.friend === 'blocked') { n.blocked++; return; }
+    if (kind === 'daily' ? !s.daily : !s.sms) { n.off++; return; }
+    if (kind === 'sms' && !lineSmsActive_(s)) { n.needKeyword++; return; }
+    if (mode === 'test' && !s.tester) { n.notTester++; return; }
+    n.eligible++;
+  });
+  return n;
+}
+function lineBreakdownText_(kind, mode, n) {
+  if (n.error) { return '訂閱清單讀不到：' + n.error; }
+  var parts = [];
+  if (n.noBot) { parts.push('尚未記下這個 LINE 帳號（後台重新儲存一次存取權杖）'); }
+  if (mode === 'off') { parts.push('推送模式是「關閉」'); }
+  if (n.otherChannel && !n.noBot) { parts.push('屬於其他 LINE 頻道 ' + n.otherChannel); }
+  if (n.blocked) { parts.push('封鎖 ' + n.blocked); }
+  if (n.off) { parts.push('沒開' + (kind === 'daily' ? '每日總覽 ' : '盤中通知 ') + n.off); }
+  if (n.needKeyword) { parts.push('用按鈕開啟、還沒輸入「開啟盤中通知」確認 ' + n.needKeyword); }
+  if (n.notTester) { parts.push('只送測試帳號，非測試帳號 ' + n.notTester); }
+  return '會收到 ' + n.eligible + '／' + n.total + ' 位' + (parts.length ? '；' + parts.join('、') : '');
 }
 
 function lineQuota_(force) {
@@ -1594,7 +1645,10 @@ function lineDeliverOne_(t, msg, mode, ctx) {
     led = lineLedgerFor_(msg.id);
     var subs = led.rows.length ? [] : lineRecipients_(msg.kind, mode);
     if (!led.rows.length && !subs.length) {
-      lineOutboxSet_(t, msg, { state: 'done', total: 0, open: 0, note: mode === 'test' ? '測試模式：沒有開啟這項通知的測試帳號' : '沒有開啟這項通知的好友' });
+      // v87：收件人為零不能只安靜標完成——寫明每一類各幾位，後台推送紀錄與系統狀態都看得到。
+      var why = lineBreakdownText_(msg.kind, mode, lineRecipientBreakdown_(msg.kind, mode));
+      lineOutboxSet_(t, msg, { state: 'done', total: 0, open: 0, note: '沒有收件人：' + why });
+      lineStatusNote_('LINE ' + (msg.kind === 'daily' ? '每日總覽' : '盤中通知') + ' ' + msg.id + ' 沒有送出：' + why);
       return res;
     }
     if (!led.rows.length) { led = lineLedgerCreate_(msg, subs); }
@@ -1664,6 +1718,63 @@ function lineFinishMessage_(t, msg, led, expired, stop) {
                            note: (msg.note === '測試模式' ? '測試模式　' : '') + note.join('；') });
 }
 
+/** 系統狀態記一筆 LINE 的事（同一句一天只記一次）。後台今日狀態與時間軸讀這張表。 */
+function lineStatusNote_(text) {
+  try {
+    var c = CacheService.getScriptCache(), k = 'line_note_' + todayStr_() + '_' + (typeof deliveryVersion_ === 'function' ? deliveryVersion_(text) : String(text).length);
+    if (c.get(k)) { return; }
+    c.put(k, '1', 21600);
+    getSheet_('系統狀態').appendRow([lineNow_(), 'LINE', lineClip_(text, 300), 'line', 'Apps Script']);
+  } catch (e) { Logger.log('LINE：系統狀態寫不進去 ' + e); }
+}
+
+/**
+ * 「為什麼 LINE 沒收到」（v87）。只讀：推送模式、LINE 帳號、每日與盤中各有幾位會收到與收不到的原因、
+ * 今天每日總覽卡在哪一步、最近的待送紀錄。後台 LINE 分頁與編輯器 diagnoseLineDelivery() 共用。
+ */
+function lineDiagnose_() {
+  var mode = linePushMode_(), s = lineSettings_(), today = todayStr_();
+  var out = { at: lineNow_(), mode: mode, configured: lineConfigured_(), bot: lineMask_(s.botUserId), lines: [] };
+  var L = function (t) { out.lines.push(t); };
+  L('推送模式：' + ({ off: '關閉（不排、不送）', test: '只送測試帳號', on: '正式推送' })[mode] + '　LINE 帳號：' + (s.botName || '未記下') + (s.basicId ? '（' + s.basicId + '）' : ''));
+  if (!out.configured) { L('✗ 存取權杖或頻道密鑰沒有設定，什麼都不會送。'); }
+  ['daily', 'sms'].forEach(function (k) {
+    var n = lineRecipientBreakdown_(k, mode);
+    out[k] = n;
+    L((n.eligible ? '✓ ' : '✗ ') + LINE_KIND_NAME_[k] + '：' + lineBreakdownText_(k, mode, n));
+  });
+  try {
+    var st = lineTodayState_();
+    out.today = st.state;
+    L('今天的每日總覽：' + ({ ready: '已可發送', closed: '休市不發', noshow: '沒有直播不發', pending: '還在等' })[st.state] + (st.why ? '（' + st.why + '）' : ''));
+  } catch (e) { L('今天的每日總覽：狀態讀不到（' + String(e && e.message || e).slice(0, 80) + '）'); }
+  L('待送旗標：' + (lineProp_('LINE_OUTBOX_OPEN') === '1' ? '有待送' : '沒有待送') + '　寄送租約：' + (function () {
+    try { var l = JSON.parse(lineProp_('LINE_SEND_LEASE') || 'null'); return l && l.until > Date.now() ? '佔用中（到 ' + lineStampOf_(l.until).slice(11) + '）' : '空閒'; } catch (e) { return '空閒'; }
+  })());
+  try {
+    var rows = lineOutboxRead_().rows.slice(-8).reverse();
+    out.recent = rows.map(lineOutboxView_);
+    rows.forEach(function (r) {
+      L('　' + r.id + '　' + r.state + '　LINE 已接受 ' + r.accepted + '／' + r.total + (r.note ? '　' + lineClip_(r.note, 90) : ''));
+    });
+    if (!rows.length) { L('　還沒有任何推送紀錄（今天的通知可能沒走到排送那一步：看上面的收件人與每日總覽狀態）。'); }
+    if (!rows.some(function (r) { return r.date === today; })) { L('今天（' + today + '）沒有任何 LINE 推送紀錄。'); }
+  } catch (e) { L('推送紀錄讀不到：' + String(e && e.message || e).slice(0, 80)); }
+  var stt = lineStats_();
+  L('最後收到 Webhook：' + (stt.lastWebhookAt || '尚無'));
+  return out;
+}
+function apiAdminLineDiagnose(key) {
+  try { adminAuth_(key); } catch (e) { return { ok: false, reason: String(e.message || e) }; }
+  try { return { ok: true, data: lineDiagnose_() }; } catch (e) { return { ok: false, reason: String(e.message || e) }; }
+}
+/** 在編輯器執行（只讀）：LINE 為什麼沒收到。 */
+function diagnoseLineDelivery() {
+  var d = lineDiagnose_();
+  Logger.log(d.lines.join(String.fromCharCode(10)));
+  return d;
+}
+
 function lineAlertOnce_(why) {
   try {
     var c = CacheService.getScriptCache(), k = 'line_alert_' + why + '_' + todayStr_();
@@ -1678,8 +1789,17 @@ function lineAlertOnce_(why) {
 
 function lineQueueSms_(a, revised) {
   if (!a || !a.id || !lineConfigured_() || linePushMode_() === 'off') { return { skipped: true }; }
-  var recipients = lineRecipients_('sms', linePushMode_());
-  if (!recipients.length) { return { skipped: 'no-explicit-sms-subscribers' }; }
+  var mode = linePushMode_(), recipients = lineRecipients_('sms', mode);
+  if (!recipients.length) {
+    // v87：先前這裡安靜返回，管理者只知道「LINE 沒收到」。留一筆 skipped 與原因，後台推送紀錄查得到。
+    var why = lineBreakdownText_('sms', mode, lineRecipientBreakdown_('sms', mode));
+    try {
+      lineQueue_({ id: 'sms|' + a.id + (revised ? '|rev|' + (typeof deliveryVersion_ === 'function' ? deliveryVersion_(a.text) : '') : ''), kind: 'sms',
+        date: fmtDate_(String(a.time || '').slice(0, 10)) || todayStr_(), version: '', source: '會員簡訊 ' + a.id,
+        expiresAt: 0, state: 'skipped', note: '沒有收件人：' + why, messages: [] });
+    } catch (e) {}
+    return { skipped: 'no-explicit-sms-subscribers', why: why };
+  }
   var ver = typeof deliveryVersion_ === 'function' ? deliveryVersion_(a.text) : '';
   var id = 'sms|' + a.id + (revised ? '|rev|' + ver : '');
   var posted = lineParseTaipei_(a.time) || Date.now();

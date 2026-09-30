@@ -78,7 +78,9 @@
      因此同一份排除指引也放進寄出的信件，讓讀者點連結前就看得到。 -->
 <div class="wrap access-alert" id="siteLoadAlert" role="alert" hidden>
   <strong>網站資料暫時無法載入</strong>
-  <span>請先重新整理。若 Google 顯示「找不到檔案」，可用無痕視窗只登入一個 Google 帳號；需要同時使用多個帳號時，請替每個帳號開不同的瀏覽器使用者設定檔，再以原連結開啟。</span>
+  <!-- v87：GitHub Pages 版（html[data-host=pages]）不需要 Google 帳號，只顯示第一句；Google 帳號的排除指引只給 Apps Script 網址。 -->
+  <span class="alert-pages">伺服器暫時沒有回應，已自動重試三次。請過一兩分鐘再重新整理；不需要登入任何帳號。</span>
+  <span class="alert-gas">請先重新整理。若 Google 顯示「找不到檔案」，可用無痕視窗只登入一個 Google 帳號；需要同時使用多個帳號時，請替每個帳號開不同的瀏覽器使用者設定檔，再以原連結開啟。</span>
 </div>
 
 <!-- 頁首視覺區：最近一筆紀錄、母題動畫、標語、訊號帶、統計。

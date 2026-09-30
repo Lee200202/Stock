@@ -68,7 +68,7 @@ function siteBridge_(e) {
       'apiAdminDeleteSmsBatch apiAdminDispatch apiAdminFixState apiAdminFullFixState ' +
       'apiAdminHeldList apiAdminHoldToday apiAdminInstallSectorCatchup apiAdminJobStatus ' +
       'apiAdminKCoverage apiAdminLineBindCode apiAdminLineClearTesters ' +
-      'apiAdminLineLookup apiAdminLineRetry apiAdminLineSaveConfig ' +
+      'apiAdminLineDiagnose apiAdminLineLookup apiAdminLineRetry apiAdminLineSaveConfig ' +
       'apiAdminLineSetupRichMenu apiAdminLineStatus apiAdminLineTestPush ' +
       'apiAdminLineValidate apiAdminListSms apiAdminLogin apiAdminManualDays ' +
       'apiAdminSetSmsEmail ' +

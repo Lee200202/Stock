@@ -1182,14 +1182,14 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-09-30-line-response-v86';
+var PROJECT_BUILD_ = '2026-09-30-delivery-fix-v87';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
 var PROJECT_FILES_ = [
-  { file: 'SiteBridge.gs', names: ['siteBridge_', 'siteBridgeSetup'], marker: ['siteBridge_', 'method-not-allowed'] },
+  { file: 'SiteBridge.gs', names: ['siteBridge_', 'siteBridgeSetup'], marker: ['siteBridge_', 'apiAdminLineDiagnose'] },
   { file: 'Marketservice.gs', names: ['apiGetMarketOverview', 'mergedHourlyHistory_', 'backfillHourlyHistoryJob', 'auditHourlyCoverage', 'installMarketDataJobs', 'marketRollingWindow_', 'sectorCatchupJob', 'sectorCatchupStatus', 'marketSampleTaiex_'], marker: ['marketSampleTaiex_', 'Yahoo 回傳非今日資料'] },
-  { file: 'Line.gs', names: ['lineWebhook_', 'lineSignatureOk_', 'lineParseText_', 'lineQueueSms_', 'lineDailyTick_', 'lineDeliverTick_', 'lineClassify_', 'lineSectorReply_', 'apiGetLineEntry', 'apiAdminLineStatus', 'apiAdminLineSaveConfig', 'lineSetupCheck', 'lineValidateTemplates', 'lineSetupRichMenus', 'lineRichMenuHealth_', 'lineChartUrl_', 'lineHoldingVisualFlex_', 'lineMarketExtras_', 'LINE_OUTBOX_COLS_'], marker: ['lineSecretSmsReply_', ':sms-keyword'] },
+  { file: 'Line.gs', names: ['lineWebhook_', 'lineSignatureOk_', 'lineParseText_', 'lineQueueSms_', 'lineDailyTick_', 'lineDeliverTick_', 'lineClassify_', 'lineSectorReply_', 'apiGetLineEntry', 'apiAdminLineStatus', 'apiAdminLineSaveConfig', 'lineSetupCheck', 'lineValidateTemplates', 'lineSetupRichMenus', 'lineRichMenuHealth_', 'lineChartUrl_', 'lineHoldingVisualFlex_', 'lineMarketExtras_', 'LINE_OUTBOX_COLS_', 'lineSmsActive_', 'lineRecipientBreakdown_', 'lineDiagnose_', 'apiAdminLineDiagnose', 'diagnoseLineDelivery'], marker: ['lineManageFlex_', '未生效'] },
   { file: 'Holidays.gs', names: ['marketHolidaySet_', 'isMarketHoliday_', 'whyClosed_', 'refreshHolidayYear_', 'checkNextYearHolidays'], marker: ['refreshHolidayYear_', 'HOLIDAY_PROP_PREFIX_'] },
   { file: 'Config.gs', names: ['APP_TITLE', 'DISCLAIMER', 'WEBAPP_URL_DEFAULT', 'GAS_BUILD', 'GAS_FEATURES', 'REFRESH_ORDER_', 'CHAIN_KEY_'] },
   { file: 'Code.gs', names: ['doGet', 'doPost', 'include', 'configMissing_', 'configMissingResponse_'], marker: ['doPost', 'x-line-signature'] },
@@ -1199,11 +1199,11 @@ var PROJECT_FILES_ = [
   { file: 'Aiservice.gs', names: ['validateKey', 'assistantModelCatalog_', 'sanitizeDraft_', 'draftReady_', 'isPromptProbe_', 'guardReply_', 'explicitSubscribeConfirm_'], marker: ['assistantModelCatalog_', 'supportedGenerationMethods'] },
   { file: 'Articlequality.gs', names: ['enforceArticleRecords_', 'attachArticleEvidence_'] },
   { file: 'Cachebuilder.gs', names: ['budgetLeft_', 'trackedCodes_', 'readSnapshotRows_', 'officialDailyAll_', 'auditDailyKCache', 'repairDailyKCache', 'afterDailyKDoneJob', 'rescheduleDailyKTrigger', 'warmKCaches_', 'dailyKFloors_', 'resetDailyKFloor', 'isTradingDateStr_', 'ensurePerformanceContinuityJob_'], marker: ['snapshotPerformanceJobRun_', 't.summary.priced'] },
-  { file: 'Cmoney.gs', names: ['cmMailBody_', 'cmNotifyNew_', 'cmSyncContentTick_', 'cmTranscriptExcerpt_', 'deliveryRetryTick_', 'diagnoseInstantMail', 'cmSetNotifyState_', 'resendInstantMail'], marker: ['cmSyncContentTick_', 'pendingSh.getRange'] },
+  { file: 'Cmoney.gs', names: ['cmMailBody_', 'cmNotifyNew_', 'cmSyncContentTick_', 'cmTranscriptExcerpt_', 'deliveryRetryTick_', 'diagnoseInstantMail', 'cmSetNotifyState_', 'resendInstantMail', 'cmPollSaveFailed_'], marker: ['cmoneyPollJobRun_', 'cmPollSaveFailed_(a, e)'] },
   { file: 'DB.gs', names: ['writeSubscriptionFields_', 'findSubscription_'] },
   { file: 'Evidencequality.gs', names: ['rawTranscript_', 'validEvidence_', 'queueDayEditSync_', 'dayEditSyncTick_', 'queueCostSync_'], marker: ['dayEditSyncTick_', 'COST:'] },
   { file: 'Logic.gs', names: ['markChainStep_', 'REFRESH_STEPS_'] },
-  { file: 'MailService.gs', names: ['createSubscription', 'mailHero_', 'publicWebAppUrl_', 'escAttr_', 'mailRiskHtml_', 'deliverMessage_', 'deliveryLedger_', 'mailPlainText_', 'isExecUrl_', 'mailStockName_', 'noVideoToday_', 'pushReadyChannels_'], marker: ['mdToHtml_', "th('股票／代號')"] },
+  { file: 'MailService.gs', names: ['createSubscription', 'mailHero_', 'publicWebAppUrl_', 'escAttr_', 'mailRiskHtml_', 'deliverMessage_', 'deliveryLedger_', 'mailPlainText_', 'isExecUrl_', 'mailStockName_', 'noVideoToday_', 'pushReadyChannels_', 'gateAutoRelease_'], marker: ['gateReady_', 'gateAutoRelease_(d, st'] },
   { file: 'Presentationquality.gs', names: ['displayPrice_', 'narrativeName_', 'titleChars_'], marker: ['articleTitle_', 'TITLE_MIN_CHARS_'] },
   { file: 'Quoteservice.gs', names: ['getFugleKey_', 'fugleFetch_', 'sharesToLots_', 'volumeInLots_', 'hourSlot_', 'readHourlyRows_', 'fugleHistPace_', 'kcPutAll_', 'getCandlesBundle'], marker: ['repairDailyKVolume', 'disabled: true'] },
   { file: 'Refreshrunner.gs', names: ['runRefreshAllChunk_', 'withRefreshAllLease_'] },
@@ -1219,12 +1219,12 @@ var PROJECT_HTML_ = [
   { file: 'Market', marker: '開盤不久，走勢累積中' },
   { file: 'Index', marker: '持有檔數包含暫時缺價' },
   { file: 'JavaScript', marker: 'tbl-merged' },
-  { file: 'Stylesheet', marker: '.tbl-daily.tbl-merged' },
-  { file: 'Changelog', marker: 'v72 技術說明留白、卡片與互動判別' },
+  { file: 'Stylesheet', marker: 'html[data-host="pages"] .access-alert' },
+  { file: 'Changelog', marker: 'v87 通知送達與網站載入修正' },
   { file: 'Tech', marker: 'data-tech-story-v72' },
-  { file: 'Admin', marker: 'opsTimePanel' },
+  { file: 'Admin', marker: 'apiAdminLineDiagnose' },
   { file: 'Settings', marker: '手機預覽' },
-  { file: 'Unsubscribed', marker: 'apiUnsubscribeConfirm' }
+  { file: 'Unsubscribed', marker: '若一直失敗，直接回覆通知信' }
 ];
 
 // 全域物件。每個 .gs 頂層的函式宣告與 var 都掛在它上面，才能用名字查。

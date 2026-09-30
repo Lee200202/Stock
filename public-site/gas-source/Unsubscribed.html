@@ -105,7 +105,9 @@
             return;
           }
           google.script.run.withSuccessHandler(done).withFailureHandler(function (e) {
-            done({ ok: false, message: '連線失敗（' + (e && e.message ? e.message : '網路中斷') + '），請再按一次。' });
+            /* v87：技術代碼（例如 method-not-allowed）放在括號小字，主句講讀者能做的事。 */
+            var code = e && e.message ? String(e.message).slice(0, 40) : '網路中斷';
+            done({ ok: false, message: '暫時無法完成，請稍後再按一次。若一直失敗，直接回覆通知信告知要停止哪一種通知（代碼：' + code + '）。' });
           }).apiUnsubscribeConfirm(email, token, b.getAttribute('data-scope'));
         });
       });

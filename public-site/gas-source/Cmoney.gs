@@ -680,20 +680,10 @@ function cmAutoReconcileToday_(force) {
   cmNote_('自動稽核補抓 ' + out.saved.length + ' 篇輪詢漏掉的張震簡訊：' + ids + '，已派 GitHub 解析');
   cmDispatchGithubParse_(today);
 
-  // 同一天同一篇只通知管理者一次。
-  var alerted = {};
-  try { alerted = JSON.parse(pr.getProperty(CM_RECONCILE_ALERT_PROP_) || '{}'); } catch (e) { alerted = {}; }
-  if (alerted.day !== today || !alerted.ids) { alerted = { day: today, ids: [] }; }
-  var fresh = out.saved.filter(function (a) { return alerted.ids.indexOf(String(a.id)) < 0; });
-  if (fresh.length && typeof notifyAdmin_ === 'function') {
-    notifyAdmin_('會員簡訊：輪詢漏抓，已自動補回 ' + fresh.length + ' 篇　' + today,
-      '自動稽核在來源上找到今天的張震簡訊，但它們不在「會員簡訊」分頁，已自動補存並派 GitHub 解析：\n' +
-      fresh.map(function (a) { return '  ' + a.time + '　' + a.id + '　' + String(a.text).slice(0, 60); }).join('\n') +
-      '\n\n這代表每分鐘的輪詢（cmoneyPollJob）沒有正常處理到它們。資料已補回，但請到 Apps Script「執行項目」' +
-      '篩 cmoneyPollJob，看發文時間之後的執行狀態與錯誤訊息，或在編輯器執行 diagnoseCmoneyToday()。');
-    alerted.ids = alerted.ids.concat(fresh.map(function (a) { return String(a.id); }));
-    pr.setProperty(CM_RECONCILE_ALERT_PROP_, JSON.stringify(alerted));
-  }
+  /* 不寄信給管理者（v87，2026/09/30 管理者：不想收這類 Gmail）。
+     補存、派解析、發文 60 分鐘內補寄即時通知（Email 與 LINE）上面都已自動完成；
+     紀錄只留在系統狀態（上面的 cmNote_），後台今日狀態與時間軸看得到。
+     輪詢本身漏抓的主因（先記看過再存檔）已在 cmoneyPollJobRun_ 修掉。 */
   return out;
 }
 
@@ -791,21 +781,42 @@ function cmoneyPollJobRun_() {
     }
   }
 
+  /* 存檔成功才記成「看過」（v87，2026/09/30 10:04 瑞鼎那一則）。
+     先前一看到就記看過、再存檔；存檔那一步搶不到鎖或試算表暫時出錯時丟例外，
+     這一篇就永遠不會再被輪詢處理，只能等十分鐘一次的補抓——那也是管理者收到「輪詢漏抓」信的原因。
+     現在：不是張震的文章直接記看過；張震的文章存成功（或早已存過）才記，失敗留給下一分鐘自動重試。
+     一篇出錯也不影響同一輪的其他篇。 */
   var seen = cmSeen_();
   articles.filter(function (a) { return !seen[a.id]; }).slice(0, CM_MAX_PER_TICK).forEach(function (a) {
     if (!cmDate_(a.time)) {
       cmNote_('文章 ' + a.id + ' 找不到可驗證日期，已隔離且保留重試資格');
       return;
     }
+    if (a.creatorId !== cmMemberId_() || !CM_MARK.test(a.text)) { seen = cmMarkSeen_(seen, a.id); return; }
+    var saved = false;
+    try { saved = cmSaveMessage_(a); }
+    catch (e) { cmPollSaveFailed_(a, e); return; }
     seen = cmMarkSeen_(seen, a.id);
-    if (a.creatorId !== cmMemberId_() || !CM_MARK.test(a.text)) { return; }
-    if (cmSaveMessage_(a)) {
+    if (saved) {
       savedAny = true; cmRememberWatch_(a);
       Logger.log('會員簡訊：收到 ' + a.time + '　' + a.text.slice(0, 40));
       try { cmNotifyNew_(a, false); } catch (e) { cmNotifyFailed_(a, e, '即時通知'); }
     }
   });
   if (savedAny || changed) { cmDispatchGithubParse_(todayStr_()); }
+}
+
+
+/** 輪詢存檔失敗：不記看過，下一分鐘自動重試；同一篇十分鐘內只在系統狀態記一次。 */
+function cmPollSaveFailed_(a, e) {
+  var why = String(e && e.message || e).slice(0, 100);
+  Logger.log('會員簡訊：文章 ' + a.id + ' 這一分鐘沒存進去，下一分鐘重試：' + why);
+  try {
+    var c = CacheService.getScriptCache(), k = 'cmPollFail_' + a.id;
+    if (c.get(k)) { return; }
+    c.put(k, '1', 600);
+  } catch (x) {}
+  cmNote_('文章 ' + a.id + ' 輪詢存檔暫時失敗（' + why + '），已保留給下一分鐘自動重試');
 }
 
 

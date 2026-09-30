@@ -439,7 +439,9 @@ function fugleHistoricalOnce_(code, from, to) {
  * ------------------------------------------------------------------ */
 
 var QUOTE_CURSOR_KEY_ = 'QUOTE_CURSOR';
-var QUOTE_JOB_BUDGET_MS_ = 180000;   // 3 分鐘。everyFiveMinJob 還有別的事要做，六分鐘上限要留餘裕。
+/* 60 秒（v87，原本 3 分鐘）。2026/09/30 盤中每一棒平均跑 2.5 分鐘，全天觸發器累計約 217 分鐘（這一支就佔 172 分鐘），
+   五分鐘總排程單次最長 326 秒、逼近六分鐘上限。沒輪到的代號下一棒由游標接著抓，讀取端遇到過期報價會即時補抓。 */
+var QUOTE_JOB_BUDGET_MS_ = 60000;
 
 function isTradingNow_() {
   var now = new Date();

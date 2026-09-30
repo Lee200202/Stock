@@ -565,6 +565,8 @@ button:disabled { opacity: .45; cursor: default; }
 .access-alert { box-sizing: border-box; margin-top: 12px; margin-bottom: 12px; padding: 12px 16px; border: 1px solid var(--rise); border-radius: 10px; background: var(--panel); color: var(--ink); font-size: calc(13px * var(--rd-fs)); line-height: 1.7; }
 .access-alert strong { display: block; margin-bottom: 2px; }
 .access-alert[hidden] { display: none; }
+/* v87：同一個提示在 GitHub Pages 與 Apps Script 網址各顯示適用的那一句 */
+html[data-host="pages"] .access-alert .alert-gas, html:not([data-host="pages"]) .access-alert .alert-pages { display: none; }
 .access-help { margin-top: 12px; font-size: calc(13px * var(--rd-fs)); line-height: 1.7; }
 .access-help summary { cursor: pointer; font-weight: 600; }
 .access-help p { margin: 7px 0 0; }

@@ -1,6 +1,7 @@
 // Free Cloudflare Worker: public Pages frontend -> existing Apps Script backend.
 // The bridge token stays server-side. Admin methods still require the existing admin key.
 const ALLOWED = 'https://lee200202.github.io';
+const BUILD = 'site-api-v87';
 const ADMIN_METHODS = ('apiAdminCancelCrawl apiAdminCancelDaySync apiAdminCancelFix ' +
   'apiAdminCancelFullFix apiAdminCancelJob apiAdminCancelRefresh apiAdminCancelSmsJob ' +
   'apiAdminChainState apiAdminCrawlState apiAdminCrawlTranscript apiAdminDayRows ' +
@@ -8,7 +9,7 @@ const ADMIN_METHODS = ('apiAdminCancelCrawl apiAdminCancelDaySync apiAdminCancel
   'apiAdminDeleteSmsBatch apiAdminDispatch apiAdminFixState apiAdminFullFixState ' +
   'apiAdminHeldList apiAdminHoldToday apiAdminInstallSectorCatchup apiAdminJobStatus ' +
   'apiAdminKCoverage apiAdminLineBindCode apiAdminLineClearTesters ' +
-  'apiAdminLineLookup apiAdminLineRetry apiAdminLineSaveConfig ' +
+  'apiAdminLineDiagnose apiAdminLineLookup apiAdminLineRetry apiAdminLineSaveConfig ' +
   'apiAdminLineSetupRichMenu apiAdminLineStatus apiAdminLineTestPush ' +
   'apiAdminLineValidate apiAdminListSms apiAdminLogin apiAdminManualDays ' +
   'apiAdminSetSmsEmail ' +
@@ -31,22 +32,88 @@ const METHODS = new Set([
   'apiSuggestCodes', 'apiUnsubscribeConfirm', 'apiUpdateSubscription', 'apiValidateKey', ...ADMIN_METHODS
 ]);
 
-function reply(body, status, origin) {
+/* 唯讀資料的短暫快取（v87，2026/09/30 管理者：網站偶爾顯示「網站資料暫時無法載入」）。
+   Apps Script 後端間歇回 404／逾時／錯誤頁；同一份唯讀資料在這個 Worker 執行個體的記憶體裡留一份：
+   新鮮期內直接回，後端失敗時回最近一份成功結果（最多 6 小時，回應標 X-Cache: stale）。
+   workers.dev 網域沒有 Cache API，所以用記憶體；執行個體被回收就重新向後端取，不影響正確性。
+   只有公開的唯讀方法會進快取；寫入、訂閱、後台方法一律直達後端。 */
+const READ_TTL = {
+  apiGetDashboard: 60, apiGetMarketOverview: 60, apiGetQuotesFor: 60, apiGetHoldingsTracker: 120,
+  apiGetStockSummary: 120, apiSearchStock: 120, apiListRecordDates: 300, apiListMailDates: 300,
+  apiGetMailContent: 300, apiSearchByDate: 300, apiGetCandlesBundle: 300, apiGetPerformanceSeries: 600,
+  apiGetLineEntry: 600, apiListTranscriptDates: 600, apiGetTranscript: 600, apiGetTechStats: 1800,
+  apiGetStockFundamentals: 3600, apiSuggestCodes: 3600, apiListModels: 3600
+};
+const STALE_MAX_MS = 6 * 3600 * 1000;
+const MEMO_MAX = 300;
+const memo = new Map();
+/* 可以放心重送的方法：唯讀，或重送結果相同（退訂、查詢與更新訂閱）。
+   Apps Script 的 POST 在回 302 之前就已經執行完，轉址那一步回 404 時事情其實做過了；
+   寄信、問答這類重送會多做一次的方法只重試一次連線錯誤，不重試 404。 */
+const IDEMPOTENT = new Set([...Object.keys(READ_TTL), 'apiLookupSubscription', 'apiUnsubscribeConfirm',
+  'apiUpdateSubscription', 'apiStopAllMail', 'apiSubscribe', 'apiAdminLogin', 'apiAdminTodayStatus',
+  'apiAdminLineStatus', 'apiAdminLineDiagnose', 'apiAdminOpsDay']);
+
+function remember(key, body) {
+  if (memo.has(key)) memo.delete(key);
+  memo.set(key, {at: Date.now(), body});
+  while (memo.size > MEMO_MAX) memo.delete(memo.keys().next().value);
+}
+
+function reply(body, status, origin, extra) {
   const headers = {
     'Cache-Control': 'no-store',
     'Access-Control-Allow-Origin': origin === ALLOWED ? origin : 'null',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
-    'Vary': 'Origin'
+    'Access-Control-Expose-Headers': 'X-Cache',
+    'Vary': 'Origin',
+    ...(extra || {})
   };
   return status === 204 ? new Response(null, {status, headers}) : Response.json(body, {status, headers});
+}
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* 呼叫 Apps Script。可重送的方法最多三次（間隔 0.8、2.5 秒）；其他方法只在連線錯誤時再試一次。
+   回 HTML（Apps Script 錯誤頁或 Google 登入頁）與 404／429／5xx 都算暫時性。總時間超過 50 秒就不再重試。 */
+async function callBackend(env, body, retryable) {
+  const started = Date.now();
+  const delays = retryable ? [800, 2500] : [1200];
+  let last = {status: 502, payload: {ok: false, error: 'backend-unavailable'}};
+  for (let attempt = 0; attempt <= delays.length; attempt++) {
+    let transient = false, networkError = false;
+    try {
+      const downstream = await fetch(env.GAS_WEBAPP_URL + '?action=site-bridge', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
+        body: JSON.stringify({...body, bridgeToken: env.SITE_BRIDGE_TOKEN}),
+        redirect: 'follow',
+        signal: AbortSignal.timeout(40000)
+      });
+      const contentType = downstream.headers.get('content-type') || '';
+      if (downstream.ok && /json/i.test(contentType)) {
+        const payload = await downstream.json();
+        return {status: payload.ok ? 200 : 502, payload};
+      }
+      transient = downstream.status === 404 || downstream.status === 429 || downstream.status >= 500 || (downstream.ok && !/json/i.test(contentType));
+      last = {status: 502, payload: {ok: false, error: downstream.ok ? 'backend-not-json' : 'backend-http-' + downstream.status}};
+    } catch {
+      networkError = true;
+      last = {status: 502, payload: {ok: false, error: 'backend-unavailable'}};
+    }
+    const canRetry = attempt < delays.length && Date.now() - started < 50000 && (networkError || (retryable && transient));
+    if (!canRetry) break;
+    await sleep(delays[attempt]);
+  }
+  return last;
 }
 
 export default {
   async fetch(request, env) {
     const origin = request.headers.get('Origin') || '';
     const path = new URL(request.url).pathname;
-    if (path === '/healthz') return reply({ok: true, ready: !!(env.GAS_WEBAPP_URL && env.SITE_BRIDGE_TOKEN)}, 200, origin);
+    if (path === '/healthz') return reply({ok: true, ready: !!(env.GAS_WEBAPP_URL && env.SITE_BRIDGE_TOKEN), build: BUILD}, 200, origin);
     if (path !== '/api') return reply({ok: false, error: 'not-found'}, 404, origin);
     if (origin !== ALLOWED) return reply({ok: false, error: 'origin'}, 403, origin);
     if (request.method === 'OPTIONS') return reply({}, 204, origin);
@@ -65,39 +132,16 @@ export default {
     if (body.method.startsWith('apiAdmin') && (typeof body.args[0] !== 'string' || !body.args[0])) {
       return reply({ok: false, error: 'admin-key-required'}, 401, origin);
     }
-    try {
-      let downstream;
-      for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-          downstream = await fetch(env.GAS_WEBAPP_URL + '?action=site-bridge', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json; charset=utf-8'},
-            body: JSON.stringify({...body, bridgeToken: env.SITE_BRIDGE_TOKEN}),
-            redirect: 'follow',
-            signal: AbortSignal.timeout(60000)
-          });
-          if (downstream.ok) break;
-          // Google Apps Script 暫時性冷啟動（例如 script.googleusercontent.com 回 404 或 503）自動重試一次
-          if (attempt === 0 && (downstream.status === 404 || downstream.status >= 500)) {
-            await new Promise(r => setTimeout(r, 1200));
-            continue;
-          }
-          break;
-        } catch (err) {
-          if (attempt === 0) {
-            await new Promise(r => setTimeout(r, 1200));
-            continue;
-          }
-          throw err;
-        }
-      }
-      if (!downstream || !downstream.ok) return reply({ok: false, error: 'backend-http-' + (downstream ? downstream.status : 'error')}, 502, origin);
-      const contentType = downstream.headers.get('content-type') || '';
-      if (!/json/i.test(contentType)) return reply({ok: false, error: 'backend-not-json'}, 502, origin);
-      const result = await downstream.json();
-      return reply(result, result.ok ? 200 : 502, origin);
-    } catch {
-      return reply({ok: false, error: 'backend-unavailable'}, 502, origin);
+    const ttl = READ_TTL[body.method];
+    const key = ttl ? body.method + ':' + JSON.stringify(body.args) : '';
+    const hit = key ? memo.get(key) : null;
+    if (hit && Date.now() - hit.at < ttl * 1000) return reply(hit.body, 200, origin, {'X-Cache': 'hit'});
+    const out = await callBackend(env, {method: body.method, args: body.args}, IDEMPOTENT.has(body.method));
+    if (out.payload && out.payload.ok) {
+      if (key) remember(key, out.payload);
+      return reply(out.payload, 200, origin, {'X-Cache': key ? 'miss' : 'bypass'});
     }
+    if (hit && Date.now() - hit.at < STALE_MAX_MS) return reply(hit.body, 200, origin, {'X-Cache': 'stale'});
+    return reply(out.payload, out.status, origin);
   }
 };

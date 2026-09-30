@@ -1823,6 +1823,7 @@ html[data-view="mobile"] .line-copy { grid-template-columns:1fr; }
         <h2>測試與上線工具</h2>
         <p class="hint">綁定碼十分鐘有效：在 LINE 對官方帳號輸入「綁定 六位數」，那個帳號就成為測試帳號。測試推送只送測試帳號，但會計入當月訊息量；驗證卡片格式與建立圖文選單不會送出訊息。</p>
         <div class="btnrow">
+          <button type="button" id="lineDiag">為什麼沒收到</button>
           <button type="button" class="ghost" id="lineBind">產生綁定碼</button>
           <button type="button" class="ghost" id="lineValidate">驗證卡片格式</button>
           <button type="button" class="ghost" id="lineRich">建立圖文選單</button>
@@ -5304,7 +5305,7 @@ setTimeout(initCrawlDayPills, 50);
 (function () {
   if (!$('p-line')) { return; }
   var MODE = { off: '關閉', test: '只送測試帳號', on: '正式推送' };
-  var STATE = { queued: ['待送', 'warn'], sending: ['送出中', 'warn'], done: ['完成', 'ok'], expired: ['逾時未補送', 'err'], failed: ['失敗', 'err'] };
+  var STATE = { queued: ['待送', 'warn'], sending: ['送出中', 'warn'], done: ['完成', 'ok'], expired: ['逾時未補送', 'err'], failed: ['失敗', 'err'], skipped: ['沒有收件人', 'warn'] };
   var RSTATE = { accepted: 'LINE 已接受', pending: '待送', sending: '送出中', retryable: '等待重試', failed: '失敗', expired: '逾時未補送', unknown: '不明' };
   function card(title, big, detail, tone) {
     return '<div class="ops-card" data-tone="' + (tone || 'idle') + '"><h3>' + esc(title) + '</h3><strong>' + esc(big) + '</strong><p>' + esc(detail) + '</p></div>';
@@ -5374,6 +5375,8 @@ setTimeout(initCrawlDayPills, 50);
       .withFailureHandler(function (e) { btn.disabled = false; show($('lineToolMsg'), 'err', '失敗：' + (e && e.message || e)); });
     if (arg === undefined) { run[fn](KEY); } else { run[fn](KEY, arg); }
   }
+  /* v87：推送模式、每日與盤中各有幾位會收到、收不到的原因、今天每日總覽卡在哪、最近的推送紀錄。只讀。 */
+  $('lineDiag').onclick = function () { tool(this, 'apiAdminLineDiagnose', undefined, function (r) { return r.ok ? r.data.lines.join(String.fromCharCode(10)) : r.reason; }); };
   $('lineBind').onclick = function () { tool(this, 'apiAdminLineBindCode', undefined, function (r) { return r.ok ? '綁定碼 ' + r.code + '（' + r.minutes + ' 分鐘內有效）。在 LINE 對官方帳號輸入：綁定 ' + r.code : r.reason; }); };
   $('lineValidate').onclick = function () { tool(this, 'apiAdminLineValidate', undefined, function (r) { return r.items ? r.items.map(function (x) { return (x.ok ? '✓ ' : '✗ ') + x.name + (x.error ? '　' + x.error : ''); }).join('\n') : r.reason; }); };
   $('lineRich').onclick = function () { if (!confirm('會建立並驗證新的兩頁圖文選單，成功後切換為預設，再清理舊版選單。繼續？')) { return; } tool(this, 'apiAdminLineSetupRichMenu', undefined, function (r) { return (r.ok ? '完成。\n' : '失敗：' + r.reason + '\n') + (r.log || []).join('\n'); }); };

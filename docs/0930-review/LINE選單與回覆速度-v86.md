@@ -20,6 +20,8 @@
 
 `C:\Users\user\Downloads\zhangzhen-stock-site-updated\apps-script` 中的上述四個 GAS 檔已同步；GitHub 內的正本在 `public-site/gas-source/`。不要把 Worker 的 `.mjs` 貼進 Apps Script。
 
+**2026/09/30 09:13 台北時間的上線核對**：Worker 已部署，`/healthz` 回 `2026-09-30-line-response-v4`、`configured:true`、`loadingConfigured:true`；公開圖片回 HTTP 200、`image/png`，SHA-256 與上表相同。正式 GAS `/exec?action=ping` 仍回 `2026-09-29-line-visual-v85`，因此圖文選單與 GAS 速度修正尚未對使用者生效；下一步是管理者完成以下第 2–5 步。既有 LINE 轉送仍能接收事件，新 Worker 的 `queuedAt` 欄位不會改動原始 LINE 簽名內容。
+
 ## 部署順序
 
 1. **Worker**：在本機 `line-webhook` 目錄保留原來的 `wrangler.jsonc` 與 Cloudflare Secrets，同步 GitHub 的 `worker.mjs` 和 `static/richmenu-notify.png`，執行 `npx wrangler deploy`。不用重新建立 Queue、LINE Channel 或重貼密鑰。開 `https://zhangzhen-line-relay.rainforecast2026-6fb.workers.dev/healthz`，確認 build 是 `2026-09-30-line-response-v4`、`configured` 與 `loadingConfigured` 都是 `true`。再開 `/static/richmenu-notify.png`，確認只有三個入口；若環境是本機終端，可用 `Get-FileHash .\static\richmenu-notify.png -Algorithm SHA256` 核對上表。

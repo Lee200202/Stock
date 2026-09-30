@@ -1992,8 +1992,10 @@ function lineSetupRichMenus_() {
     try { img = UrlFetchApp.fetch(relay + '/static/' + source.image, { muteHttpExceptions: true }); } catch (e) { img = null; }
     if (!img || img.getResponseCode() !== 200) { return { ok: false, reason: '讀不到圖片 ' + relay + '/static/' + source.image + '（轉送服務部署了嗎？）' }; }
     images[source.alias] = img.getBlob().getBytes();
-    if (source.sha256 && lineImageSha256_(images[source.alias]) !== source.sha256) {
-      return { ok: false, reason: source.image + ' 不是目前版本。先從 line-webhook/ 部署轉送服務，再按「建立圖文選單」。' };
+    var actualSha = source.sha256 ? lineImageSha256_(images[source.alias]) : '';
+    if (source.sha256 && actualSha !== source.sha256) {
+      return { ok: false, reason: source.image + ' 不是目前版本（預期 SHA-256 ' + source.sha256 + '；轉送服務實際 ' + actualSha +
+        '）。請把 GitHub 的 line-webhook/static/' + source.image + ' 複製到部署目錄的 static/，從 line-webhook/ 重新執行 npx wrangler deploy，再按「建立圖文選單」。' };
     }
   }
   // 新選單連圖片都驗過後才切換別名；舊選單在切換失敗時仍可用。

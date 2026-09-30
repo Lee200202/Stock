@@ -33,10 +33,12 @@ K 線讀取只命中 GAS `CacheService` 的逐檔快取，沒有快取不為一�
 
 ## 部署順序（GitHub Pages 更新不會替你部署這兩處）
 
-1. **先部署 Cloudflare Worker**：從 GitHub 取得最新版 `line-webhook/chart.mjs`、`line-webhook/worker.mjs` 與既有 `wrangler.jsonc`，在已有的 `line-webhook/` 目錄執行 `npx wrangler deploy`（首次會提示安裝 Wrangler）。沿用原 Worker 名稱、Queue、Assets、Secrets；不用重建 LINE Channel 或圖文選單。從瀏覽器開 `https://你的-worker網址/healthz`，確認 `build` 為 `2026-09-29-line-chart-v3`。
-2. **驗證圖片路由**：開 `https://你的-worker網址/chart.png?ref=100&v=99,100,102`，應顯示帶虛線的小折線 PNG。少於三點的 `v=99,100` 應回 HTTP 400。若使用 Cloudflare 管理頁直接上傳單檔程式，這版多了 `chart.mjs` 模組，需改由專案目錄執行 Wrangler 部署兩檔。
+1. **先部署 Cloudflare Worker**：從 GitHub 取得最新版 `line-webhook/chart.mjs`、`line-webhook/worker.mjs`、**整個 `line-webhook/static/` 圖片目錄**，並保留既有 `wrangler.jsonc`。在已有的 `line-webhook/` 目錄執行 `npx wrangler deploy`（首次會提示安裝 Wrangler）。沿用原 Worker 名稱、Queue、Assets、Secrets；不用重建 LINE Channel。從瀏覽器開 `https://你的-worker網址/healthz`，確認 `build` 為 `2026-09-29-line-chart-v3`。只更新兩個 `.mjs` 卻留下舊 `static/richmenu-notify.png`，健康檢查仍會通過，但 `lineSetupRichMenus()` 會因圖片版本不符而停止。
+2. **驗證圖片路由**：開 `https://你的-worker網址/chart.png?ref=100&v=99,100,102`，應顯示帶虛線的小折線 PNG。少於三點的 `v=99,100` 應回 HTTP 400。再檢查 `https://你的-worker網址/static/richmenu-notify.png`：目前通知選單圖片的 SHA-256 應為 `fe8cf11f982bfc1911a9c4a6bc5550d5f8e19863732d80c45abd23599ca8d8dd`。若使用 Cloudflare 管理頁直接上傳單檔程式，這版多了 `chart.mjs` 模組和圖片 Assets，需改由專案目錄執行 Wrangler 部署。
 3. **再更新 Apps Script 編輯器**：將 GitHub `public-site/gas-source/` 裡的 `Line.gs`、`Config.gs`、`Setup.gs` 三檔覆蓋到**同一個正式 GAS 專案**。先儲存，執行 `checkProjectFiles()`，應無缺檔；再執行 `lineSetupCheck()`，確認「轉送服務網址」仍是剛才的 Worker 根網址。不要把 `/chart.png` 當 Webhook URL；LINE Developers Webhook 維持 `/callback`。
 4. **更新網頁應用程式部署**：Apps Script 右上「部署」→「管理部署作業」→ 找現有正式 Web App → 鉛筆「編輯」→「版本」選「新版本」→「部署」。既有 `/exec` 部署 ID、執行身分與存取權限維持原設定。網站後台版本應讀到 `2026-09-29-line-visual-v85`；若仍是 v84，表示只儲存原始碼、未更新正式部署。
 5. **驗卡與實測**：在 GAS 編輯器執行 `lineValidateTemplates()`；它呼叫 LINE 的格式驗證 API，不推送訊息。接著用已加好友的測試帳號查「市場總覽」「持股追蹤」「查個股 代號」「今日整理」。市場有三個同盤價點才會畫；查到持有回合且 `dk2_代號` 有三根以上才會畫進場後線。圖片打不開時先檢查 Worker `/chart.png` 與後台 `relayUrl`；文字卡片仍可查。
+
+若 `lineSetupRichMenus()` 回報 `richmenu-notify.png 不是目前版本`，先比對 Worker 的 `/static/richmenu-notify.png` SHA-256，再同步 `static/`、重新部署 Worker，然後**直接在 GAS 編輯器重跑 `lineSetupRichMenus()`**。這個函式從編輯器執行目前儲存的程式，不必為了重建選單先換 Web App 部署；但 LINE 視覺回覆要生效，正式 `/exec?action=ping` 仍必須在更新 Web App 後顯示 v85。
 
 程式的離線驗收是 `node tests/test_line_v73_gas.js`、`node tests/test_line_free_relay.mjs`、`node tests/test_line_intents_v78.js`。正式 LINE 的圖片顯示、真實資料時間與格式驗證須依上述部署後的測試帳號再確認；GitHub 推送不代表 GAS 與 Worker 已上線。

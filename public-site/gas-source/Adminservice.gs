@@ -844,7 +844,10 @@ function apiAdminTodayStatus(key) {
     if (noShow && byMail.daily.accepted) { alerts.push('今日無直播卻有每日整理信服務接受紀錄，請核對寄送日期'); }
     if (trading && mailNeed.tone === 'err') { alerts.push('今天預計需要寄 ' + mailNeed.need + ' 位，超過每日額度 ' + mailNeed.limit + ' 位，會有人收不到'); }
     var rtNow = typeof opsRuntimeFor_ === 'function' ? opsRuntimeFor_(today) : null;
-    if (rtNow && rtNow.minutes > 70) { alerts.push('今日觸發器累計約 ' + rtNow.minutes + ' 分鐘，接近每日 ' + rtNow.limit + ' 分鐘上限'); }
+    if (rtNow && rtNow.minutes > rtNow.limit * 0.8) {
+      alerts.push('今日觸發器累計約 ' + rtNow.minutes + ' 分鐘，' + (rtNow.minutes > rtNow.limit ? '已超過' : '接近') +
+        '本站 ' + rtNow.limit + ' 分鐘參考值；Google 採 24 小時配額窗口，請核對執行項目有無配額錯誤');
+    }
     if (blankExits.length) { alerts.push('持股追蹤有 ' + blankExits.length + ' 檔出場價待補：' + blankExits.slice(0, 3).join('、')); }
     if (!hourlyScheduled && trading) { alerts.push('歷史 60 分 K 的 19:15 排程未安裝'); }
     var marketSampleAge = null;
@@ -879,6 +882,14 @@ function apiAdminTodayStatus(key) {
         tone: byMail.daily.failed || byMail.daily.unknown ? 'err' : !trading || noShow || !mailExpected || !push ? 'idle' : byMail.daily.accepted ? 'ok' : hm >= 2200 ? 'err' : 'warn',
         detail: '依寄送帳本判定；「服務接受」不等於收件者已讀。未有影片時不寄每日總覽。' }
     ];
+    var readMetrics = [];
+    ['apiGetDashboard', 'apiGetStockSummary', 'apiGetQuotesFor'].forEach(function (name) {
+      try { var raw = CACHE.get('api_read_v88_' + name); if (raw) { readMetrics.push(JSON.parse(raw)); } } catch (e) {}
+    });
+    var maxReadMs = Math.max.apply(null, [0].concat(readMetrics.map(function (m) { return m.ms; })));
+    items.push({ label: '網站資料讀取', value: readMetrics.length ? (maxReadMs / 1000).toFixed(1) + ' 秒（近期最慢）' : '尚無近期查詢',
+      tone: !readMetrics.length ? 'idle' : maxReadMs >= 15000 ? 'err' : maxReadMs >= 8000 ? 'warn' : 'ok',
+      hint: readMetrics.length ? readMetrics.map(function (m) { return ({apiGetDashboard:'總覽',apiGetStockSummary:'個股摘要',apiGetQuotesFor:'批次報價'})[m.method] + ' ' + (m.ms / 1000).toFixed(1) + ' 秒／' + m.at; }).join('；') + '。只計 GAS 處理；不含網路、排隊及手機繪圖，紀錄保留 15 分鐘。' : '從 GitHub 網站查詢後才有資料。沒有紀錄不代表自動化停止。' });
     return { ok: true, today: today, now: Utilities.formatDate(new Date(), TZ, 'HH:mm'), items: items,
       automation: automation, smsOperations: smsOperations.slice(0, 40),
       timeline: timeline.slice(-40), ops: { trading: trading, noShow: noShow, plannedNoShow: plannedNoShow && !video, videoStatus: vStatus,

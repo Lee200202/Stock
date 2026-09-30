@@ -280,12 +280,12 @@ function lineHandleEvent_(ev, channel, relayMs) {
   else if (ev.type === 'unfollow') { lineOnUnfollow_(uid, channel); out.result = 'blocked'; }
   else if (ev.type === 'postback') {
     // Worker 收到 webhook 後已非同步啟動載入提示；這裡再次同步呼叫 LINE 只會延後正式回覆。
-    msgs = lineRoute_(uid, channel, lineParseData_(ev.postback && ev.postback.data));
+    msgs = lineEventRoute_(uid, channel, lineParseData_(ev.postback && ev.postback.data));
   }
   else if (ev.type === 'message') {
     var m = ev.message || {};
     if (m.type === 'text') {
-      msgs = lineRoute_(uid, channel, lineParseText_(m.text, uid));
+      msgs = lineEventRoute_(uid, channel, lineParseText_(m.text, uid));
     } else {
       msgs = [lineText_('目前僅支援文字與股票代號查詢，請直接輸入代號（例如 2330）或點選下方選單！', lineQuickMain_())];
     }
@@ -303,6 +303,11 @@ function lineHandleEvent_(ev, channel, relayMs) {
   // 沿用事件帳本的處理結果欄，不增加遠端寫入；可區分查表、LINE API 與排隊前的耗時。
   detail += '｜回覆前 ' + (Date.now() - started) + 'ms（去重 ' + claimMs + '／查詢 ' + routeMs + '／LINE ' + replyMs + '）';
   if (relayMs !== null && relayMs !== undefined) { detail += '｜轉送 ' + Math.round(relayMs) + 'ms'; }
+  // v88：互動統計不擋正式回覆；訂閱操作仍在 route 裡同步寫入、鎖定及確認。
+  if (uid && (ev.type === 'message' || ev.type === 'postback')) {
+    try { lineTouch_(uid, channel); }
+    catch (e) { Logger.log('LINE 已回覆，一般活動紀錄暫時未寫入：' + e); }
+  }
   lineLogEvent_(id, out.type, uid, redelivery, detail);
   lineReleaseEvent_(id, true);
   return out;
@@ -471,9 +476,16 @@ function lineStockKeyword_(t) {
     .trim();
 }
 
-function lineRoute_(uid, ch, act) {
+function lineEventRoute_(uid, ch, act) {
+  var run = function () { return lineRoute_(uid, ch, act, true); };
+  // 訂閱／退訂不可用寫入前的讀表快照。純查詢共用本次快照，無跨訪客舊資料。
+  if (/^(today|tracker|market|stock|sector|advice|help|greeting|thanks|outofscope|askstock|probe)$/.test(act && act.a || '') &&
+      typeof withSheetSnapshot_ === 'function') { return withSheetSnapshot_(run); }
+  return run();
+}
+function lineRoute_(uid, ch, act, deferTouch) {
   act = act || {};
-  if (act.a !== 'tab') { lineTouch_(uid, ch); }
+  if (!deferTouch && act.a !== 'tab') { lineTouch_(uid, ch); }
   switch (act.a) {
     case 'sub': return lineSubReply_(uid, ch, act.k, true);
     case 'unsub': return lineSubReply_(uid, ch, act.k, false);
@@ -1868,14 +1880,14 @@ function apiGetLineEntry() {
 }
 
 function lineCounts_() {
-  var bot = lineBotId_(), n = { friends: 0, blocked: 0, daily: 0, sms: 0, testers: 0, other: 0 };
+  var bot = lineBotId_(), n = { friends: 0, blocked: 0, daily: 0, sms: 0, smsActive: 0, smsPending: 0, testers: 0, other: 0 };
   try {
     lineSubsRead_().rows.forEach(function (s) {
       if (!bot || s.channel !== bot) { n.other++; return; }
       if (s.friend === 'blocked') { n.blocked++; return; }
       n.friends++;
       if (s.daily) { n.daily++; }
-      if (s.sms) { n.sms++; }
+      if (s.sms) { n.sms++; if (lineSmsActive_(s)) { n.smsActive++; } else { n.smsPending++; } }
       if (s.tester) { n.testers++; }
     });
   } catch (e) { n.error = String(e.message || e); }
@@ -1914,7 +1926,7 @@ function lineRecentReplyTiming_() {
       var m = result.match(/回覆前 (\d+)ms（去重 (\d+)／查詢 (\d+)／LINE (\d+)）/);
       if (m) {
         var relay = result.match(/轉送 (\d+)ms/);
-        return { at: String(rows[i][3] || ''), total: Number(m[1]), claim: Number(m[2]), route: Number(m[3]), reply: Number(m[4]), relay: relay ? Number(relay[1]) : null };
+        return { at: rows[i][3] instanceof Date ? lineStampOf_(rows[i][3].getTime()) : String(rows[i][3] || ''), total: Number(m[1]), claim: Number(m[2]), route: Number(m[3]), reply: Number(m[4]), relay: relay ? Number(relay[1]) : null };
       }
     }
   } catch (e) { Logger.log('LINE 回覆耗時讀取失敗：' + e); }

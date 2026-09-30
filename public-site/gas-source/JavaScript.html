@@ -829,6 +829,22 @@ function publicNarrative_(text, row) {
   }
 
   /** 表格畫好之後，把所有代號一次抓完報價回填 */
+  function renderQuotes(q, scope) {
+    var target = scope || document;
+    target.querySelectorAll('[data-px]').forEach(function (el) {
+      var d = q && q[el.dataset.px];
+      el.textContent = d ? fmtPx(d.last) : '—';
+      el.title = d ? '行情時間：' + (d.time || '未提供') : '目前無可核對的行情';
+    });
+    target.querySelectorAll('[data-chg]').forEach(function (el) {
+      var d = q && q[el.dataset.chg];
+      if (!d || !d.prevClose) { el.textContent = '—'; return; }
+      var pct = (d.last - d.prevClose) / d.prevClose * 100;
+      el.textContent = (pct > 0 ? '+' : '') + pct.toFixed(2) + '%';
+      el.className = 'px r ' + signCls(pct);
+      el.title = '行情時間：' + (d.time || '未提供');
+    });
+  }
   function fillQuotes(scope) {
     var cells = (scope || document).querySelectorAll('[data-px]');
     var codes = [];
@@ -839,18 +855,7 @@ function publicNarrative_(text, row) {
     if (!codes.length) { return; }
 
     google.script.run.withSuccessHandler(function (q) {
-      codes.forEach(function (code) {
-        var d = q[code];
-        document.querySelectorAll('[data-px="' + code + '"]').forEach(function (el) {
-          el.textContent = d ? fmtPx(d.last) : '—';
-        });
-        document.querySelectorAll('[data-chg="' + code + '"]').forEach(function (el) {
-          if (!d || !d.prevClose) { el.textContent = '—'; return; }
-          var pct = (d.last - d.prevClose) / d.prevClose * 100;
-          el.textContent = (pct > 0 ? '+' : '') + pct.toFixed(2) + '%';
-          el.className = 'px r ' + signCls(pct);
-        });
-      });
+      renderQuotes(q, scope);
     }).withFailureHandler(function () {
       document.querySelectorAll('[data-px],[data-chg]').forEach(function (el) {
         if (el.textContent === '\u00b7\u00b7\u00b7') { el.textContent = '—'; }
@@ -1258,8 +1263,10 @@ function publicNarrative_(text, row) {
     $('tblWatchWatch').innerHTML = tradeTable(wWatch(d), 'dir-note', { empty: watchEmptyText(OVERVIEW_PENDING) });
 
     bindRows($('p-overview'));
-    if (r.tracker) { applyTrackerStats(r.tracker); }
-    if (r.quotes && typeof renderQuotes === 'function') { renderQuotes(r.quotes, $('p-overview')); }
+    // v88：先前寫成 r.tracker／r.quotes（r 沒有定義），畫面畫完才丟例外，Pages 傳輸層把它當成請求失敗，
+    // 首頁每次都顯示「資料讀取失敗」（2026/09/29 起）。
+    if (res.tracker) { applyTrackerStats(res.tracker); }
+    if (res.quotes && typeof renderQuotes === 'function') { renderQuotes(res.quotes, $('p-overview')); }
     else { fillQuotes($('p-overview')); }
   }
   /* v87：後端偶爾回 404／逾時（2026/09/30 管理者回報）。先前一次失敗就整頁顯示載入失敗；
@@ -1268,7 +1275,7 @@ function publicNarrative_(text, row) {
   function loadDashboard() {
     google.script.run.withSuccessHandler(onDashboard).withFailureHandler(function () {
       dashboardTries++;
-      if (dashboardTries <= 2) {
+      if (dashboardTries <= 2 && document.documentElement.dataset.host !== 'pages') {
         $('stamp').textContent = '重新連線中…';
         setTimeout(loadDashboard, dashboardTries === 1 ? 5000 : 15000);
         return;
@@ -1299,10 +1306,7 @@ function publicNarrative_(text, row) {
       (s.pending ? '有 ' + s.pending + ' 檔取不到價格，未列入平均。' : '');
   }
 
-  /* 統計改用持股追蹤的彙總，跟持股追蹤分頁同一份資料 */
-  google.script.run.withSuccessHandler(function (t) {
-    applyTrackerStats(t);
-  }).apiGetHoldingsTracker();
+  // v88：統計由 dashboard 的 tracker 一次回傳；不在首頁另發重複的讀表請求。
 
   /* ---------------- 持股追蹤分頁 ---------------- */
   /* 持有中與已出場改成互斥兩區，不再混在同一張表。

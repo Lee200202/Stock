@@ -86,6 +86,15 @@ function siteBridge_(e) {
     if (typeof globalThis[method] !== 'function') { return { ok: false, error: 'method-unavailable' }; }
     methods[method] = globalThis[method];
   }
-  try { return { ok: true, result: methods[method].apply(null, args) }; }
+  var started = Date.now();
+  try {
+    var result = methods[method].apply(null, args);
+    // v88：只記公開讀取的函式名與耗時；不記參數、管理密鑰或回應內容。
+    if (/^apiGet(?:Dashboard|StockSummary|QuotesFor)$/.test(method)) {
+      try { CACHE.put('api_read_v88_' + method, JSON.stringify({ method: method,
+        ms: Date.now() - started, at: Utilities.formatDate(new Date(), TZ, 'yyyy/MM/dd HH:mm:ss') }), 900); } catch (e) {}
+    }
+    return { ok: true, result: result };
+  }
   catch (err) { return { ok: false, error: String(err && err.message || err).slice(0, 200) }; }
 }

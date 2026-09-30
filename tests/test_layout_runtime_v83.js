@@ -13,9 +13,11 @@ const hold = mail.mdToHtml_('②-2 影片中明講之「會員目前持有股票
   '| 股票名稱 | 代號 | 目前立場 | 說明重點 |\n|---|---|---|---|\n' +
   '| 鴻準 | 2354 | 持有 | 會員續抱。 |\n');
 const table = hold.slice(hold.indexOf('<table'), hold.indexOf('</table>') + 8);
-assert.strictEqual((table.match(/<th /g) || []).length, 2, 'mail has exactly two headers');
+assert.strictEqual((table.match(/<th /g) || []).length, 0, 'stacked stock cards have no squeezed column headers');
+assert.match(table, /mc-table mc-stack/);
+assert(!table.includes('<colgroup'), 'no fixed narrow name column');
 assert.strictEqual((table.match(/<td /g) || []).length, 2, 'hold status does not consume a column');
-assert.match(table, /鴻準<br><span class="mc-code"[^>]*>2354<\/span>/);
+assert.match(table, /鴻準<\/span> <span class="mc-code"[^>]*>2354<\/span>/);
 assert(!table.includes('>持有<'), 'repeated status is absent');
 assert.match(table, /會員續抱。/);
 const escaped = mail.mdToHtml_('| 股票名稱 | 代號 | 說明重點 |\n|---|---|---|\n| 甲 | 1234 | <script>alert(1)</script> |\n');

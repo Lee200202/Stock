@@ -687,6 +687,7 @@ details.dz-card[open] > summary { margin-bottom: 10px; }
   font-family: "IBM Plex Mono", monospace; font-size: calc(13.5px * var(--rd-fs)); color: var(--ink); background: var(--panel);
   border: 1px solid var(--rule); border-radius: var(--r-sm); padding: 7px 10px;
 }
+.herow-card input { box-sizing: border-box; min-height: 44px; }
 .herow-card .h-date { width: 125px; }
 .herow-card .h-cost { width: 115px; font-weight: 700; }
 .herow-card .herow-preview { display: flex; align-items: center; gap: 8px; font-family: "IBM Plex Mono", monospace; font-size: calc(13px * var(--rd-fs)); color: var(--muted); padding: 4px 6px; }
@@ -5326,7 +5327,7 @@ setTimeout(initCrawlDayPills, 50);
       '　推送模式：' + MODE[d.mode] + (d.siteEntry ? '　網站已顯示加入好友' : '　網站未顯示加入好友');
     $('lineCards').innerHTML =
       card('設定', ready ? '已設定' : '未完成', '存取權杖 ' + (d.configured.token ? '已設定' : '未設定') + '、頻道密鑰 ' + (d.configured.secret ? '已設定' : '未設定') + '、轉送服務 ' + (d.relayUrl ? '已填' : '未填') + '。', ready && d.relayUrl ? 'ok' : 'err') +
-      card('好友與訂閱', (c.friends || 0) + ' 位好友', '每日總覽 ' + (c.daily || 0) + '、盤中通知 ' + (c.sms || 0) + '、封鎖 ' + (c.blocked || 0) + '、測試帳號 ' + (c.testers || 0) + (c.other ? '；另有 ' + c.other + ' 位屬於其他 LINE 帳號（測試頻道）' : '') + '。', c.friends ? 'ok' : 'idle') +
+      card('好友與訂閱', (c.friends || 0) + ' 位好友', '每日總覽 ' + (c.daily || 0) + '、盤中通知已確認 ' + (c.smsActive == null ? '待更新後端' : c.smsActive) + '（舊設定待確認 ' + (c.smsPending == null ? '待核對' : c.smsPending) + '）、封鎖 ' + (c.blocked || 0) + '、測試帳號 ' + (c.testers || 0) + (c.other ? '；另有 ' + c.other + ' 位屬於其他 LINE 帳號（測試頻道）' : '') + '。待確認者須本人輸入「開啟盤中通知」。', c.smsPending ? 'warn' : c.friends ? 'ok' : 'idle') +
       card('本月訊息額度', qBig, q && q.ok ? (q.type === 'limited' ? '剩 ' + q.remaining + ' 則（每位收件者算一則；回覆不計）。' : '這個方案沒有月上限。') + '讀取時間 ' + (q.at || '') + '。' : (q && q.error ? '原因：' + q.error : '設定存取權杖後才讀得到。'), qTone) +
       card('待送與異常', ((ob.queued || 0) + (ob.sending || 0)) + ' 則待送', (ob.oldestOpen ? '最舊 ' + ob.oldestOpen + '。' : '') + '逾時未補送 ' + (ob.expired || 0) + '、完成 ' + (ob.done || 0) + '。', ob.sending || ob.queued ? 'warn' : ob.expired ? 'err' : 'ok') +
       card('Webhook', st.lastWebhookAt ? '最後 ' + String(st.lastWebhookAt).slice(5, 16) : '尚未收到', '今日驗簽失敗：網站 ' + (st.gasSigFail || 0) + '、轉送服務 ' + (st.cloudSigFail || 0) + (st.relayBuild ? '（轉送服務 ' + st.relayBuild + '）' : '') + '。', (st.gasSigFail || st.cloudSigFail) ? 'warn' : st.lastWebhookAt ? 'ok' : 'idle') +

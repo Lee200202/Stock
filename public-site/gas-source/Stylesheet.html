@@ -2761,48 +2761,57 @@ button, a, input, select, textarea {
 .mail-content .mc-h2, .mail-content .mc-h3 { color: var(--ink) !important; margin-top: 0; }
 .mail-content .mc-h3 { margin-top: 14px !important; }
 .mail-content table.mc-table { min-width: 0 !important; width: 100% !important; table-layout: fixed !important; font-size: calc(13.5px * var(--rd-fs)) !important; border: 1px solid var(--rule) !important; border-radius: var(--r-md) !important; overflow: hidden !important; }
-.mail-content table.mc-table col:first-child { width: 130px !important; }
-.mail-content table.mc-table col:last-child { width: auto !important; }
+.mail-content table.mc-table:not(.mc-stack) col:first-child { width: 130px !important; }
+.mail-content table.mc-table:not(.mc-stack) col:last-child { width: auto !important; }
 .mail-content table.mc-table td, .mail-content table.mc-table th {
   position: static !important; min-width: 0 !important;
 }
-.mail-content table.mc-table th.mc-th:first-child {
+.mail-content table.mc-table:not(.mc-stack) th.mc-th:first-child {
   width: 130px !important; max-width: 140px !important; padding: 9px 14px !important;
   border-right: 1px solid color-mix(in srgb, var(--rule) 75%, transparent) !important; box-sizing: border-box !important;
 }
-.mail-content table.mc-table th.mc-th:last-child {
+.mail-content table.mc-table:not(.mc-stack) th.mc-th:last-child {
   width: auto !important; padding: 9px 16px !important;
 }
-.mail-content table.mc-table td.mc-name {
+.mail-content table.mc-table:not(.mc-stack) td.mc-name {
   width: 130px !important; max-width: 140px !important; padding: 11px 14px 12px !important;
   border-right: 1px solid var(--rule) !important; background: color-mix(in srgb, var(--ink) 2%, var(--panel)) !important;
   box-sizing: border-box !important; vertical-align: top !important;
 }
-.mail-content table.mc-table td.mc-desc {
+.mail-content table.mc-table:not(.mc-stack) td.mc-desc {
   width: auto !important; padding: 11px 18px 12px 16px !important; vertical-align: top !important;
 }
 .mail-content table.mc-table td { white-space: normal; }
-.mail-content table.mc-table tbody tr:hover td { background: color-mix(in srgb, var(--beam) 4%, var(--panel)) !important; }
+.mail-content table.mc-table:not(.mc-stack) tbody tr:hover td { background: color-mix(in srgb, var(--beam) 4%, var(--panel)) !important; }
 @media (max-width: 640px) {
-  .mail-content table.mc-table col:first-child,
-  .mail-content table.mc-table th.mc-th:first-child,
-  .mail-content table.mc-table td.mc-name {
+  .mail-content table.mc-table:not(.mc-stack) col:first-child,
+  .mail-content table.mc-table:not(.mc-stack) th.mc-th:first-child,
+  .mail-content table.mc-table:not(.mc-stack) td.mc-name {
     width: 105px !important; max-width: 110px !important; padding: 10px 10px !important;
   }
-  .mail-content table.mc-table th.mc-th:last-child,
-  .mail-content table.mc-table td.mc-desc {
+  .mail-content table.mc-table:not(.mc-stack) th.mc-th:last-child,
+  .mail-content table.mc-table:not(.mc-stack) td.mc-desc {
     padding: 10px 12px !important;
   }
 }
-html[data-view="mobile"] .mail-content table.mc-table col:first-child,
-html[data-view="mobile"] .mail-content table.mc-table th.mc-th:first-child,
-html[data-view="mobile"] .mail-content table.mc-table td.mc-name {
+html[data-view="mobile"] .mail-content table.mc-table:not(.mc-stack) col:first-child,
+html[data-view="mobile"] .mail-content table.mc-table:not(.mc-stack) th.mc-th:first-child,
+html[data-view="mobile"] .mail-content table.mc-table:not(.mc-stack) td.mc-name {
   width: 105px !important; max-width: 110px !important; padding: 10px 10px !important;
 }
-html[data-view="mobile"] .mail-content table.mc-table th.mc-th:last-child,
-html[data-view="mobile"] .mail-content table.mc-table td.mc-desc {
+html[data-view="mobile"] .mail-content table.mc-table:not(.mc-stack) th.mc-th:last-child,
+html[data-view="mobile"] .mail-content table.mc-table:not(.mc-stack) td.mc-desc {
   padding: 10px 12px !important;
 }
+/* v88 郵件表格改成疊列（每一檔：名稱列＋說明列，只有一欄）。名稱列與說明列共用同一個類別底色，
+   不再有 130px 名稱欄、名稱欄灰底與中間分隔線；左側色條與檔間細線由信件 inline style 提供。 */
+.mail-content table.mc-table.mc-stack { table-layout: auto !important; }
+.mail-content table.mc-table.mc-stack td.mc-name, .mail-content table.mc-table.mc-stack td.mc-desc {
+  width: auto !important; max-width: none !important; border-right: 0 !important; box-sizing: border-box !important; vertical-align: top !important;
+}
+.mail-content table.mc-table.mc-stack td.mc-name { padding: 12px 16px 2px !important; }
+.mail-content table.mc-table.mc-stack td.mc-desc { padding: 2px 16px 12px !important; }
+.mail-content table.mc-table.mc-stack span.mc-mid { font-size: calc(13.5px * var(--rd-fs)) !important; letter-spacing: var(--rd-ls) !important; color: var(--ink) !important; }
 .mail-content .mc-hero h1 { font-size: calc(19px * var(--rd-fs)) !important; }
 [data-theme="dark"] .mail-content .mc-hero { background: color-mix(in srgb, #04795C 30%, var(--panel)) !important; }
 [data-theme="dark"] .mail-content .mc-chip { filter: brightness(1.05); }
@@ -3911,6 +3920,7 @@ html[data-view="mobile"] .card.scrollx table.tbl-rec td.pxnote::before, html[dat
 .tech-story:not(.tg-scrollable) .tg-hint-narrow, .tech-story:not(.tg-scrollable) .tg-jump, .tech-story.tg-scrollable .tg-hint-wide { display: none; }
 .tech-story .tg-jump { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin: 0 0 12px; }
 .tech-story .tg-jump button { min-height: 40px; padding: 6px 8px; border: 1px solid var(--rule); border-radius: 10px; background: var(--panel-2); color: var(--ink); font-size: calc(13px * var(--rd-fs)); cursor: pointer; }
+.tech-story h2 { overflow-wrap: anywhere; word-break: normal; }
 .tech-story .tech-graph { position: relative; margin: 0 0 24px; border: 1px solid var(--rule); border-radius: 20px; background: var(--panel); min-width: 0; overflow: hidden; }
 .tech-story .tech-graph::before, .tech-story .tech-graph::after { content: ""; position: absolute; top: 0; bottom: 0; width: 36px; z-index: 4; pointer-events: none; opacity: 0; transition: opacity .15s ease; }
 .tech-story .tech-graph::before { left: 0; background: linear-gradient(90deg, var(--panel), transparent); }

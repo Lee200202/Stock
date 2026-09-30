@@ -846,6 +846,24 @@ function readSheetObjectsRaw_(name) {
   });
 }
 
+/** v88：總覽只需要影片狀態，不把所有日期的原稿、修飾稿和排版 JSON 傳回來。
+ * 依實際表頭找欄位，一次讀涵蓋所需欄位的最小矩形；不依固定欄號猜位置。 */
+function readSheetFields_(name, fields) {
+  var key = '__fields:' + name + ':' + fields.join('|');
+  if (SHEET_SNAPSHOT_ && SHEET_SNAPSHOT_[key]) { return SHEET_SNAPSHOT_[key]; }
+  var sh = getSheet_(name), last = sh.getLastRow();
+  if (last < 2) { return []; }
+  var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  var indices = fields.map(function (f) { return head.indexOf(f); }).filter(function (i) { return i >= 0; });
+  if (!indices.length) { return []; }
+  var first = Math.min.apply(null, indices), end = Math.max.apply(null, indices);
+  var rows = sh.getRange(2, first + 1, last - 1, end - first + 1).getValues().map(function (r) {
+    var o = {}; fields.forEach(function (f) { var i = head.indexOf(f); o[f] = i < 0 ? '' : r[i - first]; }); return o;
+  });
+  if (SHEET_SNAPSHOT_) { SHEET_SNAPSHOT_[key] = rows; }
+  return rows;
+}
+
 /* ------------------------------------------------------------------ *
  * 部署資訊
  * ------------------------------------------------------------------ */
@@ -1182,20 +1200,20 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-09-30-delivery-fix-v87';
+var PROJECT_BUILD_ = '2026-09-30-read-batch-layout-v88';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
 var PROJECT_FILES_ = [
-  { file: 'SiteBridge.gs', names: ['siteBridge_', 'siteBridgeSetup'], marker: ['siteBridge_', 'apiAdminLineDiagnose'] },
+  { file: 'SiteBridge.gs', names: ['siteBridge_', 'siteBridgeSetup'], marker: ['siteBridge_', 'api_read_v88_'] },
   { file: 'Marketservice.gs', names: ['apiGetMarketOverview', 'mergedHourlyHistory_', 'backfillHourlyHistoryJob', 'auditHourlyCoverage', 'installMarketDataJobs', 'marketRollingWindow_', 'sectorCatchupJob', 'sectorCatchupStatus', 'marketSampleTaiex_'], marker: ['marketSampleTaiex_', 'Yahoo 回傳非今日資料'] },
-  { file: 'Line.gs', names: ['lineWebhook_', 'lineSignatureOk_', 'lineParseText_', 'lineQueueSms_', 'lineDailyTick_', 'lineDeliverTick_', 'lineClassify_', 'lineSectorReply_', 'apiGetLineEntry', 'apiAdminLineStatus', 'apiAdminLineSaveConfig', 'lineSetupCheck', 'lineValidateTemplates', 'lineSetupRichMenus', 'lineRichMenuHealth_', 'lineChartUrl_', 'lineHoldingVisualFlex_', 'lineMarketExtras_', 'LINE_OUTBOX_COLS_', 'lineSmsActive_', 'lineRecipientBreakdown_', 'lineDiagnose_', 'apiAdminLineDiagnose', 'diagnoseLineDelivery'], marker: ['lineManageFlex_', '未生效'] },
+  { file: 'Line.gs', names: ['lineWebhook_', 'lineSignatureOk_', 'lineParseText_', 'lineQueueSms_', 'lineDailyTick_', 'lineDeliverTick_', 'lineClassify_', 'lineSectorReply_', 'apiGetLineEntry', 'apiAdminLineStatus', 'apiAdminLineSaveConfig', 'lineSetupCheck', 'lineValidateTemplates', 'lineSetupRichMenus', 'lineRichMenuHealth_', 'lineChartUrl_', 'lineHoldingVisualFlex_', 'lineMarketExtras_', 'LINE_OUTBOX_COLS_', 'lineSmsActive_', 'lineRecipientBreakdown_', 'lineDiagnose_', 'apiAdminLineDiagnose', 'diagnoseLineDelivery'], marker: ['lineHandleEvent_', 'lineEventRoute_'] },
   { file: 'Holidays.gs', names: ['marketHolidaySet_', 'isMarketHoliday_', 'whyClosed_', 'refreshHolidayYear_', 'checkNextYearHolidays'], marker: ['refreshHolidayYear_', 'HOLIDAY_PROP_PREFIX_'] },
   { file: 'Config.gs', names: ['APP_TITLE', 'DISCLAIMER', 'WEBAPP_URL_DEFAULT', 'GAS_BUILD', 'GAS_FEATURES', 'REFRESH_ORDER_', 'CHAIN_KEY_'] },
   { file: 'Code.gs', names: ['doGet', 'doPost', 'include', 'configMissing_', 'configMissingResponse_'], marker: ['doPost', 'x-line-signature'] },
-  { file: 'API.gs', names: ['jsonOut_', 'apiLookupSubscription', 'apiUpdateSubscription', 'renderUnsubscribePage_', 'apiGetCandlesBundle', 'apiUnsubscribeConfirm', 'apiGetStockSummary', 'apiGetTechStats', 'techDemo_'], marker: ['techDemo_', 'TECH_DEMO_SMS_ID_'] },
+  { file: 'API.gs', names: ['jsonOut_', 'apiLookupSubscription', 'apiUpdateSubscription', 'renderUnsubscribePage_', 'apiGetCandlesBundle', 'apiUnsubscribeConfirm', 'apiGetStockSummary', 'apiGetTechStats', 'techDemo_'], marker: ['apiGetDashboard', 'getQuotesFor(quoteCodes, true, true)'] },
   { file: 'Adminpipeline.gs', names: ['pipeIsForeign_', 'pipeBase_', 'PIPE_EXTRACT_SYSTEM'], marker: ['PIPE_EXTRACT_SYSTEM', '主體、條件與限制解除'] },
-  { file: 'Adminservice.gs', names: ['adminAuth_', 'apiAdminLogin', 'PIPE_RECLASSIFY_SYSTEM', 'apiAdminTodayStatus', 'apiAdminHeldList', 'apiAdminSetHoldingCost', 'apiAdminHoldToday', 'apiAdminKCoverage', 'apiAdminOpsDay', 'apiAdminInstallSectorCatchup'], marker: ['transcriptAutomationTick_', 'TX_AUTO_START_HM_'] },
+  { file: 'Adminservice.gs', names: ['adminAuth_', 'apiAdminLogin', 'PIPE_RECLASSIFY_SYSTEM', 'apiAdminTodayStatus', 'apiAdminHeldList', 'apiAdminSetHoldingCost', 'apiAdminHoldToday', 'apiAdminKCoverage', 'apiAdminOpsDay', 'apiAdminInstallSectorCatchup'], marker: ['apiAdminTodayStatus', 'api_read_v88_'] },
   { file: 'Aiservice.gs', names: ['validateKey', 'assistantModelCatalog_', 'sanitizeDraft_', 'draftReady_', 'isPromptProbe_', 'guardReply_', 'explicitSubscribeConfirm_'], marker: ['assistantModelCatalog_', 'supportedGenerationMethods'] },
   { file: 'Articlequality.gs', names: ['enforceArticleRecords_', 'attachArticleEvidence_'] },
   { file: 'Cachebuilder.gs', names: ['budgetLeft_', 'trackedCodes_', 'readSnapshotRows_', 'officialDailyAll_', 'auditDailyKCache', 'repairDailyKCache', 'afterDailyKDoneJob', 'rescheduleDailyKTrigger', 'warmKCaches_', 'dailyKFloors_', 'resetDailyKFloor', 'isTradingDateStr_', 'ensurePerformanceContinuityJob_'], marker: ['snapshotPerformanceJobRun_', 't.summary.priced'] },
@@ -1203,12 +1221,12 @@ var PROJECT_FILES_ = [
   { file: 'DB.gs', names: ['writeSubscriptionFields_', 'findSubscription_'] },
   { file: 'Evidencequality.gs', names: ['rawTranscript_', 'validEvidence_', 'queueDayEditSync_', 'dayEditSyncTick_', 'queueCostSync_'], marker: ['dayEditSyncTick_', 'COST:'] },
   { file: 'Logic.gs', names: ['markChainStep_', 'REFRESH_STEPS_'] },
-  { file: 'MailService.gs', names: ['createSubscription', 'mailHero_', 'publicWebAppUrl_', 'escAttr_', 'mailRiskHtml_', 'deliverMessage_', 'deliveryLedger_', 'mailPlainText_', 'isExecUrl_', 'mailStockName_', 'noVideoToday_', 'pushReadyChannels_', 'gateAutoRelease_'], marker: ['gateReady_', 'gateAutoRelease_(d, st'] },
+  { file: 'MailService.gs', names: ['createSubscription', 'mailHero_', 'publicWebAppUrl_', 'escAttr_', 'mailRiskHtml_', 'deliverMessage_', 'deliveryLedger_', 'mailPlainText_', 'isExecUrl_', 'mailStockName_', 'noVideoToday_', 'pushReadyChannels_', 'gateAutoRelease_'], marker: ['mdToHtml_', 'mc-stack'] },
   { file: 'Presentationquality.gs', names: ['displayPrice_', 'narrativeName_', 'titleChars_'], marker: ['articleTitle_', 'TITLE_MIN_CHARS_'] },
-  { file: 'Quoteservice.gs', names: ['getFugleKey_', 'fugleFetch_', 'sharesToLots_', 'volumeInLots_', 'hourSlot_', 'readHourlyRows_', 'fugleHistPace_', 'kcPutAll_', 'getCandlesBundle'], marker: ['repairDailyKVolume', 'disabled: true'] },
+  { file: 'Quoteservice.gs', names: ['getFugleKey_', 'fugleFetch_', 'sharesToLots_', 'volumeInLots_', 'hourSlot_', 'readHourlyRows_', 'fugleHistPace_', 'kcPutAll_', 'getCandlesBundle', 'misBatchQuotes_'], marker: ['repairDailyKVolume', 'disabled: true'] },
   { file: 'Refreshrunner.gs', names: ['runRefreshAllChunk_', 'withRefreshAllLease_'] },
-  { file: 'Setup.gs', names: ['setupSpreadsheet', 'setWebAppUrl', 'webAppUrlReport_', 'checkProjectFiles', 'checkAutomationReadiness', 'ensureAutomationTick', 'withSheetSnapshot_', 'opsTimed_', 'opsRuntimeFor_'], marker: ['opsTimed_', 'OPS_STAGE_SAMPLE_'] },
-  { file: 'SheetService.gs', names: ['fmtDate_', 'withLock_', 'ensureTranscriptLayoutJob', 'transcriptFingerprint_', 'stripTranscribeEcho_', 'readCostOverrides_', 'searchTerms_', 'repairLiwangExitPriceNow', 'rangeCandle_', 'statedNote_', 'trackerRoundList_', 'isManualHoldSource_', 'holdConfirmForOpen_'], marker: ['rebuildHoldingsTrackerJobRun_', 'manual: isManualHoldSource_'] },
+  { file: 'Setup.gs', names: ['setupSpreadsheet', 'setWebAppUrl', 'webAppUrlReport_', 'checkProjectFiles', 'checkAutomationReadiness', 'ensureAutomationTick', 'withSheetSnapshot_', 'readSheetFields_', 'opsTimed_', 'opsRuntimeFor_'], marker: ['opsTimed_', 'OPS_STAGE_SAMPLE_'] },
+  { file: 'SheetService.gs', names: ['fmtDate_', 'withLock_', 'ensureTranscriptLayoutJob', 'transcriptFingerprint_', 'stripTranscribeEcho_', 'readCostOverrides_', 'searchTerms_', 'repairLiwangExitPriceNow', 'rangeCandle_', 'statedNote_', 'trackerRoundList_', 'isManualHoldSource_', 'holdConfirmForOpen_', 'getHoldingsTrackerRead_'], marker: ['rebuildHoldingsTrackerJobRun_', 'manual: isManualHoldSource_'] },
   { file: 'Transcriptstore.gs', names: ['transcriptSha256_', 'selectTranscriptRow_'] }
 ];
 
@@ -1218,11 +1236,11 @@ var PROJECT_HTML_ = [
   { file: 'MarketCharts', marker: 'window.marketRollingBounds' },
   { file: 'Market', marker: '開盤不久，走勢累積中' },
   { file: 'Index', marker: '持有檔數包含暫時缺價' },
-  { file: 'JavaScript', marker: 'tbl-merged' },
-  { file: 'Stylesheet', marker: 'html[data-host="pages"] .access-alert' },
-  { file: 'Changelog', marker: 'v87 通知送達與網站載入修正' },
+  { file: 'JavaScript', marker: 'function renderQuotes(q, scope)' },
+  { file: 'Stylesheet', marker: 'table.mc-stack' },
+  { file: 'Changelog', marker: 'v88 手機排版與批次讀取' },
   { file: 'Tech', marker: 'data-tech-story-v72' },
-  { file: 'Admin', marker: 'apiAdminLineDiagnose' },
+  { file: 'Admin', marker: 'c.smsPending' },
   { file: 'Settings', marker: '手機預覽' },
   { file: 'Unsubscribed', marker: '若一直失敗，直接回覆通知信' }
 ];

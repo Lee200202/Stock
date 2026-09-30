@@ -116,15 +116,16 @@ var DASH_CACHE_KEY_ = 'dash_v54';
 function apiGetDashboard() {
   var hit = CACHE.get(DASH_CACHE_KEY_);
   if (hit) { try { return JSON.parse(hit); } catch (e) {} }
-  // 唯讀：同一個請求內同一張表只讀一次（v54，Codex 規格 67）。
-  var todayData = withSheetSnapshot_(function () { return getTodayOverview(); });
+  // v88：整包共用同一份請求快照，getTodayOverview 已讀持股，不再重新讀表。
+  return withSheetSnapshot_(function () {
+  var todayData = getTodayOverview();
   var trackerData = null;
-  try { trackerData = withSheetSnapshot_(function () { return getHoldingsTracker(); }); } catch (e) {}
+  try { trackerData = getHoldingsTracker(); } catch (e) {}
   var lineEntry = null;
   try { lineEntry = apiGetLineEntry(); } catch (e) {}
   var quoteCodes = [];
   if (todayData) {
-    (todayData.buy || []).concat(todayData.sell || []).concat(todayData.watchAvoid || []).concat(todayData.watchWatch || []).forEach(function (x) {
+    (todayData.buy || []).concat(todayData.sell || []).concat(todayData.holdings || []).concat(todayData.watchAvoid || []).concat(todayData.watchWatch || []).forEach(function (x) {
       if (x && x.code && /^(?:00\d{3,4}|\d{4,6})[A-Z]?$/.test(x.code) && quoteCodes.indexOf(x.code) < 0) {
         quoteCodes.push(x.code);
       }
@@ -132,7 +133,7 @@ function apiGetDashboard() {
   }
   var quotes = {};
   if (quoteCodes.length) {
-    try { quotes = getQuotesFor(quoteCodes.slice(0, 30)); } catch (e) {}
+    try { quotes = getQuotesFor(quoteCodes, true, true); } catch (e) {}
   }
   var out = {
     today: todayData,
@@ -146,6 +147,7 @@ function apiGetDashboard() {
     if (json.length < 95000) { CACHE.put(DASH_CACHE_KEY_, json, 90); }
   } catch (e) {}
   return out;
+  });
 }
 
 /** 依股票代號或名稱查詢（規格書 4.4 節） */
@@ -350,7 +352,7 @@ function apiGetHourlyMeta() {
 
 /** 為總覽表格補上現價。讀即時快取，不對外請求。 */
 function apiGetQuotesFor(codes) {
-  try { return getQuotesFor(codes || []); } catch (e) { return {}; }
+  try { return withSheetSnapshot_(function () { return getQuotesFor(codes || [], true, true); }); } catch (e) { return {}; }
 }
 
 /** 郵件查詢：列出所有已產生郵件內容的日期（新到舊）。 */

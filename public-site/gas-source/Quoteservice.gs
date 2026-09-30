@@ -2,7 +2,8 @@
  * 檔案：QuoteService.gs
  *
  * 報價來源分工：
- *   Fugle      即時報價、當日與歷史 60 分 K；Yahoo 在獨立分頁補歷史空缺。
+ *   證交所 MIS 批次即時報價；Fugle 補取未回傳標的、當日與歷史 60 分 K。
+ *   Yahoo 在獨立分頁補歷史空缺。
  *   歷史日K    由 CacheBuilder 依既有來源落地；週／月從相同日K聚合。
  *
  * 優先讀共用快取，盤中預覽按需取 Fugle；請求跨執行控速。
@@ -543,19 +544,30 @@ function refreshQuoteCacheJob() {
 
   var deadline = Date.now() + QUOTE_JOB_BUDGET_MS_;
   var fresh = {};
-  var taken = 0, i;
+  var taken = 0, i, batchQuotes = {}, fallbackTaken = 0, lastFallback = -1;
+  // v88：追蹤宇宙每 50 檔一起取，避免五分鐘排程全天耗在逐檔等待。
+  // 若來源少回或暫時失敗，每棒最多四檔走既有富果備援；游標輪替，不能一直卡前四檔。
+  for (var b = 0; b < codes.length && Date.now() < deadline - 10000; b += 50) {
+    try {
+      var qs = misBatchQuotes_(codes.slice(b, b + 50));
+      Object.keys(qs).forEach(function (c) { if (qs[c].date === todayStr_()) { batchQuotes[c] = qs[c]; } });
+    } catch (e) { Logger.log('即時快取批次來源暫時失敗：' + e); }
+  }
 
   for (i = 0; i < codes.length; i++) {
     if (Date.now() > deadline) { break; }
     var code = codes[(cursor + i) % codes.length];
 
-    var q = null;
-    if (hasFugle_()) {
+    var q = batchQuotes[code] || null;
+    if (!q && fallbackTaken >= 4) { continue; }
+    if (!q) { fallbackTaken++; lastFallback = i; }
+    if (!q && hasFugle_()) {
       try { q = fugleQuote_(code); } catch (e) { q = null; }
     }
     if (!q) {
       try { q = misQuote_(code); } catch (e) { q = null; }
     }
+    if (q && q.date && q.date !== todayStr_()) { continue; }
     if (!q || q.last == null) { continue; }
 
     var chg = q.change;
@@ -571,12 +583,12 @@ function refreshQuoteCacheJob() {
       chg != null ? Math.round(chg * 100) / 100 : '',
       pct != null ? Math.round(pct * 100) / 100 : '',
       q.volume || 0,
-      stamp, q.open || "", q.high || "", q.low || "", q.date || ""
+      q.stamp || stamp, q.open || "", q.high || "", q.low || "", q.date || ""
     ];
     taken++;
   }
 
-  pr.setProperty(QUOTE_CURSOR_KEY_, String((cursor + i) % codes.length));
+  pr.setProperty(QUOTE_CURSOR_KEY_, String((cursor + (lastFallback >= 0 ? lastFallback + 1 : i)) % codes.length));
 
   if (!taken) {
     Logger.log('即時快取：這一棒 ' + codes.length + ' 檔都沒取到報價，保留舊值');
@@ -598,12 +610,20 @@ function refreshQuoteCacheJob() {
     });
 
     var rows = Object.keys(fresh).map(function (c) { return fresh[c]; }).concat(keep);
-    sh.clearContents();
-    sh.getRange(1, 1, 1, 12).setValues([['代號', '名稱', '現價', '昨收', '漲跌', '漲跌幅', '成交量', '更新時間', '開', '高', '低', '行情日期']]);
-    sh.getRange(2, 1, rows.length, 12).setValues(rows);
+    var oldLast = sh.getLastRow();
+    // 先一次寫完整資料，再清舊尾列；寫入失敗時保留原表，不先清空。
+    sh.getRange(1, 1, rows.length + 1, 12).setValues([
+      ['代號', '名稱', '現價', '昨收', '漲跌', '漲跌幅', '成交量', '更新時間', '開', '高', '低', '行情日期']
+    ].concat(rows));
+    if (oldLast > rows.length + 1) {
+      try { sh.getRange(rows.length + 2, 1, oldLast - rows.length - 1, 12).clearContent(); }
+      catch (e) { Logger.log('即時快取已寫入，舊尾列待下次清理：' + e); }
+    }
   });
 
   CACHE.remove('qcache');
+  CACHE.remove('tracker');
+  CACHE.remove(DASH_CACHE_KEY_);
   Logger.log('即時快取：更新 ' + taken + ' / ' + codes.length + ' 檔');
 }
 
@@ -677,7 +697,8 @@ function getQuoteCache() {
     };
   });
 
-  CACHE.put('qcache', JSON.stringify(out), 120);
+  // 快取只是加速層；單筆超過服務容量或暫時寫不進時仍回傳本次表格資料。
+  try { CACHE.put('qcache', JSON.stringify(out), 120); } catch (e) {}
   return out;
 }
 
@@ -702,17 +723,19 @@ function getQuoteCache() {
  *   那是使用者正盯著看的那一檔，一次請求就回來。
  *   批次呼叫沿用舊值，畫面上的時間戳本來就寫著它是什麼時候的。
  */
-function getQuotesFor(codes, refreshStale) {
+function getQuotesFor(codes, refreshStale, batchOnly) {
   var cache = getQuoteCache();
   var out = {}, missing = [];
 
   (codes || []).forEach(function (c) {
     c = String(c).trim();
-    if (!/^(?:00981A|\d{4,6})$/.test(c)) { return; }
+    if (!/^(?:00\d{3,4}|\d{4,6})[A-Z]?$/.test(c)) { return; }
+    if (missing.indexOf(c) >= 0 || out[c]) { return; }
     var hit = cache[c];
     if (!hit) { missing.push(c); return; }
     if (quoteFresh_(hit.stamp)) { out[c] = hit; return; }
-    if (refreshStale) { missing.push(c); } else { out[c] = hit; }
+    out[c] = hit;
+    if (refreshStale) { missing.push(c); }
   });
 
   if (!missing.length) { return out; }
@@ -736,7 +759,27 @@ function getQuotesFor(codes, refreshStale) {
     return out;
   }
 
-  // 盤中：逐檔補抓。Fugle 日內行情 60 次/分，所以每次最多 50 檔，留餘裕。
+  // v88：網站批次報價只發一個 MIS 請求，不逐檔等待 Fugle＋sleep。
+  // 查不到仍保留有時間戳的表上行情／日K，不能以委買價冒充成交價。
+  if (batchOnly) {
+    try {
+      var batch = misBatchQuotes_(missing.slice(0, 50));
+      Object.keys(batch).forEach(function (c) { out[c] = batch[c]; });
+    } catch (e) { Logger.log('批次報價暫時讀不到：' + e); }
+    missing.forEach(function (c) {
+      if (out[c]) { return; }
+      var lc = lastCloseOf_(c);
+      if (!lc) { return; }
+      var chg = lc.prevClose ? lc.last - lc.prevClose : null;
+      out[c] = { name: '', last: lc.last, prevClose: lc.prevClose,
+        change: chg == null ? null : Math.round(chg * 100) / 100,
+        changePct: chg == null || !lc.prevClose ? null : Math.round(chg / lc.prevClose * 10000) / 100,
+        volume: sharesToLots_(lc.volume), time: qTime_(lc.date + ' 收盤'), date: lc.date };
+    });
+    return out;
+  }
+
+  // 非網站的既有補抓入口仍沿用富果控速。
   var fetched = 0;
   for (var i = 0; i < missing.length && fetched < 50; i++) {
     var c = missing[i];
@@ -790,9 +833,8 @@ function getQuotesFor(codes, refreshStale) {
 }
 
 /* ------------------------------------------------------------------ *
- * 證交所 MIS 備援
- * 沒有 Fugle 金鑰、或 Fugle 出錯時走這裡。
- * 有每 5 秒 3 次的限制，所以只當備援，不當主力。
+ * 證交所 MIS 批次報價與單檔備援
+ * 本站共用限流為每 5 秒最多 3 次；這是本站保守設定，並非來源額度保證。
  * ------------------------------------------------------------------ */
 
 function throttleMis_() {
@@ -824,6 +866,38 @@ function misQuote_(code) {
   return misOnce_(code, first, map) || misOnce_(code, second, map);
 }
 
+/** 同一批上市／上櫃代號一次查詢，依回傳代號對應，不依陣列順序。 */
+function misBatchQuotes_(codes) {
+  var out = {}, channels = [], wanted = {};
+  codes.forEach(function (c) {
+    if (!/^(?:00\d{3,4}|\d{4,6})[A-Z]?$/.test(c) || wanted[c]) { return; }
+    wanted[c] = true; channels.push('tse_' + c + '.tw', 'otc_' + c + '.tw');
+  });
+  if (!channels.length) { return out; }
+  throttleMis_();
+  var res = UrlFetchApp.fetch('https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=' +
+    encodeURIComponent(channels.join('|')) + '&json=1&delay=0&_=' + Date.now(), {
+      muteHttpExceptions: true, headers: { Referer: 'https://mis.twse.com.tw/stock/index.jsp' }
+    });
+  if (res.getResponseCode() !== 200) { return out; }
+  var data = JSON.parse(res.getContentText());
+  (data.msgArray || []).forEach(function (m) {
+    var code = String(m.c || ''), last = Number.parseFloat(m.z), prev = Number.parseFloat(m.y);
+    if (!wanted[code] || !(last > 0)) { return; }
+    var date = String(m.d || '').replace(/^(\d{4})(\d{2})(\d{2})$/, '$1/$2/$3');
+    var hm = String(m.t || '');
+    if (!/^\d{4}\/\d{2}\/\d{2}$/.test(date) || !/^\d{2}:\d{2}:\d{2}$/.test(hm)) { return; }
+    var chg = prev > 0 ? last - prev : null;
+    out[code] = { name: m.n || '', last: last, prevClose: prev > 0 ? prev : null,
+      change: chg == null ? null : Math.round(chg * 100) / 100,
+      changePct: chg == null ? null : Math.round(chg / prev * 10000) / 100,
+      volume: parseInt(m.v, 10) || 0, open: parseFloat(m.o) || null, high: parseFloat(m.h) || null, low: parseFloat(m.l) || null,
+      date: date, time: qTime_(date + ' ' + hm),
+      stamp: date && hm ? date + ' ' + hm : '', source: '證交所 MIS' };
+  });
+  return out;
+}
+
 function misOnce_(code, market, map) {
   throttleMis_();
   var url = 'https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=' +
@@ -840,9 +914,8 @@ function misOnce_(code, market, map) {
 
   var m = data.msgArray[0];
   var last = parseFloat(m.z);
-  if (isNaN(last)) { last = parseFloat(m.b ? m.b.split('_')[0] : NaN); }
-  if (isNaN(last)) { last = parseFloat(m.y); }
-  if (isNaN(last)) { return null; }
+  // 委買價、昨收都不能冒充最新成交。
+  if (!(last > 0)) { return null; }
 
   var prev = parseFloat(m.y);
   return {
@@ -860,7 +933,7 @@ function getRealtimeQuote(code) {
   if (!code) { return null; }
 
   // 單檔：使用者正盯著這一檔，過期就當場重抓（只有一次對外請求）。
-  var q = getQuotesFor([code], true)[code];
+  var q = getQuotesFor([code], true, true)[code];
   if (!q) { return { code: code, ok: false, message: '目前取不到這檔股票的報價。' }; }
 
   var map = loadCodeMap_().byCode;

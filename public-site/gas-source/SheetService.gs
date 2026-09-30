@@ -88,9 +88,9 @@ function mergeSmsItemsIntoTrades_(d, todayTrades, todayHolds) {
 function getTodayOverview() {
   var trades = readSheetObjects_('操作紀錄');
   var holds = readSheetObjects_('會員持股');
-  var videos = readSheetObjects_('影片清單');
-  var smsList = [];
-  try { smsList = readSheetObjects_('會員簡訊'); } catch (e) {}
+  var videos = typeof readSheetFields_ === 'function' ?
+    readSheetFields_('影片清單', ['發布日期', '處理狀態', '失敗原因']) : readSheetObjects_('影片清單');
+  // v88：公開總覽不使用簡訊原文，移除未使用的整張簡訊讀取。
 
   var dates = trades.map(function (r) { return fmtDate_(r['日期']); })
     .concat(holds.map(function (r) { return fmtDate_(r['日期']); }))
@@ -2015,6 +2015,15 @@ function writeTrackerCache_(out) {
 }
 
 function getHoldingsTracker() {
+  if (typeof SHEET_SNAPSHOT_ !== 'undefined' && SHEET_SNAPSHOT_ && SHEET_SNAPSHOT_.__trackerResult) {
+    return SHEET_SNAPSHOT_.__trackerResult;
+  }
+  var out = getHoldingsTrackerRead_();
+  if (typeof SHEET_SNAPSHOT_ !== 'undefined' && SHEET_SNAPSHOT_) { SHEET_SNAPSHOT_.__trackerResult = out; }
+  return out;
+}
+
+function getHoldingsTrackerRead_() {
   var hit = readTrackerCache_();
   if (hit) { return hit; }
 
@@ -2049,7 +2058,7 @@ function getHoldingsTracker() {
       var q = quotes[code];
       if (q && q.last != null) {
         current = q.last;
-        curSrc = '即時';
+        curSrc = q.time ? '報價 ' + q.time : '報價時間未提供';
       } else {
         var lc = lastCloseOf_(code);
         if (lc) { current = lc.last; curSrc = lc.date + ' 收盤'; }

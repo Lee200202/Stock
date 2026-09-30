@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
 import { inflateSync } from 'node:zlib';
-import worker, { validSignature, callback, forward, startLoading } from '../line-webhook/worker.mjs';
+import worker, { validSignature, callback, forward, startLoading, renewLoadingIfLate, LOADING_SECONDS } from '../line-webhook/worker.mjs';
 import { chartResponse } from '../line-webhook/chart.mjs';
 
 const secret = '0123456789abcdef0123456789abcdef';
@@ -55,7 +55,9 @@ try {
   await startLoading([{ type: 'message', message: { type: 'text' }, source: { type: 'user', userId: 'Ufirst' } }],
     { LINE_CHANNEL_ACCESS_TOKEN: 'test-only' });
   assert.equal(loading.url, 'https://api.line.me/v2/bot/chat/loading/start');
-  assert.deepEqual(loading.body, { chatId: 'Ufirst', loadingSeconds: 45 });
+  // v5：等待動畫用滿 LINE 允許的 60 秒
+  assert.equal(LOADING_SECONDS, 60);
+  assert.deepEqual(loading.body, { chatId: 'Ufirst', loadingSeconds: 60 });
   assert.equal(loading.authorization, 'Bearer test-only');
   loading = null;
   await startLoading([{ type: 'message', message: { type: 'text' }, source: { type: 'user', userId: 'Ufirst' } }], env);
@@ -74,5 +76,18 @@ try {
   globalThis.fetch = async () => Response.json({ ok: false, error: 'busy' });
   await worker.queue({ messages: [{ body: sent[0], attempts: 1, retry: x => actions.push(['retry', x.delaySeconds]), ack: () => actions.push(['ack']) }] }, env);
   assert.deepEqual(actions, [['retry', 30]]);
+
+  // v5：第一次轉交且已排隊超過 20 秒才重開動畫；重試（可能已回覆過）與剛入列的都不重開
+  const renewed = [];
+  globalThis.fetch = async (url, opts) => { renewed.push([url, JSON.parse(opts.body)]); return new Response(null, { status: 202 }); };
+  const tokenEnv = { ...env, LINE_CHANNEL_ACCESS_TOKEN: 'test-only' };
+  const chatBody = JSON.stringify({ destination: 'Utest', events: [{ type: 'message', message: { type: 'text', text: '毅嘉' }, source: { type: 'user', userId: 'Ulate' } }] });
+  const now = Date.now();
+  assert.equal(await renewLoadingIfLate({ body: chatBody, queuedAt: now - 30000 }, 1, tokenEnv, now), true);
+  assert.deepEqual(renewed, [['https://api.line.me/v2/bot/chat/loading/start', { chatId: 'Ulate', loadingSeconds: 60 }]]);
+  assert.equal(await renewLoadingIfLate({ body: chatBody, queuedAt: now - 30000 }, 2, tokenEnv, now), false);
+  assert.equal(await renewLoadingIfLate({ body: chatBody, queuedAt: now - 5000 }, 1, tokenEnv, now), false);
+  assert.equal(await renewLoadingIfLate({ body: '{bad', queuedAt: now - 30000 }, 1, tokenEnv, now), false);
+  assert.equal(renewed.length, 1);
 } finally { globalThis.fetch = originalFetch; }
 console.log('LINE free relay offline tests passed');

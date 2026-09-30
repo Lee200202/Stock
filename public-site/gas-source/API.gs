@@ -113,14 +113,44 @@ function apiUnsubscribeConfirm(email, token, scope) {
  */
 var DASH_CACHE_KEY_ = 'dash_v54';
 
-function apiGetDashboard() {
+/* v89（2026/09/30 實測）：首頁整包約 24 萬位元組，一半是持股追蹤的 items——它就是 held＋exited 串起來的同一份資料。
+   整包超過 95000 字元，下面那一行快取從來沒寫進去過，每一位訪客都要重算一次（後端 4.8 秒）。
+   網站只讀 held／exited（renderTracker 沒有 held 時才退回 items），所以公開介面拿掉 items；
+   伺服器端自己呼叫 getHoldingsTracker() 的地方（LINE、績效、個股面板）不受影響。 */
+function publicTracker_(t) {
+  if (!t || !t.held || !t.exited) { return t; }
+  var out = {};
+  Object.keys(t).forEach(function (k) { if (k !== 'items') { out[k] = t[k]; } });
+  return out;
+}
+
+/* 超過單筆快取上限時先壓縮再存（gzip＋base64 約為原本的五分之一）；讀回解不開就當沒命中重算。 */
+function dashCachePut_(json) {
+  try {
+    if (json.length < 95000) { CACHE.put(DASH_CACHE_KEY_, json, 90); return; }
+    var zipped = Utilities.base64Encode(Utilities.gzip(Utilities.newBlob(json, 'application/json')).getBytes());
+    if (zipped.length < 95000) { CACHE.put(DASH_CACHE_KEY_, 'gz:' + zipped, 90); }
+  } catch (e) {}
+}
+function dashCacheGet_() {
   var hit = CACHE.get(DASH_CACHE_KEY_);
-  if (hit) { try { return JSON.parse(hit); } catch (e) {} }
+  if (!hit) { return null; }
+  try {
+    if (hit.indexOf('gz:') === 0) {
+      hit = Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(hit.slice(3)), 'application/x-gzip')).getDataAsString('UTF-8');
+    }
+    return JSON.parse(hit);
+  } catch (e) { return null; }
+}
+
+function apiGetDashboard() {
+  var hit = dashCacheGet_();
+  if (hit) { return hit; }
   // v88：整包共用同一份請求快照，getTodayOverview 已讀持股，不再重新讀表。
   return withSheetSnapshot_(function () {
   var todayData = getTodayOverview();
   var trackerData = null;
-  try { trackerData = getHoldingsTracker(); } catch (e) {}
+  try { trackerData = publicTracker_(getHoldingsTracker()); } catch (e) {}
   var lineEntry = null;
   try { lineEntry = apiGetLineEntry(); } catch (e) {}
   var quoteCodes = [];
@@ -142,10 +172,7 @@ function apiGetDashboard() {
     lineEntry: lineEntry,
     updatedAt: Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy/MM/dd HH:mm')
   };
-  try {
-    var json = JSON.stringify(out);
-    if (json.length < 95000) { CACHE.put(DASH_CACHE_KEY_, json, 90); }
-  } catch (e) {}
+  try { dashCachePut_(JSON.stringify(out)); } catch (e) {}
   return out;
   });
 }
@@ -219,7 +246,7 @@ function apiFetchStockOnDemand(code) {
 
 /** 持股追蹤：每一檔從第一次提到買入至今的持有天數與報酬 */
 function apiGetHoldingsTracker() {
-  return getHoldingsTracker();
+  return publicTracker_(getHoldingsTracker());
 }
 
 /**

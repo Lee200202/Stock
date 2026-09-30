@@ -25,7 +25,7 @@ def main():
     cm=ROOT/'apps-script/Cmoney.gs'
     cmtext=cm.read_text(encoding='utf-8')
     cmtext=re.sub(r'var CM_PARSE_SYSTEM =.*?(?=\n\n/\*\* 這一條裡)',lambda m:'var CM_PARSE_SYSTEM = '+json.dumps(values['CM_PARSE_SYSTEM'],ensure_ascii=False)+';\n',cmtext,flags=re.S)
-    cm.write_text(cmtext,encoding='utf-8')
+    cm.write_text(cmtext,encoding='utf-8',newline='\n')
     path=ROOT/'apps-script/Adminpipeline.gs';text=path.read_text(encoding='utf-8-sig')
     # GAS uses literal source quotes, while Python uses segment IDs. The decision
     # policy is shared; only the evidence transport and review response differ.
@@ -47,17 +47,20 @@ def main():
     for name,value in mirrors:
         start=text.index('var '+name+' =');end=start+re.search(r';\s*\n',text[start:]).end()
         text=text[:start]+'var '+name+' = '+json.dumps(value,ensure_ascii=False)+';\n\n'+text[end:]
-    path.write_text(text,encoding='utf-8')
+    path.write_text(text,encoding='utf-8',newline='\n')
     # 逐字稿排版的提示詞兩端共用（2026/09/17 v44）：工作流寫入時排一次，網站每 15 分鐘補排。
     sheet_path=ROOT/'apps-script/SheetService.gs'
     sheet_text=sheet_path.read_text(encoding='utf-8-sig')
     start=sheet_text.index('var TX_FORMAT_SYSTEM =');end=start+re.search(r';[^\n]*\n',sheet_text[start:]).end()
     sheet_text=sheet_text[:start]+'var TX_FORMAT_SYSTEM = '+json.dumps(values['TX_FORMAT_SYSTEM'],ensure_ascii=False)+';   // 由 scripts/sync_quality.py 從 pipeline.py 同步，不要手改\n'+sheet_text[end:]
-    sheet_path.write_text(sheet_text,encoding='utf-8')
+    sheet_path.write_text(sheet_text,encoding='utf-8',newline='\n')
     # 公開敘述的別名表兩端共用，不拿模型的代號改寫原始證據。
     aliases = next(ast.literal_eval(n.value) for n in ast.parse(source).body
         if isinstance(n,ast.Assign) and isinstance(n.targets[0],ast.Name) and n.targets[0].id=='CONFIRMED_NAMES')
+    s2t = next(ast.literal_eval(n.value) for n in ast.parse(source).body
+        if isinstance(n,ast.Assign) and isinstance(n.targets[0],ast.Name) and n.targets[0].id=='S2T_PAIRS')
     helper = (ROOT/'scripts/public_narrative_v10.txt').read_text(encoding='utf-8').replace('__ALIASES__',json.dumps(aliases,ensure_ascii=False))
+    helper = helper.replace('__S2T__', json.dumps(s2t, ensure_ascii=False))
     for filename in ('Presentationquality.gs','JavaScript.html'):
         dest=ROOT/'apps-script'/filename
         content=dest.read_text(encoding='utf-8-sig')
@@ -67,13 +70,13 @@ def main():
             content += '\n'+helper
         else:
             content=content.replace('  function priceCell(r) {',helper+'\n  function priceCell(r) {')
-        dest.write_text(content,encoding='utf-8')
+        dest.write_text(content,encoding='utf-8',newline='\n')
     price_source=(ROOT/'apps-script/Presentationquality.gs').read_text(encoding='utf-8')
     price_fn=re.search(r'function displayPrice_\(.*?\n\}',price_source,re.S).group()
     frontend=ROOT/'apps-script/JavaScript.html'
     content=frontend.read_text(encoding='utf-8')
     content=re.sub(r'function displayPrice_\(.*?\n\}',lambda m:price_fn,content,count=1,flags=re.S)
-    frontend.write_text(content,encoding='utf-8')
+    frontend.write_text(content,encoding='utf-8',newline='\n')
     doc = ROOT/'docs/0912/PROMPT_CONTEXT_JSON.md'
     if doc.parent.exists():
         doc.write_text('# 原文 JSON 判讀 Prompt\n\n由 pipeline/pipeline.py 同步匯出。規則不寫入公開文章。\n'

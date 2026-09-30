@@ -1,5 +1,15 @@
 // BEGIN PUBLIC NARRATIVE V10
 var PUBLIC_CONFIRMED_NAMES = __ALIASES__;
+/* 公開說明裡的簡體字換回繁體（v89，2026/09/30「避开」）。兩兩一組：簡體、繁體；與 pipeline.py 的 S2T_PAIRS 同一串。 */
+var PUBLIC_S2T_PAIRS_ = __S2T__;
+var PUBLIC_S2T_ = null;
+function toTraditional_(text) {
+  if (!PUBLIC_S2T_) {
+    PUBLIC_S2T_ = {};
+    for (var i = 0; i + 1 < PUBLIC_S2T_PAIRS_.length; i += 2) { PUBLIC_S2T_[PUBLIC_S2T_PAIRS_.charAt(i)] = PUBLIC_S2T_PAIRS_.charAt(i + 1); }
+  }
+  return String(text || '').replace(/[一-鿿]/g, function (ch) { return PUBLIC_S2T_[ch] || ch; });
+}
 /** 官方簡稱尾巴的「*」是證交所註記，說明文字不用。 */
 function narrativeName_(name) { return String(name || '').replace(/[*＊]+$/, ''); }
 /** 把 heard 換成 fixed，重複套用不會越換越長（「世芯」→「世芯-KY」不會變成「世芯-KY-KY」）。 */
@@ -39,7 +49,7 @@ function stripMetaClauses_(text) {
 /** 說明名稱與代號對齊，原始逐字稿與引用不經過這個函式。 */
 function publicNarrative_(text, row) {
   row = row || {};
-  text = String(text || '').replace(/(^|[，,。；;：:、「『（(\s]|雖然|但是|但|而且|而|並且|並|且|因為|所以)(?:張震|張正|張總|張中|講者)(?:老師)?(?:本人)?(?:的(?=會員))?/g,'$1');
+  text = toTraditional_(text).replace(/(^|[，,。；;：:、「『（(\s]|雖然|但是|但|而且|而|並且|並|且|因為|所以)(?:張震|張正|張總|張中|講者)(?:老師)?(?:本人)?(?:的(?=會員))?/g,'$1');
   text = stripMetaClauses_(text);
   text=text.replace(/[（(][^（）()]*?(?:原文(?:作|為|寫|說)|語音(?:作|為)|誤植|誤字)[^（）()]*[）)]/g,'');
   if(String(row.code||'')==='5274')text=text.replace(/信化/g,'信驊');

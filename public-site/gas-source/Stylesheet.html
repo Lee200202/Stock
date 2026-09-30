@@ -22,6 +22,7 @@
   --fall:     #04795C;
   --wait:     #8A6410;
   --note:     #1F6F8B;
+  --hold:     #4A4FA3;   /* v89：會員持股用靛藍，不再與賣出同一個綠 */
   --beam:     #04795C;
   --shadow:   0 1px 0 rgba(18,22,26,.04);
   /* 內容欄寬拆成兩個變數：上限與左右留白。
@@ -49,6 +50,7 @@
   --fall:     #21C68C;
   --wait:     #DBA544;
   --note:     #6FC2D6;
+  --hold:     #A9AEF2;
   --beam:     #21C68C;
   --shadow:   none;
 }
@@ -463,19 +465,19 @@ tbody tr.clickable:active { background: var(--rule); }
 td.code, td.px { font-family: "IBM Plex Mono", monospace; font-feature-settings: "tnum" 1; white-space: nowrap; }
 .dir-buy { color: var(--rise); } .dir-sell { color: var(--fall); }
 .dir-watch { color: var(--wait); } .dir-note { color: var(--note); }
-.dir-hold { color: var(--beam); }
+.dir-hold { color: var(--hold); }
 /* 方向色要能一眼掃過整格，而不是只染幾個字。色量刻意壓低，
    仍保留表格文字的對比與長時間閱讀舒適度。 */
 td.dir-buy  { background: color-mix(in srgb, var(--rise) 10%, var(--panel)); }
 td.dir-sell { background: color-mix(in srgb, var(--fall) 10%, var(--panel)); }
 td.dir-watch{ background: color-mix(in srgb, var(--wait) 11%, var(--panel)); }
 td.dir-note { background: color-mix(in srgb, var(--note) 11%, var(--panel)); }
-td.dir-hold { background: color-mix(in srgb, var(--beam) 10%, var(--panel)); }
+td.dir-hold { background: color-mix(in srgb, var(--hold) 10%, var(--panel)); }
 tr.tone-buy  { background: color-mix(in srgb, var(--rise) 4%, transparent); }
 tr.tone-sell { background: color-mix(in srgb, var(--fall) 4%, transparent); }
 tr.tone-watch{ background: color-mix(in srgb, var(--wait) 5%, transparent); }
 tr.tone-note { background: color-mix(in srgb, var(--note) 5%, transparent); }
-tr.tone-hold { background: color-mix(in srgb, var(--beam) 4%, transparent); }
+tr.tone-hold { background: color-mix(in srgb, var(--hold) 4%, transparent); }
 .latest-sms { border: 1px solid color-mix(in srgb, var(--beam) 38%, var(--rule));
   background: color-mix(in srgb, var(--beam) 4%, transparent); padding: 18px; }
 .latest-sms-meta { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap;
@@ -1032,7 +1034,7 @@ html[data-view="mobile"] .stats, html[data-view="mobile"] .tabbar {
 .card.scrollx tbody td.sticky.dir-sell { background: color-mix(in srgb, var(--fall) 10%, var(--panel)); }
 .card.scrollx tbody td.sticky.dir-watch{ background: color-mix(in srgb, var(--wait) 11%, var(--panel)); }
 .card.scrollx tbody td.sticky.dir-note { background: color-mix(in srgb, var(--note) 11%, var(--panel)); }
-.card.scrollx tbody td.sticky.dir-hold { background: color-mix(in srgb, var(--beam) 10%, var(--panel)); }
+.card.scrollx tbody td.sticky.dir-hold { background: color-mix(in srgb, var(--hold) 10%, var(--panel)); }
 .card.scrollx tbody tr.clickable:hover td.sticky,
 .card.scrollx tbody tr.active td.sticky { background: var(--panel-2); }
 .card.scrollx::-webkit-scrollbar { height: 8px; }
@@ -1820,16 +1822,16 @@ sup.src.hold { color: var(--wait); font-weight: 600; }
 }
 [data-theme="dark"] .mail-content td.tn-buy   { background: color-mix(in srgb, #C41E28 26%, var(--panel)) !important; }
 [data-theme="dark"] .mail-content td.tn-sell  { background: color-mix(in srgb, #04795C 26%, var(--panel)) !important; }
-[data-theme="dark"] .mail-content td.tn-hold  { background: color-mix(in srgb, #1F5296 28%, var(--panel)) !important; }
-[data-theme="dark"] .mail-content td.tn-watch { background: color-mix(in srgb, #9C6A0F 30%, var(--panel)) !important; }
-[data-theme="dark"] .mail-content td.tn-avoid { background: color-mix(in srgb, var(--muted) 18%, var(--panel)) !important; }
+[data-theme="dark"] .mail-content td.tn-hold  { background: color-mix(in srgb, #4A4FA3 28%, var(--panel)) !important; }
+[data-theme="dark"] .mail-content td.tn-watch { background: color-mix(in srgb, #1F6F8B 30%, var(--panel)) !important; }
+[data-theme="dark"] .mail-content td.tn-avoid { background: color-mix(in srgb, #8A6410 26%, var(--panel)) !important; }
 [data-theme="dark"] .mail-content td.tn-none  { background: var(--panel) !important; }
 /* 表頭再深一階，整張表才會讀成一個色塊而不是一堆分開的列 */
 [data-theme="dark"] .mail-content th.tn-buy   { background: color-mix(in srgb, #C41E28 42%, var(--panel)) !important; }
 [data-theme="dark"] .mail-content th.tn-sell  { background: color-mix(in srgb, #04795C 42%, var(--panel)) !important; }
-[data-theme="dark"] .mail-content th.tn-hold  { background: color-mix(in srgb, #1F5296 44%, var(--panel)) !important; }
-[data-theme="dark"] .mail-content th.tn-watch { background: color-mix(in srgb, #9C6A0F 46%, var(--panel)) !important; }
-[data-theme="dark"] .mail-content th.tn-avoid { background: color-mix(in srgb, var(--muted) 30%, var(--panel)) !important; }
+[data-theme="dark"] .mail-content th.tn-hold  { background: color-mix(in srgb, #4A4FA3 44%, var(--panel)) !important; }
+[data-theme="dark"] .mail-content th.tn-watch { background: color-mix(in srgb, #1F6F8B 46%, var(--panel)) !important; }
+[data-theme="dark"] .mail-content th.tn-avoid { background: color-mix(in srgb, #8A6410 42%, var(--panel)) !important; }
 [data-theme="dark"] .mail-content th.tn-none  { background: color-mix(in srgb, var(--ink) 12%, var(--panel)) !important; }
 [data-theme="dark"] .mail-content table     { border-color: var(--rule) !important; }
 .mail-content hr { border: none; border-top: 1px solid var(--rule); margin: 20px 0; }
@@ -1910,7 +1912,12 @@ sup.src.hold { color: var(--wait); font-weight: 600; }
   .asstdock { width: calc(100vw - 44px); }
 }
 @media (max-width: 620px) {
-  .asstfab { right: 14px; bottom: 14px; padding: 10px 16px 10px 13px; }
+  /* v89：手機上只留圓形圖示（48px），不再用帶字的膠囊蓋住卡片右側的現價與報酬；
+     按鈕仍有 aria-label「問 AI 助手」。頁尾多留一段高度，最後一行字不會被它壓住。 */
+  .asstfab { right: 14px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); width: 48px; height: 48px; padding: 0; justify-content: center; }
+  .asstfab span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .asstfab svg { width: 22px; height: 22px; }
+  body { padding-bottom: 72px; }
   .asstdock {
     right: 0; left: 0; bottom: 0; width: auto; border-radius: 14px 14px 0 0;
     max-height: 82vh;
@@ -3043,7 +3050,7 @@ h3.day-h small { font-weight: 400; color: var(--muted); font-size: .78em; margin
 .led-pill .led-n { font-family: "IBM Plex Mono", monospace; font-size: calc(15px * var(--rd-fs)); font-weight: 600; color: inherit; text-align: left; }
 .led-pill.buy { color: var(--rise); } .led-pill.sell { color: var(--fall); }
 .led-pill.watch { color: var(--wait); } .led-pill.note { color: var(--note); }
-.led-pill.hold { color: var(--beam); }
+.led-pill.hold { color: var(--hold); }
 .led-pill.absent { color: var(--muted); }
 .led-pill:hover { background: color-mix(in srgb, currentColor 14%, var(--panel)); }
 
@@ -3202,7 +3209,7 @@ mark.m-cond { background: linear-gradient(transparent 55%, color-mix(in srgb, va
 .card.scrollx table.tbl-daily tr.tone-sell  { box-shadow: inset 3px 0 0 var(--fall); }
 .card.scrollx table.tbl-daily tr.tone-watch { box-shadow: inset 3px 0 0 var(--wait); }
 .card.scrollx table.tbl-daily tr.tone-note  { box-shadow: inset 3px 0 0 var(--note); }
-.card.scrollx table.tbl-daily tr.tone-hold  { box-shadow: inset 3px 0 0 var(--beam); }
+.card.scrollx table.tbl-daily tr.tone-hold  { box-shadow: inset 3px 0 0 var(--hold); }
 .card.scrollx table.tbl-daily td { display: block; padding: 0; border: 0; white-space: normal; min-width: 0; }
 .card.scrollx table.tbl-daily td.sticky {
   grid-area: name; position: static; background: transparent !important; border-right: 0;
@@ -3234,7 +3241,7 @@ html[data-view="mobile"] .card.scrollx table.tbl-daily tr.tone-buy   { box-shado
 html[data-view="mobile"] .card.scrollx table.tbl-daily tr.tone-sell  { box-shadow: inset 3px 0 0 var(--fall); }
 html[data-view="mobile"] .card.scrollx table.tbl-daily tr.tone-watch { box-shadow: inset 3px 0 0 var(--wait); }
 html[data-view="mobile"] .card.scrollx table.tbl-daily tr.tone-note  { box-shadow: inset 3px 0 0 var(--note); }
-html[data-view="mobile"] .card.scrollx table.tbl-daily tr.tone-hold  { box-shadow: inset 3px 0 0 var(--beam); }
+html[data-view="mobile"] .card.scrollx table.tbl-daily tr.tone-hold  { box-shadow: inset 3px 0 0 var(--hold); }
 html[data-view="mobile"] .card.scrollx table.tbl-daily td { display: block; padding: 0; border: 0; white-space: normal; min-width: 0; }
 html[data-view="mobile"] .card.scrollx table.tbl-daily td.sticky {
   grid-area: name; position: static; background: transparent !important; border-right: 0;
@@ -3265,7 +3272,7 @@ html[data-fs="l"] .card.scrollx table.tbl-daily tr.tone-buy   { box-shadow: inse
 html[data-fs="l"] .card.scrollx table.tbl-daily tr.tone-sell  { box-shadow: inset 3px 0 0 var(--fall); }
 html[data-fs="l"] .card.scrollx table.tbl-daily tr.tone-watch { box-shadow: inset 3px 0 0 var(--wait); }
 html[data-fs="l"] .card.scrollx table.tbl-daily tr.tone-note  { box-shadow: inset 3px 0 0 var(--note); }
-html[data-fs="l"] .card.scrollx table.tbl-daily tr.tone-hold  { box-shadow: inset 3px 0 0 var(--beam); }
+html[data-fs="l"] .card.scrollx table.tbl-daily tr.tone-hold  { box-shadow: inset 3px 0 0 var(--hold); }
 html[data-fs="l"] .card.scrollx table.tbl-daily td { display: block; padding: 0; border: 0; white-space: normal; min-width: 0; }
 html[data-fs="l"] .card.scrollx table.tbl-daily td.sticky {
   grid-area: name; position: static; background: transparent !important; border-right: 0;
@@ -3297,7 +3304,7 @@ html[data-fs="x"] .card.scrollx table.tbl-daily tr.tone-buy   { box-shadow: inse
 html[data-fs="x"] .card.scrollx table.tbl-daily tr.tone-sell  { box-shadow: inset 3px 0 0 var(--fall); }
 html[data-fs="x"] .card.scrollx table.tbl-daily tr.tone-watch { box-shadow: inset 3px 0 0 var(--wait); }
 html[data-fs="x"] .card.scrollx table.tbl-daily tr.tone-note  { box-shadow: inset 3px 0 0 var(--note); }
-html[data-fs="x"] .card.scrollx table.tbl-daily tr.tone-hold  { box-shadow: inset 3px 0 0 var(--beam); }
+html[data-fs="x"] .card.scrollx table.tbl-daily tr.tone-hold  { box-shadow: inset 3px 0 0 var(--hold); }
 html[data-fs="x"] .card.scrollx table.tbl-daily td { display: block; padding: 0; border: 0; white-space: normal; min-width: 0; }
 html[data-fs="x"] .card.scrollx table.tbl-daily td.sticky {
   grid-area: name; position: static; background: transparent !important; border-right: 0;
@@ -4000,7 +4007,7 @@ html[data-view="mobile"] .card.scrollx table.tbl-rec td.pxnote::before, html[dat
 .tech-story .decision-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin: 0 0 16px; }
 .tech-story .decision-grid > button { --dcc: var(--muted); min-width: 0; min-height: 84px; padding: 12px 14px; text-align: left; border: 1px solid var(--rule); border-top: 5px solid var(--dcc); border-radius: 12px; background: var(--panel-2); color: var(--ink); cursor: pointer; }
 .tech-story .decision-grid > .dc-buy { --dcc: var(--rise); }
-.tech-story .decision-grid > .dc-hold { --dcc: var(--beam); }
+.tech-story .decision-grid > .dc-hold { --dcc: var(--hold); }
 .tech-story .decision-grid > .dc-watch { --dcc: var(--note); }
 .tech-story .decision-grid > .dc-avoid { --dcc: var(--wait); }
 .tech-story .decision-grid > .dc-none { --dcc: var(--muted); }

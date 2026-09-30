@@ -1000,6 +1000,9 @@ html[data-view="mobile"] .mtool .mt-sub { padding: 14px 0 0; margin-top: 14px; b
 .line-search { display:flex; gap:10px; margin:0 0 14px; }
 .line-search input { flex:1 1 auto; min-width:0; max-width:none; }
 .line-list { display:grid; gap:8px; }
+/* v89：較早的推送紀錄收在折疊區；區塊本身是 panel-2 底，裡面的紀錄改白底才分得出一筆一筆 */
+.line-list > details.line-more { margin-top: 2px; }
+.line-more > .line-item { margin: 8px 0 0; background: var(--panel); }
 .line-item { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) auto; gap:6px 16px; align-items:center; padding:12px 16px; border-radius:12px; background:var(--panel-2); }
 .line-item b { display:block; font-size:calc(13.5px * var(--rd-fs)); overflow-wrap:anywhere; }
 .line-item small { display:block; color:var(--muted); font-size:calc(12px * var(--rd-fs)); line-height:1.6; overflow-wrap:anywhere; }
@@ -5318,6 +5321,14 @@ setTimeout(initCrawlDayPills, 50);
       (m.note ? '<small>' + esc(m.note) + '</small>' : '') + '</div>' +
       (withBtn ? '<button type="button" class="ghost sm" data-line-look="' + esc(m.id) + '">查看</button>' : '<span></span>') + '</div>';
   }
+  /* v89（2026/09/30 管理者）：推送紀錄預設只列最近五筆，其餘收進「顯示較早的 N 筆」，不讓清單把整頁撐長。 */
+  var LINE_SHOW = 5;
+  function foldList(list, draw, label) {
+    if (list.length <= LINE_SHOW) { return list.map(draw).join(''); }
+    return list.slice(0, LINE_SHOW).map(draw).join('') +
+      '<details class="dz line-more"><summary><span class="dz-t">' + esc(label + ' ' + (list.length - LINE_SHOW) + ' 筆') + '</span>' +
+      '<span class="dz-hint">依建立時間由新到舊</span></summary>' + list.slice(LINE_SHOW).map(draw).join('') + '</details>';
+  }
   function render(d) {
     var q = d.quota, c = d.counts || {}, st = d.stats || {}, ob = d.outbox || {}, menu = d.menu || {}, timing = d.replyTiming;
     var ready = d.configured.token && d.configured.secret;
@@ -5343,7 +5354,9 @@ setTimeout(initCrawlDayPills, 50);
       '<dt>LINE Developers 的 Webhook URL</dt><dd>' + esc(d.callbackUrl || '（先填轉送服務網址）') + '</dd>' +
       '<dt>轉送服務的 GAS_WEBAPP_URL</dt><dd>' + esc(d.gasTarget || '（沒有正式 /exec 網址，先在編輯器執行 setWebAppUrl()）') + '</dd>' +
       '<dt>加入好友網址</dt><dd>' + esc(d.addFriendUrl || '（存權杖後自動用 Basic ID 產生）') + '</dd>';
-    $('lineRecent').innerHTML = (d.recent || []).length ? d.recent.map(function (m) { return item(m, true); }).join('') : '<p class="ops-note">還沒有推送紀錄。</p>';
+    $('lineRecent').innerHTML = (d.recent || []).length
+      ? '<h3 class="ops-section-title">最近 ' + Math.min(LINE_SHOW, d.recent.length) + ' 筆</h3>' + foldList(d.recent, function (m) { return item(m, true); }, '顯示較早的')
+      : '<p class="ops-note">還沒有推送紀錄。</p>';
   }
   function load() {
     if (!KEY) { return; }
@@ -5399,11 +5412,11 @@ setTimeout(initCrawlDayPills, 50);
     google.script.run.withSuccessHandler(function (r) {
       if (!r || !r.ok) { $('lineDetail').innerHTML = '<p class="ops-note">' + esc(r && r.reason || '查詢失敗') + '</p>'; return; }
       if (!r.items.length) { $('lineDetail').innerHTML = '<p class="ops-note">找不到符合的推送紀錄。</p>'; return; }
-      $('lineDetail').innerHTML = '<h3 class="ops-section-title">查詢結果</h3>' + r.items.map(function (m) {
+      $('lineDetail').innerHTML = '<h3 class="ops-section-title">查詢結果（' + r.items.length + ' 筆）</h3>' + foldList(r.items, function (m) {
         return item(m, false).replace(/<\/div>$/, '') + '<div class="line-who">' + (m.recipients || []).map(function (x) {
           return '<span>' + esc(x.user + '　' + (RSTATE[x.state] || x.state) + (x.acceptedAt ? '　' + String(x.acceptedAt).slice(5, 16) : '') + (x.err ? '　' + x.err : '')) + '</span>';
         }).join('') + '</div>' + (m.canRetry ? '<button type="button" class="ghost sm" data-line-retry="' + esc(m.id) + '">重試還沒被接受的收件者</button>' : '') + '</div>';
-      }).join('');
+      }, '顯示其餘');
     }).withFailureHandler(function (e) { $('lineDetail').innerHTML = '<p class="ops-note">查詢失敗：' + esc(e && e.message || e) + '</p>'; }).apiAdminLineLookup(KEY, q);
   }
   $('lineLookup').onclick = function () { lookup($('lineQ').value.trim()); };

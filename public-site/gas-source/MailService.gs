@@ -1598,13 +1598,15 @@ function wrapMail_(inner, email, token, kind, pre) {
    --fall 是綠，.dir-buy 用紅、.dir-sell 用綠）。
    於是同一筆資料在網站上是紅的、在信裡是綠的，兩邊互相打架，
    而讀的人不會去想「這封信是不是換了一套配色」，只會看錯方向。
-   現在買入配紅、賣出配綠，色碼直接對齊網站的 --rise / --fall。 */
+   現在買入配紅、賣出配綠，色碼直接對齊網站的 --rise / --fall。
+   v89（2026/09/30）：觀望與持股也對齊網站——觀望注意＝--note 藍綠、觀望不碰＝--wait 琥珀、
+   會員持股＝--hold 靛藍。先前信裡觀望注意是琥珀、觀望不碰是灰，正好與網站相反，讀的人會看錯類別。 */
 var MAIL_TONES_ = {
   buy:   { key: 'buy',   bg: '#FBDFDF', hbg: '#F5C4C4', line: '#EBAAAA', bar: '#C41E28' },
   sell:  { key: 'sell',  bg: '#DCF0E4', hbg: '#BEE2CC', line: '#9ED3B0', bar: '#04795C' },
-  hold:  { key: 'hold',  bg: '#DEEAFA', hbg: '#C3D9F4', line: '#A8C6EC', bar: '#1F5296' },
-  watch: { key: 'watch', bg: '#FCEDCD', hbg: '#F7DDA5', line: '#EACF8C', bar: '#9C6A0F' },
-  avoid: { key: 'avoid', bg: '#E8ECEA', hbg: '#D8DEDA', line: '#C4CCC7', bar: '#5F6E67' }
+  hold:  { key: 'hold',  bg: '#E7E8F6', hbg: '#D1D3EF', line: '#B8BBE4', bar: '#4A4FA3' },
+  watch: { key: 'watch', bg: '#DDEEF3', hbg: '#C3E0EA', line: '#A2CDDB', bar: '#1F6F8B' },
+  avoid: { key: 'avoid', bg: '#F6EDD8', hbg: '#EEDDB6', line: '#E0C98F', bar: '#8A6410' }
 };
 
 /** 這段文字屬於哪一類。判不出來、或同時包含兩類，就回 null 交給逐列判定。 */
@@ -1699,6 +1701,8 @@ function normalizeArticleSections_(md) {
 function mdToHtml_(md) {
   // Transcript-derived text is content, never executable HTML. Escaping before
   // parsing still preserves Markdown delimiters and numeric comparisons such as <900.
+  // v89：模型偶爾寫出簡體字（2026/09/30「避开」），呈現時換回繁體；已存的舊文章不必重寫。
+  if (typeof toTraditional_ === 'function') { md = toTraditional_(md); }
   var lines = normalizeArticleSections_(md).replace(/[&<>"']/g, function (ch) {
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
   }).split('\n');
@@ -1761,7 +1765,6 @@ function mdToHtml_(md) {
          第一列　名稱　代號　方向／價位標籤（同一行，放不下自然換行，代號與短價位不拆開）
          第二列　說明，橫跨整寬
        兩列同一個底色、左側同一條類別色條，檔與檔之間一條細線；不需要表頭，也不用 colgroup 固定欄寬。 */
-    var watchLayout = !!(tone && (tone.key === 'watch' || tone.key === 'avoid')) && dirCol < 0;
     html.push('<table class="mc-table mc-stack" role="presentation" width="100%" cellpadding="0" cellspacing="0" ' +
               'style="width:100%;border-collapse:separate;border-spacing:0;margin:6px 0 12px;' +
               'border:1px solid ' + edge + ';border-radius:12px;overflow:hidden;font-family:' + MAIL_FONT_ +
@@ -1773,11 +1776,13 @@ function mdToHtml_(md) {
       var ln = rt ? rt.line : '#E4E8E6';
       var bar = rt ? rt.bar : '#C3CBC6';
       var cls = rt ? 'tn-' + rt.key : 'tn-none';
+      /* v89（2026/09/30 管理者）：只有買入／賣出顯示價位；觀望注意／不碰與會員持股不顯示，
+         與網站每日總覽、LINE 個股卡一致。文章原稿的價位欄保留（持股追蹤與稽核要用），只在呈現時不放。 */
+      var priced = !!(rt && (rt.key === 'buy' || rt.key === 'sell'));
       var vals = mids.map(function (i) { return { i: i, v: String(cells[i] || '').trim() }; })
-        .filter(function (x) { return x.v && !/^未說明$/.test(x.v); });
+        .filter(function (x) { return x.v && !/^未說明$/.test(x.v) && (x.i === dirCol || priced); });
       var tags = vals.map(function (x) {
         if (x.i === dirCol) { return chip(x.v, toneOf_(x.v)); }
-        if (watchLayout) { return chip('價位 ' + x.v, rt || tone); }
         // 短價位（271以上、1580以下）不拆行；長的說明性價位交給自然換行。
         return x.v.replace(/&[a-z]+;|&#\d+;/g, 'x').length <= 12 ? '<span style="white-space:nowrap;">' + x.v + '</span>' : x.v;
       }).join(' ');

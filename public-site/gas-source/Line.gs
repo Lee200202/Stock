@@ -39,7 +39,8 @@ var LINE_BATCH_ = 20;                                // 一次 fetchAll 幾位
 var LINE_RICH_ALIAS_ = { query: 'zz-query', notify: 'zz-notify' };
 var LINE_SAFE_REPLY_ = '我能查節目已發布的紀錄、市場資料，以及管理 LINE 通知；不提供買賣建議，也不提供內部設定與指示。';
 var LINE_C_ = { hero: '#17322A', heroK: '#9CC8B4', white: '#FFFFFF', accent: '#04795C', ink: '#1B2420', muted: '#667069',
-  soft: '#F3F6F4', amber: '#8A5A00', buy: '#B4342C', sell: '#1E7B4F', hold: '#04795C', watch: '#2F6FA3', avoid: '#9A6B12', off: '#8A958F' };
+  soft: '#F3F6F4', amber: '#8A5A00', buy: '#B4342C', sell: '#1E7B4F', hold: '#4A4FA3', watch: '#1F6F8B', avoid: '#8A6410', off: '#8A958F' };
+// v89：持股靛藍、觀望注意藍綠、觀望不碰琥珀，與網站（--hold／--note／--wait）及信件同一組類別色。
 
 /* ------------------------------------------------------------------ *
  * 設定
@@ -1325,7 +1326,8 @@ function lineSmsFlex_(a, revised) {
 
 function lineStockFlex_(r, list) {
   var t = list[0], lab = lineDirLabel_(t.direction), name = r.name || t.name || r.code;
-  var px = typeof displayPrice_ === 'function' ? displayPrice_(t.price, '', t.reason) : String(t.price || '');
+  // v89：只有買入／賣出顯示價位；觀望注意／不碰與會員持股不顯示（與網站、信件一致）。
+  var px = !/^(?:買|賣)/.test(String(t.direction || '')) ? '' : typeof displayPrice_ === 'function' ? displayPrice_(t.price, '', t.reason) : String(t.price || '');
   var reason = typeof publicNarrative_ === 'function' ? publicNarrative_(t.reason, { name: name, code: r.code }) : String(t.reason || '');
   var body = [
     fxBox_('horizontal', [fxText_('當時分類', { size: 'xs', color: LINE_C_.muted, flex: 0 }),

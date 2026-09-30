@@ -150,11 +150,6 @@ function lineReply_(replyToken, messages) {
   }
   return 'HTTP ' + r.code + ' ' + lineErrText_(r);
 }
-function lineSendLoading_(uid) {
-  if (!uid) { return; }
-  try { lineApi_('post', '/v2/bot/chat/loading/start', { chatId: uid, loadingSeconds: 45 }); } catch (e) {}
-}
-
 /* ------------------------------------------------------------------ *
  * Webhook：doPost（Code.gs）→ 這裡
  * ------------------------------------------------------------------ */
@@ -188,9 +183,12 @@ function lineWebhook_(e) {
   if (s.botUserId && dest && dest !== s.botUserId) { return { ok: false, error: 'destination-mismatch' }; }
   if (!s.botUserId && /^U[0-9a-f]{32}$/.test(dest)) { lineSaveSettings_({ botUserId: dest }); }
   lineStatTouch_();
+  // Worker 入列時間不在 LINE 簽名 body 內，只用於耗時觀察；異常時鐘值直接忽略。
+  var queuedAt = Number(env.queuedAt) || 0;
+  var relayMs = queuedAt && Math.abs(Date.now() - queuedAt) < 3600000 ? Math.max(0, Date.now() - queuedAt) : null;
   var events = Array.isArray(body.events) ? body.events : [];
   var results = events.map(function (ev) {
-    try { return lineHandleEvent_(ev, dest || s.botUserId || ''); }
+    try { return lineHandleEvent_(ev, dest || s.botUserId || '', relayMs); }
     catch (err) {
       Logger.log('LINE 事件處理失敗：' + (err && err.stack || err));
       return { id: String(ev && ev.webhookEventId || ''), error: lineClip_(String(err && err.message || err), 160) };
@@ -265,10 +263,12 @@ function lineReleaseEvent_(id, done) {
   } catch (e) { Logger.log('LINE 事件佔用狀態更新失敗：' + e); }
 }
 
-function lineHandleEvent_(ev, channel) {
+function lineHandleEvent_(ev, channel, relayMs) {
   ev = ev || {};
   var id = String(ev.webhookEventId || ''), out = { id: id, type: String(ev.type || '') };
+  var started = Date.now();
   var claim = lineClaimEvent_(id);
+  var claimMs = Date.now() - started;
   if (claim === 'duplicate') { out.skipped = 'duplicate'; return out; }
   if (claim === 'busy') { out.error = 'event-busy'; return out; }
   try {
@@ -279,25 +279,31 @@ function lineHandleEvent_(ev, channel) {
   else if (ev.type === 'follow') { msgs = lineOnFollow_(uid, channel, ev); }
   else if (ev.type === 'unfollow') { lineOnUnfollow_(uid, channel); out.result = 'blocked'; }
   else if (ev.type === 'postback') {
-    lineSendLoading_(uid);
+    // Worker 收到 webhook 後已非同步啟動載入提示；這裡再次同步呼叫 LINE 只會延後正式回覆。
     msgs = lineRoute_(uid, channel, lineParseData_(ev.postback && ev.postback.data));
   }
   else if (ev.type === 'message') {
     var m = ev.message || {};
     if (m.type === 'text') {
-      lineSendLoading_(uid);
       msgs = lineRoute_(uid, channel, lineParseText_(m.text, uid));
     } else {
       msgs = [lineText_('目前僅支援文字與股票代號查詢，請直接輸入代號（例如 2330）或點選下方選單！', lineQuickMain_())];
     }
   } else { out.skipped = 'ignored'; }
+  var routeMs = Date.now() - started - claimMs;
+  var replyStarted = Date.now();
   if (msgs.length && ev.replyToken) {
     out.reply = lineReply_(ev.replyToken, msgs);
     // 暫時性回覆錯誤不能記成已處理；重送會沿用同一事件 ID，LINE 的 replyToken 也只可成功使用一次。
     if (/^HTTP (?:0|5\d\d)\b/.test(out.reply)) { throw new Error('LINE reply 暫時失敗：' + out.reply); }
   }
+  var replyMs = Date.now() - replyStarted;
   out.result = out.result || (out.skipped ? out.skipped : msgs.length ? 'replied' : 'ok');
-  lineLogEvent_(id, out.type, uid, redelivery, out.reply && out.reply !== 'ok' ? '回覆失敗：' + out.reply : out.result);
+  var detail = out.reply && out.reply !== 'ok' ? '回覆失敗：' + out.reply : out.result;
+  // 沿用事件帳本的處理結果欄，不增加遠端寫入；可區分查表、LINE API 與排隊前的耗時。
+  detail += '｜回覆前 ' + (Date.now() - started) + 'ms（去重 ' + claimMs + '／查詢 ' + routeMs + '／LINE ' + replyMs + '）';
+  if (relayMs !== null && relayMs !== undefined) { detail += '｜轉送 ' + Math.round(relayMs) + 'ms'; }
+  lineLogEvent_(id, out.type, uid, redelivery, detail);
   lineReleaseEvent_(id, true);
   return out;
   } catch (err) {
@@ -914,7 +920,9 @@ function lineStockReply_(q, uid) {
   if (!list.length) { return [lineText_(label + '目前沒有可核對的已發布紀錄。', lineQuickMain_())]; }
   var messages = [lineStockFlex_(r, list)];
   try {
-    var holding = getHoldingsTracker();
+    // 視覺圖卡是附加資訊；快取未命中時不可為它同步重算全部持股與行情，拖慢主要個股答覆。
+    var holding = readTrackerCache_();
+    if (!holding) { return messages; }
     var item = (holding.items || holding.held || []).filter(function (h) { return String(h.code) === String(r.code); })[0];
     if (item && Number(item.entry) > 0 && Number(item.current) > 0) { messages.push(lineHoldingVisualFlex_(item)); }
   } catch (e) { Logger.log('LINE：個股持股圖卡略過 ' + e); }
@@ -1760,7 +1768,7 @@ function lineStatusData_() {
     mode: linePushMode_(), siteEntry: s.siteEntry === true, relayUrl: s.relayUrl || '', addFriendUrl: lineAddFriendUrl_(), qrUrl: s.qrUrl || '',
     gasTarget: (typeof publicWebAppUrl_ === 'function' ? publicWebAppUrl_() : ''),
     callbackUrl: s.relayUrl ? String(s.relayUrl).replace(/\/+$/, '') + '/callback' : '',
-    counts: lineCounts_(), stats: st, quota: null, menu: lineRichMenuHealth_(), outbox: { queued: 0, sending: 0, done: 0, expired: 0, failed: 0, oldestOpen: '' }, recent: []
+    counts: lineCounts_(), stats: st, quota: null, menu: lineRichMenuHealth_(), replyTiming: lineRecentReplyTiming_(), outbox: { queued: 0, sending: 0, done: 0, expired: 0, failed: 0, oldestOpen: '' }, recent: []
   };
   if (out.configured.token) { try { out.quota = lineQuota_(false); } catch (e) { out.quota = { ok: false, error: String(e.message || e) }; } }
   try {
@@ -1774,6 +1782,23 @@ function lineStatusData_() {
     out.recent = rows.slice(-15).reverse().map(lineOutboxView_);
   } catch (e) { out.outboxError = String(e.message || e); }
   return out;
+}
+/** 僅讀事件帳本尾端，供後台顯示 GAS 內的查詢與 LINE API 耗時；不把使用者訊息寫入狀態。 */
+function lineRecentReplyTiming_() {
+  try {
+    var sh = getSheet_(LINE_EVENTS_SHEET_), last = sh.getLastRow();
+    if (last < 2) { return null; }
+    var count = Math.min(12, last - 1), rows = sh.getRange(last - count + 1, 1, count, LINE_EVENTS_COLS_.length).getValues();
+    for (var i = rows.length - 1; i >= 0; i--) {
+      var result = String(rows[i][5] || '');
+      var m = result.match(/回覆前 (\d+)ms（去重 (\d+)／查詢 (\d+)／LINE (\d+)）/);
+      if (m) {
+        var relay = result.match(/轉送 (\d+)ms/);
+        return { at: String(rows[i][3] || ''), total: Number(m[1]), claim: Number(m[2]), route: Number(m[3]), reply: Number(m[4]), relay: relay ? Number(relay[1]) : null };
+      }
+    }
+  } catch (e) { Logger.log('LINE 回覆耗時讀取失敗：' + e); }
+  return null;
 }
 function lineOutboxView_(r) {
   return { id: r.id, kind: r.kind, date: r.date, state: r.state, total: r.total, accepted: r.accepted, failed: r.failed, open: r.open,
@@ -1959,9 +1984,9 @@ function lineRichMenuDefs_() {
     { alias: LINE_RICH_ALIAS_.query, image: 'richmenu-query.png', def: { size: { width: W, height: 1686 }, selected: true, name: 'zz-query-v1', chatBarText: '查資料',
       areas: tabs('query').concat([cell(0, linePb_('今日整理', 'a=today', '今日整理')), cell(1, linePb_('查個股', 'a=askstock', '查個股', { inputOption: 'openKeyboard' })),
         cell(2, linePb_('持股追蹤', 'a=tracker', '持股追蹤')), cell(3, linePb_('市場總覽', 'a=market', '市場總覽'))]) } },
-    { alias: LINE_RICH_ALIAS_.notify, image: 'richmenu-notify.png', sha256: 'fe8cf11f982bfc1911a9c4a6bc5550d5f8e19863732d80c45abd23599ca8d8dd', def: { size: { width: W, height: 1686 }, selected: true, name: 'zz-notify-v2', chatBarText: '通知',
-      areas: tabs('notify').concat([cell(0, linePb_('管理訂閱', 'a=manage', '管理訂閱')), cell(1, linePb_('今日整理', 'a=today', '今日整理')),
-        cell(2, linePb_('使用說明', 'a=help', '使用說明')), cell(3, site ? lineUri_('開啟網站', site) : linePb_('今日整理', 'a=today', '今日整理'))]) } }
+    { alias: LINE_RICH_ALIAS_.notify, image: 'richmenu-notify.png', sha256: '8fec54c4e64d7968f87f9e8d03402fba54e787dda5e2e658049edc1ed7bbc802', def: { size: { width: W, height: 1686 }, selected: true, name: 'zz-notify-v3', chatBarText: '通知',
+      areas: tabs('notify').concat([cell(0, linePb_('管理訂閱', 'a=manage', '管理訂閱')), cell(1, linePb_('使用說明', 'a=help', '使用說明')),
+        { bounds: { x: 0, y: TAB + CH, width: W, height: CH }, action: lineUri_('開啟網站', site) }]) } }
   ];
 }
 /** 只核對 LINE 上的通知選單別名與版本；個別好友覆蓋選單仍須用手機驗收。 */

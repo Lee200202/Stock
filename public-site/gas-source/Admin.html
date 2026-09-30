@@ -5317,7 +5317,7 @@ setTimeout(initCrawlDayPills, 50);
       (withBtn ? '<button type="button" class="ghost sm" data-line-look="' + esc(m.id) + '">查看</button>' : '<span></span>') + '</div>';
   }
   function render(d) {
-    var q = d.quota, c = d.counts || {}, st = d.stats || {}, ob = d.outbox || {}, menu = d.menu || {};
+    var q = d.quota, c = d.counts || {}, st = d.stats || {}, ob = d.outbox || {}, menu = d.menu || {}, timing = d.replyTiming;
     var ready = d.configured.token && d.configured.secret;
     var qBig = !q ? '未設定' : !q.ok ? '讀不到' : q.type === 'limited' ? q.used + '／' + q.limit : '無上限';
     var qTone = !q || !q.ok ? 'warn' : q.type === 'limited' && q.limit && q.used / q.limit > 0.9 ? 'err' : q.type === 'limited' && q.limit && q.used / q.limit > 0.7 ? 'warn' : 'ok';
@@ -5329,7 +5329,8 @@ setTimeout(initCrawlDayPills, 50);
       card('本月訊息額度', qBig, q && q.ok ? (q.type === 'limited' ? '剩 ' + q.remaining + ' 則（每位收件者算一則；回覆不計）。' : '這個方案沒有月上限。') + '讀取時間 ' + (q.at || '') + '。' : (q && q.error ? '原因：' + q.error : '設定存取權杖後才讀得到。'), qTone) +
       card('待送與異常', ((ob.queued || 0) + (ob.sending || 0)) + ' 則待送', (ob.oldestOpen ? '最舊 ' + ob.oldestOpen + '。' : '') + '逾時未補送 ' + (ob.expired || 0) + '、完成 ' + (ob.done || 0) + '。', ob.sending || ob.queued ? 'warn' : ob.expired ? 'err' : 'ok') +
       card('Webhook', st.lastWebhookAt ? '最後 ' + String(st.lastWebhookAt).slice(5, 16) : '尚未收到', '今日驗簽失敗：網站 ' + (st.gasSigFail || 0) + '、轉送服務 ' + (st.cloudSigFail || 0) + (st.relayBuild ? '（轉送服務 ' + st.relayBuild + '）' : '') + '。', (st.gasSigFail || st.cloudSigFail) ? 'warn' : st.lastWebhookAt ? 'ok' : 'idle') +
-      card('通知圖文選單', menu.ok ? '版本已更新' : '需要檢查', (menu.actual ? 'LINE 別名指向 ' + menu.actual + '。' : '') + (menu.reason || '請重新讀取狀態。') + (menu.ok ? ' 請用手機檢查四格圖片；若仍看到盤中入口，重新部署轉送服務後再按「建立圖文選單」。' : ''), menu.ok ? 'ok' : 'warn') +
+      card('互動回覆耗時', timing ? (((timing.relay || 0) + timing.total) / 1000).toFixed(1) + ' 秒' : '尚無紀錄', timing ? '最近 ' + timing.at + '；Worker 轉送 ' + (timing.relay == null ? '未提供' : timing.relay + ' 毫秒') + '、GAS 去重 ' + timing.claim + '、查詢 ' + timing.route + '、LINE API ' + timing.reply + ' 毫秒。未包含手機網路時間。' : '更新 Worker 與 GAS，請測試帳號傳一則查詢後才會顯示。', !timing ? 'idle' : (timing.relay || 0) + timing.total >= 15000 ? 'err' : (timing.relay || 0) + timing.total >= 8000 ? 'warn' : 'ok') +
+      card('通知圖文選單', menu.ok ? '版本已更新' : '需要檢查', (menu.actual ? 'LINE 別名指向 ' + menu.actual + '。' : '') + (menu.reason || '請重新讀取狀態。') + (menu.ok ? ' 請用手機檢查三個入口；若仍看到兩個「今日整理」，重新部署轉送服務後再按「建立圖文選單」。' : ''), menu.ok ? 'ok' : 'warn') +
       card('推送模式', MODE[d.mode], d.mode === 'on' ? '每日總覽送給已訂閱的好友。' : d.mode === 'test' ? '只送綁定的測試帳號，其他好友不會收到。' : '不排也不送；查詢與訂閱開關照常。', d.mode === 'on' ? 'ok' : 'warn');
     if (document.activeElement !== $('lineRelay')) { $('lineRelay').value = d.relayUrl || ''; }
     if (document.activeElement !== $('lineFriend')) { $('lineFriend').value = /line\.me\/R\/ti\/p\//.test(d.addFriendUrl || '') ? '' : (d.addFriendUrl || ''); }

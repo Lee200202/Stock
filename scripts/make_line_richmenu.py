@@ -1,7 +1,8 @@
 """產生 LINE 圖文選單的兩張圖（v73）：查資料、通知。
 
 輸出到 line-webhook/static/，由轉送服務 /static/ 提供；後台「建立圖文選單」時網站會來取。
-版面與 Line.gs 的 lineRichMenuDefs_ 對齊：2500×1686，上方 220px 是兩個分頁，下方 2×2 四格。
+版面與 Line.gs 的 lineRichMenuDefs_ 對齊：2500×1686，上方 220px 是兩個分頁。
+通知頁下排的網站入口橫跨兩格；繪圖範圍與點擊熱區必須一致。
 圖示用簡單幾何線條畫，不用外部圖檔或生成式圖片。
 
 用法：python scripts/make_line_richmenu.py [--font 字型檔]
@@ -22,8 +23,8 @@ FONTS = ['C:/Windows/Fonts/msjhbd.ttc', 'C:/Windows/Fonts/NotoSansTC-VF.ttf', '/
 PAGES = {
     'query': [('今日整理', '盤勢摘要與個股數', 'doc'), ('查個股', '輸入代號或名稱', 'search'),
               ('持股追蹤', '目前持有的回合', 'trend'), ('市場總覽', '加權指數與台指期', 'bars')],
-    'notify': [('管理訂閱', '每日總覽訂閱設定', 'bell'), ('今日整理', '盤勢與個股重點', 'doc'),
-               ('使用說明', '可以這樣問', 'help'), ('開啟網站', '完整整理與圖表', 'link')],
+    'notify': [('管理訂閱', '每日總覽訂閱設定', 'bell'), ('使用說明', '可以這樣問', 'help'),
+               ('開啟網站', '完整整理與圖表', 'link')],
 }
 
 
@@ -88,14 +89,17 @@ def draw_page(page, fpath):
             d.rectangle([x0 + CW / 2 - 90, TAB - 16, x0 + CW / 2 + 90, TAB - 6], fill=C['heroK'])
     pad = 34
     for n, (label, sub, kind) in enumerate(PAGES[page]):
-        x, y = (n % 2) * CW, TAB + (n // 2) * CH
-        box = [x + pad, y + pad, x + CW - pad, y + CH - pad]
+        wide = page == 'notify' and n == 2
+        x, y = (n % 2) * CW if not wide else 0, TAB + (n // 2) * CH
+        width = W if wide else CW
+        center = x + width / 2
+        box = [x + pad, y + pad, x + width - pad, y + CH - pad]
         d.rounded_rectangle(box, radius=48, fill=C['card'], outline=C['line'], width=4)
         cy = y + CH * .36
-        d.ellipse([x + CW / 2 - 150, cy - 150, x + CW / 2 + 150, cy + 150], fill=C['soft'])
-        icon(d, kind, int(x + CW / 2), int(cy), 170, C['accent'])
-        d.text((x + CW / 2, y + CH * .68), label, font=f_label, fill=C['ink'], anchor='mm')
-        d.text((x + CW / 2, y + CH * .82), sub, font=f_sub, fill=C['muted'], anchor='mm')
+        d.ellipse([center - 150, cy - 150, center + 150, cy + 150], fill=C['soft'])
+        icon(d, kind, int(center), int(cy), 170, C['accent'])
+        d.text((center, y + CH * .68), label, font=f_label, fill=C['ink'], anchor='mm')
+        d.text((center, y + CH * .82), sub, font=f_sub, fill=C['muted'], anchor='mm')
     return img
 
 

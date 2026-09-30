@@ -63,8 +63,8 @@ vm.runInContext(code.slice(from, to), ctx);
 
 const setup = fs.readFileSync(path.join(root, 'Setup.gs'), 'utf8');
 const config = fs.readFileSync(path.join(root, 'Config.gs'), 'utf8');
-assert(setup.includes("var PROJECT_BUILD_ = '2026-09-29-line-visual-v85'"));
-assert(config.includes("var GAS_BUILD = '2026-09-29-line-visual-v85'"));
+assert(setup.includes("var PROJECT_BUILD_ = '2026-09-30-line-response-v86'"));
+assert(config.includes("var GAS_BUILD = '2026-09-30-line-response-v86'"));
 assert(setup.includes("marker: ['snapshotPerformanceJobRun_', 't.summary.priced']"));
 assert(setup.includes("{ file: 'Index', marker: '持有檔數包含暫時缺價' }"));
 assert(setup.includes("{ file: 'JavaScript', marker: 'tbl-merged' }"));

@@ -1,7 +1,7 @@
 // Workers Free + Queues Free：驗過 LINE 原始簽章並成功入列，才向 LINE 回 200。
 // GAS 收到原始 body 與簽章後還會再驗一次；所有訂閱與去重仍在 Line.gs。
 import { chartResponse } from './chart.mjs';
-const BUILD = '2026-09-29-line-chart-v3';
+const BUILD = '2026-09-30-line-response-v4';
 const MAX_BYTES = 120_000; // Queues 每筆上限 128 KB，保留信封開銷。
 const FINAL_ERRORS = new Set(['signature', 'destination-mismatch', 'bad-envelope', 'bad-body']);
 const encoder = new TextEncoder();
@@ -49,7 +49,7 @@ async function callback(request, env, ctx) {
   try { payload = JSON.parse(body); } catch { return response({ ok: false, error: 'json' }, 400); }
   if (!payload || !Array.isArray(payload.events)) return response({ ok: false, error: 'events' }, 400);
   if (payload.events.length) {
-    const envelope = { v: 1, kind: 'webhook', sig, body };
+    const envelope = { v: 1, kind: 'webhook', sig, body, queuedAt: Date.now() };
     if (encoder.encode(JSON.stringify(envelope)).length > 127_000) return response({ ok: false, error: 'queue-size' }, 413);
     try { await env.LINE_EVENTS.send(envelope); }
     catch (error) {
@@ -57,7 +57,7 @@ async function callback(request, env, ctx) {
       return response({ ok: false, error: 'enqueue' }, 503);
     }
     // 入列成功才啟動等待動畫；用 waitUntil，不讓 LINE Webhook 因圖示 API 變慢。
-    // 權杖為選填 secret；未設定時 GAS 接手後仍會啟動同一動畫。
+    // 未設定 LINE_CHANNEL_ACCESS_TOKEN 時只略過動畫，不影響事件入列與 GAS 回覆。
     if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(startLoading(payload.events, env));
   }
   return response({ ok: true });

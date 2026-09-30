@@ -17,7 +17,9 @@ assert.equal(await validSignature(new TextEncoder().encode(body), sig, secret), 
 assert.equal(await validSignature(new TextEncoder().encode(body), sig.slice(1), secret), false);
 assert.equal((await callback(new Request('https://relay.example/callback', { method: 'POST', body,
   headers: { 'x-line-signature': sig } }), env)).status, 200);
-assert.deepEqual(sent[0], { v: 1, kind: 'webhook', body, sig });
+const { queuedAt, ...queued } = sent[0];
+assert.deepEqual(queued, { v: 1, kind: 'webhook', body, sig });
+assert(Number.isFinite(queuedAt) && queuedAt > 0, 'Worker 應記下入列時間供回覆延遲稽核');
 assert.equal((await callback(new Request('https://relay.example/callback', { method: 'POST', body,
   headers: { 'x-line-signature': 'invalid' } }), env)).status, 401);
 assert.equal(sent.length, 1);

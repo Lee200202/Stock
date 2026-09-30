@@ -142,6 +142,7 @@ function world(opts) {
     searchByDate: d => ({ found: true, buy: [1], sell: [], holdings: [1, 2], watchAvoid: [1], watchWatch: [1, 2] }),
     memberSmsData_: () => ({ items: W.env.smsItems }),
     getHoldingsTracker: () => ({ held: W.env.held }),
+    readTrackerCache_: () => (W.env.trackerCached === false ? null : { items: W.env.held }),
     searchStock: code => ({ trades: W.env.trades[code] || [] }),
     loadCodeMap_: () => ({ byCode: { '2330': { name: '台積電' }, '3661': { name: '世芯-KY' }, '6770': { name: '力積電' }, '2317': { name: '鴻海' }, '3481': { name: '群創' }, '2303': { name: '聯電' }, '3014': { name: '聯陽' }, '2454': { name: '聯發科' }, '9999': { name: '聯發國際' }, '1519': { name: '華城' } },
                            byName: { '台積電': '2330', '世芯-KY': '3661', '力積電': '6770', '鴻海': '2317', '群創': '3481', '聯電': '2303', '聯陽': '3014', '聯發科': '2454', '聯發國際': '9999', '華城': '1519' } }),
@@ -163,7 +164,7 @@ function world(opts) {
     o = o || {};
     const body = JSON.stringify({ destination: o.dest || BOT, events });
     const sig = crypto.createHmac('sha256', o.secret || SECRET).update(body, 'utf8').digest('base64');
-    return ctx.lineWebhook_({ parameter: { action: 'line' }, postData: { contents: JSON.stringify({ v: 1, kind: 'webhook', sig: o.badSig ? sig.replace(/^./, c => (c === 'A' ? 'B' : 'A')) : sig, body }) } });
+    return ctx.lineWebhook_({ parameter: { action: 'line' }, postData: { contents: JSON.stringify({ v: 1, kind: 'webhook', sig: o.badSig ? sig.replace(/^./, c => (c === 'A' ? 'B' : 'A')) : sig, body, queuedAt: o.queuedAt }) } });
   };
   let n = 0;
   W.ev = (type, u, extra) => Object.assign({ type, webhookEventId: '01EV' + (++n) + crypto.randomUUID().slice(0, 6), replyToken: 'rt' + n, source: { type: 'user', userId: u }, timestamp: clock.now,
@@ -359,6 +360,17 @@ let card = w.lastReply().messages[0];
 assert(/力積電（6770）最近一次提及 09\/23：當日買入/.test(card.altText));
 assert(/73.5以下/.test(flexTexts(card)) && /不代表現在的買賣建議/.test(flexTexts(card)));
 assert(/\?stock=6770/.test(flexTexts(card)), '個股卡片連回網站的個股面板');
+assert(!w.calls.other.some(c => /\/v2\/bot\/chat\/loading\/start$/.test(c.url)), 'Worker 已啟動載入提示，GAS 不得重複同步呼叫');
+assert(w.ctx.lineRecentReplyTiming_() !== null, '事件帳本需記錄去重、查詢與 LINE API 耗時');
+w.webhook([w.ev('message', C, { message: { type: 'text', text: '6770' } })], { queuedAt: clock.now - 1200 });
+assert.strictEqual(w.ctx.lineRecentReplyTiming_().relay, 1200, '後台需能看到 Worker 到 GAS 的轉送耗時');
+const originalTracker = w.ctx.getHoldingsTracker;
+w.env.trackerCached = false;
+w.ctx.getHoldingsTracker = () => { throw Error('個股附圖不得觸發整份持股重算'); };
+w.say(C, '6770');
+assert.strictEqual(w.lastReply().messages.length, 1, '無持股快取時先回主要個股紀錄');
+w.ctx.getHoldingsTracker = originalTracker;
+w.env.trackerCached = true;
 w.say(C, '我要查詢世芯ky買賣狀況');
 assert(/世芯-KY（3661）/.test(w.lastReply().messages[0].altText), '句子中的公司名稱與 KY 後綴能辨認');
 w.say(C, '鴻海');
@@ -571,7 +583,10 @@ menus.forEach(m => {
   assert.strictEqual(JSON.stringify(sw), JSON.stringify(['zz-query', 'zz-notify']));
 });
 const labels = JSON.parse(JSON.stringify(menus.flatMap(m => Array.from(m.def.areas, a => a.action.label).filter(Boolean))));
-assert.deepStrictEqual(labels, ['今日整理', '查個股', '持股追蹤', '市場總覽', '管理訂閱', '今日整理', '使用說明', '開啟網站']);
+assert.deepStrictEqual(labels, ['今日整理', '查個股', '持股追蹤', '市場總覽', '管理訂閱', '使用說明', '開啟網站']);
+assert.strictEqual(labels.filter(x => x === '今日整理').length, 1, '圖文選單只留一個今日整理');
+assert.deepStrictEqual(JSON.parse(JSON.stringify(menus[1].def.areas[4].bounds)),
+  { x: 0, y: 953, width: 2500, height: 733 }, '通知頁的網站入口必須與整排圖片相符');
 assert.strictEqual(w.ctx.lineRichMenuHealth_().ok, false, '舊版通知選單必須提醒管理者');
 const createdBeforeStale = w.calls.other.filter(c => /\/v2\/bot\/richmenu$/.test(c.url)).length;
 w.relayImageBytes = [137, 80, 78, 71];
@@ -582,7 +597,7 @@ w.relayImageBytes = null;
 // 建立流程：先刪自己的舊選單（不動別人的）、建兩個、上傳圖片、建別名、設預設
 r = w.ctx.lineSetupRichMenus_();
 assert.strictEqual(r.ok, true, JSON.stringify(r));
-w.menuName = 'zz-notify-v2';
+w.menuName = 'zz-notify-v3';
 assert.strictEqual(w.ctx.lineRichMenuHealth_().ok, true, '重建後的通知別名應可核對新版名稱');
 const deleted = w.calls.other.filter(c => c.method === 'delete').map(c => c.url);
 assert(deleted.some(u => /richmenu\/old1$/.test(u)) && !deleted.some(u => /richmenu\/keep$/.test(u)));

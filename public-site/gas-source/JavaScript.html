@@ -1488,7 +1488,7 @@ function publicNarrative_(text, row) {
     var line = pts.map(function (p, i) { return (i ? 'L' : 'M') + f1(X(i)) + ' ' + f1(Y(p.close)); }).join(' ');
     var area = line + ' L' + f1(X(pts.length - 1)) + ' ' + f1(yE) + ' L' + f1(X(0)) + ' ' + f1(yE) + ' Z';
     var svg = '<svg class="trend-svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' +
-      esc('進場以來每日收盤走勢，進場價 ' + pxShort(m.entry) + (m.stated ? '，明講 ' + pxShort(m.stated) : '') + (m.ret !== null && m.ret !== undefined ? '，報酬 ' + fmtRet(m.ret) : '')) + '">' +
+      esc('進場以來每日收盤走勢' + (pts.some(function(p){return p.preview;}) ? '及當日盤中報價' : '') + '，進場價 ' + pxShort(m.entry) + (m.stated ? '，明講 ' + pxShort(m.stated) : '') + (m.ret !== null && m.ret !== undefined ? '，報酬 ' + fmtRet(m.ret) : '')) + '">' +
       '<defs><clipPath id="' + id + 'u"><rect x="' + padL + '" y="0" width="' + pw + '" height="' + f1(Math.max(0, yE)) + '"/></clipPath>' +
       '<clipPath id="' + id + 'd"><rect x="' + padL + '" y="' + f1(yE) + '" width="' + pw + '" height="' + f1(Math.max(0, H - yE)) + '"/></clipPath></defs>';
     niceTicks(lo, hi, W < 520 ? 3 : 4).forEach(function (v) {
@@ -1534,7 +1534,7 @@ function publicNarrative_(text, row) {
         if (Math.abs(yLast - endY) > 2) { svg += '<line class="tr-now-link" x1="' + f1(xe) + '" x2="' + f1(xe) + '" y1="' + f1(yLast) + '" y2="' + f1(endY) + '"/>'; }
         svg += '<circle class="tr-now" cx="' + f1(xe) + '" cy="' + f1(endY) + '" r="4"/>';
       }
-      xs.push({ x: xe, t: md_(dates[iEnd]), c: 'end' });
+      xs.push({ x: xe, t: md_(dates[iEnd]) + (rows[iEnd].preview ? ' 盤中' : ''), c: 'end' });
     }
     // 持有期間：從進場那一根到目前（或出場）那一根畫一條括弧，中間寫持有幾個交易日；紅漲綠跌
     var heldDays = iEnd - iTrade + 1, yb = padT + ph + 12, spanCls = signCls(m.ret);
@@ -1608,6 +1608,12 @@ function publicNarrative_(text, row) {
     return svg + '</svg>';
   }
 
+  function detailTrendQuoteRows_(rows, q, held) {
+    if (!held || !rows || !rows.length || !q || !(q.last > 0) || !/^\d{4}\/\d{2}\/\d{2}$/.test(q.date || '')) { return rows; }
+    var lastDate = String(rows[rows.length - 1].date).slice(0, 10);
+    if (q.date <= lastDate) { return rows; }
+    return rows.concat([{ date: q.date, close: q.last, preview: true }]);
+  }
   function paintTrend() {
     var box = $('dPxRange');
     if (!box) { return; }
@@ -1615,6 +1621,8 @@ function publicNarrative_(text, row) {
     if (!m || DETAIL.code !== currentCode) { box.hidden = true; box.innerHTML = ''; return; }
     box.hidden = false;
     var memo = candleMemo[DETAIL.code], rows = memo && memo.day;
+    // 只在這張小圖複製一個盤中點，不把今日現價掛在昨日收盤日期，也不改日K快取。
+    rows = detailTrendQuoteRows_(rows, DETAIL.header && DETAIL.header.quote, m.held);
     var cs = getComputedStyle(box);
     var W = Math.max(260, Math.floor(box.clientWidth - parseFloat(cs.paddingLeft || 0) - parseFloat(cs.paddingRight || 0)));
     var tr = rows && rows.length ? trendSvg(m, rows, W) : null;

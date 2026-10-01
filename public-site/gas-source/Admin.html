@@ -2442,7 +2442,8 @@ function setProgressA11y_(fill, percent, status) {
 
 function renderChain(st){
   if(!st || !CHAIN_NAMES.length){ return; }
-  $('refStat').textContent = '此維護工單：' + st.status + (st.updatedAt ? ' · ' + st.updatedAt : '');
+  var chainStatus = st.status === '完成' && Number(st.index) < CHAIN_NAMES.length - 1 ? '第 ' + (Number(st.index) + 1) + ' 步完成，後續尚待核對' : st.status;
+  $('refStat').textContent = '此維護工單：' + chainStatus + (st.updatedAt ? ' · ' + st.updatedAt : '');
   $('refStat').classList.toggle('fail', st.status === '失敗');
   $('refLog').textContent = /\/actions\/runs\/\d+/.test($('refLog').href) ? '查看本次執行紀錄 →' : '查看工作流程清單（未取得本次網址）→';
   $('refProg').style.display = 'block';

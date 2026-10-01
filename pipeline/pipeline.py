@@ -6005,7 +6005,10 @@ CONFIRMED_INDUSTRY = {'細金元': '矽晶圓', '矽晶圓': '矽晶圓',
 # 整天覆蓋（delete_rows_for_date）時這些列一律保留。先前這個常數只有 Apps Script 定義，
 # pipeline 端一走到那一行就是 NameError。
 MANUAL_ENTRY_PREFIX = 'MANUALENTRY-'
-ASSESSMENT_VERSION = 'context-json-v18'   # v54：觀望立場逐欄 watch_stance、主詞核對、一致性核對
+# 規則版本。刷新檢查點與判讀稽核都以「影片、日期、原文指紋、規則版本」為鍵：判讀規則有變就要換號，
+# 否則同一份原文重新投稿會被當成「來源與規則版本相同」，直接從舊檢查點續跑、不重跑判讀
+# （2026/10/01 v97 推上去後第一次重跑就是這樣，資料一筆都沒變）。
+ASSESSMENT_VERSION = 'context-json-v19'   # v97：無名段落行情比對、說明歸屬與持有說法；v18 是 v54 的觀望立場逐欄
 
 
 _SOUND_MEMO = {}

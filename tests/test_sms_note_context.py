@@ -388,6 +388,15 @@ class StockContextNarrative(unittest.TestCase):
         self.assertIn('相鄰公司的題材',pl.POLICY)
 
 class SourceIdsContext(StockContextNarrative):
+    def test_shorter_verified_supplement_keeps_existing_information(self):
+        row={'name':'愛普','code':'6531','reason':'目前不要買。先前布局後已有明顯漲幅，應避免在上漲後急著進場。'}
+        raw='愛普先前漲了4倍，現在不要買。'
+        reply={'notes':[{'id':'watch_avoid:0','sentences':[{
+            'text':'已上漲4倍，目前不要買。','source_ids':['s0']}]}]}
+        out,_=self.run_enrichment(raw,reply,row)
+        self.assertIn('4倍',row['reason']); self.assertIn('急著進場',row['reason'])
+        self.assertEqual(len(out['watch_avoid']),1)
+
     def test_source_id_resolves_raw_alias_without_model_retyping(self):
         row = {'name':'聖暉','code':'5536','aliases':['聖輝'],'reason':'突破季線。'}
         raw = '聖輝今天突破季線，成交量增加，須注意突破後能否維持。'

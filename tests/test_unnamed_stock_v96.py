@@ -372,6 +372,25 @@ class LongNoteGuards(unittest.TestCase):
 
 
 class PriceClueBoundaries(UnnamedStockTests):
+    def test_numbered_original_sentences_pass_both_audits(self):
+        raw = '我說這一支股票只要1745突破，就要大漲。昨天收盤收多少？1770。啊現在1800。'
+        passage = {'source_ids':['t0','t1','t2','t3'], 'clues':[
+            {'kind':'prev_close','value':1770,'source_ids':['t1','t2']},
+            {'kind':'level','value':1745,'source_ids':['t0']},
+            {'kind':'today_price','value':1800,'source_ids':['t3']}], 'stance':'bullish'}
+        audit = {'audits':[{'id':'u0','accept':True,'category':'watch_watch','sentences':[
+            {'text':'嘉澤昨日收盤1770元，突破1745關卡後觀察續漲條件。','source_ids':['s0','s1','s2']}]}]}
+        sig,calls,_,_ = self.run_identify([{'passages':[passage]},audit],tx=raw)
+        self.assertEqual(len(calls),2)
+        self.assertIn('sources',calls[0][1]); self.assertIn('sources',calls[1][1]['entries'][0])
+        self.assertEqual(sig['watch_watch'][-1]['code'],'3533')
+        self.assertNotIn('1745',sig['watch_watch'][0]['reason'])
+
+    def test_unknown_original_sentence_id_is_rejected(self):
+        sig,calls,_,book = self.run_identify([{'passages':[{'source_ids':['t99999'],
+            'clues':[{'kind':'prev_close','value':1770,'source_ids':['t99999']}]}]}])
+        self.assertEqual(len(calls),1); self.assertNotIn('日K快取',book.reads)
+
     def test_stale_whole_cache_cannot_supply_yesterday_close(self):
         stale = [r for r in DAILY_K if r[1] != '2026/09/30']
         self.assertEqual(pl.market_snapshot(Book(daily=stale),D),{})

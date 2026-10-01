@@ -1293,7 +1293,9 @@ function lineStockFlex_(r, list) {
       fxText_(lab.label, { size: 'sm', weight: 'bold', color: lab.color, margin: 'md', flex: 1 })], { spacing: 'none' }),
     px && px !== '未說明' ? fxBox_('horizontal', [fxText_('價位', { size: 'xs', color: LINE_C_.muted, flex: 0 }),
       fxText_(px, { size: 'sm', weight: 'bold', color: LINE_C_.ink, margin: 'md', flex: 1 })]) : null,
-    reason ? fxText_(lineClip_(reason, 300), { size: 'sm', color: LINE_C_.ink, maxLines: 5 }) : null
+    // v96：說明改成 2～4 句、約 70～160 字（資訊多時更長）。5 行只放得下約 100 字，後半句會被截成「…」；
+    // 放寬到 10 行（約 200 字），再長的仍以 300 字為上限。
+    reason ? fxText_(lineClip_(reason, 300), { size: 'sm', color: LINE_C_.ink, maxLines: 10 }) : null
   ];
   var seen = {}; seen[t.date + t.direction] = 1;
   var earlier = list.slice(1).filter(function (x) { var k = x.date + x.direction; if (seen[k]) { return false; } seen[k] = 1; return true; }).slice(0, 3);

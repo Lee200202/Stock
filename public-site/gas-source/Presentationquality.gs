@@ -92,7 +92,8 @@ function stripMetaClauses_(text) {
 /** 說明名稱與代號對齊，原始逐字稿與引用不經過這個函式。 */
 function publicNarrative_(text, row) {
   row = row || {};
-  text = toTraditional_(text).replace(/(^|[，,。；;：:、「『（(\s]|雖然|但是|但|而且|而|並且|並|且|因為|所以)(?:張震|張正|張總|張中|講者)(?:老師)?(?:本人)?(?:的(?=會員))?/g,'$1');
+  // 語音稿把「不准」聽寫成「不準」（「會員不準賣」）；後面接動作才換，「預測不準」不動。
+  text = toTraditional_(text).replace(/不準(?=給我|亂|再|去|賣|買|碰|追|用|借|操作|進場|放空|做空)/g, '不准').replace(/(^|[，,。；;：:、「『（(\s]|雖然|但是|但|而且|而|並且|並|且|因為|所以)(?:張震|張正|張總|張中|講者)(?:老師)?(?:本人)?(?:的(?=會員))?/g,'$1');
   text = stripMetaClauses_(text);
   text=text.replace(/[（(][^（）()]*?(?:原文(?:作|為|寫|說)|語音(?:作|為)|誤植|誤字)[^（）()]*[）)]/g,'');
   if(String(row.code||'')==='5274')text=text.replace(/信化/g,'信驊');

@@ -234,5 +234,158 @@ class CurrentBanAndCurrencyScope(unittest.TestCase):
         initial = dict(signals, ignored=[{'name':'美元','aliases':['美金']}])
         self.assertFalse(any('候選消失' in g for g in pl.evidence_gaps(signals, '美元跌了。', initial)))
 
+
+class StockContextNarrative(unittest.TestCase):
+    def run_enrichment(self, source, reply, row=None, cat='watch_avoid'):
+        from unittest.mock import patch
+        import json
+        row = row or {'name':'愛普', 'code':'6531', 'reason':'目前不要買。'}
+        signals = {k: [] for k in pl.SIGNAL_CATEGORIES}
+        signals[cat] = [row]
+        with patch.object(pl,'call_gemini',return_value=json.dumps(reply,ensure_ascii=False)) as call, \
+             patch.object(pl,'budget_left',return_value=1000), \
+             patch.object(pl,'_CODE_MAP', {'6531':'愛普', '2330':'台積電'}), \
+             patch.dict(pl._QUOTA_STOP, {'daily':False}):
+            pl.enrich_stock_context(signals, source, '2026/10/01')
+        return signals, call
+
+    def test_longer_context_is_batched_and_classification_price_unchanged(self):
+        source='愛普先前二三百元介紹，已經上漲四倍，現在不要買。'
+        row={'name':'愛普','code':'6531','reason':'目前不要買。','price':'未說明'}
+        reply={'notes':[{'id':'watch_avoid:0','category':'buy','price':'999',
+            'sentences':[{'text':'先前二三百元布局後已上漲四倍，目前不要買入。', 'quotes':[source]}]}]}
+        out,call=self.run_enrichment(source,reply,row)
+        self.assertEqual(call.call_count,1)
+        self.assertEqual(row['price'],'未說明')
+        self.assertEqual(out['watch_avoid'][0]['code'],'6531')
+        self.assertIn('上漲四倍',row['reason'])
+        self.assertEqual(out['buy'],[])
+
+    def test_neighbor_news_is_excluded_from_context(self):
+        source='愛普漲了四倍，目前不要買。台積電接單旺，法人買超。'
+        reply={'notes':[{'id':'watch_avoid:0','sentences':[{'text':'目前不要買，接單旺且法人買超。',
+            'quotes':['台積電接單旺，法人買超。']}]}]}
+        out,call=self.run_enrichment(source,reply)
+        self.assertNotIn('台積電',call.call_args.args[1])
+        self.assertEqual(out['watch_avoid'][0]['reason'],'目前不要買。')
+
+    def test_rejects_invented_number(self):
+        source='愛普漲了四倍，目前不要買。'
+        reply={'notes':[{'id':'watch_avoid:0','sentences':[{'text':'目前不要買，目標價999元。','quotes':[source]}]}]}
+        out,_=self.run_enrichment(source,reply)
+        self.assertEqual(out['watch_avoid'][0]['reason'],'目前不要買。')
+
+    def test_rejects_invented_technical_basis(self):
+        source='愛普漲了四倍，目前不要買。'
+        reply={'notes':[{'id':'watch_avoid:0','sentences':[{'text':'目前不要買，MACD與季線走弱。','quotes':[source]}]}]}
+        out,_=self.run_enrichment(source,reply)
+        self.assertEqual(out['watch_avoid'][0]['reason'],'目前不要買。')
+
+    def test_does_not_lose_prohibition(self):
+        source='愛普漲了四倍，目前不要買。'
+        reply={'notes':[{'id':'watch_avoid:0','sentences':[{'text':'漲了四倍，目前可以布局。','quotes':[source]}]}]}
+        out,_=self.run_enrichment(source,reply)
+        self.assertEqual(out['watch_avoid'][0]['reason'],'目前不要買。')
+
+    def test_failure_does_not_abort_publication(self):
+        out,_=self.run_enrichment('愛普漲了四倍，目前不要買。',{})
+        self.assertEqual(out['watch_avoid'][0]['reason'],'目前不要買。')
+        self.assertTrue(any('未完成' in g for g in out['_repair_gaps']))
+
+    def test_short_source_keeps_internal_limit_only(self):
+        source='愛普目前不要買。'
+        reply={'notes':[{'id':'watch_avoid:0','sentences':[{'text':'目前不要買入愛普。','quotes':[source]}],
+                        'limitation':'僅明講當下禁買，未提供本股均線或消息。'}]}
+        out,_=self.run_enrichment(source,reply)
+        self.assertNotIn('未提供',out['watch_avoid'][0]['reason'])
+        self.assertTrue(any('未提供' in g for g in out['_repair_gaps']))
+
+    def test_complete_note_does_not_request_model(self):
+        out,call=self.run_enrichment('愛普不要買。',{}, {'name':'愛普','code':'6531','reason':'目前不要買。'+'已有原文具體說明。'*15})
+        self.assertEqual(call.call_count,0)
+
+    def test_starred_official_name_still_finds_its_context(self):
+        # 2026/10/01：正式名稱「愛普*」帶星號，原文只念「愛普」；先前整份原文一段都找不到。
+        source = ('外資大賣，然後連買兩天，他就洗完了。所以在這一個地方，大家要注意這一支股票，因為它本身是愛普的母公司。'
+                  '大家記不記得愛普我們2、300的時候佈局的？愛普的母公司，愛普之前漲了4倍，愛普現在當然不要買。')
+        row = {'name': '愛普*', 'code': '6531', 'reason': '現在當然不要買。'}
+        reply = {'notes': [{'id': 'watch_avoid:0', 'sentences': [
+            {'text': '先前在2、300元時布局，之後已上漲4倍，現在不要買。',
+             'quotes': ['大家記不記得愛普我們2、300的時候佈局的', '愛普之前漲了4倍，愛普現在當然不要買']}]}]}
+        out, call = self.run_enrichment(source, reply, row)
+        self.assertIn('2、300', call.call_args.args[1])
+        self.assertIn('上漲4倍', out['watch_avoid'][0]['reason'])
+
+    def test_quote_before_own_name_belongs_to_previous_stock(self):
+        # 名稱之前那一段還在講上一檔：引用它的那一句不用，其餘通過的句子照留。
+        source = ('外資大賣四萬多張之後連買兩天，籌碼已經洗完，後面爆發性會非常強，平台即將突破而且季線向上，這一支要利用下跌的時候買進，'
+                  '因為它本身是愛普的母公司。愛普之前漲了4倍，愛普現在當然不要買。')
+        row = {'name': '愛普*', 'code': '6531', 'reason': '現在不要買。'}
+        reply = {'notes': [{'id': 'watch_avoid:0', 'sentences': [
+            {'text': '之前已經上漲4倍，現在不要買。', 'quotes': ['愛普之前漲了4倍，愛普現在當然不要買']},
+            {'text': '外資大賣之後連買兩天，籌碼已經洗完。', 'quotes': ['外資大賣四萬多張之後連買兩天，籌碼已經洗完']}]}]}
+        out, _ = self.run_enrichment(source, reply, row)
+        note = out['watch_avoid'][0]['reason']
+        self.assertIn('上漲4倍', note)
+        self.assertNotIn('外資', note)
+
+    def test_one_bad_sentence_does_not_discard_the_rest(self):
+        source = '愛普之前漲了4倍，愛普現在當然不要買，愛普我們2、300的時候佈局的。'
+        reply = {'notes': [{'id': 'watch_avoid:0', 'sentences': [
+            {'text': '之前已上漲4倍，現在不要買。', 'quotes': ['愛普之前漲了4倍，愛普現在當然不要買']},
+            {'text': '當初在2、300元時布局。', 'quotes': ['愛普我們2、300的時候佈局的']},
+            {'text': '目標價999元。', 'quotes': ['愛普之前漲了4倍']}]}]}
+        out, _ = self.run_enrichment(source, reply)
+        note = out['watch_avoid'][0]['reason']
+        self.assertIn('2、300', note)
+        self.assertNotIn('999', note)
+
+    def test_mostly_bad_reply_is_rejected(self):
+        source = '愛普之前漲了4倍，愛普現在當然不要買。'
+        reply = {'notes': [{'id': 'watch_avoid:0', 'sentences': [
+            {'text': '之前已上漲4倍，現在不要買。', 'quotes': ['愛普之前漲了4倍，愛普現在當然不要買']},
+            {'text': '目標價999元。', 'quotes': ['愛普之前漲了4倍']},
+            {'text': '季線已經下彎。', 'quotes': ['愛普現在當然不要買']}]}]}
+        out, _ = self.run_enrichment(source, reply)
+        self.assertEqual(out['watch_avoid'][0]['reason'], '目前不要買。')
+
+    def test_written_style_ban_still_counts_as_prohibition(self):
+        source = '愛普之前漲了4倍，愛普現在當然不要買。'
+        for text in ('之前已上漲4倍，現在不宜再買進。', '之前已上漲4倍，目前應避免追高。', '之前已上漲4倍，現階段不建議進場。'):
+            reply = {'notes': [{'id': 'watch_avoid:0', 'sentences': [{'text': text, 'quotes': [source]}]}]}
+            out, _ = self.run_enrichment(source, reply)
+            self.assertEqual(out['watch_avoid'][0]['reason'], text, text)
+        self.assertTrue(pl._note_keeps_prohibition('目前不宜追價。'))
+        self.assertFalse(pl._note_keeps_prohibition('不宜追價，但拉回季線可以買。'))
+        self.assertFalse(pl._note_keeps_prohibition('拉回可以布局。'))
+
+    def test_dropped_first_sentence_keeps_verified_original_as_lead(self):
+        source = '愛普之前漲了4倍，愛普現在當然不要買，愛普我們2、300的時候佈局的。'
+        reply = {'notes': [{'id': 'watch_avoid:0', 'sentences': [
+            {'text': '目標價999元，現在不要買。', 'quotes': ['愛普現在當然不要買']},
+            {'text': '之前已上漲4倍。', 'quotes': ['愛普之前漲了4倍']},
+            {'text': '當初在2、300元時布局。', 'quotes': ['愛普我們2、300的時候佈局的']}]}]}
+        out, _ = self.run_enrichment(source, reply)
+        note = out['watch_avoid'][0]['reason']
+        self.assertTrue(note.startswith('目前不要買。'), note)
+        self.assertIn('上漲4倍', note)
+        self.assertNotIn('999', note)
+
+    def test_repeated_asr_passages_are_sent_once(self):
+        passage = '愛普之前漲了4倍，愛普現在當然不要買，那大家有沒有注意這一段整理了很久，後面的行情要好好把握。'
+        source = passage + '台積電今天創新高。' + passage.replace('好好', '好的')
+        row = {'name': '愛普', 'code': '6531', 'reason': '目前不要買。'}
+        signals = {k: [] for k in pl.SIGNAL_CATEGORIES}
+        signals['watch_avoid'] = [row]
+        from unittest.mock import patch
+        with patch.object(pl, '_CODE_MAP', {'6531': '愛普', '2330': '台積電'}):
+            segments = pl._own_segments(row, signals, source)
+        self.assertEqual(len(segments), 1)
+
+    def test_prompt_does_not_force_trimming(self):
+        self.assertNotIn('超過 120 字就是',pl.POLICY)
+        self.assertIn('70～160',pl.POLICY)
+        self.assertIn('相鄰公司的題材',pl.POLICY)
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

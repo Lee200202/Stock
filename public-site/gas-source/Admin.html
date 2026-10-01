@@ -4535,6 +4535,14 @@ var mergeTxFingerprint='';
       (closed && !(o.blankExits || []).length ? card('日 K 與出場價', '休市', closedTxt + '；上次完成 ' + (o.dailyK && o.dailyK.finishedAt || '尚無') + '。', 'closed') :
       card('日 K 與出場價', (o.blankExits || []).length ? (o.blankExits.length + ' 檔待補價') : dkToday ? '今日補齊完成' : '等待今日補齊', (o.blankExits || []).length ? o.blankExits.slice(0, 3).join('、') : o.dailyK ? (o.dailyK.finishedAt || '目前代號：' + (o.dailyK.lastCode || '起點')) : '16:45 開始，完整一輪後重算持股。', (o.blankExits || []).length ? 'err' : dkToday ? 'ok' : 'idle')) +
       card('盤中行情採樣', !o.marketScheduled ? '未排程' : o.marketSample && o.marketSample.at ? (o.marketSample.ok ? '已有採樣' : '最近採樣異常') : '等待採樣', o.marketSample && o.marketSample.at ? o.marketSample.at + (o.marketSample.note ? ' · ' + o.marketSample.note : '') : '由五分鐘總排程執行；休市或非盤中時段不取樣。', o.marketSample && o.marketSample.at && !o.marketSample.ok ? 'warn' : 'idle') +
+      card('個股五分鐘報價', o.quoteHealth ? o.quoteHealth.fresh + '／' + o.quoteHealth.total + ' 檔報價已核對' : '尚無更新紀錄',
+        o.quoteHealth ? '舊資料 ' + o.quoteHealth.old + ' 檔。最近排程 ' + (o.quoteHealth.job.at || '尚無') +
+          '；本輪更新 ' + (o.quoteHealth.job.updated || 0) + '／' + (o.quoteHealth.job.requested || 0) + ' 檔。' +
+          (o.quoteHealth.job.writePending ? '資料正在寫入，尚未完成。' : '') +
+          ((o.quoteHealth.job.errors || []).length ? '來源問題：' + o.quoteHealth.job.errors.join('、') + '。' : '') +
+          (o.quoteHealth.job.configured === false ? '富果單檔備援尚未設定金鑰。' : '') +
+          '持有中與最近查看的股票優先，來源缺成交價不冒充即時。' : '部署後執行 quoteCacheStatus() 查看。',
+        o.quoteHealth && o.quoteHealth.trading ? (!o.quoteHealth.fresh ? 'err' : o.quoteHealth.old || o.quoteHealth.job.writePending || (o.quoteHealth.job.errors || []).length ? 'warn' : 'ok') : 'idle') +
       card('產業成交比重', o.sector && o.sector.date === r.today ? '今日已更新' : o.sector && o.sector.date ? '資料至 ' + o.sector.date : '尚無資料',
         '證交所盤後資料；' + (o.sector && o.sector.at ? '最近補抓 ' + o.sector.at + '（' + (o.sector.state || '未知') + '）。' : '等待 GitHub 或 Apps Script 補抓。') +
         (o.sector && o.sector.error ? '原因：' + o.sector.error + '。' : '') + (o.sector && !o.sector.scheduled ? '獨立保底排程未安裝。' : ''),

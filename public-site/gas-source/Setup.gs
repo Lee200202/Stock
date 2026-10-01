@@ -428,6 +428,8 @@ function everyFiveMinJobRun_() {
      沒有設定 LINE 或推送關閉時兩支都立刻返回。 */
   if (typeof lineDailyTick_ === 'function' && weekday && hhmm >= 1200 && hhmm <= 2200) { safe_('lineDailyTick_', lineDailyTick_); }
   if (typeof lineDeliverTick_ === 'function') { safe_('lineDeliverTick_', lineDeliverTick_); }
+  // 寄送優先；報價放在補抓來源、產業與背景 K 線之前，避免整輪逾時而沒有行情。
+  safe_('refreshQuoteCacheJob', refreshQuoteCacheJob);
   safe_('cmAutoReconcileToday_', function () { cmAutoReconcileToday_(false); });
   safe_('cmDispatchPendingGithubJob_', function () { cmDispatchPendingGithubJob_(); });
   if (weekday && hhmm >= 1230 && hhmm <= 1800 && dueEvery_('statusReport', 15)) {
@@ -444,7 +446,6 @@ function everyFiveMinJobRun_() {
   }
 
   // ---- 每一棒都做。兩支自己都會判斷該不該動作，非盤中會立刻返回。 ----
-  safe_('refreshQuoteCacheJob', refreshQuoteCacheJob);
   safe_('watchdogJob', watchdogJob);
   safe_('resumePendingTranscriptRefresh_', resumePendingTranscriptRefresh_);
 
@@ -1205,7 +1206,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-10-01-mail-spacing-v92';
+var PROJECT_BUILD_ = '2026-10-01-live-quotes-v93';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
@@ -1218,7 +1219,7 @@ var PROJECT_FILES_ = [
   { file: 'Code.gs', names: ['doGet', 'doPost', 'include', 'configMissing_', 'configMissingResponse_'], marker: ['doPost', 'x-line-signature'] },
   { file: 'API.gs', names: ['jsonOut_', 'apiLookupSubscription', 'apiUpdateSubscription', 'renderUnsubscribePage_', 'apiGetCandlesBundle', 'apiUnsubscribeConfirm', 'apiGetStockSummary', 'apiGetTechStats', 'techDemo_', 'publicTracker_', 'dashCachePut_', 'dashCacheGet_'], marker: ['apiGetDashboard', 'dashCacheGet_()'] },
   { file: 'Adminpipeline.gs', names: ['pipeIsForeign_', 'pipeBase_', 'PIPE_EXTRACT_SYSTEM'], marker: ['PIPE_EXTRACT_SYSTEM', '4916新星科'] },
-  { file: 'Adminservice.gs', names: ['adminAuth_', 'apiAdminLogin', 'PIPE_RECLASSIFY_SYSTEM', 'apiAdminTodayStatus', 'dayVideoRow_', 'apiAdminHeldList', 'apiAdminSetHoldingCost', 'apiAdminHoldToday', 'apiAdminKCoverage', 'apiAdminOpsDay', 'apiAdminInstallSectorCatchup'], marker: ['apiAdminTodayStatus', 'dayVideoRow_(today)'] },
+  { file: 'Adminservice.gs', names: ['adminAuth_', 'apiAdminLogin', 'PIPE_RECLASSIFY_SYSTEM', 'apiAdminTodayStatus', 'dayVideoRow_', 'apiAdminHeldList', 'apiAdminSetHoldingCost', 'apiAdminHoldToday', 'apiAdminKCoverage', 'apiAdminOpsDay', 'apiAdminInstallSectorCatchup'], marker: ['apiAdminTodayStatus', 'quoteHealth: typeof quoteCacheStatus'] },
   { file: 'Aiservice.gs', names: ['validateKey', 'assistantModelCatalog_', 'sanitizeDraft_', 'draftReady_', 'isPromptProbe_', 'guardReply_', 'explicitSubscribeConfirm_'], marker: ['assistantModelCatalog_', 'supportedGenerationMethods'] },
   { file: 'Articlequality.gs', names: ['enforceArticleRecords_', 'attachArticleEvidence_'] },
   { file: 'Cachebuilder.gs', names: ['budgetLeft_', 'trackedCodes_', 'readSnapshotRows_', 'officialDailyAll_', 'auditDailyKCache', 'repairDailyKCache', 'afterDailyKDoneJob', 'rescheduleDailyKTrigger', 'warmKCaches_', 'dailyKFloors_', 'resetDailyKFloor', 'isTradingDateStr_', 'ensurePerformanceContinuityJob_', 'officialDailyKFill_', 'officialDailyKTick_', 'officialDailyKJob', 'fillOfficialDailyKNow'], marker: ['officialDailyKFill_', 'res.deferred.push(day)'] },
@@ -1228,7 +1229,7 @@ var PROJECT_FILES_ = [
   { file: 'Logic.gs', names: ['markChainStep_', 'REFRESH_STEPS_'] },
   { file: 'MailService.gs', names: ['createSubscription', 'mailHero_', 'publicWebAppUrl_', 'escAttr_', 'mailRiskHtml_', 'deliverMessage_', 'deliveryLedger_', 'mailPlainText_', 'isExecUrl_', 'mailStockName_', 'noVideoToday_', 'pushReadyChannels_', 'gateAutoRelease_'], marker: ['mdToHtml_', 'mc-stock-label'] },
   { file: 'Presentationquality.gs', names: ['displayPrice_', 'narrativeName_', 'titleChars_', 'toTraditional_'], marker: ['publicNarrative_', 'toTraditional_(text)'] },
-  { file: 'Quoteservice.gs', names: ['getFugleKey_', 'fugleFetch_', 'sharesToLots_', 'volumeInLots_', 'hourSlot_', 'readHourlyRows_', 'fugleHistPace_', 'kcPutAll_', 'getCandlesBundle', 'misBatchQuotes_'], marker: ['repairDailyKVolume', 'disabled: true'] },
+  { file: 'Quoteservice.gs', names: ['getFugleKey_', 'fugleFetch_', 'sharesToLots_', 'volumeInLots_', 'hourSlot_', 'readHourlyRows_', 'fugleHistPace_', 'kcPutAll_', 'getCandlesBundle', 'misBatchQuotes_'], marker: ['getRealtimeQuote', 'rememberViewedQuote_'] },
   { file: 'Refreshrunner.gs', names: ['runRefreshAllChunk_', 'withRefreshAllLease_'] },
   { file: 'Setup.gs', names: ['setupSpreadsheet', 'setWebAppUrl', 'webAppUrlReport_', 'checkProjectFiles', 'checkAutomationReadiness', 'ensureAutomationTick', 'withSheetSnapshot_', 'readSheetFields_', 'opsTimed_', 'opsRuntimeFor_'], marker: ['everyFiveMinJobRun_', 'officialDailyKTick_'] },
   { file: 'SheetService.gs', names: ['fmtDate_', 'withLock_', 'ensureTranscriptLayoutJob', 'transcriptFingerprint_', 'stripTranscribeEcho_', 'readCostOverrides_', 'searchTerms_', 'repairLiwangExitPriceNow', 'rangeCandle_', 'statedNote_', 'trackerRoundList_', 'isManualHoldSource_', 'holdConfirmForOpen_', 'getHoldingsTrackerRead_'], marker: ['readCostOverrides_', "'yyyy/MM/dd HH:mm'"] },
@@ -1240,12 +1241,12 @@ var PROJECT_HTML_ = [
   { file: 'MarketDetail', marker: 'function placePeriodThumb()' },
   { file: 'MarketCharts', marker: 'window.marketRollingBounds' },
   { file: 'Market', marker: 'function marketSourceLabel(c, queriedAt)' },
-  { file: 'Index', marker: '持有檔數包含暫時缺價' },
-  { file: 'JavaScript', marker: 'function showsPrice(dir)' },
-  { file: 'Stylesheet', marker: 'v92：風險提醒也須隨主題與閱讀設定顯示' },
-  { file: 'Changelog', marker: 'v92 郵件風險提醒與股票間距' },
-  { file: 'Tech', marker: 'id="faq-not-found"' },
-  { file: 'Admin', marker: 'var pipeReady = o.pipelineDone' },
+  { file: 'Index', marker: 'id="dQuoteRefresh"' },
+  { file: 'JavaScript', marker: 'function refreshDetailQuote_()' },
+  { file: 'Stylesheet', marker: '.detail-quote-controls' },
+  { file: 'Changelog', marker: 'v93 五分鐘成交報價' },
+  { file: 'Tech', marker: '行情每五分鐘重新核對' },
+  { file: 'Admin', marker: '個股五分鐘報價' },
   { file: 'Settings', marker: '手機預覽' },
   { file: 'Unsubscribed', marker: '若一直失敗，直接回覆通知信' }
 ];

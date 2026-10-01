@@ -65,8 +65,8 @@ const setup = fs.readFileSync(path.join(root, 'Setup.gs'), 'utf8');
 const config = fs.readFileSync(path.join(root, 'Config.gs'), 'utf8');
 assert.equal(setup.match(/var PROJECT_BUILD_ = '([^']+)'/)[1], config.match(/var GAS_BUILD = '([^']+)'/)[1]);
 assert(setup.includes("marker: ['officialDailyKFill_', 'res.deferred.push(day)']"));
-assert(setup.includes("{ file: 'Index', marker: '持有檔數包含暫時缺價' }"));
-assert(setup.includes("{ file: 'JavaScript', marker: 'function showsPrice(dir)' }"));
+assert(setup.includes("{ file: 'Index', marker: 'id=\"dQuoteRefresh\"' }"));
+assert(setup.includes("{ file: 'JavaScript', marker: 'function refreshDetailQuote_()' }"));
 assert(String(ctx.snapshotPerformanceJobRun_).includes('t.summary.priced'),
   'project-file check must inspect a marker inside its target function');
 

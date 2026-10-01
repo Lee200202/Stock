@@ -2299,10 +2299,48 @@ function publicNarrative_(text, row) {
   };
 
   var detailRequest = 0;
+  var quotePollTimer = null, quotePollPending = 0, quotePolledAt = 0;
+  function scheduleDetailQuote_() {
+    clearTimeout(quotePollTimer);
+    quotePollTimer = setTimeout(refreshDetailQuote_, 300000);
+  }
+  function refreshDetailQuote_() {
+    if (document.hidden || !currentCode || !$('detail').classList.contains('open')) { return; }
+    var code = currentCode, request = detailRequest;
+    if (quotePollPending === request) { return; }
+    quotePollPending = request;
+    $('dQuoteRefresh').disabled = true;
+    $('dQuoteStatus').textContent = '正在核對成交報價…';
+    google.script.run.withSuccessHandler(function (quotes) {
+      if (quotePollPending === request) { quotePollPending = 0; }
+      if (request !== detailRequest || code !== currentCode || !$('detail').classList.contains('open')) { return; }
+      $('dQuoteRefresh').disabled = false;
+      var q = quotes && quotes[code];
+      if (q && q.last != null && DETAIL.header) {
+        q.ok = true;
+        DETAIL.header.quote = q;
+        renderHeader(DETAIL.header);
+        updateDetailHoldingQuote_(q);
+      } else { $('dQuoteStatus').textContent = '報價更新未成功；保留上方標示時間的資料。'; }
+      quotePolledAt = Date.now();
+      scheduleDetailQuote_();
+    }).withFailureHandler(function () {
+      if (quotePollPending === request) { quotePollPending = 0; }
+      if (request !== detailRequest || code !== currentCode) { return; }
+      $('dQuoteRefresh').disabled = false;
+      $('dQuoteStatus').textContent = '報價更新未成功；保留上方標示時間的資料。';
+      quotePolledAt = Date.now(); scheduleDetailQuote_();
+    }).apiGetQuotesFor([code]);
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden && Date.now() - quotePolledAt >= 300000) { refreshDetailQuote_(); }
+  });
   function openDetail(code) {
     var request = ++detailRequest;
     if (!isCode(code)) { return; }
     currentCode = code;
+    clearTimeout(quotePollTimer); quotePolledAt = Date.now();
+    $('dQuoteRefresh').disabled = false; $('dQuoteStatus').textContent = '正在讀取報價';
     USE.act('看個股', code);
     DETAIL = { code: code, tracker: undefined, record: undefined };
     $('detail').classList.add('open');
@@ -2325,7 +2363,8 @@ function publicNarrative_(text, row) {
     google.script.run.withSuccessHandler(function (s) {
       if (request !== detailRequest) { return; }
       s = s || {};
-      if (s.header) { renderHeader(s.header); } else { $('dName').textContent = code; $('dPrice').textContent = '\u2014'; }
+      if (s.header) { DETAIL.header = s.header; renderHeader(s.header); } else { $('dName').textContent = code; $('dPrice').textContent = '\u2014'; }
+      scheduleDetailQuote_();
       renderTrackerBlock(s.tracker || null);
       if (s.record) { renderRecordBlock(s.record); }
       else { $('dRecord').innerHTML = emptyBlock('讀取失敗', '請關閉重開再試一次。'); }
@@ -2354,6 +2393,7 @@ function publicNarrative_(text, row) {
       $('dPrice').className = 'p flat';
       $('dChange').textContent = '目前取不到報價';
       $('dChange').className = 'd flat';
+      $('dQuoteStatus').textContent = '尚無可確認的成交報價，可按「更新報價」重試。';
       return;
     }
     $('dPrice').textContent = fmtPx(q.last);
@@ -2364,7 +2404,17 @@ function publicNarrative_(text, row) {
       ? (sign + ' ' + Math.abs(q.change).toFixed(2) + '\u3000' + (q.changePct || 0).toFixed(2) + '%'
          + (q.time ? '\u3000' + qTime(q.time) : ''))
       : '\u2014';
+    var today = new Intl.DateTimeFormat('sv-SE', {timeZone:'Asia/Taipei'}).format(new Date()).replace(/-/g, '/');
+    var quoteDate = q.date || (String(q.stamp || '').slice(0,10).replace(/-/g,'/'));
+    var oldDay = quoteDate ? quoteDate !== today : (q.time && q.time.slice(0,5) !== today.slice(5).replace('/','-'));
+    var stampMs = q.stamp ? new Date(String(q.stamp).replace(/\//g,'-').replace(' ', 'T') + (/Z$|[+-]\d\d:\d\d$/.test(String(q.stamp)) ? '' : '+08:00')).getTime() : NaN;
+    var hm = Number(new Intl.DateTimeFormat('en-GB', {timeZone:'Asia/Taipei',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date()).replace(':',''));
+    var stale = q.stale || (hm >= 900 && hm <= 1340 && isFinite(stampMs) && Date.now() - stampMs > 300000);
+    var label = oldDay ? '前次交易資料，今日報價待補' : stale ? '報價待更新' : '每五分鐘核對報價';
+    $('dQuoteStatus').textContent = label + (q.source ? ' · ' + q.source : '');
+    $('dQuoteStatus').title = '使用可確認的成交價，現價與漲跌來自同一份資料；不以委買、委賣或試撮價補值。';
   }
+  $('dQuoteRefresh').addEventListener('click', refreshDetailQuote_);
 
   /* 抽屜這一次開的是哪一檔、兩支請求各自回了什麼。
 
@@ -2375,7 +2425,17 @@ function publicNarrative_(text, row) {
 
   function renderTrackerBlock(t) {
     DETAIL.tracker = t;
+    if (DETAIL.header && DETAIL.header.quote) { updateDetailHoldingQuote_(DETAIL.header.quote); }
     paintTracker();
+  }
+
+  function updateDetailHoldingQuote_(q) {
+    var t = DETAIL.tracker;
+    if (!t || !t.stillHeld || !(t.entry > 0) || !q || !(q.last > 0)) { return; }
+    t.current = q.last;
+    t.ret = (q.last / t.entry - 1) * 100;
+    // 只更新畫面中的本回合未實現報酬；正式績效與已出場回合不被盤中預覽改寫。
+    paintTracker(); paintTrend();
   }
 
   /* 沒有追蹤資料時要顯示什麼。
@@ -2546,6 +2606,7 @@ function publicNarrative_(text, row) {
 
   function closeDetail() {
     ++detailRequest; ++candleRequest;
+    clearTimeout(quotePollTimer);
     $('detail').classList.remove('open');
     document.body.style.overflow = '';
   }

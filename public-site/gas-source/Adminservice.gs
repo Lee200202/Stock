@@ -916,6 +916,7 @@ function apiAdminTodayStatus(key) {
         closed: closedWhy, autoStart: hmText_(TX_AUTO_START_HM_), days: [today].concat(recentDays),
         prevDay: prevDay, prevMail: prevDay ? mailDays[prevDay] : null, mailNeed: mailNeed, daySync: daySync,
         runtime: typeof opsRuntimeFor_ === 'function' ? opsRuntimeFor_(today) : null,
+        quoteHealth: typeof quoteCacheStatus === 'function' ? quoteCacheStatus() : null,
         triggerCount: triggerNames.length } };
   } catch (e) { return { ok: false, reason: String(e.message || e) }; }
 }

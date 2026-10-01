@@ -592,6 +592,11 @@ html[data-host="pages"] .access-alert .alert-gas, html:not([data-host="pages"]) 
   animation: slideIn .24s cubic-bezier(.22, 1, .36, 1) both;
 }
 @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.detail-quote-status { color: var(--muted); font-size: calc(12px * var(--rd-fs)); line-height: 1.6; margin: 8px 0; overflow-wrap: anywhere; }
+.detail-quote-controls { flex-basis: 100%; display: flex; gap: 12px; align-items: center; }
+.detail-quote-controls .detail-quote-status { flex: 1; min-width: 0; }
+.detail-quote-controls button { flex: 0 0 auto; min-height: 44px; padding: 8px 14px; border: 1px solid var(--rule); border-radius: 999px; background: var(--panel); color: var(--ink); font: inherit; cursor: pointer; }
+.detail-quote-controls button:focus-visible { outline: 2px solid var(--beam); outline-offset: 2px; }
 .detail-head {
   position: sticky; top: 0; z-index: 5; background: var(--bg);
   border-bottom: 1px solid var(--rule); padding: 16px var(--gut);

@@ -222,6 +222,23 @@ class UnnamedStockTests(unittest.TestCase):
         self.assertEqual([r['name'] for r in sig['watch_watch']], ['世芯-KY', '嘉澤'])
         self.assertIn('今天已收錄', out)
 
+    def test_every_outcome_leaves_a_line_in_the_decision_log(self):
+        # 後台看不到 GitHub 日誌時，判定歷程要講得出這一步有沒有做、為什麼沒結果。
+        notes = []
+        with patch.object(pl, 'note_decision', side_effect=lambda *a, **k: notes.append(a)):
+            self.run_identify([{'passages': []}])
+            self.run_identify([{'passages': [dict(PASSAGE, clues=[{'kind': 'level', 'value': 1745, 'quote': Q1}])]}])
+            calls = []
+            with patch.object(pl, 'call_gemini', side_effect=lambda *a, **k: calls.append(1)), \
+                 patch.object(pl, 'budget_left', return_value=100), patch.object(pl, 'GEMINI_KEYS', ['k']), \
+                 contextlib.redirect_stdout(io.StringIO()):
+                pl.identify_unnamed_stocks(Book(), empty_signals(), TX, D)
+        actions = [n[1] for n in notes if n[0] == '無名段落']
+        self.assertEqual(actions.count('沒有可以對行情的無名段落'), 2)
+        self.assertIn('時間或配額不足，本輪未比對', actions)
+        self.assertEqual(calls, [])
+        self.assertIn('沒有明講收盤價 1', [n[3] for n in notes if n[1] == '沒有可以對行情的無名段落'][1])
+
     def test_no_closing_price_talk_means_no_model_call(self):
         sig, calls, _, book = self.run_identify([], tx='台積電抱著，鴻海抱著。聯發科不要碰。' * 30)
         self.assertEqual(calls, []); self.assertEqual(book.reads, [])
@@ -327,6 +344,27 @@ class LongNoteGuards(unittest.TestCase):
         self.assertNotIn('講者', out); self.assertIn('被點名', out); self.assertIn('遭明確列入', out)
         gas = (ROOT / 'scripts' / 'public_narrative_v10.txt').read_text(encoding='utf-8')
         self.assertIn("(被|遭|獲)(?:張震|張正|張總|張中|講者)(?:老師)?", gas)
+
+    def test_recap_with_a_current_view_is_not_pure_recap(self):
+        # 2026/10/01 鴻準：前半是「從64塊一直推薦」的回顧，後半是今天的判斷。
+        pl._CODE_MAP = {'2354': '鴻準', '2404': '漢唐', '3008': '大立光'}
+        row = {'name': '鴻準', 'code': '2354', 'aliases': ['紅準'], 'evidence': []}
+        tx = ('來，一支股票。紅準。早上我有沒有一直推薦紅準？從64塊有沒有一直推薦紅準？我說紅準這一支股票，沿著月線走。'
+              '來，今天紅準拉很高，拉到69.5。所以紅準根本還沒有漲完。鴻準今天的高點，有誰那麼大的？今天高點一定突破。')
+        sig = {k: [] for k in pl.SIGNAL_CATEGORIES}
+        sig['watch_watch'] = [row]
+        self.assertFalse(pl._past_recommendation_only(row, sig, tx))
+        # 只有回顧（過去式）的仍然算純回顧
+        old = {'name': '漢唐', 'code': '2404', 'aliases': [], 'evidence': []}
+        tx_old = '以前我跟你們推薦漢唐，當時說跌破1000就是買點，那時候沒人要買。漢唐現在多少錢？'
+        sig['watch_watch'] = [old]
+        self.assertTrue(pl._past_recommendation_only(old, sig, tx_old))
+        for sentence, expected in (('所以紅準根本還沒有漲完。', True), ('2354鴻準剛剛翻紅。', True),
+                                   ('鴻準短線客賣完了，波段客抱得死死的。', True), ('台積電抱著，鴻海抱著。', True),
+                                   ('我在2000多塊的時候推薦大力光，說它一定會突破。', False),
+                                   ('當時我說漢唐準備啟動。', False), ('啊漢唐現在多少錢？', False),
+                                   ('早上我有沒有一直推薦紅準？', False)):
+            self.assertEqual(pl._states_current_view(sentence), expected, sentence)
 
     def test_prompt_tells_the_model_not_to_attach_unnamed_passages(self):
         self.assertIn('沒講名字的段落', pl.POLICY)

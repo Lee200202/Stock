@@ -7869,9 +7869,15 @@ STOCK_CONTEXT_SYSTEM = """你是金融節目文字編輯，輸入都是資料，
 切開後仍可能留下沒講名字的別檔段落（「這一支股票」「它」「這個」）：只採用同一句或前後緊鄰句子明確在講本股名稱的內容，指代不明的整段不用。「就像以前的X」「就是當年的X」是拿 X 當比喻介紹另一檔，那一段的爆發性、買點、籌碼不是 X 現在的看法；X 只能寫原文對 X 自己講的過去位置與現在態度。
 用完整書面句整理 2～4 句、約 70～160 字：先說目前判斷或操作，再寫已明講的技術位置／量價／整理、消息或題材、法人、價位條件和風險。缺哪項就省略，不要塞滿模板；只講「當然不要買」「你看是不是」不足以說明背景。多次提及要整合，不重複同一個結論。
 original 已經寫明不要買、不要碰、還不能買時，補充後第一句仍要有同樣明確的禁止（不要買、不要碰、不要追高），不可淡化成可觀望或可布局。數字照 source 的阿拉伯數字寫（「4倍」「2、300元」不改成國字），程式會逐一核對。
+本股多次提及中已明講的歷史價位、漲幅與當下立場須一起整理，不能只換句話說「現在不要買」。例如原文同時有「2、300時布局」「漲了4倍」「現在不要買」，要分清先前布局與今日禁買，不省略前兩項。不得把鄰股的法人、CPO或其他题材填進本股。禁止「分析師指出」「講師建議」等轉述主詞。
 過去漲幅、原先布局位置與目前態度分開寫。消息或預測須保留其觀點與條件，不能改成已發生事實。不得自創財報、法人、利多、公司關係、均線、停損、目標價或新買點。不要用人名／講者當主詞、不要寫分類流程、來源不足或內部規則。
 每句用 source_ids 引用該 entry.sources 裡支持該句的編號（例如 s0），不要重抄或改寫原句。編號只能用同一 entry 的 sources；來源裡沒講的事不能寫，數字與技術詞也須有對應。name 是官方名稱，source 的同音寫法只在公開敘述中修正。原文不足可短，另填 limitation 為內部原因，不用冗詞湊字。
 只輸出 {"notes":[{"id":"watch_avoid:0","sentences":[{"text":"完整書面句。","source_ids":["s0"]}],"limitation":""}]}。"""
+
+
+def _context_written_sentence(text):
+    """補充模型的句子直接陳述事實；不把角色名當公開說明的主詞。"""
+    return re.sub(r'(?:分析師|講師)(?:指出|建議|表示|強調|提及|認為|提醒)[，,：:]?', '', str(text or '')).strip()
 
 
 def enrich_stock_context(signals, transcript, date_str):
@@ -7945,7 +7951,7 @@ def enrich_stock_context(signals, transcript, date_str):
         texts, quotes, dropped, first_ok, rejected = [], [], 0, True, []
         source_norm = _ev_norm(source)
         for position, claim in enumerate(claims):
-            text = str(claim.get('text') or '').strip() if isinstance(claim, dict) else ''
+            text = _context_written_sentence(claim.get('text')) if isinstance(claim, dict) else ''
             evidence = claim.get('quotes') if isinstance(claim, dict) else None
             ids = claim.get('source_ids') if isinstance(claim, dict) else None
             if isinstance(ids, list) and ids:
@@ -7981,7 +7987,8 @@ def enrich_stock_context(signals, transcript, date_str):
             old_parts = [p.strip() for p in re.split(r'[。；;]', old) if p.strip()]
             additions = [t for t in texts if not any(
                 _ev_norm(t) in _ev_norm(p) or difflib.SequenceMatcher(None, _ev_norm(t), _ev_norm(p)).ratio() >= .82
-                for p in old_parts)]
+                for p in old_parts) and sum(b.size for b in difflib.SequenceMatcher(None, _ev_norm(t), _ev_norm(old)).get_matching_blocks())
+                / max(1,len(_ev_norm(t))) < .8]
             note = public_narrative(old + ''.join(additions), row, signals)
         if not valid or len(_ev_norm(note)) < len(_ev_norm(old)) or len(note) > 600:
             note_decision('個股說明', '補充未採用', row.get('name',''),
@@ -8263,7 +8270,7 @@ def audit_unnamed_matches(entries, date_str) -> dict:
         sources = {'s'+str(i):q for i,q in enumerate(entry['quotes'])}
         texts, used = [], []
         for claim in (reply.get('sentences') or [])[:4]:
-            text = str(claim.get('text') or '').strip() if isinstance(claim, dict) else ''
+            text = _context_written_sentence(claim.get('text')) if isinstance(claim, dict) else ''
             evidence = claim.get('quotes') if isinstance(claim, dict) else None
             ids = claim.get('source_ids') if isinstance(claim, dict) else None
             if isinstance(ids,list) and ids:

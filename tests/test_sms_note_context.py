@@ -388,6 +388,17 @@ class StockContextNarrative(unittest.TestCase):
         self.assertIn('相鄰公司的題材',pl.POLICY)
 
 class SourceIdsContext(StockContextNarrative):
+    def test_role_subject_is_removed_from_supplement(self):
+        self.assertEqual(pl._context_written_sentence('分析師指出突破後仍須留意。'),'突破後仍須留意。')
+
+    def test_rephrased_old_note_is_not_appended_again(self):
+        old='晶心科在連續大漲三天後容易吸引散戶不請自來跟風追高，隨後往往會面臨拉回下跌的風險。特別強調非常害怕投資人去追買此類短線急漲的個股。'
+        raw='晶心科連續大漲三天，怕你們追高，追高容易受傷。'
+        row={'name':'晶心科','code':'6533','reason':old}
+        reply={'notes':[{'id':'watch_avoid:0','sentences':[{'text':'晶心科在連續大漲三天後容易吸引散戶追高，隨後往往會面臨拉回下跌風險，非常害怕投資人去追買此類短線急漲個股。','source_ids':['s0']}]}]}
+        out,_=self.run_enrichment(raw,reply,row)
+        self.assertEqual(row['reason'].count('大漲三天'),1)
+
     def test_shorter_verified_supplement_keeps_existing_information(self):
         row={'name':'愛普','code':'6531','reason':'目前不要買。先前布局後已有明顯漲幅，應避免在上漲後急著進場。'}
         raw='愛普先前漲了4倍，現在不要買。'

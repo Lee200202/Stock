@@ -198,5 +198,41 @@ class EnrichmentV46(unittest.TestCase):
         self.assertNotIn('30字內',pl.CM_PARSE_SYSTEM)
         self.assertIn('70 到 160',pl.CM_PARSE_SYSTEM)
 
+class CurrentBanAndCurrencyScope(unittest.TestCase):
+    def setUp(self):
+        self.previous_map = pl._CODE_MAP
+        pl._CODE_MAP = {'3008':'大立光', '2454':'聯發科', '3443':'創意'}
+        self.row = {'name':'大立光', 'code':'3008', 'aliases':['大力光']}
+
+    def tearDown(self):
+        pl._CODE_MAP = self.previous_map
+
+    def test_shared_ban_survives_historical_recap(self):
+        raw = '以前我介紹大力光1000塊沒人要買。聯發科 大力光 創意 不要碰。'
+        self.assertFalse(pl._past_recommendation_only(self.row, {}, raw))
+        self.assertIn('大力光', pl._named_current_prohibition(self.row, raw))
+
+    def test_historical_ban_does_not_become_current(self):
+        self.assertEqual(pl._named_current_prohibition(self.row, '昨天大力光不要碰。'), '')
+
+    def test_neighbor_company_ban_does_not_leak(self):
+        self.assertEqual(pl._named_current_prohibition(self.row, '大力光漲了，創意不要碰。'), '')
+
+    def test_conditional_ban_is_not_unconditional(self):
+        self.assertEqual(pl._named_current_prohibition(self.row, '大力光不要碰季線以上，拉回季線以下可以買。'), '')
+
+    def test_currency_does_not_survive_as_stock_candidate(self):
+        signals = {c:[] for c in pl.SIGNAL_CATEGORIES + ('history','uncertain','ignored','market')}
+        signals['uncertain'] = [{'name':'美元', 'evidence':['美元跌了。']}]
+        signals['ignored'] = [{'name':'美金', 'evidence':['美元跌了。']}]
+        pl.materialize_evidence(signals, '美元跌了。')
+        self.assertEqual(signals['uncertain'], [])
+        self.assertEqual(signals['ignored'], [])
+
+    def test_currency_missing_from_review_is_not_a_stock_gap(self):
+        signals = {c:[] for c in pl.SIGNAL_CATEGORIES + ('history','uncertain','ignored','market')}
+        initial = dict(signals, ignored=[{'name':'美元','aliases':['美金']}])
+        self.assertFalse(any('候選消失' in g for g in pl.evidence_gaps(signals, '美元跌了。', initial)))
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

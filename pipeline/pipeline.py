@@ -5151,6 +5151,11 @@ def indexed_source(transcript):
     return '\n'.join(f'[{sid}] {seg["text"]}' for sid, seg in source_segments(transcript).items())
 
 def materialize_evidence(signals, transcript):
+    # 貨幣不是個股候選，也不應因覆核漏回而變成待確認股票。
+    for category in SIGNAL_CATEGORIES + ('history', 'uncertain', 'ignored'):
+        if isinstance(signals.get(category), list):
+            signals[category] = [r for r in signals[category]
+                                 if not isinstance(r, dict) or _ev_norm(r.get('name', '')) not in NON_EQUITY_NAMES]
     segments = source_segments(transcript)
     for cat in SIGNAL_CATEGORIES + ('history', 'uncertain', 'ignored', 'market'):
         for row in signals.get(cat, []) or []:
@@ -5205,7 +5210,8 @@ def evidence_gaps(signals, transcript, initial=None):
         def names_of(obj):
             return {_ev_norm(n) for c in SIGNAL_CATEGORIES + ('history','uncertain','ignored')
                     for r in obj.get(c, []) if isinstance(r, dict)
-                    for n in [r.get('name','')] + (r.get('aliases') or []) if len(_ev_norm(n)) >= 2}
+                    for n in [r.get('name','')] + (r.get('aliases') or [])
+                    if len(_ev_norm(n)) >= 2 and _ev_norm(n) not in NON_EQUITY_NAMES}
         for name in sorted(names_of(initial) - names_of(signals)):
             gaps.append('初稿候選消失：' + name + '；以原名稱/aliases對應收錄或附理由排除')
     return gaps
@@ -6915,6 +6921,34 @@ def _row_names_for_recap(row):
 # 「對不對？」「推薦的是什麼？推薦的是這個」這類自問自答仍是陳述。
 
 
+def _named_current_prohibition(row, transcript):
+    """同一句直接點名的禁買名單；名單中間只能有公司名與分隔符。"""
+    own = _row_names_for_recap(row)
+    all_names = {_display_name(n) for n in (_CODE_MAP or {}).values()}
+    all_names.update(CONFIRMED_NAMES)
+    all_names.update(own)
+    all_names = {n for n in all_names if len(n) >= 2 and n not in NON_EQUITY_NAMES}
+    if not own or not all_names:
+        return ''
+    atom = '(?:' + '|'.join(re.escape(n) for n in sorted(all_names, key=len, reverse=True)) + ')'
+    pattern = re.compile(r'(?P<names>' + atom + r'(?:[、，,\s]*' + atom + r')*)'
+                         r'\s*(?:現在|目前|今天)?\s*(?:當然|暫時|還|都|先)?\s*(?:不要買|不要碰|不准買|不准碰)')
+    text = str(transcript or '')
+    for match in pattern.finditer(text):
+        named = {m.group() for m in re.finditer(atom, match.group('names'))}
+        prefix = text[max(0, match.start()-10):match.start()]
+        if not own & named or re.search(r'(?:以前|當時|那時|昨天|不是|沒有說)[^。！？!?]{0,8}$', prefix):
+            continue
+        rest = text[match.end():]
+        end = re.search(r'[。！？!?；;]', rest)
+        tail = rest[:end.start() if end else 40]
+        if re.search(r'(?:季線|均線|\d+(?:\.\d+)?(?:元|塊)?)(?:以上|以下)|(?:拉回|回測|跌到).{0,20}(?:可[以]?買|買點|買進|買入)', tail):
+            continue
+        if active_prohibit(match.group() + tail):
+            return match.group()
+    return ''
+
+
 def _past_recommendation_only(row, signals, transcript):
     """這一檔在本輪原文裡是不是只有舊推薦／已結束交易的回顧，沒有現在的指示。
 
@@ -6924,6 +6958,9 @@ def _past_recommendation_only(row, signals, transcript):
     """
     names = _row_names_for_recap(row)
     if not names:
+        return False
+    # 多檔共用「不要碰」不能在其他公司名處切句後遺失。
+    if _named_current_prohibition(row, transcript):
         return False
     hay = _ev_norm(transcript)
     # 名稱窗口用去掉「*」「-KY」的寫法找（原文不會講「愛普*」）。
@@ -7022,6 +7059,8 @@ def restore_explicit_current_prohibitions(signals, transcript):
             code = names[heard]
             official = _display_name(mapping[code])
             aliases = {heard, official}
+            if not _named_current_prohibition({'name':official,'code':code,'aliases':[heard]}, transcript):
+                continue
             if aliases & occupied:
                 continue
             for cat in ('ignored', 'history'):
@@ -7753,6 +7792,8 @@ def audit_context_json(transcript, signals, date_str, editorial_retry=True):
             for cat in SIGNAL_CATEGORIES + ('history', 'uncertain', 'ignored'):
                 for row in signals.get(cat, []):
                     names = {re.sub(r'\s+', '', str(n)) for n in [row.get('name', '')] + (row.get('aliases') or []) if n}
+                    if str(row.get('name') or '').strip() in NON_EQUITY_NAMES:
+                        continue
                     if names and not names & seen:
                         saved = dict(row, suggested_category='', review_note='覆核回應遺漏原候選，保留原始證據待核對', _origin_category=cat)
                         repaired['uncertain'].append(saved)

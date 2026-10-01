@@ -3474,6 +3474,24 @@ function verifyRow_(sheetName, row, date, code, name) {
  * 分類改到跨分頁時（操作紀錄 ↔ 會員持股）會搬家：新的那張寫一列、舊的那列刪掉。
  * 兩張表的欄位不一樣，不搬家的話「會員持股」那一列會多出一個沒有欄位可放的價位。
  */
+function recordManualNoteEdit_(date, name, code, category, note, sourceId) {
+  // 簡訊與人工補登已有來源保護；普通逐字稿列的編輯另存版本，不能只靠文字猜誰改過。
+  if (!sourceId || /^(CMONEY-|MANUALENTRY-)/.test(sourceId) || sourceId === '人工補登') { return false; }
+  // 只讀日期索引及當日列，不為一次改說明讀回整份歷史逐字稿。
+  var selected = dayVideoRow_(date);
+  if (!selected || String(selected['影片ID'] || '').trim() !== sourceId) { return false; }
+  var raw = String(selected['原始逐字稿內容'] || '');
+  if (!raw || !raw.trim()) { return false; }
+  var cats = { '買入':'buy', '賣出':'sell', '觀望不碰':'watch_avoid', '觀望注意':'watch_watch', '會員持股':'holdings' };
+  var edit = {v:1, sourceId:sourceId, sourceSha256:transcriptSha256_(raw), category:cats[category], note:note};
+  var log = getSheet_('修正建議'), now = new Date();
+  log.getRange(log.getLastRow()+1,1,1,9).setValues([[
+    now,date,'保留人工說明',category === '會員持股' ? '會員持股' : '操作紀錄',name,code,
+    JSON.stringify(edit),'已套用（人工說明）',now
+  ]]);
+  return true;
+}
+
 function apiAdminUpdateRow(key, payload) {
   try {
     adminAuth_(key);
@@ -3545,6 +3563,7 @@ function apiAdminUpdateRow(key, payload) {
 
   var target = (cls === '會員持股') ? '會員持股' : '操作紀錄';
   var moved = (target !== sheetName);
+  var noteProtected = false;
 
   withLock_(function () {
     var sh = getSheet_(sheetName);
@@ -3564,6 +3583,7 @@ function apiAdminUpdateRow(key, payload) {
       if (cDir >= 0 && sheetName === '操作紀錄') { sh.getRange(row, cDir + 1).setValue(cls); }
       if (cPrice >= 0) { sh.getRange(row, cPrice + 1).setValue(price); }
       if (cReason >= 0) { sh.getRange(row, cReason + 1).setValue(reason); }
+      noteProtected = recordManualNoteEdit_(d,newName,newCode,cls,reason,vid);
       return;
     }
 
@@ -3578,6 +3598,7 @@ function apiAdminUpdateRow(key, payload) {
         .setValues([[d, newName, newCode, cls, price, reason, vid]]);
     }
     sh.deleteRow(row);
+    noteProtected = recordManualNoteEdit_(d,newName,newCode,cls,reason,vid);
   });
 
   CACHE.remove('tracker');
@@ -3588,7 +3609,7 @@ function apiAdminUpdateRow(key, payload) {
              (moved ? '（從「' + sheetName + '」搬到「' + target + '」）' : '') +
              '　' + price + '　' + reason);
 
-  return { ok: true, sync: queueDayEditSync_(d), moved: moved, renamed: renamed, sheet: target,
+  return { ok: true, sync: queueDayEditSync_(d), moved: moved, renamed: renamed, sheet: target, noteProtected:noteProtected,
            message: d + ' 的 ' + name + ' 已更新' +
                     (renamed ? '，改名為「' + newName +
                                (newCode ? '（' + newCode + '）' : '') + '」' : '') +

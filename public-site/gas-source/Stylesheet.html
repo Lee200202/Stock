@@ -17,6 +17,7 @@
   --panel-2:  #F2F4F1;
   --ink:      #12161A;
   --muted:    #667069;
+  --mail-code-ink: #3E4944;
   --rule:     #CBD1CC;
   --rise:     #C41E28;
   --fall:     #04795C;
@@ -45,6 +46,7 @@
   --panel-2:  #1B2320;
   --ink:      #E3EAE6;
   --muted:    #86958D;
+  --mail-code-ink: #BAC7BF;
   --rule:     #232E29;
   --rise:     #FF5259;
   --fall:     #21C68C;
@@ -2836,7 +2838,14 @@ html[data-view="mobile"] .mail-content table.mc-table:not(.mc-stack) td.mc-desc 
 .mail-content .mc-stack .mc-mid .mc-chip + .mc-price { margin-left: 0; }
 .mail-content .mc-hero h1 { font-size: calc(19px * var(--rd-fs)) !important; }
 [data-theme="dark"] .mail-content .mc-hero { background: color-mix(in srgb, #04795C 30%, var(--panel)) !important; }
-[data-theme="dark"] .mail-content .mc-chip { filter: brightness(1.05); }
+/* v98：小字使用獨立文字色，五類標籤在明暗主題都保留可讀的淺底深字。 */
+.mail-content .mc-chip { filter: none !important; }
+.mail-content .mc-chip.tn-buy { background: #F5C4C4 !important; color: #971720 !important; }
+.mail-content .mc-chip.tn-sell { background: #BEE2CC !important; color: #035B46 !important; }
+.mail-content .mc-chip.tn-hold { background: #D1D3EF !important; color: #3C4084 !important; }
+.mail-content .mc-chip.tn-watch { background: #C3E0EA !important; color: #185870 !important; }
+.mail-content .mc-chip.tn-avoid { background: #EEDDB6 !important; color: #684B0C !important; }
+.mail-content .mc-tone-k { color: var(--ink) !important; }
 .mail-content .mc-brand { color: var(--muted) !important; }
 
 /* 2026-09-15 v22：郵件查詢的每個字都跟著「版面設定」走（字體大小／字距／行距）。
@@ -2859,10 +2868,10 @@ html[data-view="mobile"] .mail-content table.mc-table:not(.mc-stack) td.mc-desc 
 /* 信件把名稱、代號、價位的文字顏色寫在 inline style（收件匣深色模式需要它寫明），
    網站這邊要交還給主題變數，否則深色主題會變成深底配深字。 */
 .mail-content table.mc-table td.mc-name, .mail-content table.mc-table td.mc-mid { color: var(--ink) !important; }
-.mail-content table.mc-table td.mc-code { color: var(--muted) !important; }
+.mail-content table.mc-table td.mc-code { color: var(--mail-code-ink) !important; }
 .mail-content table.mc-table td.mc-code { font-size: calc(13.5px * var(--rd-fs)) !important; letter-spacing: var(--rd-ls) !important; }
 /* v54 觀望表：代號放在名稱下面一行（span），顏色與字級同代號欄 */
-.mail-content table.mc-table span.mc-code { font-size: calc(13.5px * var(--rd-fs)) !important; letter-spacing: var(--rd-ls) !important; color: var(--muted) !important; }
+.mail-content table.mc-table span.mc-code { font-size: calc(13.5px * var(--rd-fs)) !important; letter-spacing: var(--rd-ls) !important; color: var(--mail-code-ink) !important; }
 .mail-content table.mc-table td.mc-desc .mc-chip { margin-right: 4px; }
 .mail-content table.mc-table td.mc-desc.mc-side { padding-top: 10px !important; padding-bottom: 11px !important; }
 .mail-content table.mc-table td.mc-mid { font-size: calc(13.5px * var(--rd-fs)) !important; letter-spacing: var(--rd-ls) !important; }

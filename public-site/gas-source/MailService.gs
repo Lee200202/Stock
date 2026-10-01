@@ -1601,11 +1601,11 @@ function wrapMail_(inner, email, token, kind, pre) {
    v89（2026/09/30）：觀望與持股也對齊網站——觀望注意＝--note 藍綠、觀望不碰＝--wait 琥珀、
    會員持股＝--hold 靛藍。先前信裡觀望注意是琥珀、觀望不碰是灰，正好與網站相反，讀的人會看錯類別。 */
 var MAIL_TONES_ = {
-  buy:   { key: 'buy',   bg: '#FBDFDF', hbg: '#F5C4C4', line: '#EBAAAA', bar: '#C41E28' },
-  sell:  { key: 'sell',  bg: '#DCF0E4', hbg: '#BEE2CC', line: '#9ED3B0', bar: '#04795C' },
-  hold:  { key: 'hold',  bg: '#E7E8F6', hbg: '#D1D3EF', line: '#B8BBE4', bar: '#4A4FA3' },
-  watch: { key: 'watch', bg: '#DDEEF3', hbg: '#C3E0EA', line: '#A2CDDB', bar: '#1F6F8B' },
-  avoid: { key: 'avoid', bg: '#F6EDD8', hbg: '#EEDDB6', line: '#E0C98F', bar: '#8A6410' }
+  buy:   { key: 'buy',   bg: '#FBDFDF', hbg: '#F5C4C4', line: '#EBAAAA', bar: '#C41E28', ink: '#971720' },
+  sell:  { key: 'sell',  bg: '#DCF0E4', hbg: '#BEE2CC', line: '#9ED3B0', bar: '#04795C', ink: '#035B46' },
+  hold:  { key: 'hold',  bg: '#E7E8F6', hbg: '#D1D3EF', line: '#B8BBE4', bar: '#4A4FA3', ink: '#3C4084' },
+  watch: { key: 'watch', bg: '#DDEEF3', hbg: '#C3E0EA', line: '#A2CDDB', bar: '#1F6F8B', ink: '#185870' },
+  avoid: { key: 'avoid', bg: '#F6EDD8', hbg: '#EEDDB6', line: '#E0C98F', bar: '#8A6410', ink: '#684B0C' }
 };
 
 /** 這段文字屬於哪一類。判不出來、或同時包含兩類，就回 null 交給逐列判定。 */
@@ -1737,7 +1737,7 @@ function mdToHtml_(md) {
   function chip(text, t) {
     return '<span class="mc-chip tn-' + (t ? t.key : 'none') + '" style="display:inline-block;white-space:nowrap;' +
            'border-radius:999px;padding:0 8px;font-size:12px;line-height:20px;font-weight:700;' +
-           'background:' + (t ? t.hbg : '#E4E8E5') + ';color:' + (t ? t.bar : '#3E4944') + ';">' + text + '</span>';
+           'background:' + (t ? t.hbg : '#E4E8E5') + ';color:' + (t ? t.ink : '#3E4944') + ';">' + text + '</span>';
   }
 
   /* 整張表收齊之後才輸出（要合併同一檔就得先看得到後面的列）。 */
@@ -1786,7 +1786,11 @@ function mdToHtml_(md) {
         return '<span class="mc-price" style="display:inline-block;margin-left:12px;' +
           (x.v.replace(/&[a-z]+;|&#\d+;/g, 'x').length <= 12 ? 'white-space:nowrap;' : '') + '">價位 ' + x.v + '</span>';
       }).join(' ');
-      var wdesc = descIdx > 0 ? stripMetaClauses_(String(cells[descIdx] || '')) : '';
+      var rawDesc = descIdx > 0 ? String(cells[descIdx] || '') : '';
+      var wdesc = stripMetaClauses_(stripEditorialWrappers_(rawDesc));
+      if (/會員簡訊|盤中(?:即時)?通知/.test(rawDesc)) {
+        wdesc = smsNoteBody_(wdesc, {price:vals.filter(function(x) { return x.i !== dirCol; }).map(function(x) { return x.v; }).join(' ')});
+      }
       var sep = n ? 'border-top:1px solid ' + ln + ';' : '';
       html.push('<tr>' +
           '<td bgcolor="' + bg + '" class="' + cls + ' mc-name" style="background:' + bg + ';padding:12px 14px 2px;' + sep +

@@ -708,7 +708,36 @@ function replaceNarrativeName_(text, heard, fixed) {
    與 pipeline.py 的 _META_CLAUSE 同一份清單；寫在這裡，已經存進試算表的舊說明呈現時也會乾淨。
    2026/09/15 的台積電寫成「……但在當日節目中並未將台積電列為當日會員實際買進或持有的個股明細，
    故列入市場教學與觀察範疇」，讀的人要的是他對台積電講了什麼（管理者回報，2026/09/16）。 */
-var META_CLAUSE_RE_ = /歷史回顧|列為觀望|列入觀望|改列|日期未明|依原文語氣|依上下文判|原判|原為買入|原為賣出|不列入當日|非影片當日|非當日執行|依規則|歷史買進|歷史賣出|並未將|未將本檔|(?:並)?未列(?:為|入)|個股明細|故列入|因此列入|列入市場教學|(?:觀察|教學|觀望)範疇|歸類為|分類為|列為.{0,10}?(?:觀望|等待|等候|追蹤|觀察|避開)|屬於.{0,10}?(?:觀察|觀望|避開)(?:的)?(?:對象|標的|名單)/;
+var META_CLAUSE_RE_ = /歷史回顧|列為觀望|列入觀望|改列|日期未明|依原文語氣|依上下文判|原判|原為買入|原為賣出|不列入當日|非影片當日|非當日執行|依規則|歷史買進|歷史賣出|並未將|未將本檔|(?:並)?未列(?:為|入)|個股明細|故列入|因此列入|列入市場教學|(?:觀察|教學|觀望)範疇|歸類為|分類為|列為.{0,10}?(?:觀望|等待|等候|追蹤|觀察|避開)|屬於.{0,10}?(?:觀察|觀望|避開)(?:的)?(?:對象|標的|名單)|前述價位屬於|並非(?:本日|當日|今日)(?:再次)?(?:買進|買入|賣出)(?:的)?(?:通知|指令)|既有標的的行情與條件追蹤|未新增(?:本日|當日|今日)(?:買賣|交易)(?:通知|指令)?|屬節目看法|不能視為已確定的交易|回顧價位不代表(?:本日|當日|今日)(?:再次)?買進/;
+/** 去掉寫作過程，只留下其中的實際事實與警示。 */
+function stripEditorialWrappers_(text) {
+  return String(text || '')
+    .replace(/(?:原文|逐字稿)(?:以|用)(「[^」]+」|[^。；]+?)作為(?:風險)?(?:警示|提醒)/g, '$1')
+    .replace(/(?:逐字稿|影片)(?:補充的|補充)?(?:重點|說明)(?:是|為)[：:]?/g, '')
+    .replace(/(?:原文|逐字稿)(?:補充|提到|提及|強調|提醒|指出|說明)(?:的)?/g, '')
+    .replace(/原文回顧/g, '先前').replace(/原文強調的/g, '');
+}
+/** 交易價留在價位欄，說明保留技術、消息與風險。 */
+function smsNoteBody_(text, row) {
+  row = row || {};
+  text = String(text || '').replace(/(?:會員簡訊|盤中(?:即時)?通知)(?:的)?(?:當日|當天|今日|當時)?(?:通知|說明|指出|提到|要求|內容)?(?:在|以)?[：:]?/g, '');
+  var known = String(row.price || '').match(/\d+(?:\.\d+)?/g) || [];
+  return text.split(/(?<=[。！？；])/).map(function(sentence) {
+    var trade = /買進|買入|買回|賣出|賣掉|出清|加碼|減碼|成本|成交|平盤/.test(sentence);
+    var removePrice = function(match, index) {
+      if (/EPS|每股盈餘|股利|配息|除息|除權|權利金/i.test(sentence.slice(Math.max(0, index - 12), index))) return match;
+      if (!trade && !(match.match(/\d+(?:\.\d+)?/g) || []).some(function(n) { return known.indexOf(n) >= 0; })) return match;
+      return '';
+    };
+    sentence = sentence.replace(/(?:在|以|於)?(?:平盤)?\d+(?:\.\d+)?\s*(?:元|塊)(?:附近|以上|以下|之上|之下)?/g, removePrice);
+    known.forEach(function(price) {
+      var escaped = price.replace(/\./g, '\\.');
+      sentence = sentence.replace(new RegExp('(?:在|以|於)?(?:平盤)?(?<![\\d.])'+escaped+'(?![\\d.])(?:以上|以下|之上|之下)', 'g'), removePrice);
+    });
+    return sentence;
+  }).join('').replace(/^[ ，：:。；]+|[ ，：:]+$/g, '');
+}
+function publicSmsNote_(text, row) { return smsNoteBody_(publicNarrative_(text, row), row); }
 /** 按頂層逗號、分號、句號切子句，丟掉含內部判斷字眼的那幾句；括號裡的標點不切。 */
 function stripMetaClauses_(text) {
   var str = String(text || ''), parts = [], buf = '', depth = 0;
@@ -732,8 +761,10 @@ function stripMetaClauses_(text) {
 /** 說明名稱與代號對齊，原始逐字稿與引用不經過這個函式。 */
 function publicNarrative_(text, row) {
   row = row || {};
+  var sms = /會員簡訊|盤中(?:即時)?通知/.test(String(text || '')) || /^CMONEY-/.test(String(row.videoId || row.sourceId || row['來源影片ID'] || ''));
   // 語音稿把「不准」聽寫成「不準」（「會員不準賣」）；後面接動作才換，「預測不準」不動。
-  text = toTraditional_(text).replace(/不準(?=給我|亂|再|去|賣|買|碰|追|用|借|操作|進場|放空|做空)/g, '不准')
+  text = toTraditional_(text);
+  text = stripEditorialWrappers_(text).replace(/不準(?=給我|亂|再|去|賣|買|碰|追|用|借|操作|進場|放空|做空)/g, '不准')
     .replace(/(被|遭|獲)(?:張震|張正|張總|張中|講者)(?:老師)?/g, '$1')   // 被動句裡的人名也不寫（v96）
     .replace(/(^|[，,。；;：:、「『（(\s]|雖然|但是|但|而且|而|並且|並|且|因為|所以)(?:張震|張正|張總|張中|講者)(?:老師)?(?:本人)?(?:的(?=會員))?/g,'$1');
   text = stripMetaClauses_(text);
@@ -762,7 +793,8 @@ function publicNarrative_(text, row) {
     var key=part.replace(/回顧|過往|目前|\s|[，,]/g,'');
     if(key && !seen[key]){seen[key]=true;parts.push(part.trim());}
   });
-  return (parts.join('。')+(parts.length?'。':'')).replace(/[*＊]+/g,'');
+  text = (parts.join('。')+(parts.length?'。':'')).replace(/[*＊]+/g,'');
+  return sms ? smsNoteBody_(text, row) : text;
 }
 // END PUBLIC NARRATIVE V10
 

@@ -1515,9 +1515,9 @@ var MAIL_RISK_LINES_ = [
 ];
 function mailRiskHtml_() {
   return '<div class="mc-risk" style="margin:0 0 12px;">' +
-      '<div class="mc-risk-h" style="font-size:13px;font-weight:700;color:#12161A;margin:0 0 4px;">風險揭露與重要提醒</div>' +
+      '<div class="mc-risk-h" style="font-size:14px;font-weight:700;color:#12161A;margin:0 0 8px;">風險揭露與重要提醒</div>' +
       MAIL_RISK_LINES_.map(function (line) {
-        return '<div class="mc-risk-li" style="font-size:12px;line-height:1.7;color:#667069;margin:0;">• ' + line + '</div>';
+        return '<div class="mc-risk-li" style="font-size:13px;line-height:1.75;color:#26312C;margin:0 0 6px;">• ' + line + '</div>';
       }).join('') +
     '</div>';
 }
@@ -1762,7 +1762,7 @@ function mdToHtml_(md) {
     /* 手機優先的疊列版（v88，2026/09/30 管理者：寄出去的信在手機上股票與說明擠在一起）。
        先前改成左右兩欄、股票欄固定 18%：手機上只剩約 30px，名稱被切成一字一行（國／巨、GI／S-／KY），
        說明也被擠窄；表頭「股票／代號」「說明重點」黏成一行。現在每一檔兩列、只有一欄：
-         第一列　名稱　代號　方向／價位標籤（同一行，放不下自然換行，代號與短價位不拆開）
+         第一列　名稱　代號；方向／價位標籤靠左另起一行，代號與短價位不拆開
          第二列　說明，橫跨整寬
        兩列同一個底色、左側同一條類別色條，檔與檔之間一條細線；不需要表頭，也不用 colgroup 固定欄寬。 */
     html.push('<table class="mc-table mc-stack" role="presentation" width="100%" cellpadding="0" cellspacing="0" ' +
@@ -1784,7 +1784,8 @@ function mdToHtml_(md) {
       var tags = vals.map(function (x) {
         if (x.i === dirCol) { return chip(x.v, toneOf_(x.v)); }
         // 短價位（271以上、1580以下）不拆行；長的說明性價位交給自然換行。
-        return x.v.replace(/&[a-z]+;|&#\d+;/g, 'x').length <= 12 ? '<span style="white-space:nowrap;">' + x.v + '</span>' : x.v;
+        return '<span class="mc-price" style="display:inline-block;margin-left:12px;' +
+          (x.v.replace(/&[a-z]+;|&#\d+;/g, 'x').length <= 12 ? 'white-space:nowrap;' : '') + '">價位 ' + x.v + '</span>';
       }).join(' ');
       var wdesc = descIdx > 0 ? stripMetaClauses_(String(cells[descIdx] || '')) : '';
       var sep = n ? 'border-top:1px solid ' + ln + ';' : '';
@@ -1792,10 +1793,10 @@ function mdToHtml_(md) {
           '<td bgcolor="' + bg + '" class="' + cls + ' mc-name" style="background:' + bg + ';padding:12px 14px 2px;' + sep +
             'border-left:4px solid ' + bar + ';vertical-align:top;font-weight:700;font-size:15px;line-height:1.55;color:#12161A;' +
             'overflow-wrap:break-word;word-break:normal;">' +
-            '<span style="white-space:normal;">' + mailStockName_(cells[0]) + '</span>' +
+            '<span class="mc-stock-label" style="display:inline-block;margin-right:12px;white-space:normal;">' + mailStockName_(cells[0]) + '</span>' +
             (codeIdx >= 0 && cells[codeIdx] ? ' <span class="mc-code" style="font-weight:400;font-size:13.5px;letter-spacing:0.04em;color:' +
-              MAIL_CODE_COLOR_ + ';white-space:nowrap;">' + cells[codeIdx] + '</span>' : '') +
-            (tags ? ' <span class="mc-mid" style="display:inline-block;font-weight:400;font-size:13.5px;line-height:1.55;color:#26312C;">' + tags + '</span>' : '') +
+              MAIL_CODE_COLOR_ + ';display:inline-block;white-space:nowrap;">' + cells[codeIdx] + '</span>' : '') +
+            (tags ? ' <span class="mc-mid" style="display:block;margin:8px 0 4px;text-align:left;font-weight:400;font-size:13.5px;line-height:1.55;color:#26312C;">' + tags + '</span>' : '') +
           '</td></tr>' +
           '<tr><td bgcolor="' + bg + '" class="' + cls + ' mc-desc" style="background:' + bg + ';padding:2px 14px 12px;' +
             'border-left:4px solid ' + bar + ';vertical-align:top;font-size:13.5px;line-height:1.75;color:#26312C;' +

@@ -1205,7 +1205,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-10-01-workflow-evidence-v91';
+var PROJECT_BUILD_ = '2026-10-01-mail-spacing-v92';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
@@ -1226,7 +1226,7 @@ var PROJECT_FILES_ = [
   { file: 'DB.gs', names: ['writeSubscriptionFields_', 'findSubscription_'] },
   { file: 'Evidencequality.gs', names: ['rawTranscript_', 'validEvidence_', 'queueDayEditSync_', 'dayEditSyncTick_', 'queueCostSync_'], marker: ['dayEditSyncTick_', 'COST:'] },
   { file: 'Logic.gs', names: ['markChainStep_', 'REFRESH_STEPS_'] },
-  { file: 'MailService.gs', names: ['createSubscription', 'mailHero_', 'publicWebAppUrl_', 'escAttr_', 'mailRiskHtml_', 'deliverMessage_', 'deliveryLedger_', 'mailPlainText_', 'isExecUrl_', 'mailStockName_', 'noVideoToday_', 'pushReadyChannels_', 'gateAutoRelease_'], marker: ['mdToHtml_', 'toTraditional_(md)'] },
+  { file: 'MailService.gs', names: ['createSubscription', 'mailHero_', 'publicWebAppUrl_', 'escAttr_', 'mailRiskHtml_', 'deliverMessage_', 'deliveryLedger_', 'mailPlainText_', 'isExecUrl_', 'mailStockName_', 'noVideoToday_', 'pushReadyChannels_', 'gateAutoRelease_'], marker: ['mdToHtml_', 'mc-stock-label'] },
   { file: 'Presentationquality.gs', names: ['displayPrice_', 'narrativeName_', 'titleChars_', 'toTraditional_'], marker: ['publicNarrative_', 'toTraditional_(text)'] },
   { file: 'Quoteservice.gs', names: ['getFugleKey_', 'fugleFetch_', 'sharesToLots_', 'volumeInLots_', 'hourSlot_', 'readHourlyRows_', 'fugleHistPace_', 'kcPutAll_', 'getCandlesBundle', 'misBatchQuotes_'], marker: ['repairDailyKVolume', 'disabled: true'] },
   { file: 'Refreshrunner.gs', names: ['runRefreshAllChunk_', 'withRefreshAllLease_'] },
@@ -1242,8 +1242,8 @@ var PROJECT_HTML_ = [
   { file: 'Market', marker: 'function marketSourceLabel(c, queriedAt)' },
   { file: 'Index', marker: '持有檔數包含暫時缺價' },
   { file: 'JavaScript', marker: 'function showsPrice(dir)' },
-  { file: 'Stylesheet', marker: 'v91：網站深色主題不能沿用寄信白底的深色字。' },
-  { file: 'Changelog', marker: 'v91 後台完成狀態與官方行情續跑' },
+  { file: 'Stylesheet', marker: 'v92：風險提醒也須隨主題與閱讀設定顯示' },
+  { file: 'Changelog', marker: 'v92 郵件風險提醒與股票間距' },
   { file: 'Tech', marker: 'id="faq-not-found"' },
   { file: 'Admin', marker: 'var pipeReady = o.pipelineDone' },
   { file: 'Settings', marker: '手機預覽' },

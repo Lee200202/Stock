@@ -20,6 +20,16 @@ assert.strictEqual((table.match(/<td /g) || []).length, 2, 'hold status does not
 assert.match(table, /鴻準<\/span> <span class="mc-code"[^>]*>2354<\/span>/);
 assert(!table.includes('>持有<'), 'repeated status is absent');
 assert.match(table, /會員續抱。/);
+const buy = mail.mdToHtml_('| 股票名稱 | 代號 | 方向 | 價位說明 | 說明重點 |\n|---|---|---|---|---|\n| 瑞鼎 | 3592 | 買入 | 240以下 | 買入說明。 |\n');
+assert.match(buy, /mc-stock-label[^>]*margin-right:12px/);
+assert.match(buy, /mc-mid[^>]*display:block[^>]*text-align:left/);
+assert.match(buy, /mc-price[^>]*white-space:nowrap[^>]*>價位 240以下/);
+const risk = mail.mailRiskHtml_();
+assert.match(risk, /mc-risk-h/);
+assert.strictEqual((risk.match(/mc-risk-li/g) || []).length, 2, 'both risk notices remain');
+const style = read('Stylesheet.html');
+assert.match(style, /\.mc-risk-h \{ color: var\(--ink\) !important/);
+assert.match(style, /\.mc-risk-li \{ color: var\(--ink\) !important/);
 const escaped = mail.mdToHtml_('| 股票名稱 | 代號 | 說明重點 |\n|---|---|---|\n| 甲 | 1234 | <script>alert(1)</script> |\n');
 assert(!escaped.includes('<script>'), 'transcript text must remain escaped');
 

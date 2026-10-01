@@ -2816,6 +2816,16 @@ html[data-view="mobile"] .mail-content table.mc-table:not(.mc-stack) td.mc-desc 
 .mail-content table.mc-table.mc-stack td.mc-name { padding: 12px 16px 2px !important; }
 .mail-content table.mc-table.mc-stack td.mc-desc { padding: 2px 16px 12px !important; }
 .mail-content table.mc-table.mc-stack span.mc-mid { font-size: calc(13.5px * var(--rd-fs)) !important; letter-spacing: var(--rd-ls) !important; color: var(--ink) !important; }
+/* v92：風險提醒也須隨主題與閱讀設定顯示；相容尚未重新產生的舊信件 HTML。 */
+.mail-content .mc-risk-h { color: var(--ink) !important; font-size: calc(14px * var(--rd-fs)) !important; letter-spacing: var(--rd-ls) !important; margin-bottom: 8px !important; }
+.mail-content .mc-risk-li { color: var(--ink) !important; font-size: calc(13px * var(--rd-fs)) !important; letter-spacing: var(--rd-ls) !important; line-height: var(--rd-lh) !important; margin-bottom: 6px !important; }
+.mail-content .mc-stack td.mc-name > span:first-child { display: inline-block; margin-right: 12px; }
+.mail-content .mc-stack td.mc-name .mc-code { display: inline-block; white-space: nowrap; }
+.mail-content .mc-stack td.mc-name .mc-mid { display: block !important; margin: 8px 0 4px !important; text-align: left !important; }
+.mail-content .mc-stack .mc-mid .mc-price { margin-left: 12px; }
+/* 舊 HTML 的價位沒有 mc-price，讓方向膠囊與後方數字也有間距。 */
+.mail-content .mc-stack .mc-mid .mc-chip { margin-right: 12px !important; }
+.mail-content .mc-stack .mc-mid .mc-chip + .mc-price { margin-left: 0; }
 .mail-content .mc-hero h1 { font-size: calc(19px * var(--rd-fs)) !important; }
 [data-theme="dark"] .mail-content .mc-hero { background: color-mix(in srgb, #04795C 30%, var(--panel)) !important; }
 [data-theme="dark"] .mail-content .mc-chip { filter: brightness(1.05); }

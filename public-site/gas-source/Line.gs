@@ -134,8 +134,14 @@ function lineApi_(method, path, payload, opts) {
   try { return lineParseRes_(UrlFetchApp.fetch(url, p)); }
   catch (e) { return { code: -1, json: null, text: lineClip_(String(e && e.message || e), 200) }; }
 }
+/* LINE 的前端（CDN）偶爾對 Apps Script 的出口位址回一頁「Access Denied」HTML（v96，2026/10/01：
+   讀月額度與通知選單別名都被擋，同一時間的推送正常）。那不是 LINE API 的回應——API 的錯誤一律是 JSON。 */
+function lineEdgeDenied_(r) {
+  return !!r && r.code === 403 && !r.json && /Access Denied|<HTML/i.test(String(r.text || ''));
+}
 function lineErrText_(r) {
   if (!r) { return ''; }
+  if (lineEdgeDenied_(r)) { return 'LINE 前端拒絕這次連線（Access Denied，不是 LINE API 的回應）；不影響已接受的推送，月用量可到 LINE Official Account Manager 核對'; }
   var j = r.json || {}, msg = j.message ? String(j.message) : String(r.text || '');
   var det = Array.isArray(j.details) ? j.details.map(function (d) { return (d.property ? d.property + '：' : '') + (d.message || ''); }).join('；') : '';
   var s = (msg + (det ? '（' + det + '）' : '')).trim();
@@ -1489,6 +1495,11 @@ function lineClassify_(res, attempt) {
   if (code === 409) { return { state: 'accepted', err: '先前已接受（409）', requestId: res.acceptedId || res.requestId }; }
   if (code === 429) { return { state: 'retryable', err: msg, stop: /monthly limit/i.test(msg) ? 'quota' : 'rate', noCount: true }; }
   if (code === 401) { return { state: 'retryable', err: '存取權杖無效或過期：' + msg, stop: 'auth', noCount: true }; }
+  // 前端擋下的推送沒有進到 LINE：當成暫時性，用同一把重試鍵再送；試滿次數才標失敗。
+  if (lineEdgeDenied_(res)) {
+    return attempt >= LINE_MAX_ATTEMPTS_ ? { state: 'failed', err: '重試 ' + attempt + ' 次仍被 LINE 前端拒絕（Access Denied）' }
+                                         : { state: 'retryable', err: 'LINE 前端暫時拒絕連線（Access Denied）' };
+  }
   if (code <= 0 || code >= 500) {
     return attempt >= LINE_MAX_ATTEMPTS_ ? { state: 'failed', err: '重試 ' + attempt + ' 次仍失敗：' + msg } : { state: 'retryable', err: msg };
   }

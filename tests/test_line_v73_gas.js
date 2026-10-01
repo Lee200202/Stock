@@ -621,3 +621,26 @@ w.ctx.linePruneJob_();
 assert.deepStrictEqual(ev.rows.slice(1).map(x => x[0]), ['new']);
 
 console.log('test_line_v73_gas: all passed');
+
+// v96：LINE 前端（CDN）回的「Access Denied」HTML 不是 API 回應——推送當暫時性重試，後台訊息不貼整頁 HTML。
+{
+  const src = fs.readFileSync(path.join(gasDir, 'Line.gs'), 'utf8').split('\r\n').join('\n');
+  const vmEdge = require('vm'), ctxEdge = vmEdge.createContext({});
+  // 取出整個函式：從「function 名稱(」到下一個獨立一行的「}」
+  const grab = name => { const a = src.indexOf('function ' + name + '('); return src.slice(a, src.indexOf('\n}\n', a) + 2); };
+  vmEdge.runInContext('var LINE_MAX_ATTEMPTS_ = 6;\nfunction lineClip_(s, n) { s = String(s == null ? "" : s); return s.length > n ? s.slice(0, n) : s; }\n' +
+    grab('lineEdgeDenied_') + '\n' + grab('lineErrText_') + '\n' + grab('lineClassify_'), ctxEdge);
+  const denied = { code: 403, json: null, text: '<HTML><HEAD>\n<TITLE>Access Denied</TITLE>\n</HEAD><BODY>\n<H1>Access Denied</H1>' };
+  const assertEdge = require('assert');
+  assertEdge.strictEqual(ctxEdge.lineEdgeDenied_(denied), true);
+  assertEdge.strictEqual(ctxEdge.lineClassify_(denied, 1).state, 'retryable', '前端擋下的推送要重試');
+  assertEdge.strictEqual(ctxEdge.lineClassify_(denied, 6).state, 'failed', '試滿次數才標失敗');
+  assertEdge(!/<HTML|<TITLE/.test(ctxEdge.lineErrText_(denied)) && /Access Denied/.test(ctxEdge.lineErrText_(denied)), '後台訊息不貼整頁 HTML');
+  // LINE API 自己回的 403（JSON）仍是不重試的失敗；2xx、409、429 規則不變
+  const api403 = { code: 403, json: { message: 'Forbidden' }, text: '{"message":"Forbidden"}' };
+  assertEdge.strictEqual(ctxEdge.lineEdgeDenied_(api403), false);
+  assertEdge.strictEqual(ctxEdge.lineClassify_(api403, 1).state, 'failed');
+  assertEdge.strictEqual(ctxEdge.lineClassify_({ code: 200, json: {}, text: '{}' }, 1).state, 'accepted');
+  assertEdge.strictEqual(ctxEdge.lineClassify_({ code: 429, json: { message: 'You have reached your monthly limit.' }, text: '' }, 1).stop, 'quota');
+  console.log('PASS: v96 LINE edge Access Denied is retryable and reported in plain words.');
+}

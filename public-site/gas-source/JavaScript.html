@@ -586,7 +586,7 @@
       ledgerRow('sell', '賣出', d ? d.sell.length : 0, 'tblSell') +
       ledgerRow('watch', '觀望不碰', d ? wAvoid(d).length : 0, 'tblWatchAvoid') +
       ledgerRow('note', '觀望注意', d ? wWatch(d).length : 0, 'tblWatchWatch') +
-      ledgerRow('hold', '持股', d ? d.holdings.length : 0, 'tab:tracker');
+      ledgerRow('hold', '目前持有', d ? d.holdings.length : 0, 'tab:tracker');
     box.querySelectorAll('[data-jump]').forEach(function (b) {
       b.addEventListener('click', function () {
         var to = b.getAttribute('data-jump');

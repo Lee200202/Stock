@@ -478,7 +478,7 @@ q = w.ctx.lineDailyTick_();
 assert.strictEqual(q.created, true);
 assert.deepStrictEqual(w.calls.pushes.map(p => p.to), [uid('1')], '只送開啟每日總覽、沒封鎖的好友');
 let daily = w.calls.pushes[0].messages[0];
-assert.strictEqual(daily.altText, '每日總覽 09/28（一）｜記憶體報價止跌，法人回補後的操作重點整理！｜買入1、賣出0、觀望不碰1、觀望注意2、持股2');
+assert.strictEqual(daily.altText, '每日總覽 09/28（一）｜記憶體報價止跌，法人回補後的操作重點整理！｜買入1、賣出0、觀望不碰1、觀望注意2、當日明講持股2');
 const dj = flexTexts(daily);
 assert(/季線附近有撐/.test(dj) && /連三天回補/.test(dj) && !/第三點不會出現/.test(dj) && !/不是盤勢/.test(dj), '盤勢只取已驗證條列的前兩點');
 assert(/"text":"1"[^}]*"color":"#B4342C"/.test(dj), '買入 1 檔');

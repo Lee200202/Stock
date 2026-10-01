@@ -1257,14 +1257,14 @@ function lineDailyFlex_(info, kicker) {
     info.points.slice(0, 2).forEach(function (p) { body.push(fxBullet_(p, 3)); });
     body.push({ type: 'separator', margin: 'md' });
   }
-  body.push(fxBox_('horizontal', [num(c.buy, '買入', LINE_C_.buy), num(c.sell, '賣出', LINE_C_.sell), num(c.hold, '持股', LINE_C_.hold)], { margin: 'md' }));
+  body.push(fxBox_('horizontal', [num(c.buy, '買入', LINE_C_.buy), num(c.sell, '賣出', LINE_C_.sell), num(c.hold, '當日明講持股', LINE_C_.hold)], { margin: 'md' }));
   body.push(fxBox_('horizontal', [num(c.avoid, '觀望不碰', LINE_C_.avoid), num(c.watch, '觀望注意', LINE_C_.watch)], { margin: 'md' }));
   if (!info.counts) { body.push(fxNote_('分類筆數暫時讀不到，請看完整整理核對。')); }
   body.push(lineBand_([{ value: c.buy, color: LINE_C_.buy }, { value: c.sell, color: LINE_C_.sell },
     { value: c.avoid, color: LINE_C_.avoid }, { value: c.watch, color: LINE_C_.watch }, { value: c.hold, color: LINE_C_.hold }]));
-  body.push(fxNote_('整理已驗證的節目內容，不是買賣建議。'));
+  body.push(fxNote_('持股數只計本日明講，網站「目前持有」另計仍持有的追蹤回合。整理已驗證的內容，不是買賣建議。'));
   var url = lineSiteUrl_('mail');
-  return lineFlex_('每日總覽 ' + dl + '｜' + title + (info.counts ? '｜買入'+c.buy+'、賣出'+c.sell+'、觀望不碰'+c.avoid+'、觀望注意'+c.watch+'、持股'+c.hold : ''), fxBubble_(fxHeader_((kicker || '每日總覽') + '｜' + dl, title), body,
+  return lineFlex_('每日總覽 ' + dl + '｜' + title + (info.counts ? '｜買入'+c.buy+'、賣出'+c.sell+'、觀望不碰'+c.avoid+'、觀望注意'+c.watch+'、當日明講持股'+c.hold : ''), fxBubble_(fxHeader_((kicker || '每日總覽') + '｜' + dl, title), body,
     [url ? fxBtn_(lineUri_('查看完整整理', url)) : null, fxBtn_(linePb_('管理通知', 'a=manage', '管理訂閱'), 'link')]));
 }
 

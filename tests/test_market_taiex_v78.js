@@ -31,3 +31,11 @@ assert.equal(card.line.length,2);
 assert.equal(JSON.parse(props.marketIndexSnapshotStatus).ok,true);
 assert(source.includes("if(isMarketOpen&&live&&String(live.time||'').slice(0,10)!==stamp){live=null;}"));
 console.log('test_market_taiex_v78: stale response rejected, current timestamp accepted');
+
+const marketHtml=fs.readFileSync('public-site/gas-source/Market.html','utf8');
+const labelSource=marketHtml.slice(marketHtml.indexOf('  function marketSourceLabel('),marketHtml.indexOf('  // 折線圖：'));
+const sourceLabel=new Function('esc',labelSource+';return marketSourceLabel;')(s=>String(s||'').replace(/</g,'&lt;').replace(/"/g,'&quot;'));
+assert.match(sourceLabel({time:'2026/09/30 04:59:58',source:'台灣期交所'},'2026/10/01 08:42:51'),/is-old.*較早資料，請核對日期/);
+assert.doesNotMatch(sourceLabel({time:'2026/10/01 08:40:00',source:'台灣期交所'},'2026/10/01 08:42:51'),/is-old/);
+assert.match(sourceLabel({time:'2026/10/01 08:40:00',source:'Yahoo'},'2026/10/01 08:42:51'),/可能延遲/);
+assert.doesNotMatch(sourceLabel({time:'未提供',source:'期交所'},'2026/10/01 08:42:51'),/is-old/);

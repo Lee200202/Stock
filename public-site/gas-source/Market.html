@@ -174,6 +174,7 @@
 .market-delta { display:inline-block; font-size:calc(14px * var(--rd-fs)); }
 .market-chart-empty { min-height:160px; display:grid; place-items:center; box-sizing:border-box; }
 .market-source { font-size:calc(11.5px * var(--rd-fs)); margin-top:2px; }
+.market-source.is-old { color:var(--wait); font-weight:600; }
 .market-baseline { font-size:calc(11px * var(--rd-fs)); opacity:.75; }
 /* v54：卡片等高、折線圖一律貼底（D7）。台指期多一行合約與成交量，原本那張圖會比旁邊低一截。 */
 .market-card-layout { flex:1 1 auto; }
@@ -210,6 +211,12 @@ html[data-view="mobile"] .market-card:first-child .market-card-info { flex:none;
   function el(id){return document.getElementById(id);}
   function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   function num(v,d){return v!=null&&isFinite(Number(v))?Number(v).toLocaleString('zh-TW',{maximumFractionDigits:d==null?2:d}):'未取得';}
+  function marketSourceLabel(c, queriedAt){
+    function stamp(v){return /^\d{4}[/-]\d{2}[/-]\d{2} \d{2}:\d{2}:\d{2}$/.test(String(v||'')) ? Date.parse(String(v).replace(/\//g,'-').replace(' ','T')+'+08:00') : NaN;}
+    var sourceAt=stamp(c.time), queryAt=stamp(queriedAt), old=isFinite(sourceAt)&&isFinite(queryAt)&&queryAt-sourceAt>12*3600000;
+    var note=old?'較早資料，請核對日期':/Yahoo/.test(c.source||'')?'可能延遲':'來源時間';
+    return '<div class="market-source'+(old?' is-old':'')+'" title="'+esc(c.source)+'">資料 '+esc(c.time)+' · '+note+'</div>';
+  }
 
   // 折線圖：以 0 軸（昨收基準價）為界，上方正值區域紅色，下方負值區域綠色
   function line(rows,label,key,curValue,curChange,basePrice,session,quoteTime,win){
@@ -424,7 +431,7 @@ html[data-view="mobile"] .market-card:first-child .market-card-info { flex:none;
               divBadge +
             '</div>' +
             amount + tradeVol + estVol +
-            '<div class="market-source" title="'+esc(c.source)+'">資料 '+esc(c.time)+' · '+(/Yahoo/.test(c.source||'')?'可能延遲':'來源時間')+'</div>' +
+            marketSourceLabel(c, data.at) +
           '</div>' +
           '<div class="market-card-chart">' +
             line(c.line,c.label,c.key,c.value,c.change,basePrice,c.session,c.time,{start:c.windowStart,end:c.windowEnd}) +

@@ -1439,13 +1439,13 @@ html[data-view="mobile"] .line-copy { grid-template-columns:1fr; }
     <section class="panel" id="p-maint" role="tabpanel" hidden>
       <div class="card">
         <h2>維護工具</h2>
-        <p class="hint">平常不需要碰。三個工具差在<b>動不動資料</b>：「只刷新畫面」只重算網站上看到的東西；
+        <p class="hint">平常不需要碰。三個工具差在<b>處理範圍</b>：「核對資料與重算」會執行稽核、更新整理與衍生結果；
           「全面重整」會讓過去的資料套用新規則；「指定日期」只改一天的郵件或分類。</p>
 
         <div class="mtool">
-          <div class="mt-h"><b>只刷新畫面</b><span>不動資料</span><span>GitHub Actions</span></div>
+          <div class="mt-h"><b>核對資料與重算</b><span>會更新資料</span><span>GitHub Actions</span></div>
           <p>用試算表現有的正式操作內容，依序重算九步：清除產業列、三段品質關卡、
-             代號、基本面、日K、持股追蹤與績效。操作紀錄與會員持股不會因刷新被重建；
+            代號、基本面、日K、持股追蹤與績效。稽核可能補登、調整分類或移除不應收錄的列；
              快取與衍生結果會更新。日K檔數多時可能需要十幾分鐘。</p>
           <p>某一步失敗時不必整條鏈重來，選擇該步驟接續即可。後面的相依步驟會依序完成；
              例如補齊日K失敗時，系統會保留日K游標，並暫停持股追蹤與績效，避免用不完整行情計算。</p>
@@ -2396,24 +2396,8 @@ function pollRun(){
     $('runStat').classList.toggle('fail', !!run.failureReason);
 
 
-    /* 只刷新畫面的進度區。
-       GitHub 只告訴我們「排隊、執行中、結束」三種狀態，不會逐步回報跑到哪一步，
-       所以這裡的三格就照實畫這三種狀態，不假裝知道它做到第幾件事。
-       另外這支 API 回的是「最近一次」執行，投稿與刷新同時在跑時會是同一筆，
-       所以標題寫明是最近一次，不要讓人以為那一定是自己剛按的那個。 */
-    // 只刷新畫面：這裡只負責連結與 GitHub 那一側的狀態，
-    // 「跑到第幾步」由 pollChain 從 Apps Script 問，那才是真的。
-    $('refRun').classList.add('show');
-    $('refLog').href = run.url;
-    $('refStat').textContent = label;
-    $('refStat').classList.toggle('fail', !!run.failureReason);
-    // 全面重整現在也跑在 GitHub 上，同一個連結對它也有用。
-    $('fullLogGh').href = run.url;
-    if($('fullStat')){
-      $('fullStat').textContent = label;
-      $('fullStat').classList.toggle('fail', !!run.failureReason);
-    }
-  }).apiAdminRunInfo(KEY);
+    // 維護工單使用各自的派工回應／進度，不拿投稿或最近一次執行覆蓋其日誌。
+  }).apiAdminRunInfo(KEY, (String(JOB_RUN_URL || '').match(/\/actions\/runs\/(\d+)/) || [])[1] || '');
 }
 
 /* 只刷新畫面的子步驟。
@@ -2458,6 +2442,9 @@ function setProgressA11y_(fill, percent, status) {
 
 function renderChain(st){
   if(!st || !CHAIN_NAMES.length){ return; }
+  $('refStat').textContent = '此維護工單：' + st.status + (st.updatedAt ? ' · ' + st.updatedAt : '');
+  $('refStat').classList.toggle('fail', st.status === '失敗');
+  $('refLog').textContent = /\/actions\/runs\/\d+/.test($('refLog').href) ? '查看本次執行紀錄 →' : '查看工作流程清單（未取得本次網址）→';
   $('refProg').style.display = 'block';
 
   var cur = Number(st.index);
@@ -2749,7 +2736,7 @@ function pollFull(){
       if(fullTimer){ clearInterval(fullTimer); fullTimer = null; }
       $('fullBtn').disabled = false; $('fullBtn').textContent = '開始全面重整';
       $('fullCancelBtn').disabled = true;
-      $('fullStat').textContent = '';
+      $('fullStat').textContent = '此重整工單：' + st.status + (st.updatedAt ? ' · ' + st.updatedAt : '');
       // 暫停、失敗、已取消都還有得接，只有「完成」才關掉接著跑
       $('fullResumeBtn').disabled = (st.status === '完成');
       FULL_RESUME_AT = (st.status === '完成') ? '' : (st.resumeAt || '');
@@ -4497,9 +4484,16 @@ var mergeTxFingerprint='';
   }
   function render(r) {
     var o = r.ops || {}, d = o.deliveries || {}, m = o.mailByKind || {}, daily = m.daily || {}, smsMail = m.sms || {}, alerts = o.alerts || [];
+    alerts = alerts.slice();
+    var dkFailed = !!(o.dailyK && o.dailyK.failed > (o.dailyK.success || 0) + (o.dailyK.skipped || 0));
+    var hourError = /待補|HTTP [45]\d\d|失敗|錯誤/.test(o.hourlyProgress || '');
+    if (dkFailed) { alerts.push('最近日 K 抓取多數失敗，請核對官方補齊與行情完整性'); }
+    if (hourError) { alerts.push('歷史 60 分 K 尚有缺口'); }
+    var pipeEvidence = (r.automation || []).filter(function(a){return a.label === 'Pipeline 稽核';})[0];
+    var pipeReady = o.pipelineDone === true || (o.pipelineDone === undefined && pipeEvidence && pipeEvidence.tone === 'ok');
     function clock(v) { return v ? String(v).slice(11, 16) : ''; }
     function sent(g) { return '服務接受 ' + (g.accepted || 0) + '/' + (g.total || 0) + ' 位' + (g.open ? '；待續送 ' + g.open : '') + (g.failed ? '；失敗 ' + g.failed : '') + (g.unknown ? '；結果不明 ' + g.unknown : ''); }
-    var dkToday = !!(o.dailyK && o.dailyK.finishedAt && String(o.dailyK.finishedAt).slice(0, 10) === r.today);
+    var dkToday = !!(o.dailyK && o.dailyK.finishedAt && String(o.dailyK.finishedAt).slice(0, 10) === r.today && !dkFailed);
     /* 休市日（v67，0925 規格 A1）：監控每一格先看休市，統一寫「今天休市，不執行」並用灰色，
        不再同時出現「等待影片」「等待今日補齊」「尚未寄送」而和今日狀態卡互相矛盾。 */
     var closed = o.closed || (o.trading === false ? '休市' : '');
@@ -4529,7 +4523,7 @@ var mergeTxFingerprint='';
       (closed ? card('自動取稿與爬取', '休市', closedTxt + '；交易日 ' + (o.autoStart || '11:05') + ' 起自動取稿。', 'closed') :
       card('自動取稿與爬取', o.noShow ? '今日無直播' : o.plannedNoShow ? '預告停播' : o.videoStatus || '等待影片', '原文 ' + (o.rawChars || 0) + ' 字 · 修飾 ' + (o.polishedChars || 0) + ' 字。', o.videoStatus === '完成' ? 'ok' : 'idle')) +
       (closed ? card('Pipeline 稽核', '休市不執行', closedTxt, 'closed') :
-      card('Pipeline 稽核', o.noShow ? '今日無直播' : o.videoStatus === '完成' && o.rawChars > 200 ? '已發布每日整理' : o.rawChars > 200 ? '原文已到，等待判讀' : '等待原文', '完成須同時有原文、影片處理狀態「完成」及當日推播列。', o.videoStatus === '完成' ? 'ok' : 'idle')) +
+      card('Pipeline 稽核', o.noShow ? '今日無直播' : pipeReady ? '已發布每日整理' : o.rawChars > 200 ? '原文已到，等待判讀／發布' : '等待原文', '完成須同時有原文、影片處理狀態「完成」及當日推播列。', pipeReady ? 'ok' : o.rawChars > 200 ? 'warn' : 'idle')) +
       card('會員簡訊來源', String(o.smsCount || 0) + ' 則', '來源文章數；不等於已寄出的郵件數。', o.smsCount ? 'ok' : 'idle') +
       (closed ? card('每日總覽郵件', '休市不寄', closedTxt + '。' + prevTxt, 'closed') :
       card('每日總覽郵件', dailyTitle, (daily.messages ? sent(daily) + (clock(daily.firstAt) ? ' · 首次 ' + clock(daily.firstAt) : '') + '。' : (o.noShow ? '沒有節目，不應寄出每日整理。' : '寄送帳本今天沒有接受紀錄。')) + prevTxt, daily.failed || daily.unknown || (/已寄/.test(o.mailStatus || '') && !daily.accepted) ? 'err' : daily.open ? 'warn' : daily.accepted || o.noShow ? 'ok' : 'idle')) +
@@ -4545,7 +4539,7 @@ var mergeTxFingerprint='';
         (o.sector && o.sector.error ? '原因：' + o.sector.error + '。' : '') + (o.sector && !o.sector.scheduled ? '獨立保底排程未安裝。' : ''),
         o.sector && !o.sector.scheduled ? 'warn' : closed ? 'closed' : o.sector && o.sector.date === r.today ? 'ok' : o.trading && Number((r.now || '').replace(':', '')) >= 1700 ? 'warn' : 'idle',
         o.sector && !o.sector.scheduled ? '<button type="button" class="ghost sm" id="opsInstallSector">安裝保底排程</button>' : '') +
-      card('歷史 60 分 K／績效', o.hourlyScheduled ? '排程已安裝' : '分 K 排程缺少', '19:15 歷史分 K；績效最後一筆 ' + (o.perfLast || '尚無') + '。' + (o.hourlyProgress ? '最近進度：' + o.hourlyProgress + '。' : '尚無分 K 進度紀錄。') + (o.hourlyScheduled ? '' : '部署後執行 installMarketDataJobs()。'), o.hourlyScheduled ? 'idle' : 'warn');
+      card('歷史 60 分 K／績效', hourError ? '分 K 待補，需核對來源' : o.hourlyScheduled ? '排程已安裝' : '分 K 排程缺少', '19:15 歷史分 K；績效最後一筆 ' + (o.perfLast || '尚無') + '。' + (o.hourlyProgress ? '最近進度：' + o.hourlyProgress + '。' : '尚無分 K 進度紀錄。') + (o.hourlyScheduled ? '' : '部署後執行 installMarketDataJobs()。'), hourError || !o.hourlyScheduled ? 'warn' : 'idle');
     $('opsFlow').innerHTML =
       flow('09:05 起', '盤中會員簡訊', smsMail.accepted ? '首次 ' + clock(smsMail.firstAt) + ' 交郵件服務；' + sent(smsMail) + '。' : '每 10 分鐘核對來源；目前' + (o.smsCount ? '有來源文章，未見服務接受紀錄。' : '沒有來源文章。'), smsMail.accepted ? 'ok' : 'idle') +
       flow((o.autoStart || '11:05') + ' 起', '影片與逐字稿', closed ? closedTxt + '。' : o.noShow ? '今日無直播，已停止取稿。' : '偵測影片後才派判讀；目前 ' + (o.videoStatus || '等待影片') + '。', closed ? 'closed' : o.videoStatus === '完成' ? 'ok' : 'idle') +
@@ -5071,9 +5065,9 @@ var mergeTxFingerprint='';
               '<span data-label="缺的日期">' + esc(x.sample.join('、')) + (x.missing > x.sample.length ? '…' : '') + '<small>' + esc(x.reason) + '</small></span></div>';
           }).join('') + '</div>'
         : '';
-    }).withFailureHandler(function () {
+    }).withFailureHandler(function (e) {
       b.disabled = false; b.textContent = '開始檢查';
-      show($('kcovMsg'), 'err', '連線失敗，請再按一次。');
+      show($('kcovMsg'), 'err', '行情稽核尚未取得結果：' + (e && e.message || '連線中斷') + '。本次只讀，未改資料；可以重試。');
     }).apiAdminKCoverage(KEY);
   });
 })();

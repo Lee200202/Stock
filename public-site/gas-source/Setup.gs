@@ -1205,7 +1205,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-09-30-official-dailyk-v90';
+var PROJECT_BUILD_ = '2026-10-01-workflow-evidence-v91';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
@@ -1218,10 +1218,10 @@ var PROJECT_FILES_ = [
   { file: 'Code.gs', names: ['doGet', 'doPost', 'include', 'configMissing_', 'configMissingResponse_'], marker: ['doPost', 'x-line-signature'] },
   { file: 'API.gs', names: ['jsonOut_', 'apiLookupSubscription', 'apiUpdateSubscription', 'renderUnsubscribePage_', 'apiGetCandlesBundle', 'apiUnsubscribeConfirm', 'apiGetStockSummary', 'apiGetTechStats', 'techDemo_', 'publicTracker_', 'dashCachePut_', 'dashCacheGet_'], marker: ['apiGetDashboard', 'dashCacheGet_()'] },
   { file: 'Adminpipeline.gs', names: ['pipeIsForeign_', 'pipeBase_', 'PIPE_EXTRACT_SYSTEM'], marker: ['PIPE_EXTRACT_SYSTEM', '4916新星科'] },
-  { file: 'Adminservice.gs', names: ['adminAuth_', 'apiAdminLogin', 'PIPE_RECLASSIFY_SYSTEM', 'apiAdminTodayStatus', 'apiAdminHeldList', 'apiAdminSetHoldingCost', 'apiAdminHoldToday', 'apiAdminKCoverage', 'apiAdminOpsDay', 'apiAdminInstallSectorCatchup'], marker: ['apiAdminTodayStatus', 'dkMostlyFailed'] },
+  { file: 'Adminservice.gs', names: ['adminAuth_', 'apiAdminLogin', 'PIPE_RECLASSIFY_SYSTEM', 'apiAdminTodayStatus', 'dayVideoRow_', 'apiAdminHeldList', 'apiAdminSetHoldingCost', 'apiAdminHoldToday', 'apiAdminKCoverage', 'apiAdminOpsDay', 'apiAdminInstallSectorCatchup'], marker: ['apiAdminTodayStatus', 'dayVideoRow_(today)'] },
   { file: 'Aiservice.gs', names: ['validateKey', 'assistantModelCatalog_', 'sanitizeDraft_', 'draftReady_', 'isPromptProbe_', 'guardReply_', 'explicitSubscribeConfirm_'], marker: ['assistantModelCatalog_', 'supportedGenerationMethods'] },
   { file: 'Articlequality.gs', names: ['enforceArticleRecords_', 'attachArticleEvidence_'] },
-  { file: 'Cachebuilder.gs', names: ['budgetLeft_', 'trackedCodes_', 'readSnapshotRows_', 'officialDailyAll_', 'auditDailyKCache', 'repairDailyKCache', 'afterDailyKDoneJob', 'rescheduleDailyKTrigger', 'warmKCaches_', 'dailyKFloors_', 'resetDailyKFloor', 'isTradingDateStr_', 'ensurePerformanceContinuityJob_', 'officialDailyKFill_', 'officialDailyKTick_', 'officialDailyKJob', 'fillOfficialDailyKNow'], marker: ['snapshotPerformanceJobRun_', 't.summary.priced'] },
+  { file: 'Cachebuilder.gs', names: ['budgetLeft_', 'trackedCodes_', 'readSnapshotRows_', 'officialDailyAll_', 'auditDailyKCache', 'repairDailyKCache', 'afterDailyKDoneJob', 'rescheduleDailyKTrigger', 'warmKCaches_', 'dailyKFloors_', 'resetDailyKFloor', 'isTradingDateStr_', 'ensurePerformanceContinuityJob_', 'officialDailyKFill_', 'officialDailyKTick_', 'officialDailyKJob', 'fillOfficialDailyKNow'], marker: ['officialDailyKFill_', 'res.deferred.push(day)'] },
   { file: 'Cmoney.gs', names: ['cmMailBody_', 'cmNotifyNew_', 'cmSyncContentTick_', 'cmTranscriptExcerpt_', 'deliveryRetryTick_', 'diagnoseInstantMail', 'cmSetNotifyState_', 'resendInstantMail', 'cmPollSaveFailed_'], marker: ['cmoneyPollJobRun_', 'cmPollSaveFailed_(a, e)'] },
   { file: 'DB.gs', names: ['writeSubscriptionFields_', 'findSubscription_'] },
   { file: 'Evidencequality.gs', names: ['rawTranscript_', 'validEvidence_', 'queueDayEditSync_', 'dayEditSyncTick_', 'queueCostSync_'], marker: ['dayEditSyncTick_', 'COST:'] },
@@ -1239,13 +1239,13 @@ var PROJECT_FILES_ = [
 var PROJECT_HTML_ = [
   { file: 'MarketDetail', marker: 'function placePeriodThumb()' },
   { file: 'MarketCharts', marker: 'window.marketRollingBounds' },
-  { file: 'Market', marker: '開盤不久，走勢累積中' },
+  { file: 'Market', marker: 'function marketSourceLabel(c, queriedAt)' },
   { file: 'Index', marker: '持有檔數包含暫時缺價' },
   { file: 'JavaScript', marker: 'function showsPrice(dir)' },
-  { file: 'Stylesheet', marker: '--hold:     #4A4FA3;' },
-  { file: 'Changelog', marker: 'v90 官方收盤價補當日持股價與後台修正' },
+  { file: 'Stylesheet', marker: 'v91：網站深色主題不能沿用寄信白底的深色字。' },
+  { file: 'Changelog', marker: 'v91 後台完成狀態與官方行情續跑' },
   { file: 'Tech', marker: 'id="faq-not-found"' },
-  { file: 'Admin', marker: 'run.apiAdminSetHoldingCost(KEY, x.code, x.roundStart, cost, note);' },
+  { file: 'Admin', marker: 'var pipeReady = o.pipelineDone' },
   { file: 'Settings', marker: '手機預覽' },
   { file: 'Unsubscribed', marker: '若一直失敗，直接回覆通知信' }
 ];

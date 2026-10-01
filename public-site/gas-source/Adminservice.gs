@@ -681,7 +681,7 @@ function apiAdminTodayStatus(key) {
     var today = todayStr_(), hm = Number(Utilities.formatDate(new Date(), TZ, 'HHmm'));
     var trading = isTradingDayToday_();
     var logs = readSheetObjects_('系統狀態').filter(function (r) { return String(r['時間'] || '').indexOf(today) === 0; });
-    var video = readSheetObjects_('影片清單').filter(function (r) { return fmtDate_(r['發布日期']) === today; })[0];
+    var video = dayVideoRow_(today);
     var trades = readSheetObjects_('操作紀錄').filter(function (r) { return fmtDate_(r['日期']) === today; });
     var holds = readSheetObjects_('會員持股').filter(function (r) { return fmtDate_(r['日期']) === today; });
     // 和今日狀態共用已讀取的兩張表，不另開一支逐筆查詢 API。
@@ -907,7 +907,9 @@ function apiAdminTodayStatus(key) {
         marketSample: { at: marketSample.at || '', age: marketSampleAge, ok: marketSample.ok === true, note: String(marketSample.note || '').slice(0, 100) },
         sector: { date: sectorDate, state: String(sectorJob.state || ''), at: String(sectorJob.at || ''),
           error: String(sectorJob.error || '').slice(0, 120), scheduled: triggerNames.indexOf('sectorCatchupJob') >= 0 },
-        perfLast: perfLast, dailyK: dk ? { finishedAt: dk.finishedAt || '', lastCode: dk.lastCode || '', lastError: dk.lastError || '' } : null,
+        perfLast: perfLast, pipelineDone: pipelineDone,
+        dailyK: dk ? { finishedAt: dk.finishedAt || '', lastCode: dk.lastCode || '', lastError: dk.lastError || '',
+          success: Number(dk.ok) || 0, failed: Number(dk.failed) || 0, skipped: Number(dk.skipped) || 0 } : null,
         heartbeatAge: heartbeatAge, heartbeatAt: heartbeatAt ? Utilities.formatDate(new Date(heartbeatAt), TZ, 'HH:mm') : '',
         mailStart: dailyPushStartTime_(today).replace(/^(..)(..)$/, '$1:$2'),
         missingTriggers: missingTriggers, triggerError: triggerError, alerts: alerts, failures: fails.length,
@@ -6148,19 +6150,27 @@ function transcriptWorkflowRuns_(workflow){
   if(r.getResponseCode()!==200){throw new Error('GitHub 狀態 HTTP '+r.getResponseCode());}
   return JSON.parse(r.getContentText()).workflow_runs||[];
 }
-function transcriptTodayState_(day){
+/** 日期欄一次讀取，只拿當日原稿列；後台監控不再搬全部歷史逐字稿。 */
+function dayVideoRow_(day){
   var sh=getSheet_('影片清單'),last=sh.getLastRow();
-  if(last<2){return {ready:false,manual:false,complete:false,processingStatus:'',processingDetail:''};}
+  if(last<2){return null;}
   // 五分鐘備援只關心今天：先讀輕量日期欄，才讀命中的原稿列。
   // 舊版每棒整張讀入所有日期的原文、潤飾稿與排版 JSON，隨資料累積會拖慢觸發器。
-  var dates=sh.getRange(2,2,last-1,1).getDisplayValues(),h=sh.getRange(1,1,1,11).getDisplayValues()[0];
+  var h=sh.getRange(1,1,1,sh.getLastColumn()).getDisplayValues()[0];
+  var dateCol=h.indexOf('發布日期');
+  if(dateCol<0){throw new Error('影片清單缺少發布日期欄');}
+  var dates=sh.getRange(2,dateCol+1,last-1,1).getDisplayValues();
   var rows=[];
   dates.forEach(function(v,i){if(fmtDate_(v[0])!==day){return;}
-    var cells=sh.getRange(i+2,1,1,11).getDisplayValues()[0],r={};
+    var cells=sh.getRange(i+2,1,1,h.length).getDisplayValues()[0],r={};
     h.forEach(function(name,n){r[name]=cells[n];});rows.push(r);
   });
   // 與投稿、網站讀稿共用選列規則；同日舊列「完成」不能蓋住新貼原文的進度。
   var selected=selectTranscriptRow_(rows,'',day),chosen=selected&&selected.row;
+  return chosen || null;
+}
+function transcriptTodayState_(day){
+  var chosen=dayVideoRow_(day);
   var source=chosen?String(chosen['逐字稿來源']||''):'',body=chosen?String(chosen['原始逐字稿內容']||'').trim():'';
   return {ready:body.length>200,manual:['手動','手動保留'].indexOf(source)>=0||(!source&&!!body),
     complete:!!chosen&&chosen['處理狀態']==='完成',processingStatus:chosen?String(chosen['處理狀態']||''):'',

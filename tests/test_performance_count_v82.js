@@ -63,9 +63,8 @@ vm.runInContext(code.slice(from, to), ctx);
 
 const setup = fs.readFileSync(path.join(root, 'Setup.gs'), 'utf8');
 const config = fs.readFileSync(path.join(root, 'Config.gs'), 'utf8');
-assert(setup.includes("var PROJECT_BUILD_ = '2026-09-30-official-dailyk-v90'"));
-assert(config.includes("var GAS_BUILD = '2026-09-30-official-dailyk-v90'"));
-assert(setup.includes("marker: ['snapshotPerformanceJobRun_', 't.summary.priced']"));
+assert.equal(setup.match(/var PROJECT_BUILD_ = '([^']+)'/)[1], config.match(/var GAS_BUILD = '([^']+)'/)[1]);
+assert(setup.includes("marker: ['officialDailyKFill_', 'res.deferred.push(day)']"));
 assert(setup.includes("{ file: 'Index', marker: '持有檔數包含暫時缺價' }"));
 assert(setup.includes("{ file: 'JavaScript', marker: 'function showsPrice(dir)' }"));
 assert(String(ctx.snapshotPerformanceJobRun_).includes('t.summary.priced'),

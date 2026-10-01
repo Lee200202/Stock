@@ -2044,7 +2044,7 @@ function officialDkGaps_(days, codes, index) {
 function officialDailyKFill_(opts) {
   opts = opts || {};
   var deadline = opts.deadline || (Date.now() + 4 * 60 * 1000);
-  var res = { busy: false, filled: 0, codes: [], days: {}, unpublished: [], partial: [], earliest: '' };
+  var res = { busy: false, filled: 0, codes: [], days: {}, unpublished: [], partial: [], deferred: [], earliest: '' };
   var token = acquireDailyKLease_(deadline + 60 * 1000, opts.waitMs || 0);
   if (!token) { res.busy = true; return res; }
   try {
@@ -2054,7 +2054,8 @@ function officialDailyKFill_(opts) {
     var gaps = officialDkGaps_(opts.days || officialDkDays_(), codes, index);
     var fresh = {};
     Object.keys(gaps).sort().forEach(function (day) {
-      if (Date.now() > deadline) { return; }
+      // 留時間寫入已取得的資料；未查的日期明列待續跑，不能因此標成整輪完成。
+      if (Date.now() >= deadline - 45000) { res.deferred.push(day); return; }
       var o = officialDailyAll_(day);
       if (!o.twse && !o.tpex) { res.unpublished.push(day); return; }
       /* 上市、上櫃兩張表各一個請求，其中一張偶爾回不來（9/30 晚間實測：9/29 上市有、上櫃沒回，
@@ -2097,11 +2098,12 @@ function officialDailyKFill_(opts) {
 function officialDkReport_(res, source) {
   var parts = Object.keys(res.days || {}).sort().map(function (d) { return d.slice(5) + ' ' + res.days[d] + ' 檔'; });
   var text = (res.busy ? '另一個補日K正在寫入，這次略過' :
-              (res.filled ? '補上 ' + parts.join('、') : '近 ' + OFFICIAL_DK_LOOKBACK_ + ' 個交易日沒有可補的缺口')) +
+              (res.filled ? '補上 ' + parts.join('、') : res.deferred && res.deferred.length ? '本輪尚未核對完' : '近 ' + OFFICIAL_DK_LOOKBACK_ + ' 個交易日沒有可補的缺口')) +
              (res.unpublished && res.unpublished.length ? '；官方尚未公布：' + res.unpublished.join('、') : '') +
-             (res.partial && res.partial.length ? '；上市或上櫃其中一張沒回，稍後再補：' + res.partial.join('、') : '');
+             (res.partial && res.partial.length ? '；上市或上櫃其中一張沒回，稍後再補：' + res.partial.join('、') : '') +
+             (res.deferred && res.deferred.length ? '；時間不足，待續跑：' + res.deferred.join('、') : '');
   Logger.log('官方收盤行情補日K（' + source + '）：' + text);
-  if (res.filled || (res.unpublished && res.unpublished.length) || (res.partial && res.partial.length)) {
+  if (res.filled || (res.unpublished && res.unpublished.length) || (res.partial && res.partial.length) || (res.deferred && res.deferred.length)) {
     try { getSheet_('系統狀態').appendRow([nowStamp_(), '官方日K補齊', text, 'dailyk-official', source]); } catch (e) {}
   }
   return text;
@@ -2140,7 +2142,7 @@ function officialDailyKJobRun_(opts) {
   if (res.filled) { queueCostSync_(res.earliest); }   // 從最早補到的那一天重算持股追蹤與績效
   // 今天的收盤行情已經公布（或今天本來就不缺）才算做完；還沒公布就留給下一棒。
   var today = todayStr_();
-  if (res.unpublished.indexOf(today) < 0 && !res.partial.length && Number(Utilities.formatDate(new Date(), TZ, 'HHmm')) >= OFFICIAL_DK_READY_HM_) {
+  if (!res.unpublished.length && !res.partial.length && !res.deferred.length && Number(Utilities.formatDate(new Date(), TZ, 'HHmm')) >= OFFICIAL_DK_READY_HM_) {
     PropertiesService.getScriptProperties().setProperty(OFFICIAL_DK_DONE_PROP_, today);
   }
   return res;

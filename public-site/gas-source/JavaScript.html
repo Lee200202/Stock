@@ -1437,7 +1437,8 @@ function publicNarrative_(text, row) {
   /* v90：管理者修正過的成本來源只顯示管理者的說明；舊後端的「管理者修正成本 X（時間，說明）；系統原判：…」取說明那一段。 */
   function costSrcText(s) {
     var m = /^管理者修正成本 [\d.]+（[^，]*，([\s\S]*?)）；系統原判：/.exec(String(s || ''));
-    return m ? m[1] : String(s || '');
+    // 「（原判：張震明講在 73.5 買入）」是內部判定歷程，公開的提示文字不放（也不寫人名當主詞）。
+    return (m ? m[1] : String(s || '')).replace(/（原判：[^（）]*）/g, '');
   }
 
   function niceTicks(min, max, count) {

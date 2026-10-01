@@ -4665,6 +4665,8 @@ var mergeTxFingerprint='';
     var m = /^管理者修正成本 [\d.]+（[^，]*，([\s\S]*?)）；系統原判：/.exec(String(x.entrySrc || ''));
     return m ? m[1] : String(x.entrySrc || '');
   }
+  /* 清單上只放一句取價依據；「（原判：…）」這段系統判定歷程收進滑鼠提示，不佔版面。 */
+  function costSrcShort(x) { return costSrc(x).replace(/（原判：[^（）]*）/g, ''); }
 
   function draw() {
     if (!items.length) { $('heldList').innerHTML = '<div class="erow-empty">目前沒有持有中的股票。</div>'; updateSaveBar(); return; }
@@ -4685,7 +4687,7 @@ var mergeTxFingerprint='';
             '<span class="hc" data-label="目前成本">' +
               '<div class="hc-text">' +
                 '<b class="hc-val">' + fmt(x.entry) + '</b>' +
-                '<small class="hc-src" title="' + esc(costSrc(x)) + '">' + esc(costSrc(x)) + '</small>' +
+                '<small class="hc-src" title="' + esc(costSrc(x)) + '">' + esc(costSrcShort(x)) + '</small>' +
               '</div>' +
             '</span>' +
             '<span class="hp" data-label="現價／報酬">' +

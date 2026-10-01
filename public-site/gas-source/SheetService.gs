@@ -2650,8 +2650,10 @@ function transcriptDisplayText_(row) {
    2026/09/23 原文第 10 段混進這兩句——那是我們送出的請求被模型照抄回來，不是節目內容。 */
 var TX_ECHO_PROMPT_ = /請聽打這段影片\s*\d{1,2}:\d{2}:\d{2}\s*到\s*\d{1,2}:\d{2}:\d{2}\s*的完整逐字稿[。．.]?[ \t]*\n?/g;
 var TX_ECHO_VOCAB_ = /可能出現的專有名詞\s*[：:]\s*(?:[^,，、\s。！？\n]{1,16}\s*[,，、]\s*){3,}[^,，、\s。！？\n]{1,16}[。．.]?[ \t]*\n?/g;
+// v95：分段時間獨立標頭不是節目原文；句中時間保持原樣。
+var TX_SEGMENT_HEADER_ = /^[ \t]*(?:#{1,6}[ \t]*)?(?:[【\[(（][ \t]*)?\d{1,2}:[0-5]\d:[0-5]\d[ \t]*(?:[-–—~～]|到|至)[ \t]*\d{1,2}:[0-5]\d:[0-5]\d(?:[ \t]*[】\])）])?[ \t]*(?:\r?\n|$)/gm;
 function stripTranscribeEcho_(text) {
-  return String(text || '').replace(TX_ECHO_PROMPT_, '').replace(TX_ECHO_VOCAB_, '');
+  return String(text || '').replace(TX_ECHO_PROMPT_, '').replace(TX_ECHO_VOCAB_, '').replace(TX_SEGMENT_HEADER_, '');
 }
 
 /** 原文指紋：去掉空白後 SHA-256 的前 16 個十六進位字元，與 pipeline.py 的 transcript_fingerprint 相同。 */

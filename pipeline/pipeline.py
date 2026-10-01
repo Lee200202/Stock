@@ -1680,6 +1680,9 @@ def select_transcript_row(rows, video_id, date_str):
 _TX_ECHO_PROMPT = re.compile(r'請聽打這段影片\s*\d{1,2}:\d{2}:\d{2}\s*到\s*\d{1,2}:\d{2}:\d{2}\s*的完整逐字稿[。．.]?[ \t]*\n?')
 _TX_ECHO_VOCAB = re.compile(r'可能出現的專有名詞\s*[：:]\s*(?:[^,，、\s。！？\n]{1,16}\s*[,，、]\s*){3,}[^,，、\s。！？\n]{1,16}[。．.]?[ \t]*\n?')
 
+# v95：只移除獨立一行的轉錄分段標頭，保留句中時間與節目原話。
+_TX_SEGMENT_HEADER = re.compile('(?m)^[ \\t]*(?:#{1,6}[ \\t]*)?(?:[【\\[(（][ \\t]*)?\\d{1,2}:[0-5]\\d:[0-5]\\d[ \\t]*(?:[-–—~～]|到|至)[ \\t]*\\d{1,2}:[0-5]\\d:[0-5]\\d(?:[ \\t]*[】\\])）])?[ \\t]*(?:\\r?\\n|$)')
+
 def strip_transcribe_echo(text):
     """回傳 (乾淨文字, 被拿掉的片段清單)。"""
     removed = []
@@ -1687,7 +1690,7 @@ def strip_transcribe_echo(text):
     def cut(m):
         removed.append(m.group(0).strip()[:80])
         return ''
-    out = _TX_ECHO_VOCAB.sub(cut, _TX_ECHO_PROMPT.sub(cut, str(text or '')))
+    out = _TX_SEGMENT_HEADER.sub(cut, _TX_ECHO_VOCAB.sub(cut, _TX_ECHO_PROMPT.sub(cut, str(text or ''))))
     return out, removed
 
 

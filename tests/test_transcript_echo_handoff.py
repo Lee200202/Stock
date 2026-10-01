@@ -39,6 +39,21 @@ class TranscriptEchoHandoffTests(unittest.TestCase):
             self.assertEqual(result, expected)
             self.assertEqual(len(removed), 2)
 
+    def test_standalone_segment_headings_not_spoken_times(self):
+        for header in ("【0:00:00 – 0:30:00】", "0:00:00-0:30:00", "[0:30:00 到 0:57:16]", "## （0:00:00～0:30:00）"):
+            text = header + "\r\n會員持股續抱。\r\n"
+            for cleaner in (raw.strip_transcribe_echo, daily.strip_transcribe_echo):
+                result, removed = cleaner(text)
+                self.assertEqual(result, "會員持股續抱。\r\n")
+                self.assertEqual(len(removed), 1)
+
+    def test_spoken_time_and_price_remain(self):
+        text = "0:00:00-0:30:00 這段還有話。\n節目0:00:00到0:30:00談持股。\n請在75.3元以下買入。\n"
+        for cleaner in (raw.strip_transcribe_echo, daily.strip_transcribe_echo):
+            result, removed = cleaner(text)
+            self.assertEqual(result, text)
+            self.assertFalse(removed)
+
     def test_only_echo_is_not_a_usable_transcript(self):
         for cleaner in (raw.strip_transcribe_echo, daily.strip_transcribe_echo):
             cleaned, removed = cleaner("請聽打這段影片 0:00:00 到 0:30:00 的完整逐字稿。")

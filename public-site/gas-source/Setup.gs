@@ -1200,7 +1200,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-10-01-read-registry-v94';
+var PROJECT_BUILD_ = '2026-10-01-transcript-headers-v95';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
@@ -1226,7 +1226,7 @@ var PROJECT_FILES_ = [
   { file: 'Quoteservice.gs', names: ['getFugleKey_', 'fugleFetch_', 'sharesToLots_', 'volumeInLots_', 'hourSlot_', 'readHourlyRows_', 'fugleHistPace_', 'kcPutAll_', 'getCandlesBundle', 'misBatchQuotes_'], marker: ['getQuotesFor', 'cacheOnly || !missing.length'] },
   { file: 'Refreshrunner.gs', names: ['runRefreshAllChunk_', 'withRefreshAllLease_'] },
   { file: 'Setup.gs', names: ['setupSpreadsheet', 'setWebAppUrl', 'webAppUrlReport_', 'checkProjectFiles', 'checkAutomationReadiness', 'ensureAutomationTick', 'withSheetSnapshot_', 'readSheetFields_', 'readSheetDayRow_', 'opsTimed_', 'opsRuntimeFor_'], marker: ['readSheetDayRow_', 'getRange(2,col+1,n-1,1)'] },
-  { file: 'SheetService.gs', names: ['fmtDate_', 'withLock_', 'ensureTranscriptLayoutJob', 'transcriptFingerprint_', 'stripTranscribeEcho_', 'readCostOverrides_', 'searchTerms_', 'repairLiwangExitPriceNow', 'rangeCandle_', 'statedNote_', 'trackerRoundList_', 'isManualHoldSource_', 'holdConfirmForOpen_', 'getHoldingsTrackerRead_'], marker: ['readCostOverrides_', "'yyyy/MM/dd HH:mm'"] },
+  { file: 'SheetService.gs', names: ['fmtDate_', 'withLock_', 'ensureTranscriptLayoutJob', 'transcriptFingerprint_', 'stripTranscribeEcho_', 'readCostOverrides_', 'searchTerms_', 'repairLiwangExitPriceNow', 'rangeCandle_', 'statedNote_', 'trackerRoundList_', 'isManualHoldSource_', 'holdConfirmForOpen_', 'getHoldingsTrackerRead_'], marker: ['readCostOverrides_', "'yyyy/MM/dd HH:mm'", 'TX_SEGMENT_HEADER_'] },
   { file: 'Transcriptstore.gs', names: ['transcriptSha256_', 'selectTranscriptRow_'] }
 ];
 
@@ -1235,7 +1235,7 @@ var PROJECT_HTML_ = [
   { file: 'Index', marker: 'v94 市場總覽已移除' },
   { file: 'JavaScript', marker: 'function refreshDetailQuote_()' },
   { file: 'Stylesheet', marker: '.detail-quote-controls' },
-  { file: 'Changelog', marker: 'v94 分類證據' },
+  { file: 'Changelog', marker: 'v95 逐字稿分段標頭' },
   { file: 'Tech', marker: '行情每五分鐘重新核對' },
   { file: 'Admin', marker: 'sms-operation-list' },
   { file: 'Settings', marker: '手機預覽' },

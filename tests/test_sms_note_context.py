@@ -387,5 +387,26 @@ class StockContextNarrative(unittest.TestCase):
         self.assertIn('70～160',pl.POLICY)
         self.assertIn('相鄰公司的題材',pl.POLICY)
 
+class SourceIdsContext(StockContextNarrative):
+    def test_source_id_resolves_raw_alias_without_model_retyping(self):
+        row = {'name':'聖暉','code':'5536','aliases':['聖輝'],'reason':'突破季線。'}
+        raw = '聖輝今天突破季線，成交量增加，須注意突破後能否維持。'
+        reply = {'notes':[{'id':'watch_avoid:0','sentences':[{'text':'聖暉突破季線，成交量增加，後續須留意突破能否維持。','source_ids':['s0']}]}]}
+        out, call = self.run_enrichment(raw,reply,row)
+        self.assertIn('成交量增加',row['reason'])
+        self.assertIn('sources',call.call_args.args[1])
+
+    def test_unknown_source_id_does_not_pass(self):
+        reply = {'notes':[{'id':'watch_avoid:0','sentences':[{'text':'目前不要買，目標價999。','source_ids':['s99']}]}]}
+        out,_ = self.run_enrichment('愛普目前不要買。', reply)
+        self.assertEqual(out['watch_avoid'][0]['reason'],'目前不要買。')
+
+    def test_model_only_receives_allowed_quote_scope(self):
+        raw = '無名股票昨天收盤1770。' + '別股敘述。'*30 + '愛普現在不要買。' + '本股說明。'*35 + '無名股票目標9999。'
+        sources = pl._context_sources({'name':'愛普','code':'6531'},[raw])
+        text = ''.join(s['text'] for s in sources)
+        self.assertIn('愛普',text)
+        self.assertNotIn('1770',text); self.assertNotIn('9999',text)
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

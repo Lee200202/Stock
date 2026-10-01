@@ -371,5 +371,42 @@ class LongNoteGuards(unittest.TestCase):
         self.assertIn('不寫進任何一檔的說明', pl.POLICY)
 
 
+class PriceClueBoundaries(UnnamedStockTests):
+    def test_stale_whole_cache_cannot_supply_yesterday_close(self):
+        stale = [r for r in DAILY_K if r[1] != '2026/09/30']
+        self.assertEqual(pl.market_snapshot(Book(daily=stale),D),{})
+
+    def test_today_close_is_not_yesterday_close(self):
+        today = '今天收盤收多少？1770。'
+        passage = dict(PASSAGE,quotes=[today],clues=[{'kind':'prev_close','value':1770,'quote':today}])
+        sig,calls,_,book = self.run_identify([{'passages':[passage]}],tx=today)
+        self.assertEqual(len(calls),1); self.assertNotIn('日K快取',book.reads)
+
+    def test_clue_from_another_passage_is_rejected(self):
+        passage = dict(PASSAGE,quotes=[Q1],clues=[{'kind':'prev_close','value':1770,'quote':Q2}])
+        sig,calls,_,book = self.run_identify([{'passages':[passage]}])
+        self.assertEqual(len(calls),1); self.assertNotIn('日K快取',book.reads)
+
+    def test_named_but_excluded_stock_is_not_anonymous(self):
+        sig = empty_signals(); sig['ignored']=[{'name':'嘉澤','code':'3533'}]
+        q = '嘉澤昨天收盤1770。'
+        passage = dict(PASSAGE,quotes=[q],clues=[{'kind':'prev_close','value':1770,'quote':q}])
+        _,calls,_,book = self.run_identify([{'passages':[passage]}],sig=sig,tx=q)
+        self.assertEqual(len(calls),1); self.assertNotIn('日K快取',book.reads)
+
+    def test_current_member_do_not_sell_before_name_is_a_holding(self):
+        row={'name':'聖暉','code':'5536','aliases':['聖輝'],'reason':'突破後等待補缺口。'}
+        sig=empty_signals(); sig['watch_watch']=[row]
+        raw='會員我沒叫你們賣，你們不準給我亂賣。至少來補這個缺口。你告訴我們聖輝是做無塵室的。'
+        pl.preserve_explicit_holdings(sig,raw)
+        self.assertEqual(sig['holdings'][0]['code'],'5536')
+        self.assertIn('續抱',sig['holdings'][0]['note'])
+
+    def test_neighbor_member_cue_is_not_a_holding(self):
+        row={'name':'聖暉','code':'5536','aliases':['聖輝'],'reason':'觀察整理。'}
+        sig=empty_signals(); sig['watch_watch']=[row]; sig['holdings']=[{'name':'台積電','code':'2330'}]
+        pl.preserve_explicit_holdings(sig,'會員我沒叫你們賣。台積電續抱。聖輝現在觀察。')
+        self.assertFalse(any(r['code']=='5536' for r in sig['holdings']))
+
 if __name__ == '__main__':
     unittest.main()

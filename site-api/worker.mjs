@@ -1,14 +1,14 @@
 // Free Cloudflare Worker: public Pages frontend -> existing Apps Script backend.
 // The bridge token stays server-side. Admin methods still require the existing admin key.
 const ALLOWED = 'https://lee200202.github.io';
-const BUILD = 'site-api-v90';
+const BUILD = 'site-api-v94';
 const MAX_ARGS = 8;
 const ADMIN_METHODS = ('apiAdminCancelCrawl apiAdminCancelDaySync apiAdminCancelFix ' +
   'apiAdminCancelFullFix apiAdminCancelJob apiAdminCancelRefresh apiAdminCancelSmsJob ' +
   'apiAdminChainState apiAdminCrawlState apiAdminCrawlTranscript apiAdminDayRows ' +
   'apiAdminDaySyncState apiAdminDecisions apiAdminDeleteRow apiAdminDeleteSms ' +
   'apiAdminDeleteSmsBatch apiAdminDispatch apiAdminFixState apiAdminFullFixState ' +
-  'apiAdminHeldList apiAdminHoldToday apiAdminInstallSectorCatchup apiAdminJobStatus ' +
+  'apiAdminHeldList apiAdminHoldToday apiAdminJobStatus ' +
   'apiAdminKCoverage apiAdminLineBindCode apiAdminLineClearTesters ' +
   'apiAdminLineDiagnose apiAdminLineLookup apiAdminLineRetry apiAdminLineSaveConfig ' +
   'apiAdminLineSetupRichMenu apiAdminLineStatus apiAdminLineTestPush ' +
@@ -23,7 +23,7 @@ const ADMIN_METHODS = ('apiAdminCancelCrawl apiAdminCancelDaySync apiAdminCancel
 const METHODS = new Set([
   'apiAsk', 'apiFormatTranscript', 'apiGetCandlesBundle', 'apiGetDashboard',
   'apiGetHoldingsTracker', 'apiGetLineEntry', 'apiGetMailContent',
-  'apiGetMarketOverview', 'apiGetMemberSms', 'apiGetPerformanceSeries',
+  'apiGetMemberSms', 'apiGetPerformanceSeries',
   'apiGetQuotesFor', 'apiGetStockFundamentals', 'apiGetStockSummary',
   'apiGetTechStats', 'apiGetTranscript', 'apiGetUserContext',
   'apiListMailDates', 'apiListModels', 'apiListRecordDates', 'apiListSmsDates',
@@ -36,9 +36,9 @@ const METHODS = new Set([
 /* 公開唯讀結果只在有效期內重用；不以過期資料掩蓋後端失敗。
    同時到達的相同查詢共用一個進行中請求，避免每位訪客都啟動 GAS 讀表。 */
 const READ_TTL = {
-  apiGetDashboard: 60, apiGetMarketOverview: 60, apiGetQuotesFor: 60, apiGetHoldingsTracker: 120,
+  apiGetDashboard: 60, apiGetQuotesFor: 60, apiGetHoldingsTracker: 120,
   apiGetStockSummary: 120, apiSearchStock: 120, apiListRecordDates: 300, apiListMailDates: 300,
-  apiGetMailContent: 300, apiSearchByDate: 300, apiGetCandlesBundle: 300, apiGetPerformanceSeries: 600,
+  apiGetMailContent: 60, apiSearchByDate: 60, apiGetCandlesBundle: 300, apiGetPerformanceSeries: 600,
   apiGetLineEntry: 600, apiListTranscriptDates: 600, apiGetTranscript: 600, apiGetTechStats: 1800,
   apiGetStockFundamentals: 3600, apiSuggestCodes: 3600, apiListModels: 3600
 };
@@ -52,10 +52,19 @@ const IDEMPOTENT = new Set([...Object.keys(READ_TTL), 'apiLookupSubscription', '
   'apiUpdateSubscription', 'apiStopAllMail', 'apiSubscribe', 'apiAdminLogin', 'apiAdminTodayStatus',
   'apiAdminLineStatus', 'apiAdminLineDiagnose', 'apiAdminOpsDay']);
 
-function remember(key, body) {
+function remember(key, body, at = Date.now()) {
   if (memo.has(key)) memo.delete(key);
-  memo.set(key, {at: Date.now(), body});
+  memo.set(key, {at, body});
   while (memo.size > MEMO_MAX) memo.delete(memo.keys().next().value);
+}
+
+// 公開唯讀查詢跨 Worker 執行個體共用；過期即未命中，不回退到過期內容。
+async function edgeKey(request, env, key) {
+  if (!key || typeof caches === 'undefined') return null;
+  const bytes = new TextEncoder().encode(BUILD + ':' + env.GAS_WEBAPP_URL + ':' + key);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  const hex = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
+  return new Request(new URL('/__public_read/' + hex, request.url), {method: 'GET'});
 }
 
 function reply(body, status, origin, extra) {
@@ -64,7 +73,7 @@ function reply(body, status, origin, extra) {
     'Access-Control-Allow-Origin': origin === ALLOWED ? origin : 'null',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Expose-Headers': 'X-Cache, Server-Timing',
+    'Access-Control-Expose-Headers': 'X-Cache, X-Edge-Cache, Server-Timing',
     'Vary': 'Origin',
     ...(extra || {})
   };
@@ -108,7 +117,7 @@ async function callBackend(env, body, retryable) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const origin = request.headers.get('Origin') || '';
     const path = new URL(request.url).pathname;
     if (path === '/healthz') return reply({ok: true, ready: !!(env.GAS_WEBAPP_URL && env.SITE_BRIDGE_TOKEN), build: BUILD}, 200, origin);
@@ -137,6 +146,20 @@ export default {
     const key = ttl ? body.method + ':' + JSON.stringify(body.args) : '';
     const hit = key ? memo.get(key) : null;
     if (hit && Date.now() - hit.at < ttl * 1000) return reply(hit.body, 200, origin, {'X-Cache': 'hit'});
+    let edge = null, edgeStatus = 'unavailable';
+    try {
+      edge = await edgeKey(request, env, key);
+      edgeStatus = edge ? 'miss' : 'bypass';
+      const cached = edge && await caches.default.match(edge);
+      if (cached) {
+        const entry = await cached.json();
+        if (entry.payload?.ok && Date.now() - entry.at < ttl * 1000) {
+          // 保留原建立時間，不能每次命中把期限延長。
+          remember(key, entry.payload, entry.at);
+          return reply(entry.payload, 200, origin, {'X-Cache': 'edge-hit'});
+        }
+      }
+    } catch (error) { edgeStatus = error.name || 'unavailable'; }
     const started = Date.now();
     let pending = key && inFlight.get(key);
     const shared = !!pending;
@@ -150,7 +173,15 @@ export default {
     const timing = {'Server-Timing': 'backend;dur=' + (Date.now() - started)};
     if (out.payload && out.payload.ok) {
       if (key) remember(key, out.payload);
-      return reply(out.payload, 200, origin, {...timing, 'X-Cache': key ? shared ? 'shared' : 'miss' : 'bypass'});
+      if (edge) {
+        const save = caches.default.put(edge, Response.json({at: Date.now(), payload: out.payload}, {
+          headers: {'Cache-Control': 'public, max-age=' + ttl}
+        })).catch(() => { console.warn('public read cache write unavailable'); });
+        await save;
+        try { edgeStatus = await caches.default.match(edge) ? 'stored' : 'not-stored'; }
+        catch { edgeStatus = 'unavailable'; }
+      }
+      return reply(out.payload, 200, origin, {...timing, 'X-Edge-Cache':edgeStatus, 'X-Cache': key ? shared ? 'shared' : 'miss' : 'bypass'});
     }
     return reply(out.payload, out.status, origin, timing);
   }

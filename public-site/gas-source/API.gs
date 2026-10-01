@@ -111,7 +111,7 @@ function apiUnsubscribeConfirm(email, token, scope) {
  *   二、整包結果快取 90 秒。盤中會員簡訊要能很快出現在首頁，所以不放更久；
  *       多位訪客同時打開時只算一次。重算持股追蹤時會一併清掉。
  */
-var DASH_CACHE_KEY_ = 'dash_v54';
+var DASH_CACHE_KEY_ = 'dash_v94';
 
 /* v89（2026/09/30 實測）：首頁整包約 24 萬位元組，一半是持股追蹤的 items——它就是 held＋exited 串起來的同一份資料。
    整包超過 95000 字元，下面那一行快取從來沒寫進去過，每一位訪客都要重算一次（後端 4.8 秒）。
@@ -163,7 +163,7 @@ function apiGetDashboard() {
   }
   var quotes = {};
   if (quoteCodes.length) {
-    try { quotes = getQuotesFor(quoteCodes, true, true); } catch (e) {}
+    try { quotes = getQuotesFor(quoteCodes, false, true, true); } catch (e) {}
   }
   var out = {
     today: todayData,

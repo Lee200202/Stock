@@ -133,6 +133,7 @@ function world(opts) {
     TZ: 'Asia/Taipei', CACHE: { get: k => (k in cache ? cache[k] : null), put: (k, v) => { cache[k] = String(v); } },
     getSheet_: getSheet, withLock_: f => f(),
     readSheetObjects_: n => { const [h, ...rs] = getSheet(n).rows; return rs.map(r => Object.fromEntries(h.map((k, i) => [k, r[i] === undefined ? '' : r[i]]))); },
+    readSheetDayRow_: (n,field,date) => ctx.readSheetObjects_(n).find(r => ctx.fmtDate_(r[field]) === date) || null,
     todayStr_: () => fmt(new FakeDate(), '', 'yyyy/MM/dd'), nowStamp_: () => fmt(new FakeDate(), '', 'yyyy/MM/dd HH:mm:ss'),
     fmtDate_: v => (v ? String(v).trim().replace(/-/g, '/').slice(0, 10) : ''),
     whyClosed_: () => W.env.closed, noVideoToday_: () => W.env.noVideo, gateState_: () => W.env.gate, dailyPushStartTime_: () => '1200',
@@ -416,19 +417,10 @@ card = w.lastReply().messages[0];
 assert(/目前持有 2 檔/.test(card.altText));
 assert(flexTexts(card).indexOf('力積電') < flexTexts(card).indexOf('群創'), '最近提及的排前面');
 assert(/不代表你個人的持股/.test(flexTexts(card)));
-// 市場：只讀快取，過期標出資料時間，不稱即時
-w.say(C, '大盤');
-assert(/目前沒有可核對的市場資料快取/.test(w.lastReply().messages[0].text));
-w.env.market = { taiex: { label: '加權指數', value: 23456.78, change: -123.4, percent: -0.52, time: '2026/09/26 13:30:00', source: 'Yahoo Finance 收盤走勢' } };
+// v94 市場總覽已停用，舊指令不再抓行情。
 w.say(C, '市場總覽');
-assert(/目前沒有可核對的市場資料快取/.test(w.lastReply().messages[0].text), '盤中不可把前日快取當現在指數');
-w.env.market.taiex.time = '2026/09/28 10:10:00';
-w.say(C, '市場總覽');
-card = w.lastReply().messages[0];
-assert(/23,456.78/.test(flexTexts(card)) && /-123.40（-0.52%）/.test(flexTexts(card)));
-assert(/資料時間 09\/28 10:10/.test(flexTexts(card)), '標示來源資料時間');
-assert(/不是即時成交/.test(flexTexts(card)) && !/即時行情|即時報價/.test(flexTexts(card)));
-assert(!w.calls.other.some(c => /yahoo|finance/i.test(c.url)), '查詢不臨時打行情 API');
+assert(/市場總覽已停用/.test(w.lastReply().messages[0].text));
+assert(!w.calls.other.some(c => /yahoo|finance/i.test(c.url)));
 // 今日：休市／沒有直播／還在判讀／已發布
 w.env.closed = '台股休市日';
 w.say(C, '今日整理');
@@ -486,7 +478,7 @@ q = w.ctx.lineDailyTick_();
 assert.strictEqual(q.created, true);
 assert.deepStrictEqual(w.calls.pushes.map(p => p.to), [uid('1')], '只送開啟每日總覽、沒封鎖的好友');
 let daily = w.calls.pushes[0].messages[0];
-assert.strictEqual(daily.altText, '每日總覽 09/28（一）｜記憶體報價止跌，法人回補後的操作重點整理！');
+assert.strictEqual(daily.altText, '每日總覽 09/28（一）｜記憶體報價止跌，法人回補後的操作重點整理！｜買入1、賣出0、觀望不碰1、觀望注意2、持股2');
 const dj = flexTexts(daily);
 assert(/季線附近有撐/.test(dj) && /連三天回補/.test(dj) && !/第三點不會出現/.test(dj) && !/不是盤勢/.test(dj), '盤勢只取已驗證條列的前兩點');
 assert(/"text":"1"[^}]*"color":"#B4342C"/.test(dj), '買入 1 檔');
@@ -538,10 +530,7 @@ const samples = {
   smsEmpty: w.ctx.lineSmsFlex_({ id: '1', time: '', text: '', url: 'javascript:alert(1)' }, true),
   stock: w.ctx.lineStockFlex_({ code: '00981A', name: LONG }, [{ date: '2026/09/23', direction: '觀望不碰', price: '20日均線', reason: '理由'.repeat(400) }]),
   tracker: w.ctx.lineTrackerFlex_(Array.from({ length: 12 }, (_, i) => ({ name: LONG, code: '00981A', entryDate: '2026/09/0' + (i % 9 + 1), latestReasonDate: '' })), {}),
-  market: w.ctx.lineMarketFlex_([{ label: '加權指數', value: 23456.7, change: 0, percent: 0, time: '', source: '' }]),
   holdingVisual: w.ctx.lineHoldingVisualFlex_({ name: '力積電', code: '6770', entry: 70, current: 75, entryDate: '2026/09/23', curSrc: '最近收盤' }),
-  macroVisual: w.ctx.lineMacroFlex_([{ label: '美元指數', value: 100.2, change: 0.1 }]),
-  sectorVisual: w.ctx.lineSectorsFlex_({ date: '2026/09/26', rows: [{ name: '電子', percent: 61 }, { name: '金融', percent: 12 }] }),
   confirm: w.ctx.lineSubConfirm_({ daily: true, sms: false }, { daily: false, sms: false }, ['daily'], true),
   quick: w.ctx.lineText_('x', w.ctx.lineQuickMain_())
 };
@@ -561,17 +550,6 @@ assert(JSON.stringify(holdingChart).includes('/chart.png?'), '有快取日 K 才
 w.ctx.CACHE.put('dk2_6770', JSON.stringify([['2026/09/22', 70], ['2026/09/23', 71], ['2026/09/24', 72], ['2026/09/25', 74]]));
 const exitedValues = w.ctx.lineHoldingSeries_({ code: '6770', entryDate: '2026/09/22', stillHeld: false, lastSell: '2026/09/24', current: 75 });
 assert.deepEqual(Array.from(exitedValues), [70, 71, 72, 75], '已出場走勢不能接出場後日 K');
-const marketChart = w.ctx.lineMarketFlex_([{ label: '加權指數', value: 102, change: 2, time: '2026/09/29 09:15:00',
-  line: [{ time: '2026-09-29T01:05:00Z', value: 100 }, { time: '2026-09-29T01:10:00Z', value: 101 }, { time: '2026-09-29T01:15:00Z', value: 102 }] }]);
-checkMessage(marketChart, 'market chart');
-assert(JSON.stringify(marketChart).includes('/chart.png?'), '當日市場價點畫折線');
-const staleChart = w.ctx.lineMarketFlex_([{ label: '加權指數', value: 102, change: 2, time: '2026/09/29 09:15:00',
-  line: [{ time: '2026-09-28T01:05:00Z', value: 100 }, { time: '2026-09-28T01:10:00Z', value: 101 }, { time: '2026-09-28T01:15:00Z', value: 102 }] }]);
-assert(!JSON.stringify(staleChart).includes('/chart.png?'), '舊日價點不可冒充當日走勢');
-const nightValues = w.ctx.lineMarketSeries_({ activeSession: 'afterhours', time: '2026/09/30 00:30:00',
-  line: [{ time: '2026-09-29T12:00:00Z', value: 101 }, { time: '2026-09-29T13:00:00Z', value: 102 }, { time: '2026-09-29T16:30:00Z', value: 103 }] });
-assert.deepEqual(Array.from(nightValues), [101, 102, 103], '夜盤跨午夜仍是同一時段');
-
 // ================================================================ 十一、圖文選單：兩頁分頁切換、熱區不超出、文字指令在電腦版也能用
 const menus = w.ctx.lineRichMenuDefs_();
 assert.strictEqual(menus.length, 2);
@@ -583,7 +561,7 @@ menus.forEach(m => {
   assert.strictEqual(JSON.stringify(sw), JSON.stringify(['zz-query', 'zz-notify']));
 });
 const labels = JSON.parse(JSON.stringify(menus.flatMap(m => Array.from(m.def.areas, a => a.action.label).filter(Boolean))));
-assert.deepStrictEqual(labels, ['今日整理', '查個股', '持股追蹤', '市場總覽', '管理訂閱', '使用說明', '開啟網站']);
+assert.deepStrictEqual(labels, ['今日整理', '查個股', '持股追蹤', '逐字稿', '管理訂閱', '使用說明', '開啟網站']);
 assert.strictEqual(labels.filter(x => x === '今日整理').length, 1, '圖文選單只留一個今日整理');
 assert.deepStrictEqual(JSON.parse(JSON.stringify(menus[1].def.areas[4].bounds)),
   { x: 0, y: 953, width: 2500, height: 733 }, '通知頁的網站入口必須與整排圖片相符');

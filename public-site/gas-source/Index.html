@@ -54,7 +54,6 @@
   <nav class="wrap tabs" role="tablist">
     <button class="tab" role="tab" aria-selected="true"  data-tab="overview"><svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>每日總覽</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="tracker"><svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/></svg>持股追蹤</button>
-    <button class="tab" role="tab" aria-selected="false" data-tab="market"><svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h18M4 16l5-7 5 4 6-9"/><circle cx="9" cy="9" r="1"/></svg>市場總覽</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="perf"><svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>績效走勢</button>
     <!-- 個股查詢搬到頂列右上角的放大鏡了。
          它跟其他分頁不是同一種東西：其他分頁是「看今天／看這段期間有什麼」，
@@ -193,8 +192,7 @@
     </div>
   </section>
 
-  <!-- ============ 持股追蹤 ============ -->
-  <section class="panel" id="p-market" data-url="<?= webAppUrl ?>" role="tabpanel" hidden><?!= include('MarketCharts'); ?><?!= include('Market'); ?></section>
+  <!-- v94 市場總覽已移除；以下保留持股追蹤與個股圖表。 -->
 
   <section class="panel" id="p-tracker" role="tabpanel" hidden>
     <div class="sect">
@@ -562,6 +560,5 @@
 
 <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <?!= include('JavaScript'); ?>
-<?!= include('MarketDetail'); ?>
 </body>
 </html>

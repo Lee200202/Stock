@@ -35,12 +35,15 @@ function budgetLeft_(start) { return Date.now() - start < BUDGET_MS; }
 function trackedCodes_() {
   var set = {};
   ['操作紀錄', '會員持股'].forEach(function (name) {
-    readSheetObjects_(name).forEach(function (r) {
+    readSheetFields_(name,['代號']).forEach(function (r) {
       var c = String(r['代號'] || '').trim();
       if (/^(?:00981A|\d{4,6})$/.test(c)) { set[c] = 1; }
     });
   });
-  return Object.keys(set);
+  var codes=Object.keys(set),map;
+  try{map=loadCodeMap_();}catch(e){return codes;}
+  return codeMapFull_(map)?codes.filter(function(c){return !!map.byCode[c];}):codes; // v94 官方清單不完整時不擅自排除。
+
 }
 
 /* ================================================================== *
@@ -206,6 +209,7 @@ function rebuildCodeMapJob() {
   });
 
   CACHE.remove('codemap-v6');
+  PropertiesService.getScriptProperties().deleteProperty('symbolAuditDayV94');
 
   Logger.log('');
   Logger.log('股票對照表更新完成：共 ' + rows.length + ' 檔');
@@ -1138,7 +1142,7 @@ function dailyKBackfillRound_(opts) {
       var code = pending[i];
       var item = { code: code, rows: null, months: null, err: '', skip: '' };
 
-      if (ghosts[code]) {
+      if (ghosts[code] && codeMapFull_(loadCodeMap_()) && !loadCodeMap_().byCode[code]) {
         item.skip = '查無此股';
       } else if (!useFugle && !useFinMind && cmap[code] && cmap[code].market === '上櫃') {
         item.skip = '上櫃股需要 FUGLE_API_KEY 或 FINMIND_API_TOKEN';
@@ -1559,6 +1563,9 @@ function repairTrackedDailyKGapJob(fromDate, toDate, continueOnly) {
            lastError: '', fatal: false, startedAt: nowStampDk_(), updatedAt: '', finishedAt: '' };
     setRecentDailyKState_(st);
   }
+  // 舊工單可能在代號核對前已記下清單，續跑也要停止已不在現行官方清單的行情請求。
+  var activeCodes = {}; trackedCodes_().forEach(function(c) { activeCodes[c] = 1; });
+  st.codes = st.codes.filter(function(c) { return !!activeCodes[c]; });
   if (!st.codes.length) { st.finishedAt = nowStampDk_(); setRecentDailyKState_(st); return { done: true, state: st }; }
   if (continueOnly && st.fatal) { return { done: false, fatal: true, state: st, note: st.lastError }; }
   if (!continueOnly && st.fatal) { st.fatal = false; st.retryCode = ''; st.retryN = 0; }
@@ -2943,7 +2950,7 @@ function fillMissingDailyK_(maxSec) {
          行情商回 404。少了任何一個都可能冤枉真的存在的股票——
          404 有可能是對方一時的問題，不在對照表也可能只是清單還沒更新。 */
       var is404 = (e && e.httpCode === 404) || why[code].indexOf("HTTP 404") >= 0;
-      if (is404 && !cmap[code]) {
+      if (is404 && codeMapFull_({byCode:cmap}) && !cmap[code]) {
         ghosts[code] = 1;
         ghostDirty = true;
         Logger.log("  " + code + "　既不在上市櫃清單、行情商也查無，之後不再重試" +
@@ -3364,4 +3371,20 @@ function fetchMissingDailyK_(code,from,to,rows,deadline) {
     }
     out=out.concat(fetched);
   }return out;
+}
+
+/** v94：留存每個追蹤代號的官方核對結果；每天一次，對照表更新後重新核對。只排除行情工作，原始提及不刪。 */
+function auditTrackedSymbolsJob(force){
+  var p=PropertiesService.getScriptProperties(),day=todayStr_(),map=loadCodeMap_();
+  if(!codeMapFull_(map)){Logger.log('行情代號核對：官方清單不完整，不停用任何股票');return {ok:false,reason:'官方清單不完整'};}
+  if(force!==true&&p.getProperty('symbolAuditDayV94')===day){return {ok:true,skipped:true};}
+  var codes={};['操作紀錄','會員持股'].forEach(function(n){readSheetFields_(n,['代號']).forEach(function(r){
+    var c=String(r['代號']||'').trim();if(/^(?:00981A|\d{4,6})$/.test(c)){codes[c]=1;}
+  });});
+  var rows=Object.keys(codes).sort().map(function(c){var item=map.byCode[c];return [c,item?item.name:'',item?'可查行情':'未列現行上市櫃，停止行情請求','股票對照表：上市與上櫃均已載入',nowStampDk_()];});
+  withLock_(function(){var sh=getSheet_('行情代號驗證');if(rows.length){if(sh.getMaxRows()<rows.length+1){sh.insertRowsAfter(sh.getMaxRows(),rows.length+1-sh.getMaxRows());}sh.getRange(2,1,rows.length,5).setValues(rows);}var extra=sh.getLastRow()-rows.length-1;if(extra>0){sh.getRange(rows.length+2,1,extra,5).clearContent();}});
+  p.setProperty('symbolAuditDayV94',day);
+  var invalid=rows.filter(function(r){return r[2]!=='可查行情';}).map(function(r){return r[0];});
+  Logger.log('行情代號核對：'+rows.length+' 檔；暫停 '+invalid.join('、')+'。AI 僅辨識原文名稱，不能以模型記憶或單次404判定不存在。');
+  return {ok:true,total:rows.length,invalid:invalid};
 }

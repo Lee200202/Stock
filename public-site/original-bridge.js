@@ -16,7 +16,7 @@
     location.replace(new URL('unsubscribe.html' + location.search, location.href).href);
     return;
   }
-  if (/^(overview|market|tracker|perf|subscribe|mail|sms|tx|tech)$/.test(params.get('tab') || '')) {
+  if (/^(overview|tracker|perf|subscribe|mail|sms|tx|tech)$/.test(params.get('tab') || '')) {
     document.body.dataset.tab = params.get('tab');
   }
   if (/^\d{4,6}[A-Z]?$/.test(params.get('stock') || '')) {

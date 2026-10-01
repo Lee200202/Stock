@@ -2824,6 +2824,9 @@ html[data-view="mobile"] .mail-content table.mc-table:not(.mc-stack) td.mc-desc 
 /* v92：風險提醒也須隨主題與閱讀設定顯示；相容尚未重新產生的舊信件 HTML。 */
 .mail-content .mc-risk-h { color: var(--ink) !important; font-size: calc(14px * var(--rd-fs)) !important; letter-spacing: var(--rd-ls) !important; margin-bottom: 8px !important; }
 .mail-content .mc-risk-li { color: var(--ink) !important; font-size: calc(13px * var(--rd-fs)) !important; letter-spacing: var(--rd-ls) !important; line-height: var(--rd-lh) !important; margin-bottom: 6px !important; }
+/* v94：文章重點粗體也使用網站主題色，避免寄信的深色 inline 字在深色網站消失。 */
+.mail-content .mail-bullet b, .mail-content .mail-bullet strong,
+.mail-content .mc-p b, .mail-content .mc-p strong { color: var(--ink) !important; }
 .mail-content .mc-stack td.mc-name > span:first-child { display: inline-block; margin-right: 12px; }
 .mail-content .mc-stack td.mc-name .mc-code { display: inline-block; white-space: nowrap; }
 .mail-content .mc-stack td.mc-name .mc-mid { display: block !important; margin: 8px 0 4px !important; text-align: left !important; }

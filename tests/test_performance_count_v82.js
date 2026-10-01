@@ -64,8 +64,8 @@ vm.runInContext(code.slice(from, to), ctx);
 const setup = fs.readFileSync(path.join(root, 'Setup.gs'), 'utf8');
 const config = fs.readFileSync(path.join(root, 'Config.gs'), 'utf8');
 assert.equal(setup.match(/var PROJECT_BUILD_ = '([^']+)'/)[1], config.match(/var GAS_BUILD = '([^']+)'/)[1]);
-assert(setup.includes("marker: ['officialDailyKFill_', 'res.deferred.push(day)']"));
-assert(setup.includes("{ file: 'Index', marker: 'id=\"dQuoteRefresh\"' }"));
+assert(setup.includes("'officialDailyKFill_'") && setup.includes("'auditTrackedSymbolsJob'"));
+assert(setup.includes("{ file: 'Index', marker: 'v94 市場總覽已移除' }"));
 assert(setup.includes("{ file: 'JavaScript', marker: 'function refreshDetailQuote_()' }"));
 assert(String(ctx.snapshotPerformanceJobRun_).includes('t.summary.priced'),
   'project-file check must inspect a marker inside its target function');

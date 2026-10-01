@@ -1,8 +1,6 @@
-name: market-data-cache
+name: stock-hourly-cache
 on:
   schedule:
-    - cron: '45 7,9,13 * * 1-5' # 台北15:45／17:45／21:45：市場總覽；排程可能延遲，另有 Apps Script 獨立補抓
-    - cron: '16 8,9,10 * * 1-5' # 台北16:16／17:16／18:16：只核對並補寫產業比重，不等 Yahoo 行情
     - cron: '35 11 * * 1-5' # 台北19:35，只補Yahoo歷史分K備援
   push:
     branches: [main]
@@ -11,15 +9,15 @@ on:
     inputs:
       mode:
         type: choice
-        options: [dashboard, sectors, hours, all]
-        default: dashboard
+        options: [hours]
+        default: hours
       codes:
         description: '選填個股代號，以逗號分隔，例如6533'
         type: string
 permissions:
   contents: read
 concurrency:
-  group: market-data-cache
+  group: stock-hourly-cache
   cancel-in-progress: false
 jobs:
   cache:
@@ -39,7 +37,7 @@ jobs:
           from pipeline.market_holidays import is_trading_day
           skip = os.environ.get('GITHUB_EVENT_NAME') != 'workflow_dispatch' and not is_trading_day(datetime.now(ZoneInfo('Asia/Taipei')).date())
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f: f.write('run='+str(not skip).lower()+'\n')
-          print('台股休市或行事曆未驗證，略過市場資料排程' if skip else '繼續更新適用市場')
+          print('台股休市或行事曆未驗證，略過個股歷史分K排程' if skip else '繼續更新個股歷史分K')
           PY
       - uses: actions/setup-python@v6
         if: steps.calendar.outputs.run == 'true'
@@ -55,6 +53,6 @@ jobs:
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
           GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
           YAHOO_DATA_ENABLED: ${{ vars.YAHOO_DATA_ENABLED || 'true' }}
-          MODE: ${{ inputs.mode || (github.event_name == 'push' && 'sectors' || (github.event.schedule == '35 11 * * 1-5' && 'hours' || (github.event.schedule == '16 8,9,10 * * 1-5' && 'sectors' || 'dashboard'))) }}
+          MODE: hours
           CODES: ${{ inputs.codes }}
         run: python market_data.py --mode "$MODE" --codes "$CODES"

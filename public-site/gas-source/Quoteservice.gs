@@ -486,9 +486,9 @@ var QUOTE_STALE_MIN_ = 5;         // v93：盤中五分鐘重新核對成交報�
 function quoteCacheStatus() {
   var pr = PropertiesService.getScriptProperties(), last = {};
   try { last = JSON.parse(pr.getProperty('QUOTE_JOB_STATUS') || '{}'); } catch (e) {}
-  var quotes = getQuoteCache(), fresh = 0, old = 0;
-  Object.keys(quotes).forEach(function (c) { if (quoteFresh_(quotes[c].stamp)) { fresh++; } else { old++; } });
-  var result = { job: last, fresh: fresh, old: old, total: fresh + old, trading: isTradingNow_() };
+  var quotes = getQuoteCache(), fresh = 0, old = 0, codes = trackedCodes_();
+  codes.forEach(function (c) { if (!quotes[c]) { return; } if (quoteFresh_(quotes[c].stamp)) { fresh++; } else { old++; } });
+  var result = { job: last, fresh: fresh, old: old, total: fresh + old, eligible: codes.length, trading: isTradingNow_() };
   Logger.log(JSON.stringify(result));
   return result;
 }
@@ -796,7 +796,7 @@ function mergeLiveQuotes_(quotes) {
  *   那是使用者正盯著看的那一檔，一次請求就回來。
  *   批次呼叫沿用舊值，畫面上的時間戳本來就寫著它是什麼時候的。
  */
-function getQuotesFor(codes, refreshStale, batchOnly) {
+function getQuotesFor(codes, refreshStale, batchOnly, cacheOnly) {
   var cache = getQuoteCache();
   var out = {}, missing = [];
 
@@ -814,7 +814,7 @@ function getQuotesFor(codes, refreshStale, batchOnly) {
     if (refreshStale) { missing.push(c); }
   });
 
-  if (!missing.length) { return out; }
+  if (cacheOnly || !missing.length) { return out; } // v94 首屏不等待外部報價；五分鐘排程與單檔刷新獨立。
 
   // 盤中才值得為了即時性逐檔對外請求。盤後直接用日K快取的最後收盤價，
   // 那本來就是正確答案，而且不花任何請求。

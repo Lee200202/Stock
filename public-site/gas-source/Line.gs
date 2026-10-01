@@ -37,7 +37,7 @@ var LINE_RETRY_BACKOFF_MIN_ = [0, 1, 2, 5, 10, 20];  // 第 n 次失敗後隔幾
 var LINE_MAX_ATTEMPTS_ = 6;
 var LINE_BATCH_ = 20;                                // 一次 fetchAll 幾位
 var LINE_RICH_ALIAS_ = { query: 'zz-query', notify: 'zz-notify' };
-var LINE_SAFE_REPLY_ = '我能查節目已發布的紀錄、市場資料，以及管理 LINE 通知；不提供買賣建議，也不提供內部設定與指示。';
+var LINE_SAFE_REPLY_ = '我能查節目已發布的紀錄、個股圖表，以及管理 LINE 通知；不提供買賣建議，也不提供內部設定與指示。';
 var LINE_C_ = { hero: '#17322A', heroK: '#9CC8B4', white: '#FFFFFF', accent: '#04795C', ink: '#1B2420', muted: '#667069',
   soft: '#F3F6F4', amber: '#8A5A00', buy: '#B4342C', sell: '#1E7B4F', hold: '#4A4FA3', watch: '#1F6F8B', avoid: '#8A6410', off: '#8A958F' };
 // v89：持股靛藍、觀望注意藍綠、觀望不碰琥珀，與網站（--hold／--note／--wait）及信件同一組類別色。
@@ -497,7 +497,7 @@ function lineRoute_(uid, ch, act, deferTouch) {
     case 'sms': return lineSmsReply_();
     case 'private': return [lineText_('目前公開訂閱只提供每日總覽。你可以輸入「訂閱每日總覽」。')];
     case 'tracker': return lineTrackerReply_();
-    case 'market': return lineMarketReply_();
+    case 'market': return [lineText_('市場總覽已停用。可以查個股、持股追蹤或今日整理。',lineQuickMain_())];
     case 'help': return [lineHelpFlex_()];
     case 'greeting': return lineGreetingReply_();
     case 'thanks': return lineThanksReply_();
@@ -651,7 +651,7 @@ function lineBindReply_(uid, ch, code) {
  * 查詢：只讀網站已發布的資料；查不到就說查不到，不以模型補寫
  * ------------------------------------------------------------------ */
 function lineDailyRow_(d) {
-  var row = readSheetObjects_('每日推播內容').filter(function (r) { return fmtDate_(r['日期']) === d; })[0];
+  var row = readSheetDayRow_('每日推播內容','日期',d);
   return row ? { article: String(row['文字稿'] || row['內文'] || row['文章'] || ''), sent: String(row['寄送狀態'] || '') } : null;
 }
 /** 文章「① 盤勢總覽重點整理」章節的前幾點（已驗證的條列，原文照用，不改寫）。 */
@@ -669,10 +669,10 @@ function lineArticlePoints_(article, n) {
 }
 function lineDailyInfo_(d, article) {
   var info = { date: d, title: (typeof dailyPreheader_ === 'function' ? dailyPreheader_(article) : '') || '', points: lineArticlePoints_(article, 2),
-               counts: { buy: 0, sell: 0, hold: 0, watch: 0 } };
+               counts: null };
   try {
     var r = searchByDate(d);
-    if (r) { info.counts = { buy: (r.buy || []).length, sell: (r.sell || []).length, hold: (r.holdings || []).length, watch: (r.watchAvoid || []).length + (r.watchWatch || []).length }; }
+    if (r) { info.counts = { buy: (r.buy || []).length, sell: (r.sell || []).length, hold: (r.holdings || []).length, avoid: (r.watchAvoid || []).length, watch: (r.watchWatch || []).length }; }
   } catch (e) { Logger.log('LINE：當日筆數讀不到 ' + e); }
   return info;
 }
@@ -725,40 +725,6 @@ function lineTrackerReply_() {
   });
   if (!held.length) { return [lineText_('網站目前沒有持有中的回合。', lineQuickMain_())]; }
   return [lineTrackerFlex_(held, t)];
-}
-
-function lineMarketReply_() {
-  var cards = lineMarketCards_();
-  var more = lineMarketExtras_(), messages = cards.length ? [lineMarketFlex_(cards)] : [];
-  if (more.macro.length) { messages.push(lineMacroFlex_(more.macro)); }
-  if (more.sectors && more.sectors.rows && more.sectors.rows.length) { messages.push(lineSectorsFlex_(more.sectors)); }
-  return messages.length ? messages : [lineText_('目前沒有可核對的市場資料快取，請稍後再試或到網站查看。', lineQuickMain_())];
-}
-/** 只讀網站既有快取（盤中每五分鐘由排程更新），不為了查詢臨時打行情 API。 */
-function lineMarketCards_() {
-  var out = [];
-  var live = null;
-  try { live = JSON.parse(CACHE.get('market_live_index') || 'null'); } catch (e) { live = null; }
-  var pay = function (k) { try { var p = marketPayload_('市場總覽快取', k, false); return p && p.data ? p.data : null; } catch (e) { return null; } };
-  var taiex = live && Number(live.value) > 0 ? live : pay('taiex');
-  var tx = pay('tx');
-  var clock = Number(Utilities.formatDate(new Date(), 'Asia/Taipei', 'HHmm'));
-  var taiwanDayOpen = clock >= 900 && clock <= 1340 && !whyClosed_(new Date());
-  [[taiex, '加權指數'], [tx, '台指期']].forEach(function (x) {
-    var c = x[0];
-    if (!c || !(Number(c.value) > 0)) { return; }
-    if (taiwanDayOpen && String(c.time || c.at || '').slice(0, 10) !== todayStr_()) { return; }
-    out.push({ label: String(c.label || x[1]), value: Number(c.value), change: Number(c.change), percent: Number(c.percent),
-               time: String(c.time || c.at || ''), source: String(c.source || ''), unit: String(c.unit || ''),
-               prevClose: Number(c.prevClose), line: c.line || [], activeSession: String(c.activeSession || ''),
-               turnover: Number(c.turnover), estimatedTurnover: Number(c.estimatedTurnover), tradeVolume: Number(c.tradeVolume) });
-  });
-  return out;
-}
-/** 和市場主卡共用 marketRows_ 的單次表格索引，不額外請求行情來源。 */
-function lineMarketExtras_() {
-  var get = function (key) { try { var p = marketPayload_('市場總覽快取', key, false); return p && p.data || null; } catch (e) { return null; } };
-  return { macro: ['dxy', 'usdtwd', 'wti', 'brent'].map(get).filter(function (c) { return c && Number(c.value) > 0; }), sectors: get('sectors') };
 }
 
 function lineResolveStock_(q) {
@@ -984,7 +950,7 @@ function lineConfirmStockReply_(uid) {
 
 function lineOutOfScopeReply_(kind, raw) {
   if (kind === 'calc') {
-    return [lineText_('抱歉，本服務主要專注於張震分析師節目之「每日總覽重點」、「個股歷史提及紀錄」與「通知訂閱」，計算與數學運算不在我的服務範圍內喔。\n\n您可以試試：\n• 輸入股票代號或名稱（例如「2330」或「台積電」）\n• 點選下方「今日整理」查看最新分析\n• 點選「市場總覽」查看加權指數與台指期行情', lineQuickMain_())];
+    return [lineText_('抱歉，本服務主要專注於張震分析師節目之「每日總覽重點」、「個股歷史提及紀錄」與「通知訂閱」，計算與數學運算不在我的服務範圍內喔。\n\n您可以試試：\n• 輸入股票代號或名稱（例如「2330」或「台積電」）\n• 點選下方「今日整理」查看最新分析\n• 點選「持股追蹤」查看已發布的持股回合', lineQuickMain_())];
   }
   return [lineText_('抱歉，此問題不在我的工作與服務範圍內喔。我專責提供張震分析師的節目觀點、個股歷史提及紀錄與訂閱服務。\n\n歡迎輸入股票代號（例如「2330」）或點選下方按鈕查詢！', lineQuickMain_())];
 }
@@ -1081,7 +1047,7 @@ function lineUri_(label, uri) { return { type: 'uri', label: lineClip_(label, 20
 function lineQuickMain_() {
   return [linePb_('今日整理', 'a=today', '今日整理'), linePb_('查個股', 'a=askstock', '查個股', { inputOption: 'openKeyboard' }),
           linePb_('持股追蹤', 'a=tracker', '持股追蹤'),
-          linePb_('市場總覽', 'a=market', '市場總覽'), linePb_('管理訂閱', 'a=manage', '管理訂閱')];
+          linePb_('使用說明', 'a=help', '使用說明'), linePb_('管理訂閱', 'a=manage', '管理訂閱')];
 }
 function fxText_(text, o) {
   var t = { type: 'text', text: lineClip_(String(text == null || text === '' ? ' ' : text), 1800), wrap: true };
@@ -1143,15 +1109,6 @@ function lineBand_(segments) {
   return fxBox_('horizontal', valid.map(function (s) {
     return fxBox_('vertical', [{ type: 'filler' }], { backgroundColor: s.color, height: '9px', flex: Math.max(1, Math.round(Number(s.value) / total * 100)) });
   }), { spacing: 'xs', cornerRadius: '5px' });
-}
-function lineMarketSeries_(c) {
-  var date = String(c.time || '').slice(0, 10), points = (Array.isArray(c.line) ? c.line : []).filter(function (p) {
-    if (!(Number(p.value) > 0)) { return false; }
-    var d = new Date(p.time || '');
-    return !isNaN(d.getTime()) && (c.activeSession ? true : Utilities.formatDate(d, 'Asia/Taipei', 'yyyy/MM/dd') === date);
-  });
-  // 日盤、夜盤由來源的 activeSession 與 line 分開；同一天也不能跨時段接線。
-  return points.map(function (p) { return Number(p.value); });
 }
 function lineHoldingSeries_(h) {
   var hit = '';
@@ -1278,8 +1235,8 @@ function lineDeliveryBlock_(s) {
 
 function lineHelpFlex_() {
   var rows = [['今日整理', '今天的盤勢摘要與個股數'], ['輸入代號、名稱或一句話', '例如：我要查詢世芯KY買賣狀況'],
-              ['持股追蹤', '網站目前持有中的回合'], ['市場總覽', '加權指數與台指期的最新快取'], ['管理訂閱', '開啟或停止 LINE 通知']];
-  return lineFlex_('使用說明：可以輸入今日整理、股票代號或查詢句子、持股追蹤、市場總覽、管理訂閱。', fxBubble_(
+              ['持股追蹤', '網站目前持有中的回合'], ['管理訂閱', '開啟或停止 LINE 通知']];
+  return lineFlex_('使用說明：可以輸入今日整理、股票代號或查詢句子、持股追蹤、管理訂閱。', fxBubble_(
     fxHeader_('使用說明', '可以這樣問'),
     rows.map(function (r) { return fxBox_('vertical', [fxText_(r[0], { size: 'sm', weight: 'bold', color: LINE_C_.ink }), fxText_(r[1], { size: 'xs', color: LINE_C_.muted })]); })
       .concat([fxNote_('這裡只整理節目已發布的紀錄，不提供買賣建議。電腦版 LINE 沒有下方選單，直接輸入上面的文字即可。')]),
@@ -1291,7 +1248,7 @@ function lineDailyFlex_(info, kicker) {
   var dl = lineDateLabel_(info.date), title = info.title || (dl + ' 盤勢與操作重點');
   var c = info.counts || {};
   var num = function (n, label, color) {
-    return fxBox_('vertical', [fxText_(String(n || 0), { size: 'xl', weight: 'bold', color: color, align: 'center' }),
+    return fxBox_('vertical', [fxText_(n==null?'—':String(n), { size: 'xl', weight: 'bold', color: color, align: 'center' }),
       fxText_(label, { size: 'xxs', color: LINE_C_.muted, align: 'center' })], { flex: 1 });
   };
   var body = [];
@@ -1300,12 +1257,14 @@ function lineDailyFlex_(info, kicker) {
     info.points.slice(0, 2).forEach(function (p) { body.push(fxBullet_(p, 3)); });
     body.push({ type: 'separator', margin: 'md' });
   }
-  body.push(fxBox_('horizontal', [num(c.buy, '買入', LINE_C_.buy), num(c.sell, '賣出', LINE_C_.sell), num(c.hold, '持有', LINE_C_.hold), num(c.watch, '觀望', LINE_C_.watch)], { margin: 'md' }));
+  body.push(fxBox_('horizontal', [num(c.buy, '買入', LINE_C_.buy), num(c.sell, '賣出', LINE_C_.sell), num(c.hold, '持股', LINE_C_.hold)], { margin: 'md' }));
+  body.push(fxBox_('horizontal', [num(c.avoid, '觀望不碰', LINE_C_.avoid), num(c.watch, '觀望注意', LINE_C_.watch)], { margin: 'md' }));
+  if (!info.counts) { body.push(fxNote_('分類筆數暫時讀不到，請看完整整理核對。')); }
   body.push(lineBand_([{ value: c.buy, color: LINE_C_.buy }, { value: c.sell, color: LINE_C_.sell },
-    { value: c.hold, color: LINE_C_.hold }, { value: c.watch, color: LINE_C_.watch }]));
+    { value: c.avoid, color: LINE_C_.avoid }, { value: c.watch, color: LINE_C_.watch }, { value: c.hold, color: LINE_C_.hold }]));
   body.push(fxNote_('整理已驗證的節目內容，不是買賣建議。'));
   var url = lineSiteUrl_('mail');
-  return lineFlex_('每日總覽 ' + dl + '｜' + title, fxBubble_(fxHeader_((kicker || '每日總覽') + '｜' + dl, title), body,
+  return lineFlex_('每日總覽 ' + dl + '｜' + title + (info.counts ? '｜買入'+c.buy+'、賣出'+c.sell+'、觀望不碰'+c.avoid+'、觀望注意'+c.watch+'、持股'+c.hold : ''), fxBubble_(fxHeader_((kicker || '每日總覽') + '｜' + dl, title), body,
     [url ? fxBtn_(lineUri_('查看完整整理', url)) : null, fxBtn_(linePb_('管理通知', 'a=manage', '管理訂閱'), 'link')]));
 }
 
@@ -1388,63 +1347,6 @@ function lineNum_(v, dp) {
   parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   return (n < 0 ? '-' : '') + parts.join('.');
 }
-function lineMarketFlex_(cards) {
-  var nowMs = Date.now(), body = [];
-  cards.forEach(function (c) {
-    var ms = lineParseTaipei_(c.time), age = ms ? Math.round((nowMs - ms) / 60000) : null;
-    var up = c.change > 0, down = c.change < 0;
-    var color = up ? LINE_C_.buy : down ? LINE_C_.sell : LINE_C_.muted;
-    var chg = isFinite(c.change) ? (up ? '+' : '') + lineNum_(c.change, 2) + (isFinite(c.percent) ? '（' + (c.percent > 0 ? '+' : '') + lineNum_(c.percent, 2) + '%）' : '') : '';
-    var series = lineMarketSeries_(c), ref = Number(c.prevClose) > 0 ? Number(c.prevClose) : Number(c.value) - Number(c.change);
-    var chart = series.length >= 3 && ref > 0 ? lineChartUrl_(series, ref) : '';
-    body.push(fxBox_('vertical', [
-      fxBox_('horizontal', [fxText_(c.label, { size: 'sm', weight: 'bold', color: LINE_C_.ink, flex: 1 }),
-        fxText_(lineNum_(c.value, 2), { size: 'md', weight: 'bold', color: LINE_C_.ink, align: 'end', flex: 0 })]),
-      chg ? fxText_(chg, { size: 'xs', color: color, align: 'end' }) : null,
-      lineChartImage_(chart, (c.activeSession === 'afterhours' ? '夜盤' : c.activeSession === 'regular' ? '日盤' : '當日') +
-        '折線｜虛線為' + (c.activeSession ? '漲跌比較基準' : '前收')),
-      chart ? fxText_('本時段 ' + series.length + ' 個價格點', { size: 'xxs', color: LINE_C_.muted }) :
-        fxText_('本時段價格點不足，暫不畫線', { size: 'xxs', color: LINE_C_.muted }),
-      c.label.indexOf('加權指數') >= 0 && c.turnover > 0 ?
-        fxText_('成交金額 ' + lineNum_(c.turnover / 1e8, 0) + ' 億' + (c.estimatedTurnover > 0 ? '　預估 ' + lineNum_(c.estimatedTurnover / 1e8, 0) + ' 億' : ''),
-          { size: 'xs', color: LINE_C_.ink }) : null,
-      c.label.indexOf('台指期') >= 0 && c.tradeVolume > 0 ?
-        fxText_('成交量 ' + lineNum_(c.tradeVolume, 0) + ' 口', { size: 'xs', color: LINE_C_.ink }) : null,
-      fxText_('資料時間 ' + (c.time ? String(c.time).slice(5, 16) : '未標示') + (age !== null && age > 20 ? '（' + (age >= 1440 ? '非今日資料' : '約 ' + age + ' 分鐘前') + '）' : '') +
-        (c.source ? '　' + lineClip_(c.source, 30) : ''), { size: 'xxs', color: LINE_C_.muted })
-    ], { backgroundColor: LINE_C_.soft, cornerRadius: '10px', paddingAll: '12px' }));
-  });
-  body.push(fxNote_('來自網站最近一次快取，可能延遲；盤中每五分鐘更新一次，不是即時成交。'));
-  var url = lineSiteUrl_('market');
-  return lineFlex_('市場總覽：' + cards.map(function (c) { return c.label + ' ' + lineNum_(c.value, 2); }).join('、'),
-    fxBubble_(fxHeader_('市場總覽', '網站最新快取'), body, [url ? fxBtn_(lineUri_('網站市場總覽', url)) : null]));
-}
-function lineMacroFlex_(cards) {
-  var rows = cards.slice(0, 4).map(function (c) {
-    var n = Number(c.change), color = n > 0 ? LINE_C_.buy : n < 0 ? LINE_C_.sell : LINE_C_.muted;
-    return fxBox_('vertical', [
-      fxBox_('horizontal', [fxText_(String(c.label || c.key || '國際指標'), { size: 'sm', color: LINE_C_.ink, flex: 2 }),
-        fxText_(lineNum_(c.value, 2), { size: 'sm', weight: 'bold', color: color, flex: 1, align: 'end' })]),
-      fxText_('資料 ' + String(c.time || c.at || '時間未標示').slice(0, 16), { size: 'xxs', color: LINE_C_.muted })
-    ], { backgroundColor: LINE_C_.soft, cornerRadius: '10px', paddingAll: '10px' });
-  });
-  rows.push(fxNote_('國際指標依來源更新時間，不與台股盤中時鐘混為即時。'));
-  return lineFlex_('國際指標：' + cards.map(function (c) { return String(c.label || c.key) + ' ' + lineNum_(c.value, 2); }).join('、'),
-    fxBubble_(fxHeader_('國際指標', '匯率與能源'), rows, [fxBtn_(lineUri_('看市場總覽', lineSiteUrl_('market')))]));
-}
-function lineSectorsFlex_(data) {
-  var rows = (data.rows || []).filter(function (r) { return Number(r.percent) > 0; }).slice(0, 5), body = [];
-  rows.forEach(function (r) {
-    body.push(fxBox_('horizontal', [
-      fxText_(String(r.name || '未分類'), { size: 'sm', color: LINE_C_.ink, flex: 2 }),
-      fxText_(lineNum_(r.percent, 1) + '%', { size: 'sm', weight: 'bold', color: LINE_C_.accent, flex: 1, align: 'end' })]));
-    body.push(lineBand_([{ value: r.percent, color: LINE_C_.accent }, { value: 100 - Number(r.percent), color: LINE_C_.soft }]));
-  });
-  body.push(fxNote_('成交比重前五大｜資料日期 ' + String(data.date || '未標示') + '。產業資料盤後更新，不宣稱盤中即時。'));
-  return lineFlex_('產業成交比重前五大，資料日期 ' + String(data.date || '未標示'),
-    fxBubble_(fxHeader_('產業成交比重', '前五大產業'), body, [fxBtn_(lineUri_('展開完整產業', lineSiteUrl_('market')))]));
-}
-
 /* ------------------------------------------------------------------ *
  * 待送訊息與寄送帳本
  * ------------------------------------------------------------------ */
@@ -2072,13 +1974,10 @@ function lineValidateAll_() {
     ['開啟確認', lineSubConfirm_({ daily: true, sms: false }, { daily: false, sms: false }, ['daily'], true)],
     ['停止確認', lineSubConfirm_({ daily: false, sms: false }, { daily: true, sms: false }, ['daily'], false)],
     ['使用說明', lineHelpFlex_()],
-    ['每日總覽', lineDailyFlex_({ date: '2026/09/23', title: '記憶體報價止跌，法人回補後的操作重點整理', points: ['加權指數量縮整理，季線附近有撐。', '記憶體族群報價止跌，法人連三天回補。'], counts: { buy: 1, sell: 1, hold: 3, watch: 4 } }, '每日總覽')],
+    ['每日總覽', lineDailyFlex_({ date: '2026/09/23', title: '記憶體報價止跌，法人回補後的操作重點整理', points: ['加權指數量縮整理，季線附近有撐。', '記憶體族群報價止跌，法人連三天回補。'], counts: { buy: 1, sell: 1, hold: 3, avoid: 2, watch: 4 } }, '每日總覽')],
     ['個股', lineStockFlex_({ code: '6770', name: '力積電' }, [{ date: '2026/09/23', direction: '買入', price: '73.5以下', reason: '記憶體報價止跌，法人連三天回補。' }, { date: '2026/09/18', direction: '觀望注意', price: '', reason: '' }])],
     ['持股回合走勢', lineHoldingVisualFlex_({ code: '6770', name: '力積電', entry: 70, current: 75, entryDate: '2026/09/23', curSrc: '盤後收盤' })],
     ['持股追蹤', lineTrackerFlex_([{ name: '力積電', code: '6770', entryDate: '2026/09/23', latestReasonDate: '2026/09/25', roundsAsOf: '2026/09/25' }], {})],
-    ['市場總覽', lineMarketFlex_([{ label: '加權指數', value: 23456.78, change: -123.4, percent: -0.52, time: '2026/09/26 13:30:00', source: 'Yahoo Finance', unit: '點' }])],
-    ['國際指標', lineMacroFlex_([{ label: '美元指數', value: 100.2, change: 0.1 }])],
-    ['產業前五', lineSectorsFlex_({ date: '2026/09/26', rows: [{ name: '電子', percent: 61 }, { name: '金融', percent: 12 }] })]
   ];
   var out = samples.map(function (s) {
     var r = lineApi_('post', '/v2/bot/message/validate/push', { messages: [s[1]] });
@@ -2115,9 +2014,9 @@ function lineRichMenuDefs_() {
              (typeof PUBLIC_SITE_URL_DEFAULT === 'string' && PUBLIC_SITE_URL_DEFAULT ? PUBLIC_SITE_URL_DEFAULT : 'https://lee200202.github.io/Stock/');
   site = (site || 'https://lee200202.github.io/Stock/').replace(/\/?$/, '/');
   return [
-    { alias: LINE_RICH_ALIAS_.query, image: 'richmenu-query.png', def: { size: { width: W, height: 1686 }, selected: true, name: 'zz-query-v1', chatBarText: '查資料',
+    { alias: LINE_RICH_ALIAS_.query, image: 'richmenu-query.png', sha256: '8860b421b5e8cc327d68d9e5e717040391ba163cde2db78df7ebdfa3f12389bd', def: { size: { width: W, height: 1686 }, selected: true, name: 'zz-query-v2', chatBarText: '查資料',
       areas: tabs('query').concat([cell(0, linePb_('今日整理', 'a=today', '今日整理')), cell(1, linePb_('查個股', 'a=askstock', '查個股', { inputOption: 'openKeyboard' })),
-        cell(2, linePb_('持股追蹤', 'a=tracker', '持股追蹤')), cell(3, linePb_('市場總覽', 'a=market', '市場總覽'))]) } },
+        cell(2, linePb_('持股追蹤', 'a=tracker', '持股追蹤')), cell(3, {type:'uri', label:'逐字稿', uri:lineSiteUrl_('tx')})]) } },
     { alias: LINE_RICH_ALIAS_.notify, image: 'richmenu-notify.png', sha256: '8fec54c4e64d7968f87f9e8d03402fba54e787dda5e2e658049edc1ed7bbc802', def: { size: { width: W, height: 1686 }, selected: true, name: 'zz-notify-v3', chatBarText: '通知',
       areas: tabs('notify').concat([cell(0, linePb_('管理訂閱', 'a=manage', '管理訂閱')), cell(1, linePb_('使用說明', 'a=help', '使用說明')),
         { bounds: { x: 0, y: TAB + CH, width: W, height: CH }, action: lineUri_('開啟網站', site) }]) } }

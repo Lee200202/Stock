@@ -32,7 +32,6 @@ function siteBridge_(e) {
     apiGetHoldingsTracker: apiGetHoldingsTracker,
     apiGetLineEntry: apiGetLineEntry,
     apiGetMailContent: apiGetMailContent,
-    apiGetMarketOverview: apiGetMarketOverview,
     apiGetMemberSms: apiGetMemberSms,
     apiGetPerformanceSeries: apiGetPerformanceSeries,
     apiGetQuotesFor: apiGetQuotesFor,
@@ -68,7 +67,7 @@ function siteBridge_(e) {
       'apiAdminChainState apiAdminCrawlState apiAdminCrawlTranscript apiAdminDayRows ' +
       'apiAdminDaySyncState apiAdminDecisions apiAdminDeleteRow apiAdminDeleteSms ' +
       'apiAdminDeleteSmsBatch apiAdminDispatch apiAdminFixState apiAdminFullFixState ' +
-      'apiAdminHeldList apiAdminHoldToday apiAdminInstallSectorCatchup apiAdminJobStatus ' +
+      'apiAdminHeldList apiAdminHoldToday apiAdminJobStatus ' +
       'apiAdminKCoverage apiAdminLineBindCode apiAdminLineClearTesters ' +
       'apiAdminLineDiagnose apiAdminLineLookup apiAdminLineRetry apiAdminLineSaveConfig ' +
       'apiAdminLineSetupRichMenu apiAdminLineStatus apiAdminLineTestPush ' +

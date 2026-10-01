@@ -658,23 +658,7 @@ function apiAdminOpsDay(key, date) {
   } catch (e) { return { ok: false, reason: String(e.message || e) }; }
 }
 
-/* 監控頁「安裝」按鈕（v67，0925 規格 R5）：產業成交比重的 16:30 獨立保底排程。
-   已裝就不重裝；觸發器已滿 20 個時照實回報，不刪別的觸發器騰位置。 */
-function apiAdminInstallSectorCatchup(key) {
-  try {
-    adminAuth_(key);
-    var list = ScriptApp.getProjectTriggers();
-    if (list.some(function (t) { return t.getHandlerFunction() === 'sectorCatchupJob'; })) {
-      return { ok: true, installed: false, message: '產業成交比重保底排程原本就已安裝。' };
-    }
-    if (list.length >= 20) {
-      return { ok: false, reason: '觸發器已滿 20 個，裝不下新的；五分鐘總排程仍會每 15 分鐘補抓。' };
-    }
-    installSectorCatchupJob();
-    return { ok: true, installed: true, message: '已安裝：每天 16:30 獨立補抓產業成交比重（休市日自動略過）。' };
-  } catch (e) { return { ok: false, reason: String(e.message || e) }; }
-}
-
+/* 今日自動化、寄送與會員簡訊明細；不以排程存在代替完成證據。 */
 function apiAdminTodayStatus(key) {
   try {
     adminAuth_(key);
@@ -686,20 +670,26 @@ function apiAdminTodayStatus(key) {
     var holds = readSheetObjects_('會員持股').filter(function (r) { return fmtDate_(r['日期']) === today; });
     // 和今日狀態共用已讀取的兩張表，不另開一支逐筆查詢 API。
     // 只顯示會員簡訊確實寫入的列；原文、待解析與逐字稿紀錄不能混成已執行買賣。
+    var smsTimes={};
+    readSheetFields_('會員簡訊',['文章ID','發文時間']).forEach(function(r){
+      var v=r['發文時間'];
+      smsTimes[String(r['文章ID']||'')]=typeof cmFmtTime_==='function'?cmFmtTime_(v):String(v||'');
+    });
+    var smsTime=function(r){return smsTimes[String(r['來源影片ID']||'').replace(/^CMONEY-/,'')]||'';};
     var smsOperations = [];
     trades.forEach(function (r) {
       if (String(r['來源影片ID'] || '').indexOf('CMONEY-') !== 0) { return; }
-      smsOperations.push({ time: String(r['時間'] || r['發文時間'] || ''), name: String(r['股票名稱'] || ''),
+      smsOperations.push({ time: smsTime(r), name: String(r['股票名稱'] || ''),
         code: String(r['代號'] || ''), direction: String(r['方向'] || ''), price: String(r['價位說明'] || ''),
         detail: String(r['理由摘錄'] || ''), source: String(r['來源影片ID'] || '') });
     });
     holds.forEach(function (r) {
       if (String(r['來源影片ID'] || '').indexOf('CMONEY-') !== 0) { return; }
-      smsOperations.push({ time: String(r['時間'] || r['發文時間'] || ''), name: String(r['股票名稱'] || ''),
+      smsOperations.push({ time: smsTime(r), name: String(r['股票名稱'] || ''),
         code: String(r['代號'] || ''), direction: '會員持股', price: '',
         detail: String(r['說明重點'] || ''), source: String(r['來源影片ID'] || '') });
     });
-    smsOperations.sort(function (a, b) { return b.source.localeCompare(a.source) || b.time.localeCompare(a.time); });
+    smsOperations.sort(function (a, b) { return b.time.localeCompare(a.time) || b.source.localeCompare(a.source); });
     var push = readSheetObjects_('每日推播內容').filter(function (r) { return fmtDate_(r['日期']) === today; })[0];
     // 與前台同一套交易日過濾（v67，R4）：休市日誤寫的列不算「最後一筆」
     var perfLast = readSheetObjects_('每日績效').map(function (r) { return fmtDate_(r['日期']); })
@@ -725,7 +715,7 @@ function apiAdminTodayStatus(key) {
 
     var items = [];
     function add(label, value, tone, hint) { items.push({ label: label, value: value, tone: tone, hint: hint || '' }); }
-    if (!trading) { add('今天', '休市', 'idle', '休市日不取稿、不寄信，行情照常更新。'); }
+    if (!trading) { add('今天', '休市', 'idle', '休市日不取稿、不寄每日總覽；會員簡訊接收與通知照常。'); }
     else if (noShow) { add('今日節目', '今日無直播', 'idle', '上游確認頻道今天沒有這一集，已停止取稿；訂閱者不會收到每日整理。'); }
     else if (plannedNoShow && !video) { add('今日節目', '預告停播', 'idle', '前一集已預告請假；已停止密集輪詢，後續排程會單次查片，12:30 後確認。'); }
     else if (vStatus === '完成') { add('今日節目', '整理完成', 'ok'); }
@@ -823,11 +813,6 @@ function apiAdminTodayStatus(key) {
     catch (e) { triggerError = String(e.message || e).slice(0, 120); }
     var heartbeatAt = Number(PropertiesService.getScriptProperties().getProperty('OPS_HEARTBEAT_AT') || 0);
     var heartbeatAge = heartbeatAt ? Math.round((Date.now() - heartbeatAt) / 60000) : null;
-    var marketSample = {};
-    try { marketSample = JSON.parse(PropertiesService.getScriptProperties().getProperty('marketSnapshotStatus') || '{}'); } catch (e) {}
-    var sectorJob = {}, sectorDate = '';
-    try { sectorJob = JSON.parse(PropertiesService.getScriptProperties().getProperty('sectorCatchupStatus') || '{}'); } catch (e) {}
-    try { var sectorItem = marketPayload_('市場總覽快取', 'sectors', true); sectorDate = sectorItem && sectorItem.data ? String(sectorItem.data.date || '') : ''; } catch (e) {}
     var blankExits = [];
     try { readSheetObjects_('持股追蹤').forEach(function (r) {
       if (String(r['狀態'] || '') === '已出場' && r['最近賣出日'] && !Number(r['出場價'])) {
@@ -835,7 +820,6 @@ function apiAdminTodayStatus(key) {
       }
     }); } catch (e) {}
     var hourlyScheduled = triggerNames.indexOf('backfillHourlyHistoryJob') >= 0;
-    var marketScheduled = triggerNames.indexOf('everyFiveMinJob') >= 0 || triggerNames.indexOf('marketSnapshotJob') >= 0;
     var activeHours = trading && hm >= 900 && hm <= 2200;
     var missingTriggers = triggerError ? [] : ['everyFiveMinJob', 'cmoneyPollJob', 'backfillDailyKJob', 'rebuildHoldingsTrackerJob', 'snapshotPerformanceJob']
       .filter(function (name) { return triggerNames.indexOf(name) < 0; });
@@ -857,18 +841,6 @@ function apiAdminTodayStatus(key) {
     }
     if (blankExits.length) { alerts.push('持股追蹤有 ' + blankExits.length + ' 檔出場價待補：' + blankExits.slice(0, 3).join('、')); }
     if (!hourlyScheduled && trading) { alerts.push('歷史 60 分 K 的 19:15 排程未安裝'); }
-    var marketSampleAge = null;
-    if (marketSample.at) {
-      var msTime = new Date(String(marketSample.at).replace(/\//g, '-').replace(' ', 'T') + '+08:00').getTime();
-      if (isFinite(msTime)) { marketSampleAge = Math.round((Date.now() - msTime) / 60000); }
-    }
-    if (marketScheduled && typeof marketSnapshotWindow_ === 'function' && marketSnapshotWindow_(new Date()) &&
-        (marketSampleAge === null || marketSampleAge > 20 || marketSample.ok !== true)) {
-      alerts.push('盤中行情採樣超過 20 分鐘未成功，請查看 marketSnapshotStatus()');
-    }
-    if (trading && hm >= 1700 && sectorDate !== today) {
-      alerts.push('今日產業成交比重尚未更新（現有 '+(sectorDate || '無資料')+'）；排程每 15 分鐘自動補抓，查看 sectorCatchupStatus()');
-    }
     // 四個節點各有自己的證據：排程心跳、原文欄、發布欄、寄送帳本。
     // 不能因 GitHub 排程顯示 success（可能只是休市略過）就一律標成綠色。
     var coreMissing = triggerNames.indexOf('everyFiveMinJob') < 0 || triggerNames.indexOf('cmoneyPollJob') < 0;
@@ -902,11 +874,8 @@ function apiAdminTodayStatus(key) {
       timeline: timeline.slice(-40), ops: { trading: trading, noShow: noShow, plannedNoShow: plannedNoShow && !video, videoStatus: vStatus,
         rawChars: v1, polishedChars: v2, mailStatus: push ? String(push['寄送狀態'] || '') : '',
         deliveries: tot, mailByKind: byMail, mailKinds: dkeys.length, mailQuotaLeft: quotaLeft, smsCount: sms,
-        blankExits: blankExits, hourlyScheduled: hourlyScheduled, marketScheduled: marketScheduled,
+        blankExits: blankExits, hourlyScheduled: hourlyScheduled,
         hourlyProgress: String(PropertiesService.getScriptProperties().getProperty('hourHistoryProgress') || '').slice(0, 100),
-        marketSample: { at: marketSample.at || '', age: marketSampleAge, ok: marketSample.ok === true, note: String(marketSample.note || '').slice(0, 100) },
-        sector: { date: sectorDate, state: String(sectorJob.state || ''), at: String(sectorJob.at || ''),
-          error: String(sectorJob.error || '').slice(0, 120), scheduled: triggerNames.indexOf('sectorCatchupJob') >= 0 },
         perfLast: perfLast, pipelineDone: pipelineDone,
         dailyK: dk ? { finishedAt: dk.finishedAt || '', lastCode: dk.lastCode || '', lastError: dk.lastError || '',
           success: Number(dk.ok) || 0, failed: Number(dk.failed) || 0, skipped: Number(dk.skipped) || 0 } : null,

@@ -1016,6 +1016,13 @@ html[data-view="mobile"] .line-item { grid-template-columns:1fr; }
 html[data-view="mobile"] .line-search { flex-direction:column; }
 html[data-view="mobile"] .line-copy { grid-template-columns:1fr; }
 /* ====== v54 後台樣式層結束 ====== */
+
+/* v94：會員簡訊整張依方向填色，名稱／代號／時間保持間距，說明佔滿整行。 */
+.sms-operation-list{display:grid;gap:16px}.sms-operation{padding:18px 20px;border-radius:16px;border-left:5px solid var(--sms-ink);color:var(--ink);background:var(--sms-bg)}
+.sms-buy{--sms-ink:#B4342C;--sms-bg:#FBE8E5}.sms-sell{--sms-ink:#1E7B4F;--sms-bg:#E3F1E8}.sms-hold{--sms-ink:#4A4FA3;--sms-bg:#EBEAF7}.sms-avoid{--sms-ink:#8A6410;--sms-bg:#F5EDD8}.sms-watch{--sms-ink:#1F6F8B;--sms-bg:#E0EFF5}
+.sms-operation header{display:flex;gap:12px 18px;align-items:center;flex-wrap:wrap}.sms-operation header b{font-size:18px}.sms-operation .sms-direction{color:var(--sms-ink);font-weight:700}.sms-operation time{font-size:13px;color:var(--muted);margin-left:auto}.sms-code{color:var(--muted)}.sms-operation p{margin:12px 0 0;line-height:1.8;overflow-wrap:anywhere}.sms-operation .sms-price{font-weight:700;color:var(--sms-ink)}
+html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-theme="dark"] .sms-sell{--sms-ink:#79D8A1;--sms-bg:#193A2C}html[data-theme="dark"] .sms-hold{--sms-ink:#BBB9FF;--sms-bg:#292A48}html[data-theme="dark"] .sms-avoid{--sms-ink:#EDCD84;--sms-bg:#3A321F}html[data-theme="dark"] .sms-watch{--sms-ink:#94CEE8;--sms-bg:#1C3441}
+@media(max-width:600px){.sms-operation{padding:16px}.sms-operation time{width:100%;margin-left:0}.sms-operation header{gap:10px 14px}}
 </style>
 </head>
 <body>
@@ -4402,12 +4409,11 @@ var mergeTxFingerprint='';
           '<b class="hv">' + esc(it.value) + '</b><span class="hh">' + esc(it.detail) + '</span></div>';
       }).join('') || '<div class="erow-empty">目前沒有可核對的流程狀態</div>';
       var smsRows = r.smsOperations || [];
-      $('todaySmsOps').innerHTML = smsRows.length ? '<table class="today-sms-table"><thead><tr><th>時間</th><th>個股</th><th>方向</th><th>價位</th><th>說明重點</th></tr></thead><tbody>' +
-        smsRows.map(function (x) {
-          var dirCls = x.direction === '買進' ? 'dir-buy' : x.direction === '賣出' ? 'dir-sell' : 'dir-hold';
-          return '<tr><td data-label="時間">' + esc(x.time || '—') + '</td><td data-label="個股"><b>' + esc(x.name || '待確認') + '</b> <span class="mc-code">' + esc(x.code) + '</span></td><td data-label="方向"><span class="badge ' + dirCls + '">' + esc(x.direction) +
-            '</span></td><td data-label="價位">' + esc(x.price || '未說明') + '</td><td data-label="說明重點">' + esc(x.detail || '尚無說明') + '</td></tr>'; }).join('') +
-        '</tbody></table>' : '<p class="hint">今日會員簡訊尚無已寫入的個股列。若來源已有文章，請至「會員簡訊」查看解析與派工狀態。</p>';
+      $('todaySmsOps').innerHTML = smsRows.length ? '<div class="sms-operation-list">'+smsRows.map(function(x){
+        var tone=/^買/.test(x.direction)?'buy':/^賣/.test(x.direction)?'sell':/不碰/.test(x.direction)?'avoid':/注意/.test(x.direction)?'watch':'hold';
+        return '<article class="sms-operation sms-'+tone+'"><header><b>'+esc(x.name||'待確認')+'</b><span class="sms-code">'+esc(x.code)+'</span><span class="sms-direction">'+esc(x.direction)+'</span><time>'+esc(x.time||'來源時間待核對')+'</time></header>'+
+          (/^(買|賣)/.test(x.direction)?'<p class="sms-price">價位 '+esc(x.price||'未說明')+'</p>':'')+'<p>'+esc(x.detail||'尚無說明')+'</p></article>';
+      }).join('')+'</div>' : '<p class="hint">今日會員簡訊尚無已寫入的個股列。若來源已有文章，請至「會員簡訊」查看解析與派工狀態。</p>';
       $('todayHealth').innerHTML = (r.items || []).map(function (it) {
         return '<div class="hitem t-' + esc(it.tone) + '" title="' + esc(it.hint || '') + '" tabindex="0">' +
           '<span class="hk">' + esc(it.label) + '<i>' + (TONE_LABEL[it.tone] || '') + '</i></span>' +
@@ -4534,26 +4540,19 @@ var mergeTxFingerprint='';
       card('觸發器今日累計', rtTitle, rtDetail, rtTone) +
       (closed && !(o.blankExits || []).length ? card('日 K 與出場價', '休市', closedTxt + '；上次完成 ' + (o.dailyK && o.dailyK.finishedAt || '尚無') + '。', 'closed') :
       card('日 K 與出場價', (o.blankExits || []).length ? (o.blankExits.length + ' 檔待補價') : dkToday ? '今日補齊完成' : '等待今日補齊', (o.blankExits || []).length ? o.blankExits.slice(0, 3).join('、') : o.dailyK ? (o.dailyK.finishedAt || '目前代號：' + (o.dailyK.lastCode || '起點')) : '16:45 開始，完整一輪後重算持股。', (o.blankExits || []).length ? 'err' : dkToday ? 'ok' : 'idle')) +
-      card('盤中行情採樣', !o.marketScheduled ? '未排程' : o.marketSample && o.marketSample.at ? (o.marketSample.ok ? '已有採樣' : '最近採樣異常') : '等待採樣', o.marketSample && o.marketSample.at ? o.marketSample.at + (o.marketSample.note ? ' · ' + o.marketSample.note : '') : '由五分鐘總排程執行；休市或非盤中時段不取樣。', o.marketSample && o.marketSample.at && !o.marketSample.ok ? 'warn' : 'idle') +
-      card('個股五分鐘報價', o.quoteHealth ? o.quoteHealth.fresh + '／' + Math.max(o.quoteHealth.total, o.quoteHealth.job.requested || 0) + ' 檔報價已核對' : '尚無更新紀錄',
-        o.quoteHealth ? '舊資料 ' + o.quoteHealth.old + ' 檔；缺報價 ' + Math.max(0, (o.quoteHealth.job.requested || 0) - o.quoteHealth.total) + ' 檔。最近排程 ' + (o.quoteHealth.job.at || '尚無') +
+      card('個股五分鐘報價', o.quoteHealth ? o.quoteHealth.fresh + '／' + (o.quoteHealth.eligible == null ? Math.max(o.quoteHealth.total, o.quoteHealth.job.requested || 0) : o.quoteHealth.eligible) + ' 檔報價已核對' : '尚無更新紀錄',
+        o.quoteHealth ? '舊資料 ' + o.quoteHealth.old + ' 檔；缺報價 ' + Math.max(0, (o.quoteHealth.eligible == null ? o.quoteHealth.job.requested || 0 : o.quoteHealth.eligible) - o.quoteHealth.total) + ' 檔。最近排程 ' + (o.quoteHealth.job.at || '尚無') +
           '；本輪更新 ' + (o.quoteHealth.job.updated || 0) + '／' + (o.quoteHealth.job.requested || 0) + ' 檔。' +
           (o.quoteHealth.job.writePending ? '資料正在寫入，尚未完成。' : '') +
           ((o.quoteHealth.job.errors || []).length ? '來源問題：' + o.quoteHealth.job.errors.filter(function(e,i,a){return a.indexOf(e)===i;}).join('、') + '。' : '') +
           (o.quoteHealth.job.configured === false ? '富果單檔備援尚未設定金鑰。' : '') +
           '持有中與最近查看的股票優先，來源缺成交價不冒充即時。' : '部署後執行 quoteCacheStatus() 查看。',
         o.quoteHealth && o.quoteHealth.trading ? (!o.quoteHealth.fresh ? 'err' : o.quoteHealth.old || o.quoteHealth.job.partial || o.quoteHealth.job.writePending || (o.quoteHealth.job.errors || []).length ? 'warn' : 'ok') : 'idle') +
-      card('產業成交比重', o.sector && o.sector.date === r.today ? '今日已更新' : o.sector && o.sector.date ? '資料至 ' + o.sector.date : '尚無資料',
-        '證交所盤後資料；' + (o.sector && o.sector.at ? '最近補抓 ' + o.sector.at + '（' + (o.sector.state || '未知') + '）。' : '等待 GitHub 或 Apps Script 補抓。') +
-        (o.sector && o.sector.error ? '原因：' + o.sector.error + '。' : '') + (o.sector && !o.sector.scheduled ? '獨立保底排程未安裝。' : ''),
-        o.sector && !o.sector.scheduled ? 'warn' : closed ? 'closed' : o.sector && o.sector.date === r.today ? 'ok' : o.trading && Number((r.now || '').replace(':', '')) >= 1700 ? 'warn' : 'idle',
-        o.sector && !o.sector.scheduled ? '<button type="button" class="ghost sm" id="opsInstallSector">安裝保底排程</button>' : '') +
       card('歷史 60 分 K／績效', hourError ? '分 K 待補，需核對來源' : o.hourlyScheduled ? '排程已安裝' : '分 K 排程缺少', '19:15 歷史分 K；績效最後一筆 ' + (o.perfLast || '尚無') + '。' + (o.hourlyProgress ? '最近進度：' + o.hourlyProgress + '。' : '尚無分 K 進度紀錄。') + (o.hourlyScheduled ? '' : '部署後執行 installMarketDataJobs()。'), hourError || !o.hourlyScheduled ? 'warn' : 'idle');
     $('opsFlow').innerHTML =
       flow('09:05 起', '盤中會員簡訊', smsMail.accepted ? '首次 ' + clock(smsMail.firstAt) + ' 交郵件服務；' + sent(smsMail) + '。' : '每 10 分鐘核對來源；目前' + (o.smsCount ? '有來源文章，未見服務接受紀錄。' : '沒有來源文章。'), smsMail.accepted ? 'ok' : 'idle') +
       flow((o.autoStart || '11:05') + ' 起', '影片與逐字稿', closed ? closedTxt + '。' : o.noShow ? '今日無直播，已停止取稿。' : '偵測影片後才派判讀；目前 ' + (o.videoStatus || '等待影片') + '。', closed ? 'closed' : o.videoStatus === '完成' ? 'ok' : 'idle') +
       flow(o.mailStart || '12:00', '每日總覽信最早寄送', closed ? closedTxt + '。' + prevTxt : daily.accepted ? '實際首次 ' + clock(daily.firstAt) + '；' + sent(daily) + '。' : o.noShow ? '今日無直播，不寄送。' : '文章完成後五分鐘排程才會嘗試；目前無服務接受紀錄。', closed ? 'closed' : daily.accepted ? 'ok' : 'idle') +
-      flow('16:30 起', '產業成交比重', closed ? closedTxt + '。' : o.sector && o.sector.date === r.today ? '證交所今日資料已落地。' : 'GitHub 排程與 Apps Script 獨立排程補抓；五分鐘總排程每 15 分鐘再檢查。', closed ? 'closed' : o.sector && o.sector.date === r.today ? 'ok' : 'warn') +
       flow('16:45 起', '日 K 與持股背景重算', closed ? closedTxt + '（14:05～15:05 的固定排程也略過）。' : dkToday ? '今日日 K 完成於 ' + o.dailyK.finishedAt + '；出場價待補 ' + (o.blankExits || []).length + ' 檔。' : '補 K 一輪完成才重算持股與績效；上次完成 ' + (o.dailyK && o.dailyK.finishedAt || '尚無') + '。', closed ? 'closed' : dkToday ? 'ok' : 'idle') +
       flow('19:15', '歷史 60 分 K', o.hourlyScheduled ? '獨立排程已安裝；請用分 K 覆蓋稽核確認資料。' : '尚未安裝獨立排程。', o.hourlyScheduled ? 'ok' : 'warn');
     /* 執行紀錄可以切日期（v67，0925 規格 A3）：預設今天；今天沒有紀錄（休市、早上）時自動切到最近一個交易日並標示。 */
@@ -4601,20 +4600,6 @@ var mergeTxFingerprint='';
       if (this.value) { loadDay(this.value, false); } else { load(true); }
     });
   }
-  document.addEventListener('click', function (e) {
-    var b = e.target && e.target.closest ? e.target.closest('#opsInstallSector') : null;
-    if (!b) { return; }
-    b.disabled = true; b.textContent = '安裝中…';
-    google.script.run.withSuccessHandler(function (x) {
-      b.disabled = false;
-      b.textContent = x && x.ok ? '已安裝' : '安裝保底排程';
-      $('opsStatus').textContent = x && x.ok ? x.message : '安裝失敗：' + (x ? x.reason : '沒有回應');
-      if (x && x.ok) { load(true); }
-    }).withFailureHandler(function (err) {
-      b.disabled = false; b.textContent = '安裝保底排程';
-      $('opsStatus').textContent = '安裝失敗：' + (err && err.message ? err.message : '連線逾時');
-    }).apiAdminInstallSectorCatchup(KEY);
-  });
   function load(force) {
     if (!KEY || busy || document.hidden || $('p-ops').hidden) { return; }
     if (!force && Date.now() - lastAt < 30000) { return; }

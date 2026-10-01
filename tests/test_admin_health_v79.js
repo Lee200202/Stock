@@ -19,6 +19,7 @@ const context = {
   adminAuth_() {}, todayStr_: () => day, fmtDate_: x => x,
   isTradingDayToday_: () => true,
   readSheetObjects_: name => sheets[name] || [],
+  readSheetFields_: name => sheets[name] || [],
   dayVideoRow_: date => (sheets['影片清單'] || []).find(r => r['發布日期'] === date) || null,
   getSheet_: () => ({ getLastColumn: () => 1, getLastRow: () => 1,
     getRange: () => ({ getValues: () => [['發文時間']] }) }),
@@ -52,6 +53,9 @@ status = context.apiAdminTodayStatus('test');
 assert.equal(status.smsOperations.length, 1, 'admin summary only contains CMONEY records');
 assert.equal(status.smsOperations[0].name, '華城');
 assert.equal(status.smsOperations[0].direction, '賣出');
+sheets['會員簡訊']=[{'文章ID':'123','發文時間':day+' 09:42:10'}];
+status=context.apiAdminTodayStatus('test');
+assert.equal(status.smsOperations[0].time,day+' 09:42:10','join source article time instead of an absent trade-time column');
 
 sheets['影片清單'].push({ '發布日期': day, '原始逐字稿內容': '今日原文'.repeat(60), '處理狀態': '完成' });
 status = context.apiAdminTodayStatus('test');

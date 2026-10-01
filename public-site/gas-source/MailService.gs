@@ -390,8 +390,7 @@ function dailyPreheader_(article) {
 
 function getMailContent(dateStr) {
   var d = fmtDate_(dateStr);
-  var rows = readSheetObjects_('每日推播內容');
-  var row = rows.filter(function (r) { return fmtDate_(r['日期']) === d; })[0];
+  var row = readSheetDayRow_('每日推播內容','日期',d);
   if (!row) { return { date: d, found: false }; }
 
   var article = String(row['文字稿'] || row['內文'] || row['文章'] || '');

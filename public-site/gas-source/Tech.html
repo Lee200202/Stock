@@ -56,7 +56,7 @@
               <button type="button" data-entity="dailyk"><b>每日開高低收</b><small>日K快取</small></button>
               <button type="button" data-entity="live"><b>盤中報價與快照</b><small>即時快取・盤中快照</small></button>
               <button type="button" data-entity="hour"><b>60 分 K 與分 K</b><small><span>小時K・</span><span>分K歷史・</span><span>Yahoo分K</span></small></button>
-              <button type="button" data-entity="market"><b>大盤與國際行情</b><small>市場總覽快取</small></button>
+              <button type="button" data-entity="symbols"><b>行情代號核對</b><small>行情代號驗證</small></button>
               <button type="button" data-entity="fundamental"><b>基本面</b><small>基本面快取</small></button>
             </div></section>
             <section class="tech-domain" data-domain="derived"><h3>5　衍生結果</h3><div class="tech-node-list">
@@ -279,7 +279,7 @@
     dailyk: '每檔每天的開高低收與成交量。進場取當天最低、出場取當天最高，都從這裡查。',
     live: '盤中報價與每五分鐘的快照，網站顯示現價用；盤中預覽不寫進正式績效。',
     hour: '60 分 K 與分 K 歷史，個股圖表讀取；缺口只補，不編造。',
-    market: '大盤、期貨、匯率與原油的摘要和資料時間。',
+    symbols: '以官方上市與上櫃清單核對追蹤代號。清單完整時才暫停不存在於清單的行情請求；不刪原始提及，清單更新後可恢復。AI 不自行創造代號，單次404不是股票不存在的證據。',
     fundamental: '個股基本面摘要，減少重複向外查詢。',
     cost: '我在後台指定的成本，只影響對應的那一個回合；系統原本的判斷會留著。',
     tracker: '把同一檔從買入到出場串成一段一段的回合，算出每一回合的報酬。',
@@ -308,7 +308,7 @@
     ['actions', 'article', 1], ['holdings', 'article', 2], ['sms', 'mailsync', 2], ['mailsync', 'article'],
     ['article', 'ledger', 1], ['sms', 'ledger', 2], ['subscribers', 'ledger'], ['article', 'line', 2], ['sms', 'line', 2],
     ['article', 'web'], ['tracker', 'web'], ['performance', 'web'], ['live', 'web', 2], ['hour', 'web', 2],
-    ['market', 'web', 2], ['fundamental', 'web', 2],
+    ['symbols', 'live', 1], ['fundamental', 'web', 2],
     ['video', 'adminjob', 2], ['video', 'autojob'], ['adminjob', 'status'], ['autojob', 'status'],
     ['usage', 'memory'], ['index', 'actions', 2]
   ];
@@ -522,7 +522,7 @@
     review: [['video', 'audit', 'names', 'codes', 'stocks', 'logs', 'checkpoint'], '模型逐句找出每一檔、誰的動作、現在的立場；程式再核對股名、代號與數字。找不到原句的不發布，只留在判讀留底。'],
     record: [['actions', 'holdings', 'corrections', 'article'], '通過核對的當日買賣、觀望與會員持有寫進紀錄，同時產生當天的整理文章。簡訊與人工補登的內容不會被影片蓋掉。'],
     publish: [['article', 'mailsync', 'subscribers', 'ledger', 'line', 'sms', 'web'], '網站直接讀已發布紀錄與文章。每日總覽在文章通過品質關卡後寄出；Email 與 LINE 各自記下每一位收件者的結果。'],
-    quote: [['dailyk', 'live', 'hour', 'market', 'fundamental', 'tracker', 'cost', 'performance', 'web'], '每個交易日 16:45 起補齊每日行情，再依持股回合重算報酬與每日績效。文章已經先發布，不用等這一步。']
+    quote: [['dailyk', 'live', 'hour', 'symbols', 'fundamental', 'tracker', 'cost', 'performance', 'web'], '每個交易日 16:45 起補齊每日行情，再依持股回合重算報酬與每日績效。文章已經先發布，不用等這一步。']
   };
   all('[data-flow]').forEach(function (b) { b.addEventListener('click', function () {
     var item = flows[b.dataset.flow];

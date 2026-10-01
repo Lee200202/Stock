@@ -16,7 +16,6 @@ var SHEET_SCHEMA = {
   '簡訊內容同步':['日期','版本','狀態','更新時間','備註'],
   '分K歷史':['代號','更新時間','資料JSON','來源','狀態'],
   'Yahoo分K':['代號','更新時間','資料JSON','來源','狀態'],
-  '市場總覽快取':['代號','更新時間','資料JSON','來源','狀態'],
   '逐字稿判讀稽核': ['來源影片ID', '影片日期', '原文SHA256', '規則版本', '判讀JSON', '更新時間'],
   /* 「逐字稿來源」是自動取稿接回來之後新增的最後一欄，值只有三種：
        手動　　　人貼的（後台投稿、直接編輯這張表，或本機跑 transcript.py manual）
@@ -31,6 +30,7 @@ var SHEET_SCHEMA = {
   // 只有「早上賣掉、下午買回來」這種同日來回才會填 1、2。
   // 少了它，持股追蹤只能用固定的優先級猜順序（買一律排在賣前面），
   // 於是同日先賣後買會被算成「加碼之後那筆賣出不算數」，整個回合都錯。
+  '行情代號驗證': ['代號','名稱','核對結果','依據','核對時間'],
   '操作紀錄': ['日期', '股票名稱', '代號', '方向', '價位說明', '理由摘錄', '來源影片ID', '序'],
   '會員持股': ['日期', '股票名稱', '代號', '目前立場', '說明重點', '來源影片ID'],
   '每日推播內容': ['日期', '文字稿', '寄送狀態'],
@@ -189,8 +189,6 @@ function installTriggers() {
 
   ScriptApp.newTrigger('rebuildCodeMapJob').timeBased().onWeekDay(ScriptApp.WeekDay.SUNDAY).atHour(4).create();
   ScriptApp.newTrigger('yearlyArchiveJob').timeBased().onMonthDay(5).atHour(3).create();
-  // 五分鐘總排程以外的獨立保底：總排程被長工作擠掉時，產業比重仍有一次完整額度可補抓。
-  installSectorCatchupJob();
 
   var n = ScriptApp.getProjectTriggers().length;
   Logger.log('已安裝 ' + n + ' 個觸發器，還剩 ' + (20 - n) + ' 格給一次性觸發器。');
@@ -201,7 +199,6 @@ function installTriggers() {
   Logger.log('      每 10 分鐘    今日影片偵測（僅平日 11:30-17:00）');
   Logger.log('      12:00-22:00   每一棒試一次推播（已寄或未就緒會立刻返回）');
   Logger.log('      12:30-18:00   每 15 分鐘核對取稿狀態；內容變動才寄信');
-  Logger.log('      15:30-22:00   每 15 分鐘核對並補抓今日產業成交比重');
   Logger.log('      13:45         盤中快照聚合成小時K');
   Logger.log('      15:20         品質關卡收尾保險');
   Logger.log('      15:45         失敗告警');
@@ -268,7 +265,7 @@ function safe_(name, fn) {
 
    Google 公布的觸發器每日總執行時間：個人帳號 90 分、Workspace 360 分；
    本卡是台北日期估算，Google 的配額以首次請求起算的 24 小時窗口重置，不得直接拿兩者當同一個餘額。
-   cmoneyPollJob 每分鐘一次、everyFiveMinJob 與 marketSnapshotJob 各每五分鐘一次，再加下午的固定工作，
+   cmoneyPollJob 每分鐘一次、everyFiveMinJob 每五分鐘一次，再加下午的固定工作，
    一天下來累計多少過去只能去「執行項目」逐筆加總。
 
    只有「觸發器叫起來的」才算：時間觸發器會帶事件物件（有 triggerUid），編輯器、網頁、Actions 呼叫不帶，
@@ -384,9 +381,9 @@ function everyFiveMinJobRun_() {
   var today = Utilities.formatDate(now, tz, 'yyyy/MM/dd');
   var weekday = Number(Utilities.formatDate(now, tz, 'u')) <= 5;
 
-  // 夜盤需要持續採樣；逐字稿、整張文章與持股檢查在夜間沒有新資料，避免每五分鐘空讀。
+  // 夜間只續送待送通知與恢復中斷工單；沒有市場總覽採樣。
   if (hhmm < 800 || hhmm >= 2230) {
-    safe_('marketSnapshotJob', marketSnapshotJob);
+
     if (dueEvery_('nightDeliveryRetry', 30)) { safe_('deliveryRetryTick_', deliveryRetryTick_); }
     if (typeof lineDeliverTick_ === 'function' && dueEvery_('nightLineDelivery', 15)) { safe_('lineDeliverTick_', lineDeliverTick_); }
     if (dueEvery_('nightRecovery', 15)) {
@@ -412,8 +409,8 @@ function everyFiveMinJobRun_() {
   }
   if (hhmm >= 800 && hhmm < 900) { safe_('modelCatalogMonthlyTick_', modelCatalogMonthlyTick_); }
 
-  // 行情快照耗時極短（<1秒），優先執行以確保盤中每五分鐘穩定採樣，不被後續長時工作阻斷（v84）
-  safe_('marketSnapshotJob', marketSnapshotJob);
+  // v94：市場總覽已移除；寄送與取稿優先，個股報價在下方批次更新。
+
 
   // 先守住取稿、待寄郵件與簡訊補抓，不能被行情工作耗盡六分鐘額度。
   safe_('transcriptAutomationTick_', transcriptAutomationTick_);
@@ -428,16 +425,13 @@ function everyFiveMinJobRun_() {
      沒有設定 LINE 或推送關閉時兩支都立刻返回。 */
   if (typeof lineDailyTick_ === 'function' && weekday && hhmm >= 1200 && hhmm <= 2200) { safe_('lineDailyTick_', lineDailyTick_); }
   if (typeof lineDeliverTick_ === 'function') { safe_('lineDeliverTick_', lineDeliverTick_); }
-  // 寄送優先；報價放在補抓來源、產業與背景 K 線之前，避免整輪逾時而沒有行情。
+  // 寄送優先；報價放在補抓來源與背景 K 線之前，避免整輪逾時而沒有行情。
+  safe_('auditTrackedSymbolsJob', auditTrackedSymbolsJob);
   safe_('refreshQuoteCacheJob', refreshQuoteCacheJob);
   safe_('cmAutoReconcileToday_', function () { cmAutoReconcileToday_(false); });
   safe_('cmDispatchPendingGithubJob_', function () { cmDispatchPendingGithubJob_(); });
   if (weekday && hhmm >= 1230 && hhmm <= 1800 && dueEvery_('statusReport', 15)) {
     safe_('statusReportJob', statusReportJob);
-  }
-  // GitHub 的盤後排程可能延後或整次缺席；今日產業比重仍未落地時，每 15 分鐘獨立向證交所補抓。
-  if (weekday && hhmm >= 1530 && hhmm <= 2200 && dueEvery_('sectorCatchup', 15)) {
-    safe_('sectorCatchupJob', sectorCatchupJob);
   }
   /* 盤後把當日買賣的價格補進持股追蹤（v90）：富果歷史日K晚到或漏掉時，改用證交所／櫃買官方收盤行情補近幾個交易日，
      補到就從那一天重算持股追蹤與績效。這一棒只負責排背景工作；當天做完就不再動。 */
@@ -1206,47 +1200,44 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-10-01-live-quotes-v93';
+var PROJECT_BUILD_ = '2026-10-01-read-registry-v94';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
 var PROJECT_FILES_ = [
   { file: 'SiteBridge.gs', names: ['siteBridge_', 'siteBridgeSetup'], marker: ['siteBridge_', 'args.length > 8'] },
-  { file: 'Marketservice.gs', names: ['apiGetMarketOverview', 'mergedHourlyHistory_', 'backfillHourlyHistoryJob', 'auditHourlyCoverage', 'installMarketDataJobs', 'marketRollingWindow_', 'sectorCatchupJob', 'sectorCatchupStatus', 'marketSampleTaiex_'], marker: ['marketSampleTaiex_', 'Yahoo 回傳非今日資料'] },
-  { file: 'Line.gs', names: ['lineWebhook_', 'lineSignatureOk_', 'lineParseText_', 'lineQueueSms_', 'lineDailyTick_', 'lineDeliverTick_', 'lineClassify_', 'lineSectorReply_', 'apiGetLineEntry', 'apiAdminLineStatus', 'apiAdminLineSaveConfig', 'lineSetupCheck', 'lineValidateTemplates', 'lineSetupRichMenus', 'lineRichMenuHealth_', 'lineChartUrl_', 'lineHoldingVisualFlex_', 'lineMarketExtras_', 'LINE_OUTBOX_COLS_', 'lineSmsActive_', 'lineRecipientBreakdown_', 'lineDiagnose_', 'apiAdminLineDiagnose', 'diagnoseLineDelivery', 'lineStockFlex_'], marker: ['lineStockFlex_', '只有買入／賣出顯示價位'] },
+  { file: 'Marketservice.gs', names: ['mergedHourlyHistory_', 'backfillHourlyHistoryJob', 'auditHourlyCoverage', 'installMarketDataJobs', 'migrateV94'], marker: ['migrateV94', 'auditTrackedSymbolsJob(true)'] },
+  { file: 'Line.gs', names: ['lineWebhook_', 'lineSignatureOk_', 'lineParseText_', 'lineQueueSms_', 'lineDailyTick_', 'lineDeliverTick_', 'lineClassify_', 'lineSectorReply_', 'apiGetLineEntry', 'apiAdminLineStatus', 'apiAdminLineSaveConfig', 'lineSetupCheck', 'lineValidateTemplates', 'lineSetupRichMenus', 'lineRichMenuHealth_', 'lineChartUrl_', 'lineHoldingVisualFlex_', 'LINE_OUTBOX_COLS_', 'lineSmsActive_', 'lineRecipientBreakdown_', 'lineDiagnose_', 'apiAdminLineDiagnose', 'diagnoseLineDelivery', 'lineStockFlex_'], marker: ['lineDailyInfo_', 'avoid: (r.watchAvoid'] },
   { file: 'Holidays.gs', names: ['marketHolidaySet_', 'isMarketHoliday_', 'whyClosed_', 'refreshHolidayYear_', 'checkNextYearHolidays'], marker: ['refreshHolidayYear_', 'HOLIDAY_PROP_PREFIX_'] },
   { file: 'Config.gs', names: ['APP_TITLE', 'DISCLAIMER', 'WEBAPP_URL_DEFAULT', 'GAS_BUILD', 'GAS_FEATURES', 'REFRESH_ORDER_', 'CHAIN_KEY_'] },
   { file: 'Code.gs', names: ['doGet', 'doPost', 'include', 'configMissing_', 'configMissingResponse_'], marker: ['doPost', 'x-line-signature'] },
-  { file: 'API.gs', names: ['jsonOut_', 'apiLookupSubscription', 'apiUpdateSubscription', 'renderUnsubscribePage_', 'apiGetCandlesBundle', 'apiUnsubscribeConfirm', 'apiGetStockSummary', 'apiGetTechStats', 'techDemo_', 'publicTracker_', 'dashCachePut_', 'dashCacheGet_'], marker: ['apiGetDashboard', 'dashCacheGet_()'] },
+  { file: 'API.gs', names: ['jsonOut_', 'apiLookupSubscription', 'apiUpdateSubscription', 'renderUnsubscribePage_', 'apiGetCandlesBundle', 'apiUnsubscribeConfirm', 'apiGetStockSummary', 'apiGetTechStats', 'techDemo_', 'publicTracker_', 'dashCachePut_', 'dashCacheGet_'], marker: ['apiGetDashboard', 'getQuotesFor(quoteCodes, false, true, true)'] },
   { file: 'Adminpipeline.gs', names: ['pipeIsForeign_', 'pipeBase_', 'PIPE_EXTRACT_SYSTEM'], marker: ['PIPE_EXTRACT_SYSTEM', '4916新星科'] },
-  { file: 'Adminservice.gs', names: ['adminAuth_', 'apiAdminLogin', 'PIPE_RECLASSIFY_SYSTEM', 'apiAdminTodayStatus', 'dayVideoRow_', 'apiAdminHeldList', 'apiAdminSetHoldingCost', 'apiAdminHoldToday', 'apiAdminKCoverage', 'apiAdminOpsDay', 'apiAdminInstallSectorCatchup'], marker: ['apiAdminTodayStatus', 'quoteHealth: typeof quoteCacheStatus'] },
+  { file: 'Adminservice.gs', names: ['adminAuth_', 'apiAdminLogin', 'PIPE_RECLASSIFY_SYSTEM', 'apiAdminTodayStatus', 'dayVideoRow_', 'apiAdminHeldList', 'apiAdminSetHoldingCost', 'apiAdminHoldToday', 'apiAdminKCoverage', 'apiAdminOpsDay'], marker: ['apiAdminTodayStatus', 'smsTimes[String'] },
   { file: 'Aiservice.gs', names: ['validateKey', 'assistantModelCatalog_', 'sanitizeDraft_', 'draftReady_', 'isPromptProbe_', 'guardReply_', 'explicitSubscribeConfirm_'], marker: ['assistantModelCatalog_', 'supportedGenerationMethods'] },
   { file: 'Articlequality.gs', names: ['enforceArticleRecords_', 'attachArticleEvidence_'] },
-  { file: 'Cachebuilder.gs', names: ['budgetLeft_', 'trackedCodes_', 'readSnapshotRows_', 'officialDailyAll_', 'auditDailyKCache', 'repairDailyKCache', 'afterDailyKDoneJob', 'rescheduleDailyKTrigger', 'warmKCaches_', 'dailyKFloors_', 'resetDailyKFloor', 'isTradingDateStr_', 'ensurePerformanceContinuityJob_', 'officialDailyKFill_', 'officialDailyKTick_', 'officialDailyKJob', 'fillOfficialDailyKNow'], marker: ['officialDailyKFill_', 'res.deferred.push(day)'] },
+  { file: 'Cachebuilder.gs', names: ['budgetLeft_', 'trackedCodes_', 'readSnapshotRows_', 'officialDailyAll_', 'auditDailyKCache', 'repairDailyKCache', 'afterDailyKDoneJob', 'rescheduleDailyKTrigger', 'warmKCaches_', 'dailyKFloors_', 'resetDailyKFloor', 'isTradingDateStr_', 'ensurePerformanceContinuityJob_', 'officialDailyKFill_', 'officialDailyKTick_', 'officialDailyKJob', 'fillOfficialDailyKNow', 'auditTrackedSymbolsJob'], marker: ['auditTrackedSymbolsJob', 'symbolAuditDayV94'] },
   { file: 'Cmoney.gs', names: ['cmMailBody_', 'cmNotifyNew_', 'cmSyncContentTick_', 'cmTranscriptExcerpt_', 'deliveryRetryTick_', 'diagnoseInstantMail', 'cmSetNotifyState_', 'resendInstantMail', 'cmPollSaveFailed_'], marker: ['cmoneyPollJobRun_', 'cmPollSaveFailed_(a, e)'] },
   { file: 'DB.gs', names: ['writeSubscriptionFields_', 'findSubscription_'] },
   { file: 'Evidencequality.gs', names: ['rawTranscript_', 'validEvidence_', 'queueDayEditSync_', 'dayEditSyncTick_', 'queueCostSync_'], marker: ['dayEditSyncTick_', 'COST:'] },
   { file: 'Logic.gs', names: ['markChainStep_', 'REFRESH_STEPS_'] },
   { file: 'MailService.gs', names: ['createSubscription', 'mailHero_', 'publicWebAppUrl_', 'escAttr_', 'mailRiskHtml_', 'deliverMessage_', 'deliveryLedger_', 'mailPlainText_', 'isExecUrl_', 'mailStockName_', 'noVideoToday_', 'pushReadyChannels_', 'gateAutoRelease_'], marker: ['mdToHtml_', 'mc-stock-label'] },
   { file: 'Presentationquality.gs', names: ['displayPrice_', 'narrativeName_', 'titleChars_', 'toTraditional_'], marker: ['publicNarrative_', 'toTraditional_(text)'] },
-  { file: 'Quoteservice.gs', names: ['getFugleKey_', 'fugleFetch_', 'sharesToLots_', 'volumeInLots_', 'hourSlot_', 'readHourlyRows_', 'fugleHistPace_', 'kcPutAll_', 'getCandlesBundle', 'misBatchQuotes_'], marker: ['getRealtimeQuote', 'rememberViewedQuote_'] },
+  { file: 'Quoteservice.gs', names: ['getFugleKey_', 'fugleFetch_', 'sharesToLots_', 'volumeInLots_', 'hourSlot_', 'readHourlyRows_', 'fugleHistPace_', 'kcPutAll_', 'getCandlesBundle', 'misBatchQuotes_'], marker: ['getQuotesFor', 'cacheOnly || !missing.length'] },
   { file: 'Refreshrunner.gs', names: ['runRefreshAllChunk_', 'withRefreshAllLease_'] },
-  { file: 'Setup.gs', names: ['setupSpreadsheet', 'setWebAppUrl', 'webAppUrlReport_', 'checkProjectFiles', 'checkAutomationReadiness', 'ensureAutomationTick', 'withSheetSnapshot_', 'readSheetFields_', 'opsTimed_', 'opsRuntimeFor_'], marker: ['everyFiveMinJobRun_', 'officialDailyKTick_'] },
+  { file: 'Setup.gs', names: ['setupSpreadsheet', 'setWebAppUrl', 'webAppUrlReport_', 'checkProjectFiles', 'checkAutomationReadiness', 'ensureAutomationTick', 'withSheetSnapshot_', 'readSheetFields_', 'readSheetDayRow_', 'opsTimed_', 'opsRuntimeFor_'], marker: ['readSheetDayRow_', 'getRange(2,col+1,n-1,1)'] },
   { file: 'SheetService.gs', names: ['fmtDate_', 'withLock_', 'ensureTranscriptLayoutJob', 'transcriptFingerprint_', 'stripTranscribeEcho_', 'readCostOverrides_', 'searchTerms_', 'repairLiwangExitPriceNow', 'rangeCandle_', 'statedNote_', 'trackerRoundList_', 'isManualHoldSource_', 'holdConfirmForOpen_', 'getHoldingsTrackerRead_'], marker: ['readCostOverrides_', "'yyyy/MM/dd HH:mm'"] },
   { file: 'Transcriptstore.gs', names: ['transcriptSha256_', 'selectTranscriptRow_'] }
 ];
 
 // HTML 檔名不含 .html；marker 是這一版才有的字串。
 var PROJECT_HTML_ = [
-  { file: 'MarketDetail', marker: 'function placePeriodThumb()' },
-  { file: 'MarketCharts', marker: 'window.marketRollingBounds' },
-  { file: 'Market', marker: 'function marketSourceLabel(c, queriedAt)' },
-  { file: 'Index', marker: 'id="dQuoteRefresh"' },
+  { file: 'Index', marker: 'v94 市場總覽已移除' },
   { file: 'JavaScript', marker: 'function refreshDetailQuote_()' },
   { file: 'Stylesheet', marker: '.detail-quote-controls' },
-  { file: 'Changelog', marker: 'v93 五分鐘成交報價' },
+  { file: 'Changelog', marker: 'v94 分類證據' },
   { file: 'Tech', marker: '行情每五分鐘重新核對' },
-  { file: 'Admin', marker: '個股五分鐘報價' },
+  { file: 'Admin', marker: 'sms-operation-list' },
   { file: 'Settings', marker: '手機預覽' },
   { file: 'Unsubscribed', marker: '若一直失敗，直接回覆通知信' }
 ];
@@ -1329,16 +1320,9 @@ function checkAutomationReadiness() {
     everyFiveMin:triggers.indexOf('everyFiveMinJob')>=0,
     dailyK:triggers.indexOf('backfillDailyKJob')>=0,
     hourlyHistory:triggers.indexOf('backfillHourlyHistoryJob')>=0,
-    // 市場快照已由每五分鐘總排程呼叫；沒有獨立觸發器不代表未運作。
-    marketSnapshots:triggers.indexOf('everyFiveMinJob')>=0||triggers.indexOf('marketSnapshotJob')>=0,
-    webapp:!!publicWebAppUrl_(),fugle:hasFugle_(),daySync:daySyncState_(),marketRows:marketRows_('市場總覽快取').length};
+    webapp:!!publicWebAppUrl_(),fugle:hasFugle_(),daySync:daySyncState_()};
   result.ready=result.everyFiveMin&&result.webapp;
   result.hourlyHistoryMode=result.hourlyHistory?'每日 19:15 獨立排程':'缺少 19:15 歷史 60 分 K 排程，執行 installMarketDataJobs()';
-  result.marketSnapshotMode=triggers.indexOf('everyFiveMinJob')>=0?'五分鐘總排程':result.marketSnapshots?'獨立五分鐘排程':'未排程';
-  result.sectorCatchupScheduled=triggers.indexOf('sectorCatchupJob')>=0;
-  try { var sector=marketPayload_('市場總覽快取','sectors',true);result.sectorDate=sector&&sector.data?String(sector.data.date||''):''; }
-  catch(e){result.sectorError=String(e.message||e);}
-  try { var ms=JSON.parse(p.getProperty('marketSnapshotStatus')||'{}');result.marketSnapshotLast={at:ms.at||'',ok:ms.ok===true,note:ms.note||''}; } catch(e) {}
   var github=githubCfg_();result.transcriptBackup=!!(result.everyFiveMin&&github.repo&&github.token);
   // 盤中即時通知（v54 追加）：每分鐘輪詢觸發器、會員帳號、訂閱人數、今日封數
   try{result.instantMail={pollTrigger:triggers.indexOf('cmoneyPollJob')>=0,memberId:cmEnabled_(),subscribers:cmSubscribers_().length,
@@ -1357,4 +1341,16 @@ function ensureAutomationTick() {
   if(ts.length>=20){throw new Error('觸發器已達20個，請先移除確認不用的舊觸發器，再執行本函式');}
   ScriptApp.newTrigger('everyFiveMinJob').timeBased().everyMinutes(5).create();
   Logger.log('已補建每五分鐘自動維運入口');
+}
+
+/** v94：先批次讀日期欄定位，再一次讀指定列。保留舊版「同日第一列」選列規則。 */
+function readSheetDayRow_(name,dateField,date){
+  var sh=getSheet_(name), n=sh.getLastRow();if(n<2){return null;}
+  var head=sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0],col=head.indexOf(dateField);
+  if(col<0){return null;}
+  var dates=sh.getRange(2,col+1,n-1,1).getValues(),at=-1;
+  for(var i=0;i<dates.length;i++){if(fmtDate_(dates[i][0])===date){at=i+2;break;}}
+  if(at<0){return null;}
+  var values=sh.getRange(at,1,1,head.length).getValues()[0],out={};
+  head.forEach(function(h,i){out[h]=values[i];});return out;
 }

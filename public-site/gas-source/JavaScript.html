@@ -2432,7 +2432,7 @@ function publicNarrative_(text, row) {
 
   function renderHeader(d) {
     // 名稱來自對照表，就算報價掛掉也一定有中文名
-    $('dName').textContent = d.name || d.code;
+    $('dName').textContent = cleanName(d.name) || d.code;   // 官方簡稱的「*」不顯示（v101 正式站驗收看到「聖暉*」）
     $('dCode').textContent = d.code + (d.market ? '\u3000' + d.market : '');
 
     var q = d.quote;

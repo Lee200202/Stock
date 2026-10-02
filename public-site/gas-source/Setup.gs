@@ -1236,7 +1236,7 @@ var PROJECT_HTML_ = [
   { file: 'JavaScript', marker: 'v101 捲動體驗' },
   { file: 'Stylesheet', marker: 'v101 樣式層結束' },
   { file: 'Changelog', marker: 'v101 前台不顯示價位' },
-  { file: 'Tech', marker: '說明直接呈現事實、條件與風險' },
+  { file: 'Tech', marker: '為什麼網站上看不到價位' },
   { file: 'Admin', marker: 'v101 後台樣式層結束' },
   { file: 'Settings', marker: '手機預覽' },
   { file: 'Unsubscribed', marker: '若一直失敗，直接回覆通知信' }

@@ -1082,6 +1082,8 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
 .smsm-raw p { margin: 0 0 8px; font-size: calc(15px * var(--rd-fs)); line-height: 1.9; color: var(--ink); overflow-wrap: anywhere; }
 .smsm-raw p:last-child { margin-bottom: 0; }
 @media (max-width: 720px) { .smsm-card { padding: 18px 16px; } .smsm-stocks { flex-direction: column; gap: 2px; } }
+/* 表單並排欄位拉滿卡片寬度（原本每欄固定寬，右邊空一大片） */
+.panel .card .row > .field { flex: 1 1 280px; min-width: 0; }
 /* ====== v101 後台樣式層結束 ====== */
 </style>
 </head>

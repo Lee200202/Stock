@@ -4228,10 +4228,12 @@ html[data-view="mobile"] .tsum { grid-template-columns: minmax(0, 1fr); }
   table.sk tr.sk-row, .led-pill, .tab { transition: none; }
   table.sk tr.sk-row.clickable:hover, .led-pill:hover { transform: none; }
 }
-/* 訂閱：兩張卡片並排（放不下才上下排），選項卡片維持「勾選框｜標題／說明」兩行 */
-.sect.subgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr)); gap: 24px; align-items: start; }
+/* 訂閱：每天收一封整理、管理現有訂閱、用 LINE 收通知三塊一律全版、上中下排列（2026/10/02 管理者）；
+   內容區塊（.card）不左右並排，只有數字小卡與選項按鈕才並排。選項卡片維持「勾選框｜標題／說明」兩行。 */
+.sect.subgrid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; align-items: start; }
 .sect.subgrid > .card { margin: 0; }
 label.optcard { display: grid; }
+a.act.line-join-btn { background: var(--brand); border-color: var(--brand); color: var(--panel); min-height: var(--ctl-h); }
 #basisWhy, .basis button { min-width: 40px; min-height: 40px; border-radius: 50%; }
 /* 手機的個股面板：標題列不黏在上面（會吃掉四分之一個畫面），只留關閉鈕固定在右上角 */
 @media (max-width: 899px) {

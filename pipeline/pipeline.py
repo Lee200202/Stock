@@ -5335,7 +5335,7 @@ def article_title_detail(signals):
         elif chars and sum(c in source_flat for c in chars) / len(chars) < 0.8:
             why = '用字多半不在原句'
         ending = title[len(body):][:1] or '！'
-        body = _title_one_sentence(body)
+        body = _title_one_sentence(_title_drop_repeats(body))
         if not why and _title_chars(body) < TITLE_MIN_CHARS:
             why = f'不到 {TITLE_MIN_CHARS} 字'
         if why:
@@ -5398,6 +5398,60 @@ def article_title(signals):
     return article_title_detail(signals)[0]
 
 
+# v102（2026/10/02）：同一句話連講兩次，標題只留一次。
+# 當天標題是「今天的成交量不一樣，今天的成交量不一樣，量放大了，你有多久沒有看過9,000億的成交量？」——
+# 講者口語重複，模型照抄。只拿掉「緊接著、一字不差」的那一個子句，不改其他字。
+def _title_drop_repeats(text: str) -> str:
+    parts = re.split(r'([，,、])', str(text or ''))
+    out, last = [], ''
+    for i in range(0, len(parts), 2):
+        clause, sep = parts[i], (parts[i + 1] if i + 1 < len(parts) else '')
+        key = re.sub(r'\s', '', clause)
+        if key and key == last:
+            continue
+        out.append(clause + sep)
+        if key:
+            last = key
+    return ''.join(out).rstrip('，,、')
+
+
+# v102：盤勢與教學「同一件事不寫兩次」。
+# 2026/10/02 的文章第一、二點幾乎相同：盤勢不足三點時補問回來的那一點，是把第一點換句話再講一遍
+# （成交量放大突破月均量、低檔換手、量先價行、下禮拜迎接新高）。每一句各自都通過了引用與數字核對，
+# 所以逐句驗證擋不住；要看的是「這一點有多少已經在前面寫過」。
+# 作法：依文章順序（盤勢 → 教學），這一點去掉標點後的相鄰兩字組合，有 ARTICLE_DUP_COVER 以上
+# 已經出現在前面的點裡，就不再列出（標 _duplicate_point，印在日誌；原始列不刪，稽核仍看得到）。
+# 實測當天五點：重複的那一點是 0.75，其餘四點最高 0.27。門檻放寬會把只是共用幾個術語的點刪掉，不要調低。
+ARTICLE_DUP_COVER = 0.7
+_POINT_STRIP = re.compile(r'[\s，,、。！？!?；;：:「」（）()]')
+
+
+def _point_grams(text) -> set:
+    key = _POINT_STRIP.sub('', str(text or ''))
+    return {key[i:i + 2] for i in range(len(key) - 1)}
+
+
+def dedupe_market_points(signals) -> int:
+    """標出重複的盤勢／教學點，回傳這次新標出的數量。可重複呼叫。"""
+    rows = [r for r in (signals.get('market') or []) if r.get('_evidence_verified')]
+    ordered = [r for r in rows if r.get('kind') != 'view'] + [r for r in rows if r.get('kind') == 'view']
+    seen, marked = set(), 0
+    for row in ordered:
+        grams = _point_grams(row.get('text'))
+        if len(grams) < 12:
+            continue
+        cover = len(grams & seen) / len(grams)
+        if cover >= ARTICLE_DUP_COVER:
+            if not row.get('_duplicate_point'):
+                marked += 1
+                print(f"  文章重複：與前面的重點有 {cover:.0%} 相同，不再列出　{str(row.get('text') or '')[:40]}")
+            row['_duplicate_point'] = True
+            continue
+        row.pop('_duplicate_point', None)
+        seen |= grams
+    return marked
+
+
 def canonical_article(signals, date_str, article=''):
     """固定結構：標題一行（不編號）＋ ① 盤勢 ② 會員操作紀錄 ③ 教學。
 
@@ -5408,12 +5462,14 @@ def canonical_article(signals, date_str, article=''):
     所以模型把章節寫壞、寫成舊的六章，都不會影響發布。
     """
     market = signals.get('market') or []
+    dedupe_market_points(signals)   # v102：換句話再講一遍的點不重複列出
     # ① 放盤勢（指數、量、事件、資金），③ 放講者今天的操作邏輯與教學重點（kind=view）。
     # 先前盤勢章把 view 也收進去、教學章又只收 view：同一點出現兩次，而教學章常常只剩一點。
     macro = '\n'.join('• ' + str(r.get('text') or '') for r in market
-                      if r.get('_evidence_verified') and r.get('kind') != 'view')
+                      if r.get('_evidence_verified') and r.get('kind') != 'view' and not r.get('_duplicate_point'))
     lessons = [str(r.get('text') or '').strip() for r in market
-               if r.get('_evidence_verified') and r.get('kind') == 'view' and str(r.get('text') or '').strip()]
+               if r.get('_evidence_verified') and r.get('kind') == 'view' and not r.get('_duplicate_point')
+               and str(r.get('text') or '').strip()]
     if len(macro) > 2400:
         # Do not truncate a number or sentence; only keep whole verified bullets.
         kept = []

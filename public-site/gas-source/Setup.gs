@@ -1200,7 +1200,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-10-02-roomy-pills-v101';
+var PROJECT_BUILD_ = '2026-10-02-dailyk-gap-v102';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
@@ -1216,13 +1216,13 @@ var PROJECT_FILES_ = [
   { file: 'Adminservice.gs', names: ['adminAuth_', 'apiAdminLogin', 'PIPE_RECLASSIFY_SYSTEM', 'apiAdminTodayStatus', 'dayVideoRow_', 'apiAdminHeldList', 'apiAdminSetHoldingCost', 'apiAdminHoldToday', 'apiAdminKCoverage', 'apiAdminOpsDay', 'recordManualNoteEdit_'], marker: ['apiAdminKCoverage', 'dateMemo'] },
   { file: 'Aiservice.gs', names: ['validateKey', 'assistantModelCatalog_', 'sanitizeDraft_', 'draftReady_', 'isPromptProbe_', 'guardReply_', 'explicitSubscribeConfirm_'], marker: ['assistantModelCatalog_', 'supportedGenerationMethods'] },
   { file: 'Articlequality.gs', names: ['enforceArticleRecords_', 'attachArticleEvidence_'] },
-  { file: 'Cachebuilder.gs', names: ['budgetLeft_', 'trackedCodes_', 'readSnapshotRows_', 'officialDailyAll_', 'auditDailyKCache', 'repairDailyKCache', 'afterDailyKDoneJob', 'rescheduleDailyKTrigger', 'warmKCaches_', 'dailyKFloors_', 'resetDailyKFloor', 'isTradingDateStr_', 'ensurePerformanceContinuityJob_', 'officialDailyKFill_', 'officialDailyKTick_', 'officialDailyKJob', 'fillOfficialDailyKNow', 'auditTrackedSymbolsJob'], marker: ['auditTrackedSymbolsJob', 'symbolAuditDayV94'] },
+  { file: 'Cachebuilder.gs', names: ['dailyKNoData_', 'budgetLeft_', 'trackedCodes_', 'readSnapshotRows_', 'officialDailyAll_', 'auditDailyKCache', 'repairDailyKCache', 'afterDailyKDoneJob', 'rescheduleDailyKTrigger', 'warmKCaches_', 'dailyKFloors_', 'resetDailyKFloor', 'isTradingDateStr_', 'ensurePerformanceContinuityJob_', 'officialDailyKFill_', 'officialDailyKTick_', 'officialDailyKJob', 'fillOfficialDailyKNow', 'auditTrackedSymbolsJob'], marker: ['auditTrackedSymbolsJob', 'symbolAuditDayV94'] },
   { file: 'Cmoney.gs', names: ['cmMailBody_', 'cmNotifyNew_', 'cmSyncContentTick_', 'cmTranscriptExcerpt_', 'deliveryRetryTick_', 'diagnoseInstantMail', 'cmSetNotifyState_', 'resendInstantMail', 'cmPollSaveFailed_', 'cmVerifyItems_'], marker: ['cmVerifyItems_', 'note: publicSmsNote_'] },
   { file: 'DB.gs', names: ['writeSubscriptionFields_', 'findSubscription_'] },
   { file: 'Evidencequality.gs', names: ['rawTranscript_', 'validEvidence_', 'queueDayEditSync_', 'dayEditSyncTick_', 'queueCostSync_'], marker: ['dayEditSyncTick_', 'COST:'] },
   { file: 'Logic.gs', names: ['markChainStep_', 'REFRESH_STEPS_'] },
   { file: 'MailService.gs', names: ['createSubscription', 'adminNoticeHtml_', 'mailHero_', 'publicWebAppUrl_', 'escAttr_', 'mailRiskHtml_', 'deliverMessage_', 'deliveryLedger_', 'mailPlainText_', 'isExecUrl_', 'mailStockName_', 'noVideoToday_', 'pushReadyChannels_', 'gateAutoRelease_', 'gateJsonResponse_', 'DIGEST_MISSING_SYSTEM_'], marker: ['mailHero_', 'border-radius:22px'] },
-  { file: 'Presentationquality.gs', names: ['displayPrice_', 'narrativeName_', 'titleChars_', 'toTraditional_', 'publicSmsNote_', 'stripEditorialWrappers_'], marker: ['publicNarrative_', 'stripEditorialWrappers_'] },
+  { file: 'Presentationquality.gs', names: ['titleDropRepeats_', 'displayPrice_', 'narrativeName_', 'titleChars_', 'toTraditional_', 'publicSmsNote_', 'stripEditorialWrappers_'], marker: ['publicNarrative_', 'stripEditorialWrappers_'] },
   { file: 'Quoteservice.gs', names: ['getFugleKey_', 'fugleFetch_', 'sharesToLots_', 'volumeInLots_', 'hourSlot_', 'readHourlyRows_', 'fugleHistPace_', 'kcPutAll_', 'getCandlesBundle', 'misBatchQuotes_'], marker: ['throttleMis_', 'tryLock(200)'] },
   { file: 'Refreshrunner.gs', names: ['runRefreshAllChunk_', 'withRefreshAllLease_'] },
   { file: 'Setup.gs', names: ['setupSpreadsheet', 'setWebAppUrl', 'webAppUrlReport_', 'checkProjectFiles', 'checkAutomationReadiness', 'ensureAutomationTick', 'withSheetSnapshot_', 'readSheetFields_', 'readSheetDayRow_', 'opsTimed_', 'opsRuntimeFor_'], marker: ['readSheetDayRow_', 'getRange(2,col+1,n-1,1)'] },
@@ -1234,10 +1234,10 @@ var PROJECT_FILES_ = [
 var PROJECT_HTML_ = [
   { file: 'Index', marker: 'data-krange="1" aria-pressed="true"' },
   { file: 'JavaScript', marker: 'v101 捲動體驗' },
-  { file: 'Stylesheet', marker: 'v101 樣式層結束' },
-  { file: 'Changelog', marker: 'v101 前台不顯示價位' },
+  { file: 'Stylesheet', marker: '三塊一律全版、上中下排列' },
+  { file: 'Changelog', marker: 'v102 補日K空缺不算失敗' },
   { file: 'Tech', marker: '為什麼網站上看不到價位' },
-  { file: 'Admin', marker: 'v101 後台樣式層結束' },
+  { file: 'Admin', marker: '表單並排欄位拉滿卡片寬度' },
   { file: 'Settings', marker: '手機預覽' },
   { file: 'Unsubscribed', marker: '若一直失敗，直接回覆通知信' }
 ];

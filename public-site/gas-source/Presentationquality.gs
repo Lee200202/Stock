@@ -171,6 +171,17 @@ function titleChars_(text) {
   return (String(text || '').match(/[A-Za-z0-9_\u3400-\u9fff]/g) || []).length;
 }
 /** 好幾句串成一句時，從第一個六字以上的句子開始，接到滿 15 字為止（與 pipeline 的 _title_one_sentence 相同）。 */
+/** 同一句話連講兩次，標題只留一次（v102，與 pipeline 的 _title_drop_repeats 相同）。 */
+function titleDropRepeats_(text) {
+  var parts = String(text || '').split(/([，,、])/), out = [], last = '';
+  for (var i = 0; i < parts.length; i += 2) {
+    var key = parts[i].replace(/\s/g, '');
+    if (key && key === last) { continue; }
+    out.push(parts[i] + (i + 1 < parts.length ? parts[i + 1] : ''));
+    if (key) { last = key; }
+  }
+  return out.join('').replace(/[，,、]+$/, '');
+}
 function titleOneSentence_(text) {
   var body = String(text || '').trim();
   var pieces = body.split(/([？?！!。；;])/), sentences = [];
@@ -216,7 +227,7 @@ function articleTitle_(signals) {
        nums.every(function(n){return source.indexOf(n)>=0;}) &&
        (!chars.length || chars.filter(function(c){return source.indexOf(c)>=0;}).length/chars.length>=0.8)) {
       var ending=title.slice(body.length,body.length+1)||'！';
-      var one=titleOneSentence_(body);
+      var one=titleOneSentence_(titleDropRepeats_(body));
       if(titleChars_(one)<TITLE_MIN_CHARS_)continue;
       return TITLE_PREFIX_+one+({'!':'！','?':'？'}[ending]||ending);
     }

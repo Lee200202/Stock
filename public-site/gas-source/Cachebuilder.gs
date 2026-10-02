@@ -3351,21 +3351,48 @@ function resetDailyKFloor() {
   Logger.log('已清除日K下限，下一輪補日K會重新確認每一檔最早的資料。');
 }
 
+/* v102（2026/10/02 後台「補日K 成功 0、失敗 241」）：缺口那一段來源沒有資料，不等於這一檔失敗。
+
+   實際情況：追蹤中的每一檔都共同缺 2026/07/10 那一天（休市表沒列、全市場都沒有日K，是臨時停市）。
+   每一輪都先問這一段，富果回 0 根（多日區間由 fugleHistorical_ 拋「回傳 0 根」，單日或無資料時也可能回 400／404），
+   例外一路拋到補日K主迴圈，整檔記成失敗、後面真正要補的缺口（例如當天）也不問了；
+   於是 9/29 起每天「成功 0、失敗 241」，當日日K全靠官方收盤行情補。
+
+   現在：一段沒有資料只略過那一段，其餘缺口照問；金鑰、額度、連線這類錯誤照舊往外拋。
+   同一段（結束日在五天以前）連續 3 檔都沒有資料，視為全市場那幾天沒有交易，六小時內其他代號不再問，
+   一輪從 241 次請求降到 3 次。這只是略過請求，不寫入任何日K，也不改休市表。 */
+var DK_CLOSED_AFTER_ = 3;
+var _dkEmptyRangeHits = {};
+function dailyKNoData_(e) {
+  var code = e && e.httpCode, msg = String(e && e.message || e);
+  return /回傳 0 根/.test(msg) || code === 404 || code === 400;
+}
 function fetchMissingDailyK_(code,from,to,rows,deadline) {
   var now=new Date(),today=Utilities.formatDate(now,TZ,'yyyy/MM/dd'),closed=Number(Utilities.formatDate(now,TZ,'HHmm'))>=1630;
   var floor=dailyKFloors_()[code]||'';
   var startFrom=floor&&floor.replace(/\//g,'-')>String(from)?floor.replace(/\//g,'-'):from;
   var firstValid=(rows||[]).filter(validDailyK_).map(function(r){return String(r.date).slice(0,10).replace(/-/g,'/');}).sort()[0]||'';
   var ranges=missingKDateRanges_(rows,startFrom,to,today,closed),out=[];
+  var oldBefore=new Date(new Date(today.replace(/\//g,'-')+'T00:00:00Z').getTime()-5*86400000).toISOString().slice(0,10);
   for(var i=0;i<ranges.length;i++){
     if(deadline&&Date.now()>deadline-15000){out.pending=true;break;}
-    var r=ranges[i],key='dk_empty_'+code+'_'+r.from+'_'+r.to;
-    if(CACHE.get(key)){continue;}
-    var fetched=fugleHistorical_(code,r.from,r.to);
+    var r=ranges[i],key='dk_empty_'+code+'_'+r.from+'_'+r.to,rangeKey=r.from+'_'+r.to;
+    if(CACHE.get(key)||CACHE.get('dk_closed_'+rangeKey)){continue;}
+    var fetched;
+    try{fetched=fugleHistorical_(code,r.from,r.to);}
+    // 這一檔完全沒有日K時不適用：那是代號查不到或來源整檔沒資料，仍要記成失敗讓人看到。
+    catch(e){if(!dailyKNoData_(e)||!firstValid){throw e;}fetched=[];}
     if(!fetched.length){
       CACHE.put(key,'1',21600);
       // 第一根有效日K之前的整段都是空的＝上市前：記成下限，之後不再問這一段。
       if(firstValid&&r.to.replace(/-/g,'/')<firstValid){setDailyKFloor_(code,firstValid);}
+      else if(r.to<oldBefore){
+        _dkEmptyRangeHits[rangeKey]=(_dkEmptyRangeHits[rangeKey]||0)+1;
+        if(_dkEmptyRangeHits[rangeKey]>=DK_CLOSED_AFTER_){
+          CACHE.put('dk_closed_'+rangeKey,'1',21600);
+          Logger.log('補日K：'+r.from+'～'+r.to+' 連續 '+DK_CLOSED_AFTER_+' 檔都沒有資料，視為全市場沒有交易，本輪其他代號不再問這一段');
+        }
+      }
     }
     out=out.concat(fetched);
   }return out;

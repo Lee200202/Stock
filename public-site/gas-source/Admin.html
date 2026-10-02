@@ -858,7 +858,8 @@ html[data-view="mobile"] .audit-legend { flex-basis:100%; }
 .ops-mail-setting .ops-time-actions { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
 .ops-time-picker { position:relative; }
 .ops-time-picker .ops-time-toggle { min-width:130px; font-variant-numeric:tabular-nums; }
-.ops-time-panel { position:absolute; top:calc(100% + 8px); left:0; z-index:30; width:min(330px, calc(100vw - 60px)); padding:14px; border:1px solid var(--rule); border-radius:16px; background:var(--panel); box-shadow:0 16px 42px rgba(0,0,0,.22); }
+.ops-time-panel { position:absolute; top:calc(100% + 8px); left:0; z-index:30; width:min(360px, calc(100vw - 48px)); box-sizing:border-box; padding:14px; border:1px solid var(--rule); border-radius:16px; background:var(--panel); box-shadow:0 16px 42px rgba(0,0,0,.22); }
+@media (max-width:640px) { .ops-time-panel { left:-24px; } }
 .ops-time-panel[hidden] { display:none; }
 .ops-time-panel b { display:block; font-size:calc(12px * var(--rd-fs)); margin:8px 0; }
 .ops-time-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:5px; }
@@ -892,8 +893,10 @@ html[data-view="mobile"] .ops-grid,html[data-view="mobile"] .ops-mail-setting { 
 .acct-menu[hidden] { display: none; }
 .acct-toggle.tbtn { justify-content:center; }   /* v90：只留圖示，與旁邊的首頁、版面設定同一個方形按鈕；文字在 aria-label／title */
 .acct-toggle[aria-expanded="true"] { color:var(--ink); border-color:var(--beam); }
-.acct-pop { position: absolute; right: 0; top: calc(100% + 8px); z-index: 60; display: flex; flex-direction: column; gap: 4px; min-width: 176px;
+.acct-pop { position: absolute; right: 0; top: calc(100% + 8px); z-index: 60; display: flex; flex-direction: column; gap: 4px; width: min(296px, calc(100vw - 24px)); box-sizing: border-box;
   padding: 6px; border: 1px solid var(--rule); border-radius: 12px; background: var(--panel); box-shadow: 0 8px 24px rgba(0, 0, 0, .14); }
+/* 管理者帳號加寬後，窄螢幕仍以視窗右側留白定位。 */
+@media (max-width:640px) { .acct-pop { position:fixed; top:76px; right:12px; } }
 .acct-pop[hidden] { display:none; }
 .acct-pop p { margin:4px 8px 6px; color:var(--muted); font-size:calc(12px * var(--rd-fs)); }
 .acct-pop button { width: 100%; justify-content: flex-start; text-align: left; border: 0 !important; min-height: 40px; border-radius: 8px !important; }

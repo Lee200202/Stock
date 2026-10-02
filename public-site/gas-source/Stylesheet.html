@@ -1642,7 +1642,8 @@ h1, h2, h3, h4, .sect-h h2, .card h2 { letter-spacing: var(--rd-ls); }
    否則在手機上會有一半跑到畫面外面。 */
 .setmenu {
   position: absolute; top: calc(100% + 8px); right: 0; z-index: 60;
-  width: min(320px, calc(100vw - 24px));
+  width: min(420px, calc(100vw - 24px));
+  box-sizing: border-box;
   border: 1px solid var(--rule); background: var(--panel);
   box-shadow: 0 12px 32px rgba(0, 0, 0, .18); border-radius: 10px;
   padding: 14px 16px;
@@ -1672,11 +1673,16 @@ h1, h2, h3, h4, .sect-h h2, .card h2 { letter-spacing: var(--rd-ls); }
   min-width: 58px; letter-spacing: .05em;
 }
 .segs { display: inline-flex; border: 1px solid var(--rule); border-radius: 7px; overflow: hidden; }
-/* 下拉面板只有 320px 寬，四個選項一列排不下，讓它自己換行。 */
+/* 六組選項各佔一列，放大文字時也能保留完整按鈕。 */
 .setmenu .txset-row { align-items: flex-start; gap: 8px; margin-bottom: 12px; }
 .setmenu .txset-l { min-width: 100%; margin-bottom: 2px; }
 .setmenu .segs { display: flex; width: 100%; }
 .setmenu .segs button { flex: 1 1 0; padding: 7px 6px; text-align: center; }
+/* roomy-menus-v106：手機用視窗邊界定位，避免加寬後跑到左側外面。 */
+@media (max-width: 640px) {
+  .setmenu { position: fixed; top: 76px; left: 12px; right: 12px;
+    width: auto; max-height: calc(100dvh - 88px); }
+}
 .segs button {
   padding: 7px 15px; border: none; background: var(--panel); color: var(--muted);
   font-family: inherit; font-size: calc(13px * var(--rd-fs)); cursor: pointer;

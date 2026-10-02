@@ -3984,7 +3984,7 @@ def _polish_one(i, total, c):
                         f'採用模型的標點與分段；{how}')
 
 
-def polish(transcript: str) -> str:
+def polish(transcript: str, on_progress=None) -> str:
     """
     分段潤飾，各段並行送出。
 
@@ -4018,10 +4018,17 @@ def polish(transcript: str) -> str:
           + (f"，{workers} 段同時進行" if workers > 1 else ""))
 
     results = [None] * total
+    completed = 0
+    def report():
+        if on_progress:
+            on_progress(completed, total)
+    report()
 
     if workers == 1:
         for i, c in enumerate(chunks, 1):
             results[i - 1] = _polish_one(i, total, c)
+            completed += 1
+            report()
             if i < total:
                 time.sleep(POLISH_GAP)
     else:
@@ -4030,9 +4037,14 @@ def polish(transcript: str) -> str:
         with cf.ThreadPoolExecutor(max_workers=workers) as pool:
             futures = {pool.submit(_polish_one, i, total, c): i
                        for i, c in enumerate(chunks, 1)}
-            for fut in cf.as_completed(futures):
-                i = futures[fut]
-                results[i - 1] = fut.result()      # 例外照樣往外拋，行為與序列版一致
+            pending = set(futures)
+            while pending:
+                finished, pending = cf.wait(pending, timeout=30, return_when=cf.FIRST_COMPLETED)
+                for fut in finished:
+                    i = futures[fut]
+                    results[i - 1] = fut.result()
+                    completed += 1
+                report()  # 沒有完成也只回報心跳，不把經過時間冒充進度。
 
     out = []
     for text, degraded, line in results:
@@ -10621,7 +10633,11 @@ def stage_transcript(ss, video, date_str, on_step=None):
 
     if on_step:
         on_step('潤飾', f'{len(v1)} 字送出潤飾，完成後進入擷取')
-    v2 = polish(v1)
+    def polish_progress(done, total):
+        if on_step:
+            on_step('潤飾', f'潤飾片段 {done}/{total}；' +
+                    ('各段已回傳，核對原稿後寫入' if done == total else '模型處理中，已完成片段依原序合併'))
+    v2 = polish(v1, on_progress=polish_progress)
     write_transcripts(ss, video["id"], v1, v2, date_str, snapshot=snapshot)
     return v1, v2
 

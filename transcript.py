@@ -184,7 +184,7 @@ class QuotaExhausted(Exception):
 
 
 class ModelOverloaded(Exception):
-    """模型現在負載過高。換金鑰沒有用（壅塞的是模型），換模型或等一下才有用。"""
+    """暫時過載；有限輪替與退避後，使用備援或交下一輪重試。"""
 
 
 class Done(Exception):
@@ -767,6 +767,7 @@ SEGMENT_TIMEOUT = int(os.environ.get('TRANSCRIPT_SEGMENT_TIMEOUT_SEC', '600'))
 BACKGROUND_QUEUE_TIMEOUT = int(os.environ.get('TRANSCRIPT_QUEUE_TIMEOUT_SEC', '120'))
 POLL_REQUEST_TIMEOUT = 30
 STREAM_READ_TIMEOUT = 90
+FALLBACK_TIMEOUT = int(os.environ.get('TRANSCRIPT_FALLBACK_TIMEOUT_SEC', '180'))
 MIN_SPLIT_SECONDS = 5 * 60
 MAX_ROUNDS = 3
 RETRY_WAIT = (30, 90)           # 兩次合計超過一分鐘，順便避開每分鐘額度限制
@@ -936,7 +937,8 @@ class Transcriber:
         left = TIME_BUDGET - (time.monotonic() - RUN_STARTED) - 30
         if left <= 0:
             raise NotReadyYet('本輪時間預算用盡，已完成片段保留')
-        return max(1, min(SEGMENT_TIMEOUT, left))
+        model_limit = FALLBACK_TIMEOUT if self.model_index else SEGMENT_TIMEOUT
+        return max(1, min(model_limit, left))
 
     # ---- 內部 ---- #
     def _available(self):
@@ -1079,6 +1081,8 @@ class Transcriber:
                         continue
                     if isinstance(exc, NotReadyYet):
                         raise
+                    if self.model_index and (isinstance(exc, TimeoutError) or 'timeout' in low or 'timed out' in low):
+                        raise NotReadyYet('備援模型等待逾時；已完成片段保留，下一輪優先重試主模型') from exc
                     if status == 429 or is_quota_403:
                         detail = _quota_summary(message) or message[:300]
                         if _is_daily_quota(message) or is_quota_403:
@@ -1182,7 +1186,7 @@ class Transcriber:
                     pass
                 if queued_too_long:
                     raise ModelOverloaded('背景排隊超過兩分鐘，已要求取消')
-                raise TimeoutError(f"等待 Gemini 超過 {SEGMENT_TIMEOUT // 60} 分鐘，已要求取消")
+                raise TimeoutError('Gemini 等待逾時，已要求取消背景工作')
             if time.monotonic() >= next_log:
                 log(f"    Gemini 背景狀態 {interaction.status}，仍在等待；單段上限 {SEGMENT_TIMEOUT // 60} 分鐘")
                 next_log = time.monotonic() + 30
@@ -1229,7 +1233,7 @@ class Transcriber:
             try:
                 for event in stream:
                     if time.monotonic() > deadline:
-                        raise NotReadyYet('本輪聽打時間已到，已完成片段保留，下輪接續')
+                        raise NotReadyYet('本段聽打時間已到，已完成片段保留，下輪優先重試主模型')
                     ev_id = getattr(event, "event_id", None)
                     if ev_id:
                         last_event_id = ev_id

@@ -1200,7 +1200,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-10-02-no-stated-price-v104';
+var PROJECT_BUILD_ = '2026-10-02-clear-copy-v105';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
@@ -1234,8 +1234,8 @@ var PROJECT_FILES_ = [
 var PROJECT_HTML_ = [
   { file: 'Index', marker: '<span class="brand-name">盤勢有據</span>' },
   { file: 'JavaScript', marker: '口頭價位前台不畫' },
-  { file: 'Stylesheet', marker: '三塊一律全版、上中下排列' },
-  { file: 'Changelog', marker: 'v104 盤中通知與持股追蹤不顯示口頭價位' },
+  { file: 'Stylesheet', marker: 'mobile-reading-v105' },
+  { file: 'Changelog', marker: 'v105 網站與郵件文字精簡' },
   { file: 'Tech', marker: '為什麼網站上看不到價位' },
   { file: 'Admin', marker: '表單並排欄位拉滿卡片寬度' },
   { file: 'Settings', marker: '手機預覽' },

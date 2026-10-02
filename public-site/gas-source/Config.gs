@@ -15,7 +15,7 @@ var SITE_TAGLINE = '為家人投資，逐日有據';
 var SOURCE_PROGRAM = '張震 股市盤中家教班';
 var APP_TITLE = '盤勢有據　為家人投資，逐日有據';
 
-var DISCLAIMER = '本站是第三方整理，內容取自 YouTube 節目「張震 股市盤中家教班」公開播出的影片，與該節目及其製作單位沒有隸屬或合作關係；只整理影片中明確講述的內容，不構成任何投資建議，投資決策與盈虧由使用者自行負責。';
+var DISCLAIMER = '本站為第三方整理，依據 YouTube 節目「張震 股市盤中家教班」的公開影片，與節目及製作單位沒有隸屬或合作關係。內容不構成任何投資建議；投資決策與盈虧請自行負責。';
 
 // 網站的正式網址（網頁應用程式部署的 /exec），信件裡的退訂連結與網站連結用它。
 // 管理者 2026/09/16 提供。排程寄信時 ScriptApp.getService().getUrl() 只拿得到 /dev，
@@ -32,7 +32,7 @@ var FINMIND_API_TOKEN_DEFAULT = '';
 
 // 版本標記。每次改動 doGet 的對外行為就要跟著更新，
 // 呼叫端用它確認部署的是不是預期的版本。
-var GAS_BUILD = '2026-10-02-no-stated-price-v104';
+var GAS_BUILD = '2026-10-02-clear-copy-v105';
 
 // 簡訊就緒查詢開關；日K與逐字稿刷新已解耦，簡訊優先由來源列保護及同步重建維持。
 var SMS_PRIORITY_GUARD = true;

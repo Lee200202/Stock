@@ -194,8 +194,7 @@ function sendWelcomeMail_(email, token, daily, codes, isNew, sms) {
       '<p style="margin:0 0 12px;font-size:14px;line-height:1.75;color:#26312C;">' +
         '到網站的「訂閱通知」分頁，可以開啟或停止每日總覽；其他通知由管理者處理。' +
         '要停止所有信件，請用網站的「停止接收所有信件」或信尾的取消訂閱。</p>' +
-      (site ? mailPill_(site, '到網站管理訂閱', true) : '') +
-      mailNote_('不想再收信，按最下面的「取消訂閱」，在確認頁選擇要停止的通知即可，不需要登入。'));
+      (site ? mailPill_(site, '到網站管理訂閱', true) : ''));
 
   MailApp.sendEmail({
     to: email,
@@ -1569,19 +1568,6 @@ function mailRiskHtml_() {
     '</div>';
 }
 
-/* 補充內容在網站（v101，管理者要求）：信裡放不下的個股走勢圖、持股追蹤、逐字稿與每一天的紀錄，
-   信尾寫明到哪裡看。網址取 publicSiteUrl_()（預設 https://lee200202.github.io/Stock/）；取不到就整段不放。 */
-function mailSiteHtml_() {
-  var site = (typeof publicSiteUrl_ === 'function') ? publicSiteUrl_() : '';
-  if (!site) { return ''; }
-  return '<div class="mc-site" style="margin:0 0 14px;">' +
-      '<div class="mc-risk-h" style="font-size:14px;font-weight:700;color:#12161A;margin:0 0 8px;">補充內容在網站</div>' +
-      '<div class="mc-risk-li" style="font-size:13px;line-height:1.75;color:#26312C;margin:0 0 10px;">個股走勢圖、持股追蹤、逐字稿與每一天的完整紀錄，可以到 ' +
-        esc_(site.replace(/^https:\/\//, '').replace(/\/$/, '')) + ' 查看。</div>' +
-      mailPill_(site, '到網站查看', true) +
-    '</div><div style="border-top:1px solid #E4E8E6;margin:4px 0 14px;"></div>';
-}
-
 /* 信尾：風險揭露與取消訂閱放在同一張圓角卡片裡。
    退訂難找的信會被檢舉為垃圾信、傷到整個寄件網域，所以按鈕做成按鈕的樣子，手指點得到。 */
 /* 純文字版本（v54，Codex 規格 85）：只看文字的收件軟體、螢幕閱讀器與垃圾信判斷都會讀它。
@@ -1625,14 +1611,13 @@ function wrapMail_(inner, email, token, kind, pre) {
   var foot =
     '<div class="mc-sec mc-foot" style="background:#FDFDFC;border:1px solid #D9DFDA;border-radius:20px;' +
          'padding:20px 18px;margin:14px 0 0;">' +
-      mailSiteHtml_() +
       mailRiskHtml_() +
       '<div style="border-top:1px solid #E4E8E6;margin:0 0 12px;"></div>' +
       '<div style="font-size:13px;font-weight:700;color:#12161A;margin:0 0 2px;">不想再收到這封信？</div>' +
       '<div style="font-size:12px;line-height:1.7;color:#667069;margin:0 0 10px;">' +
         (kind === 'daily' || kind === 'sms'
-          ? '按下後會開一張確認頁：可以只停止這一類（' + UNSUB_SCOPE_LABEL_[kind] + '），或停止所有通知。不需要登入。'
-          : '按下後會開一張確認頁，確認後停止所有通知。不需要登入。') + '</div>' +
+          ? '可停止' + UNSUB_SCOPE_LABEL_[kind] + '，或停止所有通知。'
+          : '按下後確認，即可停止所有通知。') + '</div>' +
       (unsub
         ? '<a href="' + unsub + '" target="_blank" rel="noopener noreferrer" ' +
            'style="display:inline-block;border:1px solid #C3CBC6;border-radius:999px;background:#FFFFFF;' +

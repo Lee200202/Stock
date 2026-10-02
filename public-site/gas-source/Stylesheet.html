@@ -4323,5 +4323,14 @@ html[data-view="mobile"] .brand-sub { display: none; }
 }
 html[data-view="mobile"] .hero-grid > .ledger { gap: 10px; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); }
 html[data-view="mobile"] .hero .hero-say h1, html[data-view="mobile"] .hero .hero-say .lede { display: block; }
+/* mobile-reading-v105：窄螢幕段落自然換行，避免兩端對齊把少量中文字拉滿整行。 */
+@media (max-width: 620px) {
+  .doc p, .doc li, .doc .qa .a, .ver-b, footer p { text-align: left; text-justify: auto; overflow-wrap: anywhere; }
+  .doc h1, .doc h2, .doc h3, .doc h4 { text-wrap: wrap; word-break: normal; overflow-wrap: anywhere; }
+  footer .wrap { width: min(100% - 32px, var(--wrapmax)); }
+}
+html[data-view="mobile"] .doc p, html[data-view="mobile"] .doc li,
+html[data-view="mobile"] .doc .qa .a, html[data-view="mobile"] .ver-b,
+html[data-view="mobile"] footer p { text-align: left; text-justify: auto; overflow-wrap: anywhere; }
 /* ====== v101 樣式層結束 ====== */
 </style>

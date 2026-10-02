@@ -12,6 +12,11 @@ function fmtDate_(v) {
   if (Object.prototype.toString.call(v) === '[object Date]') {
     return Utilities.formatDate(v, TZ, 'yyyy/MM/dd');
   }
+  // 日期欄曾被寫回 Sheets 序號；先轉日曆日期，不能讓 46297 排在 yyyy/MM/dd 後面。
+  var serial = String(v).trim();
+  if (/^\d{5}(?:\.\d+)?$/.test(serial) && Number(serial) >= 20000 && Number(serial) <= 80000) {
+    return Utilities.formatDate(new Date(Date.UTC(1899, 11, 30) + Math.floor(Number(serial)) * 86400000), 'UTC', 'yyyy/MM/dd');
+  }
   return String(v).trim().replace(/-/g, '/');
 }
 

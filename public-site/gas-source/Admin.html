@@ -420,10 +420,14 @@
 .amsg.show { animation: fadeDown .3s cubic-bezier(.22,1,.36,1) both; }
 
 /* 尊重系統的減少動態設定。前台那一份的清單裡沒有後台這些元素，要自己補。 */
+.abar i.busy { background-image:repeating-linear-gradient(110deg,transparent 0 12px,rgba(255,255,255,.22) 12px 24px) !important; background-size:48px 100% !important; animation:auditWorking 1.2s linear infinite; }
+.phase-progress { margin:12px 0; color:var(--ink); }
+.phase-progress .abar { margin-top:6px; height:8px; }
+@keyframes auditWorking { to { background-position:48px 0; } }
 @media (prefers-reduced-motion: reduce) {
   .panel:not([hidden]) .card, .panel:not([hidden]) .mtool,
   .astat > div, .steps .step, .amsg.show { animation: none; }
-  .abar i { transition: none; }
+  .abar i { transition: none; animation:none !important; }
 }
 
 /* 每個作業下面固定一條「在哪裡執行 + 日誌連結」。
@@ -1180,7 +1184,7 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
       <div class="card">
         <h2>自動取稿</h2>
         <p class="hint">每個交易日 11:05 起系統會自己取稿，平常不用按。沒抓到、或要補最近幾天的，選日期後按「開始取稿」：
-          GitHub Actions 會下載影片字幕、轉成逐字稿，接著自動進入下方 15 步的判讀流程。頻道只保留最近五個交易日的影片。</p>
+          GitHub Actions 會用 Gemini 聽打公開影片；已有原稿時直接沿用，接著進入下方 15 步的判讀流程。頻道只保留最近五個交易日的影片。</p>
 
         <div class="field" style="margin-top:12px">
           <label id="crawlDayLabel">最近五個交易日</label>
@@ -1252,6 +1256,7 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
         <p class="hint" id="progHint">正在處理，這個頁面每 5 秒更新一次。</p>
         <div class="steps" id="steps"></div>
         <div class="abar-row"><div class="abar"><i id="barFill"></i></div><span class="abar-pct" id="barPct">0%</span></div>
+        <div class="phase-progress" id="phaseProgress" hidden><span id="phaseProgressText"></span><div class="abar"><i id="phaseProgressFill"></i></div></div>
         <div id="publishState" class="pnote" aria-live="polite" hidden></div>
         <div class="pnote" id="progNote"></div>
         <div class="runbar" id="runLink">
@@ -2131,6 +2136,7 @@ function cell(k,v){
 
 /* ---------------- 工單進度 ---------------- */
 function renderJob(j){
+  CURRENT_JOB_IS_AUTO=!!(j && j.kind==='auto');
   if(j.updatedAt && renderJob.lastStamp && j.updatedAt<renderJob.lastStamp){return;}
   renderJob.lastStamp=j.updatedAt||renderJob.lastStamp;
   $('progCard').style.display = 'block';
@@ -2145,7 +2151,7 @@ function renderJob(j){
   var cur = stepIndexOf(STEPS, j.step, j.done, j.total);
   var failed = j.status === '失敗' || j.status === '中斷';
   var done = j.status === '完成';
-  var waiting = ['等待日K','等待續跑'].indexOf(j.status)>=0;
+  var waiting = ['等待中','等待日K','等待續跑'].indexOf(j.status)>=0;
   var warning = ['待複核','待處理'].indexOf(j.status)>=0 || waiting;
   var contentReady = /文章已更新|內容已更新/.test(j.note || '') || done;
   var dataWritten = /資料已寫入/.test(j.note || '');
@@ -2184,6 +2190,15 @@ function renderJob(j){
   $('jobQual').hidden = !(j.status === '待複核' || qual);
   $('jobQual').textContent = '待複核' + (qual ? ' ' + qual[1] + ' 項' : '');
   $('barFill').style.background = warning ? '#b7791f' : (failed || cancelled) ? 'var(--rise)' : 'var(--beam)';
+  $('barFill').classList.toggle('busy', running || !!AUTO_CANCEL_RUN_ID && !done && !failed && !cancelled);
+  var fragment=/潤飾片段\s*(\d+)\/(\d+)/.exec(j.note||'');
+  $('phaseProgress').hidden=!fragment;
+  if(fragment){
+    var part=Math.min(Number(fragment[1]),Number(fragment[2])),parts=Number(fragment[2]);
+    $('phaseProgressText').textContent='潤飾已完成 '+part+' / '+parts+' 段；總進度依實際步驟更新';
+    $('phaseProgressFill').style.width=(parts?part/parts*100:0)+'%';
+    setProgressA11y_($('phaseProgressFill'),parts?Math.round(part/parts*100):0,'潤飾片段');
+  }
   $('progNote').style.borderLeft = warning ? '4px solid #b7791f' : '';
   $('progNote').style.paddingLeft = warning ? '12px' : '';
 
@@ -2197,7 +2212,7 @@ function renderJob(j){
   $('cancelBtn').disabled = !(running || waiting);
 
   /* 自動工單（v54）：自動取稿交棒給 pipeline 時也會開一張，十五格照樣亮。
-     它由排程管理，這裡的取消／續跑只作用在後台工單，所以停用，避免按到另一張。
+     取消必須核對目前 daily.yml 的執行 ID；不能拿手動工單 ID 去取消另一張。
      日誌直接連到這一次執行，不是工作流列表。 */
   var isAuto = j.kind === 'auto';
   $('jobSrc').hidden = false;
@@ -2206,7 +2221,7 @@ function renderJob(j){
   var picked = ($('vdate') && $('vdate').value) || '';
   $('jobSrc').textContent = (isAuto ? '自動取稿' : (j.source || '後台投稿')) + (jobDay ? '・' + jobDay : '');
   $('jobSrc').className = 'jobsrc' + (isAuto ? ' auto' : '');
-  if (isAuto) { $('cancelBtn').disabled = true; $('resumeBtn').disabled = true; }
+  if (isAuto) { $('cancelBtn').disabled = !AUTO_CANCEL_RUN_ID; $('resumeBtn').disabled = true; }
   else { $('resumeBtn').disabled = false; }
   JOB_RUN_URL = j.runUrl || '';
   if (JOB_RUN_URL) { $('runLink').classList.add('show'); $('runA').href = JOB_RUN_URL; }
@@ -2233,7 +2248,7 @@ function renderJob(j){
     stopPoll();
   } else {
     $('progHint').textContent = j.kind === 'auto'
-      ? '自動取稿正在判讀，這個頁面每 5 秒更新一次。它由排程管理，不必在這裡按任何按鈕；每一行細節看下方的 GitHub 日誌。'
+      ? '自動取稿正在判讀，這個頁面每 5 秒更新一次。需要停下本次執行可按取消；之後的自動排程仍會接續。每一行細節看下方 GitHub 日誌。'
       : '正在處理，這個頁面每 5 秒更新一次。可以關掉頁面，回來再看。若超過十分鐘沒有變化，按「從中斷處續跑」。';
     startPoll();
   }
@@ -2661,6 +2676,14 @@ $('resumeBtn').addEventListener('click', function(){
 });
 
 $('cancelBtn').addEventListener('click', function(){
+  if(CURRENT_JOB_IS_AUTO && AUTO_CANCEL_RUN_ID){
+    if(!confirm('取消目前的 GitHub 稽核執行？已落地資料保留，後續排程仍會接續。'))return;
+    this.disabled=true;
+    google.script.run.withSuccessHandler(function(r){show($('jobMsg'),r.ok?'warn':'err',r.message||r.reason);pollCrawl();})
+      .withFailureHandler(function(){show($('jobMsg'),'err','取消結果未確認，請更新進度。');pollCrawl();})
+      .apiAdminCancelCrawl(KEY,AUTO_CANCEL_RUN_ID,'daily.yml');
+    return;
+  }
   if(!confirm('取消目前工單？已完成的步驟會保留，可以之後重新送出。')) return;
   // 按下之後要立刻有回饋。什麼都不做就等伺服器回來的話，
   // 中間那幾秒使用者只會覺得按了沒反應而重複點擊。
@@ -5243,7 +5266,7 @@ if ($('crawlStateBtn')) {
   });
 }
 
-var crawlRunId='',crawlPending=false;
+var crawlRunId='',crawlWorkflow='transcript.yml',crawlPending=false,AUTO_CANCEL_RUN_ID='',CURRENT_JOB_IS_AUTO=false;
 function pollCrawl(){
   if(!KEY||crawlPending){return;}crawlPending=true;
   var requestedDay=$('vdate').value||TODAY_STR;
@@ -5251,8 +5274,10 @@ function pollCrawl(){
     crawlPending=false;if(requestedDay!==($('vdate').value||TODAY_STR)){pollCrawl();return;}
     if(!r||!r.ok){$('crawlNote').textContent=r?r.reason:'無法讀取取稿狀態';return;}
     var run=r.run,st=r.transcript||{},cur=0,status='待命',note='今天 '+r.day+'：等待11:05起排程；GAS每五分鐘備援檢查。';
-    crawlRunId=run?run.id:'';
-    $('crawlCancelBtn').disabled=!run||run.status==='completed';
+    var active=r.activeRun;
+    crawlRunId=active?active.id:'';crawlWorkflow=r.activeWorkflow||'transcript.yml';
+    AUTO_CANCEL_RUN_ID=active&&crawlWorkflow==='daily.yml'?active.id:'';
+    $('crawlCancelBtn').disabled=!active;
     if(run){$('crawlRun').classList.add('show');$('crawlLog').href=run.url;$('crawlStat').textContent=run.status+' / '+(run.conclusion||'')+' · '+run.at;
       if(run.status!=='completed'){cur=run.status==='in_progress'?1:0;status=run.status==='in_progress'?'執行中':'排隊中';note='聽打實況請開取稿日誌；不以經過時間猜測百分比。';}
       else if(run.conclusion!=='success'){status=run.conclusion==='cancelled'?'已取消':'失敗';note='本次取稿已結束：'+run.conclusion+'；已完成片段保留。';}
@@ -5275,7 +5300,7 @@ function pollCrawl(){
     if(r.job){note+='\n'+(r.job.kind==='auto'?'自動工單 ':'後台工單 ')+r.job.id+'：'+r.job.status+'／'+r.job.step+'。'+(r.job.note||'');
       /* 自動工單進行中：把下面的十五格進度卡叫出來並改成每 5 秒更新（v54）。
          先前這裡只把工單寫成一行字，十五格停在上一次投稿的狀態。 */
-      if(r.job.kind==='auto'){renderJob(r.job);if(['處理中','等待續跑'].indexOf(r.job.status)>=0){startPoll();}}}
+      if(r.job.kind==='auto'){renderJob(r.job);if(['處理中','等待中','等待續跑'].indexOf(r.job.status)>=0){startPoll();}}}
     if(st.complete){cur=4;status='完成';note='影片清單已標完成；寄送狀態仍以每日推播為準。';}
     if(st.manual&&!st.ready){cur=0;status='等待中';note='今天為手動保留，等待人工原文，不會自動聽打。';}
     if(!st.ready&&!st.manual&&r.noShowState==='預告停播'){
@@ -5290,8 +5315,8 @@ function pollCrawl(){
     renderCrawlSteps(cur,status,note,sub);
   }).withFailureHandler(function(){crawlPending=false;$('crawlNote').textContent='讀取失敗，保留狀態，30秒後重試。';}).apiAdminCrawlState(KEY,requestedDay);
 }
-$('crawlCancelBtn').onclick=function(){if(!crawlRunId||!confirm('取消目前顯示的取稿執行？後續GitHub排程仍可能重試。'))return;
-  this.disabled=true;google.script.run.withSuccessHandler(function(r){show($('crawlMsg'),r.ok?'warn':'err',r.message||r.reason);pollCrawl();}).withFailureHandler(function(){show($('crawlMsg'),'err','取消結果未確認，請更新進度。');pollCrawl();}).apiAdminCancelCrawl(KEY,crawlRunId);
+$('crawlCancelBtn').onclick=function(){if(!crawlRunId||!confirm('取消目前的取稿／稽核執行？已落地資料保留，後續排程仍可能重試。'))return;
+  this.disabled=true;google.script.run.withSuccessHandler(function(r){show($('crawlMsg'),r.ok?'warn':'err',r.message||r.reason);pollCrawl();}).withFailureHandler(function(){show($('crawlMsg'),'err','取消結果未確認，請更新進度。');pollCrawl();}).apiAdminCancelCrawl(KEY,crawlRunId,crawlWorkflow);
 };
 setInterval(function(){if(KEY&&!document.hidden){pollCrawl();}},30000);
 // 各區先顯示待命步驟；有真實狀態後由原本渲染器接管，未執行不亮綠燈。

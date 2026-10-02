@@ -579,7 +579,12 @@ function refreshQuoteCacheJob() {
     try {
       var qs = misBatchQuotes_(codes.slice(b, b + 50));
       Object.keys(qs).forEach(function (c) { if (qs[c].date === todayStr_()) { batchQuotes[c] = qs[c]; } });
-    } catch (e) { errors.push('MIS 批次讀取未成功'); Logger.log('即時快取批次來源暫時失敗：' + e); }
+    } catch (e) {
+      errors.push('MIS：' + String(e && e.message || e).slice(0, 100));
+      Logger.log('即時快取批次來源暫時失敗：' + e);
+      // 同一把寫入鎖忙碌時，連續五批各等二十秒只會延誤寄送與重算。
+      if (e && e.transientBusy) { break; }
+    }
   }
 
   // v93：會員持有及最近半小時查看的股票優先；另留四檔輪替背景標的。
@@ -925,23 +930,25 @@ function getQuotesFor(codes, refreshStale, batchOnly, cacheOnly) {
  * ------------------------------------------------------------------ */
 
 function throttleMis_() {
-  var lock = LockService.getScriptLock();
-  lock.waitLock(20000);
-  try {
-    var now = Date.now();
-    var raw = CACHE.get('mis_calls');
-    var calls = raw ? JSON.parse(raw) : [];
-    calls = calls.filter(function (t) { return now - t < 5000; });
-    if (calls.length >= 3) {
-      Utilities.sleep(Math.max(5000 - (now - calls[0]) + 120, 200));
-      now = Date.now();
-      calls = calls.filter(function (t) { return now - t < 5000; });
+  for (var attempt = 0; attempt < 3; attempt++) {
+    var lock = LockService.getScriptLock();
+    if (!lock.tryLock(200)) {
+      var busy = new Error('報價共用鎖忙碌，留待下一輪'); busy.transientBusy = true; throw busy;
     }
-    calls.push(now);
-    CACHE.put('mis_calls', JSON.stringify(calls), 30);
-  } finally {
-    lock.releaseLock();
+    var wait = 0;
+    try {
+      var now = Date.now(), raw = CACHE.get('mis_calls');
+      var calls = raw ? JSON.parse(raw) : [];
+      calls = calls.filter(function (t) { return now - t < 5000; });
+      if (calls.length < 3) {
+        calls.push(now); CACHE.put('mis_calls', JSON.stringify(calls), 30); return;
+      }
+      wait = Math.max(5000 - (now - calls[0]) + 120, 200);
+    } finally { lock.releaseLock(); }
+    // 等待來源限流時不占用全站寫入鎖；醒來後重新核對並預約這一次請求。
+    Utilities.sleep(wait);
   }
+  var limited = new Error('MIS 共用限流仍忙碌，留待下一輪'); limited.transientBusy = true; throw limited;
 }
 
 function misQuote_(code) {

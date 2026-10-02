@@ -12,6 +12,15 @@
   }
   function isCode(c) { return /^(?:00981A|\d{4,6})$/.test(String(c || '').trim()); }
   function fmtPx(v) { return (v || v === 0) ? Number(v).toFixed(2) : '—'; }
+  function dashboardDateKey(raw) {
+    var s = String(raw == null ? '' : raw).trim(), n = Number(s);
+    if (/^\d{5}(?:\.\d+)?$/.test(s) && n >= 20000 && n <= 80000) {
+      var day = new Date(Date.UTC(1899, 11, 30) + Math.floor(n) * 86400000);
+      return day.getUTCFullYear() + '/' + ('0' + (day.getUTCMonth() + 1)).slice(-2) + '/' + ('0' + day.getUTCDate()).slice(-2);
+    }
+    var m = s.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})(?:$|[ T])/);
+    return m ? m[1] + '/' + ('0' + m[2]).slice(-2) + '/' + ('0' + m[3]).slice(-2) : '';
+  }
   function signCls(v) { return v > 0 ? 'up' : v < 0 ? 'down' : 'flat'; }
   function fmtRet(v) { return (v === null || v === undefined) ? '—' : (v > 0 ? '+' : '') + v.toFixed(2) + '%'; }
 
@@ -1274,6 +1283,8 @@ function publicNarrative_(text, row) {
     clearTimeout(dashboardWait);
     $('siteLoadAlert').hidden = true;
     var d = res.today;
+    // 舊部署若仍回序號，也不印 undefined；資料歸屬由新版後端 fmtDate_ 修復。
+    d.date = dashboardDateKey(d.date);
     $('stamp').textContent = '更新於 ' + res.updatedAt;
     $('stamp').classList.remove('err');
 
@@ -1295,7 +1306,7 @@ function publicNarrative_(text, row) {
     }
 
     var p = d.date.split('/');
-    $('heroDate').innerHTML = p[0] + '<span class="sl">/</span>' + p[1] + '<span class="sl">/</span>' + p[2];
+    $('heroDate').innerHTML = d.date ? p[0] + '<span class="sl">/</span>' + p[1] + '<span class="sl">/</span>' + p[2] : '日期待核對';
 
     // 旗標要在畫跑馬燈之前設好：四類都空時，跑馬燈要知道是沒有節目還是還在整理
     OVERVIEW_PENDING = !!d.videoPending;

@@ -1663,6 +1663,8 @@ def norm_date(v) -> str:
     if isinstance(v, date):
         return v.strftime("%Y/%m/%d")
     s = str(v or "").strip().replace("-", "/")
+    if re.fullmatch(r"\d{5}(?:\.\d+)?", s) and 20000 <= float(s) <= 80000:
+        return (date(1899, 12, 30) + timedelta(days=int(float(s)))).strftime("%Y/%m/%d")
     m = re.match(r"(\d{4})/(\d{1,2})/(\d{1,2})", s)
     if m:
         return f"{m.group(1)}/{int(m.group(2)):02d}/{int(m.group(3)):02d}"
@@ -4024,27 +4026,19 @@ def polish(transcript: str, on_progress=None) -> str:
             on_progress(completed, total)
     report()
 
-    if workers == 1:
-        for i, c in enumerate(chunks, 1):
-            results[i - 1] = _polish_one(i, total, c)
-            completed += 1
-            report()
-            if i < total:
-                time.sleep(POLISH_GAP)
-    else:
-        # 段間的 POLISH_GAP 在並行時不需要了：發車間隔已經由 throttle_gemini
-        # 依 RPM 控制，再睡一次只是把省下來的時間又還回去。
-        with cf.ThreadPoolExecutor(max_workers=workers) as pool:
-            futures = {pool.submit(_polish_one, i, total, c): i
-                       for i, c in enumerate(chunks, 1)}
-            pending = set(futures)
-            while pending:
-                finished, pending = cf.wait(pending, timeout=30, return_when=cf.FIRST_COMPLETED)
-                for fut in finished:
-                    i = futures[fut]
-                    results[i - 1] = fut.result()
-                    completed += 1
-                report()  # 沒有完成也只回報心跳，不把經過時間冒充進度。
+    # 單段也使用等待迴圈，才能在模型尚未完成時回報心跳。
+    # 發車間隔仍由 throttle_gemini 控制，不因進度回報而增加模型請求。
+    with cf.ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(_polish_one, i, total, c): i
+                   for i, c in enumerate(chunks, 1)}
+        pending = set(futures)
+        while pending:
+            finished, pending = cf.wait(pending, timeout=30, return_when=cf.FIRST_COMPLETED)
+            for fut in finished:
+                i = futures[fut]
+                results[i - 1] = fut.result()
+                completed += 1
+            report()  # 沒有完成也只回報心跳，不把經過時間冒充進度。
 
     out = []
     for text, degraded, line in results:
@@ -10587,6 +10581,7 @@ def stage_transcript(ss, video, date_str, on_step=None):
     """
     snapshot = {}
     v1, v2 = existing_transcript(ss, video["id"], date_str, snapshot=snapshot)
+    video['_raw_sha256'] = snapshot.get('sha256', '')
 
     # 沿用既有修飾稿之前，先確認它是完整的。
     #
@@ -10788,9 +10783,9 @@ def prior_published_rows(ss, date_str):
     return out
 
 
-def preserve_manual_notes(signals, prior, transcript, video_id, date_str):
+def preserve_manual_notes(signals, prior, transcript, video_id, date_str, source_sha256=''):
     """只保留後台明確保存、且原文及身份仍一致的說明。舊列不能自行推定為人工修正。"""
-    sha = hashlib.sha256(str(transcript).encode('utf-8')).hexdigest()
+    sha = source_sha256 or hashlib.sha256(str(transcript).encode('utf-8')).hexdigest()
     for old in prior or []:
         edit = old.get('_manual_note_edit')
         if not isinstance(edit, dict):
@@ -11194,7 +11189,7 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
         if rec['carried']:
             review.append(f"沿用前一版 {len(rec['carried'])} 檔待複核：{'、'.join(rec['carried'])}")
 
-    signals = preserve_manual_notes(signals, prior, TX['audit'], video['id'], date_str)
+    signals = preserve_manual_notes(signals, prior, TX['audit'], video['id'], date_str, video.get('_raw_sha256', ''))
     # 沿用前一版的列也要走公開文字整理；保留原始引用與待複核狀態。
     signals = normalize_price_fields(signals)
     signals = naturalize_signal_reasons(signals)
@@ -11742,10 +11737,11 @@ def run_admin_job(ss):
 
     # ---- 取出管理者貼上的原文 ----
     job_progress(job, step="讀取原文", done=1, total=len(ADMIN_STEP_NAMES))
-    v1, v2 = existing_transcript(ss, vid, date_str)
+    snapshot = {}
+    v1, v2 = existing_transcript(ss, vid, date_str, snapshot=snapshot)
     if not v1 or len(v1) < 300:
         raise RuntimeError(f"影片清單裡找不到 {vid} 的原始逐字稿，或內容太短（{len(v1 or '')} 字）。")
-    actual_hash = hashlib.sha256(v1.encode('utf-8')).hexdigest()
+    actual_hash = snapshot.get('sha256') or hashlib.sha256(v1.encode('utf-8')).hexdigest()
     if job.get('raw_sha256') and job['raw_sha256'] != actual_hash:
         message = '讀到的不是這次投稿的原文：工單與影片清單 SHA256 不符。請檢查同日多份逐字稿，再重新投稿；本輪未擷取或覆蓋。'
         note_decision('讀取原文', '投稿指紋不符', date_str, message)
@@ -11783,8 +11779,13 @@ def run_admin_job(ss):
     else:
         job_progress(job, step="潤飾", done=2, total=len(ADMIN_STEP_NAMES),
                  note=f"原文 {len(v1)} 字")
-        v2 = polish(v1)
-        upsert_video_transcript(ss, vid, date_str, v2)
+        v2 = polish(v1, on_progress=lambda n,total: job_progress(
+            job,step='潤飾',note=f'潤飾片段 {n}/{total}；模型處理中，完成後核對原稿'))
+        try:
+            write_transcripts(ss,vid,v1,v2,date_str,snapshot=snapshot)
+        except NotReadyYet as exc:
+            job_progress(job,status='等待續跑',note=str(exc))
+            raise
         print(f"潤飾完成 {len(v1)} → {len(v2)} 字")
 
     video = {
@@ -11792,6 +11793,7 @@ def run_admin_job(ss):
         "title": f"後台投稿 {date_str}",
         "date": datetime.strptime(date_str, "%Y/%m/%d").date(),
         "url": f"https://www.youtube.com/watch?v={vid}",
+        "_raw_sha256": snapshot.get('sha256', ''),
     }
 
     # ---- 擷取、稽核、代號、寫入、撰稿 ----

@@ -2280,10 +2280,12 @@ function saveRawTranscript_(videoId, dateStr, title, text) {
   var byId=chosen && String(chosen.row['影片ID']||'')===videoId ? target : -1;
   var stamp=new Date().toISOString(), hash=transcriptSha256_(text);
   if (target > 0) {
+    var sameTranscript = stripTranscribeEcho_(String(chosen.row['原始逐字稿內容']||'')).replace(/\s/g,'') ===
+                         stripTranscribeEcho_(text).replace(/\s/g,'');
     setVideoCell_(target, '原始逐字稿內容', text);
     setVideoCell_(target, '原文更新時間', stamp);
     setVideoCell_(target, '原文SHA256', hash);
-    setVideoCell_(target, '修飾後逐字稿內容', '');
+    if(!sameTranscript){setVideoCell_(target, '修飾後逐字稿內容', '');}
     setVideoCell_(target, '處理狀態', '處理中');
     // 標成手動之後，transcript.py 的自動取稿就對這一天完全停手。
     // 不標也不會被覆蓋（那邊把「有原文但沒標來源」當成手動），
@@ -2297,7 +2299,7 @@ function saveRawTranscript_(videoId, dateStr, title, text) {
     if (byId < 0 && cId >= 0 && !String(vals[target - 1][cId]).trim()) {
       setVideoCell_(target, '影片ID', videoId);
     }
-    Logger.log('原文寫入影片清單第 ' + target + ' 列（' +
+    Logger.log((sameTranscript?'相同原文，保留既有修飾稿；':'原文變更，重新潤飾；')+'原文寫入影片清單第 ' + target + ' 列（' +
                (byId > 0 ? '比對影片ID' : '比對日期') + '）');
     return;
   }
@@ -4033,9 +4035,7 @@ function reviewDayRecords_(dateStr) {
 
     var res;
     try {
-      var raw = callGemini_(PIPE_REVIEW_SYSTEM, payload,
-                            { maxOut: 4096, temperature: 0, json: true });
-      res = JSON.parse(String(raw).replace(/^```json|^```|```$/gm, '').trim());
+      res = gateJsonResponse_(PIPE_REVIEW_SYSTEM, payload, 8192);
     } catch (e) {
       /* 當日額度用完要往外拋，讓上層停下整段重整。
          在這裡吞掉的話，外面看到的是「這一天複審中斷」，於是繼續跑下一天，
@@ -6247,18 +6247,32 @@ function apiAdminCrawlState(key,dateStr){
     var runs=[],dailyRuns=[],githubWarning='';
     try{runs=transcriptWorkflowRuns_('transcript.yml');dailyRuns=transcriptWorkflowRuns_('daily.yml');}
     catch(ghError){githubWarning=String(ghError.message||ghError);}
-    var r=runs.filter(onDay)[0]||null;
-    var p=dailyRuns.filter(function(x){
+    var todayRuns=runs.filter(onDay);
+    var r=todayRuns.filter(function(x){return x.status==='in_progress';})[0]||todayRuns[0]||null;
+    var pipelines=dailyRuns.filter(function(x){
       return onDay(x) && /每日資料流程|後台逐字稿/.test(String(x.display_title||''));
-    })[0]||null;
+    });
+    var p=pipelines.filter(function(x){return x.status==='in_progress';})[0]||pipelines[0]||null;
     var job=displayJob_();if(job&&fmtDate_(job.date)!==day)job=null;
     var slim=function(x){return x?{id:String(x.id),url:x.html_url,status:x.status,conclusion:x.conclusion,at:x.created_at}:null;};
-    return {ok:true,day:day,transcript:state,noShowState:todayNoShowState_(day),run:slim(r),pipelineRun:slim(p),job:job,githubWarning:githubWarning};
+    var active = p && p.status !== 'completed' ? p : r && r.status !== 'completed' ? r : null;
+    if(job && job.kind==='auto' && p && job.runUrl && job.runUrl.split('/').pop()===String(p.id)){
+      if(p.status==='completed' && p.conclusion==='cancelled'){
+        job.status='已取消';job.note='本次 GitHub 執行已取消，已寫入的資料保留；後續排程仍會再檢查。';
+      }else if(p.status==='completed' && ['處理中','等待中'].indexOf(job.status)>=0){
+        job.status='等待續跑';job.note='本次 GitHub 執行已結束，尚未完成發布；下一次排程接續。'+(job.note||'');
+      }
+    }
+    return {ok:true,day:day,transcript:state,noShowState:todayNoShowState_(day),run:slim(r),pipelineRun:slim(p),activeRun:slim(active),activeWorkflow:active===p?'daily.yml':'transcript.yml',job:job,githubWarning:githubWarning};
   }catch(e){return {ok:false,reason:String(e.message||e)};}
 }
-function apiAdminCancelCrawl(key,runId){
-  try{adminAuth_(key);var r=transcriptWorkflowRuns_('transcript.yml').filter(function(x){return String(x.id)===String(runId);})[0];
-    if(!r){return {ok:false,reason:'這不是目前可核對的取稿工單，請先更新進度。'};}
+function apiAdminCancelCrawl(key,runId,workflow){
+  try{adminAuth_(key);workflow=workflow||'transcript.yml';
+    if(['transcript.yml','daily.yml'].indexOf(workflow)<0){return {ok:false,reason:'不允許取消這個工作流程。'};}
+    var r=transcriptWorkflowRuns_(workflow).filter(function(x){return String(x.id)===String(runId);})[0];
+    if(!r || (workflow==='daily.yml' && !/每日資料流程|後台逐字稿/.test(String(r.display_title||'')))){
+      return {ok:false,reason:'這不是可核對的取稿／逐字稿稽核執行，請先更新進度。'};
+    }
     return cancelGithubRun_(r.id);
   }catch(e){return {ok:false,reason:String(e.message||e)};}
 }

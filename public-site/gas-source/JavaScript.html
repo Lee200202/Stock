@@ -623,14 +623,6 @@
       '<strong>' + esc(title) + '</strong><span>' + esc(hint || '') + '</span></span></div>';
   }
 
-  // 買入／賣出兩張表共用同一組欄寬，切分頁時欄位不會跳
-  var DAILY_COLS = '<colgroup><col class="c-name"><col class="c-px">' +
-    '<col class="c-chg"><col class="c-note"><col class="c-reason"></colgroup>';
-  /* 觀望兩張表不再有「價位說明」欄（v54，管理者要求）。
-     實測 9/23 十四檔觀望裡十一檔是「未說明」，那一欄只在佔寬度；
-     真的有已證實價位的，改在說明前面放一個小膠囊。空間全部留給說明重點。 */
-  var WATCH_COLS = '<colgroup><col class="c-name"><col class="c-px">' +
-    '<col class="c-chg"><col class="c-reason"></colgroup>';
   var OVERVIEW_PENDING = false;
   var OVERVIEW_NOSHOW = false;
 
@@ -659,14 +651,8 @@
     return '<span class="namecell">' + esc(cleanName(name)) + '<span class="arrow">&#8250;</span></span>';
   }
 
-  function dailyNameCell(name, code) {
-    return '<span class="daily-stock">' + nameCell(name, code) +
-      '<small class="daily-stock-code">' + esc(code || '代號待確認') + '</small></span>';
-  }
-
-  /* 價位說明欄的內容。
-     這一欄不能用 .px（那是 nowrap，長敘述會壓到隔壁的說明重點上），
-     一律用 .pxnote，允許換行。若後端補上了參考價位，另起一行小字標註。 */
+  /* 價位的整理規則：最高可證實數字、數字以上／以下或未說明。
+     v101 起前台不顯示價位（見下方卡片列的說明）；這支函式留給與後端共用的規則核對。 */
 function displayPrice_(value, evidence, context) {
   var text = String(value || '').trim();
   if (!text || /^[−-]|\d[/／]\d|[xX]|\d\s*(?:日|天|張|%|％)|EPS|均線/i.test(text)) return '未說明';
@@ -807,20 +793,39 @@ function publicNarrative_(text, row) {
 }
 // END PUBLIC NARRATIVE V10
 
-  /* v89（2026/09/30 管理者）：只有買入／賣出顯示價位；觀望注意／不碰與會員持股一律不顯示，
-     每日總覽、會員通知、個股紀錄與查詢、信件、LINE 同一規則。價位資料仍留在試算表供持股追蹤與稽核。 */
-  function showsPrice(dir) { return /^(?:買|賣)/.test(String(dir || '')); }
-  var NO_PRICE_CELL = '<td class="pxnote pxnone" aria-label="觀望與持股不顯示價位">—</td>';
-
-  function priceCell(r) {
-    var main = esc(displayPrice_(r.price, r.price_evidence, r.reason));
-    var sub = '';
-    if (r.refPrice) {
-      sub = '<span class="pxsub">參考價位 ' + fmtPx(r.refPrice) +
-            (r.refSrc ? '\u3000' + esc(r.refSrc) : '') + '</span>';
-    }
-    // 「未說明」在手機疊列卡片上不另佔一行（v54）；桌面照樣顯示，欄位才對得齊。
-    return '<td class="pxnote' + (main === '未說明' && !sub ? ' pxnone' : '') + '">' + main + sub + '</td>';
+  /* v101（2026/10/02 管理者：價位欄取消；簡訊明講的價位當作不存在，前台不能放，後台可以放）：
+     前台不顯示價位——每日總覽、會員通知、個股紀錄與查詢都沒有價位欄、也沒有價位標籤；信件與 LINE 同一規則。
+     價位資料照存在試算表（持股追蹤的取價與後台稽核要用），後台逐日編輯仍可看、可改。
+     表格一律是一筆一張卡片（.sk-row）：第一列名稱、代號、方向膠囊｜右邊報價，第二列說明整列寬。 */
+  /** 說明欄：整列寬、另起一行。 */
+  function noteCell(text) {
+    return '<td class="sk-body reason"><span class="sk-text">' + esc(text) + '</span></td>';
+  }
+  function dirTone(direction) {
+    var d = String(direction || '');
+    return d.indexOf('買') === 0 ? 'buy' : d.indexOf('賣') === 0 ? 'sell'
+         : d.indexOf('注意') >= 0 ? 'note' : d.indexOf('持股') >= 0 ? 'hold' : 'watch';
+  }
+  function dirPill(direction) {
+    return '<span class="dirpill t-' + dirTone(direction) + '">' + esc(direction || '未說明') + '</span>';
+  }
+  function quoteCell(code, label) {
+    var can = isCode(code);
+    return '<td class="sk-quote">' + (label ? '<small class="sk-qk">' + label + '</small>' : '') +
+      '<span class="px" data-px="' + esc(code) + '">' + (can ? '&#183;&#183;&#183;' : '—') + '</span>' +
+      '<span class="px" data-chg="' + esc(code) + '">' + (can ? '&#183;&#183;&#183;' : '—') + '</span></td>';
+  }
+  /** 名稱列：名稱、代號，右邊接日期／方向膠囊（extra）。 */
+  function stockIdCell(name, code, extra) {
+    return '<td class="sk-id"><span class="sk-name">' + nameCell(name, code) + '</span>' +
+      '<span class="sk-code">' + esc(code || '代號待確認') + '</span>' + (extra || '') + '</td>';
+  }
+  function rowOpen(tone, code, more) {
+    var can = isCode(code);
+    return '<tr class="sk-row tone-' + tone + (more ? ' ' + more : '') + (can ? ' clickable" data-code="' + code + '"' : '"') + '>';
+  }
+  function cardList(kind, rowsHtml) {
+    return '<div class="sk-wrap"><table class="sk ' + kind + '"><tbody>' + rowsHtml + '</tbody></table></div>';
   }
 
   /* 這一類今天沒有東西。
@@ -835,30 +840,20 @@ function publicNarrative_(text, row) {
     return '<p class="emptyline">' + esc(text) + '</p>';
   }
 
-  /** 總覽四張表。現價欄先留白，等批次報價回來再填。
-      opts.empty：空的時候那一行字；opts.history：翻到某一天時「現價」其實是今天的價，欄名寫「今日價」。 */
+  /** 總覽四張表。現價先留白，等批次報價回來再填。
+      opts.empty：空的時候那一行字；opts.history：翻到某一天時「現價」其實是今天的價，標「今日價」。 */
   function tradeTable(rows, dirClass, opts) {
     opts = opts || {};
-    var watch = dirClass === 'dir-watch' || dirClass === 'dir-note';
+    var tone = String(dirClass || '').replace('dir-', '');
+    var watch = tone === 'watch' || tone === 'note';
     if (!rows || !rows.length) {
       return emptyLine(opts.empty || (watch ? watchEmptyText(false) : '本日未說明：這一類在當天的影片裡沒有被提到。'));
     }
-    return '<div class="card flush scrollx"><table class="tbl-daily tbl-merged' + (watch ? ' tbl-watch tbl-simple' : '') + '">' +
-      (watch ? WATCH_COLS : DAILY_COLS) +
-      '<thead><tr>' +
-      '<th class="sticky">股票／代號</th>' +
-      '<th class="r">' + (opts.history ? '今日價' : '現價') + '</th><th class="r">漲跌</th>' +
-      (watch ? '' : '<th>價位說明</th>') + '<th>說明重點</th></tr></thead><tbody>' +
-      rows.map(function (r) {
-        var can = isCode(r.code);
-        var rowClass = 'tone-' + String(dirClass || '').replace('dir-', '');
-        return '<tr class="' + rowClass + (can ? ' clickable" data-code="' + r.code + '"' : '"') + '>' +
-          '<td class="sticky ' + dirClass + '">' + dailyNameCell(r.name, r.code) + '</td>' +
-          '<td class="px r" data-px="' + esc(r.code) + '">' + (can ? '&#183;&#183;&#183;' : '—') + '</td>' +
-          '<td class="px r" data-chg="' + esc(r.code) + '">' + (can ? '&#183;&#183;&#183;' : '—') + '</td>' +
-          (watch ? '' : priceCell(r)) +
-          '<td class="reason">' + esc(publicNarrative_(r.reason,r)) + '</td></tr>';
-      }).join('') + '</tbody></table></div>';
+    return cardList('sk-daily', rows.map(function (r) {
+      return rowOpen(tone, r.code) + stockIdCell(r.name, r.code) +
+        quoteCell(r.code, opts.history ? '今日價' : '') +
+        noteCell(publicNarrative_(r.reason,r)) + '</tr>';
+    }).join(''));
   }
 
   /* 「9/22｜…」：說明是哪一天講的（v54）。沒有日期時不加。 */
@@ -869,19 +864,10 @@ function publicNarrative_(text, row) {
 
   function holdTable(rows) {
     if (!rows || !rows.length) { return emptyLine('本日未說明：當天沒有提到會員目前持股。'); }
-    return '<div class="card flush scrollx"><table class="tbl-daily tbl-merged tbl-simple">' + WATCH_COLS +
-      '<thead><tr>' +
-      '<th class="sticky">股票／代號</th>' +
-      '<th class="r">現價</th><th class="r">漲跌</th>' +
-      '<th>說明重點</th></tr></thead><tbody>' +
-      rows.map(function (r) {
-        var can = isCode(r.code);
-        return '<tr class="tone-hold' + (can ? ' clickable" data-code="' + r.code + '"' : '"') + '>' +
-          '<td class="sticky dir-hold">' + dailyNameCell(r.name, r.code) + '</td>' +
-          '<td class="px r" data-px="' + esc(r.code) + '">' + (can ? '&#183;&#183;&#183;' : '—') + '</td>' +
-          '<td class="px r" data-chg="' + esc(r.code) + '">' + (can ? '&#183;&#183;&#183;' : '—') + '</td>' +
-          '<td class="reason">' + esc(datedNote(publicNarrative_(r.note,r), r.noteDate)) + '</td></tr>';
-      }).join('') + '</tbody></table></div>';
+    return cardList('sk-daily', rows.map(function (r) {
+      return rowOpen('hold', r.code) + stockIdCell(r.name, r.code) + quoteCell(r.code, '') +
+        noteCell(datedNote(publicNarrative_(r.note,r), r.noteDate)) + '</tr>';
+    }).join(''));
   }
 
   /** 表格畫好之後，把所有代號一次抓完報價回填 */
@@ -932,11 +918,6 @@ function publicNarrative_(text, row) {
 
   var smsLoaded = false, smsCal = null, smsCurDate = '';
 
-  var SMS_DIR = { '買入': 'dir-buy', '賣出': 'dir-sell',
-                  '觀望不碰': 'dir-watch', '觀望注意': 'dir-note', '會員持股': 'dir-hold' };
-  var SMS_COLS = '<colgroup><col class="c-name"><col class="c-code"><col class="c-dir">' +
-    '<col class="c-px"><col class="c-chg"><col class="c-note"><col class="c-reason"></colgroup>';
-
   function smsTable(rows, state) {
     if (!rows || !rows.length) {
       var st = String(state || '').trim();
@@ -951,24 +932,10 @@ function publicNarrative_(text, row) {
       }
       return emptyLine('這一則沒有指名個股——多半是大盤看法或持股提醒。');
     }
-    return '<div class="card flush scrollx"><table class="tbl-daily tbl-sms">' + SMS_COLS +
-      '<thead><tr>' +
-      '<th class="sticky">股票名稱</th><th>代號</th><th>方向</th>' +
-      '<th class="r">現價</th><th class="r">漲跌</th>' +
-      '<th>價位說明</th><th>說明重點</th></tr></thead><tbody>' +
-      rows.map(function (r) {
-        var can = isCode(r.code);
-        var tone = SMS_DIR[r.dir] || '';
-        var rowClass = tone ? 'tone-' + tone.replace('dir-', '') : '';
-        return '<tr class="' + rowClass + (can ? (rowClass ? ' ' : '') + 'clickable" data-code="' + r.code + '"' : '"') + '>' +
-          '<td class="sticky ' + tone + '">' + nameCell(r.name, r.code) + '</td>' +
-          '<td class="code">' + esc(r.code) + '</td>' +
-          '<td class="smsdir ' + tone + '">' + esc(r.dir || '未說明') + '</td>' +
-          '<td class="px r" data-px="' + esc(r.code) + '">' + (can ? '&#183;&#183;&#183;' : '—') + '</td>' +
-          '<td class="px r" data-chg="' + esc(r.code) + '">' + (can ? '&#183;&#183;&#183;' : '—') + '</td>' +
-          (showsPrice(r.dir) ? (function (t) { return '<td class="pxnote' + (t === '未說明' ? ' pxnone' : '') + '">' + esc(t) + '</td>'; })(displayPrice_(r.price, r.price_evidence, r.reason)) : NO_PRICE_CELL) +
-          '<td class="reason">' + esc(publicNarrative_(r.reason,r)) + '</td></tr>';
-      }).join('') + '</tbody></table></div>' + scrollHint();
+    return cardList('sk-daily sk-sms', rows.map(function (r) {
+      return rowOpen(dirTone(r.dir), r.code) + stockIdCell(r.name, r.code, dirPill(r.dir)) +
+        quoteCell(r.code, '') + noteCell(publicNarrative_(r.reason,r)) + '</tr>';
+    }).join(''));
   }
 
   /* 一則的區塊。標題那一行只放時分秒——日期已經由日曆選定了，
@@ -2367,7 +2334,7 @@ function publicNarrative_(text, row) {
   /* 可視區間（2026/09/16 v38）。原本預設只顯示最近 30 根、其餘要往左拖，
      管理者回報「日、週 K 只看得到一個月」。現在預設顯示資料庫裡這一檔的全部區間，
      上方「1月／3月／6月／1年／全部」快速縮放；選好的區間在換股票、換日週時保留。 */
-  var chartRange = 'all';
+  var chartRange = '1';   // v101：預設一個月（資料不滿一個月的股票仍退回全部）
 
   /* 各週期的資料說明。成交量一律顯示「張」（2026/09/16 v38 查證）：
      日K快取存的是成交股數（與證交所 STOCK_DAY 同單位，逐日核對一致），後端除以 1000 換成張；
@@ -2545,11 +2512,10 @@ function publicNarrative_(text, row) {
                 : last.direction.indexOf('賣') === 0 ? 'dir-sell'
                 : last.direction.indexOf('注意') >= 0 ? 'dir-note' : 'dir-watch';
         $('dTracker').innerHTML =
-          '<div class="kv-cell wide"><div class="k">張震最近一次的說法</div>' +
-            '<div class="v"><span class="stance ' + cls + '">' + esc(last.direction) +
-            '</span><span class="srcnote">' + esc(last.date) + '</span></div></div>' +
-          '<div class="kv-cell wide"><div class="k">說明重點</div>' +
-            '<div class="v na">' + esc(last.reason || '未說明') + '</div></div>' +
+          '<div class="kv-cell wide saycard tone-' + dirTone(last.direction) + '"><div class="k">最近一次的說法' +
+            '<span class="srcnote">' + esc(last.date) + '</span></div>' +
+            '<div class="v"><div class="say-head">' + dirPill(last.direction) + '</div>' +
+            '<span class="sk-text">' + esc(publicNarrative_(last.reason, last) || '未說明') + '</span></div></div>' +
           '<div class="kv-cell wide"><div class="k">追蹤狀態</div>' +
             '<div class="v na">沒有明講過買入，所以不列入持股追蹤與報酬計算</div></div>';
       } else {
@@ -2564,11 +2530,8 @@ function publicNarrative_(text, row) {
     if (chart) {
       /* 走勢小圖（v67）的標題列已經有第幾回合、累積報酬、第一次提到 → 成交 → 持有幾天，
          圖下一行寫取價規則與明講價；「首次提到買入」「持有回合」「累積報酬」「進場依據」四張小卡拿掉（0925 規格 4.4）。
-         上方只留圖上沒有的：參考價位、出場原因、缺資料的原因；都沒有就整塊收起。 */
-      // v68：出場原因與缺資料的原因改在走勢圖下方用灰字寫，這裡只剩參考價位
-      $('dTracker').innerHTML =
-        (t.refPrice ? kv('參考價位', fmtPx(t.refPrice) +
-          '<span class="srcnote">' + esc(t.refSrc || '') + '　僅供參考，未用於報酬計算</span>') : '');
+         上方原本留圖上沒有的資訊；v68 把出場原因移到圖下，v101 起前台不放任何價位，所以這一塊在有走勢圖時整塊收起。 */
+      $('dTracker').innerHTML = '';   // v101：前台不放任何價位（原本這裡有一張參考用的價位卡）
       $('dTracker').hidden = !$('dTracker').innerHTML;
     } else {
     $('dTracker').hidden = false;
@@ -2583,8 +2546,6 @@ function publicNarrative_(text, row) {
       (t.openBy === '會員持股聲明'
         ? kv('進場依據', '影片中明講「會員目前持有」，非當日成交'
              + '<span class="srcnote">沒有對應的買入紀錄，取聲明當日最低作追蹤基準</span>') : '') +
-      (t.refPrice ? kv('參考價位', fmtPx(t.refPrice) +
-        '<span class="srcnote">' + esc(t.refSrc || '') + '　僅供參考，未用於報酬計算</span>') : '') +
       kv(t.stillHeld ? '目前價' : '出場價', fmtPx(t.current) + (t.stillHeld ? '' : statedTag(t.exitNote))) +
       kv(t.stillHeld ? '未實現報酬' : /明講賣出/.test(String(t.exitReason || '')) ? '已實現報酬' : '追蹤期間變化',
          '<span class="' + signCls(t.ret) + '">' + fmtRet(t.ret) + '</span>') +
@@ -2662,21 +2623,11 @@ function publicNarrative_(text, row) {
       '<p class="notice" style="margin:0 0 10px;">共 ' + r.trades.length + ' 筆' +
         (r.firstBuy ? '\u3000首次提到買入 ' + r.firstBuy : '') +
         (r.lastSell ? '\u3000最近提到賣出 ' + r.lastSell : '') + '</p>' +
-      '<div class="card flush scrollx"><table class="tbl-rec">' +
-      '<colgroup><col class="c-date"><col class="c-dir"><col class="c-px"><col class="c-reason"></colgroup>' +
-      '<thead><tr>' +
-      '<th class="sticky">日期</th><th>方向</th>' +
-      '<th>價位說明</th><th>說明重點</th></tr></thead><tbody>' +
-      r.trades.map(function (x, i) {
-        var c = x.direction.indexOf('買') === 0 ? 'dir-buy'
-              : x.direction.indexOf('賣') === 0 ? 'dir-sell'
-              : x.direction.indexOf('注意') >= 0 ? 'dir-note' : 'dir-watch';
-        return '<tr class="rec-r' + (i >= TL_HEAD ? ' is-hid' : '') + '">' +
-          '<td class="sticky code">' + esc(x.date) + '</td>' +
-          '<td class="' + c + '">' + esc(x.direction) + '</td>' +
-          (showsPrice(x.direction) ? priceCell(x) : NO_PRICE_CELL) +
-          '<td class="reason">' + esc(publicNarrative_(x.reason,x)) + '</td></tr>';
-      }).join('') + '</tbody></table></div>' +
+      cardList('sk-rec', r.trades.map(function (x, i) {
+        return '<tr class="sk-row rec-r tone-' + dirTone(x.direction) + (i >= TL_HEAD ? ' is-hid' : '') + '">' +
+          '<td class="sk-id"><span class="sk-date">' + esc(x.date) + '</span>' + dirPill(x.direction) + '</td>' +
+          noteCell(publicNarrative_(x.reason,x)) + '</tr>';
+      }).join('')) +
       (r.trades.length > TL_HEAD
         ? '<button class="moreb" data-more="rec">顯示其餘 ' +
           (r.trades.length - TL_HEAD) + ' 筆</button>'
@@ -3553,25 +3504,11 @@ function publicNarrative_(text, row) {
       $('stockRecord').innerHTML =
         (r.aliasOf ? '<p class="notice" style="margin:0 0 10px">「' + esc(kw) + '」是「' + esc(r.aliasOf) + '」的常見聽錯寫法，下面是「' + esc(r.aliasOf) + '」的紀錄。</p>' : '') +
         '<div class="sect-h"><h2>影片中提到的紀錄<small>' + r.trades.length + ' 筆</small></h2></div>' +
-        /* 這張表原本沒有 class 也沒有 colgroup，欄寬全交給瀏覽器自動分配。
-           中文每個字之間都是合法斷點，於是「台積電」被拆成「台積／電」、
-           「會員持股」拆成「會員持／股」。補上 colgroup 就定得住。 */
-        '<div class="card flush scrollx"><table class="tbl-find">' +
-        '<colgroup><col class="c-date"><col class="c-name"><col class="c-code">' +
-        '<col class="c-dir"><col class="c-px"><col class="c-reason"></colgroup>' +
-        '<thead><tr>' +
-        '<th>日期</th><th>股票名稱</th><th>代號</th><th>方向</th><th>價位說明</th><th>說明重點</th>' +
-        '</tr></thead><tbody>' +
-        r.trades.map(function (t) {
-          var c = t.direction.indexOf('買') === 0 ? 'dir-buy' : t.direction.indexOf('賣') === 0 ? 'dir-sell' : 'dir-watch';
-          var can = isCode(t.code);
-          return '<tr' + (can ? ' class="clickable" data-code="' + t.code + '"' : '') + '>' +
-            '<td class="code">' + esc(t.date) + '</td>' +
-            '<td>' + nameCell(t.name, t.code) + '</td>' +
-            '<td class="code">' + esc(t.code) + '</td>' +
-            '<td class="' + c + '">' + esc(t.direction) + '</td>' +
-            (showsPrice(t.direction) ? '<td class="pxnote' + (!t.price || t.price === '未說明' ? ' pxnone' : '') + '">' + esc(t.price) + '</td>' : NO_PRICE_CELL) + '<td class="reason">' + esc(publicNarrative_(t.reason,t)) + '</td></tr>';
-        }).join('') + '</tbody></table></div>';
+        cardList('sk-find', r.trades.map(function (t) {
+          return rowOpen(dirTone(t.direction), t.code) +
+            stockIdCell(t.name, t.code, '<span class="sk-date">' + esc(t.date) + '</span>' + dirPill(t.direction)) +
+            noteCell(publicNarrative_(t.reason,t)) + '</tr>';
+        }).join(''));
       bindRows($('stockRecord'));
       // 輸入名稱或別名、結果只有一檔時也直接開圖（先前只有輸入代號才開）。
       var code = isCode(kw) ? kw : (r.resolvedCode || '');
@@ -4012,5 +3949,79 @@ function publicNarrative_(text, row) {
     });
     body.appendChild(btn);
   });
+})();
+
+/* ---------------- v101 捲動體驗 ----------------
+   參考長頁面常見的做法：頂端一條閱讀進度、捲過一屏後出現「回到頂端」、長面板用黏住的段落導覽並標出目前位置。
+   全部只讀捲動位置、用 requestAnimationFrame 節流；減少動態效果時直接跳，不做平滑捲動。 */
+(function () {
+  var reduce = function () { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
+  var bar = document.querySelector('#scrollProg i'), top = document.getElementById('toTop');
+  var panel = document.querySelector('.detail-panel'), detail = document.getElementById('detail'), nav = document.getElementById('dNav');
+  var ticking = false;
+  function scroller() { return detail && detail.classList.contains('open') && panel ? panel : null; }
+  function paint() {
+    ticking = false;
+    var sc = scroller();
+    var y = sc ? sc.scrollTop : (window.pageYOffset || document.documentElement.scrollTop || 0);
+    var max = sc ? sc.scrollHeight - sc.clientHeight : document.documentElement.scrollHeight - window.innerHeight;
+    if (bar) { bar.style.transform = 'scaleX(' + (max > 0 ? Math.min(1, y / max) : 0).toFixed(4) + ')'; }
+    document.documentElement.classList.toggle('is-scrolled', !sc && y > 8);
+    if (top) { top.hidden = !(y > (sc ? sc.clientHeight : window.innerHeight) * 0.9); }
+    if (sc && nav) { spy(sc); }
+  }
+  function ask() { if (!ticking) { ticking = true; (window.requestAnimationFrame || setTimeout)(paint); } }
+  window.addEventListener('scroll', ask, { passive: true });
+  window.addEventListener('resize', ask);
+  if (panel) { panel.addEventListener('scroll', ask, { passive: true }); }
+  if (top) {
+    top.addEventListener('click', function () {
+      var sc = scroller() || window;
+      try { sc.scrollTo({ top: 0, behavior: reduce() ? 'auto' : 'smooth' }); } catch (e) { sc.scrollTo(0, 0); }
+    });
+  }
+
+  /* 個股面板段落導覽：位置扣掉黏住的標題列與導覽列本身；目前段落＝最後一個「頂端已經進到導覽列下面」的段落。 */
+  function offset() {
+    var head = panel.querySelector('.detail-head'), h = 0;
+    if (head && getComputedStyle(head).position === 'sticky') { h += head.offsetHeight; }
+    return h + (nav ? nav.offsetHeight : 0) + 12;
+  }
+  function placeNav() {
+    if (!nav || !panel) { return; }
+    var head = panel.querySelector('.detail-head');
+    nav.style.top = (head && getComputedStyle(head).position === 'sticky' ? head.offsetHeight : 0) + 'px';
+  }
+  function spy(sc) {
+    var cur = null, limit = sc.getBoundingClientRect().top + offset() + 4;
+    [].forEach.call(nav.querySelectorAll('[data-go]'), function (b) {
+      var el = document.getElementById(b.getAttribute('data-go'));
+      if (el && el.getBoundingClientRect().top <= limit) { cur = b; }
+    });
+    if (sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 4) { cur = nav.querySelector('[data-go]:last-child'); }
+    cur = cur || nav.querySelector('[data-go]');
+    [].forEach.call(nav.querySelectorAll('[data-go]'), function (b) {
+      if (b === cur) { b.setAttribute('aria-current', 'true'); } else { b.removeAttribute('aria-current'); }
+    });
+  }
+  if (nav && panel) {
+    nav.addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('[data-go]') : null;
+      var el = b && document.getElementById(b.getAttribute('data-go'));
+      if (!el) { return; }
+      var y = el.getBoundingClientRect().top - panel.getBoundingClientRect().top + panel.scrollTop - offset();
+      try { panel.scrollTo({ top: Math.max(0, y), behavior: reduce() ? 'auto' : 'smooth' }); } catch (err) { panel.scrollTop = Math.max(0, y); }
+    });
+    new MutationObserver(function () { placeNav(); ask(); }).observe(detail, { attributes: true, attributeFilter: ['class'] });
+    window.addEventListener('resize', placeNav);
+    if (window.ResizeObserver) { new ResizeObserver(placeNav).observe(panel.querySelector('.detail-head')); }
+  }
+  /* 分頁列：選中的那一顆捲進可視範圍（手機一排放不下七顆） */
+  [].forEach.call(document.querySelectorAll('.tabs .tab'), function (t) {
+    t.addEventListener('click', function () {
+      try { t.scrollIntoView({ inline: 'center', block: 'nearest', behavior: reduce() ? 'auto' : 'smooth' }); } catch (e) {}
+    });
+  });
+  paint();
 })();
 </script>

@@ -912,7 +912,7 @@ html[data-view="mobile"] .ops-grid,html[data-view="mobile"] .ops-mail-setting { 
 .ops-card[data-tone="closed"] strong { color: var(--muted); }
 .ops-card .ghost.sm { margin-top: 10px; }
 .ops-events-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.ops-day { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: calc(13px * var(--rd-fs)); }
+.ops-day { white-space: nowrap; display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: calc(13px * var(--rd-fs)); }
 .ops-day select { min-height: 36px; border-radius: 10px; padding: 0 10px; }
 /* 投稿日曆：休市日灰底斜線（A8） */
 .mailcal .cal-c.day.closed { background-image: repeating-linear-gradient(135deg, color-mix(in srgb, var(--muted) 16%, transparent) 0 2px, transparent 2px 7px); color: var(--muted); }
@@ -1027,6 +1027,62 @@ html[data-view="mobile"] .line-copy { grid-template-columns:1fr; }
 .sms-operation header{display:flex;gap:12px 18px;align-items:center;flex-wrap:wrap}.sms-operation header b{font-size:18px}.sms-operation .sms-direction{color:var(--sms-ink);font-weight:700}.sms-operation time{font-size:13px;color:var(--muted);margin-left:auto}.sms-code{color:var(--muted)}.sms-operation p{margin:12px 0 0;line-height:1.8;overflow-wrap:anywhere}.sms-operation .sms-price{font-weight:700;color:var(--sms-ink)}
 html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-theme="dark"] .sms-sell{--sms-ink:#79D8A1;--sms-bg:#193A2C}html[data-theme="dark"] .sms-hold{--sms-ink:#BBB9FF;--sms-bg:#292A48}html[data-theme="dark"] .sms-avoid{--sms-ink:#EDCD84;--sms-bg:#3A321F}html[data-theme="dark"] .sms-watch{--sms-ink:#94CEE8;--sms-bg:#1C3441}
 @media(max-width:600px){.sms-operation{padding:16px}.sms-operation time{width:100%;margin-left:0}.sms-operation header{gap:10px 14px}}
+/* ====== v101 後台樣式層 ====== */
+/* 2026/10/02 管理者：橢圓形、寬鬆、按鈕大顆直觀。與前台 Stylesheet 的「v101 樣式層」同一組設計變數。
+   取代 v67 的「主要按鈕 12px、次要外框 10px」：後台按鈕一律膠囊，主要動作品牌綠、次要白底外框、危險紅框。 */
+.panel button, #loginWrap button, .acct-row button {
+  min-height: 46px; padding: 11px 24px; border-radius: var(--r-pill);
+  background: var(--brand); border-color: var(--brand); color: var(--panel); font-size: calc(15px * var(--rd-fs));
+}
+.panel button.ghost, #loginWrap button.ghost { border-radius: var(--r-pill); background: var(--panel); color: var(--ink); border-color: var(--rule); }
+.panel button.ghost:hover { border-color: var(--brand); opacity: 1; }
+.panel button.danger { background: var(--panel); color: var(--rise); border-color: var(--rise); }
+.panel button.sm { min-height: 42px; padding: 8px 18px; font-size: calc(13.5px * var(--rd-fs)); }
+.panel button.wide, #loginWrap button.wide { min-height: 54px; font-size: calc(16px * var(--rd-fs)); }
+.panel .mailcal button { background: transparent; color: var(--ink); min-height: 0; padding: 0; border-color: transparent; }
+.panel .mailcal button.cal-c.day { border-radius: var(--r-pill); }
+.panel .mailcal button.cal-c.has { background: color-mix(in srgb, var(--brand) 11%, transparent); }
+.panel .mailcal button.cal-c.has.sel { background: var(--brand); }
+.panel .mailcal button.mailcal-nav { width: 46px; height: 46px; border-radius: 50%; border-color: var(--rule); background: var(--panel-2); }
+.panel .seg button, .panel .tseg button, .panel button.steps-toggle, .panel .pane-tog { background: transparent; color: inherit; border-color: transparent; }
+.panel button.steps-toggle { border-color: var(--rule); background: var(--panel-2); color: var(--ink); min-height: 46px; }
+.panel details > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
+.panel details.dz > summary, .panel details.howto > summary { padding-top: 10px; padding-bottom: 10px; }
+.ops-day select, .panel select { min-height: 44px; border-radius: var(--r-sm); padding: 0 16px; }
+.panel .card h2 { font-size: calc(19px * var(--rd-fs)); }
+.panel .hint { font-size: calc(14px * var(--rd-fs)); line-height: 1.85; }
+.panel textarea { border-radius: var(--r-md); padding: 16px 18px; line-height: 1.8; }
+.panel .btnrow { gap: 12px; }
+.hitem { border-radius: var(--r-md); padding: 16px 20px; }
+.panel .lockrow { min-height: 44px; align-items: center; }
+.panel .lockrow input[type="checkbox"] { width: 22px; height: 22px; }
+.ops-mail-setting .ops-preset button { min-height: 44px; padding: 8px 18px; }
+.ops-time-grid button { min-height: 44px; border-radius: var(--r-pill); }
+/* 會員簡訊收錄清單（v101）：一則一張卡片，下面一塊原始內容 */
+.smsm-all { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; margin: 0 0 12px; color: var(--ink); font-size: calc(14px * var(--rd-fs)); cursor: pointer; }
+.smsm-all input, .smsm-check input { width: 22px; height: 22px; }
+.smsm-list { display: grid; gap: 16px; }
+.smsm-card { padding: 22px 24px; border: 1px solid var(--rule); border-radius: var(--r-lg); background: var(--panel); box-shadow: var(--lift); }
+.smsm-card.selected { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 5%, var(--panel)); }
+.smsm-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.smsm-check { display: inline-grid; place-items: center; width: 44px; height: 44px; margin: -8px 0 -8px -10px; cursor: pointer; }
+.smsm-time { display: inline-flex; align-items: baseline; gap: 8px; font-family: "IBM Plex Mono", monospace; }
+.smsm-time .smsd { font-size: calc(16px * var(--rd-fs)); } .smsm-time .smst { font-size: calc(13.5px * var(--rd-fs)); color: var(--muted); }
+.smsm-id, .smsm-id a { font-family: "IBM Plex Mono", monospace; font-size: calc(13.5px * var(--rd-fs)); color: var(--muted); }
+.smsm-id a { color: var(--brand); text-underline-offset: 3px; }
+.smsm-pill { display: inline-flex; align-items: center; gap: 8px; min-height: 30px; padding: 3px 14px 3px 4px; border-radius: var(--r-pill);
+  border: 1px solid var(--rule); background: var(--panel-2); color: var(--ink); font-size: calc(13.5px * var(--rd-fs)); line-height: 1.5; }
+.smsm-pill i { font-style: normal; padding: 1px 10px; border-radius: var(--r-pill); background: var(--muted); color: var(--panel); font-size: calc(12px * var(--rd-fs)); font-weight: 700; white-space: nowrap; }
+.smsm-pill.n-ok i { background: var(--fall); } .smsm-pill.n-err i { background: var(--rise); } .smsm-pill.n-warn i { background: var(--wait); }
+.smsm-pill.n-err { border-color: color-mix(in srgb, var(--rise) 45%, var(--rule)); }
+.smsm-stocks { display: flex; gap: 14px; margin: 16px 0 0; font-size: calc(14.5px * var(--rd-fs)); line-height: 1.8; }
+.smsm-stocks b, .smsm-raw > b { flex: none; color: var(--muted); font-size: calc(13px * var(--rd-fs)); font-weight: 600; }
+.smsm-raw { margin: 14px 0 0; padding: 16px 20px; border-radius: var(--r-md); border-left: 5px solid var(--brand); background: var(--panel-2); }
+.smsm-raw > b { display: block; margin: 0 0 6px; }
+.smsm-raw p { margin: 0 0 8px; font-size: calc(15px * var(--rd-fs)); line-height: 1.9; color: var(--ink); overflow-wrap: anywhere; }
+.smsm-raw p:last-child { margin-bottom: 0; }
+@media (max-width: 720px) { .smsm-card { padding: 18px 16px; } .smsm-stocks { flex-direction: column; gap: 2px; } }
+/* ====== v101 後台樣式層結束 ====== */
 </style>
 </head>
 <body>
@@ -1370,11 +1426,10 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
             </select>
           </div>
           <div class="field">
-            <label for="mPrice">價位說明（選填）</label>
+            <label for="mPrice">價位（選填；只留在後台與持股追蹤，前台不顯示）</label>
             <input type="text" id="mPrice" placeholder="留空由 AI 從節錄裡挑">
           </div>
         </div>
-      </div>
 
         <p class="hint" style="margin-top:14px"><b>依據</b>：把講到這一檔的那一段整段貼進來。AI 只看這一段整理成表格，這段話也會存進「人工補登」分頁，日後查得到當初憑什麼補。</p>
         <div class="field">
@@ -3361,33 +3416,28 @@ function renderSmsManageList(items) {
     updateSmsSelection();
     return;
   }
-  var html = '<div class="sms-manage-scroll">' +
-    '<table class="sms-manage-table">' +
-    '<thead><tr>' +
-    '<th class="sms-col-check"><input class="sms-list-check" type="checkbox" id="smsSelectAll" aria-label="全選"></th>' +
-    '<th class="sms-col-time">發文時間</th>' +
-    '<th class="sms-col-id">文章 ID</th>' +
-    '<th class="sms-col-state">解析狀態</th>' +
-    '<th class="sms-col-stocks">收錄個股</th>' +
-    '<th class="sms-col-notify">即時通知</th>' +
-    '<th>原文摘要</th>' +
-    '</tr></thead><tbody>';
-
+  /* v101（2026/10/02 管理者）：一則一張卡片，下面固定一塊「原始內容」放他實際寫的全文；
+     先前是七欄表格、原文只有 90 字摘要加「...」，要核對解析結果得另外開原文。
+     後端還是舊版（沒有 text 欄）時顯示摘要並註明，不把摘要冒充全文。 */
+  var html = '<label class="smsm-all"><input class="sms-list-check" type="checkbox" id="smsSelectAll" aria-label="全選"><span>全選這一頁</span></label>' +
+    '<div class="smsm-list">';
   items.forEach(function(it) {
-    html += '<tr data-id="'+esc(it.id)+'" style="border-bottom:1px solid var(--rd-line);">' +
-      '<td class="sms-col-check"><input class="sms-list-check sms-row-check" type="checkbox" value="'+esc(it.id)+'" aria-label="選取文章 '+esc(it.id)+'"></td>' +
-      /* 發文時間拆成日期、時間兩行（v69）：原本 132px 放不下「2026/09/24 09:33:38」，被切成「2026/09/2／4 09:33:38」 */
-      '<td class="sms-col-time">' + smsTimeCell(it.time || it.date || '') + '</td>' +
-      '<td class="sms-col-id">' +
-        (it.url ? '<a href="' + esc(it.url) + '" target="_blank" rel="noopener">' + esc(it.id) + '</a>' : esc(it.id)) +
-      '</td>' +
-      '<td class="sms-col-state" data-k="解析狀態"><span class="smsstate">' + esc(it.state || '未解析') + '</span></td>' +
-      '<td class="sms-col-stocks" data-k="收錄個股">' + esc(it.stocks || '—') + '</td>' +
-      '<td class="sms-col-notify ' + smsNotifyTone(it.notify) + '" data-k="即時通知">' + esc(it.notify || '沒有紀錄') + '</td>' +
-      '<td class="sms-col-text" data-k="原文摘要">' + esc(it.textSnippet || '') + '</td>' +
-      '</tr>';
+    var full = it.text != null && String(it.text) !== '';
+    var raw = String(full ? it.text : (it.textSnippet || '')).split(/\n+/).filter(String)
+      .map(function (l) { return '<p>' + esc(l) + '</p>'; }).join('');
+    html += '<article class="smsm-card" data-id="' + esc(it.id) + '">' +
+      '<header class="smsm-head">' +
+        '<label class="smsm-check"><input class="sms-list-check sms-row-check" type="checkbox" value="' + esc(it.id) + '" aria-label="選取文章 ' + esc(it.id) + '"></label>' +
+        '<span class="smsm-time">' + smsTimeCell(it.time || it.date || '') + '</span>' +
+        '<span class="smsm-id">' + (it.url ? '<a href="' + esc(it.url) + '" target="_blank" rel="noopener">文章 ' + esc(it.id) + '</a>' : '文章 ' + esc(it.id)) + '</span>' +
+        '<span class="smsm-pill"><i>解析</i>' + esc(it.state || '未解析') + '</span>' +
+        '<span class="smsm-pill ' + smsNotifyTone(it.notify) + '"><i>即時通知</i>' + esc(it.notify || '沒有紀錄') + '</span>' +
+      '</header>' +
+      '<div class="smsm-stocks"><b>收錄個股</b><span>' + esc(it.stocks || '—') + '</span></div>' +
+      '<div class="smsm-raw"><b>原始內容' + (full ? '' : '（摘要；後端更新後顯示全文）') + '</b>' + (raw || '<p class="smsm-none">這一則沒有文字內容。</p>') + '</div>' +
+      '</article>';
   });
-  html += '</tbody></table></div>';
+  html += '</div>';
   box.innerHTML = html;
   var all=$('smsSelectAll');
   if(all) all.addEventListener('change',function(){
@@ -3411,7 +3461,7 @@ function updateSmsSelection(){
     var checks=box.querySelectorAll('.sms-row-check');
     var all=$('smsSelectAll');
     if(all){all.checked=checks.length>0&&ids.length===checks.length;all.indeterminate=ids.length>0&&ids.length<checks.length;}
-    box.querySelectorAll('tr[data-id]').forEach(function(tr){
+    box.querySelectorAll('[data-id]').forEach(function(tr){
       var c=tr.querySelector('.sms-row-check');tr.classList.toggle('selected',!!(c&&c.checked));
     });
   }

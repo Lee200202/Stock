@@ -2346,10 +2346,15 @@ function clearDayRows_(sheetName, dateStr, videoId) {
   }
 }
 
+/* 寄給管理者的通知（v101）：與每日整理、盤中通知同一套版面（深綠標題卡＋圓角卡片），純文字版照附。
+   版面元件讀不到時（單獨測試、檔案沒部署齊）退回純文字，通知本身不能因此不寄。 */
 function notifyAdmin_(subject, body) {
   try {
     var to = (typeof statusEmails_ === 'function') ? statusEmails_() : [];
-    if (to && to.length) { MailApp.sendEmail({ to: to.join(','), subject: subject, body: body }); }
+    if (!to || !to.length) { return; }
+    var mail = { to: to.join(','), subject: subject, body: body };
+    try { if (typeof adminNoticeHtml_ === 'function') { mail.htmlBody = adminNoticeHtml_(subject, body); } } catch (e2) { delete mail.htmlBody; }
+    MailApp.sendEmail(mail);
   } catch (e) { /* 通知失敗不影響流程 */ }
 }
 

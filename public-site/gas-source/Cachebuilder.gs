@@ -706,11 +706,9 @@ function refreshSiteNow() {
   try {
     var to = (typeof statusEmails_ === 'function') ? statusEmails_() : [];
     if (to && to.length) {
-      MailApp.sendEmail({
-        to: to.join(','),
-        subject: '網站內容已手動刷新',
-        body: summary
-      });
+      var done = { to: to.join(','), subject: '網站內容已手動刷新', body: summary };
+      try { if (typeof adminNoticeHtml_ === 'function') { done.htmlBody = adminNoticeHtml_(done.subject, summary); } } catch (e2) { delete done.htmlBody; }
+      MailApp.sendEmail(done);
     }
   } catch (e) { /* 通知失敗不影響刷新本身 */ }
 

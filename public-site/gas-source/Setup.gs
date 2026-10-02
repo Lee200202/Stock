@@ -1200,14 +1200,14 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-10-02-transcript-flow-v100';
+var PROJECT_BUILD_ = '2026-10-02-roomy-pills-v101';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
 var PROJECT_FILES_ = [
   { file: 'SiteBridge.gs', names: ['siteBridge_', 'siteBridgeSetup'], marker: ['siteBridge_', 'args.length > 8'] },
   { file: 'Marketservice.gs', names: ['mergedHourlyHistory_', 'backfillHourlyHistoryJob', 'auditHourlyCoverage', 'installMarketDataJobs', 'migrateV94'], marker: ['migrateV94', 'auditTrackedSymbolsJob(true)'] },
-  { file: 'Line.gs', names: ['lineWebhook_', 'lineSignatureOk_', 'lineParseText_', 'lineQueueSms_', 'lineDailyTick_', 'lineDeliverTick_', 'lineClassify_', 'lineSectorReply_', 'apiGetLineEntry', 'apiAdminLineStatus', 'apiAdminLineSaveConfig', 'lineSetupCheck', 'lineValidateTemplates', 'lineSetupRichMenus', 'lineRichMenuHealth_', 'lineChartUrl_', 'lineHoldingVisualFlex_', 'LINE_OUTBOX_COLS_', 'lineSmsActive_', 'lineRecipientBreakdown_', 'lineDiagnose_', 'apiAdminLineDiagnose', 'diagnoseLineDelivery', 'lineStockFlex_'], marker: ['lineDailyInfo_', 'avoid: (r.watchAvoid'] },
+  { file: 'Line.gs', names: ['lineWebhook_', 'lineSignatureOk_', 'lineParseText_', 'lineQueueSms_', 'lineDailyTick_', 'lineDeliverTick_', 'lineClassify_', 'lineSectorReply_', 'apiGetLineEntry', 'apiAdminLineStatus', 'apiAdminLineSaveConfig', 'lineSetupCheck', 'lineValidateTemplates', 'lineSetupRichMenus', 'lineRichMenuHealth_', 'lineChartUrl_', 'lineHoldingVisualFlex_', 'LINE_OUTBOX_COLS_', 'lineSmsActive_', 'lineRecipientBreakdown_', 'lineDiagnose_', 'apiAdminLineDiagnose', 'diagnoseLineDelivery', 'lineStockFlex_'], marker: ['lineDailyFlex_', 'LINE_CAROUSEL_BYTES_'] },
   { file: 'Holidays.gs', names: ['marketHolidaySet_', 'isMarketHoliday_', 'whyClosed_', 'refreshHolidayYear_', 'checkNextYearHolidays'], marker: ['refreshHolidayYear_', 'HOLIDAY_PROP_PREFIX_'] },
   { file: 'Config.gs', names: ['APP_TITLE', 'DISCLAIMER', 'WEBAPP_URL_DEFAULT', 'GAS_BUILD', 'GAS_FEATURES', 'REFRESH_ORDER_', 'CHAIN_KEY_'] },
   { file: 'Code.gs', names: ['doGet', 'doPost', 'include', 'configMissing_', 'configMissingResponse_'], marker: ['doPost', 'x-line-signature'] },
@@ -1221,7 +1221,7 @@ var PROJECT_FILES_ = [
   { file: 'DB.gs', names: ['writeSubscriptionFields_', 'findSubscription_'] },
   { file: 'Evidencequality.gs', names: ['rawTranscript_', 'validEvidence_', 'queueDayEditSync_', 'dayEditSyncTick_', 'queueCostSync_'], marker: ['dayEditSyncTick_', 'COST:'] },
   { file: 'Logic.gs', names: ['markChainStep_', 'REFRESH_STEPS_'] },
-  { file: 'MailService.gs', names: ['createSubscription', 'mailHero_', 'publicWebAppUrl_', 'escAttr_', 'mailRiskHtml_', 'deliverMessage_', 'deliveryLedger_', 'mailPlainText_', 'isExecUrl_', 'mailStockName_', 'noVideoToday_', 'pushReadyChannels_', 'gateAutoRelease_', 'gateJsonResponse_', 'DIGEST_MISSING_SYSTEM_'], marker: ['digestAuditVerdict_', 'DIGEST_MISSING_SYSTEM_'] },
+  { file: 'MailService.gs', names: ['createSubscription', 'adminNoticeHtml_', 'mailHero_', 'publicWebAppUrl_', 'escAttr_', 'mailRiskHtml_', 'deliverMessage_', 'deliveryLedger_', 'mailPlainText_', 'isExecUrl_', 'mailStockName_', 'noVideoToday_', 'pushReadyChannels_', 'gateAutoRelease_', 'gateJsonResponse_', 'DIGEST_MISSING_SYSTEM_'], marker: ['mailHero_', 'border-radius:22px'] },
   { file: 'Presentationquality.gs', names: ['displayPrice_', 'narrativeName_', 'titleChars_', 'toTraditional_', 'publicSmsNote_', 'stripEditorialWrappers_'], marker: ['publicNarrative_', 'stripEditorialWrappers_'] },
   { file: 'Quoteservice.gs', names: ['getFugleKey_', 'fugleFetch_', 'sharesToLots_', 'volumeInLots_', 'hourSlot_', 'readHourlyRows_', 'fugleHistPace_', 'kcPutAll_', 'getCandlesBundle', 'misBatchQuotes_'], marker: ['throttleMis_', 'tryLock(200)'] },
   { file: 'Refreshrunner.gs', names: ['runRefreshAllChunk_', 'withRefreshAllLease_'] },
@@ -1232,12 +1232,12 @@ var PROJECT_FILES_ = [
 
 // HTML 檔名不含 .html；marker 是這一版才有的字串。
 var PROJECT_HTML_ = [
-  { file: 'Index', marker: 'v94 市場總覽已移除' },
-  { file: 'JavaScript', marker: 'function signalBandRows' },
-  { file: 'Stylesheet', marker: '.chip.hold .tag' },
-  { file: 'Changelog', marker: 'v100 原稿指紋與稽核進度' },
+  { file: 'Index', marker: 'data-krange="1" aria-pressed="true"' },
+  { file: 'JavaScript', marker: 'v101 捲動體驗' },
+  { file: 'Stylesheet', marker: 'v101 樣式層結束' },
+  { file: 'Changelog', marker: 'v101 前台不顯示價位' },
   { file: 'Tech', marker: '說明直接呈現事實、條件與風險' },
-  { file: 'Admin', marker: '本次追蹤／績效刷新' },
+  { file: 'Admin', marker: 'v101 後台樣式層結束' },
   { file: 'Settings', marker: '手機預覽' },
   { file: 'Unsubscribed', marker: '若一直失敗，直接回覆通知信' }
 ];

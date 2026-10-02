@@ -10,6 +10,8 @@
 </head>
 <body data-tab="<?= initialTab ?>" data-stock="<?= initialStock ?>">
 
+<!-- v101 捲動體驗：頂端閱讀進度條、回到頂端 -->
+<div class="scrollprog" id="scrollProg" aria-hidden="true"><i></i></div>
 <header class="topbar">
   <div class="wrap topbar-in">
     <div class="brand">
@@ -469,6 +471,10 @@
   <span>問問題</span>
 </button>
 
+<button type="button" class="totop" id="toTop" aria-label="回到頁面頂端" hidden>
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg><span>回到頂端</span>
+</button>
+
 <div class="detail" id="detail" role="dialog" aria-modal="true" aria-labelledby="dName">
   <div class="detail-bg" id="detailBg"></div>
   <div class="detail-panel">
@@ -488,8 +494,15 @@
       <button class="detail-close" id="detailClose" aria-label="關閉">&#10005;</button>
     </div>
 
+    <!-- v101：面板內的段落導覽。黏在標題列下面，點了捲到那一段，捲動時標出目前讀到哪一段。 -->
+    <nav class="dnav" id="dNav" aria-label="個股面板段落">
+      <button type="button" data-go="dSecHold" aria-current="true">持有期間</button>
+      <button type="button" data-go="dSecK">K 線</button>
+      <button type="button" data-go="dSecFund">公司資料</button>
+      <button type="button" data-go="dSecRec">每天講了什麼</button>
+    </nav>
     <div class="detail-body">
-      <div class="sect">
+      <div class="sect" id="dSecHold">
         <div class="sect-h"><h2>持有期間</h2></div>
         <div class="kv-grid" id="dTracker"></div>
         <!-- 取價區間（v58）：進場日／出場日的當日最低～最高、採用價與張震明講價 -->
@@ -498,7 +511,7 @@
         <div id="dRounds" hidden></div>
       </div>
 
-      <div class="sect">
+      <div class="sect" id="dSecK">
         <div class="sect-h"><h2>K 線</h2></div>
         <!-- v67（0925 規格 3.2／3.3）：主工具列只剩一行——左邊週期是全頁唯一的膠囊分段控制，右邊區間是文字分段；
              均線與布林改成 K 線圖上方的圖例標籤（點圖例開關），副圖開關移到各自的標題列。 -->
@@ -512,11 +525,11 @@
           </div>
           <!-- v68（管理者 9/25）：區間也包成一顆膠囊，緊接在週期右邊、整列靠左 -->
           <div class="tseg seg-pill" role="group" aria-label="區間">
-            <button type="button" data-krange="1" aria-pressed="false">1月</button>
+            <button type="button" data-krange="1" aria-pressed="true">1月</button>
             <button type="button" data-krange="3" aria-pressed="false">3月</button>
             <button type="button" data-krange="6" aria-pressed="false">6月</button>
             <button type="button" data-krange="12" aria-pressed="false">1年</button>
-            <button type="button" data-krange="all" aria-pressed="true">全部</button>
+            <button type="button" data-krange="all" aria-pressed="false">全部</button>
           </div>
         </div>
 
@@ -544,13 +557,13 @@
         <p class="notice" id="periodNote"></p>
       </div>
 
-      <div class="sect">
+      <div class="sect" id="dSecFund">
         <div class="sect-h"><h2>估值與公司資料</h2></div>
         <div class="kv-grid" id="dFund"></div>
         <p class="notice" id="dFundNote"></p>
       </div>
 
-      <div class="sect">
+      <div class="sect" id="dSecRec">
         <div class="sect-h"><h2>從第一次提到到現在，每天講了什麼</h2></div>
         <div id="dRecord"></div>
       </div>

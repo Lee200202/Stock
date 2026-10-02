@@ -1425,7 +1425,7 @@ function cmNotifyNew_(a, revised) {
 
   var body = cmMailBody_(a, !!revised);
   // 主旨與每日整理同一個格式；一天可能有好幾則，後面帶上時間，收件匣裡才分得出是哪一則。
-  var subject = '[' + String(a.time).slice(0, 10) + '] 張震股市盤中家教班　' +
+  var subject = '[' + String(a.time).slice(0, 10) + '] ' + (typeof siteName_ === 'function' ? siteName_() : '盤勢有據') + '　' +
                 (revised ? '會員通知內容已修訂' : '盤中即時通知') +
                 (String(a.time).length >= 16 ? ' ' + String(a.time).slice(11, 16) : '');
   /* 逐收件者帳本（v54）：同一則同一人只寄一次；沒寄成的在 60 分鐘內由 deliveryRetryTick_ 續送。
@@ -1738,7 +1738,7 @@ function sendTestInstantMailTo(email, articleId, force) {
   }
 
   var body = cmMailBody_(a, false);
-  var subject = '[' + String(a.time).slice(0, 10) + '] 張震股市盤中家教班　[測試] 盤中即時通知' +
+  var subject = '[' + String(a.time).slice(0, 10) + '] ' + (typeof siteName_ === 'function' ? siteName_() : '盤勢有據') + '　[測試] 盤中即時通知' +
                 (String(a.time).length >= 16 ? ' ' + String(a.time).slice(11, 16) : '');
 
   var sub = activeSubscribers_().filter(function (s) {

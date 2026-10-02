@@ -997,7 +997,7 @@ function lineSecretSmsReply_(uid, ch, on) {
 }
 
 function lineGreetingReply_() {
-  return [lineText_('您好！我是逐日追蹤機器人。\n\n您可以輸入股票代號或名稱（例如「2330」或「台積電」）查詢分析師提及紀錄，或點選下方按鈕查看最新資訊！', lineQuickMain_())];
+  return [lineText_('您好！我是「盤勢有據」的查詢機器人。\n\n您可以輸入股票代號或名稱（例如「2330」或「台積電」）查詢分析師提及紀錄，或點選下方按鈕查看最新資訊！', lineQuickMain_())];
 }
 
 function lineThanksReply_() {
@@ -1184,8 +1184,8 @@ function lineWelcomeFlex_(s, back) {
     return fxBox_('vertical', [fxText_(LINE_KIND_NAME_[k], { size: 'sm', weight: 'bold', color: LINE_C_.ink }), fxText_(LINE_KIND_WHEN_[k], { size: 'xs', color: LINE_C_.muted, margin: 'xs' })],
       { backgroundColor: LINE_C_.soft, cornerRadius: '10px', paddingAll: '12px' });
   };
-  return lineFlex_('歡迎使用逐日追蹤。通知尚未開啟，可選擇訂閱每日總覽。', fxBubble_(
-    fxHeader_('歡迎', '歡迎使用逐日追蹤'), [
+  return lineFlex_('歡迎使用盤勢有據。通知尚未開啟，可選擇訂閱每日總覽。', fxBubble_(
+    fxHeader_('歡迎', '歡迎使用盤勢有據'), [
       fxText_('你可以查節目已發布的個股紀錄與市場資料。通知目前都還沒開啟。', { size: 'sm', color: LINE_C_.ink }),
       item('daily'),
       fxNote_('加好友不代表同意接收推送。訂閱後可隨時在聊天室停止。')

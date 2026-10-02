@@ -1200,7 +1200,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-10-02-dailyk-gap-v102';
+var PROJECT_BUILD_ = '2026-10-02-site-name-v103';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
@@ -1209,7 +1209,7 @@ var PROJECT_FILES_ = [
   { file: 'Marketservice.gs', names: ['mergedHourlyHistory_', 'backfillHourlyHistoryJob', 'auditHourlyCoverage', 'installMarketDataJobs', 'migrateV94'], marker: ['migrateV94', 'auditTrackedSymbolsJob(true)'] },
   { file: 'Line.gs', names: ['lineWebhook_', 'lineSignatureOk_', 'lineParseText_', 'lineQueueSms_', 'lineDailyTick_', 'lineDeliverTick_', 'lineClassify_', 'lineSectorReply_', 'apiGetLineEntry', 'apiAdminLineStatus', 'apiAdminLineSaveConfig', 'lineSetupCheck', 'lineValidateTemplates', 'lineSetupRichMenus', 'lineRichMenuHealth_', 'lineChartUrl_', 'lineHoldingVisualFlex_', 'LINE_OUTBOX_COLS_', 'lineSmsActive_', 'lineRecipientBreakdown_', 'lineDiagnose_', 'apiAdminLineDiagnose', 'diagnoseLineDelivery', 'lineStockFlex_'], marker: ['lineDailyFlex_', 'LINE_CAROUSEL_BYTES_'] },
   { file: 'Holidays.gs', names: ['marketHolidaySet_', 'isMarketHoliday_', 'whyClosed_', 'refreshHolidayYear_', 'checkNextYearHolidays'], marker: ['refreshHolidayYear_', 'HOLIDAY_PROP_PREFIX_'] },
-  { file: 'Config.gs', names: ['APP_TITLE', 'DISCLAIMER', 'WEBAPP_URL_DEFAULT', 'GAS_BUILD', 'GAS_FEATURES', 'REFRESH_ORDER_', 'CHAIN_KEY_'] },
+  { file: 'Config.gs', names: ['SITE_NAME', 'SOURCE_PROGRAM', 'APP_TITLE', 'DISCLAIMER', 'WEBAPP_URL_DEFAULT', 'GAS_BUILD', 'GAS_FEATURES', 'REFRESH_ORDER_', 'CHAIN_KEY_'] },
   { file: 'Code.gs', names: ['doGet', 'doPost', 'include', 'configMissing_', 'configMissingResponse_'], marker: ['doPost', 'x-line-signature'] },
   { file: 'API.gs', names: ['jsonOut_', 'apiLookupSubscription', 'apiUpdateSubscription', 'renderUnsubscribePage_', 'apiGetCandlesBundle', 'apiUnsubscribeConfirm', 'apiGetStockSummary', 'apiGetTechStats', 'techDemo_', 'publicTracker_', 'dashCachePut_', 'dashCacheGet_'], marker: ['apiGetDashboard', 'getQuotesFor(quoteCodes, false, true, true)'] },
   { file: 'Adminpipeline.gs', names: ['pipeIsForeign_', 'pipeBase_', 'PIPE_EXTRACT_SYSTEM'], marker: ['PIPE_EXTRACT_SYSTEM', '沒講名字的段落'] },
@@ -1221,7 +1221,7 @@ var PROJECT_FILES_ = [
   { file: 'DB.gs', names: ['writeSubscriptionFields_', 'findSubscription_'] },
   { file: 'Evidencequality.gs', names: ['rawTranscript_', 'validEvidence_', 'queueDayEditSync_', 'dayEditSyncTick_', 'queueCostSync_'], marker: ['dayEditSyncTick_', 'COST:'] },
   { file: 'Logic.gs', names: ['markChainStep_', 'REFRESH_STEPS_'] },
-  { file: 'MailService.gs', names: ['createSubscription', 'adminNoticeHtml_', 'mailHero_', 'publicWebAppUrl_', 'escAttr_', 'mailRiskHtml_', 'deliverMessage_', 'deliveryLedger_', 'mailPlainText_', 'isExecUrl_', 'mailStockName_', 'noVideoToday_', 'pushReadyChannels_', 'gateAutoRelease_', 'gateJsonResponse_', 'DIGEST_MISSING_SYSTEM_'], marker: ['mailHero_', 'border-radius:22px'] },
+  { file: 'MailService.gs', names: ['createSubscription', 'siteName_', 'adminNoticeHtml_', 'mailHero_', 'publicWebAppUrl_', 'escAttr_', 'mailRiskHtml_', 'deliverMessage_', 'deliveryLedger_', 'mailPlainText_', 'isExecUrl_', 'mailStockName_', 'noVideoToday_', 'pushReadyChannels_', 'gateAutoRelease_', 'gateJsonResponse_', 'DIGEST_MISSING_SYSTEM_'], marker: ['mailHero_', 'border-radius:22px'] },
   { file: 'Presentationquality.gs', names: ['titleDropRepeats_', 'displayPrice_', 'narrativeName_', 'titleChars_', 'toTraditional_', 'publicSmsNote_', 'stripEditorialWrappers_'], marker: ['publicNarrative_', 'stripEditorialWrappers_'] },
   { file: 'Quoteservice.gs', names: ['getFugleKey_', 'fugleFetch_', 'sharesToLots_', 'volumeInLots_', 'hourSlot_', 'readHourlyRows_', 'fugleHistPace_', 'kcPutAll_', 'getCandlesBundle', 'misBatchQuotes_'], marker: ['throttleMis_', 'tryLock(200)'] },
   { file: 'Refreshrunner.gs', names: ['runRefreshAllChunk_', 'withRefreshAllLease_'] },
@@ -1232,10 +1232,10 @@ var PROJECT_FILES_ = [
 
 // HTML 檔名不含 .html；marker 是這一版才有的字串。
 var PROJECT_HTML_ = [
-  { file: 'Index', marker: 'data-krange="1" aria-pressed="true"' },
+  { file: 'Index', marker: '<span class="brand-name">盤勢有據</span>' },
   { file: 'JavaScript', marker: 'v101 捲動體驗' },
   { file: 'Stylesheet', marker: '三塊一律全版、上中下排列' },
-  { file: 'Changelog', marker: 'v102 補日K空缺不算失敗' },
+  { file: 'Changelog', marker: 'v103 站名改為盤勢有據' },
   { file: 'Tech', marker: '為什麼網站上看不到價位' },
   { file: 'Admin', marker: '表單並排欄位拉滿卡片寬度' },
   { file: 'Settings', marker: '手機預覽' },

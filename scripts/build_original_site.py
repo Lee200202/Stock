@@ -69,13 +69,16 @@ def build(output: Path, api_url: str) -> None:
     output.mkdir(parents=True, exist_ok=True)
     config = (SOURCE / "Config.gs").read_text(encoding="utf-8")
     title_match = re.search(r"var APP_TITLE = '([^']+)';", config)
-    app_title = title_match.group(1) if title_match else "張震股市盤中家教班　逐日追蹤"
+    app_title = title_match.group(1) if title_match else "盤勢有據　為家人投資，逐日有據"
+    # 頁尾的來源與免責聲明與 Apps Script 版同一句（Config.gs 的 DISCLAIMER）
+    disclaimer_match = re.search(r"var DISCLAIMER = '([^']+)';", config)
+    disclaimer = disclaimer_match.group(1) if disclaimer_match else "本網站整理公開節目內容，不構成投資建議或獲利保證。"
     values = {
         "initialTab": "",
         "initialStock": "",
         "webAppUrl": PUBLIC_URL,
         "appTitle": app_title,
-        "disclaimer": "本網站整理公開節目內容，不構成投資建議或獲利保證。",
+        "disclaimer": disclaimer,
     }
     index = (SOURCE / "Index.html").read_text(encoding="utf-8")
     if index.count("<?!= include('JavaScript'); ?>") != 1:

@@ -4298,5 +4298,30 @@ html { scroll-padding-top: 140px; }
 }
 @keyframes v101In { from { opacity: 0; translate: 0 22px; } to { opacity: 1; translate: 0 0; } }
 @media (prefers-reduced-motion: reduce) { .totop, .dnav button { transition: none; } }
+/* 站名旁的一句說明（v103）：窄螢幕收起來，站名自己留著 */
+.brand-sub { font-size: calc(13px * var(--rd-fs)); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 899px) { .brand-sub { display: none; } }
+html[data-view="mobile"] .brand-sub { display: none; }
+/* 首屏橫幅（v103，2026/10/02 管理者截圖）：計數膠囊原本擠在右半邊、第五顆掉到第二排，而且被 v67 的 6px 圓角蓋成方角。
+   現在上半左邊是日期、右邊是主標語與說明；五顆計數膠囊在下面一整排等寬，真的是膠囊；窄螢幕自動變成一排三顆或兩顆。 */
+.hero-grid { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); align-items: center; row-gap: 30px; }
+.hero-grid > .ledger { grid-column: 1 / -1; margin-top: 0; display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(max(150px, calc((100% - 4 * 14px) / 5)), 1fr)); }
+.hero .hero-say h1 { font-size: calc(clamp(22px, 2.3vw, 31px) * var(--rd-fs)); line-height: 1.4; }
+.hero .hero-say .lede { margin-top: 12px; line-height: 1.8; }
+.led-pill { border-radius: var(--r-pill); justify-content: center; gap: 14px; min-height: 58px; padding: 8px 18px; align-items: center; }
+.led-pill .led-n { min-width: 42px; height: 42px; font-size: calc(18px * var(--rd-fs)); }
+.led-pill:hover { text-decoration: none; }
+@media (max-width: 899px) {
+  .hero-grid { grid-template-columns: minmax(0, 1fr); row-gap: 16px; }
+  .hero .hero-say h1, .hero .hero-say .lede { display: block; }
+  .hero .hero-say .lede { font-size: calc(14px * var(--rd-fs)); }
+  .hero-grid > .ledger { gap: 10px; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); }
+  .led-pill { min-height: 50px; padding: 6px 12px; gap: 10px; }
+  .hero-grid > .ledger > .led-pill:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .led-pill .led-n { min-width: 36px; height: 36px; font-size: calc(16px * var(--rd-fs)); }
+}
+html[data-view="mobile"] .hero-grid > .ledger { gap: 10px; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); }
+html[data-view="mobile"] .hero .hero-say h1, html[data-view="mobile"] .hero .hero-say .lede { display: block; }
 /* ====== v101 樣式層結束 ====== */
 </style>

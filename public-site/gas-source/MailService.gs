@@ -76,6 +76,11 @@ function createSubscription(payload) {
   return { ok: true, message: result.message };
 }
 
+/** 站名。Config.gs 的 SITE_NAME；讀不到時（單獨測試）用同一個字串。 */
+function siteName_() { return (typeof SITE_NAME === 'string' && SITE_NAME) ? SITE_NAME : '盤勢有據'; }
+/** 信件品牌列：「站名　短標語」。 */
+function siteBrandLine_() { return siteName_() + '　' + ((typeof SITE_TAGLINE === 'string' && SITE_TAGLINE) ? SITE_TAGLINE : '為家人投資，逐日有據'); }
+
 /* 訂閱相關信件的共用元件（2026/09/16 v36）。
 
    訂閱確認信與訂閱管理信原本是一整頁灰字清單加一顆黑框方形按鈕，
@@ -127,7 +132,7 @@ function adminNoticeHtml_(subject, body) {
   }).join('');
   var now = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy/MM/dd HH:mm');
   return mailShell_(mailPreheader_(subject) +
-    '<div class="mc-brand" style="padding:2px 4px 10px;font-size:12px;letter-spacing:0.14em;font-weight:700;color:#4A5A52;">張震 股市盤中家教班</div>' +
+    '<div class="mc-brand" style="padding:2px 4px 10px;font-size:12px;letter-spacing:0.14em;font-weight:700;color:#4A5A52;">' + siteBrandLine_() + '</div>' +
     mailHero_('管理者通知', subject, esc_(now)) +
     mailSection_('通知內容', paras || '<p class="mc-p" style="margin:12px 0;font-size:15px;line-height:1.85;color:#26312C;">（沒有內文）</p>') +
     mailNote_('這封信只寄給管理者；處理進度與原因可到後台「今日與投稿」「自動化監控」核對。'));
@@ -195,7 +200,7 @@ function sendWelcomeMail_(email, token, daily, codes, isNew, sms) {
   MailApp.sendEmail({
     to: email,
     // 主旨與每日整理、盤中即時通知同一個格式
-    subject: '張震股市盤中家教班　' + (isNew ? '訂閱完成' : '訂閱設定已更新'),
+    subject: siteName_() + '　' + (isNew ? '訂閱完成' : '訂閱設定已更新'),
     htmlBody: wrapMail_(body, email, token),
     body: mailPlainText_(wrapMail_(body, email, token))
   });
@@ -283,7 +288,7 @@ function sendUnsubscribeLink(email) {
 
   MailApp.sendEmail({
     to: email,
-    subject: '張震股市盤中家教班　你目前的訂閱',
+    subject: siteName_() + '　你目前的訂閱',
     htmlBody: wrapMail_(body, email, token),
     body: mailPlainText_(wrapMail_(body, email, token))
   });
@@ -428,7 +433,7 @@ function getMailContent(dateStr) {
     date: d,
     found: true,
     sent: String(row['寄送狀態'] || '未寄送'),
-    subject: '[' + d + '] 張震股市盤中家教班　每日整理',
+    subject: '[' + d + '] ' + siteName_() + '　每日整理',
     html: html,
     articleHtml: articleHtml,
     preheader: dailyPreheader_(article)
@@ -986,7 +991,7 @@ function dailyPushJob() {
   try {
     sum = deliverMessage_(subs, {
       messageId: 'daily|' + today, kind: 'daily', date: today, version: deliveryVersion_(article),
-      subject: '[' + today + '] 張震股市盤中家教班　每日整理',
+      subject: '[' + today + '] ' + siteName_() + '　每日整理',
       html: function (email, token) { return wrapMail_(body, email, token, 'daily', dailyPre); },
       quota: quota, budgetMs: 200000
     });
@@ -1293,7 +1298,7 @@ function statusReportJob() {
     noShow ? 1 : 0, fails.length ? String(fails[fails.length - 1]['說明'] || '') : '',
     gate && gate.date === today ? JSON.stringify(gate.auditStat || {}) : ''].join('|');
   var branded = mailShell_(mailPreheader_(today + ' 取稿狀態：' + head) +
-    '<div style="padding:4px 2px 8px;font-size:13px;font-weight:700;letter-spacing:.08em;color:#17322A;">張震股市盤中家教班</div>' +
+    '<div style="padding:4px 2px 8px;font-size:13px;font-weight:700;letter-spacing:.08em;color:#17322A;">' + siteBrandLine_() + '</div>' +
     mailHero_('自動化監控', today + ' · ' + head, '逐字稿、稽核與每日推播的最新進度') +
     mailSection_('今日流程', html) + mailNote_('資料來源：系統狀態、影片清單、操作紀錄、會員持股及每日推播內容。'));
   var mail = {
@@ -1497,7 +1502,7 @@ function failureAlertJob() {
   }
 
   var branded = mailShell_(mailPreheader_(subject) +
-    '<div style="padding:4px 2px 8px;font-size:13px;font-weight:700;letter-spacing:.08em;color:#17322A;">張震股市盤中家教班</div>' +
+    '<div style="padding:4px 2px 8px;font-size:13px;font-weight:700;letter-spacing:.08em;color:#17322A;">' + siteBrandLine_() + '</div>' +
     mailHero_('自動化監控', '取稿需要處理', esc_(today)) + mailSection_('檢查結果', body));
   MailApp.sendEmail({ to: owner, subject: subject, body: mailPlainText_(branded), htmlBody: branded });
 }
@@ -1615,7 +1620,7 @@ function mailStockName_(v) {
 function wrapMail_(inner, email, token, kind, pre) {
   var head =
     '<div class="mc-brand" style="padding:2px 4px 10px;font-size:12px;letter-spacing:0.14em;' +
-         'font-weight:700;color:#4A5A52;">張震 股市盤中家教班</div>';
+         'font-weight:700;color:#4A5A52;">' + siteBrandLine_() + '</div>';
   var unsub = unsubscribeUrl_(email, token, kind);
   var foot =
     '<div class="mc-sec mc-foot" style="background:#FDFDFC;border:1px solid #D9DFDA;border-radius:20px;' +

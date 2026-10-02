@@ -121,6 +121,31 @@ function publicTracker_(t) {
   if (!t || !t.held || !t.exited) { return t; }
   var out = {};
   Object.keys(t).forEach(function (k) { if (k !== 'items') { out[k] = t[k]; } });
+  out.held = t.held.map(publicTrackerItem_);
+  out.exited = t.exited.map(publicTrackerItem_);
+  return out;
+}
+
+/* 公開的持股追蹤不帶「明講」價位（v104，2026/10/02 管理者：簡訊明講的價位當作不存在，前台不能放）。
+   進出場價是當日最低／最高（行情資料），照舊；講者口頭講的價位（entryNote、exitNote、回合的 entryStated／exitStated、
+   來源欄「；明講 … 」那一段）只留在試算表與後台。回傳的是複本，不動快取裡的原物件。 */
+var TRACKER_STATED_KEYS_ = ['entryNote', 'exitNote', 'entryStated', 'exitStated'];
+function publicCostSrc_(text) {
+  return String(text == null ? '' : text).replace(/[；;，,]?\s*(?:張震)?明講[^；;。\n]*/g, '').replace(/（原判：[^（）]*）/g, '').trim();
+}
+function publicTrackerItem_(item) {
+  if (!item || typeof item !== 'object') { return item; }
+  var out = {};
+  Object.keys(item).forEach(function (k) { if (TRACKER_STATED_KEYS_.indexOf(k) < 0) { out[k] = item[k]; } });
+  if (out.entrySrc != null) { out.entrySrc = publicCostSrc_(out.entrySrc); }
+  if (out.curSrc != null) { out.curSrc = publicCostSrc_(out.curSrc); }
+  if (Array.isArray(item.roundList)) {
+    out.roundList = item.roundList.map(function (r) {
+      var c = {};
+      Object.keys(r || {}).forEach(function (k) { if (TRACKER_STATED_KEYS_.indexOf(k) < 0) { c[k] = r[k]; } });
+      return c;
+    });
+  }
   return out;
 }
 
@@ -362,7 +387,7 @@ function apiGetStockSummary(code) {
   return withSheetSnapshot_(function () {
     var out = { code: code, header: null, tracker: null, record: null, errors: {} };
     try { out.header = apiGetStockHeader(code); } catch (e) { out.errors.header = String(e.message || e); }
-    try { out.tracker = getStockTracker(code); } catch (e) { out.errors.tracker = String(e.message || e); }
+    try { out.tracker = publicTrackerItem_(getStockTracker(code)); } catch (e) { out.errors.tracker = String(e.message || e); }
     try { out.record = searchStock(code); } catch (e) { out.errors.record = String(e.message || e); }
     return out;
   });

@@ -1346,7 +1346,9 @@ function cmSubscribers_() {
       按鈕列　「看原文」與「到網站看整理」做成可以按的膠囊按鈕，手指點得到。
     樣式一律寫 inline（有些收件匣或轉寄會拿掉 <style>；Gmail 支援部分 style，但核心版面不能靠它），文字一律跳脫。 */
 function cmMailBody_(a, revised) {
-  var lines = String(a.text || '').split(/\n+/).filter(String);
+  // v104：信裡放的是原文的公開版本——講到價位的子句不顯示（publicNoticeText_），其餘一字不改。
+  var shown = (typeof publicNoticeText_ === 'function') ? publicNoticeText_(a.text) : String(a.text || '');
+  var lines = String(shown || '').split(/\n+/).filter(String);
   var time = String(a.time || '');
   var clock = (time.match(/(\d{1,2}:\d{2})(?::\d{2})?\s*$/) || [])[1] || '';
   var date = (time.match(/^(\d{4}\/\d{2}\/\d{2})/) || [])[1] || '';
@@ -1391,7 +1393,7 @@ function cmMailBody_(a, revised) {
       (a.url ? pill(a.url, '看原文', true) : '') +
       (site ? pill(site, '到網站看整理', false) : '') +
       '<p style="margin:6px 0 4px;font-size:12.5px;line-height:1.7;color:#667069;">' +
-        '這是轉貼自公開論壇的原文，未經改寫。結構化的股票與價位稍後會整理到網站的「會員通知」分頁。</p>' +
+        '這是轉貼自公開論壇的原文，文字沒有改寫；提到價位的句子不顯示。整理後的分類與說明稍後會更新到網站。</p>' +
     '</div>';
 
   return hero + card;
@@ -1609,7 +1611,7 @@ function diagnoseInstantMail(articleId) {
 
 /* 盤中即時通知的預覽摘要：發文時分＋原文前 70 字。正式寄送、續送與測試信共用。 */
 function cmSmsPreheader_(a) {
-  return (String(a.time || '').slice(11, 16) ? String(a.time).slice(11, 16) + ' ' : '') + String(a.text || '').replace(/\s+/g, ' ').slice(0, 70);
+  return (String(a.time || '').slice(11, 16) ? String(a.time).slice(11, 16) + ' ' : '') + String((typeof publicNoticeText_ === 'function') ? publicNoticeText_(a.text) : (a.text || '')).replace(/\s+/g, ' ').slice(0, 70);
 }
 
 /* 帳本續送（v54）：盤中即時通知有人沒寄成（額度、暫時錯誤、時間到）時，每五分鐘補一次。

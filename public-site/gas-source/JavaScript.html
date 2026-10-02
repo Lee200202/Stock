@@ -1414,8 +1414,8 @@ function publicNarrative_(text, row) {
                      '　' + (t.basis || '')).trim();
     $('trackerBasis').innerHTML =
       '<span>' + esc(trackerView === 'held'
-        ? '進場取當日最低。灰字是口頭價。'
-        : '進場取當日最低、出場取當日最高。灰字是口頭價。') + '</span>' +
+        ? '進場取當日最低。'
+        : '進場取當日最低、出場取當日最高。') + '</span>' +
       (basisFull ? ' <button type="button" class="whyb" id="basisWhy" ' +
                    'aria-expanded="false" aria-label="計算方式的完整說明">?</button>' +
                    '<span class="whytext" id="basisWhyText" hidden>' + esc(basisFull) + '</span>'
@@ -1441,8 +1441,8 @@ function publicNarrative_(text, row) {
     renderTrackerRows(t, showing);
   }
 
-  /* 口頭價不參與計算：進場一律取當日最低、出場一律取當日最高（v68），
-     明講的「73.5 以下買進」只作參照，放在價格下方一行灰字。 */
+  /* 價格下方的一行灰字。v104 起只用來寫「M/D 提到」（提到日與成交日不同時）；
+     講者口頭講的價位前台不顯示（進出場價一律是當日最低／最高）。 */
   function statedTag(note) {
     return note ? '<span class="stated">' + esc(note) + '</span>' : '';
   }
@@ -1466,8 +1466,7 @@ function publicNarrative_(text, row) {
       r: r, rounds: t.rounds || list.length || 1, entry: entry, mention: mention,
       trade: r.entryDate || t.entryDate || mention,
       exit: t.stillHeld ? '' : (r.exitDate || t.lastSell || ''),
-      stated: r.entryStated > 0 ? r.entryStated : null,
-      note: t.entryNote || r.entryNote || '', exitNote: t.stillHeld ? '' : (t.exitNote || r.exitNote || ''),
+      stated: null, note: '', exitNote: '',   // v104：口頭價位前台不畫（舊後端即使還帶著欄位也不用）
       entryBasis: /管理者修正成本/.test(String(t.entrySrc || '')) ? '管理者修正成本' : '當日最低',
       exitBasis: '當日最高',
       end: t.current, ret: t.ret, held: !!t.stillHeld, lo: r.entryLo, hi: r.entryHi
@@ -1478,7 +1477,7 @@ function publicNarrative_(text, row) {
   function costSrcText(s) {
     var m = /^管理者修正成本 [\d.]+（[^，]*，([\s\S]*?)）；系統原判：/.exec(String(s || ''));
     // 「（原判：張震明講在 73.5 買入）」是內部判定歷程，公開的提示文字不放（也不寫人名當主詞）。
-    return (m ? m[1] : String(s || '')).replace(/（原判：[^（）]*）/g, '');
+    return (m ? m[1] : String(s || '')).replace(/（原判：[^（）]*）/g, '').replace(/[；;，,]?\s*(?:張震)?明講[^；;。\n]*/g, '').trim();
   }
 
   function niceTicks(min, max, count) {
@@ -1731,7 +1730,7 @@ function publicNarrative_(text, row) {
     var tradeDay = i.entryDate || i.roundStart || i.firstBuy;
     var inDate = md_(tradeDay), outDate = isHeld ? '目前' : (md_(i.lastSell) || '出場');
     var mentionNote = (i.roundStart && tradeDay && i.roundStart !== tradeDay) ? md_(i.roundStart) + ' 提到' : '';
-    var entryGrey = [mentionNote, i.entryNote || ''].filter(String).join('，');
+    var entryGrey = mentionNote;
     var retTxt = (i.ret === null || i.ret === undefined) ? (i.why ? '待補' : '\u2014') : fmtRet(i.ret);
     var cum = ((i.rounds || 1) > 1 && i.cumRet !== null && i.cumRet !== undefined)
       ? '<span class="tx-cum ' + signCls(i.cumRet) + '" title="各回合連乘：' + esc(i.roundRets || '') + '">累積 ' + fmtRet(i.cumRet) + '</span>' : '';
@@ -1741,7 +1740,7 @@ function publicNarrative_(text, row) {
       '<div class="tx-mid" aria-label="' + (isHeld ? '未實現報酬 ' : sold ? '已實現報酬 ' : '追蹤期間變化 ') + esc(retTxt) + '"><span class="tx-line"></span>' +
         '<span class="tx-ret">' + retTxt + '</span>' + cum + '</div>' +
       '<div class="tx-end tx-out"><small>' + esc(outDate) + (isHeld ? '' : sold ? ' 賣出' : ' 追蹤結束') + '</small><b>' + fmtPx(i.current) + '</b>' +
-        (isHeld ? '' : statedTag(i.exitNote)) + '</div>' +
+        '</div>' +
       (i.ret === null && i.why ? '<div class="tx-why">' + esc(i.why) + '</div>' : '') +
     '</div>';
   }
@@ -2542,11 +2541,11 @@ function publicNarrative_(text, row) {
          t.firstBuy || '\u2014') +
       (rounds > 1 ? kv('本回合進場', t.roundStart || '\u2014') : '') +
       kv('持有天數', t.days + ' 天' + (rounds > 1 ? '（本回合）' : '')) +
-      kv('進場價', '<span title="' + esc(costSrcText(t.entrySrc)) + '">' + fmtPx(t.entry) + '</span>' + statedTag(t.entryNote)) +
+      kv('進場價', '<span title="' + esc(costSrcText(t.entrySrc)) + '">' + fmtPx(t.entry) + '</span>') +
       (t.openBy === '會員持股聲明'
         ? kv('進場依據', '影片中明講「會員目前持有」，非當日成交'
              + '<span class="srcnote">沒有對應的買入紀錄，取聲明當日最低作追蹤基準</span>') : '') +
-      kv(t.stillHeld ? '目前價' : '出場價', fmtPx(t.current) + (t.stillHeld ? '' : statedTag(t.exitNote))) +
+      kv(t.stillHeld ? '目前價' : '出場價', fmtPx(t.current)) +
       kv(t.stillHeld ? '未實現報酬' : /明講賣出/.test(String(t.exitReason || '')) ? '已實現報酬' : '追蹤期間變化',
          '<span class="' + signCls(t.ret) + '">' + fmtRet(t.ret) + '</span>') +
       (t.rounds > 1 && t.cumRet !== null && t.cumRet !== undefined
@@ -3126,7 +3125,7 @@ function publicNarrative_(text, row) {
   }
 
   /* K 線上直接標出進出場（v67，0925 規格 3.5）：提到（灰圈）、成交（紅色上三角＋價）、出場（綠色下三角＋價），
-     加兩條水平線：進場價實線、明講價虛線。只畫在日 K——週、月、60 分 K 對不到同一根，不畫。 */
+     加一條水平線：進場價實線（v104 起不畫口頭價位）。只畫在日 K——週、月、60 分 K 對不到同一根，不畫。 */
   var tradePriceLines = [];
   function pxShort(v) { return v === null || v === undefined || !isFinite(v) ? '\u2014' : String(Math.round(Number(v) * 100) / 100); }
   function applyTradeMarks() {
@@ -3156,10 +3155,6 @@ function publicNarrative_(text, row) {
     if (entryPx > 0) {
       tradePriceLines.push(candleSeries.createPriceLine({ price: entryPx, color: css('--rise'), lineWidth: 1, lineStyle: 0,
         axisLabelVisible: true, title: '進場 ' + pxShort(entryPx) }));
-    }
-    if (lr.entryStated > 0 && Math.abs(lr.entryStated - entryPx) > 1e-9) {
-      tradePriceLines.push(candleSeries.createPriceLine({ price: lr.entryStated, color: css('--muted'), lineWidth: 1, lineStyle: 2,
-        axisLabelVisible: true, title: '明講 ' + pxShort(lr.entryStated) }));
     }
   }
 

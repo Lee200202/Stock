@@ -1030,7 +1030,27 @@ function writeDailyKRows_(items) {
   _DK_INDEX = null;
   CACHE.remove('kcache_meta');
   kcDrop_('dk_', items.map(function (it) { return it.code; }));
-  kcDrop_('dk2_', items.map(function (it) { return it.code; }));
+  dailyKCacheAfterWrite_(items);
+}
+
+/* 寫入後的日K快取（v104）。
+
+   先前一律刪掉那幾檔的快取：補日K一批 25 檔、寫一批刪一批，之後第一個讀到這些代號的請求要把整張日K快取重讀一次
+   （數萬列，約 30 秒）。2026/10/02 17:45 補日K進行中，首頁、持股追蹤、個股摘要都慢到 30～45 秒並回過一次 502。
+   整檔替換（months 為 null，rows 就是這一檔寫進試算表的全部內容）時，直接把新內容放進快取，讀取端不必重讀整張表；
+   只替換部分月份（months 有值）或內容太大放不進快取時，照舊刪掉，由讀取端重讀。 */
+function dailyKCacheAfterWrite_(items) {
+  var drop = [], put = {}, n = 0;
+  (items || []).forEach(function (it) {
+    var whole = it && !it.months && it.rows && it.rows.length;
+    var text = whole ? kcEncode_(it.rows.slice().sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; })) : '';
+    if (whole && text.length <= KC_MAX_BYTES_) { put['dk2_' + String(it.code).trim()] = text; n++; }
+    else if (it) { drop.push(it.code); }
+  });
+  kcDrop_('dk2_', drop);
+  if (!n) { return 0; }
+  try { CACHE.putAll(put, KC_TTL_); return n; }
+  catch (e) { kcDrop_('dk2_', Object.keys(put).map(function (k) { return k.slice(4); })); return 0; }
 }
 
 /**

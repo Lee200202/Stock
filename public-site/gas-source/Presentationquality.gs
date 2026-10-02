@@ -246,3 +246,29 @@ function articleTitle_(signals) {
    [/美元|匯率/,'匯率變化'],[/融資/,'融資變化'],[/缺口|支撐|關卡/,'技術關卡']].forEach(function(pair){if(pair[0].test(macro))themes.push(pair[1]);});
   return TITLE_PREFIX_+(themes.length?themes.slice(0,2).join('與')+'，本集盤勢與操作重點整理':'本集市場觀察與會員操作重點整理');
 }
+
+/* 盤中通知原文的公開版本（v104，2026/10/02 管理者：簡訊明講的價位當作不存在，盤中即時通知的原文也一樣）。
+
+   作法是「講到價位的那一個子句整句不顯示」，不是把數字挖掉——挖掉數字會留下「請於元以下買進」這種讀不通的句子。
+   以逗號、分號切子句；句子裡每個子句都講價位，整句就不顯示；整行都不顯示時那一行拿掉。
+   算價位的寫法：數字＋元／塊；數字＋以上／以下／之上／之下／附近；成本、買在、賣在、目標價、挑戰、突破、跌破、站上、守住、
+   停損、停利、上看、壓力、支撐後面接兩位數以上的數字（後面是點、日、天、張、%、億、均線這類單位的不算）。
+   股票代號（6770力積電）、日期、百分比、成交量都不受影響。後台會員簡訊的「原始內容」與試算表照舊是全文。 */
+var NOTICE_PRICE_RE_ = /\d+(?:\.\d+)?\s*(?:元|塊)|\d+(?:\.\d+)?\s*(?:以上|以下|之上|之下|附近)|(?:成本|買在|賣在|目標價?|挑戰|突破|跌破|站上|站穩|守住|停損|停利|上看|下看|壓力|支撐)(?:價|位)?\s*(?:在|為|是|約)?\s*\d{2,}(?:\.\d+)?(?!\d|\.\d|\s*(?:點|日|天|檔|張|%|％|月|年|億|萬|均|分|倍|根|次|週|周|MA))/;
+function publicNoticeText_(text) {
+  return String(text == null ? '' : text).split(/\n/).map(function (line) {
+    var out = '';
+    line.split(/(?<=[。！？!?])/).forEach(function (sentence) {
+      var end = (sentence.match(/[。！？!?]+$/) || [''])[0];
+      var body = end ? sentence.slice(0, sentence.length - end.length) : sentence;
+      var kept = body.split(/[，,；;]/).map(function (c) { return c.trim(); })
+        .filter(function (c) { return c && !NOTICE_PRICE_RE_.test(c); });
+      if (kept.length) { out += kept.join('，') + end; }
+    });
+    return out.trim();
+  }).filter(String).join('\n');
+}
+/** 這段原文有沒有被拿掉東西（給信件與 LINE 的附註用）。 */
+function noticeTextTrimmed_(text) {
+  return publicNoticeText_(text).replace(/\s/g, '').length < String(text == null ? '' : text).replace(/\s/g, '').length - 2;
+}

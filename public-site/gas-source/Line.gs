@@ -1332,17 +1332,19 @@ function lineDailyFlex_(info, kicker) {
   return lineFlex_(alt, build());
 }
 
-/** 盤中即時通知卡片：原文每一行照登（v101 起不再只放前兩行；保留否定詞與數字），並連回原文與網站。
+/** 盤中即時通知卡片：原文每一行照登（v101 起不再只放前兩行；保留否定詞），講到價位的子句不顯示（v104），並連回原文與網站。
     單行超過 LINE 一段文字的上限（lineClip_ 1800 字）時拆成數段，不截字。 */
 function lineSmsFlex_(a, revised) {
   var time = String(a.time || ''), clock = (time.match(/(\d{1,2}:\d{2})/) || [])[1] || '';
-  var lines = String(a.text || '').split(/\n+/).map(function (s) { return s.trim(); }).filter(Boolean);
+  // v104：與信件相同，講到價位的子句不顯示（publicNoticeText_），其餘照原文。
+  var shown = (typeof publicNoticeText_ === 'function') ? publicNoticeText_(a.text) : String(a.text || '');
+  var lines = String(shown || '').split(/\n+/).map(function (s) { return s.trim(); }).filter(Boolean);
   var body = [];
   lines.forEach(function (l) {
     for (var i = 0; i < l.length; i += 1500) { body.push(fxText_(l.slice(i, i + 1500), { size: 'md', color: LINE_C_.ink })); }
   });
   if (!body.length) { body.push(fxText_('（這則通知沒有文字內容）', { size: 'sm', color: LINE_C_.muted })); }
-  body.push(fxNote_('原文照登，未經改寫。整理後的分類與補充內容可到網站 ' + lineSiteLabel_() + ' 查看。'));
+  body.push(fxNote_('原文照登、文字沒有改寫；提到價位的句子不顯示。整理後的分類與補充內容可到網站 ' + lineSiteLabel_() + ' 查看。'));
   var src = /^https:\/\//.test(String(a.url || '')) ? String(a.url) : '', site = lineSiteUrl_('mail');
   var kicker = (revised ? '內容已修訂' : '盤中即時通知') + (clock ? '｜' + clock : '');
   return lineFlex_((revised ? '會員通知內容已修訂 ' : '盤中即時通知 ') + clock + '｜' + lineClip_(lines[0] || '', 80),

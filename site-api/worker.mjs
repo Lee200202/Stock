@@ -1,7 +1,7 @@
 // Free Cloudflare Worker: public Pages frontend -> existing Apps Script backend.
 // The bridge token stays server-side. Admin methods still require the existing admin key.
 const ALLOWED = 'https://lee200202.github.io';
-const BUILD = 'site-api-v94';
+const BUILD = 'site-api-v100-r1';
 const MAX_ARGS = 8;
 const ADMIN_METHODS = ('apiAdminCancelCrawl apiAdminCancelDaySync apiAdminCancelFix ' +
   'apiAdminCancelFullFix apiAdminCancelJob apiAdminCancelRefresh apiAdminCancelSmsJob ' +
@@ -73,7 +73,7 @@ function reply(body, status, origin, extra) {
     'Access-Control-Allow-Origin': origin === ALLOWED ? origin : 'null',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Expose-Headers': 'X-Cache, X-Edge-Cache, Server-Timing',
+    'Access-Control-Expose-Headers': 'X-Cache, X-Edge-Cache, X-Backend-Requests, X-Result-Requests, Server-Timing',
     'Vary': 'Origin',
     ...(extra || {})
   };
@@ -87,21 +87,49 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function callBackend(env, body, retryable) {
   const started = Date.now();
   const delays = retryable ? [800, 2500] : [1200];
+  let resultUrl = '', backendRequests = 0, resultRequests = 0, executionMs = 0, resultMs = 0;
+  const finish = out => ({...out, backendRequests, resultRequests, executionMs, resultMs});
+  const fetchResult = async () => {
+    const at = Date.now(); resultRequests++;
+    // Google 結果頁偶爾還會再轉址一次；GET 沒有 bridgeToken、管理密鑰或 body。
+    try { return await fetch(resultUrl, {method: 'GET', redirect: 'follow',
+      signal: AbortSignal.timeout(Math.max(1, Math.min(40000, 55000 - (Date.now() - started))))}); }
+    finally { resultMs += Date.now() - at; }
+  };
   let last = {status: 502, payload: {ok: false, error: 'backend-unavailable'}};
   for (let attempt = 0; attempt <= delays.length; attempt++) {
     let transient = false, networkError = false;
     try {
-      const downstream = await fetch(env.GAS_WEBAPP_URL + '?action=site-bridge', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json; charset=utf-8'},
-        body: JSON.stringify({...body, bridgeToken: env.SITE_BRIDGE_TOKEN}),
-        redirect: 'follow',
-        signal: AbortSignal.timeout(Math.max(1, Math.min(40000, 55000 - (Date.now() - started))))
-      });
+      const fetchStarted = Date.now();
+      let downstream;
+      if (resultUrl) {
+        downstream = await fetchResult();
+      } else {
+        backendRequests++;
+        try { downstream = await fetch(env.GAS_WEBAPP_URL + '?action=site-bridge', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
+          body: JSON.stringify({...body, bridgeToken: env.SITE_BRIDGE_TOKEN}),
+          redirect: 'manual',
+          signal: AbortSignal.timeout(Math.max(1, Math.min(40000, 55000 - (Date.now() - started))))
+        }); } finally { executionMs += Date.now() - fetchStarted; }
+        // ContentService 的 302 表示程式已執行完。結果頁暫時失敗時只重取結果，
+        // 不再 POST 重做讀表或寫入；密鑰永遠只送既有 /exec，不跟隨到結果網址。
+        if ([302, 303].includes(downstream.status)) {
+          let location;
+          try { location = new URL(downstream.headers.get('Location') || '', env.GAS_WEBAPP_URL); }
+          catch { return finish({status: 502, payload: {ok: false, error: 'backend-redirect-invalid'}}); }
+          if (location.protocol !== 'https:' || location.hostname !== 'script.googleusercontent.com' || location.pathname !== '/macros/echo') {
+            return finish({status: 502, payload: {ok: false, error: 'backend-redirect-invalid'}});
+          }
+          resultUrl = location.href;
+          downstream = await fetchResult();
+        }
+      }
       const contentType = downstream.headers.get('content-type') || '';
       if (downstream.ok && /json/i.test(contentType)) {
         const payload = await downstream.json();
-        return {status: payload.ok ? 200 : 502, payload};
+        return finish({status: payload.ok ? 200 : 502, payload});
       }
       transient = downstream.status === 404 || downstream.status === 429 || downstream.status >= 500 || (downstream.ok && !/json/i.test(contentType));
       last = {status: 502, payload: {ok: false, error: downstream.ok ? 'backend-not-json' : 'backend-http-' + downstream.status}};
@@ -109,11 +137,11 @@ async function callBackend(env, body, retryable) {
       networkError = true;
       last = {status: 502, payload: {ok: false, error: 'backend-unavailable'}};
     }
-    const canRetry = attempt < delays.length && Date.now() - started < 50000 && (networkError || (retryable && transient));
+    const canRetry = attempt < delays.length && Date.now() - started < 50000 && (networkError || ((retryable || resultUrl) && transient));
     if (!canRetry) break;
     await sleep(delays[attempt]);
   }
-  return last;
+  return finish(last);
 }
 
 export default {
@@ -170,16 +198,17 @@ export default {
     let out;
     try { out = await pending; }
     finally { if (key && inFlight.get(key) === pending) inFlight.delete(key); }
-    const timing = {'Server-Timing': 'backend;dur=' + (Date.now() - started)};
+    const timing = {'Server-Timing': 'backend;dur=' + (Date.now() - started) + ', gas_request;dur=' + out.executionMs + ', result;dur=' + out.resultMs,
+      'X-Backend-Requests': String(out.backendRequests), 'X-Result-Requests': String(out.resultRequests)};
     if (out.payload && out.payload.ok) {
       if (key) remember(key, out.payload);
       if (edge) {
         const save = caches.default.put(edge, Response.json({at: Date.now(), payload: out.payload}, {
           headers: {'Cache-Control': 'public, max-age=' + ttl}
         })).catch(() => { console.warn('public read cache write unavailable'); });
-        await save;
-        try { edgeStatus = await caches.default.match(edge) ? 'stored' : 'not-stored'; }
-        catch { edgeStatus = 'unavailable'; }
+        // 跨執行個體快取寫入不是顯示資料的前置條件，不再阻塞成功回應。
+        if (ctx && typeof ctx.waitUntil === 'function') { ctx.waitUntil(save); edgeStatus = 'scheduled'; }
+        else { await save; edgeStatus = 'stored'; }
       }
       return reply(out.payload, 200, origin, {...timing, 'X-Edge-Cache':edgeStatus, 'X-Cache': key ? shared ? 'shared' : 'miss' : 'bypass'});
     }

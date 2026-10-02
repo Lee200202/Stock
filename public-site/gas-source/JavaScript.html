@@ -1208,12 +1208,33 @@ function publicNarrative_(text, row) {
     if (OVERVIEW_PENDING) { return '影片整理中，個股稍後出現'; }
     return '今天的影片沒有點名個股';
   }
+  // v100：目前持有沿用總覽中的追蹤結果，不另查表、不把已出場回合加進來。
+  // 同檔買入／賣出保留各自訊號；持有優先於觀望，避免一檔在帶內反覆出現。
+  function signalBandRows(d) {
+    var rows = [], priorityCodes = {}, seen = {};
+    function append(list, kind, label, observed) {
+      (list || []).forEach(function (r) {
+        if (!r || (kind === 'hold' && (r.status === '已出場' || r.holding === false))) { return; }
+        var key = isCode(r.code) ? String(r.code).trim() : cleanName(r.name || '');
+        if (!key || (observed && priorityCodes[key]) || seen[kind + ':' + key]) { return; }
+        seen[kind + ':' + key] = true;
+        if (!observed) { priorityCodes[key] = true; }
+        rows.push({kind: kind, label: label, stock: r});
+      });
+    }
+    append(d.buy, 'buy', '買入');
+    append(d.sell, 'sell', '賣出');
+    append(d.holdings, 'hold', '目前持有');
+    append(wAvoid(d), 'watch', '觀望不碰', true);
+    append(wWatch(d), 'note', '觀望注意', true);
+    return rows;
+  }
+  var bandRenderVersion = 0;
   function renderBand(d) {
-    var parts = [];
-    d.buy.forEach(function (r) { parts.push(chip('buy', '買入', r)); });
-    d.sell.forEach(function (r) { parts.push(chip('sell', '賣出', r)); });
-    wAvoid(d).forEach(function (r) { parts.push(chip('watch', '觀望不碰', r)); });
-    wWatch(d).forEach(function (r) { parts.push(chip('note', '觀望注意', r)); });
+    var version = ++bandRenderVersion;
+    var entries = signalBandRows(d);
+    var parts = entries.map(function (x) { return chip(x.kind, x.label, x.stock); });
+    $('band').style.setProperty('--band-duration', Math.max(46, entries.length * 3) + 's');
     $('band').classList.toggle('is-still', !parts.length);
     if (!parts.length) {
       $('band').innerHTML = '<span class="band-copy"><div class="chip absent-all"><span class="nm">' +
@@ -1226,18 +1247,20 @@ function publicNarrative_(text, row) {
     $('band').querySelectorAll('.chip[data-code]').forEach(function (c) {
       c.addEventListener('click', function () { openDetail(c.dataset.code); });
     });
-    fillBandQuotes(d);
+    fillBandQuotes(d, version);
   }
 
   /** 訊號帶的現價與漲跌幅。讀即時快取，不對外請求。 */
-  function fillBandQuotes(d) {
+  function fillBandQuotes(d, version) {
     var codes = [];
-    [].concat(d.buy, d.sell, wAvoid(d), wWatch(d)).forEach(function (r) {
+    signalBandRows(d).forEach(function (entry) {
+      var r = entry.stock;
       if (isCode(r.code) && codes.indexOf(r.code) < 0) { codes.push(r.code); }
     });
     if (!codes.length) { return; }
 
     google.script.run.withSuccessHandler(function (q) {
+      if (version !== bandRenderVersion) { return; }
       codes.forEach(function (code) {
         var v = q[code];
         document.querySelectorAll('[data-bandpx="' + code + '"]').forEach(function (el) {
@@ -1250,6 +1273,7 @@ function publicNarrative_(text, row) {
         });
       });
     }).withFailureHandler(function () {
+      if (version !== bandRenderVersion) { return; }
       document.querySelectorAll('[data-bandpx]').forEach(function (el) {
         el.textContent = '\u2014'; el.className = 'px flat';
       });

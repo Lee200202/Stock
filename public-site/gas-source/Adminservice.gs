@@ -908,13 +908,18 @@ function apiAdminKCoverage(key) {
     var vals = getSheet_('日K快取').getDataRange().getValues();
     var head = (vals[0] || []).map(function (h) { return String(h).trim(); });
     var cCode = head.indexOf('代號'), cDate = head.indexOf('日期'), cClose = head.indexOf('收');
-    var have = {};
+    // 同一交易日會重複數百列。格式化只做每個日期一次，避免數萬次服務呼叫。
+    var have = {}, dateMemo = {};
     for (var i = 1; i < vals.length; i++) {
       var code = String(vals[i][cCode] || '').trim();
       if (!want[code]) { continue; }
       var v = Number(vals[i][cClose]);
       if (!(isFinite(v) && v > 0)) { continue; }
-      var d = fmtDate_(vals[i][cDate]);
+      var rawDate = vals[i][cDate];
+      var dateKey = Object.prototype.toString.call(rawDate) === '[object Date]' ? 'date:' + rawDate.getTime() : typeof rawDate + ':' + String(rawDate);
+      var d;
+      if (Object.prototype.hasOwnProperty.call(dateMemo, dateKey)) { d = dateMemo[dateKey]; }
+      else { d = dateMemo[dateKey] = fmtDate_(rawDate); }
       if (d) { (have[code] = have[code] || {})[d] = 1; }
     }
     var range = dailyKRange_(), from = range.from.replace(/-/g, '/'), to = todayStr_();
@@ -931,7 +936,8 @@ function apiAdminKCoverage(key) {
     var rows = [], affected = 0, missingTotal = 0, oldest = '';
     codes.forEach(function (c) {
       var h = have[c] || {}, got = Object.keys(h).sort();
-      var start = floors[c] && floors[c] > from ? floors[c] : (got.length && got[0] > from ? got[0] : from);
+      // 快取第一根不是上市日期。只有已確認來源下限可以免算之前的交易日。
+      var start = floors[c] && floors[c] > from ? floors[c] : from;
       var miss = days.filter(function (d) { return d >= start && !h[d]; });
       if (!got.length) { miss = days.slice(); }
       if (miss.length) {

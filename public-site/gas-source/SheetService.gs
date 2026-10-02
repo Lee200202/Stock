@@ -7,10 +7,17 @@
 var TZ = 'Asia/Taipei';
 var NOT_MENTIONED = '本支影片未說明';
 
+// 單次執行內只記日期轉換結果，不快取資料或跨請求沿用昨日畫面。
+var fmtDateMemo_ = {}, fmtDateMemoSize_ = 0;
 function fmtDate_(v) {
   if (!v) { return ''; }
   if (Object.prototype.toString.call(v) === '[object Date]') {
-    return Utilities.formatDate(v, TZ, 'yyyy/MM/dd');
+    var dateKey = TZ + '|' + v.getTime();
+    if (Object.prototype.hasOwnProperty.call(fmtDateMemo_, dateKey)) { return fmtDateMemo_[dateKey]; }
+    var formatted = Utilities.formatDate(v, TZ, 'yyyy/MM/dd');
+    if (fmtDateMemoSize_ >= 1024) { fmtDateMemo_ = {}; fmtDateMemoSize_ = 0; }
+    fmtDateMemo_[dateKey] = formatted; fmtDateMemoSize_++;
+    return formatted;
   }
   // 日期欄曾被寫回 Sheets 序號；先轉日曆日期，不能讓 46297 排在 yyyy/MM/dd 後面。
   var serial = String(v).trim();

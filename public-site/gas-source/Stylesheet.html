@@ -201,7 +201,7 @@ html[data-view="mobile"] .stamp { display: none; }
    中間試過「預設不動、移上去才捲」，實際用起來不對：那條帶子是當天
    點名的所有個股，一眼掃過去就是它的用途，停著不動反而只看得到前幾檔。
    會動才知道後面還有東西。要細看時把滑鼠移上去就停住。 */
-.mui-marquee { display: flex; width: max-content; animation: marquee 46s linear infinite; }
+.mui-marquee { display: flex; width: max-content; animation: marquee var(--band-duration, 46s) linear infinite; }
 .band-copy { display: inline-flex; flex-shrink: 0; }
 /* 滑鼠移上去停、手指按下去也停。
 
@@ -227,6 +227,7 @@ html[data-view="mobile"] .stamp { display: none; }
 .chip.buy .tag { color: var(--rise); } .chip.sell .tag { color: var(--fall); }
 .chip.watch .tag { color: var(--wait); }
 .chip.note .tag { color: var(--note); }
+.chip.hold .tag { color: var(--hold); border-radius: 999px; }
 .chip.absent { color: var(--muted); cursor: default; }
 .chip.absent:hover { background: none; }
 .chip.absent .nm { text-decoration: line-through; text-decoration-thickness: 1px; }

@@ -2156,7 +2156,7 @@ function renderJob(j){
   var contentReady = /文章已更新|內容已更新/.test(j.note || '') || done;
   var dataWritten = /資料已寫入/.test(j.note || '');
   $('publishState').hidden = !(contentReady || dataWritten);
-  $('publishState').textContent = (contentReady || dataWritten) ? '① ' + (contentReady ? '網站與郵件查詢內容：已更新（100%）' : '資料已寫入；網站與郵件查詢同步尚未確認完成') + '\n② 日 K／績效：' + (done ? '已完成' : waiting ? '已排入自動續跑，尚未完成' : '背景處理中，依實際回報顯示進度') : '';
+  $('publishState').textContent = (contentReady || dataWritten) ? '① ' + (contentReady ? '網站與郵件查詢內容：已更新（100%）' : '資料已寫入；網站與郵件查詢同步尚未確認完成') + '\n② 本次追蹤／績效刷新：' + (done ? '已完成；歷史日 K 完整性請看自動化監控與行情完整性稽核' : waiting ? '已排入自動續跑，尚未完成' : '背景處理中，依實際回報顯示進度') : '';
   var cancelled = j.status === '已取消';
   /* 「還在跑」要用白名單判斷，不能用「不是完成也不是失敗」反推。
      少了這一條，「已取消」會掉進最後的 else 而繼續顯示正在處理，

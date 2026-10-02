@@ -1192,7 +1192,7 @@ function publicNarrative_(text, row) {
   /* ---------------- 訊號帶 ---------------- */
   function chip(kind, label, r) {
     var can = isCode(r.code);
-    return '<div class="chip ' + kind + '"' + (can ? ' data-code="' + r.code + '"' : '') + '>' +
+    return '<div class="chip ' + kind + '"' + (can ? ' data-code="' + r.code + '" role="button" tabindex="0" aria-label="查看' + esc(label + ' ' + cleanName(r.name) + '（' + r.code + '）') + '"' : '') + '>' +
       '<span class="tag">' + label + '</span>' +
       '<span class="nm">' + esc(cleanName(r.name)) + '</span>' +
       '<span class="cd">' + esc(r.code) + '</span>' +
@@ -1245,7 +1245,11 @@ function publicNarrative_(text, row) {
     $('band').innerHTML = '<span class="band-copy">' + html + '</span>' +
       '<span class="band-copy" aria-hidden="true">' + html + '</span>';
     $('band').querySelectorAll('.chip[data-code]').forEach(function (c) {
+      if (c.closest('.band-copy').getAttribute('aria-hidden') === 'true') { c.tabIndex = -1; }
       c.addEventListener('click', function () { openDetail(c.dataset.code); });
+      c.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail(c.dataset.code); }
+      });
     });
     fillBandQuotes(d, version);
   }

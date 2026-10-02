@@ -209,6 +209,7 @@ html[data-view="mobile"] .stamp { display: none; }
    點不中或點到隔壁那一檔——而點錯一檔比點不到更糟。
    .is-held 由 pointerdown 掛上去，放開再拿掉。 */
 .signalband:hover .mui-marquee,
+.signalband:focus-within .mui-marquee,
 .signalband.is-held .mui-marquee { animation-play-state: paused; }
 @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 

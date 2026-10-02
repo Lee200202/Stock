@@ -1713,7 +1713,7 @@ def strip_transcribe_echo(text):
     return out, removed
 
 
-def existing_transcript(ss, video_id, date_str):
+def existing_transcript(ss, video_id, date_str, snapshot=None):
     rows = video_rows(ss)
     idx, row = select_transcript_row(rows, video_id, date_str)
     variants = {str(r.get('原始逐字稿內容') or '') for r in rows
@@ -1727,6 +1727,9 @@ def existing_transcript(ss, video_id, date_str):
     if row.get('逐字稿來源') == '手動保留':
         raise NotReadyYet('此日已設手動保留，等待管理者貼上原稿')
     raw = str(row.get('原始逐字稿內容') or '')
+    if snapshot is not None:
+        snapshot['sha256'] = hashlib.sha256(raw.encode('utf-8')).hexdigest()
+        snapshot['video_id'] = str(row.get('影片ID') or '')
     how = '影片ID' if str(row.get('影片ID') or '').strip() == video_id else '日期／更新時間'
     print(f'原文選列：第 {idx} 列，依 {how}；{len(raw)} 字；SHA256={hashlib.sha256(raw.encode("utf-8")).hexdigest()}')
     polished = str(row.get('修飾後逐字稿內容') or '')
@@ -1824,11 +1827,15 @@ def cell(text: str) -> str:
     return text
 
 
-def write_transcripts(ss, video_id, v1, v2, date_str=""):
+def write_transcripts(ss, video_id, v1, v2, date_str="", snapshot=None):
     ws = ss.worksheet('影片清單')
     idx, row = select_transcript_row(sheets_retry(ws.get_all_records), video_id, date_str)
     if idx:
-        if str(row.get('原始逐字稿內容') or '') != v1 or row.get('逐字稿來源') == '手動保留':
+        raw = str(row.get('原始逐字稿內容') or '')
+        unchanged = (hashlib.sha256(raw.encode('utf-8')).hexdigest() == snapshot['sha256']
+                     and str(row.get('影片ID') or '') == snapshot['video_id']) if snapshot else (
+                         strip_transcribe_echo(raw)[0] == v1)
+        if not unchanged or row.get('逐字稿來源') == '手動保留':
             raise NotReadyYet('潤飾期間原稿已更新／改為手動保留，下一輪改讀新稿')
         # 潤飾只寫 G，不把先前讀到的原稿寫回 F 蓋過剛貼的新稿。
         sheets_retry(ws.update, range_name=f"G{idx}", values=[[cell(v2)]])
@@ -10566,7 +10573,8 @@ def stage_transcript(ss, video, date_str, on_step=None):
     （一小時的直播切成兩、三段送出，每段好幾十秒），先前這一段完全沒有回報，
     畫面上會一直停在「讀取原文」，看起來像卡住。
     """
-    v1, v2 = existing_transcript(ss, video["id"], date_str)
+    snapshot = {}
+    v1, v2 = existing_transcript(ss, video["id"], date_str, snapshot=snapshot)
 
     # 沿用既有修飾稿之前，先確認它是完整的。
     #
@@ -10614,7 +10622,7 @@ def stage_transcript(ss, video, date_str, on_step=None):
     if on_step:
         on_step('潤飾', f'{len(v1)} 字送出潤飾，完成後進入擷取')
     v2 = polish(v1)
-    write_transcripts(ss, video["id"], v1, v2, date_str)   # 潤飾完再補寫 v2
+    write_transcripts(ss, video["id"], v1, v2, date_str, snapshot=snapshot)
     return v1, v2
 
 
@@ -13613,9 +13621,9 @@ def process_one(ss, video, done_trades, done_holds):
     except NotReadyYet as e:
         # 這不是失敗。VOD 還在轉檔，下一輪會再敲一次門。
         mark_status(ss, video["id"], date_str, video["title"], "等待中", str(e)[:200])
-        job_progress(job, status="等待中", note="原文還沒有落地，下一輪再試：" + str(e)[:160])
+        job_progress(job, status="等待中", note="等待接續：" + str(e)[:200])
         print(f"尚未就緒：{e}")
-        print("這是正常的，直播結束後 YouTube 要一段時間轉檔。下一輪排程會再試。")
+        print("本輪尚未完成；保留來源與已完成步驟，下一輪重新核對後接續。")
         raise
     except Exception as e:
         mark_status(ss, video["id"], date_str, video["title"], "失敗", str(e)[:400])
@@ -15104,7 +15112,7 @@ def main():
         if status == "處理中":
             print("偵測到前次殘留的『處理中』狀態，重新處理")
         if status == "等待中":
-            print("前一輪 VOD 尚未就緒，本輪再敲一次門")
+            print("前一輪尚未完成，本輪重新核對原稿後接續")
 
         try:
             process_one(ss, v, done_trades, done_holds)
@@ -15112,7 +15120,7 @@ def main():
             fresh = {str(r["影片ID"]): str(r["處理狀態"]) for r in video_rows(ss)}
             return fresh.get(v["id"]) == "完成"
         except NotReadyYet as e:
-            print(f"VOD 還沒好：{e}，稍後再敲")
+            print(f"流程等待接續：{e}")
             write_status_log(ss, "等待中", str(e))
             return False
 

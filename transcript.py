@@ -763,7 +763,10 @@ def find_video(target: date):
 # 用 start_offset / end_offset 指定範圍分別送出，最後接起來。
 # ---------------------------------------------------------------- #
 POLL_SECONDS = 10
-SEGMENT_TIMEOUT = 15 * 60       # 實測每段 1～3 分鐘，15 分鐘沒結果就重送
+SEGMENT_TIMEOUT = int(os.environ.get('TRANSCRIPT_SEGMENT_TIMEOUT_SEC', '600'))
+BACKGROUND_QUEUE_TIMEOUT = int(os.environ.get('TRANSCRIPT_QUEUE_TIMEOUT_SEC', '120'))
+POLL_REQUEST_TIMEOUT = 30
+STREAM_READ_TIMEOUT = 90
 MIN_SPLIT_SECONDS = 5 * 60
 MAX_ROUNDS = 3
 RETRY_WAIT = (30, 90)           # 兩次合計超過一分鐘，順便避開每分鐘額度限制
@@ -774,13 +777,7 @@ NON_RETRYABLE = {401, 403, 404}  # 金鑰無效、沒權限、模型不存在：
 STREAM_RESUME_ATTEMPTS = 3
 STREAM_RESUME_WAIT = 5
 
-# 模型負載過高。這是**模型層級**的問題，不是金鑰層級的。
-#
-# 2026/09/17 實測：gemini-3.5-flash-lite 回 high demand 時，兩把金鑰
-# 輪流送了四次、耗掉 11 分鐘，每一次都是同樣的錯誤——因為壅塞的是模型本身，
-# 所有金鑰共用同一份容量。換金鑰完全沒有用，只是把時間燒掉。
-#
-# 正確做法是**換模型**（或退開等一下），所以這一類要跟額度、跟一般失敗分開認。
+# 503 是暫時服務問題，不代表金鑰失效或配額用盡；有限重試後再使用備援。
 OVERLOAD_HINTS = ("high demand", "overloaded", "unavailable", "try again later",
                   "resource exhausted", "server is busy", "temporarily")
 
@@ -797,7 +794,7 @@ def _is_overload(status, message: str) -> bool:
 
     503 一律算；api_error 帶 high demand 那類措辭也算。
     要注意不能把 429（額度）誤判進來——那是兩回事，處理方式也不同：
-    額度要換金鑰或等重置，負載過高要換模型。
+    額度要核對專案配額，負載過高要有限退避後再試。
     """
     if status == 429:
         return False
@@ -861,8 +858,8 @@ def _output_text(result) -> str:
 class Transcriber:
     """用 Gemini 把一支 YouTube 影片聽打成逐字稿。
 
-    額度是「每把金鑰 × 每個模型」分開算的，所以多備幾把金鑰、設一個備援
-    模型，就能在免費額度內處理完一整集。
+    額度依 Google 專案與模型計算；同一專案的多把金鑰不會增加配額。
+    503 是暫時過載，先輪替可用金鑰，再退避重試，最後才使用備援模型。
     """
 
     def __init__(self, keys, model=GEMINI_MODEL, fallback=None,
@@ -890,7 +887,6 @@ class Transcriber:
         self.fps = fps
         self.probe_enabled = probe
         self.exhausted = set()          # (金鑰編號, 模型) 額度已用完
-        self.overloaded = set()         # 這一輪負載過高的模型
         self.stream_models = set()      # 不支援 background 的模型，改用串流
         self.healthy_until = {}
         self.models_used = []
@@ -927,7 +923,7 @@ class Transcriber:
             if time.monotonic() - RUN_STARTED > TIME_BUDGET - 60:
                 raise NotReadyYet('本輪時間不足，已完成片段保留，下一棒接續')
             text = self._range(video_url, start, end)
-            block = f"【{hms(start)} – {hms(end)}】\n{text.strip()}"
+            block = text.strip()  # 時間只記在日誌與快取鍵，不混入節目原文。
             done[key] = block
             sections.append(block)
         return "\n\n".join(sections)
@@ -950,8 +946,6 @@ class Transcriber:
         """換下一個還能用的模型。沒得換就回 False。"""
         old = self.model
         for nxt in range(self.model_index + 1, len(self.models)):
-            if self.models[nxt] in self.overloaded:
-                continue
             if all((k, self.models[nxt]) in self.exhausted for k in range(len(self.keys))):
                 continue
             self.model_index = nxt
@@ -961,6 +955,8 @@ class Transcriber:
         return False
 
     def _range(self, video_url, start, end) -> str:
+        # 每個新片段重新試主模型；一次 503 不讓主模型整輪退出。
+        self.model_index = 0
         while True:
             try:
                 text, complete = self._request(video_url, start, end)
@@ -970,10 +966,7 @@ class Transcriber:
                 if not self._next_model(f"所有金鑰額度用完（{e}）"):
                     raise
             except ModelOverloaded as e:
-                # 負載過高。壅塞的是模型本身，所有金鑰共用同一份容量，
-                # 換金鑰不可能有用——2026/09/17 就是這樣白燒了 11 分鐘。
-                self.overloaded.add(self.model)
-                if not self._next_model(f"負載過高（{e}）"):
+                if not self._next_model(f"三輪退避後仍暫時過載（{e}）"):
                     # 每個模型都在忙。這是暫時的，交給外層的輪詢迴圈三分鐘後再試，
                     # 比在這裡繼續重送有用得多——而且不會把這一集判成失敗。
                     raise NotReadyYet(
@@ -998,8 +991,8 @@ class Transcriber:
         """送出一段影片並等結果，回傳 (逐字稿, 是否完整)。
 
         失敗處理，依「這個失敗是誰造成的」分流：
-          模型負載過高　→ ModelOverloaded，立刻換模型。**不換金鑰。**
-                          壅塞的是模型，所有金鑰共用同一份容量。
+          模型負載過高　→ 本輪換下一把，不標壞；所有可用金鑰都試過才退避。
+                          三輪仍過載才 ModelOverloaded，交給備援模型。
           額度用完　　　→ 429／每日額度 → 標記這把金鑰在這個模型用完，換下一把；
                           全部用完就 QuotaExhausted，由上層換模型。
           其他可重試　　→ 400、逾時、連線錯誤 → 換下一把金鑰重送
@@ -1015,6 +1008,7 @@ class Transcriber:
         attempt = 0
         last_error = ""
         quota_rounds = 0
+        overload_seen = False
 
         for round_no in range(1, MAX_ROUNDS + 1):
             if round_no > 1:
@@ -1035,7 +1029,14 @@ class Transcriber:
                 self.key_index = key
                 tag = f"，金鑰 #{key + 1}" if multi else ""
 
-                ok, why, is_quota = self._probe(key)
+                try:
+                    ok, why, is_quota = self._probe(key)
+                except ModelOverloaded as exc:
+                    all_quota = False
+                    overload_seen = True
+                    last_error = str(exc)[:200]
+                    log(f"    金鑰 #{key + 1} 快速檢查暫時過載，換下一把：{last_error}")
+                    continue
                 if not ok:
                     last_error = f"金鑰 #{key + 1} 快速檢查未通過（{self.model}）：{why}"
                     log(f"    {last_error}")
@@ -1071,8 +1072,13 @@ class Transcriber:
                     if status in NON_RETRYABLE and not is_quota_403:
                         raise
                     if _is_overload(status, message):
-                        # 換金鑰沒有用，馬上把這個模型讓出去。
-                        raise ModelOverloaded(message[:200])
+                        all_quota = False
+                        overload_seen = True
+                        last_error = f"HTTP {status}：{message[:200]}"
+                        log(f"    暫時過載，不停用模型或金鑰，換下一把：{last_error}")
+                        continue
+                    if isinstance(exc, NotReadyYet):
+                        raise
                     if status == 429 or is_quota_403:
                         detail = _quota_summary(message) or message[:300]
                         if _is_daily_quota(message) or is_quota_403:
@@ -1095,7 +1101,11 @@ class Transcriber:
                 if status in ("failed", "cancelled") or not text.strip():
                     detail = str(errors) if errors else (status or "無輸出")
                     if _is_overload(None, detail):
-                        raise ModelOverloaded(detail[:200])
+                        all_quota = False
+                        overload_seen = True
+                        last_error = detail[:200]
+                        log(f"    暫時過載，不停用模型或金鑰，換下一把：{last_error}")
+                        continue
                     all_quota = False
                     last_error = f"狀態 {status or '無輸出'}：{detail[:200]}"
                     log(f"    失敗　{last_error}")
@@ -1123,6 +1133,8 @@ class Transcriber:
             else:
                 quota_rounds = 0
 
+        if overload_seen:
+            raise ModelOverloaded(last_error)
         raise RuntimeError(f"Gemini 轉錄 {hms(start)}–{hms(end)} 重試 {attempt} 次仍失敗。"
                            f"最後錯誤：{last_error}")
 
@@ -1144,7 +1156,7 @@ class Transcriber:
         """
         if self.model not in self.stream_models:
             try:
-                interaction = self.client.interactions.create(**request, background=True, timeout=self._timeout())
+                interaction = self.client.interactions.create(**request, background=True, timeout=min(60, self._timeout()))
             except Exception as exc:
                 status, message = _err(exc)
                 if not (status == 400 and "does not support background" in message.lower()):
@@ -1158,16 +1170,35 @@ class Transcriber:
     def _wait(self, interaction):
         """背景模式：輪詢到結束。"""
         deadline = time.monotonic() + self._timeout()
+        queue_deadline = time.monotonic() + BACKGROUND_QUEUE_TIMEOUT
+        next_log = time.monotonic() + 30
         while str(getattr(interaction, "status", "")) in ("queued", "in_progress"):
-            if time.monotonic() > deadline:
+            queued_too_long = str(interaction.status) == 'queued' and time.monotonic() > queue_deadline
+            if time.monotonic() > deadline or queued_too_long:
                 # 放棄前先取消，否則背景工作還在跑、還在計額度。
                 try:
-                    self.client.interactions.cancel(id=interaction.id)
+                    self.client.interactions.cancel(id=interaction.id, timeout=10)
                 except Exception:
                     pass
-                raise TimeoutError(f"等待 Gemini 超過 {SEGMENT_TIMEOUT // 60} 分鐘")
+                if queued_too_long:
+                    raise ModelOverloaded('背景排隊超過兩分鐘，已要求取消')
+                raise TimeoutError(f"等待 Gemini 超過 {SEGMENT_TIMEOUT // 60} 分鐘，已要求取消")
+            if time.monotonic() >= next_log:
+                log(f"    Gemini 背景狀態 {interaction.status}，仍在等待；單段上限 {SEGMENT_TIMEOUT // 60} 分鐘")
+                next_log = time.monotonic() + 30
             time.sleep(POLL_SECONDS)
-            interaction = self.client.interactions.get(id=interaction.id, timeout=self._timeout())
+            try:
+                interaction = self.client.interactions.get(id=interaction.id, timeout=max(1, min(POLL_REQUEST_TIMEOUT, deadline-time.monotonic(), self._timeout())))
+            except Exception as exc:
+                code, message = _err(exc)
+                if code is None or code in (429, 500, 502, 503, 504):
+                    log(f"    背景查詢暫時失敗，續查同一工作，不重送影片：{message[:100]}")
+                    continue
+                try:
+                    self.client.interactions.cancel(id=interaction.id, timeout=10)
+                except Exception:
+                    pass
+                raise
         return interaction
 
     def _run_stream(self, request):
@@ -1186,8 +1217,8 @@ class Transcriber:
         已收到的文字保留、不重送影片、不多花額度。
         """
         client = self.client
-        stream = client.interactions.create(**request, stream=True, timeout=self._timeout())
         deadline = time.monotonic() + self._timeout()
+        stream = client.interactions.create(**request, stream=True, timeout=min(STREAM_READ_TIMEOUT, self._timeout()))
         parts, completed = [], None
         interaction_id = last_event_id = None
         step_type = None
@@ -1229,6 +1260,11 @@ class Transcriber:
                 status, message = _err(exc)
                 # 只有「連線中斷」（沒有 HTTP 狀態碼）而且拿得到 interaction ID 才接續
                 if status is not None or not interaction_id or resumes >= STREAM_RESUME_ATTEMPTS:
+                    if interaction_id:
+                        try:
+                            client.interactions.cancel(id=interaction_id, timeout=10)
+                        except Exception:
+                            pass
                     raise
                 disconnect = message
             finally:
@@ -1245,7 +1281,7 @@ class Transcriber:
                 parts.clear()      # 還沒收到可定位的事件：從頭收，避免文字重複
             stream = client.interactions.get(id=interaction_id, stream=True,
                                              last_event_id=last_event_id,
-                                             timeout=self._timeout())
+                                             timeout=max(1, min(STREAM_READ_TIMEOUT, deadline-time.monotonic(), self._timeout())))
 
         if completed is None:
             raise RuntimeError("串流在收到完成事件前就結束了")
@@ -1266,7 +1302,7 @@ class Transcriber:
         「金鑰壞了／沒額度」，容量問題要靠 _request 那邊認。
 
         探測本身逾時則是另一回事：連 16 個 token 都回不了，代表整個服務在塞，
-        那要當成模型負載過高（丟 ModelOverloaded 換模型），而不是
+        那要當成暫時負載過高（輪完可用金鑰後退避），而不是
         「這把金鑰不行」——後者會讓程式繼續在同一個塞住的模型上輪金鑰。
         """
         if not self.probe_enabled:

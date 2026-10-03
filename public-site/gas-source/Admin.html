@@ -2007,6 +2007,7 @@ window.__onLayoutChange = function (what) {
       btn.setAttribute('aria-selected', 'true');
       document.querySelectorAll('.panel').forEach(function (p) { p.hidden = true; });
       $('p-' + btn.dataset.tab).hidden = false;
+      if (window.__fxRiseIn) { window.__fxRiseIn($('p-' + btn.dataset.tab)); }   // v109：面板本身已有 rd-fade；已畫好的卡片依序浮起一次
       /* 會員簡訊與其他分頁同寬（v54，管理者：「你看其他資料修正維護工具，它都是全版的」）。
          先前切到會員簡訊時另外收成 1280px，只有它比別頁窄。 */
       // 兩頁的日曆都要向後端問哪幾天已經有紀錄，第一次切過去時才載入。
@@ -5509,6 +5510,54 @@ setTimeout(initCrawlDayPills, 50);
     }
   });
 })();
+</script>
+<script>
+/* ---------------- v109 全站零星動態 ----------------
+   只在三種時機動：切換分頁、資料剛畫上來、第一次捲到。內容從頭到尾都看得到（只做位移，不從透明開始），
+   一次最多 12 個依序浮起、不循環；系統設定減少動態時完全不動。前台與後台共用同一段（後台另貼一份）。 */
+(function () {
+  var reduce = false;
+  try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+  function items(box) {
+    if (!box) { return []; }
+    var body = box.tagName === 'TBODY' ? box : box.querySelector(':scope > table > tbody, :scope > .card > table > tbody, :scope > div > table > tbody');
+    var list = body || (box.children.length === 1 && box.firstElementChild.children.length > 1 ? box.firstElementChild : box);
+    return [].slice.call(list.children, 0, 12);
+  }
+  function rise(box) {
+    if (reduce || !box || box.closest('[hidden]')) { return false; }
+    var list = items(box).filter(function (el) { return !el.classList.contains('skel') && !el.querySelector(':scope > .skel'); });
+    if (!list.length) { return false; }   // 還是讀取中的骨架就不動，等真資料
+    list.forEach(function (el, i) {
+      el.style.setProperty('--i', i);
+      el.classList.remove('fx-rise'); void el.offsetWidth; el.classList.add('fx-rise');
+    });
+    return true;
+  }
+  document.addEventListener('animationend', function (e) {
+    if (e.animationName === 'fxRise') { e.target.classList.remove('fx-rise'); }
+  });
+  /* 資料重畫時（innerHTML 換掉）浮起一次；同一格在 1.2 秒內只播一次，輪詢更新不會一直動。 */
+  function watch(ids) {
+    if (reduce || !window.MutationObserver) { return; }
+    ids.forEach(function (id) {
+      var box = document.getElementById(id);
+      if (!box) { return; }
+      var last = 0;
+      new MutationObserver(function (muts) {
+        if (!muts.some(function (m) { return m.type === 'childList' && m.addedNodes.length; })) { return; }
+        if (Date.now() - last < 1200) { return; }
+        (window.requestAnimationFrame || setTimeout)(function () { if (rise(box)) { last = Date.now(); } });
+      }).observe(box, { childList: true });
+    });
+  }
+  var watched = [];
+  function riseIn(p) { watched.forEach(function (id) { var b = document.getElementById(id); if (b && p.contains(b)) { rise(b); } }); }
+  window.__fxRise = rise;
+  window.__fxRiseIn = riseIn;
+  window.__fxWatch = function (ids) { watched = watched.concat(ids); watch(ids); };
+})();
+window.__fxWatch(['todayAutomation', 'todayHealth', 'todaySmsOps', 'opsCards', 'opsFlow', 'lineCards', 'lineRecent']);
 </script>
 </body>
 </html>

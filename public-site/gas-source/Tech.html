@@ -3,6 +3,24 @@
     <h2 data-toc="開頭">想找一檔股票上次講了什麼，我做了這個網站</h2>
     <p>每天中午的直播大約一小時，<mark class="hl">買賣、持股、觀望和教學常常混在同一段話裡</mark>；盤中另外還有會員簡訊，發在別的地方。以前想查「力積電上次提到的成本」，我得先猜是哪一週，再翻簡訊、拖影片時間軸，語音稿還可能把它寫成「立即電」。</p>
     <p>所以我做了這個網站：<mark class="hl">把每天講過的話整理成可以按日期、按股票查的紀錄，每一筆都能回到原句核對</mark>。說不出依據的就寫「未說明」，不補、不猜。</p>
+    <figure class="tech-hero" data-hero aria-labelledby="heroCap">
+      <figcaption class="th-cap" id="heroCap">一筆紀錄的五站路程：以 9/23 為例</figcaption>
+      <div class="th-ctl">
+        <button type="button" class="th-play" id="heroPlay" aria-pressed="false"><span class="th-ic" aria-hidden="true">▶</span><span class="th-lb">播放這一天</span></button>
+        <label class="th-scrub" for="heroRange"><span>第 <b id="heroN">1</b> / 5 站</span><input type="range" id="heroRange" min="0" max="4" step="1" value="0" aria-describedby="heroNote"></label>
+      </div>
+      <div class="th-track" id="heroTrack" style="--p:0;--n:5">
+        <span class="th-rail" aria-hidden="true"></span><span class="th-fill" aria-hidden="true"></span><span class="th-packet" aria-hidden="true"></span>
+        <ol class="th-line">
+          <li class="is-on is-cur"><span class="th-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4" width="14" height="10" rx="2"/><path d="M8 7.3l4 1.7-4 1.7z"/><path d="M13 17h7.5v-6.5h-3"/></svg></span><b>直播與簡訊</b><small>來源</small></li>
+          <li><span class="th-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M9 12h6M9 15h6M9 18h3"/></svg></span><b>原稿與指紋</b><small>SHA-256</small></li>
+          <li><span class="th-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/><path d="M8 10.5l2 2 3.5-4"/></svg></span><b>判讀與核對</b><small>股名・主詞・數字</small></li>
+          <li><span class="th-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M3 14h18M9 9v11"/></svg></span><b>寫入紀錄</b><small>當日・持股</small></li>
+          <li><span class="th-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="5" width="19" height="13" rx="2"/><path d="M3 6l9 6.5L21 6"/></svg></span><b>網站與寄信</b><small>Email・LINE</small></li>
+        </ol>
+      </div>
+      <p class="th-note" id="heroNote" aria-live="polite"><time>10:10–11:05</time>會員簡訊先進來、影片回放晚一點出現；兩個來源各自先存下原文，不互相等待。</p>
+    </figure>
     <p>我是李世勛。網站整理公開直播與會員簡訊，與頻道沒有隸屬關係，也不提供投資建議。先選一個你最常遇到的查找困難，看網站怎麼回答：</p>
     <div class="tech-lab tech-pain-lab" data-pain-lab>
       <div class="tech-pains" role="group" aria-label="三種查找困難">
@@ -13,9 +31,9 @@
       <ol class="tech-path" id="painPath">
         <li class="tone-skip"><span class="tp-k">以前要怎麼找</span><p>先猜是哪一週，再翻簡訊、拖影片時間軸。</p></li>
         <li class="tone-stop"><span class="tp-k">哪裡容易出錯</span><p>語音稿把力積電寫成「立即電」，用正確名稱反而搜不到。</p></li>
-        <li class="tone-ok"><span class="tp-k">現在得到的回答</span><p>個股查詢列出每次提及的日期與原句；常見誤字也找得到。</p></li>
+        <li class="tone-ok"><span class="tp-k">現在得到的回答</span><p>個股查詢列出每次提及的日期與原句；常見誤字也找得到。</p><div class="mini mini-search" aria-hidden="true"><span class="mini-box"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/></svg><span class="mini-q">立即電</span><i class="mini-caret"></i></span><span class="mini-hit"><b>力積電 6770</b><small>9/23 原句・可回查</small></span></div></li>
       </ol>
-      <p class="tech-pain-go" id="painGo"><a href="#tech-names">看股名聽錯怎麼處理 →</a></p>
+      <p class="tech-pain-go" id="painGo"><a class="tech-next" href="#tech-names"><span class="tn-k">往下看</span><b>股名聽錯怎麼處理</b><i aria-hidden="true">↓</i></a></p>
     </div>
     <p>這一頁接著依序說明：資料怎麼流動、9 月 23 日實際走過的一天、股名／主詞／數字／沒講名字四種證據怎麼核對、新稿來時舊工單怎麼不蓋回去、公開說明怎麼取捨，最後是持股績效、出錯時與限制。</p>
     <div class="tech-cards" id="techLive" aria-live="polite">
@@ -213,6 +231,7 @@
         <li class="tone-ok"><span class="tp-k">二次稽核</span><b>沒有矛盾</b></li>
         <li class="tone-ok"><span class="tp-k">結果</span><b>✓ 收錄</b></li>
       </ol>
+      <div class="un-range" id="unRange" aria-hidden="true"></div>
       <div class="tech-verdicts" id="unVerdicts">
         <div class="tech-verdict tone-ok is-selected" data-un-card="one"><span class="tv-badge">收錄</span><b>昨收 1770 的只有一檔</b><p>嘉澤 9/30 收 1770，當天 1760～1865 包含「現在 1800」。送二次稽核，通過後收錄。</p></div>
         <div class="tech-verdict tone-stop" data-un-card="two"><span class="tv-badge">不計入</span><b>昨收 1770 的有兩檔</b><p>分不出是哪一檔，不收錄；判定歷程寫「同價兩檔」。</p></div>
@@ -231,6 +250,8 @@
       <div class="tech-options" role="group" aria-label="原稿與工單的情況">
         <button type="button" data-tx="newer" aria-pressed="true">潤飾中原稿更新</button><button type="button" data-tx="same" aria-pressed="false">相同原稿再貼一次</button><button type="button" data-tx="cancel" aria-pressed="false">取消這一次工單</button><button type="button" data-tx="pause" aria-pressed="false">今天暫停自動取稿</button><button type="button" data-tx="m503" aria-pressed="false">模型 503</button><button type="button" data-tx="trunc" aria-pressed="false">回應截斷或 JSON 無效</button><button type="button" data-tx="gap" aria-pressed="false">證據缺漏</button><button type="button" data-tx="lock" aria-pressed="false">共用鎖忙碌</button>
       </div>
+      <div class="tx-scrolly">
+      <div class="tx-sticky">
       <div class="tx-fp is-diff" id="txFp"><span>試算表原稿 <code>B71C…</code></span><i aria-hidden="true">≠</i><span>工單讀到 <code>A3F9…</code></span><b>指紋不同</b></div>
       <ol class="tx-stages" id="txStages" aria-label="各段狀態">
         <li class="tone-ok"><span class="tp-k">原稿</span><span class="tx-st">✓ 保留新稿</span><p>偵測到新稿 B，以新稿為準</p></li>
@@ -245,6 +266,18 @@
         <div><dt>哪些可以沿用</dt><dd>新稿從頭潤飾；舊工單已落地的紀錄不刪。</dd></div>
         <div><dt>下一輪從哪裡接</dt><dd>後台記「潤飾期間原稿已更新」，下一輪改讀新稿。</dd></div>
       </dl>
+      </div>
+      <ol class="tx-steps" aria-label="往下讀八種情況">
+        <li data-tx-step="newer" class="is-active"><span class="txs-n">1</span><b>潤飾中原稿更新</b><p>寫回前重讀原稿，指紋不同：舊結果作廢，以新稿為準。</p></li>
+        <li data-tx-step="same"><span class="txs-n">2</span><b>相同原稿再貼一次</b><p>指紋相同，修飾稿直接沿用；分類與原句照樣重新核對。</p></li>
+        <li data-tx-step="cancel"><span class="txs-n">3</span><b>取消這一次工單</b><p>只停這一個工單；已存的原稿與片段都留著。</p></li>
+        <li data-tx-step="pause"><span class="txs-n">4</span><b>今天暫停自動取稿</b><p>整天停手，直到貼上原稿或按「恢復自動取稿」。</p></li>
+        <li data-tx-step="m503"><span class="txs-n">5</span><b>模型 503</b><p>服務暫時過載，不是額度用完：換金鑰、退避，片段保留。</p></li>
+        <li data-tx-step="trunc"><span class="txs-n">6</span><b>回應截斷或 JSON 無效</b><p>加大輸出空間重送一次；仍有疑點就不宣稱通過。</p></li>
+        <li data-tx-step="gap"><span class="txs-n">7</span><b>證據缺漏</b><p>找不到原句的那幾檔不發布，列待複核。</p></li>
+        <li data-tx-step="lock"><span class="txs-n">8</span><b>共用鎖忙碌</b><p>文章與寄送已完成；績效留給下一輪——文章完成不等於績效完成。</p></li>
+      </ol>
+      </div>
       <p class="tech-legend"><span class="tone-ok">✓ 完成</span><span class="tone-resume">↻ 自動接續</span><span class="tone-wait">⏸ 等待</span><span class="tone-stop">! 待複核</span><span class="tone-skip">— 不做</span></p>
     </div>
     <details class="tech-text-map"><summary>文字版規則與工程細節</summary>
@@ -261,7 +294,7 @@
 
   <section class="tech-section" id="tech-public-notes">
     <h2 data-toc="說明內容">這句話為什麼能公開，另一句為什麼待複核？</h2>
-    <p>每一則公開說明都要<mark class="hl">回得到原句</mark>：有依據的事實、條件與風險留下，寫作過程、重複句和借來的消息拿掉，有矛盾的交給我複核。選一個案例，看從原句到公開文字的每一步。</p>
+    <p>每一則公開說明都要<mark class="hl">回得到原句</mark>：有依據的事實、條件與風險<span class="kw tone-ok">留</span>下，寫作過程與重複句<span class="kw tone-stop">刪</span>掉，借自別家的消息<span class="kw tone-warn">移</span>到內部稽核，有矛盾的交給我<span class="kw tone-resume">複核</span>。選一個案例，看從原句到公開文字的每一步。</p>
     <div class="tech-lab tech-pn-lab" data-pn-lab>
       <p class="tech-demo-h">選一個案例<span class="tech-tag">甲、乙、丙等公司皆為示意</span></p>
       <div class="tech-options is-long" role="group" aria-label="公開說明案例">
@@ -292,10 +325,23 @@
     <p>同一檔可以賣出後再買回，所以我用一段一段的「持有回合」記錄。<mark class="hl">明確買入或第一次說目前持有時，進場取當日最低；明確賣出、轉成觀望不碰，或超過 10 個交易日未提及時，出場取出場日當日最高</mark>。後兩種情況若當天沒有日 K，只找當天以前最近的交易日，<strong>不能向後取價</strong>。後台若人工修正該回合成本，以修正值優先；節目講到的價位只作附註。</p>
     <p>每日績效是當天所有持有中回合的未實現報酬平均；歷史走勢用進場價和每天收盤重算，出場價只影響已結束的回合。<mark class="hl">進場用最低、出場用最高，是能取得的理想上限示意</mark>，沒有計入手續費、稅和滑價，不能當成實際成交報酬。</p>
     <div class="tech-lab tech-slider">
-      <p class="tech-demo-h">拖動日期，看一個回合什麼時候結束</p>
-      <ol class="tech-timeline" id="techTimeline"><li><time>8/06</time><div>首次買入，建立回合</div></li><li><time>8/07</time><div>再次提及</div></li><li><time>8/10</time><div>最後一次提及</div></li><li><time>8/17</time><div>尚未超過十個交易日</div></li><li><time>8/25</time><div>確認逾期，回溯到最後提及日定價</div></li><li><time>9/01</time><div>若重新買入，另開新回合</div></li></ol>
-      <label for="tlSlider">觀測日期：<b id="tlDay">8/06</b></label><input type="range" id="tlSlider" min="0" max="5" step="1" value="0" aria-describedby="tlState">
-      <p class="tech-result" id="tlState" aria-live="polite"></p>
+      <p class="tech-demo-h">播放或拖動日期，看一個回合什麼時候結束</p>
+      <div class="th-ctl">
+        <button type="button" class="th-play" id="tlPlay" aria-pressed="false"><span class="th-ic" aria-hidden="true">▶</span><span class="th-lb">播放這個回合</span></button>
+        <label class="th-scrub" for="tlSlider"><span>觀測日期 <b id="tlDay">8/06</b></span><input type="range" id="tlSlider" min="0" max="5" step="1" value="0" aria-describedby="tlState"></label>
+      </div>
+      <div class="th-track tl-track" id="tlTrack" style="--p:0;--n:6">
+        <span class="th-rail" aria-hidden="true"></span><span class="th-fill" aria-hidden="true"></span><span class="th-packet" aria-hidden="true"></span>
+        <ol class="th-line" id="techTimeline">
+          <li class="is-on is-cur"><span class="th-icon tl-date"><time>8/06</time></span><b>首次買入</b><small>建立回合</small></li>
+          <li ><span class="th-icon tl-date"><time>8/07</time></span><b>再次提及</b><small>更新提及日</small></li>
+          <li ><span class="th-icon tl-date"><time>8/10</time></span><b>最後提及</b><small>仍持有</small></li>
+          <li ><span class="th-icon tl-date"><time>8/17</time></span><b>未滿十日</b><small>仍算持有</small></li>
+          <li class="tl-exit"><span class="th-icon tl-date"><time>8/25</time></span><b>確認逾期</b><small>回溯定價出場</small></li>
+          <li class="tl-again"><span class="th-icon tl-date"><time>9/01</time></span><b>重新買入</b><small>另開回合</small></li>
+        </ol>
+      </div>
+      <p class="tech-result" id="tlState" aria-live="polite">首次買入，進場價取 8/06 當日最低；講出的價格只作附註。</p>
     </div>
   </section>
 
@@ -661,7 +707,7 @@
     noshow: [['取稿時段', '找不到當天的影片，後台標示沒有直播'], ['寄信', '不寄每日總覽'], ['網站', '郵件查詢那一天留空']],
     holiday: [['當天', '休市日，或隔年休市日尚未核實時，台股自動工作暫停'], ['內容', '已發布的資料仍可查詢'], ['績效', '休市日不新增每日績效']]
   };
-  function drawDay(k) { one('#dayLane').innerHTML = days[k].map(function (x) { return '<li><time>' + x[0] + '</time><span>' + x[1] + '</span></li>'; }).join(''); }
+  function drawDay(k) { one('#dayLane').innerHTML = days[k].map(function (x) { return '<li><time>' + x[0] + '</time><span>' + x[1] + '</span></li>'; }).join(''); play(one('#dayLane')); }
   all('[data-day]').forEach(function (b) { b.addEventListener('click', function () { select(all('[data-day]'), b); drawDay(b.dataset.day); }); }); drawDay('late');
 
   /* ---------- 共用的結果卡：顏色標示結論，下面寫原因 ---------- */
@@ -727,9 +773,26 @@
     ['8/06', '首次買入，進場價取 8/06 當日最低；講出的價格只作附註。'], ['8/07', '再次提及，更新最後提及日。'], ['8/10', '最後一次提及，仍在持有中。'],
     ['8/17', '尚未超過 10 個交易日，仍算持有。'], ['8/25', '這時才確認逾期出場；回溯取 8/10 當日最高，缺日 K 只往前找。'], ['9/01', '如果後來重新買入，另開第二個回合。']
   ];
-  var slider = one('#tlSlider');
-  function drawTimeline() { var i = Number(slider.value); one('#tlDay').textContent = times[i][0]; one('#tlState').textContent = times[i][1]; all('#techTimeline li').forEach(function (li, n) { li.classList.toggle('is-current', n === i); li.classList.toggle('is-past', n < i); }); }
-  slider.addEventListener('input', drawTimeline); drawTimeline();
+  var slider = one('#tlSlider'), tlTimer = 0;
+  function drawTimeline() {
+    var i = Number(slider.value);
+    one('#tlDay').textContent = times[i][0]; one('#tlState').textContent = times[i][1];
+    one('#tlTrack').style.setProperty('--p', i);
+    all('#techTimeline li').forEach(function (li, n) { li.classList.toggle('is-on', n <= i); li.classList.toggle('is-cur', n === i); });
+  }
+  function tlStop() {
+    clearInterval(tlTimer); tlTimer = 0;
+    var b = one('#tlPlay'); b.setAttribute('aria-pressed', 'false');
+    b.querySelector('.th-ic').textContent = '▶'; b.querySelector('.th-lb').textContent = '播放這個回合';
+  }
+  one('#tlPlay').addEventListener('click', function () {
+    if (tlTimer) { tlStop(); return; }
+    if (Number(slider.value) >= 5) { slider.value = 0; drawTimeline(); }
+    var b = one('#tlPlay'); b.setAttribute('aria-pressed', 'true');
+    b.querySelector('.th-ic').textContent = '❚❚'; b.querySelector('.th-lb').textContent = '暫停';
+    tlTimer = setInterval(function () { slider.value = Number(slider.value) + 1; drawTimeline(); if (Number(slider.value) >= 5) tlStop(); }, 1500);
+  });
+  slider.addEventListener('input', function () { tlStop(); drawTimeline(); }); drawTimeline();
 
   /* ---------- 出錯時：四段工作的狀態 ---------- */
   var LANES = ['取稿', '判讀', '網站文章', '背景計算'];
@@ -751,6 +814,7 @@
       return '<div class="tech-lane ' + st[0] + '"><span class="tl-name">' + LANES[i] + '</span><span class="tl-state">' + st[1] + '</span><p>' + esc(x[1]) + '</p></div>';
     }).join('');
     one('#failNote').textContent = f[1];
+    play(one('#failLanes'));
   }
   all('[data-fail]').forEach(function (b) { b.addEventListener('click', function () { drawFail(b.dataset.fail); }); }); drawFail('late');
 
@@ -768,28 +832,153 @@
   function drawCan(i) { select(all('[data-can]'), all('[data-can]')[i]); var c = cans[i]; verdict(one('#canResult'), c[0], c[1], c[2], c[3]); }
   all('[data-can]').forEach(function (b) { b.addEventListener('click', function () { drawCan(Number(b.dataset.can)); }); }); drawCan(0);
 
+  /* ---------- v109 動態：只在使用者操作或模組第一次捲進畫面時播放，內容從頭到尾都看得到 ----------
+     不做透明淡入（v107 拿掉的那種）：卡片只做位移與一圈光暈，依序 70ms 錯開；減少動態時完全不播。 */
+  var booted = false;
+  function play(box) {
+    if (!box || reduce || !booted) return;
+    Array.prototype.forEach.call(box.children, function (el, i) {
+      el.style.setProperty('--i', i);
+      el.classList.remove('tech-anim'); void el.offsetWidth; el.classList.add('tech-anim');
+    });
+  }
+  root.addEventListener('animationend', function (e) { if (e.animationName === 'techRise') e.target.classList.remove('tech-anim'); });
+  var PLAY_SETS = ['.tech-path', '.tech-pain-go', '.tech-real', '.tech-dayline', '.tech-verdicts', '.decision-grid', '.tx-stages', '.tx-out',
+    '.pn-desk', '.un-chain', '.tech-lanes', '.tech-timeline', '.tech-flow'];
+  function playIn(scope) { PLAY_SETS.forEach(function (sel) { Array.prototype.forEach.call(scope.querySelectorAll(sel), play); }); }
+  if ('IntersectionObserver' in window && !reduce) {
+    var seen = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        seen.unobserve(en.target);
+        playIn(en.target);
+      });
+    }, { threshold: 0.25 });
+    all('.tech-lab, .tech-real, .tech-flow').forEach(function (el) { seen.observe(el); });
+  }
+  /* 「往下看」：平滑捲到章節、標題劃一道重點色，再播放該章的模組；上一頁仍回到原處。 */
+  function barBottom() {
+    var top = 0;
+    // 頂列與分頁列都是黏住的；分頁列黏在頂列下面（桌面 68px），不能只算 top≤1 的那一條
+    document.querySelectorAll('.topbar, .tabbar').forEach(function (el) {
+      var r = el.getBoundingClientRect(), pos = getComputedStyle(el).position;
+      if (r.height && (pos === 'sticky' || pos === 'fixed') && r.top >= -1 && r.top < 200) top = Math.max(top, r.bottom);
+    });
+    return top || 120;
+  }
+  function arrive(target) {
+    var h2 = target.querySelector('h2') || target;
+    // 讓瀏覽器自己對準：標題上方留出黏住的頂列＋分頁列高度，捲動途中版面變動也不會偏
+    h2.style.scrollMarginTop = (barBottom() + 16) + 'px';
+    try { h2.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' }); } catch (e) { h2.scrollIntoView(true); }
+    // 停下來再量一次（手機頂列捲動後會變高、平滑捲動在某些環境不會動），必要時直接對準
+    var fix = function () {
+      var gap = h2.getBoundingClientRect().top - barBottom();
+      if (gap < 8 || gap > 40) { try { window.scrollTo({ top: window.scrollY + gap - 16, behavior: 'instant' }); } catch (e) { window.scrollTo(0, window.scrollY + gap - 16); } }
+    };
+    // 等捲動真的停下來（連兩次位置不變）才校正；途中校正會被平滑捲動蓋掉
+    var last = -1, still = 0, tries = 0;
+    clearInterval(arrive.w);
+    arrive.w = setInterval(function () {
+      tries++;
+      if (Math.abs(window.scrollY - last) < 1) still++; else still = 0;
+      last = window.scrollY;
+      if (still >= 2 || tries > 30) { clearInterval(arrive.w); fix(); }
+    }, 100);
+    all('.tech-section.is-arrived').forEach(function (s) { s.classList.remove('is-arrived'); });
+    target.classList.add('is-arrived');
+    var h = target.querySelector('h2');
+    if (h) { if (!h.hasAttribute('tabindex')) h.setAttribute('tabindex', '-1'); try { h.focus({ preventScroll: true }); } catch (e) {} }
+    setTimeout(function () { playIn(target); }, reduce ? 0 : 420);
+    clearTimeout(arrive.t); arrive.t = setTimeout(function () { target.classList.remove('is-arrived'); }, 2600);
+  }
+  root.addEventListener('click', function (e) {
+    var a = e.target.closest && e.target.closest('a.tech-next');
+    if (!a) return;
+    var target = root.querySelector(a.getAttribute('href'));
+    if (!target) return;
+    e.preventDefault();
+    try { history.pushState(null, '', a.getAttribute('href')); } catch (err) {}
+    arrive(target);
+  });
+
+  /* ---------- v109 五站路程（9/23 的實際時間；按播放才走，走完停在最後一站） ---------- */
+  var HERO = [
+    ['10:10–11:05', '會員簡訊先進來、影片回放晚一點出現；兩個來源各自先存下原文，不互相等待。'],
+    ['11:07', '雲端工作機聽打完，原稿存檔並記下指紋；之後每一步寫回前都會再比對一次。'],
+    ['11:10', '逐檔核對股名、誰的動作與數字；「立即電」對到力積電，找不到原句的不發布。'],
+    ['11:15', '當日買賣、觀望與會員持股寫進紀錄；簡訊與人工補登的列不會被影片蓋掉。'],
+    ['中午以後', '文章通過品質關卡才寄 Email 與 LINE；收盤後補日 K，再重算持股與績效。']
+  ];
+  var heroTimer = 0;
+  function heroSet(p) {
+    var track = one('#heroTrack'); if (!track) return;
+    track.style.setProperty('--p', p);
+    all('#heroTrack .th-line > li').forEach(function (li, i) { li.classList.toggle('is-on', i <= p); li.classList.toggle('is-cur', i === p); });
+    one('#heroRange').value = p; one('#heroN').textContent = p + 1;
+    one('#heroNote').innerHTML = '<time>' + HERO[p][0] + '</time>' + esc(HERO[p][1]);
+  }
+  function heroStop() {
+    clearInterval(heroTimer); heroTimer = 0;
+    var b = one('#heroPlay'); b.setAttribute('aria-pressed', 'false');
+    b.querySelector('.th-ic').textContent = '▶'; b.querySelector('.th-lb').textContent = '播放這一天';
+  }
+  if (one('#heroPlay')) {
+    one('#heroPlay').addEventListener('click', function () {
+      if (heroTimer) { heroStop(); return; }
+      var p = Number(one('#heroRange').value);
+      if (p >= 4) { p = 0; heroSet(0); }
+      var b = one('#heroPlay'); b.setAttribute('aria-pressed', 'true');
+      b.querySelector('.th-ic').textContent = '❚❚'; b.querySelector('.th-lb').textContent = '暫停';
+      heroTimer = setInterval(function () { p++; heroSet(p); if (p >= 4) heroStop(); }, 1500);
+    });
+    one('#heroRange').addEventListener('input', function () { heroStop(); heroSet(Number(this.value)); });
+  }
+
   /* ---------- v108 開場：三種查找困難（示意，不呼叫資料） ---------- */
   var PAINS = [
     { path: [['skip', '以前要怎麼找', '先猜是哪一週，再翻簡訊、拖影片時間軸。'],
              ['stop', '哪裡容易出錯', '語音稿把力積電寫成「立即電」，用正確名稱反而搜不到。'],
              ['ok', '現在得到的回答', '個股查詢列出每次提及的日期與原句；常見誤字也找得到。']],
-      go: ['#tech-names', '看股名聽錯怎麼處理 →'] },
+      go: ['#tech-names', '股名聽錯怎麼處理'] },
     { path: [['skip', '以前要怎麼找', '只看到一片空白，分不出沒講、沒抓到，還是還沒整理完。'],
              ['stop', '哪裡容易出錯', '舊工單把新稿蓋回去，或文章完成就被當成全部完成。'],
              ['ok', '現在得到的回答', '原稿、稽核、文章與寄送各自標狀態；沒講到的寫「未說明」，不補、不猜。']],
-      go: ['#tech-transcript-progress', '看新稿與舊工單怎麼處理 →'] },
+      go: ['#tech-transcript-progress', '新稿與舊工單怎麼處理'] },
     { path: [['skip', '以前要怎麼找', '同一句話有「賣」又有「不要碰」，只能自己重聽判斷。'],
              ['stop', '哪裡容易出錯', '「散戶一直賣」被當成會員賣出，持股被錯誤平倉。'],
              ['ok', '現在得到的回答', '先分主詞與分類；持股回合只在明講賣出、轉觀望不碰或逾期時才結束。']],
-      go: ['#tech-subject', '看「誰在賣」怎麼判斷 →'] }
+      go: ['#tech-subject', '「誰在賣」怎麼判斷'] }
   ];
+  /* 卡內迷你介面（示意）：搜尋框打字→出現結果；狀態板依序亮；主詞標籤。 */
+  var MINI = [
+    '<div class="mini mini-search" aria-hidden="true"><span class="mini-box"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/></svg><span class="mini-q">立即電</span><i class="mini-caret"></i></span><span class="mini-hit"><b>力積電 6770</b><small>9/23 原句・可回查</small></span></div>',
+    '<div class="mini mini-board" aria-hidden="true"><span class="tone-ok">✓ 原稿</span><span class="tone-ok">✓ 稽核</span><span class="tone-ok">✓ 文章</span><span class="tone-wait">⏸ 績效</span></div>',
+    '<div class="mini mini-who" aria-hidden="true"><span class="tone-skip"><s>散戶在賣</s></span><i>→</i><span class="tone-ok">會員續抱</span></div>'
+  ];
+  var typeTimer = 0;
+  function typeMini() {
+    clearInterval(typeTimer);
+    var q = one('#painPath .mini-q'), hit = one('#painPath .mini-hit');
+    var board = one('#painPath .mini-board, #painPath .mini-who');
+    if (board) play(board);
+    if (!q || reduce || !booted) return;
+    var word = q.textContent, n = 0;
+    q.textContent = ''; if (hit) hit.classList.add('is-wait');
+    typeTimer = setInterval(function () {
+      n++; q.textContent = word.slice(0, n);
+      if (n >= word.length) { clearInterval(typeTimer); if (hit) { hit.classList.remove('is-wait'); play(hit.parentNode); } }
+    }, 160);
+  }
   function drawPain(i) {
     select(all('[data-pain]'), all('[data-pain]')[i]);
     var p = PAINS[i];
-    one('#painPath').innerHTML = p.path.map(function (x) {
-      return '<li class="tone-' + x[0] + '"><span class="tp-k">' + esc(x[1]) + '</span><p>' + esc(x[2]) + '</p></li>';
+    one('#painPath').innerHTML = p.path.map(function (x, n) {
+      return '<li class="tone-' + x[0] + '"><span class="tp-k">' + esc(x[1]) + '</span><p>' + esc(x[2]) + '</p>' + (n === 2 ? MINI[i] : '') + '</li>';
     }).join('');
-    one('#painGo').innerHTML = '<a href="' + p.go[0] + '">' + esc(p.go[1]) + '</a>';
+    typeMini();
+    one('#painGo').innerHTML = '<a class="tech-next" href="' + p.go[0] + '"><span class="tn-k">往下看</span><b>' + esc(p.go[1]) + '</b><i aria-hidden="true">↓</i></a>';
+    play(one('#painPath')); play(one('#painGo'));
   }
   all('[data-pain]').forEach(function (b) { b.addEventListener('click', function () { drawPain(Number(b.dataset.pain)); }); });
 
@@ -840,8 +1029,23 @@
     }).join('');
     var dd = all('#txOut dd');
     t.out.forEach(function (v, i) { if (dd[i]) dd[i].textContent = v; });
+    all('[data-tx-step]').forEach(function (li) { li.classList.toggle('is-active', li.getAttribute('data-tx-step') === k); });
+    play(one('#txStages')); play(one('#txOut'));
   }
-  all('[data-tx]').forEach(function (b) { b.addEventListener('click', function () { drawTx(b.dataset.tx); }); });
+  var txPicked = 0;
+  all('[data-tx]').forEach(function (b) { b.addEventListener('click', function () { txPicked = Date.now(); drawTx(b.dataset.tx); }); });
+  all('[data-tx-step]').forEach(function (li) { li.addEventListener('click', function () { txPicked = Date.now(); drawTx(li.getAttribute('data-tx-step')); }); });
+  // 桌面版：讀到畫面中線的那一步，左邊黏住的圖就換成那個情況；剛按過按鈕的一秒內不搶。
+  if ('IntersectionObserver' in window) {
+    var stepSeen = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting || Date.now() - txPicked < 1000 || !en.target.offsetParent) return;
+        var k = en.target.getAttribute('data-tx-step');
+        if (!en.target.classList.contains('is-active')) drawTx(k);
+      });
+    }, { rootMargin: '-45% 0px -50% 0px' });
+    all('[data-tx-step]').forEach(function (li) { stepSeen.observe(li); });
+  }
 
   /* ---------- v108 公開說明編輯檯（示意）：原句 → 核對 → 公開看見 ---------- */
   var PN_MARK = { keep: ['pn-keep', '留'], drop: ['pn-drop', '刪'], move: ['pn-move', '移'], review: ['pn-review', '複核'] };
@@ -889,6 +1093,7 @@
       '<section class="pn-col"><p class="pn-h"><i>2</i>核對了什麼</p><p class="pn-draft">' + draft + '</p><ul class="pn-checks">' + checks + '</ul></section>' +
       '<section class="pn-col pn-final tone-' + c.out[0] + '" aria-live="polite"><p class="pn-h"><i>3</i>公開看見</p><span class="tv-badge">' + esc(c.out[1]) + '</span><p class="pn-text">' + esc(c.out[2]) + '</p>' +
       (c.out[3] ? '<p class="pn-note">' + esc(c.out[3]) + '</p>' : '') + '<small class="pn-len">' + textLen(c.out[2]) + ' 字</small></section>';
+    play(one('#pnDesk'));
   }
   all('[data-pn]').forEach(function (b) { b.addEventListener('click', function () { drawPn(Number(b.dataset.pn)); }); });
 
@@ -902,10 +1107,33 @@
     select(all('[data-un]'), one('[data-un="' + k + '"]'));
     one('#unChain').innerHTML = UN[k].map(function (x) { return '<li class="tone-' + x[0] + '"><span class="tp-k">' + x[1] + '</span><b>' + esc(x[2]) + '</b></li>'; }).join('');
     all('[data-un-card]').forEach(function (c) { var on = c.getAttribute('data-un-card') === k; c.classList.toggle('is-selected', on); c.classList.toggle('is-dim', !on); });
+    drawRange(k);
+    play(one('#unChain'));
+  }
+  /* 價格區間圖：橫軸 1740～1880；色帶＝當天高低，圓點＝昨收，菱形＝原話的「現在」；虛線＝原話的昨收 1770。 */
+  var RANGE = {
+    one: [['嘉澤（3533）', 1760, 1865, 1770, 1800, 'ok']],
+    two: [['嘉澤（3533）', 1760, 1865, 1770, 0, 'stop'], ['乙公司（假設）', 1748, 1795, 1770, 0, 'stop']],
+    none: [['嘉澤（假設情境）', 1760, 1865, 1782, 0, 'skip'], ['乙公司（假設）', 1748, 1795, 1756, 0, 'skip']]
+  };
+  function pct(v) { return ((v - 1740) / 140 * 100).toFixed(2) + '%'; }
+  function drawRange(k) {
+    var box = one('#unRange'); if (!box) return;
+    box.innerHTML = '<div class="ur-axis"><span style="left:0">1740</span><span style="left:' + pct(1810) + '">1810</span><span style="left:100%">1880</span></div>' +
+      '<div class="ur-rows"><i class="ur-target"><span>原話：昨收 1770</span></i>' +
+      RANGE[k].map(function (r) {
+        return '<div class="ur-row tone-' + r[5] + '"><span class="ur-name">' + esc(r[0]) + '</span><span class="ur-track">' +
+          '<span class="ur-band" style="left:' + pct(r[1]) + ';width:' + ((r[2] - r[1]) / 140 * 100).toFixed(2) + '%"></span>' +
+          '<span class="ur-dot" style="left:' + pct(r[3]) + '"><b>昨收 ' + r[3] + '</b></span>' +
+          (r[4] ? '<span class="ur-now" style="left:' + pct(r[4]) + '"><b>現在 ' + r[4] + ' ✓</b></span>' : '') + '</span></div>';
+      }).join('') + '</div>' +
+      '<p class="ur-key"><span class="ur-k-band"></span>當天高低<span class="ur-k-dot"></span>昨收<span class="ur-k-now"></span>原話的現在價</p>';
+    play(one('#unRange .ur-rows'));
   }
   all('[data-un]').forEach(function (b) { b.addEventListener('click', function () { drawUn(b.dataset.un); }); });
   root.classList.add('tech-js');   // 有 JS 時才把未選的結果卡淡化；沒有 JS 時三張都完整顯示
   drawPain(0); drawTx('newer'); drawPn(0); drawUn('one');
+  booted = true;
 
   /* ---------- 即時數字與 9/23 的寄送紀錄 ---------- */
   function demoText(d, who) {

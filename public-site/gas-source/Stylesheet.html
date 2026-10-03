@@ -3895,6 +3895,20 @@ html[data-view="mobile"] #perfTable .th-long { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .tech-story *, .tech-story *::before, .tech-story *::after { animation: none !important; transition: none !important; }
 }
+/* ====== v109 全站零星動態（前台與後台共用） ======
+   資料剛畫上來、或切到已畫好的分頁時，卡片與列依序浮起；按鈕按下有回饋（面板切換本來就有 rd-fade）。
+   全部只動位移與比例，不從透明開始、不循環；減少動態時全部關閉。 */
+@keyframes fxRise { from { transform: translateY(10px); } to { transform: none; } }
+.fx-rise { animation: fxRise .42s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i, 0) * 45ms); }
+/* v107 拿掉捲動淡入時對這幾種列寫了 animation: none（選擇器較強），這裡用更明確的選擇器讓浮起照常播放 */
+#p-overview table.sk tr.sk-row.fx-rise, #p-tracker .tbl-hold tbody tr.fx-rise, .stats .stat.fx-rise { animation: fxRise .42s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i, 0) * 45ms); }
+button:not(:disabled):active, .tab:active, a.btn:active { scale: .97; }
+.tab[aria-selected="true"] { transition: background-color .2s ease, color .2s ease, box-shadow .2s ease; }
+@media (prefers-reduced-motion: reduce) {
+  .fx-rise { animation: none !important; }
+  button:not(:disabled):active, .tab:active, a.btn:active { scale: none; }
+}
+/* ====== v109 全站零星動態結束 ====== */
 /* ====== v108 技術說明互動：開場痛點、原稿稽核實驗室、公開說明編輯檯、沒講名字三分支 ======
    全部限定在 .tech-story 內，不影響其他分頁。狀態一律「符號＋文字＋顏色」，不只靠顏色。 */
 .tech-story .tech-options button { border-radius: 999px; padding-inline: 18px; }
@@ -3917,9 +3931,6 @@ html[data-view="mobile"] #perfTable .th-long { display: none; }
 .tech-story .tech-path li, .tech-story .un-chain li { position: relative; min-width: 0; padding: 14px 18px; border: 1px solid color-mix(in srgb, var(--tc) 35%, var(--rule)); border-top: 4px solid var(--tc); border-radius: 18px; background: color-mix(in srgb, var(--tc) 6%, var(--panel)); }
 .tech-story .tech-path li p { margin: 6px 0 0; font-size: calc(15px * var(--rd-fs)); line-height: 1.7; }
 .tech-story .tech-path li + li::before, .tech-story .un-chain li + li::before { content: "→"; position: absolute; left: -12px; top: 50%; transform: translate(-50%, -50%); color: var(--muted); font-size: 15px; }
-.tech-story .tech-pain-go { margin: 14px 0 0; }
-.tech-story .tech-pain-go a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; border: 1px solid var(--beam); border-radius: 999px; color: var(--beam); font-weight: 600; text-decoration: none; }
-.tech-story .tech-pain-go a:focus-visible { outline: 3px solid var(--beam); outline-offset: 3px; }
 
 /* 原稿實驗室：指紋比對、六段狀態、三個結論 */
 .tech-story .tx-fp { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 0 0 14px; padding: 12px 18px; border: 1px solid var(--rule); border-radius: 999px; background: var(--panel-2); font-size: calc(14px * var(--rd-fs)); }
@@ -3989,6 +4000,164 @@ html[data-view="mobile"] #perfTable .th-long { display: none; }
 /* 卡內短句一律靠左，不套長文的兩端對齊（避免「偵 測 到 新 稿」被拉開）。 */
 .tech-story .tech-lab p, .tech-story .tech-lab dd, .tech-story .tech-lab dt, .tech-story .tech-lab li, .tech-story .tech-lab blockquote { text-align: left; text-justify: auto; }
 /* ====== v108 技術說明互動結束 ====== */
+/* ====== v109 技術說明動態：往下看卡片、捲到才依序浮起、抵達章節的標題重點 ======
+   卡片從頭到尾都不透明，只有位移與一圈光暈；減少動態時由上方 .tech-story * 的規則全部關掉。 */
+.tech-story .tech-pain-go { margin: 16px 0 0; }
+.tech-story .tech-next { display: inline-grid; grid-template-columns: auto auto; grid-template-rows: auto auto; column-gap: 16px; align-items: center;
+  min-height: 56px; padding: 10px 14px 10px 22px; border: 1px solid var(--beam); border-radius: 999px;
+  background: color-mix(in srgb, var(--beam) 8%, var(--panel)); color: var(--ink); text-decoration: none;
+  transition: background-color .18s ease, box-shadow .18s ease, transform .18s ease; }
+.tech-story .tech-next .tn-k { grid-column: 1; font-size: calc(12.5px * var(--rd-fs)); font-weight: 700; color: var(--beam); letter-spacing: .04em; }
+.tech-story .tech-next b { grid-column: 1; font-size: calc(15.5px * var(--rd-fs)); line-height: 1.4; }
+.tech-story .tech-next i { grid-column: 2; grid-row: 1 / span 2; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%;
+  background: var(--beam); color: var(--panel); font-style: normal; font-size: 18px; font-weight: 700; }
+.tech-story .tech-next:hover, .tech-story .tech-next:focus-visible { background: color-mix(in srgb, var(--beam) 16%, var(--panel)); box-shadow: 0 6px 18px color-mix(in srgb, var(--beam) 22%, transparent); transform: translateY(-1px); }
+.tech-story .tech-next:focus-visible { outline: 3px solid var(--beam); outline-offset: 3px; }
+@keyframes techBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(4px); } }
+.tech-story .tech-next i { animation: techBob 1.6s ease-in-out 3; }   /* 只跳三下，不一直動 */
+.tech-story .tech-next:hover i, .tech-story .tech-next:focus-visible i { animation: techBob .8s ease-in-out infinite; }
+
+/* 依序浮起：開頁不動；模組第一次捲進畫面、或點選換案例時才播一次。 */
+@keyframes techRise {
+  0%   { transform: translateY(14px); box-shadow: 0 0 0 0 color-mix(in srgb, var(--tc, var(--beam)) 0%, transparent); }
+  55%  { transform: translateY(-2px); box-shadow: 0 0 0 5px color-mix(in srgb, var(--tc, var(--beam)) 20%, transparent); }
+  100% { transform: none; box-shadow: 0 0 0 0 color-mix(in srgb, var(--tc, var(--beam)) 0%, transparent); }
+}
+.tech-story .tech-anim { animation: techRise .5s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i, 0) * 70ms); }
+
+/* 從「往下看」抵達：標題底下劃出一道重點色，2.6 秒後收回 */
+.tech-story .tech-section > h2 { background-image: linear-gradient(transparent 60%, color-mix(in srgb, var(--beam) 26%, transparent) 60%);
+  background-repeat: no-repeat; background-size: 0% 100%; transition: background-size .7s cubic-bezier(.2, .8, .2, 1); scroll-margin-top: 140px; }
+.tech-story .tech-section.is-arrived > h2 { background-size: 100% 100%; }
+.tech-story .tech-section > h2:focus { outline: none; }
+@media (max-width: 560px) {
+  .tech-story .tech-next { display: grid; width: 100%; }
+}
+/* ====== v109 技術說明動態結束 ====== */
+/* ====== v109 視覺故事：五站路程、卡內迷你介面、黏住的稽核圖、價格區間標註、文字色塊 ======
+   參考：Distill（標題下即互動圖、圖上直接標註）、Linear（細線圖示、等寬標籤）、Apple（按了才播）、
+   Stripe（卡內小介面進場）、The Pudding（黏住的圖＋往下讀的步驟、文字色塊當圖例）。 */
+
+/* 五站路程 */
+.tech-story .tech-hero { margin: 26px 0 8px; padding: clamp(18px, 2.6vw, 30px); border: 1px solid var(--rule); border-radius: 24px;
+  background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--beam) 9%, var(--panel)) 0%, var(--panel) 55%); }
+.tech-story .th-cap { margin: 0 0 14px; font-size: calc(14.5px * var(--rd-fs)); font-weight: 700; color: var(--ink); }
+.tech-story .th-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 22px; margin: 0 0 18px; }
+.tech-story .th-play { display: inline-flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 22px 0 8px; border: 1px solid var(--beam);
+  border-radius: 999px; background: var(--panel); color: var(--ink); font: inherit; font-weight: 600; cursor: pointer; }
+.tech-story .th-play .th-ic { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--beam); color: var(--panel); font-size: 12px; }
+.tech-story .th-play[aria-pressed="true"] { background: color-mix(in srgb, var(--beam) 12%, var(--panel)); }
+.tech-story .th-play:focus-visible { outline: 3px solid var(--beam); outline-offset: 3px; }
+.tech-story .th-scrub { display: inline-flex; align-items: center; gap: 12px; font-size: calc(13.5px * var(--rd-fs)); color: var(--muted); }
+.tech-story .th-scrub input { width: min(220px, 50vw); min-height: 44px; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; accent-color: var(--beam); }
+.tech-story .th-scrub input:focus-visible { outline: 3px solid var(--beam); outline-offset: 4px; border-radius: 8px; }
+.tech-story .th-track { position: relative; --n: 5; }
+.tech-story .th-line { position: relative; display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; z-index: 1; }
+.tech-story .th-line > li { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; min-width: 0; color: var(--muted); }
+.tech-story .th-icon { display: grid; place-items: center; width: 64px; height: 64px; border: 1.5px solid var(--rule); border-radius: 50%; background: var(--panel);
+  transition: border-color .3s ease, box-shadow .3s ease, color .3s ease; }
+.tech-story .th-icon svg { width: 28px; height: 28px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.tech-story .th-line > li b { font-size: calc(14.5px * var(--rd-fs)); color: var(--ink); }
+.tech-story .th-line > li small { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: calc(12px * var(--rd-fs)); }
+.tech-story .th-line > li.is-on { color: var(--beam); }
+.tech-story .th-line > li.is-on .th-icon { border-color: var(--beam); }
+.tech-story .th-line > li.is-cur .th-icon { box-shadow: 0 0 0 6px color-mix(in srgb, var(--beam) 18%, transparent); }
+.tech-story .th-rail, .tech-story .th-fill { position: absolute; top: 31px; left: calc(50% / var(--n)); height: 2px; border-radius: 2px; z-index: 0; }
+.tech-story .th-rail { right: calc(50% / var(--n)); background: repeating-linear-gradient(90deg, var(--rule) 0 6px, transparent 6px 11px); }
+.tech-story .th-fill { width: calc(var(--p) / (var(--n) - 1) * (100% - 100% / var(--n))); background: var(--beam); transition: width .9s cubic-bezier(.4, 0, .2, 1); }
+.tech-story .th-packet { position: absolute; top: 25px; left: calc(50% / var(--n) + var(--p) / (var(--n) - 1) * (100% - 100% / var(--n))); width: 14px; height: 14px; margin-left: -7px; border-radius: 50%;
+  background: var(--beam); box-shadow: 0 0 0 5px color-mix(in srgb, var(--beam) 22%, transparent); z-index: 0; transition: left .9s cubic-bezier(.4, 0, .2, 1); }
+/* 點在站與站之間移動時看得到，抵達時躲到圓圈後面，不蓋住圖示與日期 */
+.tech-story .th-note { margin: 18px 0 0; padding: 12px 18px; border-radius: 16px; background: var(--panel-2); font-size: calc(15px * var(--rd-fs)); line-height: 1.7; text-align: left; }
+.tech-story .th-note time { display: inline-block; margin-right: 10px; padding: 0 10px; border-radius: 999px; background: var(--beam); color: var(--panel);
+  font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: calc(12.5px * var(--rd-fs)); }
+
+/* 卡內迷你介面 */
+.tech-story .mini { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--rule); border-radius: 14px; background: var(--panel); display: grid; gap: 8px; }
+.tech-story .mini-box { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border: 1px solid var(--rule); border-radius: 999px; background: var(--panel-2);
+  font-size: calc(14px * var(--rd-fs)); min-height: 34px; }
+.tech-story .mini-box svg { width: 16px; height: 16px; fill: none; stroke: var(--muted); stroke-width: 2; stroke-linecap: round; }
+.tech-story .mini-caret { width: 2px; height: 16px; background: var(--beam); animation: techBlink 1s steps(1) infinite; }
+@keyframes techBlink { 50% { opacity: 0; } }
+.tech-story .mini-hit { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 6px 12px; border-left: 3px solid var(--beam); border-radius: 0 10px 10px 0;
+  background: color-mix(in srgb, var(--beam) 8%, var(--panel)); transition: transform .25s ease, box-shadow .25s ease; }
+.tech-story .mini-hit.is-wait { visibility: hidden; }
+.tech-story .mini-hit small { color: var(--muted); }
+.tech-story .mini-board, .tech-story .mini-who { grid-auto-flow: column; justify-content: start; align-items: center; gap: 8px; }
+.tech-story .mini-board span, .tech-story .mini-who span { padding: 2px 10px; border: 1px solid var(--tc); border-radius: 999px; color: var(--tc); font-size: calc(13px * var(--rd-fs)); font-weight: 700; white-space: nowrap; }
+.tech-story .mini-who i { font-style: normal; color: var(--muted); }
+
+/* 原稿實驗室：桌面版黏住的圖＋往下讀的八步 */
+.tech-story .tx-steps { display: none; }
+@media (min-width: 1100px) {
+  .tech-story .tx-scrolly { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+  .tech-story .tx-sticky { position: sticky; top: 140px; }
+  .tech-story .tx-sticky .tx-stages { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .tech-story .tx-sticky .tx-out { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .tech-story .tx-sticky .tx-out dd { font-size: calc(14px * var(--rd-fs)); }
+  .tech-story .tx-steps { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+  .tech-story .tx-steps { padding-top: 8vh; }
+  .tech-story .tx-steps > li { display: grid; grid-template-columns: auto 1fr; column-gap: 12px; align-content: center; padding: 18px 20px;
+    margin: 0 0 26vh; border: 1px solid var(--rule); border-radius: 20px; background: var(--panel); cursor: pointer; opacity: .78;
+    transition: opacity .25s ease, border-color .25s ease, box-shadow .25s ease, transform .25s ease; }
+  .tech-story .tx-steps > li:last-child { margin-bottom: 18vh; }
+  .tech-story .tx-steps > li.is-active { opacity: 1; border-color: var(--beam); box-shadow: 0 10px 28px color-mix(in srgb, var(--beam) 16%, transparent); transform: translateX(-4px); }
+  .tech-story .txs-n { grid-row: 1 / span 2; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--panel-2);
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-weight: 700; }
+  .tech-story .tx-steps > li.is-active .txs-n { background: var(--beam); color: var(--panel); }
+  .tech-story .tx-steps b { font-size: calc(16px * var(--rd-fs)); }
+  .tech-story .tx-steps p { margin: 6px 0 0; font-size: calc(15px * var(--rd-fs)); line-height: 1.7; }
+}
+
+/* 沒講名字：價格區間上直接標數字 */
+.tech-story .un-range { margin: 0 0 16px; padding: 14px 18px 12px; border: 1px solid var(--rule); border-radius: 18px; background: var(--panel); }
+.tech-story .ur-axis { position: relative; height: 18px; margin-left: 132px; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11.5px; color: var(--muted); }
+.tech-story .ur-axis span { position: absolute; transform: translateX(-50%); }
+.tech-story .ur-axis span:first-child { transform: none; } .tech-story .ur-axis span:last-child { transform: translateX(-100%); }
+.tech-story .ur-rows { position: relative; display: grid; gap: 8px; padding-top: 22px; }
+.tech-story .ur-target { position: absolute; top: 0; bottom: 0; left: 0; margin-left: 132px; width: 0; border-left: 2px dashed var(--muted); font-style: normal; }
+.tech-story .ur-rows .ur-target { left: calc(132px + (100% - 132px) * 0.2143); margin-left: 0; }
+.tech-story .ur-target span { position: absolute; top: 0; left: 6px; white-space: nowrap; font-size: calc(12px * var(--rd-fs)); font-weight: 700; color: var(--ink); }
+.tech-story .ur-row { display: grid; grid-template-columns: 124px minmax(0, 1fr); gap: 8px; align-items: center; min-height: 52px; }
+.tech-story .ur-name { font-size: calc(13.5px * var(--rd-fs)); font-weight: 700; color: var(--ink); }
+.tech-story .ur-track { position: relative; height: 44px; border-radius: 10px; background: var(--panel-2); }
+.tech-story .ur-band { position: absolute; top: 15px; height: 14px; border-radius: 7px; background: color-mix(in srgb, var(--tc) 30%, transparent); border: 1px solid var(--tc); }
+.tech-story .ur-dot, .tech-story .ur-now { position: absolute; top: 14px; width: 16px; height: 16px; margin-left: -8px; }
+.tech-story .ur-dot { border-radius: 50%; background: var(--tc); box-shadow: 0 0 0 3px var(--panel); }
+.tech-story .ur-now::before { content: ""; position: absolute; inset: 2px; transform: rotate(45deg); background: var(--panel); border: 2.5px solid var(--t-ok); }
+.tech-story .ur-dot b, .tech-story .ur-now b { position: absolute; top: -17px; left: 50%; transform: translateX(-50%); white-space: nowrap;
+  font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11.5px; color: var(--ink); }
+.tech-story .ur-now b { top: auto; bottom: -17px; }
+.tech-story .ur-key { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 12px 0 0; font-size: calc(12.5px * var(--rd-fs)); color: var(--muted); }
+.tech-story .ur-key span { display: inline-block; width: 14px; height: 10px; margin-left: 8px; }
+.tech-story .ur-k-band { border-radius: 5px; background: color-mix(in srgb, var(--t-ok) 30%, transparent); border: 1px solid var(--t-ok); }
+.tech-story .ur-k-dot { width: 10px !important; border-radius: 50%; background: var(--t-ok); }
+.tech-story .ur-k-now { width: 9px !important; height: 9px !important; transform: rotate(45deg); border: 2px solid var(--t-ok); }
+
+/* 文字裡的色塊＝圖例 */
+.tech-story .kw { display: inline-block; margin: 0 2px; padding: 0 8px; border: 1px solid var(--tc); border-radius: 999px; color: var(--tc);
+  background: color-mix(in srgb, var(--tc) 10%, transparent); font-weight: 700; line-height: 1.5; }
+
+@media (max-width: 760px) {
+  .tech-story .th-line { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .tech-story .th-line > li { flex-direction: row; text-align: left; gap: 12px; }
+  .tech-story .th-line > li small { margin-left: auto; }
+  .tech-story .th-icon { width: 52px; height: 52px; flex: none; }
+  .tech-story .th-rail, .tech-story .th-fill { top: 26px; left: 25px; width: 2px; height: auto; }
+  .tech-story .th-rail { right: auto; bottom: 26px; background: repeating-linear-gradient(180deg, var(--rule) 0 6px, transparent 6px 11px); }
+  .tech-story .th-fill { height: calc(var(--p) / (var(--n) - 1) * (100% - 52px)); transition-property: height; }
+  .tech-story .th-packet { top: calc(26px + var(--p) / (var(--n) - 1) * (100% - 52px)); left: 26px; margin-top: -7px; transition-property: top; }
+  .tech-story .ur-axis { margin-left: 0; }
+  .tech-story .ur-row { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .tech-story .ur-rows .ur-target { left: calc(100% * 0.2143); }
+}
+/* 持股回合用同一條軌道：圓圈裡寫日期；8/25 逾期出場到達時變紅，9/01 重新買入的圓圈改虛線表示新回合 */
+.tech-story .tl-track { margin: 4px 0 16px; }
+.tech-story .tl-date time { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: calc(13px * var(--rd-fs)); font-weight: 700; color: var(--ink); }
+.tech-story .th-line > li.tl-exit.is-on .th-icon { border-color: var(--t-stop); box-shadow: 0 0 0 6px color-mix(in srgb, var(--t-stop) 16%, transparent); }
+.tech-story .th-line > li.tl-exit.is-on { color: var(--t-stop); }
+.tech-story .th-line > li.tl-again.is-on .th-icon { border-style: dashed; }
+/* ====== v109 視覺故事結束 ====== */
 /* v73 用 LINE 收通知：左邊說明與按鈕，右邊 QR（手機不放 QR，直接按按鈕開 LINE）。 */
 .line-join-grid { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: center; }
 .line-join-list { list-style: none; padding: 0; margin: 0 0 18px; display: grid; gap: 8px; }

@@ -53,7 +53,7 @@ def open_tech(page, url):
     page.wait_for_selector('[data-tx="same"]', state='visible', timeout=30000)
 
 
-def check_interactions(page, label):
+def check_interactions(page, label, reduced=False):
     # 先等首頁自己的背景讀取（總覽、報價、技術頁統計）結束，之後點選時發出的請求才算互動造成的。
     try:
         page.wait_for_load_state('networkidle', timeout=20000)
@@ -62,6 +62,58 @@ def check_interactions(page, label):
     calls = []
     page.on('request', lambda r: calls.append(r.post_data or '') if r.method == 'POST' and '/api' in r.url else None)
     base = len(calls)
+
+    # 捲到之前，模組內容都是不透明的（不恢復 v107 拿掉的透明淡入）
+    hidden = page.evaluate("""() => [...document.querySelectorAll('.tx-stages > li, .pn-desk > *, .un-chain > li, .tech-path > li, .tech-real > li')]
+      .filter(e => parseFloat(getComputedStyle(e).opacity) < 1).length""")
+    assert hidden == 0, f'{label}: {hidden} cards are transparent before scrolling'
+
+    # 往下看：平滑捲到章節、網址記下錨點、標題劃重點；動態開啟時模組依序浮起
+    page.locator('[data-pain="2"]').click()
+    before = page.evaluate('scrollY')
+    page.locator('#painGo a.tech-next').click()
+    page.wait_for_timeout(250)
+    assert 'is-arrived' in page.locator('#tech-subject').get_attribute('class'), f'{label}: target not highlighted'
+    page.wait_for_timeout(1900)
+    assert page.evaluate('scrollY') > before + 200, f'{label}: link did not scroll'
+    assert page.evaluate('location.hash') == '#tech-subject'
+    top = page.evaluate("document.querySelector('#tech-subject h2').getBoundingClientRect().top")
+    bar = page.evaluate("Math.max(...[...document.querySelectorAll('.topbar,.tabbar')].map(e => e.getBoundingClientRect().bottom))")
+    assert top >= bar - 2, f'{label}: heading hidden under the sticky bar ({top} < {bar})'
+    if not reduced:
+        page.locator('[data-tx="gap"]').scroll_into_view_if_needed()
+        page.locator('[data-tx="gap"]').click()
+        assert page.locator('#txStages .tech-anim').count() > 0, f'{label}: clicking did not animate'
+    page.evaluate('scrollTo(0, 0)')
+
+    # v109 五站路程：拖到最後一站、播放後前進且會停；價格區間依情況換列數
+    page.locator('#heroRange').fill('4')
+    assert page.locator('#heroTrack .th-line > li.is-on').count() == 5
+    assert '中午以後' in page.locator('#heroNote').inner_text()
+    page.locator('#heroPlay').click()                       # 在最後一站按播放：從第一站重來
+    assert page.locator('#heroRange').input_value() == '0'
+    page.wait_for_timeout(1700)
+    assert int(page.locator('#heroRange').input_value()) >= 1, f'{label}: play did not advance'
+    page.locator('#heroPlay').click()                       # 暫停
+    assert page.locator('#heroPlay').get_attribute('aria-pressed') == 'false'
+    # 持股回合：與五站路程同一種播放；拖到 8/25 時出場站變紅
+    page.locator('#tlSlider').fill('4')
+    assert 'tl-exit' in page.locator('#techTimeline li.is-cur').get_attribute('class')
+    assert '逾期出場' in page.locator('#tlState').inner_text()
+    page.locator('#tlPlay').click()
+    page.wait_for_timeout(1700)
+    assert int(page.locator('#tlSlider').input_value()) >= 5, f'{label}: hold player did not advance'
+    assert page.locator('#tlPlay').get_attribute('aria-pressed') == 'false', 'player should stop at the last station'
+    for k, rows in (('one', 1), ('two', 2), ('none', 2)):
+        page.locator(f'[data-un="{k}"]').click()
+        assert page.locator('#unRange .ur-row').count() == rows, (label, k)
+    page.locator('[data-un="one"]').click()
+    if page.evaluate("getComputedStyle(document.querySelector('.tx-steps')).display") != 'none':
+        page.evaluate("document.querySelector('[data-tx-step=gap]').scrollIntoView({block: 'center'})")
+        page.wait_for_timeout(1300)
+        assert 'is-active' in page.locator('[data-tx-step="gap"]').get_attribute('class'), f'{label}: scrolling a step did not drive the sticky graphic'
+        assert '待複核 2 檔' in page.locator('#txStages').inner_text()
+    page.evaluate('scrollTo(0, 0)')
 
     seen = set()
     for i in range(3):
@@ -111,7 +163,7 @@ def check_interactions(page, label):
     toc = page.evaluate("[...document.querySelectorAll('.doc h2, .doc h3')].filter(h => h.closest('.tech-lab')).length")
     assert toc == 0, f'{label}: {toc} headings inside interactive modules would enter the table of contents'
 
-    small = page.evaluate("""() => [...document.querySelectorAll('[data-pain],[data-tx],[data-pn],[data-un],#painGo a')]
+    small = page.evaluate("""() => [...document.querySelectorAll('[data-pain],[data-tx],[data-pn],[data-un],#painGo a,#heroPlay,#heroRange,#tlPlay,#tlSlider')]
       .filter(e => e.offsetParent).map(e => e.getBoundingClientRect()).filter(r => r.width < 44 || r.height < 44).length""")
     assert small == 0, f'{label}: {small} controls below 44px'
 
@@ -161,7 +213,7 @@ def main():
                 print(f'ok {label}')
                 ctx.close()
         # 沒有 JavaScript 時看到的預設內容，要和有 JavaScript 初始化後的預設狀態一致
-        sels = ['#painPath', '#txFp', '#txStages', '#txOut', '#pnDesk', '#unChain']
+        sels = ['#painPath', '#txFp', '#txStages', '#txOut', '#pnDesk', '#unChain', '#heroNote', '#tlState']
         norm = lambda t: re.sub(r'\s+', '', t)
         ctx = browser.new_context(viewport={'width': 1280, 'height': 900})
         page = ctx.new_page()
@@ -185,6 +237,9 @@ def main():
             page.route(FAKE_API, lambda r: r.fulfill(status=200, content_type='application/json',
                                                     body=json.dumps({'ok': True, 'result': []})))
         open_tech(page, url)
+        check_interactions(page, '390px reduced motion', reduced=True)
+        assert page.locator('.tech-anim').count() == 0 or page.evaluate(
+            "[...document.querySelectorAll('.tech-anim')].every(e => getComputedStyle(e).animationName === 'none')"), 'animation ran with reduced motion'
         dur = page.evaluate("getComputedStyle(document.querySelector('[data-tx]')).transitionDuration")
         assert all(float(x.strip('s')) == 0 for x in dur.split(',')), dur
         print('ok reduced motion: no transitions')

@@ -1388,7 +1388,7 @@ function restatesEarlier_(key, earlier) {
 
     $('trackerToggle').innerHTML =
       '<button class="pill" data-tk="held" aria-pressed="' + (trackerView === 'held') +
-        '">目前持有（' + held.length + '）</button>' +
+        '">持有（' + held.length + '）</button>' +
       '<button class="pill" data-tk="exited" aria-pressed="' + (trackerView === 'exited') +
         '">已出場（' + exited.length + '）</button>';
     $('trackerToggle').querySelectorAll('[data-tk]').forEach(function (b) {
@@ -1750,8 +1750,8 @@ function restatesEarlier_(key, earlier) {
     var cum = ((i.rounds || 1) > 1 && i.cumRet !== null && i.cumRet !== undefined)
       ? '<span class="tx-cum ' + signCls(i.cumRet) + '" title="各回合連乘：' + esc(i.roundRets || '') + '">累積 ' + fmtRet(i.cumRet) + '</span>' : '';
     var sold = /明講賣出/.test(String(i.exitReason || ''));
-    return '<div class="tx tx-' + cls + '" title="' + esc(costSrcText(i.entrySrc) + (i.why ? '　' + i.why : '')) + '">' +
-      '<div class="tx-end tx-in"><small>' + (inDate ? inDate + ' 進場' : '進場') + '</small><b>' + fmtPx(i.entry) + '</b>' + statedTag(entryGrey) + '</div>' +
+    return '<div class="tx tx-' + cls + '" title="' + esc(costSrcText(i.entrySrc) + (entryGrey ? '　' + entryGrey : '') + (i.why ? '　' + i.why : '')) + '">' +
+      '<div class="tx-end tx-in"><small>' + (inDate ? inDate + ' 進場' : '進場') + '</small><b>' + fmtPx(i.entry) + '</b></div>' +
       '<div class="tx-mid" aria-label="' + (isHeld ? '未實現報酬 ' : sold ? '已實現報酬 ' : '追蹤期間變化 ') + esc(retTxt) + '"><span class="tx-line"></span>' +
         '<span class="tx-ret">' + retTxt + '</span>' + cum + '</div>' +
       '<div class="tx-end tx-out"><small>' + esc(outDate) + (isHeld ? '' : sold ? ' 賣出' : ' 追蹤結束') + '</small><b>' + fmtPx(i.current) + '</b>' +
@@ -1762,23 +1762,32 @@ function restatesEarlier_(key, earlier) {
 
   function renderTrackerRows(t, items) {
     var isHeld = trackerView === 'held';
-    $('trackerTable').innerHTML = '<div class="card flush"><table class="tbl-hold">' +
-      '<colgroup><col class="c-stock"><col class="c-axis"><col class="c-note"></colgroup>' +
-      '<thead><tr><th>股票</th><th>' + (isHeld ? '進場 → 目前' : '進場 → 出場') + '</th>' +
-      '<th>' + (isHeld ? '最新說明' : '出場原因') + '</th></tr></thead><tbody>' +
+    $('trackerTable').innerHTML = '<div class="tracker-list" role="list" aria-label="' +
+      (isHeld ? '目前持有' : '已出場') + '，共 ' + items.length + ' 檔">' +
       items.map(function (i) {
         var rounds = i.rounds || 1;
         var lastCol = i.stillHeld ? datedNote(i.latestReason || i.firstReason, i.latestReasonDate)
                                   : (i.exitReason || datedNote(i.latestReason || i.firstReason, i.latestReasonDate));
-        return '<tr' + (i.valid ? ' class="clickable" data-code="' + i.code + '"' : '') + '>' +
-          '<td class="h-stock" title="' + esc(i.roundDetail || '') + '"><span class="h-name">' + nameCell(i.name, i.valid ? i.code : '') + '</span>' +
-            '<span class="h-code' + (i.valid ? '' : ' flat') + '">' + esc(i.code) + '</span>' +
-            (rounds > 1 ? '<span class="roundtag">第 ' + rounds + ' 回合</span>' : '') + '</td>' +
-          '<td class="h-axis">' + tradeAxis(i, isHeld) + '</td>' +
-          '<td class="h-note">' + esc(lastCol) + '</td></tr>';
-      }).join('') + '</tbody></table></div>';
+        return '<article class="tracker-card ' + (isHeld ? 'tone-hold' : 'tone-sell') + (i.valid ? ' clickable' : '') +
+          '" role="listitem"' + (i.valid ? ' data-code="' + esc(i.code) + '"' : '') + '>' +
+          '<div class="tracker-card-head"><div class="tracker-card-identity">' +
+            (i.valid ? '<button type="button" class="tracker-card-name" aria-label="查看' + esc(cleanName(i.name)) + '（' + esc(i.code) + '）個股詳情">' + nameCell(i.name, i.code) + '</button>'
+                     : '<span class="tracker-card-name">' + nameCell(i.name, '') + '</span>') +
+            '<span class="tracker-card-code">' + esc(i.code) + '</span>' +
+            (rounds > 1 ? '<span class="roundtag">第 ' + rounds + ' 回合</span>' : '') +
+            (i.valid ? '' : '<span class="tracker-unavailable">代號待確認</span>') +
+          '</div></div>' +
+          '<div class="tracker-card-axis" aria-label="' + (isHeld ? '進場到目前' : '進場到出場') + '">' + tradeAxis(i, isHeld) + '</div>' +
+          (lastCol ? '<p class="tracker-card-note">' + esc(lastCol) + '</p>' : '') + '</article>';
+      }).join('') + '</div>';
 
-    bindRows($('p-tracker'));
+    $('trackerTable').querySelectorAll('.tracker-card[data-code]').forEach(function (card) {
+      card.addEventListener('click', function () {
+        $('trackerTable').querySelectorAll('.tracker-card.active').forEach(function (other) { other.classList.remove('active'); });
+        card.classList.add('active');
+        openDetail(card.dataset.code);
+      });
+    });
     trackerLoaded = true;
   }
 

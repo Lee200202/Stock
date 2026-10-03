@@ -4617,4 +4617,67 @@ html[data-view="mobile"] .tbl-hold td.h-note { margin-top: 14px; font-size: calc
 html[data-view="mobile"] .topbar, html[data-view="mobile"] .tabbar, html[data-view="mobile"] .dnav { backdrop-filter: none; background: var(--bg); }
 .detail-panel { overscroll-behavior: contain; }
 /* ====== v107 樣式層結束 ====== */
+
+/* ====== v112 持股追蹤卡片：沿用每日總覽的全寬、色條、圓角與浮起回饋 ======
+   v113：拿掉狀態膠囊、查看個股按鈕與小標；名稱是可聚焦的按鈕，整張卡可點；交易軸撐滿，報酬置中。 */
+.tracker-list { display: grid; gap: 16px; }
+.tracker-card {
+  --tc: var(--hold); position: relative; min-width: 0; padding: 24px 30px 26px 38px;
+  border: 1px solid color-mix(in srgb, var(--tc) 22%, var(--rule)); border-radius: var(--r-lg);
+  background: color-mix(in srgb, var(--tc) 4%, var(--panel)); box-shadow: var(--lift);
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+.tracker-card.tone-sell { --tc: var(--fall); }
+.tracker-card::before {
+  content: ""; position: absolute; left: 14px; top: 22px; bottom: 22px; width: 6px;
+  border-radius: var(--r-pill); background: var(--tc);
+}
+.tracker-card.clickable { cursor: pointer; }
+.tracker-card.clickable:hover, .tracker-card.active {
+  border-color: color-mix(in srgb, var(--tc) 55%, var(--rule));
+  background: color-mix(in srgb, var(--tc) 8%, var(--panel));
+  transform: translateY(-2px); box-shadow: 0 10px 28px color-mix(in srgb, var(--tc) 16%, transparent);
+}
+.tracker-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px 22px; }
+.tracker-card-identity { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-width: 0; }
+.tracker-card-name { font-size: calc(19px * var(--rd-fs)); font-weight: 700; line-height: 1.4; color: var(--ink); overflow-wrap: anywhere; }
+button.tracker-card-name { display: inline-flex; align-items: center; min-height: 44px; margin: -8px 0; padding: 0; border: 0; background: none; font-family: inherit; text-align: left; cursor: pointer; }
+button.tracker-card-name:focus-visible { outline: 3px solid var(--beam); outline-offset: 4px; border-radius: 10px; }
+.tracker-card-name .namecell { gap: 8px; }
+.tracker-card-name .arrow { color: var(--tc); opacity: .55; }
+.tracker-card-code { font: 500 calc(13.5px * var(--rd-fs)) "IBM Plex Mono", monospace; color: var(--muted); letter-spacing: .04em; }
+.tracker-card .roundtag { margin: 0; }
+.tracker-unavailable { color: var(--muted); font-size: calc(13px * var(--rd-fs)); }
+.tracker-card-axis { margin-top: 14px; padding: 16px 22px; border-radius: var(--r-md); background: color-mix(in srgb, var(--tc) 5%, var(--panel)); }
+/* 幅度線就在進場價與目前價之間：兩端價位依內容寬度，線填滿中間、與價位同一列，報酬壓在線的正中。 */
+.tracker-card-axis .tx { --px-fs: calc(19px * var(--rd-fs)); grid-template-columns: auto minmax(84px, 1fr) auto; column-gap: 18px; align-items: end; }
+.tracker-card-axis .tx-end b { font-size: var(--px-fs); line-height: 1.35; }
+.tracker-card-axis .tx-end small { font-size: calc(13px * var(--rd-fs)); }
+.tracker-card-axis .tx-mid { align-self: end; align-items: center; justify-content: center; text-align: center; min-height: 0; height: calc(var(--px-fs) * 1.35); padding: 0; }
+.tracker-card-axis .tx-line { top: 50%; }
+.tracker-card-axis .tx-ret { background: var(--panel); }
+.tracker-card-axis .tx-cum { position: absolute; top: calc(100% + 2px); margin: 0; white-space: nowrap; }
+.tracker-card-axis:has(.tx-cum) { padding-bottom: 32px; }
+.tracker-card-note { max-width: 76em; margin: 16px 0 0; color: var(--ink); font-size: calc(15.5px * var(--rd-fs)); line-height: 1.9; overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  .tracker-list { gap: 12px; }
+  .tracker-card { padding: 20px 20px 22px 30px; }
+  .tracker-card::before { left: 11px; top: 20px; bottom: 20px; width: 5px; }
+  .tracker-card-axis { padding: 16px 14px; }
+  .tracker-card-axis .tx { --px-fs: calc(16px * var(--rd-fs)); grid-template-columns: auto minmax(70px, 1fr) auto; column-gap: 10px; }
+  .tracker-card-axis .tx-ret { padding-inline: 7px; }
+  .tracker-card-note { font-size: calc(15px * var(--rd-fs)); }
+}
+html[data-view="mobile"] .tracker-list { gap: 12px; }
+html[data-view="mobile"] .tracker-card { padding: 20px 20px 22px 30px; }
+html[data-view="mobile"] .tracker-card::before { left: 11px; top: 20px; bottom: 20px; width: 5px; }
+html[data-view="mobile"] .tracker-card-axis { padding: 16px 14px; }
+html[data-view="mobile"] .tracker-card-axis .tx { --px-fs: calc(16px * var(--rd-fs)); grid-template-columns: auto minmax(70px, 1fr) auto; column-gap: 10px; }
+html[data-view="mobile"] .tracker-card-axis .tx-ret { padding-inline: 7px; }
+html[data-view="mobile"] .tracker-card-note { font-size: calc(15px * var(--rd-fs)); }
+@media (prefers-reduced-motion: reduce) {
+  .tracker-card { transition: none; }
+  .tracker-card.clickable:hover, .tracker-card.active { transform: none; }
+}
+/* ====== v112 持股追蹤卡片結束 ====== */
 </style>

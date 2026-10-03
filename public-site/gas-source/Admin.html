@@ -1098,6 +1098,61 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
 /* 表單並排欄位拉滿卡片寬度（原本每欄固定寬，右邊空一大片） */
 .panel .card .row > .field { flex: 1 1 280px; min-width: 0; }
 /* ====== v101 後台樣式層結束 ====== */
+/* v112：現有持股的檢視列與判定歷程改為全寬卡片；編輯表單、雙擊與批次儲存沿用原流程。 */
+.held-list { display: grid; gap: 14px; }
+.hrow-wrap {
+  position: relative; min-width: 0; margin: 0; overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--hold) 24%, var(--rule)); border-radius: var(--r-lg);
+  background: color-mix(in srgb, var(--hold) 4%, var(--panel)); box-shadow: var(--lift);
+}
+.hrow-wrap::before { content: ""; position: absolute; left: 14px; top: 18px; bottom: 18px; width: 5px; border-radius: var(--r-pill); background: var(--hold); }
+.hrow-wrap.dirty, .hrow-wrap.editing { margin: 0; border-color: var(--wait); border-radius: var(--r-lg); box-shadow: var(--lift); }
+.hrow-wrap.dirty::before, .hrow-wrap.editing::before { background: var(--wait); }
+.hrow-wrap.dirty .hrow-view { border-bottom: 0; padding: 22px 24px 22px 36px; }
+.hrow-view {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, .9fr);
+  grid-template-areas: "hn hp" "hd hc" "edit edit";
+  gap: 16px 28px; align-items: start; padding: 22px 24px 22px 36px; border: 0;
+  background: transparent;
+}
+.hrow-view[hidden], .herow-card[hidden] { display: none; }
+.hrow-view .hn { align-items: center; font-size: calc(18px * var(--rd-fs)); line-height: 1.4; }
+.hrow-view .hn small { font-size: calc(13px * var(--rd-fs)); }
+.hrow-view .hd, .hrow-view .hc, .hrow-view .hp { min-width: 0; }
+.hrow-view .hd::before, .hrow-view .hc::before, .hrow-view .hp::before {   /* v113：股票名稱不另加欄名 */
+  content: attr(data-label); display: block; margin-bottom: 6px; color: var(--muted);
+  font: 600 calc(12.5px * var(--rd-fs)) "Noto Sans TC", sans-serif;
+}
+.hrow-view .hc .hc-text small { overflow: visible; text-overflow: clip; overflow-wrap: anywhere; line-height: 1.65; }
+.hrow-view .hp { align-items: flex-end; }
+.hrow-view .hp::before { align-self: flex-end; }
+.hrow-view .hp-cur { font-size: calc(19px * var(--rd-fs)); font-weight: 700; }
+.hrow-view .hp-ret { display: inline-block; margin-top: 4px; padding: 3px 12px; border-radius: var(--r-pill); background: var(--panel-2); }
+.hrow-view .h-edit-btn { grid-area: edit; justify-self: start; min-height: 44px; padding-inline: 20px; border-radius: var(--r-pill); }
+.herow-card { padding: 22px 24px 22px 36px; }
+@media (max-width: 760px) {
+  .hrow-wrap::before { left: 11px; }
+  .hrow-view, .hrow-wrap.dirty .hrow-view { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "hn hp" "hd hd" "hc hc" "edit edit"; padding: 20px 18px 20px 30px; gap: 14px; }
+  .hrow-view .hp-cur { font-size: calc(16px * var(--rd-fs)); }
+  .hrow-view .h-edit-btn { justify-self: stretch; }
+  .herow-card { padding: 20px 18px 20px 30px; }
+}
+html[data-view="mobile"] .hrow-wrap::before { left: 11px; }
+html[data-view="mobile"] .hrow-view, html[data-view="mobile"] .hrow-wrap.dirty .hrow-view { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "hn hp" "hd hd" "hc hc" "edit edit"; padding: 20px 18px 20px 30px; gap: 14px; }
+html[data-view="mobile"] .hrow-view .hp-cur { font-size: calc(16px * var(--rd-fs)); }
+html[data-view="mobile"] .hrow-view .h-edit-btn { justify-self: stretch; }
+html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
+.decision-list { display: grid; gap: 14px; }
+.decision-card { padding: 20px 24px; border: 1px solid var(--rule); border-radius: var(--r-lg); background: var(--panel); box-shadow: var(--lift); }
+.decision-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 18px; }
+.decision-head strong { color: var(--ink); font-size: calc(16px * var(--rd-fs)); }
+.decision-head > span { color: var(--muted); font: 500 calc(12.5px * var(--rd-fs)) "IBM Plex Mono", monospace; }
+.decision-meta { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 12px; }
+.decision-meta span { display: inline-flex; padding: 1px 12px; border: 1px solid var(--rule); border-radius: var(--r-pill); font-size: calc(13px * var(--rd-fs)); overflow-wrap: anywhere; }
+.decision-meta b { color: var(--muted); font-weight: 600; }
+.decision-reason { margin: 14px 0 0; padding: 14px 18px; border-radius: var(--r-md); background: var(--panel-2); line-height: 1.8; overflow-wrap: anywhere; }
+@media (max-width: 760px) { .decision-card { padding: 18px; } }
+@media (prefers-reduced-motion: reduce) { .hrow-wrap, .hrow-view { transition: none; } }
 </style>
 </head>
 <body>
@@ -1488,7 +1543,7 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
             <button type="button" class="ghost sm" id="heldLoadBtn">重新讀取清單</button>
           </div>
         </div>
-        <p class="hint">在<b>股票名稱、本回合開始或目前成本</b>文字點兩下可直接展開卡片編輯（外圍琥珀金框線，如逐日編輯形式）；變更後按下「儲存變更並重算績效」將直接在下方重算追蹤與績效，不需跳出視窗。現價來自行情快取，報酬率隨成本即時連動計算。</p>
+        <p class="hint">按「修改」或在文字點兩下編輯；改完按「儲存變更並重算績效」。現價來自行情快取。</p>
         <div class="amsg" id="heldMsg"></div>
         <div id="heldList" class="held-list"><div class="erow-empty">切到這一頁時讀取。</div></div>
         <div class="savebar" id="heldSaveBar" hidden>
@@ -2627,8 +2682,7 @@ $('submitBtn').addEventListener('click', function(){
 });
 
 /* ---------------- 判定歷程 ----------------
-   給人判讀用的，不參與任何計算。表格刻意只放最必要的四欄，
-   說明放在下面一行——那一行常常很長，擠進表格會把欄寬全部撐壞。 */
+   給人判讀用的，不參與任何計算。每筆一張卡，長說明整列閱讀。 */
 function renderDecisions(d){
   var rows = (d && d.rows) || [];
   if(!rows.length){
@@ -2641,17 +2695,16 @@ function renderDecisions(d){
   $('decTop').textContent = (d.top && d.top.length)
     ? ('最常出現：' + d.top.map(function(t){ return t.what + ' × ' + t.n; }).join('　'))
     : '';
-  $('decRows').innerHTML =
-    '<div class="tblwrap"><table class="dtbl"><thead><tr>' +
-    '<th>時間</th><th>影片日期</th><th>步驟</th><th>動作</th><th>對象</th>' +
-    '</tr></thead><tbody>' +
+  $('decRows').innerHTML = '<div class="decision-list" role="list" aria-label="判定歷程">' +
     rows.map(function(r){
-      return '<tr><td>' + esc(String(r.at).slice(5)) + '</td><td>' + esc(r.date) +
-             '</td><td>' + esc(r.step) + '</td><td>' + esc(r.action) +
-             '</td><td>' + esc(r.subject) + '</td></tr>' +
-             (r.detail ? '<tr class="dwhy"><td colspan="5">' + esc(r.detail) +
-                         (r.source ? '　（' + esc(r.source) + '）' : '') + '</td></tr>' : '');
-    }).join('') + '</tbody></table></div>' +
+      return '<article class="decision-card" role="listitem">' +
+        '<div class="decision-head"><strong>' + esc(r.action) + '</strong>' +
+          '<span>' + esc(String(r.at).slice(5)) + '</span></div>' +
+        '<div class="decision-meta"><span>' + esc(r.date) + '</span><span>' + esc(r.step) + '</span>' +
+          (r.subject ? '<span>' + esc(r.subject) + '</span>' : '') + '</div>' +
+        (r.detail ? '<p class="decision-reason">' + esc(r.detail) +
+          (r.source ? '　（' + esc(r.source) + '）' : '') + '</p>' : '') + '</article>';
+    }).join('') + '</div>' +
     '<p class="hint" style="margin-top:8px">顯示最近 ' + rows.length + ' 筆。</p>';
 }
 
@@ -4730,15 +4783,14 @@ var mergeTxFingerprint='';
 
   function draw() {
     if (!items.length) { $('heldList').innerHTML = '<div class="erow-empty">目前沒有持有中的股票。</div>'; updateSaveBar(); return; }
-    $('heldList').innerHTML = '<div class="hrow hhead" aria-hidden="true"><span>股票</span><span>本回合開始</span><span>目前成本</span><span>現價／報酬</span></div>' +
-      items.map(function (x, i) {
+    $('heldList').innerHTML = items.map(function (x, i) {
         var ret = (x.ret === null || x.ret === undefined) ? '—' : (x.ret > 0 ? '+' : '') + Number(x.ret).toFixed(2) + '%';
         var costVal = x.override ? x.override.cost : (x.entry == null ? '' : x.entry);
         var noteVal = x.override ? (x.override.note || '') : '';
         return '<div class="hrow-wrap' + (x.override ? ' fixed' : '') + '" data-i="' + i + '">' +
-          '<!-- 4 欄標準檢視列 -->' +
-          '<div class="hrow hrow-view" title="在股票、本回合開始或成本文字點兩下可展開編輯卡片">' +
-            '<span class="hn" data-label="股票">' +
+          '<!-- 卡片檢視：修改按鈕與原本雙擊編輯皆可展開同一張表單 -->' +
+          '<div class="hrow hrow-view">' +
+            '<span class="hn">' +
               '<b>' + esc(x.name) + '</b><small>' + esc(x.code) + '</small>' +
               (x.override ? '<em>已修正</em>' : '') +
               '<span class="tag wait h-dirty-tag" hidden>未儲存</span>' +
@@ -4754,6 +4806,7 @@ var mergeTxFingerprint='';
               '<span class="hp-cur">' + fmt(x.current) + '</span>' +
               '<small class="hp-ret ' + (x.ret > 0 ? 'up' : x.ret < 0 ? 'down' : '') + '">' + ret + '</small>' +
             '</span>' +
+            '<button type="button" class="btn sm ghost h-edit-btn" aria-label="修改' + esc(x.name) + '（' + esc(x.code) + '）持股資料">修改</button>' +
           '</div>' +
           '<!-- 卡片式編輯（如圖中 erow 形式，外圍帶框線） -->' +
           '<div class="herow-card" hidden>' +
@@ -4823,6 +4876,7 @@ var mergeTxFingerprint='';
       var dirtyTags = wrap.querySelectorAll('.h-dirty-tag');
       var hpRets = wrap.querySelectorAll('.hp-ret');
       var saveBtn = wrap.querySelector('.h-save-btn');
+      var editBtn = wrap.querySelector('.h-edit-btn');
       var cancelBtn = wrap.querySelector('.h-cancel-btn');
       var clearBtn = wrap.querySelector('.h-clear-btn');
 
@@ -4868,6 +4922,10 @@ var mergeTxFingerprint='';
       });
       // 整列點兩下直接展開
       hrowView.addEventListener('dblclick', function () {
+        openCard('cost');
+      });
+      editBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
         openCard('cost');
       });
 

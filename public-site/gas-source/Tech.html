@@ -268,9 +268,9 @@
         <button type="button" data-pn="0" aria-pressed="true">技術條件有原句</button><button type="button" data-pn="1" aria-pressed="false">換句話重講一次</button><button type="button" data-pn="2" aria-pressed="false">借用別家公司的消息</button><button type="button" data-pn="3" aria-pressed="false">「觀望不碰」卻寫找買點</button><button type="button" data-pn="4" aria-pressed="false">會員通知的成交價（虛構）</button><button type="button" data-pn="5" aria-pressed="false">人工修正：條件相同</button><button type="button" data-pn="6" aria-pressed="false">人工修正：分類改變</button>
       </div>
       <div class="pn-desk" id="pnDesk">
-        <section class="pn-col"><h3><i>1</i>原句與來源</h3><p class="pn-src"><span class="pn-chip">影片原句</span><span class="pn-chip">觀望注意</span></p><blockquote>甲公司站回季線，外資連三天買超；前高還沒過，追高要小心。</blockquote></section>
-        <section class="pn-col"><h3><i>2</i>核對了什麼</h3><p class="pn-draft"><s class="pn-f pn-drop">逐字稿補充的重點是：</s><span class="pn-f pn-keep">甲公司站回季線，外資連三天買超，前高未過，追高要留意風險。</span></p><ul class="pn-checks"><li class="pn-keep"><b>留</b>季線、外資連三天：原句都有</li><li class="pn-keep"><b>留</b>風險：原句有「追高要小心」</li><li class="pn-drop"><b>刪</b>「逐字稿補充的重點是」是寫作過程，不是事實</li></ul></section>
-        <section class="pn-col pn-final tone-ok" aria-live="polite"><h3><i>3</i>公開看見</h3><span class="tv-badge">可公開</span><p class="pn-text">甲公司站回季線，外資連三天買超；前高未過，追高要留意風險。</p><small class="pn-len">25 字</small></section>
+        <section class="pn-col"><p class="pn-h"><i>1</i>原句與來源</p><p class="pn-src"><span class="pn-chip">影片原句</span><span class="pn-chip">觀望注意</span></p><blockquote>甲公司站回季線，外資連三天買超；前高還沒過，追高要小心。</blockquote></section>
+        <section class="pn-col"><p class="pn-h"><i>2</i>核對了什麼</p><p class="pn-draft"><s class="pn-f pn-drop">逐字稿補充的重點是：</s><span class="pn-f pn-keep">甲公司站回季線，外資連三天買超，前高未過，追高要留意風險。</span></p><ul class="pn-checks"><li class="pn-keep"><b>留</b>季線、外資連三天：原句都有</li><li class="pn-keep"><b>留</b>風險：原句有「追高要小心」</li><li class="pn-drop"><b>刪</b>「逐字稿補充的重點是」是寫作過程，不是事實</li></ul></section>
+        <section class="pn-col pn-final tone-ok" aria-live="polite"><p class="pn-h"><i>3</i>公開看見</p><span class="tv-badge">可公開</span><p class="pn-text">甲公司站回季線，外資連三天買超；前高未過，追高要留意風險。</p><small class="pn-len">25 字</small></section>
       </div>
       <p class="tech-legend"><span class="tone-ok">留：有原句依據</span><span class="tone-stop">刪：不公開</span><span class="tone-warn">移：進內部稽核</span><span class="tone-resume">複核：交給管理者</span></p>
     </div>
@@ -885,9 +885,9 @@
     }).join('');
     var checks = c.checks.map(function (x) { var m = PN_MARK[x[0]]; return '<li class="' + m[0] + '"><b>' + m[1] + '</b>' + esc(x[1]) + '</li>'; }).join('');
     one('#pnDesk').innerHTML =
-      '<section class="pn-col"><h3><i>1</i>原句與來源</h3><p class="pn-src">' + c.src.map(function (t) { return '<span class="pn-chip">' + esc(t) + '</span>'; }).join('') + '</p><blockquote>' + esc(c.quote) + '</blockquote></section>' +
-      '<section class="pn-col"><h3><i>2</i>核對了什麼</h3><p class="pn-draft">' + draft + '</p><ul class="pn-checks">' + checks + '</ul></section>' +
-      '<section class="pn-col pn-final tone-' + c.out[0] + '" aria-live="polite"><h3><i>3</i>公開看見</h3><span class="tv-badge">' + esc(c.out[1]) + '</span><p class="pn-text">' + esc(c.out[2]) + '</p>' +
+      '<section class="pn-col"><p class="pn-h"><i>1</i>原句與來源</p><p class="pn-src">' + c.src.map(function (t) { return '<span class="pn-chip">' + esc(t) + '</span>'; }).join('') + '</p><blockquote>' + esc(c.quote) + '</blockquote></section>' +
+      '<section class="pn-col"><p class="pn-h"><i>2</i>核對了什麼</p><p class="pn-draft">' + draft + '</p><ul class="pn-checks">' + checks + '</ul></section>' +
+      '<section class="pn-col pn-final tone-' + c.out[0] + '" aria-live="polite"><p class="pn-h"><i>3</i>公開看見</p><span class="tv-badge">' + esc(c.out[1]) + '</span><p class="pn-text">' + esc(c.out[2]) + '</p>' +
       (c.out[3] ? '<p class="pn-note">' + esc(c.out[3]) + '</p>' : '') + '<small class="pn-len">' + textLen(c.out[2]) + ' 字</small></section>';
   }
   all('[data-pn]').forEach(function (b) { b.addEventListener('click', function () { drawPn(Number(b.dataset.pn)); }); });

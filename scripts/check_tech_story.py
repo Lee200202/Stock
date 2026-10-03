@@ -103,6 +103,9 @@ def check_interactions(page, label):
     bad = [m for m in methods if m not in ('apiLogUsage', 'apiGetTechStats')]
     assert not bad, f'{label}: interactions sent API calls {bad}'
 
+    toc = page.evaluate("[...document.querySelectorAll('.doc h2, .doc h3')].filter(h => h.closest('.tech-lab')).length")
+    assert toc == 0, f'{label}: {toc} headings inside interactive modules would enter the table of contents'
+
     small = page.evaluate("""() => [...document.querySelectorAll('[data-pain],[data-tx],[data-pn],[data-un],#painGo a')]
       .filter(e => e.offsetParent).map(e => e.getBoundingClientRect()).filter(r => r.width < 44 || r.height < 44).length""")
     assert small == 0, f'{label}: {small} controls below 44px'

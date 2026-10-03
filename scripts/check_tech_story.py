@@ -54,6 +54,11 @@ def open_tech(page, url):
 
 
 def check_interactions(page, label):
+    # 先等首頁自己的背景讀取（總覽、報價、技術頁統計）結束，之後點選時發出的請求才算互動造成的。
+    try:
+        page.wait_for_load_state('networkidle', timeout=20000)
+    except Exception:
+        page.wait_for_timeout(5000)
     calls = []
     page.on('request', lambda r: calls.append(r.post_data or '') if r.method == 'POST' and '/api' in r.url else None)
     base = len(calls)

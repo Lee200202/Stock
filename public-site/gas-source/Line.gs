@@ -989,27 +989,23 @@ function lineOutOfScopeReply_(kind, raw) {
 
 function lineSecretSmsReply_(uid, ch, on) {
   if (on) {
-    lineUpsertSub_(uid, ch, function (s) {
-      s.sms = true;
-      s.consentAt = lineNow_();
-      s.consentVer = LINE_CONSENT_VERSION_ + ':sms-keyword';
+    var enabled = lineUpsertSub_(uid, ch, function (s) {
+      // 再次輸入同一指令不重寫原同意時間，也不補發舊通知。
+      if (!lineSmsActive_(s)) {
+        s.sms = true;
+        s.consentAt = lineNow_();
+        s.consentVer = LINE_CONSENT_VERSION_ + ':sms-keyword';
+      }
       s.friend = 'follow';
       s.lastSeen = lineNow_();
     });
-    return [lineText_('已開啟盤中通知。只有來源入庫、內容完成核對且發文未超過 60 分鐘時才會推送；是否送達仍受 LINE 額度與來源狀態影響。輸入「關閉盤中通知」可隨時停止；每日總覽的訂閱狀態不變。', [
-      linePb_('今日整理', 'a=today', '今日整理'),
-      linePb_('管理訂閱', 'a=manage', '管理訂閱'),
-      linePb_('關閉盤中通知', 'a=secretsms&on=0', '關閉盤中通知')
-    ])];
+    return [lineSmsStateFlex_(enabled.sub, true, lineSmsActive_(enabled.before))];
   } else {
-    lineUpsertSub_(uid, ch, function (s) {
+    var disabled = lineUpsertSub_(uid, ch, function (s) {
       s.sms = false;
       s.lastSeen = lineNow_();
     });
-    return [lineText_('已為您關閉「盤中即時通知」。日後將不再接收盤中即時推送。\n（每日總覽若有開啟不受影響）', [
-      linePb_('管理訂閱', 'a=manage', '管理訂閱'),
-      linePb_('今日整理', 'a=today', '今日整理')
-    ])];
+    return [lineSmsStateFlex_(disabled.sub, false, !lineSmsActive_(disabled.before))];
   }
 }
 
@@ -1075,6 +1071,8 @@ function linePb_(label, data, display, extra) {
   Object.keys(extra || {}).forEach(function (k) { a[k] = extra[k]; });
   return a;
 }
+/** 使用者點下後，LINE 以本人名義送出文字；盤中通知同意紀錄因此與聊天室可見指令一致。 */
+function lineMsg_(label, message) { return { type: 'message', label: lineClip_(label, 20), text: lineClip_(message, 300) }; }
 function lineUri_(label, uri) { return { type: 'uri', label: lineClip_(label, 20), uri: uri }; }
 function lineQuickMain_() {
   return [linePb_('今日整理', 'a=today', '今日整理'), linePb_('查個股', 'a=askstock', '查個股', { inputOption: 'openKeyboard' }),
@@ -1210,6 +1208,38 @@ function lineWelcomeFlex_(s, back) {
         fxBtn_(linePb_('先看今日整理', 'a=today', '今日整理'), 'link')]));
 }
 
+/** 指令完成後的 LINE 卡片：結果、推送條件與停止方式分開，和其他通知共用顏色與間距。 */
+function lineSmsStateFlex_(s, on, already) {
+  var blocked = on ? lineDeliveryBlock_(s) : '';
+  var status = on ? (blocked ? '設定已確認・推送暫停' : '設定已確認・等待新內容') : '已停止';
+  var color = on ? (blocked ? LINE_C_.amber : LINE_C_.accent) : LINE_C_.off;
+  var body = [
+    fxBox_('vertical', [
+      fxText_('目前狀態', { size: 'xs', weight: 'bold', color: LINE_C_.muted }),
+      fxText_(status, { size: 'md', weight: 'bold', color: color, margin: 'sm' }),
+      blocked ? fxText_(blocked, { size: 'sm', color: LINE_C_.ink, margin: 'sm' }) :
+        fxText_(on ? (already ? '先前已確認；這次沒有重複建立訂閱或補發舊通知。' : '你已完成確認，有符合條件的新通知才會推送。') :
+          (already ? '盤中通知原本就已停止。' : '之後不再接收盤中即時推送。'), { size: 'sm', color: LINE_C_.ink, margin: 'sm' })
+    ], { backgroundColor: LINE_C_.soft, cornerRadius: '14px', paddingAll: '14px' }),
+    fxBox_('vertical', [
+      fxText_(on ? '什麼時候會收到' : '保留的設定', { size: 'xs', weight: 'bold', color: LINE_C_.muted }),
+      fxText_(on ? '會員簡訊入庫、內容核對完成，且發文未超過 60 分鐘時才推送；沒有新內容就不發。' :
+        '每日總覽' + (s && s.daily ? '仍維持開啟。' : '目前未開啟。'), { size: 'sm', color: LINE_C_.ink, margin: 'sm' })
+    ], { backgroundColor: LINE_C_.soft, cornerRadius: '14px', paddingAll: '14px' }),
+    on ? fxText_('每日總覽' + (s && s.daily ? '維持開啟' : '目前未開啟') + '；Email 訂閱不受影響。LINE 額度或來源異常時，推送可能無法完成。',
+      { size: 'xs', color: LINE_C_.muted }) : fxNote_('Email 訂閱不受影響。要恢復盤中通知，可點下方按鈕或輸入「開啟盤中通知」。')
+  ];
+  var buttons = on ? [
+    fxBtn_(linePb_('查看通知設定', 'a=manage', '管理訂閱')),
+    fxBtn_(lineMsg_('停止盤中通知', '關閉盤中通知'), 'secondary')
+  ] : [
+    fxBtn_(lineMsg_('重新開啟盤中通知', '開啟盤中通知')),
+    fxBtn_(linePb_('查看通知設定', 'a=manage', '管理訂閱'), 'secondary')
+  ];
+  return lineFlex_(on ? '盤中即時通知已確認。' + (blocked || '符合條件的新內容才會推送。') : '盤中即時通知已停止；每日總覽設定不變。',
+    fxBubble_(fxHeader_('LINE 通知設定', on ? '盤中通知已開啟' : '盤中通知已停止'), body, buttons));
+}
+
 function lineLastAccepted_(uid) {
   var out = {};
   try {
@@ -1238,12 +1268,12 @@ function lineManageFlex_(s) {
     return fxBox_('vertical', [
       fxBox_('horizontal', [fxText_(LINE_KIND_NAME_[k], { size: 'sm', weight: 'bold', color: LINE_C_.ink, flex: 1 }),
         fxText_(label, { size: 'xs', weight: 'bold', color: on ? LINE_C_.accent : (label === '未生效' ? LINE_C_.amber : LINE_C_.off), align: 'end', flex: 0 })]),
-      fxText_(k === 'sms' && smsPending ? '這是舊的按鈕設定，不會推送。輸入「開啟盤中通知」或按下方按鈕確認後才會送出。' : LINE_KIND_WHEN_[k], { size: 'xs', color: LINE_C_.muted, margin: 'xs' }),
+      fxText_(k === 'sms' && smsPending ? '舊設定尚未生效。輸入「開啟盤中通知」，或點下方按鈕由你的帳號送出同一句，才會完成確認。' : LINE_KIND_WHEN_[k], { size: 'xs', color: LINE_C_.muted, margin: 'xs' }),
       last[k] ? fxText_('最近一次 LINE 已接受：' + String(last[k]).slice(5, 16), { size: 'xxs', color: LINE_C_.muted, margin: 'xs' }) : null
     ], { backgroundColor: LINE_C_.soft, cornerRadius: '10px', paddingAll: '12px' });
   });
   var btns = kinds.map(function (k) {
-    if (k === 'sms' && smsPending) { return fxBtn_(linePb_('確認開啟盤中通知', 'a=secretsms&on=1', '開啟盤中通知')); }
+    if (k === 'sms' && smsPending) { return fxBtn_(lineMsg_('確認開啟盤中通知', '開啟盤中通知')); }
     return s && s[k] ? fxBtn_(linePb_('停止' + LINE_KIND_NAME_[k], 'a=unsub&k=' + k, '停止' + LINE_KIND_NAME_[k]), 'secondary')
                      : fxBtn_(linePb_('開啟' + LINE_KIND_NAME_[k], 'a=sub&k=' + k, '開啟' + LINE_KIND_NAME_[k]));
   });
@@ -2060,6 +2090,9 @@ function lineValidateAll_() {
   var fakeSub = { uid: 'U00000000000000000000000000000000', daily: true, sms: false };
   var samples = [
     ['歡迎', lineWelcomeFlex_(fakeSub, false)], ['歡迎回來', lineWelcomeFlex_(fakeSub, true)], ['管理訂閱', lineManageFlex_(fakeSub)],
+    ['盤中通知待確認', lineManageFlex_({ daily: true, sms: true, consentVer: '' })],
+    ['盤中通知開啟', lineSmsStateFlex_({ daily: true, sms: true, consentVer: LINE_CONSENT_VERSION_ + ':sms-keyword' }, true, false)],
+    ['盤中通知停止', lineSmsStateFlex_({ daily: true, sms: false }, false, false)],
     ['開啟確認', lineSubConfirm_({ daily: true, sms: false }, { daily: false, sms: false }, ['daily'], true)],
     ['停止確認', lineSubConfirm_({ daily: false, sms: false }, { daily: true, sms: false }, ['daily'], false)],
     ['使用說明', lineHelpFlex_()],

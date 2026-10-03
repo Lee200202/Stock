@@ -1098,6 +1098,15 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
 /* 表單並排欄位拉滿卡片寬度（原本每欄固定寬，右邊空一大片） */
 .panel .card .row > .field { flex: 1 1 280px; min-width: 0; }
 /* ====== v101 後台樣式層結束 ====== */
+/* v114：持有／已出場切換（與前台同一組膠囊）；已出場卡用出場的綠色色條，多一行出場日與原因。 */
+.held-toggle { margin: 4px 0 16px; }
+.hrow-wrap.is-exited { border-color: color-mix(in srgb, var(--fall) 24%, var(--rule)); background: color-mix(in srgb, var(--fall) 4%, var(--panel)); }
+.hrow-wrap.is-exited::before { background: var(--fall); }
+.hrow-wrap.is-exited.dirty::before, .hrow-wrap.is-exited.editing::before { background: var(--wait); }
+.hrow-view .hx { grid-area: hx; color: var(--muted); font-size: calc(13.5px * var(--rd-fs)); line-height: 1.6; overflow-wrap: anywhere; }
+.hrow-wrap.is-exited .hrow-view { grid-template-areas: "hn hp" "hd hc" "hx hx" "edit edit"; }
+@media (max-width: 760px) { .hrow-wrap.is-exited .hrow-view, .hrow-wrap.is-exited.dirty .hrow-view { grid-template-areas: "hn hp" "hd hd" "hc hc" "hx hx" "edit edit"; } }
+html[data-view="mobile"] .hrow-wrap.is-exited .hrow-view { grid-template-areas: "hn hp" "hd hd" "hc hc" "hx hx" "edit edit"; }
 /* v112：現有持股的檢視列與判定歷程改為全寬卡片；編輯表單、雙擊與批次儲存沿用原流程。 */
 .held-list { display: grid; gap: 14px; }
 .hrow-wrap {
@@ -1134,13 +1143,13 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
   .hrow-wrap::before { left: 11px; }
   .hrow-view, .hrow-wrap.dirty .hrow-view { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "hn hp" "hd hd" "hc hc" "edit edit"; padding: 20px 18px 20px 30px; gap: 14px; }
   .hrow-view .hp-cur { font-size: calc(16px * var(--rd-fs)); }
-  .hrow-view .h-edit-btn { justify-self: stretch; }
+  .hrow-view .btn.sm.h-edit-btn { justify-self: stretch; }
   .herow-card { padding: 20px 18px 20px 30px; }
 }
 html[data-view="mobile"] .hrow-wrap::before { left: 11px; }
 html[data-view="mobile"] .hrow-view, html[data-view="mobile"] .hrow-wrap.dirty .hrow-view { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "hn hp" "hd hd" "hc hc" "edit edit"; padding: 20px 18px 20px 30px; gap: 14px; }
 html[data-view="mobile"] .hrow-view .hp-cur { font-size: calc(16px * var(--rd-fs)); }
-html[data-view="mobile"] .hrow-view .h-edit-btn { justify-self: stretch; }
+html[data-view="mobile"] .hrow-view .btn.sm.h-edit-btn { justify-self: stretch; }
 html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
 .decision-list { display: grid; gap: 14px; }
 .decision-card { padding: 20px 24px; border: 1px solid var(--rule); border-radius: var(--r-lg); background: var(--panel); box-shadow: var(--lift); }
@@ -1234,7 +1243,7 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
       <!-- 「資料修正」分頁併進「維護工具」（v54）：它的兩個動作（重寫某一天的郵件、重新分類）跟維護工具同一類，
            分兩頁放只是讓人不知道該去哪一頁找。原本的元件與編號都保留，搬進維護工具的第三個區塊。 -->
       <button class="tab" role="tab" aria-selected="false" data-tab="held">
-        <svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/></svg>現有持股</button>
+        <svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/></svg>持股追蹤</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="maint">
         <svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg>維護工具</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="smsadmin">
@@ -1428,7 +1437,7 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
       <div class="card">
         <h2>逐日編輯：選一天</h2>
         <p class="hint">改某一天的分類、價位、說明，或補進機器沒擷取到的股票。<b>有底色的日子已有紀錄</b>；沒有底色的也點得下去（要補的常常就是那一天）。
-          儲存後郵件、持股追蹤與績效會自動同步。只想改<b>目前持股的成本</b>，到「現有持股」分頁直接改，不必回到開倉那天。</p>
+          儲存後郵件、持股追蹤與績效會自動同步。只想改<b>目前持股的成本</b>，到「持股追蹤」分頁直接改，不必回到開倉那天。</p>
         <div class="mailcal-wrap">
           <div class="mailcal">
             <div class="mailcal-head">
@@ -1537,13 +1546,16 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
     <section class="panel" id="p-held" role="tabpanel" hidden>
       <div class="card">
         <div class="card-h">
-          <h2>現有持股：核對來源與修正</h2>
+          <h2>持股追蹤：核對來源與修正</h2>
           <div class="btnrow" style="margin:0;gap:8px">
             <button type="button" class="btn primary sm" id="heldSaveTopBtn" disabled>儲存變更並重算績效</button>
             <button type="button" class="ghost sm" id="heldLoadBtn">重新讀取清單</button>
           </div>
         </div>
         <p class="hint">按「修改」或在文字點兩下編輯；改完按「儲存變更並重算績效」。現價來自行情快取。</p>
+        <div class="chartbar seg held-toggle" id="heldToggle" role="group" aria-label="持股狀態">
+          <button type="button" class="pill" data-hk="held" aria-pressed="true">持有</button><button type="button" class="pill" data-hk="exited" aria-pressed="false">已出場</button>
+        </div>
         <div class="amsg" id="heldMsg"></div>
         <div id="heldList" class="held-list"><div class="erow-empty">切到這一頁時讀取。</div></div>
         <div class="savebar" id="heldSaveBar" hidden>
@@ -4769,6 +4781,26 @@ var mergeTxFingerprint='';
 /* ---------------- 現有持股：文字點兩下展開外框卡片修改與大視窗整體儲存（v54/v84） ---------------- */
 (function () {
   var items = [], polling = null;
+  /* v114：持有與已出場共用同一張卡與同一套編輯；items 永遠指向目前這一頁的清單，儲存流程不必分兩套。 */
+  var lists = { held: [], exited: [] }, heldView = 'held';
+  function paintToggle() {
+    var box = $('heldToggle'); if (!box) { return; }
+    box.querySelectorAll('[data-hk]').forEach(function (b) {
+      var k = b.getAttribute('data-hk');
+      b.setAttribute('aria-pressed', String(k === heldView));
+      b.textContent = (k === 'held' ? '持有' : '已出場') + '（' + lists[k].length + '）';
+    });
+  }
+  function setHeldView(k) {
+    if (k === heldView || !lists[k]) { return; }
+    // 有還沒儲存的修改時不切換，免得改到一半的內容不見
+    if ($('heldList').querySelector('.hrow-wrap.dirty')) {
+      var m = $('heldMsg'); m.className = 'amsg warn'; m.style.display = 'block';
+      m.textContent = '還有未儲存的修改：請先儲存或收起，再切換。';
+      return;
+    }
+    heldView = k; items = lists[k]; paintToggle(); draw();
+  }
   var NAMES = ['同步郵件內容', '重算持股追蹤', '重算歷史績效', '記錄目前績效'];
   function fmt(v) { return v === null || v === undefined || v === '' ? '—' : Number(v).toLocaleString('zh-TW', { maximumFractionDigits: 2 }); }
   /* v90（管理者）：修正過成本的持股只顯示管理者寫的說明（例如「取 2026/09/30 當日最低 225.5；明講 240 以下買進。」）。
@@ -4782,12 +4814,14 @@ var mergeTxFingerprint='';
   function costSrcShort(x) { return costSrc(x).replace(/（原判：[^（）]*）/g, ''); }
 
   function draw() {
-    if (!items.length) { $('heldList').innerHTML = '<div class="erow-empty">目前沒有持有中的股票。</div>'; updateSaveBar(); return; }
+    if (!items.length) { $('heldList').innerHTML = '<div class="erow-empty">' + (heldView === 'held' ? '目前沒有持有中的股票。' : '目前沒有已出場的回合。') + '</div>'; updateSaveBar(); return; }
     $('heldList').innerHTML = items.map(function (x, i) {
         var ret = (x.ret === null || x.ret === undefined) ? '—' : (x.ret > 0 ? '+' : '') + Number(x.ret).toFixed(2) + '%';
         var costVal = x.override ? x.override.cost : (x.entry == null ? '' : x.entry);
         var noteVal = x.override ? (x.override.note || '') : '';
-        return '<div class="hrow-wrap' + (x.override ? ' fixed' : '') + '" data-i="' + i + '">' +
+        var closed = !!x.closed;
+        var exitLine = closed ? [x.lastSell ? String(x.lastSell).slice(5) + ' 出場' : '', x.exitReason || ''].filter(String).join('｜') : '';
+        return '<div class="hrow-wrap' + (x.override ? ' fixed' : '') + (closed ? ' is-exited' : '') + '" data-i="' + i + '">' +
           '<!-- 卡片檢視：修改按鈕與原本雙擊編輯皆可展開同一張表單 -->' +
           '<div class="hrow hrow-view">' +
             '<span class="hn">' +
@@ -4796,16 +4830,17 @@ var mergeTxFingerprint='';
               '<span class="tag wait h-dirty-tag" hidden>未儲存</span>' +
             '</span>' +
             '<span class="hd" data-label="本回合開始">' + esc(x.roundStart) + '</span>' +
-            '<span class="hc" data-label="目前成本">' +
+            '<span class="hc" data-label="' + (closed ? '進場成本' : '目前成本') + '">' +
               '<div class="hc-text">' +
                 '<b class="hc-val">' + fmt(x.entry) + '</b>' +
                 '<small class="hc-src" title="' + esc(costSrc(x)) + '">' + esc(costSrcShort(x)) + '</small>' +
               '</div>' +
             '</span>' +
-            '<span class="hp" data-label="現價／報酬">' +
+            '<span class="hp" data-label="' + (closed ? '出場價／報酬' : '現價／報酬') + '">' +
               '<span class="hp-cur">' + fmt(x.current) + '</span>' +
               '<small class="hp-ret ' + (x.ret > 0 ? 'up' : x.ret < 0 ? 'down' : '') + '">' + ret + '</small>' +
             '</span>' +
+            (exitLine ? '<span class="hx">' + esc(exitLine) + '</span>' : '') +
             '<button type="button" class="btn sm ghost h-edit-btn" aria-label="修改' + esc(x.name) + '（' + esc(x.code) + '）持股資料">修改</button>' +
           '</div>' +
           '<!-- 卡片式編輯（如圖中 erow 形式，外圍帶框線） -->' +
@@ -4813,7 +4848,7 @@ var mergeTxFingerprint='';
             '<div class="erow-h">' +
               '<input class="h-name" value="' + esc(x.name) + '" placeholder="股票名稱" aria-label="股票名稱">' +
               '<input class="h-code" value="' + esc(x.code) + '" placeholder="代號" inputmode="numeric" maxlength="6" aria-label="代號">' +
-              '<span class="tag">會員持股</span>' +
+              '<span class="tag">' + (closed ? '已出場' : '會員持股') + '</span>' +
               (x.override ? '<span class="tag man">已修正</span>' : '') +
               '<span class="tag wait h-dirty-tag" hidden>未儲存</span>' +
             '</div>' +
@@ -4823,11 +4858,11 @@ var mergeTxFingerprint='';
                 '<input class="h-date" value="' + esc(x.roundStart) + '" placeholder="YYYY/MM/DD" aria-label="本回合開始日">' +
               '</div>' +
               '<div class="herow-field">' +
-                '<span class="herow-label">目前成本</span>' +
+                '<span class="herow-label">' + (closed ? '進場成本' : '目前成本') + '</span>' +
                 '<input class="h-cost" inputmode="decimal" value="' + esc(costVal) + '" placeholder="新成本" aria-label="成本">' +
               '</div>' +
               '<div class="herow-preview">' +
-                '<span class="hp-cur">現價 ' + fmt(x.current) + '</span>' +
+                '<span class="hp-cur">' + (closed ? '出場價 ' : '現價 ') + fmt(x.current) + '</span>' +
                 '<small class="hp-ret ' + (x.ret > 0 ? 'up' : x.ret < 0 ? 'down' : '') + '">' + ret + '</small>' +
               '</div>' +
             '</div>' +
@@ -4849,6 +4884,8 @@ var mergeTxFingerprint='';
     var dirtyWraps = $('heldList').querySelectorAll('.hrow-wrap.dirty');
     var n = dirtyWraps.length;
     var hasDirty = n > 0;
+    // v114：沒有未儲存的修改了，就把「請先儲存或收起」的提醒收掉
+    if (!hasDirty && $('heldMsg') && /未儲存的修改/.test($('heldMsg').textContent)) { $('heldMsg').style.display = 'none'; $('heldMsg').textContent = ''; }
     if ($('heldSaveBar')) {
       $('heldSaveBar').hidden = !hasDirty;
       var dirtyTitle = $('heldSaveBar').querySelector('.held-save-title');
@@ -5112,7 +5149,8 @@ var mergeTxFingerprint='';
     $('heldList').innerHTML = '<div class="erow-empty">讀取中…</div>';
     google.script.run.withSuccessHandler(function (r) {
       if (!r || !r.ok) { $('heldList').innerHTML = '<div class="erow-empty">讀取失敗：' + esc(r ? r.reason : '沒有回應') + '</div>'; return; }
-      items = r.items || []; draw();
+      lists = { held: r.items || [], exited: r.exited || [] };
+      items = lists[heldView]; paintToggle(); draw();
     }).withFailureHandler(function () {
       $('heldList').innerHTML = '<div class="erow-empty">連線失敗，按「重新讀取清單」再試一次。</div>';
     }).apiAdminHeldList(KEY);
@@ -5137,6 +5175,10 @@ var mergeTxFingerprint='';
   }
 
   window.__loadHeld = function () { load(); };
+  if ($('heldToggle')) { $('heldToggle').addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('[data-hk]') : null;
+    if (b) { setHeldView(b.getAttribute('data-hk')); }
+  }); }
   if ($('heldLoadBtn')) { $('heldLoadBtn').addEventListener('click', load); }
   if ($('heldSaveTopBtn')) { $('heldSaveTopBtn').addEventListener('click', saveAllDirty); }
   if ($('heldSaveAll')) { $('heldSaveAll').addEventListener('click', saveAllDirty); }

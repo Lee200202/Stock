@@ -970,12 +970,19 @@ function apiAdminHeldList(key) {
     var ov = readCostOverrides_();
     var t = getHoldingsTracker();
     var held = (t.held || (t.items || []).filter(function (i) { return i.stillHeld; }));
-    return { ok: true, items: held.map(function (i) {
+    /* v114（管理者：現有持股是持股追蹤的後台，已出場的也要能改）：另外回傳已出場的回合。
+       成本覆寫本來就以「代號＋回合開始日」套用到每一個回合（SheetService 的 rounds.forEach），這裡只是把入口打開。 */
+    var exited = (t.exited || (t.items || []).filter(function (i) { return !i.stillHeld; }));
+    var view = function (i, closed) {
       var o = ov[String(i.code) + '|' + (i.roundStart || i.firstBuy)] || null;
-      return { code: i.code, name: (o && o.name) ? o.name : i.name, valid: !!i.valid, roundStart: i.roundStart || i.firstBuy,
+      var out = { code: i.code, name: (o && o.name) ? o.name : i.name, valid: !!i.valid, roundStart: i.roundStart || i.firstBuy,
                entry: i.entry, entrySrc: i.entrySrc || '', current: i.current, ret: i.ret,
                override: o ? { cost: o.cost, note: o.note, at: o.at, name: o.name } : null };
-    }) };
+      if (closed) { out.closed = true; out.lastSell = i.lastSell || ''; out.exitReason = String(i.exitReason || ''); }
+      return out;
+    };
+    return { ok: true, items: held.map(function (i) { return view(i, false); }),
+             exited: exited.map(function (i) { return view(i, true); }) };
   } catch (e) { return { ok: false, reason: String(e.message || e) }; }
 }
 
@@ -992,10 +999,12 @@ function apiAdminSetHoldingCost(key, code, roundStart, cost, note, customName, n
     if (!targetDate) { return { ok: false, reason: '新回合開始日格式不對：' + newRoundStart }; }
     var clear = cost === '' || cost === null || cost === undefined;
     if (!clear && !(c > 0 && c < 100000)) { return { ok: false, reason: '成本要是大於 0 的數字（收到：' + cost + '）。' }; }
-    var held = (getHoldingsTracker().held || []).filter(function (i) {
+    // v114：持有中與已出場的回合都可以修正成本（先前只收持有中）。
+    var tracker = getHoldingsTracker();
+    var held = (tracker.held || []).concat(tracker.exited || []).filter(function (i) {
       return String(i.code) === code && (i.roundStart || i.firstBuy) === d;
     })[0];
-    if (!held && !clear) { return { ok: false, reason: code + ' 在 ' + d + ' 開始的回合目前不是持有中，請重新整理清單。' }; }
+    if (!held && !clear) { return { ok: false, reason: code + ' 在 ' + d + ' 開始的回合不在持股追蹤裡，請重新整理清單。' }; }
     withLock_(function () {
       var sh = getSheet_('持股成本覆寫');
       var vals = sh.getDataRange().getValues(), head = vals[0].map(String);

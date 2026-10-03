@@ -59,6 +59,12 @@ AUDIT = """() => {
     const hs = ctl.map(c => Math.round(c.getBoundingClientRect().height)), rs = ctl.map(c => getComputedStyle(c).borderTopLeftRadius);
     if (Math.max(...hs) - Math.min(...hs) > 2 || new Set(rs).size > 1) out.push(['controls', label(f.closest('.card') || f), hs.join('/'), [...new Set(rs)].join('/')]);
   });
+  // 後台專用郵件通知：收件者與操作上下排、各佔整列
+  const st = p.querySelector('.line-form.is-stack');
+  if (st && vis(st)) {
+    const k = [...st.children].filter(vis).map(x => x.getBoundingClientRect()), fw = st.getBoundingClientRect().width;
+    if (!(k.length === 2 && k[1].top >= k[0].bottom - 1 && k.every(r => r.width >= fw - 2))) out.push(['stack', '後台專用郵件通知', k.map(r => Math.round(r.width)).join('/'), Math.round(fw)]);
+  }
   const over = document.documentElement.scrollWidth - innerWidth;
   if (over > 1) out.push(['overflow', 'page', over, innerWidth]);
   return out;

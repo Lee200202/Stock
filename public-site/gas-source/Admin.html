@@ -1108,6 +1108,8 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
 .panel .card .row > .field:has(> select) { flex: 1 1 280px; min-width: 0; }
 .sms-mode-opt { border-radius: var(--r-md); transition: border-color .18s ease, background-color .18s ease; }
 .sms-mode-opt:has(input:checked) { border-color: var(--beam); background: color-mix(in srgb, var(--beam) 10%, var(--panel)); }
+/* 後台專用郵件通知：收件者與操作上下排，各佔整列 */
+.line-form.is-stack { grid-template-columns: minmax(0, 1fr); gap: 4px 0; }
 .line-search button { flex: none; white-space: nowrap; min-width: 88px; }
 @media (prefers-reduced-motion: reduce) { .sms-mode-opt { transition: none; } }
 /* ====== v115 後台版面對齊結束 ====== */
@@ -1913,7 +1915,7 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
       <div class="card">
         <h2>後台專用郵件通知</h2>
         <p class="hint">只替已同意的收件者設定盤中通知；停止後不再寄送，帳本保留。</p>
-        <div class="line-form">
+        <div class="line-form is-stack">
           <div class="field"><label for="privateSmsEmail">收件者 Email</label><input id="privateSmsEmail" type="email" autocomplete="off" placeholder="you@example.com"></div>
           <div class="field"><label for="privateSmsAction">操作</label><select id="privateSmsAction"><option value="on">開啟盤中通知</option><option value="off">停止盤中通知</option></select></div>
         </div>

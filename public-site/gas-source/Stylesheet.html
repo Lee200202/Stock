@@ -3895,6 +3895,100 @@ html[data-view="mobile"] #perfTable .th-long { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .tech-story *, .tech-story *::before, .tech-story *::after { animation: none !important; transition: none !important; }
 }
+/* ====== v108 技術說明互動：開場痛點、原稿稽核實驗室、公開說明編輯檯、沒講名字三分支 ======
+   全部限定在 .tech-story 內，不影響其他分頁。狀態一律「符號＋文字＋顏色」，不只靠顏色。 */
+.tech-story .tech-options button { border-radius: 999px; padding-inline: 18px; }
+.tech-story .tech-options.is-long button { border-radius: 22px; }
+.tech-story .tech-options button, .tech-story .tech-pains button { transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease; }
+.tech-story .tech-options button:focus-visible, .tech-story .tech-pains button:focus-visible { outline: 3px solid var(--beam); outline-offset: 3px; }
+.tech-story .tech-tag { display: inline-flex; align-items: center; margin-left: 10px; padding: 1px 12px; border: 1px dashed var(--muted); border-radius: 999px; color: var(--muted); font-size: calc(12.5px * var(--rd-fs)); font-weight: 600; vertical-align: 1px; }
+.tech-story .tone-skip.tech-verdict, .tech-story li.tone-skip { --tc: var(--t-skip); }
+.tech-story .tp-k { display: block; font-size: calc(12.5px * var(--rd-fs)); font-weight: 700; color: var(--tc, var(--muted)); letter-spacing: .02em; }
+
+/* 開場：三張大卡＋三步路徑 */
+.tech-story .tech-pain-lab { margin-top: 18px; }
+.tech-story .tech-pains { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0 0 16px; }
+.tech-story .tech-pains button { display: flex; gap: 12px; align-items: center; min-height: 72px; padding: 14px 20px; border: 1px solid var(--rule); border-radius: 22px; background: var(--panel-2); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.tech-story .tech-pains button i { flex: none; font-style: normal; font-size: calc(20px * var(--rd-fs)); color: var(--beam); }
+.tech-story .tech-pains button b { font-size: calc(15.5px * var(--rd-fs)); line-height: 1.45; }
+.tech-story .tech-pains button:hover { border-color: var(--beam); }
+.tech-story .tech-pains button[aria-pressed="true"] { background: color-mix(in srgb, var(--beam) 14%, var(--panel)); border-color: var(--beam); box-shadow: inset 0 0 0 1px var(--beam); }
+.tech-story .tech-path, .tech-story .un-chain { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; counter-reset: none; }
+.tech-story .tech-path li, .tech-story .un-chain li { position: relative; min-width: 0; padding: 14px 18px; border: 1px solid color-mix(in srgb, var(--tc) 35%, var(--rule)); border-top: 4px solid var(--tc); border-radius: 18px; background: color-mix(in srgb, var(--tc) 6%, var(--panel)); }
+.tech-story .tech-path li p { margin: 6px 0 0; font-size: calc(15px * var(--rd-fs)); line-height: 1.7; }
+.tech-story .tech-path li + li::before, .tech-story .un-chain li + li::before { content: "→"; position: absolute; left: -12px; top: 50%; transform: translate(-50%, -50%); color: var(--muted); font-size: 15px; }
+.tech-story .tech-pain-go { margin: 14px 0 0; }
+.tech-story .tech-pain-go a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; border: 1px solid var(--beam); border-radius: 999px; color: var(--beam); font-weight: 600; text-decoration: none; }
+.tech-story .tech-pain-go a:focus-visible { outline: 3px solid var(--beam); outline-offset: 3px; }
+
+/* 原稿實驗室：指紋比對、六段狀態、三個結論 */
+.tech-story .tx-fp { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 0 0 14px; padding: 12px 18px; border: 1px solid var(--rule); border-radius: 999px; background: var(--panel-2); font-size: calc(14px * var(--rd-fs)); }
+.tech-story .tx-fp code { font-family: "IBM Plex Mono", monospace; font-size: .95em; padding: 1px 8px; border-radius: 8px; background: var(--panel); }
+.tech-story .tx-fp i { font-style: normal; font-weight: 700; font-size: 18px; }
+.tech-story .tx-fp b { margin-left: auto; padding: 1px 12px; border-radius: 999px; border: 1px solid var(--tc); color: var(--tc); }
+.tech-story .tx-fp.is-same { --tc: var(--t-ok); } .tech-story .tx-fp.is-diff { --tc: var(--t-stop); }
+.tech-story .tx-stages { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin: 0 0 16px; padding: 0; list-style: none; }
+.tech-story .tx-stages li { min-width: 0; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--tc) 35%, var(--rule)); border-top: 4px solid var(--tc); border-radius: 16px; background: color-mix(in srgb, var(--tc) 7%, var(--panel)); transition: background-color .2s ease, border-color .2s ease; }
+.tech-story .tx-stages .tx-st { display: inline-block; margin-top: 6px; padding: 1px 10px; border: 1px solid var(--tc); border-radius: 999px; color: var(--tc); font-size: calc(13px * var(--rd-fs)); font-weight: 700; }
+.tech-story .tx-stages p { margin: 8px 0 0; font-size: calc(13.5px * var(--rd-fs)); line-height: 1.6; }
+.tech-story .tx-out { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0; }
+.tech-story .tx-out > div { padding: 14px 18px; border-radius: 16px; background: var(--panel-2); }
+.tech-story .tx-out dt { font-size: calc(13px * var(--rd-fs)); font-weight: 700; color: var(--muted); }
+.tech-story .tx-out dd { margin: 6px 0 0; font-size: calc(15px * var(--rd-fs)); line-height: 1.7; color: var(--ink); }
+
+/* 公開說明編輯檯：三欄，手機直排 */
+.tech-story .pn-desk { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1fr); gap: 14px; }
+.tech-story .pn-col { position: relative; min-width: 0; padding: 16px 18px; border: 1px solid var(--rule); border-radius: 20px; background: var(--panel); }
+.tech-story .pn-col + .pn-col::before { content: "→"; position: absolute; left: -14px; top: 26px; transform: translateX(-50%); color: var(--muted); }
+.tech-story .pn-col h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: calc(14.5px * var(--rd-fs)); }
+.tech-story .pn-col h3 i { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--panel-2); font-style: normal; font-size: 13px; }
+.tech-story .pn-src { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+.tech-story .pn-chip { padding: 1px 10px; border: 1px solid var(--rule); border-radius: 999px; font-size: calc(12.5px * var(--rd-fs)); color: var(--muted); }
+.tech-story .pn-col blockquote { margin: 0; padding: 0 0 0 12px; border-left: 3px solid var(--rule); font-size: calc(15px * var(--rd-fs)); line-height: 1.75; }
+.tech-story .pn-draft { margin: 0 0 10px; font-size: calc(15px * var(--rd-fs)); line-height: 1.9; }
+.tech-story .pn-f { padding: 1px 2px; border-radius: 4px; }
+.tech-story .pn-keep { --tc: var(--t-ok); } .tech-story .pn-drop { --tc: var(--t-stop); }
+.tech-story .pn-move { --tc: var(--t-warn); } .tech-story .pn-review { --tc: var(--t-resume); }
+.tech-story .pn-draft .pn-f { background: color-mix(in srgb, var(--tc) 12%, transparent); box-shadow: inset 0 -2px color-mix(in srgb, var(--tc) 55%, transparent); }
+.tech-story .pn-draft s.pn-f { text-decoration-thickness: 2px; text-decoration-color: var(--tc); color: var(--muted); }
+.tech-story .pn-checks { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.tech-story .pn-checks li { display: flex; gap: 8px; align-items: baseline; font-size: calc(14px * var(--rd-fs)); line-height: 1.6; }
+.tech-story .pn-checks b { flex: none; min-width: 38px; padding: 0 8px; border: 1px solid var(--tc); border-radius: 999px; color: var(--tc); font-size: calc(12.5px * var(--rd-fs)); text-align: center; }
+.tech-story .pn-final { border: 1px solid color-mix(in srgb, var(--tc) 40%, var(--rule)); border-left: 5px solid var(--tc); background: color-mix(in srgb, var(--tc) 7%, var(--panel)); }
+.tech-story .pn-final .tv-badge { display: inline-block; padding: 2px 12px; border: 1px solid var(--tc); border-radius: 999px; color: var(--tc); font-size: calc(13px * var(--rd-fs)); font-weight: 700; }
+.tech-story .pn-text { margin: 10px 0 0; font-size: calc(16px * var(--rd-fs)); line-height: 1.75; color: var(--ink); }
+.tech-story .pn-note { margin: 8px 0 0; font-size: calc(13.5px * var(--rd-fs)); color: var(--muted); }
+.tech-story .pn-len { display: block; margin-top: 8px; color: var(--muted); }
+
+/* 沒講名字：五步鏈＋選中的結果卡 */
+.tech-story .un-chain { grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0 0 14px; }
+.tech-story .un-chain li b { display: block; margin-top: 6px; font-size: calc(14.5px * var(--rd-fs)); line-height: 1.5; }
+.tech-story .tech-verdict { transition: opacity .2s ease, box-shadow .2s ease; }
+.tech-story.tech-js .tech-unnamed-lab .tech-verdict.is-dim { opacity: .62; }
+.tech-story .tech-unnamed-lab .tech-verdict.is-selected { box-shadow: 0 0 0 2px var(--tc); }
+
+@media (max-width: 1100px) {
+  .tech-story .tx-stages { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .tech-story .pn-desk { grid-template-columns: minmax(0, 1fr); }
+  .tech-story .pn-col + .pn-col::before { content: "↓"; left: 50%; top: -14px; transform: translate(-50%, -50%); }
+  .tech-story .un-chain { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .tech-story .tech-pains, .tech-story .tech-path, .tech-story .tx-out { grid-template-columns: minmax(0, 1fr); }
+  .tech-story .tech-path li + li::before { content: "↓"; left: 50%; top: -6px; }
+  .tech-story .tx-stages { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tech-story .un-chain { grid-template-columns: minmax(0, 1fr); }
+  .tech-story .un-chain li + li::before { content: "↓"; left: 50%; top: -6px; }
+  .tech-story .tx-fp { border-radius: 18px; }
+  .tech-story .tx-fp b { margin-left: 0; }
+}
+@media (max-width: 560px) {
+  .tech-story .tech-tx-lab .tech-options button, .tech-story .tech-unnamed-lab .tech-options button { padding-inline: 10px; font-size: calc(14px * var(--rd-fs)); }
+  .tech-story .tx-stages li { padding: 10px 12px; }
+}
+/* 卡內短句一律靠左，不套長文的兩端對齊（避免「偵 測 到 新 稿」被拉開）。 */
+.tech-story .tech-lab p, .tech-story .tech-lab dd, .tech-story .tech-lab dt, .tech-story .tech-lab li, .tech-story .tech-lab blockquote { text-align: left; text-justify: auto; }
+/* ====== v108 技術說明互動結束 ====== */
 /* v73 用 LINE 收通知：左邊說明與按鈕，右邊 QR（手機不放 QR，直接按按鈕開 LINE）。 */
 .line-join-grid { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: center; }
 .line-join-list { list-style: none; padding: 0; margin: 0 0 18px; display: grid; gap: 8px; }

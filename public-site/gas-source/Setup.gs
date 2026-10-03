@@ -1200,7 +1200,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-10-03-site-review-v107';
+var PROJECT_BUILD_ = '2026-10-03-tech-story-v108';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
@@ -1234,9 +1234,9 @@ var PROJECT_FILES_ = [
 var PROJECT_HTML_ = [
   { file: 'Index', marker: '<span class="brand-name">盤勢有據</span>' },
   { file: 'JavaScript', marker: 'markSoon' },
-  { file: 'Stylesheet', marker: 'v107 樣式層' },
-  { file: 'Changelog', marker: 'v107 全站診斷後修正' },
-  { file: 'Tech', marker: '為什麼網站上看不到價位' },
+  { file: 'Stylesheet', marker: 'v108 技術說明互動' },
+  { file: 'Changelog', marker: 'v108 技術說明互動改版' },
+  { file: 'Tech', marker: 'data-tx-lab' },
   { file: 'Admin', marker: 'sms-today-h' },
   { file: 'Settings', marker: '手機預覽' },
   { file: 'Unsubscribed', marker: '若一直失敗，直接回覆通知信' }

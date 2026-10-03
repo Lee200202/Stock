@@ -4561,7 +4561,8 @@ var mergeTxFingerprint='';
     alerts = alerts.slice();
     var dkFailed = !!(o.dailyK && o.dailyK.failed > (o.dailyK.success || 0) + (o.dailyK.skipped || 0));
     var hourDone = /^本輪結束/.test(o.hourlyProgress || '');
-    var hourError = hourDone ? /待補 [1-9]/.test(o.hourlyProgress) : /待補|HTTP [45]\d\d|失敗|錯誤/.test(o.hourlyProgress || '');
+    var hourSource404 = !hourDone && /Fugle HTTP 404/.test(o.hourlyProgress || '');
+    var hourError = hourDone ? /待補 [1-9]/.test(o.hourlyProgress) : !hourSource404 && /待補|HTTP [45]\d\d|失敗|錯誤/.test(o.hourlyProgress || '');
     if (dkFailed) { alerts.push('最近日 K 抓取多數失敗，請核對官方補齊與行情完整性'); }
     if (hourError) { alerts.push('歷史 60 分 K 尚有缺口'); }
     var pipeEvidence = (r.automation || []).filter(function(a){return a.label === 'Pipeline 稽核';})[0];
@@ -4573,6 +4574,15 @@ var mergeTxFingerprint='';
        不再同時出現「等待影片」「等待今日補齊」「尚未寄送」而和今日狀態卡互相矛盾。 */
     var closed = o.closed || (o.trading === false ? '休市' : '');
     var closedTxt = '今天休市（' + (closed || '休市') + '），不執行';
+    var qh = o.quoteHealth, qj = qh && qh.job || {};
+    var quoteEligible = qh ? (qh.eligible == null ? Math.max(qh.total, qj.requested || 0) : qh.eligible) : 0;
+    var quoteMissing = qh ? Math.max(0, quoteEligible - qh.total) : 0;
+    var quoteSource = (qj.errors || []).length ? (qh.trading ? '來源問題 ' : '上次來源問題 ') + qj.errors.length + ' 項：' + String(qj.errors[0]).replace(/https?:\/\/\S+/g, '').slice(0, 40) + '。' : '';
+    var quoteTitle = !qh ? '尚無更新紀錄' : !qh.trading ? '休市，保留 ' + qh.total + ' 檔報價' : qh.fresh + '／' + quoteEligible + ' 檔報價已核對';
+    var quoteDetail = !qh ? '尚無紀錄。' : !qh.trading ?
+      '休市不執行五分鐘更新；近五分鐘更新 ' + qh.fresh + ' 檔、缺報價 ' + quoteMissing + ' 檔。上次排程 ' + (qj.at || '尚無') + '；上次更新 ' + (qj.updated || 0) + '／' + (qj.requested || 0) + ' 檔。' + quoteSource :
+      '舊資料 ' + qh.old + ' 檔；缺報價 ' + quoteMissing + ' 檔。最近排程 ' + (qj.at || '尚無') + '；本輪更新 ' + (qj.updated || 0) + '／' + (qj.requested || 0) + ' 檔。' +
+      (qj.writePending ? '資料正在寫入，尚未完成。' : '') + quoteSource + (qj.configured === false ? '富果單檔備援尚未設定金鑰。' : '');
     var dailyTitle = o.noShow ? '今日無直播' : daily.accepted ? '已交郵件服務' : /已寄/.test(o.mailStatus || '') ? '帳本待核對' : o.mailStatus || '尚未寄送';
     var prev = o.prevMail || null, pd = prev && prev.daily, ps = prev && prev.sms;
     var prevTxt = o.prevDay ? ('前一交易日 ' + o.prevDay.slice(5) + '：每日總覽 ' + (pd && pd.total ? '接受 ' + pd.accepted + '/' + pd.total + ' 位' + (pd.failed ? '，失敗 ' + pd.failed : '') : '沒有寄送紀錄') +
@@ -4607,15 +4617,9 @@ var mergeTxFingerprint='';
       card('觸發器今日累計', rtTitle, rtDetail, rtTone) +
       (closed && !(o.blankExits || []).length ? card('日 K 與出場價', '休市', closedTxt + '；上次完成 ' + (o.dailyK && o.dailyK.finishedAt || '尚無') + '。', 'closed') :
       card('日 K 與出場價', (o.blankExits || []).length ? (o.blankExits.length + ' 檔待補價') : dkToday ? '今日補齊完成' : '等待今日補齊', (o.blankExits || []).length ? o.blankExits.slice(0, 3).join('、') : o.dailyK ? (o.dailyK.finishedAt || '目前代號：' + (o.dailyK.lastCode || '起點')) : '16:45 開始，完整一輪後重算持股。', (o.blankExits || []).length ? 'err' : dkToday ? 'ok' : 'idle')) +
-      card('個股五分鐘報價', o.quoteHealth ? o.quoteHealth.fresh + '／' + (o.quoteHealth.eligible == null ? Math.max(o.quoteHealth.total, o.quoteHealth.job.requested || 0) : o.quoteHealth.eligible) + ' 檔報價已核對' : '尚無更新紀錄',
-        o.quoteHealth ? '舊資料 ' + o.quoteHealth.old + ' 檔；缺報價 ' + Math.max(0, (o.quoteHealth.eligible == null ? o.quoteHealth.job.requested || 0 : o.quoteHealth.eligible) - o.quoteHealth.total) + ' 檔。最近排程 ' + (o.quoteHealth.job.at || '尚無') +
-          '；本輪更新 ' + (o.quoteHealth.job.updated || 0) + '／' + (o.quoteHealth.job.requested || 0) + ' 檔。' +
-          (o.quoteHealth.job.writePending ? '資料正在寫入，尚未完成。' : '') +
-          ((o.quoteHealth.job.errors || []).length ? '來源問題 ' + o.quoteHealth.job.errors.length + ' 項：' + String(o.quoteHealth.job.errors[0]).replace(/https?:\/\/\S+/g, '').slice(0, 40) + '。' : '') +
-          (o.quoteHealth.job.configured === false ? '富果單檔備援尚未設定金鑰。' : '') +
-          '' : '尚無紀錄。',
+      card('個股五分鐘報價', quoteTitle, quoteDetail,
         o.quoteHealth && o.quoteHealth.trading ? (!o.quoteHealth.fresh ? 'err' : o.quoteHealth.old || o.quoteHealth.job.partial || o.quoteHealth.job.writePending || (o.quoteHealth.job.errors || []).length ? 'warn' : 'ok') : 'idle') +
-      card('歷史 60 分 K／績效', hourError ? '分 K 待補，需核對來源' : o.hourlyScheduled ? '排程已安裝' : '分 K 排程缺少', '19:15 歷史分 K；績效最後一筆 ' + (o.perfLast || '尚無') + '。' + (o.hourlyProgress ? '最近進度：' + o.hourlyProgress + '。' : '尚無分 K 進度紀錄。') + (o.hourlyScheduled ? '' : '部署後執行 installMarketDataJobs()。'), hourError || !o.hourlyScheduled ? 'warn' : 'idle');
+      card('歷史 60 分 K／績效', hourError ? '分 K 待補，需核對來源' : hourSource404 ? '單檔來源 404，待整輪摘要' : o.hourlyScheduled ? '排程已安裝' : '分 K 排程缺少', '19:15 歷史分 K；績效最後一筆 ' + (o.perfLast || '尚無') + '。' + (o.hourlyProgress ? '最近進度：' + o.hourlyProgress + '。' : '尚無分 K 進度紀錄。') + (hourSource404 ? '這是單檔來源回應，既有資料保留；下個交易日核對整輪待補數。' : '') + (o.hourlyScheduled ? '' : '部署後執行 installMarketDataJobs()。'), hourError || hourSource404 || !o.hourlyScheduled ? 'warn' : 'idle');
     $('opsFlow').innerHTML =
       flow('09:05 起', '盤中會員簡訊', smsMail.accepted ? '首次 ' + clock(smsMail.firstAt) + ' 交郵件服務；' + sent(smsMail) + '。' : (o.smsCount ? '有來源文章，尚無寄送紀錄。' : '目前沒有來源文章。'), smsMail.accepted ? 'ok' : 'idle') +
       flow((o.autoStart || '11:05') + ' 起', '影片與逐字稿', closed ? closedTxt + '。' : o.noShow ? '今日無直播，已停止取稿。' : '偵測影片後才派判讀；目前 ' + (o.videoStatus || '等待影片') + '。', closed ? 'closed' : o.videoStatus === '完成' ? 'ok' : 'idle') +

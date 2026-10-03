@@ -1,0 +1,86 @@
+"""後台版面檢查（v115）：本機組站＋假 API，不碰正式資料。
+
+每個分頁檢查：卡片與面板同寬；表單欄位填滿卡片（不留空欄）；同一表單的輸入框與下拉選單同高同圓角；沒有整頁橫向溢出。
+用法：python scripts/check_admin_layout.py [寬度,寬度…]（預設 1440,1280,768,390）
+"""
+import json, os, subprocess, sys, tempfile, threading
+from functools import partial
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from playwright.sync_api import sync_playwright
+
+ROOT = Path(__file__).resolve().parents[1]; OUT = ''; WIDTHS = [int(x) for x in (sys.argv[1] if len(sys.argv) > 1 else '1440,1280,768,390').split(',')]
+API = 'https://admin-check.example.workers.dev/api'
+site = Path(tempfile.mkdtemp(prefix='admin-audit-'))
+subprocess.run([sys.executable, str(ROOT / 'scripts' / 'build_original_site.py'), '--output', str(site)], check=True,
+               env=dict(os.environ, SITE_API_URL=API), stdout=subprocess.DEVNULL)
+
+
+class Quiet(SimpleHTTPRequestHandler):
+    def log_message(self, *a): pass
+
+
+srv = ThreadingHTTPServer(('127.0.0.1', 0), partial(Quiet, directory=str(site)))
+threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+
+def mock(route):
+    m = route.request.post_data_json.get('method', '')
+    res = {'apiAdminLogin': {'ok': True, 'data': {'today': '2026/10/03', 'closedToday': True, 'hasData': False, 'todayTrades': 0, 'postedDates': [], 'holidays': []}},
+           'apiAdminHeldList': {'ok': True, 'items': [], 'exited': []}}.get(m, {'ok': False, 'reason': '測試環境'})
+    route.fulfill(status=200, content_type='application/json', body=json.dumps({'ok': True, 'result': res}))
+
+
+AUDIT = """() => {
+  const p = [...document.querySelectorAll('.panel')].find(x => !x.hidden);
+  const pw = p.getBoundingClientRect().width;
+  const vis = e => e.offsetParent && e.getBoundingClientRect().width > 0;
+  const label = e => (e.querySelector('h2,h3,b,summary,label')?.innerText || e.className || e.tagName).trim().slice(0, 22);
+  const out = [];
+  [...p.querySelectorAll('.card, details.card')].filter(vis).forEach(c => {
+    const cw = c.getBoundingClientRect().width;
+    if (cw < pw - 4) out.push(['card', label(c), Math.round(cw), Math.round(pw)]);
+    const inner = cw - parseFloat(getComputedStyle(c).paddingLeft) - parseFloat(getComputedStyle(c).paddingRight);
+    [...c.querySelectorAll(':scope > .line-form, :scope > .row, :scope > .field, :scope > .mtool, :scope > textarea, :scope > .field > textarea, :scope > .line-search')].filter(vis).forEach(b => {
+      const bw = b.getBoundingClientRect().width;
+      if (bw < inner * 0.9) out.push(['block', label(c) + ' › ' + (b.className || b.tagName), Math.round(bw), Math.round(inner)]);
+    });
+    [...c.querySelectorAll('.line-form, .row')].filter(vis).forEach(f => {
+      const fw = f.getBoundingClientRect().width;
+      const used = [...f.children].filter(vis).reduce((s, k) => s + k.getBoundingClientRect().width, 0);
+      const rows = new Set([...f.children].filter(vis).map(k => Math.round(k.getBoundingClientRect().top))).size;
+      if (rows === 1 && used < fw * 0.8) out.push(['fields', label(c) + ' › ' + f.className, Math.round(used), Math.round(fw)]);
+    });
+  });
+  // 同一個表單裡的輸入框與下拉選單：高度差 ≤2px、圓角相同
+  [...p.querySelectorAll('.line-form, .row, .card')].filter(vis).forEach(f => {
+    const ctl = [...f.querySelectorAll(':scope > .field > input:not([type=checkbox]):not([type=radio]):not([type=hidden]), :scope > .field > select')].filter(vis);
+    if (ctl.length < 2) return;
+    const hs = ctl.map(c => Math.round(c.getBoundingClientRect().height)), rs = ctl.map(c => getComputedStyle(c).borderTopLeftRadius);
+    if (Math.max(...hs) - Math.min(...hs) > 2 || new Set(rs).size > 1) out.push(['controls', label(f.closest('.card') || f), hs.join('/'), [...new Set(rs)].join('/')]);
+  });
+  const over = document.documentElement.scrollWidth - innerWidth;
+  if (over > 1) out.push(['overflow', 'page', over, innerWidth]);
+  return out;
+}"""
+found = []
+with sync_playwright() as p:
+    b = p.chromium.launch()
+    for w in WIDTHS:
+        pg = b.new_page(viewport={'width': w, 'height': 1000})
+        pg.route(API, mock)
+        pg.goto(f'http://127.0.0.1:{srv.server_port}/admin.html', wait_until='domcontentloaded')
+        pg.locator('#key').fill('local-mock-key'); pg.locator('#loginBtn').click()
+        pg.wait_for_selector('#app:not([hidden])', timeout=15000)
+        for tab in ['post', 'manual', 'held', 'maint', 'smsadmin', 'ops', 'line', 'ver']:
+            pg.locator(f'button.tab[data-tab="{tab}"]').click(); pg.wait_for_timeout(500)
+            for row in pg.evaluate(AUDIT):
+                found.append((w, tab, *row)); print('FOUND', w, tab, *row)
+            if tab in ('smsadmin', 'line', 'post', 'manual') and OUT:
+                pg.screenshot(path=f'{OUT}/audit-{tab}-{w}.png', full_page=True)
+        print(f'checked {w}px: 8 tabs')
+        pg.close()
+    b.close()
+srv.shutdown()
+assert not found, f'{len(found)} layout findings'
+print('admin layout OK: cards full width, forms fill cards, controls match, no sideways scroll')

@@ -1098,6 +1098,19 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
 /* 表單並排欄位拉滿卡片寬度（原本每欄固定寬，右邊空一大片） */
 .panel .card .row > .field { flex: 1 1 280px; min-width: 0; }
 /* ====== v101 後台樣式層結束 ====== */
+/* ====== v115 後台版面對齊：欄位與卡片同寬、控制項同高同圓角 ======
+   先前「後台專用郵件通知」兩個欄位排在三欄格線裡，右邊空一欄；逐日編輯的輸入框被 460px 上限卡住；
+   下拉選單比旁邊的輸入框矮、圓角不同；簡訊管理的選項方塊是直角。這裡統一成其他卡片的樣子。 */
+.line-form { grid-template-columns: repeat(auto-fit, minmax(max(260px, calc((100% - 2 * 16px) / 3)), 1fr)); gap: 4px 16px; }
+.panel .card .field input[type="text"], .panel .card .field input[type="date"], .panel .card .field input[type="email"],
+.panel .card .field input[type="password"], .panel .card .field input:not([type]), .panel .card .field select { max-width: none; width: 100%; box-sizing: border-box; }
+.panel .card .field select, .panel .card .line-form select { min-height: var(--ctl-h, 48px); border-radius: var(--r-sm); padding: 0 16px; }
+.panel .card .row > .field:has(> select) { flex: 1 1 280px; min-width: 0; }
+.sms-mode-opt { border-radius: var(--r-md); transition: border-color .18s ease, background-color .18s ease; }
+.sms-mode-opt:has(input:checked) { border-color: var(--beam); background: color-mix(in srgb, var(--beam) 10%, var(--panel)); }
+.line-search button { flex: none; white-space: nowrap; min-width: 88px; }
+@media (prefers-reduced-motion: reduce) { .sms-mode-opt { transition: none; } }
+/* ====== v115 後台版面對齊結束 ====== */
 /* v114：持有／已出場切換（與前台同一組膠囊）；已出場卡用出場的綠色色條，多一行出場日與原因。 */
 .held-toggle { margin: 4px 0 16px; }
 .hrow-wrap.is-exited { border-color: color-mix(in srgb, var(--fall) 24%, var(--rule)); background: color-mix(in srgb, var(--fall) 4%, var(--panel)); }
@@ -1593,7 +1606,7 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
           </div>
           <!-- 與全面重整那邊同一套：某一步失敗，挑那一步接著跑，前面的不重做。 -->
           <div class="row" style="margin-top:12px;align-items:flex-end">
-            <div class="field" style="margin:0;max-width:240px">
+            <div class="field" style="margin:0">
               <label for="refFromStep">選擇步驟</label>
               <select id="refFromStep"></select>
             </div>
@@ -1621,7 +1634,7 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
           <!-- 範圍。一天要呼叫三到四次模型，一百多天跑下來免費額度撐不完，
                而多數時候規則只改了一點，需要重跑的其實只有最近幾天。 -->
           <div class="row" style="margin-top:12px;align-items:flex-end">
-            <div class="field" style="margin:0;max-width:320px">
+            <div class="field" style="margin:0">
               <label for="fullScope">更新範圍</label>
               <select id="fullScope">
                 <option value="week" selected>更新最近七日（最近 7 個有紀錄的交易日）</option>
@@ -1639,7 +1652,7 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
           </div>
           <!-- 某一步失敗、修好之後只想重跑它時用。它前面已完成的步驟不會重來。 -->
           <div class="row" id="retryRow" style="margin-top:12px;align-items:flex-end">
-            <div class="field" style="margin:0;max-width:240px">
+            <div class="field" style="margin:0">
               <label for="retryStep">選擇步驟</label>
               <select id="retryStep"></select>
             </div>

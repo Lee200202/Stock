@@ -454,7 +454,8 @@ function fugleHistoricalOnce_(code, from, to) {
 var QUOTE_CURSOR_KEY_ = 'QUOTE_CURSOR';
 /* 60 秒（v87，原本 3 分鐘）。2026/09/30 盤中每一棒平均跑 2.5 分鐘，全天觸發器累計約 217 分鐘（這一支就佔 172 分鐘），
    五分鐘總排程單次最長 326 秒、逼近六分鐘上限。沒輪到的代號下一棒由游標接著抓，讀取端遇到過期報價會即時補抓。 */
-var QUOTE_JOB_BUDGET_MS_ = 45000; // v93：優先補持有中，仍控制單輪時間，避免拖住後續工作。
+var QUOTE_JOB_BUDGET_MS_ = 30000; // v107：45→30 秒。10/02 本支一天 37.9 分，多數耗在 MIS 斷線後的逐檔備援；持有與查看中仍優先。
+var MIS_DOWN_KEY_ = 'mis_down_v107';   // MIS 連線層失敗（Address unavailable、逾時）後 10 分鐘內不再打 MIS
 
 function isTradingNow_() {
   var now = new Date();
@@ -575,15 +576,21 @@ function refreshQuoteCacheJob() {
   var taken = 0, i, batchQuotes = {}, fallbackTaken = 0, lastFallback = -1, errors = [], fugleUnavailable = false;
   // v88：追蹤宇宙每 50 檔一起取，避免五分鐘排程全天耗在逐檔等待。
   // 缺成交價的標的稍後走富果備援；每棒優先最多十六檔，再留四檔給背景游標。
-  for (var b = 0; b < codes.length && Date.now() < deadline - 10000; b += 50) {
+  var misDown = false;
+  try { misDown = !!CACHE.get(MIS_DOWN_KEY_); } catch (e) {}
+  if (misDown) { errors.push('MIS 連線中斷，10 分鐘內改用備援'); }
+  for (var b = 0; !misDown && b < codes.length && Date.now() < deadline - 10000; b += 50) {
     try {
       var qs = misBatchQuotes_(codes.slice(b, b + 50));
       Object.keys(qs).forEach(function (c) { if (qs[c].date === todayStr_()) { batchQuotes[c] = qs[c]; } });
     } catch (e) {
-      errors.push('MIS：' + String(e && e.message || e).slice(0, 100));
+      errors.push('MIS：' + String(e && e.message || e).replace(/https?:\/\/\S+/g, '').slice(0, 60));
       Logger.log('即時快取批次來源暫時失敗：' + e);
       // 同一把寫入鎖忙碌時，連續五批各等二十秒只會延誤寄送與重算。
       if (e && e.transientBusy) { break; }
+      // v107：連線層失敗（非 HTTP 狀態）其餘批次也會一樣失敗，這一輪停打並記 10 分鐘。
+      try { CACHE.put(MIS_DOWN_KEY_, '1', 600); } catch (ignore) {}
+      break;
     }
   }
 

@@ -293,8 +293,11 @@
     }
 
     window.__docnavRebuild = build;
-    window.addEventListener('scroll', mark, { passive: true });
-    window.addEventListener('resize', mark);
+    // v107：捲動時每一畫格最多標一次，不在每個 scroll 事件都量所有標題的位置。
+    var markQueued = false;
+    var markSoon = function () { if (markQueued) { return; } markQueued = true; (window.requestAnimationFrame || setTimeout)(function () { markQueued = false; mark(); }); };
+    window.addEventListener('scroll', markSoon, { passive: true });
+    window.addEventListener('resize', markSoon);
     // 「想深究」打開或收起時，標題的可見狀態變了，子目錄上的標記要跟著換。
     doc.addEventListener('toggle', function () { build(); }, true);
     // 切到別的分頁時面板變成隱藏，子目錄也要跟著收掉。
@@ -783,13 +786,23 @@ function publicNarrative_(text, row) {
     text=text.replace(new RegExp(escaped+'\\s*[（(]'+escaped+'[）)]','g'),name);
     text=text.replace(new RegExp('(?:'+escaped+'){2,}','g'),name);
   }
-  var seen={},parts=[];
+  var seen={},parts=[],earlier='';
   text.split(/[。；;]/).forEach(function(part){
     var key=part.replace(/回顧|過往|目前|\s|[，,]/g,'');
-    if(key && !seen[key]){seen[key]=true;parts.push(part.trim());}
+    if(key && !seen[key] && !restatesEarlier_(key,earlier)){seen[key]=true;earlier+=key;parts.push(part.trim());}
   });
   text = (parts.join('。')+(parts.length?'。':'')).replace(/[*＊]+/g,'');
   return sms ? smsNoteBody_(text, row) : text;
+}
+/** v107：與 pipeline.py 的 _restates_earlier 同一規則：換個起頭把前文再講一次的句子不重複列。 */
+function restatesEarlier_(key, earlier) {
+  key = key.replace(/^(?:其|顯示|這|此|以此|並|且|也)/, '');
+  if (key.length < 10 || !earlier) return false;
+  var nums = key.match(/\d+(?:\.\d+)?/g) || [];
+  if (nums.some(function (n) { return earlier.indexOf(n) < 0; })) return false;
+  var hit = 0, total = key.length - 1;
+  for (var i = 0; i < total; i++) { if (earlier.indexOf(key.substr(i, 2)) >= 0) hit++; }
+  return hit / total >= 0.85;
 }
 // END PUBLIC NARRATIVE V10
 
@@ -2339,10 +2352,10 @@ function publicNarrative_(text, row) {
      日K快取存的是成交股數（與證交所 STOCK_DAY 同單位，逐日核對一致），後端除以 1000 換成張；
      60 分 K 來源本來就是整股成交張數，不含零股、盤後定價與鉅額交易，加總會略少於當日成交量。 */
   var PERIOD_NOTE = {
-    hour: '60 分 K 使用歷史補抓及日內快取，Yahoo 僅作空缺備援；量統一為張，來源差異可能使日內加總與官方全日成交量不同。',
-    month: '由日線聚合為月K，開收取當月首末日，高低取極值，成交股數先加總再換算為張。',
-    day: '來自證交所與富果的每日收盤資料。成交量＝當日成交股數 ÷ 1000（張），含零股、盤後定價與鉅額交易。',
-    week: '由日線聚合：開盤取當週第一天、收盤取最後一天、高低取當週極值，成交量為當週成交股數加總後 ÷ 1000（張）。'
+    hour: '60 分 K 以歷史補抓為主、Yahoo 補空缺；量為張，加總可能略少於全日量。',
+    month: '由日線聚合成月 K；量為當月加總（張）。',
+    day: '證交所與富果每日收盤資料；量為張。',
+    week: '由日線聚合成週 K；量為當週加總（張）。'
   };
 
   var detailRequest = 0;
@@ -2356,26 +2369,21 @@ function publicNarrative_(text, row) {
     var code = currentCode, request = detailRequest;
     if (quotePollPending === request) { return; }
     quotePollPending = request;
-    $('dQuoteRefresh').disabled = true;
-    $('dQuoteStatus').textContent = '正在核對成交報價…';
     google.script.run.withSuccessHandler(function (quotes) {
       if (quotePollPending === request) { quotePollPending = 0; }
       if (request !== detailRequest || code !== currentCode || !$('detail').classList.contains('open')) { return; }
-      $('dQuoteRefresh').disabled = false;
       var q = quotes && quotes[code];
       if (q && q.last != null && DETAIL.header) {
         q.ok = true;
         DETAIL.header.quote = q;
         renderHeader(DETAIL.header);
         updateDetailHoldingQuote_(q);
-      } else { $('dQuoteStatus').textContent = '報價更新未成功；保留上方標示時間的資料。'; }
+      }
       quotePolledAt = Date.now();
       scheduleDetailQuote_();
     }).withFailureHandler(function () {
       if (quotePollPending === request) { quotePollPending = 0; }
       if (request !== detailRequest || code !== currentCode) { return; }
-      $('dQuoteRefresh').disabled = false;
-      $('dQuoteStatus').textContent = '報價更新未成功；保留上方標示時間的資料。';
       quotePolledAt = Date.now(); scheduleDetailQuote_();
     }).apiGetQuotesFor([code]);
   }
@@ -2387,7 +2395,6 @@ function publicNarrative_(text, row) {
     if (!isCode(code)) { return; }
     currentCode = code;
     clearTimeout(quotePollTimer); quotePolledAt = Date.now();
-    $('dQuoteRefresh').disabled = false; $('dQuoteStatus').textContent = '正在讀取報價';
     USE.act('看個股', code);
     DETAIL = { code: code, tracker: undefined, record: undefined };
     $('detail').classList.add('open');
@@ -2440,28 +2447,25 @@ function publicNarrative_(text, row) {
       $('dPrice').className = 'p flat';
       $('dChange').textContent = '目前取不到報價';
       $('dChange').className = 'd flat';
-      $('dQuoteStatus').textContent = '尚無可確認的成交報價，可按「更新報價」重試。';
       return;
     }
     $('dPrice').textContent = fmtPx(q.last);
     $('dPrice').className = 'p ' + signCls(q.change);
     $('dChange').className = 'd ' + signCls(q.change);
     var sign = q.change > 0 ? '\u25B2' : q.change < 0 ? '\u25BC' : '';
-    $('dChange').textContent = q.change != null
-      ? (sign + ' ' + Math.abs(q.change).toFixed(2) + '\u3000' + (q.changePct || 0).toFixed(2) + '%'
-         + (q.time ? '\u3000' + qTime(q.time) : ''))
-      : '\u2014';
     var today = new Intl.DateTimeFormat('sv-SE', {timeZone:'Asia/Taipei'}).format(new Date()).replace(/-/g, '/');
     var quoteDate = q.date || (String(q.stamp || '').slice(0,10).replace(/-/g,'/'));
     var oldDay = quoteDate ? quoteDate !== today : (q.time && q.time.slice(0,5) !== today.slice(5).replace('/','-'));
     var stampMs = q.stamp ? new Date(String(q.stamp).replace(/\//g,'-').replace(' ', 'T') + (/Z$|[+-]\d\d:\d\d$/.test(String(q.stamp)) ? '' : '+08:00')).getTime() : NaN;
     var hm = Number(new Intl.DateTimeFormat('en-GB', {timeZone:'Asia/Taipei',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date()).replace(':',''));
     var stale = q.stale || (hm >= 900 && hm <= 1340 && isFinite(stampMs) && Date.now() - stampMs > 300000);
-    var label = oldDay ? '前次交易資料，今日報價待補' : stale ? '報價待更新' : '每五分鐘核對報價';
-    $('dQuoteStatus').textContent = label + (q.source ? ' · ' + q.source : '');
-    $('dQuoteStatus').title = '使用可確認的成交價，現價與漲跌來自同一份資料；不以委買、委賣或試撮價補值。';
+    /* v107：拿掉「更新報價」按鈕與狀態列，報價每五分鐘自動核對；舊價只在漲跌列後加短標，不冒充即時。 */
+    $('dChange').textContent = (q.change != null
+      ? (sign + ' ' + Math.abs(q.change).toFixed(2) + '　' + (q.changePct || 0).toFixed(2) + '%'
+         + (q.time ? '　' + qTime(q.time) : ''))
+      : '—') + (oldDay && !/\d{2}-\d{2}/.test(String(q.time || '')) ? '　前一交易日' : !oldDay && stale ? '　待更新' : '');
+    $('dChange').title = (q.source ? q.source + '：' : '') + '可確認的成交價，不以委買、委賣或試撮價補值。';
   }
-  $('dQuoteRefresh').addEventListener('click', refreshDetailQuote_);
 
   /* 抽屜這一次開的是哪一檔、兩支請求各自回了什麼。
 
@@ -3053,7 +3057,7 @@ function publicNarrative_(text, row) {
   function renderChart() {
     // 圖表元件從 CDN 載入；被擋或斷線時不丟例外，留一句說明（v54，與績效走勢同一種處理）
     if (!window.LightweightCharts) {
-      $('chart').innerHTML = '<p class="emptyline">K 線圖元件沒有載入成功，上方持有與基本面仍是完整資料；重新整理後再試一次。</p>';
+      $('chart').innerHTML = '<p class="emptyline">K 線圖沒有載入成功，請重新整理再試。</p>';
       return;
     }
     initCharts();
@@ -3285,7 +3289,7 @@ function publicNarrative_(text, row) {
                (p === 'hour' ? '（' + Object.keys(days).length + ' 個交易日）' : '') + '。';
     // 不滿 11 個月：是資料庫本來就只有這麼多，不是圖沒顯示出來
     if (p !== 'hour' && rangeStartIndex(data, 11) === 0) {
-      note += '資料庫目前只有這段期間；列入觀望或持股的股票每天 16:45 會自動往回補，最多補到近一年。';
+      note += '目前只有這段期間；每天 16:45 自動往回補，最多一年。';
     }
     if (p === 'hour' && rangeStartIndex(data, 1) === 0) {
       note += '這一檔的 60 分 K 從 ' + first + ' 起才收錄，所以各區間顯示的是同一段。';
@@ -3391,7 +3395,7 @@ function publicNarrative_(text, row) {
     if (!rawData.length) {
       // 資料庫沒有這一檔或這個週期的資料，就直接說明，不再現爬空轉。
       if (p === 'hour') {
-        $('periodNote').textContent = '這一檔尚無 60 分 K；歷史補抓在背景進行。請先看日 K，管理者可查分K補抓進度。';
+        $('periodNote').textContent = '這一檔尚無 60 分 K，請先看日 K。';
       } else {
         $('periodNote').textContent = '資料庫沒有這一檔的' +
           (p === 'month' ? '月' : p === 'week' ? '週' : '日') + 'K。這一檔還沒有列入觀望或持股，' +

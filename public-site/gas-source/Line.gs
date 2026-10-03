@@ -176,6 +176,7 @@ function lineSignatureOk_(body, sig, secret) {
 }
 
 function lineWebhook_(e) {
+  var gasAt = Date.now();   // v107：在任何讀屬性、驗簽、鎖之前記下 GAS 開始處理的時間
   var raw = e && e.postData ? String(e.postData.contents || '') : '';
   var env = null;
   try { env = JSON.parse(raw); } catch (x) { env = null; }
@@ -193,11 +194,15 @@ function lineWebhook_(e) {
   if (!s.botUserId && /^U[0-9a-f]{32}$/.test(dest)) { lineSaveSettings_({ botUserId: dest }); }
   lineStatTouch_();
   // Worker 入列時間不在 LINE 簽名 body 內，只用於耗時觀察；異常時鐘值直接忽略。
-  var queuedAt = Number(env.queuedAt) || 0;
-  var relayMs = queuedAt && Math.abs(Date.now() - queuedAt) < 3600000 ? Math.max(0, Date.now() - queuedAt) : null;
+  var queuedAt = Number(env.queuedAt) || 0, dequeuedAt = Number(env.dequeuedAt) || 0;
+  var relayMs = queuedAt && Math.abs(gasAt - queuedAt) < 3600000 ? Math.max(0, gasAt - queuedAt) : null;
+  // 拆成：Worker 佇列等待（入列→出列）、其後到 GAS 開始（網路與 Apps Script 啟動）、GAS 內部前置（驗簽、設定）。
+  var timing = { relay: relayMs, queue: queuedAt && dequeuedAt >= queuedAt && dequeuedAt - queuedAt < 3600000 ? dequeuedAt - queuedAt : null,
+    attempt: Number(env.attempt) || null, prep: Date.now() - gasAt };
+  if (timing.queue !== null && relayMs !== null) { timing.start = Math.max(0, relayMs - timing.queue); }
   var events = Array.isArray(body.events) ? body.events : [];
   var results = events.map(function (ev) {
-    try { return lineHandleEvent_(ev, dest || s.botUserId || '', relayMs); }
+    try { return lineHandleEvent_(ev, dest || s.botUserId || '', timing); }
     catch (err) {
       Logger.log('LINE 事件處理失敗：' + (err && err.stack || err));
       return { id: String(ev && ev.webhookEventId || ''), error: lineClip_(String(err && err.message || err), 160) };
@@ -242,8 +247,15 @@ function lineStatTouch_() {
   try {
     var c = CacheService.getScriptCache();
     if (c.get('line_touch_webhook')) { return; }
+    // v107：其他排程正佔用全站寫入鎖時，不為這筆統計等最多 30 秒，下一分鐘再記。
+    var lock = LockService.getScriptLock();
+    if (!lock.tryLock(300)) { return; }
     c.put('line_touch_webhook', '1', 60);
-    lineStatAdd_('webhooks', 1, { lastWebhookAt: lineNow_() });
+    try {
+      var st = lineStats_();
+      st.webhooks = (Number(st.webhooks) || 0) + 1; st.lastWebhookAt = lineNow_();
+      lineSetProp_('LINE_STATS', JSON.stringify(st));
+    } finally { lock.releaseLock(); }
   } catch (e) {}
 }
 
@@ -272,7 +284,9 @@ function lineReleaseEvent_(id, done) {
   } catch (e) { Logger.log('LINE 事件佔用狀態更新失敗：' + e); }
 }
 
-function lineHandleEvent_(ev, channel, relayMs) {
+function lineHandleEvent_(ev, channel, timing) {
+  timing = timing && typeof timing === 'object' ? timing : { relay: timing };
+  var relayMs = timing.relay;
   ev = ev || {};
   var id = String(ev.webhookEventId || ''), out = { id: id, type: String(ev.type || '') };
   var started = Date.now();
@@ -312,6 +326,9 @@ function lineHandleEvent_(ev, channel, relayMs) {
   // 沿用事件帳本的處理結果欄，不增加遠端寫入；可區分查表、LINE API 與排隊前的耗時。
   detail += '｜回覆前 ' + (Date.now() - started) + 'ms（去重 ' + claimMs + '／查詢 ' + routeMs + '／LINE ' + replyMs + '）';
   if (relayMs !== null && relayMs !== undefined) { detail += '｜轉送 ' + Math.round(relayMs) + 'ms'; }
+  if (timing.queue !== null && timing.queue !== undefined) { detail += '｜排隊 ' + Math.round(timing.queue) + 'ms｜啟動 ' + Math.round(timing.start || 0) + 'ms'; }
+  if (timing.prep) { detail += '｜前置 ' + Math.round(timing.prep) + 'ms'; }
+  if (timing.attempt > 1) { detail += '｜第 ' + timing.attempt + ' 次轉送'; }
   // v88：互動統計不擋正式回覆；訂閱操作仍在 route 裡同步寫入、鎖定及確認。
   if (uid && (ev.type === 'message' || ev.type === 'postback')) {
     try { lineTouch_(uid, channel); }
@@ -1900,8 +1917,9 @@ function lineRecentReplyTiming_() {
       var result = String(rows[i][5] || '');
       var m = result.match(/回覆前 (\d+)ms（去重 (\d+)／查詢 (\d+)／LINE (\d+)）/);
       if (m) {
-        var relay = result.match(/轉送 (\d+)ms/);
-        return { at: rows[i][3] instanceof Date ? lineStampOf_(rows[i][3].getTime()) : String(rows[i][3] || ''), total: Number(m[1]), claim: Number(m[2]), route: Number(m[3]), reply: Number(m[4]), relay: relay ? Number(relay[1]) : null };
+        var relay = result.match(/轉送 (\d+)ms/), queue = result.match(/排隊 (\d+)ms｜啟動 (\d+)ms/), prep = result.match(/前置 (\d+)ms/), attempt = result.match(/第 (\d+) 次轉送/);
+        return { at: rows[i][3] instanceof Date ? lineStampOf_(rows[i][3].getTime()) : String(rows[i][3] || ''), total: Number(m[1]), claim: Number(m[2]), route: Number(m[3]), reply: Number(m[4]), relay: relay ? Number(relay[1]) : null,
+          queue: queue ? Number(queue[1]) : null, start: queue ? Number(queue[2]) : null, prep: prep ? Number(prep[1]) : null, attempt: attempt ? Number(attempt[1]) : 1 };
       }
     }
   } catch (e) { Logger.log('LINE 回覆耗時讀取失敗：' + e); }

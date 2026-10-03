@@ -5,5 +5,10 @@
   "compatibility_date": "2026-09-28",
   "vars": {
     "GAS_WEBAPP_URL": "https://script.google.com/macros/s/AKfycbyLQjAd-CnQ6D6_JP3OY1WwXDkafCJthzeP3G4FDkT4t26PY9Gx1rhrXJjiHVZExQhoaw/exec"
-  }
+  },
+  // v107：常用公開資料的全域快照。台北 06:00–23:59 每 5 分鐘更新一次（UTC 22:00–15:59）。
+  "kv_namespaces": [
+    { "binding": "SNAP", "id": "56e1242de552491f8bf9f74bded61bb3" }
+  ],
+  "triggers": { "crons": ["*/5 0-15,22-23 * * *"] }
 }

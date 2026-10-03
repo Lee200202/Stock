@@ -596,11 +596,6 @@ html[data-host="pages"] .access-alert .alert-gas, html:not([data-host="pages"]) 
   animation: slideIn .24s cubic-bezier(.22, 1, .36, 1) both;
 }
 @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-.detail-quote-status { color: var(--muted); font-size: calc(12px * var(--rd-fs)); line-height: 1.6; margin: 8px 0; overflow-wrap: anywhere; }
-.detail-quote-controls { flex-basis: 100%; display: flex; gap: 12px; align-items: center; }
-.detail-quote-controls .detail-quote-status { flex: 1; min-width: 0; }
-.detail-quote-controls button { flex: 0 0 auto; min-height: 44px; padding: 8px 14px; border: 1px solid var(--rule); border-radius: 999px; background: var(--panel); color: var(--ink); font: inherit; cursor: pointer; }
-.detail-quote-controls button:focus-visible { outline: 2px solid var(--beam); outline-offset: 2px; }
 .detail-head {
   position: sticky; top: 0; z-index: 5; background: var(--bg);
   border-bottom: 1px solid var(--rule); padding: 16px var(--gut);
@@ -4144,8 +4139,6 @@ table.sk-rec tr.sk-row, table.sk-find tr.sk-row { grid-template-columns: minmax(
 .quotehead .d { font-size: calc(16px * var(--rd-fs)); padding: 6px 16px; border-radius: var(--r-pill); background: var(--panel-2); }
 .quotehead .d.up { background: color-mix(in srgb, var(--rise) 11%, var(--panel)); }
 .quotehead .d.down { background: color-mix(in srgb, var(--fall) 11%, var(--panel)); }
-.detail-quote-status { font-size: calc(13.5px * var(--rd-fs)); }
-.detail-quote-controls button { min-height: 46px; padding: 10px 24px; font-size: calc(14.5px * var(--rd-fs)); font-weight: 600; }
 .detail-close { width: 48px; height: 48px; border-radius: 50%; font-size: calc(18px * var(--rd-fs)); }
 .detail-body { padding: 34px var(--gut) 90px; max-width: calc(var(--wrapmax) + 2 * var(--gut)); margin-inline: auto; }
 .detail-head > .quotehead { max-width: var(--wrapmax); margin-inline: auto !important; flex: 1 1 auto; }
@@ -4339,4 +4332,26 @@ html[data-view="mobile"] .doc p, html[data-view="mobile"] .doc li,
 html[data-view="mobile"] .doc .qa .a, html[data-view="mobile"] .ver-b,
 html[data-view="mobile"] footer p { text-align: left; text-justify: auto; overflow-wrap: anywhere; }
 /* ====== v101 樣式層結束 ====== */
+/* ====== v107 樣式層：持股卡留白、捲動順暢 ======
+   持股卡保留「進場 → 目前」交易軸；只覆蓋 v101 後段 .tbl-hold td 的 22px 內距（手機每張卡原本多出約 100px 空白）。 */
+@media (max-width: 760px) {
+.tbl-hold th, .tbl-hold td { padding: 0; }
+.tbl-hold tr { padding: 18px 16px; }
+.tbl-hold td.h-stock { margin-bottom: 12px; }
+.tbl-hold td.h-note { margin-top: 14px; font-size: calc(15px * var(--rd-fs)); line-height: 1.75; }
+}
+html[data-view="mobile"] .tbl-hold th, html[data-view="mobile"] .tbl-hold td { padding: 0; }
+html[data-view="mobile"] .tbl-hold tr { padding: 18px 16px; }
+html[data-view="mobile"] .tbl-hold td.h-stock { margin-bottom: 12px; }
+html[data-view="mobile"] .tbl-hold td.h-note { margin-top: 14px; font-size: calc(15px * var(--rd-fs)); line-height: 1.75; }
+/* 拿掉捲動進場動畫：列表捲進畫面前是透明的，手機上像資料沒載入，捲動也較卡。 */
+#p-overview table.sk tr.sk-row, #p-overview .mailcal, #p-tracker .tbl-hold tbody tr, .stats .stat { animation: none; }
+/* 手機黏住的頂列與分頁列不做毛玻璃：每一畫格重算模糊是低階手機捲動掉格的主因。 */
+@media (max-width: 899px) {
+  .topbar, .tabbar, .dnav { backdrop-filter: none; -webkit-backdrop-filter: none; background: var(--bg); }
+  .detail-bg { backdrop-filter: none; }
+}
+html[data-view="mobile"] .topbar, html[data-view="mobile"] .tabbar, html[data-view="mobile"] .dnav { backdrop-filter: none; background: var(--bg); }
+.detail-panel { overscroll-behavior: contain; }
+/* ====== v107 樣式層結束 ====== */
 </style>

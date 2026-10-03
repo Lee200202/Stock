@@ -105,12 +105,22 @@ function publicNarrative_(text, row) {
     text=text.replace(new RegExp(escaped+'\\s*[（(]'+escaped+'[）)]','g'),name);
     text=text.replace(new RegExp('(?:'+escaped+'){2,}','g'),name);
   }
-  var seen={},parts=[];
+  var seen={},parts=[],earlier='';
   text.split(/[。；;]/).forEach(function(part){
     var key=part.replace(/回顧|過往|目前|\s|[，,]/g,'');
-    if(key && !seen[key]){seen[key]=true;parts.push(part.trim());}
+    if(key && !seen[key] && !restatesEarlier_(key,earlier)){seen[key]=true;earlier+=key;parts.push(part.trim());}
   });
   text = (parts.join('。')+(parts.length?'。':'')).replace(/[*＊]+/g,'');
   return sms ? smsNoteBody_(text, row) : text;
+}
+/** v107：與 pipeline.py 的 _restates_earlier 同一規則：換個起頭把前文再講一次的句子不重複列。 */
+function restatesEarlier_(key, earlier) {
+  key = key.replace(/^(?:其|顯示|這|此|以此|並|且|也)/, '');
+  if (key.length < 10 || !earlier) return false;
+  var nums = key.match(/\d+(?:\.\d+)?/g) || [];
+  if (nums.some(function (n) { return earlier.indexOf(n) < 0; })) return false;
+  var hit = 0, total = key.length - 1;
+  for (var i = 0; i < total; i++) { if (earlier.indexOf(key.substr(i, 2)) >= 0) hit++; }
+  return hit / total >= 0.85;
 }
 // END PUBLIC NARRATIVE V10

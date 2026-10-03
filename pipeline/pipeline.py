@@ -6651,12 +6651,50 @@ def public_narrative(text, row=None, signals=None):
         text = re.sub(re.escape(name)+r'\s*[（(]'+re.escape(name)+r'[）)]',lambda m:name,text)
         text = re.sub('(?:'+re.escape(name)+'){2,}', lambda m:name, text)
     # 僅去掉相同事實的重複句，不用相似度刪掉不同日期／價格。
+    # v107：模型把上一句的結尾再說一次（10/02 鴻準「其吃貨目的即在未來進行拉台…」、神準「顯示多方動能強勁…」），
+    # 這一句八成五以上的雙字組都已在前文、且數字全在前文時才刪；有新數字或新內容的句子保留。
     parts, seen = [], set()
     for part in re.split(r'[。；;]', text):
         key = re.sub(r'回顧|過往|目前|\s|[，,]', '', part)
-        if key and key not in seen:
+        if key and key not in seen and not _restates_earlier(key, ''.join(seen)):
             seen.add(key);parts.append(part.strip())
     return re.sub(r'[*＊]+', '', '。'.join(parts) + ('。' if parts else ''))
+
+
+def _restates_earlier(key: str, earlier: str) -> bool:
+    """這一句是不是把前文換個起頭再講一次（與 Apps Script 的 restatesEarlier_ 同一規則）。"""
+    key = re.sub(r'^(?:其|顯示|這|此|以此|並|且|也)', '', key)
+    if len(key) < 10 or not earlier:
+        return False
+    if any(n not in earlier for n in re.findall(r'\d+(?:\.\d+)?', key)):
+        return False
+    grams = [key[i:i + 2] for i in range(len(key) - 1)]
+    return sum(g in earlier for g in grams) / len(grams) >= 0.85
+
+
+# v107：分類與說明語意相反（10/02 台達電列「觀望不碰」，說明卻是「可以注意尋找買點佈局」）。
+# 不自動改分類或改寫說明，只記成待複核，管理者在判定歷程看得到；不擋發布。
+_AVOID_BUT_BUY = re.compile(r'尋找買點|找買點|可以(?:注意)?.{0,4}(?:佈局|布局|承接|買進)|逢低(?:佈局|布局|承接|買進)|拉回.{0,6}(?:買點|佈局|布局)')
+_WATCH_BUT_AVOID = re.compile(r'不能碰|不要碰|別碰|絕不考慮|不會去(?:碰|接觸)')
+_NEGATED = re.compile(r'(?:切勿|不要|不能|別|不宜|勿|不會|不必|無須)[^，。；]{0,4}$')
+
+
+def flag_category_contradictions(signals) -> list:
+    flagged = []
+    checks = (('watch_avoid', '觀望不碰', _AVOID_BUT_BUY), ('watch_watch', '觀望注意', _WATCH_BUT_AVOID))
+    for key, label, pattern in checks:
+        for row in signals.get(key) or []:
+            text = str(row.get('reason') or '')
+            m = pattern.search(text)
+            if not m or _NEGATED.search(text[:m.start()]):
+                continue
+            line = f"分類語意待複核：{row.get('name') or row.get('code')}（{label}）說明含「{m.group(0)}」"
+            gaps = signals.setdefault('_repair_gaps', [])
+            if line not in gaps:
+                gaps.append(line)
+                note_decision('分類語意', '待複核', str(row.get('name') or row.get('code') or ''), line)
+                flagged.append(line)
+    return flagged
 
 
 def _entity_scope(row, signals, transcript, before_chars=180, after_chars=160, with_offsets=False):
@@ -11249,6 +11287,8 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     # 沿用前一版的列也要走公開文字整理；保留原始引用與待複核狀態。
     signals = normalize_price_fields(signals)
     signals = naturalize_signal_reasons(signals)
+    for line in flag_category_contradictions(signals):
+        print('  ' + line)
     gaps_all = signals.get('_repair_gaps') or []
     pending = len(signals.get('uncertain') or []) + len(needs_review_gaps(gaps_all))
     if pending:

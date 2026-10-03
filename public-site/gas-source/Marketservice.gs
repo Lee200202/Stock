@@ -114,7 +114,7 @@ function backfillHourlyHistoryJobRun_(force, restart) {
   try {
     var now=new Date(),day=Utilities.formatDate(now,TZ,'yyyy/MM/dd');
     var from=new Date(now.getTime()-89*86400000),state=hourHistorySheetState_();
-    var codes=trackedCodes_().sort(),cursor={};
+    var codes=trackedCodes_().sort(),cursor={},tally={ok:0,none:[],fail:[]};
     try{cursor=JSON.parse(p.getProperty('hourHistoryCursor')||'{}');}catch(e){}
     if(cursor.day!==day){cursor={day:day,code:''};}
     // 保險觸發器比六分鐘硬上限晚，若平台強制中止也不失聯。
@@ -140,11 +140,13 @@ function backfillHourlyHistoryJobRun_(force, restart) {
         if(!bars.length){throw new Error('來源沒有有效分K，保留原資料');}
         saveHourHistory_(state,code,bars,'完成');
         if(!complete){saveHourHistory_(state,code,bars,'部分缺口已補；等待續跑');break;}
+        tally.ok++;
         p.setProperty('hourHistoryProgress',code+'｜'+(i+1)+'/'+codes.length+'｜'+day);
       } catch(e) {
         p.setProperty('hourHistoryProgress',code+'｜待補：'+String(e.message||e));
         // 權限與限流不是沒有行情；本輪停，不高速重試，更不能用空值蓋掉好資料。
         if([401,403,429].indexOf(Number(e.httpCode))>=0){Logger.log('分K歷史停止：'+e.message);complete=true;break;}
+        if(Number(e.httpCode)===404){tally.none.push(code);}else{tally.fail.push(code);}
         if(Number(e.httpCode)===404){
           var kept=[];try{kept=prior?JSON.parse(prior.values[2]||'[]'):[];}catch(ignore){}
           saveHourHistory_(state,code,kept,'來源404；保留既有資料，隔日再試，Yahoo另補空缺');
@@ -154,7 +156,12 @@ function backfillHourlyHistoryJobRun_(force, restart) {
       // 失敗檔也記本輪已嘗試，避免前幾檔故障讓後面的永遠輪不到。隔日會重試。
       cursor.code=code;p.setProperty('hourHistoryCursor',JSON.stringify(cursor));
     }
-    if(complete){Logger.log('分K本輪結束；各檔狀態可用 auditHourlyCoverage(代號) 核對');}
+    if(complete){
+      // v107：本輪跑完寫摘要，不讓最後一檔（例如 9958 的 404）蓋成「整批卡住」。404＝來源沒有這檔 60 分 K，不算待補。
+      p.setProperty('hourHistoryProgress',('本輪結束｜完成 '+tally.ok+' 檔｜來源無資料 '+tally.none.length+' 檔'+
+        (tally.none.length?'（'+tally.none.slice(0,4).join('、')+(tally.none.length>4?'…':'')+'）':'')+'｜待補 '+tally.fail.length+' 檔｜'+day).slice(0,100));
+      Logger.log('分K本輪結束；各檔狀態可用 auditHourlyCoverage(代號) 核對');
+    }
   } finally {
     p.deleteProperty('hourHistoryLease');
     ScriptApp.getProjectTriggers().filter(function(t){return t.getHandlerFunction()==='backfillHourlyHistoryContinueJob';}).forEach(function(t){ScriptApp.deleteTrigger(t);});

@@ -1,7 +1,7 @@
 // Workers Free + Queues Free：驗過 LINE 原始簽章並成功入列，才向 LINE 回 200。
 // GAS 收到原始 body 與簽章後還會再驗一次；所有訂閱與去重仍在 Line.gs。
 import { chartResponse } from './chart.mjs';
-const BUILD = '2026-09-30-line-response-v5';
+const BUILD = '2026-10-03-line-timing-v6';
 const MAX_BYTES = 120_000; // Queues 每筆上限 128 KB，保留信封開銷。
 const FINAL_ERRORS = new Set(['signature', 'destination-mismatch', 'bad-envelope', 'bad-body']);
 const encoder = new TextEncoder();
@@ -120,7 +120,8 @@ export default {
       try {
         try { await renewLoadingIfLate(message.body, message.attempts, env); }
         catch (error) { console.error('loading renew skipped', String(error).slice(0, 80)); }
-        const result = await forward(message.body, env);
+        // v107：帶上出列時間與第幾次轉送，GAS 才能把「排隊」和「GAS 啟動」分開記，不再全算成轉送。
+        const result = await forward({ ...message.body, dequeuedAt: Date.now(), attempt: message.attempts }, env);
         if (result === 'retry') message.retry({ delaySeconds: Math.min(300, 30 * message.attempts) });
         else {
           if (result === 'discard') console.error('LINE event rejected permanently', message.id);

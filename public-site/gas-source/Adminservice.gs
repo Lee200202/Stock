@@ -782,7 +782,7 @@ function apiAdminTodayStatus(key) {
       add('補日K', dk.finishedAt ? (dkMostlyFailed ? '做完但多數失敗' : '已完成') + '（' + String(dk.finishedAt).slice(5, 16) + '）' : '進行中：做到 ' + (dk.lastCode || '開頭'),
           dk.finishedAt && !dkMostlyFailed ? 'ok' : 'warn',
           (dk.finishedAt ? '成功 ' + (dk.ok || 0) + '、失敗 ' + (dk.failed || 0) + '、略過 ' + (dk.skipped || 0) + '。' : '') +
-          (dkMostlyFailed ? '富果沒有回資料；盤後會改用證交所／櫃買官方收盤行情補近幾個交易日，看時間軸「官方日K補齊」。' : '') +
+          (dkMostlyFailed ? '富果沒有回資料；盤後改用官方收盤行情補齊。' : '') +
           (dk.lastError ? '最近的問題：' + String(dk.lastError).slice(0, 80) : ''));
     }
     /* 逐日編輯同步（R6）：等待續跑或帶錯誤就變紅，原因與 Actions 日誌同一段。 */
@@ -850,16 +850,16 @@ function apiAdminTodayStatus(key) {
     var automation = [
       { label: 'Apps Script 排程', value: triggerError ? '讀取失敗' : coreMissing ? '缺少必要觸發器' : heartbeatAge === null ? '尚無啟動紀錄' : heartbeatAge + ' 分鐘前啟動',
         tone: triggerError || coreMissing || (heartbeatAge !== null && heartbeatAge > 20) ? 'err' : heartbeatAge === null ? 'warn' : 'ok',
-        detail: '心跳只證明五分鐘總排程啟動；不能代表後續取稿、判讀或寄信成功。' },
+        detail: '只代表排程有啟動，不代表後續成功。' },
       { label: '自動取稿', value: !trading ? '休市暫停' : noShow ? '今日無直播' : v1 > 200 ? '原文已落地（' + v1 + ' 字）' : hm < TX_AUTO_START_HM_ ? '等待 11:05' : '等待原文',
         tone: !trading || noShow || hm < TX_AUTO_START_HM_ ? 'idle' : v1 > 200 ? 'ok' : hm >= 1400 ? 'err' : 'warn',
-        detail: '原文以「影片清單」當日欄位核對；GitHub 執行狀態及即時日誌請看下方取稿進度。' },
+        detail: '以「影片清單」當日欄位核對。' },
       { label: 'Pipeline 稽核', value: !trading || noShow ? '不執行' : pipelineDone ? '已發布每日整理' : pipelineBusy ? '原文已到，等待判讀／發布' : '等待原文',
         tone: !trading || noShow || !v1 ? 'idle' : pipelineDone ? 'ok' : hm >= 1500 ? 'err' : 'warn',
-        detail: '完成須同時有原文、影片處理狀態「完成」及當日每日推播列；細節見 GitHub daily.yml 日誌。' },
+        detail: '需原文、處理完成與推播列三者齊全。' },
       { label: '每日郵件', value: byMail.daily.failed || byMail.daily.unknown ? '寄送帳本有異常' : !trading || noShow ? '不寄每日總覽' : !mailExpected ? '目前無每日訂閱者' : byMail.daily.accepted ? '郵件服務接受 ' + byMail.daily.accepted + ' 位' : push ? '待寄或帳本待核對' : '等待文章',
         tone: byMail.daily.failed || byMail.daily.unknown ? 'err' : !trading || noShow || !mailExpected || !push ? 'idle' : byMail.daily.accepted ? 'ok' : hm >= 2200 ? 'err' : 'warn',
-        detail: '依寄送帳本判定；「服務接受」不等於收件者已讀。未有影片時不寄每日總覽。' }
+        detail: '依寄送帳本；「接受」不等於已讀。' }
     ];
     var readMetrics = [];
     ['apiGetDashboard', 'apiGetStockSummary', 'apiGetQuotesFor'].forEach(function (name) {
@@ -868,7 +868,7 @@ function apiAdminTodayStatus(key) {
     var maxReadMs = Math.max.apply(null, [0].concat(readMetrics.map(function (m) { return m.ms; })));
     items.push({ label: '網站資料讀取', value: readMetrics.length ? (maxReadMs / 1000).toFixed(1) + ' 秒（近期最慢）' : '尚無近期查詢',
       tone: !readMetrics.length ? 'idle' : maxReadMs >= 15000 ? 'err' : maxReadMs >= 8000 ? 'warn' : 'ok',
-      hint: readMetrics.length ? readMetrics.map(function (m) { return ({apiGetDashboard:'總覽',apiGetStockSummary:'個股摘要',apiGetQuotesFor:'批次報價'})[m.method] + ' ' + (m.ms / 1000).toFixed(1) + ' 秒／' + m.at; }).join('；') + '。只計 GAS 處理；不含網路、排隊及手機繪圖，紀錄保留 15 分鐘。' : '從 GitHub 網站查詢後才有資料。沒有紀錄不代表自動化停止。' });
+      hint: readMetrics.length ? readMetrics.map(function (m) { return ({apiGetDashboard:'總覽',apiGetStockSummary:'個股摘要',apiGetQuotesFor:'批次報價'})[m.method] + ' ' + (m.ms / 1000).toFixed(1) + ' 秒／' + m.at; }).join('；') + '。' : '近 15 分鐘沒有查詢。' });
     return { ok: true, today: today, now: Utilities.formatDate(new Date(), TZ, 'HH:mm'), items: items,
       automation: automation, smsOperations: smsOperations.slice(0, 40),
       timeline: timeline.slice(-40), ops: { trading: trading, noShow: noShow, plannedNoShow: plannedNoShow && !video, videoStatus: vStatus,
@@ -953,7 +953,7 @@ function apiAdminKCoverage(key) {
     return { ok: true, from: from, to: to, tradingDays: days.length, codes: codes.length, affected: affected,
              missingTotal: missingTotal, oldest: oldest, rows: rows.slice(0, 200),
              backfill: dk ? { finishedAt: dk.finishedAt || '', lastCode: dk.lastCode || '', failed: dk.failed || 0, updatedAt: dk.updatedAt || '' } : null,
-             note: '週K、月K由同一份日K聚合，日K齊了週月就齊；本週、本月尚未結束的那一根會隨日K更新。60 分K另存小時K分頁，這裡不列。' };
+             note: '週K、月K由日K聚合；60 分K不在此列。' };
   } catch (e) { return { ok: false, reason: String(e.message || e) }; }
 }
 

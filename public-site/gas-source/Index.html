@@ -178,7 +178,7 @@
     </div>
     <div class="sect">
       <div class="sect-h"><h2>翻到某一天</h2></div>
-      <p class="notice" style="margin:0 0 14px;">日曆上有標記的日期才有紀錄，點下去就會顯示那天的完整內容。沒有標記代表當天沒有直播、或影片還沒處理完。</p>
+      <p class="notice" style="margin:0 0 14px;">點有標記的日期查看當天內容；沒標記代表沒直播或尚未整理完。</p>
 
       <div class="mailcal-wrap">
         <div class="mailcal" id="dayCal">
@@ -226,7 +226,7 @@
         <button type="button" data-range="all" aria-pressed="false">全部</button>
       </div>
       <div id="perfChart"></div>
-      <p class="perf-how">持有檔數包含暫時缺價的股票；平均報酬與正報酬比例只計入有進場價及當日價格者。每個交易日收盤後記錄，起點為 2026/07/08。</p>
+      <p class="perf-how">平均報酬只計入有進場價與當日價者；每個交易日收盤後記錄，起點 2026/07/08。</p>
       <div id="perfTable" style="margin-top:22px;"></div>
       <p class="basis" id="perfNote"></p>
     </div>
@@ -308,7 +308,7 @@
         <div class="sect-h"><h2>用 LINE 收通知</h2></div>
         <div class="line-join-grid">
           <div>
-            <p class="notice" style="margin:0 0 12px;">加入官方帳號後，可在聊天室開啟每日總覽通知；加好友本身不會開啟推送。LINE 與 Email 各自設定，停掉一邊不影響另一邊。</p>
+            <p class="notice" style="margin:0 0 12px;">加好友後在聊天室開啟通知（加好友本身不會推送）。LINE 與 Email 各自設定。</p>
             <ul class="line-join-list">
               <li><b>每日總覽</b>交易日有直播、影片判讀完成後送一則。</li>
               <li><b>查詢</b>輸入代號或名稱，看最近一次被提到的紀錄。</li>
@@ -326,7 +326,7 @@
   <section class="panel" id="p-tx" role="tabpanel" hidden>
     <div class="sect">
       <div class="sect-h"><h2>逐字稿</h2></div>
-      <p class="notice" style="margin:0 0 14px;">日曆上有標記的日期才有逐字稿。內容是語音轉文字再經過整理的版本，用來核對網站上的紀錄是不是漏了什麼、或講者當時的原話是怎麼說的。</p>
+      <p class="notice" style="margin:0 0 14px;">點有標記的日期查看逐字稿，可用來核對紀錄與原話。</p>
 
       <div class="mailcal-wrap">
         <div class="mailcal" id="txCal">
@@ -347,7 +347,7 @@
   <section class="panel" id="p-mail" role="tabpanel" hidden>
     <div class="sect">
       <div class="sect-h"><h2>查詢每天寄出的整理內容</h2></div>
-      <p class="notice" style="margin:0 0 14px;">這裡是每個交易日寄給訂閱者的每日整理，與網站同一份紀錄。點日曆上有標記的日期即可查看當天完整內容。</p>
+      <p class="notice" style="margin:0 0 14px;">每個交易日寄出的每日整理；點有標記的日期查看。</p>
 
       <div class="mailcal-wrap">
         <div class="mailcal" id="mailCal">
@@ -425,7 +425,7 @@
         <details class="howto" id="modelAudit" hidden>
           <summary>本月模型與 API 使用次數</summary>
           <p id="modelAuditText"></p>
-          <p>模型清單每把金鑰每月更新一次；短回覆測試會消耗上方列出的生成呼叫。一般問題通常再用 1 次生成，查個股可能再用 1 次整理；被安全規則直接擋下的問題為 0 次。重試可能增加次數。本站無法讀取金鑰的剩餘免費額度，請以 Google AI Studio 顯示為準。</p>
+          <p>一般問題約用 1 次生成，查個股可能多 1 次；剩餘額度以 Google AI Studio 為準。</p>
         </details>
 
         <details class="howto" id="keyHowto">
@@ -437,7 +437,7 @@
               <li>複製整串貼進上面欄位，按「儲存並開始」。</li>
             </ol>
             <ul>
-              <li>金鑰只存在這台裝置的瀏覽器，不會存進本站試算表；API 呼叫使用你的專案額度，實際配額依 Google 顯示為準。</li>
+              <li>金鑰只存在這台瀏覽器，使用你自己的專案額度。</li>
               <li>本站不檢查金鑰格式，直接拿去打一次 API 看它收不收。</li>
               <li>收到 429 代表碰到配額限制；請到 AI Studio 查看重置時間，必要時換可用模型。</li>
             </ul>
@@ -488,10 +488,6 @@
         </div>
         <div class="p" id="dPrice">—</div>
         <div class="d" id="dChange">—</div>
-        <div class="detail-quote-controls">
-          <div class="detail-quote-status" id="dQuoteStatus" role="status" aria-live="polite"></div>
-          <button type="button" class="ghost sm" id="dQuoteRefresh">更新報價</button>
-        </div>
       </div>
       <button class="detail-close" id="detailClose" aria-label="關閉">&#10005;</button>
     </div>

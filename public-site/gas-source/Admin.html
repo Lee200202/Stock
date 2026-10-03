@@ -1030,6 +1030,16 @@ html[data-view="mobile"] .line-copy { grid-template-columns:1fr; }
 .sms-operation header{display:flex;gap:12px 18px;align-items:center;flex-wrap:wrap}.sms-operation header b{font-size:18px}.sms-operation .sms-direction{color:var(--sms-ink);font-weight:700}.sms-operation time{font-size:13px;color:var(--muted);margin-left:auto}.sms-code{color:var(--muted)}.sms-operation p{margin:12px 0 0;line-height:1.8;overflow-wrap:anywhere}.sms-operation .sms-price{font-weight:700;color:var(--sms-ink)}
 html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-theme="dark"] .sms-sell{--sms-ink:#79D8A1;--sms-bg:#193A2C}html[data-theme="dark"] .sms-hold{--sms-ink:#BBB9FF;--sms-bg:#292A48}html[data-theme="dark"] .sms-avoid{--sms-ink:#EDCD84;--sms-bg:#3A321F}html[data-theme="dark"] .sms-watch{--sms-ink:#94CEE8;--sms-bg:#1C3441}
 @media(max-width:600px){.sms-operation{padding:16px}.sms-operation time{width:100%;margin-left:0}.sms-operation header{gap:10px 14px}}
+/* v107：今日會員簡訊——標題旁一個「僅後台」小標與筆數；卡片兩欄起排，方向是膠囊。 */
+.sms-today-h{justify-content:flex-start;gap:10px;flex-wrap:wrap}.sms-today-h h2{margin:0}
+.sms-tag{display:inline-flex;align-items:center;min-height:26px;padding:0 12px;border-radius:999px;border:1px solid var(--rule);color:var(--muted);font-size:13px}
+.sms-count{margin-left:auto;font-weight:700;color:var(--ink)}
+.sms-operation-list{grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:12px}
+.sms-operation{padding:14px 18px;border-left-width:4px}
+.sms-operation header{gap:8px 12px}.sms-operation header b{font-size:17px}
+.sms-operation .sms-direction{display:inline-flex;align-items:center;min-height:28px;padding:0 12px;border-radius:999px;border:1.5px solid var(--sms-ink);background:var(--panel,#fff);font-size:14px}
+.sms-operation .sms-price{margin-top:8px}.sms-operation .sms-detail{margin-top:8px;line-height:1.7;font-size:15px}
+@media(max-width:600px){.sms-operation time{width:auto;margin-left:auto}}
 /* ====== v101 後台樣式層 ====== */
 /* 2026/10/02 管理者：橢圓形、寬鬆、按鈕大顆直觀。與前台 Stylesheet 的「v101 樣式層」同一組設計變數。
    取代 v67 的「主要按鈕 12px、次要外框 10px」：後台按鈕一律膠囊，主要動作品牌綠、次要白底外框、危險紅框。 */
@@ -1139,8 +1149,7 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
   <div class="acol">
     <div class="card">
       <h2>管理登入</h2>
-      <p class="hint">請輸入管理密鑰。忘記的話，在 Apps Script 編輯器執行
-        <code>showDeployInfo()</code>，執行紀錄會印出來。</p>
+      <p class="hint">忘記密鑰：在 Apps Script 執行 <code>showDeployInfo()</code>。</p>
       <div class="field">
         <label for="key">管理密鑰</label>
         <input type="password" id="key" autocomplete="current-password" placeholder="ADMIN_KEY">
@@ -1151,9 +1160,7 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
       </div>
       <button class="wide" id="loginBtn">登入</button>
       <div class="amsg err" id="loginMsg"></div>
-      <p class="hint" style="margin:12px 0 0">
-        記住功能只把密鑰存在這台裝置的瀏覽器裡，不會上傳。
-        公用電腦請不要勾。要清除的話，登入後按「忘記這台裝置」。</p>
+      <p class="hint" style="margin:12px 0 0">密鑰只存在這台瀏覽器；公用電腦請勿勾選。</p>
     </div>
   </div>
 </div>
@@ -1194,7 +1201,7 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
     <section class="panel" id="p-post" role="tabpanel">
 
       <div class="card" id="todaySmsCard">
-        <div class="card-h"><h2>今日會員簡訊買賣狀況</h2><span class="hint">僅後台顯示；列出會員簡訊已寫入之買賣與持股明細，不把待解析原文當成交。</span></div>
+        <div class="card-h sms-today-h"><h2>今日會員簡訊</h2><span class="sms-tag">僅後台</span><span class="sms-count" id="todaySmsCount"></span></div>
         <div id="todaySmsOps" role="status" aria-live="polite">讀取中…</div>
       </div>
 
@@ -1204,9 +1211,9 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
           <h2>今日狀態</h2>
           <button type="button" class="ghost sm" id="todayBtn">查看最新狀態</button>
         </div>
-        <p class="hint">綠色＝已有完成證據；黃色＝執行中或待核對；紅色＝需要處理。休市及尚未到排程時間以灰色呈現。</p>
+        <p class="hint">綠＝完成　黃＝進行中／待核對　紅＝需處理　灰＝休市或未到時間</p>
         <div class="automation-grid" id="todayAutomation" aria-live="polite"><div class="erow-empty">讀取取稿、稽核與寄送狀態中…</div></div>
-        <p class="hint"><a href="https://github.com/Lee200202/Stock/actions/workflows/transcript.yml" target="_blank" rel="noopener">取稿即時日誌</a>　·　<a href="https://github.com/Lee200202/Stock/actions/workflows/daily.yml" target="_blank" rel="noopener">Pipeline 即時日誌</a>　·　下方時間軸顯示 Apps Script 留下的紀錄。</p>
+        <p class="hint"><a href="https://github.com/Lee200202/Stock/actions/workflows/transcript.yml" target="_blank" rel="noopener">取稿即時日誌</a>　·　<a href="https://github.com/Lee200202/Stock/actions/workflows/daily.yml" target="_blank" rel="noopener">Pipeline 即時日誌</a></p>
         <div class="astat" id="stat"></div>
         <div class="health" id="todayHealth"><div class="erow-empty">讀取中…</div></div>
         <details class="dz timeline-dz">
@@ -1217,7 +1224,7 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
 
       <div class="card">
         <h2>投稿日期</h2>
-        <p class="hint">選這份逐字稿是哪一天的節目。平常只能選今天；要補過去的日子，先勾下面的「解鎖補登模式」。</p>
+        <p class="hint">平常只能選今天；補過去日期請先解鎖補登模式。</p>
         <!-- 日期改用與前台同一套日曆元件。
              原本是瀏覽器原生的 date 欄位，長相與行為隨瀏覽器而異，
              跟站上其他日曆（郵件查詢、逐日編輯、會員簡訊）完全不一樣。
@@ -1237,15 +1244,13 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
           <input type="checkbox" id="unlock">
           <label for="unlock">解鎖補登模式（允許投稿今天以外的日期）</label>
         </div>
-        <div class="amsg warn" id="unlockMsg">
-          補登模式已解鎖。跨日投稿容易覆蓋到既有資料，請確認日期正確再送出。
+        <div class="amsg warn" id="unlockMsg">補登模式已解鎖：送出前確認日期，避免覆蓋既有資料。
         </div>
       </div>
 
       <div class="card">
         <h2>自動取稿</h2>
-        <p class="hint">每個交易日 11:05 起系統會自己取稿，平常不用按。沒抓到、或要補最近幾天的，選日期後按「開始取稿」：
-          GitHub Actions 會用 Gemini 聽打公開影片；已有原稿時直接沿用，接著進入下方 15 步的判讀流程。頻道只保留最近五個交易日的影片。</p>
+        <p class="hint">交易日 11:05 起自動取稿，平常不用按。漏抓時選日期後按「開始取稿」（頻道只留最近五個交易日）。</p>
 
         <div class="field" style="margin-top:12px">
           <label id="crawlDayLabel">最近五個交易日</label>
@@ -1278,8 +1283,7 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
 
       <div class="card">
         <h2>逐字稿</h2>
-        <p class="hint">自動取稿失敗、或你手上有更完整的逐字稿時用。整份貼進來（可以分次貼、接在後面），按「開始處理」。
-          送出後這一天標成「手動」，之後的自動取稿不會蓋掉它。</p>
+        <p class="hint">自動取稿失敗或有更完整版本時使用，可分次貼上。送出後這天標為「手動」，自動取稿不會覆蓋。</p>
         <div class="field">
           <label for="tx">內容</label>
           <textarea id="tx" placeholder="貼上逐字稿……"></textarea>
@@ -1289,7 +1293,7 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
           <input type="checkbox" id="ow">
           <label for="ow">覆蓋這一天既有逐字稿資料</label>
         </div>
-        <p class="hint">勾了之後，這一天由逐字稿產生的紀錄會整批重建（會員簡訊、人工補登的列保留；在逐日編輯改過的原逐字稿列會被重建）。已寄出的信不會重寄。</p>
+        <p class="hint">重建這天由逐字稿產生的紀錄（會員簡訊與人工補登保留）；已寄出的信不重寄。</p>
         <details class="dz">
           <summary><span class="dz-t">進階：同一天有兩份逐字稿時整併</span><span class="dz-hint">先檢查，確認後才套用</span></summary>
           <div class="btnrow" style="margin-top:10px">
@@ -1307,8 +1311,8 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
         </div>
         <div class="amsg" id="subMsg"></div>
         <ul class="tip">
-          <li>在 GitHub Actions 執行，約 5–15 分鐘；可以關掉頁面，回來按「查看進度」。</li>
-          <li>完成後網站與郵件查詢會自動更新，不必再按刷新。</li>
+          <li>約 5–15 分鐘，可關閉頁面，回來按「查看進度」。</li>
+          <li>完成後網站與郵件查詢自動更新。</li>
         </ul>
       </div>
 
@@ -1344,7 +1348,7 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
       <!-- 判定歷程（v54 收進折疊區）：它是「為什麼」，不是日常操作；要查某一檔為什麼被丟掉、改名時才打開。 -->
       <details class="card dz-card">
         <summary><h2>判定歷程</h2><span class="dz-hint">進階：每一輪稽核丟掉、改分類、改名的原因與依據原句</span></summary>
-        <p class="hint">查「某一檔為什麼沒出現／為什麼被改成觀望不碰」時打開。同一種判定一再出現，通常代表提示詞該調了。</p>
+        <p class="hint">查某檔為何沒出現或被改分類時使用。</p>
         <div class="btnrow">
           <button class="ghost" id="decLoadBtn">看最近的判定</button>
           <button class="ghost" id="decTodayBtn">只看今天</button>
@@ -1386,8 +1390,7 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
 
       <div class="card" id="mRowsCard" style="display:none">
         <h2>當天的紀錄</h2>
-        <p class="hint">依分類排好（買入、賣出、會員持股、觀望不碰、觀望注意）。改完按該列「儲存」；改成「會員持股」會自動搬到會員持股分頁。
-          <b>刪除沒有復原鍵</b>，但會記進「修正建議」分頁。拿不準時打開下面的逐字稿對照原話。</p>
+        <p class="hint">改完按該列「儲存」。<b>刪除無法復原</b>（會記進「修正建議」）；不確定時先對照逐字稿。</p>
         <details class="dz txpeek" id="mTxBox">
           <summary><span class="dz-t">對照當天逐字稿</span><span class="dz-hint" id="mTxHint">打開後讀取</span></summary>
           <div class="txpeek-body" id="mTxBody"></div>
@@ -1407,8 +1410,7 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
 
       <div class="card">
         <h2>新增一筆（機器沒擷取到的）</h2>
-        <p class="hint">講者刻意不講股名的那一段（例如「一檔非電子股，20 幾塊，我下半週才公開名稱」），擷取時一定會被丟掉；等你知道是哪一檔，在這裡補。
-          填代號最可靠：名稱和代號都填時會互相驗證，對不上會擋下來。補進去的列不會被「全面重整」改掉。</p>
+        <p class="hint">補講者沒說股名、擷取時被略過的個股。建議填代號，名稱與代號會互相驗證；全面重整不會改掉。</p>
         <div class="row">
           <div class="field">
             <label for="mName">股票名稱</label>
@@ -1457,7 +1459,7 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
 
       <div class="card" id="mChainCard" style="display:none">
         <h2>儲存後自動同步</h2>
-        <p class="hint">儲存後自動依序更新：郵件內容 → 持股追蹤 → 歷史績效 → 目前績效。可以關掉頁面；已寄出的信不會重寄，暫時失敗會自動重試。</p>
+        <p class="hint">依序更新郵件內容、持股追蹤與績效；可關閉頁面，已寄出的信不重寄。</p>
         <div class="steps" id="mchain"></div>
         <div class="abar-row"><div class="abar"><i id="mBar"></i></div><span class="abar-pct">0%</span></div>
         <div class="pnote" id="mNoteBar"></div>
@@ -1493,7 +1495,7 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
           <div class="held-save-info">
             <span class="tag wait" style="border-color:var(--wait);color:var(--wait);font-weight:700">未儲存變更</span>
             <b id="heldDirtyN" class="held-save-title">0 檔持股已修改，尚未儲存</b>
-            <small class="held-save-desc">點擊右側按鈕將一次儲存所有變更，並直接在下方啟動重算持股追蹤與歷史績效進度條</small>
+            <small class="held-save-desc">一次儲存所有變更，並重算持股追蹤與績效。</small>
           </div>
           <div class="held-save-actions">
             <button type="button" class="btn primary" id="heldSaveAll">儲存變更並重算績效</button>
@@ -1511,16 +1513,12 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
     <section class="panel" id="p-maint" role="tabpanel" hidden>
       <div class="card">
         <h2>維護工具</h2>
-        <p class="hint">平常不需要碰。三個工具差在<b>處理範圍</b>：「核對資料與重算」會執行稽核、更新整理與衍生結果；
-          「全面重整」會讓過去的資料套用新規則；「指定日期」只改一天的郵件或分類。</p>
+        <p class="hint">平常不需要碰。「核對與重算」更新衍生結果；「全面重整」讓過去資料套用新規則；「指定日期」只改一天。</p>
 
         <div class="mtool">
           <div class="mt-h"><b>核對資料與重算</b><span>會更新資料</span><span>GitHub Actions</span></div>
-          <p>用試算表現有的正式操作內容，依序重算九步：清除產業列、三段品質關卡、
-            代號、基本面、日K、持股追蹤與績效。稽核可能補登、調整分類或移除不應收錄的列；
-             快取與衍生結果會更新。日K檔數多時可能需要十幾分鐘。</p>
-          <p>某一步失敗時不必整條鏈重來，選擇該步驟接續即可。後面的相依步驟會依序完成；
-             例如補齊日K失敗時，系統會保留日K游標，並暫停持股追蹤與績效，避免用不完整行情計算。</p>
+          <p>用試算表現有內容重算九步（品質關卡、代號、基本面、日K、持股與績效），稽核可能調整分類或移除列，約十幾分鐘。</p>
+          <p>某步失敗時選該步驟接續；日K未補齊會暫停持股與績效重算。</p>
           <div class="btnrow">
             <button id="siteRefreshBtn">開始刷新</button>
             <button class="ghost" id="refStateBtn">查看進度</button>
@@ -1551,10 +1549,8 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
 
         <div class="mtool">
           <div class="mt-h"><b>全面重整／資料更新</b><span>可選最近七日或全部</span><span>GitHub Actions</span></div>
-          <p>規則調整之後，讓<b>過去的資料</b>套用新規則：漏掉的補回來、誤收的刪掉、
-             重複的併起來、說明重寫、追蹤與郵件重算。<b>不影響每天的自動排程。</b></p>
-          <p>執行流程全面由 GitHub Actions 在背景分段接力進行，可以關掉頁面，回來按「查看進度」。最近七日約五到十分鐘，
-             全部歷史一到兩小時。<b>第一次跑建議先按「先預覽會改什麼」。</b></p>
+          <p>讓<b>過去的資料</b>套用新規則：補漏、刪誤收、併重複、重寫說明並重算。<b>不影響每日排程。</b></p>
+          <p>背景執行，可關閉頁面；最近七日約 5–10 分鐘，全部歷史 1–2 小時。<b>第一次建議先預覽。</b></p>
           <!-- 範圍。一天要呼叫三到四次模型，一百多天跑下來免費額度撐不完，
                而多數時候規則只改了一點，需要重跑的其實只有最近幾天。 -->
           <div class="row" style="margin-top:12px;align-items:flex-end">
@@ -1659,7 +1655,7 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
           </div>
           <ul class="tip">
             <li>重寫郵件會先補齊空白的代號，補不出來的標成「代號待確認」。</li>
-            <li>兩個動作都在 Apps Script 同步執行，約一分鐘，按了請不要重複點。</li>
+            <li>約一分鐘，請勿重複點。</li>
           </ul>
         </div>
 
@@ -1670,23 +1666,18 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
     <section class="panel sms-admin-panel" id="p-smsadmin" role="tabpanel" hidden>
       <div class="card sms-admin-card">
         <h2>會員簡訊</h2>
-        <p class="hint">會員簡訊平常每 5–10 分鐘自動抓取與解析，不用按。這裡處理例外：漏抓的補抓、提示詞改過要重新解析、把簡訊併進過去的紀錄。
-          依操作順序由上往下排；重的工作在 GitHub Actions 執行，關掉頁面也會繼續。</p>
+        <p class="hint">平常每 5–10 分鐘自動抓取與解析。這裡只處理例外：補抓、重新解析、併入過去紀錄。</p>
         <div class="mtool">
           <div class="mt-h"><b>抓取與解析工作流</b><span>自動補抓與稽核</span><span>GitHub Actions</span></div>
-          <p>系統會先探索來源帳號全部文章、辨識張震，再還原發文時間與套用範圍。無法驗證日期的文章保留重試資格並單獨列入稽核，不會歸到今天。</p>
+          <p>先辨識張震與真實發文日期；日期無法驗證的文章另列稽核，不歸到今天。</p>
           <div class="flowline" aria-label="補抓與收錄流程">
             <span>探索文章</span><i>→</i><span>辨識張震</span><i>→</i><span>日期篩選</span><i>→</i><span>逐日稽核</span><i>→</i><span>收錄個股（13 格）</span>
           </div>
-          <p class="hint" style="margin:8px 0 0">收錄個股整段排在逐日稽核之後，共十三格：
-            分類已解析與空白、建立收錄佇列、載入代號對照表、讀取歷史買價、AI 收錄個股、
-            規則稽核與代號比對、條件式買賣去重、寫入操作紀錄、寫入會員持股、原子取代舊列、
-            回寫解析狀態。每一格都會在進度條上單獨亮起，卡住時看得出卡在哪一段。</p>
+          <p class="hint" style="margin:8px 0 0">收錄個股共 13 格，進度條逐格亮起，卡住時看得出在哪一段。</p>
 
           <div class="mt-sub sms-chunk">
             <b>一、補抓最近</b>
-            <p>「最近七天」會自動算今天起往前六天；「全部文章」會沿來源網站游標逐頁找到底。
-               兩者都不需要輸入日期或文章編號，且先掃過來源帳號文章、判斷是否為張震，再套日期範圍。</p>
+            <p>不需輸入日期或編號。「全部文章」會逐頁找到底。</p>
             <div class="btnrow">
               <button class="ghost" id="smsRecentBtn">開始補抓（最近七天）</button>
               <button id="smsAllBtn">開始補抓（全部文章）</button>
@@ -1695,8 +1686,7 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
 
           <div class="mt-sub sms-chunk">
             <b>二、依編號補抓</b>
-            <p>任意久以前的都補得到，前提是手上有那份清單。一行一個，
-               貼文章網址或純數字都可以，一次最多 100 篇；同樣會先驗證張震與真實日期。</p>
+            <p>一行一篇，網址或數字皆可，一次最多 100 篇。</p>
             <textarea id="smsIds" rows="4" placeholder="https://www.cmoney.tw/forum/article/183929007&#10;183656984&#10;183266821"></textarea>
             <div class="btnrow">
               <button class="ghost" id="smsIdsBtn">開始補抓（指定編號）</button>
@@ -1705,8 +1695,7 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
 
           <div class="mt-sub sms-chunk">
             <b>三、重新解析</b>
-            <p>提示詞改過或有新簡訊未解析時使用。GitHub 逐則呼叫模型、查證並寫回；
-               重跑會以文章 ID 取代該篇舊衍生紀錄，不會累積重複列。</p>
+            <p>提示詞改過或有未解析的簡訊時使用；重跑會取代舊紀錄，不會重複。</p>
             <div class="lockrow sms-all-toggle">
               <input type="checkbox" id="smsReparseAll" checked>
               <label for="smsReparseAll">重新解析全部會員簡訊</label>
@@ -1760,9 +1749,7 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
               <button id="smsMergeBtn">併入過去資料（補空白）</button>
             </div>
             <p class="hint" style="margin:8px 0 0">
-              新簡訊進來按「只更新當天」，配額用量最小。「併入過去資料」掃全部歷史，
-              但只補收錄個股仍空白的；已判定過的一次模型都不呼叫。一輪有篇數上限，
-              沒跑完下次按同一顆接著做。
+              「只更新當天」用量最小；「併入過去資料」只補空白，沒跑完再按一次接續。
             </p>
 
             <div class="amsg" id="smsQuotaMsg" style="display:none"></div>
@@ -1802,7 +1789,7 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
 
           <div class="mt-sub sms-chunk sms-manage-chunk">
             <b>五、管理與移除收錄簡訊</b>
-            <p>先選要看哪一批，載入之後勾選要移除的文章；一次確認後會同步清除簡訊、操作紀錄、會員持股與已讀快取。</p>
+            <p>勾選後一次移除，會同步清除簡訊、操作紀錄、會員持股與快取。</p>
 
             <!-- 兩種模式做成一組選擇，而不是「一個摺疊的日期篩選 ＋ 一個載入按鈕」。
 
@@ -1845,7 +1832,7 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
       </div>
       <div class="card">
         <h2>後台專用郵件通知</h2>
-        <p class="hint">盤中通知只由管理者替已同意的收件者設定；每日總覽訂閱維持原狀。停止後不再寄送，既有寄送帳本保留。</p>
+        <p class="hint">只替已同意的收件者設定盤中通知；停止後不再寄送，帳本保留。</p>
         <div class="line-form">
           <div class="field"><label for="privateSmsEmail">收件者 Email</label><input id="privateSmsEmail" type="email" autocomplete="off" placeholder="you@example.com"></div>
           <div class="field"><label for="privateSmsAction">操作</label><select id="privateSmsAction"><option value="on">開啟盤中通知</option><option value="off">停止盤中通知</option></select></div>
@@ -1862,7 +1849,7 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
         <div class="ops-head"><div><h2>自動化監控</h2><p>取稿、判讀、寄信與資料更新的今日進度。每分鐘自動檢查。</p></div><button class="ghost" id="opsRefresh" type="button">立即檢查</button></div>
         <p id="opsStatus" class="ops-note" role="status" aria-live="polite">開啟分頁後載入。</p>
         <div id="opsCards" class="ops-grid"></div>
-        <div class="ops-card ops-mail-setting"><div><h3>今日整理信最早寄送時間</h3><p>預設 12:00。文章與品質關卡完成後才寄；這是起始時間，實際寄送以帳本紀錄為準。</p></div><div class="ops-time-actions"><div class="ops-time-picker" id="opsTimePicker"><input id="opsMailTime" type="hidden" value="12:00"><button id="opsTimeToggle" class="ghost ops-time-toggle" type="button" aria-expanded="false" aria-controls="opsTimePanel">12:00 ▾</button><div id="opsTimePanel" class="ops-time-panel" hidden><b>小時</b><div id="opsHourGrid" class="ops-time-grid"></div><b>分鐘（每五分鐘）</b><div id="opsMinuteGrid" class="ops-time-grid"></div><p class="hint">選好後按「儲存今日時間」才會生效。</p></div></div><div class="ops-preset" aria-label="常用時間"><button type="button" class="ghost" data-ops-time="12:00">12:00</button><button type="button" class="ghost" data-ops-time="15:00">15:00</button><button type="button" class="ghost" data-ops-time="18:00">18:00</button></div><button id="opsSaveMailTime" type="button">儲存今日時間</button></div><p id="opsSaveStatus" role="status" aria-live="polite"></p></div>
+        <div class="ops-card ops-mail-setting"><div><h3>今日整理信最早寄送時間</h3><p>文章與品質關卡完成後才寄；實際時間以帳本為準。</p></div><div class="ops-time-actions"><div class="ops-time-picker" id="opsTimePicker"><input id="opsMailTime" type="hidden" value="12:00"><button id="opsTimeToggle" class="ghost ops-time-toggle" type="button" aria-expanded="false" aria-controls="opsTimePanel">12:00 ▾</button><div id="opsTimePanel" class="ops-time-panel" hidden><b>小時</b><div id="opsHourGrid" class="ops-time-grid"></div><b>分鐘（每五分鐘）</b><div id="opsMinuteGrid" class="ops-time-grid"></div><p class="hint">選好後按「儲存今日時間」才會生效。</p></div></div><div class="ops-preset" aria-label="常用時間"><button type="button" class="ghost" data-ops-time="12:00">12:00</button><button type="button" class="ghost" data-ops-time="15:00">15:00</button><button type="button" class="ghost" data-ops-time="18:00">18:00</button></div><button id="opsSaveMailTime" type="button">儲存今日時間</button></div><p id="opsSaveStatus" role="status" aria-live="polite"></p></div>
         <h3 class="ops-section-title">今日郵件與資料時間線</h3><div id="opsFlow" class="ops-flow"></div>
         <div class="ops-events-head"><h3 class="ops-section-title">執行紀錄</h3>
           <label class="ops-day"><span>日期</span><select id="opsDay" aria-label="要看哪一天的執行紀錄"><option value="">今天</option></select></label></div>
@@ -1874,13 +1861,13 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
     <!-- ============ LINE 官方帳號（v73）：狀態、設定、測試與上線工具、推送紀錄 ============ -->
     <section class="panel" id="p-line" role="tabpanel" hidden>
       <div class="card">
-        <div class="ops-head"><div><h2>LINE 官方帳號</h2><p>好友與訂閱、本月訊息額度、待送與 Webhook 狀態。權杖與密鑰只寫不讀，畫面只顯示有沒有設定。</p></div><button class="ghost" id="lineRefresh" type="button">重新整理</button></div>
+        <div class="ops-head"><div><h2>LINE 官方帳號</h2><p>好友、本月額度、待送與 Webhook。</p></div><button class="ghost" id="lineRefresh" type="button">重新整理</button></div>
         <p id="lineStatus" class="ops-note" role="status" aria-live="polite">開啟分頁後載入。</p>
         <div id="lineCards" class="ops-grid"></div>
       </div>
       <div class="card">
         <h2>設定</h2>
-        <p class="hint">第一次依序填存取權杖、頻道密鑰、轉送服務網址。推送模式先用「只送測試帳號」演練；確認月額度、Webhook 與網站網址後再改「正式推送」。</p>
+        <p class="hint">先用「只送測試帳號」演練，確認額度與 Webhook 後再改「正式推送」。</p>
         <div class="line-form">
           <div class="field"><label for="lineToken">存取權杖（長期）</label><input type="password" id="lineToken" autocomplete="off" spellcheck="false" placeholder="留空＝不改"></div>
           <div class="field"><label for="lineSecret">頻道密鑰</label><input type="password" id="lineSecret" autocomplete="off" spellcheck="false" placeholder="留空＝不改"></div>
@@ -1896,7 +1883,7 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
       </div>
       <div class="card">
         <h2>測試與上線工具</h2>
-        <p class="hint">綁定碼十分鐘有效：在 LINE 對官方帳號輸入「綁定 六位數」，那個帳號就成為測試帳號。測試推送只送測試帳號，但會計入當月訊息量；驗證卡片格式與建立圖文選單不會送出訊息。</p>
+        <p class="hint">綁定碼 10 分鐘有效：在 LINE 輸入「綁定 六位數」成為測試帳號。測試推送會計入當月額度。</p>
         <div class="btnrow">
           <button type="button" id="lineDiag">為什麼沒收到</button>
           <button type="button" class="ghost" id="lineBind">產生綁定碼</button>
@@ -1909,7 +1896,7 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
       </div>
       <div class="card">
         <h2>推送紀錄</h2>
-        <p class="hint">「LINE 已接受」代表 LINE 收下了這則推送，不等於對方已經看到。只能重試還沒被接受的收件者；盤中通知只在發文 60 分鐘內、每日總覽只在當天。</p>
+        <p class="hint">「已接受」不等於已讀。只能重試未接受的收件者（盤中限 60 分鐘內、每日限當天）。</p>
         <div class="line-search"><input type="text" id="lineQ" spellcheck="false" placeholder="訊息ID、文章ID 或日期（2026/09/23）" aria-label="查詢推送紀錄"><button type="button" class="ghost" id="lineLookup">查詢</button></div>
         <div id="lineRecent" class="line-list"></div>
         <div id="lineDetail" class="line-list"></div>
@@ -2292,7 +2279,7 @@ function renderJob(j){
   if (j.status === '中斷') { $('progHint').textContent = j.note; stopPoll(); return; }
 
   if(warning){
-    $('progHint').textContent = j.status==='等待續跑' ? 'Apps Script 暫時沒有回應，刷新停在上面那一步；資料與檢查點都已保存，系統會自動續跑，無須重新投稿。'
+    $('progHint').textContent = j.status==='等待續跑' ? 'Apps Script 暫時沒回應；進度已保存，會自動續跑，不必重新投稿。'
       : j.status==='等待日K' ? '網站內容已可閱讀；日K與績效在背景更新，尚未完成。系統會自動續跑，無須重新投稿。'
       : '本輪需要確認，請查看下方原因；未回報全部更新成功。';
     if(waiting){startPoll();}else{stopPoll();}
@@ -2308,8 +2295,8 @@ function renderJob(j){
     stopPoll();
   } else {
     $('progHint').textContent = j.kind === 'auto'
-      ? '自動取稿正在判讀，這個頁面每 5 秒更新一次。需要停下本次執行可按取消；之後的自動排程仍會接續。每一行細節看下方 GitHub 日誌。'
-      : '正在處理，這個頁面每 5 秒更新一次。可以關掉頁面，回來再看。若超過十分鐘沒有變化，按「從中斷處續跑」。';
+      ? '自動取稿判讀中，每 5 秒更新；要停下請按「取消執行」。'
+      : '處理中，每 5 秒更新，可關閉頁面；超過十分鐘沒變化請按「從中斷處續跑」。';
     startPoll();
   }
 }
@@ -3027,7 +3014,7 @@ $('refFromBtn').addEventListener('click', function(){
 });
 
 $('refCancelBtn').addEventListener('click', function(){
-  if(!confirm('取消刷新？' + '\\n\\n' + 'GitHub 那邊最多再做完手上這一步就會收工。已完成的步驟保留著，之後用「從這一步重跑」接著做。')) return;
+  if(!confirm('取消刷新？' + '\\n\\n' + 'GitHub 做完手上這一步就停；已完成的步驟保留，可「從這一步重跑」。')) return;
   // 按下之後要立刻有回饋，不然中間那幾秒會被當成沒反應而重複點擊。
   var btn = $('refCancelBtn');
   btn.disabled = true; btn.textContent = '取消中…';
@@ -4487,11 +4474,13 @@ var mergeTxFingerprint='';
           '<b class="hv">' + esc(it.value) + '</b><span class="hh">' + esc(it.detail) + '</span></div>';
       }).join('') || '<div class="erow-empty">目前沒有可核對的流程狀態</div>';
       var smsRows = r.smsOperations || [];
+      // v107：方向做成膠囊放最前面，名稱／代號／時間同一列；只列已寫入的個股，不把待解析原文當成交。
+      $('todaySmsCount').textContent = smsRows.length ? smsRows.length + ' 筆' : '';
       $('todaySmsOps').innerHTML = smsRows.length ? '<div class="sms-operation-list">'+smsRows.map(function(x){
         var tone=/^買/.test(x.direction)?'buy':/^賣/.test(x.direction)?'sell':/不碰/.test(x.direction)?'avoid':/注意/.test(x.direction)?'watch':'hold';
-        return '<article class="sms-operation sms-'+tone+'"><header><b>'+esc(x.name||'待確認')+'</b><span class="sms-code">'+esc(x.code)+'</span><span class="sms-direction">'+esc(x.direction)+'</span><time>'+esc(x.time||'來源時間待核對')+'</time></header>'+
-          (/^(買|賣)/.test(x.direction)?'<p class="sms-price">價位 '+esc(x.price||'未說明')+'</p>':'')+'<p>'+esc(x.detail||'尚無說明')+'</p></article>';
-      }).join('')+'</div>' : '<p class="hint">今日會員簡訊尚無已寫入的個股列。若來源已有文章，請至「會員簡訊」查看解析與派工狀態。</p>';
+        return '<article class="sms-operation sms-'+tone+'"><header><span class="sms-direction">'+esc(x.direction||'持有')+'</span><b>'+esc(x.name||'待確認')+'</b><span class="sms-code">'+esc(x.code)+'</span><time>'+esc(x.time||'時間待核對')+'</time></header>'+
+          (/^(買|賣)/.test(x.direction)?'<p class="sms-price">價位 '+esc(x.price||'未說明')+'</p>':'')+'<p class="sms-detail">'+esc(x.detail||'尚無說明')+'</p></article>';
+      }).join('')+'</div>' : '<p class="hint">今天尚無已寫入的簡訊個股。</p>';
       $('todayHealth').innerHTML = (r.items || []).map(function (it) {
         return '<div class="hitem t-' + esc(it.tone) + '" title="' + esc(it.hint || '') + '" tabindex="0">' +
           '<span class="hk">' + esc(it.label) + '<i>' + (TONE_LABEL[it.tone] || '') + '</i></span>' +
@@ -4571,7 +4560,8 @@ var mergeTxFingerprint='';
     var o = r.ops || {}, d = o.deliveries || {}, m = o.mailByKind || {}, daily = m.daily || {}, smsMail = m.sms || {}, alerts = o.alerts || [];
     alerts = alerts.slice();
     var dkFailed = !!(o.dailyK && o.dailyK.failed > (o.dailyK.success || 0) + (o.dailyK.skipped || 0));
-    var hourError = /待補|HTTP [45]\d\d|失敗|錯誤/.test(o.hourlyProgress || '');
+    var hourDone = /^本輪結束/.test(o.hourlyProgress || '');
+    var hourError = hourDone ? /待補 [1-9]/.test(o.hourlyProgress) : /待補|HTTP [45]\d\d|失敗|錯誤/.test(o.hourlyProgress || '');
     if (dkFailed) { alerts.push('最近日 K 抓取多數失敗，請核對官方補齊與行情完整性'); }
     if (hourError) { alerts.push('歷史 60 分 K 尚有缺口'); }
     var pipeEvidence = (r.automation || []).filter(function(a){return a.label === 'Pipeline 稽核';})[0];
@@ -4591,13 +4581,12 @@ var mergeTxFingerprint='';
     var needTitle = need.limit ? '預計 ' + need.need + '／' + need.limit + ' 位' : '預計 ' + (need.need || 0) + ' 位';
     var needDetail = '每日總覽 ' + (need.dailySubs || 0) + ' 位＋盤中通知 ' + (need.smsSubs || 0) + ' 位 × 約 ' + (need.estSms || 1) + ' 則' +
       (need.limit ? '；今天額度約 ' + need.limit + ' 位（已用 ' + (need.usedToday || 0) + '）。' : '。') +
-      (need.tone === 'err' ? '超過額度，會有人收不到：訂閱者多於約 30 位時改用 Google Workspace 帳號（每天 1,500 位）或交易型郵件服務。' :
+      (need.tone === 'err' ? '超過額度，部分收件者會收不到。' :
        need.tone === 'warn' ? '已超過額度 80%，留意訂閱人數。' : '');
     var rtTitle = rt && rt.recorded ? '約 ' + rt.minutes + ' 分' : '尚無紀錄';
     var rtDetail = rt && rt.recorded ? rt.handlers.slice(0, 3).map(function (h) { return h.name + ' ' + h.min + ' 分（' + h.runs + ' 次）'; }).join('；') +
       '。' + ((rt.handlers[0] && rt.handlers[0].stages && rt.handlers[0].stages.length) ? '主排程最耗時：' + rt.handlers[0].stages.map(function(s){return s.name+' '+s.min+' 分';}).join('、') + '。' : '') +
-      '本站按台北日期估算，與 Google 的 24 小時配額窗口不同；個人帳號參考 90 分、Workspace 360 分，請在 Apps Script「執行項目」核對實際配額錯誤。' :
-      '觸發器結束時累加耗時；個人帳號參考 90 分、Workspace 360 分。';
+      '參考上限：個人帳號 90 分。' : '觸發器結束時累加。';
     var rtTone = !(rt && rt.recorded) ? 'idle' : rt.minutes > 90 ? 'warn' : 'ok';
     var smsTitle = smsMail.accepted ? '已交郵件服務' : o.smsCount ? '有簡訊，待核寄送' : '今天尚無新簡訊';
     $('opsStatus').textContent = (alerts.length ? '需留意：' + alerts.join('；') : '目前沒有偵測到流程異常。') + '　最後檢查：' + r.today + ' ' + r.now + '（台北時間）';
@@ -4608,8 +4597,8 @@ var mergeTxFingerprint='';
       (closed ? card('自動取稿與爬取', '休市', closedTxt + '；交易日 ' + (o.autoStart || '11:05') + ' 起自動取稿。', 'closed') :
       card('自動取稿與爬取', o.noShow ? '今日無直播' : o.plannedNoShow ? '預告停播' : o.videoStatus || '等待影片', '原文 ' + (o.rawChars || 0) + ' 字 · 修飾 ' + (o.polishedChars || 0) + ' 字。', o.videoStatus === '完成' ? 'ok' : 'idle')) +
       (closed ? card('Pipeline 稽核', '休市不執行', closedTxt, 'closed') :
-      card('Pipeline 稽核', o.noShow ? '今日無直播' : pipeReady ? '已發布每日整理' : o.rawChars > 200 ? '原文已到，等待判讀／發布' : '等待原文', '完成須同時有原文、影片處理狀態「完成」及當日推播列。', pipeReady ? 'ok' : o.rawChars > 200 ? 'warn' : 'idle')) +
-      card('會員簡訊來源', String(o.smsCount || 0) + ' 則', '來源文章數；不等於已寄出的郵件數。', o.smsCount ? 'ok' : 'idle') +
+      card('Pipeline 稽核', o.noShow ? '今日無直播' : pipeReady ? '已發布每日整理' : o.rawChars > 200 ? '原文已到，等待判讀／發布' : '等待原文', '需原文、處理完成與推播列三者齊全。', pipeReady ? 'ok' : o.rawChars > 200 ? 'warn' : 'idle')) +
+      card('會員簡訊來源', String(o.smsCount || 0) + ' 則', '來源文章數（不是寄出數）。', o.smsCount ? 'ok' : 'idle') +
       (closed ? card('每日總覽郵件', '休市不寄', closedTxt + '。' + prevTxt, 'closed') :
       card('每日總覽郵件', dailyTitle, (daily.messages ? sent(daily) + (clock(daily.firstAt) ? ' · 首次 ' + clock(daily.firstAt) : '') + '。' : (o.noShow ? '沒有節目，不應寄出每日整理。' : '寄送帳本今天沒有接受紀錄。')) + prevTxt, daily.failed || daily.unknown || (/已寄/.test(o.mailStatus || '') && !daily.accepted) ? 'err' : daily.open ? 'warn' : daily.accepted || o.noShow ? 'ok' : 'idle')) +
       card('盤中即時郵件', smsTitle, smsMail.messages ? smsMail.messages + ' 則通知 · ' + sent(smsMail) + (clock(smsMail.lastAt) ? ' · 最近 ' + clock(smsMail.lastAt) : '') : '寄送帳本今天沒有接受紀錄。', smsMail.failed || smsMail.unknown ? 'err' : smsMail.open || (o.smsCount && !smsMail.accepted) ? 'warn' : smsMail.accepted ? 'ok' : 'idle') +
@@ -4622,17 +4611,17 @@ var mergeTxFingerprint='';
         o.quoteHealth ? '舊資料 ' + o.quoteHealth.old + ' 檔；缺報價 ' + Math.max(0, (o.quoteHealth.eligible == null ? o.quoteHealth.job.requested || 0 : o.quoteHealth.eligible) - o.quoteHealth.total) + ' 檔。最近排程 ' + (o.quoteHealth.job.at || '尚無') +
           '；本輪更新 ' + (o.quoteHealth.job.updated || 0) + '／' + (o.quoteHealth.job.requested || 0) + ' 檔。' +
           (o.quoteHealth.job.writePending ? '資料正在寫入，尚未完成。' : '') +
-          ((o.quoteHealth.job.errors || []).length ? '來源問題：' + o.quoteHealth.job.errors.filter(function(e,i,a){return a.indexOf(e)===i;}).join('、') + '。' : '') +
+          ((o.quoteHealth.job.errors || []).length ? '來源問題 ' + o.quoteHealth.job.errors.length + ' 項：' + String(o.quoteHealth.job.errors[0]).replace(/https?:\/\/\S+/g, '').slice(0, 40) + '。' : '') +
           (o.quoteHealth.job.configured === false ? '富果單檔備援尚未設定金鑰。' : '') +
-          '持有中與最近查看的股票優先，來源缺成交價不冒充即時。' : '部署後執行 quoteCacheStatus() 查看。',
+          '' : '尚無紀錄。',
         o.quoteHealth && o.quoteHealth.trading ? (!o.quoteHealth.fresh ? 'err' : o.quoteHealth.old || o.quoteHealth.job.partial || o.quoteHealth.job.writePending || (o.quoteHealth.job.errors || []).length ? 'warn' : 'ok') : 'idle') +
       card('歷史 60 分 K／績效', hourError ? '分 K 待補，需核對來源' : o.hourlyScheduled ? '排程已安裝' : '分 K 排程缺少', '19:15 歷史分 K；績效最後一筆 ' + (o.perfLast || '尚無') + '。' + (o.hourlyProgress ? '最近進度：' + o.hourlyProgress + '。' : '尚無分 K 進度紀錄。') + (o.hourlyScheduled ? '' : '部署後執行 installMarketDataJobs()。'), hourError || !o.hourlyScheduled ? 'warn' : 'idle');
     $('opsFlow').innerHTML =
-      flow('09:05 起', '盤中會員簡訊', smsMail.accepted ? '首次 ' + clock(smsMail.firstAt) + ' 交郵件服務；' + sent(smsMail) + '。' : '每 10 分鐘核對來源；目前' + (o.smsCount ? '有來源文章，未見服務接受紀錄。' : '沒有來源文章。'), smsMail.accepted ? 'ok' : 'idle') +
+      flow('09:05 起', '盤中會員簡訊', smsMail.accepted ? '首次 ' + clock(smsMail.firstAt) + ' 交郵件服務；' + sent(smsMail) + '。' : (o.smsCount ? '有來源文章，尚無寄送紀錄。' : '目前沒有來源文章。'), smsMail.accepted ? 'ok' : 'idle') +
       flow((o.autoStart || '11:05') + ' 起', '影片與逐字稿', closed ? closedTxt + '。' : o.noShow ? '今日無直播，已停止取稿。' : '偵測影片後才派判讀；目前 ' + (o.videoStatus || '等待影片') + '。', closed ? 'closed' : o.videoStatus === '完成' ? 'ok' : 'idle') +
-      flow(o.mailStart || '12:00', '每日總覽信最早寄送', closed ? closedTxt + '。' + prevTxt : daily.accepted ? '實際首次 ' + clock(daily.firstAt) + '；' + sent(daily) + '。' : o.noShow ? '今日無直播，不寄送。' : '文章完成後五分鐘排程才會嘗試；目前無服務接受紀錄。', closed ? 'closed' : daily.accepted ? 'ok' : 'idle') +
-      flow('16:45 起', '日 K 與持股背景重算', closed ? closedTxt + '（14:05～15:05 的固定排程也略過）。' : dkToday ? '今日日 K 完成於 ' + o.dailyK.finishedAt + '；出場價待補 ' + (o.blankExits || []).length + ' 檔。' : '補 K 一輪完成才重算持股與績效；上次完成 ' + (o.dailyK && o.dailyK.finishedAt || '尚無') + '。', closed ? 'closed' : dkToday ? 'ok' : 'idle') +
-      flow('19:15', '歷史 60 分 K', o.hourlyScheduled ? '獨立排程已安裝；請用分 K 覆蓋稽核確認資料。' : '尚未安裝獨立排程。', o.hourlyScheduled ? 'ok' : 'warn');
+      flow(o.mailStart || '12:00', '每日總覽信最早寄送', closed ? closedTxt + '。' + prevTxt : daily.accepted ? '實際首次 ' + clock(daily.firstAt) + '；' + sent(daily) + '。' : o.noShow ? '今日無直播，不寄送。' : '文章完成後下一輪排程寄出。', closed ? 'closed' : daily.accepted ? 'ok' : 'idle') +
+      flow('16:45 起', '日 K 與持股背景重算', closed ? closedTxt + '（14:05～15:05 的固定排程也略過）。' : dkToday ? '今日日 K 完成於 ' + o.dailyK.finishedAt + '；出場價待補 ' + (o.blankExits || []).length + ' 檔。' : '上次完成 ' + (o.dailyK && o.dailyK.finishedAt || '尚無') + '。', closed ? 'closed' : dkToday ? 'ok' : 'idle') +
+      flow('19:15', '歷史 60 分 K', o.hourlyScheduled ? '排程已安裝。' : '尚未安裝獨立排程。', o.hourlyScheduled ? 'ok' : 'warn');
     /* 執行紀錄可以切日期（v67，0925 規格 A3）：預設今天；今天沒有紀錄（休市、早上）時自動切到最近一個交易日並標示。 */
     var sel = $('opsDay');
     if (sel && o.days && o.days.length) {
@@ -5425,7 +5414,7 @@ setTimeout(initCrawlDayPills, 50);
       card('本月訊息額度', qBig, q && q.ok ? (q.type === 'limited' ? '剩 ' + q.remaining + ' 則（每位收件者算一則；回覆不計）。' : '這個方案沒有月上限。') + '讀取時間 ' + (q.at || '') + '。' : (q && q.error ? '原因：' + q.error : '設定存取權杖後才讀得到。'), qTone) +
       card('待送與異常', ((ob.queued || 0) + (ob.sending || 0)) + ' 則待送', (ob.oldestOpen ? '最舊 ' + ob.oldestOpen + '。' : '') + '逾時未補送 ' + (ob.expired || 0) + '、完成 ' + (ob.done || 0) + '。', ob.sending || ob.queued ? 'warn' : ob.expired ? 'err' : 'ok') +
       card('Webhook', st.lastWebhookAt ? '最後 ' + String(st.lastWebhookAt).slice(5, 16) : '尚未收到', '今日驗簽失敗：網站 ' + (st.gasSigFail || 0) + '、轉送服務 ' + (st.cloudSigFail || 0) + (st.relayBuild ? '（轉送服務 ' + st.relayBuild + '）' : '') + '。', (st.gasSigFail || st.cloudSigFail) ? 'warn' : st.lastWebhookAt ? 'ok' : 'idle') +
-      card('互動回覆耗時', timing ? (((timing.relay || 0) + timing.total) / 1000).toFixed(1) + ' 秒' : '尚無紀錄', timing ? '最近 ' + timing.at + '；Worker 轉送 ' + (timing.relay == null ? '未提供' : timing.relay + ' 毫秒') + '、GAS 去重 ' + timing.claim + '、查詢 ' + timing.route + '、LINE API ' + timing.reply + ' 毫秒。未包含手機網路時間。' : '更新 Worker 與 GAS，請測試帳號傳一則查詢後才會顯示。', !timing ? 'idle' : (timing.relay || 0) + timing.total >= 15000 ? 'err' : (timing.relay || 0) + timing.total >= 8000 ? 'warn' : 'ok') +
+      card('互動回覆耗時', timing ? (((timing.relay || 0) + timing.total) / 1000).toFixed(1) + ' 秒' : '尚無紀錄', timing ? '最近 ' + timing.at + '｜' + (timing.queue != null ? '排隊 ' + (timing.queue / 1000).toFixed(1) + '、GAS 啟動 ' + (timing.start / 1000).toFixed(1) : '轉送 ' + (timing.relay == null ? '—' : (timing.relay / 1000).toFixed(1))) + '、處理 ' + (timing.total / 1000).toFixed(1) + ' 秒' + (timing.attempt > 1 ? '（重送第 ' + timing.attempt + ' 次）' : '') : '測試帳號傳一則查詢後顯示。', !timing ? 'idle' : (timing.relay || 0) + timing.total >= 15000 ? 'err' : (timing.relay || 0) + timing.total >= 8000 ? 'warn' : 'ok') +
       card('通知圖文選單', menu.ok ? '版本已更新' : '需要檢查', (menu.actual ? 'LINE 別名指向 ' + menu.actual + '。' : '') + (menu.reason || '請重新讀取狀態。') + (menu.ok ? ' 請用手機檢查三個入口；若仍看到兩個「今日整理」，重新部署轉送服務後再按「建立圖文選單」。' : ''), menu.ok ? 'ok' : 'warn') +
       card('推送模式', MODE[d.mode], d.mode === 'on' ? '每日總覽送給已訂閱的好友。' : d.mode === 'test' ? '只送綁定的測試帳號，其他好友不會收到。' : '不排也不送；查詢與訂閱開關照常。', d.mode === 'on' ? 'ok' : 'warn');
     if (document.activeElement !== $('lineRelay')) { $('lineRelay').value = d.relayUrl || ''; }

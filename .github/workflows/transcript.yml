@@ -216,6 +216,7 @@ jobs:
         with:
           name: transcript-verification-${{ github.run_id }}
           path: .transcript-verification/
+          include-hidden-files: true
           retention-days: 3
           if-no-files-found: error
 

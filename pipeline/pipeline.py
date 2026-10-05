@@ -12237,7 +12237,10 @@ CM_PARSE_SYSTEM = (
     "摘錄只補背景，不得更改簡訊的股票、action、price、limit；不同時點的看法不可冒充同一條新指令。\n"
     "但邊界不變：只能用簡訊或逐字稿摘錄裡真的講過的內容。"
     "沒有附摘錄、或摘錄裡沒提到這一檔時，就照簡訊原意寫，維持原本的簡短寫法，"
-    "絕對不可以自己補技術指標、價位、法人動向或任何推測。\n\n"
+    "絕對不可以自己補技術指標、價位、法人動向或任何推測。\n"
+    "字數目標只適用於摘錄裡真的講到的那一檔。同一則簡訊的另一檔在摘錄裡沒有內容時，它的 note 只寫簡訊對這一檔說的事"
+    "（例如「賣出聖暉後的資金轉為買進。」），一句就好：不可以用「布局看好的潛力標的」「把握機會」「後市可期」"
+    "這類簡訊沒有的評語把句子拉長，也不要把價位條件改寫成「於指定價位以下市價買進」再寫一次。\n\n"
 
     "【輸出格式】\n"
     "只回傳純 JSON：\n"
@@ -13366,7 +13369,7 @@ def parse_pending_sms(ss, since="", mode=None, today_only=False):
 _SMS_TX_CACHE = {}
 
 
-def _sms_transcript_excerpt(ss, date_str, body, code_map, limit=2800):
+def _sms_transcript_excerpt(ss, date_str, body, code_map, limit=2800, span=480):
     """當天有逐字稿時，挑出提到同一批個股的句子，給說明重點當依據。
 
     為什麼只給「摘錄」而不是整份稿：一份稿兩萬多字，一輪幾十篇簡訊各帶一次，
@@ -13412,7 +13415,7 @@ def _sms_transcript_excerpt(ss, date_str, body, code_map, limit=2800):
         if code is None:
             continue
         end = markers[i+1].start() if i+1<len(markers) else len(tx)
-        chunk = tx[match.start():min(end, match.start()+480)].strip()
+        chunk = tx[match.start():min(end, match.start()+span)].strip()
         if len(chunk)>=8 and chunk not in buckets[code]:
             buckets[code].append(chunk)
     # 輪流取每一檔，避免全文前段的股票吃光預算，後面的完全沒有依據。
@@ -13504,6 +13507,20 @@ def sms_context_note(original, candidate, transcript, sms_row=None):
     return public_sms_note(result, note_row)
 
 
+_LATER_CUE = re.compile(r'再|重新|拉回|回檔|下來|日後|之後|未來|等')
+
+
+def _sell_note_contradicts(note) -> bool:
+    """賣出的說明裡出現續抱，或不帶「之後、拉回再…」的買進，才算與方向矛盾。
+
+    「先賺這一段，等拉回再買回」是賣出理由的一部分（10/05 聖暉），不能因為有「買回」兩個字就退掉整則。
+    """
+    if re.search(r'續抱|抱牢', note):
+        return True
+    return any(not _LATER_CUE.search(note[max(0, m.start() - 12):m.start()])
+               for m in re.finditer(r'買進|買入|買回', note))
+
+
 _SCRUB_FRAGMENT = re.compile(r'(?:[到在於以約近達至、]|請於|上看|挑戰)(?=[，。；、的]|$)')
 
 
@@ -13514,6 +13531,8 @@ SMS_TWO_SOURCE_REWRITE_SYSTEM = (
     'transcript_excerpt 是當天影片語音稿裡點到本股名稱之後的原句節錄，可能夾著相鄰個股或閒聊，只採用明確在講本股的內容。'
     '影片講了進出的原因、獲利數字（EPS、營收）、技術位置（均線、K線、量能）、籌碼（外資、投信、ETF）或風險時要寫進去，'
     '不要只留一句操作結論；盤中通知只有一句「資金轉為買進」這類話時，說明以影片內容為主。'
+    '節錄裡有具體數字（各季EPS、均線、量能、目標區、法人買賣張數）就照原數字寫出來，不要改成「顯著成長」「相對低位」這類概括；'
+    '材料足夠時寫滿3至4句、100字以上。'
     '這是整理已發生內容，不提供新的買賣建議；不同時間的說法要區分，不可把影片的看法冒充新的盤中指令。'
     '不能換股票、方向、價位或否定詞，不能加入輸入沒有的數字、法人動向、預測或人名主詞。'
     '不寫會員簡訊、盤中通知、原文、逐字稿等來源名稱，不把交易價位寫進說明；價位仍保留在輸入的獨立欄位。'
@@ -13559,7 +13578,7 @@ def rewrite_sms_notes_from_two_sources(entries):
         direction = str(e['direction'])
         if re.search(r'^買', direction) and re.search(r'賣出|賣掉|出清', note):
             continue
-        if re.search(r'^賣', direction) and re.search(r'買進|買入|買回|續抱|抱牢', note):
+        if re.search(r'^賣', direction) and _sell_note_contradicts(note):
             continue
         if re.search(r'持股|持有', direction) and re.search(r'賣出|賣掉|出清', note):
             continue
@@ -13616,7 +13635,7 @@ def enrich_sms_notes_from_signals(ss, date_str, signals, transcript):
             # 用完整對照表，節錄才會在講到另一家公司時切開；對照表沒有這一檔時補上，才撈得到它。
             excerpt = _sms_transcript_excerpt(ss, date_str, _display_name(sms_row['name']) + code,
                                               dict(code_map, **({} if code in code_map else {code: _display_name(sms_row['name'])})),
-                                              limit=1600)
+                                              limit=2400, span=900)
             if not candidates and not excerpt:
                 continue
             clean_original = public_sms_note(original, sms_row)

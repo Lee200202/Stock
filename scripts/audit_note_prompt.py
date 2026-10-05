@@ -90,9 +90,13 @@ def main():
     sent = []
     real_call = pl.call_gemini
 
+    replies = []
+
     def spy(system, user, **kw):
         sent.append(json.loads(user))
-        return real_call(system, user, **kw)
+        out = real_call(system, user, **kw)
+        replies.append(out)
+        return out
     pl.call_gemini = spy
     pl.enrich_sms_notes_from_signals(book, date, {}, raw)
 
@@ -101,6 +105,11 @@ def main():
             print(f"\n----- 送進模型：{item['stock']}（{item['code']}）{item['direction']} -----")
             print(f"簡訊原說明：{item['sms_note']}")
             print(f"影片節錄 {len(item['transcript_excerpt'])} 字：{item['transcript_excerpt'][:700]}")
+    print("\n===== 模型原始輸出（還沒經過本機檢查） =====")
+    for out in replies:
+        data = out if isinstance(out, dict) else pl.safe_load_json(out, default={})
+        for note in (data or {}).get("notes", []):
+            print(f"\n[{note.get('id')}] {len(str(note.get('text') or ''))} 字\n{note.get('text')}")
     print("\n===== 模型寫出、而且通過本機檢查的說明（沒有寫進試算表） =====")
     wrote = False
     for name, sheet in book.sheets.items():

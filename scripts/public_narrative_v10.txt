@@ -43,10 +43,13 @@ function smsNoteBody_(text, row) {
     var trade = /買進|買入|買回|賣出|賣掉|出清|加碼|減碼|成本|成交|平盤/.test(sentence);
     var removePrice = function(match, index) {
       if (/EPS|每股盈餘|股利|配息|除息|除權|權利金/i.test(sentence.slice(Math.max(0, index - 12), index))) return match;
+      // 賺賠與漲跌的幅度不是交易價（10/05 聖暉「賺取6、70塊的持股賣出」被挖成「賺取6、的持股賣出」）。
+      if (/(?:賺|賠|獲利|虧損?|價差|差價|漲|跌)(?:了|取|進)?(?:約|近|大約|將近|快)?\s*$/.test(sentence.slice(Math.max(0, index - 12), index))) return match;
       if (!trade && !(match.match(/\d+(?:\.\d+)?/g) || []).some(function(n) { return known.indexOf(n) >= 0; })) return match;
       return '';
     };
-    sentence = sentence.replace(/(?:在|以|於)?(?:平盤)?\d+(?:\.\d+)?\s*(?:元|塊)(?:附近|以上|以下|之上|之下)?/g, removePrice);
+    // 「6、70塊」「74到76塊」是一個數量，整組一起留或一起拿，不能只挖後半。
+    sentence = sentence.replace(/(?:在|以|於)?(?:平盤)?(?:\d+(?:\.\d+)?\s*[、~～到至]\s*)?\d+(?:\.\d+)?\s*(?:元|塊)(?:附近|以上|以下|之上|之下)?/g, removePrice);
     known.forEach(function(price) {
       var escaped = price.replace(/\./g, '\\.');
       sentence = sentence.replace(new RegExp('(?:在|以|於)?(?:平盤)?(?<![\\d.])'+escaped+'(?![\\d.])(?:以上|以下|之上|之下)', 'g'), removePrice);

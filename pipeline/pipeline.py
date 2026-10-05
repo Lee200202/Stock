@@ -2061,8 +2061,126 @@ def gemini_generation_config(model, max_out=MAX_OUT, thinking=0, want_json=False
     return cfg
 
 
+# ---------------------------------------------------------------- #
+# Claude 備援
+#
+# 只給「文字進、文字出」的步驟用（潤飾、擷取、分類、稽核）。聽打用不上：Claude 不收影音。
+# 只在 Gemini 整條叫不動時接手——每日額度用完、每一把金鑰都不可用、連續重試仍失敗。
+# 輸出被截斷、失控、空內容不算：那是這一段內容的問題，呼叫端各有處置。
+# 沒設 ANTHROPIC_API_KEY 就完全不啟用，行為與原本相同。
+# Claude 按量計費，所以每輪有呼叫上限（CLAUDE_FALLBACK_MAX_CALLS）。
+# ---------------------------------------------------------------- #
+CLAUDE_MODEL = os.environ.get("CLAUDE_FALLBACK_MODEL", "").strip() or "claude-opus-5-5"
+CLAUDE_EFFORT = os.environ.get("CLAUDE_FALLBACK_EFFORT", "").strip().lower() or "medium"
+CLAUDE_MAX_CALLS = int(os.environ.get("CLAUDE_FALLBACK_MAX_CALLS", "").strip() or 60)
+CLAUDE_FALLBACK_BETA = "server-side-fallback-2026-07-01"
+CLAUDE_JSON_RULE = "\n\n只輸出一份合法的 JSON，不要加任何說明文字，也不要用 ``` 包起來。"
+_CLAUDE = {"client": None, "n": 0, "in": 0, "out": 0, "off": "", "fallbacks": True}
+_CLAUDE_LOCK = threading.Lock()
+_GEMINI_DOWN = ("Gemini 呼叫失敗", "Gemini 連續重試失敗")
+
+
+def claude_ready() -> bool:
+    return bool(os.environ.get("ANTHROPIC_API_KEY", "").strip()) and not _CLAUDE["off"]
+
+
+def claude_usage_report() -> str:
+    if not _CLAUDE["n"]:
+        return ""
+    return (f"本輪 Claude 備援 {_CLAUDE['n']} 次（{CLAUDE_MODEL}，上限 {CLAUDE_MAX_CALLS} 次）"
+            f"　輸入 {_CLAUDE['in']} token、輸出 {_CLAUDE['out']} token")
+
+
+def call_claude(system_text, user_text, want_json=False, max_out=MAX_OUT, tag=""):
+    """同一份提示交給 Claude，回傳文字。任何失敗都拋 RuntimeError，由 call_gemini 回報原本的 Gemini 錯誤。"""
+    try:
+        import anthropic
+    except ImportError:
+        _CLAUDE["off"] = "沒有安裝 anthropic 套件"
+        raise RuntimeError(f"Claude 備援不可用：{_CLAUDE['off']}")
+    if budget_left() < 40:
+        raise RuntimeError(f"Claude 備援（{tag}）：剩餘時間不足，不送出")
+    with _CLAUDE_LOCK:
+        if _CLAUDE["n"] >= CLAUDE_MAX_CALLS:
+            raise RuntimeError(f"Claude 備援已達本輪上限 {CLAUDE_MAX_CALLS} 次（{tag}）")
+        _CLAUDE["n"] += 1
+        if _CLAUDE["client"] is None:
+            _CLAUDE["client"] = anthropic.Anthropic()
+        client = _CLAUDE["client"].with_options(timeout=max(30.0, min(600.0, budget_left() - 10)))
+    request = dict(
+        model=CLAUDE_MODEL,
+        # 思考也算在 max_tokens 裡，下限留寬；超過 16000 的輸出要用串流才不會逾時。
+        max_tokens=max(16000, min(int(max_out), 64000)),
+        system=system_text + (CLAUDE_JSON_RULE if want_json else ""),
+        messages=[{"role": "user", "content": user_text}],
+        output_config={"effort": CLAUDE_EFFORT},
+    )
+    try:
+        if _CLAUDE["fallbacks"]:
+            try:
+                # 安全分類器拒答時，由伺服器端改用建議的替代模型重跑同一個請求。
+                with client.beta.messages.stream(**request, betas=[CLAUDE_FALLBACK_BETA],
+                                                 fallbacks="default") as stream:
+                    msg = stream.get_final_message()
+            except anthropic.BadRequestError as exc:
+                if "fallback" not in str(exc).lower() and "beta" not in str(exc).lower():
+                    raise
+                _CLAUDE["fallbacks"] = False
+                print(f"Claude 備援：這個帳號不接受 fallbacks 參數，之後不帶（{str(exc)[:120]}）")
+        if not _CLAUDE["fallbacks"]:
+            with client.messages.stream(**request) as stream:
+                msg = stream.get_final_message()
+    except (anthropic.AuthenticationError, anthropic.PermissionDeniedError) as exc:
+        _CLAUDE["off"] = f"ANTHROPIC_API_KEY 無效或沒有權限（HTTP {exc.status_code}）"
+        raise RuntimeError(f"Claude 備援停用：{_CLAUDE['off']}")
+    except anthropic.RateLimitError as exc:
+        raise RuntimeError(f"Claude 呼叫失敗（{tag}）：HTTP 429 額度或速率限制")
+    except anthropic.APIStatusError as exc:
+        raise RuntimeError(f"Claude 呼叫失敗（{tag}）：HTTP {exc.status_code}　{str(exc)[:160]}")
+    except anthropic.APIConnectionError as exc:
+        raise RuntimeError(f"Claude 呼叫失敗（{tag}）：連線錯誤 {type(exc).__name__}")
+
+    text = "".join(b.text for b in msg.content if b.type == "text")
+    usage = msg.usage
+    with _CLAUDE_LOCK:
+        _CLAUDE["in"] += usage.input_tokens or 0
+        _CLAUDE["out"] += usage.output_tokens or 0
+    print(f"  [{tag}] Claude 備援（{msg.model}）stop={msg.stop_reason} 輸入={usage.input_tokens} "
+          f"輸出={usage.output_tokens} 文字={len(text)} 字")
+    if msg.stop_reason == "refusal":
+        raise RuntimeError(f"Claude 拒答（{tag}）")
+    if msg.stop_reason == "max_tokens":
+        raise RuntimeError(f"Claude 輸出遭截斷（{tag}）：stop_reason=max_tokens")
+    if want_json:
+        text = re.sub(r'^```(?:json)?\s*|\s*```$', '', text.strip())
+    if not text.strip():
+        raise RuntimeError(f"Claude 回傳空內容（{tag}）")
+    return text
+
+
 def call_gemini(system_text, user_text, want_json=False, thinking=0, max_out=MAX_OUT, tag="",
                 max_429=6):
+    """Gemini 先跑；整條 Gemini 叫不動、而且有設 ANTHROPIC_API_KEY 時，同一份提示改交給 Claude。
+
+    Claude 也失敗就照原樣拋出 Gemini 的錯誤，呼叫端看到的與沒有備援時相同。
+    """
+    try:
+        return _call_gemini_only(system_text, user_text, want_json, thinking, max_out, tag, max_429)
+    except (RateLimited, RuntimeError) as exc:
+        down = isinstance(exc, RateLimited) or str(exc).startswith(_GEMINI_DOWN)
+        if not down or not claude_ready():
+            raise
+        gemini_error = exc
+    print(f"Gemini {tag} 叫不動（{str(gemini_error)[:120]}），改用 Claude 備援")
+    try:
+        return call_claude(system_text, user_text, want_json, max_out, tag)
+    except RuntimeError as exc:
+        print(f"Claude 備援沒有成功（{tag}）：{str(exc)[:200]}")
+        raise gemini_error
+
+
+def _call_gemini_only(system_text, user_text, want_json=False, thinking=0, max_out=MAX_OUT, tag="",
+                      max_429=6):
     """
     thinking=0 關閉思考。gemini-2.5-flash 的 thinking 預設開啟，
     且思考 token 計入 maxOutputTokens，是造成輸出被截斷的主因之一。
@@ -15303,6 +15421,8 @@ if __name__ == "__main__":
         _DEFER_BACKGROUND = ADMIN_JOB
         main()
         print(gemini_usage_report(), flush=True)
+        if claude_usage_report():
+            print(claude_usage_report(), flush=True)
         background_done = drain_background_refresh()
         if _SS is not None:
             write_status_log(_SS, "完成" if background_done else "背景待續跑",

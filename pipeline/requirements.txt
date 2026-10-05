@@ -2,3 +2,6 @@ gspread>=6.0,<7
 google-auth>=2.0,<3
 requests>=2.31,<3
 pypinyin>=0.51,<1
+
+# pipeline.py 的 Claude 備援：Gemini 整條叫不動時接手文字步驟。沒設 ANTHROPIC_API_KEY 就不會用到。
+anthropic>=1.11,<2

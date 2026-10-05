@@ -327,6 +327,13 @@ jobs:
           GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
           GEMINI_API_KEY_4: ${{ secrets.GEMINI_API_KEY_4 }}
           GEMINI_API_KEY_5: ${{ secrets.GEMINI_API_KEY_5 }}
+          # Claude 備援（選用）。Gemini 每日額度用完、或每一把金鑰都不可用時，
+          # 潤飾、擷取、分類這些文字步驟改交給 Claude。沒設這個 Secret 就不啟用。
+          # Claude 按量計費，CLAUDE_FALLBACK_MAX_CALLS 是每一輪最多呼叫幾次。
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_FALLBACK_MODEL: ${{ vars.CLAUDE_FALLBACK_MODEL }}
+          CLAUDE_FALLBACK_EFFORT: ${{ vars.CLAUDE_FALLBACK_EFFORT }}
+          CLAUDE_FALLBACK_MAX_CALLS: ${{ vars.CLAUDE_FALLBACK_MAX_CALLS }}
           GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
           YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID || vars.YOUTUBE_CHANNEL_ID }}

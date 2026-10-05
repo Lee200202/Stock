@@ -12443,6 +12443,53 @@ def serialize_sms_items(items: list[dict]) -> str:
     ], ensure_ascii=False)
 
 
+def _sms_sheet_notes(ss) -> dict:
+    """會員簡訊衍生列目前的說明：{(來源ID, 代號, 方向): 說明}。會員持股那一頁的方向一律記成「會員持股」。"""
+    notes = {}
+    for sheet_name, field in (("操作紀錄", "理由摘錄"), ("會員持股", "說明重點")):
+        try:
+            vals = sheets_retry(ss.worksheet(sheet_name).get_all_values)
+        except Exception:
+            continue
+        if len(vals) < 2:
+            continue
+        head = [str(h).strip() for h in vals[0]]
+        if not all(k in head for k in ("來源影片ID", "代號", field)):
+            continue
+        c_src, c_code, c_note = head.index("來源影片ID"), head.index("代號"), head.index(field)
+        c_dir = head.index("方向") if "方向" in head else -1
+        for row in vals[1:]:
+            if len(row) <= max(c_src, c_code, c_note) or not str(row[c_src]).startswith("CMONEY-"):
+                continue
+            action = "會員持股" if sheet_name == "會員持股" else (str(row[c_dir]).strip() if 0 <= c_dir < len(row) else "")
+            notes[(str(row[c_src]).strip(), str(row[c_code]).strip(), action)] = str(row[c_note])
+    return notes
+
+
+def _same_note(a, b) -> bool:
+    return _ev_norm(naturalize_reason(a)) == _ev_norm(naturalize_reason(b))
+
+
+def keep_admin_edited_notes(items, src_id, old_detail, sheet_notes):
+    """同一篇簡訊重新解析時，後台改過說明、而且代號與方向沒變的那幾筆沿用改過的說明。
+
+    管線每次寫列都把同一段說明存進解析明細，所以「列上的說明與明細不一樣」就是後台逐日編輯改的。
+    2026/10/05：09:41 的文章在 12:30 被補寫，整篇重新解析，管理者剛改好的勤誠、聖暉說明被模型的新句子蓋掉。
+    """
+    try:
+        old = {(str(d.get("code") or ""), str(d.get("dir") or "")): str(d.get("reason") or d.get("note") or "")
+               for d in json.loads(old_detail or "[]") if isinstance(d, dict)}
+    except (ValueError, TypeError):
+        return items
+    for it in items:
+        key = (str(it.get("code") or ""), str(it.get("action") or ""))
+        now = sheet_notes.get((src_id,) + key, "")
+        if now.strip() and key in old and not _same_note(now, old[key]):
+            print(f"  {src_id} {it.get('name')}（{key[0]}）{key[1]}：說明在後台改過，沿用後台版本")
+            it["note"] = now
+    return items
+
+
 def get_existing_cmoney_ids(ss) -> set[str]:
     cids = set()
     for sheet_name in ("操作紀錄", "會員持股"):
@@ -13231,6 +13278,7 @@ def parse_pending_sms(ss, since="", mode=None, today_only=False):
         written_articles += 1
 
     # ---------------- 逐篇處理 ---------------- #
+    admin_notes = None          # 後台改過的說明，第一次用到才讀表
     steps.at("AI 收錄個股", f"開始處理 {len(process)} 則…")
     total_cnt = len(process)
     quota_strikes = 0
@@ -13302,6 +13350,10 @@ def parse_pending_sms(ss, since="", mode=None, today_only=False):
 
             steps.note("條件式買賣去重", f"{base_note}：核對條件式買進與歷史買價")
             items = _sms_dedupe_and_condition(items, r, prior_buy_prices)
+            if items and f"CMONEY-{art}" in existing_cids:
+                if admin_notes is None:
+                    admin_notes = _sms_sheet_notes(ss)
+                items = keep_admin_edited_notes(items, f"CMONEY-{art}", r.get("detail", ""), admin_notes)
 
             if items:
                 state_text = (f"已寫入 {sum(1 for i in items if i['action'] != '會員持股')} 筆買賣、"
@@ -13613,6 +13665,24 @@ def enrich_sms_notes_from_signals(ss, date_str, signals, transcript):
     if transcript:
         _SMS_TX_CACHE.setdefault(date_str, transcript)
     code_map = get_code_map() or {}
+    # 後台改過說明的列不重寫：列上的說明與解析明細保存的不一樣，就是人改的。
+    stored_notes, edited_rows = {}, set()
+    try:
+        sms_values = sheets_retry(ss.worksheet('會員簡訊').get_all_values)
+        if sms_values and all(k in sms_values[0] for k in ['發文時間', '解析明細']):
+            t_i, d_i = sms_values[0].index('發文時間'), sms_values[0].index('解析明細')
+            for srow in sms_values[1:]:
+                if len(srow) <= max(t_i, d_i) or str(srow[t_i])[:10].replace('-', '/') != date_str:
+                    continue
+                try:
+                    detail = json.loads(srow[d_i])
+                except (ValueError, TypeError):
+                    continue
+                for d in detail if isinstance(detail, list) else []:
+                    if isinstance(d, dict):
+                        stored_notes.setdefault(str(d.get('code') or ''), []).append(str(d.get('reason') or d.get('note') or ''))
+    except Exception as exc:
+        print(f'簡訊說明補充：讀不到解析明細，無法分辨後台改過的列（{exc}）；照舊處理')
     # 先盤點同日要補的列，模型整批重寫一次，避免一檔一呼叫把額度與時間用完。
     table_data = []
     rewrite_entries = []
@@ -13632,6 +13702,12 @@ def enrich_sms_notes_from_signals(ss, date_str, signals, transcript):
             if len(row) <= max(ci.values()) or row[ci['日期']] != date_str or not str(row[ci['來源影片ID']]).startswith('CMONEY-'):
                 continue
             code, original = str(row[ci['代號']]), str(row[ci[field]])
+            if stored_notes.get(code) and not any(
+                    _same_note(original, s) or _same_note(original, public_sms_note(s, {'code': code}))
+                    for s in stored_notes[code]):
+                edited_rows.add(f'{tab}:{i}')
+                print(f'  簡訊說明補充：{row[ci["股票名稱"]]}（{code}）的說明在後台改過，不重寫')
+                continue
             candidates = by_code.get(code, [])
             sms_row = {'name':str(row[ci['股票名稱']]), 'code':code,
                        'price':str(row[ci['價位說明']]) if '價位說明' in ci else ''}
@@ -13678,6 +13754,8 @@ def enrich_sms_notes_from_signals(ss, date_str, signals, transcript):
             if len(row)<=max(ci.values()):
                 continue
             if row[ci['日期']]!=date_str or not str(row[ci['來源影片ID']]).startswith('CMONEY-'):
+                continue
+            if f'{tab}:{i}' in edited_rows:
                 continue
             original=str(row[ci[field]])
             sms_row = {'code':str(row[ci['代號']]),

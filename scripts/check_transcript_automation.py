@@ -33,6 +33,10 @@ class APIError(Exception):
         self.code, self.message = 400, message
 
 
+class OverloadError(Exception):
+    code, message = 503, "This model is currently experiencing high demand."
+
+
 def at(clock):
     h, m = map(int, clock.split(":"))
     return datetime(DAY.year, DAY.month, DAY.day, h, m, tzinfo=t.TAIPEI)
@@ -138,6 +142,36 @@ class Checks(unittest.TestCase):
         with self.assertRaises(t.AuthenticationConflict):
             tr._probe(0)
         tr.clients[0].models.generate_content.assert_called_once()
+
+    def test_all_primary_keys_overloaded_use_backup_without_wait(self):
+        tr = self.transcriber()
+        tr.models = ["main", "backup"]
+        calls = []
+        def run(request):
+            calls.append((tr.model, tr.key_index))
+            if tr.model == "main":
+                raise OverloadError()
+            return t._StreamResult("completed", "備援取得完整原稿。")
+        tr._run = run
+        with patch.object(t.time, "sleep") as sleep:
+            self.assertEqual(tr._range(URL, 0, 1800), "備援取得完整原稿。")
+        self.assertEqual(calls, [("main", 0), ("main", 1), ("main", 2), ("backup", 0)])
+        sleep.assert_not_called()
+
+    def test_one_overload_still_allows_second_key_on_primary(self):
+        tr = self.transcriber()
+        tr._run = Mock(side_effect=[OverloadError(), t._StreamResult("completed", "主模型換金鑰恢復。")])
+        self.assertEqual(tr._range(URL, 0, 1800), "主模型換金鑰恢復。")
+        self.assertEqual(tr.model_index, 0)
+        self.assertEqual(tr.key_index, 1)
+
+    def test_short_truncated_response_is_not_cached_as_complete(self):
+        tr = self.transcriber()
+        tr._request = Mock(return_value=("截斷稿", False))
+        cache = {}
+        with self.assertRaises(t.NotReadyYet):
+            tr.transcribe(URL, t.MIN_SPLIT_SECONDS, cache=cache)
+        self.assertEqual(cache, {})
 
     def test_live_upcoming_and_processing_do_not_call_gemini(self):
         self.mock("read_state", return_value=(None, [], None, {}))

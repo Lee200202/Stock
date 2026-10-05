@@ -1096,7 +1096,7 @@ class Transcriber:
                 if not self._next_model(f"所有金鑰額度用完（{e}）"):
                     raise
             except ModelOverloaded as e:
-                if not self._next_model(f"三輪退避後仍暫時過載（{e}）"):
+                if not self._next_model(f"可用金鑰暫時過載（{e}）"):
                     # 每個模型都在忙。這是暫時的，交給外層的輪詢迴圈三分鐘後再試，
                     # 比在這裡繼續重送有用得多——而且不會把這一集判成失敗。
                     raise NotReadyYet(
@@ -1111,8 +1111,7 @@ class Transcriber:
         if complete:
             return text
         if end - start < MIN_SPLIT_SECONDS * 2:
-            log(f"  {hms(start)}–{hms(end)} 輸出被截斷且無法再切分，保留已取得的內容")
-            return text
+            raise NotReadyYet(f"{hms(start)}–{hms(end)} 輸出截斷且無法再切分；不將半稿當作完整片段")
         mid = (start + end) // 2
         log(f"  {hms(start)}–{hms(end)} 輸出被截斷，切成兩段重做")
         return self._range(video_url, start, mid) + "\n\n" + self._range(video_url, mid, end)
@@ -1156,6 +1155,7 @@ class Transcriber:
             order = keys[first:] + keys[:first]
 
             all_quota = True
+            overloaded_keys = 0
             same = []                   # 這一輪每把金鑰的非額度錯誤，用來認「大家都一樣」
             for pos, key in enumerate(order):
                 if (key, self.model) in self.exhausted:
@@ -1168,6 +1168,7 @@ class Transcriber:
                 except ModelOverloaded as exc:
                     all_quota = False
                     overload_seen = True
+                    overloaded_keys += 1
                     last_error = str(exc)[:200]
                     log(f"    金鑰 #{key + 1} 快速檢查暫時過載，換下一把：{last_error}")
                     continue
@@ -1210,6 +1211,7 @@ class Transcriber:
                     if _is_overload(status, message):
                         all_quota = False
                         overload_seen = True
+                        overloaded_keys += 1
                         last_error = f"HTTP {status}：{message[:200]}"
                         log(f"    暫時過載，不停用模型或金鑰，換下一把：{last_error}")
                         continue
@@ -1242,6 +1244,7 @@ class Transcriber:
                     if _is_overload(None, detail):
                         all_quota = False
                         overload_seen = True
+                        overloaded_keys += 1
                         last_error = detail[:200]
                         log(f"    暫時過載，不停用模型或金鑰，換下一把：{last_error}")
                         continue
@@ -1264,6 +1267,9 @@ class Transcriber:
                         log(f"    失敗　{last_error}")
                         continue
                 return text, complete
+
+            if overloaded_keys == len(order) and self.model_index + 1 < len(self.models):
+                raise ModelOverloaded("本輪所有可用金鑰均過載，立即試備援，跳過主模型後續退避：" + last_error)
 
             if all_quota:
                 quota_rounds += 1

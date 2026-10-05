@@ -187,6 +187,10 @@ class ModelOverloaded(Exception):
     """暫時過載；有限輪替與退避後，使用備援或交下一輪重試。"""
 
 
+class BackgroundUnavailable(Exception):
+    """背景工作送得出去、卻查不回結果；改用串流重送同一段。"""
+
+
 class Done(Exception):
     """這一天已經處理完，不必再敲。"""
 
@@ -889,6 +893,7 @@ class Transcriber:
         self.probe_enabled = probe
         self.exhausted = set()          # (金鑰編號, 模型) 額度已用完
         self.stream_models = set()      # 不支援 background 的模型，改用串流
+        self.background_blocked = False  # 背景結果查不回來（見 _wait），這次執行一律串流
         self.healthy_until = {}
         self.models_used = []
         self.keys_used = []
@@ -1157,8 +1162,12 @@ class Transcriber:
         部分模型（實測 gemini-3.5-flash-lite）不支援背景，會立刻回 HTTP 400
         「does not support background interactions」——那種請求沒被處理、不佔額度，
         所以直接改用串流重送，不算一次重試，之後這個模型都走串流。
+
+        2026/10/05 起背景工作建立成功，但查結果（GET /interactions/{id}）一律回 HTTP 400
+        「Multiple authentication credentials received」——請求只帶一把金鑰，是 Google 端的問題，
+        換金鑰重送也一樣。串流不受影響，所以遇到就取消背景工作、改用串流，這次執行不再走背景。
         """
-        if self.model not in self.stream_models:
+        if self.model not in self.stream_models and not self.background_blocked:
             try:
                 interaction = self.client.interactions.create(**request, background=True, timeout=min(60, self._timeout()))
             except Exception as exc:
@@ -1168,7 +1177,11 @@ class Transcriber:
                 self.stream_models.add(self.model)
                 log(f"    {self.model} 不支援背景模式，改用串流")
             else:
-                return self._wait(interaction)
+                try:
+                    return self._wait(interaction)
+                except BackgroundUnavailable as exc:
+                    self.background_blocked = True
+                    log(f"    背景結果查不回來（{str(exc)[:80]}），已取消背景工作，改用串流")
         return self._run_stream(request)
 
     def _wait(self, interaction):
@@ -1202,6 +1215,8 @@ class Transcriber:
                     self.client.interactions.cancel(id=interaction.id, timeout=10)
                 except Exception:
                     pass
+                if code == 400 and "multiple authentication credentials" in message.lower():
+                    raise BackgroundUnavailable(message) from exc
                 raise
         return interaction
 

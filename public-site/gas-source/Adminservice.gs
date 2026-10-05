@@ -736,12 +736,12 @@ function apiAdminTodayStatus(key) {
     function add(label, value, tone, hint) { items.push({ label: label, value: value, tone: tone, hint: hint || '' }); }
     if (!trading) { add('今天', '休市', 'idle', '休市日不取稿、不寄每日總覽；會員簡訊接收與通知照常。'); }
     else if (noShow) { add('今日節目', '今日無直播', 'idle', '上游確認頻道今天沒有這一集，已停止取稿；訂閱者不會收到每日整理。'); }
-    else if (plannedNoShow && !video) { add('今日節目', '預告停播', 'idle', '前一集已預告請假；已停止密集輪詢，後續排程會單次查片，12:30 後確認。'); }
+    else if (plannedNoShow && !video) { add('今日節目', '預告停播', 'idle', '前一集已預告請假；後續排程仍會查片，15:20 再核對公開直播與回放。'); }
     else if (vStatus === '完成') { add('今日節目', '整理完成', 'ok'); }
     else if (video) { add('今日節目', vStatus || '處理中', 'warn', '影片已抓到，正在判讀；進度看下方「處理進度」。'); }
-    else { add('今日節目', '尚未偵測到影片', hm >= 1400 ? 'warn' : 'idle',
-               hm >= 1400 ? '已過 14:00 仍沒有影片：到「投稿逐字稿」手動貼上，或按「開始取稿」再試一次。'
-                          : '交易日 ' + hmText_(TX_AUTO_START_HM_) + ' 起自動取稿，通常 13:30 前抓到。已輪詢 ' + polls + ' 次。'); }
+    else { add('今日節目', '尚未偵測到影片', hm >= 1530 ? 'warn' : 'idle',
+               hm >= 1530 ? '已過 15:30 仍未取得原稿；請核對來源狀態，必要時手動貼稿。'
+                          : '交易日 ' + hmText_(TX_AUTO_START_HM_) + ' 起取稿；直播中等回放，12:30 後未出片降低探詢頻率。已輪詢 ' + polls + ' 次。'); }
     if (trading && !noShow) {
       add('逐字稿', video ? (v1 + ' 字／修飾 ' + v2 + ' 字') : '—', v2 > 200 ? 'ok' : video ? 'warn' : 'idle');
       add('今日紀錄', trades.length + ' 筆操作、' + holds.length + ' 筆持股', (trades.length || holds.length) ? 'ok' : 'idle');

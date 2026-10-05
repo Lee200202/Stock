@@ -148,6 +148,46 @@ VOCABULARY = os.environ.get("VOCABULARY", "").strip() or (
     "三大法人,融資,融券,當沖,月線,季線,半年線,年線,K線,KD,MACD,RSI,布林通道,"
     "多頭,空頭,停損,停利,除權息,法說會,費半,那斯達克,道瓊,聯準會,CPI,ETF")
 
+# 當天會員簡訊與近期紀錄裡的股名。固定詞表只有三檔權值股，講者當天買賣的那一檔不在裡面時，
+# 模型只能照音寫：2026/10/05 的勤誠被寫成「行神、情神、程成、情晨」四種，後段因此對不到代號。
+_DAY_VOCAB = []
+DAY_VOCAB_DAYS = 14
+DAY_VOCAB_LIMIT = 40
+
+
+def vocabulary() -> str:
+    return VOCABULARY + ("," + ",".join(_DAY_VOCAB) if _DAY_VOCAB else "")
+
+
+def load_day_vocabulary(ss, date_str) -> list:
+    """從「操作紀錄」「會員持股」取最近兩週（含當天）的股名，新的排前面。讀不到就維持固定詞表。"""
+    try:
+        target = datetime.strptime(date_str, "%Y/%m/%d").date()
+    except ValueError:
+        return []
+    found = []
+    for sheet in ("操作紀錄", "會員持股"):
+        try:
+            rows = sheets_retry(ss.worksheet(sheet).get_all_records)
+        except Exception as e:
+            log(f"（讀不到「{sheet}」，聽打詞表不加當天股名：{type(e).__name__}）")
+            continue
+        for r in rows:
+            try:
+                day = datetime.strptime(norm_date(r.get("日期")), "%Y/%m/%d").date()
+            except ValueError:
+                continue
+            name = re.sub(r"[*＊\s]", "", str(r.get("股票名稱") or ""))
+            if 0 <= (target - day).days <= DAY_VOCAB_DAYS and 2 <= len(name) <= 8:
+                found.append((day, name))
+    names = []
+    for _, name in sorted(found, key=lambda x: x[0], reverse=True):
+        if name not in names and name not in VOCABULARY.split(","):
+            names.append(name)
+    _DAY_VOCAB[:] = names[:DAY_VOCAB_LIMIT]
+    return list(_DAY_VOCAB)
+
+
 SYSTEM_INSTRUCTION = """你是專業的中文逐字稿聽打員，負責把台灣股市直播節目「張震 股市盤中家教班」的語音完整轉成文字。
 
 規則：
@@ -226,7 +266,7 @@ def segment_cache_for(video):
     folder = os.environ.get('TRANSCRIPT_CACHE_DIR','').strip()
     if not folder:
         return _SEGMENT_CACHE.setdefault(video.id,{})
-    identity = json.dumps([video.id,video.duration_sec,SEGMENT_MINUTES,SYSTEM_INSTRUCTION,VOCABULARY],ensure_ascii=False)
+    identity = json.dumps([video.id,video.duration_sec,SEGMENT_MINUTES,SYSTEM_INSTRUCTION,vocabulary()],ensure_ascii=False)
     return SegmentCache(Path(folder)/ (hashlib.sha256(identity.encode()).hexdigest()+'.json'))
 
 
@@ -1016,7 +1056,7 @@ class Transcriber:
         """
         use_fps = self.fps > 0
         prompt = (f"請聽打這段影片 {hms(start)} 到 {hms(end)} 的完整逐字稿。\n"
-                  f"可能出現的專有名詞：{VOCABULARY}")
+                  f"可能出現的專有名詞：{vocabulary()}")
         multi = len(self.keys) > 1
         attempt = 0
         last_error = ""
@@ -1509,6 +1549,10 @@ def tick(ss, target: date, force: bool, seen: dict = None) -> bool:
     if not keys:
         raise Done("缺少 GEMINI_API_KEY。到 https://aistudio.google.com/apikey 建一把，"
                    "多把可用逗號分隔或用 GEMINI_API_KEY_2、_3 追加。", code=1)
+
+    extra = load_day_vocabulary(ss, date_str)
+    if extra:
+        log(f"聽打詞表加入近兩週紀錄的股名 {len(extra)} 檔：{'、'.join(extra[:12])}{'…' if len(extra) > 12 else ''}")
 
     log(f"Gemini 聽打　模型 {GEMINI_MODEL}"
         + (f"（備援 {'、'.join(GEMINI_FALLBACK_MODELS)}）" if GEMINI_FALLBACK_MODELS else "")

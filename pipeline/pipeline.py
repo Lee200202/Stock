@@ -13440,6 +13440,9 @@ def queue_sms_content_sync(ss, dates):
     if rows:append_rows_safe(ws,rows,value_input_option='RAW')
 
 
+_GAIN_BEFORE = re.compile(r'(?:賺|賠|獲利|虧損?|價差|差價|漲|跌)(?:了|取|進)?(?:約|近|大約|將近|快)?\s*$')
+
+
 def public_sms_note(text, row=None):
     """說明不重複通知來源與交易價；成交欄位及原始證據不變。"""
     row = row or {}
@@ -13454,10 +13457,14 @@ def public_sms_note(text, row=None):
             before = sentence[max(0, match.start()-12):match.start()]
             if re.search(r'EPS|每股盈餘|股利|配息|除息|除權|權利金', before, re.I):
                 return match.group(0)
+            # 賺賠與漲跌的幅度不是交易價（10/05 聖暉「賺取6、70塊的持股賣出」被挖成「賺取6、的持股賣出」）。
+            if _GAIN_BEFORE.search(before):
+                return match.group(0)
             if not trade and not any(n in known for n in re.findall(r'\d+(?:\.\d+)?', match.group(0))):
                 return match.group(0)
             return ''
-        sentence = re.sub(r'(?:在|以|於)?(?:平盤)?\d+(?:\.\d+)?\s*(?:元|塊)(?:附近|以上|以下|之上|之下)?', remove_price, sentence)
+        # 「6、70塊」「74到76塊」是一個數量，整組一起留或一起拿，不能只挖後半。
+        sentence = re.sub(r'(?:在|以|於)?(?:平盤)?(?:\d+(?:\.\d+)?\s*[、~～到至]\s*)?\d+(?:\.\d+)?\s*(?:元|塊)(?:附近|以上|以下|之上|之下)?', remove_price, sentence)
         for price in known:
             sentence = re.sub(r'(?:在|以|於)?(?:平盤)?(?<![\d.])'+re.escape(price)+r'(?![\d.])(?:以上|以下|之上|之下)', remove_price, sentence)
         parts[i] = sentence

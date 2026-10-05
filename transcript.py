@@ -781,6 +781,11 @@ NON_RETRYABLE = {401, 403, 404}  # 金鑰無效、沒權限、模型不存在：
 # 串流連線被中途切斷時，從中斷處接續幾次（實測約 4 分半就會斷一次）。
 STREAM_RESUME_ATTEMPTS = 3
 STREAM_RESUME_WAIT = 5
+# 第二條通道（generateContent 串流）在第一個字出來前不會送任何事件，空窗要比 Interactions 長。
+CLASSIC_READ_TIMEOUT = int(os.environ.get('TRANSCRIPT_CLASSIC_READ_TIMEOUT_SEC', '180'))
+# 走哪一條通道。寫在模組層：每一輪探詢都會重建 Transcriber，切換之後這次執行不必每輪再撞一次。
+# TRANSCRIPT_CHANNEL=classic 可以直接指定第二條通道。
+_CHANNEL = {"classic": os.environ.get("TRANSCRIPT_CHANNEL", "").strip().lower() == "classic"}
 
 # 503 是暫時服務問題，不代表金鑰失效或配額用盡；有限重試後再使用備援。
 OVERLOAD_HINTS = ("high demand", "overloaded", "unavailable", "try again later",
@@ -790,6 +795,8 @@ OVERLOAD_HINTS = ("high demand", "overloaded", "unavailable", "try again later",
 def _err(exc):
     """SDK 的 HTTP 錯誤帶 status_code 與 body；連線錯誤則沒有 status_code。"""
     status = getattr(exc, "status_code", None)
+    if status is None and isinstance(getattr(exc, "code", None), int):
+        status = exc.code                 # generateContent 那條通道的 APIError
     body = getattr(exc, "body", None)
     return status, (str(body) if body else f"{type(exc).__name__}: {exc}")
 
@@ -893,7 +900,6 @@ class Transcriber:
         self.probe_enabled = probe
         self.exhausted = set()          # (金鑰編號, 模型) 額度已用完
         self.stream_models = set()      # 不支援 background 的模型，改用串流
-        self.background_blocked = False  # 背景結果查不回來（見 _wait），這次執行一律串流
         self.healthy_until = {}
         self.models_used = []
         self.keys_used = []
@@ -1017,8 +1023,11 @@ class Transcriber:
         quota_rounds = 0
         overload_seen = False
 
+        skip_wait = False
         for round_no in range(1, MAX_ROUNDS + 1):
-            if round_no > 1:
+            if skip_wait:
+                skip_wait = False       # 剛換通道，不是同一個問題，不必先等
+            elif round_no > 1:
                 wait = RETRY_WAIT[min(round_no - 2, len(RETRY_WAIT) - 1)]
                 log(f"    {'所有金鑰這一輪都失敗，' if multi else ''}{wait} 秒後重送")
                 time.sleep(wait)
@@ -1030,6 +1039,7 @@ class Transcriber:
             order = keys[first:] + keys[:first]
 
             all_quota = True
+            same = []                   # 這一輪每把金鑰的非額度錯誤，用來認「大家都一樣」
             for pos, key in enumerate(order):
                 if (key, self.model) in self.exhausted:
                     continue
@@ -1095,6 +1105,7 @@ class Transcriber:
                     else:
                         all_quota = False
                         detail = message[:300]
+                        same.append(f"{status}:{message[:80]}")
                         if status == 400 and use_fps:
                             use_fps = self._drop_fps(message)
                     last_error = f"HTTP {status}：{detail}"
@@ -1142,6 +1153,16 @@ class Transcriber:
             else:
                 quota_rounds = 0
 
+            # 每一把金鑰都回同一個錯誤，問題不在金鑰，再輪兩輪只是白等、白花額度
+            # （2026/10/05：三把各 3 次，每次探詢空轉 4 分鐘）。還沒換過通道就換，換過了就收手。
+            if len(order) > 1 and len(same) == len(order) and len(set(same)) == 1:
+                if _CHANNEL["classic"]:
+                    log("    每一把金鑰都回同一個錯誤，不是金鑰問題；這一輪不再重送")
+                    break
+                _CHANNEL["classic"] = True
+                skip_wait = True
+                log("    每一把金鑰都回同一個錯誤，不是金鑰問題；改走 generateContent 通道重送")
+
         if overload_seen:
             raise ModelOverloaded(last_error)
         raise RuntimeError(f"Gemini 轉錄 {hms(start)}–{hms(end)} 重試 {attempt} 次仍失敗。"
@@ -1165,9 +1186,12 @@ class Transcriber:
 
         2026/10/05 起背景工作建立成功，但查結果（GET /interactions/{id}）一律回 HTTP 400
         「Multiple authentication credentials received」——請求只帶一把金鑰，是 Google 端的問題，
-        換金鑰重送也一樣。串流不受影響，所以遇到就取消背景工作、改用串流，這次執行不再走背景。
+        換金鑰重送也一樣。同一天 Interactions 的串流也收不到結果（一次開了 10 分鐘沒有完成、
+        一次 90 秒沒有回應），所以遇到就取消背景工作，這次執行改走 generateContent（見 _run_classic）。
         """
-        if self.model not in self.stream_models and not self.background_blocked:
+        if _CHANNEL["classic"]:
+            return self._run_classic(request)
+        if self.model not in self.stream_models:
             try:
                 interaction = self.client.interactions.create(**request, background=True, timeout=min(60, self._timeout()))
             except Exception as exc:
@@ -1180,9 +1204,65 @@ class Transcriber:
                 try:
                     return self._wait(interaction)
                 except BackgroundUnavailable as exc:
-                    self.background_blocked = True
-                    log(f"    背景結果查不回來（{str(exc)[:80]}），已取消背景工作，改用串流")
+                    _CHANNEL["classic"] = True
+                    log(f"    背景結果查不回來（{str(exc)[:80]}），已取消背景工作，改走 generateContent 通道")
+                    return self._run_classic(request)
         return self._run_stream(request)
+
+    def _run_classic(self, request):
+        """第二條通道：generateContent 串流。同一把金鑰、同一個模型，不經過 Interactions。
+
+        一樣直接讀 YouTube 網址，用 video_metadata 指定起訖秒數。沒有工作 ID，中斷不能接續：
+        斷線或逾時就整段失敗，由 _request 換下一把重送。
+        """
+        from google.genai import types
+        video, prompt = request["input"][0], request["input"][1]["text"]
+        proc = video.get("processing") or {}
+        meta = {"start_offset": proc.get("start_offset"), "end_offset": proc.get("end_offset")}
+        if proc.get("fps"):
+            meta["fps"] = proc["fps"]
+        deadline = time.monotonic() + self._timeout()
+        config = {
+            "system_instruction": request["system_instruction"],
+            "max_output_tokens": request["generation_config"]["max_output_tokens"],
+            "media_resolution": types.MediaResolution.MEDIA_RESOLUTION_LOW,
+            "http_options": types.HttpOptions(
+                timeout=int(max(1, min(CLASSIC_READ_TIMEOUT, self._timeout())) * 1000)),
+        }
+        if re.search(r"gemini-3(?:\.|-)", self.model):
+            config["thinking_config"] = types.ThinkingConfig(thinking_level="low")
+        contents = types.Content(role="user", parts=[
+            types.Part(file_data=types.FileData(file_uri=video["uri"]),
+                       video_metadata=types.VideoMetadata(**meta)),
+            types.Part(text=prompt),
+        ])
+        stream = self.client.models.generate_content_stream(
+            model=self.model, contents=contents, config=types.GenerateContentConfig(**config))
+        parts, finish, blocked = [], "", ""
+        try:
+            for chunk in stream:
+                if time.monotonic() > deadline:
+                    raise NotReadyYet('本段聽打時間已到，已完成片段保留，下輪優先重試主模型')
+                blocked = str(getattr(getattr(chunk, "prompt_feedback", None), "block_reason", "") or blocked)
+                for cand in getattr(chunk, "candidates", None) or []:
+                    for part in getattr(getattr(cand, "content", None), "parts", None) or []:
+                        # 思考內容不是逐字稿
+                        if getattr(part, "text", None) and not getattr(part, "thought", False):
+                            parts.append(part.text)
+                    reason = getattr(cand, "finish_reason", None)
+                    if reason:
+                        finish = str(getattr(reason, "name", reason))
+        finally:
+            close = getattr(stream, "close", None)
+            if close:
+                close()
+        text = "".join(parts)
+        if finish == "STOP":
+            return _StreamResult(status="completed", output_text=text)
+        if finish == "MAX_TOKENS":
+            return _StreamResult(status="max_tokens", output_text=text)
+        return _StreamResult(status="failed", output_text="",
+                             errors=f"generateContent 未正常結束：{finish or blocked or '串流在完成前結束'}")
 
     def _wait(self, interaction):
         """背景模式：輪詢到結束。"""

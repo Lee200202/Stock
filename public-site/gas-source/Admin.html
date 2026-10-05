@@ -1039,6 +1039,9 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
 .sms-operation header{gap:8px 12px}.sms-operation header b{font-size:17px}
 .sms-operation .sms-direction{display:inline-flex;align-items:center;min-height:28px;padding:0 12px;border-radius:999px;border:1.5px solid var(--sms-ink);background:var(--panel,#fff);font-size:14px}
 .sms-operation .sms-price{margin-top:8px}.sms-operation .sms-detail{margin-top:8px;line-height:1.7;font-size:15px}
+.sms-original-list{display:grid;gap:12px;margin:14px 0 18px}.sms-original{padding:18px 20px;border:1px solid var(--rule);border-radius:var(--r-md);background:var(--panel-2)}
+.sms-original-head{display:flex;gap:8px 16px;align-items:center;flex-wrap:wrap;margin-bottom:10px}.sms-original-head b{font-size:15px}.sms-original-head time,.sms-original-head span{color:var(--muted);font-size:13px}
+.sms-original-text{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.8;font-size:16px}.sms-section-label{margin:16px 0 10px;font-weight:700}
 @media(max-width:600px){.sms-operation time{width:auto;margin-left:auto}}
 /* ====== v101 後台樣式層 ====== */
 /* 2026/10/02 管理者：橢圓形、寬鬆、按鈕大顆直觀。與前台 Stylesheet 的「v101 樣式層」同一組設計變數。
@@ -1280,8 +1283,8 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
     <section class="panel" id="p-post" role="tabpanel">
 
       <div class="card" id="todaySmsCard">
-        <div class="card-h sms-today-h"><h2>今日會員簡訊</h2><span class="sms-tag">僅後台</span><span class="sms-count" id="todaySmsCount"></span></div>
-        <div id="todaySmsOps" role="status" aria-live="polite">讀取中…</div>
+        <div class="card-h sms-today-h"><h2>今日會員簡訊</h2><span class="sms-tag">僅後台</span><span class="sms-count" id="todaySmsCount" aria-live="polite"></span></div>
+        <div id="todaySmsOps" aria-label="今日會員簡訊內容">讀取中…</div>
       </div>
 
       <!-- 今日狀態（v54）：一眼看出今天自動化跑到哪、哪裡要處理。只讀，不改資料。 -->
@@ -4554,14 +4557,19 @@ var mergeTxFingerprint='';
         return '<div class="hitem t-' + esc(it.tone) + '"><span class="hk">' + esc(it.label) + '<i>' + (TONE_LABEL[it.tone] || '待命') + '</i></span>' +
           '<b class="hv">' + esc(it.value) + '</b><span class="hh">' + esc(it.detail) + '</span></div>';
       }).join('') || '<div class="erow-empty">目前沒有可核對的流程狀態</div>';
-      var smsRows = r.smsOperations || [];
-      // v107：方向做成膠囊放最前面，名稱／代號／時間同一列；只列已寫入的個股，不把待解析原文當成交。
-      $('todaySmsCount').textContent = smsRows.length ? smsRows.length + ' 筆' : '';
-      $('todaySmsOps').innerHTML = smsRows.length ? '<div class="sms-operation-list">'+smsRows.map(function(x){
+      var smsRows = r.smsOperations || [], originals = r.smsOriginals || [];
+      // 原文逐字呈現；下方的買賣仍只列已寫入操作紀錄，不把待解析原文當成交。
+      $('todaySmsCount').textContent = originals.length + ' 則原文 · ' + smsRows.length + ' 筆操作';
+      var rawHtml = originals.length ? '<div class="sms-original-list">'+originals.map(function(x){
+        return '<article class="sms-original"><div class="sms-original-head"><b>原始內容（完整，未改寫）</b><time>'+esc(x.time||'時間待核對')+'</time><span>文章 '+esc(x.id||'待核對')+'</span></div>'+
+          '<p class="sms-original-text">'+esc(x.text||x.error||'這則原文尚無文字內容。')+'</p></article>';
+      }).join('')+'</div>' : '<p class="hint">今天尚無會員簡訊原文。</p>';
+      var operationHtml = smsRows.length ? '<div class="sms-operation-list">'+smsRows.map(function(x){
         var tone=/^買/.test(x.direction)?'buy':/^賣/.test(x.direction)?'sell':/不碰/.test(x.direction)?'avoid':/注意/.test(x.direction)?'watch':'hold';
         return '<article class="sms-operation sms-'+tone+'"><header><span class="sms-direction">'+esc(x.direction||'持有')+'</span><b>'+esc(x.name||'待確認')+'</b><span class="sms-code">'+esc(x.code)+'</span><time>'+esc(x.time||'時間待核對')+'</time></header>'+
           (/^(買|賣)/.test(x.direction)?'<p class="sms-price">價位 '+esc(x.price||'未說明')+'</p>':'')+'<p class="sms-detail">'+esc(x.detail||'尚無說明')+'</p></article>';
       }).join('')+'</div>' : '<p class="hint">今天尚無已寫入的簡訊個股。</p>';
+      $('todaySmsOps').innerHTML = rawHtml + '<p class="sms-section-label">已寫入操作</p>' + operationHtml;
       $('todayHealth').innerHTML = (r.items || []).map(function (it) {
         return '<div class="hitem t-' + esc(it.tone) + '" title="' + esc(it.hint || '') + '" tabindex="0">' +
           '<span class="hk">' + esc(it.label) + '<i>' + (TONE_LABEL[it.tone] || '') + '</i></span>' +

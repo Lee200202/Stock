@@ -27,6 +27,11 @@ threading.Thread(target=srv.serve_forever, daemon=True).start()
 def mock(route):
     m = route.request.post_data_json.get('method', '')
     res = {'apiAdminLogin': {'ok': True, 'data': {'today': '2026/10/03', 'closedToday': True, 'hasData': False, 'todayTrades': 0, 'postedDates': [], 'holidays': []}},
+           'apiAdminTodayStatus': {'ok': True, 'today': '2026/10/05', 'now': '10:00', 'items': [], 'automation': [],
+                                   'smsOriginals': [{'id': '185117227', 'time': '2026/10/05 09:41:55',
+                                                     'text': '張震-1:請於955元以上獲利賣出5536聖暉，\n資金轉為880元以下市價買進8210勤誠！'}],
+                                   'smsOperations': [{'time': '2026/10/05 09:41:55', 'name': '聖暉', 'code': '5536',
+                                                      'direction': '賣出', 'price': '955 元以上', 'detail': '請獲利賣出。'}]},
            'apiAdminHeldList': {'ok': True, 'items': [], 'exited': []}}.get(m, {'ok': False, 'reason': '測試環境'})
     route.fulfill(status=200, content_type='application/json', body=json.dumps({'ok': True, 'result': res}))
 
@@ -80,6 +85,11 @@ with sync_playwright() as p:
         pg.wait_for_selector('#app:not([hidden])', timeout=15000)
         for tab in ['post', 'manual', 'held', 'maint', 'smsadmin', 'ops', 'line', 'ver']:
             pg.locator(f'button.tab[data-tab="{tab}"]').click(); pg.wait_for_timeout(500)
+            if tab == 'post':
+                pg.locator('.sms-original-text').wait_for(timeout=10000)
+                raw = pg.locator('.sms-original-text').inner_text()
+                assert '955元以上' in raw and '880元以下' in raw and '\n' in raw
+                assert pg.locator('#todaySmsCount').inner_text() == '1 則原文 · 1 筆操作'
             for row in pg.evaluate(AUDIT):
                 found.append((w, tab, *row)); print('FOUND', w, tab, *row)
             if tab in ('smsadmin', 'line', 'post', 'manual') and OUT:

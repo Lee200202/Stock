@@ -1200,7 +1200,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-10-05-sms-sender-v118';
+var PROJECT_BUILD_ = '2026-10-05-admin-sms-raw-v119';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
@@ -1213,7 +1213,7 @@ var PROJECT_FILES_ = [
   { file: 'Code.gs', names: ['doGet', 'doPost', 'include', 'configMissing_', 'configMissingResponse_'], marker: ['doPost', 'x-line-signature'] },
   { file: 'API.gs', names: ['jsonOut_', 'apiLookupSubscription', 'apiUpdateSubscription', 'renderUnsubscribePage_', 'apiGetCandlesBundle', 'apiUnsubscribeConfirm', 'apiGetStockSummary', 'apiGetTechStats', 'techDemo_', 'publicTracker_', 'dashCachePut_', 'dashCacheGet_'], marker: ['apiGetDashboard', 'getQuotesFor(quoteCodes, false, true, true)'] },
   { file: 'Adminpipeline.gs', names: ['pipeIsForeign_', 'pipeBase_', 'PIPE_EXTRACT_SYSTEM'], marker: ['PIPE_EXTRACT_SYSTEM', '沒講名字的段落'] },
-  { file: 'Adminservice.gs', names: ['adminAuth_', 'apiAdminLogin', 'PIPE_RECLASSIFY_SYSTEM', 'apiAdminTodayStatus', 'dayVideoRow_', 'apiAdminHeldList', 'apiAdminSetHoldingCost', 'apiAdminHoldToday', 'apiAdminKCoverage', 'apiAdminOpsDay', 'recordManualNoteEdit_'], marker: ['apiAdminKCoverage', 'dateMemo'] },
+  { file: 'Adminservice.gs', names: ['adminAuth_', 'apiAdminLogin', 'PIPE_RECLASSIFY_SYSTEM', 'apiAdminTodayStatus', 'adminTodaySmsOriginals_', 'dayVideoRow_', 'apiAdminHeldList', 'apiAdminSetHoldingCost', 'apiAdminHoldToday', 'apiAdminKCoverage', 'apiAdminOpsDay', 'recordManualNoteEdit_'], marker: ['apiAdminKCoverage', 'dateMemo'] },
   { file: 'Aiservice.gs', names: ['validateKey', 'assistantModelCatalog_', 'sanitizeDraft_', 'draftReady_', 'isPromptProbe_', 'guardReply_', 'explicitSubscribeConfirm_'], marker: ['assistantModelCatalog_', 'supportedGenerationMethods'] },
   { file: 'Articlequality.gs', names: ['enforceArticleRecords_', 'attachArticleEvidence_'] },
   { file: 'Cachebuilder.gs', names: ['dailyKCacheAfterWrite_', 'dailyKNoData_', 'budgetLeft_', 'trackedCodes_', 'readSnapshotRows_', 'officialDailyAll_', 'auditDailyKCache', 'repairDailyKCache', 'afterDailyKDoneJob', 'rescheduleDailyKTrigger', 'warmKCaches_', 'dailyKFloors_', 'resetDailyKFloor', 'isTradingDateStr_', 'ensurePerformanceContinuityJob_', 'officialDailyKFill_', 'officialDailyKTick_', 'officialDailyKJob', 'fillOfficialDailyKNow', 'auditTrackedSymbolsJob'], marker: ['auditTrackedSymbolsJob', 'symbolAuditDayV94'] },
@@ -1237,7 +1237,7 @@ var PROJECT_HTML_ = [
   { file: 'Stylesheet', marker: 'v109 全站零星動態' },
   { file: 'Changelog', marker: 'v115 後台版面對齊' },
   { file: 'Tech', marker: 'tlPlay' },
-  { file: 'Admin', marker: 'line-form is-stack' },
+  { file: 'Admin', marker: 'sms-original-text' },
   { file: 'Settings', marker: '手機預覽' },
   { file: 'Unsubscribed', marker: '若一直失敗，直接回覆通知信' }
 ];

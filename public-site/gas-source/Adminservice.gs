@@ -658,6 +658,31 @@ function apiAdminOpsDay(key, date) {
   } catch (e) { return { ok: false, reason: String(e.message || e) }; }
 }
 
+/** 今天收錄的簡訊原文。先用既有的輕量欄位找列，再只讀今天原文欄；
+ * 原文與已寫入操作分開呈現，未解析的原文不能算成買賣。 */
+function adminTodaySmsOriginals_(day, rows) {
+  var found = [];
+  (rows || []).forEach(function (r, i) {
+    if (cmDate_(r['發文時間']) === day) {
+      found.push({ id: String(r['文章ID'] || '').trim(), time: cmFmtTime_(r['發文時間']), row: i + 2 });
+    }
+  });
+  if (!found.length) { return []; }
+  try {
+    var sh = getSheet_('會員簡訊');
+    var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
+    var col = head.indexOf('原文') + 1;
+    if (!col) { throw new Error('缺少原文欄'); }
+    var first = found[0].row, last = found[found.length - 1].row;
+    var texts = sh.getRange(first, col, last - first + 1, 1).getValues();
+    return found.map(function (x) {
+      return { id: x.id, time: x.time, text: String(texts[x.row - first][0] || '') };
+    }).sort(function (a, b) { return b.time.localeCompare(a.time) || b.id.localeCompare(a.id); });
+  } catch (e) {
+    return found.map(function (x) { return { id: x.id, time: x.time, text: '', error: '原文讀取失敗' }; });
+  }
+}
+
 /* 今日自動化、寄送與會員簡訊明細；不以排程存在代替完成證據。 */
 function apiAdminTodayStatus(key) {
   try {
@@ -670,8 +695,10 @@ function apiAdminTodayStatus(key) {
     var holds = readSheetObjects_('會員持股').filter(function (r) { return fmtDate_(r['日期']) === today; });
     // 和今日狀態共用已讀取的兩張表，不另開一支逐筆查詢 API。
     // 只顯示會員簡訊確實寫入的列；原文、待解析與逐字稿紀錄不能混成已執行買賣。
+    var smsSourceRows = readSheetFields_('會員簡訊',['文章ID','發文時間']);
+    var smsOriginals = adminTodaySmsOriginals_(today, smsSourceRows);
     var smsTimes={};
-    readSheetFields_('會員簡訊',['文章ID','發文時間']).forEach(function(r){
+    smsSourceRows.forEach(function(r){
       var v=r['發文時間'];
       smsTimes[String(r['文章ID']||'')]=typeof cmFmtTime_==='function'?cmFmtTime_(v):String(v||'');
     });
@@ -694,15 +721,7 @@ function apiAdminTodayStatus(key) {
     // 與前台同一套交易日過濾（v67，R4）：休市日誤寫的列不算「最後一筆」
     var perfLast = readSheetObjects_('每日績效').map(function (r) { return fmtDate_(r['日期']); })
       .filter(function (d) { return d && opsIsTrading_(d); }).sort().pop() || '';
-    var sms = 0;
-    try {
-      var sh = getSheet_('會員簡訊'), head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
-      var c = head.indexOf('發文時間') + 1, n = sh.getLastRow() - 1;
-      if (c > 0 && n > 0) {
-        sms = sh.getRange(2, c, n, 1).getDisplayValues().filter(function (v) {
-          return String(v[0]).replace(/-/g, '/').indexOf(today) === 0; }).length;
-      }
-    } catch (e) {}
+    var sms = smsOriginals.length;
     var noShow = logs.some(function (r) { return String(r['類別'] || '') === '今日無直播'; });
     var plannedNoShow = logs.some(function (r) { return String(r['類別'] || '') === '預告停播'; });
     var fails = logs.filter(function (r) { return String(r['類別']) === '失敗'; });
@@ -870,7 +889,7 @@ function apiAdminTodayStatus(key) {
       tone: !readMetrics.length ? 'idle' : maxReadMs >= 15000 ? 'err' : maxReadMs >= 8000 ? 'warn' : 'ok',
       hint: readMetrics.length ? readMetrics.map(function (m) { return ({apiGetDashboard:'總覽',apiGetStockSummary:'個股摘要',apiGetQuotesFor:'批次報價'})[m.method] + ' ' + (m.ms / 1000).toFixed(1) + ' 秒／' + m.at; }).join('；') + '。' : '近 15 分鐘沒有查詢。' });
     return { ok: true, today: today, now: Utilities.formatDate(new Date(), TZ, 'HH:mm'), items: items,
-      automation: automation, smsOperations: smsOperations.slice(0, 40),
+      automation: automation, smsOriginals: smsOriginals, smsOperations: smsOperations.slice(0, 40),
       timeline: timeline.slice(-40), ops: { trading: trading, noShow: noShow, plannedNoShow: plannedNoShow && !video, videoStatus: vStatus,
         rawChars: v1, polishedChars: v2, mailStatus: push ? String(push['寄送狀態'] || '') : '',
         deliveries: tot, mailByKind: byMail, mailKinds: dkeys.length, mailQuotaLeft: quotaLeft, smsCount: sms,

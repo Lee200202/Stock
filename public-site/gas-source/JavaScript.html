@@ -1385,6 +1385,55 @@ function restatesEarlier_(key, earlier) {
      兩者的報酬意義不同：持有中是未實現、會變動；已出場是已實現、不再變動。 */
   var trackerView = 'held';
 
+  /* 排序（v124，2026/10/05 管理者）：預設依獲利幅度高到低；按另一顆換依據，同一顆再按一次反向。
+     沒有值的（還沒補到價、代號待確認）不論方向都排最後；同值時維持後端原本的順序。 */
+  var TRACKER_SORTS = [
+    { k: 'ret',  label: '獲利',     say: '獲利幅度',       dir: -1 },
+    { k: 'in',   label: '進場日',   say: '進場日期',       dir: -1 },
+    { k: 'out',  label: '出場日',   say: '出場日期',       dir: -1, only: 'exited' },
+    { k: 'seen', label: '最近提到', say: '最近提到的日期', dir: -1, only: 'held' },
+    { k: 'code', label: '代號',     say: '股票代號',       dir: 1 }
+  ];
+  var trackerSort = { k: 'ret', dir: -1 };
+  function trackerSortVal_(i, k) {
+    if (k === 'ret') { return (i.ret === null || i.ret === undefined) ? null : Number(i.ret); }
+    if (k === 'in') { return String(i.entryDate || i.roundStart || i.firstBuy || '') || null; }
+    if (k === 'out') { return String(i.lastSell || '') || null; }
+    if (k === 'seen') { return String(i.latestReasonDate || '') || null; }
+    return i.valid === false ? null : (String(i.code || '') || null);
+  }
+  function trackerSorted_(items) {
+    var k = trackerSort.k, dir = trackerSort.dir;
+    return items.map(function (i, n) { return { i: i, n: n, v: trackerSortVal_(i, k) }; }).sort(function (a, b) {
+      if (a.v === null || b.v === null) { return a.v === b.v ? a.n - b.n : (a.v === null ? 1 : -1); }
+      var c = typeof a.v === 'number' ? a.v - b.v : String(a.v).localeCompare(String(b.v), 'en', { numeric: true });
+      return c ? c * dir : a.n - b.n;
+    }).map(function (x) { return x.i; });
+  }
+  function sortHow_(k, dir) {
+    return k === 'code' ? (dir > 0 ? '小到大' : '大到小') : k === 'ret' ? (dir < 0 ? '高到低' : '低到高') : (dir < 0 ? '新到舊' : '舊到新');
+  }
+  function renderTrackerSort(t, count) {
+    var bar = $('trackerSortBar'), box = $('trackerSort');
+    if (!bar || !box) { return; }
+    var sorts = TRACKER_SORTS.filter(function (s) { return !s.only || s.only === trackerView; });
+    if (!sorts.some(function (s) { return s.k === trackerSort.k; })) { trackerSort = { k: 'ret', dir: -1 }; }
+    bar.hidden = count < 2;
+    box.innerHTML = sorts.map(function (s) {
+      var on = s.k === trackerSort.k, dir = on ? trackerSort.dir : s.dir, how = sortHow_(s.k, dir);
+      return '<button type="button" class="pill" data-ts="' + s.k + '" aria-pressed="' + on + '" title="' + how +
+        '" aria-label="依' + s.say + '排序，' + how + (on ? '；再按一次反向' : '') + '">' + s.label +
+        (on ? '<span class="sort-dir" aria-hidden="true">' + (dir < 0 ? '↓' : '↑') + '</span>' : '') + '</button>';
+    }).join('');
+    box.querySelectorAll('[data-ts]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var s = TRACKER_SORTS.filter(function (x) { return x.k === b.dataset.ts; })[0];
+        trackerSort = trackerSort.k === s.k ? { k: s.k, dir: -trackerSort.dir } : { k: s.k, dir: s.dir };
+        renderTracker(t);
+      });
+    });
+  }
+
   function renderTracker(t) {
     var held = t.held || (t.items || []).filter(function (i) { return i.stillHeld; });
     var exited = t.exited || (t.items || []).filter(function (i) { return !i.stillHeld; });
@@ -1450,6 +1499,8 @@ function restatesEarlier_(key, earlier) {
       });
     }
 
+    renderTrackerSort(t, showing.length);
+
     if (!showing.length) {
       $('trackerTable').innerHTML = trackerView === 'held'
         ? emptyBlock('目前沒有還在手上的標的', exited.length ? '有 ' + exited.length + ' 檔已經出場，切換上方即可看到。' : (t.note || ''))
@@ -1457,7 +1508,7 @@ function restatesEarlier_(key, earlier) {
       trackerLoaded = true;
       return;
     }
-    renderTrackerRows(t, showing);
+    renderTrackerRows(t, trackerSorted_(showing));
   }
 
   /* 價格下方的一行灰字。v104 起只用來寫「M/D 提到」（提到日與成交日不同時）；

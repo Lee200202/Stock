@@ -1586,6 +1586,7 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
         <div class="chartbar seg held-toggle" id="heldToggle" role="group" aria-label="持股狀態">
           <button type="button" class="pill" data-hk="held" aria-pressed="true">持有</button><button type="button" class="pill" data-hk="exited" aria-pressed="false">已出場</button>
         </div>
+        <div class="tracker-sortbar" id="heldSortBar"><span class="tracker-sort-k">排序</span><div class="chartbar seg" id="heldSort" role="group" aria-label="排序方式"></div></div>
         <div class="amsg" id="heldMsg"></div>
         <div id="heldList" class="held-list"><div class="erow-empty">切到這一頁時讀取。</div></div>
         <div class="savebar" id="heldSaveBar" hidden>
@@ -4835,7 +4836,52 @@ var mergeTxFingerprint='';
       m.textContent = '還有未儲存的修改：請先儲存或收起，再切換。';
       return;
     }
-    heldView = k; items = lists[k]; paintToggle(); draw();
+    heldView = k; applySort(); paintToggle(); draw();
+  }
+  /* v124：排序與前台同一組（預設獲利高到低，同一顆再按一次反向）。排的是清單本身，
+     卡片的 data-i 與儲存流程照舊用 items 的索引；有未儲存的修改時不重排。 */
+  var HELD_SORTS = [
+    { k: 'ret',  label: '獲利',   say: '獲利幅度', dir: -1 },
+    { k: 'in',   label: '進場日', say: '進場日期', dir: -1 },
+    { k: 'out',  label: '出場日', say: '出場日期', dir: -1, only: 'exited' },
+    { k: 'code', label: '代號',   say: '股票代號', dir: 1 }
+  ];
+  var heldSort = { k: 'ret', dir: -1 };
+  function heldSortVal(x, k) {
+    if (k === 'ret') { return (x.ret === null || x.ret === undefined) ? null : Number(x.ret); }
+    if (k === 'in') { return String(x.roundStart || '') || null; }
+    if (k === 'out') { return String(x.lastSell || '') || null; }
+    return x.valid === false ? null : (String(x.code || '') || null);
+  }
+  function applySort() {
+    var sorts = HELD_SORTS.filter(function (s) { return !s.only || s.only === heldView; });
+    if (!sorts.some(function (s) { return s.k === heldSort.k; })) { heldSort = { k: 'ret', dir: -1 }; }
+    var k = heldSort.k, dir = heldSort.dir;
+    lists[heldView] = (lists[heldView] || []).map(function (x, n) { return { x: x, n: n, v: heldSortVal(x, k) }; }).sort(function (a, b) {
+      if (a.v === null || b.v === null) { return a.v === b.v ? a.n - b.n : (a.v === null ? 1 : -1); }
+      var c = typeof a.v === 'number' ? a.v - b.v : String(a.v).localeCompare(String(b.v), 'en', { numeric: true });
+      return c ? c * dir : a.n - b.n;
+    }).map(function (o) { return o.x; });
+    items = lists[heldView];
+    var box = $('heldSort'); if (!box) { return; }
+    $('heldSortBar').hidden = items.length < 2;
+    box.innerHTML = sorts.map(function (s) {
+      var on = s.k === heldSort.k, d = on ? heldSort.dir : s.dir;
+      var how = s.k === 'code' ? (d > 0 ? '小到大' : '大到小') : s.k === 'ret' ? (d < 0 ? '高到低' : '低到高') : (d < 0 ? '新到舊' : '舊到新');
+      return '<button type="button" class="pill" data-hs="' + s.k + '" aria-pressed="' + on + '" title="' + how +
+        '" aria-label="依' + s.say + '排序，' + how + (on ? '；再按一次反向' : '') + '">' + s.label +
+        (on ? '<span class="sort-dir" aria-hidden="true">' + (d < 0 ? '↓' : '↑') + '</span>' : '') + '</button>';
+    }).join('');
+  }
+  function setHeldSort(k) {
+    if ($('heldList').querySelector('.hrow-wrap.dirty')) {
+      var m = $('heldMsg'); m.className = 'amsg warn'; m.style.display = 'block';
+      m.textContent = '還有未儲存的修改：請先儲存或收起，再重新排序。';
+      return;
+    }
+    var s = HELD_SORTS.filter(function (x) { return x.k === k; })[0]; if (!s) { return; }
+    heldSort = heldSort.k === k ? { k: k, dir: -heldSort.dir } : { k: k, dir: s.dir };
+    applySort(); draw();
   }
   var NAMES = ['同步郵件內容', '重算持股追蹤', '重算歷史績效', '記錄目前績效'];
   function fmt(v) { return v === null || v === undefined || v === '' ? '—' : Number(v).toLocaleString('zh-TW', { maximumFractionDigits: 2 }); }
@@ -5186,7 +5232,7 @@ var mergeTxFingerprint='';
     google.script.run.withSuccessHandler(function (r) {
       if (!r || !r.ok) { $('heldList').innerHTML = '<div class="erow-empty">讀取失敗：' + esc(r ? r.reason : '沒有回應') + '</div>'; return; }
       lists = { held: r.items || [], exited: r.exited || [] };
-      items = lists[heldView]; paintToggle(); draw();
+      applySort(); paintToggle(); draw();
     }).withFailureHandler(function () {
       $('heldList').innerHTML = '<div class="erow-empty">連線失敗，按「重新讀取清單」再試一次。</div>';
     }).apiAdminHeldList(KEY);
@@ -5214,6 +5260,10 @@ var mergeTxFingerprint='';
   if ($('heldToggle')) { $('heldToggle').addEventListener('click', function (e) {
     var b = e.target.closest ? e.target.closest('[data-hk]') : null;
     if (b) { setHeldView(b.getAttribute('data-hk')); }
+  }); }
+  if ($('heldSort')) { $('heldSort').addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('[data-hs]') : null;
+    if (b) { setHeldSort(b.getAttribute('data-hs')); }
   }); }
   if ($('heldLoadBtn')) { $('heldLoadBtn').addEventListener('click', load); }
   if ($('heldSaveTopBtn')) { $('heldSaveTopBtn').addEventListener('click', saveAllDirty); }

@@ -3056,6 +3056,21 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
 .chartbar.seg .pill[aria-pressed="true"] { background: var(--beam); color: var(--panel); font-weight: 600; }
 #p-perf .chartbar.seg { display: flex; width: fit-content; max-width: 100%; }
 
+/* v124 持股追蹤排序：與「持有／已出場」同一組橢圓膠囊，前面一個小字標題。
+   窄螢幕不換行、可以左右滑；選中的那一顆帶方向箭頭，再按一次反向。 */
+.tracker-sortbar { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; min-width: 0; }
+.tracker-sortbar[hidden] { display: none; }
+.tracker-sort-k { flex: none; color: var(--muted); font-size: calc(13px * var(--rd-fs)); }
+.tracker-sortbar .chartbar.seg { display: flex; flex-wrap: nowrap; margin: 0; min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.tracker-sortbar .chartbar.seg::-webkit-scrollbar { display: none; }
+.tracker-sortbar .pill { flex: none; white-space: nowrap; }
+.sort-dir { margin-left: 4px; font-family: "IBM Plex Mono", monospace; }
+@media (max-width: 480px) {
+  /* 手機上四顆要一眼看完，不必左右滑 */
+  .tracker-sortbar { gap: 8px; }
+  .tracker-sortbar .chartbar.seg .pill { padding-left: 10px; padding-right: 10px; }
+}
+
 /* ---------- 區塊標題 ---------- */
 /* 區塊前的灰色英文小字已全部拿掉（v54）；觀望兩區把分類名放在標題裡，副標用小字接在後面 */
 .sect-h h2 small {

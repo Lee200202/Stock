@@ -1,0 +1,55 @@
+name: 說明重點 prompt 實測（唯讀）
+run-name: 說明重點 prompt 實測 ${{ inputs.date }}
+
+# 手動觸發。用真的模型把某一天會員簡訊列的說明重寫一次，只印結果，不寫試算表、不寄信。
+# 會花 1 次 Gemini 呼叫。腳本把所有寫入攔下來改成印出，見 scripts/audit_note_prompt.py。
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: '要實測哪一天 YYYY/MM/DD'
+        required: true
+      baseline:
+        description: '把該代號的說明換成這句再送，空白分隔多組，例如 8210=資金轉為買進。'
+        required: false
+        default: ''
+      alias:
+        description: '這次暫時把聽寫寫法當成該代號，空白分隔多組，例如 行神=8210 程成=8210'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - run: pip install -r requirements.txt
+      - name: 實測（唯讀）
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+          GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          GEMINI_THINKING_LEVEL: ${{ vars.GEMINI_THINKING_LEVEL || 'medium' }}
+          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          AUDIT_DATE: ${{ inputs.date }}
+          AUDIT_BASELINE: ${{ inputs.baseline }}
+          AUDIT_ALIAS: ${{ inputs.alias }}
+          PYTHONUNBUFFERED: '1'
+        run: |
+          if ! printf '%s' "$AUDIT_DATE" | grep -Eq '^[0-9]{4}/[0-9]{1,2}/[0-9]{1,2}$'; then
+            echo "::error::日期格式錯誤，要寫成 YYYY/MM/DD"; exit 1
+          fi
+          ARGS=(--date "$AUDIT_DATE")
+          for b in $AUDIT_BASELINE; do ARGS+=(--baseline "$b"); done
+          for a in $AUDIT_ALIAS; do ARGS+=(--alias "$a"); done
+          python scripts/audit_note_prompt.py "${ARGS[@]}"

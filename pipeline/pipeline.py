@@ -13504,10 +13504,16 @@ def sms_context_note(original, candidate, transcript, sms_row=None):
     return public_sms_note(result, note_row)
 
 
+_SCRUB_FRAGMENT = re.compile(r'(?:[到在於以約近達至、]|請於|上看|挑戰)(?=[，。；、的]|$)')
+
+
 SMS_TWO_SOURCE_REWRITE_SYSTEM = (
     '你是繁體中文股票節目紀錄編輯。輸入每項有同一檔股票的盤中通知原說明、方向、價位，'
     '以及已逐字核對的當天影片引句與判讀。請把兩個來源重新寫成一段自然的說明重點，'
     '直接寫本股已證實的技術位置、消息、法人、原因與風險，操作方向已有獨立欄位，不必重複。'
+    'transcript_excerpt 是當天影片語音稿裡點到本股名稱之後的原句節錄，可能夾著相鄰個股或閒聊，只採用明確在講本股的內容。'
+    '影片講了進出的原因、獲利數字（EPS、營收）、技術位置（均線、K線、量能）、籌碼（外資、投信、ETF）或風險時要寫進去，'
+    '不要只留一句操作結論；盤中通知只有一句「資金轉為買進」這類話時，說明以影片內容為主。'
     '這是整理已發生內容，不提供新的買賣建議；不同時間的說法要區分，不可把影片的看法冒充新的盤中指令。'
     '不能換股票、方向、價位或否定詞，不能加入輸入沒有的數字、法人動向、預測或人名主詞。'
     '不寫會員簡訊、盤中通知、原文、逐字稿等來源名稱，不把交易價位寫進說明；價位仍保留在輸入的獨立欄位。'
@@ -13523,7 +13529,7 @@ def rewrite_sms_notes_from_two_sources(entries):
     payload = [{'id': e['id'], 'stock': e['stock'], 'code': e['code'],
                 'direction': e['direction'], 'price': e['price'],
                 'sms_note': e['original'], 'transcript_note': e['context'],
-                'transcript_quotes': e['quotes']}
+                'transcript_quotes': e['quotes'], 'transcript_excerpt': e.get('excerpt', '')}
                for e in entries]
     try:
         raw = call_gemini(SMS_TWO_SOURCE_REWRITE_SYSTEM,
@@ -13546,7 +13552,7 @@ def rewrite_sms_notes_from_two_sources(entries):
         if _ev_norm(note) == _ev_norm(e['original']):
             continue
         allowed_numbers = set(re.findall(r'\d+(?:\.\d+)?',
-                          e['original'] + e['context'] + ''.join(e['quotes'])))
+                          e['original'] + e['context'] + ''.join(e['quotes']) + e.get('excerpt', '')))
         if set(re.findall(r'\d+(?:\.\d+)?', note)) - allowed_numbers:
             continue
         # 數字先查驗再清理，不能靠刪掉模型杜撰的價格通過驗證。
@@ -13557,7 +13563,11 @@ def rewrite_sms_notes_from_two_sources(entries):
             continue
         if re.search(r'持股|持有', direction) and re.search(r'賣出|賣掉|出清', note):
             continue
-        note = public_sms_note(note, {'name': e['stock'], 'code': e['code'], 'price': e['price']})
+        cleaned = public_sms_note(note, {'name': e['stock'], 'code': e['code'], 'price': e['price']})
+        # 拿掉交易價之後留下「至少要攻到」「先行將賺取6、」這種半句時整則不採用，退回保守寫法。
+        if cleaned != note and _SCRUB_FRAGMENT.search(cleaned) and not _SCRUB_FRAGMENT.search(note):
+            continue
+        note = cleaned
         if len(note) >= 12:
             accepted[e['id']] = note
     print(f'簡訊雙來源重寫：送出 {len(entries)} 筆，通過本機檢查 {len(accepted)} 筆')
@@ -13575,8 +13585,12 @@ def enrich_sms_notes_from_signals(ss, date_str, signals, transcript):
         for item in signals.get(category, []):
             if item.get('_evidence_verified') and (item.get('_date') or date_str)==date_str:
                 by_code.setdefault(str(item.get('code') or ''), []).append(item)
-    if not by_code:
-        return 0
+    # 2026/10/05：勤誠的買進理由在影片裡講了一大段，簡訊那一列卻只剩「資金轉為買進。」。
+    # 原因有兩個：擷取沒有這一檔時整列跳過；有這一檔但判讀句句帶「買進／持有」時，保守補述加不進任何一句，
+    # 也跳過、連模型都沒問。現在另外帶上語音稿裡點到本股名稱之後的原句節錄，兩種情況都會送去重寫。
+    if transcript:
+        _SMS_TX_CACHE.setdefault(date_str, transcript)
+    code_map = get_code_map() or {}
     # 先盤點同日要補的列，模型整批重寫一次，避免一檔一呼叫把額度與時間用完。
     table_data = []
     rewrite_entries = []
@@ -13597,25 +13611,29 @@ def enrich_sms_notes_from_signals(ss, date_str, signals, transcript):
                 continue
             code, original = str(row[ci['代號']]), str(row[ci[field]])
             candidates = by_code.get(code, [])
-            if not candidates:
-                continue
             sms_row = {'name':str(row[ci['股票名稱']]), 'code':code,
                        'price':str(row[ci['價位說明']]) if '價位說明' in ci else ''}
+            # 用完整對照表，節錄才會在講到另一家公司時切開；對照表沒有這一檔時補上，才撈得到它。
+            excerpt = _sms_transcript_excerpt(ss, date_str, _display_name(sms_row['name']) + code,
+                                              dict(code_map, **({} if code in code_map else {code: _display_name(sms_row['name'])})),
+                                              limit=1600)
+            if not candidates and not excerpt:
+                continue
             clean_original = public_sms_note(original, sms_row)
             fallback = clean_original
             for candidate in candidates:
                 fallback = sms_context_note(fallback, candidate, transcript, sms_row)
-            if fallback == clean_original:
-                continue
             quotes = []
             for candidate in candidates:
                 q = candidate.get('evidence') or []
                 quotes.extend([q] if isinstance(q, str) else q)
+            if fallback == clean_original and not excerpt:
+                continue
             rewrite_entries.append({
                 'id': f'{tab}:{i}', 'stock': str(row[ci['股票名稱']]), 'code': code,
                 'direction': str(row[ci[direction_key]]),
                 'price': str(row[ci['價位說明']]) if '價位說明' in ci else '',
-                'original': original, 'context': fallback, 'quotes': quotes,
+                'original': original, 'context': fallback, 'quotes': quotes, 'excerpt': excerpt,
             })
     rewritten = rewrite_sms_notes_from_two_sources(rewrite_entries)
     # 解析明細沒有工作表列號；同檔同句若對到不同方向或價位就不猜哪一筆。

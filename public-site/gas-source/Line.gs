@@ -1379,23 +1379,22 @@ function lineDailyFlex_(info, kicker) {
   return lineFlex_(alt, build());
 }
 
-/** 盤中即時通知卡片：原文每一行照登（v101 起不再只放前兩行；保留否定詞），講到價位的子句不顯示（v104），並連回原文與網站。
+/** 盤中即時通知卡片：只給明確同意的好友，完整原文每一行照登，並連回來源與網站。
     單行超過 LINE 一段文字的上限（lineClip_ 1800 字）時拆成數段，不截字。 */
-function lineSmsFlex_(a, revised) {
+function lineSmsFlex_(a, revised, correction) {
   var time = String(a.time || ''), clock = (time.match(/(\d{1,2}:\d{2})/) || [])[1] || '';
-  // v104：與信件相同，講到價位的子句不顯示（publicNoticeText_），其餘照原文。
-  var shown = (typeof publicNoticeText_ === 'function') ? publicNoticeText_(a.text) : String(a.text || '');
+  var shown = String(a.text || '');
   var lines = String(shown || '').split(/\n+/).map(function (s) { return s.trim(); }).filter(Boolean);
   var body = [];
   lines.forEach(function (l) {
     for (var i = 0; i < l.length; i += 1500) { body.push(fxText_(l.slice(i, i + 1500), { size: 'md', color: LINE_C_.ink })); }
   });
   if (!body.length) { body.push(fxText_('（這則通知沒有文字內容）', { size: 'sm', color: LINE_C_.muted })); }
-  body.push(fxNote_('原文照登、文字沒有改寫；提到價位的句子不顯示。整理後的分類與補充內容可到網站 ' + lineSiteLabel_() + ' 查看。'));
+  body.push(fxNote_((correction ? '先前通知的原文顯示不完整；這是同一則的文字補充，並非新的操作指示。' : '') + '原文照登、文字沒有改寫；公開網站的價位另依公開版規則處理。整理後的分類可到網站 ' + lineSiteLabel_() + ' 查看。'));
   var src = /^https:\/\//.test(String(a.url || '')) ? String(a.url) : '', site = lineSiteUrl_('mail');
-  var kicker = (revised ? '內容已修訂' : '盤中即時通知') + (clock ? '｜' + clock : '');
-  return lineFlex_((revised ? '會員通知內容已修訂 ' : '盤中即時通知 ') + clock + '｜' + lineClip_(lines[0] || '', 80),
-    fxBubble_(fxHeader_(kicker, lineDateLabel_(time) + ' 會員通知', revised ? LINE_C_.amber : LINE_C_.hero), body,
+  var kicker = (correction ? '文字補充' : revised ? '內容已修訂' : '盤中即時通知') + (clock ? '｜' + clock : '');
+  return lineFlex_((correction ? '盤中通知文字補充 ' : revised ? '會員通知內容已修訂 ' : '盤中即時通知 ') + clock + '｜' + lineClip_(lines[0] || '', 80),
+    fxBubble_(fxHeader_(kicker, lineDateLabel_(time) + ' 會員通知', revised || correction ? LINE_C_.amber : LINE_C_.hero), body,
       [src ? fxBtn_(lineUri_('查看原文', src)) : null, site ? fxBtn_(lineUri_('查看後續整理', site), src ? 'secondary' : 'primary') : null]));
 }
 
@@ -1847,6 +1846,28 @@ function lineQueueSms_(a, revised) {
     catch (e) { Logger.log('LINE：盤中通知立即寄送失敗，下一棒續送 ' + e); }
   }
   return q;
+}
+
+/** 文字顯示事故補送：只給原訊息帳本顯示 accepted 的好友，獨立訊息 ID 保證重跑不重送。 */
+function lineQueueSmsTextCorrection_(a) {
+  if (!a || !a.id || !lineConfigured_() || linePushMode_() === 'off') { return { skipped: 'off' }; }
+  var original = lineLedgerFor_('sms|' + a.id);
+  var accepted = original.rows.filter(function (r) { return r.state === 'accepted'; }).map(function (r) { return { uid: r.uid }; });
+  if (!accepted.length) { return { skipped: 'original-not-accepted' }; }
+  var posted = lineParseTaipei_(a.time) || 0, expires = posted + LINE_SMS_WINDOW_MIN_ * 60000;
+  if (!posted || Date.now() > expires) { return { skipped: 'outside-original-60-minute-window' }; }
+  var id = 'sms|' + a.id + '|text-correction|' + deliveryVersion_(a.text);
+  var date = fmtDate_(String(a.time || '').slice(0, 10)) || todayStr_();
+  var q = lineQueue_({ id: id, kind: 'sms', date: date, version: deliveryVersion_(a.text),
+    source: '會員簡訊 ' + a.id + '（文字補充）', expiresAt: expires, state: 'queued',
+    messages: [lineSmsFlex_(a, false, true)] });
+  // 原訊息的收件者快照，不因補送時新增好友或同意者而擴大收件範圍。
+  if (!lineLedgerFor_(id).rows.length) { lineLedgerCreate_({ id: id, date: date }, accepted); }
+  var delivery = lineDeliverTick_({ only: id, budgetMs: 45000 });
+  var current = lineOutboxRead_().rows.filter(function (r) { return r.id === id; })[0];
+  return { id: id, created: q.created, state: current ? current.state : '',
+    accepted: current ? current.accepted : 0, total: current ? current.total : 0,
+    stoppedBy: delivery.stoppedBy || '' };
 }
 
 /** 每日總覽：與 Email 同一套放行條件，但各自記帳；Email 寄過不代表 LINE 寄過。 */

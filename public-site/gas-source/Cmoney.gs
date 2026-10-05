@@ -1345,9 +1345,9 @@ function cmSubscribers_() {
       原文卡　白底圓角卡片，原文放在左側色條的引言框裡，字級比說明文字大一號。
       按鈕列　「看原文」與「到網站看整理」做成可以按的膠囊按鈕，手指點得到。
     樣式一律寫 inline（有些收件匣或轉寄會拿掉 <style>；Gmail 支援部分 style，但核心版面不能靠它），文字一律跳脫。 */
-function cmMailBody_(a, revised) {
-  // v104：信裡放的是原文的公開版本——講到價位的子句不顯示（publicNoticeText_），其餘一字不改。
-  var shown = (typeof publicNoticeText_ === 'function') ? publicNoticeText_(a.text) : String(a.text || '');
+function cmMailBody_(a, revised, correction) {
+  // 盤中 Email 只寄給已同意的隱藏版訂閱者；公開前台才遮蔽價位。
+  var shown = String(a.text || '');
   var lines = String(shown || '').split(/\n+/).filter(String);
   var time = String(a.time || '');
   var clock = (time.match(/(\d{1,2}:\d{2})(?::\d{2})?\s*$/) || [])[1] || '';
@@ -1358,7 +1358,7 @@ function cmMailBody_(a, revised) {
   var hero =
     '<div class="mc-hero" style="background:#17322A;background-image:linear-gradient(125deg,#0A4A3C,#0E6551 55%,#1F6F8B);border-radius:22px;padding:22px 22px 24px;margin:0 0 14px;">' +
       '<div class="mc-hero-k" style="font-size:11px;letter-spacing:0.18em;font-weight:700;color:' +
-        (revised ? '#F7DDA5' : '#9CC8B4') + ';">' + (revised ? '內容已修訂' : '盤中即時通知') + '</div>' +
+        (revised || correction ? '#F7DDA5' : '#9CC8B4') + ';">' + (correction ? '文字補充' : revised ? '內容已修訂' : '盤中即時通知') + '</div>' +
       /* 首屏（v54，Codex 規格 83）：大字是「日期 時間 · 會員操作通知」，原文緊接在下面；
          不寫「某某發了一則簡訊」這種沒有資訊的句子，也不等影片或模型補說明。 */
       '<h1 style="font-size:21px;line-height:1.5;margin:8px 0 0;font-weight:700;color:#FFFFFF;">' +
@@ -1369,10 +1369,11 @@ function cmMailBody_(a, revised) {
     return '<p style="margin:0 0 10px;font-size:15.5px;line-height:1.9;color:#12161A;">' + esc_(t) + '</p>';
   }).join('');
 
-  var revisedNote = revised
+  var revisedNote = correction
     ? '<p style="margin:0 0 12px;font-size:13px;line-height:1.7;color:#6B4A08;background:#FCEDCD;' +
-        'border-radius:10px;padding:8px 12px;">他剛修改了這一篇，下面是修改後的完整內容；網站上的整理會跟著重新解析。</p>'
-    : '';
+        'border-radius:10px;padding:8px 12px;">先前通知的原文顯示不完整。這封補上同一則的完整原文，並非新的操作指示；請以原始發文時間與條件核對。</p>'
+    : revised ? '<p style="margin:0 0 12px;font-size:13px;line-height:1.7;color:#6B4A08;background:#FCEDCD;' +
+        'border-radius:10px;padding:8px 12px;">他剛修改了這一篇，下面是修改後的完整內容；網站上的整理會跟著重新解析。</p>' : '';
 
   var pill = function (href, text, primary) {
     return '<a href="' + esc_(href) + '" target="_blank" rel="noopener noreferrer" style="display:inline-block;margin:0 8px 8px 0;border-radius:999px;' +
@@ -1393,7 +1394,7 @@ function cmMailBody_(a, revised) {
       (a.url ? pill(a.url, '看原文', true) : '') +
       (site ? pill(site, '到網站看整理', false) : '') +
       '<p style="margin:6px 0 4px;font-size:12.5px;line-height:1.7;color:#667069;">' +
-        '這是轉貼自公開論壇的原文，文字沒有改寫；提到價位的句子不顯示。整理後的分類與說明稍後會更新到網站。</p>' +
+        '這是轉貼自公開論壇的完整原文，文字沒有改寫；僅限已同意的盤中通知收件者。公開網站的價位另依公開版規則處理。</p>' +
     '</div>';
 
   return hero + card;
@@ -1496,6 +1497,62 @@ function resendInstantMail(articleId) {
   cmNote_('手動補寄文章 ' + id + ' 的即時通知：' + state);
   Logger.log('補寄結果：' + state);
   return { ok: true, id: id, state: state };
+}
+
+/** 2026/10/05 原文顯示事故：補送同一則完整原文，只給原通知已接受的收件者。
+    新訊息 ID 與舊信分開記帳；重跑只續送未接受者，不會把補充當成新指示。 */
+function resendTodaySmsTextCorrection(ownerSender) {
+  if (ownerSender && smsCorrectionSender_() !== 'rainforecast2026@gmail.com') {
+    throw new Error('正式寄件身分不是 rainforecast2026@gmail.com，不補寄。');
+  }
+  var id = '185117227', rows = readSheetObjects_(CM_SHEET);
+  var row = rows.filter(function (r) { return String(r['文章ID']).trim() === id; })[0];
+  if (!row || cmDate_(row['發文時間']) !== todayStr_()) { throw new Error('今日來源文章不符，不補送。'); }
+  var raw = String(row['原文'] || '').trim();
+  if (!raw || raw.indexOf('5536聖暉') < 0 || raw.indexOf('8210勤誠') < 0) {
+    throw new Error('原文內容與已核對的文章不符，不補送。');
+  }
+  var time = cmFmtTime_(row['發文時間']);
+  var a = { id: id, time: time, url: String(row['網址'] || ''), text: raw, title: String(row['標題'] || '') };
+  var version = deliveryVersion_(raw), date = cmDate_(time), originalId = 'sms|' + id;
+  var old = readSheetObjects_(DELIVERY_SHEET_).filter(function (r) { return String(r['訊息ID']) === originalId; });
+  if (!old.length || old.some(function (r) { return String(r['內容版本'] || '') !== version; })) {
+    throw new Error('原通知帳本版本與今日原文不符，不補送。');
+  }
+  var originalRecipients = {};
+  old.forEach(function (r) {
+    if (String(r['狀態']) === 'accepted') { originalRecipients[String(r['收件者']).trim().toLowerCase()] = true; }
+  });
+  var subs = cmSubscribers_().filter(function (s) {
+    return !!originalRecipients[String(s['Email']).trim().toLowerCase()];
+  });
+  if (!subs.length) { throw new Error('找不到原通知已接受且仍訂閱的 Email 收件者，不補送。'); }
+  var q = cmMailQuotaLeft_();
+  if (q.left < subs.length) { throw new Error('今日盤中郵件額度不足以補送全部原收件者。'); }
+  var messageId = originalId + (ownerSender ? '|sender-correction|' : '|text-correction|') + version;
+  var body = cmMailBody_(a, false, true), pre = cmSmsPreheader_(a);
+  var subject = '[' + date + '] ' + siteName_() + (ownerSender ? '　盤中通知文字補充（正式寄件人） ' : '　盤中通知文字補充 ') + time.slice(11, 16);
+  var sum = deliverMessage_(subs, { messageId: messageId, kind: 'sms', date: date, version: version,
+    subject: subject, html: function (email, token) { return wrapMail_(body, email, token, 'sms', pre); },
+    quota: q.left, budgetMs: 120000 });
+  cmMailCount_(q.st, sum.fresh);
+  var line = ownerSender ? { skipped: 'email-only' } : lineQueueSmsTextCorrection_(a);
+  cmNote_('文章 ' + id + ' 原文顯示補充：Email 服務接受 ' + sum.accepted + '/' + sum.total +
+          '，LINE 服務接受 ' + (line.accepted || 0) + '/' + (line.total || 0));
+  return { ok: true, id: id, mail: { messageId: messageId, accepted: sum.accepted,
+    total: sum.total, fresh: sum.fresh, open: sum.open, unknown: sum.unknown }, line: line };
+}
+
+function smsCorrectionSender_() {
+  return String(Session.getEffectiveUser().getEmail() || '').trim().toLowerCase();
+}
+
+/** 只從專案擁有者的 Apps Script 編輯器執行；不送 LINE。 */
+function resendTodaySmsFromOwner() {
+  if (smsCorrectionSender_() !== 'rainforecast2026@gmail.com') {
+    throw new Error('正式寄件身分不是 rainforecast2026@gmail.com，不補寄。');
+  }
+  return resendTodaySmsTextCorrection(true);
 }
 
 /** 寄即時通知時出錯：先前只寫執行紀錄，現在也寫系統狀態與通知狀態。 */
@@ -1611,7 +1668,7 @@ function diagnoseInstantMail(articleId) {
 
 /* 盤中即時通知的預覽摘要：發文時分＋原文前 70 字。正式寄送、續送與測試信共用。 */
 function cmSmsPreheader_(a) {
-  return (String(a.time || '').slice(11, 16) ? String(a.time).slice(11, 16) + ' ' : '') + String((typeof publicNoticeText_ === 'function') ? publicNoticeText_(a.text) : (a.text || '')).replace(/\s+/g, ' ').slice(0, 70);
+  return (String(a.time || '').slice(11, 16) ? String(a.time).slice(11, 16) + ' ' : '') + String(a.text || '').replace(/\s+/g, ' ').slice(0, 70);
 }
 
 /* 帳本續送（v54）：盤中即時通知有人沒寄成（額度、暫時錯誤、時間到）時，每五分鐘補一次。

@@ -266,7 +266,8 @@ function articleTitle_(signals) {
    股票代號（6770力積電）、日期、百分比、成交量都不受影響。後台會員簡訊的「原始內容」與試算表照舊是全文。 */
 var NOTICE_PRICE_RE_ = /\d+(?:\.\d+)?\s*(?:元|塊)|\d+(?:\.\d+)?\s*(?:以上|以下|之上|之下|附近)|(?:成本|買在|賣在|目標價?|挑戰|突破|跌破|站上|站穩|守住|停損|停利|上看|下看|壓力|支撐)(?:價|位)?\s*(?:在|為|是|約)?\s*\d{2,}(?:\.\d+)?(?!\d|\.\d|\s*(?:點|日|天|檔|張|%|％|月|年|億|萬|均|分|倍|根|次|週|周|MA))/;
 function publicNoticeText_(text) {
-  return String(text == null ? '' : text).split(/\n/).map(function (line) {
+  var original = String(text == null ? '' : text);
+  var shown = original.split(/\n/).map(function (line) {
     var out = '';
     line.split(/(?<=[。！？!?])/).forEach(function (sentence) {
       var end = (sentence.match(/[。！？!?]+$/) || [''])[0];
@@ -277,6 +278,9 @@ function publicNoticeText_(text) {
     });
     return out.trim();
   }).filter(String).join('\n');
+  // 全文每個子句都含價位時，舊規則會留下空白通知。不能只刪數字後
+  // 把附價位條件的買賣寫成無條件指示；明示需回來源核對完整條件。
+  return shown || (original.trim() ? '這則通知含價位條件，公開版不顯示操作原句；請查看來源原文確認完整標的與條件。' : '');
 }
 /** 這段原文有沒有被拿掉東西（給信件與 LINE 的附註用）。 */
 function noticeTextTrimmed_(text) {

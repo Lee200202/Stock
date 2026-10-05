@@ -27,7 +27,7 @@ transcript.py —— 每日逐字稿抓取（自動 + 手動，手動優先）
     「手動保留」，自動化立刻停手，不覆蓋、不重抓。
 
 排程（台灣時間，平日）
-    11:05 起每 3 分鐘敲一次，最晚到 14:00。
+    11:05 起每 3 分鐘敲一次；12:30 後無影片降頻，最晚到 15:30。
     直播 11:19 前後結束、回放再等 3～5 分鐘，所以通常 11:25～11:40 就抓得到。
 
 退出碼
@@ -95,16 +95,18 @@ SRC_AUTO = "自動"
 # 提早的代價幾乎是零：影片還沒出現時只用 YouTube API 問一句（約 2 units），
 # 不呼叫 Gemini。撞到直播中也只會回報「直播中」然後等下一輪。
 POLL_START = os.environ.get("POLL_START", "11:05").strip()
-POLL_UNTIL = os.environ.get("POLL_UNTIL", "14:00").strip()
+POLL_UNTIL = os.environ.get("POLL_UNTIL", "15:30").strip()
 POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL_SEC", "180"))
+IDLE_POLL_INTERVAL = int(os.environ.get("IDLE_POLL_INTERVAL_SEC", "600"))
+SLOW_POLL_AFTER = os.environ.get("SLOW_POLL_AFTER", "12:30").strip()
 TIME_BUDGET = int(os.environ.get("TIME_BUDGET_SEC", "1500"))
 # 他請假、臨時停播的日子（2026/09/24 就是：開盤，但他前一天在節目裡說「明天我放假」）。
 # 休市日由 why_closed 擋掉，這一個擋的是「有開盤、沒有節目」。
 #
 # 為什麼不是 11:05 就判定：那時候他可能只是還沒開台。頻道上完全沒有今天的影片
 # ——不是排定中、不是直播中、也不是已結束——要到節目照理已經播完才算數。
-# 節目大約 11:00 到 12:30，所以預設 12:30；之後仍然沒有任何一支就是今天沒有。
-NO_SHOW_AFTER = os.environ.get("NO_SHOW_AFTER", "12:30").strip()
+# 午後降低頻率，保留遲開播的機會；最後核對公開直播、預告與回放才記無節目。
+NO_SHOW_AFTER = os.environ.get("NO_SHOW_AFTER", "15:20").strip()
 NO_SHOW_KIND = "今日無直播"
 PLANNED_NO_SHOW_KIND = "預告停播"
 
@@ -229,6 +231,10 @@ class ModelOverloaded(Exception):
 
 class BackgroundUnavailable(Exception):
     """背景工作送得出去、卻查不回結果；改用串流重送同一段。"""
+
+
+class AuthenticationConflict(RuntimeError):
+    """兩條通道仍有相同認證衝突；保留片段並報錯，不輪換金鑰空轉。"""
 
 
 class Done(Exception):
@@ -640,7 +646,9 @@ class Video:
             return f"非公開影片（{self.privacy}）"
         if not self.detailed:
             return "還沒查詳細狀態（缺 YOUTUBE_API_KEY）"
-        if self.ended_at is None or self.duration_sec == 0:
+        if self.ended_at is None:
+            return "尚未取得直播結束時間，等待 YouTube 狀態更新"
+        if self.duration_sec == 0:
             return "直播已結束，YouTube 回放處理中"
         if not self.is_ready(now):
             waited = (now - self.ended_at).total_seconds() / 60
@@ -702,8 +710,12 @@ def fetch_feed():
 
 def _yt_get(endpoint, **params):
     params["key"] = YOUTUBE_API_KEY
-    r = requests.get(f"https://www.googleapis.com/youtube/v3/{endpoint}",
-                     params=params, timeout=30)
+    try:
+        r = requests.get(f"https://www.googleapis.com/youtube/v3/{endpoint}",
+                         params=params, timeout=30)
+    except requests.RequestException as exc:
+        # requests 的例外可能含 query 金鑰；只回報類型，不輸出完整 URL。
+        raise RuntimeError(f"{endpoint} 連線失敗：{type(exc).__name__}") from None
     if r.status_code != 200:
         raise RuntimeError(f"{endpoint} HTTP {r.status_code}：{r.text[:200]}")
     return r.json()
@@ -726,9 +738,15 @@ def fetch_feed_api(limit=15):
     if not ids:
         return []
 
+    return fetch_video_details(ids)
+
+
+def fetch_video_details(ids):
     out = []
     detail = _yt_get("videos", part="snippet,contentDetails,liveStreamingDetails,status",
                      id=",".join(ids))
+    if {v.get("id") for v in detail.get("items", [])} != set(ids):
+        raise NotReadyYet("影片詳情缺漏，等待 YouTube 更新，不能判定停播")
     for v in detail.get("items", []):
         sn = v.get("snippet", {})
         live = v.get("liveStreamingDetails", {}) or {}
@@ -787,12 +805,71 @@ def fetch_feed_rss():
         f"RSS 對機房 IP 會穩定回 404，而且拿不到判斷回放是否就緒所需的欄位。")
 
 
-def find_video(target: date):
+def find_video(target: date, require_details=False, verify_absence=False):
     """找出指定日期那一集。找不到回 None——早上還沒開播時那是常態。"""
-    for v in fetch_feed():
-        if v.date == target and is_target(v.title):
-            return v
+    if require_details and not YOUTUBE_API_KEY:
+        raise Done("自動取稿需要 YOUTUBE_API_KEY 判斷直播與回放狀態。", code=1)
+    try:
+        videos = fetch_feed_api() if require_details else fetch_feed()
+        for v in videos:
+            if v.date == target and is_target(v.title):
+                return v
+        if verify_absence:
+            # uploads 可能尚未收錄直播；只在最後判定時增加搜尋，平時用低成本清單。
+            ids = set()
+            for event in ("live", "upcoming", "completed"):
+                token = None
+                pages = 0
+                while True:
+                    params = dict(part="snippet", channelId=CHANNEL_ID,
+                                  type="video", eventType=event, maxResults=50)
+                    if event == "completed":
+                        params["order"] = "date"
+                        # 不限定建立日：今日直播可能早已排定。涵蓋既有標題的 /、- 與零補位。
+                        params["q"] = "|".join(
+                            f"{target.year}{sep}{month}{sep}{day}"
+                            for sep in ("/", "-")
+                            for month in dict.fromkeys((str(target.month), f"{target.month:02d}"))
+                            for day in dict.fromkeys((str(target.day), f"{target.day:02d}")))
+                    if token:
+                        params["pageToken"] = token
+                    data = _yt_get("search", **params)
+                    ids.update(it["id"]["videoId"] for it in data.get("items", [])
+                               if it.get("id", {}).get("videoId"))
+                    token = data.get("nextPageToken")
+                    pages += 1
+                    if not token:
+                        break
+                    if pages >= 3:
+                        raise NotReadyYet("搜尋清單超過安全查詢預算，無法確認停播，交下一排程")
+            ordered = sorted(ids)
+            details = []
+            for offset in range(0, len(ordered), 50):
+                details.extend(fetch_video_details(ordered[offset:offset + 50]))
+            if {v.id for v in details} != ids:
+                raise NotReadyYet("搜尋與影片詳情未一致，無法確認今日無公開節目")
+            for v in details:
+                if v.date == target and is_target(v.title):
+                    return v
+    except (Done, NotReadyYet):
+        raise
+    except Exception as exc:
+        if require_details or verify_absence:
+            raise NotReadyYet(f"YouTube 查詢失敗，不能判定停播：{str(exc)[:180]}") from exc
+        raise
     return None
+
+
+def next_poll_delay(target, now, seen):
+    """未出片的午後降頻；已找到直播或查詢失敗仍按一般頻率交接。"""
+    delay = max(1, POLL_INTERVAL)
+    if seen.get("video") is False and now >= at_taipei(target, SLOW_POLL_AFTER):
+        delay = max(delay, IDLE_POLL_INTERVAL)
+    # 不跨過最後確認時間，讓本 job 有機會執行終判。
+    final = at_taipei(target, NO_SHOW_AFTER)
+    if now < final:
+        delay = min(delay, max(1, int((final - now).total_seconds())))
+    return delay
 
 
 # ---------------------------------------------------------------- #
@@ -824,8 +901,8 @@ STREAM_RESUME_WAIT = 5
 # 第二條通道（generateContent 串流）在第一個字出來前不會送任何事件，空窗要比 Interactions 長。
 CLASSIC_READ_TIMEOUT = int(os.environ.get('TRANSCRIPT_CLASSIC_READ_TIMEOUT_SEC', '180'))
 # 走哪一條通道。寫在模組層：每一輪探詢都會重建 Transcriber，切換之後這次執行不必每輪再撞一次。
-# TRANSCRIPT_CHANNEL=classic 可以直接指定第二條通道。
-_CHANNEL = {"classic": os.environ.get("TRANSCRIPT_CHANNEL", "").strip().lower() == "classic"}
+# 預設 generateContent；TRANSCRIPT_CHANNEL=interactions 才測試背景通道。
+_CHANNEL = {"classic": os.environ.get("TRANSCRIPT_CHANNEL", "classic").strip().lower() != "interactions"}
 
 # 503 是暫時服務問題，不代表金鑰失效或配額用盡；有限重試後再使用備援。
 OVERLOAD_HINTS = ("high demand", "overloaded", "unavailable", "try again later",
@@ -1122,6 +1199,8 @@ class Transcriber:
                 try:
                     result = self._run(request)
                 except Exception as exc:
+                    if isinstance(exc, AuthenticationConflict):
+                        raise
                     status, message = _err(exc)
                     low = message.lower()
                     is_quota_403 = status == 403 and any(
@@ -1217,15 +1296,30 @@ class Transcriber:
         return False
 
     def _run(self, request):
+        """預設 generateContent；明設 Interactions 時遇認證衝突立即切換同一金鑰。"""
+        try:
+            return self._run_channel(request)
+        except Exception as exc:
+            status, message = _err(exc)
+            if status != 400 or "multiple authentication credentials" not in message.lower():
+                raise
+            if _CHANNEL["classic"]:
+                raise AuthenticationConflict(
+                    "generateContent 仍回認證衝突，停止本棒並保留已完成片段；請檢查服務與認證設定") from exc
+            _CHANNEL["classic"] = True
+            log("    Interactions 認證衝突，立即以同一金鑰改走 generateContent")
+            return self._run(request)
+
+    def _run_channel(self, request):
         """送出請求並取得結果。
 
-        長影片處理久，預設走背景模式再輪詢，避免連線逾時。
+        明設 Interactions 時，長影片走背景模式再輪詢。
         部分模型（實測 gemini-3.5-flash-lite）不支援背景，會立刻回 HTTP 400
         「does not support background interactions」——那種請求沒被處理、不佔額度，
         所以直接改用串流重送，不算一次重試，之後這個模型都走串流。
 
         2026/10/05 起背景工作建立成功，但查結果（GET /interactions/{id}）一律回 HTTP 400
-        「Multiple authentication credentials received」——請求只帶一把金鑰，是 Google 端的問題，
+        「Multiple authentication credentials received」——實測只指定一把金鑰仍失敗，疑似通道問題，
         換金鑰重送也一樣。同一天 Interactions 的串流也收不到結果（一次開了 10 分鐘沒有完成、
         一次 90 秒沒有回應），所以遇到就取消背景工作，這次執行改走 generateContent（見 _run_classic）。
         """
@@ -1246,7 +1340,7 @@ class Transcriber:
                 except BackgroundUnavailable as exc:
                     _CHANNEL["classic"] = True
                     log(f"    背景結果查不回來（{str(exc)[:80]}），已取消背景工作，改走 generateContent 通道")
-                    return self._run_classic(request)
+                    return self._run(request)
         return self._run_stream(request)
 
     def _run_classic(self, request):
@@ -1449,11 +1543,10 @@ class Transcriber:
         if self.healthy_until.get((key, self.model), 0) > time.monotonic():
             return True, "", False
         try:
-            self.clients[key].interactions.create(
-                model=self.model, input=PROBE_PROMPT,
-                generation_config={"max_output_tokens": 16},
-                store=False, timeout=PROBE_TIMEOUT)
+            self._probe_request(key)
         except Exception as exc:
+            if isinstance(exc, AuthenticationConflict):
+                raise
             status, message = _err(exc)
             low = message.lower()
             if status == 404:
@@ -1474,6 +1567,27 @@ class Transcriber:
         self.healthy_until[(key, self.model)] = time.monotonic() + 300
         return True, "", False
 
+    def _probe_request(self, key):
+        try:
+            if _CHANNEL["classic"]:
+                return self.clients[key].models.generate_content(
+                    model=self.model, contents=PROBE_PROMPT,
+                    config={"max_output_tokens": 16,
+                            "http_options": {"timeout": PROBE_TIMEOUT * 1000}})
+            return self.clients[key].interactions.create(
+                model=self.model, input=PROBE_PROMPT,
+                generation_config={"max_output_tokens": 16},
+                store=False, timeout=PROBE_TIMEOUT)
+        except Exception as exc:
+            status, message = _err(exc)
+            if status != 400 or "multiple authentication credentials" not in message.lower():
+                raise
+            if _CHANNEL["classic"]:
+                raise AuthenticationConflict("快速檢查的 generateContent 仍有認證衝突，停止空轉") from exc
+            _CHANNEL["classic"] = True
+            log("    快速檢查遇 Interactions 認證衝突，同一金鑰改走 generateContent")
+            return self._probe_request(key)
+
 
 @dataclass
 class _StreamResult:
@@ -1485,9 +1599,7 @@ class _StreamResult:
 # ---------------------------------------------------------------- #
 # 一次探詢
 # ---------------------------------------------------------------- #
-# 已經聽打完成的片段，以影片 ID 分組。只活在這一次執行的記憶體裡：
-# 輪詢迴圈每 3 分鐘重試一次，靠它避免把成功的片段一再重做。
-# 換一次排程觸發就從頭開始，那是可以接受的——真正貴的是同一輪裡的重複。
+# 已完成片段在本輪共用；設定 TRANSCRIPT_CACHE_DIR 時另以原子存檔跨 job 接續。
 _SEGMENT_CACHE = {}
 
 
@@ -1518,10 +1630,13 @@ def tick(ss, target: date, force: bool, seen: dict = None) -> bool:
                    f"（第 {idx} 列，來源「{src or '未標記'}」），不重抓。")
 
     # ---- 第二關：YouTube。當天那一集出現了沒有、回放好了沒有 ----
-    video = find_video(target)
+    checked_at = datetime.now(TAIPEI)
+    final_check = not force and checked_at >= at_taipei(target, NO_SHOW_AFTER)
+    video = find_video(target, require_details=True, verify_absence=final_check)
     # 呼叫端要分得出「還沒貼出來」與「根本沒有這一集」，見 NO_SHOW_AFTER。
     if seen is not None:
         seen["video"] = video is not None
+        seen["absence_verified"] = final_check and video is None
     if not video:
         log(f"{date_str} 的影片還沒出現在頻道清單上（標題要含 {TITLE_KEYWORDS}）。")
         return False
@@ -1557,6 +1672,7 @@ def tick(ss, target: date, force: bool, seen: dict = None) -> bool:
     log(f"Gemini 聽打　模型 {GEMINI_MODEL}"
         + (f"（備援 {'、'.join(GEMINI_FALLBACK_MODELS)}）" if GEMINI_FALLBACK_MODELS else "")
         + f"　金鑰 {len(keys)} 把　每段 {SEGMENT_MINUTES} 分鐘")
+    log("轉錄通道：" + ("generateContent 串流" if _CHANNEL["classic"] else "Interactions（可回退）"))
 
     # 已完成的片段留著跨輪重用。一集切 2～3 段，若第 1 段成功、第 2 段撞上
     # 模型壅塞，沒有這個快取的話下一輪會把第 1 段整個重做——既浪費額度，
@@ -1567,7 +1683,7 @@ def tick(ss, target: date, force: bool, seen: dict = None) -> bool:
         text = tr.transcribe(video.url, video.duration_sec, cache=cache)
     except NotReadyYet:
         raise            # 模型都在忙，交給輪詢迴圈三分鐘後再試
-    except QuotaExhausted:
+    except (QuotaExhausted, AuthenticationConflict):
         raise            # 額度用完，由 cmd_auto 處理並給明確指示
     except Exception as e:
         # 其他失敗多半也是暫時的（連線、單段逾時）。判成「還沒好」讓下一輪重試，
@@ -1642,7 +1758,7 @@ def cmd_auto(args) -> int:
 
     closed = why_closed(target)
     if closed and not args.force:
-        # 國定假日休市時沒有盤中直播。不擋的話這一天會一路空跑到 14:00，
+        # 國定假日休市時沒有盤中直播。不擋的話這一天會一路空跑到截止時間，
         # 還會在系統狀態留下「敲了 N 次仍未取得」，看起來像壞掉。
         log(f"{closed}，沒有盤中直播，不執行。（要硬跑請加 --force）")
         return 0
@@ -1665,7 +1781,7 @@ def cmd_auto(args) -> int:
 
     no_show_at = at_taipei(target, NO_SHOW_AFTER)
     # 前一集已明講請假時，11:05 仍查一次影片；若沒有便結束這一棒。
-    # 後面的 cron 各查一次，避免臨時開播漏抓；12:30 才正式記「今日無直播」。
+    # 後面的 cron 各查一次，避免臨時開播漏抓；最後確認時間才正式記「今日無直播」。
     planned = False
     if not args.force:
         try:
@@ -1679,6 +1795,7 @@ def cmd_auto(args) -> int:
             round_no += 1
             log("")
             log(f"─── 第 {round_no} 次探詢 ───")
+            seen.clear()  # 上一輪未出片不能作為本輪 API 失敗時的停播證據。
             try:
                 if tick(ss, target, args.force, seen=seen):
                     log("逐字稿已寫進試算表。後面的潤飾與擷取由 pipeline.py 接手。")
@@ -1690,13 +1807,13 @@ def cmd_auto(args) -> int:
             # ——不是排定中、不是直播中、也不是已結束。那就是今天沒有節目。
             # 前一交易日原文若已明講請假，前面只會降低探詢頻率；
             # 正式「今日無直播」仍須在這裡用當日頻道結果確認。
-            if (not args.force and seen.get("video") is False
+            if (not args.force and seen.get("absence_verified") is True
                     and datetime.now(TAIPEI) >= no_show_at):
-                log(f"已過 {NO_SHOW_AFTER}，頻道上沒有今天的影片，也沒有排定或進行中的直播。")
+                log(f"已過 {NO_SHOW_AFTER}，核對 uploads、直播、預告及回放後，未找到今日公開節目。")
                 log("判定今天沒有節目，停止今天的自動取稿。")
                 write_status_log(ss, NO_SHOW_KIND,
-                                 f"{date_str} 探詢 {round_no} 次，頻道沒有今天的影片，"
-                                 f"也沒有排定或進行中的直播；已停止今天的自動取稿。"
+                                 f"{date_str} 探詢 {round_no} 次，核對 uploads、直播、預告及回放，"
+                                 f"未找到今日公開節目；已停止今天的自動取稿。"
                                  f"（休市日由 why_closed 另外擋掉，這是有開盤但沒有節目）")
                 return 0
 
@@ -1713,16 +1830,17 @@ def cmd_auto(args) -> int:
                 return 0
 
             now = datetime.now(TAIPEI)
+            delay = next_poll_delay(target, now, seen)
             spent = time.monotonic() - RUN_STARTED
-            if not args.force and now + timedelta(seconds=POLL_INTERVAL) > until:
+            if not args.force and now + timedelta(seconds=delay) > until:
                 log(f"下一輪會超過 {POLL_UNTIL}，本次收工。")
                 break
-            if spent + POLL_INTERVAL > TIME_BUDGET:
+            if spent + delay > TIME_BUDGET:
                 log(f"已跑 {spent / 60:.1f} 分鐘，接近 {TIME_BUDGET / 60:.0f} 分鐘預算，"
                     f"本次收工，交給下一次排程接力。")
                 break
-            log(f"等 {POLL_INTERVAL} 秒再敲一次。")
-            time.sleep(POLL_INTERVAL)
+            log(f"等 {delay} 秒再敲一次。")
+            time.sleep(delay)
 
         write_status_log(ss, "逐字稿等待中", f"{date_str} 敲了 {round_no} 次仍未取得")
         return 0
@@ -1730,6 +1848,10 @@ def cmd_auto(args) -> int:
     except Done as e:
         log(e.reason)
         return e.code
+    except AuthenticationConflict as e:
+        log(f"::error::{e}")
+        write_status_log(ss, "轉錄認證衝突", f"{date_str} {str(e)[:300]}；已完成片段保留")
+        return 1
     except QuotaExhausted as e:
         log("")
         log(f"::error::Gemini 額度用完：{e}")

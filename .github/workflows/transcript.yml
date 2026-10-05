@@ -44,6 +44,8 @@ on:
     - cron: '5,30,55 3 * * 1-5'    # 台灣 11:05 11:30 11:55 （多數這三輪就抓到）
     - cron: '20,45 4 * * 1-5'      # 台灣 12:20 12:45
     - cron: '10,35 5 * * 1-5'      # 台灣 13:10 13:35 （防止異常延遲的候補網）
+    - cron: '5 6 * * 1-5'         # 台灣 14:05；午後無影片時內部降頻
+    - cron: '20 7 * * 1-5'        # 台灣 15:20；最後核對公開直播／預告／回放
 
   workflow_dispatch:
     inputs:
@@ -56,6 +58,7 @@ on:
           - 'auto'      # 照常抓取
           - 'status'    # 只看狀態，什麼都不改
           - 'check'     # 確認 Gemini 金鑰與模型可用
+          - 'verify'    # 實際重聽全片，僅存驗收附件，不改正式原稿／寄送
           - 'hold'      # 標記手動保留，擋住自動抓取
           - 'release'   # 解除手動保留
       date:
@@ -139,13 +142,15 @@ jobs:
       - name: 執行
         if: github.event_name != 'schedule' || steps.calendar.outputs.run == 'true'
         env:
-          # Gemini。額度是每把金鑰、每個模型分開算的，所以可以填多把：
+          # Gemini。額度依 Google 專案與模型；同專案多把金鑰不增加配額：
           #   逗號分隔，或另外設 GEMINI_API_KEY_2、GEMINI_API_KEY_3。
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
           GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           GEMINI_FALLBACK_MODEL: ${{ vars.GEMINI_FALLBACK_MODEL }}
+          # 直接用今天已成功的通道，避免新 job 再碰背景認證 400。
+          TRANSCRIPT_CHANNEL: ${{ vars.TRANSCRIPT_CHANNEL || 'classic' }}
 
           # YouTube。判斷「直播結束了沒、回放處理好了沒」一定要它——
           # RSS 拿不到片長與結束時間，沒有金鑰時程式會明確拒絕硬猜。
@@ -167,6 +172,7 @@ jobs:
           # ——看起來像程式沒跑，其實是 shell 自己退掉了。所以一律用 if。
           ARGS=()
           case "$MODE" in
+            verify)  ARGS=() ;;
             status)  ARGS=(status) ;;
             check)   ARGS=(check) ;;
             hold)    ARGS=(hold) ;;
@@ -186,9 +192,17 @@ jobs:
             ARGS+=(--date "$TARGET_DATE")
           fi
 
-          echo "執行：python transcript.py ${ARGS[*]}"
           code=0
-          python transcript.py "${ARGS[@]}" || code=$?
+          if [ "$MODE" = "verify" ]; then
+            if [ -z "$TARGET_DATE" ]; then
+              ARGS+=(--date "$(TZ=Asia/Taipei date '+%Y/%m/%d')")
+            fi
+            echo "執行：python scripts/verify_transcript_live.py ${ARGS[*]}"
+            python scripts/verify_transcript_live.py "${ARGS[@]}" || code=$?
+          else
+            echo "執行：python transcript.py ${ARGS[*]}"
+            python transcript.py "${ARGS[@]}" || code=$?
+          fi
 
           # 0  有進展或沒事做（寫入成功、已有稿、手動優先停手、回放還沒好）。
           #    「還沒好」是常態，不該亮紅燈，否則每天中午都在發假告警。
@@ -196,6 +210,14 @@ jobs:
           # 1  其他失敗。
           echo "結束碼：$code"
           exit $code
+
+      - uses: actions/upload-artifact@v4
+        if: always() && inputs.mode == 'verify'
+        with:
+          name: transcript-verification-${{ github.run_id }}
+          path: .transcript-verification/
+          retention-days: 3
+          if-no-files-found: error
 
       - uses: actions/cache/save@v4
         if: always() && (github.event_name != 'schedule' || steps.calendar.outputs.run == 'true')

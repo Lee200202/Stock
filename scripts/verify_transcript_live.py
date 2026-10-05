@@ -22,6 +22,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--date", type=t.parse_date, required=True)
     parser.add_argument("--audio-only", action="store_true", help="備援模型獨立聽打三段重點，不改正式資料")
+    parser.add_argument("--segment-minutes", type=int, choices=(15, 30), default=t.SEGMENT_MINUTES)
     args = parser.parse_args()
     started = time.monotonic()
     v = t.find_video(args.date, require_details=True)
@@ -62,7 +63,7 @@ def main():
     # Every segment starts empty: deliberately do not reuse today's production cache.
     cache = t.SegmentCache(out / "segments.json")
     cache.clear()
-    tr = t.Transcriber(keys)
+    tr = t.Transcriber(keys, segment_minutes=args.segment_minutes)
     text = tr.transcribe(v.url, v.duration_sec, cache=cache)
     elapsed = time.monotonic() - started
     (out / "transcript.txt").write_text(text, encoding="utf-8")

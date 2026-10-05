@@ -74,6 +74,12 @@ on:
         description: '只敲一次就結束，不進 25 分鐘的輪詢迴圈'
         required: false
         default: 'false'
+      segment_minutes:
+        description: '完整驗收的片段長度；auto 不使用此輸入'
+        required: false
+        default: '30'
+        type: choice
+        options: ['15', '30']
 
 concurrency:
   group: transcript-gemini
@@ -167,6 +173,7 @@ jobs:
           TARGET_DATE: ${{ inputs.date }}
           FORCE: ${{ inputs.force }}
           ONCE: ${{ inputs.once }}
+          VERIFY_SEGMENT_MINUTES: ${{ inputs.segment_minutes || '30' }}
         run: |
           # 注意：GitHub 的 run: 預設是 bash -e。
           # 「[ 條件 ] && 指令」在條件不成立時整句回 1，會讓整個步驟當場結束
@@ -196,6 +203,12 @@ jobs:
 
           code=0
           if [ "$MODE" = "verify" ] || [ "$MODE" = "verify-audio" ]; then
+            if [ "$MODE" = "verify" ]; then
+              case "$VERIFY_SEGMENT_MINUTES" in
+                15|30) ARGS+=(--segment-minutes "$VERIFY_SEGMENT_MINUTES") ;;
+                *) echo "::error::驗收片段只允許 15 或 30 分鐘"; exit 1 ;;
+              esac
+            fi
             if [ -z "$TARGET_DATE" ]; then
               ARGS+=(--date "$(TZ=Asia/Taipei date '+%Y/%m/%d')")
             fi

@@ -59,6 +59,7 @@ on:
           - 'status'    # 只看狀態，什麼都不改
           - 'check'     # 確認 Gemini 金鑰與模型可用
           - 'verify'    # 實際重聽全片，僅存驗收附件，不改正式原稿／寄送
+          - 'verify-audio' # 備援模型獨立回聽重點片段，僅存附件
           - 'hold'      # 標記手動保留，擋住自動抓取
           - 'release'   # 解除手動保留
       date:
@@ -173,6 +174,7 @@ jobs:
           ARGS=()
           case "$MODE" in
             verify)  ARGS=() ;;
+            verify-audio) ARGS=(--audio-only) ;;
             status)  ARGS=(status) ;;
             check)   ARGS=(check) ;;
             hold)    ARGS=(hold) ;;
@@ -193,7 +195,7 @@ jobs:
           fi
 
           code=0
-          if [ "$MODE" = "verify" ]; then
+          if [ "$MODE" = "verify" ] || [ "$MODE" = "verify-audio" ]; then
             if [ -z "$TARGET_DATE" ]; then
               ARGS+=(--date "$(TZ=Asia/Taipei date '+%Y/%m/%d')")
             fi
@@ -212,7 +214,7 @@ jobs:
           exit $code
 
       - uses: actions/upload-artifact@v4
-        if: always() && inputs.mode == 'verify'
+        if: always() && (inputs.mode == 'verify' || inputs.mode == 'verify-audio')
         with:
           name: transcript-verification-${{ github.run_id }}
           path: .transcript-verification/

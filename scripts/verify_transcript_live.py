@@ -21,6 +21,7 @@ import transcript as t
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--date", type=t.parse_date, required=True)
+    parser.add_argument("--audio-only", action="store_true", help="備援模型獨立聽打三段重點，不改正式資料")
     args = parser.parse_args()
     started = time.monotonic()
     v = t.find_video(args.date, require_details=True)
@@ -35,7 +36,29 @@ def main():
         raise RuntimeError("缺少 Gemini 金鑰")
     out = Path(os.environ.get("TRANSCRIPT_VERIFY_OUTPUT", ".transcript-verification"))
     out.mkdir(parents=True, exist_ok=True)
-    t.log(f"實際验收：{v.url}，片長 {t.hms(v.duration_sec)}，通道 generateContent；不寫正式資料")
+    t.log(f"實際驗收：{v.url}，片長 {t.hms(v.duration_sec)}，通道 generateContent；不寫正式資料")
+    if args.audio_only:
+        # Independent text from a different model; do not feed it the candidate transcript.
+        model = t.GEMINI_FALLBACK_MODEL or t.GEMINI_MODEL
+        tr = t.Transcriber(keys, model=model, fallback=[])
+        samples = []
+        for start, end in ((0, 180), (1560, 2040), (2220, 2460)):
+            if start >= v.duration_sec:
+                continue
+            end = min(end, v.duration_sec)
+            text, complete = tr._request(v.url, start, end)
+            if not complete:
+                raise RuntimeError("抽段回聽輸出截斷，不能當作核對證據")
+            samples.append({"start_sec": start, "end_sec": end, "text": text})
+            (out / f"audio-{start}-{end}.txt").write_text(text, encoding="utf-8")
+        report = {"verified_at_taipei": datetime.now(t.TAIPEI).isoformat(timespec="seconds"),
+                  "video_id": v.id, "model": model, "samples": samples,
+                  "elapsed_sec": round(time.monotonic() - started, 2),
+                  "production_sheet_writes": 0, "email_sends": 0, "line_sends": 0,
+                  "limitations": "不同模型直接聽同一影片的抽段證據；不等於人工全片校聽。"}
+        (out / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"獨立抽段完成：{len(samples)} 段，模型 {model}，{report['elapsed_sec']} 秒")
+        return 0
     # Every segment starts empty: deliberately do not reuse today's production cache.
     cache = t.SegmentCache(out / "segments.json")
     cache.clear()

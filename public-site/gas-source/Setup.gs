@@ -381,6 +381,8 @@ function everyFiveMinJobRun_() {
   var today = Utilities.formatDate(now, tz, 'yyyy/MM/dd');
   var weekday = Number(Utilities.formatDate(now, tz, 'u')) <= 5;
 
+  // 一次性的 LINE 提醒（2026/10/05）：送過就只剩一次屬性讀取。
+  if (typeof lineNudgePendingSmsOnce_ === 'function') { safe_('lineNudgePendingSmsOnce_', lineNudgePendingSmsOnce_); }
   // 夜間只續送待送通知與恢復中斷工單；沒有市場總覽採樣。
   if (hhmm < 800 || hhmm >= 2230) {
 
@@ -1200,7 +1202,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-10-05-line-revised-v122';
+var PROJECT_BUILD_ = '2026-10-05-line-nudge-v123';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。

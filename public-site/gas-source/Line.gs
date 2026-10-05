@@ -1850,6 +1850,38 @@ function lineQueueSms_(a, revised) {
   return q;
 }
 
+/* 一次性提醒（管理者 2026/10/05 指示，只送這一次）：盤中通知用舊按鈕開啟、還沒輸入「開啟盤中通知」確認的好友，
+   各收到一則說明，附一顆以本人名義送出「開啟盤中通知」的按鈕。訊息 ID 固定、收件者是第一次執行時的快照：
+   同一個 ID 排過就不再排，之後不論誰再進入這個狀態都不會再送。要再提醒一次得另開一個 ID。 */
+var LINE_SMS_KEYWORD_NUDGE_ID_ = 'nudge|sms-keyword|2026-10-05';
+function lineNudgePendingSmsOnce_() {
+  if (lineProp_('LINE_SMS_KEYWORD_NUDGE_DONE') === LINE_SMS_KEYWORD_NUDGE_ID_) { return { skipped: 'done' }; }
+  if (!lineConfigured_() || linePushMode_() !== 'on') { return { skipped: 'mode' }; }
+  var id = LINE_SMS_KEYWORD_NUDGE_ID_, bot = lineBotId_();
+  if (!bot) { return { skipped: 'no-bot' }; }
+  if (lineOutboxRead_().rows.some(function (r) { return r.id === id; })) {
+    lineSetProp_('LINE_SMS_KEYWORD_NUDGE_DONE', id);
+    return { skipped: 'already-queued' };
+  }
+  var pending = lineSubsRead_().rows.filter(function (s) {
+    return s.channel === bot && s.friend !== 'blocked' && s.sms && !lineSmsActive_(s);
+  });
+  if (!pending.length) { lineSetProp_('LINE_SMS_KEYWORD_NUDGE_DONE', id); return { skipped: 'nobody-pending' }; }
+  var date = todayStr_();
+  var text = '提醒：你的「盤中即時通知」還沒生效，所以盤中訊息沒有送到你這裡（每日總覽不受影響）。\n\n' +
+    '請在這個聊天室輸入「開啟盤中通知」，或直接點下方按鈕確認，之後才會收到。\n\n這則提醒只傳這一次。';
+  var q = lineQueue_({ id: id, kind: 'sms', date: date, version: '', source: '盤中通知待確認提醒（一次性）',
+    expiresAt: lineParseTaipei_(date + ' 23:59:59'), state: 'queued',
+    messages: [lineText_(text, [lineMsg_('開啟盤中通知', '開啟盤中通知')])] });
+  if (!q.created) { lineSetProp_('LINE_SMS_KEYWORD_NUDGE_DONE', id); return { skipped: 'already-queued' }; }
+  // 收件者只有待確認的那幾位；帳本先建好，寄送器就不會改用盤中通知的收件名單。
+  if (!lineLedgerFor_(id).rows.length) { lineLedgerCreate_({ id: id, date: date }, pending.map(function (s) { return { uid: s.uid }; })); }
+  lineSetProp_('LINE_SMS_KEYWORD_NUDGE_DONE', id);
+  var d = lineDeliverTick_({ only: id, budgetMs: 45000 });
+  lineStatusNote_('LINE 盤中通知待確認提醒已排送：' + pending.length + ' 位（一次性，不重送）');
+  return { id: id, total: pending.length, stoppedBy: d.stoppedBy || '' };
+}
+
 /** 文字顯示事故補送：只給原訊息帳本顯示 accepted 的好友，獨立訊息 ID 保證重跑不重送。 */
 function lineQueueSmsTextCorrection_(a) {
   if (!a || !a.id || !lineConfigured_() || linePushMode_() === 'off') { return { skipped: 'off' }; }

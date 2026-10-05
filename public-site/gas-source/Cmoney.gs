@@ -722,8 +722,9 @@ function cmoneyPollJobRun_() {
   var to = Number(cmProp_('CMONEY_END', '1500')) || 1500;
   if (!weekday || hhmm < from || hhmm > to) { return; }
 
-  // 間隔可調。預設一分鐘，但流量吃緊時可以改成 2 或 3。
-  var everyMin = Math.max(1, Number(cmProp_('CMONEY_POLL_MIN', '1')) || 1);
+  // 預設每兩分鐘抓一次，保留近即時通知並替同帳號的寄送觸發器留時間。
+  // 若管理者明設 1 分鐘，平常照做；台北日估算已用一半時暫以 2 分鐘為下限。
+  var everyMin = cmPollInterval_();
   var last = Number(cmProp_(CM_LAST_PROP, '0'));
   if (Date.now() - last < everyMin * 60000 - 5000) { return; }
   PropertiesService.getScriptProperties().setProperty(CM_LAST_PROP, String(Date.now()));
@@ -734,7 +735,7 @@ function cmoneyPollJobRun_() {
     return;
   }
 
-  /* 每分鐘只抓文章清單 API 第一頁。這一頁同時含 ID、作者、時間與全文，
+  /* 每輪只抓文章清單 API 第一頁。這一頁同時含 ID、作者、時間與全文，
      一次請求即可發現新文章，也能比較今日文章是否被編輯；不再每分鐘同時抓
      會員頁與文章頁。內容用「長度 + SHA-256」判斷，長度相同的改字也抓得到。 */
   var pr = PropertiesService.getScriptProperties();
@@ -804,6 +805,12 @@ function cmoneyPollJobRun_() {
     }
   });
   if (savedAny || changed) { cmDispatchGithubParse_(todayStr_()); }
+}
+
+function cmPollInterval_() {
+  var configured = Math.max(1, Number(cmProp_('CMONEY_POLL_MIN', '2')) || 2);
+  return typeof opsRuntimeConserve_ === 'function' && opsRuntimeConserve_()
+    ? Math.max(configured, 2) : configured;
 }
 
 
@@ -1915,7 +1922,7 @@ function diagnoseCmoneyToday(articleId) {
   var from = Number(cmProp_('CMONEY_START', '900')) || 900, to = Number(cmProp_('CMONEY_END', '1500')) || 1500;
   var st = cmStat_(), last = Number(cmProp_(CM_LAST_PROP, '0'));
   log('輪詢觸發器 cmoneyPollJob：' + (hasTrigger ? '有' : '沒有　<<< 需執行 installTriggers()') +
-      '　時段 ' + from + '～' + to + '　每 ' + (Number(cmProp_('CMONEY_POLL_MIN', '1')) || 1) + ' 分鐘');
+      '　時段 ' + from + '～' + to + '　目前每 ' + cmPollInterval_() + ' 分鐘');
   log('今日已抓　清單 ' + st.page + ' 次、文章 ' + st.art + ' 篇、約 ' + Math.round(st.kb / 1024 * 10) / 10 + 'MB' +
       (cmOverBudget_(st) ? '　<<< 已達流量上限，後面停抓' : '') +
       '　最後一次輪詢 ' + (last ? Utilities.formatDate(new Date(last), TZ, 'HH:mm:ss') : '（今天沒有）'));

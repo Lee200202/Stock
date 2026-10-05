@@ -342,6 +342,12 @@ function opsRuntimeFor_(dateStr) {
     handlers: list, recorded: list.length > 0 };
 }
 
+/** 今天估算已用到一半時，行情更新改隔棒做；寄送、補抓與盤中快照仍每棒執行。 */
+function opsRuntimeConserve_() {
+  var used = opsRuntimeFor_();
+  return !!(used.recorded && used.minutes >= 45);
+}
+
 /** 每 n 分鐘才做一次。用上次執行時間判斷，不依賴觸發器的精準度。 */
 function dueEvery_(key, minutes) {
   var pr = PropertiesService.getScriptProperties();
@@ -429,7 +435,11 @@ function everyFiveMinJobRun_() {
   if (typeof lineDeliverTick_ === 'function') { safe_('lineDeliverTick_', lineDeliverTick_); }
   // 寄送優先；報價放在補抓來源與背景 K 線之前，避免整輪逾時而沒有行情。
   safe_('auditTrackedSymbolsJob', auditTrackedSymbolsJob);
-  safe_('refreshQuoteCacheJob', refreshQuoteCacheJob);
+  // 台北日估算只作提前節流，不能當成 Google 24 小時窗口的精確剩餘額度。
+  // 保留每五分鐘的郵件、LINE 和原文續跑；只把可現場補抓的行情改為每十分鐘一次。
+  if (!opsRuntimeConserve_() || dueEvery_('quoteConserve', 10)) {
+    safe_('refreshQuoteCacheJob', refreshQuoteCacheJob);
+  }
   safe_('cmAutoReconcileToday_', function () { cmAutoReconcileToday_(false); });
   safe_('cmDispatchPendingGithubJob_', function () { cmDispatchPendingGithubJob_(); });
   if (weekday && hhmm >= 1230 && hhmm <= 1800 && dueEvery_('statusReport', 15)) {
@@ -1202,7 +1212,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-10-05-tracker-sort-v124';
+var PROJECT_BUILD_ = '2026-10-05-trigger-budget-v125';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
@@ -1219,7 +1229,7 @@ var PROJECT_FILES_ = [
   { file: 'Aiservice.gs', names: ['validateKey', 'assistantModelCatalog_', 'sanitizeDraft_', 'draftReady_', 'isPromptProbe_', 'guardReply_', 'explicitSubscribeConfirm_'], marker: ['assistantModelCatalog_', 'supportedGenerationMethods'] },
   { file: 'Articlequality.gs', names: ['enforceArticleRecords_', 'attachArticleEvidence_'] },
   { file: 'Cachebuilder.gs', names: ['dailyKCacheAfterWrite_', 'dailyKNoData_', 'budgetLeft_', 'trackedCodes_', 'readSnapshotRows_', 'officialDailyAll_', 'auditDailyKCache', 'repairDailyKCache', 'afterDailyKDoneJob', 'rescheduleDailyKTrigger', 'warmKCaches_', 'dailyKFloors_', 'resetDailyKFloor', 'isTradingDateStr_', 'ensurePerformanceContinuityJob_', 'officialDailyKFill_', 'officialDailyKTick_', 'officialDailyKJob', 'fillOfficialDailyKNow', 'auditTrackedSymbolsJob'], marker: ['auditTrackedSymbolsJob', 'symbolAuditDayV94'] },
-  { file: 'Cmoney.gs', names: ['cmMailBody_', 'cmNotifyNew_', 'cmSyncContentTick_', 'cmTranscriptExcerpt_', 'deliveryRetryTick_', 'diagnoseInstantMail', 'cmSetNotifyState_', 'resendInstantMail', 'resendTodaySmsTextCorrection', 'resendTodaySmsFromOwner', 'cmPollSaveFailed_', 'cmVerifyItems_'], marker: ['cmVerifyItems_', 'note: publicSmsNote_'] },
+  { file: 'Cmoney.gs', names: ['cmMailBody_', 'cmNotifyNew_', 'cmSyncContentTick_', 'cmTranscriptExcerpt_', 'deliveryRetryTick_', 'diagnoseInstantMail', 'cmSetNotifyState_', 'resendInstantMail', 'resendTodaySmsTextCorrection', 'resendTodaySmsFromOwner', 'cmPollSaveFailed_', 'cmVerifyItems_', 'cmPollInterval_'], marker: ['cmPollInterval_', 'Math.max(configured, 2)'] },
   { file: 'DB.gs', names: ['writeSubscriptionFields_', 'findSubscription_'] },
   { file: 'Evidencequality.gs', names: ['rawTranscript_', 'validEvidence_', 'queueDayEditSync_', 'dayEditSyncTick_', 'queueCostSync_'], marker: ['dayEditSyncTick_', 'COST:'] },
   { file: 'Logic.gs', names: ['markChainStep_', 'REFRESH_STEPS_'] },
@@ -1227,7 +1237,7 @@ var PROJECT_FILES_ = [
   { file: 'Presentationquality.gs', names: ['publicNoticeText_', 'titleDropRepeats_', 'displayPrice_', 'narrativeName_', 'titleChars_', 'toTraditional_', 'publicSmsNote_', 'stripEditorialWrappers_'], marker: ['restatesEarlier_', 'hit / total'] },
   { file: 'Quoteservice.gs', names: ['getFugleKey_', 'fugleFetch_', 'sharesToLots_', 'volumeInLots_', 'hourSlot_', 'readHourlyRows_', 'fugleHistPace_', 'kcPutAll_', 'getCandlesBundle', 'misBatchQuotes_'], marker: ['refreshQuoteCacheJob', 'MIS_DOWN_KEY_'] },
   { file: 'Refreshrunner.gs', names: ['runRefreshAllChunk_', 'withRefreshAllLease_'] },
-  { file: 'Setup.gs', names: ['setupSpreadsheet', 'setWebAppUrl', 'webAppUrlReport_', 'checkProjectFiles', 'checkAutomationReadiness', 'ensureAutomationTick', 'withSheetSnapshot_', 'readSheetFields_', 'readSheetDayRow_', 'opsTimed_', 'opsRuntimeFor_'], marker: ['readSheetDayRow_', 'getRange(2,col+1,n-1,1)'] },
+  { file: 'Setup.gs', names: ['setupSpreadsheet', 'setWebAppUrl', 'webAppUrlReport_', 'checkProjectFiles', 'checkAutomationReadiness', 'ensureAutomationTick', 'withSheetSnapshot_', 'readSheetFields_', 'readSheetDayRow_', 'opsTimed_', 'opsRuntimeFor_', 'opsRuntimeConserve_'], marker: ['everyFiveMinJobRun_', "dueEvery_('quoteConserve', 10)"] },
   { file: 'SheetService.gs', names: ['fmtDate_', 'withLock_', 'ensureTranscriptLayoutJob', 'transcriptFingerprint_', 'stripTranscribeEcho_', 'readCostOverrides_', 'searchTerms_', 'repairLiwangExitPriceNow', 'rangeCandle_', 'statedNote_', 'trackerRoundList_', 'isManualHoldSource_', 'holdConfirmForOpen_', 'getHoldingsTrackerRead_'], marker: ['fmtDate_', 'fmtDateMemo_'] },
   { file: 'Transcriptstore.gs', names: ['transcriptSha256_', 'selectTranscriptRow_'] }
 ];

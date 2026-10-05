@@ -42,7 +42,8 @@ function smsNoteBody_(text, row) {
   return text.split(/(?<=[。！？；])/).map(function(sentence) {
     var trade = /買進|買入|買回|賣出|賣掉|出清|加碼|減碼|成本|成交|平盤/.test(sentence);
     var removePrice = function(match, index) {
-      if (/EPS|每股盈餘|股利|配息|除息|除權|權利金/i.test(sentence.slice(Math.max(0, index - 12), index))) return match;
+      // 同一個子句前面講的是 EPS／配息，後面一串數字都是它的數字（「EPS從3.5元、5元、6元提升至10元、11元」）。
+      if (/EPS|每股盈餘|股利|配息|除息|除權|權利金/i.test(sentence.slice(Math.max(0, index - 12), index) + sentence.slice(0, index).split(/[，；。]/).pop())) return match;
       // 賺賠與漲跌的幅度不是交易價（10/05 聖暉「賺取6、70塊的持股賣出」被挖成「賺取6、的持股賣出」）。
       if (/(?:賺|賠|獲利|虧損?|價差|差價|漲|跌)(?:了|取|進)?(?:約|近|大約|將近|快)?\s*$/.test(sentence.slice(Math.max(0, index - 12), index))) return match;
       if (!trade && !(match.match(/\d+(?:\.\d+)?/g) || []).some(function(n) { return known.indexOf(n) >= 0; })) return match;

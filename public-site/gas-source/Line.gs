@@ -1835,7 +1835,9 @@ function lineQueueSms_(a, revised) {
   }
   var ver = typeof deliveryVersion_ === 'function' ? deliveryVersion_(a.text) : '';
   var id = 'sms|' + a.id + (revised ? '|rev|' + ver : '');
-  var posted = lineParseTaipei_(a.time) || Date.now();
+  /* 修訂通知的時效從「偵測到修訂」起算。文章只有建立時間、沒有修改時間；照發文時間算的話，
+     發文一小時後才補上的第二段一進來就過期：2026/10/05 09:41 的文章在 12:30 補上「買進達邁」，Email 有寄、LINE 沒送。 */
+  var posted = revised ? Date.now() : (lineParseTaipei_(a.time) || Date.now());
   var expires = posted + LINE_SMS_WINDOW_MIN_ * 60000;
   var late = Date.now() > expires;
   var q = lineQueue_({ id: id, kind: 'sms', date: fmtDate_(String(a.time || '').slice(0, 10)) || todayStr_(), version: ver,

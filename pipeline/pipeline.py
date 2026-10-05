@@ -13462,7 +13462,10 @@ def public_sms_note(text, row=None):
         trade = bool(re.search(r'買進|買入|買回|賣出|賣掉|出清|加碼|減碼|成本|成交|平盤', sentence))
         def remove_price(match):
             before = sentence[max(0, match.start()-12):match.start()]
-            if re.search(r'EPS|每股盈餘|股利|配息|除息|除權|權利金', before, re.I):
+            # 同一個子句前面講的是 EPS／配息，後面一串數字都是它的數字：「EPS從3.5元、5元、6元提升至10元、11元」
+            # 只看前 12 個字的話，後兩個會被當成交易價挖掉（10/05 實測，整則說明因此被退回）。
+            clause = re.split(r'[，；。]', sentence[:match.start()])[-1]
+            if re.search(r'EPS|每股盈餘|股利|配息|除息|除權|權利金', before + clause, re.I):
                 return match.group(0)
             # 賺賠與漲跌的幅度不是交易價（10/05 聖暉「賺取6、70塊的持股賣出」被挖成「賺取6、的持股賣出」）。
             if _GAIN_BEFORE.search(before):

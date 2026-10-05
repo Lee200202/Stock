@@ -140,7 +140,9 @@ if _fb.lower() in ("none", "off", "false", "0", "-"):
 else:
     GEMINI_FALLBACK_MODELS = [m.strip() for m in _fb.split(",") if m.strip()]
 GEMINI_FALLBACK_MODEL = GEMINI_FALLBACK_MODELS[0] if GEMINI_FALLBACK_MODELS else ""
-SEGMENT_MINUTES = int(os.environ.get("SEGMENT_MINUTES", "30"))
+# 2026/10/05 全片實抓：15 分鐘補回 30 分鐘漏掉的跨段條件，且耗時較短。
+# 仍循序取稿，避免同時送多段加重限流；環境變數可回退或另做比較。
+SEGMENT_MINUTES = int(os.environ.get("SEGMENT_MINUTES", "15"))
 # 0 = 不指定 fps（API 預設每秒一張畫面）。實測 fps=0.2 雖然省 token，
 # 但部分片段會一直回 400，所以預設不帶。
 VIDEO_FPS = float(os.environ.get("VIDEO_FPS", "0"))
@@ -1033,7 +1035,7 @@ class Transcriber:
     def transcribe(self, video_url: str, duration_sec: int, cache=None) -> str:
         """把整支影片聽打成逐字稿。
 
-        cache：跨次重試共用的「已完成片段」。一集切成 2～3 段，如果第 1 段成功、
+        cache：跨次重試共用的「已完成片段」。以 15 分鐘切段，如果第 1 段成功、
         第 2 段遇到模型壅塞，沒有快取的話下一輪會把第 1 段整個重做——那既浪費
         額度，也讓每一輪都更容易再撞上壅塞。有了它，重試只補還沒完成的那幾段。
         """
@@ -1120,8 +1122,8 @@ class Transcriber:
         """送出一段影片並等結果，回傳 (逐字稿, 是否完整)。
 
         失敗處理，依「這個失敗是誰造成的」分流：
-          模型負載過高　→ 本輪換下一把，不標壞；所有可用金鑰都試過才退避。
-                          三輪仍過載才 ModelOverloaded，交給備援模型。
+          模型負載過高　→ 本輪換下一把，不標壞；全部過載且有備援時立即換模型。
+                          最後模型維持有限退避，仍過載交由下一輪接續。
           額度用完　　　→ 429／每日額度 → 標記這把金鑰在這個模型用完，換下一把；
                           全部用完就 QuotaExhausted，由上層換模型。
           其他可重試　　→ 400、逾時、連線錯誤 → 換下一把金鑰重送

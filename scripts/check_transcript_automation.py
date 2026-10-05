@@ -86,6 +86,21 @@ class Checks(unittest.TestCase):
     def test_default_channel_is_classic(self):
         self.assertTrue(t._CHANNEL["classic"])
 
+    def test_four_segments_resume_only_unfinished_ranges(self):
+        tr = self.transcriber()
+        tr.segment_seconds = 900
+        cache = {}
+        tr._range = Mock(side_effect=["第一段", "第二段", t.NotReadyYet("暫時過載")])
+        with self.assertRaises(t.NotReadyYet):
+            tr.transcribe(URL, 3406, cache=cache)
+        self.assertEqual(cache, {(0, 900): "第一段", (900, 1800): "第二段"})
+        tr._range = Mock(side_effect=["第三段", "第四段"])
+        self.assertEqual(tr.transcribe(URL, 3406, cache=cache),
+                         "第一段\n\n第二段\n\n第三段\n\n第四段")
+        self.assertEqual([call.args for call in tr._range.call_args_list],
+                         [(URL, 1800, 2700), (URL, 2700, 3406)])
+        self.assertEqual(len(cache), 4)
+
     def test_default_request_skips_interactions(self):
         tr = self.transcriber()
         tr._run_classic = Mock(return_value="ok")

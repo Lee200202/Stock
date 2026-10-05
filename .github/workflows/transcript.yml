@@ -77,7 +77,7 @@ on:
       segment_minutes:
         description: '完整驗收的片段長度；auto 不使用此輸入'
         required: false
-        default: '30'
+        default: '15'
         type: choice
         options: ['15', '30']
 
@@ -173,7 +173,7 @@ jobs:
           TARGET_DATE: ${{ inputs.date }}
           FORCE: ${{ inputs.force }}
           ONCE: ${{ inputs.once }}
-          VERIFY_SEGMENT_MINUTES: ${{ inputs.segment_minutes || '30' }}
+          VERIFY_SEGMENT_MINUTES: ${{ inputs.segment_minutes || '15' }}
         run: |
           # 注意：GitHub 的 run: 預設是 bash -e。
           # 「[ 條件 ] && 指令」在條件不成立時整句回 1，會讓整個步驟當場結束

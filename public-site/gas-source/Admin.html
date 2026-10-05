@@ -4683,7 +4683,7 @@ var mergeTxFingerprint='';
     var quoteSource = (qj.errors || []).length ? (qh.trading ? '來源問題 ' : '上次來源問題 ') + qj.errors.length + ' 項：' + String(qj.errors[0]).replace(/https?:\/\/\S+/g, '').slice(0, 40) + '。' : '';
     var quoteTitle = !qh ? '尚無更新紀錄' : !qh.trading ? '休市，保留 ' + qh.total + ' 檔報價' : qh.fresh + '／' + quoteEligible + ' 檔報價已核對';
     var quoteDetail = !qh ? '尚無紀錄。' : !qh.trading ?
-      '休市不執行五分鐘更新；近五分鐘更新 ' + qh.fresh + ' 檔、缺報價 ' + quoteMissing + ' 檔。上次排程 ' + (qj.at || '尚無') + '；上次更新 ' + (qj.updated || 0) + '／' + (qj.requested || 0) + ' 檔。' + quoteSource :
+      '休市不更新；近五分鐘更新 ' + qh.fresh + ' 檔、缺報價 ' + quoteMissing + ' 檔。上次排程 ' + (qj.at || '尚無') + '；上次更新 ' + (qj.updated || 0) + '／' + (qj.requested || 0) + ' 檔。' + quoteSource :
       '舊資料 ' + qh.old + ' 檔；缺報價 ' + quoteMissing + ' 檔。最近排程 ' + (qj.at || '尚無') + '；本輪更新 ' + (qj.updated || 0) + '／' + (qj.requested || 0) + ' 檔。' +
       (qj.writePending ? '資料正在寫入，尚未完成。' : '') + quoteSource + (qj.configured === false ? '富果單檔備援尚未設定金鑰。' : '');
     var dailyTitle = o.noShow ? '今日無直播' : daily.accepted ? '已交郵件服務' : /已寄/.test(o.mailStatus || '') ? '帳本待核對' : o.mailStatus || '尚未寄送';
@@ -4699,7 +4699,7 @@ var mergeTxFingerprint='';
     var rtTitle = rt && rt.recorded ? '約 ' + rt.minutes + ' 分' : '尚無紀錄';
     var rtDetail = rt && rt.recorded ? rt.handlers.slice(0, 3).map(function (h) { return h.name + ' ' + h.min + ' 分（' + h.runs + ' 次）'; }).join('；') +
       '。' + ((rt.handlers[0] && rt.handlers[0].stages && rt.handlers[0].stages.length) ? '主排程最耗時：' + rt.handlers[0].stages.map(function(s){return s.name+' '+s.min+' 分';}).join('、') + '。' : '') +
-      '參考上限：個人帳號 90 分。' : '觸發器結束時累加。';
+      '參考上限：個人帳號 90 分。' + (rt.minutes >= 45 ? '已啟用節流：行情約十分鐘、簡訊至少兩分鐘。' : '') : '觸發器結束時累加。';
     var rtTone = !(rt && rt.recorded) ? 'idle' : rt.minutes > 90 ? 'warn' : 'ok';
     var smsTitle = smsMail.accepted ? '已交郵件服務' : o.smsCount ? '有簡訊，待核寄送' : '今天尚無新簡訊';
     $('opsStatus').textContent = (alerts.length ? '需留意：' + alerts.join('；') : '目前沒有偵測到流程異常。') + '　最後檢查：' + r.today + ' ' + r.now + '（台北時間）';
@@ -4720,7 +4720,7 @@ var mergeTxFingerprint='';
       card('觸發器今日累計', rtTitle, rtDetail, rtTone) +
       (closed && !(o.blankExits || []).length ? card('日 K 與出場價', '休市', closedTxt + '；上次完成 ' + (o.dailyK && o.dailyK.finishedAt || '尚無') + '。', 'closed') :
       card('日 K 與出場價', (o.blankExits || []).length ? (o.blankExits.length + ' 檔待補價') : dkToday ? '今日補齊完成' : '等待今日補齊', (o.blankExits || []).length ? o.blankExits.slice(0, 3).join('、') : o.dailyK ? (o.dailyK.finishedAt || '目前代號：' + (o.dailyK.lastCode || '起點')) : '16:45 開始，完整一輪後重算持股。', (o.blankExits || []).length ? 'err' : dkToday ? 'ok' : 'idle')) +
-      card('個股五分鐘報價', quoteTitle, quoteDetail,
+      card('個股報價', quoteTitle, quoteDetail,
         o.quoteHealth && o.quoteHealth.trading ? (!o.quoteHealth.fresh ? 'err' : o.quoteHealth.old || o.quoteHealth.job.partial || o.quoteHealth.job.writePending || (o.quoteHealth.job.errors || []).length ? 'warn' : 'ok') : 'idle') +
       card('歷史 60 分 K／績效', hourError ? '分 K 待補，需核對來源' : hourSource404 ? '單檔來源 404，待整輪摘要' : o.hourlyScheduled ? '排程已安裝' : '分 K 排程缺少', '19:15 歷史分 K；績效最後一筆 ' + (o.perfLast || '尚無') + '。' + (o.hourlyProgress ? '最近進度：' + o.hourlyProgress + '。' : '尚無分 K 進度紀錄。') + (hourSource404 ? '這是單檔來源回應，既有資料保留；下個交易日核對整輪待補數。' : '') + (o.hourlyScheduled ? '' : '部署後執行 installMarketDataJobs()。'), hourError || hourSource404 || !o.hourlyScheduled ? 'warn' : 'idle');
     $('opsFlow').innerHTML =

@@ -1200,7 +1200,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-10-05-admin-sms-raw-v119';
+var PROJECT_BUILD_ = '2026-10-05-admin-sms-layout-v120';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
@@ -1237,7 +1237,7 @@ var PROJECT_HTML_ = [
   { file: 'Stylesheet', marker: 'v109 全站零星動態' },
   { file: 'Changelog', marker: 'v115 後台版面對齊' },
   { file: 'Tech', marker: 'tlPlay' },
-  { file: 'Admin', marker: 'sms-original-text' },
+  { file: 'Admin', marker: 'v120：今日簡訊依閱讀順序分段' },
   { file: 'Settings', marker: '手機預覽' },
   { file: 'Unsubscribed', marker: '若一直失敗，直接回覆通知信' }
 ];

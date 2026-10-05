@@ -9,7 +9,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
-ROOT = Path(__file__).resolve().parents[1]; OUT = ''; WIDTHS = [int(x) for x in (sys.argv[1] if len(sys.argv) > 1 else '1440,1280,768,390').split(',')]
+ROOT = Path(__file__).resolve().parents[1]; OUT = os.getenv('ADMIN_AUDIT_OUT', ''); WIDTHS = [int(x) for x in (sys.argv[1] if len(sys.argv) > 1 else '1440,1280,768,390').split(',')]
 API = 'https://admin-check.example.workers.dev/api'
 site = Path(tempfile.mkdtemp(prefix='admin-audit-'))
 subprocess.run([sys.executable, str(ROOT / 'scripts' / 'build_original_site.py'), '--output', str(site)], check=True,
@@ -90,6 +90,15 @@ with sync_playwright() as p:
                 raw = pg.locator('.sms-original-text').inner_text()
                 assert '955元以上' in raw and '880元以下' in raw and '\n' in raw
                 assert pg.locator('#todaySmsCount').inner_text() == '1 則原文 · 1 筆操作'
+                assert pg.locator('#todaySmsOps .sms-stage h3').all_inner_texts() == ['逐字原文', '已寫入操作']
+                assert pg.locator('#todaySmsOps .sms-original-head').inner_text().startswith('文章 185117227')
+                assert pg.locator('#todaySmsOps .sms-stage').count() == 2
+                if w in (1440, 390):
+                    pg.evaluate("document.documentElement.dataset.theme='dark'; document.documentElement.style.setProperty('--rd-fs','1.5')")
+                    for row in pg.evaluate(AUDIT):
+                        found.append((w, 'post-dark-150', *row)); print('FOUND', w, 'post-dark-150', *row)
+                    if OUT: pg.screenshot(path=f'{OUT}/audit-post-dark-150-{w}.png', full_page=True)
+                    pg.evaluate("document.documentElement.dataset.theme='light'; document.documentElement.style.removeProperty('--rd-fs')")
             for row in pg.evaluate(AUDIT):
                 found.append((w, tab, *row)); print('FOUND', w, tab, *row)
             if tab in ('smsadmin', 'line', 'post', 'manual') and OUT:

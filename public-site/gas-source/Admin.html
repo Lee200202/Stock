@@ -1043,6 +1043,18 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
 .sms-original-head{display:flex;gap:8px 16px;align-items:center;flex-wrap:wrap;margin-bottom:10px}.sms-original-head b{font-size:15px}.sms-original-head time,.sms-original-head span{color:var(--muted);font-size:13px}
 .sms-original-text{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.8;font-size:16px}.sms-section-label{margin:16px 0 10px;font-weight:700}
 @media(max-width:600px){.sms-operation time{width:auto;margin-left:auto}}
+/* v120：今日簡訊依閱讀順序分段；原文與寫入結果各有清楚邊界。 */
+.sms-stage+.sms-stage{margin-top:24px;padding-top:24px;border-top:1px solid var(--rule)}
+.sms-stage-head{display:flex;align-items:baseline;gap:12px;margin:18px 0 12px}
+.sms-stage-head h3{margin:0;font-size:calc(18px * var(--rd-fs));line-height:1.45}
+.sms-stage-head::before{content:attr(data-step);color:var(--beam);font:600 calc(13px * var(--rd-fs))/1 "IBM Plex Mono",monospace}
+.sms-stage .sms-original-list{margin:0}.sms-stage .sms-operation-list{margin:0}
+.sms-original{padding:clamp(18px,2vw,26px);background:var(--panel-2)}
+.sms-original-head{gap:6px 18px;margin-bottom:14px}.sms-original-head b{font-size:calc(14px * var(--rd-fs));color:var(--ink)}
+.sms-original-head time{margin-left:auto;font-variant-numeric:tabular-nums}
+.sms-original-text{max-width:82ch;font-size:calc(17px * var(--rd-fs));line-height:1.85}
+.sms-original.is-error{border-color:var(--warn,#b87918)}
+@media(max-width:600px){.sms-count{width:100%;margin-left:0}.sms-original-head time{width:100%;margin-left:0}.sms-original-text{font-size:calc(16px * var(--rd-fs))}}
 /* ====== v101 後台樣式層 ====== */
 /* 2026/10/02 管理者：橢圓形、寬鬆、按鈕大顆直觀。與前台 Stylesheet 的「v101 樣式層」同一組設計變數。
    取代 v67 的「主要按鈕 12px、次要外框 10px」：後台按鈕一律膠囊，主要動作品牌綠、次要白底外框、危險紅框。 */
@@ -4561,7 +4573,7 @@ var mergeTxFingerprint='';
       // 原文逐字呈現；下方的買賣仍只列已寫入操作紀錄，不把待解析原文當成交。
       $('todaySmsCount').textContent = originals.length + ' 則原文 · ' + smsRows.length + ' 筆操作';
       var rawHtml = originals.length ? '<div class="sms-original-list">'+originals.map(function(x){
-        return '<article class="sms-original"><div class="sms-original-head"><b>原始內容（完整，未改寫）</b><time>'+esc(x.time||'時間待核對')+'</time><span>文章 '+esc(x.id||'待核對')+'</span></div>'+
+        return '<article class="sms-original'+(x.error?' is-error':'')+'"><div class="sms-original-head"><b>文章 '+esc(x.id||'待核對')+'</b><time>'+esc(x.time||'時間待核對')+'</time></div>'+
           '<p class="sms-original-text">'+esc(x.text||x.error||'這則原文尚無文字內容。')+'</p></article>';
       }).join('')+'</div>' : '<p class="hint">今天尚無會員簡訊原文。</p>';
       var operationHtml = smsRows.length ? '<div class="sms-operation-list">'+smsRows.map(function(x){
@@ -4569,7 +4581,8 @@ var mergeTxFingerprint='';
         return '<article class="sms-operation sms-'+tone+'"><header><span class="sms-direction">'+esc(x.direction||'持有')+'</span><b>'+esc(x.name||'待確認')+'</b><span class="sms-code">'+esc(x.code)+'</span><time>'+esc(x.time||'時間待核對')+'</time></header>'+
           (/^(買|賣)/.test(x.direction)?'<p class="sms-price">價位 '+esc(x.price||'未說明')+'</p>':'')+'<p class="sms-detail">'+esc(x.detail||'尚無說明')+'</p></article>';
       }).join('')+'</div>' : '<p class="hint">今天尚無已寫入的簡訊個股。</p>';
-      $('todaySmsOps').innerHTML = rawHtml + '<p class="sms-section-label">已寫入操作</p>' + operationHtml;
+      $('todaySmsOps').innerHTML = '<section class="sms-stage" data-step="01" aria-labelledby="smsRawHeading"><div class="sms-stage-head"><h3 id="smsRawHeading">逐字原文</h3></div>'+rawHtml+'</section>'+
+        '<section class="sms-stage" data-step="02" aria-labelledby="smsWrittenHeading"><div class="sms-stage-head"><h3 id="smsWrittenHeading">已寫入操作</h3></div>'+operationHtml+'</section>';
       $('todayHealth').innerHTML = (r.items || []).map(function (it) {
         return '<div class="hitem t-' + esc(it.tone) + '" title="' + esc(it.hint || '') + '" tabindex="0">' +
           '<span class="hk">' + esc(it.label) + '<i>' + (TONE_LABEL[it.tone] || '') + '</i></span>' +

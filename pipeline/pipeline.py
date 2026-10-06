@@ -3425,9 +3425,16 @@ _SPEAKER_SUBJECT = re.compile(
     r"(?:張震|張正|張總|張中|講者)(?:老師)?(?:本人)?(?:的(?=會員))?")
 
 
+# 只寫「老師」當主詞的句子（2026/10/06 重播：「老師明確表示不建議買進」「老師昨日亦有低接佈局」）。
+# 只在子句開頭、後面接動作時拿掉；「會員與老師」「當分析師」這種不動。
+_TEACHER_SUBJECT = re.compile(
+    r"(^|[，,。；;：:、\s]|雖然|但是|但|而且|而|並且|並|且|因為|所以)老師"
+    r"(?=強調|認為|建議|指出|表示|提醒|判斷|明確|自稱|特別|持續|已|亦|昨日|今日|直言|看好|選擇|並|也|則|以)")
+
+
 def strip_speaker_names(text: str) -> str:
     """拿掉當主詞的講者姓名：「張正指出國巨…」→「指出國巨…」。"""
-    return _SPEAKER_SUBJECT.sub(lambda m: m.group(1), str(text or ""))
+    return _TEACHER_SUBJECT.sub(lambda m: m.group(1), _SPEAKER_SUBJECT.sub(lambda m: m.group(1), str(text or "")))
 
 
 def clean_meta_reason(text: str) -> str:
@@ -5847,9 +5854,11 @@ def settle_trade_time(row, quotes, transcript, hay, date_str, names, cat):
     if not hit and when in (None, '', 'today', 'unknown'):
         verb = _TRADE_VERB.get(cat)
         names = [n for n in dict.fromkeys(_ev_norm(x) for x in names if x) if len(n) >= 2]
-        for s in _plain_sentences(transcript):
-            if (verb and any(n in _ev_norm(s) for n in names) and not _TRADE_ASK.search(s)
-                    and _said_today(s, verb)):
+        candidates = explicit_today_trades(transcript, names, cat) + [
+            s for s in _plain_sentences(transcript)
+            if verb and any(n in _ev_norm(s) for n in names) and not _TRADE_ASK.search(s) and _said_today(s, verb)]
+        for s in candidates:
+            if s:
                 hit = s
                 row['when'] = 'today'
                 quotes.append(s)
@@ -5860,6 +5869,85 @@ def settle_trade_time(row, quotes, transcript, hay, date_str, names, cat):
     elif quotes and when in ('today', 'yesterday', 'prev_trading_day'):
         row['_time_from_context'] = True
         row['_review_note'] = '日期依上下文判讀，未附獨立時間短句'
+
+
+def explicit_today_trades(transcript, names, cat):
+    """原文裡明講「今天已經做了」這一檔買賣的句子。只認動作貼著股名、或明講通知會員的說法。
+
+    賣出：「今天早上賣聖輝」「你早上賣鴻海」「所以鴻海沒了，賣掉了」「賣出的鴻海」
+          「今天早上9.04分，我告訴我的會員…鴻海…獲利賣出…全部的會員都通知」
+    不算：「今天力積電要不要賣」（問句）、「我昨天賣聖輝」（昨天）、
+          「今天早上有會員問我，我台達電是建議先賣出，等拉回再來買」（個別建議，不是已經賣掉）。
+    """
+    names = sorted({n for n in (_ev_norm(x) for x in names if x) if len(n) >= 2}, key=len, reverse=True)
+    if not names:
+        return []
+    nm = '(?:' + '|'.join(re.escape(n) for n in names) + ')'
+    day = r'(?:今天|今日|早上|早盤)'
+    if cat == 'sell':
+        pats = [day + r'[^。！？!?]{0,14}賣(?:出|掉)?(?:的)?' + nm,
+                nm + r'[^。！？!?，,]{0,6}(?:沒了[，,]?賣掉了|賣掉了|賣了)',
+                r'賣出的' + nm,
+                nm + r'[^。！？!?]{0,14}' + day + r'賣(?:出|掉|了|哦|喔)']
+        notice = re.compile(day + r'[^。！？!?]*(?:通知|告訴)[^。！？!?]*會員[^。！？!?]*' + nm + r'[^。！？!?]*(?:賣出|賣掉|獲利了結)')
+    else:
+        pats = [day + r'[^。！？!?，,]{0,8}(?:新)?買(?:進|了)?(?:的)?[，,]?' + nm]
+        notice = re.compile(day + r'[^。！？!?]*(?:通知|告訴)[^。！？!?]*會員[^。！？!?]*買進[^。！？!?]{0,12}' + nm)
+    pats = [re.compile(p) for p in pats]
+    hits = []
+    for s in _plain_sentences(transcript):
+        if _TRADE_ASK.search(s) or not any(n in s for n in names):
+            continue
+        m = notice.search(s) or next((p.search(s) for p in pats if p.search(s)), None)
+        if not m:
+            continue
+        before = s[:m.end()]
+        other = [x.end() for x in _TRADE_NOT_TODAY.finditer(before)]
+        today = [x.end() for x in _TRADE_TODAY.finditer(before)]
+        if other and (not today or other[-1] > today[-1]) and not notice.search(s):
+            continue
+        hits.append(s)
+    return list(dict.fromkeys(hits))
+
+
+def enforce_explicit_trades(signals, transcript):
+    """原文明講今天賣掉（或買進）的那一檔，不能留在會員持股、觀望、回顧或排除。
+
+    2026/10/06 同一份逐字稿跑三次，鴻海分別是：賣出（之後被當成回顧丟掉）、賣出、買入再被覆核改成會員持股。
+    講者那天講了六次「早上賣鴻海」。賣出要兩句以上、或一句明講通知會員才改類；買進只在兩句以上時改。
+    """
+    for want in ('sell', 'buy'):
+        seen = set()
+        for cat in SIGNAL_CATEGORIES + ('history', 'uncertain', 'ignored'):
+            for row in list(signals.get(cat, []) or []):
+                if not isinstance(row, dict) or cat == want:
+                    continue
+                ns = _signal_names(row) | {str(row.get('name') or '')}
+                key = frozenset(ns)
+                if not ns or key in seen:
+                    continue
+                hits = explicit_today_trades(transcript, ns, want)
+                strong = len(hits) >= 2 or (want == 'sell' and any('會員' in h and re.search(r'通知|告訴', h) for h in hits))
+                if not strong:
+                    continue
+                if any(isinstance(r, dict) and (_signal_names(r) & ns) for r in signals.get(want, []) or []):
+                    continue                                   # 已經有一筆在對的分類
+                seen.add(key)
+                for c in SIGNAL_CATEGORIES + ('history', 'uncertain', 'ignored'):
+                    if c != want:
+                        signals[c] = [r for r in signals.get(c, []) or [] if not (isinstance(r, dict) and _signal_names(r) & ns)]
+                moved = dict(row, when='today', time_evidence=hits[0])
+                moved['evidence'] = list(dict.fromkeys([q for q in (row.get('evidence') or []) if isinstance(q, str)] + hits[:3]))
+                if not re.search(r'賣' if want == 'sell' else r'買', str(moved.get('reason') or '')):
+                    moved['reason'] = hits[0]
+                moved['_原分類'] = cat
+                moved['_review_note'] = '原文明講今天已經' + ('賣出' if want == 'sell' else '買進') + '，依原句改列'
+                signals.setdefault(want, []).append(moved)
+                signals['_quality_requires_review'] = True
+                label = {'sell': '賣出', 'buy': '買入'}[want]
+                print(f"  當日成交核對　{row.get('name')}：原文明講今天{label}（{len(hits)} 句），由「{cat}」改列{label}：{hits[0][:50]}")
+                note_decision('當日成交核對', '依原句改列' + label, str(row.get('name') or ''), hits[0][:80])
+    return signals
 
 
 def _signal_names(row):
@@ -5880,12 +5968,15 @@ def keep_first_pass_rows(first, reviewed, transcript):
         for r in reviewed.get(cat, []) or []:
             if isinstance(r, dict):
                 placed |= _signal_names(r)
-    for cat in ('holdings', 'watch_avoid', 'watch_watch'):
+    for cat in ('sell', 'buy', 'holdings', 'watch_avoid', 'watch_watch'):
         for r in first.get(cat, []) or []:
             if not isinstance(r, dict):
                 continue
             ns = _signal_names(r)
             if not ns or ns & placed or not any(n in official or n in CONFIRMED_NAMES for n in ns):
+                continue
+            # 買賣只在原文明講今天做了的時候救回；其餘可能是覆核把別天的成交拿掉，那是對的。
+            if cat in ('sell', 'buy') and not explicit_today_trades(transcript, ns, cat):
                 continue
             quotes = [q for q in (r.get('evidence') or []) if isinstance(q, str) and _quote_is_real(q, hay)]
             said = _ev_norm(''.join(quotes))
@@ -5897,7 +5988,10 @@ def keep_first_pass_rows(first, reviewed, transcript):
             row['_review_note'] = '覆核移除，但初稿有逐字原句依據，保留初稿分類'
             reviewed.setdefault(cat, []).append(row)
             placed |= ns
-            print(f"  覆核移除核對　{r.get('name')}：初稿列{WATCH_BIAS_LABEL.get(cat, '會員持股')}且有原句，覆核後不見，放回初稿分類")
+            for c in ('uncertain',):
+                reviewed[c] = [x for x in reviewed.get(c, []) or [] if not (isinstance(x, dict) and _signal_names(x) & ns)]
+            _lab = {'sell': '賣出', 'buy': '買入', 'holdings': '會員持股'}.get(cat) or WATCH_BIAS_LABEL.get(cat, cat)
+            print(f"  覆核移除核對　{r.get('name')}：初稿列{_lab}且有原句，覆核後不見，放回初稿分類")
             note_decision('覆核移除核對', '保留初稿分類', str(r.get('name') or ''), quotes[0][:80])
     return reviewed
 
@@ -5909,6 +6003,29 @@ _LEFT_LEAD = r'^(?:啊|那|好|來|所以|可是|然後|還有|而且|像|叫做
 # 「之前跟你們講漢唐跌破1000可以買」是轉述以前的話；「華通昨天大漲了不用追了」的昨天只是在講行情，不算。
 _LEFT_PAST = re.compile(r'之前|以前|當時|那時')
 _LEFT_NOW = re.compile(r'現在|今天|目前')
+
+
+def plain_current_stance(heard, transcript, weak=False):
+    """這個名字在原文裡有沒有直白的當下說法。回傳 (分類, 原句) 或 None；從後面的句子找起。"""
+    own_buy = re.compile(r'買' + re.escape(heard) + r'幹(?:什麼|嘛)|幹(?:什麼|嘛)(?:要)?(?:去)?買' + re.escape(heard)
+                         + r'|(?:沒有買|不買|不會買|不敢買|不推薦|不建議)' + re.escape(heard))
+    for s in reversed([x for x in _plain_sentences(transcript) if heard in x]):
+        clauses = [c for c in re.split(r'[，,；;]', s) if c]
+        at = [i for i, c in enumerate(clauses) if heard in c]
+        if weak:
+            at = [i for i in at if re.match(_LEFT_LEAD + re.escape(heard), clauses[i])]
+        if not at:
+            continue
+
+        def near(lo, hi):
+            return '，'.join(c for i in at for c in clauses[max(0, i + lo):i + hi + 1])
+        if _LEFT_PAST.search(near(-1, 1)) and not _LEFT_NOW.search(near(-1, 1)):
+            continue
+        if re.search(_LEFT_AVOID, near(0, 1)) or own_buy.search(s):
+            return ('watch_avoid', s)
+        if re.search(_LEFT_WATCH, near(-1, 1)):
+            return ('watch_watch', s)
+    return None
 
 
 def classify_inventory_leftovers(signals, transcript):
@@ -5931,31 +6048,13 @@ def classify_inventory_leftovers(signals, transcript):
         official = _display_name(item.get('official_name') or '')
         if code in placed_codes or code in added or {heard, official} & placed_names:
             continue
-        own_buy = re.compile(r'買' + re.escape(heard) + r'幹(?:什麼|嘛)')
-        pick = None
-        for s in reversed([x for x in sentences if heard in x]):      # 後面的說法是當下的結論
-            clauses = [c for c in re.split(r'[，,；;]', s) if c]
-            at = [i for i, c in enumerate(clauses) if heard in c]
-            if item.get('weak'):
-                # 兩個字的簡稱常是日常用語（大量、全國、世界）：要整個子句是從它講起的才算在講這一檔。
-                at = [i for i in at if re.match(_LEFT_LEAD + re.escape(heard), clauses[i])]
-            if not at:
-                continue
-            def near(lo, hi):
-                return '，'.join(c for i in at for c in clauses[max(0, i + lo):i + hi + 1])
-            if _LEFT_PAST.search(near(-1, 1)) and not _LEFT_NOW.search(near(-1, 1)):
-                continue
-            if re.search(_LEFT_AVOID, near(0, 1)) or own_buy.search(s):
-                pick = ('watch_avoid', s)
-            elif re.search(_LEFT_WATCH, near(-1, 1)):
-                pick = ('watch_watch', s)
-            if pick:
-                break
+        pick = plain_current_stance(heard, transcript, weak=bool(item.get('weak')))
         if not pick:
             continue
         cat, quote = pick
-        signals['ignored'] = [x for x in signals.get('ignored', []) or []
-                              if not (isinstance(x, dict) and _signal_names(x) & {heard, official})]
+        for c in ('ignored', 'uncertain'):
+            signals[c] = [x for x in signals.get(c, []) or []
+                          if not (isinstance(x, dict) and _signal_names(x) & {heard, official})]
         signals.setdefault(cat, []).append({
             'name': heard, 'code': code, 'price': '未說明', 'reason': quote, 'evidence': [quote],
             'view': quote, 'watch_bias': cat, '_review_note': '模型沒有交代這一檔，依原句的直白說法補列'})
@@ -6347,7 +6446,7 @@ CONFIRMED_NAMES = {'普威': ('4966', '譜瑞-KY'), '普位': ('4966', '譜瑞-K
     # 程成（工程成本）、情神、行神不列，公開說明的名稱替換會改壞別的句子；聽打詞表已改為帶入當天股名。
     '情晨': ('8210','勤誠'), '偉穎': ('6669','緯穎'), '星KY': ('3661','世芯-KY'),
     # 2026/10/06：「我建議你們買這一檔，叫做四新科…我們持有四新科」＝事欣科；同一集的「四新KY」＝世芯-KY。
-    '四新科': ('4916','事欣科'), '四新KY': ('3661','世芯-KY'),
+    '四新科': ('4916','事欣科'), '四新KY': ('3661','世芯-KY'), '連發科': ('2454','聯發科'),
     '立旺': ('3529','力旺'), '紅柱恩': ('2354','鴻準'), '創億': ('3443','創意'), '致源': ('3035','智原'),
     '隱身版光通訊': ('2402','毅嘉'), '隱藏版光通訊': ('2402','毅嘉'), '隱藏版光訊': ('2402','毅嘉'),
     '意嘉': ('2402','毅嘉'), '億嘉': ('2402','毅嘉'), '益嘉': ('2402','毅嘉'), '義嘉': ('2402','毅嘉'), '易嘉': ('2402','毅嘉'),
@@ -7517,6 +7616,10 @@ def _past_recommendation_only(row, signals, transcript):
     # 多檔共用「不要碰」不能在其他公司名處切句後遺失。
     if _named_current_prohibition(row, transcript):
         return False
+    # 講者現在明講不要買的不是回顧：2026/10/06 聯電有「159 以上要賣」的舊提醒，也有今天的
+    # 「你現在去買聯電幹什麼」「那聯電告訴我們不要買」，整列卻被當成純回顧收掉。
+    if any(plain_current_stance(n, transcript) for n in names if len(n) >= 2):
+        return False
     hay = _ev_norm(transcript)
     # 名稱窗口用去掉「*」「-KY」的寫法找（原文不會講「愛普*」）。
     probe = dict(row, aliases=list(row.get('aliases') or []) + sorted(names))
@@ -8335,6 +8438,17 @@ def strip_unsupported_event_context(signals, transcript):
     return signals
 
 
+def _adds_new_content(sentence, existing) -> bool:
+    """這一句是不是在已有的說明之外多講了東西：六成以上的雙字組都已經在原說明裡，就當成換句話再講一次。"""
+    s, e = _ev_norm(sentence), _ev_norm(existing)
+    if len(s) < 6 or not e:
+        return bool(s)
+    if any(n not in e for n in re.findall(r'\d+(?:\.\d+)?', s)):
+        return True                      # 帶著原說明沒有的數字，是新資訊
+    grams = [s[i:i + 2] for i in range(len(s) - 1)]
+    return sum(g in e for g in grams) / len(grams) < 0.6
+
+
 def enrich_stock_context(signals, transcript, date_str):
     """短說明在分類完成後合併補問一次；逐句驗引用，失敗保留原文、不擋通知。"""
     entries, targets = [], {}
@@ -8430,7 +8544,10 @@ def enrich_stock_context(signals, transcript, date_str):
         old = str(row.get(field) or '')
         valid = bool(texts) and dropped * 2 <= len(claims)
         # 第一句是結論。它沒過時保留原本已驗證的說明當開頭，後面接通過的補充句。
-        note = public_narrative(('' if first_ok else old) + ''.join(texts), row, signals)
+        # 接上去的只收真的有新內容的句子：2026/10/06 嘉澤、世芯-KY、國巨、聯發科的說明都是同一段話講兩遍
+        # （「…融資減少籌碼沉澱…逢低可持續留意佈局。嘉澤昨日獲得ETF低檔佈局買回，融資減少代表籌碼安定…」）。
+        note = public_narrative(''.join(texts) if first_ok
+                                else old + ''.join(t for t in texts if _adds_new_content(t, old)), row, signals)
         # 不接受改寫把原來的明確禁買變成可布局，或把買點改成全面禁止。
         if active_prohibit(old) and not _note_keeps_prohibition(note):
             valid = False
@@ -8440,7 +8557,7 @@ def enrich_stock_context(signals, transcript, date_str):
             # 已驗證的新句較短時仍可補上不同資訊，不用字數把整份補充丟掉。
             # 明確禁止仍須先通過上面的方向檢查，不能靠拼回舊句掩蓋改類。
             old_parts = [p.strip() for p in re.split(r'[。；;]', old) if p.strip()]
-            additions = [t for t in texts if not any(
+            additions = [t for t in texts if _adds_new_content(t, old) and not any(
                 _ev_norm(t) in _ev_norm(p) or difflib.SequenceMatcher(None, _ev_norm(t), _ev_norm(p)).ratio() >= .82
                 for p in old_parts) and sum(b.size for b in difflib.SequenceMatcher(None, _ev_norm(t), _ev_norm(old)).get_matching_blocks())
                 / max(1,len(_ev_norm(t))) < .8]
@@ -9259,7 +9376,35 @@ def price_reality_check(ss, signals: dict, date_str: str) -> dict:
                 row['price'] = '未說明'
                 note_decision('價位校對','價位超出快取區間，未補猜',row.get('name',''),value)
                 print(f'  價位校對 {row.get("name", code)}：{value} 超出 {low}-{high}，價位未說明；分類維持原文判定')
+    # 說明裡跟著買賣動詞的價位，也要像是這一檔的價位。
+    # 2026/10/06 重播：世芯-KY（四千元上下）的說明寫成「昨日在860至870元左右買進」，那是前一句在講的勤誠。
+    for cat in SIGNAL_CATEGORIES:
+        for row in signals.get(cat, []):
+            band = _price_band(kmap, str(row.get('code') or ''), date_str)
+            if not band or not row.get('reason'):
+                continue
+            high, low = band
+            kept, cut = [], []
+            for sent in re.split(r'(?<=[。；])', str(row['reason'])):
+                (cut if _foreign_trade_price(sent, low, high) else kept).append(sent)
+            if cut and ''.join(kept).strip():
+                row['reason'] = ''.join(kept)
+                note_decision('價位校對', '說明裡的買賣價不像這一檔，拿掉那一句', row.get('name', ''), ''.join(cut)[:120])
+                print(f'  價位校對 {row.get("name")}：說明裡「{"".join(cut)[:40]}…」的價位不在這一檔的價位帶（{low}-{high}），拿掉那一句')
     return signals
+
+
+def _foreign_trade_price(sentence, low, high) -> bool:
+    """句子在講買賣，而且帶著一個離這一檔價位帶很遠的價位（不到四成或超過兩倍半）。EPS、配息的數字不算。"""
+    if not re.search(r'買進|買入|賣出|成本|進場|買在|賣在', sentence):
+        return False
+    for m in re.finditer(r'(\d[\d,]*(?:\.\d+)?)\s*(?:元|塊)', sentence):
+        if re.search(r'EPS|每股盈餘|股利|配息|除息|權利金', sentence[max(0, m.start() - 12):m.start()], re.I):
+            continue
+        n = float(m.group(1).replace(',', ''))
+        if n >= 10 and (n < low * 0.4 or n > high * 2.5):
+            return True
+    return False
 
 # ---------------------------------------------------------------- #
 # 日期歸屬
@@ -11447,6 +11592,7 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     signals = audit_signals(TX["audit"], signals, date_str)
     signals = restore_explicit_current_prohibitions(signals, TX["audit"])
     signals = keep_first_pass_rows(first_pass, signals, TX["audit"])
+    signals = enforce_explicit_trades(signals, TX["audit"])
     signals = classify_inventory_leftovers(signals, TX["audit"])
     print(f"  稽核補漏後　{signal_roster(signals)}")
 

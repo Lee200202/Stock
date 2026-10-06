@@ -76,7 +76,8 @@ def click_box(pg, locator, fx=0.5):
 
 
 def pool(pg):
-    return card(pg, B)                       # 丟在別張卡片上就是丟回條件清單
+    # 丟在別張卡片上就是丟回條件清單。用排在前面的「前高低突破」當落點：v137 每張卡片多了依據那一行，排在後面的卡片在平板寬度會掉到畫面外。
+    return card(pg, R)
 
 
 def state(pg):
@@ -92,7 +93,11 @@ def run(pg):
     assert s['groups'] == [[G, V]] and s['mode'] == 'anyOfAll' and s['hasNew'], s
     info = pg.evaluate("""() => [...document.querySelectorAll('#battlePreferences .battle-feature-box')].map(b => ({
         drag: b.getAttribute('draggable'), key: b.dataset.bdrag, pill: b.querySelector('.battle-feature').getAttribute('draggable'), cursor: getComputedStyle(b).cursor}))""")
-    assert len(info) == 8 and all(i['drag'] == 'true' and i['pill'] is None and i['cursor'] == 'grab' for i in info), info
+    assert len(info) == 57 and all(i['drag'] == 'true' and i['pill'] is None and i['cursor'] == 'pointer' for i in info), len(info)   # 整張卡片可點也可拖
+    # v137：條件清單預設只列「使用中」的；這份驗收要拖沒用到的條件，先切到「全部」。
+    shown = pg.evaluate("[...document.querySelectorAll('#battlePreferences .battle-feature-box:not([hidden])')].map(b => b.dataset.bdrag)")
+    assert shown == [G, V], shown
+    pg.click('#battlePreferences [data-bcat-filter="all"]')
 
     # 一、卡片（從說明文字抓）拖到「新增一組」→（開盤跳空 且 爆量）或 均線位置。
     drag(pg, card(pg, T).locator('.battle-feature-hint'), new_zone(pg), efy=0.5)
@@ -130,7 +135,7 @@ def run(pg):
     drag(pg, card(pg, G).locator('.battle-feature-hint'), pool(pg))
     s = state(pg)
     assert s['groups'] == [[T, V]] and G not in s['pressed'], s
-    assert 'useBoll' not in sum(s['groups'], []), '丟在別張卡片上不應該把那一張加進去'
+    assert R not in sum(s['groups'], []), '丟在別張卡片上不應該把那一張加進去'
 
     # 七、切成「或 → 且」：同一組任一成立、每一組都要成立。
     drag(pg, card(pg, G).locator('.battle-feature-hint'), new_zone(pg), efy=0.5)
@@ -219,6 +224,7 @@ def run(pg):
     pg.reload(wait_until='domcontentloaded')
     base.open_battle(pg, pg.url)
     pg.wait_for_selector('#battleGroups .battle-group')
+    pg.click('#battlePreferences [data-bcat-filter="all"]')
     assert state(pg)['groups'] == want and pg.evaluate('window.BattleSettings.get().volumeDays') == 5
     pg.click('#battleReset')
     s = state(pg)
@@ -228,6 +234,7 @@ def run(pg):
 
 def results(pg):
     """結果卡片逐組標示：量不夠的那一檔，第 1 組不成立、第 2 組成立。"""
+    pg.click('#battlePreferences [data-bcat-filter="all"]')        # 還原預設後清單回到「使用中」
     drag(pg, card(pg, T).locator('.battle-feature-hint'), new_zone(pg), efy=0.5)
     base.wait_list_done(pg, 50)
     base.pick(pg, '1001')
@@ -247,7 +254,8 @@ def main():
     with sync_playwright() as p:
         browser = p.chromium.launch()
         for w in (1440, 1024):
-            pg = browser.new_page(viewport={'width': w, 'height': 1700})
+            # 拖曳的起點和終點都要在畫面裡。v137 使用中的卡片帶著自己的設定、佔整列，「全部」清單裡後面的卡片排得更下面，畫面拉高到 4200px。
+            pg = browser.new_page(viewport={'width': w, 'height': 4200})
             errs = []
             pg.on('pageerror', lambda e, errs=errs: errs.append(str(e)))
             pg.route(base.FAKE_API, base.make_router([]))

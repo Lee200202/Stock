@@ -3,21 +3,190 @@
 /* v136：條件改成「組」。同一組內用一種邏輯、組與組之間用另一種：
      anyOfAll（且→或）：同一組的條件都要成立；任一組成立就符合。例：（開盤跳空 且 爆量）或 均線位置
      allOfAny（或→且）：同一組任一成立；每一組都要成立。例：（開盤跳空 或 前高突破）且 爆量
-   同一個條件可以放進不同的組。舊版存的「全部符合／任一符合」會自動換成等價的一組。 */
+   同一個條件可以放進不同的組。舊版存的「全部符合／任一符合」會自動換成等價的一組。
+   v137：分成「進場訊號」與「出場訊號」兩套條件組，各自保存；條件庫擴充為登錄表（conditions），
+   每個條件標明依據性質（常見指標／本站研究設定／張震觀點・量化研究版）、可調參數與來源。
+   技術訊號是獨立的行情分析層：不改分類、持股、成本，也不觸發重算或寄送。 */
 window.BATTLE_CONFIG = {
-  version: 2, pageSize: 24, storageKey: 'zzBattlePrefsV1', maxGroups: 4,
-  flags: ['useGap', 'useVolume', 'useTrend', 'useBreakout', 'useBody', 'useMacd', 'useKD', 'useBoll'],
+  version: 3, pageSize: 24, storageKey: 'zzBattlePrefsV1', maxGroups: 4,
   // 最低日量倍數預設 1 倍（2026/10/06 管理者指定）：當日量不低於均量就算達標；要看爆量再自己調高。
   defaults: { gapPct: 2.5, volumeMultiple: 1, volumeDays: 20, volumeCustom: false, minLots: 1000,
     direction: 'up', volumeMode: 'actual', trendDays: 20, breakoutDays: 20, closePosition: 0.7,
-    groupLogic: 'anyOfAll', groups: [['useGap', 'useVolume']] },
+    groupLogic: 'anyOfAll', groups: [['useGap', 'useVolume']],
+    purpose: 'entry',
+    exit: { direction: 'down', groupLogic: 'anyOfAll', groups: [['supportBreak'], ['maLost']] } },
   limits: { gapPct: [0.1, 15], volumeMultiple: [1, 10], minLots: [0, 1000000],
     closePosition: [0.5, 1], volumeDays: [2, 120] },
   integers: { volumeDays: true },
   presets: { volumeDays: [5, 20] },
-  periods: { trendDays: [5, 10, 20, 60, 120], breakoutDays: [20, 60] }
+  periods: { trendDays: [5, 10, 20, 60, 120], breakoutDays: [20, 60] },
+  origins: { common: '常見指標', research: '本站研究設定', zhang: '張震觀點・量化研究版' },
+  categories: [['trend', '趨勢'], ['structure', '突破與支撐'], ['momentum', '動能'], ['volatility', '波動與缺口'], ['volume', '成交量'], ['candle', 'K 棒結構'], ['zhang', '張震觀點研究版']],
+  /* 來源。S 開頭是官方或平台的指標說明；Z 開頭是 168 周報的張震節目文字紀錄（媒體轉錄，未逐句核對原片）。 */
+  sources: {
+    S04: ['Fidelity：SMA', 'https://www.fidelity.com/learning-center/trading-investing/technical-analysis/technical-indicator-guide/sma'],
+    S06: ['Fidelity：RSI', 'https://www.fidelity.com/learning-center/trading-investing/technical-analysis/technical-indicator-guide/RSI'],
+    S07: ['Fidelity：MACD', 'https://www.fidelity.com/learning-center/trading-investing/technical-analysis/technical-indicator-guide/macd'],
+    S08: ['Fidelity：ADX', 'https://www.fidelity.com/viewpoints/active-investor/average-directional-index-ADX'],
+    S09: ['Fidelity：ATR', 'https://www.fidelity.com/learning-center/trading-investing/technical-analysis/technical-indicator-guide/atr'],
+    S10: ['Fidelity：Bollinger Bands', 'https://www.fidelity.com/learning-center/trading-investing/technical-analysis/technical-indicator-guide/bollinger-bands'],
+    S11: ['Fidelity：BandWidth', 'https://www.fidelity.com/learning-center/trading-investing/technical-analysis/technical-indicator-guide/bollinger-band-width'],
+    S12: ['Fidelity：OBV', 'https://www.fidelity.com/learning-center/trading-investing/technical-analysis/technical-indicator-guide/OBV'],
+    S13: ['Fidelity：MFI', 'https://www.fidelity.com/learning-center/trading-investing/technical-analysis/technical-indicator-guide/mfi'],
+    S14: ['Fidelity：CCI', 'https://www.fidelity.com/learning-center/trading-investing/technical-analysis/technical-indicator-guide/cci'],
+    S15: ['Fidelity：ROC', 'https://www.fidelity.com/learning-center/trading-investing/technical-analysis/technical-indicator-guide/roc'],
+    S17: ['StockCharts：Stochastic', 'https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/stochastic-oscillator-fast-slow-and-full'],
+    S18: ['StockCharts：Price Channels', 'https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/price-channels'],
+    S20: ['StockCharts：Chandelier Exit', 'https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/chandelier-exit'],
+    S26: ['StockCharts：CMF', 'https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/chaikin-money-flow-cmf'],
+    S31: ['StockCharts：Relative Volume', 'https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/relative-volume-rvol'],
+    S33: ['StockCharts：Gaps', 'https://chartschool.stockcharts.com/table-of-contents/chart-analysis/gaps-and-gap-analysis'],
+    S34: ['StockCharts：Support & Resistance', 'https://chartschool.stockcharts.com/table-of-contents/chart-analysis/support-and-resistance'],
+    S35: ['StockCharts：Bullish Reversals', 'https://chartschool.stockcharts.com/table-of-contents/chart-analysis/candlestick-charts/candlestick-bullish-reversal-patterns'],
+    S36: ['StockCharts：Bearish Reversals', 'https://chartschool.stockcharts.com/table-of-contents/chart-analysis/candlestick-charts/candlestick-bearish-reversal-patterns'],
+    S42: ['John Bollinger：Rules', 'https://www.bollingerbands.com/bollinger-band-rules'],
+    S49: ['統一期貨：移動平均線', 'https://www.pfcf.com.tw/product/detail/2621'],
+    S62: ['XQ：Stochastic 函數', 'https://xshelp.xq.com.tw/XSHelp/?HelpName=Stochastic&group=TECHINDEXFUNC'],
+    Z02: ['168 周報 2023-06-13 節目紀錄', 'https://168abc.net/168-tv/8734'],
+    Z03: ['168 周報 2023-06-16 節目紀錄', 'https://168abc.net/168-tv/8768'],
+    Z06: ['168 周報 2026-06-11 節目紀錄', 'https://168abc.net/168-tv/30577'],
+    Z07: ['168 周報 2026-07-14 節目紀錄', 'https://168abc.net/168-tv/30909'],
+    Z08: ['168 周報 2026-08-19 節目紀錄', 'https://168abc.net/168-tv/31427'],
+    Z09: ['168 周報 2026-08-17 節目紀錄', 'https://168abc.net/168-tv/31395'],
+    Z10: ['168 周報 2026-08-12 節目紀錄', 'https://168abc.net/168-tv/31313'],
+    Z11: ['168 周報 2026-09-17 節目紀錄', 'https://168abc.net/168-tv/31902'],
+    Z12: ['168 周報 2026-07-15 節目紀錄', 'https://168abc.net/168-tv/30924'],
+    Z13: ['168 周報 2024-03-05 節目紀錄', 'https://168abc.net/168-tv/13962'],
+    Z14: ['168 周報 2026-09-02 節目紀錄', 'https://168abc.net/168-tv/31680'],
+    Z15: ['168 周報 2026-07-07 節目紀錄', 'https://168abc.net/168-tv/30851']
+  }
 };
-/* 設定的唯一整理入口：計算核心與設定面板都用這一支。回傳的 useGap…useBoll 是「有沒有放進任何一組」，由 groups 推出來。 */
+(function () {
+  var cfg = window.BATTLE_CONFIG;
+  function opt(key, label, options, def) { return { key: key, label: label, options: options, def: def }; }
+  function num(key, label, min, max, step, def, unit) { return { key: key, label: label, min: min, max: max, step: step, def: def, unit: unit || '' }; }
+  function within() { return opt('within', '發生在最近', [[1, '當根'], [3, '3 根內'], [5, '5 根內']], 3); }
+  function c(id, side, cat, label, hint, origin, refs, params) { return { id: id, side: side, cat: cat, label: label, hint: hint, origin: origin, refs: refs || [], params: params || [] }; }
+  var onOff = [['off', '不要求'], ['on', '要求']];
+  /* 條件登錄表。side：entry 進場、exit 出場、both 兩邊都可用。前八項是原有條件，方向跟著「價格方向」；
+     其餘進場條件一律是多方轉強、出場條件一律是多方持股的風險觀察，不隨價格方向反轉。 */
+  cfg.conditions = [
+    c('useGap', 'both', 'volatility', '開盤跳空', '開盤較昨收達到設定幅度，並超出昨日最高價（向下則是最低價）。', 'research', ['S33']),
+    c('useVolume', 'both', 'volume', '爆量與最低量', '當日量達到均量的設定倍數，而且不低於最低張數。', 'research', ['S31']),
+    c('useTrend', 'both', 'trend', '均線位置', '向上看現價高於均線，向下則低於。', 'common', ['S04', 'S49']),
+    c('useBreakout', 'both', 'structure', '前高低突破', '超出前一段期間的最高或最低價。', 'common', ['S18']),
+    c('useBody', 'both', 'candle', 'K 棒與收盤位置', '向上收紅且靠近高點，向下反向判斷。', 'research'),
+    c('useMacd', 'both', 'momentum', 'MACD 柱體', '12／26／9；向上柱體為正，向下為負。這是狀態，不是交叉。', 'common', ['S07']),
+    c('useKD', 'both', 'momentum', 'KD 相對位置', '9 日；向上 K > D，向下 K < D。這是狀態，不是今天交叉。', 'common', ['S62']),
+    c('useBoll', 'both', 'volatility', '布林通道突破', '20 日、2 倍標準差；突破上軌或下軌。', 'common', ['S10']),
+    // ── 進場：趨勢 ──
+    c('trendUp', 'entry', 'trend', '趨勢向上', '收盤在均線上方，而且均線比 5 根前高。', 'common', ['S04', 'S49'], [opt('maDays', '均線', [[20, '20 日'], [60, '60 日'], [120, '120 日']], 60)]),
+    c('maCross', 'entry', 'trend', '均線黃金交叉', '快線剛由下往上穿越慢線，而且目前仍在上方。', 'common', ['S04', 'S49'], [opt('pair', '均線組合', [['5-20', '5／20'], ['10-20', '10／20'], ['20-60', '20／60']], '5-20'), within()]),
+    c('maAlign', 'entry', 'trend', '均線多頭排列', '5 日 > 20 日 > 60 日均線。這是狀態，和交叉事件分開。', 'common', ['S04', 'S49']),
+    c('notExtended', 'both', 'trend', '沒有離均線太遠', '收盤高於 20 日均線的幅度在設定以內，避免追高。', 'research', ['S49'], [num('pct', '最多高於 20 日均線', 1, 50, 1, 10, '%')]),
+    c('lowBase', 'both', 'trend', '低位階', '收盤在前一段期間高低區間的下半部。不代表基本面便宜。', 'research', ['Z03'], [opt('lookback', '回看', [[60, '60 根'], [120, '120 根']], 120), num('maxPos', '區間位置不高於', 0.1, 0.9, 0.05, 0.5, '')]),
+    c('highBase', 'both', 'trend', '高位階', '收盤在前一段期間高低區間的上緣。只描述位置，不代表一定轉弱。', 'research', ['Z13'], [opt('lookback', '回看', [[60, '60 根'], [120, '120 根']], 120), num('minPos', '區間位置不低於', 0.5, 1.5, 0.05, 0.8, '')]),
+    // ── 進場：突破與支撐 ──
+    c('prevHighBreak', 'entry', 'structure', '收盤越過昨日高點', '短線的價格確認：收盤高於前一根最高價。', 'research'),
+    c('breakRetest', 'entry', 'structure', '突破後回測再轉強', '先突破前 20 根高點，回到突破價附近（±0.5 ATR）沒有跌破，收盤再越過回測那一根的高點。', 'research', ['S18', 'S34'], [opt('lookback', '突破發生在最近', [[5, '5 根'], [10, '10 根'], [20, '20 根']], 10), opt('dry', '回測量低於突破量', onOff, 'on')]),
+    c('maPullback', 'entry', 'structure', '均線回測承接', '均線向上，最近 3 根低點回到均線附近，收盤站在均線上。和「已經在均線上」不同。', 'research', ['S49', 'Z07'], [opt('maDays', '均線', [[20, '20 日'], [60, '60 日（季線）']], 60), num('tolPct', '回測容許', 0.5, 3, 0.5, 1, '%')]),
+    c('falseBreak', 'entry', 'structure', '假跌破收回', '盤中跌破前 20 根低點，收盤站回低點之上。', 'research', ['S34', 'Z11'], [opt('dry', '當日量低於均量', onOff, 'off')]),
+    // ── 進場：動能 ──
+    c('macdCross', 'entry', 'momentum', 'MACD 黃金交叉', 'DIF 剛上穿訊號線，也就是柱體由負翻正；兩種說法是同一件事。', 'common', ['S07'], [within()]),
+    c('macdZero', 'entry', 'momentum', 'MACD 上穿零軸', 'DIF 剛由負轉正。和黃金交叉是不同事件。', 'common', ['S07'], [within()]),
+    c('macdConverge', 'entry', 'momentum', 'MACD 負柱收斂', '柱體仍是負的，但連續縮短。只是動能停止惡化，還沒有翻多。', 'zhang', ['S07', 'Z08'], [opt('bars', '連續縮短', [[2, '2 根'], [3, '3 根'], [5, '5 根']], 3)]),
+    c('rsiRecover', 'entry', 'momentum', 'RSI 重新站上', 'RSI（14）剛由下往上穿越設定值。RSI 低不等於已經反轉。', 'common', ['S06'], [opt('level', '站上', [[30, '30'], [50, '50']], 50), within()]),
+    c('kdCross', 'entry', 'momentum', 'KD 黃金交叉', 'K 剛上穿 D；可限定交叉前在低檔。和「K 大於 D」的狀態分開。', 'common', ['S17', 'S62'], [opt('zone', '交叉前低於', [[20, '20'], [30, '30'], [50, '50'], [100, '不限']], 20), within()]),
+    c('adxTrend', 'entry', 'momentum', 'ADX 趨勢啟動', 'ADX（14）達到設定且連兩根上升，而且 +DI 大於 −DI。ADX 高不代表向上，方向看 DI。', 'common', ['S08'], [opt('level', 'ADX 至少', [[20, '20'], [25, '25']], 25)]),
+    c('rocUp', 'entry', 'momentum', 'ROC 由負轉正', 'ROC（12）剛由負轉正。', 'common', ['S15'], [within()]),
+    c('cciUp', 'entry', 'momentum', 'CCI 上穿 +100', 'CCI（20）剛上穿 +100。', 'common', ['S14'], [within()]),
+    c('bullDiverge', 'entry', 'momentum', '底背離', '兩個已確認的低點：價格更低、指標更高。轉折要右邊 3 根走完才確認，不回填。', 'research', ['S06', 'S07', 'Z12'], [opt('indicator', '指標', [['macd', 'MACD 柱體'], ['rsi', 'RSI']], 'macd'), opt('confirm', '價格確認', [['none', '不要求'], ['price', '收盤站上兩低點間的高點']], 'price')]),
+    // ── 進場：波動與缺口 ──
+    c('bollSqueeze', 'entry', 'volatility', '布林壓縮後突破', '前一根的帶寬在回看期間的最低區，當根收盤突破上軌。壓縮不保證向上。', 'research', ['S10', 'S11', 'S42'], [opt('lookback', '回看', [[60, '60 根'], [120, '120 根']], 120), num('pct', '帶寬在最低', 5, 50, 5, 20, '%')]),
+    c('gapHold', 'entry', 'volatility', '向上缺口沒有回補', '開盤高於昨日最高價、幅度達到設定，而且低點沒有回到昨日高點。盤中是「到目前為止」。', 'research', ['S33'], [num('minPct', '開盤至少高於昨收', 0.1, 15, 0.1, 2.5, '%')]),
+    // ── 進場：成交量 ──
+    c('volSpike', 'both', 'volume', '量能擴張', '當日量達到前幾日均量的設定倍數。只表示交易變熱絡，無法知道是誰在買賣。', 'research', ['S31'], [opt('days', '均量基準', [[5, '5 日'], [20, '20 日'], [60, '60 日']], 20), num('mult', '至少', 1, 10, 0.1, 2, '倍')]),
+    c('volDryUp', 'entry', 'volume', '量縮', '當日量低於前幾日均量的設定倍數。要等收盤才判定。', 'research', ['Z10'], [opt('days', '均量基準', [[5, '5 日'], [20, '20 日'], [60, '60 日']], 20), num('ratio', '不高於', 0.2, 1, 0.05, 0.6, '倍')]),
+    c('liquidity', 'both', 'volume', '平日流動性', '前 20 根平均日量達到設定張數。和「今天有沒有放量」是兩件事。', 'research', null, [num('lots', '均量至少', 0, 1000000, 100, 1000, '張')]),
+    c('obvHigh', 'entry', 'volume', 'OBV 創新高', 'OBV 高於回看期間的最高值。量價指標無法辨識買賣的人是誰。', 'common', ['S12'], [opt('days', '回看', [[20, '20 根'], [60, '60 根']], 20)]),
+    c('cmfPositive', 'entry', 'volume', 'CMF 為正', 'CMF（20）連續為正。', 'common', ['S26'], [opt('bars', '連續', [[1, '當根'], [3, '3 根'], [5, '5 根']], 3)]),
+    c('mfiUp', 'entry', 'volume', 'MFI 上穿', 'MFI（14）剛上穿設定值。不是單獨的反轉確認。', 'common', ['S13'], [opt('level', '上穿', [[20, '20'], [50, '50']], 50), within()]),
+    // ── 進場：K 棒 ──
+    c('bullReversal', 'entry', 'candle', '多方反轉 K 棒', '下跌後出現多方吞噬或錘子，下一根收盤越過型態高點才算。', 'common', ['S35']),
+    // ── 進場：張震觀點研究版 ──
+    c('maSqueezeBreak', 'entry', 'zhang', '均線糾結後突破', '幾條均線先靠得很近並維持一段時間，再收盤突破前 20 根高點。寬度門檻是本站量化的數字。', 'zhang', ['Z02', 'Z03', 'S49'], [opt('set', '均線集合', [['5-20-60', '5／20／60'], ['5-20-60-120', '5／20／60／120']], '5-20-60-120'), num('pct', '寬度不超過', 1, 15, 0.5, 5, '%'), num('minBars', '前 20 根至少', 1, 20, 1, 10, '根')]),
+    c('bigVolDryUp', 'entry', 'zhang', '低檔大量後量縮', '低位階出現大量 K，之後量縮並守住那一根的低點；可再要求收盤突破整理區。', 'zhang', ['Z09'], [num('mult', '大量：均量的', 1.5, 10, 0.5, 2, '倍'), num('dry', '量縮：大量 K 的', 0.2, 0.9, 0.05, 0.6, '倍以下'), opt('mode', '看到哪一步', [['ABC', '量縮後收盤突破'], ['AB', '量縮守低即可']], 'ABC')]),
+    c('dryUpFirstMove', 'entry', 'zhang', '窒息量後第一根表態', '前 5 根明顯量縮，當根收紅並越過前 5 根。「越過」看高點還是看量，紀錄沒有圖可核對，所以分開讓你選。', 'zhang', ['Z10'], [num('dry', '前 5 根均量不高於', 0.2, 0.9, 0.05, 0.6, '倍'), opt('mode', '越過前 5 根的', [['both', '高點與量'], ['price', '高點'], ['volume', '量']], 'both')]),
+    c('bigVolHold', 'entry', 'zhang', '回測大量 K 低點守住', '最近 60 根量最大的那一根當作觀察點：最近 3 根回到它的低點附近，收盤仍在低點之上。', 'zhang', ['Z06', 'Z15']),
+    // ── 出場：風險觀察（多方持股）──
+    c('supportBreak', 'exit', 'structure', '跌破前低', '收盤低於前一段期間的最低價。', 'common', ['S34'], [opt('days', '回看', [[20, '20 根'], [60, '60 根']], 20), opt('buffer', '再扣 0.2 ATR 緩衝', onOff, 'off')]),
+    c('breakoutFail', 'exit', 'structure', '突破失敗', '最近曾收盤突破前 20 根高點，現在收盤跌回突破價下方。', 'research', ['S18', 'S34', 'Z13'], [opt('lookback', '突破發生在最近', [[5, '5 根'], [10, '10 根'], [20, '20 根']], 10)]),
+    c('maLost', 'exit', 'trend', '跌破均線', '收盤剛由上往下穿越均線，而且目前仍在下方。', 'common', ['S04', 'S49'], [opt('maDays', '均線', [[20, '20 日'], [60, '60 日']], 20), within()]),
+    c('maDeadCross', 'exit', 'trend', '均線死亡交叉', '快線剛由上往下穿越慢線，而且目前仍在下方。', 'common', ['S04', 'S49'], [opt('pair', '均線組合', [['5-20', '5／20'], ['10-20', '10／20'], ['20-60', '20／60']], '5-20'), within()]),
+    c('seasonBounceFail', 'exit', 'zhang', '向下均線反彈失敗', '均線向下，價格從下方反彈碰到均線附近，收盤又轉弱。和均線向上時的正常回測不同。', 'zhang', ['Z14'], [opt('maDays', '均線', [[20, '20 日'], [60, '60 日（季線）']], 60), num('tolPct', '碰線容許', 0.5, 3, 0.5, 1, '%')]),
+    c('macdDead', 'exit', 'momentum', 'MACD 死亡交叉', 'DIF 剛下穿訊號線，也就是柱體由正翻負。', 'common', ['S07'], [within()]),
+    c('rsiFall', 'exit', 'momentum', 'RSI 高檔回落', 'RSI（14）剛由上往下跌回設定值。RSI 高本身不是賣出理由。', 'common', ['S06'], [opt('level', '跌回', [[70, '70'], [50, '50']], 70), within()]),
+    c('kdDead', 'exit', 'momentum', 'KD 死亡交叉', 'K 剛下穿 D；可限定交叉前在高檔。', 'common', ['S17', 'S62'], [opt('zone', '交叉前高於', [[80, '80'], [70, '70'], [50, '50'], [0, '不限']], 80), within()]),
+    c('bearDiverge', 'exit', 'momentum', '頂背離', '兩個已確認的高點：價格更高、指標更低。轉折要右邊 3 根走完才確認，不回填。', 'research', ['S06', 'S07', 'Z13'], [opt('indicator', '指標', [['macd', 'MACD 柱體'], ['rsi', 'RSI']], 'macd'), opt('confirm', '價格確認', [['none', '不要求'], ['price', '收盤跌破兩高點間的低點']], 'price')]),
+    c('gapLost', 'exit', 'volatility', '向上缺口失守', '最近的向上缺口被回補。碰到缺口上緣、收盤進入缺口、完全回補是三種不同程度。', 'research', ['S33'], [opt('mode', '回補程度', [['touch', '碰到上緣'], ['enter', '收盤進入缺口'], ['full', '收盤完全回補']], 'enter'), opt('lookback', '缺口發生在最近', [[5, '5 根'], [10, '10 根'], [20, '20 根']], 10), num('minPct', '缺口當天開盤至少高於昨收', 0.1, 15, 0.1, 2.5, '%')]),
+    c('gapDown', 'exit', 'volatility', '向下開盤缺口', '開盤低於昨日最低價，幅度達到設定。單靠低開不足以判斷，建議搭配跌破前低。', 'research', ['S33'], [num('minPct', '開盤至少低於昨收', 0.1, 15, 0.1, 2.5, '%')]),
+    c('chandelier', 'exit', 'volatility', '跌破吊燈線', '收盤低於「22 根最高價 − 3 × ATR（22）」。這是指標原始線，可能下降；不是依你的成本鎖定的停損。', 'common', ['S20', 'S09']),
+    c('weakClose', 'exit', 'candle', '收在當日低檔', '收盤在當日高低區間的下方。', 'research', null, [num('maxPos', '收盤位置不高於', 0.1, 0.5, 0.05, 0.4, '')]),
+    c('upperShadow', 'exit', 'candle', '長上影線', '上影線佔當日區間的比例達到設定。', 'research', ['S36'], [num('minPct', '上影線至少', 20, 80, 5, 40, '%')]),
+    c('bearReversal', 'exit', 'candle', '空方反轉 K 棒', '上漲後出現空方吞噬或射擊之星，下一根收盤跌破型態低點才算。', 'common', ['S36']),
+    c('obvDiverge', 'exit', 'volume', '價創高、OBV 沒有創高', '最近曾出現價格創新高但 OBV 沒有同步。建議搭配跌破前低或均線。', 'common', ['S12'], [opt('days', '回看', [[20, '20 根'], [60, '60 根']], 20), opt('within', '發生在最近', [[5, '5 根內'], [10, '10 根內'], [20, '20 根內']], 10)]),
+    c('bigVolLowLost', 'exit', 'zhang', '大量 K 低點失守', '最近 60 根量最大的那一根當作觀察點：收盤跌破它的低點。', 'zhang', ['Z06', 'Z15'], [within()])
+  ];
+  cfg.byId = {}; cfg.conditions.forEach(function (x) { cfg.byId[x.id] = x; });
+  cfg.flags = cfg.conditions.map(function (x) { return x.id; });
+  cfg.legacyFlags = cfg.flags.slice(0, 8);
+  /* 策略範本。全部是本站組合出來的研究設定：來源支持的是各指標的定義與判讀原理，不代表有人驗證過整套組合。
+     「張震觀點」的範本是把節目文字紀錄裡的說法量化；數字是本站訂的起點，不是講者的公式。沒有回測，不提供勝率。 */
+  function t(id, side, name, origin, logic, groups, note, params, direction) { return { id: id, side: side, name: name, origin: origin, groupLogic: logic, groups: groups, note: note, params: params || {}, direction: direction || (side === 'exit' ? 'down' : 'up') }; }
+  cfg.templates = [
+    t('I01', 'entry', '趨勢放量突破', 'research', 'anyOfAll', [['trendUp', 'useBreakout', 'volSpike']], '季線向上、收盤突破前 20 日高點、量能 1.5 倍以上。', { trendUp: { maDays: 60 }, volSpike: { mult: 1.5 } }),
+    t('I02', 'entry', '突破後縮量回測', 'research', 'anyOfAll', [['breakRetest']], '先突破，回測時量縮且沒有跌破突破價，再轉強。', { breakRetest: { lookback: 10, dry: 'on' } }),
+    t('I03', 'entry', '均線承接再轉強', 'research', 'anyOfAll', [['trendUp', 'maPullback', 'prevHighBreak']], '季線向上，回測 20 日均線後收盤越過昨日高點。', { trendUp: { maDays: 60 }, maPullback: { maDays: 20, tolPct: 1 } }),
+    t('I04', 'entry', '布林壓縮後突破', 'research', 'anyOfAll', [['bollSqueeze', 'useMacd', 'volSpike']], '帶寬先縮到低檔，再突破上軌，搭配 MACD 柱體為正與量能。', { volSpike: { mult: 1.5 } }),
+    t('I06', 'entry', '爆量開盤跳空續強', 'research', 'anyOfAll', [['useGap', 'gapHold', 'volSpike', 'useBody', 'notExtended']], '向上跳空沒有回補、量能 2 倍、收在高檔，而且沒有離均線太遠。', { volSpike: { mult: 2 }, notExtended: { pct: 10 } }),
+    t('I07', 'entry', '多頭 RSI 回測恢復', 'research', 'anyOfAll', [['trendUp', 'rsiRecover', 'prevHighBreak']], '季線向上，RSI 重新站上 50，收盤越過昨日高點。', { trendUp: { maDays: 60 }, rsiRecover: { level: 50, within: 3 } }),
+    t('I08', 'entry', 'KD 低檔交叉確認', 'research', 'anyOfAll', [['kdCross', 'prevHighBreak']], 'K 在 20 以下上穿 D，收盤越過昨日高點。', { kdCross: { zone: 20, within: 3 } }),
+    t('I09', 'entry', 'ADX 趨勢啟動', 'research', 'anyOfAll', [['adxTrend', 'useBreakout']], 'ADX 25 以上且上升、+DI 在上，並突破前 20 日高點。', { adxTrend: { level: 25 } }),
+    t('I10', 'entry', '量價確認突破', 'research', 'allOfAny', [['useBreakout'], ['obvHigh', 'cmfPositive']], '突破前 20 日高點，而且 OBV 創高或 CMF 連續為正。（相對大盤強弱尚無資料，未納入。）'),
+    t('I12', 'entry', '支撐假跌破收回', 'research', 'anyOfAll', [['falseBreak', 'prevHighBreak']], '盤中跌破前 20 根低點後收回，收盤越過昨日高點。', { falseBreak: { dry: 'off' } }),
+    t('JE01', 'entry', '向上季線回測', 'zhang', 'anyOfAll', [['maPullback']], '季線向上時回測季線、收盤站回。季線向下的反彈不算。', { maPullback: { maDays: 60, tolPct: 1 } }),
+    t('JE02', 'entry', '低位階均線糾結突破（不含 240 日線）', 'zhang', 'anyOfAll', [['lowBase', 'maSqueezeBreak', 'volSpike']], '低位階、5／20／60／120 日均線糾結後放量突破。原紀錄另提到 240 日線，目前日 K 長度不足，沒有納入。', { lowBase: { lookback: 120, maxPos: 0.5 }, maSqueezeBreak: { set: '5-20-60-120', pct: 5, minBars: 10 }, volSpike: { mult: 2 } }),
+    t('JE04', 'entry', '低檔 MACD 轉強（日 K 版）', 'zhang', 'allOfAny', [['lowBase'], ['macdConverge', 'macdCross'], ['prevHighBreak']], '低位階，MACD 負柱收斂或黃金交叉，並且收盤越過昨日高點。原紀錄看的是 60 分 K，本站目前只有日 K。', { lowBase: { lookback: 120, maxPos: 0.5 }, macdConverge: { bars: 3 }, macdCross: { within: 3 } }),
+    t('JE06', 'entry', '低檔大量、量縮、再啟動', 'zhang', 'anyOfAll', [['bigVolDryUp']], '低位階大量 K 之後量縮守低，收盤再突破整理區。', { bigVolDryUp: { mult: 2, dry: 0.6, mode: 'ABC' } }),
+    t('JE07', 'entry', '假跌破或底背離後收復', 'zhang', 'allOfAny', [['falseBreak', 'bullDiverge'], ['prevHighBreak']], '假跌破收回或底背離其中之一成立，而且收盤越過昨日高點。', { falseBreak: { dry: 'on' }, bullDiverge: { indicator: 'macd', confirm: 'none' } }),
+    t('JE09', 'entry', '窒息量後第一根表態', 'zhang', 'anyOfAll', [['dryUpFirstMove']], '量縮整理後第一根收紅、過高、放量。', { dryUpFirstMove: { dry: 0.6, mode: 'both' } }),
+    t('O01', 'exit', '結構失守', 'research', 'anyOfAll', [['supportBreak']], '收盤跌破前 20 根低點再扣 0.2 ATR。', { supportBreak: { days: 20, buffer: 'on' } }),
+    t('O02', 'exit', '突破失敗', 'research', 'allOfAny', [['breakoutFail'], ['volSpike', 'weakClose']], '突破後收盤跌回突破價下方，而且放量或收在低檔。', { breakoutFail: { lookback: 10 }, volSpike: { mult: 1.5 }, weakClose: { maxPos: 0.5 } }),
+    t('O03', 'exit', '缺口失守', 'research', 'anyOfAll', [['gapLost']], '最近的向上缺口被收盤跌入。', { gapLost: { mode: 'enter', lookback: 10 } }),
+    t('O04', 'exit', '高檔爆量開高走低', 'research', 'anyOfAll', [['highBase', 'volSpike', 'upperShadow', 'weakClose']], '高位階、量能 2.5 倍、長上影、收在低檔，四項同時成立。不是所有高量 K 都算。', { highBase: { lookback: 120, minPos: 0.8 }, volSpike: { mult: 2.5 }, upperShadow: { minPct: 40 }, weakClose: { maxPos: 0.4 } }),
+    t('O05', 'exit', 'MACD 轉弱加價格確認', 'research', 'allOfAny', [['macdDead'], ['maLost', 'supportBreak']], 'MACD 死亡交叉，而且跌破 20 日均線或前低。', { macdDead: { within: 3 }, maLost: { maDays: 20, within: 3 }, supportBreak: { days: 20, buffer: 'off' } }),
+    t('O06', 'exit', '高檔背離確認', 'research', 'anyOfAll', [['bearDiverge']], '頂背離成立後，收盤跌破兩個高點之間的低點。', { bearDiverge: { indicator: 'macd', confirm: 'price' } }),
+    t('O07', 'exit', '量價背離加結構破壞', 'research', 'anyOfAll', [['obvDiverge', 'supportBreak']], '最近價創高而 OBV 沒有，之後收盤跌破前低。', { obvDiverge: { days: 20, within: 10 }, supportBreak: { days: 20, buffer: 'off' } }),
+    t('O09', 'exit', '吊燈線獲利保護', 'research', 'anyOfAll', [['chandelier']], '收盤跌破吊燈線（22 根最高 − 3 × ATR）。'),
+    t('JX01', 'exit', '高位階大量風險', 'zhang', 'allOfAny', [['highBase'], ['volSpike'], ['weakClose', 'upperShadow']], '高位階、放量，而且收在低檔或留長上影。單純大量只是交易變多。', { highBase: { lookback: 120, minPos: 0.8 }, volSpike: { mult: 2 }, weakClose: { maxPos: 0.4 }, upperShadow: { minPct: 40 } }),
+    t('JX02', 'exit', '高檔背離加破位（日 K 版）', 'zhang', 'allOfAny', [['bearDiverge'], ['maLost', 'supportBreak']], '頂背離，而且跌破 20 日均線或前低。原紀錄看的是 60 分 K 與 35 均線，本站目前只有日 K。', { bearDiverge: { indicator: 'macd', confirm: 'none' }, maLost: { maDays: 20, within: 3 }, supportBreak: { days: 20, buffer: 'off' } }),
+    t('JX03', 'exit', '向下季線反彈失敗', 'zhang', 'anyOfAll', [['seasonBounceFail']], '季線向下，反彈碰線後收盤轉弱。', { seasonBounceFail: { maDays: 60, tolPct: 1 } }),
+    t('JX04', 'exit', '高檔跳空轉弱', 'zhang', 'allOfAny', [['highBase'], ['useGap'], ['volSpike'], ['weakClose', 'upperShadow']], '高位階出現向上跳空並放量，但收在低檔或留長上影。低檔的跳空突破是另一回事。', { highBase: { lookback: 120, minPos: 0.8 }, volSpike: { mult: 2 }, weakClose: { maxPos: 0.4 }, upperShadow: { minPct: 40 } }, 'up'),
+    t('JX05', 'exit', '大量 K 失守或突破失敗', 'zhang', 'anyOfAll', [['bigVolLowLost'], ['breakoutFail']], '收盤跌破大量 K 低點，或突破後跌回突破價下方。', { bigVolLowLost: { within: 3 }, breakoutFail: { lookback: 10 } })
+  ];
+  /* 規格裡有、但現在無法如實計算的項目。寧可不提供，也不拿別的資料代替。 */
+  cfg.unsupported = [
+    ['同時段量比、開盤區間突破、日內 VWAP', '需要每一檔的歷史分鐘成交資料；目前每五分鐘只取得一筆累計報價，無法還原分鐘 K。'],
+    ['60 分 K 的 5／35／200 均線與 60 分 MACD', '需要可靠的 60 分 K；不能拿日線 35／200 根代替。'],
+    ['週線、月線的 KD 與 MACD，240 日均線', '行情一次提供最近 160 根日 K，長度不足以完整計算與暖機。'],
+    ['相對大盤或產業的強弱、族群輪動', '尚未保存大盤指數與可追溯的產業分類資料。'],
+    ['法人買賣、融資融券、周轉率', '尚未取得這些資料；成交量無法推出買賣的人是誰。'],
+    ['依成本計算的停損、移動停損、分段停利、持有天數出場', '需要你自己的進場價與部位；本站不保存個人持股。'],
+    ['Parabolic SAR、Aroon、一目均衡表、Keltner 壓縮', '這一版還沒有實作。']
+  ];
+})();
+/* 設定的唯一整理入口：計算核心與設定面板都用這一支。
+   回傳的每個條件開關（useGap、trendUp…）是「目前這個目的（進場或出場）有沒有把它放進任何一組」，由條件組推出來。 */
 window.BATTLE_CONFIG.sanitize = function (input) {
   var cfg = window.BATTLE_CONFIG, d = cfg.defaults, x = input || {}, p = {};
   Object.keys(cfg.limits).forEach(function (k) {
@@ -27,23 +196,55 @@ window.BATTLE_CONFIG.sanitize = function (input) {
     if (isFinite(v) && v >= lim[0] && v <= lim[1] && (!cfg.integers[k] || Math.floor(v) === v)) p[k] = v;
   });
   Object.keys(cfg.periods).forEach(function (k) { p[k] = cfg.periods[k].indexOf(Number(x[k])) >= 0 ? Number(x[k]) : d[k]; });
-  p.direction = x.direction === 'down' ? 'down' : 'up';
   p.volumeMode = x.volumeMode === 'estimate' ? 'estimate' : 'actual';
   // 天數不是預設的 5／20 時一定是自訂；是預設值時照使用者有沒有按「自訂」。
   p.volumeCustom = cfg.presets.volumeDays.indexOf(p.volumeDays) < 0 || x.volumeCustom === true;
-  var groups, logic = x.groupLogic === 'allOfAny' ? 'allOfAny' : 'anyOfAll';
-  if (Array.isArray(x.groups)) {
-    groups = x.groups.map(function (g) {
+  function cleanGroups(list) {
+    return list.map(function (g) {
       return (Array.isArray(g) ? g : []).filter(function (k, i, a) { return cfg.flags.indexOf(k) >= 0 && a.indexOf(k) === i; });
     }).filter(function (g) { return g.length; }).slice(0, cfg.maxGroups);
-  } else {
+  }
+  var groups, logic = x.groupLogic === 'allOfAny' ? 'allOfAny' : 'anyOfAll';
+  if (Array.isArray(x.groups)) groups = cleanGroups(x.groups);
+  else {
     // 舊版設定：每個條件一個開關，加上「全部符合／任一符合」。任一符合等於一組、組內任一成立。
-    var on = cfg.flags.filter(function (k) { return typeof x[k] === 'boolean' ? x[k] : d.groups[0].indexOf(k) >= 0; });
+    var on = cfg.legacyFlags.filter(function (k) { return typeof x[k] === 'boolean' ? x[k] : d.groups[0].indexOf(k) >= 0; });
     groups = on.length ? [on] : [];
     logic = x.logic === 'any' ? 'allOfAny' : 'anyOfAll';
   }
+  // 進場那一套放在最外層（和 v136 存的格式相同）；出場那一套放在 exit。沒有存過出場設定就用預設。
+  p.direction = x.direction === 'down' ? 'down' : 'up';
   p.groups = groups; p.groupLogic = logic;
-  cfg.flags.forEach(function (k) { p[k] = groups.some(function (g) { return g.indexOf(k) >= 0; }); });
+  var e = x.exit && typeof x.exit === 'object' ? x.exit : null;
+  p.exit = e && Array.isArray(e.groups)
+    ? { direction: e.direction === 'up' ? 'up' : 'down', groupLogic: e.groupLogic === 'allOfAny' ? 'allOfAny' : 'anyOfAll', groups: cleanGroups(e.groups) }
+    : { direction: d.exit.direction, groupLogic: d.exit.groupLogic, groups: d.exit.groups.map(function (g) { return g.slice(); }) };
+  p.purpose = x.purpose === 'exit' ? 'exit' : 'entry';
+  // 每個條件自己的參數：選項必須是登錄表列出的值，數字必須在範圍內；否則用預設。
+  p.cond = {};
+  cfg.conditions.forEach(function (c) {
+    if (!c.params.length) return;
+    var src = x.cond && typeof x.cond === 'object' && x.cond[c.id] && typeof x.cond[c.id] === 'object' ? x.cond[c.id] : {}, out = {};
+    c.params.forEach(function (q) {
+      var v = src[q.key]; out[q.key] = q.def;
+      if (v === '' || v === null || v === undefined) return;
+      if (q.options) { var hit = q.options.filter(function (o) { return String(o[0]) === String(v); })[0]; if (hit) out[q.key] = hit[0]; }
+      else { var n = Number(v); if (isFinite(n) && n >= q.min && n <= q.max) out[q.key] = n; }
+    });
+    p.cond[c.id] = out;
+  });
+  // 目前的條件是不是某個範本：不另外存，每次由條件組、方向與參數比對出來，改過任何一項就不再顯示範本名稱。
+  p.template = {};
+  ['entry', 'exit'].forEach(function (side) {
+    var s = side === 'exit' ? p.exit : p, shape = JSON.stringify(s.groups);
+    var hit = cfg.templates.filter(function (t) {
+      return t.side === side && t.groupLogic === s.groupLogic && t.direction === s.direction && JSON.stringify(t.groups) === shape &&
+        Object.keys(t.params).every(function (id) { return Object.keys(t.params[id]).every(function (k) { return String(p.cond[id][k]) === String(t.params[id][k]); }); });
+    })[0];
+    p.template[side] = hit ? hit.id : '';
+  });
+  var active = p.purpose === 'exit' ? p.exit : p;
+  cfg.flags.forEach(function (k) { p[k] = active.groups.some(function (g) { return g.indexOf(k) >= 0; }); });
   return p;
 };
 </script>
@@ -58,12 +259,14 @@ window.BATTLE_CONFIG.sanitize = function (input) {
     window.dispatchEvent(new CustomEvent('battle-settings-change'));
     return saved;
   }
-  function copy() { var c = Object.assign({}, prefs); c.groups = prefs.groups.map(function (g) { return g.slice(); }); return c; }
+  function copy() { return JSON.parse(JSON.stringify(prefs)); }
+  /* 目前這個目的（進場或出場）的那一套：方向、組合方式與條件組。 */
+  function side(o) { return o.purpose === 'exit' ? o.exit : o; }
   window.BattleSettings = { get: copy, sanitize: sanitize, set: commit };
   document.addEventListener('DOMContentLoaded', function () {
     var wrap = document.getElementById('battlePreferences'); if (!wrap) return;
     function numeric(k, label, step, unit, hint) { var lim = cfg.limits[k]; return '<label class="battle-field">' + label + '<span class="battle-number"><input aria-describedby="bh-' + k + '" type="number" data-bpref="' + k + '" min="' + lim[0] + '" max="' + lim[1] + '" step="' + step + '" value="' + prefs[k] + '"><span>' + unit + '</span></span><small id="bh-' + k + '">' + hint + '</small></label>'; }
-    function select(k, label, options) { return '<fieldset class="battle-choice"><legend>' + label + '</legend><div class="battle-pills">' + options.map(function (o) { return '<button type="button" class="battle-pill" data-bchoice="' + k + '" data-value="' + o[0] + '" aria-pressed="' + (String(prefs[k]) === String(o[0])) + '">' + o[1] + '</button>'; }).join('') + '</div></fieldset>'; }
+    function select(k, label, options, hint) { return '<fieldset class="battle-choice"><legend>' + label + '</legend><div class="battle-pills">' + options.map(function (o) { return '<button type="button" class="battle-pill" data-bchoice="' + k + '" data-value="' + o[0] + '" aria-pressed="false">' + o[1] + '</button>'; }).join('') + '</div>' + (hint ? '<small class="battle-choice-hint">' + hint + '</small>' : '') + '</fieldset>'; }
     /* 均量基準：5 日、20 日，或自訂 2–120 個交易日（行情一次帶 160 根日 K，留出計算其他指標的餘裕）。 */
     function volumeDays() {
       var lim = cfg.limits.volumeDays;
@@ -73,53 +276,109 @@ window.BATTLE_CONFIG.sanitize = function (input) {
         '<label class="battle-days-custom" id="battleDaysCustom" hidden><span class="battle-number"><input type="number" inputmode="numeric" data-bpref="volumeDays" aria-label="自訂均量天數" aria-describedby="battleDaysHint" min="' + lim[0] + '" max="' + lim[1] + '" step="1" value="' + prefs.volumeDays + '"><span>日</span></span></label>' +
         '</div><small class="battle-days-hint" id="battleDaysHint" hidden>可輸入 ' + lim[0] + '–' + lim[1] + ' 個交易日；均量不含當日。</small></fieldset>';
     }
-    var labels = {useGap:'開盤跳空',useVolume:'爆量與最低量',useTrend:'均線位置',useBreakout:'前高低突破',useBody:'K 棒與收盤位置',useMacd:'MACD 柱體',useKD:'KD 相對位置',useBoll:'布林通道突破'};
+    var labels = {}; cfg.conditions.forEach(function (c) { labels[c.id] = c.label; });
     var dragged = '', draggedFrom = -1, target = 0;     // target：點條件時要加進哪一組（只在畫面上，不存檔）
-    function flag(k, label, hint) { return '<button type="button" class="battle-pill battle-feature" data-bflag="' + k + '" aria-pressed="' + prefs[k] + '"><span class="battle-checkmark" aria-hidden="true">' + (prefs[k] ? '✓' : '+') + '</span>' + label + '</button><span class="battle-in-groups" data-bwhere="' + k + '" hidden></span><p class="battle-feature-hint">' + hint + '</p>'; }
-    function card(k, hint, extra) { return '<div class="battle-feature-box" draggable="true" data-bdrag="' + k + '">' + flag(k, labels[k], hint) + (extra ? '<div data-bextra="' + k + '">' + extra + '</div>' : '') + '</div>'; }
+    // 條件清單目前看哪一類（只在畫面上，不存檔）。預設只列「使用中」的條件，其餘按分類展開，不把五十幾個條件一次攤開。
+    var category = 'used';
     function periods(k) { return cfg.periods[k].map(function (n) { return [n, n + ' 日']; }); }
-    wrap.innerHTML = '<div class="battle-config-head"><div><h3 id="battleConfigTitle" tabindex="-1">戰情設定</h3><p>先選方向與量價門檻，再加入你要看的技術條件。</p></div><button type="button" class="act ghost" id="battleConfigClose">收起設定</button></div>' +
-      '<div class="battle-basic"><div class="battle-choice-row">' + select('direction', '跳空方向', [['up', '向上跳空'], ['down', '向下跳空']]) + volumeDays() + select('volumeMode', '量能比較', [['actual','實際日量'],['estimate','盤中估量']]) + '</div><div class="battle-number-grid">' +
-      numeric('gapPct', '最低開盤幅度', 0.1, '%', '與昨收比較；另須超出昨日高低價。') + numeric('volumeMultiple', '最低日量倍數', 0.1, '倍', '與上方選的均量基準比較；倍數為自訂門檻，沒有通用開盤標準。') + numeric('minLots', '最低當日量', 1, '張', '最低張數一律使用實際成交量，不用估量代替。') + '</div></div>' +
-      '<details class="battle-help"><summary>剛開盤怎麼看成交量？</summary><p>實際日量會隨交易時間累積，剛開盤不宜和整日均量直接解讀成量縮。盤中估量採簡化模型：累計量＋前期日均量×剩餘交易分鐘／270；使用報價時間而非目前時間，收盤改用實際量。未滿開盤五分鐘不估量；最低張數仍看實際量。</p><p>這個模型沒有個股歷史分鐘量分布，開收盤量不均時可能偏差。預設 1 倍（當日量不低於均量）只是本站可調的起點，並非官方標準或勝率保證。<a href="https://www.xq.com.tw/xstrader/%E9%82%A3%E4%BA%9B%E8%82%A1%E7%A5%A8%E4%B8%AD%E9%95%B7%E7%B4%85%E4%B9%8B%E5%BE%8C%E9%82%84%E6%9C%83%E7%BA%8C%E6%BC%B2/" target="_blank" rel="noopener">XQ 簡化估量範例</a> · <a href="https://xshelp.xq.com.tw/XSHelp/?HelpName=%E4%BC%B0%E8%A8%88%E9%87%8F&amp;group=QVOLUME" target="_blank" rel="noopener">XQ 分鐘分布估量說明</a></p></details>' +
-      '<div class="battle-optional-head"><h4>組合你的條件</h4><p>把條件卡片拖進下面的組，或先點一個組、再點條件加入。同一個條件可以放進不同的組；最多 ' + cfg.maxGroups + ' 組。</p></div>' +
+    /* 原有條件的設定，各自放在自己的卡片裡（v137）：跳空的方向與幅度在「開盤跳空」，均量基準、量能比較、倍數與最低張數在「爆量與最低量」。
+       方向是七個看方向的條件共用的一個設定，所以這七張卡片裡都調得到，改任何一張，其餘跟著換。 */
+    function direction(label) { return select('direction', label, [['up', '向上'], ['down', '向下']], '開盤跳空、均線位置、前高低突破、K 棒、MACD 柱體、KD、布林共用這個方向。'); }
+    var legacyExtra = {
+      useGap: direction('跳空方向') + numeric('gapPct', '最低開盤幅度', 0.1, '%', '與昨收比較；另須超出昨日高低價。'),
+      useVolume: volumeDays() + select('volumeMode', '量能比較', [['actual', '實際日量'], ['estimate', '盤中估量']], '估量只在盤中使用，收盤後一律看實際量。') +
+        numeric('volumeMultiple', '最低日量倍數', 0.1, '倍', '與均量基準比較；1 倍代表不低於均量。') + numeric('minLots', '最低當日量', 1, '張', '一律看實際成交量，不用估量代替。'),
+      useTrend: direction('方向') + select('trendDays', '均線週期', periods('trendDays')),
+      useBreakout: direction('方向') + select('breakoutDays', '回看週期', periods('breakoutDays')),
+      useBody: direction('方向') + numeric('closePosition', '收盤位置門檻', 0.05, '', '0.7 代表收在當日區間上方 30%；向下對稱。'),
+      useMacd: direction('方向'), useKD: direction('方向'), useBoll: direction('方向')
+    };
+    /* 條件自己的參數（存在 cond[條件][參數]）。選項用橢圓按鈕，數字用輸入框。 */
+    function params(c) {
+      return c.params.map(function (q) {
+        var id = c.id + ':' + q.key;
+        if (q.options) return '<fieldset class="battle-choice"><legend>' + q.label + '</legend><div class="battle-pills">' + q.options.map(function (o) { return '<button type="button" class="battle-pill" data-cparam="' + id + '" data-value="' + o[0] + '" aria-pressed="false">' + o[1] + '</button>'; }).join('') + '</div></fieldset>';
+        return '<label class="battle-field">' + q.label + '<span class="battle-number"><input type="number" data-cnum="' + id + '" min="' + q.min + '" max="' + q.max + '" step="' + q.step + '" value="' + prefs.cond[c.id][q.key] + '"><span>' + q.unit + '</span></span></label>';
+      }).join('');
+    }
+    /* 依據：性質（常見指標／本站研究設定／張震觀點・量化研究版）加上來源連結。 */
+    function origin(c) {
+      return '<p class="battle-origin"><span class="battle-origin-tag is-' + c.origin + '">' + cfg.origins[c.origin] + '</span>' +
+        c.refs.map(function (r) { return '<a href="' + cfg.sources[r][1] + '" target="_blank" rel="noopener" draggable="false">' + cfg.sources[r][0] + '</a>'; }).join('') + '</p>';
+    }
+    function card(c) {
+      var extra = legacyExtra[c.id] || params(c);
+      return '<div class="battle-feature-box" draggable="true" data-bdrag="' + c.id + '" data-bside="' + c.side + '" data-bcat="' + c.cat + '">' +
+        '<button type="button" class="battle-pill battle-feature" data-bflag="' + c.id + '" aria-pressed="false"><span class="battle-checkmark" aria-hidden="true">+</span>' + c.label + '</button>' +
+        '<span class="battle-in-groups" data-bwhere="' + c.id + '" hidden></span><p class="battle-feature-hint">' + c.hint + '</p>' + origin(c) +
+        (extra ? '<div data-bextra="' + c.id + '">' + extra + '</div>' : '') + '</div>';
+    }
+    wrap.innerHTML = '<div class="battle-config-head"><div><h3 id="battleConfigTitle" tabindex="-1">戰情設定</h3><p>先選要看進場還是出場，再選範本，或點條件卡片自己組合。</p></div><button type="button" class="act ghost" id="battleConfigClose">收起設定</button></div>' +
+      '<div class="battle-purpose" role="group" aria-label="訊號目的">' +
+      '<button type="button" class="battle-purpose-button" data-bpurpose="entry" aria-pressed="true"><b>進場訊號</b><span>觀察可能轉強的條件</span></button>' +
+      '<button type="button" class="battle-purpose-button" data-bpurpose="exit" aria-pressed="false"><b>出場訊號</b><span>已經持有時，觀察可能轉弱的風險</span></button></div>' +
+      '<div class="battle-template"><label for="battleTemplate">策略範本</label><select id="battleTemplate"></select><p id="battleTemplateNote" role="status" aria-live="polite"></p></div>' +
+      '<div class="battle-optional-head"><h4>組合你的條件</h4><p>點條件卡片就加入，再點一次移除；也可以把卡片拖進某一組。每個條件的數值在它自己的卡片裡調整。同一個條件可以放進不同的組；最多 ' + cfg.maxGroups + ' 組。</p></div>' +
       '<div class="battle-mode" role="group" aria-label="組合方式">' +
       '<button type="button" class="battle-mode-button" data-bchoice="groupLogic" data-value="anyOfAll" aria-pressed="true"><b>且 → 或</b><span>同一組的條件都要成立；任一組成立就符合</span></button>' +
       '<button type="button" class="battle-mode-button" data-bchoice="groupLogic" data-value="allOfAny" aria-pressed="false"><b>或 → 且</b><span>同一組任一成立即可；每一組都要成立</span></button></div>' +
       '<div class="battle-groups" id="battleGroups"></div>' +
       '<p class="battle-formula" id="battleFormula" role="status" aria-live="polite"></p>' +
-      '<div class="battle-feature-grid" data-bdrop="pool" aria-label="可加入的條件">' +
-      card('useGap', '套用上方方向與開盤幅度，並超出昨日高低價。') +
-      card('useVolume', '日量倍數與最低張數須同時達到上方門檻。') +
-      card('useTrend', '向上看現價高於均線，向下則低於。', select('trendDays', '均線週期', periods('trendDays'))) +
-      card('useBreakout', '超出前一段期間的最高或最低價。', select('breakoutDays', '回看週期', periods('breakoutDays'))) +
-      card('useBody', '向上收紅且靠近高點，向下反向判斷。', numeric('closePosition', '收盤位置門檻', 0.05, '', '0.7 代表收在當日區間上方 30%；向下對稱。')) +
-      card('useMacd', '12／26／9；向上柱體為正，向下為負。') +
-      card('useKD', '9 日；向上 K > D，向下 K < D。') +
-      card('useBoll', '20 日、2 倍標準差；突破上軌或下軌。') + '</div>' +
+      '<div class="battle-cats" role="group" aria-label="條件分類"><button type="button" class="battle-pill" data-bcat-filter="used" aria-pressed="true">使用中</button>' +
+      cfg.categories.map(function (c) { return '<button type="button" class="battle-pill" data-bcat-filter="' + c[0] + '" aria-pressed="false">' + c[1] + '</button>'; }).join('') +
+      '<button type="button" class="battle-pill" data-bcat-filter="all" aria-pressed="false">全部</button></div>' +
+      '<p class="battle-pool-empty" id="battlePoolEmpty" hidden></p>' +
+      '<div class="battle-feature-grid" data-bdrop="pool" aria-label="可加入的條件">' + cfg.conditions.map(card).join('') + '</div>' +
+      '<details class="battle-help"><summary>方向、成交量與剛開盤怎麼看？</summary><p>價格方向只影響開盤跳空、均線位置、前高低突破、K 棒與收盤位置、MACD 柱體、KD 相對位置、布林通道突破這七項；其餘進場條件一律看轉強、出場條件一律看轉弱。進場或出場是你觀察的目的，和價格方向是兩件事：向下跳空不等於可以放空。</p><p>實際日量會隨交易時間累積，剛開盤不宜和整日均量直接解讀成量縮。盤中估量採簡化模型：累計量＋前期日均量×剩餘交易分鐘／270；使用報價時間而非目前時間，收盤改用實際量。未滿開盤五分鐘不估量；最低張數仍看實際量。需要「量縮」的條件一律等收盤才判定。</p><p>這個模型沒有個股歷史分鐘量分布，開收盤量不均時可能偏差。預設 1 倍（當日量不低於均量）只是本站可調的起點，並非官方標準或勝率保證。<a href="https://www.xq.com.tw/xstrader/%E9%82%A3%E4%BA%9B%E8%82%A1%E7%A5%A8%E4%B8%AD%E9%95%B7%E7%B4%85%E4%B9%8B%E5%BE%8C%E9%82%84%E6%9C%83%E7%BA%8C%E6%BC%B2/" target="_blank" rel="noopener">XQ 簡化估量範例</a> · <a href="https://xshelp.xq.com.tw/XSHelp/?HelpName=%E4%BC%B0%E8%A8%88%E9%87%8F&amp;group=QVOLUME" target="_blank" rel="noopener">XQ 分鐘分布估量說明</a></p></details>' +
+      '<details class="battle-help battle-unsupported"><summary>目前還不能提供的條件</summary><ul>' + cfg.unsupported.map(function (u) { return '<li><b>' + u[0] + '</b>：' + u[1] + '</li>'; }).join('') + '</ul><p>沒有資料的條件不會用別的數字代替。範本與門檻都是研究用的起點，沒有經過回測，不代表勝率，也不是買賣建議。</p></details>' +
       '<div class="battle-config-foot"><button type="button" class="act ghost" id="battleReset">還原預設</button><p id="battlePrefMessage" role="status" aria-live="polite">設定保存在此瀏覽器，切換條件立即重算。</p></div>';
     var message = document.getElementById('battlePrefMessage'), board = document.getElementById('battleGroups'), formula = document.getElementById('battleFormula');
-    function words() { return prefs.groupLogic === 'anyOfAll' ? { inner: '且', outer: '或' } : { inner: '或', outer: '且' }; }
+    var picker = document.getElementById('battleTemplate'), pickerNote = document.getElementById('battleTemplateNote'), pickerFor = '';
+    function words() { return side(prefs).groupLogic === 'anyOfAll' ? { inner: '且', outer: '或' } : { inner: '或', outer: '且' }; }
     function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
     function sync() {
-      var w = words(), groups = prefs.groups, canAdd = groups.length < cfg.maxGroups;
+      var s = side(prefs), w = words(), groups = s.groups, canAdd = groups.length < cfg.maxGroups;
       // 目標組：超出範圍時回到最後一組；等於 groups.length 代表「新的一組」（還沒有條件）。
       if (target > groups.length || (target === groups.length && !canAdd)) target = Math.max(0, groups.length - 1);
       if (!groups.length) target = 0;
-      wrap.dataset.mode = prefs.groupLogic;
-      wrap.querySelectorAll('[data-bchoice]').forEach(function (el) { el.setAttribute('aria-pressed', String(String(prefs[el.dataset.bchoice]) === el.dataset.value)); });
+      wrap.dataset.mode = s.groupLogic; wrap.dataset.purpose = prefs.purpose;
+      wrap.querySelectorAll('[data-bpurpose]').forEach(function (el) { el.setAttribute('aria-pressed', String(el.dataset.bpurpose === prefs.purpose)); });
+      // 範本選單：只列目前這個目的的範本；條件與某個範本完全相同時選到它，否則是「自訂」。
+      if (pickerFor !== prefs.purpose) {
+        pickerFor = prefs.purpose;
+        var list = cfg.templates.filter(function (t) { return t.side === prefs.purpose; });
+        picker.innerHTML = '<option value="">自訂（不套用範本）</option>' + ['research', 'zhang'].map(function (o) {
+          return '<optgroup label="' + (o === 'zhang' ? cfg.origins.zhang : '本站研究組合') + '">' + list.filter(function (t) { return t.origin === o; }).map(function (t) { return '<option value="' + t.id + '">' + esc(t.name) + '</option>'; }).join('') + '</optgroup>';
+        }).join('');
+      }
+      var current = cfg.templates.filter(function (t) { return t.id === prefs.template[prefs.purpose]; })[0];
+      picker.value = current ? current.id : '';
+      pickerNote.textContent = current ? current.note + (current.origin === 'zhang' ? '依據節目文字紀錄量化，數字是本站訂的起點，不是講者的公式。' : '') + '未經回測，不代表勝率。' : '選一個範本當起點，或直接用下面的條件自己組合。';
+      wrap.querySelectorAll('[data-bchoice]').forEach(function (el) {
+        var k = el.dataset.bchoice, v = k === 'direction' || k === 'groupLogic' ? s[k] : prefs[k];
+        el.setAttribute('aria-pressed', String(String(v) === el.dataset.value));
+      });
+      wrap.querySelectorAll('[data-cparam]').forEach(function (el) { var id = el.dataset.cparam.split(':'); el.setAttribute('aria-pressed', String(String(prefs.cond[id[0]][id[1]]) === el.dataset.value)); });
+      wrap.querySelectorAll('[data-cnum]').forEach(function (el) { var id = el.dataset.cnum.split(':'); if (document.activeElement !== el) { el.value = prefs.cond[id[0]][id[1]]; el.removeAttribute('aria-invalid'); } });
+      wrap.querySelectorAll('input[data-bpref]').forEach(function (el) { if (document.activeElement !== el && el.checkValidity() && el.value !== '') el.value = prefs[el.dataset.bpref]; });
       wrap.querySelectorAll('[data-bdays]').forEach(function (el) { el.setAttribute('aria-pressed', String(el.dataset.bdays === 'custom' ? prefs.volumeCustom : !prefs.volumeCustom && Number(el.dataset.bdays) === prefs.volumeDays)); });
       var customBox = document.getElementById('battleDaysCustom'), customInput = customBox.querySelector('input');
       customBox.hidden = !prefs.volumeCustom; document.getElementById('battleDaysHint').hidden = !prefs.volumeCustom;
       if (document.activeElement !== customInput) customInput.value = prefs.volumeDays;
+      wrap.querySelectorAll('[data-bcat-filter]').forEach(function (el) { el.setAttribute('aria-pressed', String(el.dataset.bcatFilter === category)); });
       wrap.querySelectorAll('.battle-feature[data-bflag]').forEach(function (el) {
-        var k = el.dataset.bflag, where = [];
+        var k = el.dataset.bflag, where = [], box = el.closest('.battle-feature-box');
         groups.forEach(function (g, n) { if (g.indexOf(k) >= 0) where.push(n + 1); });
         el.setAttribute('aria-pressed', String(where.length > 0));
         el.querySelector('.battle-checkmark').textContent = where.length ? '✓' : '+';
         var badge = wrap.querySelector('[data-bwhere="' + k + '"]');
         badge.hidden = !where.length || groups.length < 2; badge.textContent = where.length ? '在第 ' + where.join('、') + ' 組' : '';
+        // 清單只列這個目的用得到的條件；已經放進條件組的一定留著，才調得到它的參數。
+        var fits = box.dataset.bside === 'both' || box.dataset.bside === prefs.purpose, used = where.length > 0;
+        box.hidden = !(category === 'used' ? used : category === 'all' ? fits || used : box.dataset.bcat === category && (fits || used));
       });
+      var none = !wrap.querySelector('.battle-feature-box:not([hidden])'), empty = document.getElementById('battlePoolEmpty');
+      empty.hidden = !none; empty.textContent = category === 'used' ? '還沒有加入條件。選一個分類，把條件加進上面的組。' : '這個分類在目前的目的下沒有條件。';
       wrap.querySelectorAll('[data-bextra]').forEach(function (el) { el.hidden = !prefs[el.dataset.bextra]; });
       var shown = groups.map(function (g) { return g; });
       if (target === groups.length && canAdd) shown.push([]);          // 使用者剛按了「新增一組」
@@ -134,30 +393,36 @@ window.BATTLE_CONFIG.sanitize = function (input) {
           '<div class="battle-expression">' + (chips || '<span class="battle-group-empty">把條件拖進來，或點下面的條件。</span>') + '</div></section>';
       }).join('') + (canAdd && target !== groups.length && groups.length
         ? '<span class="battle-group-join" aria-hidden="true">' + w.outer + '</span><section class="battle-group battle-group-new" data-bdrop="new" aria-label="新增一組"><button type="button" class="battle-group-pick" data-bnew><b>＋ 新增一組</b><span>把條件拖到這裡，或點一下再選條件</span></button></section>' : '');
-      formula.textContent = groups.length ? '目前的條件：' + groups.map(function (g) {
+      formula.textContent = groups.length ? (prefs.purpose === 'exit' ? '目前的出場條件：' : '目前的條件：') + groups.map(function (g) {
         var t = g.map(function (k) { return labels[k]; }).join(' ' + w.inner + ' ');
         return groups.length > 1 && g.length > 1 ? '（' + t + '）' : t;
       }).join(' ' + w.outer + ' ') : '請加入至少一項條件。';
       formula.classList.toggle('is-empty', !groups.length);
     }
     function feedback(saved) {
-      var invalid = Array.from(wrap.querySelectorAll('[data-bpref]')).some(function (el) { return !el.closest('[hidden]') && (el.value === '' || !el.checkValidity()); });
+      var invalid = Array.from(wrap.querySelectorAll('[data-bpref], [data-cnum]')).some(function (el) { return !el.closest('[hidden]') && (el.value === '' || !el.checkValidity()); });
       message.classList.toggle('is-error', invalid);
       message.textContent = invalid ? '有欄位超出範圍，該欄仍沿用最後有效設定。請修正後再查看結果。' : saved ? '已套用，結果已重新計算。' : '已套用；此瀏覽器無法保存設定。';
     }
     function apply(next) { var saved = commit(next); sync(); feedback(saved); }
     function updatePreference(e) {
-      var el = e.target, key = el.dataset.bpref; if (!key) return;
+      var el = e.target, key = el.dataset.bpref, cnum = el.dataset.cnum; if (!key && !cnum) return;
       var valid = el.checkValidity() && el.value !== ''; el.setAttribute('aria-invalid', String(!valid));
       if (!valid) { feedback(true); return; }
-      var next = copy(); next[key] = el.value;
+      var next = copy();
+      if (cnum) {
+        var id = cnum.split(':');
+        if (Number(prefs.cond[id[0]][id[1]]) === Number(el.value)) { feedback(true); return; }
+        next.cond[id[0]][id[1]] = el.value; feedback(commit(next)); sync(); return;
+      }
+      next[key] = el.value;
       if (key === 'volumeDays') next.volumeCustom = true;
       if (Number(prefs[key]) === Number(el.value)) { feedback(true); return; }
       feedback(commit(next)); if (key === 'volumeDays') sync();
     }
     /* 把條件 k 放進第 n 組（n 等於目前組數時是新的一組）；from >= 0 時先從那一組拿掉（在組之間移動）。 */
     function place(k, n, from) {
-      var next = copy(), groups = next.groups;
+      var next = copy(), groups = side(next).groups;
       if (from >= 0 && from !== n && groups[from]) groups[from] = groups[from].filter(function (x) { return x !== k; });
       if (n >= groups.length) { if (groups.filter(function (g) { return g.length; }).length >= cfg.maxGroups) return; groups.push([k]); n = groups.length - 1; }
       else if (groups[n].indexOf(k) < 0) groups[n].push(k);
@@ -167,36 +432,55 @@ window.BATTLE_CONFIG.sanitize = function (input) {
       target = landed; apply(next);
     }
     function removeFrom(k, n) {
-      var next = copy();
-      next.groups = next.groups.map(function (g, i) { return n < 0 || i === n ? g.filter(function (x) { return x !== k; }) : g; });
-      if (n >= 0 && n < target && next.groups[n] && !next.groups[n].length) target--;
+      var next = copy(), s = side(next);
+      s.groups = s.groups.map(function (g, i) { return n < 0 || i === n ? g.filter(function (x) { return x !== k; }) : g; });
+      if (n >= 0 && n < target && s.groups[n] && !s.groups[n].length) target--;
       apply(next);
     }
+    /* 套用範本：換掉這個目的的條件組、組合方式與方向，並把範本用到的條件參數設成範本的值。另一個目的不動。 */
+    function useTemplate(id) {
+      var t = cfg.templates.filter(function (x) { return x.id === id && x.side === prefs.purpose; })[0]; if (!t) { sync(); return; }
+      var next = copy(), s = side(next);
+      s.groupLogic = t.groupLogic; s.direction = t.direction; s.groups = t.groups.map(function (g) { return g.slice(); });
+      Object.keys(t.params).forEach(function (c) { Object.keys(t.params[c]).forEach(function (k) { next.cond[c][k] = t.params[c][k]; }); });
+      target = 0; category = 'used'; apply(next);
+      message.textContent = '已套用範本「' + t.name + '」，可以再調整條件與數值。';
+    }
+    picker.addEventListener('change', function () { if (picker.value) useTemplate(picker.value); else sync(); });
     wrap.addEventListener('click', function (e) {
       // 整個條件組的框都可以點（v137）：點框內任何地方（標籤除外，標籤是移除）就選這一組；「新增一組」的整個虛線框也一樣。
-      var el = e.target.closest('[data-bremove], [data-bpick], [data-bnew], [data-bdays], [data-bchoice], [data-bflag], .battle-group'); if (!el) return;
+      var el = e.target.closest('[data-bremove], [data-bpick], [data-bnew], [data-bdays], [data-bchoice], [data-bflag], [data-bpurpose], [data-bcat-filter], [data-cparam], .battle-group, .battle-feature-box'); if (!el) return;
       if (el.classList.contains('battle-group')) el = el.querySelector('[data-bpick], [data-bnew]');
+      // 整張條件卡片都可以點（v137）：點卡片任何地方就是加入／移除，和點裡面的橢圓按鈕一樣。
+      // 卡片裡的設定區與來源連結照常操作；從設定區按下、在卡片上放開（例如拖著選字）也不算點卡片。
+      if (el.classList.contains('battle-feature-box')) { if (pressedInside || e.target.closest('[data-bextra], a')) return; el = el.querySelector('[data-bflag]'); }
       if (el.dataset.bremove) { removeFrom(el.dataset.bremove, Number(el.dataset.bfrom)); return; }
       if (el.dataset.bpick !== undefined) { target = Number(el.dataset.bpick); sync(); return; }
-      if (el.hasAttribute('data-bnew')) { target = prefs.groups.length; sync(); var fresh = board.querySelector('.battle-group.is-target .battle-group-pick'); if (fresh) fresh.focus(); return; }
+      if (el.hasAttribute('data-bnew')) { target = side(prefs).groups.length; sync(); var fresh = board.querySelector('.battle-group.is-target .battle-group-pick'); if (fresh) fresh.focus(); return; }
+      if (el.dataset.bcatFilter) { category = el.dataset.bcatFilter; sync(); return; }
       var next = copy();
+      if (el.dataset.bpurpose) { if (el.dataset.bpurpose === prefs.purpose) return; next.purpose = el.dataset.bpurpose; target = 0; category = 'used'; apply(next); return; }
+      if (el.dataset.cparam) { var id = el.dataset.cparam.split(':'); next.cond[id[0]][id[1]] = el.dataset.value; apply(next); return; }
       if (el.dataset.bdays) {
         if (el.dataset.bdays === 'custom') { next.volumeCustom = true; apply(next); var input = document.querySelector('#battleDaysCustom input'); input.focus(); input.select(); return; }
         next.volumeCustom = false; next.volumeDays = Number(el.dataset.bdays); apply(next); return;
       }
       if (el.dataset.bflag) {
         // 點條件：在目標組裡就拿掉，不在就加進去。
-        var k = el.dataset.bflag, g = prefs.groups[target];
-        if (g && g.indexOf(k) >= 0) removeFrom(k, target); else place(k, Math.min(target, prefs.groups.length), -1);
+        var k = el.dataset.bflag, g = side(prefs).groups[target];
+        if (g && g.indexOf(k) >= 0) removeFrom(k, target); else place(k, Math.min(target, side(prefs).groups.length), -1);
         return;
       }
-      next[el.dataset.bchoice] = el.dataset.value; apply(next);
+      var key = el.dataset.bchoice;
+      if (key === 'direction' || key === 'groupLogic') side(next)[key] = el.dataset.value; else next[key] = el.dataset.value;
+      apply(next);
     });
     wrap.addEventListener('input', updatePreference);
     wrap.addEventListener('change', updatePreference);
     function clearDrag(){dragged='';draggedFrom=-1;wrap.classList.remove('is-dragging');wrap.querySelectorAll('.drag-over, .is-dragged').forEach(function(el){el.classList.remove('drag-over');el.classList.remove('is-dragged');});}
     /* 整張條件卡片都可以拖（v135）。卡片裡的週期按鈕與數值輸入框要能正常點選、選字：從那一區按下時，這一次不啟動拖曳。 */
-    wrap.addEventListener('pointerdown', function(e){var box=e.target.closest('.battle-feature-box');if(box)box.draggable=!e.target.closest('[data-bextra]');});
+    var pressedInside = false;                          // 這一次按下是不是從卡片的設定區或連結開始
+    wrap.addEventListener('pointerdown', function(e){var box=e.target.closest('.battle-feature-box');pressedInside=!!e.target.closest('[data-bextra], a');if(box)box.draggable=!e.target.closest('[data-bextra]');});
     wrap.addEventListener('dragstart', function(e){var el=e.target.closest('[data-bdrag]');if(!el)return;dragged=el.dataset.bdrag;draggedFrom=el.dataset.bfrom===undefined?-1:Number(el.dataset.bfrom);e.dataTransfer.setData('text/plain',dragged);e.dataTransfer.effectAllowed='move';wrap.classList.add('is-dragging');el.classList.add('is-dragged');});
     wrap.addEventListener('dragover',function(e){var zone=e.target.closest('[data-bdrop]');if(zone&&dragged){e.preventDefault();zone.classList.add('drag-over');}});
     wrap.addEventListener('dragleave',function(e){var zone=e.target.closest('[data-bdrop]');if(zone&&!zone.contains(e.relatedTarget))zone.classList.remove('drag-over');});
@@ -205,11 +489,11 @@ window.BATTLE_CONFIG.sanitize = function (input) {
       var k=dragged,from=draggedFrom,kind=zone.dataset.bdrop;clearDrag();
       // 拖回條件清單：從組裡的標籤拖來就只拿掉那一組的；拖的是卡片本身就從每一組拿掉。
       if(kind==='pool'){if(prefs[k])removeFrom(k,from);return;}
-      place(k,kind==='new'?prefs.groups.length:Number(zone.dataset.bgroup),from);
+      place(k,kind==='new'?side(prefs).groups.length:Number(zone.dataset.bgroup),from);
     });
     wrap.addEventListener('dragend',clearDrag);
     document.getElementById('battleReset').addEventListener('click', function () {
-      target = 0; commit({});
+      target = 0; category = 'used'; commit({});
       wrap.querySelectorAll('[data-bpref]').forEach(function (el) { el.value = prefs[el.dataset.bpref]; el.removeAttribute('aria-invalid'); });
       sync(); message.classList.remove('is-error'); message.textContent = '已還原預設。';
     });

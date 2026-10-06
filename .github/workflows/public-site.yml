@@ -36,6 +36,10 @@ jobs:
         run: python scripts/check_original_parity.py
       - name: 戰情公式與缺漏資料檢查
         run: node scripts/check_battle.js
+      - name: 戰情條件庫：規則、不看未來、範本一致
+        run: node scripts/check_battle_signals.js
+      - name: 戰情指標：與獨立的參考實作逐筆比對
+        run: python scripts/check_battle_indicators.py
       - name: 後端橋接實測（失敗就保留上一版網站）
         env:
           SITE_API_URL: ${{ vars.SITE_API_URL }}

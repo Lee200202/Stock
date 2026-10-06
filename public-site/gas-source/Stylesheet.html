@@ -4888,4 +4888,56 @@ main.wrap:has(> #p-battle:not([hidden])) { width:min(1600px, calc(100% - 48px));
 .battle-match-group em { font-style:normal; font-weight:700; color:var(--muted); }
 .battle-match-strip > b.battle-match-join { background:var(--panel-2); color:var(--ink); border:1px solid var(--rule); padding:6px 14px; }
 @media (max-width:720px) { .battle-mode { grid-template-columns:minmax(0,1fr); } .battle-group, .battle-group-new { flex:1 1 100%; } .battle-group-join { align-self:flex-start; } }
+/* v137：進場／出場、策略範本、條件分類與依據。進場用品牌色、出場用琥珀色；且／或沿用綠與藍，和漲跌的紅綠分開。 */
+.battle-purpose { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-top:20px; }
+.battle-purpose-button { display:grid; gap:4px; align-content:center; text-align:left; min-height:76px; padding:14px 28px; border:2px solid var(--rule); border-radius:999px; background:var(--panel-2); color:var(--ink); font:inherit; line-height:1.6; cursor:pointer; }
+.battle-purpose-button b { font-size:1.15em; }
+.battle-purpose-button span { color:var(--muted); font-size:calc(14px * var(--rd-fs)); }
+.battle-purpose-button[aria-pressed=true] { border-color:#13684b; background:#13684b; color:#fff; }
+.battle-purpose-button[data-bpurpose=exit][aria-pressed=true] { border-color:#9a5b00; background:#9a5b00; }
+.battle-purpose-button[aria-pressed=true] span { color:inherit; opacity:.92; }
+.battle-purpose-button:focus-visible, .battle-template select:focus-visible { outline:3px solid var(--beam); outline-offset:4px; }
+.battle-template { display:grid; grid-template-columns:auto minmax(0,1fr); gap:12px 20px; align-items:center; margin-top:24px; }
+.battle-template label { font-weight:600; }
+.battle-template select { width:100%; min-height:56px; padding:12px 20px; border:1px solid var(--rule); border-radius:999px; background:var(--panel-2); color:var(--ink); font:inherit; cursor:pointer; }
+.battle-template p { grid-column:1 / -1; margin:0; color:var(--muted); line-height:1.7; font-size:calc(14px * var(--rd-fs)); }
+.battle-cats { display:flex; flex-wrap:wrap; gap:10px; margin-top:28px; }
+.battle-feature-box[hidden] { display:none; }
+.battle-pool-empty { margin:20px 0 0; color:var(--muted); line-height:1.7; }
+/* 整張條件卡片可點（加入／移除）也可拖；門檻併入各自的卡片：使用中而且有設定的卡片佔整列，設定橫向排開、彼此留白。 */
+.battle-feature-box { padding:24px; transition:border-color .15s ease, background-color .15s ease; }
+.battle-feature-box[draggable=true] { cursor:pointer; }
+.battle-feature-box[draggable=true]:hover { border-color:var(--beam); }
+.battle-feature-box:focus-within { border-color:var(--beam); }
+.battle-feature-box:has(> [data-bextra]:not([hidden])) { grid-column:1 / -1; }
+.battle-feature-box > [data-bextra] { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:28px 32px; align-items:start; margin-top:20px; padding-top:24px; border-top:1px solid var(--rule); }
+.battle-feature-box > [data-bextra][hidden] { display:none; }
+.battle-feature-box > [data-bextra] .battle-choice { margin:0; }
+.battle-choice-hint { display:block; margin-top:12px; color:var(--muted); font-size:calc(13px * var(--rd-fs)); font-weight:400; line-height:1.7; }
+.battle-feature-grid { gap:24px; margin-top:20px; }
+/* 留白：範本說明和下一段之間、兩條說明摺疊列之間、卡片裡的標題與控制項之間 */
+.battle-template { margin-bottom:28px; }
+.battle-config .battle-help { margin-top:20px; }
+.battle-config .battle-help + .battle-help { margin-top:12px; }
+.battle-config .battle-help summary { padding:10px 0; line-height:1.6; cursor:pointer; }
+.battle-feature-box > [data-bextra] legend, .battle-feature-box > [data-bextra] .battle-field { font-size:calc(15px * var(--rd-fs)); font-weight:600; color:var(--ink); }
+.battle-card[data-bstock] { cursor:pointer; }
+.battle-card[data-bstock] details, .battle-card[data-bstock] details * { cursor:auto; }
+.battle-card[data-bstock] details summary { cursor:pointer; }
+@media (max-width:720px) { .battle-feature-box { padding:20px; } .battle-feature-box > [data-bextra] { grid-template-columns:minmax(0,1fr); gap:24px; } }
+@media (prefers-reduced-motion:reduce) { .battle-feature-box { transition:none; } }
+.battle-origin { display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; margin:0 0 4px; font-size:calc(13px * var(--rd-fs)); line-height:1.7; }
+.battle-origin a { color:var(--muted); text-decoration:underline; text-underline-offset:3px; }
+.battle-origin-tag { padding:3px 10px; border-radius:999px; border:1px solid var(--rule); background:var(--panel-2); font-weight:600; }
+.battle-origin-tag.is-research { border-color:#2456a4; }
+.battle-origin-tag.is-zhang { border-color:#7a4bb3; }
+.battle-unsupported ul { margin:12px 0; padding-left:1.2em; line-height:1.9; }
+.battle-strategy { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin:10px 0 0; line-height:1.7; }
+.battle-purpose-tag { padding:6px 14px; border-radius:999px; background:#13684b; color:#fff; font-size:calc(13px * var(--rd-fs)); font-weight:600; }
+.battle-purpose-tag.is-exit { background:#9a5b00; }
+.battle-condition.is-signal strong { font-weight:500; line-height:1.7; }
+.battle-condition-origin { display:block; margin-top:8px; color:var(--muted); font-size:calc(12px * var(--rd-fs)); }
+.battle-others { margin-top:14px; }
+.battle-rule[data-purpose=exit] { border-color:#9a5b00; background:color-mix(in srgb,#9a5b00 8%,var(--panel)); }
+@media (max-width:720px) { .battle-purpose, .battle-template { grid-template-columns:minmax(0,1fr); } .battle-purpose-button { border-radius:var(--r-md); padding-inline:20px; } }
 </style>

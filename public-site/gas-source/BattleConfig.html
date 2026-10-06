@@ -39,24 +39,24 @@ window.BATTLE_CONFIG = {
     function numeric(k, label, step, unit, hint) { var lim = cfg.limits[k]; return '<label class="battle-field">' + label + '<span class="battle-number"><input aria-describedby="bh-' + k + '" type="number" data-bpref="' + k + '" min="' + lim[0] + '" max="' + lim[1] + '" step="' + step + '" value="' + prefs[k] + '"><span>' + unit + '</span></span><small id="bh-' + k + '">' + hint + '</small></label>'; }
     function select(k, label, options) { return '<fieldset class="battle-choice"><legend>' + label + '</legend><div class="battle-pills">' + options.map(function (o) { return '<button type="button" class="battle-pill" data-bchoice="' + k + '" data-value="' + o[0] + '" aria-pressed="' + (String(prefs[k]) === String(o[0])) + '">' + o[1] + '</button>'; }).join('') + '</div></fieldset>'; }
     var labels = {useGap:'開盤跳空',useVolume:'爆量與最低量',useTrend:'均線位置',useBreakout:'前高低突破',useBody:'K 棒與收盤位置',useMacd:'MACD 柱體',useKD:'KD 相對位置',useBoll:'布林通道突破'}, dragged = '';
-    function flag(k, label, hint) { return '<button type="button" draggable="true" class="battle-pill battle-feature" data-bdrag="' + k + '" data-bflag="' + k + '" aria-pressed="' + prefs[k] + '"><span class="battle-checkmark" aria-hidden="true">' + (prefs[k] ? '✓' : '+') + '</span>' + label + '</button><p class="battle-feature-hint">' + hint + '</p>'; }
+    function flag(k, label, hint) { return '<button type="button" class="battle-pill battle-feature" data-bflag="' + k + '" aria-pressed="' + prefs[k] + '"><span class="battle-checkmark" aria-hidden="true">' + (prefs[k] ? '✓' : '+') + '</span>' + label + '</button><p class="battle-feature-hint">' + hint + '</p>'; }
     function periods(k) { return cfg.periods[k].map(function (n) { return [n, n + ' 日']; }); }
     wrap.innerHTML = '<div class="battle-config-head"><div><h3 id="battleConfigTitle" tabindex="-1">戰情設定</h3><p>先選方向與量價門檻，再加入你要看的技術條件。</p></div><button type="button" class="act ghost" id="battleConfigClose">收起設定</button></div>' +
-      '<div class="battle-basic"><div>' + select('direction', '跳空方向', [['up', '向上跳空'], ['down', '向下跳空']]) + select('volumeDays', '均量基準', periods('volumeDays')) + select('volumeMode', '量能比較', [['actual','實際日量'],['estimate','盤中估量']]) + '</div><div class="battle-number-grid">' +
+      '<div class="battle-basic"><div class="battle-choice-row">' + select('direction', '跳空方向', [['up', '向上跳空'], ['down', '向下跳空']]) + select('volumeDays', '均量基準', periods('volumeDays')) + select('volumeMode', '量能比較', [['actual','實際日量'],['estimate','盤中估量']]) + '</div><div class="battle-number-grid">' +
       numeric('gapPct', '最低開盤幅度', 0.1, '%', '與昨收比較；另須超出昨日高低價。') + numeric('volumeMultiple', '最低日量倍數', 0.1, '倍', '與前 5 或 20 日均量比較；倍數為自訂門檻，沒有通用開盤標準。') + numeric('minLots', '最低當日量', 1, '張', '最低張數一律使用實際成交量，不用估量代替。') + '</div></div>' +
       '<details class="battle-help"><summary>剛開盤怎麼看成交量？</summary><p>實際日量會隨交易時間累積，剛開盤不宜和整日均量直接解讀成量縮。盤中估量採簡化模型：累計量＋前期日均量×剩餘交易分鐘／270；使用報價時間而非目前時間，收盤改用實際量。未滿開盤五分鐘不估量；最低張數仍看實際量。</p><p>這個模型沒有個股歷史分鐘量分布，開收盤量不均時可能偏差。2.5 倍保留為本站可調門檻，並非官方標準或勝率保證。<a href="https://www.xq.com.tw/xstrader/%E9%82%A3%E4%BA%9B%E8%82%A1%E7%A5%A8%E4%B8%AD%E9%95%B7%E7%B4%85%E4%B9%8B%E5%BE%8C%E9%82%84%E6%9C%83%E7%BA%8C%E6%BC%B2/" target="_blank" rel="noopener">XQ 簡化估量範例</a> · <a href="https://xshelp.xq.com.tw/XSHelp/?HelpName=%E4%BC%B0%E8%A8%88%E9%87%8F&amp;group=QVOLUME" target="_blank" rel="noopener">XQ 分鐘分布估量說明</a></p></details>' +
       '<div class="battle-optional-head"><h4>組合你的條件</h4><p>拖入下方條件區，或點選條件加入。綠色「且」須全部符合；藍色「或」只需其中一項。這是一組條件，可隨時切換邏輯。</p></div><div class="battle-logic-board">' +
       '<section class="battle-dropzone" data-bdrop="all"><button type="button" class="battle-logic-button" data-bchoice="logic" data-value="all" aria-pressed="true"><b>且</b><span>全部符合</span></button><p>每個已加入的條件都要成立。</p><div class="battle-expression" data-bexpression="all"></div></section>' +
       '<section class="battle-dropzone" data-bdrop="any"><button type="button" class="battle-logic-button" data-bchoice="logic" data-value="any" aria-pressed="false"><b>或</b><span>任一符合</span></button><p>至少一個已加入的條件成立。</p><div class="battle-expression" data-bexpression="any"></div></section></div>' +
       '<div class="battle-feature-grid" data-bdrop="pool" aria-label="可加入的條件">' +
-      '<div class="battle-feature-box">' + flag('useGap','開盤跳空','套用上方方向與開盤幅度，並超出昨日高低價。') + '</div>' +
-      '<div class="battle-feature-box">' + flag('useVolume','爆量與最低量','日量倍數與最低張數須同時達到上方門檻。') + '</div>' +
-      '<div class="battle-feature-box">' + flag('useTrend', '均線位置', '向上看現價高於均線，向下則低於。') + '<div data-bextra="useTrend">' + select('trendDays', '均線週期', periods('trendDays')) + '</div></div>' +
-      '<div class="battle-feature-box">' + flag('useBreakout', '前高低突破', '超出前一段期間的最高或最低價。') + '<div data-bextra="useBreakout">' + select('breakoutDays', '回看週期', periods('breakoutDays')) + '</div></div>' +
-      '<div class="battle-feature-box">' + flag('useBody', 'K 棒與收盤位置', '向上收紅且靠近高點，向下反向判斷。') + '<div data-bextra="useBody">' + numeric('closePosition', '收盤位置門檻', 0.05, '', '0.7 代表收在當日區間上方 30%；向下對稱。') + '</div></div>' +
-      '<div class="battle-feature-box">' + flag('useMacd', 'MACD 柱體', '12／26／9；向上柱體為正，向下為負。') + '</div>' +
-      '<div class="battle-feature-box">' + flag('useKD', 'KD 相對位置', '9 日；向上 K > D，向下 K < D。') + '</div>' +
-      '<div class="battle-feature-box">' + flag('useBoll', '布林通道突破', '20 日、2 倍標準差；突破上軌或下軌。') + '</div></div>' +
+      '<div class="battle-feature-box" draggable="true" data-bdrag="useGap">' + flag('useGap','開盤跳空','套用上方方向與開盤幅度，並超出昨日高低價。') + '</div>' +
+      '<div class="battle-feature-box" draggable="true" data-bdrag="useVolume">' + flag('useVolume','爆量與最低量','日量倍數與最低張數須同時達到上方門檻。') + '</div>' +
+      '<div class="battle-feature-box" draggable="true" data-bdrag="useTrend">' + flag('useTrend', '均線位置', '向上看現價高於均線，向下則低於。') + '<div data-bextra="useTrend">' + select('trendDays', '均線週期', periods('trendDays')) + '</div></div>' +
+      '<div class="battle-feature-box" draggable="true" data-bdrag="useBreakout">' + flag('useBreakout', '前高低突破', '超出前一段期間的最高或最低價。') + '<div data-bextra="useBreakout">' + select('breakoutDays', '回看週期', periods('breakoutDays')) + '</div></div>' +
+      '<div class="battle-feature-box" draggable="true" data-bdrag="useBody">' + flag('useBody', 'K 棒與收盤位置', '向上收紅且靠近高點，向下反向判斷。') + '<div data-bextra="useBody">' + numeric('closePosition', '收盤位置門檻', 0.05, '', '0.7 代表收在當日區間上方 30%；向下對稱。') + '</div></div>' +
+      '<div class="battle-feature-box" draggable="true" data-bdrag="useMacd">' + flag('useMacd', 'MACD 柱體', '12／26／9；向上柱體為正，向下為負。') + '</div>' +
+      '<div class="battle-feature-box" draggable="true" data-bdrag="useKD">' + flag('useKD', 'KD 相對位置', '9 日；向上 K > D，向下 K < D。') + '</div>' +
+      '<div class="battle-feature-box" draggable="true" data-bdrag="useBoll">' + flag('useBoll', '布林通道突破', '20 日、2 倍標準差；突破上軌或下軌。') + '</div></div>' +
       '<div class="battle-config-foot"><button type="button" class="act ghost" id="battleReset">還原預設</button><p id="battlePrefMessage" role="status" aria-live="polite">設定保存在此瀏覽器，切換條件立即重算。</p></div>';
     var message = document.getElementById('battlePrefMessage');
     function sync() {
@@ -86,8 +86,11 @@ window.BATTLE_CONFIG = {
     wrap.addEventListener('click', function (e) { var el = e.target.closest('[data-bchoice], [data-bflag]'); if (!el) return; var next = Object.assign({}, prefs); if (el.dataset.bflag) next[el.dataset.bflag] = !prefs[el.dataset.bflag]; else next[el.dataset.bchoice] = el.dataset.value; var saved = commit(next); sync(); feedback(saved); });
     wrap.addEventListener('input', updatePreference);
     wrap.addEventListener('change', updatePreference);
-    function clearDrag(){dragged='';wrap.classList.remove('is-dragging');wrap.querySelectorAll('.drag-over').forEach(function(el){el.classList.remove('drag-over');});}
-    wrap.addEventListener('dragstart', function(e){var el=e.target.closest('[data-bdrag]');if(!el)return;dragged=el.dataset.bdrag;e.dataTransfer.setData('text/plain',dragged);e.dataTransfer.effectAllowed='move';wrap.classList.add('is-dragging');});
+    function clearDrag(){dragged='';wrap.classList.remove('is-dragging');wrap.querySelectorAll('.drag-over, .is-dragged').forEach(function(el){el.classList.remove('drag-over');el.classList.remove('is-dragged');});}
+    /* 整張條件卡片都可以拖（v135）：先前只有橢圓按鈕能拖，抓卡片其他地方沒有反應（2026/10/06 管理者回報）。
+       卡片裡的週期按鈕與數值輸入框要能正常點選、選字：從那一區按下時，這一次不啟動拖曳。 */
+    wrap.addEventListener('pointerdown', function(e){var box=e.target.closest('.battle-feature-box');if(box)box.draggable=!e.target.closest('[data-bextra]');});
+    wrap.addEventListener('dragstart', function(e){var el=e.target.closest('[data-bdrag]');if(!el)return;dragged=el.dataset.bdrag;e.dataTransfer.setData('text/plain',dragged);e.dataTransfer.effectAllowed='move';wrap.classList.add('is-dragging');el.classList.add('is-dragged');});
     wrap.addEventListener('dragover',function(e){var zone=e.target.closest('[data-bdrop]');if(zone&&dragged){e.preventDefault();zone.classList.add('drag-over');}});
     wrap.addEventListener('dragleave',function(e){var zone=e.target.closest('[data-bdrop]');if(zone&&!zone.contains(e.relatedTarget))zone.classList.remove('drag-over');});
     wrap.addEventListener('drop',function(e){var zone=e.target.closest('[data-bdrop]');if(!zone||!labels[dragged])return;e.preventDefault();var next=Object.assign({},prefs);next[dragged]=zone.dataset.bdrop!=='pool';if(zone.dataset.bdrop!=='pool')next.logic=zone.dataset.bdrop;var saved=commit(next);clearDrag();sync();feedback(saved);});

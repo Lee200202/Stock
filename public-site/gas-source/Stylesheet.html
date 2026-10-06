@@ -4829,4 +4829,18 @@ main.wrap:has(> #p-battle:not([hidden])) { width:min(1600px, calc(100% - 48px));
 .stock-search > button { justify-self:start; min-width:140px; }
 @media(max-width:720px){#p-stock > .sect { width:calc(100% - 24px); }.stock-search > button { width:100%; }}
 @media(max-width:480px){.stock-search input { font-size:17px; padding:0 20px; }}
+/* v135 戰情設定：三組選項橫向排開，各自對齊下面那一個數值欄位
+   （跳空方向↔最低開盤幅度、均量基準↔最低日量倍數、量能比較↔最低當日量）。
+   先前三組直排在左邊一欄，右邊三個數值欄位下方空了一大塊（2026/10/06 管理者回報）。 */
+.battle-basic { grid-template-columns:minmax(0,1fr); gap:28px; }
+.battle-choice-row { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:24px; align-items:start; }
+.battle-choice-row .battle-choice { margin:0; }
+@media (min-width:721px) and (max-width:1100px) { .battle-basic { gap:28px; } }
+/* v135 整張條件卡片可拖：游標提示可以抓，拖的時候原位變淡。卡片裡的設定區維持一般游標與選字。 */
+.battle-feature-box[draggable=true] { cursor:grab; user-select:none; -webkit-user-select:none; }
+.battle-feature-box[draggable=true]:active { cursor:grabbing; }
+.battle-feature-box [data-bextra] { cursor:auto; user-select:text; -webkit-user-select:text; }
+.battle-feature-box.is-dragged { opacity:.55; outline:2px dashed var(--beam); outline-offset:2px; }
+/* 860px 以下每欄不到 250px，兩顆選項會折成兩行：三組改成各佔一列，選項仍在同一行。 */
+@media (max-width:860px) { .battle-choice-row { grid-template-columns:minmax(0,1fr); gap:20px; } }
 </style>

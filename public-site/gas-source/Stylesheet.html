@@ -4724,13 +4724,44 @@ html[data-view="mobile"] .tracker-card-note { font-size: calc(15px * var(--rd-fs
 .battle-condition p { margin-bottom:0; line-height:1.7; }
 .battle-pagination { justify-content:center; margin:24px 0; }
 .battle-pagination span { text-align:center; }
-.battle-settings { border-top:1px solid var(--rule); margin-top:18px; padding-top:12px; }
-.battle-pref-grid { display:grid; gap:14px; margin:12px 0 18px; }
-.battle-pref-grid label { display:grid; gap:8px; line-height:1.6; }
-.battle-pref-grid input[type=number], .battle-pref-grid select { width:100%; min-height:48px; padding:8px 12px; box-sizing:border-box; border:1px solid var(--rule); border-radius:var(--r-sm); color:var(--ink); background:var(--panel); font:inherit; }
-.battle-pref-grid .battle-check { display:flex; align-items:center; min-height:44px; gap:12px; }
-.battle-check input { flex:none; width:22px; height:22px; accent-color:var(--beam); }
-.battle-name:focus-visible, .battle-card summary:focus-visible, .battle-settings summary:focus-visible { outline:3px solid var(--beam); outline-offset:4px; border-radius:8px; }
+/* v129 戰情設定獨立滿版，量價與技術條件各自有呼吸空間。 */
+main.wrap:has(> #p-battle:not([hidden])) { width:min(1600px, calc(100% - 48px)); }
+.battle-config { margin:24px 0 32px; padding:32px; }
+.battle-config[hidden], .battle-config [hidden] { display:none; }
+.battle-config-head, .battle-config-foot { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; }
+.battle-config-head h3 { font-size:calc(23px * var(--rd-fs)); }
+.battle-config-head p, .battle-optional-head p { color:var(--muted); margin:8px 0 0; }
+.battle-basic { display:grid; grid-template-columns:minmax(240px,.8fr) minmax(0,2fr); gap:32px; padding:28px 0; }
+.battle-choice { border:0; padding:0; margin:0 0 20px; min-width:0; }
+.battle-choice legend { padding:0; margin-bottom:12px; font-weight:600; }
+.battle-pills { display:flex; gap:10px; flex-wrap:wrap; }
+.battle-pill { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:48px; max-width:100%; padding:10px 20px; border:1px solid var(--rule); border-radius:999px; background:var(--panel-2); color:var(--ink); font:inherit; font-weight:600; cursor:pointer; white-space:normal; line-height:1.5; transition:background .15s ease,border-color .15s ease; }
+.battle-pill[aria-pressed=true] { background:var(--beam); border-color:var(--beam); color:#fff; }
+[data-theme=dark] .battle-pill[aria-pressed=true] { color:#072a1d; }
+.battle-number-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:24px; }
+.battle-field { display:grid; gap:12px; align-content:start; font-weight:600; }
+.battle-number { display:flex; align-items:center; gap:12px; border:1px solid var(--rule); border-radius:var(--r-sm); background:var(--panel-2); padding-right:16px; }
+.battle-number input { width:100%; min-width:0; min-height:56px; border:0; background:transparent; color:var(--ink); font:inherit; font-size:calc(21px * var(--rd-fs)); padding:12px 16px; border-radius:var(--r-sm); }
+.battle-number > span { flex:none; color:var(--muted); }
+.battle-number:has(input[aria-invalid=true]) { border-color:var(--rise); }
+.battle-field small, .battle-feature-hint { font-size:calc(13px * var(--rd-fs)); color:var(--muted); font-weight:400; line-height:1.7; }
+.battle-optional-head { padding-top:24px; border-top:1px solid var(--rule); }
+.battle-optional-head h4 { font-size:calc(18px * var(--rd-fs)); margin:0; }
+.battle-feature-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:24px; margin:24px 0 28px; }
+.battle-feature-box { padding:20px; border:1px solid var(--rule); border-radius:var(--r-md); min-width:0; }
+.battle-feature-hint { margin:14px 0; }
+.battle-feature-box .battle-choice { margin:20px 0 0; }
+.battle-feature-box .battle-pill { padding-inline:16px; }
+.battle-config-foot { border-top:1px solid var(--rule); padding-top:24px; }
+.battle-config-foot p { flex:1; margin:0; color:var(--muted); }
+.battle-config-foot .is-error { color:var(--rise); }
+.battle-error { padding:32px; text-align:center; }
+.battle-error p { color:var(--muted); margin:16px 0 24px; }
+.battle-issues { border-left:4px solid var(--wait); background:var(--panel-2); line-height:1.8; }
+.battle-name:focus-visible, .battle-card summary:focus-visible, .battle-pill:focus-visible, .battle-number input:focus-visible { outline:3px solid var(--beam); outline-offset:4px; border-radius:8px; }
+@media (min-width:721px) and (max-width:1100px) { .battle-basic { grid-template-columns:1fr; gap:8px; } .battle-feature-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width:720px) { main.wrap:has(> #p-battle:not([hidden])) { width:calc(100% - 24px); } .battle-config { padding:20px; } .battle-basic, .battle-number-grid, .battle-feature-grid { grid-template-columns:1fr; gap:24px; } .battle-feature-box { padding:18px; } .battle-config-head > button { margin-top:8px; } .battle-config-foot p { flex-basis:100%; } }
+@media (prefers-reduced-motion:reduce) { .battle-pill { transition:none; } }
 @media(max-width:600px) {
   .battle-card { padding:20px; }
   .battle-metrics { grid-template-columns:1fr; padding:10px 0; gap:8px; }

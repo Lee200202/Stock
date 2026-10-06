@@ -33,35 +33,53 @@ window.BATTLE_CONFIG = {
   }
   window.BattleSettings = { get: function () { return Object.assign({}, prefs); }, sanitize: sanitize, set: commit };
   document.addEventListener('DOMContentLoaded', function () {
-    var menu = document.getElementById('setMenu'); if (!menu) return;
-    var wrap = document.createElement('details'); wrap.className = 'battle-settings';
-    function numeric(k, label, step) { var lim = cfg.limits[k]; return '<label>' + label + '<input type="number" data-bpref="' + k + '" min="' + lim[0] + '" max="' + lim[1] + '" step="' + step + '" value="' + prefs[k] + '"></label>'; }
-    function select(k, label, options) { return '<label>' + label + '<select data-bpref="' + k + '">' + options.map(function (o) { return '<option value="' + o[0] + '"' + (String(prefs[k]) === String(o[0]) ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label>'; }
-    function flag(k, label) { return '<label class="battle-check"><input type="checkbox" data-bpref="' + k + '"' + (prefs[k] ? ' checked' : '') + '>' + label + '</label>'; }
+    var wrap = document.getElementById('battlePreferences'); if (!wrap) return;
+    function numeric(k, label, step, unit, hint) { var lim = cfg.limits[k]; return '<label class="battle-field">' + label + '<span class="battle-number"><input aria-describedby="bh-' + k + '" type="number" data-bpref="' + k + '" min="' + lim[0] + '" max="' + lim[1] + '" step="' + step + '" value="' + prefs[k] + '"><span>' + unit + '</span></span><small id="bh-' + k + '">' + hint + '</small></label>'; }
+    function select(k, label, options) { return '<fieldset class="battle-choice"><legend>' + label + '</legend><div class="battle-pills">' + options.map(function (o) { return '<button type="button" class="battle-pill" data-bchoice="' + k + '" data-value="' + o[0] + '" aria-pressed="' + (String(prefs[k]) === String(o[0])) + '">' + o[1] + '</button>'; }).join('') + '</div></fieldset>'; }
+    function flag(k, label, hint) { return '<button type="button" class="battle-pill battle-feature" data-bflag="' + k + '" aria-pressed="' + prefs[k] + '"><span class="battle-checkmark" aria-hidden="true">' + (prefs[k] ? '✓' : '+') + '</span>' + label + '</button><p class="battle-feature-hint">' + hint + '</p>'; }
     function periods(k) { return cfg.periods[k].map(function (n) { return [n, n + ' 日']; }); }
-    wrap.innerHTML = '<summary>戰情條件</summary><div class="battle-pref-grid">' +
-      select('direction', '跳空方向', [['up', '向上'], ['down', '向下']]) + numeric('gapPct', '最低開盤幅度（%）', 0.1) +
-      select('volumeDays', '均量基準（不含當日）', periods('volumeDays')) + numeric('volumeMultiple', '最低日量倍數', 0.1) + numeric('minLots', '最低當日量（張）', 1) +
-      flag('useTrend', '加上均線條件') + select('trendDays', '均線週期', periods('trendDays')) +
-      flag('useBreakout', '加上前高低突破') + select('breakoutDays', '前高低週期', periods('breakoutDays')) +
-      flag('useBody', '加上 K 棒實體與收盤位置') + numeric('closePosition', '收盤位置（0.5–1）', 0.05) +
-      flag('useMacd', '加上 MACD 柱體方向') + flag('useKD', '加上 KD 相對位置') + flag('useBoll', '加上布林通道突破（20 日、2 倍標準差）') + '</div>' +
-      '<button type="button" class="act ghost" id="battleReset">還原戰情預設</button><p class="notice" id="battlePrefMessage" role="status">只改本機篩選，前後台共用；不改操作分類、文章或寄送。</p>';
-    menu.appendChild(wrap);
+    wrap.innerHTML = '<div class="battle-config-head"><div><h3 id="battleConfigTitle" tabindex="-1">戰情設定</h3><p>先選方向與量價門檻，再加入你要看的技術條件。</p></div><button type="button" class="act ghost" id="battleConfigClose">收起設定</button></div>' +
+      '<div class="battle-basic"><div>' + select('direction', '跳空方向', [['up', '向上跳空'], ['down', '向下跳空']]) + select('volumeDays', '均量基準', periods('volumeDays')) + '</div><div class="battle-number-grid">' +
+      numeric('gapPct', '最低開盤幅度', 0.1, '%', '與昨收比較；另須超出昨日高低價。') + numeric('volumeMultiple', '最低日量倍數', 0.1, '倍', '以前 5 或 20 個交易日均量為基準。') + numeric('minLots', '最低當日量', 1, '張', '使用實際累計量，不推估全日成交量。') + '</div></div>' +
+      '<div class="battle-optional-head"><h4>加上技術條件</h4><p>點選即啟用；填滿的按鈕代表已加入篩選，所有啟用條件須同時符合。</p></div><div class="battle-feature-grid">' +
+      '<div class="battle-feature-box">' + flag('useTrend', '均線位置', '向上看現價高於均線，向下則低於。') + '<div data-bextra="useTrend">' + select('trendDays', '均線週期', periods('trendDays')) + '</div></div>' +
+      '<div class="battle-feature-box">' + flag('useBreakout', '前高低突破', '超出前一段期間的最高或最低價。') + '<div data-bextra="useBreakout">' + select('breakoutDays', '回看週期', periods('breakoutDays')) + '</div></div>' +
+      '<div class="battle-feature-box">' + flag('useBody', 'K 棒與收盤位置', '向上收紅且靠近高點，向下反向判斷。') + '<div data-bextra="useBody">' + numeric('closePosition', '收盤位置門檻', 0.05, '', '0.7 代表收在當日區間上方 30%；向下對稱。') + '</div></div>' +
+      '<div class="battle-feature-box">' + flag('useMacd', 'MACD 柱體', '12／26／9；向上柱體為正，向下為負。') + '</div>' +
+      '<div class="battle-feature-box">' + flag('useKD', 'KD 相對位置', '9 日；向上 K > D，向下 K < D。') + '</div>' +
+      '<div class="battle-feature-box">' + flag('useBoll', '布林通道突破', '20 日、2 倍標準差；突破上軌或下軌。') + '</div></div>' +
+      '<div class="battle-config-foot"><button type="button" class="act ghost" id="battleReset">還原預設</button><p id="battlePrefMessage" role="status" aria-live="polite">設定保存在此瀏覽器，切換條件立即重算。</p></div>';
+    var message = document.getElementById('battlePrefMessage');
+    function sync() {
+      wrap.querySelectorAll('[data-bchoice]').forEach(function (el) { el.setAttribute('aria-pressed', String(String(prefs[el.dataset.bchoice]) === el.dataset.value)); });
+      wrap.querySelectorAll('[data-bflag]').forEach(function (el) { var on = prefs[el.dataset.bflag]; el.setAttribute('aria-pressed', String(on)); el.querySelector('.battle-checkmark').textContent = on ? '✓' : '+'; });
+      wrap.querySelectorAll('[data-bextra]').forEach(function (el) { el.hidden = !prefs[el.dataset.bextra]; });
+    }
+    function feedback(saved) {
+      var invalid = Array.from(wrap.querySelectorAll('[data-bpref]')).some(function (el) { return el.value === '' || !el.checkValidity(); });
+      message.classList.toggle('is-error', invalid);
+      message.textContent = invalid ? '有欄位超出範圍，該欄仍沿用最後有效設定。請修正後再查看結果。' : saved ? '已套用，結果已重新計算。' : '已套用；此瀏覽器無法保存設定。';
+    }
     function updatePreference(e) {
       var el = e.target, key = el.dataset.bpref; if (!key) return;
-      if (!el.checkValidity() || (el.type === 'number' && el.value === '')) { document.getElementById('battlePrefMessage').textContent = '請輸入欄位標示範圍內的有效數值。'; return; }
-      var next = Object.assign({}, prefs); next[key] = el.type === 'checkbox' ? el.checked : el.value;
-      var saved = commit(next);
-      document.getElementById('battlePrefMessage').textContent = saved ? '已套用，符合項目會立即重新計算。' : '本次已套用；瀏覽器阻擋儲存，下次開啟不會保留。';
+      var valid = el.checkValidity() && el.value !== ''; el.setAttribute('aria-invalid', String(!valid));
+      if (!valid) { feedback(true); return; }
+      var next = Object.assign({}, prefs); next[key] = el.value;
+      if (Number(prefs[key]) === Number(el.value)) { feedback(true); return; }
+      feedback(commit(next));
     }
+    wrap.addEventListener('click', function (e) { var el = e.target.closest('[data-bchoice], [data-bflag]'); if (!el) return; var next = Object.assign({}, prefs); if (el.dataset.bflag) next[el.dataset.bflag] = !prefs[el.dataset.bflag]; else next[el.dataset.bchoice] = el.dataset.value; var saved = commit(next); sync(); feedback(saved); });
     wrap.addEventListener('input', updatePreference);
     wrap.addEventListener('change', updatePreference);
     document.getElementById('battleReset').addEventListener('click', function () {
       commit(cfg.defaults);
-      wrap.querySelectorAll('[data-bpref]').forEach(function (el) { if (el.type === 'checkbox') el.checked = prefs[el.dataset.bpref]; else el.value = prefs[el.dataset.bpref]; });
-      document.getElementById('battlePrefMessage').textContent = '已還原戰情預設。';
+      wrap.querySelectorAll('[data-bpref]').forEach(function (el) { el.value = prefs[el.dataset.bpref]; el.removeAttribute('aria-invalid'); });
+      sync(); message.classList.remove('is-error'); message.textContent = '已還原預設。';
     });
+    function show(on) { wrap.hidden = !on; document.getElementById('battleSettings').setAttribute('aria-expanded', String(on)); if (on) document.getElementById('battleConfigTitle').focus(); else document.getElementById('battleSettings').focus(); }
+    document.getElementById('battleSettings').addEventListener('click', function () { show(wrap.hidden); });
+    document.getElementById('battleConfigClose').addEventListener('click', function () { show(false); });
+    sync();
   });
 })();
 </script>

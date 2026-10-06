@@ -117,7 +117,7 @@
     });
     return { code: item.code, name: item.name, date: date, complete: complete, pass: pass,
       status: issues.length || missing ? '資料待核對' : pass ? (complete ? '盤後條件符合' : '盤中條件符合') : '未符合設定',
-      issues: Array.from(new Set(issues)), checks: checks, gapPct: gapPct, volumeRatio: ratio,
+      issues: Array.from(new Set(issues.concat(selected.filter(function (c) { return c.pass === null; }).map(function (c) { return c.label + '所需資料不足'; })))), checks: checks, gapPct: gapPct, volumeRatio: ratio,
       volumeMA: volumeMA, current: cur, previous: y, gapFilled: gapFilled, gaps: gaps.slice(-5),
       quoteTime: live ? q.time || q.stamp || '' : '', phase: complete ? '已落地日 K' : '盤中／盤後待日 K' };
   }
@@ -128,7 +128,7 @@
 (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); }, data = null, universe = [], page = 0, filter = 'all', custom = false, loading = false, detailCode = '', detailSeq = 0, detailItem = null, detailContext = null;
-  var loadedAt = 0, cache = new Map(), cfg = window.BATTLE_CONFIG;
+  var loadedAt = 0, cache = new Map(), cfg = window.BATTLE_CONFIG, requestedCodes = null;
   function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function fmt(v, n) { return v === null || v === undefined || !isFinite(Number(v)) ? '未提供' : Number(v).toLocaleString('zh-TW', { maximumFractionDigits: n === undefined ? 2 : n }); }
   function prefs() { return window.BattleSettings.get(); }
@@ -170,7 +170,7 @@
     var shown = cards.filter(function (c) { return filter === 'all' || (filter === 'pass' ? c.result.pass : c.result.status === '資料待核對'); });
     $('battleCards').innerHTML = shown.map(function (c) { return c.html; }).join('') || '<p class="emptyline">本頁沒有符合此篩選的股票，可切換「全部」或下一頁。</p>';
     $('battleSummary').textContent = '資料日 ' + data.date + ' · 本頁 ' + cards.length + ' 檔／符合 ' + cards.filter(function (c) { return c.result.pass; }).length + '／待核對 ' + cards.filter(function (c) { return c.result.status === '資料待核對'; }).length + ' · 讀取 ' + data.at + ' · ' + data.quoteCadence;
-    $('battleRule').textContent = (p.direction === 'up' ? '向上' : '向下') + '開盤幅度 ≥ ' + p.gapPct + '% · 前 ' + p.volumeDays + ' 日均量 ≥ ' + p.volumeMultiple + ' 倍 · 當日量 ≥ ' + p.minLots + ' 張。到版面設定調整條件。';
+    $('battleRule').textContent = (p.direction === 'up' ? '向上' : '向下') + '跳空 ≥ ' + p.gapPct + '% · 日量 ≥ 前 ' + p.volumeDays + ' 日均量 ' + p.volumeMultiple + ' 倍 · 至少 ' + p.minLots + ' 張';
     $('battlePage').textContent = custom ? '指定代號' : '第 ' + (page + 1) + '／' + Math.max(1, Math.ceil(universe.length / cfg.pageSize)) + ' 頁 · 共 ' + universe.length + ' 檔';
     $('battlePrev').disabled = custom || page === 0 || loading;
     $('battleNext').disabled = custom || (page + 1) * cfg.pageSize >= universe.length || loading;
@@ -179,19 +179,20 @@
   }
   function load(codes) {
     if (loading) return;
+    requestedCodes = codes;
     loading = true; $('battleRefresh').disabled = true; $('battlePrev').disabled = true; $('battleNext').disabled = true;
     $('battleSummary').textContent = '正在讀取落地行情…';
     read(codes, function (r) {
       loading = false; $('battleRefresh').disabled = false; data = r; universe = r.universe || []; loadedAt = Date.now(); paint();
     }, function () {
       loading = false; $('battleRefresh').disabled = false;
-      $('battleSummary').textContent = '行情讀取失敗，請按「更新資料」重試；未完成的讀取不列為符合。';
+      $('battleSummary').textContent = '這次未能取得行情。';
       // 不讓先前日期的卡片混在錯誤狀態下仍被看成目前結果。
-      data = null; $('battleCards').innerHTML = ''; $('battleRule').textContent = '';
+      data = null; $('battleCards').innerHTML = '<div class="battle-error card" role="status"><h3>行情暫時沒有回應</h3><p>請稍後重試。這次沒有產生篩選結果，先前的卡片已收起。</p><button type="button" class="act" data-bretry>重新讀取</button></div>'; $('battleRule').textContent = ''; $('battlePage').textContent = '';
     });
   }
   function pageCodes() { return universe.length ? universe.slice(page * cfg.pageSize, (page + 1) * cfg.pageSize).map(function (r) { return r.code; }) : null; }
-  window.__battleLoad = function () { if (!data || Date.now() - loadedAt >= 300000) load(custom && data ? data.items.map(function (r) { return r.code; }) : pageCodes()); };
+  window.__battleLoad = function () { if (!data || Date.now() - loadedAt >= 300000) load(custom ? requestedCodes : pageCodes()); };
   window.__battleDetail = function (code) {
     if (!$('dBattle')) return;
     var seq = ++detailSeq; detailCode = code; detailItem = null; detailContext = null;
@@ -209,8 +210,7 @@
     detailItem.quote = Object.assign({}, q, { stale: !isFinite(stamp) || Date.now() - stamp > 300000 });
     $('dBattle').innerHTML = resultCard(detailItem, detailContext, true).html;
   };
-  $('battleSettings').addEventListener('click', function (e) { e.stopPropagation(); if ($('setMenu').hidden) $('setBtn').click(); var settings = document.querySelector('.battle-settings'); settings.open = true; settings.querySelector('summary').focus(); settings.scrollIntoView({ block: 'nearest' }); });
-  $('battleRefresh').addEventListener('click', function () { cache.clear(); load(custom && data ? data.items.map(function (r) { return r.code; }) : pageCodes()); });
+  $('battleRefresh').addEventListener('click', function () { cache.clear(); load(custom ? requestedCodes : pageCodes()); });
   $('battlePrev').addEventListener('click', function () { if (page > 0) { page--; load(pageCodes()); } });
   $('battleNext').addEventListener('click', function () { if ((page + 1) * cfg.pageSize < universe.length) { page++; load(pageCodes()); } });
   $('battleUniverse').addEventListener('click', function () { custom = false; page = 0; load(pageCodes()); });
@@ -219,7 +219,7 @@
     var button = e.target.closest('[data-bfilter]'); if (!button) return;
     filter = button.dataset.bfilter; $('battleFilter').querySelectorAll('button').forEach(function (b) { var on = b === button; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); }); paint();
   });
-  $('battleCards').addEventListener('click', function (e) { var b = e.target.closest('[data-bstock]'); if (b && window.__openBattleStock) window.__openBattleStock(b.dataset.bstock); });
+  $('battleCards').addEventListener('click', function (e) { if (e.target.closest('[data-bretry]')) { cache.clear(); load(requestedCodes); return; } var b = e.target.closest('[data-bstock]'); if (b && window.__openBattleStock) window.__openBattleStock(b.dataset.bstock); });
   window.addEventListener('battle-settings-change', function () { paint(); if (detailItem) $('dBattle').innerHTML = resultCard(detailItem, detailContext, true).html; });
   document.addEventListener('visibilitychange', function () { if (!document.hidden && !$('p-battle').hidden) window.__battleLoad(); });
   setInterval(function () { if (!document.hidden && !$('p-battle').hidden) window.__battleLoad(); }, 300000);

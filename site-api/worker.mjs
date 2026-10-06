@@ -1,7 +1,7 @@
 // Free Cloudflare Worker: public Pages frontend -> existing Apps Script backend.
 // The bridge token stays server-side. Admin methods still require the existing admin key.
 const ALLOWED = 'https://lee200202.github.io';
-const BUILD = 'site-api-v128-r1';
+const BUILD = 'site-api-v134-r1';
 const MAX_ARGS = 8;
 const ADMIN_METHODS = ('apiAdminCancelCrawl apiAdminCancelDaySync apiAdminCancelFix ' +
   'apiAdminCancelFullFix apiAdminCancelJob apiAdminCancelRefresh apiAdminCancelSmsJob ' +
@@ -209,11 +209,44 @@ async function refreshSnapshots(env) {
   return report;
 }
 
+/* 批次報價轉送（v134）。Apps Script 直連證交所 MIS 會「Address unavailable」，這裡代為連線。
+   不是開放代理：只收橋接權杖相符的請求，參數只能是 tse_／otc_ 代號清單（最多 120 個），上游網址固定。
+   回傳只留報價需要的欄位；不快取（每五分鐘才被叫一次，而且要的是當下的成交價）。 */
+const RELAY_CHANNELS = /^(?:tse|otc)_[0-9A-Z]{4,6}\.tw(?:\|(?:tse|otc)_[0-9A-Z]{4,6}\.tw){0,119}$/;
+function sameToken(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+export async function quoteRelay(request, env, fetcher = fetch) {
+  const json = (body, status) => new Response(JSON.stringify(body), {status, headers: {'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store'}});
+  if (request.method !== 'GET') return json({ok: false, error: 'method'}, 405);
+  if (!env.SITE_BRIDGE_TOKEN || env.SITE_BRIDGE_TOKEN.length < 32 || !sameToken(request.headers.get('X-Bridge-Token') || '', env.SITE_BRIDGE_TOKEN)) {
+    return json({ok: false, error: 'forbidden'}, 403);
+  }
+  const channels = new URL(request.url).searchParams.get('ex_ch') || '';
+  if (!RELAY_CHANNELS.test(channels)) return json({ok: false, error: 'channels'}, 400);
+  try {
+    const upstream = await fetcher('https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=' + encodeURIComponent(channels) + '&json=1&delay=0&_=' + Date.now(),
+      {headers: {Referer: 'https://mis.twse.com.tw/stock/index.jsp', 'User-Agent': 'Mozilla/5.0'}, signal: AbortSignal.timeout(8000)});
+    if (upstream.status !== 200) return json({ok: false, error: 'upstream', status: upstream.status}, 502);
+    let data;
+    try { data = JSON.parse(await upstream.text()); } catch { return json({ok: false, error: 'upstream-format'}, 502); }
+    const rows = (Array.isArray(data.msgArray) ? data.msgArray : []).filter(m => m && m.c)
+      .map(m => ({c: m.c, n: m.n, z: m.z, y: m.y, d: m.d, t: m.t, v: m.v, o: m.o, h: m.h, l: m.l}));
+    return json({ok: true, msgArray: rows}, 200);
+  } catch (error) {
+    return json({ok: false, error: 'upstream-unreachable'}, 502);
+  }
+}
+
 export default {
   async fetch(request, env, ctx) {
     const origin = request.headers.get('Origin') || '';
     const path = new URL(request.url).pathname;
     if (path === '/healthz') return reply({ok: true, ready: !!(env.GAS_WEBAPP_URL && env.SITE_BRIDGE_TOKEN), build: BUILD}, 200, origin);
+    if (path === '/quote-relay') return quoteRelay(request, env);
     if (path !== '/api') return reply({ok: false, error: 'not-found'}, 404, origin);
     if (origin !== ALLOWED) return reply({ok: false, error: 'origin'}, 403, origin);
     if (request.method === 'OPTIONS') return reply({}, 204, origin);

@@ -541,10 +541,182 @@ function quoteAgeMin_(stamp) {
   return Math.max(0, (nowSec - t.sec) / 60);
 }
 
+/* ------------------------------------------------------------------ *
+ * 收盤價（v134，2026/10/06 管理者回報：收盤後個股面板寫的不是收盤價）
+ *
+ * 先前的假設是「盤後只要是今天的報價就是收盤價」。那只有在最後一棒剛好在 13:30 之後輪到這一檔時才成立：
+ * 每一棒只輪得到一部分代號，2026/10/06 收盤後 240 檔裡有 125 檔停在盤中某一刻
+ * （聯電 11:59:40、台積電 13:29:21 的 2580，收盤是 2585），其中 104 檔的價格與當天日K收盤不同，
+ * 而且整個晚上都被當成「新鮮」不會再更新。
+ *
+ * 收盤價在 13:30:00 的集合競價成交。所以：
+ *   今天 13:30:00（含）之後取得的成交價才是收盤價；時間停在那之前的只是盤中某一刻的價。
+ *   收盤後由 settleClosingQuotesTick_ 把即時快取整批換成收盤價（來源：當天日K，或證交所 MIS 的收盤後報價）。
+ *   還沒換到的那幾檔，讀取端自己用當天日K或現場查一次，不把盤中價當收盤價回出去。
+ * ------------------------------------------------------------------ */
+var MARKET_CLOSE_SEC_ = 13 * 3600 + 30 * 60;
+var QUOTE_CLOSE_PROP_ = 'QUOTE_CLOSE_SETTLE';
+
+/** 這個時間戳是不是當天收盤之後取得的。 */
+function quoteIsClose_(stamp) {
+  var t = quoteStampParts_(stamp);
+  return !!t && t.sec >= MARKET_CLOSE_SEC_;
+}
+
+/** 今天是交易日，而且已經過了收盤集合競價（13:30）。 */
+function marketClosedToday_() {
+  var now = new Date();
+  if (typeof whyClosed_ === 'function' && whyClosed_(now)) { return false; }
+  return Number(Utilities.formatDate(now, TZ, 'HHmm')) >= 1330;
+}
+
+/** 日K最後一根當成收盤報價。回傳的 date 是那一根的日期，呼叫端要自己確認是不是今天。 */
+function closeQuoteFromK_(code, rows) {
+  var k = rows || getCachedDailyK(code);
+  if (!k || !k.length) { return null; }
+  var last = k[k.length - 1], prev = k.length > 1 ? k[k.length - 2] : null;
+  if (!(Number(last.close) > 0)) { return null; }
+  var chg = prev && prev.close ? last.close - prev.close : null;
+  return {
+    name: '', last: last.close, prevClose: prev ? prev.close : null,
+    change: chg != null ? Math.round(chg * 100) / 100 : null,
+    changePct: chg != null ? Math.round(chg / prev.close * 10000) / 100 : null,
+    volume: sharesToLots_(last.volume),
+    open: last.open || null, high: last.high || null, low: last.low || null,
+    date: last.date, time: qTime_(last.date + ' 收盤'), stamp: last.date + ' 13:30:00', source: '日K收盤'
+  };
+}
+
 /* 這一列還能不能當現價用。
-   盤中限 QUOTE_STALE_MIN_ 分鐘；盤後只要是今天的就算數——那本來就是收盤價。 */
+   盤中限 QUOTE_STALE_MIN_ 分鐘。收盤後要是今天、而且是 13:30 之後取得的才算——停在盤中某一刻的不是收盤價。
+   還沒開盤（或 13:30 以前的非盤中時段）沿用「今天的就算數」。 */
 function quoteFresh_(stamp) {
-  return quoteAgeMin_(stamp) <= (isTradingNow_() ? QUOTE_STALE_MIN_ : 1440);
+  if (isTradingNow_()) { return quoteAgeMin_(stamp) <= QUOTE_STALE_MIN_; }
+  if (quoteAgeMin_(stamp) > 1440) { return false; }
+  return !marketClosedToday_() || quoteIsClose_(stamp);
+}
+
+/* 收盤後把即時快取換成收盤價。每五分鐘排程呼叫；不在時段內、今天已經做完、或距上次嘗試太近時立刻返回。
+   來源依序：一、日K快取裡今天那一根（官方收盤行情約 14:40 之後落地，一次讀全部代號的快取，不讀整張表）；
+             二、證交所 MIS 收盤後的批次報價（13:30 之後回的就是收盤價與全日量，一次 50 檔）。
+   寫進表的時間一律記成當天 13:30:00，讀取端據此知道這是收盤價。 */
+function settleClosingQuotesTick_(force) {
+  if (!marketClosedToday_()) { return 'not-closed'; }
+  var hhmm = Number(Utilities.formatDate(new Date(), TZ, 'HHmm'));
+  if (hhmm < 1331 || hhmm > 2230) { return 'window'; }
+  var pr = PropertiesService.getScriptProperties(), today = todayStr_(), st = {};
+  try { st = JSON.parse(pr.getProperty(QUOTE_CLOSE_PROP_) || '{}'); } catch (e) { st = {}; }
+  if (st.date !== today) { st = { date: today, done: false, tries: 0, misTries: 0, at: 0 }; }
+  if (st.done && !force) { return 'done'; }
+  // 日K落地前（約 14:45 前）每五分鐘試一次 MIS；之後日K是主要來源，十五分鐘看一次；一天最多 40 次。
+  var gapMin = hhmm < 1445 ? 4 : 14;
+  if (!force && (st.tries >= 40 || (st.at && Date.now() - st.at < gapMin * 60000))) { return 'wait'; }
+
+  var codes = trackedCodes_();
+  if (!codes.length) { return 'empty'; }
+  var tracked = {};
+  codes.forEach(function (c) { tracked[c] = 1; });
+  var sh = getSheet_('即時快取'), rows = sh.getDataRange().getValues().slice(1), have = {};
+  rows.forEach(function (r) { var c = String(r[0] || '').trim(); if (c) { have[c] = r; } });
+  var isFinal = function (r) {
+    if (!r) { return false; }
+    var t = quoteStampParts_(r[7]);
+    return !!t && t.date === today && t.sec >= MARKET_CLOSE_SEC_ && Number(r[2]) > 0;
+  };
+  var pending = codes.filter(function (c) { return !isFinal(have[c]); });
+  st.tries = (st.tries || 0) + 1; st.at = Date.now();
+  if (!pending.length) {
+    st.done = true; st.pending = 0;
+    pr.setProperty(QUOTE_CLOSE_PROP_, JSON.stringify(st));
+    return 'done';
+  }
+
+  var map = {}, fresh = {}, fromK = 0, fromMis = 0, stamp = today + ' 13:30:00';
+  try { map = loadCodeMap_().byCode; } catch (e) { map = {}; }
+  var put = function (c, q) {
+    fresh[c] = [c, q.name || (have[c] && have[c][1]) || (map[c] ? map[c].name : ''), q.last, q.prevClose || '',
+      q.change != null ? q.change : '', q.changePct != null ? q.changePct : '', Math.round((Number(q.volume) || 0) * 1000) / 1000,
+      stamp, q.open || '', q.high || '', q.low || '', today];
+  };
+  // 一、日K快取（一次 getAll，不逐檔讀、不讀整張表）。
+  var cached = null;
+  try {
+    cached = CACHE.getAll(pending.map(function (c) { return 'dk2_' + c; }));
+    pending.forEach(function (c) {
+      var text = cached['dk2_' + c];
+      if (!text) { return; }
+      var q = null;
+      try { q = closeQuoteFromK_(c, kcDecode_(text)); } catch (e) { q = null; }
+      if (q && q.date === today) { put(c, q); fromK++; }
+    });
+  } catch (e) { Logger.log('收盤價：日K快取讀取未成功：' + e); }
+  // 日K快取裡沒有的代號（快取過期，不是日K缺今天）：15:00 之後整張日K讀一次補上，一天只做一次。
+  var uncached = pending.filter(function (c) { return !fresh[c] && !(cached && cached['dk2_' + c]); });
+  if (uncached.length && !st.fullRead && hhmm >= 1500) {
+    st.fullRead = true;
+    uncached.forEach(function (c) {
+      var q = null;
+      try { q = closeQuoteFromK_(c); } catch (e) { q = null; }
+      if (q && q.date === today) { put(c, q); fromK++; }
+    });
+  }
+  // 二、MIS 收盤後報價。只在日K還沒落地的時段用，連線層失敗就記下、十分鐘內不再打。
+  var rest = pending.filter(function (c) { return !fresh[c]; }), misNote = '';
+  var misDown = false;
+  try { misDown = !!CACHE.get(MIS_DOWN_KEY_); } catch (e) {}
+  if (rest.length && !misDown && (st.misTries || 0) < 8) {
+    st.misTries = (st.misTries || 0) + 1;
+    var deadline = Date.now() + 20000;
+    for (var b = 0; b < rest.length && Date.now() < deadline; b += 50) {
+      try {
+        var qs = misBatchQuotes_(rest.slice(b, b + 50));
+        Object.keys(qs).forEach(function (c) { if (tracked[c] && qs[c].date === today && qs[c].last > 0) { put(c, qs[c]); fromMis++; } });
+      } catch (e) {
+        misNote = String(e && e.message || e).replace(/https?:\/\/\S+/g, '').slice(0, 60);
+        if (!(e && e.transientBusy)) { try { CACHE.put(MIS_DOWN_KEY_, '1', 600); } catch (ignore) {} }
+        break;
+      }
+    }
+  }
+
+  // 三、MIS 沒有回資料時，持有中的那幾檔先用富果逐檔取（最多 16 檔、15 秒）：持股追蹤的現價與報酬靠它。
+  var stillOpen = pending.filter(function (c) { return !fresh[c]; }), fromFugle = 0;
+  if (stillOpen.length && !fromMis && hasFugle_()) {
+    var heldNow = {};
+    try { readSheetObjects_('持股追蹤').forEach(function (r) { if (String(r['狀態']) === '持有中') { heldNow[String(r['代號']).trim()] = true; } }); } catch (e) {}
+    var fugleDeadline = Date.now() + 15000;
+    stillOpen.filter(function (c) { return heldNow[c]; }).slice(0, 16).forEach(function (c) {
+      if (Date.now() > fugleDeadline) { return; }
+      try { var live = fugleQuote_(c); if (live && live.date === today && live.last > 0) { put(c, live); fromFugle++; } }
+      catch (e) { /* 這一檔留給下一次或日K */ }
+    });
+  }
+
+  var settled = Object.keys(fresh);
+  if (settled.length) {
+    withLock_(function () {
+      var keep = [];
+      sh.getDataRange().getValues().slice(1).forEach(function (r) {
+        var c = String(r[0] || '').trim();
+        if (c && !fresh[c] && tracked[c]) { keep.push(r.slice(0, 12)); }
+      });
+      var out = settled.map(function (c) { return fresh[c]; }).concat(keep), oldLast = sh.getLastRow();
+      sh.getRange(1, 1, out.length + 1, 12).setValues([
+        ['代號', '名稱', '現價', '昨收', '漲跌', '漲跌幅', '成交量', '更新時間', '開', '高', '低', '行情日期']
+      ].concat(out));
+      if (oldLast > out.length + 1) {
+        try { sh.getRange(out.length + 2, 1, oldLast - out.length - 1, 12).clearContent(); } catch (e) {}
+      }
+    });
+    try { CACHE.removeAll(settled.map(function (c) { return 'quote_live_' + c; })); } catch (e) {}
+    CACHE.remove('qcache'); CACHE.remove('tracker'); CACHE.remove(DASH_CACHE_KEY_);
+  }
+  st.pending = pending.length - settled.length;
+  st.done = st.pending === 0;
+  st.last = { fromK: fromK, fromMis: fromMis, fromFugle: fromFugle, misNote: misNote };
+  pr.setProperty(QUOTE_CLOSE_PROP_, JSON.stringify(st));
+  Logger.log('收盤價：換成收盤價 ' + settled.length + ' 檔（日K ' + fromK + '、MIS ' + fromMis + '、富果 ' + fromFugle + '），尚餘 ' + st.pending + ' 檔' + (misNote ? '；MIS：' + misNote : ''));
+  return { settled: settled.length, fromK: fromK, fromMis: fromMis, fromFugle: fromFugle, pending: st.pending };
 }
 
 function refreshQuoteCacheJob() {
@@ -579,11 +751,25 @@ function refreshQuoteCacheJob() {
   var misDown = false;
   try { misDown = !!CACHE.get(MIS_DOWN_KEY_); } catch (e) {}
   if (misDown) { errors.push('MIS 連線中斷，10 分鐘內改用備援'); }
-  for (var b = 0; !misDown && b < codes.length && Date.now() < deadline - 10000; b += 50) {
+  /* 批次從上一棒停下的那一批接著打（v134）：先前每一棒都從第一批開始，時間不夠時後面幾批永遠輪不到。
+     第一批一檔都沒有回（HTTP 非 200、或回空陣列）就不再試其餘幾批，並記 10 分鐘：
+     那幾次請求不會有資料，只會吃掉留給逐檔備援的時間。 */
+  var misStarted = Date.now(), misState = misDown ? 'down' : 'skip';
+  var batchCount = Math.ceil(codes.length / 50), batchStart = Number(pr.getProperty('QUOTE_BATCH_START') || 0) % Math.max(1, batchCount), batchDone = 0;
+  for (var bn = 0; !misDown && bn < batchCount && Date.now() < deadline - 10000; bn++) {
+    var b = ((batchStart + bn) % batchCount) * 50;
     try {
-      var qs = misBatchQuotes_(codes.slice(b, b + 50));
-      Object.keys(qs).forEach(function (c) { if (qs[c].date === todayStr_()) { batchQuotes[c] = qs[c]; } });
+      var qs = misBatchQuotes_(codes.slice(b, b + 50)), got = 0;
+      Object.keys(qs).forEach(function (c) { if (qs[c].date === todayStr_()) { batchQuotes[c] = qs[c]; got++; } });
+      batchDone++;
+      if (!got && !Object.keys(batchQuotes).length) {
+        misState = 'empty'; errors.push('MIS 沒有回任何成交報價，10 分鐘內改用備援');
+        try { CACHE.put(MIS_DOWN_KEY_, '1', 600); } catch (ignore) {}
+        break;
+      }
+      misState = 'ok';
     } catch (e) {
+      misState = e && e.transientBusy ? 'busy' : 'error';
       errors.push('MIS：' + String(e && e.message || e).replace(/https?:\/\/\S+/g, '').slice(0, 60));
       Logger.log('即時快取批次來源暫時失敗：' + e);
       // 同一把寫入鎖忙碌時，連續五批各等二十秒只會延誤寄送與重算。
@@ -593,6 +779,8 @@ function refreshQuoteCacheJob() {
       break;
     }
   }
+  if (batchDone && batchDone < batchCount) { pr.setProperty('QUOTE_BATCH_START', String((batchStart + batchDone) % batchCount)); }
+  var misMs = Date.now() - misStarted;
 
   // v93：會員持有及最近半小時查看的股票優先；另留四檔輪替背景標的。
   var priority = {};
@@ -604,20 +792,40 @@ function refreshQuoteCacheJob() {
   var held = codes.filter(function (c) { return priority[c]; });
   var viewed = codes.filter(function (c) { return viewedCache['quote_viewed_' + c] && !priority[c]; });
   viewed.sort(function (a, b) { return Number(viewedCache['quote_viewed_' + b]) - Number(viewedCache['quote_viewed_' + a]); });
-  var ordered = held.concat(viewed);
-  ordered = ordered.slice(0, 16);
-  var priorityLimit = ordered.length;
+  /* 逐檔備援的順序（v134）。批次來源沒有資料時，一棒 30 秒大約只夠逐檔取十幾檔。
+     先前是「持有＋最近查看」最多 16 檔排最前面、其餘只留 4 檔輪替：被查看的股票一多，16 檔就把時間用完，
+     輪替的 4 檔一檔都輪不到——2026/10/06 12:19 之後到收盤，持有以外的股票沒有任何一檔被更新。
+     現在：持有 10 檔 → 輪替 3 檔 → 其餘持有 → 最近查看 4 檔 → 繼續輪替，時間到為止
+     （實測一棒約 17 檔：14 檔持有時剛好是全部持有加 3 檔輪替）。
+     輪替的名額排在第二順位，不會被擠掉；正在被查看的那一檔本來就由查看的人那一次請求現場更新。
+     持有超過 10 檔時，每一棒輪流讓不同的幾檔排前面。 */
+  var QUOTE_HELD_FIRST_ = 10, QUOTE_ROTATE_FIRST_ = 3, QUOTE_VIEWED_SLOTS_ = 4, QUOTE_FALLBACK_MAX_ = 30;
+  if (held.length > QUOTE_HELD_FIRST_) {
+    var turn = Math.floor(Date.now() / 300000) % held.length;
+    held = held.slice(turn).concat(held.slice(0, turn));
+  }
+  var rotation = [], rotating = {}, placed = {};
+  held.forEach(function (c) { placed[c] = 1; });
   for (i = 0; i < codes.length; i++) {
     var rotated = codes[(cursor + i) % codes.length];
-    if (ordered.indexOf(rotated) < 0) { ordered.push(rotated); }
+    if (!placed[rotated]) { rotation.push(rotated); rotating[rotated] = 1; placed[rotated] = 1; }
   }
+  var viewedFirst = viewed.slice(0, QUOTE_VIEWED_SLOTS_).filter(function (c) { return rotation.indexOf(c) >= QUOTE_ROTATE_FIRST_; });
+  var ordered = held.slice(0, QUOTE_HELD_FIRST_)
+    .concat(rotation.slice(0, QUOTE_ROTATE_FIRST_))
+    .concat(held.slice(QUOTE_HELD_FIRST_))
+    .concat(viewedFirst)
+    .concat(rotation.slice(QUOTE_ROTATE_FIRST_).filter(function (c) { return viewedFirst.indexOf(c) < 0; }));
+  var heldSet = {}, doneHeld = 0, doneRotating = 0, doneViewed = 0;
+  held.forEach(function (c) { heldSet[c] = 1; });
   for (i = 0; i < ordered.length; i++) {
     if (Date.now() > deadline) { break; }
     var code = ordered[i];
 
     var q = batchQuotes[code] || null;
-    if (!q && (fallbackTaken >= priorityLimit + 4 || fugleUnavailable)) { continue; }
-    if (!q) { fallbackTaken++; if (i >= priorityLimit) { lastFallback = codes.indexOf(code); } }
+    if (!q && (fallbackTaken >= QUOTE_FALLBACK_MAX_ || fugleUnavailable)) { continue; }
+    // 游標記的是「輪替順序裡最後一檔試過的」，被提前的查看中股票不動游標，否則會跳過中間沒輪到的。
+    if (!q) { fallbackTaken++; if (rotating[code] && viewedFirst.indexOf(code) < 0) { lastFallback = codes.indexOf(code); } }
     if (!q && hasFugle_()) {
       try { q = fugleQuote_(code); } catch (e) {
         q = null; errors.push(code + '：' + (e.httpCode ? 'HTTP ' + e.httpCode : '來源暫時讀不到'));
@@ -644,11 +852,25 @@ function refreshQuoteCacheJob() {
       q.stamp || stamp, q.open || "", q.high || "", q.low || "", q.date || ""
     ];
     taken++;
+    if (!batchQuotes[code]) { if (heldSet[code]) { doneHeld++; } else if (viewedFirst.indexOf(code) >= 0) { doneViewed++; } else { doneRotating++; } }
   }
 
   var nextCursor = String(lastFallback >= 0 ? (lastFallback + 1) % codes.length : cursor);
+  /* 當天累計（v134）：一天跑了幾棒、批次來源成功幾棒、逐檔輪替一共更新幾檔。
+     先前只留最後一棒的狀態，「批次來源整天沒有回資料」這種事要事後從報價的時間戳倒推才看得出來。 */
+  var day = {};
+  try { day = JSON.parse(pr.getProperty('QUOTE_DAY_STATS') || '{}'); } catch (e) { day = {}; }
+  if (day.date !== todayStr_()) { day = { date: todayStr_(), runs: 0, misOk: 0, misFail: 0, held: 0, rotating: 0, viewed: 0, empty: 0, first: stamp.slice(11, 16) }; }
+  day.runs++; day.last = stamp.slice(11, 16);
+  if (misState === 'ok') { day.misOk++; } else { day.misFail++; }
+  day.held += doneHeld; day.rotating += doneRotating; day.viewed += doneViewed;
+  if (!taken) { day.empty++; }
+  day.misState = misState; day.via = misState === 'ok' ? MIS_LAST_VIA_ : '';
+  if (misState === 'ok' && MIS_LAST_VIA_ === 'relay') { day.relayOk = (day.relayOk || 0) + 1; }
+  try { pr.setProperty('QUOTE_DAY_STATS', JSON.stringify(day)); } catch (e) {}
   var jobStatus = { at: stamp, updated: 0, collected: taken, requested: codes.length, writePending: taken > 0,
-    mis: Object.keys(batchQuotes).length, fallback: fallbackTaken, errors: errors.slice(0, 8),
+    mis: Object.keys(batchQuotes).length, misState: misState, misVia: misState === 'ok' ? MIS_LAST_VIA_ : '', misMs: misMs, held: doneHeld, rotating: doneRotating, viewed: doneViewed, day: day,
+    fallback: fallbackTaken, errors: errors.slice(0, 8),
     partial: taken < codes.length, configured: hasFugle_(), note: '缺成交價不採用委買／委賣；持有中與正在查看的股票優先，其餘由游標續抓。' };
   pr.setProperty('QUOTE_JOB_STATUS', JSON.stringify(jobStatus));
 
@@ -714,8 +936,11 @@ function refreshQuoteCacheJob() {
 function qTime_(v) {
   if (v == null || v === '') { return ''; }
 
+  // 13:30:00（含）之後的是收盤價，寫「收盤」而不是幾點幾分（v134）：看的人要知道的是「這是不是收盤價」。
+  var closeLabel = function (text) { return text.slice(6) >= '13:30:00' ? text.slice(0, 5) + ' 收盤' : text; };
+
   if (Object.prototype.toString.call(v) === '[object Date]') {
-    return Utilities.formatDate(v, TZ, 'MM-dd HH:mm:ss');
+    return closeLabel(Utilities.formatDate(v, TZ, 'MM-dd HH:mm:ss'));
   }
 
   var t = String(v).trim();
@@ -723,14 +948,14 @@ function qTime_(v) {
   // 已經被序列化成 ISO 的（舊快取、或別處直接塞了 toISOString）
   if (/^\d{4}-\d{2}-\d{2}T/.test(t)) {
     var d = new Date(t);
-    if (!isNaN(d.getTime())) { return Utilities.formatDate(d, TZ, 'MM-dd HH:mm:ss'); }
+    if (!isNaN(d.getTime())) { return closeLabel(Utilities.formatDate(d, TZ, 'MM-dd HH:mm:ss')); }
   }
 
   // 「2026/09/04 13:38」→「09-04 13:38:00」
   var m = t.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?/);
   if (m) {
-    return pad2_(m[2]) + '-' + pad2_(m[3]) + ' ' +
-           pad2_(m[4]) + ':' + m[5] + ':' + (m[6] || '00');
+    return closeLabel(pad2_(m[2]) + '-' + pad2_(m[3]) + ' ' +
+           pad2_(m[4]) + ':' + m[5] + ':' + (m[6] || '00'));
   }
 
   // 「2026/09/03 收盤」→「09-03 收盤」
@@ -831,19 +1056,43 @@ function getQuotesFor(codes, refreshStale, batchOnly, cacheOnly) {
   // 盤中才值得為了即時性逐檔對外請求。盤後直接用日K快取的最後收盤價，
   // 那本來就是正確答案，而且不花任何請求。
   if (!isTradingNow_()) {
+    var today = todayStr_(), closedNow = marketClosedToday_(), needLive = [];
     missing.forEach(function (c) {
-      var k = getCachedDailyK(c);
-      if (!k.length) { return; }
-      var last = k[k.length - 1];
-      var prev = k.length > 1 ? k[k.length - 2] : null;
-      var chg = prev ? last.close - prev.close : null;
-      out[c] = {
-        name: '', last: last.close, prevClose: prev ? prev.close : null,
-        change: chg != null ? Math.round(chg * 100) / 100 : null,
-        changePct: (chg != null && prev.close) ? Math.round(chg / prev.close * 10000) / 100 : null,
-        volume: sharesToLots_(last.volume), time: qTime_(last.date + ' 收盤')
-      };
+      var hit = out[c] || null, hitToday = !!hit && quoteAgeMin_(hit.stamp) <= 1440;
+      var lc = closeQuoteFromK_(c);
+      // 今天的日K已經落地，或表上那一列根本不是今天的：日K最後一根就是答案。
+      if (lc && (!hitToday || lc.date === today)) { lc.name = (hit && hit.name) || ''; out[c] = lc; return; }
+      // 今天已收盤、日K還沒落地、表上停在盤中某一刻：先留著（時間照實寫），下面現場查一次收盤價。
+      if (closedNow && hitToday) { needLive.push(c); }
     });
+    if (needLive.length) {
+      // 一次批次請求（最多 50 檔）；13:30 之後 MIS 回的是收盤價與全日量。連線失敗不擋回應。
+      var misDownNow = false;
+      try { misDownNow = !!CACHE.get(MIS_DOWN_KEY_); } catch (e) {}
+      if (!misDownNow) {
+        try {
+          var closing = misBatchQuotes_(needLive.slice(0, 50));
+          Object.keys(closing).forEach(function (c) {
+            if (closing[c].date !== today) { return; }
+            var q = closing[c];
+            q.stamp = today + ' 13:30:00'; q.time = qTime_(q.stamp);
+            out[c] = q;
+            try { CACHE.put('quote_live_' + c, JSON.stringify(q), 600); } catch (e) {}
+          });
+        } catch (e) {
+          Logger.log('收盤後補取報價未成功：' + e);
+          if (!(e && e.transientBusy)) { try { CACHE.put(MIS_DOWN_KEY_, '1', 600); } catch (ignore) {} }
+        }
+      }
+      // 單檔與小批查詢再用富果補（最多四檔）；13:30 之後取到的成交價就是收盤價。
+      var extra = 0;
+      needLive.forEach(function (c) {
+        if (quoteFresh_(out[c].stamp) || extra >= 4 || !hasFugle_()) { return; }
+        extra++;
+        try { var live = fugleQuote_(c); if (live && live.date === today) { out[c] = live; } }
+        catch (e) { Logger.log('收盤後補取 ' + c + ' 未成功：' + (e.httpCode || '暫時性錯誤')); }
+      });
+    }
     return out;
   }
 
@@ -967,6 +1216,52 @@ function misQuote_(code) {
   return misOnce_(code, first, map) || misOnce_(code, second, map);
 }
 
+/* ------------------------------------------------------------------ *
+ * 批次報價的連線（v134）
+ *
+ * 2026/10/06 整個交易日，Apps Script 直連證交所 MIS 每一次都是「Address unavailable」（後台報價排程紀錄），
+ * 68 棒沒有一棒拿到批次資料，只剩逐檔備援：一棒 30 秒約 17 檔，240 檔裡持有以外的股票幾個小時才輪到一次。
+ * 同一時間從 Cloudflare 連 MIS 是通的（240 檔分 5 批，合計約 1 秒）。
+ * 所以：先直連；連線層失敗或非 200 就記一小時，這段時間改由本站 Worker 的 /quote-relay 代為連線。
+ * 轉送只接受 tse_／otc_ 代號清單，並用橋接權杖（SITE_BRIDGE_TOKEN，Worker 與這裡本來就共用）驗證，不是開放代理。
+ * 指令碼屬性 QUOTE_RELAY_URL 可改網址；設成 off 就不走轉送。
+ * ------------------------------------------------------------------ */
+var QUOTE_RELAY_DEFAULT_ = 'https://zhangzhen-site-api.rainforecast2026-6fb.workers.dev/quote-relay';
+var MIS_DIRECT_DOWN_KEY_ = 'mis_direct_down_v134';
+var MIS_LAST_VIA_ = '';
+
+function quoteRelayUrl_() {
+  var v = '';
+  try { v = String(PropertiesService.getScriptProperties().getProperty('QUOTE_RELAY_URL') || '').trim(); } catch (e) {}
+  if (v === 'off') { return ''; }
+  return /^https:\/\/[^\s]+$/.test(v) ? v : QUOTE_RELAY_DEFAULT_;
+}
+
+/** MIS 回傳的原始列（msgArray）。兩條路都不通時丟出例外，呼叫端照舊記 MIS 中斷、改用逐檔備援。 */
+function misRows_(channels) {
+  var query = encodeURIComponent(channels.join('|')), firstError = null, directDown = false;
+  try { directDown = !!CACHE.get(MIS_DIRECT_DOWN_KEY_); } catch (e) {}
+  if (!directDown) {
+    try {
+      var res = UrlFetchApp.fetch('https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=' + query + '&json=1&delay=0&_=' + Date.now(), {
+        muteHttpExceptions: true, headers: { Referer: 'https://mis.twse.com.tw/stock/index.jsp' }
+      });
+      if (res.getResponseCode() === 200) { MIS_LAST_VIA_ = 'direct'; return JSON.parse(res.getContentText()).msgArray || []; }
+      firstError = new Error('MIS HTTP ' + res.getResponseCode());
+    } catch (e) { firstError = e; }
+    try { CACHE.put(MIS_DIRECT_DOWN_KEY_, '1', 3600); } catch (ignore) {}
+  }
+  var relay = quoteRelayUrl_(), token = '';
+  try { token = PropertiesService.getScriptProperties().getProperty('SITE_BRIDGE_TOKEN') || ''; } catch (e) {}
+  if (!relay || !token) { throw firstError || new Error('MIS 直連中斷，且沒有可用的轉送'); }
+  var r = UrlFetchApp.fetch(relay + '?ex_ch=' + query, { muteHttpExceptions: true, headers: { 'X-Bridge-Token': token } });
+  if (r.getResponseCode() !== 200) { throw new Error('報價轉送 HTTP ' + r.getResponseCode()); }
+  var body = JSON.parse(r.getContentText());
+  if (!body || !body.ok || !Array.isArray(body.msgArray)) { throw new Error('報價轉送回應無效'); }
+  MIS_LAST_VIA_ = 'relay';
+  return body.msgArray;
+}
+
 /** 同一批上市／上櫃代號一次查詢，依回傳代號對應，不依陣列順序。 */
 function misBatchQuotes_(codes) {
   var out = {}, channels = [], wanted = {};
@@ -976,12 +1271,7 @@ function misBatchQuotes_(codes) {
   });
   if (!channels.length) { return out; }
   throttleMis_();
-  var res = UrlFetchApp.fetch('https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=' +
-    encodeURIComponent(channels.join('|')) + '&json=1&delay=0&_=' + Date.now(), {
-      muteHttpExceptions: true, headers: { Referer: 'https://mis.twse.com.tw/stock/index.jsp' }
-    });
-  if (res.getResponseCode() !== 200) { return out; }
-  var data = JSON.parse(res.getContentText());
+  var data = { msgArray: misRows_(channels) };
   (data.msgArray || []).forEach(function (m) {
     var code = String(m.c || ''), last = Number.parseFloat(m.z), prev = Number.parseFloat(m.y);
     if (!wanted[code] || !(last > 0)) { return; }

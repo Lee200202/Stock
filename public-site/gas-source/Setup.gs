@@ -440,6 +440,8 @@ function everyFiveMinJobRun_() {
   if (!opsRuntimeConserve_() || dueEvery_('quoteConserve', 10)) {
     safe_('refreshQuoteCacheJob', refreshQuoteCacheJob);
   }
+  // 收盤後把即時快取換成收盤價（v134）。自己判斷時段、是否已做完與嘗試間隔，沒事做時立刻返回。
+  if (weekday && hhmm >= 1331 && hhmm <= 2230) { safe_('settleClosingQuotesTick_', settleClosingQuotesTick_); }
   safe_('cmAutoReconcileToday_', function () { cmAutoReconcileToday_(false); });
   safe_('cmDispatchPendingGithubJob_', function () { cmDispatchPendingGithubJob_(); });
   if (weekday && hhmm >= 1230 && hhmm <= 1800 && dueEvery_('statusReport', 15)) {
@@ -1212,7 +1214,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-10-06-battle-back-v133';
+var PROJECT_BUILD_ = '2026-10-06-closing-price-v134';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
@@ -1236,7 +1238,7 @@ var PROJECT_FILES_ = [
   { file: 'Logic.gs', names: ['markChainStep_', 'REFRESH_STEPS_'] },
   { file: 'MailService.gs', names: ['createSubscription', 'siteName_', 'adminNoticeHtml_', 'mailHero_', 'publicWebAppUrl_', 'escAttr_', 'mailRiskHtml_', 'deliverMessage_', 'deliveryLedger_', 'mailPlainText_', 'isExecUrl_', 'mailStockName_', 'noVideoToday_', 'pushReadyChannels_', 'gateAutoRelease_', 'gateJsonResponse_', 'DIGEST_MISSING_SYSTEM_'], marker: ['mailHero_', 'border-radius:22px'] },
   { file: 'Presentationquality.gs', names: ['publicNoticeText_', 'titleDropRepeats_', 'displayPrice_', 'narrativeName_', 'titleChars_', 'toTraditional_', 'publicSmsNote_', 'stripEditorialWrappers_'], marker: ['restatesEarlier_', 'hit / total'] },
-  { file: 'Quoteservice.gs', names: ['getFugleKey_', 'fugleFetch_', 'sharesToLots_', 'volumeInLots_', 'hourSlot_', 'readHourlyRows_', 'fugleHistPace_', 'kcPutAll_', 'getCandlesBundle', 'misBatchQuotes_'], marker: ['refreshQuoteCacheJob', 'MIS_DOWN_KEY_'] },
+  { file: 'Quoteservice.gs', names: ['settleClosingQuotesTick_', 'misRows_', 'getFugleKey_', 'fugleFetch_', 'sharesToLots_', 'volumeInLots_', 'hourSlot_', 'readHourlyRows_', 'fugleHistPace_', 'kcPutAll_', 'getCandlesBundle', 'misBatchQuotes_'], marker: ['refreshQuoteCacheJob', 'MIS_DOWN_KEY_'] },
   { file: 'Refreshrunner.gs', names: ['runRefreshAllChunk_', 'withRefreshAllLease_'] },
   { file: 'Setup.gs', names: ['setupSpreadsheet', 'setWebAppUrl', 'webAppUrlReport_', 'checkProjectFiles', 'checkAutomationReadiness', 'ensureAutomationTick', 'withSheetSnapshot_', 'readSheetFields_', 'readSheetDayRow_', 'opsTimed_', 'opsRuntimeFor_', 'opsRuntimeConserve_'], marker: ['everyFiveMinJobRun_', "dueEvery_('quoteConserve', 10)"] },
   { file: 'SheetService.gs', names: ['fmtDate_', 'withLock_', 'ensureTranscriptLayoutJob', 'transcriptFingerprint_', 'stripTranscribeEcho_', 'readCostOverrides_', 'searchTerms_', 'repairLiwangExitPriceNow', 'rangeCandle_', 'statedNote_', 'trackerRoundList_', 'isManualHoldSource_', 'holdConfirmForOpen_', 'getHoldingsTrackerRead_'], marker: ['fmtDate_', 'fmtDateMemo_'] },
@@ -1250,7 +1252,7 @@ var PROJECT_HTML_ = [
   { file: 'Index', marker: '<span class="brand-name">盤勢有據</span>' },
   { file: 'JavaScript', marker: '__fxRiseIn' },
   { file: 'Stylesheet', marker: 'v109 全站零星動態' },
-  { file: 'Changelog', marker: 'v133 戰情回到清單' },
+  { file: 'Changelog', marker: 'v134 收盤價' },
   { file: 'Tech', marker: 'tlPlay' },
   { file: 'Admin', marker: '15:20 再核對公開直播與回放' },
   { file: 'Settings', marker: '手機預覽' },

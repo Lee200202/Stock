@@ -102,7 +102,7 @@ def compare(signals, golden):
 
 
 INTERNAL_WORDS = re.compile(r'待確認註記|模型|補列|初稿|覆核|逐字稿|簡訊|盤中通知|會員通知|依通知|通知指出')
-POSITIVE = re.compile(r'看好|佈局|布局|買點|續抱|大漲|噴出|翻揚|可以買|值得留意|值得注意')
+POSITIVE = re.compile(r'看好|佈局|布局|買點|續抱|(?:準備|即將|將會?|會)大漲|噴出|翻揚|可以買|值得留意|值得注意')
 
 
 def invariants(signals, raw):

@@ -1,0 +1,57 @@
+name: 擷取分類重播（唯讀）
+run-name: 擷取分類重播 ${{ inputs.date }}（${{ github.ref_name }}）
+
+# 手動觸發。用真的模型把某一天存好的原始逐字稿重新跑一次擷取、稽核、代號比對、品質關卡到最終分類，
+# 只印結果並和 scripts/golden/ 裡人工核對過的答案比對；不寫試算表、不寄信、不刷新網站。
+# 一次大約 8～10 次 Gemini 呼叫。改 prompt 或判定規則時，先在分支上跑這個，通過再併回 main。
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: '要重播哪一天 YYYY/MM/DD'
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: replay-extract-${{ github.ref_name }}-${{ inputs.date }}
+  cancel-in-progress: false
+
+jobs:
+  replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - run: pip install -r requirements.txt
+      - name: 重播（唯讀）
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+          GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          GEMINI_THINKING_LEVEL: ${{ vars.GEMINI_THINKING_LEVEL || 'medium' }}
+          GEMINI_SEMANTIC_AUDIT: ${{ vars.GEMINI_SEMANTIC_AUDIT || 'true' }}
+          GEMINI_COMBINED_ASSESSMENT: ${{ vars.GEMINI_COMBINED_ASSESSMENT || 'true' }}
+          GEMINI_ASSESSMENT_TOKEN_BUDGET: ${{ vars.GEMINI_ASSESSMENT_TOKEN_BUDGET || '150000' }}
+          GEMINI_CONTEXT_TOKENS: ${{ vars.GEMINI_CONTEXT_TOKENS || '1048576' }}
+          GEMINI_MAX_OUT: ${{ vars.GEMINI_MAX_OUT }}
+          GEMINI_RPM: ${{ vars.GEMINI_RPM || '10' }}
+          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          REPLAY_DATE: ${{ inputs.date }}
+          FINAL_ATTEMPT: 'true'
+          PYTHONUNBUFFERED: '1'
+        run: |
+          if ! printf '%s' "$REPLAY_DATE" | grep -Eq '^[0-9]{4}/[0-9]{1,2}/[0-9]{1,2}$'; then
+            echo "::error::日期格式錯誤，要寫成 YYYY/MM/DD"; exit 1
+          fi
+          GOLDEN="scripts/golden/$(printf '%s' "$REPLAY_DATE" | awk -F/ '{printf "%04d-%02d-%02d", $1, $2, $3}').json"
+          ARGS=(--date "$REPLAY_DATE")
+          if [ -f "$GOLDEN" ]; then ARGS+=(--golden "$GOLDEN"); fi
+          python scripts/replay_extract.py "${ARGS[@]}"

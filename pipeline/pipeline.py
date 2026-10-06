@@ -3083,6 +3083,11 @@ def resolve_code(name: str, hint: str):
             if _base(n) == nb:
                 return c, n, "去後綴後相同"
 
+    # 3.2 公司全名：講者念全名、交易所簡稱卻是另一種寫法。只給比對用，不進公開說明的名稱替換。
+    full = FULL_NAME_CODES.get(name)
+    if full and full in m:
+        return full, m[full], "公司全名"
+
     # 3.5 管理者確認的讀音（2026/09/14 裕隆：玉龍、浴龍……任何同音寫法）。
     #     排在正式名稱與去後綴之後：原文明寫的正式名稱（宇隆）永遠優先。
     if _has_cjk(name):
@@ -3191,6 +3196,13 @@ def _same_stock(name: str, official: str) -> bool:
     return pin >= PINYIN_CUTOFF
 
 
+# 公司全名 → 代號。交易所簡稱不是全名的開頭幾個字加後綴、拼音比對又會猜到別家的那幾檔。
+# 2026/10/06：「5347 世界先進」，5347 的簡稱是「世界」；名稱單獨去比，拼音最像的是 2072 世紀風電（0.70），
+# 名稱在稿裡出現 3 次、代號 1 次，仲裁因此採用名稱，整列變成世紀風電。
+# 不放進 CONFIRMED_NAMES：那張表會把公開說明裡的「世界先進」換成簡稱「世界」，讀起來是另一個意思。
+FULL_NAME_CODES = {'世界先進': '5347', '華邦電子': '2344', '聯華電子': '2303', '全國電子': '6281'}
+
+
 def arbitrate_name_code(name: str, hint: str, transcript: str):
     """
     講者同時講了名稱與代號，但兩者指向不同檔時，決定要相信哪一邊。
@@ -3232,7 +3244,7 @@ def arbitrate_name_code(name: str, hint: str, transcript: str):
         # 代號不在對照表裡（新上市，或清單還沒更新）。這種情況沒有「兩個候選」，
         # 也就無從仲裁，維持 resolve_code 原本的處理：採用代號、保留名稱。
         return None
-    if _same_stock(name, official):
+    if _same_stock(name, official) or FULL_NAME_CODES.get(name) == hint:
         return None
 
     # 名稱單獨去比一次。比不出來就沒有第二個候選，代號還是唯一的證據。
@@ -5782,6 +5794,178 @@ def market_item_verified(item, hay):
     return all(n in available for n in _MARKET_NUM.findall(str(item.get('text') or '')))
 
 
+# ---------------------------------------------------------------- #
+# 2026/10/06 重播稽核後加的三道本機保護。都只在「模型沒交代清楚」時補位，不改模型已經判對的東西。
+# ---------------------------------------------------------------- #
+_TRADE_TODAY = re.compile(r'今天|今日|早上|早盤|剛剛|剛才')
+_TRADE_NOT_TODAY = re.compile(r'昨天|昨日|前天|上禮拜|上週|上個禮拜|之前|以前|當時')
+_TRADE_VERB = {'sell': re.compile(r'賣出|賣掉|賣了|出清|獲利了結'),
+               'buy': re.compile(r'買進|買了|進場了|買的')}
+_TRADE_ASK = re.compile(r'要不要(?:賣|買)|會不會(?:賣|買)|該不該(?:賣|買)|可不可以(?:賣|買)')
+
+
+def _said_today(sentence, verb) -> bool:
+    """句子裡有一個買賣動詞，而且它前面最近的時間詞是「今天」這一類。
+
+    「今天早上9.04分…當時我介紹你們238買進的鴻海，可以利用今天利多開高的時候獲利賣出」算；
+    「我昨天賣聖輝賣970」不算。
+    """
+    for v in verb.finditer(sentence):
+        before = sentence[:v.start()]
+        today = [m.end() for m in _TRADE_TODAY.finditer(before)]
+        other = [m.end() for m in _TRADE_NOT_TODAY.finditer(before)]
+        if today and (not other or today[-1] > other[-1]):
+            return True
+    return False
+
+
+def _plain_sentences(transcript):
+    """原文去空白後切成句子；保留標點，引用時對得上原文。"""
+    flat = re.sub(r'\s+', '', str(transcript or ''))
+    return [s for s in re.split(r'(?<=[。！？!?])', flat) if s]
+
+
+def settle_trade_time(row, quotes, transcript, hay, date_str, names, cat):
+    """買賣那一筆的「什麼時候」：先把格式上的落差補起來，真的講不出時間才交給品質關卡改列回顧。
+
+    2026/10/06：「今天早上9.04分，我告訴我的會員…鴻海…獲利賣出」講得明明白白，那一筆卻因為時間句沒有附在引句裡
+    被改列回顧，接著又因為「只有過去的買賣」整筆不列，當日賣出從網站上消失。
+    """
+    if row.get('when') == 'date' and norm_date(row.get('event_date')) == date_str:
+        row['when'] = 'today'                      # 模型把「10月6日」填成指定日期，其實就是影片當天
+    te_raw = str(row.get('time_evidence') or '')
+    if _ev_norm(te_raw) and not any(_ev_norm(te_raw) in _ev_norm(q) for q in quotes):
+        if _quote_is_real(te_raw, hay):
+            quotes.append(te_raw)                  # 時間句是原文裡真的有的，只是沒列在引句裡
+        else:
+            row['time_evidence'] = te_raw = ''     # 模型自己整理的句子，不能當時間依據
+    if _ev_norm(te_raw) or row.get('_time_from_context'):
+        return
+    when = row.get('when')
+    pattern = _WHEN_MARKERS.get(when)
+    hit = next((q for q in quotes if pattern and re.search(pattern, q)), '')
+    if not hit and when in (None, '', 'today', 'unknown'):
+        verb = _TRADE_VERB.get(cat)
+        names = [n for n in dict.fromkeys(_ev_norm(x) for x in names if x) if len(n) >= 2]
+        for s in _plain_sentences(transcript):
+            if (verb and any(n in _ev_norm(s) for n in names) and not _TRADE_ASK.search(s)
+                    and _said_today(s, verb)):
+                hit = s
+                row['when'] = 'today'
+                quotes.append(s)
+                note_decision('品質關卡', '依原文補上時間句', str(row.get('name') or ''), s[:80])
+                break
+    if hit:
+        row['time_evidence'] = hit
+    elif quotes and when in ('today', 'yesterday', 'prev_trading_day'):
+        row['_time_from_context'] = True
+        row['_review_note'] = '日期依上下文判讀，未附獨立時間短句'
+
+
+def _signal_names(row):
+    return {_display_name(x) for x in [row.get('name')] + list(row.get('aliases') or []) + [row.get('原始語音名稱')]
+            if isinstance(x, str) and x}
+
+
+def keep_first_pass_rows(first, reviewed, transcript):
+    """覆核把初稿已經分類、而且有逐字原句的台股整檔拿掉（改列排除或直接不見）時，放回初稿的分類。
+
+    2026/10/06：初稿把聯電列觀望不碰（「你現在去買聯電幹什麼」「聯電告訴我們不要買」），覆核改成排除，
+    正式那一輪與重播都一樣。買入、賣出不在這裡救：覆核拿掉成交通常是因為日期，那一段另有品質關卡。
+    """
+    hay = _ev_norm(transcript)
+    official = {_display_name(n) for n in (_CODE_MAP or {}).values()}
+    placed = set()
+    for cat in SIGNAL_CATEGORIES + ('history',):
+        for r in reviewed.get(cat, []) or []:
+            if isinstance(r, dict):
+                placed |= _signal_names(r)
+    for cat in ('holdings', 'watch_avoid', 'watch_watch'):
+        for r in first.get(cat, []) or []:
+            if not isinstance(r, dict):
+                continue
+            ns = _signal_names(r)
+            if not ns or ns & placed or not any(n in official or n in CONFIRMED_NAMES for n in ns):
+                continue
+            quotes = [q for q in (r.get('evidence') or []) if isinstance(q, str) and _quote_is_real(q, hay)]
+            said = _ev_norm(''.join(quotes))
+            if not quotes or not any(_ev_norm(n) in said for n in ns if len(_ev_norm(n)) >= 2):
+                continue
+            reviewed['ignored'] = [x for x in reviewed.get('ignored', []) or []
+                                   if not (isinstance(x, dict) and _signal_names(x) & ns)]
+            row = dict(r, evidence=quotes)
+            row['_review_note'] = '覆核移除，但初稿有逐字原句依據，保留初稿分類'
+            reviewed.setdefault(cat, []).append(row)
+            placed |= ns
+            print(f"  覆核移除核對　{r.get('name')}：初稿列{WATCH_BIAS_LABEL.get(cat, '會員持股')}且有原句，覆核後不見，放回初稿分類")
+            note_decision('覆核移除核對', '保留初稿分類', str(r.get('name') or ''), quotes[0][:80])
+    return reviewed
+
+
+# 盤點到的台股在模型判讀之後沒有落在任何一類時，只認講得很直白的句子。
+_LEFT_AVOID = r'不用(?:再)?(?:去)?追|不建議|不推薦|不要(?:亂)?買|不要碰|不能碰|不能買|不敢買|不用了|還沒(?:有)?跌完|不可能叫你們?(?:現在)?買|不會去碰'
+_LEFT_WATCH = r'建議你們?買|可以買|可以注意|最想買|我們持有|會員有|你們?要注意'
+_LEFT_LEAD = r'^(?:啊|那|好|來|所以|可是|然後|還有|而且|像|叫做|就是|比如說)*'
+# 「之前跟你們講漢唐跌破1000可以買」是轉述以前的話；「華通昨天大漲了不用追了」的昨天只是在講行情，不算。
+_LEFT_PAST = re.compile(r'之前|以前|當時|那時')
+_LEFT_NOW = re.compile(r'現在|今天|目前')
+
+
+def classify_inventory_leftovers(signals, transcript):
+    """原文盤點到、模型卻沒有分類也沒有排除理由的台股：有直白的「不用追／不建議／建議你們買」就照原句補列。
+
+    2026/10/06 漏掉的四檔都屬於這一種：「華通昨天大漲了不用追了」「還有啟碁，我也不建議」
+    「漢唐現在1300多的不用了」「我不可能叫你現在買世界先進吧」。補進來的列標成待複核，後台看得到是規則補的。
+    """
+    placed_names, placed_codes = set(), set()
+    for cat in SIGNAL_CATEGORIES + ('history',):
+        for r in signals.get(cat, []) or []:
+            if isinstance(r, dict):
+                placed_names |= _signal_names(r)
+                if r.get('code'):
+                    placed_codes.add(str(r['code']))
+    sentences = _plain_sentences(transcript)
+    added = set()
+    for item in source_inventory(source_segments(transcript)):
+        heard, code = item['name'], str(item['code'])
+        official = _display_name(item.get('official_name') or '')
+        if code in placed_codes or code in added or {heard, official} & placed_names:
+            continue
+        own_buy = re.compile(r'買' + re.escape(heard) + r'幹(?:什麼|嘛)')
+        pick = None
+        for s in reversed([x for x in sentences if heard in x]):      # 後面的說法是當下的結論
+            clauses = [c for c in re.split(r'[，,；;]', s) if c]
+            at = [i for i, c in enumerate(clauses) if heard in c]
+            if item.get('weak'):
+                # 兩個字的簡稱常是日常用語（大量、全國、世界）：要整個子句是從它講起的才算在講這一檔。
+                at = [i for i in at if re.match(_LEFT_LEAD + re.escape(heard), clauses[i])]
+            if not at:
+                continue
+            def near(lo, hi):
+                return '，'.join(c for i in at for c in clauses[max(0, i + lo):i + hi + 1])
+            if _LEFT_PAST.search(near(-1, 1)) and not _LEFT_NOW.search(near(-1, 1)):
+                continue
+            if re.search(_LEFT_AVOID, near(0, 1)) or own_buy.search(s):
+                pick = ('watch_avoid', s)
+            elif re.search(_LEFT_WATCH, near(-1, 1)):
+                pick = ('watch_watch', s)
+            if pick:
+                break
+        if not pick:
+            continue
+        cat, quote = pick
+        signals['ignored'] = [x for x in signals.get('ignored', []) or []
+                              if not (isinstance(x, dict) and _signal_names(x) & {heard, official})]
+        signals.setdefault(cat, []).append({
+            'name': heard, 'code': code, 'price': '未說明', 'reason': quote, 'evidence': [quote],
+            'view': quote, 'watch_bias': cat, '_review_note': '模型沒有交代這一檔，依原句的直白說法補列'})
+        signals['_quality_requires_review'] = True
+        added.add(code)
+        print(f"  盤點漏項補列　{heard}（{code}）→ {WATCH_BIAS_LABEL[cat]}：{quote[:60]}")
+        note_decision('盤點漏項', '依原句補列' + WATCH_BIAS_LABEL[cat], heard, quote[:80])
+    return signals
+
+
 def validate_evidence(signals, transcript, date_str, after_codes=False):
     """
     逐筆分級，不是整批放行或整批擋下。
@@ -5912,6 +6096,7 @@ def validate_evidence(signals, transcript, date_str, after_codes=False):
             # 三、買賣要講得出時間。講不出來的是回顧，歸 history——
             #     那正是「華城賣775，現在726」該去的地方。
             if cat in ("buy", "sell"):
+                settle_trade_time(row, quotes, transcript, hay, date_str, [name, heard] + aliases, cat)
                 when = row.get("when")
                 te = _ev_norm(row.get("time_evidence"))
                 why = ""
@@ -6161,6 +6346,8 @@ CONFIRMED_NAMES = {'普威': ('4966', '譜瑞-KY'), '普位': ('4966', '譜瑞-K
     # 「會員一定賺錢的星KY」＝世芯-KY。只列不會出現在一般詞裡的寫法：
     # 程成（工程成本）、情神、行神不列，公開說明的名稱替換會改壞別的句子；聽打詞表已改為帶入當天股名。
     '情晨': ('8210','勤誠'), '偉穎': ('6669','緯穎'), '星KY': ('3661','世芯-KY'),
+    # 2026/10/06：「我建議你們買這一檔，叫做四新科…我們持有四新科」＝事欣科；同一集的「四新KY」＝世芯-KY。
+    '四新科': ('4916','事欣科'), '四新KY': ('3661','世芯-KY'),
     '立旺': ('3529','力旺'), '紅柱恩': ('2354','鴻準'), '創億': ('3443','創意'), '致源': ('3035','智原'),
     '隱身版光通訊': ('2402','毅嘉'), '隱藏版光通訊': ('2402','毅嘉'), '隱藏版光訊': ('2402','毅嘉'),
     '意嘉': ('2402','毅嘉'), '億嘉': ('2402','毅嘉'), '益嘉': ('2402','毅嘉'), '義嘉': ('2402','毅嘉'), '易嘉': ('2402','毅嘉'),
@@ -6341,6 +6528,9 @@ def _inventory_names():
                 names.setdefault(heard, (code, name, False))
         for heard, (code, name) in CONFIRMED_NAMES.items():
             names[heard] = (code, name, True)
+        for full, code in FULL_NAME_CODES.items():
+            if code in (_CODE_MAP or {}):
+                names[full] = (code, _CODE_MAP[code], True)
         for e in manual:
             names.setdefault(e['heard'], (e['code'], e.get('real') or '', True))
         _INVENTORY_CACHE.update(key=key, names=names, segments={})
@@ -11249,8 +11439,15 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     if prior:
         signals['_prior_published'] = prior_identity_labels(prior)
     step("稽核補漏", f"目前 {_n(signals)} 檔，回頭比對原始逐字稿看有沒有漏掉的")
+    first_pass = json.loads(json.dumps({c: signals.get(c, []) for c in SIGNAL_CATEGORIES}, ensure_ascii=False, default=str))
+    try:
+        materialize_evidence(first_pass, TX["audit"])
+    except Exception as e:
+        print(f"  初稿引句還原略過（{type(e).__name__}）")
     signals = audit_signals(TX["audit"], signals, date_str)
     signals = restore_explicit_current_prohibitions(signals, TX["audit"])
+    signals = keep_first_pass_rows(first_pass, signals, TX["audit"])
+    signals = classify_inventory_leftovers(signals, TX["audit"])
     print(f"  稽核補漏後　{signal_roster(signals)}")
 
     # 幻覺檢查要排在代號比對之前：比對會把名稱換成官方簡稱

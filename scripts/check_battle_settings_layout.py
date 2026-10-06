@@ -2,8 +2,8 @@
 
     python scripts/check_battle_settings_layout.py [--shots 目錄]
 
-寬螢幕（861px 以上）：跳空方向、均量基準、量能比較橫向一列，各自對齊下方的最低開盤幅度、最低日量倍數、最低當日量。
-平板（721–860px）：每欄放不下兩顆選項，三組各佔一列；數值欄位仍是三欄。
+寬螢幕（981px 以上）：跳空方向、均量基準、量能比較橫向一列，各自對齊下方的最低開盤幅度、最低日量倍數、最低當日量。
+平板（721–980px）：每欄放不下三顆選項（均量基準有 5 日、20 日、自訂），三組各佔一列；數值欄位仍是三欄。
 手機：單欄依序排列。任何寬度都不出現水平捲軸，選項不被裁切、同一組的選項在同一行。
 """
 import argparse
@@ -36,12 +36,13 @@ def check(m, w):
     c, f = m['choices'], m['fields']
     for i, group in enumerate(m['pills']):
         assert group and all(p['l'] >= c[i]['l'] - 1 and p['r'] <= c[i]['r'] + 1 for p in group), f'{w}px 第 {i + 1} 組選項超出自己的欄位'
-        assert all(near(p['t'], group[0]['t']) for p in group), f'{w}px 第 {i + 1} 組的兩顆選項沒有排在同一列'
-    if 720 < w <= 860:
+        assert all(near(p['t'], group[0]['t']) for p in group), f'{w}px 第 {i + 1} 組的選項沒有排在同一列'
+    assert [len(g) for g in m['pills']] == [2, 3, 2], '均量基準應有 5 日、20 日、自訂三顆'
+    if 720 < w <= 980:
         assert c[0]['t'] < c[1]['t'] < c[2]['t'] and all(near(x['l'], c[0]['l']) for x in c), f'{w}px 三組選項應各佔一列'
         assert all(near(x['t'], f[0]['t']) for x in f) and f[0]['t'] >= c[2]['b'], f'{w}px 數值欄位應在選項下方排成一列'
         return '三組選項各佔一列，數值欄位三欄'
-    if w > 860:
+    if w > 980:
         assert all(near(x['t'], c[0]['t']) for x in c), f'{w}px 三組選項沒有排在同一列：{[round(x["t"]) for x in c]}'
         assert all(near(x['t'], f[0]['t']) for x in f), f'{w}px 三個數值欄位沒有排在同一列'
         assert f[0]['t'] >= max(x['b'] for x in c), f'{w}px 數值欄位應在選項下方'
@@ -63,7 +64,7 @@ def main():
     url = f'http://127.0.0.1:{srv.server_address[1]}/'
     with sync_playwright() as p:
         browser = p.chromium.launch()
-        for w in (1440, 1280, 1100, 900, 768, 390, 360):
+        for w in (1440, 1280, 1100, 1000, 900, 768, 390, 360):
             pg = browser.new_page(viewport={'width': w, 'height': 900}, has_touch=w < 700)
             errs = []
             pg.on('pageerror', lambda e, errs=errs: errs.append(str(e)))

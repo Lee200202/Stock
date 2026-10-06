@@ -9,6 +9,7 @@
      三、收盤後：即時快取整批換成收盤價；讀取端不把盤中某一刻的價當成收盤價。
      四、隔天開盤前：前一天的報價不算新鮮，顯示的是前一天收盤。
    這份模擬重現了 2026/10/06 的實況（直連 Address unavailable、沒有轉送），舊程式在同一份模擬下會失敗。 */
+process.env.TZ = 'Asia/Taipei';                    // 行事曆用到 setHours／setDate，固定在台北時區
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
@@ -112,17 +113,32 @@ function makeWorld(scenario) {
       return sheet.rows.slice(1).map(r => Object.fromEntries(head.map((h, i) => [h, r[i] === undefined ? '' : r[i]])));
     },
     fmtDate_: v => String(v), getCachedDailyK: c => dailyK[c] || [],
+    // 戰情行情端點（BattleData.gs）用到的其餘函式
+    withSheetSnapshot_: fn => fn(), marketHolidaySet_: () => ({}), MARKET_HOLIDAY_YEARS_: {2025: 1, 2026: 1}, HOLIDAY_PROP_PREFIX_: 'HOLIDAYS_',
+    loadAllDailyK_: () => dailyK, opsRuntimeConserve_: () => !!scenario.conserve,
+    nowStamp_: () => { const p = parts(new Date(clock.now)); return p.yyyy + '/' + p.MM + '/' + p.dd + ' ' + p.HH + ':' + p.mm + ':' + p.ss; },
   };
   vm.createContext(ctx);
   vm.runInContext(SOURCE, ctx, {filename: 'Quoteservice.gs'});
+  vm.runInContext(fs.readFileSync('public-site/gas-source/BattleData.gs', 'utf8').replace(/\r\n/g, '\n'), ctx, {filename: 'BattleData.gs'});
+  // 日K歷史：事件日之前 130 個交易日（模擬裡沒有假日，週一到週五都開盤），量 1000 張、收盤等於當天報價的昨收。
+  const seedHistory = () => CODES.forEach(c => {
+    const rows = [];
+    for (let d = new Date(taipei(DAY, '12:00:00') - 86400000); rows.length < 130; d = new Date(d.getTime() - 86400000)) {
+      const p = parts(d);
+      if (Number(p.u) <= 5) rows.unshift({date: p.yyyy + '/' + p.MM + '/' + p.dd, open: base(c) - 1, high: base(c), low: base(c) - 2, close: base(c) - 1, volume: 1000000});
+    }
+    dailyK[c] = rows; CACHE.put('dk2_' + c, ctx.kcEncode_(rows), 21600);
+  });
   const view = codes => codes.forEach(c => CACHE.put('quote_viewed_' + c, String(clock.now), 1800));
   const row = c => sheet.rows.slice(1).find(r => String(r[0]) === c);
   const landDailyK = ymd => CODES.filter(c => c !== scenario.noData).forEach(c => {
-    const rows = [{date: '2026/10/05', open: base(c), high: base(c) + 3, low: base(c) - 3, close: base(c) - 1, volume: 900000},
-                  {date: ymd, open: base(c), high: base(c) + 60, low: base(c) - 2, close: closeOf(c), volume: (1000 + Number(c) % 50) * 1000}];
+    const prior = dailyK[c] && dailyK[c].length > 2 ? dailyK[c].filter(r => r.date < ymd)
+      : [{date: '2026/10/05', open: base(c), high: base(c) + 3, low: base(c) - 3, close: base(c) - 1, volume: 900000}];
+    const rows = prior.concat([{date: ymd, open: base(c), high: base(c) + 60, low: base(c) - 2, close: closeOf(c), volume: (1000 + Number(c) % 50) * 1000}]);
     dailyK[c] = rows; CACHE.put('dk2_' + c, ctx.kcEncode_(rows), 21600);
   });
-  return {ctx, clock, stats, sheet, row, view, landDailyK, props, CACHE, secOfDay};
+  return {ctx, clock, stats, sheet, row, view, landDailyK, seedHistory, props, CACHE, secOfDay};
 }
 
 /** 照正式排程跑完一個交易日。回傳每一棒的紀錄。conserveFrom：幾點之後報價改成每十分鐘一棒（用量保護）。 */
@@ -155,6 +171,8 @@ function runDay(w, {viewers = [], conserveFrom = '99:99', kAt = '14:45'} = {}) {
 const finalRows = w => CODES.filter(c => { const r = w.row(c); return r && Number(r[2]) === closeOf(c) && String(r[7]) >= DAY + ' 13:30:00' && String(r[11]) === DAY; });
 const intraday = runs => runs.filter(r => r.hm < '13:30');
 const report = [];
+
+function main() {
 
 /* ---- 一、2026/10/06 的實況：直連不通、沒有轉送、有人一直在看 16 檔、12:00 起用量保護 ---- */
 {
@@ -337,3 +355,7 @@ function runDayUntil(w, untilHm) {
 
 report.forEach(line => console.log('ok ' + line));
 console.log(report.length + ' quote flow scenarios passed');
+}
+
+module.exports = {makeWorld, runDay, taipei, CODES, HELD, DAY, NEXT, base, closeOf};
+if (require.main === module) main();

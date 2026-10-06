@@ -39,10 +39,23 @@ def item(code):
     return dict(code=code, name='示意股票' + str(int(code) - 1000), bars=bars, quote=None)
 
 
-def battle_reply(codes):
-    codes = codes or [u['code'] for u in UNIVERSE[:12]]
-    return dict(ok=True, date=CALENDAR[-1], today=CALENDAR[-1], afterClose=True, at='本機示意', quoteCadence='模擬資料',
-                calendar=CALENDAR, volumeUnit='lots', universe=UNIVERSE, items=[item(c) for c in codes])
+def battle_reply(codes, options=None, legacy=False):
+    """和 BattleData.gs 同樣的兩種回應：原格式（舊版後端，或前台沒帶第二個參數），以及精簡格式（v:2）。"""
+    v2 = (not legacy) and isinstance(options, dict) and options.get('v', 0) >= 2
+    codes = codes or [u['code'] for u in UNIVERSE[:(20 if v2 else 12)]]
+    items = [item(c) for c in codes]
+    out = dict(ok=True, date=CALENDAR[-1], today=CALENDAR[-1], afterClose=True, at='本機示意', quoteCadence='模擬資料',
+               calendar=CALENDAR, volumeUnit='lots', universe=UNIVERSE, items=items)
+    if not v2:
+        return out
+    out['items'] = [dict(code=i['code'], name=i['name'], error='', q=i['quote'],
+                         b=[[int(b['date'].replace('/', '')), b['open'], b['high'], b['low'], b['close'], b['volume']] for b in i['bars']]) for i in items]
+    out.update(format=2, batchMax=20, calendarKey=f'{len(CALENDAR)}:{CALENDAR[0]}:{CALENDAR[-1]}',
+               universeKey=f"{len(UNIVERSE)}:{UNIVERSE[0]['code']}:{UNIVERSE[-1]['code']}")
+    if options.get('lite') is True:
+        del out['calendar'], out['universe']
+        out['lite'] = True
+    return out
 
 
 # 追蹤清單的分批讀取可以放慢（window.__slowBatches 毫秒），用來測「還在讀就離開」。延遲做在頁面裡，不卡住操作。
@@ -69,7 +82,7 @@ def build_local():
     return srv
 
 
-def make_router(calls):
+def make_router(calls, legacy=False):
     cors = {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'}
 
     def handle(route):
@@ -82,7 +95,7 @@ def make_router(calls):
             method, args = body.get('method'), body.get('args') or []
             if method == 'apiGetBattleData':
                 calls.append(args[0] if args else None)
-                out = {'ok': True, 'result': battle_reply(args[0] if args else None)}
+                out = {'ok': True, 'result': battle_reply(args[0] if args else None, args[1] if len(args) > 1 else None, legacy)}
             elif method == 'apiSuggestCodes':
                 q = str(args[0]).strip()
                 out = {'ok': True, 'result': [u for u in UNIVERSE if u['code'].startswith(q) or q in u['name']][:12]}
@@ -201,20 +214,21 @@ def main():
     with sync_playwright() as p:
         browser = p.chromium.launch()
         for w in (1280, 390):
-            for slow in (0, 1500):
+            for slow, legacy in ((0, False), (1500, False), (0, True)):
                 pg = browser.new_page(viewport={'width': w, 'height': 900}, has_touch=w < 700)
                 errs, calls = [], []
                 pg.on('pageerror', lambda e, errs=errs: errs.append(str(e)))
                 pg.add_init_script(SLOW)
                 pg.add_init_script(f'window.__slowBatches = {slow};')
-                pg.route(FAKE_API, make_router(calls))
+                pg.route(FAKE_API, make_router(calls, legacy))
                 open_battle(pg, url)
                 if slow:
                     run_while_loading(pg, calls)
                     print(f'ok {w}px：清單讀到一半查個股，清空搜尋後回到清單並讀完 50 檔')
                 else:
                     run(pg, calls, w)
-                    print(f'ok {w}px：清空搜尋、空白卡片按鈕、分頁列按鈕都回到符合條件的清單；回來不重讀、頁碼保留')
+                    kind = '舊格式後端（一次 24 檔）' if legacy else '精簡格式（後端告知一次 20 檔、後續批次省略清單與行事曆）'
+                    print(f'ok {w}px［{kind}］：清空搜尋、空白卡片按鈕、分頁列按鈕都回到符合條件的清單；回來不重讀、頁碼保留')
                 assert not errs, f'{w}px 頁面錯誤：{errs[:2]}'
                 try:
                     pg.unroute_all(behavior='ignoreErrors')

@@ -1,9 +1,12 @@
-"""戰情條件卡片拖曳驗收（v135）。行情用假資料，拖曳用真的滑鼠事件。
+"""戰情條件分組與拖曳驗收（v136）。行情用假資料，拖曳用真的滑鼠事件。
 
     python scripts/check_battle_drag.py
 
-整張卡片都可以拖進「且／或」區：從說明文字、卡片空白處、橢圓按鈕開始拖都算。
-卡片裡的週期按鈕與數值輸入框照常點選、選字，不會把卡片拖走。點橢圓按鈕仍然是加入／移除。
+條件分成幾組：同一組一種邏輯、組與組之間另一種（例：（開盤跳空 且 爆量）或 均線位置）。
+- 整張卡片可以拖進某一組或「新增一組」；組裡的標籤可以拖到別組（移動）或拖回清單（只從那一組拿掉）。
+- 不拖也行：先點一個組，再點條件。同一個條件可以放進不同的組；最多四組。
+- 卡片裡的週期按鈕與數值輸入框照常點選、選字，不會把卡片拖走。
+- 均量基準可以自訂天數；結果清單與每張卡片照新的組合重算。
 """
 import sys
 from pathlib import Path
@@ -14,16 +17,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import check_battle_back as base  # noqa: E402  共用本機組站與假行情
 
 STATE = """() => {
-  const wrap = document.getElementById('battlePreferences');
-  const zone = wrap.querySelector('.battle-dropzone.is-active');
-  return {logic: zone ? zone.dataset.bdrop : '',
-          chips: [...wrap.querySelectorAll('.battle-dropzone.is-active .battle-expression-chip')].map(e => e.dataset.bflag),
+  const p = window.BattleSettings.get(), wrap = document.getElementById('battlePreferences');
+  const shown = [...wrap.querySelectorAll('.battle-group[data-bgroup]')].map(g => [...g.querySelectorAll('.battle-expression-chip')].map(c => c.dataset.bdrag));
+  const target = wrap.querySelector('.battle-group.is-target');
+  return {groups: p.groups, mode: p.groupLogic, shown, target: target ? Number(target.dataset.bgroup) : -1,
+          hasNew: !!wrap.querySelector('.battle-group-new'), formula: document.getElementById('battleFormula').textContent,
           pressed: [...wrap.querySelectorAll('.battle-feature[aria-pressed=true]')].map(e => e.dataset.bflag)};
 }"""
+G, V, T, M, K, B, O, R = 'useGap', 'useVolume', 'useTrend', 'useMacd', 'useKD', 'useBoll', 'useBody', 'useBreakout'
 
 
 def card(pg, key):
     return pg.locator(f'#battlePreferences .battle-feature-box[data-bdrag="{key}"]')
+
+
+def chip(pg, group, key):
+    return pg.locator(f'#battleGroups .battle-group[data-bgroup="{group}"] .battle-expression-chip[data-bdrag="{key}"]')
 
 
 def point(pg, locator, fx=0.5, fy=0.5):
@@ -32,79 +41,186 @@ def point(pg, locator, fx=0.5, fy=0.5):
     return b['x'] + b['width'] * fx, b['y'] + b['height'] * fy
 
 
-def drag(pg, start, end):
+def drag(pg, start_locator, end_locator, sfx=0.5, sfy=0.5, efx=0.5, efy=0.8):
+    # 兩端都要在畫面裡：先算起點，按住之後再算終點（頁面不會在拖曳中捲動）。
+    pg.evaluate("document.querySelector('#battlePreferences .battle-optional-head').scrollIntoView({block: 'start'})")
+    pg.wait_for_timeout(120)
+    sb, eb = start_locator.bounding_box(), end_locator.bounding_box()
+    start = (sb['x'] + sb['width'] * sfx, sb['y'] + sb['height'] * sfy)
+    end = (eb['x'] + eb['width'] * efx, eb['y'] + eb['height'] * efy)
     pg.mouse.move(*start)
     pg.mouse.down()
     pg.mouse.move(start[0] + 6, start[1] + 6, steps=3)
     pg.mouse.move(*end, steps=14)
     pg.mouse.up()
-    pg.wait_for_timeout(150)
+    pg.wait_for_timeout(180)
 
 
-def zone(pg, name):
-    return point(pg, pg.locator(f'#battlePreferences .battle-dropzone[data-bdrop="{name}"]'), 0.5, 0.75)
+def group(pg, n):
+    return pg.locator(f'#battleGroups .battle-group[data-bgroup="{n}"]')
+
+
+def new_zone(pg):
+    return pg.locator('#battleGroups .battle-group-new')
+
+
+def pool(pg):
+    return card(pg, B)                       # 丟在別張卡片上就是丟回條件清單
+
+
+def state(pg):
+    s = pg.evaluate(STATE)
+    assert s['shown'][:len(s['groups'])] == s['groups'], f'畫面上的組和存的設定不一致：{s}'
+    return s
 
 
 def run(pg):
-    wrap = pg.locator('#battlePreferences')
-    pg.wait_for_selector('#battlePreferences .battle-feature-box[data-bdrag]')
-    pg.evaluate("document.querySelector('#battlePreferences .battle-logic-board').scrollIntoView({block: 'start'})")
-    assert pg.evaluate(STATE) == {'logic': 'all', 'chips': ['useGap', 'useVolume'], 'pressed': ['useGap', 'useVolume']}, pg.evaluate(STATE)
-
-    # 一、八張卡片本身可拖；裡面的橢圓按鈕不是另一個可拖的東西；游標提示可以抓。
+    pg.wait_for_selector('#battleGroups .battle-group')
+    base.wait_list_done(pg, 47)
+    s = state(pg)
+    assert s['groups'] == [[G, V]] and s['mode'] == 'anyOfAll' and s['hasNew'], s
     info = pg.evaluate("""() => [...document.querySelectorAll('#battlePreferences .battle-feature-box')].map(b => ({
-        drag: b.getAttribute('draggable'), key: b.dataset.bdrag, pill: b.querySelector('.battle-feature').getAttribute('draggable'),
-        pillKey: b.querySelector('.battle-feature').dataset.bflag, cursor: getComputedStyle(b).cursor}))""")
-    assert len(info) == 8 and all(i['drag'] == 'true' and i['key'] == i['pillKey'] and i['pill'] is None and i['cursor'] == 'grab' for i in info), info
+        drag: b.getAttribute('draggable'), key: b.dataset.bdrag, pill: b.querySelector('.battle-feature').getAttribute('draggable'), cursor: getComputedStyle(b).cursor}))""")
+    assert len(info) == 8 and all(i['drag'] == 'true' and i['pill'] is None and i['cursor'] == 'grab' for i in info), info
 
-    # 二、從說明文字（不是橢圓按鈕）開始拖 → 加入「且」。
-    drag(pg, point(pg, card(pg, 'useTrend').locator('.battle-feature-hint')), zone(pg, 'all'))
-    s = pg.evaluate(STATE)
-    assert s['logic'] == 'all' and 'useTrend' in s['chips'] and 'useTrend' in s['pressed'], f'從說明文字拖不進去：{s}'
+    # 一、卡片（從說明文字抓）拖到「新增一組」→（開盤跳空 且 爆量）或 均線位置。
+    drag(pg, card(pg, T).locator('.battle-feature-hint'), new_zone(pg), efy=0.5)
+    s = state(pg)
+    assert s['groups'] == [[G, V], [T]], s
+    assert s['formula'] == '目前的條件：（開盤跳空 且 爆量與最低量） 或 均線位置', s['formula']
+    assert pg.inner_text('#battleRule') == '符合條件：（向上開盤缺口 且 成交量倍數） 或 20 日均線', pg.inner_text('#battleRule')
+    # 結果跟著重算：量不夠的三檔（缺口成立、收在均線上）現在由第 2 組符合。
+    base.wait_list_done(pg, 50)
 
-    # 三、從卡片右下角的空白處開始拖 → 拖進「或」，邏輯跟著切換。
-    drag(pg, point(pg, card(pg, 'useMacd'), 0.93, 0.9), zone(pg, 'any'))
-    s = pg.evaluate(STATE)
-    assert s['logic'] == 'any' and 'useMacd' in s['chips'], f'從卡片空白處拖不進去：{s}'
+    # 二、卡片（從右下角空白處抓）拖進第 2 組。
+    drag(pg, card(pg, M), group(pg, 1), sfx=0.93, sfy=0.9)
+    assert state(pg)['groups'] == [[G, V], [T, M]]
 
-    # 四、從橢圓按鈕開始拖也一樣（拖的是整張卡片）。
-    drag(pg, point(pg, card(pg, 'useKD').locator('.battle-feature')), zone(pg, 'all'))
-    s = pg.evaluate(STATE)
-    assert s['logic'] == 'all' and 'useKD' in s['chips'], f'從橢圓按鈕拖不進去：{s}'
+    # 三、組裡的標籤拖到另一組：是移動，不是複製。
+    drag(pg, chip(pg, 0, V), group(pg, 1))
+    assert state(pg)['groups'] == [[G], [T, M, V]]
 
-    # 五、把已加入的卡片拖回條件清單（丟在別張卡片上）→ 移除。
-    drag(pg, point(pg, card(pg, 'useGap').locator('.battle-feature-hint')), point(pg, card(pg, 'useBoll'), 0.5, 0.8))
-    s = pg.evaluate(STATE)
-    assert 'useGap' not in s['chips'] and 'useGap' not in s['pressed'], f'拖回條件清單沒有移除：{s}'
-    assert 'useBoll' not in s['chips'], '丟在別張卡片上不應該把那一張加進去'
+    # 四、同一個條件放進另一組（從橢圓按鈕抓整張卡片）；卡片上寫出它在哪幾組。
+    drag(pg, card(pg, G).locator('.battle-feature'), new_zone(pg), efy=0.5)
+    s = state(pg)
+    assert s['groups'] == [[G], [T, M, V], [G]], s
+    assert pg.inner_text(f'#battlePreferences [data-bwhere="{G}"]') == '在第 1、3 組'
+    assert s['formula'] == '目前的條件：開盤跳空 或 （均線位置 且 MACD 柱體 且 爆量與最低量） 或 開盤跳空', s['formula']
 
-    # 六、卡片裡的設定區：在週期按鈕上按住拖動、在輸入框裡拖著選字，都不會把卡片拖走。
-    before = pg.evaluate(STATE)
-    drag(pg, point(pg, card(pg, 'useTrend').locator('[data-bextra] .battle-pill').first), zone(pg, 'any'))
-    assert pg.evaluate(STATE) == before, '從週期按鈕按住拖動，不應該拖走卡片或切換邏輯'
-    drag(pg, point(pg, card(pg, 'useBody').locator('.battle-feature')), zone(pg, 'all'))          # 先加入，設定區才會出現
-    field = card(pg, 'useBody').locator('[data-bextra] input')
-    before = pg.evaluate(STATE)
+    # 五、點標籤的 × 只從那一組拿掉；空掉的組會消失，後面的組往前遞補。
+    chip(pg, 0, G).click()
+    assert state(pg)['groups'] == [[T, M, V], [G]]
+
+    # 六、標籤拖回條件清單：只從那一組拿掉。卡片本身拖回清單：從每一組拿掉。
+    drag(pg, chip(pg, 0, M), pool(pg))
+    assert state(pg)['groups'] == [[T, V], [G]]
+    drag(pg, card(pg, G).locator('.battle-feature-hint'), group(pg, 0))
+    assert state(pg)['groups'] == [[T, V, G], [G]]
+    drag(pg, card(pg, G).locator('.battle-feature-hint'), pool(pg))
+    s = state(pg)
+    assert s['groups'] == [[T, V]] and G not in s['pressed'], s
+    assert 'useBoll' not in sum(s['groups'], []), '丟在別張卡片上不應該把那一張加進去'
+
+    # 七、切成「或 → 且」：同一組任一成立、每一組都要成立。
+    drag(pg, card(pg, G).locator('.battle-feature-hint'), new_zone(pg), efy=0.5)
+    pg.click('#battlePreferences .battle-mode-button[data-value="allOfAny"]')
+    s = state(pg)
+    assert s['mode'] == 'allOfAny' and s['groups'] == [[T, V], [G]], s
+    assert s['formula'] == '目前的條件：（均線位置 或 爆量與最低量） 且 開盤跳空', s['formula']
+    assert pg.inner_text('#battleGroups .battle-group-join').strip() == '且'
+    pg.click('#battlePreferences .battle-mode-button[data-value="anyOfAll"]')
+
+    # 八、不拖也行：點「新增一組」出現空的一組，再點條件加進去；再點一次拿掉。
+    pg.click('#battleGroups [data-bnew]')
+    s = state(pg)
+    assert s['target'] == 2 and len(s['shown']) == 3 and s['shown'][2] == [], s
+    card(pg, K).locator('.battle-feature').click()
+    s = state(pg)
+    assert s['groups'] == [[T, V], [G], [K]] and s['target'] == 2, s
+    card(pg, K).locator('.battle-feature').click()
+    assert state(pg)['groups'] == [[T, V], [G]]
+    # 先點第 1 組，再點條件：加進第 1 組。
+    pg.click('#battleGroups [data-bpick="0"]')
+    card(pg, B).locator('.battle-feature').click()
+    s = state(pg)
+    assert s['groups'] == [[T, V, B], [G]] and s['target'] == 0, s
+
+    # 九、最多四組：滿了之後不再出現「新增一組」。
+    drag(pg, card(pg, K).locator('.battle-feature-hint'), new_zone(pg), efy=0.5)
+    drag(pg, card(pg, M).locator('.battle-feature-hint'), new_zone(pg), efy=0.5)
+    s = state(pg)
+    assert s['groups'] == [[T, V, B], [G], [K], [M]] and not s['hasNew'], s
+    assert 'is-dragging' not in (pg.locator('#battlePreferences').get_attribute('class') or '')
+    assert pg.evaluate("document.querySelectorAll('#battlePreferences .is-dragged, #battlePreferences .drag-over').length") == 0
+
+    # 十、卡片裡的設定區：在週期按鈕上按住拖動、在輸入框裡拖著選字，都不會把卡片拖走；之後卡片仍可拖。
+    before = state(pg)['groups']
+    drag(pg, card(pg, T).locator('[data-bextra] .battle-pill').first, group(pg, 1))
+    assert state(pg)['groups'] == before, '從週期按鈕按住拖動，不應該拖走卡片'
+    pg.click('#battleGroups [data-bpick="1"]')
+    card(pg, O).locator('.battle-feature').click()                      # 加入後設定區才會出現
+    field = card(pg, O).locator('[data-bextra] input')
+    before = state(pg)['groups']
     box = field.bounding_box()
-    drag(pg, (box['x'] + 12, box['y'] + box['height'] / 2), (box['x'] + box['width'] - 30, box['y'] + box['height'] / 2 - 220))
-    assert pg.evaluate(STATE) == before, '在輸入框裡拖動不應該拖走卡片'
+    pg.mouse.move(box['x'] + 12, box['y'] + box['height'] / 2)
+    pg.mouse.down()
+    pg.mouse.move(box['x'] + box['width'] - 30, box['y'] + box['height'] / 2 - 260, steps=12)
+    pg.mouse.up()
+    assert state(pg)['groups'] == before, '在輸入框裡拖動不應該拖走卡片'
     field.fill('0.6')
     field.dispatch_event('change')
     assert field.input_value() == '0.6' and '已套用' in pg.inner_text('#battlePrefMessage')
-    card(pg, 'useTrend').locator('[data-bextra] .battle-pill').first.click()
-    assert card(pg, 'useTrend').locator('[data-bextra] .battle-pill').first.get_attribute('aria-pressed') == 'true'
+    card(pg, T).locator('[data-bextra] .battle-pill').first.click()
+    assert card(pg, T).locator('[data-bextra] .battle-pill').first.get_attribute('aria-pressed') == 'true'
+    drag(pg, card(pg, O).locator('.battle-feature-hint'), pool(pg))
+    assert O not in sum(state(pg)['groups'], []), '用過設定區之後卡片就拖不動了'
 
-    # 七、設定區用過之後，卡片其他地方仍然可以拖。
-    drag(pg, point(pg, card(pg, 'useTrend').locator('.battle-feature-hint')), point(pg, card(pg, 'useBoll'), 0.5, 0.8))
-    assert 'useTrend' not in pg.evaluate(STATE)['chips'], '用過設定區之後卡片就拖不動了'
+    # 十一、均量基準自訂天數。
+    pg.click('#battlePreferences [data-bdays="custom"]')
+    days = pg.locator('#battleDaysCustom input')
+    assert days.is_visible() and pg.evaluate("document.activeElement === document.querySelector('#battleDaysCustom input')")
+    days.fill('10')
+    days.dispatch_event('change')
+    p = pg.evaluate('window.BattleSettings.get()')
+    assert p['volumeDays'] == 10 and p['volumeCustom'] is True, p
+    assert pg.get_attribute('#battlePreferences [data-bdays="custom"]', 'aria-pressed') == 'true'
+    assert pg.get_attribute('#battlePreferences [data-bdays="20"]', 'aria-pressed') == 'false'
+    pg.wait_for_function("() => /前 10 日均量/.test(document.getElementById('battleCards').innerText)")
+    for bad in ('1', '121', '7.5', ''):
+        days.fill(bad)
+        days.dispatch_event('change')
+        assert pg.evaluate('window.BattleSettings.get().volumeDays') == 10, f'輸入 {bad!r} 不應該被採用'
+        assert '超出範圍' in pg.inner_text('#battlePrefMessage'), bad
+    pg.click('#battlePreferences [data-bdays="5"]')
+    p = pg.evaluate('window.BattleSettings.get()')
+    assert p['volumeDays'] == 5 and p['volumeCustom'] is False and not days.is_visible(), p
+    assert '已套用' in pg.inner_text('#battlePrefMessage')
 
-    # 八、點橢圓按鈕仍然是加入／移除；拖完之後不留著「拖曳中」的樣子。
-    card(pg, 'useBoll').locator('.battle-feature').click()
-    assert 'useBoll' in pg.evaluate(STATE)['chips']
-    card(pg, 'useBoll').locator('.battle-feature').click()
-    assert 'useBoll' not in pg.evaluate(STATE)['chips']
-    assert pg.evaluate("document.querySelectorAll('#battlePreferences .is-dragged, #battlePreferences .drag-over').length") == 0
-    assert 'is-dragging' not in (wrap.get_attribute('class') or '')
+    # 十二、重新整理後設定還在；還原預設回到一組。
+    want = state(pg)['groups']
+    pg.reload(wait_until='domcontentloaded')
+    base.open_battle(pg, pg.url)
+    pg.wait_for_selector('#battleGroups .battle-group')
+    assert state(pg)['groups'] == want and pg.evaluate('window.BattleSettings.get().volumeDays') == 5
+    pg.click('#battleReset')
+    s = state(pg)
+    assert s['groups'] == [[G, V]] and s['mode'] == 'anyOfAll' and pg.evaluate('window.BattleSettings.get().volumeDays') == 20, s
+    base.wait_list_done(pg, 47)
+
+
+def results(pg):
+    """結果卡片逐組標示：量不夠的那一檔，第 1 組不成立、第 2 組成立。"""
+    drag(pg, card(pg, T).locator('.battle-feature-hint'), new_zone(pg), efy=0.5)
+    base.wait_list_done(pg, 50)
+    base.pick(pg, '1001')
+    base.wait_single(pg, '1001', True)
+    strip = pg.evaluate("""() => { const s = document.querySelector('#battleCards .battle-match-strip');
+      return {mode: s.dataset.mode, groups: [...s.querySelectorAll('.battle-match-group')].map(g => [g.className.replace('battle-match-group', '').trim(), g.innerText.replace(/\\s+/g, ' ').trim()]),
+              join: [...s.querySelectorAll('.battle-match-join')].map(e => e.innerText.trim())}; }""")
+    assert strip['mode'] == 'anyOfAll' and strip['join'] == ['或'], strip
+    assert strip['groups'][0][0] == 'off' and '第 1 組' in strip['groups'][0][1] and '✓ 向上開盤缺口' in strip['groups'][0][1] and '− 成交量倍數' in strip['groups'][0][1], strip
+    assert strip['groups'][1][0] == 'pass' and '✓ 20 日均線' in strip['groups'][1][1], strip
+    assert pg.inner_text('#battleCards .battle-tag').strip() == '盤後條件符合'
 
 
 def main():
@@ -113,14 +229,15 @@ def main():
     with sync_playwright() as p:
         browser = p.chromium.launch()
         for w in (1440, 1024):
-            pg = browser.new_page(viewport={'width': w, 'height': 1500})
+            pg = browser.new_page(viewport={'width': w, 'height': 1700})
             errs = []
             pg.on('pageerror', lambda e, errs=errs: errs.append(str(e)))
             pg.route(base.FAKE_API, base.make_router([]))
             base.open_battle(pg, url)
             run(pg)
+            results(pg)
             assert not errs, f'{w}px 頁面錯誤：{errs[:2]}'
-            print(f'ok {w}px：從說明文字、卡片空白處、橢圓按鈕拖進「且／或」；拖回清單移除；設定區可點選輸入、不拖走卡片；點按鈕仍可加入移除')
+            print(f'ok {w}px：拖進組／新增一組／組間移動／拖回清單、同條件多組、且或互換、點選加入、最多四組、設定區不拖走卡片、自訂均量天數、設定保存、結果逐組標示')
             try:
                 pg.unroute_all(behavior='ignoreErrors')
             except Exception:

@@ -1,102 +1,212 @@
 <!-- 戰情追蹤的版面與篩選預設。使用者設定只存在本機，不改後台分類與寄送。 -->
 <script>
+/* v136：條件改成「組」。同一組內用一種邏輯、組與組之間用另一種：
+     anyOfAll（且→或）：同一組的條件都要成立；任一組成立就符合。例：（開盤跳空 且 爆量）或 均線位置
+     allOfAny（或→且）：同一組任一成立；每一組都要成立。例：（開盤跳空 或 前高突破）且 爆量
+   同一個條件可以放進不同的組。舊版存的「全部符合／任一符合」會自動換成等價的一組。 */
 window.BATTLE_CONFIG = {
-  version: 1, pageSize: 24, storageKey: 'zzBattlePrefsV1',
-  defaults: { gapPct: 2.5, volumeMultiple: 2.5, volumeDays: 20, minLots: 1000,
-    direction: 'up', logic: 'all', volumeMode: 'actual', useGap: true, useVolume: true, trendDays: 20, breakoutDays: 20, closePosition: 0.7,
-    useTrend: false, useBreakout: false, useMacd: false, useKD: false, useBody: false, useBoll: false },
+  version: 2, pageSize: 24, storageKey: 'zzBattlePrefsV1', maxGroups: 4,
+  flags: ['useGap', 'useVolume', 'useTrend', 'useBreakout', 'useBody', 'useMacd', 'useKD', 'useBoll'],
+  defaults: { gapPct: 2.5, volumeMultiple: 2.5, volumeDays: 20, volumeCustom: false, minLots: 1000,
+    direction: 'up', volumeMode: 'actual', trendDays: 20, breakoutDays: 20, closePosition: 0.7,
+    groupLogic: 'anyOfAll', groups: [['useGap', 'useVolume']] },
   limits: { gapPct: [0.1, 15], volumeMultiple: [1, 10], minLots: [0, 1000000],
-    closePosition: [0.5, 1] },
-  periods: { volumeDays: [5, 20], trendDays: [5, 10, 20, 60, 120], breakoutDays: [20, 60] }
+    closePosition: [0.5, 1], volumeDays: [2, 120] },
+  integers: { volumeDays: true },
+  presets: { volumeDays: [5, 20] },
+  periods: { trendDays: [5, 10, 20, 60, 120], breakoutDays: [20, 60] }
+};
+/* 設定的唯一整理入口：計算核心與設定面板都用這一支。回傳的 useGap…useBoll 是「有沒有放進任何一組」，由 groups 推出來。 */
+window.BATTLE_CONFIG.sanitize = function (input) {
+  var cfg = window.BATTLE_CONFIG, d = cfg.defaults, x = input || {}, p = {};
+  Object.keys(cfg.limits).forEach(function (k) {
+    p[k] = d[k];
+    if (x[k] === '' || x[k] === null || x[k] === undefined) return;
+    var v = Number(x[k]), lim = cfg.limits[k];
+    if (isFinite(v) && v >= lim[0] && v <= lim[1] && (!cfg.integers[k] || Math.floor(v) === v)) p[k] = v;
+  });
+  Object.keys(cfg.periods).forEach(function (k) { p[k] = cfg.periods[k].indexOf(Number(x[k])) >= 0 ? Number(x[k]) : d[k]; });
+  p.direction = x.direction === 'down' ? 'down' : 'up';
+  p.volumeMode = x.volumeMode === 'estimate' ? 'estimate' : 'actual';
+  // 天數不是預設的 5／20 時一定是自訂；是預設值時照使用者有沒有按「自訂」。
+  p.volumeCustom = cfg.presets.volumeDays.indexOf(p.volumeDays) < 0 || x.volumeCustom === true;
+  var groups, logic = x.groupLogic === 'allOfAny' ? 'allOfAny' : 'anyOfAll';
+  if (Array.isArray(x.groups)) {
+    groups = x.groups.map(function (g) {
+      return (Array.isArray(g) ? g : []).filter(function (k, i, a) { return cfg.flags.indexOf(k) >= 0 && a.indexOf(k) === i; });
+    }).filter(function (g) { return g.length; }).slice(0, cfg.maxGroups);
+  } else {
+    // 舊版設定：每個條件一個開關，加上「全部符合／任一符合」。任一符合等於一組、組內任一成立。
+    var on = cfg.flags.filter(function (k) { return typeof x[k] === 'boolean' ? x[k] : d.groups[0].indexOf(k) >= 0; });
+    groups = on.length ? [on] : [];
+    logic = x.logic === 'any' ? 'allOfAny' : 'anyOfAll';
+  }
+  p.groups = groups; p.groupLogic = logic;
+  cfg.flags.forEach(function (k) { p[k] = groups.some(function (g) { return g.indexOf(k) >= 0; }); });
+  return p;
 };
 </script>
 <script>
 (function () {
   'use strict';
-  var cfg = window.BATTLE_CONFIG, prefs = Object.assign({}, cfg.defaults);
-  function sanitize(input) {
-    var p = Object.assign({}, cfg.defaults), x = input || {};
-    Object.keys(p).forEach(function (k) {
-      if (typeof p[k] === 'boolean') { if (typeof x[k] === 'boolean') p[k] = x[k]; }
-      else if (cfg.limits[k] && x[k] !== '' && x[k] !== null && x[k] !== undefined) {
-        var v = Number(x[k]); if (isFinite(v) && v >= cfg.limits[k][0] && v <= cfg.limits[k][1]) p[k] = v;
-      } else if (cfg.periods[k]) { if (cfg.periods[k].indexOf(Number(x[k])) >= 0) p[k] = Number(x[k]); }
-      else if (k === 'direction' && ['up', 'down'].indexOf(x[k]) >= 0) p[k] = x[k];
-      else if (k === 'logic' && ['all', 'any'].indexOf(x[k]) >= 0) p[k] = x[k];
-      else if (k === 'volumeMode' && ['actual', 'estimate'].indexOf(x[k]) >= 0) p[k] = x[k];
-    }); return p;
-  }
-  try { prefs = sanitize(JSON.parse(localStorage.getItem(cfg.storageKey) || '{}')); } catch (e) {}
+  var cfg = window.BATTLE_CONFIG, sanitize = cfg.sanitize, prefs = sanitize({});
+  try { var stored = localStorage.getItem(cfg.storageKey); if (stored) prefs = sanitize(JSON.parse(stored)); } catch (e) {}
   function commit(value) {
     prefs = sanitize(value); var saved = true;
     try { localStorage.setItem(cfg.storageKey, JSON.stringify(prefs)); } catch (e) { saved = false; }
     window.dispatchEvent(new CustomEvent('battle-settings-change'));
     return saved;
   }
-  window.BattleSettings = { get: function () { return Object.assign({}, prefs); }, sanitize: sanitize, set: commit };
+  function copy() { var c = Object.assign({}, prefs); c.groups = prefs.groups.map(function (g) { return g.slice(); }); return c; }
+  window.BattleSettings = { get: copy, sanitize: sanitize, set: commit };
   document.addEventListener('DOMContentLoaded', function () {
     var wrap = document.getElementById('battlePreferences'); if (!wrap) return;
     function numeric(k, label, step, unit, hint) { var lim = cfg.limits[k]; return '<label class="battle-field">' + label + '<span class="battle-number"><input aria-describedby="bh-' + k + '" type="number" data-bpref="' + k + '" min="' + lim[0] + '" max="' + lim[1] + '" step="' + step + '" value="' + prefs[k] + '"><span>' + unit + '</span></span><small id="bh-' + k + '">' + hint + '</small></label>'; }
     function select(k, label, options) { return '<fieldset class="battle-choice"><legend>' + label + '</legend><div class="battle-pills">' + options.map(function (o) { return '<button type="button" class="battle-pill" data-bchoice="' + k + '" data-value="' + o[0] + '" aria-pressed="' + (String(prefs[k]) === String(o[0])) + '">' + o[1] + '</button>'; }).join('') + '</div></fieldset>'; }
-    var labels = {useGap:'開盤跳空',useVolume:'爆量與最低量',useTrend:'均線位置',useBreakout:'前高低突破',useBody:'K 棒與收盤位置',useMacd:'MACD 柱體',useKD:'KD 相對位置',useBoll:'布林通道突破'}, dragged = '';
-    function flag(k, label, hint) { return '<button type="button" class="battle-pill battle-feature" data-bflag="' + k + '" aria-pressed="' + prefs[k] + '"><span class="battle-checkmark" aria-hidden="true">' + (prefs[k] ? '✓' : '+') + '</span>' + label + '</button><p class="battle-feature-hint">' + hint + '</p>'; }
+    /* 均量基準：5 日、20 日，或自訂 2–120 個交易日（行情一次帶 160 根日 K，留出計算其他指標的餘裕）。 */
+    function volumeDays() {
+      var lim = cfg.limits.volumeDays;
+      return '<fieldset class="battle-choice"><legend>均量基準</legend><div class="battle-pills">' +
+        cfg.presets.volumeDays.map(function (n) { return '<button type="button" class="battle-pill" data-bdays="' + n + '" aria-pressed="false">' + n + ' 日</button>'; }).join('') +
+        '<button type="button" class="battle-pill" data-bdays="custom" aria-pressed="false" aria-controls="battleDaysCustom">自訂</button>' +
+        '<label class="battle-days-custom" id="battleDaysCustom" hidden><span class="battle-number"><input type="number" inputmode="numeric" data-bpref="volumeDays" aria-label="自訂均量天數" aria-describedby="battleDaysHint" min="' + lim[0] + '" max="' + lim[1] + '" step="1" value="' + prefs.volumeDays + '"><span>日</span></span></label>' +
+        '</div><small class="battle-days-hint" id="battleDaysHint" hidden>可輸入 ' + lim[0] + '–' + lim[1] + ' 個交易日；均量不含當日。</small></fieldset>';
+    }
+    var labels = {useGap:'開盤跳空',useVolume:'爆量與最低量',useTrend:'均線位置',useBreakout:'前高低突破',useBody:'K 棒與收盤位置',useMacd:'MACD 柱體',useKD:'KD 相對位置',useBoll:'布林通道突破'};
+    var dragged = '', draggedFrom = -1, target = 0;     // target：點條件時要加進哪一組（只在畫面上，不存檔）
+    function flag(k, label, hint) { return '<button type="button" class="battle-pill battle-feature" data-bflag="' + k + '" aria-pressed="' + prefs[k] + '"><span class="battle-checkmark" aria-hidden="true">' + (prefs[k] ? '✓' : '+') + '</span>' + label + '</button><span class="battle-in-groups" data-bwhere="' + k + '" hidden></span><p class="battle-feature-hint">' + hint + '</p>'; }
+    function card(k, hint, extra) { return '<div class="battle-feature-box" draggable="true" data-bdrag="' + k + '">' + flag(k, labels[k], hint) + (extra ? '<div data-bextra="' + k + '">' + extra + '</div>' : '') + '</div>'; }
     function periods(k) { return cfg.periods[k].map(function (n) { return [n, n + ' 日']; }); }
     wrap.innerHTML = '<div class="battle-config-head"><div><h3 id="battleConfigTitle" tabindex="-1">戰情設定</h3><p>先選方向與量價門檻，再加入你要看的技術條件。</p></div><button type="button" class="act ghost" id="battleConfigClose">收起設定</button></div>' +
-      '<div class="battle-basic"><div class="battle-choice-row">' + select('direction', '跳空方向', [['up', '向上跳空'], ['down', '向下跳空']]) + select('volumeDays', '均量基準', periods('volumeDays')) + select('volumeMode', '量能比較', [['actual','實際日量'],['estimate','盤中估量']]) + '</div><div class="battle-number-grid">' +
-      numeric('gapPct', '最低開盤幅度', 0.1, '%', '與昨收比較；另須超出昨日高低價。') + numeric('volumeMultiple', '最低日量倍數', 0.1, '倍', '與前 5 或 20 日均量比較；倍數為自訂門檻，沒有通用開盤標準。') + numeric('minLots', '最低當日量', 1, '張', '最低張數一律使用實際成交量，不用估量代替。') + '</div></div>' +
+      '<div class="battle-basic"><div class="battle-choice-row">' + select('direction', '跳空方向', [['up', '向上跳空'], ['down', '向下跳空']]) + volumeDays() + select('volumeMode', '量能比較', [['actual','實際日量'],['estimate','盤中估量']]) + '</div><div class="battle-number-grid">' +
+      numeric('gapPct', '最低開盤幅度', 0.1, '%', '與昨收比較；另須超出昨日高低價。') + numeric('volumeMultiple', '最低日量倍數', 0.1, '倍', '與上方選的均量基準比較；倍數為自訂門檻，沒有通用開盤標準。') + numeric('minLots', '最低當日量', 1, '張', '最低張數一律使用實際成交量，不用估量代替。') + '</div></div>' +
       '<details class="battle-help"><summary>剛開盤怎麼看成交量？</summary><p>實際日量會隨交易時間累積，剛開盤不宜和整日均量直接解讀成量縮。盤中估量採簡化模型：累計量＋前期日均量×剩餘交易分鐘／270；使用報價時間而非目前時間，收盤改用實際量。未滿開盤五分鐘不估量；最低張數仍看實際量。</p><p>這個模型沒有個股歷史分鐘量分布，開收盤量不均時可能偏差。2.5 倍保留為本站可調門檻，並非官方標準或勝率保證。<a href="https://www.xq.com.tw/xstrader/%E9%82%A3%E4%BA%9B%E8%82%A1%E7%A5%A8%E4%B8%AD%E9%95%B7%E7%B4%85%E4%B9%8B%E5%BE%8C%E9%82%84%E6%9C%83%E7%BA%8C%E6%BC%B2/" target="_blank" rel="noopener">XQ 簡化估量範例</a> · <a href="https://xshelp.xq.com.tw/XSHelp/?HelpName=%E4%BC%B0%E8%A8%88%E9%87%8F&amp;group=QVOLUME" target="_blank" rel="noopener">XQ 分鐘分布估量說明</a></p></details>' +
-      '<div class="battle-optional-head"><h4>組合你的條件</h4><p>拖入下方條件區，或點選條件加入。綠色「且」須全部符合；藍色「或」只需其中一項。這是一組條件，可隨時切換邏輯。</p></div><div class="battle-logic-board">' +
-      '<section class="battle-dropzone" data-bdrop="all"><button type="button" class="battle-logic-button" data-bchoice="logic" data-value="all" aria-pressed="true"><b>且</b><span>全部符合</span></button><p>每個已加入的條件都要成立。</p><div class="battle-expression" data-bexpression="all"></div></section>' +
-      '<section class="battle-dropzone" data-bdrop="any"><button type="button" class="battle-logic-button" data-bchoice="logic" data-value="any" aria-pressed="false"><b>或</b><span>任一符合</span></button><p>至少一個已加入的條件成立。</p><div class="battle-expression" data-bexpression="any"></div></section></div>' +
+      '<div class="battle-optional-head"><h4>組合你的條件</h4><p>把條件卡片拖進下面的組，或先點一個組、再點條件加入。同一個條件可以放進不同的組；最多 ' + cfg.maxGroups + ' 組。</p></div>' +
+      '<div class="battle-mode" role="group" aria-label="組合方式">' +
+      '<button type="button" class="battle-mode-button" data-bchoice="groupLogic" data-value="anyOfAll" aria-pressed="true"><b>且 → 或</b><span>同一組的條件都要成立；任一組成立就符合</span></button>' +
+      '<button type="button" class="battle-mode-button" data-bchoice="groupLogic" data-value="allOfAny" aria-pressed="false"><b>或 → 且</b><span>同一組任一成立即可；每一組都要成立</span></button></div>' +
+      '<div class="battle-groups" id="battleGroups"></div>' +
+      '<p class="battle-formula" id="battleFormula" role="status" aria-live="polite"></p>' +
       '<div class="battle-feature-grid" data-bdrop="pool" aria-label="可加入的條件">' +
-      '<div class="battle-feature-box" draggable="true" data-bdrag="useGap">' + flag('useGap','開盤跳空','套用上方方向與開盤幅度，並超出昨日高低價。') + '</div>' +
-      '<div class="battle-feature-box" draggable="true" data-bdrag="useVolume">' + flag('useVolume','爆量與最低量','日量倍數與最低張數須同時達到上方門檻。') + '</div>' +
-      '<div class="battle-feature-box" draggable="true" data-bdrag="useTrend">' + flag('useTrend', '均線位置', '向上看現價高於均線，向下則低於。') + '<div data-bextra="useTrend">' + select('trendDays', '均線週期', periods('trendDays')) + '</div></div>' +
-      '<div class="battle-feature-box" draggable="true" data-bdrag="useBreakout">' + flag('useBreakout', '前高低突破', '超出前一段期間的最高或最低價。') + '<div data-bextra="useBreakout">' + select('breakoutDays', '回看週期', periods('breakoutDays')) + '</div></div>' +
-      '<div class="battle-feature-box" draggable="true" data-bdrag="useBody">' + flag('useBody', 'K 棒與收盤位置', '向上收紅且靠近高點，向下反向判斷。') + '<div data-bextra="useBody">' + numeric('closePosition', '收盤位置門檻', 0.05, '', '0.7 代表收在當日區間上方 30%；向下對稱。') + '</div></div>' +
-      '<div class="battle-feature-box" draggable="true" data-bdrag="useMacd">' + flag('useMacd', 'MACD 柱體', '12／26／9；向上柱體為正，向下為負。') + '</div>' +
-      '<div class="battle-feature-box" draggable="true" data-bdrag="useKD">' + flag('useKD', 'KD 相對位置', '9 日；向上 K > D，向下 K < D。') + '</div>' +
-      '<div class="battle-feature-box" draggable="true" data-bdrag="useBoll">' + flag('useBoll', '布林通道突破', '20 日、2 倍標準差；突破上軌或下軌。') + '</div></div>' +
+      card('useGap', '套用上方方向與開盤幅度，並超出昨日高低價。') +
+      card('useVolume', '日量倍數與最低張數須同時達到上方門檻。') +
+      card('useTrend', '向上看現價高於均線，向下則低於。', select('trendDays', '均線週期', periods('trendDays'))) +
+      card('useBreakout', '超出前一段期間的最高或最低價。', select('breakoutDays', '回看週期', periods('breakoutDays'))) +
+      card('useBody', '向上收紅且靠近高點，向下反向判斷。', numeric('closePosition', '收盤位置門檻', 0.05, '', '0.7 代表收在當日區間上方 30%；向下對稱。')) +
+      card('useMacd', '12／26／9；向上柱體為正，向下為負。') +
+      card('useKD', '9 日；向上 K > D，向下 K < D。') +
+      card('useBoll', '20 日、2 倍標準差；突破上軌或下軌。') + '</div>' +
       '<div class="battle-config-foot"><button type="button" class="act ghost" id="battleReset">還原預設</button><p id="battlePrefMessage" role="status" aria-live="polite">設定保存在此瀏覽器，切換條件立即重算。</p></div>';
-    var message = document.getElementById('battlePrefMessage');
+    var message = document.getElementById('battlePrefMessage'), board = document.getElementById('battleGroups'), formula = document.getElementById('battleFormula');
+    function words() { return prefs.groupLogic === 'anyOfAll' ? { inner: '且', outer: '或' } : { inner: '或', outer: '且' }; }
+    function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
     function sync() {
-      wrap.dataset.logic = prefs.logic;
+      var w = words(), groups = prefs.groups, canAdd = groups.length < cfg.maxGroups;
+      // 目標組：超出範圍時回到最後一組；等於 groups.length 代表「新的一組」（還沒有條件）。
+      if (target > groups.length || (target === groups.length && !canAdd)) target = Math.max(0, groups.length - 1);
+      if (!groups.length) target = 0;
+      wrap.dataset.mode = prefs.groupLogic;
       wrap.querySelectorAll('[data-bchoice]').forEach(function (el) { el.setAttribute('aria-pressed', String(String(prefs[el.dataset.bchoice]) === el.dataset.value)); });
-      wrap.querySelectorAll('.battle-feature[data-bflag]').forEach(function (el) { var on = prefs[el.dataset.bflag]; el.setAttribute('aria-pressed', String(on)); el.querySelector('.battle-checkmark').textContent = on ? '✓' : '+'; });
-      wrap.querySelectorAll('[data-bextra]').forEach(function (el) { el.hidden = !prefs[el.dataset.bextra]; });
-      wrap.querySelectorAll('[data-bexpression]').forEach(function (el) {
-        var active = el.dataset.bexpression === prefs.logic, keys = Object.keys(labels).filter(function(k){return prefs[k];});
-        el.closest('.battle-dropzone').classList.toggle('is-active',active);
-        el.innerHTML = active ? keys.map(function(k,i){return (i ? '<span class="battle-operator">'+(prefs.logic==='all'?'且':'或')+'</span>' : '') + '<button type="button" draggable="true" class="battle-expression-chip" data-bdrag="'+k+'" data-bflag="'+k+'" aria-label="移除'+labels[k]+'">'+labels[k]+' <span aria-hidden="true">×</span></button>';}).join('') || '<span>請加入至少一項條件</span>' : '<span>點選此邏輯，或將條件拖入這裡切換。</span>';
+      wrap.querySelectorAll('[data-bdays]').forEach(function (el) { el.setAttribute('aria-pressed', String(el.dataset.bdays === 'custom' ? prefs.volumeCustom : !prefs.volumeCustom && Number(el.dataset.bdays) === prefs.volumeDays)); });
+      var customBox = document.getElementById('battleDaysCustom'), customInput = customBox.querySelector('input');
+      customBox.hidden = !prefs.volumeCustom; document.getElementById('battleDaysHint').hidden = !prefs.volumeCustom;
+      if (document.activeElement !== customInput) customInput.value = prefs.volumeDays;
+      wrap.querySelectorAll('.battle-feature[data-bflag]').forEach(function (el) {
+        var k = el.dataset.bflag, where = [];
+        groups.forEach(function (g, n) { if (g.indexOf(k) >= 0) where.push(n + 1); });
+        el.setAttribute('aria-pressed', String(where.length > 0));
+        el.querySelector('.battle-checkmark').textContent = where.length ? '✓' : '+';
+        var badge = wrap.querySelector('[data-bwhere="' + k + '"]');
+        badge.hidden = !where.length || groups.length < 2; badge.textContent = where.length ? '在第 ' + where.join('、') + ' 組' : '';
       });
+      wrap.querySelectorAll('[data-bextra]').forEach(function (el) { el.hidden = !prefs[el.dataset.bextra]; });
+      var shown = groups.map(function (g) { return g; });
+      if (target === groups.length && canAdd) shown.push([]);          // 使用者剛按了「新增一組」
+      board.innerHTML = shown.map(function (g, n) {
+        var chips = g.map(function (k, i) {
+          return (i ? '<span class="battle-operator">' + w.inner + '</span>' : '') +
+            '<button type="button" draggable="true" class="battle-expression-chip" data-bdrag="' + k + '" data-bfrom="' + n + '" data-bremove="' + k + '" aria-label="從第 ' + (n + 1) + ' 組移除' + esc(labels[k]) + '">' + esc(labels[k]) + ' <span aria-hidden="true">×</span></button>';
+        }).join('');
+        return (n ? '<span class="battle-group-join" aria-hidden="true">' + w.outer + '</span>' : '') +
+          '<section class="battle-group' + (n === target ? ' is-target' : '') + '" data-bdrop="group" data-bgroup="' + n + '" aria-label="第 ' + (n + 1) + ' 組">' +
+          '<button type="button" class="battle-group-pick" data-bpick="' + n + '" aria-pressed="' + (n === target) + '"><b>第 ' + (n + 1) + ' 組</b><span>' + (n === target ? '點條件會加進這一組' : '點這裡改加進這一組') + '</span></button>' +
+          '<div class="battle-expression">' + (chips || '<span class="battle-group-empty">把條件拖進來，或點下面的條件。</span>') + '</div></section>';
+      }).join('') + (canAdd && target !== groups.length && groups.length
+        ? '<span class="battle-group-join" aria-hidden="true">' + w.outer + '</span><section class="battle-group battle-group-new" data-bdrop="new" aria-label="新增一組"><button type="button" class="battle-group-pick" data-bnew><b>＋ 新增一組</b><span>把條件拖到這裡，或點一下再選條件</span></button></section>' : '');
+      formula.textContent = groups.length ? '目前的條件：' + groups.map(function (g) {
+        var t = g.map(function (k) { return labels[k]; }).join(' ' + w.inner + ' ');
+        return groups.length > 1 && g.length > 1 ? '（' + t + '）' : t;
+      }).join(' ' + w.outer + ' ') : '請加入至少一項條件。';
+      formula.classList.toggle('is-empty', !groups.length);
     }
     function feedback(saved) {
-      var invalid = Array.from(wrap.querySelectorAll('[data-bpref]')).some(function (el) { return el.value === '' || !el.checkValidity(); });
+      var invalid = Array.from(wrap.querySelectorAll('[data-bpref]')).some(function (el) { return !el.closest('[hidden]') && (el.value === '' || !el.checkValidity()); });
       message.classList.toggle('is-error', invalid);
       message.textContent = invalid ? '有欄位超出範圍，該欄仍沿用最後有效設定。請修正後再查看結果。' : saved ? '已套用，結果已重新計算。' : '已套用；此瀏覽器無法保存設定。';
     }
+    function apply(next) { var saved = commit(next); sync(); feedback(saved); }
     function updatePreference(e) {
       var el = e.target, key = el.dataset.bpref; if (!key) return;
       var valid = el.checkValidity() && el.value !== ''; el.setAttribute('aria-invalid', String(!valid));
       if (!valid) { feedback(true); return; }
-      var next = Object.assign({}, prefs); next[key] = el.value;
+      var next = copy(); next[key] = el.value;
+      if (key === 'volumeDays') next.volumeCustom = true;
       if (Number(prefs[key]) === Number(el.value)) { feedback(true); return; }
-      feedback(commit(next));
+      feedback(commit(next)); if (key === 'volumeDays') sync();
     }
-    wrap.addEventListener('click', function (e) { var el = e.target.closest('[data-bchoice], [data-bflag]'); if (!el) return; var next = Object.assign({}, prefs); if (el.dataset.bflag) next[el.dataset.bflag] = !prefs[el.dataset.bflag]; else next[el.dataset.bchoice] = el.dataset.value; var saved = commit(next); sync(); feedback(saved); });
+    /* 把條件 k 放進第 n 組（n 等於目前組數時是新的一組）；from >= 0 時先從那一組拿掉（在組之間移動）。 */
+    function place(k, n, from) {
+      var next = copy(), groups = next.groups;
+      if (from >= 0 && from !== n && groups[from]) groups[from] = groups[from].filter(function (x) { return x !== k; });
+      if (n >= groups.length) { if (groups.filter(function (g) { return g.length; }).length >= cfg.maxGroups) return; groups.push([k]); n = groups.length - 1; }
+      else if (groups[n].indexOf(k) < 0) groups[n].push(k);
+      // 拿掉之後變空的組會被整理掉，目標組的編號要跟著往前。
+      var kept = 0, landed = 0;
+      groups.forEach(function (g, i) { if (i === n) landed = kept; if (g.length) kept++; });
+      target = landed; apply(next);
+    }
+    function removeFrom(k, n) {
+      var next = copy();
+      next.groups = next.groups.map(function (g, i) { return n < 0 || i === n ? g.filter(function (x) { return x !== k; }) : g; });
+      if (n >= 0 && n < target && next.groups[n] && !next.groups[n].length) target--;
+      apply(next);
+    }
+    wrap.addEventListener('click', function (e) {
+      var el = e.target.closest('[data-bremove], [data-bpick], [data-bnew], [data-bdays], [data-bchoice], [data-bflag]'); if (!el) return;
+      if (el.dataset.bremove) { removeFrom(el.dataset.bremove, Number(el.dataset.bfrom)); return; }
+      if (el.dataset.bpick !== undefined) { target = Number(el.dataset.bpick); sync(); return; }
+      if (el.hasAttribute('data-bnew')) { target = prefs.groups.length; sync(); var fresh = board.querySelector('.battle-group.is-target .battle-group-pick'); if (fresh) fresh.focus(); return; }
+      var next = copy();
+      if (el.dataset.bdays) {
+        if (el.dataset.bdays === 'custom') { next.volumeCustom = true; apply(next); var input = document.querySelector('#battleDaysCustom input'); input.focus(); input.select(); return; }
+        next.volumeCustom = false; next.volumeDays = Number(el.dataset.bdays); apply(next); return;
+      }
+      if (el.dataset.bflag) {
+        // 點條件：在目標組裡就拿掉，不在就加進去。
+        var k = el.dataset.bflag, g = prefs.groups[target];
+        if (g && g.indexOf(k) >= 0) removeFrom(k, target); else place(k, Math.min(target, prefs.groups.length), -1);
+        return;
+      }
+      next[el.dataset.bchoice] = el.dataset.value; apply(next);
+    });
     wrap.addEventListener('input', updatePreference);
     wrap.addEventListener('change', updatePreference);
-    function clearDrag(){dragged='';wrap.classList.remove('is-dragging');wrap.querySelectorAll('.drag-over, .is-dragged').forEach(function(el){el.classList.remove('drag-over');el.classList.remove('is-dragged');});}
-    /* 整張條件卡片都可以拖（v135）：先前只有橢圓按鈕能拖，抓卡片其他地方沒有反應（2026/10/06 管理者回報）。
-       卡片裡的週期按鈕與數值輸入框要能正常點選、選字：從那一區按下時，這一次不啟動拖曳。 */
+    function clearDrag(){dragged='';draggedFrom=-1;wrap.classList.remove('is-dragging');wrap.querySelectorAll('.drag-over, .is-dragged').forEach(function(el){el.classList.remove('drag-over');el.classList.remove('is-dragged');});}
+    /* 整張條件卡片都可以拖（v135）。卡片裡的週期按鈕與數值輸入框要能正常點選、選字：從那一區按下時，這一次不啟動拖曳。 */
     wrap.addEventListener('pointerdown', function(e){var box=e.target.closest('.battle-feature-box');if(box)box.draggable=!e.target.closest('[data-bextra]');});
-    wrap.addEventListener('dragstart', function(e){var el=e.target.closest('[data-bdrag]');if(!el)return;dragged=el.dataset.bdrag;e.dataTransfer.setData('text/plain',dragged);e.dataTransfer.effectAllowed='move';wrap.classList.add('is-dragging');el.classList.add('is-dragged');});
+    wrap.addEventListener('dragstart', function(e){var el=e.target.closest('[data-bdrag]');if(!el)return;dragged=el.dataset.bdrag;draggedFrom=el.dataset.bfrom===undefined?-1:Number(el.dataset.bfrom);e.dataTransfer.setData('text/plain',dragged);e.dataTransfer.effectAllowed='move';wrap.classList.add('is-dragging');el.classList.add('is-dragged');});
     wrap.addEventListener('dragover',function(e){var zone=e.target.closest('[data-bdrop]');if(zone&&dragged){e.preventDefault();zone.classList.add('drag-over');}});
     wrap.addEventListener('dragleave',function(e){var zone=e.target.closest('[data-bdrop]');if(zone&&!zone.contains(e.relatedTarget))zone.classList.remove('drag-over');});
-    wrap.addEventListener('drop',function(e){var zone=e.target.closest('[data-bdrop]');if(!zone||!labels[dragged])return;e.preventDefault();var next=Object.assign({},prefs);next[dragged]=zone.dataset.bdrop!=='pool';if(zone.dataset.bdrop!=='pool')next.logic=zone.dataset.bdrop;var saved=commit(next);clearDrag();sync();feedback(saved);});
+    wrap.addEventListener('drop',function(e){
+      var zone=e.target.closest('[data-bdrop]');if(!zone||!labels[dragged])return;e.preventDefault();
+      var k=dragged,from=draggedFrom,kind=zone.dataset.bdrop;clearDrag();
+      // 拖回條件清單：從組裡的標籤拖來就只拿掉那一組的；拖的是卡片本身就從每一組拿掉。
+      if(kind==='pool'){if(prefs[k])removeFrom(k,from);return;}
+      place(k,kind==='new'?prefs.groups.length:Number(zone.dataset.bgroup),from);
+    });
     wrap.addEventListener('dragend',clearDrag);
     document.getElementById('battleReset').addEventListener('click', function () {
-      commit(cfg.defaults);
+      target = 0; commit({});
       wrap.querySelectorAll('[data-bpref]').forEach(function (el) { el.value = prefs[el.dataset.bpref]; el.removeAttribute('aria-invalid'); });
       sync(); message.classList.remove('is-error'); message.textContent = '已還原預設。';
     });

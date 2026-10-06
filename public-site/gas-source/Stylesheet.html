@@ -4841,6 +4841,49 @@ main.wrap:has(> #p-battle:not([hidden])) { width:min(1600px, calc(100% - 48px));
 .battle-feature-box[draggable=true]:active { cursor:grabbing; }
 .battle-feature-box [data-bextra] { cursor:auto; user-select:text; -webkit-user-select:text; }
 .battle-feature-box.is-dragged { opacity:.55; outline:2px dashed var(--beam); outline-offset:2px; }
-/* 860px 以下每欄不到 250px，兩顆選項會折成兩行：三組改成各佔一列，選項仍在同一行。 */
-@media (max-width:860px) { .battle-choice-row { grid-template-columns:minmax(0,1fr); gap:20px; } }
+/* 980px 以下每欄放不下三顆選項（均量基準多了「自訂」），會折成兩行：三組改成各佔一列，選項仍在同一行。 */
+@media (max-width:980px) { .battle-choice-row { grid-template-columns:minmax(0,1fr); gap:20px; } }
+/* v136 條件組：同一組一種邏輯、組與組之間另一種。綠色是「且→或」，藍色是「或→且」。 */
+.battle-mode { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-top:24px; }
+.battle-mode-button { display:grid; gap:6px; align-content:center; text-align:left; min-height:76px; padding:14px 20px; border:2px solid var(--rule); border-radius:var(--r-md); background:var(--panel-2); color:var(--ink); font:inherit; line-height:1.6; cursor:pointer; }
+.battle-mode-button b { font-size:1.15em; }
+.battle-mode-button span { color:var(--muted); font-size:calc(14px * var(--rd-fs)); }
+.battle-mode-button[aria-pressed=true] { border-color:#13684b; background:#13684b; color:#fff; }
+.battle-mode-button[data-value=allOfAny][aria-pressed=true] { border-color:#2456a4; background:#2456a4; }
+.battle-mode-button[aria-pressed=true] span { color:inherit; opacity:.92; }
+.battle-groups { display:flex; flex-wrap:wrap; align-items:stretch; gap:14px; margin-top:20px; }
+.battle-group { --logic-bg:#13684b; flex:1 1 260px; min-width:0; display:grid; gap:14px; align-content:start; padding:18px; border:2px solid var(--rule); border-radius:var(--r-md); background:var(--panel-2); }
+[data-mode=allOfAny] .battle-group { --logic-bg:#2456a4; }
+.battle-group.is-target { border-color:var(--logic-bg); background:color-mix(in srgb,var(--logic-bg) 14%,var(--panel)); }
+.battle-group-new { flex:0 1 250px; border-style:dashed; align-content:center; }
+.battle-group-pick { justify-self:start; display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px; min-height:44px; padding:8px 16px; border:1px solid var(--rule); border-radius:999px; background:transparent; color:inherit; font:inherit; text-align:left; line-height:1.5; cursor:pointer; }
+.battle-group-pick span { color:var(--muted); font-size:calc(13px * var(--rd-fs)); }
+.battle-group-pick[aria-pressed=true] { background:var(--logic-bg); border-color:var(--logic-bg); color:#fff; }
+.battle-group-pick[aria-pressed=true] span { color:inherit; opacity:.92; }
+.battle-group .battle-expression { min-height:48px; }
+.battle-group .battle-expression-chip { background:var(--panel); color:var(--ink); border:1px solid var(--rule); }
+.battle-group-empty { color:var(--muted); line-height:1.7; }
+.battle-group-join { align-self:center; padding:6px 14px; border:1px solid var(--rule); border-radius:999px; background:var(--panel-2); font-weight:700; font-size:1.1em; }
+.battle-group.drag-over { outline:4px dashed var(--beam); outline-offset:4px; }
+.battle-group-pick:focus-visible, .battle-mode-button:focus-visible { outline:3px solid var(--beam); outline-offset:4px; }
+.battle-formula { margin:18px 0 0; padding:14px 20px; border-left:5px solid #13684b; background:color-mix(in srgb,#13684b 8%,var(--panel)); line-height:1.8; font-weight:600; overflow-wrap:anywhere; }
+[data-mode=allOfAny] .battle-formula, .battle-rule[data-mode=allOfAny] { border-color:#2456a4; background:color-mix(in srgb,#2456a4 8%,var(--panel)); }
+.battle-formula.is-empty { border-color:var(--rise); font-weight:400; }
+.battle-in-groups { display:inline-block; margin-left:10px; color:var(--muted); font-size:calc(13px * var(--rd-fs)); }
+.battle-in-groups[hidden] { display:none; }
+/* 均量基準的自訂天數：按了「自訂」才出現，接在選項後面。 */
+.battle-choice-row .battle-pills { align-items:center; }
+.battle-days-custom { display:inline-flex; }
+.battle-days-custom[hidden] { display:none; }
+.battle-days-custom input { width:5.2em; min-height:46px; padding:8px 12px; font-size:calc(18px * var(--rd-fs)); }
+.battle-days-hint { display:block; margin-top:10px; color:var(--muted); font-size:calc(13px * var(--rd-fs)); line-height:1.7; }
+.battle-days-hint[hidden] { display:none; }
+/* 結果卡片：一組一個框，組內逐項標示，組與組之間寫出「或／且」。 */
+.battle-match-group { display:inline-flex; flex-wrap:wrap; align-items:center; gap:8px; padding:8px 12px; border:2px solid var(--rule); border-radius:var(--r-md); }
+.battle-match-group.pass { border-color:#268864; background:color-mix(in srgb,#268864 7%,var(--panel)); }
+.battle-match-group.pending { border-color:#805600; }
+.battle-match-group i { font-style:normal; font-weight:700; font-size:calc(13px * var(--rd-fs)); }
+.battle-match-group em { font-style:normal; font-weight:700; color:var(--muted); }
+.battle-match-strip > b.battle-match-join { background:var(--panel-2); color:var(--ink); border:1px solid var(--rule); padding:6px 14px; }
+@media (max-width:720px) { .battle-mode { grid-template-columns:minmax(0,1fr); } .battle-group, .battle-group-new { flex:1 1 100%; } .battle-group-join { align-self:flex-start; } }
 </style>

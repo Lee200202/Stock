@@ -94,4 +94,57 @@ test('UTC quote time converts to Taipei; final daily K never remains estimated',
  assert.equal(run(i,{volumeMode:'estimate'}, {...base,afterClose:false}).estimateMinutes,30);
  const r=run(i,{volumeMode:'estimate'},base);assert.equal(r.estimated,false);assert.equal(r.comparisonRatio,2.5);assert.equal(r.estimatedVolume,null);
 });
+/* ---- v136 條件組：同一組一種邏輯、組與組之間另一種 ---- */
+const clean = ctx.window.MarketBattle.cleanPrefs;
+// 事件日：開盤跳空成立；量與均線可以各自調成不成立。
+function mixed({volume = 2500, close = 106, low = 102} = {}) { const i = fixture(); Object.assign(i.bars[60], {volume, close, low}); return i; }
+const AandB_orC = {groupLogic: 'anyOfAll', groups: [['useGap', 'useVolume'], ['useTrend']]};
+test('(A and B) or C: either group is enough',()=>{
+ let r = run(mixed({volume: 1500}), AandB_orC, base);                       // 量不夠，但收盤在均線上
+ assert.deepEqual(r.groups.map(g => g.pass), [false, true]); assert.equal(r.pass, true);
+ assert.equal(r.formula, '（向上開盤缺口 且 成交量倍數） 或 20 日均線');
+ r = run(mixed({close: 99.5, low: 99}), AandB_orC, base);                    // 收盤跌回均線下，但跳空加爆量成立
+ assert.deepEqual(r.groups.map(g => g.pass), [true, false]); assert.equal(r.pass, true);
+ r = run(mixed({volume: 1500, close: 99.5, low: 99}), AandB_orC, base);
+ assert.deepEqual(r.groups.map(g => g.pass), [false, false]); assert.equal(r.pass, false); assert.equal(r.status, '未符合設定');
+});
+test('(A or B) and C: every group must hold',()=>{
+ const p = {groupLogic: 'allOfAny', groups: [['useGap', 'useBreakout'], ['useVolume']]};
+ let r = run(mixed(), p, base); assert.equal(r.pass, true); assert.equal(r.formula, '（向上開盤缺口 或 20 日突破） 且 成交量倍數');
+ r = run(mixed({volume: 1500}), p, base); assert.deepEqual(r.groups.map(g => g.pass), [true, false]); assert.equal(r.pass, false);
+});
+test('three groups with three different conditions, and one condition in two groups',()=>{
+ const p = {groupLogic: 'anyOfAll', groups: [['useGap', 'useVolume'], ['useGap', 'useTrend'], ['useBoll']]};
+ const r = run(mixed({volume: 1500}), p, base);                              // 第 1 組不成立、第 2 組成立
+ assert.equal(r.groups.length, 3); assert.equal(r.groups[0].pass, false); assert.equal(r.groups[1].pass, true); assert.equal(r.pass, true);
+ assert.equal(r.checks.filter(c => c.enabled).map(c => c.key).join(), 'gap,volume,trend,boll');
+});
+test('missing data inside a group is neither a pass nor a fail',()=>{
+ const i = mixed({volume: 1500}); i.bars.splice(48, 1);                      // 均量與均線的歷史缺一天
+ let r = run(i, AandB_orC, base);                                           // 第 1 組：缺口成立、量資料不足 → 未定；第 2 組：資料不足
+ assert.deepEqual(r.groups.map(g => g.pass), [null, null]); assert.equal(r.pass, false); assert.equal(r.status, '資料待核對');
+ i.bars[58].high = 105;                                                     // 缺口不成立 → 第 1 組確定不成立，第 2 組仍未定
+ r = run(i, AandB_orC, base); assert.deepEqual(r.groups.map(g => g.pass), [false, null]); assert.equal(r.status, '資料待核對');
+ r = run(i, {groupLogic: 'allOfAny', groups: [['useGap'], ['useTrend']]}, base);   // 「且」的那一層遇到確定不成立就是不符合
+ assert.equal(r.status, '未符合設定');
+});
+test('legacy settings map to one equivalent group',()=>{
+ assert.deepEqual(JSON.parse(JSON.stringify(clean({useGap: true, useVolume: false, useTrend: true, logic: 'any'}).groups)), [['useGap', 'useTrend']]);
+ assert.equal(clean({logic: 'any'}).groupLogic, 'allOfAny'); assert.equal(clean({logic: 'all'}).groupLogic, 'anyOfAll');
+ assert.equal(clean({}).useGap, true); assert.equal(clean({groups: [['useTrend']]}).useGap, false);
+});
+test('groups are cleaned: unknown keys, duplicates, empty groups, at most four',()=>{
+ const g = JSON.parse(JSON.stringify(clean({groups: [['useGap', 'useGap', 'nope'], [], 'x', ['useKD'], ['useMacd'], ['useBoll'], ['useBody']]}).groups));
+ assert.deepEqual(g, [['useGap'], ['useKD'], ['useMacd'], ['useBoll']]);
+ assert.equal(run(fixture(), {groups: []}, base).status, '資料待核對');
+});
+test('custom volume basis: any whole number of days from 2 to 120',()=>{
+ const i = fixture(); i.bars.slice(53, 60).forEach(b => { b.volume = 500; });   // 最近 7 天量縮
+ let r = run(i, {volumeDays: 7}, base); assert.equal(r.volumeMA, 500); assert.equal(r.volumeRatio, 5); assert.match(r.checks[1].rule, /前 7 個交易日均量/);
+ r = run(i, {volumeDays: 20}, base); assert.equal(r.volumeMA, (13 * 1000 + 7 * 500) / 20);
+ assert.equal(clean({volumeDays: 7}).volumeCustom, true); assert.equal(clean({volumeDays: 20}).volumeCustom, false); assert.equal(clean({volumeDays: 20, volumeCustom: true}).volumeCustom, true);
+ for (const bad of [1, 121, 7.5, 'abc', -3]) assert.equal(clean({volumeDays: bad}).volumeDays, 20, String(bad));
+ assert.equal(clean({volumeDays: '45'}).volumeDays, 45);
+ assert.equal(run(i, {volumeDays: 61}, base).status, '資料待核對');             // 只有 60 天歷史：資料不足，不硬算
+});
 console.log(`${count} battle checks passed`);

@@ -4,19 +4,7 @@
   'use strict';
   function number(v) { return v !== null && v !== '' && v !== undefined && isFinite(Number(v)) ? Number(v) : null; }
   function day(v) { var m = String(v || '').match(/^(\d{4})[/-](\d{2})[/-](\d{2})/); return m ? m[1] + '/' + m[2] + '/' + m[3] : ''; }
-  function cleanPrefs(input) {
-    if (w.BattleSettings) return w.BattleSettings.sanitize(input);
-    var cfg = w.BATTLE_CONFIG, p = Object.assign({}, cfg.defaults), x = input || {};
-    Object.keys(p).forEach(function (k) {
-      if (typeof p[k] === 'boolean') { if (typeof x[k] === 'boolean') p[k] = x[k]; }
-      else if (cfg.limits[k]) { var v = number(x[k]); if (v !== null && v >= cfg.limits[k][0] && v <= cfg.limits[k][1]) p[k] = v; }
-      else if (cfg.periods[k]) { if (cfg.periods[k].indexOf(Number(x[k])) >= 0) p[k] = Number(x[k]); }
-      else if (k === 'direction' && ['up', 'down'].indexOf(x[k]) >= 0) p[k] = x[k];
-      else if (k === 'logic' && ['all', 'any'].indexOf(x[k]) >= 0) p[k] = x[k];
-      else if (k === 'volumeMode' && ['actual', 'estimate'].indexOf(x[k]) >= 0) p[k] = x[k];
-    });
-    return p;
-  }
+  function cleanPrefs(input) { return w.BATTLE_CONFIG.sanitize(input); }
   function valid(b) {
     return b && day(b.date) && ['open', 'high', 'low', 'close'].every(function (k) { return number(b[k]) > 0; }) &&
       number(b.volume) !== null && number(b.volume) >= 0 && b.high >= Math.max(b.open, b.close) && b.low <= Math.min(b.open, b.close) && b.high >= b.low;
@@ -48,8 +36,9 @@
     }
     if (!y || !calendar.length || y.date !== calendar[calendar.length - 1]) issues.push('前一交易日日 K 缺漏');
     if (live && y && number(q.prevClose) > 0 && Math.abs(q.prevClose - y.close) > Math.max(0.02, y.close * 0.003)) issues.push('報價參考價與前日收盤不一致，需核對除權息或資料');
+    var FLAG = { gap: 'useGap', volume: 'useVolume', trend: 'useTrend', breakout: 'useBreakout', body: 'useBody', macd: 'useMacd', kd: 'useKD', boll: 'useBoll' };
     function check(key, label, pass, value, rule, enabled) {
-      checks.push({ key: key, label: label, pass: pass, value: value, rule: rule, enabled: enabled !== false });
+      checks.push({ key: key, flag: FLAG[key], label: label, pass: pass, value: value, rule: rule, enabled: enabled !== false });
     }
     var up = p.direction === 'up', sign = up ? 1 : -1, gapPct = null, ratio = null, volumeMA = null;
     if (valid(cur) && valid(y) && y.date === calendar[calendar.length - 1]) gapPct = (cur.open / y.close - 1) * 100;
@@ -103,10 +92,26 @@
     }
     check('boll', '布林通道突破', bollEdge === null ? null : (up ? cur.close > bollEdge : cur.close < bollEdge), bollEdge,
       '20 日收盤（含當日）、母體標準差 2 倍；現價／收盤突破' + (up ? '上' : '下') + '軌', p.useBoll);
-    var selected = checks.filter(function (c) { return c.enabled; }), hasTrue = selected.some(function(c){return c.pass === true;}), hasFalse = selected.some(function(c){return c.pass === false;});
-    var missing = selected.some(function (c) { return c.pass === null; });
-    var pending = !selected.length || (missing && (p.logic === 'any' ? !hasTrue : !hasFalse));
-    var pass = !issues.length && !!selected.length && (p.logic === 'any' ? hasTrue : !missing && !hasFalse);
+    /* 條件組（v136）。anyOfAll：同一組都要成立、任一組成立就符合；allOfAny：同一組任一成立、每一組都要成立。
+       三態：true 符合、false 不符合、null 資料不足。「且」遇到 false 就是 false，否則有 null 就還不能下結論；
+       「或」遇到 true 就是 true，否則有 null 就還不能下結論——不把資料不足當成不符合，也不當成符合。 */
+    var selected = checks.filter(function (c) { return c.enabled; }), byFlag = {};
+    checks.forEach(function (c) { byFlag[c.flag] = c; });
+    function fold(list, all) {
+      if (all) return list.some(function (v) { return v === false; }) ? false : list.some(function (v) { return v === null; }) ? null : true;
+      return list.some(function (v) { return v === true; }) ? true : list.some(function (v) { return v === null; }) ? null : false;
+    }
+    var innerAll = p.groupLogic === 'anyOfAll', innerWord = innerAll ? '且' : '或', outerWord = innerAll ? '或' : '且';
+    var groups = p.groups.map(function (keys, n) {
+      var list = keys.map(function (k) { return byFlag[k]; });
+      return { index: n, keys: keys.slice(), labels: list.map(function (c) { return c.label; }), states: list.map(function (c) { return c.pass; }), pass: fold(list.map(function (c) { return c.pass; }), innerAll) };
+    });
+    var overall = groups.length ? fold(groups.map(function (g) { return g.pass; }), !innerAll) : null;
+    var pending = overall === null, pass = !issues.length && overall === true;
+    var formula = groups.map(function (g) {
+      var text = g.labels.join(' ' + innerWord + ' ');
+      return groups.length > 1 && g.labels.length > 1 ? '（' + text + '）' : text;
+    }).join(' ' + outerWord + ' ');
     var gapFilled = valid(cur) && valid(y) && gapPct !== null ? (up ? cur.low <= y.high : cur.high >= y.low) : null;
     // 逐筆事件以該日之前的均量判斷，再看「之後」三個交易日；不借用未來資料挑事件。
     var gaps = [];
@@ -129,10 +134,19 @@
     return { code: item.code, name: item.name, date: date, complete: complete, pass: pass,
       status: issues.length || pending ? '資料待核對' : pass ? (complete ? '盤後條件符合' : '盤中條件符合') : '未符合設定',
       issues: Array.from(new Set(issues.concat(!selected.length ? ['請加入至少一項條件'] : [], selected.filter(function (c) { return c.pass === null; }).map(function (c) { return c.label + '所需資料不足'; })))), checks: checks, gapPct: gapPct, volumeRatio: ratio,
+      groups: groups, groupLogic: p.groupLogic, innerWord: innerWord, outerWord: outerWord, formula: formula,
       comparisonRatio: comparisonRatio, estimatedVolume: estimatedVolume, estimated: estimated, estimateMinutes: estimateMinutes, volumeMA: volumeMA, current: cur, previous: y, gapFilled: gapFilled, gaps: gaps.slice(-5),
       quoteTime: live ? q.time || q.stamp || '' : '', phase: complete ? '已落地日 K' : '盤中／盤後待日 K' };
   }
-  w.MarketBattle = { evaluate: evaluate, cleanPrefs: cleanPrefs };
+  /* 精簡格式還原（v136）：後端把每根日K 寫成 [日期, 開, 高, 低, 收, 量]、報價放在 q。
+     還原後與原格式逐欄相同（scripts/check_battle.js 有逐欄比對）；原格式的資料原樣通過。 */
+  function expand(item) {
+    if (!item || !Array.isArray(item.b)) return item;
+    return { code: item.code, name: item.name, error: item.error,
+      bars: item.b.map(function (r) { var d = String(r[0]); return { date: d.slice(0, 4) + '/' + d.slice(4, 6) + '/' + d.slice(6, 8), open: r[1], high: r[2], low: r[3], close: r[4], volume: r[5] }; }),
+      quote: item.q === undefined ? null : item.q };
+  }
+  w.MarketBattle = { evaluate: evaluate, cleanPrefs: cleanPrefs, expand: expand };
 })(window);
 </script>
 <script>
@@ -145,13 +159,22 @@
   function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function fmt(v, n) { return v === null || v === undefined || !isFinite(Number(v)) ? '未提供' : Number(v).toLocaleString('zh-TW', { maximumFractionDigits: n === undefined ? 2 : n }); }
   function prefs() { return window.BattleSettings.get(); }
-  function read(codes, done, fail) {
-    var key = JSON.stringify(codes || null), hit = cache.get(key);
+  /* 讀行情（v136）。向後端要精簡格式（v:2）；同一輪後面幾批不必再帶一次清單與行事曆（lite），
+     回應附的指紋要和這一輪第一個回應相同才採用，對不上就改要完整的。後端還是舊版時會忽略第二個參數、
+     回原格式，一樣能用，只是一次仍是 24 檔。 */
+  function read(codes, done, fail, forceFull) {
+    var lite = !forceFull && !!codes && codes.length > 1 && !!data && !!data.calendarKey;
+    var key = JSON.stringify(codes || null) + (lite ? ':lite:' + data.calendarKey + ':' + data.universeKey : ''), hit = cache.get(key);
     if (hit && Date.now() - hit.at < 60000) { done(hit.data); return; }
     google.script.run.withSuccessHandler(function (r) {
       if (!r || !r.ok) { console.warn('戰情行情回應無效'); fail(); return; }
-      cache.set(key, { at: Date.now(), data: r }); done(r);
-    }).withFailureHandler(function(error){console.warn('戰情行情讀取失敗',String(error&&error.message||'連線未完成').slice(0,160));fail();}).apiGetBattleData(codes || null);
+      var out = Object.assign({}, r, { items: (r.items || []).map(window.MarketBattle.expand) });
+      if (r.lite) {
+        if (!data || r.calendarKey !== data.calendarKey || r.universeKey !== data.universeKey) { read(codes, done, fail, true); return; }
+        out.calendar = data.calendar; out.universe = data.universe;
+      }
+      cache.set(key, { at: Date.now(), data: out }); done(out);
+    }).withFailureHandler(function(error){console.warn('戰情行情讀取失敗',String(error&&error.message||'連線未完成').slice(0,160));fail();}).apiGetBattleData(codes || null, { v: 2, lite: lite });
   }
   function resultCard(item, ctx, detail) {
     var r = window.MarketBattle.evaluate(item, prefs(), ctx), klass = r.status === '資料待核對' ? 'pending' : r.pass ? 'pass' : 'off';
@@ -173,7 +196,12 @@
       '<div class="battle-metrics"><div><span>開盤較昨收</span><b>' + fmt(r.gapPct) + (r.gapPct === null ? '' : '%') + '</b></div><div><span>'+(r.estimated?'盤中估量倍數':'當日日量倍數')+'</span><b>' + fmt(r.comparisonRatio) + (r.comparisonRatio === null ? '' : '×') + '</b></div><div><span>實際成交量</span><b>' + fmt(r.current && r.current.volume, 0) + ' 張</b></div></div>' +
       (r.estimated?'<p class="notice">簡化估量 '+fmt(r.estimatedVolume,0)+' 張；實際日量倍數 '+fmt(r.volumeRatio)+'×。不是歷史同時段量比。</p>':'')+
       '<p class="battle-evidence">前日 ' + esc(r.previous && r.previous.date || '未提供') + '：高 ' + fmt(r.previous && r.previous.high) + '／低 ' + fmt(r.previous && r.previous.low) + '／收 ' + fmt(r.previous && r.previous.close) + '；前 ' + prefs().volumeDays + ' 日均量 ' + fmt(r.volumeMA, 0) + ' 張。' + esc(gapState) + '。</p>' +
-      '<div class="battle-match-strip" data-logic="'+prefs().logic+'"><b>'+(prefs().logic==='all'?'且 · 全部符合':'或 · 任一符合')+'</b>' + selected.filter(function(c){return c.pass !== null;}).map(function(c){return '<span class="battle-match-chip '+(c.pass===true?'pass':c.pass===null?'pending':'off')+'">'+(c.pass===true?'✓ ':c.pass===null?'? ':'− ')+esc(c.label)+'</span>';}).join('')+'</div>' +
+      '<div class="battle-match-strip" data-mode="'+r.groupLogic+'">' + r.groups.map(function(g, n){
+        var state = function(v){return v===true?'pass':v===null?'pending':'off';}, mark = function(v){return v===true?'✓ ':v===null?'? ':'− ';};
+        return (n ? '<b class="battle-match-join">'+r.outerWord+'</b>' : '') + '<span class="battle-match-group '+state(g.pass)+'">' +
+          (r.groups.length > 1 ? '<i>第 '+(n+1)+' 組</i>' : '') +
+          g.labels.map(function(label, k){return (k ? '<em>'+r.innerWord+'</em>' : '') + '<span class="battle-match-chip '+state(g.states[k])+'">'+mark(g.states[k])+esc(label)+'</span>';}).join('') + '</span>';
+      }).join('') + '</div>' +
       '<details><summary>條件、數值與歷史缺口</summary><div class="battle-conditions">' + details + '</div>' +
       '<h4>最近歷史缺口候選</h4>' + (r.gaps.length ? r.gaps.map(function (g) { return '<p class="battle-gap">' + esc(g.date) + ' · ' + fmt(g.pct) + '% · ' + fmt(g.ratio) + '×<br><b>' + esc(g.status) + '</b> · 回補邊界 ' + fmt(g.boundary) + '</p>'; }).join('') : '<p class="notice">可用歷史資料中沒有符合目前跳空與量能設定的候選。</p>') +
       '<p class="notice">三日為事件後的交易日，資料未到齊不判已守住。除權息與其他股務事件未完整核對；不推論勝率。</p></details></article>' };
@@ -188,9 +216,8 @@
       ? '<div class="battle-empty card"><h3>'+(one?esc(one.name||one.code)+'（'+esc(one.code)+'）':'這一檔')+'目前不符合條件</h3><p>這裡只看你指定的這一檔。可以查看它的各項數值，或回到符合條件的清單。</p><div class="battle-empty-acts">'+(one?'<button type="button" class="act" data-bstock="'+esc(one.code)+'">查看這一檔的數值</button>':'')+'<button type="button" class="act" data-bback>回到符合條件的清單</button></div></div>'
       : '<div class="battle-empty card"><h3>'+'目前沒有符合條件的股票'+'</h3><p>已核對 '+cards.length+' 檔。未符合者已收起，可調整條件或在個股查看各項數值。</p></div>');
     $('battleSummary').textContent = '資料日 ' + data.date + ' · 已核對 ' + cards.length + (custom?'':'／'+universe.length) + ' 檔 · 符合 ' + cards.filter(function (c) { return c.result.pass; }).length + (loading?' · 其餘行情讀取中':'') + ' · 讀取 ' + data.at + ' · ' + data.quoteCadence;
-    var enabled = cards.length ? cards[0].result.checks.filter(function(c){return c.enabled;}).map(function(c){return c.label;}) : [];
-    $('battleRule').textContent = (p.logic==='all'?'全部符合（且）':'任一符合（或）')+'：'+(enabled.join(p.logic==='all'?' 且 ':' 或 ')||'尚未加入條件');
-    $('battleRule').dataset.logic=p.logic;
+    $('battleRule').textContent = '符合條件：' + ((cards.length && cards[0].result.formula) || '尚未加入條件');
+    $('battleRule').dataset.mode = p.groupLogic;
     $('battlePage').textContent = '第 ' + (page + 1) + '／' + Math.max(1, Math.ceil(total / cfg.pageSize)) + ' 頁 · '+(custom?'指定代號 · ':'')+'共 ' + total + ' 筆'+'符合';
     $('battlePrev').disabled = page === 0;
     $('battleNext').disabled = (page + 1) * cfg.pageSize >= total;
@@ -208,7 +235,9 @@
       var failed=[]; data = Object.assign({},r,{items:r.items.slice()}); universe = r.universe || []; paint();
       if(custom){finish();return;}
       var present=new Set(r.items.map(function(item){return item.code;})), remaining=universe.filter(function(item){return !present.has(item.code);}), jobs=[];
-      for(var n=0;n<remaining.length;n+=cfg.pageSize)jobs.push(remaining.slice(n,n+cfg.pageSize).map(function(item){return item.code;}));
+      // 一批幾檔由後端告知（精簡格式是 60 檔）；沒有告知就是舊版後端，維持 24 檔。
+      var batch=Math.max(1,Math.min(120,Number(r.batchMax)||cfg.pageSize));
+      for(var n=0;n<remaining.length;n+=batch)jobs.push(remaining.slice(n,n+batch).map(function(item){return item.code;}));
       var active=0;
       function finish(){if(seq!==loadSeq)return;loading=false;$('battleRefresh').disabled=false;loadedAt=Date.now();paint();if(failed.length)$('battleSummary').textContent+=' · '+failed.length+' 檔未讀取成功，更新資料可重試';}
       function next(){

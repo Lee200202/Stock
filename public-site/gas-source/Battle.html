@@ -284,7 +284,8 @@
   searchInput.addEventListener('focus',function(){if(searchInput.value.trim())suggest();});
   searchInput.addEventListener('keydown',function(e){
     if(e.isComposing||composing)return;
-    if(e.key==='Escape'){++suggestSeq;clearTimeout(suggestTimer);closeSuggestions();return;}
+    // 搜尋框（type=search）按 Escape 瀏覽器會把字清掉：候選開著時只收候選，打的字留著；候選已收起再按才清空。
+    if(e.key==='Escape'){if(!suggestions.hidden)e.preventDefault();++suggestSeq;clearTimeout(suggestTimer);closeSuggestions();return;}
     if((e.key==='ArrowDown'||e.key==='ArrowUp')&&suggestItems.length){
       e.preventDefault();suggestions.hidden=false;searchInput.setAttribute('aria-expanded','true');activeSuggestion=(activeSuggestion+(e.key==='ArrowDown'?1:-1)+suggestItems.length)%suggestItems.length;
       suggestions.querySelectorAll('[role="option"]').forEach(function(el,n){el.setAttribute('aria-selected',String(n===activeSuggestion));if(n===activeSuggestion)el.scrollIntoView({block:'nearest'});});searchInput.setAttribute('aria-activedescendant','battleSuggestion'+activeSuggestion);

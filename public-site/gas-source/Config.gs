@@ -32,7 +32,7 @@ var FINMIND_API_TOKEN_DEFAULT = '';
 
 // 版本標記。每次改動 doGet 的對外行為就要跟著更新，
 // 呼叫端用它確認部署的是不是預期的版本。
-var GAS_BUILD = '2026-10-06-battle-search-v131';
+var GAS_BUILD = '2026-10-06-search-alignment-v132';
 
 // 簡訊就緒查詢開關；日K與逐字稿刷新已解耦，簡訊優先由來源列保護及同步重建維持。
 var SMS_PRIORITY_GUARD = true;

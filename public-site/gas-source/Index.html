@@ -257,13 +257,14 @@
   <section class="panel" id="p-stock" role="tabpanel" hidden>
     <div class="sect">
       <div class="card">
-        <div class="row">
-          <div class="grow suggest">
-            <label for="stockInput">股票代號或名稱</label>
-            <input type="text" id="stockInput" placeholder="例如 2330 或 台積電" autocomplete="off">
-            <div class="suggest-list" id="suggestList" hidden></div>
+        <div class="stock-search">
+          <div class="battle-search-field">
+            <label for="stockInput">查看股票</label>
+            <input type="search" id="stockInput" placeholder="輸入股名或代號，例如 台積電、2330" autocomplete="off" maxlength="40" role="combobox" aria-autocomplete="list" aria-controls="suggestList" aria-expanded="false" aria-describedby="stockSearchHint">
+            <div class="battle-suggestions" id="suggestList" role="listbox" aria-label="相關股票" hidden></div>
           </div>
-          <button class="act" id="stockBtn">查詢</button>
+          <p id="stockSearchHint" class="notice" role="status" aria-live="polite">輸入中文股名或代號，選擇下方候選。</p>
+          <button type="button" class="act" id="stockBtn">查看</button>
         </div>
         <div id="recentTags" class="watchtags"></div>
       </div>

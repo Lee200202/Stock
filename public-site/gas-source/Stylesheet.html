@@ -4818,4 +4818,13 @@ main.wrap:has(> #p-battle:not([hidden])) { width:min(1600px, calc(100% - 48px));
 .battle-search input:focus-visible { outline:3px solid var(--beam); outline-offset:3px; }
 .battle-search .notice { margin:0; }
 @media(max-width:480px) { .battle-search input { font-size:17px; padding:0 20px; } }
+/* v132 個股查詢與戰情搜尋對齊。 */
+#p-stock > .sect { width:min(1600px,calc(100% - 48px)); max-width:1600px; }
+.stock-search { display:grid; grid-template-columns:minmax(0,1fr); gap:14px; }
+.stock-search input { width:100%; min-height:64px; border:1px solid var(--rule); background:var(--panel); color:var(--ink); border-radius:999px; padding:0 26px; font-size:20px; box-sizing:border-box; }
+.stock-search input:focus-visible { outline:3px solid var(--beam); outline-offset:3px; }
+.stock-search .notice { margin:0; }
+.stock-search > button { justify-self:start; min-width:140px; }
+@media(max-width:720px){#p-stock > .sect { width:calc(100% - 24px); }.stock-search > button { width:100%; }}
+@media(max-width:480px){.stock-search input { font-size:17px; padding:0 20px; }}
 </style>

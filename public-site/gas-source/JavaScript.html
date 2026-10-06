@@ -2401,25 +2401,28 @@ function restatesEarlier_(key, earlier) {
 
   /* ---------------- 自動建議 ---------------- */
   function attachSuggest(inputId, listId, onPick) {
-    var input = $(inputId), list = $(listId), timer;
-    input.addEventListener('input', function () {
-      clearTimeout(timer);
-      var kw = input.value.trim();
-      if (!kw) { list.hidden = true; return; }
-      timer = setTimeout(function () {
-        google.script.run.withSuccessHandler(function (items) {
-          if (!items || !items.length) { list.hidden = true; return; }
-          list.innerHTML = items.map(function (i) {
-            return '<div data-code="' + i.code + '"><span>' + esc(i.name) + '</span><span class="c">' + i.code + '</span></div>';
-          }).join('');
-          list.hidden = false;
-          list.querySelectorAll('div[data-code]').forEach(function (el) {
-            el.addEventListener('click', function () { list.hidden = true; onPick(el.dataset.code); });
-          });
-        }).apiSuggestCodes(kw);
-      }, 220);
+    var input=$(inputId),list=$(listId),hint=$('stockSearchHint'),timer,seq=0,items=[],active=-1,composing=false,cache=new Map(),picked=null;
+    function norm(s){return String(s||'').replace(/[＊*\s]+/g,'').toUpperCase();}
+    function hide(){list.hidden=true;input.setAttribute('aria-expanded','false');input.removeAttribute('aria-activedescendant');active=-1;}
+    function score(i,q){return norm(i.code)===q?0:norm(i.name)===q?1:i.alias&&norm(i.alias)===q?2:norm(i.code).indexOf(q)===0?3:norm(i.name).indexOf(q)===0?4:5;}
+    function draw(result,q){items=(Array.isArray(result)?result:[]).slice().sort(function(a,b){return score(a,norm(q))-score(b,norm(q))||String(a.code).localeCompare(String(b.code));}).slice(0,10);active=-1;
+      list.innerHTML=items.map(function(i,n){return '<div role="option" id="stockSuggestion'+n+'" aria-selected="false" data-spick="'+n+'"><b>'+esc(i.name)+'</b><span>'+esc(i.code)+'</span></div>';}).join('');list.hidden=!items.length;input.setAttribute('aria-expanded',String(!!items.length));input.removeAttribute('aria-activedescendant');
+      hint.textContent=items.length?'找到 '+items.length+' 個相關候選；可用上下鍵選擇，Enter 查看。':'沒有相關候選，請換個股名或代號。';
+    }
+    function suggest(){clearTimeout(timer);var token=++seq,q=input.value.trim();if(composing)return;if(!q){hide();items=[];hint.textContent='輸入中文股名或代號，選擇下方候選。';return;}
+      if(cache.has(norm(q))){draw(cache.get(norm(q)),q);return;}
+      hide();hint.textContent='正在尋找相關股票…';timer=setTimeout(function(){google.script.run.withSuccessHandler(function(result){if(token!==seq||norm(input.value)!==norm(q))return;cache.set(norm(q),result);draw(result,q);}).withFailureHandler(function(){if(token===seq)hint.textContent='搜尋暫時沒有回應，請重新輸入或使用完整代號。';}).apiSuggestCodes(q);},220);
+    }
+    function choose(item){++seq;clearTimeout(timer);picked={item:item,query:norm(input.value)};hide();hint.textContent='查看 '+item.name+'（'+item.code+'）';onPick(String(item.code),item);}
+    function submit(){if(composing)return;var q=input.value.trim();if(picked&&picked.query===norm(q)){choose(picked.item);return;}var exact=items.find(function(i){return norm(i.name)===norm(q)||norm(i.code)===norm(q);});if(exact){choose(exact);return;}if(/^(?:00981A|\d{4,6})$/.test(norm(q))){choose({name:norm(q),code:norm(q)});return;}if(q){hide();onPick(q);}else hint.textContent='請輸入股名或代號。';}
+    input.addEventListener('input',function(){picked=null;suggest();});input.addEventListener('focus',function(){if(input.value.trim())suggest();});
+    input.addEventListener('compositionstart',function(){composing=true;++seq;clearTimeout(timer);hide();});input.addEventListener('compositionend',function(){composing=false;suggest();});
+    input.addEventListener('keydown',function(e){if(e.isComposing||composing)return;if(e.key==='Escape'){if(!list.hidden)e.preventDefault();++seq;clearTimeout(timer);hide();return;}   // 候選開著時只收候選，打的字留著
+      if((e.key==='ArrowDown'||e.key==='ArrowUp')&&items.length&&!list.hidden){e.preventDefault();active=(active+(e.key==='ArrowDown'?1:-1)+items.length)%items.length;list.querySelectorAll('[role="option"]').forEach(function(el,n){el.setAttribute('aria-selected',String(n===active));if(n===active)el.scrollIntoView({block:'nearest'});});input.setAttribute('aria-activedescendant','stockSuggestion'+active);}
+      else if(e.key==='Enter'){e.preventDefault();if(!list.hidden&&active>=0)choose(items[active]);else submit();}
     });
-    input.addEventListener('blur', function () { setTimeout(function () { list.hidden = true; }, 160); });
+    list.addEventListener('pointerdown',function(e){e.preventDefault();});list.addEventListener('click',function(e){var el=e.target.closest('[data-spick]');if(el)choose(items[Number(el.dataset.spick)]);});input.addEventListener('blur',function(){++seq;clearTimeout(timer);hide();});
+    return {submit:submit};
   }
 
   /* ---------------- 個股詳情抽屜 ---------------- */
@@ -3583,23 +3586,27 @@ function restatesEarlier_(key, earlier) {
   });
 
   /* ---------------- 個股查詢 ---------------- */
-  attachSuggest('stockInput', 'suggestList', function (code) { $('stockInput').value = code; doSearch(code); });
-  $('stockBtn').addEventListener('click', function () { doSearch($('stockInput').value.trim()); });
-  $('stockInput').addEventListener('keydown', function (e) { if (e.key === 'Enter') { $('stockBtn').click(); } });
+  var stockQuerySeq=0, stockSuggest=attachSuggest('stockInput', 'suggestList', function (code) { doSearch(code); });
+  $('stockBtn').addEventListener('click', stockSuggest.submit);
+  // 改打別的字時，還在路上的紀錄回應會被忽略；「查詢中」跟著收掉，不留一行永遠不會結束的提示。
+  $('stockInput').addEventListener('input',function(){stockQuerySeq++;var rec=$('stockRecord');if(rec.dataset.pending){rec.innerHTML='';delete rec.dataset.pending;}});
 
   function doSearch(kw) {
     if (!kw) { return; }
     USE.act('查股票', kw);
     $('stockRecord').innerHTML = '<p class="notice">查詢中</p>';
-    var asked = kw;
+    $('stockRecord').dataset.pending = '1';
+    var asked = kw, querySeq=++stockQuerySeq, direct=isCode(kw);
+    if(direct)openDetail(kw);
     google.script.run.withSuccessHandler(function (r) {
-      if ($('stockInput').value.trim() && $('stockInput').value.trim() !== asked) { return; }   // 已經改查別的，舊回應不蓋新畫面
+      if (querySeq !== stockQuerySeq) { return; }   // 已經改查別的，舊回應不蓋新畫面
+      delete $('stockRecord').dataset.pending;
       if (!r.found) {
         // 代號本身合法時照樣打開行情圖：影片沒提過，但使用者仍想看走勢（v54）。
         var target = isCode(kw) ? kw : (r.resolvedCode || '');
         $('stockRecord').innerHTML = emptyBlock('影片中沒有提到這一檔',
           target ? '下方只有行情與基本面，沒有講者的紀錄。' : '請確認名稱或改用代號查詢（例如 2330）。');
-        if (target) { openDetail(target); }
+        if (target && !direct) { openDetail(target); }
         return;
       }
       $('stockRecord').innerHTML =
@@ -3613,8 +3620,8 @@ function restatesEarlier_(key, earlier) {
       bindRows($('stockRecord'));
       // 輸入名稱或別名、結果只有一檔時也直接開圖（先前只有輸入代號才開）。
       var code = isCode(kw) ? kw : (r.resolvedCode || '');
-      if (code) { openDetail(code); }
-    }).apiSearchStock(kw, ($('subEmail') || {}).value || '');
+      if (code && !direct) { openDetail(code); }
+    }).withFailureHandler(function(){if(querySeq===stockQuerySeq){delete $('stockRecord').dataset.pending;$('stockRecord').innerHTML=emptyBlock('紀錄暫時沒有回應','請稍後重新查看；個股行情獨立讀取。');}}).apiSearchStock(kw, ($('subEmail') || {}).value || '');
   }
 
   /* ---------------- 訂閱 ----------------

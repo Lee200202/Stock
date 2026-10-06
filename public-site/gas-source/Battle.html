@@ -158,7 +158,7 @@
     var details = r.checks.map(function (c) { return '<div class="battle-condition"><b>' + esc(c.label) + '</b><span class="battle-tag ' + (c.pass === null ? 'pending' : c.pass ? 'pass' : 'off') + '">' + (c.pass === null ? '待核對' : c.pass ? '符合' : '未符合') + (c.enabled ? '' : ' · 未啟用篩選') + '</span><strong>' + esc(value(c)) + '</strong><p>' + esc(c.rule) + '</p></div>'; }).join('');
     var gapState = r.checks[0].pass === null ? '缺口待核對' : r.checks[0].pass ? (r.gapFilled ? '當日已回補' : '當日尚未回補') : '開盤缺口未達設定';
     return { result: r, html: '<article class="card battle-card is-' + klass + '"><div class="battle-head">' + title + '<span class="battle-tag ' + klass + '">' + esc(r.status) + '</span></div>' +
-      '<p class="battle-date">' + esc(r.date) + ' · ' + esc(r.phase) + (r.quoteTime ? ' · 行情 ' + esc(r.quoteTime) : '') + '</p>' +
+      '<p class="battle-date">' + esc(r.date) + ' · ' + esc(r.phase) + (!r.complete && r.quoteTime ? ' · 行情 ' + esc(r.quoteTime) : '') + '</p>' +
       '<div class="battle-metrics"><div><span>開盤較昨收</span><b>' + fmt(r.gapPct) + (r.gapPct === null ? '' : '%') + '</b></div><div><span>當日日量倍數</span><b>' + fmt(r.volumeRatio) + (r.volumeRatio === null ? '' : '×') + '</b></div><div><span>實際成交量</span><b>' + fmt(r.current && r.current.volume, 0) + ' 張</b></div></div>' +
       '<p class="battle-evidence">前日 ' + esc(r.previous && r.previous.date || '未提供') + '：高 ' + fmt(r.previous && r.previous.high) + '／低 ' + fmt(r.previous && r.previous.low) + '／收 ' + fmt(r.previous && r.previous.close) + '；前 ' + prefs().volumeDays + ' 日均量 ' + fmt(r.volumeMA, 0) + ' 張。' + esc(gapState) + '。</p>' +
       (r.issues.length ? '<p class="battle-issues">待核對：' + esc(r.issues.join('；')) + '</p>' : '') +

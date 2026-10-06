@@ -147,9 +147,9 @@
     var key = JSON.stringify(codes || null), hit = cache.get(key);
     if (hit && Date.now() - hit.at < 60000) { done(hit.data); return; }
     google.script.run.withSuccessHandler(function (r) {
-      if (!r || !r.ok) { fail(); return; }
+      if (!r || !r.ok) { console.warn('戰情行情回應無效'); fail(); return; }
       cache.set(key, { at: Date.now(), data: r }); done(r);
-    }).withFailureHandler(fail).apiGetBattleData(codes || null);
+    }).withFailureHandler(function(error){console.warn('戰情行情讀取失敗',String(error&&error.message||'連線未完成').slice(0,160));fail();}).apiGetBattleData(codes || null);
   }
   function resultCard(item, ctx, detail) {
     var r = window.MarketBattle.evaluate(item, prefs(), ctx), klass = r.status === '資料待核對' ? 'pending' : r.pass ? 'pass' : 'off';

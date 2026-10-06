@@ -4944,6 +4944,14 @@ def safe_load_json(raw: str, default=None):
     except Exception:
         pass
 
+    # 第二層之二：第一個物件本身完整、後面多了字（2026/10/01 重播的補充說明：Extra data: line 1 column 3581）。
+    if cleaned[:1] in '{[':
+        try:
+            first, _end = json.JSONDecoder(strict=False).raw_decode(cleaned)
+            return first
+        except Exception:
+            pass
+
     # 第三層：狀態機修復（去除尾隨逗號、註解、跳脫控制字元、補齊未閉合括號等）
     repaired = repair_json_text(cleaned)
     try:
@@ -6128,7 +6136,7 @@ def plain_current_stance(heard, transcript, weak=False, names=None):
     return None
 
 
-_SPOKEN_FILLER = re.compile(r'(^|[，,。！？!?])(?:啊|欸|嘿|哦|喔|嗯|好|來|那個)+[，,]')
+_SPOKEN_FILLER = re.compile(r'(^|[，,。！？!?])(?:(?:啊|欸|嘿|哦|喔|嗯)+[，,]?|(?:好|來|那個)+[，,])')
 
 
 def spoken_to_note(sentence) -> str:
@@ -8778,16 +8786,27 @@ def fill_empty_notes(signals, transcript=''):
             field = 'note' if cat == 'holdings' else 'reason'
             if len(_ev_norm(row.get(field))) >= 8:
                 continue
-            names = [n for n in _signal_names(row) | {str(row.get('name') or '')} if len(n) >= 2]
+            names = [n for n in _signal_names(row) | {str(row.get('name') or ''), str(row.get('原始語音名稱') or '')} if len(n) >= 2]
             quotes = [q for q in [row.get('view'), row.get('time_evidence')] + list(row.get('evidence') or [])
                       if isinstance(q, str) and len(_ev_norm(q)) >= 8]
-            pick = next((q for q in quotes if any(n in q for n in names)), quotes[0] if quotes else '')
-            if not pick and transcript:
-                # 這一列沒有留下可用的引句：用原文裡點名本股、而且有內容的句子，取最後講到的那一句。
-                heard = sorted(names + [str(row.get('原始語音名稱') or '')], key=len, reverse=True)
-                own = [x for x in _plain_sentences(transcript)
-                       if any(n and n in x for n in heard) and 12 <= len(_ev_norm(x)) <= 90 and not x.endswith(('？', '?'))]
-                pick = own[-1] if own else ''
+            # 引句可能是一大段口語：拆成句子，只取一句、九十字以內的；這一列沒有可用引句時才看原文裡點名本股的句子。
+            stance = (_LEFT_AVOID + r'|幹(?:什麼|嘛)') if cat == 'watch_avoid' else (r'賣' if cat == 'sell' else _LEFT_WATCH + r'|買點|注意|續抱')
+
+            def choose(texts, need_name):
+                best, best_score = '', -1
+                for text in texts:
+                    for sent in _plain_sentences(text):
+                        named = any(n in sent for n in names)
+                        cue = bool(re.search(stance, sent))
+                        if not 8 <= len(_ev_norm(sent)) <= 90 or (need_name and not named):
+                            continue
+                        if sent.endswith(('？', '?')) and not cue:
+                            continue                      # 問句只有看得出態度時才用（「你們去買X幹什麼？」）
+                        score = 3 * cue + 2 * named
+                        if score > best_score:
+                            best, best_score = sent, score
+                return best
+            pick = choose(quotes, False) or (choose([transcript], True) if transcript else '')
             if not pick:
                 continue
             row[field] = public_narrative(spoken_to_note(pick), row, signals)
@@ -12069,6 +12088,8 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     # 排在日期歸屬之後：品質關卡與日期歸屬移進回顧的列也要一起處理。
     signals = exclude_past_recommendations(signals, TX["audit"])
     signals = history_to_watch(signals, date_str, ss, transcript=TX["audit"])
+    # 回顧改列觀望注意的那幾檔也要過同一關（2026/10/06 重播：漢唐「現在1300多的不用了」先被當回顧，再被改成觀望注意）。
+    signals = align_watch_with_plain_refusal(signals, TX["audit"])
     # ③ 教學重點至少三點。排在寫入與稽核存檔之前，補回的點會一起進試算表、稽核與郵件。
     signals = ensure_article_minimums(signals, TX["audit"], date_str)
     # v96：模型寫長說明時掛錯的數字先刪（世芯-KY 的 1745／1800），短掉的說明才輪得到下面的合併補問；

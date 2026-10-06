@@ -137,6 +137,8 @@ function publicTrackerItem_(item) {
   if (!item || typeof item !== 'object') { return item; }
   var out = {};
   Object.keys(item).forEach(function (k) { if (TRACKER_STATED_KEYS_.indexOf(k) < 0) { out[k] = item[k]; } });
+  // 歷程是給郵件與稽核用的原始紀錄（帶明講價位與來源字樣），前台沒有任何地方讀它，不送出去（2026/10/06）。
+  delete out.timeline;
   if (out.entrySrc != null) { out.entrySrc = publicCostSrc_(out.entrySrc); }
   if (out.curSrc != null) { out.curSrc = publicCostSrc_(out.curSrc); }
   if (Array.isArray(item.roundList)) {
@@ -146,7 +148,8 @@ function publicTrackerItem_(item) {
       return c;
     });
   }
-  return out;
+  // 理由、出場原因、回合明細這些文字不寫通知管道的字眼（2026/10/06）。
+  return typeof publicScrubDeep_ === 'function' ? publicScrubDeep_(out) : out;
 }
 
 /* 超過單筆快取上限時先壓縮再存（gzip＋base64 約為原本的五分之一）；讀回解不開就當沒命中重算。 */
@@ -190,8 +193,9 @@ function apiGetDashboard() {
   if (quoteCodes.length) {
     try { quotes = getQuotesFor(quoteCodes, false, true, true); } catch (e) {}
   }
+  // 送出前的最後一關：歷程、出場原因這些欄位沒有經過 publicNarrative_，一樣不寫通知管道的字眼（2026/10/06）。
   var out = {
-    today: todayData,
+    today: publicScrubDeep_(todayData),
     tracker: trackerData,
     quotes: quotes,
     lineEntry: lineEntry,
@@ -204,7 +208,7 @@ function apiGetDashboard() {
 
 /** 依股票代號或名稱查詢（規格書 4.4 節） */
 function apiSearchStock(keyword, email) {
-  var res = searchStock(keyword);
+  var res = publicScrubDeep_(searchStock(keyword));
   if (email) { rememberQuery(email, keyword); }
   return res;
 }
@@ -220,7 +224,7 @@ function apiLogUsage(who, events) {
 
 /** 依日期查詢（規格書 4.4 節） */
 function apiSearchByDate(dateStr) {
-  return searchByDate(dateStr);
+  return publicScrubDeep_(searchByDate(dateStr));
 }
 
 /**
@@ -294,11 +298,11 @@ function apiGetStockHeader(code) {
 }
 
 function apiGetStockTracker(code) {
-  try { return getStockTracker(code); } catch (e) { return null; }
+  try { return publicTrackerItem_(getStockTracker(code)); } catch (e) { return null; }
 }
 
 function apiGetStockRecord(code) {
-  try { return searchStock(code); } catch (e) { return null; }
+  try { return publicScrubDeep_(searchStock(code)); } catch (e) { return null; }
 }
 
 /* 技術說明的即時數字（v54，H7／Codex 62）：紀錄的規模，不是投資績效。快取 30 分鐘。
@@ -388,7 +392,7 @@ function apiGetStockSummary(code) {
     var out = { code: code, header: null, tracker: null, record: null, errors: {} };
     try { out.header = apiGetStockHeader(code); } catch (e) { out.errors.header = String(e.message || e); }
     try { out.tracker = publicTrackerItem_(getStockTracker(code)); } catch (e) { out.errors.tracker = String(e.message || e); }
-    try { out.record = searchStock(code); } catch (e) { out.errors.record = String(e.message || e); }
+    try { out.record = publicScrubDeep_(searchStock(code)); } catch (e) { out.errors.record = String(e.message || e); }
     return out;
   });
 }
@@ -414,7 +418,7 @@ function apiListMailDates() {
 
 /** 郵件查詢：取某一天的郵件完整內容（文章＋結構化對照表，HTML）。 */
 function apiGetMailContent(dateStr) {
-  try { return getMailContent(dateStr); } catch (e) { return null; }
+  try { return publicScrubDeep_(getMailContent(dateStr)); } catch (e) { return null; }
 }
 
 /**

@@ -130,7 +130,9 @@ def invariants(signals, raw):
             if any(difflib.SequenceMatcher(None, a, b).ratio() >= 0.82 for b in parts[i + 1:]):
                 errors.append(f"{name} 說明同一句講了兩遍：{note[:60]}")
                 break
-        if len(pl._ev_norm(note)) < 25:
+        if len(pl._ev_norm(note)) < 8:
+            errors.append(f"{name} 沒有說明（{len(pl._ev_norm(note))} 字）")
+        elif len(pl._ev_norm(note)) < 25:
             warns.append(f"{name} 說明只有 {len(pl._ev_norm(note))} 字")
         if re.search(r"(?:^|[，。；])(?:啊|欸|來)[，,]", note):
             warns.append(f"{name} 說明是口語原句：{note[:40]}")

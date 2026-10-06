@@ -6028,7 +6028,7 @@ def keep_first_pass_rows(first, reviewed, transcript):
 
 # 盤點到的台股在模型判讀之後沒有落在任何一類時，只認講得很直白的句子。
 _LEFT_AVOID = r'不用(?:再)?(?:去)?追|不建議|不推薦|沒有推薦|不要(?:亂)?買|不要碰|不能碰|不能買|不敢買|不用了|還沒(?:有)?跌完|不可能叫你們?(?:現在)?買|不會去碰'
-_LEFT_WATCH = r'建議你們?買|可以買|可以注意|最想買|我們持有|會員有|你們?要注意'
+_LEFT_WATCH = r'(?<!不)建議你們?買|可以買|可以注意|最想買|我們持有|會員有|你們?要注意'
 _LEFT_LEAD = r'^(?:啊|那|好|來|所以|可是|然後|還有|而且|像|叫做|就是|比如說)*'
 # 「之前跟你們講漢唐跌破1000可以買」是轉述以前的話；「華通昨天大漲了不用追了」的昨天只是在講行情，不算。
 _LEFT_PAST = re.compile(r'之前|以前|當時|那時')
@@ -6039,12 +6039,59 @@ _CONDITIONAL_WATCH = re.compile(r'拉回|買點|可以買|再買|再來買|要�
 _PRONOUN_REFUSAL = re.compile(r'這一?(?:支|檔|隻)(?:股票)?[，,]?(?:我)?(?:也)?(?:沒有推薦|不推薦|不建議|不會買|不要買|不要碰)')
 
 
-def plain_current_stance(heard, transcript, weak=False):
+_STANCE_NAMES_MEMO = {}
+
+
+def _stance_names(transcript):
+    """這份原文裡盤點到的所有股名寫法（含聽錯的寫法），長的排前面。判斷一句話在講哪一檔用。"""
+    key = hashlib.sha256(str(transcript or '').encode('utf-8')).hexdigest()
+    if _STANCE_NAMES_MEMO.get('key') != key:
+        try:
+            found = sorted({i['name'] for i in source_inventory(source_segments(transcript))}, key=len, reverse=True)
+        except Exception:
+            found = []
+        _STANCE_NAMES_MEMO.update(key=key, names=found, table=id(_CODE_MAP))
+    return _STANCE_NAMES_MEMO['names']
+
+
+_CUE_TO_NAME = re.compile(r'(?:這一?(?:檔|支|隻)(?:股票)?)?[，,]?(?:叫做|就是|叫|是)?')
+
+
+def _cue_is_about(heard, sentence, start, end, names):
+    """句子裡 [start, end) 這個說法講的是不是 heard。
+
+    後面緊接著股名，就是在講那一檔（「為什麼推薦力積電不推薦聯電」的不推薦是聯電）；
+    否則看前面最近的股名，連著念的幾檔算一組（「連發科大力光我就不推薦了」「A、B我都不建議」）。
+    2026/10/06 重播：只看「同一個子句有沒有這個字」時，力積電被「不推薦聯電」「不會去碰聯電」改成觀望不碰。
+    """
+    names = sorted(set(names) | {heard}, key=len, reverse=True)
+    # 「建議你們買這一檔，叫做四新科」：說法和股名中間只隔著「這一檔、叫做」也算緊接。
+    gap = _CUE_TO_NAME.match(sentence, end).end()
+    after = next((n for n in names if sentence.startswith(n, end) or sentence.startswith(n, gap)), None)
+    if after:
+        return after == heard
+    before = sentence[:start]
+    at, last = max(((before.rfind(n) + len(n), n) for n in names if n in before), default=(-1, None))
+    if last is None:
+        return False
+    group, cursor = {last}, at - len(last)
+    while True:
+        head = before[:cursor].rstrip('、，,和跟與及 ')
+        prev = next((n for n in names if head.endswith(n)), None)
+        if not prev:
+            break
+        group.add(prev)
+        cursor = len(head) - len(prev)
+    return heard in group
+
+
+def plain_current_stance(heard, transcript, weak=False, names=None):
     """這個名字在原文裡有沒有直白的當下說法。回傳 (分類, 原句) 或 None；從後面的句子找起。"""
     # 「沒有買台積電的人趕快買」是在講人，不是不買：股名後面接「的」不算。
     own_buy = re.compile(r'買' + re.escape(heard) + r'幹(?:什麼|嘛)|幹(?:什麼|嘛)(?:要)?(?:去)?買' + re.escape(heard)
-                         + r'|(?:沒有買|不買|不會買|不敢買|不推薦|不建議)' + re.escape(heard) + r'(?!的)')
+                         + r'|(?:(?<!有)沒有買|不買|不會買|不敢買|不推薦|不建議)' + re.escape(heard) + r'(?!的)')
     sents = _plain_sentences(transcript)
+    names = names if names is not None else _stance_names(transcript)
     for i in range(len(sents) - 1, -1, -1):
         s = sents[i]
         if heard not in s:
@@ -6059,19 +6106,22 @@ def plain_current_stance(heard, transcript, weak=False):
         if own_buy.search(s) and not (_LEFT_PAST.search(s) and not _LEFT_NOW.search(s)):
             return ('watch_avoid', s)
         clauses = [c for c in re.split(r'[，,；;]', s) if c]
-        at = [i for i, c in enumerate(clauses) if heard in c]
+        at = [k for k, c in enumerate(clauses) if heard in c]
         if weak:
-            at = [i for i in at if re.match(_LEFT_LEAD + re.escape(heard), clauses[i])]
+            at = [k for k in at if re.match(_LEFT_LEAD + re.escape(heard), clauses[k])]
         if not at:
             continue
 
         def near(lo, hi):
-            return '，'.join(c for i in at for c in clauses[max(0, i + lo):i + hi + 1])
+            return '，'.join(c for k in at for c in clauses[max(0, k + lo):k + hi + 1])
         if _LEFT_PAST.search(near(-1, 1)) and not _LEFT_NOW.search(near(-1, 1)):
             continue
-        if re.search(_LEFT_AVOID, near(0, 1)):
+        # 說法要真的是在講這一檔：同一句點到別檔時，看它貼著誰。
+        if any(_cue_is_about(heard, s, m.start(), m.end(), names) for m in re.finditer(_LEFT_AVOID, s)) \
+                and re.search(_LEFT_AVOID, near(0, 1)):
             return ('watch_avoid', s)
-        if re.search(_LEFT_WATCH, near(-1, 1)):
+        if any(_cue_is_about(heard, s, m.start(), m.end(), names) for m in re.finditer(_LEFT_WATCH, s)) \
+                and re.search(_LEFT_WATCH, near(-1, 1)):
             return ('watch_watch', s)
     return None
 
@@ -6138,13 +6188,14 @@ def align_watch_with_plain_refusal(signals, transcript):
     2026/10/05 重播：「低軌衛星，華通，我也沒有推薦」，覆核把華通、啟碁寫成觀望注意。
     同一句還有「拉回、買點、要注意」的不動——那是等條件，交給模型與語氣核對判斷。
     """
-    keep = []
+    keep, known = [], _stance_names(transcript)
     for row in signals.get('watch_watch', []) or []:
         pick = None
-        if isinstance(row, dict) and not row.get('_leftover'):
+        # 講者買進、只因日期核不出來才列在這裡的不動。
+        if isinstance(row, dict) and not row.get('_leftover') and row.get('_原分類') != 'buy':
             for n in sorted(_signal_names(row) | {str(row.get('name') or '')}, key=len, reverse=True):
                 if len(n) >= 2:
-                    pick = plain_current_stance(n, transcript, weak=len(n) <= 2)
+                    pick = plain_current_stance(n, transcript, weak=len(n) <= 2, names=known)
                     if pick:
                         break
         if not pick or pick[0] != 'watch_avoid' or _CONDITIONAL_WATCH.search(pick[1]):
@@ -7142,6 +7193,8 @@ _REVERSAL_CUE = re.compile(
     r'|賣壓(?![^，。；、]{0,4}(?:還沒|尚未|沒有|未能|不))[^，。；、]{0,5}?(?:減輕|減少|竭盡|消化|出盡|宣洩|賣完|解除|結束|告一段落)'
     r'|(?:消化|宣洩)(?:完畢?|掉)?(?:最後(?:的|一波)?)賣壓|(?:消化|宣洩)(?:完畢?|掉)(?:的)?賣壓'
     r'|(?:殺|跌|賣)不下去'
+    # 2026/10/06 重播：勤誠「已跌破900且量縮不破低，準備往季線走」是止穩的說法，被「跌破」改到觀望不碰。
+    r'|跌破[^，。；]{0,10}(?:量縮|止穩|止跌|不破低|守穩|守住|站回|撐住)|不破(?:低|底)|量縮(?:止穩|不破)'
     r'|不會(?:再)?跌(?:破)?')
 
 
@@ -7258,10 +7311,39 @@ def strip_editorial_wrappers(text):
     return text.replace('原文回顧', '先前').replace('原文強調的', '')
 
 
+# 公開文字不寫通知管道（2026/10/06 管理者）：前台只呈現分類與這一檔的說明，不提另有盤中通知這件事。
+# 規則與 scripts/public_narrative_v10.txt 的 NOTICE_WORD_RULES_ 同一組、同一順序；改一邊要改另一邊。
+#   「依通知在利多開高時逢高賣出」→「在利多開高時逢高賣出」
+#   「會員簡訊當日通知在平盤以下買進」→「平盤以下買進」
+#   「過去在大漲時通知會員獲利了結」→「過去在大漲時獲利了結」
+#   「今天早上9.04分，我告訴我的會員，…獲利賣出一次，全部的會員都通知。」→「今天早上9.04分，…獲利賣出一次。」
+_NOTICE_WORD_RULES = [
+    (r'(?:會員簡訊|簡訊通知(?!(?:了)?(?:所有|全部|全體|全國|一般|新進|新加入)?(?:的)?會員)|盤中(?:即時)?通知|即時通知|會員通知)(?:的)?(?:當日|當天|今日|當時)?(?:通知|說明|指出|提到|要求|內容)?(?:在|以)?[：:]?', ''),
+    (r'依(?:照|據)?(?:當日|今日|盤中|上述|該)?(?:的)?(?:通知|簡訊|指示)(?:內容|指示)?[，,]?', ''),
+    (r'(?:我)?(?:告訴|跟)我的會員(?:講|說)?[，,]?', ''),
+    (r'[，,]?(?:全部|所有|全體)(?:的)?會員都(?:有|已經?)?通知(?:了|到)?', ''),
+    (r'(?:已經?|並|也|就|都)?(?:發(?:出|送|布)?)?(?:簡訊)?通知(?:了)?(?:所有|全部|全體|全國|一般)?(?:的)?(?:新進|新加入)?(?:的)?會員(?:們)?', ''),
+    (r'(?:發(?:出|送|布)|收到|接獲)(?:的)?(?:簡訊|通知)', ''),
+    (r'簡訊', ''),
+]
+_NOTICE_WORD_RULES = [(re.compile(p), r) for p, r in _NOTICE_WORD_RULES]
+
+
+def scrub_notice_words(text) -> str:
+    """把通知管道的字眼從公開文字拿掉；內容（時間、條件、原因）照留。"""
+    text = str(text or '')
+    if not re.search(r'通知|簡訊|告訴我的會員', text):
+        return text
+    for pattern, repl in _NOTICE_WORD_RULES:
+        text = pattern.sub(repl, text)
+    text = re.sub(r'([，,])[，,]+', r'\1', text)
+    return re.sub(r'(^|[。；\n])[，,：:]+', r'\1', text)
+
+
 def public_narrative(text, row=None, signals=None):
     """正式名稱只改公開說明，證據原句及代號判讀歷程保持原樣。"""
     row, signals = row or {}, signals or {}
-    text = naturalize_reason(strip_editorial_wrappers(to_traditional(text)))
+    text = naturalize_reason(strip_editorial_wrappers(scrub_notice_words(to_traditional(text))))
     # 語音稿把「不准」聽寫成「不準」（「會員不準賣」）；後面接動作才換，「預測不準」不動。
     text = re.sub(r'不準(?=給我|亂|再|去|賣|買|碰|追|用|借|操作|進場|放空|做空)', '不准', text)
     # 「被講者點名」「遭講者明確列入」：公開說明不寫人當主詞，被動句裡的也拿掉（v96 書面句常這樣寫）。
@@ -8380,6 +8462,12 @@ def normalize_watch_tones(signals):
             else:
                 target=watch_tone(text)
                 how='關鍵字'
+                if (cat=='watch_watch' and target=='watch_avoid' and row.get('_原分類')=='buy'
+                        and not active_prohibit(strip_speaker_names(str(text or '')))):
+                    # 講者買進的那一檔只是日期核不出來才降到觀望注意，不能再靠關鍵字翻成觀望不碰。
+                    note_decision('語氣核對','保留觀望注意',name,_decision_detail(text,'原為買入，沒有明講不要買，不以關鍵字推翻'))
+                    print(f"  語氣核對　{name}　保留觀望注意（原為買入，說明沒有明講不要買）")
+                    target=cat
                 if cat=='watch_watch' and target=='watch_avoid' and not _bearish_or_neutral_basis(text):
                     note_decision('語氣核對','保留觀望注意',name,_decision_detail(text,'沒有偏空或中性依據，不以關鍵字推翻'))
                     print(f"  語氣核對　{name}　保留觀望注意（說明沒有偏空或中性依據）")
@@ -8675,6 +8763,31 @@ def _adds_new_content(sentence, existing) -> bool:
     return sum(g in e for g in grams) / len(grams) < 0.6
 
 
+def fill_empty_notes(signals):
+    """說明是空的或只剩幾個字時，用這一檔已核對的原句整理成一句，不讓空白上網站。
+
+    2026/10/06 重播：模型給鴻海（賣出）、勤誠的 reason 是空字串，那一輪補充說明又一檔都沒通過，兩檔最後是空白。
+    只用這一列自己的 view 或逐字引句，不新增內容；整理方式同規則補列的那幾檔。
+    """
+    for cat in SIGNAL_CATEGORIES:
+        for row in signals.get(cat, []) or []:
+            if not isinstance(row, dict):
+                continue
+            field = 'note' if cat == 'holdings' else 'reason'
+            if len(_ev_norm(row.get(field))) >= 8:
+                continue
+            names = [n for n in _signal_names(row) | {str(row.get('name') or '')} if len(n) >= 2]
+            quotes = [q for q in [row.get('view'), row.get('time_evidence')] + list(row.get('evidence') or [])
+                      if isinstance(q, str) and len(_ev_norm(q)) >= 8]
+            pick = next((q for q in quotes if any(n in q for n in names)), quotes[0] if quotes else '')
+            if not pick:
+                continue
+            row[field] = public_narrative(spoken_to_note(pick), row, signals)
+            print(f"  說明補空　{row.get('name')}：模型沒有寫說明，用已核對的原句：{row[field][:40]}")
+            note_decision('個股說明', '說明空白，改用已核對原句', str(row.get('name') or ''), row[field][:80])
+    return signals
+
+
 def enrich_stock_context(signals, transcript, date_str):
     """短說明在分類完成後合併補問一次；逐句驗引用，失敗保留原文、不擋通知。"""
     entries, targets = [], {}
@@ -8729,13 +8842,15 @@ def enrich_stock_context(signals, transcript, date_str):
             gap(row, '上下文補問未完成，保留已驗證說明')
         note_decision('個股說明', '補問未完成，保留原說明', date_str, f'{len(entries)} 檔；{str(exc)[:120]}')
         return signals
-    accepted = set()
+    accepted, why_not = set(), {}
     for reply in replies:
         if not isinstance(reply, dict) or reply.get('id') not in targets or reply['id'] in accepted:
+            why_not['id 對不上'] = why_not.get('id 對不上', 0) + 1
             continue
         row, field, source, spans, source_ids = targets[reply['id']]
         claims = reply.get('sentences')
         if not isinstance(claims, list) or not 1 <= len(claims) <= 5:
+            why_not['句數不對'] = why_not.get('句數不對', 0) + 1
             continue
         # 逐句核對，沒過的那一句不用、其餘照留：
         #   引用必須是這一檔摘錄裡的原字，句中的數字要在引用裡，技術名詞要在引用裡，
@@ -8795,6 +8910,8 @@ def enrich_stock_context(signals, transcript, date_str):
                 '；'.join(rejected) or ('方向改變或多數引用未通過' if not valid else
                 f'篇幅檢查：原 {len(_ev_norm(old))}、新 {len(_ev_norm(note))} 字，公開字數 {len(note)}'))
             gap(row, '補充的引用、數字、技術詞或方向未通過，保留原說明')
+            _k = (rejected[0].split(':', 1)[1] if rejected else '方向改變' if not valid else '比原說明短')
+            why_not[_k] = why_not.get(_k, 0) + 1
             continue
         if dropped:
             note_decision('個股說明', '部分補充句未通過核對', row.get('name', ''), f'{dropped}/{len(claims)} 句未採用')
@@ -8809,7 +8926,8 @@ def enrich_stock_context(signals, transcript, date_str):
     for identity, (row, *_) in targets.items():
         if identity not in accepted:
             gap(row, '未收到可採用的完整補充，保留原說明')
-    print(f'個股說明補充完成：採用 {len(accepted)}/{len(entries)} 檔，未通過者留內部篇幅提醒')
+    print(f'個股說明補充完成：採用 {len(accepted)}/{len(entries)} 檔，未通過者留內部篇幅提醒'
+          + (f'（回覆 {len(replies)} 筆；未採用原因：' + '、'.join(f'{k} {v}' for k, v in why_not.items()) + '）' if why_not else ''))
     note_decision('個股說明', f'合併補問完成，採用 {len(accepted)}/{len(entries)} 檔', date_str,
                   '未採用：' + ('、'.join(_display_name(row.get('name')) for identity, (row, *_r) in targets.items()
                                            if identity not in accepted) or '無'))
@@ -11917,6 +12035,7 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     # 補問有自己的逐句核對，之後照原順序再過一次歸屬檢查。
     signals = strip_foreign_price_claims(signals, TX["audit"])
     signals = enrich_stock_context(signals, TX["audit"], date_str)
+    signals = fill_empty_notes(signals)
     signals = strip_unsupported_event_context(signals, TX["audit"])
     signals = sanitize_entity_claims(signals, TX["audit"])
     # 說明裡的成本／買賣價若明顯是隔壁那一檔的，刪掉那一句（管理者回報鴻準238，2026/09/16）。
@@ -12806,6 +12925,7 @@ CM_PARSE_SYSTEM = (
     "就從摘錄中找出這一檔的理由（族群、法人動向、技術位置、講者的持有理由等），"
     "與本則簡訊的操作事實一起重新撰寫 note，不要直接照貼或把兩段文字相接；寫成 2 到 4 句、約 70 到 160 字，"
     "說明直接寫本股已證實的原因、技術位置、消息、法人與風險；來源不足可短，不為字數加推論過程。"
+    "note 不提這是通知或簡訊，也不寫「依通知」「通知會員」「已通知」「新加入會員可…」這類指示對象的話，直接寫這一檔的條件、原因與風險。"
     "不得寫會員簡訊、盤中通知、原文、逐字稿等來源名稱，也不得把交易價位重複寫進note，價位只填price與limit。\n"
     "摘錄只補背景，不得更改簡訊的股票、action、price、limit；不同時點的看法不可冒充同一條新指令。\n"
     "但邊界不變：只能用簡訊或逐字稿摘錄裡真的講過的內容。"
@@ -13978,6 +14098,13 @@ def parse_pending_sms(ss, since="", mode=None, today_only=False):
     write_status_log(ss, "會員簡訊", fin)
     if changed_dates:
         try:
+            carried = carry_transcript_into_sms_notes(ss, changed_dates)
+            if carried:
+                fin += f" 已用當天逐字稿補上 {carried} 筆說明。"
+        except RateLimited as exc:
+            print(f"  說明補充因配額暫停，保留原說明：{exc}")
+    if changed_dates:
+        try:
             queue_sms_content_sync(ss, changed_dates)
             fin += " 郵件查詢內容已排入背景同步；已寄出的信不重寄。"
         except Exception as exc:
@@ -14163,7 +14290,7 @@ SMS_TWO_SOURCE_REWRITE_SYSTEM = (
     '材料足夠時寫滿3至4句、100字以上。'
     '這是整理已發生內容，不提供新的買賣建議；不同時間的說法要區分，不可把影片的看法冒充新的盤中指令。'
     '不能換股票、方向、價位或否定詞，不能加入輸入沒有的數字、法人動向、預測或人名主詞。'
-    '不寫會員簡訊、盤中通知、原文、逐字稿等來源名稱，不把交易價位寫進說明；價位仍保留在輸入的獨立欄位。'
+    '不寫會員簡訊、盤中通知、原文、逐字稿等來源名稱，也不寫「依通知」「通知會員」「全部會員都通知」這類話，不把交易價位寫進說明；價位仍保留在輸入的獨立欄位。'
     '不寫推論過程、分類理由或歷史／當日通知的免責套句；有足夠事實時寫2至4句約70至160字，來源不足可以短，不湊字數。'
     '只回JSON物件：{"notes":[{"id":"輸入id","text":"重寫說明"}]}。每個id只回一筆。'
 )
@@ -14203,12 +14330,7 @@ def rewrite_sms_notes_from_two_sources(entries):
         if set(re.findall(r'\d+(?:\.\d+)?', note)) - allowed_numbers:
             continue
         # 數字先查驗再清理，不能靠刪掉模型杜撰的價格通過驗證。
-        direction = str(e['direction'])
-        if re.search(r'^買', direction) and re.search(r'賣出|賣掉|出清', note):
-            continue
-        if re.search(r'^賣', direction) and _sell_note_contradicts(note):
-            continue
-        if re.search(r'持股|持有', direction) and re.search(r'賣出|賣掉|出清', note):
+        if not _note_fits_direction(e['direction'], note):
             continue
         cleaned = public_sms_note(note, {'name': e['stock'], 'code': e['code'], 'price': e['price']})
         # 拿掉交易價之後留下「至少要攻到」「先行將賺取6、」這種半句時整則不採用，退回保守寫法。
@@ -14219,6 +14341,51 @@ def rewrite_sms_notes_from_two_sources(entries):
             accepted[e['id']] = note
     print(f'簡訊雙來源重寫：送出 {len(entries)} 筆，通過本機檢查 {len(accepted)} 筆')
     return accepted
+
+
+def _note_fits_direction(direction, note) -> bool:
+    """說明與這一列的方向沒有打架：買入的說明不能在講賣出，賣出的不能在講續抱，持股的不能在講賣出。"""
+    direction, note = str(direction or ''), str(note or '')
+    if re.search(r'^買', direction) and re.search(r'賣出|賣掉|出清', note):
+        return False
+    if re.search(r'^賣', direction) and _sell_note_contradicts(note):
+        return False
+    if re.search(r'持股|持有', direction) and re.search(r'賣出|賣掉|出清', note):
+        return False
+    return True
+
+
+def carry_transcript_into_sms_notes(ss, dates, limit=3):
+    """盤中那一筆比影片晚進來時，解析完立刻用當天逐字稿把說明補起來（2026/10/06）。
+
+    原本只有每日流程跑完擷取之後會補；影片已經整理完、盤中那一筆後到的日子（10/06 11:26 的鴻海、力積電），
+    說明就停在通知那一句，同一檔影片那一列又被「同日同檔以盤中為準」移掉，影片講的原因整個不見。
+    說明的來源順序固定：一、當天逐字稿講到這一檔 → 以逐字稿內容寫；二、逐字稿沒有這一檔 → 用通知內容，
+    拿掉來源字眼與價位；三、後台改過的那一列不動。分類一律照盤中那一筆。只做最近幾天，補歷史資料時不逐日呼叫模型。
+    """
+    done = 0
+    today = datetime.now(TAIPEI).date()
+    for day in sorted(set(dates), reverse=True)[:limit]:
+        try:
+            if abs((today - datetime.strptime(day, '%Y/%m/%d').date()).days) > 3:
+                continue
+            raw, _polished = existing_transcript(ss, '', day)
+        except Exception as exc:
+            print(f'  說明補充：讀不到 {day} 的逐字稿（{exc}），說明先用盤中內容')
+            continue
+        if len(re.sub(r'\s+', '', raw or '')) < 200:
+            print(f'  說明補充：{day} 還沒有逐字稿，說明先用盤中內容；逐字稿整理完會再補')
+            continue
+        if quota_exhausted():
+            print('  說明補充：模型配額已用盡，說明先用盤中內容')
+            break
+        try:
+            done += enrich_sms_notes_from_signals(ss, day, {}, raw) or 0
+        except RateLimited:
+            raise
+        except Exception as exc:
+            print(f'  說明補充：{day} 未完成，保留原說明（{exc}）')
+    return done
 
 
 def enrich_sms_notes_from_signals(ss, date_str, signals, transcript):
@@ -14307,6 +14474,18 @@ def enrich_sms_notes_from_signals(ss, date_str, signals, transcript):
                 'original': original, 'context': fallback, 'quotes': quotes, 'excerpt': excerpt,
             })
     rewritten = rewrite_sms_notes_from_two_sources(rewrite_entries)
+    # 同一天影片那一列的說明是已經核對過的逐字稿內容。重寫沒過、而這一檔影片有講時，直接用它，
+    # 不讓盤中那一列停在「請買進」一句（影片那一列之後會因為同日同檔被移掉，這裡不接就沒了）。
+    video_notes = {}
+    for tab, field, _ws, values in table_data:
+        if not values or not all(k in values[0] for k in ['日期', '代號', '來源影片ID', field]):
+            continue
+        vi = {k: values[0].index(k) for k in ['日期', '代號', '來源影片ID', field]}
+        for row in values[1:]:
+            if len(row) <= max(vi.values()) or row[vi['日期']] != date_str or _is_protected_source(row[vi['來源影片ID']]):
+                continue
+            if len(_ev_norm(row[vi[field]])) >= 20:
+                video_notes.setdefault(str(row[vi['代號']]), []).append(str(row[vi[field]]))
     # 解析明細沒有工作表列號；同檔同句若對到不同方向或價位就不猜哪一筆。
     detail_candidates = {}
     for e in rewrite_entries:
@@ -14322,6 +14501,7 @@ def enrich_sms_notes_from_signals(ss, date_str, signals, transcript):
         if not all(k in head for k in ['日期','代號','來源影片ID',field]):
             continue
         ci={k:head.index(k) for k in ['日期','代號','來源影片ID',field]}
+        dir_i = head.index('方向') if '方向' in head else head.index('目前立場') if '目前立場' in head else -1
         changes=[]
         for i,row in enumerate(values[1:],2):
             if len(row)<=max(ci.values()):
@@ -14336,7 +14516,15 @@ def enrich_sms_notes_from_signals(ss, date_str, signals, transcript):
             note=public_sms_note(original, sms_row)
             for candidate in by_code.get(str(row[ci['代號']]),[]):
                 note=sms_context_note(note,candidate,transcript,sms_row)
-            note = rewritten.get(f'{tab}:{i}', note)
+            if f'{tab}:{i}' in rewritten:
+                note = rewritten[f'{tab}:{i}']
+            elif not by_code.get(str(row[ci['代號']])):
+                direction = '會員持股' if tab == '會員持股' else (str(row[dir_i]) if 0 <= dir_i < len(row) else '')
+                borrowed = next((public_sms_note(v, sms_row) for v in video_notes.get(str(row[ci['代號']]), [])
+                                 if _note_fits_direction(direction, v)), '')
+                if len(_ev_norm(borrowed)) > len(_ev_norm(note)):
+                    print(f"  簡訊說明補充：{row[ci['代號']]} 改用同日影片那一列已核對的說明")
+                    note = borrowed
             if note!=original:
                 changes.append({'range':gspread.utils.rowcol_to_a1(i,ci[field]+1),'values':[[note]]})
         if changes:

@@ -717,6 +717,34 @@ function stripEditorialWrappers_(text) {
     .replace(/(?:原文|逐字稿)(?:補充|提到|提及|強調|提醒|指出|說明)(?:的)?/g, '')
     .replace(/原文回顧/g, '先前').replace(/原文強調的/g, '');
 }
+/* 公開文字不寫通知管道（2026/10/06）：前台只呈現分類與這一檔的說明。
+   規則與 pipeline.py 的 _NOTICE_WORD_RULES 同一組、同一順序；寫在這裡，已經存進試算表的舊說明呈現時也會乾淨。 */
+var NOTICE_WORD_RULES_ = [
+  [/(?:會員簡訊|簡訊通知(?!(?:了)?(?:所有|全部|全體|全國|一般|新進|新加入)?(?:的)?會員)|盤中(?:即時)?通知|即時通知|會員通知)(?:的)?(?:當日|當天|今日|當時)?(?:通知|說明|指出|提到|要求|內容)?(?:在|以)?[：:]?/g, ''],
+  [/依(?:照|據)?(?:當日|今日|盤中|上述|該)?(?:的)?(?:通知|簡訊|指示)(?:內容|指示)?[，,]?/g, ''],
+  [/(?:我)?(?:告訴|跟)我的會員(?:講|說)?[，,]?/g, ''],
+  [/[，,]?(?:全部|所有|全體)(?:的)?會員都(?:有|已經?)?通知(?:了|到)?/g, ''],
+  [/(?:已經?|並|也|就|都)?(?:發(?:出|送|布)?)?(?:簡訊)?通知(?:了)?(?:所有|全部|全體|全國|一般)?(?:的)?(?:新進|新加入)?(?:的)?會員(?:們)?/g, ''],
+  [/(?:發(?:出|送|布)|收到|接獲)(?:的)?(?:簡訊|通知)/g, ''],
+  [/簡訊/g, '']
+];
+function scrubNoticeWords_(text) {
+  text = String(text || '');
+  if (!/通知|簡訊|告訴我的會員/.test(text)) return text;
+  NOTICE_WORD_RULES_.forEach(function (rule) { text = text.replace(rule[0], rule[1]); });
+  return text.replace(/([，,])[，,]+/g, '$1').replace(/(^|[。；\n])[，,：:]+/g, '$1');
+}
+/** 公開 API 送出前的最後一關：物件裡每一段文字都過一次，歷程、出場原因這些沒有經過 publicNarrative_ 的欄位也算。 */
+function publicScrubDeep_(value) {
+  if (typeof value === 'string') return scrubNoticeWords_(value);
+  if (Array.isArray(value)) return value.map(publicScrubDeep_);
+  if (value && Object.prototype.toString.call(value) === '[object Object]') {
+    var out = {};
+    Object.keys(value).forEach(function (k) { out[k] = publicScrubDeep_(value[k]); });
+    return out;
+  }
+  return value;
+}
 /** 交易價留在價位欄，說明保留技術、消息與風險。 */
 function smsNoteBody_(text, row) {
   row = row || {};
@@ -768,6 +796,7 @@ function publicNarrative_(text, row) {
   var sms = /會員簡訊|盤中(?:即時)?通知/.test(String(text || '')) || /^CMONEY-/.test(String(row.videoId || row.sourceId || row['來源影片ID'] || ''));
   // 語音稿把「不准」聽寫成「不準」（「會員不準賣」）；後面接動作才換，「預測不準」不動。
   text = toTraditional_(text);
+  text = scrubNoticeWords_(text);
   text = stripEditorialWrappers_(text).replace(/不準(?=給我|亂|再|去|賣|買|碰|追|用|借|操作|進場|放空|做空)/g, '不准')
     .replace(/(被|遭|獲)(?:張震|張正|張總|張中|講者)(?:老師)?/g, '$1')   // 被動句裡的人名也不寫（v96）
     .replace(/(^|[，,。；;：:、「『（(\s]|雖然|但是|但|而且|而|並且|並|且|因為|所以)(?:張震|張正|張總|張中|講者)(?:老師)?(?:本人)?(?:的(?=會員))?/g,'$1')

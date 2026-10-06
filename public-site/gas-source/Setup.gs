@@ -348,6 +348,14 @@ function opsRuntimeConserve_() {
   return !!(used.recorded && used.minutes >= 45);
 }
 
+/** 報價排程上一棒是不是「批次來源成功」的便宜一棒（今天的、而且批次有資料）。 */
+function quoteJobCheap_() {
+  try {
+    var st = JSON.parse(PropertiesService.getScriptProperties().getProperty('QUOTE_JOB_STATUS') || '{}');
+    return st.misState === 'ok' && String(st.at || '').slice(0, 10) === Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy/MM/dd');
+  } catch (e) { return false; }
+}
+
 /** 每 n 分鐘才做一次。用上次執行時間判斷，不依賴觸發器的精準度。 */
 function dueEvery_(key, minutes) {
   var pr = PropertiesService.getScriptProperties();
@@ -437,7 +445,8 @@ function everyFiveMinJobRun_() {
   safe_('auditTrackedSymbolsJob', auditTrackedSymbolsJob);
   // 台北日估算只作提前節流，不能當成 Google 24 小時窗口的精確剩餘額度。
   // 保留每五分鐘的郵件、LINE 和原文續跑；只把可現場補抓的行情改為每十分鐘一次。
-  if (!opsRuntimeConserve_() || dueEvery_('quoteConserve', 10)) {
+  // v134：上一棒是批次來源成功的（約 6 秒一棒），用量保護時也維持每五分鐘；只有退回逐檔備援（一棒 30 秒）時才降為十分鐘。
+  if (!opsRuntimeConserve_() || quoteJobCheap_() || dueEvery_('quoteConserve', 10)) {
     safe_('refreshQuoteCacheJob', refreshQuoteCacheJob);
   }
   // 收盤後把即時快取換成收盤價（v134）。自己判斷時段、是否已做完與嘗試間隔，沒事做時立刻返回。
@@ -1214,7 +1223,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-10-06-closing-price-v134r2';
+var PROJECT_BUILD_ = '2026-10-06-closing-price-v134r3';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。

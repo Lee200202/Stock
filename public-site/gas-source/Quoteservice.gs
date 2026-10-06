@@ -732,6 +732,12 @@ function settleClosingQuotesTick_(force) {
   }
   st.pending = pending.length - settled.length;
   st.done = st.pending === 0;
+  // 剩下的少數幾檔（興櫃、暫停交易）日K沒有今天、批次來源也沒有：15:00 之後試過三次就記下來收工，
+  // 讀取端會照實顯示它最後一個交易日的收盤（2026/10/06 的 6597）。
+  if (!st.done && st.pending <= 5 && st.tries >= 3 && hhmm >= 1500) {
+    st.done = true;
+    st.noData = pending.filter(function (c) { return !fresh[c]; });
+  }
   st.last = { fromK: fromK, fromMis: fromMis, fromFugle: fromFugle, misNote: misNote };
   pr.setProperty(QUOTE_CLOSE_PROP_, JSON.stringify(st));
   Logger.log('收盤價：換成收盤價 ' + settled.length + ' 檔（日K ' + fromK + '、MIS ' + fromMis + '、富果 ' + fromFugle + '），尚餘 ' + st.pending + ' 檔' + (misNote ? '；MIS：' + misNote : ''));
@@ -1261,25 +1267,43 @@ function quoteRelayUrl_() {
 function misRows_(channels) {
   var query = encodeURIComponent(channels.join('|')), firstError = null, directDown = false, store = null;
   try { store = PropertiesService.getScriptProperties(); directDown = Date.now() < Number(store.getProperty(MIS_DIRECT_DOWN_PROP_) || 0); } catch (e) {}
-  if (!directDown) {
+  var direct = function () {
     try {
       var res = UrlFetchApp.fetch('https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=' + query + '&json=1&delay=0&_=' + Date.now(), {
         muteHttpExceptions: true, headers: { Referer: 'https://mis.twse.com.tw/stock/index.jsp' }
       });
-      if (res.getResponseCode() === 200) { MIS_LAST_VIA_ = 'direct'; return JSON.parse(res.getContentText()).msgArray || []; }
-      firstError = new Error('MIS HTTP ' + res.getResponseCode());
-    } catch (e) { firstError = e; }
+      if (res.getResponseCode() === 200) {
+        var rows = JSON.parse(res.getContentText()).msgArray || [];
+        MIS_LAST_VIA_ = 'direct';
+        try { if (directDown) { store.deleteProperty(MIS_DIRECT_DOWN_PROP_); } } catch (ignore) {}
+        return rows;
+      }
+      firstError = firstError || new Error('MIS HTTP ' + res.getResponseCode());
+    } catch (e) { firstError = firstError || e; }
     try { store.setProperty(MIS_DIRECT_DOWN_PROP_, String(Date.now() + 24 * 3600000)); } catch (ignore) {}
-  }
-  var relay = quoteRelayUrl_(), token = '';
-  try { token = PropertiesService.getScriptProperties().getProperty('SITE_BRIDGE_TOKEN') || ''; } catch (e) {}
-  if (!relay || !token) { throw firstError || new Error('MIS 直連中斷，且沒有可用的轉送'); }
-  var r = UrlFetchApp.fetch(relay + '?ex_ch=' + query, { muteHttpExceptions: true, headers: { 'X-Bridge-Token': token } });
-  if (r.getResponseCode() !== 200) { throw new Error('報價轉送 HTTP ' + r.getResponseCode()); }
-  var body = JSON.parse(r.getContentText());
-  if (!body || !body.ok || !Array.isArray(body.msgArray)) { throw new Error('報價轉送回應無效'); }
-  MIS_LAST_VIA_ = 'relay';
-  return body.msgArray;
+    return null;
+  };
+  var viaRelay = function () {
+    var relay = quoteRelayUrl_(), token = '';
+    try { token = PropertiesService.getScriptProperties().getProperty('SITE_BRIDGE_TOKEN') || ''; } catch (e) {}
+    if (!relay || !token) { firstError = firstError || new Error('沒有可用的報價轉送'); return null; }
+    try {
+      var r = UrlFetchApp.fetch(relay + '?ex_ch=' + query, { muteHttpExceptions: true, headers: { 'X-Bridge-Token': token } });
+      if (r.getResponseCode() !== 200) { firstError = firstError || new Error('報價轉送 HTTP ' + r.getResponseCode()); return null; }
+      var body = JSON.parse(r.getContentText());
+      if (!body || !body.ok || !Array.isArray(body.msgArray)) { firstError = firstError || new Error('報價轉送回應無效'); return null; }
+      MIS_LAST_VIA_ = 'relay';
+      return body.msgArray;
+    } catch (e) { firstError = firstError || e; return null; }
+  };
+  /* 順序：直連（沒被記為中斷時）→ 轉送 →（直連這一次被略過的話）回頭再試一次直連。
+     2026/10/06 收盤後的紀錄：16:59 直連成功、17:04 直連失敗而轉送成功——直連是時好時壞，不是永久不通，
+     所以兩條路互為備援，任何一條通就有資料。 */
+  var out = directDown ? null : direct();
+  if (!out) { out = viaRelay(); }
+  if (!out && directDown) { out = direct(); }
+  if (!out) { throw firstError || new Error('批次報價兩條路都沒有回應'); }
+  return out;
 }
 
 /** 同一批上市／上櫃代號一次查詢，依回傳代號對應，不依陣列順序。 */

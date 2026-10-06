@@ -62,7 +62,7 @@ function makeWorld(scenario) {
     const seen = new Set(), out = [];
     decodeURIComponent(channels).split('|').forEach(ch => {
       const c = ch.replace(/^(?:tse|otc)_/, '').replace(/\.tw$/, '');
-      if (!ch.startsWith('tse_') || seen.has(c)) { out.push({z: '-'}); return; }
+      if (!ch.startsWith('tse_') || seen.has(c) || c === scenario.noData) { out.push({z: '-'}); return; }
       seen.add(c);
       const p = parts(new Date(clock.now)), closed = secOfDay() >= 13 * 3600 + 30 * 60;
       out.push({c, n: '股' + c, z: String(priceNow(c)), y: String(base(c) - 1), d: p.yyyy + p.MM + p.dd,
@@ -88,7 +88,8 @@ function makeWorld(scenario) {
     if (url.includes('/intraday/quote/')) {
       stats.fugle++; clock.now += scenario.fugleMs || 1750;                       // 含限速等待；正式環境實測一棒 30 秒 17 檔
       const c = decodeURIComponent(url.split('/intraday/quote/')[1]), p = parts(new Date(clock.now));
-      return response(200, {symbol: c, name: '股' + c, date: p.yyyy + '-' + p.MM + '-' + p.dd, previousClose: base(c) - 1,
+      // 當天沒有成交的那一檔，逐檔來源回的是前一個交易日，程式不採用。
+      return response(200, {symbol: c, name: '股' + c, date: c === scenario.noData ? '2026-10-05' : p.yyyy + '-' + p.MM + '-' + p.dd, previousClose: base(c) - 1,
         lastTrade: {price: priceNow(c), time: Math.min(clock.now, taipei(today(), '13:30:00')) * 1000}, openPrice: base(c),
         highPrice: base(c) + 60, lowPrice: base(c) - 2, total: {tradeVolume: volNow(c)}});
     }
@@ -116,7 +117,7 @@ function makeWorld(scenario) {
   vm.runInContext(SOURCE, ctx, {filename: 'Quoteservice.gs'});
   const view = codes => codes.forEach(c => CACHE.put('quote_viewed_' + c, String(clock.now), 1800));
   const row = c => sheet.rows.slice(1).find(r => String(r[0]) === c);
-  const landDailyK = ymd => CODES.forEach(c => {
+  const landDailyK = ymd => CODES.filter(c => c !== scenario.noData).forEach(c => {
     const rows = [{date: '2026/10/05', open: base(c), high: base(c) + 3, low: base(c) - 3, close: base(c) - 1, volume: 900000},
                   {date: ymd, open: base(c), high: base(c) + 60, low: base(c) - 2, close: closeOf(c), volume: (1000 + Number(c) % 50) * 1000}];
     dailyK[c] = rows; CACHE.put('dk2_' + c, ctx.kcEncode_(rows), 21600);
@@ -299,6 +300,29 @@ const report = [];
   assert.equal(w.stats.misDirect, directBefore, '隔天盤中不該再試直連');
   assert.equal(w.stats.fugle, fugleBefore, '批次有資料時不必逐檔取');
   report.push('八、隔天 09:00～13:30：55 棒每一棒 240 檔全部更新、報價皆在五分鐘內；不再試直連、不需逐檔備援');
+}
+
+/* ---- 九、直連時好時壞：先前記為中斷、這一天轉送又剛好不通，仍要回頭用直連拿到資料 ---- */
+{
+  const w = makeWorld({direct: true, relay: false});
+  w.props.set('MIS_DIRECT_DOWN_UNTIL', String(taipei(NEXT, '17:00:00')));
+  const day = intraday(runDay(w));
+  day.forEach(r => { assert.equal(r.changed.length, CODES.length, `${r.hm} 只更新 ${r.changed.length} 檔`); assert.equal(r.status.misVia, 'direct'); });
+  assert.equal(w.props.has('MIS_DIRECT_DOWN_UNTIL') && Number(w.props.get('MIS_DIRECT_DOWN_UNTIL')) > w.clock.now, false, '直連恢復後要解除中斷記號');
+  assert.equal(w.stats.fugle, 0);
+  report.push('九、直連先前記為中斷、轉送不通：回頭用直連，每棒仍是 240 檔全部更新，並解除中斷記號');
+}
+
+/* ---- 十、少數股票當天沒有任何成交資料（興櫃、暫停交易）：其餘照常結算，不無限重試 ---- */
+{
+  const lonely = CODES.find(c => !HELD.includes(c));
+  const w = makeWorld({direct: false, relay: true, noData: lonely});
+  runDay(w);
+  const st = JSON.parse(w.props.get('QUOTE_CLOSE_SETTLE'));
+  assert.equal(finalRows(w).length, CODES.length - 1);
+  assert.equal(st.done, true); assert.deepEqual(st.noData, [lonely]);
+  assert.ok(st.tries <= 25, `收盤結算試了 ${st.tries} 次`);
+  report.push(`十、一檔當天沒有成交資料：其餘 ${CODES.length - 1} 檔結算為收盤價，那一檔記為無資料後收工（共試 ${st.tries} 次）`);
 }
 
 function runDayUntil(w, untilHm) {

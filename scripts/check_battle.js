@@ -8,7 +8,9 @@ const read = n => fs.readFileSync(path.join(root,'public-site/gas-source',n),'ut
 const ctx = {window:{}, console}; vm.createContext(ctx);
 vm.runInContext(read('BattleConfig.html').match(/<script>([\s\S]*?)<\/script>/)[1],ctx);
 vm.runInContext(read('Battle.html').match(/<script>([\s\S]*?)<\/script>/)[1],ctx);
-const run = ctx.window.MarketBattle.evaluate;
+// 這份檔案的門檻案例是照「日量 2.5 倍」寫的；預設值後來改成 1 倍，所以這裡明講 2.5，預設值另外有一條測試。
+const evaluate = ctx.window.MarketBattle.evaluate;
+const run = (item, prefs, context) => evaluate(item, {volumeMultiple: 2.5, ...prefs}, context);
 let count = 0;
 function test(name, fn) { fn(); count++; console.log('OK '+name); }
 const calendar = []; let d = new Date('2026-07-01T12:00:00Z');
@@ -93,6 +95,13 @@ test('UTC quote time converts to Taipei; final daily K never remains estimated',
  const i=fixture();i.quote={date:base.date,open:103,high:107,low:102,last:106,volume:1800,prevClose:100,stamp:base.date.replaceAll('/','-')+'T01:30:00Z',stale:false};
  assert.equal(run(i,{volumeMode:'estimate'}, {...base,afterClose:false}).estimateMinutes,30);
  const r=run(i,{volumeMode:'estimate'},base);assert.equal(r.estimated,false);assert.equal(r.comparisonRatio,2.5);assert.equal(r.estimatedVolume,null);
+});
+test('default volume multiple is 1: volume at or above the average qualifies',()=>{
+ assert.equal(ctx.window.BATTLE_CONFIG.defaults.volumeMultiple, 1); assert.equal(ctx.window.MarketBattle.cleanPrefs({}).volumeMultiple, 1);
+ const i = fixture(); i.bars[60].volume = 1000;                              // 剛好等於 20 日均量
+ assert.equal(evaluate(i, {}, base).pass, true); assert.match(evaluate(i, {}, base).checks[1].rule, /均量 × 1，/);
+ i.bars[60].volume = 999; assert.equal(evaluate(i, {}, base).pass, false);       // 低於均量（也低於最低張數）
+ assert.equal(ctx.window.MarketBattle.cleanPrefs({volumeMultiple: 2.5}).volumeMultiple, 2.5);   // 使用者存的值照舊
 });
 /* ---- v136 條件組：同一組一種邏輯、組與組之間另一種 ---- */
 const clean = ctx.window.MarketBattle.cleanPrefs;

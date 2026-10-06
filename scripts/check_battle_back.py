@@ -30,12 +30,12 @@ while _d <= date(2026, 10, 6):
         CALENDAR.append(_d.strftime('%Y/%m/%d'))
     _d += timedelta(days=1)
 UNIVERSE = [{'code': str(1000 + n), 'name': '示意股票' + str(n)} for n in range(50)]
-FAIL = {'1001', '1007', '1013'}                      # 量不夠，不符合
+FAIL = {'1001', '1007', '1013'}                      # 量 800 張：低於均量也低於最低張數，不符合
 
 
 def item(code):
     bars = [dict(date=d, open=100, high=101, low=99, close=100, volume=1000) for d in CALENDAR[-121:-1]]
-    bars.append(dict(date=CALENDAR[-1], open=105, high=109, low=104, close=108, volume=1200 if code in FAIL else 4000))
+    bars.append(dict(date=CALENDAR[-1], open=105, high=109, low=104, close=108, volume=800 if code in FAIL else 4000))
     return dict(code=code, name='示意股票' + str(int(code) - 1000), bars=bars, quote=None)
 
 

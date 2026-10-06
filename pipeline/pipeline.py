@@ -12075,7 +12075,6 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     # 補問有自己的逐句核對，之後照原順序再過一次歸屬檢查。
     signals = strip_foreign_price_claims(signals, TX["audit"])
     signals = enrich_stock_context(signals, TX["audit"], date_str)
-    signals = fill_empty_notes(signals, TX["audit"])
     signals = strip_unsupported_event_context(signals, TX["audit"])
     signals = sanitize_entity_claims(signals, TX["audit"])
     # 說明裡的成本／買賣價若明顯是隔壁那一檔的，刪掉那一句（管理者回報鴻準238，2026/09/16）。
@@ -12141,6 +12140,9 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     # 沿用前一版的列也要走公開文字整理；保留原始引用與待複核狀態。
     signals = normalize_price_fields(signals)
     signals = naturalize_signal_reasons(signals)
+    # 排在所有清理之後：事件依據、別檔價位、主詞核對都可能把一檔的說明整段拿掉
+    # （2026/10/01 重播，力旺的說明在補充之後被事件依據核對清成空白）。
+    signals = fill_empty_notes(signals, TX["audit"])
     for line in flag_category_contradictions(signals):
         print('  ' + line)
     gaps_all = signals.get('_repair_gaps') or []

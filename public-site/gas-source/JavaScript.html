@@ -506,8 +506,10 @@
     if (name === 'perf' && !perfLoaded) { loadPerf(); }
     if (name === 'mail' && !mailLoaded) { loadMailDates(); }
     if (name === 'tx' && !txLoaded) { loadTxDates(); }
+    if (name === 'battle' && window.__battleLoad) { window.__battleLoad(); }
   }
   window.__activateTab = activateTab;
+  window.__openBattleStock = openDetail;
 
   // 只綁按鈕。導覽列裡的「後台」是 <a>，點了要直接跳頁，
   // 不能被切分頁的邏輯攔下來（那會找不到 p-undefined 而整個壞掉）。
@@ -720,6 +722,7 @@ function stripEditorialWrappers_(text) {
 /* 公開文字不寫通知管道（2026/10/06）：前台只呈現分類與這一檔的說明。
    規則與 pipeline.py 的 _NOTICE_WORD_RULES 同一組、同一順序；寫在這裡，已經存進試算表的舊說明呈現時也會乾淨。 */
 var NOTICE_WORD_RULES_ = [
+  [/(?:新加入|新進|剛加入)(?:的)?會員(?:們)?(?=(?:可以|可)?(?:買進|買入|加碼|賣出|續抱))/g, ''],
   [/(?:會員簡訊|簡訊通知(?!(?:了)?(?:所有|全部|全體|全國|一般|新進|新加入)?(?:的)?會員)|盤中(?:即時)?通知|即時通知|會員通知)(?:的)?(?:當日|當天|今日|當時)?(?:通知|說明|指出|提到|要求|內容)?(?:在|以)?[：:]?/g, ''],
   [/依(?:照|據)?(?:當日|今日|盤中|上述|該)?(?:的)?(?:通知|簡訊|指示)(?:內容|指示)?[，,]?/g, ''],
   [/(?:我)?(?:告訴|跟)我的會員(?:講|說)?[，,]?/g, ''],
@@ -730,7 +733,7 @@ var NOTICE_WORD_RULES_ = [
 ];
 function scrubNoticeWords_(text) {
   text = String(text || '');
-  if (!/通知|簡訊|告訴我的會員/.test(text)) return text;
+  if (!/通知|簡訊|告訴我的會員|新加入|新進|剛加入/.test(text)) return text;
   NOTICE_WORD_RULES_.forEach(function (rule) { text = text.replace(rule[0], rule[1]); });
   return text.replace(/([，,])[，,]+/g, '$1').replace(/(^|[。；\n])[，,：:]+/g, '$1');
 }
@@ -2475,6 +2478,7 @@ function restatesEarlier_(key, earlier) {
         DETAIL.header.quote = q;
         renderHeader(DETAIL.header);
         updateDetailHoldingQuote_(q);
+        if (window.__battleQuote) window.__battleQuote(code, q);
       }
       quotePolledAt = Date.now();
       scheduleDetailQuote_();
@@ -2491,6 +2495,7 @@ function restatesEarlier_(key, earlier) {
     var request = ++detailRequest;
     if (!isCode(code)) { return; }
     currentCode = code;
+    if (window.__battleDetail) { window.__battleDetail(code); }
     clearTimeout(quotePollTimer); quotePolledAt = Date.now();
     USE.act('看個股', code);
     DETAIL = { code: code, tracker: undefined, record: undefined };

@@ -57,6 +57,7 @@
   <nav class="wrap tabs" role="tablist">
     <button class="tab" role="tab" aria-selected="true"  data-tab="overview"><svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>每日總覽</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="tracker"><svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/></svg>持股追蹤</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="battle"><svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4v8l5 3M4 12h3"/></svg>戰情追蹤</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="perf"><svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>績效走勢</button>
     <!-- 個股查詢搬到頂列右上角的放大鏡了。
          它跟其他分頁不是同一種東西：其他分頁是「看今天／看這段期間有什麼」，
@@ -157,6 +158,23 @@
 </div><!-- /#overviewTop -->
 
 <main class="wrap">
+
+  <section class="panel" id="p-battle" role="tabpanel" hidden>
+    <div class="sect">
+      <div class="sect-h"><h2>戰情追蹤</h2><button type="button" class="act ghost" id="battleRefresh">更新資料</button></div>
+      <p class="notice">用落地日 K 與累計成交量核對條件，範圍為本站追蹤股。盤中可變動；條件符合不代表主力進場或交易建議。</p>
+      <button type="button" class="act ghost" id="battleSettings">調整條件</button><div class="battle-tools">
+        <form id="battleSearch"><label for="battleCode">查看指定代號</label><div class="battle-search"><input id="battleCode" inputmode="numeric" placeholder="例如 2330" maxlength="6"><button type="submit" class="act">查看</button></div></form>
+        <div class="chartbar"><div class="seg held-toggle" id="battleFilter" aria-label="本頁篩選"><button type="button" class="pill on" data-bfilter="all" aria-pressed="true">全部</button><button type="button" class="pill" data-bfilter="pass" aria-pressed="false">符合條件</button><button type="button" class="pill" data-bfilter="pending" aria-pressed="false">待核對</button></div></div>
+      </div>
+      <p id="battleSummary" class="notice" role="status" aria-live="polite">選取此分頁後讀取資料。</p>
+      <p id="battleRule" class="battle-rule"></p>
+      <div id="battleCards" class="battle-list"></div>
+      <div class="battle-pagination"><button type="button" class="act" id="battlePrev" disabled>上一頁</button><span id="battlePage"></span><button type="button" class="act" id="battleNext" disabled>下一頁</button><button type="button" class="act" id="battleUniverse" hidden>回追蹤清單</button></div>
+      <details class="battle-help"><summary>判定方式與資料限制</summary><p>跳空幅度以開盤／昨收計算，另要求開盤超出昨日高低價。爆量以當日實際成交量除以前 5 或 20 個交易日均量，均量排除當日。盤中累計量不冒充預估全日量或同時段量比。</p><p>均線、前高低、MACD、KD、布林與 K 棒是可選的附加條件；到版面設定調整。缺資料不算未符合，另列待核對。缺口歷史的三日是事件後三個交易日，不是日曆日；仍需核對除權息、減資或分割等事件。</p><p>目前沒有可靠的歷史同時段累計量、流通股數與法人買賣資料，因此不提供量比、周轉率或法人濾網。頁面只讀既有快取；不會啟動行情補抓、重算或寄送。</p></details>
+      <noscript><p>戰情追蹤需要 JavaScript 計算；核心規則見上方判定方式。沒有運算結果時不顯示符合訊號。</p></noscript>
+    </div>
+  </section>
 
   <!-- ============ 每日總覽 ============ -->
   <section class="panel" id="p-overview" role="tabpanel">
@@ -497,6 +515,7 @@
     <nav class="dnav" id="dNav" aria-label="個股面板段落">
       <button type="button" data-go="dSecHold" aria-current="true">持有期間</button>
       <button type="button" data-go="dSecK">K 線</button>
+      <button type="button" data-go="dSecBattle">技術條件</button>
       <button type="button" data-go="dSecFund">公司資料</button>
       <button type="button" data-go="dSecRec">每天講了什麼</button>
     </nav>
@@ -556,6 +575,11 @@
         <p class="notice" id="periodNote"></p>
       </div>
 
+      <div class="sect" id="dSecBattle">
+        <div class="sect-h"><h2>技術條件</h2></div>
+        <p class="notice">與戰情追蹤使用相同設定，依日 K 判斷，不隨圖表週期改變。</p>
+        <div id="dBattle">尚未讀取技術條件。</div>
+      </div>
       <div class="sect" id="dSecFund">
         <div class="sect-h"><h2>估值與公司資料</h2></div>
         <div class="kv-grid" id="dFund"></div>
@@ -572,5 +596,6 @@
 
 <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <?!= include('JavaScript'); ?>
+<?!= include('Battle'); ?>
 </body>
 </html>

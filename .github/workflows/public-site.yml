@@ -34,6 +34,8 @@ jobs:
           python-version: '3.11'
       - name: 原始介面與 API 方法對齊
         run: python scripts/check_original_parity.py
+      - name: 戰情公式與缺漏資料檢查
+        run: node scripts/check_battle.js
       - name: 後端橋接實測（失敗就保留上一版網站）
         env:
           SITE_API_URL: ${{ vars.SITE_API_URL }}

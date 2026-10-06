@@ -28,6 +28,7 @@ function siteBridge_(e) {
     apiAsk: apiAsk,
     apiFormatTranscript: apiFormatTranscript,
     apiGetCandlesBundle: apiGetCandlesBundle,
+    apiGetBattleData: apiGetBattleData,
     apiGetDashboard: apiGetDashboard,
     apiGetHoldingsTracker: apiGetHoldingsTracker,
     apiGetLineEntry: apiGetLineEntry,

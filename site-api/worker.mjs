@@ -1,7 +1,7 @@
 // Free Cloudflare Worker: public Pages frontend -> existing Apps Script backend.
 // The bridge token stays server-side. Admin methods still require the existing admin key.
 const ALLOWED = 'https://lee200202.github.io';
-const BUILD = 'site-api-v107-r1';
+const BUILD = 'site-api-v128-r1';
 const MAX_ARGS = 8;
 const ADMIN_METHODS = ('apiAdminCancelCrawl apiAdminCancelDaySync apiAdminCancelFix ' +
   'apiAdminCancelFullFix apiAdminCancelJob apiAdminCancelRefresh apiAdminCancelSmsJob ' +
@@ -22,6 +22,7 @@ const ADMIN_METHODS = ('apiAdminCancelCrawl apiAdminCancelDaySync apiAdminCancel
   'apiAdminTodayStatus apiAdminUpdateRow').split(' ');
 const METHODS = new Set([
   'apiAsk', 'apiFormatTranscript', 'apiGetCandlesBundle', 'apiGetDashboard',
+  'apiGetBattleData',
   'apiGetHoldingsTracker', 'apiGetLineEntry', 'apiGetMailContent',
   'apiGetMemberSms', 'apiGetPerformanceSeries',
   'apiGetQuotesFor', 'apiGetStockFundamentals', 'apiGetStockSummary',
@@ -36,6 +37,7 @@ const METHODS = new Set([
 /* 公開唯讀結果只在有效期內重用；不以過期資料掩蓋後端失敗。
    同時到達的相同查詢共用一個進行中請求，避免每位訪客都啟動 GAS 讀表。 */
 const READ_TTL = {
+  apiGetBattleData: 60,
   apiGetDashboard: 60, apiGetQuotesFor: 60, apiGetHoldingsTracker: 120,
   apiGetStockSummary: 120, apiSearchStock: 120, apiListRecordDates: 300, apiListMailDates: 300,
   apiGetMailContent: 60, apiSearchByDate: 60, apiGetCandlesBundle: 300, apiGetPerformanceSeries: 600,

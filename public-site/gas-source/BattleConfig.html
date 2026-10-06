@@ -1,0 +1,67 @@
+<!-- 戰情追蹤的版面與篩選預設。使用者設定只存在本機，不改後台分類與寄送。 -->
+<script>
+window.BATTLE_CONFIG = {
+  version: 1, pageSize: 24, storageKey: 'zzBattlePrefsV1',
+  defaults: { gapPct: 2.5, volumeMultiple: 2.5, volumeDays: 20, minLots: 1000,
+    direction: 'up', trendDays: 20, breakoutDays: 20, closePosition: 0.7,
+    useTrend: false, useBreakout: false, useMacd: false, useKD: false, useBody: false, useBoll: false },
+  limits: { gapPct: [0.1, 15], volumeMultiple: [1, 10], minLots: [0, 1000000],
+    closePosition: [0.5, 1] },
+  periods: { volumeDays: [5, 20], trendDays: [5, 10, 20, 60, 120], breakoutDays: [20, 60] }
+};
+</script>
+<script>
+(function () {
+  'use strict';
+  var cfg = window.BATTLE_CONFIG, prefs = Object.assign({}, cfg.defaults);
+  function sanitize(input) {
+    var p = Object.assign({}, cfg.defaults), x = input || {};
+    Object.keys(p).forEach(function (k) {
+      if (typeof p[k] === 'boolean') { if (typeof x[k] === 'boolean') p[k] = x[k]; }
+      else if (cfg.limits[k] && x[k] !== '' && x[k] !== null && x[k] !== undefined) {
+        var v = Number(x[k]); if (isFinite(v) && v >= cfg.limits[k][0] && v <= cfg.limits[k][1]) p[k] = v;
+      } else if (cfg.periods[k]) { if (cfg.periods[k].indexOf(Number(x[k])) >= 0) p[k] = Number(x[k]); }
+      else if (k === 'direction' && ['up', 'down'].indexOf(x[k]) >= 0) p[k] = x[k];
+    }); return p;
+  }
+  try { prefs = sanitize(JSON.parse(localStorage.getItem(cfg.storageKey) || '{}')); } catch (e) {}
+  function commit(value) {
+    prefs = sanitize(value); var saved = true;
+    try { localStorage.setItem(cfg.storageKey, JSON.stringify(prefs)); } catch (e) { saved = false; }
+    window.dispatchEvent(new CustomEvent('battle-settings-change'));
+    return saved;
+  }
+  window.BattleSettings = { get: function () { return Object.assign({}, prefs); }, sanitize: sanitize, set: commit };
+  document.addEventListener('DOMContentLoaded', function () {
+    var menu = document.getElementById('setMenu'); if (!menu) return;
+    var wrap = document.createElement('details'); wrap.className = 'battle-settings';
+    function numeric(k, label, step) { var lim = cfg.limits[k]; return '<label>' + label + '<input type="number" data-bpref="' + k + '" min="' + lim[0] + '" max="' + lim[1] + '" step="' + step + '" value="' + prefs[k] + '"></label>'; }
+    function select(k, label, options) { return '<label>' + label + '<select data-bpref="' + k + '">' + options.map(function (o) { return '<option value="' + o[0] + '"' + (String(prefs[k]) === String(o[0]) ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label>'; }
+    function flag(k, label) { return '<label class="battle-check"><input type="checkbox" data-bpref="' + k + '"' + (prefs[k] ? ' checked' : '') + '>' + label + '</label>'; }
+    function periods(k) { return cfg.periods[k].map(function (n) { return [n, n + ' 日']; }); }
+    wrap.innerHTML = '<summary>戰情條件</summary><div class="battle-pref-grid">' +
+      select('direction', '跳空方向', [['up', '向上'], ['down', '向下']]) + numeric('gapPct', '最低開盤幅度（%）', 0.1) +
+      select('volumeDays', '均量基準（不含當日）', periods('volumeDays')) + numeric('volumeMultiple', '最低日量倍數', 0.1) + numeric('minLots', '最低當日量（張）', 1) +
+      flag('useTrend', '加上均線條件') + select('trendDays', '均線週期', periods('trendDays')) +
+      flag('useBreakout', '加上前高低突破') + select('breakoutDays', '前高低週期', periods('breakoutDays')) +
+      flag('useBody', '加上 K 棒實體與收盤位置') + numeric('closePosition', '收盤位置（0.5–1）', 0.05) +
+      flag('useMacd', '加上 MACD 柱體方向') + flag('useKD', '加上 KD 相對位置') + flag('useBoll', '加上布林通道突破（20 日、2 倍標準差）') + '</div>' +
+      '<button type="button" class="act ghost" id="battleReset">還原戰情預設</button><p class="notice" id="battlePrefMessage" role="status">只改本機篩選，前後台共用；不改操作分類、文章或寄送。</p>';
+    menu.appendChild(wrap);
+    function updatePreference(e) {
+      var el = e.target, key = el.dataset.bpref; if (!key) return;
+      if (!el.checkValidity() || (el.type === 'number' && el.value === '')) { document.getElementById('battlePrefMessage').textContent = '請輸入欄位標示範圍內的有效數值。'; return; }
+      var next = Object.assign({}, prefs); next[key] = el.type === 'checkbox' ? el.checked : el.value;
+      var saved = commit(next);
+      document.getElementById('battlePrefMessage').textContent = saved ? '已套用，符合項目會立即重新計算。' : '本次已套用；瀏覽器阻擋儲存，下次開啟不會保留。';
+    }
+    wrap.addEventListener('input', updatePreference);
+    wrap.addEventListener('change', updatePreference);
+    document.getElementById('battleReset').addEventListener('click', function () {
+      commit(cfg.defaults);
+      wrap.querySelectorAll('[data-bpref]').forEach(function (el) { if (el.type === 'checkbox') el.checked = prefs[el.dataset.bpref]; else el.value = prefs[el.dataset.bpref]; });
+      document.getElementById('battlePrefMessage').textContent = '已還原戰情預設。';
+    });
+  });
+})();
+</script>

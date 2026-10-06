@@ -1,0 +1,228 @@
+<script>
+/* 純計算核心：日量單位為張，門檻不代表買賣建議；不使用模型或遠端 API。 */
+(function (w) {
+  'use strict';
+  function number(v) { return v !== null && v !== '' && v !== undefined && isFinite(Number(v)) ? Number(v) : null; }
+  function day(v) { var m = String(v || '').match(/^(\d{4})[/-](\d{2})[/-](\d{2})/); return m ? m[1] + '/' + m[2] + '/' + m[3] : ''; }
+  function cleanPrefs(input) {
+    if (w.BattleSettings) return w.BattleSettings.sanitize(input);
+    var cfg = w.BATTLE_CONFIG, p = Object.assign({}, cfg.defaults), x = input || {};
+    Object.keys(p).forEach(function (k) {
+      if (typeof p[k] === 'boolean') { if (typeof x[k] === 'boolean') p[k] = x[k]; }
+      else if (cfg.limits[k]) { var v = number(x[k]); if (v !== null && v >= cfg.limits[k][0] && v <= cfg.limits[k][1]) p[k] = v; }
+      else if (cfg.periods[k]) { if (cfg.periods[k].indexOf(Number(x[k])) >= 0) p[k] = Number(x[k]); }
+      else if (k === 'direction' && ['up', 'down'].indexOf(x[k]) >= 0) p[k] = x[k];
+    });
+    return p;
+  }
+  function valid(b) {
+    return b && day(b.date) && ['open', 'high', 'low', 'close'].every(function (k) { return number(b[k]) > 0; }) &&
+      number(b.volume) !== null && number(b.volume) >= 0 && b.high >= Math.max(b.open, b.close) && b.low <= Math.min(b.open, b.close) && b.high >= b.low;
+  }
+  function ema(values, n) {
+    var out = [], prev = null, k = 2 / (n + 1);
+    values.forEach(function (v) { prev = prev === null ? v : v * k + prev * (1 - k); out.push(prev); }); return out;
+  }
+  function avg(a, field) { return a.reduce(function (s, b) { return s + b[field]; }, 0) / a.length; }
+  function evaluate(item, input, context) {
+    var p = cleanPrefs(input), ctx = context || {}, date = day(ctx.date), checks = [], issues = [];
+    var bars = (item.bars || []).map(function (b) { return Object.assign({}, b, { date: day(b.date) }); }).sort(function (a, b) { return a.date.localeCompare(b.date); });
+    var seen = {};
+    bars.forEach(function (b) { if (seen[b.date] || !valid(b)) issues.push('日 K 重複或開高低收／量無效'); seen[b.date] = true; });
+    if (item.error) issues.push(item.error);
+    if (!date || ctx.volumeUnit !== 'lots') issues.push('行情日期或成交量單位未確認');
+    var prior = bars.filter(function (b) { return b.date < date; });
+    var cur = bars.filter(function (b) { return b.date === date; })[0], complete = !!cur && !!ctx.afterClose;
+    var q = item.quote, live = q && day(q.date) === date;
+    if (!complete) {
+      cur = live ? { date: date, open: number(q.open), high: number(q.high), low: number(q.low), close: number(q.last), volume: number(q.volume) } : null;
+      if (live && q.stale) issues.push('報價已過期');
+    }
+    if (!valid(cur)) issues.push('缺少當日開高低收或成交量');
+    var y = prior[prior.length - 1], calendar = (ctx.calendar || []).filter(function (d) { return d < date; });
+    function history(n) {
+      var list = prior.slice(-n), expected = calendar.slice(-n);
+      return list.length === n && expected.length === n && list.every(function (b, i) { return valid(b) && b.date === expected[i]; }) ? list : null;
+    }
+    if (!y || !calendar.length || y.date !== calendar[calendar.length - 1]) issues.push('前一交易日日 K 缺漏');
+    if (live && y && number(q.prevClose) > 0 && Math.abs(q.prevClose - y.close) > Math.max(0.02, y.close * 0.003)) issues.push('報價參考價與前日收盤不一致，需核對除權息或資料');
+    function check(key, label, pass, value, rule, enabled) {
+      checks.push({ key: key, label: label, pass: pass, value: value, rule: rule, enabled: enabled !== false });
+    }
+    var up = p.direction === 'up', sign = up ? 1 : -1, gapPct = null, ratio = null, volumeMA = null;
+    if (valid(cur) && valid(y) && y.date === calendar[calendar.length - 1]) gapPct = (cur.open / y.close - 1) * 100;
+    check('gap', up ? '向上開盤缺口' : '向下開盤缺口', gapPct === null ? null : sign * gapPct >= p.gapPct && (up ? cur.open > y.high : cur.open < y.low),
+      gapPct, '開盤較昨收' + (up ? '高' : '低') + '至少 ' + p.gapPct + '%，且超出昨日' + (up ? '最高' : '最低') + '價');
+    var vh = history(p.volumeDays);
+    if (vh && valid(cur) && avg(vh, 'volume') > 0) { volumeMA = avg(vh, 'volume'); ratio = cur.volume / volumeMA; }
+    check('volume', '成交量倍數', ratio === null ? null : ratio >= p.volumeMultiple && cur.volume >= p.minLots, ratio,
+      '當日量 ≥ 前 ' + p.volumeDays + ' 個交易日均量 × ' + p.volumeMultiple + '，且 ≥ ' + p.minLots + ' 張（均量不含當日）');
+    var th = history(p.trendDays - 1), trendMA = th && valid(cur) ? (th.reduce(function (s, b) { return s + b.close; }, 0) + cur.close) / p.trendDays : null;
+    check('trend', p.trendDays + ' 日均線', trendMA === null ? null : (up ? cur.close > trendMA : cur.close < trendMA), trendMA,
+      '現價／收盤' + (up ? '高於' : '低於') + p.trendDays + ' 日均線', p.useTrend);
+    var bh = history(p.breakoutDays), edge = bh ? (up ? Math.max.apply(null, bh.map(function (b) { return b.high; })) : Math.min.apply(null, bh.map(function (b) { return b.low; }))) : null;
+    check('breakout', p.breakoutDays + ' 日突破', edge === null || !valid(cur) ? null : (up ? cur.close > edge : cur.close < edge), edge,
+      '現價／收盤超出前 ' + p.breakoutDays + ' 日' + (up ? '最高' : '最低') + '（不含當日）', p.useBreakout);
+    var position = valid(cur) ? (cur.high === cur.low ? null : (cur.close - cur.low) / (cur.high - cur.low)) : null;
+    check('body', up ? '紅 K 與收盤位置' : '黑 K 與收盤位置', position === null ? null : (up ? cur.close > cur.open && position >= p.closePosition : cur.close < cur.open && position <= 1 - p.closePosition), position,
+      (up ? '收紅且位於當日區間上方 ' : '收黑且位於當日區間下方 ') + ((1 - p.closePosition) * 100).toFixed(0) + '%', p.useBody);
+    var ih = history(Math.min(159, prior.length)), hist = null, kd = null;
+    if (ih && valid(cur)) {
+      var series = ih.concat([cur]), closes = series.map(function (b) { return b.close; });
+      if (series.length >= 26) {
+        var a = ema(closes, 12), b = ema(closes, 26), dif = a.map(function (v, i) { return v - b[i]; }), dea = ema(dif, 9);
+        hist = (dif[dif.length - 1] - dea[dea.length - 1]) * 2;
+      }
+      if (series.length >= 9) {
+        var k = 50, d = 50;
+        for (var j = 8; j < series.length; j++) {
+          var win = series.slice(j - 8, j + 1), hi = Math.max.apply(null, win.map(function (r) { return r.high; })), lo = Math.min.apply(null, win.map(function (r) { return r.low; }));
+          var rsv = hi === lo ? 50 : (series[j].close - lo) / (hi - lo) * 100;
+          k = k * 2 / 3 + rsv / 3; d = d * 2 / 3 + k / 3;
+        }
+        kd = { k: k, d: d };
+      }
+    }
+    check('macd', 'MACD 柱體', hist === null ? null : sign * hist > 0, hist, '12／26／9，以可用的最近至多 160 根日 K 首筆起算；柱體' + (up ? '大於' : '小於') + ' 0，非交叉訊號', p.useMacd);
+    check('kd', 'KD 相對位置', kd === null ? null : (up ? kd.k > kd.d : kd.k < kd.d), kd, '9 日 RSV，K／D 各 1/3 平滑；K ' + (up ? '>' : '<') + ' D，非今日交叉', p.useKD);
+    var bollHistory = history(19), bollEdge = null;
+    if (bollHistory && valid(cur)) {
+      var bollValues = bollHistory.concat([cur]).map(function (b) { return b.close; });
+      var mean = bollValues.reduce(function (s, v) { return s + v; }, 0) / 20;
+      var sd = Math.sqrt(bollValues.reduce(function (s, v) { return s + Math.pow(v - mean, 2); }, 0) / 20);
+      bollEdge = mean + sign * 2 * sd;
+    }
+    check('boll', '布林通道突破', bollEdge === null ? null : (up ? cur.close > bollEdge : cur.close < bollEdge), bollEdge,
+      '20 日收盤（含當日）、母體標準差 2 倍；現價／收盤突破' + (up ? '上' : '下') + '軌', p.useBoll);
+    var selected = checks.filter(function (c) { return c.enabled; }), missing = selected.some(function (c) { return c.pass === null; });
+    var pass = !issues.length && !missing && selected.every(function (c) { return c.pass; });
+    var gapFilled = valid(cur) && valid(y) && gapPct !== null ? (up ? cur.low <= y.high : cur.high >= y.low) : null;
+    // 逐筆事件以該日之前的均量判斷，再看「之後」三個交易日；不借用未來資料挑事件。
+    var gaps = [];
+    bars.forEach(function (event, i) {
+      if (event.date > date || (event.date === date && !complete) || i < p.volumeDays || !valid(event)) return;
+      var prev = bars[i - 1], base = bars.slice(i - p.volumeDays, i), expected = (ctx.calendar || []).filter(function (d) { return d < event.date; }).slice(-p.volumeDays);
+      if (base.length !== expected.length || !base.every(function (b, n) { return valid(b) && b.date === expected[n]; }) || !(avg(base, 'volume') > 0)) return;
+      var pct = (event.open / prev.close - 1) * 100, vr = event.volume / avg(base, 'volume');
+      if (!(sign * pct >= p.gapPct && (up ? event.open > prev.high : event.open < prev.low) && vr >= p.volumeMultiple && event.volume >= p.minLots)) return;
+      var maturityDate = complete ? date : (calendar[calendar.length - 1] || '');
+      var following = (ctx.calendar || []).filter(function (d) { return d > event.date && d <= maturityDate; }).slice(0, 3);
+      var observed = [event].concat(following.map(function (d) { return bars.filter(function (b) { return b.date === d; })[0]; }));
+      var filled = observed.some(function (b) { return valid(b) && (up ? b.low <= prev.high : b.high >= prev.low); });
+      var covered = following.length === 3 && observed.every(valid);
+      gaps.push({ date: event.date, pct: pct, ratio: vr,
+        status: filled ? '已回補' : covered ? '三個交易日未回補' : '等待／缺少後續日 K',
+        boundary: up ? prev.high : prev.low, days: following.length,
+        note: '股務事件未完整核對；不推論主力、利多利空或勝率' });
+    });
+    return { code: item.code, name: item.name, date: date, complete: complete, pass: pass,
+      status: issues.length || missing ? '資料待核對' : pass ? (complete ? '盤後條件符合' : '盤中條件符合') : '未符合設定',
+      issues: Array.from(new Set(issues)), checks: checks, gapPct: gapPct, volumeRatio: ratio,
+      volumeMA: volumeMA, current: cur, previous: y, gapFilled: gapFilled, gaps: gaps.slice(-5),
+      quoteTime: live ? q.time || q.stamp || '' : '', phase: complete ? '已落地日 K' : '盤中／盤後待日 K' };
+  }
+  w.MarketBattle = { evaluate: evaluate, cleanPrefs: cleanPrefs };
+})(window);
+</script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); }, data = null, universe = [], page = 0, filter = 'all', custom = false, loading = false, detailCode = '', detailSeq = 0, detailItem = null, detailContext = null;
+  var loadedAt = 0, cache = new Map(), cfg = window.BATTLE_CONFIG;
+  function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function fmt(v, n) { return v === null || v === undefined || !isFinite(Number(v)) ? '未提供' : Number(v).toLocaleString('zh-TW', { maximumFractionDigits: n === undefined ? 2 : n }); }
+  function prefs() { return window.BattleSettings.get(); }
+  function read(codes, done, fail) {
+    var key = JSON.stringify(codes || null), hit = cache.get(key);
+    if (hit && Date.now() - hit.at < 60000) { done(hit.data); return; }
+    google.script.run.withSuccessHandler(function (r) {
+      if (!r || !r.ok) { fail(); return; }
+      cache.set(key, { at: Date.now(), data: r }); done(r);
+    }).withFailureHandler(fail).apiGetBattleData(codes || null);
+  }
+  function resultCard(item, ctx, detail) {
+    var r = window.MarketBattle.evaluate(item, prefs(), ctx), klass = r.status === '資料待核對' ? 'pending' : r.pass ? 'pass' : 'off';
+    function value(c) {
+      if (c.value === null) return '資料不足';
+      if (c.key === 'gap') return fmt(c.value) + '%';
+      if (c.key === 'volume') return fmt(c.value) + ' 倍';
+      if (c.key === 'body') return fmt(c.value * 100) + '%';
+      if (c.key === 'kd') return fmt(c.value.k) + ' / ' + fmt(c.value.d);
+      return fmt(c.value);
+    }
+    var title = detail ? '<h3>' + esc(item.name) + ' ' + esc(item.code) + '</h3>' : '<button type="button" class="battle-name" data-bstock="' + esc(item.code) + '">' + esc(item.name) + '<span>' + esc(item.code) + '</span></button>';
+    var selected = r.checks.filter(function (c) { return c.enabled; });
+    var details = r.checks.map(function (c) { return '<div class="battle-condition"><b>' + esc(c.label) + '</b><span class="battle-tag ' + (c.pass === null ? 'pending' : c.pass ? 'pass' : 'off') + '">' + (c.pass === null ? '待核對' : c.pass ? '符合' : '未符合') + (c.enabled ? '' : ' · 未啟用篩選') + '</span><strong>' + esc(value(c)) + '</strong><p>' + esc(c.rule) + '</p></div>'; }).join('');
+    var gapState = r.checks[0].pass === null ? '缺口待核對' : r.checks[0].pass ? (r.gapFilled ? '當日已回補' : '當日尚未回補') : '開盤缺口未達設定';
+    return { result: r, html: '<article class="card battle-card is-' + klass + '"><div class="battle-head">' + title + '<span class="battle-tag ' + klass + '">' + esc(r.status) + '</span></div>' +
+      '<p class="battle-date">' + esc(r.date) + ' · ' + esc(r.phase) + (r.quoteTime ? ' · 行情 ' + esc(r.quoteTime) : '') + '</p>' +
+      '<div class="battle-metrics"><div><span>開盤較昨收</span><b>' + fmt(r.gapPct) + (r.gapPct === null ? '' : '%') + '</b></div><div><span>當日日量倍數</span><b>' + fmt(r.volumeRatio) + (r.volumeRatio === null ? '' : '×') + '</b></div><div><span>實際成交量</span><b>' + fmt(r.current && r.current.volume, 0) + ' 張</b></div></div>' +
+      '<p class="battle-evidence">前日 ' + esc(r.previous && r.previous.date || '未提供') + '：高 ' + fmt(r.previous && r.previous.high) + '／低 ' + fmt(r.previous && r.previous.low) + '／收 ' + fmt(r.previous && r.previous.close) + '；前 ' + prefs().volumeDays + ' 日均量 ' + fmt(r.volumeMA, 0) + ' 張。' + esc(gapState) + '。</p>' +
+      (r.issues.length ? '<p class="battle-issues">待核對：' + esc(r.issues.join('；')) + '</p>' : '') +
+      '<p class="notice">已啟用 ' + selected.length + ' 項 · ' + selected.filter(function (c) { return c.pass === true; }).length + ' 項符合。股務事件未完整核對。</p>' +
+      '<details><summary>條件、數值與歷史缺口</summary><div class="battle-conditions">' + details + '</div>' +
+      '<h4>最近歷史缺口候選</h4>' + (r.gaps.length ? r.gaps.map(function (g) { return '<p class="battle-gap">' + esc(g.date) + ' · ' + fmt(g.pct) + '% · ' + fmt(g.ratio) + '×<br><b>' + esc(g.status) + '</b> · 回補邊界 ' + fmt(g.boundary) + '</p>'; }).join('') : '<p class="notice">可用歷史資料中沒有符合目前跳空與量能設定的候選。</p>') +
+      '<p class="notice">三日為事件後的交易日，資料未到齊不判已守住。除權息與其他股務事件未完整核對；不推論勝率。</p></details></article>' };
+  }
+  function paint() {
+    if (!data) return;
+    var p = prefs(), cards = data.items.map(function (item) { return resultCard(item, data, false); });
+    var shown = cards.filter(function (c) { return filter === 'all' || (filter === 'pass' ? c.result.pass : c.result.status === '資料待核對'); });
+    $('battleCards').innerHTML = shown.map(function (c) { return c.html; }).join('') || '<p class="emptyline">本頁沒有符合此篩選的股票，可切換「全部」或下一頁。</p>';
+    $('battleSummary').textContent = '資料日 ' + data.date + ' · 本頁 ' + cards.length + ' 檔／符合 ' + cards.filter(function (c) { return c.result.pass; }).length + '／待核對 ' + cards.filter(function (c) { return c.result.status === '資料待核對'; }).length + ' · 讀取 ' + data.at + ' · ' + data.quoteCadence;
+    $('battleRule').textContent = (p.direction === 'up' ? '向上' : '向下') + '開盤幅度 ≥ ' + p.gapPct + '% · 前 ' + p.volumeDays + ' 日均量 ≥ ' + p.volumeMultiple + ' 倍 · 當日量 ≥ ' + p.minLots + ' 張。到版面設定調整條件。';
+    $('battlePage').textContent = custom ? '指定代號' : '第 ' + (page + 1) + '／' + Math.max(1, Math.ceil(universe.length / cfg.pageSize)) + ' 頁 · 共 ' + universe.length + ' 檔';
+    $('battlePrev').disabled = custom || page === 0 || loading;
+    $('battleNext').disabled = custom || (page + 1) * cfg.pageSize >= universe.length || loading;
+    $('battleUniverse').hidden = !custom;
+    if (window.__fxRiseIn) window.__fxRiseIn($('battleCards'));
+  }
+  function load(codes) {
+    if (loading) return;
+    loading = true; $('battleRefresh').disabled = true; $('battlePrev').disabled = true; $('battleNext').disabled = true;
+    $('battleSummary').textContent = '正在讀取落地行情…';
+    read(codes, function (r) {
+      loading = false; $('battleRefresh').disabled = false; data = r; universe = r.universe || []; loadedAt = Date.now(); paint();
+    }, function () {
+      loading = false; $('battleRefresh').disabled = false;
+      $('battleSummary').textContent = '行情讀取失敗，請按「更新資料」重試；未完成的讀取不列為符合。';
+      // 不讓先前日期的卡片混在錯誤狀態下仍被看成目前結果。
+      data = null; $('battleCards').innerHTML = ''; $('battleRule').textContent = '';
+    });
+  }
+  function pageCodes() { return universe.length ? universe.slice(page * cfg.pageSize, (page + 1) * cfg.pageSize).map(function (r) { return r.code; }) : null; }
+  window.__battleLoad = function () { if (!data || Date.now() - loadedAt >= 300000) load(custom && data ? data.items.map(function (r) { return r.code; }) : pageCodes()); };
+  window.__battleDetail = function (code) {
+    if (!$('dBattle')) return;
+    var seq = ++detailSeq; detailCode = code; detailItem = null; detailContext = null;
+    $('dBattle').textContent = '正在讀取日 K 與量能…';
+    read([code], function (r) {
+      if (seq !== detailSeq) return;
+      detailContext = r; detailItem = r.items[0];
+      $('dBattle').innerHTML = detailItem ? resultCard(detailItem, r, true).html : '<p>沒有可判斷的行情。</p>';
+    }, function () { if (seq === detailSeq) $('dBattle').textContent = '技術行情讀取失敗，關閉後再開可重試。'; });
+  };
+  window.__battleQuote = function (code, q) {
+    if (!detailItem || code !== detailCode) return;
+    if (q.date !== detailContext.date) { cache.clear(); window.__battleDetail(code); return; }
+    var text = String(q.stamp || ''), stamp = /Z$|[+-]\d{2}:\d{2}$/.test(text) ? Date.parse(text) : Date.parse(text.replace(/\//g, '-').replace(' ', 'T') + '+08:00');
+    detailItem.quote = Object.assign({}, q, { stale: !isFinite(stamp) || Date.now() - stamp > 300000 });
+    $('dBattle').innerHTML = resultCard(detailItem, detailContext, true).html;
+  };
+  $('battleSettings').addEventListener('click', function (e) { e.stopPropagation(); if ($('setMenu').hidden) $('setBtn').click(); var settings = document.querySelector('.battle-settings'); settings.open = true; settings.querySelector('summary').focus(); settings.scrollIntoView({ block: 'nearest' }); });
+  $('battleRefresh').addEventListener('click', function () { cache.clear(); load(custom && data ? data.items.map(function (r) { return r.code; }) : pageCodes()); });
+  $('battlePrev').addEventListener('click', function () { if (page > 0) { page--; load(pageCodes()); } });
+  $('battleNext').addEventListener('click', function () { if ((page + 1) * cfg.pageSize < universe.length) { page++; load(pageCodes()); } });
+  $('battleUniverse').addEventListener('click', function () { custom = false; page = 0; load(pageCodes()); });
+  $('battleSearch').addEventListener('submit', function (e) { e.preventDefault(); var code = $('battleCode').value.trim(); if (!/^(?:00981A|\d{4,6})$/.test(code)) { $('battleSummary').textContent = '請輸入完整股票代號。'; return; } custom = true; load([code]); });
+  $('battleFilter').addEventListener('click', function (e) {
+    var button = e.target.closest('[data-bfilter]'); if (!button) return;
+    filter = button.dataset.bfilter; $('battleFilter').querySelectorAll('button').forEach(function (b) { var on = b === button; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); }); paint();
+  });
+  $('battleCards').addEventListener('click', function (e) { var b = e.target.closest('[data-bstock]'); if (b && window.__openBattleStock) window.__openBattleStock(b.dataset.bstock); });
+  window.addEventListener('battle-settings-change', function () { paint(); if (detailItem) $('dBattle').innerHTML = resultCard(detailItem, detailContext, true).html; });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && !$('p-battle').hidden) window.__battleLoad(); });
+  setInterval(function () { if (!document.hidden && !$('p-battle').hidden) window.__battleLoad(); }, 300000);
+  if (!$('p-battle').hidden) window.__battleLoad();
+})();
+</script>

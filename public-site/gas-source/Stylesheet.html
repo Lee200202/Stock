@@ -4695,4 +4695,49 @@ html[data-view="mobile"] .tracker-card-note { font-size: calc(15px * var(--rd-fs
   .tracker-card.clickable:hover, .tracker-card.active { transform: none; }
 }
 /* ====== v112 持股追蹤卡片結束 ====== */
+/* ====== v128 戰情追蹤：同寬卡片、原生控制項與可核對的數值 ====== */
+.battle-tools, .battle-pagination, .battle-head { display:flex; flex-wrap:wrap; align-items:center; gap:12px; }
+.battle-tools { margin:20px 0; }
+.battle-search { display:flex; flex-wrap:wrap; gap:10px; align-items:center; flex:1; min-width:0; }
+.battle-search input { flex:1; width:100%; min-width:100px; min-height:48px; border:1px solid var(--rule); border-radius:var(--r-sm); background:var(--panel); color:var(--ink); padding:0 14px; box-sizing:border-box; }
+.battle-list { display:grid; gap:18px; margin:20px 0; }
+.battle-card { padding:24px; overflow-wrap:anywhere; }
+.battle-head { justify-content:space-between; }
+.battle-name { min-height:44px; border:0; padding:4px 0; color:var(--ink); background:transparent; cursor:pointer; text-align:left; font-family:inherit; font-size:calc(22px * var(--rd-fs)); font-weight:700; line-height:1.5; }
+.battle-name span { font-size:.65em; margin-left:10px; color:var(--muted); }
+.battle-tag { display:inline-flex; align-items:center; justify-content:center; padding:8px 14px; border-radius:999px; font-size:calc(13px * var(--rd-fs)); background:var(--panel-2); color:var(--ink); }
+.battle-tag.pass { background:color-mix(in srgb, #21885e 14%, var(--panel)); color:var(--ink); }
+.battle-tag.pending { background:color-mix(in srgb, #bd841a 18%, var(--panel)); color:var(--ink); }
+.battle-date { color:var(--muted); font-size:calc(13px * var(--rd-fs)); }
+.battle-metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; padding:18px 0; }
+.battle-metrics > div { padding:14px; border-radius:var(--r-sm); background:var(--panel-2); }
+.battle-metrics span, .battle-metrics b { display:block; }
+.battle-metrics span { color:var(--muted); font-size:calc(13px * var(--rd-fs)); }
+.battle-metrics b { font-size:calc(22px * var(--rd-fs)); margin-top:6px; }
+.battle-evidence, .battle-gap { line-height:1.9; }
+.battle-issues { padding:12px 16px; border-radius:var(--r-sm); border:1px solid var(--rule); }
+.battle-card summary, .battle-settings summary { min-height:44px; display:list-item; align-content:center; cursor:pointer; line-height:1.6; }
+.battle-conditions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin-top:14px; }
+.battle-condition { padding:16px; border-radius:var(--r-sm); background:var(--panel-2); }
+.battle-condition b, .battle-condition strong { display:block; margin-bottom:10px; }
+.battle-condition .battle-tag { margin-bottom:10px; }
+.battle-condition p { margin-bottom:0; line-height:1.7; }
+.battle-pagination { justify-content:center; margin:24px 0; }
+.battle-pagination span { text-align:center; }
+.battle-settings { border-top:1px solid var(--rule); margin-top:18px; padding-top:12px; }
+.battle-pref-grid { display:grid; gap:14px; margin:12px 0 18px; }
+.battle-pref-grid label { display:grid; gap:8px; line-height:1.6; }
+.battle-pref-grid input[type=number], .battle-pref-grid select { width:100%; min-height:48px; padding:8px 12px; box-sizing:border-box; border:1px solid var(--rule); border-radius:var(--r-sm); color:var(--ink); background:var(--panel); font:inherit; }
+.battle-pref-grid .battle-check { display:flex; align-items:center; min-height:44px; gap:12px; }
+.battle-check input { flex:none; width:22px; height:22px; accent-color:var(--beam); }
+.battle-name:focus-visible, .battle-card summary:focus-visible, .battle-settings summary:focus-visible { outline:3px solid var(--beam); outline-offset:4px; border-radius:8px; }
+@media(max-width:600px) {
+  .battle-card { padding:20px; }
+  .battle-metrics { grid-template-columns:1fr; padding:10px 0; gap:8px; }
+  .battle-metrics > div { display:flex; gap:12px; align-items:center; justify-content:space-between; }
+  .battle-metrics b { margin:0; }
+  .battle-conditions { grid-template-columns:1fr; }
+  .battle-tools > *, .battle-search { flex-basis:100%; }
+  .battle-pagination span { flex-basis:100%; }
+}
 </style>

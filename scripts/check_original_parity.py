@@ -27,7 +27,7 @@ def admin_allowlist(source: str, start: str) -> set[str]:
 
 def main() -> None:
     public = invoked("Index.html", "JavaScript.html", "Tech.html",
-                     "Settings.html", "Unsubscribed.html")
+                     "Settings.html", "Unsubscribed.html", "Battle.html", "BattleConfig.html")
     admin = invoked("Admin.html")
     for name in public:
         if f"{name}: {name}" not in GAS or f"'{name}'" not in WORKER:

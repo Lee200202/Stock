@@ -5956,7 +5956,8 @@ def enforce_explicit_trades(signals, transcript):
                 moved = dict(row, when='today', time_evidence=hits[0])
                 moved['evidence'] = list(dict.fromkeys([q for q in (row.get('evidence') or []) if isinstance(q, str)] + hits[:3]))
                 if not re.search(r'賣' if want == 'sell' else r'買', str(moved.get('reason') or '')):
-                    moved['reason'] = hits[0]
+                    moved['reason'] = spoken_to_note(hits[0])
+                    moved['_leftover'] = True
                 moved['_原分類'] = cat
                 moved['_guard_note'] = '原文明講今天已經' + ('賣出' if want == 'sell' else '買進') + '，依原句改列'
                 signals.setdefault(want, []).append(moved)
@@ -6089,7 +6090,8 @@ def plain_current_stance(heard, transcript, weak=False, names=None):
     """這個名字在原文裡有沒有直白的當下說法。回傳 (分類, 原句) 或 None；從後面的句子找起。"""
     # 「沒有買台積電的人趕快買」是在講人，不是不買：股名後面接「的」不算。
     own_buy = re.compile(r'買' + re.escape(heard) + r'幹(?:什麼|嘛)|幹(?:什麼|嘛)(?:要)?(?:去)?買' + re.escape(heard)
-                         + r'|(?:(?<!有)沒有買|不買|不會買|不敢買|不推薦|不建議)' + re.escape(heard) + r'(?!的)')
+                         + r'|(?:(?:(?<!有)沒有|不會|不敢|不想|不要|不可能|不)(?:再)?(?:去)?(?:買|碰|追)|不推薦|不建議)'
+                         + re.escape(heard) + r'(?!的)')
     sents = _plain_sentences(transcript)
     names = names if names is not None else _stance_names(transcript)
     for i in range(len(sents) - 1, -1, -1):

@@ -141,7 +141,8 @@ def invariants(signals, raw):
         # 三、分類和說明的方向要一致。
         plain = pl._REVERSAL_CUE.sub("", note)
         negative = bool(pl._NEGATIVE_CUE.search(plain) or pl._PROHIBIT.search(plain)
-                        or re.search(r"不(?:予)?推薦|不建議|不買|沒有買|並未買|不敢|不考慮|不用追|不追", plain))
+                        or re.search(r"不[^，。；]{0,3}(?:碰|買|追|推薦|建議|適合|敢|考慮|用)|並非|而非|不是叫|沒有(?:叫|推薦|買)|並未"
+                                     r"|賣出|賣掉|賣點|了結|先出|調節|壓力|等拉回|拉回再|風險|觀望", plain))
         if cat == "watch_avoid" and not negative and POSITIVE.search(plain):
             errors.append(f"{name} 列觀望不碰，說明卻只有偏多的內容：{note[:60]}")
         if cat in ("buy", "watch_watch") and pl.active_prohibit(note):

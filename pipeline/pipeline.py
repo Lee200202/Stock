@@ -5033,14 +5033,21 @@ def resolve_unclear_names(signals, transcript, ss=None):
             if str(r.get('code') or '') in official:
                 ranked.append((str(r['code']), official[str(r['code'])]))
             candidates = dict(ranked)
+            # 已確認的原字讀音也納入候選，仍交由本輪同股證據核對。
+            # 只用官方名稱拼音排序會把既有確認的語音變體擠出前十二名。
+            known_aliases = {alias: pair[0] for alias, pair in CONFIRMED_NAMES.items()
+                             if len(simple(alias)) == len(simple(heard)) and _npin(simple(alias)) == _npin(simple(heard))
+                             and pair[0] in official}
+            candidates.update({code: official[code] for code in known_aliases.values()})
             idx = len(payload) + 1
             payload.append({'id':idx,'heard':heard,'context':r.get('evidence') or [],
-                            'candidates':candidates})
+                            'candidates':candidates, 'confirmed_sound_candidates': known_aliases})
             index[idx] = (r, candidates, cat)
     if payload:
         prompt = '''核對原始語音名稱的身分：是哪一家公司，或根本不是公司。
 完整讀context，先判斷kind：stock（一家可在台股交易的公司）、industry（產業、族群、概念、技術或材料名詞，例如被動元件、ABF載板、矽晶圓、矽智財）或unsure。
 kind=stock時code只可從該筆candidates選；同音有多個合理候選仍分不出就code空白。
+confirmed_sound_candidates 是管理者曾確認過的原字讀音對照，只補充候選；必須同時核對這次 context，不能僅憑同音定案。
 同音與上下文共同支持可還原；不能用漲跌幾毛推算股價級距，也不能把相鄰公司的理由移過來。
 同音候選分不出時，講者明講的股價水準（例如「信化17880塊」）與「股王」「股后」這類稱號可以用來選定，quote 抄那一句。
 context 裡緊貼名稱念出的四位數代號（例如「4916新星科」）是照畫面念的，比聽錯的名稱可靠：該代號在 candidates 時選它，不可因名稱與另一家同音（新星＝欣興、新興）改選別家。
@@ -6762,7 +6769,7 @@ MANUAL_ENTRY_PREFIX = 'MANUALENTRY-'
 # 規則版本。刷新檢查點與判讀稽核都以「影片、日期、原文指紋、規則版本」為鍵：判讀規則有變就要換號，
 # 否則同一份原文重新投稿會被當成「來源與規則版本相同」，直接從舊檢查點續跑、不重跑判讀
 # （2026/10/01 v97 推上去後第一次重跑就是這樣，資料一筆都沒變）。
-ASSESSMENT_VERSION = 'context-json-v25'   # 歷史交易另核對今日看法；條件續抱不推定實際持有
+ASSESSMENT_VERSION = 'context-json-v26'   # 條件續抱與確認讀音候選均需同股原句核對
 
 
 _SOUND_MEMO = {}

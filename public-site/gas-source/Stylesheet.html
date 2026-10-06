@@ -4805,4 +4805,17 @@ main.wrap:has(> #p-battle:not([hidden])) { width:min(1600px, calc(100% - 48px));
   .battle-tools > *, .battle-search { flex-basis:100%; }
   .battle-pagination span { flex-basis:100%; }
 }
+/* v131 全寬股名搜尋與候選選擇。 */
+.battle-search-field { width:100%; min-width:0; position:relative; }
+.battle-search input { min-height:64px; border-radius:999px; padding:0 26px; font-size:20px; min-width:0; }
+.battle-suggestions { position:absolute; z-index:20; inset:calc(100% + 8px) 0 auto; max-height:320px; overflow:auto; border:1px solid var(--rule); border-radius:24px; background:var(--panel); box-shadow:0 12px 32px #0002; padding:8px; }
+.battle-suggestions[hidden] { display:none; }
+.battle-suggestions [role="option"] { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:52px; padding:8px 18px; border-radius:999px; cursor:pointer; box-sizing:border-box; }
+.battle-suggestions [role="option"] b { overflow-wrap:anywhere; }
+.battle-suggestions [role="option"] span { color:var(--muted); flex:none; }
+.battle-suggestions [role="option"]:hover, .battle-suggestions [aria-selected="true"] { background:var(--beam); color:var(--panel); }
+.battle-suggestions [role="option"]:hover span, .battle-suggestions [aria-selected="true"] span { color:inherit; }
+.battle-search input:focus-visible { outline:3px solid var(--beam); outline-offset:3px; }
+.battle-search .notice { margin:0; }
+@media(max-width:480px) { .battle-search input { font-size:17px; padding:0 20px; } }
 </style>

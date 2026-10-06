@@ -1075,13 +1075,18 @@ function suggestCodes(keyword) {
     out.push({ code: table[kw][0], name: m[table[kw][0]].name, market: m[table[kw][0]].market, alias: kw });
   }
 
-  for (var i = 0; i < codes.length && out.length < 12; i++) {
+  for (var i = 0; i < codes.length; i++) {
     var c = codes[i];
     if ((c.indexOf(kw) === 0 || m[c].name.indexOf(kw) >= 0) && !out.some(function (o) { return o.code === c; })) {
       out.push({ code: c, name: m[c].name, market: m[c].market });
     }
   }
-  return out;
+  // 先核對完整代號／股名，再依前綴與包含排序；避免熱門完整股名被前十二筆截掉。
+  function rank(o) {
+    return o.code === kw ? 0 : o.name === kw ? 1 : o.alias === kw ? 2 :
+      o.code.indexOf(kw) === 0 ? 3 : o.name.indexOf(kw) === 0 ? 4 : 5;
+  }
+  return out.sort(function (a, b) { return rank(a) - rank(b) || a.code.localeCompare(b.code); }).slice(0, 12);
 }
 
 /* ------------------------------------------------------------------ *

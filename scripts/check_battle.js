@@ -72,4 +72,26 @@ test('API normalizes shares to lots and reads each sheet only once',()=>{
  vm.createContext(server);vm.runInContext(read('BattleData.gs'),server);const r=server.apiGetBattleData(['1234']);assert.equal(r.items[0].bars[0].volume,1500);assert.equal(reads,1);assert.equal(r.volumeUnit,'lots');assert.equal(propReads,0);
  assert.throws(()=>server.apiGetBattleData(Array.from({length:25},(_,i)=>String(1000+i))),/24/);
 });
+test('intraday estimate uses quote timestamp and past-only baseline',()=>{
+ const i=fixture();i.quote={date:base.date,open:103,high:107,low:102,last:106,volume:1800,prevClose:100,stamp:base.date+' 09:30:00',stale:false};
+ const r=run(i,{volumeMode:'estimate'}, {...base,afterClose:false});
+ assert.equal(r.volumeRatio,1.8);assert.equal(r.estimateMinutes,30);
+ assert.ok(Math.abs(r.estimatedVolume-(1800+1000*240/270))<1e-8);
+ assert.equal(r.pass,true);assert.equal(r.estimated,true);
+});
+test('estimate does not waive actual minimum traded lots',()=>{
+ const i=fixture();i.quote={date:base.date,open:103,high:107,low:102,last:106,volume:800,prevClose:100,stamp:base.date+' 09:30:00',stale:false};
+ const r=run(i,{volumeMode:'estimate',volumeMultiple:1.5}, {...base,afterClose:false});assert.equal(r.pass,false);
+});
+test('preopen, first five minutes, invalid time and after hours do not fabricate estimates',()=>{
+ for(const t of ['08:59:00','09:04:59','15:00:00','bad']){
+  const i=fixture();i.quote={date:base.date,open:103,high:107,low:102,last:106,volume:3000,prevClose:100,stamp:base.date+' '+t,stale:false};
+  const r=run(i,{volumeMode:'estimate'}, {...base,afterClose:false});assert.equal(r.comparisonRatio,null,t);assert.equal(r.pass,false,t);
+ }
+});
+test('UTC quote time converts to Taipei; final daily K never remains estimated',()=>{
+ const i=fixture();i.quote={date:base.date,open:103,high:107,low:102,last:106,volume:1800,prevClose:100,stamp:base.date.replaceAll('/','-')+'T01:30:00Z',stale:false};
+ assert.equal(run(i,{volumeMode:'estimate'}, {...base,afterClose:false}).estimateMinutes,30);
+ const r=run(i,{volumeMode:'estimate'},base);assert.equal(r.estimated,false);assert.equal(r.comparisonRatio,2.5);assert.equal(r.estimatedVolume,null);
+});
 console.log(`${count} battle checks passed`);

@@ -173,7 +173,9 @@ window.BATTLE_CONFIG.sanitize = function (input) {
       apply(next);
     }
     wrap.addEventListener('click', function (e) {
-      var el = e.target.closest('[data-bremove], [data-bpick], [data-bnew], [data-bdays], [data-bchoice], [data-bflag]'); if (!el) return;
+      // 整個條件組的框都可以點（v137）：點框內任何地方（標籤除外，標籤是移除）就選這一組；「新增一組」的整個虛線框也一樣。
+      var el = e.target.closest('[data-bremove], [data-bpick], [data-bnew], [data-bdays], [data-bchoice], [data-bflag], .battle-group'); if (!el) return;
+      if (el.classList.contains('battle-group')) el = el.querySelector('[data-bpick], [data-bnew]');
       if (el.dataset.bremove) { removeFrom(el.dataset.bremove, Number(el.dataset.bfrom)); return; }
       if (el.dataset.bpick !== undefined) { target = Number(el.dataset.bpick); sync(); return; }
       if (el.hasAttribute('data-bnew')) { target = prefs.groups.length; sync(); var fresh = board.querySelector('.battle-group.is-target .battle-group-pick'); if (fresh) fresh.focus(); return; }

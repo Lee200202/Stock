@@ -64,6 +64,17 @@ def new_zone(pg):
     return pg.locator('#battleGroups .battle-group-new')
 
 
+def click_box(pg, locator, fx=0.5):
+    """點在框的內距上（離下緣 7px）：不是橢圓按鈕，也不是標籤。"""
+    locator.scroll_into_view_if_needed()
+    b = locator.bounding_box()
+    x, y = b['x'] + b['width'] * fx, b['y'] + b['height'] - 7
+    hit = pg.evaluate("([x, y]) => { const e = document.elementFromPoint(x, y); return e ? e.className : ''; }", [x, y])
+    assert 'battle-group' in hit and 'pick' not in hit and 'chip' not in hit, f'沒有點在框的空白處：{hit}'
+    pg.mouse.click(x, y)
+    pg.wait_for_timeout(80)
+
+
 def pool(pg):
     return card(pg, B)                       # 丟在別張卡片上就是丟回條件清單
 
@@ -131,7 +142,9 @@ def run(pg):
     pg.click('#battlePreferences .battle-mode-button[data-value="anyOfAll"]')
 
     # 八、不拖也行：點「新增一組」出現空的一組，再點條件加進去；再點一次拿掉。
-    pg.click('#battleGroups [data-bnew]')
+    # 整個框都可以點（v137）：點虛線框的空白處，不必點到裡面的橢圓按鈕。
+    assert pg.evaluate("[...document.querySelectorAll('#battleGroups .battle-group')].every(g => getComputedStyle(g).cursor === 'pointer')")
+    click_box(pg, new_zone(pg), fx=0.9)
     s = state(pg)
     assert s['target'] == 2 and len(s['shown']) == 3 and s['shown'][2] == [], s
     card(pg, K).locator('.battle-feature').click()
@@ -139,8 +152,13 @@ def run(pg):
     assert s['groups'] == [[T, V], [G], [K]] and s['target'] == 2, s
     card(pg, K).locator('.battle-feature').click()
     assert state(pg)['groups'] == [[T, V], [G]]
-    # 先點第 1 組，再點條件：加進第 1 組。
-    pg.click('#battleGroups [data-bpick="0"]')
+    # 先點第 1 組（點框的空白處），再點條件：加進第 1 組。
+    click_box(pg, group(pg, 1), fx=0.9)
+    assert state(pg)['target'] == 1
+    click_box(pg, group(pg, 0), fx=0.9)
+    s = state(pg)
+    assert s['target'] == 0 and s['groups'] == [[T, V], [G]], s
+    assert pg.get_attribute('#battleGroups [data-bpick="0"]', 'aria-pressed') == 'true'
     card(pg, B).locator('.battle-feature').click()
     s = state(pg)
     assert s['groups'] == [[T, V, B], [G]] and s['target'] == 0, s

@@ -4854,6 +4854,8 @@ main.wrap:has(> #p-battle:not([hidden])) { width:min(1600px, calc(100% - 48px));
 .battle-groups { display:flex; flex-wrap:wrap; align-items:stretch; gap:14px; margin-top:20px; }
 .battle-group { --logic-bg:#13684b; flex:1 1 260px; min-width:0; display:grid; gap:14px; align-content:start; padding:18px; border:2px solid var(--rule); border-radius:var(--r-md); background:var(--panel-2); }
 [data-mode=allOfAny] .battle-group { --logic-bg:#2456a4; }
+.battle-group { cursor:pointer; }
+.battle-group:not(.is-target):hover { border-color:color-mix(in srgb,var(--logic-bg) 60%,var(--rule)); }
 .battle-group.is-target { border-color:var(--logic-bg); background:color-mix(in srgb,var(--logic-bg) 14%,var(--panel)); }
 .battle-group-new { flex:0 1 250px; border-style:dashed; align-content:center; }
 .battle-group-pick { justify-self:start; display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px; min-height:44px; padding:8px 16px; border:1px solid var(--rule); border-radius:999px; background:transparent; color:inherit; font:inherit; text-align:left; line-height:1.5; cursor:pointer; }

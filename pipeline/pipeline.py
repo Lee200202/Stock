@@ -8472,11 +8472,12 @@ def normalize_watch_tones(signals):
             else:
                 target=watch_tone(text)
                 how='關鍵字'
-                if (cat=='watch_watch' and target=='watch_avoid' and row.get('_原分類')=='buy'
+                if (cat=='watch_watch' and target=='watch_avoid' and row.get('_原分類') in ('buy', 'holdings')
                         and not active_prohibit(strip_speaker_names(str(text or '')))):
-                    # 講者買進的那一檔只是日期核不出來才降到觀望注意，不能再靠關鍵字翻成觀望不碰。
-                    note_decision('語氣核對','保留觀望注意',name,_decision_detail(text,'原為買入，沒有明講不要買，不以關鍵字推翻'))
-                    print(f"  語氣核對　{name}　保留觀望注意（原為買入，說明沒有明講不要買）")
+                    # 講者買進或模型判為持股的那一檔，只是日期或主詞核不出來才降到觀望注意，
+                    # 不能再靠關鍵字翻成觀望不碰（2026/10/02 重播：嘉澤「目前呈現季線整理」被中性字「整理」翻過去）。
+                    note_decision('語氣核對','保留觀望注意',name,_decision_detail(text,'原為買入或持股，沒有明講不要買，不以關鍵字推翻'))
+                    print(f"  語氣核對　{name}　保留觀望注意（原為買入或持股，說明沒有明講不要買）")
                     target=cat
                 if cat=='watch_watch' and target=='watch_avoid' and not _bearish_or_neutral_basis(text):
                     note_decision('語氣核對','保留觀望注意',name,_decision_detail(text,'沒有偏空或中性依據，不以關鍵字推翻'))
@@ -10159,6 +10160,11 @@ def history_to_watch(signals, date_str, ss=None, transcript=''):
             note_decision('日期未明', '無現況看法，不列', name, fact)
             continue
         bias = _watch_bias(r, view)
+        # 講者自己買進、只因日期核不出來才進回顧的那一檔：現況看法沒有明講不要買，就不靠關鍵字判成偏空
+        # （2026/10/06 重播：勤誠「昨天買進，跌破900後量縮不破低」被判偏空，又因當天仍持有而整檔略過）。
+        if bias == 'watch_avoid' and r.get('_原分類') == 'buy' and not active_prohibit(strip_speaker_names(str(view or ''))):
+            note_decision('日期未明', '原為買入，沒有明講不要買，列觀望注意', name, view)
+            bias = 'watch_watch'
         if bias == 'watch_avoid' and keys & sms_held:
             skipped.append(f'{name}：現況看法偏空，但會員簡訊當天仍持有，不列觀望不碰')
             note_decision('日期未明', '不列觀望不碰（簡訊當天持有）', name, view)

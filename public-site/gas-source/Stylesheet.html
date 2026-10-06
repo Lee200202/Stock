@@ -4761,6 +4761,40 @@ main.wrap:has(> #p-battle:not([hidden])) { width:min(1600px, calc(100% - 48px));
 .battle-name:focus-visible, .battle-card summary:focus-visible, .battle-pill:focus-visible, .battle-number input:focus-visible { outline:3px solid var(--beam); outline-offset:4px; border-radius:8px; }
 @media (min-width:721px) and (max-width:1100px) { .battle-basic { grid-template-columns:1fr; gap:8px; } .battle-feature-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media (max-width:720px) { main.wrap:has(> #p-battle:not([hidden])) { width:calc(100% - 24px); } .battle-config { padding:20px; } .battle-basic, .battle-number-grid, .battle-feature-grid { grid-template-columns:1fr; gap:24px; } .battle-feature-box { padding:18px; } .battle-config-head > button { margin-top:8px; } .battle-config-foot p { flex-basis:100%; } }
+/* v130 可拖放的且／或條件與彩色結果。 */
+.battle-tools { display:grid; grid-template-columns:minmax(0,1fr); gap:24px; }
+#battleSearch { width:100%; min-width:0; }
+#battleSearch > label { display:block; margin-bottom:12px; }
+.battle-search { display:grid; grid-template-columns:minmax(0,1fr); gap:14px; }
+.battle-search button { justify-self:start; min-width:140px; }
+.battle-settings-open { min-height:48px; border-radius:999px; background:var(--beam); color:#fff; }
+[data-theme=dark] .battle-settings-open { color:#072a1d; }
+.battle-logic-board { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px; margin-top:24px; }
+.battle-dropzone { --logic-bg:#13684b; --logic-fg:#fff; padding:24px; border:2px solid var(--rule); border-radius:var(--r-md); background:var(--panel-2); min-width:0; }
+.battle-dropzone[data-bdrop=any] { --logic-bg:#2456a4; }
+.battle-dropzone.is-active { background:var(--logic-bg); color:var(--logic-fg); border-color:var(--logic-bg); }
+.battle-dropzone p { line-height:1.7; margin:14px 0; }
+.battle-logic-button { display:flex; align-items:center; gap:14px; padding:10px 20px; border:1px solid currentColor; border-radius:999px; background:transparent; color:inherit; font:inherit; min-height:56px; cursor:pointer; }
+.battle-logic-button b { font-size:1.4em; }
+.battle-expression { display:flex; flex-wrap:wrap; gap:10px; align-items:center; min-height:60px; }
+.battle-expression-chip { font:inherit; min-height:48px; padding:10px 16px; border:0; border-radius:999px; background:#fff; color:#16352b; cursor:grab; line-height:1.5; }
+[data-bdrop=any] .battle-expression-chip { color:#1b3d75; }
+.battle-operator { font-weight:700; }
+.battle-feature-grid.drag-over,.battle-dropzone.drag-over { outline:4px dashed var(--beam); outline-offset:4px; }
+.battle-feature-box:has(.battle-feature[aria-pressed=true]) { border-color:var(--beam); background:color-mix(in srgb,var(--beam) 9%,var(--panel)); }
+.battle-card.is-pass { border:2px solid #268864; background:color-mix(in srgb,#268864 6%,var(--panel)); }
+.battle-tag.pass,.battle-match-chip.pass { background:#13684b; color:#fff; }
+.battle-tag.pending,.battle-match-chip.pending { background:#805600; color:#fff; }
+.battle-match-strip { display:flex; flex-wrap:wrap; gap:10px; align-items:center; padding:20px 0; }
+.battle-match-strip > b { padding:10px 16px; background:#13684b; color:#fff; border-radius:999px; }
+.battle-match-strip[data-logic=any] > b { background:#2456a4; }
+.battle-match-chip { padding:8px 14px; border-radius:999px; font-size:calc(14px * var(--rd-fs)); background:var(--panel-2); }
+.battle-rule { border-left:5px solid #13684b; padding:14px 20px; background:color-mix(in srgb,#13684b 8%,var(--panel)); line-height:1.8; overflow-wrap:anywhere; }
+.battle-rule[data-logic=any] { border-color:#2456a4; background:color-mix(in srgb,#2456a4 8%,var(--panel)); }
+.battle-empty { padding:32px; }
+.battle-empty p { color:var(--muted); line-height:1.8; }
+.battle-logic-button:focus-visible,.battle-expression-chip:focus-visible { outline:3px solid var(--beam); outline-offset:4px; }
+@media(max-width:720px) { .battle-logic-board { grid-template-columns:1fr; } .battle-dropzone { padding:20px; } .battle-search button { width:100%; } }
 @media (prefers-reduced-motion:reduce) { .battle-pill { transition:none; } }
 @media(max-width:600px) {
   .battle-card { padding:20px; }

@@ -3,7 +3,7 @@
 window.BATTLE_CONFIG = {
   version: 1, pageSize: 24, storageKey: 'zzBattlePrefsV1',
   defaults: { gapPct: 2.5, volumeMultiple: 2.5, volumeDays: 20, minLots: 1000,
-    direction: 'up', trendDays: 20, breakoutDays: 20, closePosition: 0.7,
+    direction: 'up', logic: 'all', useGap: true, useVolume: true, trendDays: 20, breakoutDays: 20, closePosition: 0.7,
     useTrend: false, useBreakout: false, useMacd: false, useKD: false, useBody: false, useBoll: false },
   limits: { gapPct: [0.1, 15], volumeMultiple: [1, 10], minLots: [0, 1000000],
     closePosition: [0.5, 1] },
@@ -22,6 +22,7 @@ window.BATTLE_CONFIG = {
         var v = Number(x[k]); if (isFinite(v) && v >= cfg.limits[k][0] && v <= cfg.limits[k][1]) p[k] = v;
       } else if (cfg.periods[k]) { if (cfg.periods[k].indexOf(Number(x[k])) >= 0) p[k] = Number(x[k]); }
       else if (k === 'direction' && ['up', 'down'].indexOf(x[k]) >= 0) p[k] = x[k];
+      else if (k === 'logic' && ['all', 'any'].indexOf(x[k]) >= 0) p[k] = x[k];
     }); return p;
   }
   try { prefs = sanitize(JSON.parse(localStorage.getItem(cfg.storageKey) || '{}')); } catch (e) {}
@@ -36,12 +37,18 @@ window.BATTLE_CONFIG = {
     var wrap = document.getElementById('battlePreferences'); if (!wrap) return;
     function numeric(k, label, step, unit, hint) { var lim = cfg.limits[k]; return '<label class="battle-field">' + label + '<span class="battle-number"><input aria-describedby="bh-' + k + '" type="number" data-bpref="' + k + '" min="' + lim[0] + '" max="' + lim[1] + '" step="' + step + '" value="' + prefs[k] + '"><span>' + unit + '</span></span><small id="bh-' + k + '">' + hint + '</small></label>'; }
     function select(k, label, options) { return '<fieldset class="battle-choice"><legend>' + label + '</legend><div class="battle-pills">' + options.map(function (o) { return '<button type="button" class="battle-pill" data-bchoice="' + k + '" data-value="' + o[0] + '" aria-pressed="' + (String(prefs[k]) === String(o[0])) + '">' + o[1] + '</button>'; }).join('') + '</div></fieldset>'; }
-    function flag(k, label, hint) { return '<button type="button" class="battle-pill battle-feature" data-bflag="' + k + '" aria-pressed="' + prefs[k] + '"><span class="battle-checkmark" aria-hidden="true">' + (prefs[k] ? '✓' : '+') + '</span>' + label + '</button><p class="battle-feature-hint">' + hint + '</p>'; }
+    var labels = {useGap:'開盤跳空',useVolume:'爆量與最低量',useTrend:'均線位置',useBreakout:'前高低突破',useBody:'K 棒與收盤位置',useMacd:'MACD 柱體',useKD:'KD 相對位置',useBoll:'布林通道突破'}, dragged = '';
+    function flag(k, label, hint) { return '<button type="button" draggable="true" class="battle-pill battle-feature" data-bdrag="' + k + '" data-bflag="' + k + '" aria-pressed="' + prefs[k] + '"><span class="battle-checkmark" aria-hidden="true">' + (prefs[k] ? '✓' : '+') + '</span>' + label + '</button><p class="battle-feature-hint">' + hint + '</p>'; }
     function periods(k) { return cfg.periods[k].map(function (n) { return [n, n + ' 日']; }); }
     wrap.innerHTML = '<div class="battle-config-head"><div><h3 id="battleConfigTitle" tabindex="-1">戰情設定</h3><p>先選方向與量價門檻，再加入你要看的技術條件。</p></div><button type="button" class="act ghost" id="battleConfigClose">收起設定</button></div>' +
       '<div class="battle-basic"><div>' + select('direction', '跳空方向', [['up', '向上跳空'], ['down', '向下跳空']]) + select('volumeDays', '均量基準', periods('volumeDays')) + '</div><div class="battle-number-grid">' +
       numeric('gapPct', '最低開盤幅度', 0.1, '%', '與昨收比較；另須超出昨日高低價。') + numeric('volumeMultiple', '最低日量倍數', 0.1, '倍', '以前 5 或 20 個交易日均量為基準。') + numeric('minLots', '最低當日量', 1, '張', '使用實際累計量，不推估全日成交量。') + '</div></div>' +
-      '<div class="battle-optional-head"><h4>加上技術條件</h4><p>點選即啟用；填滿的按鈕代表已加入篩選，所有啟用條件須同時符合。</p></div><div class="battle-feature-grid">' +
+      '<div class="battle-optional-head"><h4>組合你的條件</h4><p>拖入下方條件區，或點選條件加入。綠色「且」須全部符合；藍色「或」只需其中一項。這是一組條件，可隨時切換邏輯。</p></div><div class="battle-logic-board">' +
+      '<section class="battle-dropzone" data-bdrop="all"><button type="button" class="battle-logic-button" data-bchoice="logic" data-value="all" aria-pressed="true"><b>且</b><span>全部符合</span></button><p>每個已加入的條件都要成立。</p><div class="battle-expression" data-bexpression="all"></div></section>' +
+      '<section class="battle-dropzone" data-bdrop="any"><button type="button" class="battle-logic-button" data-bchoice="logic" data-value="any" aria-pressed="false"><b>或</b><span>任一符合</span></button><p>至少一個已加入的條件成立。</p><div class="battle-expression" data-bexpression="any"></div></section></div>' +
+      '<div class="battle-feature-grid" data-bdrop="pool" aria-label="可加入的條件">' +
+      '<div class="battle-feature-box">' + flag('useGap','開盤跳空','套用上方方向與開盤幅度，並超出昨日高低價。') + '</div>' +
+      '<div class="battle-feature-box">' + flag('useVolume','爆量與最低量','日量倍數與最低張數須同時達到上方門檻。') + '</div>' +
       '<div class="battle-feature-box">' + flag('useTrend', '均線位置', '向上看現價高於均線，向下則低於。') + '<div data-bextra="useTrend">' + select('trendDays', '均線週期', periods('trendDays')) + '</div></div>' +
       '<div class="battle-feature-box">' + flag('useBreakout', '前高低突破', '超出前一段期間的最高或最低價。') + '<div data-bextra="useBreakout">' + select('breakoutDays', '回看週期', periods('breakoutDays')) + '</div></div>' +
       '<div class="battle-feature-box">' + flag('useBody', 'K 棒與收盤位置', '向上收紅且靠近高點，向下反向判斷。') + '<div data-bextra="useBody">' + numeric('closePosition', '收盤位置門檻', 0.05, '', '0.7 代表收在當日區間上方 30%；向下對稱。') + '</div></div>' +
@@ -51,9 +58,15 @@ window.BATTLE_CONFIG = {
       '<div class="battle-config-foot"><button type="button" class="act ghost" id="battleReset">還原預設</button><p id="battlePrefMessage" role="status" aria-live="polite">設定保存在此瀏覽器，切換條件立即重算。</p></div>';
     var message = document.getElementById('battlePrefMessage');
     function sync() {
+      wrap.dataset.logic = prefs.logic;
       wrap.querySelectorAll('[data-bchoice]').forEach(function (el) { el.setAttribute('aria-pressed', String(String(prefs[el.dataset.bchoice]) === el.dataset.value)); });
-      wrap.querySelectorAll('[data-bflag]').forEach(function (el) { var on = prefs[el.dataset.bflag]; el.setAttribute('aria-pressed', String(on)); el.querySelector('.battle-checkmark').textContent = on ? '✓' : '+'; });
+      wrap.querySelectorAll('.battle-feature[data-bflag]').forEach(function (el) { var on = prefs[el.dataset.bflag]; el.setAttribute('aria-pressed', String(on)); el.querySelector('.battle-checkmark').textContent = on ? '✓' : '+'; });
       wrap.querySelectorAll('[data-bextra]').forEach(function (el) { el.hidden = !prefs[el.dataset.bextra]; });
+      wrap.querySelectorAll('[data-bexpression]').forEach(function (el) {
+        var active = el.dataset.bexpression === prefs.logic, keys = Object.keys(labels).filter(function(k){return prefs[k];});
+        el.closest('.battle-dropzone').classList.toggle('is-active',active);
+        el.innerHTML = active ? keys.map(function(k,i){return (i ? '<span class="battle-operator">'+(prefs.logic==='all'?'且':'或')+'</span>' : '') + '<button type="button" draggable="true" class="battle-expression-chip" data-bdrag="'+k+'" data-bflag="'+k+'" aria-label="移除'+labels[k]+'">'+labels[k]+' <span aria-hidden="true">×</span></button>';}).join('') || '<span>請加入至少一項條件</span>' : '<span>點選此邏輯，或將條件拖入這裡切換。</span>';
+      });
     }
     function feedback(saved) {
       var invalid = Array.from(wrap.querySelectorAll('[data-bpref]')).some(function (el) { return el.value === '' || !el.checkValidity(); });
@@ -71,6 +84,11 @@ window.BATTLE_CONFIG = {
     wrap.addEventListener('click', function (e) { var el = e.target.closest('[data-bchoice], [data-bflag]'); if (!el) return; var next = Object.assign({}, prefs); if (el.dataset.bflag) next[el.dataset.bflag] = !prefs[el.dataset.bflag]; else next[el.dataset.bchoice] = el.dataset.value; var saved = commit(next); sync(); feedback(saved); });
     wrap.addEventListener('input', updatePreference);
     wrap.addEventListener('change', updatePreference);
+    wrap.addEventListener('dragstart', function(e){var el=e.target.closest('[data-bdrag]');if(!el)return;dragged=el.dataset.bdrag;e.dataTransfer.setData('text/plain',dragged);e.dataTransfer.effectAllowed='move';wrap.classList.add('is-dragging');});
+    wrap.addEventListener('dragover',function(e){var zone=e.target.closest('[data-bdrop]');if(zone&&dragged){e.preventDefault();zone.classList.add('drag-over');}});
+    wrap.addEventListener('dragleave',function(e){var zone=e.target.closest('[data-bdrop]');if(zone&&!zone.contains(e.relatedTarget))zone.classList.remove('drag-over');});
+    wrap.addEventListener('drop',function(e){var zone=e.target.closest('[data-bdrop]');if(!zone||!labels[dragged])return;e.preventDefault();var next=Object.assign({},prefs);next[dragged]=zone.dataset.bdrop!=='pool';if(zone.dataset.bdrop!=='pool')next.logic=zone.dataset.bdrop;var saved=commit(next);sync();feedback(saved);});
+    wrap.addEventListener('dragend',function(){dragged='';wrap.classList.remove('is-dragging');wrap.querySelectorAll('.drag-over').forEach(function(el){el.classList.remove('drag-over');});});
     document.getElementById('battleReset').addEventListener('click', function () {
       commit(cfg.defaults);
       wrap.querySelectorAll('[data-bpref]').forEach(function (el) { el.value = prefs[el.dataset.bpref]; el.removeAttribute('aria-invalid'); });

@@ -164,10 +164,10 @@
     <div class="sect">
       <div class="sect-h"><h2>戰情追蹤</h2><button type="button" class="act ghost" id="battleRefresh">更新資料</button></div>
       <p class="notice">用落地日 K 與累計成交量核對條件，範圍為本站追蹤股。盤中可變動；條件符合不代表主力進場或交易建議。</p>
-      <button type="button" class="act" id="battleSettings" aria-expanded="false" aria-controls="battlePreferences">戰情設定</button>
-      <section id="battlePreferences" class="battle-config card" aria-labelledby="battleConfigTitle" hidden></section><div class="battle-tools">
+      <button type="button" class="act battle-settings-open" id="battleSettings" aria-expanded="true" aria-controls="battlePreferences">戰情設定</button>
+      <section id="battlePreferences" class="battle-config card" aria-labelledby="battleConfigTitle"></section><div class="battle-tools">
         <form id="battleSearch"><label for="battleCode">查看指定代號</label><div class="battle-search"><input id="battleCode" inputmode="numeric" placeholder="例如 2330" maxlength="6"><button type="submit" class="act">查看</button></div></form>
-        <div class="chartbar"><div class="seg held-toggle" id="battleFilter" aria-label="本頁篩選"><button type="button" class="pill on" data-bfilter="all" aria-pressed="true">全部</button><button type="button" class="pill" data-bfilter="pass" aria-pressed="false">符合條件</button><button type="button" class="pill" data-bfilter="pending" aria-pressed="false">待核對</button></div></div>
+        <div class="chartbar"><div class="seg held-toggle" id="battleFilter" aria-label="結果篩選"><button type="button" class="pill on" data-bfilter="pass" aria-pressed="true">符合條件</button><button type="button" class="pill" data-bfilter="pending" aria-pressed="false">待核對</button></div></div>
       </div>
       <p id="battleSummary" class="notice" role="status" aria-live="polite">選取此分頁後讀取資料。</p>
       <p id="battleRule" class="battle-rule"></p>

@@ -1,0 +1,52 @@
+name: 單日品質核對與更新
+run-name: 單日品質核對 ${{ inputs.date }}（${{ inputs.mode }}）
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 已有原稿的日期 YYYY/MM/DD（最近七天）
+        required: true
+      mode:
+        description: 通過全部品質核對後才更新；不寄送
+        type: choice
+        options: [preview, apply]
+        default: preview
+permissions:
+  contents: read
+concurrency:
+  group: daily-pipeline
+  cancel-in-progress: false
+jobs:
+  regenerate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: 品質核對與必要更新
+        env:
+          TARGET_DATE: ${{ inputs.date }}
+          MODE: ${{ inputs.mode }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+          GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          GEMINI_THINKING_LEVEL: ${{ vars.GEMINI_THINKING_LEVEL || 'medium' }}
+          GEMINI_SEMANTIC_AUDIT: ${{ vars.GEMINI_SEMANTIC_AUDIT || 'true' }}
+          GEMINI_COMBINED_ASSESSMENT: ${{ vars.GEMINI_COMBINED_ASSESSMENT || 'true' }}
+          GEMINI_ASSESSMENT_TOKEN_BUDGET: ${{ vars.GEMINI_ASSESSMENT_TOKEN_BUDGET || '150000' }}
+          GEMINI_RPM: ${{ vars.GEMINI_RPM || '10' }}
+          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
+          FINAL_ATTEMPT: 'true'
+          PYTHONUNBUFFERED: '1'
+        run: |
+          ARGS=(--date "$TARGET_DATE")
+          if [ "$MODE" = apply ]; then ARGS+=(--apply); fi
+          python scripts/regenerate_verified_day.py "${ARGS[@]}"

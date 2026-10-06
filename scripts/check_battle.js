@@ -48,6 +48,11 @@ test('MA breakout MACD KD Bollinger and candle agree on rising fixture',()=>{
  const boll=r.checks.find(x=>x.key==='boll');assert.ok(Math.abs(boll.value-(100.3+2*Math.sqrt(1.71)))<1e-10);
 });
 test('disabled failing optional filter does not veto base conditions',()=>{const i=fixture();Object.assign(i.bars[60],{close:102.5});assert.equal(run(i,{},base).pass,true);assert.equal(run(i,{useBody:true},base).pass,false);});
+test('OR permits gap alone while AND requires volume as well',()=>{const i=fixture();i.bars[60].volume=1500;assert.equal(run(i,{},base).pass,false);assert.equal(run(i,{logic:'any'},base).pass,true);});
+test('OR known true is conclusive even if another selected baseline is missing',()=>{const i=fixture();i.bars.splice(48,1);const r=run(i,{logic:'any'},base);assert.equal(r.pass,true);assert.equal(r.status,'盤後條件符合');assert.ok(r.issues.some(x=>x.includes('成交量')));});
+test('OR false and unknown remains pending; AND false and unknown is rejected',()=>{const i=fixture();i.bars.splice(48,1);i.bars[58].high=105;assert.equal(run(i,{logic:'any'},base).status,'資料待核對');assert.equal(run(i,{},base).status,'未符合設定');});
+test('empty condition set cannot match every stock',()=>{assert.equal(run(fixture(),{useGap:false,useVolume:false},base).status,'資料待核對');});
+test('optional-only combination respects settings and invalid logic defaults to AND',()=>{const i=fixture();i.bars[60].volume=1000;assert.equal(run(i,{useGap:false,useVolume:false,useTrend:true},base).pass,true);assert.equal(run(i,{logic:'invalid'},base).pass,false);});
 test('invalid prefs reset; no NaN, unknown direction or invalid periods',()=>{const p=ctx.window.MarketBattle.cleanPrefs({gapPct:NaN,minLots:-1,volumeDays:1,direction:'either'});assert.equal(p.gapPct,2.5);assert.equal(p.minLots,1000);assert.equal(p.volumeDays,20);assert.equal(p.direction,'up');});
 test('three future sessions are not borrowed at event time',()=>{assert.equal(run(fixture(),{},base).gaps[0].status,'等待／缺少後續日 K');});
 function follow(n, fill) {const i=fixture(); for(let k=1;k<=n;k++)i.bars.push({date:calendar[60+k],open:106,high:108,low:fill&&k===1?100:104,close:107,volume:1000});return i;}

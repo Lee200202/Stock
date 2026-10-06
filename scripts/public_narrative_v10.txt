@@ -37,6 +37,7 @@ function stripEditorialWrappers_(text) {
 /* 公開文字不寫通知管道（2026/10/06）：前台只呈現分類與這一檔的說明。
    規則與 pipeline.py 的 _NOTICE_WORD_RULES 同一組、同一順序；寫在這裡，已經存進試算表的舊說明呈現時也會乾淨。 */
 var NOTICE_WORD_RULES_ = [
+  [/(?:新加入|新進|剛加入)(?:的)?會員(?:們)?(?=(?:可以|可)?(?:買進|買入|加碼|賣出|續抱))/g, ''],
   [/(?:會員簡訊|簡訊通知(?!(?:了)?(?:所有|全部|全體|全國|一般|新進|新加入)?(?:的)?會員)|盤中(?:即時)?通知|即時通知|會員通知)(?:的)?(?:當日|當天|今日|當時)?(?:通知|說明|指出|提到|要求|內容)?(?:在|以)?[：:]?/g, ''],
   [/依(?:照|據)?(?:當日|今日|盤中|上述|該)?(?:的)?(?:通知|簡訊|指示)(?:內容|指示)?[，,]?/g, ''],
   [/(?:我)?(?:告訴|跟)我的會員(?:講|說)?[，,]?/g, ''],
@@ -47,7 +48,7 @@ var NOTICE_WORD_RULES_ = [
 ];
 function scrubNoticeWords_(text) {
   text = String(text || '');
-  if (!/通知|簡訊|告訴我的會員/.test(text)) return text;
+  if (!/通知|簡訊|告訴我的會員|新加入|新進|剛加入/.test(text)) return text;
   NOTICE_WORD_RULES_.forEach(function (rule) { text = text.replace(rule[0], rule[1]); });
   return text.replace(/([，,])[，,]+/g, '$1').replace(/(^|[。；\n])[，,：:]+/g, '$1');
 }

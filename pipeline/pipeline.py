@@ -6762,7 +6762,7 @@ MANUAL_ENTRY_PREFIX = 'MANUALENTRY-'
 # 規則版本。刷新檢查點與判讀稽核都以「影片、日期、原文指紋、規則版本」為鍵：判讀規則有變就要換號，
 # 否則同一份原文重新投稿會被當成「來源與規則版本相同」，直接從舊檢查點續跑、不重跑判讀
 # （2026/10/01 v97 推上去後第一次重跑就是這樣，資料一筆都沒變）。
-ASSESSMENT_VERSION = 'context-json-v23'   # 公開事實直述，通知價位留在獨立欄位
+ASSESSMENT_VERSION = 'context-json-v24'   # 已定日的歷史交易另核對今日看法，避免沿用舊判讀檢查點
 
 
 _SOUND_MEMO = {}
@@ -7328,6 +7328,7 @@ def strip_editorial_wrappers(text):
 #   「過去在大漲時通知會員獲利了結」→「過去在大漲時獲利了結」
 #   「今天早上9.04分，我告訴我的會員，…獲利賣出一次，全部的會員都通知。」→「今天早上9.04分，…獲利賣出一次。」
 _NOTICE_WORD_RULES = [
+    (r'(?:新加入|新進|剛加入)(?:的)?會員(?:們)?(?=(?:可以|可)?(?:買進|買入|加碼|賣出|續抱))', ''),
     (r'(?:會員簡訊|簡訊通知(?!(?:了)?(?:所有|全部|全體|全國|一般|新進|新加入)?(?:的)?會員)|盤中(?:即時)?通知|即時通知|會員通知)(?:的)?(?:當日|當天|今日|當時)?(?:通知|說明|指出|提到|要求|內容)?(?:在|以)?[：:]?', ''),
     (r'依(?:照|據)?(?:當日|今日|盤中|上述|該)?(?:的)?(?:通知|簡訊|指示)(?:內容|指示)?[，,]?', ''),
     (r'(?:我)?(?:告訴|跟)我的會員(?:講|說)?[，,]?', ''),
@@ -7342,7 +7343,7 @@ _NOTICE_WORD_RULES = [(re.compile(p), r) for p, r in _NOTICE_WORD_RULES]
 def scrub_notice_words(text) -> str:
     """把通知管道的字眼從公開文字拿掉；內容（時間、條件、原因）照留。"""
     text = str(text or '')
-    if not re.search(r'通知|簡訊|告訴我的會員', text):
+    if not re.search(r'通知|簡訊|告訴我的會員|新加入|新進|剛加入', text):
         return text
     for pattern, repl in _NOTICE_WORD_RULES:
         text = pattern.sub(repl, text)
@@ -10134,6 +10135,11 @@ def history_to_watch(signals, date_str, ss=None, transcript=''):
     也會讓當天的會員持股從網站上被濾掉；一句回顧不該蓋掉簡訊的即時通知。
     """
     rows = [r for r in (signals.get('history') or []) if isinstance(r, dict)]
+    # 保留已核定過去日期的交易，另以原句核對今天的現況看法。
+    for cat in ('buy', 'sell'):
+        for r in signals.get(cat, []) or []:
+            if isinstance(r, dict) and r.get('_date') and r['_date'] < date_str:
+                rows.append(dict(r, _原分類=cat))
     if not rows:
         return signals
     segments = source_segments(transcript) if transcript else {}
@@ -10154,6 +10160,15 @@ def history_to_watch(signals, date_str, ss=None, transcript=''):
         if not r.get('view') and third_party_churn(str(r.get('reason') or '')):
             r['view'] = r['reason']; r['view_evidence'] = r.get('evidence') or []
         view, quotes = _current_view(r, segments)
+        if not view and r.get('_date') and r['_date'] < date_str:
+            names = [r.get('原始語音名稱'), r.get('name')] + list(r.get('aliases') or [])
+            for heard in names:
+                if not isinstance(heard, str) or len(heard) < 2:
+                    continue
+                current = plain_current_stance(heard, transcript)
+                if current:
+                    view, quotes = spoken_to_note(current[1]), [current[1]]
+                    break
         fact = naturalize_reason(r.get('reason') or '')
         if not view:
             skipped.append(f'{name}：只有過去的買賣（{fact or "未說明"}），原文沒有這一檔現在的看多、看空或技術說明，不列')
@@ -10867,6 +10882,26 @@ def _purge_transcript_rows_of_day(ss, sheet_name, date_str):
     return len(targets)
 
 
+def _manual_record_keys(ss, sheet_name):
+    """人工列已存在時不再追加同一事件；保留人工文字和來源，不刪人工列。"""
+    values = sheets_retry(ss.worksheet(sheet_name).get_all_values)
+    if not values:
+        return set()
+    head = values[0]
+    def cell(row, name, fallback=''):
+        i = head.index(name) if name in head else -1
+        return row[i] if 0 <= i < len(row) else fallback
+    keys = set()
+    for row in values[1:]:
+        source = str(cell(row, '來源影片ID')).strip()
+        if not (source.startswith(MANUAL_ENTRY_PREFIX) or source == '人工補登'):
+            continue
+        code = str(cell(row, '代號')).strip()
+        ident = code if code and code != UNRESOLVED else str(cell(row, '股票名稱')).strip()
+        keys.add((norm_date(cell(row, '日期')), ident, str(cell(row, '方向', '持股')).strip(), str(cell(row, '序', '1') or '1')))
+    return keys
+
+
 def write_results(ss, date_str, signals, article, done_trades, done_holds,
                   replace=False, replace_video=False):
     """
@@ -10879,6 +10914,8 @@ def write_results(ss, date_str, signals, article, done_trades, done_holds,
     寫完再核一次（_guard_other_days），少了就停下來講清楚。
     """
     video_id = signals.get("_video_id", "")
+    manual_trades = _manual_record_keys(ss, '操作紀錄') if replace_video else set()
+    manual_holds = _manual_record_keys(ss, '會員持股') if replace_video else set()
     protect = set(signals.get('_affected_dates') or []) | {date_str}
     guard = _day_counts(ss)
 
@@ -10928,6 +10965,12 @@ def write_results(ss, date_str, signals, article, done_trades, done_holds,
         for key, label in (("buy", "買入"), ("sell", "賣出"),
                            ("watch_avoid", "觀望不碰"), ("watch_watch", "觀望注意")):
             for r in signals.get(key, []):
+                ident = str(r.get('code') or '').strip()
+                if not ident or ident == UNRESOLVED:
+                    ident = str(r.get('name') or '').strip()
+                if (r.get('_date') or date_str, ident, label, str(r.get('_seq', 1))) in manual_trades:
+                    print(f"  {r.get('name')} {label}：沿用既有人工列，不重複追加")
+                    continue
                 rows.append([r.get("_date") or date_str,
                              r.get("name", ""), r.get("code", UNRESOLVED), label,
                              r.get("price") or "未說明", r.get("reason") or "未說明",
@@ -10952,7 +10995,8 @@ def write_results(ss, date_str, signals, article, done_trades, done_holds,
     else:
         holds = [[date_str, r.get("name", ""), r.get("code", UNRESOLVED),
                   stance_zh(r.get("stance")), r.get("note") or r.get("reason") or "未說明", video_id]
-                 for r in signals.get("holdings", [])]
+                 for r in signals.get("holdings", [])
+                 if (date_str, str(r.get('code') or r.get('name') or '').strip(), '持股', '1') not in manual_holds]
         if holds:
             append_rows_safe(ss.worksheet("會員持股"), holds)
         print(f"會員持股寫入 {len(holds)} 筆")

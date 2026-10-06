@@ -489,7 +489,10 @@ function quoteCacheStatus() {
   try { last = JSON.parse(pr.getProperty('QUOTE_JOB_STATUS') || '{}'); } catch (e) {}
   var quotes = getQuoteCache(), fresh = 0, old = 0, codes = trackedCodes_();
   codes.forEach(function (c) { if (!quotes[c]) { return; } if (quoteFresh_(quotes[c].stamp)) { fresh++; } else { old++; } });
-  var result = { job: last, fresh: fresh, old: old, total: fresh + old, eligible: codes.length, trading: isTradingNow_() };
+  var day = {}, close = {};
+  try { day = JSON.parse(pr.getProperty('QUOTE_DAY_STATS') || '{}'); } catch (e) {}
+  try { close = JSON.parse(pr.getProperty(QUOTE_CLOSE_PROP_) || '{}'); } catch (e) {}
+  var result = { job: last, fresh: fresh, old: old, total: fresh + old, eligible: codes.length, trading: isTradingNow_(), day: day, close: close };
   Logger.log(JSON.stringify(result));
   return result;
 }
@@ -607,6 +610,22 @@ function settleClosingQuotesTick_(force) {
   var pr = PropertiesService.getScriptProperties(), today = todayStr_(), st = {};
   try { st = JSON.parse(pr.getProperty(QUOTE_CLOSE_PROP_) || '{}'); } catch (e) { st = {}; }
   if (st.date !== today) { st = { date: today, done: false, tries: 0, misTries: 0, at: 0 }; }
+  /* 批次來源的連線自我檢查：每個交易日收盤後做一次（失敗最多再試兩次），結果記在狀態裡。
+     盤中才發現批次來源不通就太晚了——2026/10/06 整天不通，是事後從報價的時間戳倒推才知道的。 */
+  if (!st.relayTest || (st.relayTest.ok === false && (st.relayTries || 0) < 3)) {
+    st.relayTries = (st.relayTries || 0) + 1;
+    var checkedAt = Utilities.formatDate(new Date(), TZ, 'HH:mm:ss');
+    try {
+      MIS_LAST_VIA_ = '';
+      try { pr.deleteProperty(MIS_DIRECT_DOWN_PROP_); } catch (ignore) {}      // 每天在這裡重試一次直連
+      var probe = misRows_(['tse_2330.tw', 'otc_2330.tw']);
+      st.relayTest = { ok: probe.some(function (m) { return m && String(m.c) === '2330'; }), via: MIS_LAST_VIA_, rows: probe.length, at: checkedAt };
+    } catch (e) {
+      st.relayTest = { ok: false, via: '', at: checkedAt, error: String(e && e.message || e).replace(/https?:\/\/\S+/g, '').slice(0, 80) };
+    }
+    pr.setProperty(QUOTE_CLOSE_PROP_, JSON.stringify(st));
+    Logger.log('批次報價連線檢查：' + JSON.stringify(st.relayTest));
+  }
   if (st.done && !force) { return 'done'; }
   // 日K落地前（約 14:45 前）每五分鐘試一次 MIS；之後日K是主要來源，十五分鐘看一次；一天最多 40 次。
   var gapMin = hhmm < 1445 ? 4 : 14;
@@ -1222,12 +1241,13 @@ function misQuote_(code) {
  * 2026/10/06 整個交易日，Apps Script 直連證交所 MIS 每一次都是「Address unavailable」（後台報價排程紀錄），
  * 68 棒沒有一棒拿到批次資料，只剩逐檔備援：一棒 30 秒約 17 檔，240 檔裡持有以外的股票幾個小時才輪到一次。
  * 同一時間從 Cloudflare 連 MIS 是通的（240 檔分 5 批，合計約 1 秒）。
- * 所以：先直連；連線層失敗或非 200 就記一小時，這段時間改由本站 Worker 的 /quote-relay 代為連線。
+ * 所以：先直連；連線層失敗或非 200 就記一整天，這段時間改由本站 Worker 的 /quote-relay 代為連線。
+ * 直連每天只由收盤後的連線檢查重試一次（settleClosingQuotesTick_）：盤中不拿寶貴的三十秒去試一條昨天還不通的路。
  * 轉送只接受 tse_／otc_ 代號清單，並用橋接權杖（SITE_BRIDGE_TOKEN，Worker 與這裡本來就共用）驗證，不是開放代理。
  * 指令碼屬性 QUOTE_RELAY_URL 可改網址；設成 off 就不走轉送。
  * ------------------------------------------------------------------ */
 var QUOTE_RELAY_DEFAULT_ = 'https://zhangzhen-site-api.rainforecast2026-6fb.workers.dev/quote-relay';
-var MIS_DIRECT_DOWN_KEY_ = 'mis_direct_down_v134';
+var MIS_DIRECT_DOWN_PROP_ = 'MIS_DIRECT_DOWN_UNTIL';
 var MIS_LAST_VIA_ = '';
 
 function quoteRelayUrl_() {
@@ -1239,8 +1259,8 @@ function quoteRelayUrl_() {
 
 /** MIS 回傳的原始列（msgArray）。兩條路都不通時丟出例外，呼叫端照舊記 MIS 中斷、改用逐檔備援。 */
 function misRows_(channels) {
-  var query = encodeURIComponent(channels.join('|')), firstError = null, directDown = false;
-  try { directDown = !!CACHE.get(MIS_DIRECT_DOWN_KEY_); } catch (e) {}
+  var query = encodeURIComponent(channels.join('|')), firstError = null, directDown = false, store = null;
+  try { store = PropertiesService.getScriptProperties(); directDown = Date.now() < Number(store.getProperty(MIS_DIRECT_DOWN_PROP_) || 0); } catch (e) {}
   if (!directDown) {
     try {
       var res = UrlFetchApp.fetch('https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=' + query + '&json=1&delay=0&_=' + Date.now(), {
@@ -1249,7 +1269,7 @@ function misRows_(channels) {
       if (res.getResponseCode() === 200) { MIS_LAST_VIA_ = 'direct'; return JSON.parse(res.getContentText()).msgArray || []; }
       firstError = new Error('MIS HTTP ' + res.getResponseCode());
     } catch (e) { firstError = e; }
-    try { CACHE.put(MIS_DIRECT_DOWN_KEY_, '1', 3600); } catch (ignore) {}
+    try { store.setProperty(MIS_DIRECT_DOWN_PROP_, String(Date.now() + 24 * 3600000)); } catch (ignore) {}
   }
   var relay = quoteRelayUrl_(), token = '';
   try { token = PropertiesService.getScriptProperties().getProperty('SITE_BRIDGE_TOKEN') || ''; } catch (e) {}

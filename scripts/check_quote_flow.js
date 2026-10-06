@@ -278,6 +278,29 @@ const report = [];
   report.push('七、日K已落地但逐檔快取過期：15:00 後整張讀一次，240 檔仍全部換成收盤價');
 }
 
+/* ---- 八、隔天開盤：收盤後的連線檢查已確認轉送可用，09:00 第一棒起就全部更新，不再花時間試直連 ---- */
+{
+  const w = makeWorld({direct: false, relay: true});
+  runDay(w);
+  const test = JSON.parse(w.props.get('QUOTE_CLOSE_SETTLE')).relayTest;
+  assert.deepEqual({ok: test.ok, via: test.via}, {ok: true, via: 'relay'}, '收盤後的連線檢查要記下轉送可用');
+  const directBefore = w.stats.misDirect, fugleBefore = w.stats.fugle;
+  for (let t = taipei(NEXT, '09:00:10'), n = 0; t <= taipei(NEXT, '13:30:10'); t += 300000, n++) {
+    w.clock.now = Math.max(w.clock.now, t);
+    const before = new Map(w.sheet.rows.slice(1).map(r => [String(r[0]), String(r[7])])), started = w.clock.now;
+    w.ctx.refreshQuoteCacheJob();
+    const changed = w.sheet.rows.slice(1).filter(r => before.get(String(r[0])) !== String(r[7])).length;
+    const hm = new Date(t + 8 * 3600000).toISOString().slice(11, 16);
+    assert.equal(changed, CODES.length, `隔天 ${hm} 只更新 ${changed} 檔`);
+    assert.ok(w.clock.now - started <= 15000, `隔天 ${hm} 這一棒跑了 ${w.clock.now - started} ms`);
+    const live = w.ctx.getQuotesFor([CODES[7]], false, true, true)[CODES[7]];
+    assert.equal(live.date, NEXT); assert.equal(w.ctx.quoteFresh_(live.stamp), true, `隔天 ${hm} 的報價應該是新鮮的`);
+  }
+  assert.equal(w.stats.misDirect, directBefore, '隔天盤中不該再試直連');
+  assert.equal(w.stats.fugle, fugleBefore, '批次有資料時不必逐檔取');
+  report.push('八、隔天 09:00～13:30：55 棒每一棒 240 檔全部更新、報價皆在五分鐘內；不再試直連、不需逐檔備援');
+}
+
 function runDayUntil(w, untilHm) {
   for (let t = taipei(DAY, '09:00:10'); ; t += 300000) {
     const hm = new Date(t + 8 * 3600000).toISOString().slice(11, 16);

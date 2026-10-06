@@ -8765,7 +8765,7 @@ def _adds_new_content(sentence, existing) -> bool:
     return sum(g in e for g in grams) / len(grams) < 0.6
 
 
-def fill_empty_notes(signals):
+def fill_empty_notes(signals, transcript=''):
     """說明是空的或只剩幾個字時，用這一檔已核對的原句整理成一句，不讓空白上網站。
 
     2026/10/06 重播：模型給鴻海（賣出）、勤誠的 reason 是空字串，那一輪補充說明又一檔都沒通過，兩檔最後是空白。
@@ -8782,6 +8782,12 @@ def fill_empty_notes(signals):
             quotes = [q for q in [row.get('view'), row.get('time_evidence')] + list(row.get('evidence') or [])
                       if isinstance(q, str) and len(_ev_norm(q)) >= 8]
             pick = next((q for q in quotes if any(n in q for n in names)), quotes[0] if quotes else '')
+            if not pick and transcript:
+                # 這一列沒有留下可用的引句：用原文裡點名本股、而且有內容的句子，取最後講到的那一句。
+                heard = sorted(names + [str(row.get('原始語音名稱') or '')], key=len, reverse=True)
+                own = [x for x in _plain_sentences(transcript)
+                       if any(n and n in x for n in heard) and 12 <= len(_ev_norm(x)) <= 90 and not x.endswith(('？', '?'))]
+                pick = own[-1] if own else ''
             if not pick:
                 continue
             row[field] = public_narrative(spoken_to_note(pick), row, signals)
@@ -8844,6 +8850,38 @@ def enrich_stock_context(signals, transcript, date_str):
             gap(row, '上下文補問未完成，保留已驗證說明')
         note_decision('個股說明', '補問未完成，保留原說明', date_str, f'{len(entries)} 檔；{str(exc)[:120]}')
         return signals
+
+    def usable(found):
+        """每一句都附了本檔段落編號的回覆有幾筆。"""
+        count = 0
+        for rep in found:
+            target = targets.get(rep.get('id')) if isinstance(rep, dict) else None
+            claims = rep.get('sentences') if target else None
+            norm = _ev_norm(target[2]) if target else ''
+
+            def cited(c):
+                ids, quoted = c.get('source_ids'), c.get('quotes')
+                if isinstance(ids, list) and ids:
+                    return all(isinstance(i, str) and i in target[4] for i in ids)
+                return isinstance(quoted, list) and bool(quoted) and all(isinstance(q, str) and _quote_is_real(q, norm) for q in quoted)
+            if isinstance(claims, list) and claims and all(isinstance(c, dict) and cited(c) for c in claims):
+                count += 1
+        return count
+    # 2026/10/06 重播九次裡有兩次，模型整批沒照格式附段落編號（「採用 0/12：引用不存在或改字 12」），
+    # 那一輪所有說明都停在初稿的一兩句。三成以下可用時提醒格式重問一次，取可用較多的那一份。
+    first_ok = usable(replies)
+    if len(entries) >= 3 and first_ok * 3 < len(entries) and budget_left() >= 240 and not _QUOTA_STOP.get('daily'):
+        print(f'個股說明補充：回覆只有 {first_ok}/{len(entries)} 筆照格式附段落編號，重問一次')
+        try:
+            again = safe_load_json(call_gemini(
+                STOCK_CONTEXT_SYSTEM + '\n上一次回覆的 source_ids 沒有對到 sources 的編號，整批無法採用。'
+                '每一句的 source_ids 只能填該 entry.sources 裡的 id（s0、s1……），不要填原句、頁碼或自編的編號。',
+                payload, want_json=True, thinking=1024, tag='stock-context', max_out=min(MAX_OUT, 12000)))
+            second = again.get('notes') if isinstance(again, dict) else None
+            if isinstance(second, list) and usable(second) > first_ok:
+                replies = second
+        except (RuntimeError, ValueError, TypeError, RateLimited) as exc:
+            print(f'個股說明補充重問未完成：{str(exc)[:80]}；用第一次的回覆')
     accepted, why_not = set(), {}
     for reply in replies:
         if not isinstance(reply, dict) or reply.get('id') not in targets or reply['id'] in accepted:
@@ -12037,7 +12075,7 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     # 補問有自己的逐句核對，之後照原順序再過一次歸屬檢查。
     signals = strip_foreign_price_claims(signals, TX["audit"])
     signals = enrich_stock_context(signals, TX["audit"], date_str)
-    signals = fill_empty_notes(signals)
+    signals = fill_empty_notes(signals, TX["audit"])
     signals = strip_unsupported_event_context(signals, TX["audit"])
     signals = sanitize_entity_claims(signals, TX["audit"])
     # 說明裡的成本／買賣價若明顯是隔壁那一檔的，刪掉那一句（管理者回報鴻準238，2026/09/16）。

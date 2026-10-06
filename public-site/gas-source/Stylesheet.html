@@ -4793,6 +4793,8 @@ main.wrap:has(> #p-battle:not([hidden])) { width:min(1600px, calc(100% - 48px));
 .battle-rule[data-logic=any] { border-color:#2456a4; background:color-mix(in srgb,#2456a4 8%,var(--panel)); }
 .battle-empty { padding:32px; }
 .battle-empty p { color:var(--muted); line-height:1.8; }
+.battle-empty-acts { display:flex; flex-wrap:wrap; gap:12px; margin-top:16px; }
+@media(max-width:480px) { .battle-empty-acts > button { width:100%; } }
 .battle-logic-button:focus-visible,.battle-expression-chip:focus-visible { outline:3px solid var(--beam); outline-offset:4px; }
 @media(max-width:720px) { .battle-logic-board { grid-template-columns:1fr; } .battle-dropzone { padding:20px; } .battle-search button { width:100%; } }
 @media (prefers-reduced-motion:reduce) { .battle-pill { transition:none; } }

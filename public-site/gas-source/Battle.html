@@ -140,6 +140,8 @@
   'use strict';
   var $ = function (id) { return document.getElementById(id); }, data = null, universe = [], page = 0, custom = false, loading = false, detailCode = '', detailSeq = 0, detailItem = null, detailContext = null;
   var loadedAt = 0, cache = new Map(), cfg = window.BATTLE_CONFIG, requestedCodes = null, loadSeq=0;
+  // 查看單一股票時，追蹤清單已經讀到的結果留在這裡；回來直接畫，不必整份重讀（v133）。
+  var listState = null;
   function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function fmt(v, n) { return v === null || v === undefined || !isFinite(Number(v)) ? '未提供' : Number(v).toLocaleString('zh-TW', { maximumFractionDigits: n === undefined ? 2 : n }); }
   function prefs() { return window.BattleSettings.get(); }
@@ -181,7 +183,10 @@
     var p = prefs(), cards = data.items.map(function (item) { return resultCard(item, data, false); });
     var shown = cards.filter(function (c) { return c.result.pass; }), total = shown.length;
     page=Math.min(page,Math.max(0,Math.ceil(total/cfg.pageSize)-1));
-    $('battleCards').innerHTML = shown.slice(page*cfg.pageSize,(page+1)*cfg.pageSize).map(function (c) { return c.html; }).join('') || '<div class="battle-empty card"><h3>'+'目前沒有符合條件的股票'+'</h3><p>已核對 '+cards.length+' 檔。未符合者已收起，可調整條件或在個股查看各項數值。</p></div>';
+    var one = custom && data.items[0];
+    $('battleCards').innerHTML = shown.slice(page*cfg.pageSize,(page+1)*cfg.pageSize).map(function (c) { return c.html; }).join('') || (custom
+      ? '<div class="battle-empty card"><h3>'+(one?esc(one.name||one.code)+'（'+esc(one.code)+'）':'這一檔')+'目前不符合條件</h3><p>這裡只看你指定的這一檔。可以查看它的各項數值，或回到符合條件的清單。</p><div class="battle-empty-acts">'+(one?'<button type="button" class="act" data-bstock="'+esc(one.code)+'">查看這一檔的數值</button>':'')+'<button type="button" class="act" data-bback>回到符合條件的清單</button></div></div>'
+      : '<div class="battle-empty card"><h3>'+'目前沒有符合條件的股票'+'</h3><p>已核對 '+cards.length+' 檔。未符合者已收起，可調整條件或在個股查看各項數值。</p></div>');
     $('battleSummary').textContent = '資料日 ' + data.date + ' · 已核對 ' + cards.length + (custom?'':'／'+universe.length) + ' 檔 · 符合 ' + cards.filter(function (c) { return c.result.pass; }).length + (loading?' · 其餘行情讀取中':'') + ' · 讀取 ' + data.at + ' · ' + data.quoteCadence;
     var enabled = cards.length ? cards[0].result.checks.filter(function(c){return c.enabled;}).map(function(c){return c.label;}) : [];
     $('battleRule').textContent = (p.logic==='all'?'全部符合（且）':'任一符合（或）')+'：'+(enabled.join(p.logic==='all'?' 且 ':' 或 ')||'尚未加入條件');
@@ -245,7 +250,18 @@
   $('battleRefresh').addEventListener('click', function () { cache.clear(); load(custom ? requestedCodes : null); });
   $('battlePrev').addEventListener('click', function () { if (page > 0) { page--; paint(); } });
   $('battleNext').addEventListener('click', function () { page++; paint(); });
-  $('battleUniverse').addEventListener('click', function () { if(loading)return;custom = false; page = 0; load(null); });
+  /* 回到符合條件的清單。先前只有分頁列最後一顆「回追蹤清單」，而且讀取中按了沒反應；
+     查過個股再把搜尋清空，下面仍停在「已核對 1 檔」（2026/10/06 管理者回報）。 */
+  function backToList() {
+    if (!custom) return;
+    var s = listState;
+    custom = false; ++loadSeq; loading = false; requestedCodes = null; $('battleRefresh').disabled = false;
+    if (s) { data = s.data; universe = s.universe; page = s.page; loadedAt = s.at; paint(); }
+    else { page = 0; }
+    // 離開時清單已經讀完、而且還在五分鐘內：直接用，不再讀。否則先畫已有的，再把剩下的讀完。
+    if (!(s && s.complete && Date.now() - s.at < 300000)) load(null);
+  }
+  $('battleUniverse').addEventListener('click', backToList);
   var searchInput=$('battleCode'), suggestions=$('battleSuggestions'), searchHint=$('battleSearchHint');
   var suggestTimer, suggestSeq=0, suggestItems=[], activeSuggestion=-1, composing=false, searchCache=new Map(), selectedSearch=null;
   function normalizeQuery(s){return String(s||'').replace(/[＊*\s]+/g,'').toUpperCase();}
@@ -276,9 +292,11 @@
     },220);
   }
   function choose(item){
-    ++suggestSeq;clearTimeout(suggestTimer);selectedSearch={item:item,query:normalizeQuery(searchInput.value)};closeSuggestions();searchHint.textContent='查看 '+item.name+'（'+item.code+'）';custom=true;page=0;load([String(item.code)]);
+    ++suggestSeq;clearTimeout(suggestTimer);selectedSearch={item:item,query:normalizeQuery(searchInput.value)};closeSuggestions();searchHint.textContent='查看 '+item.name+'（'+item.code+'）。清空搜尋可回到符合條件的清單。';
+    if(!custom&&data)listState={data:data,universe:universe,page:page,complete:!loading,at:loadedAt};
+    custom=true;page=0;load([String(item.code)]);
   }
-  searchInput.addEventListener('input',function(){selectedSearch=null;suggest();});
+  searchInput.addEventListener('input',function(){selectedSearch=null;suggest();if(!searchInput.value.trim())backToList();});
   searchInput.addEventListener('compositionstart',function(){composing=true;++suggestSeq;clearTimeout(suggestTimer);closeSuggestions();});
   searchInput.addEventListener('compositionend',function(){composing=false;suggest();});
   searchInput.addEventListener('focus',function(){if(searchInput.value.trim())suggest();});
@@ -303,7 +321,7 @@
     var saved=(data?data.items:[]).find(function(i){return normalizeQuery(i.name+' '+i.code)===q;});if(saved){choose(saved);return;}
     searchHint.textContent=q?'請從下方候選選擇股票，或輸入完整代號。':'請輸入股名或代號。';if(q)suggest();
   });
-  $('battleCards').addEventListener('click', function (e) { if (e.target.closest('[data-bretry]')) { cache.clear(); load(requestedCodes); return; } var b = e.target.closest('[data-bstock]'); if (b && window.__openBattleStock) window.__openBattleStock(b.dataset.bstock); });
+  $('battleCards').addEventListener('click', function (e) { if (e.target.closest('[data-bretry]')) { cache.clear(); load(requestedCodes); return; } if (e.target.closest('[data-bback]')) { searchInput.value=''; selectedSearch=null; suggest(); backToList(); return; } var b = e.target.closest('[data-bstock]'); if (b && window.__openBattleStock) window.__openBattleStock(b.dataset.bstock); });
   window.addEventListener('battle-settings-change', function () { page=0;paint(); if (detailItem) $('dBattle').innerHTML = resultCard(detailItem, detailContext, true).html; });
   document.addEventListener('visibilitychange', function () { if (!document.hidden && !$('p-battle').hidden) window.__battleLoad(); });
   setInterval(function () { if (!document.hidden && !$('p-battle').hidden) window.__battleLoad(); }, 300000);

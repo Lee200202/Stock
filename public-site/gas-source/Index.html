@@ -172,7 +172,7 @@
       <p id="battleSummary" class="notice" role="status" aria-live="polite">選取此分頁後讀取資料。</p>
       <p id="battleRule" class="battle-rule"></p>
       <div id="battleCards" class="battle-list"></div>
-      <div class="battle-pagination"><button type="button" class="act" id="battlePrev" disabled>上一頁</button><span id="battlePage"></span><button type="button" class="act" id="battleNext" disabled>下一頁</button><button type="button" class="act" id="battleUniverse" hidden>回追蹤清單</button></div>
+      <div class="battle-pagination"><button type="button" class="act" id="battlePrev" disabled>上一頁</button><span id="battlePage"></span><button type="button" class="act" id="battleNext" disabled>下一頁</button><button type="button" class="act" id="battleUniverse" hidden>回到符合條件的清單</button></div>
       <details class="battle-help"><summary>判定方式與資料限制</summary><p>跳空幅度以開盤／昨收計算，另要求開盤超出昨日高低價。爆量以當日實際成交量除以前 5 或 20 個交易日均量，均量排除當日。盤中預設看實際累計量；可選簡化估量，數值另標示，並非歷史同時段量比。</p><p>均線、前高低、MACD、KD、布林與 K 棒是可選的附加條件；到戰情設定調整。結果只列出可判定且符合所選條件的股票。缺口歷史的三日是事件後三個交易日，不是日曆日；仍需核對除權息、減資或分割等事件。</p><p>目前沒有可靠的歷史同時段累計量、流通股數與法人買賣資料，因此不提供量比、周轉率或法人濾網。頁面只讀既有快取；不會啟動行情補抓、重算或寄送。</p></details>
       <noscript><p>戰情追蹤需要 JavaScript 計算；核心規則見上方判定方式。沒有運算結果時不顯示符合訊號。</p></noscript>
     </div>

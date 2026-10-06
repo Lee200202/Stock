@@ -6762,7 +6762,7 @@ MANUAL_ENTRY_PREFIX = 'MANUALENTRY-'
 # 規則版本。刷新檢查點與判讀稽核都以「影片、日期、原文指紋、規則版本」為鍵：判讀規則有變就要換號，
 # 否則同一份原文重新投稿會被當成「來源與規則版本相同」，直接從舊檢查點續跑、不重跑判讀
 # （2026/10/01 v97 推上去後第一次重跑就是這樣，資料一筆都沒變）。
-ASSESSMENT_VERSION = 'context-json-v24'   # 已定日的歷史交易另核對今日看法，避免沿用舊判讀檢查點
+ASSESSMENT_VERSION = 'context-json-v25'   # 歷史交易另核對今日看法；條件續抱不推定實際持有
 
 
 _SOUND_MEMO = {}
@@ -7257,7 +7257,8 @@ def watch_tone(text):
                  r'|低檔[^賣追，。,；;]{0,8}(?:買|佈局|布局)|買點|' + _WAIT_VERB + r'[^，。,；;]{0,30}(?:再買|買進|進場|站回|再注意|漲)'
                  # 「拉回可以布局」「回檔承接」是低檔買點（v54，Codex 合成測試：聖暉整理三個月、拉回可以布局）。
                  r'|可以.{0,8}(?:買|留意|佈局|布局|承接)|(?:拉回|回檔|回測)[^賣追，。,；;]{0,8}(?:買|佈局|布局|承接)'
-                 r'|值得.{0,8}(?:留意|追蹤)|營收.{0,8}成長', positive):
+                 r'|值得.{0,8}(?:留意|追蹤)|營收.{0,8}成長'
+                 r'|(?<![無沒])(?:佈局|布局|進場|承接)機會|尋找(?:切入點|買點)', positive):
         return 'watch_watch'
     # 法人反覆換手本身是中性現象，不因「外資買…」的字面算偏多。
     if third_party_churn(text):
@@ -7779,7 +7780,19 @@ def verify_holding_subject(signals: dict, transcript: str) -> dict:
         if code not in index or not re.fullmatch(r'(?:00981A|\d{4,6})', code):
             keep.append(row)
             continue
-        if code in parents:
+        scopes = [scope for scope, _ in _entity_scope(row, signals, transcript)]
+        conditional = any(re.search(r'(?:如果|假如|假設|倘若|若)[^。！？!?；;]{0,100}(?:抱|持有|持股)', s) for s in scopes)
+        factual = False
+        for scope in scopes:
+            # 假設投資人持有／若忽略短線就抱著，不能開啟會員持股回合。
+            unconditional = re.sub(r'(?:如果|假如|假設|倘若|若)[^。！？!?；;]*', '', scope)
+            if re.search(r'(?:我|我們|會員)(?:目前|現在|本來|仍|還|已經|都|就|也|的|有|是){0,6}'
+                         r'(?:持有|持股|有|買進|買的|買在|沒有賣|没賣|還在)|'
+                         r'會員[^。！？!?；;]{0,25}(?:沒叫你們賣|不[准準](?:亂|隨便)?賣)', unconditional):
+                factual = True
+        if conditional and not factual:
+            why = '原文只有條件式續抱，沒有本檔已持有的事實'
+        elif code in parents:
             why = '原文講的是「這個集團裡面那一支」，不是集團母公司本身'
         elif owners and code not in owners:
             other = sorted(owners.items(), key=lambda kv: kv[1])[0][0]
@@ -7789,6 +7802,7 @@ def verify_holding_subject(signals: dict, transcript: str) -> dict:
             continue
         name = str(row.get('name') or code)
         demoted = dict(row)
+        demoted['_原分類'] = 'holdings'
         demoted['reason'] = str(row.get('note') or row.get('reason') or '')
         demoted.pop('stance', None)
         signals.setdefault('watch_watch', []).append(demoted)

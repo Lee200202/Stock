@@ -139,7 +139,7 @@
 (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); }, data = null, universe = [], page = 0, custom = false, loading = false, detailCode = '', detailSeq = 0, detailItem = null, detailContext = null;
-  var loadedAt = 0, cache = new Map(), cfg = window.BATTLE_CONFIG, requestedCodes = null;
+  var loadedAt = 0, cache = new Map(), cfg = window.BATTLE_CONFIG, requestedCodes = null, loadSeq=0;
   function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function fmt(v, n) { return v === null || v === undefined || !isFinite(Number(v)) ? '未提供' : Number(v).toLocaleString('zh-TW', { maximumFractionDigits: n === undefined ? 2 : n }); }
   function prefs() { return window.BattleSettings.get(); }
@@ -193,26 +193,31 @@
     if (window.__fxRiseIn) window.__fxRiseIn($('battleCards'));
   }
   function load(codes) {
-    if (loading) return;
+    if (loading && !(custom && codes)) return;
+    var seq=++loadSeq;
     requestedCodes = codes;
     loading = true; $('battleRefresh').disabled = true; $('battlePrev').disabled = true; $('battleNext').disabled = true;
     $('battleSummary').textContent = '正在讀取落地行情…';
     read(codes, function (r) {
+      if(seq!==loadSeq)return;
       var failed=[]; data = Object.assign({},r,{items:r.items.slice()}); universe = r.universe || []; paint();
       if(custom){finish();return;}
       var present=new Set(r.items.map(function(item){return item.code;})), remaining=universe.filter(function(item){return !present.has(item.code);}), jobs=[];
       for(var n=0;n<remaining.length;n+=cfg.pageSize)jobs.push(remaining.slice(n,n+cfg.pageSize).map(function(item){return item.code;}));
       var active=0;
-      function finish(){loading=false;$('battleRefresh').disabled=false;loadedAt=Date.now();paint();if(failed.length)$('battleSummary').textContent+=' · '+failed.length+' 檔未讀取成功，更新資料可重試';}
+      function finish(){if(seq!==loadSeq)return;loading=false;$('battleRefresh').disabled=false;loadedAt=Date.now();paint();if(failed.length)$('battleSummary').textContent+=' · '+failed.length+' 檔未讀取成功，更新資料可重試';}
       function next(){
+        if(seq!==loadSeq)return;
         if(!jobs.length&&!active){finish();return;}
         while(active<3&&jobs.length){(function(batch){active++;read(batch,function(part){
+          if(seq!==loadSeq)return;
           if(part.date!==data.date){failed=failed.concat(batch);}else{data.items=data.items.concat(part.items);paint();}
           active--;next();
-        },function(){failed=failed.concat(batch);active--;next();});})(jobs.shift());}
+        },function(){if(seq!==loadSeq)return;failed=failed.concat(batch);active--;next();});})(jobs.shift());}
       }
       next();
     }, function () {
+      if(seq!==loadSeq)return;
       loading = false; $('battleRefresh').disabled = false;
       $('battleSummary').textContent = '這次未能取得行情。';
       // 不讓先前日期的卡片混在錯誤狀態下仍被看成目前結果。
@@ -271,7 +276,6 @@
     },220);
   }
   function choose(item){
-    if(loading){searchHint.textContent='行情讀取中，請稍後再查看。';return;}
     ++suggestSeq;clearTimeout(suggestTimer);selectedSearch={item:item,query:normalizeQuery(searchInput.value)};closeSuggestions();searchHint.textContent='查看 '+item.name+'（'+item.code+'）';custom=true;page=0;load([String(item.code)]);
   }
   searchInput.addEventListener('input',function(){selectedSearch=null;suggest();});

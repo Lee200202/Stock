@@ -228,6 +228,8 @@ function loadAll(w) {
   runUntil(w, '10:02');
   const v2 = plain(w.ctx.apiGetBattleData([CODES[0], CODES[1]], {v: 2})), v1 = plain(w.ctx.apiGetBattleData([CODES[0], CODES[1]]));
   assert.equal(v2.barsMax, 260); assert.equal(v2.batchMax, 40);
+  // 行事曆要涵蓋給出去的每一根日K，前台才核對得了連續性（2026/10/07 正式站：250 根日K 對 244 天行事曆，125 檔因此資料不足）
+  assert.ok(v2.calendar.length >= 265 && v2.calendar[0] <= expand(v2.items[0]).bars[0].date, `行事曆 ${v2.calendar.length} 天，從 ${v2.calendar[0]} 起`);
   assert.equal(v2.items[0].b.length, 260); assert.equal(v2.items[1].b.length, 130);   // 有多少給多少，最多 260 根
   assert.equal(v1.items[0].bars.length, 160);                                         // 舊版前台照舊
   // 兩種格式最後 160 根逐根相同

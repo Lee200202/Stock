@@ -587,7 +587,9 @@
     check('body', up ? '紅 K 與收盤位置' : '黑 K 與收盤位置', position === null ? null : (up ? cur.close > cur.open && position >= p.closePosition : cur.close < cur.open && position <= 1 - p.closePosition), position,
       (up ? '收紅且位於當日區間上方 ' : '收黑且位於當日區間下方 ') + ((1 - p.closePosition) * 100).toFixed(0) + '%', p.useBody);
     // 指標用的歷史：評估日前連續的日 K 全部拿來用（後端最多給 260 根）。越長，EMA 與 Wilder 平滑的種子對尾端的影響越小。
-    var ih = history(Math.min(MAX_HISTORY, prior.length)), hist = null, kd = null;
+    // 連續與否要靠行事曆逐日核對，所以最多只用到行事曆涵蓋的那一段：日 K 比行事曆長時（後端給 250 根、行事曆只有 244 天），
+    // 用行事曆涵蓋得到的最近那一段，不是整檔變成資料不足。
+    var ih = history(Math.min(MAX_HISTORY, prior.length, calendar.length)), hist = null, kd = null;
     if (ih && valid(cur)) {
       var series = ih.concat([cur]), closes = series.map(function (b) { return b.close; });
       if (series.length >= 26) {

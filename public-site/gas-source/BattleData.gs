@@ -158,7 +158,8 @@ function apiGetBattleData(requested, options) {
     var years = Object.assign({}, MARKET_HOLIDAY_YEARS_), unknown = {};
     var savedProperties = PropertiesService.getScriptProperties();
     cursor.setHours(12, 0, 0, 0);
-    for (var i = 0; i < 370; i++) {
+    // 行事曆要涵蓋給出去的每一根日K（最多 260 根 ≈ 380 個日曆天，再留假日的餘裕），前台才有辦法逐日核對連續性。
+    for (var i = 0; i < 430; i++) {
       var iso = Utilities.formatDate(cursor, TZ, 'yyyy-MM-dd'), year = iso.slice(0, 4);
       if (!years[year] && !unknown[year]) {
         try {

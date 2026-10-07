@@ -26,6 +26,8 @@ const item = bars => {
   bars.forEach((b, i) => assert.ok(b.high >= Math.max(b.open, b.close) && b.low <= Math.min(b.open, b.close) && b.volume >= 0, '第 ' + i + ' 根不是合理的 K 棒 ' + JSON.stringify(b)));
   return {code: '1234', name: '測試', bars: bars.map((b, i) => ({date: calendar[i], ...b}))};
 };
+/* 從行事曆第 from 天開始排的日 K（測試「日 K 與行事曆起點不同」用）。 */
+const item2 = (bars, from) => ({code: '1234', name: '測試', bars: bars.map((b, i) => ({date: calendar[from + i], ...b}))});
 const dayCtx = (n, more) => ({date: calendar[n - 1], calendar, volumeUnit: 'lots', afterClose: true, ...more});
 /* 單一條件的結果：把它單獨放進一組來算。 */
 function sig(id, bars, params = {}, more = {}) {
@@ -614,6 +616,19 @@ test('warm-up: indicators that carry a seed refuse to judge on short history; 16
     `訊號不一致：160↔260 根 ${flips['160↔260']} 次、260 根↔全部 ${flips['260↔全部']} 次`);
   assert.ok(worst.hist < 1e-3 && worst.rsi < 0.02 && worst.adx < 0.05 && worst.k < 1e-6, JSON.stringify(worst));
   assert.equal(flips['260↔全部'], 0); assert.ok(flips['160↔260'] <= 2, '160 根與 260 根的訊號差異超出預期：' + flips['160↔260']);
+});
+test('more bars than the calendar covers: use the part the calendar can vouch for instead of turning the whole stock unknown', () => {
+  // 正式站實際發生的情形（2026/10/07）：後端給 250 根日 K，行事曆只往回涵蓋 244 個交易日
+  const bars = walk(88, 250), it = item(bars), c = dayCtx(250), p = {groups: [['macdCross', 'trendUp', 'useMacd']], cond: {trendUp: {maDays: 60}}};
+  const full = evaluate(it, p, c), short = evaluate(it, p, {...c, calendar: calendar.slice(6, 250)});      // 行事曆少了最前面 6 天
+  assert.ok(full.checks.filter(k => k.enabled).every(k => k.pass !== null));
+  assert.ok(short.checks.filter(k => k.enabled).every(k => k.pass !== null), '行事曆比日 K 短時不該整檔資料不足');
+  // 用的是行事曆涵蓋的那 243 根：和直接只給那一段日 K 的結果相同
+  const same = evaluate(item2(bars.slice(6), 6), p, {...c, calendar: calendar.slice(6, 250)});
+  eq(short.checks.map(k => [k.key, k.pass, k.value]), same.checks.map(k => [k.key, k.pass, k.value]));
+  // 行事曆涵蓋的那一段裡如果有缺日，仍然是資料不足
+  const holed = item(bars); holed.bars.splice(200, 1);
+  assert.ok(evaluate(holed, p, {...c, calendar: calendar.slice(6, 250)}).checks.filter(k => k.enabled).every(k => k.pass === null));
 });
 test('fixed events keep their date and level from one day to the next unless an explicit rule replaces or expires them', () => {
   let checked = 0, replaced = 0, expired = 0;

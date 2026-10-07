@@ -6417,20 +6417,37 @@ source_ids 填支持 note 的段落編號，只能用同一 entry 的 sources。
 只輸出 {"stocks":[{"id":"x0","verdict":"watch_avoid","note":"完整書面句。","source_ids":["s0"]}]}。"""
 
 
+# 獲利狀況的歸屬（2026/10/07 正式更新）。
+# 原文：「SpaceX我不敢買，因為馬斯克那一千公司實際是沒有什麼賺錢的。可是低軌衛星會很熱，所以…你們在看到的低軌衛星都是華通跟啟碁。」
+# 單檔覆核把「沒有賺錢」寫成華通的事：「低軌衛星題材熱絡，但公司實際並未賺取什麼利潤…」，華通以觀望不碰上線。
+# 摘錄是在別家公司名稱處切開的，但名稱之後、本股之前的那一句仍然在講前一家。
+# 規則：說明提到賺不賺錢、獲利、虧損時，原文裡要有「同一句同時出現本股名稱與這類字眼」的句子；沒有就不是這一檔的事。
+_PROFIT_WORDS = re.compile(r'賺|賠|獲利|利潤|盈餘|虧損|虧錢')
+
+
+def _foreign_profit_claim(note, names, transcript) -> bool:
+    """說明講到獲利狀況，而原文沒有任何一句同時講到本股與獲利。names 是本股的各種寫法。"""
+    if not _PROFIT_WORDS.search(str(note or '')):
+        return False
+    names = [n for n in names if isinstance(n, str) and len(n) >= 2]
+    return not any(_PROFIT_WORDS.search(sent) and any(n in sent for n in names) for sent in _plain_sentences(transcript))
+
+
 _ORDINARY_BEFORE = re.compile(r'(?:最|很|好|太|超|真|更|夠|這麼|那麼|非常|比較|多麼)$')
-_ORDINARY_AFTER = re.compile(r'就好|[呢啊吧嘛喔哦耶啦]+[。！？!?]')
+_ORDINARY_AFTER = re.compile(r'就好')
 
 
 def _only_ordinary_word(heard, code, transcript):
     """兩個字的官方簡稱，在原文裡是不是「每一次」都只是日常用語。
 
-    2026/10/07 正式更新把兩個日常用語當成股票寫上網站：
-      大量（3167）——原文只有「投信最大量的股票」；
-      神準（3558）——原文只有「這個我講很久了，神準呢。」（在說自己講得準）。
-    模型先把它們放進排除清單或直接分類，再替它們寫出看法。這裡只認看得到的字面：
-      前面是程度副詞（最大量、很安心、好神準），或後面只有語助詞就結束、接「就好」（神準呢。安心就好了）。
+    2026/10/07 正式更新把日常用語當成股票寫上網站：大量（3167）——原文只有「投信最大量的股票」。
+    模型先把它放進排除清單或直接分類，再替它寫出看法。這裡只認看得到的字面：
+      前面是程度副詞（最大量、很安心），或後面接「就好」（安心就好了）。
     只要有一次不是這樣（「大量這一檔」「手中有華城的人」），或原文緊貼著念出它的代號，就不算日常用語、照原流程走。
-    一般的兩字股名（華城、聯電、晶技）不受影響。
+
+    「名字後面只有語助詞」不算日常用語。這一版一開始把它也算進去，結果把神準（3558）當成口語拿掉：
+    原文「這個我講很久了，神準呢。日K線MACD翻陽啊」是講者點名這一檔（管理者 2026/10/07 更正）。
+    講者介紹一檔股票時常常就是「名字加一個語助詞」，這種句子不能拿來判斷。
     """
     heard, code = str(heard or ''), str(code or '')
     if len(heard) != 2:
@@ -6501,10 +6518,15 @@ def review_excluded_stocks(signals, transcript, date_str):
             continue
         # 「今天買A，明天買B，後天買C」這種一句點三檔以上的是列舉，不算在講這一檔。
         own = [x for x in sentences if heard in x and len({c for n, c in code_of.items() if n in x}) < 3]
-        if sum(len(_ev_norm(x).replace(_ev_norm(heard), '')) for x in own) < 20:
+        ends_with_name = re.compile(re.escape(heard) + '[呢啊喔哦嘛]?[。！？!?]*$')
+        follow = [sentences[i + 1] for i, x in enumerate(sentences[:-1]) if ends_with_name.search(x.strip())]
+        if sum(len(_ev_norm(x).replace(_ev_norm(heard), '')) for x in own + follow) < 20:
             continue
         # 兩個字的簡稱可能只是日常用語（世界、全國、大量）：要講到兩次以上，或模型自己把它當股票排除過。
-        if item.get('weak') and sum(x.count(heard) for x in own) < 2 and not ({heard, official} & excluded):
+        # 只講一次也算數的情形：名字自己成一句（「…我講很久了，神準呢。日K線MACD翻陽啊」），這是講者在點名、接著講它的線型。
+        # 2026/10/07 神準（3558）就是這樣被漏掉的（管理者更正）。
+        named_alone = re.search(r'(?:^|[，,。！？!?])' + re.escape(heard) + r'[呢啊喔哦嘛]?[。！？!?]', re.sub(r'\s', '', transcript))
+        if item.get('weak') and sum(x.count(heard) for x in own) < 2 and not ({heard, official} & excluded) and not named_alone:
             continue
         # 原文每一次出現都只是日常用語的，不問（見 _only_ordinary_word）。模型把它列進排除，不能當成「它是股票」的證據。
         if item.get('weak') and _only_ordinary_word(heard, code, transcript):
@@ -6564,6 +6586,10 @@ def review_excluded_stocks(signals, transcript, date_str):
         if not ok:
             note_decision('排除單檔覆核', '回覆未通過核對，維持排除', label, note[:100])
             print(f"  排除單檔覆核　{label}：回覆的引用或數字未通過核對，維持排除")
+            continue
+        if _foreign_profit_claim(note, [t['heard'], t['official']], transcript):
+            note_decision('排除單檔覆核', '獲利狀況不是這一檔的，維持排除', label, note[:100])
+            print(f"  排除單檔覆核　{label}：說明裡的獲利狀況在原文不是講這一檔，維持排除：{note[:40]}")
             continue
         # 說明講的是要賣、已經賣，卻判成觀望注意（偏多）：方向照說明走，列觀望不碰。
         # 2026/10/07 預覽：台達電「先前已表示台達電要賣出」被放進觀望注意。
@@ -7667,7 +7693,10 @@ def _restates_earlier(key: str, earlier: str) -> bool:
     if any(n not in earlier for n in re.findall(r'\d+(?:\.\d+)?', key)):
         return False
     grams = [key[i:i + 2] for i in range(len(key) - 1)]
-    return sum(g in earlier for g in grams) / len(grams) >= 0.85
+    # v142：0.85 → 0.5。2026/10/07 華新科「…連續飆漲了三根漲停板，位置過高且正在攻頸線，不宜再去湊熱鬧追高。
+    # 華新科已連續飆漲三根漲停板並準備攻頸線，此時位置過高不要去跟人家湊熱鬧追高。」第二句是 0.54；
+    # 當天其餘說明裡有新內容的句子最高 0.10。帶有前文沒有的數字的句子（上面那一行）照樣保留。
+    return sum(g in earlier for g in grams) / len(grams) >= 0.5
 
 
 # v107：分類與說明語意相反（10/02 台達電列「觀望不碰」，說明卻是「可以注意尋找買點佈局」）。
@@ -12302,6 +12331,10 @@ def reconcile_with_prior(signals, prior, date_str, transcript=''):
                 continue
             if _past_recommendation_only(probe, signals, transcript):
                 accepted.append(f"{name}（前一版{'、'.join(before)}）：本輪原文只有舊推薦回顧，不公開、不沿用")
+                continue
+            # 前一版把別家公司的獲利狀況寫成這一檔的（2026/10/07 華通）：不沿用。
+            if _foreign_profit_claim(probe['reason'], _row_names_for_recap(probe), transcript):
+                accepted.append(f"{name}（前一版{'、'.join(before)}）：前一版說明裡的獲利狀況在原文不是講這一檔，不沿用")
                 continue
             # 前一版把日常用語當成股票寫進去的列（2026/10/07 的大量、神準）：本輪原文核對後不沿用，
             # 否則錯的那一列會被「沿用前一版待複核」一輪一輪帶回網站，重跑也改不掉。

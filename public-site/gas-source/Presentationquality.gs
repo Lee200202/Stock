@@ -206,7 +206,7 @@ function restatesEarlier_(key, earlier) {
   if (nums.some(function (n) { return earlier.indexOf(n) < 0; })) return false;
   var hit = 0, total = key.length - 1;
   for (var i = 0; i < total; i++) { if (earlier.indexOf(key.substr(i, 2)) >= 0) hit++; }
-  return hit / total >= 0.85;
+  return hit / total >= 0.5;
 }
 // END PUBLIC NARRATIVE V10
 

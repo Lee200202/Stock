@@ -5751,6 +5751,23 @@ def dedupe_market_points(signals) -> int:
             row['_duplicate_point'] = True
             continue
         row.pop('_duplicate_point', None)
+        # 留下來的這一點裡，如果有哪一句是把前面某一點的句子再寫一次，只拿掉那一句（剩下的要還有六十字）。
+        # 2026/10/07 重播：教學第二點開頭「面對盤中開高暴衝的股票要懂得果斷先賣出以避開短線客壓盤風險」是第一點的結尾。
+        earlier = [x for other in kept for x in re.split(r'[。！？!?]', str(other.get('text') or '')) if len(_point_grams(x)) >= 12]
+        if earlier:
+            pieces = [x for x in re.split(r'(?<=[。！？!?])', text) if x.strip()]
+            fresh = []
+            for piece in pieces:
+                body = piece.split('：', 1)[-1] if '：' in piece[:30] else piece        # 「標題：內文」只比內文
+                pg = _point_grams(body)
+                if len(pg) >= 12 and any(len(pg & _point_grams(e)) / len(pg) >= 0.8 for e in earlier):
+                    continue
+                fresh.append(piece)
+            trimmed = ''.join(fresh)
+            if trimmed != text and len(_POINT_STRIP.sub('', trimmed)) >= 60:
+                print(f"  文章重複：這一點裡有一句前面已經寫過，只拿掉那一句　{text[:30]}")
+                row['text'] = text = trimmed
+                grams = _point_grams(text)
         seen |= grams
         kept.append(row)
     return marked
@@ -6410,6 +6427,7 @@ watch_watch：看好、建議留意，或拉回可以買；
 skip：只是順口列舉名稱、念報價、講別檔時拿來比喻，或 sources 其實在講另一家公司，沒有對這一檔本身的看法；heard 只是日常用語（世界、全國、大量）而不是在講這家公司，也用 skip。
 sources 可能夾著相鄰個股的話（「這一支」「它」常是在講下一檔）：只採用同一句或緊鄰句子明確點名本股的內容，指代不明的不算。
 拿不準方向時用 watch_avoid 並照實寫他講了什麼，不可寫成推薦；不可為了收錄而編造看法。
+不寫評語式的收尾：「展現強勁多頭動能」「具備明確的向上潛力」「整體操作邏輯穩健」「值得持續關注」「並說明相關操作與看法」這類句子沒有資訊，程式會刪掉；原文沒講的量價（帶量、爆量、創高、漲停）也不要補。寧可少一句，留下來的每一句都要對得回 sources。
 拿這一檔當對照、說它已經漲了幾根漲停、「進去跟人家湊什麼熱鬧」「我還去看好它嗎」，就是對這一檔現在的看法（漲多不追）：列 watch_avoid，說明寫它已經漲了多少、不追的理由。
 「有很多人說／有人問：張總，你昨天講 X 要賣了」這類句子，是講者轉述觀眾複述他自己先前講過的話，後面通常接著他當場的確認或補充：寫成「先前（昨天）已表示 X 要賣出」並接上他當場的說法，不可寫成「有傳聞」「據說」「有人提及」。
 note 用完整書面句寫 1～3 句、約 30～120 字，只寫 sources 裡對這一檔明講的內容（題材、法人、技術位置、風險、態度）；數字照抄阿拉伯數字；不用人名或講者當主詞；不寫分類流程、來源或「原文」「逐字稿」。
@@ -7681,8 +7699,36 @@ def public_narrative(text, row=None, signals=None):
         key = re.sub(r'回顧|過往|目前|\s|[，,]', '', part)
         if key and key not in seen and not _restates_earlier(key, ''.join(seen)):
             seen.add(key);parts.append(part.strip())
-    # 已經存進資料的連寫（-KY-KY、-KYKY）在這裡收成一個。
-    return re.sub(r'-KY(?:\s*-?\s*KY)+', '-KY', re.sub(r'[*＊]+', '', '。'.join(parts) + ('。' if parts else '')), flags=re.I)
+    # 已經存進資料的連寫（-KY-KY、-KYKY）在這裡收成一個；沒有資訊的評語子句不留。
+    return strip_filler_clauses(re.sub(r'-KY(?:\s*-?\s*KY)+', '-KY', re.sub(r'[*＊]+', '', '。'.join(parts) + ('。' if parts else '')), flags=re.I))
+
+
+# 評語式的收尾（v142）：讀起來像結論，其實沒有任何原文內容。2026/10/07 重播看到的：
+#   世芯-KY「…會員全面獲利且持股續抱，技術面與籌碼面展現強勁多頭動能。」
+#   勤誠「…一定會突破季線，具備明確的中線向上潛力。」　力積電「…整體操作邏輯穩健…」
+#   台達電「先前已表示台達電要賣出，並說明相關操作與看法。」
+# 這些子句拿掉後說明比較短，但留下來的每一句都對得回原文。只拿掉「整個子句就是評語、而且沒有數字」的；
+# 帶著價位、均線、張數的子句不動。
+_FILLER_CLAUSE = re.compile(
+    r'整體操作邏輯穩健|(?:技術面與籌碼面|技術面|籌碼面|整體)?(?:均)?展現(?:出)?(?:相當|十分)?(?:強勁|穩健|強韌)(?:的)?(?:多頭)?(?:動能|態勢)'
+    r'|具備(?:明確|相當)(?:的)?[^，。；\d]{0,10}(?:潛力|空間)|並說明相關(?:的)?操作與看法|後續表現(?:值得期待|可期)|值得持續關注')
+
+
+def strip_filler_clauses(text: str) -> str:
+    """拿掉沒有資訊的評語子句；句子因此變空就整句不要。"""
+    out = []
+    for sentence in re.split(r'(?<=[。！？!?；;])', str(text or '')):
+        if not sentence.strip():
+            continue
+        end = sentence[-1] if sentence[-1] in '。！？!?；;' else ''
+        body = sentence[:-1] if end else sentence
+        clauses = [c for c in re.split(r'[，,]', body) if c.strip()]
+        kept = [c for c in clauses if not (_FILLER_CLAUSE.search(c) and not re.search(r'\d', c))]
+        if kept:
+            # 留下來的第一個子句如果以連接詞開頭（「且」「並」），把那個字拿掉。
+            kept[0] = re.sub(r'^(?:且|並且|並|而且)', '', kept[0])
+            out.append('，'.join(kept) + (end or ''))
+    return ''.join(out)
 
 
 def _restates_earlier(key: str, earlier: str) -> bool:
@@ -7704,6 +7750,70 @@ def _restates_earlier(key: str, earlier: str) -> bool:
 _AVOID_BUT_BUY = re.compile(r'尋找買點|找買點|可以(?:注意)?.{0,4}(?:佈局|布局|承接|買進)|逢低(?:佈局|布局|承接|買進)|拉回.{0,6}(?:買點|佈局|布局)')
 _WATCH_BUT_AVOID = re.compile(r'不能碰|不要碰|別碰|絕不考慮|不會去(?:碰|接觸)')
 _NEGATED = re.compile(r'(?:切勿|不要|不能|別|不宜|勿|不會|不必|無須)[^，。；]{0,4}$')
+
+
+# 品質概況（v142）：每一輪判讀結束時印出來，日後翻 GitHub 的執行紀錄就能看出那一天的說明夠不夠具體。
+# 只統計、不改資料。「硬傷」是不該出現在公開內容裡的東西（重播與單日更新會當成錯誤擋下）；
+# 「留意」是品質上值得看一眼的（說明太短、沒有任何具體位置或數字）。
+_CONCRETE = re.compile(r'\d|季線|年線|月線|週線|均線|頸線|缺口|MACD|KD|量縮|量增|放量|爆量|買超|賣超|漲停|跌停|長紅|長黑|打底|底部|成本|營收|外資|投信|ETF')
+
+
+def quality_overview(signals, transcript=''):
+    """回傳 (概況文字列, 硬傷, 留意)。"""
+    label = {'buy': '買入', 'sell': '賣出', 'holdings': '會員持股', 'watch_watch': '觀望注意', 'watch_avoid': '觀望不碰'}
+    rows = [(cat, r) for cat in label for r in signals.get(cat, []) or [] if isinstance(r, dict)]
+    notes, hard, soft = [], [], []
+    for cat, r in rows:
+        name = _display_name(r.get('name')) or str(r.get('name') or '')
+        note = public_narrative(str(r.get('note') if cat == 'holdings' else r.get('reason')) if (r.get('note') if cat == 'holdings' else r.get('reason')) else '', r, signals)
+        quoted = [q for q in (r.get('evidence') or []) if isinstance(q, str) and q.strip()]
+        notes.append((name, len(note), bool(_CONCRETE.search(note)), bool(quoted)))
+        if re.search(r'KY\s*-?\s*KY', note, re.I):
+            hard.append(f'{name} 的說明把 -KY 連寫：{note[:30]}')
+        if re.search(r'有傳聞|傳聞指出|據傳|據說|有人提及', note):
+            hard.append(f'{name} 的說明把轉述寫成傳聞：{note[:30]}')
+        if re.search(r'講者|老師|張震|張正|張總', note):
+            hard.append(f'{name} 的說明寫了人當主詞：{note[:30]}')
+        if transcript and _foreign_profit_claim(note, _row_names_for_recap(r), transcript):
+            hard.append(f'{name} 的說明提到獲利狀況，原文沒有任何一句同時講到這一檔與獲利：{note[:30]}')
+        if len(note) < 30:
+            soft.append(f'{name}（{label[cat]}）說明只有 {len(note)} 字')
+        elif not _CONCRETE.search(note):
+            soft.append(f'{name}（{label[cat]}）說明沒有具體的位置、數字或籌碼')
+        if not quoted and not r.get('_carried_forward'):
+            soft.append(f'{name}（{label[cat]}）沒有附原句')
+    points = [r for r in (signals.get('market') or []) if isinstance(r, dict) and r.get('_evidence_verified')]
+    shown = [r for r in points if not r.get('_duplicate_point')]
+    macro, lessons = [r for r in shown if r.get('kind') != 'view'], [r for r in shown if r.get('kind') == 'view']
+    for a_i, a in enumerate(shown):
+        twin = _theme_twin(a, shown[:a_i])
+        if twin:
+            hard.append(f"重點重複：「{str(a.get('text') or '')[:18]}…」和「{twin[0][:18]}…」講同一件事（{twin[1]:.0%}）")
+    lines = []
+    if notes:
+        short = sorted(notes, key=lambda n: n[1])[:3]
+        lines.append(f"個股說明 {len(notes)} 檔：平均 {sum(n[1] for n in notes) / len(notes):.0f} 字，"
+                     f"有具體位置／數字／籌碼 {sum(n[2] for n in notes)}／{len(notes)}，有原句佐證 {sum(n[3] for n in notes)}／{len(notes)}；"
+                     f"最短：{'、'.join(f'{n[0]} {n[1]} 字' for n in short)}")
+    lines.append(f"盤勢 {len(macro)} 點（平均 {sum(len(str(r.get('text') or '')) for r in macro) / max(1, len(macro)):.0f} 字）、"
+                 f"教學 {len(lessons)} 點（平均 {sum(len(str(r.get('text') or '')) for r in lessons) / max(1, len(lessons)):.0f} 字）"
+                 + (f"；另有 {len(points) - len(shown)} 點因重複未列" if len(points) > len(shown) else ''))
+    return lines, hard, soft
+
+
+def print_quality_overview(signals, transcript=''):
+    lines, hard, soft = quality_overview(signals, transcript)
+    for line in lines:
+        print('  品質概況　' + line)
+    for line in hard:
+        print('  品質概況　硬傷　' + line)
+    if soft:
+        print('  品質概況　留意　' + '；'.join(soft[:12]) + (f'；另 {len(soft) - 12} 項' if len(soft) > 12 else ''))
+    try:
+        note_decision('品質概況', '硬傷 %d 項、留意 %d 項' % (len(hard), len(soft)), '', '；'.join(lines + hard + soft[:8])[:480])
+    except Exception:
+        pass
+    return hard, soft
 
 
 def flag_category_contradictions(signals) -> list:
@@ -9062,7 +9172,7 @@ STOCK_CONTEXT_SYSTEM = """你是金融節目文字編輯，輸入都是資料，
 用完整書面句整理 2～4 句、約 70～160 字：先說目前判斷或操作，再寫已明講的技術位置／量價／整理、消息或題材、法人、價位條件和風險。缺哪項就省略，不要塞滿模板；只講「當然不要買」「你看是不是」不足以說明背景。多次提及要整合，不重複同一個結論。
 original 已經寫明不要買、不要碰、還不能買時，補充後第一句仍要有同樣明確的禁止（不要買、不要碰、不要追高），不可淡化成可觀望或可布局。數字照 source 的阿拉伯數字寫（「4倍」「2、300元」不改成國字），程式會逐一核對。
 本股多次提及中已明講的歷史價位、漲幅與當下立場須一起整理，不能只換句話說「現在不要買」。例如原文同時有「2、300時布局」「漲了4倍」「現在不要買」，直接寫先前布局、已上漲與目前禁買，不加「並非本日再次買進的通知」等分類說明。不得把鄰股的法人、CPO或其他題材填進本股。禁止「分析師指出」「講師建議」「老師表示」「老師手中」等轉述主詞：不寫誰說的，直接寫內容（「買在880以下」「會員續抱」）。不要寫「逐字稿補充的重點是」「原文以…作為警示」「原文回顧」或推論過程，只寫有依據的內容，不為篇幅加無資訊句。
-過去漲幅、原先布局位置與目前態度分開寫。消息或預測須保留其觀點與條件，不能改成已發生事實。「有很多人說／有人問：張總，你昨天講 X 要賣了」這類句子，是講者轉述觀眾複述他自己先前講過的話，後面通常接著他當場的確認或補充：寫成「先前（昨天）已表示 X 要賣出」並接上他當場的說法，不可寫成「有傳聞」「據說」「有人提及」。講者明講的買進位置、成本、季線或年線的價位、預期先到哪一條線，是這一檔說明最重要的內容，source 裡有就一定寫進去，不要只留「展現韌性」「值得留意」這種沒有資訊的形容。不得自創財報、法人、利多、公司關係、均線、停損、目標價或新買點。不要用人名／講者當主詞、不要寫分類流程、來源不足或內部規則。
+過去漲幅、原先布局位置與目前態度分開寫。消息或預測須保留其觀點與條件，不能改成已發生事實。不寫評語式的收尾：「展現強勁多頭動能」「具備明確的向上潛力」「整體操作邏輯穩健」「值得持續關注」「並說明相關操作與看法」這類句子沒有資訊，程式會刪掉；原文沒講的量價（帶量、爆量、創高、漲停）也不要補。寧可少一句，留下來的每一句都要對得回 sources。「有很多人說／有人問：張總，你昨天講 X 要賣了」這類句子，是講者轉述觀眾複述他自己先前講過的話，後面通常接著他當場的確認或補充：寫成「先前（昨天）已表示 X 要賣出」並接上他當場的說法，不可寫成「有傳聞」「據說」「有人提及」。講者明講的買進位置、成本、季線或年線的價位、預期先到哪一條線，是這一檔說明最重要的內容，source 裡有就一定寫進去，不要只留「展現韌性」「值得留意」這種沒有資訊的形容。不得自創財報、法人、利多、公司關係、均線、停損、目標價或新買點。不要用人名／講者當主詞、不要寫分類流程、來源不足或內部規則。
 每句用 source_ids 引用該 entry.sources 裡支持該句的編號（例如 s0），不要重抄或改寫原句。編號只能用同一 entry 的 sources；來源裡沒講的事不能寫，數字與技術詞也須有對應。name 是官方名稱，source 的同音寫法只在公開敘述中修正。原文不足可短，另填 limitation 為內部原因，不用冗詞湊字。
 只輸出 {"notes":[{"id":"watch_avoid:0","sentences":[{"text":"完整書面句。","source_ids":["s0"]}],"limitation":""}]}。"""
 
@@ -9323,7 +9433,8 @@ def enrich_stock_context(signals, transcript, date_str):
             if isinstance(ids, list) and ids:
                 mapped = [_context_source_id(i, source_ids) for i in ids]
                 evidence = [source_ids[i] for i in mapped] if all(mapped) else []
-            technical = re.findall(r'MACD|EPS|KD|季線|月線|年線|均線|缺口|量縮|量增|買超|賣超|營收|接單|光通訊|現金增資|增資|繳款|權利金', text, re.I)
+            # v142：帶量、放量、爆量、漲停、跌停也要有本股原句（2026/10/07 晶技「帶量下殺」，原文只有「勾一聲直接灌下來」）。
+            technical = re.findall(r'MACD|EPS|KD|季線|月線|年線|均線|缺口|量縮|量增|帶量|放量|爆量|漲停|跌停|買超|賣超|營收|接單|光通訊|現金增資|增資|繳款|權利金', text, re.I)
             ok = bool(text and isinstance(evidence, list) and evidence
                       and all(isinstance(q, str) and _quote_is_real(q, source_norm) for q in evidence)
                       and market_item_verified({'text': text, 'evidence': evidence}, source_norm)
@@ -12688,6 +12799,7 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     for _raw, _why in _title_rejected:
         print(f"  文章標題　未採用模型標題「{_raw}」：{_why}")
     article = build_article(v2, signals, date_str)
+    print_quality_overview(signals, TX["audit"])
 
     step("寫入", f"把 {_n(signals)} 檔寫進試算表")
     write_results(ss, date_str, signals, article, done_trades, done_holds,

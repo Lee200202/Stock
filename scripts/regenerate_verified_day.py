@@ -62,6 +62,11 @@ def main():
         pl.write_results = writer
         pl.save_evidence_audit = audit
     errors, warnings = invariants(captured['signals'], raw)
+    overview, hard, soft = pl.quality_overview(captured['signals'], raw)
+    for line in overview:
+        print('品質概況：' + line)
+    errors = list(errors) + hard                     # 硬傷和通用檢查一樣擋下，不寫入正式資料
+    warnings = list(warnings) + [x for x in soft if x not in warnings]
     for error in errors:
         print('品質錯誤：' + error)
     if errors:

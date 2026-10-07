@@ -265,6 +265,13 @@ def main():
             print(f"- {len(text)} 字{'（補問）' if r.get('_summary_topup') else ''}：{text}")
     print("\n" + pl.gemini_usage_report())
     errors, warns = invariants(signals, raw)
+    # 品質概況的硬傷（-KY 連寫、傳聞字眼、人當主詞、別家公司的獲利狀況、重複的重點）在重播裡算錯誤。
+    overview, hard, soft = pl.quality_overview(signals, raw)
+    print("\n===== 品質概況 =====")
+    for line in overview:
+        print("  " + line)
+    errors.extend(hard)
+    warns.extend(x for x in soft if x not in warns)
     # 原文夠長時，盤勢與教學各至少三點；說明不能把講者自己先前的話寫成傳聞。
     if len(pl._ev_norm(raw)) >= pl.LESSON_MIN_SOURCE:
         if len(macro) < 3:

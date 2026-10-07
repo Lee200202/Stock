@@ -40,7 +40,9 @@ function makeWorld(scenario) {
   const secOfDay = () => { const p = parts(new Date(clock.now)); return Number(p.HH) * 3600 + Number(p.mm) * 60 + Number(p.ss); };
   const today = () => { const p = parts(new Date(clock.now)); return p.yyyy + '/' + p.MM + '/' + p.dd; };
   const priceNow = c => (secOfDay() >= 13 * 3600 + 30 * 60 ? closeOf(c) : base(c) + (Math.floor(secOfDay() / 300) % 9));
-  const volNow = c => Math.min(1000, Math.floor((secOfDay() - 9 * 3600) / 16.2)) + Number(c) % 50;
+  // scenario.quiet：這幾檔整天只在開盤成交過一次，之後累計量不變（冷門股）
+  const quiet = c => !!scenario.quiet && scenario.quiet.includes(c);
+  const volNow = c => quiet(c) ? 37 : Math.min(1000, Math.floor((secOfDay() - 9 * 3600) / 16.2)) + Number(c) % 50;
 
   const cache = new Map(), props = new Map([['FUGLE_API_KEY', 'k'], ['SITE_BRIDGE_TOKEN', TOKEN]]);
   const cacheGet = k => { const v = cache.get(k); if (!v) return null; if (v.exp <= clock.now) { cache.delete(k); return null; } return v.val; };
@@ -59,6 +61,8 @@ function makeWorld(scenario) {
       clearContent: () => { sheet.rows.length = Math.min(sheet.rows.length, row - 1); },
     }),
   };
+  let misPoll = 0, seed = 20261007; const seenOnce = {};
+  const rand = () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
   const misRows = channels => {
     const seen = new Set(), out = [];
     decodeURIComponent(channels).split('|').forEach(ch => {
@@ -66,7 +70,11 @@ function makeWorld(scenario) {
       if (!ch.startsWith('tse_') || seen.has(c) || c === scenario.noData) { out.push({z: '-'}); return; }
       seen.add(c);
       const p = parts(new Date(clock.now)), closed = secOfDay() >= 13 * 3600 + 30 * 60;
-      out.push({c, n: '股' + c, z: String(priceNow(c)), y: String(base(c) - 1), d: p.yyyy + p.MM + p.dd,
+      // 盤中有一部分列在這一刻不是成交訊息（z 是 "-"）：scenario.noTrade 是比例，每次查詢每一檔各自決定（固定的偽亂數，可重現）。
+      misPoll++;
+      seenOnce[c] = (seenOnce[c] || 0) + 1;
+      const idle = !closed && (quiet(c) ? seenOnce[c] > 1 : !!scenario.noTrade && rand() < scenario.noTrade);
+      out.push({c, n: '股' + c, z: idle ? '-' : String(priceNow(c)), y: String(base(c) - 1), d: p.yyyy + p.MM + p.dd,
                 t: closed ? '13:30:00' : p.HH + ':' + p.mm + ':' + p.ss, v: String(closed ? 1000 + Number(c) % 50 : volNow(c)),
                 o: String(base(c)), h: String(base(c) + 60), l: String(base(c) - 2)});
     });
@@ -344,6 +352,36 @@ function main() {
   report.push(`十、一檔當天沒有成交資料：其餘 ${CODES.length - 1} 檔結算為收盤價，那一檔記為無資料後收工（共試 ${st.tries} 次）`);
 }
 
+/* ---- 十一、盤中七成的列在那一刻沒有成交價（2026/10/07 實況） ---- */
+function quietMarket() {
+  const QUIET = CODES.filter(c => !HELD.includes(c)).slice(40, 46);
+  const w = makeWorld({direct: false, relay: true, noTrade: 0.7, quiet: QUIET});
+  const worst = {stale: 0, at: ''}, firstFull = {hm: ''}; let runs = 0, quietMoves = 0, lastQuietStamp = '';
+  for (let t = taipei(DAY, '09:00:10'); t <= taipei(DAY, '13:25:10'); t += 300000) {
+    w.clock.now = Math.max(w.clock.now, t);
+    const started = w.clock.now;
+    w.ctx.refreshQuoteCacheJob();
+    runs++;
+    const hm = new Date(t + 8 * 3600000).toISOString().slice(11, 16);
+    assert.ok(w.clock.now - started <= 32000, `${hm} 這一棒跑了 ${w.clock.now - started} ms，超過時間預算`);
+    // 十分鐘內有更新（上一棒或這一棒）的才算跟得上
+    const limit = new Date(t - 600000 + 8 * 3600000).toISOString().slice(11, 19);
+    const stale = CODES.filter(c => { const r = w.row(c); return !r || String(r[11]) !== DAY || String(r[7]).slice(11) < limit; });
+    if (hm >= '09:15' && stale.length > worst.stale) { worst.stale = stale.length; worst.at = hm; }
+    if (!firstFull.hm && !stale.length) firstFull.hm = hm;
+    // 價格只來自成交：每一檔記下的現價要嘛是這一刻的成交價，要嘛是先前某一刻的成交價（模擬裡價格每五分鐘才變一次）
+    CODES.forEach(c => { const r = w.row(c); if (r && String(r[11]) === DAY) assert.ok(Number(r[2]) >= base(c) && Number(r[2]) <= base(c) + 8, `${c} 現價 ${r[2]} 不是成交過的價位`); });
+    // 冷門股：開盤成交一次後累計量不變。價格維持那一筆，確認時間跟著每一棒往前推
+    const q = w.row(QUIET[0]);
+    if (q && String(q[11]) === DAY) { if (String(q[7]) > lastQuietStamp) quietMoves++; lastQuietStamp = String(q[7]); assert.equal(Number(q[6]), 37); }
+  }
+  // 七成沒有成交價是偏嚴的假設；修正前同一個模擬最差的一棒有 214 檔超過十分鐘。上限訂在 240 檔的一成。
+  assert.ok(worst.stale <= 24, `盤中最差的一棒有 ${worst.stale} 檔超過十分鐘沒更新（${worst.at}）`);
+  assert.ok(quietMoves >= runs - 3, `冷門股的確認時間只往前推了 ${quietMoves}／${runs} 次`);
+  return `十一、盤中七成的列那一刻沒有成交價：${runs} 棒，每棒寫入 160 檔以上；09:15 之後最差的一棒 ${worst.stale}／240 檔超過十分鐘（${worst.at || '無'}，修正前 214 檔）；` +
+    `冷門股（累計量不變）沿用最近一筆成交價並更新確認時間 ${quietMoves}／${runs} 棒；沒有任何一檔用委買委賣推估`;
+}
+
 function runDayUntil(w, untilHm) {
   for (let t = taipei(DAY, '09:00:10'); ; t += 300000) {
     const hm = new Date(t + 8 * 3600000).toISOString().slice(11, 16);
@@ -354,6 +392,7 @@ function runDayUntil(w, untilHm) {
   }
 }
 
+report.push(quietMarket());
 report.forEach(line => console.log('ok ' + line));
 console.log(report.length + ' quote flow scenarios passed');
 }

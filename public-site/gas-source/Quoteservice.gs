@@ -779,6 +779,8 @@ function refreshQuoteCacheJob() {
   /* 批次從上一棒停下的那一批接著打（v134）：先前每一棒都從第一批開始，時間不夠時後面幾批永遠輪不到。
      第一批一檔都沒有回（HTTP 非 200、或回空陣列）就不再試其餘幾批，並記 10 分鐘：
      那幾次請求不會有資料，只會吃掉留給逐檔備援的時間。 */
+  // 每一輪從乾淨的狀態開始：上一次記下的報價重新讀、追問名單與計數歸零。
+  MIS_PREVIOUS_ = null; MIS_NO_TRADE_ = []; MIS_CARRIED_ = 0; MIS_ROWS_TODAY_ = 0;
   var misStarted = Date.now(), misState = misDown ? 'down' : 'skip';
   var batchCount = Math.ceil(codes.length / 50), batchStart = Number(pr.getProperty('QUOTE_BATCH_START') || 0) % Math.max(1, batchCount), batchDone = 0;
   for (var bn = 0; !misDown && bn < batchCount && Date.now() < deadline - 10000; bn++) {
@@ -787,7 +789,8 @@ function refreshQuoteCacheJob() {
       var qs = misBatchQuotes_(codes.slice(b, b + 50)), got = 0;
       Object.keys(qs).forEach(function (c) { if (qs[c].date === todayStr_()) { batchQuotes[c] = qs[c]; got++; } });
       batchDone++;
-      if (!got && !Object.keys(batchQuotes).length) {
+      // 來源有回今天的列、只是這一批剛好那一刻都沒有成交價：來源是通的，不能記成中斷（v139）。
+      if (!got && !Object.keys(batchQuotes).length && !MIS_ROWS_TODAY_) {
         misState = 'empty'; errors.push('MIS 沒有回任何成交報價，10 分鐘內改用備援');
         try { CACHE.put(MIS_DOWN_KEY_, '1', 600); } catch (ignore) {}
         break;
@@ -805,6 +808,23 @@ function refreshQuoteCacheJob() {
     }
   }
   if (batchDone && batchDone < batchCount) { pr.setProperty('QUOTE_BATCH_START', String((batchStart + batchDone) % batchCount)); }
+  /* 這一刻沒有成交價的再問幾輪（v139）。每一輪只問還沒拿到的；用同一個時間預算（留 10 秒給逐檔備援與寫入），最多三輪。 */
+  var misRounds = 0, misAsked = MIS_NO_TRADE_.length;
+  while (misState === 'ok' && misRounds < 3 && Date.now() < deadline - 10000) {
+    var again = MIS_NO_TRADE_.filter(function (c) { return !batchQuotes[c]; });
+    MIS_NO_TRADE_ = [];
+    if (!again.length) { break; }
+    var stop = false;
+    for (var rb = 0; rb < again.length && !stop && Date.now() < deadline - 10000; rb += 50) {
+      try {
+        var rq = misBatchQuotes_(again.slice(rb, rb + 50));
+        Object.keys(rq).forEach(function (c) { if (rq[c].date === todayStr_()) { batchQuotes[c] = rq[c]; } });
+      } catch (e) { stop = true; }                       // 限流忙碌或連線失敗：不再追問，交給備援與下一輪
+    }
+    misRounds++;
+    if (stop) { break; }
+  }
+  if (misAsked) { Logger.log('批次報價：這一刻沒有成交價的 ' + misAsked + ' 檔，追問 ' + misRounds + ' 輪；累計量未變沿用 ' + MIS_CARRIED_ + ' 檔'); }
   var misMs = Date.now() - misStarted;
 
   // v93：會員持有及最近半小時查看的股票優先；另留四檔輪替背景標的。
@@ -844,10 +864,13 @@ function refreshQuoteCacheJob() {
   var heldSet = {}, doneHeld = 0, doneRotating = 0, doneViewed = 0;
   held.forEach(function (c) { heldSet[c] = 1; });
   for (i = 0; i < ordered.length; i++) {
-    if (Date.now() > deadline) { break; }
     var code = ordered[i];
 
     var q = batchQuotes[code] || null;
+    /* 時間用完時只停逐檔備援，批次已經拿到的照樣寫入（v139）。
+       先前是整個迴圈中斷：批次明明拿到一百多檔的成交價，排在逐檔備援後面的那些卻沒有被寫進去，
+       一輪只更新十幾檔——2026/10/07 盤中 240 檔有 165 檔超過十分鐘沒更新，主要就是這個原因。 */
+    if (!q && Date.now() > deadline) { continue; }
     if (!q && (fallbackTaken >= QUOTE_FALLBACK_MAX_ || fugleUnavailable)) { continue; }
     // 游標記的是「輪替順序裡最後一檔試過的」，被提前的查看中股票不動游標，否則會跳過中間沒輪到的。
     if (!q) { fallbackTaken++; if (rotating[code] && viewedFirst.indexOf(code) < 0) { lastFallback = codes.indexOf(code); } }
@@ -1306,6 +1329,21 @@ function misRows_(channels) {
   return out;
 }
 
+/* 盤中的批次報價，很多列在那一瞬間不是成交訊息：成交價欄位 z 是 "-"（只有委買委賣在變）。
+   2026/10/07 盤中實測，同一時刻 5 檔裡有 4 檔是這樣，連 2330 也是；先前把這種列整列丟掉，
+   結果一輪只更新到三四成，其餘靠逐檔備援每輪補 17 檔，240 檔裡有 165 檔超過十分鐘沒更新、82 檔整個上午停在昨天收盤。
+   收盤後 z 一定有值，所以收盤後的驗證看不出來。
+
+   本站只用可確認的成交價，不拿委買、委賣或試撮價補（個股頁也是這樣寫的），所以做法是：
+     一、累計成交量和上次記下的一樣 → 這段時間沒有新的成交，上一筆成交價仍然是最新的成交價；只把確認時間往前推。這是確定的，不是推估。
+     二、累計量變了但這一刻沒有成交價 → 記進 MIS_NO_TRADE_，排程在同一輪的時間預算內再問幾次（下一次回來的常常就是成交訊息）；
+         仍然問不到的交給逐檔備援，或留到下一輪。不推估。 */
+var MIS_NO_TRADE_ = [], MIS_CARRIED_ = 0, MIS_PREVIOUS_ = null, MIS_ROWS_TODAY_ = 0;   // MIS_ROWS_TODAY_：來源回了幾列今天的資料（不論那一刻有沒有成交價）
+function misPrevious_() {
+  if (!MIS_PREVIOUS_) { try { MIS_PREVIOUS_ = getQuoteCache() || {}; } catch (e) { MIS_PREVIOUS_ = {}; } }
+  return MIS_PREVIOUS_;
+}
+
 /** 同一批上市／上櫃代號一次查詢，依回傳代號對應，不依陣列順序。 */
 function misBatchQuotes_(codes) {
   var out = {}, channels = [], wanted = {};
@@ -1318,17 +1356,25 @@ function misBatchQuotes_(codes) {
   var data = { msgArray: misRows_(channels) };
   (data.msgArray || []).forEach(function (m) {
     var code = String(m.c || ''), last = Number.parseFloat(m.z), prev = Number.parseFloat(m.y);
-    if (!wanted[code] || !(last > 0)) { return; }
+    if (!wanted[code]) { return; }
     var date = String(m.d || '').replace(/^(\d{4})(\d{2})(\d{2})$/, '$1/$2/$3');
     var hm = String(m.t || '');
     if (!/^\d{4}\/\d{2}\/\d{2}$/.test(date) || !/^\d{2}:\d{2}:\d{2}$/.test(hm)) { return; }
+    var carried = false;
+    if (date === todayStr_()) { MIS_ROWS_TODAY_++; }
+    if (!(last > 0)) {
+      var before = misPrevious_()[code], volume = parseInt(m.v, 10) || 0;
+      var sameDay = before && String(before.date || '') === date && Number(before.last) > 0;
+      if (sameDay && volume > 0 && Number(before.volume) === volume) { last = Number(before.last); carried = true; MIS_CARRIED_++; }
+      else { if (volume > 0 && MIS_NO_TRADE_.indexOf(code) < 0) { MIS_NO_TRADE_.push(code); } return; }
+    }
     var chg = prev > 0 ? last - prev : null;
     out[code] = { name: m.n || '', last: last, prevClose: prev > 0 ? prev : null,
       change: chg == null ? null : Math.round(chg * 100) / 100,
       changePct: chg == null ? null : Math.round(chg / prev * 10000) / 100,
       volume: parseInt(m.v, 10) || 0, open: parseFloat(m.o) || null, high: parseFloat(m.h) || null, low: parseFloat(m.l) || null,
       date: date, time: qTime_(date + ' ' + hm),
-      stamp: date && hm ? date + ' ' + hm : '', source: '證交所 MIS' };
+      stamp: date && hm ? date + ' ' + hm : '', source: carried ? '證交所 MIS（累計量未變，最近一筆成交價仍有效）' : '證交所 MIS' };
   });
   return out;
 }

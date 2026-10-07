@@ -92,6 +92,10 @@ def main():
     pl.enrich_sms_notes_from_signals(real, day, captured['signals'], raw)
     for a, kw in audits:
         audit(real, *a, **kw)
+    # 把這一輪標成已發布。網站刷新時，每日整理的 ① 盤勢與 ③ 教學重點取自「最後一個已發布批次」的稽核列
+    # （Articlequality.gs attachArticleEvidence_）；正式流程在寫入後會做這一步，這支腳本攔在寫入那一刻、沒有走到，
+    # 結果表格（②）換成新的，①③ 卻一直停在早上那一輪——2026/10/07 更新後兩章仍各只有 1 點。
+    pl.commit_evidence_manifest(real, video['id'], day, raw)
     if pl._daily_article_status(real, day) != sent_before:
         raise RuntimeError('每日寄送狀態不一致，請從備份核對；本程式沒有寄送')
     changed_ledgers = [name for name in ledger_names if digest(real.worksheet(name).get_all_values()) != ledger_before[name]]

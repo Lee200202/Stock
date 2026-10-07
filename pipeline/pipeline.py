@@ -7471,7 +7471,8 @@ def watch_tone(text):
     positive = re.sub(r'(?:並非|不是|不|沒有|未)(?:看好|推薦|建議買進|會漲|是好股票|會回升|會上攻|有買點|值得|可以)', '', text)
     # 「低檔…買」「以下…買」中間不能隔著賣出或句讀：玉晶光「不應把低檔股票賣掉跑去追買高檔弱勢股」是負面示範。
     # 「準備大漲」「賣完就漲」「不會跌了」是講者的偏多結論（2026/09/17 勤誠）；「昨天大漲」不算。
-    if re.search(r'看好|好股票|會漲|漲回去|回升|上攻|向上|候選|會再買|(?:再|才)(?:買進|進場)'
+    # 「手中有X的人不用賣」是叫持有的人續抱，偏多（2026/10/07 華城：同一句話有一輪因為沒有其他偏多字眼被判成觀望不碰）。
+    if re.search(r'看好|好股票|會漲|漲回去|回升|上攻|向上|候選|會再買|(?:再|才)(?:買進|進場)|(?:不用|不必|不需要)(?:急著)?賣(?!在)'
                  r'|(?<![不沒])(?:準備|即將|將會?|就要|要|會)大漲|(?<!是)不會再?跌'
                  r'|(?:賣|殺)(?:完|光)[^，。,；;]{0,14}(?:就|會|將)[^，。,；;]{0,4}(?:漲|拉上去|上去)'
                  r'|以下[^賣追，。,；;]{0,8}買|以後[^賣追，。,；;]{0,8}買|未來[^賣追，。,；;]{0,8}買'
@@ -12245,6 +12246,13 @@ def reconcile_with_prior(signals, prior, date_str, transcript=''):
                 continue
             if _past_recommendation_only(probe, signals, transcript):
                 accepted.append(f"{name}（前一版{'、'.join(before)}）：本輪原文只有舊推薦回顧，不公開、不沿用")
+                continue
+            # 前一版把日常用語當成股票寫進去的列（2026/10/07 的大量、神準）：本輪原文核對後不沿用，
+            # 否則錯的那一列會被「沿用前一版待複核」一輪一輪帶回網站，重跑也改不掉。
+            plain = _display_name(name)
+            if _only_ordinary_word(plain, probe['code'], transcript) and not any(
+                    len(n) > 2 and _in_transcript(n, hay) for n in _row_names_for_recap(probe) if n != plain):
+                accepted.append(f"{name}（前一版{'、'.join(before)}）：本輪原文裡這個名稱每一次都只是日常用語，不是在講這一檔，不沿用")
                 continue
         where = _unique(c for k in keys for c in parked.get(k, []))
         why = ('本輪列為排除' if 'ignored' in where else '本輪列為待確認' if where else '本輪沒有收錄')

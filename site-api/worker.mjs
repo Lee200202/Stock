@@ -1,7 +1,7 @@
 // Free Cloudflare Worker: public Pages frontend -> existing Apps Script backend.
 // The bridge token stays server-side. Admin methods still require the existing admin key.
 const ALLOWED = 'https://lee200202.github.io';
-const BUILD = 'site-api-v134-r1';
+const BUILD = 'site-api-v140-r1';
 const MAX_ARGS = 8;
 const ADMIN_METHODS = ('apiAdminCancelCrawl apiAdminCancelDaySync apiAdminCancelFix ' +
   'apiAdminCancelFullFix apiAdminCancelJob apiAdminCancelRefresh apiAdminCancelSmsJob ' +
@@ -172,7 +172,11 @@ async function readSnapshot(env, key) {
   if (!env.SNAP || !SNAPPED.has(key.split(':')[0])) return null;
   try {
     const [beat, entry] = await Promise.all([env.SNAP.get(SNAP_BEAT, 'json'), env.SNAP.get(snapKey(key), 'json')]);
-    if (!beat || !entry || Date.now() - beat.at > SNAP_FRESH_MS) return null;
+    if (!beat || !entry) return null;
+    // 失敗的排程可沿用最近一次成功核對的快照，但最多 12 分鐘；
+    // 不能因為下一輪心跳仍在寫入，就把舊資料的期限無限延長。
+    const checkedAt = beat.validated?.[key] || beat.at;
+    if (!checkedAt || Date.now() - checkedAt > SNAP_FRESH_MS) return null;
     if (!beat.hashes || beat.hashes[key] !== entry.hash) return null;
     return {payload: entry.payload, at: entry.at};
   } catch { return null; }
@@ -180,7 +184,7 @@ async function readSnapshot(env, key) {
 async function refreshSnapshots(env) {
   if (!env.SNAP) return {skipped: 'no-kv'};
   const old = await env.SNAP.get(SNAP_BEAT, 'json').catch(() => null);
-  const hashes = {}, report = {};
+  const hashes = {}, validated = {}, report = {};
   const take = async (method, args) => {
     const key = method + ':' + JSON.stringify(args);
     const out = await callBackend(env, {method, args}, true);
@@ -188,6 +192,7 @@ async function refreshSnapshots(env) {
     const body = JSON.stringify(out.payload);
     const hash = await digest(method === 'apiGetDashboard' ? body.replace(/"updatedAt":"[^"]*"/, '') : body);
     hashes[key] = hash;
+    validated[key] = Date.now();
     if (!old || !old.hashes || old.hashes[key] !== hash) {
       await env.SNAP.put(snapKey(key), JSON.stringify({at: Date.now(), hash, payload: out.payload}), {expirationTtl: 86400});
       report[key] = 'written';
@@ -204,8 +209,17 @@ async function refreshSnapshots(env) {
     })
   ]);
   results.forEach(r => { if (r.status === 'rejected') report.error = String(r.reason); });
-  // 失敗的鍵不進心跳，讀取端自然回到即時讀取。
-  await env.SNAP.put(SNAP_BEAT, JSON.stringify({at: Date.now(), hashes}), {expirationTtl: 86400});
+  // 一輪暫時失敗不立刻丟掉仍在 12 分鐘內的成功快照；保留原核對時間，
+  // 逾時仍回到即時讀取，不用失敗心跳替舊資料續命。
+  for (const [key, hash] of Object.entries(old?.hashes || {})) {
+    const checkedAt = old.validated?.[key] || old.at;
+    if (!hashes[key] && checkedAt && Date.now() - checkedAt <= SNAP_FRESH_MS) {
+      hashes[key] = hash;
+      validated[key] = checkedAt;
+      report[key] = 'recent-on-failure';
+    }
+  }
+  await env.SNAP.put(SNAP_BEAT, JSON.stringify({at: Date.now(), hashes, validated}), {expirationTtl: 86400});
   return report;
 }
 

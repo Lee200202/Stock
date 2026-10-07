@@ -63,6 +63,16 @@ def check_interactions(page, label, reduced=False):
     page.on('request', lambda r: calls.append(r.post_data or '') if r.method == 'POST' and '/api' in r.url else None)
     base = len(calls)
 
+    assert '7.19 秒' in page.locator('#loadLab').inner_text()
+    page.locator('[data-load-view="page"]').click()
+    assert '0.67 秒' in page.locator('#loadLab').inner_text()
+    assert page.locator('[data-load-view="page"]').get_attribute('aria-pressed') == 'true'
+    page.locator('[data-load-view="api"]').click()
+    assert '7.19 秒' in page.locator('#loadLab').inner_text()
+    assert page.locator('.load-evidence img').get_attribute('alt')
+    page.locator('.load-evidence img').scroll_into_view_if_needed()
+    page.wait_for_function("document.querySelector('.load-evidence img').naturalWidth > 0", timeout=15000)
+
     # 捲到之前，模組內容都是不透明的（不恢復 v107 拿掉的透明淡入）
     hidden = page.evaluate("""() => [...document.querySelectorAll('.tx-stages > li, .pn-desk > *, .un-chain > li, .tech-path > li, .tech-real > li')]
       .filter(e => parseFloat(getComputedStyle(e).opacity) < 1).length""")
@@ -163,7 +173,7 @@ def check_interactions(page, label, reduced=False):
     toc = page.evaluate("[...document.querySelectorAll('.doc h2, .doc h3')].filter(h => h.closest('.tech-lab')).length")
     assert toc == 0, f'{label}: {toc} headings inside interactive modules would enter the table of contents'
 
-    small = page.evaluate("""() => [...document.querySelectorAll('[data-pain],[data-tx],[data-pn],[data-un],#painGo a,#heroPlay,#heroRange,#tlPlay,#tlSlider')]
+    small = page.evaluate("""() => [...document.querySelectorAll('[data-pain],[data-tx],[data-pn],[data-un],[data-load-view],#painGo a,#heroPlay,#heroRange,#tlPlay,#tlSlider')]
       .filter(e => e.offsetParent).map(e => e.getBoundingClientRect()).filter(r => r.width < 44 || r.height < 44).length""")
     assert small == 0, f'{label}: {small} controls below 44px'
 
@@ -205,6 +215,9 @@ def main():
                     check_interactions(page, label)
                     check_layout(page, label + ' after clicks')
                 if args.shots and scheme == 'light':
+                    Path(args.shots).mkdir(parents=True, exist_ok=True)
+                    page.locator('#tech-loading').scroll_into_view_if_needed()
+                    page.screenshot(path=str(Path(args.shots) / f'loading-{width}.png'))
                     page.locator('#tech-transcript-progress').scroll_into_view_if_needed()
                     page.screenshot(path=str(Path(args.shots) / f'tech-{width}.png'))
                 html = html or page.content()

@@ -12,6 +12,7 @@ import html
 import json
 import os
 import re
+import shutil
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -130,6 +131,9 @@ def build(output: Path, api_url: str) -> None:
             raise ValueError(f"Body tag missing in {template}")
         (output / filename).write_text(content, encoding="utf-8")
     (output / "original-bridge.js").write_text(bridge, encoding="utf-8")
+    assets = ROOT / "public-site" / "assets"
+    if assets.is_dir():
+        shutil.copytree(assets, output / "assets", dirs_exist_ok=True)
     (output / ".nojekyll").write_text("", encoding="utf-8")
     print("原站 HTML/CSS/JavaScript 已原樣組裝；後端請求經 SITE_API_URL 橋接")
 

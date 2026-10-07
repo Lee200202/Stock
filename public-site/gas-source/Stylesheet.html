@@ -4713,4 +4713,22 @@ html[data-view="mobile"] .tracker-card-note { font-size: calc(15px * var(--rd-fs
 .stock-search > button { justify-self:start; min-width:140px; }
 @media(max-width:720px){#p-stock > .sect { width:calc(100% - 24px); }.stock-search > button { width:100%; }}
 @media(max-width:480px){.stock-search input { font-size:17px; padding:0 20px; }}
+/* 載入速度：量測圖和正式頁面截圖沿用技術說明的留白與卡片。 */
+.tech-story .load-choice { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:24px; }
+.tech-story .load-choice button { min-height:48px; padding:8px 24px; border:1px solid var(--rule); border-radius:999px; background:var(--panel-2); color:var(--ink); font:inherit; cursor:pointer; }
+.tech-story .load-choice button[aria-pressed="true"] { background:var(--beam); border-color:var(--beam); color:var(--panel); font-weight:700; }
+.tech-story .load-choice button:focus-visible { outline:3px solid var(--beam); outline-offset:3px; }
+.tech-story .load-bars { display:grid; gap:18px; margin-bottom:24px; }
+.tech-story .load-row { display:grid; grid-template-columns:minmax(110px, 170px) minmax(0,1fr) minmax(70px,90px); gap:14px; align-items:center; min-width:0; }
+.tech-story .load-row span { color:var(--ink); font-weight:600; }
+.tech-story .load-row b { color:var(--ink); text-align:right; font-family:"IBM Plex Mono",monospace; font-size:calc(15px * var(--rd-fs)); }
+.tech-story .load-rail { height:24px; border-radius:999px; background:var(--panel-2); overflow:hidden; }
+.tech-story .load-rail i { display:block; width:max(6px,var(--load-width)); height:100%; border-radius:inherit; background:var(--wait); transition:width .32s ease; }
+.tech-story .load-row + .load-row .load-rail i { background:var(--beam); }
+.tech-story .load-lab > small { display:block; margin-top:14px; line-height:1.6; }
+.tech-story .load-evidence { margin:26px 0; padding:16px; border:1px solid var(--rule); border-radius:18px; background:var(--panel); max-width:820px; }
+.tech-story .load-evidence img { display:block; width:100%; height:auto; border-radius:12px; }
+.tech-story .load-evidence figcaption { margin-top:12px; color:var(--muted); font-size:calc(13px * var(--rd-fs)); line-height:1.6; }
+@media(max-width:600px){.tech-story .load-row { grid-template-columns:minmax(0,1fr) auto; gap:6px 12px; }.tech-story .load-rail { grid-column:1/-1; grid-row:2; }.tech-story .load-row b { grid-column:2; grid-row:1; }}
+@media(prefers-reduced-motion:reduce){.tech-story .load-rail i { transition:none; }}
 </style>

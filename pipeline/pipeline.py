@@ -6409,9 +6409,18 @@ def review_excluded_stocks(signals, transcript, date_str):
         own = [x for x in sentences if heard in x and len({c for n, c in code_of.items() if n in x}) < 3]
         if sum(len(_ev_norm(x).replace(_ev_norm(heard), '')) for x in own) < 20:
             continue
-        # 兩個字的簡稱可能只是日常用語（世界、全國、大量）：要講到兩次以上，或模型自己把它當股票排除過。
-        if item.get('weak') and sum(x.count(heard) for x in own) < 2 and not ({heard, official} & excluded):
-            continue
+        # 兩個字的簡稱可能只是日常用語（世界、全國、大量、安心）：原文要把它當股票在講才問——
+        # 緊貼著代號，或放在子句開頭當主詞（「那大量這一檔…」）。
+        # 2026/10/07 預覽：原文只有一句「投信最大量的股票」，模型先把「大量」放進排除清單（於是通過了舊條件），
+        # 單檔覆核時又替它寫出「投信在高檔大量賣出，不要追高」，大量（3167）差一點以觀望不碰上線。
+        # 模型自己把它列進排除，不能當成「它是股票」的證據。
+        if item.get('weak'):
+            flat = re.sub(r'\s', '', transcript)
+            as_stock = (re.search(r'(?<!\d)' + re.escape(code) + r'[，,、的是叫做]{0,3}' + re.escape(heard), flat)
+                        or re.search(re.escape(heard) + r'[，,、（(]?' + re.escape(code) + r'(?!\d)', flat)
+                        or any(re.match(_LEFT_LEAD + re.escape(heard), c) for x in own for c in re.split(r'[，,；;]', x) if c))
+            if not as_stock:
+                continue
         row = {'name': heard, 'code': code}
         sources = _context_sources(row, _own_segments(row, signals, transcript)[:6])
         text = '\n'.join(s['text'] for s in sources)[:3000]
@@ -6468,6 +6477,12 @@ def review_excluded_stocks(signals, transcript, date_str):
             note_decision('排除單檔覆核', '回覆未通過核對，維持排除', label, note[:100])
             print(f"  排除單檔覆核　{label}：回覆的引用或數字未通過核對，維持排除")
             continue
+        # 說明講的是要賣、已經賣，卻判成觀望注意（偏多）：方向照說明走，列觀望不碰。
+        # 2026/10/07 預覽：台達電「先前已表示台達電要賣出」被放進觀望注意。
+        if verdict == 'watch_watch' and re.search(r'(?:要|該|先|應|建議|通知|表示)[^，。；]{0,10}賣(?:出|掉|了)?|賣出|賣掉|出場|了結', note) \
+                and not re.search(r'不(?:用|要|必|需要)(?:再)?(?:急著)?(?:賣|殺)|續抱|抱著|買進|布局|佈局|會漲|看好|可以(?:買|注意)', note):
+            note_decision('排除單檔覆核', '說明是賣出方向，改列觀望不碰', label, note[:100])
+            verdict = 'watch_avoid'
         for c in ('ignored', 'uncertain'):
             signals[c] = [x for x in signals.get(c, []) or []
                           if not (isinstance(x, dict) and (_signal_names(x) | {str(x.get('name') or '')}) & {t['heard'], t['official']})]

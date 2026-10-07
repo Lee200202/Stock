@@ -4713,22 +4713,50 @@ html[data-view="mobile"] .tracker-card-note { font-size: calc(15px * var(--rd-fs
 .stock-search > button { justify-self:start; min-width:140px; }
 @media(max-width:720px){#p-stock > .sect { width:calc(100% - 24px); }.stock-search > button { width:100%; }}
 @media(max-width:480px){.stock-search input { font-size:17px; padding:0 20px; }}
-/* 載入速度：量測圖和正式頁面截圖沿用技術說明的留白與卡片。 */
-.tech-story .load-choice { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:24px; }
-.tech-story .load-choice button { min-height:48px; padding:8px 24px; border:1px solid var(--rule); border-radius:999px; background:var(--panel-2); color:var(--ink); font:inherit; cursor:pointer; }
-.tech-story .load-choice button[aria-pressed="true"] { background:var(--beam); border-color:var(--beam); color:var(--panel); font-weight:700; }
-.tech-story .load-choice button:focus-visible { outline:3px solid var(--beam); outline-offset:3px; }
-.tech-story .load-bars { display:grid; gap:18px; margin-bottom:24px; }
-.tech-story .load-row { display:grid; grid-template-columns:minmax(110px, 170px) minmax(0,1fr) minmax(70px,90px); gap:14px; align-items:center; min-width:0; }
+/* v141: 資料規模、等待時間與快取路徑各自成圖。 */
+.tech-story .load-stat-head { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:6px 20px; margin:28px 0 12px; }
+.tech-story .load-stat-head b { font-size:calc(18px * var(--rd-fs)); }
+.tech-story .load-stat-head span,.tech-story .load-aside,.tech-story .load-method { color:var(--muted); font-size:calc(13px * var(--rd-fs)); line-height:1.65; }
+.tech-story .load-stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
+.tech-story .load-stat { display:flex; flex-direction:column; gap:6px; min-width:0; padding:22px; border:1px solid var(--rule); border-radius:20px; background:var(--panel); }
+.tech-story .load-stat strong { color:var(--beam); font-family:"IBM Plex Mono",monospace; font-size:clamp(26px,3vw,42px); line-height:1; }
+.tech-story .load-stat span { color:var(--ink); font-weight:700; }
+.tech-story .load-reduce { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:10px 22px; padding:20px; margin:18px 0 8px; background:var(--panel-2); border:1px solid var(--rule); border-radius:20px; text-align:center; }
+.tech-story .load-reduce span:not(.load-reduce-arrow) { display:flex; flex-direction:column; gap:3px; }
+.tech-story .load-reduce b { color:var(--beam); }
+.tech-story .load-reduce-arrow { color:var(--beam); font-size:30px; line-height:1; }
+.tech-story .load-charts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; margin:26px 0 10px; }
+.tech-story .load-chart { min-width:0; padding:22px; border:1px solid var(--rule); border-radius:20px; background:var(--panel); }
+.tech-story .load-chart-title { display:grid; gap:5px; margin-bottom:20px; }
+.tech-story .load-chart-title span { color:var(--beam); font:700 13px "IBM Plex Mono",monospace; letter-spacing:.07em; }
+.tech-story .load-chart-title b { font-size:calc(17px * var(--rd-fs)); line-height:1.4; }
+.tech-story .load-chart p { margin:18px 0 0; color:var(--muted); font-size:calc(13px * var(--rd-fs)); line-height:1.6; }
+.tech-story .load-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:6px 12px; align-items:center; min-width:0; margin-top:14px; }
 .tech-story .load-row span { color:var(--ink); font-weight:600; }
 .tech-story .load-row b { color:var(--ink); text-align:right; font-family:"IBM Plex Mono",monospace; font-size:calc(15px * var(--rd-fs)); }
-.tech-story .load-rail { height:24px; border-radius:999px; background:var(--panel-2); overflow:hidden; }
-.tech-story .load-rail i { display:block; width:max(6px,var(--load-width)); height:100%; border-radius:inherit; background:var(--wait); transition:width .32s ease; }
-.tech-story .load-row + .load-row .load-rail i { background:var(--beam); }
-.tech-story .load-lab > small { display:block; margin-top:14px; line-height:1.6; }
+.tech-story .load-rail { grid-column:1/-1; height:20px; border-radius:999px; background:var(--panel-2); overflow:hidden; }
+.tech-story .load-rail i { display:block; width:max(6px,var(--load-width)); height:100%; border-radius:inherit; background:var(--wait); }
+.tech-story .load-row.is-fast .load-rail i { background:var(--beam); }
+.tech-story .load-path { margin-top:30px; }
+.tech-story .load-path-top { display:flex; flex-wrap:wrap; align-items:end; justify-content:space-between; gap:16px; }
+.tech-story .load-path-title { margin:0 0 6px; font-size:calc(18px * var(--rd-fs)); font-weight:700; }
+.tech-story .load-path-top p { margin:0; }
+.tech-story .load-choice { display:flex; flex-wrap:wrap; gap:10px; }
+.tech-story .load-choice button { min-height:48px; padding:8px 20px; border:1px solid var(--rule); border-radius:999px; background:var(--panel-2); color:var(--ink); font:inherit; cursor:pointer; }
+.tech-story .load-choice button[aria-pressed="true"] { background:var(--beam); border-color:var(--beam); color:var(--panel); font-weight:700; }
+.tech-story .load-choice button:focus-visible { outline:3px solid var(--beam); outline-offset:3px; }
+.tech-story .load-steps { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; list-style:none; padding:0; margin:22px 0 16px; }
+.tech-story .load-steps li { display:grid; align-content:start; gap:6px; min-width:0; padding:16px; border:1px solid var(--rule); border-radius:16px; background:var(--panel); }
+.tech-story .load-steps li b { color:var(--beam); }
+.tech-story .load-steps li:nth-child(2) { border-color:var(--beam); background:color-mix(in srgb,var(--beam) 9%,var(--panel)); }
+.tech-story .load-path[data-load-state="miss"] .load-steps li:nth-child(2) { border-color:var(--wait); background:color-mix(in srgb,var(--wait) 9%,var(--panel)); }
+.tech-story .load-path[data-load-state="miss"] .load-steps li:nth-child(2) b { color:var(--wait); }
+.tech-story .load-path .tech-result { margin-bottom:0; }
+.tech-story .load-points { display:grid; gap:12px; padding-left:1.4em; margin:26px 0; }
+.tech-story .load-points li { padding-left:5px; line-height:1.65; }
 .tech-story .load-evidence { margin:26px 0; padding:16px; border:1px solid var(--rule); border-radius:18px; background:var(--panel); max-width:820px; }
 .tech-story .load-evidence img { display:block; width:100%; height:auto; border-radius:12px; }
 .tech-story .load-evidence figcaption { margin-top:12px; color:var(--muted); font-size:calc(13px * var(--rd-fs)); line-height:1.6; }
-@media(max-width:600px){.tech-story .load-row { grid-template-columns:minmax(0,1fr) auto; gap:6px 12px; }.tech-story .load-rail { grid-column:1/-1; grid-row:2; }.tech-story .load-row b { grid-column:2; grid-row:1; }}
-@media(prefers-reduced-motion:reduce){.tech-story .load-rail i { transition:none; }}
+@media(max-width:700px){.tech-story .load-charts { grid-template-columns:minmax(0,1fr); }.tech-story .load-steps { grid-template-columns:minmax(0,1fr); }}
+@media(max-width:480px){.tech-story .load-stats { grid-template-columns:repeat(2,minmax(0,1fr)); }.tech-story .load-stat { padding:16px; }.tech-story .load-stat:last-child { grid-column:1/-1; }.tech-story .load-reduce { flex-direction:column; }.tech-story .load-reduce-arrow { transform:rotate(90deg); }.tech-story .load-choice button { flex:1 1 auto; }}
 </style>

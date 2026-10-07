@@ -142,22 +142,38 @@
   </section>
 
   <section class="tech-section" id="tech-loading">
-    <h2 data-toc="載入速度">資料越來越多，首頁怎麼保持可讀？</h2>
-    <p>截至 2026/10/07 14:28，後端有 <mark class="hl">67 天、1,413 筆個股紀錄、242 檔代號</mark>。首頁一次取得約 54 KB 的整理結果；它不把 1,413 筆原始列全部送到手機。</p>
-    <div class="tech-lab load-lab" id="loadLab">
-      <div class="load-choice" role="group" aria-label="比較哪一段載入時間">
-        <button type="button" data-load-view="api" aria-pressed="true">資料 API</button>
-        <button type="button" data-load-view="page" aria-pressed="false">讀者畫面</button>
-      </div>
-      <div class="load-bars" role="img" aria-label="資料 API 未命中快取 7.19 秒，命中快取 0.09 秒">
-        <div class="load-row"><span id="loadSlowLabel">未命中快取</span><div class="load-rail"><i id="loadSlowBar" style="--load-width:100%"></i></div><b id="loadSlowValue">7.19 秒</b></div>
-        <div class="load-row"><span id="loadFastLabel">命中快取</span><div class="load-rail"><i id="loadFastBar" style="--load-width:1.3%"></i></div><b id="loadFastValue">0.09 秒</b></div>
-      </div>
-      <p class="tech-result" id="loadResult" aria-live="polite">同一個 54 KB 總覽查詢，快取命中省下約 98.8% 等待；未命中時仍須讀取正式資料。</p>
-      <small>2026/10/07 實測；API 各測 1 次未命中、3 次命中，畫面測 1 次首次、2 次後續重新整理。秒數隨網路、後端與快取狀態變動。</small>
+    <h2 data-toc="資料與速度">資料量與載入速度</h2>
+    <p>紀錄每天增加，首頁仍要先讓今天的重點能讀。做法是先取整理好的總覽，其餘分頁等點開再讀。</p>
+    <div class="load-stat-head"><b>目前累積</b><span id="loadStatsAt">截至 2026/10/07 14:28 的統計；開啟頁面後更新</span></div>
+    <div class="load-stats" aria-label="網站紀錄規模">
+      <div class="load-stat"><strong data-load-stat="days">67</strong><span>天有紀錄</span></div>
+      <div class="load-stat"><strong data-load-stat="records">1,413</strong><span>筆個股紀錄</span></div>
+      <div class="load-stat"><strong data-load-stat="codes">242</strong><span>檔不同股票</span></div>
     </div>
-    <figure class="load-evidence"><img src="assets/tech-load-overview-20261007.jpg" alt="2026 年 10 月 7 日正式站首頁載入完成，顯示當日分類與持股數字" loading="lazy" width="759" height="679"><figcaption>正式站實測截圖：先讓當日分類與持股數字可讀，再按需讀取其他分頁。</figcaption></figure>
-    <p>改善方式是先送總覽請求、讓重複的公開讀取共用結果，並在可用時讀雲端快照。快照失效會改讀後端，不顯示過期資料；因此冷讀時間仍可能較長。</p>
+    <div class="load-reduce" aria-label="累積資料與首頁傳輸量"><span>後端累積 <b data-load-count>1,413 筆紀錄</b></span><span class="load-reduce-arrow" aria-hidden="true">→</span><span>首頁先取 <b>約 54 KB 整理結果</b></span></div>
+    <p class="load-aside">54 KB 是 10/07 量到的一次總覽回應大小，並非整個網站或全部原始紀錄；上方筆數依最近一次統計更新。</p>
+    <div class="load-charts" id="loadLab">
+      <div class="load-chart" aria-label="資料 API 等待時間比較">
+        <div class="load-chart-title"><span>01 / 資料 API</span><b>同一份總覽，快取是否可用</b></div>
+        <div class="load-row"><span>未命中快取</span><div class="load-rail"><i style="--load-width:100%"></i></div><b>7.19 秒</b></div>
+        <div class="load-row is-fast"><span>命中快取</span><div class="load-rail"><i style="--load-width:1.3%"></i></div><b>0.09 秒</b></div>
+        <p>這次命中約快 <b>80 倍</b>；是兩種讀取狀態的比較，不是每次都保證的速度。</p>
+      </div>
+      <div class="load-chart" aria-label="讀者畫面可讀時間比較">
+        <div class="load-chart-title"><span>02 / 讀者畫面</span><b>從開啟到日期與持股數字可讀</b></div>
+        <div class="load-row"><span>首次載入</span><div class="load-rail"><i style="--load-width:100%"></i></div><b>3.81 秒</b></div>
+        <div class="load-row is-fast"><span>後續重整</span><div class="load-rail"><i style="--load-width:17.6%"></i></div><b>0.67 秒</b></div>
+        <p>畫面時間還包含下載、程式執行與繪製，不能直接與 API 時間相加。</p>
+      </div>
+    </div>
+    <p class="load-method">圖表為 2026/10/07 正式站實測：API 未命中 1 次、命中 3 次（圖示約 0.09 秒）；畫面首次 1 次、後續 2 次（圖示中位數）。橫條越短代表越快；秒數會隨網路與後端變動。</p>
+    <div class="tech-lab load-path" data-load-state="hit">
+      <div class="load-path-top"><div><p class="load-path-title">點一下，看資料走哪條路</p><p>這裡只演示流程，不會重新查詢、寄送或改動資料。</p></div><div class="load-choice" role="group" aria-label="選擇快取情境"><button type="button" data-load-view="hit" aria-pressed="true">已有整理結果</button><button type="button" data-load-view="miss" aria-pressed="false">需要重新讀取</button></div></div>
+      <ol class="load-steps" aria-label="首頁資料路徑"><li><b>1　開啟首頁</b><span>先請求當日總覽</span></li><li id="loadRouteStep"><b>2　命中快取</b><span>直接取得最近核對的結果</span></li><li><b>3　畫面可讀</b><span>其餘分頁按需載入</span></li></ol>
+      <p class="tech-result" id="loadResult" aria-live="polite"><b>命中快取</b>就是先前已算好的結果仍有效，這次不用再掃後端原始紀錄。</p>
+    </div>
+    <ul class="load-points"><li><b>未命中快取是什麼？</b>沒有可用結果，可能是第一次查詢、結果過期或資料已更新；系統要重新讀取後端，這次就較慢。</li><li><b>為什麼要解決？</b>累積紀錄不能每次全送到手機，也不能讓重複查詢每次都重新掃表。</li><li><b>怎麼處理？</b>首頁先取整理結果；短暫刷新失敗時保留最近一次核對成功的快照，超過 12 分鐘仍無法核對就回到後端讀取。</li></ul>
+    <figure class="load-evidence"><img src="assets/tech-load-overview-20261007.jpg" alt="2026 年 10 月 7 日正式站首頁載入完成，顯示當日分類與持股數字" loading="lazy" width="759" height="679"><figcaption>10/07 正式站截圖：當日分類與持股數字先可讀，其餘分頁按需載入。</figcaption></figure>
   </section>
 
   <section class="tech-section" id="tech-day">
@@ -1169,6 +1185,9 @@
       if (!r || !r.ok) { loaded = false; one('#techLiveNote').textContent = '目前讀不到資料量，稍後再開啟可以重試。'; return; }
       all('[data-live]').forEach(function (e) { var v = r[e.dataset.live]; e.textContent = v == null ? '—' : Number(v).toLocaleString('zh-TW'); });
       one('#techLiveNote').textContent = '截至 ' + r.asOf + '，自 ' + r.since + ' 起的紀錄規模。這些數字不代表投資績效。';
+      all('[data-load-stat]').forEach(function (e) { var v = r[e.dataset.loadStat]; e.textContent = v == null ? '—' : Number(v).toLocaleString('zh-TW'); });
+      if (r.records != null) one('[data-load-count]').textContent = Number(r.records).toLocaleString('zh-TW') + ' 筆紀錄';
+      one('#loadStatsAt').textContent = '最近一次統計：' + r.asOf;
       var demo = r.demo || {};
       one('#techDemoSms').textContent = '這則來源記下當時的操作；影片後到時，只用同一天同一檔、可核對的原句重寫說明。';
       one('#techDemoDaily').textContent = '文章通過品質關卡後才寄，' + demoText(demo.daily, '每日總覽');
@@ -1179,20 +1198,16 @@
     loadImage.src = 'https://lee200202.github.io/Stock/assets/tech-load-overview-20261007.jpg';
   }
   var loadCases = {
-    api: {slow: '未命中快取', fast: '命中快取', a: '7.19 秒', b: '0.09 秒', width: '1.3%',
-      result: '同一個 54 KB 總覽查詢，快取命中省下約 98.8% 等待；未命中時仍須讀取正式資料。'},
-    page: {slow: '首次載入', fast: '後續重新整理', a: '3.81 秒', b: '0.67 秒', width: '17.6%',
-      result: '畫面從開啟到日期與持股數字可讀，首次 3.81 秒；後續兩次的中位數為 0.67 秒。'}
+    hit: { step: '<b>2　命中快取</b><span>直接取得最近核對的結果</span>', result: '<b>命中快取</b>就是先前已算好的結果仍有效，這次不用再掃後端原始紀錄。' },
+    miss: { step: '<b>2　未命中快取</b><span>讀取後端並重新整理</span>', result: '<b>未命中快取</b>就是沒有可用的整理結果。這次需要重新讀取後端，可能等得較久；取得後才供後續查詢使用。' }
   };
   all('[data-load-view]').forEach(function (button) {
     button.addEventListener('click', function () {
       var c = loadCases[button.dataset.loadView]; if (!c) return;
       all('[data-load-view]').forEach(function (b) { b.setAttribute('aria-pressed', String(b === button)); });
-      one('#loadSlowLabel').textContent = c.slow; one('#loadFastLabel').textContent = c.fast;
-      one('#loadSlowValue').textContent = c.a; one('#loadFastValue').textContent = c.b;
-      one('#loadFastBar').style.setProperty('--load-width', c.width);
-      one('#loadResult').textContent = c.result;
-      one('.load-bars').setAttribute('aria-label', c.slow + ' ' + c.a + '，' + c.fast + ' ' + c.b);
+      one('.load-path').dataset.loadState = button.dataset.loadView;
+      one('#loadRouteStep').innerHTML = c.step;
+      one('#loadResult').innerHTML = c.result;
     });
   });
   window.__techReveal = function () { window.__loadTechStats(); schedule(); if (window.__docnavRebuild) window.__docnavRebuild(); };

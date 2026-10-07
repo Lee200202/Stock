@@ -1225,7 +1225,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-10-07-load-story-v140';
+var PROJECT_BUILD_ = '2026-10-07-load-story-v141';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
@@ -1260,8 +1260,8 @@ var PROJECT_FILES_ = [
 var PROJECT_HTML_ = [
   { file: 'Index', marker: '<span class="brand-name">盤勢有據</span>' },
   { file: 'JavaScript', marker: '__fxRiseIn' },
-  { file: 'Stylesheet', marker: 'load-bars' },
-  { file: 'Changelog', marker: 'v140 載入速度實測' },
+  { file: 'Stylesheet', marker: 'load-charts' },
+  { file: 'Changelog', marker: 'v141 資料量與載入速度' },
   { file: 'Tech', marker: 'tech-loading' },
   { file: 'Admin', marker: '15:20 再核對公開直播與回放' },
   { file: 'Settings', marker: '手機預覽' },

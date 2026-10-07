@@ -64,11 +64,13 @@ def check_interactions(page, label, reduced=False):
     base = len(calls)
 
     assert '7.19 秒' in page.locator('#loadLab').inner_text()
-    page.locator('[data-load-view="page"]').click()
     assert '0.67 秒' in page.locator('#loadLab').inner_text()
-    assert page.locator('[data-load-view="page"]').get_attribute('aria-pressed') == 'true'
-    page.locator('[data-load-view="api"]').click()
-    assert '7.19 秒' in page.locator('#loadLab').inner_text()
+    assert page.locator('[data-load-stat="records"]').inner_text().strip()
+    page.locator('[data-load-view="miss"]').click()
+    assert '重新讀取後端' in page.locator('#loadResult').inner_text()
+    assert page.locator('[data-load-view="miss"]').get_attribute('aria-pressed') == 'true'
+    page.locator('[data-load-view="hit"]').click()
+    assert '命中快取' in page.locator('#loadResult').inner_text()
     assert page.locator('.load-evidence img').get_attribute('alt')
     page.locator('.load-evidence img').scroll_into_view_if_needed()
     page.wait_for_function("document.querySelector('.load-evidence img').naturalWidth > 0", timeout=15000)

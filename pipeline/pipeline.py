@@ -9419,13 +9419,16 @@ def _context_claims(reply, source_ids):
     return out
 
 
-_SPOKEN_FRAGMENT = re.compile(r'你來看|你看一下|你們看|是不是|有沒有|對不對|好不好|(?:跟|和|與|及|的|是|在|把|被|讓|對|從|向|比|就)[。？！!?]?$')
+# 口語殘句：問聽眾的口頭禪，或句子停在連接的字上（「…它是不是跟。」）。
+# 「的。」「是。」結尾是正常的書面句，不算（2026/10/06 重播有三則正常說明被誤判，已收窄）。
+_SPOKEN_FRAGMENT = re.compile(r'你來看|你看一下|你們看|對不對|好不好|(?:跟|和|與|及|把|被|讓|對|從|向|比)[。？！!?]?$')
+_SPOKEN_QUESTION = re.compile(r'是不是|有沒有')
 
 
 def spoken_fragment(text) -> bool:
-    """說明是不是口語殘句（「鈺邦，你來看，它是不是跟。」）：帶著問聽眾的口頭禪，或停在介系詞上。"""
+    """說明是不是口語殘句（「鈺邦，你來看，它是不是跟。」）。"""
     text = str(text or '').strip()
-    return bool(text) and bool(_SPOKEN_FRAGMENT.search(text))
+    return bool(text) and bool(_SPOKEN_FRAGMENT.search(text) or (len(text) < 25 and _SPOKEN_QUESTION.search(text)))
 
 
 def _context_written_sentence(text):

@@ -3582,8 +3582,29 @@ html[data-view="mobile"] .seg button { min-width: 0; padding: 0 6px; }
 .trend-t { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; min-width: 0; }
 .trend-t b { font-size: calc(14px * var(--rd-fs)); }
 .trend-flow { font-size: calc(12.5px * var(--rd-fs)); color: var(--muted); }
-.trend-rounds { border: 0; background: none; padding: 0; cursor: pointer; color: var(--ink); font-family: inherit;
-  font-size: calc(12.5px * var(--rd-fs)); text-decoration: underline dotted; text-underline-offset: 3px; }
+/* v144 回合選單：按鈕是一顆膠囊，選單是自己畫的清單（回合｜進出場日｜報酬），最下面一列是累積報酬。 */
+.round-pick { position: relative; display: inline-flex; }
+.trend-rounds { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 14px; border: 1px solid var(--rule); border-radius: 999px;
+  background: var(--panel); color: var(--ink); cursor: pointer; font-family: inherit; font-size: calc(13px * var(--rd-fs)); font-weight: 600; line-height: 1.2; }
+.trend-rounds:hover, .trend-rounds[aria-expanded="true"] { border-color: var(--beam); }
+.trend-rounds:focus-visible, .round-opt:focus-visible { outline: 3px solid var(--beam); outline-offset: 2px; }
+.trend-rounds .round-of { color: var(--muted); font-weight: 400; }
+.trend-rounds .round-caret { flex: none; color: var(--muted); transition: transform .15s ease; }
+.trend-rounds[aria-expanded="true"] .round-caret { transform: rotate(180deg); }
+.round-menu { position: absolute; z-index: 30; top: calc(100% + 8px); left: 0; display: grid; gap: 4px; width: max-content; min-width: 100%; max-width: min(360px, calc(100vw - 56px));
+  padding: 8px; border: 1px solid var(--rule); border-radius: 18px; background: var(--panel); box-shadow: 0 12px 32px #0002; }
+.round-menu[hidden] { display: none; }
+.round-opt { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 4px 14px; min-height: 48px; padding: 8px 14px; border: 0; border-radius: 12px;
+  background: none; color: var(--ink); cursor: pointer; font-family: inherit; font-size: calc(13px * var(--rd-fs)); text-align: left; }
+.round-opt:hover { background: var(--panel-2); }
+.round-opt[aria-selected="true"] { background: color-mix(in srgb, var(--beam) 12%, var(--panel)); }
+.round-opt[aria-selected="true"] .round-n { color: var(--beam); }
+.round-opt .round-n { font-weight: 700; white-space: nowrap; }
+.round-opt .round-d { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.round-opt .round-r, .round-sum span:last-child { font-family: "IBM Plex Mono", monospace; font-weight: 600; white-space: nowrap; }
+.round-sum { display: flex; justify-content: space-between; gap: 14px; margin-top: 4px; padding: 10px 14px 6px; border-top: 1px solid var(--rule); color: var(--muted); font-size: calc(12.5px * var(--rd-fs)); }
+@media (prefers-reduced-motion: reduce) { .trend-rounds .round-caret { transition: none; } }
+@media (max-width: 480px) { .round-opt { grid-template-columns: auto auto; } .round-opt .round-d { grid-column: 1 / -1; grid-row: 2; white-space: normal; } }
 .trend-ret { flex: none; font-family: "IBM Plex Mono", monospace; font-size: calc(22px * var(--rd-fs)); font-weight: 600; line-height: 1.1; }
 .trend-box { position: relative; }
 .trend-svg { display: block; overflow: visible; touch-action: pan-y; }

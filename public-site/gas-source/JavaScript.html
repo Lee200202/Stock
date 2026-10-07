@@ -1569,15 +1569,39 @@ function restatesEarlier_(key, earlier) {
      進場價以上淡紅、以下淡綠；進場價實線、明講價虛線，線的右端直接寫文字，不需要圖例。
      「提到」空心灰圈、「成交」紅色上三角；已出場的在出場日畫綠色下三角。
      沒有日 K（日 K 未涵蓋、還沒載入）時退回做法 B：一把有刻度的價格尺。 */
-  function trendModel(t) {
+  /* 各回合報酬：「+8.36% × +8.83%」→ [8.36, 8.83]。 */
+  function roundRetList_(t) {
+    var out = [];
+    String((t && t.roundRets) || '').replace(/([+\-\u2212\uFF0D]?\d+(?:\.\d+)?)\s*%/g, function (_, n) {
+      out.push(Number(String(n).replace(/[\u2212\uFF0D]/g, '-'))); return '';
+    });
+    return out;
+  }
+  /* v144：pick 是要看的回合（從 0 起算）；不給就是最近一個回合（原本的行為）。
+     已經結束的回合用那一回合自己的進場、出場日與價位，報酬取「各回合報酬」欄，欄位對不上才用進出場價算。 */
+  function trendModel(t, pick) {
     if (!t) { return null; }
-    var list = t.roundList || [], r = list[list.length - 1] || {};
+    var list = t.roundList || [], last = list.length - 1;
+    if (typeof pick === 'number' && pick >= 0 && pick < last) {
+      var p = list[pick] || {};
+      if (!(p.entry > 0)) { return null; }
+      var rets = roundRetList_(t);
+      var pret = rets.length === list.length ? rets[pick]
+        : (p.exit > 0 ? Math.round((p.exit - p.entry) / p.entry * 10000) / 100 : null);
+      return {
+        r: p, rounds: t.rounds || list.length, index: pick, past: true, entry: p.entry, mention: p.open || '',
+        trade: p.entryDate || p.open || '', exit: p.exitDate || '',
+        stated: null, note: '', exitNote: '', entryBasis: '當日最低', exitBasis: '當日最高',
+        end: p.exit, ret: pret, held: false, lo: p.entryLo, hi: p.entryHi
+      };
+    }
+    var r = list[last] || {};
     var entry = t.entry || r.entry;
     if (!(entry > 0)) { return null; }
     var mention = r.open || t.roundStart || '';
     var hold = !!r.hold || t.openBy === '會員持股聲明';
     return {
-      r: r, rounds: t.rounds || list.length || 1, entry: entry, mention: mention,
+      r: r, rounds: t.rounds || list.length || 1, index: Math.max(0, last), past: false, entry: entry, mention: mention,
       trade: r.entryDate || t.entryDate || mention,
       exit: t.stillHeld ? '' : (r.exitDate || t.lastSell || ''),
       stated: null, note: '', exitNote: '',   // v104：口頭價位前台不畫（舊後端即使還帶著欄位也不用）
@@ -1770,7 +1794,7 @@ function restatesEarlier_(key, earlier) {
   function paintTrend() {
     var box = $('dPxRange');
     if (!box) { return; }
-    var t = DETAIL.tracker, m = t ? trendModel(t) : null;
+    var t = DETAIL.tracker, m = t ? (trendModel(t, DETAIL.trendRound) || trendModel(t)) : null;
     if (!m || DETAIL.code !== currentCode) { box.hidden = true; box.innerHTML = ''; return; }
     box.hidden = false;
     var memo = candleMemo[DETAIL.code], rows = memo && memo.day;
@@ -1782,29 +1806,79 @@ function restatesEarlier_(key, earlier) {
     var loading = !memo && candlePending[DETAIL.code];
     /* v68（管理者 9/25）：標題列不再寫「提到 → 成交 → 持有 N 天」，圖上已有日期記號與持有期間括弧；
        圖下不再寫取價規則，只留出場原因（已出場）與缺資料的原因，用灰字。 */
-    var roundsBtn = m.rounds > 1
-      ? '<button type="button" class="trend-rounds" aria-expanded="false" aria-controls="dRounds">第 ' + m.rounds + ' 回合' +
-        (t.cumRet !== null && t.cumRet !== undefined ? '，累積 <span class="' + signCls(t.cumRet) + '">' + fmtRet(t.cumRet) + '</span>' : '') + '</button>' : '';
+    /* v144 回合選單（2026/10/07 管理者）：買了又賣、賣了又買的股票，可以切換看先前每一個回合的走勢。
+       自己畫的選單（不是瀏覽器原生下拉）：每一列寫回合、進出場日、那一回合的報酬；最下面一列是累積報酬。 */
+    var roundList = t.roundList || [], roundsBtn = '';
+    if (roundList.length > 1) {
+      var roundRets = roundRetList_(t);
+      roundsBtn = '<span class="round-pick"><button type="button" class="trend-rounds" id="roundPickBtn" aria-haspopup="listbox" aria-expanded="false" aria-controls="roundPickMenu">' +
+        '<span>第 ' + (m.index + 1) + ' 回合</span><span class="round-of">共 ' + roundList.length + ' 回合</span>' +
+        '<svg class="round-caret" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>' +
+        '<span class="round-menu" id="roundPickMenu" role="listbox" aria-label="選擇要看的回合" hidden>' +
+        roundList.map(function (r, k) {
+          var isLast = k === roundList.length - 1, held = isLast && !!t.stillHeld;
+          var ret = isLast ? t.ret : (roundRets.length === roundList.length ? roundRets[k]
+            : (r.exit > 0 && r.entry > 0 ? Math.round((r.exit - r.entry) / r.entry * 10000) / 100 : null));
+          var from = md_(r.entryDate || r.open), to = md_(r.exitDate || (isLast ? t.lastSell : ''));
+          var span = held ? from + ' 起，持有中' : from + (to ? ' \u2192 ' + to : '');
+          return '<button type="button" role="option" class="round-opt" data-round="' + k + '" aria-selected="' + (k === m.index) + '">' +
+            '<span class="round-n">第 ' + (k + 1) + ' 回合</span><span class="round-d">' + esc(span) + '</span>' +
+            '<span class="round-r ' + signCls(ret) + '">' + (ret === null || ret === undefined ? '\u2014' : fmtRet(ret)) + '</span></button>';
+        }).join('') +
+        (t.cumRet !== null && t.cumRet !== undefined
+          ? '<span class="round-sum"><span>各回合累積</span><span class="' + signCls(t.cumRet) + '">' + fmtRet(t.cumRet) + '</span></span>' : '') +
+        '</span></span>';
+    }
     var retTxt = m.ret === null || m.ret === undefined ? '\u2014' : fmtRet(m.ret);
     var notes = [];
-    if (!m.held && t.exitReason) {
+    if (!m.held && !m.past && t.exitReason) {
       notes.push('出場原因：' + String(t.exitReason).split('\n').filter(String).join('；'));
     }
-    if (t.why) { notes.push(t.why); }
+    if (t.why && !m.past) { notes.push(t.why); }
     if (!tr && !loading) { notes.push('日 K 未涵蓋這段期間，改用價格尺。'); }
     box.innerHTML =
-      '<div class="trend-h"><div class="trend-t"><b>' + (m.held ? '進場以來走勢' : '這一回合的走勢') + '</b>' + roundsBtn + '</div>' +
+      '<div class="trend-h"><div class="trend-t"><b>' + (m.past ? '第 ' + (m.index + 1) + ' 回合的走勢' : m.held ? '進場以來走勢' : '這一回合的走勢') + '</b>' + roundsBtn + '</div>' +
         '<span class="trend-ret ' + signCls(m.ret) + '" title="' + (m.held ? '未實現報酬' : '這一回合的報酬') + '">' + retTxt + '</span></div>' +
       '<div class="trend-box' + (tr ? '' : ' is-ruler') + '">' +
         (tr ? tr.svg : loading ? '<div class="trend-skel" aria-hidden="true"></div>' : rulerSvg(m, W)) +
         '<div class="trend-tip" hidden></div></div>' +
       (notes.length ? '<p class="trend-rule">' + notes.map(esc).join('<br>') + '</p>' : '');
-    var rb = box.querySelector('.trend-rounds'), rd = $('dRounds');
-    if (rb && rd) {
-      rb.addEventListener('click', function () {
-        var open = rd.hidden;
-        rd.hidden = !open;
-        rb.setAttribute('aria-expanded', open ? 'true' : 'false');
+    var rb = box.querySelector('#roundPickBtn'), menu = box.querySelector('#roundPickMenu');
+    if (rb && menu) {
+      var opts = [].slice.call(menu.querySelectorAll('.round-opt'));
+      var closeMenu = function (focus) {
+        if (menu.hidden) { return; }
+        menu.hidden = true; rb.setAttribute('aria-expanded', 'false');
+        document.removeEventListener('pointerdown', outside, true);
+        if (focus) { rb.focus(); }
+      };
+      var outside = function (e) { if (!menu.contains(e.target) && !rb.contains(e.target)) { closeMenu(false); } };
+      var openMenu = function () {
+        menu.hidden = false; rb.setAttribute('aria-expanded', 'true');
+        document.addEventListener('pointerdown', outside, true);
+        (menu.querySelector('.round-opt[aria-selected="true"]') || opts[0]).focus();
+      };
+      rb.addEventListener('click', function () { if (menu.hidden) { openMenu(); } else { closeMenu(true); } });
+      rb.addEventListener('keydown', function (e) {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (menu.hidden) { openMenu(); } }
+      });
+      menu.addEventListener('keydown', function (e) {
+        var i = opts.indexOf(document.activeElement);
+        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeMenu(true); }
+        else if (e.key === 'ArrowDown') { e.preventDefault(); opts[Math.min(opts.length - 1, i + 1)].focus(); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); opts[Math.max(0, i - 1)].focus(); }
+        else if (e.key === 'Home') { e.preventDefault(); opts[0].focus(); }
+        else if (e.key === 'End') { e.preventDefault(); opts[opts.length - 1].focus(); }
+        else if (e.key === 'Tab') { closeMenu(false); }
+      });
+      opts.forEach(function (opt) {
+        opt.addEventListener('click', function () {
+          var k = Number(opt.getAttribute('data-round'));
+          DETAIL.trendRound = k === roundList.length - 1 ? undefined : k;   // 最近一個回合＝預設
+          document.removeEventListener('pointerdown', outside, true);
+          paintTrend();
+          var again = $('roundPickBtn'); if (again) { again.focus(); }
+        });
       });
     }
     if (!tr) { return; }

@@ -6428,6 +6428,7 @@ skip：只是順口列舉名稱、念報價、講別檔時拿來比喻，或 sou
 sources 可能夾著相鄰個股的話（「這一支」「它」常是在講下一檔）：只採用同一句或緊鄰句子明確點名本股的內容，指代不明的不算。
 拿不準方向時用 watch_avoid 並照實寫他講了什麼，不可寫成推薦；不可為了收錄而編造看法。
 不寫評語式的收尾：「展現強勁多頭動能」「具備明確的向上潛力」「整體操作邏輯穩健」「值得持續關注」「並說明相關操作與看法」這類句子沒有資訊，程式會刪掉；原文沒講的量價（帶量、爆量、創高、漲停）也不要補。寧可少一句，留下來的每一句都要對得回 sources。
+名字自己成一句（「…我講很久了，X呢。日K線MACD翻陽啊」），前後在講「這隻是我的股票」「為什麼我留著它」或它的線型：這是在點名 X，列 watch_watch，說明寫線型與是否留著。
 拿這一檔當對照、說它已經漲了幾根漲停、「進去跟人家湊什麼熱鬧」「我還去看好它嗎」，就是對這一檔現在的看法（漲多不追）：列 watch_avoid，說明寫它已經漲了多少、不追的理由。
 「有很多人說／有人問：張總，你昨天講 X 要賣了」這類句子，是講者轉述觀眾複述他自己先前講過的話，後面通常接著他當場的確認或補充：寫成「先前（昨天）已表示 X 要賣出」並接上他當場的說法，不可寫成「有傳聞」「據說」「有人提及」。
 note 用完整書面句寫 1～3 句、約 30～120 字，只寫 sources 裡對這一檔明講的內容（題材、法人、技術位置、風險、態度）；數字照抄阿拉伯數字；不用人名或講者當主詞；不寫分類流程、來源或「原文」「逐字稿」。
@@ -6441,11 +6442,13 @@ source_ids 填支持 note 的段落編號，只能用同一 entry 的 sources。
 # 摘錄是在別家公司名稱處切開的，但名稱之後、本股之前的那一句仍然在講前一家。
 # 規則：說明提到賺不賺錢、獲利、虧損時，原文裡要有「同一句同時出現本股名稱與這類字眼」的句子；沒有就不是這一檔的事。
 _PROFIT_WORDS = re.compile(r'賺|賠|獲利|利潤|盈餘|虧損|虧錢')
+_COMPANY_PROFIT = re.compile(r'公司[^，。；]{0,12}(?:賺|獲利|利潤|虧)|(?:並未|沒有|未|不)(?:賺取|賺到|賺)[^，。；]{0,6}(?:錢|利潤|獲利)|本業[^，。；]{0,4}(?:賺|虧)|(?:公司|本業|營運)[^，。；]{0,6}(?:虧損|盈餘)')
 
 
 def _foreign_profit_claim(note, names, transcript) -> bool:
     """說明講到獲利狀況，而原文沒有任何一句同時講到本股與獲利。names 是本股的各種寫法。"""
-    if not _PROFIT_WORDS.search(str(note or '')):
+    # 只管「公司本身賺不賺錢」的講法；「會員全面獲利」「買的人還不是賠」講的是投資人的損益，不在這一條。
+    if not _COMPANY_PROFIT.search(str(note or '')):
         return False
     names = [n for n in names if isinstance(n, str) and len(n) >= 2]
     return not any(_PROFIT_WORDS.search(sent) and any(n in sent for n in names) for sent in _plain_sentences(transcript))
@@ -6557,7 +6560,10 @@ def review_excluded_stocks(signals, transcript, date_str):
         identity = 'x' + str(len(entries))
         entries.append({'id': identity, 'name': official or heard, 'heard': heard, 'sources': sources})
         targets[identity] = {'heard': heard, 'code': code, 'official': official, 'text': text,
-                             'ids': {s['id']: s['text'] for s in sources}}
+                             'ids': {s['id']: s['text'] for s in sources},
+                             # 名字自己成一句時，記下前一句與後一句：講者點名的前後就是在講它（見下面的「點名原句」）。
+                             'around': [(sentences[i - 1] if i else '', x, sentences[i + 1] if i + 1 < len(sentences) else '')
+                                        for i, x in enumerate(sentences) if ends_with_name.search(x.strip())] if named_alone else []}
         if len(entries) >= 8:
             break
     if not entries:
@@ -6590,6 +6596,32 @@ def review_excluded_stocks(signals, transcript, date_str):
         label = t['official'] or t['heard']
         verdict = str(reply.get('verdict') or '')
         if verdict not in ('watch_avoid', 'watch_watch'):
+            # 點名原句：講者把名字單獨念出來（「…我講很久了，神準呢。日K線MACD翻陽啊」），前後句明講這是他留著的股票、
+            # 或講它的線型翻多。模型這一輪答「沒有看法」時，用原句收錄為觀望注意，不讓它整檔不見
+            # （2026/10/07：同一份逐字稿，神準一輪收錄、一輪被排除；管理者確認當天有講這一檔）。
+            spoken = next(((before, own, after) for before, own, after in t.get('around') or []
+                           if re.search(r'翻陽|翻紅|翻揚|向上|黃金交叉|突破', after) and re.search(r'MACD|KD|K線|均線|季線|月線|年線', after)
+                           and not re.search(r'賣掉|賣出|出清|不要買|不能買|不會買', before + own + after)), None)
+            if spoken:
+                before, own, after = spoken
+                held = re.search(r'我(?:的|有)(?:這一?(?:隻|支|檔))?股票|這(?:一)?(?:隻|支|檔)是我(?:的)?股票|留著|抱著', before + own + after)
+                row = {'name': t['heard'], 'code': t['code']}
+                # 說明只取講線型的那個子句（「日K線MACD翻陽啊，我有沒有講很久了？」→「日K線MACD翻陽」），不留口語的問句。
+                fact = next((c for c in re.split('[，,。！？!?]', after) if re.search('翻陽|翻紅|翻揚|向上|黃金交叉|突破', c)), '').rstrip('啊呢喔哦嘛了')
+                note = public_narrative(fact + '。' + ('目前留著。' if held else ''), row, signals) if fact else ''
+                quotes = [q for q in (own, after) if _quote_is_real(q, hay)]
+                if quotes and len(_ev_norm(note)) >= 8:
+                    for c in ('ignored', 'uncertain'):
+                        signals[c] = [x for x in signals.get(c, []) or []
+                                      if not (isinstance(x, dict) and (_signal_names(x) | {str(x.get('name') or '')}) & {t['heard'], t['official']})]
+                    signals.setdefault('watch_watch', []).append({
+                        'name': t['heard'], 'code': t['code'], 'price': '未說明', 'reason': note, 'evidence': quotes,
+                        'view': quotes[-1], 'watch_bias': 'watch_watch', '_leftover': True,
+                        '_guard_note': '講者點名後接著講線型，依原句收錄'})
+                    signals['_quality_requires_review'] = True
+                    print(f"  排除單檔覆核　{label}（{t['code']}）→ 觀望注意（模型未給看法，依點名後的原句）：{note[:50]}")
+                    note_decision('排除單檔覆核', '依點名原句收錄為觀望注意', label, note[:100])
+                    continue
             note_decision('排除單檔覆核', '維持排除', label, str(reply.get('note') or 'skip')[:100])
             print(f"  排除單檔覆核　{label}：維持排除（沒有對這一檔本身的看法）")
             continue
@@ -7667,6 +7699,8 @@ def public_narrative(text, row=None, signals=None):
     text = re.sub(r'不準(?=給我|亂|再|去|賣|買|碰|追|用|借|操作|進場|放空|做空)', '不准', text)
     # 「被講者點名」「遭講者明確列入」：公開說明不寫人當主詞，被動句裡的也拿掉（v96 書面句常這樣寫）。
     text = re.sub(r'(被|遭|獲)(?:張震|張正|張總|張中|講者)(?:老師)?', r'\1', text)
+    # 其餘位置的「講者」也不留（2026/10/07 重播：「國巨被明確點名為講者最不會買的標的」）。
+    text = re.sub(r'講者(?:本人)?(?:的(?=會員|持股|看法|說法))?', '', text)
     text = re.sub(r'[（(][^（）()]*?(?:原文(?:作|為|寫|說)|語音(?:作|為)|誤植|誤字)[^（）()]*[）)]', '', text)
     if str(row.get('code') or '') == '5274':
         text = text.replace('信化','信驊')

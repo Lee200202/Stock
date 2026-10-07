@@ -9,8 +9,9 @@ function enforceArticleRecords_(article, signals, d) {
   var verified = (signals.market || []).filter(function(r){return r._evidence_verified;});
   var points = distinctPoints_(verified.filter(function(r){return r.kind !== 'view';})
     .concat(verified.filter(function(r){return r.kind === 'view';})));
-  var macro = points.filter(function(r){return r.kind !== 'view';}).map(function(r){return '• ' + publicNarrative_(r.text);});
-  var lessons = points.filter(function(r){return r.kind === 'view';}).map(function(r){return '• ' + publicNarrative_(r.text);});
+  var bullet = function(r){return '• ' + publicNarrative_(r.text).replace(/^[\s：:，,]+/, '');};
+  var macro = points.filter(function(r){return r.kind !== 'view';}).map(bullet);
+  var lessons = points.filter(function(r){return r.kind === 'view';}).map(bullet);
   var kept = [], length = 0;
   macro.forEach(function(line){if(length+line.length+1<=2400){kept.push(line);length+=line.length+1;}});
   var chapter = recordChapter_(signals,d);
@@ -46,13 +47,17 @@ function distinctPoints_(rows) {
     if (keys.length < 12) { out.push(row); return; }
     var cover = keys.filter(function (k) { return seen[k]; }).length / keys.length;
     var view = row.kind === 'view';
+    var numbers = (String(row.text || '').match(/\d+(?:\.\d+)?(?:點|月|日|萬|億|元|塊|%|％|張|倍|年|季|根)?|Q\d/g) || [])
+      .filter(function (n, i, all) { return all.indexOf(n) === i; });
     var twin = kept.some(function (other) {
       var size = Object.keys(other.grams).length;
-      return size >= 12 && keys.filter(function (k) { return other.grams[k]; }).length / Math.min(keys.length, size) >= (other.view === view ? 0.33 : 0.42);
+      // 跨章共用兩個以上的數字（10點、11點）時門檻 0.28（pipeline.py ARTICLE_SAME_THEME_ACROSS_NUMBERS）。
+      var bar = other.view === view ? 0.33 : (numbers.filter(function (n) { return other.numbers.indexOf(n) >= 0; }).length >= 2 ? 0.28 : 0.42);
+      return size >= 12 && keys.filter(function (k) { return other.grams[k]; }).length / Math.min(keys.length, size) >= bar;
     });
     if (cover >= 0.7 || twin) { return; }
     keys.forEach(function (k) { seen[k] = 1; });
-    kept.push({grams: grams, view: view});
+    kept.push({grams: grams, view: view, numbers: numbers});
     out.push(row);
   });
   return out;

@@ -3536,14 +3536,16 @@ _TEACHER_SUBJECT = re.compile(
     # 「老師偏好買在低基期」「老師在比較個股時明確表示」。
     r"|在|於|將|會|指示|通知|帶領|偏好|這是|自己|手中|說|講|提到|點名|預期|預計|先前|目前|本人)")
 # 句子中間的「老師手中」「老師自己的」「老師的會員」：拿掉人，留下事（「勤誠為老師手中低檔佈局的標的」→「勤誠為手中低檔佈局的標的」）。
-_TEACHER_POSSESSIVE = re.compile(r"老師(?:本人)?(?:的(?=會員|持股|核心|成本|部位|買點)|(?=手中|自己的))")
+_TEACHER_POSSESSIVE = re.compile(r"老師(?:本人)?(?:的(?=會員|持股|核心|成本|部位|買點)|(?=手中|自己的|持股|持有|買進|賣出|看好|已經|所|最不))")
 
 
 def strip_speaker_names(text: str) -> str:
     """拿掉當主詞的講者姓名：「張正指出國巨…」→「指出國巨…」。"""
     t = _TEACHER_POSSESSIVE.sub("", _TEACHER_SUBJECT.sub(lambda m: m.group(1), _SPEAKER_SUBJECT.sub(lambda m: m.group(1), str(text or ""))))
     # 拿掉主詞後句首剩下的「在今日…」：「老師在今日會員將…賣出」→「今日會員將…賣出」。
-    return re.sub(r"(^|[。；;])在(?=今日|今天|昨日|昨天)", lambda m: m.group(1), t)
+    t = re.sub(r"(^|[。；;])在(?=今日|今天|昨日|昨天)", lambda m: m.group(1), t)
+    # 「張總：當股票…」拿掉人名後剩下「：當股票…」（2026/10/07 16:15 的 ① 第三點、③ 第三點）。
+    return re.sub(r"(^|[。！？!?；;])\s*[：:，,]\s*", lambda m: m.group(1), t)
 
 
 def clean_meta_reason(text: str) -> str:
@@ -4406,7 +4408,22 @@ reason 只能用提到這一檔的句子；上一句、下一句在講另一檔�
 沒講名字的段落（「我昨天有沒有跟你們講一支股票」「這一支股票只要1745突破」「現在1800」）不可以掛到別處才點名的公司上：前後最近點名的是別檔、或這一段自己開了新話題時，裡面的價位、關卡、漲跌、張數都不寫進任何一檔的說明。補背景是補「明講本股名稱那幾段」的內容，不是把附近聽起來相關的段落併進來。
 說明的洞見來自原文的因果脈絡：觀察到的現象 → 講者認為的原因或市場落差 → 對既有部位／新進資金各自的做法 → 後續確認條件。只填原文存在的環節；不得為湊齊格式自創未定價利多、內幕渠道、領先指標、停損點、目標價或獲利預測。「營收成長但股價跌」可呈現基本面與技術面的落差，但不能自行斷言市場定價錯誤或保證反彈。預期、看好、推測須歸屬講者；摘要不是系統自己的投資建議。
 
+【說明要有深度，而且每一句對得回原文】
+一、講者明講的數字一定寫進去：他自己或會員的買進位置與成本（「我買的位置還是880以下」「會員成本74塊」）、均線或頸線的價位（「季線990」）、他預期先到哪一條線、法人買賣的張數或金額（「外資買超2300多張」）、先前賣在哪裡、跌了幾個月、整理了幾天。這些是讀者最需要的資訊，比形容詞重要；原文有而說明沒寫，就是寫得太淺。
+二、寫因果，不寫評語：現象（外資投信在賣卻跌不下去）→ 他的判斷（低檔有人接、一定會過季線）→ 做法（低檔佈局等它）。不寫「展現強勁多頭動能」「具備明確的向上潛力」「整體操作邏輯穩健」「值得持續關注」「並說明相關看法」這類放在任何一檔都成立的句子；原文沒講的量價（帶量、爆量、創高）與建議（不宜繼續持有、建議停損）也不要補。寧可少一句，留下來的每一句都要對得回原文。
+三、主詞要對：否定、獲利狀況、買賣動作講的是哪一家，就只寫在那一家。「X我不敢買，因為那家公司沒什麼賺錢。可是這個題材會很熱，你們在看的都是A跟B」——不敢買與沒賺錢講的是 X；A、B 只是被點到名，講者沒有對它們下看法，放 ignored 並寫明只是被點名，不可列觀望不碰，也不可把 X 的理由寫成 A、B 的。
+四、轉述自己先前的話不是傳聞：「有人說張總你昨天講X要賣了」寫成「先前已表示X要賣出」，後面接他當場的確認或補充；當場沒有新的說法就只寫這一句。不可寫「有傳聞」「據說」「有人提及」。
+五、公開文字不寫「講者」「老師」「張總」當主詞或所有格，直接寫內容（「買在880以下」「會員續抱」）。
+
+【容易判錯的講法】
+講者把名字單獨念出來，前後在講它的線型或持有（「…我講很久了，X呢。日K線MACD翻陽啊」「這隻是我的股票，為什麼我會留著它」）：這是點名 X。他留著就放 holdings，否則 watch_watch，說明寫線型與持有狀態；不可因為名字只念一次就排除。
+「我手中的股票這幾天低檔剛佈局的有X…我買的位置是…」：holdings，說明寫買進位置、他預期的目標與理由。
+拿X當對照，說它已經漲了幾根漲停、「進去跟人家湊什麼熱鬧」「我還去看好它嗎」：X 列 watch_avoid（漲多不追），說明寫它漲了多少、為什麼不追；他真正看好的是拿來對比的另一檔。
+「手中有X的人不用賣」「X也會漲」：watch_watch（持有者續抱），不是 watch_avoid；他先前賣在哪裡是背景，不是現在的方向。
+同一個寫法在不同段落可能是兩檔股票（語音把同音的名字寫成另一家公司）。source 已把「緊貼名稱念出代號的那一段」更正成代號的正式名稱：兩檔各自分類、各自引用自己的段落，買賣、題材、價位不可混用。
+
 【大盤】
+盤勢（level/volume/event/flow）與教學（view）各至少三點，每一點一個主題：同一個時間點、同一組數字、同一條因果只寫一次，不可在同一章或另一章換句話再講一遍。教人怎麼買賣的內容（買股票應…、操作策略、切勿…、適用於…）一律 kind=view，不放盤勢。每一點都要有原文的數字、時間或點名的類股，並寫出因果（什麼現象 → 他認為的原因 → 該怎麼做）；「投資人應審慎」「不宜盲目追高」這種誰都能說的話不能單獨成為一點。
 market 每筆填 kind=level/volume/event/flow/view、text、evidence_refs。首筆盤勢一定要填headline：取講者本集最有力的一句觀點，口語一句、至少15字（不設上限），驚嘆號或問句收尾（如「你買在高檔 神仙都難救，低檔買進才是真正會賺錢的做法！」），不含姓名日期，用原文的字與數字，不新增事實。
 level/volume/event/flow 是盤勢（信件第①章）：涵蓋原文明講的指數關卡、缺口、量與解讀、CPI/PPI/利率決策的時間、美元/資金、融資餘額、整理週期與展望。原文充足時整理 6～10 點，至少3個不同主題；不足三點時重讀原文補足，確無內容不得杜撰。每點約 70～140 字，合計以 1400 字為目標上限。每點交代現象及講者的解讀，不拆成重複短句湊點數。
 view 是講者今天的操作邏輯與教學重點（信件第③章）：逐段找出講者教觀眾怎麼想、怎麼做、要避免什麼的段落，不同主題各成一點（例：買賣節奏、追高與等拉回、續抱耐心、法人成本與解套賣壓、外資短線換手、重大事件前的部位、量縮整理怎麼做、候選名單與買點、減少頻繁進出、技術關卡、選股依據）。原文充足時整理 6～10 點（逐字稿超過五千字時至少 3 點），每點寫成「觀念標題：說明」，說明 3～5 句約 120～220 字：做法 → 明講的原因 → 適用對象與條件 → 當天例子 → 要避免的錯誤；缺的環節省略。個股說明裡的通用做法也提煉成一點。要區分已有部位者續抱與未持有者等待買點，條件性風險提醒不能寫成對所有人的全面禁令。同段有盤面與做法時拆成兩筆。
@@ -5706,6 +5723,12 @@ def _point_grams(text) -> set:
 # 2026/10/07 教學點把盤勢點整句再寫一次的是 0.44。跨章取 0.42。
 ARTICLE_SAME_THEME = 0.33
 ARTICLE_SAME_THEME_ACROSS = 0.42
+# 2026/10/07 16:15 的正式稿：盤勢「…上午10點至11點常經歷短線賣壓…消化完畢並向上拉抬」與
+# 教學「…每日上午10點到11點左右常會出現短線賣壓殺盤的低點，隨後賣壓消化完畢便會往上拉抬，因此逢低找買點…」
+# 重疊 0.29，沒到 0.42，兩章各寫了一次。共用兩個以上的數字（10點、11點）代表講的是同一個事實，跨章門檻降到 0.28；
+# 10/02 要並存的那一組（0.39）沒有共用的數字，不受影響。
+ARTICLE_SAME_THEME_ACROSS_NUMBERS = 0.28
+_POINT_NUMBER = re.compile(r'\d+(?:\.\d+)?(?:點|月|日|萬|億|元|塊|%|％|張|倍|年|季|根)?|Q\d')
 
 
 def _theme_overlap(a, b) -> float:
@@ -5720,10 +5743,41 @@ def _theme_twin(row, others):
     is_view, text, best = row.get('kind') == 'view', str(row.get('text') or ''), None
     for other in others:
         overlap = _theme_overlap(text, other.get('text'))
-        bar = ARTICLE_SAME_THEME if (other.get('kind') == 'view') == is_view else ARTICLE_SAME_THEME_ACROSS
+        if (other.get('kind') == 'view') == is_view:
+            bar = ARTICLE_SAME_THEME
+        elif len(set(_POINT_NUMBER.findall(text)) & set(_POINT_NUMBER.findall(str(other.get('text') or '')))) >= 2:
+            bar = ARTICLE_SAME_THEME_ACROSS_NUMBERS
+        else:
+            bar = ARTICLE_SAME_THEME_ACROSS
         if overlap >= bar and (best is None or overlap > best[1]):
             best = (str(other.get('text') or ''), overlap)
     return best
+
+
+# 盤勢章混進操作教學（2026/10/07 16:15 的正式稿，① 第三點）：
+#   「當股票經過長時間的整理與打底，出現底部第一根長紅棒時，往往是值得注意的切入點…買股票應買在低基期…」
+# 這是教人怎麼買，不是盤勢；它和 ③ 的「買股票應鎖定底部第一根長紅棒…」講同一件事，因為分在兩章而沒有被比出來。
+# 判斷：有教學的句型（買股票應…、操作策略、切勿、適用於…），而且開頭三十個字沒有盤勢的主詞（大盤、指數、法人、資金、類股、成交量…）。
+_LESSON_CUE = re.compile(r'買股票(?:應|要|不|首重|喜歡)|(?:操作|選股)(?:策略|觀念|邏輯|方法|心法)|切勿|切忌|投資人(?:應|要|不)|適用於|才是正確|值得(?:注意|追)的切入點')
+_MARKET_SUBJECT = re.compile(r'大盤|指數|台股|外資|投信|法人|資金|類股|族群|成交量|量能|融資|美元|匯率|利率|營收|公布|ETF|主流|第[一二三四1-4]季')
+
+
+def looks_like_lesson(text) -> bool:
+    text = str(text or '').lstrip('：: ')
+    return bool(_LESSON_CUE.search(text)) and not _MARKET_SUBJECT.search(text[:30])
+
+
+def refile_lesson_points(signals) -> int:
+    """盤勢章裡其實是操作教學的點，改成教學（kind=view）。回傳改了幾點。"""
+    moved = 0
+    for row in signals.get('market') or []:
+        if isinstance(row, dict) and row.get('_evidence_verified') and row.get('kind') != 'view' and looks_like_lesson(row.get('text')):
+            print(f"  章節歸屬：這一點是操作教學，從盤勢改放教學　{str(row.get('text') or '')[:36]}")
+            row['_kind_was'] = row.get('kind')
+            row['kind'] = 'view'
+            row.pop('headline', None)
+            moved += 1
+    return moved
 
 
 def dedupe_market_points(signals) -> int:
@@ -6409,7 +6463,7 @@ def align_watch_with_plain_refusal(signals, transcript):
             keep.append(row)
             continue
         quote = pick[1]
-        moved = dict(row, watch_bias='watch_avoid', view=quote)
+        moved = dict(row, watch_bias='watch_avoid', view=quote, _plain_refusal=True)
         moved['evidence'] = list(dict.fromkeys([quote] + [q for q in (row.get('evidence') or []) if isinstance(q, str)]))
         moved['_guard_note'] = '原文對這一檔明講不推薦，由觀望注意改列觀望不碰'
         signals.setdefault('watch_avoid', []).append(moved)
@@ -7100,7 +7154,7 @@ MANUAL_ENTRY_PREFIX = 'MANUALENTRY-'
 # 規則版本。刷新檢查點與判讀稽核都以「影片、日期、原文指紋、規則版本」為鍵：判讀規則有變就要換號，
 # 否則同一份原文重新投稿會被當成「來源與規則版本相同」，直接從舊檢查點續跑、不重跑判讀
 # （2026/10/01 v97 推上去後第一次重跑就是這樣，資料一筆都沒變）。
-ASSESSMENT_VERSION = 'context-json-v27'   # 條件續抱與確認讀音候選均需同股原句核對
+ASSESSMENT_VERSION = 'context-json-v28'   # 2026/10/07：說明深度與主詞歸屬、容易判錯的講法、章節不重複   # 條件續抱與確認讀音候選均需同股原句核對
 
 
 _SOUND_MEMO = {}
@@ -7832,6 +7886,15 @@ def quality_overview(signals, transcript=''):
         lines.append(f"個股說明 {len(notes)} 檔：平均 {sum(n[1] for n in notes) / len(notes):.0f} 字，"
                      f"有具體位置／數字／籌碼 {sum(n[2] for n in notes)}／{len(notes)}，有原句佐證 {sum(n[3] for n in notes)}／{len(notes)}；"
                      f"最短：{'、'.join(f'{n[0]} {n[1]} 字' for n in short)}")
+    if rows:
+        # 規則介入：這一列不是模型自己分到這一類的——規則補列、依原句改列、或沿用前一版。
+        # 這個比例高，代表提示詞沒有讓模型第一次就判對，要回頭改提示詞，而不是再加規則。
+        stepped = [(_display_name(r.get('name')) or str(r.get('name') or '')) for _c, r in rows
+                   if r.get('_guard_note') or r.get('_leftover') or r.get('_carried_forward') or r.get('_plain_refusal')]
+        topped = sum(1 for r in shown if r.get('_summary_topup'))
+        lines.append(f"模型直接產出 {len(rows) - len(stepped)}／{len(rows)} 檔；規則介入 {len(stepped)} 檔"
+                     + (f"（{'、'.join(stepped[:8])}）" if stepped else '')
+                     + f"；重點 {len(shown)} 點中第一次判讀就有 {len(shown) - topped} 點、補問 {topped} 點")
     lines.append(f"盤勢 {len(macro)} 點（平均 {sum(len(str(r.get('text') or '')) for r in macro) / max(1, len(macro)):.0f} 字）、"
                  f"教學 {len(lessons)} 點（平均 {sum(len(str(r.get('text') or '')) for r in lessons) / max(1, len(lessons)):.0f} 字）"
                  + (f"；另有 {len(points) - len(shown)} 點因重複未列" if len(points) > len(shown) else ''))
@@ -9046,6 +9109,13 @@ def normalize_watch_tones(signals):
                     note_decision('語氣核對','保留觀望不碰',name,_decision_detail(text,'有偏空依據，不以正面關鍵字推翻'))
                     print(f"  語氣核對　{name}　保留觀望不碰（說明有偏空依據）")
                     target=cat
+            # 原文對這一檔明講不推薦、不追（直白說法核對或盤點補列的列）：不因立場欄位、或說明裡提到別檔的正面字眼翻回觀望注意。
+            # 2026/10/07 重播：華新科「都已經漲3根漲停板了，進去跟人家湊什麼熱鬧」先被改列觀望不碰，
+            # 補充後的說明多了一句「起漲模式與鈺邦如出一轍…底部第一根長紅」，語氣核對又把它翻成觀望注意。
+            if cat=='watch_avoid' and target=='watch_watch' and (row.get('_plain_refusal') or row.get('_leftover')):
+                note_decision('語氣核對','保留觀望不碰',name,_decision_detail(text,'原文對這一檔明講不推薦，不以立場欄位或正面字眼推翻'))
+                print(f"  語氣核對　{name}　保留觀望不碰（原文明講不推薦）")
+                target=cat
             if target!=cat:
                 note_decision('語氣核對','調整觀望方向',name,cat+' → '+target+'（'+how+'）｜'+_decision_detail(text))
                 print(f"  語氣核對　{name}　{WATCH_BIAS_LABEL[cat]} → {WATCH_BIAS_LABEL[target]}"
@@ -9998,6 +10068,8 @@ def ensure_article_minimums(signals, transcript, date_str):
         key=(row.get('kind')=='view',_lesson_key(row.get('text')))
         if key not in unique or len(row.get('text',''))>len(unique[key].get('text','')):unique[key]=row
     market[:]=[r for r in market if not r.get('_evidence_verified')]+list(unique.values())
+    # v143：盤勢章裡的操作教學先歸回教學章，再比重複（分在兩章的同一件事才比得出來）。
+    refile_lesson_points(signals)
     # v142：初稿自己就有兩點講同一件事時，重複的那一點不算數，缺的名額交給補問換一個主題。
     dedupe_market_points(signals)
     def verified(is_view):
@@ -10040,6 +10112,12 @@ def ensure_article_minimums(signals, transcript, date_str):
                 if (is_view and not need_view) or (not is_view and not need_macro):continue
                 row={k:raw[k] for k in ('kind','text','headline','evidence_refs') if k in raw}
                 row['text']=strip_speaker_names(str(row.get('text') or ''))
+                # 補回來的「盤勢」其實是操作教學：教學還缺就改放教學，不缺就不收（不讓它佔盤勢的名額）。
+                if not is_view and looks_like_lesson(row['text']):
+                    if not need_view:
+                        print(f"  補問的盤勢重點未採用（內容是操作教學，不是盤勢）：{row['text'][:48]}")
+                        continue
+                    row['kind']='view';row.pop('headline',None);is_view=True;label='教學'
                 materialize_evidence({'market':[row]},transcript)
                 key=(is_view,_lesson_key(row['text']))
                 # 和已有的任何一點（兩章都比）講同一件事就退回；退回的那一點記下來，下一輪請模型換主題。

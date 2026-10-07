@@ -6376,6 +6376,59 @@ source_ids 填支持 note 的段落編號，只能用同一 entry 的 sources。
 只輸出 {"stocks":[{"id":"x0","verdict":"watch_avoid","note":"完整書面句。","source_ids":["s0"]}]}。"""
 
 
+_ORDINARY_BEFORE = re.compile(r'(?:最|很|好|太|超|真|更|夠|這麼|那麼|非常|比較|多麼)$')
+_ORDINARY_AFTER = re.compile(r'就好|[呢啊吧嘛喔哦耶啦]+[。！？!?]')
+
+
+def _only_ordinary_word(heard, code, transcript):
+    """兩個字的官方簡稱，在原文裡是不是「每一次」都只是日常用語。
+
+    2026/10/07 正式更新把兩個日常用語當成股票寫上網站：
+      大量（3167）——原文只有「投信最大量的股票」；
+      神準（3558）——原文只有「這個我講很久了，神準呢。」（在說自己講得準）。
+    模型先把它們放進排除清單或直接分類，再替它們寫出看法。這裡只認看得到的字面：
+      前面是程度副詞（最大量、很安心、好神準），或後面只有語助詞就結束、接「就好」（神準呢。安心就好了）。
+    只要有一次不是這樣（「大量這一檔」「手中有華城的人」），或原文緊貼著念出它的代號，就不算日常用語、照原流程走。
+    一般的兩字股名（華城、聯電、晶技）不受影響。
+    """
+    heard, code = str(heard or ''), str(code or '')
+    if len(heard) != 2:
+        return False
+    flat = re.sub(r'\s', '', str(transcript or ''))
+    spots = [m.start() for m in re.finditer(re.escape(heard), flat)]
+    if not spots:
+        return False
+    if code and (re.search(r'(?<!\d)' + re.escape(code) + r'[，,、的是叫做]{0,3}' + re.escape(heard), flat)
+                 or re.search(re.escape(heard) + r'[，,、（(]?' + re.escape(code) + r'(?!\d)', flat)):
+        return False
+    return all(_ORDINARY_BEFORE.search(flat[max(0, at - 3):at]) or _ORDINARY_AFTER.match(flat[at + 2:at + 8]) for at in spots)
+
+
+def drop_ordinary_word_rows(signals, transcript):
+    """模型把日常用語當成股票列出來的那一筆，移到排除（判斷方式見 _only_ordinary_word）。"""
+    by_name = {}
+    for c, n in (_CODE_MAP or {}).items():
+        by_name.setdefault(_display_name(n), c)
+    for cat in SIGNAL_CATEGORIES + ('history', 'uncertain'):
+        keep = []
+        for row in signals.get(cat, []) or []:
+            names = [n for n in _signal_names(row) | {str(row.get('name') or '')} if n] if isinstance(row, dict) else []
+            name = str(row.get('name') or '') if isinstance(row, dict) else ''
+            # 只處理「這一筆所有寫法都是同一個兩字簡稱」的：另有較長的原字或管理者確認的名稱時不動。
+            if (len(names) == 1 and len(name) == 2 and name in by_name and name not in CONFIRMED_NAMES
+                    and _only_ordinary_word(name, by_name[name], transcript)):
+                at = re.sub(r'\s', '', transcript).find(name)
+                seen = re.sub(r'\s', '', transcript)[max(0, at - 10):at + 12]
+                print(f"  日常用語核對　{name}（{by_name[name]}）：原文每一次都只是日常用語（…{seen}…），不是在講這一檔，不列（原列 {cat}）")
+                note_decision('日常用語核對', '不是在講這一檔，不列', name, seen)
+                row = dict(row, exclusion_reason='ordinary_word')
+                signals.setdefault('ignored', []).append(row)
+                continue
+            keep.append(row)
+        signals[cat] = keep
+    return signals
+
+
 def review_excluded_stocks(signals, transcript, date_str):
     """原文點到名、流程走完卻沒有任何分類的台股，逐檔單獨再問一次。
 
@@ -6409,21 +6462,12 @@ def review_excluded_stocks(signals, transcript, date_str):
         own = [x for x in sentences if heard in x and len({c for n, c in code_of.items() if n in x}) < 3]
         if sum(len(_ev_norm(x).replace(_ev_norm(heard), '')) for x in own) < 20:
             continue
-        # 兩個字的簡稱可能只是日常用語（世界、全國、大量、安心）：原文要把它當股票在講才問——
-        # 緊貼著代號，或放在子句開頭當主詞（「那大量這一檔…」）。
-        # 2026/10/07 預覽：原文只有一句「投信最大量的股票」，模型先把「大量」放進排除清單（於是通過了舊條件），
-        # 單檔覆核時又替它寫出「投信在高檔大量賣出，不要追高」，大量（3167）差一點以觀望不碰上線。
-        # 模型自己把它列進排除，不能當成「它是股票」的證據。
-        if item.get('weak'):
-            flat = re.sub(r'\s', '', transcript)
-            as_stock = (re.search(r'(?<!\d)' + re.escape(code) + r'[，,、的是叫做]{0,3}' + re.escape(heard), flat)
-                        or re.search(re.escape(heard) + r'[，,、（(]?' + re.escape(code) + r'(?!\d)', flat)
-                        # 子句開頭、而且後面還有話（「那大量這一檔昨天拉很高」）。只有名字加語助詞的不算：
-                        # 「這個我講很久了，神準呢。」是在說自己講得準，不是神準（3558）這一檔（2026/10/07）。
-                        or any(re.match(_LEFT_LEAD + re.escape(heard) + r'(?![呢啊吧嘛喔哦耶啦了的。！？!?\s]*$)', c)
-                               for x in own for c in re.split(r'[，,；;]', x) if c))
-            if not as_stock:
-                continue
+        # 兩個字的簡稱可能只是日常用語（世界、全國、大量）：要講到兩次以上，或模型自己把它當股票排除過。
+        if item.get('weak') and sum(x.count(heard) for x in own) < 2 and not ({heard, official} & excluded):
+            continue
+        # 原文每一次出現都只是日常用語的，不問（見 _only_ordinary_word）。模型把它列進排除，不能當成「它是股票」的證據。
+        if item.get('weak') and _only_ordinary_word(heard, code, transcript):
+            continue
         row = {'name': heard, 'code': code}
         sources = _context_sources(row, _own_segments(row, signals, transcript)[:6])
         text = '\n'.join(s['text'] for s in sources)[:3000]
@@ -12354,6 +12398,7 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     signals = enforce_explicit_trades(signals, TX["audit"])
     signals = classify_inventory_leftovers(signals, TX["audit"])
     signals = align_watch_with_plain_refusal(signals, TX["audit"])
+    signals = drop_ordinary_word_rows(signals, TX["audit"])
     signals = review_excluded_stocks(signals, TX["audit"], date_str)
     print(f"  稽核補漏後　{signal_roster(signals)}")
 

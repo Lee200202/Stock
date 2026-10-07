@@ -8347,11 +8347,19 @@ def sanitize_entity_claims(signals, transcript):
                 clauses=re.split(r'[。；;]',str(row.get(field) or ''))
                 row[field]='。'.join(c for c in clauses if c and not any(n in c for n in old))
             if bad_note:
-                row[field]=''
+                # v143：只拿掉帶數字的子句（有疑慮的是數字的歸屬），其餘照留；不再整則清空後貼一段原文。
+                # 2026/10/07 重播兩次，鈺邦的說明被清空後貼成「鈺邦，你來看，它是不是跟。」——那是在別家公司名稱處切斷的原文片段，
+                # 不是說明。整則都沒了的時候交回「個股說明補充」請模型依本股原句重寫（見 stage_extract 的第二次補充）。
+                clauses=[c for c in re.split(r'[。；;]',str(row.get(field) or '')) if c.strip()]
+                kept=[c for c in clauses if not re.search(r'\d',c)]
+                row[field]='。'.join(kept)+('。' if kept else '')
                 row['view']=''
-            if (bad_price or bad_note) and not row.get(field) and scopes:
-                row[field]=min((s[1] for s in scopes if len(s[1])>=6),key=len,default='未說明')[:160]
+            if (bad_price or bad_note) and not str(row.get(field) or '').strip():
+                row[field]=''
+                row['_note_withdrawn']=True
             if bad_price or bad_note:
+                print(f"  主詞核對　{row.get('name','')}：說明裡的數字歸屬有疑慮，已拿掉那幾句"
+                      + ('；整則交回模型重寫' if row.get('_note_withdrawn') else ''))
                 note_decision('主詞核對','已移除跨股價位／敘述',row.get('name',''),'保留自身可驗證原句，未把ETF的操作當成會員操作')
                 signals.setdefault('_repair_gaps',[]).append(str(row.get('name'))+'主詞歸屬仍有疑點，已收回不支持價位或說明')
                 signals['_quality_requires_review']=True
@@ -12998,6 +13006,14 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     signals = enrich_stock_context(signals, TX["audit"], date_str)
     signals = strip_unsupported_event_context(signals, TX["audit"])
     signals = sanitize_entity_claims(signals, TX["audit"])
+    # 主詞核對把整則說明收回的那幾檔，請模型依本股原句重寫一次（不貼原文片段、不由程式拼句子）。
+    if any(isinstance(r, dict) and r.get('_note_withdrawn') for cat in SIGNAL_CATEGORIES for r in signals.get(cat, []) or []):
+        signals = enrich_stock_context(signals, TX["audit"], date_str)
+        signals = sanitize_entity_claims(signals, TX["audit"])
+        for cat in SIGNAL_CATEGORIES:
+            for r in signals.get(cat, []) or []:
+                if isinstance(r, dict):
+                    r.pop('_note_withdrawn', None)
     # 說明裡的成本／買賣價若明顯是隔壁那一檔的，刪掉那一句（管理者回報鴻準238，2026/09/16）。
     signals = strip_foreign_price_claims(signals, TX["audit"])
     # 會員持股的主詞要對：記錯會開一個不存在的持有回合（管理者回報聯電／聯陽，2026/09/16）。

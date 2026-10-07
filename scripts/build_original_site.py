@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import argparse
 import html
-import json
 import os
 import re
 from pathlib import Path
@@ -95,25 +94,10 @@ def build(output: Path, api_url: str) -> None:
     bridge = (ROOT / "public-site" / "original-bridge.js").read_text(encoding="utf-8")
     bridge = bridge.replace("__SITE_API_URL__", api_url)
     # 市場模組在 JavaScript.html 之前就有 script；橋接器必須在 body 開頭。
-    # 首頁把橋接器直接內嵌（約 8KB）：少一個會擋住解析的請求。後台頁仍用外部檔。
-    if "</script" in bridge.lower():
-        raise ValueError("Bridge cannot be inlined: it contains a closing script tag")
-    page, count = re.subn(r"<body([^>]*)>", lambda m: "<body" + m.group(1) + ">\n<script>\n" + bridge + "</script>", page, count=1)
+    page, count = re.subn(r"<body([^>]*)>",
+        r'<body\1>\n<script src="original-bridge.js"></script>', page, count=1)
     if count != 1:
         raise ValueError("Body tag missing in Index")
-    # 首頁總覽提早出發：頁面開頭就送出 apiGetDashboard（和橋接器送的是同一個請求），不等整頁解析完。
-    # 只在首頁、而且不是轉往後台或退訂時送。這是當下的即時請求，不存、不重用；橋接器接走它或 15 秒後作廢。
-    origin = re.match(r"https://[^/]+", api_url).group(0)
-    early = ('<link rel="preconnect" href="' + origin + '" crossorigin>\n  <script>(function(){try{'
-             'if(/[?&](?:page|action)=/.test(location.search))return;'
-             'var p=fetch(' + json.dumps(api_url) + ',{method:"POST",mode:"cors",cache:"no-store",headers:{"Content-Type":"application/json"},'
-             'body:\'{"method":"apiGetDashboard","args":[]}\'}).then(function(r){return r.json().then(function(b){'
-             'if(!r.ok||!b||!b.ok){var e=new Error((b&&b.error)||("HTTP "+r.status));e.retry=!r.ok&&r.status>=500;throw e;}return b.result;});});'
-             'p.catch(function(){});window.__earlyDashboard={at:Date.now(),promise:p};'
-             '}catch(e){}})();</script>')
-    page, count = re.subn(r'<meta charset="utf-8">', lambda m: m.group(0) + "\n  " + early, page, count=1)
-    if count != 1:
-        raise ValueError("Charset tag missing in Index")
     (output / "index.html").write_text(page, encoding="utf-8")
     for template, filename in (("Admin", "admin.html"), ("Admin", "admin-legacy.html"), ("Unsubscribed", "unsubscribe.html")):
         content = render(SOURCE / f"{template}.html", values)

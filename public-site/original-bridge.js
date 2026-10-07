@@ -72,32 +72,17 @@
       throw error;
     } finally { clearTimeout(timer); }
   }
-  /* 首頁總覽提早出發（v138）。index.html 的開頭有一小段程式，在整頁（將近 900KB）還沒解析完之前就先送出同一個
-     apiGetDashboard 請求；畫面程式第一次要總覽時直接接這個已經在路上的請求，省掉一秒多的等待。
-     這不是快取：它是這一次開頁當下送出的即時請求（no-store），只用一次，超過 15 秒沒被接走就作廢；
-     失敗或逾時時照原本的流程重新送，不會顯示任何先前保存的內容。 */
-  function takeEarlyDashboard(name, args) {
-    const early = window.__earlyDashboard;
-    if (name !== 'apiGetDashboard' || args.length || !early || !early.promise) return null;
-    window.__earlyDashboard = null;
-    return Date.now() - early.at < 15000 ? early.promise : null;
-  }
   async function callApi(name, args) {
     const key = sharedReads.has(name) ? `${name}:${JSON.stringify(args)}` : null;
     const cached = key && recentReads.get(key);
     if (cached && Date.now() - cached.at < 60000) return cached.value;
     if (key && inFlight.has(key)) return inFlight.get(key);
-    const early = takeEarlyDashboard(name, args);
     const promise = (async () => {
       try {
         let result, lastError;
         const delays = retryReads.has(name) ? [1500, 4000] : [];
         for (let attempt = 0; attempt <= delays.length; attempt++) {
-          try {
-            // 提早送的那一次沒成功（連線中斷、後端錯誤）：不算一次重試，直接照原本的流程重新送。
-            if (attempt === 0 && early) { try { result = await early; lastError = null; break; } catch (e) { /* 往下重新送 */ } }
-            result = await requestOnce(name, args); lastError = null; break;
-          }
+          try { result = await requestOnce(name, args); lastError = null; break; }
           catch (error) {
             lastError = error;
             if (!error.retry || attempt === delays.length) break;

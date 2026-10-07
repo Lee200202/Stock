@@ -3282,6 +3282,99 @@ _SPOKEN_NAME_FIRST = re.compile(r'([一-鿿]{2,5}(?:-?KY)?)\s*[，,、（(]?\s*(
 _SPOKEN_MEMO = {}
 
 
+# 同一個寫法在不同段落是兩檔股票（2026/10/07 管理者回報）。
+#
+# 當天講了兩檔：低軌衛星那一段是事欣科（4916），語音寫成「華新科，4916」，會員今天賣掉的是這一檔；
+# 被動元件那一段的華新科才是華新科（2492），已經三根漲停、不要去湊熱鬧。
+# 名稱與代號打架時原本數整份逐字稿的次數（「華新科」23 次、4916 1 次）採用名稱，
+# 賣出於是記在華新科（2492）名下，事欣科沒有紀錄，華新科自己的看法也不見了。
+#
+# 這裡不數次數，只認三件看得到的事，三件都成立才動：
+#   一、講者緊貼著那個寫法念出代號（「華新科，4916」）；
+#   二、緊貼代號的那幾個字，讀音對得上這個代號的正式名稱（新科／欣科）；
+#   三、整個寫法本身是另一檔股票的正式簡稱（華新科＝2492）。
+# 成立時，只把「念出代號的那一段」裡的這個寫法換成代號的正式名稱；其餘段落原樣，仍是另一檔。
+# 「那一段」：同一個寫法連續出現、彼此相隔不到 _NAME_SCOPE_GAP 個字的那一串（講者談一檔股票時會反覆講它的名字，
+# 換了話題再回來，中間會隔上千字）。判讀用的原文因此不再有一個名字指兩檔，後面所有關卡照原樣運作。
+# 存進試算表的原始逐字稿不動；稽核指紋仍用原始逐字稿計算。
+_NAME_SCOPE_GAP = 400
+_TX_SCOPED = {'fixed': None, 'raw': None}
+
+
+def spoken_name_conflicts(transcript: str) -> list:
+    """回傳 [{written, code, official, other_code, other_name, spots}]；spots 是去空白後原文裡要更正的位置。"""
+    flat = re.sub(r'\s', '', str(transcript or ''))
+    if not flat:
+        return []
+    m = get_code_map()
+    by_name = {}
+    for c, n in m.items():
+        by_name.setdefault(_display_name(n), c)
+    hits = [(h.start(2), h.group(1), h.group(2), True, h.end()) for h in _SPOKEN_CODE_FIRST.finditer(flat)]
+    hits += [(h.start(1), h.group(2), h.group(1), False, h.end()) for h in _SPOKEN_NAME_FIRST.finditer(flat)]
+    found = {}
+    for at, code, heard, code_first, tail in sorted(hits):
+        official = m.get(code)
+        if not official:
+            continue
+        display = _display_name(official)
+        part = next((p for n in range(len(heard), 1, -1) for p in [heard[:n] if code_first else heard[-n:]]
+                     if _same_stock(p, official)), '')
+        if not part or len(part) >= len(heard):
+            continue
+        written = other = ''
+        for n in range(len(heard), len(part), -1):
+            cand = heard[:n] if code_first else heard[-n:]
+            c2 = by_name.get(cand)
+            if c2 and c2 != code and not _same_stock(cand, official):
+                written, other = cand, c2
+                break
+        if not written:
+            continue
+        # 「賣了華新科，4916事欣科也賣」：代號後面接著它自己的名字，前面那一檔是另一回事，不動。
+        after = re.match(r'[，,、的是叫做]{0,3}([一-鿿]{2,5})', flat[tail:]) if not code_first else None
+        if after and any(_same_stock(after.group(1)[:n], official) for n in range(len(after.group(1)), 1, -1)):
+            continue
+        mentions = [x.start() for x in re.finditer(re.escape(written), flat)]
+        pair_at = at if code_first else at + len(heard) - len(written)
+        if pair_at not in mentions:
+            continue
+        k = mentions.index(pair_at)
+        lo = hi = k
+        while lo > 0 and mentions[lo] - mentions[lo - 1] <= _NAME_SCOPE_GAP:
+            lo -= 1
+        while hi + 1 < len(mentions) and mentions[hi + 1] - mentions[hi] <= _NAME_SCOPE_GAP:
+            hi += 1
+        item = found.setdefault((written, code), {'written': written, 'code': code, 'official': display,
+                                                  'other_code': other, 'other_name': _display_name(m.get(other) or ''), 'spots': []})
+        item['spots'] = sorted(set(item['spots']) | set(mentions[lo:hi + 1]))
+    # 同一個寫法配到兩個不同代號時不知道該信哪一個，都不動。
+    written_codes = {}
+    for (written, code) in found:
+        written_codes.setdefault(written, set()).add(code)
+    return [v for (written, _c), v in found.items() if len(written_codes[written]) == 1]
+
+
+def apply_spoken_name_scopes(transcript: str):
+    """判讀用的原文：把念出代號那一段的聽錯寫法換成代號的正式名稱。回傳 (文字, 說明列表)；沒有就原樣。"""
+    raw = str(transcript or '')
+    conflicts = spoken_name_conflicts(raw)
+    if not conflicts:
+        return raw, []
+    index = [i for i, ch in enumerate(raw) if not ch.isspace()]
+    edits, notes = [], []
+    for c in conflicts:
+        total = len(re.findall(re.escape(c['written']), re.sub(r'\s', '', raw)))
+        for spot in c['spots']:
+            edits.append((index[spot], index[spot + len(c['written']) - 1] + 1, c['official']))
+        notes.append(f"第 {c['spots'][0]}～{c['spots'][-1] + len(c['written'])} 字之間的「{c['written']}」{len(c['spots'])} 處是 {c['official']}（{c['code']}）："
+                     f"講者在這一段緊貼著念出代號 {c['code']}，讀音也對得上；其餘 {total - len(c['spots'])} 處仍是 {c['other_name']}（{c['other_code']}）")
+    text = raw
+    for start, end, new in sorted(edits, reverse=True):
+        text = text[:start] + new + text[end:]
+    return text, notes
+
+
 def spoken_code_pairs(transcript: str) -> list:
     """原文裡「代號緊貼名稱」的每一組 (聽到的名稱, 代號)，只收讀音對得上正式名稱的。"""
     t = str(transcript or '')
@@ -6149,7 +6242,9 @@ def plain_current_stance(heard, transcript, weak=False, names=None):
                     return ('watch_avoid', ''.join(sents[j:i + 1]))
             continue
         # 「那我幹嘛去買創意」「我沒有買創意」：否定的動作直接接著股名，兩個字的名稱也認（2026/10/05 創意）。
-        if own_buy.search(s) and not (_LEFT_PAST.search(s) and not _LEFT_NOW.search(s)):
+        # 「不要那麼龜毛，為了5毛錢不去買鴻海」是叫人買（不要因為小事而不買），不是不買。
+        double_negative = re.search(r'(?:不要|別|不用|何必|不必)[^。！？!?]{0,16}為了[^。！？!?]{0,12}不(?:去)?(?:買|碰|追)' + re.escape(heard), s)
+        if own_buy.search(s) and not double_negative and not (_LEFT_PAST.search(s) and not _LEFT_NOW.search(s)):
             return ('watch_avoid', s)
         clauses = [c for c in re.split(r'[，,；;]', s) if c]
         at = [k for k, c in enumerate(clauses) if heard in c]
@@ -6618,6 +6713,9 @@ def save_evidence_audit(ss, video_id, date_str, transcript, signals):
     except gspread.WorksheetNotFound:
         ws = ss.add_worksheet(title=title, rows=1000, cols=len(headers))
         sheets_retry(ws.append_row, headers)
+    # 指紋一律用原始逐字稿：判讀用的文字可能更正過某一段的名稱（apply_spoken_name_scopes），那不是另一份來源。
+    if _TX_SCOPED.get('fixed') is not None and transcript == _TX_SCOPED['fixed']:
+        transcript = _TX_SCOPED['raw']
     fingerprint = hashlib.sha256(transcript.encode('utf-8')).hexdigest()
     now = datetime.now(TAIPEI).strftime('%Y/%m/%d %H:%M:%S')
     batch = run_tag()
@@ -6801,7 +6899,7 @@ MANUAL_ENTRY_PREFIX = 'MANUALENTRY-'
 # 規則版本。刷新檢查點與判讀稽核都以「影片、日期、原文指紋、規則版本」為鍵：判讀規則有變就要換號，
 # 否則同一份原文重新投稿會被當成「來源與規則版本相同」，直接從舊檢查點續跑、不重跑判讀
 # （2026/10/01 v97 推上去後第一次重跑就是這樣，資料一筆都沒變）。
-ASSESSMENT_VERSION = 'context-json-v26'   # 條件續抱與確認讀音候選均需同股原句核對
+ASSESSMENT_VERSION = 'context-json-v27'   # 條件續抱與確認讀音候選均需同股原句核對
 
 
 _SOUND_MEMO = {}
@@ -8795,6 +8893,21 @@ original 已經寫明不要買、不要碰、還不能買時，補充後第一�
 只輸出 {"notes":[{"id":"watch_avoid:0","sentences":[{"text":"完整書面句。","source_ids":["s0"]}],"limitation":""}]}。"""
 
 
+def _context_source_id(value, known):
+    """模型填的段落編號對回 sources 的 id；對不到回空字串。
+
+    2026/10/07 重播：16 檔的回覆整批「引用不存在或改字」，重問一次還是 0/16，所有說明停在初稿的一兩句。
+    編號只是定位用的，寫成 S0、0、[s0]、「holdings:2:s0」都指得出是哪一段；內容是否有依據由後面逐句核對把關。
+    只有一個數字、又帶著 entry 編號的（「holdings:2」）不認：那是 entry 的 id，不是段落。
+    """
+    text = str(value if value is not None else '').strip()
+    if text in known:
+        return text
+    m = re.fullmatch(r'[\[（(]?\s*[sS]?\s*(\d{1,3})\s*[\]）)]?', text) or re.search(r'[:：/#.\-_][sS](\d{1,3})$', text)
+    cand = 's' + str(int(m.group(1))) if m else ''
+    return cand if cand in known else ''
+
+
 def _context_written_sentence(text):
     """補充模型的句子直接陳述事實；不把角色名當公開說明的主詞。"""
     return re.sub(r'(?:分析師|講師)(?:指出|建議|表示|強調|提及|認為|提醒)[，,：:]?', '', str(text or '')).strip()
@@ -8944,14 +9057,29 @@ def enrich_stock_context(signals, transcript, date_str):
             def cited(c):
                 ids, quoted = c.get('source_ids'), c.get('quotes')
                 if isinstance(ids, list) and ids:
-                    return all(isinstance(i, str) and i in target[4] for i in ids)
+                    return all(_context_source_id(i, target[4]) for i in ids)
                 return isinstance(quoted, list) and bool(quoted) and all(isinstance(q, str) and _quote_is_real(q, norm) for q in quoted)
             if isinstance(claims, list) and claims and all(isinstance(c, dict) and cited(c) for c in claims):
                 count += 1
         return count
     # 2026/10/06 重播九次裡有兩次，模型整批沒照格式附段落編號（「採用 0/12：引用不存在或改字 12」），
     # 那一輪所有說明都停在初稿的一兩句。三成以下可用時提醒格式重問一次，取可用較多的那一份。
+    def sample(found):
+        """整批不能用時，印出第一筆回覆長什麼樣（欄位與編號），不用猜是哪裡沒照格式。"""
+        for rep in found:
+            if not isinstance(rep, dict):
+                continue
+            target = targets.get(rep.get('id'))
+            claims = rep.get('sentences')
+            first = claims[0] if isinstance(claims, list) and claims else claims
+            ids = first.get('source_ids') if isinstance(first, dict) else None
+            return (f"回覆欄位 {sorted(rep)}；id={rep.get('id')!r}{'' if target else '（對不到 entry）'}；"
+                    f"第一句欄位 {sorted(first) if isinstance(first, dict) else type(first).__name__}；"
+                    f"source_ids={json.dumps(ids, ensure_ascii=False)[:90]}；這一檔可用的編號 {list(target[4])[:8] if target else '—'}")
+        return '回覆裡沒有物件'
     first_ok = usable(replies)
+    if len(entries) >= 3 and first_ok * 3 < len(entries):
+        print('  個股說明補充：回覆格式樣本　' + sample(replies))
     if len(entries) >= 3 and first_ok * 3 < len(entries) and budget_left() >= 240 and not _QUOTA_STOP.get('daily'):
         print(f'個股說明補充：回覆只有 {first_ok}/{len(entries)} 筆照格式附段落編號，重問一次')
         try:
@@ -8960,6 +9088,8 @@ def enrich_stock_context(signals, transcript, date_str):
                 '每一句的 source_ids 只能填該 entry.sources 裡的 id（s0、s1……），不要填原句、頁碼或自編的編號。',
                 payload, want_json=True, thinking=1024, tag='stock-context', max_out=min(MAX_OUT, 12000)))
             second = again.get('notes') if isinstance(again, dict) else None
+            if isinstance(second, list):
+                print(f'  個股說明補充：重問後可用 {usable(second)}/{len(entries)} 筆' + ('' if usable(second) * 3 >= len(entries) else '；格式樣本　' + sample(second)))
             if isinstance(second, list) and usable(second) > first_ok:
                 replies = second
         except (RuntimeError, ValueError, TypeError, RateLimited) as exc:
@@ -8987,7 +9117,8 @@ def enrich_stock_context(signals, transcript, date_str):
             evidence = claim.get('quotes') if isinstance(claim, dict) else None
             ids = claim.get('source_ids') if isinstance(claim, dict) else None
             if isinstance(ids, list) and ids:
-                evidence = [source_ids[i] for i in ids] if all(isinstance(i,str) and i in source_ids for i in ids) else []
+                mapped = [_context_source_id(i, source_ids) for i in ids]
+                evidence = [source_ids[i] for i in mapped] if all(mapped) else []
             technical = re.findall(r'MACD|EPS|KD|季線|月線|年線|均線|缺口|量縮|量增|買超|賣超|營收|接單|光通訊|現金增資|增資|繳款|權利金', text, re.I)
             ok = bool(text and isinstance(evidence, list) and evidence
                       and all(isinstance(q, str) and _quote_is_real(q, source_norm) for q in evidence)
@@ -11723,7 +11854,17 @@ def transcript_sources(v1, v2):
     # 用正規化後的字數比。原文字間有空白、修飾稿沒有，直接比字數會把正常的潤飾誤判成壓縮過頭。
     ratio = len(_ev_norm(v2)) / max(len(_ev_norm(raw)), 1)
     print(f'判讀來源：原始逐字稿 {len(raw)} 字，SHA256={hashlib.sha256(raw.encode("utf-8")).hexdigest()}；修飾稿只供閱讀')
-    return {k: raw for k in ('extract','audit','verify','arbitrate')} | {'degraded': ratio < RATIO_WARN, 'ratio': ratio, 'both': False}
+    # 同一個寫法在不同段落是兩檔股票時，念出代號的那一段先更正名稱（見 spoken_name_conflicts）。原始逐字稿本身不動。
+    read = raw
+    try:
+        read, scoped = apply_spoken_name_scopes(raw)
+        for line in scoped:
+            print('  原文名稱更正（只限那一段，判讀用）：' + line)
+    except Exception as e:                                   # 代號表拿不到時不更正，照原文判讀
+        print(f'  原文名稱更正略過（{type(e).__name__}：{str(e)[:60]}）')
+        read = raw
+    _TX_SCOPED.update(fixed=read if read != raw else None, raw=raw if read != raw else None)
+    return {k: read for k in ('extract','audit','verify','arbitrate')} | {'degraded': ratio < RATIO_WARN, 'ratio': ratio, 'both': False}
 
 
 def existing_video_rows(ss, video_id, date_str) -> int:

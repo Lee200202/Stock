@@ -251,7 +251,8 @@ def main():
         rows = signals.get(cat, []) or []
         print(f"\n【{label}】{len(rows)} 檔")
         for r in rows:
-            note = str(r.get("reason") or r.get("note") or "")
+            # 印出來的是公開說明（和寫進試算表、寄出去的同一道整理），不是模型的原字。
+            note = pl.public_narrative(str(r.get("reason") or r.get("note") or ""), r, signals)
             print(f"- {r.get('name')}（{r.get('code')}）{len(note)} 字：{note}")
     # 盤勢總覽（①）與操作邏輯／教學重點（③）：信上實際會列出的那幾點。
     points = [r for r in (signals.get("market") or []) if r.get("_evidence_verified") and not r.get("_duplicate_point")]

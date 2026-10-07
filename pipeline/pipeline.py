@@ -6418,7 +6418,10 @@ def review_excluded_stocks(signals, transcript, date_str):
             flat = re.sub(r'\s', '', transcript)
             as_stock = (re.search(r'(?<!\d)' + re.escape(code) + r'[，,、的是叫做]{0,3}' + re.escape(heard), flat)
                         or re.search(re.escape(heard) + r'[，,、（(]?' + re.escape(code) + r'(?!\d)', flat)
-                        or any(re.match(_LEFT_LEAD + re.escape(heard), c) for x in own for c in re.split(r'[，,；;]', x) if c))
+                        # 子句開頭、而且後面還有話（「那大量這一檔昨天拉很高」）。只有名字加語助詞的不算：
+                        # 「這個我講很久了，神準呢。」是在說自己講得準，不是神準（3558）這一檔（2026/10/07）。
+                        or any(re.match(_LEFT_LEAD + re.escape(heard) + r'(?![呢啊吧嘛喔哦耶啦了的。！？!?\s]*$)', c)
+                               for x in own for c in re.split(r'[，,；;]', x) if c))
             if not as_stock:
                 continue
         row = {'name': heard, 'code': code}

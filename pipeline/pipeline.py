@@ -7810,6 +7810,9 @@ def quality_overview(signals, transcript=''):
             hard.append(f'{name} 的說明寫了人當主詞：{note[:30]}')
         if transcript and _foreign_profit_claim(note, _row_names_for_recap(r), transcript):
             hard.append(f'{name} 的說明提到獲利狀況，原文沒有任何一句同時講到這一檔與獲利：{note[:30]}')
+        if transcript and cat == 'watch_avoid' and not r.get('_carried_forward') and r.get('_原分類') not in ('buy', 'sell') \
+                and borrowed_avoidance(_row_names_for_recap(r), _other_entity_names(r, signals, transcript), transcript):
+            hard.append(f'{name} 列觀望不碰，但這一檔自己沒有偏空說法，否定的是前一句的別家')
         if len(note) < 30:
             soft.append(f'{name}（{label[cat]}）說明只有 {len(note)} 字')
         elif not _CONCRETE.search(note):
@@ -8780,6 +8783,82 @@ def verify_watch_subjects(signals, transcript=''):
             note_decision('主詞核對', '改列待確認', name, why)
             print(f'  主詞核對　{name}　{WATCH_BIAS_LABEL.get(cat, cat)} → 待確認（{why}）')
         signals[cat] = keep
+    return signals
+
+
+# 借來的否定（v143，2026/10/07 正式更新後稽核）。
+# 原文：「SpaceX我不敢買，因為馬斯克那一千公司實際是沒有什麼賺錢的。可是低軌衛星會很熱，所以我這幾天說，
+#        你們在看到的低軌衛星都是華通跟啟碁。啊我這幾天有沒有直講一檔低軌衛星？…事欣科啊」
+# 華通、啟碁只是被點到名（大家在看的是這兩檔），講者沒有對它們下任何看法；「不敢買」講的是 SpaceX。
+# 覆核把兩檔列成觀望不碰，說明寫「SpaceX本身缺乏實際獲利，因此…不宜盲目追高」。
+# 判斷只看字面，兩件事都成立才算借來的：
+#   一、點到這一檔的句子、以及它後面接著講的句子（到下一句點名別家為止，最多三句），都沒有任何偏空或否定的說法；
+#   二、它前面兩句之內，有一句帶著否定或偏空說法，而且那一句點名的是別家（另一檔股票、被排除的名稱、或英文公司名）。
+# 只要這一檔自己有一句偏空說法（「你有友達還不是賠」「3042晶技。…勾一聲灌下來…不要去買」），就不在這一條。
+_NOT_A_NEGATION = re.compile(r'對不對|是不是|有沒有|要不要|會不會|好不好|能不能|可不可以|不好意思|差不多|不過|不只|不但|不僅|只不過|不然|不曉得|不知道')
+_AVOID_BASIS = re.compile(r'不|別|勿|賣|跌|灌|套|賠|虧|殺|高檔|追高|漲停|漲了|漲很多|漲多|湊熱鬧|幹(?:什麼|嘛)|風險|危險|小心|避')
+_LATIN_NAME = re.compile(r'(?<![A-Za-z])[A-Z][a-z]+[A-Za-z]{2,}(?![A-Za-z])')
+
+
+def _has_avoid_basis(sentence) -> bool:
+    return bool(_AVOID_BASIS.search(_NOT_A_NEGATION.sub('', str(sentence or ''))))
+
+
+def borrowed_avoidance(names, others, transcript):
+    """這一檔的觀望不碰是不是借了前一句對別家的否定。回傳那一句（借來的依據），不是就回空字串。"""
+    names = [n for n in names if isinstance(n, str) and len(n) >= 2]
+    others = [o for o in others if isinstance(o, str) and len(o) >= 2 and not any(o in n or n in o for n in names)]
+    sentences = _plain_sentences(transcript)
+    spots = [i for i, x in enumerate(sentences) if any(n in x for n in names)]
+    if not names or not spots:
+        return ''
+    names_other = lambda x: any(o in x for o in others) or bool(_LATIN_NAME.search(x))
+    lender = ''
+    for i in spots:
+        if _has_avoid_basis(sentences[i]):
+            return ''
+        for j in range(i + 1, min(i + 4, len(sentences))):
+            if names_other(sentences[j]) and not any(n in sentences[j] for n in names):
+                break
+            if _has_avoid_basis(sentences[j]):
+                return ''
+        for j in range(max(0, i - 2), i):
+            if _has_avoid_basis(sentences[j]) and names_other(sentences[j]) and not any(n in sentences[j] for n in names):
+                lender = sentences[j]
+    return lender
+
+
+def _other_entity_names(row, signals, transcript):
+    mine = _row_names_for_recap(row)
+    names = set()
+    for cat in SIGNAL_CATEGORIES + ('history', 'ignored', 'uncertain'):
+        for other in signals.get(cat, []) or []:
+            if isinstance(other, dict) and other is not row:
+                names |= {n for n in _signal_names(other) | {str(other.get('name') or '')} if len(n) >= 2}
+    try:
+        names |= {i['name'] for i in source_inventory(source_segments(transcript)) if not i.get('weak')}
+    except Exception:
+        pass
+    return names - mine
+
+
+def drop_borrowed_avoidance(signals, transcript):
+    """觀望不碰的依據是前一句對別家公司的否定、這一檔自己沒有任何偏空說法時，移到排除。"""
+    keep = []
+    for row in signals.get('watch_avoid', []) or []:
+        if not isinstance(row, dict) or row.get('_carried_forward') or row.get('_原分類') in ('buy', 'sell'):
+            keep.append(row)
+            continue
+        lender = borrowed_avoidance(_row_names_for_recap(row), _other_entity_names(row, signals, transcript), transcript)
+        if not lender:
+            keep.append(row)
+            continue
+        name = str(row.get('name') or '')
+        print(f"  主詞核對　{name}　觀望不碰 → 排除：這一檔自己沒有偏空說法，否定的是前一句的別家（{lender[:36]}）")
+        note_decision('主詞核對', '否定是講別家的，不列', name, lender[:100])
+        signals.setdefault('ignored', []).append(dict(row, exclusion_reason='borrowed_avoidance'))
+        signals.setdefault('_repair_gaps', []).append(f'主詞不符：{name} 的觀望不碰借用了別家的否定，不列')
+    signals['watch_avoid'] = keep
     return signals
 
 
@@ -12477,6 +12556,12 @@ def reconcile_with_prior(signals, prior, date_str, transcript=''):
             if _past_recommendation_only(probe, signals, transcript):
                 accepted.append(f"{name}（前一版{'、'.join(before)}）：本輪原文只有舊推薦回顧，不公開、不沿用")
                 continue
+            # 前一版的觀望不碰是借了別家的否定（2026/10/07 華通、啟碁借 SpaceX 的「不敢買」）：不沿用。
+            if all(r.get('_cat') == 'watch_avoid' for r in rows):
+                lender = borrowed_avoidance(_row_names_for_recap(probe), _other_entity_names(probe, signals, transcript), transcript)
+                if lender:
+                    accepted.append(f"{name}（前一版{'、'.join(before)}）：這一檔自己沒有偏空說法，否定的是前一句的別家，不沿用")
+                    continue
             # 前一版把別家公司的獲利狀況寫成這一檔的（2026/10/07 華通）：不沿用。
             if _foreign_profit_claim(probe['reason'], _row_names_for_recap(probe), transcript):
                 accepted.append(f"{name}（前一版{'、'.join(before)}）：前一版說明裡的獲利狀況在原文不是講這一檔，不沿用")
@@ -12749,6 +12834,7 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     signals = repair_misnamed_subjects(signals, TX["audit"])
     # 觀望列的原句真的在講這一檔嗎；同一天已買賣的不再掛觀望（2026/09/23 華邦電、9/22 聖暉）。
     signals = verify_watch_subjects(signals, TX["audit"])
+    signals = drop_borrowed_avoidance(signals, TX["audit"])
     signals = drop_traded_from_watch(signals, date_str)
     signals = naturalize_signal_reasons(signals)
     # 沒講名字、但明講昨天收盤價的段落：用行情認出是哪一檔，二次稽核通過才收錄（v96）。

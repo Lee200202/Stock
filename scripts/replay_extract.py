@@ -160,6 +160,16 @@ def invariants(signals, raw):
                 errors.append(f"{official or heard}（{code}）原文有直白說法卻沒有收錄：{pick[1][:40]}")
     except Exception as e:
         warns.append(f"盤點檢查略過（{type(e).__name__}：{e}）")
+    # 重播與正式單日更新共用同一關卡；原稿足夠長時，補問後仍不足三點就不覆蓋已發布內容。
+    if len(pl._ev_norm(raw)) >= pl.LESSON_MIN_SOURCE:
+        points = [r for r in (signals.get('market') or [])
+                  if isinstance(r, dict) and r.get('_evidence_verified') and not r.get('_duplicate_point')]
+        macro = sum(r.get('kind') != 'view' for r in points)
+        lessons = sum(r.get('kind') == 'view' for r in points)
+        if macro < 3:
+            errors.append(f"盤勢總覽只有 {macro} 點（原文 {len(raw)} 字，至少要 3 點）")
+        if lessons < 3:
+            errors.append(f"操作邏輯與教學重點只有 {lessons} 點（至少要 3 點）")
     return errors, warns
 
 
@@ -272,12 +282,7 @@ def main():
         print("  " + line)
     errors.extend(hard)
     warns.extend(x for x in soft if x not in warns)
-    # 原文夠長時，盤勢與教學各至少三點；說明不能把講者自己先前的話寫成傳聞。
-    if len(pl._ev_norm(raw)) >= pl.LESSON_MIN_SOURCE:
-        if len(macro) < 3:
-            errors.append(f"盤勢總覽只有 {len(macro)} 點（原文 {len(raw)} 字，至少要 3 點）")
-        if len(lessons) < 3:
-            errors.append(f"操作邏輯與教學重點只有 {len(lessons)} 點（至少要 3 點）")
+    # 章節點數已由 invariants 檢查；重播與正式單日更新用同一關卡。
     for cat in LABEL:
         for r in signals.get(cat, []) or []:
             note = str(r.get("reason") or r.get("note") or "")

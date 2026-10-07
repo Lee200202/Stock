@@ -117,7 +117,7 @@ def forward(state, route):
         pass                      # 頁面關閉時還在路上的背景請求
 
 
-def check(browser, url, local):
+def check(browser, url, local, skip_time=False):
     lines = []
     for w, touch in ((1280, False), (390, True)):
         state = {}
@@ -168,8 +168,7 @@ def check(browser, url, local):
           over: document.documentElement.scrollWidth - innerWidth,
           noteRight: document.querySelector('.tsum-note').getBoundingClientRect().right, vw: innerWidth })""")
         assert f"共 {exp['rounds']} 個已結束的回合" in shown['note'], shown['note']
-        for h in exp['fromHeld']:
-            assert h['name'] in shown['note'], (h['name'], shown['note'])
+        assert '（' not in shown['note'] and not any(h['name'] in shown['note'] for h in exp['fromHeld']), shown['note']   # 只寫回合數，不逐檔列出
         avg_cell = next(c for c in shown['cells'] if c.startswith('平均已實現報酬'))
         assert f"{abs(exp['avgReturn']):.2f}" in avg_cell, (avg_cell, exp['avgReturn'])
         assert shown['over'] <= 1 and shown['noteRight'] <= shown['vw'] + 1, shown
@@ -183,7 +182,7 @@ def check(browser, url, local):
         pg.wait_for_function("document.querySelector('#dSecPrice, .detail, #detail') && !document.querySelector('#dSecBattle')", timeout=30000)
         pg.wait_for_timeout(4000)
         text = pg.evaluate("document.body.innerText")
-        if not state.get('patched'):                 # 後端還是舊版時，時間文字也還是舊的；正式站一律要過
+        if not state.get('patched') and not skip_time:   # 後端還是舊版時，時間文字也還是舊的；正式站一律要過
             assert not ISO_UTC.search(text), ISO_UTC.search(text).group(0)
         assert '技術條件' not in pg.evaluate("[...document.querySelectorAll('[data-go]')].map(b => b.textContent).join('|')")
         assert not errs, errs
@@ -197,13 +196,14 @@ def check(browser, url, local):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--url', default='')
+    ap.add_argument('--skip-time', action='store_true', help='估值資料在轉送層快取一小時；剛部署時舊文字還沒過期可先略過時間檢查')
     args = ap.parse_args()
     srv = None if args.url else build_local()
     url = args.url or f'http://127.0.0.1:{srv.server_address[1]}/'
     with sync_playwright() as pw:
         browser = pw.chromium.launch()
         try:
-            for line in check(browser, url, not args.url):
+            for line in check(browser, url, not args.url, args.skip_time):
                 print(line)
         finally:
             browser.close()

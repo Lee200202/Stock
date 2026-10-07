@@ -1498,14 +1498,9 @@ function restatesEarlier_(key, earlier) {
             (sum.positiveRatio == null ? '\u2014' : sum.positiveRatio.toFixed(1) + '%') + '</div></div>' +
           '</div>' +
           /* 已實現報酬以回合計（v139）：同一檔買了又賣、賣了又買，每一個已經結束的回合各算一次；
-             目前又持有中的股票，先前結束的回合也算（例如世芯-KY 第 1 回合）。 */
+             目前又持有中的股票，先前結束的回合也算。畫面只寫回合數，不逐檔列出（2026/10/07 管理者：不必要的資訊不放上來）。 */
           (trackerView === 'exited' && sum.rounds
-            ? '<p class="tsum-note">平均與正報酬比例以回合計：共 ' + sum.rounds + ' 個已結束的回合' +
-              ((sum.fromHeld || []).length
-                ? '，含目前持有中股票先前結束的回合（' + sum.fromHeld.map(function (h) {
-                    return esc(h.name) + ' ' + h.rets.map(fmtRet).join('、');
-                  }).join('；') + '）'
-                : '') + '。</p>'
+            ? '<p class="tsum-note">平均與正報酬比例以回合計，共 ' + sum.rounds + ' 個已結束的回合。</p>'
             : '');
       } else {
         box.innerHTML = '';

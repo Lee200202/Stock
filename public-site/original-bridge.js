@@ -39,7 +39,7 @@
 
   // 同頁不同元件若同時要同一份唯讀資料，共用正在進行的請求與短暫結果。
   // 管理／訂閱／寫入 API 不快取；主頁重新整理仍會向後端取最新資料。
-  const sharedReads = new Set(['apiGetDashboard', 'apiGetHoldingsTracker', 'apiGetMarketOverview', 'apiListRecordDates', 'apiGetLineEntry', 'apiGetQuotesFor', 'apiGetStockSummary', 'apiGetBattleData']);
+  const sharedReads = new Set(['apiGetDashboard', 'apiGetHoldingsTracker', 'apiGetMarketOverview', 'apiListRecordDates', 'apiGetLineEntry', 'apiGetQuotesFor', 'apiGetStockSummary']);
   const inFlight = new Map();
   const recentReads = new Map();
   // v88：只呈現本次讀取結果；失敗照實通知，不回放 localStorage 的舊總覽。

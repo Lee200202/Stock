@@ -2189,8 +2189,39 @@ function getHoldingsTrackerRead_() {
     };
   }
 
+  /* 已實現報酬以「回合」計（v139，2026/10/07 管理者指定）。
+     同一檔買了又賣、賣了又買時，每一個已經結束的回合都是一筆已實現的結果，各算一次再平均；
+     目前又持有中的股票，先前結束的回合也要算進來（世芯-KY 第 1 回合 +8.36% 先前完全沒有被計入）。
+     先前的平均只拿「已出場那幾檔的最後一個回合」，多回合的前幾段獲利都漏掉了。
+     各回合報酬來自「各回合報酬」欄（重算時逐回合定價的結果）；已出場那一檔的最後一回合用賣出當日的價格（ret）。
+     欄位缺漏或回合數對不上時，這一檔只算看得到的那一筆，不猜。 */
+  function roundReturns_(i) {
+    var out = [];
+    String(i.roundRets || '').replace(/([+\-−－]?\d+(?:\.\d+)?)\s*%/g, function (_, n) { out.push(Number(String(n).replace(/[−－]/g, '-'))); return ''; });
+    return out;
+  }
+  function closedRounds_(i) {
+    var all = roundReturns_(i), n = Number(i.rounds) || 1;
+    if (i.stillHeld) { return n > 1 && all.length === n ? all.slice(0, n - 1) : []; }      // 持有中：目前這一回合還沒結束
+    if (n > 1 && all.length === n) { if (i.ret !== null) { all[n - 1] = i.ret; } return all; }
+    return i.ret === null ? [] : [i.ret];
+  }
   var heldSummary = summarize(held);
   var exitedSummary = summarize(exited);
+  var realized = [], fromHeld = [];
+  exited.forEach(function (i) { realized = realized.concat(closedRounds_(i)); });
+  held.forEach(function (i) {
+    var prior = closedRounds_(i);
+    if (prior.length) { realized = realized.concat(prior); fromHeld.push({ code: i.code, name: i.name, rets: prior }); }
+  });
+  if (realized.length) {
+    exitedSummary.rounds = realized.length;
+    exitedSummary.fromHeld = fromHeld;
+    exitedSummary.stockAvgReturn = exitedSummary.avgReturn;                 // 原本的算法（每檔只看最後一回合），留著對照
+    exitedSummary.avgReturn = Math.round(realized.reduce(function (s, v) { return s + v; }, 0) / realized.length * 100) / 100;
+    exitedSummary.positiveRatio = Math.round(realized.filter(function (v) { return v > 0; }).length / realized.length * 1000) / 10;
+    exitedSummary.priced = Math.max(exitedSummary.priced, 1);
+  }
 
   // 舊欄位保留，內容維持「持有中」的統計，避免其他呼叫端壞掉
   var summary = heldSummary.priced ? {

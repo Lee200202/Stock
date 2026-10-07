@@ -1225,12 +1225,11 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-10-07-battle-trust-v138';
+var PROJECT_BUILD_ = '2026-10-07-no-battle-v139';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
 var PROJECT_FILES_ = [
-  { file: 'BattleData.gs', names: ['apiGetBattleData'], marker: ['apiGetBattleData', 'volumeUnit'] },
   { file: 'SiteBridge.gs', names: ['siteBridge_', 'siteBridgeSetup'], marker: ['siteBridge_', 'args.length > 8'] },
   { file: 'Marketservice.gs', names: ['mergedHourlyHistory_', 'backfillHourlyHistoryJob', 'auditHourlyCoverage', 'installMarketDataJobs', 'migrateV94'], marker: ['backfillHourlyHistoryJobRun_', 'tally.ok'] },
   { file: 'Line.gs', names: ['lineWebhook_', 'lineSignatureOk_', 'lineParseText_', 'lineQueueSms_', 'lineQueueSmsTextCorrection_', 'lineDailyTick_', 'lineDeliverTick_', 'lineClassify_', 'lineSectorReply_', 'apiGetLineEntry', 'apiAdminLineStatus', 'apiAdminLineSaveConfig', 'lineSetupCheck', 'lineValidateTemplates', 'lineSetupRichMenus', 'lineRichMenuHealth_', 'lineChartUrl_', 'lineHoldingVisualFlex_', 'LINE_OUTBOX_COLS_', 'lineSmsActive_', 'lineMsg_', 'lineSmsStateFlex_', 'lineRecipientBreakdown_', 'lineDiagnose_', 'apiAdminLineDiagnose', 'diagnoseLineDelivery', 'lineStockFlex_'], marker: ['lineWebhook_', 'gasAt'] },
@@ -1242,6 +1241,7 @@ var PROJECT_FILES_ = [
   { file: 'Adminservice.gs', names: ['adminAuth_', 'apiAdminLogin', 'PIPE_RECLASSIFY_SYSTEM', 'apiAdminTodayStatus', 'adminTodaySmsOriginals_', 'dayVideoRow_', 'apiAdminHeldList', 'apiAdminSetHoldingCost', 'apiAdminHoldToday', 'apiAdminKCoverage', 'apiAdminOpsDay', 'recordManualNoteEdit_'], marker: ['apiAdminKCoverage', 'dateMemo'] },
   { file: 'Aiservice.gs', names: ['validateKey', 'assistantModelCatalog_', 'sanitizeDraft_', 'draftReady_', 'isPromptProbe_', 'guardReply_', 'explicitSubscribeConfirm_'], marker: ['assistantModelCatalog_', 'supportedGenerationMethods'] },
   { file: 'Articlequality.gs', names: ['enforceArticleRecords_', 'attachArticleEvidence_'] },
+  { file: 'BattleData.gs', names: ['apiGetBattleData'], marker: ['apiGetBattleData', 'volumeUnit'] },
   { file: 'Cachebuilder.gs', names: ['dailyKCacheAfterWrite_', 'dailyKNoData_', 'budgetLeft_', 'trackedCodes_', 'readSnapshotRows_', 'officialDailyAll_', 'auditDailyKCache', 'repairDailyKCache', 'afterDailyKDoneJob', 'rescheduleDailyKTrigger', 'warmKCaches_', 'dailyKFloors_', 'resetDailyKFloor', 'isTradingDateStr_', 'ensurePerformanceContinuityJob_', 'officialDailyKFill_', 'officialDailyKTick_', 'officialDailyKJob', 'fillOfficialDailyKNow', 'auditTrackedSymbolsJob'], marker: ['auditTrackedSymbolsJob', 'symbolAuditDayV94'] },
   { file: 'Cmoney.gs', names: ['cmMailBody_', 'cmNotifyNew_', 'cmSyncContentTick_', 'cmTranscriptExcerpt_', 'deliveryRetryTick_', 'diagnoseInstantMail', 'cmSetNotifyState_', 'resendInstantMail', 'resendTodaySmsTextCorrection', 'resendTodaySmsFromOwner', 'cmPollSaveFailed_', 'cmVerifyItems_', 'cmPollInterval_'], marker: ['cmPollInterval_', 'Math.max(configured, 2)'] },
   { file: 'DB.gs', names: ['writeSubscriptionFields_', 'findSubscription_'] },
@@ -1258,8 +1258,6 @@ var PROJECT_FILES_ = [
 
 // HTML 檔名不含 .html；marker 是這一版才有的字串。
 var PROJECT_HTML_ = [
-  { file: 'Battle', marker: 'MarketBattle' },
-  { file: 'BattleConfig', marker: 'BATTLE_CONFIG' },
   { file: 'Index', marker: '<span class="brand-name">盤勢有據</span>' },
   { file: 'JavaScript', marker: '__fxRiseIn' },
   { file: 'Stylesheet', marker: 'v109 全站零星動態' },

@@ -220,7 +220,7 @@ function doGet(e) {
   var t = HtmlService.createTemplateFromFile('Index');
   t.appTitle = APP_TITLE;
   // 信件裡的「到網站管理訂閱」帶 ?tab=subscribe 進來，直接打開那一頁。只認得分頁列上有的名字。
-  t.initialTab = /^(overview|tracker|battle|perf|subscribe|mail|sms|tx|tech)$/.test(String(params.tab || ''))
+  t.initialTab = /^(overview|tracker|perf|subscribe|mail|sms|tx|tech)$/.test(String(params.tab || ''))
     ? String(params.tab) : '';
   // LINE 個股卡片的「看完整紀錄與圖表」帶 ?stock=代號（v73）：只收代號格式，前端直接打開個股面板。
   t.initialStock = /^\d{4,6}[A-Z]?$/.test(String(params.stock || '')) ? String(params.stock) : '';

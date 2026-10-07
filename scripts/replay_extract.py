@@ -253,8 +253,30 @@ def main():
         for r in rows:
             note = str(r.get("reason") or r.get("note") or "")
             print(f"- {r.get('name')}（{r.get('code')}）{len(note)} 字：{note}")
+    # 盤勢總覽（①）與操作邏輯／教學重點（③）：信上實際會列出的那幾點。
+    points = [r for r in (signals.get("market") or []) if r.get("_evidence_verified") and not r.get("_duplicate_point")]
+    macro = [r for r in points if r.get("kind") != "view"]
+    lessons = [r for r in points if r.get("kind") == "view"]
+    for label, rows in (("① 盤勢總覽重點整理", macro), ("③ 分析師操作邏輯與教學重點", lessons)):
+        print(f"\n【{label}】{len(rows)} 點")
+        for r in rows:
+            text = str(r.get("text") or "")
+            print(f"- {len(text)} 字{'（補問）' if r.get('_summary_topup') else ''}：{text}")
     print("\n" + pl.gemini_usage_report())
     errors, warns = invariants(signals, raw)
+    # 原文夠長時，盤勢與教學各至少三點；說明不能把講者自己先前的話寫成傳聞。
+    if len(pl._ev_norm(raw)) >= pl.LESSON_MIN_SOURCE:
+        if len(macro) < 3:
+            errors.append(f"盤勢總覽只有 {len(macro)} 點（原文 {len(raw)} 字，至少要 3 點）")
+        if len(lessons) < 3:
+            errors.append(f"操作邏輯與教學重點只有 {len(lessons)} 點（至少要 3 點）")
+    for cat in LABEL:
+        for r in signals.get(cat, []) or []:
+            note = str(r.get("reason") or r.get("note") or "")
+            if re.search(r"有傳聞|傳聞指出|據傳|據說|有人提及", note):
+                errors.append(f"{r.get('name')} 的說明把轉述寫成傳聞：{note[:50]}")
+            if cat == "holdings" and len(note) < 30:
+                warns.append(f"{r.get('name')}（會員持股）說明只有 {len(note)} 字：{note}")
     print(f"\n===== 通用檢查（不靠人工答案）：{'全部通過' if not errors else str(len(errors)) + ' 項錯誤'} =====")
     for e in errors:
         print("  ✗ " + e)

@@ -5818,13 +5818,42 @@ def _price_near_name(price, quotes, names, span=25):
 _MARKET_NUM = re.compile(r'\d+(?:[.,]\d+)*(?:[xX]+)?')
 
 
-def market_item_verified(item, hay):
-    """大盤摘要與教學點的證據規則：引用必須是原文，文字裡的每個數字都要出現在引用中。"""
+_MARKET_NUM_WINDOW = 160      # 引用句前後各這麼多個字算同一段話
+
+
+def market_item_why(item, hay):
+    """大盤摘要與教學點為什麼沒過證據規則；通過回空字串。
+
+    規則：引用必須是原文；文字裡的每個數字都要出現在引用句，或引用句前後 _MARKET_NUM_WINDOW 個字的同一段話裡。
+    2026/10/07：原本要求數字一定在引用句本身。模型引用的是觀念所在的那一句，數字常在前一句或後一句
+    （「昨天投信會大賣140幾億…不是，投信在大換股」引用後半句，140 在前半句），整點因此被剔除，
+    當天盤勢與教學各只剩 1 點、補問回來的也全數被剔除。數字仍然必須是講者在那一段話裡講過的，憑空的數字照樣不過。
+    """
     quotes = item.get('evidence') or []
-    if not quotes or not all(_quote_is_real(q, hay) for q in quotes):
-        return False
+    if not quotes:
+        return '沒有引用原文'
+    if not all(_quote_is_real(q, hay) for q in quotes):
+        return '引用不是原文'
+    numbers = _MARKET_NUM.findall(str(item.get('text') or ''))
+    if not numbers:
+        return ''
     available = set(_MARKET_NUM.findall('\n'.join(quotes)))
-    return all(n in available for n in _MARKET_NUM.findall(str(item.get('text') or '')))
+    missing = [n for n in numbers if n not in available]
+    if missing:
+        nearby = set()
+        for q in quotes:
+            norm = _ev_norm(q)
+            at = hay.find(norm)
+            while at >= 0:
+                nearby.update(_MARKET_NUM.findall(hay[max(0, at - _MARKET_NUM_WINDOW):at + len(norm) + _MARKET_NUM_WINDOW]))
+                at = hay.find(norm, at + 1)
+        missing = [n for n in missing if n not in nearby]
+    return ('數字 ' + '、'.join(dict.fromkeys(missing)) + ' 不在引用的那一段話裡') if missing else ''
+
+
+def market_item_verified(item, hay):
+    """大盤摘要與教學點的證據規則（見 market_item_why）。"""
+    return not market_item_why(item, hay)
 
 
 # ---------------------------------------------------------------- #
@@ -6237,6 +6266,7 @@ watch_watch：看好、建議留意，或拉回可以買；
 skip：只是順口列舉名稱、念報價、講別檔時拿來比喻，或 sources 其實在講另一家公司，沒有對這一檔本身的看法；heard 只是日常用語（世界、全國、大量）而不是在講這家公司，也用 skip。
 sources 可能夾著相鄰個股的話（「這一支」「它」常是在講下一檔）：只採用同一句或緊鄰句子明確點名本股的內容，指代不明的不算。
 拿不準方向時用 watch_avoid 並照實寫他講了什麼，不可寫成推薦；不可為了收錄而編造看法。
+「有很多人說／有人問：張總，你昨天講 X 要賣了」這類句子，是講者轉述觀眾複述他自己先前講過的話，後面通常接著他當場的確認或補充：寫成「先前（昨天）已表示 X 要賣出」並接上他當場的說法，不可寫成「有傳聞」「據說」「有人提及」。
 note 用完整書面句寫 1～3 句、約 30～120 字，只寫 sources 裡對這一檔明講的內容（題材、法人、技術位置、風險、態度）；數字照抄阿拉伯數字；不用人名或講者當主詞；不寫分類流程、來源或「原文」「逐字稿」。
 source_ids 填支持 note 的段落編號，只能用同一 entry 的 sources。
 只輸出 {"stocks":[{"id":"x0","verdict":"watch_avoid","note":"完整書面句。","source_ids":["s0"]}]}。"""
@@ -6547,10 +6577,12 @@ def validate_evidence(signals, transcript, date_str, after_codes=False):
     for item in signals.get('market', []):
         # 盤勢（①）與教學（③）章同樣是公開文字，句首人名一併拿掉；不影響下面的數字核對。
         item['text'] = strip_speaker_names(item.get('text'))
-        if market_item_verified(item, hay):
+        why = market_item_why(item, hay)
+        if not why:
             item['_evidence_verified'] = True
             market_keep.append(item)
         else:
+            print(f"  {'教學' if item.get('kind') == 'view' else '盤勢'}重點未採用（{why}）：{str(item.get('text') or '')[:48]}")
             signals.setdefault('_repair_gaps', []).append('大盤摘要有未驗證的引用或數字：' + str(item.get('text','')))
             orphan_headline = orphan_headline or str(item.get('headline') or '')
     # 模型只在第一筆盤勢放標題；那一筆因為別的數字沒過核對被剔除時，標題不能跟著消失
@@ -7668,10 +7700,18 @@ def strip_foreign_price_claims(signals: dict, transcript: str) -> dict:
             if isinstance(r, dict) and r.get('code'):
                 table_spots.setdefault(str(r['code']), set()).update(
                     set(index.get(str(r['code'])) or ()) | _literal_spots(flat, _row_names_for_recap(r)))
-    # 「別檔」只算真的被討論過的：今天有進表格的，或原文點到兩次以上的。
+    # 「別檔」只算真的被討論過的：今天有進表格的，或原文名稱盤點確定點到的。
+    # 2026/10/07：先前把「讀音在原文出現兩次以上」的代號也算進來。位置比對是用讀音做的，
+    # 日常用語因此被當成股票——「我買的位置還是 880 以下」的「位置」讀音和威致（2028）一樣，
+    # 勤誠說明裡的 880 被判成「離 2028 只有 4 個字」連刪三次，最後只剩一句空話；華城的 775 也因為旁邊的字音像另一檔而被刪。
+    # 現在改用原文名稱盤點（source_inventory）：它已經排除了較長名稱裡的一段，兩個字的日常用語（世界、全國、大量）標為 weak，這裡不算。
     discussed = {str(r.get('code') or '') for cat in list(SIGNAL_CATEGORIES) + ['history', 'uncertain', 'ignored']
                  for r in (signals.get(cat) or []) if r.get('code')}
-    discussed |= {code for code, spots in index.items() if len(spots) >= 2}
+    try:
+        discussed |= {str(item['code']) for item in source_inventory(source_segments(transcript))
+                      if item.get('code') and not item.get('weak')}
+    except Exception as e:                                   # 盤點失敗時只用表格裡的，寧可少擋也不誤刪
+        print(f'  價位歸屬：原文名稱盤點略過（{type(e).__name__}），只比對今天表格裡的股票')
     for cat in SIGNAL_CATEGORIES:
         for row in signals.get(cat, []) or []:
             code = str(row.get('code') or '')
@@ -8567,7 +8607,7 @@ LESSON_TOPUP_SYSTEM = """你整理台灣股票直播講者今天的操作邏輯�
 逐段找出講者教觀眾怎麼想、怎麼做、要避免什麼的段落，整理出至少 need 點、彼此主題不同的教學重點。常見主題（原文有講到才寫）：買賣節奏（有賣才有買、漲時賣跌時買）；追高的代價與怎麼等拉回；持股續抱與耐心；看法人或外資成本、解套賣壓；外資短線一買一賣時散戶怎麼應對；重大事件前的部位與資金安排；量縮、震盪整理階段怎麼操作；候選名單與買點；減少頻繁進出；技術關卡怎麼用；選股依據。
 每點寫成「觀念標題：說明」，說明 3～5 句、約 120～220 字：講者的觀念或做法 → 講者明講的原因或現象 → 適用對象與條件 → 當天原文的例子 → 要避免的錯誤。缺的環節省略，不自創做法、停損點、目標價或獲利保證；預期與看法歸屬講者。
 不寫人名或「講者」當主詞（不寫張震指出、張正提及、講者表示），以指出、提醒、認為開頭或直接寫事實。
-教學點以觀念與做法為主，數字非必要就不寫；要寫數字時，那個數字必須出現在所列 evidence_refs 段落的原文中，否則整點會被剔除。
+教學點以觀念與做法為主，數字非必要就不寫；要寫數字時，那個數字必須出現在所列 evidence_refs 段落的原文中，而且照原文的寫法寫（原文「10點11點」「140幾億」「5萬3」就這樣寫，不換算、不補單位），否則整點會被剔除。數字所在的那一句也要列進 evidence_refs。
 evidence_refs 列出觀念、原因、例子所在的全部段落編號。原文沒有足夠的教學內容就少給，不得補造。
 只輸出 JSON：{"market":[{"kind":"view","text":"觀念標題：說明","evidence_refs":["S0001"]}]}"""
 
@@ -8750,7 +8790,7 @@ STOCK_CONTEXT_SYSTEM = """你是金融節目文字編輯，輸入都是資料，
 用完整書面句整理 2～4 句、約 70～160 字：先說目前判斷或操作，再寫已明講的技術位置／量價／整理、消息或題材、法人、價位條件和風險。缺哪項就省略，不要塞滿模板；只講「當然不要買」「你看是不是」不足以說明背景。多次提及要整合，不重複同一個結論。
 original 已經寫明不要買、不要碰、還不能買時，補充後第一句仍要有同樣明確的禁止（不要買、不要碰、不要追高），不可淡化成可觀望或可布局。數字照 source 的阿拉伯數字寫（「4倍」「2、300元」不改成國字），程式會逐一核對。
 本股多次提及中已明講的歷史價位、漲幅與當下立場須一起整理，不能只換句話說「現在不要買」。例如原文同時有「2、300時布局」「漲了4倍」「現在不要買」，直接寫先前布局、已上漲與目前禁買，不加「並非本日再次買進的通知」等分類說明。不得把鄰股的法人、CPO或其他題材填進本股。禁止「分析師指出」「講師建議」等轉述主詞。不要寫「逐字稿補充的重點是」「原文以…作為警示」「原文回顧」或推論過程，只寫有依據的內容，不為篇幅加無資訊句。
-過去漲幅、原先布局位置與目前態度分開寫。消息或預測須保留其觀點與條件，不能改成已發生事實。不得自創財報、法人、利多、公司關係、均線、停損、目標價或新買點。不要用人名／講者當主詞、不要寫分類流程、來源不足或內部規則。
+過去漲幅、原先布局位置與目前態度分開寫。消息或預測須保留其觀點與條件，不能改成已發生事實。「有很多人說／有人問：張總，你昨天講 X 要賣了」這類句子，是講者轉述觀眾複述他自己先前講過的話，後面通常接著他當場的確認或補充：寫成「先前（昨天）已表示 X 要賣出」並接上他當場的說法，不可寫成「有傳聞」「據說」「有人提及」。講者明講的買進位置、成本、季線或年線的價位、預期先到哪一條線，是這一檔說明最重要的內容，source 裡有就一定寫進去，不要只留「展現韌性」「值得留意」這種沒有資訊的形容。不得自創財報、法人、利多、公司關係、均線、停損、目標價或新買點。不要用人名／講者當主詞、不要寫分類流程、來源不足或內部規則。
 每句用 source_ids 引用該 entry.sources 裡支持該句的編號（例如 s0），不要重抄或改寫原句。編號只能用同一 entry 的 sources；來源裡沒講的事不能寫，數字與技術詞也須有對應。name 是官方名稱，source 的同音寫法只在公開敘述中修正。原文不足可短，另填 limitation 為內部原因，不用冗詞湊字。
 只輸出 {"notes":[{"id":"watch_avoid:0","sentences":[{"text":"完整書面句。","source_ids":["s0"]}],"limitation":""}]}。"""
 
@@ -9378,7 +9418,8 @@ def identify_unnamed_stocks(ss, signals, transcript, date_str):
 
 SUMMARY_TOPUP_SYSTEM = LESSON_TOPUP_SYSTEM + """
 這輪合併補第①章盤勢與第③章教學。need_macro與need_view是各章不足的點數；只補有缺口的章，不重複existing。
-盤勢kind用level/volume/event/flow，每點70～140字，至少找出三個不同盤勢主題；教學kind=view，每點120～220字。
+盤勢kind用level/volume/event/flow，每點70～140字，至少找出三個不同盤勢主題（常見：指數與短線賣壓的時間點、法人或投信的買賣與換股、資金往哪一類股票移動、類股輪動與可能的主流、重大事件與公布時間、不要追高或可以布局的位置）；教學kind=view，每點120～220字。
+盤勢與教學各自都要補到至少三點、彼此主題不同；原文講了五六個主題就多給，不要只挑一個。
 補充盤勢第一點可附headline：講者最有力的一句觀點，口語一句、至少15字（不設上限），驚嘆號或問句收尾，不含姓名日期，用原文的字。每筆text和headline數字必須有引用。
 來源不足可少給，禁止把同一句拆成三點或借用其他股票。仍只輸出market陣列與evidence_refs。"""
 
@@ -9403,35 +9444,46 @@ def ensure_article_minimums(signals, transcript, date_str):
         return signals
     if not GEMINI_KEYS:
         gaps.append('盤勢內容偏短：缺少模型金鑰，未合併補問');return signals
-    print(f'章節補問：盤勢缺 {need_macro} 點，教學缺 {need_view} 點，合併一次')
     batches=assessment_batches(transcript,date_str)
     # 很長的稿依原本安全預算分批，這次只挑含最多盤勢關鍵字的一批補問；不無限追問。
     batch=max(batches,key=lambda b:sum(len(re.findall(r'大盤|指數|外資|美元|融資|CPI|PPI|利率|買點|不要追高',v['text'])) for v in b.values()))
-    payload=json.dumps({'video_date':date_str,'need_macro':need_macro,'need_view':need_view,
-        'existing':[r.get('text','') for r in market], 'source':{k:v['text'] for k,v in batch.items()}},ensure_ascii=False,separators=(',',':'))
     cap=min(int(os.environ.get('GEMINI_CONTEXT_TOKENS','1048576')),assessment_token_budget(),1048576)
-    if len((SUMMARY_TOPUP_SYSTEM+payload).encode('utf-8'))+min(MAX_OUT,8000)+4096>cap:
-        gaps.append('盤勢內容偏短：完整補問請求超過預算，沿用可驗證內容');return signals
-    try:
-        parsed=safe_load_json(call_gemini(SUMMARY_TOPUP_SYSTEM,payload,want_json=True,thinking=1024,tag='summary-topup',max_out=min(MAX_OUT,8000)))
-        rows=parsed.get('market',[]) if isinstance(parsed,dict) else []
-        if not isinstance(rows,list):rows=[]
-        seen={(r.get('kind')=='view',_lesson_key(r.get('text'))) for r in market}
-        for raw in rows:
-            if not isinstance(raw,dict) or raw.get('kind') not in ('level','volume','event','flow','view'):continue
-            is_view=raw['kind']=='view'
-            if (is_view and not need_view) or (not is_view and not need_macro):continue
-            row={k:raw[k] for k in ('kind','text','headline','evidence_refs') if k in raw}
-            row['text']=strip_speaker_names(str(row.get('text') or ''))
-            materialize_evidence({'market':[row]},transcript)
-            key=(is_view,_lesson_key(row['text']))
-            if key in seen or not market_item_verified(row,_ev_norm(transcript)):continue
-            row['_evidence_verified']=True;row['_summary_topup']=True
-            market.append(row);seen.add(key)
-            if is_view:need_view-=1
-            else:need_macro-=1
-    except (RuntimeError,ValueError,RateLimited) as e:
-        print(f'章節補問未完成：{str(e)[:120]}，沿用已驗證內容')
+    hay=_ev_norm(transcript)
+    # 2026/10/07：補問最多兩輪。第一輪回來的點若被證據規則剔除，原因會寫在紀錄裡，第二輪把「還缺幾點」再問一次。
+    for attempt in (1,2):
+        if not need_macro and not need_view:break
+        if attempt==2 and (_QUOTA_STOP.get('daily') or budget_left()<300):break
+        print(f'章節補問（第 {attempt} 輪）：盤勢缺 {need_macro} 點，教學缺 {need_view} 點，合併一次')
+        payload=json.dumps({'video_date':date_str,'need_macro':need_macro,'need_view':need_view,
+            'existing':[r.get('text','') for r in market], 'source':{k:v['text'] for k,v in batch.items()}},ensure_ascii=False,separators=(',',':'))
+        if len((SUMMARY_TOPUP_SYSTEM+payload).encode('utf-8'))+min(MAX_OUT,8000)+4096>cap:
+            gaps.append('盤勢內容偏短：完整補問請求超過預算，沿用可驗證內容');break
+        try:
+            parsed=safe_load_json(call_gemini(SUMMARY_TOPUP_SYSTEM,payload,want_json=True,thinking=1024,tag='summary-topup',max_out=min(MAX_OUT,8000)))
+            rows=parsed.get('market',[]) if isinstance(parsed,dict) else []
+            if not isinstance(rows,list):rows=[]
+            seen={(r.get('kind')=='view',_lesson_key(r.get('text'))) for r in market}
+            took=0
+            for raw in rows:
+                if not isinstance(raw,dict) or raw.get('kind') not in ('level','volume','event','flow','view'):continue
+                is_view=raw['kind']=='view'
+                label='教學' if is_view else '盤勢'
+                if (is_view and not need_view) or (not is_view and not need_macro):continue
+                row={k:raw[k] for k in ('kind','text','headline','evidence_refs') if k in raw}
+                row['text']=strip_speaker_names(str(row.get('text') or ''))
+                materialize_evidence({'market':[row]},transcript)
+                key=(is_view,_lesson_key(row['text']))
+                why='和已有的重點同一個主題' if key in seen else market_item_why(row,hay)
+                if why:
+                    print(f"  補問的{label}重點未採用（{why}）：{row['text'][:48]}")
+                    continue
+                row['_evidence_verified']=True;row['_summary_topup']=True
+                market.append(row);seen.add(key);took+=1
+                if is_view:need_view-=1
+                else:need_macro-=1
+            print(f'  章節補問第 {attempt} 輪：回覆 {len(rows)} 點，採用 {took} 點')
+        except (RuntimeError,ValueError,RateLimited) as e:
+            print(f'章節補問未完成：{str(e)[:120]}，沿用已驗證內容');break
     for is_view,label in ((False,'盤勢'),(True,'教學')):
         if (not is_view or len(_ev_norm(transcript))>=LESSON_MIN_SOURCE) and len(verified(is_view))<3:
             gaps.append(f'{label}內容偏短：補問後仍只有 {len(verified(is_view))} 點，未補造')

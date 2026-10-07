@@ -6627,6 +6627,19 @@ def validate_evidence(signals, transcript, date_str, after_codes=False):
                             why = "日期沒有在原文裡明講"
                     except (ValueError, TypeError):
                         why = "日期格式不正確"
+                if why:
+                    # 模型引的那一句不對，不代表原文沒講：原文明講今天已經賣出（買進）這一檔時，改用原文那一句，不改列回顧。
+                    # 2026/10/07 重播：事欣科的賣出引了「我昨天用這樣的方法叫你們賣鴻海。竟然今天有人要拉高…」，
+                    # 句子裡有「昨天」（講的是鴻海），整筆被判成回顧後再因「只有過去的買賣」不列，當日賣出就此消失；
+                    # 原文另有「我今天叫會員賣事欣科」「今天早上賣事欣科嘛」。門檻和 enforce_explicit_trades 相同。
+                    said = explicit_today_trades(transcript, {n for n in [name, heard] + aliases if isinstance(n, str) and len(n) >= 2}, cat)
+                    if len(said) >= 2 or (cat == "sell" and any('會員' in h and re.search(r'通知|告訴', h) for h in said)):
+                        print(f"  品質關卡　{name}（{'買入' if cat == 'buy' else '賣出'}）：模型引的時間句不成立（{why}），原文另有明講今天的句子，改用原句：{said[0][:40]}")
+                        note_decision('品質關卡', '時間句改用原文明講的那一句', name, f'{why}；原句：{said[0][:80]}')
+                        row["when"] = "today"
+                        row["time_evidence"] = said[0]
+                        row["evidence"] = list(dict.fromkeys([q for q in (row.get("evidence") or []) if isinstance(q, str)] + said[:3]))
+                        why = ""
                 if why == "沒有附上講出時間的那一句" and cat == "buy":
                     # 管理者規則（2026/09/11）：買入判定在最前面判定是否為當日買進，沒有則進觀望注意。
                     # 說明只寫事實原貌，其他判斷依據不用寫進說明。
@@ -8002,6 +8015,19 @@ def preserve_explicit_holdings(signals, transcript):
                 and not re.search(r'(?:以前|當時|去年|那時)[^。！？!?]{0,35}(?:沒叫你們賣|不[准準].{0,8}賣)', scope)
                 and not re.search(r'已經.{0,6}(?:賣掉|出清)|全部賣|已賣', scope)), '')
             owned = owned or bool(continuation)
+            # 講者點名「我手中的股票有X」，同一段接著講自己買在哪裡：這是他現在的部位（2026/10/07 勤誠：
+            # 「張震手中的股票這幾天低檔剛佈局的有8210勤誠…我買的位置還是880以下買進」，那一輪模型列成觀望注意）。
+            # 同一句要同時有「手中的股票／持股」和本股名稱或代號；點名之後出現已經賣掉的說法就不算。
+            if not owned:
+                own_names = [n for n in _row_names_for_recap(row) if len(n) >= 2] + ([str(row.get('code'))] if row.get('code') else [])
+                for scope, _ in scopes:
+                    said = next((m for n in own_names
+                                 for m in [re.search(r'手中(?:的)?(?:股票|持股)[^。！？!?]{0,30}' + re.escape(n), scope)] if m), None)
+                    tail = scope[said.start():] if said else ''          # 只看點名之後的那一段，前面是上一檔的話
+                    if (tail and re.search(r'我買(?:在|的位置|進的位置)|我的成本|低檔(?:剛)?[佈布]局', tail)
+                            and not re.search(r'已經.{0,6}(?:賣掉|出清)|全部賣|已賣|賣掉了|賣光', tail)):
+                        owned = True
+                        break
             if owned and identity not in held:
                 hold=dict(row);hold['note']=row.get('reason') or '會員目前持有，等待整理。'
                 hold['stance']='持有'

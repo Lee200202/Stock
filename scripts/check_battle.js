@@ -9,7 +9,9 @@ const ctx = {window:{}, console}; vm.createContext(ctx);
 vm.runInContext(read('BattleConfig.html').match(/<script>([\s\S]*?)<\/script>/)[1],ctx);
 vm.runInContext(read('Battle.html').match(/<script>([\s\S]*?)<\/script>/)[1],ctx);
 // 這份檔案的門檻案例是照「日量 2.5 倍」寫的；預設值後來改成 1 倍，所以這裡明講 2.5，預設值另外有一條測試。
-const evaluate = ctx.window.MarketBattle.evaluate;
+// 計算在另一個執行環境裡跑，回來的陣列與物件先轉成普通資料再比（比的是內容）。
+const plainData = v => JSON.parse(JSON.stringify(v));
+const evaluate = (...a) => plainData(ctx.window.MarketBattle.evaluate(...a));
 const run = (item, prefs, context) => evaluate(item, {volumeMultiple: 2.5, ...prefs}, context);
 let count = 0;
 function test(name, fn) { fn(); count++; console.log('OK '+name); }
@@ -64,14 +66,16 @@ test('filled gap remains filled even when another later session is missing',()=>
 test('input bars and preferences are not mutated',()=>{const i=fixture(),before=JSON.stringify(i),p={useTrend:true};run(i,p,base);assert.equal(JSON.stringify(i),before);assert.deepEqual(p,{useTrend:true});});
 // Execute the actual GAS API with strict no-write and no-fetch mocks.
 test('API normalizes shares to lots and reads each sheet only once',()=>{
- let reads=0, propReads=0;
+ let reads=0, propReads=0; const propKeys=[];
  class FrozenDate extends Date {constructor(...args){super(...(args.length?args:['2026-10-06T06:00:00Z']));}}
  const server={Date:FrozenDate,withSheetSnapshot_:fn=>fn(),loadCodeMap_:()=>({byCode:{1234:{name:'測試'}}}),trackedCodes_:()=>['1234'],TZ:'Asia/Taipei',
  Utilities:{formatDate:(d,tz,f)=>{const s=new Intl.DateTimeFormat('sv-SE',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(d);const iso=s.slice(0,10);return f==='yyyy/MM/dd'?iso.replaceAll('-','/'):f==='yyyy-MM-dd'?iso:f==='u'?String(new Date(iso+'T12:00:00Z').getUTCDay()||7):s.slice(11,16).replace(':','');}},
- marketHolidaySet_:()=>({}),MARKET_HOLIDAY_YEARS_:{2025:1,2026:1},HOLIDAY_PROP_PREFIX_:'TWSE_HOLIDAYS_',PropertiesService:{getScriptProperties:()=>({getProperty:()=>{propReads++;return null;}})},
+ marketHolidaySet_:()=>({}),MARKET_HOLIDAY_YEARS_:{2025:1,2026:1},HOLIDAY_PROP_PREFIX_:'TWSE_HOLIDAYS_',PropertiesService:{getScriptProperties:()=>({getProperty:k=>{propReads++;propKeys.push(k);return null;}})},
  getQuoteCache:()=>({}),CACHE:{getAll:()=>({})},loadAllDailyK_:()=>{reads++;return {'1234':[{date:'2026/10/05',open:100,high:101,low:99,close:100,volume:1500000}]};},quoteFresh_:()=>true,nowStamp_:()=>'',opsRuntimeConserve_:()=>false,
  UrlFetchApp:{fetch:()=>{throw Error('Forbidden fetch');}},whyClosed_:()=>{throw Error('Forbidden calendar refresh');}};
- vm.createContext(server);vm.runInContext(read('BattleData.gs'),server);const r=server.apiGetBattleData(['1234']);assert.equal(r.items[0].bars[0].volume,1500);assert.equal(reads,1);assert.equal(r.volumeUnit,'lots');assert.equal(propReads,0);
+ vm.createContext(server);vm.runInContext(read('BattleData.gs'),server);const r=server.apiGetBattleData(['1234']);assert.equal(r.items[0].bars[0].volume,1500);assert.equal(reads,1);assert.equal(r.volumeUnit,'lots');
+ // 假日年份已知時不讀年度假日屬性；v138 起每次只多讀一個屬性：已向證交所核對的臨時休市日
+ assert.equal(propReads,1);assert.equal(propKeys[0],'TWSE_CLOSED_EXTRA');
  assert.throws(()=>server.apiGetBattleData(Array.from({length:25},(_,i)=>String(1000+i))),/24/);
 });
 test('intraday estimate uses quote timestamp and past-only baseline',()=>{
@@ -104,7 +108,7 @@ test('default volume multiple is 1: volume at or above the average qualifies',()
  assert.equal(ctx.window.MarketBattle.cleanPrefs({volumeMultiple: 2.5}).volumeMultiple, 2.5);   // 使用者存的值照舊
 });
 /* ---- v136 條件組：同一組一種邏輯、組與組之間另一種 ---- */
-const clean = ctx.window.MarketBattle.cleanPrefs;
+const clean = x => plainData(ctx.window.MarketBattle.cleanPrefs(x));
 // 事件日：開盤跳空成立；量與均線可以各自調成不成立。
 function mixed({volume = 2500, close = 106, low = 102} = {}) { const i = fixture(); Object.assign(i.bars[60], {volume, close, low}); return i; }
 const AandB_orC = {groupLogic: 'anyOfAll', groups: [['useGap', 'useVolume'], ['useTrend']]};

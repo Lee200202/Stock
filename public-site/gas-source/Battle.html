@@ -30,7 +30,13 @@
        均線 SMA；EMA 以第一筆為種子；RSI／ATR／ADX 用 Wilder 平滑、以前 n 筆的平均為種子；
        KD 為台股 9／3／3 遞迴平滑、種子 50；MACD 12／26／9、柱體 =（DIF − DEA）× 2；布林為 20 根、母體標準差 2 倍。
      回傳值 pass：true 成立、false 不成立、null 資料不足（不當成不成立，也不當成成立）。 */
-  var SIGNAL_VERSION = '2026-10-06.2';
+  var SIGNAL_VERSION = '2026-10-06.3';
+  /* 暖機（v138）。EMA 與 Wilder 平滑的第一筆是種子，種子的影響每多一根就衰減一次：
+       EMA26 每根乘 25／27，Wilder14 每根乘 13／14。前面的根數不夠時，尾端的數字還帶著種子，換一段歷史就會變。
+     所以用到這些指標的條件要求最少根數；不夠就是資料不足，不拿還沒收斂的數字去判交叉：
+       MACD 類 130 根（種子殘餘約 0.03%）、RSI 類 120 根（約 0.04%）、ADX 類 135 根。
+     scripts/check_battle_signals.js 另外量了「160 根、260 根、全部歷史」三種長度算出來的指標值與訊號差多少。 */
+  var MAX_HISTORY = 259, WARM = { macd: 130, rsi: 120, adx: 135 };
   function makeSeries(list) {
     var S = { n: list.length, t: list.length - 1, D: [], O: [], H: [], L: [], C: [], V: [], memo: {} };
     list.forEach(function (b) { S.D.push(b.date); S.O.push(b.open); S.H.push(b.high); S.L.push(b.low); S.C.push(b.close); S.V.push(b.volume); });
@@ -206,7 +212,8 @@
      或價格創新高而指標沒有（頂背離）。第二個轉折之後價格若再創新低／新高，這一次背離作廢。
      訊號時間是「第二個轉折被確認」之後，不回填到轉折當天。 */
   function divergence(S, P, low) {
-    if (S.n < 60) return U();
+    var need = P.indicator === 'rsi' ? WARM.rsi : WARM.macd;
+    if (S.n < need) return U('需要至少 ' + need + ' 根連續日 K');
     var ind = P.indicator === 'rsi' ? rsi(S, 14) : macd(S).hist, pv = pivots(S, low), t = S.t, px = low ? S.L : S.H;
     if (pv.length < 2) return R(false, '還沒有兩個已確認的' + (low ? '低點' : '高點'));
     var p2 = pv[pv.length - 1], p1 = pv[pv.length - 2];
@@ -230,12 +237,18 @@
     }
     return null;
   }
-  /* 最近 60 根（不含評估日）成交量最大的那一根；同量取較近的。 */
-  function bigVolumeBar(S) {
-    var t = S.t, from = t - 60, best = -1;
-    if (from < 0) return null;
-    for (var i = from; i <= t - 1; i++) if (best < 0 || S.V[i] >= S.V[best]) best = i;
-    return best;
+  /* 大量 K 事件（v138）：某一根的量達到「它自己之前 20 根均量」的設定倍數。
+     事件由那一天當下的資料決定，日期與高低價從此固定；之後多幾根日 K、或換一段更長的歷史，都不會改變它是不是事件。
+     觀察規則也明講：看最近 60 根內「最近一次」事件；有更新的事件出現就改看新的（卡片會寫出日期），超過 60 根就到期。
+     先前的寫法是「視窗裡量最大的那一根」，舊的最大量一滑出視窗就會悄悄換成第二大的，這裡不再這樣做。 */
+  function bigVolumeEvent(S, mult) {
+    var t = S.t, from = Math.max(20, t - 60);
+    if (t - 60 < 0 || avgVol(S, t - 60 < 20 ? 20 : t - 60, 20) === null) return undefined;
+    for (var i = t - 1; i >= from; i--) {
+      var av = avgVol(S, i, 20);
+      if (av > 0 && S.V[i] >= mult * av) return { at: i, low: S.L[i], high: S.H[i], ratio: S.V[i] / av, expires: i + 60 };
+    }
+    return null;
   }
   var SIGNALS = {
     trendUp: function (S, P) {
@@ -275,20 +288,20 @@
       return R(up && touch >= 0 && S.C[t] > m[t], n + ' 日均線 ' + f2(m[t]) + (up ? '（向上）' : '（未向上）') + '；' + (touch >= 0 ? S.D[touch] + ' 低點 ' + f2(S.L[touch]) + ' 回測' : '最近 3 根沒有回測') + '；收 ' + f2(S.C[t]));
     },
     macdCross: function (S, P) {
-      if (S.n < 60) return U(); var m = macd(S), x = recentCross(S, m.dif, m.dea, P.within, true);
+      if (S.n < WARM.macd) return U('需要至少 ' + WARM.macd + ' 根連續日 K'); var m = macd(S), x = recentCross(S, m.dif, m.dea, P.within, true);
       return x ? R(x.pass, crossText(S, x, 'DIF 上穿訊號線', '黃金交叉') + '；柱體 ' + f2(m.hist[S.t])) : U();
     },
     macdZero: function (S, P) {
-      if (S.n < 60) return U(); var m = macd(S), x = recentCross(S, m.dif, 0, P.within, true);
+      if (S.n < WARM.macd) return U('需要至少 ' + WARM.macd + ' 根連續日 K'); var m = macd(S), x = recentCross(S, m.dif, 0, P.within, true);
       return x ? R(x.pass, crossText(S, x, 'DIF 上穿零軸', '零軸上穿') + '；DIF ' + f2(m.dif[S.t])) : U();
     },
     macdConverge: function (S, P) {
-      if (S.n < 60) return U(); var h = macd(S).hist, t = S.t, ok = h[t] < 0;
+      if (S.n < WARM.macd) return U('需要至少 ' + WARM.macd + ' 根連續日 K'); var h = macd(S).hist, t = S.t, ok = h[t] < 0;
       for (var k = 0; k < P.bars && ok; k++) ok = h[t - k] > h[t - k - 1];
       return R(ok, '柱體 ' + f2(h[t]) + (ok ? '，負柱連續 ' + P.bars + ' 根縮短（尚未翻正）' : h[t] >= 0 ? '，已不是負柱' : '，沒有連續縮短'));
     },
     rsiRecover: function (S, P) {
-      if (S.n < 40) return U(); var r = rsi(S, 14), x = recentCross(S, r, P.level, P.within, true);
+      if (S.n < WARM.rsi) return U('需要至少 ' + WARM.rsi + ' 根連續日 K'); var r = rsi(S, 14), x = recentCross(S, r, P.level, P.within, true);
       return x ? R(x.pass, crossText(S, x, 'RSI 重新站上 ' + P.level, '站上 ' + P.level) + '；RSI ' + f2(r[S.t])) : U();
     },
     kdCross: function (S, P) {
@@ -296,7 +309,7 @@
       return x ? R(x.pass, crossText(S, x, 'K 上穿 D' + (P.zone < 100 ? '（交叉前低於 ' + P.zone + '）' : ''), (P.zone < 100 ? P.zone + ' 以下的' : '') + '黃金交叉') + '；K ' + f2(v.k[S.t]) + '／D ' + f2(v.d[S.t])) : U();
     },
     adxTrend: function (S, P) {
-      var d = dmi(S, 14), t = S.t; if (t < 30 || d.adx[t - 2] === null || d.pdi[t] === null) return U();
+      var d = dmi(S, 14), t = S.t; if (S.n < WARM.adx) return U('需要至少 ' + WARM.adx + ' 根連續日 K'); if (d.adx[t - 2] === null || d.pdi[t] === null) return U();
       var rising = d.adx[t] > d.adx[t - 1] && d.adx[t - 1] > d.adx[t - 2];
       return R(d.adx[t] >= P.level && rising && d.pdi[t] > d.mdi[t], 'ADX ' + f2(d.adx[t]) + (rising ? '（連兩根上升）' : '（沒有連續上升）') + '；+DI ' + f2(d.pdi[t]) + '／−DI ' + f2(d.mdi[t]));
     },
@@ -400,12 +413,13 @@
       var price = S.C[t] > hiOf(S.H, t - 5, t - 1), vol = S.V[t] > hiOf(S.V, t - 5, t - 1), move = P.mode === 'price' ? price : P.mode === 'volume' ? vol : price && vol;
       return R(quiet <= P.dry * base && S.C[t] > S.O[t] && move, '前 5 根均量是更早 20 根的 ' + f2(quiet / base) + ' 倍；' + (S.C[t] > S.O[t] ? '收紅' : '未收紅') + '、' + (price ? '收盤過前 5 根高點' : '收盤未過前 5 根高點') + '、' + (vol ? '量大於前 5 根' : '量未大於前 5 根'));
     },
-    bigVolHold: function (S) {
-      var t = S.t, a = bigVolumeBar(S); if (a === null) return U();
-      var head = S.D[a] + ' 大量 K 低點 ' + f2(S.L[a]);
-      if (a > t - 3) return R(false, head + '；出現未滿 3 根');
-      var touch = false; for (var j = t; j >= t - 2; j--) touch = touch || S.L[j] <= S.L[a] * 1.01;
-      return R(touch && S.C[t] > S.L[a], head + '；' + (touch ? '最近 3 根回測到低點附近' : '最近 3 根沒有回測') + '；收 ' + f2(S.C[t]));
+    bigVolHold: function (S, P) {
+      var t = S.t, e = bigVolumeEvent(S, P.mult); if (e === undefined) return U();
+      if (!e) return R(false, '最近 60 根沒有量達 ' + P.mult + ' 倍均量的大量 K');
+      var head = S.D[e.at] + ' 大量 K（量 ' + f2(e.ratio) + ' 倍）低點 ' + f2(e.low);
+      if (e.at > t - 3) return R(false, head + '；出現未滿 3 根');
+      var touch = false; for (var j = t; j >= t - 2; j--) touch = touch || S.L[j] <= e.low * 1.01;
+      return R(touch && S.C[t] > e.low, head + '；' + (touch ? '最近 3 根回測到低點附近' : '最近 3 根沒有回測') + '；收 ' + f2(S.C[t]));
     },
     liquidity: function (S, P) {
       var av = avgVol(S, S.t, 20); if (av === null) return U();
@@ -464,11 +478,11 @@
       return R(sh >= P.minPct / 100, '上影線佔當日區間 ' + pct(sh));
     },
     macdDead: function (S, P) {
-      if (S.n < 60) return U(); var m = macd(S), x = recentCross(S, m.dif, m.dea, P.within, false);
+      if (S.n < WARM.macd) return U('需要至少 ' + WARM.macd + ' 根連續日 K'); var m = macd(S), x = recentCross(S, m.dif, m.dea, P.within, false);
       return x ? R(x.pass, crossText(S, x, 'DIF 下穿訊號線', '死亡交叉') + '；柱體 ' + f2(m.hist[S.t])) : U();
     },
     rsiFall: function (S, P) {
-      if (S.n < 40) return U(); var r = rsi(S, 14), x = recentCross(S, r, P.level, P.within, false);
+      if (S.n < WARM.rsi) return U('需要至少 ' + WARM.rsi + ' 根連續日 K'); var r = rsi(S, 14), x = recentCross(S, r, P.level, P.within, false);
       return x ? R(x.pass, crossText(S, x, 'RSI 跌回 ' + P.level + ' 以下', '跌回 ' + P.level + ' 以下') + '；RSI ' + f2(r[S.t])) : U();
     },
     kdDead: function (S, P) {
@@ -504,10 +518,11 @@
       return R(down && touch >= 0 && S.C[t] < m[t] && S.C[t] < S.C[t - 1], n + ' 日均線 ' + f2(m[t]) + (down ? '（向下）' : '（未向下）') + '；' + (touch >= 0 ? S.D[touch] + ' 高點 ' + f2(S.H[touch]) + ' 反彈碰線' : '最近 3 根沒有從下方反彈碰線') + '；收 ' + f2(S.C[t]) + '／昨收 ' + f2(S.C[t - 1]));
     },
     bigVolLowLost: function (S, P) {
-      var t = S.t, a = bigVolumeBar(S); if (a === null) return U();
-      var line = S.L[a], hit = -1;
-      for (var j = t; j > t - P.within && j > a; j--) if (S.C[j - 1] >= line && S.C[j] < line) { hit = j; break; }
-      return R(hit >= 0 && S.C[t] < line, S.D[a] + ' 大量 K 低點 ' + f2(line) + '；' + (hit >= 0 ? S.D[hit] + ' 收盤跌破' : '最近 ' + P.within + ' 根沒有收盤跌破') + '；收 ' + f2(S.C[t]));
+      var t = S.t, e = bigVolumeEvent(S, P.mult); if (e === undefined) return U();
+      if (!e) return R(false, '最近 60 根沒有量達 ' + P.mult + ' 倍均量的大量 K');
+      var line = e.low, hit = -1;
+      for (var j = t; j > t - P.within && j > e.at; j--) if (S.C[j - 1] >= line && S.C[j] < line) { hit = j; break; }
+      return R(hit >= 0 && S.C[t] < line, S.D[e.at] + ' 大量 K（量 ' + f2(e.ratio) + ' 倍）低點 ' + f2(line) + '；' + (hit >= 0 ? S.D[hit] + ' 收盤跌破' : '最近 ' + P.within + ' 根沒有收盤跌破') + '；收 ' + f2(S.C[t]));
     }
   };
   /* 一個條件的結果。P 是這個條件自己的參數（每個條件的門檻都在自己身上，不借用別的條件的設定）；env.complete 是當根是否已收盤。 */
@@ -524,6 +539,9 @@
     var seen = {};
     bars.forEach(function (b) { if (seen[b.date] || !valid(b)) issues.push('日 K 重複或開高低收／量無效'); seen[b.date] = true; });
     if (item.error) issues.push(item.error);
+    // 設定裡有這一版不認得的條件（例如從較新的版本退回來）：少了那幾項，「且」會變寬。寧可整套停用並說明，不照缺了條件的設定繼續篩。
+    var lost = (p.unknown || {})[p.purpose] || [];
+    if (lost.length) issues.push('設定裡有這一版不認得的條件（' + lost.join('、') + '），已停用篩選');
     if (!date || ctx.volumeUnit !== 'lots') issues.push('行情日期或成交量單位未確認');
     var prior = bars.filter(function (b) { return b.date < date; });
     var cur = bars.filter(function (b) { return b.date === date; })[0], complete = !!cur && !!ctx.afterClose;
@@ -568,7 +586,8 @@
     var position = valid(cur) ? (cur.high === cur.low ? null : (cur.close - cur.low) / (cur.high - cur.low)) : null;
     check('body', up ? '紅 K 與收盤位置' : '黑 K 與收盤位置', position === null ? null : (up ? cur.close > cur.open && position >= p.closePosition : cur.close < cur.open && position <= 1 - p.closePosition), position,
       (up ? '收紅且位於當日區間上方 ' : '收黑且位於當日區間下方 ') + ((1 - p.closePosition) * 100).toFixed(0) + '%', p.useBody);
-    var ih = history(Math.min(159, prior.length)), hist = null, kd = null;
+    // 指標用的歷史：評估日前連續的日 K 全部拿來用（後端最多給 260 根）。越長，EMA 與 Wilder 平滑的種子對尾端的影響越小。
+    var ih = history(Math.min(MAX_HISTORY, prior.length)), hist = null, kd = null;
     if (ih && valid(cur)) {
       var series = ih.concat([cur]), closes = series.map(function (b) { return b.close; });
       if (series.length >= 26) {
@@ -585,7 +604,7 @@
         kd = { k: k, d: d };
       }
     }
-    check('macd', 'MACD 柱體', hist === null ? null : sign * hist > 0, hist, '12／26／9，以可用的最近至多 160 根日 K 首筆起算；柱體' + (up ? '大於' : '小於') + ' 0，非交叉訊號', p.useMacd);
+    check('macd', 'MACD 柱體', hist === null ? null : sign * hist > 0, hist, '12／26／9，以可用的最近至多 260 根日 K 首筆起算；柱體' + (up ? '大於' : '小於') + ' 0，非交叉訊號', p.useMacd);
     check('kd', 'KD 相對位置', kd === null ? null : (up ? kd.k > kd.d : kd.k < kd.d), kd, '9 日 RSV，K／D 各 1/3 平滑；K ' + (up ? '>' : '<') + ' D，非今日交叉', p.useKD);
     var bollHistory = history(19), bollEdge = null;
     if (bollHistory && valid(cur)) {
@@ -618,15 +637,20 @@
       if (all) return list.some(function (v) { return v === false; }) ? false : list.some(function (v) { return v === null; }) ? null : true;
       return list.some(function (v) { return v === true; }) ? true : list.some(function (v) { return v === null; }) ? null : false;
     }
-    var innerAll = side.groupLogic === 'anyOfAll', innerWord = innerAll ? '且' : '或', outerWord = innerAll ? '或' : '且';
+    /* v138：每一組自己選「且」或「或」（side.ops），組與組之間另選一個（side.join）。
+       舊設定的兩種組合方式是它的特例：anyOfAll＝每組「且」、組間「或」；allOfAny＝每組「或」、組間「且」。 */
+    var outerAll = side.join === 'and', outerWord = outerAll ? '且' : '或';
     var groups = side.groups.map(function (keys, n) {
       var list = keys.map(function (k) { return byFlag[k]; });
-      return { index: n, keys: keys.slice(), labels: list.map(function (c) { return c.label; }), states: list.map(function (c) { return c.pass; }), pass: fold(list.map(function (c) { return c.pass; }), innerAll) };
+      var all = side.ops[n] !== 'or';
+      return { index: n, keys: keys.slice(), labels: list.map(function (c) { return c.label; }), states: list.map(function (c) { return c.pass; }), op: all ? 'and' : 'or', word: all ? '且' : '或',
+        pass: fold(list.map(function (c) { return c.pass; }), all) };
     });
-    var overall = groups.length ? fold(groups.map(function (g) { return g.pass; }), !innerAll) : null;
+    var overall = groups.length ? fold(groups.map(function (g) { return g.pass; }), outerAll) : null;
+    var innerWord = groups.length ? groups[0].word : (outerAll ? '或' : '且');     // 各組相同時就是那個字；不同時以各組自己的 word 為準
     var pending = overall === null, pass = !issues.length && overall === true;
     var formula = groups.map(function (g) {
-      var text = g.labels.join(' ' + innerWord + ' ');
+      var text = g.labels.join(' ' + g.word + ' ');
       return groups.length > 1 && g.labels.length > 1 ? '（' + text + '）' : text;
     }).join(' ' + outerWord + ' ');
     var gapFilled = valid(cur) && valid(y) && gapPct !== null ? (up ? cur.low <= y.high : cur.high >= y.low) : null;
@@ -655,7 +679,7 @@
       status: issues.length || pending ? '資料待核對' : pass ? (complete ? '盤後條件符合' : '盤中條件符合') : '未符合設定',
       issues: Array.from(new Set(issues.concat(!selected.length ? ['請加入至少一項條件'] : [], selected.filter(function (c) { return c.pass === null; }).map(function (c) { return c.why && c.why !== '資料不足' ? c.label + '：' + c.why : c.label + '所需資料不足'; })))), checks: checks, gapPct: gapPct, volumeRatio: ratio,
       purpose: p.purpose, template: p.template[p.purpose], signalVersion: SIGNAL_VERSION,
-      groups: groups, groupLogic: side.groupLogic, innerWord: innerWord, outerWord: outerWord, formula: formula,
+      groups: groups, groupLogic: side.groupLogic, join: side.join, innerWord: innerWord, outerWord: outerWord, formula: formula,
       comparisonRatio: comparisonRatio, estimatedVolume: estimatedVolume, estimated: estimated, estimateMinutes: estimateMinutes, volumeMA: volumeMA, current: cur, previous: y, gapFilled: gapFilled, gaps: gaps.slice(-5),
       quoteTime: live ? q.time || q.stamp || '' : '', phase: complete ? '已落地日 K' : '盤中／盤後待日 K' };
   }
@@ -669,7 +693,8 @@
   }
   w.MarketBattle = { evaluate: evaluate, cleanPrefs: cleanPrefs, expand: expand,
     // 指標本身也公開，測試用它和獨立的參考實作逐筆比對。
-    indicators: { version: SIGNAL_VERSION, series: makeSeries, sma: sma, ema: ema, atr: atr, rsi: rsi, dmi: dmi, macd: macd, kd: kdj, obv: obv, cmf: cmf, cci: cci, mfi: mfi, roc: roc, boll: boll, rangePos: rangePos, pivots: pivots, run: runSignal, ids: Object.keys(SIGNALS) } };
+    indicators: { version: SIGNAL_VERSION, series: makeSeries, sma: sma, ema: ema, atr: atr, rsi: rsi, dmi: dmi, macd: macd, kd: kdj, obv: obv, cmf: cmf, cci: cci, mfi: mfi, roc: roc, boll: boll, rangePos: rangePos, pivots: pivots, run: runSignal, ids: Object.keys(SIGNALS), warm: WARM, maxHistory: MAX_HISTORY,
+      events: { bigVolume: bigVolumeEvent, breakout: firstBreakout } } };
 })(window);
 </script>
 <script>
@@ -679,6 +704,21 @@
   var loadedAt = 0, cache = new Map(), cfg = window.BATTLE_CONFIG, requestedCodes = null, loadSeq=0;
   // 查看單一股票時，追蹤清單已經讀到的結果留在這裡；回來直接畫，不必整份重讀（v133）。
   var listState = null;
+  /* 臨時休市（颱風等）不在年度假日表裡，行事曆若仍把那一天當交易日，每一檔那天都沒有日 K，需要連續日 K 的指標就全部資料不足。
+     多檔同一天缺日 K 也可能只是共同抓取失敗，所以前台不自己推測：只扣掉「已向證交所核對過」的日子（cfg.confirmedClosed）。
+     後端新版的行事曆已經先扣掉、並會每天自動查核新的候選日；這裡讓舊版後端的回應也能正確計算。 */
+  var calendars = new WeakMap(), CLOSED = {};
+  (cfg.confirmedClosed || []).forEach(function (d) { CLOSED[d] = true; });
+  function trading(ctx) {
+    if (!ctx || !ctx.calendar) return ctx;
+    var hit = calendars.get(ctx);
+    if (!hit) {
+      var cal = ctx.calendar.filter(function (d) { return !CLOSED[d]; });
+      hit = cal.length === ctx.calendar.length ? ctx : Object.assign({}, ctx, { calendar: cal });
+      calendars.set(ctx, hit);
+    }
+    return hit;
+  }
   function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function fmt(v, n) { return v === null || v === undefined || !isFinite(Number(v)) ? '未提供' : Number(v).toLocaleString('zh-TW', { maximumFractionDigits: n === undefined ? 2 : n }); }
   function prefs() { return window.BattleSettings.get(); }
@@ -701,6 +741,7 @@
   }
   function resultCard(item, ctx, detail) {
     // 個股頁（detail）把條件庫全部算出來，讓人看得到沒有納入篩選的條件目前是什麼狀態；清單只算有納入的。
+    ctx = trading(ctx);
     var r = window.MarketBattle.evaluate(item, prefs(), detail ? Object.assign({}, ctx, { all: true }) : ctx), klass = r.status === '資料待核對' ? 'pending' : r.pass ? 'pass' : 'off';
     if (!r.pass && r.status === '資料待核對') return { result: r, html: detail ? '<p class="notice">暫無分析結果。</p>' : '' };
     function value(c) {
@@ -731,11 +772,11 @@
       '<div class="battle-metrics"><div><span>開盤較昨收</span><b>' + fmt(r.gapPct) + (r.gapPct === null ? '' : '%') + '</b></div><div><span>'+(r.estimated?'盤中估量倍數':'當日日量倍數')+'</span><b>' + fmt(r.comparisonRatio) + (r.comparisonRatio === null ? '' : '×') + '</b></div><div><span>實際成交量</span><b>' + fmt(r.current && r.current.volume, 0) + ' 張</b></div></div>' +
       (r.estimated?'<p class="notice">簡化估量 '+fmt(r.estimatedVolume,0)+' 張；實際日量倍數 '+fmt(r.volumeRatio)+'×。不是歷史同時段量比。</p>':'')+
       '<p class="battle-evidence">前日 ' + esc(r.previous && r.previous.date || '未提供') + '：高 ' + fmt(r.previous && r.previous.high) + '／低 ' + fmt(r.previous && r.previous.low) + '／收 ' + fmt(r.previous && r.previous.close) + '；前 ' + prefs().volumeDays + ' 日均量 ' + fmt(r.volumeMA, 0) + ' 張。' + esc(gapState) + '。</p>' +
-      '<div class="battle-match-strip" data-mode="'+r.groupLogic+'">' + r.groups.map(function(g, n){
+      '<div class="battle-match-strip" data-join="'+r.join+'">' + r.groups.map(function(g, n){
         var state = function(v){return v===true?'pass':v===null?'pending':'off';}, mark = function(v){return v===true?'✓ ':v===null?'? ':'− ';};
-        return (n ? '<b class="battle-match-join">'+r.outerWord+'</b>' : '') + '<span class="battle-match-group '+state(g.pass)+'">' +
+        return (n ? '<b class="battle-match-join">'+r.outerWord+'</b>' : '') + '<span class="battle-match-group is-'+g.op+' '+state(g.pass)+'">' +
           (r.groups.length > 1 ? '<i>第 '+(n+1)+' 組</i>' : '') +
-          g.labels.map(function(label, k){return (k ? '<em>'+r.innerWord+'</em>' : '') + '<span class="battle-match-chip '+state(g.states[k])+'">'+mark(g.states[k])+esc(label)+'</span>';}).join('') + '</span>';
+          g.labels.map(function(label, k){return (k ? '<em>'+g.word+'</em>' : '') + '<span class="battle-match-chip '+state(g.states[k])+'">'+mark(g.states[k])+esc(label)+'</span>';}).join('') + '</span>';
       }).join('') + '</div>' +
       '<details><summary>條件、數值與歷史缺口</summary><div class="battle-conditions">' + details + '</div>' + othersHtml +
       '<h4>最近歷史缺口候選</h4>' + (r.gaps.length ? r.gaps.map(function (g) { return '<p class="battle-gap">' + esc(g.date) + ' · ' + fmt(g.pct) + '% · ' + fmt(g.ratio) + '×<br><b>' + esc(g.status) + '</b> · 回補邊界 ' + fmt(g.boundary) + '</p>'; }).join('') : '<p class="notice">可用歷史資料中沒有符合目前跳空與量能設定的候選。</p>') +
@@ -746,14 +787,16 @@
     var p = prefs(), cards = data.items.map(function (item) { return resultCard(item, data, false); });
     var shown = cards.filter(function (c) { return c.result.pass; }), total = shown.length;
     page=Math.min(page,Math.max(0,Math.ceil(total/cfg.pageSize)-1));
-    var one = custom && data.items[0];
+    var one = custom && data.items[0], blocked = (p.unknown || {})[p.purpose] || [];
     $('battleCards').innerHTML = shown.slice(page*cfg.pageSize,(page+1)*cfg.pageSize).map(function (c) { return c.html; }).join('') || (custom
       ? '<div class="battle-empty card"><h3>'+(one?esc(one.name||one.code)+'（'+esc(one.code)+'）':'這一檔')+'目前不符合條件</h3><p>這裡只看你指定的這一檔。可以查看它的各項數值，或回到符合條件的清單。</p><div class="battle-empty-acts">'+(one?'<button type="button" class="act" data-bstock="'+esc(one.code)+'">查看這一檔的數值</button>':'')+'<button type="button" class="act" data-bback>回到符合條件的清單</button></div></div>'
+      : blocked.length
+      ? '<div class="battle-empty card"><h3>這份設定已停用，沒有進行篩選</h3><p>設定裡有這一版不認得的條件（'+esc(blocked.join('、'))+'）。少了它們篩選會變寬，所以沒有列出任何股票；請到戰情設定處理上方的提示。</p></div>'
       : '<div class="battle-empty card"><h3>'+'目前沒有符合條件的股票'+'</h3><p>已核對 '+cards.length+' 檔。未符合者已收起，可調整條件或在個股查看各項數值。</p></div>');
     $('battleSummary').textContent = '資料日 ' + data.date + ' · 已核對 ' + cards.length + (custom?'':'／'+universe.length) + ' 檔 · 符合 ' + cards.filter(function (c) { return c.result.pass; }).length + (loading?' · 其餘行情讀取中':'') + ' · 讀取 ' + data.at + ' · ' + data.quoteCadence;
     var active = p.purpose === 'exit' ? p.exit : p;
     $('battleRule').textContent = (p.purpose === 'exit' ? '出場風險條件：' : '符合條件：') + ((cards.length && cards[0].result.formula) || '尚未加入條件');
-    $('battleRule').dataset.mode = active.groupLogic; $('battleRule').dataset.purpose = p.purpose;
+    $('battleRule').dataset.purpose = p.purpose;
     $('battlePage').textContent = '第 ' + (page + 1) + '／' + Math.max(1, Math.ceil(total / cfg.pageSize)) + ' 頁 · '+(custom?'指定代號 · ':'')+'共 ' + total + ' 筆'+'符合';
     $('battlePrev').disabled = page === 0;
     $('battleNext').disabled = (page + 1) * cfg.pageSize >= total;

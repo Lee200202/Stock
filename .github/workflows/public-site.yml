@@ -40,6 +40,8 @@ jobs:
         run: node scripts/check_battle_signals.js
       - name: 戰情指標：與獨立的參考實作逐筆比對
         run: python scripts/check_battle_indicators.py
+      - name: 戰情行情端到端模擬：格式、批次、盤中盤後、休市核對
+        run: node scripts/check_battle_data.js
       - name: 後端橋接實測（失敗就保留上一版網站）
         env:
           SITE_API_URL: ${{ vars.SITE_API_URL }}

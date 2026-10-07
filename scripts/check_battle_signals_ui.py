@@ -73,7 +73,8 @@ def run(pg, wide):
     # 套用出場範本：高檔跳空轉弱（方向向上、三組都要成立、最後一組任一成立）
     pg.select_option('#battleTemplate', 'JX04')
     s = state(pg)
-    assert s['template']['exit'] == 'JX04' and s['picked'] == 'JX04' and s['exit'] == {'direction': 'up', 'groupLogic': 'allOfAny', 'groups': [['highBase'], ['useGap'], ['volSpike'], ['weakClose', 'upperShadow']]}, s['exit']
+    assert s['template']['exit'] == 'JX04' and s['picked'] == 'JX04' and s['exit'] == {'direction': 'up', 'groupLogic': 'allOfAny', 'groups': [['highBase'], ['useGap'], ['volSpike'], ['weakClose', 'upperShadow']],
+                                                                                    'ops': ['or', 'or', 'or', 'or'], 'join': 'and'}, s['exit']
     assert s['formula'] == '目前的出場條件：高位階 且 開盤跳空 且 量能擴張 且 （收在當日低檔 或 長上影線）', s['formula']
     assert '節目文字紀錄' in s['note'] and '不是講者的公式' in s['note'] and '未經回測' in s['note'], s['note']
     assert s['cat'] == ['used'] and set(s['shown']) == {'useGap', 'highBase', 'volSpike', 'weakClose', 'upperShadow'}, s['shown']
@@ -133,7 +134,10 @@ def run(pg, wide):
 
     # 五、還不能提供的條件：列出原因，不用別的數字代替。
     lines = pg.evaluate("[...document.querySelectorAll('#battlePreferences .battle-unsupported li')].map(e => e.textContent)")
-    assert len(lines) == 7 and any('同時段量比' in x and '歷史分鐘成交資料' in x for x in lines) and any('60 分 K' in x for x in lines) and any('法人' in x for x in lines), lines
+    kinds5 = pg.evaluate("[...document.querySelectorAll('#battlePreferences .battle-unsupported h5')].map(e => e.textContent)")
+    # v138 重新分類：資料已有但還沒接上／要先確認來源／公式還沒寫／引擎與畫面擴充／需要個人部位，不再一律寫成不能做
+    assert kinds5 == ['資料已有或可取得，還沒接上', '需要先確認資料來源與權限', '公式還沒有寫', '條件引擎與畫面的擴充', '需要你自己的部位資料'], kinds5
+    assert len(lines) == 12 and any('60 分 K' in x and '本站已有每天落地的歷史 60 分 K' in x for x in lines) and any('同時段量比' in x for x in lines) and any('法人' in x and '資料來源' in x for x in lines), lines
 
     # 六、鍵盤：Tab 到「出場訊號」按 Enter 可以切換；範本選單可以用鍵盤選。
     pg.focus(P + '[data-bpurpose="exit"]')
@@ -162,9 +166,107 @@ def run(pg, wide):
     assert d['on'] == ['向上開盤缺口', '向上缺口沒有回補', '量能擴張', '紅 K 與收盤位置', '沒有離均線太遠'] and '爆量開盤跳空續強' in d['strategy'], d
     names = [o[0] for o in d['others']]
     assert len(names) >= 35 and '跌破前低' in names and 'MACD 黃金交叉' in names and all('未啟用篩選' in o[1] for o in d['others']), (len(names), names[:8])
-    # 假行情只有 121 根：需要更長日 K 的條件是「資料不足」，不會被列成符合或未符合
-    assert not {'低檔大量後量縮', '均線糾結後突破', '布林壓縮後突破'} & set(names), names
-    assert '低位階' in names and '高位階' in names, names                              # 121 根剛好夠算前 120 根的位階
+    # 假行情有 161 根：需要 130 根暖機的 MACD 類、需要 140 根的均線糾結與布林壓縮都算得出來
+    assert {'低檔大量後量縮', '均線糾結後突破', '布林壓縮後突破', '低位階', '高位階', 'ADX 趨勢啟動', 'MACD 黃金交叉'} <= set(names), names
+    assert 'RSI 重新站上' not in names, names                                         # 假行情前 160 天價格完全不動，RSI 無法定義：是資料不足，不列
+
+    # 八之二、常用條件：存、套用、同名更新、刪除、重新整理後還在、最多十組；只存在這個瀏覽器的 localStorage。
+    fav = lambda: pg.evaluate("(() => { const raw = localStorage.getItem('zzBattleFavoritesV1'); return {stored: raw ? JSON.parse(raw).map(f => f.name) : [], shown: [...document.querySelectorAll('#battleFavList .battle-fav-use b')].map(e => e.innerText), pressed: [...document.querySelectorAll('#battleFavList .battle-fav-use[aria-pressed=true] b')].map(e => e.innerText), title: document.getElementById('battleFavTitle').innerText, msg: document.getElementById('battleFavMessage').innerText}; })()")
+    assert fav()['shown'] == [] and fav()['title'] == '常用條件（0／10）'
+    pg.click('#battleFavSave')                                                       # 沒有名稱：不存
+    assert '請先輸入名稱' in fav()['msg'] and fav()['stored'] == []
+    pg.fill('#battleFavName', '跳空續強')
+    pg.keyboard.press('Enter')                                                       # 在輸入框按 Enter 就是存
+    f = fav()
+    assert f['stored'] == ['跳空續強'] and f['shown'] == ['跳空續強'] and f['pressed'] == ['跳空續強'] and '保存在這個瀏覽器' in f['msg'] and f['title'] == '常用條件（1／10）', f
+    assert pg.input_value('#battleFavName') == ''
+    words = pg.inner_text('#battleFavList .battle-fav-use span')
+    assert words == '進場 · 開盤跳空 且 向上缺口沒有回補 且 量能擴張 且 K 棒與收盤位置 且 沒有離均線太遠', words
+    # 換成別的條件並改數值，再存一組出場的
+    pg.click(P + '[data-bpurpose="exit"]')
+    pg.select_option('#battleTemplate', 'O05')
+    pg.click('#battleGroups [data-bop="1"]')                                         # 第 2 組：跌破均線「或」跌破前低 → 「且」
+    pg.fill('#battleFavName', '轉弱加破位')
+    pg.click('#battleFavSave')
+    f = fav()
+    assert f['stored'] == ['跳空續強', '轉弱加破位'] and f['pressed'] == ['轉弱加破位'], f
+    assert pg.inner_text('#battleFavList .battle-fav:nth-child(2) .battle-fav-use span') == '出場 · MACD 死亡交叉 且 （跌破均線 且 跌破前低）'
+    # 點第一組：整塊可點，回到進場、條件與數值整套回來
+    pg.locator('#battleFavList .battle-fav:nth-child(1) .battle-fav-use').scroll_into_view_if_needed()
+    box = pg.locator('#battleFavList .battle-fav:nth-child(1) .battle-fav-use').bounding_box()
+    pg.mouse.click(box['x'] + box['width'] - 12, box['y'] + box['height'] - 8)        # 點卡片邊角，不是點文字
+    s = state(pg)
+    assert s['purpose'] == 'entry' and s['picked'] == 'I06' and s['groups'] == [['useGap', 'gapHold', 'volSpike', 'useBody', 'notExtended']] and fav()['pressed'] == ['跳空續強'] and '已套用「跳空續強」' in fav()['msg'], s
+    assert s['exit']['ops'] == ['or', 'and'] and s['exit']['groups'] == [['macdDead'], ['maLost', 'supportBreak']], s['exit']   # 另一個目的不動
+    wait_total(pg, 47)
+    # 改了數值就不再是那一組（不亮）；用同一個名字再存一次是更新，不是多一組
+    field = pg.locator(P + '[data-cnum="volSpike:mult"]')
+    field.fill('3')
+    field.dispatch_event('change')
+    assert fav()['pressed'] == []
+    pg.fill('#battleFavName', '跳空續強')
+    pg.click('#battleFavSave')
+    f = fav()
+    assert f['stored'] == ['跳空續強', '轉弱加破位'] and f['pressed'] == ['跳空續強'] and '已更新「跳空續強」' in f['msg'], f
+    # 重新整理：兩組都還在，套用後數值是更新過的 3 倍
+    pg.reload(wait_until='domcontentloaded')
+    base.open_battle(pg, pg.url)
+    pg.wait_for_selector('#battleFavList .battle-fav-use')
+    assert fav()['shown'] == ['跳空續強', '轉弱加破位']
+    pg.click('#battleFavList .battle-fav:nth-child(2) .battle-fav-use')
+    assert state(pg)['purpose'] == 'exit'
+    pg.click('#battleFavList .battle-fav:nth-child(1) .battle-fav-use')
+    assert state(pg)['cond']['volSpike']['mult'] == 3 and state(pg)['purpose'] == 'entry'
+    # 存滿十組：第十一組存不進去，並說明原因；刪一組之後就可以
+    for n in range(3, 11):
+        pg.fill('#battleFavName', f'第 {n} 組')
+        pg.click('#battleFavSave')
+    assert len(fav()['stored']) == 10 and fav()['title'] == '常用條件（10／10）'
+    pg.fill('#battleFavName', '第 11 組')
+    pg.click('#battleFavSave')
+    f = fav()
+    assert len(f['stored']) == 10 and '第 11 組' not in f['stored'] and '已經有 10 組常用條件，請先刪除一組' in f['msg'], f
+    assert 'is-error' in pg.get_attribute('#battleFavMessage', 'class')
+    pg.click('#battleFavList .battle-fav:nth-child(2) .battle-fav-del')
+    f = fav()
+    assert len(f['stored']) == 9 and '轉弱加破位' not in f['stored'] and '已刪除「轉弱加破位」' in f['msg'], f
+    pg.click('#battleFavSave')                                                       # 名稱欄還留著「第 11 組」
+    assert fav()['stored'][-1] == '第 11 組' and len(fav()['stored']) == 10
+    sizes = pg.evaluate("[...document.querySelectorAll('#battleFavList button, #battleFavForm button, #battleFavForm input')].map(e => Math.round(e.getBoundingClientRect().height))")
+    assert min(sizes) >= 44, sizes
+    # 還原預設不會刪掉常用條件
+    pg.click('#battleReset')
+    assert len(fav()['stored']) == 10 and '常用條件仍保留' in pg.inner_text('#battlePrefMessage')
+    for _ in range(10):
+        pg.click('#battleFavList .battle-fav:nth-child(1) .battle-fav-del')
+    assert fav()['stored'] == [] and fav()['title'] == '常用條件（0／10）' and '還沒有常用條件' in pg.inner_text('#battleFavList')
+
+    # 八之三、設定存在新的位置；舊位置留著舊版看得懂的內容。這一版不認得的條件會停用篩選並請使用者決定。
+    keys = pg.evaluate("(() => ({v3: !!localStorage.getItem('zzBattlePrefsV3'), v1: localStorage.getItem('zzBattlePrefsV1')}))()")
+    assert keys['v3'] and keys['v1'] is None, keys                                   # 這個瀏覽器從沒用過舊版：舊位置不寫
+    pg.evaluate('() => { const p = JSON.parse(localStorage.getItem("zzBattlePrefsV3")); p.purpose = "entry"; p.groups = [["useGap", "comesFromNewerBuild", "useVolume"]]; p.ops = ["and"]; localStorage.setItem("zzBattlePrefsV3", JSON.stringify(p)); }')
+    pg.reload(wait_until='domcontentloaded')
+    base.open_battle(pg, pg.url)
+    pg.wait_for_selector('#battleUnknown:not([hidden])')
+    assert 'comesFromNewerBuild' in pg.inner_text('#battleUnknownText') and '先停用' in pg.inner_text('#battleUnknownText')
+    pg.wait_for_function("document.getElementById('battlePage').textContent.includes('共 0 筆') && !document.getElementById('battleRefresh').disabled", timeout=15000)
+    assert '已核對 50／50 檔' in pg.inner_text('#battleSummary')                         # 讀得到行情，只是不列——不是當成沒有符合的股票而悄悄放寬
+    pg.click('#battleUnknownClear')
+    assert pg.is_hidden('#battleUnknown') and state(pg)['groups'] == [['useGap', 'useVolume']]
+    base.wait_list_done(pg, 47)
+    # 從 v137 升上來（舊位置裡是 v137 寫的新格式）：搬到新位置，舊位置換成舊版安全的內容
+    pg.evaluate('() => { const p = JSON.parse(localStorage.getItem("zzBattlePrefsV3")); p.groups = [["lowBase", "maSqueezeBreak", "useVolume"]]; p.gapPct = 3.5; localStorage.setItem("zzBattlePrefsV1", JSON.stringify(p)); localStorage.removeItem("zzBattlePrefsV3"); }')
+    pg.reload(wait_until='domcontentloaded')
+    base.open_battle(pg, pg.url)
+    pg.wait_for_selector('#battleGroups .battle-group')
+    moved = pg.evaluate("(() => ({now: window.BattleSettings.get().groups, v3: JSON.parse(localStorage.getItem('zzBattlePrefsV3')).groups, v1: JSON.parse(localStorage.getItem('zzBattlePrefsV1'))}))()")
+    assert moved['now'] == [['lowBase', 'maSqueezeBreak', 'useVolume']] and moved['v3'] == moved['now'], moved
+    assert moved['v1']['groups'] == [['useGap', 'useVolume']] and moved['v1']['groupLogic'] == 'anyOfAll' and moved['v1']['gapPct'] == 3.5 and 'cond' not in moved['v1'], moved['v1']
+    # 之後再改設定只寫新位置
+    pg.click(P + '[data-bcat-filter="trend"]')
+    pg.click(P + '.battle-feature-box[data-bdrag="trendUp"] .battle-feature-hint')
+    after = pg.evaluate("(() => ({v3: JSON.parse(localStorage.getItem('zzBattlePrefsV3')).groups, v1: JSON.parse(localStorage.getItem('zzBattlePrefsV1')).groups}))()")
+    assert after['v3'] == [['lowBase', 'maSqueezeBreak', 'useVolume', 'trendUp']] and after['v1'] == [['useGap', 'useVolume']], after
 
     # 九、還原預設：兩套條件與參數都回到預設。
     pg.click('#battleReset')
@@ -213,7 +315,7 @@ def main():
             base.open_battle(pg, url)
             t = run(pg, w > 720)
             assert not errs, f'{w}px 頁面錯誤：{errs[:2]}'
-            print(f'ok {w}px（{"深色" if scheme == "dark" else "淺色"}）：進場／出場切換、範本套用與辨認、分類、參數、依據標示、個股頁、鍵盤、保存與還原、版面；'
+            print(f'ok {w}px（{"深色" if scheme == "dark" else "淺色"}）：進場／出場切換、範本、分類、參數、依據、個股頁、鍵盤、常用條件（十組上限、存在本機）、不認得的條件停用、設定搬到新位置、保存與還原、版面；'
                   f'240 檔重算 {t["plain"]} ms（預設）／{t["template"]} ms（範本 JE02）')
             try:
                 pg.unroute_all(behavior='ignoreErrors')

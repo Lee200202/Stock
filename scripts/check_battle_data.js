@@ -8,7 +8,9 @@
    三、盤中：報價排程更新之後，戰情頁拿到的是五分鐘內的成交價與累計量，條件判定為「盤中條件符合／未符合」，不是待核對。
    四、收盤後、日K落地前：用收盤結算後的報價判定，時間標「收盤」。
    五、日K落地後：改用日K，判定為「盤後條件符合」，數值就是日K 的收盤與全日量。
-   六、批次來源不通時：沒更新到的股票照實標「報價已過期」，不拿舊價判成符合。 */
+   六、批次來源不通時：沒更新到的股票照實標「報價已過期」，不拿舊價判成符合。
+   七、臨時休市（不在假日表裡）要向證交所核對過才算；只是大家都缺日K 時保留缺口，不當成休市。
+   八、計算用的日K 長度與顯示分開：精簡格式給手上有的全部（最多 260 根），原格式維持 160 根。 */
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
@@ -64,7 +66,7 @@ function loadAll(w) {
   assert.ok(v1.items.every(i => i.bars.length === 130 && i.quote && i.b === undefined));
   assert.deepEqual(v2.items.map(expand), v1.items, '精簡格式還原後要和原格式逐欄相同');
   for (const k of Object.keys(v1)) if (k !== 'items') assert.deepEqual(v2[k], v1[k], '欄位 ' + k + ' 不同');
-  assert.deepEqual(Object.keys(v2).filter(k => !(k in v1)).sort(), ['batchMax', 'calendarKey', 'format', 'universeKey']);
+  assert.deepEqual(Object.keys(v2).filter(k => !(k in v1)).sort(), ['barsMax', 'batchMax', 'calendarKey', 'format', 'universeKey']);
   // 邊界值：沒有成交量（null）、小數、整數都原樣回來。
   const odd = [{date: '2026/01/02', open: 12.35, high: 12.4, low: 12.3, close: 12.35, volume: null}, {date: '2026/10/06', open: 2575, high: 2590, low: 2565, close: 2585, volume: 18343.125}];
   assert.deepEqual(plain(expand({code: 'x', name: 'y', error: '', b: plain(w.ctx.battleCompactBars_(odd)), q: null})).bars, odd);
@@ -78,12 +80,12 @@ function loadAll(w) {
   assert.ok(perBarV2 < perBarV1 * 0.6, `精簡後每根 ${perBarV2.toFixed(0)} 位元組，原本 ${perBarV1.toFixed(0)}`);
   // 批次上限
   assert.throws(() => w.ctx.apiGetBattleData(CODES.slice(0, 25)), /一次最多讀取 24 檔/);
-  assert.equal(w.ctx.apiGetBattleData(CODES.slice(0, 60), {v: 2}).items.length, 60);
-  assert.throws(() => w.ctx.apiGetBattleData(CODES.slice(0, 61), {v: 2}), /一次最多讀取 60 檔/);
-  assert.equal(w.ctx.apiGetBattleData(null).items.length, 24); assert.equal(w.ctx.apiGetBattleData(null, {v: 2}).items.length, 60);
-  const sixty = bytes(plain(w.ctx.apiGetBattleData(CODES.slice(0, 60), {v: 2, lite: true}))), twentyFour = bytes(v1);
+  assert.equal(w.ctx.apiGetBattleData(CODES.slice(0, 40), {v: 2}).items.length, 40);
+  assert.throws(() => w.ctx.apiGetBattleData(CODES.slice(0, 41), {v: 2}), /一次最多讀取 40 檔/);
+  assert.equal(w.ctx.apiGetBattleData(null).items.length, 24); assert.equal(w.ctx.apiGetBattleData(null, {v: 2}).items.length, 40);
+  const sixty = bytes(plain(w.ctx.apiGetBattleData(CODES.slice(0, 40), {v: 2, lite: true}))), twentyFour = bytes(v1);
   report.push(`一、精簡格式還原後與原格式逐欄相同（24 檔 × 130 根日K、報價與其餘欄位）；每根日K ${perBarV1.toFixed(0)} → ${perBarV2.toFixed(0)} 位元組`);
-  report.push(`二、一次可讀：原格式 24 檔、精簡格式 60 檔，超過即拒絕；精簡 60 檔 ${(sixty / 1024).toFixed(0)}KB，原格式 24 檔 ${(twentyFour / 1024).toFixed(0)}KB`);
+  report.push(`二、一次可讀：原格式 24 檔、精簡格式 40 檔，超過即拒絕；精簡 40 檔（每檔 130 根）${(sixty / 1024).toFixed(0)}KB，原格式 24 檔 ${(twentyFour / 1024).toFixed(0)}KB`);
 }
 
 /* ---- 三、四、五：一個交易日裡三個時點的戰情判定 ---- */
@@ -95,7 +97,7 @@ function loadAll(w) {
 
   runUntil(w, '10:02');
   let {context, items, requests} = loadAll(w);
-  assert.equal(items.length, CODES.length); assert.equal(requests, 4, `240 檔應該 4 次請求，實際 ${requests}`);
+  assert.equal(items.length, CODES.length); assert.equal(requests, 6, `240 檔應該 6 次請求，實際 ${requests}`);
   assert.equal(context.afterClose, false); assert.equal(context.date, DAY);
   let results = items.map(i => evaluate(i, prefs, context));
   assert.ok(items.every(i => i.quote && i.quote.stale === false && i.quote.date === DAY), '盤中每一檔都要是新鮮的當日報價');
@@ -149,6 +151,90 @@ function loadAll(w) {
   assert.ok(blocked.every(r => r.pass === false && r.issues.some(x => x === '報價已過期' || x === '缺少當日開高低收或成交量')));
   assert.ok(others.filter(r => r.pass).every(r => { const i = items.find(x => x.code === r.code); return i.quote && i.quote.stale === false; }), '判成符合的一定是新鮮報價');
   report.push(`六、批次來源整天不通（12:32）：持有 ${held.length} 檔照常判定；其餘 ${blocked.length} 檔標「待核對」，沒有任何一檔用過期報價判成符合`);
+}
+
+/* ---- 七：臨時休市要向官方核對過才算；核對不到就保留缺口 ---- */
+{
+  const w = makeWorld({direct: false, relay: true});
+  w.seedHistory();
+  runUntil(w, '10:02');
+  const before = plain(w.ctx.apiGetBattleData(CODES.slice(0, 3), {v: 2}));
+  // 已核對過的 2026/07/10 不在行事曆裡，並列在回應裡
+  assert.ok(!before.calendar.includes('2026/07/10')); assert.deepEqual(before.limits.marketClosed, ['2026/07/10']);
+  const X = before.calendar[before.calendar.length - 31], Y = before.calendar[before.calendar.length - 12];   // X：真的休市；Y：其實有交易，是我們缺資料
+  const drop = (code, dates) => { const key = 'dk2_' + code, rows = plain(w.ctx.kcDecode_(w.CACHE.get(key))).filter(r => !dates.includes(r.date)); w.CACHE.put(key, w.ctx.kcEncode_(rows), 21600); };
+  CODES.forEach(c => drop(c, [X, Y]));
+  ['2330', '2317', '2454'].forEach((ref, n) => w.CACHE.put('dk2_' + ref, w.CACHE.get('dk2_' + CODES[10 + n]), 21600));   // 參考股票也都缺這兩天
+  const macd = resp => evaluate(expand(resp.items[0]), {groups: [['useMacd']]}, resp).checks[5].pass;
+  // 一、只是大家都缺：讀行情時不推測，行事曆不動，指標照實是資料不足
+  const gapKept = plain(w.ctx.apiGetBattleData(CODES.slice(0, 3), {v: 2}));
+  assert.deepEqual(gapKept.calendar, before.calendar); assert.equal(macd(gapKept), null);
+  // 二、向證交所查那個月的指數歷史：X 沒有、Y 有
+  const realFetch = w.ctx.UrlFetchApp.fetch, asked = [];
+  const official = before.calendar.filter(d => d !== X).concat(['2026/07/09', '2026/07/13']);
+  let mode = 'ok';
+  w.ctx.UrlFetchApp.fetch = (url, opt) => {
+    const m = String(url).match(/MI_5MINS_HIST\?response=json&date=(\d{4})(\d{2})01$/);
+    if (!m) return realFetch(url, opt);
+    asked.push(m[1] + m[2]);
+    if (mode === 'down') return {getResponseCode: () => 500, getContentText: () => ''};
+    const rows = official.filter(d => d.slice(0, 7) === m[1] + '/' + m[2]).map(d => [(Number(d.slice(0, 4)) - 1911) + d.slice(4), '1', '2', '3', '4']);
+    return {getResponseCode: () => 200, getContentText: () => JSON.stringify(mode === 'partial' ? {stat: 'OK', data: rows.slice(0, 2)} : {stat: rows.length ? 'OK' : '很抱歉，沒有符合條件的資料!', data: rows})};
+  };
+  // 官方連不上：不下結論，什麼都不記
+  mode = 'down';
+  let r = plain(w.ctx.confirmMarketClosuresTick_(true));
+  assert.deepEqual(r.candidates.sort(), [X, Y].sort()); assert.deepEqual(r.closed, []); assert.deepEqual(r.gaps, []); assert.equal(r.unknown.length, 2);
+  assert.deepEqual(plain(w.ctx.apiGetBattleData(CODES.slice(0, 3), {v: 2})).calendar, before.calendar);
+  // 官方只回了月初兩天（還沒涵蓋候選日）：同樣不下結論
+  mode = 'partial';
+  r = plain(w.ctx.confirmMarketClosuresTick_(true));
+  assert.deepEqual(r.closed, []); assert.ok(r.unknown.includes(X));
+  // 官方資料完整：X 核對為休市；Y 官方有交易 → 是資料缺口，記為待補，行事曆保留 Y
+  mode = 'ok';
+  r = plain(w.ctx.confirmMarketClosuresTick_(true));
+  assert.deepEqual(r.closed, [X]); assert.deepEqual(r.gaps, [Y]); assert.deepEqual(r.unknown, []);
+  const after = plain(w.ctx.apiGetBattleData(CODES.slice(0, 3), {v: 2}));
+  assert.deepEqual(after.limits.marketClosed, ['2026/07/10', X].sort());
+  assert.ok(!after.calendar.includes(X) && after.calendar.includes(Y) && after.calendar.length === before.calendar.length - 1);
+  assert.equal(macd(after), null);                                                    // Y 仍是缺口：照實資料不足，不硬算
+  // 把 Y 的日K 補回來之後就算得出來（X 已不算交易日）
+  const backfill = w.ctx.kcEncode_(plain(w.ctx.kcDecode_(w.CACHE.get('dk2_' + CODES[0]))).concat([{date: Y, open: base(CODES[0]) - 1, high: base(CODES[0]), low: base(CODES[0]) - 2, close: base(CODES[0]) - 1, volume: 1000000}]).sort((a, b) => a.date.localeCompare(b.date)));
+  w.CACHE.put('dk2_' + CODES[0], backfill, 21600);
+  assert.notEqual(macd(plain(w.ctx.apiGetBattleData(CODES.slice(0, 3), {v: 2}))), null);
+  // 同一天不重複查；已核對與已記為缺口的日子不再是候選
+  const n = asked.length;
+  assert.ok(plain(w.ctx.confirmMarketClosuresTick_()).skipped); assert.equal(asked.length, n);
+  w.clock.now += 86400000;
+  r = plain(w.ctx.confirmMarketClosuresTick_());
+  assert.deepEqual(r.candidates, []); assert.equal(asked.length, n);                  // 沒有候選就不對外連線
+  w.ctx.UrlFetchApp.fetch = realFetch;
+  // 原格式（舊版前台）拿到同一份行事曆，仍是 160 根；精簡格式給手上有的全部
+  const v1 = plain(w.ctx.apiGetBattleData(CODES.slice(0, 3)));
+  assert.deepEqual(v1.calendar, plain(w.ctx.apiGetBattleData(CODES.slice(0, 3), {v: 2})).calendar); assert.ok(!v1.calendar.includes(X) && v1.items[0].bars.length <= 160);
+  report.push(`七、臨時休市：大家都缺日K 時不推測（行事曆不動、指標資料不足）；證交所核對後 ${X} 才算休市，${Y} 官方有交易 → 記為待補的資料缺口；官方連不上或資料不完整時不下結論`);
+}
+
+/* ---- 八：計算用的歷史長度與顯示分開 ---- */
+{
+  const w = makeWorld({direct: false, relay: true});
+  w.seedHistory();
+  // 把第一檔的日K 補到 300 根（模擬快取裡本來就有的長歷史）
+  const key = 'dk2_' + CODES[0], rows = plain(w.ctx.kcDecode_(w.CACHE.get(key))), first = new Date(rows[0].date.replaceAll('/', '-') + 'T04:00:00Z'), more = [];
+  for (let d = new Date(first.getTime() - 86400000); more.length < 170; d = new Date(d.getTime() - 86400000)) {
+    if (d.getUTCDay() > 0 && d.getUTCDay() < 6) more.unshift({...rows[0], date: d.toISOString().slice(0, 10).replaceAll('-', '/')});
+  }
+  w.CACHE.put(key, w.ctx.kcEncode_(more.concat(rows)), 21600);
+  runUntil(w, '10:02');
+  const v2 = plain(w.ctx.apiGetBattleData([CODES[0], CODES[1]], {v: 2})), v1 = plain(w.ctx.apiGetBattleData([CODES[0], CODES[1]]));
+  assert.equal(v2.barsMax, 260); assert.equal(v2.batchMax, 40);
+  assert.equal(v2.items[0].b.length, 260); assert.equal(v2.items[1].b.length, 130);   // 有多少給多少，最多 260 根
+  assert.equal(v1.items[0].bars.length, 160);                                         // 舊版前台照舊
+  // 兩種格式最後 160 根逐根相同
+  assert.deepEqual(expand(v2.items[0]).bars.slice(-160), v1.items[0].bars);
+  assert.throws(() => w.ctx.apiGetBattleData(CODES.slice(0, 41), {v: 2}), /一次最多讀取 40 檔/);
+  const bytes = JSON.stringify(w.ctx.apiGetBattleData(CODES.slice(0, 40), {v: 2, lite: true})).length;
+  report.push(`八、計算用的日K：精簡格式給手上有的全部（最多 260 根）、一批 40 檔（每檔 130 根時 ${Math.round(bytes / 1024)}KB）；原格式維持 160 根、24 檔`);
 }
 
 /** 從某個時刻接著跑到另一個時刻（同一個世界）。 */

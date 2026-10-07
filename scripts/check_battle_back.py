@@ -26,7 +26,7 @@ ORIGIN = 'https://lee200202.github.io'
 CALENDAR = []
 _d = date(2026, 2, 2)
 while _d <= date(2026, 10, 6):
-    if _d.weekday() < 5:
+    if _d.weekday() < 5 and _d != date(2026, 7, 10):       # 2026/07/10 是已向證交所核對的臨時休市日：真實行情那天沒有日K
         CALENDAR.append(_d.strftime('%Y/%m/%d'))
     _d += timedelta(days=1)
 UNIVERSE = [{'code': str(1000 + n), 'name': '示意股票' + str(n)} for n in range(50)]
@@ -34,7 +34,8 @@ FAIL = {'1001', '1007', '1013'}                      # 量 800 張：低於均�
 
 
 def item(code):
-    bars = [dict(date=d, open=100, high=101, low=99, close=100, volume=1000) for d in CALENDAR[-121:-1]]
+    # 160 根平盤加上最後一天：v138 起 MACD、RSI、ADX 這類指標要求至少 130 根左右的暖機
+    bars = [dict(date=d, open=100, high=101, low=99, close=100, volume=1000) for d in CALENDAR[-161:-1]]
     bars.append(dict(date=CALENDAR[-1], open=105, high=109, low=104, close=108, volume=800 if code in FAIL else 4000))
     return dict(code=code, name='示意股票' + str(int(code) - 1000), bars=bars, quote=None)
 

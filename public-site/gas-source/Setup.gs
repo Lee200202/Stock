@@ -451,6 +451,8 @@ function everyFiveMinJobRun_() {
   }
   // 收盤後把即時快取換成收盤價（v134）。自己判斷時段、是否已做完與嘗試間隔，沒事做時立刻返回。
   if (weekday && hhmm >= 1331 && hhmm <= 2230) { safe_('settleClosingQuotesTick_', settleClosingQuotesTick_); }
+  // 臨時休市查核（v138）：日K 落地後每天一次；沒有候選日就不對外連線。
+  if (hhmm >= 1900 && hhmm <= 2230 && typeof confirmMarketClosuresTick_ === 'function') { safe_('confirmMarketClosuresTick_', confirmMarketClosuresTick_); }
   safe_('cmAutoReconcileToday_', function () { cmAutoReconcileToday_(false); });
   safe_('cmDispatchPendingGithubJob_', function () { cmDispatchPendingGithubJob_(); });
   if (weekday && hhmm >= 1230 && hhmm <= 1800 && dueEvery_('statusReport', 15)) {
@@ -1223,7 +1225,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-10-06-battle-signals-v137';
+var PROJECT_BUILD_ = '2026-10-07-battle-trust-v138';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。

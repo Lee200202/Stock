@@ -1,5 +1,8 @@
-/* v137 沒有改變 v136 的判定：同樣的行情、同樣的舊設定，新舊兩版的評估結果逐欄相同。
-   舊版程式直接從 git 取（v136r3，6adc404）；取不到（例如淺層 checkout）就略過並說明。只在本機計算。 */
+/* 新版沒有改變 v136 的判定：同樣的行情、同樣的舊設定，新舊兩版的評估結果逐欄相同。
+   舊版程式直接從 git 取（v136r3，6adc404）。取不到舊版（例如淺層 checkout）時：
+     一般執行：印出「略過」並以代碼 0 結束；
+     發布驗收：加 --require-baseline（或環境變數 REQUIRE_BASELINE=1），取不到就以代碼 2 失敗——缺基準不能算通過。
+   只在本機計算。 */
 const fs = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
@@ -14,7 +17,11 @@ function load(readFile) {
 }
 let old;
 try { old = load(n => execFileSync('git', ['show', OLD + ':public-site/gas-source/' + n], {cwd: root, encoding: 'utf8', maxBuffer: 1 << 26, stdio: ['ignore', 'pipe', 'ignore']})); }
-catch (e) { console.log('略過：取不到 ' + OLD + ' 的舊版程式（' + String(e.message).split('\n')[0] + '）'); process.exit(0); }
+catch (e) {
+  const strict = process.argv.includes('--require-baseline') || process.env.REQUIRE_BASELINE === '1';
+  console.log((strict ? '未完成' : '略過') + '：取不到 ' + OLD + ' 的舊版程式（' + String(e.message).split('\n')[0] + '）' + (strict ? '；發布驗收不能缺這一項' : ''));
+  process.exit(strict ? 2 : 0);
+}
 const now = load(n => fs.readFileSync(path.join(root, 'public-site/gas-source', n), 'utf8'));
 
 function rng(seed) { let a = seed >>> 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -44,10 +51,11 @@ function prefs(seed) {
   if (seed % 6 === 0) return {useGap: r() < 0.7, useVolume: r() < 0.7, useTrend: r() < 0.5, useMacd: r() < 0.3, logic: r() < 0.5 ? 'any' : 'all', direction: p.direction, gapPct: p.gapPct};   // 更早的格式
   return p;
 }
-/* 新版多出來的欄位先拿掉再比：目的、範本、指標版本、每個條件的依據性質。其餘必須一模一樣。 */
+/* 新版多出來的欄位先拿掉再比：目的、範本、指標版本、每個條件的依據性質、各組與組間的且／或。其餘必須一模一樣。 */
 function strip(r) {
-  const c = JSON.parse(JSON.stringify(r)); delete c.purpose; delete c.template; delete c.signalVersion;
-  c.checks.forEach(x => delete x.origin); return c;
+  const c = JSON.parse(JSON.stringify(r)); delete c.purpose; delete c.template; delete c.signalVersion; delete c.join;
+  // MACD 的說明文字由「最近至多 160 根」改成「260 根」（新版後端給的歷史較長）；給同樣 160 根時數值相同，文字差異不算。
+  c.checks.forEach(x => { delete x.origin; if (x.rule) x.rule = x.rule.replace('最近至多 260 根', '最近至多 160 根'); }); c.groups.forEach(g => { delete g.op; delete g.word; }); return c;
 }
 let compared = 0, passed = 0, pending = 0;
 for (let s = 1; s <= 240; s++) {

@@ -137,14 +137,32 @@ def run(pg):
     assert s['groups'] == [[T, V]] and G not in s['pressed'], s
     assert R not in sum(s['groups'], []), '丟在別張卡片上不應該把那一張加進去'
 
-    # 七、切成「或 → 且」：同一組任一成立、每一組都要成立。
+    # 七、「且／或」直接點（v138，原本的「且 → 或／或 → 且」兩顆大按鈕已拿掉）：
+    #     點條件之間的那一顆換這一組的；點組與組之間的那一顆換組間的。可以各組不同。
     drag(pg, card(pg, G).locator('.battle-feature-hint'), new_zone(pg), efy=0.5)
-    pg.click('#battlePreferences .battle-mode-button[data-value="allOfAny"]')
+    assert pg.locator('#battlePreferences .battle-mode-button').count() == 0 and pg.locator('#battlePreferences .battle-mode').count() == 0
+    logic = lambda: pg.evaluate("(() => { const p = window.BattleSettings.get(); return [p.ops, p.join]; })()")
+    assert state(pg)['groups'] == [[T, V], [G]] and logic() == [['and', 'and'], 'or']
+    pg.click('#battleGroups [data-bop="0"]')
     s = state(pg)
-    assert s['mode'] == 'allOfAny' and s['groups'] == [[T, V], [G]], s
-    assert s['formula'] == '目前的條件：（均線位置 或 爆量與最低量） 且 開盤跳空', s['formula']
-    assert pg.inner_text('#battleGroups .battle-group-join').strip() == '且'
-    pg.click('#battlePreferences .battle-mode-button[data-value="anyOfAll"]')
+    assert logic() == [['or', 'and'], 'or'] and s['groups'] == [[T, V], [G]], logic()
+    assert s['formula'] == '目前的條件：（均線位置 或 爆量與最低量） 或 開盤跳空', s['formula']
+    assert pg.inner_text('#battleGroups [data-bop="0"]').strip() == '或' and '點一下改成「且」' in pg.get_attribute('#battleGroups [data-bop="0"]', 'aria-label')
+    pg.click('#battleGroups [data-bjoin]')
+    s = state(pg)
+    assert logic() == [['or', 'and'], 'and'] and s['formula'] == '目前的條件：（均線位置 或 爆量與最低量） 且 開盤跳空', (logic(), s['formula'])
+    assert pg.inner_text('#battleGroups [data-bjoin]').strip() == '且'
+    assert pg.inner_text('#battleRule') == '符合條件：（20 日均線 或 成交量倍數） 且 向上開盤缺口', pg.inner_text('#battleRule')
+    # 鍵盤：焦點留在剛按的那一顆上，按 Enter 再換回來
+    assert pg.evaluate("document.activeElement && document.activeElement.hasAttribute('data-bjoin')")
+    pg.keyboard.press('Enter')
+    assert logic() == [['or', 'and'], 'or']
+    pg.focus('#battleGroups [data-bop="0"]')
+    pg.keyboard.press('Enter')
+    assert logic() == [['and', 'and'], 'or'] and state(pg)['formula'] == '目前的條件：（均線位置 且 爆量與最低量） 或 開盤跳空'
+    # 且／或按鈕夠大、點它不會選組也不會移除條件
+    sizes = pg.evaluate("[...document.querySelectorAll('#battleGroups [data-bop], #battleGroups [data-bjoin]')].map(e => { const r = e.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; })")
+    assert sizes and all(w2 >= 44 and h2 >= 44 for w2, h2 in sizes), sizes
 
     # 八、不拖也行：點「新增一組」出現空的一組，再點條件加進去；再點一次拿掉。
     # 整個框都可以點（v137）：點虛線框的空白處，不必點到裡面的橢圓按鈕。
@@ -240,11 +258,11 @@ def results(pg):
     base.pick(pg, '1001')
     base.wait_single(pg, '1001', True)
     strip = pg.evaluate("""() => { const s = document.querySelector('#battleCards .battle-match-strip');
-      return {mode: s.dataset.mode, groups: [...s.querySelectorAll('.battle-match-group')].map(g => [g.className.replace('battle-match-group', '').trim(), g.innerText.replace(/\\s+/g, ' ').trim()]),
+      return {mode: s.dataset.join, groups: [...s.querySelectorAll('.battle-match-group')].map(g => [g.className.replace('battle-match-group', '').trim(), g.innerText.replace(/\\s+/g, ' ').trim()]),
               join: [...s.querySelectorAll('.battle-match-join')].map(e => e.innerText.trim())}; }""")
-    assert strip['mode'] == 'anyOfAll' and strip['join'] == ['或'], strip
-    assert strip['groups'][0][0] == 'off' and '第 1 組' in strip['groups'][0][1] and '✓ 向上開盤缺口' in strip['groups'][0][1] and '− 成交量倍數' in strip['groups'][0][1], strip
-    assert strip['groups'][1][0] == 'pass' and '✓ 20 日均線' in strip['groups'][1][1], strip
+    assert strip['mode'] == 'or' and strip['join'] == ['或'], strip
+    assert strip['groups'][0][0] == 'is-and off' and '第 1 組' in strip['groups'][0][1] and '✓ 向上開盤缺口' in strip['groups'][0][1] and '− 成交量倍數' in strip['groups'][0][1], strip
+    assert strip['groups'][1][0] == 'is-and pass' and '✓ 20 日均線' in strip['groups'][1][1], strip
     assert pg.inner_text('#battleCards .battle-tag').strip() == '盤後條件符合'
 
 

@@ -126,7 +126,8 @@ function makeWorld(scenario) {
     const rows = [];
     for (let d = new Date(taipei(DAY, '12:00:00') - 86400000); rows.length < 130; d = new Date(d.getTime() - 86400000)) {
       const p = parts(d);
-      if (Number(p.u) <= 5) rows.unshift({date: p.yyyy + '/' + p.MM + '/' + p.dd, open: base(c) - 1, high: base(c), low: base(c) - 2, close: base(c) - 1, volume: 1000000});
+      // 2026/07/10 是已向證交所核對的臨時休市日：真實行情那天沒有日K，模擬也不放
+      if (Number(p.u) <= 5 && p.yyyy + '/' + p.MM + '/' + p.dd !== '2026/07/10') rows.unshift({date: p.yyyy + '/' + p.MM + '/' + p.dd, open: base(c) - 1, high: base(c), low: base(c) - 2, close: base(c) - 1, volume: 1000000});
     }
     dailyK[c] = rows; CACHE.put('dk2_' + c, ctx.kcEncode_(rows), 21600);
   });

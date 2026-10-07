@@ -4926,6 +4926,45 @@ main.wrap:has(> #p-battle:not([hidden])) { width:min(1600px, calc(100% - 48px));
 .battle-card[data-bstock] details summary { cursor:pointer; }
 @media (max-width:720px) { .battle-feature-box { padding:20px; } .battle-feature-box > [data-bextra] { grid-template-columns:minmax(0,1fr); gap:24px; } }
 @media (prefers-reduced-motion:reduce) { .battle-feature-box { transition:none; } }
+/* v138：「且／或」是可以點的按鈕（條件之間換這一組的，組與組之間換組間的）。且＝綠、或＝藍，和漲跌的紅綠分開；兩顆都附「⇄」表示可以切換。 */
+/* 組的外框不再跟著且／或換色（只有一個條件的組沒有且或可言）；且／或的顏色只放在按鈕上。 */
+.battle-group, [data-mode] .battle-group { --logic-bg:#13684b; }
+.battle-operator, .battle-group-join { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-width:64px; min-height:44px; padding:6px 16px; border:2px solid transparent; border-radius:999px; color:#fff; font:inherit; font-weight:700; line-height:1.4; cursor:pointer; }
+.battle-operator::after, .battle-group-join::after { content:"⇄"; font-weight:400; opacity:.85; }
+.battle-operator.is-and, .battle-group-join.is-and { background:#13684b; border-color:#13684b; }
+.battle-operator.is-or, .battle-group-join.is-or { background:#2456a4; border-color:#2456a4; }
+.battle-operator:hover, .battle-group-join:hover { filter:brightness(1.12); }
+.battle-operator:focus-visible, .battle-group-join:focus-visible, .battle-fav-use:focus-visible, .battle-fav-del:focus-visible, .battle-fav-form input:focus-visible { outline:3px solid var(--beam); outline-offset:3px; }
+.battle-group-join { align-self:center; font-size:1.05em; }
+.battle-expression { display:flex; flex-wrap:wrap; align-items:center; gap:12px; }
+.battle-groups { margin-top:24px; }
+.battle-match-group.is-or em { color:#2456a4; }
+.battle-match-group.is-and em { color:#13684b; }
+/* 常用條件：最多十組，整塊可點套用；刪除是旁邊獨立的一顆。 */
+.battle-favs { margin:0 0 28px; padding:24px; border:1px solid var(--rule); border-radius:var(--r-md); background:var(--panel-2); }
+.battle-favs-head h4 { margin:0; font-size:calc(18px * var(--rd-fs)); }
+.battle-favs-head p { margin:8px 0 0; color:var(--muted); line-height:1.7; font-size:calc(14px * var(--rd-fs)); }
+.battle-fav-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:16px; margin-top:20px; }
+.battle-fav { display:flex; align-items:stretch; gap:8px; min-width:0; }
+.battle-fav-use { flex:1 1 auto; min-width:0; display:grid; gap:4px; align-content:center; text-align:left; min-height:64px; padding:12px 20px; border:2px solid var(--rule); border-radius:var(--r-md); background:var(--panel); color:var(--ink); font:inherit; line-height:1.6; cursor:pointer; }
+.battle-fav-use b { overflow-wrap:anywhere; }
+.battle-fav-use span { color:var(--muted); font-size:calc(13px * var(--rd-fs)); overflow-wrap:anywhere; }
+.battle-fav-use:hover { border-color:var(--beam); }
+.battle-fav-use[aria-pressed=true] { border-color:#13684b; background:color-mix(in srgb,#13684b 10%,var(--panel)); }
+.battle-fav-use:disabled { cursor:not-allowed; opacity:.7; }
+.battle-fav-del { flex:none; min-width:64px; min-height:44px; padding:8px 14px; border:1px solid var(--rule); border-radius:var(--r-md); background:var(--panel); color:var(--ink); font:inherit; cursor:pointer; }
+.battle-fav-del:hover { border-color:var(--rise); }
+.battle-fav-empty { margin:0; color:var(--muted); }
+.battle-fav-form { display:grid; gap:10px; margin-top:20px; font-weight:600; }
+.battle-fav-row { display:flex; flex-wrap:wrap; gap:12px; }
+.battle-fav-form input { flex:1 1 220px; min-width:0; min-height:52px; padding:10px 18px; border:1px solid var(--rule); border-radius:999px; background:var(--panel); color:var(--ink); font:inherit; }
+.battle-fav-form p { margin:0; min-height:1.6em; color:var(--muted); font-weight:400; line-height:1.6; }
+.battle-fav-form p.is-error { color:var(--rise); }
+.battle-unknown { display:grid; gap:14px; justify-items:start; margin:20px 0 0; padding:20px 24px; border:2px solid #805600; border-radius:var(--r-md); background:color-mix(in srgb,#bd841a 12%,var(--panel)); }
+.battle-unknown[hidden] { display:none; }
+.battle-unknown p { margin:0; line-height:1.8; }
+.battle-unsupported h5 { margin:20px 0 4px; font-size:calc(15px * var(--rd-fs)); }
+@media (max-width:720px) { .battle-favs { padding:20px; } .battle-fav-list { grid-template-columns:minmax(0,1fr); } .battle-fav-row .act { flex:1 1 100%; } }
 .battle-origin { display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; margin:0 0 4px; font-size:calc(13px * var(--rd-fs)); line-height:1.7; }
 .battle-origin a { color:var(--muted); text-decoration:underline; text-underline-offset:3px; }
 .battle-origin-tag { padding:3px 10px; border-radius:999px; border:1px solid var(--rule); background:var(--panel-2); font-weight:600; }

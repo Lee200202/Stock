@@ -92,7 +92,8 @@ test('saved v136 settings keep their meaning: entry groups, 1x volume multiple; 
   const p = cleanPrefs(v136);
   assert.equal(p.purpose, 'entry'); assert.equal(p.direction, 'down'); assert.equal(p.volumeMultiple, 1); assert.equal(p.volumeDays, 10); assert.equal(p.trendDays, 60);
   eq(JSON.parse(JSON.stringify(p.groups)), [['useGap', 'useVolume'], ['useTrend']]);
-  eq(JSON.parse(JSON.stringify(p.exit)), {direction: 'down', groupLogic: 'anyOfAll', groups: [['supportBreak'], ['maLost']]});
+  eq(p.exit, {direction: 'down', groups: [['supportBreak'], ['maLost']], ops: ['and', 'and'], join: 'or', groupLogic: 'anyOfAll'});
+  eq([p.ops, p.join, p.groupLogic], [['and', 'and'], 'or', 'anyOfAll']);              // 舊的「且→或」換成每組「且」、組間「或」
   assert.equal(cleanPrefs({}).volumeMultiple, 1);                                   // 預設仍是 1 倍，沒有被悄悄改掉
   assert.equal(cleanPrefs({}).cond.volSpike.mult, 2);                               // 研究用的 2 倍是另一個條件自己的參數
   // 參數不在允許範圍：用預設，不照單全收
@@ -234,29 +235,31 @@ test('gaps: opening gap vs a gap that held all day; three degrees of a gap being
 });
 
 /* ───── 背離 ───── */
-const divClose = Array.from({length: 60}, (_, i) => 130 - 0.5 * i).concat([97, 93, 90, 94, 97, 99, 100, 99, 97, 94, 91, 89.5, 88.5, 90, 92, 94, 96, 101]);
+const DIV = 120;                                                                    // 前段長度：MACD 需要 130 根以上才判定（暖機）
+const divClose = Array.from({length: DIV}, (_, i) => 100.5 + 0.5 * (DIV - 1 - i)).concat([97, 93, 90, 94, 97, 99, 100, 99, 97, 94, 91, 89.5, 88.5, 90, 92, 94, 96, 101]);
 test('bullish divergence: needs two confirmed pivots (no back-filling), is voided by a new low, and can require price confirmation', () => {
   const bars = dots(divClose), S = I.series(item(bars).bars), pv = I.pivots(S, true), h = I.macd(S).hist;
-  eq(JSON.parse(JSON.stringify(pv.slice(-2))), [62, 72]);              // 兩個低點在第 62、72 根
-  assert.ok(S.L[72] < S.L[62] && h[72] > h[62], '這組資料應該是價格更低、柱體更高');
+  eq(pv.slice(-2), [DIV + 2, DIV + 12]);   // 兩個低點
+  assert.ok(S.L[DIV + 12] < S.L[DIV + 2] && h[DIV + 12] > h[DIV + 2], '這組資料應該是價格更低、柱體更高');
   const full = sig('bullDiverge', bars, {indicator: 'macd', confirm: 'price'});      // 最後一根收 101，站上兩低點間的高點 100.5
   assert.equal(full.pass, true); assert.match(full.value, /背離；確認價 100\.5，收盤已站上/);
   // 少一根（收 96）：背離成立但價格還沒確認
   assert.equal(sig('bullDiverge', bars.slice(0, -1), {indicator: 'macd', confirm: 'price'}).pass, false);
   assert.equal(sig('bullDiverge', bars.slice(0, -1), {indicator: 'macd', confirm: 'none'}).pass, true);
   // 第二個低點右邊只走了 2 根：轉折還沒確認，不能先說背離（不回填）
-  const early = sig('bullDiverge', bars.slice(0, 75), {indicator: 'macd', confirm: 'none'}); assert.equal(early.pass, false);
-  assert.equal(sig('bullDiverge', bars.slice(0, 76), {indicator: 'macd', confirm: 'none'}).pass, true);             // 第 3 根走完才成立
+  const early = sig('bullDiverge', bars.slice(0, DIV + 15), {indicator: 'macd', confirm: 'none'}); assert.equal(early.pass, false);
+  assert.equal(sig('bullDiverge', bars.slice(0, DIV + 16), {indicator: 'macd', confirm: 'none'}).pass, true);             // 第 3 根走完才成立
   // 背離之後又破底：作廢
-  const lower = dots(divClose.slice(0, 77).concat([87])); assert.equal(sig('bullDiverge', lower, {indicator: 'macd', confirm: 'none'}).pass, false);
+  const lower = dots(divClose.slice(0, DIV + 17).concat([87])); assert.equal(sig('bullDiverge', lower, {indicator: 'macd', confirm: 'none'}).pass, false);
   assert.match(sig('bullDiverge', lower, {indicator: 'macd', confirm: 'none'}).value, /作廢/);
   // 頂背離是鏡像：價格更高、柱體更低，收盤跌破兩高點間的低點才確認
-  const mirror = dots(divClose.map(c => 230 - c));
+  const mirror = dots(divClose.map(c => 260 - c));
   assert.equal(sig('bearDiverge', mirror, {indicator: 'macd', confirm: 'price'}).pass, true);
   assert.equal(sig('bearDiverge', mirror.slice(0, -1), {indicator: 'macd', confirm: 'price'}).pass, false);
-  assert.equal(sig('bearDiverge', mirror.slice(0, 75), {indicator: 'macd', confirm: 'none'}).pass, false);
+  assert.equal(sig('bearDiverge', mirror.slice(0, DIV + 15), {indicator: 'macd', confirm: 'none'}).pass, false);
   assert.equal(sig('bullDiverge', mirror, {indicator: 'macd', confirm: 'none'}).pass, false);                       // 方向不會弄反
-  assert.equal(sig('bullDiverge', dots(divClose.slice(30)), {indicator: 'macd'}).pass, null);                       // 不到 60 根，MACD 暖機不足
+  const short = sig('bullDiverge', dots(divClose.slice(30)), {indicator: 'macd'});                                  // 108 根：MACD 暖機不足，不拿還沒收斂的數字判背離
+  assert.equal(short.pass, null); assert.match(short.why, /需要至少 130 根連續日 K/);
 });
 
 /* ───── 量：低檔大量、量縮、表態 ───── */
@@ -297,18 +300,35 @@ test('first move after a volume dry-up; "beats the previous five" can mean price
   assert.equal(sig('dryUpFirstMove', base(400).concat([B(102.5, 103, 100, 100.5, 900)]), {dry: 0.6, mode: 'volume'}).pass, false);  // 收黑
   assert.equal(sig('dryUpFirstMove', flat(25), {}).pass, null);
 });
-const anchored = tail => flat(40).concat([B(100, 106, 99.5, 105, 5000)], flat(26, 105), tail);   // 第 40 根是 60 根內最大量，低點 99.5
-test('the biggest-volume bar as an observation point: holding its low vs losing it', () => {
+const anchored = tail => flat(40).concat([B(100, 106, 99.5, 105, 5000)], flat(26, 105), tail);   // 第 40 根量是之前 20 根均量的 5 倍，低點 99.5
+test('a big-volume bar is a fixed event: its date and low never change; a newer event replaces it openly, and it expires', () => {
   const hold = anchored([B(105, 105, 101, 101.5), B(101.5, 102, 100.2, 100.8), B(100.8, 102, 99.9, 101.5)]);
   const lost = anchored([B(105, 105, 101, 101.5), B(101.5, 102, 100.2, 100.8), B(100.8, 101, 98, 98.5)]);
   assert.equal(sig('bigVolHold', hold).pass, true); assert.equal(sig('bigVolLowLost', hold, {within: 3}).pass, false);
   assert.equal(sig('bigVolHold', lost).pass, false); assert.equal(sig('bigVolLowLost', lost, {within: 1}).pass, true);
-  assert.match(sig('bigVolLowLost', lost, {within: 1}).value, new RegExp('^' + D(40).replaceAll('/', '\\/') + ' 大量 K 低點 99\\.5'));
+  assert.match(sig('bigVolLowLost', lost, {within: 1}).value, new RegExp('^' + D(40).replaceAll('/', '\\/') + ' 大量 K（量 5 倍）低點 99\\.5'));
   // 跌破是事件：3 根之後還在低點下方，選「當根」就不再列
   const stale = lost.concat([B(98.5, 99, 97, 98), B(98, 98.5, 97, 97.5), B(97.5, 98, 96.5, 97)]);
   assert.equal(sig('bigVolLowLost', stale, {within: 1}).pass, false); assert.equal(sig('bigVolLowLost', stale, {within: 5}).pass, true);
   assert.equal(sig('bigVolHold', anchored([B(105, 106, 104, 105), B(105, 106, 104, 105), B(105, 106, 104, 105)])).pass, false);   // 根本沒有回測
   assert.equal(sig('bigVolHold', flat(50)).pass, null);
+  // 事件由那一天自己的資料決定：之後每多一根，日期與低點都不變，直到 60 根到期
+  const ev = I.events.bigVolume, at = bars => { const S = I.series(item(bars).bars), e = ev(S, 2); return e ? [S.D[e.at], e.low] : e; };
+  let grow = anchored([]);
+  for (let k = 0; k < 33; k++) { grow = grow.concat([B(105, 106, 104, 105)]); eq(at(grow), [D(40), 99.5], '第 ' + grow.length + ' 根'); }
+  assert.equal(grow.length, 100); eq(at(grow.concat([B(105, 106, 104, 105)])), [D(40), 99.5]);      // 評估日是第 100 根：事件還在 60 根內
+  eq(at(grow.concat(flat(2, 105))), null);                                                           // 再過一根就到期：沒有事件，不會悄悄改抓第二大的量
+  assert.equal(sig('bigVolHold', grow.concat(flat(2, 105))).pass, false);
+  // 視窗裡量更大、但沒有達到「自己之前均量的倍數」的 K 不是事件；達標的新事件才取代舊的，卡片寫出新日期
+  const louder = anchored([B(105, 106, 104, 105, 1900)]);                                            // 1900 不到當時均量（約 1200）的 2 倍
+  eq(at(louder.concat(flat(1, 105))), [D(40), 99.5]);
+  const newer = anchored([B(105, 108, 103, 107, 6000), B(107, 108, 106, 107), B(107, 108, 106, 107), B(107, 108, 103.5, 107)]);
+  eq(at(newer), [D(67), 103]); assert.match(sig('bigVolHold', newer).value, new RegExp('^' + D(67).replaceAll('/', '\\/')));
+  // 同一天、給不同長度的歷史：事件相同（不是視窗掃描）
+  const longer = flat(80).concat(anchored([B(105, 105, 101, 101.5)]));
+  eq(at(longer), [D(120), 99.5]); eq(at(anchored([B(105, 105, 101, 101.5)])), [D(40), 99.5]);
+  // 倍數是參數：門檻調到 6 倍，5 倍那一根就不是事件
+  assert.equal(sig('bigVolHold', anchored([B(105, 105, 101, 101.5), B(101.5, 102, 100.2, 100.8), B(100.8, 102, 99.9, 101.5)]), {mult: 6}).pass, false);
 });
 test('volume conditions keep liquidity, expansion and dry-up apart; dry-up waits for the close', () => {
   const spike = flat(30).concat([B(100, 102, 99, 101, 2000)]);
@@ -438,7 +458,7 @@ test('random walks: 34 conditions match formulas written straight from their def
     return false;
   };
   const P = cleanPrefs({}).cond, fired = {}, compared = {};
-  /* 每個條件：用預設參數，照定義算出該不該成立。S 是當天評估用的那一段日 K（最多 160 根）。 */
+  /* 每個條件：用預設參數，照定義算出該不該成立。S 是當天評估用的那一段日 K（最多 260 根）。 */
   const expect = {
     trendUp: (S, t) => { const m = I.sma(S, 60); return S.C[t] > m[t] && m[t] > m[t - 5]; },
     maCross: (S, t) => cross(I.sma(S, 5), I.sma(S, 20), t, 3, true),
@@ -478,8 +498,8 @@ test('random walks: 34 conditions match formulas written straight from their def
   assert.equal(Object.keys(expect).length, 34);
   WALKS.forEach(bars => {
     for (let t = 170; t < bars.length; t++) {
-      const r = evalAt(bars, t), S = I.series(item(bars.slice(t - 159, t + 1)).bars);
-      assert.equal(S.n, 160);
+      const r = evalAt(bars, t), S = I.series(item(bars.slice(Math.max(0, t - 259), t + 1)).bars);     // 評估用手上全部的連續日 K，最多 260 根
+      assert.equal(S.n, Math.min(260, t + 1));
       Object.keys(expect).forEach(id => {
         const c = r.checks.find(x => x.key === id), want = expect[id](S, S.t);
         assert.equal(c.pass, want, `${id} 第 ${t} 天：前台 ${c.pass}，照定義 ${want}（${c.value}）`);
@@ -529,13 +549,155 @@ test('holes in the daily bars make every indicator unknown instead of computing 
   const r = evaluate(it, {groups: [['trendUp']]}, {...dayCtx(200), all: true});
   r.checks.slice(8).forEach(c => assert.equal(c.pass, null, c.key)); assert.equal(r.pass, false); assert.equal(r.status, '資料待核對');
 });
+test('a confirmed market closure is not a trading day; a shared gap that is not confirmed stays a gap', () => {
+  eq(cfg.confirmedClosed, ['2026/07/10']); assert.ok(!ctx.window.MarketBattle.closedDays, '前台不該自己用缺 K 推測休市');
+  const n = 150, cal = calendar.slice(0, n), X = cal[90];
+  const mk = (code, skip) => ({code, name: code, bars: walk(Number(code), n).map((b, i) => ({date: cal[i], ...b})).filter(b => !skip.includes(b.date))});
+  const a = mk('31', [X]), c = {date: cal[n - 1], calendar: cal, volumeUnit: 'lots', afterClose: true}, p = {groups: [['useMacd', 'trendUp']], cond: {trendUp: {maDays: 60}}};
+  // 行事曆還把那一天當交易日（沒有核對）：缺口照實保留，需要連續日 K 的指標都是資料不足
+  const raw = evaluate(a, p, c); eq(raw.checks.filter(k => k.enabled).map(k => k.pass), [null, null]); assert.equal(raw.status, '資料待核對');
+  // 核對過、行事曆拿掉那一天之後才算得出來；結果和「那一天本來就不在行事曆裡」完全相同
+  const clean = {...c, calendar: cal.filter(d => d !== X)}, ok = evaluate(a, p, clean);
+  assert.ok(ok.checks.filter(k => k.enabled).every(k => k.pass !== null));
+  // 個別停牌（行事曆有、這一檔沒有）仍是資料不足
+  assert.ok(evaluate(mk('33', [X, cal[120]]), p, clean).checks.filter(k => k.enabled).every(k => k.pass === null));
+});
+
+/* ───── v138：且／或可以各組不同 ───── */
+test('each group has its own and/or and the groups are joined by another: (A and B) or (C or D), (A or B) and C, A and B and C', () => {
+  // 事件日：跳空成立（A）、量 1500 不到 2.5 倍（B 不成立）、收在 20 日均線上（C）、沒有突破 60 日高點以外的條件……用四個原有條件組合
+  const it = item(flat(60).concat([B(103, 107, 102, 106, 1500)])), c = dayCtx(61), base = {volumeMultiple: 2.5};
+  const run = more => evaluate(it, {...base, ...more}, c);
+  let r = run({groups: [['useGap', 'useVolume'], ['useTrend', 'useKD']], ops: ['and', 'or'], join: 'or'});     // （A 且 B）或（C 或 D）
+  eq(r.groups.map(g => [g.op, g.word, g.pass]), [['and', '且', false], ['or', '或', true]]); assert.equal(r.pass, true); assert.equal(r.join, 'or');
+  assert.equal(r.formula, '（向上開盤缺口 且 成交量倍數） 或 （20 日均線 或 KD 相對位置）');
+  r = run({groups: [['useGap', 'useVolume'], ['useTrend', 'useKD']], ops: ['and', 'or'], join: 'and'});        // （A 且 B）且（C 或 D）
+  assert.equal(r.pass, false); assert.equal(r.formula, '（向上開盤缺口 且 成交量倍數） 且 （20 日均線 或 KD 相對位置）');
+  r = run({groups: [['useGap', 'useVolume'], ['useTrend']], ops: ['or', 'and'], join: 'and'});                 // （A 或 B）且 C
+  eq(r.groups.map(g => g.pass), [true, true]); assert.equal(r.pass, true);
+  r = run({groups: [['useGap'], ['useVolume'], ['useTrend']], ops: ['and', 'and', 'and'], join: 'and'});       // A 且 B 且 C
+  assert.equal(r.pass, false); assert.equal(r.formula, '向上開盤缺口 且 成交量倍數 且 20 日均線');
+  // 舊的兩種固定組合是特例，結果與公式文字都不變
+  eq(cleanPrefs({groups: [['useGap', 'useVolume'], ['useTrend']], groupLogic: 'allOfAny'}).ops, ['or', 'or']);
+  assert.equal(run({groups: [['useGap', 'useVolume'], ['useTrend']], groupLogic: 'allOfAny'}).formula, '（向上開盤缺口 或 成交量倍數） 且 20 日均線');
+  assert.equal(run({groups: [['useGap', 'useVolume'], ['useTrend']], groupLogic: 'anyOfAll'}).formula, '（向上開盤缺口 且 成交量倍數） 或 20 日均線');
+  // 空掉的組連同它的且／或一起整理掉，其餘各組的且／或不會錯位
+  const p = cleanPrefs({groups: [['useGap'], [], ['useVolume', 'useTrend'], ['bogus']], ops: ['and', 'or', 'or', 'and'], join: 'and'});
+  eq([p.groups, p.ops, p.join], [[['useGap'], ['useVolume', 'useTrend']], ['and', 'or'], 'and']); eq(p.unknown.entry, ['bogus']);
+});
+
+/* ───── v138：暖機與歷史長度 ───── */
+test('warm-up: indicators that carry a seed refuse to judge on short history; 160 vs 260 vs full history is measured, not assumed', () => {
+  eq(I.warm, {macd: 130, rsi: 120, adx: 135}); assert.equal(I.maxHistory, 259);
+  // 129 根不判、130 根才判（MACD）；119／120（RSI）；134／135（ADX）
+  const w = walk(77, 300), cut = (id, n, params) => sig(id, w.slice(0, n), params).pass;
+  assert.equal(cut('macdCross', 129), null); assert.notEqual(cut('macdCross', 130), null);
+  assert.equal(cut('rsiRecover', 119), null); assert.notEqual(cut('rsiRecover', 120), null);
+  assert.equal(cut('adxTrend', 134), null); assert.notEqual(cut('adxTrend', 135), null);
+  assert.match(sig('macdDead', w.slice(0, 100)).why, /需要至少 130 根連續日 K/);
+  /* 同一天，給 160 根、260 根、全部（最多 400 根）三種長度的歷史，比指標的值與訊號。
+     數字印出來並設上限：值的差異要小到不影響判讀，訊號不一致的次數要是 0。 */
+  const ids = ['macdCross', 'macdDead', 'macdZero', 'macdConverge', 'rsiRecover', 'rsiFall', 'adxTrend', 'kdCross', 'kdDead'];
+  const worst = {hist: 0, rsi: 0, adx: 0, k: 0}, flips = {'160↔260': 0, '260↔全部': 0}; let days = 0, signals = 0;
+  const P = cleanPrefs({}).cond, env = {complete: true};
+  [walk(41, 400), walk(42, 400, 0.002), walk(43, 400, -0.002), walk(44, 400, 0.0005), walk(45, 400), walk(46, 400, -0.001)].forEach(bars => {
+    const all = item(bars).bars;
+    for (let t = 260; t < all.length; t++) {
+      const S = [160, 260, t + 1].map(n => I.series(all.slice(t + 1 - n, t + 1))), price = all[t].close;
+      const v = S.map(x => ({hist: I.macd(x).hist[x.t] / price * 100, rsi: I.rsi(x, 14)[x.t], adx: I.dmi(x, 14).adx[x.t], k: I.kd(x).k[x.t]}));
+      Object.keys(worst).forEach(k => { worst[k] = Math.max(worst[k], Math.abs(v[0][k] - v[2][k])); });
+      ids.forEach(id => { const r = S.map(x => I.run(id, x, P[id], env).pass); signals++; if (r[0] !== r[1]) flips['160↔260']++; if (r[1] !== r[2]) flips['260↔全部']++; });
+      days++;
+    }
+  });
+  console.log(`   ${days} 個交易日 × ${ids.length} 個條件 = ${signals} 次判定；160 根與全部歷史相比，最大差異：MACD 柱體 ${worst.hist.toExponential(1)}%（占股價）、RSI ${worst.rsi.toExponential(1)}、ADX ${worst.adx.toExponential(1)}、K 值 ${worst.k.toExponential(1)}；` +
+    `訊號不一致：160↔260 根 ${flips['160↔260']} 次、260 根↔全部 ${flips['260↔全部']} 次`);
+  assert.ok(worst.hist < 1e-3 && worst.rsi < 0.02 && worst.adx < 0.05 && worst.k < 1e-6, JSON.stringify(worst));
+  assert.equal(flips['260↔全部'], 0); assert.ok(flips['160↔260'] <= 2, '160 根與 260 根的訊號差異超出預期：' + flips['160↔260']);
+});
+test('fixed events keep their date and level from one day to the next unless an explicit rule replaces or expires them', () => {
+  let checked = 0, replaced = 0, expired = 0;
+  [walk(51, 400), walk(52, 400, 0.002), walk(53, 400, -0.002, 0.4)].forEach(bars => {
+    const all = item(bars).bars; let prev = null, prevBreak = null;
+    for (let t = 200; t < all.length; t++) {
+      const S = I.series(all.slice(Math.max(0, t - 259), t + 1)), e = I.events.bigVolume(S, 2), b = I.events.breakout(S, 10);
+      const now = e ? {date: S.D[e.at], low: e.low, high: e.high} : null, nowBreak = b ? {date: S.D[b.at], level: b.level} : null;
+      if (prev) {
+        const age = t - all.findIndex(x => x.date === prev.date);
+        if (now && now.date === prev.date) { eq(now, prev); checked++; }                          // 同一個事件：價位一模一樣
+        else if (now) { assert.ok(now.date > prev.date || age > 60, '事件不能換成更早的日期'); replaced++; }   // 被更新的事件取代，或舊的到期後接到更早的…不允許
+        else { assert.ok(age > 60, `事件 ${prev.date} 才 ${age} 根就不見了`); expired++; }       // 只有滿 60 根才會消失
+      }
+      if (prevBreak && nowBreak && nowBreak.date === prevBreak.date) eq(nowBreak, prevBreak);     // 突破價在事件當下就固定
+      prev = now; prevBreak = nowBreak;
+    }
+  });
+  assert.ok(checked > 300 && replaced > 5 && expired >= 0, JSON.stringify({checked, replaced, expired}));
+});
+
+/* ───── v138：安全回退與不認得的條件 ───── */
+test('settings a build does not understand stop the screen instead of silently loosening it; the old storage slot stays safe for old code', () => {
+  const it = item(flat(60).concat([B(103, 107, 102, 106, 1500)])), c = dayCtx(61);
+  // 這一版不認得的條件（例如從更新的版本退回來）：不把它拿掉後照剩下的條件篩
+  const p = cleanPrefs({groups: [['useGap', 'someFutureCondition']]});
+  eq(p.groups, [['useGap']]); eq(p.unknown, {entry: ['someFutureCondition'], exit: []});
+  const blocked = evaluate(it, {groups: [['useGap', 'someFutureCondition']]}, c);
+  assert.equal(blocked.checks[0].pass, true); assert.equal(blocked.pass, false); assert.equal(blocked.status, '資料待核對');
+  assert.ok(blocked.issues.some(x => /不認得的條件（someFutureCondition），已停用篩選/.test(x)));
+  // 存起來再讀回來仍然停用（不會因為存了一次就忘記）；使用者明確清掉之後才恢復
+  const saved = JSON.parse(JSON.stringify(p)); eq(cleanPrefs(saved).unknown.entry, ['someFutureCondition']);
+  assert.equal(evaluate(it, saved, c).pass, false);
+  assert.equal(evaluate(it, {...saved, unknown: {entry: [], exit: []}}, c).pass, true);
+  // 另一個目的不受影響
+  assert.equal(evaluate(it, {...saved, purpose: 'exit'}, c).issues.some(x => /不認得/.test(x)), false);
+  // 留給舊版（v136）讀的內容：舊版看得懂就原樣；看不懂就給舊版的預設，不給少了條件的版本
+  const safe = x => JSON.parse(JSON.stringify(cfg.legacySafe(x)));
+  eq(safe({groups: [['useGap', 'useVolume'], ['useTrend']], groupLogic: 'allOfAny', direction: 'down', gapPct: 3, volumeDays: 10, volumeCustom: true}),
+     {gapPct: 3, volumeMultiple: 1, volumeDays: 10, volumeCustom: true, minLots: 1000, closePosition: 0.7, trendDays: 20, breakoutDays: 20, volumeMode: 'actual', direction: 'down', groups: [['useGap', 'useVolume'], ['useTrend']], groupLogic: 'allOfAny'});
+  const narrowed = safe({groups: [['lowBase', 'maSqueezeBreak', 'useVolume']], gapPct: 3});                    // 三個條件用「且」：舊版只認得最後一個
+  eq([narrowed.groups, narrowed.groupLogic, narrowed.gapPct], [[['useGap', 'useVolume']], 'anyOfAll', 3]);
+  eq(safe({groups: [['useGap', 'useVolume'], ['useTrend', 'useKD']], ops: ['and', 'or'], join: 'or'}).groups, [['useGap', 'useVolume']]);   // 混合的且／或舊版表達不了
+});
+
+/* ───── v138：常用條件 ───── */
+test('favourites: at most ten, replace by name, restore the whole set-up including numbers, and never apply one with unknown conditions', () => {
+  const t = cfg.templates.find(x => x.id === 'JE02'), mine = {groups: t.groups, ops: ['and'], join: 'or', cond: {...t.params, volSpike: {mult: 3, days: 5}}, gapPct: 4, volumeDays: 33, volumeCustom: true};
+  const f = cfg.favoriteFrom(mine, '  低位階   糾結突破  ');
+  assert.equal(f.name, '低位階 糾結突破'); assert.equal(f.purpose, 'entry');
+  eq(f.setup, {direction: 'up', groups: [['lowBase', 'maSqueezeBreak', 'volSpike']], ops: ['and'], join: 'or'});
+  eq(Object.keys(f.cond).sort(), ['lowBase', 'maSqueezeBreak', 'volSpike']); eq(f.cond.volSpike, {days: 5, mult: 3}); eq([f.top.gapPct, f.top.volumeDays, f.top.volumeCustom], [4, 33, true]);
+  // 套用：從別的設定（出場、預設值）套回來，整套一模一樣；另一個目的不動
+  const other = {purpose: 'exit', exit: {groups: [['macdDead']], ops: ['and'], join: 'or', direction: 'down'}, cond: {volSpike: {mult: 9}}};
+  const back = cfg.applyFavorite(other, f);
+  assert.equal(back.purpose, 'entry'); eq([back.groups, back.ops, back.join], [f.setup.groups, ['and'], 'or']); eq(back.cond.volSpike, {days: 5, mult: 3});
+  eq([back.gapPct, back.volumeDays], [4, 33]); eq(back.exit.groups, [['macdDead']]);
+  assert.ok(cfg.sameFavorite(cfg.favoriteFrom(back, 'x'), f)); assert.ok(!cfg.sameFavorite(cfg.favoriteFrom({...back, gapPct: 5}, 'x'), f));
+  // 出場的常用條件
+  const ex = cfg.favoriteFrom({purpose: 'exit', exit: {groups: [['highBase'], ['weakClose', 'upperShadow']], ops: ['and', 'or'], join: 'and', direction: 'up'}}, '高檔轉弱');
+  eq(ex.setup, {direction: 'up', groups: [['highBase'], ['weakClose', 'upperShadow']], ops: ['and', 'or'], join: 'and'});
+  const applied = cfg.applyFavorite(mine, ex); assert.equal(applied.purpose, 'exit'); eq(applied.exit.ops, ['and', 'or']); eq(applied.groups, f.setup.groups);
+  // 清單整理：最多十組（留最後存的）、同名只留一個、沒有名稱或沒有條件的丟掉、亂七八糟的資料不會壞
+  const many = Array.from({length: 13}, (_, i) => ({...f, name: '第 ' + i + ' 組'}));
+  eq(cfg.cleanFavorites(many).map(x => x.name), many.slice(3).map(x => x.name)); assert.equal(cfg.maxFavorites, 10);
+  eq(cfg.cleanFavorites([f, {...ex, name: f.name}]).map(x => [x.name, x.purpose]), [[f.name, 'exit']]);
+  eq(cfg.cleanFavorites([null, 5, 'x', {}, {name: 'a'}, {name: '', setup: f.setup}, {name: 'b', setup: {groups: []}}, {name: 'c', setup: {groups: 'no'}}]), []);
+  eq(cfg.cleanFavorites('nope'), []); eq(cfg.cleanFavorites(undefined), []);
+  // 存進去再讀出來（經過 JSON）完全相同
+  eq(cfg.cleanFavorites(JSON.parse(JSON.stringify([f, ex]))), [f, ex]);
+  // 參數超出範圍的存檔：讀回來是合法值，不照單全收
+  assert.equal(cfg.cleanFavorites([{...f, cond: {...f.cond, volSpike: {mult: 999, days: 7}}}])[0].cond.volSpike.mult, 2);
+  // 含有這一版不認得的條件：整組保留但不能套用，也不會被拿掉條件後當成同一組
+  const future = {...f, name: '新版存的', setup: {...f.setup, groups: [['lowBase', 'fromTheFuture']]}};
+  const kept = cfg.cleanFavorites([future])[0]; eq(kept.blocked, ['fromTheFuture']); eq(kept.setup.groups, [['lowBase', 'fromTheFuture']]);
+  eq(cfg.applyFavorite(mine, kept).groups, cleanPrefs(mine).groups);                  // 套用它什麼都不會變
+});
 test('cost: a full watch-list evaluates well within an interaction budget', () => {
-  const items = Array.from({length: 240}, (_, n) => item(walk(100 + n, 160))), c = dayCtx(160);
+  const items = Array.from({length: 240}, (_, n) => item(walk(100 + n, 260))), c = dayCtx(260);
   const heavy = useTemplate('JE02');
   const time = prefs => { const t0 = process.hrtime.bigint(); items.forEach(it => evaluate(it, prefs, c)); return Number(process.hrtime.bigint() - t0) / 1e6; };
   time({}); const base = time({}), tpl = time(heavy), all = (() => { const t0 = process.hrtime.bigint(); items.slice(0, 24).forEach(it => evaluate(it, {}, {...c, all: true})); return Number(process.hrtime.bigint() - t0) / 1e6; })();
-  console.log(`   240 檔：預設條件 ${base.toFixed(0)} ms、範本 JE02 ${tpl.toFixed(0)} ms；一頁 24 檔全部條件 ${all.toFixed(0)} ms`);
+  console.log(`   240 檔、每檔 260 根：預設條件 ${base.toFixed(0)} ms、範本 JE02 ${tpl.toFixed(0)} ms；一頁 24 檔全部條件 ${all.toFixed(0)} ms`);
   // 這裡的執行環境比瀏覽器慢；v136 同樣的重算要 4 秒左右。守住的是「不要退回去」，瀏覽器裡的實際時間由 check_battle_signals_ui.py 量。
-  assert.ok(base < 1200 && tpl < 1200, '240 檔重算超過 1200 ms');
+  assert.ok(base < 2000 && tpl < 2000, '240 檔重算超過 2000 ms');
 });
 console.log(count + ' battle signal checks passed');

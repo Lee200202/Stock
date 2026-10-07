@@ -10123,8 +10123,10 @@ def judge_same_theme(signals) -> int:
             row = ids[g]
             overlap = _theme_overlap(first.get('text'), row.get('text'))
             shared = set(_POINT_NUMBER.findall(str(first.get('text') or ''))) & set(_POINT_NUMBER.findall(str(row.get('text') or '')))
-            if overlap < 0.10 and not shared:
-                print(f"  語意重複判斷：模型認為重複、但兩點沒有共同的字面或數字，不採用　{str(row.get('text') or '')[:30]}")
+            across = (first.get('kind') == 'view') != (row.get('kind') == 'view')
+            # 盤勢與教學本來就會共用字眼（講同一場盤的「發生了什麼」和「該怎麼做」）：跨章要兩成以上的重疊或兩個共同的數字。
+            if (overlap < 0.20 and len(shared) < 2) if across else (overlap < 0.10 and not shared):
+                print(f"  語意重複判斷：模型認為重複、但兩點{'分屬兩章且' if across else ''}共同的字面或數字不足，不採用　{str(row.get('text') or '')[:30]}")
                 continue
             row['_duplicate_point'] = True
             row['_duplicate_by'] = 'theme-judge'
@@ -10170,9 +10172,14 @@ def ensure_article_minimums(signals, transcript, date_str):
     cap=min(int(os.environ.get('GEMINI_CONTEXT_TOKENS','1048576')),assessment_token_budget(),1048576)
     hay=_ev_norm(transcript)
     # 2026/10/07：補問最多兩輪。第一輪回來的點若被證據規則剔除，原因會寫在紀錄裡，第二輪把「還缺幾點」再問一次。
-    for attempt in (1,2):
+    # 補回來的點每一輪都請模型看一次有沒有和已有的講同一件事（judge_same_theme）；被判重複而又缺點時，多給一輪（第三輪）。
+    judged_out=False
+    for attempt in (1,2,3):
+        need_macro=max(0,3-len(verified(False)))
+        need_view=max(0,MIN_LESSONS-len(verified(True))) if len(_ev_norm(transcript))>=LESSON_MIN_SOURCE else 0
         if not need_macro and not need_view:break
-        if attempt==2 and (_QUOTA_STOP.get('daily') or budget_left()<300):break
+        if attempt==3 and not judged_out:break
+        if attempt>=2 and (_QUOTA_STOP.get('daily') or budget_left()<300):break
         print(f'章節補問（第 {attempt} 輪）：盤勢缺 {need_macro} 點，教學缺 {need_view} 點，合併一次')
         payload=json.dumps({'video_date':date_str,'need_macro':need_macro,'need_view':need_view,
             'existing':[r.get('text','') for r in market if not r.get('_duplicate_point')], 'repeated':repeated[-6:],
@@ -10213,12 +10220,16 @@ def ensure_article_minimums(signals, transcript, date_str):
                 if is_view:need_view-=1
                 else:need_macro-=1
             print(f'  章節補問第 {attempt} 輪：回覆 {len(rows)} 點，採用 {took} 點')
+            if took:
+                # 補回來的點先做字面比對，再請模型看有沒有和原有的講同一件事；被標掉的記進 repeated，下一輪換主題。
+                dedupe_market_points(signals)
+                if judge_same_theme(signals):
+                    judged_out=True
+                    repeated.extend(str(r.get('text') or '') for r in market if r.get('_duplicate_by')=='theme-judge' and str(r.get('text') or '') not in repeated)
         except (RuntimeError,ValueError,RateLimited) as e:
             print(f'章節補問未完成：{str(e)[:120]}，沿用已驗證內容');break
     # 補完再核對一次：稽核副本在產生文章之前就寫入，重複的標記要在這裡先打好（網站重建文章時讀的是稽核副本）。
     dedupe_market_points(signals)
-    if any(r.get('_summary_topup') and not r.get('_duplicate_point') for r in market):
-        judge_same_theme(signals)                          # 補回來的點也請模型看一次有沒有和原有的講同一件事
     for is_view,label in ((False,'盤勢'),(True,'教學')):
         if (not is_view or len(_ev_norm(transcript))>=LESSON_MIN_SOURCE) and len(verified(is_view))<3:
             gaps.append(f'{label}內容偏短：補問後仍只有 {len(verified(is_view))} 點，未補造')

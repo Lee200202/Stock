@@ -5694,24 +5694,65 @@ def _point_grams(text) -> set:
     return {key[i:i + 2] for i in range(len(key) - 1)}
 
 
+# v142：換句話講同一件事（2026/10/07 管理者回報：郵件 ① 的第一點與第三點語意相近）。
+# 那兩點講的都是「最近幾天每天 10 點到 11 點見低點，賣壓消化完再拉上去，不是隨便亂講」，
+# 用字換過，對「前面所有點合起來」的覆蓋只有四成多，過不了上面 0.7 的門檻。
+# 換句話時留下來的是主題詞（10點到11點、短線賣壓、消化完、上禮拜四），所以改成「兩點一對一」比：
+# 兩點共有的相鄰兩字組合，佔較短那一點的比例。
+# 2026/10/07 同一份逐字稿五輪的 81 組配對：同主題的七組 0.35～0.48；不同主題最高 0.21，
+# 0.30 那一組是把兩個主題塞進同一點的（它另外和別的點 0.44）。同一章的門檻取 0.33。
+# 盤勢和教學之間另訂較高的門檻：講同一場盤的「發生了什麼」和「該怎麼做」本來就共用字眼。
+# 2026/10/02 人工核對過的那一天，盤勢點（沿 35 日均線走強…避免追高、拉回佈局）與教學點（買跌不買漲）是 0.39，要並存；
+# 2026/10/07 教學點把盤勢點整句再寫一次的是 0.44。跨章取 0.42。
+ARTICLE_SAME_THEME = 0.33
+ARTICLE_SAME_THEME_ACROSS = 0.42
+
+
+def _theme_overlap(a, b) -> float:
+    ga, gb = _point_grams(a), _point_grams(b)
+    if min(len(ga), len(gb)) < 12:
+        return 0.0
+    return len(ga & gb) / min(len(ga), len(gb))
+
+
+def _theme_twin(row, others):
+    """others 裡和 row 講同一件事的那一點：回傳 (那一點的文字, 重疊比例)，沒有回 None。同一章與跨章門檻不同。"""
+    is_view, text, best = row.get('kind') == 'view', str(row.get('text') or ''), None
+    for other in others:
+        overlap = _theme_overlap(text, other.get('text'))
+        bar = ARTICLE_SAME_THEME if (other.get('kind') == 'view') == is_view else ARTICLE_SAME_THEME_ACROSS
+        if overlap >= bar and (best is None or overlap > best[1]):
+            best = (str(other.get('text') or ''), overlap)
+    return best
+
+
 def dedupe_market_points(signals) -> int:
-    """標出重複的盤勢／教學點，回傳這次新標出的數量。可重複呼叫。"""
+    """標出重複的盤勢／教學點，回傳這次新標出的數量。可重複呼叫。
+
+    兩種重複都算：這一點七成以上已經散在前面各點裡；或和前面「某一點」講同一件事（_theme_twin）。
+    依文章順序（盤勢 → 教學）留前面那一點；教學重講盤勢講過的事也算。
+    """
     rows = [r for r in (signals.get('market') or []) if r.get('_evidence_verified')]
     ordered = [r for r in rows if r.get('kind') != 'view'] + [r for r in rows if r.get('kind') == 'view']
-    seen, marked = set(), 0
+    seen, kept, marked = set(), [], 0
     for row in ordered:
-        grams = _point_grams(row.get('text'))
+        text = str(row.get('text') or '')
+        grams = _point_grams(text)
         if len(grams) < 12:
             continue
         cover = len(grams & seen) / len(grams)
-        if cover >= ARTICLE_DUP_COVER:
+        twin = _theme_twin(row, kept)
+        if cover >= ARTICLE_DUP_COVER or twin:
             if not row.get('_duplicate_point'):
                 marked += 1
-                print(f"  文章重複：與前面的重點有 {cover:.0%} 相同，不再列出　{str(row.get('text') or '')[:40]}")
+                why = (f"與前面的重點有 {cover:.0%} 相同" if cover >= ARTICLE_DUP_COVER
+                       else f"和「{twin[0][:18]}…」講同一件事（字面重疊 {twin[1]:.0%}）")
+                print(f"  文章重複：{why}，不再列出　{text[:40]}")
             row['_duplicate_point'] = True
             continue
         row.pop('_duplicate_point', None)
         seen |= grams
+        kept.append(row)
     return marked
 
 
@@ -7594,7 +7635,10 @@ def public_narrative(text, row=None, signals=None):
         if heard != fixed:
             tail = fixed[len(heard):] if fixed.startswith(heard) else ''
             guard = r'(?![*＊]' + ('|' + re.escape(tail) if tail else '') + ')'
-            text = re.sub(re.escape(heard) + guard, lambda m: fixed, text)
+            # 2026/10/07：聽到的「茂聯-KY」「茂聯KY」只換前兩個字，變成「貿聯-KY-KY」「貿聯-KYKY」。
+            # 正式名稱以 -KY 結尾時，原文緊跟在後面的 KY 一起吃掉。
+            ky = r'(?:\s*-?\s*KY)?' if re.search(r'-KY$', fixed, re.I) and not re.search(r'KY$', heard, re.I) else ''
+            text = re.sub(re.escape(heard) + guard + ky, lambda m: fixed, text, flags=re.I if ky else 0)
     for fixed in set(_public_aliases(signals).values()):
         text = re.sub(re.escape(fixed)+r'\s*[（(]'+re.escape(fixed)+r'[）)]',lambda m:fixed,text)
     name, code = _display_name(row.get('name')), str(row.get('code') or '')
@@ -7611,7 +7655,8 @@ def public_narrative(text, row=None, signals=None):
         key = re.sub(r'回顧|過往|目前|\s|[，,]', '', part)
         if key and key not in seen and not _restates_earlier(key, ''.join(seen)):
             seen.add(key);parts.append(part.strip())
-    return re.sub(r'[*＊]+', '', '。'.join(parts) + ('。' if parts else ''))
+    # 已經存進資料的連寫（-KY-KY、-KYKY）在這裡收成一個。
+    return re.sub(r'-KY(?:\s*-?\s*KY)+', '-KY', re.sub(r'[*＊]+', '', '。'.join(parts) + ('。' if parts else '')), flags=re.I)
 
 
 def _restates_earlier(key: str, earlier: str) -> bool:
@@ -9684,6 +9729,7 @@ def identify_unnamed_stocks(ss, signals, transcript, date_str):
 
 SUMMARY_TOPUP_SYSTEM = LESSON_TOPUP_SYSTEM + """
 這輪合併補第①章盤勢與第③章教學。need_macro與need_view是各章不足的點數；只補有缺口的章，不重複existing。
+existing是已經寫好的重點，repeated是先前被退回的重複點。新寫的每一點都要是existing與repeated都沒講過的另一個主題：同一個時間點、同一組數字、同一條因果，換句話再講一遍也算重複，程式會逐點比對字面重疊並退回。動筆前先看existing每一點各在講什麼，再到原文找還沒寫到的主題；找不到新的主題就少給，不要改寫舊的。
 盤勢kind用level/volume/event/flow，每點70～140字，至少找出三個不同盤勢主題（常見：指數與短線賣壓的時間點、法人或投信的買賣與換股、資金往哪一類股票移動、類股輪動與可能的主流、重大事件與公布時間、不要追高或可以布局的位置）；教學kind=view，每點120～220字。
 盤勢與教學各自都要補到至少三點、彼此主題不同；原文講了五六個主題就多給，不要只挑一個。
 補充盤勢第一點可附headline：講者最有力的一句觀點，口語一句、至少15字（不設上限），驚嘆號或問句收尾，不含姓名日期，用原文的字。每筆text和headline數字必須有引用。
@@ -9699,8 +9745,11 @@ def ensure_article_minimums(signals, transcript, date_str):
         key=(row.get('kind')=='view',_lesson_key(row.get('text')))
         if key not in unique or len(row.get('text',''))>len(unique[key].get('text','')):unique[key]=row
     market[:]=[r for r in market if not r.get('_evidence_verified')]+list(unique.values())
+    # v142：初稿自己就有兩點講同一件事時，重複的那一點不算數，缺的名額交給補問換一個主題。
+    dedupe_market_points(signals)
     def verified(is_view):
-        return [r for r in market if r.get('_evidence_verified') and (r.get('kind')=='view')==is_view]
+        return [r for r in market if r.get('_evidence_verified') and not r.get('_duplicate_point') and (r.get('kind')=='view')==is_view]
+    repeated=[]
     need_macro=max(0,3-len(verified(False)))
     need_view=max(0,MIN_LESSONS-len(verified(True))) if len(_ev_norm(transcript))>=LESSON_MIN_SOURCE else 0
     if not need_macro and not need_view:return signals
@@ -9721,7 +9770,8 @@ def ensure_article_minimums(signals, transcript, date_str):
         if attempt==2 and (_QUOTA_STOP.get('daily') or budget_left()<300):break
         print(f'章節補問（第 {attempt} 輪）：盤勢缺 {need_macro} 點，教學缺 {need_view} 點，合併一次')
         payload=json.dumps({'video_date':date_str,'need_macro':need_macro,'need_view':need_view,
-            'existing':[r.get('text','') for r in market], 'source':{k:v['text'] for k,v in batch.items()}},ensure_ascii=False,separators=(',',':'))
+            'existing':[r.get('text','') for r in market if not r.get('_duplicate_point')], 'repeated':repeated[-6:],
+            'source':{k:v['text'] for k,v in batch.items()}},ensure_ascii=False,separators=(',',':'))
         if len((SUMMARY_TOPUP_SYSTEM+payload).encode('utf-8'))+min(MAX_OUT,8000)+4096>cap:
             gaps.append('盤勢內容偏短：完整補問請求超過預算，沿用可驗證內容');break
         try:
@@ -9739,9 +9789,13 @@ def ensure_article_minimums(signals, transcript, date_str):
                 row['text']=strip_speaker_names(str(row.get('text') or ''))
                 materialize_evidence({'market':[row]},transcript)
                 key=(is_view,_lesson_key(row['text']))
-                why='和已有的重點同一個主題' if key in seen else market_item_why(row,hay)
+                # 和已有的任何一點（兩章都比）講同一件事就退回；退回的那一點記下來，下一輪請模型換主題。
+                twin=_theme_twin(row,[r for r in market if r.get('_evidence_verified') and not r.get('_duplicate_point')])
+                why=('和已有的重點同一個主題' if key in seen
+                     else f'和「{twin[0][:18]}…」講同一件事，字面重疊 {twin[1]:.0%}' if twin else market_item_why(row,hay))
                 if why:
                     print(f"  補問的{label}重點未採用（{why}）：{row['text'][:48]}")
+                    if key in seen or twin:repeated.append(row['text'])
                     continue
                 row['_evidence_verified']=True;row['_summary_topup']=True
                 market.append(row);seen.add(key);took+=1
@@ -9750,6 +9804,8 @@ def ensure_article_minimums(signals, transcript, date_str):
             print(f'  章節補問第 {attempt} 輪：回覆 {len(rows)} 點，採用 {took} 點')
         except (RuntimeError,ValueError,RateLimited) as e:
             print(f'章節補問未完成：{str(e)[:120]}，沿用已驗證內容');break
+    # 補完再核對一次：稽核副本在產生文章之前就寫入，重複的標記要在這裡先打好（網站重建文章時讀的是稽核副本）。
+    dedupe_market_points(signals)
     for is_view,label in ((False,'盤勢'),(True,'教學')):
         if (not is_view or len(_ev_norm(transcript))>=LESSON_MIN_SOURCE) and len(verified(is_view))<3:
             gaps.append(f'{label}內容偏短：補問後仍只有 {len(verified(is_view))} 點，未補造')

@@ -4737,6 +4737,24 @@ html[data-view="mobile"] .tracker-card-note { font-size: calc(15px * var(--rd-fs
 .tech-story .load-rail { grid-column:1/-1; height:20px; border-radius:999px; background:var(--panel-2); overflow:hidden; }
 .tech-story .load-rail i { display:block; width:max(6px,var(--load-width)); height:100%; border-radius:inherit; background:var(--wait); }
 .tech-story .load-row.is-fast .load-rail i { background:var(--beam); }
+/* v142 橫條動畫：is-armed（已備妥、尚未播放）時收起，is-play 時等速延伸。沒有 JavaScript 或要求減少動態時兩個類別都不會出現。 */
+.tech-story .load-rail i { transform-origin:left center; }
+.tech-story .load-charts.is-armed .load-rail i { transform:scaleX(0); }
+.tech-story .load-charts.is-armed.is-play .load-rail i { animation:loadGrow var(--load-ms,600ms) linear both; }
+@keyframes loadGrow { from { transform:scaleX(0); } to { transform:scaleX(1); } }
+.tech-story .load-replay { display:flex; flex-wrap:wrap; align-items:center; gap:10px 16px; margin:14px 0 0; color:var(--muted); font-size:calc(13px * var(--rd-fs)); line-height:1.6; }
+.tech-story .load-replay[hidden] { display:none; }
+.tech-story .load-replay button { min-height:48px; padding:8px 22px; border:1px solid var(--beam); border-radius:999px; background:var(--panel); color:var(--beam); font:inherit; font-weight:700; cursor:pointer; }
+.tech-story .load-replay button:focus-visible { outline:3px solid var(--beam); outline-offset:3px; }
+.tech-story .load-defs-title { margin:34px 0 8px; }
+.tech-story .load-defs { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin:18px 0 10px; }
+.tech-story .load-defs > div { min-width:0; padding:20px 22px; border:1px solid var(--rule); border-left:5px solid var(--beam); border-radius:16px; background:var(--panel); }
+.tech-story .load-defs > div.is-miss { border-left-color:var(--wait); }
+.tech-story .load-defs dt { margin:0 0 8px; font-weight:700; font-size:calc(17px * var(--rd-fs)); color:var(--beam); }
+.tech-story .load-defs .is-miss dt { color:var(--wait); }
+.tech-story .load-defs dd { margin:0; line-height:1.7; }
+.tech-story .load-defs dd b { display:block; margin-top:10px; font-family:"IBM Plex Mono",monospace; font-size:calc(14px * var(--rd-fs)); }
+.tech-story .load-path .load-choice { margin-top:18px; }
 .tech-story .load-path { margin-top:30px; }
 .tech-story .load-path-top { display:flex; flex-wrap:wrap; align-items:end; justify-content:space-between; gap:16px; }
 .tech-story .load-path-title { margin:0 0 6px; font-size:calc(18px * var(--rd-fs)); font-weight:700; }
@@ -4757,6 +4775,6 @@ html[data-view="mobile"] .tracker-card-note { font-size: calc(15px * var(--rd-fs
 .tech-story .load-evidence { margin:26px 0; padding:16px; border:1px solid var(--rule); border-radius:18px; background:var(--panel); max-width:820px; }
 .tech-story .load-evidence img { display:block; width:100%; height:auto; border-radius:12px; }
 .tech-story .load-evidence figcaption { margin-top:12px; color:var(--muted); font-size:calc(13px * var(--rd-fs)); line-height:1.6; }
-@media(max-width:700px){.tech-story .load-charts { grid-template-columns:minmax(0,1fr); }.tech-story .load-steps { grid-template-columns:minmax(0,1fr); }}
+@media(max-width:700px){.tech-story .load-defs { grid-template-columns:minmax(0,1fr); }.tech-story .load-charts { grid-template-columns:minmax(0,1fr); }.tech-story .load-steps { grid-template-columns:minmax(0,1fr); }}
 @media(max-width:480px){.tech-story .load-stats { grid-template-columns:repeat(2,minmax(0,1fr)); }.tech-story .load-stat { padding:16px; }.tech-story .load-stat:last-child { grid-column:1/-1; }.tech-story .load-reduce { flex-direction:column; }.tech-story .load-reduce-arrow { transform:rotate(90deg); }.tech-story .load-choice button { flex:1 1 auto; }}
 </style>

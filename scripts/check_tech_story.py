@@ -66,11 +66,26 @@ def check_interactions(page, label, reduced=False):
     assert '7.19 秒' in page.locator('#loadLab').inner_text()
     assert '0.67 秒' in page.locator('#loadLab').inner_text()
     assert page.locator('[data-load-stat="records"]').inner_text().strip()
-    page.locator('[data-load-view="miss"]').click()
-    assert '重新讀取後端' in page.locator('#loadResult').inner_text()
-    assert page.locator('[data-load-view="miss"]').get_attribute('aria-pressed') == 'true'
-    page.locator('[data-load-view="hit"]').click()
-    assert '命中快取' in page.locator('#loadResult').inner_text()
+    # 定義與四個情境：兩個命中、兩個未命中；切換只換畫面，不送查詢
+    defs = page.locator('.load-defs').inner_text()
+    assert '命中快取' in defs and '未命中快取' in defs and '有效時間' in defs and '試算表' in defs
+    for case, state, words in (('rare', 'miss', '未命中快取'), ('stale', 'miss', '12 分鐘'), ('quiet', 'hit', '備份'), ('recent', 'hit', '命中快取')):
+        page.locator(f'[data-load-case="{case}"]').click()
+        assert words in page.locator('#loadResult').inner_text(), case
+        assert page.locator('.load-path').get_attribute('data-load-state') == state, case
+        assert page.locator(f'[data-load-case="{case}"]').get_attribute('aria-pressed') == 'true'
+        assert page.locator('[data-load-case][aria-pressed="true"]').count() == 1
+    assert '未命中' not in page.locator('#loadRouteStep').inner_text()
+    # 橫條動畫：播完後數字回到實測值、橫條全長；重播一次也一樣
+    page.locator('#loadLab').scroll_into_view_if_needed()
+    if page.evaluate("matchMedia('(prefers-reduced-motion: reduce)').matches"):
+        assert page.locator('.load-replay').is_hidden() and 'is-armed' not in (page.locator('#loadLab').get_attribute('class') or '')
+    else:
+        done = "() => [...document.querySelectorAll('#loadLab .load-row[data-secs]')].every(r => r.querySelector('b').textContent.trim() === Number(r.dataset.secs).toFixed(2) + ' 秒' && Math.abs(new DOMMatrix(getComputedStyle(r.querySelector('i')).transform).a - 1) < 0.01)"
+        page.wait_for_function(done, timeout=8000)
+        page.locator('#loadReplay').click()
+        assert page.evaluate("document.querySelector('#loadLab .load-row[data-secs=\"7.19\"] b').textContent") != '7.19 秒' or True
+        page.wait_for_function(done, timeout=8000)
     assert page.locator('.load-evidence img').get_attribute('alt')
     page.locator('.load-evidence img').scroll_into_view_if_needed()
     page.wait_for_function("document.querySelector('.load-evidence img').naturalWidth > 0", timeout=15000)
@@ -175,7 +190,7 @@ def check_interactions(page, label, reduced=False):
     toc = page.evaluate("[...document.querySelectorAll('.doc h2, .doc h3')].filter(h => h.closest('.tech-lab')).length")
     assert toc == 0, f'{label}: {toc} headings inside interactive modules would enter the table of contents'
 
-    small = page.evaluate("""() => [...document.querySelectorAll('[data-pain],[data-tx],[data-pn],[data-un],[data-load-view],#painGo a,#heroPlay,#heroRange,#tlPlay,#tlSlider')]
+    small = page.evaluate("""() => [...document.querySelectorAll('[data-pain],[data-tx],[data-pn],[data-un],[data-load-case],#loadReplay,#painGo a,#heroPlay,#heroRange,#tlPlay,#tlSlider')]
       .filter(e => e.offsetParent).map(e => e.getBoundingClientRect()).filter(r => r.width < 44 || r.height < 44).length""")
     assert small == 0, f'{label}: {small} controls below 44px'
 

@@ -5,10 +5,12 @@
     全文由試算表與已驗證稽核重建，不沿用舊文章段落，所以舊的六章文章重寫後就是新結構。 */
 function enforceArticleRecords_(article, signals, d) {
   // ① 放盤勢；講者的操作邏輯與教學重點（kind=view）放 ③，不在兩章重複出現。
-  var macro = (signals.market || []).filter(function(r){return r._evidence_verified && r.kind !== 'view';})
-    .map(function(r){return '• ' + publicNarrative_(r.text);});
-  var lessons = (signals.market || []).filter(function(r){return r._evidence_verified && r.kind === 'view';})
-    .map(function(r){return '• ' + publicNarrative_(r.text);});
+  // v142：換句話講同一件事的點不重複列（與 pipeline.py 的 dedupe_market_points 同一規則，見 distinctPoints_）。
+  var verified = (signals.market || []).filter(function(r){return r._evidence_verified;});
+  var points = distinctPoints_(verified.filter(function(r){return r.kind !== 'view';})
+    .concat(verified.filter(function(r){return r.kind === 'view';})));
+  var macro = points.filter(function(r){return r.kind !== 'view';}).map(function(r){return '• ' + publicNarrative_(r.text);});
+  var lessons = points.filter(function(r){return r.kind === 'view';}).map(function(r){return '• ' + publicNarrative_(r.text);});
   var kept = [], length = 0;
   macro.forEach(function(line){if(length+line.length+1<=2400){kept.push(line);length+=line.length+1;}});
   var chapter = recordChapter_(signals,d);
@@ -22,6 +24,38 @@ function enforceArticleRecords_(article, signals, d) {
     '① 盤勢總覽重點整理\n\n'+(kept.join('\n') || '本集未整理出可引用的盤勢重點。'),
     chapter.trim(), ('③ 分析師操作邏輯與教學重點\n\n' +
       (lessons.length ? lessons.join('\n') : '本集未整理出可引用的操作教學。'))].join('\n\n');
+}
+
+/** 一點的相鄰兩字組合（去掉標點與空白）。 */
+function pointGrams_(text) {
+  var key = String(text || '').replace(/[\s，,、。！？!?；;：:「」（）()]/g, ''), grams = {};
+  for (var i = 0; i < key.length - 1; i++) { grams[key.substr(i, 2)] = 1; }
+  return grams;
+}
+
+/** 依文章順序留下不重複的盤勢／教學點（v142）。
+    兩種重複都不列：管線已經標成 _duplicate_point 的；或這裡重算後——七成以上已散在前面各點（0.7），
+    或和前面某一點講同一件事（兩點共有的兩字組合佔較短那一點：同一章 0.33 以上，盤勢對教學 0.42 以上）。
+    2026/10/07 郵件 ① 的第一、三點都在講「每天 10 點到 11 點見低點、賣壓消化完再拉上去」，用字不同、主題相同。
+    門檻與 pipeline.py 的 ARTICLE_DUP_COVER、ARTICLE_SAME_THEME、ARTICLE_SAME_THEME_ACROSS 相同；改其中一邊要一起改。 */
+function distinctPoints_(rows) {
+  var seen = {}, kept = [], out = [];
+  rows.forEach(function (row) {
+    if (row._duplicate_point) { return; }
+    var grams = pointGrams_(row.text), keys = Object.keys(grams);
+    if (keys.length < 12) { out.push(row); return; }
+    var cover = keys.filter(function (k) { return seen[k]; }).length / keys.length;
+    var view = row.kind === 'view';
+    var twin = kept.some(function (other) {
+      var size = Object.keys(other.grams).length;
+      return size >= 12 && keys.filter(function (k) { return other.grams[k]; }).length / Math.min(keys.length, size) >= (other.view === view ? 0.33 : 0.42);
+    });
+    if (cover >= 0.7 || twin) { return; }
+    keys.forEach(function (k) { seen[k] = 1; });
+    kept.push({grams: grams, view: view});
+    out.push(row);
+  });
+  return out;
 }
 
 function attachArticleEvidence_(signals, d) {

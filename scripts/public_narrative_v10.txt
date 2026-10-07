@@ -16,11 +16,15 @@ function narrativeName_(name) { return String(name || '').replace(/[*＊]+$/, ''
 function replaceNarrativeName_(text, heard, fixed) {
   if (!heard || heard === fixed) return text;
   var esc = function (v) { return v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); };
+  // 正式名稱以 -KY 結尾時，原文跟在後面的 KY 一起換掉（「茂聯-KY」「茂聯KY」→「貿聯-KY」，不是「貿聯-KY-KY」）。
+  var ky = /-KY$/i.test(fixed) && !/KY$/i.test(heard) ? '(?:\\s*-?\\s*KY)?' : '';
   if (fixed.indexOf(heard) === 0 && fixed.length > heard.length) {
-    return text.replace(new RegExp(esc(heard) + '(?!' + esc(fixed.slice(heard.length)) + ')', 'g'), fixed);
+    return text.replace(new RegExp(esc(heard) + '(?!' + esc(fixed.slice(heard.length)) + ')' + ky, ky ? 'gi' : 'g'), fixed);
   }
-  return text.split(heard).join(fixed);
+  return ky ? text.replace(new RegExp(esc(heard) + ky, 'gi'), fixed) : text.split(heard).join(fixed);
 }
+/** 已經存進資料的連寫（貿聯-KY-KY、貿聯-KYKY）收成一個。 */
+function collapseKy_(text) { return String(text || '').replace(/-KY(?:\s*-?\s*KY)+/gi, '-KY'); }
 /* 內部判斷字眼：這一列「為什麼被歸到這一類」是流程，不是講者說的話。
    與 pipeline.py 的 _META_CLAUSE 同一份清單；寫在這裡，已經存進試算表的舊說明呈現時也會乾淨。
    2026/09/15 的台積電寫成「……但在當日節目中並未將台積電列為當日會員實際買進或持有的個股明細，
@@ -119,7 +123,9 @@ function publicNarrative_(text, row) {
     .replace(/(被|遭|獲)(?:張震|張正|張總|張中|講者)(?:老師)?/g, '$1')   // 被動句裡的人名也不寫（v96）
     .replace(/(^|[，,。；;：:、「『（(\s]|雖然|但是|但|而且|而|並且|並|且|因為|所以)(?:張震|張正|張總|張中|講者)(?:老師)?(?:本人)?(?:的(?=會員))?/g,'$1')
     // 只寫「老師」當主詞的句子也一樣（2026/10/06）；只在子句開頭、後面接動作時拿掉。
-    .replace(/(^|[，,。；;：:、\s]|雖然|但是|但|而且|而|並且|並|且|因為|所以)老師(?=強調|認為|建議|指出|表示|提醒|判斷|明確|自稱|特別|持續|已|亦|昨日|今日|直言|看好|選擇|並|也|則|以)/g,'$1');
+    .replace(/(^|[，,。；;：:、\s]|雖然|但是|但|而且|而|並且|並|且|因為|所以)老師(?=強調|認為|建議|指出|表示|提醒|判斷|明確|自稱|特別|持續|已|亦|昨日|今日|直言|看好|選擇|並|也|則|以|在|於|將|會|指示|通知|帶領|偏好|這是|自己|手中|說|講|提到|點名|預期|預計|先前|目前|本人)/g,'$1')
+    .replace(/老師(?:本人)?(?:的(?=會員|持股|核心|成本|部位|買點)|(?=手中|自己的))/g,'')
+    .replace(/(^|[。；;])在(?=今日|今天|昨日|昨天)/g,'$1');
   text = stripMetaClauses_(text);
   text=text.replace(/[（(][^（）()]*?(?:原文(?:作|為|寫|說)|語音(?:作|為)|誤植|誤字)[^（）()]*[）)]/g,'');
   if(String(row.code||'')==='5274')text=text.replace(/信化/g,'信驊');
@@ -146,7 +152,7 @@ function publicNarrative_(text, row) {
     var key=part.replace(/回顧|過往|目前|\s|[，,]/g,'');
     if(key && !seen[key] && !restatesEarlier_(key,earlier)){seen[key]=true;earlier+=key;parts.push(part.trim());}
   });
-  text = (parts.join('。')+(parts.length?'。':'')).replace(/[*＊]+/g,'');
+  text = collapseKy_((parts.join('。')+(parts.length?'。':'')).replace(/[*＊]+/g,''));
   return sms ? smsNoteBody_(text, row) : text;
 }
 /** v107：與 pipeline.py 的 _restates_earlier 同一規則：換個起頭把前文再講一次的句子不重複列。 */

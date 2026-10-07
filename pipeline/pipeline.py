@@ -6567,6 +6567,16 @@ def drop_ordinary_word_rows(signals, transcript):
     return signals
 
 
+_SELL_SAID = re.compile(r'(?:要|該|先|應|建議|通知|表示)[^，。；]{0,10}賣(?:出|掉|了)?|賣出|賣掉|出場|了結')
+_KEEP_SAID = re.compile(r'不(?:用|要|必|需要)(?:再)?(?:急著)?(?:賣|殺)|續抱|抱著|買進|布局|佈局|會漲|看好|可以(?:買|注意)')
+
+
+def says_sell(note) -> bool:
+    """說明講的是要賣、已經賣，而且沒有叫人續抱或買進。"""
+    note = str(note or '')
+    return bool(_SELL_SAID.search(note)) and not _KEEP_SAID.search(note)
+
+
 def review_excluded_stocks(signals, transcript, date_str):
     """原文點到名、流程走完卻沒有任何分類的台股，逐檔單獨再問一次。
 
@@ -6702,8 +6712,13 @@ def review_excluded_stocks(signals, transcript, date_str):
             continue
         # 說明講的是要賣、已經賣，卻判成觀望注意（偏多）：方向照說明走，列觀望不碰。
         # 2026/10/07 預覽：台達電「先前已表示台達電要賣出」被放進觀望注意。
-        if verdict == 'watch_watch' and re.search(r'(?:要|該|先|應|建議|通知|表示)[^，。；]{0,10}賣(?:出|掉|了)?|賣出|賣掉|出場|了結', note) \
-                and not re.search(r'不(?:用|要|必|需要)(?:再)?(?:急著)?(?:賣|殺)|續抱|抱著|買進|布局|佈局|會漲|看好|可以(?:買|注意)', note):
+        # 只是被點到名（「近期市場看到的相關標的包含華通」）不是看法：觀望注意要有對這一檔的指示（會漲、可以注意、續抱、等拉回…）。
+        # 2026/10/07 重播：華通以這一句被列成觀望注意，補充時又被寫上別家公司的「沒有賺錢」。
+        if verdict == 'watch_watch' and not says_sell(note) and not _has_directive(note)                 and not re.search('翻陽|翻紅|翻揚|向上|突破|留著|抱著|續抱|持有|持股|看好|留意|注意|會漲|買點|布局|佈局|不用賣', note):
+            note_decision('排除單檔覆核', '只是被點到名，維持排除', label, note[:100])
+            print(f"  排除單檔覆核　{label}：只是被點到名，沒有對這一檔的指示，維持排除：{note[:40]}")
+            continue
+        if verdict == 'watch_watch' and says_sell(note):
             note_decision('排除單檔覆核', '說明是賣出方向，改列觀望不碰', label, note[:100])
             verdict = 'watch_avoid'
         for c in ('ignored', 'uncertain'):
@@ -9134,6 +9149,11 @@ def normalize_watch_tones(signals):
             # 原文對這一檔明講不推薦、不追（直白說法核對或盤點補列的列）：不因立場欄位、或說明裡提到別檔的正面字眼翻回觀望注意。
             # 2026/10/07 重播：華新科「都已經漲3根漲停板了，進去跟人家湊什麼熱鬧」先被改列觀望不碰，
             # 補充後的說明多了一句「起漲模式與鈺邦如出一轍…底部第一根長紅」，語氣核對又把它翻成觀望注意。
+            if cat=='watch_avoid' and target=='watch_watch' and says_sell(text):
+                # 「先前已表示X要賣出，並針對是否追價長紅棒說明」：「長紅」不是看多 X（2026/10/07 重播，台達電）。
+                note_decision('語氣核對','保留觀望不碰',name,_decision_detail(text,'說明是賣出方向，不以正面字眼推翻'))
+                print(f"  語氣核對　{name}　保留觀望不碰（說明是賣出方向）")
+                target=cat
             if cat=='watch_avoid' and target=='watch_watch' and (row.get('_plain_refusal') or row.get('_leftover')):
                 note_decision('語氣核對','保留觀望不碰',name,_decision_detail(text,'原文對這一檔明講不推薦，不以立場欄位或正面字眼推翻'))
                 print(f"  語氣核對　{name}　保留觀望不碰（原文明講不推薦）")
@@ -9657,7 +9677,9 @@ def enrich_stock_context(signals, transcript, date_str):
                       and market_item_verified({'text': text, 'evidence': evidence}, source_norm)
                       # 技術與消息詞都要由本股引句支持；不能把力旺增資／繳款接到晶心科。
                       and all(term.lower() in ''.join(evidence).lower() for term in technical)
-                      and all(_quote_near_own_name(q, spans) for q in evidence))
+                      and all(_quote_near_own_name(q, spans) for q in evidence)
+                      # 公司賺不賺錢要有同一句點名本股的原文（華通被補上 SpaceX 的「沒有什麼賺錢」）。
+                      and not _foreign_profit_claim(text, _row_names_for_recap(row), transcript))
             if not ok:
                 rejected.append(str(position+1) + ':' + ('引用不存在或改字' if not evidence or not all(isinstance(q,str) and _quote_is_real(q, source_norm) for q in evidence)
                     else '數字不在引用' if not market_item_verified({'text':text,'evidence':evidence}, source_norm)

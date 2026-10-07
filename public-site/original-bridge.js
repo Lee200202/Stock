@@ -75,13 +75,13 @@
   /* 首頁總覽提早出發（v138）。頁面開頭有一小段程式，在整頁（將近 900KB）還沒解析完之前就先送出同一個
      apiGetDashboard 請求；畫面程式第一次要總覽時直接接這個已經在路上的請求，省掉一秒多的等待。
      這不是快取：它是這一次開頁當下送出的即時請求（no-store），只用一次，超過 15 秒沒被接走就作廢；
-     失敗、逾時或等超過 6 秒沒有結果時，照原本的流程重新送，不會顯示任何先前保存的內容。 */
+     它失敗時照原本的流程重新送；等了 6 秒還沒有結果時另外再送一次，兩個誰先成功就用誰
+     （後端偶爾要十幾秒：不能因為提早送而比原本更慢，也不能卡在一個不會回來的請求上）。不會顯示任何先前保存的內容。 */
   function takeEarlyDashboard(name, args) {
     const early = window.__earlyDashboard;
     if (name !== 'apiGetDashboard' || args.length || !early || !early.promise) return null;
     window.__earlyDashboard = null;
-    if (Date.now() - early.at >= 15000) return null;
-    return Promise.race([early.promise, new Promise((_, reject) => setTimeout(() => reject(new Error('early-timeout')), 6000))]);
+    return Date.now() - early.at < 15000 ? early.promise : null;
   }
   async function callApi(name, args) {
     const key = sharedReads.has(name) ? `${name}:${JSON.stringify(args)}` : null;
@@ -95,8 +95,17 @@
         const delays = retryReads.has(name) ? [1500, 4000] : [];
         for (let attempt = 0; attempt <= delays.length; attempt++) {
           try {
-            // 提早送的那一次沒成功（連線中斷、後端錯誤、等太久）：不算一次重試，直接照原本的流程重新送。
-            if (attempt === 0 && early) { try { result = await early; lastError = null; break; } catch (e) { /* 往下重新送 */ } }
+            if (attempt === 0 && early) {
+              // 先等提早送的那一次，最多 6 秒。成功就用它；失敗就照原本的流程重新送（不算一次重試）。
+              const first = await Promise.race([early.then(value => ({value}), () => null), wait(6000).then(() => undefined)]);
+              if (first) { result = first.value; lastError = null; break; }
+              if (first === undefined) {
+                // 6 秒還沒有結果：另外再送一次，兩個誰先成功用誰；都失敗時回報重新送的那一次的錯誤。
+                const again = requestOnce(name, args);
+                try { result = await Promise.any([early, again]); } catch (e) { result = await again; }
+                lastError = null; break;
+              }
+            }
             result = await requestOnce(name, args); lastError = null; break;
           }
           catch (error) {

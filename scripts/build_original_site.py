@@ -99,8 +99,9 @@ def build(output: Path, api_url: str) -> None:
         r'<body\1>\n<script src="original-bridge.js"></script>', page, count=1)
     if count != 1:
         raise ValueError("Body tag missing in Index")
-    (output / "index.html").write_text(page, encoding="utf-8")
-    # 試驗頁（v138）：和首頁同一份內容，但橋接器內嵌、總覽請求在頁面開頭就送出。先在正式網域上量測與驗證，確認無誤再換到首頁。
+    # 首頁（v138）：橋接器內嵌（少一個會擋住解析的請求），總覽請求在頁面開頭就送出，不等整頁（將近 900KB）解析完。
+    # 送出的是當下的即時請求（no-store）；橋接器接走它、等太久會另外再送、失敗會重新送，都不使用任何保存的舊資料。
+    # 2026/10/07 先以 preview-early.html 在正式網域驗證過，再換到首頁。
     if "</script" in bridge.lower():
         raise ValueError("Bridge cannot be inlined: it contains a closing script tag")
     origin = re.match(r"https://[^/]+", api_url).group(0)
@@ -114,8 +115,10 @@ def build(output: Path, api_url: str) -> None:
     preview = page.replace('<script src="original-bridge.js"></script>', "<script>\n" + bridge + "</script>", 1)
     preview, count = re.subn(r'<meta charset="utf-8">', lambda m: m.group(0) + "\n  " + early, preview, count=1)
     if count != 1 or "__earlyDashboard" not in preview or 'src="original-bridge.js"' in preview:
-        raise ValueError("Early dashboard preview could not be assembled")
-    (output / "preview-early.html").write_text(preview, encoding="utf-8")
+        raise ValueError("Early dashboard request could not be assembled")
+    (output / "index.html").write_text(preview, encoding="utf-8")
+    # 原樣的首頁留一份（外部橋接器、沒有提早送），需要對照或臨時切回時用。
+    (output / "index-plain.html").write_text(page, encoding="utf-8")
     for template, filename in (("Admin", "admin.html"), ("Admin", "admin-legacy.html"), ("Unsubscribed", "unsubscribe.html")):
         content = render(SOURCE / f"{template}.html", values)
         if "<?" in content:

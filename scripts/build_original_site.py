@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import html
+import json
 import os
 import re
 from pathlib import Path
@@ -99,6 +100,22 @@ def build(output: Path, api_url: str) -> None:
     if count != 1:
         raise ValueError("Body tag missing in Index")
     (output / "index.html").write_text(page, encoding="utf-8")
+    # 試驗頁（v138）：和首頁同一份內容，但橋接器內嵌、總覽請求在頁面開頭就送出。先在正式網域上量測與驗證，確認無誤再換到首頁。
+    if "</script" in bridge.lower():
+        raise ValueError("Bridge cannot be inlined: it contains a closing script tag")
+    origin = re.match(r"https://[^/]+", api_url).group(0)
+    early = ('<link rel="preconnect" href="' + origin + '" crossorigin>\n  <script>(function(){try{'
+             'if(/[?&](?:page|action)=/.test(location.search))return;'
+             'var p=fetch(' + json.dumps(api_url) + ',{method:"POST",mode:"cors",cache:"no-store",headers:{"Content-Type":"application/json"},'
+             'body:\'{"method":"apiGetDashboard","args":[]}\'}).then(function(r){return r.json().then(function(b){'
+             'if(!r.ok||!b||!b.ok){throw new Error((b&&b.error)||("HTTP "+r.status));}return b.result;});});'
+             'p.catch(function(){});window.__earlyDashboard={at:Date.now(),promise:p};'
+             '}catch(e){}})();</script>')
+    preview = page.replace('<script src="original-bridge.js"></script>', "<script>\n" + bridge + "</script>", 1)
+    preview, count = re.subn(r'<meta charset="utf-8">', lambda m: m.group(0) + "\n  " + early, preview, count=1)
+    if count != 1 or "__earlyDashboard" not in preview or 'src="original-bridge.js"' in preview:
+        raise ValueError("Early dashboard preview could not be assembled")
+    (output / "preview-early.html").write_text(preview, encoding="utf-8")
     for template, filename in (("Admin", "admin.html"), ("Admin", "admin-legacy.html"), ("Unsubscribed", "unsubscribe.html")):
         content = render(SOURCE / f"{template}.html", values)
         if "<?" in content:

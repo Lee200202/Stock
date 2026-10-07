@@ -7,7 +7,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;600&family=Noto+Serif+TC:wght@700&display=swap" rel="stylesheet">
   <?!= include('Stylesheet'); ?>
-  <?!= include('BattleConfig'); ?>
 </head>
 <body data-tab="<?= initialTab ?>" data-stock="<?= initialStock ?>">
 
@@ -58,7 +57,6 @@
   <nav class="wrap tabs" role="tablist">
     <button class="tab" role="tab" aria-selected="true"  data-tab="overview"><svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>每日總覽</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="tracker"><svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/></svg>持股追蹤</button>
-    <button class="tab" role="tab" aria-selected="false" data-tab="battle"><svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4v8l5 3M4 12h3"/></svg>戰情追蹤</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="perf"><svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>績效走勢</button>
     <!-- 個股查詢搬到頂列右上角的放大鏡了。
          它跟其他分頁不是同一種東西：其他分頁是「看今天／看這段期間有什麼」，
@@ -160,24 +158,6 @@
 
 <main class="wrap">
 
-  <section class="panel" id="p-battle" role="tabpanel" hidden>
-    <div class="sect">
-      <div class="sect-h"><h2>戰情追蹤</h2><button type="button" class="act ghost" id="battleRefresh">更新資料</button></div>
-      <p class="notice">用落地日 K 與累計成交量核對條件，範圍為本站追蹤股。盤中可變動；條件符合不代表主力進場或交易建議。</p>
-      <button type="button" class="act battle-settings-open" id="battleSettings" aria-expanded="true" aria-controls="battlePreferences">戰情設定</button>
-      <section id="battlePreferences" class="battle-config card" aria-labelledby="battleConfigTitle"></section><div class="battle-tools">
-        <form id="battleSearch" autocomplete="off"><label for="battleCode">查看股票</label><div class="battle-search"><div class="battle-search-field"><input id="battleCode" type="search" placeholder="輸入股名或代號，例如 台積電、2330" maxlength="40" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="battleSuggestions" aria-describedby="battleSearchHint"><div id="battleSuggestions" class="battle-suggestions" role="listbox" aria-label="相關股票" hidden></div></div><p id="battleSearchHint" class="notice" role="status" aria-live="polite">輸入中文股名或代號，選擇下方候選。</p><button type="submit" class="act">查看</button></div></form>
-
-      </div>
-      <p id="battleSummary" class="notice" role="status" aria-live="polite">選取此分頁後讀取資料。</p>
-      <p id="battleRule" class="battle-rule"></p>
-      <div id="battleCards" class="battle-list"></div>
-      <div class="battle-pagination"><button type="button" class="act" id="battlePrev" disabled>上一頁</button><span id="battlePage"></span><button type="button" class="act" id="battleNext" disabled>下一頁</button><button type="button" class="act" id="battleUniverse" hidden>回到符合條件的清單</button></div>
-      <details class="battle-help"><summary>判定方式與資料限制</summary><p>跳空幅度以開盤／昨收計算，另要求開盤超出昨日高低價。爆量以當日實際成交量除以前 5 或 20 個交易日均量，均量排除當日。盤中預設看實際累計量；可選簡化估量，數值另標示，並非歷史同時段量比。</p><p>戰情設定分成進場訊號與出場訊號兩套條件。進場條件看轉強，出場條件是「已經持有時」的風險觀察，不代表有人賣出，也不會改動網站上的分類、持股或成本。每個條件標明是常見指標、本站研究設定，或依張震節目文字紀錄量化的研究版；範本與門檻都沒有經過回測，不代表勝率。「剛交叉」「剛跌破」這類條件看的是事件，和「目前在上方」的狀態分開；背離要等轉折右邊 3 根走完才確認，不回填。結果只列出可判定且符合所選條件的股票。缺口歷史的三日是事件後三個交易日，不是日曆日；仍需核對除權息、減資或分割等事件。</p><p>指標用手上連續的日 K 計算（最多 260 根）：均線為簡單平均，RSI、ATR、ADX 用 Wilder 平滑，KD 為 9／3／3，MACD 為 12／26／9、柱體乘 2。MACD、RSI、ADX 這類帶種子的指標至少要 120–135 根才判定，不夠就標資料不足。臨時休市（例如颱風）要向證交所核對過才不算交易日；只是很多股票同一天缺日 K 時，保留缺口、不當成休市。盤中的當根是即時報價、尚未收盤；需要「量縮」的條件等收盤才判定。本站的成交量不含一部分鉅額與盤後交易，會比證交所公布的數字少一些；量能倍數的分子分母用同一種量。60 分 K 均線、週月線、同時段量比、法人籌碼等還沒有提供，設定頁依「資料已有但還沒接上／要先確認來源／公式還沒寫」分類列出原因。頁面只讀既有快取；不會啟動行情補抓、重算或寄送。</p></details>
-      <noscript><p>戰情追蹤需要 JavaScript 計算；核心規則見上方判定方式。沒有運算結果時不顯示符合訊號。</p></noscript>
-    </div>
-  </section>
-
   <!-- ============ 每日總覽 ============ -->
   <section class="panel" id="p-overview" role="tabpanel">
     <div class="sect">
@@ -258,10 +238,10 @@
     <div class="sect">
       <div class="card">
         <div class="stock-search">
-          <div class="battle-search-field">
+          <div class="stock-search-field">
             <label for="stockInput">查看股票</label>
             <input type="search" id="stockInput" placeholder="輸入股名或代號，例如 台積電、2330" autocomplete="off" maxlength="40" role="combobox" aria-autocomplete="list" aria-controls="suggestList" aria-expanded="false" aria-describedby="stockSearchHint">
-            <div class="battle-suggestions" id="suggestList" role="listbox" aria-label="相關股票" hidden></div>
+            <div class="stock-suggest-list" id="suggestList" role="listbox" aria-label="相關股票" hidden></div>
           </div>
           <p id="stockSearchHint" class="notice" role="status" aria-live="polite">輸入中文股名或代號，選擇下方候選。</p>
           <button type="button" class="act" id="stockBtn">查看</button>
@@ -518,7 +498,6 @@
     <nav class="dnav" id="dNav" aria-label="個股面板段落">
       <button type="button" data-go="dSecHold" aria-current="true">持有期間</button>
       <button type="button" data-go="dSecK">K 線</button>
-      <button type="button" data-go="dSecBattle">技術條件</button>
       <button type="button" data-go="dSecFund">公司資料</button>
       <button type="button" data-go="dSecRec">每天講了什麼</button>
     </nav>
@@ -578,11 +557,6 @@
         <p class="notice" id="periodNote"></p>
       </div>
 
-      <div class="sect" id="dSecBattle">
-        <div class="sect-h"><h2>技術條件</h2></div>
-        <p class="notice">與戰情追蹤使用相同設定，依日 K 判斷，不隨圖表週期改變。</p>
-        <div id="dBattle">尚未讀取技術條件。</div>
-      </div>
       <div class="sect" id="dSecFund">
         <div class="sect-h"><h2>估值與公司資料</h2></div>
         <div class="kv-grid" id="dFund"></div>
@@ -599,6 +573,5 @@
 
 <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <?!= include('JavaScript'); ?>
-<?!= include('Battle'); ?>
 </body>
 </html>

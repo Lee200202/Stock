@@ -506,10 +506,8 @@
     if (name === 'perf' && !perfLoaded) { loadPerf(); }
     if (name === 'mail' && !mailLoaded) { loadMailDates(); }
     if (name === 'tx' && !txLoaded) { loadTxDates(); }
-    if (name === 'battle' && window.__battleLoad) { window.__battleLoad(); }
   }
   window.__activateTab = activateTab;
-  window.__openBattleStock = openDetail;
 
   // 只綁按鈕。導覽列裡的「後台」是 <a>，點了要直接跳頁，
   // 不能被切分頁的邏輯攔下來（那會找不到 p-undefined 而整個壞掉）。
@@ -1498,7 +1496,17 @@ function restatesEarlier_(key, earlier) {
             '</div><div class="v ' + signCls(sum.avgReturn) + '">' + fmtRet(sum.avgReturn) + '</div></div>' +
           '<div class="tsum-i"><div class="k">正報酬比例</div><div class="v">' +
             (sum.positiveRatio == null ? '\u2014' : sum.positiveRatio.toFixed(1) + '%') + '</div></div>' +
-          '</div>';
+          '</div>' +
+          /* 已實現報酬以回合計（v139）：同一檔買了又賣、賣了又買，每一個已經結束的回合各算一次；
+             目前又持有中的股票，先前結束的回合也算（例如世芯-KY 第 1 回合）。 */
+          (trackerView === 'exited' && sum.rounds
+            ? '<p class="tsum-note">平均與正報酬比例以回合計：共 ' + sum.rounds + ' 個已結束的回合' +
+              ((sum.fromHeld || []).length
+                ? '，含目前持有中股票先前結束的回合（' + sum.fromHeld.map(function (h) {
+                    return esc(h.name) + ' ' + h.rets.map(fmtRet).join('、');
+                  }).join('；') + '）'
+                : '') + '。</p>'
+            : '');
       } else {
         box.innerHTML = '';
       }
@@ -2481,7 +2489,6 @@ function restatesEarlier_(key, earlier) {
         DETAIL.header.quote = q;
         renderHeader(DETAIL.header);
         updateDetailHoldingQuote_(q);
-        if (window.__battleQuote) window.__battleQuote(code, q);
       }
       quotePolledAt = Date.now();
       scheduleDetailQuote_();
@@ -2498,7 +2505,6 @@ function restatesEarlier_(key, earlier) {
     var request = ++detailRequest;
     if (!isCode(code)) { return; }
     currentCode = code;
-    if (window.__battleDetail) { window.__battleDetail(code); }
     clearTimeout(quotePollTimer); quotePolledAt = Date.now();
     USE.act('看個股', code);
     DETAIL = { code: code, tracker: undefined, record: undefined };

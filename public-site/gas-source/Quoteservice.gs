@@ -1993,7 +1993,7 @@ function getFundamentals(code) {
       per: f.per, pbr: f.pbr, yld: f.yld,
       industry: f.industry || '', listed: f.listed || '', chairman: f.chairman || '',
       cached: true,
-      source: '本益比、股價淨值比、殖利率來自證交所與櫃買中心公開資料，更新於 ' + (f.updated || '未知') + '。'
+      source: '本益比、股價淨值比、殖利率來自證交所與櫃買中心公開資料，更新於 ' + (taipeiStampText_(f.updated) || '未知') + '。'
     };
   }
 
@@ -2008,4 +2008,14 @@ function getFundamentals(code) {
     cached: false,
     source: '本益比、股價淨值比、殖利率來自證交所與櫃買中心公開資料，為前一交易日數值。'
   };
+}
+
+/** 日期時間轉成台灣時間的文字（v139）。試算表的時間經過快取會變成 UTC 的 ISO 字串（2026-10-05T16:00:00.000Z），
+ *  直接印出來就不是台灣時間。整點午夜只留日期。認不得的原樣返回。 */
+function taipeiStampText_(v) {
+  if (v === null || v === undefined || v === '') { return ''; }
+  var d = v instanceof Date ? v : (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(String(v)) ? new Date(String(v)) : null);
+  if (!d || isNaN(d.getTime())) { return String(v); }
+  var text = Utilities.formatDate(d, 'Asia/Taipei', 'yyyy/MM/dd HH:mm');
+  return / 00:00$/.test(text) ? text.slice(0, 10) : text;
 }

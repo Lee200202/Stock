@@ -17,8 +17,3 @@ assert.equal(ctx.suggestCodes('國泰').length,12);
 assert.equal(ctx.suggestCodes('不存在').length,0);
 assert.equal(ctx.suggestCodes(' ＊ 國泰 ')[0].code,'2882');
 console.log('6 stock suggestion relevance checks passed');
-for(const f of ['Battle.html','BattleConfig.html']){
- const html=fs.readFileSync('public-site/gas-source/'+f,'utf8');
- for(const m of html.matchAll(/<script>([\s\S]*?)<\/script>/g))new vm.Script(m[1],{filename:f});
-}
-console.log('Battle browser scripts parse successfully');

@@ -6165,7 +6165,8 @@ def keep_first_pass_rows(first, reviewed, transcript):
 
 
 # 盤點到的台股在模型判讀之後沒有落在任何一類時，只認講得很直白的句子。
-_LEFT_AVOID = r'不用(?:再)?(?:去)?追|不建議|不推薦|沒有推薦|不要(?:亂)?買|不要碰|不能碰|不能買|不敢買|不用了|還沒(?:有)?跌完|不可能叫你們?(?:現在)?買|不會去碰'
+# 2026/10/07：「華新科都已經漲3根漲停板了，進去跟人家湊什麼熱鬧」是明講不追，模型兩次都說「沒有對這一檔本身的看法」。
+_LEFT_AVOID = r'不用(?:再)?(?:去)?追|不建議|不推薦|沒有推薦|不要(?:亂)?買|不要碰|不能碰|不能買|不敢買|不用了|還沒(?:有)?跌完|不可能叫你們?(?:現在)?買|不會去碰|湊(?:什麼|甚麼|啥)熱鬧'
 _LEFT_WATCH = r'(?<!不)建議你們?買|可以買|可以注意|最想買|我們持有|會員有|你們?要注意'
 _LEFT_LEAD = r'^(?:啊|那|好|來|所以|可是|然後|還有|而且|像|叫做|就是|比如說)*'
 # 「之前跟你們講漢唐跌破1000可以買」是轉述以前的話；「華通昨天大漲了不用追了」的昨天只是在講行情，不算。
@@ -6361,6 +6362,7 @@ watch_watch：看好、建議留意，或拉回可以買；
 skip：只是順口列舉名稱、念報價、講別檔時拿來比喻，或 sources 其實在講另一家公司，沒有對這一檔本身的看法；heard 只是日常用語（世界、全國、大量）而不是在講這家公司，也用 skip。
 sources 可能夾著相鄰個股的話（「這一支」「它」常是在講下一檔）：只採用同一句或緊鄰句子明確點名本股的內容，指代不明的不算。
 拿不準方向時用 watch_avoid 並照實寫他講了什麼，不可寫成推薦；不可為了收錄而編造看法。
+拿這一檔當對照、說它已經漲了幾根漲停、「進去跟人家湊什麼熱鬧」「我還去看好它嗎」，就是對這一檔現在的看法（漲多不追）：列 watch_avoid，說明寫它已經漲了多少、不追的理由。
 「有很多人說／有人問：張總，你昨天講 X 要賣了」這類句子，是講者轉述觀眾複述他自己先前講過的話，後面通常接著他當場的確認或補充：寫成「先前（昨天）已表示 X 要賣出」並接上他當場的說法，不可寫成「有傳聞」「據說」「有人提及」。
 note 用完整書面句寫 1～3 句、約 30～120 字，只寫 sources 裡對這一檔明講的內容（題材、法人、技術位置、風險、態度）；數字照抄阿拉伯數字；不用人名或講者當主詞；不寫分類流程、來源或「原文」「逐字稿」。
 source_ids 填支持 note 的段落編號，只能用同一 entry 的 sources。
@@ -8229,7 +8231,9 @@ def exclude_past_recommendations(signals, transcript):
                 row['exclusion_reason']='past_recommendation_only'
                 row['view']='';row['view_refs']=[];row['view_evidence']=[]
                 ignored.append(row)
-                if cat!='ignored':note_decision('舊推薦核對','純回顧不公開',row.get('name',''),'只有先前推薦價／沒人買的回顧，無現在持有、操作或新條件')
+                if cat!='ignored':
+                    print(f"  舊推薦核對　{row.get('name','')}：只有先前推薦價與過去買賣的回顧，沒有現在的持有、操作或新條件，不公開（原列 {cat}）")
+                    note_decision('舊推薦核對','純回顧不公開',row.get('name',''),'只有先前推薦價／沒人買的回顧，無現在持有、操作或新條件')
             else:keep.append(row)
         signals[cat]=keep
     signals.setdefault('ignored',[]).extend(ignored)
@@ -8908,6 +8912,36 @@ def _context_source_id(value, known):
     return cand if cand in known else ''
 
 
+def _context_claims(reply, source_ids):
+    """把補充回覆整理成 [{text, source_ids|quotes}]；看不懂回 None。
+
+    2026/10/07 兩次重播，模型都把 sentences 寫成字串陣列（不是物件），段落編號放在外層或乾脆沒附：
+      {"id":"sell:0","sentences":["……","……"],"source_ids":["s0"],"limitation":""}
+    原本每一句都要是帶編號的物件，於是 14～16 檔整批退回，重問一次還是一樣，所有說明停在初稿的一兩句——
+    這就是說明「過於簡化、沒有技術面」的直接原因。
+    句子沒有自己的編號時：用外層的編號；外層也沒有就用這一檔全部的 sources。
+    sources 本來就只有這一檔自己的前後文（在別家公司名稱處切開），後面逐句核對的數字、技術詞、本股範圍照樣把關，
+    所以放寬的只是「指到哪一段」的寫法，不是內容的依據。
+    """
+    claims = reply.get('sentences') if isinstance(reply, dict) else None
+    if isinstance(claims, str):
+        claims = [claims]
+    if not isinstance(claims, list):
+        return None
+    shared = [i for i in (reply.get('source_ids') or []) if _context_source_id(i, source_ids)] if isinstance(reply.get('source_ids'), list) else []
+    out = []
+    for c in claims:
+        if isinstance(c, str):
+            c = {'text': c}
+        if not isinstance(c, dict):
+            return None
+        ids, quoted = c.get('source_ids'), c.get('quotes')
+        if not (isinstance(ids, list) and ids) and not (isinstance(quoted, list) and quoted):
+            c = dict(c, source_ids=list(shared or source_ids))
+        out.append(c)
+    return out
+
+
 def _context_written_sentence(text):
     """補充模型的句子直接陳述事實；不把角色名當公開說明的主詞。"""
     return re.sub(r'(?:分析師|講師)(?:指出|建議|表示|強調|提及|認為|提醒)[，,：:]?', '', str(text or '')).strip()
@@ -9051,7 +9085,7 @@ def enrich_stock_context(signals, transcript, date_str):
         count = 0
         for rep in found:
             target = targets.get(rep.get('id')) if isinstance(rep, dict) else None
-            claims = rep.get('sentences') if target else None
+            claims = _context_claims(rep, target[4]) if target else None
             norm = _ev_norm(target[2]) if target else ''
 
             def cited(c):
@@ -9100,7 +9134,7 @@ def enrich_stock_context(signals, transcript, date_str):
             why_not['id 對不上'] = why_not.get('id 對不上', 0) + 1
             continue
         row, field, source, spans, source_ids = targets[reply['id']]
-        claims = reply.get('sentences')
+        claims = _context_claims(reply, source_ids)
         if not isinstance(claims, list) or not 1 <= len(claims) <= 5:
             why_not['句數不對'] = why_not.get('句數不對', 0) + 1
             continue
@@ -9134,6 +9168,11 @@ def enrich_stock_context(signals, transcript, date_str):
                 dropped += 1
                 first_ok = first_ok and position > 0
                 continue
+            if len(evidence) > 3:
+                # 沒有逐句編號、核對時用的是整檔 sources：存引用時只留和這一句最相關的三段（數字與字面重疊最多的）。
+                probe, nums = _ev_norm(text), set(_MARKET_NUM.findall(text))
+                evidence = sorted(evidence, key=lambda q: (len(nums & set(_MARKET_NUM.findall(q))),
+                    sum(m.size for m in difflib.SequenceMatcher(None, probe, _ev_norm(q)[:1200]).get_matching_blocks())), reverse=True)[:3]
             texts.append(text); quotes.extend(evidence)
         old = str(row.get(field) or '')
         valid = bool(texts) and dropped * 2 <= len(claims)

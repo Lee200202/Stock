@@ -27,7 +27,7 @@ const originalFetch = globalThis.fetch;
 try {
   globalThis.fetch = async () => Response.json({ok: false, error: 'temporary'}, {status: 400});
   const report = await refreshSnapshots(env);
-  assert.equal(report[key], 'recent-on-failure:temporary');
+  assert.equal(report[key], 'recent-on-failure:backend-http-400');
   assert.equal(data.get('beat:v1').validated[key], now - 60_000);
   assert.deepEqual((await readSnapshot(env, key))?.payload, good);
   data.get('beat:v1').validated[key] = now - 13 * 60_000;

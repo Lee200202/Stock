@@ -15095,6 +15095,10 @@ def parse_pending_sms(ss, since="", mode=None, today_only=False):
                     print(f"  文章 {art}：解析失敗，保留原狀等待下一輪")
                     status_buf.append((r["row"], c_state + 1, "解析失敗（未改動舊紀錄）"))
                     continue
+                # 先前已收錄的買賣：目前原文仍講到的就保留（修訂重判、強制重判都一樣）。
+                prior_ok, prior_items = load_saved_sms_items(r.get("detail", ""))
+                if prior_ok and prior_items:
+                    items = sms_keep_prior_trades(items, prior_items, r["text"], code_map, art)
 
             steps.note("條件式買賣去重", f"{base_note}：核對條件式買進與歷史買價")
             items = _sms_dedupe_and_condition(items, r, prior_buy_prices)
@@ -15609,6 +15613,87 @@ def enrich_sms_notes_from_signals(ss, date_str, signals, transcript):
     return count
 
 
+# ── 簡訊的買賣不能在重新解析時消失（v147，2026/10/08 管理者回報） ──
+#
+# 當天 10:01 的簡訊是世芯-KY 賣出、亞德客-KY 買入。10:02 第一次解析：主解析回空，靠「完整性稽核」那一問收進兩筆。
+# 11:45 來源文章被修訂、整篇重新解析：主解析這次回了一筆嘉澤持股——不是空的，於是沒有再做完整性稽核，
+# 「原子取代舊列」就把先前兩筆買賣刪掉、換成一筆持股。而逐字稿那邊同向的賣出已在 11:14 因「簡訊優先」被移除，
+# 結果兩邊都沒有：網站當天買入 0、賣出 0，世芯-KY 繼續列在持股。
+#
+# 三道防線，都只看簡訊自己的原文：
+#   一、主解析是逐條指令（廣播序號之後的內文）送給模型；序號之前的文字先前完全沒有送出去。現在也當成一條指令。
+#   二、不論主解析有沒有回東西，原文裡「個股與買賣動詞在同一句」而沒有對應買賣列時，都做一次完整性稽核。
+#   三、重新解析後，先前已收錄的買賣若在目前原文裡仍有「同一句講到這一檔與同方向的動詞」，就保留；
+#       原文真的拿掉了才不留。逐字稿摘錄只用來補說明，永遠不能讓簡訊的買賣變少。
+_SMS_TRADE_VERB = re.compile(r'買進|買入|買回|加碼|賣出|賣掉|出清|獲利了結|停利|停損|站買方|站賣方|減碼')
+_SMS_BUY_VERB = re.compile(r'買進|買入|買回|加碼|站買方')
+_SMS_SELL_VERB = re.compile(r'賣出|賣掉|出清|獲利了結|停利|停損|站賣方|減碼')
+
+
+def _sms_sentences(text):
+    return [x for x in re.split(r'[。！？!?；;\n]', str(text or '')) if x.strip()]
+
+
+def _sms_forms_of(code, code_map):
+    """這個代號在簡訊裡可能的寫法：代號、正式簡稱、去掉 -KY／星號的寫法、管理者確認的聽寫。"""
+    name = str(code_map.get(code) or code_map.get(str(code)) or '')
+    forms = {str(code), name, re.sub(r'(?:[-＊*]|KY)+$', '', name).strip()}
+    forms |= {heard for heard, pair in CONFIRMED_NAMES.items() if str(pair[0]) == str(code)}
+    return {f for f in forms if len(f) >= 2}
+
+
+def sms_uncovered_trades(text, items, code_map):
+    """原文裡和買賣動詞同一句、卻沒有任何買賣列的個股。回傳 {代號: 那一句}。"""
+    traded = {str(i.get('code')) for i in items if i.get('action') in ('買入', '賣出')}
+    sentences = [x for x in _sms_sentences(text) if _SMS_TRADE_VERB.search(x)]
+    if not sentences:
+        return {}
+    missing = {}
+    for code, name in code_map.items():
+        code, name = str(code), str(name or '')
+        if code in traded or not re.fullmatch(r'(?:00981A|\d{4,6})', code):
+            continue
+        stem = re.sub(r'(?:[-＊*]|KY)+$', '', name).strip()
+        # 兩個字的簡稱可能只是日常用語（大量賣出、全國會員）：要三個字以上，或原文直接寫出代號；
+        # 帶 -KY 或星號的名稱去掉尾巴後的兩個字（世芯、矽力）不是日常用語，照樣認。
+        forms = [f for f in (name,) if len(f) >= 3] + ([stem] if stem != name and len(stem) >= 2 else []) + [code]
+        hit = next((x for x in sentences if any(f in x for f in forms)), None)
+        if hit:
+            missing[code] = hit.strip()
+    for heard, pair in CONFIRMED_NAMES.items():
+        code = str(pair[0])
+        if code not in traded and code not in missing and len(heard) >= 3:
+            hit = next((x for x in sentences if heard in x), None)
+            if hit:
+                missing[code] = hit.strip()
+    return missing
+
+
+def sms_keep_prior_trades(items, prior, text, code_map, art=''):
+    """重新解析後，把「先前已收錄、目前原文仍然講到」的買賣留下來。回傳合併後的清單。"""
+    have = {(str(i.get('code')), i.get('action')) for i in items}
+    sentences = _sms_sentences(text)
+    out = list(items)
+    for old in prior or []:
+        if not isinstance(old, dict) or old.get('action') not in ('買入', '賣出'):
+            continue
+        key = (str(old.get('code')), old.get('action'))
+        if key in have:
+            continue
+        verb = _SMS_BUY_VERB if old['action'] == '買入' else _SMS_SELL_VERB
+        forms = _sms_forms_of(key[0], code_map) | {str(old.get('name') or '')}
+        still = next((x for x in sentences if verb.search(x) and any(len(f) >= 2 and f in x for f in forms)), None)
+        if still:
+            kept = dict(old)
+            kept['tag'] = '重新解析時保留（原文仍有這一筆）'
+            out.append(kept)
+            have.add(key)
+            print(f"  文章 {art}：重新解析沒有回 {old.get('name')}（{key[0]}）{old['action']}，但原文仍有這一句，保留：{still.strip()[:40]}")
+        else:
+            print(f"  文章 {art}：先前收錄的 {old.get('name')}（{key[0]}）{old['action']} 在目前原文已找不到同方向的句子，不保留")
+    return out
+
+
 def _sms_extract_items(r, cm_mark, code_map, excerpt=""):
     """
     對一篇簡訊呼叫 Gemini 並做規則稽核。回傳 (items, 是否失敗, 用掉幾次呼叫)。
@@ -15622,6 +15707,10 @@ def _sms_extract_items(r, cm_mark, code_map, excerpt=""):
     marks = list(cm_mark.finditer(text))
     orders = []
     if marks:
+        # 第一個廣播序號之前的文字（v147）：先前完全沒有送給模型，寫在那裡的買賣只能靠「回空才做」的稽核撿回來。
+        lead = text[:marks[0].start()].strip()
+        if len(re.sub(r'\s', '', lead)) >= 6:
+            orders.append({"tag": "簡訊", "body": lead})
         for m_i, m in enumerate(marks):
             start = m.end()
             end = marks[m_i + 1].start() if m_i + 1 < len(marks) else len(text)
@@ -15660,8 +15749,13 @@ def _sms_extract_items(r, cm_mark, code_map, excerpt=""):
 
     # 第一次回空但原文同時有合法台股與操作詞時，做一次獨立複核。
     # 純盤勢或歷史回顧不會進這一關，所以不會為每篇都加倍耗用額度。
-    if not items and not parse_err and sms_needs_empty_audit(text, code_map):
-        print(f"  文章 {r['id']}：初次無可收錄，但偵測到個股與操作語意，啟動完整性稽核")
+    uncovered = {} if parse_err else sms_uncovered_trades(text, items, code_map)
+    if uncovered and items:
+        print(f"  文章 {r['id']}：原文有 {len(uncovered)} 檔和買賣動詞同一句卻沒有買賣列（"
+              + '、'.join(str(code_map.get(c) or c) for c in list(uncovered)[:5]) + '），啟動完整性稽核')
+    if ((not items and sms_needs_empty_audit(text, code_map)) or uncovered) and not parse_err:
+        if not items:
+            print(f"  文章 {r['id']}：初次無可收錄，但偵測到個股與操作語意，啟動完整性稽核")
         try:
             calls += 1
             audit_raw = call_gemini(CM_EMPTY_AUDIT_SYSTEM, text, want_json=True,
@@ -15671,11 +15765,13 @@ def _sms_extract_items(r, cm_mark, code_map, excerpt=""):
             if audit_data is None:
                 m_a = re.search(r'\{.*\}', str(audit_raw), re.DOTALL)
                 audit_data = json.loads(m_a.group()) if m_a else {}
+            seen_pairs = {(str(i.get("code")), i.get("action")) for i in items}
             for raw_it in (audit_data.get("items", []) if isinstance(audit_data, dict) else []):
                 verified = verify_sms_item(raw_it, text, code_map)
-                if verified:
+                if verified and (str(verified.get("code")), verified.get("action")) not in seen_pairs:
                     verified["tag"] = "完整性複核"
                     items.append(verified)
+                    seen_pairs.add((str(verified.get("code")), verified.get("action")))
             print(f"  文章 {r['id']}：完整性稽核後共收錄 {len(items)} 筆")
         except RateLimited:
             raise

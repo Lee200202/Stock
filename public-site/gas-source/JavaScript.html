@@ -2343,6 +2343,19 @@ function restatesEarlier_(key, earlier) {
     if (!perfChart) {
       perfChart = LightweightCharts.createChart($('perfChart'), chartOptions());
       perfSeries = perfChart.addLineSeries({ lineWidth: 2 });
+      /* 水平線貼到那一天的數值（v148，管理者回報）：游標停在 9/29，縱軸標籤卻跟著滑鼠高度寫 0.27，
+         那一天實際是 -1.97。十字線的水平線改成對到游標那一天的值，縱軸讀到的就是當天的數字。 */
+      perfChart.subscribeCrosshairMove(function (param) {
+        var box = $('perfChart');
+        if (!param || !param.point || param.time === undefined || param.time === null) {
+          if (box) { box.removeAttribute('data-cross'); }
+          return;
+        }
+        var d = param.seriesData && param.seriesData.get(perfSeries);
+        if (!d || !isFinite(d.value)) { return; }
+        perfChart.setCrosshairPosition(d.value, param.time, perfSeries);
+        if (box) { box.setAttribute('data-cross', fmtChartTime(param.time) + '|' + d.value); }
+      });
     }
     perfChart.applyOptions(chartOptions());
     /* 績效圖（v58，2026/09/24 正式站實測）：圖佔掉大半個畫面，滑鼠滾輪被圖表拿去縮放，頁面捲不下去。
@@ -3045,12 +3058,22 @@ function restatesEarlier_(key, earlier) {
         crossSyncing = true;
         try {
           crossPanes.forEach(function (p) {
-            if (p.chart === src || !chartVisible(p.chart)) { return; }
-            if (!on) { p.chart.clearCrosshairPosition(); return; }
+            if (!chartVisible(p.chart)) { return; }
+            var self = p.chart === src;
+            if (!on) { if (!self) { p.chart.clearCrosshairPosition(); } return; }
             var price = p.price(String(param.time));
+            var known = price != null && isFinite(price);
+            /* 游標所在的那一張也貼到當天的值（v148）：先前水平線跟著滑鼠高度走，縱軸標籤寫的是滑鼠指到的價位，
+               不是那一根的收盤、成交量、MACD、K 值。K 線圖上還有均線與布林通道，一律貼主線，不貼最近的那一條。 */
+            if (self) { if (known) { p.chart.setCrosshairPosition(price, param.time, p.series()); } return; }
             // 算不出值的前段（KD 前 8 根）仍要畫垂直線，水平線放在任一個合法數值即可
-            p.chart.setCrosshairPosition(price == null || !isFinite(price) ? 0 : price, param.time, p.series());
+            p.chart.setCrosshairPosition(known ? price : 0, param.time, p.series());
           });
+          var box = $('chart');
+          if (box) {
+            if (on && candleMap[String(param.time)]) { box.setAttribute('data-cross', fmtChartTime(param.time) + '|' + candleMap[String(param.time)].close); }
+            else { box.removeAttribute('data-cross'); }
+          }
         } finally {
           crossSyncing = false;
         }

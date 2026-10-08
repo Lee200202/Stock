@@ -11254,7 +11254,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v2-20261008"          # 題目或決定順序一改就換版號，舊裁決不再沿用
+VERDICT_VERSION = "v3-20261008"          # 題目或決定順序一改就換版號，舊裁決不再沿用
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 3                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -11287,7 +11287,7 @@ about_itself　text 有沒有講到這一檔自己的事：它的股價行情（
 　「我沒有買【甲】，所以我不被跌到」「我沒有這一檔」只是陳述沒有部位：false。除非 text 另外講了【甲】自己的負面行情或風險（它跌停、連跌幾天、買的人套牢、他說以後也不買），那時才是 true。
 　false 的情況：【】裡的字在那一句只是一般用語、不是公司（「投信最【大量】的股票」的大量），這時 unsure 寫「不是公司名」；只是被念到名字；拿來襯托另一檔（「很多人說甲是龍頭，其實龍頭是乙」的甲）；批評別的分析師或別人的操作時順帶提到；「我沒有買它」「我沒有這一檔」這種只陳述沒有部位的話。
 now　講者對「現在要不要進場」的表態，about_itself 為 false 時填 none：
-　buy_ok＝現在可以買、明講看好可布局；conditional＝給了可以照做的買進條件（跌到多少以下、回測某條均線、突破某價）而且沒有說現在不能買，「還沒買，要等它回測季線再上去」是 conditional；
+　buy_ok＝現在可以買、明講看好可布局；conditional＝給了可以照做的買進條件（跌到多少以下、回測某條均線、突破某價）而且沒有說現在不能買，「還沒買，要等它回測季線再上去」是 conditional；只描述它現在在哪裡（「是不是回來碰季線」）不是條件，now 填 none；
 　not_yet＝明講現在還不能買、還太早、還太急、離均線太遠先不要買；prohibit＝不買、不會買、不要買、不要追、不要碰、不推薦、不再介紹；none＝沒有對現在要不要進場表態。
 　「不會買」是他的意願，就算是拿來比照別檔時說的也算（「就像我絕對不會買【甲】一樣」「那我幹嘛去買【甲】」：about_itself 是 true，now 是 prohibit）。
 　只說「我沒有買【甲】」而沒有說為什麼不買、也沒有說以後不買，是陳述沒有部位，不是表態。
@@ -11313,6 +11313,9 @@ _VQ_FAMILY = {
 # 引句自己就說是過去的事（「這是我昨天買的」），不能當成當天買賣的依據；除非同一句也說了今天。
 _VQ_PAST = re.compile(r'昨天|前天|前幾天|上禮拜|上週|上星期|上個月|之前|先前|那一天|當時|那時')
 _VQ_TODAY = re.compile(r'今天|今日|早上|剛剛|剛才|盤中')
+# 進場與不進場的表態，引句裡要看得出來（「創意是不是回來碰季線」不是買進條件）。看不出來就當作沒有表態，再看語氣。
+_VQ_ENTRY = re.compile(r'買|等|[佈布]局|注意|留意|抓住|進場|切入|突破|回測|站[上回]|以下|上去|發動|看好|會漲|飆|噴|衝|起飛|便宜|低檔')
+_VQ_REFUSAL = re.compile(r'不|別|沒|太|急|追高|套')
 # 假設句與對觀眾說的話（「如果你手中已經買了…不要賣」）不是講者或會員的部位。
 _VQ_HYPOTHETICAL = re.compile(r'如果|假如|假設|要是|萬一|倘若')
 
@@ -11521,6 +11524,10 @@ def verdict_class(answer, passages_norm, names=()):
         return ('history', '只回顧過去的買賣') if past else ('ignored', '只被點名，沒有講這一檔自己的事')
     stance = real('stance')
     now, tone = str(answer.get('now') or 'none'), str(answer.get('tone') or 'neutral')
+    if now in ('buy_ok', 'conditional') and not any(_VQ_ENTRY.search(q) for q in stance):
+        now = 'none'
+    if now in ('prohibit', 'not_yet') and not any(_VQ_REFUSAL.search(q) for q in stance):
+        now = 'none'
     if past and now == 'none' and tone == 'neutral':
         return 'history', '只回顧過去的買賣：' + first('past_trade')      # 回顧不必另外引立場
     if not stance:
@@ -11716,9 +11723,8 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             if state == '再問':
                 still.append((code, item))
                 continue
-            moved = state == '定案' and decided != entry['current']
             detail = (entry['answer'].get(decided) or {}).get('basis') or ''
-            entry.update(cls=decided, tier='裁決' if state == '定案' else '未定', enforce=moved, new=True,
+            entry.update(cls=decided, tier='裁決' if state == '定案' else '未定', enforce=state == '定案', new=True,
                          basis='｜'.join(x for x in (entry['basis'], why, detail) if x))
             if state == '未定':
                 note_decision('分類裁決', '沒有定案，維持原分類，待人工確認', entry['name'],
@@ -11757,8 +11763,11 @@ def apply_verdicts(signals, date_str, final=False):
             continue
         pairs = _verdict_today_rows(signals, date_str).get(code, [])
         cats = [c for c, _ in pairs]
+        if target in _VERDICT_HIDDEN and all(c in _VERDICT_HIDDEN for c in cats):
+            continue                                       # 定案為不公開，現在也沒有公開的列
+        hidden_rows = {'history'} if target in SIGNAL_CATEGORIES else set(_VERDICT_HIDDEN)
         if target in cats:
-            keep = {target} | ({'watch_watch'} if target == 'holdings' else set()) | ({'history'} if target in SIGNAL_CATEGORIES else set())
+            keep = {target} | ({'watch_watch'} if target == 'holdings' else set()) | hidden_rows
         else:
             source = next(((c, r) for want in _VERDICT_ORDER for c, r in pairs if c == want), None)
             if source is None:
@@ -11775,6 +11784,11 @@ def apply_verdicts(signals, date_str, final=False):
             quotes = answer.get('quotes') if isinstance(answer.get('quotes'), dict) else {}
             if cat in _VERDICT_HIDDEN and target in SIGNAL_CATEGORIES:
                 text = ''                                  # 排除理由不是公開說明；留空，由補充說明依本股原句寫
+                moved['_leftover'] = True
+            elif cat in SIGNAL_CATEGORIES and target in SIGNAL_CATEGORIES and not final:
+                # 原說明是照另一類寫的（由會員持股改列觀望注意的金山電，說明還寫「續抱」）：收起來當備用，交給補充說明照新的分類重寫。
+                moved['_reason_before'] = text
+                text = ''
                 moved['_leftover'] = True
             if target == 'holdings':
                 for k in ('when', 'event_date', 'time_evidence', 'reason'):
@@ -11801,7 +11815,7 @@ def apply_verdicts(signals, date_str, final=False):
             print(f"  分類裁決　{entry.get('name')}（{code}）由「{_VERDICT_LABEL.get(cat, cat)}」{label}「{_VERDICT_LABEL[target]}」")
             note_decision('分類裁決', ('後面的規則改了分類，依裁決搬回' if final else '依裁決改列') + _VERDICT_LABEL[target],
                           str(entry.get('name') or ''), f"原在{_VERDICT_LABEL.get(cat, cat)}；{str(entry.get('basis') or '')[:300]}")
-            keep = {target} | ({'history'} if target in SIGNAL_CATEGORIES else set())
+            keep = {target} | hidden_rows
             pairs = pairs + [(target, moved)]
         for cat, row in pairs:
             if cat not in keep and row in (signals.get(cat) or []):
@@ -13982,6 +13996,10 @@ def reconcile_with_prior(signals, prior, date_str, transcript=''):
             continue
         if any(k in past for k in keys):
             accepted.append(f"{name}（前一版{'、'.join(before)}）：本輪判定只有過去交易、沒有現況看法，依規則不公開")
+            continue
+        verdict = (signals.get('_verdicts') or {}).get(str(rows[0].get('code') or '').strip()) or {}
+        if verdict.get('tier') in ('裁決', '沿用裁決', '人工裁決') and verdict.get('cls') in _VERDICT_HIDDEN:
+            accepted.append(f"{name}（前一版{'、'.join(before)}）：本輪分類裁決定案為不公開（{str(verdict.get('basis') or '')[-40:]}），不沿用")
             continue
         if transcript:
             # 沿用前一版之前，先用本輪原文核對一次。前一版本身錯了的列不能一路沿用下去：

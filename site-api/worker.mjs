@@ -1,7 +1,7 @@
 // Free Cloudflare Worker: public Pages frontend -> existing Apps Script backend.
 // The bridge token stays server-side. Admin methods still require the existing admin key.
 const ALLOWED = 'https://lee200202.github.io';
-const BUILD = 'site-api-v153-r1';
+const BUILD = 'site-api-v153-r2';
 const MAX_ARGS = 8;
 const ADMIN_METHODS = ('apiAdminCancelCrawl apiAdminCancelDaySync apiAdminCancelFix ' +
   'apiAdminCancelFullFix apiAdminCancelJob apiAdminCancelRefresh apiAdminCancelSmsJob ' +
@@ -218,7 +218,7 @@ async function refreshSnapshots(env) {
     if (!hashes[key] && checkedAt && Date.now() - checkedAt <= SNAP_FRESH_MS) {
       hashes[key] = hash;
       validated[key] = checkedAt;
-      report[key] = 'recent-on-failure';
+      report[key] = 'recent-on-failure:' + (report[key] || 'unknown');
     }
   }
   await env.SNAP.put(SNAP_BEAT, JSON.stringify({at: Date.now(), hashes, validated}), {expirationTtl: 86400});

@@ -10195,7 +10195,7 @@ def identify_unnamed_stocks(ss, signals, transcript, date_str):
 
 SUMMARY_TOPUP_SYSTEM = LESSON_TOPUP_SYSTEM + """
 這輪合併補第①章盤勢與第③章教學。need_macro與need_view是各章不足的點數；只補有缺口的章，不重複existing。
-existing是已經寫好的重點，repeated是先前被退回的重複點。新寫的每一點都要是existing與repeated都沒講過的另一個主題：同一個時間點、同一組數字、同一條因果，換句話再講一遍也算重複，程式會逐點比對字面重疊並退回。動筆前先看existing每一點各在講什麼，再到原文找還沒寫到的主題；找不到新的主題就少給，不要改寫舊的。
+existing是已經寫好的重點，repeated是先前被退回的重複點。新寫的每一點都要是existing與repeated都沒講過的另一個主題：同一個事件、同一個操作或同一條因果，換句話再講一遍也算重複。共用「60分K／35均」這種工具數字，若一點講當日盤勢、另一點講進出場判斷，不能只因數字相同就當成同一件事。動筆前先看existing各點核心在講什麼，再到原文找還沒寫到的主題；找不到新的主題就少給，不要改寫舊的。
 盤勢kind用level/volume/event/flow，每點70～140字，至少找出三個不同盤勢主題（常見：指數與短線賣壓的時間點、法人或投信的買賣與換股、資金往哪一類股票移動、類股輪動與可能的主流、重大事件與公布時間、不要追高或可以布局的位置）；教學kind=view，每點120～220字。
 盤勢與教學各自都要補到至少三點、彼此主題不同；原文講了五六個主題就多給，不要只挑一個。
 補充盤勢第一點可附headline：講者最有力的一句觀點，口語一句、至少15字（不設上限），驚嘆號或問句收尾，不含姓名日期，用原文的字。每筆text和headline數字必須有引用。
@@ -10243,8 +10243,10 @@ def judge_same_theme(signals) -> int:
             overlap = _theme_overlap(first.get('text'), row.get('text'))
             shared = set(_POINT_NUMBER.findall(str(first.get('text') or ''))) & set(_POINT_NUMBER.findall(str(row.get('text') or '')))
             across = (first.get('kind') == 'view') != (row.get('kind') == 'view')
-            # 盤勢與教學本來就會共用字眼（講同一場盤的「發生了什麼」和「該怎麼做」）：跨章要兩成以上的重疊或兩個共同的數字。
-            if (overlap < 0.20 and len(shared) < 2) if across else (overlap < 0.10 and not shared):
+            # 跨章時「60分K／35均」等工具數字會反覆出現，不能只憑共用數字採信模型。
+            # 沿用已經用留出日校準的跨章門檻；同章仍允許模型抓出低字面重疊的改寫。
+            corroborated = bool(_theme_twin(row, [first])) if across else (overlap >= 0.10 or bool(shared))
+            if not corroborated:
                 print(f"  語意重複判斷：模型認為重複、但兩點{'分屬兩章且' if across else ''}共同的字面或數字不足，不採用　{str(row.get('text') or '')[:30]}")
                 continue
             row['_duplicate_point'] = True

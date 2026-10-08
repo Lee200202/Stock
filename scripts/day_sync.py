@@ -11,7 +11,10 @@ class SyncError(RuntimeError):
 
 def call(session, url, key, **params):
     last = ''
-    for attempt in range(3):
+    # 2026/10/08：Apps Script 的暫時性 404 連續超過 24 秒，三次都撞上，工作在 GitHub 標成失敗（後端其實照常接續）。
+    # 改成五次、間隔 8／16／32／48 秒，約兩分鐘內恢復的都等得到。
+    tries = 5
+    for attempt in range(tries):
         try:
             response = session.get(url, params=dict(action='day-sync', key=key, **params), timeout=(20, 360))
             status = response.status_code
@@ -29,9 +32,9 @@ def call(session, url, key, **params):
             last = '連不上 Apps Script'
         except ValueError:
             last = 'Apps Script 回的不是 JSON（多半是 Google 登入頁或暫時錯誤頁）'
-        if attempt == 2:
+        if attempt == tries - 1:
             raise SyncError(last + '；游標保留，由後端每五分鐘排程接續') from None
-        time.sleep(8 * (attempt + 1))
+        time.sleep(min(48, 8 * 2 ** attempt))
 
 
 def main():

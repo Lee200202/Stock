@@ -699,7 +699,9 @@ function apiAdminTodayStatusRun_(key) {
     adminAuth_(key);
     var today = todayStr_(), hm = Number(Utilities.formatDate(new Date(), TZ, 'HHmm'));
     var trading = isTradingDayToday_();
-    var logs = readSheetObjects_('系統狀態').filter(function (r) { return String(r['時間'] || '').indexOf(today) === 0; });
+    // v152：系統狀態只讀表尾（今天的列在最後面），不整張讀入幾個月的紀錄。
+    var isTodayLog = function (r) { return String(r['時間'] || '').indexOf(today) === 0; };
+    var logs = readSheetTailObjects_('系統狀態', 1200, isTodayLog).filter(isTodayLog);
     var video = dayVideoRow_(today);
     var trades = readSheetObjects_('操作紀錄').filter(function (r) { return fmtDate_(r['日期']) === today; });
     var holds = readSheetObjects_('會員持股').filter(function (r) { return fmtDate_(r['日期']) === today; });
@@ -727,7 +729,8 @@ function apiAdminTodayStatusRun_(key) {
         detail: String(r['說明重點'] || ''), source: String(r['來源影片ID'] || '') });
     });
     smsOperations.sort(function (a, b) { return b.time.localeCompare(a.time) || b.source.localeCompare(a.source); });
-    var push = readSheetObjects_('每日推播內容').filter(function (r) { return fmtDate_(r['日期']) === today; })[0];
+    // v152：這裡只用到寄送狀態，不把每一天的整篇文章內容讀進來。
+    var push = readSheetFields_('每日推播內容', ['日期', '寄送狀態']).filter(function (r) { return fmtDate_(r['日期']) === today; })[0];
     // 與前台同一套交易日過濾（v67，R4）：休市日誤寫的列不算「最後一筆」
     var perfLast = readSheetObjects_('每日績效').map(function (r) { return fmtDate_(r['日期']); })
       .filter(function (d) { return d && opsIsTrading_(d); }).sort().pop() || '';
@@ -915,7 +918,7 @@ function apiAdminTodayStatusRun_(key) {
         missingTriggers: missingTriggers, triggerError: triggerError, alerts: alerts, failures: fails.length,
         closed: closedWhy, autoStart: hmText_(TX_AUTO_START_HM_), days: [today].concat(recentDays),
         prevDay: prevDay, prevMail: prevDay ? mailDays[prevDay] : null, mailNeed: mailNeed, daySync: daySync,
-        runtime: typeof opsRuntimeFor_ === 'function' ? opsRuntimeFor_(today) : null,
+        runtime: rtNow,
         quoteHealth: typeof quoteCacheStatus === 'function' ? quoteCacheStatus() : null,
         triggerCount: triggerNames.length } };
   } catch (e) { return { ok: false, reason: String(e.message || e) }; }

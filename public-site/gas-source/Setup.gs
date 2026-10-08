@@ -889,6 +889,25 @@ function readSheetFields_(name, fields) {
   return rows;
 }
 
+/** v152：只往後加的紀錄表（系統狀態）只讀表尾。今天的列一定在最後面：先讀最後 n 列，
+ *  最上面那一列還是「要的」（今天的）就加倍再讀，直到讀到更早的列或整張讀完，所以不會漏。
+ *  後台今日狀態原本每次整張讀入幾個月的紀錄，只為了挑出今天那幾百列。 */
+function readSheetTailObjects_(name, n, stillWanted) {
+  var sh = getSheet_(name), last = sh.getLastRow(), cols = sh.getLastColumn();
+  if (last < 2) { return []; }
+  var head = sh.getRange(1, 1, 1, cols).getValues()[0];
+  var toObj = function (row) { var o = {}; head.forEach(function (h, i) { o[h] = row[i]; }); return o; };
+  var take = Math.min(last - 1, Math.max(1, n)), rows;
+  for (;;) {
+    rows = sh.getRange(last - take + 1, 1, take, cols).getValues();
+    if (take >= last - 1 || !stillWanted(toObj(rows[0]))) { break; }
+    take = Math.min(last - 1, take * 2);
+  }
+  return rows.map(toObj).filter(function (o) {
+    return Object.keys(o).some(function (k) { return o[k] !== '' && o[k] !== null; });
+  });
+}
+
 /* ------------------------------------------------------------------ *
  * 部署資訊
  * ------------------------------------------------------------------ */

@@ -9924,6 +9924,7 @@ def enrich_stock_context(signals, transcript, date_str):
                     else '數字不在引用' if not market_item_verified({'text':text,'evidence':evidence}, source_norm)
                     else '技術詞無依據' if not all(term.lower() in ''.join(evidence).lower() for term in technical)
                     else '引用超出本股範圍'))
+                rejected[-1] += '「' + str(text)[:36] + '」'      # 連同被退回的那一句記下來，稽核時才知道少了什麼
                 dropped += 1
                 first_ok = first_ok and position > 0
                 continue
@@ -9935,6 +9936,9 @@ def enrich_stock_context(signals, transcript, date_str):
             texts.append(text); quotes.extend(evidence)
         old = str(row.get(field) or '')
         valid = bool(texts) and dropped * 2 <= len(claims)
+        # 每一檔都留一行（2026/10/08）：模型寫了幾句、核對後留下幾句、哪一句為什麼沒留。說明太短時看這一行就知道是模型沒寫還是被核對刪掉。
+        print(f"  個股說明補充　{_display_name(row.get('name'))}：模型寫 {len(claims)} 句、通過核對 {len(texts)} 句"
+              + ('；未通過 ' + '、'.join(rejected)[:200] if rejected else ''))
         # 第一句是結論。它沒過時保留原本已驗證的說明當開頭，後面接通過的補充句。
         # 接上去的只收真的有新內容的句子：2026/10/06 嘉澤、世芯-KY、國巨、聯發科的說明都是同一段話講兩遍
         # （「…融資減少籌碼沉澱…逢低可持續留意佈局。嘉澤昨日獲得ETF低檔佈局買回，融資減少代表籌碼安定…」）。

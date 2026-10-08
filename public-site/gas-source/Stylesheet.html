@@ -3924,7 +3924,7 @@ html[data-view="mobile"] #perfTable .th-long { display: none; }
 .tech-story details { margin: 12px 0; }
 .tech-story summary { cursor: pointer; min-height: 44px; padding: 10px 0; font-weight: 600; color: var(--ink); }
 .tech-story .tech-author { margin-top: 20px; padding-bottom: 60px; }
-/* v149 關於作者：自介、三個連結、三則聲明各是一張卡片 */
+/* v149 關於作者：自介、三個連結各是一張卡片，使用聲明合成一張 */
 .tech-story .author-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 16px; margin-top: 24px; }
 .tech-story .author-card { min-width: 0; padding: clamp(16px, 2vw, 24px); border: 1px solid var(--rule); border-radius: 18px; background: var(--panel); }
 .tech-story .author-main p { margin: 0 0 12px; }
@@ -3935,9 +3935,9 @@ html[data-view="mobile"] #perfTable .th-long { display: none; }
 .tech-story .author-name { display: block; font-size: calc(19px * var(--rd-fs)); line-height: 1.35; color: var(--ink); }
 .tech-story .author-name span { margin-left: 10px; font-size: .8em; font-weight: 500; color: var(--muted); }
 .tech-story .author-role { display: block; margin-top: 2px; color: var(--muted); font-size: calc(13.5px * var(--rd-fs)); }
-.tech-story .author-links, .tech-story .author-terms { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.tech-story .author-links { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
 .tech-story .author-links { grid-auto-rows: 1fr; }
-.tech-story .author-links li, .tech-story .author-terms li { margin: 0; }
+.tech-story .author-links li { margin: 0; }
 .tech-story .author-links a { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px; height: 100%; min-height: 64px;
   padding-block: 12px; color: var(--ink); text-decoration: none; transition: border-color .18s ease, background-color .18s ease, transform .18s ease; }
 .tech-story .author-links a:hover, .tech-story .author-links a:focus-visible { border-color: var(--beam); background: color-mix(in srgb, var(--beam) 9%, var(--panel)); transform: translateY(-1px); }
@@ -3946,12 +3946,11 @@ html[data-view="mobile"] #perfTable .th-long { display: none; }
 .tech-story .author-links b { display: block; font-size: calc(15.5px * var(--rd-fs)); line-height: 1.35; }
 .tech-story .author-links small { display: block; color: var(--muted); font-size: calc(12.5px * var(--rd-fs)); line-height: 1.4; overflow-wrap: anywhere; }
 .tech-story .author-links i { font-style: normal; color: var(--muted); font-size: 16px; }
-.tech-story .author-terms { grid-column: 1 / -1; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.tech-story .author-terms li { padding-block: clamp(14px, 1.6vw, 18px); }
+.tech-story .author-terms { grid-column: 1 / -1; padding-block: clamp(14px, 1.6vw, 20px); }
 .tech-story .author-terms b { display: block; margin-bottom: 4px; font-size: calc(14.5px * var(--rd-fs)); color: var(--ink); }
-.tech-story .author-terms span { display: block; color: var(--muted); font-size: calc(13.5px * var(--rd-fs)); line-height: 1.6; }
+.tech-story .author-terms p { margin: 0; color: var(--muted); font-size: calc(13.5px * var(--rd-fs)); line-height: 1.7; }
 @media (max-width: 820px) {
-  .tech-story .author-grid, .tech-story .author-terms { grid-template-columns: minmax(0, 1fr); }
+  .tech-story .author-grid { grid-template-columns: minmax(0, 1fr); }
 }
 .tech-story .tech-admin { margin: 26px 0 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
 /* 子目錄：條目是短標題，一行放得下；滑過可以看完整標題 */

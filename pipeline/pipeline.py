@@ -16168,8 +16168,11 @@ def enrich_sms_notes_from_signals(ss, date_str, signals, transcript):
             sms_row = {'code':str(row[ci['代號']]),
                        'price':str(row[head.index('價位說明')]) if '價位說明' in head and len(row)>head.index('價位說明') else ''}
             note=public_sms_note(original, sms_row)
-            for candidate in by_code.get(str(row[ci['代號']]),[]):
-                note=sms_context_note(note,candidate,transcript,sms_row)
+            # 已經補過影片內容的說明（70 字以上）不再往後接：2026/10/08 連續更新幾次後，亞德客-KY 的說明被接成 193 個字，
+            # 「年線盤整八天」前後講了兩遍。這一輪重寫沒有被採用時，就維持原樣。
+            if len(_ev_norm(note)) < 70:
+                for candidate in by_code.get(str(row[ci['代號']]),[]):
+                    note=sms_context_note(note,candidate,transcript,sms_row)
             if f'{tab}:{i}' in rewritten:
                 note = rewritten[f'{tab}:{i}']
             elif not by_code.get(str(row[ci['代號']])):

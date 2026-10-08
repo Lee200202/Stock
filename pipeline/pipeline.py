@@ -8342,7 +8342,9 @@ def _number_far_from_own(flat, own, others, number):
 _NOTE_LEVEL_RE = re.compile(
     r'(?:突破|站上|站穩|跌破|壓在|守住|守穩|來到|回到|上看|上到|看到|目標價?|關卡|高點|低點|買在|買進|買入|成本|賣在|賣出|承接)'
     r'[^，。；、\d]{0,8}?(?<![\d.,])(\d{1,3}(?:,\d{3})+|\d{2,6})(?:\.\d{1,2})?(?![\d.,]|\s*(?:%|％|張|倍|天|根|點|萬|億|檔|年|月|日|號|個|次|人|位|分|季))'
-    r'|(?<![\d.,])(\d{1,3}(?:,\d{3})+|\d{2,6})(?:\.\d{1,2})?\s*(?:元|塊)?(?:的)?(?:關卡|以上|以下|附近)')
+    r'|(?<![\d.,])(\d{1,3}(?:,\d{3})+|\d{2,6})(?:\.\d{1,2})?\s*(?:元|塊)?(?:的|這個)?(?:關卡|價位|價格|以上|以下|附近)')
+# 價位最高算到股價的 2.2 倍：外資目標價常見到 1.7 倍（台積電 2575 → 4410）；3 倍會放過「558 元的譜瑞-KY 配 1545 的關卡」。
+_LEVEL_MAX_RATIO = 2.2
 # 金額與幅度不是價位：賺500塊、跌1310塊、漲了8塊、EPS 29.91元。
 _NOTE_AMOUNT_BEFORE = re.compile(r'(?:賺|賠|虧|跌|漲|差|EPS|每股盈餘|獲利|營收)(?:了|約|近|超過|至少|達|為|是)?[^，。；\d]{0,4}$', re.I)
 
@@ -8350,7 +8352,7 @@ _NOTE_AMOUNT_BEFORE = re.compile(r'(?:賺|賠|虧|跌|漲|差|EPS|每股盈餘|�
 def strip_implausible_price_claims(ss, signals: dict, date_str: str) -> dict:
     """說明裡的價位和這一檔的行情差太多（幾十塊的股票寫著一千多塊的關卡），那一句不是在講這一檔，刪掉並記進稽核。
 
-    用日K快取裡這一檔到影片當天為止的最高與最低，放寬成 0.4 倍到 3 倍：目的不是抓小誤差，是抓掛錯股票的整段分析。
+    用日K快取裡這一檔到影片當天為止的最高與最低，放寬成 0.4 倍到 2.2 倍：目的不是抓小誤差，是抓掛錯股票的整段分析。
     沒有行情的股票不判斷；只看「價位」寫法的數字，張數、百分比、天數、EPS、賺賠金額都不算。
     """
     try:
@@ -8380,7 +8382,7 @@ def strip_implausible_price_claims(ss, signals: dict, date_str: str) -> dict:
                         if _NOTE_AMOUNT_BEFORE.search(clause[:at]):
                             continue
                         value = float(number.replace(',', ''))        # 4,400 是 4400，不是 400
-                        if value < lo * 0.4 or value > hi * 3:
+                        if value < lo * 0.4 or value > hi * _LEVEL_MAX_RATIO:
                             bad = number
                             break
                     if not bad:
@@ -8398,6 +8400,70 @@ def strip_implausible_price_claims(ss, signals: dict, date_str: str) -> dict:
                     signals.setdefault('_repair_gaps', []).append(f'{name}：說明裡的價位 {number} 已移除（{why}）')
                     note_decision('價位與行情', '刪掉和行情對不上的價位', name, why)
                     print(f'  價位與行情 {name}：說明裡的 {why}，不是在講這一檔，已刪掉那一句')
+    return signals
+
+
+def strip_implausible_point_levels(ss, signals: dict, date_str: str) -> dict:
+    """盤勢與教學重點：同一句點了某一檔、又寫了和那一檔行情對不上的價位，那一句拿掉；整點因此不到 30 個字就不列。
+
+    2026/10/08：教學重點寫「以譜瑞-KY為例…1545價位，只要帶量突破這個關卡就容易起飛」，那一段原文沒有報名字，
+    譜瑞-KY 的股價是 558。重點少了一點會由補問另外找主題補上，所以這一步排在補問之前。
+    """
+    try:
+        kmap = _daily_k_cached(ss)
+    except Exception:
+        return signals
+    stocks = {}
+    for cat in list(SIGNAL_CATEGORIES) + ['history', 'uncertain', 'ignored']:
+        for row in signals.get(cat, []) or []:
+            code = str(row.get('code') or '') if isinstance(row, dict) else ''
+            band = _price_band(kmap, code, date_str) if re.fullmatch(r'(?:00981A|\d{4,6})', code) else None
+            if band and min(band) > 0:
+                for name in {_display_name(row.get('name'))} | {n for n in _row_names_for_recap(row) if len(n) >= 2}:
+                    if name and len(name) >= 2:
+                        stocks[name] = (code, min(band), max(band))
+    if not stocks:
+        return signals
+    kept_points = []
+    for point in signals.get('market', []) or []:
+        if not isinstance(point, dict):
+            kept_points.append(point)
+            continue
+        text, out, changed = str(point.get('text') or ''), [], False
+        for sentence in [x for x in re.split(r'(?<=[。！？!?；;])', text) if x.strip()]:
+            bad = ''
+            for name, (code, lo, hi) in stocks.items():
+                if name not in sentence:
+                    continue
+                for m in _NOTE_LEVEL_RE.finditer(sentence):
+                    number = m.group(1) or m.group(2)
+                    at = m.start(1) if m.group(1) else m.start(2)
+                    if _NOTE_AMOUNT_BEFORE.search(sentence[:at]):
+                        continue
+                    value = float(number.replace(',', ''))
+                    # 一句裡點了兩檔以上時，價位只要對得上其中一檔就不算錯。
+                    fits_any = any(n in sentence and l * 0.4 <= value <= h * _LEVEL_MAX_RATIO for n, (_c, l, h) in stocks.items())
+                    if not fits_any:
+                        bad = f'{name}（股價 {lo:g}～{hi:g}）和 {number}'
+                        break
+                if bad:
+                    break
+            if bad:
+                changed = True
+                print(f"  價位與行情　重點裡的一句拿掉：{bad} 對不上　{sentence.strip()[:40]}")
+                note_decision('價位與行情', '重點裡和行情對不上的一句拿掉', '', f'{bad}：{sentence.strip()[:80]}')
+            else:
+                out.append(sentence)
+        if not changed:
+            kept_points.append(point)
+            continue
+        rest = ''.join(out).strip()
+        if len(_ev_norm(rest)) >= 30:
+            point['text'] = rest
+            kept_points.append(point)
+        else:
+            print(f"  價位與行情　整點不列（拿掉那一句之後剩 {len(_ev_norm(rest))} 個字）：{text[:36]}")
+    signals['market'] = kept_points
     return signals
 
 
@@ -8670,6 +8736,30 @@ def preserve_explicit_holdings(signals, transcript):
             # 另有未持有人買點可並列；否則會員續抱不重複當成尚未買進。
             if not owned or re.search(r'還沒有(?:的|買)|未持有|新進資金',str(row.get('reason') or '')):
                 keep.append(row)
+        signals[cat]=keep
+    # 2026/10/08：力積電整檔被放進排除，原文明講「我張震目前只有力積電嘛」。只認兩種最直接的講法
+    # （我目前只有X、我們有X…抱著），而且之後沒有賣掉的說法；說明留空，交給補充說明依本股原句寫，程式不代寫。
+    sold={str(r.get('code') or r.get('name')) for r in signals.get('sell', []) or [] if isinstance(r, dict)}
+    for cat in ('ignored','uncertain','history'):
+        keep=[]
+        for row in signals.get(cat, []) or []:
+            if not isinstance(row, dict) or not re.fullmatch(r'(?:00981A|\d{4,6})', str(row.get('code') or '')):
+                keep.append(row);continue
+            identity=str(row.get('code'))
+            names=[n for n in _row_names_for_recap(row) if len(n) >= 2]
+            alt='|'.join(map(re.escape, names))
+            said=next((m.group(0) for scope,_ in _entity_scope(row,signals,transcript, before_chars=120, after_chars=120)
+                       for m in [re.search(r'我(?:們|張震)?(?:手[上中])?(?:目前|現在)(?:手[上中])?(?:就)?只有(?:' + alt + r')'
+                                           r'|(?:我|我們)有(?:' + alt + r')[^。！？!?，,]{0,10}抱著', scope)] if m
+                       and not re.search(r'已經.{0,6}(?:賣掉|出清)|全部賣|已賣|賣掉了|賣光', scope[m.end():])), '') if names else ''
+            if not said or identity in held or identity in sold:
+                keep.append(row);continue
+            hold={k:v for k,v in row.items() if k not in ('when','event_date','time_evidence','_原分類','reason')}
+            hold.update({'stance':'持有','note':'','_leftover':True,
+                         'evidence':list(dict.fromkeys([q for q in (row.get('evidence') or []) if isinstance(q,str)]+[said]))})
+            signals.setdefault('holdings',[]).append(hold);held.add(identity)
+            print(f"  持股核對　{row.get('name')}：原文明講目前持有（{said[:24]}），由「{cat}」列回會員持股")
+            note_decision('持股核對','明講目前持有，列回會員持股',row.get('name',''),said[:80])
         signals[cat]=keep
     return signals
 
@@ -13382,6 +13472,7 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     # 回顧改列觀望注意的那幾檔也要過同一關（2026/10/06 重播：漢唐「現在1300多的不用了」先被當回顧，再被改成觀望注意）。
     signals = align_watch_with_plain_refusal(signals, TX["audit"])
     # ③ 教學重點至少三點。排在寫入與稽核存檔之前，補回的點會一起進試算表、稽核與郵件。
+    signals = strip_implausible_point_levels(ss, signals, date_str)
     signals = ensure_article_minimums(signals, TX["audit"], date_str)
     # v96：模型寫長說明時掛錯的數字先刪（世芯-KY 的 1745／1800），短掉的說明才輪得到下面的合併補問；
     # 補問有自己的逐句核對，之後照原順序再過一次歸屬檢查。

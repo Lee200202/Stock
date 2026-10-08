@@ -74,7 +74,7 @@ def main():
             got = votes[code]
             usable = [v for v in got if v]
             top = max(set(usable), key=usable.count) if usable else ''
-            ok = top in want[code] or (top in HIDDEN and want[code] & HIDDEN)
+            ok = top in want[code] or (top in HIDDEN and bool(want[code] & HIDDEN))
             agree = len(set(got)) == 1
             total += 1
             right += ok

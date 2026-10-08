@@ -11259,9 +11259,10 @@ buy_today　講者本人或會員在節目當天已經買進這一檔，或他�
 　不算：昨天、前幾天、以前買的（「我昨天買的」「這是我昨天買的」「昨天叫你們買」都是過去，就算它今天又漲）；打算買、等條件才買、如果怎樣就買；叫觀眾去注意；別人（ETF、法人、其他分析師、觀眾）買的；觀眾問能不能買。
 　known 寫著前一個交易日已買入、而原文沒有說「今天又買」時，buy_today 是 false；他今天還在講這個部位就是 holding_now。
 sell_today　同上，方向是賣出。
-holding_now　講者明講他或會員現在還持有這一檔：還在、沒有賣、繼續抱、我有、我只有、我的成本多少而且沒說已經賣掉、昨天買而今天仍在講自己的部位。
-　不算：只是看好；已經賣掉；「我沒有買」；別人持有。
+holding_now　講者明講他或會員現在還持有這一檔：還在、沒有賣、繼續抱、我有、我們本來就有了、我只有、我的成本多少而且沒說已經賣掉、昨天買而今天仍在講自己的部位。
+　不算：只是看好；已經賣掉；「我沒有買」；別人持有；對觀眾說的假設句（「如果你手中已經有…不要賣」）；講的是整個族群而不是這一檔。
 past_trade　講者提到他或會員「不是當天」的買賣（昨天買、上週賣、以前買在哪裡賣在哪裡）。
+　只是回顧那一次買賣與當時的行情（「昨天【甲】開高，我叫你們先賣」），沒有說現在怎麼看：past_trade 是 true，now 填 none、tone 填 neutral；那是過去的事，不是現在的看法。
 about_itself　text 有沒有講到這一檔自己的事：它的股價行情（漲跌、漲停跌停、創高、破線）、線型與均線位置、業績、法人籌碼，或講者對它的指示與意願（買、賣、等、不要碰）。
 　只有一句也算：拿它當今天大跌、跌停、追高受傷的例子（「什麼【甲】跌停板」「買【甲】的一天賠一千多塊」）是 true，tone 填 bearish。
 　false 的情況：只是被念到名字；拿來襯托另一檔（「很多人說甲是龍頭，其實龍頭是乙」的甲）；批評別的分析師或別人的操作時順帶提到；「我沒有買它」「我沒有這一檔」這種只陳述沒有部位的話。
@@ -11282,9 +11283,15 @@ tone　now 是 none 時才有作用：bullish＝對它現在與之後偏多（�
 _VQ_FAMILY = {
     'buy_today': re.compile(r'買|進場|[佈布]局|承接|加碼'),
     'sell_today': re.compile(r'賣|出場|出清|了結|停利|停損|出掉'),
-    'holding_now': re.compile(r'抱|還在|還有|持有|我(?:們)?有|只有|沒有?賣|成本|手[中上]|續|買'),
+    'holding_now': re.compile(r'抱|還在|還有|持有|(?:我|我們|會員)[^，。！？!?]{0,6}有|只有|沒有?賣|成本|手[中上]|續|買'),
     'past_trade': re.compile(r'買|賣|出場|出清|進場|[佈布]局|了結'),
 }
+
+# 引句自己就說是過去的事（「這是我昨天買的」），不能當成當天買賣的依據；除非同一句也說了今天。
+_VQ_PAST = re.compile(r'昨天|前天|前幾天|上禮拜|上週|上星期|上個月|之前|先前|那一天|當時|那時')
+_VQ_TODAY = re.compile(r'今天|今日|早上|剛剛|剛才|盤中')
+# 假設句與對觀眾說的話（「如果你手中已經買了…不要賣」）不是講者或會員的部位。
+_VQ_HYPOTHETICAL = re.compile(r'如果|假如|假設|要是|萬一|倘若')
 
 # 容易判錯的講法：出現在本股段落、而目前的分類和它對不上時，這一檔不算「一致通過」。寧可多問，不可漏問。
 _VM_PAST = re.compile(r'昨天|前天|前幾天|上禮拜|上週|上星期|上個月|之前|先前|那時候?|當時|早就')
@@ -11452,24 +11459,38 @@ def verdict_class(answer, passages_norm):
         clean = [re.sub(r'[【】]', '', q) for q in (quotes.get(field) or []) if isinstance(q, str)]
         return [q for q in clean if len(_ev_norm(q)) >= 6 and _ev_norm(q) in passages_norm]
 
+    def supports(field, q):
+        if not _VQ_FAMILY[field].search(q):
+            return False
+        if field in ('buy_today', 'sell_today') and _VQ_PAST.search(q) and not _VQ_TODAY.search(q):
+            return False
+        if field in ('buy_today', 'sell_today', 'holding_now') and _VQ_HYPOTHETICAL.search(q):
+            return False
+        return True
+
     def yes(field):
-        return answer.get(field) is True and any(_VQ_FAMILY[field].search(q) for q in real(field))
+        return answer.get(field) is True and any(supports(field, q) for q in real(field))
+
+    def first(field):
+        return next(q for q in real(field) if supports(field, q))[:40]
 
     buy, sell, hold, past = yes('buy_today'), yes('sell_today'), yes('holding_now'), yes('past_trade')
     if buy and sell:
         return '', '同一天有買有賣，不由裁決決定'
     if buy:
-        return 'buy', '當天買進：' + real('buy_today')[0][:40]
+        return 'buy', '當天買進：' + first('buy_today')
     if sell:
-        return 'sell', '當天賣出：' + real('sell_today')[0][:40]
+        return 'sell', '當天賣出：' + first('sell_today')
     if hold:
-        return 'holdings', '明講目前持有：' + real('holding_now')[0][:40]
+        return 'holdings', '明講目前持有：' + first('holding_now')
     if answer.get('about_itself') is not True:
         return ('history', '只回顧過去的買賣') if past else ('ignored', '只被點名，沒有講這一檔自己的事')
     stance = real('stance')
+    now, tone = str(answer.get('now') or 'none'), str(answer.get('tone') or 'neutral')
+    if past and now == 'none' and tone == 'neutral':
+        return 'history', '只回顧過去的買賣：' + first('past_trade')      # 回顧不必另外引立場
     if not stance:
         return '', '有講這一檔，但引不出原文'
-    now, tone = str(answer.get('now') or 'none'), str(answer.get('tone') or 'neutral')
     if now in ('prohibit', 'not_yet'):
         return 'watch_avoid', ('明講不買：' if now == 'prohibit' else '現在還不能買：') + stance[0][:40]
     if now in ('buy_ok', 'conditional'):

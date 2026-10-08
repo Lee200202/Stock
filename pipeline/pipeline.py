@@ -8354,9 +8354,9 @@ def _number_far_from_own(flat, own, others, number):
 
 # 說明裡「價位」的寫法：前面是突破、站上、壓在、買在、成本、目標這類字，或後面接著關卡、以上、以下。
 _NOTE_LEVEL_RE = re.compile(
-    r'(?:突破|站上|站穩|跌破|壓在|守住|守穩|來到|回到|上看|上到|看到|目標價?|關卡|高點|低點|買在|買進|買入|成本|賣在|賣出|承接)'
+    r'(?:突破|站上|站穩|跌破|壓在|面臨|守住|守穩|來到|回到|上看|上到|看到|目標價?|關卡|高點|低點|買在|買進|買入|成本|賣在|賣出|承接)'
     r'[^，。；、\d]{0,8}?(?<![\d.,])(\d{1,3}(?:,\d{3})+|\d{2,6})(?:\.\d{1,2})?(?![\d.,]|\s*(?:%|％|張|倍|天|根|點|萬|億|檔|年|月|日|號|個|次|人|位|分|季))'
-    r'|(?<![\d.,])(\d{1,3}(?:,\d{3})+|\d{2,6})(?:\.\d{1,2})?\s*(?:元|塊)?(?:的|這個)?(?:關卡|價位|價格|以上|以下|附近)')
+    r'|(?<![\d.,])(\d{1,3}(?:,\d{3})+|\d{2,6})(?:\.\d{1,2})?\s*(?:元|塊)?(?:的|這個)?(?:關鍵|重要|整數)?(?:關卡|價位|價格|壓力|壓制|支撐|以上|以下|附近)')
 # 價位最高算到股價的 2.2 倍：外資目標價常見到 1.7 倍（台積電 2575 → 4410）；3 倍會放過「558 元的譜瑞-KY 配 1545 的關卡」。
 _LEVEL_MAX_RATIO = 2.2
 # 金額與幅度不是價位：賺500塊、跌1310塊、漲了8塊、EPS 29.91元。
@@ -8563,11 +8563,14 @@ def strip_implausible_point_levels(ss, signals: dict, date_str: str) -> dict:
             kept_points.append(point)
             continue
         text, out, changed = str(point.get('text') or ''), [], False
+        carried = []          # 「以X為例。該檔股票…壓在1545」：這一句沒有名字時，沿用同一點裡前面點到的那幾檔
         for sentence in [x for x in re.split(r'(?<=[。！？!?；;])', text) if x.strip()]:
             bad = ''
-            for name, (code, lo, hi) in stocks.items():
-                if name not in sentence:
-                    continue
+            named = [n for n in stocks if n in sentence]
+            if named:
+                carried = named
+            for name in (named or carried):
+                code, lo, hi = stocks[name]
                 for m in _NOTE_LEVEL_RE.finditer(sentence):
                     number = m.group(1) or m.group(2)
                     at = m.start(1) if m.group(1) else m.start(2)
@@ -8575,7 +8578,7 @@ def strip_implausible_point_levels(ss, signals: dict, date_str: str) -> dict:
                         continue
                     value = float(number.replace(',', ''))
                     # 一句裡點了兩檔以上時，價位只要對得上其中一檔就不算錯。
-                    fits_any = any(n in sentence and l * 0.4 <= value <= h * _LEVEL_MAX_RATIO for n, (_c, l, h) in stocks.items())
+                    fits_any = any(l * 0.4 <= value <= h * _LEVEL_MAX_RATIO for n, (_c, l, h) in stocks.items() if n in (named or carried))
                     if not fits_any:
                         bad = f'{name}（股價 {lo:g}～{hi:g}）和 {number}'
                         break
@@ -13637,6 +13640,12 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     signals = strip_implausible_point_levels(ss, signals, date_str)
     signals = drop_promotional_points(signals)
     signals = ensure_article_minimums(signals, TX["audit"], date_str)
+    # 補問回來的重點也要過同樣的核對（2026/10/08 補問寫出「以美律為例…壓在1545的價位」）；拿掉之後不足，再補一次。
+    _points_before = len(signals.get('market') or [])
+    signals = drop_promotional_points(strip_implausible_point_levels(ss, signals, date_str))
+    if len(signals.get('market') or []) < _points_before:
+        signals = ensure_article_minimums(signals, TX["audit"], date_str)
+        signals = drop_promotional_points(strip_implausible_point_levels(ss, signals, date_str))
     # v96：模型寫長說明時掛錯的數字先刪（世芯-KY 的 1745／1800），短掉的說明才輪得到下面的合併補問；
     # 補問有自己的逐句核對，之後照原順序再過一次歸屬檢查。
     signals = strip_foreign_price_claims(signals, TX["audit"])

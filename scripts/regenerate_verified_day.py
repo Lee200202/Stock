@@ -107,6 +107,7 @@ def main():
     # 本輪的股票代號已核對，不順便修改其他日期的待確認代號。
     pl.run_post_write_steps = lambda book, days: (pl.apply_sms_priority(book, days), pl.resolve_cost_prices(book, days))
     writer(real, captured['date'], captured['signals'], *captured['args'], **captured['kwargs'])
+    pl.save_verdicts(real, day, captured['signals'])      # 這一輪問到的分類裁決存起來，之後同一段原文不再重問
     pl.enrich_sms_notes_from_signals(real, day, captured['signals'], raw)
     for a, kw in audits:
         audit(real, *a, **kw)

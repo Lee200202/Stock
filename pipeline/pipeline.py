@@ -10250,7 +10250,8 @@ def ensure_article_minimums(signals, transcript, date_str):
         need_macro=max(0,3-len(verified(False)))
         need_view=max(0,MIN_LESSONS-len(verified(True))) if len(_ev_norm(transcript))>=LESSON_MIN_SOURCE else 0
         if not need_macro and not need_view:break
-        if attempt==3 and not judged_out:break
+        # 前兩輪即使全被引用／重複檢查退回，長原稿仍再換一個主題試一次；
+        # 最多三輪，仍不足就讓發布品質關卡擋下，絕不湊無依據的點。
         if attempt>=2 and (_QUOTA_STOP.get('daily') or budget_left()<300):break
         print(f'章節補問（第 {attempt} 輪）：盤勢缺 {need_macro} 點，教學缺 {need_view} 點，合併一次')
         payload=json.dumps({'video_date':date_str,'need_macro':need_macro,'need_view':need_view,

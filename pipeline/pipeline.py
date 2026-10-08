@@ -6196,7 +6196,10 @@ def explicit_today_trades(transcript, names, cat):
           「今天早上有會員問我，我台達電是建議先賣出，等拉回再來買」（個別建議，不是已經賣掉）。
     """
     # 句子保留原文的寫法，正式名稱帶連字號（世芯-KY）；只用去掉符號的寫法（世芯KY）會永遠對不到（2026/10/08）。兩種都認。
-    names = sorted({n for x in names if x for n in (_ev_norm(x), re.sub(r'\s+', '', str(x))) if len(n) >= 2}, key=len, reverse=True)
+    names = {n for x in names if x for n in (_ev_norm(x), re.sub(r'\s+', '', str(x))) if len(n) >= 2}
+    # 模型寫正式名稱「亞德客-KY」，原文只念「亞德客」：去掉 -KY、星號的寫法也要認（2026/10/08 20:38 那一輪因此沒有救回當日買入）。
+    names |= {b for b in (re.sub(r'(?:-?KY|[＊*])$', '', n, flags=re.I) for n in names) if len(b) >= 2}
+    names = sorted(names, key=len, reverse=True)
     if not names:
         return []
     nm = '(?:' + '|'.join(re.escape(n) for n in names) + ')'

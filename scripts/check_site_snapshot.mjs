@@ -16,12 +16,19 @@ const env = {
   }
 };
 assert.deepEqual((await readSnapshot(env, key))?.payload, good);
+// An unchanged mail/article answer can have an old content timestamp while
+// the backend has freshly validated it. These are separate ages.
+data.get('snap:v1:' + key).at = now - 61 * 60_000;
+data.get('beat:v1').validated[key] = now - 60_000;
+const checked = await readSnapshot(env, key);
+assert.equal(checked?.validatedAt, now - 60_000);
+assert.equal(checked?.at, now - 61 * 60_000);
 const originalFetch = globalThis.fetch;
 try {
   globalThis.fetch = async () => Response.json({ok: false, error: 'temporary'}, {status: 400});
   const report = await refreshSnapshots(env);
   assert.equal(report[key], 'recent-on-failure');
-  assert.equal(data.get('beat:v1').validated[key], now - 5 * 60_000);
+  assert.equal(data.get('beat:v1').validated[key], now - 60_000);
   assert.deepEqual((await readSnapshot(env, key))?.payload, good);
   data.get('beat:v1').validated[key] = now - 13 * 60_000;
   assert.equal(await readSnapshot(env, key), null);

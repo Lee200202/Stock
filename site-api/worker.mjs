@@ -1,7 +1,7 @@
 // Free Cloudflare Worker: public Pages frontend -> existing Apps Script backend.
 // The bridge token stays server-side. Admin methods still require the existing admin key.
 const ALLOWED = 'https://lee200202.github.io';
-const BUILD = 'site-api-v140-r1';
+const BUILD = 'site-api-v153-r1';
 const MAX_ARGS = 8;
 const ADMIN_METHODS = ('apiAdminCancelCrawl apiAdminCancelDaySync apiAdminCancelFix ' +
   'apiAdminCancelFullFix apiAdminCancelJob apiAdminCancelRefresh apiAdminCancelSmsJob ' +
@@ -75,7 +75,7 @@ function reply(body, status, origin, extra) {
     'Access-Control-Allow-Origin': origin === ALLOWED ? origin : 'null',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Expose-Headers': 'X-Cache, X-Snapshot-Age, X-Edge-Cache, X-Backend-Requests, X-Result-Requests, Server-Timing',
+    'Access-Control-Expose-Headers': 'X-Cache, X-Snapshot-Age, X-Snapshot-Content-Age, X-Edge-Cache, X-Backend-Requests, X-Result-Requests, Server-Timing',
     'Vary': 'Origin',
     ...(extra || {})
   };
@@ -178,7 +178,9 @@ async function readSnapshot(env, key) {
     const checkedAt = beat.validated?.[key] || beat.at;
     if (!checkedAt || Date.now() - checkedAt > SNAP_FRESH_MS) return null;
     if (!beat.hashes || beat.hashes[key] !== entry.hash) return null;
-    return {payload: entry.payload, at: entry.at};
+    // entry.at is the last *change* to the answer. The unchanged answer may
+    // be hours old while a fresh backend check just confirmed it is current.
+    return {payload: entry.payload, at: entry.at, validatedAt: checkedAt};
   } catch { return null; }
 }
 async function refreshSnapshots(env) {
@@ -288,8 +290,10 @@ export default {
     if (hit && Date.now() - hit.at < ttl * 1000) return reply(hit.body, 200, origin, {'X-Cache': 'hit'});
     const snap = key ? await readSnapshot(env, key) : null;
     if (snap) {
-      remember(key, snap.payload, Math.max(snap.at, Date.now() - ttl * 1000 + 30000));
-      return reply(snap.payload, 200, origin, {'X-Cache': 'snapshot', 'X-Snapshot-Age': String(Math.round((Date.now() - snap.at) / 1000))});
+      remember(key, snap.payload, Math.max(snap.validatedAt, Date.now() - ttl * 1000 + 30000));
+      return reply(snap.payload, 200, origin, {'X-Cache': 'snapshot',
+        'X-Snapshot-Age': String(Math.round((Date.now() - snap.validatedAt) / 1000)),
+        'X-Snapshot-Content-Age': String(Math.round((Date.now() - snap.at) / 1000))});
     }
     let edge = null, edgeStatus = 'unavailable';
     try {

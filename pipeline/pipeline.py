@@ -4459,6 +4459,7 @@ reason 只能用提到這一檔的句子；上一句、下一句在講另一檔�
 market 每筆填 kind=level/volume/event/flow/view、text、evidence_refs。首筆盤勢一定要填headline：取講者本集最有力的一句觀點，口語一句、至少15字（不設上限），驚嘆號或問句收尾（如「你買在高檔 神仙都難救，低檔買進才是真正會賺錢的做法！」），不含姓名日期，用原文的字與數字，不新增事實。
 level/volume/event/flow 是盤勢（信件第①章）：涵蓋原文明講的指數關卡、缺口、量與解讀、CPI/PPI/利率決策的時間、美元/資金、融資餘額、整理週期與展望。原文充足時整理 6～10 點，至少3個不同主題；不足三點時重讀原文補足，確無內容不得杜撰。每點約 70～140 字，合計以 1400 字為目標上限。每點交代現象及講者的解讀，不拆成重複短句湊點數。
 view 是講者今天的操作邏輯與教學重點（信件第③章）：逐段找出講者教觀眾怎麼想、怎麼做、要避免什麼的段落，不同主題各成一點（例：買賣節奏、追高與等拉回、續抱耐心、法人成本與解套賣壓、外資短線換手、重大事件前的部位、量縮整理怎麼做、候選名單與買點、減少頻繁進出、技術關卡、選股依據）。原文充足時整理 6～10 點（逐字稿超過五千字時至少 3 點），每點寫成「觀念標題：說明」，說明 3～5 句約 120～220 字：做法 → 明講的原因 → 適用對象與條件 → 當天例子 → 要避免的錯誤；缺的環節省略。個股說明裡的通用做法也提煉成一點。要區分已有部位者續抱與未持有者等待買點，條件性風險提醒不能寫成對所有人的全面禁令。同段有盤面與做法時拆成兩筆。
+招生與聯絡不是內容：入會優惠、會費與會期、聯絡電話、「沒有任何群組」這類防詐提醒、對其他分析師或網紅的評論，都不是盤勢也不是教學，不寫進 market；電話號碼一律不出現在任何公開文字。
 資料少就少寫，不湊點數；每一點都要有 evidence_refs，列出觀念、原因、例子所在的全部段落；text 的數字必須出現在所列段落，否則整點會被剔除；教學點以觀念與做法為主，數字非必要就不寫。
 數字、X、盤中/收盤、講者預測要區分。只把事件時間寫成講者所述，不補外部行事曆。
 
@@ -8461,6 +8462,27 @@ def strip_guessed_names_and_causes(signals: dict, transcript: str) -> dict:
                     signals.setdefault('_repair_gaps', []).append(f'{name}：說明裡的一句已移除（{why}）')
                     note_decision('說明核對', '刪掉沒有依據的一句', name, f'{why}：{clause[:60]}')
                     print(f'  說明核對　{name}：{why}，已刪掉那一句　{clause[:40]}')
+    return signals
+
+
+_PROMO_POINT_RE = re.compile(r'0\d{1,2}\s*[-－–]?\s*\d{3,4}\s*[-－–]?\s*\d{4}|入會|加入會員|會費|會期|優惠|打電話進來|通訊軟體群組|LINE\s*群組|官方帳號|切勿受騙|詐騙')
+
+
+def drop_promotional_points(signals: dict) -> dict:
+    """盤勢與教學重點裡的招生、聯絡方式與防詐提醒不列（2026/10/08：教學重點寫出了節目的聯絡電話）。
+
+    排在補問之前：拿掉之後不足的名額，由補問另外找主題。只看重點（market），個股說明不在這裡處理。
+    """
+    kept = []
+    for point in signals.get('market', []) or []:
+        text = str(point.get('text') or '') if isinstance(point, dict) else ''
+        hit = _PROMO_POINT_RE.search(text)
+        if hit:
+            print(f"  重點核對　招生或聯絡資訊不列為重點（{hit.group(0)[:12]}）：{text[:36]}")
+            note_decision('重點核對', '招生或聯絡資訊不列為重點', '', text[:80])
+            continue
+        kept.append(point)
+    signals['market'] = kept
     return signals
 
 
@@ -13560,6 +13582,7 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     signals = align_watch_with_plain_refusal(signals, TX["audit"])
     # ③ 教學重點至少三點。排在寫入與稽核存檔之前，補回的點會一起進試算表、稽核與郵件。
     signals = strip_implausible_point_levels(ss, signals, date_str)
+    signals = drop_promotional_points(signals)
     signals = ensure_article_minimums(signals, TX["audit"], date_str)
     # v96：模型寫長說明時掛錯的數字先刪（世芯-KY 的 1745／1800），短掉的說明才輪得到下面的合併補問；
     # 補問有自己的逐句核對，之後照原順序再過一次歸屬檢查。

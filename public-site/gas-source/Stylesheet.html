@@ -3924,6 +3924,35 @@ html[data-view="mobile"] #perfTable .th-long { display: none; }
 .tech-story details { margin: 12px 0; }
 .tech-story summary { cursor: pointer; min-height: 44px; padding: 10px 0; font-weight: 600; color: var(--ink); }
 .tech-story .tech-author { margin-top: 20px; padding-bottom: 60px; }
+/* v149 關於作者：自介、三個連結、三則聲明各是一張卡片 */
+.tech-story .author-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 16px; margin-top: 24px; }
+.tech-story .author-card { min-width: 0; padding: clamp(16px, 2vw, 24px); border: 1px solid var(--rule); border-radius: 18px; background: var(--panel); }
+.tech-story .author-main p { margin: 0 0 12px; }
+.tech-story .author-main p:last-child { margin-bottom: 0; }
+.tech-story .author-head { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+.tech-story .author-mark { flex: none; display: grid; place-items: center; width: 54px; height: 54px; border-radius: 50%; font-size: 22px; font-weight: 800;
+  color: var(--beam); background: color-mix(in srgb, var(--beam) 14%, var(--panel)); border: 1px solid color-mix(in srgb, var(--beam) 45%, var(--rule)); }
+.tech-story .author-name { display: block; font-size: calc(19px * var(--rd-fs)); line-height: 1.35; color: var(--ink); }
+.tech-story .author-name span { margin-left: 10px; font-size: .8em; font-weight: 500; color: var(--muted); }
+.tech-story .author-role { display: block; margin-top: 2px; color: var(--muted); font-size: calc(13.5px * var(--rd-fs)); }
+.tech-story .author-links, .tech-story .author-terms { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.tech-story .author-links { grid-auto-rows: 1fr; }
+.tech-story .author-links li, .tech-story .author-terms li { margin: 0; }
+.tech-story .author-links a { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px; height: 100%; min-height: 64px;
+  padding-block: 12px; color: var(--ink); text-decoration: none; transition: border-color .18s ease, background-color .18s ease, transform .18s ease; }
+.tech-story .author-links a:hover, .tech-story .author-links a:focus-visible { border-color: var(--beam); background: color-mix(in srgb, var(--beam) 9%, var(--panel)); transform: translateY(-1px); }
+.tech-story .author-links a:focus-visible { outline: 3px solid var(--beam); outline-offset: 3px; }
+.tech-story .author-links svg { width: 24px; height: 24px; fill: none; stroke: var(--beam); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.tech-story .author-links b { display: block; font-size: calc(15.5px * var(--rd-fs)); line-height: 1.35; }
+.tech-story .author-links small { display: block; color: var(--muted); font-size: calc(12.5px * var(--rd-fs)); line-height: 1.4; overflow-wrap: anywhere; }
+.tech-story .author-links i { font-style: normal; color: var(--muted); font-size: 16px; }
+.tech-story .author-terms { grid-column: 1 / -1; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.tech-story .author-terms li { padding-block: clamp(14px, 1.6vw, 18px); }
+.tech-story .author-terms b { display: block; margin-bottom: 4px; font-size: calc(14.5px * var(--rd-fs)); color: var(--ink); }
+.tech-story .author-terms span { display: block; color: var(--muted); font-size: calc(13.5px * var(--rd-fs)); line-height: 1.6; }
+@media (max-width: 820px) {
+  .tech-story .author-grid, .tech-story .author-terms { grid-template-columns: minmax(0, 1fr); }
+}
 .tech-story .tech-admin { margin: 26px 0 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
 /* 子目錄：條目是短標題，一行放得下；滑過可以看完整標題 */
 .subnav.open .subnav-panel, .subnav-in { width: min(220px, calc(100vw - 64px)); }
@@ -4072,22 +4101,8 @@ button:not(:disabled):active, .tab:active, a.btn:active { scale: .97; }
 /* 卡內短句一律靠左，不套長文的兩端對齊（避免「偵 測 到 新 稿」被拉開）。 */
 .tech-story .tech-lab p, .tech-story .tech-lab dd, .tech-story .tech-lab dt, .tech-story .tech-lab li, .tech-story .tech-lab blockquote { text-align: left; text-justify: auto; }
 /* ====== v108 技術說明互動結束 ====== */
-/* ====== v109 技術說明動態：往下看卡片、捲到才依序浮起、抵達章節的標題重點 ======
+/* ====== v109 技術說明動態：捲到才依序浮起、抵達章節的標題重點 ======
    卡片從頭到尾都不透明，只有位移與一圈光暈；減少動態時由上方 .tech-story * 的規則全部關掉。 */
-.tech-story .tech-pain-go { margin: 16px 0 0; }
-.tech-story .tech-next { display: inline-grid; grid-template-columns: auto auto; grid-template-rows: auto auto; column-gap: 16px; align-items: center;
-  min-height: 56px; padding: 10px 14px 10px 22px; border: 1px solid var(--beam); border-radius: 999px;
-  background: color-mix(in srgb, var(--beam) 8%, var(--panel)); color: var(--ink); text-decoration: none;
-  transition: background-color .18s ease, box-shadow .18s ease, transform .18s ease; }
-.tech-story .tech-next .tn-k { grid-column: 1; font-size: calc(12.5px * var(--rd-fs)); font-weight: 700; color: var(--beam); letter-spacing: .04em; }
-.tech-story .tech-next b { grid-column: 1; font-size: calc(15.5px * var(--rd-fs)); line-height: 1.4; }
-.tech-story .tech-next i { grid-column: 2; grid-row: 1 / span 2; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%;
-  background: var(--beam); color: var(--panel); font-style: normal; font-size: 18px; font-weight: 700; }
-.tech-story .tech-next:hover, .tech-story .tech-next:focus-visible { background: color-mix(in srgb, var(--beam) 16%, var(--panel)); box-shadow: 0 6px 18px color-mix(in srgb, var(--beam) 22%, transparent); transform: translateY(-1px); }
-.tech-story .tech-next:focus-visible { outline: 3px solid var(--beam); outline-offset: 3px; }
-@keyframes techBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(4px); } }
-.tech-story .tech-next i { animation: techBob 1.6s ease-in-out 3; }   /* 只跳三下，不一直動 */
-.tech-story .tech-next:hover i, .tech-story .tech-next:focus-visible i { animation: techBob .8s ease-in-out infinite; }
 
 /* 依序浮起：開頁不動；模組第一次捲進畫面、或點選換案例時才播一次。 */
 @keyframes techRise {
@@ -4097,14 +4112,8 @@ button:not(:disabled):active, .tab:active, a.btn:active { scale: .97; }
 }
 .tech-story .tech-anim { animation: techRise .5s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i, 0) * 70ms); }
 
-/* 從「往下看」抵達：標題底下劃出一道重點色，2.6 秒後收回 */
-.tech-story .tech-section > h2 { background-image: linear-gradient(transparent 60%, color-mix(in srgb, var(--beam) 26%, transparent) 60%);
-  background-repeat: no-repeat; background-size: 0% 100%; transition: background-size .7s cubic-bezier(.2, .8, .2, 1); scroll-margin-top: 140px; }
-.tech-story .tech-section.is-arrived > h2 { background-size: 100% 100%; }
-.tech-story .tech-section > h2:focus { outline: none; }
-@media (max-width: 560px) {
-  .tech-story .tech-next { display: grid; width: 100%; }
-}
+/* 從目錄跳到章節時，標題上方留出黏住的頂列與分頁列 */
+.tech-story .tech-section > h2 { scroll-margin-top: 140px; }
 /* ====== v109 技術說明動態結束 ====== */
 /* ====== v109 視覺故事：五站路程、卡內迷你介面、黏住的稽核圖、價格區間標註、文字色塊 ======
    參考：Distill（標題下即互動圖、圖上直接標註）、Linear（細線圖示、等寬標籤）、Apple（按了才播）、
@@ -4828,9 +4837,9 @@ html[data-view="mobile"] .tracker-card-note { font-size: calc(15px * var(--rd-fs
 .tech-story .load-path .tech-result { margin-bottom:0; }
 .tech-story .load-points { display:grid; gap:12px; padding-left:1.4em; margin:26px 0; }
 .tech-story .load-points li { padding-left:5px; line-height:1.65; }
-.tech-story .load-evidence { margin:26px 0; padding:16px; border:1px solid var(--rule); border-radius:18px; background:var(--panel); max-width:820px; }
+.tech-story .load-evidence { margin:34px auto 26px; padding:clamp(10px, 1.4vw, 18px); border:1px solid var(--rule); border-radius:20px; background:var(--panel); max-width:1120px; }
 .tech-story .load-evidence img { display:block; width:100%; height:auto; border-radius:12px; }
-.tech-story .load-evidence figcaption { margin-top:12px; color:var(--muted); font-size:calc(13px * var(--rd-fs)); line-height:1.6; }
+.tech-story .load-evidence figcaption { margin-top:12px; text-align:center; color:var(--muted); font-size:calc(13px * var(--rd-fs)); line-height:1.6; }
 @media(max-width:700px){.tech-story .load-defs { grid-template-columns:minmax(0,1fr); }.tech-story .load-charts { grid-template-columns:minmax(0,1fr); }.tech-story .load-steps { grid-template-columns:minmax(0,1fr); }}
 @media(max-width:480px){.tech-story .load-stats { grid-template-columns:repeat(2,minmax(0,1fr)); }.tech-story .load-stat { padding:16px; }.tech-story .load-stat:last-child { grid-column:1/-1; }.tech-story .load-reduce { flex-direction:column; }.tech-story .load-reduce-arrow { transform:rotate(90deg); }.tech-story .load-choice button { flex:1 1 auto; }}
 </style>

@@ -33,7 +33,6 @@
         <li class="tone-stop"><span class="tp-k">哪裡容易出錯</span><p>語音稿把力積電寫成「立即電」，用正確名稱反而搜不到。</p></li>
         <li class="tone-ok"><span class="tp-k">現在得到的回答</span><p>個股查詢列出每次提及的日期與原句；常見誤字也找得到。</p><div class="mini mini-search" aria-hidden="true"><span class="mini-box"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/></svg><span class="mini-q">立即電</span><i class="mini-caret"></i></span><span class="mini-hit"><b>力積電 6770</b><small>9/23 原句・可回查</small></span></div></li>
       </ol>
-      <p class="tech-pain-go" id="painGo"><a class="tech-next" href="#tech-names"><span class="tn-k">往下看</span><b>股名聽錯怎麼處理</b><i aria-hidden="true">↓</i></a></p>
     </div>
     <p>這一頁接著依序說明：資料怎麼流動、網站如何讀入資料、9 月 23 日實際走過的一天、四種證據怎麼核對、新稿與公開說明怎麼處理，最後是持股績效、出錯時與限制。</p>
     <div class="tech-cards" id="techLive" aria-live="polite">
@@ -182,7 +181,7 @@
       <p class="tech-result" id="loadResult" aria-live="polite"><b>命中快取。</b>30 秒前另一位讀者才問過同一件事，存好的答案還有效，直接回覆。你按重新整理也是這條路。</p>
     </div>
     <ul class="load-points"><li><b>為什麼要存？</b>累積紀錄不能每次全送到手機，也不能讓每個人的同一個查詢都重新掃一次試算表。</li><li><b>會不會看到舊資料？</b>存好的答案過了有效時間就不用；背景備份超過 12 分鐘沒有重新核對也不用，寧可慢一次。</li></ul>
-    <figure class="load-evidence"><img src="assets/tech-load-overview-20261007.jpg" alt="2026 年 10 月 7 日正式站首頁載入完成，顯示當日分類與持股數字" loading="lazy" width="759" height="679"><figcaption>10/07 正式站截圖：當日分類與持股數字先可讀，其餘分頁按需載入。</figcaption></figure>
+    <figure class="load-evidence"><img src="assets/tech-load-overview-20261008.jpg" alt="2026 年 10 月 8 日正式站首頁載入完成，顯示當日分類與持股數字" loading="lazy" width="2480" height="1400"><figcaption>10/08 正式站截圖：當日分類與持股數字先可讀，其餘分頁按需載入。</figcaption></figure>
   </section>
 
   <section class="tech-section" id="tech-day">
@@ -447,10 +446,26 @@
   </section>
   <section class="tech-section tech-author" id="tech-author">
     <h2>關於作者</h2>
-    <p><strong>李世勛　Shih-Hsun Lee</strong><br>國立臺北大學統計學研究所。研究機器學習、深度學習、NLP 與大型語言模型，主要應用在量化金融。</p>
-    <p>這個網站是我把語音辨識、大型語言模型與規則核對放進真實每日流程的練習。我最在意的是分工：<mark class="hl">模型負責讀懂口語，程式負責核對原句、代號和數字，人負責最後把關</mark>。每一次出錯，我都盡量把原因寫成規則與測試，讓同樣的錯不再發生第二次。</p>
-    <p><a href="mailto:lindanny0213@gmail.com">Email</a>　·　<a href="https://github.com/Lee200202" target="_blank" rel="noopener">GitHub</a>　·　<a href="https://www.notion.so/Shih-Hsun-Lee-8bc6e964fe0a46c199c362a0909eabbb" target="_blank" rel="noopener">作品集</a></p>
-    <p class="tech-disclaimer">本站與該頻道沒有隸屬關係；內容是公開資訊整理，不構成投資建議。網站記錄匿名使用情形，瀏覽器識別碼不含 Email 或 IP。</p>
+    <div class="author-grid">
+      <article class="author-card author-main">
+        <header class="author-head">
+          <span class="author-mark" aria-hidden="true">李</span>
+          <div><b class="author-name">李世勛<span lang="en">Shih-Hsun Lee</span></b><span class="author-role">國立臺北大學統計學研究所</span></div>
+        </header>
+        <p>研究機器學習、深度學習、NLP 與大型語言模型，主要應用在量化金融。</p>
+        <p>這個網站是我把語音辨識、大型語言模型與規則核對放進真實每日流程的練習。我最在意的是分工：<mark class="hl">模型負責讀懂口語，程式負責核對原句、代號和數字，人負責最後把關</mark>。每一次出錯，我都盡量把原因寫成規則與測試，讓同樣的錯不再發生第二次。</p>
+      </article>
+      <ul class="author-links" aria-label="聯絡與作品">
+        <li><a class="author-card" href="mailto:lindanny0213@gmail.com"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M4 7.5l8 6 8-6"/></svg><span><b>Email</b><small>lindanny0213@gmail.com</small></span><i aria-hidden="true">↗</i></a></li>
+        <li><a class="author-card" href="https://github.com/Lee200202" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6l-6 6 6 6M16 6l6 6-6 6"/></svg><span><b>GitHub</b><small>Lee200202</small></span><i aria-hidden="true">↗</i></a></li>
+        <li><a class="author-card" href="https://www.notion.so/Shih-Hsun-Lee-8bc6e964fe0a46c199c362a0909eabbb" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2.5"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7M3 13h18"/></svg><span><b>作品集</b><small>研究與專案</small></span><i aria-hidden="true">↗</i></a></li>
+      </ul>
+      <ul class="author-terms" aria-label="使用聲明">
+        <li class="author-card"><b>沒有隸屬關係</b><span>本站與該頻道沒有隸屬關係。</span></li>
+        <li class="author-card"><b>不是投資建議</b><span>內容是公開資訊整理，不構成投資建議。</span></li>
+        <li class="author-card"><b>匿名使用紀錄</b><span>網站記錄匿名使用情形，瀏覽器識別碼不含 Email 或 IP。</span></li>
+      </ul>
+    </div>
   </section>
 </div>
 <script>
@@ -887,7 +902,7 @@
     });
   }
   root.addEventListener('animationend', function (e) { if (e.animationName === 'techRise') e.target.classList.remove('tech-anim'); });
-  var PLAY_SETS = ['.tech-path', '.tech-pain-go', '.tech-real', '.tech-dayline', '.tech-verdicts', '.decision-grid', '.tx-stages', '.tx-out',
+  var PLAY_SETS = ['.tech-path', '.tech-real', '.tech-dayline', '.tech-verdicts', '.decision-grid', '.tx-stages', '.tx-out',
     '.pn-desk', '.un-chain', '.tech-lanes', '.tech-timeline', '.tech-flow'];
   function playIn(scope) { PLAY_SETS.forEach(function (sel) { Array.prototype.forEach.call(scope.querySelectorAll(sel), play); }); }
   if ('IntersectionObserver' in window && !reduce) {
@@ -901,51 +916,6 @@
     all('.tech-lab, .tech-real, .tech-flow').forEach(function (el) { seen.observe(el); });
   }
   /* 「往下看」：平滑捲到章節、標題劃一道重點色，再播放該章的模組；上一頁仍回到原處。 */
-  function barBottom() {
-    var top = 0;
-    // 頂列與分頁列都是黏住的；分頁列黏在頂列下面（桌面 68px），不能只算 top≤1 的那一條
-    document.querySelectorAll('.topbar, .tabbar').forEach(function (el) {
-      var r = el.getBoundingClientRect(), pos = getComputedStyle(el).position;
-      if (r.height && (pos === 'sticky' || pos === 'fixed') && r.top >= -1 && r.top < 200) top = Math.max(top, r.bottom);
-    });
-    return top || 120;
-  }
-  function arrive(target) {
-    var h2 = target.querySelector('h2') || target;
-    // 讓瀏覽器自己對準：標題上方留出黏住的頂列＋分頁列高度，捲動途中版面變動也不會偏
-    h2.style.scrollMarginTop = (barBottom() + 16) + 'px';
-    try { h2.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' }); } catch (e) { h2.scrollIntoView(true); }
-    // 停下來再量一次（手機頂列捲動後會變高、平滑捲動在某些環境不會動），必要時直接對準
-    var fix = function () {
-      var gap = h2.getBoundingClientRect().top - barBottom();
-      if (gap < 8 || gap > 40) { try { window.scrollTo({ top: window.scrollY + gap - 16, behavior: 'instant' }); } catch (e) { window.scrollTo(0, window.scrollY + gap - 16); } }
-    };
-    // 等捲動真的停下來（連兩次位置不變）才校正；途中校正會被平滑捲動蓋掉
-    var last = -1, still = 0, tries = 0;
-    clearInterval(arrive.w);
-    arrive.w = setInterval(function () {
-      tries++;
-      if (Math.abs(window.scrollY - last) < 1) still++; else still = 0;
-      last = window.scrollY;
-      if (still >= 2 || tries > 30) { clearInterval(arrive.w); fix(); }
-    }, 100);
-    all('.tech-section.is-arrived').forEach(function (s) { s.classList.remove('is-arrived'); });
-    target.classList.add('is-arrived');
-    var h = target.querySelector('h2');
-    if (h) { if (!h.hasAttribute('tabindex')) h.setAttribute('tabindex', '-1'); try { h.focus({ preventScroll: true }); } catch (e) {} }
-    setTimeout(function () { playIn(target); }, reduce ? 0 : 420);
-    clearTimeout(arrive.t); arrive.t = setTimeout(function () { target.classList.remove('is-arrived'); }, 2600);
-  }
-  root.addEventListener('click', function (e) {
-    var a = e.target.closest && e.target.closest('a.tech-next');
-    if (!a) return;
-    var target = root.querySelector(a.getAttribute('href'));
-    if (!target) return;
-    e.preventDefault();
-    try { history.pushState(null, '', a.getAttribute('href')); } catch (err) {}
-    arrive(target);
-  });
-
   /* ---------- v109 五站路程（9/23 的實際時間；按播放才走，走完停在最後一站） ---------- */
   var HERO = [
     ['10:10–11:05', '即時紀錄先進來、影片回放晚一點出現；兩個來源各自先存下原文，不互相等待。'],
@@ -983,16 +953,13 @@
   var PAINS = [
     { path: [['skip', '以前要怎麼找', '先猜是哪一週，再翻即時紀錄、拖影片時間軸。'],
              ['stop', '哪裡容易出錯', '語音稿把力積電寫成「立即電」，用正確名稱反而搜不到。'],
-             ['ok', '現在得到的回答', '個股查詢列出每次提及的日期與原句；常見誤字也找得到。']],
-      go: ['#tech-names', '股名聽錯怎麼處理'] },
+             ['ok', '現在得到的回答', '個股查詢列出每次提及的日期與原句；常見誤字也找得到。']] },
     { path: [['skip', '以前要怎麼找', '只看到一片空白，分不出沒講、沒抓到，還是還沒整理完。'],
              ['stop', '哪裡容易出錯', '舊工單把新稿蓋回去，或文章完成就被當成全部完成。'],
-             ['ok', '現在得到的回答', '原稿、稽核、文章與寄送各自標狀態；沒講到的寫「未說明」，不補、不猜。']],
-      go: ['#tech-transcript-progress', '新稿與舊工單怎麼處理'] },
+             ['ok', '現在得到的回答', '原稿、稽核、文章與寄送各自標狀態；沒講到的寫「未說明」，不補、不猜。']] },
     { path: [['skip', '以前要怎麼找', '同一句話有「賣」又有「不要碰」，只能自己重聽判斷。'],
              ['stop', '哪裡容易出錯', '「散戶一直賣」被當成會員賣出，持股被錯誤平倉。'],
-             ['ok', '現在得到的回答', '先分主詞與分類；持股回合只在明講賣出、轉觀望不碰或逾期時才結束。']],
-      go: ['#tech-subject', '「誰在賣」怎麼判斷'] }
+             ['ok', '現在得到的回答', '先分主詞與分類；持股回合只在明講賣出、轉觀望不碰或逾期時才結束。']] }
   ];
   /* 卡內迷你介面（示意）：搜尋框打字→出現結果；狀態板依序亮；主詞標籤。 */
   var MINI = [
@@ -1021,8 +988,7 @@
       return '<li class="tone-' + x[0] + '"><span class="tp-k">' + esc(x[1]) + '</span><p>' + esc(x[2]) + '</p>' + (n === 2 ? MINI[i] : '') + '</li>';
     }).join('');
     typeMini();
-    one('#painGo').innerHTML = '<a class="tech-next" href="' + p.go[0] + '"><span class="tn-k">往下看</span><b>' + esc(p.go[1]) + '</b><i aria-hidden="true">↓</i></a>';
-    play(one('#painPath')); play(one('#painGo'));
+    play(one('#painPath'));
   }
   all('[data-pain]').forEach(function (b) { b.addEventListener('click', function () { drawPain(Number(b.dataset.pain)); }); });
 
@@ -1204,7 +1170,7 @@
   };
   var loadImage = one('.load-evidence img');
   if (loadImage && document.documentElement.dataset.host !== 'pages') {
-    loadImage.src = 'https://lee200202.github.io/Stock/assets/tech-load-overview-20261007.jpg';
+    loadImage.src = 'https://lee200202.github.io/Stock/assets/tech-load-overview-20261008.jpg';
   }
   var loadCases = {
     recent: { state: 'hit', ask: '<b>1　09:05 打開首頁</b><span>請求「今天的總覽」</span>', step: '<b>2　命中快取</b><span>09:04 有人看過，那一份還在 1 分鐘內</span>', end: '<b>3　約 0.1 秒可讀</b><span>沒有讀後端</span>',

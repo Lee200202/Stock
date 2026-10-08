@@ -802,6 +802,10 @@ function apiAdminTodayStatus(key) {
           dk.finishedAt && !dkMostlyFailed ? 'ok' : 'warn',
           (dk.finishedAt ? '成功 ' + (dk.ok || 0) + '、失敗 ' + (dk.failed || 0) + '、略過 ' + (dk.skipped || 0) + '。' : '') +
           (dkMostlyFailed ? '富果沒有回資料；盤後改用官方收盤行情補齊。' : '') +
+          /* 2026/10/08：「成功 0、略過 240」被讀成沒有補到。略過是那一檔的日K已經齊了（當天那一根通常在 14:40 之後
+             由官方收盤行情先補上），不是失敗；完成時間是前一天時，今天這一輪要到 16:45 才跑，也寫出來。 */
+          (dk.finishedAt && (dk.skipped || 0) > 0 && !dkMostlyFailed ? '略過是日K已齊（當天那一根多半已由官方收盤行情先補上），不是失敗。' : '') +
+          (dk.finishedAt && String(dk.finishedAt).slice(0, 10).replace(/-/g, '/') !== todayStr_() ? '這是上一輪的結果；今天這一輪排在 16:45，當天的日K是否到齊看「官方日K補齊」。' : '') +
           (dk.lastError ? '最近的問題：' + String(dk.lastError).slice(0, 80) : ''));
     }
     /* 逐日編輯同步（R6）：等待續跑或帶錯誤就變紅，原因與 Actions 日誌同一段。 */

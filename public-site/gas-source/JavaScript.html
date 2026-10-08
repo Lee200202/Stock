@@ -486,6 +486,13 @@
      抽成函式而不是寫在點擊處理裡，是因為現在有兩種入口：分頁列的按鈕，
      以及頂列右上角的放大鏡（個股查詢）。兩邊要走完全同一段流程，
      否則其中一邊會漏掉「收起頁首視覺區」或「第一次進來才載入資料」。 */
+  function scrollPageTop() {
+    var root = document.documentElement, was = root.style.scrollBehavior;
+    root.style.scrollBehavior = 'auto';           // 樣式若設了平滑捲動，這一次也不要動畫
+    try { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }); } catch (e) { window.scrollTo(0, 0); }
+    root.scrollTop = 0; document.body.scrollTop = 0;
+    root.style.scrollBehavior = was;
+  }
   function activateTab(name, btn) {
     if (name === 'sms') { name = 'overview'; btn = document.querySelector('button.tab[data-tab="overview"]'); }
     document.querySelectorAll('button.tab').forEach(function (b) {
@@ -504,7 +511,10 @@
     // v109：面板切換已有 rd-fade；這裡只讓面板裡已畫好的清單（例如持股卡片）依序浮起一次
     if (window.__fxRiseIn) { window.__fxRiseIn(panel); }
     setOverviewTop(name);
-    window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    /* 換分頁一律直接回到最上面（v151，管理者回報：捲到下面再點別的分頁，新分頁還停在下面）。
+       先前用平滑捲動，但同一刻面板換了內容、頁首視覺區收合，頁面高度一變平滑捲動就被中斷，
+       正式站實測九次切換有七次停在半路（296、1298、3475 像素）。換頁本來就不需要動畫，改成直接跳。 */
+    scrollPageTop();
     if (btn && window.__scrollTabIntoView) { window.__scrollTabIntoView(btn); }
 
     USE.page(name);

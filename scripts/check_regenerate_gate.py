@@ -60,3 +60,11 @@ right = {**tsmc, 'note': '台積電穩穩抱著，下週法說會前留意表現
 _, hard, _ = pl.quality_overview({'holdings': [right]}, raw)
 assert not any('時間詞無本股原句' in e for e in hard), hard
 print('daily publication: unsupported stock time blocked, 下個禮拜／下週 accepted')
+bad_level = {'name': '力積電', 'code': '6770', 'price': '74', 'note': '力積電目前上漲，正壓在1545元關卡等待突破。',
+             'evidence': ['力積電目前上漲', '正壓在1545元關卡等待突破']}
+_, hard, _ = pl.quality_overview({'holdings': [bad_level]}, '力積電目前上漲。正壓在1545元關卡等待突破。')
+assert any('力積電' in e and '價位與本股已核對價位相差過大：1545' in e for e in hard), hard
+same_scale = {**bad_level, 'note': '力積電目前上漲，正壓在75元關卡等待突破。'}
+_, hard, _ = pl.quality_overview({'holdings': [same_scale]}, '力積電目前上漲，正壓在75元關卡等待突破。')
+assert not any('價位與本股已核對價位相差過大' in e for e in hard), hard
+print('daily publication: grossly misattributed price level blocked when a verified row price exists')

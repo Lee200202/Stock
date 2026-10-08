@@ -7962,6 +7962,24 @@ def _unsupported_note_time(note, row, transcript):
     return [term for term in missing if normalized(term) not in source]
 
 
+def _extreme_note_level(note, row):
+    """Flag an impossible-looking *price level* when this row has a price.
+
+    A 1545 元關卡 was attached to 力積電 near 72 元 in 10/08's text. It
+    occurred in the transcript, so lexical evidence checks could not reject
+    it. This deliberately narrow check excludes EPS, volume and cash amounts.
+    """
+    reference = display_price(row.get('price'))
+    match = re.match(r'^(\d+(?:\.\d+)?)', reference)
+    if not match:
+        return []
+    base = float(match.group(1))
+    if base <= 0:
+        return []
+    levels = re.findall(r'(?<!\d)(\d{2,6}(?:\.\d+)?)\s*(?:元|塊)\s*(?:關卡|價位|買點|股價|目標)', str(note or ''))
+    return [level for level in levels if float(level) > max(100, base * 8)]
+
+
 def quality_overview(signals, transcript=''):
     """回傳 (概況文字列, 硬傷, 留意)。"""
     label = {'buy': '買入', 'sell': '賣出', 'holdings': '會員持股', 'watch_watch': '觀望注意', 'watch_avoid': '觀望不碰'}
@@ -7984,6 +8002,9 @@ def quality_overview(signals, transcript=''):
             missing_time = _unsupported_note_time(note, r, transcript)
             if missing_time:
                 hard.append(f'{name} 的說明時間詞無本股原句：{"、".join(missing_time)}；{note[:45]}')
+        extreme = _extreme_note_level(note, r)
+        if extreme:
+            hard.append(f'{name} 的說明價位與本股已核對價位相差過大：{"、".join(extreme)}；{note[:45]}')
         if transcript and cat == 'watch_avoid' and not r.get('_carried_forward') and r.get('_原分類') not in ('buy', 'sell') \
                 and borrowed_avoidance(_row_names_for_recap(r), _other_entity_names(r, signals, transcript), transcript):
             hard.append(f'{name} 列觀望不碰，但這一檔自己沒有偏空說法，否定的是前一句的別家')

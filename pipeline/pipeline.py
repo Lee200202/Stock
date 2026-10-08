@@ -4386,7 +4386,7 @@ name 只能用原文聽到的字或 confirmed_names／source_inventory 的正式
 【主詞歸屬與語氣】
 逐句分清交易者、被買賣的標的、建議適用對象。ETF交易個股時，ETF是交易者，不能承接個股買點。price_subject填該價位所屬的原文名稱；不明則price未說明。
 例如ETF出清「出金城／初清程」且等破900再買：900屬勤誠，不屬00981A；ETF本身只寫其換股評價。普位現在跌兩塊屬譜瑞；昨日跌百餘元買進、今日漲30幾塊屬四星KY，不能互搬。原文沒這些話時不加入範例。
-觀望注意須有本股明確正面看法或具體等待買點；價值或淨值高、法人續買、穩健、適合切入、可續留意且全段無負面，屬正面看法。只有中性、法人反覆換手、追高風險且沒有正面指示，列觀望不碰。不是永久看壞公司。明確低檔買點不因「不要追高」改判偏空；正面後明講禁買則不碰。純已出清回顧不因此復活。
+觀望注意須有本股明確正面看法或具體等待買點；價值或淨值高、法人續買、穩健、適合切入、可續留意且全段無負面，屬正面看法。法人反覆換手、追高風險且沒有正面指示，列觀望不碰；只描述行情（整理、橫盤、碰到哪一條均線）而沒有偏多偏空的結論、也沒有買賣指示的，兩類觀望都不列（見下方「中性描述不列」）。不是永久看壞公司。明確低檔買點不因「不要追高」改判偏空；正面後明講禁買則不碰。純已出清回顧不因此復活。
 會員已買而仍等待整理者保留持股，不被末段候選名單抹掉。觀望兩類衝突先核對適用對象、最後有效指示，不採關鍵字偏空一律優先。
 
 【主詞與分類】
@@ -4405,13 +4405,15 @@ watch_watch：明確候選、以後想買、等洗完、抄起來；只列名字
 漲多下方缺口還沒補、還會跌、切勿追高、拿它當負面示範（大立光跌停、玉晶光跟跌）→ watch_avoid，不因句中出現「買」「等」改列 watch_watch。
 展示營收、EPS 或線型並說出看法的個股（「這些公司以後都會漲回去」「一定要等他補完缺口、打第二隻腳再站回去」）也要逐檔收錄，共同指示能明確回指這兩三家公司時才逐檔列；不能只因同段展示過就套用同一立場。
 watch_avoid 從寬：談到這一檔時語氣偏負面、偏空，或拿它當風險、追高受傷、法人一買一賣、操作失誤的示範，就列 watch_avoid，不必有明確禁令（例：不准碰、會殺破、還沒跌完、昨天大漲今天大跌、追高容易套牢、外資買一天賣一天、昨天買今天跌）。反話、假破底、賣壓竭盡、別人（ETF、法人、散戶）賣在低點而講者結論看多，不算語氣偏負面（見句型十）。reason 寫出負面現象；若另有明確本股低檔買點，依買點列watch_watch並保留條件，不能自行補買點。
-watch_watch 只收明確正面看法或具體買點（看好、會漲、候選、等條件就買）；只有盤整或法人反覆換手、沒有偏多依據者放watch_avoid。正負並存看「現在進場」的結論；拿不準而負面較多歸 watch_avoid。不可替警示例子補寫「等待機會」「逢低布局」。
+watch_watch 只收明確正面看法或具體買點（看好、會漲、候選、等條件就買）；法人反覆換手、沒有偏多依據者放watch_avoid；只有盤整、沒有任何結論者不列。正負並存看「現在進場」的結論；拿不準而負面較多歸 watch_avoid。不可替警示例子補寫「等待機會」「逢低布局」。
 過去的買賣本身不是 watch_watch 或 watch_avoid 的理由，見【日期未明與現況看法】。
 族群禁令可以連到原文明確點名且確有語意連結的公司；不可自行枚舉族群成分股。
 同一檔最後指示、時間與持有/加碼範圍決定狀態；矛盾仍不能解開就 uncertain。
 目前已持有者：持股事實放 holdings。若講者另外對「還沒有的人」給出買進條件或建議（等碰線、等禮拜一、幾塊以下、你要先買），同時列一筆 watch_watch，reason 只寫那個條件；例如「台積電只要碰到這一條線你們就去注意，他就會漲上去」→ 台積電 holdings 之外再列一筆 watch_watch；「你要先買四星KY」→ 世芯-KY 同樣再列 watch_watch。只說續抱、加碼，不另列觀望。
 ignored：貨幣、產業、指數、匿名標的、外國股票、確無本次原文依據者。台股及已確認 ETF 的行情例子、法人交易、ETF 換股也屬本日觀察範圍，不能因此排除。填 name/reason/evidence_refs，保留排除理由供稽核。
-原文點名的行情或法人例子也逐檔列觀望，方向依 watch_avoid 從寬標準；整理、橫盤、資金動向等中性者列watch_avoid，如實描述，不冒充推薦買進。ETF（00981A 等）一律放 ignored，exclusion_reason=etf_not_a_pick，不進觀望兩類。他講 ETF 的時候，ETF 從來不是要你買的標的，是正在賣的那一方：「晶成你一定要等900以下，還要等00981A賣完，你才可以進場」「你在ETF賣完那一天，9月17號ETF出清」——那是被它賣的那幾檔的進場條件，寫進那幾檔的 reason，不要替 ETF 本身開一列。ETF 的買賣更不能冒充會員買賣。
+原文點名的行情或法人例子也逐檔列觀望，方向依 watch_avoid 從寬標準，如實描述，不冒充推薦買進。
+中性描述不列（管理者規則，2026/10/08）：只描述這一檔的行情——整理、橫盤、回來碰季線、沿著均線走、資金動向——沒有偏多或偏空的結論，也沒有要人買、等、不要碰，就不列觀望，放 ignored，exclusion_reason=neutral_description，reason 照寫他描述了什麼。同一檔在別處另有結論或指示時，照那個結論列。
+「我沒有買X，所以我不被跌到」「我沒有這一檔」只是陳述沒有部位，不是負面示範，也不是不買的表態：放 ignored，exclusion_reason=mention_only。原文另外講了這一檔自己的負面行情或風險（它跌停、連跌幾天、追高的人套牢、他說以後也不買）才列 watch_avoid。ETF（00981A 等）一律放 ignored，exclusion_reason=etf_not_a_pick，不進觀望兩類。他講 ETF 的時候，ETF 從來不是要你買的標的，是正在賣的那一方：「晶成你一定要等900以下，還要等00981A賣完，你才可以進場」「你在ETF賣完那一天，9月17號ETF出清」——那是被它賣的那幾檔的進場條件，寫進那幾檔的 reason，不要替 ETF 本身開一列。ETF 的買賣更不能冒充會員買賣。
 history：自己的過去交易，但不是當日、或日期不能確定；不是第三方交易的收容區。網站不單獨呈現回顧：原文另有這一檔現況看法的會列入觀望，沒有的不列（見【日期未明與現況看法】）。
 
 【舊推薦回顧】
@@ -4484,7 +4486,7 @@ watch_stance = {"subject_ok": true 或 false, "now": "buy_ok|conditional|not_yet
   tone：講者對本檔「現在與之後」的看法。回顧過去漲跌不算；拿本檔當追高受傷、操作失誤的例子算 bearish。
   tone_refs：支持 tone 的段落編號，段落內必須有本檔名稱或明確代稱。
   tone_phrases：從原文照抄 1～3 個關鍵片語，一個字都不改（程式會逐字核對）。
-填寫順序：一、先判 subject_ok，false 時不要放在觀望兩類，改放 uncertain，reason 照原句寫。二、再判 now：prohibit、not_yet 最後是 watch_avoid；buy_ok、conditional 最後是 watch_watch。三、now 是 none 時才看 tone：bullish 是 watch_watch；bearish、neutral 是 watch_avoid。
+填寫順序：一、先判 subject_ok，false 時不要放在觀望兩類，改放 uncertain，reason 照原句寫。二、再判 now：prohibit、not_yet 最後是 watch_avoid；buy_ok、conditional 最後是 watch_watch。三、now 是 none 時才看 tone：bullish 是 watch_watch；bearish 是 watch_avoid；neutral（只描述行情、沒有結論）兩類都不列，改放 ignored（exclusion_reason=neutral_description）。
 容易判反的說法（都是 bullish）：盤整、洗盤是為了讓散戶賣出或下車；假跌破；賣壓竭盡、賣完就漲；三個月打底、整理完、剛要啟動；準備噴出；月K、季線、MACD 即將翻紅或翻揚；拉回布局；站上季線。
 容易判反的說法（都是 bearish 或 not_yet）：「現在還不行」「你沒有破900我不想買」；「總比去買X好」裡的X；「昨天追的人今天套牢」；「不用再去追X了」「我不再介紹X」。
 reason 必須和 watch_stance 一致：tone 是 bullish，reason 不可以只寫風險；now 是 not_yet，reason 要寫出等待條件，不可以寫成買點。
@@ -9280,7 +9282,9 @@ def category_from_stance(stance) -> str:
         return 'watch_avoid'
     if now in ('buy_ok', 'conditional'):
         return 'watch_watch'
-    return 'watch_watch' if stance.get('tone') == 'bullish' else 'watch_avoid'
+    if stance.get('tone') == 'bullish':
+        return 'watch_watch'
+    return 'watch_avoid' if stance.get('tone') == 'bearish' else 'ignored'      # 中性描述不列（2026/10/08 管理者規則）
 
 
 # 名字只在否定句裡出現：「你不是要買華邦電了沒有」「我不會買南亞科」。
@@ -9602,6 +9606,18 @@ def normalize_watch_tones(signals):
                     note_decision('語氣核對','立場欄位：主詞不是本檔，改列待確認',name,_decision_detail(text))
                     print(f"  語氣核對　{name}　改列待確認（立場欄位：主詞不是本檔）")
                     continue
+                if target=='ignored':
+                    # 立場欄位是「沒有表態、語氣中性」：只描述行情、沒有結論，不列。原本是買入或持股、只因日期或主詞降到觀望的列，
+                    # 以及原文明講不推薦的列不在此限；說明裡明講不能買的照禁止處理。
+                    keep_row = (row.get('_原分類') in ('buy', 'sell', 'holdings') or row.get('_plain_refusal') or row.get('_leftover')
+                                or row.get('_verdict') or active_prohibit(strip_speaker_names(str(text or ''))))
+                    if not keep_row:
+                        row=dict(row); row['exclusion_reason']='neutral_description'
+                        dropped.append(row)
+                        note_decision('語氣核對','中性描述不列',name,_decision_detail(text))
+                        print(f"  語氣核對　{name}　不列（只描述行情，沒有偏多偏空的結論）")
+                        continue
+                    target='watch_avoid' if active_prohibit(strip_speaker_names(str(text or ''))) else cat
                 # 禁止永遠優先（v18）：公開說明明講現在不能買，立場欄位說可以也不採用。
                 if target=='watch_watch' and active_prohibit(strip_speaker_names(str(text or ''))):
                     target='watch_avoid'
@@ -11238,12 +11254,12 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v1-20261008"          # 題目或決定順序一改就換版號，舊裁決不再沿用
+VERDICT_VERSION = "v2-20261008"          # 題目或決定順序一改就換版號，舊裁決不再沿用
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 3                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
-VERDICT_DEFAULT_MODE = 'shadow'          # 先只記錄；用實際模型核對過再改成 on
+VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
 VERDICT_REQUEST_CHARS = 48000            # 一個請求裝多少字的輸入（約五萬多 token）。一天的量通常一個請求就裝完
-VERDICT_NEUTRAL_CLASS = 'watch_avoid'    # 只描述行情、沒有偏多偏空的結論：照【主詞與分類】「中性者列 watch_avoid」
+VERDICT_NEUTRAL_CLASS = 'ignored'        # 只描述行情、沒有偏多偏空的結論：不列（2026/10/08 管理者規則）
 _VERDICT_LABEL = {'buy': '買入', 'sell': '賣出', 'holdings': '會員持股', 'watch_watch': '觀望注意', 'watch_avoid': '觀望不碰',
                   'history': '回顧', 'uncertain': '待確認', 'ignored': '排除', '': '未列'}
 _VERDICT_ORDER = ('buy', 'sell', 'holdings', 'watch_avoid', 'watch_watch', 'history', 'uncertain', 'ignored')
@@ -11268,14 +11284,15 @@ past_trade　講者提到他或會員「不是當天」的買賣（昨天買、�
 　只是回顧那一次買賣與當時的行情（「昨天【甲】開高，我叫你們先賣」），沒有說現在怎麼看：past_trade 是 true，now 填 none、tone 填 neutral；那是過去的事，不是現在的看法。
 about_itself　text 有沒有講到這一檔自己的事：它的股價行情（漲跌、漲停跌停、創高、破線）、線型與均線位置、業績、法人籌碼，或講者對它的指示與意願（買、賣、等、不要碰）。
 　只有一句也算：拿它當今天大跌、跌停、追高受傷的例子（「什麼【甲】跌停板」「買【甲】的一天賠一千多塊」）是 true，tone 填 bearish。
+　「我沒有買【甲】，所以我不被跌到」「我沒有這一檔」只是陳述沒有部位：false。除非 text 另外講了【甲】自己的負面行情或風險（它跌停、連跌幾天、買的人套牢、他說以後也不買），那時才是 true。
 　false 的情況：【】裡的字在那一句只是一般用語、不是公司（「投信最【大量】的股票」的大量），這時 unsure 寫「不是公司名」；只是被念到名字；拿來襯托另一檔（「很多人說甲是龍頭，其實龍頭是乙」的甲）；批評別的分析師或別人的操作時順帶提到；「我沒有買它」「我沒有這一檔」這種只陳述沒有部位的話。
 now　講者對「現在要不要進場」的表態，about_itself 為 false 時填 none：
-　buy_ok＝現在可以買、明講看好可布局；conditional＝給了可以照做的買進條件（跌到多少以下、回測某條均線、突破某價）而且沒有說現在不能買；
+　buy_ok＝現在可以買、明講看好可布局；conditional＝給了可以照做的買進條件（跌到多少以下、回測某條均線、突破某價）而且沒有說現在不能買，「還沒買，要等它回測季線再上去」是 conditional；
 　not_yet＝明講現在還不能買、還太早、還太急、離均線太遠先不要買；prohibit＝不買、不會買、不要買、不要追、不要碰、不推薦、不再介紹；none＝沒有對現在要不要進場表態。
 　「不會買」是他的意願，就算是拿來比照別檔時說的也算（「就像我絕對不會買【甲】一樣」「那我幹嘛去買【甲】」：about_itself 是 true，now 是 prohibit）。
 　只說「我沒有買【甲】」而沒有說為什麼不買、也沒有說以後不買，是陳述沒有部位，不是表態。
 　同一檔前後講法不同時，以最後一次、而且是對現在的指示為準。
-tone　now 是 none 時才有作用：bullish＝對它現在與之後偏多（打底完成、準備發動、會漲上去、不用擔心）；bearish＝偏空，或拿它當大跌、追高受傷、風險的例子；neutral＝只描述行情或只回顧過去，沒有偏多或偏空的結論。
+tone　now 是 none 時才有作用：bullish＝對它現在與之後偏多（打底完成、準備發動、會漲上去、不用擔心）；bearish＝偏空，或拿它當大跌、追高受傷、風險的例子；neutral＝只描述行情或只回顧過去（「【甲】回來碰季線，在季線附近整理」），沒有偏多或偏空的結論；這種不會列出來，所以不要為了讓它有分類而勉強填 bullish 或 bearish。
 　反話與賣壓竭盡是偏多：「想賣的趕快賣，我的會員不准賣」「假跌破」「賣完就漲」不是 bearish。
 
 答 true 的每一題，以及 about_itself 為 true 時的 now／tone，都要在 quotes 對應欄位附 1～2 句從 text 照抄的原文：一個字都不改（【】可以省略），每句 8～40 個字，句子本身要看得出這個答案。抄不出來，那一題就答 false 或 none。
@@ -11518,7 +11535,7 @@ def verdict_class(answer, passages_norm, names=()):
         return 'watch_avoid', '偏空或當作風險例子：' + stance[0][:40]
     if past:
         return 'history', '只回顧過去的買賣'
-    return VERDICT_NEUTRAL_CLASS, '只描述行情，沒有偏多偏空的結論：' + stance[0][:40]
+    return VERDICT_NEUTRAL_CLASS, '只描述行情，沒有偏多偏空的結論，不列：' + stance[0][:40]
 
 
 def verdict_settle(current, votes, last=False):
@@ -11773,7 +11790,8 @@ def apply_verdicts(signals, date_str, final=False):
                 moved['watch_stance'] = {'subject_ok': True, 'now': str(answer.get('now') or 'none'), 'tone': str(answer.get('tone') or 'neutral'),
                                          'tone_refs': [], 'tone_phrases': [q for q in (quotes.get('stance') or []) if isinstance(q, str)][:3]}
             if target == 'ignored':
-                moved.setdefault('exclusion_reason', 'mention_only')
+                neutral = answer.get('about_itself') is True
+                moved.setdefault('exclusion_reason', 'neutral_description' if neutral else 'mention_only')
             extra = [q for qs in quotes.values() for q in (qs or []) if isinstance(q, str)]
             moved['evidence'] = list(dict.fromkeys([q for q in (row.get('evidence') or []) if isinstance(q, str)] + extra))
             moved['_原分類'] = cat or row.get('_原分類') or ''

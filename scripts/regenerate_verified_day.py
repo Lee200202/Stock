@@ -72,7 +72,7 @@ def main():
     if errors:
         raise SystemExit('通用檢查未通過，正式資料保留')
     if golden_file.exists():
-        ok, report = compare(captured['signals'], json.loads(golden_file.read_text(encoding='utf-8')))
+        ok, report = compare(captured['signals'], json.loads(golden_file.read_text(encoding='utf-8')), day)
         print(report)
         if not ok:
             raise SystemExit('人工答案比對未通過，正式資料保留')

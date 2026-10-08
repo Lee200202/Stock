@@ -4486,6 +4486,7 @@ uncertain 的 suggested_category 只用 buy/sell/holdings/watch_avoid/watch_watc
 覆核前後每個候選必須能由原名稱或 aliases 對應；分類可變但不可無聲消失。思考較深也不能增加原文沒有的交易、日期、價位或投資理由。
 初稿已附逐字原句的個股，覆核只能改分類或補說明；要改放 uncertain／ignored，必須在 reason 寫出原文裡是哪一句推翻了初稿，找不到那一句就維持初稿分類（2026/10/05 聖暉、達邁，10/06 聯電都是初稿對、覆核拿掉）。
 講者明講今天已經做了的買賣是當日成交：「今天早上賣A」「A沒了，賣掉了」「今天新買的A」「今天早上幾點幾分告訴會員A獲利賣出」一律列 sell／buy，when 填 today，把那一句照抄進 time_evidence。同一檔另外講到以前的買進價、以前的提醒，不改變當日成交的分類，也不可因此改列 holdings、history 或排除；昨天、上禮拜、之前的成交才是回顧。問句（今天A要不要賣）與對個別觀眾的建議（A建議先賣出等拉回）不是成交。
+昨天買、今天還抱著：「我昨天買的叫做X，今天繼續大漲」「昨天漲停板的X嘛，我們本來就有了」——買進發生在昨天（要列 buy 就填 when=yesterday，不可標成今天），今天的狀態是持有：X 今天一定要有一筆 holdings，說明寫買進的理由與今天的走勢。不可只留一筆昨天的 buy。
 昨天預告、今天做了，是今天的成交：「我昨天跟你們講，我要去買一檔…」是昨天的預告；後面「今天賣掉A，去買B」「所以我今天只賣一隻A，啊我買了一隻股票，B」才是成交——B 列 buy、when=today，time_evidence 照抄今天成交的那一句，不抄昨天預告那一句。
 """
 
@@ -10791,6 +10792,57 @@ def _prev_trading_day(ss, date_str: str) -> str:
     return earlier[-1] if earlier else ""
 
 
+def settle_backdated_trades(ss, signals, date_str):
+    """今天的影片補講前幾天的買賣（「我昨天買的叫做鈺邦」）之後的兩件事。
+
+    一、那一天已經記過同一檔、同方向的買賣（當天的會員通知、當天自己的影片、人工補登），就不再補記一次：
+        同一天出現兩筆買入，看起來像他買了兩次，持有回合的進場也會被重排。
+    二、補記的是「昨天／上一個交易日的買進」，而今天的影片沒有講賣出：他今天仍然持有，今天要有一筆會員持股。
+        說明用模型為這一檔寫的那一段，程式不另外寫字。更早日期的買進不套用（之後可能已經賣掉，由原文自己說）。
+    2026/10/08：鈺邦只留下一筆記在 10/07 的買入，今天這一檔從網站上消失，單日更新被人工答案擋下。
+    """
+    moved = [(cat, r) for cat in ('buy', 'sell') for r in list(signals.get(cat, []) or [])
+             if isinstance(r, dict) and r.get('_date') and r['_date'] != date_str]
+    if not moved:
+        return signals
+    own = {str(x) for x in (signals.get('_source_ids') or []) if x} | {str(signals.get('_video_id') or '')}
+    existing = set()
+    try:
+        values = sheets_retry(ss.worksheet("操作紀錄").get_all_values)
+        head = [str(h).strip() for h in values[0]]
+        c_date, c_code, c_dir, c_src = head.index("日期"), head.index("代號"), head.index("方向"), head.index("來源影片ID")
+        for row in values[1:]:
+            cell = lambda i: str(row[i]).strip() if i < len(row) else ''
+            if cell(c_src) not in own and _dir_kind(cell(c_dir)) in ('buy', 'sell'):
+                existing.add((norm_date(cell(c_date)), cell(c_code), _dir_kind(cell(c_dir))))
+    except Exception as e:
+        print(f"  補記核對：讀不到操作紀錄（{str(e)[:60]}），不判斷那一天是否已經記過")
+    today = lambda r: (r.get('_date') or date_str) == date_str
+    sold = {str(r.get('code') or '') for r in signals.get('sell', []) or [] if isinstance(r, dict)}
+    for cat, row in moved:
+        code, name, label = str(row.get('code') or ''), str(row.get('name') or ''), ('買入' if cat == 'buy' else '賣出')
+        if (row['_date'], code, cat) in existing:
+            signals[cat] = [r for r in signals[cat] if r is not row]
+            print(f"  補記核對　{name}（{code}）{row['_date']} 的{label}那一天已經記過，不重複補記")
+            note_decision('補記核對', f'{label}那一天已有紀錄，不重複補記', name, row['_date'])
+        if cat != 'buy' or row.get('when') not in ('yesterday', 'prev_trading_day') or not code or code in sold:
+            continue
+        placed = {c for c in ('buy', 'holdings', 'watch_avoid') for r in signals.get(c, []) or []
+                  if isinstance(r, dict) and str(r.get('code') or '') == code and today(r)}
+        if placed:
+            continue                       # 今天已經有它的位置（今天又買、已列持股，或他說現在不要碰）
+        watching = [r for r in signals.get('watch_watch', []) or [] if isinstance(r, dict) and str(r.get('code') or '') == code]
+        hold = {k: v for k, v in row.items() if k not in ('when', 'event_date', 'time_evidence', '_原分類', 'price')}
+        note = max([str(row.get('reason') or '')] + [str(w.get('reason') or '') for w in watching], key=len)
+        hold.update({'_date': date_str, 'stance': '持有', 'note': note, 'reason': note,
+                     '_seq': len(signals.get('holdings', []) or []) + 1})
+        signals.setdefault('holdings', []).append(hold)
+        signals['watch_watch'] = [r for r in signals.get('watch_watch', []) or [] if r not in watching]
+        print(f"  補記核對　{name}（{code}）{row['_date']} 買進、今天沒有講賣出：今天列會員持股")
+        note_decision('補記核對', '前一交易日買進、今天仍持有，列會員持股', name, f"買進記在 {row['_date']}")
+    return signals
+
+
 def apply_when_and_seq(ss, signals, date_str):
     """
     把買賣排到它真正發生的那一天。日期講不清楚的改列歷史，不中止整輪。
@@ -12189,8 +12241,10 @@ def apply_sms_priority(ss, dates=None) -> dict:
     # 會員持股是獨立的一張表，就算操作紀錄是空的也要處理。
     # 先前把它放在最後、又在前面對操作紀錄做了 early return，
     # 於是「那天只有持股、沒有買賣」時整段被跳過。
+    sms_sold = set()          # 當天簡訊對這一檔最後的買賣是賣出：{(日期, 代號)}
+
     def _finish():
-        stat["dropped"] += _drop_video_holds_covered_by_sms(ss, want)
+        stat["dropped"] += _drop_video_holds_covered_by_sms(ss, want, sms_sold)
         stat["days"] = max(stat["days"], 1 if stat["dropped"] else 0)
         if stat["dropped"] or stat["resequenced"]:
             print(f"簡訊優先：移除逐字稿重複 {stat['dropped']} 列，"
@@ -12240,6 +12294,11 @@ def apply_sms_priority(ss, dates=None) -> dict:
         vid = [x for x in items if not x["sms"]]
         if not sms:
             continue                      # 這一檔那天沒有簡訊，逐字稿說了算
+        # 簡訊的先後用文章編號排（和下面排「序」同一個依據）；最後一筆買賣是賣出，代表這一檔當天已經出場。
+        trades = sorted((x for x in sms if x["kind"] in ("buy", "sell")),
+                        key=lambda y: (int((re.search(r"(\d+)", y["src"]) or [0, 0])[1]), y["row"]))
+        if trades and trades[-1]["kind"] == "sell":
+            sms_sold.add((day, code))
 
         sms_kinds = {x["kind"] for x in sms}
         for v in vid:
@@ -12303,8 +12362,12 @@ def apply_sms_priority(ss, dates=None) -> dict:
     return _finish()
 
 
-def _drop_video_holds_covered_by_sms(ss, want) -> int:
-    """會員持股：同一天同一檔簡訊已經講過，就不留逐字稿那一筆。"""
+def _drop_video_holds_covered_by_sms(ss, want, sms_sold=()) -> int:
+    """會員持股：同一天同一檔簡訊已經講過，就不留逐字稿那一筆。
+
+    sms_sold：當天簡訊最後的買賣是賣出的（日期, 代號）。簡訊已經賣掉的那一檔，逐字稿同一天的「會員持股」不留——
+    留著的話網站同一天既是賣出又是持股，持股追蹤還會把它當成賣出後又重新持有（2026/10/08 世芯-KY 的風險）。
+    """
     try:
         ws = ss.worksheet("會員持股")
         values = sheets_retry(ws.get_all_values)
@@ -12332,9 +12395,11 @@ def _drop_video_holds_covered_by_sms(ss, want) -> int:
         else:
             vid_rows.append((idx, day, code, g(row, c_name)))
 
-    targets = [(i, nm, d, c) for i, d, c, nm in vid_rows if (d, c) in sms_keys]
+    sold = set(sms_sold or ())
+    targets = [(i, nm, d, c) for i, d, c, nm in vid_rows if (d, c) in sms_keys or (d, c) in sold]
     for i, nm, d, c in sorted(targets, reverse=True):
-        print(f"  簡訊優先　{d} {nm}（{c}）會員持股以簡訊為準，移除逐字稿那一筆")
+        print(f"  簡訊優先　{d} {nm}（{c}）" + ("簡訊當天已賣出，逐字稿的會員持股不留" if (d, c) in sold and (d, c) not in sms_keys
+                                           else "會員持股以簡訊為準，移除逐字稿那一筆"))
         sheets_retry(ws.delete_rows, i)
     return len(targets)
 
@@ -13152,6 +13217,7 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     signals = identify_unnamed_stocks(ss, signals, TX["audit"], date_str)
     signals["_video_id"] = video["id"]
     signals['_source_ids'] = sorted(transcript_source_ids(ss, video['id'], date_str))
+    signals = settle_backdated_trades(ss, signals, date_str)
     affected = source_record_dates(ss, signals['_source_ids']) | {date_str}
     affected.update(r['_date'] for k in SIGNAL_CATEGORIES for r in signals.get(k, []))
     signals['_affected_dates'] = sorted(affected)

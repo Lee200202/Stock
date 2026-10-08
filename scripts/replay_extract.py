@@ -77,11 +77,17 @@ class Reached(Exception):
         self.signals = signals
 
 
-def compare(signals, golden):
-    """回傳 (通過與否, 文字報告)。golden：{"must": {代號: [可接受的分類…]}, "must_not": [代號…], "names": {代號: 名稱}}"""
-    where = {}
+def compare(signals, golden, day=None):
+    """回傳 (通過與否, 文字報告)。golden：{"must": {代號: [可接受的分類…]}, "must_not": [代號…], "names": {代號: 名稱}}
+
+    day：補記到別天的買賣（「我昨天買的X」記在前一個交易日）不算這一天的分類，另外列出來。
+    """
+    where, elsewhere = {}, []
     for cat in LABEL:
         for r in signals.get(cat, []) or []:
+            if day and r.get("_date") and r["_date"] != day:
+                elsewhere.append(f"{r.get('name')}（{r.get('code')}）{LABEL[cat]}記在 {r['_date']}")
+                continue
             where.setdefault(str(r.get("code") or r.get("name")), []).append(cat)
     names = golden.get("names", {})
     lines, ok = [], True
@@ -95,6 +101,8 @@ def compare(signals, golden):
         bad = code in where
         ok &= not bad
         lines.append(f"  {'✗' if bad else '✓'} {names.get(code, '')}（{code}）不應出現" + (f"，實際列在 {'／'.join(LABEL[g] for g in where[code])}" if bad else ""))
+    if elsewhere:
+        lines.append("  補記到別天（不算這一天的分類）：" + "、".join(elsewhere))
     extra = [c for c in where if c not in golden.get("must", {}) and c not in golden.get("must_not", [])]
     if extra:
         lines.append("  其他收錄（答案沒有列，僅供參考）：" + "、".join(extra))
@@ -302,7 +310,7 @@ def main():
     code = 3 if errors else 0
     if args.golden:
         golden = json.loads(Path(args.golden).read_text(encoding="utf-8"))
-        ok, report = compare(signals, golden)
+        ok, report = compare(signals, golden, date)
         print(f"\n===== 與人工核對的答案比對：{'全部符合' if ok else '有不符'} =====\n{report}")
         if not ok:
             code = 2

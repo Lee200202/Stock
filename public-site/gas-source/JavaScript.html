@@ -138,9 +138,9 @@
     aside.setAttribute('aria-label', '子目錄');
     aside.innerHTML =
       '<button type="button" class="subnav-tab" aria-expanded="false" aria-controls="subnavPanel">' +
-        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h11M4 17h13"/></svg>' +
+        '<span class="subnav-ring" aria-hidden="true"><svg viewBox="0 0 40 40"><circle class="tr" cx="20" cy="20" r="16"/><circle class="ar" cx="20" cy="20" r="16"/></svg><b class="subnav-tab-pct">0</b></span>' +
         '<span class="subnav-label">子目錄</span>' +
-        '<span class="subnav-tab-pct" aria-hidden="true">0%</span>' +
+        '<span class="subnav-chev" aria-hidden="true">\u2039</span>' +
       '</button>' +
       '<div class="subnav-panel" id="subnavPanel"><div class="subnav-in">' +
         '<div class="subnav-h"><b>子目錄</b><span class="subnav-pct">0%</span></div>' +
@@ -155,6 +155,7 @@
     var bar = aside.querySelector('.subnav-bar i');
     var pct = aside.querySelector('.subnav-pct');
     var tabPct = aside.querySelector('.subnav-tab-pct');
+    var tabArc = aside.querySelector('.subnav-ring .ar');
 
     function shown(el) { var r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; }
     function setOpen(on) {
@@ -232,7 +233,8 @@
       var p = total > 0 ? Math.min(100, Math.max(0, -rect.top / total * 100)) : 0;
       bar.style.width = p + '%';
       pct.textContent = Math.round(p) + '%';
-      tabPct.textContent = Math.round(p) + '%';
+      tabPct.textContent = Math.round(p);
+      tabArc.style.strokeDashoffset = (100.53 * (1 - p / 100)).toFixed(2);   // 圓周 2π×16
     }
 
     function build() {

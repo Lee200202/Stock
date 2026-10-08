@@ -9,7 +9,7 @@ on:
       mode:
         description: 通過全部品質核對後才更新；不寄送
         type: choice
-        options: [preview, apply]
+        options: [preview, apply, verdicts]
         default: preview
 permissions:
   contents: read
@@ -47,6 +47,11 @@ jobs:
           FINAL_ATTEMPT: 'true'
           PYTHONUNBUFFERED: '1'
         run: |
+          if [ "$MODE" = verdicts ]; then
+            # 唯讀：只把有人工答案的日子送分類問卷，量準確與一致；日期可用逗號分隔
+            python scripts/adjudicate_probe.py --dates "$TARGET_DATE" --repeat 3
+            exit 0
+          fi
           ARGS=(--date "$TARGET_DATE")
           if [ "$MODE" = apply ]; then ARGS+=(--apply); fi
           python scripts/regenerate_verified_day.py "${ARGS[@]}"

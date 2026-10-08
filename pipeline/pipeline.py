@@ -4425,6 +4425,7 @@ reason 只能用提到這一檔的句子；上一句、下一句在講另一檔�
 拿X當對照，說它已經漲了幾根漲停、「進去跟人家湊什麼熱鬧」「我還去看好它嗎」：X 列 watch_avoid（漲多不追），說明寫它漲了多少、為什麼不追；他真正看好的是拿來對比的另一檔。
 「我X會員的成本現在是74塊」「我有建議買X…跌的時候買」：會員手上有這一檔，放 holdings，說明寫成本、現價與他教的買法；不可只列觀望注意。
 「我的權值股只剩下X，X還沒有賣」：holdings，說明寫為什麼不賣（缺口守住、營收何時公布）。
+「記憶體我目前只有X」「這個族群我現在只有X」：他手上有 X，放 holdings，說明寫他對這個族群接下來的看法與 X 的位置；同一句裡「我有在觀察Y」的 Y 是還沒買的觀察名單（watch_watch）。
 「手中有X的人不用賣」「X也會漲」：watch_watch（持有者續抱），不是 watch_avoid；他先前賣在哪裡是背景，不是現在的方向。
 同一個寫法在不同段落可能是兩檔股票（語音把同音的名字寫成另一家公司）。source 已把「緊貼名稱念出代號的那一段」更正成代號的正式名稱：兩檔各自分類、各自引用自己的段落，買賣、題材、價位不可混用。
 
@@ -4483,6 +4484,7 @@ uncertain 的 suggested_category 只用 buy/sell/holdings/watch_avoid/watch_watc
 覆核前後每個候選必須能由原名稱或 aliases 對應；分類可變但不可無聲消失。思考較深也不能增加原文沒有的交易、日期、價位或投資理由。
 初稿已附逐字原句的個股，覆核只能改分類或補說明；要改放 uncertain／ignored，必須在 reason 寫出原文裡是哪一句推翻了初稿，找不到那一句就維持初稿分類（2026/10/05 聖暉、達邁，10/06 聯電都是初稿對、覆核拿掉）。
 講者明講今天已經做了的買賣是當日成交：「今天早上賣A」「A沒了，賣掉了」「今天新買的A」「今天早上幾點幾分告訴會員A獲利賣出」一律列 sell／buy，when 填 today，把那一句照抄進 time_evidence。同一檔另外講到以前的買進價、以前的提醒，不改變當日成交的分類，也不可因此改列 holdings、history 或排除；昨天、上禮拜、之前的成交才是回顧。問句（今天A要不要賣）與對個別觀眾的建議（A建議先賣出等拉回）不是成交。
+昨天預告、今天做了，是今天的成交：「我昨天跟你們講，我要去買一檔…」是昨天的預告；後面「今天賣掉A，去買B」「所以我今天只賣一隻A，啊我買了一隻股票，B」才是成交——B 列 buy、when=today，time_evidence 照抄今天成交的那一句，不抄昨天預告那一句。
 """
 
 EXTRACT_SYSTEM = POLICY + "\n合併擷取、分類、日期、補漏及摘要。source鍵為S編號；source_inventory是原文名稱候選，逐一分類或說明排除，不代表推薦或持有。再讀全文補諧音與末段漏項，輸出完整九類陣列；不抄引句、不假設記得其他批。"
@@ -6172,7 +6174,9 @@ def explicit_today_trades(transcript, names, cat):
     else:
         pats = [day + r'[^。！？!?，,]{0,8}(?:新)?買(?:進|了)?(?:的)?[，,]?' + nm,
                 r'(?:我|我們)(?:今天)?買了?(?:一隻|一支|一檔)?股票[，,]?' + nm,
-                r'(?:我|我們)(?:今天)?買(?:進|了)?(?:一隻|一支|一檔)[^。！？!?，,]{0,5}' + nm]
+                r'(?:我|我們)(?:今天)?買(?:進|了)?(?:一隻|一支|一檔)[^。！？!?，,]{0,5}' + nm,
+                # 「今天賣掉4400塊以上的A，賣了，去買1590B」：同一句先講今天賣掉、再講去買哪一檔（2026/10/08 亞德客-KY）。
+                day + r'[^。！？!?]{0,30}賣(?:掉|出|了)[^。！？!?]{0,24}(?:去|再|就)買(?:進|了)?(?:\d{4,6})?' + nm]
         notice = re.compile(day + r'[^。！？!?]*(?:通知|告訴)[^。！？!?]*會員[^。！？!?]*買進[^。！？!?]{0,12}' + nm)
     pats = [re.compile(p) for p in pats]
     hits = []
@@ -6753,7 +6757,24 @@ def review_excluded_stocks(signals, transcript, date_str):
     return signals
 
 
-def validate_evidence(signals, transcript, date_str, after_codes=False):
+def day_notice_trades(ss, date_str):
+    """這一天會員通知（操作紀錄裡來源為 CMONEY- 的列）已經記下的買賣：{(代號, 'buy'／'sell')}。讀不到就回空集合。"""
+    try:
+        values = sheets_retry(ss.worksheet("操作紀錄").get_all_values)
+        head = [str(h).strip() for h in values[0]]
+        c_date, c_code, c_dir, c_src = head.index("日期"), head.index("代號"), head.index("方向"), head.index("來源影片ID")
+    except Exception as e:
+        print(f"  當日通知核對：讀不到操作紀錄（{str(e)[:60]}），不套用")
+        return set()
+    out = set()
+    for row in values[1:]:
+        cell = lambda i: str(row[i]).strip() if i < len(row) else ''
+        if norm_date(cell(c_date)) == date_str and _is_sms_row(cell(c_src)) and _dir_kind(cell(c_dir)) in ('buy', 'sell'):
+            out.add((cell(c_code), _dir_kind(cell(c_dir))))
+    return out
+
+
+def validate_evidence(signals, transcript, date_str, after_codes=False, notice_trades=None):
     """
     逐筆分級，不是整批放行或整批擋下。
 
@@ -6920,6 +6941,15 @@ def validate_evidence(signals, transcript, date_str, after_codes=False):
                         row["time_evidence"] = said[0]
                         row["evidence"] = list(dict.fromkeys([q for q in (row.get("evidence") or []) if isinstance(q, str)] + said[:3]))
                         why = ""
+                if why and (str(row.get("code") or ""), cat) in (notice_trades or ()):
+                    # 會員通知當天已經記下同一檔、同方向的買賣（2026/10/08 亞德客-KY：10:01 的通知是買入，逐字稿這一輪
+                    # 模型引了「我昨天跟你們講，我要去買一檔…」那句預告，買入被改成回顧後不列）。成交在不在今天，
+                    # 通知已經證實；逐字稿這一筆照當日成交保留，之後「通知優先」會留通知那一筆、逐字稿的說明併過去。
+                    print(f"  品質關卡　{name}（{'買入' if cat == 'buy' else '賣出'}）：模型引的時間句不成立（{why}），當天的會員通知已記下同一筆，照當日成交保留")
+                    note_decision('品質關卡', '當天會員通知已證實的買賣不改列回顧', name, why)
+                    row["when"] = "today"
+                    row["_time_from_context"] = True
+                    why = ""
                 if why == "沒有附上講出時間的那一句" and cat == "buy":
                     # 管理者規則（2026/09/11）：買入判定在最前面判定是否為當日買進，沒有則進觀望注意。
                     # 說明只寫事實原貌，其他判斷依據不用寫進說明。
@@ -8443,8 +8473,10 @@ def preserve_explicit_holdings(signals, transcript):
             # 台積電「我的全資股只剩下台積電…還沒有賣」，新提示詞的第一輪重播分別被列成觀望注意與排除）。
             if not owned:
                 held_names = [n for n in _row_names_for_recap(row) if len(n) >= 2]
+                # 「記憶體後面一定會飆一波。我張震目前只有力積電嘛」（2026/10/08）：講的是他現在手上有哪一檔。
                 owned = any(re.search(r'(?:' + '|'.join(map(re.escape, held_names)) + r')會員的成本[^。！？!?]{0,8}\d'
-                                      r'|只剩下?(?:' + '|'.join(map(re.escape, held_names)) + r')[^！？!?]{0,30}還沒(?:有)?賣', scope)
+                                      r'|只剩下?(?:' + '|'.join(map(re.escape, held_names)) + r')[^！？!?]{0,30}還沒(?:有)?賣'
+                                      r'|我(?:們|張震)?(?:手[上中])?(?:目前|現在)(?:手[上中])?(?:就)?只有(?:' + '|'.join(map(re.escape, held_names)) + r')', scope)
                             and not re.search(r'已經.{0,6}(?:賣掉|出清)|全部賣|已賣', scope) for scope, _ in scopes) if held_names else False
             # 講者點名「我手中的股票有X」，同一段接著講自己買在哪裡：這是他現在的部位（2026/10/07 勤誠：
             # 「張震手中的股票這幾天低檔剛佈局的有8210勤誠…我買的位置還是880以下買進」，那一輪模型列成觀望注意）。
@@ -13010,7 +13042,8 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     #       才把「四星KY」對回世芯-KY，網站上這一檔就這樣不見了（2026/09/10）。
     # 排到這裡之後，名稱已收斂成官方簡稱；聽到的原字另存在「原始語音名稱」，
     # 關卡比對引用時兩個都認。代號已由官方清單核過，關卡不再清掉它。
-    signals = validate_evidence(signals, TX["audit"], date_str, after_codes=True)
+    signals = validate_evidence(signals, TX["audit"], date_str, after_codes=True,
+                                notice_trades=day_notice_trades(ss, date_str))
     signals['_quality_requires_review'] = bool(
         signals.get('_quality_requires_review') or needs_review_gaps(signals.get('_repair_gaps'))
         or signals.get('uncertain'))

@@ -15791,6 +15791,20 @@ SMS_TWO_SOURCE_REWRITE_SYSTEM = (
 )
 
 
+def _spoken_pair_numbers(text) -> set:
+    """口語的連寫數字展開：「5、6百塊」是 500 與 600，「2、3千」是 2000 與 3000，「2、300元」是 200 與 300。
+
+    管理者 2026/10/08：世芯-KY「每張至少賺600元」是原文的獲利數字（「一個人一張賺5、6百塊」），不能因為字面上沒有 600 就退回。
+    """
+    out = set()
+    for a, b, unit in re.findall(r'(\d)[、,，~～到至](\d)\s*([百千萬])', str(text or '')):
+        scale = {'百': 100, '千': 1000, '萬': 10000}[unit]
+        out |= {str(int(a) * scale), str(int(b) * scale)}
+    for a, tail in re.findall(r'(?<!\d)(\d)[、](\d0{2,3})(?!\d)', str(text or '')):
+        out |= {a + '0' * (len(tail) - 1), tail}
+    return out
+
+
 def rewrite_sms_notes_from_two_sources(entries):
     """同日一次呼叫重寫所有有雙來源證據的簡訊；格式或證據不合時退回原本保守說明。"""
     if not entries:
@@ -15822,8 +15836,8 @@ def rewrite_sms_notes_from_two_sources(entries):
             return '', '和原說明一樣，沒有補進影片內容'
         # 2026/10/08：數字只認原說明、逐字引句與原文節錄裡有的；先前連 context（另一段模型寫的文字）也算，
         # 世芯-KY 被寫成「每張至少賺600元」，原文是「至少賺500塊以上」「一張賺5、6百塊」。
-        allowed_numbers = set(re.findall(r'\d+(?:\.\d+)?',
-                          (e['original'] + ''.join(e['quotes']) + e.get('excerpt', '')).replace(',', '')))
+        verbatim = (e['original'] + ''.join(e['quotes']) + e.get('excerpt', '')).replace(',', '')
+        allowed_numbers = set(re.findall(r'\d+(?:\.\d+)?', verbatim)) | _spoken_pair_numbers(verbatim)
         extra = set(re.findall(r'\d+(?:\.\d+)?', note.replace(',', ''))) - allowed_numbers
         if extra:
             return '', '寫了來源沒有的數字：' + '、'.join(sorted(extra)[:4])

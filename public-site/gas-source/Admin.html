@@ -1053,7 +1053,18 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
 .sms-original{padding:clamp(18px,2vw,26px);background:var(--panel-2)}
 .sms-original-head{gap:6px 18px;margin-bottom:14px}.sms-original-head b{font-size:calc(14px * var(--rd-fs));color:var(--ink)}
 .sms-original-head time{margin-left:auto;font-variant-numeric:tabular-nums}
-.sms-original-text{max-width:82ch;font-size:calc(17px * var(--rd-fs));line-height:1.85}
+/* v152（管理者回報）：逐字原文不再限制在 82 個字寬，排滿整張卡片；
+   已寫入操作的字級原本寫死像素，不跟著「版面設定」的字級縮放，這裡全部改成乘上 --rd-fs。 */
+.sms-original-text{max-width:none;font-size:calc(17px * var(--rd-fs));line-height:1.85}
+.sms-original-head time,.sms-original-head span{font-size:calc(13px * var(--rd-fs))}
+.sms-tag{font-size:calc(13px * var(--rd-fs))}.sms-count{font-size:calc(15px * var(--rd-fs))}
+.sms-operation{font-size:calc(15px * var(--rd-fs))}
+.sms-operation header b{font-size:calc(17px * var(--rd-fs))}
+.sms-operation .sms-direction{font-size:calc(14px * var(--rd-fs));min-height:calc(28px * var(--rd-fs))}
+.sms-operation .sms-code{font-size:calc(15px * var(--rd-fs))}
+.sms-operation time{font-size:calc(13px * var(--rd-fs))}
+.sms-operation .sms-price{font-size:calc(15px * var(--rd-fs))}
+.sms-operation .sms-detail{font-size:calc(15px * var(--rd-fs));line-height:1.75}
 .sms-original.is-error{border-color:var(--warn,#b87918)}
 @media(max-width:600px){.sms-count{width:100%;margin-left:0}.sms-original-head time{width:100%;margin-left:0}.sms-original-text{font-size:calc(16px * var(--rd-fs))}}
 /* ====== v101 後台樣式層 ====== */

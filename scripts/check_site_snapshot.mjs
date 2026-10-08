@@ -38,4 +38,21 @@ try {
 } finally {
   globalThis.fetch = originalFetch;
 }
-console.log('snapshot: recent failure retained; stale or mismatched data rejected');
+let active = 0, peak = 0;
+try {
+  globalThis.fetch = async (_url, options) => {
+    active++;
+    peak = Math.max(peak, active);
+    await new Promise(resolve => setTimeout(resolve, 5));
+    const {method} = JSON.parse(options.body);
+    active--;
+    return Response.json({ok: true, result: method === 'apiListMailDates' ? ['2026/10/08'] : {date: '2026/10/08'}});
+  };
+  const report = await refreshSnapshots(env);
+  assert.equal(peak, 1, 'scheduled sheet reads should not run concurrently');
+  assert.ok(report['apiGetDashboard:[]']);
+  assert.ok(report['apiGetMailContent:["2026/10/08"]']);
+} finally {
+  globalThis.fetch = originalFetch;
+}
+console.log('snapshot: recent failure retained; stale or mismatched data rejected; scheduled reads serialized');

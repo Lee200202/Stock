@@ -78,17 +78,19 @@ class Reached(Exception):
 
 
 def compare(signals, golden, day=None):
-    """回傳 (通過與否, 文字報告)。golden：{"must": {代號: [可接受的分類…]}, "must_not": [代號…], "names": {代號: 名稱}}
+    """回傳 (通過與否, 文字報告)。人工答案可核對分類與本日已知錯誤敘述。
 
     day：補記到別天的買賣（「我昨天買的X」記在前一個交易日）不算這一天的分類，另外列出來。
     """
-    where, elsewhere = {}, []
+    where, elsewhere, notes = {}, [], {}
     for cat in LABEL:
         for r in signals.get(cat, []) or []:
             if day and r.get("_date") and r["_date"] != day:
                 elsewhere.append(f"{r.get('name')}（{r.get('code')}）{LABEL[cat]}記在 {r['_date']}")
                 continue
             where.setdefault(str(r.get("code") or r.get("name")), []).append(cat)
+            notes.setdefault(str(r.get("code") or r.get("name")), []).append(
+                pl.public_narrative(str(r.get('note') or r.get('reason') or ''), r, signals))
     names = golden.get("names", {})
     lines, ok = [], True
     for code, allowed in golden.get("must", {}).items():
@@ -101,6 +103,11 @@ def compare(signals, golden, day=None):
         bad = code in where
         ok &= not bad
         lines.append(f"  {'✗' if bad else '✓'} {names.get(code, '')}（{code}）不應出現" + (f"，實際列在 {'／'.join(LABEL[g] for g in where[code])}" if bad else ""))
+    for code, forbidden in golden.get('note_must_not', {}).items():
+        for phrase in forbidden:
+            bad = any(phrase in note for note in notes.get(code, []))
+            ok &= not bad
+            lines.append(f"  {'✗' if bad else '✓'} {names.get(code, '')}（{code}）說明不得含「{phrase}」")
     if elsewhere:
         lines.append("  補記到別天（不算這一天的分類）：" + "、".join(elsewhere))
     extra = [c for c in where if c not in golden.get("must", {}) and c not in golden.get("must_not", [])]

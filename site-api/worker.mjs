@@ -1,7 +1,7 @@
 // Free Cloudflare Worker: public Pages frontend -> existing Apps Script backend.
 // The bridge token stays server-side. Admin methods still require the existing admin key.
 const ALLOWED = 'https://lee200202.github.io';
-const BUILD = 'site-api-v153-r2';
+const BUILD = 'site-api-v153-r3';
 const MAX_ARGS = 8;
 const ADMIN_METHODS = ('apiAdminCancelCrawl apiAdminCancelDaySync apiAdminCancelFix ' +
   'apiAdminCancelFullFix apiAdminCancelJob apiAdminCancelRefresh apiAdminCancelSmsJob ' +
@@ -201,16 +201,19 @@ async function refreshSnapshots(env) {
     } else report[key] = 'same';
     return out.payload.result;
   };
-  const results = await Promise.allSettled([
-    take('apiGetDashboard', []),
-    take('apiListRecordDates', []),
-    take('apiListMailDates', []).then(list => {
-      const first = Array.isArray(list) && list[0];
-      const date = first && (typeof first === 'string' ? first : first.date);
-      return date ? take('apiGetMailContent', [date]) : null;
-    })
-  ]);
-  results.forEach(r => { if (r.status === 'rejected') report.error = String(r.reason); });
+  // Apps Script /exec occasionally returns a 200 HTML error page when these
+  // three sheet reads start together. Keep the same keys, but read in order;
+  // a failed key does not stop the remaining snapshots from being checked.
+  for (const [method, args] of [['apiGetDashboard', []], ['apiListRecordDates', []], ['apiListMailDates', []]]) {
+    try {
+      const list = await take(method, args);
+      if (method === 'apiListMailDates') {
+        const first = Array.isArray(list) && list[0];
+        const date = first && (typeof first === 'string' ? first : first.date);
+        if (date) await take('apiGetMailContent', [date]);
+      }
+    } catch (error) { report[method + ':' + JSON.stringify(args)] = 'exception:' + String(error); }
+  }
   // 一輪暫時失敗不立刻丟掉仍在 12 分鐘內的成功快照；保留原核對時間，
   // 逾時仍回到即時讀取，不用失敗心跳替舊資料續命。
   for (const [key, hash] of Object.entries(old?.hashes || {})) {

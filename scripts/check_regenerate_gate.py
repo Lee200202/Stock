@@ -3,7 +3,7 @@ import os
 import json
 
 os.environ.setdefault('SPREADSHEET_ID', 'test-quality-gate')
-from replay_extract import invariants, pl
+from replay_extract import compare, invariants, pl
 from unittest.mock import patch
 
 
@@ -68,3 +68,17 @@ same_scale = {**bad_level, 'note': '力積電目前上漲，正壓在75元關卡
 _, hard, _ = pl.quality_overview({'holdings': [same_scale]}, '力積電目前上漲，正壓在75元關卡等待突破。')
 assert not any('價位與本股已核對價位相差過大' in e for e in hard), hard
 print('daily publication: grossly misattributed price level blocked when a verified row price exists')
+
+# A real transcript can contain the number but leave the stock unnamed when
+# the speaker switches charts. The per-day human audit must reject a known
+# wrong attribution even if a model cites the same raw segment again.
+golden = {'names': {'2330': '台積電', '6770': '力積電'},
+          'must': {'2330': ['holdings'], '6770': ['holdings']},
+          'note_must_not': {'2330': ['下半年'], '6770': ['1545']}}
+rows = {'holdings': [wrong, bad_level]}
+ok, report = compare(rows, golden)
+assert not ok and '下半年' in report and '1545' in report, report
+rows = {'holdings': [right, same_scale]}
+ok, report = compare(rows, golden)
+assert ok, report
+print('daily golden audit: known wrong stock phrases blocked independently of raw transcript')

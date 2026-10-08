@@ -4432,7 +4432,7 @@ reason 只能用提到這一檔的句子；上一句、下一句在講另一檔�
 技術面照他講的寫：均線（季線、年線、60分K的35均）在哪裡、股價離它多遠、回測了沒有、第幾根長紅棒、MACD是翻紅還是背離、他在等哪一個訊號才動作（「等它回測季線再上去」「今天還不叫發動」「突破1545就起飛」）。他有講就寫，沒講就不寫。
 時間照原文寫：原文說「下個禮拜公布營收、法說會」就寫下週，不可改成下半年、下個月；原文沒有講時間就不要寫時間。
 二、寫因果，不寫評語：現象（外資投信在賣卻跌不下去）→ 他的判斷（低檔有人接、一定會過季線）→ 做法（低檔佈局等它）。不寫「展現強勁多頭動能」「具備明確的向上潛力」「整體操作邏輯穩健」「值得持續關注」「並說明相關看法」這類放在任何一檔都成立的句子；原文沒講的量價（帶量、爆量、創高）與建議（不宜繼續持有、建議停損）也不要補。寧可少一句，留下來的每一句都要對得回原文。
-三、主詞要對：否定、獲利狀況、買賣動作講的是哪一家，就只寫在那一家。「X我不敢買，因為那家公司沒什麼賺錢。可是這個題材會很熱，你們在看的都是A跟B」——不敢買與沒賺錢講的是 X；A、B 只是被點到名，講者沒有對它們下看法，放 ignored 並寫明只是被點名，不可列觀望不碰，也不可把 X 的理由寫成 A、B 的。
+三、主詞要對：否定、獲利狀況、買賣動作講的是哪一家，就只寫在那一家。一段分析從頭到尾只說「這一支股票」而沒有報名字時，不能因為前一句剛好提到 X 就整段寫給 X：先看價位對不對得上——X 是幾十塊的股票，那一段卻在講「突破1545就起飛」，講的就不是 X。對不上就不要寫進任何一檔的說明。「X我不敢買，因為那家公司沒什麼賺錢。可是這個題材會很熱，你們在看的都是A跟B」——不敢買與沒賺錢講的是 X；A、B 只是被點到名，講者沒有對它們下看法，放 ignored 並寫明只是被點名，不可列觀望不碰，也不可把 X 的理由寫成 A、B 的。
 四、轉述自己先前的話不是傳聞：「有人說張總你昨天講X要賣了」寫成「先前已表示X要賣出」，後面接他當場的確認或補充；當場沒有新的說法就只寫這一句。不可寫「有傳聞」「據說」「有人提及」。
 五、公開文字不寫「講者」「老師」「張總」當主詞或所有格，直接寫內容（「買在880以下」「會員續抱」）。
 六、不買、不碰的要寫理由：他為什麼不買（「買股票要看老闆」「老闆被稱為首富的公司後面都崩盤」「離季線太遠，要在季線附近買」「已經漲了三根漲停」）、拿哪一檔來對比、要等什麼條件。只寫「明確表示絕不買X」「屬於明確不碰的標的」等於沒說。原文真的只有一句「X跌停板」「我有在觀察X」時，就照實寫那一句，短沒有關係，不可用「屬於負面示範」「候選標的之一」「等待適當機會佈局」「建議持續關注」「需持續留意」這種話墊字數。
@@ -8319,6 +8319,69 @@ def _number_far_from_own(flat, own, others, number):
                 return ''
             nearest = min(nearest, gap)
     return f'離本檔名稱最近也有 {nearest} 個字，中間講的是別檔'
+
+
+# 說明裡「價位」的寫法：前面是突破、站上、壓在、買在、成本、目標這類字，或後面接著關卡、以上、以下。
+_NOTE_LEVEL_RE = re.compile(
+    r'(?:突破|站上|站穩|跌破|壓在|守住|守穩|來到|回到|上看|上到|看到|目標價?|關卡|高點|低點|買在|買進|買入|成本|賣在|賣出|承接)'
+    r'[^，。；、\d]{0,8}?(\d{2,6}(?:\.\d{1,2})?)(?![\d.]|\s*(?:%|％|張|倍|天|根|點|萬|億|檔|年|月|日|號|個|次|人|位|分|季))'
+    r'|(?<![\d.,])(\d{2,6}(?:\.\d{1,2})?)\s*(?:元|塊)?(?:的)?(?:關卡|以上|以下|附近)')
+# 金額與幅度不是價位：賺500塊、跌1310塊、漲了8塊、EPS 29.91元。
+_NOTE_AMOUNT_BEFORE = re.compile(r'(?:賺|賠|虧|跌|漲|差|EPS|每股盈餘|獲利|營收)(?:了|約|近|超過|至少|達|為|是)?[^，。；\d]{0,4}$', re.I)
+
+
+def strip_implausible_price_claims(ss, signals: dict, date_str: str) -> dict:
+    """說明裡的價位和這一檔的行情差太多（幾十塊的股票寫著一千多塊的關卡），那一句不是在講這一檔，刪掉並記進稽核。
+
+    用日K快取裡這一檔到影片當天為止的最高與最低，放寬成 0.4 倍到 3 倍：目的不是抓小誤差，是抓掛錯股票的整段分析。
+    沒有行情的股票不判斷；只看「價位」寫法的數字，張數、百分比、天數、EPS、賺賠金額都不算。
+    """
+    try:
+        kmap = _daily_k_cached(ss)
+    except Exception as e:
+        print(f'  價位與行情：讀不到日K快取（{type(e).__name__}），這一輪不核對')
+        return signals
+    for cat in SIGNAL_CATEGORIES:
+        for row in signals.get(cat, []) or []:
+            code = str(row.get('code') or '')
+            band = _price_band(kmap, code, date_str) if re.fullmatch(r'(?:00981A|\d{4,6})', code) else None
+            if not band:
+                continue
+            hi, lo = max(band), min(band)
+            if not (hi > 0 and lo > 0):
+                continue
+            for field in ('reason', 'note'):
+                text = str(row.get(field) or '')
+                if not text:
+                    continue
+                kept, dropped = [], []
+                for clause, punct in _split_clauses(text):
+                    bad = ''
+                    for m in _NOTE_LEVEL_RE.finditer(clause):
+                        number = m.group(1) or m.group(2)
+                        at = m.start(1) if m.group(1) else m.start(2)
+                        if _NOTE_AMOUNT_BEFORE.search(clause[:at]):
+                            continue
+                        value = float(number)
+                        if value < lo * 0.4 or value > hi * 3:
+                            bad = number
+                            break
+                    if not bad:
+                        kept.append([clause, punct])
+                        continue
+                    dropped.append(bad)
+                    if punct == '。' and kept:
+                        kept[-1][1] = '。'
+                if not dropped:
+                    continue
+                row[field] = ''.join(c + t for c, t in kept).strip('，,；;')
+                name = str(row.get('name') or code)
+                for number in dropped:
+                    why = f'{number} 不在這一檔股價 {lo:g}～{hi:g} 的合理範圍'
+                    signals.setdefault('_repair_gaps', []).append(f'{name}：說明裡的價位 {number} 已移除（{why}）')
+                    note_decision('價位與行情', '刪掉和行情對不上的價位', name, why)
+                    print(f'  價位與行情 {name}：說明裡的 {why}，不是在講這一檔，已刪掉那一句')
+    return signals
 
 
 def strip_foreign_price_claims(signals: dict, transcript: str) -> dict:
@@ -13288,6 +13351,7 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     # v96：模型寫長說明時掛錯的數字先刪（世芯-KY 的 1745／1800），短掉的說明才輪得到下面的合併補問；
     # 補問有自己的逐句核對，之後照原順序再過一次歸屬檢查。
     signals = strip_foreign_price_claims(signals, TX["audit"])
+    signals = strip_implausible_price_claims(ss, signals, date_str)
     signals = enrich_stock_context(signals, TX["audit"], date_str)
     signals = strip_unsupported_event_context(signals, TX["audit"])
     signals = sanitize_entity_claims(signals, TX["audit"])
@@ -13301,6 +13365,7 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
                     r.pop('_note_withdrawn', None)
     # 說明裡的成本／買賣價若明顯是隔壁那一檔的，刪掉那一句（管理者回報鴻準238，2026/09/16）。
     signals = strip_foreign_price_claims(signals, TX["audit"])
+    signals = strip_implausible_price_claims(ss, signals, date_str)
     # 會員持股的主詞要對：記錯會開一個不存在的持有回合（管理者回報聯電／聯陽，2026/09/16）。
     signals = verify_holding_subject(signals, TX["audit"])
     signals = preserve_explicit_holdings(signals, TX["audit"])

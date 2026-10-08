@@ -6169,7 +6169,9 @@ def explicit_today_trades(transcript, names, cat):
                 nm + r'[^。！？!?]{0,14}' + day + r'賣(?:出|掉|了|哦|喔)']
         notice = re.compile(day + r'[^。！？!?]*(?:通知|告訴)[^。！？!?]*會員[^。！？!?]*' + nm + r'[^。！？!?]*(?:賣出|賣掉|獲利了結)')
     else:
-        pats = [day + r'[^。！？!?，,]{0,8}(?:新)?買(?:進|了)?(?:的)?[，,]?' + nm]
+        pats = [day + r'[^。！？!?，,]{0,8}(?:新)?買(?:進|了)?(?:的)?[，,]?' + nm,
+                r'(?:我|我們)(?:今天)?買了?(?:一隻|一支|一檔)?股票[，,]?' + nm,
+                r'(?:我|我們)(?:今天)?買(?:進|了)?(?:一隻|一支|一檔)[^。！？!?，,]{0,5}' + nm]
         notice = re.compile(day + r'[^。！？!?]*(?:通知|告訴)[^。！？!?]*會員[^。！？!?]*買進[^。！？!?]{0,12}' + nm)
     pats = [re.compile(p) for p in pats]
     hits = []
@@ -6208,7 +6210,9 @@ def enforce_explicit_trades(signals, transcript):
                 if not ns or key in seen:
                     continue
                 hits = explicit_today_trades(transcript, ns, want)
-                strong = len(hits) >= 2 or (want == 'sell' and any('會員' in h and re.search(r'通知|告訴', h) for h in hits))
+                direct_buy = want == 'buy' and any(re.search(r'(?:我|我們)(?:今天)?買了?(?:一隻|一支|一檔)?股票[，,]?', h)
+                                                    and not _TRADE_NOT_TODAY.search(h) for h in hits)
+                strong = len(hits) >= 2 or direct_buy or (want == 'sell' and any('會員' in h and re.search(r'通知|告訴', h) for h in hits))
                 if not strong:
                     continue
                 if any(isinstance(r, dict) and (_signal_names(r) & ns) for r in signals.get(want, []) or []):
@@ -6355,7 +6359,7 @@ def plain_current_stance(heard, transcript, weak=False, names=None):
     """這個名字在原文裡有沒有直白的當下說法。回傳 (分類, 原句) 或 None；從後面的句子找起。"""
     # 「沒有買台積電的人趕快買」是在講人，不是不買：股名後面接「的」不算。
     own_buy = re.compile(r'買' + re.escape(heard) + r'幹(?:什麼|嘛)|幹(?:什麼|嘛)(?:要)?(?:去)?買' + re.escape(heard)
-                         + r'|(?:(?:(?<!有)沒有|不會|不敢|不想|不要|不可能|不)(?:再)?(?:去)?(?:買|碰|追)|不推薦|不建議)'
+                         + r'|(?:(?:不會|不敢|不想|不要|不可能|不)(?:再)?(?:去)?(?:買|碰|追)|不推薦|不建議)'
                          + re.escape(heard) + r'(?!的)')
     sents = _plain_sentences(transcript)
     names = names if names is not None else _stance_names(transcript)
@@ -8409,6 +8413,17 @@ def preserve_explicit_holdings(signals, transcript):
                 and not re.search(r'(?:以前|當時|去年|那時)[^。！？!?]{0,35}(?:沒叫你們賣|不[准準].{0,8}賣)', scope)
                 and not re.search(r'已經.{0,6}(?:賣掉|出清)|全部賣|已賣', scope)), '')
             owned = owned or bool(continuation)
+            # 「美律……所以你繼續抱著」是已持有者的直接指示；名稱與續抱須在同一段，
+            # 不能把前一檔或假設句的「續抱」借給本檔。
+            if not owned:
+                for scope, _ in scopes:
+                    for heard in _row_names_for_recap(row):
+                        match = re.search(re.escape(heard) + r'[^。！？!?]{0,110}(?:你(?:們)?繼續抱著|繼續抱著|續抱)', scope)
+                        if match and not re.search(r'如果|假如|假設|倘若|已經.{0,6}(?:賣掉|出清)|全部賣|已賣', match.group()):
+                            owned, continuation = True, scope
+                            break
+                    if owned:
+                        break
             # 會員的成本、只剩下這一檔還沒賣：原文直接講出現有部位（2026/10/07 力積電「我力積電會員的成本現在是74塊」、
             # 台積電「我的全資股只剩下台積電…還沒有賣」，新提示詞的第一輪重播分別被列成觀望注意與排除）。
             if not owned:
@@ -8549,6 +8564,20 @@ def _past_recommendation_only(row, signals, transcript):
                     sentences.append(frag)
     if not sentences:
         return False
+    no_position = any(re.search(r'(?:我|我們|會員)(?:目前|現在)?(?:沒有|沒)(?:買|持有)' + re.escape(n), s)
+                      for n in names for s in sentences)
+    if no_position and not any(plain_current_stance(n, transcript) for n in names if len(n) >= 2):
+        own_words = re.sub(r'(?:有的|別的|部分)?分析師[^。！？!?]*', '', ''.join(sentences))
+        own_words = re.sub(r'(?:我|我們|會員)(?:目前|現在)?(?:沒有|沒)(?:買|持有)(?:' +
+                           '|'.join(re.escape(n) for n in sorted(names, key=len, reverse=True)) + r')', '', own_words)
+        if not _NEGATIVE_CUE.search(own_words) and not _states_current_view(own_words):
+            return True
+    past_sale = any(re.search(r'(?:昨天|昨日|前天|前幾天)[^。！？!?]{0,35}(?:先賣|賣出|賣掉|賣了)', s)
+                    for s in sentences)
+    if (past_sale and not any(plain_current_stance(n, transcript) for n in names if len(n) >= 2)
+            and not any(explicit_today_trades(transcript, names, side) for side in ('buy', 'sell'))
+            and not any(_states_current_view(s) for s in sentences)):
+        return True
     text = ''.join(sentences)
     recap = bool(re.search(r'推薦|介紹', text) and (re.search(r'當時|以前|先前|曾經|當初|那時|那裡|那邊|早就|沒人(?:要)?買|不(?:敢|肯|願意)買|等.{0,8}[漲長]上來.{0,6}(?:再|才|想)?買', text)
         or re.search(r'(?:我|我們).{0,8}(?:推薦|介紹).{0,16}(?:在|是)?\d+(?:\.\d+)?(?:元|塊)', text))

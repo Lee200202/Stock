@@ -11355,6 +11355,32 @@ def _has_own_cue(text):
     return any(k in text for k in _OWN_CUES) or bool(_OWN_CUE_RE.search(text))
 
 
+_ONLY_NAMED_NOTE = re.compile(r'被(?:點到|點名|提到|提及|拿來)|只是(?:被)?(?:點名|順口提到|列舉|舉例)|順(?:口|帶)(?:提到|一提)|澄清[^，。；]{0,12}(?:不是|並非|非)')
+_NOTE_HAS_STANCE = re.compile(r'買|賣|注意|留意|觀察|等待|等它|等其|佈局|布局|續抱|抱著|看好|看壞|不要|不碰|不追|風險|支撐|突破|回測|跌停|漲停|季線|年線|月線|均線|MACD|營收|EPS|法人|外資|投信', re.I)
+
+
+def drop_only_named_watch_rows(signals):
+    """觀望列的說明自己寫著「只是被點到」而沒有任何看法，就不是觀望：改列排除並留紀錄。
+
+    2026/10/08：原文是「很多人說華邦電，不是；很多人說南亞科，不是。記憶體的龍頭是群聯」。南亞科先被放進會員持股，
+    主詞核對改成觀望注意，說明是「在討論記憶體族群時被點到，澄清南亞科非龍頭。」——照這句話它就只是被點名。
+    只處理觀望注意與觀望不碰；說明裡有任何看法、位置、買賣或籌碼的字就不動。
+    """
+    for cat in ('watch_watch', 'watch_avoid'):
+        keep = []
+        for row in signals.get(cat, []) or []:
+            note = str(row.get('reason') or '') if isinstance(row, dict) else ''
+            if isinstance(row, dict) and note and _ONLY_NAMED_NOTE.search(note) and not _NOTE_HAS_STANCE.search(_ONLY_NAMED_NOTE.sub('', note)):
+                moved = dict(row, _原分類=cat)
+                signals.setdefault('ignored', []).append(moved)
+                print(f"  點名核對　{row.get('name')}：說明只寫被點到、沒有看法（{note[:30]}），由「{cat}」改列排除")
+                note_decision('點名核對', '只是被點名，改列排除', str(row.get('name') or ''), note[:80])
+                continue
+            keep.append(row)
+        signals[cat] = keep
+    return signals
+
+
 def demote_holding_mentions(signals):
     """
     會員持股必須有「持有」的說法（我有、會員有、抱著、成本多少、不賣……）；
@@ -13505,6 +13531,7 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     signals = drop_borrowed_avoidance(signals, TX["audit"])
     signals = drop_traded_from_watch(signals, date_str)
     signals = naturalize_signal_reasons(signals)
+    signals = drop_only_named_watch_rows(signals)
     # 沒講名字、但明講昨天收盤價的段落：用行情認出是哪一檔，二次稽核通過才收錄（v96）。
     # 排在所有主詞與語氣核對之後——那些核對要求「原句裡有這一檔的名字」，這一類本來就沒有。
     signals = identify_unnamed_stocks(ss, signals, TX["audit"], date_str)
@@ -15793,9 +15820,11 @@ def rewrite_sms_notes_from_two_sources(entries):
             return '', f'長度 {len(note)} 字，要在 12 到 240 字之間'
         if _ev_norm(note) == _ev_norm(e['original']):
             return '', '和原說明一樣，沒有補進影片內容'
+        # 2026/10/08：數字只認原說明、逐字引句與原文節錄裡有的；先前連 context（另一段模型寫的文字）也算，
+        # 世芯-KY 被寫成「每張至少賺600元」，原文是「至少賺500塊以上」「一張賺5、6百塊」。
         allowed_numbers = set(re.findall(r'\d+(?:\.\d+)?',
-                          e['original'] + e['context'] + ''.join(e['quotes']) + e.get('excerpt', '')))
-        extra = set(re.findall(r'\d+(?:\.\d+)?', note)) - allowed_numbers
+                          (e['original'] + ''.join(e['quotes']) + e.get('excerpt', '')).replace(',', '')))
+        extra = set(re.findall(r'\d+(?:\.\d+)?', note.replace(',', ''))) - allowed_numbers
         if extra:
             return '', '寫了來源沒有的數字：' + '、'.join(sorted(extra)[:4])
         # 數字先查驗再清理，不能靠刪掉模型杜撰的價格通過驗證。

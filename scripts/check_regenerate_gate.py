@@ -25,3 +25,9 @@ with patch.object(pl, 'source_segments', return_value=[]), patch.object(pl, 'sou
     errors, _ = invariants(incomplete, '短原稿')
     assert not any('只有 2 點' in e for e in errors), errors
 print('one-day apply and replay: minimum verified points gate OK')
+_, hard, _ = pl.quality_overview({'market': [point('level'), point('view')]}, long_source)
+assert any('盤勢只有 1 點' in e for e in hard), hard
+assert any('教學只有 1 點' in e for e in hard), hard
+_, hard, _ = pl.quality_overview({'sell': [{'name': '測試公司', 'reason': '每張賺取5、6百萬元（或5、6百元）。'}]}, '')
+assert any('互相矛盾的單位' in e for e in hard), hard
+print('daily publication: points and contradictory money block release OK')

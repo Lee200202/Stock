@@ -2333,17 +2333,29 @@ html[data-view="mobile"] .viz svg { min-width: min(var(--vzw), 560px); }
   display: flex; flex-direction: row-reverse; align-items: flex-start;
 }
 .subnav[hidden] { display: none; }
+/* v150 標籤重新設計（管理者回報不顯眼）：原本是灰字、面板色的細條，和背景幾乎分不出來。
+   改成主色實心、字與圖示加粗，下方多一格目前讀到的進度；第一次出現時往左輕推三下，展開過就不再動。 */
 .subnav-tab {
-  display: flex; flex-direction: column; align-items: center; gap: 8px;
-  padding: 12px 8px 14px; border: 1px solid var(--rule); border-right: none;
-  border-radius: 12px 0 0 12px; background: var(--panel); color: var(--muted); cursor: pointer;
-  font-family: inherit; box-shadow: -3px 4px 16px color-mix(in srgb, var(--ink) 8%, transparent);
+  display: flex; flex-direction: column; align-items: center; gap: 9px;
+  min-width: 46px; padding: 14px 9px 10px; border: 1px solid var(--beam); border-right: none;
+  border-radius: 16px 0 0 16px; background: var(--beam); color: var(--panel); cursor: pointer;
+  font-family: inherit; box-shadow: -4px 8px 22px color-mix(in srgb, var(--beam) 34%, transparent);
+  transition: padding .18s ease, box-shadow .18s ease;
 }
-.subnav-tab:hover, .subnav.open .subnav-tab { color: var(--beam); }
-.subnav-tab svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.subnav-tab:hover, .subnav.open .subnav-tab { padding-right: 13px; box-shadow: -6px 10px 26px color-mix(in srgb, var(--beam) 46%, transparent); }
+.subnav-tab:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+.subnav-tab svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 2.3; stroke-linecap: round; }
 .subnav-label {
-  writing-mode: vertical-rl; letter-spacing: .22em; font-weight: 600;
-  font-size: calc(12.5px * var(--rd-fs)); line-height: 1;
+  writing-mode: vertical-rl; letter-spacing: .24em; font-weight: 700;
+  font-size: calc(14px * var(--rd-fs)); line-height: 1;
+}
+.subnav-tab-pct {
+  align-self: stretch; padding-top: 8px; border-top: 1px solid color-mix(in srgb, var(--panel) 40%, transparent);
+  font-family: "IBM Plex Mono", monospace; font-size: 11.5px; font-weight: 700; line-height: 1; text-align: center;
+}
+@keyframes subnavNudge { 0%, 100% { transform: none; } 50% { transform: translateX(-6px); } }
+@media (prefers-reduced-motion: no-preference) {
+  .subnav:not(.seen):not(.open) .subnav-tab { animation: subnavNudge 1.1s ease-in-out .8s 3; }
 }
 .subnav-panel {
   width: 0; overflow: hidden; visibility: hidden; opacity: 0;
@@ -2385,7 +2397,7 @@ html[data-view="mobile"] .viz svg { min-width: min(var(--vzw), 560px); }
 /* 手機：放在畫面中段，避開右下角的「問問題」按鈕。 */
 @media (max-width: 760px) {
   .subnav { top: 38vh; }
-  .subnav-tab { padding: 10px 6px 12px; }
+  .subnav-tab { min-width: 44px; padding: 12px 8px 9px; }
 }
 
 /* 規格速查卡：一節的門檻數字集中在開頭，不必讀完整節才找得到。 */
@@ -3925,7 +3937,7 @@ html[data-view="mobile"] #perfTable .th-long { display: none; }
 .tech-story summary { cursor: pointer; min-height: 44px; padding: 10px 0; font-weight: 600; color: var(--ink); }
 .tech-story .tech-author { margin-top: 20px; padding-bottom: 60px; }
 /* v149 關於作者：自介、三個連結各是一張卡片，使用聲明合成一張 */
-.tech-story .author-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 16px; margin-top: 24px; }
+.tech-story .author-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; margin-top: 24px; }
 .tech-story .author-card { min-width: 0; padding: clamp(16px, 2vw, 24px); border: 1px solid var(--rule); border-radius: 18px; background: var(--panel); }
 .tech-story .author-main p { margin: 0 0 12px; }
 .tech-story .author-main p:last-child { margin-bottom: 0; }
@@ -3935,8 +3947,7 @@ html[data-view="mobile"] #perfTable .th-long { display: none; }
 .tech-story .author-name { display: block; font-size: calc(19px * var(--rd-fs)); line-height: 1.35; color: var(--ink); }
 .tech-story .author-name span { margin-left: 10px; font-size: .8em; font-weight: 500; color: var(--muted); }
 .tech-story .author-role { display: block; margin-top: 2px; color: var(--muted); font-size: calc(13.5px * var(--rd-fs)); }
-.tech-story .author-links { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
-.tech-story .author-links { grid-auto-rows: 1fr; }
+.tech-story .author-links { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .tech-story .author-links li { margin: 0; }
 .tech-story .author-links a { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px; height: 100%; min-height: 64px;
   padding-block: 12px; color: var(--ink); text-decoration: none; transition: border-color .18s ease, background-color .18s ease, transform .18s ease; }
@@ -3946,11 +3957,11 @@ html[data-view="mobile"] #perfTable .th-long { display: none; }
 .tech-story .author-links b { display: block; font-size: calc(15.5px * var(--rd-fs)); line-height: 1.35; }
 .tech-story .author-links small { display: block; color: var(--muted); font-size: calc(12.5px * var(--rd-fs)); line-height: 1.4; overflow-wrap: anywhere; }
 .tech-story .author-links i { font-style: normal; color: var(--muted); font-size: 16px; }
-.tech-story .author-terms { grid-column: 1 / -1; padding-block: clamp(14px, 1.6vw, 20px); }
+.tech-story .author-terms { padding-block: clamp(14px, 1.6vw, 20px); }
 .tech-story .author-terms b { display: block; margin-bottom: 4px; font-size: calc(14.5px * var(--rd-fs)); color: var(--ink); }
 .tech-story .author-terms p { margin: 0; color: var(--muted); font-size: calc(13.5px * var(--rd-fs)); line-height: 1.7; }
 @media (max-width: 820px) {
-  .tech-story .author-grid { grid-template-columns: minmax(0, 1fr); }
+  .tech-story .author-links { grid-template-columns: minmax(0, 1fr); gap: 12px; }
 }
 .tech-story .tech-admin { margin: 26px 0 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
 /* 子目錄：條目是短標題，一行放得下；滑過可以看完整標題 */

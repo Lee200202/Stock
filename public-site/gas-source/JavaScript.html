@@ -140,6 +140,7 @@
       '<button type="button" class="subnav-tab" aria-expanded="false" aria-controls="subnavPanel">' +
         '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h11M4 17h13"/></svg>' +
         '<span class="subnav-label">子目錄</span>' +
+        '<span class="subnav-tab-pct" aria-hidden="true">0%</span>' +
       '</button>' +
       '<div class="subnav-panel" id="subnavPanel"><div class="subnav-in">' +
         '<div class="subnav-h"><b>子目錄</b><span class="subnav-pct">0%</span></div>' +
@@ -153,10 +154,12 @@
     var list = aside.querySelector('.subnav-list');
     var bar = aside.querySelector('.subnav-bar i');
     var pct = aside.querySelector('.subnav-pct');
+    var tabPct = aside.querySelector('.subnav-tab-pct');
 
     function shown(el) { var r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; }
     function setOpen(on) {
       aside.classList.toggle('open', !!on);
+      if (on) { aside.classList.add('seen'); }   // 展開過就不再輕推提示
       tab.setAttribute('aria-expanded', on ? 'true' : 'false');
     }
 
@@ -229,6 +232,7 @@
       var p = total > 0 ? Math.min(100, Math.max(0, -rect.top / total * 100)) : 0;
       bar.style.width = p + '%';
       pct.textContent = Math.round(p) + '%';
+      tabPct.textContent = Math.round(p) + '%';
     }
 
     function build() {

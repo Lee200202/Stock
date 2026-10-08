@@ -456,7 +456,7 @@
         <p>這個網站是我把語音辨識、大型語言模型與規則核對放進真實每日流程的練習。我最在意的是分工：<mark class="hl">模型負責讀懂口語，程式負責核對原句、代號和數字，人負責最後把關</mark>。每一次出錯，我都盡量把原因寫成規則與測試，讓同樣的錯不再發生第二次。</p>
       </article>
       <ul class="author-links" aria-label="聯絡與作品">
-        <li><a class="author-card" href="mailto:lindanny0213@gmail.com"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M4 7.5l8 6 8-6"/></svg><span><b>Email</b><small>lindanny0213@gmail.com</small></span><i aria-hidden="true">↗</i></a></li>
+        <li><a class="author-card" id="authorMail" data-mail="lindanny0213@gmail.com" href="https://mail.google.com/mail/?view=cm&amp;fs=1&amp;to=lindanny0213%40gmail.com" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M4 7.5l8 6 8-6"/></svg><span><b>Email</b><small aria-live="polite">lindanny0213@gmail.com</small></span><i aria-hidden="true">↗</i></a></li>
         <li><a class="author-card" href="https://github.com/Lee200202" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6l-6 6 6 6M16 6l6 6-6 6"/></svg><span><b>GitHub</b><small>Lee200202</small></span><i aria-hidden="true">↗</i></a></li>
         <li><a class="author-card" href="https://www.notion.so/Shih-Hsun-Lee-8bc6e964fe0a46c199c362a0909eabbb" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2.5"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7M3 13h18"/></svg><span><b>作品集</b><small>研究與專案</small></span><i aria-hidden="true">↗</i></a></li>
       </ul>
@@ -1167,6 +1167,19 @@
       one('#techDemoDaily').textContent = '文章通過品質關卡後才寄，' + demoText(demo.daily, '每日總覽');
     }).withFailureHandler(function () { loaded = false; one('#techLiveNote').textContent = '目前讀不到資料量，稍後再開啟可以重試。'; }).apiGetTechStats();
   };
+  /* v150 Email 卡片：mailto 在沒有設定郵件程式的瀏覽器點了沒有反應（管理者回報）。
+     連結改開網頁版寫信視窗；點的同時把信箱複製起來，不用 Gmail 的人也拿得到。 */
+  var mailCard = one('#authorMail');
+  if (mailCard) {
+    mailCard.addEventListener('click', function () {
+      var small = mailCard.querySelector('small'), addr = mailCard.getAttribute('data-mail');
+      var done = function () {
+        small.textContent = '已複製信箱';
+        clearTimeout(mailCard._t); mailCard._t = setTimeout(function () { small.textContent = addr; }, 2400);
+      };
+      try { if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(addr).then(done, function () {}); } } catch (e) {}
+    });
+  }
   var loadImage = one('.load-evidence img');
   if (loadImage && document.documentElement.dataset.host !== 'pages') {
     loadImage.src = 'https://lee200202.github.io/Stock/assets/tech-load-overview-20261008.jpg';

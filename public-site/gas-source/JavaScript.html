@@ -132,7 +132,7 @@
     var doc = document.querySelector('.doc');
     if (!doc) { return; }
 
-    var uid = 0, heads = [], links = [], closeTimer = 0;
+    var uid = 0, heads = [], links = [], closeTimer = 0, openedAt = 0;
     var aside = document.createElement('aside');
     aside.className = 'subnav';
     aside.setAttribute('aria-label', '子目錄');
@@ -159,6 +159,7 @@
 
     function shown(el) { var r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; }
     function setOpen(on) {
+      if (on && !aside.classList.contains('open')) { openedAt = Date.now(); }
       aside.classList.toggle('open', !!on);
       if (on) { aside.classList.add('seen'); }   // 展開過就不再輕推提示
       tab.setAttribute('aria-expanded', on ? 'true' : 'false');
@@ -179,7 +180,12 @@
       }
     }, { passive: true });
     // 觸控沒有「靠近」這回事：點標籤切換，點外面收起。
-    tab.addEventListener('click', function () { setOpen(!aside.classList.contains('open')); });
+    /* 用滑鼠時游標一碰到標籤就先展開，緊接著的點擊若照舊「切換」會立刻收起來——標籤改成顯眼的按鈕之後
+       大家會去點它（v150 正式站實測）。剛展開的 0.7 秒內的點擊視為「要打開」，不收。 */
+    tab.addEventListener('click', function () {
+      if (aside.classList.contains('open') && Date.now() - openedAt < 700) { return; }
+      setOpen(!aside.classList.contains('open'));
+    });
     document.addEventListener('click', function (e) {
       if (aside.classList.contains('open') && !aside.contains(e.target)) { setOpen(false); }
     });

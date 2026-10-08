@@ -1034,7 +1034,8 @@ html[data-theme="dark"] .sms-buy{--sms-ink:#FF817B;--sms-bg:#462320}html[data-th
 .sms-today-h{justify-content:flex-start;gap:10px;flex-wrap:wrap}.sms-today-h h2{margin:0}
 .sms-tag{display:inline-flex;align-items:center;min-height:26px;padding:0 12px;border-radius:999px;border:1px solid var(--rule);color:var(--muted);font-size:13px}
 .sms-count{margin-left:auto;font-weight:700;color:var(--ink)}
-.sms-operation-list{grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:12px}
+/* v152：已寫入操作一列一檔（管理者要求）。先前寬螢幕會並排三張，說明長短不一擠在一起不好讀。 */
+.sms-operation-list{grid-template-columns:minmax(0,1fr);gap:12px}
 .sms-operation{padding:14px 18px;border-left-width:4px}
 .sms-operation header{gap:8px 12px}.sms-operation header b{font-size:17px}
 .sms-operation .sms-direction{display:inline-flex;align-items:center;min-height:28px;padding:0 12px;border-radius:999px;border:1.5px solid var(--sms-ink);background:var(--panel,#fff);font-size:14px}
@@ -4586,7 +4587,8 @@ var mergeTxFingerprint='';
           '<span class="hk">' + esc(it.label) + '<i>' + (TONE_LABEL[it.tone] || '') + '</i></span>' +
           '<b class="hv">' + esc(it.value) + '</b>' +
           (it.hint ? '<span class="hh">' + esc(it.hint) + '</span>' : '') + '</div>';
-      }).join('') + '<div class="hstamp">' + esc(r.today) + ' ' + esc(r.now) + ' 更新（台北時間）' + (r.ms ? '・後端讀取 ' + (r.ms / 1000).toFixed(1) + ' 秒' : '') + '</div>';
+      }).join('') + '<div class="hstamp">' + esc(r.today) + ' ' + esc(r.now) + ' 更新（台北時間）' + (r.ms ? '・<span title="' + esc((r.laps || []).join('、')) + '">後端讀取 ' + (r.ms / 1000).toFixed(1) + ' 秒</span>' : '') + '</div>' +
+        ((r.laps || []).length && r.ms >= 8000 ? '<div class="hstamp">各段秒數：' + esc(r.laps.join('、')) + '</div>' : '');
       /* 取稿卡的「正常狀態」（v54）：今天的影片已經自動取稿並整理完成時直接講明，不必按任何按鈕；
          沒有直播、或休市也講明，免得新管理者以為要手動做什麼。 */
       var show1 = (r.items || [])[0] || {};

@@ -698,15 +698,21 @@ function apiAdminTodayStatusRun_(key) {
   try {
     adminAuth_(key);
     var today = todayStr_(), hm = Number(Utilities.formatDate(new Date(), TZ, 'HHmm'));
+    /* v152 分段計時：後端花的時間分成幾段回報（laps），超過 8 秒時畫面直接列出來，才知道慢在哪一張表。 */
+    var laps = [], lapAt = Date.now();
+    function lap(name) { var n = Date.now(); if (n - lapAt >= 200) { laps.push(name + ' ' + ((n - lapAt) / 1000).toFixed(1)); } lapAt = n; }
     var trading = isTradingDayToday_();
     // v152：系統狀態只讀表尾（今天的列在最後面），不整張讀入幾個月的紀錄。
     var isTodayLog = function (r) { return String(r['時間'] || '').indexOf(today) === 0; };
     var logs = readSheetTailObjects_('系統狀態', 1200, isTodayLog).filter(isTodayLog);
+    lap('系統狀態');
     var video = dayVideoRow_(today);
+    lap('影片清單');
     var trades = readSheetObjects_('操作紀錄').filter(function (r) { return fmtDate_(r['日期']) === today; });
     var holds = readSheetObjects_('會員持股').filter(function (r) { return fmtDate_(r['日期']) === today; });
     // 和今日狀態共用已讀取的兩張表，不另開一支逐筆查詢 API。
     // 只顯示會員簡訊確實寫入的列；原文、待解析與逐字稿紀錄不能混成已執行買賣。
+    lap('操作紀錄與會員持股');
     var smsSourceRows = readSheetFields_('會員簡訊',['文章ID','發文時間']);
     var smsOriginals = adminTodaySmsOriginals_(today, smsSourceRows);
     var smsTimes={};
@@ -729,6 +735,7 @@ function apiAdminTodayStatusRun_(key) {
         detail: String(r['說明重點'] || ''), source: String(r['來源影片ID'] || '') });
     });
     smsOperations.sort(function (a, b) { return b.time.localeCompare(a.time) || b.source.localeCompare(a.source); });
+    lap('會員簡訊');
     // v152：這裡只用到寄送狀態，不把每一天的整篇文章內容讀進來。
     var push = readSheetFields_('每日推播內容', ['日期', '寄送狀態']).filter(function (r) { return fmtDate_(r['日期']) === today; })[0];
     // 與前台同一套交易日過濾（v67，R4）：休市日誤寫的列不算「最後一筆」
@@ -742,6 +749,7 @@ function apiAdminTodayStatusRun_(key) {
     var vStatus = video ? String(video['處理狀態'] || '') : '';
     var v1 = video ? String(video['原始逐字稿內容'] || '').length : 0, v2 = video ? String(video['修飾後逐字稿內容'] || '').length : 0;
     if (vStatus === '完成' && v1 > 200) { noShow = false; plannedNoShow = false; }
+    lap('推播與績效');
     var dk = null; try { dk = dailyKState_(); } catch (e) {}
     var behind = perfLast ? tradingDaysAfter_(perfLast, latestTradingDayStr_()) : 0;
 
@@ -779,6 +787,7 @@ function apiAdminTodayStatusRun_(key) {
     add('會員簡訊', sms + ' 則', sms ? 'ok' : 'idle', sms ? '' : '今天還沒有會員簡訊；平日 09:05 起每 10 分鐘自動檢查。');
     /* 郵件投遞健康（v54，Codex 規格 88）：讀寄送帳本。「服務接受」是 MailApp 收下了，不等於已送到收件匣。 */
     var dsum = {};
+    lap('日K與卡片');
     try { dsum = deliverySummaryForDate_(today); } catch (e) { dsum = {}; }
     var dkeys = Object.keys(dsum), tot = { total: 0, accepted: 0, failed: 0, unknown: 0, open: 0 }, lastErr = '';
     var byMail = { daily: { messages: 0, total: 0, accepted: 0, failed: 0, unknown: 0, open: 0, firstAt: '', lastAt: '' },
@@ -831,6 +840,7 @@ function apiAdminTodayStatusRun_(key) {
     } catch (e) {}
 
     // 今天的寄送結果沿用上面 deliverySummaryForDate_ 算好的 byMail；前幾個交易日另外一次讀完帳本
+    lap('寄送帳本與額度');
     var recentDays = recentTradingDays_(6, false), mailDays = opsMailByDates_(recentDays);
     var timeline = opsTimelineFor_(today, logs, byMail);
     var prevDay = recentDays[0] || '';
@@ -842,11 +852,13 @@ function apiAdminTodayStatusRun_(key) {
       if (dss) { daySync = { id: dss.id || '', status: dss.status || '', step: dss.step || '', index: dss.index || 0,
         total: dss.total || 0, error: String(dss.error || '').slice(0, 160), at: dss.updatedAt || '', date: dss.date || '' }; }
     } catch (e) {}
+    lap('近日寄送與時間軸');
     var triggerNames = [], triggerError = '';
     try { triggerNames = ScriptApp.getProjectTriggers().map(function (t) { return t.getHandlerFunction(); }); }
     catch (e) { triggerError = String(e.message || e).slice(0, 120); }
     var heartbeatAt = Number(PropertiesService.getScriptProperties().getProperty('OPS_HEARTBEAT_AT') || 0);
     var heartbeatAge = heartbeatAt ? Math.round((Date.now() - heartbeatAt) / 60000) : null;
+    lap('觸發器');
     var blankExits = [];
     try { readSheetObjects_('持股追蹤').forEach(function (r) {
       if (String(r['狀態'] || '') === '已出場' && r['最近賣出日'] && !Number(r['出場價'])) {
@@ -868,6 +880,7 @@ function apiAdminTodayStatusRun_(key) {
     }
     if (noShow && byMail.daily.accepted) { alerts.push('今日無直播卻有每日整理信服務接受紀錄，請核對寄送日期'); }
     if (trading && mailNeed.tone === 'err') { alerts.push('今天預計需要寄 ' + mailNeed.need + ' 位，超過每日額度 ' + mailNeed.limit + ' 位，會有人收不到'); }
+    lap('持股追蹤');
     var rtNow = typeof opsRuntimeFor_ === 'function' ? opsRuntimeFor_(today) : null;
     if (rtNow && rtNow.minutes > rtNow.limit * 0.8) {
       alerts.push('今日觸發器累計約 ' + rtNow.minutes + ' 分鐘，' + (rtNow.minutes > rtNow.limit ? '已超過' : '接近') +
@@ -903,7 +916,10 @@ function apiAdminTodayStatusRun_(key) {
     items.push({ label: '網站資料讀取', value: readMetrics.length ? (maxReadMs / 1000).toFixed(1) + ' 秒（近期最慢）' : '尚無近期查詢',
       tone: !readMetrics.length ? 'idle' : maxReadMs >= 15000 ? 'err' : maxReadMs >= 8000 ? 'warn' : 'ok',
       hint: readMetrics.length ? readMetrics.map(function (m) { return ({apiGetDashboard:'總覽',apiGetStockSummary:'個股摘要',apiGetQuotesFor:'批次報價'})[m.method] + ' ' + (m.ms / 1000).toFixed(1) + ' 秒／' + m.at; }).join('；') + '。' : '近 15 分鐘沒有查詢。' });
-    return { ok: true, today: today, now: Utilities.formatDate(new Date(), TZ, 'HH:mm'), items: items,
+    lap('提醒與流程');
+    var quoteHealthNow = typeof quoteCacheStatus === 'function' ? quoteCacheStatus() : null;
+    lap('行情狀態');
+    return { ok: true, today: today, now: Utilities.formatDate(new Date(), TZ, 'HH:mm'), items: items, laps: laps,
       automation: automation, smsOriginals: smsOriginals, smsOperations: smsOperations.slice(0, 40),
       timeline: timeline.slice(-40), ops: { trading: trading, noShow: noShow, plannedNoShow: plannedNoShow && !video, videoStatus: vStatus,
         rawChars: v1, polishedChars: v2, mailStatus: push ? String(push['寄送狀態'] || '') : '',
@@ -919,7 +935,7 @@ function apiAdminTodayStatusRun_(key) {
         closed: closedWhy, autoStart: hmText_(TX_AUTO_START_HM_), days: [today].concat(recentDays),
         prevDay: prevDay, prevMail: prevDay ? mailDays[prevDay] : null, mailNeed: mailNeed, daySync: daySync,
         runtime: rtNow,
-        quoteHealth: typeof quoteCacheStatus === 'function' ? quoteCacheStatus() : null,
+        quoteHealth: quoteHealthNow,
         triggerCount: triggerNames.length } };
   } catch (e) { return { ok: false, reason: String(e.message || e) }; }
 }

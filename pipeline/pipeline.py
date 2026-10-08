@@ -3501,12 +3501,15 @@ _META_CLAUSE = re.compile(r"歷史回顧|列為觀望|列入觀望|改列|日期
 def _split_clauses(t: str):
     """按頂層的逗號、分號、句號切子句；括號裡的標點不切。回傳 [(子句, 標點)]。"""
     parts, buf, depth = [], "", 0
-    for ch in str(t or ""):
+    text = str(t or "")
+    for i, ch in enumerate(text):
         if ch in "（(":
             depth += 1
         elif ch in "）)" and depth:
             depth -= 1
-        if depth == 0 and ch in "，,；;。":
+        # 數字裡的千分位逗號不是子句分隔（2026/10/08「在4,400元以上獲利賣出」被切成「在4」「400元以上…」）。
+        thousands = ch == "," and buf[-1:].isdigit() and text[i + 1:i + 4].isdigit() and len(text[i + 1:i + 4]) == 3             and not text[i + 4:i + 5].isdigit()
+        if depth == 0 and ch in "，,；;。" and not thousands:
             parts.append((buf, ch))
             buf = ""
         else:
@@ -6262,6 +6265,7 @@ def enforce_explicit_trades(signals, transcript):
                 # 買賣方向另有欄位，說明不必重複「買進」兩個字。只有說明是空的或只有一兩句話時才用原句、交給補充說明重寫。
                 had = str(moved.get('reason') or '')
                 if not re.search(r'賣' if want == 'sell' else r'買', had) and len(_ev_norm(had)) < 20:
+                    moved['_reason_before'] = had           # 補充說明沒通過時用回這一句（見 enrich_stock_context）
                     moved['reason'] = spoken_to_note(hits[0])
                     moved['_leftover'] = True
                 moved['_原分類'] = cat
@@ -8324,8 +8328,8 @@ def _number_far_from_own(flat, own, others, number):
 # 說明裡「價位」的寫法：前面是突破、站上、壓在、買在、成本、目標這類字，或後面接著關卡、以上、以下。
 _NOTE_LEVEL_RE = re.compile(
     r'(?:突破|站上|站穩|跌破|壓在|守住|守穩|來到|回到|上看|上到|看到|目標價?|關卡|高點|低點|買在|買進|買入|成本|賣在|賣出|承接)'
-    r'[^，。；、\d]{0,8}?(\d{2,6}(?:\.\d{1,2})?)(?![\d.]|\s*(?:%|％|張|倍|天|根|點|萬|億|檔|年|月|日|號|個|次|人|位|分|季))'
-    r'|(?<![\d.,])(\d{2,6}(?:\.\d{1,2})?)\s*(?:元|塊)?(?:的)?(?:關卡|以上|以下|附近)')
+    r'[^，。；、\d]{0,8}?(?<![\d.,])(\d{1,3}(?:,\d{3})+|\d{2,6})(?:\.\d{1,2})?(?![\d.,]|\s*(?:%|％|張|倍|天|根|點|萬|億|檔|年|月|日|號|個|次|人|位|分|季))'
+    r'|(?<![\d.,])(\d{1,3}(?:,\d{3})+|\d{2,6})(?:\.\d{1,2})?\s*(?:元|塊)?(?:的)?(?:關卡|以上|以下|附近)')
 # 金額與幅度不是價位：賺500塊、跌1310塊、漲了8塊、EPS 29.91元。
 _NOTE_AMOUNT_BEFORE = re.compile(r'(?:賺|賠|虧|跌|漲|差|EPS|每股盈餘|獲利|營收)(?:了|約|近|超過|至少|達|為|是)?[^，。；\d]{0,4}$', re.I)
 
@@ -8352,7 +8356,7 @@ def strip_implausible_price_claims(ss, signals: dict, date_str: str) -> dict:
                 continue
             for field in ('reason', 'note'):
                 text = str(row.get(field) or '')
-                if not text:
+                if not text or row.get('_leftover'):
                     continue
                 kept, dropped = [], []
                 for clause, punct in _split_clauses(text):
@@ -8362,7 +8366,7 @@ def strip_implausible_price_claims(ss, signals: dict, date_str: str) -> dict:
                         at = m.start(1) if m.group(1) else m.start(2)
                         if _NOTE_AMOUNT_BEFORE.search(clause[:at]):
                             continue
-                        value = float(number)
+                        value = float(number.replace(',', ''))        # 4,400 是 4400，不是 400
                         if value < lo * 0.4 or value > hi * 3:
                             bad = number
                             break
@@ -9636,7 +9640,8 @@ original 已經寫明不要買、不要碰、還不能買時，補充後第一�
 本股多次提及中已明講的歷史價位、漲幅與當下立場須一起整理，不能只換句話說「現在不要買」。例如原文同時有「2、300時布局」「漲了4倍」「現在不要買」，直接寫先前布局、已上漲與目前禁買，不加「並非本日再次買進的通知」等分類說明。不得把鄰股的法人、CPO或其他題材填進本股。禁止「分析師指出」「講師建議」「老師表示」「老師手中」等轉述主詞：不寫誰說的，直接寫內容（「買在880以下」「會員續抱」）。不要寫「逐字稿補充的重點是」「原文以…作為警示」「原文回顧」或推論過程，只寫有依據的內容，不為篇幅加無資訊句。
 過去漲幅、原先布局位置與目前態度分開寫。消息或預測須保留其觀點與條件，不能改成已發生事實。不寫評語式的收尾：「展現強勁多頭動能」「具備明確的向上潛力」「整體操作邏輯穩健」「值得持續關注」「並說明相關操作與看法」「屬於明確不碰的標的」「屬於負面示範」「候選標的之一」「等待適當機會佈局」「建議持續關注」這類句子沒有資訊，程式會刪掉；原文沒講的量價（帶量、爆量、創高、漲停）也不要補。寧可少一句，留下來的每一句都要對得回 sources。「有很多人說／有人問：張總，你昨天講 X 要賣了」這類句子，是講者轉述觀眾複述他自己先前講過的話，後面通常接著他當場的確認或補充：寫成「先前（昨天）已表示 X 要賣出」並接上他當場的說法，不可寫成「有傳聞」「據說」「有人提及」。講者明講的買進位置、成本、季線或年線的價位、預期先到哪一條線，是這一檔說明最重要的內容，source 裡有就一定寫進去，不要只留「展現韌性」「值得留意」這種沒有資訊的形容。不得自創財報、法人、利多、公司關係、均線、停損、目標價或新買點。不要用人名／講者當主詞、不要寫分類流程、來源不足或內部規則。
 每句用 source_ids 引用該 entry.sources 裡支持該句的編號（例如 s0），不要重抄或改寫原句。編號只能用同一 entry 的 sources；來源裡沒講的事不能寫，數字與技術詞也須有對應。name 是官方名稱，source 的同音寫法只在公開敘述中修正。原文不足可短，另填 limitation 為內部原因，不用冗詞湊字。賺賠金額先分清每股與每張；來源單位不明就省略，不能用「（或…）」並列互斥金額或留下截斷片語。
-只輸出 {"notes":[{"id":"watch_avoid:0","sentences":[{"text":"完整書面句。","source_ids":["s0"]}],"limitation":""}]}。"""
+sentences 陣列一句一個元素，每一檔寫 2～4 個元素，不要把整段塞進同一個元素：程式逐句核對，一句裡有一個數字或技術詞對不上就整句不用，分開寫才留得住其他句。
+只輸出 {"notes":[{"id":"watch_avoid:0","sentences":[{"text":"第一句。","source_ids":["s0"]},{"text":"第二句。","source_ids":["s1"]}],"limitation":""}]}。"""
 
 
 def _context_source_id(value, known):
@@ -9680,7 +9685,13 @@ def _context_claims(reply, source_ids):
         ids, quoted = c.get('source_ids'), c.get('quotes')
         if not (isinstance(ids, list) and ids) and not (isinstance(quoted, list) and quoted):
             c = dict(c, source_ids=list(shared or source_ids))
-        out.append(c)
+        # 2026/10/08：模型把整檔寫成一個元素（20 檔都是「寫 1 句」），裡面其實有兩三句。拆開逐句核對：
+        # 一句的數字或技術詞對不上，只退那一句，其餘有依據的留下來；先前是整段一起退，說明停在初稿的一兩句。
+        parts = [x.strip() for x in re.split(r'(?<=[。！？!?])', str(c.get('text') or '')) if x.strip()]
+        if len(parts) > 1:
+            out.extend(dict(c, text=part) for part in parts)
+        else:
+            out.append(c)
     return out
 
 
@@ -9979,9 +9990,15 @@ def enrich_stock_context(signals, transcript, date_str):
             gap(row, limitation[:180] or '本股可證實的背景有限，未借用其他公司或補造')
         note_decision('個股說明', '補充本股上下文', row.get('name', ''),
                       f'{len(old)} → {len(note)} 字；引用 {len(set(quotes))} 處')
-    for identity, (row, *_) in targets.items():
+    for identity, (row, field, *_r) in targets.items():
         if identity not in accepted:
             gap(row, '未收到可採用的完整補充，保留原說明')
+            # 依原句改列的那一檔，重寫沒通過：用回模型原本寫的那一句（短，但是完整的書面句），不把口語原句公開出去。
+            # 2026/10/08 亞德客-KY 兩次因為「今天賣掉…去買1590亞德…對不對？」被品質關卡整輪擋下。
+            before = str(row.get('_reason_before') or '').strip()
+            if before and row.get('_leftover') and spoken_fragment(str(row.get(field) or '')):
+                row[field] = public_narrative(before, row, signals)
+                print(f"  個股說明補充　{_display_name(row.get('name'))}：重寫沒有通過，用回模型原本的說明：{row[field][:30]}")
     print(f'個股說明補充完成：採用 {len(accepted)}/{len(entries)} 檔，未通過者留內部篇幅提醒'
           + (f'（回覆 {len(replies)} 筆；未採用原因：' + '、'.join(f'{k} {v}' for k, v in why_not.items()) + '）' if why_not else ''))
     note_decision('個股說明', f'合併補問完成，採用 {len(accepted)}/{len(entries)} 檔', date_str,

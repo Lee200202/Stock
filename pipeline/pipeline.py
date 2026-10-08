@@ -4046,6 +4046,14 @@ def resolve_signals(signals: dict, transcript: str = "") -> dict:
             # v89：原文緊貼名稱念出的代號（「4916新星科」）優先於讀音猜測；名稱釐清也不再改掉它。
             if transcript and raw not in CONFIRMED_NAMES:
                 spoken = spoken_code_for([raw, r.get("原始語音名稱")] + list(r.get("aliases") or []), transcript)
+                # 模型寫的名稱與代號本身就是一組正式的配對（力積電／6770）時，只有「貼著這個名稱」念出的代號才能改它；
+                # 貼著別稱念出的不算（2026/10/08：別稱裡混進「琴城」，8210 是貼著琴城念的，力積電整檔被併進勤誠）。
+                if spoken and hint and spoken != hint:
+                    official = _display_name((get_code_map() or {}).get(hint) or '')
+                    if official and official == _display_name(raw) and spoken_code_for([raw], transcript) != spoken:
+                        print(f"  代號比對　{raw}（{hint}）是正式的名稱與代號，貼著別稱念出的 {spoken} 不採用")
+                        note_decision('代號比對', '別稱旁的代號不採用', raw, f'{hint} 與名稱相符；{spoken} 是貼著別稱念的')
+                        spoken = ''
                 if spoken and spoken != hint:
                     print(f"  代號比對　{raw} 在原文緊貼著念出代號 {spoken}，採用原文代號" + (f"（模型填 {hint}）" if hint else ""))
                     note_decision('代號比對', '原文念出代號', raw, f'原文緊貼名稱念出 {spoken}')
@@ -8372,6 +8380,8 @@ def strip_implausible_price_claims(ss, signals: dict, date_str: str) -> dict:
             hi, lo = max(band), min(band)
             if not (hi > 0 and lo > 0):
                 continue
+            codes = {str(r.get('code') or '') for c in list(SIGNAL_CATEGORIES) + ['history', 'uncertain', 'ignored']
+                     for r in signals.get(c, []) or [] if isinstance(r, dict)}       # 「買進1590亞德客」的 1590 是代號
             for field in ('reason', 'note'):
                 text = str(row.get(field) or '')
                 if not text or row.get('_leftover'):
@@ -8385,6 +8395,8 @@ def strip_implausible_price_claims(ss, signals: dict, date_str: str) -> dict:
                         if _NOTE_AMOUNT_BEFORE.search(clause[:at]):
                             continue
                         value = float(number.replace(',', ''))        # 4,400 是 4400，不是 400
+                        if number in codes:
+                            continue
                         if value < lo * 0.4 or value > hi * _LEVEL_MAX_RATIO:
                             bad = number
                             break

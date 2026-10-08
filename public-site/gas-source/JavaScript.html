@@ -1567,7 +1567,8 @@ function restatesEarlier_(key, earlier) {
         '</section>' +
         '<section class="basis-card basis-card-wide"><h4>沒有變的事</h4>' +
           '<ul class="basis-list">' +
-            '<li>哪一天算進場、哪一天算出場的判定不變；明講賣出、轉為觀望不碰、超過 10 個交易日未再提及，都以那一天的高低平均出場。</li>' +
+            '<li>哪一天算進場、哪一天算出場的判定不變：明講賣出、轉為觀望不碰，以那一天的高低平均出場。</li>' +
+            '<li>超過 10 個交易日沒有再提到的，以最後一次提及那一天視為出場。只在進場當天提到、之後沒有再提的，不算一段持有，不列入已出場，也不計入已實現報酬。</li>' +
             '<li>節目裡口頭講的價位只當附註，不拿來計算。</li>' +
             '<li>管理者修正過的成本優先於公式。</li>' +
             '<li>當天沒有日 K 時只往前找最近的交易日，不借用之後的價格。</li>' +
@@ -1970,7 +1971,7 @@ function restatesEarlier_(key, earlier) {
       '<div class="tx-end tx-in"><small>' + (inDate ? inDate + ' 進場' : '進場') + '</small><b>' + fmtPx(i.entry) + '</b></div>' +
       '<div class="tx-mid" aria-label="' + (isHeld ? '未實現報酬 ' : sold ? '已實現報酬 ' : '追蹤期間變化 ') + esc(retTxt) + '"><span class="tx-line"></span>' +
         '<span class="tx-ret">' + retTxt + '</span>' + cum + '</div>' +
-      '<div class="tx-end tx-out"><small>' + esc(outDate) + (isHeld ? '' : sold ? ' 賣出' : ' 追蹤結束') + '</small><b>' + fmtPx(i.current) + '</b>' +
+      '<div class="tx-end tx-out"><small>' + esc(outDate) + (isHeld ? '' : sold ? ' 賣出' : /未再提及/.test(String(i.exitReason || '')) ? ' 最後提及' : ' 追蹤結束') + '</small><b>' + fmtPx(i.current) + '</b>' +
         '</div>' +
       (i.ret === null && i.why ? '<div class="tx-why">' + esc(i.why) + '</div>' : '') +
     '</div>';

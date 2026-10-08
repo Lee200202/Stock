@@ -1428,6 +1428,21 @@ function rebuildHoldingsTrackerJobRun_(options) {
                ' 個交易日（門檻 ' + STALE_TRADING_DAYS + '）');
       }
     }
+    /* v146（2026/10/08 管理者回報揚智、矽創）：只在進場那一天被提到、之後再也沒有提過的回合不成立。
+       逾期規則把出場日回溯到「最後一次提及」，這種回合的最後一次提及就是進場當天，
+       於是變成同一天進場、同一天出場、持有 0 天，掛在已出場清單裡寫著「逾 10 個交易日未再提及」。
+       舊取價（進場最低、出場最高）下它還憑空多出一筆當天高低差的獲利（矽創 +7.29%、揚智 +1.55%），計入已實現報酬。
+       沒有任何後續說法可以佐證持有過、何時離開，這不是一段持有：這個回合拿掉，不列入已出場、不計入已實現；
+       整檔只有這一個回合時，這一檔不進持股追蹤（原始的每日紀錄照留）。之後又被提到時，回合會照紀錄重新成立。 */
+    if (lastRound.closeKind === '逾期未再提及' && lastRound.close && lastRound.close.date <= lastRound.open.date) {
+      rounds.pop();
+      stat.autoClosed--;
+      stat.singleDay = (stat.singleDay || 0) + 1;
+      (stat.singleDayList = stat.singleDayList || []).push(g.name + '（' + (g.valid ? g.code : '代號待確認') + '）' + lastRound.open.date);
+      tr_(g, '回合 ' + lastRound.open.date + ' 只在當天被提到、之後未再提及：不成立回合');
+      if (!rounds.length) { return; }
+      lastRound = rounds[rounds.length - 1];
+    }
     if (lastRound.closeKind === '觀望不碰') { stat.avoidClosed++; }
 
     var candles = g.valid ? getCachedDailyK(g.code) : null;
@@ -1818,7 +1833,7 @@ function rebuildHoldingsTrackerJobRun_(options) {
     var exitReason = stillHeld ? pendingNote :
       (lastRound.closeKind === '賣出' ? '明講賣出' :
        lastRound.closeKind === '觀望不碰' ? '轉為觀望不碰，視為出場' :
-       '逾 ' + STALE_TRADING_DAYS + ' 個交易日未再提及，視為出場');
+       '最後一次提及後超過 ' + STALE_TRADING_DAYS + ' 個交易日未再提及；以最後提及那一天視為出場');
 
     // 進場價來源欄：持有中就顯示進場來源；已出場則同時標明出場價來源。
     var srcCol = lastRound.entrySrc;
@@ -1919,7 +1934,7 @@ function rebuildHoldingsTrackerJobRun_(options) {
       }
       PropertiesService.getScriptProperties().setProperty('TRACKER_PRICE_AUDIT', JSON.stringify({
         rule: '當日高低平均', checked: stat.midChecked || 0, mismatch: (stat.midMismatch || []).length,
-        sample: (stat.midMismatch || []).slice(0, 5), overridden: stat.overridden || 0,
+        sample: (stat.midMismatch || []).slice(0, 5), overridden: stat.overridden || 0, singleDay: stat.singleDay || 0,
         at: Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy/MM/dd HH:mm') }));
     } catch (e) { Logger.log('取價稽核結果未能保存：' + e); }
   }
@@ -1931,6 +1946,10 @@ function rebuildHoldingsTrackerJobRun_(options) {
   }
   if (stat.autoClosed) {
     Logger.log('  超過 ' + STALE_TRADING_DAYS + ' 個交易日未再提及，自動轉為已出場　' + stat.autoClosed + ' 檔');
+  }
+  if (stat.singleDay) {
+    Logger.log('  只在進場當天被提到、之後未再提及，不成立回合（不列已出場、不計已實現）　' + stat.singleDay + ' 個：' +
+               (stat.singleDayList || []).slice(0, 20).join('、'));
   }
   if (stat.filled) {
     Logger.log('  條件價往後找到觸價日才成交　' + stat.filled + ' 次');
@@ -2305,7 +2324,7 @@ function getHoldingsTrackerRead_() {
     summary: summary,
     note: '',
     heldBasis: '持有中為未實現損益。同一檔可能買了又賣、賣了又買，因此以回合計算。進場價取進場日當日最高與最低的平均（只有「會員目前持有」聲明時，取聲明當日或之前最近交易日）。影片明講的價位用灰字附註，不拿來當計算價。報酬以最新成交價計算，盤後或取不到即時報價時用最後一根日K收盤。',
-    exitedBasis: '出場價取出場日當日最高與最低的平均：明講賣出、轉為觀望不碰、超過 10 個交易日未再提及都一樣；後兩者當天無日K則取之前最近交易日，不借用未來K棒。口頭價用灰字附註，不拿來當計算價；管理者手動成本覆寫仍優先。',
+    exitedBasis: '出場價取出場日當日最高與最低的平均：明講賣出、轉為觀望不碰、超過 10 個交易日未再提及（以最後一次提及那一天為出場日）都一樣；後兩者當天無日K則取之前最近交易日，不借用未來K棒。只在進場當天提到、之後沒有再提的不算一段持有，不列入。口頭價用灰字附註，不拿來當計算價；管理者手動成本覆寫仍優先。',
     basis: '進場與出場都取當天最高與最低的平均：實際成交落在當天區間的哪一點無從得知，取中間值不偏向任何一邊；這不是實際成交紀錄。同日另有觀望不碰不作廢持股聲明。未計入交易成本與部位大小。'
   };
 

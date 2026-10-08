@@ -4,7 +4,8 @@
   一、回合記下的當日區間（entryLo／entryHi、exitLo／exitHi）和日 K 那一天的最低、最高一致；
   二、進場價、出場價等於那一天最高與最低的平均（四捨五入到小數兩位）；
   三、已結束回合的報酬等於（出場價－進場價）÷進場價；持有中的報酬等於（目前價－進場價）÷進場價；
-  四、後端自己留下的稽核結果（priceAudit）是「當日高低平均」、不符為 0。
+  四、後端自己留下的稽核結果（priceAudit）是「當日高低平均」、不符為 0；
+  五、已出場清單裡沒有「同一天進場、同一天因未再提及而出場」的列。
 管理者在後台修正過成本的回合，進場價以管理者填的為準，另外列出來、不算不符。
 
     python scripts/check_tracker_midprice.py            正式站；有不符時結束代碼 1
@@ -111,6 +112,10 @@ def main():
                 checked += 1
                 if abs(pct(entry, end) - float(shown)) > 0.011:
                     bad.append(f'{who}報酬 {shown}% ≠ （{end}－{entry}）÷{entry}＝{pct(entry, end)}%')
+    # 五、已出場清單裡不該有「同一天進場、同一天因未再提及而出場」的列（只提到一天的買進不算一段持有，v146）。
+    for item in tracker.get('exited') or []:
+        if '未再提及' in str(item.get('exitReason') or '') and item.get('entryDate') and item.get('entryDate') == item.get('lastSell'):
+            bad.append(f"{item.get('name')}（{item.get('code')}）{item.get('entryDate')} 同一天進場、同一天因未再提及出場，不應列在已出場")
     audit = tracker.get('priceAudit')
     print(f'持股追蹤 {len(items)} 檔、{rounds_total} 個回合；核對 {checked} 個價位與報酬（規則：{"當日最高與最低的平均" if args.rule == "mid" else "舊規則：進場最低、出場最高"}）')
     if args.rule == 'mid':

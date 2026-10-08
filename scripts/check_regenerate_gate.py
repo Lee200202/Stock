@@ -72,13 +72,15 @@ print('daily publication: grossly misattributed price level blocked when a verif
 # A real transcript can contain the number but leave the stock unnamed when
 # the speaker switches charts. The per-day human audit must reject a known
 # wrong attribution even if a model cites the same raw segment again.
-golden = {'names': {'2330': '台積電', '6770': '力積電'},
-          'must': {'2330': ['holdings'], '6770': ['holdings']},
-          'note_must_not': {'2330': ['下半年'], '6770': ['1545']}}
-rows = {'holdings': [wrong, bad_level]}
+golden = {'names': {'2330': '台積電', '6770': '力積電', '3443': '創意'},
+          'must': {'2330': ['holdings'], '6770': ['holdings'], '3443': ['watch_watch']},
+          'note_must_not': {'2330': ['下半年'], '6770': ['1545'], '3443': ['記憶體族群']}}
+creative_bad = {'name': '創意', 'code': '3443', 'reason': '創意碰季線，記憶體族群將有一波行情。'}
+creative_right = {'name': '創意', 'code': '3443', 'reason': '創意回來碰季線，沿季線附近整理。'}
+rows = {'holdings': [wrong, bad_level], 'watch_watch': [creative_bad]}
 ok, report = compare(rows, golden)
-assert not ok and '下半年' in report and '1545' in report, report
-rows = {'holdings': [right, same_scale]}
+assert not ok and '下半年' in report and '1545' in report and '記憶體族群' in report, report
+rows = {'holdings': [right, same_scale], 'watch_watch': [creative_right]}
 ok, report = compare(rows, golden)
 assert ok, report
 print('daily golden audit: known wrong stock phrases blocked independently of raw transcript')

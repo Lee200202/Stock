@@ -7,6 +7,7 @@ private spreadsheet. No notification function is called.
 import argparse
 import hashlib
 import json
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -107,9 +108,18 @@ def main():
     if changed_ledgers:
         raise RuntimeError('執行期間寄送帳本有其他工作寫入，需核對：' + '、'.join(changed_ledgers))
     print('正式單日資料已更新；Email／LINE 帳本與每日寄送狀態均保持不變')
-    result = pl.maybe_refresh_site(force=True, only=['smsmail', 'tracker', 'perfhist', 'perf'], date_str=day)
-    if not result or not result.get('ok'):
-        raise RuntimeError('資料已更新，網站刷新尚未完成；請只續跑刷新，不再判讀')
+    # 資料已經寫好，剩下的是請網站重算。Apps Script 暫時連不上或回空白時（2026/10/08 最後一步「記錄績效」），
+    # 等一分鐘只續跑還沒做完的步驟，最多三輪；做完的不重來，也不再判讀。
+    steps = ['smsmail', 'tracker', 'perfhist', 'perf']
+    for attempt in range(3):
+        result = pl.maybe_refresh_site(force=True, only=steps, date_str=day) or {}
+        if result.get('ok'):
+            break
+        steps = steps[int(result.get('done') or 0):] or steps
+        if not result.get('transient') or attempt == 2:
+            raise RuntimeError('資料已更新，網站刷新尚未完成（剩 ' + '、'.join(steps) + '）；請只續跑刷新，不再判讀')
+        print(f'網站刷新剩 {len(steps)} 步未完成（暫時性錯誤），60 秒後只續跑這幾步：' + '、'.join(steps))
+        time.sleep(60)
     print('網站郵件查詢、持股與績效刷新完成；未重新取稿或寄送')
 
 

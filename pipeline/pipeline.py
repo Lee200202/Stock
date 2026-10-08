@@ -1029,6 +1029,15 @@ def maybe_refresh_site(only=None, force=False, date_str="", on_progress=None):
                               f"等 {wait} 秒後重試同一步 {attempt + 2}/3")
                         time.sleep(wait)
                         continue
+                    # 空白回應也要重試（2026/10/08 17:10）：單日更新的資料都寫好了，最後一步「記錄績效」收到一個
+                    # 空白內容，被當成「回應無法解析」直接停掉，整個工作標成失敗。那一天 Apps Script 前端整天在回
+                    # 暫時性 404，空白回應是同一種狀況。每一步都有游標或是覆寫同一筆，重打同一步不會重複計算。
+                    if (not candidate.strip() or resp.status_code >= 500) and not is_error_page and attempt < 2:
+                        wait = 8 * (attempt + 1)
+                        print(f"下游回{'空白內容' if not candidate.strip() else '伺服器錯誤'}（HTTP {resp.status_code}），"
+                              f"多半是 Apps Script 前端的暫時性錯誤，等 {wait} 秒後重試同一步 {attempt + 2}/3")
+                        time.sleep(wait)
+                        continue
                     body = candidate
                     break
                 except requests.exceptions.RequestException as e:
@@ -1082,7 +1091,12 @@ def maybe_refresh_site(only=None, force=False, date_str="", on_progress=None):
                 fail_n += 1
                 step_failed = True
                 sms_sync_progress(i - 1, label, rounds, "回應無法解析")
-                print(f"回應無法解析：{body[:120]}")
+                if not body.strip():
+                    # 重試三次仍是空白：算暫時性失敗（和連不上一樣），不是下游程式錯誤。
+                    transient_fail = True
+                    print(f"下游回空白內容（HTTP {resp.status_code if resp is not None else '未知'}，已重試 3 次）；這一步可以單獨續跑。")
+                else:
+                    print(f"回應無法解析：{body[:120]}")
                 break
 
             if data.get("pending") or data.get("skipped") or (key == 'perfhist' and str(data.get('result', '')).startswith('略過')):

@@ -805,7 +805,7 @@ function publicNarrative_(text, row) {
   text = stripEditorialWrappers_(text).replace(/不準(?=給我|亂|再|去|賣|買|碰|追|用|借|操作|進場|放空|做空)/g, '不准')
     .replace(/(被|遭|獲)(?:張震|張正|張總|張中|講者)(?:老師)?/g, '$1')   // 被動句裡的人名也不寫（v96）
     .replace(/講者(?:本人)?(?:的(?=會員|持股|看法|說法))?/g, '')        // 其餘位置的「講者」也不留（v142）
-    .replace(/(^|[，,。；;：:、「『（(\s]|雖然|但是|但|而且|而|並且|並|且|因為|所以)(?:張震|張正|張總|張中|講者)(?:老師)?(?:本人)?(?:的(?=會員))?/g,'$1')
+    .replace(/(^|[，,。；;：:、「『（(\s]|雖然|但是|但|而且|而|並且|並|且|因為|所以)(?:張震|張正|張總|張中|講者)(?:老師)?(?:本人)?(?:的)?/g,'$1')
     // 只寫「老師」當主詞的句子也一樣（2026/10/06）；只在子句開頭、後面接動作時拿掉。
     .replace(/(^|[，,。；;：:、\s]|雖然|但是|但|而且|而|並且|並|且|因為|所以)老師(?=強調|認為|建議|指出|表示|提醒|判斷|明確|自稱|特別|持續|已|亦|昨日|今日|直言|看好|選擇|並|也|則|以|在|於|將|會|指示|通知|帶領|偏好|這是|自己|手中|說|講|提到|點名|預期|預計|先前|目前|本人)/g,'$1')
     .replace(/老師(?:本人)?(?:的(?=會員|持股|核心|成本|部位|買點)|(?=手中|自己的|持股|持有|買進|賣出|看好|已經|所|最不))/g,'')
@@ -834,7 +834,9 @@ function publicNarrative_(text, row) {
   var seen={},parts=[],earlier='';
   text.split(/[。；;]/).forEach(function(part){
     var key=part.replace(/回顧|過往|目前|\s|[，,]/g,'');
-    if(key && !seen[key] && !restatesEarlier_(key,earlier)){seen[key]=true;earlier+=key;parts.push(part.trim());}
+    // 比對時不算本股自己的名稱（2026/10/08 譜瑞-KY：第二句只多了自己的名字）。
+    var probe=name ? key.split(name).join('') : key;
+    if(key && !seen[key] && !restatesEarlier_(probe,earlier)){seen[key]=true;earlier+=key;parts.push(part.trim());}
   });
   text = collapseKy_((parts.join('。')+(parts.length?'。':'')).replace(/[*＊]+/g,''));
   return sms ? smsNoteBody_(text, row) : text;

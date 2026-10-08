@@ -3524,7 +3524,8 @@ def _drop_meta_clauses(t: str) -> str:
 # 提示詞已經要求省略主詞；這裡只拿掉句首或連接詞後面當主詞的名字，當作偶發違規的保險。
 _SPEAKER_SUBJECT = re.compile(
     r"(^|[，,。；;：:、「『（(\s]|雖然|但是|但|而且|而|並且|並|且|因為|所以)"
-    r"(?:張震|張正|張總|張中|講者)(?:老師)?(?:本人)?(?:的(?=會員))?")
+    # 2026/10/08：「張震的操作邏輯是…」拿掉人名後剩下「的操作邏輯是…」；人名後面的「的」一起拿掉。
+    r"(?:張震|張正|張總|張中|講者)(?:老師)?(?:本人)?(?:的)?")
 
 
 # 只寫「老師」當主詞的句子（2026/10/06 重播：「老師明確表示不建議買進」「老師昨日亦有低接佈局」）。
@@ -7855,7 +7856,10 @@ def public_narrative(text, row=None, signals=None):
     parts, seen = [], set()
     for part in re.split(r'[。；;]', text):
         key = re.sub(r'回顧|過往|目前|\s|[，,]', '', part)
-        if key and key not in seen and not _restates_earlier(key, ''.join(seen)):
+        # 比對時不算本股自己的名稱（2026/10/08 譜瑞-KY「…預期後續將同步跟著向上衝出。預期力積電若突破衝出去，
+        # 譜瑞-KY也會跟著向上衝出。」第二句只多了自己的名字）。
+        probe = key.replace(name, '') if name else key
+        if key and key not in seen and not _restates_earlier(probe, ''.join(seen)):
             seen.add(key);parts.append(part.strip())
     # 已經存進資料的連寫（-KY-KY、-KYKY）在這裡收成一個；沒有資訊的評語子句不留。
     return strip_filler_clauses(re.sub(r'-KY(?:\s*-?\s*KY)+', '-KY', re.sub(r'[*＊]+', '', '。'.join(parts) + ('。' if parts else '')), flags=re.I))
@@ -7880,7 +7884,8 @@ def strip_filler_clauses(text: str) -> str:
             continue
         end = sentence[-1] if sentence[-1] in '。！？!?；;' else ''
         body = sentence[:-1] if end else sentence
-        clauses = [c for c in re.split(r'[，,]', body) if c.strip()]
+        # 數字裡的千分位逗號不是子句分隔（2026/10/08「目標價看至4,410元」被切開後接回成「4，410元」）。
+        clauses = [c for c in re.split(r'，|(?<!\d),|,(?!\d)', body) if c.strip()]
         kept = [c for c in clauses if not (_FILLER_CLAUSE.search(c) and not re.search(r'\d', c))]
         if kept:
             # 留下來的第一個子句如果以連接詞開頭（「且」「並」），把那個字拿掉。
@@ -15391,6 +15396,8 @@ SMS_TWO_SOURCE_REWRITE_SYSTEM = (
     '不能換股票、方向、價位或否定詞，不能加入輸入沒有的數字、法人動向、預測或人名主詞。'
     '不寫會員簡訊、盤中通知、原文、逐字稿等來源名稱，也不寫「依通知」「通知會員」「全部會員都通知」這類話，不把交易價位寫進說明；價位仍保留在輸入的獨立欄位。'
     '不寫推論過程、分類理由或歷史／當日通知的免責套句；有足夠事實時寫2至4句約70至160字，來源不足可以短，不湊字數。'
+    '買入或持有的說明可以交代資金是賣出哪一檔而來，這時把那一檔的名稱寫在同一個子句裡；不可寫成本股賣出。'
+    'rejected_because 有值時，是上一次寫法沒有通過核對的原因，這一次照著改。'
     '只回JSON物件：{"notes":[{"id":"輸入id","text":"重寫說明"}]}。每個id只回一筆。'
 )
 
@@ -15414,42 +15421,85 @@ def rewrite_sms_notes_from_two_sources(entries):
         print(f'簡訊雙來源重寫暫停：{exc}；保留已驗證的原說明與背景')
         return {}
     source = {e['id']: e for e in entries}
-    accepted = {}
-    for row in (data.get('notes', []) if isinstance(data, dict) else []):
-        if not isinstance(row, dict) or row.get('id') not in source:
-            continue
+    bare = lambda n: re.sub(r'(?:-?KY|[＊*])$', '', _display_name(n), flags=re.I)
+
+    def judge(row):
+        """回傳（採用的說明, 沒採用的原因）。原因會印出來，也會交還給模型重寫一次。"""
         e = source[row['id']]
         note = public_narrative(str(row.get('text') or '').strip(), {'name': e['stock'], 'code': e['code']})
         if not 12 <= len(note) <= 240:
-            continue
+            return '', f'長度 {len(note)} 字，要在 12 到 240 字之間'
         if _ev_norm(note) == _ev_norm(e['original']):
-            continue
+            return '', '和原說明一樣，沒有補進影片內容'
         allowed_numbers = set(re.findall(r'\d+(?:\.\d+)?',
                           e['original'] + e['context'] + ''.join(e['quotes']) + e.get('excerpt', '')))
-        if set(re.findall(r'\d+(?:\.\d+)?', note)) - allowed_numbers:
-            continue
+        extra = set(re.findall(r'\d+(?:\.\d+)?', note)) - allowed_numbers
+        if extra:
+            return '', '寫了來源沒有的數字：' + '、'.join(sorted(extra)[:4])
         # 數字先查驗再清理，不能靠刪掉模型杜撰的價格通過驗證。
-        if not _note_fits_direction(e['direction'], note):
-            continue
+        others = {bare(x['stock']) for x in entries if x['code'] != e['code']}
+        if not _note_fits_direction(e['direction'], note, others):
+            return '', f'這一列是{e["direction"]}，說明卻寫成本股賣出或續抱；講別檔的賣出要把那一檔的名稱寫在同一個子句'
         cleaned = public_sms_note(note, {'name': e['stock'], 'code': e['code'], 'price': e['price']})
         # 拿掉交易價之後留下「至少要攻到」「先行將賺取6、」這種半句時整則不採用，退回保守寫法。
         if cleaned != note and _SCRUB_FRAGMENT.search(cleaned) and not _SCRUB_FRAGMENT.search(note):
+            return '', '把交易價位寫進句子裡，拿掉價位後剩下半句；說明不寫交易價位'
+        return (cleaned, '') if len(cleaned) >= 12 else ('', '拿掉價位後不到 12 個字')
+
+    accepted, rejected = {}, {}
+    for row in (data.get('notes', []) if isinstance(data, dict) else []):
+        if not isinstance(row, dict) or row.get('id') not in source:
             continue
-        note = cleaned
-        if len(note) >= 12:
-            accepted[e['id']] = note
+        note, why = judge(row)
+        if note:
+            accepted[row['id']] = note
+        else:
+            rejected[row['id']] = why
+    for e in entries:
+        if e['id'] not in accepted:
+            rejected.setdefault(e['id'], '模型沒有回這一筆')
+    for rid, why in rejected.items():
+        print(f"  簡訊雙來源重寫　{source[rid]['stock']}（{source[rid]['code']}）沒有採用：{why}")
+    # 沒採用的交還給模型重寫一次（2026/10/08 亞德客-KY 的買入說明就停在通知那一句 24 個字）：
+    # 文字仍然由模型寫，程式只把沒通過的原因告訴它，寫回來照同一套核對。
+    if rejected:
+        again = [dict(item, rejected_because=rejected[item['id']]) for item in payload if item['id'] in rejected]
+        try:
+            raw = call_gemini(SMS_TWO_SOURCE_REWRITE_SYSTEM, json.dumps({'items': again}, ensure_ascii=False),
+                              want_json=True, thinking=0, max_out=min(MAX_OUT, 12000), tag='sms-two-source-retry')
+            data = raw if isinstance(raw, dict) else safe_load_json(raw)
+        except Exception as exc:
+            print(f'  簡訊雙來源重寫：重問暫停（{str(exc)[:60]}），沒採用的保留原說明')
+            data = {}
+        for row in (data.get('notes', []) if isinstance(data, dict) else []):
+            if not isinstance(row, dict) or row.get('id') not in rejected:
+                continue
+            note, why = judge(row)
+            who = f"{source[row['id']]['stock']}（{source[row['id']]['code']}）"
+            if note:
+                accepted[row['id']] = note
+                print(f'  簡訊雙來源重寫　{who}重問後採用（{len(note)} 字）')
+            else:
+                print(f'  簡訊雙來源重寫　{who}重問後仍沒有採用：{why}')
     print(f'簡訊雙來源重寫：送出 {len(entries)} 筆，通過本機檢查 {len(accepted)} 筆')
     return accepted
 
 
-def _note_fits_direction(direction, note) -> bool:
-    """說明與這一列的方向沒有打架：買入的說明不能在講賣出，賣出的不能在講續抱，持股的不能在講賣出。"""
+def _note_fits_direction(direction, note, others=()) -> bool:
+    """說明與這一列的方向沒有打架：買入的說明不能在講賣出，賣出的不能在講續抱，持股的不能在講賣出。
+
+    others 是同一天其他個股的名稱：買入的說明交代「賣出世芯-KY的資金轉進來」時，賣出講的是另一檔，不算打架
+    （2026/10/08 亞德客-KY：重寫只要提到資金來源就被退回，說明停在通知那一句）。
+    """
     direction, note = str(direction or ''), str(note or '')
-    if re.search(r'^買', direction) and re.search(r'賣出|賣掉|出清', note):
+    others = [o for o in others if o and len(o) >= 2]
+    sold_here = any(re.search(r'賣出|賣掉|出清', clause) and not any(o in clause for o in others)
+                    for clause in re.split(r'[，,。；;]', note))
+    if re.search(r'^買', direction) and sold_here:
         return False
     if re.search(r'^賣', direction) and _sell_note_contradicts(note):
         return False
-    if re.search(r'持股|持有', direction) and re.search(r'賣出|賣掉|出清', note):
+    if re.search(r'持股|持有', direction) and sold_here:
         return False
     return True
 

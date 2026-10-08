@@ -10205,6 +10205,7 @@ def identify_unnamed_stocks(ss, signals, transcript, date_str):
 SUMMARY_TOPUP_SYSTEM = LESSON_TOPUP_SYSTEM + """
 這輪合併補第①章盤勢與第③章教學。need_macro與need_view是各章不足的點數；只補有缺口的章，不重複existing。
 existing是已經寫好的重點，repeated是先前被退回的重複點。新寫的每一點都要是existing與repeated都沒講過的另一個主題：同一個事件、同一個操作或同一條因果，換句話再講一遍也算重複。共用「60分K／35均」這種工具數字，若一點講當日盤勢、另一點講進出場判斷，不能只因數字相同就當成同一件事。動筆前先看existing各點核心在講什麼，再到原文找還沒寫到的主題；找不到新的主題就少給，不要改寫舊的。
+used_refs是existing與repeated已經引用過的段落編號，fresh_refs是還沒有任何重點引用過的段落：新寫的每一點先從fresh_refs的段落裡找主題（講者在那裡講的另一個觀念、另一個例子、另一條判斷方法），evidence_refs至少要有一段不在used_refs裡。前一輪寫過而被退回的主題不要再寫第二次。
 盤勢kind用level/volume/event/flow，每點70～140字，至少找出三個不同盤勢主題（常見：指數與短線賣壓的時間點、法人或投信的買賣與換股、資金往哪一類股票移動、類股輪動與可能的主流、重大事件與公布時間、不要追高或可以布局的位置）；教學kind=view，每點120～220字。
 盤勢與教學各自都要補到至少三點、彼此主題不同；原文講了五六個主題就多給，不要只挑一個。
 補充盤勢第一點可附headline：講者最有力的一句觀點，口語一句、至少15字（不設上限），驚嘆號或問句收尾，不含姓名日期，用原文的字。每筆text和headline數字必須有引用。
@@ -10304,6 +10305,10 @@ def ensure_article_minimums(signals, transcript, date_str):
     # 2026/10/07：補問最多兩輪。第一輪回來的點若被證據規則剔除，原因會寫在紀錄裡，第二輪把「還缺幾點」再問一次。
     # 補回來的點每一輪都請模型看一次有沒有和已有的講同一件事（judge_same_theme）；被判重複而又缺點時，多給一輪（第三輪）。
     judged_out=False
+    # 2026/10/08：三輪補問每一輪都回同一個主題（「買股票最重要是成本」），教學停在 2 點，單日更新被擋。
+    # 只給 existing 與 repeated 的文字，模型還是回到同一段原文取材；現在另外告訴它哪些段落已經被引用過、哪些還沒有。
+    refs_of=lambda r:{str(x) for x in (r.get('evidence_refs') or []) if isinstance(x,(str,int))}
+    rejected_refs=set()
     for attempt in (1,2,3):
         need_macro=max(0,3-len(verified(False)))
         need_view=max(0,MIN_LESSONS-len(verified(True))) if len(_ev_norm(transcript))>=LESSON_MIN_SOURCE else 0
@@ -10314,6 +10319,8 @@ def ensure_article_minimums(signals, transcript, date_str):
         print(f'章節補問（第 {attempt} 輪）：盤勢缺 {need_macro} 點，教學缺 {need_view} 點，合併一次')
         payload=json.dumps({'video_date':date_str,'need_macro':need_macro,'need_view':need_view,
             'existing':[r.get('text','') for r in market if not r.get('_duplicate_point')], 'repeated':repeated[-6:],
+            'used_refs':sorted(u for u in ({x for r in market if isinstance(r,dict) for x in refs_of(r)}|rejected_refs) if u in batch),
+            'fresh_refs':sorted(k for k in batch if k not in ({x for r in market if isinstance(r,dict) for x in refs_of(r)}|rejected_refs)),
             'source':{k:v['text'] for k,v in batch.items()}},ensure_ascii=False,separators=(',',':'))
         if len((SUMMARY_TOPUP_SYSTEM+payload).encode('utf-8'))+min(MAX_OUT,8000)+4096>cap:
             gaps.append('盤勢內容偏短：完整補問請求超過預算，沿用可驗證內容');break
@@ -10344,7 +10351,9 @@ def ensure_article_minimums(signals, transcript, date_str):
                      else f'和「{twin[0][:18]}…」講同一件事，字面重疊 {twin[1]:.0%}' if twin else market_item_why(row,hay))
                 if why:
                     print(f"  補問的{label}重點未採用（{why}）：{row['text'][:48]}")
-                    if key in seen or twin:repeated.append(row['text'])
+                    if key in seen or twin:
+                        repeated.append(row['text'])
+                        rejected_refs|=refs_of(row)      # 這幾段寫出來的是重複的主題，下一輪請它換段落
                     continue
                 row['_evidence_verified']=True;row['_summary_topup']=True
                 market.append(row);seen.add(key);took+=1

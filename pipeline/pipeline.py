@@ -6175,7 +6175,8 @@ def explicit_today_trades(transcript, names, cat):
         notice = re.compile(day + r'[^。！？!?]*(?:通知|告訴)[^。！？!?]*會員[^。！？!?]*買進[^。！？!?]{0,12}' + nm)
     pats = [re.compile(p) for p in pats]
     hits = []
-    for s in _plain_sentences(transcript):
+    sentences = _plain_sentences(transcript)
+    for index, s in enumerate(sentences):
         if _TRADE_ASK.search(s) or not any(n in s for n in names):
             continue
         m = notice.search(s) or next((p.search(s) for p in pats if p.search(s)), None)
@@ -6185,6 +6186,13 @@ def explicit_today_trades(transcript, names, cat):
         # 賣的人是外資、投信、ETF 這些第三方時，不是講者的成交（「今天外資大賣陽明三萬張」「00981A今天賣緯穎」）。
         if _THIRD_PARTY.search(before) and not re.search(r'我|會員', before):
             continue
+        if cat == 'buy' and re.search(r'(?:我|我們)買了?(?:一隻|一支|一檔)?股票[，,]?' + nm, s):
+            prefix = ''.join(sentences[max(0, index - 6):index])[-220:]
+            today_at = max((m.start() for m in _TRADE_TODAY.finditer(prefix)), default=-1)
+            past_at = max((m.start() for m in _TRADE_NOT_TODAY.finditer(prefix)), default=-1)
+            if today_at > past_at:
+                hits.append(prefix[today_at:] + s)  # 時間詞在前幾句，與完成動作一起保留
+                continue
         other = [x.end() for x in _TRADE_NOT_TODAY.finditer(before)]
         today = [x.end() for x in _TRADE_TODAY.finditer(before)]
         if other and (not today or other[-1] > today[-1]) and not notice.search(s):
@@ -8420,7 +8428,7 @@ def preserve_explicit_holdings(signals, transcript):
             if not owned:
                 for scope, _ in scopes:
                     for heard in _row_names_for_recap(row):
-                        match = re.search(re.escape(heard) + r'[^。！？!?]{0,110}(?:你(?:們)?繼續抱著|繼續抱著|續抱)', scope)
+                        match = re.search(re.escape(heard) + r'.{0,110}(?:你(?:們)?繼續抱著|繼續抱著|續抱)', scope, re.S)
                         if match and not re.search(r'如果|假如|假設|倘若|已經.{0,6}(?:賣掉|出清)|全部賣|已賣', match.group()):
                             owned, continuation = True, scope
                             break

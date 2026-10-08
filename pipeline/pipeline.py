@@ -7937,6 +7937,29 @@ _NEGATED = re.compile(r'(?:切勿|不要|不能|別|不宜|勿|不會|不必|無
 # 只統計、不改資料。「硬傷」是不該出現在公開內容裡的東西（重播與單日更新會當成錯誤擋下）；
 # 「留意」是品質上值得看一眼的（說明太短、沒有任何具體位置或數字）。
 _CONCRETE = re.compile(r'\d|季線|年線|月線|週線|均線|頸線|缺口|MACD|KD|量縮|量增|放量|爆量|買超|賣超|漲停|跌停|長紅|長黑|打底|底部|成本|營收|外資|投信|ETF')
+_NOTE_TIME = re.compile(r'上半年|下半年|明年|去年|下個月|上個月|下一季|上一季|第[一二三四]季|下週|上週|下個禮拜|上個禮拜|下星期|上星期')
+
+
+def _unsupported_note_time(note, row, transcript):
+    """Published time claims must be supported by this stock's own source.
+
+    The context-writing pass already checks its new sentences.  This final
+    gate also checks the original/model note, which may bypass that pass.
+    """
+    def normalized(value):
+        value = _ev_norm(value)
+        return re.sub(r'([上下])(?:個)?(?:禮拜|星期|週)', r'\1週', value)
+
+    claimed = set(_NOTE_TIME.findall(str(note or '')))
+    if not claimed or not transcript:
+        return []
+    evidence = ''.join(q for q in (row.get('evidence') or []) if isinstance(q, str))
+    source = normalized(evidence)
+    missing = [term for term in claimed if normalized(term) not in source]
+    if missing:
+        own = ''.join(chunk[0] for chunk in _entity_scope(row, {}, transcript))
+        source += normalized(own)
+    return [term for term in missing if normalized(term) not in source]
 
 
 def quality_overview(signals, transcript=''):
@@ -7957,6 +7980,10 @@ def quality_overview(signals, transcript=''):
             hard.append(f'{name} 的說明寫了人當主詞：{note[:30]}')
         if transcript and _foreign_profit_claim(note, _row_names_for_recap(r), transcript):
             hard.append(f'{name} 的說明提到獲利狀況，原文沒有任何一句同時講到這一檔與獲利：{note[:30]}')
+        if transcript:
+            missing_time = _unsupported_note_time(note, r, transcript)
+            if missing_time:
+                hard.append(f'{name} 的說明時間詞無本股原句：{"、".join(missing_time)}；{note[:45]}')
         if transcript and cat == 'watch_avoid' and not r.get('_carried_forward') and r.get('_原分類') not in ('buy', 'sell') \
                 and borrowed_avoidance(_row_names_for_recap(r), _other_entity_names(r, signals, transcript), transcript):
             hard.append(f'{name} 列觀望不碰，但這一檔自己沒有偏空說法，否定的是前一句的別家')

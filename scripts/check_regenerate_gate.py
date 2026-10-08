@@ -48,3 +48,15 @@ with patch.object(pl, 'call_gemini', return_value=json.dumps({'groups': [['p0', 
     assert pl.judge_same_theme(rows) == 0
 assert not rows['market'][2].get('_duplicate_point')
 print('cross-chapter semantic audit: shared 60/35 alone does not drop a lesson')
+
+# The context-writing pass checks only sentences it adds. A model's original
+# published note can still invent a period (10/08 台積電: 下半年 vs 下週).
+tsmc = {'name': '台積電', 'code': '2330', 'evidence': ['下個禮拜台積電要公布營收、法說會']}
+raw = '下個禮拜台積電要公布營收、法說會。' + '其他行情說明。' * 30
+wrong = {**tsmc, 'note': '台積電穩穩抱著，下半年法說會前表現強勢。'}
+_, hard, _ = pl.quality_overview({'holdings': [wrong]}, raw)
+assert any('台積電' in e and '時間詞無本股原句：下半年' in e for e in hard), hard
+right = {**tsmc, 'note': '台積電穩穩抱著，下週法說會前留意表現。'}
+_, hard, _ = pl.quality_overview({'holdings': [right]}, raw)
+assert not any('時間詞無本股原句' in e for e in hard), hard
+print('daily publication: unsupported stock time blocked, 下個禮拜／下週 accepted')

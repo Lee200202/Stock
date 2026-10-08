@@ -6257,7 +6257,11 @@ def enforce_explicit_trades(signals, transcript):
                         signals[c] = [r for r in signals.get(c, []) or [] if not (isinstance(r, dict) and _signal_names(r) & ns)]
                 moved = dict(row, when='today', time_evidence=hits[0])
                 moved['evidence'] = list(dict.fromkeys([q for q in (row.get('evidence') or []) if isinstance(q, str)] + hits[:3]))
-                if not re.search(r'賣' if want == 'sell' else r'買', str(moved.get('reason') or '')):
+                # 模型原本寫的說明有內容就留著（2026/10/08 亞德客-KY）：先前只要說明裡沒有「買」字就整段換成原句，
+                # 年線、營收、EPS 那些內容全部丟掉；之後補充說明若沒通過核對，公開的就是一句口語殘句，整輪被品質關卡擋下。
+                # 買賣方向另有欄位，說明不必重複「買進」兩個字。只有說明是空的或只有一兩句話時才用原句、交給補充說明重寫。
+                had = str(moved.get('reason') or '')
+                if not re.search(r'賣' if want == 'sell' else r'買', had) and len(_ev_norm(had)) < 20:
                     moved['reason'] = spoken_to_note(hits[0])
                     moved['_leftover'] = True
                 moved['_原分類'] = cat

@@ -83,6 +83,18 @@ with sync_playwright() as p:
         pg.goto(f'http://127.0.0.1:{srv.server_port}/admin.html', wait_until='domcontentloaded')
         pg.locator('#key').fill('local-mock-key'); pg.locator('#loginBtn').click()
         pg.wait_for_selector('#app:not([hidden])', timeout=15000)
+        links = pg.evaluate("""() => [...document.querySelectorAll('a.loglink, a.admin-link')].map(a => ({
+          id: a.id || a.textContent.trim(), href: a.getAttribute('href'),
+          height: a.getBoundingClientRect().height,
+          radius: getComputedStyle(a).borderTopLeftRadius,
+          visible: !!a.offsetParent
+        }))""")
+        for link in links:
+            assert link['href'] and link['href'] != '#', (w, 'dead link', link)
+            assert link['href'].startswith(('https://github.com/Lee200202/Stock/actions/',
+                                            'https://script.google.com/home/projects/')), (w, 'unexpected destination', link)
+            if link['visible']:
+                assert link['height'] >= 44 and link['radius'] != '0px', (w, 'link target', link)
         for tab in ['post', 'manual', 'held', 'maint', 'smsadmin', 'ops', 'line', 'ver']:
             pg.locator(f'button.tab[data-tab="{tab}"]').click(); pg.wait_for_timeout(500)
             if tab == 'post':

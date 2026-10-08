@@ -440,7 +440,6 @@
 .runbar .where { font-size: calc(11px * var(--rd-fs)); color: var(--muted); border: 1px solid var(--rule);
                  border-radius: 99px; padding: 2px 9px; background: var(--panel); }
 .runbar .loglink { color: var(--beam); font-size: calc(12.5px * var(--rd-fs)); font-weight: 600; text-decoration: none; }
-.runbar .loglink:hover { text-decoration: underline; }
 .runbar .rstat { font-size: calc(12px * var(--rd-fs)); color: var(--muted); }
 .runbar .rstat.fail { color:var(--rise); flex-basis:100%; padding:8px 10px;
   border-left:3px solid var(--rise); background:color-mix(in srgb,var(--rise) 8%,transparent); }
@@ -1204,6 +1203,31 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
 .decision-reason { margin: 14px 0 0; padding: 14px 18px; border-radius: var(--r-md); background: var(--panel-2); line-height: 1.8; overflow-wrap: anywhere; }
 @media (max-width: 760px) { .decision-card { padding: 18px; } }
 @media (prefers-reduced-motion: reduce) { .hrow-wrap, .hrow-view { transition: none; } }
+/* 後台外連與作業日誌採用同一套可點選的橢圓控制項。 */
+.admin-link-row { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0; }
+.panel a.loglink, .panel a.admin-link {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 44px; box-sizing: border-box; padding: 9px 18px;
+  border: 1px solid var(--rule); border-radius: var(--r-pill);
+  background: var(--panel); color: var(--beam); font-size: calc(13px * var(--rd-fs));
+  font-weight: 700; line-height: 1.45; text-decoration: none; text-align: center;
+  transition: border-color .18s ease, background-color .18s ease, transform .18s ease;
+}
+.panel a.loglink:hover, .panel a.admin-link:hover {
+  border-color: var(--beam); background: color-mix(in srgb, var(--beam) 9%, var(--panel));
+  text-decoration: none; transform: translateY(-1px);
+}
+.panel a.loglink:focus-visible, .panel a.admin-link:focus-visible {
+  outline: 3px solid var(--beam); outline-offset: 3px;
+}
+@media (max-width: 520px) {
+  .admin-link-row > a { flex: 1 1 100%; }
+  .runbar a.loglink { flex: 1 1 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .panel a.loglink, .panel a.admin-link { transition: none; }
+  .panel a.loglink:hover, .panel a.admin-link:hover { transform: none; }
+}
 </style>
 </head>
 <body>
@@ -1319,7 +1343,7 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
         </div>
         <p class="hint">綠＝完成　黃＝進行中／待核對　紅＝需處理　灰＝休市或未到時間</p>
         <div class="automation-grid" id="todayAutomation" aria-live="polite"><div class="erow-empty">讀取取稿、稽核與寄送狀態中…</div></div>
-        <p class="hint"><a href="https://github.com/Lee200202/Stock/actions/workflows/transcript.yml" target="_blank" rel="noopener">取稿即時日誌</a>　·　<a href="https://github.com/Lee200202/Stock/actions/workflows/daily.yml" target="_blank" rel="noopener">Pipeline 即時日誌</a></p>
+        <div class="admin-link-row" aria-label="自動化執行紀錄"><a class="admin-link" href="https://github.com/Lee200202/Stock/actions/workflows/transcript.yml" target="_blank" rel="noopener">取稿即時日誌 ↗</a><a class="admin-link" href="https://github.com/Lee200202/Stock/actions/workflows/daily.yml" target="_blank" rel="noopener">每日流程日誌 ↗</a></div>
         <div class="health" id="todayHealth"><div class="erow-empty">讀取中…</div></div>
         <details class="dz timeline-dz">
           <summary><span class="dz-t">今天的時間軸</span><span class="dz-hint">系統狀態、工單、逐日編輯同步、成本覆寫與績效寫入，依時間排</span></summary>
@@ -1431,7 +1455,7 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
         <div class="pnote" id="progNote"></div>
         <div class="runbar" id="runLink">
           <span class="where">在 GitHub Actions 執行</span>
-          <a class="loglink" id="runA" href="#" target="_blank" rel="noopener">查看即時日誌 →</a>
+          <a class="loglink" id="runA" href="https://github.com/Lee200202/Stock/actions/workflows/daily.yml" target="_blank" rel="noopener">查看每日流程 →</a>
           <span class="rstat" id="runStat"></span>
         </div>
         <div class="btnrow" style="margin-top:14px">
@@ -1577,7 +1601,7 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
         <div class="amsg" id="mChainMsg"></div>
         <div class="runbar" id="mRun">
           <span class="where">郵件、持股追蹤與績效依序在背景更新，全部成功才顯示完成</span>
-          <a class="loglink" id="mLog" href="#" target="_blank" rel="noopener">查看執行紀錄 →</a>
+          <a class="loglink" id="mLog" href="https://script.google.com/home/projects/1eTCOyRy7G9YoG_UaO_LTPgesYmhPjpjzT4ItmXjyE71Q4JrARliIjYIE/executions" target="_blank" rel="noopener">查看 Apps Script 執行紀錄 ↗</a>
         </div>
       </div>
 
@@ -1651,7 +1675,7 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
           <div class="amsg" id="refMsg"></div>
           <div class="runbar" id="refRun">
             <span class="where">在 GitHub Actions 執行</span>
-            <a class="loglink" id="refLog" href="#" target="_blank" rel="noopener">查看即時日誌 →</a>
+            <a class="loglink" id="refLog" href="https://github.com/Lee200202/Stock/actions/workflows/daily.yml" target="_blank" rel="noopener">查看每日流程 →</a>
             <span class="rstat" id="refStat"></span>
           </div>
         </div>
@@ -1698,8 +1722,8 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
           <div class="amsg" id="cleanMsg"></div>
           <div class="runbar" id="fullRun">
             <span class="where">在 GitHub Actions 執行</span>
-            <a class="loglink" id="fullLogGh" href="#" target="_blank" rel="noopener">每一棒的日誌 →</a>
-            <a class="loglink" id="fullLog" href="#" target="_blank" rel="noopener">每一天的判定 →</a>
+            <a class="loglink" id="fullLogGh" href="https://github.com/Lee200202/Stock/actions/workflows/daily.yml" target="_blank" rel="noopener">每一棒的日誌 ↗</a>
+            <a class="loglink" id="fullLog" href="https://script.google.com/home/projects/1eTCOyRy7G9YoG_UaO_LTPgesYmhPjpjzT4ItmXjyE71Q4JrARliIjYIE/executions" target="_blank" rel="noopener">每一天的判定 ↗</a>
             <span class="rstat" id="fullStat"></span>
           </div>
         </div>
@@ -1760,7 +1784,7 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
           </div>
           <div class="runbar" id="fixRun">
             <span class="where">在 Apps Script 執行</span>
-            <a class="loglink" id="fixLog" href="#" target="_blank" rel="noopener">查看執行紀錄 →</a>
+            <a class="loglink" id="fixLog" href="https://script.google.com/home/projects/1eTCOyRy7G9YoG_UaO_LTPgesYmhPjpjzT4ItmXjyE71Q4JrARliIjYIE/executions" target="_blank" rel="noopener">查看 Apps Script 執行紀錄 ↗</a>
           </div>
           <ul class="tip">
             <li>重寫郵件會先補齊空白的代號，補不出來的標成「代號待確認」。</li>
@@ -1875,7 +1899,7 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
           <div class="amsg" id="smsMsg"></div>
           <div class="runbar" id="smsRun">
             <span class="where">在 GitHub Actions 背景執行</span>
-            <a class="loglink" id="smsLog" href="#" target="_blank" rel="noopener">查看即時日誌 →</a>
+            <a class="loglink" id="smsLog" href="https://github.com/Lee200202/Stock/actions/workflows/daily.yml" target="_blank" rel="noopener">查看每日流程 →</a>
             <span class="rstat" id="smsStat"></span>
           </div>
 
@@ -2247,7 +2271,7 @@ function render(d){
      而且立刻顯示——不必等按了才出現，人在按之前就該知道等一下要去哪裡看。 */
   EXEC_URL = d.execUrl || '';
   if(EXEC_URL){
-    ['fixLog','fullLog'].forEach(function(id){ $(id).href = EXEC_URL; });
+    ['mLog','fixLog','fullLog'].forEach(function(id){ $(id).href = EXEC_URL; });
     ['fixRun','fullRun'].forEach(function(id){ $(id).classList.add('show'); });
   }
 

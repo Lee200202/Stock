@@ -585,7 +585,9 @@ function opsTimelineFor_(day, logs, mail) {
   });
   [ADMIN_JOB_SHEET, AUTO_JOB_SHEET].forEach(function (name) {
     try {
-      readSheetObjects_(name).filter(function (r) { return String(r['開始時間'] || '').indexOf(day) === 0; })
+      // v152：工單表只往後加。看今天時只讀表尾（最上面那一列還是今天就再往前讀）；查過去的日期才整張讀。
+      var ofDay = function (r) { return String(r['開始時間'] || '').indexOf(day) === 0; };
+      (day === todayStr_() && typeof readSheetTailObjects_ === 'function' ? readSheetTailObjects_(name, 200, ofDay) : readSheetObjects_(name)).filter(ofDay)
         .forEach(function (r) {
           timeline.push({ time: String(r['開始時間']).slice(11, 16), kind: name === AUTO_JOB_SHEET ? '自動工單' : '後台工單',
                           text: String(r['狀態'] || '') + '：' + String(r['步驟'] || '') + (r['備註'] ? '｜' + String(r['備註']).slice(0, 80) : ''),
@@ -684,17 +686,19 @@ function adminTodaySmsOriginals_(day, rows) {
 }
 
 /* 今日自動化、寄送與會員簡訊明細；不以排程存在代替完成證據。 */
-function apiAdminTodayStatus(key) {
+function apiAdminTodayStatus(key, part) {
   /* v152 讀取速度：這一支只讀不寫，包進唯讀快照——同一個請求裡同一張表只讀一次
      （寄送帳本原本被今日寄送、近幾日寄送、時間軸各讀一次）。每一次請求仍然重新讀試算表，不跨請求沿用。
      回傳多一個 ms（後端花了幾毫秒），畫面的更新時間旁邊看得到。 */
   var t0 = Date.now();
   var out = typeof withSheetSnapshot_ === 'function'
-    ? withSheetSnapshot_(function () { return apiAdminTodayStatusRun_(key); }) : apiAdminTodayStatusRun_(key);
+    ? withSheetSnapshot_(function () { return apiAdminTodayStatusRun_(key, part); }) : apiAdminTodayStatusRun_(key, part);
   if (out && out.ok) { out.ms = Date.now() - t0; }
   return out;
 }
-function apiAdminTodayStatusRun_(key) {
+/* part === 'today'：只給「今日與投稿」那張卡片用，不讀行情完整性（正式後台實測那一段 3.5 秒，卡片用不到）；
+   自動化監控分頁不帶這個參數，照舊拿全部。 */
+function apiAdminTodayStatusRun_(key, part) {
   try {
     adminAuth_(key);
     var today = todayStr_(), hm = Number(Utilities.formatDate(new Date(), TZ, 'HHmm'));
@@ -917,7 +921,7 @@ function apiAdminTodayStatusRun_(key) {
       tone: !readMetrics.length ? 'idle' : maxReadMs >= 15000 ? 'err' : maxReadMs >= 8000 ? 'warn' : 'ok',
       hint: readMetrics.length ? readMetrics.map(function (m) { return ({apiGetDashboard:'總覽',apiGetStockSummary:'個股摘要',apiGetQuotesFor:'批次報價'})[m.method] + ' ' + (m.ms / 1000).toFixed(1) + ' 秒／' + m.at; }).join('；') + '。' : '近 15 分鐘沒有查詢。' });
     lap('提醒與流程');
-    var quoteHealthNow = typeof quoteCacheStatus === 'function' ? quoteCacheStatus() : null;
+    var quoteHealthNow = part !== 'today' && typeof quoteCacheStatus === 'function' ? quoteCacheStatus() : null;
     lap('行情狀態');
     return { ok: true, today: today, now: Utilities.formatDate(new Date(), TZ, 'HH:mm'), items: items, laps: laps,
       automation: automation, smsOriginals: smsOriginals, smsOperations: smsOperations.slice(0, 40),

@@ -4613,7 +4613,7 @@ var mergeTxFingerprint='';
       $('todayHealth').innerHTML = '<div class="erow-empty">連線失敗，按「查看最新狀態」再試一次。</div>';
       $('todayAutomation').innerHTML = '<div class="erow-empty">流程狀態連線失敗，尚不能確認是否正常。</div>';
       $('todaySmsOps').textContent = '會員簡訊資料連線失敗';
-    }).apiAdminTodayStatus(KEY);
+    }).apiAdminTodayStatus(KEY, 'today');   // v152：這張卡片用不到行情完整性，不讓後端多讀那一段
   }
   window.__loadToday = function (force) { load(!!force); };
   if ($('todayBtn')) { $('todayBtn').addEventListener('click', function () { load(true); }); }

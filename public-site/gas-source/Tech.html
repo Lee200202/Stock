@@ -431,6 +431,23 @@
     </div>
   </section>
 
+  <section class="tech-section" id="tech-open">
+    <h2 data-toc="未解決">還沒解決的事</h2>
+    <p>前一章講的是這個網站本來就不做的事；這一章是<mark class="hl">做了、實際出過問題、到現在還沒根治</mark>的事。每一題都寫發生的日期與數字、現在用什麼辦法擋、還缺什麼，不把「已經緩解」寫成「已經解決」。</p>
+    <div class="tech-lab open-lab">
+      <p class="tech-demo-h">點一個問題，看它實際發生過什麼</p>
+      <div class="tech-options is-long" role="group" aria-label="還沒解決的問題"><button type="button" data-open="0" aria-pressed="true">沒報名字的那一段</button><button type="button" data-open="1" aria-pressed="false">前後文要抓多長</button><button type="button" data-open="2" aria-pressed="false">每次判讀不一樣</button><button type="button" data-open="3" aria-pressed="false">流程停在半路</button><button type="button" data-open="4" aria-pressed="false">過期資料被送出</button><button type="button" data-open="5" aria-pressed="false">一次一個長請求</button><button type="button" data-open="6" aria-pressed="false">說明不夠深</button></div>
+      <p class="open-title" id="openTitle" aria-live="polite"><b>整段分析沒有報名字，聽不出是哪一檔</b><span class="open-state tone-stop">未解決</span></p>
+      <ol class="tech-path" id="openPath"><li class="tone-stop"><span class="tp-k">實際發生</span><p>10/08 節目有一段只說「這一支股票」：最高點 1545、突破就起飛、月 K 線 MACD 翻紅。畫面上看得出是哪一檔，語音稿裡沒有名字。這一段先後被寫進力積電（股價 72 元）和譜瑞-KY（558 元）的說明。</p></li><li class="tone-warn"><span class="tp-k">現在怎麼擋</span><p>說明與重點裡的價位，要落在那一檔股價的 0.4 到 2.2 倍之間才留；對不回任何一檔的整段分析當成雜訊，不列成個股，也不去猜。</p></li><li class="tone-skip"><span class="tp-k">還缺什麼</span><p>這段分析就此從網站上消失。要認出是哪一檔，得讀畫面上的代號（影像辨識）或由人補登，兩件事都還沒做。</p></li></ol>
+    </div>
+    <p class="pain-lead">想試的方向（都還沒做）：</p>
+    <ul class="pain-cards open-ideas" aria-label="想試的方向">
+      <li class="pain-card"><div class="pc-head"><span class="pc-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/><path d="M8 10.5h5"/></svg></span><b>判讀</b></div><ul class="pc-points open-points"><li>讀畫面上的股票代號，補上語音稿沒有的名字；沒把握的仍然不列。</li><li>不用固定的前後幾句，改成先把原文切成「一段講一檔」，說明只從那一檔自己的段落取材。</li><li>同一份原稿判讀三次，三次一致的直接採用，不一致的才交給規則與人工答案。</li></ul><p class="pc-where">對應：沒報名字、前後文、每次不一樣、說明不夠深</p></li>
+      <li class="pain-card"><div class="pc-head"><span class="pc-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10a4 4 0 0 1 0 8H8a4 4 0 0 0 0 8h12"/><path d="M17 19l3 3-3 3" transform="translate(0 -3)"/></svg></span><b>自動化</b></div><ul class="pc-points open-points"><li>每一步帶一個唯一編號；回應遺失時重問同一個編號，後端認得「這一步做過了」，不必猜。</li><li>長工作改成排隊加查詢進度，呼叫端不必抓著一個請求等六分鐘。</li><li>後台今日狀態把時間軸與近幾日寄送改成展開時才讀。</li></ul><p class="pc-where">對應：流程停在半路、一次一個長請求</p></li>
+      <li class="pain-card"><div class="pc-head"><span class="pc-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5.2l3.4 2"/></svg></span><b>資料新舊</b></div><ul class="pc-points open-points"><li>備份超過 12 分鐘就直接回後端讀；後端也失敗時明講讀不到，不送舊的。</li><li>畫面在資料時間旁邊標出「幾分鐘前」，超過上限時換成提醒。</li></ul><p class="pc-where">對應：過期資料被送出</p></li>
+    </ul>
+  </section>
+
   <section class="tech-section tech-faq" id="tech-faq">
     <h2>常見問題</h2>
     <div class="qa">
@@ -997,6 +1014,21 @@
     play(one('#painPath'));
   }
   all('[data-pain]').forEach(function (b) { b.addEventListener('click', function () { drawPain(Number(b.dataset.pain)); }); });
+
+  /* ---------- v155 還沒解決的事（靜態內容，不呼叫資料）：點一題換標題、狀態與三格說明 ---------- */
+  var OPENS = [{"t": "整段分析沒有報名字，聽不出是哪一檔", "tone": "stop", "state": "未解決", "steps": ["10/08 節目有一段只說「這一支股票」：最高點 1545、突破就起飛、月 K 線 MACD 翻紅。畫面上看得出是哪一檔，語音稿裡沒有名字。這一段先後被寫進力積電（股價 72 元）和譜瑞-KY（558 元）的說明。", "說明與重點裡的價位，要落在那一檔股價的 0.4 到 2.2 倍之間才留；對不回任何一檔的整段分析當成雜訊，不列成個股，也不去猜。", "這段分析就此從網站上消失。要認出是哪一檔，得讀畫面上的代號（影像辨識）或由人補登，兩件事都還沒做。"]}, {"t": "每一檔的前後文要抓多長", "tone": "warn", "state": "已緩解", "steps": ["每一檔的說明只能用提到它名字的前後幾句，遇到別家公司就切開。10/08 勤誠的「買 880 以下」原文講了四次，卻因為同一個數字在另一處離力積電比較近，連續好幾輪被當成別檔的價位刪掉，說明只剩「風險很小，續抱」。", "改成逐次判斷：數字只要有一次出現在本檔自己的段落，就算本檔的；之後再和行情核對一次。", "口語常隔了很多句才回頭講同一檔，或只說「它」。「我買 74 的」前一句剛好在講鈺邦，力積電的成本 74 到現在還是會被刪。範圍抓短會漏、抓長會把別檔帶進來，兩邊都還會錯。"]}, {"t": "同一份原稿，每次判讀的結果不一樣", "tone": "warn", "state": "已緩解", "steps": ["10/08 同一份 10,477 字的原稿重跑了十幾次，每次被擋下的原因都不同：鴻海的觀眾提問被當成可以買、亞德客-KY 的買進被改成回顧、力積電變成觀望、世芯-KY 被放到觀望不碰、教學重點只剩兩點。", "每一輪都要通過通用檢查與當天的人工答案，沒過就不寫入正式資料；紀錄裡寫明這一輪模型直接產出幾檔、規則介入幾檔。", "錯的擋得住，但常要重跑好幾次才有一次全過。人工答案要人先寫好；沒有答案的日子只剩通用檢查。"]}, {"t": "自動流程可能停在半路", "tone": "warn", "state": "已緩解", "steps": ["10/08 傍晚 Google Apps Script 的網頁端連續回「找不到頁面」和空白內容。單日更新的資料都寫好了，最後一步「記錄績效」收到空白回應，整個工作被標成失敗（後端其實做完了）；逐日編輯同步也連續失敗兩次。", "同一步重試三到五次；還是不行就存檢查點，由每五分鐘的排程接續，做完的步驟不重來。", "會停多久取決於 Google 那一端。回應遺失時，呼叫端分不出是「沒做」還是「做完了沒回」，只能再問一次。"]}, {"t": "過期的備份被當成現況送出去", "tone": "stop", "state": "未解決", "steps": ["同一個傍晚，公開 API 把 16 分鐘前的總覽、61 分鐘前的郵件內容送給讀者。原本的設計是：背景備份超過 12 分鐘沒有重新核對就不用，寧可慢一次。", "每個回應都帶著備份的年齡。資料更新之後，用它確認讀者拿到的是新版本，不是舊備份。", "後端連不上時舊備份照樣被送出，12 分鐘的上限沒有真的擋住；畫面上也沒有提醒讀者「這是幾分鐘前的資料」。"]}, {"t": "後端之間一次只做一個長請求", "tone": "warn", "state": "已緩解", "steps": ["雲端工作機請網站重算時，是一個請求一路等到做完；Google Apps Script 單次執行上限六分鐘。補日 K、重算持股、重寫績效歷史都得切成好幾棒。後台「今日狀態」一次讀十幾張表，10/08 實測後端要 16 秒。", "每一棒自己存進度。同一張表在一次請求裡只讀一次、紀錄表只讀今天那一段，16 秒降到 7.8 秒。", "沒有排隊和完成通知，呼叫端只能等或重問；7.8 秒還是太慢。"]}, {"t": "個股說明寫得不夠深", "tone": "warn", "state": "已緩解", "steps": ["10/08 的郵件被指出個股說明太簡略，例如只寫「明確表示絕不買宏達電」，原文其實有理由（買股票要看老闆）。查紀錄發現：模型補充說明時把每一檔寫成一句長句，裡面有一個數字對不上，整段就都不採用。", "拆成一句一句核對，沒問題的留下；提示詞要求寫出不買的理由、在等的訊號和原文講的數字。", "個股說明平均還在 40 到 50 字，目標是 70 到 160 字。原文只有一句的股票只能短；核對越嚴留下的越少，「有依據」和「夠詳細」之間還在找平衡。"]}];
+  var OPEN_LABELS = [['stop', '實際發生'], ['warn', '現在怎麼擋'], ['skip', '還缺什麼']];
+  function drawOpen(i) {
+    var o = OPENS[i];
+    if (!o || !one('#openPath')) return;
+    select(all('[data-open]'), all('[data-open]')[i]);
+    one('#openTitle').innerHTML = '<b>' + esc(o.t) + '</b><span class="open-state tone-' + o.tone + '">' + esc(o.state) + '</span>';
+    one('#openPath').innerHTML = o.steps.map(function (text, n) {
+      return '<li class="tone-' + OPEN_LABELS[n][0] + '"><span class="tp-k">' + OPEN_LABELS[n][1] + '</span><p>' + esc(text) + '</p></li>';
+    }).join('');
+    play(one('#openPath'));
+  }
+  all('[data-open]').forEach(function (b) { b.addEventListener('click', function () { drawOpen(Number(b.dataset.open)); }); });
 
   /* ---------- v108 原稿版本與稽核狀態（示意）：一份資料表同時產生指紋、六段狀態與結果卡 ---------- */
   var TX_STAGE = ['原稿', '潤飾片段', '判讀與證據', '網站文章', '寄送關卡', '背景績效'];

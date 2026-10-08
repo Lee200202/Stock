@@ -66,6 +66,18 @@ def main():
     overview, hard, soft = pl.quality_overview(captured['signals'], raw)
     for line in overview:
         print('品質概況：' + line)
+    # 這一輪實際會公開的文字（2026/10/08）：預覽只印統計看不出說明寫得好不好，逐檔印出來才能在套用前判斷。
+    signals_now = captured['signals']
+    print('公開內容預覽：')
+    for row in signals_now.get('market') or []:
+        if isinstance(row, dict) and row.get('_evidence_verified') and not row.get('_duplicate_point'):
+            print(f"  {'教學' if row.get('kind') == 'view' else '盤勢'}　{str(row.get('text') or '')}")
+    for cat, label in (('buy', '買入'), ('sell', '賣出'), ('holdings', '持股'), ('watch_watch', '觀望注意'), ('watch_avoid', '觀望不碰')):
+        for row in signals_now.get(cat) or []:
+            if not isinstance(row, dict) or (row.get('_date') or day) != day:
+                continue
+            text = pl.public_narrative(str(row.get('note' if cat == 'holdings' else 'reason') or ''), row, signals_now)
+            print(f"  {label}　{row.get('name')}（{len(text)} 字）：{text}")
     errors = list(errors) + hard                     # 硬傷和通用檢查一樣擋下，不寫入正式資料
     warnings = list(warnings) + [x for x in soft if x not in warnings]
     for error in errors:

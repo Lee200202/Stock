@@ -2476,6 +2476,21 @@ function snapshotPerformanceJobRun_() {
   var t = getHoldingsTracker();
   if (!t.summary) { Logger.log('尚無可統計的持股，略過'); return; }
 
+  /* v145：取價規則換過之後（進出場改取當日高低平均），過去每一天的績效要用新的進場價重算，
+     否則走勢圖前半段是舊規則、今天起是新規則，接不起來。重算成功才拿掉記號；失敗就留著，下一次再試。 */
+  try {
+    var props = PropertiesService.getScriptProperties();
+    if (props.getProperty('PERF_HISTORY_REBUILD_DUE')) {
+      var redo = rebuildPerformanceHistoryJob();
+      if (redo && redo.ok && !redo.skipped) {
+        props.deleteProperty('PERF_HISTORY_REBUILD_DUE');
+        Logger.log('取價規則變更後的歷史每日績效已重算完成。');
+      } else {
+        Logger.log('歷史每日績效重算尚未完成，保留記號下次再試：' + JSON.stringify(redo || {}).slice(0, 160));
+      }
+    }
+  } catch (e) { Logger.log('歷史每日績效重算失敗，保留記號下次再試：' + e); }
+
   // 舊欄第二格有時寫「曾追蹤總數」、有時寫「持有數」，不能直接改表頭冒充新定義。
   // 首次執行時用既有日K與回合重算全部歷史；失敗就保留舊表，避免混寫。
   var countHeader = String(getSheet_('每日績效').getRange(1, 2).getValue() || '').trim();

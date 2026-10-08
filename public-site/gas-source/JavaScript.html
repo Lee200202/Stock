@@ -1522,21 +1522,64 @@ function restatesEarlier_(key, earlier) {
 
        現在留一行「怎麼算的」，細節收進問號裡——真的想核對計算方式的人
        會去點，其他人不必先滑過兩百字。 */
-    var basisFull = ((trackerView === 'held' ? (t.heldBasis || '') : (t.exitedBasis || '')) +
-                     '　' + (t.basis || '')).trim();
-    $('trackerBasis').innerHTML =
-      '<span>' + esc(trackerView === 'held'
-        ? '進場取當日最低。'
-        : '進場取當日最低、出場取當日最高。') + '</span>' +
-      (basisFull ? ' <button type="button" class="whyb" id="basisWhy" ' +
-                   'aria-expanded="false" aria-label="計算方式的完整說明">?</button>' +
-                   '<span class="whytext" id="basisWhyText" hidden>' + esc(basisFull) + '</span>'
-                 : '');
+    /* v145（2026/10/08 管理者）：一行結論＋問號；按問號展開四張卡片——公式、為什麼取平均、同一筆交易三種算法的差別、沒有變的事。
+       先前問號裡是一段兩百字的規則全文；改成卡片後公式與理由各自成塊，要核對的人找得到數字。 */
+    var audit = t.priceAudit || null;
+    var auditLine = audit && audit.rule === '當日高低平均'
+      ? '<p class="basis-audit">' + esc('最近一次重算 ' + audit.at + '：核對 ' + audit.checked + ' 個進出場價，' +
+          (audit.mismatch ? audit.mismatch + ' 個和公式不符（已記錄待查）。' : '全部等於當日最高與最低的平均。') +
+          (audit.overridden ? '另有 ' + audit.overridden + ' 個回合採用管理者修正的成本。' : '')) + '</p>'
+      : '';
+    /* 後端還沒用新規則重算之前（priceAudit 還不是「當日高低平均」），畫面照舊寫當時實際使用的規則，
+       不讓說明走在數字前面；重算一次之後自動換成新的一行與卡片。 */
+    var midRule = !!(audit && audit.rule === '當日高低平均');
+    var basisOld = ((trackerView === 'held' ? (t.heldBasis || '') : (t.exitedBasis || '')) + '　' + (t.basis || '')).trim();
+    $('trackerBasis').innerHTML = !midRule
+      ? '<div class="basis-line"><span>' + esc(trackerView === 'held' ? '進場取當日最低。' : '進場取當日最低、出場取當日最高。') + '</span>' +
+        (basisOld ? ' <button type="button" class="whyb" id="basisWhy" aria-expanded="false" aria-controls="basisCards" aria-label="計算方式的完整說明">?</button></div>' +
+                    '<div class="whytext" id="basisCards" hidden>' + esc(basisOld) + '</div>' : '</div>')
+      :
+      '<div class="basis-line"><span>' + esc(trackerView === 'held'
+        ? '進場價取當日最高與最低的平均。'
+        : '進場價、出場價都取當日最高與最低的平均。') + '</span>' +
+      ' <button type="button" class="whyb" id="basisWhy" aria-expanded="false" aria-controls="basisCards" aria-label="計算公式與理由">?</button></div>' +
+      '<div class="basis-cards" id="basisCards" hidden>' +
+        '<section class="basis-card"><h4>公式</h4>' +
+          '<dl class="basis-formula">' +
+            '<div><dt>進場價</dt><dd>（進場日最高 ＋ 進場日最低）÷ 2</dd></div>' +
+            '<div><dt>出場價</dt><dd>（出場日最高 ＋ 出場日最低）÷ 2</dd></div>' +
+            '<div><dt>報酬</dt><dd>（出場價 － 進場價）÷ 進場價</dd></div>' +
+          '</dl>' +
+          '<p>持有中的股票還沒有出場價，用最新成交價代入；收盤後用當天收盤。價格四捨五入到小數兩位。</p>' + auditLine +
+        '</section>' +
+        '<section class="basis-card"><h4>為什麼取平均</h4>' +
+          '<p>買賣是在盤中喊的，會員實際成交在當天區間的哪一個價位，沒有辦法知道。</p>' +
+          '<p>先前的算法是<b>買在當天最低、賣在當天最高</b>：等於假設每一筆都成交在最有利的價位，報酬會<b>高估</b>。反過來假設買在最高、賣在最低，又會<b>低估</b>。</p>' +
+          '<p>取最高與最低的平均，不偏向任何一邊。</p>' +
+        '</section>' +
+        '<section class="basis-card basis-card-wide"><h4>同一筆交易，三種算法</h4>' +
+          '<p class="basis-eg">進場日最低 100、最高 110；出場日最低 118、最高 124。</p>' +
+          '<div class="basis-rows" role="table" aria-label="三種取價算法的報酬比較">' +
+            '<div role="row"><span role="cell">買最低、賣最高</span><span role="cell">100 → 124</span><span role="cell" class="basis-pct">+24.0%</span><span role="cell" class="basis-tag is-over">高估</span></div>' +
+            '<div role="row" class="is-used"><span role="cell">最高與最低的平均</span><span role="cell">105 → 121</span><span role="cell" class="basis-pct">+15.2%</span><span role="cell" class="basis-tag is-used">本站採用</span></div>' +
+            '<div role="row"><span role="cell">買最高、賣最低</span><span role="cell">110 → 118</span><span role="cell" class="basis-pct">+7.3%</span><span role="cell" class="basis-tag is-under">低估</span></div>' +
+          '</div>' +
+        '</section>' +
+        '<section class="basis-card basis-card-wide"><h4>沒有變的事</h4>' +
+          '<ul class="basis-list">' +
+            '<li>哪一天算進場、哪一天算出場的判定不變；明講賣出、轉為觀望不碰、超過 10 個交易日未再提及，都以那一天的高低平均出場。</li>' +
+            '<li>節目裡口頭講的價位只當附註，不拿來計算。</li>' +
+            '<li>管理者修正過的成本優先於公式。</li>' +
+            '<li>當天沒有日 K 時只往前找最近的交易日，不借用之後的價格。</li>' +
+            '<li>這是估算，不是實際成交紀錄；沒有計入手續費、稅與部位大小。</li>' +
+          '</ul>' +
+        '</section>' +
+      '</div>';
 
     var wb = $('basisWhy');
     if (wb) {
       wb.addEventListener('click', function () {
-        var box = $('basisWhyText');
+        var box = $('basisCards');
         var on = box.hidden;
         box.hidden = !on;
         wb.setAttribute('aria-expanded', String(on));
@@ -1591,7 +1634,7 @@ function restatesEarlier_(key, earlier) {
       return {
         r: p, rounds: t.rounds || list.length, index: pick, past: true, entry: p.entry, mention: p.open || '',
         trade: p.entryDate || p.open || '', exit: p.exitDate || '',
-        stated: null, note: '', exitNote: '', entryBasis: '當日最低', exitBasis: '當日最高',
+        stated: null, note: '', exitNote: '', entryBasis: '當日高低平均', exitBasis: '當日高低平均',
         end: p.exit, ret: pret, held: false, lo: p.entryLo, hi: p.entryHi
       };
     }
@@ -1605,8 +1648,8 @@ function restatesEarlier_(key, earlier) {
       trade: r.entryDate || t.entryDate || mention,
       exit: t.stillHeld ? '' : (r.exitDate || t.lastSell || ''),
       stated: null, note: '', exitNote: '',   // v104：口頭價位前台不畫（舊後端即使還帶著欄位也不用）
-      entryBasis: /管理者修正成本/.test(String(t.entrySrc || '')) ? '管理者修正成本' : '當日最低',
-      exitBasis: '當日最高',
+      entryBasis: /管理者修正成本/.test(String(t.entrySrc || '')) ? '管理者修正成本' : '當日高低平均',
+      exitBasis: '當日高低平均',
       end: t.current, ret: t.ret, held: !!t.stillHeld, lo: r.entryLo, hi: r.entryHi
     };
   }
@@ -2735,7 +2778,7 @@ function restatesEarlier_(key, earlier) {
       kv('進場價', '<span title="' + esc(costSrcText(t.entrySrc)) + '">' + fmtPx(t.entry) + '</span>') +
       (t.openBy === '會員持股聲明'
         ? kv('進場依據', '影片中明講「會員目前持有」，非當日成交'
-             + '<span class="srcnote">沒有對應的買入紀錄，取聲明當日最低作追蹤基準</span>') : '') +
+             + '<span class="srcnote">沒有對應的買入紀錄，取聲明當日高低平均作追蹤基準</span>') : '') +
       kv(t.stillHeld ? '目前價' : '出場價', fmtPx(t.current)) +
       kv(t.stillHeld ? '未實現報酬' : /明講賣出/.test(String(t.exitReason || '')) ? '已實現報酬' : '追蹤期間變化',
          '<span class="' + signCls(t.ret) + '">' + fmtRet(t.ret) + '</span>') +

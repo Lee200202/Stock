@@ -176,6 +176,30 @@ def check(browser, url, local, skip_time=False):
         pg.locator('[data-tk="held"]').click()
         pg.wait_for_function("!document.querySelector('.tsum-note')", timeout=10000)
 
+        # 二之二、計算方式卡片（v145）：一行結論＋問號；按問號展開四張卡片（公式、為什麼取平均、三種算法、沒有變的事）
+        basis = pg.locator('#trackerBasis')
+        mid_rule = pg.evaluate("!!(window.__tracker.priceAudit && window.__tracker.priceAudit.rule === '當日高低平均')")
+        if not mid_rule:
+            # 後端還沒用新規則重算：畫面照舊寫當時實際使用的規則（進場最低、出場最高），不走在數字前面
+            assert '當日最低' in basis.locator('.basis-line').inner_text()
+            pg.evaluate("""() => { window.__tracker.priceAudit = {rule: '當日高低平均', checked: 88, mismatch: 0, overridden: 1, at: '2026/10/08 14:50'};
+              document.querySelector('[data-tk="exited"]').click(); document.querySelector('[data-tk="held"]').click(); }""")
+        assert '最高與最低的平均' in basis.locator('.basis-line').inner_text()
+        assert pg.locator('#basisCards').is_hidden()
+        pg.locator('#basisWhy').click()
+        assert pg.locator('#basisWhy').get_attribute('aria-expanded') == 'true'
+        cards = pg.evaluate("""() => ({ titles: [...document.querySelectorAll('#basisCards .basis-card h4')].map(e => e.textContent.trim()),
+          text: document.querySelector('#basisCards').innerText, over: document.documentElement.scrollWidth - innerWidth,
+          right: Math.max(...[...document.querySelectorAll('#basisCards .basis-card')].map(e => e.getBoundingClientRect().right)), vw: innerWidth,
+          hit: (() => { const b = document.querySelector('#basisWhy'), a = getComputedStyle(b, '::after'); return b.getBoundingClientRect().width - 2 * parseFloat(a.top || 0); })() })""")
+        assert cards['titles'] == ['公式', '為什麼取平均', '同一筆交易，三種算法', '沒有變的事'], cards['titles']
+        assert '核對' in cards['text'] and '當日最高與最低的平均' in cards['text']
+        for words in ('（進場日最高 ＋ 進場日最低）÷ 2', '（出場日最高 ＋ 出場日最低）÷ 2', '（出場價 － 進場價）÷ 進場價', '高估', '低估', '+15.2%', '+24.0%', '+7.3%', '管理者修正過的成本'):
+            assert words in cards['text'], words
+        assert cards['over'] <= 1 and cards['right'] <= cards['vw'] + 1 and cards['hit'] >= 44, cards
+        pg.locator('#basisWhy').click()
+        assert pg.locator('#basisCards').is_hidden()
+
         # 三、個股頁打得開、沒有技術條件；畫面上沒有 UTC 的 ISO 時間
         code = str((exp['fromHeld'] or [{'code': t['held'][0]['code']}])[0]['code'])
         pg.locator(f'.tracker-card:has(.tracker-card-code:text-is("{code}"))').first.click()

@@ -8501,6 +8501,41 @@ def drop_promotional_points(signals: dict) -> dict:
     return signals
 
 
+def strip_unsupported_time_clauses(signals: dict, transcript: str) -> dict:
+    """說明裡的時間詞（下週、明天、下個月…）要有本股自己的原句；沒有的那個子句拿掉，不讓整輪因為一個子句被擋下。
+
+    2026/10/08：沒報名字的那一段有「下禮拜要突破了」，勤誠的說明連續幾輪被寫成「等待下週突破」。品質關卡攔得住，
+    但一攔就是整天不更新；現在先把那個子句拿掉並留紀錄，其餘有依據的說明照常發布。判斷沿用品質關卡的同一支檢查。
+    """
+    for cat in SIGNAL_CATEGORIES:
+        for row in signals.get(cat, []) or []:
+            if not isinstance(row, dict):
+                continue
+            field = 'note' if cat == 'holdings' else 'reason'
+            text = str(row.get(field) or '')
+            if not text or not _unsupported_note_time(text, row, transcript):
+                continue
+            kept, dropped = [], []
+            for clause, punct in _split_clauses(text):
+                missing = _unsupported_note_time(clause, row, transcript)
+                if missing:
+                    dropped.append((clause, missing))
+                    if punct == '。' and kept:
+                        kept[-1][1] = '。'
+                    continue
+                kept.append([clause, punct])
+            if not dropped:
+                continue
+            row[field] = ''.join(c + t for c, t in kept).strip('，,；;')
+            if row[field] and row[field][-1] not in '。！？':
+                row[field] += '。'
+            name = str(row.get('name') or '')
+            for clause, missing in dropped:
+                note_decision('說明核對', '刪掉沒有本股依據的時間', name, f"{'、'.join(missing)}：{clause[:60]}")
+                print(f"  說明核對　{name}：時間詞「{'、'.join(missing)}」沒有本股原句，已刪掉那一句　{clause[:36]}")
+    return signals
+
+
 def strip_implausible_point_levels(ss, signals: dict, date_str: str) -> dict:
     """盤勢與教學重點：同一句點了某一檔、又寫了和那一檔行情對不上的價位，那一句拿掉；整點因此不到 30 個字就不列。
 
@@ -13719,6 +13754,11 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     print(f"  文章標題　{_title}（來源：{_title_src}）")
     for _raw, _why in _title_rejected:
         print(f"  文章標題　未採用模型標題「{_raw}」：{_why}")
+    # 沿用前一版的那幾檔是在覆蓋核對才放回來的，沒有經過前面的清理：產生文章之前，全部的說明再過一次同一套核對
+    # （行情對不上的價位、並列的名字與沒有依據的因果、沒有本股依據的時間）。2026/10/08 勤誠沿用的說明因此兩次整輪被擋。
+    signals = strip_implausible_price_claims(ss, signals, date_str)
+    signals = strip_guessed_names_and_causes(signals, TX["audit"])
+    signals = strip_unsupported_time_clauses(signals, TX["audit"])
     article = build_article(v2, signals, date_str)
     quality_hard, _quality_soft = print_quality_overview(signals, TX["audit"])
     if quality_hard:

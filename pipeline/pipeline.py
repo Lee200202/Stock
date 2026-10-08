@@ -7930,8 +7930,10 @@ def quality_overview(signals, transcript=''):
                  f"教學 {len(lessons)} 點（平均 {sum(len(str(r.get('text') or '')) for r in lessons) / max(1, len(lessons)):.0f} 字）"
                  + (f"；另有 {len(points) - len(shown)} 點因重複未列" if len(points) > len(shown) else ''))
     if transcript and len(_ev_norm(transcript)) >= LESSON_MIN_SOURCE:
-        if len(macro) < 3:
-            hard.append(f'盤勢只有 {len(macro)} 點，原稿足夠長時至少需要 3 點')
+        if len(macro) < 2:
+            hard.append(f'盤勢只有 {len(macro)} 點，原稿足夠長時至少需要 2 個不同主題')
+        elif len(macro) < 3:
+            soft.append('盤勢只有 2 個不同主題；第三點與既有內容重複時不湊數')
         if len(lessons) < 3:
             hard.append(f'教學只有 {len(lessons)} 點，原稿足夠長時至少需要 3 點')
     return lines, hard, soft

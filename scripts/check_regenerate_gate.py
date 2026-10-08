@@ -20,8 +20,8 @@ with patch.object(pl, 'source_segments', return_value=[]), patch.object(pl, 'sou
 
     incomplete = {'market': [point('level'), point('level'), point('level', True),
                              point('view'), point('view'), point('view')]}
-    errors, _ = invariants(incomplete, long_source)
-    assert any('盤勢總覽只有 2 點' in e for e in errors), errors
+    errors, warnings = invariants(incomplete, long_source)
+    assert not errors and any('只有 2 個不同主題' in w for w in warnings), (errors, warnings)
     errors, _ = invariants(incomplete, '短原稿')
     assert not any('只有 2 點' in e for e in errors), errors
 print('one-day apply and replay: minimum verified points gate OK')

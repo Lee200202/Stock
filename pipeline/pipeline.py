@@ -11240,6 +11240,7 @@ VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
 VERDICT_VERSION = "v1-20261008"          # 題目或決定順序一改就換版號，舊裁決不再沿用
 VERDICT_VOTES = 3
+VERDICT_MAX_ROUNDS = 5                   # 有的答案沒附引句不能用：最多問五輪，湊滿三份可用的為止
 VERDICT_DEFAULT_MODE = 'shadow'          # 先只記錄；用實際模型核對過再改成 on
 VERDICT_BATCH = 6
 VERDICT_NEUTRAL_CLASS = 'watch_avoid'    # 只描述行情、沒有偏多偏空的結論：照【主詞與分類】「中性者列 watch_avoid」
@@ -11259,21 +11260,26 @@ buy_today　講者本人或會員在節目當天已經買進這一檔，或他�
 　不算：昨天、前幾天、以前買的（「我昨天買的」「這是我昨天買的」「昨天叫你們買」都是過去，就算它今天又漲）；打算買、等條件才買、如果怎樣就買；叫觀眾去注意；別人（ETF、法人、其他分析師、觀眾）買的；觀眾問能不能買。
 　known 寫著前一個交易日已買入、而原文沒有說「今天又買」時，buy_today 是 false；他今天還在講這個部位就是 holding_now。
 sell_today　同上，方向是賣出。
+　回答個別會員或觀眾提問時說「建議先賣、等拉回再買」「短線可以先出一次」是建議，不是已經賣出：sell_today 是 false，now 照他講的條件填。
+　buy_today／sell_today 的引句裡要有【】這一檔的名稱或代號；「今天賣出一檔大漲的股票」這種沒報名字的話不能當這一檔的依據。
 holding_now　講者明講他或會員現在還持有這一檔：還在、沒有賣、繼續抱、我有、我們本來就有了、我只有、我的成本多少而且沒說已經賣掉、昨天買而今天仍在講自己的部位。
 　不算：只是看好；已經賣掉；「我沒有買」；別人持有；對觀眾說的假設句（「如果你手中已經有…不要賣」）；講的是整個族群而不是這一檔。
 past_trade　講者提到他或會員「不是當天」的買賣（昨天買、上週賣、以前買在哪裡賣在哪裡）。
 　只是回顧那一次買賣與當時的行情（「昨天【甲】開高，我叫你們先賣」），沒有說現在怎麼看：past_trade 是 true，now 填 none、tone 填 neutral；那是過去的事，不是現在的看法。
 about_itself　text 有沒有講到這一檔自己的事：它的股價行情（漲跌、漲停跌停、創高、破線）、線型與均線位置、業績、法人籌碼，或講者對它的指示與意願（買、賣、等、不要碰）。
 　只有一句也算：拿它當今天大跌、跌停、追高受傷的例子（「什麼【甲】跌停板」「買【甲】的一天賠一千多塊」）是 true，tone 填 bearish。
-　false 的情況：只是被念到名字；拿來襯托另一檔（「很多人說甲是龍頭，其實龍頭是乙」的甲）；批評別的分析師或別人的操作時順帶提到；「我沒有買它」「我沒有這一檔」這種只陳述沒有部位的話。
+　false 的情況：【】裡的字在那一句只是一般用語、不是公司（「投信最【大量】的股票」的大量），這時 unsure 寫「不是公司名」；只是被念到名字；拿來襯托另一檔（「很多人說甲是龍頭，其實龍頭是乙」的甲）；批評別的分析師或別人的操作時順帶提到；「我沒有買它」「我沒有這一檔」這種只陳述沒有部位的話。
 now　講者對「現在要不要進場」的表態，about_itself 為 false 時填 none：
 　buy_ok＝現在可以買、明講看好可布局；conditional＝給了可以照做的買進條件（跌到多少以下、回測某條均線、突破某價）而且沒有說現在不能買；
-　not_yet＝明講現在還不能買、還太早、還太急、離均線太遠先不要買；prohibit＝不買、不會買、不要買、不要追、不要碰；none＝沒有對現在要不要進場表態。
+　not_yet＝明講現在還不能買、還太早、還太急、離均線太遠先不要買；prohibit＝不買、不會買、不要買、不要追、不要碰、不推薦、不再介紹；none＝沒有對現在要不要進場表態。
+　「不會買」是他的意願，就算是拿來比照別檔時說的也算（「就像我絕對不會買【甲】一樣」「那我幹嘛去買【甲】」：about_itself 是 true，now 是 prohibit）。
+　只說「我沒有買【甲】」而沒有說為什麼不買、也沒有說以後不買，是陳述沒有部位，不是表態。
 　同一檔前後講法不同時，以最後一次、而且是對現在的指示為準。
 tone　now 是 none 時才有作用：bullish＝對它現在與之後偏多（打底完成、準備發動、會漲上去、不用擔心）；bearish＝偏空，或拿它當大跌、追高受傷、風險的例子；neutral＝只描述行情或只回顧過去，沒有偏多或偏空的結論。
 　反話與賣壓竭盡是偏多：「想賣的趕快賣，我的會員不准賣」「假跌破」「賣完就漲」不是 bearish。
 
 答 true 的每一題，以及 about_itself 為 true 時的 now／tone，都要在 quotes 對應欄位附 1～2 句從 text 照抄的原文：一個字都不改（【】可以省略），每句 8～40 個字，句子本身要看得出這個答案。抄不出來，那一題就答 false 或 none。
+quotes 不可以留空白交卷：about_itself 是 true 而 stance 沒有引句，這一份答案會整份作廢。
 段落不足以判斷時照實答 false／none，並在 unsure 寫一句原因；不要猜，也不要為了讓它有分類而放寬定義。
 
 只輸出 JSON：{"verdicts":[{"id":"代號","buy_today":false,"sell_today":false,"holding_now":false,"past_trade":false,"about_itself":true,"now":"none","tone":"neutral","quotes":{"buy_today":[],"sell_today":[],"holding_now":[],"past_trade":[],"stance":[]},"unsure":""}]}
@@ -11449,8 +11455,12 @@ def _verdict_cache(ss, date_str):
     return out
 
 
-def verdict_class(answer, passages_norm):
-    """一份問卷答案 → (分類, 依據)。引句對不回本股段落的那一題不算數；整份答案不能用時分類回空字串。"""
+def verdict_class(answer, passages_norm, names=()):
+    """一份問卷答案 → (分類, 依據)。引句對不回本股段落的那一題不算數；整份答案不能用時分類回空字串。
+
+    names 有給時，當天買賣的引句裡要有本股的名稱或代號：既有的成交核對也只認「動作貼著股名」的句子。
+    """
+    own = [_ev_norm(n) for n in names if len(_ev_norm(n)) >= 2]
     if not isinstance(answer, dict):
         return '', '沒有答案'
     quotes = answer.get('quotes') if isinstance(answer.get('quotes'), dict) else {}
@@ -11463,6 +11473,8 @@ def verdict_class(answer, passages_norm):
         if not _VQ_FAMILY[field].search(q):
             return False
         if field in ('buy_today', 'sell_today') and _VQ_PAST.search(q) and not _VQ_TODAY.search(q):
+            return False
+        if field in ('buy_today', 'sell_today') and own and not any(n in _ev_norm(q) for n in own):
             return False
         if field in ('buy_today', 'sell_today', 'holding_now') and _VQ_HYPOTHETICAL.search(q):
             return False
@@ -11502,6 +11514,42 @@ def verdict_class(answer, passages_norm):
     if past:
         return 'history', '只回顧過去的買賣'
     return VERDICT_NEUTRAL_CLASS, '只描述行情，沒有偏多偏空的結論：' + stance[0][:40]
+
+
+def verdict_settle(current, votes, last=False):
+    """照目前收到的票決定下一步：('定案', 分類, 說明)、('未定', 目前分類, 說明) 或 ('再問', '', '')。
+
+    票是問卷算出來的分類，空字串是不能用的答案（不計票）。
+      一、第一份可用的答案就和流程的分類一樣：兩個各自獨立的判讀一致，定案。
+      二、觀望注意與觀望不碰互換：三票裡兩票相同就改。
+      三、跨過公開／不公開的改動，以及改進或改出買入、賣出、會員持股：三票都要一樣。判錯的代價高，而且實測裡連三票都錯的
+          幾乎都是原文字面與實情不符（講錯股名、回答提問的建議、一般用語撞名），那是人工的事。
+      四、問卷認為當天有買賣、流程卻沒有：不新增，標未定。買賣只認程式核對得到的明確句或會員通知。
+    """
+    hidden = lambda c: c in _VERDICT_HIDDEN
+    same = lambda a, b: a == b or (hidden(a) and hidden(b))
+    got = [v for v in votes if v]
+    if len(got) == 1 and same(got[0], current):
+        return '定案', current, '問卷與流程一致'
+    if got:
+        top = max(dict.fromkeys(got), key=got.count)
+        count = sum(1 for v in got if same(v, top))
+        if same(top, current):
+            if count >= 2:
+                return '定案', current, f'{count}／{len(got)} 票與流程一致'
+        elif top in ('buy', 'sell'):
+            if count >= 2:
+                return '未定', current, '問卷認為當天' + _VERDICT_LABEL[top] + '，但原文沒有程式可核對的明確句，不新增買賣'
+        else:
+            watch = ('watch_watch', 'watch_avoid')
+            need = 2 if top in watch and current in watch else VERDICT_VOTES
+            if count >= need:
+                return '定案', top, f'{count}／{len(got)} 票'
+            if len(got) >= VERDICT_VOTES and count >= 2:
+                return '未定', current, f'{count}／{len(got)} 票認為是{_VERDICT_LABEL.get(top, top)}，這種改動要三票一致'
+    if len(got) >= VERDICT_VOTES or last:
+        return '未定', current, '可用的答案 ' + ('、'.join(_VERDICT_LABEL.get(v, v) for v in got) or '沒有') + '，沒有多數'
+    return '再問', '', ''
 
 
 def _ask_verdicts(items, date_str, round_no):
@@ -11614,7 +11662,7 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             continue
         entry['tier'] = '送裁決'
         contested.append((code, {'name': entry['name'], 'heard': sorted(n for n in names if n != entry['name'])[:6], 'known': facts,
-                                 'passages': sent, '_norm': _ev_norm(text)}))
+                                 'passages': sent, '_norm': _ev_norm(text), '_names': sorted(names | {code})}))
     if contested and (_QUOTA_STOP.get('daily') or budget_left() < 300 or not GEMINI_KEYS):
         print(f"  分類裁決　時間或配額不足，{len(contested)} 檔有疑點的這一輪不裁決，維持原分類")
         note_decision('分類裁決', '時間或配額不足，本輪未裁決', date_str, '、'.join(v['name'] for _, v in contested)[:300])
@@ -11622,40 +11670,29 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             verdicts[code].update(tier='未裁決', enforce=False)
         contested = []
     pending = list(contested)
-    for round_no in range(VERDICT_VOTES):
+    for round_no in range(VERDICT_MAX_ROUNDS):
         if not pending:
             break
         answers = _ask_verdicts(pending, date_str, round_no)
         still = []
         for code, item in pending:
             entry = verdicts[code]
-            cls, basis = verdict_class(answers.get(code), item['_norm'])
+            cls, basis = verdict_class(answers.get(code), item['_norm'], item['_names'])
             entry['votes'].append(cls)
             if cls and not entry['answer'].get(cls):
                 entry['answer'][cls] = {'basis': basis, 'answer': answers.get(code)}
-            got = [v for v in entry['votes'] if v]
-            top = max(set(got), key=got.count) if got else ''
-            hidden_same = top in _VERDICT_HIDDEN and entry['current'] in _VERDICT_HIDDEN
-            states = ('buy', 'sell', 'holdings')
-            # 動到持有狀態的改動（改進或改出買入、賣出、會員持股）代價高：三票都要一樣。觀望兩類與不公開之間兩票即可。
-            need = VERDICT_VOTES if top != entry['current'] and (top in states or entry['current'] in states) else 2
-            if top in ('buy', 'sell') and top != entry['current'] and got.count(top) >= 2:
-                # 當天買賣會開出或結束一個持有回合，判錯的代價最大：裁決可以確認或拿掉，不能憑問卷新增。
-                entry.update(cls=entry['current'], tier='未定', enforce=False, new=True,
-                             basis=entry['basis'] + '｜問卷認為當天' + _VERDICT_LABEL[top] + '，但原文沒有程式可核對的明確句，不新增買賣')
-                note_decision('分類裁決', '問卷認為當天有買賣，不新增，待人工確認', entry['name'], entry['answer'][top]['basis'])
-            elif top and (got.count(top) >= need or (round_no == 0 and (top == entry['current'] or hidden_same))):
-                # 第一票就和流程的分類一樣：兩個各自獨立的判讀一致，不必再問。否則要三票裡有兩票相同。
-                entry.update(cls=entry['current'] if hidden_same else top, tier='裁決', enforce=not hidden_same, new=True,
-                             basis=entry['basis'] + '｜' + entry['answer'][top]['basis'])
-            else:
+            state, decided, why = verdict_settle(entry['current'], entry['votes'], last=round_no == VERDICT_MAX_ROUNDS - 1)
+            if state == '再問':
                 still.append((code, item))
+                continue
+            moved = state == '定案' and decided != entry['current']
+            detail = (entry['answer'].get(decided) or {}).get('basis') or ''
+            entry.update(cls=decided, tier='裁決' if state == '定案' else '未定', enforce=moved, new=True,
+                         basis='｜'.join(x for x in (entry['basis'], why, detail) if x))
+            if state == '未定':
+                note_decision('分類裁決', '沒有定案，維持原分類，待人工確認', entry['name'],
+                              why + '；各票：' + '、'.join(_VERDICT_LABEL.get(v, v) or '不能用' for v in entry['votes']))
         pending = still
-    for code, _ in pending:
-        entry = verdicts[code]
-        entry.update(cls=entry['current'], tier='未定', enforce=False, new=True)
-        note_decision('分類裁決', '三票沒有多數，維持原分類', entry['name'],
-                      '、'.join(_VERDICT_LABEL.get(v, v) or '答案不能用' for v in entry['votes']))
     tiers = {}
     for entry in verdicts.values():
         tiers[entry['tier']] = tiers.get(entry['tier'], 0) + 1

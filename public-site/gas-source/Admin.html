@@ -1308,7 +1308,6 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
         <p class="hint">綠＝完成　黃＝進行中／待核對　紅＝需處理　灰＝休市或未到時間</p>
         <div class="automation-grid" id="todayAutomation" aria-live="polite"><div class="erow-empty">讀取取稿、稽核與寄送狀態中…</div></div>
         <p class="hint"><a href="https://github.com/Lee200202/Stock/actions/workflows/transcript.yml" target="_blank" rel="noopener">取稿即時日誌</a>　·　<a href="https://github.com/Lee200202/Stock/actions/workflows/daily.yml" target="_blank" rel="noopener">Pipeline 即時日誌</a></p>
-        <div class="astat" id="stat"></div>
         <div class="health" id="todayHealth"><div class="erow-empty">讀取中…</div></div>
         <details class="dz timeline-dz">
           <summary><span class="dz-t">今天的時間軸</span><span class="dz-hint">系統狀態、工單、逐日編輯同步、成本覆寫與績效寫入，依時間排</span></summary>
@@ -2242,10 +2241,8 @@ function render(d){
 
   ADMIN_HOLIDAYS = {};
   (d.holidays || []).forEach(function (h) { ADMIN_HOLIDAYS[h] = 1; });
-  $('stat').innerHTML =
-    cell('今天', d.today) +
-    cell('今日狀態', d.closedToday ? '休市' : d.hasData ? '已有資料' : (d.videoStatus || '尚未取稿')) +
-    cell('今日操作紀錄', d.closedToday ? '休市不取稿' : d.todayTrades + ' 筆');
+  /* v152：頂端那一排（今天／今日狀態／今日操作紀錄）拿掉。它和下面的「今日狀態」「今日紀錄」兩格講同一件事、
+     來自另一支 API，兩邊還會差一拍；日期寫在卡片右下的更新時間裡。 */
 
   /* 投稿日期日曆。預設今天、上限今天；沒解鎖補登時整塊鎖住。
      have 帶的是「已經有逐字稿的日期」，讓人一眼看出哪幾天投過了。 */
@@ -4589,13 +4586,13 @@ var mergeTxFingerprint='';
           '<span class="hk">' + esc(it.label) + '<i>' + (TONE_LABEL[it.tone] || '') + '</i></span>' +
           '<b class="hv">' + esc(it.value) + '</b>' +
           (it.hint ? '<span class="hh">' + esc(it.hint) + '</span>' : '') + '</div>';
-      }).join('') + '<div class="hstamp">' + esc(r.today) + ' ' + esc(r.now) + ' 更新（台北時間）</div>';
+      }).join('') + '<div class="hstamp">' + esc(r.today) + ' ' + esc(r.now) + ' 更新（台北時間）' + (r.ms ? '・後端讀取 ' + (r.ms / 1000).toFixed(1) + ' 秒' : '') + '</div>';
       /* 取稿卡的「正常狀態」（v54）：今天的影片已經自動取稿並整理完成時直接講明，不必按任何按鈕；
          沒有直播、或休市也講明，免得新管理者以為要手動做什麼。 */
       var show1 = (r.items || [])[0] || {};
       var cm = $('crawlMsg');
       if (cm && !/show/.test(cm.className)) {
-        if (show1.label === '今日節目' && show1.tone === 'ok') {
+        if (show1.label === '今日狀態' && show1.tone === 'ok') {
           cm.className = 'amsg show ok'; cm.textContent = '今天的影片已經自動取稿並整理完成，不需要手動操作。要重抓其他日子再選日期。';
         } else if (show1.value === '預告停播') {
           cm.className = 'amsg show'; cm.textContent = '前一集已預告請假，今天暫停密集輪詢；後續排程仍會查片，15:20 再核對公開直播與回放。';
@@ -5603,7 +5600,12 @@ setTimeout(initCrawlDayPills, 50);
       card('設定', ready ? '已設定' : '未完成', '存取權杖 ' + (d.configured.token ? '已設定' : '未設定') + '、頻道密鑰 ' + (d.configured.secret ? '已設定' : '未設定') + '、轉送服務 ' + (d.relayUrl ? '已填' : '未填') + '。', ready && d.relayUrl ? 'ok' : 'err') +
       card('好友與訂閱', (c.friends || 0) + ' 位好友', '每日總覽 ' + (c.daily || 0) + '、盤中通知已確認 ' + (c.smsActive == null ? '待更新後端' : c.smsActive) + '（舊設定待確認 ' + (c.smsPending == null ? '待核對' : c.smsPending) + '）、封鎖 ' + (c.blocked || 0) + '、測試帳號 ' + (c.testers || 0) + (c.other ? '；另有 ' + c.other + ' 位屬於其他 LINE 帳號（測試頻道）' : '') + '。待確認者須在自己的 LINE 聊天室送出「開啟盤中通知」，也可點管理訂閱卡的同文按鈕。', c.smsPending ? 'warn' : c.friends ? 'ok' : 'idle') +
       card('本月訊息額度', qBig, q && q.ok ? (q.type === 'limited' ? '剩 ' + q.remaining + ' 則（每位收件者算一則；回覆不計）。' : '這個方案沒有月上限。') + '讀取時間 ' + (q.at || '') + '。' : (q && q.error ? '原因：' + q.error : '設定存取權杖後才讀得到。'), qTone) +
-      card('待送與異常', ((ob.queued || 0) + (ob.sending || 0)) + ' 則待送', (ob.oldestOpen ? '最舊 ' + ob.oldestOpen + '。' : '') + '逾時未補送 ' + (ob.expired || 0) + '、完成 ' + (ob.done || 0) + '。', ob.sending || ob.queued ? 'warn' : ob.expired ? 'err' : 'ok') +
+      /* v152：顏色只看現在——有待送是黃、今天有逾時或失敗才是紅；歷史累計另外寫，不再讓舊的一筆把卡片染紅。 */
+      card('待送與異常', ((ob.queued || 0) + (ob.sending || 0)) + ' 則待送', (ob.oldestOpen ? '最舊 ' + ob.oldestOpen + '。' : '') +
+        (ob.today ? '今天完成 ' + (ob.today.done || 0) + '、逾時未補送 ' + (ob.today.expired || 0) + (ob.today.failed ? '、失敗 ' + ob.today.failed : '') + '。累計完成 ' + (ob.done || 0) + '、逾時 ' + (ob.expired || 0) +
+            (ob.lastExpired ? '（最近一次 ' + String(ob.lastExpired).slice(5, 16) + '）' : '') + '。'
+          : '逾時未補送 ' + (ob.expired || 0) + '、完成 ' + (ob.done || 0) + '。'),
+        ob.sending || ob.queued ? 'warn' : (ob.today ? (ob.today.expired || ob.today.failed) : ob.expired) ? 'err' : 'ok') +
       card('Webhook', st.lastWebhookAt ? '最後 ' + String(st.lastWebhookAt).slice(5, 16) : '尚未收到', '今日驗簽失敗：網站 ' + (st.gasSigFail || 0) + '、轉送服務 ' + (st.cloudSigFail || 0) + (st.relayBuild ? '（轉送服務 ' + st.relayBuild + '）' : '') + '。', (st.gasSigFail || st.cloudSigFail) ? 'warn' : st.lastWebhookAt ? 'ok' : 'idle') +
       card('互動回覆耗時', timing ? (((timing.relay || 0) + timing.total) / 1000).toFixed(1) + ' 秒' : '尚無紀錄', timing ? '最近 ' + timing.at + '｜' + (timing.queue != null ? '排隊 ' + (timing.queue / 1000).toFixed(1) + '、GAS 啟動 ' + (timing.start / 1000).toFixed(1) : '轉送 ' + (timing.relay == null ? '—' : (timing.relay / 1000).toFixed(1))) + '、處理 ' + (timing.total / 1000).toFixed(1) + ' 秒' + (timing.attempt > 1 ? '（重送第 ' + timing.attempt + ' 次）' : '') : '測試帳號傳一則查詢後顯示。', !timing ? 'idle' : (timing.relay || 0) + timing.total >= 15000 ? 'err' : (timing.relay || 0) + timing.total >= 8000 ? 'warn' : 'ok') +
       card('通知圖文選單', menu.ok ? '版本已更新' : '需要檢查', (menu.actual ? 'LINE 別名指向 ' + menu.actual + '。' : '') + (menu.reason || '請重新讀取狀態。') + (menu.ok ? ' 請用手機檢查三個入口；若仍看到兩個「今日整理」，重新部署轉送服務後再按「建立圖文選單」。' : ''), menu.ok ? 'ok' : 'warn') +

@@ -1982,8 +1982,15 @@ function lineStatusData_() {
   if (out.configured.token) { try { out.quota = lineQuota_(false); } catch (e) { out.quota = { ok: false, error: String(e.message || e) }; } }
   try {
     var rows = lineOutboxRead_().rows;
+    /* v152：今天的和歷史的分開數。先前只有累計，10/05 那一則逾時（當時修訂通知的時效還照發文時間算，已修正）
+       讓「待送與異常」一直是紅的，看起來像現在有問題。 */
+    var lineToday = todayStr_();
+    out.outbox.today = { done: 0, expired: 0, failed: 0 };
     rows.forEach(function (r) {
       out.outbox[r.state] = (out.outbox[r.state] || 0) + 1;
+      var made = r.createdMs ? lineStampOf_(r.createdMs) : String(r.created || '');
+      if (String(made).replace(/-/g, '/').indexOf(lineToday) === 0 && out.outbox.today[r.state] !== undefined) { out.outbox.today[r.state]++; }
+      if (r.state === 'expired' && (!out.outbox.lastExpired || String(made) > out.outbox.lastExpired)) { out.outbox.lastExpired = String(made); }
       if ((r.state === 'queued' || r.state === 'sending') && (!out.outbox.oldestOpen || String(r.created) < out.outbox.oldestOpen)) {
         out.outbox.oldestOpen = r.createdMs ? lineStampOf_(r.createdMs) : String(r.created);
       }

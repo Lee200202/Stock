@@ -685,6 +685,16 @@ function adminTodaySmsOriginals_(day, rows) {
 
 /* 今日自動化、寄送與會員簡訊明細；不以排程存在代替完成證據。 */
 function apiAdminTodayStatus(key) {
+  /* v152 讀取速度：這一支只讀不寫，包進唯讀快照——同一個請求裡同一張表只讀一次
+     （寄送帳本原本被今日寄送、近幾日寄送、時間軸各讀一次）。每一次請求仍然重新讀試算表，不跨請求沿用。
+     回傳多一個 ms（後端花了幾毫秒），畫面的更新時間旁邊看得到。 */
+  var t0 = Date.now();
+  var out = typeof withSheetSnapshot_ === 'function'
+    ? withSheetSnapshot_(function () { return apiAdminTodayStatusRun_(key); }) : apiAdminTodayStatusRun_(key);
+  if (out && out.ok) { out.ms = Date.now() - t0; }
+  return out;
+}
+function apiAdminTodayStatusRun_(key) {
   try {
     adminAuth_(key);
     var today = todayStr_(), hm = Number(Utilities.formatDate(new Date(), TZ, 'HHmm'));
@@ -734,12 +744,13 @@ function apiAdminTodayStatus(key) {
 
     var items = [];
     function add(label, value, tone, hint) { items.push({ label: label, value: value, tone: tone, hint: hint || '' }); }
-    if (!trading) { add('今天', '休市', 'idle', '休市日不取稿、不寄每日總覽；會員簡訊接收與通知照常。'); }
-    else if (noShow) { add('今日節目', '今日無直播', 'idle', '上游確認頻道今天沒有這一集，已停止取稿；訂閱者不會收到每日整理。'); }
-    else if (plannedNoShow && !video) { add('今日節目', '預告停播', 'idle', '前一集已預告請假；後續排程仍會查片，15:20 再核對公開直播與回放。'); }
-    else if (vStatus === '完成') { add('今日節目', '整理完成', 'ok'); }
-    else if (video) { add('今日節目', vStatus || '處理中', 'warn', '影片已抓到，正在判讀；進度看下方「處理進度」。'); }
-    else { add('今日節目', '尚未偵測到影片', hm >= 1530 ? 'warn' : 'idle',
+    /* v152：頂端那一排的「今日狀態」和這裡的「今日節目」講同一件事，合成一格「今日狀態」。 */
+    if (!trading) { add('今日狀態', '休市', 'idle', '休市日不取稿、不寄每日總覽；會員簡訊接收與通知照常。'); }
+    else if (noShow) { add('今日狀態', '今日無直播', 'idle', '上游確認頻道今天沒有這一集，已停止取稿；訂閱者不會收到每日整理。'); }
+    else if (plannedNoShow && !video) { add('今日狀態', '預告停播', 'idle', '前一集已預告請假；後續排程仍會查片，15:20 再核對公開直播與回放。'); }
+    else if (vStatus === '完成') { add('今日狀態', '整理完成', 'ok'); }
+    else if (video) { add('今日狀態', vStatus || '處理中', 'warn', '影片已抓到，正在判讀；進度看下方「處理進度」。'); }
+    else { add('今日狀態', '尚未偵測到影片', hm >= 1530 ? 'warn' : 'idle',
                hm >= 1530 ? '已過 15:30 仍未取得原稿；請核對來源狀態，必要時手動貼稿。'
                           : '交易日 ' + hmText_(TX_AUTO_START_HM_) + ' 起取稿；直播中等回放，12:30 後未出片降低探詢頻率。已輪詢 ' + polls + ' 次。'); }
     if (trading && !noShow) {
@@ -791,8 +802,7 @@ function apiAdminTodayStatus(key) {
     } else {
       add('郵件投遞', '今天還沒有寄信', 'idle', quotaLeft !== null ? '今天剩餘寄信額度 ' + quotaLeft + ' 封。' : '');
     }
-    add('績效最後一筆', perfLast || '尚無', behind > 1 ? 'warn' : 'ok',
-        behind > 1 ? '落後 ' + (behind - 1) + ' 個交易日；17:30／19:30 會自動補記，也可到「維護工具」按開始刷新。' : '');
+    /* v152：「績效最後一筆」與「今天失敗」兩張卡片拿掉（管理者要求）；落後與失敗次數仍在自動化監控的提醒裡。 */
     if (dk) {
       /* v90：整輪「做完」不等於有資料。9/30 那一輪 242 檔全部回 0 根，卡片卻是綠色「已完成」。
          失敗過半改黃色並寫出來；官方收盤行情補齊（officialDailyKTick_）會接手補，結果寫在時間軸「官方日K補齊」。 */
@@ -816,8 +826,6 @@ function apiAdminTodayStatus(key) {
             (dsx.error ? '原因：' + String(dsx.error).slice(0, 120) + '。' : '') + '系統每五分鐘自動續跑；要放棄這張工單到 Actions 選 cancel。');
       }
     } catch (e) {}
-    add('今天失敗', fails.length + ' 次', fails.length ? 'err' : 'ok',
-        fails.length ? '最近一次：' + String(fails[fails.length - 1]['說明'] || '').slice(0, 90) : '');
 
     // 今天的寄送結果沿用上面 deliverySummaryForDate_ 算好的 byMail；前幾個交易日另外一次讀完帳本
     var recentDays = recentTradingDays_(6, false), mailDays = opsMailByDates_(recentDays);

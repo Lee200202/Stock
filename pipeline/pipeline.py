@@ -6184,7 +6184,8 @@ def explicit_today_trades(transcript, names, cat):
     不算：「今天力積電要不要賣」（問句）、「我昨天賣聖輝」（昨天）、
           「今天早上有會員問我，我台達電是建議先賣出，等拉回再來買」（個別建議，不是已經賣掉）。
     """
-    names = sorted({n for n in (_ev_norm(x) for x in names if x) if len(n) >= 2}, key=len, reverse=True)
+    # 句子保留原文的寫法，正式名稱帶連字號（世芯-KY）；只用去掉符號的寫法（世芯KY）會永遠對不到（2026/10/08）。兩種都認。
+    names = sorted({n for x in names if x for n in (_ev_norm(x), re.sub(r'\s+', '', str(x))) if len(n) >= 2}, key=len, reverse=True)
     if not names:
         return []
     nm = '(?:' + '|'.join(re.escape(n) for n in names) + ')'
@@ -6193,7 +6194,10 @@ def explicit_today_trades(transcript, names, cat):
         pats = [day + r'[^。！？!?]{0,14}賣(?:出|掉)?(?:的)?' + nm,
                 nm + r'[^。！？!?，,]{0,6}(?:沒了[，,]?賣掉了|賣掉了|賣了)',
                 r'賣出的' + nm,
-                nm + r'[^。！？!?]{0,14}' + day + r'賣(?:出|掉|了|哦|喔)']
+                nm + r'[^。！？!?]{0,14}' + day + r'賣(?:出|掉|了|哦|喔)',
+                # 2026/10/08 世芯-KY：「今天賣掉4,400塊以上的四星KY」「我賣掉今天大漲200多塊的世芯-KY」——動詞和名稱中間夾著價位或漲幅。
+                day + r'[^。！？!?]{0,14}賣(?:出|掉)[^。！？!?，,]{1,14}?的' + nm,
+                r'(?:我|我們)賣(?:出|掉)' + day + r'[^。！？!?，,]{0,12}?的' + nm]
         notice = re.compile(day + r'[^。！？!?]*(?:通知|告訴)[^。！？!?]*會員[^。！？!?]*' + nm + r'[^。！？!?]*(?:賣出|賣掉|獲利了結)')
     else:
         pats = [day + r'[^。！？!?，,]{0,8}(?:新)?買(?:進|了)?(?:的)?[，,]?' + nm,
@@ -6208,6 +6212,14 @@ def explicit_today_trades(transcript, names, cat):
     for index, s in enumerate(sentences):
         if _TRADE_ASK.search(s) or not any(n in s for n in names):
             continue
+        # 「所以我今天只有賣一隻股票。大漲的時候賣，世芯-KY。」：動作在前一句交代了今天，這一句只報名字（2026/10/08）。
+        if cat == 'sell' and re.search(r'賣[，,]\s*' + nm + r'$', s.rstrip('。！？!? ')):
+            prefix = ''.join(sentences[max(0, index - 3):index])[-120:]
+            today_at = max((m.start() for m in _TRADE_TODAY.finditer(prefix)), default=-1)
+            past_at = max((m.start() for m in _TRADE_NOT_TODAY.finditer(prefix)), default=-1)
+            if today_at > past_at and re.search(r'賣', prefix[today_at:]):
+                hits.append(prefix[today_at:] + s)
+                continue
         m = notice.search(s) or next((p.search(s) for p in pats if p.search(s)), None)
         if not m:
             continue
@@ -6263,7 +6275,8 @@ def enforce_explicit_trades(signals, transcript):
                 # 模型原本寫的說明有內容就留著（2026/10/08 亞德客-KY）：先前只要說明裡沒有「買」字就整段換成原句，
                 # 年線、營收、EPS 那些內容全部丟掉；之後補充說明若沒通過核對，公開的就是一句口語殘句，整輪被品質關卡擋下。
                 # 買賣方向另有欄位，說明不必重複「買進」兩個字。只有說明是空的或只有一兩句話時才用原句、交給補充說明重寫。
-                had = str(moved.get('reason') or '')
+                had = str(moved.get('reason') or moved.get('note') or '')      # 從會員持股改列時，說明寫在 note
+                moved['reason'] = had
                 if not re.search(r'賣' if want == 'sell' else r'買', had) and len(_ev_norm(had)) < 20:
                     moved['_reason_before'] = had           # 補充說明沒通過時用回這一句（見 enrich_stock_context）
                     moved['reason'] = spoken_to_note(hits[0])
@@ -9697,7 +9710,8 @@ def _context_claims(reply, source_ids):
 
 # 口語殘句：問聽眾的口頭禪，或句子停在連接的字上（「…它是不是跟。」）。
 # 「的。」「是。」結尾是正常的書面句，不算（2026/10/06 重播有三則正常說明被誤判，已收窄）。
-_SPOKEN_FRAGMENT = re.compile(r'你來看|你看一下|你們看|對不對|好不好|(?:跟|和|與|及|把|被|讓|對|從|向|比)[。？！!?]?$')
+# 2026/10/08：「…的對比。」「…絕對。」是完整的句子，不算停在連接的字上（環球晶的說明因此被當成殘句，整輪被擋）。
+_SPOKEN_FRAGMENT = re.compile(r'你來看|你看一下|你們看|對不對|好不好|(?:跟|和|與|及|把|被|讓|(?<![絕相面反針應核比])對|從|向|(?<![對相類無可好])比)[。？！!?]?$')
 _SPOKEN_QUESTION = re.compile(r'是不是|有沒有')
 
 
@@ -13377,7 +13391,9 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     signals = strip_unsupported_event_context(signals, TX["audit"])
     signals = sanitize_entity_claims(signals, TX["audit"])
     # 主詞核對把整則說明收回的那幾檔，請模型依本股原句重寫一次（不貼原文片段、不由程式拼句子）。
-    if any(isinstance(r, dict) and r.get('_note_withdrawn') for cat in SIGNAL_CATEGORIES for r in signals.get(cat, []) or []):
+    # 2026/10/08：模型的回覆漏了某幾檔時，那幾檔的說明還停在口語原句（亞德客-KY、環球晶），也再問一次。
+    if any(isinstance(r, dict) and (r.get('_note_withdrawn') or spoken_fragment(str(r.get('note' if cat == 'holdings' else 'reason') or '')))
+           for cat in SIGNAL_CATEGORIES for r in signals.get(cat, []) or []):
         signals = enrich_stock_context(signals, TX["audit"], date_str)
         signals = sanitize_entity_claims(signals, TX["audit"])
         for cat in SIGNAL_CATEGORIES:

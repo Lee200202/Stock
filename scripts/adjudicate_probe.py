@@ -71,6 +71,7 @@ def main():
         print(f'官方代號表暫不可用（{type(e).__name__}），仍用確認名稱')
     tally = {'total': 0, 'right': 0, 'same': 0, 'unusable': 0, 'asked': 0,
              'a_keep': 0, 'a_open': 0, 'a_harm': 0, 'b_total': 0, 'b_fixed': 0, 'b_open': 0, 'b_harm': 0}
+    days = []
     for raw_day in [d for d in args.dates.split(',') if d.strip()]:
         day = pl.norm_date(raw_day.strip())
         golden_file = Path('scripts/golden') / (day.replace('/', '-') + '.json')
@@ -94,19 +95,24 @@ def main():
                     print(f"  {row['name']}（{code}）原文找不到本股段落，不問")
                     continue
                 start[code] = cat
-                items.append((code, {'name': row['name'], 'heard': sorted(n for n in names if n not in (row['name'], code))[:6],
-                                     'known': known.get(code, []), 'passages': sent[:10], '_norm': pl._ev_norm(text),
-                                     '_names': sorted(names | {code})}))
-        votes, kept = {code: [] for code, _ in items}, {code: [] for code, _ in items}
-        for round_no in range(args.repeat):
-            answers = pl._ask_verdicts(items, day, round_no)
-            for code, item in items:
-                cls, basis = pl.verdict_class(answers.get(code), item['_norm'], item['_names'])
-                votes[code].append(cls)
-                kept[code].append((cls, basis, answers.get(code) or {}))
+                items.append((day + '#' + code, {'date': day, 'code': code, 'name': row['name'],
+                                                 'heard': sorted(n for n in names if n not in (row['name'], code))[:6],
+                                                 'known': known.get(code, []), 'passages': sent[:10], '_norm': pl._ev_norm(text),
+                                                 '_names': sorted(names | {code})}))
+        days.append((day, items, start, want))
+    everything = [pair for _day, items, _start, _want in days for pair in items]
+    votes, kept = {key: [] for key, _ in everything}, {key: [] for key, _ in everything}
+    for round_no in range(args.repeat):
+        answers = pl._ask_verdicts(everything, '', round_no)        # 所有日期同一個請求（依字數裝箱）
+        for key, item in everything:
+            cls, basis = pl.verdict_class(answers.get(key), item['_norm'], item['_names'])
+            votes[key].append(cls)
+            kept[key].append((cls, basis, answers.get(key) or {}))
+    for day, items, start, want in days:
         print(f'\n{day}　{len(items)} 檔 × {args.repeat} 輪')
-        for code, item in items:
-            got = votes[code]
+        for key, item in items:
+            code = item['code']
+            got = votes[key]
             usable = [v for v in got if v]
             top = max(dict.fromkeys(usable), key=usable.count) if usable else ''
             ok = accepted(top, want[code])
@@ -132,7 +138,7 @@ def main():
             print(f"  {'✓' if ok else '✗'} {item['name']}（{code}）答案 {accept}｜問卷 {'、'.join(LABEL.get(v, v) or '不能用' for v in got)}"
                   f"｜流程判對時：{kind_a}；{'；'.join(rescue)}" + ('' if agree else '　←各輪不同'))
             if not ok or kind_a == '改錯' or '改錯' in ''.join(rescue):
-                for cls, basis, a in kept[code]:
+                for cls, basis, a in kept[key]:
                     facts = [k for k in ('buy_today', 'sell_today', 'holding_now', 'past_trade', 'about_itself') if a.get(k) is True]
                     quotes = [q for qs in (a.get('quotes') or {}).values() for q in (qs or []) if isinstance(q, str)]
                     print(f"      {LABEL.get(cls, cls) or '不能用'}：{basis[:60]}｜{'、'.join(facts) or '全部為否'}；now={a.get('now')}、tone={a.get('tone')}"

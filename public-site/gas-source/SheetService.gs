@@ -509,32 +509,45 @@ var NO_TOUCH_COVERED_DAYS = 120;
    介面在進場價／出場價下方用灰字標出來；原本的觸價、回述判斷仍然用來決定「哪一天」成交。
    要知道這個立場的效果：買最低、賣最高是跟著喊單操作能拿到的最好結果，報酬會比實際成交好看，
    畫面上的計算說明會寫明。管理者在後台「現有持股」修正的成本仍然優先。 */
-/* 取價立場（v145，2026/10/08 管理者指定）：進場價、出場價一律取那一天「最高與最低的平均」。
+/* v145 的取價立場：進場價、出場價一律取那一天「最高與最低的平均」。
      v68 是進場取當日最低、出場取當日最高——那是跟著喊單操作能拿到的最好結果，報酬偏高；
      管理者要求改成高低平均：會員實際成交落在當天區間的哪一點無從得知，取中間值不偏向任何一邊。
    適用範圍和 v68 相同：明講買入、首次明講會員持有、明講賣出、轉觀望不碰、逾期未再提及都一樣；
    持有聲明、轉觀望、逾期仍只取當日或之前的 K 棒（不借未來 K 棒）；決定「哪一天成交」的規則（觸價、回述）不變。
    明講價照舊只當附註；管理者在後台修正的成本仍然優先。四捨五入到小數兩位。
-   每次重算結束會自己稽核一次（見 midPriceAudit_）：每一個有日 K 的回合，進出場價都要等於那一天的高低平均。 */
+   v147（2026/10/08）：經對應日 K 核對的明講進場價與中點取較低者，明講出場價與中點取較高者；
+   無有效明講價仍用中點。管理者覆寫成本優先，轉觀望與逾期沒有實際賣價，用中點。
+   每次重算結束用 midPriceAudit_ 逐回合核對此公式。 */
 function midPrice_(k) {
   // 先各自換成「分」再相加：10.05 與 10.10 直接相加除二在浮點數裡是 10.07499…，會被捨成 10.07。剛好在半分時進位。
   return Math.round((Math.round(Number(k.low) * 100) + Math.round(Number(k.high) * 100)) / 2) / 100;
 }
 
-/** 重算後的自我稽核：回合的進場／出場價是否等於取價那一天的高低平均。管理者修正成本的回合進場價不在此列。
+/* 明講價只有經日K觸價核對且落在該取價日區間內才可參與公式。
+   「以下買」與「以上賣」是門檻，不保證剛好在門檻成交；超出區間時只取中點。 */
+function roundPrice_(k, stated, side) {
+  var middle = midPrice_(k);
+  var said = Number(stated);
+  if (!(said > 0) || said < Number(k.low) || said > Number(k.high)) {
+    return { price: middle, stated: null };
+  }
+  return { price: side === 'entry' ? Math.min(said, middle) : Math.max(said, middle), stated: said };
+}
+
+/** 重算後的自我稽核：回合的進場／出場價是否等於明講價與中點擇優公式。管理者修正成本的回合進場價不在此列。
  *  回傳 {checked, mismatch:[說明…]}；寫進執行紀錄，也放進重算的回傳值，稽核腳本與後台都看得到。 */
 function midPriceAudit_(name, rounds) {
   var out = { checked: 0, mismatch: [] };
   (rounds || []).forEach(function (rd, i) {
     if (rd.entryRange && !rd.entryOverridden) {
       out.checked++;
-      var e = midPrice_({ low: rd.entryRange.lo, high: rd.entryRange.hi });
-      if (Number(rd.entry) !== e) { out.mismatch.push(name + ' 第 ' + (i + 1) + ' 回合進場價 ' + rd.entry + ' ≠ 高低平均 ' + e); }
+      var e = roundPrice_({ low: rd.entryRange.lo, high: rd.entryRange.hi }, rd.entryPriceHint, 'entry').price;
+      if (Number(rd.entry) !== e) { out.mismatch.push(name + ' 第 ' + (i + 1) + ' 回合進場價 ' + rd.entry + ' ≠ 進場公式 ' + e); }
     }
     if (rd.exitRange) {
       out.checked++;
-      var x = midPrice_({ low: rd.exitRange.lo, high: rd.exitRange.hi });
-      if (Number(rd.exit) !== x) { out.mismatch.push(name + ' 第 ' + (i + 1) + ' 回合出場價 ' + rd.exit + ' ≠ 高低平均 ' + x); }
+      var x = roundPrice_({ low: rd.exitRange.lo, high: rd.exitRange.hi }, rd.exitPriceHint, 'exit').price;
+      if (Number(rd.exit) !== x) { out.mismatch.push(name + ' 第 ' + (i + 1) + ' 回合出場價 ' + rd.exit + ' ≠ 出場公式 ' + x); }
     }
   });
   return out;
@@ -793,12 +806,12 @@ function daysBetween_(a, b) {
  *      兩筆並存是正常的。祥碩就是這樣從「目前持有」消失的。
  *
  * 平倉有三種方式，依序判斷：
- *   1. 明講賣出　　　　　　　　→ 出場價取成交日最高；口頭價只作附註
- *   2. 觀望不碰　　　　　　　　→ 暫定視為出場，出場價取當日收盤。
+ *   1. 明講賣出　　　　　　　　→ 出場價取經核對明講價與當日中點較高者
+ *   2. 觀望不碰　　　　　　　　→ 暫定視為出場，出場價取當日中點。
  *      這不是一筆成交，是立場由持有轉為不碰，所以絕不採用明講價，
- *      只用當日收盤代表「若在這天退出，價位大約在這裡」。
+ *      只用當日中點代表「若在這天退出，價位大約在這裡」。
  *   3. 逾 STALE_TRADING_DAYS 個交易日未再提及 → 視為出場。出場日＝「每天講了什麼」最後一次
- *      提及的日期，出場價＝那一天的收盤；那天沒有日K（週末的會員簡訊、快取缺漏）
+ *      提及的日期，出場價＝那一天的中點；那天沒有日K（週末的會員簡訊、快取缺漏）
  *      取那天之前最近一個交易日的收盤，絕不拿之後的價格——提及當下還不知道之後的價。
  *   觀望不碰與逾期都只看「這一回合」：同一天另有會員持股聲明時，那次不碰不平倉。
  *
@@ -1579,8 +1592,10 @@ function rebuildHoldingsTrackerJobRun_(options) {
         if (ek && (ek.date <= rd.open.date || (rd.openKind !== 'hold' && r1.filled))) {
           rd.entryDate = ek.date;
           rd.entryRange = { lo: Number(ek.low), hi: Number(ek.high) };
-          rd.entry = midPrice_(ek);
-          rd.entrySrc = '取 ' + ek.date + ' 當日高低平均 ' + rd.entry + '（最低 ' + Number(ek.low) + '、最高 ' + Number(ek.high) + '）' +
+          var entryChoice = roundPrice_(ek, openHint && !r1.rejected && !r1.unverified ? openHint.value : null, 'entry');
+          rd.entry = entryChoice.price;
+          rd.entryPriceHint = entryChoice.stated;
+          rd.entrySrc = '取 ' + ek.date + ' ' + (entryChoice.stated != null ? '明講價與高低平均較低者' : '當日高低平均') + ' ' + rd.entry + '（最低 ' + Number(ek.low) + '、最高 ' + Number(ek.high) + '）' +
             (rd.openKind === 'hold' ? '（首次明講會員持有）' : '') +
             (entryUsedHint ? '；' + rd.entryStated + '（原判：' + rd.entrySrc + '）' : '');
         }
@@ -1657,8 +1672,10 @@ function rebuildHoldingsTrackerJobRun_(options) {
             (rd.closeKind !== '賣出' || (r2 && r2.filled) || xk.date <= rd.close.date)) {
           rd.exitDate = xk.date;
           rd.exitRange = { lo: Number(xk.low), hi: Number(xk.high) };
-          rd.exit = midPrice_(xk);
-          rd.exitSrc = '取 ' + xk.date + ' 當日高低平均 ' + rd.exit + '（最低 ' + Number(xk.low) + '、最高 ' + Number(xk.high) + '）' +
+          var exitChoice = roundPrice_(xk, exitHint && r2 && !r2.rejected && !r2.unverified ? exitHint.value : null, 'exit');
+          rd.exit = exitChoice.price;
+          rd.exitPriceHint = exitChoice.stated;
+          rd.exitSrc = '取 ' + xk.date + ' ' + (exitChoice.stated != null ? '明講價與高低平均較高者' : '當日高低平均') + ' ' + rd.exit + '（最低 ' + Number(xk.low) + '、最高 ' + Number(xk.high) + '）' +
             (rd.closeKind === '觀望不碰' ? '（轉為觀望不碰）' : rd.closeKind === '逾期未再提及' ? '（逾期未再提及）' : '') +
             (exitUsedHint ? '；' + rd.exitStated + '（原判：' + rd.exitSrc + '）' : '');
         }
@@ -1776,7 +1793,7 @@ function rebuildHoldingsTrackerJobRun_(options) {
     var roundDetail = rounds.map(function (rd, idx) {
       var openWord = (rd.openKind === 'hold') ? '首次明講會員持有' : '買入';
       var head = '第 ' + (idx + 1) + ' 回合\u3000' + rd.open.date + ' ' + openWord;
-      if (rd.entry) { head += ' ' + rd.entry + (rd.entryRange ? '（當日高低平均）' : ''); }
+      if (rd.entry) { head += ' ' + rd.entry + (rd.entryRange ? (rd.entryPriceHint != null ? '（明講價與高低平均較低者）' : '（當日高低平均）') : ''); }
       if (rd.entryStated) { head += '［' + rd.entryStated + '］'; }
       // 條件價的成交日與發話日不同，要標出來，否則會以為當天就買到了。
       if (rd.entryDate && rd.entryDate !== rd.open.date) {
@@ -1789,7 +1806,7 @@ function rebuildHoldingsTrackerJobRun_(options) {
       var tail = ' \u2192 ' + rd.close.date + ' ' +
                  (rd.closeKind === '賣出' ? '賣出' :
                   rd.closeKind === '觀望不碰' ? '轉觀望不碰視為出場' : '逾期未再提及視為出場');
-      if (rd.exit) { tail += ' ' + rd.exit + (rd.exitRange ? '（當日高低平均）' : ''); }
+      if (rd.exit) { tail += ' ' + rd.exit + (rd.exitRange ? (rd.exitPriceHint != null ? '（明講價與高低平均較高者）' : '（當日高低平均）') : ''); }
       if (rd.exitStated) { tail += '［' + rd.exitStated + '］'; }
       if (rd.exitDate && rd.exitDate !== rd.close.date) {
         tail += rd.closeKind === '賣出' ? '（' + rd.exitDate + ' 觸價）' : '（取 ' + rd.exitDate + '）';
@@ -1882,6 +1899,7 @@ function rebuildHoldingsTrackerJobRun_(options) {
           xl: rd.exitRange ? rd.exitRange.lo : null, xh: rd.exitRange ? rd.exitRange.hi : null,
           ev: rd.entryStatedValue || null, es: rd.entryStated || '',
           xv: rd.exitStatedValue || null, xs: rd.exitStated || '',
+          ep: rd.entryPriceHint || null, xp: rd.exitPriceHint || null,
           ck: rd.close ? rd.closeKind : ''
         };
       })),
@@ -1919,8 +1937,8 @@ function rebuildHoldingsTrackerJobRun_(options) {
 
   Logger.log('持股追蹤重算完成，共 ' + rows.length + ' 檔（耗時 ' +
              Math.round((Date.now() - start) / 1000) + ' 秒）');
-  Logger.log('  進場價已算出　' + stat.ok + ' 檔（進場、出場一律取當日最高與最低的平均；口頭價只留附註）');
-  Logger.log('  取價稽核　核對 ' + (stat.midChecked || 0) + ' 個進出場價＝當日高低平均；不符 ' + (stat.midMismatch || []).length + ' 個'
+  Logger.log('  進場價已算出　' + stat.ok + ' 檔（進場取經驗證明講價與高低平均較低者；出場取較高者；無明講價取中點）');
+  Logger.log('  取價稽核　核對 ' + (stat.midChecked || 0) + ' 個進出場價；不符 ' + (stat.midMismatch || []).length + ' 個'
     + ((stat.midMismatch || []).length ? '：' + stat.midMismatch.slice(0, 8).join('；') : ''));
   // 稽核結果留一份給網站與稽核腳本讀（持股追蹤的 priceAudit）：哪一條取價規則、核對了幾個價、幾個不符、什麼時候算的。
   if (!dryRun) {
@@ -1928,12 +1946,12 @@ function rebuildHoldingsTrackerJobRun_(options) {
       // 取價規則第一次換成高低平均時，歷史每日績效（績效走勢）也要用新的進場價整張重算一次：
       // 留下記號，15:05 的 snapshotPerformanceJob 看到就先重算歷史再寫今天（見 Cachebuilder.gs）。
       var beforeAudit = trackerPriceAudit_();
-      if (!beforeAudit || beforeAudit.rule !== '當日高低平均') {
-        PropertiesService.getScriptProperties().setProperty('PERF_HISTORY_REBUILD_DUE', '當日高低平均');
-        Logger.log('  取價規則改為當日高低平均：已排定重算歷史每日績效');
+      if (!beforeAudit || beforeAudit.rule !== '明講價與高低中點擇優') {
+        PropertiesService.getScriptProperties().setProperty('PERF_HISTORY_REBUILD_DUE', '明講價與高低中點擇優');
+        Logger.log('  取價規則改為明講價與高低中點擇優：已排定重算歷史每日績效');
       }
       PropertiesService.getScriptProperties().setProperty('TRACKER_PRICE_AUDIT', JSON.stringify({
-        rule: '當日高低平均', checked: stat.midChecked || 0, mismatch: (stat.midMismatch || []).length,
+        rule: '明講價與高低中點擇優', checked: stat.midChecked || 0, mismatch: (stat.midMismatch || []).length,
         sample: (stat.midMismatch || []).slice(0, 5), overridden: stat.overridden || 0, singleDay: stat.singleDay || 0,
         at: Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy/MM/dd HH:mm') }));
     } catch (e) { Logger.log('取價稽核結果未能保存：' + e); }
@@ -2323,9 +2341,9 @@ function getHoldingsTrackerRead_() {
     priceAudit: trackerPriceAudit_(),
     summary: summary,
     note: '',
-    heldBasis: '持有中為未實現損益。同一檔可能買了又賣、賣了又買，因此以回合計算。進場價取進場日當日最高與最低的平均（只有「會員目前持有」聲明時，取聲明當日或之前最近交易日）。影片明講的價位用灰字附註，不拿來當計算價。報酬以最新成交價計算，盤後或取不到即時報價時用最後一根日K收盤。',
-    exitedBasis: '出場價取出場日當日最高與最低的平均：明講賣出、轉為觀望不碰、超過 10 個交易日未再提及（以最後一次提及那一天為出場日）都一樣；後兩者當天無日K則取之前最近交易日，不借用未來K棒。只在進場當天提到、之後沒有再提的不算一段持有，不列入。口頭價用灰字附註，不拿來當計算價；管理者手動成本覆寫仍優先。',
-    basis: '進場與出場都取當天最高與最低的平均：實際成交落在當天區間的哪一點無從得知，取中間值不偏向任何一邊；這不是實際成交紀錄。同日另有觀望不碰不作廢持股聲明。未計入交易成本與部位大小。'
+    heldBasis: '進場價取經日K核對的明講價與當日高低中點較低者；沒有有效明講價就取中點。管理者修正成本優先。持有中的報酬以最新成交價計，盤後用收盤價。',
+    exitedBasis: '出場價取經日K核對的明講價與當日高低中點較高者；沒有有效明講價就取中點。轉觀望與逾期未再提及沒有實際賣價，僅取該日或之前交易日中點。',
+    basis: '價格是依原句與日K估算，未核對實際成交回報；不含手續費、交易稅與滑價。'
   };
 
   // 相同 items 不重複存三次；超過單筆上限時分段，快取失敗仍照常回傳資料。
@@ -2344,9 +2362,9 @@ function trackerRoundList_(raw) {
   return arr.map(function (x) {
     return {
       open: String(x.o || ''), entryDate: String(x.od || x.o || ''), entry: num(x.e),
-      entryLo: num(x.el), entryHi: num(x.eh), entryStated: num(x.ev), entryNote: String(x.es || ''),
+      entryLo: num(x.el), entryHi: num(x.eh), entryStated: num(x.ev), entryFormulaHint: num(x.ep), entryNote: String(x.es || ''),
       exitDate: String(x.c || ''), exitTradeDate: String(x.xd || x.c || ''), exit: num(x.x), exitLo: num(x.xl), exitHi: num(x.xh),
-      exitStated: num(x.xv), exitNote: String(x.xs || ''), closeKind: String(x.ck || ''), hold: x.k === 'hold'
+      exitStated: num(x.xv), exitFormulaHint: num(x.xp), exitNote: String(x.xs || ''), closeKind: String(x.ck || ''), hold: x.k === 'hold'
     };
   });
 }

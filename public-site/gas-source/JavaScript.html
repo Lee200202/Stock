@@ -1525,51 +1525,51 @@ function restatesEarlier_(key, earlier) {
     /* v145（2026/10/08 管理者）：一行結論＋問號；按問號展開四張卡片——公式、為什麼取平均、同一筆交易三種算法的差別、沒有變的事。
        先前問號裡是一段兩百字的規則全文；改成卡片後公式與理由各自成塊，要核對的人找得到數字。 */
     var audit = t.priceAudit || null;
-    var auditLine = audit && audit.rule === '當日高低平均'
+    var auditLine = audit && audit.rule === '明講價與高低中點擇優'
       ? '<p class="basis-audit">' + esc('最近一次重算 ' + audit.at + '：核對 ' + audit.checked + ' 個進出場價，' +
-          (audit.mismatch ? audit.mismatch + ' 個和公式不符（已記錄待查）。' : '全部等於當日最高與最低的平均。') +
+          (audit.mismatch ? audit.mismatch + ' 個和公式不符（已記錄待查）。' : '全部符合進出場取價公式。') +
           (audit.overridden ? '另有 ' + audit.overridden + ' 個回合採用管理者修正的成本。' : '')) + '</p>'
       : '';
     /* 後端還沒用新規則重算之前（priceAudit 還不是「當日高低平均」），畫面照舊寫當時實際使用的規則，
        不讓說明走在數字前面；重算一次之後自動換成新的一行與卡片。 */
-    var midRule = !!(audit && audit.rule === '當日高低平均');
+    var midRule = !!(audit && audit.rule === '明講價與高低中點擇優');
     var basisOld = ((trackerView === 'held' ? (t.heldBasis || '') : (t.exitedBasis || '')) + '　' + (t.basis || '')).trim();
     $('trackerBasis').innerHTML = !midRule
-      ? '<div class="basis-line"><span>' + esc(trackerView === 'held' ? '進場取當日最低。' : '進場取當日最低、出場取當日最高。') + '</span>' +
+      ? '<div class="basis-line"><span>' + esc(audit && audit.rule === '當日高低平均' ? '進出場價取當日高低平均。' : (trackerView === 'held' ? '進場取當日最低。' : '進場取當日最低、出場取當日最高。')) + '</span>' +
         (basisOld ? ' <button type="button" class="whyb" id="basisWhy" aria-expanded="false" aria-controls="basisCards" aria-label="計算方式的完整說明">?</button></div>' +
                     '<div class="whytext" id="basisCards" hidden>' + esc(basisOld) + '</div>' : '</div>')
       :
       '<div class="basis-line"><span>' + esc(trackerView === 'held'
-        ? '進場價取當日最高與最低的平均。'
-        : '進場價、出場價都取當日最高與最低的平均。') + '</span>' +
+        ? '進場價取明講價與當日中點較低者。'
+        : '進場取較低者，出場取較高者。') + '</span>' +
       ' <button type="button" class="whyb" id="basisWhy" aria-expanded="false" aria-controls="basisCards" aria-label="計算公式與理由">?</button></div>' +
       '<div class="basis-cards" id="basisCards" hidden>' +
         '<section class="basis-card"><h4>公式</h4>' +
           '<dl class="basis-formula">' +
-            '<div><dt>進場價</dt><dd>（進場日最高 ＋ 進場日最低）÷ 2</dd></div>' +
-            '<div><dt>出場價</dt><dd>（出場日最高 ＋ 出場日最低）÷ 2</dd></div>' +
+            '<div><dt>當日中點</dt><dd>（當日最高 ＋ 當日最低）÷ 2</dd></div>' +
+            '<div><dt>進場價</dt><dd>min（明講進場價，進場日中點）</dd></div>' +
+            '<div><dt>出場價</dt><dd>max（明講出場價，出場日中點）</dd></div>' +
             '<div><dt>報酬</dt><dd>（出場價 － 進場價）÷ 進場價</dd></div>' +
           '</dl>' +
-          '<p>持有中的股票還沒有出場價，用最新成交價代入；收盤後用當天收盤。價格四捨五入到小數兩位。</p>' + auditLine +
+          '<p>明講價須經對應交易日 K 線核對；沒有可採用的明講價，就使用當日中點。管理者修正成本優先。價格四捨五入到小數兩位。</p>' + auditLine +
         '</section>' +
-        '<section class="basis-card"><h4>為什麼取平均</h4>' +
-          '<p>買賣是在盤中喊的，會員實際成交在當天區間的哪一個價位，沒有辦法知道。</p>' +
-          '<p>先前的算法是<b>買在當天最低、賣在當天最高</b>：等於假設每一筆都成交在最有利的價位，報酬會<b>高估</b>。反過來假設買在最高、賣在最低，又會<b>低估</b>。</p>' +
-          '<p>取最高與最低的平均，不偏向任何一邊。</p>' +
+        '<section class="basis-card"><h4>取價依據</h4>' +
+          '<p>有經行情核對的明講價時，進場取它與中點較低者，出場取較高者。門檻價若不在取價日的成交區間，不當作成交價。</p>' +
+          '<p>這是依公開原句的估算，未核對會員實際成交；選有利價位可能使報酬偏高。</p>' +
         '</section>' +
-        '<section class="basis-card basis-card-wide"><h4>同一筆交易，三種算法</h4>' +
-          '<p class="basis-eg">進場日最低 100、最高 110；出場日最低 118、最高 124。</p>' +
-          '<div class="basis-rows" role="table" aria-label="三種取價算法的報酬比較">' +
-            '<div role="row"><span role="cell">買最低、賣最高</span><span role="cell">100 → 124</span><span role="cell" class="basis-pct">+24.0%</span><span role="cell" class="basis-tag is-over">高估</span></div>' +
-            '<div role="row" class="is-used"><span role="cell">最高與最低的平均</span><span role="cell">105 → 121</span><span role="cell" class="basis-pct">+15.2%</span><span role="cell" class="basis-tag is-used">本站採用</span></div>' +
-            '<div role="row"><span role="cell">買最高、賣最低</span><span role="cell">110 → 118</span><span role="cell" class="basis-pct">+7.3%</span><span role="cell" class="basis-tag is-under">低估</span></div>' +
+        '<section class="basis-card basis-card-wide"><h4>算一次給你看</h4>' +
+          '<p class="basis-eg">進場日 100～110，中點 105，明講 102；出場日 118～124，中點 121，明講 123。</p>' +
+          '<div class="basis-rows" role="table" aria-label="進出場公式範例">' +
+            '<div role="row" class="is-used"><span role="cell">進場 min（102，105）</span><span role="cell">102</span><span role="cell" class="basis-pct">明講價</span><span role="cell" class="basis-tag is-used">取較低</span></div>' +
+            '<div role="row" class="is-used"><span role="cell">出場 max（123，121）</span><span role="cell">123</span><span role="cell" class="basis-pct">明講價</span><span role="cell" class="basis-tag is-used">取較高</span></div>' +
+            '<div role="row"><span role="cell">回合報酬</span><span role="cell">102 → 123</span><span role="cell" class="basis-pct">+20.59%</span><span role="cell" class="basis-tag">估算</span></div>' +
           '</div>' +
         '</section>' +
         '<section class="basis-card basis-card-wide"><h4>沒有變的事</h4>' +
           '<ul class="basis-list">' +
-            '<li>哪一天算進場、哪一天算出場的判定不變：明講賣出、轉為觀望不碰，以那一天的高低平均出場。</li>' +
+            '<li>哪一天算進場、哪一天算出場的判定不變；轉為觀望不碰與逾期未再提及，沒有明講賣價時用當日中點。</li>' +
             '<li>超過 10 個交易日沒有再提到的，以最後一次提及那一天視為出場。只在進場當天提到、之後沒有再提的，不算一段持有，不列入已出場，也不計入已實現報酬。</li>' +
-            '<li>節目裡口頭講的價位只當附註，不拿來計算。</li>' +
+            '<li>明講價不在取價日 K 線區間、未觸價或來源不明時，只作附註，不拿來計算。</li>' +
             '<li>管理者修正過的成本優先於公式。</li>' +
             '<li>當天沒有日 K 時只往前找最近的交易日，不借用之後的價格。</li>' +
             '<li>這是估算，不是實際成交紀錄；沒有計入手續費、稅與部位大小。</li>' +
@@ -1599,8 +1599,7 @@ function restatesEarlier_(key, earlier) {
     renderTrackerRows(t, trackerSorted_(showing));
   }
 
-  /* 價格下方的一行灰字。v104 起只用來寫「M/D 提到」（提到日與成交日不同時）；
-     講者口頭講的價位前台不顯示（進出場價一律是當日最低／最高）。 */
+  /* 價格下方的一行灰字。公開頁不顯示會員通知價位；僅顯示日期與可公開的核對依據。 */
   function statedTag(note) {
     return note ? '<span class="stated">' + esc(note) + '</span>' : '';
   }

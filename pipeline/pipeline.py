@@ -10386,40 +10386,11 @@ def theme_passages(theme, transcript, other_names):
     return out[:6]
 
 
-_LOT_PROFIT_RE = re.compile(r'(?:每|一)張[^，。；;]{0,8}?賺[^，。；;\d]{0,4}(\d[\d、,]*)\s*(多)?(百|千|萬)?(?:元|塊)?')
-
-
-def drop_fragment_endings(signals: dict) -> dict:
-    """說明的最後一句停在半路（口語殘句）時，拿掉那一句、留下前面完整的句子；只剩一句的不動，交給補空與品質關卡。
-
-    先前殘句直接擋下整天：一則說明的一個句尾，讓其他十七檔都不能更新。
-    """
-    for cat in SIGNAL_CATEGORIES:
-        for row in signals.get(cat, []) or []:
-            if not isinstance(row, dict):
-                continue
-            field = 'note' if cat == 'holdings' else 'reason'
-            text = str(row.get(field) or '').strip()
-            sentences = [x for x in re.split(r'(?<=[。！？!?])', text) if x.strip()]
-            if len(sentences) >= 2 and spoken_fragment(text) and not spoken_fragment(''.join(sentences[:-1])):
-                row[field] = ''.join(sentences[:-1]).strip()
-                name = _display_name(row.get('name')) or str(row.get('name') or '')
-                print(f"  說明整理 {name}：最後一句停在半路，已拿掉：{sentences[-1][:30]}")
-                note_decision('說明整理', '最後一句是殘句，拿掉那一句', name, sentences[-1][:80])
-    return signals
-
-
 def tidy_public_notes(ss, signals: dict, date_str: str) -> dict:
-    """兩種只刪不改的整理：每張獲利與股價不相稱的子句、同一則說明裡一字不差的重複子句。
+    """同一則說明裡一字不差的重複子句只留第一次（補充句接在原說明後面時，會把同一個子句再接一次）。只刪不改。
 
-    一張是一千股。「4,400 元的股票，會員每張賺5、6百元」是把每股的價差講成每張（原話就是這樣講的），照抄會誤導；
-    每張獲利比一股的股價還低時，那個子句不留。查不到股價就不判。
+    「會員每張賺5、6百元」這類獲利數字照原話保留：管理者 2026/10/08 確認那是世芯-KY 的獲利數字，不由程式判斷單位。
     """
-    try:
-        kmap = _daily_k_cached(ss) if ss is not None else None
-    except Exception:
-        kmap = None
-    unit = {'百': 100, '千': 1000, '萬': 10000}
     for cat in SIGNAL_CATEGORIES:
         for row in signals.get(cat, []) or []:
             if not isinstance(row, dict) or row.get('_manual_note_kept'):
@@ -10428,27 +10399,11 @@ def tidy_public_notes(ss, signals: dict, date_str: str) -> dict:
             text = str(row.get(field) or '')
             if not text:
                 continue
-            band = _price_band(kmap, str(row.get('code') or ''), date_str) if kmap else None
-            name = _display_name(row.get('name')) or str(row.get('name') or '')
             kept, seen, changed = [], set(), False
             for clause, punct in _split_clauses(text):
                 key = _ev_norm(clause)
-                m = _LOT_PROFIT_RE.search(clause)
-                if m and band and min(band) > 0:
-                    try:
-                        value = float(re.split(r'[、,]', m.group(1))[0]) * unit.get(m.group(3) or '', 1)
-                    except ValueError:
-                        value = 0.0
-                    if 0 < value < min(band):
-                        print(f"  說明整理 {name}：每張獲利 {m.group(0)[-12:]} 比一股的股價（{min(band):g}）還低，單位不對，刪掉那個子句")
-                        note_decision('說明整理', '每張獲利與股價不相稱，刪掉那個子句', name, clause[:80])
-                        signals.setdefault('_repair_gaps', []).append(f'{name}：每張獲利的金額與股價不相稱，已移除')
-                        changed = True
-                        if punct == '。' and kept:
-                            kept[-1][1] = '。'
-                        continue
                 if len(key) >= 6 and key in seen:
-                    changed = True                              # 一字不差的重複子句只留第一次
+                    changed = True
                     if punct == '。' and kept:
                         kept[-1][1] = '。'
                     continue
@@ -17404,7 +17359,7 @@ def public_sms_note(text, row=None):
     text = public_narrative(text, row)
     text = re.sub(r'(?:會員簡訊|盤中(?:即時)?通知)(?:的)?(?:當日|當天|今日|當時)?(?:通知|說明|指出|提到|要求|內容)?(?:在|以)?[：:]?', '', text)
     # 只處理交易價；EPS、配息、張數、百分比及均線週期仍是有用資訊。
-    known = re.findall(r'\d+(?:\.\d+)?', str(row.get('price') or ''))
+    known = [n.replace(',', '') for n in re.findall(r'(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?', str(row.get('price') or ''))]
     parts = re.split(r'(?<=[。！？；])', text)
     for i, sentence in enumerate(parts):
         trade = bool(re.search(r'買進|買入|買回|賣出|賣掉|出清|加碼|減碼|成本|成交|平盤', sentence))
@@ -17422,7 +17377,10 @@ def public_sms_note(text, row=None):
                 return match.group(0)
             return ''
         # 「6、70塊」「74到76塊」是一個數量，整組一起留或一起拿，不能只挖後半。
-        sentence = re.sub(r'(?:在|以|於)?(?:平盤)?(?:\d+(?:\.\d+)?\s*[、~～到至]\s*)?\d+(?:\.\d+)?\s*(?:元|塊)(?:附近|以上|以下|之上|之下)?', remove_price, sentence)
+        # 數字連千分位一起認（「1,615元」先前只挖掉「615元」，留下「從1,一路下跌」），前面的「從／自」一起拿掉。
+        number = r'(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?'
+        sentence = re.sub(r'(?:在|以|於|從|自)?(?:平盤)?(?:' + number + r'\s*[、~～到至]\s*)?' + number + r'\s*(?:元|塊)(?:附近|以上|以下|之上|之下)?',
+                          remove_price, sentence)
         for price in known:
             sentence = re.sub(r'(?:在|以|於)?(?:平盤)?(?<![\d.])'+re.escape(price)+r'(?![\d.])(?:以上|以下|之上|之下)', remove_price, sentence)
         parts[i] = sentence

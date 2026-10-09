@@ -10094,7 +10094,8 @@ def _context_claims(reply, source_ids):
 # 口語殘句：問聽眾的口頭禪，或句子停在連接的字上（「…它是不是跟。」）。
 # 「的。」「是。」結尾是正常的書面句，不算（2026/10/06 重播有三則正常說明被誤判，已收窄）。
 # 2026/10/08：「…的對比。」「…絕對。」是完整的句子，不算停在連接的字上（環球晶的說明因此被當成殘句，整輪被擋）。
-_SPOKEN_FRAGMENT = re.compile(r'你來看|你看一下|你們看|對不對|好不好|(?:跟|和|與|及|把|被|讓|(?<![絕相面反針應核比])對|從|向|(?<![對相類無可好])比)[。？！!?]?$')
+# 2026/10/09：「…的走向。」「…的方向。」也是完整的句子（譜瑞-KY 的說明因此整輪被擋）。
+_SPOKEN_FRAGMENT = re.compile(r'你來看|你看一下|你們看|對不對|好不好|(?:跟|和|與|及|把|被|讓|(?<![絕相面反針應核比])對|從|(?<![走方動趨轉傾志面導偏取去風意流])向|(?<![對相類無可好])比)[。？！!?]?$')
 _SPOKEN_QUESTION = re.compile(r'是不是|有沒有')
 
 
@@ -10386,6 +10387,26 @@ def theme_passages(theme, transcript, other_names):
 
 
 _LOT_PROFIT_RE = re.compile(r'(?:每|一)張[^，。；;]{0,8}?賺[^，。；;\d]{0,4}(\d[\d、,]*)\s*(多)?(百|千|萬)?(?:元|塊)?')
+
+
+def drop_fragment_endings(signals: dict) -> dict:
+    """說明的最後一句停在半路（口語殘句）時，拿掉那一句、留下前面完整的句子；只剩一句的不動，交給補空與品質關卡。
+
+    先前殘句直接擋下整天：一則說明的一個句尾，讓其他十七檔都不能更新。
+    """
+    for cat in SIGNAL_CATEGORIES:
+        for row in signals.get(cat, []) or []:
+            if not isinstance(row, dict):
+                continue
+            field = 'note' if cat == 'holdings' else 'reason'
+            text = str(row.get(field) or '').strip()
+            sentences = [x for x in re.split(r'(?<=[。！？!?])', text) if x.strip()]
+            if len(sentences) >= 2 and spoken_fragment(text) and not spoken_fragment(''.join(sentences[:-1])):
+                row[field] = ''.join(sentences[:-1]).strip()
+                name = _display_name(row.get('name')) or str(row.get('name') or '')
+                print(f"  說明整理 {name}：最後一句停在半路，已拿掉：{sentences[-1][:30]}")
+                note_decision('說明整理', '最後一句是殘句，拿掉那一句', name, sentences[-1][:80])
+    return signals
 
 
 def tidy_public_notes(ss, signals: dict, date_str: str) -> dict:
@@ -15286,6 +15307,7 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     signals = strip_unsupported_technical_terms(signals, TX["audit"], date_str)
     signals = strip_unsupported_time_clauses(signals, TX["audit"])
     signals = tidy_public_notes(ss, signals, date_str)
+    signals = drop_fragment_endings(signals)
     signals = fill_empty_notes(signals, TX["audit"])                    # 刪到沒有內容的那一檔，用已核對的原句補上，再一起改寫成書面語
     signals = polish_public_texts(signals, TX["audit"], date_str)
     signals = strip_implausible_price_claims(ss, signals, date_str)

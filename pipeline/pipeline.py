@@ -8005,9 +8005,7 @@ def _unsupported_note_time(note, row, transcript):
     # 2026/10/09：只認點名本股的那一句與前後各一句，以及自己有本股名稱的引句。先前用整個前後文窗口，
     # 「這一隻股票力積電是漲的。這一隻股票是漲的。這一隻股票是漲的。這一隻股票下禮拜要突破了。」的最後一句
     # （已經換到下一張圖）被當成力積電的，說明寫成「下週準備突破」。
-    forms = _own_forms(row)
-    evidence = ''.join(q for q in (row.get('evidence') or []) if isinstance(q, str) and any(f in re.sub(r'\s+', '', q) for f in forms))
-    near = normalized(evidence) + normalized(_name_adjacent_text(row, transcript))
+    near = normalized(_name_adjacent_text(row, transcript))
     # 期間（上半年、去年、第二季）常在點名之後用「它」接著講：「推薦X…它的財報，上半年EPS 29.91」。未來的時間（下週、下個月、明年）是預告，
     # 只認點名句附近。
     wide = near + normalized(_name_forward_text(row, transcript))
@@ -10376,6 +10374,59 @@ def theme_passages(theme, transcript, other_names):
             out.append(passage)
     out.sort(key=lambda t: -len(_THEME_CUE.findall(t)))
     return out[:6]
+
+
+_LOT_PROFIT_RE = re.compile(r'(?:每|一)張[^，。；;]{0,8}?賺[^，。；;\d]{0,4}(\d[\d、,]*)\s*(多)?(百|千|萬)?(?:元|塊)?')
+
+
+def tidy_public_notes(ss, signals: dict, date_str: str) -> dict:
+    """兩種只刪不改的整理：每張獲利與股價不相稱的子句、同一則說明裡一字不差的重複子句。
+
+    一張是一千股。「4,400 元的股票，會員每張賺5、6百元」是把每股的價差講成每張（原話就是這樣講的），照抄會誤導；
+    每張獲利比一股的股價還低時，那個子句不留。查不到股價就不判。
+    """
+    try:
+        kmap = _daily_k_cached(ss) if ss is not None else None
+    except Exception:
+        kmap = None
+    unit = {'百': 100, '千': 1000, '萬': 10000}
+    for cat in SIGNAL_CATEGORIES:
+        for row in signals.get(cat, []) or []:
+            if not isinstance(row, dict) or row.get('_manual_note_kept'):
+                continue
+            field = 'note' if cat == 'holdings' else 'reason'
+            text = str(row.get(field) or '')
+            if not text:
+                continue
+            band = _price_band(kmap, str(row.get('code') or ''), date_str) if kmap else None
+            name = _display_name(row.get('name')) or str(row.get('name') or '')
+            kept, seen, changed = [], set(), False
+            for clause, punct in _split_clauses(text):
+                key = _ev_norm(clause)
+                m = _LOT_PROFIT_RE.search(clause)
+                if m and band and min(band) > 0:
+                    try:
+                        value = float(re.split(r'[、,]', m.group(1))[0]) * unit.get(m.group(3) or '', 1)
+                    except ValueError:
+                        value = 0.0
+                    if 0 < value < min(band):
+                        print(f"  說明整理 {name}：每張獲利 {m.group(0)[-12:]} 比一股的股價（{min(band):g}）還低，單位不對，刪掉那個子句")
+                        note_decision('說明整理', '每張獲利與股價不相稱，刪掉那個子句', name, clause[:80])
+                        signals.setdefault('_repair_gaps', []).append(f'{name}：每張獲利的金額與股價不相稱，已移除')
+                        changed = True
+                        if punct == '。' and kept:
+                            kept[-1][1] = '。'
+                        continue
+                if len(key) >= 6 and key in seen:
+                    changed = True                              # 一字不差的重複子句只留第一次
+                    if punct == '。' and kept:
+                        kept[-1][1] = '。'
+                    continue
+                seen.add(key)
+                kept.append([clause, punct])
+            if changed:
+                row[field] = ''.join(c + t for c, t in kept).strip('，,；;')
+    return signals
 
 
 def strip_unsupported_technical_terms(signals: dict, transcript: str, date_str: str = '') -> dict:
@@ -15225,6 +15276,7 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     # 排在最後一輪清理之前，改寫後的文字照樣過價位、名稱、因果與時間的核對。
     signals = strip_unsupported_technical_terms(signals, TX["audit"], date_str)
     signals = strip_unsupported_time_clauses(signals, TX["audit"])
+    signals = tidy_public_notes(ss, signals, date_str)
     signals = fill_empty_notes(signals, TX["audit"])                    # 刪到沒有內容的那一檔，用已核對的原句補上，再一起改寫成書面語
     signals = polish_public_texts(signals, TX["audit"], date_str)
     signals = strip_implausible_price_claims(ss, signals, date_str)

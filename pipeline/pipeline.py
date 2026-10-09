@@ -9978,7 +9978,16 @@ def _own_name_spans(row, source):
             flipped = _next_chart_at(snippet, last) if last is not None else None
             if flipped is not None:
                 high = min(high, len(_ev_norm(snippet[:flipped])))
-            spans.append((norm, min(a for a, _ in hits) - _OWN_NAME_BEFORE, high))
+            low = min(a for a, _ in hits) - _OWN_NAME_BEFORE
+            # 點名之前那一句若帶數字，多半是上一檔的行情（「美綠？昨天漲3塊多，今天漲1塊多。那你如果有記憶體的…我目前只有力積電」）：
+            # 起點改在點名那一句的開頭。
+            first = min((m.start() for n in raw_names for m in re.finditer(re.escape(n), snippet)), default=None)
+            if first is not None:
+                sentence_start = max((snippet.rfind(ch, 0, first) for ch in '。！？!?'), default=-1) + 1
+                lead = len(_ev_norm(snippet[:sentence_start]))
+                if lead > max(low, 0) and re.search(r'\d', _ev_norm(snippet[:sentence_start])[max(low, 0):]):
+                    low = lead
+            spans.append((norm, low, high))
     return spans
 
 

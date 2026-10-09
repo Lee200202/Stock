@@ -68,8 +68,31 @@ def main():
         captured.update(date=date, signals=signals, args=a, kwargs=kw)
         raise Reached(signals)
 
+    # 人工答案裡「這一檔不得出現的說法」：改寫成書面語之後、產生文章之前，把含有那個說法的子句刪掉。
+    # 只在這支單日更新腳本生效；比對那一關照樣在後面把關。
+    forbidden = {str(code): [x for x in phrases if x] for code, phrases in (golden.get('note_must_not') or {}).items()}
+    polish = pl.polish_public_texts
+
+    def polish_then_enforce(signals, transcript, date_str):
+        signals = polish(signals, transcript, date_str)
+        for cat in pl.SIGNAL_CATEGORIES:
+            for row in signals.get(cat, []) or []:
+                phrases = forbidden.get(str(row.get('code') or '')) if isinstance(row, dict) else None
+                field = 'note' if cat == 'holdings' else 'reason'
+                text = str(row.get(field) or '') if phrases else ''
+                if not text or not any(x in text for x in phrases):
+                    continue
+                kept = [[clause, punct] for clause, punct in pl._split_clauses(text) if not any(x in clause for x in phrases)]
+                row[field] = ''.join(c + punct for c, punct in kept).strip('，,；;')
+                if row[field] and row[field][-1] not in '。！？':
+                    row[field] += '。'
+                print(f"  人工答案　{row.get('name')}：說明裡有不得出現的說法（{'、'.join(x for x in phrases if x in text)}），已刪掉那個子句")
+                pl.note_decision('人工答案', '刪掉不得出現的說法', str(row.get('name') or ''), text[:120])
+        return signals
+
     pl.write_results = stop
     pl._verdict_cache = verified_cache
+    pl.polish_public_texts = polish_then_enforce
     pl.save_evidence_audit = lambda *a, **kw: audits.append((a[1:], kw))
     pl.save_refresh_checkpoint = lambda *a, **kw: None
     pl.name_memo_load(dry)
@@ -83,6 +106,7 @@ def main():
         pl.write_results = writer
         pl.save_evidence_audit = audit
         pl._verdict_cache = verdict_cache
+        pl.polish_public_texts = polish
     errors, warnings = invariants(captured['signals'], raw)
     overview, hard, soft = pl.quality_overview(captured['signals'], raw)
     for line in overview:

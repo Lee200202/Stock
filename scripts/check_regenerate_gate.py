@@ -67,6 +67,13 @@ assert any('觀望卻寫成當前持股' in e for e in hard), hard
 _, hard, _ = pl.quality_overview({'watch_watch': [{'name': '乙公司', 'reason': '乙公司出現第一根長紅棒，須等回測季線再確認。'}]}, '')
 assert not any('觀望卻寫成當前持股' in e or '來源或編輯過程' in e for e in hard), hard
 print('daily publication: editorial process text and watch/holding contradiction blocked')
+assert pl.public_narrative('台積電缺口守三天。原稿說下週公布營收。') == '台積電缺口守三天。下週公布營收。'
+assert pl.public_narrative('力積電目前仍在持股名單，節目後段再次明講尚持有。') == '力積電目前仍持有。'
+print('public narrative: source wrappers removed without changing claims')
+segment = '你有沒有看到創意？創意是不是回來碰季線，就黏在季線。所以記憶體後面有一波。這一個發動的時間要抓住。'
+passages, marked = pl._verdict_mark([segment], {'創意'})
+assert '創意是不是回來碰季線' in marked and '記憶體後面' not in marked and '發動' not in marked, passages
+print('class adjudication: new sector topic cannot become the preceding stock stance')
 bad_level = {'name': '力積電', 'code': '6770', 'price': '74', 'note': '力積電目前上漲，正壓在1545元關卡等待突破。',
              'evidence': ['力積電目前上漲', '正壓在1545元關卡等待突破']}
 _, hard, _ = pl.quality_overview({'holdings': [bad_level]}, '力積電目前上漲。正壓在1545元關卡等待突破。')

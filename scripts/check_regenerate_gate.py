@@ -100,3 +100,25 @@ rows = {'holdings': [right, same_scale]}
 ok, report = compare(rows, golden)
 assert ok, report
 print('daily golden audit: known wrong stock phrases blocked independently of raw transcript')
+
+
+class TradeSheet:
+    def get_all_values(self):
+        return [['日期', '代號', '名稱', '方向', '來源影片ID'],
+                ['2026/10/08', '3661', '世芯-KY', '賣出', 'CMONEY-audited']]
+
+
+class TradeBook:
+    def worksheet(self, name):
+        if name == '操作紀錄':
+            return TradeSheet()
+        raise KeyError(name)
+
+
+today = '2026/10/08'
+signals = {'sell': [{'code': '3661', 'name': '世芯-KY', 'reason': '今日賣出。'}],
+           'holdings': [{'code': '3661', 'name': '世芯-KY', 'note': '其餘續抱。'},
+                        {'code': '2330', 'name': '台積電', 'note': '仍持有。'}]}
+pl.drop_sms_sold_holdings(TradeBook(), signals, today)
+assert [row['code'] for row in signals['holdings']] == ['2330'], signals['holdings']
+print('daily publication: SMS-sold stock cannot re-enter holdings before article generation')

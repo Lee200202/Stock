@@ -11481,6 +11481,33 @@ def _verdict_known(ss, date_str):
     return known, notice
 
 
+def drop_sms_sold_holdings(ss, signals, date_str):
+    """同日會員通知已賣、且未再買回的股票，不以逐字稿持股列重新建立部位。
+
+    寫入後的簡訊優先同步原本就會移除這種逐字稿持股；在撰稿前做同一件事，
+    避免文章先寫成「其餘續抱」，而表格同步後又變成已出場。
+    """
+    sold_codes = {str(r.get('code') or '') for r in signals.get('sell', []) or [] if isinstance(r, dict)}
+    held_codes = {str(r.get('code') or '') for r in signals.get('holdings', []) or [] if isinstance(r, dict)}
+    overlap = (sold_codes & held_codes) - {''}
+    if not overlap:
+        return signals
+    _, notice = _verdict_known(ss, date_str)
+    closed = {code for code in overlap if (code, 'sell') in notice and (code, 'buy') not in notice}
+    if not closed:
+        return signals
+    kept = []
+    for row in signals.get('holdings', []) or []:
+        code = str(row.get('code') or '') if isinstance(row, dict) else ''
+        if code in closed and (row.get('_date') or date_str) == date_str:
+            print(f"  簡訊優先　{row.get('name')}（{code}）當天已賣出，撰稿前移除逐字稿持股")
+            note_decision('簡訊優先', '當天已賣出，移除逐字稿持股', str(row.get('name') or ''), date_str)
+        else:
+            kept.append(row)
+    signals['holdings'] = kept
+    return signals
+
+
 def _verdict_cache(ss, date_str):
     """「分類裁決」表上這一天已有的裁決：{代號: {'manual': 分類, 'by_fp': {(指紋, 版號): 分類}}}。"""
     back = {v: k for k, v in _VERDICT_LABEL.items() if k}
@@ -14408,6 +14435,7 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
             review.append(f"沿用前一版 {len(rec['carried'])} 檔待複核：{'、'.join(rec['carried'])}")
 
     signals = preserve_manual_notes(signals, prior, TX['audit'], video['id'], date_str, video.get('_raw_sha256', ''))
+    signals = drop_sms_sold_holdings(ss, signals, date_str)
     # 沿用前一版的列也要走公開文字整理；保留原始引用與待複核狀態。
     signals = normalize_price_fields(signals)
     signals = naturalize_signal_reasons(signals)

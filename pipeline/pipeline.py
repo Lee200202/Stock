@@ -10386,6 +10386,26 @@ def theme_passages(theme, transcript, other_names):
     return out[:6]
 
 
+def drop_fragment_endings(signals: dict) -> dict:
+    """說明的最後一句停在半路（口語殘句）時，拿掉那一句、留下前面完整的句子；只剩一句的不動，交給補空與品質關卡。
+
+    先前殘句直接擋下整天：一則說明的一個句尾，讓其他十七檔都不能更新。
+    """
+    for cat in SIGNAL_CATEGORIES:
+        for row in signals.get(cat, []) or []:
+            if not isinstance(row, dict):
+                continue
+            field = 'note' if cat == 'holdings' else 'reason'
+            text = str(row.get(field) or '').strip()
+            sentences = [x for x in re.split(r'(?<=[。！？!?])', text) if x.strip()]
+            if len(sentences) >= 2 and spoken_fragment(text) and not spoken_fragment(''.join(sentences[:-1])):
+                row[field] = ''.join(sentences[:-1]).strip()
+                name = _display_name(row.get('name')) or str(row.get('name') or '')
+                print(f"  說明整理 {name}：最後一句停在半路，已拿掉：{sentences[-1][:30]}")
+                note_decision('說明整理', '最後一句是殘句，拿掉那一句', name, sentences[-1][:80])
+    return signals
+
+
 def tidy_public_notes(ss, signals: dict, date_str: str) -> dict:
     """同一則說明裡一字不差的重複子句只留第一次（補充句接在原說明後面時，會把同一個子句再接一次）。只刪不改。
 

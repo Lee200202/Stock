@@ -60,6 +60,13 @@ right = {**tsmc, 'note': '台積電穩穩抱著，下週法說會前留意表現
 _, hard, _ = pl.quality_overview({'holdings': [right]}, raw)
 assert not any('時間詞無本股原句' in e for e in hard), hard
 print('daily publication: unsupported stock time blocked, 下個禮拜／下週 accepted')
+_, hard, _ = pl.quality_overview({'holdings': [{'name': '甲公司', 'note': '原稿說甲公司仍在持股名單，節目後段再次明講尚持有。'}]}, '')
+assert any('來源或編輯過程' in e for e in hard), hard
+_, hard, _ = pl.quality_overview({'watch_watch': [{'name': '乙公司', 'reason': '乙公司出現第一根長紅棒，續抱看好。'}]}, '')
+assert any('觀望卻寫成當前持股' in e for e in hard), hard
+_, hard, _ = pl.quality_overview({'watch_watch': [{'name': '乙公司', 'reason': '乙公司出現第一根長紅棒，須等回測季線再確認。'}]}, '')
+assert not any('觀望卻寫成當前持股' in e or '來源或編輯過程' in e for e in hard), hard
+print('daily publication: editorial process text and watch/holding contradiction blocked')
 bad_level = {'name': '力積電', 'code': '6770', 'price': '74', 'note': '力積電目前上漲，正壓在1545元關卡等待突破。',
              'evidence': ['力積電目前上漲', '正壓在1545元關卡等待突破']}
 _, hard, _ = pl.quality_overview({'holdings': [bad_level]}, '力積電目前上漲。正壓在1545元關卡等待突破。')
@@ -73,14 +80,14 @@ print('daily publication: grossly misattributed price level blocked when a verif
 # the speaker switches charts. The per-day human audit must reject a known
 # wrong attribution even if a model cites the same raw segment again.
 golden = {'names': {'2330': '台積電', '6770': '力積電', '3443': '創意'},
-          'must': {'2330': ['holdings'], '6770': ['holdings'], '3443': ['watch_watch']},
-          'note_must_not': {'2330': ['下半年'], '6770': ['1545'], '3443': ['記憶體族群']}}
+          'must': {'2330': ['holdings'], '6770': ['holdings']},
+          'must_not': ['3443'],
+          'note_must_not': {'2330': ['下半年'], '6770': ['1545']}}
 creative_bad = {'name': '創意', 'code': '3443', 'reason': '創意碰季線，記憶體族群將有一波行情。'}
-creative_right = {'name': '創意', 'code': '3443', 'reason': '創意回來碰季線，沿季線附近整理。'}
 rows = {'holdings': [wrong, bad_level], 'watch_watch': [creative_bad]}
 ok, report = compare(rows, golden)
-assert not ok and '下半年' in report and '1545' in report and '記憶體族群' in report, report
-rows = {'holdings': [right, same_scale], 'watch_watch': [creative_right]}
+assert not ok and '下半年' in report and '1545' in report and '創意' in report, report
+rows = {'holdings': [right, same_scale]}
 ok, report = compare(rows, golden)
 assert ok, report
 print('daily golden audit: known wrong stock phrases blocked independently of raw transcript')

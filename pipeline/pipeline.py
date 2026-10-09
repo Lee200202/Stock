@@ -7986,7 +7986,7 @@ _NEGATED = re.compile(r'(?:切勿|不要|不能|別|不宜|勿|不會|不必|無
 # 只統計、不改資料。「硬傷」是不該出現在公開內容裡的東西（重播與單日更新會當成錯誤擋下）；
 # 「留意」是品質上值得看一眼的（說明太短、沒有任何具體位置或數字）。
 _CONCRETE = re.compile(r'\d|季線|年線|月線|週線|均線|頸線|缺口|MACD|KD|量縮|量增|放量|爆量|買超|賣超|漲停|跌停|長紅|長黑|打底|底部|成本|營收|外資|投信|ETF')
-_NOTE_TIME = re.compile(r'上半年|下半年|明年|去年|下個月|上個月|下一季|上一季|第[一二三四]季|下週|上週|下個禮拜|上個禮拜|下星期|上星期')
+_NOTE_TIME = re.compile(r'上半年|下半年|明年|去年|下個月|上個月|下一季|上一季|第[一二三四]季|下週|上週|下個禮拜|上個禮拜|下禮拜|上禮拜|下個星期|上個星期|下星期|上星期')
 
 
 def _unsupported_note_time(note, row, transcript):
@@ -8007,8 +8007,11 @@ def _unsupported_note_time(note, row, transcript):
     # （已經換到下一張圖）被當成力積電的，說明寫成「下週準備突破」。
     forms = _own_forms(row)
     evidence = ''.join(q for q in (row.get('evidence') or []) if isinstance(q, str) and any(f in re.sub(r'\s+', '', q) for f in forms))
-    source = normalized(evidence) + normalized(_name_adjacent_text(row, transcript))
-    return [term for term in claimed if normalized(term) not in source]
+    near = normalized(evidence) + normalized(_name_adjacent_text(row, transcript))
+    # 期間（上半年、去年、第二季）常在點名之後用「它」接著講：「推薦X…它的財報，上半年EPS 29.91」。未來的時間（下週、下個月、明年）是預告，
+    # 只認點名句附近。
+    wide = near + normalized(_name_forward_text(row, transcript))
+    return [term for term in claimed if normalized(term) not in (near if re.match(r'下|明', term) else wide)]
 
 
 def _extreme_note_level(note, row):
@@ -9950,15 +9953,34 @@ def _own_segments(row, signals, transcript, before_chars=450, after_chars=650):
     return segments
 
 
+_NEXT_CHART = re.compile(r'(?<=[。！？!?])這一?[隻支檔](?:股票)?')      # 句子用「這一隻股票」開頭：講者翻到一張圖
+
+
+def _next_chart_at(text, after):
+    """點名之後第二個以「這一隻股票」開頭的句子從哪裡開始（已經是下一張圖）；沒有就回 None。"""
+    starts = [m.start() for m in _NEXT_CHART.finditer(text, after)]
+    return starts[1] if len(starts) >= 2 else None
+
+
 def _own_name_spans(row, source):
-    """每段摘錄裡「第一次到最後一次講到本股名稱」的範圍（正規化文字），供引用歸屬核對。"""
+    """每段摘錄裡「第一次到最後一次講到本股名稱」的範圍（正規化文字），供引用歸屬核對。
+
+    最後一次點名之後若連著翻了兩張圖（第二個以「這一隻股票」開頭的句子），範圍停在那裡：2026/10/08 力積電被念進別檔的段落，
+    後面的「下禮拜要突破」「這一根量、這一根K線」「月K線MACD翻紅」都不是它的。
+    """
     names = sorted({_ev_norm(n) for n in _row_names_for_recap(row)} - {''}, key=len, reverse=True)
+    raw_names = sorted({n for n in _row_names_for_recap(row) if n}, key=len, reverse=True)
     spans = []
     for snippet in str(source or '').split('\n'):
         norm = _ev_norm(snippet)
         hits = [(m.start(), m.end()) for n in names for m in re.finditer(re.escape(n), norm)]
         if norm and hits:
-            spans.append((norm, min(a for a, _ in hits) - _OWN_NAME_BEFORE, max(b for _, b in hits) + _OWN_NAME_AFTER))
+            high = max(b for _, b in hits) + _OWN_NAME_AFTER
+            last = max((m.end() for n in raw_names for m in re.finditer(re.escape(n), snippet)), default=None)
+            flipped = _next_chart_at(snippet, last) if last is not None else None
+            if flipped is not None:
+                high = min(high, len(_ev_norm(snippet[:flipped])))
+            spans.append((norm, min(a for a, _ in hits) - _OWN_NAME_BEFORE, high))
     return spans
 
 
@@ -10294,6 +10316,24 @@ def _own_forms(row):
     return sorted({n for n in list(_row_names_for_recap(row)) + [str(row.get('code') or '')] if len(str(n)) >= 2}, key=len, reverse=True)
 
 
+_NAME_FORWARD = 420          # 點名之後往下這麼多個字，仍當成在講這一檔（「為什麼推薦X？…它的營收年成長43%…EPS 29.91」）
+_NAME_BACKWARD = 300         # 先講一段、最後才報名字（「…這個叫X」）時，往前這麼多個字
+
+
+def _name_forward_text(row, transcript):
+    """每一次點名之後往下的一段；句型是「這個叫X／叫做X／就是X」時也帶上前面那一段。不在別家公司名稱處切開。"""
+    flat = re.sub(r'\s+', '', str(transcript or ''))
+    out = []
+    for form in _own_forms(row):
+        for m in re.finditer(re.escape(form), flat):
+            ahead = flat[m.start():m.end() + _NAME_FORWARD]
+            flipped = _next_chart_at(ahead, m.end() - m.start())
+            out.append(ahead[:flipped] if flipped is not None else ahead)
+            if re.search(r'(?:這個叫|叫做|就是|這一[支隻檔]叫)$', flat[max(0, m.start() - 6):m.start()]):
+                out.append(flat[max(0, m.start() - _NAME_BACKWARD):m.start()])
+    return ''.join(out)
+
+
 def _name_adjacent_text(row, transcript):
     """點名本股的那一句，加上前後各一句。再遠的句子（「這一隻股票是漲的。這一隻股票下禮拜要突破了」）可能已經換了一張圖。"""
     flat = re.sub(r'\s+', '', str(transcript or ''))
@@ -10342,7 +10382,8 @@ def strip_unsupported_technical_terms(signals: dict, transcript: str, date_str: 
     """說明裡的技術與財報名詞，本股自己的原文要有。補充說明的句子本來就這樣核對，模型第一次寫的說明沒有。
 
     2026/10/08 譜瑞-KY：「季線準備向上，月K線MACD翻紅」——那是前面沒報名字那一檔的指標，原文對譜瑞只說「這一支股票衝出去，普瑞KY也會跟著衝出去」。
-    本股的原文＝在別家公司名稱處切開、落在本股名稱範圍內的段落，加上點名句的前後各一句、依行情認出的成本段落、所屬族群的段落。
+    本股的原文＝在別家公司名稱處切開、落在本股名稱範圍內的段落，加上點名句的前後各一句、點名之後往下的一段、
+    依行情認出的成本段落、所屬族群的段落。點名「之前」的段落只有先講後報名的句型才算。
     只刪對不上的那一句、留紀錄，不改寫；刪到沒有內容的由後面的補問或補空處理。
     """
     try:
@@ -10362,6 +10403,7 @@ def strip_unsupported_technical_terms(signals: dict, transcript: str, date_str: 
             own_names = set(_row_names_for_recap(row))
             material = [s_['text'] for s_ in _context_sources(row, _own_segments(row, signals, transcript))]
             material.append(_name_adjacent_text(row, transcript))
+            material.append(_name_forward_text(row, transcript))
             material += priced.get(str(row.get('code') or ''), [])
             for theme in stock_themes(row):
                 material += theme_passages(theme, transcript, table_names - own_names)
@@ -10475,13 +10517,14 @@ def enrich_stock_context(signals, transcript, date_str):
                 snippets.append(shared)
             snippets = list(dict.fromkeys(snippets))[:10]
             sources = _context_sources(row, snippets)
+            thin = len(_ev_norm(''.join(s['text'] for s in sources))) < _THEME_THIN_SOURCE      # 先量本股自己的原文，再加別的段落
             # 原文沒有報名字、但當日股價只對得上這一檔的買進價位段落：一起交給模型，並算在本股範圍內。
             anchored = [t for t in priced.get(str(row.get('code') or ''), []) if cat in ('buy', 'holdings')]
             for text in anchored:
                 sources.append({'id': 's' + str(len(sources)), 'text': text, 'kind': '原文沒有報名字，系統已用當日股價確認是本股的買進價位'})
             identity = f'{cat}:{index}'
             # 本股自己的原文不多時（力積電整集只被點名兩次），附上原文講它所屬族群的段落；只能寫成族群層次的看法。
-            if len(_ev_norm(''.join(s['text'] for s in sources))) < _THEME_THIN_SOURCE:
+            if thin:
                 others = table_names - set(_row_names_for_recap(row))
                 for theme in stock_themes(row):
                     passages = theme_passages(theme, transcript, others)

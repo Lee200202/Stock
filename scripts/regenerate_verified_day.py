@@ -129,6 +129,7 @@ def main():
     pl.run_post_write_steps = lambda book, days: (pl.apply_sms_priority(book, days), pl.resolve_cost_prices(book, days))
     writer(real, captured['date'], captured['signals'], *captured['args'], **captured['kwargs'])
     pl.save_verdicts(real, day, captured['signals'])      # 這一輪問到的分類裁決存起來，之後同一段原文不再重問
+    pl.save_stock_industries(real, captured['signals'])      # 新查到的個股產業存起來，之後不再問
     pl.enrich_sms_notes_from_signals(real, day, captured['signals'], raw)
     for a, kw in audits:
         audit(real, *a, **kw)

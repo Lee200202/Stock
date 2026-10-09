@@ -46,20 +46,22 @@ def main():
     writer, audit, verdict_cache = pl.write_results, pl.save_evidence_audit, pl._verdict_cache
     captured, audits = {}, []
 
-    # 人工逐段核對後明列在該日答案的排除項，交由既有裁決流程在撰稿前移到不公開。
+    # 人工逐段核對後明列在該日答案的分類，交由既有裁決流程在撰稿前套用。
     # 只在這支單日更新腳本生效；一般每日流程仍由證據與裁決規則判定。
-    exclusions = {str(code) for code in golden.get('must_not', [])}
+    verified = {str(code): cats[0] for code, cats in golden.get('must', {}).items() if len(cats) == 1}
+    verified.update({str(code): 'ignored' for code in golden.get('must_not', [])})
     existing_verdicts = verdict_cache(dry, day)
-    conflicts = [code for code in exclusions if (existing_verdicts.get(code) or {}).get('manual')
-                 not in (None, '', 'ignored')]
+    conflicts = [code for code, category in verified.items() if (existing_verdicts.get(code) or {}).get('manual')
+                 not in (None, '', category)]
     if conflicts:
         raise SystemExit('分類裁決表與人工答案相衝突：' + '、'.join(conflicts) + '；本次未寫入')
 
     def verified_cache(book, date_str):
         cache = verdict_cache(book, date_str)
         if date_str == day:
-            for code in exclusions:
-                cache.setdefault(code, {})['manual'] = 'ignored'
+            for code, category in verified.items():
+                cache.setdefault(code, {})['manual'] = category
+                cache[code]['manual_source'] = '單日已核對人工答案'
         return cache
 
     def stop(ss, date, signals, *a, **kw):

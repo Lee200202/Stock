@@ -116,6 +116,23 @@ def check_interactions(page, label, reduced=False):
     page.locator('[data-tx="lock"]').click()
     assert '文章完成不等於績效完成' in page.locator('#txOut').inner_text()
 
+    for case, expected in (('sell', '網站看見：賣出'), ('buy', '網站看見：買入'),
+                           ('video', '網站看見：已核對的分類')):
+        page.locator(f'[data-source-case="{case}"]').click()
+        assert expected in page.locator('#sourceResult').inner_text(), (label, case)
+        assert page.locator('#sourcePath li').count() == 3
+        assert page.locator('[data-source-case][aria-pressed="true"]').count() == 1
+    assert '4400' not in page.locator('#tech-source-priority').inner_text()
+    assert len(calls) == base, f'{label}: source case triggered an API call'
+
+    for case, status in (('start', '觀望注意'), ('follow', '觀望注意'),
+                         ('position', '不新增'), ('named', '不新增')):
+        page.locator(f'[data-watch-case="{case}"]').click()
+        assert status in page.locator('#watchCaseResult .watch-case-badge').inner_text()
+        assert page.locator('#watchCaseResult li').count() == 3
+        assert page.locator('[data-watch-case][aria-pressed="true"]').count() == 1
+    assert len(calls) == base, f'{label}: watch case triggered an API call'
+
     for i, badge in enumerate(PN_BADGES):
         page.locator(f'[data-pn="{i}"]').click()
         assert page.locator('.pn-final .tv-badge').inner_text().strip() == badge, (label, i)

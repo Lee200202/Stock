@@ -122,3 +122,17 @@ signals = {'sell': [{'code': '3661', 'name': '世芯-KY', 'reason': '今日賣�
 pl.drop_sms_sold_holdings(TradeBook(), signals, today)
 assert [row['code'] for row in signals['holdings']] == ['2330'], signals['holdings']
 print('daily publication: SMS-sold stock cannot re-enter holdings before article generation')
+
+def neutral_case(quote, name):
+    answer = {'buy_today': False, 'sell_today': False, 'holding_now': False,
+              'past_trade': False, 'about_itself': True, 'now': 'none', 'tone': 'neutral',
+              'quotes': {'stance': [quote]}}
+    return pl.verdict_class(answer, pl._ev_norm(quote), {name})[0]
+
+
+assert neutral_case('那今天剛開始漲的被動元件，金山電，你有沒有看到被動元件？', '金山電') == 'watch_watch'
+assert neutral_case('普瑞KY也會跟著衝出去', '普瑞KY') == 'watch_watch'
+assert neutral_case('創意是不是回來碰季線，就黏在季線。', '創意') == 'ignored'
+assert neutral_case('我有在觀察創見。', '創見') == 'ignored'
+assert neutral_case('南亞科不是記憶體龍頭。', '南亞科') == 'ignored'
+print('watch boundary: forward stock-specific signal accepted; mention/position/comparison excluded')

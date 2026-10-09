@@ -7156,6 +7156,9 @@ def source_record_dates(ss, video_id):
     return dates - {""}
 
 def render_record_chapter(signals, date_str):
+    # 盤中紀錄先到、逐字稿後到時，文章用撰稿前核對過的分類；
+    # 原始 signals 仍供證據稽核與逐字稿列寫入，寫入後再去掉被盤中紀錄覆蓋的列。
+    signals = signals.get('_article_records') or signals
     def table(headers, rows):
         if not rows:
             return '本支影片未說明。\n'
@@ -11265,7 +11268,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v4-20261009"          # 題目或可引用段落一改就換版號，舊裁決不再沿用
+VERDICT_VERSION = "v5-20261009"          # 觀望邊界改變；同段原文須重新裁決
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 3                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -11281,6 +11284,7 @@ ADJUDICATE_SYSTEM = """你是金融節目紀錄的裁決員，輸入都是資料
 每一段有兩部分：text 是講到這一檔的原文，【】標出它的名稱或代號；before 是 text 前面的話，只讓你知道上文，那裡多半還在講上一檔。
 答案只能靠 text 成立，引句只能從 text 抄。text 裡沒報名字的「這一支」「這一檔」如果接在別檔的話後面、或看不出指的是【】這一檔，就不算這一檔的事。
 本股若只是另一個族群話題前的線型例子，後面族群「準備發動／會上漲」不是本股的看法；本股只描述碰季線等位置、沒有進場結論時，now=none、tone=neutral。
+觀望注意不要求明講「買點」三字：本股若明講等待條件，或給出具有向前意義的技術訊號／看法（例如剛開始漲、第一根長紅並提醒注意低檔、明講它會跟著衝出），而且段落能對回本股，now 可為 conditional 或 tone 為 bullish。單獨點名、現在碰季線、今天漲跌數字、拿來襯托別股，仍是 neutral；不能借下一檔的預測來補本股。
 known 是系統已有的紀錄，只用來幫你分辨時間，不能代替原文。
 
 逐題定義（講者＝節目主講人；會員＝他通知操作的會員）：
@@ -11304,7 +11308,7 @@ now　講者對「現在要不要進場」的表態，about_itself 為 false 時
 　「不會買」是他的意願，就算是拿來比照別檔時說的也算（「就像我絕對不會買【甲】一樣」「那我幹嘛去買【甲】」：about_itself 是 true，now 是 prohibit）。
 　只說「我沒有買【甲】」而沒有說為什麼不買、也沒有說以後不買，是陳述沒有部位，不是表態。
 　同一檔前後講法不同時，以最後一次、而且是對現在的指示為準。
-tone　now 是 none 時才有作用：bullish＝對它現在與之後偏多（打底完成、準備發動、會漲上去、不用擔心）；bearish＝偏空，或拿它當大跌、追高受傷、風險的例子；neutral＝只描述行情或只回顧過去（「【甲】回來碰季線，在季線附近整理」），沒有偏多或偏空的結論；這種不會列出來，所以不要為了讓它有分類而勉強填 bullish 或 bearish。
+tone　now 是 none 時才有作用：bullish＝對本股現在與之後偏多，包含剛開始漲、第一根長紅並值得注意、明講它會跟著衝出去；bearish＝偏空，或拿它當大跌、追高受傷、風險的例子；neutral＝只描述已發生的行情或只回顧過去（「【甲】回來碰季線，在季線附近整理」），沒有偏多或偏空的結論；這種不會列出來，所以不要為了讓它有分類而勉強填 bullish 或 bearish。
 　反話與賣壓竭盡是偏多：「想賣的趕快賣，我的會員不准賣」「假跌破」「賣完就漲」不是 bearish。
 
 答 true 的每一題，以及 about_itself 為 true 時的 now／tone，都要在 quotes 對應欄位附 1～2 句從 text 照抄的原文：一個字都不改（【】可以省略），每句 8～40 個字，句子本身要看得出這個答案。抄不出來，那一題就答 false 或 none。
@@ -11328,6 +11332,7 @@ _VQ_TODAY = re.compile(r'今天|今日|早上|剛剛|剛才|盤中')
 # 進場與不進場的表態，引句裡要看得出來（「創意是不是回來碰季線」不是買進條件）。看不出來就當作沒有表態，再看語氣。
 _VQ_ENTRY = re.compile(r'買|等|[佈布]局|注意|留意|抓住|進場|切入|突破|回測|站[上回]|以下|上去|發動|看好|會漲|飆|噴|衝|起飛|便宜|低檔')
 _VQ_REFUSAL = re.compile(r'不|別|沒|太|急|追高|套')
+_VQ_WATCH_SIGNAL = re.compile(r'剛開始漲|第一根(?:帶量)?長紅.{0,16}(?:留意|注意|低檔)|(?<!不)會.{0,6}(?:跟著)?(?:衝出去|上漲|轉強|突破)')
 # 假設句與對觀眾說的話（「如果你手中已經買了…不要賣」）不是講者或會員的部位。
 _VQ_HYPOTHETICAL = re.compile(r'如果|假如|假設|要是|萬一|倘若')
 
@@ -11508,6 +11513,56 @@ def drop_sms_sold_holdings(ss, signals, date_str):
     return signals
 
 
+def sms_first_article_records(ss, signals, date_str):
+    """文章撰寫前以同日會員通知為準；逐字稿只提供已核對的說明背景。"""
+    try:
+        values = sheets_retry(ss.worksheet('操作紀錄').get_all_values)
+        head = [str(x).strip() for x in values[0]]
+        ci = {name: head.index(name) for name in
+              ('日期', '代號', '股票名稱', '方向', '價位說明', '理由摘錄', '來源影片ID')}
+    except Exception as exc:
+        print(f'  簡訊優先：撰稿前讀取操作紀錄失敗（{exc}）')
+        raise RuntimeError('無法核對先到的會員通知，停止撰稿') from exc
+    grouped = {}
+    for index, row in enumerate(values[1:]):
+        cell = lambda name: str(row[ci[name]]).strip() if ci[name] < len(row) else ''
+        if norm_date(cell('日期')) != date_str or not _is_sms_row(cell('來源影片ID')):
+            continue
+        code = cell('代號')
+        if not code:
+            continue
+        source = cell('來源影片ID')
+        match = re.search(r'(\d+)', source)
+        grouped.setdefault(code, []).append((int(match.group(1)) if match else 0, index, {
+            'code': code, 'name': cell('股票名稱'), 'direction': cell('方向'),
+            'price': cell('價位說明'), 'reason': cell('理由摘錄')}))
+    if not grouped:
+        return signals
+    article = {key: list(signals.get(key, []) or []) for key in SIGNAL_CATEGORIES}
+    candidates = {code: [] for code in grouped}
+    for key in SIGNAL_CATEGORIES:
+        for row in article[key]:
+            code = str(row.get('code') or '')
+            if code in candidates and (row.get('_date') or date_str) == date_str:
+                candidates[code].append((key, row))
+        article[key] = [row for row in article[key] if str(row.get('code') or '') not in grouped
+                        or (row.get('_date') or date_str) != date_str]
+    for code, events in grouped.items():
+        for _, _, event in sorted(events):
+            direction = event['direction']
+            kind = ('buy' if direction.startswith('買') else 'sell' if direction.startswith('賣') else
+                    'watch_avoid' if direction == '觀望不碰' else 'watch_watch')
+            matching = next((row for cat, row in candidates[code] if cat == kind and row.get('_evidence_verified')), None)
+            # 成交價只保留在私人紀錄；影片的同方向證據可補技術背景。
+            reason = (public_sms_note(matching.get('reason') or matching.get('note') or '', event)
+                      if matching else public_sms_note(event['reason'], event))
+            article[kind].append({'code': code, 'name': event['name'], 'price': '不公開',
+                                  'reason': reason or '當日操作已核對，技術背景尚待確認。'})
+        print(f'  簡訊優先　{date_str} {events[-1][2]["name"]}（{code}）撰稿分類依當日通知；逐字稿只補同方向說明')
+    signals['_article_records'] = article
+    return signals
+
+
 def _verdict_cache(ss, date_str):
     """「分類裁決」表上這一天已有的裁決：{代號: {'manual': 分類, 'by_fp': {(指紋, 版號): 分類}}}。"""
     back = {v: k for k, v in _VERDICT_LABEL.items() if k}
@@ -11580,10 +11635,8 @@ def verdict_class(answer, passages_norm, names=()):
         now = 'none'
     if now in ('prohibit', 'not_yet') and not any(_VQ_REFUSAL.search(q) for q in stance):
         now = 'none'
-    if past and now == 'none' and tone == 'neutral':
-        return 'history', '只回顧過去的買賣：' + first('past_trade')      # 回顧不必另外引立場
     if not stance:
-        return '', '有講這一檔，但引不出原文'
+        return ('history', '只回顧過去的買賣：' + first('past_trade')) if past else ('', '有講這一檔，但引不出原文')
     if now in ('prohibit', 'not_yet'):
         return 'watch_avoid', ('明講不買：' if now == 'prohibit' else '現在還不能買：') + stance[0][:40]
     if now in ('buy_ok', 'conditional'):
@@ -11592,6 +11645,10 @@ def verdict_class(answer, passages_norm, names=()):
         return 'watch_watch', '看法偏多：' + stance[0][:40]
     if tone == 'bearish':
         return 'watch_avoid', '偏空或當作風險例子：' + stance[0][:40]
+    signal = next((q for q in stance if _VQ_WATCH_SIGNAL.search(q)
+                   and (not own or any(n in _ev_norm(q) for n in own))), '')
+    if signal:
+        return 'watch_watch', '本股有向前的技術訊號：' + signal[:40]
     if past:
         return 'history', '只回顧過去的買賣'
     return VERDICT_NEUTRAL_CLASS, '只描述行情，沒有偏多偏空的結論，不列：' + stance[0][:40]
@@ -11715,7 +11772,9 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
         verdicts[code] = entry
         manual = (cache.get(code) or {}).get('manual')
         if manual:
-            entry.update(cls=manual, tier='人工裁決', basis='「分類裁決」表的人工裁決欄', enforce=True)
+            entry.update(cls=manual, tier='人工裁決',
+                         basis=(cache.get(code) or {}).get('manual_source') or '「分類裁決」表的人工裁決欄',
+                         enforce=True)
             continue
         if {'buy', 'sell'} <= cats or any(k[0] == code for k in notice):
             entry.update(tier='直接歸類', basis='當日會員通知已有買賣' if any(k[0] == code for k in notice) else '同一天有買有賣')
@@ -13362,6 +13421,11 @@ def _is_sms_row(source: str) -> bool:
     return str(source or "").strip().startswith(SMS_SOURCE_PREFIX)
 
 
+def _protected_nonvideo_row(source: str) -> bool:
+    value = str(source or '').strip()
+    return value.startswith(MANUAL_ENTRY_PREFIX) or value == '人工補登'
+
+
 def _dir_kind(direction: str) -> str:
     """把方向歸成三類。同類才算「同方向」。"""
     d = str(direction or "").strip()
@@ -13384,10 +13448,10 @@ def apply_sms_priority(ss, dates=None) -> dict:
     # 會員持股是獨立的一張表，就算操作紀錄是空的也要處理。
     # 先前把它放在最後、又在前面對操作紀錄做了 early return，
     # 於是「那天只有持股、沒有買賣」時整段被跳過。
-    sms_sold = set()          # 當天簡訊對這一檔最後的買賣是賣出：{(日期, 代號)}
+    sms_traded = set()        # 當天簡訊已買或賣的同檔持股，不能再由逐字稿複寫
 
     def _finish():
-        stat["dropped"] += _drop_video_holds_covered_by_sms(ss, want, sms_sold)
+        stat["dropped"] += _drop_video_holds_covered_by_sms(ss, want, sms_traded)
         stat["days"] = max(stat["days"], 1 if stat["dropped"] else 0)
         if stat["dropped"] or stat["resequenced"]:
             print(f"簡訊優先：移除逐字稿重複 {stat['dropped']} 列，"
@@ -13434,41 +13498,25 @@ def apply_sms_priority(ss, dates=None) -> dict:
 
     for (day, code), items in bucket.items():
         sms = [x for x in items if x["sms"]]
-        vid = [x for x in items if not x["sms"]]
+        vid = [x for x in items if not x["sms"] and not _protected_nonvideo_row(x["src"])]
         if not sms:
             continue                      # 這一檔那天沒有簡訊，逐字稿說了算
         # 簡訊的先後用文章編號排（和下面排「序」同一個依據）；最後一筆買賣是賣出，代表這一檔當天已經出場。
         trades = sorted((x for x in sms if x["kind"] in ("buy", "sell")),
                         key=lambda y: (int((re.search(r"(\d+)", y["src"]) or [0, 0])[1]), y["row"]))
-        if trades and trades[-1]["kind"] == "sell":
-            sms_sold.add((day, code))
+        if trades:
+            sms_traded.add((day, code))
 
-        sms_kinds = {x["kind"] for x in sms}
         for v in vid:
-            if v["kind"] in sms_kinds:
-                # 同方向：簡訊那一筆資訊比較完整（帶價位），逐字稿這一筆是重複。
-                # 觀望注意與觀望不碰同歸 watch：同一檔同一天簡訊已表態，照簡訊（簡訊優先），
-                # 但方向不同時要講出來，不能無聲吃掉（Gemini 建議拆開兩類；拆開的話兩列會同時上網站，
-                # 同一檔一多一空更糟，所以維持簡訊優先、改成明白記錄）。
-                drop_rows.append(v["row"])
-                touched.add(day)
-                same = any(x["dir"] == v["dir"] for x in sms)
-                print(f"  簡訊優先　{day} {v['name']}（{code}）逐字稿的「{v['dir']}」"
-                      + ("與簡訊同方向，移除逐字稿那一筆" if same else
-                         "與簡訊的「" + "、".join(sorted({x['dir'] for x in sms})) + "」方向不同，依簡訊，移除逐字稿那一筆"))
-            elif v["kind"] == "watch" and sms_kinds & {"buy", "sell"}:
-                # 簡訊當天已買或賣這一檔，影片對它的看法不另列觀望（2026/09/22 聖暉同時在買入與觀望注意）。
-                # 看法本身不會丟：enrich_sms_notes_from_signals 會把已驗證的背景補進簡訊那一列的說明。
-                drop_rows.append(v["row"])
-                touched.add(day)
-                print(f"  簡訊優先　{day} {v['name']}（{code}）簡訊當天已"
-                      f"{'買入' if 'buy' in sms_kinds else '賣出'}，逐字稿的「{v['dir']}」不另列，看法併入簡訊說明")
-        # 不同方向的逐字稿列留著，只把先後排好。
+            # 同日同檔的分類一律依通知；不同方向也不能並列成兩種結論。
+            drop_rows.append(v["row"])
+            touched.add(day)
+            print(f"  簡訊優先　{day} {v['name']}（{code}）移除逐字稿「{v['dir']}」；通知方向保留")
 
     dropped_set = set(drop_rows)
     if c_seq >= 0:
         for (day, code), items in bucket.items():
-            keep = [x for x in items if x["row"] not in dropped_set]
+            keep = [x for x in items if x["row"] not in dropped_set and not _protected_nonvideo_row(x["src"])]
             if not keep or not any(x["sms"] for x in keep):
                 continue
             # 簡訊彼此之間的先後，用文章編號排而不是用列的順序。
@@ -13505,11 +13553,11 @@ def apply_sms_priority(ss, dates=None) -> dict:
     return _finish()
 
 
-def _drop_video_holds_covered_by_sms(ss, want, sms_sold=()) -> int:
+def _drop_video_holds_covered_by_sms(ss, want, sms_traded=()) -> int:
     """會員持股：同一天同一檔簡訊已經講過，就不留逐字稿那一筆。
 
-    sms_sold：當天簡訊最後的買賣是賣出的（日期, 代號）。簡訊已經賣掉的那一檔，逐字稿同一天的「會員持股」不留——
-    留著的話網站同一天既是賣出又是持股，持股追蹤還會把它當成賣出後又重新持有（2026/10/08 世芯-KY 的風險）。
+    sms_traded：當天簡訊已買或賣的（日期, 代號）。操作已由簡訊定案，
+    逐字稿同一天的「會員持股」不另列，避免賣出後重新持有或買入與持有重複。
     """
     try:
         ws = ss.worksheet("會員持股")
@@ -13535,13 +13583,13 @@ def _drop_video_holds_covered_by_sms(ss, want, sms_sold=()) -> int:
             continue
         if _is_sms_row(g(row, c_src)):
             sms_keys.add((day, code))
-        else:
+        elif not _protected_nonvideo_row(g(row, c_src)):
             vid_rows.append((idx, day, code, g(row, c_name)))
 
-    sold = set(sms_sold or ())
-    targets = [(i, nm, d, c) for i, d, c, nm in vid_rows if (d, c) in sms_keys or (d, c) in sold]
+    traded = set(sms_traded or ())
+    targets = [(i, nm, d, c) for i, d, c, nm in vid_rows if (d, c) in sms_keys or (d, c) in traded]
     for i, nm, d, c in sorted(targets, reverse=True):
-        print(f"  簡訊優先　{d} {nm}（{c}）" + ("簡訊當天已賣出，逐字稿的會員持股不留" if (d, c) in sold and (d, c) not in sms_keys
+        print(f"  簡訊優先　{d} {nm}（{c}）" + ("簡訊當天已有買賣，逐字稿的會員持股不另列" if (d, c) in traded and (d, c) not in sms_keys
                                            else "會員持股以簡訊為準，移除逐字稿那一筆"))
         sheets_retry(ws.delete_rows, i)
     return len(targets)
@@ -14474,6 +14522,7 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     signals = strip_implausible_price_claims(ss, signals, date_str)
     signals = strip_guessed_names_and_causes(signals, TX["audit"])
     signals = strip_unsupported_time_clauses(signals, TX["audit"])
+    signals = sms_first_article_records(ss, signals, date_str)
     article = build_article(v2, signals, date_str)
     quality_hard, _quality_soft = print_quality_overview(signals, TX["audit"])
     if quality_hard:

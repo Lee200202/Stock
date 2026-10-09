@@ -245,6 +245,20 @@
       </div>
       <p class="tech-result" id="toneExample" aria-live="polite"></p>
     </div>
+    <div class="tech-lab tech-watch-lab">
+      <p class="tech-demo-h">同樣提到股票，為什麼有的列「觀望注意」？<span class="tech-tag">10/08 原稿案例</span></p>
+      <div class="tech-options" role="group" aria-label="觀望注意判定案例">
+        <button type="button" data-watch-case="start" aria-pressed="true">金山電：剛開始漲</button>
+        <button type="button" data-watch-case="follow" aria-pressed="false">譜瑞-KY：會跟著衝</button>
+        <button type="button" data-watch-case="position" aria-pressed="false">創意：碰季線</button>
+        <button type="button" data-watch-case="named" aria-pressed="false">創見：正在觀察</button>
+      </div>
+      <div class="watch-case-result" id="watchCaseResult" aria-live="polite">
+        <span class="watch-case-badge tone-ok">觀望注意</span>
+        <ul><li>本股：明講金山電，不借後段別檔的看法。</li><li>現在：說它「剛開始漲」，有向前的技術訊號。</li><li>結論：列觀望注意；沒有明講會員買入，不寫成當日買賣。</li></ul>
+      </div>
+      <p class="tech-legend"><span class="tone-ok">有本股條件或向前訊號 → 注意</span><span class="tone-stop">只點名或報位置 → 不新增</span><span class="tone-warn">明講禁止或風險 → 不碰</span></p>
+    </div>
   </section>
 
   <section class="tech-section" id="tech-number">
@@ -338,6 +352,34 @@
         <li>Gemini 503 是服務暫時過載，不是額度用完：先換下一把金鑰，整輪都 503 才退避；聽打三輪退避仍過載才用備援模型。額度依 Google 專案計算，同一專案多把金鑰不會增加配額。</li>
         <li>回應截斷或 JSON 結構錯誤：加大輸出空間重送一次，仍有待確認項目就不宣稱通過。寄送前補漏只要求缺少的個股與原句，不重寫整篇。</li>
         <li>報價控速等待時先放開共用鎖，忙碌就留給下一輪。文章完成不等於績效完成；試算表以序號傳回的日期先換成實際年月日。</li>
+      </ul>
+    </details>
+  </section>
+
+  <section class="tech-section" id="tech-source-priority">
+    <h2 data-toc="來源先後">盤中先有操作，影片後到：網站該信誰？</h2>
+    <p>同一天同一檔，<mark class="hl">先核對操作紀錄的分類，再用逐字稿補有原句支持的技術背景</mark>。選一張卡，看兩個來源如何合成一則公開紀錄。</p>
+    <div class="tech-lab tech-source-lab">
+      <p class="tech-demo-h">選一個先後情境<span class="tech-tag">示意互動，不會更新資料或寄送</span></p>
+      <div class="tech-options" role="group" aria-label="操作與逐字稿先後情境">
+        <button type="button" data-source-case="sell" aria-pressed="true">先全數賣出，後提持股</button>
+        <button type="button" data-source-case="buy" aria-pressed="false">先買入，後談技術條件</button>
+        <button type="button" data-source-case="video" aria-pressed="false">沒有當日操作紀錄</button>
+      </div>
+      <ol class="source-path" id="sourcePath" aria-live="polite">
+        <li class="tone-ok"><span class="tp-k">先到的操作</span><b>10/08 當日已記全數賣出</b><p>方向已確定；通知原文與成交價留在後台。</p></li>
+        <li class="tone-warn"><span class="tp-k">後到的影片</span><b>原稿再談這檔股票</b><p>逐句核對，但不能把「曾經持有」寫回目前持有。</p></li>
+        <li class="tone-ok"><span class="tp-k">撰稿前合併</span><b>分類仍是賣出</b><p>只補同股、有證據且不改方向的技術理由。</p></li>
+      </ol>
+      <p class="source-result tone-ok" id="sourceResult"><b>網站看見：賣出</b><span>不再同時顯示「持有」；已寄出的郵件保留原快照。</span></p>
+      <p class="tech-legend"><span class="tone-ok">分類：當日操作紀錄</span><span class="tone-warn">說明：逐字稿核對</span><span class="tone-skip">成交價：公開頁不顯示</span></p>
+    </div>
+    <details class="tech-text-map"><summary>文字版規則與例外</summary>
+      <ul>
+        <li>同日同檔的當日操作紀錄先確定買入、賣出或觀望；逐字稿晚到只能補有原句依據的背景，不得改掉分類，也不得把賣出重新列成持有。10/08 世芯-KY 的全數賣出就是這一關的實際案例。</li>
+        <li>沒有當日操作紀錄時，逐字稿經股名、時間、主詞、數字與分類稽核後才發布。不同日期的回顧不算今天的操作。</li>
+        <li>同一天先買後賣等多筆操作依實際先後保留；最新一筆決定目前持有狀態。人工補登另行保護，不被影片或通知自動刪除。</li>
+        <li>私人通知原文與成交價留在後台及已同意接收的專用通知；公開說明保留經核對的技術條件。已寄郵件是快照，重新整理網站不重寄。</li>
       </ul>
     </details>
   </section>
@@ -836,6 +878,21 @@
   }); });
   drawTone(0);
 
+  var WATCH_CASES = {
+    start: ['觀望注意', 'ok', ['本股：明講金山電，不借後段別檔的看法。', '現在：說它「剛開始漲」，有向前的技術訊號。', '結論：列觀望注意；沒有明講會員買入，不寫成當日買賣。']],
+    follow: ['觀望注意', 'ok', ['本股：明講譜瑞-KY，不把前一檔的價位掛到它身上。', '條件：明講前一檔突破時它也會跟著衝，屬對本股向前的看法。', '結論：列觀望注意，只寫可核對的跟漲條件。']],
+    position: ['不新增', 'skip', ['本股：有點名創意。', '現在：只說回來碰季線；後面的「記憶體會發動」轉到另一個話題。', '結論：沒有對創意自己的進場條件或向前判斷，不列。']],
+    named: ['不新增', 'skip', ['本股：有點名創見。', '現在：只說「正在觀察」，沒有本股條件、技術證據或方向。', '結論：單純觀察名單不足以寫成觀望注意。']]
+  };
+  function drawWatch(k) {
+    var c = WATCH_CASES[k]; if (!c) return;
+    select(all('[data-watch-case]'), one('[data-watch-case="' + k + '"]'));
+    one('#watchCaseResult').innerHTML = '<span class="watch-case-badge tone-' + c[1] + '">' + esc(c[0]) + '</span><ul>' +
+      c[2].map(function (line) { return '<li>' + esc(line) + '</li>'; }).join('') + '</ul>';
+    play(one('#watchCaseResult'));
+  }
+  all('[data-watch-case]').forEach(function (b) { b.addEventListener('click', function () { drawWatch(b.dataset.watchCase); }); });
+
   /* ---------- 數字歸屬 ---------- */
   var own = {
     '168': ['stop', '張數', '168 是 ETF 賣出勤誠的張數，不是股價。'],
@@ -925,7 +982,7 @@
     });
   }
   root.addEventListener('animationend', function (e) { if (e.animationName === 'techRise') e.target.classList.remove('tech-anim'); });
-  var PLAY_SETS = ['.tech-path', '.tech-real', '.tech-dayline', '.tech-verdicts', '.decision-grid', '.tx-stages', '.tx-out',
+  var PLAY_SETS = ['.tech-path', '.tech-real', '.tech-dayline', '.tech-verdicts', '.decision-grid', '.tx-stages', '.tx-out', '.source-path',
     '.pn-desk', '.un-chain', '.tech-lanes', '.tech-timeline', '.tech-flow'];
   function playIn(scope) { PLAY_SETS.forEach(function (sel) { Array.prototype.forEach.call(scope.querySelectorAll(sel), play); }); }
   if ('IntersectionObserver' in window && !reduce) {
@@ -1094,6 +1151,35 @@
     }, { rootMargin: '-45% 0px -50% 0px' });
     all('[data-tx-step]').forEach(function (li) { stepSeen.observe(li); });
   }
+
+  /* ---------- 來源先後：本機示意，切換不呼叫任何 API ---------- */
+  var SOURCE_CASES = {
+    sell: { steps: [
+      ['ok', '先到的操作', '10/08 當日已記全數賣出', '方向已確定；通知原文與成交價留在後台。'],
+      ['warn', '後到的影片', '原稿再談這檔股票', '逐句核對，但不能把「曾經持有」寫回目前持有。'],
+      ['ok', '撰稿前合併', '分類仍是賣出', '只補同股、有證據且不改方向的技術理由。']],
+      result: ['網站看見：賣出', '不再同時顯示「持有」；已寄出的郵件保留原快照。'] },
+    buy: { steps: [
+      ['ok', '先到的操作', '當日買入已記錄', '買入方向先定案；價位只供後台核對。'],
+      ['warn', '後到的影片', '講到年線與 MACD', '逐句查證是否確實在說同一檔。'],
+      ['ok', '撰稿前合併', '買入＋有依據的技術背景', '原稿若只回顧昨天，不會把今天買入改成回顧。']],
+      result: ['網站看見：買入', '公開說明可寫經核對的年線與 MACD；不公開通知成交價。'] },
+    video: { steps: [
+      ['skip', '先到的操作', '沒有這檔的當日通知', '沒有操作事實可以優先採用。'],
+      ['warn', '後到的影片', '找到股名、主詞與原句', '核對今天的立場、時間與數字。'],
+      ['ok', '撰稿前合併', '以逐字稿稽核結果分類', '找不到足夠證據就不發布，不猜分類。']],
+      result: ['網站看見：已核對的分類', '只有影片能支持的內容才進網站；未核對的說法保留在內部。'] }
+  };
+  function drawSource(k) {
+    var c = SOURCE_CASES[k]; if (!c) return;
+    select(all('[data-source-case]'), one('[data-source-case="' + k + '"]'));
+    one('#sourcePath').innerHTML = c.steps.map(function (s) {
+      return '<li class="tone-' + s[0] + '"><span class="tp-k">' + esc(s[1]) + '</span><b>' + esc(s[2]) + '</b><p>' + esc(s[3]) + '</p></li>';
+    }).join('');
+    one('#sourceResult').innerHTML = '<b>' + esc(c.result[0]) + '</b><span>' + esc(c.result[1]) + '</span>';
+    play(one('#sourcePath'));
+  }
+  all('[data-source-case]').forEach(function (b) { b.addEventListener('click', function () { drawSource(b.dataset.sourceCase); }); });
 
   /* ---------- v108 公開說明編輯檯（示意）：原句 → 核對 → 公開看見 ---------- */
   var PN_MARK = { keep: ['pn-keep', '留'], drop: ['pn-drop', '刪'], move: ['pn-move', '移'], review: ['pn-review', '複核'] };

@@ -10725,6 +10725,11 @@ def enrich_stock_context(signals, transcript, date_str):
             uses_theme = bool(theme_texts) and isinstance(evidence, list) and any(q in theme_texts for q in evidence)
             # 族群段落只能支持族群層次的句子：句子裡要有族群名稱，不能帶別家公司。
             theme_bad = uses_theme and (not any(t in text for t in themes) or any(n in text for n in theme_others))
+            if theme_bad:
+                # 句子同時引了族群段落和本股自己的段落、內容其實是本股的（「買進成本74元，短線小幅套牢」）：只用本股的段落核對。
+                own_only = [q for q in evidence if q not in theme_texts]
+                if own_only and supported(own_only):
+                    evidence, theme_bad = own_only, False
             ok = supported(evidence) and not theme_bad
             if (not ok and text and isinstance(evidence, list) and evidence
                     and all(isinstance(q, str) and _quote_is_real(q, source_norm) and _quote_near_own_name(q, spans) for q in evidence)):

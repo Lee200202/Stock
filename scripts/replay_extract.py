@@ -145,7 +145,10 @@ def invariants(signals, raw):
             if any(difflib.SequenceMatcher(None, a, b).ratio() >= 0.82 for b in parts[i + 1:]):
                 errors.append(f"{name} 說明同一句講了兩遍：{note[:60]}")
                 break
-        if len(pl._ev_norm(note)) < 8:
+        # 會員持股只有「仍持有」這一句也是一則完整的說明：原文對這一檔只講了持有、沒有報名字的段落又不能借用時，
+        # 不為了湊字擋下整天（2026/10/09 力積電，管理者同意這樣呈現）。列進提醒，不算錯誤。
+        bare_holding = cat == "holdings" and len(pl._ev_norm(note)) >= 4 and re.search(r"持有|續抱|抱著", note)
+        if len(pl._ev_norm(note)) < 8 and not bare_holding:
             errors.append(f"{name} 沒有說明（{len(pl._ev_norm(note))} 字）")
         elif len(pl._ev_norm(note)) < 25:
             warns.append(f"{name} 說明只有 {len(pl._ev_norm(note))} 字")

@@ -8735,9 +8735,10 @@ def strip_foreign_price_claims(signals: dict, transcript: str, ss=None, date_str
                                 value = float(str(number).replace(',', ''))
                             except ValueError:
                                 value = 0.0
-                            if (rival and value and fits(_price_band(kmap, code, date_str), value)
+                            if rival and value and (_only_stock_trading_at(kmap, signals, code, value, date_str) or (
+                                    fits(_price_band(kmap, code, date_str), value)
                                     and _price_band(kmap, rival.group(1), date_str)
-                                    and not fits(_price_band(kmap, rival.group(1), date_str), value)):
+                                    and not fits(_price_band(kmap, rival.group(1), date_str), value))):
                                 print(f"  價位歸屬 {row.get('name')}：{number} 位置上離 {rival.group(1)} 較近，但落在本檔當天的股價範圍、"
                                       f"不在 {rival.group(1)} 的範圍，保留")
                                 note_decision('價位歸屬', '行情佐證，保留本檔價位', str(row.get('name') or code), f'{number}：{why}')
@@ -8751,6 +8752,13 @@ def strip_foreign_price_claims(signals: dict, transcript: str, ss=None, date_str
                         others = set().union(*[v for k, v in table_spots.items() if k != code] or [set()]) - own
                         for number in _LEVEL_NUMBER_RE.findall(clause):
                             why = _number_far_from_own(flat, own, others, number)
+                            if why and kmap:
+                                try:
+                                    value = float(str(number).replace(',', ''))
+                                except ValueError:
+                                    value = 0.0
+                                if _only_stock_trading_at(kmap, signals, code, value, date_str):
+                                    why = ''                      # 離本檔名稱遠，但今天只有這一檔的股價容得下它
                             if why:
                                 verdict, hit = 'distant', number
                                 break
@@ -9996,6 +10004,7 @@ original 已經寫明不要買、不要碰、還不能買時，補充後第一�
 本股多次提及中已明講的歷史價位、漲幅與當下立場須一起整理，不能只換句話說「現在不要買」。例如原文同時有「2、300時布局」「漲了4倍」「現在不要買」，直接寫先前布局、已上漲與目前禁買，不加「並非本日再次買進的通知」等分類說明。不得把鄰股的法人、CPO或其他題材填進本股。禁止「分析師指出」「講師建議」「老師表示」「老師手中」等轉述主詞：不寫誰說的，直接寫內容（「買在880以下」「會員續抱」）。不要寫「逐字稿補充的重點是」「原文以…作為警示」「原文回顧」或推論過程，只寫有依據的內容，不為篇幅加無資訊句。
 過去漲幅、原先布局位置與目前態度分開寫。消息或預測須保留其觀點與條件，不能改成已發生事實。不寫評語式的收尾：「展現強勁多頭動能」「具備明確的向上潛力」「整體操作邏輯穩健」「值得持續關注」「並說明相關操作與看法」「屬於明確不碰的標的」「屬於負面示範」「候選標的之一」「等待適當機會佈局」「建議持續關注」這類句子沒有資訊，程式會刪掉；原文沒講的量價（帶量、爆量、創高、漲停）也不要補。寧可少一句，留下來的每一句都要對得回 sources。「有很多人說／有人問：張總，你昨天講 X 要賣了」這類句子，是講者轉述觀眾複述他自己先前講過的話，後面通常接著他當場的確認或補充：寫成「先前（昨天）已表示 X 要賣出」並接上他當場的說法，不可寫成「有傳聞」「據說」「有人提及」。講者明講的買進位置、成本、季線或年線的價位、預期先到哪一條線，是這一檔說明最重要的內容，source 裡有就一定寫進去，不要只留「展現韌性」「值得留意」這種沒有資訊的形容。不得自創財報、法人、利多、公司關係、均線、停損、目標價或新買點。不要用人名／講者當主詞、不要寫分類流程、來源不足或內部規則。
 每句用 source_ids 引用該 entry.sources 裡支持該句的編號（例如 s0），不要重抄或改寫原句。編號只能用同一 entry 的 sources；來源裡沒講的事不能寫，數字與技術詞也須有對應。name 是官方名稱，source 的同音寫法只在公開敘述中修正。原文不足可短，另填 limitation 為內部原因，不用冗詞湊字。賺賠金額先分清每股與每張；來源單位不明就省略，不能用「（或…）」並列互斥金額或留下截斷片語。
+sources 裡帶 kind 的段落，原文沒有報公司名稱（畫面上才有），系統已用當日股價確認是本股：只取裡面講的買進價位與目前賺賠狀況（「買進成本74元，短線小幅套牢」），不引伸其他內容。
 entry.too_short 為 true 的那一檔，目前的說明只有一句、沒有寫出理由或位置：source 裡有他講的理由、對比、均線位置、數字或在等的訊號，就至少寫兩句把它們寫出來；source 真的只有一句才維持一句。
 sentences 陣列一句一個元素，每一檔寫 2～4 個元素，不要把整段塞進同一個元素：程式逐句核對，一句裡有一個數字或技術詞對不上就整句不用，分開寫才留得住其他句。
 只輸出 {"notes":[{"id":"watch_avoid:0","sentences":[{"text":"第一句。","source_ids":["s0"]},{"text":"第二句。","source_ids":["s1"]}],"limitation":""}]}。"""
@@ -10148,9 +10157,81 @@ def fill_empty_notes(signals, transcript=''):
     return signals
 
 
+_UNNAMED_COST_RE = re.compile(r'我(?:們)?(?:是)?買(?:在|的位置是?|進的位置是?)?(\d{2,5}(?:\.\d{1,2})?)(?:塊|元)?(?:的|以下|附近|左右)'
+                              r'|(?:我(?:的)?|會員(?:的)?)成本(?:是|在)?(\d{2,5}(?:\.\d{1,2})?)')
+
+
+def _band_fits(band, value) -> bool:
+    return bool(band) and min(band) > 0 and min(band) * 0.95 <= value <= max(band) * 1.05      # 當天高低各放寬 5%
+
+
+def _only_stock_trading_at(kmap, signals, code, value, date_str) -> bool:
+    """今天表格裡有行情的股票中，是不是只有這一檔當天的股價容得下這個價位。"""
+    if not kmap or not value or not _band_fits(_price_band(kmap, code, date_str), value):
+        return False
+    others = {str(r.get('code') or '') for cat in list(SIGNAL_CATEGORIES) + ['history', 'uncertain', 'ignored']
+              for r in signals.get(cat, []) or [] if isinstance(r, dict)} - {'', str(code)}
+    # 今天有買賣或持有的別檔若查不到行情，就無法排除是它的價位：不認。
+    traded = {str(r.get('code') or '') for cat in ('buy', 'sell', 'holdings') for r in signals.get(cat, []) or [] if isinstance(r, dict)} - {'', str(code)}
+    if any(not _price_band(kmap, other, date_str) for other in traded):
+        return False
+    return not any(_band_fits(_price_band(kmap, other, date_str), value) for other in others)
+
+
+def unnamed_cost_passages(signals, transcript, date_str):
+    """沒有報名字、只講了自己買在多少的段落，用行情認出是哪一檔的：{代號: [段落]}。
+
+    條件都要成立：那一兩句裡沒有任何一檔的名稱或代號；今天表格裡有行情的股票中只有一檔容得下這個價位；那一檔今天是買入或會員持股。
+    日K快取還沒讀過（單元測試、行情讀不到）就不認，回空的。
+    """
+    kmap = _DK_MEMO.get('map')
+    flat = re.sub(r'\s+', '', str(transcript or ''))
+    if not kmap or len(flat) < 200:
+        return {}
+    table = [(cat, r) for cat in list(SIGNAL_CATEGORIES) + ['history', 'uncertain', 'ignored']
+             for r in signals.get(cat, []) or [] if isinstance(r, dict)]
+    words = {n for _c, r in table for n in list(_row_names_for_recap(r)) + [str(r.get('code') or '')] if len(str(n)) >= 2}
+    held = {str(r.get('code') or ''): r for cat, r in table if cat in ('buy', 'holdings') and (r.get('_date') or date_str) == date_str}
+    found = {}
+    for m in _UNNAMED_COST_RE.finditer(flat):
+        try:
+            value = float(m.group(1) or m.group(2))
+        except (TypeError, ValueError):
+            continue
+        ends = [x.end() for x in re.finditer(r'[。！？!?]', flat[:m.start()])]
+        begin = ends[-2] if len(ends) >= 2 else (ends[-1] if ends else 0)          # 往前多帶一句
+        begin = max(begin, m.start() - 90)
+        stop = re.search(r'[。！？!?]', flat[m.end():m.end() + 90])
+        end = m.end() + (stop.end() if stop else 0)
+        passage = flat[begin:end]
+        if any(w in passage for w in words):
+            continue                                              # 有報名字的段落照一般流程，不在這裡處理
+        owners = [code for code in held if _only_stock_trading_at(kmap, signals, code, value, date_str)]
+        if len(owners) != 1:
+            continue
+        spans = found.setdefault(owners[0], [])
+        if spans and begin <= spans[-1][1]:
+            spans[-1][1] = max(spans[-1][1], end)                 # 連著講的兩句併成一段
+        else:
+            spans.append([begin, end])
+    out = {}
+    for code, spans in found.items():
+        out[code] = [flat[a:b] for a, b in spans][:3]
+        name = _display_name(held[code].get('name')) or code
+        for text in out[code]:
+            print(f"  無名成本段落　依行情歸給 {name}（{code}）：{text[:60]}")
+            note_decision('無名成本段落', '依當日股價認出是本股的買進價位', name, text[:200])
+    return out
+
+
 def enrich_stock_context(signals, transcript, date_str):
     """短說明在分類完成後合併補問一次；逐句驗引用，失敗保留原文、不擋通知。"""
     entries, targets = [], {}
+    try:
+        priced = unnamed_cost_passages(signals, transcript, date_str)
+    except Exception as e:
+        print(f'  無名成本段落　這一輪不認（{type(e).__name__}: {str(e)[:60]}）')
+        priced = {}
     for cat in SIGNAL_CATEGORIES:
         for index, row in enumerate(signals.get(cat, []) or []):
             field = 'note' if cat == 'holdings' else 'reason'
@@ -10163,6 +10244,10 @@ def enrich_stock_context(signals, transcript, date_str):
                 snippets.append(shared)
             snippets = list(dict.fromkeys(snippets))[:10]
             sources = _context_sources(row, snippets)
+            # 原文沒有報名字、但當日股價只對得上這一檔的買進價位段落：一起交給模型，並算在本股範圍內。
+            anchored = [t for t in priced.get(str(row.get('code') or ''), []) if cat in ('buy', 'holdings')]
+            for text in anchored:
+                sources.append({'id': 's' + str(len(sources)), 'text': text, 'kind': '原文沒有報名字，系統已用當日股價確認是本股的買進價位'})
             source = '\n'.join(s['text'] for s in sources)[:4000]
             if not source:
                 continue
@@ -10171,7 +10256,9 @@ def enrich_stock_context(signals, transcript, date_str):
                             'original': original, 'source': source, 'sources': sources,
                             # 2026/10/08：模型有幾輪每一檔只寫一句（「明確表明絕對不會買宏達電。」）。說明不到 30 個字而原文有材料時，明講這一檔寫得太短。
                             'too_short': len(_ev_norm(original)) < 30 and len(_ev_norm(source)) >= 80})
-            targets[identity] = (row, field, source, _own_name_spans(row, source), {s['id']:s['text'] for s in sources})
+            targets[identity] = (row, field, source,
+                                 _own_name_spans(row, source) + [(_ev_norm(t), 0, len(_ev_norm(t))) for t in anchored],
+                                 {s['id']:s['text'] for s in sources})
     if not entries:
         return signals
     gaps = signals.setdefault('_repair_gaps', [])

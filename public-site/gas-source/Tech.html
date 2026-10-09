@@ -995,6 +995,20 @@
     }, { threshold: 0.25 });
     all('.tech-lab, .tech-real, .tech-flow').forEach(function (el) { seen.observe(el); });
   }
+  /* v160 痛點卡片的一問一答：卡片捲進畫面時才出場（問句 → 三個點 → 答句），每張只播一次。 */
+  if ('IntersectionObserver' in window && !reduce) {
+    var talks = all('.pain-card .pc-talk');
+    talks.forEach(function (t) { t.classList.add('pc-wait'); });
+    var talkSeen = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        talkSeen.unobserve(en.target);
+        en.target.classList.remove('pc-wait');
+        en.target.classList.add('pc-play');
+      });
+    }, { threshold: 0.6 });
+    talks.forEach(function (t) { talkSeen.observe(t); });
+  }
   /* 「往下看」：平滑捲到章節、標題劃一道重點色，再播放該章的模組；上一頁仍回到原處。 */
   /* ---------- v109 五站路程（9/23 的實際時間；按播放才走，走完停在最後一站） ---------- */
   var HERO = [

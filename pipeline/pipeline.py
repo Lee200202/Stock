@@ -8046,7 +8046,7 @@ def quality_overview(signals, transcript=''):
         if re.search(r'逐字稿|原(?:文|稿)(?:說|寫|提到|指出)|節目(?:前|中|後)段|持股名單|再次明講', note):
             hard.append(f'{name} 的說明含來源或編輯過程，須改寫為本股事實：{note[:45]}')
         # 觀望清單不能冒出當前部位；10/08 金山電只有長紅棒，沒有續抱證據。
-        if cat in ('watch_watch', 'watch_avoid') and re.search(r'(?<!不)(?<!別)(?<!未)(?:續抱|仍持有|目前持有|繼續持有)', note):
+        if cat in ('watch_watch', 'watch_avoid') and re.search(r'(?<!不)(?<!別)(?<!未)(?:續抱|仍持有|目前持有|繼續持有|會員(?:已|仍|目前)?持有|為會員持有)', note):
             hard.append(f'{name} 列觀望卻寫成當前持股，須核對分類與主詞：{note[:45]}')
         if transcript and _foreign_profit_claim(note, _row_names_for_recap(r), transcript):
             hard.append(f'{name} 的說明提到獲利狀況，原文沒有任何一句同時講到這一檔與獲利：{note[:30]}')

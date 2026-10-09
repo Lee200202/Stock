@@ -64,6 +64,8 @@ _, hard, _ = pl.quality_overview({'holdings': [{'name': '甲公司', 'note': '�
 assert any('來源或編輯過程' in e for e in hard), hard
 _, hard, _ = pl.quality_overview({'watch_watch': [{'name': '乙公司', 'reason': '乙公司出現第一根長紅棒，續抱看好。'}]}, '')
 assert any('觀望卻寫成當前持股' in e for e in hard), hard
+_, hard, _ = pl.quality_overview({'watch_watch': [{'name': '乙公司', 'reason': '乙公司出現第一根長紅棒，為會員持有的標的之一。'}]}, '')
+assert any('觀望卻寫成當前持股' in e for e in hard), hard
 _, hard, _ = pl.quality_overview({'watch_watch': [{'name': '乙公司', 'reason': '乙公司出現第一根長紅棒，須等回測季線再確認。'}]}, '')
 assert not any('觀望卻寫成當前持股' in e or '來源或編輯過程' in e for e in hard), hard
 print('daily publication: editorial process text and watch/holding contradiction blocked')

@@ -32,6 +32,7 @@ def main():
     golden_file = Path('scripts/golden') / (target.isoformat() + '.json')
     if args.apply and not golden_file.exists():
         raise SystemExit('正式更新須有該日人工核對答案；本次未寫入')
+    golden = json.loads(golden_file.read_text(encoding='utf-8')) if golden_file.exists() else {}
     real = pl.open_sheets()
     dry = DryBook(real)
     snapshot = {}
@@ -42,14 +43,31 @@ def main():
     initial = {name: digest(real.worksheet(name).get_all_values()) for name in tables}
     ledger_names = [ws.title for ws in real.worksheets() if ws.title in ('寄送帳本', 'LINE 寄送帳本')]
     ledger_before = {name: digest(real.worksheet(name).get_all_values()) for name in ledger_names}
-    writer, audit = pl.write_results, pl.save_evidence_audit
+    writer, audit, verdict_cache = pl.write_results, pl.save_evidence_audit, pl._verdict_cache
     captured, audits = {}, []
+
+    # 人工逐段核對後明列在該日答案的排除項，交由既有裁決流程在撰稿前移到不公開。
+    # 只在這支單日更新腳本生效；一般每日流程仍由證據與裁決規則判定。
+    exclusions = {str(code) for code in golden.get('must_not', [])}
+    existing_verdicts = verdict_cache(dry, day)
+    conflicts = [code for code in exclusions if (existing_verdicts.get(code) or {}).get('manual')
+                 not in (None, '', 'ignored')]
+    if conflicts:
+        raise SystemExit('分類裁決表與人工答案相衝突：' + '、'.join(conflicts) + '；本次未寫入')
+
+    def verified_cache(book, date_str):
+        cache = verdict_cache(book, date_str)
+        if date_str == day:
+            for code in exclusions:
+                cache.setdefault(code, {})['manual'] = 'ignored'
+        return cache
 
     def stop(ss, date, signals, *a, **kw):
         captured.update(date=date, signals=signals, args=a, kwargs=kw)
         raise Reached(signals)
 
     pl.write_results = stop
+    pl._verdict_cache = verified_cache
     pl.save_evidence_audit = lambda *a, **kw: audits.append((a[1:], kw))
     pl.save_refresh_checkpoint = lambda *a, **kw: None
     pl.name_memo_load(dry)
@@ -62,6 +80,7 @@ def main():
     finally:
         pl.write_results = writer
         pl.save_evidence_audit = audit
+        pl._verdict_cache = verdict_cache
     errors, warnings = invariants(captured['signals'], raw)
     overview, hard, soft = pl.quality_overview(captured['signals'], raw)
     for line in overview:
@@ -85,7 +104,7 @@ def main():
     if errors:
         raise SystemExit('通用檢查未通過，正式資料保留')
     if golden_file.exists():
-        ok, report = compare(captured['signals'], json.loads(golden_file.read_text(encoding='utf-8')), day)
+        ok, report = compare(captured['signals'], golden, day)
         print(report)
         if not ok:
             raise SystemExit('人工答案比對未通過，正式資料保留')

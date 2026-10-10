@@ -74,7 +74,7 @@ function clearDaySyncTriggers_() {
 function scheduleDaySync_() {
   clearDaySyncTriggers_();
   var st=daySyncState_();
-  if(st&&Number(st.githubUntil||0)>Date.now()){return;}
+  if(st&&st.status!=='完成'&&st.status!=='已取消'&&Number(st.githubUntil||0)>Date.now()){return;}
   // Actions 排步驟，GAS 保留資料運算。派工失敗才回退原本的單步觸發器。
   if(st&&typeof githubCfg_==='function'){
     var g=githubCfg_();
@@ -242,8 +242,12 @@ function runDayEditSync_() {
   else { cur.status = cur.index >= cur.total ? '完成' : '處理中'; }
   cur.step = cur.status==='完成' ? '完成' : DAY_SYNC_NAMES[cur.index];
   cur.error='';
+  // 派工租約只保護正在執行的那一輪。已完成時立即放行後續儲存，
+  // 不讓同一天連續修改的郵件與持股同步卡在舊租約的十分鐘內。
+  if (cur.status === '完成') { cur.githubUntil = 0; }
   saveDaySync_(cur);
   if (cur.status === '處理中') { scheduleDaySync_(); }
+  else if (cur.status === '完成') { dayEditSyncTick_(); }
 }
 
 /* ------------------------------------------------------------------ *
@@ -328,7 +332,7 @@ function dayEditSyncTick_() {
   withLock_(function(){
     var p=PropertiesService.getScriptProperties(),st=daySyncState_(),h=daySyncHealth_(st);
     if(h.running){return;}
-    if(st&&Number(st.githubUntil||0)>Date.now()){return;}
+    if(st&&st.status!=='完成'&&st.status!=='已取消'&&Number(st.githubUntil||0)>Date.now()){return;}
     if(st&&st.status==='處理中'&&!h.stalled){return;}
     if(st&&(st.status==='等待續跑'||h.stalled)){
       if(Number(st.retryAt||0)>Date.now()){return;}

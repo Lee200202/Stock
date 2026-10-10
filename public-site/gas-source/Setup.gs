@@ -1244,7 +1244,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-10-10-content-audit-v162';
+var PROJECT_BUILD_ = '2026-10-10-day-sync-queue-v163';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
@@ -1264,7 +1264,7 @@ var PROJECT_FILES_ = [
   { file: 'Cachebuilder.gs', names: ['dailyKCacheAfterWrite_', 'dailyKNoData_', 'budgetLeft_', 'trackedCodes_', 'readSnapshotRows_', 'officialDailyAll_', 'auditDailyKCache', 'repairDailyKCache', 'afterDailyKDoneJob', 'rescheduleDailyKTrigger', 'warmKCaches_', 'dailyKFloors_', 'resetDailyKFloor', 'isTradingDateStr_', 'ensurePerformanceContinuityJob_', 'officialDailyKFill_', 'officialDailyKTick_', 'officialDailyKJob', 'fillOfficialDailyKNow', 'auditTrackedSymbolsJob'], marker: ['auditTrackedSymbolsJob', 'symbolAuditDayV94'] },
   { file: 'Cmoney.gs', names: ['cmMailBody_', 'cmNotifyNew_', 'cmSyncContentTick_', 'cmTranscriptExcerpt_', 'deliveryRetryTick_', 'diagnoseInstantMail', 'cmSetNotifyState_', 'resendInstantMail', 'resendTodaySmsTextCorrection', 'resendTodaySmsFromOwner', 'cmPollSaveFailed_', 'cmVerifyItems_', 'cmPollInterval_'], marker: ['cmPollInterval_', 'Math.max(configured, 2)'] },
   { file: 'DB.gs', names: ['writeSubscriptionFields_', 'findSubscription_'] },
-  { file: 'Evidencequality.gs', names: ['rawTranscript_', 'validEvidence_', 'queueDayEditSync_', 'dayEditSyncTick_', 'queueCostSync_'], marker: ['dayEditSyncTick_', 'COST:'] },
+  { file: 'Evidencequality.gs', names: ['rawTranscript_', 'validEvidence_', 'queueDayEditSync_', 'dayEditSyncTick_', 'queueCostSync_'], marker: ['dayEditSyncTick_', 'cur.githubUntil = 0'] },
   { file: 'Logic.gs', names: ['markChainStep_', 'REFRESH_STEPS_'] },
   { file: 'MailService.gs', names: ['createSubscription', 'siteName_', 'adminNoticeHtml_', 'mailHero_', 'publicWebAppUrl_', 'escAttr_', 'mailRiskHtml_', 'deliverMessage_', 'deliveryLedger_', 'mailPlainText_', 'isExecUrl_', 'mailStockName_', 'noVideoToday_', 'pushReadyChannels_', 'gateAutoRelease_', 'gateJsonResponse_', 'DIGEST_MISSING_SYSTEM_'], marker: ['mailHero_', 'border-radius:22px'] },
   { file: 'Presentationquality.gs', names: ['publicNoticeText_', 'titleDropRepeats_', 'displayPrice_', 'narrativeName_', 'titleChars_', 'toTraditional_', 'publicSmsNote_', 'stripEditorialWrappers_'], marker: ['restatesEarlier_', 'hit / total'] },
@@ -1280,7 +1280,7 @@ var PROJECT_HTML_ = [
   { file: 'Index', marker: '<span class="brand-name">盤勢有據</span>' },
   { file: 'JavaScript', marker: '__fxRiseIn' },
   { file: 'Stylesheet', marker: 'load-charts' },
-  { file: 'Changelog', marker: 'v162 10/08 獲利單位核對與分類案例同步' },
+  { file: 'Changelog', marker: 'v163 逐日編輯連續儲存可立即接續同步' },
   { file: 'Tech', marker: 'tech-source-priority' },
   { file: 'Admin', marker: 'id="mLog" href="https://script.google.com/home/projects/' },
   { file: 'Settings', marker: '手機預覽' },

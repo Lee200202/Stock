@@ -37,3 +37,12 @@ assert.equal(scheduled, 1);
 assert.equal(JSON.parse(properties.get('dayEditSyncV1')).status, '處理中');
 assert.deepEqual(JSON.parse(properties.get('dayEditQueueV47')), {});
 console.log('completed lease releases the next day-edit sync; active lease remains protected');
+
+const setup = fs.readFileSync('public-site/gas-source/Setup.gs', 'utf8');
+const fiveMin = setup.slice(setup.indexOf('function everyFiveMinJobRun_()'), setup.indexOf('function ', setup.indexOf('function everyFiveMinJobRun_()') + 9));
+const syncAt = fiveMin.indexOf("safe_('dayEditSyncTick_'");
+assert(syncAt > 0);
+assert(syncAt < fiveMin.indexOf('if (hhmm < 800 || hhmm >= 2230)'));
+assert(syncAt < fiveMin.indexOf('if (closedToday)'));
+assert.equal(fiveMin.indexOf("safe_('dayEditSyncTick_'", syncAt + 1), -1);
+console.log('five-minute scheduler checks day edits before night and market-holiday exits');

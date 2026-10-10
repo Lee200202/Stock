@@ -8051,7 +8051,7 @@ def quality_overview(signals, transcript=''):
         if re.search(r'逐字稿|原(?:文|稿)(?:說|寫|提到|指出)|節目(?:前|中|後)段|持股名單|再次明講|於今日影片中', note):
             hard.append(f'{name} 的說明含來源或編輯過程，須改寫為本股事實：{note[:45]}')
         # 觀望清單不能冒出當前部位；10/08 金山電只有長紅棒，沒有續抱證據。
-        if cat in ('watch_watch', 'watch_avoid') and re.search(r'(?<!不)(?<!別)(?<!未)(?:續抱|仍持有|目前持有|繼續持有|會員(?:已|仍|目前)?持有|為會員持有)', note):
+        if cat in ('watch_watch', 'watch_avoid') and _WATCH_HOLDS_RE.search(note):
             hard.append(f'{name} 列觀望卻寫成當前持股，須核對分類與主詞：{note[:45]}')
         if transcript and _foreign_profit_claim(note, _row_names_for_recap(r), transcript):
             hard.append(f'{name} 的說明提到獲利狀況，原文沒有任何一句同時講到這一檔與獲利：{note[:30]}')
@@ -10060,6 +10060,7 @@ original 已經寫明不要買、不要碰、還不能買時，補充後第一�
 每句用 source_ids 引用該 entry.sources 裡支持該句的編號（例如 s0），不要重抄或改寫原句。編號只能用同一 entry 的 sources；來源裡沒講的事不能寫，數字與技術詞也須有對應。name 是官方名稱，source 的同音寫法只在公開敘述中修正。原文不足可短，另填 limitation 為內部原因，不用冗詞湊字。賺賠金額先分清每股與每張；來源單位不明就省略，不能用「（或…）」並列互斥金額或留下截斷片語。
 sources 裡 kind 寫著「系統已用當日股價確認」的段落，原文沒有報公司名稱（畫面上才有）：只取裡面講的買進價位與目前賺賠狀況（「買進成本74元，短線小幅套牢」），不引伸其他內容。
 sources 裡 kind 寫著「產業段落（某族群）」的段落，是本股自己的材料不多時附上的：講的是它所屬的族群。先寫本股自己的事，再用一兩句整理這個族群的看法，句子裡要寫出族群名稱（「所屬的記憶體族群近期漲跌反覆，預期後續還有一波，已持有者不宜賣出」）；不可以寫成本股自己的價位、均線或買點，不可以寫進別家公司的名稱與條件，引用時 source_ids 要指到那一段。
+entry.facts 是程式從本股 source 找到的技術名詞與數字，當成檢查表：動筆前逐項看過，凡是本股現在的位置、條件、依據或成本（在哪一條均線、整理幾天、第幾根長紅、買超幾張、EPS 與營收成長、買進價位、先前賣在哪裡）都要寫進說明，數字照原文；只是口頭禪、講別檔、或與本股的判斷無關的可以不寫。entry.missing 有內容時，那是上一輪沒有寫到的項目：這一輪把屬於本股的補上，其餘照舊。
 entry.too_short 為 true 的那一檔，目前的說明只有一句、沒有寫出理由或位置：source 裡有他講的理由、對比、均線位置、數字或在等的訊號，就至少寫兩句把它們寫出來；source 真的只有一句才維持一句。
 sentences 陣列一句一個元素，每一檔寫 2～4 個元素，不要把整段塞進同一個元素：程式逐句核對，一句裡有一個數字或技術詞對不上就整句不用，分開寫才留得住其他句。
 只輸出 {"notes":[{"id":"watch_avoid:0","sentences":[{"text":"第一句。","source_ids":["s0"]},{"text":"第二句。","source_ids":["s1"]}],"limitation":""}]}。"""
@@ -10457,6 +10458,57 @@ def tidy_public_notes(ss, signals: dict, date_str: str) -> dict:
     return signals
 
 
+_WATCH_HOLDS_RE = re.compile(r'(?<!不)(?<!別)(?<!未)(?:續抱|仍持有|目前持有|繼續持有|會員(?:已|仍|目前)?持有|為會員持有)')
+
+
+def resolve_watch_holding_overlap(signals: dict, date_str: str) -> dict:
+    """觀望那一列的說明寫成當前持股時，只處理那一列，不擋整天。
+
+    同一檔今天已經列會員持股：觀望那一列講的是同一個部位，不另列（2026/10/05 台積電，持股與觀望注意各一列，
+    觀望那一列寫「會員持有的成本在1820、2025…」，整天被品質關卡擋下）。
+    沒有持股列：拿掉講持有的那幾句；剩下不到一句話的改列待確認，不公開。
+    """
+    held = {str(r.get('code') or '') for r in signals.get('holdings', []) or []
+            if isinstance(r, dict) and (r.get('_date') or date_str) == date_str} - {''}
+    for cat in ('watch_watch', 'watch_avoid'):
+        keep = []
+        for row in signals.get(cat, []) or []:
+            text = str(row.get('reason') or '') if isinstance(row, dict) else ''
+            if not isinstance(row, dict) or not _WATCH_HOLDS_RE.search(public_narrative(text, row, signals)):
+                keep.append(row)
+                continue
+            name = _display_name(row.get('name')) or str(row.get('name') or '')
+            if str(row.get('code') or '') in held:
+                print(f"  分類與說明　{name}：今天已列會員持股，觀望那一列的說明講的是持有，不另列")
+                note_decision('分類與說明', '已列會員持股，觀望那一列不另列', name, text[:120])
+                continue
+            rest = ''.join(x for x in re.split(r'(?<=[。；;])', text) if x.strip() and not _WATCH_HOLDS_RE.search(x)).strip()
+            if len(_ev_norm(rest)) >= 8:
+                row['reason'] = rest
+                print(f"  分類與說明　{name}：列觀望，說明裡講持有的句子已拿掉")
+                note_decision('分類與說明', '觀望列的說明講持有，拿掉那幾句', name, text[:120])
+                keep.append(row)
+            else:
+                row['_疑點'] = '列觀望，說明卻只講持有'
+                row['suggested_category'] = cat
+                signals.setdefault('uncertain', []).append(row)
+                signals['_quality_requires_review'] = True
+                print(f"  分類與說明　{name}：列觀望，說明卻只講持有，改列待確認、不公開")
+                note_decision('分類與說明', '觀望列的說明只講持有，改列待確認', name, text[:120])
+        signals[cat] = keep
+    return signals
+
+
+def print_public_texts(signals: dict, date_str: str):
+    """把這一輪準備公開的個股說明印出來。品質關卡擋下時才看得出是哪一句。"""
+    label = {'buy': '買入', 'sell': '賣出', 'holdings': '持股', 'watch_watch': '觀望注意', 'watch_avoid': '觀望不碰'}
+    for cat in label:
+        for row in signals.get(cat, []) or []:
+            if isinstance(row, dict) and (row.get('_date') or date_str) == date_str:
+                text = public_narrative(str(row.get('note' if cat == 'holdings' else 'reason') or ''), row, signals)
+                print(f"  公開文字　{label[cat]}　{row.get('name')}（{len(text)} 字）：{text}")
+
+
 def repair_public_note_contradictions(signals: dict) -> dict:
     """只刪同一句裡確定互斥或單位混用的片段，不推算新的價位。
 
@@ -10599,6 +10651,31 @@ def unnamed_cost_passages(signals, transcript, date_str):
     return out
 
 
+_FACT_TERM_RE = re.compile(r'年線|季線|月線|週線|\d+均|均線|頸線|缺口|MACD|KD|背離|第一根長紅|長紅|漲停|跌停|打底|盤整|底部整理|突破|回測|創新高|創高'
+                           r'|買超|賣超|外資|投信|法人|營收|EPS|目標價|成本|法說會|除息|量縮|爆量|融資', re.I)
+_FACT_NUMBER_RE = re.compile(r'(?<![\d.])\d[\d,]*(?:\.\d+)?\s*(?:%|％|元|塊|倍|張|天|根|個月|均|億)|(?<![\d.])\d+\.\d+(?!\d)')
+
+
+def _source_facts(texts):
+    """本股原文裡的技術名詞與帶單位的數字（照出現順序、不重複），給補充說明當檢查表。"""
+    joined = re.sub(r'\s+', '', ''.join(texts))
+    terms = list(dict.fromkeys(m.group(0) for m in _FACT_TERM_RE.finditer(joined)))
+    numbers = list(dict.fromkeys(m.group(0) for m in _FACT_NUMBER_RE.finditer(joined)))
+    return terms[:10] + numbers[:8]
+
+
+def _facts_missing(facts, note):
+    """檢查表裡說明沒有寫到的項目。數字只比數字本身（「880塊」寫成「880元」算有寫到）。"""
+    text = re.sub(r'[\s,]', '', str(note or ''))
+    missing = []
+    for fact in facts:
+        probe = re.sub(r'[,\s]', '', fact)
+        digits = re.match(r'\d+(?:\.\d+)?', probe)
+        if (digits.group(0) if digits else probe).lower() not in text.lower():
+            missing.append(fact)
+    return missing
+
+
 def enrich_stock_context(signals, transcript, date_str):
     """短說明在分類完成後合併補問一次；逐句驗引用，失敗保留原文、不擋通知。"""
     entries, targets = [], {}
@@ -10614,7 +10691,8 @@ def enrich_stock_context(signals, transcript, date_str):
         for index, row in enumerate(signals.get(cat, []) or []):
             field = 'note' if cat == 'holdings' else 'reason'
             original = str(row.get(field) or '')
-            if len(_ev_norm(original)) >= 70 and not row.get('_leftover'):
+            missing = row.pop('_missing_facts', None)              # 上一輪沒寫到一半檢查表的那一檔，這一輪再問
+            if len(_ev_norm(original)) >= 70 and not row.get('_leftover') and not missing:
                 continue
             snippets = _own_segments(row, signals, transcript)
             shared = _named_current_prohibition(row, transcript)
@@ -10623,6 +10701,7 @@ def enrich_stock_context(signals, transcript, date_str):
             snippets = list(dict.fromkeys(snippets))[:10]
             sources = _context_sources(row, snippets)
             thin = len(_ev_norm(''.join(s['text'] for s in sources))) < _THEME_THIN_SOURCE      # 先量本股自己的原文，再加別的段落
+            facts = _source_facts([s['text'] for s in sources])     # 只取本股自己的段落，不含族群段落
             # 原文沒有報名字、但當日股價只對得上這一檔的買進價位段落：一起交給模型，並算在本股範圍內。
             anchored = [t for t in priced.get(str(row.get('code') or ''), []) if cat in ('buy', 'holdings')]
             for text in anchored:
@@ -10647,7 +10726,9 @@ def enrich_stock_context(signals, transcript, date_str):
             entries.append({'id': identity, 'name': _display_name(row.get('name')), 'category': cat,
                             'original': original, 'source': source, 'sources': sources,
                             # 2026/10/08：模型有幾輪每一檔只寫一句（「明確表明絕對不會買宏達電。」）。說明不到 30 個字而原文有材料時，明講這一檔寫得太短。
-                            'too_short': len(_ev_norm(original)) < 30 and len(_ev_norm(source)) >= 80})
+                            'too_short': len(_ev_norm(original)) < 30 and len(_ev_norm(source)) >= 80,
+                            'facts': facts, 'missing': list(missing or [])})
+            row['_source_facts'] = facts
             targets[identity] = (row, field, source,
                                  _own_name_spans(row, source) + [(_ev_norm(t), 0, len(_ev_norm(t))) for t in anchored],
                                  {s['id']:s['text'] for s in sources})
@@ -10859,6 +10940,12 @@ def enrich_stock_context(signals, transcript, date_str):
             if before and row.get('_leftover') and spoken_fragment(str(row.get(field) or '')):
                 row[field] = public_narrative(before, row, signals)
                 print(f"  個股說明補充　{_display_name(row.get('name'))}：重寫沒有通過，用回模型原本的說明：{row[field][:30]}")
+    # 檢查表：本股原文有三項以上的技術名詞或數字，說明卻寫不到一半、又不滿 90 個字，記下漏掉的項目，下一輪點名補上。
+    for identity, (row, field, *_r) in targets.items():
+        facts = row.pop('_source_facts', None) or []
+        missing = _facts_missing(facts, row.get(field))
+        if len(facts) >= 3 and len(missing) * 2 > len(facts) and len(_ev_norm(row.get(field))) < 90:
+            row['_missing_facts'] = missing[:8]
     print(f'個股說明補充完成：採用 {len(accepted)}/{len(entries)} 檔，未通過者留內部篇幅提醒'
           + (f'（回覆 {len(replies)} 筆；未採用原因：' + '、'.join(f'{k} {v}' for k, v in why_not.items()) + '）' if why_not else ''))
     note_decision('個股說明', f'合併補問完成，採用 {len(accepted)}/{len(entries)} 檔', date_str,
@@ -15209,7 +15296,8 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     # 主詞核對把整則說明收回的那幾檔，請模型依本股原句重寫一次（不貼原文片段、不由程式拼句子）。
     # 2026/10/08：模型的回覆漏了某幾檔時，那幾檔的說明還停在口語原句（亞德客-KY、環球晶），也再問一次。
     # 補充後仍然不到 30 個字的說明也再問一次（entry 會帶 too_short，提示詞要求把理由與位置寫出來）；最多多這一輪。
-    if any(isinstance(r, dict) and (r.get('_note_withdrawn') or spoken_fragment(str(r.get('note' if cat == 'holdings' else 'reason') or ''))
+    if any(isinstance(r, dict) and (r.get('_note_withdrawn') or r.get('_missing_facts')
+                                    or spoken_fragment(str(r.get('note' if cat == 'holdings' else 'reason') or ''))
                                     or 0 < len(_ev_norm(str(r.get('note' if cat == 'holdings' else 'reason') or ''))) < 30)
            for cat in SIGNAL_CATEGORIES for r in signals.get(cat, []) or []):
         signals = enrich_stock_context(signals, TX["audit"], date_str)
@@ -15218,6 +15306,8 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
             for r in signals.get(cat, []) or []:
                 if isinstance(r, dict):
                     r.pop('_note_withdrawn', None)
+                    r.pop('_missing_facts', None)
+                    r.pop('_source_facts', None)
     # 說明裡的成本／買賣價若明顯是隔壁那一檔的，刪掉那一句（管理者回報鴻準238，2026/09/16）。
     signals = strip_foreign_price_claims(signals, TX["audit"], ss, date_str)
     signals = strip_implausible_price_claims(ss, signals, date_str)
@@ -15345,9 +15435,11 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     signals = strip_unsupported_time_clauses(signals, TX["audit"])
     signals = sms_first_article_records(ss, signals, date_str)
     signals = repair_public_note_contradictions(signals)
+    signals = resolve_watch_holding_overlap(signals, date_str)
     article = build_article(v2, signals, date_str)
     quality_hard, _quality_soft = print_quality_overview(signals, TX["audit"])
     if quality_hard:
+        print_public_texts(signals, date_str)
         raise RuntimeError('公開文字品質關卡未通過，保留既有正式資料：' + '；'.join(quality_hard[:5]))
 
     step("寫入", f"把 {_n(signals)} 檔寫進試算表")

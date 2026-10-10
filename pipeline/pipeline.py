@@ -7752,6 +7752,9 @@ _PROHIBIT_RELEASE = re.compile(
     r'|可以(?:買|進場)了|(?:條件|等的(?:那件事)?)(?:已經)?(?:發生|成立|到了|滿足)|(?:已經|都)賣(?:完|光)了?')
 
 
+_PULLBACK_ENTRY = re.compile(r'(?:拉回|回檔|回測|逢低|壓回)[^賣追，。,；;]{0,8}(?:買|佈局|布局|承接|進場|切入)')
+
+
 def active_prohibit(text) -> bool:
     """有禁止（還不能買、不准碰…），而且禁止之後沒有明講限制已解除。"""
     t = str(text or '')
@@ -7760,7 +7763,14 @@ def active_prohibit(text) -> bool:
         last = m
     if last is None:
         return False
-    return not any(m.start() >= last.end() for m in _PROHIBIT_RELEASE.finditer(t))
+    if any(m.start() >= last.end() for m in _PROHIBIT_RELEASE.finditer(t)):
+        return False
+    # 「建議利用拉回時佈局、切勿追高」是買點條件加一句不要追，不是禁止（2026/10/05 達邁被語氣核對改成觀望不碰）。
+    # 全文的禁止都只是「不要追」、而且同時給了拉回或逢低的進場做法時，不算禁止；有「不要買、不要碰」的照舊。
+    chase_only = lambda m: '追' in m.group(0) and not re.search(r'買|碰', m.group(0))
+    if all(chase_only(m) for m in re.finditer(_PROHIBIT, t)) and _PULLBACK_ENTRY.search(t):
+        return False
+    return True
 
 
 def watch_tone(text):

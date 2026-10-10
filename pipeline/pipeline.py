@@ -8048,7 +8048,7 @@ def quality_overview(signals, transcript=''):
             hard.append(f'{name} 的說明寫了人當主詞：{note[:30]}')
         # 公開說明只交付事實與技術條件，不把轉錄／編輯過程當成股況。
         # 10/08 力積電的「節目後段再次明講尚持有」有原句卻沒有行情資訊。
-        if re.search(r'逐字稿|原(?:文|稿)(?:說|寫|提到|指出)|節目(?:前|中|後)段|持股名單|再次明講', note):
+        if re.search(r'逐字稿|原(?:文|稿)(?:說|寫|提到|指出)|節目(?:前|中|後)段|持股名單|再次明講|於今日影片中', note):
             hard.append(f'{name} 的說明含來源或編輯過程，須改寫為本股事實：{note[:45]}')
         # 觀望清單不能冒出當前部位；10/08 金山電只有長紅棒，沒有續抱證據。
         if cat in ('watch_watch', 'watch_avoid') and re.search(r'(?<!不)(?<!別)(?<!未)(?:續抱|仍持有|目前持有|繼續持有|會員(?:已|仍|目前)?持有|為會員持有)', note):
@@ -8069,6 +8069,10 @@ def quality_overview(signals, transcript=''):
             hard.append(f'{name} 的說明是口語殘句：{note[:30]}')
         if re.search(r'（或[^）]{0,30}(?:元|萬元)）|\d[、，]\d[^。；]{0,12}萬元（或', note):
             hard.append(f'{name} 的金額有兩個互相矛盾的單位，不能猜測發布：{note[:55]}')
+        if re.search(r'(?:每|一)張[^。；]{0,30}萬元[^。；]{0,12}(?:及|和|與)\s*\d[、，]\d\s*百元', note):
+            hard.append(f'{name} 的每張獲利混入未標示單位的百元數字：{note[:55]}')
+        if re.search(r'套牢[^。；]{0,40}(?:成本之上|未賠|沒有賠)', note):
+            hard.append(f'{name} 的損益說明同時寫套牢與未賠：{note[:55]}')
         if transcript and _lot_profit_unit_conflict(note, transcript, r):
             hard.append(f'{name} 的獲利把每股數百元寫成每張數百元；原句另有每張萬元級金額，須更正或省略：{note[:55]}')
         if len(note) < 30:
@@ -10429,8 +10433,6 @@ def drop_fragment_endings(signals: dict) -> dict:
 
 def tidy_public_notes(ss, signals: dict, date_str: str) -> dict:
     """同一則說明裡一字不差的重複子句只留第一次（補充句接在原說明後面時，會把同一個子句再接一次）。只刪不改。
-
-    「會員每張賺5、6百元」這類獲利數字照原話保留：管理者 2026/10/08 確認那是世芯-KY 的獲利數字，不由程式判斷單位。
     """
     for cat in SIGNAL_CATEGORIES:
         for row in signals.get(cat, []) or []:
@@ -10452,6 +10454,32 @@ def tidy_public_notes(ss, signals: dict, date_str: str) -> dict:
                 kept.append([clause, punct])
             if changed:
                 row[field] = ''.join(c + t for c, t in kept).strip('，,；;')
+    return signals
+
+
+def repair_public_note_contradictions(signals: dict) -> dict:
+    """只刪同一句裡確定互斥或單位混用的片段，不推算新的價位。
+
+    例如「每張獲利60萬元及5、6百元」的後段可能指每股，不能接在
+    「每張」之後；「小幅套牢但成本之上且未賠」也不能同時成立。
+    """
+    for cat in SIGNAL_CATEGORIES:
+        for row in signals.get(cat, []) or []:
+            if not isinstance(row, dict) or row.get('_manual_note_kept'):
+                continue
+            field = 'note' if cat == 'holdings' else 'reason'
+            original = str(row.get(field) or '')
+            text = re.sub(
+                r'((?:每|一)張[^。；]{0,20}?\d+(?:\.\d+)?\s*萬(?:元|塊)?(?:以上|左右)?)(?:及|和|與)\s*\d[、，]\d\s*百(?:元|塊)',
+                r'\1', original)
+            text = re.sub(
+                r'(短線)(?:雖)?((?:小幅)?套牢)但[^。；]{0,25}(?:成本之上|未賠|沒有賠)[^。；]*',
+                r'\1\2', text)
+            if text != original:
+                row[field] = text
+                name = _display_name(row.get('name')) or str(row.get('name') or '')
+                print(f'  說明矛盾清理 {name}：已移除混用的獲利單位或互斥的損益描述')
+                note_decision('說明矛盾清理', '移除無法同時成立的片段', name, original[:120])
     return signals
 
 
@@ -15316,6 +15344,7 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     signals = strip_distant_company_names(signals, TX["audit"])
     signals = strip_unsupported_time_clauses(signals, TX["audit"])
     signals = sms_first_article_records(ss, signals, date_str)
+    signals = repair_public_note_contradictions(signals)
     article = build_article(v2, signals, date_str)
     quality_hard, _quality_soft = print_quality_overview(signals, TX["audit"])
     if quality_hard:

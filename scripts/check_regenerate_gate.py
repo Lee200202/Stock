@@ -145,3 +145,15 @@ assert neutral_case('創意是不是回來碰季線，就黏在季線。', '創�
 assert neutral_case('我有在觀察創見。', '創見') == 'ignored'
 assert neutral_case('南亞科不是記憶體龍頭。', '南亞科') == 'ignored'
 print('watch boundary: forward stock-specific signal accepted; mention/position/comparison excluded')
+
+mixed = {'sell': [{'name': '甲公司', 'reason': '技術指標未同步創高，每張獲利60萬元以上及5、6百元。'}],
+         'holdings': [{'name': '乙公司', 'note': '成本74元，短線雖小幅套牢但買進在成本之上且早盤未賠。後續仍持有。'}]}
+_, hard, _ = pl.quality_overview(mixed)
+assert any('每張獲利混入' in e for e in hard), hard
+assert any('同時寫套牢與未賠' in e for e in hard), hard
+pl.repair_public_note_contradictions(mixed)
+assert mixed['sell'][0]['reason'] == '技術指標未同步創高，每張獲利60萬元以上。'
+assert mixed['holdings'][0]['note'] == '成本74元，短線小幅套牢。後續仍持有。'
+_, hard, _ = pl.quality_overview(mixed)
+assert not any('每張獲利混入' in e or '同時寫套牢與未賠' in e for e in hard), hard
+print('daily publication: mixed profit units and contradictory position claims repaired before write')

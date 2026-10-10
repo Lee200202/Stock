@@ -10537,6 +10537,32 @@ def print_public_texts(signals: dict, date_str: str):
                 print(f"  公開文字　{label[cat]}　{row.get('name')}（{len(text)} 字）：{text}")
 
 
+_LOT_HUNDREDS_CLAUSE = re.compile(r'(?:(?<=[，。；])|^)[^，。；]*(?:每|一)張[^。；]{0,16}?賺[^。；]{0,16}?(?:\d[、，]\d\s*百|\d{2,3})\s*(?:元|塊)'
+                                  r'(?:以上|左右)?[^，。；]*[，；]?')
+
+
+def drop_lot_profit_unit_conflicts(signals: dict, transcript: str) -> dict:
+    """原文另有「一張賺幾十萬」時，說明裡「每張賺5、6百元」那個子句不留（那是每股的價差）。只刪那個子句，不擋整天。
+
+    2026/10/10：這一項原本是硬性關卡，10/08 的唯讀重播因為世芯-KY 這一個子句整天被擋，其他十七檔都不能更新。
+    """
+    for cat in SIGNAL_CATEGORIES:
+        for row in signals.get(cat, []) or []:
+            if not isinstance(row, dict) or row.get('_manual_note_kept'):
+                continue
+            field = 'note' if cat == 'holdings' else 'reason'
+            text = str(row.get(field) or '')
+            if not text or not _lot_profit_unit_conflict(text, transcript, row):
+                continue
+            cleaned = re.sub(r'。{2,}', '。', re.sub(r'[，；]+(?=。)', '', _LOT_HUNDREDS_CLAUSE.sub('', text))).strip('，；')
+            if cleaned != text:
+                row[field] = cleaned
+                name = _display_name(row.get('name')) or str(row.get('name') or '')
+                print(f"  說明矛盾清理 {name}：原文另有每張萬元級的獲利，「每張賺數百元」的子句已拿掉")
+                note_decision('說明矛盾清理', '每張獲利單位與原文不符，拿掉那個子句', name, text[:120])
+    return signals
+
+
 def repair_public_note_contradictions(signals: dict) -> dict:
     """只刪同一句裡確定互斥或單位混用的片段，不推算新的價位。
 
@@ -15464,6 +15490,7 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     signals = strip_unsupported_time_clauses(signals, TX["audit"])
     signals = sms_first_article_records(ss, signals, date_str)
     signals = repair_public_note_contradictions(signals)
+    signals = drop_lot_profit_unit_conflicts(signals, TX["audit"])
     signals = resolve_watch_holding_overlap(signals, date_str)
     article = build_article(v2, signals, date_str)
     quality_hard, _quality_soft = print_quality_overview(signals, TX["audit"])

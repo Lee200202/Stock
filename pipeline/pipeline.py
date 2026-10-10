@@ -8069,6 +8069,8 @@ def quality_overview(signals, transcript=''):
             hard.append(f'{name} 的說明是口語殘句：{note[:30]}')
         if re.search(r'（或[^）]{0,30}(?:元|萬元)）|\d[、，]\d[^。；]{0,12}萬元（或', note):
             hard.append(f'{name} 的金額有兩個互相矛盾的單位，不能猜測發布：{note[:55]}')
+        if transcript and _lot_profit_unit_conflict(note, transcript, r):
+            hard.append(f'{name} 的獲利把每股數百元寫成每張數百元；原句另有每張萬元級金額，須更正或省略：{note[:55]}')
         if len(note) < 30:
             soft.append(f'{name}（{label[cat]}）說明只有 {len(note)} 字')
         elif not _CONCRETE.search(note):
@@ -8108,6 +8110,25 @@ def quality_overview(signals, transcript=''):
         if len(lessons) < 3:
             hard.append(f'教學只有 {len(lessons)} 點，原稿足夠長時至少需要 3 點')
     return lines, hard, soft
+
+
+def _lot_profit_unit_conflict(note, transcript, row):
+    """同一檔附近明講每張獲利萬元級時，拒絕把數百元當成每張。
+
+    沒有明確的大額每張原句就不推算單位，避免誤傷真正只賺數百元的回合。
+    """
+    if not re.search(r'(?:每|一)張[^。；]{0,16}賺[^。；]{0,16}(?:\d[、，]\d\s*百|\d{2,3})\s*元', note):
+        return False
+    source = str(transcript or '')
+    names = [n for n in _row_names_for_recap(row) if len(n) >= 2]
+    if not names:
+        return False
+    for name in names:
+        for hit in re.finditer(re.escape(name), source, re.I):
+            nearby = source[max(0, hit.start() - 200):hit.end() + 1200]
+            if re.search(r'(?:一|每)張[^。；]{0,14}賺\s*\d+(?:\.\d+)?\s*萬(?:元|塊)?', nearby):
+                return True
+    return False
 
 
 def print_quality_overview(signals, transcript=''):

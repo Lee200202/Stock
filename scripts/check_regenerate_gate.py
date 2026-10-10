@@ -33,6 +33,15 @@ _, hard, _ = pl.quality_overview({'sell': [{'name': '測試公司', 'reason': '�
 assert any('互相矛盾的單位' in e for e in hard), hard
 print('daily publication: points and contradictory money block release OK')
 
+# A spoken 500–600 per share must not become 500–600 per lot when the same
+# stock's transcript explicitly gives a six-figure per-lot amount.
+unit_source = '世芯-KY今天全出。每股賺600元，一張賺60萬。'
+bad_lot = {'name': '世芯-KY', 'code': '3661', 'reason': '世芯-KY全出，每張至少賺5、6百元。'}
+assert pl._lot_profit_unit_conflict(bad_lot['reason'], unit_source, bad_lot)
+assert not pl._lot_profit_unit_conflict(bad_lot['reason'], '另一檔一張賺60萬。', bad_lot)
+assert not pl._lot_profit_unit_conflict('世芯-KY每張賺60萬元。', unit_source, bad_lot)
+print('daily publication: per-share/per-lot mismatch blocked for the named stock')
+
 # Same chart numbers do not make an account of the day's market the same
 # point as an entry/position-sizing lesson. The 10/08 apply lost two lessons
 # when the semantic judge treated shared 60/35 as sufficient evidence.

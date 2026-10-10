@@ -8141,7 +8141,7 @@ def _lot_profit_unit_conflict(note, transcript, row):
 
     沒有明確的大額每張原句就不推算單位，避免誤傷真正只賺數百元的回合。
     """
-    if not re.search(r'(?:每|一)張[^。；]{0,16}賺[^。；]{0,16}(?:\d[、，]\d\s*百|\d{2,3})\s*元', note):
+    if not re.search(r'(?:每|一)張[^。；]{0,16}賺[^。；]{0,16}(?:\d\s*[、，至到~～]\s*\d\s*百|\d\s*百|\d{2,3})\s*元', note):
         return False
     source = str(transcript or '')
     names = [n for n in _row_names_for_recap(row) if len(n) >= 2]
@@ -10537,7 +10537,7 @@ def print_public_texts(signals: dict, date_str: str):
                 print(f"  公開文字　{label[cat]}　{row.get('name')}（{len(text)} 字）：{text}")
 
 
-_LOT_HUNDREDS_CLAUSE = re.compile(r'(?:(?<=[，。；])|^)[^，。；]*(?:每|一)張[^。；]{0,16}?賺[^。；]{0,16}?(?:\d[、，]\d\s*百|\d{2,3})\s*(?:元|塊)'
+_LOT_HUNDREDS_CLAUSE = re.compile(r'(?:(?<=[，。；])|^)[^，。；]*(?:每|一)張[^。；]{0,16}?賺[^。；]{0,16}?(?:\d\s*[、，至到~～]\s*\d\s*百|\d\s*百|\d{2,3})\s*(?:元|塊)'
                                   r'(?:以上|左右)?[^，。；]*[，；]?')
 
 

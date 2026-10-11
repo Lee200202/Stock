@@ -6721,10 +6721,10 @@ def review_excluded_stocks(signals, transcript, date_str):
         # 只講一次也算數的情形：名字自己成一句（「…我講很久了，神準呢。日K線MACD翻陽啊」），這是講者在點名、接著講它的線型。
         # 2026/10/07 神準（3558）就是這樣被漏掉的（管理者更正）。
         named_alone = re.search(r'(?:^|[，,。！？!?])' + re.escape(heard) + r'[呢啊喔哦嘛]?[。！？!?]', re.sub(r'\s', '', transcript))
-        if item.get('weak') and sum(x.count(heard) for x in own) < 2 and not ({heard, official} & excluded) and not named_alone:
+        if item.get('weak') and sum(x.count(heard) for x in own) < 2 and not ({heard, official} & excluded) and not named_alone and not late_refusal:
             continue
         # 原文每一次出現都只是日常用語的，不問（見 _only_ordinary_word）。模型把它列進排除，不能當成「它是股票」的證據。
-        if item.get('weak') and _only_ordinary_word(heard, code, transcript):
+        if item.get('weak') and not late_refusal and _only_ordinary_word(heard, code, transcript):
             continue
         row = {'name': heard, 'code': code}
         sources = _context_sources(row, _own_segments(row, signals, transcript)[:6])

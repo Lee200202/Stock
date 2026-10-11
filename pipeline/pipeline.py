@@ -6692,6 +6692,18 @@ def _late_named_refusal(sentences, index):
                 and re.search(r'(?:這是|叫做|就是)[^。！？!?]{0,24}', current))
 
 
+def _late_refusal_note(label, late):
+    """只把相鄰原句已明講的下跌、缺口與禁買整理成書面句。"""
+    lead = ''.join(late[:-1])
+    parts = []
+    if re.search(r'昨天[^。！？!?]{0,10}跌', lead):
+        parts.append(label + '前一交易日下跌')
+    if re.search(r'缺口[^。！？!?]{0,8}(?:補|填)', lead):
+        parts.append('價格缺口已回補')
+    parts.append('目前不宜介入' if parts else label + '目前不宜介入')
+    return '，'.join(parts) + '。'
+
+
 def review_excluded_stocks(signals, transcript, date_str):
     """原文點到名、流程走完卻沒有任何分類的台股，逐檔單獨再問一次。
 
@@ -6748,12 +6760,26 @@ def review_excluded_stocks(signals, transcript, date_str):
         text = '\n'.join(s['text'] for s in sources)[:3000]
         if not sources:
             continue
+        if late_refusal:
+            late = next((sentences[max(0, i - 4):i + 1] for i, x in enumerate(sentences)
+                         if heard in x and _late_named_refusal(sentences, i)), [])
+            if late:
+                label = official or heard
+                note = _late_refusal_note(label, late)
+                signals['ignored'] = [x for x in signals.get('ignored', []) or []
+                                      if not (isinstance(x, dict) and str(x.get('code') or '') == code)]
+                signals.setdefault('watch_avoid', []).append({
+                    'name': heard, 'code': code, 'price': '未說明', 'reason': note,
+                    'evidence': late, 'view': late[-2], 'watch_bias': 'watch_avoid',
+                    '_guard_note': '原句先明講不要碰，緊接著報本股名稱'})
+                signals['_quality_requires_review'] = True
+                print(f'  排除單檔覆核　{label}（{code}）→ 觀望不碰（緊接報名的禁買原句）：{note}')
+                note_decision('排除單檔覆核', '緊接報名的禁買原句', label, note)
+                continue
         identity = 'x' + str(len(entries))
         entries.append({'id': identity, 'name': official or heard, 'heard': heard, 'sources': sources})
         targets[identity] = {'heard': heard, 'code': code, 'official': official, 'text': text,
                              'ids': {s['id']: s['text'] for s in sources},
-                             'late_quotes': next((sentences[max(0, i - 4):i + 1] for i, x in enumerate(sentences)
-                                                  if heard in x and _late_named_refusal(sentences, i)), []),
                              # 名字自己成一句時，記下前一句與後一句：講者點名的前後就是在講它（見下面的「點名原句」）。
                              'around': [(sentences[i - 1] if i else '', x, sentences[i + 1] if i + 1 < len(sentences) else '')
                                         for i, x in enumerate(sentences) if ends_with_name.search(x.strip())] if named_alone else []}
@@ -6789,26 +6815,6 @@ def review_excluded_stocks(signals, transcript, date_str):
         label = t['official'] or t['heard']
         verdict = str(reply.get('verdict') or '')
         if verdict not in ('watch_avoid', 'watch_watch'):
-            # 「這一支還敢碰嗎？…不要碰。這是 X。」是本股當下禁買，模型常把昨天大跌當純回顧。
-            # 只在緊接報名、原句仍對得回稿時收錄；不把前一檔的行情借給 X。
-            late = t.get('late_quotes') or []
-            if late and len(late) >= 2 and _quote_is_real(late[-1], hay) and _quote_is_real(late[-2], hay):
-                lead = ''.join(late[:-1])
-                parts = [label + '現階段不宜介入']
-                if re.search(r'昨天[^。！？!?]{0,10}跌', lead):
-                    parts.insert(0, label + '前一交易日下跌')
-                    parts[1] = '目前不宜介入'
-                if re.search(r'缺口[^。！？!?]{0,8}(?:補|填)', lead):
-                    parts.insert(-1, '價格缺口已回補')
-                note = '，'.join(parts) + '。'
-                signals.setdefault('watch_avoid', []).append({
-                    'name': t['heard'], 'code': t['code'], 'price': '未說明', 'reason': note,
-                    'evidence': late, 'view': late[-2], 'watch_bias': 'watch_avoid',
-                    '_guard_note': '原句先明講不要碰，緊接著報本股名稱'})
-                signals['_quality_requires_review'] = True
-                print(f'  排除單檔覆核　{label}（{t["code"]}）→ 觀望不碰（緊接報名的禁買原句）：{note}')
-                note_decision('排除單檔覆核', '緊接報名的禁買原句', label, note)
-                continue
             # 點名原句：講者把名字單獨念出來（「…我講很久了，神準呢。日K線MACD翻陽啊」），前後句明講這是他留著的股票、
             # 或講它的線型翻多。模型這一輪答「沒有看法」時，用原句收錄為觀望注意，不讓它整檔不見
             # （2026/10/07：同一份逐字稿，神準一輪收錄、一輪被排除；管理者確認當天有講這一檔）。

@@ -82,6 +82,7 @@ def check_late_named_refusal():
     sentences = ["這一支，你們還敢碰嗎？", "當然不敢碰，昨天大跌。", "缺口被補，不要碰。",
                  "所以你來看，這是甲公司，對不對？", "接下來看乙公司。"]
     assert pl._late_named_refusal(sentences, 3)
+    assert pl._late_refusal_note("甲公司", sentences[:4]) == "甲公司前一交易日下跌，價格缺口已回補，目前不宜介入。"
     assert not pl._late_named_refusal(sentences, 4)
     assert not pl._late_named_refusal(["這一支昨天跌很多。", "不要碰。", "這是甲公司。"], 2)
     # 通用詞可同時是股票名；沒有股名語境，問卷不能把量能形容詞開成持股。

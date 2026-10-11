@@ -12199,7 +12199,10 @@ def _verdict_mark(passages, names):
             end = re.search(r'[。！？!?]', text[m.end():stop])
             if end:
                 boundary = m.end() + end.end()
-                following = text[boundary:stop].lstrip()
+                # 中間的應聲（「對不對？」「好。」「來。」）不算話題：2026/09/29「10月要翻紅的有鴻準，也有祥碩。對不對？好。
+                # 接著，告訴你們不能碰的股票。」問卷三票都引了最後一句，把祥碩判成觀望不碰，那一句是在開下一段（國巨）。
+                filler = re.match(r'(?:[^。！？!?]{0,5}[。！？!?])*', text[boundary:stop])
+                following = text[boundary + (filler.end() if filler else 0):stop].lstrip()
                 if re.match(r'(?:所以|另外|至於|接著|再來)[，,]?', following) \
                         and not pattern.search(following[:32]) \
                         and not re.match(r'(?:所以|另外|至於|接著|再來)[，,]?(?:它|這(?:一)?[支檔個])', following):

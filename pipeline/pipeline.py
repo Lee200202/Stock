@@ -6701,12 +6701,15 @@ def review_excluded_stocks(signals, transcript, date_str):
         if isinstance(x, dict):
             excluded |= _signal_names(x) | {str(x.get('name') or '')}
     history_codes = {str(x.get('code') or '') for x in signals.get('history', []) or [] if isinstance(x, dict)}
-    # 模型明確寫了排除的排前面，名額有限時先問它們。
-    for item in sorted(inventory, key=lambda i: (i['name'] not in excluded,
-                       not any(_late_named_refusal(sentences, j) for j, s in enumerate(sentences) if i['name'] in s))):
+    # 名額只有八檔：當下禁買卻延後報名的漏項先問，之後才是模型明列排除者。
+    for item in sorted(inventory, key=lambda i: (
+            not any(_late_named_refusal(sentences, j) for j, s in enumerate(sentences) if i['name'] in s),
+            i['name'] not in excluded)):
         heard, code = item['name'], str(item['code'])
         official = _display_name(item.get('official_name') or '')
         late_refusal = any(_late_named_refusal(sentences, i) for i, x in enumerate(sentences) if heard in x)
+        if late_refusal:
+            print(f'  排除補問線索　{official or heard}：先明講不要碰，後報股名；僅列為候選')
         if (not re.fullmatch(r'\d{4}', code) or code in placed_codes
                 or {heard, official} & placed_names or any(t['code'] == code for t in targets.values())
                 or (code in history_codes and not late_refusal)):

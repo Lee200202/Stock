@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       date:
-        description: 已有原稿的日期 YYYY/MM/DD（最近七天）
+        description: 已有原稿的日期 YYYY/MM/DD（apply 限最近七天；preview 可回看三十天）
         required: true
       mode:
         description: 通過全部品質核對後才更新；不寄送

@@ -12019,7 +12019,8 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # 再補一條規則只把其中一檔往上推一點，重跑一次其他十九檔又各擲一次骰子。
 #
 # 所以把「這一檔今天放哪一類」從整篇判讀裡拆出來，分三層：
-#   直接歸類　有程式可以核對的證據（當日會員通知、原文明講今天買賣、原文明講目前持有）。不問模型。
+#   直接歸類　有程式可以核對的證據（當日會員通知、原文明講今天買賣、原文明講目前持有；
+#             2026/10/11 起加上：操作紀錄上還沒賣出、今天原文有講到、沒有賣出的說法 → 會員持股）。不問模型。
 #   一致通過　會員持股：初判、覆核、規則處理後三次都在這一類，而且股名附近沒有容易判錯的講法。不問模型。
 #   送裁決　　其餘，包含所有觀望與不公開的台股（那幾類靠語氣判斷，初判一致率最低）。只給本股自己的段落，問固定的事實題（不是問「哪一類」），答 true 要附逐字引句；
 #             分類由程式照固定順序算出來。最多問三次取多數，結果存進「分類裁決」表，同一段原文之後不再重問。
@@ -12219,6 +12220,9 @@ def _verdict_today_rows(signals, date_str):
 def _verdict_primary(pairs):
     cats = [c for c, _ in pairs]
     return next((c for c in _VERDICT_ORDER if c in cats), '')
+
+
+_SOLD_NEARBY = re.compile(r'賣掉了|賣了|已經賣|賣光|賣出|出清|出掉|停損|停利|獲利了結|沒有了|(?<!不)(?<!沒有叫你)(?<!不准)(?<!不要)賣掉')
 
 
 def _verdict_known(ss, date_str, with_open=False):
@@ -12564,6 +12568,12 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             continue
         if code in explicit_hold and current not in ('buy', 'sell'):
             entry.update(cls='holdings', tier='直接歸類', basis='原文明講目前持有', enforce=True)
+            continue
+        # 紀錄上還沒賣出（最近一筆是買入）、今天原文有講到、而且沒有賣出的說法：仍是會員持股。
+        # 2026/10/02 同一份原稿三次重播，力積電、世芯-KY、聖暉每次落在不同分類，問卷三票也各不相同；紀錄是唯一不會變的依據。
+        if entry['open'] and current != 'sell' and not explicit_today_trades(transcript, names, 'sell') \
+                and not _SOLD_NEARBY.search(_name_adjacent_text(row, transcript)):
+            entry.update(cls='holdings', tier='直接歸類', basis='紀錄上持有（最近一筆是買入、沒有賣出），今天原文有講到、沒有賣出的說法', enforce=True)
             continue
         sent, text = _verdict_mark(_own_segments(row, signals, transcript, 300, 500), names | {code})
         sent = sent[:10]

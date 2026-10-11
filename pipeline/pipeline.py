@@ -12042,7 +12042,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v6-20261011"          # 觀望邊界改變；同段原文須重新裁決
+VERDICT_VERSION = "v7-20261011"          # 觀望邊界改變；同段原文須重新裁決
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 3                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -12112,6 +12112,25 @@ _VQ_OUTLOOK = re.compile(r'會漲|會上去|會再|還會|後面|之後|以後|�
 _VQ_WATCH_SIGNAL = re.compile(r'剛開始漲|第一根(?:帶量)?長紅.{0,16}(?:留意|注意|低檔)|(?<!不)會.{0,6}(?:跟著)?(?:衝出去|上漲|轉強|突破)')
 # 假設句與對觀眾說的話（「如果你手中已經買了…不要賣」）不是講者或會員的部位。
 _VQ_HYPOTHETICAL = re.compile(r'如果|假如|假設|要是|萬一|倘若')
+# 對還沒買的人明講「不適合再買」「不要再追了」。只用來守住流程已經判的觀望不碰，不會新增分類。
+_VQ_CLOSED = re.compile(r'不適合(?:你們|你|大家|各位|投資人)?(?:現在)?(?:再)?(?:去)?(?:買|追|進場|介入)'
+                        r'|不(?:要|能|可以|該)再(?:去)?(?:追|買)')
+
+
+def _verdict_closed(transcript, names):
+    """原文裡點名本股、後半句又明講不適合再買的那一句；沒有就回空字串。
+
+    看整句而不是本股段落：段落在別家公司名稱前就切開，「晶心科、M31、力旺很強，可是已經不適合你們再買了」
+    這種幾檔共用一個結論的句子，前兩檔的段落裡看不到後半句。股名要在那個說法之前。
+    """
+    flat = re.sub(r'【[^】]{0,40}】|\s', '', str(transcript or ''))
+    own = [str(n) for n in names if len(str(n)) >= 2]
+    for _a, _b, sentence in _flat_sentences(flat):
+        m = _VQ_CLOSED.search(sentence)
+        if m and any(0 <= sentence.find(n) < m.start() for n in own):
+            return sentence
+    return ''
+
 
 # 容易判錯的講法：出現在本股段落、而目前的分類和它對不上時，這一檔不算「一致通過」。寧可多問，不可漏問。
 _VM_PAST = re.compile(r'昨天|前天|前幾天|上禮拜|上週|上星期|上個月|之前|先前|那時候?|當時|早就')
@@ -12624,7 +12643,8 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             continue
         entry['tier'] = '送裁決'
         contested.append((code, {'name': entry['name'], 'heard': sorted(n for n in names if n != entry['name'])[:6], 'known': facts,
-                                 'passages': sent, '_norm': _ev_norm(text), '_names': sorted(names | {code})}))
+                                 'passages': sent, '_norm': _ev_norm(text), '_names': sorted(names | {code}),
+                                 '_closed': _verdict_closed(transcript, names)}))
     if contested and (_QUOTA_STOP.get('daily') or budget_left() < 300 or not GEMINI_KEYS):
         print(f"  分類裁決　時間或配額不足，{len(contested)} 檔有疑點的這一輪不裁決，維持原分類")
         note_decision('分類裁決', '時間或配額不足，本輪未裁決', date_str, '、'.join(v['name'] for _, v in contested)[:300])
@@ -12645,6 +12665,10 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                 held, held_basis = verdict_class(dict(answers[code], buy_today=False), item['_norm'], item['_names'])
                 if held == 'holdings':
                     cls, basis = held, held_basis
+            # 流程判觀望不碰，點名本股的那一句又明講不適合再買：問卷答成偏多、只是回顧或不列都不採用
+            # （2026/09/29「晶心科、M31、力旺很強，可是已經不適合你們再買了」：M31 兩票偏多、晶心科三票回顧）。
+            if entry['current'] == 'watch_avoid' and cls in ('watch_watch', 'history', 'ignored') and item.get('_closed'):
+                cls, basis = 'watch_avoid', '點名本股的那一句明講不適合再買：' + item['_closed'][-40:]
             entry['votes'].append(cls)
             if cls and not entry['answer'].get(cls):
                 entry['answer'][cls] = {'basis': basis, 'answer': answers.get(code)}

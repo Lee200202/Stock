@@ -4432,6 +4432,7 @@ date 要填 event_date=YYYY/MM/DD 且原文有月日；prev_trading_day 只適�
 【價位與說明】
 price 僅該事件說出的價格或範圍，沒有寫「未說明」。price_evidence 是含該價位數字的原句，且該句所在的 S 編號必須列入 evidence_refs。數字離名稱較遠時，分別附價位段與能明確回指同一公司、同一事件的名稱段；不得只填報價句或只附名稱句。例如原文分開講「昨天來到3850」和「我在昨天買四星KY」，需附兩段才能保留3850；沒有完整證據則保留可證實的價位，不補猜。
 price 的用途（成交價、等待買點、缺口、法人成本）寫入 reason，不在公開價位欄夾帶文字。多個明確價位以最高數字展示，以上／以下保留；多次買進價不是平均成本。語音稿把數字黏在一起（例如「2385,23802405」）而沒有明確的區間連接詞時，不得自行拆成上下界；保留可獨立確認的價位，其餘寫未說明。漲跌金額不是股價，price填未說明；除息、除權、配息、股利的每股金額同樣不是股價（「今天除息7元」的 7 不是台積電的價位），price 一律填未說明，金額寫進 reason。說明刪除「原文作14」「川服(川湖)」等誤字括注，只留確認後數字／名稱，不乘十推估。均線天數不是股價，EPS 前後互相矛盾時不挑一個順眼的數字當確定值。
+「今天漲／跌 N 元」、EPS、營收與目標價都要核對主詞；某一檔的變動金額不能因下一句換到另一檔就接進新股說明。若本股原句沒有那個數字，保留方向或技術條件，不寫數字。
 含 X 或無法確認的概數，price 寫未說明並在 reason 忠實描述；以下/以上保留，不改成精確成交；法人成本、現價、張數不能充當會員成本。
 reason/note 忠實說明原話之事實描述（如「昨天（9月9日）大跌時買進四星KY。」），其他判斷依據（如「因確切交易日期為昨日而非影片當日，故改列歷史回顧」、「日期未明的回顧……」等內部推論與管線改列註記）一律不用也不得寫進說明中！不能添加「產業前景存疑」等原文未作出的推論。「為什麼把這一檔歸到這一類」同樣是內部流程，不寫進說明：不要出現「並未將某某列為當日會員買進或持有的個股明細」「故列入市場教學與觀察範疇」「因此列為觀望」「屬於教學範疇」這類句子。讀的人要看的是講者對這一檔講了什麼（現在的位置、價位或條件、他要人怎麼做），分類本身已經寫在表格標題上。
 reason/note 要有具體背景：原文充足時寫 2～4 句、約 70～160 字，資訊多時可以更長，不因超過 120 字就刪減。第一句先講本股目前判斷或操作，再整理全文中本股已明講的技術位置（均線、量價、缺口、整理階段）、消息或題材、法人動向、價位條件與風險；有哪一項就寫哪一項，缺的項目省略。跨段找齊本股前後文，區分過往漲幅與現在禁買，不能只抄「現在當然不要買」「這一支很好」等口語結論。轉成完整書面句，避免問答、語助詞及重複口號。原文只念名單或只有短指示時可以更短，但在 changes 留下來源不足理由，不用常識、模型記憶、相鄰公司的題材或自行推測補滿。
@@ -6573,6 +6574,7 @@ watch_avoid：叫人不要買、不推薦、不用追，或拿它當風險、追
 watch_watch：看好、建議留意，或拉回可以買；
 skip：只是順口列舉名稱、念報價、講別檔時拿來比喻，或 sources 其實在講另一家公司，沒有對這一檔本身的看法；heard 只是日常用語（世界、全國、大量）而不是在講這家公司，也用 skip。
 sources 可能夾著相鄰個股的話（「這一支」「它」常是在講下一檔）：只採用同一句或緊鄰句子明確點名本股的內容，指代不明的不算。
+若前一句用「這一支」明講現在不要碰，下一句才報出股名，且中間沒有換到另一檔，這是本股的當下結論；「昨天跌了多少」只是理由，不得把整段當成只有歷史回顧。若報名之前已換股或指代不明，維持 skip。
 拿不準方向時用 watch_avoid 並照實寫他講了什麼，不可寫成推薦；不可為了收錄而編造看法。
 不寫評語式的收尾：「展現強勁多頭動能」「具備明確的向上潛力」「整體操作邏輯穩健」「值得持續關注」「並說明相關操作與看法」「屬於明確不碰的標的」「屬於負面示範」「候選標的之一」「等待適當機會佈局」「建議持續關注」這類句子沒有資訊，程式會刪掉；原文沒講的量價（帶量、爆量、創高、漲停）也不要補。寧可少一句，留下來的每一句都要對得回 sources。
 名字自己成一句（「…我講很久了，X呢。日K線MACD翻陽啊」），前後在講「這隻是我的股票」「為什麼我留著它」或它的線型：這是在點名 X，列 watch_watch，說明寫線型與是否留著。
@@ -6665,6 +6667,17 @@ def says_sell(note) -> bool:
     return bool(_SELL_SAID.search(note)) and not _KEEP_SAID.search(note)
 
 
+def _late_named_refusal(sentences, index):
+    """前面指著「這一支」禁買，緊接才報股名；只決定要不要補問，不直接改列。"""
+    if index < 2:
+        return False
+    lead = ''.join(sentences[max(0, index - 5):index])[-150:]
+    current = sentences[index]
+    return bool(re.search(r'這一?[支檔隻](?:股票)?[^。！？!?]{0,16}(?:還敢碰嗎|敢碰嗎|不要碰|不能碰|不敢碰)', lead)
+                and re.search(r'(?:不要碰|不能碰|不敢碰)[^。！？!?]{0,8}[。！？!?]$', lead)
+                and re.search(r'(?:這是|叫做|就是)[^。！？!?]{0,24}', current))
+
+
 def review_excluded_stocks(signals, transcript, date_str):
     """原文點到名、流程走完卻沒有任何分類的台股，逐檔單獨再問一次。
 
@@ -6673,7 +6686,7 @@ def review_excluded_stocks(signals, transcript, date_str):
     回覆要附段落編號，程式核對數字與引用之後才收；模型答 skip 就維持排除。最多一次呼叫。
     """
     placed_names, placed_codes = set(), set()
-    for cat in SIGNAL_CATEGORIES + ('history',):
+    for cat in SIGNAL_CATEGORIES:
         for r in signals.get(cat, []) or []:
             if isinstance(r, dict):
                 placed_names |= _signal_names(r) | {str(r.get('name') or '')}
@@ -6687,18 +6700,22 @@ def review_excluded_stocks(signals, transcript, date_str):
     for x in signals.get('ignored', []) or []:
         if isinstance(x, dict):
             excluded |= _signal_names(x) | {str(x.get('name') or '')}
+    history_codes = {str(x.get('code') or '') for x in signals.get('history', []) or [] if isinstance(x, dict)}
     # 模型明確寫了排除的排前面，名額有限時先問它們。
-    for item in sorted(inventory, key=lambda i: i['name'] not in excluded):
+    for item in sorted(inventory, key=lambda i: (i['name'] not in excluded,
+                       not any(_late_named_refusal(sentences, j) for j, s in enumerate(sentences) if i['name'] in s))):
         heard, code = item['name'], str(item['code'])
         official = _display_name(item.get('official_name') or '')
+        late_refusal = any(_late_named_refusal(sentences, i) for i, x in enumerate(sentences) if heard in x)
         if (not re.fullmatch(r'\d{4}', code) or code in placed_codes
-                or {heard, official} & placed_names or any(t['code'] == code for t in targets.values())):
+                or {heard, official} & placed_names or any(t['code'] == code for t in targets.values())
+                or (code in history_codes and not late_refusal)):
             continue
         # 「今天買A，明天買B，後天買C」這種一句點三檔以上的是列舉，不算在講這一檔。
         own = [x for x in sentences if heard in x and len({c for n, c in code_of.items() if n in x}) < 3]
         ends_with_name = re.compile(re.escape(heard) + '[呢啊喔哦嘛]?[。！？!?]*$')
         follow = [sentences[i + 1] for i, x in enumerate(sentences[:-1]) if ends_with_name.search(x.strip())]
-        if sum(len(_ev_norm(x).replace(_ev_norm(heard), '')) for x in own + follow) < 20:
+        if sum(len(_ev_norm(x).replace(_ev_norm(heard), '')) for x in own + follow) < 20 and not late_refusal:
             continue
         # 兩個字的簡稱可能只是日常用語（世界、全國、大量）：要講到兩次以上，或模型自己把它當股票排除過。
         # 只講一次也算數的情形：名字自己成一句（「…我講很久了，神準呢。日K線MACD翻陽啊」），這是講者在點名、接著講它的線型。

@@ -77,8 +77,18 @@ def check_written_stock_notes():
     assert not pl.written_style_issues("台積電維持在季線之上，後續觀察能否突破前高。")
 
 
+def check_late_named_refusal():
+    # 9/30 先指著圖說不碰，直到下一句才報股名；昨天的跌幅是理由，禁買是今天的結論。
+    sentences = ["這一支，你們還敢碰嗎？", "當然不敢碰，昨天大跌。", "缺口被補，不要碰。",
+                 "所以你來看，這是甲公司，對不對？", "接下來看乙公司。"]
+    assert pl._late_named_refusal(sentences, 3)
+    assert not pl._late_named_refusal(sentences, 4)
+    assert not pl._late_named_refusal(["這一支昨天跌很多。", "不要碰。", "這是甲公司。"], 2)
+
+
 if __name__ == "__main__":
     check_repeated_points()
     check_stock_classification_and_late_duplicates()
     check_written_stock_notes()
+    check_late_named_refusal()
     print("9/29–10/02 歷史回歸：重點去重、相異主題、條件買點、持股合併與分筆成交通過")

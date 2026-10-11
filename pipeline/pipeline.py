@@ -10024,14 +10024,14 @@ def _own_name_spans(row, source):
             if flipped is not None:
                 high = min(high, len(_ev_norm(snippet[:flipped])))
             low = min(a for a, _ in hits) - _OWN_NAME_BEFORE
-            # 點名之前那一句若帶數字，多半是上一檔的行情（「美綠？昨天漲3塊多，今天漲1塊多。那你如果有記憶體的…我目前只有力積電」）：
-            # 起點改在點名那一句的開頭。
+            # 點名之前那一句多半還在講上一檔（「美綠？昨天漲3塊多，今天漲1塊多。那你如果有記憶體的…我目前只有力積電」）：
+            # 起點改在點名那一句的開頭。同一句裡名稱前面的話（「被動元件現在有一隻股票大漲，來，大家看一下，X」）仍算。
             first = min((m.start() for n in raw_names for m in re.finditer(re.escape(n), snippet)), default=None)
             if first is not None:
                 sentence_start = max((snippet.rfind(ch, 0, first) for ch in '。！？!?'), default=-1) + 1
                 lead = len(_ev_norm(snippet[:sentence_start]))
-                if lead > max(low, 0) and re.search(r'\d', _ev_norm(snippet[:sentence_start])[max(low, 0):]):
-                    low = lead
+                if lead > max(low, 0):
+                    low = lead                                # 2026/10/11：不論前一句有沒有數字（鴻海被寫成「營收公佈將表現極佳」，那是前一句的台積電）
             spans.append((norm, low, high))
     return spans
 
@@ -12221,16 +12221,20 @@ def _verdict_primary(pairs):
     return next((c for c in _VERDICT_ORDER if c in cats), '')
 
 
-def _verdict_known(ss, date_str):
-    """操作紀錄裡已有的事實：{代號: [說明]}，以及當日會員通知的買賣 {(代號, 方向)}。讀不到就回空的。"""
-    known, notice = {}, set()
+def _verdict_known(ss, date_str, with_open=False):
+    """操作紀錄裡已有的事實：{代號: [說明]}，以及當日會員通知的買賣 {(代號, 方向)}。讀不到就回空的。
+
+    with_open=True 時多回傳 {代號: 名稱}：節目前一天為止最近一筆是買入、還沒有賣出紀錄的股票。
+    """
+    known, notice, open_positions = {}, set(), {}
     try:
         values = sheets_retry(ss.worksheet("操作紀錄").get_all_values)
         head = [str(h).strip() for h in values[0]]
         c_date, c_code, c_dir, c_src = head.index("日期"), head.index("代號"), head.index("方向"), head.index("來源影片ID")
     except Exception as e:
         print(f"  分類裁決　讀不到操作紀錄（{str(e)[:60]}），不帶入已知紀錄")
-        return known, notice
+        return (known, notice, open_positions) if with_open else (known, notice)
+    c_name = head.index("股票名稱") if "股票名稱" in head else (head.index("名稱") if "名稱" in head else -1)
     last = {}
     for row in values[1:]:
         cell = lambda i: str(row[i]).strip() if i < len(row) else ''
@@ -12242,10 +12246,12 @@ def _verdict_known(ss, date_str):
                 notice.add((code, kind))
             continue
         if day < date_str and (code not in last or day >= last[code][0]):
-            last[code] = (day, kind)
-    for code, (day, kind) in last.items():
+            last[code] = (day, kind, cell(c_name) if c_name >= 0 else '')
+    for code, (day, kind, name) in last.items():
         known[code] = [f"系統紀錄：{day} {'買入' if kind == 'buy' else '賣出'}這一檔，之後到節目前一天沒有其他買賣紀錄"]
-    return known, notice
+        if kind == 'buy':
+            open_positions[code] = name
+    return (known, notice, open_positions) if with_open else (known, notice)
 
 
 def drop_sms_sold_holdings(ss, signals, date_str):
@@ -12416,7 +12422,7 @@ def verdict_class(answer, passages_norm, names=()):
     return VERDICT_NEUTRAL_CLASS, '只描述行情，沒有偏多偏空的結論，不列：' + stance[0][:40]
 
 
-def verdict_settle(current, votes, last=False):
+def verdict_settle(current, votes, last=False, open_position=False):
     """照目前收到的票決定下一步：('定案', 分類, 說明)、('未定', 目前分類, 說明) 或 ('再問', '', '')。
 
     票是問卷算出來的分類，空字串是不能用的答案（不計票）。
@@ -12442,7 +12448,8 @@ def verdict_settle(current, votes, last=False):
                 return '未定', current, '問卷認為當天' + _VERDICT_LABEL[top] + '，但原文沒有程式可核對的明確句，不新增買賣'
         else:
             watch = ('watch_watch', 'watch_avoid')
-            need = 2 if top in watch and current in watch else VERDICT_VOTES
+            # 紀錄上還沒賣出的股票，問卷兩票認為現在持有就夠：部位本身有紀錄佐證（open_position）。
+            need = 2 if (top in watch and current in watch) or (open_position and top == 'holdings') else VERDICT_VOTES
             if count >= need:
                 return '定案', top, f'{count}／{len(got)} 票'
             if len(got) >= VERDICT_VOTES and count >= 2:
@@ -12504,10 +12511,21 @@ def adjudicate_classes(ss, signals, transcript, date_str, first=None, reviewed=N
 def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode):
     import contextlib
     import io
+    known, notice, open_positions = _verdict_known(ss, date_str, with_open=True)
+    # 紀錄上還沒賣出的股票，今天原文有講到卻沒有任何一列（2026/10/02 重播：力積電「昨天買」被標成今天，日期核對後整列略過）：
+    # 補一筆不公開的候選，和其他不公開的台股一樣交給裁決；沒有得到支持就留在不公開。
+    listed = {str(r.get('code') or '') for cat in _VERDICT_ORDER for r in signals.get(cat, []) or [] if isinstance(r, dict)}
+    for code, name in open_positions.items():
+        if code in listed or not name or not re.fullmatch(r'[1-9]\d{3}', code) or any(k[0] == code for k in notice):
+            continue
+        probe = {'name': name, 'code': code, 'reason': '', 'evidence': [], 'exclusion_reason': 'open_position_recheck'}
+        if _own_segments(probe, signals, transcript, 300, 500):
+            signals.setdefault('ignored', []).append(probe)
+            print(f"  分類裁決　{_display_name(name)}（{code}）紀錄上還沒賣出，今天原文有講到卻沒有列：補一筆候選送裁決")
+            note_decision('分類裁決', '紀錄上未賣出、今天有講到卻沒有列，補候選送裁決', _display_name(name), date_str)
     today = _verdict_today_rows(signals, date_str)
     if not today:
         return signals
-    known, notice = _verdict_known(ss, date_str)
     cache = _verdict_cache(ss, date_str)
     # 原文明講目前持有：沿用既有的核對，在副本上跑一次，看哪幾檔會被它列回會員持股。
     explicit_hold = set()
@@ -12530,7 +12548,7 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
         row = next(r for c, r in pairs if c == current)
         names = set().union(*[_signal_names(r) | {str(r.get('name') or '')} for _, r in pairs]) - {''}
         entry = {'name': _display_name(row.get('name')), 'current': current, 'cls': current, 'tier': '', 'basis': '', 'votes': [],
-                 'answer': {}, 'fp': '', 'enforce': False, 'new': False}
+                 'answer': {}, 'fp': '', 'enforce': False, 'new': False, 'open': code in open_positions}
         verdicts[code] = entry
         manual = (cache.get(code) or {}).get('manual')
         if manual:
@@ -12594,11 +12612,16 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
         for code, item in pending:
             entry = verdicts[code]
             cls, basis = verdict_class(answers.get(code), item['_norm'], item['_names'])
+            if entry.get('open') and cls == 'buy' and isinstance(answers.get(code), dict):
+                # 紀錄上本來就有部位：答案同時勾了今天買進與現在持有時算持有（買賣不由問卷新增）。
+                held, held_basis = verdict_class(dict(answers[code], buy_today=False), item['_norm'], item['_names'])
+                if held == 'holdings':
+                    cls, basis = held, held_basis
             entry['votes'].append(cls)
             if cls and not entry['answer'].get(cls):
                 entry['answer'][cls] = {'basis': basis, 'answer': answers.get(code)}
             state, decided, why = verdict_settle('ignored' if entry.get('late') else entry['current'], entry['votes'],
-                                                 last=round_no == VERDICT_MAX_ROUNDS - 1)
+                                                 last=round_no == VERDICT_MAX_ROUNDS - 1, open_position=bool(entry.get('open')))
             if state == '再問':
                 still.append((code, item))
                 continue

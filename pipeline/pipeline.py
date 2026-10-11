@@ -6771,6 +6771,7 @@ def review_excluded_stocks(signals, transcript, date_str):
                 signals.setdefault('watch_avoid', []).append({
                     'name': heard, 'code': code, 'price': '未說明', 'reason': note,
                     'evidence': late, 'view': late[-2], 'watch_bias': 'watch_avoid',
+                    '_late_named_refusal': True,
                     '_guard_note': '原句先明講不要碰，緊接著報本股名稱'})
                 signals['_quality_requires_review'] = True
                 print(f'  排除單檔覆核　{label}（{code}）→ 觀望不碰（緊接報名的禁買原句）：{note}')
@@ -10693,6 +10694,11 @@ def strip_unsupported_technical_terms(signals: dict, transcript: str, date_str: 
                 continue
             own_names = set(_row_names_for_recap(row))
             material = [s_['text'] for s_ in _context_sources(row, _own_segments(row, signals, transcript))]
+            # 先說本股風險、下一句才報名的唯一特例：這幾句在原文緊鄰且已過句型核對。
+            # 一般列仍只看名稱之後，避免把上一檔的技術指標借過來。
+            if row.get('_late_named_refusal'):
+                hay = _ev_norm(transcript)
+                material += [q for q in row.get('evidence', []) if isinstance(q, str) and _quote_is_real(q, hay)]
             material.append(_name_adjacent_text(row, transcript))
             material.append(_name_forward_text(row, transcript))
             material += priced.get(str(row.get('code') or ''), [])

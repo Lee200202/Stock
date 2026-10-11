@@ -88,6 +88,12 @@ def check_late_named_refusal():
     # 通用詞可同時是股票名；沒有股名語境，問卷不能把量能形容詞開成持股。
     assert not pl._weak_name_explicitly_stock("大量", "3167", "籌碼正被大量吸納。大量在這邊。大家手中要抱牢。")
     assert pl._weak_name_explicitly_stock("創意", "3443", "這一支不要碰。這是創意。")
+    tx = "這一支，你們還敢碰嗎？當然不敢碰，昨天大跌。缺口已回補，不要碰。這是甲公司。"
+    row = {"name": "甲公司", "code": "1234", "reason": "甲公司前一交易日下跌，缺口已回補，目前不宜介入。",
+           "evidence": pl._plain_sentences(tx), "_late_named_refusal": True}
+    signals = {"watch_avoid": [row]}
+    pl.strip_unsupported_technical_terms(signals, tx)
+    assert "缺口已回補" in row["reason"], "先給風險後報股名的原句不能被技術詞關卡抹掉"
 
 
 if __name__ == "__main__":

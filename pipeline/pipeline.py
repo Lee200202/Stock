@@ -9971,7 +9971,7 @@ def _note_keeps_prohibition(note):
 # 引用歸屬的範圍（正規化後的字數）。他多半先報名字再講內容，所以名稱之後放寬、之前收緊：
 # 名稱之前的那一段通常還在講上一檔（2026/10/01 愛普前面的「外資大賣、連買兩天」是力積電）。
 _OWN_NAME_BEFORE = 40
-_OWN_NAME_AFTER = 120
+_OWN_NAME_AFTER = 120       # 2026/10/11 試過放寬到 240：沒報名字的下一檔會跟著進來（test_model_only_receives_allowed_quote_scope），維持 120
 
 
 def _own_segments(row, signals, transcript, before_chars=450, after_chars=650):
@@ -10078,6 +10078,8 @@ original 已經寫明不要買、不要碰、還不能買時，補充後第一�
 本股多次提及中已明講的歷史價位、漲幅與當下立場須一起整理，不能只換句話說「現在不要買」。例如原文同時有「2、300時布局」「漲了4倍」「現在不要買」，直接寫先前布局、已上漲與目前禁買，不加「並非本日再次買進的通知」等分類說明。不得把鄰股的法人、CPO或其他題材填進本股。禁止「分析師指出」「講師建議」「老師表示」「老師手中」等轉述主詞：不寫誰說的，直接寫內容（「買在880以下」「會員續抱」）。不要寫「逐字稿補充的重點是」「原文以…作為警示」「原文回顧」或推論過程，只寫有依據的內容，不為篇幅加無資訊句。
 過去漲幅、原先布局位置與目前態度分開寫。消息或預測須保留其觀點與條件，不能改成已發生事實。不寫評語式的收尾：「展現強勁多頭動能」「具備明確的向上潛力」「整體操作邏輯穩健」「值得持續關注」「並說明相關操作與看法」「屬於明確不碰的標的」「屬於負面示範」「候選標的之一」「等待適當機會佈局」「建議持續關注」這類句子沒有資訊，程式會刪掉；原文沒講的量價（帶量、爆量、創高、漲停）也不要補。寧可少一句，留下來的每一句都要對得回 sources。「有很多人說／有人問：張總，你昨天講 X 要賣了」這類句子，是講者轉述觀眾複述他自己先前講過的話，後面通常接著他當場的確認或補充：寫成「先前（昨天）已表示 X 要賣出」並接上他當場的說法，不可寫成「有傳聞」「據說」「有人提及」。講者明講的買進位置、成本、季線或年線的價位、預期先到哪一條線，是這一檔說明最重要的內容，source 裡有就一定寫進去，不要只留「展現韌性」「值得留意」這種沒有資訊的形容。不得自創財報、法人、利多、公司關係、均線、停損、目標價或新買點。不要用人名／講者當主詞、不要寫分類流程、來源不足或內部規則。
 每句用 source_ids 引用該 entry.sources 裡支持該句的編號（例如 s0），不要重抄或改寫原句。編號只能用同一 entry 的 sources；來源裡沒講的事不能寫，數字與技術詞也須有對應。name 是官方名稱，source 的同音寫法只在公開敘述中修正。原文不足可短，另填 limitation 為內部原因，不用冗詞湊字。賺賠金額先分清每股與每張；來源單位不明就省略，不能用「（或…）」並列互斥金額或留下截斷片語。
+source 是語音聽寫，技術名詞常有同音誤字：「極線」是季線、「景線」「緊線」是頸線、「35軍」是35均、「限真」是現增。說明裡寫正確的名詞。
+一檔寫 2～4 個短句，一句只講一件事（位置、籌碼、題材、條件各一句），不要用逗號把四五件事串成一個長句：程式逐句核對，一個子句對不上會連累整句。
 sources 裡 kind 寫著「系統已用當日股價確認」的段落，原文沒有報公司名稱（畫面上才有）：只取裡面講的買進價位與目前賺賠狀況（「買進成本74元，短線小幅套牢」），不引伸其他內容。
 sources 裡 kind 寫著「產業段落（某族群）」的段落，是本股自己的材料不多時附上的：講的是它所屬的族群。先寫本股自己的事，再用一兩句整理這個族群的看法，句子裡要寫出族群名稱（「所屬的記憶體族群近期漲跌反覆，預期後續還有一波，已持有者不宜賣出」）；不可以寫成本股自己的價位、均線或買點，不可以寫進別家公司的名稱與條件，引用時 source_ids 要指到那一段。
 材料少就寫短：source 對本股只有一兩句時，說明寫一兩句、三十個字也可以。不可以為了篇幅把同一個理由換句話再講一次，也不可以加上 source 沒有的套話（「考量整體操作安全性與潛在波動風險」「在權衡整體資金配置與汰弱留強的原則下」「在目前盤勢與族群位階下」「應尋找更具優勢的標的」「落實資金集中管理」）。
@@ -10486,7 +10488,7 @@ def tidy_public_notes(ss, signals: dict, date_str: str) -> dict:
     return signals
 
 
-_WATCH_HOLDS_RE = re.compile(r'(?<!不)(?<!別)(?<!未)(?:續抱|仍持有|目前持有|繼續持有|會員(?:已|仍|目前)?持有|為會員持有)')
+_WATCH_HOLDS_RE = re.compile(r'(?<!不)(?<!別)(?<!未)(?:續抱|仍持有|目前持有|繼續持有|持續持有|會員(?:已|仍|目前)?持有|為會員持有)')
 
 
 def resolve_watch_holding_overlap(signals: dict, date_str: str) -> dict:
@@ -10510,7 +10512,10 @@ def resolve_watch_holding_overlap(signals: dict, date_str: str) -> dict:
                 print(f"  分類與說明　{name}：今天已列會員持股，觀望那一列的說明講的是持有，不另列")
                 note_decision('分類與說明', '已列會員持股，觀望那一列不另列', name, text[:120])
                 continue
-            rest = ''.join(x for x in re.split(r'(?<=[。；;])', text) if x.strip() and not _WATCH_HOLDS_RE.search(x)).strip()
+            pieces = [[c, punct] for c, punct in _split_clauses(text) if not _WATCH_HOLDS_RE.search(c)]     # 只拿掉講持有的子句
+            rest = ''.join(c + punct for c, punct in pieces).strip('，,；;')
+            if rest and rest[-1] not in '。！？':
+                rest += '。'
             if len(_ev_norm(rest)) >= 8:
                 row['reason'] = rest
                 print(f"  分類與說明　{name}：列觀望，說明裡講持有的句子已拿掉")
@@ -10618,7 +10623,7 @@ def strip_unsupported_technical_terms(signals: dict, transcript: str, date_str: 
             material += priced.get(str(row.get('code') or ''), [])
             for theme in stock_themes(row):
                 material += theme_passages(theme, transcript, table_names - own_names)
-            own = re.sub(r'\s+', '', ''.join(material)).lower()
+            own = _asr_terms(re.sub(r'\s+', '', ''.join(material))).lower()
             if len(own) < 12:
                 continue                                    # 找不到本股的原文就不判，交給其他關卡
             kept, dropped = [], []
@@ -10710,9 +10715,21 @@ _FACT_TERM_RE = re.compile(r'年線|季線|月線|週線|\d+均|均線|頸線|�
 _FACT_NUMBER_RE = re.compile(r'(?<![\d.])\d[\d,]*(?:\.\d+)?\s*(?:%|％|元|塊|倍|張|天|根|個月|均|億)|(?<![\d.])\d+\.\d+(?!\d)')
 
 
+_ASR_TERMS = ((re.compile(r'[極計繼]線'), '季線'), (re.compile(r'[景緊]線'), '頸線'), (re.compile(r'(\d+)\s*軍'), r'\g<1>均'),
+              (re.compile(r'[限先現]真'), '現增'), (re.compile(r'馬克地|麥克D|MAC D', re.I), 'MACD'))
+
+
+def _asr_terms(text):
+    """語音稿裡技術名詞的同音誤字還原（極線→季線、景線／緊線→頸線、35軍→35均、限真→現增）。只給核對與檢查表用，不改原稿。"""
+    text = str(text or '')
+    for pattern, fixed in _ASR_TERMS:
+        text = pattern.sub(fixed, text)
+    return text
+
+
 def _source_facts(texts):
     """本股原文裡的技術名詞與帶單位的數字（照出現順序、不重複），給補充說明當檢查表。"""
-    joined = re.sub(r'\s+', '', ''.join(texts))
+    joined = _asr_terms(re.sub(r'\s+', '', ''.join(texts)))
     terms = list(dict.fromkeys(m.group(0) for m in _FACT_TERM_RE.finditer(joined)))
     numbers = list(dict.fromkeys(m.group(0) for m in _FACT_NUMBER_RE.finditer(joined)))
     return terms[:10] + numbers[:8]
@@ -10894,17 +10911,23 @@ def enrich_stock_context(signals, transcript, date_str):
                 evidence = [source_ids[i] for i in mapped] if all(mapped) else []
             # v142：帶量、放量、爆量、漲停、跌停也要有本股原句（2026/10/07 晶技「帶量下殺」，原文只有「勾一聲直接灌下來」）。
             # 2026/10/08：時間也要對得回本股原句。台積電的說明寫「下半年法說會及營收公布前表現強勢」，原文是「下個禮拜…要公佈營收，法說會」。
-            technical = re.findall(r'MACD|EPS|KD|季線|月線|年線|均線|缺口|量縮|量增|帶量|放量|爆量|買超|賣超|營收|接單|光通訊|現金增資|增資|繳款|權利金'
-                                   r'|上半年|下半年|明年|去年|下個月|上個月|下一季|上一季|第[一二三四]季|法說會|股東會|除息|除權', text, re.I)
-            def supported(evidence):
-                return bool(text and isinstance(evidence, list) and evidence
+            technical_re = re.compile(r'MACD|EPS|KD|季線|月線|年線|均線|缺口|量縮|量增|帶量|放量|爆量|買超|賣超|營收|接單|光通訊|現金增資|增資|繳款|權利金'
+                                      r'|上半年|下半年|明年|去年|下個月|上個月|下一季|上一季|第[一二三四]季|法說會|股東會|除息|除權', re.I)
+            technical = technical_re.findall(text)
+
+            def backed(sentence, evidence):
+                # 技術與消息詞都要由本股引句支持；不能把力旺增資／繳款接到晶心科。原文的同音誤字（極線、景線、35軍）先還原再比。
+                heard = _asr_terms(''.join(evidence)).lower()
+                return bool(sentence and isinstance(evidence, list) and evidence
                             and all(isinstance(q, str) and _quote_is_real(q, source_norm) for q in evidence)
-                            and market_item_verified({'text': text, 'evidence': evidence}, source_norm)
-                            # 技術與消息詞都要由本股引句支持；不能把力旺增資／繳款接到晶心科。
-                            and all(term.lower() in ''.join(evidence).lower() for term in technical)
+                            and market_item_verified({'text': sentence, 'evidence': evidence}, source_norm)
+                            and all((term.lower() if term != '均線' else '均') in heard for term in technical_re.findall(sentence))
                             and all(_quote_near_own_name(q, spans) for q in evidence)
                             # 公司賺不賺錢要有同一句點名本股的原文（華通被補上 SpaceX 的「沒有什麼賺錢」）。
-                            and not _foreign_profit_claim(text, _row_names_for_recap(row), transcript))
+                            and not _foreign_profit_claim(sentence, _row_names_for_recap(row), transcript))
+
+            def supported(evidence):
+                return backed(text, evidence)
             themes, theme_texts, theme_others = theme_of.get(reply['id'], ((), set(), set()))
             uses_theme = bool(theme_texts) and isinstance(evidence, list) and any(q in theme_texts for q in evidence)
             # 族群段落只能支持族群層次的句子：句子裡要有族群名稱，不能帶別家公司。
@@ -10925,6 +10948,16 @@ def enrich_stock_context(signals, transcript, date_str):
                              and _quote_is_real(q, source_norm) and _quote_near_own_name(q, spans)]
                 if not theme_bad and own_range and supported(own_range):
                     evidence, ok = own_range, True
+                elif not theme_bad and own_range and '，' in text:
+                    # 整句沒過：逐子句核對，留下通過的子句（2026/10/02 世芯-KY「自3,295元起持續持有並獲利，外資大量買超後技術線型將翻陽」
+                    # 只有後半句對不上，卻整句作廢）。至少要留下兩個子句裡的一個、而且留下的不只是幾個字。
+                    clauses = [c.strip() for c in text.rstrip('。').split('，') if c.strip()]
+                    good = [c for c in clauses if backed(c, own_range)]
+                    if good and len(good) < len(clauses) and len(_ev_norm(''.join(good))) >= 8:
+                        partial = [c for c in clauses if c not in good]
+                        text = re.sub(r'^(?:且|並且|並|而且|但)', '', '，'.join(good)) + '。'
+                        evidence, ok = own_range, True
+                        rejected.append(str(position + 1) + ':子句未通過「' + '，'.join(partial)[:36] + '」')
             if not ok:
                 rejected.append(str(position+1) + ':' + ('族群句沒寫族群名稱或帶了別檔' if theme_bad else '引用不存在或改字' if not evidence or not all(isinstance(q,str) and _quote_is_real(q, source_norm) for q in evidence)
                     else '數字不在引用' if not market_item_verified({'text':text,'evidence':evidence}, source_norm)
@@ -12528,6 +12561,11 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             entry.update(tier='一致通過', basis='初判、覆核、規則後同為會員持股，段落沒有疑點')
             continue
         why = [] if current == 'holdings' else ['分類靠語氣判斷（' + _VERDICT_LABEL.get(current, current) + '）']
+        # 初判與覆核都沒有列、最後才被拉回公開分類的列：流程自己並不確定它該公開。當成「原判不列」來裁決——
+        # 問卷三票一致才公開，否則放回不公開（2026/10/02 群創：「我說它比群創強…我絕對不推薦有達」被單檔覆核寫成不推薦群創）。
+        if not stages[0] and not stages[1] and stages[2]:
+            entry['late'] = current
+            why.append('兩個階段都沒有列，最後才被拉回')
         if len(set(stages)) > 1:
             why.append('三個階段不一致（' + '→'.join(_VERDICT_LABEL.get(s, s) for s in stages) + '）')
         why += marks
@@ -12559,9 +12597,17 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             entry['votes'].append(cls)
             if cls and not entry['answer'].get(cls):
                 entry['answer'][cls] = {'basis': basis, 'answer': answers.get(code)}
-            state, decided, why = verdict_settle(entry['current'], entry['votes'], last=round_no == VERDICT_MAX_ROUNDS - 1)
+            state, decided, why = verdict_settle('ignored' if entry.get('late') else entry['current'], entry['votes'],
+                                                 last=round_no == VERDICT_MAX_ROUNDS - 1)
             if state == '再問':
                 still.append((code, item))
+                continue
+            if entry.get('late') and state == '未定':
+                # 沒有三票一致支持公開：放回不公開
+                entry.update(cls='ignored', tier='裁決', enforce=True, new=True,
+                             basis='｜'.join(x for x in (entry['basis'], why, '最後才被拉回的列沒有得到三票支持，不公開') if x))
+                note_decision('分類裁決', '最後才被拉回的列沒有三票支持，不公開', entry['name'],
+                              '各票：' + '、'.join(_VERDICT_LABEL.get(v, v) or '不能用' for v in entry['votes']))
                 continue
             detail = (entry['answer'].get(decided) or {}).get('basis') or ''
             entry.update(cls=decided, tier='裁決' if state == '定案' else '未定', enforce=state == '定案', new=True,

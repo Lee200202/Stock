@@ -70,7 +70,15 @@ def check_stock_classification_and_late_duplicates():
     assert len(rows["holdings"]) == 2, "跨日持股不得合併"
 
 
+def check_written_stock_notes():
+    # 9/29 預覽曾把講者的比喻、口頭疊字原封寫進公開說明。
+    for oral in ("台積電過新高只是打一個噴嚏。", "外資賣一賣後又買回來。", "股價咻咻咻向上。"):
+        assert "俚語或口頭禪" in pl.written_style_issues(oral), oral
+    assert not pl.written_style_issues("台積電維持在季線之上，後續觀察能否突破前高。")
+
+
 if __name__ == "__main__":
     check_repeated_points()
     check_stock_classification_and_late_duplicates()
+    check_written_stock_notes()
     print("9/29–10/02 歷史回歸：重點去重、相異主題、條件買點、持股合併與分筆成交通過")

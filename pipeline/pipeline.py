@@ -3729,8 +3729,8 @@ def merge_duplicates(signals: dict) -> dict:
                 continue
 
             # 買賣要連價位一起當鑰匙，不同價位就是不同的一筆操作
-            k = (ident, r.get('when'), r.get('event_date'), r.get('seq', 1),
-                 str(r.get("price") or "").strip()) if key in BY_PRICE else (ident,)
+            k = (ident, r.get('_date'), r.get('when'), r.get('event_date'), r.get('seq', 1),
+                 str(r.get("price") or "").strip()) if key in BY_PRICE else (ident, r.get('_date'))
             hit = index.get(k)
             if hit is None:
                 index[k] = r
@@ -4399,7 +4399,7 @@ buy/sell：只有講者本人或其會員於「影片當日（今天／今日／
 一般觀眾建議、條件尚未達成、以後想買，都不是已執行的交易。
 holdings：明講現在仍持有、續抱、我還有、會員現有部位。昨日買而今天仍在談自己的部位可另列持股。
 講者說「我有這一隻」「你們都知道我有」「抱著」「成本多少」「絕對不賣」都是持股，就算同一段在講它今天跌。
-只在比喻或舉例被點名，不代表持有。回讀它的當下行情與共同指示，依下列觀望規則收錄，不能直接排除。
+只在比喻或舉例被點名，不代表持有，也不自動代表今日觀望。先核對它今天自己的結論：只拿舊價位或過去走勢示範「季線下買、突破後等回測」等通用教學，而沒有對這檔現在或未來單獨提出買點、禁買或方向，就放 history／ignored，把教學寫在 view；不能把適用所有股票的買點規則硬套成這一檔今日的 watch_watch，也不能因示範不要追高就列 watch_avoid。若確有本股當下買點或風險，再依下列觀望規則收錄；當日下跌本身不算結論。
 watch_watch：明確候選、以後想買、等洗完、抄起來；只列名字但明確共用「候選名單」也要逐檔收錄，不要求每檔都有價格或長篇理由。
 講者要大家等某個價位或時點再買（900以下是買點、等補完缺口站回去、等禮拜一CPI公布後、碰到均線再說）也是 watch_watch，reason 寫出那個條件；同時明講「現在還不能買」的依原則四列 watch_avoid。
 漲多下方缺口還沒補、還會跌、切勿追高、拿它當負面示範（大立光跌停、玉晶光跟跌）→ watch_avoid，不因句中出現「買」「等」改列 watch_watch。
@@ -7737,7 +7737,7 @@ _REVERSAL_CUE = re.compile(
 
 # 明講不要進場。9/14 環球晶的說明是「明確表示不准買」，舊的清單只認「不准碰」，沒有擋下。
 _PROHIBIT = re.compile(r'不准(?:給我)?(?:碰|買)|不要(?:碰|買)|不能(?:馬上|現在)?(?:碰|買)|別(?:碰|買)|不(?:該|用|適合)(?:碰|買)|禁止買|暫不進場'
-                       r'|還不行|還不可以買|先不要買|千萬不要(?:買|追)|切勿.{0,6}(?:買|追)')
+                       r'|還不行|還不可以買|還不能進場(?:買進|買入|買)?|先不要買|千萬不要(?:買|追)|切勿.{0,6}(?:買|追)')
 # 禁止之後接著給出「等某件事發生才買」的條件。
 # 2026/09/14 管理者規則：講者明講「現在還不能買、要等」時，當下的結論是不進場，列觀望不碰（勤誠）；
 # 這個樣式只留給 _bearish_or_neutral_basis 以外的地方參考，不再把禁止翻成觀望注意。
@@ -15439,6 +15439,9 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
         if rec['carried']:
             review.append(f"沿用前一版 {len(rec['carried'])} 檔待複核：{'、'.join(rec['carried'])}")
 
+    # 初次合併後，裁決與覆蓋核對仍可能帶回同代號同分類的列。
+    # 保護人工說明前先收斂為單列，避免持股於文章／後台重複；分筆成交仍各自保留。
+    signals = merge_duplicates(signals)
     signals = preserve_manual_notes(signals, prior, TX['audit'], video['id'], date_str, video.get('_raw_sha256', ''))
     signals = drop_sms_sold_holdings(ss, signals, date_str)
     # 沿用前一版的列也要走公開文字整理；保留原始引用與待複核狀態。

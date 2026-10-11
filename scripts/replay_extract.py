@@ -108,6 +108,10 @@ def compare(signals, golden, day=None):
             bad = any(phrase in note for note in notes.get(code, []))
             ok &= not bad
             lines.append(f"  {'✗' if bad else '✓'} {names.get(code, '')}（{code}）說明不得含「{phrase}」")
+    for code in golden.get("single", []):                      # 這一檔只能有一列（2026/10/02 聖暉一度有兩筆持股加一筆觀望注意）
+        got = where.get(code, [])
+        ok &= len(got) <= 1
+        lines.append(f"  {'✓' if len(got) <= 1 else '✗'} {names.get(code, '')}（{code}）只能有一列" + (f"，實際 {'／'.join(LABEL[g] for g in got)}" if len(got) > 1 else ""))
     if elsewhere:
         lines.append("  補記到別天（不算這一天的分類）：" + "、".join(elsewhere))
     extra = [c for c in where if c not in golden.get("must", {}) and c not in golden.get("must_not", [])]

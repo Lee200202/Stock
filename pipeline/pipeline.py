@@ -10491,7 +10491,10 @@ def tidy_public_notes(ss, signals: dict, date_str: str) -> dict:
 _WATCH_HOLDS_RE = re.compile(r'(?<!不)(?<!別)(?<!未)(?:續抱|仍持有|目前持有|繼續持有|持續持有|會員(?:已|仍|目前)?持有|為會員持有)')
 
 
-def resolve_watch_holding_overlap(signals: dict, date_str: str) -> dict:
+_NO_CHASE_RE = re.compile(r'(?:這一[隻支檔]|它|他)?[，,]?就?不(?:用|要|必)(?:再)?(?:去)?追|留著(?:這一[隻支檔])?就好|好好留著')
+
+
+def resolve_watch_holding_overlap(signals: dict, date_str: str, transcript: str = '') -> dict:
     """觀望那一列的說明寫成當前持股時，只處理那一列，不擋整天。
 
     同一檔今天已經列會員持股：觀望那一列講的是同一個部位，不另列（2026/10/05 台積電，持股與觀望注意各一列，
@@ -10504,6 +10507,14 @@ def resolve_watch_holding_overlap(signals: dict, date_str: str) -> dict:
         keep = []
         for row in signals.get(cat, []) or []:
             text = str(row.get('reason') or '') if isinstance(row, dict) else ''
+            # 已列會員持股的股票，原文對還沒買的人說「不用追」「留著就好」：沒有給未持有的人買點，不另列觀望注意
+            # （2026/10/02 聖暉「啊這一隻，就不用追，你就好好留著」；先前的 900 元以下是幾天前的買點）。
+            if (isinstance(row, dict) and cat == 'watch_watch' and transcript and str(row.get('code') or '') in held
+                    and _NO_CHASE_RE.search(_name_forward_text(row, transcript))):
+                name = _display_name(row.get('name')) or str(row.get('name') or '')
+                print(f"  分類與說明　{name}：已列會員持股，原文說不用追，不另列觀望注意")
+                note_decision('分類與說明', '已列會員持股且原文說不用追，觀望注意那一列不另列', name, text[:120])
+                continue
             if not isinstance(row, dict) or not _WATCH_HOLDS_RE.search(public_narrative(text, row, signals)):
                 keep.append(row)
                 continue
@@ -15580,7 +15591,7 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     signals = sms_first_article_records(ss, signals, date_str)
     signals = repair_public_note_contradictions(signals)
     signals = drop_lot_profit_unit_conflicts(signals, TX["audit"])
-    signals = resolve_watch_holding_overlap(signals, date_str)
+    signals = resolve_watch_holding_overlap(signals, date_str, TX["audit"])
     article = build_article(v2, signals, date_str)
     quality_hard, _quality_soft = print_quality_overview(signals, TX["audit"])
     if quality_hard:

@@ -27,9 +27,9 @@ def main():
     day = pl.norm_date(args.date)
     target = datetime.strptime(day, '%Y/%m/%d').date()
     today = datetime.now(ZoneInfo('Asia/Taipei')).date()
-    # 正式更新只限最近七天。唯讀預覽放寬到三十天：拿較早的日子當回歸樣本，看現在的判讀與說明規則在舊原稿上穩不穩，不寫任何資料。
-    if target > today or target < today - timedelta(days=7 if args.apply else 30):
-        raise SystemExit('正式更新只允許最近七天的既有原稿；唯讀預覽最多回看三十天' if args.apply else '唯讀預覽最多回看三十天')
+    # 最多回看三十天（管理者 2026/10/11 同意歷史日期可以重新套用）。正式更新另外必須有該日的人工答案，寫入前照樣先備份三張工作表。
+    if target > today or target < today - timedelta(days=30):
+        raise SystemExit('只處理最近三十天的既有原稿')
     golden_file = Path('scripts/golden') / (target.isoformat() + '.json')
     if args.apply and not golden_file.exists():
         raise SystemExit('正式更新須有該日人工核對答案；本次未寫入')

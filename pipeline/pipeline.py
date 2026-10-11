@@ -6632,6 +6632,18 @@ def _only_ordinary_word(heard, code, transcript):
     return all(_ORDINARY_BEFORE.search(flat[max(0, at - 3):at]) or _ORDINARY_AFTER.match(flat[at + 2:at + 8]) for at in spots)
 
 
+def _weak_name_explicitly_stock(heard, code, transcript):
+    """兩字通用詞若要開成持股，原句須有可辨的股名語境，不能只靠問卷三票。"""
+    flat = re.sub(r'\s', '', str(transcript or ''))
+    if code and (re.search(r'(?<!\d)' + re.escape(code) + r'[^。！？!?]{0,6}' + re.escape(heard), flat)
+                 or re.search(re.escape(heard) + r'[^。！？!?]{0,6}' + re.escape(code) + r'(?!\d)', flat)):
+        return True
+    name = re.escape(heard)
+    return bool(re.search(r'(?:這是|叫做|名叫|股票是|這一?[支檔隻]是)' + name, flat)
+                or re.search(name + r'[^。！？!?]{0,16}(?:股票|股價|季線|月線|漲停|跌停|買進|買入|賣出|續抱|持有|目標價|EPS)', flat)
+                or re.search(r'(?:^|[，,。！？!?])' + name + r'[呢啊喔哦嘛]?[。！？!?][^。！？!?]{0,30}(?:MACD|KD|均線|季線|月線|翻紅|突破)', flat))
+
+
 def drop_ordinary_word_rows(signals, transcript):
     """模型把日常用語當成股票列出來的那一筆，移到排除（判斷方式見 _only_ordinary_word）。"""
     by_name = {}
@@ -6643,13 +6655,15 @@ def drop_ordinary_word_rows(signals, transcript):
             names = [n for n in _signal_names(row) | {str(row.get('name') or '')} if n] if isinstance(row, dict) else []
             name = str(row.get('name') or '') if isinstance(row, dict) else ''
             # 只處理「這一筆所有寫法都是同一個兩字簡稱」的：另有較長的原字或管理者確認的名稱時不動。
-            if (len(names) == 1 and len(name) == 2 and name in by_name and name not in CONFIRMED_NAMES
-                    and _only_ordinary_word(name, by_name[name], transcript)):
+            ordinary = len(names) == 1 and len(name) == 2 and name in by_name and name not in CONFIRMED_NAMES
+            if ordinary and (_only_ordinary_word(name, by_name[name], transcript)
+                             or (cat == 'holdings' and not _weak_name_explicitly_stock(name, by_name[name], transcript))):
                 at = re.sub(r'\s', '', transcript).find(name)
                 seen = re.sub(r'\s', '', transcript)[max(0, at - 10):at + 12]
-                print(f"  日常用語核對　{name}（{by_name[name]}）：原文每一次都只是日常用語（…{seen}…），不是在講這一檔，不列（原列 {cat}）")
-                note_decision('日常用語核對', '不是在講這一檔，不列', name, seen)
-                row = dict(row, exclusion_reason='ordinary_word')
+                why = '只是日常用語' if _only_ordinary_word(name, by_name[name], transcript) else '缺少可辨的股名語境，不據此開持股'
+                print(f"  日常用語核對　{name}（{by_name[name]}）：{why}（…{seen}…），不列（原列 {cat}）")
+                note_decision('日常用語核對', why, name, seen)
+                row = dict(row, exclusion_reason='ordinary_word' if why == '只是日常用語' else 'ambiguous_weak_name')
                 signals.setdefault('ignored', []).append(row)
                 continue
             keep.append(row)
@@ -6738,6 +6752,8 @@ def review_excluded_stocks(signals, transcript, date_str):
         entries.append({'id': identity, 'name': official or heard, 'heard': heard, 'sources': sources})
         targets[identity] = {'heard': heard, 'code': code, 'official': official, 'text': text,
                              'ids': {s['id']: s['text'] for s in sources},
+                             'late_quotes': next((sentences[max(0, i - 4):i + 1] for i, x in enumerate(sentences)
+                                                  if heard in x and _late_named_refusal(sentences, i)), []),
                              # 名字自己成一句時，記下前一句與後一句：講者點名的前後就是在講它（見下面的「點名原句」）。
                              'around': [(sentences[i - 1] if i else '', x, sentences[i + 1] if i + 1 < len(sentences) else '')
                                         for i, x in enumerate(sentences) if ends_with_name.search(x.strip())] if named_alone else []}
@@ -6773,6 +6789,26 @@ def review_excluded_stocks(signals, transcript, date_str):
         label = t['official'] or t['heard']
         verdict = str(reply.get('verdict') or '')
         if verdict not in ('watch_avoid', 'watch_watch'):
+            # 「這一支還敢碰嗎？…不要碰。這是 X。」是本股當下禁買，模型常把昨天大跌當純回顧。
+            # 只在緊接報名、原句仍對得回稿時收錄；不把前一檔的行情借給 X。
+            late = t.get('late_quotes') or []
+            if late and len(late) >= 2 and _quote_is_real(late[-1], hay) and _quote_is_real(late[-2], hay):
+                lead = ''.join(late[:-1])
+                parts = [label + '現階段不宜介入']
+                if re.search(r'昨天[^。！？!?]{0,10}跌', lead):
+                    parts.insert(0, label + '前一交易日下跌')
+                    parts[1] = '目前不宜介入'
+                if re.search(r'缺口[^。！？!?]{0,8}(?:補|填)', lead):
+                    parts.insert(-1, '價格缺口已回補')
+                note = '，'.join(parts) + '。'
+                signals.setdefault('watch_avoid', []).append({
+                    'name': t['heard'], 'code': t['code'], 'price': '未說明', 'reason': note,
+                    'evidence': late, 'view': late[-2], 'watch_bias': 'watch_avoid',
+                    '_guard_note': '原句先明講不要碰，緊接著報本股名稱'})
+                signals['_quality_requires_review'] = True
+                print(f'  排除單檔覆核　{label}（{t["code"]}）→ 觀望不碰（緊接報名的禁買原句）：{note}')
+                note_decision('排除單檔覆核', '緊接報名的禁買原句', label, note)
+                continue
             # 點名原句：講者把名字單獨念出來（「…我講很久了，神準呢。日K線MACD翻陽啊」），前後句明講這是他留著的股票、
             # 或講它的線型翻多。模型這一輪答「沒有看法」時，用原句收錄為觀望注意，不讓它整檔不見
             # （2026/10/07：同一份逐字稿，神準一輪收錄、一輪被排除；管理者確認當天有講這一檔）。
@@ -15200,6 +15236,9 @@ def reconcile_with_prior(signals, prior, date_str, transcript=''):
             hay = re.sub(r'\s', '', transcript)
             spoken = [n for n in _row_names_for_recap(probe)
                       if _in_transcript(n, hay) or (_has_cjk(n) and _sounds_in_transcript(n, hay))]
+            # 聽寫把股名寫壞，但同句念出官方代號時，代號優先於字面／讀音比對。
+            if probe['code'] and any(c == probe['code'] for _, c in spoken_code_pairs(hay)):
+                spoken.append(probe['code'])
             if not spoken:
                 # 先記下來，全部看完再決定：原文找不到的前一版太多，代表拿到的原文本身有問題
                 # （不是這支影片、讀到半截），那時要走「判讀不完整、保留舊資料」，不能順勢全部撤掉。
@@ -15428,6 +15467,8 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     # The full evidence review decides semantics. Keyword promotion and fixed
     # bearish precedence must not override its source/date decisions.
     signals = merge_duplicates(signals)
+    # 裁決與舊版沿用都可能在第一次日常用語核對後重新帶回同名股票，發布前再擋一次。
+    signals = drop_ordinary_word_rows(signals, TX['audit'])
     # 買了的那一檔不可以同時掛在觀望。要排在合併之後，因為合併才剛把
     # 同音錯字與簡稱收斂到同一個代號，在那之前比不出兩列是同一檔。
     # 觀望兩類之間的衝突要在合併之後才處理：合併會先把各類裡的重複收乾淨，

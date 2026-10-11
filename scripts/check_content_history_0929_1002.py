@@ -84,6 +84,9 @@ def check_late_named_refusal():
     assert pl._late_named_refusal(sentences, 3)
     assert not pl._late_named_refusal(sentences, 4)
     assert not pl._late_named_refusal(["這一支昨天跌很多。", "不要碰。", "這是甲公司。"], 2)
+    # 通用詞可同時是股票名；沒有股名語境，問卷不能把量能形容詞開成持股。
+    assert not pl._weak_name_explicitly_stock("大量", "3167", "籌碼正被大量吸納。大量在這邊。大家手中要抱牢。")
+    assert pl._weak_name_explicitly_stock("創意", "3443", "這一支不要碰。這是創意。")
 
 
 if __name__ == "__main__":

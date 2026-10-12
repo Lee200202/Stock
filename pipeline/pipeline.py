@@ -13374,7 +13374,10 @@ def apply_verdicts(signals, date_str, final=False):
             text = str(row.get('note' if cat == 'holdings' else 'reason') or '')
             answer = ((entry.get('answer') or {}).get(target) or {}).get('answer') or {}
             quotes = answer.get('quotes') if isinstance(answer.get('quotes'), dict) else {}
-            if cat in _VERDICT_HIDDEN and target in SIGNAL_CATEGORIES:
+            # 收尾搬回的列若本來就在公開分類、說明已經寫好（被後面的規則暫時移到不公開），說明留著：
+            # 收尾之後沒有補充說明那一步，清空只會換來一句原話（2026/10/01 力旺）。
+            was_public = final and row.get('_原分類') in SIGNAL_CATEGORIES and len(_ev_norm(text)) >= 8
+            if cat in _VERDICT_HIDDEN and target in SIGNAL_CATEGORIES and not was_public:
                 text = ''                                  # 排除理由不是公開說明；留空，由補充說明依本股原句寫
                 moved['_leftover'] = True
             elif cat in SIGNAL_CATEGORIES and target in SIGNAL_CATEGORIES and not final:

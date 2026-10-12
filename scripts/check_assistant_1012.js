@@ -13,6 +13,7 @@ function load(models) {
   const ctx = vm.createContext({
     CACHE: { get: k => store[k] || null, put: (k, v) => { store[k] = v; }, remove: k => { delete store[k]; } },
     Logger: { log() {} },
+    Utilities: { formatDate: () => '2026/10/12' },
     createSubscription: p => { saved.push(p); return { ok: true }; },
     readSheetObjects_: () => [], fmtDate_: d => String(d),
   });

@@ -3848,7 +3848,7 @@ function restatesEarlier_(key, earlier) {
   }
 
   /* ---------------- 助手 ---------------- */
-  var sessionId, curModel = '', userKey = '';
+  var sessionId, userKey = '';
   var KEY_STORE = 'gemini_key';
 
   try {
@@ -3864,7 +3864,7 @@ function restatesEarlier_(key, earlier) {
 
   var HINTS = [
     '幫我訂閱每日總覽',
-    '我想追蹤 2330 和 4916',
+    '最近一次每日整理寫了什麼',
     '台積電最近一次被提到是什麼時候',
     '這個網站有哪些功能'
   ];
@@ -3893,13 +3893,8 @@ function restatesEarlier_(key, earlier) {
         (audit.unavailable.length ? '未通過：' + audit.unavailable.join('、') : '') +
         (audit.stale ? '　官方查詢暫時失敗，沿用上次可用清單；六小時後再查。' : '');
     }
-    if (models && models.length) {
-      $('modelSel').innerHTML = models.map(function (m) {
-        return '<option value="' + esc(m.id) + '" data-note="' + esc(m.note) + '">' + esc(m.label) + '</option>';
-      }).join('');
-      curModel = models[0].id;
-      $('modelNote').textContent = models[0].note;
-    }
+    // 模型固定用 Flash Lite，不提供選單（2026/10/12）；只顯示目前用的是哪一款。
+    $('modelNote').textContent = (models && models.length) ? models[0].label : '';
     renderHints();
     // 進入版面先主動問候一次
     if (!greeted && !$('askLog').children.length) {
@@ -3923,7 +3918,7 @@ function restatesEarlier_(key, earlier) {
 
     $('keySave').disabled = true;
     $('keyMsg').className = 'notice';
-    $('keyMsg').textContent = '驗證中，正在實測這把金鑰能用哪些模型';
+    $('keyMsg').textContent = '驗證中，正在實測這把金鑰';
 
     google.script.run.withSuccessHandler(function (r) {
       $('keySave').disabled = false;
@@ -3971,12 +3966,6 @@ function restatesEarlier_(key, earlier) {
       }
     }).withFailureHandler(function () { showGate(); }).apiValidateKey(userKey);
   }
-
-  $('modelSel').addEventListener('change', function () {
-    curModel = $('modelSel').value;
-    var o = $('modelSel').selectedOptions[0];
-    $('modelNote').textContent = o ? o.dataset.note : '';
-  });
 
   function renderDraft(d) {
     if (!d) { $('draftBox').hidden = true; return; }
@@ -4094,7 +4083,7 @@ function restatesEarlier_(key, earlier) {
       p.className = 'bubble refuse';
       p.textContent = '目前無法回覆，請稍後再試。';
       log.scrollTop = log.scrollHeight;
-    }).apiAsk(q, sessionId, curModel, userKey);
+    }).apiAsk(q, sessionId, '', userKey);
   }
 
   $('askBtn').addEventListener('click', send);

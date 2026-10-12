@@ -14,10 +14,14 @@
  * 金鑰規範：GEMINI_API_KEY 只存在 Script Properties，只在本檔使用。
  */
 
-/* 模型選單由官方 models.list 每月生成，不保留容易過期的寫死清單。 */
+/* 助理只用 Flash Lite（管理者 2026/10/12）：不給使用者選模型，Flash 與 Pro 都不用。
+   每月仍向官方 models.list 查一次、實測可用，只是候選限定 Flash Lite。 */
 var DEFAULT_MODEL = 'gemini-3.5-flash-lite';
 
-// Pro 系列刻意不放。依需求排除。
+function isLiteModel_(id) {
+  id = String(id || '');
+  return /flash-lite/i.test(id) && !/pro|image|audio|tts|live|computer|robot|embedding|experimental/i.test(id);
+}
 
 /** 前端要的模型清單。只回傳 probeModels 實測可用的。 */
 function listModels() {
@@ -36,7 +40,7 @@ function probeModels(userKey) {
 function assistantModelCatalog_(key, force) {
   var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, key);
   var finger = digest.slice(0, 8).map(function (b) { return ('0' + (b & 255).toString(16)).slice(-2); }).join('');
-  var prop = 'ASSISTANT_MODELS_' + finger;
+  var prop = 'ASSISTANT_LITE_MODELS_' + finger;     // 換名：舊的快取裡還有 Flash
   var month = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM');
   var properties = PropertiesService.getScriptProperties();
   var old = null;
@@ -74,15 +78,14 @@ function assistantModelCatalog_(key, force) {
 
   var candidates = catalog.filter(function (m) {
     var id = String(m.name || '').replace(/^models\//, '');
-    return /flash/i.test(id) && !/pro|image|audio|tts|live|computer|robot|embedding|experimental/i.test(id) &&
-      (m.supportedGenerationMethods || []).indexOf('generateContent') >= 0;
+    return isLiteModel_(id) && (m.supportedGenerationMethods || []).indexOf('generateContent') >= 0;
   }).sort(function (a, b) {
     var aid = String(a.name || '').replace(/^models\//, '');
     var bid = String(b.name || '').replace(/^models\//, '');
     var ap = aid === DEFAULT_MODEL ? -1 : 0;
     var bp = bid === DEFAULT_MODEL ? -1 : 0;
     return ap - bp || bid.localeCompare(aid);
-  }).slice(0, 12);
+  }).slice(0, 4);
   var usable = [], failed = [];
   candidates.forEach(function (m) {
     var id = String(m.name || '').replace(/^models\//, '');
@@ -103,11 +106,11 @@ function assistantModelCatalog_(key, force) {
   return out;
 }
 
-/** 驗證這把金鑰，回傳本月實測可用的 Flash 模型與查驗呼叫次數。 */
+/** 驗證這把金鑰，回傳本月實測可用的 Flash Lite 模型與查驗呼叫次數。 */
 function validateKey(userKey) {
   try {
     var result = assistantModelCatalog_(getGeminiKey_(userKey));
-    if (!result.models.length) { throw new Error('本月沒有可用的 Flash 模型。請檢查 API 額度與專案權限。'); }
+    if (!result.models.length) { throw new Error('本月沒有可用的 Flash Lite 模型。請檢查 API 額度與專案權限。'); }
     return { ok: true, message: result.message, models: result.models, audit: result };
   } catch (e) {
     return { ok: false, message: e.message, models: [] };
@@ -547,12 +550,10 @@ var ASSISTANT_SYSTEM = [
   '  不執行也不假裝執行刪除、修改、匯出。你沒有這些能力。',
   '  不寫程式碼，不翻譯長文，不做與本站無關的通用任務。',
   '',
-  '關於訂閱，你需要蒐集：',
+  '關於訂閱，本站只有一種：每日總覽（每天整理好的一封信）。你需要蒐集：',
   '  email   必填，要能收信',
-  '  daily   是否訂閱每日總覽，布林值',
-  '  sms     是否訂閱盤中即時通知（他一發會員簡訊就寄），布林值',
-  '  daily 與 sms 至少一項為 true，否則訂閱沒有意義。',
-  '  本站沒有「關注股票」或「賣出提醒」這種訂閱，使用者問起就說明目前只有這兩種。',
+  '  daily   是否訂閱每日總覽，布林值；使用者說要訂閱就是 true',
+  '  本站沒有「關注股票」「賣出提醒」或其他種類的通知可以訂閱；使用者問起，就說明目前只有每日總覽，不要提到別種通知。',
   '',
   '一次只問一件事，不要一口氣丟一串問題。已經知道的不要重問。',
   '使用者若給了不像 Email 的東西，或不像股票代號的字串，',
@@ -565,14 +566,14 @@ var ASSISTANT_SYSTEM = [
   '{',
   '  "reply": "要對使用者說的話",',
   '  "intent": "subscribe | query | help | smalltalk | refuse",',
-  '  "draft": { "email": "", "daily": null, "sms": null },',
+  '  "draft": { "email": "", "daily": null },',
   '  "ready": false',
   '}',
   '',
   'intent 只能是上列五個之一，不可自創。',
   'draft 只在 intent 為 subscribe 時填，把目前確定的資訊放進去，',
   '  還不知道的欄位留空字串、null 或空陣列。',
-  'ready 只有在 email 有效、且 daily 與 sms 都已確認且至少一項為 true 時才可設 true。',
+  'ready 只有在 email 有效、且 daily 為 true 時才可設 true。',
   'refuse 用於使用者要求範圍以外的事，reply 說明你能做什麼。'
 ].join('\n');
 
@@ -585,7 +586,7 @@ var ALLOWED_INTENTS = ['subscribe', 'query', 'help', 'smalltalk', 'refuse'];
 function sanitizeDraft_(draft, prev) {
   draft = draft || {};
   prev = prev || {};
-  var out = { email: '', daily: null, sms: null };
+  var out = { email: '', daily: null, sms: false };     // 助理不收盤中通知的訂閱；sms 欄位留著只為了相容，永遠是 false
 
   // Email 由 GAS 驗，不信模型說「這是有效的」
   var em = String(draft.email || prev.email || '').trim();
@@ -593,16 +594,13 @@ function sanitizeDraft_(draft, prev) {
 
   out.daily = (typeof draft.daily === 'boolean') ? draft.daily
     : (typeof prev.daily === 'boolean') ? prev.daily : null;
-  out.sms = (typeof draft.sms === 'boolean') ? draft.sms
-    : (typeof prev.sms === 'boolean') ? prev.sms : null;
 
   return out;
 }
 
-/* 兩項都問過（不是 null）、至少一項要，才算完成。
-   只看「至少一項要」的話，使用者一說要每日總覽就直接送出，盤中即時通知永遠不會被問到。 */
+/* 助理能辦的訂閱只有每日總覽（管理者 2026/10/12：前台不能讓人訂閱盤中即時通知；公開表單 apiSubscribe 本來就只收每日總覽）。 */
 function draftReady_(d) {
-  return !!d.email && d.daily !== null && d.sms !== null && (d.daily === true || d.sms === true);
+  return !!d.email && d.daily === true;
 }
 
 /** 模型的 ready 與完整 draft 只能準備表單，不能代替使用者最後送出。 */
@@ -613,9 +611,7 @@ function explicitSubscribeConfirm_(q) {
 function draftMissing_(d) {
   var miss = [];
   if (!d.email) { miss.push('Email'); }
-  if (d.daily === null) { miss.push('是否要每日總覽'); }
-  if (d.sms === null) { miss.push('是否要盤中即時通知'); }
-  if (d.daily === false && d.sms === false) { miss.push('至少一種通知'); }
+  if (d.daily !== true) { miss.push('確認要訂閱每日總覽'); }
   return miss;
 }
 
@@ -645,6 +641,11 @@ function guardReply_(text) {
   if (/AIza[0-9A-Za-z_\-]{20,}|sk-[0-9A-Za-z]{20,}|ADMIN_KEY|SPREADSHEET_ID/.test(t)) { return PROMPT_SAFE_REPLY_; }
   var hits = PROMPT_LEAK_MARKS_.filter(function (m) { return t.indexOf(m) >= 0; }).length;
   if (hits) { return PROMPT_SAFE_REPLY_; }
+  // 前台不出現盤中通知這個訂閱種類（2026/10/12 回覆曾寫「僅提供每日總覽與盤中即時通知」）：連同前面的連接詞拿掉，
+  // 其餘通知字樣照公開 API 的同一套換字。
+  t = t.replace(/(?:與|和|及|以及|或|、)?(?:盤中即時通知|盤中通知|即時通知|會員簡訊|簡訊通知)(?:這)?(?:兩種|二種)?/g, '')
+       .replace(/目前只有這兩種/g, '目前只有每日總覽');
+  if (typeof scrubNoticeWords_ === 'function') { t = scrubNoticeWords_(t); }
   // 官方簡稱的尾端 * 是市場註記，不應出現在對讀者的股票名稱裡。
   return t.replace(/([\u3400-\u9fff])[*＊](?=$|[\s，,、。；;！!])/g, '$1');
 }
@@ -672,12 +673,11 @@ function askAssistant(question, sessionId, model, userKey) {
     return { ok: true, reply: PROMPT_SAFE_REPLY_, intent: 'refuse', model: DEFAULT_MODEL, done: false };
   }
 
-  // 模型 id 走本月實測白名單，前端傳什麼都不能繞過。
+  // 模型固定用 Flash Lite：前端傳來的 model 不採用（參數留著只是相容舊頁面）。
   var available;
-  try { available = assistantModelCatalog_(getGeminiKey_(userKey)).models; }
+  try { available = assistantModelCatalog_(getGeminiKey_(userKey)).models.filter(function (m) { return isLiteModel_(m.id); }); }
   catch (e) { return { ok: false, reply: '模型清單暫時無法查驗，請稍後再試。' }; }
-  var valid = available.filter(function (m) { return m.id === model; })[0];
-  var useModel = valid ? valid.id : (available[0] || {}).id;
+  var useModel = (available.filter(function (m) { return m.id === DEFAULT_MODEL; })[0] || available[0] || {}).id;
   if (!useModel) { return { ok: false, reply: '目前沒有驗證可用的 Gemini 模型，請稍後再試。' }; }
 
   var sess = loadSession_(sessionId);
@@ -686,8 +686,7 @@ function askAssistant(question, sessionId, model, userKey) {
   // 甚至被資料裡的指令引導。最後送出只認這一輪使用者明講的確認句。
   if (explicitSubscribeConfirm_(q) && draftReady_(sess.draft || {})) {
     var confirmed = sess.draft;
-    var saved = createSubscription({ email: confirmed.email,
-      daily: confirmed.daily === true, sms: confirmed.sms === true });
+    var saved = createSubscription({ email: confirmed.email, daily: true, sms: false });
     var confirmedReply = saved.ok
       ? '訂閱完成，確認信已寄到 ' + confirmed.email + '。'
       : String(saved.message || '訂閱未完成，請稍後再試。');
@@ -745,11 +744,7 @@ function askAssistant(question, sessionId, model, userKey) {
 
     // 完整資料只進等待確認，不讓模型回傳的 ready 直接觸發寄信。
     if (draftReady_(draft)) {
-      result.reply = '準備訂閱 ' + draft.email + '：' +
-        (draft.daily ? '每日總覽' : '') +
-        (draft.daily && draft.sms ? '、' : '') +
-        (draft.sms ? '盤中即時通知' : '') +
-        '。若正確，請回覆「確認訂閱」。';
+      result.reply = '準備訂閱 ' + draft.email + '：每日總覽。若正確，請回覆「確認訂閱」。';
     } else {
       var miss = draftMissing_(draft);
       // 模型漏問時補上，不讓對話卡住

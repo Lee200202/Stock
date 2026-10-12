@@ -34,4 +34,11 @@ try:
         ("2317", "鴻海目前還不是買點，暫不進場。")]
 finally:
     pl._CODE_MAP = old_codes
+watch = {"holdings": [], "watch_watch": [], "watch_avoid": [
+    {"name": "長榮", "code": "2603", "reason":
+     "長榮漲停後追價有風險。會員目前抱著創新高的持股。"}]}
+pl.resolve_watch_holding_overlap(watch, "2026/10/12")
+assert len(watch["watch_avoid"]) == 1
+assert watch["watch_avoid"][0]["reason"] == "長榮漲停後追價有風險。"
+
 print("Python public narrative: alias boundary and stored text repaired")

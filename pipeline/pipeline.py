@@ -5848,6 +5848,7 @@ def _episode_title_body(title):
     body = str(title or '').strip().strip('「」『』 　')
     body = re.sub(r'^(?:張震|張正)\s*[：:]\s*', '', body)
     body = re.sub(r'(?<!\d)\s*,\s*|\s*,\s*(?!\d)', '，', body)          # 半形逗號改全形；數字裡的千分位（9,000億）不動
+    body = body.replace('臺', '台')                                              # 站上一律寫「台股」
     return body.rstrip('！!？?。.；;，,').strip()
 
 

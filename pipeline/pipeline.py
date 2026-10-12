@@ -9937,6 +9937,10 @@ def drop_borrowed_avoidance(signals, transcript):
     return signals
 
 
+# 「還不是買點」「還沒到買點」是現在還不能買：算列觀望不碰的依據，不能因為句子裡有「買點」就當成看多。
+_NOT_YET_NOTE = re.compile(r'(?:還|尚|並|目前|現在)(?:不是|非|不算)(?:好的?)?買點|還(?:不|沒有?)到買點|尚未到買點|還不能買|還不是時候')
+
+
 def verify_reason_category(signals):
     """
     發布前最後一道：讀者只看說明時，會不會覺得和分類矛盾（2026/09/23 勤誠）。
@@ -9950,15 +9954,22 @@ def verify_reason_category(signals):
     放在所有說明改寫之後，所以任何一步改過字都還會被檢查一次。
     """
     moves = {'watch_watch': [], 'watch_avoid': []}
+    # 已經由分類裁決定案的列不在這裡改類：裁決後的分類是最後答案（2026/10/12 鴻海人工裁決觀望不碰，
+    # 說明「目前還不是買點」因為有「買點」兩個字被改成觀望注意）。
+    settled = {code for code, v in (signals.get('_verdicts') or {}).items()
+               if isinstance(v, dict) and v.get('enforce') and v.get('tier') in ('人工裁決', '裁決', '沿用裁決', '直接歸類')}
     for cat in ('watch_watch', 'watch_avoid'):
         keep = []
         for r in signals.get(cat, []) or []:
             reason = strip_speaker_names(str((r or {}).get('reason') or ''))
             target = cat
-            if cat == 'watch_watch' and active_prohibit(reason):
+            if str((r or {}).get('code') or '').strip() in settled:
+                pass
+            elif cat == 'watch_watch' and active_prohibit(reason):
                 target = 'watch_avoid'
             elif (cat == 'watch_avoid' and not r.get('_原分類') and not r.get('_watch_stance_ok')
-                    and watch_tone(reason) == 'watch_watch' and not _bearish_or_neutral_basis(reason)):
+                    and watch_tone(reason) == 'watch_watch' and not _bearish_or_neutral_basis(reason)
+                    and not _NOT_YET_NOTE.search(reason)):
                 target = 'watch_watch'
             if target == cat:
                 keep.append(r)

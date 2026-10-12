@@ -5897,6 +5897,23 @@ def _episode_title_why(title, source_flat, material_norm, stock_names=()):
     return ''
 
 
+_LEADING_CONJUNCTION = re.compile(r'^(?:並且|而且|並(?![列非未不沒無行重存肩排])|且(?![慢戰看])|以及|同時也?|此外|另外|但是|不過|然而|因此|所以)[，,]?(?=[^，,。])')
+
+
+def strip_leading_conjunctions(signals):
+    """前面的句子被各種核對拿掉之後，說明不能以連接詞開頭（2026/09/30 祥碩剩下「並留意大盤方向…」）。"""
+    for cat in SIGNAL_CATEGORIES:
+        for row in signals.get(cat, []) or []:
+            if not isinstance(row, dict) or row.get('_manual_note_kept'):
+                continue
+            field = 'note' if cat == 'holdings' else 'reason'
+            text = str(row.get(field) or '')
+            fixed = _LEADING_CONJUNCTION.sub('', text.lstrip())
+            if fixed != text and len(_ev_norm(fixed)) >= 4:
+                row[field] = fixed
+    return signals
+
+
 def compose_episode_title(signals, transcript, date_str):
     """替這一集另外問一次標題（主題＋結論），通過核對就寫回第一筆盤勢的 headline。出任何錯都不擋流程。"""
     if os.environ.get('EPISODE_TITLE', '').strip().lower() == 'off':
@@ -14910,6 +14927,15 @@ def apply_sms_priority(ss, dates=None) -> dict:
     for (day, code), items in bucket.items():
         sms = [x for x in items if x["sms"]]
         vid = [x for x in items if not x["sms"] and not _protected_nonvideo_row(x["src"])]
+        manual = [x for x in items if not x["sms"] and _protected_nonvideo_row(x["src"])]
+        if not sms and manual:
+            # 人工補登是管理者親手確認的列，重建當天時會保留：同日同檔逐字稿那一列不另列
+            # （2026/09/30 重新套用後觀望注意出現兩列祥碩，一列人工補登、一列逐字稿）。
+            for v in vid:
+                drop_rows.append(v["row"])
+                touched.add(day)
+                print(f"  人工補登優先　{day} {v['name']}（{code}）移除逐字稿「{v['dir']}」；人工補登那一列保留")
+            continue
         if not sms:
             continue                      # 這一檔那天沒有簡訊，逐字稿說了算
         # 簡訊的先後用文章編號排（和下面排「序」同一個依據）；最後一筆買賣是賣出，代表這一檔當天已經出場。
@@ -14987,7 +15013,7 @@ def _drop_video_holds_covered_by_sms(ss, want, sms_traded=()) -> int:
     def g(row, i):
         return str(row[i]).strip() if 0 <= i < len(row) else ""
 
-    sms_keys, vid_rows = set(), []
+    sms_keys, vid_rows, manual_keys = set(), [], set()
     for idx, row in enumerate(values[1:], start=2):
         day, code = norm_date(g(row, c_date)), g(row, c_code)
         if not day or not code or (want and day not in want):
@@ -14996,11 +15022,15 @@ def _drop_video_holds_covered_by_sms(ss, want, sms_traded=()) -> int:
             sms_keys.add((day, code))
         elif not _protected_nonvideo_row(g(row, c_src)):
             vid_rows.append((idx, day, code, g(row, c_name)))
+        else:
+            manual_keys.add((day, code))          # 人工補登的會員持股同樣優先於逐字稿那一筆
+    sms_keys |= manual_keys
 
     traded = set(sms_traded or ())
     targets = [(i, nm, d, c) for i, d, c, nm in vid_rows if (d, c) in sms_keys or (d, c) in traded]
     for i, nm, d, c in sorted(targets, reverse=True):
         print(f"  簡訊優先　{d} {nm}（{c}）" + ("簡訊當天已有買賣，逐字稿的會員持股不另列" if (d, c) in traded and (d, c) not in sms_keys
+                                           else "會員持股以人工補登為準，移除逐字稿那一筆" if (d, c) in manual_keys
                                            else "會員持股以簡訊為準，移除逐字稿那一筆"))
         sheets_retry(ws.delete_rows, i)
     return len(targets)
@@ -16222,6 +16252,7 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     signals = repair_public_note_contradictions(signals)
     signals = drop_lot_profit_unit_conflicts(signals, TX["audit"])
     signals = resolve_watch_holding_overlap(signals, date_str, TX["audit"])
+    signals = strip_leading_conjunctions(signals)
     # 重點都定了才問標題：這一集設定的主題加上結論，整合成一行（見 compose_episode_title）。
     signals = compose_episode_title(signals, TX["audit"], date_str)
     article = build_article(v2, signals, date_str)

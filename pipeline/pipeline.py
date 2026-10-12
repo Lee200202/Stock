@@ -13124,6 +13124,11 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
         if current in ('buy', 'sell') and explicit_today_trades(transcript, names, current):
             entry.update(tier='直接歸類', basis='原文明講今天' + _VERDICT_LABEL[current])
             continue
+        # 紀錄上這一檔最近一筆是賣出、之後沒有再買回；今天沒有賣出通知（上面已排除）、原文也沒有「今天賣＋股名」的明確句（上面已排除）：
+        # 今天的「賣出」是在回顧那一次，不是當日成交（2026/10/12 聖暉「先前以970元獲利了結」，10/05 就賣了；同一份原稿有時判回顧、有時留在賣出）。
+        if current == 'sell' and code in known and not entry['open']:
+            entry.update(cls='history', tier='直接歸類', basis='紀錄上已經賣出、之後沒有買回，今天沒有賣出通知也沒有今天賣出的明確句：是回顧', enforce=True)
+            continue
         if code in explicit_hold and current not in ('buy', 'sell'):
             entry.update(cls='holdings', tier='直接歸類', basis='原文明講目前持有', enforce=True)
             continue

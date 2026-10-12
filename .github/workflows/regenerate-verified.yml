@@ -9,7 +9,7 @@ on:
       mode:
         description: 通過全部品質核對後才更新；不寄送
         type: choice
-        options: [preview, apply, verdicts, titles]
+        options: [preview, apply, sync, verdicts, titles]
         default: preview
 permissions:
   contents: read
@@ -55,6 +55,11 @@ jobs:
           if [ "$MODE" = titles ]; then
             # 唯讀：用現在的標題步驟替已在站上的日子各問一次標題，只印結果；日期可用逗號分隔
             python scripts/title_probe.py --dates "$TARGET_DATE"
+            exit 0
+          fi
+          if [ "$MODE" = sync ]; then
+            # 既有資料來源優先：先備份再去重、刷新，不呼叫模型或寄送。
+            python scripts/sync_source_priority.py --date "$TARGET_DATE"
             exit 0
           fi
           ARGS=(--date "$TARGET_DATE")

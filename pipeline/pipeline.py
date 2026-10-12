@@ -5900,6 +5900,28 @@ def _episode_title_why(title, source_flat, material_norm, stock_names=()):
 _LEADING_CONJUNCTION = re.compile(r'^(?:並且|而且|並(?![列非未不沒無行重存肩排])|且(?![慢戰看])|以及|同時也?|此外|另外|但是|不過|然而|因此|所以)[，,]?(?=[^，,。])')
 
 
+_SPEAKER_IN_NOTE = re.compile(r'講者|老師|張震|張正|張總')
+
+
+def drop_speaker_sentences(signals):
+    """個股說明裡仍然寫著講者名字的那一句拿掉（2026/09/30 創意「…目前不宜介入。創意為張正的股票。」整天因此被擋）。"""
+    for cat in SIGNAL_CATEGORIES:
+        for row in signals.get(cat, []) or []:
+            if not isinstance(row, dict) or row.get('_manual_note_kept'):
+                continue
+            field = 'note' if cat == 'holdings' else 'reason'
+            text = strip_speaker_names(str(row.get(field) or ''))
+            if not _SPEAKER_IN_NOTE.search(text):
+                continue
+            kept = [s for s in re.split(r'(?<=[。！？!?])', text) if s.strip() and not _SPEAKER_IN_NOTE.search(s)]
+            if kept and len(_ev_norm(''.join(kept))) >= 8:
+                name = _display_name(row.get('name')) or str(row.get('name') or '')
+                print(f"  說明核對　{name}：寫著講者名字的那一句已拿掉")
+                note_decision('說明核對', '寫著講者名字的那一句已拿掉', name, text[:160])
+                row[field] = ''.join(kept).strip()
+    return signals
+
+
 def strip_leading_conjunctions(signals):
     """前面的句子被各種核對拿掉之後，說明不能以連接詞開頭（2026/09/30 祥碩剩下「並留意大盤方向…」）。"""
     for cat in SIGNAL_CATEGORIES:
@@ -16260,6 +16282,7 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     signals = repair_public_note_contradictions(signals)
     signals = drop_lot_profit_unit_conflicts(signals, TX["audit"])
     signals = resolve_watch_holding_overlap(signals, date_str, TX["audit"])
+    signals = drop_speaker_sentences(signals)
     signals = strip_leading_conjunctions(signals)
     # 重點都定了才問標題：這一集設定的主題加上結論，整合成一行（見 compose_episode_title）。
     signals = compose_episode_title(signals, TX["audit"], date_str)

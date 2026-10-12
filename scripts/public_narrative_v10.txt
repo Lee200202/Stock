@@ -15,6 +15,8 @@ function narrativeName_(name) { return String(name || '').replace(/[*＊]+$/, ''
 /** 把 heard 換成 fixed，重複套用不會越換越長（「世芯」→「世芯-KY」不會變成「世芯-KY-KY」）。 */
 function replaceNarrativeName_(text, heard, fixed) {
   if (!heard || heard === fixed) return text;
+  // 「有達」是友達的別名，也可能跨越「持有」與「達邁」；只校正獨立股名。
+  if (heard === '有達') return text.replace(/(?<!持)有達(?!邁)/g, fixed);
   var esc = function (v) { return v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); };
   // 正式名稱以 -KY 結尾時，原文跟在後面的 KY 一起換掉（「茂聯-KY」「茂聯KY」→「貿聯-KY」，不是「貿聯-KY-KY」）。
   var ky = /-KY$/i.test(fixed) && !/KY$/i.test(heard) ? '(?:\\s*-?\\s*KY)?' : '';
@@ -144,6 +146,8 @@ function publicNarrative_(text, row) {
   });
   // 「國巨」→「國巨*」每套一次多一顆星，信裡出現「國巨***」（2026/09/14）；說明一律用不帶星號的名稱。
   var name=narrativeName_(row.name), code=String(row.code || ''), raw=row['原始語音名稱'];
+  // 修復舊資料已寫入的錯字；新資料由上方的別名邊界保護。
+  if (code === '3645') text=text.replace(/持友達邁/g,'持有達邁');
   if(raw && raw.length>=2 && name && (!PUBLIC_CONFIRMED_NAMES[raw] || PUBLIC_CONFIRMED_NAMES[raw][0]===code)) text=replaceNarrativeName_(text,raw,name);
   if(name && /^(?:00981A|\d{4,6})$/.test(code)) {
     var escaped=name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');

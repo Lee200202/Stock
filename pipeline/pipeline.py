@@ -4373,8 +4373,8 @@ reason、note、market text 是公開文字，不寫人名當主詞或所有格�
 先把全文每一個被點名的公司都找出來（含聽錯的寫法、只講一次的、名單裡順口帶過的），每一個都要放進九類之一，連 ignored 也要列；寧可多收交給程式核對，不可漏收。
 2026/09/10 漏掉最多的是下面六種句型（名稱只是舉例，原文沒講到的公司不可因範例而加入）：
 一、手中持股順口帶過：「張正手中告訴你的買進的股票，比如說想碩、比如說普位」「對我還有紅準」「你們都知道我有詳」「我為什麼一直抱著降碩？…我的享碩還賺」「你們想賣的趕快賣，我的會員不准賣」→ 每一檔各一筆 holdings。
-二、講買進價位、買到現在或昨天買的還在手上：「我從1820、2025、2135買到現在，買這三次我沒有賣掉」「這一檔本來就是我會員買的股票，8月25號1580以下買加折」「我昨天買的四星KY，今天漲30幾塊」→ holdings（同一檔若另外叫還沒有的人去買，再加一筆 watch_watch）。
-三、一口氣念出的名單：「我連後面要什麼聖輝、新代、加折還有木德，我以後要買的股票通列出來給你看了」→ 名單裡每一檔各一筆 watch_watch（已是持股的仍列 holdings）。名單最後一檔最容易漏：2026/09/30「高價股，剛才我已經講了，加則，四星KY，還有翔碩，這些個股，你們就好好的抱著」漏了祥碩——叫你們抱著的每一檔各一筆 watch_watch，會員明講持有的另列 holdings。
+二、講買進價位、買到現在或昨天買的還在手上：「我從1820、2025、2135買到現在，買這三次我沒有賣掉」「這一檔本來就是我會員買的股票，8月25號1580以下買加折」「我昨天買的四星KY，今天漲30幾塊」→ holdings；若另給未持有者當下買點，整理在同一筆持股說明，不另開觀望列。
+三、一口氣念出的名單：「我連後面要什麼聖輝、新代、加折還有木德，我以後要買的股票通列出來給你看了」→ 每檔逐一核對：已有部位列 holdings；沒有部位但有現況看法才列 watch_watch；同檔同日只列一次。名單最後一檔最容易漏：2026/09/30「高價股，剛才我已經講了，加則，四星KY，還有翔碩，這些個股，你們就好好的抱著」漏了祥碩——每檔核對是否仍持有，已持有的不再另開觀望列。
 四、等條件或等別人賣完：講者明講現在還不能買、還不行、不想買，要等 ETF 賣完或跌破某價才考慮（「今天破900你可以買嗎？還不行，00981A還沒賣完」「你沒有破900我不想買」）→ watch_avoid，reason 寫出等待條件；只給可照做的買點、沒說現在不能買（「900以下是買點」「等補完缺口站回去」）→ watch_watch。講的是哪一檔要從同一段的名稱找（ETF 出清的那一檔原文寫初清程、出金城＝勤誠）；同一段真的沒有名稱才放 ignored，不可由股價猜公司。等的事今天已經發生（ETF 已全部出清、賣在最低點），講者接著說「不會跌了」「賣完就漲」→ watch_watch，reason 寫已發生的事與偏多結論，不可寫成「等待賣壓減輕」；「前幾天講會跌破900，真的破了」是已應驗的回顧，不是今天看空（2026/09/17 勤誠，見句型十）。
 五、過去叫人賣、現在看壞：「越想解套國巨你就越死」「他一定會殺破」→ watch_avoid（見【日期未明與現況看法】）。
 六、點名個股當負面示範：「昨天大漲今天大跌」「追高就賠」「外資買一天賣一天」「昨天買今天跌」「總比你去買環球金好」「買的人全部賠錢」「不准買」→ 各一筆 watch_avoid，不可寫成值得留意。負面示範的主角必須是這一檔股票本身；被嘲笑的是 ETF、法人、網紅、散戶的操作（買高殺低、賣在最低點、當沖賠錢），講者對被賣的那一檔結論是不會跌、會漲時，那一檔不是負面示範。
@@ -4512,7 +4512,7 @@ history 另填 when（yesterday／date／unknown）、action=buy/sell、view、v
 判定原為買入請在最前面判定是否為當日買進賣出，從上下文去嚴謹抓取判斷；不是當日的，先獨立判斷目前是否仍持有：有自身／會員部位證據就列 holdings；沒有部位但有現況看法才列觀望，兩者都沒有才放 history。
 【日期未明與現況看法】非當日或日期不明的買賣本身不是現況，不能單憑「原為買入／賣出」決定觀望方向。
 請到逐字稿其他段落找講者對這一檔「現在」的看多、看空或技術說明（價位關卡、法人成本、會漲會跌、等拉回、別攤平等）。
-找到現況看法且沒有持有證據時，列 watch_watch（明確看多或有本股條件買點）或 watch_avoid（看空、風險或中性觀察）。若同時有持有證據，保留 holdings；另有對未持有者的買進條件才加觀望列。後文的候選名單不會抹掉前文會員持有事實；除非後文明講已出清。reason/note 寫事實，evidence_refs 同時列相關段落；
+找到現況看法且沒有持有證據時，列 watch_watch（明確看多或有本股條件買點）或 watch_avoid（看空、風險或中性觀察）。若同時有持有證據，保留 holdings；對未持有者的買進條件整理在持股說明，不另加觀望列。後文的候選名單不會抹掉前文會員持有事實；除非後文明講已出清。reason/note 寫事實，evidence_refs 同時列相關段落；
 例如國巨：「禮拜一國巨漲到605，我說597（外資成本）以上要賣一次」是過去，「越想解套國巨你就越死」「他一定會殺破」是現在的看法 → watch_avoid。\n2026/09/16 同一檔又出現一次：「現在國具有沒有回到520幾」是回顧，但「不要聽那些分析師套牢的叫你趕快買、幫他們解套」是現在的看法（叫人不要買）→ watch_avoid。提醒別人不要接、不要幫誰解套，都算現況看法，不是純回顧。
 若仍放在 history，也要填 view（原話事實摘要，不寫判斷依據）、view_refs（S 編號，至少一段要提到這一檔）、watch_bias（看多 watch_watch／看空 watch_avoid）；
 view 必須是他「現在」對這一檔的看法原話重點（要買、要等、會漲、會殺破、不要碰、大戶在買……）；
@@ -4529,6 +4529,8 @@ uncertain 的 suggested_category 只用 buy/sell/holdings/watch_avoid/watch_watc
 講者明講今天已經做了的買賣是當日成交：「今天早上賣A」「A沒了，賣掉了」「今天新買的A」「今天早上幾點幾分告訴會員A獲利賣出」一律列 sell／buy，when 填 today，把那一句照抄進 time_evidence。同一檔另外講到以前的買進價、以前的提醒，不改變當日成交的分類，也不可因此改列 holdings、history 或排除；昨天、上禮拜、之前的成交才是回顧。問句（今天A要不要賣）與對個別觀眾的建議（A建議先賣出等拉回）不是成交。
 昨天買、今天還抱著：「我昨天買的叫做X，今天繼續大漲」「昨天漲停板的X嘛，我們本來就有了」——買進發生在昨天（要列 buy 就填 when=yesterday，不可標成今天），今天的狀態是持有：X 今天一定要有一筆 holdings，說明寫買進的理由與今天的走勢。不可只留一筆昨天的 buy。
 昨天預告、今天做了，是今天的成交：「我昨天跟你們講，我要去買一檔…」是昨天的預告；後面「今天賣掉A，去買B」「所以我今天只賣一隻A，啊我買了一隻股票，B」才是成交——B 列 buy、when=today，time_evidence 照抄今天成交的那一句，不抄昨天預告那一句。
+【名稱邊界與時序】
+別名要是本次原文中的完整股名，不可只是另一句詞或另一家公司的字串片段。像「持有達邁」「你有達美輪」中的「有達」都不是友達；原文沒清楚點名友達、也沒念2409時，不收友達。已明確說某檔上週四全數賣出，今天用「我有」籠統回顧，不能把它重新列為今天持股或賣出；較明確的日期和全出紀錄優先。當日會員操作通知若有同檔買賣，分類先照通知，影片只補有本股依據的說明。公開說明以書面語整理本股技術、籌碼及條件，不能直接貼口語原句；材料不足可短，不搬鄰檔指標。
 """
 
 EXTRACT_SYSTEM = POLICY + "\n合併擷取、分類、日期、補漏及摘要。source鍵為S編號；source_inventory是原文名稱候選，逐一分類或說明排除，不代表推薦或持有。再讀全文補諧音與末段漏項，輸出完整九類陣列；不抄引句、不假設記得其他批。"
@@ -6537,7 +6539,7 @@ def classify_inventory_leftovers(signals, transcript):
     return signals
 
 
-def align_watch_with_plain_refusal(signals, transcript):
+def align_watch_with_plain_refusal(signals, transcript, final=False):
     """列在觀望注意、原文卻對這一檔講了不帶條件的「不推薦／不建議／不用買」：照原句改列觀望不碰。
 
     2026/10/05 重播：「低軌衛星，華通，我也沒有推薦」，覆核把華通、啟碁寫成觀望注意。
@@ -6558,6 +6560,13 @@ def align_watch_with_plain_refusal(signals, transcript):
             continue
         quote = pick[1]
         moved = dict(row, watch_bias='watch_avoid', view=quote, _plain_refusal=True)
+        if final and watch_tone(str(row.get('reason') or '')) == 'watch_watch':
+            flat = re.sub(r'\s+', '', transcript)
+            at = flat.find(re.sub(r'\s+', '', quote))
+            tail = flat[at:at + 110] if at >= 0 else ''
+            name = _display_name(row.get('name') or '')
+            moved['reason'] = (name + '目前不宜買進，需等待底部背離訊號。' if re.search(r'等[^。！？!?]{0,5}背離|背離[^。！？!?]{0,5}(?:出現|形成)', tail)
+                               else name + '目前不宜買進。')
         moved['evidence'] = list(dict.fromkeys([quote] + [q for q in (row.get('evidence') or []) if isinstance(q, str)]))
         moved['_guard_note'] = '原文對這一檔明講不推薦，由觀望注意改列觀望不碰'
         signals.setdefault('watch_avoid', []).append(moved)
@@ -7986,10 +7995,16 @@ def public_narrative(text, row=None, signals=None):
             # 2026/10/07：聽到的「茂聯-KY」「茂聯KY」只換前兩個字，變成「貿聯-KY-KY」「貿聯-KYKY」。
             # 正式名稱以 -KY 結尾時，原文緊跟在後面的 KY 一起吃掉。
             ky = r'(?:\s*-?\s*KY)?' if re.search(r'-KY$', fixed, re.I) and not re.search(r'KY$', heard, re.I) else ''
-            text = re.sub(re.escape(heard) + guard + ky, lambda m: fixed, text, flags=re.I if ky else 0)
+            # 「有達」是友達的聽寫別名，但也是「持有達邁」的一部分；
+            # 不可在另一檔名稱及持有動詞中間改寫成「持友達邁」。
+            alias = r'(?<!持)有達(?!邁)' if heard == '有達' else re.escape(heard)
+            text = re.sub(alias + guard + ky, lambda m: fixed, text, flags=re.I if ky else 0)
     for fixed in set(_public_aliases(signals).values()):
         text = re.sub(re.escape(fixed)+r'\s*[（(]'+re.escape(fixed)+r'[）)]',lambda m:fixed,text)
     name, code = _display_name(row.get('name')), str(row.get('code') or '')
+    # 已存入的 10/12 舊資料也在呈現時修復；正式來源列另由逐日同步改正。
+    if code == '3645':
+        text = text.replace('持友達邁', '持有達邁')
     if name and re.fullmatch(r'(?:00981A|\d{4,6})', code):
         text = re.sub(re.escape(name) + r'\s*(?:[（(]\s*(?:00981A|\d{4,6})\s*[）)]|(?:00981A|\d{4,6})(?=為例|這檔|這支|這一檔)|代號\s*(?:00981A|\d{4,6})(?!\d))',
                       lambda m:name+'（'+code+'）', text)
@@ -15352,6 +15367,28 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None
             save_recognition_log(ss, str((video or {}).get('id') or ''), date_str, v1 or v2, text)
 
 
+def finalize_name_and_owned_watch(signals, raw, date_str):
+    """以原稿名稱邊界與同日持有狀態作最後一道公開分類核對。"""
+    if raw and not re.search(r'友達|(?<!持)有達(?![美邁])', raw):
+        for cat in ('watch_watch', 'watch_avoid', 'holdings'):
+            before = len(signals.get(cat, []) or [])
+            signals[cat] = [r for r in signals.get(cat, []) or [] if str(r.get('code') or '') != '2409']
+            if before != len(signals[cat]):
+                note_decision('名稱邊界', '原稿未獨立點名友達', date_str, cat)
+    held_keys = {(str(r.get('code') or ''), str(r.get('_date') or date_str))
+                 for r in signals.get('holdings', []) or [] if r.get('code')}
+    for cat in ('watch_watch', 'watch_avoid'):
+        kept = []
+        for row in signals.get(cat, []) or []:
+            key = (str(row.get('code') or ''), str(row.get('_date') or date_str))
+            if key in held_keys:
+                note_decision('同日分類', '已持有不重複列觀望', str(row.get('name') or ''), cat)
+            else:
+                kept.append(row)
+        signals[cat] = kept
+    return signals
+
+
 def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_step=None,
                         replace_video=False, v1=""):
     """
@@ -15591,6 +15628,9 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
             signals = apply_verdicts(signals, date_str, final=True)
         except Exception as e:
             print(f"  分類裁決　收尾核對沒有完成（{type(e).__name__}: {str(e)[:80]}）")
+    signals = align_watch_with_plain_refusal(signals, TX['audit'], final=True)
+    # 原稿名稱邊界與同日持股優先；買賣通知之後仍由通知優先流程處理。
+    signals = finalize_name_and_owned_watch(signals, str(v1 or ''), date_str)
     affected = source_record_dates(ss, signals['_source_ids']) | {date_str}
     for k in SIGNAL_CATEGORIES:                      # 後段才列回公開分類的列補上日期與順序，不讓缺欄位停掉整輪
         for i, r in enumerate(signals.get(k, []) or []):

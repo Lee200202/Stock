@@ -9,6 +9,8 @@ for (const file of ['Presentationquality.gs', 'JavaScript.html']) {
   assert(helper, `missing shared narrative helper: ${file}`);
   const ctx = vm.createContext({});
   vm.runInContext(helper[0], ctx);
+  assert.strictEqual(ctx.stripEditorialWrappers_('拉回季線找買點。因「回測季線」故引用這些段落。'), '拉回季線找買點。');
+  assert.strictEqual(ctx.stripEditorialWrappers_('成交量放大，因此買盤增加。'), '成交量放大，因此買盤增加。');
   const row = { name: '達邁', code: '3645' };
   assert.strictEqual(ctx.publicNarrative_('已持有達邁者續抱即可。', row), '已持有達邁者續抱即可。');
   assert.strictEqual(ctx.publicNarrative_('已持友達邁者續抱即可。', row), '已持有達邁者續抱即可。');

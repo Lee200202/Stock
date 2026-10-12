@@ -25,6 +25,8 @@ class Book:
         return self.sheet
 
 head = ['日期', '代號', '方向', '來源影片ID', '股票名稱']
+assert pl.strip_editorial_wrappers('拉回季線找買點。因「回測季線」故引用這些段落。') == '拉回季線找買點。'
+assert pl.strip_editorial_wrappers('成交量放大，因此買盤增加。') == '成交量放大，因此買盤增加。'
 day = '2026/10/05'
 rows = [head,
         [day, '4916', '觀望注意', 'video-id', '事欣科'],
@@ -54,6 +56,22 @@ try:
         pl._adjudicate_classes(None, signals, quote, '2026/10/06', {}, {}, 'on')
     assert signals['_verdicts']['5347']['tier'] == '直接歸類'
     assert signals['_verdicts']['5347']['cls'] == 'watch_avoid'
+    pl._CODE_MAP = {'3661': '世芯-KY', '4916': '事欣科'}
+    source = '世芯KY目前仍持有。' + '其他技術說明。' * 40 + '四新科上半年EPS5.49元。'
+    at = source.index('四新科')
+    index = {'3661': {0, at}, '4916': {at}}
+    notes = {'holdings': [
+        {'name': '世芯-KY', 'code': '3661', 'note': '仍持有。上半年EPS為5.49。'},
+        {'name': '事欣科', 'code': '4916', 'note': '上半年EPS為5.49。'}]}
+    with patch.object(pl, '_mention_index', return_value=index), \
+         patch.object(pl, 'source_inventory', return_value=[]):
+        pl.strip_foreign_price_claims(notes, source)
+    assert notes['holdings'][0]['note'] == '仍持有。'
+    assert notes['holdings'][1]['note'] == '上半年EPS為5.49。'
+    shared = '世芯KY上半年EPS5.49元。四新科上半年EPS5.49元。'
+    second = shared.index('四新科')
+    assert pl._price_attribution(shared, {'3661': {0, second}, '4916': {second}},
+                                 '3661', '5.49', {'3661', '4916'})[0] == 'ok'
 finally:
     pl._CODE_MAP = old
 

@@ -8204,6 +8204,7 @@ def to_traditional(text) -> str:
 
 def strip_editorial_wrappers(text):
     """公開說明直接寫內容，來源與推論過程留在內部稽核。"""
+    text = re.sub(r'(^|[。！？])[^。！？]*(?:故引用|因此引用|引用這些段落)[^。！？]*(?:[。！？]|$)', r'\1', str(text or ''))
     text = re.sub(r'(?:原文|逐字稿)(?:以|用)(「[^」]+」|[^。；]+?)作為(?:風險)?(?:警示|提醒)', r'\1', str(text or ''))
     text = re.sub(r'(?:逐字稿|影片)(?:補充的|補充)?(?:重點|說明)(?:是|為)[：:]?', '', text)
     text = re.sub(r'(?:原文|逐字稿)(?:補充|提到|提及|強調|提醒|指出|說明)(?:的)?', '', text)
@@ -8656,6 +8657,7 @@ def entity_claim_gaps(signals, transcript):
 
 _PRICE_CLAIM_RE = re.compile(
     r"(?:成本|買在|買進|買入|承接|進場|賣在|賣出|賣掉|買點|叫你們買的是)[^，。；、]{0,10}?(\d{2,6}(?:\.\d{1,2})?)")
+_FINANCE_CLAIM_RE = re.compile(r'(?:EPS|每股盈餘|每股獲利)\s*(?:為|約|是|達|預估)?\s*(\d{1,5}(?:\.\d+)?)', re.I)
 _ATTR_MARGIN = 10        # 別檔要近這麼多個字以上，才算「明顯更近」
 _ATTR_MAX_GAP = 200      # 超過這個距離的名字不算數，那已經是別的段落了
 _ATTR_MEMO = {}
@@ -8720,7 +8722,19 @@ def _price_attribution(flat, index, code, number, discussed):
     spots = [m.start() for m in re.finditer(re.escape(number), flat)]
     if not spots:
         return 'absent', '原文沒有這個數字'
-    mine = index.get(str(code)) or set()
+    mine = set(index.get(str(code)) or ())
+    # 短股名的同音片段不算另一個實體：四新科（事欣科）不能同時算世芯。
+    # 只排除本輪已討論且完整長名稱已匹配的重疊位置，獨立點名位置仍保留。
+    base_sound = lambda c: _name_sound(re.sub(r'-?KY$', '', (_CODE_MAP or {}).get(str(c), ''), flags=re.I)) or ()
+    own_sound = base_sound(code)
+    if own_sound:
+        for rival in discussed - {str(code)}:
+            sound = base_sound(rival)
+            if len(sound) <= len(own_sound):
+                continue
+            for offset in range(len(sound) - len(own_sound) + 1):
+                if sound[offset:offset + len(own_sound)] == own_sound:
+                    mine -= {at + offset for at in index.get(str(rival), ())}
     # 逐次判斷（2026/10/08）：同一個數字在原文出現好幾次時，只要有一次是在本檔自己的段落（離本檔不比離別檔遠），
     # 就是本檔的。先前拿「所有位置裡離別檔最近的距離」去比「離本檔最近的距離」：勤誠那一段講了四次「買880以下」
     # （離本檔 28 個字），另一處「我買880以下的在成本之上，這一隻股票力積電是漲的」離力積電 17 個字，
@@ -9129,9 +9143,12 @@ def strip_foreign_price_claims(signals: dict, transcript: str, ss=None, date_str
                 kept, dropped = [], []
                 for clause, punct in _split_clauses(text):
                     verdict, why, hit = 'ok', '', ''
-                    for number in _PRICE_CLAIM_RE.findall(clause):
+                    financial = set(_FINANCE_CLAIM_RE.findall(clause))
+                    for number in dict.fromkeys(_PRICE_CLAIM_RE.findall(clause) + list(financial)):
                         verdict, why = _price_attribution(flat, index, code, number, discussed)
-                        if verdict == 'foreign' and kmap:
+                        if number in financial and verdict == 'absent':
+                            verdict, why = 'ok', ''  # 中文數字換寫另有來源核對；這裡只剔除明確屬別檔的財報數字。
+                        if verdict == 'foreign' and kmap and number not in financial:
                             rival = re.search(r'離 (\S+) 只有', why)
                             try:
                                 value = float(str(number).replace(',', ''))
@@ -16322,6 +16339,7 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     signals = drop_fragment_endings(signals)
     signals = fill_empty_notes(signals, TX["audit"])                    # 刪到沒有內容的那一檔，用已核對的原句補上，再一起改寫成書面語
     signals = polish_public_texts(signals, TX["audit"], date_str)
+    signals = strip_foreign_price_claims(signals, TX["audit"], ss, date_str)
     signals = strip_implausible_price_claims(ss, signals, date_str)
     signals = strip_guessed_names_and_causes(signals, TX["audit"])
     signals = strip_distant_company_names(signals, TX["audit"])

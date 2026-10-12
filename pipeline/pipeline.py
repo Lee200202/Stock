@@ -15128,7 +15128,7 @@ def _drop_video_holds_covered_by_sms(ss, want, sms_traded=(), manual_ops=()) -> 
     traded = set(sms_traded or ()) | set(manual_ops or ())
     targets = [(i, nm, d, c) for i, d, c, nm in vid_rows if (d, c) in sms_keys or (d, c) in traded]
     for i, nm, d, c in sorted(targets, reverse=True):
-        print(f"  簡訊優先　{d} {nm}（{c}）" + ("簡訊當天已有買賣，逐字稿的會員持股不另列" if (d, c) in traded and (d, c) not in sms_keys
+        print(f"  來源優先　{d} {nm}（{c}）" + ("人工補登已有分類，逐字稿的會員持股不另列" if (d, c) in set(manual_ops or ()) else "簡訊當天已有買賣，逐字稿的會員持股不另列" if (d, c) in traded and (d, c) not in sms_keys
                                            else "會員持股以人工補登為準，移除逐字稿那一筆" if (d, c) in manual_keys
                                            else "會員持股以簡訊為準，移除逐字稿那一筆"))
         sheets_retry(ws.delete_rows, i)

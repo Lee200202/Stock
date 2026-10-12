@@ -95,7 +95,7 @@ assert len(priority.sheets['會員持股'].rows) == 3
 assert priority.sheets['會員持股'].rows[1][0] == '2026/10/06'
 assert pl.apply_sms_priority(priority, [day])['dropped'] == 0
 bad = {'market': [{'kind': 'view', 'text': '股價出現創新高卻未再創新高的背離現象。', '_evidence_verified': True}]}
-assert any('指標主詞' in x for x in pl.quality_overview(bad)['hard'])
+assert any('指標主詞' in x for x in pl.quality_overview(bad)[1])
 good = {'market': [{'kind': 'view', 'text': '股價創新高而技術指標未同步創新高。', '_evidence_verified': True}]}
-assert not pl.quality_overview(good)['hard']
+assert not pl.quality_overview(good)[1]
 print('Cross-table manual priority and divergence subject checks passed')

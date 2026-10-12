@@ -23,4 +23,15 @@ assert not signals["watch_watch"] and not signals["watch_avoid"]
 named = {"holdings": [], "watch_watch": [], "watch_avoid": [{"name": "友達", "code": "2409"}]}
 pl.finalize_name_and_owned_watch(named, "我不買友達。", "2026/10/02")
 assert len(named["watch_avoid"]) == 1
+old_codes = pl._CODE_MAP
+try:
+    pl._CODE_MAP = {"2317": "鴻海"}
+    recap = {"history": [{"name": "鴻海", "code": "2317"}],
+             "ignored": [], "buy": [], "sell": [], "holdings": [],
+             "watch_watch": [], "watch_avoid": []}
+    pl.restore_explicit_current_prohibitions(recap, "上週已賣鴻海。鴻海還不是買點。")
+    assert [(r["code"], r["reason"]) for r in recap["watch_avoid"]] == [
+        ("2317", "鴻海目前還不是買點，暫不進場。")]
+finally:
+    pl._CODE_MAP = old_codes
 print("Python public narrative: alias boundary and stored text repaired")

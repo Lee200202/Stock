@@ -9346,6 +9346,28 @@ def restore_explicit_current_prohibitions(signals, transcript):
             signals.setdefault('watch_avoid', []).append(row)
             occupied.update(aliases)
             note_decision('當下禁買核對', '補回觀望不碰', official, quote)
+    # 「先前賣掉鴻海；鴻海還不是買點」含新的當下立場，不能因前段
+    # 是舊交易而整檔歸 history。只認本檔緊接的明確語句，不借鄰股風險。
+    for match in re.finditer(r'(?P<stock>' + atom + r')\s*(?:現在|目前|今天)?\s*'
+                             r'(?P<stance>還不是買點|尚非買點|還沒到買點)', str(transcript or '')):
+        prefix = str(transcript or '')[max(0, match.start()-10):match.start()]
+        if re.search(r'(?:以前|當時|那時|昨天|不是|沒有說)[^。！？!?]{0,8}$', prefix):
+            continue
+        heard = match.group('stock')
+        code = names[heard]
+        official = _display_name(mapping[code])
+        if {heard, official} & occupied:
+            continue
+        for cat in ('ignored', 'history'):
+            signals[cat] = [r for r in signals.get(cat, [])
+                            if not (_row_names_for_recap(r) & {heard, official})]
+        quote = match.group(0)
+        signals.setdefault('watch_avoid', []).append({
+            'name': official, 'code': code, 'aliases': [heard], 'price': '未說明',
+            'reason': official + '目前還不是買點，暫不進場。', 'evidence': [quote],
+            'view': 'watch_avoid'})
+        occupied.update((heard, official))
+        note_decision('當下禁買核對', '補回尚非買點', official, quote)
     return signals
 
 

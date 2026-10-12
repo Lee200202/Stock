@@ -10584,12 +10584,17 @@ def _adds_new_content(sentence, existing) -> bool:
     return sum(g in e for g in grams) / len(grams) < 0.6
 
 
+_DANGLING_START = re.compile(r'(?:都|也|就|則|才|還|亦|又)(?:是|為|會|要|在|有)')
+
+
 def fill_empty_notes(signals, transcript=''):
     """說明是空的或只剩幾個字時，用這一檔已核對的原句整理成一句，不讓空白上網站。
 
     2026/10/06 重播：模型給鴻海（賣出）、勤誠的 reason 是空字串，那一輪補充說明又一檔都沒通過，兩檔最後是空白。
     只用這一列自己的 view 或逐字引句，不新增內容；整理方式同規則補列的那幾檔。
     """
+    listed = sorted({n for cat in SIGNAL_CATEGORIES for r in signals.get(cat, []) or [] if isinstance(r, dict)
+                     for n in (_display_name(r.get('name')), str(r.get('name') or '').replace('*', '')) if len(str(n)) >= 2})
     for cat in SIGNAL_CATEGORIES:
         for row in signals.get(cat, []) or []:
             if not isinstance(row, dict):
@@ -10598,6 +10603,7 @@ def fill_empty_notes(signals, transcript=''):
             if len(_ev_norm(row.get(field))) >= 8:
                 continue
             names = [n for n in _signal_names(row) | {str(row.get('name') or ''), str(row.get('原始語音名稱') or '')} if len(n) >= 2]
+            others = [o for o in listed if o not in names and not any(o in n or n in o for n in names)]
             quotes = [q for q in [row.get('view'), row.get('time_evidence')] + list(row.get('evidence') or [])
                       if isinstance(q, str) and len(_ev_norm(q)) >= 8]
             # 引句可能是一大段口語：拆成句子，只取一句、九十字以內的；這一列沒有可用引句時才看原文裡點名本股的句子。
@@ -10610,6 +10616,9 @@ def fill_empty_notes(signals, transcript=''):
                         named = any(n in sent for n in names)
                         cue = bool(re.search(stance, sent))
                         if not 8 <= len(_ev_norm(sent)) <= 90 or (need_name and not named):
+                            continue
+                        # 沒點到本股、卻點到今天別檔的句子，或接在前一句後面的半句（「都是台積電的好買點」），不是這一檔的說明。
+                        if not named and (any(o in sent for o in others) or _DANGLING_START.match(sent)):
                             continue
                         if sent.endswith(('？', '?')) and not cue:
                             continue                      # 問句只有看得出態度時才用（「你們去買X幹什麼？」）

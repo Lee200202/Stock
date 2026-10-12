@@ -4471,6 +4471,7 @@ reason 只能用提到這一檔的句子；上一句、下一句在講另一檔�
 同一個寫法在不同段落可能是兩檔股票（語音把同音的名字寫成另一家公司）。source 已把「緊貼名稱念出代號的那一段」更正成代號的正式名稱：兩檔各自分類、各自引用自己的段落，買賣、題材、價位不可混用。
 
 【大盤】
+背離要分清主詞：價格創新高、技術指標未同步創高是兩條不同序列；不可省掉「指標」而寫成同一股價同時創新高又未創新高。原文沒有交代哪個指標時只寫「技術指標」，不自行指定 MACD 或 KD。
 盤勢（level/volume/event/flow）與教學（view）各至少三點，每一點一個主題：同一個時間點、同一組數字、同一條因果只寫一次，不可在同一章或另一章換句話再講一遍。教人怎麼買賣的內容（買股票應…、操作策略、切勿…、適用於…）一律 kind=view，不放盤勢。每一點都要有原文的數字、時間或點名的類股，並寫出因果（什麼現象 → 他認為的原因 → 該怎麼做）；「投資人應審慎」「不宜盲目追高」這種誰都能說的話不能單獨成為一點。
 公開文字的寫法（market 的 text、個股的 reason／note 都一樣；headline 是引用的一句話，不在此限）：寫整理過的書面文字，不是把講者的話抄下來。用第三人稱的陳述句，不用「我、我們、你、你們、人家」；不用問句與反問（「有危險嗎？沒有危險」寫成「當日下跌沒有危險」）；不用語助詞、口頭禪與俚語（啊、啦、嘛、對不對、有沒有、淅瀝嘩拉、老馬賽）；不照原句的語序整句照抄，把同一件事整理成「結論 → 依據（技術位置、數字、籌碼、題材）→ 條件或風險」，重複講的只寫一次。數字與技術名詞照原文保留。
 market 每筆填 kind=level/volume/event/flow/view、text、evidence_refs。首筆盤勢一定要填headline：這一集的標題——把講者開場設定的主題與他整集的結論整合成一行書面語，至少15字、不設上限但要精簡、最多兩個子句，要具體（寫出原文講的盤勢情境、指標位置或明確做法），結論必須是講者自己講的、不可套用常見的說法，不照抄口語，不含姓名、日期與個股名稱，只用原文的事實與數字，結尾不加標點。
@@ -8462,6 +8463,9 @@ def quality_overview(signals, transcript=''):
     shown = [r for r in points if not r.get('_duplicate_point')]
     macro, lessons = [r for r in shown if r.get('kind') != 'view'], [r for r in shown if r.get('kind') == 'view']
     for a_i, a in enumerate(shown):
+        point_text = str(a.get('text') or '')
+        if re.search(r'股價[^。；]{0,12}創新高[^。；]{0,12}(?:未|沒|沒有)再?創新高', point_text) and not re.search(r'指標|MACD|KD|RSI', point_text, re.I):
+            hard.append('教學或盤勢省略背離的指標主詞，造成股價同時創高與未創高：' + point_text[:65])
         twin = _theme_twin(a, shown[:a_i])
         if twin:
             hard.append(f"重點重複：「{str(a.get('text') or '')[:18]}…」和「{twin[0][:18]}…」講同一件事（{twin[1]:.0%}）")
@@ -14970,9 +14974,10 @@ def apply_sms_priority(ss, dates=None) -> dict:
     # 先前把它放在最後、又在前面對操作紀錄做了 early return，
     # 於是「那天只有持股、沒有買賣」時整段被跳過。
     sms_traded = set()        # 當天簡訊已買或賣的同檔持股，不能再由逐字稿複寫
+    manual_ops = set()        # 人工操作／觀望與逐字稿持股也需跨表去重
 
     def _finish():
-        stat["dropped"] += _drop_video_holds_covered_by_sms(ss, want, sms_traded)
+        stat["dropped"] += _drop_video_holds_covered_by_sms(ss, want, sms_traded, manual_ops)
         stat["days"] = max(stat["days"], 1 if stat["dropped"] else 0)
         if stat["dropped"] or stat["resequenced"]:
             print(f"簡訊優先：移除逐字稿重複 {stat['dropped']} 列，"
@@ -15022,6 +15027,7 @@ def apply_sms_priority(ss, dates=None) -> dict:
         vid = [x for x in items if not x["sms"] and not _protected_nonvideo_row(x["src"])]
         manual = [x for x in items if not x["sms"] and _protected_nonvideo_row(x["src"])]
         if not sms and manual:
+            manual_ops.add((day, code))
             # 人工補登是管理者親手確認的列，重建當天時會保留：同日同檔逐字稿那一列不另列
             # （2026/09/30 重新套用後觀望注意出現兩列祥碩，一列人工補登、一列逐字稿）。
             for v in vid:
@@ -15083,7 +15089,7 @@ def apply_sms_priority(ss, dates=None) -> dict:
     return _finish()
 
 
-def _drop_video_holds_covered_by_sms(ss, want, sms_traded=()) -> int:
+def _drop_video_holds_covered_by_sms(ss, want, sms_traded=(), manual_ops=()) -> int:
     """會員持股：同一天同一檔簡訊已經講過，就不留逐字稿那一筆。
 
     sms_traded：當天簡訊已買或賣的（日期, 代號）。操作已由簡訊定案，
@@ -15119,7 +15125,7 @@ def _drop_video_holds_covered_by_sms(ss, want, sms_traded=()) -> int:
             manual_keys.add((day, code))          # 人工補登的會員持股同樣優先於逐字稿那一筆
     sms_keys |= manual_keys
 
-    traded = set(sms_traded or ())
+    traded = set(sms_traded or ()) | set(manual_ops or ())
     targets = [(i, nm, d, c) for i, d, c, nm in vid_rows if (d, c) in sms_keys or (d, c) in traded]
     for i, nm, d, c in sorted(targets, reverse=True):
         print(f"  簡訊優先　{d} {nm}（{c}）" + ("簡訊當天已有買賣，逐字稿的會員持股不另列" if (d, c) in traded and (d, c) not in sms_keys

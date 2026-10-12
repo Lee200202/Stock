@@ -76,3 +76,26 @@ finally:
     pl._CODE_MAP = old
 
 print('Source priority: protected holdings, trade preservation, date isolation, idempotence and named refusal passed')
+
+class PriorityBook:
+    def __init__(self):
+        self.sheets = {
+            '操作紀錄': Sheet([head, [day, '4916', '觀望注意', pl.MANUAL_ENTRY_PREFIX + '20261005', '事欣科']]),
+            '會員持股': Sheet([['日期', '股票名稱', '代號', '來源影片ID'],
+                             [day, '事欣科', '4916', 'video-id'],
+                             ['2026/10/06', '事欣科', '4916', 'video-id'],
+                             [day, '力積電', '6770', 'CMONEY-123']])}
+    def worksheet(self, name):
+        return self.sheets[name]
+
+priority = PriorityBook()
+assert pl.apply_sms_priority(priority, [day])['dropped'] == 1
+assert len(priority.sheets['操作紀錄'].rows) == 2
+assert len(priority.sheets['會員持股'].rows) == 3
+assert priority.sheets['會員持股'].rows[1][0] == '2026/10/06'
+assert pl.apply_sms_priority(priority, [day])['dropped'] == 0
+bad = {'market': [{'kind': 'view', 'text': '股價出現創新高卻未再創新高的背離現象。', '_evidence_verified': True}]}
+assert any('指標主詞' in x for x in pl.quality_overview(bad)['hard'])
+good = {'market': [{'kind': 'view', 'text': '股價創新高而技術指標未同步創新高。', '_evidence_verified': True}]}
+assert not pl.quality_overview(good)['hard']
+print('Cross-table manual priority and divergence subject checks passed')

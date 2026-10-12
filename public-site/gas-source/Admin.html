@@ -4438,6 +4438,7 @@ function makeAdminCal(opts) {
   $('mRowsCard').insertAdjacentElement('afterend',$('mChainCard'));
   var mChainTimer = null,mChainRequest=0,mChainStamp=0;
   function drawChain(done, note, waiting) {
+    if(done<4 && $('mChainMsg').classList.contains('ok')) { hide($('mChainMsg')); }
     $('mchain').innerHTML = CHAIN.map(function(t,i){
       return '<div class="step '+(i<done?'done':i===done?'on':'')+'">'+esc(t)+'</div>';
     }).join('');

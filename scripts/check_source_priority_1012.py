@@ -99,3 +99,5 @@ assert any('指標主詞' in x for x in pl.quality_overview(bad)[1])
 good = {'market': [{'kind': 'view', 'text': '股價創新高而技術指標未同步創新高。', '_evidence_verified': True}]}
 assert not pl.quality_overview(good)[1]
 print('Cross-table manual priority and divergence subject checks passed')
+assert pl.watch_tone('已有持股者不用再賣，短線預期反彈。') == 'watch_watch'
+assert pl.watch_tone('目前還不能買，反彈後仍不進場。') == 'watch_avoid'

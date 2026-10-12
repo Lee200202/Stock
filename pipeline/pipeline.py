@@ -5880,8 +5880,9 @@ def _episode_title_why(title, source_flat, material_norm, stock_names=()):
         return '俚語尚未整理成書面語'
     if all(len(_TITLE_ABSTRACT_WORDS.sub('', c)) < 2 for c in _title_clauses(body)):
         return '只有抽象詞，看不出這一集講什麼'
+    flat_body = re.sub(r'[\s-]', '', body)
     for name in stock_names:
-        if len(name) >= 2 and name in body:
+        if len(name) >= 2 and name in flat_body:
             return '寫了個股名稱「' + name + '」'
     if re.search(r'(?<![\d,.])[1-9]\d{3}(?![\d,.]|點|億|元|塊|萬|張|%|年)', body):
         return '像是個股代號的四位數字'
@@ -5904,6 +5905,9 @@ _LEADING_CONJUNCTION = re.compile(r'^(?:並且|而且|並(?![列非未不沒無�
 
 
 _SPEAKER_IN_NOTE = re.compile(r'講者|老師|張震|張正|張總')
+# 「分析師明確指示不准亂賣」→「明確指示不准亂賣」：主詞是講者，拿掉主詞、內容留著（「其他分析師」是在講別人，不動）。
+_ANALYST_SUBJECT = re.compile(r'(?<!其他)(?<!別的)(?<!很多)(?<!有些)(?<!這些)(?<!那些)分析師(?=(?:明確|也|則|並|已|再次|特別|直接|更)*'
+                              r'(?:指出|表示|認為|提醒|指示|建議|點名|強調|說明|點出|看好|預期|判斷|分析|坦言))')
 
 
 def drop_speaker_sentences(signals):
@@ -5914,6 +5918,9 @@ def drop_speaker_sentences(signals):
                 continue
             field = 'note' if cat == 'holdings' else 'reason'
             text = strip_speaker_names(str(row.get(field) or ''))
+            if _ANALYST_SUBJECT.search(text):
+                text = re.sub(r'(^|[，。；])並(?=(?:明確|也|再次)?(?:指出|表示|提醒|指示|建議|點名|強調|說明|點出))', r'\1', _ANALYST_SUBJECT.sub('', text))
+                row[field] = text
             if not _SPEAKER_IN_NOTE.search(text):
                 continue
             kept = [s for s in re.split(r'(?<=[。！？!?])', text) if s.strip() and not _SPEAKER_IN_NOTE.search(s)]
@@ -5965,8 +5972,12 @@ def _compose_episode_title(signals, transcript, date_str):
     source_flat = re.sub(r'\s', '', ''.join(str(r.get('text') or '') + ''.join(str(q) for q in (r.get('evidence') or [])) for r in rows))
     hay = _ev_norm(_asr_terms(transcript))
     material_norm = _ev_norm(_asr_terms(material['opening'] + ''.join(material['cues']) + material['closing'])) + _ev_norm(source_flat)
-    stock_names = sorted({n for cat in SIGNAL_CATEGORIES for r in signals.get(cat, []) or [] if isinstance(r, dict)
-                          for n in (_display_name(r.get('name')), str(r.get('name') or '').replace('*', '')) if len(str(n)) >= 2})
+    # 個股名稱連同聽寫的寫法、去掉連字號與 -KY 的寫法都算（2026/10/08 候選寫「世芯KY大漲創高…」，只比「世芯-KY」沒擋到）。
+    stock_names = sorted({v for cat in SIGNAL_CATEGORIES for r in signals.get(cat, []) or [] if isinstance(r, dict)
+                          for n in [_display_name(r.get('name')), str(r.get('name') or ''), str(r.get('原始語音名稱') or '')]
+                          + [a for a in (r.get('aliases') or []) if isinstance(a, str)]
+                          for v in {re.sub(r'[\s＊*-]', '', n), re.sub(r'-?KY$', '', re.sub(r'[\s＊*]', '', n), flags=re.I)}
+                          if len(v) >= 2 and _has_cjk(v) and not v.endswith('的')})
     retry, tried = '', []
     for attempt in range(2):
         payload = dict(material, points=points, retry=retry)
@@ -8136,6 +8147,7 @@ def watch_tone(text):
         # 後段明講限制已解除（v54）時不在這裡擋，交給下面的正面／負面判斷。
         return 'watch_avoid'
     positive = re.sub(r'(?:並非|不是|不|沒有|未)(?:看好|推薦|建議買進|會漲|是好股票|會回升|會上攻|有買點|值得|可以)', '', text)
+    positive = re.sub(r'(?:不|未|沒有)(?:會|預期|可望)(?:強彈|反彈)', '', positive)
     # 「低檔…買」「以下…買」中間不能隔著賣出或句讀：玉晶光「不應把低檔股票賣掉跑去追買高檔弱勢股」是負面示範。
     # 「準備大漲」「賣完就漲」「不會跌了」是講者的偏多結論（2026/09/17 勤誠）；「昨天大漲」不算。
     # 「手中有X的人不用賣」是叫持有的人續抱，偏多（2026/10/07 華城：同一句話有一輪因為沒有其他偏多字眼被判成觀望不碰）。
@@ -15558,7 +15570,7 @@ def prior_published_rows(ss, date_str):
 # ---------------------------------------------------------------- #
 _WS_QUESTION = re.compile(r'[？?]|是不是|有沒有|對不對|好不好|懂不懂|知不知道|幹什麼|怎麼樣(?=[，。]|$)')
 _WS_PARTICLE = re.compile(r'[啊啦喔哦嘛咧欸齁蛤呀吼](?=[，。！、；,!]|$)|^(?:來|好|啊|所以說)[，,]')
-_WS_PERSON = re.compile(r'(?<![自忘])我(?:們)?|你(?:們)?|人家|張總|講者|老師|(?<!其他)(?<!別的)分析師(?:指出|表示|認為|與|的不同|帶領|提醒)'
+_WS_PERSON = re.compile(r'(?<![自忘])我(?:們)?|你(?:們)?|人家|張總|講者|老師|(?<!其他)(?<!別的)(?<!很多)(?<!有些)(?<!這些)(?<!那些)分析師(?:明確|也|則|並|已|再次|特別|直接|更)*(?:指出|表示|認為|與|的不同|帶領|提醒|指示|建議|點名|強調|說明|點出|看好|預期|判斷|分析|坦言)'
                         r'|(?<!其)他(?=是|在|會|的|帶領|認為|說|表示|指出|提醒|強調)')
 _WS_SLANG = re.compile(r'淅瀝嘩拉|稀里嘩啦|老馬賽|賣金丟|死抱活抱|拜託|真的欸|沒錯啊|來來來|厚[，,]|哇|打(?:一個|個)?噴嚏|賣一賣|買一買|咻{2,}|超好睡'
                        r'|\d\s*(?:幾)?塊|還在手裡|摸很久|沒有那麼急|叫(?:會員|大家|投資人)(?:去)?[買賣]|(?:這|那)邊|一模一樣|天高')

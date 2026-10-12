@@ -13228,6 +13228,8 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                 print(f"    　答成{_VERDICT_LABEL.get(cls, cls)}的那一份：{'、'.join(facts) or '全部為否'}；now={a.get('now')}、tone={a.get('tone')}；"
                       f"引句 {' / '.join(q[:28] for q in quotes[:3])}" + (f"；{str(a.get('unsure'))[:50]}" if a.get('unsure') else ''))
     signals['_verdicts'] = verdicts
+    signals['_manual_hidden'] = sorted(code for code, entry in (cache or {}).items()
+                                       if isinstance(entry, dict) and entry.get('manual') in ('history', 'uncertain', 'ignored'))
     if mode == 'shadow':
         for entry in verdicts.values():
             entry['enforce'] = False
@@ -13825,6 +13827,22 @@ def _hay_pinyin(hay: str) -> str:
     return _HAY_PIN_CACHE["pin"]
 
 
+_HAY_SYL_CACHE = {"key": None, "syl": ""}
+
+
+def _syllable_key(text: str) -> str:
+    """一段文字的正規化拼音，音節之間用空白隔開、頭尾也補空白：' zen ji '。"""
+    return ' ' + ' '.join(_norm_pin(p) for p in lazy_pinyin(str(text))) + ' '
+
+
+def _hay_syllables(hay: str) -> str:
+    key = (len(hay), hay[:200])
+    if _HAY_SYL_CACHE["key"] != key or not _HAY_SYL_CACHE["syl"]:
+        _HAY_SYL_CACHE["key"] = key
+        _HAY_SYL_CACHE["syl"] = _syllable_key(hay)
+    return _HAY_SYL_CACHE["syl"]
+
+
 def _sounds_in_transcript(needle: str, hay: str) -> bool:
     """
     這個名稱「唸起來」有沒有出現在逐字稿裡。
@@ -13841,7 +13859,9 @@ def _sounds_in_transcript(needle: str, hay: str) -> bool:
     n = re.sub(r"\s", "", str(needle or ""))
     if len(n) < 2 or not _has_cjk(n):
         return False
-    return _npin(n) in _hay_pinyin(hay)
+    # 以音節為單位比：整串拼音接起來找子字串沒有音節邊界，「正基」（zen ji）會對到原文的「增加」（zen jia），
+    # 2026/10/12 站上錯的正基持股就是這樣通過「原文有這個讀音」而被沿用前一版帶回來。
+    return _syllable_key(n) in _hay_syllables(hay)
 
 
 def verify_names(signals: dict, transcript: str) -> dict:
@@ -15669,6 +15689,10 @@ def reconcile_with_prior(signals, prior, date_str, transcript=''):
         groups.setdefault(ident, []).append(r)
 
     changes, accepted, carried, carry_rows, absent = [], [], [], [], []
+    # 本輪代號比對不出來的名稱（各類都算，含待確認）：用來擋「只靠讀音沿用前一版」。
+    unresolved_heard = sorted({re.sub(r'\s', '', str(r.get('name') or '')) for cat in SIGNAL_CATEGORIES + ('history', 'ignored', 'uncertain')
+                               for r in signals.get(cat, []) or [] if isinstance(r, dict)
+                               and str(r.get('code') or '').strip() in ('', UNRESOLVED) and _has_cjk(str(r.get('name') or ''))})
     for rows in groups.values():
         keys = set().union(*(_row_keys(r) for r in rows))
         name = rows[0]['name']
@@ -15688,6 +15712,10 @@ def reconcile_with_prior(signals, prior, date_str, transcript=''):
         if verdict.get('tier') in ('裁決', '沿用裁決', '人工裁決') and verdict.get('cls') in _VERDICT_HIDDEN:
             accepted.append(f"{name}（前一版{'、'.join(before)}）：本輪分類裁決定案為不公開（{str(verdict.get('basis') or '')[-40:]}），不沿用")
             continue
+        # 分類裁決表上人工裁決為不公開的代號，本輪沒有這一列時 _verdicts 裡不會有它：一樣不沿用（2026/10/12 正基）。
+        if str(rows[0].get('code') or '').strip() in (signals.get('_manual_hidden') or ()):
+            accepted.append(f"{name}（前一版{'、'.join(before)}）：人工裁決為不公開，不沿用")
+            continue
         if transcript:
             # 沿用前一版之前，先用本輪原文核對一次。前一版本身錯了的列不能一路沿用下去：
             # 2026/09/14 的愛普（舊推薦）、金益鼎（原文沒有這家公司）就是這樣連續兩輪被帶回網站。
@@ -15699,6 +15727,13 @@ def reconcile_with_prior(signals, prior, date_str, transcript=''):
             # 聽寫把股名寫壞，但同句念出官方代號時，代號優先於字面／讀音比對。
             if probe['code'] and any(c == probe['code'] for _, c in spoken_code_pairs(hay)):
                 spoken.append(probe['code'])
+            # 名稱字面不在原文、只有讀音對得到，而本輪代號比對對同一個讀音的結論是「比不出是哪一家」：
+            # 沿用等於替它猜了一家（2026/10/12：原文是「正奇」——「這不是」的聽寫錯字——前一版寫成同音的正基）。
+            if spoken and not any(_in_transcript(n, hay) for n in spoken) and not (probe['code'] and probe['code'] in spoken):
+                unsure = [h for h in unresolved_heard if any(_npin(h) == _npin(n) for n in spoken if _has_cjk(n))]
+                if unsure:
+                    accepted.append(f"{name}（前一版{'、'.join(before)}）：原文只有讀音相同的「{unsure[0]}」，本輪代號比對不認它是這家公司，不沿用")
+                    continue
             if not spoken:
                 # 先記下來，全部看完再決定：原文找不到的前一版太多，代表拿到的原文本身有問題
                 # （不是這支影片、讀到半截），那時要走「判讀不完整、保留舊資料」，不能順勢全部撤掉。
@@ -15996,7 +16031,7 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     # 分類到這裡定案：明確的直接歸類，有疑點的逐檔送裁決（見 adjudicate_classes 上方說明）。排在補充說明之前，
     # 說明才會照定案後的分類寫；後面的規則若再搬動，收尾那一次會搬回來。
     signals = adjudicate_classes(ss, signals, TX["audit"], date_str, first_classes, review_classes)
-    class_verdicts = signals.get('_verdicts')
+    class_verdicts, manual_hidden = signals.get('_verdicts'), signals.get('_manual_hidden') or []
     # ③ 教學重點至少三點。排在寫入與稽核存檔之前，補回的點會一起進試算表、稽核與郵件。
     signals = strip_implausible_point_levels(ss, signals, date_str)
     signals = drop_promotional_points(signals)
@@ -16058,6 +16093,7 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     signals["_video_id"] = video["id"]
     signals['_source_ids'] = sorted(transcript_source_ids(ss, video['id'], date_str))
     signals = settle_backdated_trades(ss, signals, date_str)
+    signals['_manual_hidden'] = manual_hidden
     if class_verdicts:
         signals['_verdicts'] = class_verdicts
         try:

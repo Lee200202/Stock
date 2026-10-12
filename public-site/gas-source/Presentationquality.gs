@@ -224,7 +224,8 @@ function restatesEarlier_(key, earlier) {
  * 文章標題，與 pipeline.py 的 article_title_detail 一致；重建郵件不另呼叫模型。
  * 格式照 168 聚財網〈168看電視〉張震文章：「張震：你買在高檔 神仙都難救！」。不設上限（2026/09/14）。
  * 至少 15 字（2026/09/17 管理者：「操作重音與心態！」太短）。算字只算中文、英文與數字，與 pipeline 同一套。
- * 來源依序：模型標題（數字與八成用字出自全部已驗證盤勢／教學原句，而且滿 15 字）
+ * 2026/10/12 起標題是「這一集設定的主題加上結論」：管線另外問一次、核對後寫回 headline 並標 _headline_checked。
+ * 來源依序：模型標題（數字與八成用字出自全部已驗證盤勢／教學原句，而且滿 15 字；有 _headline_checked 的已由管線核對）
  *   → 教學重點的觀念標題（不足 15 字時接上說明的子句）→ 盤勢主題加上說明。
  */
 var TITLE_PREFIX_ = '';   // 2026/09/15 起不加「張震：」前綴
@@ -285,9 +286,11 @@ function articleTitle_(signals) {
     var title=raw.replace(/^(?:張震|張正)\s*[：:]\s*/,'').replace(/^[ ①：:。「」]+|[ ①：:。「」]+$/g,'');
     var body=title.replace(/[！!？?]+$/,'');
     var chars=body.match(/[A-Za-z0-9_\u3400-\u9fff]/g)||[], nums=body.match(/\d+(?:\.\d+)?/g)||[];
+    // _headline_checked：管線的主題標題步驟已經對開場、主題句、收尾與重點核對過用字與數字（2026/10/12），這裡不再只比重點。
+    var checked=ordered[i]._headline_checked===true;
     if(body && !/張震|張正|講者|盤勢與操作紀錄|\d{4}[/年]/.test(body) &&
-       nums.every(function(n){return source.indexOf(n)>=0;}) &&
-       (!chars.length || chars.filter(function(c){return source.indexOf(c)>=0;}).length/chars.length>=0.8)) {
+       (checked || (nums.every(function(n){return source.indexOf(n)>=0;}) &&
+       (!chars.length || chars.filter(function(c){return source.indexOf(c)>=0;}).length/chars.length>=0.8)))) {
       var ending=title.slice(body.length,body.length+1)||'！';
       var one=titleOneSentence_(titleDropRepeats_(body));
       if(titleChars_(one)<TITLE_MIN_CHARS_)continue;

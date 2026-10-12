@@ -5664,6 +5664,8 @@ def article_title_detail(signals):
             why = '空白'
         elif re.search(r'張震|張正|講者|盤勢與操作紀錄|\d{4}[/年]', body):
             why = '含人名或日期'
+        elif row.get('_headline_checked') is True:
+            pass          # compose_episode_title 已經對開場、主題句、收尾與重點核對過用字與數字（Apps Script 的 articleTitle_ 同樣處理）
         elif not all(n in source_flat for n in re.findall(r'\d+(?:\.\d+)?', body)):
             why = '數字不在原句'
         elif chars and sum(c in source_flat for c in chars) / len(chars) < 0.8:
@@ -5803,7 +5805,7 @@ retry 欄位有內容時，那是上一次的候選沒有被採用的原因，�
 
 def episode_title_material(transcript):
     """標題用的原文材料：開場、主題句、收尾。招生、電話、聲明的句子都先拿掉。"""
-    flat = re.sub(r'【[^】]{0,40}】|\s', '', str(transcript or ''))
+    flat = _asr_terms(re.sub(r'【[^】]{0,40}】|\s', '', str(transcript or '')))       # 聽寫錯的技術名詞先還原（35軍→35均）
     sentences = [s for _a, _b, s in _flat_sentences(flat)]
     clean = lambda s: not _TITLE_PROMO.search(s)
     opening, used = '', 0
@@ -5883,11 +5885,12 @@ def _episode_title_why(title, source_flat, material_norm, stock_names=()):
     style = [x for x in written_style_issues(body) if x != '大段照抄原文']
     if style:
         return '不是書面語（' + '、'.join(style) + '）'
-    if not all(num in source_flat for num in re.findall(r'\d+(?:\.\d+)?', body)):
-        return '數字不在已核對的重點裡'
+    known = source_flat + material_norm
+    if not all(num in known for num in re.findall(r'\d+(?:\.\d+)?', body)):
+        return '數字不在材料裡'
     chars = re.findall(r'[\w]', body)
-    if chars and sum(c in source_flat for c in chars) / len(chars) < 0.8:
-        return '用字多半不在已核對的重點裡'
+    if chars and sum(c in known for c in chars) / len(chars) < 0.8:
+        return '用字多半不在材料裡'
     strong = [w for w in set(_TITLE_STRONG.findall(body)) if w not in material_norm]
     if strong:
         return '材料裡沒有「' + '、'.join(sorted(strong)) + '」'
@@ -5949,11 +5952,13 @@ def _compose_episode_title(signals, transcript, date_str):
             before = [(r, r.get('headline')) for r in rows if r.get('headline')]
             for r in rows:
                 r.pop('headline', None)
+                r.pop('_headline_checked', None)
             target = next((r for r in rows if r.get('kind') != 'view'), rows[0])
-            target['headline'] = body
+            target['headline'], target['_headline_checked'] = body, True
             got, src, _rej = article_title_detail(signals)
             if src != '模型標題' or got.rstrip('！!？?') != body:          # 網站那一套核對不會照樣採用：不寫回，換下一個候選
                 target.pop('headline', None)
+                target.pop('_headline_checked', None)
                 for r, old in before:
                     r['headline'] = old
                 refused.append((cand, '與網站的標題核對結果不一致'))

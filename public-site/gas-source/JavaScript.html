@@ -24,24 +24,11 @@
   function signCls(v) { return v > 0 ? 'up' : v < 0 ? 'down' : 'flat'; }
   function fmtRet(v) { return (v === null || v === undefined) ? '—' : (v > 0 ? '+' : '') + v.toFixed(2) + '%'; }
 
-  /* 報價時間的最後一道保險。
-
-     後端已經統一格式化過（Quoteservice 的 qTime_），這裡只處理一種情況：
-     萬一還是收到 ISO 字串，就地補成台北時間，而不是把
-     「2026-09-04T05:38:00.000Z」原樣印在畫面上——那既是 UTC 也少了八小時，
-     看盤的人會以為這個價是早上抓的。
-
-     不在這裡重寫整套格式：後端才是唯一的來源，兩邊各寫一份規則，
-     改了一邊就會開始不一致。 */
+  /* 報價原已由後端格式化；舊快取若仍回 ISO，使用前後台共用的台灣時間顯示函式。 */
   function qTime(v) {
     var t = String(v == null ? '' : v);
     if (!/^\d{4}-\d{2}-\d{2}T/.test(t)) { return t; }
-    var d = new Date(t);
-    if (isNaN(d.getTime())) { return t; }
-    var p = function (n) { return ('0' + n).slice(-2); };
-    var tp = new Date(d.getTime() + 8 * 3600 * 1000);   // UTC+8
-    return p(tp.getUTCMonth() + 1) + '-' + p(tp.getUTCDate()) + ' ' +
-           p(tp.getUTCHours()) + ':' + p(tp.getUTCMinutes()) + ':' + p(tp.getUTCSeconds());
+    return formatTaipeiTime(t);
   }
 
   /* ---------------- 主題與版面 ----------------
@@ -961,7 +948,7 @@ function restatesEarlier_(key, earlier) {
     target.querySelectorAll('[data-px]').forEach(function (el) {
       var d = q && q[el.dataset.px];
       el.textContent = d ? fmtPx(d.last) : '—';
-      el.title = d ? '行情時間：' + (d.time || '未提供') : '目前無可核對的行情';
+      el.title = d ? '行情時間：' + (formatTaipeiTime(d.time) || '未提供') : '目前無可核對的行情';
     });
     target.querySelectorAll('[data-chg]').forEach(function (el) {
       var d = q && q[el.dataset.chg];
@@ -969,7 +956,7 @@ function restatesEarlier_(key, earlier) {
       var pct = (d.last - d.prevClose) / d.prevClose * 100;
       el.textContent = (pct > 0 ? '+' : '') + pct.toFixed(2) + '%';
       el.className = 'px r ' + signCls(pct);
-      el.title = '行情時間：' + (d.time || '未提供');
+      el.title = '行情時間：' + (formatTaipeiTime(d.time) || '未提供');
     });
   }
   function fillQuotes(scope) {
@@ -1365,7 +1352,7 @@ function restatesEarlier_(key, earlier) {
     var d = res.today;
     // 舊部署若仍回序號，也不印 undefined；資料歸屬由新版後端 fmtDate_ 修復。
     d.date = dashboardDateKey(d.date);
-    $('stamp').textContent = '更新於 ' + res.updatedAt;
+    $('stamp').textContent = '更新於 ' + formatTaipeiTime(res.updatedAt);
     $('stamp').classList.remove('err');
 
     // 總覽的日期出來了，讓上面那塊會員通知對齊同一天。
@@ -1553,7 +1540,7 @@ function restatesEarlier_(key, earlier) {
        先前問號裡是一段兩百字的規則全文；改成卡片後公式與理由各自成塊，要核對的人找得到數字。 */
     var audit = t.priceAudit || null;
     var auditLine = audit && audit.rule === '明講價與高低中點擇優'
-      ? '<p class="basis-audit">' + esc('最近一次重算 ' + audit.at + '：核對 ' + audit.checked + ' 個進出場價，' +
+      ? '<p class="basis-audit">' + esc('最近一次重算 ' + formatTaipeiTime(audit.at) + '：核對 ' + audit.checked + ' 個進出場價，' +
           (audit.mismatch ? audit.mismatch + ' 個和公式不符（已記錄待查）。' : '全部符合進出場取價公式。') +
           (audit.overridden ? '另有 ' + audit.overridden + ' 個回合採用管理者修正的成本。' : '')) + '</p>'
       : '';
@@ -4130,7 +4117,7 @@ function restatesEarlier_(key, earlier) {
   function mgRender(r) {
     MG_EMAIL = r.email;
     $('mgWho').textContent = r.email;
-    $('mgSince').textContent = r.createdAt ? '訂閱於 ' + r.createdAt : '';
+    $('mgSince').textContent = r.createdAt ? '訂閱於 ' + formatTaipeiTime(r.createdAt) : '';
     $('mgDaily').checked = !!r.daily;
     $('mgPanel').hidden = false;
     mgMsg('', '');

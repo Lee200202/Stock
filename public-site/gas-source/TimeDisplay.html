@@ -1,0 +1,20 @@
+<script>
+/* 前後台共用：只在呈現時轉換帶時區的 ISO 時間；資料與排序仍用原值。 */
+window.formatTaipeiTime = function (value) {
+  var raw = String(value == null ? '' : value).trim();
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(raw)) { return raw; }
+  if (!/(?:Z|[+-]\d{2}:\d{2})$/i.test(raw)) {
+    return raw.replace('T', ' ').replace(/\.\d+$/, '');
+  }
+  var date = new Date(raw);
+  if (!isFinite(date.getTime())) { return raw; }
+  var parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'
+  }).formatToParts(date);
+  var values = {};
+  parts.forEach(function (part) { values[part.type] = part.value; });
+  return values.year + '-' + values.month + '-' + values.day + ' ' +
+    values.hour + ':' + values.minute + ':' + values.second;
+};
+</script>

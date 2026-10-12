@@ -1246,7 +1246,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-10-11-ledger-holdings-v167';
+var PROJECT_BUILD_ = '2026-10-12-taipei-time-v168';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
@@ -1286,6 +1286,7 @@ var PROJECT_HTML_ = [
   { file: 'Tech', marker: 'tech-source-priority' },
   { file: 'Admin', marker: 'id="mLog" href="https://script.google.com/home/projects/' },
   { file: 'Settings', marker: '手機預覽' },
+  { file: 'TimeDisplay', marker: 'window.formatTaipeiTime' },
   { file: 'Unsubscribed', marker: '若一直失敗，直接回覆通知信' }
 ];
 

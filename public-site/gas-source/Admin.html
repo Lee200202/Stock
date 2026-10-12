@@ -2049,6 +2049,7 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
   </div>
 </div>
 
+<?!= include('TimeDisplay'); ?>
 <script>
 function $(id){ return document.getElementById(id); }
 
@@ -2385,7 +2386,7 @@ function renderJob(j){
     '狀態：' + j.status + '　步驟：' + j.step +
     (j.total>1 ? '（' + j.done + '/' + j.total + '）' : '') +
     '\n' + (j.note || '') +
-    '\n開始 ' + (j.startedAt||'—') + '　更新 ' + (j.updatedAt||'—');
+    '\n開始 ' + (formatTaipeiTime(j.startedAt)||'—') + '　更新 ' + (formatTaipeiTime(j.updatedAt)||'—');
 
   // 已經結束的工單不該還能按取消
   $('cancelBtn').disabled = !(running || waiting);
@@ -2551,7 +2552,7 @@ function renderProgress(o){
     txt += '\n按「從中斷處續跑」會從這裡繼續：' + st.resumeAt;
   }
   txt += '\n' + (st.note || '');
-  if(st.startedAt) txt += '\n開始 ' + st.startedAt + '　更新 ' + st.updatedAt;
+  if(st.startedAt) txt += '\n開始 ' + formatTaipeiTime(st.startedAt) + '　更新 ' + formatTaipeiTime(st.updatedAt);
   /* 失敗時把「該怎麼辦」完整印出來。只講「失敗了」對現場的人沒有幫助。 */
   if(failed && st.advice) txt += '\n\n───── 該怎麼修 ─────\n' + st.advice;
   noteEl.textContent = txt;
@@ -2644,7 +2645,7 @@ function setProgressA11y_(fill, percent, status) {
 function renderChain(st){
   if(!st || !CHAIN_NAMES.length){ return; }
   var chainStatus = st.status === '完成' && Number(st.index) < CHAIN_NAMES.length - 1 ? '第 ' + (Number(st.index) + 1) + ' 步完成，後續尚待核對' : st.status;
-  $('refStat').textContent = '此維護工單：' + chainStatus + (st.updatedAt ? ' · ' + st.updatedAt : '');
+  $('refStat').textContent = '此維護工單：' + chainStatus + (st.updatedAt ? ' · ' + formatTaipeiTime(st.updatedAt) : '');
   $('refStat').classList.toggle('fail', st.status === '失敗');
   $('refLog').textContent = /\/actions\/runs\/\d+/.test($('refLog').href) ? '查看本次執行紀錄 →' : '查看工作流程清單（未取得本次網址）→';
   $('refProg').style.display = 'block';
@@ -2690,7 +2691,7 @@ function renderChain(st){
     '（第 ' + (cur + 1) + ' / ' + CHAIN_NAMES.length + ' 步）' +
     (st.note ? '\n' + st.note : '') +
     (st.error ? '\n錯誤：' + st.error : '') +
-    (st.updatedAt ? '\n更新 ' + st.updatedAt : '') +
+    (st.updatedAt ? '\n更新 ' + formatTaipeiTime(st.updatedAt) : '') +
     '\n每一行細節請點上方的 GitHub 日誌連結。';
 }
 
@@ -2775,7 +2776,7 @@ function renderDecisions(d){
     rows.map(function(r){
       return '<article class="decision-card" role="listitem">' +
         '<div class="decision-head"><strong>' + esc(r.action) + '</strong>' +
-          '<span>' + esc(String(r.at).slice(5)) + '</span></div>' +
+          '<span>' + esc(formatTaipeiTime(r.at)) + '</span></div>' +
         '<div class="decision-meta"><span>' + esc(r.date) + '</span><span>' + esc(r.step) + '</span>' +
           (r.subject ? '<span>' + esc(r.subject) + '</span>' : '') + '</div>' +
         (r.detail ? '<p class="decision-reason">' + esc(r.detail) +
@@ -2944,7 +2945,7 @@ function pollFull(){
       if(fullTimer){ clearInterval(fullTimer); fullTimer = null; }
       $('fullBtn').disabled = false; $('fullBtn').textContent = '開始全面重整';
       $('fullCancelBtn').disabled = true;
-      $('fullStat').textContent = '此重整工單：' + st.status + (st.updatedAt ? ' · ' + st.updatedAt : '');
+      $('fullStat').textContent = '此重整工單：' + st.status + (st.updatedAt ? ' · ' + formatTaipeiTime(st.updatedAt) : '');
       // 暫停、失敗、已取消都還有得接，只有「完成」才關掉接著跑
       $('fullResumeBtn').disabled = (st.status === '完成');
       FULL_RESUME_AT = (st.status === '完成') ? '' : (st.resumeAt || '');
@@ -3387,12 +3388,12 @@ function pollSms(){
     if(st.status === '處理中'){
       if(!smsTimer) smsTimer = setInterval(pollSms, 4000);
       setSmsButtons(true);
-      if($('smsStat')){ $('smsStat').textContent = 'GitHub Actions 執行中｜'+(st.updatedAt||''); }
+      if($('smsStat')){ $('smsStat').textContent = 'GitHub Actions 執行中｜'+formatTaipeiTime(st.updatedAt); }
       if($('smsRun')){ $('smsRun').classList.add('show'); }
     } else {
       if(smsTimer){ clearInterval(smsTimer); smsTimer = null; }
       setSmsButtons(false);
-      if($('smsStat')){ $('smsStat').textContent = st.status+'｜'+(st.updatedAt||''); }
+      if($('smsStat')){ $('smsStat').textContent = st.status+'｜'+formatTaipeiTime(st.updatedAt); }
       if(st.status === '完成'){
         show($('smsMsg'),'ok','會員簡訊解析與寫入完成；郵件查詢狀態見上方。' + (st.note ? '\n' + st.note : ''));
       } else if(st.status === '待續跑'){
@@ -3519,8 +3520,9 @@ if($('smsCalNext')) $('smsCalNext').addEventListener('click',function(){
 /* ---------------- 會員簡訊清單管理與移除 ---------------- */
 /* 即時通知欄的顏色（v67）：全部寄到綠、暫停／失敗紅、有待續送黃、沒訂閱者或沒紀錄灰。 */
 function smsTimeCell(v) {
-  var m = String(v || '').match(/^(\d{4}\/\d{2}\/\d{2})\s+(\d{1,2}:\d{2}(?::\d{2})?)/);
-  return m ? '<b class="smsd">' + esc(m[1]) + '</b><small class="smst">' + esc(m[2]) + '</small>' : esc(v);
+  var display = formatTaipeiTime(v);
+  var m = display.match(/^(\d{4}[\/-]\d{2}[\/-]\d{2})\s+(\d{1,2}:\d{2}(?::\d{2})?)/);
+  return m ? '<b class="smsd">' + esc(m[1]) + '</b><small class="smst">' + esc(m[2]) + '</small>' : esc(display);
 }
 function smsNotifyTone(t) {
   t = String(t || '');
@@ -3768,7 +3770,7 @@ function renderFix(st){
     (names[Math.min(cur, names.length - 1)] || '') + '）' +
     (st.note ? '\n' + st.note : '') +
     (st.error ? '\n錯誤：' + st.error : '') +
-    (st.updatedAt ? '\n更新 ' + st.updatedAt : '');
+    (st.updatedAt ? '\n更新 ' + formatTaipeiTime(st.updatedAt) : '');
 }
 
 $('fixStateBtn').addEventListener('click', function(){
@@ -4607,12 +4609,12 @@ var mergeTxFingerprint='';
       // 原文逐字呈現；下方的買賣仍只列已寫入操作紀錄，不把待解析原文當成交。
       $('todaySmsCount').textContent = originals.length + ' 則原文 · ' + smsRows.length + ' 筆操作';
       var rawHtml = originals.length ? '<div class="sms-original-list">'+originals.map(function(x){
-        return '<article class="sms-original'+(x.error?' is-error':'')+'"><div class="sms-original-head"><b>文章 '+esc(x.id||'待核對')+'</b><time>'+esc(x.time||'時間待核對')+'</time></div>'+
+        return '<article class="sms-original'+(x.error?' is-error':'')+'"><div class="sms-original-head"><b>文章 '+esc(x.id||'待核對')+'</b><time>'+esc(formatTaipeiTime(x.time)||'時間待核對')+'</time></div>'+
           '<p class="sms-original-text">'+esc(x.text||x.error||'這則原文尚無文字內容。')+'</p></article>';
       }).join('')+'</div>' : '<p class="hint">今天尚無會員簡訊原文。</p>';
       var operationHtml = smsRows.length ? '<div class="sms-operation-list">'+smsRows.map(function(x){
         var tone=/^買/.test(x.direction)?'buy':/^賣/.test(x.direction)?'sell':/不碰/.test(x.direction)?'avoid':/注意/.test(x.direction)?'watch':'hold';
-        return '<article class="sms-operation sms-'+tone+'"><header><span class="sms-direction">'+esc(x.direction||'持有')+'</span><b>'+esc(x.name||'待確認')+'</b><span class="sms-code">'+esc(x.code)+'</span><time>'+esc(x.time||'時間待核對')+'</time></header>'+
+        return '<article class="sms-operation sms-'+tone+'"><header><span class="sms-direction">'+esc(x.direction||'持有')+'</span><b>'+esc(x.name||'待確認')+'</b><span class="sms-code">'+esc(x.code)+'</span><time>'+esc(formatTaipeiTime(x.time)||'時間待核對')+'</time></header>'+
           (/^(買|賣)/.test(x.direction)?'<p class="sms-price">價位 '+esc(x.price||'未說明')+'</p>':'')+'<p class="sms-detail">'+esc(x.detail||'尚無說明')+'</p></article>';
       }).join('')+'</div>' : '<p class="hint">今天尚無已寫入的簡訊個股。</p>';
       $('todaySmsOps').innerHTML = '<section class="sms-stage" data-step="01" aria-labelledby="smsRawHeading"><div class="sms-stage-head"><h3 id="smsRawHeading">逐字原文</h3></div>'+rawHtml+'</section>'+
@@ -4640,7 +4642,7 @@ var mergeTxFingerprint='';
       $('todayTimeline').innerHTML = (r.timeline || []).length
         ? r.timeline.map(function (e) {
             var bad = /失敗|錯誤/.test(e.kind);
-            return '<li class="' + (bad ? 'bad' : '') + '"><time>' + esc(e.time || '　') + '</time><b>' + esc(e.kind) + '</b><span>' + esc(e.text) + '</span></li>';
+            return '<li class="' + (bad ? 'bad' : '') + '"><time>' + esc(formatTaipeiTime(e.time) || '　') + '</time><b>' + esc(e.kind) + '</b><span>' + esc(e.text) + '</span></li>';
           }).join('')
         : '<li class="empty"><span>今天還沒有任何紀錄。</span></li>';
     }).withFailureHandler(function () {
@@ -4704,7 +4706,7 @@ var mergeTxFingerprint='';
     if (hourError) { alerts.push('歷史 60 分 K 尚有缺口'); }
     var pipeEvidence = (r.automation || []).filter(function(a){return a.label === 'Pipeline 稽核';})[0];
     var pipeReady = o.pipelineDone === true || (o.pipelineDone === undefined && pipeEvidence && pipeEvidence.tone === 'ok');
-    function clock(v) { return v ? String(v).slice(11, 16) : ''; }
+    function clock(v) { return v ? formatTaipeiTime(v).slice(11, 16) : ''; }
     function sent(g) { return '服務接受 ' + (g.accepted || 0) + '/' + (g.total || 0) + ' 位' + (g.open ? '；待續送 ' + g.open : '') + (g.failed ? '；失敗 ' + g.failed : '') + (g.unknown ? '；結果不明 ' + g.unknown : ''); }
     var dkToday = !!(o.dailyK && o.dailyK.finishedAt && String(o.dailyK.finishedAt).slice(0, 10) === r.today && !dkFailed);
     /* 休市日（v67，0925 規格 A1）：監控每一格先看休市，統一寫「今天休市，不執行」並用灰色，
@@ -4717,8 +4719,8 @@ var mergeTxFingerprint='';
     var quoteSource = (qj.errors || []).length ? (qh.trading ? '來源問題 ' : '上次來源問題 ') + qj.errors.length + ' 項：' + String(qj.errors[0]).replace(/https?:\/\/\S+/g, '').slice(0, 40) + '。' : '';
     var quoteTitle = !qh ? '尚無更新紀錄' : !qh.trading ? '休市，保留 ' + qh.total + ' 檔報價' : qh.fresh + '／' + quoteEligible + ' 檔報價已核對';
     var quoteDetail = !qh ? '尚無紀錄。' : !qh.trading ?
-      '休市不更新；近五分鐘更新 ' + qh.fresh + ' 檔、缺報價 ' + quoteMissing + ' 檔。上次排程 ' + (qj.at || '尚無') + '；上次更新 ' + (qj.updated || 0) + '／' + (qj.requested || 0) + ' 檔。' + quoteSource :
-      '舊資料 ' + qh.old + ' 檔；缺報價 ' + quoteMissing + ' 檔。最近排程 ' + (qj.at || '尚無') + '；本輪更新 ' + (qj.updated || 0) + '／' + (qj.requested || 0) + ' 檔。' +
+      '休市不更新；近五分鐘更新 ' + qh.fresh + ' 檔、缺報價 ' + quoteMissing + ' 檔。上次排程 ' + (formatTaipeiTime(qj.at) || '尚無') + '；上次更新 ' + (qj.updated || 0) + '／' + (qj.requested || 0) + ' 檔。' + quoteSource :
+      '舊資料 ' + qh.old + ' 檔；缺報價 ' + quoteMissing + ' 檔。最近排程 ' + (formatTaipeiTime(qj.at) || '尚無') + '；本輪更新 ' + (qj.updated || 0) + '／' + (qj.requested || 0) + ' 檔。' +
       (qj.writePending ? '資料正在寫入，尚未完成。' : '') + quoteSource + (qj.configured === false ? '富果單檔備援尚未設定金鑰。' : '');
     var dailyTitle = o.noShow ? '今日無直播' : daily.accepted ? '已交郵件服務' : /已寄/.test(o.mailStatus || '') ? '帳本待核對' : o.mailStatus || '尚未寄送';
     var prev = o.prevMail || null, pd = prev && prev.daily, ps = prev && prev.sms;
@@ -4752,8 +4754,8 @@ var mergeTxFingerprint='';
       card('寄送額度與異常', o.mailQuotaLeft == null ? '額度未知' : o.mailQuotaLeft + ' 封可用', '全部郵件：' + sent(d) + '。', d.failed || d.unknown ? 'err' : d.open ? 'warn' : 'idle') +
       card('今天預計需要', needTitle, needDetail, closed ? 'closed' : need.tone || 'idle') +
       card('觸發器今日累計', rtTitle, rtDetail, rtTone) +
-      (closed && !(o.blankExits || []).length ? card('日 K 與出場價', '休市', closedTxt + '；上次完成 ' + (o.dailyK && o.dailyK.finishedAt || '尚無') + '。', 'closed') :
-      card('日 K 與出場價', (o.blankExits || []).length ? (o.blankExits.length + ' 檔待補價') : dkToday ? '今日補齊完成' : '等待今日補齊', (o.blankExits || []).length ? o.blankExits.slice(0, 3).join('、') : o.dailyK ? (o.dailyK.finishedAt || '目前代號：' + (o.dailyK.lastCode || '起點')) : '16:45 開始，完整一輪後重算持股。', (o.blankExits || []).length ? 'err' : dkToday ? 'ok' : 'idle')) +
+      (closed && !(o.blankExits || []).length ? card('日 K 與出場價', '休市', closedTxt + '；上次完成 ' + (formatTaipeiTime(o.dailyK && o.dailyK.finishedAt) || '尚無') + '。', 'closed') :
+      card('日 K 與出場價', (o.blankExits || []).length ? (o.blankExits.length + ' 檔待補價') : dkToday ? '今日補齊完成' : '等待今日補齊', (o.blankExits || []).length ? o.blankExits.slice(0, 3).join('、') : o.dailyK ? (formatTaipeiTime(o.dailyK.finishedAt) || '目前代號：' + (o.dailyK.lastCode || '起點')) : '16:45 開始，完整一輪後重算持股。', (o.blankExits || []).length ? 'err' : dkToday ? 'ok' : 'idle')) +
       card('個股報價', quoteTitle, quoteDetail,
         o.quoteHealth && o.quoteHealth.trading ? (!o.quoteHealth.fresh ? 'err' : o.quoteHealth.old || o.quoteHealth.job.partial || o.quoteHealth.job.writePending || (o.quoteHealth.job.errors || []).length ? 'warn' : 'ok') : 'idle') +
       card('歷史 60 分 K／績效', hourError ? '分 K 待補，需核對來源' : hourSource404 ? '單檔來源 404，待整輪摘要' : o.hourlyScheduled ? '排程已安裝' : '分 K 排程缺少', '19:15 歷史分 K；績效最後一筆 ' + (o.perfLast || '尚無') + '。' + (o.hourlyProgress ? '最近進度：' + o.hourlyProgress + '。' : '尚無分 K 進度紀錄。') + (hourSource404 ? '這是單檔來源回應，既有資料保留；下個交易日核對整輪待補數。' : '') + (o.hourlyScheduled ? '' : '部署後執行 installMarketDataJobs()。'), hourError || hourSource404 || !o.hourlyScheduled ? 'warn' : 'idle');
@@ -4761,7 +4763,7 @@ var mergeTxFingerprint='';
       flow('09:05 起', '盤中會員簡訊', smsMail.accepted ? '首次 ' + clock(smsMail.firstAt) + ' 交郵件服務；' + sent(smsMail) + '。' : (o.smsCount ? '有來源文章，尚無寄送紀錄。' : '目前沒有來源文章。'), smsMail.accepted ? 'ok' : 'idle') +
       flow((o.autoStart || '11:05') + ' 起', '影片與逐字稿', closed ? closedTxt + '。' : o.noShow ? '今日無直播，已停止取稿。' : '偵測影片後才派判讀；目前 ' + (o.videoStatus || '等待影片') + '。', closed ? 'closed' : o.videoStatus === '完成' ? 'ok' : 'idle') +
       flow(o.mailStart || '12:00', '每日總覽信最早寄送', closed ? closedTxt + '。' + prevTxt : daily.accepted ? '實際首次 ' + clock(daily.firstAt) + '；' + sent(daily) + '。' : o.noShow ? '今日無直播，不寄送。' : '文章完成後下一輪排程寄出。', closed ? 'closed' : daily.accepted ? 'ok' : 'idle') +
-      flow('16:45 起', '日 K 與持股背景重算', closed ? closedTxt + '（14:05～15:05 的固定排程也略過）。' : dkToday ? '今日日 K 完成於 ' + o.dailyK.finishedAt + '；出場價待補 ' + (o.blankExits || []).length + ' 檔。' : '上次完成 ' + (o.dailyK && o.dailyK.finishedAt || '尚無') + '。', closed ? 'closed' : dkToday ? 'ok' : 'idle') +
+      flow('16:45 起', '日 K 與持股背景重算', closed ? closedTxt + '（14:05～15:05 的固定排程也略過）。' : dkToday ? '今日日 K 完成於 ' + formatTaipeiTime(o.dailyK.finishedAt) + '；出場價待補 ' + (o.blankExits || []).length + ' 檔。' : '上次完成 ' + (formatTaipeiTime(o.dailyK && o.dailyK.finishedAt) || '尚無') + '。', closed ? 'closed' : dkToday ? 'ok' : 'idle') +
       flow('19:15', '歷史 60 分 K', o.hourlyScheduled ? '排程已安裝。' : '尚未安裝獨立排程。', o.hourlyScheduled ? 'ok' : 'warn');
     /* 執行紀錄可以切日期（v67，0925 規格 A3）：預設今天；今天沒有紀錄（休市、早上）時自動切到最近一個交易日並標示。 */
     var sel = $('opsDay');
@@ -4783,7 +4785,7 @@ var mergeTxFingerprint='';
     if (note) { note.hidden = !day; note.textContent = day ? '目前顯示 ' + day + ' 的紀錄' + (opsDayAuto && $('opsDay').value === day ? '（今天還沒有紀錄，自動切到最近一個交易日）' : '') + '。' : ''; }
     $('opsEvents').innerHTML = list.slice().reverse().slice(0, 30).map(function (e) {
       var bad = /失敗|錯誤/.test(e.kind);
-      return '<li class="' + (bad ? 'bad' : '') + '"><b>' + esc(e.time || '—') + '　' + esc(e.kind) + '</b>　' + esc(e.text) + '</li>';
+      return '<li class="' + (bad ? 'bad' : '') + '"><b>' + esc(formatTaipeiTime(e.time) || '—') + '　' + esc(e.kind) + '</b>　' + esc(e.text) + '</li>';
     }).join('') || '<li class="empty">' + (day ? day + ' 沒有執行紀錄。' : '今天尚無執行紀錄。') + '</li>';
   }
   function loadDay(day, quiet) {
@@ -5339,7 +5341,7 @@ var mergeTxFingerprint='';
       show($('kcovMsg'), r.affected ? 'warn' : 'ok',
         r.from + ' ～ ' + r.to + '，應有 ' + r.tradingDays + ' 個交易日。追蹤 ' + r.codes + ' 檔，' +
         (r.affected ? r.affected + ' 檔有缺口、共缺 ' + r.missingTotal + ' 天，最舊缺口 ' + r.oldest + '。' : '全部齊全。') +
-        (r.backfill ? '\n補日K：' + (r.backfill.finishedAt ? '本輪已完成（' + r.backfill.finishedAt + '）' : '進行中，做到 ' + (r.backfill.lastCode || '開頭')) +
+        (r.backfill ? '\n補日K：' + (r.backfill.finishedAt ? '本輪已完成（' + formatTaipeiTime(r.backfill.finishedAt) + '）' : '進行中，做到 ' + (r.backfill.lastCode || '開頭')) +
           (r.backfill.failed ? '，失敗 ' + r.backfill.failed + ' 檔' : '') : '') + '\n' + r.note);
       var bad = (r.rows || []).filter(function (x) { return x.missing; });
       $('kcovBox').innerHTML = bad.length
@@ -5547,7 +5549,7 @@ function pollCrawl(){
     crawlRunId=active?active.id:'';crawlWorkflow=r.activeWorkflow||'transcript.yml';
     AUTO_CANCEL_RUN_ID=active&&crawlWorkflow==='daily.yml'?active.id:'';
     $('crawlCancelBtn').disabled=!active;
-    if(run){$('crawlRun').classList.add('show');$('crawlLog').href=run.url;$('crawlStat').textContent=run.status+' / '+(run.conclusion||'')+' · '+run.at;
+    if(run){$('crawlRun').classList.add('show');$('crawlLog').href=run.url;$('crawlStat').textContent=run.status+' / '+(run.conclusion||'')+' · '+formatTaipeiTime(run.at);
       if(run.status!=='completed'){cur=run.status==='in_progress'?1:0;status=run.status==='in_progress'?'執行中':'排隊中';note='聽打實況請開取稿日誌；不以經過時間猜測百分比。';}
       else if(run.conclusion!=='success'){status=run.conclusion==='cancelled'?'已取消':'失敗';note='本次取稿已結束：'+run.conclusion+'；已完成片段保留。';}
     }else{$('crawlStat').textContent='此日尚無取稿執行';}
@@ -5636,15 +5638,15 @@ setTimeout(initCrawlDayPills, 50);
     $('lineCards').innerHTML =
       card('設定', ready ? '已設定' : '未完成', '存取權杖 ' + (d.configured.token ? '已設定' : '未設定') + '、頻道密鑰 ' + (d.configured.secret ? '已設定' : '未設定') + '、轉送服務 ' + (d.relayUrl ? '已填' : '未填') + '。', ready && d.relayUrl ? 'ok' : 'err') +
       card('好友與訂閱', (c.friends || 0) + ' 位好友', '每日總覽 ' + (c.daily || 0) + '、盤中通知已確認 ' + (c.smsActive == null ? '待更新後端' : c.smsActive) + '（舊設定待確認 ' + (c.smsPending == null ? '待核對' : c.smsPending) + '）、封鎖 ' + (c.blocked || 0) + '、測試帳號 ' + (c.testers || 0) + (c.other ? '；另有 ' + c.other + ' 位屬於其他 LINE 帳號（測試頻道）' : '') + '。待確認者須在自己的 LINE 聊天室送出「開啟盤中通知」，也可點管理訂閱卡的同文按鈕。', c.smsPending ? 'warn' : c.friends ? 'ok' : 'idle') +
-      card('本月訊息額度', qBig, q && q.ok ? (q.type === 'limited' ? '剩 ' + q.remaining + ' 則（每位收件者算一則；回覆不計）。' : '這個方案沒有月上限。') + '讀取時間 ' + (q.at || '') + '。' : (q && q.error ? '原因：' + q.error : '設定存取權杖後才讀得到。'), qTone) +
+      card('本月訊息額度', qBig, q && q.ok ? (q.type === 'limited' ? '剩 ' + q.remaining + ' 則（每位收件者算一則；回覆不計）。' : '這個方案沒有月上限。') + '讀取時間 ' + formatTaipeiTime(q.at) + '。' : (q && q.error ? '原因：' + q.error : '設定存取權杖後才讀得到。'), qTone) +
       /* v152：顏色只看現在——有待送是黃、今天有逾時或失敗才是紅；歷史累計另外寫，不再讓舊的一筆把卡片染紅。 */
       card('待送與異常', ((ob.queued || 0) + (ob.sending || 0)) + ' 則待送', (ob.oldestOpen ? '最舊 ' + ob.oldestOpen + '。' : '') +
         (ob.today ? '今天完成 ' + (ob.today.done || 0) + '、逾時未補送 ' + (ob.today.expired || 0) + (ob.today.failed ? '、失敗 ' + ob.today.failed : '') + '。累計完成 ' + (ob.done || 0) + '、逾時 ' + (ob.expired || 0) +
-            (ob.lastExpired ? '（最近一次 ' + String(ob.lastExpired).slice(5, 16) + '）' : '') + '。'
+            (ob.lastExpired ? '（最近一次 ' + formatTaipeiTime(ob.lastExpired) + '）' : '') + '。'
           : '逾時未補送 ' + (ob.expired || 0) + '、完成 ' + (ob.done || 0) + '。'),
         ob.sending || ob.queued ? 'warn' : (ob.today ? (ob.today.expired || ob.today.failed) : ob.expired) ? 'err' : 'ok') +
-      card('Webhook', st.lastWebhookAt ? '最後 ' + String(st.lastWebhookAt).slice(5, 16) : '尚未收到', '今日驗簽失敗：網站 ' + (st.gasSigFail || 0) + '、轉送服務 ' + (st.cloudSigFail || 0) + (st.relayBuild ? '（轉送服務 ' + st.relayBuild + '）' : '') + '。', (st.gasSigFail || st.cloudSigFail) ? 'warn' : st.lastWebhookAt ? 'ok' : 'idle') +
-      card('互動回覆耗時', timing ? (((timing.relay || 0) + timing.total) / 1000).toFixed(1) + ' 秒' : '尚無紀錄', timing ? '最近 ' + timing.at + '｜' + (timing.queue != null ? '排隊 ' + (timing.queue / 1000).toFixed(1) + '、GAS 啟動 ' + (timing.start / 1000).toFixed(1) : '轉送 ' + (timing.relay == null ? '—' : (timing.relay / 1000).toFixed(1))) + '、處理 ' + (timing.total / 1000).toFixed(1) + ' 秒' + (timing.attempt > 1 ? '（重送第 ' + timing.attempt + ' 次）' : '') : '測試帳號傳一則查詢後顯示。', !timing ? 'idle' : (timing.relay || 0) + timing.total >= 15000 ? 'err' : (timing.relay || 0) + timing.total >= 8000 ? 'warn' : 'ok') +
+      card('Webhook', st.lastWebhookAt ? '最後 ' + formatTaipeiTime(st.lastWebhookAt) : '尚未收到', '今日驗簽失敗：網站 ' + (st.gasSigFail || 0) + '、轉送服務 ' + (st.cloudSigFail || 0) + (st.relayBuild ? '（轉送服務 ' + st.relayBuild + '）' : '') + '。', (st.gasSigFail || st.cloudSigFail) ? 'warn' : st.lastWebhookAt ? 'ok' : 'idle') +
+      card('互動回覆耗時', timing ? (((timing.relay || 0) + timing.total) / 1000).toFixed(1) + ' 秒' : '尚無紀錄', timing ? '最近 ' + formatTaipeiTime(timing.at) + '｜' + (timing.queue != null ? '排隊 ' + (timing.queue / 1000).toFixed(1) + '、GAS 啟動 ' + (timing.start / 1000).toFixed(1) : '轉送 ' + (timing.relay == null ? '—' : (timing.relay / 1000).toFixed(1))) + '、處理 ' + (timing.total / 1000).toFixed(1) + ' 秒' + (timing.attempt > 1 ? '（重送第 ' + timing.attempt + ' 次）' : '') : '測試帳號傳一則查詢後顯示。', !timing ? 'idle' : (timing.relay || 0) + timing.total >= 15000 ? 'err' : (timing.relay || 0) + timing.total >= 8000 ? 'warn' : 'ok') +
       card('通知圖文選單', menu.ok ? '版本已更新' : '需要檢查', (menu.actual ? 'LINE 別名指向 ' + menu.actual + '。' : '') + (menu.reason || '請重新讀取狀態。') + (menu.ok ? ' 請用手機檢查三個入口；若仍看到兩個「今日整理」，重新部署轉送服務後再按「建立圖文選單」。' : ''), menu.ok ? 'ok' : 'warn') +
       card('推送模式', MODE[d.mode], d.mode === 'on' ? '每日總覽送給已訂閱的好友。' : d.mode === 'test' ? '只送綁定的測試帳號，其他好友不會收到。' : '不排也不送；查詢與訂閱開關照常。', d.mode === 'on' ? 'ok' : 'warn');
     if (document.activeElement !== $('lineRelay')) { $('lineRelay').value = d.relayUrl || ''; }
@@ -5716,7 +5718,7 @@ setTimeout(initCrawlDayPills, 50);
       if (!r.items.length) { $('lineDetail').innerHTML = '<p class="ops-note">找不到符合的推送紀錄。</p>'; return; }
       $('lineDetail').innerHTML = '<h3 class="ops-section-title">查詢結果（' + r.items.length + ' 筆）</h3>' + foldList(r.items, function (m) {
         return item(m, false).replace(/<\/div>$/, '') + '<div class="line-who">' + (m.recipients || []).map(function (x) {
-          return '<span>' + esc(x.user + '　' + (RSTATE[x.state] || x.state) + (x.acceptedAt ? '　' + String(x.acceptedAt).slice(5, 16) : '') + (x.err ? '　' + x.err : '')) + '</span>';
+          return '<span>' + esc(x.user + '　' + (RSTATE[x.state] || x.state) + (x.acceptedAt ? '　' + formatTaipeiTime(x.acceptedAt) : '') + (x.err ? '　' + x.err : '')) + '</span>';
         }).join('') + '</div>' + (m.canRetry ? '<button type="button" class="ghost sm" data-line-retry="' + esc(m.id) + '">重試還沒被接受的收件者</button>' : '') + '</div>';
       }, '顯示其餘');
     }).withFailureHandler(function (e) { $('lineDetail').innerHTML = '<p class="ops-note">查詢失敗：' + esc(e && e.message || e) + '</p>'; }).apiAdminLineLookup(KEY, q);

@@ -9,7 +9,7 @@ on:
       mode:
         description: 通過全部品質核對後才更新；不寄送
         type: choice
-        options: [preview, apply, verdicts]
+        options: [preview, apply, verdicts, titles]
         default: preview
 permissions:
   contents: read
@@ -50,6 +50,11 @@ jobs:
           if [ "$MODE" = verdicts ]; then
             # 唯讀：只把有人工答案的日子送分類問卷，量準確與一致；日期可用逗號分隔
             python scripts/adjudicate_probe.py --dates "$TARGET_DATE" --repeat 3
+            exit 0
+          fi
+          if [ "$MODE" = titles ]; then
+            # 唯讀：用現在的標題步驟替已在站上的日子各問一次標題，只印結果；日期可用逗號分隔
+            python scripts/title_probe.py --dates "$TARGET_DATE"
             exit 0
           fi
           ARGS=(--date "$TARGET_DATE")

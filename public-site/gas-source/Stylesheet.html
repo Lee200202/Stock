@@ -4561,7 +4561,10 @@ table.sk-rec tr.sk-row, table.sk-find tr.sk-row { grid-template-columns: minmax(
 .detail-close { width: 48px; height: 48px; border-radius: 50%; font-size: calc(18px * var(--rd-fs)); }
 .detail-body { padding: 34px var(--gut) 90px; max-width: calc(var(--wrapmax) + 2 * var(--gut)); margin-inline: auto; }
 .detail-head > .quotehead { max-width: var(--wrapmax); margin-inline: auto !important; flex: 1 1 auto; }
-.kv-grid { gap: 14px; }
+/* 一排三格的欄寬要跟著間距算：先前間距由 12px 改成 14px、算式還是扣 24px，第三格放不下，電腦版只剩一排兩格（2026/10/12）。
+   窄螢幕每格至少 150px，放不下三格時自動變兩格。 */
+.kv-grid { --kv-gap: 14px; gap: var(--kv-gap);
+  grid-template-columns: repeat(auto-fill, minmax(max(150px, calc((100% - 2 * var(--kv-gap)) / 3)), 1fr)); }
 .kv-cell { padding: 18px 22px; border-radius: var(--r-md); border: 1px solid var(--rule); }
 .kv-cell .k { font-size: calc(13px * var(--rd-fs)); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .kv-cell .v { font-size: calc(19px * var(--rd-fs)); margin-top: 6px; }

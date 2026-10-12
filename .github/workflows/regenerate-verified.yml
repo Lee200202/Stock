@@ -9,7 +9,7 @@ on:
       mode:
         description: 通過全部品質核對後才更新；不寄送
         type: choice
-        options: [preview, apply, sync, priority-check, verdicts, titles]
+        options: [preview, apply, sync, priority-check, reviewed-points, verdicts, titles]
         default: preview
 permissions:
   contents: read
@@ -47,6 +47,10 @@ jobs:
           FINAL_ATTEMPT: 'true'
           PYTHONUNBUFFERED: '1'
         run: |
+          if [ "$MODE" = reviewed-points ]; then
+            python scripts/apply_reviewed_points.py --date "$TARGET_DATE"
+            exit 0
+          fi
           if [ "$MODE" = priority-check ]; then
             python scripts/sync_source_priority.py --date "$TARGET_DATE" --audit-only
             exit 0

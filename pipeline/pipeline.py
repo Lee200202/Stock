@@ -13331,6 +13331,14 @@ def apply_verdicts(signals, date_str, final=False):
                 # 從不公開改列公開的列沒有經過日期歸屬那一步（2026/10/09 環球晶由排除改列觀望不碰，整輪停在缺 _date）。
                 moved['_date'] = moved.get('_date') or date_str
                 moved['_seq'] = moved.get('_seq') or max(1, int(moved.get('seq') or len(signals.get(target, []) or []) + 1))
+                # 不公開的列可能還是聽寫的名稱（2026/09/30 友達以「有達」改列觀望不碰、就這樣上了網站）：
+                # 代號對得到官方清單時換成正式簡稱，聽寫的字留在 aliases 供段落比對。
+                official = str((_CODE_MAP or {}).get(code) or '').strip()
+                heard = str(moved.get('name') or '').strip()
+                if official and heard and _display_name(heard) != _display_name(official):
+                    moved['aliases'] = list(dict.fromkeys([x for x in (moved.get('aliases') or []) if isinstance(x, str)] + [heard]))
+                    moved['原始語音名稱'] = moved.get('原始語音名稱') or heard
+                    moved['name'] = official
             signals.setdefault(target, []).append(moved)
             label = '收尾時搬回' if final else '改列'
             print(f"  分類裁決　{entry.get('name')}（{code}）由「{_VERDICT_LABEL.get(cat, cat)}」{label}「{_VERDICT_LABEL[target]}」")

@@ -18,6 +18,7 @@ def digest(value):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--date', required=True)
+    parser.add_argument('--audit-only', action='store_true')
     args = parser.parse_args()
     day = pl.norm_date(args.date)
     target = datetime.strptime(day, '%Y/%m/%d').date()
@@ -27,6 +28,16 @@ def main():
     if not (ROOT / 'scripts/golden' / (target.isoformat() + '.json')).exists():
         raise SystemExit('須有該日人工核對答案；本次未修改')
     book = pl.open_sheets()
+    if args.audit_only:
+        for name in ('操作紀錄', '會員持股'):
+            values = book.worksheet(name).get_all_values()
+            print(name + ' columns: ' + json.dumps(values[0], ensure_ascii=False))
+            for row in values[1:]:
+                item = dict(zip(values[0], row))
+                if pl.norm_date(item.get('日期', '')) == day:
+                    print(json.dumps({k: item.get(k, '') for k in ('日期', '股票名稱', '代號', '方向', '來源影片ID')}, ensure_ascii=False))
+        print('僅核對欄位及來源；未修改、未呼叫模型或寄送')
+        return
     names = [w.title for w in book.worksheets()]
     ledgers = [n for n in names if n in ('寄送帳本', 'LINE 寄送帳本')]
     before = {n: digest(book.worksheet(n).get_all_values()) for n in ledgers}

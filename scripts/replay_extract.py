@@ -172,7 +172,11 @@ def invariants(signals, raw):
             errors.append(f"{name} 列觀望不碰，說明卻只有偏多的內容：{note[:60]}")
         if cat in ("buy", "watch_watch") and pl.active_prohibit(note):
             warns.append(f"{name} 列{LABEL[cat]}，說明裡有明確的不要買：{note[:60]}")
-    # 四、原文盤點到、講得很直白的台股不能沒有下落。
+    # 四、單檔硬傷已留底隔離，算有處理下落；不能再以缺列把整天擋下。
+    for rejected in signals.get('_publication_quarantine') or []:
+        placed.add(str(rejected.get('code') or ''))
+        warns.append(str(rejected.get('name') or '') + ' 已隔離不公開：' + '；'.join(rejected.get('_quarantine_reasons') or []))
+    # 原文盤點到、講得很直白的台股不能沒有下落。
     try:
         for item in pl.source_inventory(pl.source_segments(raw)):
             heard, code = item["name"], str(item["code"])

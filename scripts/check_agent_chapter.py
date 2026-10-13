@@ -27,8 +27,13 @@ try:
                     assert button.get_attribute('aria-pressed') == 'true'
                     assert page.locator('[data-agent][aria-pressed="true"]').count() == 1
                     values.append(page.locator('#agentOutput').inner_text())
+                    assert page.locator('#agentRoute li').count() == 4
                     assert button.bounding_box()['height'] >= 44
                 assert len(set(values)) == 6
+                for key, token in [('lookup','10/06'),('overload','503'),('live','11:09')]:
+                    page.locator(f'[data-agent-real="{key}"]').click()
+                    assert token in page.locator('#agentRealRoute').inner_text()
+                    assert page.locator('[data-agent-real][aria-pressed="true"]').count() == 1
                 page.locator('[data-budget="full"]').click()
                 assert '130／100' in page.locator('#agentBudgetNote').inner_text()
                 page.locator('[data-budget="fit"]').press('Enter')

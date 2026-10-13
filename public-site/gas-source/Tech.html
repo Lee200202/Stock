@@ -210,6 +210,10 @@
       <button type="button" data-agent="swap" aria-pressed="false"><b>⑥ 換模型就一樣嗎？</b><span>可替換與驗收</span></button>
     </div>
     <div class="agent-answer" id="agentAnswer" aria-live="polite" aria-atomic="true">
+      <p class="agent-diagram-label" id="agentDiagramLabel">容量示意 · 100 格上限，以下不是實測 token 數</p>
+      <ol class="agent-route" id="agentRoute" aria-label="目前情境的圖解">
+        <li><span>01 規則與工具</span><b>20</b><small>輸入格數</small></li><li><span>02 本次證據</span><b>50</b><small>保留本股上下文</small></li><li><span>03 輸出預留</span><b>20</b><small>不拿來塞舊稿</small></li><li class="is-result"><span>04 容量核對</span><b>90/100</b><small>還剩 10 格</small></li>
+      </ol>
       <p class="agent-q" id="agentQ">整個資料庫都在模型腦裡嗎？</p>
       <p id="agentA">不是。Context window 是這次推論可處理的上下文範圍。指令、工具規格、對話、原句與查詢結果都會占用輸入，還要為輸出保留容量；實際限制依模型而定。</p>
       <ul id="agentFacts"><li>試算表是持久資料；本次輸入才是模型當下能讀的內容。</li><li>查到新資料後，控制程式再把結果送入下一輪，並非模型自動記住整個網站。</li><li>長原稿需保留股名、時間與相鄰上下文；只截半句會誤把過去賣出當今天。</li></ul>
@@ -224,11 +228,25 @@
       <p class="agent-token-note">「鴻海／昨天／賣出」只是閱讀用切塊圖，不是實際 tokenizer。中文、標點、代號可能切成不同 token，不能用一字等於一 token 計費；正式計數須用該模型的計數方法或回應用量。</p>
       <div class="agent-chips" aria-label="閱讀切塊示意"><span>鴻海</span><span>昨天</span><span>賣出</span><b>→ 保留時間，才不會改成今日成交</b></div>
     </div>
+    <div class="agent-real">
+      <p class="agent-q">今天這一集，實際怎麼抓到？</p>
+      <p class="agent-diagram-label">10/13 日誌實測 · 模型與切段設定日後可能調整</p>
+      <div class="agent-models">
+        <article><span>01 找片與聽打</span><b>Gemini 3.5 Flash Lite</b><p>YouTube Data API 先核對頻道、日期、直播狀態與片長；回放就緒後，把 YouTube URI 和起訖秒數交給 generateContent 串流聽打，不是擷取網站文字當逐字稿。備援設定為 3.1 Flash Lite。</p><strong>67分43秒 → 5段 → 13,914字</strong><small>今天每段15分鐘；最後一段7分43秒。字數不是token數。</small></article>
+        <article><span>02 判讀與裁決</span><b>Gemini 3.5 Flash Lite</b><p>Python 讀原始稿，模型擷取候選、核對疑點、整理說明；程式再查日期、代號、引句、價位與操作來源。當日操作優先，歷史交易不移到今天。</p><strong>候選 → 證據 → 分類 → 文章</strong><small>裁決最多三輪，每輪合併請求；同模型多輪不代表三個獨立模型。</small></article>
+        <article><span>03 網站小助手</span><b>驗證可用的 Flash Lite</b><p>Apps Script 優先使用3.5 Flash Lite，不可用時選可用的Lite型號。程式接住結構化意圖，限制公開查詢；訂閱另走確認程序，不能靠模型一句話就完成。</p><strong>提案 ≠ 執行 ≠ 已完成</strong><small>以每次回覆中的實際型號為準；本站沒有把所有服務都接好。</small></article>
+      </div>
+      <div class="agent-choices" role="group" aria-label="實際與假設情境"><button type="button" data-agent-real="live" aria-pressed="true">10/13：11:09 還在直播</button><button type="button" data-agent-real="lookup" aria-pressed="false">查10/13鴻海：今天賣了嗎？</button><button type="button" data-agent-real="overload" aria-pressed="false">假設：第5段遇到503</button></div>
+      <ol class="agent-route" id="agentRealRoute" aria-label="實際取稿時間線"><li><span>01 直播尚未結束</span><b>11:09</b><small>不送模型聽打</small></li><li><span>02 回放緩衝中</span><b>11:12</b><small>等滿5分鐘緩衝</small></li><li><span>03 就緒才聽打</span><b>11:15</b><small>5段各指定起訖</small></li><li class="is-result"><span>04 原稿落地</span><b>11:17</b><small>13,914字，片段存快取</small></li></ol>
+      <p id="agentRealResult" class="agent-output" aria-live="polite">今天先等待直播與回放，11:15:44開始送第一段、11:17:38原稿存檔，約1分54秒。後續判讀11:32開始、11:37完成；這些是不同階段的時間。</p>
+      <p class="agent-sources">實際依據：<a href="https://github.com/Lee200202/Stock/actions/runs/38340342954" target="_blank" rel="noopener">10/13取稿日誌</a> · <a href="https://github.com/Lee200202/Stock/actions/runs/38341147246" target="_blank" rel="noopener">10/13判讀日誌</a> · <a href="https://github.com/Lee200202/Stock/blob/main/transcript.py" target="_blank" rel="noopener">取稿程式</a> · <a href="https://github.com/Lee200202/Stock/blob/main/public-site/gas-source/Aiservice.gs" target="_blank" rel="noopener">助手控制程式</a></p>
+    </div>
     <details class="agent-details"><summary>能講清楚底層，和會安裝技能包差在哪裡？</summary>
       <ul><li><b>拆得開：</b>說明指令、證據、token、模型回應及工具結果各自在哪裡；技能是可讀的作業規範，不能取代權限與程式驗證。</li><li><b>做得出：</b>最小代理是「組裝輸入 → 呼叫模型 → 驗證工具請求 → 執行允許的工具 → 回傳結果 → 判斷停止」的迴圈。檔案、指令、網路各有自己的授權範圍。</li><li><b>驗得過：</b>換模型後重跑相同原稿、來源優先與錯誤案例，量正確率、延遲和用量，不只比較單價；小專案需有可重現的證據。</li><li><b>本站怎麼做：</b>每日判讀是程式安排的工作流，Python 負責日期、引句、來源優先與寫入關卡；網站小助手由轉送層提供受限的公開查詢。本章示意一般代理迴圈，不宣稱本站重做了 Claude Code。</li></ul>
+      <p>白板上可以再拆一層：token編號轉成向量，序列位置與attention讓模型關聯前後文，再產生下一個token的候選分數，由生成設定選出下一單位。推論過程中的KV cache用來重用模型計算，和上一章「網站快取查詢答案」不同；實際架構與限制依模型服務而定。</p>
       <p>Huntley 的「自己做代理」是工程能力的觀點，不是普遍的錄取規範。未具名來信的 3K／100K／50 萬與兩週開發，沒有可核驗案例與明確幣別，不能用來計算本站成本或保證效率。</p>
     </details>
-    <p class="agent-sources">原理依據：<a href="https://ai.google.dev/gemini-api/docs/tokens" target="_blank" rel="noopener">Google：token 計數</a> · <a href="https://www.anthropic.com/engineering/building-effective-agents" target="_blank" rel="noopener">Anthropic：工作流與代理</a> · <a href="https://code.claude.com/docs/en/how-claude-code-works" target="_blank" rel="noopener">Claude Code：工具迴圈</a> · <a href="https://ghuntley.com/agent/" target="_blank" rel="noopener">Huntley：自製代理工作坊</a></p>
+    <p class="agent-sources">原理依據：<a href="https://ai.google.dev/gemini-api/docs/tokens" target="_blank" rel="noopener">Google：token 計數</a> · <a href="https://www.anthropic.com/engineering/building-effective-agents" target="_blank" rel="noopener">Anthropic：工作流與代理</a> · <a href="https://code.claude.com/docs/en/how-claude-code-works" target="_blank" rel="noopener">Claude Code：工具迴圈</a> · <a href="https://arxiv.org/abs/1706.03762" target="_blank" rel="noopener">Transformer原始論文</a> · <a href="https://ghuntley.com/agent/" target="_blank" rel="noopener">Huntley：自製代理工作坊</a></p>
   </section>
 
   <section class="tech-section" id="tech-day">
@@ -591,8 +609,21 @@
     fault: ['創意那一檔證據不足，要停掉整天嗎？','單檔疑點先隔離，不公開該列；其他已通過的股票繼續。來源讀不到、通知優先無法核對或整篇章節失真，仍需暫停發布。',['10/13 例子：創意只有新聞推薦；後面的 4400→3900 是另一檔，不能接過來。','歷史成交不能因同段出現「今天」變成當日賣出；已出場獲利回顧也不能變持股。','隔離留原分類、原句與原因；更正網站不改已寄出的郵件快照，也不自動重寄。'],'可核對的內容先發布；問題有留底，不能靠綠燈掩蓋。'],
     swap: ['換最便宜的模型，就能保持一樣嗎？','需要模型轉接層把請求、結構化回應、工具呼叫與錯誤轉成共同格式，再用同一組驗收案例核對。可替換是設計能力，不是所有模型表現相同。',['核對上下文容量、輸出上限、工具及 JSON 能力，不能只改模型名稱。','比較每個完成任務的總成本，包含重試、延遲與品質；不是只看每 token 價格。','本站以日期、來源指紋、規則版本和人工答案做回歸；新模型通過才可接手正式資料。'],'同一個驗收標準約束不同模型；對不上證據就不發布。']
   };
-  all('[data-agent]').forEach(function(b){b.addEventListener('click',function(){var c=agentCases[b.dataset.agent];select(all('[data-agent]'),b);one('#agentQ').textContent=c[0];one('#agentA').textContent=c[1];one('#agentFacts').innerHTML=c[2].map(function(s){return '<li>'+esc(s)+'</li>';}).join('');one('#agentOutput').textContent='得到什麼：'+c[3];});});
+  var agentRoutes = {
+    context:['容量示意 · 100 格上限，以下不是實測 token 數',[['規則與工具','20','輸入格數'],['本次證據','50','保留本股上下文'],['輸出預留','20','不拿來塞舊稿'],['容量核對','90/100','還剩 10 格']]],
+    tokens:['轉換圖 · 切塊與編號僅示意，真實切法由模型決定',[['原文','文字','鴻海昨天賣出'],['Tokenizer','小單位','查模型詞彙表'],['數值表示','編號','再轉為向量'],['模型輸入','向量','附序列位置資訊']]],
+    infer:['逐步生成示意 · 每步依已有序列選下一個 token',[['讀入上下文','Prefill','處理指令與來源'],['第 1 步輸出','仍','加入已生成序列'],['第 2 步輸出','持有','再選下一個小單位'],['第 3 步輸出','。','收到停止條件才結束']]],
+    tools:['工具迴圈示意 · 沒收到工具結果，就不能宣稱查過',[['模型提案','1','查某日原稿'],['程式核准','2','名稱／參數／權限'],['允許的查詢','1 次','工具讀來源再回覆'],['下一輪判讀','↩','附日期與結果核對']]],
+    fault:['單檔隔離的數量示意 · 不是今日實際發布統計',[['候選個股','20','逐檔查證據'],['有硬傷的列','1','留底，不公開'],['其他已通過','19','繼續產生文章'],['歷史通知','0','更正不重寄']]],
+    swap:['模型替換示意 · 本站並未宣稱已接上所有供應商',[['模型選項','A/B','各有能力與限制'],['共同轉接','1 套','統一請求／回應格式'],['相同驗收','同一組','原稿、分類、錯誤案例'],['採用條件','通過','看品質、延遲及總成本']]]
+  };
+  all('[data-agent]').forEach(function(b){b.addEventListener('click',function(){var c=agentCases[b.dataset.agent],d=agentRoutes[b.dataset.agent];select(all('[data-agent]'),b);one('#agentDiagramLabel').textContent=d[0];one('#agentRoute').innerHTML=d[1].map(function(r,i){return '<li'+(i===3?' class="is-result"':'')+'><span>0'+(i+1)+' '+esc(r[0])+'</span><b>'+esc(r[1])+'</b><small>'+esc(r[2])+'</small></li>';}).join('');one('#agentQ').textContent=c[0];one('#agentA').textContent=c[1];one('#agentFacts').innerHTML=c[2].map(function(s){return '<li>'+esc(s)+'</li>';}).join('');one('#agentOutput').textContent='得到什麼：'+c[3];});});
   all('[data-budget]').forEach(function(b){b.addEventListener('click',function(){var full=b.dataset.budget==='full';select(all('[data-budget]'),b);one('#agentEvidence').style.width=full?'60%':'50%';one('#agentEvidence').textContent=full?'證據 90 → 超限':'證據 50';one('#agentBudgetNote').textContent=full?'20＋90＋20＝130／100。超過容量；先選本次來源與本股相鄰段落，不能靜默截掉時間或借用別檔數字。':'20＋50＋20＝90／100。還有 10 格；保留本股前後文與輸出空間。';});});
+  var agentRealCases={
+    live:[[['直播尚未結束','11:09','不送模型聽打'],['回放緩衝中','11:12','等滿5分鐘緩衝'],['就緒才聽打','11:15','5段各指定起訖'],['原稿落地','11:17','13,914字，片段存快取']],'今天先等待直播與回放，11:15:44開始送第一段、11:17:38原稿存檔，約1分54秒。後續判讀11:32開始、11:37完成；這些是不同階段的時間。'],
+    lookup:[[['先定位來源','10/13','今天原稿與操作'],['核對成交日期','10/06','260元是過去出場'],['今天的價格條件','238元','跌到此處評估買點'],['最後分類','觀望注意','不是今日賣出，也未買回']],'當日239～240元與先前260元賣出是兩個時點；查完整原稿後再整理買點。不能把「今天才在賣」的觀眾行為當講者成交。'],
+    overload:[[['假設第5段失敗','503','服務暫時過載'],['先保留完成片段','4/5','不丟掉前60分鐘'],['退避與有限重試','1/5','只處理未完成片段'],['完成或留待續跑','有上限','持續失敗要保留原因']],'這是假設情境，不是10/13實際503事件。暫時服務錯誤有限重試與備援；認證或參數錯誤須修正設定，不能只輪換金鑰。還沒完成就不標完成。']};
+  all('[data-agent-real]').forEach(function(b){b.addEventListener('click',function(){var d=agentRealCases[b.dataset.agentReal];select(all('[data-agent-real]'),b);one('#agentRealRoute').innerHTML=d[0].map(function(r,i){return '<li'+(i===3?' class="is-result"':'')+'><span>0'+(i+1)+' '+esc(r[0])+'</span><b>'+esc(r[1])+'</b><small>'+esc(r[2])+'</small></li>';}).join('');one('#agentRealResult').textContent=d[1];});});
 
   /* ---------- 關聯圖（v72）：線上不寫字；圖比畫面寬時可以左右拖移；說明框不蓋住被點的卡片 ---------- */
   var DESC = {

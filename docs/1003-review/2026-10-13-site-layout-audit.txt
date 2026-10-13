@@ -1,0 +1,112 @@
+分頁：[["overview", "每日總覽"], ["tracker", "持股追蹤"], ["perf", "績效走勢"], ["subscribe", "訂閱通知"], ["mail", "郵件查詢"], ["tx", "逐字稿"], ["tech", "技術說明"]]
+
+== 每日總覽（1600px）範圍 [data-audit="1"]｜高 3145｜整頁橫向捲動 無
+  小字 13px ×1｜div.mailcal > div.mailcal-legend｜有紀錄
+  末行孤字 0 處
+  純文字大區塊 622 字、高 1492｜section.panel > div.sect｜觀望不碰語氣偏空，暫不進場
+
+== 持股追蹤（1600px）範圍 [data-audit="1"]｜高 4025｜整頁橫向捲動 無
+  小字 10.5px ×2｜div.tracker-card-identity > span.roundtag｜第 2 回合
+  小字 11px ×1｜div.tx-mid > span.tx-cum.down｜累積 -1.75%
+  小字 11px ×1｜div.tx-mid > span.tx-cum.up｜累積 +6.01%
+  小字 13px ×30｜div.tx-end > small｜9/29 進場
+  小字 13px ×1｜div.tracker-sortbar > span.tracker-sort-k｜排序
+  小字 13px ×1｜div.basis-line > span｜進場價取明講價與當日中點較低者。
+  末行孤字 0 處
+  純文字大區塊 2117 字、高 3837｜section.panel > div.sect｜
+
+== 績效走勢（1600px）範圍 [data-audit="1"]｜高 847｜整頁橫向捲動 無
+  小字 12.5px ×1｜div.sect > p.perf-how｜平均報酬只計入有進場價與當日價者；每個交易日
+  小字 13px ×1｜div.sect > p.basis｜載入中
+  末行孤字 0 處
+
+== 訂閱通知（1600px）範圍 [data-audit="1"]｜高 1289｜整頁橫向捲動 無
+  末行孤字 0 處
+  觸控區偏小 22x22 ×1｜label.optcard > input｜
+
+== 郵件查詢（1600px）範圍 [data-audit="1"]｜高 3902｜整頁橫向捲動 無
+  小字 11px ×1｜div.mc-hero > div.mc-hero-k｜每日整理
+  小字 12px ×2｜div.mc-tone > span.mc-tone-k｜語氣偏空，暫不進場
+  小字 12px ×1｜div.mail-head > div.mail-meta｜寄送狀態：已寄送
+  小字 12.5px ×1｜span.mc-mid > span.mc-chip.tn-buy｜買入
+  小字 12.5px ×1｜div.mc-tone > span.mc-chip.tn-avoid｜觀望不碰
+  小字 12.5px ×1｜div.mc-tone > span.mc-chip.tn-watch｜觀望注意
+  小字 13px ×2｜div.mc-risk > div.mc-risk-li｜• 本信內容僅為整理節目中之公開資訊與觀點，
+  小字 13px ×1｜div.mailcal > div.mailcal-legend｜有郵件
+  末行孤字 4 處
+    div.mc-sec > h2.mc-h2｜2 行｜① 盤勢總覽重點整理
+    div.mc-sec > h2.mc-h2｜2 行｜② 會員操作紀錄與持股明細
+    tr > td.tn-buy.mc-name｜2 行｜勤誠 8210 買入
+    div.mc-sec > h2.mc-h2｜2 行｜③ 分析師操作邏輯與教學重點
+  純文字大區塊 2131 字、高 3714｜section.panel > div.sect｜查詢每天寄出的整理內容
+
+== 逐字稿（1600px）範圍 [data-audit="1"]｜高 760｜整頁橫向捲動 無
+  小字 13px ×1｜div.mailcal > div.mailcal-legend｜有逐字稿
+  末行孤字 0 處
+
+== 個股頁 2330（1600px）範圍 .detail-body｜高 2795｜整頁橫向捲動 無
+  小字 12px ×2｜div.subcap > button.pane-tog｜隱藏
+  小字 13px ×7｜div.kv-cell > div.k｜市場
+  小字 13px ×3｜div.sect > div.subcap｜成交量
+  小字 13px ×1｜div.subcap > span｜12 / 26 / 9
+  末行孤字 0 處
+
+== 每日總覽（390px）範圍 [data-audit="1"]｜高 3637｜整頁橫向捲動 無
+  小字 13px ×22｜button.cal-c > span.cal-n｜10
+  小字 13px ×1｜div.mailcal > div.mailcal-legend｜有紀錄
+  末行孤字 0 處
+  純文字大區塊 622 字、高 1848｜section.panel > div.sect｜觀望不碰語氣偏空，暫不進場
+
+== 持股追蹤（390px）範圍 [data-audit="1"]｜高 4840｜整頁橫向捲動 無
+  小字 10.5px ×2｜div.tracker-card-identity > span.roundtag｜第 2 回合
+  小字 11px ×1｜div.tx-mid > span.tx-cum.down｜累積 -1.75%
+  小字 11px ×1｜div.tx-mid > span.tx-cum.up｜累積 +6.01%
+  小字 13px ×30｜div.tx-end > small｜9/29 進場
+  小字 13px ×1｜div.tracker-sortbar > span.tracker-sort-k｜排序
+  小字 13px ×1｜div.basis-line > span｜進場價取明講價與當日中點較低者。
+  末行孤字 0 處
+  純文字大區塊 2117 字、高 4664｜section.panel > div.sect｜
+
+== 績效走勢（390px）範圍 [data-audit="1"]｜高 1454｜整頁橫向捲動 無
+  小字 12.5px ×1｜div.sect > p.perf-how｜平均報酬只計入有進場價與當日價者；每個交易日
+  小字 13px ×30｜tr > td.px.r｜15
+  小字 13px ×3｜tr > th.r｜持有
+  小字 13px ×1｜tr > th｜日期
+  小字 13px ×1｜div.sect > p.basis｜顯示近 10 個交易日（10 筆），自 20
+  末行孤字 0 處
+
+== 訂閱通知（390px）範圍 [data-audit="1"]｜高 1339｜整頁橫向捲動 無
+  末行孤字 0 處
+  觸控區偏小 22x22 ×1｜label.optcard > input｜
+
+== 郵件查詢（390px）範圍 [data-audit="1"]｜高 5919｜整頁橫向捲動 無
+  小字 11px ×1｜div.mc-hero > div.mc-hero-k｜每日整理
+  小字 12px ×2｜div.mc-tone > span.mc-tone-k｜語氣偏空，暫不進場
+  小字 12px ×1｜div.mail-head > div.mail-meta｜寄送狀態：已寄送
+  小字 12.5px ×1｜span.mc-mid > span.mc-chip.tn-buy｜買入
+  小字 12.5px ×1｜div.mc-tone > span.mc-chip.tn-avoid｜觀望不碰
+  小字 12.5px ×1｜div.mc-tone > span.mc-chip.tn-watch｜觀望注意
+  小字 13px ×22｜button.cal-c > span.cal-n｜10
+  小字 13px ×2｜div.mc-risk > div.mc-risk-li｜• 本信內容僅為整理節目中之公開資訊與觀點，
+  小字 13px ×1｜div.mailcal > div.mailcal-legend｜有郵件
+  末行孤字 7 處
+    div.mc-sec > h2.mc-h2｜2 行｜① 盤勢總覽重點整理
+    div.mc-sec > h2.mc-h2｜2 行｜② 會員操作紀錄與持股明細
+    tr > td.tn-buy.mc-name｜2 行｜勤誠 8210 買入
+    tr > td.tn-avoid.mc-desc｜5 行｜世芯-KY已在上週四出場，當日跌停是出場後的風險回顧，不重建會員持股
+    tr > td.tn-watch.mc-desc｜5 行｜鴻海先前已於10/06在260元出場，並非當日賣出。目前回到239～
+    tr > td.tn-watch.mc-desc｜5 行｜台達電突破季線後回測，當日分析以季線附近作為觀察低點，提出明日再考慮
+    div.mc-sec > h2.mc-h2｜2 行｜③ 分析師操作邏輯與教學重點
+  純文字大區塊 2131 字、高 5743｜section.panel > div.sect｜查詢每天寄出的整理內容
+
+== 逐字稿（390px）範圍 [data-audit="1"]｜高 686｜整頁橫向捲動 無
+  小字 13px ×22｜button.cal-c > span.cal-n｜10
+  小字 13px ×1｜div.mailcal > div.mailcal-legend｜有逐字稿
+  末行孤字 0 處
+
+== 個股頁 2330（390px）範圍 .detail-body｜高 2873｜整頁橫向捲動 無
+  小字 12px ×2｜div.subcap > button.pane-tog｜隱藏
+  小字 13px ×7｜div.kv-cell > div.k｜市場
+  小字 13px ×3｜div.sect > div.subcap｜成交量
+  小字 13px ×1｜div.subcap > span｜12 / 26 / 9
+  末行孤字 0 處

@@ -6542,6 +6542,8 @@ def explicit_today_trades(transcript, names, cat):
     for index, s in enumerate(sentences):
         if _TRADE_ASK.search(s) or not any(n in s for n in names):
             continue
+        if re.search(r'你(?:們)?(?:今天|今日)?才(?:在)?(?:賣|買)|(?:不能|不要|不該|別|正要|準備)(?:再|去)?(?:賣|買)', s):
+            continue  # 責備觀眾殺低、禁止動作與準備動作，不是本人已成交
         # 「所以我今天只有賣一隻股票。大漲的時候賣，世芯-KY。」：動作在前一句交代了今天，這一句只報名字（2026/10/08）。
         if cat == 'sell' and re.search(r'賣[，,]\s*' + nm + r'$', s.rstrip('。！？!? ')):
             prefix = ''.join(sentences[max(0, index - 3):index])[-120:]

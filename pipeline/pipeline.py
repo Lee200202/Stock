@@ -6742,6 +6742,10 @@ def plain_current_stance(heard, transcript, weak=False, names=None):
         s = sents[i]
         if heard not in s:
             continue
+        # 「連電腦軟體都不推薦」的電是「電腦」的一部分，不是聽写公司名。
+        # 保留同句另有獨立名稱的情況，不能把一般語詞當禁買證據。
+        if heard.endswith('電') and heard not in s.replace(heard + '腦', ''):
+            continue
         # 整句只有股名：往前三句找「這一支我沒有推薦」，連同中間的句子當原句。
         if len(re.sub(r'[，,。！？!?\s啊來好那]', '', s.replace(heard, ''))) <= 1:
             for j in range(i - 1, max(-1, i - 4), -1):

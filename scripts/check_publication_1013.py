@@ -24,6 +24,8 @@ cases = [
 for text, name, want in cases:
     assert bool(pl.explicit_today_trades(text, [name], 'sell')) == want, text
 assert pl.explicit_today_trades('今天我買進勤誠。', ['勤誠'], 'buy')
+assert pl.plain_current_stance('連電', '連電腦軟體我都不推薦。', names=['連電']) is None
+assert pl.plain_current_stance('連電', '連電不要買。', names=['連電'])
 
 with patch.object(pl, 'note_decision'):
     signals = {'watch_avoid': [{'name': '創意', 'code': '3443', 'reason': '老師說有傳聞，現在要買嗎？'}],

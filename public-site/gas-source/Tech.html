@@ -658,6 +658,36 @@
     if(on){tokBuild();viz.classList.remove('tok-run');void viz.offsetWidth;viz.classList.add('tok-run');}
     viz.hidden=!on;one('#tokPick').hidden=!on;one('#agentRoute').hidden=on;
   });});
+  /* v176：依據連結改成卡片。滑進畫面才自動播放；點任何一張卡片，這一組的動畫就停。原段落留在 HTML 當沒有腳本時的後備。 */
+  var srcIco={
+    log:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M7 10l3 2.5L7 15M12.5 15H17"/></svg>',
+    code:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 7.5 4 12l4.5 4.5M15.5 7.5 20 12l-4.5 4.5M13.5 5l-3 14"/></svg>',
+    doc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5C6.5 4.5 9.5 4.5 12 6c2.5-1.5 5.5-1.5 8-.5v13c-2.5-1-5.5-1-8 .5-2.5-1.5-5.5-1.5-8-.5z"/><path d="M12 6v13"/></svg>',
+    paper:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M9 12h6M9 16h4"/></svg>'
+  };
+  function srcKind(href){
+    if(/github\.com\/[^\/]+\/[^\/]+\/actions\/runs\//.test(href)){return ['log','執行紀錄','tone-wait'];}
+    if(/github\.com\/[^\/]+\/[^\/]+\/blob\//.test(href)){return ['code','原始碼','tone-ok'];}
+    if(/arxiv\.org\//.test(href)){return ['paper','論文','tone-skip'];}
+    return ['doc','文件','tone-resume'];
+  }
+  all('p.agent-sources').forEach(function(p){
+    var links=Array.prototype.slice.call(p.querySelectorAll('a[href]'));
+    if(links.length<2){return;}
+    var title=(p.firstChild&&p.firstChild.nodeType===3?p.firstChild.textContent:'').replace(/[：:\s]+$/,'');
+    var box=document.createElement('div');
+    box.className='src-cards';box.setAttribute('role','group');box.setAttribute('aria-label',title||'依據連結');
+    box.innerHTML=(title?'<p class="src-cards-h">'+esc(title)+'</p>':'')+'<div class="src-cards-row">'+links.map(function(a,i){
+      var k=srcKind(a.href),host=String(a.hostname||'').replace(/^www\./,'');
+      return '<a class="src-card '+k[2]+'" href="'+esc(a.getAttribute('href'))+'" target="_blank" rel="noopener" style="--i:'+i+'"><span class="src-ico">'+srcIco[k[0]]+'</span>'+
+        '<span class="src-txt"><small>'+k[1]+'</small><b>'+esc(a.textContent)+'</b><i>'+esc(host)+'</i></span><span class="src-go" aria-hidden="true">↗</span></a>';
+    }).join('')+'</div>';
+    p.hidden=true;p.parentNode.insertBefore(box,p.nextSibling);
+    box.addEventListener('click',function(e){var t=e.target;while(t&&t!==box){if(t.classList&&t.classList.contains('src-card')){box.classList.add('is-stopped');return;}t=t.parentNode;}});
+    if('IntersectionObserver' in window && !reduce){
+      new IntersectionObserver(function(entries){entries.forEach(function(en){box.classList.toggle('is-live',en.isIntersecting);if(en.isIntersecting){box.classList.add('is-in');}});},{threshold:0.3}).observe(box);
+    }else{box.classList.add('is-in','is-stopped');}
+  });
   function agentAnimate(){var r=one('#agentRoute');r.classList.remove('agent-run');void r.offsetWidth;r.classList.add('agent-run');}
   all('[data-agent]').forEach(function(b){b.addEventListener('click',agentAnimate);});
   var nodeText={control:'先選10/13原稿與操作日期，再送模型；不把整個試算表都塞進去。',model:'模型提出「鴻海今天賣了嗎」的候選；候選不是已核對的事實。',tool:'只讀允許的原稿與操作紀錄；260元出場在10/06，結果交回控制程式核對。'};

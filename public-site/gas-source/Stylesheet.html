@@ -5033,6 +5033,41 @@ html[data-view="mobile"] .tracker-card-note { font-size: calc(15px * var(--rd-fs
 @media (max-width:760px) { .agent-lab .tok-viz { grid-template-columns:minmax(0,1fr); gap:30px; }
   .agent-lab .tok-stage:not(:last-child)::after, .agent-lab .tok-stage:nth-child(2)::after { content:'↓'; right:50%; top:auto; bottom:-27px; }
   .agent-lab .tok-body { min-height:0; } }
+/* v176（2026/10/13）：依據連結卡片。滑進畫面自動進場並輪流掃過光帶；點任何一張就停。 */
+.agent-lab .src-cards { margin:22px 0; }
+.agent-lab .src-cards-h { margin:0 0 12px; color:var(--muted); font-size:calc(14px * var(--rd-fs)); font-weight:700; }
+.agent-lab .src-cards-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr)); gap:14px; }
+.agent-lab .src-card { position:relative; overflow:hidden; display:flex; align-items:center; gap:12px; min-height:76px; padding:14px 16px;
+  border:1px solid var(--rule); border-left:4px solid var(--tc,var(--muted)); border-radius:16px; background:var(--panel); color:var(--ink); text-decoration:none;
+  opacity:0; transition:border-color .18s ease-out, box-shadow .18s ease-out; }
+.agent-lab .src-card:hover { border-color:var(--tc,var(--muted)); box-shadow:0 6px 18px color-mix(in srgb,var(--tc,var(--muted)) 18%,transparent); }
+.agent-lab .src-card:focus-visible { outline:3px solid var(--beam); outline-offset:4px; }
+.agent-lab .src-ico { flex:0 0 40px; width:40px; height:40px; display:grid; place-items:center; border-radius:12px; color:var(--tc,var(--muted));
+  background:color-mix(in srgb,var(--tc,var(--muted)) 14%,var(--panel)); }
+.agent-lab .src-ico svg { width:22px; height:22px; }
+.agent-lab .src-txt { display:flex; flex-direction:column; gap:2px; min-width:0; flex:1 1 auto; }
+.agent-lab .src-txt small { color:var(--tc,var(--muted)); font-size:calc(13px * var(--rd-fs)); font-weight:700; line-height:1.4; }
+.agent-lab .src-txt b { font-size:calc(15.5px * var(--rd-fs)); line-height:1.45; text-wrap:balance; }
+.agent-lab .src-txt i { font-style:normal; color:var(--muted); font-size:calc(13px * var(--rd-fs)); line-height:1.4; overflow-wrap:anywhere; }
+.agent-lab .src-go { flex:0 0 auto; color:var(--tc,var(--muted)); font-size:calc(18px * var(--rd-fs)); font-weight:700; }
+.agent-lab .src-card::after { content:''; position:absolute; inset:0; pointer-events:none; transform:translateX(-110%);
+  background:linear-gradient(100deg,transparent 0 35%,color-mix(in srgb,var(--tc,var(--beam)) 24%,transparent) 50%,transparent 65% 100%); }
+/* 進場：依序從左、從右、從下滑入 */
+.agent-lab .src-cards.is-in .src-card { animation:srcInL .55s cubic-bezier(.22,1,.36,1) both; animation-delay:calc(var(--i) * 110ms); }
+.agent-lab .src-cards.is-in .src-card:nth-child(3n+2) { animation-name:srcInR; }
+.agent-lab .src-cards.is-in .src-card:nth-child(3n) { animation-name:srcInUp; }
+/* 待機：光帶輪流掃過、箭頭輕推；只在畫面內播放 */
+.agent-lab .src-cards.is-in.is-live .src-card::after { animation:srcSweep 4.4s cubic-bezier(.4,0,.2,1) infinite; animation-delay:calc(1.1s + var(--i) * 550ms); }
+.agent-lab .src-cards.is-in.is-live .src-go { animation:srcNudge 4.4s ease-in-out infinite; animation-delay:calc(1.1s + var(--i) * 550ms); }
+@keyframes srcInL { from { opacity:0; transform:translateX(-28px); } to { opacity:1; transform:none; } }
+@keyframes srcInR { from { opacity:0; transform:translateX(28px); } to { opacity:1; transform:none; } }
+@keyframes srcInUp { from { opacity:0; transform:translateY(22px); } to { opacity:1; transform:none; } }
+@keyframes srcSweep { 0% { transform:translateX(-110%); } 26%,100% { transform:translateX(110%); } }
+@keyframes srcNudge { 0%,8%,30%,100% { transform:none; } 18% { transform:translate(3px,-3px); } }
+/* 點了任何一張卡片：這一組全部停下 */
+.agent-lab .src-cards.is-stopped .src-card, .agent-lab .src-cards.is-stopped .src-card::after, .agent-lab .src-cards.is-stopped .src-go { animation:none !important; }
+.agent-lab .src-cards.is-stopped .src-card { opacity:1; }
+@media (prefers-reduced-motion: reduce) { .agent-lab .src-card { opacity:1; } }
 .agent-lab .agent-usage-track { height:18px; margin:16px 0 10px; overflow:hidden; border-radius:999px; background:var(--panel); border:1px solid var(--rule); }
 .agent-lab .agent-usage-track span { display:block; height:100%; width:2.594%; background:var(--beam); transition:width .3s ease; }
 .agent-lab .agent-usage-numbers { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin:16px 0; }

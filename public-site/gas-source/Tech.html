@@ -195,11 +195,13 @@
     <h2 data-toc="模型推論與工具">AI 是怎麼讀原稿、查資料，再交出答案的？</h2>
     <p>模型能提出答案；<mark class="hl">把資料交給誰、允許做什麼、何時停止，是網站程式的責任</mark>。先拆開三層，再按卡片走一次。以下互動都是本機示意，不呼叫模型、不執行指令、不寄送。</p>
     <figure class="agent-map">
-      <svg viewBox="0 0 720 180" role="img" aria-labelledby="agentMapTitle agentMapDesc">
-        <title id="agentMapTitle">控制程式、模型與工具的往返</title><desc id="agentMapDesc">控制程式整理上下文送給模型；模型提出結構化查詢，程式核對權限後才讀資料。結果回到程式，再送入模型核對。</desc>
-        <g fill="none" stroke="currentColor" stroke-width="2"><rect x="10" y="20" width="220" height="115" rx="22"/><rect x="250" y="20" width="220" height="115" rx="22"/><rect x="490" y="20" width="220" height="115" rx="22"/><path d="M231 72h18m-7-6 7 6-7 6M471 72h18m-7-6 7 6-7 6M601 137v27H120v-27m-6 7 6-7 6 7"/></g>
-        <g fill="currentColor" text-anchor="middle"><text x="120" y="57">控制程式 Harness</text><text x="120" y="91">選資料・限權限・留紀錄</text><text x="360" y="57">模型 Model</text><text x="360" y="91">讀輸入・生成候選答案</text><text x="600" y="57">工具與資料 Tools</text><text x="600" y="91">查原稿・讀行情・回傳結果</text><text x="360" y="158">查詢結果回來，再核對；有停止上限</text></g>
-      </svg><div class="agent-map-mobile"><p><b>控制程式 Harness</b><br>選資料・限權限・留紀錄</p><span aria-hidden="true">↓</span><p><b>模型 Model</b><br>讀輸入・生成候選答案</p><span aria-hidden="true">↓</span><p><b>工具與資料 Tools</b><br>查原稿・讀行情・回傳結果</p><span>↩ 結果回來，再核對</span></div><figcaption>箭頭是訊息往返。模型提出工具名稱與參數，不等於已獲准執行。</figcaption>
+      <div class="agent-map-steps" role="group" aria-label="代理的三層分工">
+        <button type="button" data-agent-node="control" aria-pressed="true"><b>01 控制程式 Harness</b><span>組裝證據・檢查權限</span></button>
+        <button type="button" data-agent-node="model" aria-pressed="false"><b>02 模型 Model</b><span>閱讀上下文・提出候選</span></button>
+        <button type="button" data-agent-node="tool" aria-pressed="false"><b>03 工具 Tools</b><span>查允許的資料・回傳結果</span></button>
+      </div>
+      <div class="agent-map-controls"><button type="button" id="agentMapPlay">播放一次查詢 →</button><p id="agentNodeDetail" aria-live="polite">先選10/13原稿與操作日期，再送模型；不把整個試算表都塞進去。</p></div>
+      <figcaption>點卡片看責任；按播放走一次「準備 → 推論 → 查詢 → 核對」。這是本機動畫，不呼叫真正 API。</figcaption>
     </figure>
     <div class="agent-choices" role="group" aria-label="拆開一次AI請求">
       <button type="button" data-agent="context" aria-pressed="true"><b>① 一次能讀多少？</b><span>Context window</span></button>
@@ -210,23 +212,28 @@
       <button type="button" data-agent="swap" aria-pressed="false"><b>⑥ 換模型就一樣嗎？</b><span>可替換與驗收</span></button>
     </div>
     <div class="agent-answer" id="agentAnswer" aria-live="polite" aria-atomic="true">
-      <p class="agent-diagram-label" id="agentDiagramLabel">容量示意 · 100 格上限，以下不是實測 token 數</p>
+      <p class="agent-diagram-label" id="agentDiagramLabel">10/13 真實判讀 · Gemini 3.5 Flash Lite</p>
       <ol class="agent-route" id="agentRoute" aria-label="目前情境的圖解">
-        <li><span>01 規則與工具</span><b>20</b><small>輸入格數</small></li><li><span>02 本次證據</span><b>50</b><small>保留本股上下文</small></li><li><span>03 輸出預留</span><b>20</b><small>不拿來塞舊稿</small></li><li class="is-result"><span>04 容量核對</span><b>90/100</b><small>還剩 10 格</small></li>
+        <li><span>01 模型輸入上限</span><b>1,048,576</b><small>官方 token 上限</small></li><li><span>02 當天原始稿</span><b>13,914字</b><small>字數不能直接當 token</small></li><li><span>03 最大單次輸入</span><b>32,325</b><small>回應用量實測 tokens</small></li><li class="is-result"><span>04 占輸入上限</span><b>3.08%</b><small>不是19次累計容量</small></li>
       </ol>
       <p class="agent-q" id="agentQ">整個資料庫都在模型腦裡嗎？</p>
-      <p id="agentA">不是。Context window 是這次推論可處理的上下文範圍。指令、工具規格、對話、原句與查詢結果都會占用輸入，還要為輸出保留容量；實際限制依模型而定。</p>
+      <p id="agentA">不是。Context window 是這次推論可處理的上下文範圍。指令、工具規格、對話、原句與查詢結果都會占用輸入。Gemini 3.5 Flash Lite 的輸入上限為1,048,576、輸出上限為65,536 tokens，兩項分開核對；生成設定可能另有較低上限。</p>
       <ul id="agentFacts"><li>試算表是持久資料；本次輸入才是模型當下能讀的內容。</li><li>查到新資料後，控制程式再把結果送入下一輪，並非模型自動記住整個網站。</li><li>長原稿需保留股名、時間與相鄰上下文；只截半句會誤把過去賣出當今天。</li></ul>
       <p class="agent-output" id="agentOutput">得到什麼：每次判讀都有來源範圍；資料不足不能補猜。</p>
     </div>
     <div class="agent-budget">
-      <p class="agent-q">多塞一份舊稿，會發生什麼？</p>
-      <p>示意容量 100 格，不是本站模型的真實 token 數。黃色是需要整理的證據；輸出預留不能拿來塞資料。</p>
-      <div class="agent-choices agent-small" role="group" aria-label="上下文容量情境"><button type="button" data-budget="fit" aria-pressed="true">只放本次證據</button><button type="button" data-budget="full" aria-pressed="false">再塞完整舊稿</button></div>
-      <div class="agent-meter" aria-hidden="true"><span style="width:20%">規則 20</span><span id="agentEvidence" style="width:50%">證據 50</span><span style="width:20%">預留 20</span></div>
-      <p id="agentBudgetNote" aria-live="polite">20＋50＋20＝90／100。還有 10 格；保留本股前後文與輸出空間。</p>
-      <p class="agent-token-note">「鴻海／昨天／賣出」只是閱讀用切塊圖，不是實際 tokenizer。中文、標點、代號可能切成不同 token，不能用一字等於一 token 計費；正式計數須用該模型的計數方法或回應用量。</p>
-      <div class="agent-chips" aria-label="閱讀切塊示意"><span>鴻海</span><span>昨天</span><span>賣出</span><b>→ 保留時間，才不會改成今日成交</b></div>
+      <p class="agent-q">今天一輪判讀，實際用了多少？</p>
+      <p>2026/10/13 11:32～11:37 的自動流程，以下直接取回應 usageMetadata 日誌；不是字數換算，也不是全天重跑總量。輸入與輸出上限分開核對。</p>
+      <div class="agent-choices agent-small" role="group" aria-label="實測請求容量"><button type="button" data-budget="fit" aria-pressed="true">第一輪擷取</button><button type="button" data-budget="full" aria-pressed="false">最大一次覆核</button></div>
+      <div class="agent-usage-track" aria-hidden="true"><span id="agentEvidence"></span></div>
+      <p id="agentBudgetNote" aria-live="polite">輸入 27,205 ÷ 1,048,576＝2.59%；輸出 4,934 tokens。其餘不是本次請求已使用的容量。</p>
+      <div class="agent-usage-numbers"><p><b>19次</b>已記錄的成功回應</p><p><b>179,291</b>累計輸入 tokens</p><p><b>26,113</b>累計輸出 tokens</p></div>
+      <p class="agent-sources">另記錄思考 6,946 tokens；輸出欄與思考欄分列，不把兩者混成文字字數。累計會重複計入每次附上的原稿，不代表同時占滿上下文。聽打影片、失敗但未記用量的請求及其他日期不包含在此。</p>
+      <p class="agent-output">最大單次才占3.08%，今天的問題不是容量耗盡；分段與本股上下文仍重要，因為要避免時間、主詞與跨公司證據接錯。</p>
+      <details><summary>查看計算方式與來源</summary><ul><li>最大輸入 32,325／1,048,576；最大文字輸出 5,861／65,536＝8.94%。</li><li>19次輸入相加＝179,291；19次文字輸出相加＝26,113。不估算全天帳單或金鑰額度。</li><li>輸出設定上限不等於實際用量；本次擷取程式最多20,000，實際第一輪4,934。</li></ul><p><a href="https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite" target="_blank" rel="noopener">Gemini 3.5 Flash Lite官方規格</a> · <a href="https://github.com/Lee200202/Stock/actions/runs/38341147246" target="_blank" rel="noopener">當次執行日誌</a> · <a href="https://github.com/Lee200202/Stock/blob/main/docs/1003-review/2026-10-13-agent-usage.json" target="_blank" rel="noopener">19筆用量與加總</a></p></details>
+      <p class="agent-sources">容量規格核對於10/13；實際使用仍以模型回應為準。此處是具日期的實測快照，不假裝會隨每日資料自動更新。</p>
+      <p>「鴻海／昨天／賣出」只是閱讀用切塊圖，不是實際 tokenizer；中文與代號不能用一字等於一 token 計費。</p>
+      <div class="agent-chips" aria-label="閱讀切塊"><span>鴻海</span><span>昨天</span><span>賣出</span><b>→ 保留時間，才不會改成今日成交</b></div>
     </div>
     <div class="agent-real">
       <p class="agent-q">今天這一集，實際怎麼抓到？</p>
@@ -602,7 +609,7 @@
 
   /* v173：原理示意，切換只修改本機文字，沒有 API／工具執行。 */
   var agentCases = {
-    context: ['整個資料庫都在模型腦裡嗎？','不是。Context window 是這次推論可處理的上下文範圍。指令、工具規格、對話、原句與查詢結果都會占用輸入，還要為輸出保留容量；實際限制依模型而定。',['試算表是持久資料；本次輸入才是模型當下能讀的內容。','查到新資料後，控制程式再把結果送入下一輪，並非模型自動記住整個網站。','長原稿需保留股名、時間與相鄰上下文；只截半句會誤把過去賣出當今天。'],'每次判讀都有來源範圍；資料不足不能補猜。'],
+    context: ['整個資料庫都在模型腦裡嗎？','不是。Context window 是這次推論可處理的上下文範圍。指令、工具規格、對話、原句與查詢結果都會占用輸入。Gemini 3.5 Flash Lite 的輸入上限為1,048,576、輸出上限為65,536 tokens，兩項分開核對；生成設定可能另有較低上限。',['試算表是持久資料；本次輸入才是模型當下能讀的內容。','查到新資料後，控制程式再把結果送入下一輪，並非模型自動記住整個網站。','長原稿需保留股名、時間與相鄰上下文；只截半句會誤把過去賣出當今天。'],'每次判讀都有來源範圍；資料不足不能補猜。'],
     tokens: ['一個中文字就是一個 token 嗎？','不一定。Tokenizer 把文字轉為模型詞彙表中的小單位及編號，再送進模型；切法依模型而異。影像等輸入也有自己的用量計算。',['詞、字、標點與代號不保證一對一；不能用中文字符數當精確帳單。','工具規格及歷史訊息也占輸入；答案與推理用量依服務規則計算。','本站記錄請求用量；畫面的閱讀切塊只是圖解，不是假造實測計數。'],'看模型回應用量或正式計數 API，才知道這次實際使用多少。'],
     infer: ['模型一次把答案全部想好嗎？','生成式語言模型依目前輸入，逐步預測並選出下一個 token；新輸出接回序列，再生成後續內容。這個過程不會自動查證事實。',['先處理輸入（prefill），再逐步生成（decode）；請求排隊、網路與工具也影響總延遲。','即使指令相同，抽樣及服務設定也可能讓字句不同；低溫不等於證據正確。','結構化格式能約束欄位，日期、公司與引句仍要由程式另外核對。'],'模型給候選；有原句、日期與主體才採用。'],
     tools: ['模型說「已查詢」，就真的查過嗎？','要看控制程式收到的工具結果。Harness 是把模型接上資料、檔案與工具的那層程式：驗證名稱、參數和權限後，才執行允許的動作。',['示意：讀取某日原稿 → 回傳帶日期的結果 → 再請模型回答；未回傳結果不得宣稱已查。','讀公開資料與寫入資料分開授權；工具回覆中的文字也不能改寫權限。','設定請求數、步數、逾時及停止條件；把模型、工具和來源指紋記下供追查。'],'執行證據是工具回覆與日誌，不是模型自稱做完。'],
@@ -610,7 +617,7 @@
     swap: ['換最便宜的模型，就能保持一樣嗎？','需要模型轉接層把請求、結構化回應、工具呼叫與錯誤轉成共同格式，再用同一組驗收案例核對。可替換是設計能力，不是所有模型表現相同。',['核對上下文容量、輸出上限、工具及 JSON 能力，不能只改模型名稱。','比較每個完成任務的總成本，包含重試、延遲與品質；不是只看每 token 價格。','本站以日期、來源指紋、規則版本和人工答案做回歸；新模型通過才可接手正式資料。'],'同一個驗收標準約束不同模型；對不上證據就不發布。']
   };
   var agentRoutes = {
-    context:['容量示意 · 100 格上限，以下不是實測 token 數',[['規則與工具','20','輸入格數'],['本次證據','50','保留本股上下文'],['輸出預留','20','不拿來塞舊稿'],['容量核對','90/100','還剩 10 格']]],
+    context:['10/13 真實判讀 · Gemini 3.5 Flash Lite',[['模型輸入上限','1,048,576','官方 token 上限'],['當天原始稿','13,914字','字數不能直接當token'],['最大單次輸入','32,325','回應用量實測tokens'],['占輸入上限','3.08%','不是19次累計容量']]],
     tokens:['轉換圖 · 切塊與編號僅示意，真實切法由模型決定',[['原文','文字','鴻海昨天賣出'],['Tokenizer','小單位','查模型詞彙表'],['數值表示','編號','再轉為向量'],['模型輸入','向量','附序列位置資訊']]],
     infer:['逐步生成示意 · 每步依已有序列選下一個 token',[['讀入上下文','Prefill','處理指令與來源'],['第 1 步輸出','仍','加入已生成序列'],['第 2 步輸出','持有','再選下一個小單位'],['第 3 步輸出','。','收到停止條件才結束']]],
     tools:['工具迴圈示意 · 沒收到工具結果，就不能宣稱查過',[['模型提案','1','查某日原稿'],['程式核准','2','名稱／參數／權限'],['允許的查詢','1 次','工具讀來源再回覆'],['下一輪判讀','↩','附日期與結果核對']]],
@@ -618,7 +625,15 @@
     swap:['模型替換示意 · 本站並未宣稱已接上所有供應商',[['模型選項','A/B','各有能力與限制'],['共同轉接','1 套','統一請求／回應格式'],['相同驗收','同一組','原稿、分類、錯誤案例'],['採用條件','通過','看品質、延遲及總成本']]]
   };
   all('[data-agent]').forEach(function(b){b.addEventListener('click',function(){var c=agentCases[b.dataset.agent],d=agentRoutes[b.dataset.agent];select(all('[data-agent]'),b);one('#agentDiagramLabel').textContent=d[0];one('#agentRoute').innerHTML=d[1].map(function(r,i){return '<li'+(i===3?' class="is-result"':'')+'><span>0'+(i+1)+' '+esc(r[0])+'</span><b>'+esc(r[1])+'</b><small>'+esc(r[2])+'</small></li>';}).join('');one('#agentQ').textContent=c[0];one('#agentA').textContent=c[1];one('#agentFacts').innerHTML=c[2].map(function(s){return '<li>'+esc(s)+'</li>';}).join('');one('#agentOutput').textContent='得到什麼：'+c[3];});});
-  all('[data-budget]').forEach(function(b){b.addEventListener('click',function(){var full=b.dataset.budget==='full';select(all('[data-budget]'),b);one('#agentEvidence').style.width=full?'60%':'50%';one('#agentEvidence').textContent=full?'證據 90 → 超限':'證據 50';one('#agentBudgetNote').textContent=full?'20＋90＋20＝130／100。超過容量；先選本次來源與本股相鄰段落，不能靜默截掉時間或借用別檔數字。':'20＋50＋20＝90／100。還有 10 格；保留本股前後文與輸出空間。';});});
+  all('[data-budget]').forEach(function(b){b.addEventListener('click',function(){var full=b.dataset.budget==='full';select(all('[data-budget]'),b);one('#agentEvidence').style.width=full?'3.083%':'2.594%';one('#agentBudgetNote').textContent=full?'輸入 32,325 ÷ 1,048,576＝3.08%；該次輸出 5,379 tokens。不是超限，也不代表能忽略本股證據邊界。':'輸入 27,205 ÷ 1,048,576＝2.59%；輸出 4,934 tokens。其餘不是本次請求已使用的容量。';});});
+  function agentAnimate(){var r=one('#agentRoute');r.classList.remove('agent-run');void r.offsetWidth;r.classList.add('agent-run');}
+  all('[data-agent]').forEach(function(b){b.addEventListener('click',agentAnimate);});
+  var nodeText={control:'先選10/13原稿與操作日期，再送模型；不把整個試算表都塞進去。',model:'模型提出「鴻海今天賣了嗎」的候選；候選不是已核對的事實。',tool:'只讀允許的原稿與操作紀錄；260元出場在10/06，結果交回控制程式核對。'};
+  var mapTimers=[];function stopMap(){mapTimers.forEach(clearTimeout);mapTimers=[];one('#agentMapPlay').disabled=false;}
+  function showNode(key){all('[data-agent-node]').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.agentNode===key?'true':'false');});one('#agentNodeDetail').textContent=nodeText[key];}
+  all('[data-agent-node]').forEach(function(b){b.addEventListener('click',function(){stopMap();showNode(b.dataset.agentNode);});});
+  one('#agentMapPlay').addEventListener('click',function(){stopMap();if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){showNode('control');one('#agentNodeDetail').textContent='準備10/13來源 → 模型提出候選 → 工具讀回10/06出場紀錄 → 核對為今天觀望注意。';return;}this.disabled=true;showNode('control');['model','tool','control'].forEach(function(k,i){mapTimers.push(setTimeout(function(){showNode(k);if(i===2){one('#agentNodeDetail').textContent='核對完成：歷史賣出不列今日成交，鴻海為觀望注意；這段動畫沒有讀取API。';stopMap();}},(i+1)*600));});});
+
   var agentRealCases={
     live:[[['直播尚未結束','11:09','不送模型聽打'],['回放緩衝中','11:12','等滿5分鐘緩衝'],['就緒才聽打','11:15','5段各指定起訖'],['原稿落地','11:17','13,914字，片段存快取']],'今天先等待直播與回放，11:15:44開始送第一段、11:17:38原稿存檔，約1分54秒。後續判讀11:32開始、11:37完成；這些是不同階段的時間。'],
     lookup:[[['先定位來源','10/13','今天原稿與操作'],['核對成交日期','10/06','260元是過去出場'],['今天的價格條件','238元','跌到此處評估買點'],['最後分類','觀望注意','不是今日賣出，也未買回']],'當日239～240元與先前260元賣出是兩個時點；查完整原稿後再整理買點。不能把「今天才在賣」的觀眾行為當講者成交。'],

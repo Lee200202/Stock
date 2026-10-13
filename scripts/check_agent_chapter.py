@@ -36,9 +36,18 @@ try:
                     assert token in page.locator('#agentRealRoute').inner_text()
                     assert page.locator('[data-agent-real][aria-pressed="true"]').count() == 1
                 page.locator('[data-budget="full"]').click()
-                assert '130／100' in page.locator('#agentBudgetNote').inner_text()
+                assert '32,325' in page.locator('#agentBudgetNote').inner_text()
+                assert '3.08%' in page.locator('#agentBudgetNote').inner_text()
                 page.locator('[data-budget="fit"]').press('Enter')
-                assert '90／100' in page.locator('#agentBudgetNote').inner_text()
+                assert '27,205' in page.locator('#agentBudgetNote').inner_text()
+                for node in ('model', 'tool', 'control'):
+                    page.locator(f'[data-agent-node="{node}"]').click()
+                    assert page.locator('[data-agent-node][aria-pressed="true"]').count() == 1
+                page.locator('#agentMapPlay').click()
+                assert '觀望注意' in page.locator('#agentNodeDetail').inner_text()
+                assert page.locator('#agentMapPlay').is_enabled()
+                assert page.locator('.pc-talk p').evaluate_all("es => es.every(e => getComputedStyle(e).textAlign === 'left')")
+                assert '100 格' not in page.locator('#tech-agent').inner_text()
                 assert not [u for u in requests if '/assets/' not in u], requests
                 assert not errors, errors
                 assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth'), (width,theme)
@@ -49,7 +58,8 @@ try:
         context = browser.new_context(java_script_enabled=False)
         page=context.new_page(); page.goto(url)
         assert 'Context window' in page.locator('#tech-agent').inner_text()
-        assert '停止上限' in page.locator('#tech-agent').inner_text()
+        assert '停止' in page.locator('#tech-agent').inner_text()
+        assert '32,325' in page.locator('#tech-agent').inner_text()
         context.close(); browser.close()
 finally:
     server.shutdown()

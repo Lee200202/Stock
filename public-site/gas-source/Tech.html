@@ -216,6 +216,8 @@
       <ol class="agent-route" id="agentRoute" aria-label="目前情境的圖解">
         <li><span>01 模型輸入上限</span><b>1,048,576</b><small>官方 token 上限</small></li><li><span>02 當天原始稿</span><b>13,914字</b><small>字數不能直接當 token</small></li><li><span>03 最大單次輸入</span><b>32,325</b><small>回應用量實測 tokens</small></li><li class="is-result"><span>04 占輸入上限</span><b>3.08%</b><small>不是19次累計容量</small></li>
       </ol>
+      <div class="tok-viz" id="tokViz" role="group" aria-label="文字變成模型輸入的四個階段（示意）" hidden></div>
+      <p class="tok-pick" id="tokPick" aria-live="polite" hidden></p>
       <p class="agent-q" id="agentQ">整個資料庫都在模型腦裡嗎？</p>
       <p id="agentA">不是。Context window 是這次推論可處理的上下文範圍。指令、工具規格、對話、原句與查詢結果都會占用輸入。Gemini 3.5 Flash Lite 的輸入上限為1,048,576、輸出上限為65,536 tokens，兩項分開核對；生成設定可能另有較低上限。</p>
       <ul id="agentFacts"><li>試算表是持久資料；本次輸入才是模型當下能讀的內容。</li><li>查到新資料後，控制程式再把結果送入下一輪，並非模型自動記住整個網站。</li><li>長原稿需保留股名、時間與相鄰上下文；只截半句會誤把過去賣出當今天。</li></ul>
@@ -626,6 +628,36 @@
   };
   all('[data-agent]').forEach(function(b){b.addEventListener('click',function(){var c=agentCases[b.dataset.agent],d=agentRoutes[b.dataset.agent];select(all('[data-agent]'),b);one('#agentDiagramLabel').textContent=d[0];one('#agentRoute').innerHTML=d[1].map(function(r,i){return '<li'+(i===3?' class="is-result"':'')+'><span>0'+(i+1)+' '+esc(r[0])+'</span><b>'+esc(r[1])+'</b><small>'+esc(r[2])+'</small></li>';}).join('');one('#agentQ').textContent=c[0];one('#agentA').textContent=c[1];one('#agentFacts').innerHTML=c[2].map(function(s){return '<li>'+esc(s)+'</li>';}).join('');one('#agentOutput').textContent='得到什麼：'+c[3];});});
   all('[data-budget]').forEach(function(b){b.addEventListener('click',function(){var full=b.dataset.budget==='full';select(all('[data-budget]'),b);one('#agentEvidence').style.width=full?'3.083%':'2.594%';one('#agentBudgetNote').textContent=full?'輸入 32,325 ÷ 1,048,576＝3.08%；該次輸出 5,379 tokens。不是超限，也不代表能忽略本股證據邊界。':'輸入 27,205 ÷ 1,048,576＝2.59%；輸出 4,934 tokens。其餘不是本次請求已使用的容量。';});});
+  /* v175：「字怎麼變成輸入」的圖解。切法、編號與格子深淺都是示意，不是實際 tokenizer 或模型的輸出。 */
+  var tokData=[['鴻海','18,342',[.9,.25,.6,.35,.8,.15,.5,.7]],['昨天','5,521',[.3,.75,.2,.9,.45,.6,.15,.8]],['賣出','9,107',[.55,.4,.85,.2,.7,.9,.3,.45]]];
+  var tokIco={
+    text:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M9 12h6M9 16h6"/></svg>',
+    cut:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="7" r="2.6"/><circle cx="6" cy="17" r="2.6"/><path d="M8.2 8.4 20 17M8.2 15.6 20 7"/></svg>',
+    book:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5C6.5 4.5 9.5 4.5 12 6c2.5-1.5 5.5-1.5 8-.5v13c-2.5-1-5.5-1-8 .5-2.5-1.5-5.5-1.5-8-.5z"/><path d="M12 6v13"/></svg>',
+    grid:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="2.5"/><path d="M3.5 9.2h17M3.5 14.8h17M9.2 3.5v17M14.8 3.5v17"/></svg>'
+  };
+  function tokStage(n,ico,kicker,title,body,note,last){return '<section class="tok-stage'+(last?' is-result':'')+'"><div class="tok-head"><span class="tok-ico">'+tokIco[ico]+'</span><div><span>'+n+' '+esc(kicker)+'</span><b>'+esc(title)+'</b></div></div><div class="tok-body">'+body+'</div><small>'+esc(note)+'</small></section>';}
+  function tokBuild(){
+    var el=one('#tokViz'); if(!el||el.dataset.ready){return;} el.dataset.ready='1';
+    var chips=function(){return tokData.map(function(t,i){return '<button type="button" data-tok="'+i+'">'+esc(t[0])+'</button>';}).join('');};
+    el.innerHTML=
+      tokStage('01','text','原文','人讀的文字','<div class="tok-text" role="group" aria-label="原文">'+chips()+'</div>','一句話，模型還不能直接計算。')+
+      tokStage('02','cut','Tokenizer','剪成小單位','<div class="tok-cut" role="group" aria-label="切開後的小單位">'+chips()+'</div>','虛線是下刀的位置；怎麼切由模型的詞彙表決定，這裡只是示意。')+
+      tokStage('03','book','查詞彙表','換成編號','<div class="tok-ids">'+tokData.map(function(t,i){return '<button type="button" class="tok-row" data-tok="'+i+'"><span>'+esc(t[0])+'</span><i aria-hidden="true">→</i><code>'+esc(t[1])+'</code></button>';}).join('')+'</div>','每個小單位對到詞彙表裡的一個編號（示意編號）。')+
+      tokStage('04','grid','模型輸入','一排數字，加上位置','<div class="tok-vec">'+tokData.map(function(t,i){return '<button type="button" class="tok-row" data-tok="'+i+'" aria-label="第 '+(i+1)+' 個位置：'+esc(t[0])+' 的向量"><span class="tok-pos">'+(i+1)+'</span><span class="tok-cells" aria-hidden="true">'+t[2].map(function(o){return '<i style="--o:'+o+'"></i>';}).join('')+'</span></button>';}).join('')+'</div>','一格是一個數字，深淺代表大小；實際一排有幾百到幾千格。圓圈是它在句子裡的第幾個。',true);
+    all('#tokViz [data-tok]').forEach(function(b){b.addEventListener('click',function(){tokPick(+b.dataset.tok);});});
+    tokPick(1);
+  }
+  function tokPick(i){
+    all('#tokViz [data-tok]').forEach(function(n){var on=+n.dataset.tok===i;n.classList.toggle('is-on',on);if(n.tagName==='BUTTON'){n.setAttribute('aria-pressed',String(on));}});
+    var t=tokData[i];
+    one('#tokPick').textContent='「'+t[0]+'」→ 編號 '+t[1]+' → 第 '+(i+1)+' 個位置的一排數字。'+(i===1?'位置資訊留著，模型才分得出「昨天賣出」不是今天的成交。':'點別的小單位，看同一個單位在四個階段各長什麼樣子。');
+  }
+  all('[data-agent]').forEach(function(b){b.addEventListener('click',function(){
+    var on=b.dataset.agent==='tokens',viz=one('#tokViz');
+    if(on){tokBuild();viz.classList.remove('tok-run');void viz.offsetWidth;viz.classList.add('tok-run');}
+    viz.hidden=!on;one('#tokPick').hidden=!on;one('#agentRoute').hidden=on;
+  });});
   function agentAnimate(){var r=one('#agentRoute');r.classList.remove('agent-run');void r.offsetWidth;r.classList.add('agent-run');}
   all('[data-agent]').forEach(function(b){b.addEventListener('click',agentAnimate);});
   var nodeText={control:'先選10/13原稿與操作日期，再送模型；不把整個試算表都塞進去。',model:'模型提出「鴻海今天賣了嗎」的候選；候選不是已核對的事實。',tool:'只讀允許的原稿與操作紀錄；260元出場在10/06，結果交回控制程式核對。'};

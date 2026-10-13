@@ -18,7 +18,8 @@ try:
         open_tech(page,url)
         page.locator('#tech-agent').scroll_into_view_if_needed()
         assert '179,291' in page.locator('#tech-agent').inner_text()
-        assert page.locator('.agent-map').bounding_box()['width']<=960
+        # 2026/10/13 管理者要求這一章全版：三層分工圖用滿這一章的欄寬（先前是不超過 960px）。
+        assert page.locator('.agent-map').bounding_box()['width']>=page.locator('#tech-agent').bounding_box()['width']-2
         page.locator('#agentMapPlay').click()
         assert page.locator('#agentMapPlay').is_disabled()
         page.wait_for_function("document.querySelector('#agentNodeDetail').textContent.includes('核對完成')")

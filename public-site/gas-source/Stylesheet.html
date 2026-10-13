@@ -4989,6 +4989,50 @@ html[data-view="mobile"] .tracker-card-note { font-size: calc(15px * var(--rd-fs
 .agent-lab .agent-answer { padding:20px; }
 .agent-lab .agent-route li { gap:8px; padding:14px; }
 .agent-lab .agent-route b { font-size:clamp(20px,2vw,27px); }
+/* v175（2026/10/13）：模型推論這一章用滿整個欄寬；「字怎麼變成輸入」由四張字卡改成圖解。 */
+.tech-story .tech-section.agent-lab > p, .agent-lab .agent-sources { max-width:none; }
+.agent-lab .agent-map { max-width:none; margin:20px 0; }
+.agent-lab [hidden] { display:none !important; }
+.agent-lab .tok-viz { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:30px; margin:20px 0 14px; }
+.agent-lab .tok-stage { position:relative; display:flex; flex-direction:column; gap:14px; min-width:0; padding:18px 16px; border:1px solid var(--rule); border-radius:20px; background:var(--panel); }
+.agent-lab .tok-stage:not(:last-child)::after { content:'→'; position:absolute; right:-23px; top:46%; color:var(--beam); font-weight:700; }
+.agent-lab .tok-stage.is-result { background:color-mix(in srgb,var(--beam) 12%,var(--panel)); border-color:var(--beam); }
+.agent-lab .tok-head { display:flex; align-items:center; gap:12px; }
+.agent-lab .tok-ico { flex:0 0 44px; width:44px; height:44px; display:grid; place-items:center; border-radius:14px; background:color-mix(in srgb,var(--beam) 14%,var(--panel)); color:var(--beam); }
+.agent-lab .tok-ico svg { width:24px; height:24px; }
+.agent-lab .tok-head span { display:block; color:var(--muted); font-size:calc(13px * var(--rd-fs)); line-height:1.4; }
+.agent-lab .tok-head b { display:block; font-size:calc(18px * var(--rd-fs)); line-height:1.4; }
+.agent-lab .tok-body { display:flex; flex-direction:column; justify-content:center; gap:8px; min-height:150px; }
+.agent-lab .tok-text { display:flex; flex-wrap:wrap; justify-content:center; padding:16px 6px; border:1px dashed var(--rule); border-radius:14px; background:var(--panel-2); }
+.agent-lab .tok-text button, .agent-lab .tok-cut button { font:inherit; color:var(--ink); background:none; border:0; cursor:pointer; font-weight:700; font-size:clamp(17px,1.3vw,24px); letter-spacing:.03em; padding:4px 1px; border-radius:8px; white-space:nowrap; }
+.agent-lab .tok-viz button { min-height:44px; }
+.agent-lab .tok-cut { display:flex; justify-content:center; align-items:stretch; }
+.agent-lab .tok-cut button { flex:1 1 0; min-width:0; padding:14px 4px; border:1px solid var(--rule); background:var(--panel-2); border-radius:0; }
+.agent-lab .tok-cut button:first-child { border-radius:14px 0 0 14px; }
+.agent-lab .tok-cut button:last-child { border-radius:0 14px 14px 0; }
+.agent-lab .tok-cut button + button { border-left:2px dashed var(--beam); }
+.agent-lab .tok-row { display:grid; align-items:center; gap:8px; width:100%; padding:7px 8px; border:1px solid transparent; border-radius:12px; background:none; color:var(--ink); font:inherit; text-align:left; cursor:pointer; }
+.agent-lab .tok-ids .tok-row { grid-template-columns:auto auto minmax(0,1fr); }
+.agent-lab .tok-ids .tok-row i { color:var(--beam); font-style:normal; }
+.agent-lab .tok-ids .tok-row code { justify-self:end; padding:4px 10px; border-radius:8px; background:var(--panel-2); border:1px solid var(--rule); font-family:'IBM Plex Mono',monospace; font-size:calc(14px * var(--rd-fs)); white-space:nowrap; }
+.agent-lab .tok-vec .tok-row { grid-template-columns:auto minmax(0,1fr); }
+.agent-lab .tok-pos { display:grid; place-items:center; width:30px; height:30px; border-radius:50%; background:var(--beam); color:var(--bg); font-family:'IBM Plex Mono',monospace; font-size:14px; font-weight:700; }
+.agent-lab .tok-cells { display:grid; grid-template-columns:repeat(8,minmax(0,1fr)); gap:3px; }
+.agent-lab .tok-cells i { display:block; aspect-ratio:1; border-radius:4px; background:var(--beam); opacity:var(--o,.4); }
+.agent-lab .tok-stage small { color:var(--muted); font-size:calc(13px * var(--rd-fs)); line-height:1.6; }
+.agent-lab .tok-viz [data-tok].is-on { border-color:var(--beam); background:color-mix(in srgb,var(--beam) 16%,var(--panel)); }
+.agent-lab .tok-text button.is-on, .agent-lab .tok-cut button.is-on { color:var(--beam); background:color-mix(in srgb,var(--beam) 16%,var(--panel)); }
+.agent-lab .tok-pick { margin:0 0 26px; padding:12px 16px; border-left:3px solid var(--beam); border-radius:0 12px 12px 0; background:var(--panel); font-size:calc(15px * var(--rd-fs)); line-height:1.7; }
+.agent-lab .tok-viz.tok-run .tok-stage { animation:tokIn .5s cubic-bezier(.22,1,.36,1) both; }
+.agent-lab .tok-viz.tok-run .tok-stage:nth-child(2) { animation-delay:.18s; }
+.agent-lab .tok-viz.tok-run .tok-stage:nth-child(3) { animation-delay:.36s; }
+.agent-lab .tok-viz.tok-run .tok-stage:nth-child(4) { animation-delay:.54s; }
+@keyframes tokIn { from { opacity:0; transform:translateX(-10px); } to { opacity:1; transform:none; } }
+@media (prefers-reduced-motion: reduce) { .agent-lab .tok-viz.tok-run .tok-stage { animation:none; } }
+@media (max-width:1100px) { .agent-lab .tok-viz { grid-template-columns:repeat(2,minmax(0,1fr)); } .agent-lab .tok-stage:nth-child(2)::after { content:none; } }
+@media (max-width:760px) { .agent-lab .tok-viz { grid-template-columns:minmax(0,1fr); gap:30px; }
+  .agent-lab .tok-stage:not(:last-child)::after, .agent-lab .tok-stage:nth-child(2)::after { content:'↓'; right:50%; top:auto; bottom:-27px; }
+  .agent-lab .tok-body { min-height:0; } }
 .agent-lab .agent-usage-track { height:18px; margin:16px 0 10px; overflow:hidden; border-radius:999px; background:var(--panel); border:1px solid var(--rule); }
 .agent-lab .agent-usage-track span { display:block; height:100%; width:2.594%; background:var(--beam); transition:width .3s ease; }
 .agent-lab .agent-usage-numbers { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin:16px 0; }

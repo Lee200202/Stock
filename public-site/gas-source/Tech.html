@@ -41,7 +41,7 @@
       <li class="pain-card"><div class="pc-head"><span class="pc-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg></span><b>一集點到三十檔，分不出哪些真的有動作</b></div><div class="pc-talk"><p class="pc-ask"><i>觀眾</i>他今天講了鴻海、國巨、川湖、群聯…到底哪幾檔要注意？</p><p class="pc-ans"><i>網站</i>真正買賣的只有 2 檔；其餘依他的說法分成持有、可以留意、現在不要碰。</p></div><ul class="pc-points"><li>10/08 這一集點到約 30 個名稱：有的是今天的買賣，有的是手上的持股，有的只是拿來當反例（「人家成為首富，你不用去幫人家抬轎」）。</li><li>整理後是買入 1、賣出 1、會員持股 6、觀望注意 3、觀望不碰 7；只是順口提到、沒有看法的不列。</li><li>觀眾提問不算他的看法：「鴻海還可以不可以買？」看的是他的回答「還沒有那麼急」。每一檔的分類都對得回原句。</li></ul><p class="pc-where">每日總覽・逐字稿</p></li>
       <li class="pain-card"><div class="pc-head"><span class="pc-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16"/><path d="M5 15l4.5-4.5 3.5 3L19 7"/><path d="M15 7h4v4"/></svg></span><b>聽到的是賺錢的那幾檔，沒有整體成績</b></div><div class="pc-talk"><p class="pc-ask"><i>觀眾</i>他常說會員賺了多少。全部算起來呢？</p><p class="pc-ans"><i>網站</i>績效走勢每個交易日記一筆：平均報酬、正報酬比例、持有檔數。</p></div><ul class="pc-points"><li>節目裡會回顧漲最多的那幾檔；沒再提到的、還套著的，不會特別講，觀眾也很難自己加總。</li><li>持股追蹤把持有中的和已經出場的都列出來，賠錢的回合照樣計入；績效走勢從 2026/07/08 起，每個交易日收盤後記錄。</li><li>進出場價怎麼取寫在頁面上：先算當天最高與最低的平均；原稿明講、且落在當天成交區間內的價位，進場取兩者較低、出場取較高。這是估算，不是實際對帳單。</li></ul><p class="pc-where">持股追蹤・績效走勢</p></li>
     </ul>
-    <p>這一頁接著依序說明：資料怎麼流動、網站如何讀入資料、9 月 23 日實際走過的一天、四種證據怎麼核對、新稿與公開說明怎麼處理，最後是持股績效、出錯時與限制。</p>
+    <p>接著看資料流與載入速度，再拆開 AI 的閱讀範圍、推論及工具控制；用實際的一天與證據案例核對判讀，最後看公開說明、持股績效、故障與限制。</p>
     <div class="tech-cards" id="techLive" aria-live="polite">
       <div class="tech-card"><b data-live="days">—</b><span>天有紀錄</span><small>有當日紀錄或持股聲明的日子</small></div>
       <div class="tech-card"><b data-live="records">—</b><span>筆個股紀錄</span><small>當日買賣、觀望與持股聲明</small></div>
@@ -189,6 +189,46 @@
     </div>
     <ul class="load-points"><li><b>為什麼要存？</b>累積紀錄不能每次全送到手機，也不能讓每個人的同一個查詢都重新掃一次試算表。</li><li><b>會不會看到舊資料？</b>存好的答案過了有效時間就不用；背景備份超過 12 分鐘沒有重新核對也不用，寧可慢一次。</li></ul>
     <figure class="load-evidence"><img src="assets/tech-load-overview-20261008.jpg" alt="2026 年 10 月 8 日正式站首頁載入完成，顯示當日分類與持股數字" loading="lazy" width="2480" height="1400"><figcaption>10/08 正式站截圖：當日分類與持股數字先可讀，其餘分頁按需載入。</figcaption></figure>
+  </section>
+
+  <section class="tech-section agent-lab" id="tech-agent">
+    <h2 data-toc="AI怎麼運作">AI 是怎麼讀原稿、查資料，再交出答案的？</h2>
+    <p>模型能提出答案；<mark class="hl">把資料交給誰、允許做什麼、何時停止，是網站程式的責任</mark>。先拆開三層，再按卡片走一次。以下互動都是本機示意，不呼叫模型、不執行指令、不寄送。</p>
+    <figure class="agent-map">
+      <svg viewBox="0 0 720 180" role="img" aria-labelledby="agentMapTitle agentMapDesc">
+        <title id="agentMapTitle">控制程式、模型與工具的往返</title><desc id="agentMapDesc">控制程式整理上下文送給模型；模型提出結構化查詢，程式核對權限後才讀資料。結果回到程式，再送入模型核對。</desc>
+        <g fill="none" stroke="currentColor" stroke-width="2"><rect x="10" y="20" width="220" height="115" rx="22"/><rect x="250" y="20" width="220" height="115" rx="22"/><rect x="490" y="20" width="220" height="115" rx="22"/><path d="M231 72h18m-7-6 7 6-7 6M471 72h18m-7-6 7 6-7 6M601 137v27H120v-27m-6 7 6-7 6 7"/></g>
+        <g fill="currentColor" text-anchor="middle"><text x="120" y="57">控制程式 Harness</text><text x="120" y="91">選資料・限權限・留紀錄</text><text x="360" y="57">模型 Model</text><text x="360" y="91">讀輸入・生成候選答案</text><text x="600" y="57">工具與資料 Tools</text><text x="600" y="91">查原稿・讀行情・回傳結果</text><text x="360" y="158">查詢結果回來，再核對；有停止上限</text></g>
+      </svg><div class="agent-map-mobile"><p><b>控制程式 Harness</b><br>選資料・限權限・留紀錄</p><span aria-hidden="true">↓</span><p><b>模型 Model</b><br>讀輸入・生成候選答案</p><span aria-hidden="true">↓</span><p><b>工具與資料 Tools</b><br>查原稿・讀行情・回傳結果</p><span>↩ 結果回來，再核對</span></div><figcaption>箭頭是訊息往返。模型提出工具名稱與參數，不等於已獲准執行。</figcaption>
+    </figure>
+    <div class="agent-choices" role="group" aria-label="拆開一次AI請求">
+      <button type="button" data-agent="context" aria-pressed="true"><b>① 一次能讀多少？</b><span>Context window</span></button>
+      <button type="button" data-agent="tokens" aria-pressed="false"><b>② 字怎麼變成輸入？</b><span>Tokenization</span></button>
+      <button type="button" data-agent="infer" aria-pressed="false"><b>③ 答案怎麼產生？</b><span>Inference</span></button>
+      <button type="button" data-agent="tools" aria-pressed="false"><b>④ 誰真的查資料？</b><span>Harness 與工具</span></button>
+      <button type="button" data-agent="fault" aria-pressed="false"><b>⑤ 一檔錯了怎麼辦？</b><span>隔離與續跑</span></button>
+      <button type="button" data-agent="swap" aria-pressed="false"><b>⑥ 換模型就一樣嗎？</b><span>可替換與驗收</span></button>
+    </div>
+    <div class="agent-answer" id="agentAnswer" aria-live="polite" aria-atomic="true">
+      <p class="agent-q" id="agentQ">整個資料庫都在模型腦裡嗎？</p>
+      <p id="agentA">不是。Context window 是這次推論可處理的上下文範圍。指令、工具規格、對話、原句與查詢結果都會占用輸入，還要為輸出保留容量；實際限制依模型而定。</p>
+      <ul id="agentFacts"><li>試算表是持久資料；本次輸入才是模型當下能讀的內容。</li><li>查到新資料後，控制程式再把結果送入下一輪，並非模型自動記住整個網站。</li><li>長原稿需保留股名、時間與相鄰上下文；只截半句會誤把過去賣出當今天。</li></ul>
+      <p class="agent-output" id="agentOutput">得到什麼：每次判讀都有來源範圍；資料不足不能補猜。</p>
+    </div>
+    <div class="agent-budget">
+      <p class="agent-q">多塞一份舊稿，會發生什麼？</p>
+      <p>示意容量 100 格，不是本站模型的真實 token 數。黃色是需要整理的證據；輸出預留不能拿來塞資料。</p>
+      <div class="agent-choices agent-small" role="group" aria-label="上下文容量情境"><button type="button" data-budget="fit" aria-pressed="true">只放本次證據</button><button type="button" data-budget="full" aria-pressed="false">再塞完整舊稿</button></div>
+      <div class="agent-meter" aria-hidden="true"><span style="width:20%">規則 20</span><span id="agentEvidence" style="width:50%">證據 50</span><span style="width:20%">預留 20</span></div>
+      <p id="agentBudgetNote" aria-live="polite">20＋50＋20＝90／100。還有 10 格；保留本股前後文與輸出空間。</p>
+      <p class="agent-token-note">「鴻海／昨天／賣出」只是閱讀用切塊圖，不是實際 tokenizer。中文、標點、代號可能切成不同 token，不能用一字等於一 token 計費；正式計數須用該模型的計數方法或回應用量。</p>
+      <div class="agent-chips" aria-label="閱讀切塊示意"><span>鴻海</span><span>昨天</span><span>賣出</span><b>→ 保留時間，才不會改成今日成交</b></div>
+    </div>
+    <details class="agent-details"><summary>能講清楚底層，和會安裝技能包差在哪裡？</summary>
+      <ul><li><b>拆得開：</b>說明指令、證據、token、模型回應及工具結果各自在哪裡；技能是可讀的作業規範，不能取代權限與程式驗證。</li><li><b>做得出：</b>最小代理是「組裝輸入 → 呼叫模型 → 驗證工具請求 → 執行允許的工具 → 回傳結果 → 判斷停止」的迴圈。檔案、指令、網路各有自己的授權範圍。</li><li><b>驗得過：</b>換模型後重跑相同原稿、來源優先與錯誤案例，量正確率、延遲和用量，不只比較單價；小專案需有可重現的證據。</li><li><b>本站怎麼做：</b>每日判讀是程式安排的工作流，Python 負責日期、引句、來源優先與寫入關卡；網站小助手由轉送層提供受限的公開查詢。本章示意一般代理迴圈，不宣稱本站重做了 Claude Code。</li></ul>
+      <p>Huntley 的「自己做代理」是工程能力的觀點，不是普遍的錄取規範。未具名來信的 3K／100K／50 萬與兩週開發，沒有可核驗案例與明確幣別，不能用來計算本站成本或保證效率。</p>
+    </details>
+    <p class="agent-sources">原理依據：<a href="https://ai.google.dev/gemini-api/docs/tokens" target="_blank" rel="noopener">Google：token 計數</a> · <a href="https://www.anthropic.com/engineering/building-effective-agents" target="_blank" rel="noopener">Anthropic：工作流與代理</a> · <a href="https://code.claude.com/docs/en/how-claude-code-works" target="_blank" rel="noopener">Claude Code：工具迴圈</a> · <a href="https://ghuntley.com/agent/" target="_blank" rel="noopener">Huntley：自製代理工作坊</a></p>
   </section>
 
   <section class="tech-section" id="tech-day">
@@ -541,6 +581,18 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function select(buttons, picked) { buttons.forEach(function (b) { var on = b === picked; b.setAttribute('aria-pressed', String(on)); b.classList.toggle('is-selected', on); }); }
   var reduce = false; try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+
+  /* v173：原理示意，切換只修改本機文字，沒有 API／工具執行。 */
+  var agentCases = {
+    context: ['整個資料庫都在模型腦裡嗎？','不是。Context window 是這次推論可處理的上下文範圍。指令、工具規格、對話、原句與查詢結果都會占用輸入，還要為輸出保留容量；實際限制依模型而定。',['試算表是持久資料；本次輸入才是模型當下能讀的內容。','查到新資料後，控制程式再把結果送入下一輪，並非模型自動記住整個網站。','長原稿需保留股名、時間與相鄰上下文；只截半句會誤把過去賣出當今天。'],'每次判讀都有來源範圍；資料不足不能補猜。'],
+    tokens: ['一個中文字就是一個 token 嗎？','不一定。Tokenizer 把文字轉為模型詞彙表中的小單位及編號，再送進模型；切法依模型而異。影像等輸入也有自己的用量計算。',['詞、字、標點與代號不保證一對一；不能用中文字符數當精確帳單。','工具規格及歷史訊息也占輸入；答案與推理用量依服務規則計算。','本站記錄請求用量；畫面的閱讀切塊只是圖解，不是假造實測計數。'],'看模型回應用量或正式計數 API，才知道這次實際使用多少。'],
+    infer: ['模型一次把答案全部想好嗎？','生成式語言模型依目前輸入，逐步預測並選出下一個 token；新輸出接回序列，再生成後續內容。這個過程不會自動查證事實。',['先處理輸入（prefill），再逐步生成（decode）；請求排隊、網路與工具也影響總延遲。','即使指令相同，抽樣及服務設定也可能讓字句不同；低溫不等於證據正確。','結構化格式能約束欄位，日期、公司與引句仍要由程式另外核對。'],'模型給候選；有原句、日期與主體才採用。'],
+    tools: ['模型說「已查詢」，就真的查過嗎？','要看控制程式收到的工具結果。Harness 是把模型接上資料、檔案與工具的那層程式：驗證名稱、參數和權限後，才執行允許的動作。',['示意：讀取某日原稿 → 回傳帶日期的結果 → 再請模型回答；未回傳結果不得宣稱已查。','讀公開資料與寫入資料分開授權；工具回覆中的文字也不能改寫權限。','設定請求數、步數、逾時及停止條件；把模型、工具和來源指紋記下供追查。'],'執行證據是工具回覆與日誌，不是模型自稱做完。'],
+    fault: ['創意那一檔證據不足，要停掉整天嗎？','單檔疑點先隔離，不公開該列；其他已通過的股票繼續。來源讀不到、通知優先無法核對或整篇章節失真，仍需暫停發布。',['10/13 例子：創意只有新聞推薦；後面的 4400→3900 是另一檔，不能接過來。','歷史成交不能因同段出現「今天」變成當日賣出；已出場獲利回顧也不能變持股。','隔離留原分類、原句與原因；更正網站不改已寄出的郵件快照，也不自動重寄。'],'可核對的內容先發布；問題有留底，不能靠綠燈掩蓋。'],
+    swap: ['換最便宜的模型，就能保持一樣嗎？','需要模型轉接層把請求、結構化回應、工具呼叫與錯誤轉成共同格式，再用同一組驗收案例核對。可替換是設計能力，不是所有模型表現相同。',['核對上下文容量、輸出上限、工具及 JSON 能力，不能只改模型名稱。','比較每個完成任務的總成本，包含重試、延遲與品質；不是只看每 token 價格。','本站以日期、來源指紋、規則版本和人工答案做回歸；新模型通過才可接手正式資料。'],'同一個驗收標準約束不同模型；對不上證據就不發布。']
+  };
+  all('[data-agent]').forEach(function(b){b.addEventListener('click',function(){var c=agentCases[b.dataset.agent];select(all('[data-agent]'),b);one('#agentQ').textContent=c[0];one('#agentA').textContent=c[1];one('#agentFacts').innerHTML=c[2].map(function(s){return '<li>'+esc(s)+'</li>';}).join('');one('#agentOutput').textContent='得到什麼：'+c[3];});});
+  all('[data-budget]').forEach(function(b){b.addEventListener('click',function(){var full=b.dataset.budget==='full';select(all('[data-budget]'),b);one('#agentEvidence').style.width=full?'60%':'50%';one('#agentEvidence').textContent=full?'證據 90 → 超限':'證據 50';one('#agentBudgetNote').textContent=full?'20＋90＋20＝130／100。超過容量；先選本次來源與本股相鄰段落，不能靜默截掉時間或借用別檔數字。':'20＋50＋20＝90／100。還有 10 格；保留本股前後文與輸出空間。';});});
 
   /* ---------- 關聯圖（v72）：線上不寫字；圖比畫面寬時可以左右拖移；說明框不蓋住被點的卡片 ---------- */
   var DESC = {

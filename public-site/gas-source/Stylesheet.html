@@ -4936,4 +4936,27 @@ html[data-view="mobile"] .tracker-card-note { font-size: calc(15px * var(--rd-fs
 .tech-story .watch-case-result li + li { margin-top:8px; }
 @media(max-width:700px){.tech-story .source-path { grid-template-columns:minmax(0,1fr); }}
 @media(max-width:700px){.tech-story .watch-case-result { grid-template-columns:minmax(0,1fr); }}
+/* v173：AI 原理圖與本機互動，沿用寬卡及膠囊控制。 */
+.agent-lab .agent-map,.agent-lab .agent-answer,.agent-lab .agent-budget,.agent-lab .agent-details { margin:24px 0; padding:24px; border:1px solid var(--rule); border-radius:24px; background:var(--panel-2); }
+.agent-lab .agent-map svg { display:block; width:100%; height:auto; color:var(--beam); font-size:16px; }
+.agent-lab .agent-map-mobile { display:none; }
+.agent-lab .agent-map figcaption,.agent-lab .agent-sources { color:var(--muted); font-size:calc(14px * var(--rd-fs)); line-height:1.7; }
+.agent-lab .agent-choices { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.agent-lab .agent-choices button { display:flex; flex-direction:column; align-items:flex-start; justify-content:center; gap:5px; min-height:64px; padding:16px 22px; border:1px solid var(--rule); border-radius:999px; background:var(--panel); color:var(--ink); cursor:pointer; font:inherit; text-align:left; }
+.agent-lab .agent-choices button[aria-pressed="true"] { background:var(--beam); color:var(--bg); border-color:var(--beam); }
+.agent-lab button:focus-visible,.agent-lab summary:focus-visible { outline:3px solid var(--beam); outline-offset:4px; }
+.agent-lab .agent-q { font-size:calc(21px * var(--rd-fs)); font-weight:700; margin:0 0 14px; }
+.agent-lab ul { padding-left:1.4em; line-height:1.8; }
+.agent-lab li + li { margin-top:10px; }
+.agent-lab .agent-output { padding:16px 20px; border-radius:16px; background:color-mix(in srgb,var(--beam) 12%,var(--panel)); font-weight:600; }
+.agent-lab .agent-small { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.agent-lab .agent-small button { min-height:48px; }
+.agent-lab .agent-meter { display:flex; margin:22px 0; min-height:56px; border-radius:14px; overflow:hidden; background:var(--panel); border:1px solid var(--rule); }
+.agent-lab .agent-meter span { padding:14px 4px; background:color-mix(in srgb,var(--beam) 20%,var(--panel)); text-align:center; font-weight:700; font-size:14px; min-width:0; }
+.agent-lab .agent-meter span:nth-child(2) { background:color-mix(in srgb,#d3a63b 40%,var(--panel)); }
+.agent-lab .agent-meter span:nth-child(3) { background:color-mix(in srgb,#7895c9 25%,var(--panel)); }
+.agent-lab .agent-chips { display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+.agent-lab .agent-chips span { padding:10px 18px; border-radius:999px; background:color-mix(in srgb,var(--beam) 15%,var(--panel)); border:1px solid var(--rule); }
+.agent-lab summary { min-height:48px; cursor:pointer; font-weight:700; line-height:1.7; }
+@media(max-width:760px) { .agent-lab .agent-choices { grid-template-columns:minmax(0,1fr); } .agent-lab .agent-small { grid-template-columns:minmax(0,1fr); } .agent-lab .agent-map,.agent-lab .agent-answer,.agent-lab .agent-budget,.agent-lab .agent-details { padding:20px; } .agent-lab .agent-map svg { display:none; } .agent-lab .agent-map-mobile { display:grid; gap:8px; text-align:center; } .agent-lab .agent-map-mobile p { padding:16px; margin:0; border:1px solid var(--beam); border-radius:18px; } }
 </style>

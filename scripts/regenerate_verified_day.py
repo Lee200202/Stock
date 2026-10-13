@@ -44,6 +44,7 @@ def main():
     if reviewed:
         if golden.get('reviewed_notes_sha256') != hashlib.sha256(raw.encode()).hexdigest():
             raise SystemExit('人工說明的原稿指紋已變更，須重新核對')
+        bad_quotes = []
         for code, item in reviewed.items():
             if item.get('category') not in pl.SIGNAL_CATEGORIES or not item.get('text') or not item.get('quotes'):
                 raise SystemExit('人工說明欄位不完整：' + code)
@@ -53,7 +54,9 @@ def main():
                 probe = {'code': code, 'name': (golden.get('names') or {}).get(code, '')}
                 for chunk, _ in pl._entity_scope(probe, {}, raw, before_chars=80, after_chars=450)[:2]:
                     print('本股原始聽打片段：' + chunk)
-                raise SystemExit('人工說明的引用不在原稿：' + code)
+                bad_quotes.append(code)
+        if bad_quotes:
+            raise SystemExit('人工說明的引用不在原稿：' + '、'.join(bad_quotes))
     tables = ('操作紀錄', '會員持股', '每日推播內容')
     initial = {name: digest(real.worksheet(name).get_all_values()) for name in tables}
     ledger_names = [ws.title for ws in real.worksheets() if ws.title in ('寄送帳本', 'LINE 寄送帳本')]

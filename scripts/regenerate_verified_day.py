@@ -47,7 +47,12 @@ def main():
         for code, item in reviewed.items():
             if item.get('category') not in pl.SIGNAL_CATEGORIES or not item.get('text') or not item.get('quotes'):
                 raise SystemExit('人工說明欄位不完整：' + code)
-            if not all(pl._quote_is_real(q, pl._ev_norm(raw)) for q in item['quotes']):
+            missing = [q for q in item['quotes'] if not pl._quote_is_real(q, pl._ev_norm(raw))]
+            if missing:
+                print('引用未對上原始稿：' + code + '：' + '／'.join(missing))
+                probe = {'code': code, 'name': (golden.get('names') or {}).get(code, '')}
+                for chunk, _ in pl._entity_scope(probe, {}, raw, before_chars=80, after_chars=450)[:2]:
+                    print('本股原始聽打片段：' + chunk)
                 raise SystemExit('人工說明的引用不在原稿：' + code)
     tables = ('操作紀錄', '會員持股', '每日推播內容')
     initial = {name: digest(real.worksheet(name).get_all_values()) for name in tables}

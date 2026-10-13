@@ -6460,6 +6460,21 @@ def settle_trade_time(row, quotes, transcript, hay, date_str, names, cat):
             quotes.append(te_raw)                  # 時間句是原文裡真的有的，只是沒列在引句裡
         else:
             row['time_evidence'] = te_raw = ''     # 模型自己整理的句子，不能當時間依據
+    if row.get('when') == 'today':
+        # 模型填 today 或附一個真實時間詞，仍不代表該詞修飾本股成交。
+        # 通知的權威分類由後面的 notice_trades 關卡另行保護。
+        explicit = explicit_today_trades(transcript, names, cat)
+        parsed = norm_date(row.get('event_date'))
+        dated = False
+        if parsed == date_str:
+            bits = date_str.split('/')
+            date_marker = rf"(?:{int(bits[1])}月\s*{int(bits[2])}(?:日|號)|{re.escape(date_str)})"
+            dated = any(re.search(date_marker, q) and _TRADE_VERB[cat].search(q) for q in quotes)
+        if not explicit and not dated:
+            row['when'] = 'unknown'
+            row.pop('_time_from_context', None)
+            row['_review_note'] = '沒有本股當日已執行成交的時間證據，依回顧／當下立場處理'
+            return
     if _ev_norm(te_raw) or row.get('_time_from_context'):
         return
     when = row.get('when')
@@ -6555,8 +6570,15 @@ def explicit_today_trades(transcript, names, cat):
             continue
         # 「賣出的X」「X賣了」只是完成式，不是日期。時間必須貼著成交動作，
         # 不能把後面「今天跌多少」借給前面的歷史成交。
-        verb = _TRADE_VERB.get(cat)
-        if not notice.search(s) and not (verb and _said_today(s, verb)):
+        verb = re.compile(r'賣(?:出|掉|了)?' if cat == 'sell' else r'買(?:進|了)?')
+        anchored = _said_today(s, verb)
+        if not anchored and not other:
+            # 簡短回接只沿用同一檔的已執行動作，不借用「今天大盤跌」等背景時間。
+            prefix = ''.join(sentences[max(0, index - 6):index])[-220:]
+            anchored = bool(any(n in prefix for n in names) and _said_today(prefix, verb))
+            # 「X賣掉了，早上賣的」時間在動作後，仍有明確成交的同句依據。
+            anchored = anchored or bool(re.search(r'(?:賣掉了|賣了)[，,](?:今天)?早上賣的', s))
+        if not notice.search(s) and not anchored:
             continue
         hits.append(s)
     return list(dict.fromkeys(hits))

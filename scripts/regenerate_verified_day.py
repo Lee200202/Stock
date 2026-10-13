@@ -40,6 +40,15 @@ def main():
     raw, polished = pl.existing_transcript(dry, '', day, snapshot=snapshot)
     if not raw or not snapshot.get('video_id'):
         raise SystemExit('原始逐字稿或來源 ID 不完整；本次未寫入')
+    reviewed = golden.get('reviewed_notes') or {}
+    if reviewed:
+        if golden.get('reviewed_notes_sha256') != hashlib.sha256(raw.encode()).hexdigest():
+            raise SystemExit('人工說明的原稿指紋已變更，須重新核對')
+        for code, item in reviewed.items():
+            if item.get('category') not in pl.SIGNAL_CATEGORIES or not item.get('text') or not item.get('quotes'):
+                raise SystemExit('人工說明欄位不完整：' + code)
+            if not all(pl._quote_is_real(q, pl._ev_norm(raw)) for q in item['quotes']):
+                raise SystemExit('人工說明的引用不在原稿：' + code)
     tables = ('操作紀錄', '會員持股', '每日推播內容')
     initial = {name: digest(real.worksheet(name).get_all_values()) for name in tables}
     ledger_names = [ws.title for ws in real.worksheets() if ws.title in ('寄送帳本', 'LINE 寄送帳本')]
@@ -73,6 +82,16 @@ def main():
     # 只在這支單日更新腳本生效；比對那一關照樣在後面把關。
     forbidden = {str(code): [x for x in phrases if x] for code, phrases in (golden.get('note_must_not') or {}).items()}
     polish = pl.polish_public_texts
+    quarantine = pl.quarantine_public_rows
+
+    def reviewed_then_quarantine(signals, transcript):
+        for cat in pl.SIGNAL_CATEGORIES:
+            for row in signals.get(cat, []) or []:
+                item = reviewed.get(str(row.get('code') or ''))
+                if item and item['category'] == cat:
+                    row['note' if cat == 'holdings' else 'reason'] = item['text']
+                    row['evidence'] = item['quotes']
+        return quarantine(signals, transcript)
 
     def polish_then_enforce(signals, transcript, date_str):
         signals = polish(signals, transcript, date_str)
@@ -94,6 +113,7 @@ def main():
     pl.write_results = stop
     pl._verdict_cache = verified_cache
     pl.polish_public_texts = polish_then_enforce
+    pl.quarantine_public_rows = reviewed_then_quarantine
     pl.save_evidence_audit = lambda *a, **kw: audits.append((a[1:], kw))
     pl.save_refresh_checkpoint = lambda *a, **kw: None
     pl.name_memo_load(dry)
@@ -108,6 +128,7 @@ def main():
         pl.save_evidence_audit = audit
         pl._verdict_cache = verdict_cache
         pl.polish_public_texts = polish
+        pl.quarantine_public_rows = quarantine
     errors, warnings = invariants(captured['signals'], raw)
     overview, hard, soft = pl.quality_overview(captured['signals'], raw)
     for line in overview:
@@ -156,6 +177,27 @@ def main():
     pl.save_verdicts(real, day, captured['signals'])      # 這一輪問到的分類裁決存起來，之後同一段原文不再重問
     pl.save_stock_industries(real, captured['signals'])      # 新查到的個股產業存起來，之後不再問
     pl.enrich_sms_notes_from_signals(real, day, captured['signals'], raw)
+    # 本輪明示核對的說明可修正受保護的人工列；不改來源、分類、通知或其他日期。
+    # 上面已備份、檢查指紋及並發變更。通知原文與交易價位不在修改範圍。
+    if reviewed:
+        from gspread.utils import rowcol_to_a1
+        for tab, field in [('操作紀錄', '理由摘錄'), ('會員持股', '說明重點')]:
+            ws = real.worksheet(tab)
+            values = pl.sheets_retry(ws.get_all_values)
+            head = values[0]
+            ci = {k: head.index(k) for k in ('日期', '代號', '來源影片ID', field)}
+            edits = []
+            for num, cells in enumerate(values[1:], 2):
+                cell = lambda key: cells[ci[key]] if ci[key] < len(cells) else ''
+                item = reviewed.get(str(cell('代號')))
+                if not item or pl.norm_date(cell('日期')) != day or pl._is_sms_row(str(cell('來源影片ID'))):
+                    continue
+                cat = 'holdings' if tab == '會員持股' else {'觀望注意':'watch_watch','觀望不碰':'watch_avoid','買入':'buy','賣出':'sell'}.get(cells[head.index('方向')])
+                if cat == item['category'] and cell(field) != item['text']:
+                    edits.append({'range': rowcol_to_a1(num, ci[field]+1), 'values': [[item['text']]]})
+            if edits:
+                pl.sheets_retry(ws.batch_update, edits, value_input_option='RAW')
+                print(f'已核對人工說明：{tab} 更新 {len(edits)} 列，分類與來源未改')
     for a, kw in audits:
         audit(real, *a, **kw)
     # 把這一輪標成已發布。網站刷新時，每日整理的 ① 盤勢與 ③ 教學重點取自「最後一個已發布批次」的稽核列

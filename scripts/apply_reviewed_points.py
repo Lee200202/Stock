@@ -19,7 +19,17 @@ def source_quote(raw, quote):
     needle = ''.join(quote.split())
     at = compact.find(needle)
     if at < 0 or len(needle) < 6:
-        raise ValueError('核對引句不在原稿：' + quote)
+        # 和發布關卡相同：只容許空白／標點差異，寫入仍使用原稿的實際字串。
+        normalized, offsets = [], []
+        for index, ch in enumerate(raw):
+            unit = pl._ev_norm(ch)
+            normalized.extend(unit)
+            offsets.extend([index] * len(unit))
+        wanted = pl._ev_norm(quote)
+        start = ''.join(normalized).find(wanted)
+        if len(wanted) < 6 or start < 0:
+            raise ValueError('核對引句不在原稿：' + quote)
+        return raw[offsets[start]:offsets[start + len(wanted) - 1] + 1]
     return raw[positions[at]:positions[at + len(needle) - 1] + 1]
 
 def main():

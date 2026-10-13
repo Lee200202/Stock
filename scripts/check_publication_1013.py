@@ -29,6 +29,7 @@ for text, name, want in cases:
 assert pl.explicit_today_trades('今天我買進勤誠。', ['勤誠'], 'buy')
 assert pl.plain_current_stance('連電', '連電腦軟體我都不推薦。', names=['連電']) is None
 assert pl.plain_current_stance('連電', '連電不要買。', names=['連電'])
+assert '眾多' in pl.public_narrative('股東人數多到爆，未符合買點。')
 old = {'name': '聖輝', 'when': 'today', 'time_evidence': '今天跌停。'}
 tx = '放假前的最後一個交易日，我聖輝賣了。今天跌停。'
 pl.settle_trade_time(old, ['今天跌停。'], tx, pl._ev_norm(tx), '2026/10/13', ['聖輝'], 'sell')

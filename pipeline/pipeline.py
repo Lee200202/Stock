@@ -8293,6 +8293,8 @@ def public_narrative(text, row=None, signals=None):
     """正式名稱只改公開說明，證據原句及代號判讀歷程保持原樣。"""
     row, signals = row or {}, signals or {}
     text = naturalize_reason(strip_editorial_wrappers(scrub_notice_words(to_traditional(text))))
+    for spoken, written in [('多到爆', '眾多'), ('痛批', '指出'), ('極其超級低', '位於低檔')]:
+        text = text.replace(spoken, written)
     # 來源可留在內部稽核；公開說明直接呈現已核對的事實。
     text = re.sub(r'原(?:文|稿)(?:說|寫|提到|指出)', '', text)
     text = re.sub(r'目前仍在持股名單[，,]?\s*節目(?:前|中|後)段再次明講尚持有', '目前仍持有', text)

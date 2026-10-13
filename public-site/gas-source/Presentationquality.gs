@@ -164,6 +164,7 @@ function publicNarrative_(text, row) {
   var sms = /會員簡訊|盤中(?:即時)?通知/.test(String(text || '')) || /^CMONEY-/.test(String(row.videoId || row.sourceId || row['來源影片ID'] || ''));
   // 語音稿把「不准」聽寫成「不準」（「會員不準賣」）；後面接動作才換，「預測不準」不動。
   text = toTraditional_(text);
+  text = text.replace(/多到爆/g, '眾多').replace(/痛批/g, '指出').replace(/極其超級低/g, '位於低檔');
   text = scrubNoticeWords_(text);
   text = stripEditorialWrappers_(text)
     .replace(/原(?:文|稿)(?:說|寫|提到|指出)/g, '')

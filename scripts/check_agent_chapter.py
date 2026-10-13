@@ -16,6 +16,7 @@ try:
                 page.route(FAKE_API, lambda r: r.fulfill(content_type='application/json', body=json.dumps({'ok':True,'result':[]})))
                 open_tech(page, url)
                 page.locator('#tech-agent').scroll_into_view_if_needed()
+                assert page.evaluate("[...document.querySelectorAll('.tech-story h2')].every(h => h.dataset.toc && h.dataset.toc.length >= 6 && h.dataset.toc.length <= 10)")
                 errors = []
                 page.on('pageerror', lambda e: errors.append(str(e)))
                 requests = []

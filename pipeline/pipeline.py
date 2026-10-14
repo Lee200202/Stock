@@ -5912,7 +5912,10 @@ _ANALYST_SUBJECT = re.compile(r'(?<!其他)(?<!別的)(?<!很多)(?<!有些)(?<!
                               r'(?:指出|表示|認為|提醒|指示|建議|點名|強調|說明|點出|看好|預期|判斷|分析|坦言))')
 
 
-_MACRO_CLAUSE = re.compile(r'匯率|台幣(?:升值|貶值|匯率)?|電子(?:股)?成交比重|成交比重|美債|殖利率|聯準會|加權指數|清洗浮額|洗(?:清|掉)?浮額|外資(?:史上|單日)?第[一二三]大(?:賣超|買超)|史上(?:第[一二三])?(?:最大)?(?:賣超|買超)|中小型股')
+_MACRO_CLAUSE = re.compile(r'匯率|台幣(?:升值|貶值|匯率)?|電子(?:股)?成交比重|成交比重|美債|殖利率|聯準會|加權指數|清洗浮額|洗(?:清|掉)?浮額|外資(?:史上|單日)?第[一二三]大(?:賣超|買超)|史上(?:第[一二三])?(?:最大)?(?:賣超|買超)|中小型股'
+                           r'|最大(?:的)?(?:賣超|買超)|(?:賣超|買超)[\d,.]+億|崩盤')
+# 子句的切點：全形逗號、分號，以及不夾在數字中間的半形逗號（「1,653億」不切）
+_CLAUSE_SPLIT = re.compile(r'[，；;]|(?<!\d),|,(?!\d)')
 
 
 def strip_macro_text(text, name):
@@ -5933,7 +5936,7 @@ def strip_macro_text(text, name):
             continue
         end = sentence[-1] if sentence[-1] in '。！？!?' else ''
         body = sentence[:-1] if end else sentence
-        kept = [c.strip() for c in re.split(r'[，,；;]', body) if c.strip() and not _MACRO_CLAUSE.search(c)]
+        kept = [c.strip() for c in _CLAUSE_SPLIT.split(body) if c.strip() and not _MACRO_CLAUSE.search(c)]
         if not kept or len(_ev_norm(''.join(kept))) < 6:
             continue
         kept[0] = re.sub(r'^(?:且|並|而|但|則)', '', kept[0])
@@ -5956,6 +5959,64 @@ def strip_macro_clauses(signals):
                 name = _display_name(row.get('name')) or str(row.get('name') or '')
                 print(f"  說明核對　{name}：大盤層級的子句不寫進個股說明，已拿掉")
                 note_decision('說明核對', '大盤層級的子句不寫進個股說明', name, text[:160])
+                row[field] = fixed
+    return signals
+
+
+_REPEAT_FILLER = re.compile(r'今日|今天|目前|當前|現在|昨日|昨天|如預期|隨後|並且?|也|則|因此|所以|指出|提到|強調|表示|提醒|認為|說明|已經?|仍然?|再度|的')
+
+
+def _bigrams(text):
+    return {text[i:i + 2] for i in range(len(text) - 1)}
+
+
+def drop_repeated_clauses(signals):
+    """個股說明裡後面的子句把前面講過的話再講一次，拿掉（2026/10/14 鴻海「今天股價上漲。今日股價如預期上漲。」、
+    聯電「尚未碰到季線，提醒不要急著買進。聯電尚未碰到季線，因此還不能買。」）。
+    比對前先去掉本股名稱與時間、轉述用語；子句的字面已被前文涵蓋八成以上就算重複。
+    一句裡有子句被拿掉、剩下不到八個字，整句拿掉。第一句不動。"""
+    for cat in SIGNAL_CATEGORIES:
+        for row in signals.get(cat, []) or []:
+            if not isinstance(row, dict) or row.get('_manual_note_kept'):
+                continue
+            field = 'note' if cat == 'holdings' else 'reason'
+            text = str(row.get(field) or '')
+            sentences = [s for s in re.split(r'(?<=[。！？!?])', text) if s.strip()]
+            if len(sentences) < 2:
+                continue
+            name = str(row.get('name') or '')
+            own = sorted({n for n in (_display_name(name), name.replace('*', ''), re.sub(r'-?KY$', '', _display_name(name) or ''))
+                          if len(n) >= 2}, key=len, reverse=True)
+
+            def core(clause):
+                c = _ev_norm(clause)
+                for n in own:
+                    c = c.replace(_ev_norm(n), '')
+                return _REPEAT_FILLER.sub('', c)
+            seen = set()
+            for clause in _CLAUSE_SPLIT.split(sentences[0].rstrip('。！？!?')):
+                seen |= _bigrams(core(clause))
+            out = [sentences[0]]
+            for sentence in sentences[1:]:
+                end = sentence[-1] if sentence[-1] in '。！？!?' else ''
+                body = sentence[:-1] if end else sentence
+                clauses = [c for c in _CLAUSE_SPLIT.split(body) if c.strip()]
+                kept = []
+                for clause in clauses:
+                    grams = _bigrams(core(clause))
+                    if grams and len(grams & seen) >= 0.8 * len(grams):
+                        continue
+                    kept.append(clause.strip())
+                    seen |= grams
+                if len(kept) == len(clauses):
+                    out.append(sentence)
+                elif kept and len(_ev_norm(''.join(kept))) >= 8:
+                    out.append('，'.join(kept) + (end or '。'))
+            fixed = ''.join(out).strip()
+            if fixed != text and len(_ev_norm(fixed)) >= 8:
+                shown = _display_name(name) or name
+                print(f"  說明核對　{shown}：後面的句子把前面講過的話再講一次，已拿掉")
+                note_decision('說明核對', '拿掉重複的子句', shown, text[:160])
                 row[field] = fixed
     return signals
 
@@ -8354,6 +8415,8 @@ def public_narrative(text, row=None, signals=None):
     text = re.sub(r'目前仍在持股名單[，,]?\s*節目(?:前|中|後)段再次明講尚持有', '目前仍持有', text)
     # 語音稿的同音誤字與半轉換的數字（2026/10/07 回歸樣本）：「攻景線」是頸線；「漲了3十幾塊」是 30 幾塊。
     text = re.sub(r'景線', '頸線', text)
+    # 美國的「337調查」被聽寫成「3370調查案」（2026/10/14 台達電）
+    text = re.sub(r'(?<!\d)3370(?=調查)', '337', text)
     text = re.sub(r'(?<![\d.])([1-9])十(幾|多)', r'\g<1>0\2', text)
     # 語音稿把「不准」聽寫成「不準」（「會員不準賣」）；後面接動作才換，「預測不準」不動。
     text = re.sub(r'不準(?=給我|亂|再|去|賣|買|碰|追|用|借|操作|進場|放空|做空)', '不准', text)
@@ -10746,7 +10809,7 @@ original 已經寫明不要買、不要碰、還不能買時，補充後第一�
 本股多次提及中已明講的歷史價位、漲幅與當下立場須一起整理，不能只換句話說「現在不要買」。例如原文同時有「2、300時布局」「漲了4倍」「現在不要買」，直接寫先前布局、已上漲與目前禁買，不加「並非本日再次買進的通知」等分類說明。不得把鄰股的法人、CPO或其他題材填進本股。券商低價累積後分批賣出或已獲利，必須保留券商主體，不得改寫成會員當日操作或省略主體。籌碼由公司派承接若只是條件推測，保留若、可能與待確認的語氣，不寫成已發生事實。禁止「分析師指出」「講師建議」「老師表示」「老師手中」等轉述主詞：不寫誰說的，直接寫內容（「買在880以下」「會員續抱」）。不要寫「逐字稿補充的重點是」「原文以…作為警示」「原文回顧」或推論過程，只寫有依據的內容，不為篇幅加無資訊句。
 過去漲幅、原先布局位置與目前態度分開寫。消息或預測須保留其觀點與條件，不能改成已發生事實。不寫評語式的收尾：「展現強勁多頭動能」「具備明確的向上潛力」「整體操作邏輯穩健」「值得持續關注」「並說明相關操作與看法」「屬於明確不碰的標的」「屬於負面示範」「候選標的之一」「等待適當機會佈局」「建議持續關注」這類句子沒有資訊，程式會刪掉；原文沒講的量價（帶量、爆量、創高、漲停）也不要補。寧可少一句，留下來的每一句都要對得回 sources。「有很多人說／有人問：張總，你昨天講 X 要賣了」這類句子，是講者轉述觀眾複述他自己先前講過的話，後面通常接著他當場的確認或補充：寫成「先前（昨天）已表示 X 要賣出」並接上他當場的說法，不可寫成「有傳聞」「據說」「有人提及」。講者明講的買進位置、成本、季線或年線的價位、預期先到哪一條線，是這一檔說明最重要的內容，source 裡有就一定寫進去，不要只留「展現韌性」「值得留意」這種沒有資訊的形容。不得自創財報、法人、利多、公司關係、均線、停損、目標價或新買點。不要用人名／講者當主詞、不要寫分類流程、來源不足或內部規則。
 每句用 source_ids 引用該 entry.sources 裡支持該句的編號（例如 s0），不要重抄或改寫原句。編號只能用同一 entry 的 sources；來源裡沒講的事不能寫，數字與技術詞也須有對應。name 是官方名稱，source 的同音寫法只在公開敘述中修正。原文不足可短，另填 limitation 為內部原因，不用冗詞湊字。賺賠金額先分清每股與每張；來源單位不明就省略，不能用「（或…）」並列互斥金額或留下截斷片語。
-source 是語音聽寫，技術名詞常有同音誤字：「極線」是季線、「景線」「緊線」是頸線、「35軍」是35均、「限真」是現增。說明裡寫正確的名詞。
+source 是語音聽寫，技術名詞常有同音誤字：「極線」是季線、「景線」「緊線」是頸線、「35軍」是35均、「限真」是現增、「3370調查案」是美國的337調查。說明裡寫正確的名詞。
 一檔寫 2～4 個短句，一句只講一件事（位置、籌碼、題材、條件各一句），不要用逗號把四五件事串成一個長句：程式逐句核對，一個子句對不上會連累整句。
 sources 裡 kind 寫著「系統已用當日股價確認」的段落，原文沒有報公司名稱（畫面上才有）：只取裡面講的買進價位與目前賺賠狀況（「買進成本74元，短線小幅套牢」），不引伸其他內容。
 sources 裡 kind 寫著「產業段落（某族群）」的段落，是本股自己的材料不多時附上的：講的是它所屬的族群。先寫本股自己的事，再用一兩句整理這個族群的看法，句子裡要寫出族群名稱（「所屬的記憶體族群近期漲跌反覆，預期後續還有一波，已持有者不宜賣出」）；不可以寫成本股自己的價位、均線或買點，不可以寫進別家公司的名稱與條件，引用時 source_ids 要指到那一段。
@@ -11410,7 +11473,8 @@ _FACT_NUMBER_RE = re.compile(r'(?<![\d.])\d[\d,]*(?:\.\d+)?\s*(?:%|％|元|塊|�
 
 _ASR_TERMS = ((re.compile(r'[極計繼]線'), '季線'), (re.compile(r'[景緊]線'), '頸線'), (re.compile(r'(\d+)\s*軍'), r'\g<1>均'),
               (re.compile(r'[限先現]真'), '現增'), (re.compile(r'馬克地|麥克D|MAC D', re.I), 'MACD'),
-              (re.compile(r'格蘭[幣必比畢]|葛蘭[幣必比畢]|格蘭碧'), '葛蘭碧'))
+              (re.compile(r'格蘭[幣必比畢]|葛蘭[幣必比畢]|格蘭碧'), '葛蘭碧'),
+              (re.compile(r'(?<!\d)3370(?=調查)'), '337'))
 
 
 def _asr_terms(text):
@@ -16804,6 +16868,7 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     signals = resolve_watch_holding_overlap(signals, date_str, TX["audit"])
     signals = drop_speaker_sentences(signals)
     signals = strip_macro_clauses(signals)
+    signals = drop_repeated_clauses(signals)
     signals = strip_leading_conjunctions(signals)
     # 分類搬回之後可能才新增持股列；只在原句確實列為本人持股時提供簡潔書面說明。
     for row in signals.get('holdings', []) or []:

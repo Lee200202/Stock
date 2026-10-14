@@ -1,7 +1,7 @@
 // Free Cloudflare Worker: public Pages frontend -> existing Apps Script backend.
 // The bridge token stays server-side. Admin methods still require the existing admin key.
 const ALLOWED = 'https://lee200202.github.io';
-const BUILD = 'site-api-v153-r3';
+const BUILD = 'site-api-v178-r1';
 const MAX_ARGS = 8;
 const ADMIN_METHODS = ('apiAdminCancelCrawl apiAdminCancelDaySync apiAdminCancelFix ' +
   'apiAdminCancelFullFix apiAdminCancelJob apiAdminCancelRefresh apiAdminCancelSmsJob ' +
@@ -38,7 +38,7 @@ const METHODS = new Set([
    同時到達的相同查詢共用一個進行中請求，避免每位訪客都啟動 GAS 讀表。 */
 const READ_TTL = {
   apiGetBattleData: 60,
-  apiGetDashboard: 60, apiGetQuotesFor: 60, apiGetHoldingsTracker: 120,
+  apiGetDashboard: 60, apiGetQuotesFor: 0, apiGetHoldingsTracker: 120,
   apiGetStockSummary: 120, apiSearchStock: 120, apiListRecordDates: 300, apiListMailDates: 300,
   apiGetMailContent: 60, apiSearchByDate: 60, apiGetCandlesBundle: 300, apiGetPerformanceSeries: 600,
   apiGetLineEntry: 600, apiListTranscriptDates: 600, apiGetTranscript: 600, apiGetTechStats: 1800,
@@ -313,15 +313,17 @@ export default {
       }
     } catch (error) { edgeStatus = error.name || 'unavailable'; }
     const started = Date.now();
-    let pending = key && inFlight.get(key);
+    // 報價不保存結果，但同時查同一組代號仍共用在途請求。
+    const flightKey = key || (body.method === 'apiGetQuotesFor' ? body.method + ':' + JSON.stringify(body.args) : null);
+    let pending = flightKey && inFlight.get(flightKey);
     const shared = !!pending;
     if (!pending) {
       pending = callBackend(env, {method: body.method, args: body.args}, IDEMPOTENT.has(body.method));
-      if (key) inFlight.set(key, pending);
+      if (flightKey) inFlight.set(flightKey, pending);
     }
     let out;
     try { out = await pending; }
-    finally { if (key && inFlight.get(key) === pending) inFlight.delete(key); }
+    finally { if (flightKey && inFlight.get(flightKey) === pending) inFlight.delete(flightKey); }
     const timing = {'Server-Timing': 'backend;dur=' + (Date.now() - started) + ', gas_request;dur=' + out.executionMs + ', result;dur=' + out.resultMs,
       'X-Backend-Requests': String(out.backendRequests), 'X-Result-Requests': String(out.resultRequests)};
     if (out.payload && out.payload.ok) {

@@ -86,7 +86,7 @@
   async function callApi(name, args) {
     const key = sharedReads.has(name) ? `${name}:${JSON.stringify(args)}` : null;
     const cached = key && recentReads.get(key);
-    if (cached && Date.now() - cached.at < 60000) return cached.value;
+    if (name !== 'apiGetQuotesFor' && cached && Date.now() - cached.at < 60000) return cached.value;
     if (key && inFlight.has(key)) return inFlight.get(key);
     const early = takeEarlyDashboard(name, args);
     const promise = (async () => {

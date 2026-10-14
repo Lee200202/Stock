@@ -1005,7 +1005,7 @@ function restatesEarlier_(key, earlier) {
   function queuePageQuotes(codes, reset) {
     (codes || []).forEach(function(c) {
       if (!isCode(c)) return;
-      if (reset) quoteAttempts[c] = 0;
+      if (reset && !quoteQueue[c]) quoteAttempts[c] = 0;
       var v = quoteView(displayedQuotes[c]);
       if (!v || v.stale) quoteQueue[c] = true;
     });
@@ -1016,7 +1016,7 @@ function restatesEarlier_(key, earlier) {
     if (pageQuotePending || document.hidden) return;
     var codes = Object.keys(quoteQueue).filter(function(c) {
       var v = quoteView(displayedQuotes[c]);
-      if (v && !v.stale || (quoteAttempts[c] || 0) >= 4) { delete quoteQueue[c]; return false; }
+      if (v && !v.stale || (quoteAttempts[c] || 0) >= 4) { delete quoteQueue[c]; if(v && !v.stale) delete quoteAttempts[c]; return false; }
       return true;
     }).sort();
     if (!codes.length) return;
@@ -1048,7 +1048,7 @@ function restatesEarlier_(key, earlier) {
     });
     if (!codes.length) { return; }
 
-    queuePageQuotes(codes, false);
+    queuePageQuotes(codes, true);
   }
 
   /* ------------------------------------------------------------------ *
@@ -1380,7 +1380,7 @@ function restatesEarlier_(key, earlier) {
     });
     if (!codes.length) { return; }
 
-    queuePageQuotes(codes, false);
+    queuePageQuotes(codes, true);
   }
 
   /* ---------------- 首頁 ---------------- */

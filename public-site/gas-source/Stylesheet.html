@@ -1708,7 +1708,10 @@ h1, h2, h3, h4, .sect-h h2, .card h2 { letter-spacing: var(--rd-ls); }
 .setmenu .txset-row { align-items: flex-start; gap: 8px; margin-bottom: 12px; }
 .setmenu .txset-l { min-width: 100%; margin-bottom: 2px; }
 .setmenu .segs { display: flex; width: 100%; }
-.setmenu .segs button { flex: 1 1 0; padding: 7px 6px; text-align: center; }
+.setmenu .segs button { flex: 1 1 0; min-width: 0; min-height: 44px; padding: 9px 6px; text-align: center; font-size: calc(15.5px * var(--rd-fs)); line-height: 1.5; }
+.setmenu .setmenu-h { font-size: calc(17px * var(--rd-fs)); }
+.setmenu .txset-l { font-size: calc(15.5px * var(--rd-fs)); }
+.setmenu .txset-hint { font-size: calc(14.5px * var(--rd-fs)); line-height: 1.8; }
 /* roomy-menus-v106：手機用視窗邊界定位，避免加寬後跑到左側外面。 */
 @media (max-width: 640px) {
   .setmenu { position: fixed; top: 76px; left: 12px; right: 12px;

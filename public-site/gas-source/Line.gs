@@ -1313,15 +1313,15 @@ function lineHelpFlex_() {
     放不下的檔數照實寫「另有 N 檔請看完整整理」，不截字。 */
 var LINE_DAILY_KINDS_ = [['buy', '當日買入'], ['sell', '當日賣出'], ['hold', '當日明講持股'], ['avoid', '觀望不碰'], ['watch', '觀望注意']];
 var LINE_BUBBLE_ROWS_ = 6, LINE_BUBBLE_BYTES_ = 24000, LINE_CAROUSEL_BYTES_ = 44000, LINE_CAROUSEL_MAX_ = 12;
-function lineDailyRowBox_(r) {
+function lineDailyRowBox_(r,kind) {
   var name = String(r.name || '').replace(/[*＊]+$/, ''), code = String(r.code || '');
   var raw = r.reason || r.note || '';
   var note = typeof publicNarrative_ === 'function' ? publicNarrative_(raw, { name: name, code: code, price: r.price }) : String(raw);
   return fxBox_('vertical', [
     fxBox_('baseline', [fxText_(name || code || '名稱待確認', { size: 'md', weight: 'bold', color: LINE_C_.ink, flex: 0 }),
       code ? fxText_(code, { size: 'xs', color: LINE_C_.muted, margin: 'md', flex: 1 }) : null]),
-    fxText_(note || '未說明', { size: 'sm', color: LINE_C_.ink, margin: 'sm' })
-  ], { backgroundColor: LINE_C_.soft, cornerRadius: '14px', paddingAll: '14px' });
+    fxText_(note || '未說明', { size: 'md', color: LINE_C_.ink, margin: 'sm' })
+  ], { backgroundColor: ({buy:'#FFF5F5',sell:'#F0FDF4',hold:'#F5F3FF',watch:'#F0F9FF',avoid:'#FFFBEB'})[kind] || LINE_C_.soft, cornerRadius:'20px', paddingAll:'20px', margin:'16px' });
 }
 function lineDailyFlex_(info, kicker) {
   var dl = lineDateLabel_(info.date), title = info.title || (dl + ' 盤勢與操作重點');
@@ -1350,7 +1350,7 @@ function lineDailyFlex_(info, kicker) {
   LINE_DAILY_KINDS_.forEach(function (k) {
     var rows = (info.groups && info.groups[k[0]]) || [], color = LINE_C_[k[0]];
     if (!rows.length) { return; }
-    var boxes = rows.map(function (r) { return lineDailyRowBox_(r); }), page = [], pages = [];
+    var boxes = rows.map(function (r) { return lineDailyRowBox_(r,k[0]); }), page = [], pages = [];
     boxes.forEach(function (b) {
       if (page.length && (page.length >= LINE_BUBBLE_ROWS_ || lineUtf8Len_(page.concat([b])) > LINE_BUBBLE_BYTES_)) { pages.push(page); page = []; }
       page.push(b);

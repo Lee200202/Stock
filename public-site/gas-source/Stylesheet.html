@@ -5109,4 +5109,16 @@ label.optcard > input { min-width:24px; min-height:24px; }
 .quote-asof { font-size:calc(13.5px * var(--rd-fs)); color:var(--muted); white-space:nowrap; }
 .quote-asof.is-stale { color:var(--neg); font-weight:600; }
 .load-lab.is-paused .load-row i { animation-play-state:paused !important; }
+/* v180 notification cards: shared Email/website layout, original colors and reading settings. */
+.mail-content table.mc-stock-card { border-radius:24px !important; margin:8px 0 16px !important; }
+.mail-content table.mc-stock-card td.mc-name { padding:22px 24px 8px !important; }
+.mail-content table.mc-stock-card td.mc-desc { padding:4px 24px 24px !important; font-size:calc(15.5px * var(--rd-fs)) !important; }
+.mail-content .mc-price-pill { font-size:inherit !important; letter-spacing:var(--rd-ls) !important; }
+.mail-content .mc-price-pill.price-upper { background:#FEE2E2 !important; color:#991B1B !important; }
+.mail-content .mc-price-pill.price-lower { background:#D1FAE5 !important; color:#065F46 !important; }
+.mail-content .mc-price-pill.price-reference { background:#DBEAFE !important; color:#1E40AF !important; }
+@media(max-width:600px){
+ .mail-content table.mc-stock-card td.mc-name { padding:20px 20px 8px !important; }
+ .mail-content table.mc-stock-card td.mc-desc { padding:4px 20px 20px !important; }
+}
 </style>

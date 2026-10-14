@@ -39,4 +39,20 @@ class Reviewed(unittest.TestCase):
  def test_future_evidence_cannot_cross_to_other_stock(self):
   raw='甲股回測季線。接著看乙股，乙股下週突破。'
   self.assertEqual(pl._unsupported_note_time('甲股下週突破',{'name':'甲股','evidence':['乙股下週突破'],'_evidence_verified':True},raw),['下週'])
+ def test_returned_buy_zone_is_current_advice(self):
+  self.assertTrue(pl._returned_buy_zone({'甲股'},'甲股又回來前面的買點了。你們要買，可以買。'))
+  for raw in ['以前甲股回到買點。你們要買，可以買。','甲股回來前面的買點了。你們可不可以買？','甲股回來前面的買點了。接著看乙股，你們要買，可以買。','甲股尚未回到买點。你們要買，可以買。']:
+   self.assertFalse(pl._returned_buy_zone({'甲股'},raw),raw)
+  source=json.loads((ROOT/'scratch/audit1014-current/original/source.json').read_text(encoding='utf8'))['raw']
+  self.assertTrue(pl._returned_buy_zone({'鴻海','宏達電'},source))
+ def test_sold_record_does_not_hide_new_buy_zone(self):
+  signals={k:[] for k in ('buy','sell','holdings','watch_watch','watch_avoid','history','uncertain','ignored')}
+  signals['holdings']=[{'name':'鴻海','code':'2317','note':'仍持有','evidence':[]}]
+  signals['watch_watch']=[{'name':'鴻海','code':'2317','reason':'回到買點','evidence':[]}]
+  class Book:
+   def worksheet(self,n):raise KeyError(n)
+  seen=pl._class_snapshot(signals)
+  with patch.object(pl,'_verdict_known',return_value=({'2317':['系統紀錄：10/06 賣出這一檔']},set(),{})),patch.object(pl,'_verdict_cache',return_value={}),patch.object(pl,'call_gemini',side_effect=AssertionError('explicit advice must not call model')),patch.dict(os.environ,{'CLASS_ADJUDICATION':'on'}):
+   out=pl.adjudicate_classes(Book(),signals,'鴻海又回來前面的買點了。你們要買，可以買。','2026/10/14',seen,seen)
+  self.assertEqual(out['_verdicts']['2317']['cls'],'watch_watch');self.assertFalse(out['holdings']);self.assertEqual(out['watch_watch'][0]['code'],'2317')
 if __name__=='__main__':unittest.main()

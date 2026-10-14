@@ -13307,6 +13307,20 @@ def _explicit_approval(names, transcript):
             return flat[max(0, m.start() - 6):m.end() + 8]
     return ''
 
+def _returned_buy_zone(names, transcript):
+    """已出場後再次回到買點，緊接著肯定可買：是現在的條件看法，不是買回成交。"""
+    sentences=list(_plain_sentences(transcript))
+    for i,sentence in enumerate(sentences):
+        for name in names:
+            if len(str(name))<2 or not re.search(re.escape(str(name))+r'[^。！？!?]{0,16}(?:又)?(?:回來|回到)[^。！？!?]{0,16}買點',sentence):
+                continue
+            if re.search(r'以前|過去|當時|那時|曾經|假如|如果|尚未|還沒|沒有回',sentence):continue
+            tail=''.join(sentences[i+1:i+3])[:150]
+            if re.search(r'接著|另外|至於|下一[檔支隻]|可不可以|要不要|能不能|不能買|不可以買|不要買',tail):continue
+            if re.search(r'你們?(?:要)?買[，,、\s]*(?:可以買|可買)|反而(?:要|應該)買(?:進)?',tail):
+                return sentence+tail
+    return ''
+
 
 def _explicitly_not_held(names, transcript):
     """講者明講自己沒有這一檔（「我沒有台達電，我老實跟你講」）：回傳那一句，沒有就回空字串。「我沒有賣X」不算。"""
@@ -13796,6 +13810,12 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
         if current in ('buy', 'sell') and explicit_today_trades(transcript, names, current):
             entry.update(tier='直接歸類', basis='原文明講今天' + _VERDICT_LABEL[current])
             continue
+        if not entry['open'] and current not in ('buy','sell'):
+            returned=_returned_buy_zone(names,transcript)
+            if returned:
+                row['evidence']=list(dict.fromkeys(list(row.get('evidence') or [])+[returned]))
+                entry.update(cls='watch_watch',tier='直接歸類',enforce=True,basis='已出場後重新回到買點，明確肯定可買；不是當日成交：'+returned)
+                continue
         # 紀錄上這一檔最近一筆是賣出、之後沒有再買回；今天沒有賣出通知（上面已排除）、原文也沒有「今天賣＋股名」的明確句（上面已排除）：
         # 今天的「賣出」是在回顧那一次，不是當日成交（2026/10/12 聖暉「先前以970元獲利了結」，10/05 就賣了；同一份原稿有時判回顧、有時留在賣出）。
         if current == 'sell' and code in known and not entry['open']:

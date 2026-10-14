@@ -5931,11 +5931,22 @@ def strip_macro_text(text, name):
     own = [n for n in {_display_name(name), name.replace('*', ''), re.sub(r'-?KY$', '', _display_name(name) or '')} if len(n) >= 2]
     out = []
     for sentence in re.split(r'(?<=[。！？!?])', text):
-        if not sentence.strip() or any(n in sentence for n in own) or not _MACRO_CLAUSE.search(sentence):
+        if not sentence.strip() or not _MACRO_CLAUSE.search(sentence):
             out.append(sentence)
             continue
         end = sentence[-1] if sentence[-1] in '。！？!?' else ''
         body = sentence[:-1] if end else sentence
+        if any(n in sentence for n in own):
+            # 有本股名稱的句子：只拿掉沒有本股名稱的大盤子句（2026/10/14 鈺邦「台幣匯率貶值至多，電子成交比重降至67%，…，建議將鈺邦獲利全出」）；
+            # 大盤子句裡就有本股名稱的（「亞德客-KY受惠台幣貶值」）不動。
+            clauses = [c.strip() for c in _CLAUSE_SPLIT.split(body) if c.strip()]
+            kept = [c for c in clauses if not _MACRO_CLAUSE.search(c) or any(n in c for n in own)]
+            if len(kept) == len(clauses) or not any(n in c for c in kept for n in own):
+                out.append(sentence)
+                continue
+            kept[0] = re.sub(r'^(?:且|並|而|但|則)', '', kept[0])
+            out.append('，'.join(kept) + (end or '。'))
+            continue
         kept = [c.strip() for c in _CLAUSE_SPLIT.split(body) if c.strip() and not _MACRO_CLAUSE.search(c)]
         if not kept or len(_ev_norm(''.join(kept))) < 6:
             continue

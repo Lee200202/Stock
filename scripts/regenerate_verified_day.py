@@ -192,6 +192,38 @@ def main():
     pl.save_verdicts(real, day, captured['signals'])      # 這一輪問到的分類裁決存起來，之後同一段原文不再重問
     pl.save_stock_industries(real, captured['signals'])      # 新查到的個股產業存起來，之後不再問
     pl.enrich_sms_notes_from_signals(real, day, captured['signals'], raw)
+    # 會員通知列的說明是在寫入這一步才用同日原文改寫的，前面的人工答案比對看不到（2026/10/14 鈺邦的台幣子句）：
+    # 寫入後讀回這一天的列，人工答案「不得出現的說法」所在的子句拿掉，並逐項印出核對結果。
+    if forbidden:
+        from gspread.utils import rowcol_to_a1
+        for tab, field in [('操作紀錄', '理由摘錄'), ('會員持股', '說明重點')]:
+            ws = real.worksheet(tab)
+            values = pl.sheets_retry(ws.get_all_values)
+            head = values[0]
+            if not all(k in head for k in ('日期', '代號', field)):
+                continue
+            ci = {k: head.index(k) for k in ('日期', '代號', field)}
+            edits = []
+            for num, cells in enumerate(values[1:], 2):
+                cell = lambda key: cells[ci[key]] if ci[key] < len(cells) else ''
+                phrases = forbidden.get(str(cell('代號')))
+                text = str(cell(field))
+                if not phrases or pl.norm_date(cell('日期')) != day or not any(x in text for x in phrases):
+                    continue
+                kept = [[c, t] for c, t in pl._split_clauses(text) if not any(x in c for x in phrases)]
+                fixed = ''.join(c + t for c, t in kept).strip('，,；;')
+                if fixed and fixed[-1] not in '。！？':
+                    fixed += '。'
+                if fixed and fixed != text:
+                    edits.append({'range': rowcol_to_a1(num, ci[field] + 1), 'values': [[fixed]]})
+                    print(f"  寫入後核對　{tab} {cell('代號')}：說明裡有不得出現的說法，已拿掉那個子句")
+            if edits:
+                pl.sheets_retry(ws.batch_update, edits, value_input_option='RAW')
+            values = pl.sheets_retry(ws.get_all_values)
+            for cells in values[1:]:
+                cell = lambda key: cells[ci[key]] if ci[key] < len(cells) else ''
+                for phrase in forbidden.get(str(cell('代號')), []) if pl.norm_date(cell('日期')) == day else []:
+                    print(f"  寫入後核對 {'✗' if phrase in str(cell(field)) else '✓'} {tab} {cell('代號')} 說明不得含「{phrase}」")
     # 本輪明示核對的說明可修正受保護的人工列；不改來源、分類、通知或其他日期。
     # 上面已備份、檢查指紋及並發變更。通知原文與交易價位不在修改範圍。
     if reviewed:

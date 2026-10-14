@@ -887,6 +887,8 @@ function lookupFundamentals_(stock) {
 function lookupTech_(q) {
   var html = '';
   try { html = HtmlService.createHtmlOutputFromFile('Tech').getContent(); } catch (e) { html = ''; }
+  // StoryDesign 由 Index 另外載入（不在 Tech 裡），技術說明的四幕文字也在那一份
+  try { if (html) { html += HtmlService.createHtmlOutputFromFile('StoryDesign').getContent(); } } catch (e) {}
   if (!html) { return '【技術說明】目前讀不到技術說明頁。'; }
   var text = html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<svg[\s\S]*?<\/svg>|<s\b[\s\S]*?<\/s>/gi, ' ')
     .replace(/<h[1-4][^>]*>/gi, '\n§').replace(/<\/(?:p|li|h[1-4]|div|section|tr)>/gi, '\n').replace(/<[^>]+>/g, ' ')

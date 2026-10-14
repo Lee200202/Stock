@@ -52,6 +52,12 @@ def main() -> None:
             target = COPY / source.name
             if not target.is_file() or hashlib.sha256(source.read_bytes()).digest() != hashlib.sha256(target.read_bytes()).digest():
                 raise SystemExit(f"Original GAS source diverged: {source.name}")
+    # Apps Script's include() returns a file's raw content without evaluating template tags,
+    # so a nested include works on Pages (recursive build) but prints as text on /exec (2026/10/14 StoryDesign).
+    top_level = {"Index.html", "Admin.html", "Unsubscribed.html", "Editor.html", "Reviewpanel.html", "Editorpanel.html"}
+    for html in COPY.glob("*.html"):
+        if html.name not in top_level and re.search(r"<\?", html.read_text(encoding="utf-8")):
+            raise SystemExit(f"Included file has a template tag that /exec will not evaluate: {html.name}")
     print(f"Original UI bridge parity OK: {len(public)} public, {len(admin)} admin methods")
 
 

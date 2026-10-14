@@ -1268,7 +1268,7 @@ var PROJECT_FILES_ = [
   { file: 'DB.gs', names: ['writeSubscriptionFields_', 'findSubscription_'] },
   { file: 'Evidencequality.gs', names: ['rawTranscript_', 'validEvidence_', 'queueDayEditSync_', 'dayEditSyncTick_', 'runDayEditSync_', 'queueCostSync_'], marker: ['runDayEditSync_', 'cur.githubUntil = 0'] },
   { file: 'Logic.gs', names: ['markChainStep_', 'REFRESH_STEPS_'] },
-  { file: 'MailService.gs', names: ['createSubscription', 'siteName_', 'adminNoticeHtml_', 'mailHero_', 'publicWebAppUrl_', 'escAttr_', 'mailRiskHtml_', 'deliverMessage_', 'deliveryLedger_', 'mailPlainText_', 'isExecUrl_', 'mailStockName_', 'noVideoToday_', 'pushReadyChannels_', 'gateAutoRelease_', 'gateJsonResponse_', 'DIGEST_MISSING_SYSTEM_'], marker: ['mailHero_', 'border-radius:22px'] },
+  { file: 'MailService.gs', names: ['createSubscription', 'siteName_', 'adminNoticeHtml_', 'mailHero_', 'publicWebAppUrl_', 'escAttr_', 'mailRiskHtml_', 'deliverMessage_', 'deliveryLedger_', 'mailPlainText_', 'isExecUrl_', 'mailStockName_', 'noVideoToday_', 'pushReadyChannels_', 'gateAutoRelease_', 'gateJsonResponse_', 'DIGEST_MISSING_SYSTEM_'], marker: ['mailHero_', 'border-radius:28px'] },
   { file: 'Presentationquality.gs', names: ['publicNoticeText_', 'titleDropRepeats_', 'displayPrice_', 'narrativeName_', 'titleChars_', 'toTraditional_', 'publicSmsNote_', 'stripEditorialWrappers_'], marker: ['restatesEarlier_', 'hit / total'] },
   { file: 'Quoteservice.gs', names: ['settleClosingQuotesTick_', 'misRows_', 'getFugleKey_', 'fugleFetch_', 'sharesToLots_', 'volumeInLots_', 'hourSlot_', 'readHourlyRows_', 'fugleHistPace_', 'kcPutAll_', 'getCandlesBundle', 'misBatchQuotes_'], marker: ['refreshQuoteCacheJob', 'MIS_DOWN_KEY_'] },
   { file: 'Refreshrunner.gs', names: ['runRefreshAllChunk_', 'withRefreshAllLease_'] },
@@ -1281,7 +1281,7 @@ var PROJECT_FILES_ = [
 // HTML 檔名不含 .html；marker 是這一版才有的字串。
 var PROJECT_HTML_ = [
   { file: 'StoryDesign', marker: 'story-mode-controls' },
-  { file: 'Index', marker: '<span class="brand-name">盤勢有據</span>' },
+  { file: 'Index', marker: "include('StoryDesign')" },
   { file: 'JavaScript', marker: '__fxRiseIn' },
   { file: 'Stylesheet', marker: 'load-charts' },
   { file: 'Changelog', marker: 'v173 當日證據與代理原理' },

@@ -15,6 +15,10 @@ function doGet(e) {
 
   // 記下正式網址給排程寄信用（退訂連結、網站連結）。見 MailService.gs 的 publicWebAppUrl_。
   rememberWebAppUrl_();
+  if(params.action==='backup-archive'){
+    try{return jsonOut_(backupArchiveRequest_(params.key||'',params.op||'status',params.names||'[]',params.source||''));}
+    catch(err){return jsonOut_({ok:false,error:String(err.message||err).slice(0,250)});}
+  }
   if(params.action==='day-sync'){
     try{return jsonOut_(apiDaySyncDrive_(params.key||'',params.op||'state',params.id||'',params.index));}
     catch(err){

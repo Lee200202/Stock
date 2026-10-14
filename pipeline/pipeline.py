@@ -4376,6 +4376,7 @@ reason、note、market text 是公開文字，不寫人名當主詞或所有格�
 2026/09/10 漏掉最多的是下面六種句型（名稱只是舉例，原文沒講到的公司不可因範例而加入）：
 一、手中持股順口帶過：「張正手中告訴你的買進的股票，比如說想碩、比如說普位」「對我還有紅準」「你們都知道我有詳」「我為什麼一直抱著降碩？…我的享碩還賺」「你們想賣的趕快賣，我的會員不准賣」→ 每一檔各一筆 holdings。
 二、講買進價位、買到現在或昨天買的還在手上：「我從1820、2025、2135買到現在，買這三次我沒有賣掉」「這一檔本來就是我會員買的股票，8月25號1580以下買加折」「我昨天買的四星KY，今天漲30幾塊」→ holdings；若另給未持有者當下買點，整理在同一筆持股說明，不另開觀望列。
+三、一口氣念出的名單：若同句列名A與B，緊接著明說「這類／那種股票不買」，否定同時作用於A與B，逐檔核對，不能只保留最後一檔；若是「推薦A、不推薦B」、另起話題、單數那一檔或條件句，不把否定套到整份名單。
 三、一口氣念出的名單：「我連後面要什麼聖輝、新代、加折還有木德，我以後要買的股票通列出來給你看了」→ 每檔逐一核對：已有部位列 holdings；沒有部位但有現況看法才列 watch_watch；同檔同日只列一次。名單最後一檔最容易漏：2026/09/30「高價股，剛才我已經講了，加則，四星KY，還有翔碩，這些個股，你們就好好的抱著」漏了祥碩——每檔核對是否仍持有，已持有的不再另開觀望列。
 四、等條件或等別人賣完：講者明講現在還不能買、還不行、不想買，要等 ETF 賣完或跌破某價才考慮（「今天破900你可以買嗎？還不行，00981A還沒賣完」「你沒有破900我不想買」）→ watch_avoid，reason 寫出等待條件；只給可照做的買點、沒說現在不能買（「900以下是買點」「等補完缺口站回去」）→ watch_watch。講的是哪一檔要從同一段的名稱找（ETF 出清的那一檔原文寫初清程、出金城＝勤誠）；同一段真的沒有名稱才放 ignored，不可由股價猜公司。等的事今天已經發生（ETF 已全部出清、賣在最低點），講者接著說「不會跌了」「賣完就漲」→ watch_watch，reason 寫已發生的事與偏多結論，不可寫成「等待賣壓減輕」；「前幾天講會跌破900，真的破了」是已應驗的回顧，不是今天看空（2026/09/17 勤誠，見句型十）。
 五、過去叫人賣、現在看壞：「越想解套國巨你就越死」「他一定會殺破」→ watch_avoid（見【日期未明與現況看法】）。
@@ -8609,10 +8610,18 @@ def _unsupported_note_time(note, row, transcript):
     # 2026/10/09：只認點名本股的那一句與前後各一句，以及自己有本股名稱的引句。先前用整個前後文窗口，
     # 「這一隻股票力積電是漲的。這一隻股票是漲的。這一隻股票是漲的。這一隻股票下禮拜要突破了。」的最後一句
     # （已經換到下一張圖）被當成力積電的，說明寫成「下週準備突破」。
-    near = normalized(_name_adjacent_text(row, transcript))
+    topic_switch = r'(?:接著|接下來|另外|再)(?:來)?看(?!日|週|周|月|季|年|K|MACD|KD)|下一(?:檔|隻|支)'
+    near = normalized(re.split(topic_switch,_name_adjacent_text(row, transcript),maxsplit=1)[0])
     # 期間（上半年、去年、第二季）常在點名之後用「它」接著講：「推薦X…它的財報，上半年EPS 29.91」。未來的時間（下週、下個月、明年）是預告，
     # 只認點名句附近。
-    wide = near + normalized(_name_forward_text(row, transcript))
+    forward = re.split(topic_switch,_name_forward_text(row, transcript),maxsplit=1)[0]
+    wide = near + normalized(forward)
+    # 引句逐字存在，而且仍在本股既有的話題窗口內，才容許較後面的週線／月線預告。
+    # 不因單獨引用下一檔的時間詞就擴大窗口。
+    if row.get('_evidence_verified'):
+        for quote in row.get('evidence') or []:
+            if isinstance(quote,str) and _ev_norm(quote) and _ev_norm(quote) in _ev_norm(transcript) and _ev_norm(quote) in _ev_norm(forward):
+                near += normalized(quote)
     return [term for term in claimed if normalized(term) not in (near if re.match(r'下|明', term) else wide)]
 
 
@@ -8655,7 +8664,7 @@ def quality_overview(signals, transcript='', check_chapters=True):
         if re.search(r'逐字稿|原(?:文|稿)(?:說|寫|提到|指出)|節目(?:前|中|後)段|持股名單|再次明講|於今日影片中', note):
             hard.append(f'{name} 的說明含來源或編輯過程，須改寫為本股事實：{note[:45]}')
         # 觀望清單不能冒出當前部位；10/08 金山電只有長紅棒，沒有續抱證據。
-        if cat in ('watch_watch', 'watch_avoid') and _WATCH_HOLDS_RE.search(note):
+        if cat in ('watch_watch', 'watch_avoid') and _claims_owned_holding(note):
             hard.append(f'{name} 列觀望卻寫成當前持股，須核對分類與主詞：{note[:45]}')
         if transcript and _foreign_profit_claim(note, _row_names_for_recap(r), transcript):
             hard.append(f'{name} 的說明提到獲利狀況，原文沒有任何一句同時講到這一檔與獲利：{note[:30]}')
@@ -9831,6 +9840,25 @@ def _row_names_for_recap(row):
 
 # 問句裡問的是價位或位置（「現在愛普幾塊？」「我在哪裡推薦的？」），那不是現在的指示；
 # 「對不對？」「推薦的是什麼？推薦的是這個」這類自問自答仍是陳述。
+
+
+def shared_list_refusal(row, transcript):
+    """名字列在同一短句，下一句以這類／那種股票明確拒買；不把單數、轉場或條件句套到整份名單。"""
+    names = sorted(_signal_names(row) | {str(row.get('name') or '')}, key=len, reverse=True)
+    sentences = list(_plain_sentences(transcript))
+    for i, sentence in enumerate(sentences[:-1]):
+        if len(_ev_norm(sentence)) > 150 or not any(n and n in sentence for n in names):
+            continue
+        if not re.search(r'[、，,]|(?:與|和).{1,8}', sentence):
+            continue
+        if re.search(r'可以買|推薦|買進|持有|續抱|不推薦.{0,8}推薦', sentence):
+            continue
+        later = sentences[i+1]
+        if len(_ev_norm(later)) > 80 or re.search(r'接著|另外|至於|如果|假如|除非|只要|等到|昨天|以前|不是說|並非|沒有說|不代表|不一定|不是都|不是不能|有人|別人|觀眾說', later):
+            continue
+        if re.search(r'(?:才)?(?:不買|不會買|不想買|不碰)(?:這|那)(?:一)?(?:種|類|些|幾檔)[^。！？!?]{0,35}(?:股票|標的)|(?:這|那)(?:一)?(?:種|類|些|幾檔)[^。！？!?]{0,35}(?:股票|標的).{0,5}(?:不買|不會買|不碰)', later):
+            return sentence + later
+    return ''
 
 
 def _named_current_prohibition(row, transcript):
@@ -11293,6 +11321,16 @@ def tidy_public_notes(ss, signals: dict, date_str: str) -> dict:
 
 _WATCH_HOLDS_RE = re.compile(r'(?<!不)(?<!別)(?<!未)(?:續抱|仍持有|目前持有|繼續持有|持續持有|(?:會員)?(?:目前|仍|持續)?抱著|會員(?:已|仍|目前)?持有|為會員持有)')
 
+def _claims_owned_holding(text):
+    """對既有持有者的條件建議不等於宣告講者／會員有部位。"""
+    for clause,_ in _split_clauses(str(text or '')):
+        for match in _WATCH_HOLDS_RE.finditer(clause):
+            prefix=clause[max(0,match.start()-32):match.start()]
+            if not re.search(r'會員|本身|本人',prefix) and re.search(r'若|如果|假如|對(?:已)?持有(?:者|人|部位)|(?:已)?持有者',prefix):
+                continue
+            return True
+    return False
+
 
 _NO_CHASE_RE = re.compile(r'(?:這一[隻支檔]|它|他)?[，,]?就?不(?:用|要|必)(?:再)?(?:去)?追|留著(?:這一[隻支檔])?就好|好好留著')
 
@@ -11318,7 +11356,7 @@ def resolve_watch_holding_overlap(signals: dict, date_str: str, transcript: str 
                 print(f"  分類與說明　{name}：已列會員持股，原文說不用追，不另列觀望注意")
                 note_decision('分類與說明', '已列會員持股且原文說不用追，觀望注意那一列不另列', name, text[:120])
                 continue
-            if not isinstance(row, dict) or not _WATCH_HOLDS_RE.search(public_narrative(text, row, signals)):
+            if not isinstance(row, dict) or not _claims_owned_holding(public_narrative(text, row, signals)):
                 keep.append(row)
                 continue
             name = _display_name(row.get('name')) or str(row.get('name') or '')
@@ -11326,7 +11364,7 @@ def resolve_watch_holding_overlap(signals: dict, date_str: str, transcript: str 
                 print(f"  分類與說明　{name}：今天已列會員持股，觀望那一列的說明講的是持有，不另列")
                 note_decision('分類與說明', '已列會員持股，觀望那一列不另列', name, text[:120])
                 continue
-            pieces = [[c, punct] for c, punct in _split_clauses(text) if not _WATCH_HOLDS_RE.search(c)]     # 只拿掉講持有的子句
+            pieces = [[c, punct] for c, punct in _split_clauses(text) if not _claims_owned_holding(c)]     # 只拿掉宣告本身持有的子句
             rest = ''.join(c + punct for c, punct in pieces).strip('，,；;')
             if rest and rest[-1] not in '。！？':
                 rest += '。'
@@ -13027,7 +13065,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v10-20261014"          # 當日動作與歷史獲利重新核對；人工裁示仍優先
+VERDICT_VERSION = "v11-20261014"          # 當日動作與歷史獲利重新核對；人工裁示仍優先
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 3                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -13745,6 +13783,12 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
         if all(c in _VERDICT_HIDDEN for c in cats) and any(r.get('exclusion_reason') == 'ordinary_word' for _, r in pairs) \
                 and len(names) == 1:
             entry.update(cls=current, tier='直接歸類', basis='日常用語核對：原文每一次出現都只是日常用語，不是公司名', enforce=True)
+            continue
+        group_refusal = shared_list_refusal(row, transcript)
+        if group_refusal and not entry['open'] and current not in ('buy', 'sell') and not any(k[0] == code for k in notice):
+            row['evidence'] = list(dict.fromkeys(list(row.get('evidence') or []) + [group_refusal]))
+            row['_evidence_verified'] = True
+            entry.update(cls='watch_avoid', tier='直接歸類', basis=group_refusal, enforce=True)
             continue
         if {'buy', 'sell'} <= cats or any(k[0] == code for k in notice):
             entry.update(tier='直接歸類', basis='當日會員通知已有買賣' if any(k[0] == code for k in notice) else '同一天有買有賣')

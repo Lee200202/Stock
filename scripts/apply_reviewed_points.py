@@ -1,4 +1,5 @@
 """Publish explicitly reviewed article points, keeping stock rows and delivery state."""
+from backup_archive import backup_tables
 import argparse
 import hashlib
 import json
@@ -61,8 +62,7 @@ def main():
     before = {n: digest(book.worksheet(n).get_all_values()) for n in ledgers + ['操作紀錄', '會員持股']}
     sent = pl._daily_article_status(book, day)
     stamp = datetime.now(pl.TAIPEI).strftime('%m%d_%H%M%S')
-    for name in ('逐字稿判讀稽核', '每日推播內容'):
-        book.duplicate_sheet(book.worksheet(name).id, new_sheet_name=f'備份_{stamp}_{name}')
+    backup_tables(pl,book,('逐字稿判讀稽核','每日推播內容'))
     # Append a new evidence batch; do not rewrite the original model audit.
     pl.save_evidence_audit(book, source['video_id'], day, raw, signals)
     pl.commit_evidence_manifest(book, source['video_id'], day, raw)

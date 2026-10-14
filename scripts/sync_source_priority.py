@@ -1,4 +1,5 @@
 """Back up a verified day, apply source priority and refresh without model calls."""
+from backup_archive import backup_tables
 import argparse
 import hashlib
 import json
@@ -43,8 +44,7 @@ def main():
     before = {n: digest(book.worksheet(n).get_all_values()) for n in ledgers}
     sent = pl._daily_article_status(book, day)
     stamp = datetime.now(ZoneInfo('Asia/Taipei')).strftime('%m%d_%H%M%S')
-    for name in ('操作紀錄', '會員持股', '每日推播內容'):
-        book.duplicate_sheet(book.worksheet(name).id, new_sheet_name=f'備份_{stamp}_{name}')
+    backup_tables(pl,book,('操作紀錄','會員持股','每日推播內容'))
     print('三張工作表已備份；僅套用既有來源優先，不重新判讀')
     result = pl.apply_sms_priority(book, [day])
     print('來源優先結果：' + json.dumps(result, ensure_ascii=False))

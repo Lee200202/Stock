@@ -9,7 +9,7 @@ on:
       mode:
         description: 通過全部品質核對後才更新；不寄送
         type: choice
-        options: [preview, apply, raw, sync, priority-check, reviewed-points, source-audit, verdicts, titles]
+        options: [preview, apply, raw, sync, priority-check, reviewed-points, reviewed-notes-preview, reviewed-notes, source-audit, backup-status, backup-migrate, verdicts, titles]
         default: preview
 permissions:
   contents: read
@@ -47,6 +47,22 @@ jobs:
           FINAL_ATTEMPT: 'true'
           PYTHONUNBUFFERED: '1'
         run: |
+          if [ "$MODE" = backup-status ]; then
+            python scripts/backup_archive.py
+            exit 0
+          fi
+          if [ "$MODE" = backup-migrate ]; then
+            python scripts/backup_archive.py --migrate
+            exit 0
+          fi
+          if [ "$MODE" = reviewed-notes-preview ]; then
+            python scripts/apply_reviewed_notes.py --date "$TARGET_DATE"
+            exit 0
+          fi
+          if [ "$MODE" = reviewed-notes ]; then
+            python scripts/apply_reviewed_notes.py --date "$TARGET_DATE" --apply
+            exit 0
+          fi
           if [ "$MODE" = source-audit ]; then
             python scripts/audit_saved_source.py --date "$TARGET_DATE"
             exit 0

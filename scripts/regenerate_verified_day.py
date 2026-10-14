@@ -1,9 +1,10 @@
 """Regenerate one saved day only after real-model quality gates pass.
 
 Default is read-only. Apply preserves the source, manual rows, SMS priority and
-delivery states. Before writing, make recoverable worksheet copies in the same
-private spreadsheet. No notification function is called.
+delivery states. Before writing, make recoverable worksheet copies in the separate
+private backup spreadsheet. No notification function is called.
 """
+from backup_archive import backup_tables
 import argparse
 import hashlib
 import json
@@ -182,9 +183,8 @@ def main():
     if any(digest(real.worksheet(name).get_all_values()) != initial[name] for name in tables):
         raise SystemExit('判讀期間正式資料已變動，取消寫入以保護其他工作')
     stamp = datetime.now(ZoneInfo('Asia/Taipei')).strftime('%m%d_%H%M%S')
-    for name in tables:
-        real.duplicate_sheet(real.worksheet(name).id, new_sheet_name=f'備份_{stamp}_{name}')
-    print('三張工作表已在原私人試算表完成備份')
+    backup_tables(pl,real,tables)
+    print('三張工作表已在獨立私人試算表完成備份')
     sent_before = pl._daily_article_status(real, day)
     # 本輪的股票代號已核對，不順便修改其他日期的待確認代號。
     pl.run_post_write_steps = lambda book, days: (pl.apply_sms_priority(book, days), pl.resolve_cost_prices(book, days))

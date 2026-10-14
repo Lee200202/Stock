@@ -123,8 +123,7 @@ function apiAdminMergeTranscripts(key, apply, expected) {
       if(apply){
         if(!expected || expected!==fingerprint){throw new Error('影片清單已變動，請重新乾跑');}
         if(plan.length){
-          var backup=sh.copyTo(getSS_());
-          backup.setName('影片整併備份-'+Utilities.formatDate(new Date(),'Asia/Taipei','yyyyMMddHHmmss'));
+          archiveCopyVerified_(sh,'影片整併備份-'+Utilities.formatDate(new Date(),'Asia/Taipei','yyyyMMddHHmmss'),'更新前快照');
           plan.forEach(function(x){sh.getRange(x.keep,1,1,head.length).setValues([x.values]);});
           var remove=[];plan.forEach(function(x){remove=remove.concat(x.remove);});
           remove.sort(function(a,b){return b-a;}).forEach(function(i){sh.deleteRow(i);});

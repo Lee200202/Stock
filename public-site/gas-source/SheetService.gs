@@ -3150,6 +3150,6 @@ function auditPartialSaleHoldings178(){return explainHoldingsTracker('3533');}
 /** Back up the derived tracker before correcting its partial-sale round boundaries. No sends. */
 function repairPartialSaleHoldings178(){
   var sh=getSheet_('持股追蹤'),book=sh.getParent(),name='持股備份_1014_v178';
-  if(!book.getSheetByName(name)){sh.copyTo(book).setName(name);Logger.log('已保留持股追蹤備份：'+name);}
+  archiveLiveSheet_(sh,name);Logger.log('已在獨立試算表核對持股追蹤備份：'+name);
   return rebuildRecentHoldingsTrackerNow();
 }

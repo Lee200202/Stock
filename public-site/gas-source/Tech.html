@@ -1084,14 +1084,14 @@
     var b = one('#tlPlay'); b.setAttribute('aria-pressed', 'false');
     b.querySelector('.th-ic').textContent = '▶'; b.querySelector('.th-lb').textContent = '播放這個回合';
   }
-  one('#tlPlay').addEventListener('click', function () {
-    if (tlTimer) { tlStop(); return; }
-    if (Number(slider.value) >= 5) { slider.value = 0; drawTimeline(); }
-    var b = one('#tlPlay'); b.setAttribute('aria-pressed', 'true');
-    b.querySelector('.th-ic').textContent = '❚❚'; b.querySelector('.th-lb').textContent = '暫停';
-    tlTimer = setInterval(function () { slider.value = Number(slider.value) + 1; drawTimeline(); if (Number(slider.value) >= 5) tlStop(); }, 1500);
-  });
-  slider.addEventListener('input', function () { tlStop(); drawTimeline(); }); drawTimeline();
+  function tlStart(){
+    if(tlTimer||reduce||window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+    var b=one('#tlPlay');b.setAttribute('aria-pressed','true');b.querySelector('.th-ic').textContent='❚❚';b.querySelector('.th-lb').textContent='暫停';
+    tlTimer=setInterval(function(){slider.value=(Number(slider.value)+1)%6;drawTimeline();root.dispatchEvent(new CustomEvent('stock-tech-timeline'));},1500);
+  }
+  window.__techTimeline={start:tlStart,pause:tlStop,playing:function(){return !!tlTimer;}};
+  one('#tlPlay').addEventListener('click',function(){if(tlTimer)tlStop();else tlStart();});
+  slider.addEventListener('input',function(){tlStop();drawTimeline();root.dispatchEvent(new CustomEvent('stock-tech-timeline'));});drawTimeline();
 
   /* ---------- 出錯時：四段工作的狀態 ---------- */
   var LANES = ['取稿', '判讀', '網站文章', '背景計算'];
@@ -1191,17 +1191,9 @@
     var b = one('#heroPlay'); b.setAttribute('aria-pressed', 'false');
     b.querySelector('.th-ic').textContent = '▶'; b.querySelector('.th-lb').textContent = '播放這一天';
   }
-  if (one('#heroPlay')) {
-    one('#heroPlay').addEventListener('click', function () {
-      if (heroTimer) { heroStop(); return; }
-      var p = Number(one('#heroRange').value);
-      if (p >= 4) { p = 0; heroSet(0); }
-      var b = one('#heroPlay'); b.setAttribute('aria-pressed', 'true');
-      b.querySelector('.th-ic').textContent = '❚❚'; b.querySelector('.th-lb').textContent = '暫停';
-      heroTimer = setInterval(function () { p++; heroSet(p); if (p >= 4) heroStop(); }, 1500);
-    });
-    one('#heroRange').addEventListener('input', function () { heroStop(); heroSet(Number(this.value)); });
-  }
+  function heroStart(){if(heroTimer||reduce||window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;var b=one('#heroPlay');b.setAttribute('aria-pressed','true');b.querySelector('.th-ic').textContent='❚❚';b.querySelector('.th-lb').textContent='暫停';heroTimer=setInterval(function(){heroSet((Number(one('#heroRange').value)+1)%5);},1500);}
+  window.__techHero={start:heroStart,pause:heroStop};
+  if(one('#heroPlay')){one('#heroPlay').addEventListener('click',function(){if(heroTimer)heroStop();else heroStart();});one('#heroRange').addEventListener('input',function(){heroStop();heroSet(Number(this.value));});}
 
   /* ---------- v108 開場：三種查找困難（示意，不呼叫資料） ---------- */
   var PAINS = [
@@ -1512,7 +1504,7 @@
     if (!lab || still) return;
     var rows = all('#loadLab .load-row[data-secs]'), timer = 0;
     function play() {
-      lab.classList.remove('is-play'); void lab.offsetWidth; lab.classList.add('is-play');
+      lab.classList.remove('is-paused','is-play'); void lab.offsetWidth; lab.classList.add('is-play');
       var started = Date.now();
       window.clearInterval(timer);
       timer = window.setInterval(function () {
@@ -1526,6 +1518,7 @@
         if (!busy) window.clearInterval(timer);
       }, 40);
     }
+    window.__techLoad={start:play,pause:function(){window.clearInterval(timer);lab.classList.add('is-paused');}};
     lab.classList.add('is-armed');
     if (replay) { replay.hidden = false; one('#loadReplay').addEventListener('click', play); }
     if ('IntersectionObserver' in window) {
@@ -1535,6 +1528,7 @@
       seen.observe(lab);
     } else { play(); }
   })();
+  window.__techPulse=play;window.__techMap={start:function(){if(!mapTimers.length&&!reduce)one('#agentMapPlay').click();},pause:stopMap};
   window.__techReveal = function () { window.__loadTechStats(); schedule(); if (window.__docnavRebuild) window.__docnavRebuild(); };
   schedule();
 })();

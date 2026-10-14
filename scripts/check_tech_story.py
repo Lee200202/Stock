@@ -47,7 +47,7 @@ def serve_local() -> tuple[str, ThreadingHTTPServer]:
 def open_tech(page, url):
     page.goto(url, wait_until='domcontentloaded', timeout=90000)
     page.wait_for_selector('#tech-transcript-progress', state='attached', timeout=30000)
-    tab = page.locator('[data-tab="tech"]').first
+    tab = page.locator('button[data-tab="tech"]').first
     if tab.count():
         tab.click()
     # Full reading mode is selected only after its containing tab is visible.

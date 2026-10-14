@@ -182,7 +182,7 @@ function getTodayOverview() {
       var t = getHoldingsTracker();
       var heldMap = {};
       var out = (t.held || []).map(function (i) {
-        heldMap[i.name] = true;
+        heldMap[String(i.code||i.name).trim()] = true;
         return {
           name: i.name,
           code: i.valid ? i.code : '代號待確認',
@@ -194,8 +194,9 @@ function getTodayOverview() {
       // 當日簡訊有續抱但追蹤尚未涵蓋的，補充進持股清單
       todayHolds.forEach(function (h) {
         var hName = String(h['股票名稱'] || '').trim();
-        if (hName && !heldMap[hName]) {
-          heldMap[hName] = true;
+        var hKey=String(h['代號']||hName).trim();
+        if (hName && !heldMap[hKey]) {
+          heldMap[hKey] = true;
           out.push({
             name: hName,
             code: h['代號'] || '代號待確認',
@@ -946,12 +947,21 @@ function avoidClosesRound_(sorted, at, tradingDays) {
  * tradingDays 是市場交易日清單（由小到大），用來判斷觀望不碰之後多久沒有下文。
  * 傳空陣列也能跑，那時所有的不碰都照舊視為出場，行為與加這一關之前相同。
  */
+/** Explicit partial disposal never closes the entire position; no share-count inference. */
+function isPartialSaleRecord_(r) {
+  if (!r || r.kind !== 'sell') return false;
+  var text=String(r.reason||'')+' '+String(r.direction||'');
+  if(/全部(?:賣|出)|全數(?:賣|出)|全出|清倉|出清|剩餘.*(?:全部|全數).*賣/.test(text)) return false;
+  return /部分(?:部位|持股|張數)?(?:[，、\s]*)(?:賣出|出場)|(?:賣出|出場)(?:部分|部分部位)|減碼|減持/.test(text);
+}
+
 function buildRounds_(records, tradingDays) {
   // 每一天出現過哪些動作。用來判斷同日矛盾。
   var dayKinds = {};
   records.forEach(function (r) {
     if (!dayKinds[r.date]) { dayKinds[r.date] = {}; }
     dayKinds[r.date][r.kind] = 1;
+    if(r.kind==='sell'&&!isPartialSaleRecord_(r))dayKinds[r.date].fullSell=1;
   });
   function sameDay_(date, kind) { return !!(dayKinds[date] && dayKinds[date][kind]); }
 
@@ -983,7 +993,7 @@ function buildRounds_(records, tradingDays) {
       // 同一天又被講成賣出，代表這一筆持有聲明與當天的成交打架，寧可不開倉。
       // 同一天的觀望不碰不再擋（2026/09/14）：已持有的股票對還沒有的人另列觀望，
       // 是擷取規則明訂允許的寫法；舊規則會讓這種日子的持有聲明整筆作廢。
-      if (sameDay_(r.date, 'sell')) { return; }
+      if (sameDay_(r.date, 'fullSell')) { return; }
       cur = { open: r, openKind: 'hold', adds: [], close: null, closeKind: '' };
       return;
     }
@@ -993,6 +1003,7 @@ function buildRounds_(records, tradingDays) {
     // 這一天若有明確的序（先賣後買、或先買後賣），就照序走，不要忽略。
     if (sameDay_(r.date, 'buy') && !ordered_(r.date)) { return; }
     if (r.kind === 'sell') {
+      if(isPartialSaleRecord_(r)){cur.partialSells=cur.partialSells||[];cur.partialSells.push(r);return;}
       cur.close = r; cur.closeKind = '賣出';
       rounds.push(cur); cur = null;
     } else if (r.kind === 'avoid') {
@@ -1933,7 +1944,7 @@ function rebuildHoldingsTrackerJobRun_(options) {
   });
 
   CACHE.remove('tracker');
-  CACHE.remove('dash_v54');   // 首頁快取（API.gs）與持股追蹤同一個來源，一起清
+  CACHE.remove(typeof DASH_CACHE_KEY_ !== 'undefined' ? DASH_CACHE_KEY_ : 'dash_v94');   // 首頁快取（API.gs）與持股追蹤同一個來源，一起清
 
   Logger.log('持股追蹤重算完成，共 ' + rows.length + ' 檔（耗時 ' +
              Math.round((Date.now() - start) / 1000) + ' 秒）');
@@ -3132,4 +3143,13 @@ function clearTranscriptCache() {
     if (d) { CACHE.remove('txfmt_' + d); }
   });
   Logger.log('逐字稿快取已清除');
+}
+
+/** v178 acceptance: read-only trace for the 10/14 partial-disposal case. */
+function auditPartialSaleHoldings178(){return explainHoldingsTracker('3533');}
+/** Back up the derived tracker before correcting its partial-sale round boundaries. No sends. */
+function repairPartialSaleHoldings178(){
+  var sh=getSheet_('持股追蹤'),book=sh.getParent(),name='持股備份_1014_v178';
+  if(!book.getSheetByName(name)){sh.copyTo(book).setName(name);Logger.log('已保留持股追蹤備份：'+name);}
+  return rebuildRecentHoldingsTrackerNow();
 }

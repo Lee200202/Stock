@@ -24,6 +24,7 @@
 .story-visual .viz-wait { fill:color-mix(in srgb,var(--wait) 18%,var(--panel)); stroke:var(--wait); }
 .story-visual .viz-stop { fill:color-mix(in srgb,var(--rise) 12%,var(--panel)); stroke:var(--rise); }
 .story-visual .viz-line { fill:none; stroke:var(--beam); stroke-width:2; }
+.story-visual .story-playhead { fill:var(--beam); stroke:var(--panel); stroke-width:3; }
 .story-visual .viz-muted { stroke:var(--rule); fill:none; stroke-dasharray:6 5; }
 .story-status { margin:12px 0 0; padding:10px 14px; border-radius:16px; background:var(--panel); font-size:calc(14px * var(--rd-fs)); line-height:1.65; }
 .story-status::before { content:'✓ '; color:var(--beam); font-weight:700; }
@@ -191,7 +192,7 @@ function initStory(){
   var tag=document.createElement('small');tag.className='story-diagram-tag';tag.textContent=real?'本機圖解 · 事實日期與示意圖形分開':'流程示意 · 不連線，原有實例可展開';tag.style.fontSize='calc(13.5px * var(--rd-fs))';q('.story-ticket',main).appendChild(tag);
   var toggle=document.createElement('button');toggle.type='button';toggle.className='story-chapter-toggle';toggle.setAttribute('aria-expanded','false');toggle.setAttribute('aria-controls',detail.id);toggle.textContent='展開這一章';
   sec.appendChild(lead);sec.appendChild(main);sec.appendChild(toggle);sec.appendChild(detail);
-  var state={meta:m,sec:sec,main:main,detail:detail,toggle:toggle,key:'',selected:0,step:0,w:0,ready:false};models.push(state);
+  var state={meta:m,sec:sec,main:main,detail:detail,toggle:toggle,key:'',selected:0,step:0,w:0,ready:false,autoTimer:0,pausedByUser:false,inView:false};models.push(state);
   toggle.addEventListener('click',function(){detail.open=!detail.open;toggle.setAttribute('aria-expanded',String(detail.open));toggle.textContent=detail.open?'收合這一章':'展開這一章';syncTracks();});
   detail.addEventListener('toggle',function(){toggle.setAttribute('aria-expanded',String(detail.open));toggle.textContent=detail.open?'收合這一章':'展開這一章';});
   var source=qa(m[4]||'__not_used__',detail),choices=q('.story-choices',main);
@@ -199,7 +200,7 @@ function initStory(){
   if(!source.length){choices.hidden=true;q('.story-choice-count',main).hidden=true;}
   else q('.story-choice-count',main).textContent='1／'+source.length;
   if(source.length>3){var more=document.createElement('button');more.type='button';more.dataset.storyMore='1';more.textContent='更多情境';more.setAttribute('aria-expanded','false');choices.appendChild(more);more.addEventListener('click',function(){var on=choices.classList.toggle('is-expanded');more.setAttribute('aria-expanded',String(on));more.textContent=on?'收起更多':'更多情境';});}
-  q('.story-replay',main).addEventListener('click',function(){main.classList.remove('is-in','is-stopped');void main.offsetWidth;main.classList.add('is-in');state.step=(state.step+1)%5;render(state);});
+  q('.story-replay',main).addEventListener('click',function(){state.pausedByUser=false;startAuto(state);main.classList.remove('is-in','is-stopped');void main.offsetWidth;main.classList.add('is-in');state.step=(state.step+1)%5;render(state);});
   var r=m[5]&&q(m[5],detail);if(r)new MutationObserver(function(){if(state.ready)render(state);}).observe(r,{childList:true,subtree:true,characterData:true});
   if(window.ResizeObserver)new ResizeObserver(function(entries){var w=entries[0].contentRect.width;if(w>0&&state.near&&(!state.ready||Math.abs(w-state.w)>3))render(state);}).observe(main);
  });
@@ -214,7 +215,7 @@ function initStory(){
  function render(s){
   var box=q('.story-visual',s.main);if(!box.clientWidth)return;
   var W=Math.max(300,Math.round(box.clientWidth)),mobile=W<650,H=mobile?310:210,out='',m=s.meta,id=m[0],key=s.key,nodes=[];
-  s.w=W;s.ready=true;
+  s.w=W;s.ready=true;s.main.dataset.phase=String(s.step);
   var status=q('.story-status',s.main);status.dataset.state='pass';status.textContent=m[3];
   var px=function(n){return (n+.5)*W/4;};
   var selected=qa(m[4]||'__none__',s.detail).find(function(b){return b.getAttribute('aria-pressed')==='true';});if(selected)key=Array.prototype.slice.call(selected.attributes).filter(function(a){return a.name.indexOf('data-')===0;}).map(function(a){return a.value;}).join('');
@@ -258,7 +259,7 @@ function initStory(){
   }else if(id==='tech-public-notes'){
    var badge=q('.pn-final .tv-badge',s.detail),pending=badge&&/複核/.test(badge.textContent);chain([['record','原句','viz-ink'],['search','數字核對','viz-pass'],['person','主體核對','viz-pass'],[pending?'clock':'browser',pending?'待複核':'公開文字',pending?'viz-wait':'viz-pass']]);if(badge){status.textContent=badge.textContent+'：原有編輯檯與人工保護規則完整保留，可展開核對。';if(pending)status.dataset.state='wait';}
   }else if(id==='tech-hold'){
-   H=220;out+='<rect x="'+W*.06+'" y="40" width="'+W*.37+'" height="38" rx="12" class="viz-pass"/><rect x="'+W*.58+'" y="40" width="'+W*.35+'" height="38" rx="12" class="viz-pass"/>'+text(W*.24,65,'回合一')+text(W*.75,65,'回合二')+'<path d="M'+W*.06+' 165L'+W*.18+' 140L'+W*.29+' 152L'+W*.43+' 112M'+W*.58+' 160L'+W*.75+' 135L'+W*.93+' 120" class="viz-line"/>'+text(W/2,208,'曲線為回合示意，非歷史行情或績效');
+   H=220;var tl=Number(q('#tlSlider').value)||0,point=[.06,.18,.29,.36,.43,.58][tl];out+='<rect x="'+W*.06+'" y="40" width="'+W*.37+'" height="38" rx="12" class="'+(tl<4?'viz-pass':'viz-ink')+'"/><rect x="'+W*.58+'" y="40" width="'+W*.35+'" height="38" rx="12" class="'+(tl===5?'viz-pass':'viz-ink')+'"/>'+text(W*.24,65,'回合一')+text(W*.75,65,'回合二')+'<path d="M'+W*.06+' 165L'+W*.18+' 140L'+W*.29+' 152L'+W*.43+' 112M'+W*.58+' 160L'+W*.75+' 135L'+W*.93+' 120" class="viz-line"/>'+'<circle cx="'+(W*point)+'" cy="105" r="8" class="story-playhead" data-hold-step="'+tl+'"/>'+text(W/2,190,q('#tlDay').textContent+' · '+(tl<4?'回合一持有':tl===4?'回合一結束':'回合二開始'))+text(W/2,218,'曲線為回合示意，非歷史行情或績效');status.textContent=q('#tlState').textContent;
   }else if(id==='tech-failure'){
    H=290;qa('#failLanes .tech-lane',s.detail).forEach(function(e,i){var y=35+i*60,cl=e.classList.contains('tone-ok')?'viz-pass':e.classList.contains('tone-stop')?'viz-stop':'viz-wait',label=q('.tl-name',e).textContent,st=q('.tl-state',e).textContent;out+=text(W*.15,y,label)+line(W*.3,y-5,W*.86,y-5);[.35,.58,.82].forEach(function(x,j){out+='<circle cx="'+W*x+'" cy="'+(y-5)+'" r="9" class="'+cl+'"/>';});out+=text(W*.6,y+22,st);if(cl!=='viz-pass')out+='<path d="M'+W*.58+' '+(y-14)+'q-25 -30 -50 0" class="viz-line"/>';});status.textContent='等待、接續、需人處理分開標示；弧線是續跑方向示意，非今日實際重試次數。';
   }else if(id==='tech-limit'){
@@ -269,14 +270,39 @@ function initStory(){
    chain([['database','來源','viz-ink'],['shield','準確度','viz-ink'],['mail','訂閱','viz-ink'],['lock','隱私','viz-ink']]);
   }else {chain([['person','維護者','viz-ink'],['record','原始碼','viz-ink'],['mail','回報問題','viz-pass']]);}
   if(selected){q('.story-stamp',s.main).textContent=selected.textContent;var result=m[5]&&q(m[5],s.detail),headline=result&&result.querySelector('.tv-badge,.tl-state,b,dt');if(headline&&headline.textContent.trim()){status.textContent=headline.textContent.trim()+'。'+m[3];if(/不行|不能|不列|作廢/.test(headline.textContent))status.dataset.state='stop';else if(/複核|等待/.test(headline.textContent))status.dataset.state='wait';}}
-  box.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+esc(m[3])+'" data-scenario="'+esc(key)+'">'+out+'</svg>';
+  box.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+esc(m[3])+'" data-scenario="'+esc(key)+'">'+out+'</svg>';renderPlayhead(s);
  }
  // 圖解只在第一次接近畫面時建立；不支援觀察器時直接可讀。
- var activeAnim=null;
- function visibleHeight(el){if(!el||el.classList.contains('is-stopped'))return 0;var r=el.getBoundingClientRect();return Math.max(0,Math.min(innerHeight,r.bottom)-Math.max(140,r.top));}
+ // v178：只在真正可見時連續播放；離開／隱藏即暫停，使用者操作後不自動搶回。
  window.__storyAnimationActivate=function(el){if(!el.classList.contains('story-main')&&!el.classList.contains('is-stopped'))el.classList.add('is-live');};
  window.__storyAnimationPause=function(el){el.classList.remove('is-live');};
- if(window.IntersectionObserver){var mainIO=new IntersectionObserver(function(entries){entries.forEach(function(en){var s=models.find(function(s){return s.main===en.target;});if(!s)return;s.near=en.isIntersecting;if(en.isIntersecting){if(!s.ready)render(s);s.main.classList.add('is-in');if(!reduce&&!s.main.classList.contains('is-stopped'))window.__storyAnimationActivate(s.main);}else{s.main.classList.remove('is-live');}});},{rootMargin:'250px 0px',threshold:.01});models.forEach(function(s){mainIO.observe(s.main);});}else models.forEach(render);
+ function stopAuto(s,keepNative){clearInterval(s.autoTimer);s.autoTimer=0;s.main.classList.remove('is-live');s.main.dataset.playing='false';if(s.meta[0]==='tech-hold'&&!keepNative&&window.__techTimeline&&(document.hidden||s.pausedByUser||!legacyPlayers.some(function(x){return x.s===s&&x.visible&&x.api==='__techTimeline';})))window.__techTimeline.pause();legacyPlayers.filter(function(x){return x.s===s;}).forEach(function(x){if(!document.hidden&&!reduce&&!s.pausedByUser&&x.visible)return;clearInterval(x.timer);x.timer=0;if(x.api&&!keepNative&&window[x.api])window[x.api].pause();});}
+ function startAuto(s){
+   if(reduce||s.pausedByUser||!s.inView||document.hidden||root.closest('[hidden]'))return;
+   s.main.classList.add('is-live','is-in');s.main.dataset.playing='true';
+   if(s.meta[0]==='tech-hold'){if(window.__techTimeline)window.__techTimeline.start();return;}
+   if(s.autoTimer)return;
+   s.autoTimer=setInterval(function(){if(document.hidden||!s.inView){stopAuto(s);return;}s.step=(s.step+1)%5;render(s);},1600);
+ }
+ function renderPlayhead(s){
+   if(reduce||s.meta[0]==='tech-hold')return;var svg=q('.story-visual svg',s.main);if(!svg)return;
+   var shapes=qa('.viz-part circle,circle.viz-pass,circle.viz-wait,rect.viz-pass,rect.viz-ink',svg);if(!shapes.length)return;
+   var shape=shapes[s.step%shapes.length],b=shape.getBBox(),dot=document.createElementNS('http://www.w3.org/2000/svg','circle');dot.setAttribute('cx',b.x+b.width/2);dot.setAttribute('cy',b.y+b.height/2);dot.setAttribute('r','6');dot.setAttribute('class','story-playhead');dot.setAttribute('aria-hidden','true');svg.appendChild(dot);
+ }
+ root.addEventListener('click',function(e){if(!e.isTrusted)return;var sec=e.target.closest('.story-section'),s=models.find(function(x){return x.sec===sec;});if(!s||e.target.closest('.story-chapter-toggle,.story-replay'))return;s.pausedByUser=true;stopAuto(s,!!e.target.closest('#tlPlay,#heroPlay,#agentMapPlay'));},true);
+ root.addEventListener('input',function(e){if(!e.isTrusted)return;var s=models.find(function(x){return x.sec.contains(e.target);});if(s){s.pausedByUser=true;stopAuto(s);}},true);
+ root.addEventListener('stock-tech-timeline',function(){var s=models.find(function(x){return x.meta[0]==='tech-hold';});if(s)render(s);});
+ if(window.IntersectionObserver){
+   var nearIO=new IntersectionObserver(function(entries){entries.forEach(function(en){var s=models.find(function(x){return x.main===en.target;});if(!s)return;s.near=en.isIntersecting;if(s.near&&!s.ready)render(s);});},{rootMargin:'250px 0px',threshold:.01});models.forEach(function(s){nearIO.observe(s.main);});
+   var autoIO=new IntersectionObserver(function(entries){entries.forEach(function(en){var s=models.find(function(x){return x.main===en.target;});if(!s)return;if(en.target===s.main)s.mainVisible=en.isIntersecting&&en.intersectionRatio>=.25;else s.detailVisible=en.isIntersecting&&en.intersectionRatio>=.05;s.inView=!!(s.mainVisible||s.detailVisible);if(s.inView){if(!s.ready)render(s);startAuto(s);}else stopAuto(s);});},{threshold:[0,.05,.25,.5]});models.forEach(function(s){autoIO.observe(s.main);});
+ }else models.forEach(render);
+ var legacyPlayers=[];
+ function playLegacy(x){if(reduce||document.hidden||!x.visible||x.s.pausedByUser||root.closest('[hidden]'))return;if(x.api&&window[x.api])window[x.api].start();else if(window.__techPulse)window.__techPulse(x.el);if(!x.timer)x.timer=setInterval(function(){if(!x.visible||document.hidden||x.s.pausedByUser)return;if(x.api&&window[x.api])window[x.api].start();else if(window.__techPulse)window.__techPulse(x.el);},5000);}
+ if(window.IntersectionObserver&&!reduce){var legacyIO=new IntersectionObserver(function(entries){entries.forEach(function(en){var x=legacyPlayers.find(function(x){return x.el===en.target;});if(!x)return;x.visible=en.isIntersecting&&en.intersectionRatio>=.25;if(x.visible)playLegacy(x);else{clearInterval(x.timer);x.timer=0;if(x.api&&window[x.api]&&!(x.api==='__techTimeline'&&x.s.mainVisible&&!x.s.pausedByUser))window[x.api].pause();}});},{threshold:[0,.25,.5]});
+   models.forEach(function(s){qa('#tlTrack,#heroTrack,.agent-map,#loadLab,.tech-path,.tech-real,.tx-stages,.pn-desk,.un-chain,.tech-lanes,.tech-flow,.tech-dayline,.tx-out',s.detail).forEach(function(el){var api=el.id==='tlTrack'?'__techTimeline':el.id==='heroTrack'?'__techHero':el.id==='loadLab'?'__techLoad':el.classList.contains('agent-map')?'__techMap':'';var x={el:el,s:s,api:api,timer:0,visible:false};legacyPlayers.push(x);legacyIO.observe(el);});});}
+ var motionPref=window.matchMedia('(prefers-reduced-motion: reduce)');if(motionPref.addEventListener)motionPref.addEventListener('change',function(e){reduce=e.matches;models.forEach(function(s){if(reduce)stopAuto(s);else startAuto(s);});});
+ document.addEventListener('visibilitychange',function(){models.forEach(function(s){if(document.hidden)stopAuto(s);else {startAuto(s);legacyPlayers.filter(function(x){return x.s===s;}).forEach(playLegacy);}});});
+ new MutationObserver(function(){if(root.closest('[hidden]'))models.forEach(function(s){stopAuto(s);s.inView=false;s.mainVisible=s.detailVisible=false;});}).observe(root.closest('.panel')||root,{attributes:true,attributeFilter:['hidden']});
  // 四幕閱讀軌位於 body，避免被面板 transform 改變 fixed 定位。
  var rail=document.createElement('nav');rail.className='story-rail';rail.setAttribute('aria-label','四幕閱讀導覽');rail.innerHTML='<div class="story-rail-actions"><button type="button" data-story-top aria-label="回到技術說明頂端">'+icon('record')+'頂端</button>'+ACTS.map(function(a,i){return '<button type="button" data-story-act="'+i+'" aria-expanded="false" aria-controls="story-rail-panel">'+icon(a[1])+(i+1)+'幕</button>';}).join('')+'<button type="button" data-story-help aria-label="開啟問問題">'+icon('model')+'問題</button></div><p class="story-rail-progress">1／18</p><div class="story-rail-panel" id="story-rail-panel" hidden></div>';document.body.appendChild(rail);
  var current=0,panel=q('.story-rail-panel',rail),actButtons=qa('[data-story-act]',rail);

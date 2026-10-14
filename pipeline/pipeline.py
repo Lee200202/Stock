@@ -4450,7 +4450,7 @@ reason 只能用提到這一檔的句子；上一句、下一句在講另一檔�
 技術面照他講的寫：均線（季線、年線、60分K的35均）在哪裡、股價離它多遠、回測了沒有、第幾根長紅棒、MACD是翻紅還是背離、他在等哪一個訊號才動作（「等它回測季線再上去」「今天還不叫發動」「突破1545就起飛」）。他有講就寫，沒講就不寫。
 時間照原文寫：原文說「下個禮拜公布營收、法說會」就寫下週，不可改成下半年、下個月；原文沒有講時間就不要寫時間。
 二、寫因果，不寫評語：現象（外資投信在賣卻跌不下去）→ 他的判斷（低檔有人接、一定會過季線）→ 做法（低檔佈局等它）。不寫「展現強勁多頭動能」「具備明確的向上潛力」「整體操作邏輯穩健」「值得持續關注」「並說明相關看法」這類放在任何一檔都成立的句子；原文沒講的量價（帶量、爆量、創高）與建議（不宜繼續持有、建議停損）也不要補。寧可少一句，留下來的每一句都要對得回原文。
-三、主詞要對：否定、獲利狀況、買賣動作講的是哪一家，就只寫在那一家。公司名稱必須是講者用來稱呼一家公司的詞：句首單獨出現、後面接「嗎」「啊」或直接接技術名詞的兩三個字（如「正奇，葛蘭碧八大法則…正奇葛蘭碧嗎？」其實是「這不是」）是聽寫殘字，不是公司，不可列成個股。講者沒有報名字、只用「某某集團的那一隻」「我有一隻做某某的」描述他持有的股票時，不要從附近的字湊一個名字，也不要寫給前一句剛提到的公司；這種段落交給後面的流程對回持股紀錄。一段分析從頭到尾只說「這一支股票」而沒有報名字時，不能因為前一句剛好提到 X 就整段寫給 X：先看價位對不對得上——X 是幾十塊的股票，那一段卻在講「突破1545就起飛」，講的就不是 X。對不上就不要寫進任何一檔的說明。這種沒有報名字、也對不回任何一檔的整段分析是雜訊（管理者 2026/10/08：畫面上看得出是哪一檔，但語音稿沒有名字）：不列成個股、不寫進任何一檔的說明，也不寫進盤勢與教學重點；不可以用價位或族群去猜它是哪一檔。「X我不敢買，因為那家公司沒什麼賺錢。可是這個題材會很熱，你們在看的都是A跟B」——不敢買與沒賺錢講的是 X；A、B 只是被點到名，講者沒有對它們下看法，放 ignored 並寫明只是被點名，不可列觀望不碰，也不可把 X 的理由寫成 A、B 的。
+三、主詞要對：否定、獲利狀況、買賣動作講的是哪一家，就只寫在那一家。公司名稱必須是講者用來稱呼一家公司的詞：句首單獨出現、後面接「嗎」「啊」或直接接技術名詞的兩三個字（如「正奇，葛蘭碧八大法則…正奇葛蘭碧嗎？」其實是「這不是」）是聽寫殘字，不是公司，不可列成個股。成交量與 K 棒的術語（大量、最大量、爆量、量能、天量、長紅、長黑）就算剛好與某家公司的簡稱同字，也是在描述某一檔的線型，不是公司名：「最大量這一根」「突破最大量」講的是那一根 K 棒，不可把它列成個股。講者沒有報名字、只用「某某集團的那一隻」「我有一隻做某某的」描述他持有的股票時，不要從附近的字湊一個名字，也不要寫給前一句剛提到的公司；這種段落交給後面的流程對回持股紀錄。一段分析從頭到尾只說「這一支股票」而沒有報名字時，不能因為前一句剛好提到 X 就整段寫給 X：先看價位對不對得上——X 是幾十塊的股票，那一段卻在講「突破1545就起飛」，講的就不是 X。對不上就不要寫進任何一檔的說明。這種沒有報名字、也對不回任何一檔的整段分析是雜訊（管理者 2026/10/08：畫面上看得出是哪一檔，但語音稿沒有名字）：不列成個股、不寫進任何一檔的說明，也不寫進盤勢與教學重點；不可以用價位或族群去猜它是哪一檔。「X我不敢買，因為那家公司沒什麼賺錢。可是這個題材會很熱，你們在看的都是A跟B」——不敢買與沒賺錢講的是 X；A、B 只是被點到名，講者沒有對它們下看法，放 ignored 並寫明只是被點名，不可列觀望不碰，也不可把 X 的理由寫成 A、B 的。
 名字不一樣就不是同一檔：原文寫的字和本股名稱不同（「川普」不是「川湖」）而且不在已確認的名稱對照裡，那一句就不能寫進本股的說明；不可以用「川普/川湖」這種兩個名字並列的寫法帶過去。
 不加原文沒有的因果：原文只說「昨天有ETF去買，今天又跌停」，不能寫成「ETF買進導致跌停」。「導致、造成、引發、使得」只在原文自己講出原因（因為、所以、才會）時才用；兩件事只是先後發生，就照先後寫，或不寫。
 四、轉述自己先前的話不是傳聞：「有人說張總你昨天講X要賣了」寫成「先前已表示X要賣出」，後面接他當場的確認或補充；當場沒有新的說法就只寫這一句。不可寫「有傳聞」「據說」「有人提及」。
@@ -8979,6 +8979,125 @@ def strip_implausible_price_claims(ss, signals: dict, date_str: str) -> dict:
     return signals
 
 
+# 名稱旁邊被念到的價位。月份、日期、時間、張數、百分比、年數等不算價位。
+_CITED_PRICE = re.compile(r'(?<![\d.])(\d{2,5}(?:\.\d{1,2})?)(?![\d.])'
+                          r'(?!\s*(?:月|號|日|點|分|年|%|％|張|天|檔|萬|億|倍|根|週|周|個|次|名|人|歲|秒|兆|成|趴|支|隻|家|季|小時|K|k))')
+
+
+def _market_band_map():
+    """證交所與櫃買中心最近一個交易日的高低價：日K快取沒有的股票，用它看價位帶。讀不到就是空的，不影響流程。"""
+    if 'market' in _DK_MEMO:
+        return _DK_MEMO['market']
+    out = {}
+    for url, code_key, hi_key, lo_key in (
+            ('https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL', 'Code', 'HighestPrice', 'LowestPrice'),
+            ('https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes', 'SecuritiesCompanyCode', 'High', 'Low')):
+        try:
+            r = requests.get(url, timeout=30, headers={'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json'})
+            for item in r.json() if r.status_code == 200 else []:
+                try:
+                    hi, lo = float(str(item.get(hi_key)).replace(',', '')), float(str(item.get(lo_key)).replace(',', ''))
+                except (TypeError, ValueError):
+                    continue
+                if hi > 0 and lo > 0:
+                    out[str(item.get(code_key) or '').strip()] = (hi, lo)
+        except Exception as e:
+            print(f'  價位核對名稱　讀不到最近行情（{type(e).__name__}），只用日K快取')
+    _DK_MEMO['market'] = out
+    return out
+
+
+def _recent_band(kmap, code, date_str, days=20):
+    """這一檔到節目當天為止、最近二十天的最高與最低；日K快取沒有就用最近一個交易日的行情。"""
+    per = kmap.get(str(code or '').strip()) or {}
+    try:
+        start = (datetime.strptime(date_str, '%Y/%m/%d') - timedelta(days=days)).strftime('%Y/%m/%d')
+    except ValueError:
+        start = ''
+    near = [v for day, v in per.items() if norm_date(day) and start <= norm_date(day) <= date_str and v and v[0] and v[1]]
+    if near:
+        return max(float(v[0]) for v in near), min(float(v[1]) for v in near)
+    band = _price_band(kmap, code, date_str) if per else None
+    if band:
+        return max(band), min(band)
+    return _market_band_map().get(str(code or '').strip())
+
+
+def _cited_prices(flat, names, skip=()):
+    """原文每一次念到這些名稱時，名稱前 20 字、後 40 字裡的價位。"""
+    found = []
+    for n in sorted({str(x) for x in names if len(str(x)) >= 2}, key=len, reverse=True):
+        for m in re.finditer(re.escape(n), flat):
+            window = flat[max(0, m.start() - 20):m.end() + 40]
+            found += [x for x in _CITED_PRICE.findall(window) if x not in skip]
+    return found
+
+
+def recheck_names_by_price(ss, signals, transcript, date_str):
+    """名稱旁邊念到的價位全部不在本股的價位帶，卻恰好只對得上今天另一檔：是聽寫把那一檔寫成了另一家公司，改成那一檔。
+
+    2026/10/14：「我馬上通知260全部賣掉，宏達電」「昨天宏達電回來幾塊錢？239」——宏達電當時四十元上下，
+    同一集講者自己說「我昨天講鴻海239，我說上一次買點是238」。名稱是真的公司，所以代號比對攔不到，只能靠價位。
+    只在答案唯一時改：價位全部遠離本股（低於 0.4 倍或高於 2.2 倍）、至少兩個不同的價位，
+    今天的列裡只有一檔的近期價位帶（上下各留 8%）容得下全部價位，而且原文在那一檔名稱旁邊也念到其中一個價位。
+    """
+    try:
+        kmap = _daily_k_cached(ss)
+    except Exception as e:
+        print(f'  價位核對名稱　讀不到日K快取（{type(e).__name__}），這一輪不核對')
+        return signals
+    flat = re.sub(r'【[^】]{0,40}】|\s', '', str(transcript or ''))
+    pool = [c for c in SIGNAL_CATEGORIES + ('history', 'uncertain', 'ignored')]
+    rows = [(cat, r) for cat in pool for r in signals.get(cat, []) or [] if isinstance(r, dict)]
+    codes = {str(r.get('code') or '') for _, r in rows} - {'', REJECT, UNRESOLVED}
+    by_code = {}
+    for _, r in rows:
+        by_code.setdefault(str(r.get('code') or ''), r)
+    for cat, row in rows:
+        code = str(row.get('code') or '')
+        if not re.fullmatch(r'[1-9]\d{3}', code):
+            continue
+        names = _signal_names(row) | {str(row.get('name') or '')}
+        cited = _cited_prices(flat, names, skip=codes)
+        values = sorted({float(x) for x in cited} - {0.0})
+        own = _recent_band(kmap, code, date_str)
+        if len(values) < 2 or not own:
+            continue
+        hi, lo = own
+        if not all(v < lo * 0.4 or v > hi * _LEVEL_MAX_RATIO for v in values):
+            continue
+        fits = []
+        for other in sorted(codes - {code}):
+            band = _recent_band(kmap, other, date_str) if re.fullmatch(r'[1-9]\d{3}', other) else None
+            if not band or not all(band[1] * 0.92 <= v <= band[0] * 1.08 for v in values):
+                continue
+            other_names = _signal_names(by_code[other]) | {str(by_code[other].get('name') or '')}
+            said = [n for n in other_names if len(n) >= 2 and any(
+                re.search(re.escape(n) + r'[^。！？!?]{0,12}?' + re.escape(x) + r'(?![\d.])', flat)
+                or re.search(r'(?<![\d.])' + re.escape(x) + r'[^。！？!?]{0,12}?' + re.escape(n), flat) for x in set(cited))]
+            if said:
+                fits.append(other)
+        heard = str(row.get('name') or code)
+        label = '、'.join('%g' % v for v in values[:5])
+        if len(fits) != 1:
+            note_decision('價位核對名稱', '名稱旁的價位不在本股價位帶，找不到唯一的另一檔，不改', heard,
+                          f'{code} 價位帶 {lo:g}～{hi:g}；原文價位 {label}；候選 {"、".join(fits) or "無"}')
+            print(f'  價位核對名稱　{heard}（{code}）：名稱旁的價位 {label} 不在本股 {lo:g}～{hi:g}，'
+                  f'{"候選不只一檔" if fits else "今天沒有對得上的另一檔"}，不改')
+            continue
+        target = fits[0]
+        official = str(by_code[target].get('name') or (_CODE_MAP or {}).get(target) or target)
+        print(f'  價位核對名稱　{heard}（{code}）：名稱旁的價位 {label} 不在本股 {lo:g}～{hi:g}，'
+              f'只對得上 {official}（{target}），改列 {official}')
+        note_decision('價位核對名稱', '名稱旁的價位只對得上另一檔，改成那一檔', heard, f'{code}→{target}｜原文價位 {label}')
+        row['aliases'] = sorted({str(a) for a in row.get('aliases') or [] if a} | {heard})
+        for field in ('reason', 'note', 'headline'):
+            if isinstance(row.get(field), str) and heard:
+                row[field] = row[field].replace(heard, _display_name(official))
+        row.update(code=target, name=official, _價位改名=f'{heard}（{code}）→{official}（{target}）')
+    return signals
+
+
 _CAUSAL_CLAIM_RE = re.compile(r'導致|造成|引發|致使|使得')
 _CAUSAL_SOURCE_RE = re.compile(r'因為|所以|造成|導致|才會|因此|引發|使得|害得')
 
@@ -12766,7 +12885,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v9-20261014"          # 當日動作與歷史獲利重新核對；人工裁示仍優先
+VERDICT_VERSION = "v10-20261014"          # 當日動作與歷史獲利重新核對；人工裁示仍優先
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 3                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -12800,7 +12919,7 @@ past_trade　講者提到他或會員「不是當天」的買賣（昨天買、�
 about_itself　text 有沒有講到這一檔自己的事：它的股價行情（漲跌、漲停跌停、創高、破線）、線型與均線位置、業績、法人籌碼，或講者對它的指示與意願（買、賣、等、不要碰）。
 　只有一句也算：拿它當今天大跌、跌停、追高受傷的例子（「什麼【甲】跌停板」「買【甲】的一天賠一千多塊」）是 true，tone 填 bearish。
 　「我沒有買【甲】，所以我不被跌到」「我沒有這一檔」只是陳述沒有部位：false。除非 text 另外講了【甲】自己的負面行情或風險（它跌停、連跌幾天、買的人套牢、他說以後也不買），那時才是 true。
-　false 的情況：【】裡的字在那一句只是一般用語、不是公司（「投信最【大量】的股票」的大量），這時 unsure 寫「不是公司名」；只是被念到名字；拿來襯托另一檔（「很多人說甲是龍頭，其實龍頭是乙」的甲）；批評別的分析師或別人的操作時順帶提到；「我沒有買它」「我沒有這一檔」這種只陳述沒有部位的話。
+　false 的情況：【】裡的字在那一句只是一般用語、不是公司（「投信最【大量】的股票」的大量），這時 unsure 寫「不是公司名」；成交量與 K 棒的術語（大量、最大量、爆量、量能、天量）在那一句描述某一檔的 K 棒或成交量時也是 false——句子在講的是那一檔，不是【】這個詞；只是被念到名字；拿來襯托另一檔（「很多人說甲是龍頭，其實龍頭是乙」的甲）；批評別的分析師或別人的操作時順帶提到；「我沒有買它」「我沒有這一檔」這種只陳述沒有部位的話。
 now　講者對「現在要不要進場」的表態，about_itself 為 false 時填 none：
 　buy_ok＝現在可以買、明講看好可布局；conditional＝給了可以照做的買進條件（跌到多少以下、回測某條均線、突破某價）而且沒有說現在不能買，「還沒買，要等它回測季線再上去」是 conditional；只描述它現在在哪裡（「是不是回來碰季線」）不是條件，now 填 none；
 　not_yet＝明講現在還不能買、還太早、還太急、離均線太遠先不要買；prohibit＝不買、不會買、不要買、不要追、不要碰、不推薦、不再介紹；none＝沒有對現在要不要進場表態。
@@ -12833,7 +12952,7 @@ _VQ_TODAY = re.compile(r'今天|今日|早上|剛剛|剛才|盤中')
 _VQ_ENTRY = re.compile(r'買|等|[佈布]局|注意|留意|抓住|進場|切入|突破|回測|站[上回]|以下|上去|發動|看好|會漲|飆|噴|衝|起飛|便宜|低檔')
 _VQ_REFUSAL = re.compile(r'不|別|沒|太|急|追高|套')
 _VQ_OUTLOOK = re.compile(r'會漲|會上去|會再|還會|後面|之後|以後|未來|準備|即將|快要(?!漲停)|發動|噴|衝出去|上去|看好|注意|留意|買|[佈布]局|打底|翻紅|翻揚|翻陽'
-                         r'|站上|突破|不用擔心|不用怕|不要賣|抱|下一棒|有一波|起飛|目標|上看|挑戰|安全')
+                         r'|站上|突破|不用擔心|不用怕|不要賣|不用賣|不必賣|不用出|不要出|抱|下一棒|有一波|起飛|目標|上看|挑戰|安全')
 _VQ_WATCH_SIGNAL = re.compile(r'剛開始漲|第一根(?:帶量)?長紅.{0,16}(?:留意|注意|低檔)|(?<!不)會.{0,6}(?:跟著)?(?:衝出去|上漲|轉強|突破)')
 # 假設句與對觀眾說的話（「如果你手中已經買了…不要賣」）不是講者或會員的部位。
 _VQ_HYPOTHETICAL = re.compile(r'如果|假如|假設|要是|萬一|倘若')
@@ -13016,6 +13135,30 @@ def _explicitly_not_held(names, transcript):
         m = re.search(r'我(?:們)?(?:手上|手中|自己)?(?:並|根本|其實)?沒有(?!賣|出|叫|講|說|推)(?:買)?(?:進)?' + re.escape(n), flat)
         if m:
             return flat[m.start():m.end() + 20]
+    return ''
+
+
+def _viewer_holding_question(names, transcript):
+    """持有的是提問的觀眾或會員（「張總，我手中有6張X，…要出嗎？」）：回傳那一句，沒有就回空字串（2026/10/14 台化）。"""
+    flat = re.sub(r'【[^】]{0,40}】|\s', '', str(transcript or ''))
+    for n in sorted({str(x) for x in names if len(str(x)) >= 2}, key=len, reverse=True):
+        m = re.search(r'(?:張總|老師|張震)[，,、]?(?:請問)?[，,、]?我(?:的)?(?:手中|手上|目前|現在)?(?:有|持有|買了|買的)'
+                      r'[^。！？!?]{0,12}' + re.escape(n) + r'[^。！？!?]{0,40}?[嗎呢][？?]?', flat)
+        if m:
+            return m.group()[:60]
+    return ''
+
+
+def _explicit_not_yet(names, transcript):
+    """原文對本股明講「X不能買」：回傳那一段，沒有就回空字串（2026/10/14 聯電「為什麼聯電不能買？…還沒有碰到季線」）。
+    「誰說X不能買」「X不能買嗎」與假設句不算。"""
+    flat = re.sub(r'【[^】]{0,40}】|\s', '', str(transcript or ''))
+    for n in sorted({str(x) for x in names if len(str(x)) >= 2}, key=len, reverse=True):
+        for m in re.finditer(re.escape(n) + r'(?:現在|目前|今天)?(?:還|暫時)?(?:不能買|不可以買|不能進場)(?!太多|太高|超過)', flat):
+            head, tail = flat[max(0, m.start() - 8):m.start()], flat[m.end():m.end() + 2]
+            if re.match(r'[嗎呢]', tail) or re.search(r'誰說|誰講|哪有|不是說|如果|假如|假設|要是|萬一', head):
+                continue
+            return flat[max(0, m.start() - 6):m.end() + 12]
     return ''
 
 
@@ -13401,6 +13544,12 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                          basis=(cache.get(code) or {}).get('manual_source') or '「分類裁決」表的人工裁決欄',
                          enforce=True)
             continue
+        # 日常用語核對已經判定「每一次都只是日常用語」而排除的列：不送問卷（2026/10/14 大量：「最大量這一根K線」是另一檔的 K 棒，
+        # 問卷三票都把那幾句當成在講大量）。只看排除裡的列，而且所有寫法都還是那個兩字簡稱。
+        if all(c in _VERDICT_HIDDEN for c in cats) and any(r.get('exclusion_reason') == 'ordinary_word' for _, r in pairs) \
+                and len(names) == 1:
+            entry.update(cls=current, tier='直接歸類', basis='日常用語核對：原文每一次出現都只是日常用語，不是公司名', enforce=True)
+            continue
         if {'buy', 'sell'} <= cats or any(k[0] == code for k in notice):
             entry.update(tier='直接歸類', basis='當日會員通知已有買賣' if any(k[0] == code for k in notice) else '同一天有買有賣')
             continue
@@ -13428,8 +13577,11 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
         closed = _named_current_prohibition(row, transcript) if current == 'watch_avoid' else ''
         if not closed and current not in ('buy', 'sell', 'holdings'):
             asked = _asked_refusal(names, transcript)
+            not_yet = '' if asked else _explicit_not_yet(names, transcript)
             if asked:
                 closed = '被問可不可以買，明確回答不要：' + asked
+            elif not_yet:
+                closed = '原文明講本股現在不能買：' + not_yet
             else:
                 approved = _explicit_approval(names, transcript)
                 if approved:
@@ -13440,14 +13592,19 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                          enforce=True)
             continue
         # 紀錄上沒有未賣出的部位、原文又明講「我沒有X」的會員持股：以觀望注意為底重新裁決，不留在會員持股（2026/10/14 台達電）。
-        not_held = _explicitly_not_held(names, transcript) if current == 'holdings' and not entry['open'] else ''
+        # 原文的持有只出現在觀眾或會員的提問裡（「張總，我手中有6張台化…要出嗎？」）：同樣以觀望注意為底（2026/10/14 台化）。
+        not_held = ''
+        if current == 'holdings' and not entry['open']:
+            said = _explicitly_not_held(names, transcript)
+            asked_hold = '' if said else _viewer_holding_question(names, transcript)
+            not_held = ('原文明講沒有持有：' + said) if said else ('持有的只有提問的觀眾：' + asked_hold) if asked_hold else ''
         if not_held:
             entry['not_held'] = not_held
         sent, text = _verdict_mark(_own_segments(row, signals, transcript, 300, 500), names | {code})
         sent = sent[:10]
         if not text:
             if not_held:
-                entry.update(cls='watch_watch', tier='直接歸類', enforce=True, basis='原文明講沒有持有：' + not_held)
+                entry.update(cls='watch_watch', tier='直接歸類', enforce=True, basis=not_held)
                 continue
             entry.update(tier='一致通過', basis='原文找不到本股段落，不裁決')
             continue
@@ -13524,8 +13681,8 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                 continue
             detail = (entry['answer'].get(decided) or {}).get('basis') or ''
             if entry.get('not_held') and state == '未定':
-                # 明講沒有持有：沒有多數時也不留在會員持股，以觀望注意定案
-                state, decided, why = '定案', 'watch_watch', '原文明講沒有持有，沒有多數時以觀望注意定案：' + entry['not_held'][:30]
+                # 明講沒有持有、或持有的只有提問的觀眾：沒有多數時也不留在會員持股，以觀望注意定案
+                state, decided, why = '定案', 'watch_watch', '沒有多數時以觀望注意定案｜' + entry['not_held'][:40]
             entry.update(cls=decided, tier='裁決' if state == '定案' else '未定', enforce=state == '定案', new=True,
                          basis='｜'.join(x for x in (entry['basis'], why, detail) if x))
             if state == '未定':
@@ -16365,6 +16522,8 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
 
     # 合併要排在代號比對之後：比對會把同音錯字與簡稱收斂到官方名稱與代號，
     # 沒收斂之前同一檔的兩列可能長得完全不同，比不出它們是同一個東西。
+    # 名稱是真的公司、價位卻是另一檔的（2026/10/14 宏達電＝鴻海）：合併之前改成那一檔，合併才收得到同一列。
+    signals = recheck_names_by_price(ss, signals, TX["audit"], date_str)
     step("合併重複", f"目前 {_n(signals)} 檔，把成交歸位、同一類裡同一檔只留一列")
     # 成交歸位排在合併之前：歸位之後那一檔可能與既有的賣出列撞在一起，
     # 讓後面的合併去收就好，不必在這裡另外處理。

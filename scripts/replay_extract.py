@@ -83,7 +83,21 @@ def compare(signals, golden, day=None):
     day：補記到別天的買賣（「我昨天買的X」記在前一個交易日）不算這一天的分類，另外列出來。
     """
     where, elsewhere, notes = {}, [], {}
+    # 公開的分類以會員通知優先之後的撰稿紀錄為準（_article_records）；說明的檢查兩份都看。
+    published = signals.get('_article_records') if isinstance(signals.get('_article_records'), dict) else None
     for cat in LABEL:
+        if published is not None and cat in published:
+            for r in published.get(cat, []) or []:
+                if isinstance(r, dict) and str(r.get('code') or '') and not (day and r.get('_date') and r['_date'] != day):
+                    key = str(r.get('code'))
+                    if cat not in where.get(key, []):
+                        where.setdefault(key, []).append(cat)
+                    notes.setdefault(key, []).append(pl.public_narrative(str(r.get('note') or r.get('reason') or ''), r, signals))
+            if cat in pl.SIGNAL_CATEGORIES:
+                for r in signals.get(cat, []) or []:
+                    key = str(r.get("code") or r.get("name"))
+                    notes.setdefault(key, []).append(pl.public_narrative(str(r.get('note') or r.get('reason') or ''), r, signals))
+                continue
         for r in signals.get(cat, []) or []:
             if day and r.get("_date") and r["_date"] != day:
                 elsewhere.append(f"{r.get('name')}（{r.get('code')}）{LABEL[cat]}記在 {r['_date']}")

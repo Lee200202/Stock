@@ -497,6 +497,7 @@
     panel.hidden = false;
     // v109：面板切換已有 rd-fade；這裡只讓面板裡已畫好的清單（例如持股卡片）依序浮起一次
     if (window.__fxRiseIn) { window.__fxRiseIn(panel); }
+    window.requestAnimationFrame(function(){foldWatchNotes(panel);});
     setOverviewTop(name);
     /* 換分頁一律直接回到最上面（v151，管理者回報：捲到下面再點別的分頁，新分頁還停在下面）。
        先前用平滑捲動，但同一刻面板換了內容、頁首視覺區收合，頁面高度一變平滑捲動就被中斷，
@@ -610,6 +611,11 @@
       ledgerRow('watch', '觀望不碰', d ? wAvoid(d).length : 0, 'tblWatchAvoid') +
       ledgerRow('note', '觀望注意', d ? wWatch(d).length : 0, 'tblWatchWatch') +
       ledgerRow('hold', '目前持有', d ? d.holdings.length : 0, 'tab:tracker');
+    var oldRatio=document.getElementById('storyDailyRatio');if(oldRatio)oldRatio.remove();
+    var distribution=[['買入',d?d.buy.length:0,'var(--beam)'],['賣出',d?d.sell.length:0,'var(--rise)'],['觀望注意',d?wWatch(d).length:0,'var(--note)'],['觀望不碰',d?wAvoid(d).length:0,'var(--muted)']];
+    var total=distribution.reduce(function(a,x){return a+x[1];},0);
+    var ratio=document.createElement('div');ratio.id='storyDailyRatio';ratio.innerHTML='<div class="story-ratio" role="img" aria-label="'+esc(distribution.map(function(x){return x[0]+' '+x[1]+'筆';}).join('、'))+'">'+distribution.filter(function(x){return x[1]>0;}).map(function(x){return '<i style="--sw:'+x[1]+';--sc:'+x[2]+'"></i>';}).join('')+'</div><p class="story-ratio-caption">'+esc(distribution.map(function(x){return x[0]+' '+x[1];}).join(' · '))+'。持有部位屬全部未出場回合，另看持股追蹤。</p>';
+    if(total)box.parentNode.insertBefore(ratio,box.nextSibling);
     box.querySelectorAll('[data-jump]').forEach(function (b) {
       b.addEventListener('click', function () {
         var to = b.getAttribute('data-jump');
@@ -928,7 +934,7 @@ function restatesEarlier_(key, earlier) {
       return emptyLine(opts.empty || (watch ? watchEmptyText(false) : '本日未說明：這一類在當天的影片裡沒有被提到。'));
     }
     return cardList('sk-daily', rows.map(function (r) {
-      return rowOpen(tone, r.code) + stockIdCell(r.name, r.code) +
+      return rowOpen(tone, r.code) + stockIdCell(r.name, r.code, watch ? '<span class="story-direction" aria-label="'+(tone==='note'?'留意追蹤':'暫不進場')+'"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#story-i-'+(tone==='note'?'search':'shield')+'"/></svg></span>' : '') +
         quoteCell(r.code, opts.history ? '今日價' : '') +
         noteCell(publicNarrative_(r.reason,r)) + '</tr>';
     }).join(''));
@@ -949,27 +955,59 @@ function restatesEarlier_(key, earlier) {
   }
 
   /** 表格畫好之後，把所有代號一次抓完報價回填 */
+  // v177：所有報價元件共用一份最新資料，快照不得蓋回较新的行情。
+  var displayedQuotes = {}, pageQuotePending = false;
+  function quoteMillis(q) {
+    var v=String(q && (q.stamp || q.tradeStamp) || '');
+    return Date.parse(v.replace(/\//g,'-').replace(' ','T') + (/Z$|[+-]\d\d:\d\d$/.test(v)?'':'+08:00'));
+  }
+  function quoteView(q) {
+    if(!q || !isFinite(Number(q.last)) || Number(q.last)<=0)return null;
+    var last=Number(q.last), prev=Number(q.prevClose), ms=quoteMillis(q);
+    var pct=prev>0?(last-prev)/prev*100:null;
+    var today=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Taipei'}).format(new Date()).replace(/-/g,'/');
+    var day=String(q.date || q.stamp || '').slice(0,10).replace(/-/g,'/');
+    var hm=Number(new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Taipei',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date()).replace(':',''));
+    var weekday=new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Taipei',weekday:'short'}).format(new Date());
+    var trading=['Mon','Tue','Wed','Thu','Fri'].indexOf(weekday)>=0 && hm>=900 && hm<=1340;
+    var stale=trading && (day!==today || !isFinite(ms) || Date.now()-ms>300000);
+    var t=String(q.time||q.stamp||'');
+    var label=day!==today?(day.slice(5)+' 前次行情'):stale?'待更新':hm>=1340?'收盤':'行情 '+(t.match(/\d{2}:\d{2}/)||['時間未提供'])[0];
+    return {last:last,pct:pct,label:label,stale:stale,time:formatTaipeiTime(q.tradeStamp||q.stamp||q.time)||'未提供'};
+  }
   function renderQuotes(q, scope) {
-    var target = scope || document;
-    target.querySelectorAll('[data-px]').forEach(function (el) {
-      var d = q && q[el.dataset.px];
-      el.textContent = d ? fmtPx(d.last) : '—';
-      el.title = d ? '行情時間：' + (formatTaipeiTime(d.time) || '未提供') : '目前無可核對的行情';
+    Object.keys(q||{}).forEach(function(code){var incoming=q[code],old=displayedQuotes[code];if(!quoteView(incoming))return;
+      if(old && isFinite(quoteMillis(old)) && (!isFinite(quoteMillis(incoming)) || quoteMillis(incoming)<quoteMillis(old)))return;
+      incoming=Object.assign({},incoming);var view=quoteView(incoming);incoming.changePct=view.pct;incoming.change=Number(incoming.prevClose)>0?view.last-Number(incoming.prevClose):null;displayedQuotes[code]=incoming;
     });
-    target.querySelectorAll('[data-chg]').forEach(function (el) {
-      var d = q && q[el.dataset.chg];
-      if (!d || !d.prevClose) { el.textContent = '—'; return; }
-      var pct = (d.last - d.prevClose) / d.prevClose * 100;
-      el.textContent = (pct > 0 ? '+' : '') + pct.toFixed(2) + '%';
-      el.className = 'px r ' + signCls(pct);
-      el.title = '行情時間：' + (formatTaipeiTime(d.time) || '未提供');
+    document.querySelectorAll('[data-px]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.px]);el.textContent=v?fmtPx(v.last):'—';
+      el.title=v?'成交時間：'+v.time:'目前無可核對的行情';
+      var note=el.parentNode.querySelector('.quote-asof');if(!note){note=document.createElement('small');note.className='quote-asof';el.parentNode.appendChild(note);}
+      note.textContent=v?v.label:'無行情';note.classList.toggle('is-stale',!!v&&v.stale);
+    });
+    document.querySelectorAll('[data-chg]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.chg]);var pct=v&&v.pct;
+      el.textContent=pct==null?'—':(pct>0?'+':'')+pct.toFixed(2)+'%';el.className='px r '+signCls(pct);el.title=v?'成交時間：'+v.time:'無可核對的前收盤價';
+    });
+    document.querySelectorAll('[data-live-price]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.livePrice]);if(!v)return;el.textContent=fmtPx(v.last);var note=el.parentNode.querySelector('.quote-asof');if(!note){note=document.createElement('small');note.className='quote-asof';el.parentNode.appendChild(note);}note.textContent=v.label;note.title='成交時間：'+v.time;});
+    document.querySelectorAll('[data-live-ret]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.liveRet]),entry=Number(el.dataset.entry);if(!v||entry<=0)return;var ret=(v.last-entry)/entry*100;el.textContent=fmtRet(ret);el.parentNode.setAttribute('aria-label','未實現報酬 '+fmtRet(ret));var axis=el.closest('.tx');if(axis)axis.className='tx tx-'+signCls(ret);});
+    document.querySelectorAll('[data-bandpx]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.bandpx]),pct=v&&v.pct;
+      el.textContent=v?fmtPx(v.last)+(pct==null?'':'　'+(pct>0?'▲':pct<0?'▼':'')+Math.abs(pct).toFixed(2)+'%')+'　'+v.label:'—';
+      el.className='px '+signCls(pct);el.title=v?'成交時間：'+v.time:'無可核對行情';
     });
   }
+  function refreshPageQuotes() {
+    if(document.hidden || pageQuotePending)return;
+    var codes=[];document.querySelectorAll('[data-px],[data-bandpx],[data-live-price]').forEach(function(el){var code=el.dataset.px||el.dataset.bandpx||el.dataset.livePrice;if(isCode(code)&&codes.indexOf(code)<0)codes.push(code);});
+    if(!codes.length)return;pageQuotePending=true;
+    google.script.run.withSuccessHandler(function(q){pageQuotePending=false;renderQuotes(q);}).withFailureHandler(function(){pageQuotePending=false;renderQuotes({});}).apiGetQuotesFor(codes);
+  }
+  setInterval(function(){renderQuotes({});var p=new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Taipei',weekday:'short',hour:'2-digit',hour12:false}).formatToParts(new Date()),v={};p.forEach(function(x){v[x.type]=x.value;});if(['Mon','Tue','Wed','Thu','Fri'].indexOf(v.weekday)>=0&&Number(v.hour)>=9&&Number(v.hour)<15)refreshPageQuotes();},60000);
+  document.addEventListener('visibilitychange',function(){if(!document.hidden)refreshPageQuotes();});
   function fillQuotes(scope) {
-    var cells = (scope || document).querySelectorAll('[data-px]');
+    var cells = (scope || document).querySelectorAll('[data-px],[data-live-price]');
     var codes = [];
     cells.forEach(function (c) {
-      var v = c.dataset.px;
+      var v = c.dataset.px || c.dataset.livePrice;
       if (isCode(v) && codes.indexOf(v) < 0) { codes.push(v); }
     });
     if (!codes.length) { return; }
@@ -1221,7 +1259,11 @@ function restatesEarlier_(key, earlier) {
     }).apiListSmsDates();
   }
 
+  function foldWatchNotes(scope) {
+    (scope||document).querySelectorAll('.sk-row.tone-watch .sk-text,.sk-row.tone-note .sk-text').forEach(function(note){if(note.dataset.storySummary)return;var height=note.getBoundingClientRect().height;if(height<=0||height<=parseFloat(getComputedStyle(note).lineHeight)*3)return;note.dataset.storySummary='1';note.classList.add('is-summary');var b=document.createElement('button');b.type='button';b.className='story-note-toggle';b.textContent='展開完整說明';b.setAttribute('aria-expanded','false');note.parentNode.appendChild(b);b.addEventListener('click',function(e){e.stopPropagation();var on=note.classList.toggle('is-summary');b.setAttribute('aria-expanded',String(!on));b.textContent=on?'展開完整說明':'收合說明';});});
+  }
   function bindRows(scope) {
+    foldWatchNotes(scope);
     var root = scope || document;
     root.querySelectorAll('tr.clickable').forEach(function (tr) {
       tr.addEventListener('click', function () {
@@ -1310,17 +1352,7 @@ function restatesEarlier_(key, earlier) {
 
     google.script.run.withSuccessHandler(function (q) {
       if (version !== bandRenderVersion) { return; }
-      codes.forEach(function (code) {
-        var v = q[code];
-        document.querySelectorAll('[data-bandpx="' + code + '"]').forEach(function (el) {
-          if (!v || v.last == null) { el.textContent = '\u2014'; el.className = 'px flat'; return; }
-          var pct = v.changePct;
-          if (pct == null && v.prevClose) { pct = (v.last - v.prevClose) / v.prevClose * 100; }
-          var arrow = pct > 0 ? '\u25B2' : pct < 0 ? '\u25BC' : '';
-          el.textContent = fmtPx(v.last) + (pct != null ? '\u3000' + arrow + Math.abs(pct).toFixed(2) + '%' : '');
-          el.className = 'px ' + signCls(pct);
-        });
-      });
+      renderQuotes(q);
     }).withFailureHandler(function () {
       if (version !== bandRenderVersion) { return; }
       document.querySelectorAll('[data-bandpx]').forEach(function (el) {
@@ -1398,7 +1430,7 @@ function restatesEarlier_(key, earlier) {
     // 首頁每次都顯示「資料讀取失敗」（2026/09/29 起）。
     if (res.tracker) { applyTrackerStats(res.tracker); }
     if (res.quotes && typeof renderQuotes === 'function') { renderQuotes(res.quotes, $('p-overview')); }
-    else { fillQuotes($('p-overview')); }
+    fillQuotes($('p-overview'));
   }
   /* v87：後端偶爾回 404／逾時（2026/09/30 管理者回報）。先前一次失敗就整頁顯示載入失敗；
      現在先安靜重試兩次（5、15 秒後），都失敗才顯示提示。之後任何一次成功都會把提示收起來。 */
@@ -1989,8 +2021,8 @@ function restatesEarlier_(key, earlier) {
     return '<div class="tx tx-' + cls + '" title="' + esc(costSrcText(i.entrySrc) + (entryGrey ? '　' + entryGrey : '') + (i.why ? '　' + i.why : '')) + '">' +
       '<div class="tx-end tx-in"><small>' + (inDate ? inDate + ' 進場' : '進場') + '</small><b>' + fmtPx(i.entry) + '</b></div>' +
       '<div class="tx-mid" aria-label="' + (isHeld ? '未實現報酬 ' : sold ? '已實現報酬 ' : '追蹤期間變化 ') + esc(retTxt) + '"><span class="tx-line"></span>' +
-        '<span class="tx-ret">' + retTxt + '</span>' + cum + '</div>' +
-      '<div class="tx-end tx-out"><small>' + esc(outDate) + (isHeld ? '' : sold ? ' 賣出' : /未再提及/.test(String(i.exitReason || '')) ? ' 最後提及' : ' 追蹤結束') + '</small><b>' + fmtPx(i.current) + '</b>' +
+        '<span class="tx-ret"'+(isHeld?' data-live-ret="'+esc(i.code)+'" data-entry="'+Number(i.entry)+'"':'')+'>' + retTxt + '</span>' + cum + '</div>' +
+      '<div class="tx-end tx-out"><small>' + esc(outDate) + (isHeld ? '' : sold ? ' 賣出' : /未再提及/.test(String(i.exitReason || '')) ? ' 最後提及' : ' 追蹤結束') + '</small><b'+(isHeld?' data-live-price="'+esc(i.code)+'"':'')+'>' + fmtPx(i.current) + '</b>' +
         '</div>' +
       (i.ret === null && i.why ? '<div class="tx-why">' + esc(i.why) + '</div>' : '') +
     '</div>';
@@ -2017,6 +2049,7 @@ function restatesEarlier_(key, earlier) {
           (lastCol ? '<p class="tracker-card-note">' + esc(lastCol) + '</p>' : '') + '</article>';
       }).join('') + '</div>';
 
+    renderQuotes({});fillQuotes($('trackerTable'));
     $('trackerTable').querySelectorAll('.tracker-card[data-code]').forEach(function (card) {
       card.addEventListener('click', function () {
         $('trackerTable').querySelectorAll('.tracker-card.active').forEach(function (other) { other.classList.remove('active'); });
@@ -2024,6 +2057,7 @@ function restatesEarlier_(key, earlier) {
         openDetail(card.dataset.code);
       });
     });
+    if(items.length>6){var more=document.createElement('button');more.type='button';more.className='story-tracker-more';more.textContent='顯示全部 '+items.length+' 筆';more.setAttribute('aria-expanded','false');$('trackerTable').appendChild(more);more.addEventListener('click',function(){var list=$('trackerTable').querySelector('.tracker-list'),on=list.classList.toggle('show-all');more.setAttribute('aria-expanded',String(on));more.textContent=on?'收合，只看前6筆':'顯示全部 '+items.length+' 筆';});}
     trackerLoaded = true;
   }
 
@@ -2330,6 +2364,8 @@ function restatesEarlier_(key, earlier) {
       $('mailSubj').textContent = r.subject || ('[' + r.date + '] 每日整理');
       $('mailMeta').textContent = '寄送狀態：' + (r.sent || '未寄送');
       $('mailContent').innerHTML = r.html || '';
+      var mc=$('mailContent'),nav=document.createElement('nav');nav.className='story-mail-nav';nav.setAttribute('aria-label','本期三章導覽');
+      Array.prototype.slice.call(mc.querySelectorAll('h2')).forEach(function(h,i){h.id='mail-part-'+i;h.style.scrollMarginTop='150px';var b=document.createElement('button');b.type='button';b.textContent=['① 盤勢','② 操作','③ 教學'][i]||h.textContent;b.addEventListener('click',function(){h.scrollIntoView({block:'start',behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});});nav.appendChild(b);});if(nav.children.length)mc.insertBefore(nav,mc.firstChild);
     }).withFailureHandler(function () {
       if (requestId !== mailRequestId) { return; }
       $('mailSubj').textContent = date;
@@ -2704,6 +2740,7 @@ function restatesEarlier_(key, earlier) {
     $('dName').textContent = cleanName(d.name) || d.code;   // 官方簡稱的「*」不顯示（v101 正式站驗收看到「聖暉*」）
     $('dCode').textContent = d.code + (d.market ? '\u3000' + d.market : '');
 
+    if(d.quote) { var packet={};packet[d.code || DETAIL.code]=d.quote;renderQuotes(packet);d.quote=displayedQuotes[d.code || DETAIL.code]||d.quote; }
     var q = d.quote;
     if (!q || !q.ok || q.last == null) {
       $('dPrice').textContent = '\u2014';
@@ -2724,7 +2761,7 @@ function restatesEarlier_(key, earlier) {
     var stale = q.stale || (hm >= 900 && hm <= 1340 && isFinite(stampMs) && Date.now() - stampMs > 300000);
     /* v107：拿掉「更新報價」按鈕與狀態列，報價每五分鐘自動核對；舊價只在漲跌列後加短標，不冒充即時。 */
     $('dChange').textContent = (q.change != null
-      ? (sign + ' ' + Math.abs(q.change).toFixed(2) + '　' + (q.changePct || 0).toFixed(2) + '%'
+      ? (sign + ' ' + Math.abs(q.change).toFixed(2) + '　' + (q.changePct==null?'—':q.changePct.toFixed(2)+'%')
          + (q.time ? '　' + qTime(q.time) : ''))
       : '—') + (oldDay && !/\d{2}-\d{2}/.test(String(q.time || '')) ? '　前一交易日' : !oldDay && stale ? '　待更新' : '');
     $('dChange').title = (q.source ? q.source + '：' : '') + '可確認的成交價，不以委買、委賣或試撮價補值。';

@@ -565,7 +565,7 @@
       <details><summary>為什麼有時候盤勢只有兩點？</summary><div class="a">節目當天講的主題不多時，系統會再問一次模型補重點；補回來的若只是把前面那一點換句話再講一遍，就不重複列出。寧可少一點，也不用重複的內容湊篇幅。</div></details>
       <details><summary>為什麼網站上看不到價位欄？</summary><div class="a">公開網站與每日整理不另列價位欄，也不畫口頭價位線；非公開操作紀錄裡講到價位的句子不公開。節目公開講的條件會留在說明裡，持股進出場價取當天行情。後台保留完整原始紀錄；已同意接收的專用 Email 與 LINE 通知也保留全文供核對，無法確認的數字標示「未說明」。</div></details>
       <details><summary>節目沒講股票名稱的段落，怎麼知道是哪一檔？</summary><div class="a">原話明講「昨天收盤多少」時，我拿這個數字去對追蹤中股票前一個交易日的實際收盤價；一模一樣而且只有一檔，再通過第二次稽核才收錄。對不到或有兩檔同價就不計入，不會用猜的。</div></details>
-      <details><summary>持股什麼時候算出場？</summary><div class="a">明講賣出、轉成觀望不碰，或超過 10 個交易日沒有再提到，就算出場；出場價取出場日當天最高。</div></details>
+      <details><summary>持股什麼時候算出場？</summary><div class="a">明講賣出、轉成觀望不碰，或超過 10 個交易日沒有再提到，就算出場；先算出場日最高與最低的中點；原稿有可核對且落在當日成交區間內的出場價時取兩者較高，沒有明講則用中點。</div></details>
       <details><summary>搜尋可以用聽錯的字嗎？</summary><div class="a">可以。對照表裡的常見誤字（例如立即電、秦城）都找得到正確的股票。</div></details>
       <details><summary>資料錯了怎麼辦？</summary><div class="a">我可以在後台逐日編輯修正，網站與郵件查詢會自動同步，已寄出的信不會重寄。發現錯誤可以用右下角的「問問題」或 Email 告訴我。</div></details>
       <details><summary>我可以自己貼逐字稿嗎？</summary><div class="a">可以。手動稿與自動稿走同一條判讀流程；選「手動保留」可以讓自動聽打先停手。舊資料有原文但沒有來源標記的，也視同手動稿保護。</div></details>
@@ -685,7 +685,7 @@
     p.hidden=true;p.parentNode.insertBefore(box,p.nextSibling);
     box.addEventListener('click',function(e){var t=e.target;while(t&&t!==box){if(t.classList&&t.classList.contains('src-card')){box.classList.add('is-stopped');return;}t=t.parentNode;}});
     if('IntersectionObserver' in window && !reduce){
-      new IntersectionObserver(function(entries){entries.forEach(function(en){box.classList.toggle('is-live',en.isIntersecting);if(en.isIntersecting){box.classList.add('is-in');}});},{threshold:0.3}).observe(box);
+      new IntersectionObserver(function(entries){entries.forEach(function(en){if(en.isIntersecting){box.classList.add('is-in');if(window.__storyAnimationActivate){window.__storyAnimationActivate(box);}else{box.classList.add('is-live');}}else{box.classList.remove('is-live');if(window.__storyAnimationPause)window.__storyAnimationPause(box);}});},{threshold:[0,.3,.6,1]}).observe(box);
     }else{box.classList.add('is-in','is-stopped');}
   });
   function agentAnimate(){var r=one('#agentRoute');r.classList.remove('agent-run');void r.offsetWidth;r.classList.add('agent-run');}
@@ -1539,3 +1539,5 @@
   schedule();
 })();
 </script>
+
+<?!= include('StoryDesign'); ?>

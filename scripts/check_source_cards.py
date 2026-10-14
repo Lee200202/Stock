@@ -30,7 +30,7 @@ def structure(page):
     assert groups.count() == 2, groups.count()
     for i, (title, n, tones) in enumerate(EXPECT):
         box = groups.nth(i)
-        assert box.locator('.src-cards-h').inner_text() == title
+        assert box.locator('.src-cards-h').text_content() == title
         cards = box.locator('.src-card')
         assert cards.count() == n, (title, cards.count())
         original = page.locator('#tech-agent p.agent-sources', has_text=title)

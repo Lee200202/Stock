@@ -30,7 +30,8 @@ try:
         assert page.locator('[data-agent-node="tool"]').get_attribute('aria-pressed')=='true'
         page.locator('[data-agent="fault"]').click()
         assert page.locator('#agentRoute').evaluate("e=>e.classList.contains('agent-run')")
-        assert page.locator('#agentRoute li').first.evaluate("e=>getComputedStyle(e).animationName")=='agentPulse'
+        assert page.locator('.story-packet').count()==1
+        assert page.locator('#tech-agent .story-main svg').is_visible()
         browser.close()
 finally:
     server.shutdown()

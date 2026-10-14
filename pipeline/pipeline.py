@@ -5915,8 +5915,35 @@ _ANALYST_SUBJECT = re.compile(r'(?<!其他)(?<!別的)(?<!很多)(?<!有些)(?<!
 _MACRO_CLAUSE = re.compile(r'匯率|台幣(?:升值|貶值|匯率)?|電子(?:股)?成交比重|成交比重|美債|殖利率|聯準會|加權指數|清洗浮額|洗(?:清|掉)?浮額|外資(?:史上|單日)?第[一二三]大(?:賣超|買超)|史上(?:第[一二三])?(?:最大)?(?:賣超|買超)|中小型股')
 
 
+def strip_macro_text(text, name):
+    """一段個股說明裡，沒有本股名稱、講的是大盤層級的話（匯率、電子成交比重、清洗浮額）的子句拿掉；拿掉後太短就維持原文。
+
+    沒有本股名稱的句子：大盤層級的子句拿掉，其餘子句留下；整句都是這種話（或剩下的不到六個字）就整句拿掉。
+    有本股名稱的句子不動（「亞德客-KY受惠台幣貶值」講的是本股）。
+    """
+    text = str(text or '')
+    if not _MACRO_CLAUSE.search(text):
+        return text
+    name = str(name or '')
+    own = [n for n in {_display_name(name), name.replace('*', ''), re.sub(r'-?KY$', '', _display_name(name) or '')} if len(n) >= 2]
+    out = []
+    for sentence in re.split(r'(?<=[。！？!?])', text):
+        if not sentence.strip() or any(n in sentence for n in own) or not _MACRO_CLAUSE.search(sentence):
+            out.append(sentence)
+            continue
+        end = sentence[-1] if sentence[-1] in '。！？!?' else ''
+        body = sentence[:-1] if end else sentence
+        kept = [c.strip() for c in re.split(r'[，,；;]', body) if c.strip() and not _MACRO_CLAUSE.search(c)]
+        if not kept or len(_ev_norm(''.join(kept))) < 6:
+            continue
+        kept[0] = re.sub(r'^(?:且|並|而|但|則)', '', kept[0])
+        out.append('，'.join(kept) + (end or '。'))
+    fixed = ''.join(out).strip()
+    return fixed if len(_ev_norm(fixed)) >= 8 else text
+
+
 def strip_macro_clauses(signals):
-    """個股說明裡沒有本股名稱、講的是大盤層級的話（匯率、電子成交比重、清洗浮額），拿掉那個子句；一句裡一半以上是這種話就整句拿掉。
+    """個股說明裡沒有本股名稱、講的是大盤層級的話，拿掉那個子句（判斷見 strip_macro_text）。
     2026/10/14 鈺邦「觀察目前台幣匯率貶值至多，且電子成交比重下降至67%，中小型股表現相對較強」、譜瑞-KY「大盤大跌則是為了清洗浮額」。"""
     for cat in SIGNAL_CATEGORIES:
         for row in signals.get(cat, []) or []:
@@ -5924,26 +5951,8 @@ def strip_macro_clauses(signals):
                 continue
             field = 'note' if cat == 'holdings' else 'reason'
             text = str(row.get(field) or '')
-            if not _MACRO_CLAUSE.search(text):
-                continue
-            own = [n for n in {_display_name(row.get('name')), str(row.get('name') or '').replace('*', ''),
-                               re.sub(r'-?KY$', '', _display_name(row.get('name')) or '')} if len(n) >= 2]
-            out = []
-            for sentence in re.split(r'(?<=[。！？!?])', text):
-                if not sentence.strip() or any(n in sentence for n in own) or not _MACRO_CLAUSE.search(sentence):
-                    out.append(sentence)
-                    continue
-                end = sentence[-1] if sentence[-1] in '。！？!?' else ''
-                body = sentence[:-1] if end else sentence
-                clauses = [c for c in re.split(r'[，,；;]', body) if c.strip()]
-                macro = [c for c in clauses if _MACRO_CLAUSE.search(c)]
-                if len(macro) * 2 >= len(clauses):
-                    continue
-                kept = [c.strip() for c in clauses if not _MACRO_CLAUSE.search(c)]
-                kept[0] = re.sub(r'^(?:且|並|而|但|則)', '', kept[0])
-                out.append('，'.join(kept) + (end or '。'))
-            fixed = ''.join(out).strip()
-            if fixed != text and len(_ev_norm(fixed)) >= 8:
+            fixed = strip_macro_text(text, row.get('name'))
+            if fixed != text:
                 name = _display_name(row.get('name')) or str(row.get('name') or '')
                 print(f"  說明核對　{name}：大盤層級的子句不寫進個股說明，已拿掉")
                 note_decision('說明核對', '大盤層級的子句不寫進個股說明', name, text[:160])
@@ -13149,6 +13158,24 @@ def _viewer_holding_question(names, transcript):
     return ''
 
 
+_HOLD_ADVICE = re.compile(r'在抱著?|繼續抱|抱著|續抱|抱牢|不用出|不要出|不用賣|不要賣|不必賣|不准賣')
+_SELL_ADVICE = re.compile(r'(?<!沒有)(?<!不用)(?<!不要)(?<!沒)(?:賣掉|出掉|先出|可以出|先賣|賣出|出場|停利)')
+
+
+def _hold_advice_to_viewer(names, transcript):
+    """觀眾或會員問自己持有的這一檔要不要出，講者回答續抱：回傳問句與回答，沒有就回空字串（2026/10/14 台化
+    「張總，我手中有6張台化…今天漲停要出嗎？…我說在抱著，沒有出掉…沒有爆量，不用出」）。回答裡叫他賣就不算。"""
+    flat = re.sub(r'【[^】]{0,40}】|\s', '', str(transcript or ''))
+    asked = _viewer_holding_question(names, transcript)
+    at = flat.find(asked) if asked else -1
+    if at < 0:
+        return ''
+    reply = flat[at + len(asked):at + len(asked) + 120]
+    if not _HOLD_ADVICE.search(reply) or _SELL_ADVICE.search(reply):
+        return ''
+    return asked[:40] + '…' + reply[:50]
+
+
 def _explicit_not_yet(names, transcript):
     """原文對本股明講「X不能買」：回傳那一段，沒有就回空字串（2026/10/14 聯電「為什麼聯電不能買？…還沒有碰到季線」）。
     「誰說X不能買」「X不能買嗎」與假設句不算。"""
@@ -13306,6 +13333,8 @@ def sms_first_article_records(ss, signals, date_str):
             # 成交價只保留在私人紀錄；影片的同方向證據可補技術背景。
             reason = (public_sms_note(matching.get('reason') or matching.get('note') or '', event)
                       if matching else public_sms_note(event['reason'], event))
+            # 存好的通知說明可能是用同日原文改寫過的，大盤層級的子句同樣不留（2026/10/14 鈺邦、譜瑞-KY）
+            reason = strip_macro_text(reason, event['name'])
             article[kind].append({'code': code, 'name': event['name'], 'price': '不公開',
                                   'reason': reason or '當日操作已核對，技術背景尚待確認。'})
         print(f'  簡訊優先　{date_str} {events[-1][2]["name"]}（{code}）撰稿分類依當日通知；逐字稿只補同方向說明')
@@ -13561,6 +13590,13 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
         if current == 'sell' and code in known and not entry['open']:
             entry.update(cls='history', tier='直接歸類', basis='紀錄上已經賣出、之後沒有買回，今天沒有賣出通知也沒有今天賣出的明確句：是回顧', enforce=True)
             continue
+        # 同樣的情況列成會員持股（2026/10/14 世芯-KY：原文只有「10月8號…我說快賣」，紀錄上 10/08 已賣出）：
+        # 紀錄上最近一筆是賣出、之後沒有部位，今天沒有買進通知也沒有今天買進的明確句，那一列是在回顧，不是現在持有。
+        if current == 'holdings' and code in known and not entry['open'] and 'buy' not in cats \
+                and any('賣出這一檔' in fact for fact in known.get(code, [])) and not explicit_today_trades(transcript, names, 'buy'):
+            entry.update(cls='history', tier='直接歸類', enforce=True,
+                         basis='紀錄上已經賣出、之後沒有買回也沒有持股列，今天沒有買進：會員持股列是回顧')
+            continue
         if code in explicit_hold and current not in ('buy', 'sell'):
             entry.update(cls='holdings', tier='直接歸類', basis='原文明講目前持有', enforce=True)
             continue
@@ -13591,6 +13627,12 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             entry.update(cls='watch_avoid', tier='直接歸類', basis='同句點名且明確當下禁買：' + closed,
                          enforce=True)
             continue
+        # 觀眾問自己持有的這一檔要不要出、講者回答續抱：是對本股之後的看法（觀望注意），持有的是觀眾、不是會員持股。
+        if current not in ('buy', 'sell', 'watch_avoid') and not entry['open']:
+            advice = _hold_advice_to_viewer(names, transcript)
+            if advice:
+                entry.update(cls='watch_watch', tier='直接歸類', enforce=True, basis='觀眾問持有的這一檔要不要出，回答續抱：' + advice)
+                continue
         # 紀錄上沒有未賣出的部位、原文又明講「我沒有X」的會員持股：以觀望注意為底重新裁決，不留在會員持股（2026/10/14 台達電）。
         # 原文的持有只出現在觀眾或會員的提問裡（「張總，我手中有6張台化…要出嗎？」）：同樣以觀望注意為底（2026/10/14 台化）。
         not_held = ''
@@ -19245,6 +19287,9 @@ def enrich_sms_notes_from_signals(ss, date_str, signals, transcript):
                 if len(_ev_norm(borrowed)) > len(_ev_norm(note)):
                     print(f"  簡訊說明補充：{row[ci['代號']]} 改用同日影片那一列已核對的說明")
                     note = borrowed
+            # 用同日原文改寫的說明，大盤層級的子句不留（2026/10/14 鈺邦「台幣匯率貶值…電子成交比重」）
+            sms_name = str(row[head.index('股票名稱')]) if '股票名稱' in head and len(row) > head.index('股票名稱') else ''
+            note = strip_macro_text(note, sms_name)
             if note!=original:
                 changes.append({'range':gspread.utils.rowcol_to_a1(i,ci[field]+1),'values':[[note]]})
         if changes:
@@ -19267,6 +19312,7 @@ def enrich_sms_notes_from_signals(ss, date_str, signals, transcript):
                 for candidate in by_code.get(str(item.get('code') or ''),[]):
                     note=sms_context_note(note,candidate,transcript,item)
                 note=original_to_rewritten.get((str(item.get('code') or ''), old), note)
+                note=strip_macro_text(note, item.get('name'))
                 if note!=old:item[field]=note;changed=True
             if changed:updates.append({'range':gspread.utils.rowcol_to_a1(i,di+1),'values':[[json.dumps(items,ensure_ascii=False)]]})
         if updates:sheets_retry(ws.batch_update,updates,value_input_option='RAW')

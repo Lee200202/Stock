@@ -13593,7 +13593,9 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
         # 同樣的情況列成會員持股（2026/10/14 世芯-KY：原文只有「10月8號…我說快賣」，紀錄上 10/08 已賣出）：
         # 紀錄上最近一筆是賣出、之後沒有部位，今天沒有買進通知也沒有今天買進的明確句，那一列是在回顧，不是現在持有。
         if current == 'holdings' and code in known and not entry['open'] and 'buy' not in cats \
-                and any('賣出這一檔' in fact for fact in known.get(code, [])) and not explicit_today_trades(transcript, names, 'buy'):
+                and any('賣出這一檔' in fact for fact in known.get(code, [])) and not explicit_today_trades(transcript, names, 'buy')                 and not (_hold_advice_to_viewer(names, transcript) or _explicit_approval(names, transcript)
+                         or _explicit_not_yet(names, transcript) or _asked_refusal(names, transcript)):
+            # 今天對本股另有明確的現況說法（回答續抱、明講可以買或不能買）時不是回顧（2026/10/14 台化：紀錄上很早賣過，今天回答會員續抱）
             entry.update(cls='history', tier='直接歸類', enforce=True,
                          basis='紀錄上已經賣出、之後沒有買回也沒有持股列，今天沒有買進：會員持股列是回顧')
             continue

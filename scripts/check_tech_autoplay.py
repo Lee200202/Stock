@@ -17,7 +17,7 @@ try:
    assert len(values)==6,values
    p.locator('#tech-hold .story-chapter-toggle').click();p.locator('#tlPlay').click();v=p.locator('#tlSlider').input_value();p.wait_for_timeout(1800);assert p.locator('#tlSlider').input_value()==v
    p.locator('#tech-limit .story-main').scroll_into_view_if_needed();p.locator('#tech-hold .story-main').scroll_into_view_if_needed();p.wait_for_timeout(1800);assert p.locator('#tlSlider').input_value()==v
-   p.locator('#tech-hold .story-replay').click();p.wait_for_function("document.querySelector('#tlPlay').getAttribute('aria-pressed')==='true'")
+   p.locator('#tech-hold .story-replay').click();p.wait_for_function("document.querySelector('#tlPlay').getAttribute('aria-pressed')==='true'");p.wait_for_timeout(10500);assert p.locator('#tlPlay').get_attribute('aria-pressed')=='true';assert p.locator('#tech-hold .story-main').get_attribute('data-playing')=='true'
    p.locator('button[data-tab="overview"]').click();v=p.locator('#tlSlider').input_value();p.wait_for_timeout(1800);assert p.locator('#tlSlider').input_value()==v
    print('autoplay',width,'six steps loop, click freezes, return stays stopped, explicit replay, tab pause passed');p.close()
   p=b.new_page(viewport={'width':1280,'height':900},reduced_motion='no-preference');calls=[];p.on('request',lambda r:calls.append(r.url) if '/api' in r.url else None);p.route(FAKE_API,lambda r:r.fulfill(content_type='application/json',body='{"ok":true,"result":[]}'));open_tech(p,u);p.locator('[data-story-mode="short"]').click();p.wait_for_load_state('networkidle');base=len(calls)

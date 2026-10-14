@@ -1,0 +1,1256 @@
+{
+ "1600": {
+  "viewport": 1600,
+  "sections": [
+   {
+    "id": "tech-intro",
+    "title": "想找一檔股票上次講了什麼，我做了這個網站",
+    "height": 482,
+    "imgs": 0,
+    "svgs": 11,
+    "buttons": 9,
+    "figures": 1,
+    "words": 1936
+   },
+   {
+    "id": "tech-overview",
+    "title": "資料從哪裡來，最後去了哪裡",
+    "height": 374,
+    "imgs": 0,
+    "svgs": 2,
+    "buttons": 56,
+    "figures": 0,
+    "words": 1442
+   },
+   {
+    "id": "tech-loading",
+    "title": "資料量與載入速度",
+    "height": 494,
+    "imgs": 1,
+    "svgs": 1,
+    "buttons": 12,
+    "figures": 1,
+    "words": 1184
+   },
+   {
+    "id": "tech-day",
+    "title": "9 月 23 日，一則即時紀錄和一支影片實際走過的路",
+    "height": 484,
+    "imgs": 0,
+    "svgs": 1,
+    "buttons": 21,
+    "figures": 0,
+    "words": 1147
+   },
+   {
+    "id": "tech-agent",
+    "title": "AI 是怎麼讀原稿、查資料，再交出答案的？",
+    "height": 484,
+    "imgs": 0,
+    "svgs": 11,
+    "buttons": 24,
+    "figures": 1,
+    "words": 3263
+   },
+   {
+    "id": "tech-names",
+    "title": "語音辨識會把股名聽錯，所以搜尋也認得錯字",
+    "height": 454,
+    "imgs": 0,
+    "svgs": 1,
+    "buttons": 19,
+    "figures": 0,
+    "words": 473
+   },
+   {
+    "id": "tech-subject",
+    "title": "同一句有「賣」，要先看誰在賣",
+    "height": 374,
+    "imgs": 0,
+    "svgs": 1,
+    "buttons": 28,
+    "figures": 0,
+    "words": 813
+   },
+   {
+    "id": "tech-number",
+    "title": "「168 張」和「900 以下」都是真數字，只有一個是股價",
+    "height": 464,
+    "imgs": 0,
+    "svgs": 1,
+    "buttons": 15,
+    "figures": 0,
+    "words": 573
+   },
+   {
+    "id": "tech-unnamed",
+    "title": "他沒講是哪一檔時，我用昨天的收盤價去認",
+    "height": 504,
+    "imgs": 0,
+    "svgs": 1,
+    "buttons": 8,
+    "figures": 0,
+    "words": 1183
+   },
+   {
+    "id": "tech-source-priority",
+    "title": "盤中先有操作，影片後到：網站該信誰？",
+    "height": 374,
+    "imgs": 0,
+    "svgs": 1,
+    "buttons": 8,
+    "figures": 0,
+    "words": 719
+   },
+   {
+    "id": "tech-public-notes",
+    "title": "這句話為什麼能公開，另一句為什麼待複核？",
+    "height": 374,
+    "imgs": 0,
+    "svgs": 1,
+    "buttons": 17,
+    "figures": 0,
+    "words": 966
+   },
+   {
+    "id": "tech-transcript-progress",
+    "title": "新稿來了，舊工單會不會蓋回去？",
+    "height": 494,
+    "imgs": 0,
+    "svgs": 1,
+    "buttons": 19,
+    "figures": 0,
+    "words": 1251
+   },
+   {
+    "id": "tech-hold",
+    "title": "持股有開始和結束，績效必須跟著日期重算",
+    "height": 464,
+    "imgs": 0,
+    "svgs": 1,
+    "buttons": 3,
+    "figures": 0,
+    "words": 568
+   },
+   {
+    "id": "tech-failure",
+    "title": "有一段失敗時，我希望後台說清楚停在哪裡",
+    "height": 534,
+    "imgs": 0,
+    "svgs": 1,
+    "buttons": 17,
+    "figures": 0,
+    "words": 862
+   },
+   {
+    "id": "tech-limit",
+    "title": "這些紀錄能幫你回查，也有明確的限制",
+    "height": 374,
+    "imgs": 0,
+    "svgs": 1,
+    "buttons": 19,
+    "figures": 0,
+    "words": 572
+   },
+   {
+    "id": "tech-open",
+    "title": "還沒解決的事",
+    "height": 374,
+    "imgs": 0,
+    "svgs": 4,
+    "buttons": 17,
+    "figures": 0,
+    "words": 939
+   },
+   {
+    "id": "tech-faq",
+    "title": "常見問題",
+    "height": 374,
+    "imgs": 0,
+    "svgs": 1,
+    "buttons": 7,
+    "figures": 0,
+    "words": 1268
+   },
+   {
+    "id": "tech-author",
+    "title": "關於作者",
+    "height": 374,
+    "imgs": 0,
+    "svgs": 7,
+    "buttons": 3,
+    "figures": 0,
+    "words": 413
+   }
+  ],
+  "small": {},
+  "large": {},
+  "orphans": [],
+  "images": [
+   {
+    "src": "tech-load-overview-20261008.jpg",
+    "natural": "0x0",
+    "shown": "0x0",
+    "alt": "2026 年 10 月 8 日正式站首頁載入完成，顯示當日分"
+   }
+  ],
+  "textDiagrams": [],
+  "narrow": [],
+  "animations": [
+   {
+    "sel": ".tsum-i",
+    "animation": "0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0s 1 normal both running popIn",
+    "media": ""
+   },
+   {
+    "sel": ".stat, .chip, .tsum-i, .tl-i",
+    "animation": "auto ease 0s 1 normal none running none",
+    "media": "(prefers-reduced-motion: reduce)"
+   },
+   {
+    "sel": ".tech-chunk.is-active",
+    "animation": "0.28s ease-out 0s 1 normal both running chunkIn",
+    "media": "(prefers-reduced-motion: no-preference)"
+   },
+   {
+    "sel": ".tech-route li",
+    "transition": "background 0.25s, border-color 0.25s",
+    "media": ""
+   },
+   {
+    "sel": ".tech-v45 .tech-chunk.is-active",
+    "animation": "0.24s cubic-bezier(0.2, 0.7, 0.2, 1) 0s 1 normal none running flow-appear",
+    "media": "(prefers-reduced-motion: no-preference)"
+   },
+   {
+    "sel": ".stat, .tsum-i",
+    "animation": "auto ease 0s 1 normal none running none",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .tech-graph::before, .tech-story .tech-graph::after",
+    "transition": "opacity 0.15s",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .tech-node-list > button",
+    "transition": "opacity 0.15s, border-color 0.15s, background 0.15s",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .tech-timeline li",
+    "transition": "opacity 0.15s",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .pc-talk.pc-play .pc-ask",
+    "animation": "0.45s cubic-bezier(0.2, 0.8, 0.2, 1) 0s 1 normal both running pcBubble",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .pc-talk.pc-play .pc-ans",
+    "animation": "0.45s cubic-bezier(0.2, 0.8, 0.2, 1) 0.55s 1 normal both running pcBubble, 0.35s ease-out ",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .pc-talk.pc-play .pc-ans::after",
+    "animation": "0.9s ease-in-out 0.55s 1 normal both running pcDots",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .author-links a",
+    "transition": "border-color 0.18s, background-color 0.18s, transform 0.18s",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story *, .tech-story ::before, .tech-story ::after",
+    "animation": "auto ease 0s 1 normal none running none",
+    "media": "(prefers-reduced-motion: reduce)"
+   },
+   {
+    "sel": ".tech-story .tech-options button, .tech-story .tech-pains button",
+    "transition": "background-color 0.18s, border-color 0.18s, box-shadow 0.18s",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .tx-stages li",
+    "transition": "background-color 0.2s, border-color 0.2s",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .tech-verdict",
+    "transition": "opacity 0.2s, box-shadow 0.2s",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .tech-anim",
+    "animation": "techRise",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .th-icon",
+    "transition": "border-color 0.3s, box-shadow 0.3s, color 0.3s",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .th-fill",
+    "transition": "width 0.9s cubic-bezier(0.4, 0, 0.2, 1)",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .th-packet",
+    "transition": "left 0.9s cubic-bezier(0.4, 0, 0.2, 1)",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .mini-caret",
+    "animation": "1s steps(1) 0s infinite normal none running techBlink",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .mini-hit",
+    "transition": "transform 0.25s, box-shadow 0.25s",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .tx-steps > li",
+    "transition": "opacity 0.25s, border-color 0.25s, box-shadow 0.25s, transform 0.25s",
+    "media": "(min-width: 1100px)"
+   },
+   {
+    "sel": ".tech-story .load-charts.is-armed.is-play .load-rail i",
+    "animation": "loadGrow var(--load-ms,600ms) linear both",
+    "media": ""
+   },
+   {
+    "sel": ".agent-lab .tok-viz.tok-run .tok-stage",
+    "animation": "0.5s cubic-bezier(0.22, 1, 0.36, 1) 0s 1 normal both running tokIn",
+    "media": ""
+   },
+   {
+    "sel": ".agent-lab .tok-viz.tok-run .tok-stage",
+    "animation": "auto ease 0s 1 normal none running none",
+    "media": "(prefers-reduced-motion: reduce)"
+   },
+   {
+    "sel": ".agent-lab .src-card",
+    "transition": "border-color 0.18s ease-out, box-shadow 0.18s ease-out",
+    "media": ""
+   },
+   {
+    "sel": ".agent-lab .src-cards.is-in .src-card",
+    "animation": "srcInL",
+    "media": ""
+   },
+   {
+    "sel": ".agent-lab .src-cards.is-in .src-card:nth-child(3n+2)",
+    "animation": "srcInR",
+    "media": ""
+   },
+   {
+    "sel": ".agent-lab .src-cards.is-in .src-card:nth-child(3n)",
+    "animation": "srcInUp",
+    "media": ""
+   },
+   {
+    "sel": ".agent-lab .src-cards.is-in.is-live .src-card::after",
+    "animation": "srcSweep",
+    "media": ""
+   },
+   {
+    "sel": ".agent-lab .src-cards.is-in.is-live .src-go",
+    "animation": "srcNudge",
+    "media": ""
+   },
+   {
+    "sel": ".agent-lab .src-cards.is-stopped .src-card, .agent-lab .src-cards.is-stopped .sr",
+    "animation": "auto ease 0s 1 normal none running none",
+    "media": ""
+   },
+   {
+    "sel": ".agent-lab .agent-usage-track span",
+    "transition": "width 0.3s",
+    "media": ""
+   },
+   {
+    "sel": ".agent-lab .agent-run li",
+    "animation": "0.28s ease 0s 1 normal both running agentPulse",
+    "media": ""
+   },
+   {
+    "sel": ".agent-lab .agent-run li",
+    "animation": "auto ease 0s 1 normal none running none",
+    "media": "(prefers-reduced-motion: reduce)"
+   },
+   {
+    "sel": ".story-main.is-in:not(.is-stopped) .story-visual .viz-part",
+    "animation": "storyReveal",
+    "media": ""
+   },
+   {
+    "sel": ".story-main.is-stopped *",
+    "animation": "auto ease 0s 1 normal none running none",
+    "media": ""
+   },
+   {
+    "sel": ".story-packet",
+    "transition": "transform 0.6s cubic-bezier(0.22, 1, 0.36, 1)",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .th-fill",
+    "transition": "transform 0.9s cubic-bezier(0.4, 0, 0.2, 1)",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .th-packet",
+    "transition": "transform 0.9s cubic-bezier(0.4, 0, 0.2, 1)",
+    "media": ""
+   },
+   {
+    "sel": ".agent-lab .agent-usage-track span",
+    "transition": "transform 0.3s",
+    "media": ""
+   },
+   {
+    "sel": ".story-main *",
+    "animation": "auto ease 0s 1 normal none running none",
+    "media": "(prefers-reduced-motion: reduce)"
+   }
+  ],
+  "keyframes": {
+   "drawIn": [
+    "transform",
+    "opacity"
+   ],
+   "marquee": [
+    "transform"
+   ],
+   "rowIn": [
+    "opacity",
+    "transform"
+   ],
+   "tabIn": [
+    "transform"
+   ],
+   "panelIn": [
+    "opacity",
+    "transform"
+   ],
+   "tlIn": [
+    "opacity",
+    "transform"
+   ],
+   "sectIn": [
+    "opacity",
+    "transform"
+   ],
+   "skelShine": [
+    "background-position-x",
+    "background-position-y"
+   ],
+   "popIn": [
+    "opacity",
+    "transform"
+   ],
+   "chipPop": [
+    "opacity",
+    "transform"
+   ],
+   "spin": [
+    "--ang"
+   ],
+   "shimmer": [
+    "background-position-x",
+    "background-position-y"
+   ],
+   "fade": [
+    "opacity"
+   ],
+   "slideIn": [
+    "opacity",
+    "transform"
+   ],
+   "verIn": [
+    "opacity",
+    "transform"
+   ],
+   "fadeDown": [
+    "opacity",
+    "transform"
+   ],
+   "avPop": [
+    "transform",
+    "opacity"
+   ],
+   "waveP": [
+    "opacity",
+    "transform"
+   ],
+   "barIn": [
+    "transform",
+    "opacity"
+   ],
+   "cardIn": [
+    "transform",
+    "opacity"
+   ],
+   "draw": [
+    "stroke-dashoffset"
+   ],
+   "flow": [
+    "stroke-dashoffset"
+   ],
+   "pulse": [
+    "opacity"
+   ],
+   "think": [
+    "transform",
+    "opacity"
+   ],
+   "cardRise": [
+    "opacity",
+    "transform"
+   ],
+   "drawerSect": [
+    "opacity",
+    "transform"
+   ],
+   "kvIn": [
+    "opacity",
+    "transform"
+   ],
+   "suggIn": [
+    "opacity",
+    "transform"
+   ],
+   "dotPulse": [
+    "box-shadow"
+   ],
+   "topIn": [
+    "opacity",
+    "transform"
+   ],
+   "panelSlide": [
+    "opacity",
+    "transform"
+   ],
+   "heroFloat": [
+    "opacity",
+    "transform"
+   ],
+   "heroFade": [
+    "opacity",
+    "transform"
+   ],
+   "statSweep": [
+    "transform"
+   ],
+   "tabIcon": [
+    "transform"
+   ],
+   "dockIn": [
+    "opacity",
+    "transform"
+   ],
+   "subnavNudge": [
+    "transform"
+   ],
+   "chunkIn": [
+    "opacity",
+    "transform"
+   ],
+   "rd-fade": [
+    "opacity",
+    "transform"
+   ],
+   "flow-appear": [
+    "opacity",
+    "transform"
+   ],
+   "pcBubble": [
+    "opacity",
+    "transform"
+   ],
+   "pcInk": [
+    "color"
+   ],
+   "pcDots": [
+    "opacity",
+    "transform"
+   ],
+   "fxRise": [
+    "transform"
+   ],
+   "techRise": [
+    "transform",
+    "box-shadow"
+   ],
+   "techBlink": [
+    "opacity"
+   ],
+   "v101In": [
+    "opacity",
+    "translate"
+   ],
+   "loadGrow": [
+    "transform"
+   ],
+   "tokIn": [
+    "opacity",
+    "transform"
+   ],
+   "srcInL": [
+    "opacity",
+    "transform"
+   ],
+   "srcInR": [
+    "opacity",
+    "transform"
+   ],
+   "srcInUp": [
+    "opacity",
+    "transform"
+   ],
+   "srcSweep": [
+    "transform"
+   ],
+   "srcNudge": [
+    "transform"
+   ],
+   "agentPulse": [
+    "transform"
+   ],
+   "storyReveal": [
+    "transform"
+   ]
+  }
+ },
+ "390": {
+  "viewport": 390,
+  "sections": [
+   {
+    "id": "tech-intro",
+    "title": "想找一檔股票上次講了什麼，我做了這個網站",
+    "height": 1213,
+    "imgs": 0,
+    "svgs": 11,
+    "buttons": 9,
+    "figures": 1,
+    "words": 1936
+   },
+   {
+    "id": "tech-overview",
+    "title": "資料從哪裡來，最後去了哪裡",
+    "height": 790,
+    "imgs": 0,
+    "svgs": 2,
+    "buttons": 56,
+    "figures": 0,
+    "words": 1442
+   },
+   {
+    "id": "tech-loading",
+    "title": "資料量與載入速度",
+    "height": 712,
+    "imgs": 1,
+    "svgs": 1,
+    "buttons": 12,
+    "figures": 1,
+    "words": 1184
+   },
+   {
+    "id": "tech-day",
+    "title": "9 月 23 日，一則即時紀錄和一支影片實際走過的路",
+    "height": 823,
+    "imgs": 0,
+    "svgs": 1,
+    "buttons": 21,
+    "figures": 0,
+    "words": 1132
+   },
+   {
+    "id": "tech-agent",
+    "title": "AI 是怎麼讀原稿、查資料，再交出答案的？",
+    "height": 757,
+    "imgs": 0,
+    "svgs": 11,
+    "buttons": 24,
+    "figures": 1,
+    "words": 3263
+   },
+   {
+    "id": "tech-names",
+    "title": "語音辨識會把股名聽錯，所以搜尋也認得錯字",
+    "height": 744,
+    "imgs": 0,
+    "svgs": 1,
+    "buttons": 19,
+    "figures": 0,
+    "words": 473
+   },
+   {
+    "id": "tech-subject",
+    "title": "同一句有「賣」，要先看誰在賣",
+    "height": 756,
+    "imgs": 0,
+    "svgs": 1,
+    "buttons": 28,
+    "figures": 0,
+    "words": 813
+   },
+   {
+    "id": "tech-number",
+    "title": "「168 張」和「900 以下」都是真數字，只有一個是股價",
+    "height": 713,
+    "imgs": 0,
+    "svgs": 1,
+    "buttons": 15,
+    "figures": 0,
+    "words": 573
+   },
+   {
+    "id": "tech-unnamed",
+    "title": "他沒講是哪一檔時，我用昨天的收盤價去認",
+    "height": 753,
+    "imgs": 0,
+    "svgs": 1,
+    "buttons": 8,
+    "figures": 0,
+    "words": 1183
+   },
+   {
+    "id": "tech-source-priority",
+    "title": "盤中先有操作，影片後到：網站該信誰？",
+    "height": 763,
+    "imgs": 0,
+    "svgs": 1,
+    "buttons": 8,
+    "figures": 0,
+    "words": 719
+   },
+   {
+    "id": "tech-public-notes",
+    "title": "這句話為什麼能公開，另一句為什麼待複核？",
+    "height": 787,
+    "imgs": 0,
+    "svgs": 1,
+    "buttons": 17,
+    "figures": 0,
+    "words": 966
+   },
+   {
+    "id": "tech-transcript-progress",
+    "title": "新稿來了，舊工單會不會蓋回去？",
+    "height": 893,
+    "imgs": 0,
+    "svgs": 1,
+    "buttons": 19,
+    "figures": 0,
+    "words": 1239
+   },
+   {
+    "id": "tech-hold",
+    "title": "持股有開始和結束，績效必須跟著日期重算",
+    "height": 624,
+    "imgs": 0,
+    "svgs": 1,
+    "buttons": 3,
+    "figures": 0,
+    "words": 568
+   },
+   {
+    "id": "tech-failure",
+    "title": "有一段失敗時，我希望後台說清楚停在哪裡",
+    "height": 783,
+    "imgs": 0,
+    "svgs": 1,
+    "buttons": 17,
+    "figures": 0,
+    "words": 862
+   },
+   {
+    "id": "tech-limit",
+    "title": "這些紀錄能幫你回查，也有明確的限制",
+    "height": 763,
+    "imgs": 0,
+    "svgs": 1,
+    "buttons": 19,
+    "figures": 0,
+    "words": 572
+   },
+   {
+    "id": "tech-open",
+    "title": "還沒解決的事",
+    "height": 732,
+    "imgs": 0,
+    "svgs": 4,
+    "buttons": 17,
+    "figures": 0,
+    "words": 939
+   },
+   {
+    "id": "tech-faq",
+    "title": "常見問題",
+    "height": 643,
+    "imgs": 0,
+    "svgs": 1,
+    "buttons": 7,
+    "figures": 0,
+    "words": 1268
+   },
+   {
+    "id": "tech-author",
+    "title": "關於作者",
+    "height": 614,
+    "imgs": 0,
+    "svgs": 7,
+    "buttons": 3,
+    "figures": 0,
+    "words": 413
+   }
+  ],
+  "small": {},
+  "large": {},
+  "orphans": [],
+  "images": [
+   {
+    "src": "tech-load-overview-20261008.jpg",
+    "natural": "0x0",
+    "shown": "0x0",
+    "alt": "2026 年 10 月 8 日正式站首頁載入完成，顯示當日分"
+   }
+  ],
+  "textDiagrams": [],
+  "narrow": [],
+  "animations": [
+   {
+    "sel": ".tsum-i",
+    "animation": "0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0s 1 normal both running popIn",
+    "media": ""
+   },
+   {
+    "sel": ".stat, .chip, .tsum-i, .tl-i",
+    "animation": "auto ease 0s 1 normal none running none",
+    "media": "(prefers-reduced-motion: reduce)"
+   },
+   {
+    "sel": ".tech-chunk.is-active",
+    "animation": "0.28s ease-out 0s 1 normal both running chunkIn",
+    "media": "(prefers-reduced-motion: no-preference)"
+   },
+   {
+    "sel": ".tech-route li",
+    "transition": "background 0.25s, border-color 0.25s",
+    "media": ""
+   },
+   {
+    "sel": ".tech-v45 .tech-chunk.is-active",
+    "animation": "0.24s cubic-bezier(0.2, 0.7, 0.2, 1) 0s 1 normal none running flow-appear",
+    "media": "(prefers-reduced-motion: no-preference)"
+   },
+   {
+    "sel": ".stat, .tsum-i",
+    "animation": "auto ease 0s 1 normal none running none",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .tech-graph::before, .tech-story .tech-graph::after",
+    "transition": "opacity 0.15s",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .tech-node-list > button",
+    "transition": "opacity 0.15s, border-color 0.15s, background 0.15s",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .tech-timeline li",
+    "transition": "opacity 0.15s",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .pc-talk.pc-play .pc-ask",
+    "animation": "0.45s cubic-bezier(0.2, 0.8, 0.2, 1) 0s 1 normal both running pcBubble",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .pc-talk.pc-play .pc-ans",
+    "animation": "0.45s cubic-bezier(0.2, 0.8, 0.2, 1) 0.55s 1 normal both running pcBubble, 0.35s ease-out ",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .pc-talk.pc-play .pc-ans::after",
+    "animation": "0.9s ease-in-out 0.55s 1 normal both running pcDots",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .author-links a",
+    "transition": "border-color 0.18s, background-color 0.18s, transform 0.18s",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story *, .tech-story ::before, .tech-story ::after",
+    "animation": "auto ease 0s 1 normal none running none",
+    "media": "(prefers-reduced-motion: reduce)"
+   },
+   {
+    "sel": ".tech-story .tech-options button, .tech-story .tech-pains button",
+    "transition": "background-color 0.18s, border-color 0.18s, box-shadow 0.18s",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .tx-stages li",
+    "transition": "background-color 0.2s, border-color 0.2s",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .tech-verdict",
+    "transition": "opacity 0.2s, box-shadow 0.2s",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .tech-anim",
+    "animation": "techRise",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .th-icon",
+    "transition": "border-color 0.3s, box-shadow 0.3s, color 0.3s",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .th-fill",
+    "transition": "width 0.9s cubic-bezier(0.4, 0, 0.2, 1)",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .th-packet",
+    "transition": "left 0.9s cubic-bezier(0.4, 0, 0.2, 1)",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .mini-caret",
+    "animation": "1s steps(1) 0s infinite normal none running techBlink",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .mini-hit",
+    "transition": "transform 0.25s, box-shadow 0.25s",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .tx-steps > li",
+    "transition": "opacity 0.25s, border-color 0.25s, box-shadow 0.25s, transform 0.25s",
+    "media": "(min-width: 1100px)"
+   },
+   {
+    "sel": ".tech-story .load-charts.is-armed.is-play .load-rail i",
+    "animation": "loadGrow var(--load-ms,600ms) linear both",
+    "media": ""
+   },
+   {
+    "sel": ".agent-lab .tok-viz.tok-run .tok-stage",
+    "animation": "0.5s cubic-bezier(0.22, 1, 0.36, 1) 0s 1 normal both running tokIn",
+    "media": ""
+   },
+   {
+    "sel": ".agent-lab .tok-viz.tok-run .tok-stage",
+    "animation": "auto ease 0s 1 normal none running none",
+    "media": "(prefers-reduced-motion: reduce)"
+   },
+   {
+    "sel": ".agent-lab .src-card",
+    "transition": "border-color 0.18s ease-out, box-shadow 0.18s ease-out",
+    "media": ""
+   },
+   {
+    "sel": ".agent-lab .src-cards.is-in .src-card",
+    "animation": "srcInL",
+    "media": ""
+   },
+   {
+    "sel": ".agent-lab .src-cards.is-in .src-card:nth-child(3n+2)",
+    "animation": "srcInR",
+    "media": ""
+   },
+   {
+    "sel": ".agent-lab .src-cards.is-in .src-card:nth-child(3n)",
+    "animation": "srcInUp",
+    "media": ""
+   },
+   {
+    "sel": ".agent-lab .src-cards.is-in.is-live .src-card::after",
+    "animation": "srcSweep",
+    "media": ""
+   },
+   {
+    "sel": ".agent-lab .src-cards.is-in.is-live .src-go",
+    "animation": "srcNudge",
+    "media": ""
+   },
+   {
+    "sel": ".agent-lab .src-cards.is-stopped .src-card, .agent-lab .src-cards.is-stopped .sr",
+    "animation": "auto ease 0s 1 normal none running none",
+    "media": ""
+   },
+   {
+    "sel": ".agent-lab .agent-usage-track span",
+    "transition": "width 0.3s",
+    "media": ""
+   },
+   {
+    "sel": ".agent-lab .agent-run li",
+    "animation": "0.28s ease 0s 1 normal both running agentPulse",
+    "media": ""
+   },
+   {
+    "sel": ".agent-lab .agent-run li",
+    "animation": "auto ease 0s 1 normal none running none",
+    "media": "(prefers-reduced-motion: reduce)"
+   },
+   {
+    "sel": ".story-main.is-in:not(.is-stopped) .story-visual .viz-part",
+    "animation": "storyReveal",
+    "media": ""
+   },
+   {
+    "sel": ".story-main.is-stopped *",
+    "animation": "auto ease 0s 1 normal none running none",
+    "media": ""
+   },
+   {
+    "sel": ".story-packet",
+    "transition": "transform 0.6s cubic-bezier(0.22, 1, 0.36, 1)",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .th-fill",
+    "transition": "transform 0.9s cubic-bezier(0.4, 0, 0.2, 1)",
+    "media": ""
+   },
+   {
+    "sel": ".tech-story .th-packet",
+    "transition": "transform 0.9s cubic-bezier(0.4, 0, 0.2, 1)",
+    "media": ""
+   },
+   {
+    "sel": ".agent-lab .agent-usage-track span",
+    "transition": "transform 0.3s",
+    "media": ""
+   },
+   {
+    "sel": ".story-main *",
+    "animation": "auto ease 0s 1 normal none running none",
+    "media": "(prefers-reduced-motion: reduce)"
+   }
+  ],
+  "keyframes": {
+   "drawIn": [
+    "transform",
+    "opacity"
+   ],
+   "marquee": [
+    "transform"
+   ],
+   "rowIn": [
+    "opacity",
+    "transform"
+   ],
+   "tabIn": [
+    "transform"
+   ],
+   "panelIn": [
+    "opacity",
+    "transform"
+   ],
+   "tlIn": [
+    "opacity",
+    "transform"
+   ],
+   "sectIn": [
+    "opacity",
+    "transform"
+   ],
+   "skelShine": [
+    "background-position-x",
+    "background-position-y"
+   ],
+   "popIn": [
+    "opacity",
+    "transform"
+   ],
+   "chipPop": [
+    "opacity",
+    "transform"
+   ],
+   "spin": [
+    "--ang"
+   ],
+   "shimmer": [
+    "background-position-x",
+    "background-position-y"
+   ],
+   "fade": [
+    "opacity"
+   ],
+   "slideIn": [
+    "opacity",
+    "transform"
+   ],
+   "verIn": [
+    "opacity",
+    "transform"
+   ],
+   "fadeDown": [
+    "opacity",
+    "transform"
+   ],
+   "avPop": [
+    "transform",
+    "opacity"
+   ],
+   "waveP": [
+    "opacity",
+    "transform"
+   ],
+   "barIn": [
+    "transform",
+    "opacity"
+   ],
+   "cardIn": [
+    "transform",
+    "opacity"
+   ],
+   "draw": [
+    "stroke-dashoffset"
+   ],
+   "flow": [
+    "stroke-dashoffset"
+   ],
+   "pulse": [
+    "opacity"
+   ],
+   "think": [
+    "transform",
+    "opacity"
+   ],
+   "cardRise": [
+    "opacity",
+    "transform"
+   ],
+   "drawerSect": [
+    "opacity",
+    "transform"
+   ],
+   "kvIn": [
+    "opacity",
+    "transform"
+   ],
+   "suggIn": [
+    "opacity",
+    "transform"
+   ],
+   "dotPulse": [
+    "box-shadow"
+   ],
+   "topIn": [
+    "opacity",
+    "transform"
+   ],
+   "panelSlide": [
+    "opacity",
+    "transform"
+   ],
+   "heroFloat": [
+    "opacity",
+    "transform"
+   ],
+   "heroFade": [
+    "opacity",
+    "transform"
+   ],
+   "statSweep": [
+    "transform"
+   ],
+   "tabIcon": [
+    "transform"
+   ],
+   "dockIn": [
+    "opacity",
+    "transform"
+   ],
+   "subnavNudge": [
+    "transform"
+   ],
+   "chunkIn": [
+    "opacity",
+    "transform"
+   ],
+   "rd-fade": [
+    "opacity",
+    "transform"
+   ],
+   "flow-appear": [
+    "opacity",
+    "transform"
+   ],
+   "pcBubble": [
+    "opacity",
+    "transform"
+   ],
+   "pcInk": [
+    "color"
+   ],
+   "pcDots": [
+    "opacity",
+    "transform"
+   ],
+   "fxRise": [
+    "transform"
+   ],
+   "techRise": [
+    "transform",
+    "box-shadow"
+   ],
+   "techBlink": [
+    "opacity"
+   ],
+   "v101In": [
+    "opacity",
+    "translate"
+   ],
+   "loadGrow": [
+    "transform"
+   ],
+   "tokIn": [
+    "opacity",
+    "transform"
+   ],
+   "srcInL": [
+    "opacity",
+    "transform"
+   ],
+   "srcInR": [
+    "opacity",
+    "transform"
+   ],
+   "srcInUp": [
+    "opacity",
+    "transform"
+   ],
+   "srcSweep": [
+    "transform"
+   ],
+   "srcNudge": [
+    "transform"
+   ],
+   "agentPulse": [
+    "transform"
+   ],
+   "storyReveal": [
+    "transform"
+   ]
+  }
+ }
+}

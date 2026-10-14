@@ -1,0 +1,64 @@
+分頁：[["overview", "每日總覽"], ["tracker", "持股追蹤"], ["perf", "績效走勢"], ["subscribe", "訂閱通知"], ["mail", "郵件查詢"], ["tx", "逐字稿"], ["tech", "技術說明"]]
+
+== 每日總覽（1600px）範圍 [data-audit="1"]｜高 3496｜整頁橫向捲動 無
+  末行孤字 0 處
+
+== 持股追蹤（1600px）範圍 [data-audit="1"]｜高 4319｜整頁橫向捲動 無
+  末行孤字 0 處
+  純文字大區塊 2227 字、高 4131｜section.panel > div.sect｜
+
+== 績效走勢（1600px）範圍 [data-audit="1"]｜高 849｜整頁橫向捲動 無
+  末行孤字 0 處
+
+== 訂閱通知（1600px）範圍 [data-audit="1"]｜高 1289｜整頁橫向捲動 無
+  末行孤字 0 處
+  觸控區偏小 24x24 ×1｜label.optcard > input｜
+
+== 郵件查詢（1600px）範圍 [data-audit="1"]｜高 3996｜整頁橫向捲動 無
+  末行孤字 3 處
+    div.mc-sec > h2.mc-h2｜2 行｜① 盤勢總覽重點整理
+    div.mc-sec > h2.mc-h2｜2 行｜② 會員操作紀錄與持股明細
+    div.mc-sec > h2.mc-h2｜2 行｜③ 分析師操作邏輯與教學重點
+  純文字大區塊 2140 字、高 3808｜section.panel > div.sect｜查詢每天寄出的整理內容
+
+== 逐字稿（1600px）範圍 [data-audit="1"]｜高 763｜整頁橫向捲動 無
+  末行孤字 0 處
+
+== 個股頁 2330（1600px）範圍 .detail-body｜高 1990｜整頁橫向捲動 無
+  末行孤字 0 處
+  純文字大區塊 3456 字、高 820｜div.detail-body > div.sect｜從第一次提到到現在，每天講了什麼
+
+== 每日總覽（390px）範圍 [data-audit="1"]｜高 4127｜整頁橫向捲動 無
+  末行孤字 0 處
+
+== 持股追蹤（390px）範圍 [data-audit="1"]｜高 2538｜整頁橫向捲動 無
+  末行孤字 0 處
+  純文字大區塊 2195 字、高 2362｜section.panel > div.sect｜
+
+== 績效走勢（390px）範圍 [data-audit="1"]｜高 1462｜整頁橫向捲動 無
+  末行孤字 0 處
+
+== 訂閱通知（390px）範圍 [data-audit="1"]｜高 1339｜整頁橫向捲動 無
+  末行孤字 0 處
+  觸控區偏小 24x24 ×1｜label.optcard > input｜
+
+== 郵件查詢（390px）範圍 [data-audit="1"]｜高 6015｜整頁橫向捲動 無
+  末行孤字 3 處
+    div.mc-sec > h2.mc-h2｜2 行｜① 盤勢總覽重點整理
+    div.mc-sec > h2.mc-h2｜2 行｜② 會員操作紀錄與持股明細
+    div.mc-sec > h2.mc-h2｜2 行｜③ 分析師操作邏輯與教學重點
+  純文字大區塊 2140 字、高 5839｜section.panel > div.sect｜查詢每天寄出的整理內容
+
+== 逐字稿（390px）範圍 [data-audit="1"]｜高 689｜整頁橫向捲動 無
+  末行孤字 0 處
+
+== 個股頁 2330（390px）範圍 .detail-body｜高 3935｜整頁橫向捲動 無
+  小字 11px ×5｜svg.trend-svg > text.tr-tick｜2200
+  小字 11px ×1｜svg.trend-svg > text.tr-date.trade｜6/29 進場
+  小字 11px ×1｜svg.trend-svg > text.tr-date.mention｜7/8 提到
+  小字 11px ×1｜svg.trend-svg > text.tr-date.end｜10/14
+  小字 11.5px ×1｜svg.trend-svg > text.tr-lb.lb-end｜目前 2530
+  小字 11.5px ×1｜svg.trend-svg > text.tr-lb.lb-in｜進場 2330
+  小字 11.5px ×1｜svg.trend-svg > text.tr-span-lb.up｜持有 74 個交易日
+  末行孤字 0 處
+  純文字大區塊 3456 字、高 1137｜div.detail-body > div.sect｜從第一次提到到現在，每天講了什麼

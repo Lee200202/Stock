@@ -950,9 +950,35 @@ function avoidClosesRound_(sorted, at, tradingDays) {
 /** Explicit partial disposal never closes the entire position; no share-count inference. */
 function isPartialSaleRecord_(r) {
   if (!r || r.kind !== 'sell') return false;
+  if(typeof r._verifiedPartialSale==='boolean'){return r._verifiedPartialSale;}
   var text=String(r.reason||'')+' '+String(r.direction||'');
   if(/全部(?:賣|出)|全數(?:賣|出)|全出|清倉|出清|剩餘.*(?:全部|全數).*賣/.test(text)) return false;
   return /部分(?:部位|持股|張數)?(?:[，、\s]*)(?:賣出|出場)|(?:賣出|出場)(?:部分|部分部位)|減碼|減持/.test(text);
+}
+
+function sourceSaleScopesFromSms_(rows){
+  var out={};
+  (rows||[]).forEach(function(sms){
+    var sid='CMONEY-'+String(sms['文章ID']||''),date=fmtDate_(sms['發文時間']).slice(0,10),items;
+    try{items=JSON.parse(String(sms['解析明細']||'[]'));}catch(e){return;}
+    if(!Array.isArray(items)){return;}items=items.filter(function(x){return x&&typeof x==='object';});
+    var held={};items.forEach(function(x){if(/會員持股|續抱|持有/.test(String(x.dir||x.action||''))){held[String(x.code||'')]=true;}});
+    items.forEach(function(x){
+      var code=String(x.code||''),dir=String(x.dir||x.action||'');if(!code||!/^賣出/.test(dir)){return;}
+      var text=String(x.reason||x.note||''),partial=isPartialSaleRecord_({kind:'sell',reason:text});
+      if(!partial&&held[code]&&!/全部(?:賣|出)|全數(?:賣|出)|全出|清倉|出清/.test(text)){partial=true;}
+      var key=sid+'|'+code+'|'+fmtDate_(x.date||x._date||date).slice(0,10);
+      out[key]=Object.prototype.hasOwnProperty.call(out,key)?out[key]&&partial:partial;
+    });
+  });return out;
+}
+function bindSourceSaleScopes_(rows){
+  var scopes={};
+  try{scopes=sourceSaleScopesFromSms_(typeof readSheetFields_==='function'?readSheetFields_('會員簡訊',['文章ID','發文時間','解析明細']):readSheetObjects_('會員簡訊'));}
+  catch(e){Logger.log('部位範圍原始解析讀取失敗，僅使用既有紀錄');}
+  (rows||[]).forEach(function(r){if(!/^賣出/.test(String(r['方向']||''))){return;}var key=String(r['來源影片ID']||'')+'|'+String(r['代號']||'')+'|'+fmtDate_(r['日期']).slice(0,10);
+    if(Object.prototype.hasOwnProperty.call(scopes,key)){r._verifiedPartialSale=scopes[key];}
+  });return rows;
 }
 
 function buildRounds_(records, tradingDays) {
@@ -1262,7 +1288,7 @@ function rebuildHoldingsTrackerJobRun_(options) {
     Logger.log('自動補缺日K略過（不影響重算）：' + e);
   }
 
-  var trades = readSheetObjects_('操作紀錄').filter(function (r) {
+  var trades = bindSourceSaleScopes_(readSheetObjects_('操作紀錄')).filter(function (r) {
     return String(r['股票名稱'] || '').trim();
   });
   if (!trades.length) {
@@ -1288,6 +1314,7 @@ function rebuildHoldingsTrackerJobRun_(options) {
       reason: naturalReason_(r['理由摘錄']) || '未說明',
       direction: dir || '提及',
       kind: classifyDirection_(dir),
+      _verifiedPartialSale: r._verifiedPartialSale,
       // 同一天同一檔的動作先後。舊資料沒有這一欄，那時是 0，排序就退回優先級。
       seq: Number(r['序']) || 0,
       price: String(r['價位說明'] || '').trim(),
@@ -2529,7 +2556,7 @@ function searchByDate(dateStr) {
   var d = fmtDate_(dateStr);
   var trades = readSheetObjects_('操作紀錄').filter(function (r) { return fmtDate_(r['日期']) === d; });
   var holds = readSheetObjects_('會員持股').filter(function (r) { return fmtDate_(r['日期']) === d; });
-  var video = readSheetObjects_('影片清單').filter(function (r) { return fmtDate_(r['發布日期']) === d; })[0];
+  var video = readSheetFields_('影片清單', ['影片ID','發布日期','標題','處理狀態']).filter(function (r) { return fmtDate_(r['發布日期']) === d; })[0];
 
   // 會員通知即時併入總覽：查詢特定日期時同樣併入該日簡訊紀錄
   mergeSmsItemsIntoTrades_(d, trades, holds);
@@ -2651,11 +2678,11 @@ function archiveSheetYear_(sheetName, year) {
  * 直接在編輯器執行這一支，看執行紀錄即可，跑完不會動到試算表。
  */
 function auditUnconfirmedHoldings() {
-  var trades = readSheetObjects_('操作紀錄').filter(function (r) {
+  var trades = bindSourceSaleScopes_(readSheetObjects_('操作紀錄')).filter(function (r) {
     return String(r['股票名稱'] || '').trim();
   });
   var groups = {};
-  function push_(name, code, date, dir, reason, seq, source) {
+  function push_(name, code, date, dir, reason, seq, source, partial) {
     if (!name) { return; }
     var valid = /^(?:00981A|\d{4,6})$/.test(String(code || '').trim());
     var key = valid ? String(code).trim() : ('NAME:' + name);
@@ -2665,12 +2692,12 @@ function auditUnconfirmedHoldings() {
     groups[key].records.push({
       date: fmtDate_(date), reason: reason || '', direction: dir || '',
       kind: classifyDirection_(dir), seq: Number(seq) || 0, price: '', hint: null,
-      manual: isManualHoldSource_(source)
+      manual: isManualHoldSource_(source), _verifiedPartialSale: partial
     });
   }
   trades.forEach(function (r) {
     push_(String(r['股票名稱']).trim(), r['代號'], r['日期'], String(r['方向']),
-          r['理由摘錄'], r['序'], r['來源影片ID']);
+          r['理由摘錄'], r['序'], r['來源影片ID'], r._verifiedPartialSale);
   });
   readSheetObjects_('會員持股').forEach(function (r) {
     push_(String(r['股票名稱'] || '').trim(), r['代號'], r['日期'], '會員持股',
@@ -3147,6 +3174,12 @@ function clearTranscriptCache() {
 
 /** v178 acceptance: read-only trace for the 10/14 partial-disposal case. */
 function auditPartialSaleHoldings178(){return explainHoldingsTracker('3533');}
+/** 唯讀驗收日期查詢，不啟動模型或寄送。 */
+function auditDateRead181(){
+  var t=Date.now(),r=searchByDate(todayStr_());
+  var out={date:r.date,found:r.found,buy:r.buy.length,sell:r.sell.length,holdings:r.holdings.length,watchWatch:r.watchWatch.length,watchAvoid:r.watchAvoid.length,elapsedMs:Date.now()-t};
+  Logger.log(JSON.stringify(out));return out;
+}
 /** Back up the derived tracker before correcting its partial-sale round boundaries. No sends. */
 function repairPartialSaleHoldings178(){
   var sh=getSheet_('持股追蹤'),book=sh.getParent(),name='持股備份_1014_v178';

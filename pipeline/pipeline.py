@@ -13400,10 +13400,53 @@ def is_partial_sale_record(row):
     kind = direction if direction in ('buy', 'sell') else _dir_kind(direction)
     if kind != 'sell':
         return False
+    if isinstance(row.get('_verifiedPartialSale'), bool):
+        return row['_verifiedPartialSale']
     text = ' '.join(str(row.get(k) or '') for k in ('reason', '理由摘錄', 'direction', '方向'))
     if re.search(r'全部(?:賣|出)|全數(?:賣|出)|全出|清倉|出清|剩餘.{0,6}(?:全部|全數).{0,4}(?:賣|出)', text):
         return False
     return bool(re.search(r'部分(?:部位|持股|張數)?(?:賣出|出場)|(?:賣出|出場)部分|減碼|減持', text))
+
+
+def _source_sale_scopes(ss):
+    """原始解析決定部位範圍；公開說明不是成交狀態。只在完全相同來源、代號、日期時沿用。"""
+    out = {}
+    try:
+        values = sheets_retry(ss.worksheet('會員簡訊').get_all_values)
+        head = [str(v).strip() for v in values[0]]
+        for raw in values[1:]:
+            row = dict(zip(head, raw))
+            sid = 'CMONEY-' + str(row.get('文章ID') or '')
+            day = norm_date(str(row.get('發文時間') or '')[:10])
+            try:
+                items = json.loads(str(row.get('解析明細') or '[]'))
+            except (ValueError, TypeError):
+                continue
+            if not isinstance(items, list):
+                continue
+            items = [x for x in items if isinstance(x, dict)]
+            held = {str(x.get('code') or '') for x in items
+                    if re.search(r'會員持股|續抱|持有', str(x.get('dir') or x.get('action') or ''))}
+            for x in items:
+                code = str(x.get('code') or '')
+                if not code or not str(x.get('dir') or x.get('action') or '').startswith('賣出'):
+                    continue
+                reason = str(x.get('reason') or x.get('note') or '')
+                partial = is_partial_sale_record({'kind': 'sell', 'reason': reason})
+                if not partial and code in held and not re.search(r'全部(?:賣|出)|全數(?:賣|出)|全出|清倉|出清', reason):
+                    partial = True
+                key = (sid, code, norm_date(str(x.get('date') or x.get('_date') or day)[:10]))
+                out[key] = out.get(key, True) and partial
+    except Exception:
+        pass  # 非通知舊列仍使用既有記錄，不能從資料缺漏推定部分減碼。
+    return out
+
+
+def _bind_source_sale_scope(row, scopes):
+    key = (str(row.get('來源影片ID') or ''), str(row.get('代號') or ''), norm_date(row.get('日期')))
+    if key in scopes:
+        row['_verifiedPartialSale'] = scopes[key]
+    return row
 
 
 def _partial_notice_sale_codes(ss, date_str):
@@ -13414,12 +13457,13 @@ def _partial_notice_sale_codes(ss, date_str):
         if not all(k in head for k in ('日期', '代號', '方向', '來源影片ID', '理由摘錄')):
             return set()
         states = {}
+        scopes = _source_sale_scopes(ss)
         for values_row in values[1:]:
             row = dict(zip(head, values_row))
             if norm_date(row.get('日期')) != date_str or not _is_sms_row(str(row.get('來源影片ID') or '')) or _dir_kind(str(row.get('方向') or '')) != 'sell':
                 continue
             code = str(row.get('代號') or '').strip()
-            states[code] = states.get(code, True) and is_partial_sale_record(row)
+            states[code] = states.get(code, True) and is_partial_sale_record(_bind_source_sale_scope(row, scopes))
         return {code for code, partial in states.items() if code and partial}
     except Exception:
         return set()
@@ -13440,6 +13484,7 @@ def _verdict_known(ss, date_str, with_open=False):
         return (known, notice, open_positions) if with_open else (known, notice)
     c_name = head.index("股票名稱") if "股票名稱" in head else (head.index("名稱") if "名稱" in head else -1)
     last = {}
+    scopes = _source_sale_scopes(ss)
     for row in values[1:]:
         cell = lambda i: str(row[i]).strip() if i < len(row) else ''
         day, code, kind = norm_date(cell(c_date)), cell(c_code), _dir_kind(cell(c_dir))
@@ -13449,7 +13494,7 @@ def _verdict_known(ss, date_str, with_open=False):
             if _is_sms_row(cell(c_src)):
                 notice.add((code, kind))
             continue
-        if kind == 'sell' and is_partial_sale_record(dict(zip(head, row))):
+        if kind == 'sell' and is_partial_sale_record(_bind_source_sale_scope(dict(zip(head, row)), scopes)):
             continue  # 部分減碼不是整檔已出場；沒有既存買入或持股仍不建立部位。
         if day < date_str and (code not in last or day >= last[code][0]):
             last[code] = (day, kind, cell(c_name) if c_name >= 0 else '')

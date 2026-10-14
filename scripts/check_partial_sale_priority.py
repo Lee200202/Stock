@@ -1,5 +1,5 @@
 """Cross-source holding regression: partial sale cannot close the remaining position. No models/network."""
-import importlib.util,os,pathlib,unittest
+import importlib.util,os,pathlib,unittest,json
 from unittest.mock import patch
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 os.environ.setdefault('SPREADSHEET_ID','test');os.environ.setdefault('GEMINI_API_KEY','AIzaSyDUMMY_local_import_only_0000000000')
@@ -9,10 +9,27 @@ class Sheet:
  def __init__(self,rows):self.rows=rows
  def get_all_values(self):return self.rows
 class Book:
- def __init__(self,trades,holds=()):self.tabs={'操作紀錄':Sheet([HEAD]+list(trades)),'會員持股':Sheet([['日期','股票名稱','代號']]+list(holds))}
+ def __init__(self,trades,holds=(),sms=()):self.tabs={'操作紀錄':Sheet([HEAD]+list(trades)),'會員持股':Sheet([['日期','股票名稱','代號']]+list(holds)),'會員簡訊':Sheet([['文章ID','發文時間','解析明細']]+list(sms))}
  def worksheet(self,n):return self.tabs[n]
 def trade(day,kind,reason):return [day,'測試股','9999',kind,'CMONEY-123',reason]
 class TestPartialPriority(unittest.TestCase):
+ def notice(self,reason='部分部位賣出',held=True,day='2026/10/14',code='9999'):
+  items=[{'code':code,'dir':'賣出','reason':reason}]+([{'code':code,'dir':'會員持股'}] if held else [])
+  return ['123',day+' 09:30:04',json.dumps(items,ensure_ascii=False)]
+ def test_original_scope_survives_rewritten_negation(self):
+  book=Book([trade('2026/10/01','買入','買入'),trade('2026/10/14','賣出','部分指定部位調整，並非整檔全數出場')],sms=[self.notice()])
+  self.assertEqual(pl._partial_notice_sale_codes(book,'2026/10/14'),{'9999'})
+  self.assertIn('9999',pl._verdict_known(book,'2026/10/15',True)[2])
+ def test_original_full_sale_cannot_be_rewritten_as_partial(self):
+  book=Book([trade('2026/10/01','買入','買入'),trade('2026/10/14','賣出','減碼')],sms=[self.notice('全數賣出',False)])
+  self.assertFalse(pl._partial_notice_sale_codes(book,'2026/10/14'))
+  self.assertNotIn('9999',pl._verdict_known(book,'2026/10/15',True)[2])
+ def test_scope_does_not_cross_date_stock_or_source(self):
+  for sms in [self.notice(day='2026/10/13'),self.notice(code='8888'),['456','2026/10/14',self.notice()[2]]]:
+   book=Book([trade('2026/10/14','賣出','全數賣出')],sms=[sms]);self.assertFalse(pl._partial_notice_sale_codes(book,'2026/10/14'))
+ def test_conflicting_original_full_exit_wins(self):
+  book=Book([trade('2026/10/14','賣出','減碼')],sms=[self.notice(),self.notice('全數出場',False)])
+  self.assertFalse(pl._partial_notice_sale_codes(book,'2026/10/14'))
  def test_predicate(self):
   for reason in ['部分部位賣出','賣出部分持股','減碼','減持']:
    self.assertTrue(pl.is_partial_sale_record({'direction':'賣出','reason':reason}))

@@ -8,10 +8,10 @@ let ctx={Date:FakeDate,Intl,Number,String,Object,isFinite,fmtPx:n=>n.toFixed(2),
  document:{querySelectorAll:s=>s==='[data-px]'?cards:s==='[data-chg]'?changes:s==='[data-bandpx]'?band:[],createElement:()=>({classList:{toggle:()=>{}}})}};
 vm.createContext(ctx);vm.runInContext(src.slice(start,end),ctx);
 const fresh={date:'2026/10/14',stamp:'2026/10/14 09:29:00',time:'10-14 09:29:00',last:244.5,prevClose:240,changePct:-99};
-ctx.renderQuotes({'2317':fresh});assert.equal(cards[0].textContent,'244.50');assert.equal(changes[0].textContent,'+1.88%');assert.match(band[0].textContent,/244.50.*1.88%.*09:29/);
+ctx.renderQuotes({'2317':fresh});assert.equal(cards[0].textContent,'244.50');assert.equal(changes[0].textContent,'+1.88%');assert.match(band[0].textContent,/244.50.*1.88%/);
 ctx.renderQuotes({'2317':{...fresh,stamp:'2026/10/13 13:30:00',last:240,prevClose:244.5}});assert.equal(cards[0].textContent,'244.50');
 assert.equal(ctx.quoteView({...fresh,prevClose:null}).pct,null);assert.equal(ctx.quoteView({last:NaN}),null);
-clock+=600000;assert.equal(ctx.quoteView(fresh).stale,true);assert.equal(ctx.quoteView(fresh).label,'待更新');
+clock+=600000;assert.equal(ctx.quoteView(fresh).stale,true);assert.equal(ctx.quoteView(fresh).label,'待更新');ctx.renderQuotes({});assert.equal(cards[0].textContent,'—');assert.equal(changes[0].textContent,'—');assert.equal(band[0].textContent,'待更新');
 assert.match(ctx.quoteView({...fresh,date:'2026/10/13'}).label,/前次行情/);
 clock=Date.parse('2026-10-14T14:00:00+08:00');assert.equal(ctx.quoteView({...fresh,time:'10-14 13:30:00',stamp:'2026/10/14 13:30:00'}).label,'收盤');
 console.log('Quote UI: card/band share price and reference, reject older replies, unknown reference is not 0%, stale and previous-day labels passed');

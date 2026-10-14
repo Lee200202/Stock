@@ -614,7 +614,7 @@
     var oldRatio=document.getElementById('storyDailyRatio');if(oldRatio)oldRatio.remove();
     var distribution=[['買入',d?d.buy.length:0,'var(--beam)'],['賣出',d?d.sell.length:0,'var(--rise)'],['觀望注意',d?wWatch(d).length:0,'var(--note)'],['觀望不碰',d?wAvoid(d).length:0,'var(--muted)']];
     var total=distribution.reduce(function(a,x){return a+x[1];},0);
-    var ratio=document.createElement('div');ratio.id='storyDailyRatio';ratio.innerHTML='<div class="story-ratio" role="img" aria-label="'+esc(distribution.map(function(x){return x[0]+' '+x[1]+'筆';}).join('、'))+'">'+distribution.filter(function(x){return x[1]>0;}).map(function(x){return '<i style="--sw:'+x[1]+';--sc:'+x[2]+'"></i>';}).join('')+'</div><p class="story-ratio-caption">'+esc(distribution.map(function(x){return x[0]+' '+x[1];}).join(' · '))+'。持有部位屬全部未出場回合，另看持股追蹤。</p>';
+    var ratio=document.createElement('div');ratio.id='storyDailyRatio';ratio.innerHTML='<div class="story-ratio" role="img" aria-label="'+esc(distribution.map(function(x){return x[0]+' '+x[1]+'筆';}).join('、'))+'">'+distribution.filter(function(x){return x[1]>0;}).map(function(x){return '<i style="--sw:'+x[1]+';--sc:'+x[2]+'"></i>';}).join('')+'</div>';
     if(total)box.parentNode.insertBefore(ratio,box.nextSibling);
     box.querySelectorAll('[data-jump]').forEach(function (b) {
       b.addEventListener('click', function () {
@@ -980,18 +980,18 @@ function restatesEarlier_(key, earlier) {
       if(old && isFinite(quoteMillis(old)) && (!isFinite(quoteMillis(incoming)) || quoteMillis(incoming)<quoteMillis(old)))return;
       incoming=Object.assign({},incoming);var view=quoteView(incoming);incoming.changePct=view.pct;incoming.change=Number(incoming.prevClose)>0?view.last-Number(incoming.prevClose):null;displayedQuotes[code]=incoming;
     });
-    document.querySelectorAll('[data-px]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.px]);el.textContent=v?fmtPx(v.last):'—';
+    document.querySelectorAll('[data-px]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.px]);el.textContent=v&&!v.stale?fmtPx(v.last):'—';
       el.title=v?'成交時間：'+v.time:'目前無可核對的行情';
       var note=el.parentNode.querySelector('.quote-asof');if(!note){note=document.createElement('small');note.className='quote-asof';el.parentNode.appendChild(note);}
-      note.textContent=v?v.label:'無行情';note.classList.toggle('is-stale',!!v&&v.stale);
+      note.textContent=v?v.stale?v.label:'':'無行情';note.hidden=!!v&&!v.stale;note.classList.toggle('is-stale',!!v&&v.stale);
     });
-    document.querySelectorAll('[data-chg]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.chg]);var pct=v&&v.pct;
+    document.querySelectorAll('[data-chg]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.chg]);var pct=v&&!v.stale?v.pct:null;
       el.textContent=pct==null?'—':(pct>0?'+':'')+pct.toFixed(2)+'%';el.className='px r '+signCls(pct);el.title=v?'成交時間：'+v.time:'無可核對的前收盤價';
     });
-    document.querySelectorAll('[data-live-price]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.livePrice]);if(!v)return;el.textContent=fmtPx(v.last);var note=el.parentNode.querySelector('.quote-asof');if(!note){note=document.createElement('small');note.className='quote-asof';el.parentNode.appendChild(note);}note.textContent=v.label;note.title='成交時間：'+v.time;});
-    document.querySelectorAll('[data-live-ret]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.liveRet]),entry=Number(el.dataset.entry);if(!v||entry<=0)return;var ret=(v.last-entry)/entry*100;el.textContent=fmtRet(ret);el.parentNode.setAttribute('aria-label','未實現報酬 '+fmtRet(ret));var axis=el.closest('.tx');if(axis)axis.className='tx tx-'+signCls(ret);});
-    document.querySelectorAll('[data-bandpx]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.bandpx]),pct=v&&v.pct;
-      el.textContent=v?fmtPx(v.last)+(pct==null?'':'　'+(pct>0?'▲':pct<0?'▼':'')+Math.abs(pct).toFixed(2)+'%')+'　'+v.label:'—';
+    document.querySelectorAll('[data-live-price]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.livePrice]);if(!v)return;el.textContent=v.stale?'—':fmtPx(v.last);var note=el.parentNode.querySelector('.quote-asof');if(!note){note=document.createElement('small');note.className='quote-asof';el.parentNode.appendChild(note);}note.textContent=v.stale?v.label:'';note.hidden=!v.stale;note.title='成交時間：'+v.time;});
+    document.querySelectorAll('[data-live-ret]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.liveRet]),entry=Number(el.dataset.entry);if(!v||entry<=0)return;if(v.stale){el.textContent='—';return;}var ret=(v.last-entry)/entry*100;el.textContent=fmtRet(ret);el.parentNode.setAttribute('aria-label','未實現報酬 '+fmtRet(ret));var axis=el.closest('.tx');if(axis)axis.className='tx tx-'+signCls(ret);});
+    document.querySelectorAll('[data-bandpx]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.bandpx]),pct=v&&!v.stale?v.pct:null;
+      el.textContent=v&&!v.stale?fmtPx(v.last)+(pct==null?'':'　'+(pct>0?'▲':pct<0?'▼':'')+Math.abs(pct).toFixed(2)+'%')+(v.stale?'　'+v.label:''):v?v.label:'—';
       el.className='px '+signCls(pct);el.title=v?'成交時間：'+v.time:'無可核對行情';
     });
   }

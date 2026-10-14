@@ -47,12 +47,12 @@ def serve_local() -> tuple[str, ThreadingHTTPServer]:
 def open_tech(page, url):
     page.goto(url, wait_until='domcontentloaded', timeout=90000)
     page.wait_for_selector('#tech-transcript-progress', state='attached', timeout=30000)
-    # The redesign defaults to the digest; legacy interaction checks intentionally use full detail.
-    if page.locator('[data-story-mode="full"]').count():
-        page.locator('[data-story-mode="full"]').click()
     tab = page.locator('[data-tab="tech"]').first
     if tab.count():
         tab.click()
+    # Full reading mode is selected only after its containing tab is visible.
+    if page.locator('[data-story-mode="full"]').count():
+        page.locator('[data-story-mode="full"]').click()
     page.wait_for_selector('[data-tx="same"]', state='visible', timeout=30000)
 
 

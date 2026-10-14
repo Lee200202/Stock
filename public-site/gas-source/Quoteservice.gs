@@ -1090,9 +1090,7 @@ function getQuotesFor(codes, refreshStale, batchOnly, cacheOnly) {
     if (!/^(?:00\d{3,4}|\d{4,6})[A-Z]?$/.test(c)) { return; }
     if (missing.indexOf(c) >= 0 || out[c]) { return; }
     var hit = cache[c];
-    try { var shared = CACHE.get('quote_live_' + c); if (shared) {
-      var checked = JSON.parse(shared); if (quoteFresh_(checked.stamp)) { hit = checked; }
-    } } catch (e) {}
+    ['quote_live_', 'quote_view_'].forEach(function(prefix){try {var shared=CACHE.get(prefix+c);if(shared){var checked=JSON.parse(shared);if(quoteFresh_(checked.stamp)&&(!hit||quoteAgeMin_(checked.stamp)<=quoteAgeMin_(hit.stamp)))hit=checked;}}catch(e){}});
     if (!hit) { missing.push(c); return; }
     if (quoteFresh_(hit.stamp)) { out[c] = hit; return; }
     out[c] = hit;
@@ -1149,7 +1147,7 @@ function getQuotesFor(codes, refreshStale, batchOnly, cacheOnly) {
   if (batchOnly) {
     try {
       var batch = misBatchQuotes_(missing.slice(0, 50));
-      Object.keys(batch).forEach(function (c) { if (batch[c].date === todayStr_()) { out[c] = batch[c]; } });
+      Object.keys(batch).forEach(function (c) { if (batch[c].date === todayStr_()) { out[c] = batch[c];try { CACHE.put('quote_view_' + c,JSON.stringify(batch[c]),600); } catch (ignore) {} } });
     } catch (e) { Logger.log('批次報價暫時讀不到：' + e); }
     // 單檔與小批查詢不能被批次來源的空值鎖死；限四檔，維持全頁批次的時間上限。
     var supplemental = 0;
@@ -1157,7 +1155,7 @@ function getQuotesFor(codes, refreshStale, batchOnly, cacheOnly) {
       if (out[c] && quoteFresh_(out[c].stamp)) { return; }
       if (supplemental >= 4 || !hasFugle_()) { return; }
       supplemental++;
-      try { var live = fugleQuote_(c); if (live && live.date === todayStr_()) { out[c] = live; } }
+      try { var live = fugleQuote_(c); if (live && live.date === todayStr_()) { out[c] = live;try {CACHE.put('quote_view_'+c,JSON.stringify(live),600);}catch(ignore){} } }
       catch (e) { Logger.log('補取 ' + c + ' 成交報價未成功：' + (e.httpCode || '暫時性錯誤')); }
     });
     missing.forEach(function (c) {

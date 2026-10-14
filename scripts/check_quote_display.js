@@ -14,4 +14,5 @@ assert.equal(ctx.quoteView({...fresh,prevClose:null}).pct,null);assert.equal(ctx
 clock+=600000;assert.equal(ctx.quoteView(fresh).stale,true);assert.equal(ctx.quoteView(fresh).label,'待更新');ctx.renderQuotes({});assert.equal(cards[0].textContent,'—');assert.equal(changes[0].textContent,'—');assert.equal(band[0].textContent,'待更新');
 assert.match(ctx.quoteView({...fresh,date:'2026/10/13'}).label,/前次行情/);
 clock=Date.parse('2026-10-14T14:00:00+08:00');assert.equal(ctx.quoteView({...fresh,time:'10-14 13:30:00',stamp:'2026/10/14 13:30:00'}).label,'收盤');
+clock=Date.parse('2026-10-14T09:30:00+08:00');const detail={detail:{classList:{contains:()=>true}},dPrice:{},dChange:{}};ctx.DETAIL={header:{}};ctx.currentCode='2317';ctx.$=id=>detail[id];ctx.renderQuotes({'2317':fresh});assert.equal(detail.dPrice.textContent,'244.50');assert.match(detail.dChange.textContent,/1.88%/);clock+=600000;ctx.renderQuotes({});assert.equal(detail.dPrice.textContent,'—');assert.equal(detail.dChange.textContent,'待更新');
 console.log('Quote UI: card/band share price and reference, reject older replies, unknown reference is not 0%, stale and previous-day labels passed');

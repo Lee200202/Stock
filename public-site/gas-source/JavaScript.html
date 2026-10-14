@@ -994,6 +994,11 @@ function restatesEarlier_(key, earlier) {
       el.textContent=v&&!v.stale?fmtPx(v.last)+(pct==null?'':'　'+(pct>0?'▲':pct<0?'▼':'')+Math.abs(pct).toFixed(2)+'%')+(v.stale?'　'+v.label:''):v?v.label:'—';
       el.className='px '+signCls(pct);el.title=v?'成交時間：'+v.time:'無可核對行情';
     });
+    if(typeof DETAIL!=='undefined'&&DETAIL.header&&currentCode&&$('detail').classList.contains('open')) {
+      var shared=displayedQuotes[currentCode],view=quoteView(shared);
+      if(view){DETAIL.header.quote=Object.assign({},shared,{ok:true});$('dPrice').textContent=view.stale?'—':fmtPx(view.last);$('dPrice').className='p '+signCls(view.pct);$('dPrice').title='成交時間：'+view.time;
+        $('dChange').textContent=view.stale?view.label:view.pct==null?'—':(view.pct>0?'▲ ':view.pct<0?'▼ ':'')+Math.abs(Number(shared.change)).toFixed(2)+'　'+view.pct.toFixed(2)+'%';$('dChange').className='d '+signCls(view.pct);$('dChange').title='成交時間：'+view.time;}
+    }
   }
   function refreshPageQuotes() {
     if(document.hidden || pageQuotePending)return;
@@ -2742,7 +2747,7 @@ function restatesEarlier_(key, earlier) {
 
     if(d.quote) { var packet={};packet[d.code || DETAIL.code]=d.quote;renderQuotes(packet);d.quote=displayedQuotes[d.code || DETAIL.code]||d.quote; }
     var q = d.quote;
-    if (!q || !q.ok || q.last == null) {
+    if (!q || q.ok === false || q.last == null) {
       $('dPrice').textContent = '\u2014';
       $('dPrice').className = 'p flat';
       $('dChange').textContent = '目前取不到報價';
@@ -2764,7 +2769,7 @@ function restatesEarlier_(key, earlier) {
       ? (sign + ' ' + Math.abs(q.change).toFixed(2) + '　' + (q.changePct==null?'—':q.changePct.toFixed(2)+'%')
          + (q.time ? '　' + qTime(q.time) : ''))
       : '—') + (oldDay && !/\d{2}-\d{2}/.test(String(q.time || '')) ? '　前一交易日' : !oldDay && stale ? '　待更新' : '');
-    $('dChange').title = (q.source ? q.source + '：' : '') + '可確認的成交價，不以委買、委賣或試撮價補值。';
+    $('dChange').title = (q.source ? q.source + '：' : '') + '可確認的成交價，不以委買、委賣或試撮價補值。';renderQuotes({});
   }
 
   /* 抽屜這一次開的是哪一檔、兩支請求各自回了什麼。

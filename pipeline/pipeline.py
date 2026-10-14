@@ -5912,6 +5912,45 @@ _ANALYST_SUBJECT = re.compile(r'(?<!其他)(?<!別的)(?<!很多)(?<!有些)(?<!
                               r'(?:指出|表示|認為|提醒|指示|建議|點名|強調|說明|點出|看好|預期|判斷|分析|坦言))')
 
 
+_MACRO_CLAUSE = re.compile(r'匯率|台幣(?:升值|貶值|匯率)?|電子(?:股)?成交比重|成交比重|美債|殖利率|聯準會|加權指數|清洗浮額|洗(?:清|掉)?浮額|外資(?:史上|單日)?第[一二三]大(?:賣超|買超)|史上(?:第[一二三])?(?:最大)?(?:賣超|買超)|中小型股')
+
+
+def strip_macro_clauses(signals):
+    """個股說明裡沒有本股名稱、講的是大盤層級的話（匯率、電子成交比重、清洗浮額），拿掉那個子句；一句裡一半以上是這種話就整句拿掉。
+    2026/10/14 鈺邦「觀察目前台幣匯率貶值至多，且電子成交比重下降至67%，中小型股表現相對較強」、譜瑞-KY「大盤大跌則是為了清洗浮額」。"""
+    for cat in SIGNAL_CATEGORIES:
+        for row in signals.get(cat, []) or []:
+            if not isinstance(row, dict) or row.get('_manual_note_kept'):
+                continue
+            field = 'note' if cat == 'holdings' else 'reason'
+            text = str(row.get(field) or '')
+            if not _MACRO_CLAUSE.search(text):
+                continue
+            own = [n for n in {_display_name(row.get('name')), str(row.get('name') or '').replace('*', ''),
+                               re.sub(r'-?KY$', '', _display_name(row.get('name')) or '')} if len(n) >= 2]
+            out = []
+            for sentence in re.split(r'(?<=[。！？!?])', text):
+                if not sentence.strip() or any(n in sentence for n in own) or not _MACRO_CLAUSE.search(sentence):
+                    out.append(sentence)
+                    continue
+                end = sentence[-1] if sentence[-1] in '。！？!?' else ''
+                body = sentence[:-1] if end else sentence
+                clauses = [c for c in re.split(r'[，,；;]', body) if c.strip()]
+                macro = [c for c in clauses if _MACRO_CLAUSE.search(c)]
+                if len(macro) * 2 >= len(clauses):
+                    continue
+                kept = [c.strip() for c in clauses if not _MACRO_CLAUSE.search(c)]
+                kept[0] = re.sub(r'^(?:且|並|而|但|則)', '', kept[0])
+                out.append('，'.join(kept) + (end or '。'))
+            fixed = ''.join(out).strip()
+            if fixed != text and len(_ev_norm(fixed)) >= 8:
+                name = _display_name(row.get('name')) or str(row.get('name') or '')
+                print(f"  說明核對　{name}：大盤層級的子句不寫進個股說明，已拿掉")
+                note_decision('說明核對', '大盤層級的子句不寫進個股說明', name, text[:160])
+                row[field] = fixed
+    return signals
+
+
 def drop_speaker_sentences(signals):
     """個股說明裡仍然寫著講者名字的那一句拿掉（2026/09/30 創意「…目前不宜介入。創意為張正的股票。」整天因此被擋）。"""
     for cat in SIGNAL_CATEGORIES:
@@ -12944,7 +12983,48 @@ def _verdict_primary(pairs):
     return next((c for c in _VERDICT_ORDER if c in cats), '')
 
 
+# 觀眾提問裡的持有（「張總，我手中有6張台化…要出嗎？」）是提問者自己的部位，不是會員持股的依據（2026/10/14）。
+_VQ_ASKER = re.compile(r'^(?:張總|老師|張震|分析師|請問)[，,、\s]*(?:我|我的|請問)|(?:要|可以|能不能|該不該)[^，。]{0,6}(?:出|賣|抱|買)[^，。]{0,4}嗎[？?]?$|[嗎呢][？?]$')
+
+
+def _asked_refusal(names, transcript):
+    """被問「可不可以買X」而明確回答「不要」：回傳那一段原文，沒有就回空字串（2026/10/14 群聯）。"""
+    flat = re.sub(r'【[^】]{0,40}】|\s', '', str(transcript or ''))
+    for n in sorted({str(x) for x in names if len(str(x)) >= 2}, key=len, reverse=True):
+        m = re.search(r'(?:可不可以|能不能|可以|要不要|該不該)買' + re.escape(n) + r'[^。！!]{0,40}?[？?].{0,90}?我(?:說|叫他|回答?|跟他說)(?:先)?不要', flat)
+        if m:
+            return m.group(0)[-80:]
+    return ''
+
+
+def _explicitly_not_held(names, transcript):
+    """講者明講自己沒有這一檔（「我沒有台達電，我老實跟你講」）：回傳那一句，沒有就回空字串。「我沒有賣X」不算。"""
+    flat = re.sub(r'【[^】]{0,40}】|\s', '', str(transcript or ''))
+    for n in sorted({str(x) for x in names if len(str(x)) >= 2}, key=len, reverse=True):
+        m = re.search(r'我(?:們)?(?:手上|手中|自己)?(?:並|根本|其實)?沒有(?!賣|出|叫|講|說|推)(?:買)?(?:進)?' + re.escape(n), flat)
+        if m:
+            return flat[m.start():m.end() + 20]
+    return ''
+
+
+def _sold_near_self(row, transcript, names, others_sold):
+    """股名附近有賣的說法，而且講的是本股：當天另有別檔賣出、那句賣的話又沒有點到本股時，不算（2026/10/14 毅嘉與鈺邦）。"""
+    text = _name_adjacent_text(row, transcript)
+    if not _SOLD_NEARBY.search(text):
+        return False
+    if not others_sold:
+        return True
+    own = [str(n) for n in names if len(str(n)) >= 2]
+    for sentence in re.split(r'(?<=[。！？!?])', text):
+        if _SOLD_NEARBY.search(sentence) and any(n in sentence for n in own):
+            return True
+    return False
+
+
 _SOLD_NEARBY = re.compile(r'賣掉了|賣了|已經賣|賣光|賣出|出清|出掉|停損|停利|獲利了結|沒有了|(?<!不)(?<!沒有叫你)(?<!不准)(?<!不要)賣掉')
+
+
+HOLD_RECORD_DAYS = 15     # 會員持股列建立的持有，往前看幾天
 
 
 def _verdict_known(ss, date_str, with_open=False):
@@ -12977,6 +13057,27 @@ def _verdict_known(ss, date_str, with_open=False):
         known[code] = [f"系統紀錄：{day} {'買入' if kind == 'buy' else '賣出'}這一檔，之後到節目前一天沒有其他買賣紀錄"]
         if kind == 'buy':
             open_positions[code] = name
+    if with_open:
+        # 持有也可能是由會員持股列建立的（沒有買入紀錄，例如 2026/10/14 毅嘉）：節目前十五天內有會員持股列、
+        # 而且那之後操作紀錄沒有這一檔的賣出，也算紀錄上持有。
+        try:
+            hv = sheets_retry(ss.worksheet("會員持股").get_all_values)
+            hh = [str(h).strip() for h in hv[0]]
+            h_date, h_code = hh.index("日期"), hh.index("代號")
+            h_name = hh.index("股票名稱") if "股票名稱" in hh else -1
+            start = (datetime.strptime(date_str, '%Y/%m/%d') - timedelta(days=HOLD_RECORD_DAYS)).strftime('%Y/%m/%d')
+            latest = {}
+            for row in hv[1:]:
+                cell = lambda i: str(row[i]).strip() if 0 <= i < len(row) else ''
+                day, code = norm_date(cell(h_date)), cell(h_code)
+                if code and day and start <= day < date_str and day >= latest.get(code, ('',))[0]:
+                    latest[code] = (day, cell(h_name))
+            for code, (day, name) in latest.items():
+                trade = last.get(code)
+                if code not in open_positions and not (trade and trade[1] == 'sell' and trade[0] >= day):
+                    open_positions[code] = name
+        except Exception as e:
+            print(f"  分類裁決　讀不到會員持股（{str(e)[:60]}），紀錄上持有只看操作紀錄")
     return (known, notice, open_positions) if with_open else (known, notice)
 
 
@@ -13104,6 +13205,8 @@ def verdict_class(answer, passages_norm, names=()):
             return False
         if field in ('buy_today', 'sell_today', 'holding_now') and _VQ_HYPOTHETICAL.search(q):
             return False
+        if field == 'holding_now' and _VQ_ASKER.search(q.strip()):
+            return False                         # 觀眾提問裡的「我手中有…要出嗎？」是提問者自己的部位
         return True
 
     def yes(field):
@@ -13302,20 +13405,33 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             continue
         # 紀錄上還沒賣出（最近一筆是買入）、今天原文有講到、而且沒有賣出的說法：仍是會員持股。
         # 2026/10/02 同一份原稿三次重播，力積電、世芯-KY、聖暉每次落在不同分類，問卷三票也各不相同；紀錄是唯一不會變的依據。
+        others_sold = ({str(r.get('code') or '') for r in signals.get('sell', []) or [] if isinstance(r, dict)}
+                       | {k[0] for k in notice if k[1] == 'sell'}) - {code, ''}
         if entry['open'] and current != 'sell' and not explicit_today_trades(transcript, names, 'sell') \
-                and not _SOLD_NEARBY.search(_name_adjacent_text(row, transcript)):
+                and not _sold_near_self(row, transcript, names, others_sold):
             entry.update(cls='holdings', tier='直接歸類', basis='紀錄上持有（最近一筆是買入、沒有賣出），今天原文有講到、沒有賣出的說法', enforce=True)
             continue
         # 已判觀望不碰，又有同句點名的當下禁買，無須問卷重擲。
         # 名稱在禁令後也適用；下一句未點名的「可以買」不能解除本股禁令。
         closed = _named_current_prohibition(row, transcript) if current == 'watch_avoid' else ''
+        if not closed and current not in ('buy', 'sell', 'holdings'):
+            asked = _asked_refusal(names, transcript)
+            if asked:
+                closed = '被問可不可以買，明確回答不要：' + asked
         if closed:
             entry.update(cls='watch_avoid', tier='直接歸類', basis='同句點名且明確當下禁買：' + closed,
                          enforce=True)
             continue
+        # 紀錄上沒有未賣出的部位、原文又明講「我沒有X」的會員持股：以觀望注意為底重新裁決，不留在會員持股（2026/10/14 台達電）。
+        not_held = _explicitly_not_held(names, transcript) if current == 'holdings' and not entry['open'] else ''
+        if not_held:
+            entry['not_held'] = not_held
         sent, text = _verdict_mark(_own_segments(row, signals, transcript, 300, 500), names | {code})
         sent = sent[:10]
         if not text:
+            if not_held:
+                entry.update(cls='watch_watch', tier='直接歸類', enforce=True, basis='原文明講沒有持有：' + not_held)
+                continue
             entry.update(tier='一致通過', basis='原文找不到本股段落，不裁決')
             continue
         hidden = lambda c: '' if c in _VERDICT_HIDDEN else c
@@ -13323,7 +13439,7 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
         marks = _verdict_markers(text, current)
         # 持有是事實，三個階段一致又沒有疑點就採用。觀望兩類與「要不要列」靠的是語氣，10/08 同一份原稿的初判
         # 一致率只有五成到七成（宏達電 52%、創意 65%、環球晶 71%），三個階段彼此也不獨立：這幾類第一次出現一律裁決。
-        if len(set(stages)) == 1 and not marks and current == 'holdings':
+        if len(set(stages)) == 1 and not marks and current == 'holdings' and not entry.get('not_held'):
             entry.update(tier='一致通過', basis='初判、覆核、規則後同為會員持股，段落沒有疑點')
             continue
         why = [] if current == 'holdings' else ['分類靠語氣判斷（' + _VERDICT_LABEL.get(current, current) + '）']
@@ -13373,7 +13489,8 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             entry['votes'].append(cls)
             if cls and not entry['answer'].get(cls):
                 entry['answer'][cls] = {'basis': basis, 'answer': answers.get(code)}
-            state, decided, why = verdict_settle('ignored' if entry.get('late') else entry['current'], entry['votes'],
+            base = 'ignored' if entry.get('late') else ('watch_watch' if entry.get('not_held') else entry['current'])
+            state, decided, why = verdict_settle(base, entry['votes'],
                                                  last=round_no == VERDICT_MAX_ROUNDS - 1, open_position=bool(entry.get('open')))
             if state == '再問':
                 still.append((code, item))
@@ -13386,6 +13503,9 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                               '各票：' + '、'.join(_VERDICT_LABEL.get(v, v) or '不能用' for v in entry['votes']))
                 continue
             detail = (entry['answer'].get(decided) or {}).get('basis') or ''
+            if entry.get('not_held') and state == '未定':
+                # 明講沒有持有：沒有多數時也不留在會員持股，以觀望注意定案
+                state, decided, why = '定案', 'watch_watch', '原文明講沒有持有，沒有多數時以觀望注意定案：' + entry['not_held'][:30]
             entry.update(cls=decided, tier='裁決' if state == '定案' else '未定', enforce=state == '定案', new=True,
                          basis='｜'.join(x for x in (entry['basis'], why, detail) if x))
             if state == '未定':
@@ -16441,6 +16561,7 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     signals = drop_lot_profit_unit_conflicts(signals, TX["audit"])
     signals = resolve_watch_holding_overlap(signals, date_str, TX["audit"])
     signals = drop_speaker_sentences(signals)
+    signals = strip_macro_clauses(signals)
     signals = strip_leading_conjunctions(signals)
     # 分類搬回之後可能才新增持股列；只在原句確實列為本人持股時提供簡潔書面說明。
     for row in signals.get('holdings', []) or []:

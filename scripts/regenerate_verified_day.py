@@ -23,6 +23,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--date', required=True)
     parser.add_argument('--apply', action='store_true')
+    # raw：唯讀，不把人工答案的分類與不得出現的說法套進流程，只拿來比對（驗證規則本身用）
+    parser.add_argument('--raw', action='store_true')
     args = parser.parse_args()
     day = pl.norm_date(args.date)
     target = datetime.strptime(day, '%Y/%m/%d').date()
@@ -40,7 +42,7 @@ def main():
     raw, polished = pl.existing_transcript(dry, '', day, snapshot=snapshot)
     if not raw or not snapshot.get('video_id'):
         raise SystemExit('原始逐字稿或來源 ID 不完整；本次未寫入')
-    reviewed = golden.get('reviewed_notes') or {}
+    reviewed = {} if args.raw else (golden.get('reviewed_notes') or {})
     if reviewed:
         if golden.get('reviewed_notes_sha256') != hashlib.sha256(raw.encode()).hexdigest():
             raise SystemExit('人工說明的原稿指紋已變更，須重新核對')
@@ -66,8 +68,13 @@ def main():
 
     # 人工逐段核對後明列在該日答案的分類，交由既有裁決流程在撰稿前套用。
     # 只在這支單日更新腳本生效；一般每日流程仍由證據與裁決規則判定。
-    verified = {str(code): cats[0] for code, cats in golden.get('must', {}).items() if len(cats) == 1}
-    verified.update({str(code): 'ignored' for code in golden.get('must_not', [])})
+    if args.raw and args.apply:
+        raise SystemExit('raw 只能唯讀預覽；本次未寫入')
+    verified = {} if args.raw else {str(code): cats[0] for code, cats in golden.get('must', {}).items() if len(cats) == 1}
+    if not args.raw:
+        verified.update({str(code): 'ignored' for code in golden.get('must_not', [])})
+    else:
+        print('raw 預覽：人工答案只拿來比對，不套進流程')
     existing_verdicts = verdict_cache(dry, day)
     conflicts = [code for code, category in verified.items() if (existing_verdicts.get(code) or {}).get('manual')
                  not in (None, '', category)]
@@ -88,7 +95,7 @@ def main():
 
     # 人工答案裡「這一檔不得出現的說法」：改寫成書面語之後、產生文章之前，把含有那個說法的子句刪掉。
     # 只在這支單日更新腳本生效；比對那一關照樣在後面把關。
-    forbidden = {str(code): [x for x in phrases if x] for code, phrases in (golden.get('note_must_not') or {}).items()}
+    forbidden = {} if args.raw else {str(code): [x for x in phrases if x] for code, phrases in (golden.get('note_must_not') or {}).items()}
     polish = pl.polish_public_texts
     quarantine = pl.quarantine_public_rows
 

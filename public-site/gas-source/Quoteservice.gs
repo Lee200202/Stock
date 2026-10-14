@@ -1083,14 +1083,17 @@ function mergeLiveQuotes_(quotes) {
  */
 function getQuotesFor(codes, refreshStale, batchOnly, cacheOnly) {
   var cache = getQuoteCache();
-  var out = {}, missing = [];
+  var out = {}, missing = [], sharedQuotes = {};
+  var sharedKeys = [];
+  (codes || []).forEach(function(c){c=String(c).trim();if(/^(?:00\d{3,4}|\d{4,6})[A-Z]?$/.test(c)){sharedKeys.push('quote_live_'+c,'quote_view_'+c);}});
+  if(sharedKeys.length){try{sharedQuotes=CACHE.getAll(sharedKeys);}catch(ignore){}}
 
   (codes || []).forEach(function (c) {
     c = String(c).trim();
     if (!/^(?:00\d{3,4}|\d{4,6})[A-Z]?$/.test(c)) { return; }
     if (missing.indexOf(c) >= 0 || out[c]) { return; }
     var hit = cache[c];
-    ['quote_live_', 'quote_view_'].forEach(function(prefix){try {var shared=CACHE.get(prefix+c);if(shared){var checked=JSON.parse(shared);if(quoteFresh_(checked.stamp)&&(!hit||quoteAgeMin_(checked.stamp)<=quoteAgeMin_(hit.stamp)))hit=checked;}}catch(e){}});
+    ['quote_live_', 'quote_view_'].forEach(function(prefix){try {var shared=sharedQuotes[prefix+c];if(shared){var checked=JSON.parse(shared);if(quoteFresh_(checked.stamp)&&(!hit||quoteAgeMin_(checked.stamp)<=quoteAgeMin_(hit.stamp)))hit=checked;}}catch(e){}});
     if (!hit) { missing.push(c); return; }
     if (quoteFresh_(hit.stamp)) { out[c] = hit; return; }
     out[c] = hit;

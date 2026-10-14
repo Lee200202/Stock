@@ -516,6 +516,7 @@
     if (name === 'perf' && !perfLoaded) { loadPerf(); }
     if (name === 'mail' && !mailLoaded) { loadMailDates(); }
     if (name === 'tx' && !txLoaded) { loadTxDates(); }
+    if (name === 'overview' || name === 'tracker') { setTimeout(refreshPageQuotes, 0); }
   }
   window.__activateTab = activateTab;
 

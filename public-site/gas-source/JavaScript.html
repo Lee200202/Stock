@@ -1000,11 +1000,42 @@ function restatesEarlier_(key, earlier) {
         $('dChange').textContent=view.stale?view.label:view.pct==null?'—':(view.pct>0?'▲ ':view.pct<0?'▼ ':'')+Math.abs(Number(shared.change)).toFixed(2)+'　'+view.pct.toFixed(2)+'%';$('dChange').className='d '+signCls(view.pct);$('dChange').title='成交時間：'+view.time;}
     }
   }
+  // 同頁共用補查佇列：先畫已取得的報價，只有過期／缺值才接續，不空等下一分鐘。
+  var quoteQueue = {}, quoteAttempts = {}, quoteQueueTimer = null;
+  function queuePageQuotes(codes, reset) {
+    (codes || []).forEach(function(c) {
+      if (!isCode(c)) return;
+      if (reset) quoteAttempts[c] = 0;
+      var v = quoteView(displayedQuotes[c]);
+      if (!v || v.stale) quoteQueue[c] = true;
+    });
+    if (!pageQuotePending && !quoteQueueTimer && !document.hidden) quoteQueueTimer = setTimeout(drainPageQuotes, 40);
+  }
+  function drainPageQuotes() {
+    quoteQueueTimer = null;
+    if (pageQuotePending || document.hidden) return;
+    var codes = Object.keys(quoteQueue).filter(function(c) {
+      var v = quoteView(displayedQuotes[c]);
+      if (v && !v.stale || (quoteAttempts[c] || 0) >= 4) { delete quoteQueue[c]; return false; }
+      return true;
+    }).sort();
+    if (!codes.length) return;
+    pageQuotePending = true;
+    codes.forEach(function(c){quoteAttempts[c] = (quoteAttempts[c] || 0) + 1;});
+    google.script.run.withSuccessHandler(function(q) {
+      pageQuotePending = false;
+      renderQuotes(q);
+      if (!document.hidden) quoteQueueTimer = setTimeout(drainPageQuotes, 150);
+    }).withFailureHandler(function() {
+      pageQuotePending = false;
+      quoteQueue = {}; // 來源失敗等下一輪，不在前端放大重試。
+      renderQuotes({});
+    }).apiGetQuotesFor(codes);
+  }
   function refreshPageQuotes() {
-    if(document.hidden || pageQuotePending)return;
+    if (document.hidden) return;
     var codes=[];document.querySelectorAll('[data-px],[data-bandpx],[data-live-price]').forEach(function(el){var code=el.dataset.px||el.dataset.bandpx||el.dataset.livePrice;if(isCode(code)&&codes.indexOf(code)<0)codes.push(code);});
-    if(!codes.length)return;pageQuotePending=true;
-    google.script.run.withSuccessHandler(function(q){pageQuotePending=false;renderQuotes(q);}).withFailureHandler(function(){pageQuotePending=false;renderQuotes({});}).apiGetQuotesFor(codes);
+    queuePageQuotes(codes, true);
   }
   setInterval(function(){renderQuotes({});var p=new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Taipei',weekday:'short',hour:'2-digit',hour12:false}).formatToParts(new Date()),v={};p.forEach(function(x){v[x.type]=x.value;});if(['Mon','Tue','Wed','Thu','Fri'].indexOf(v.weekday)>=0&&Number(v.hour)>=9&&Number(v.hour)<15)refreshPageQuotes();},60000);
   document.addEventListener('visibilitychange',function(){if(!document.hidden)refreshPageQuotes();});
@@ -1017,13 +1048,7 @@ function restatesEarlier_(key, earlier) {
     });
     if (!codes.length) { return; }
 
-    google.script.run.withSuccessHandler(function (q) {
-      renderQuotes(q, scope);
-    }).withFailureHandler(function () {
-      document.querySelectorAll('[data-px],[data-chg]').forEach(function (el) {
-        if (el.textContent === '\u00b7\u00b7\u00b7') { el.textContent = '—'; }
-      });
-    }).apiGetQuotesFor(codes);
+    queuePageQuotes(codes, false);
   }
 
   /* ------------------------------------------------------------------ *
@@ -1355,15 +1380,7 @@ function restatesEarlier_(key, earlier) {
     });
     if (!codes.length) { return; }
 
-    google.script.run.withSuccessHandler(function (q) {
-      if (version !== bandRenderVersion) { return; }
-      renderQuotes(q);
-    }).withFailureHandler(function () {
-      if (version !== bandRenderVersion) { return; }
-      document.querySelectorAll('[data-bandpx]').forEach(function (el) {
-        el.textContent = '\u2014'; el.className = 'px flat';
-      });
-    }).apiGetQuotesFor(codes);
+    queuePageQuotes(codes, false);
   }
 
   /* ---------------- 首頁 ---------------- */

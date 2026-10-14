@@ -1,22 +1,22 @@
 == 區段（1600px）
-tech-intro｜想找一檔股票上次講了什麼，我做了這個網站｜高 482｜字 1936｜圖片 0、SVG 11、figure 1、按鈕 9
-tech-overview｜資料從哪裡來，最後去了哪裡｜高 374｜字 1442｜圖片 0、SVG 2、figure 0、按鈕 56
-tech-loading｜資料量與載入速度｜高 494｜字 1184｜圖片 1、SVG 1、figure 1、按鈕 12
-tech-day｜9 月 23 日，一則即時紀錄和一支影片實際走過的路｜高 484｜字 1147｜圖片 0、SVG 1、figure 0、按鈕 21
-tech-agent｜AI 是怎麼讀原稿、查資料，再交出答案的？｜高 484｜字 3263｜圖片 0、SVG 11、figure 1、按鈕 24
-tech-names｜語音辨識會把股名聽錯，所以搜尋也認得錯字｜高 454｜字 473｜圖片 0、SVG 1、figure 0、按鈕 19
-tech-subject｜同一句有「賣」，要先看誰在賣｜高 374｜字 813｜圖片 0、SVG 1、figure 0、按鈕 28
-tech-number｜「168 張」和「900 以下」都是真數字，只有一個是股價｜高 464｜字 573｜圖片 0、SVG 1、figure 0、按鈕 15
-tech-unnamed｜他沒講是哪一檔時，我用昨天的收盤價去認｜高 504｜字 1183｜圖片 0、SVG 1、figure 0、按鈕 8
-tech-source-priority｜盤中先有操作，影片後到：網站該信誰？｜高 374｜字 719｜圖片 0、SVG 1、figure 0、按鈕 8
-tech-public-notes｜這句話為什麼能公開，另一句為什麼待複核？｜高 374｜字 966｜圖片 0、SVG 1、figure 0、按鈕 17
-tech-transcript-progress｜新稿來了，舊工單會不會蓋回去？｜高 494｜字 1251｜圖片 0、SVG 1、figure 0、按鈕 19
-tech-hold｜持股有開始和結束，績效必須跟著日期重算｜高 464｜字 568｜圖片 0、SVG 1、figure 0、按鈕 3
-tech-failure｜有一段失敗時，我希望後台說清楚停在哪裡｜高 534｜字 862｜圖片 0、SVG 1、figure 0、按鈕 17
-tech-limit｜這些紀錄能幫你回查，也有明確的限制｜高 374｜字 572｜圖片 0、SVG 1、figure 0、按鈕 19
-tech-open｜還沒解決的事｜高 374｜字 939｜圖片 0、SVG 4、figure 0、按鈕 17
-tech-faq｜常見問題｜高 374｜字 1268｜圖片 0、SVG 1、figure 0、按鈕 7
-tech-author｜關於作者｜高 374｜字 413｜圖片 0、SVG 7、figure 0、按鈕 3
+tech-intro｜想找一檔股票上次講了什麼，我做了這個網站｜高 556｜字 1936｜圖片 0、SVG 11、figure 1、按鈕 9
+tech-overview｜資料從哪裡來，最後去了哪裡｜高 448｜字 1442｜圖片 0、SVG 2、figure 0、按鈕 56
+tech-loading｜資料量與載入速度｜高 592｜字 1184｜圖片 1、SVG 1、figure 1、按鈕 12
+tech-day｜9 月 23 日，一則即時紀錄和一支影片實際走過的路｜高 580｜字 1147｜圖片 0、SVG 1、figure 0、按鈕 21
+tech-agent｜AI 是怎麼讀原稿、查資料，再交出答案的？｜高 580｜字 3263｜圖片 0、SVG 11、figure 1、按鈕 24
+tech-names｜語音辨識會把股名聽錯，所以搜尋也認得錯字｜高 544｜字 473｜圖片 0、SVG 1、figure 0、按鈕 19
+tech-subject｜同一句有「賣」，要先看誰在賣｜高 448｜字 813｜圖片 0、SVG 1、figure 0、按鈕 28
+tech-number｜「168 張」和「900 以下」都是真數字，只有一個是股價｜高 556｜字 573｜圖片 0、SVG 1、figure 0、按鈕 15
+tech-unnamed｜他沒講是哪一檔時，我用昨天的收盤價去認｜高 604｜字 1183｜圖片 0、SVG 1、figure 0、按鈕 8
+tech-source-priority｜盤中先有操作，影片後到：網站該信誰？｜高 448｜字 719｜圖片 0、SVG 1、figure 0、按鈕 8
+tech-public-notes｜這句話為什麼能公開，另一句為什麼待複核？｜高 448｜字 966｜圖片 0、SVG 1、figure 0、按鈕 17
+tech-transcript-progress｜新稿來了，舊工單會不會蓋回去？｜高 592｜字 1251｜圖片 0、SVG 1、figure 0、按鈕 19
+tech-hold｜持股有開始和結束，績效必須跟著日期重算｜高 556｜字 588｜圖片 0、SVG 1、figure 0、按鈕 3
+tech-failure｜有一段失敗時，我希望後台說清楚停在哪裡｜高 640｜字 862｜圖片 0、SVG 1、figure 0、按鈕 17
+tech-limit｜這些紀錄能幫你回查，也有明確的限制｜高 448｜字 572｜圖片 0、SVG 1、figure 0、按鈕 19
+tech-open｜還沒解決的事｜高 448｜字 939｜圖片 0、SVG 4、figure 0、按鈕 17
+tech-faq｜常見問題｜高 448｜字 1268｜圖片 0、SVG 1、figure 0、按鈕 7
+tech-author｜關於作者｜高 448｜字 413｜圖片 0、SVG 7、figure 0、按鈕 3
 
 == 比章節窄很多的區塊（1600px）
 

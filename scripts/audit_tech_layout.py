@@ -24,7 +24,10 @@ JS = r"""
   while (walker.nextNode()) {
     const t = walker.currentNode; const txt = t.textContent.trim(); if (txt.length < 2) continue;
     const el = t.parentElement; if (!el || seen.has(el) || !vis(el)) continue; seen.add(el);
-    const fs = parseFloat(getComputedStyle(el).fontSize);
+    // SVG 裡的字以 viewBox 單位設定：乘上畫面縮放比，量的是實際顯示的字級（圖解放大後文字反向縮放）
+    const svg = el.closest && el.closest('svg'), vb = svg && svg.viewBox && svg.viewBox.baseVal;
+    const scale = vb && vb.width ? svg.getBoundingClientRect().width / vb.width : 1;
+    const fs = Math.round(parseFloat(getComputedStyle(el).fontSize) * scale * 100) / 100;
     const key = sel(el).replace(/#[\w-]+/g, '');
     if (fs < 13.5) { (out.small[key] = out.small[key] || {px: fs, n: 0, sample: txt.slice(0, 26)}).n++; }
     if (fs > 36) { (out.large[key] = out.large[key] || {px: fs, n: 0, sample: txt.slice(0, 26)}).n++; }

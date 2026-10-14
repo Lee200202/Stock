@@ -32,7 +32,7 @@ try:
                 page.locator('[data-story-mode="full"]').click()
                 assert page.locator('.story-details[open]').count()==18
                 page.locator('[data-story-mode="short"]').click()
-                page.locator('button[data-story-act="2"]').click()
+                page.locator('.story-rail-handle').click()
                 assert page.locator('.story-rail-panel').is_visible()
                 page.locator('.story-rail-panel a').first.click()
                 assert not page.locator('.story-rail-panel').is_visible()

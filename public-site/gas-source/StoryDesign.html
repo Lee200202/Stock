@@ -65,19 +65,21 @@
 @keyframes storyReveal { from { transform:translateY(8px); } to { transform:translateY(0); } }
 .story-main.is-in:not(.is-stopped) .story-visual .viz-part { animation:storyReveal .4s cubic-bezier(.22,1,.36,1) both; animation-delay:calc(var(--i,0) * 130ms); }
 .story-main.is-stopped * { animation:none !important; }
-.story-rail { display:none; position:fixed; z-index:55; right:8px; top:24vh; width:auto; min-width:56px; padding:6px; border:1px solid var(--rule); border-radius:24px; background:var(--panel); box-shadow:0 8px 24px #0002; }
+.story-rail { display:none; position:fixed; z-index:55; right:8px; top:40vh; }
 body:has(#p-tech:not([hidden])) .story-rail { display:block; }
 body:has(#p-tech:not([hidden])) .subnav { display:none !important; }
-body:has(#p-tech:not([hidden])) #toTop,body:has(#p-tech:not([hidden])) #asstFab { visibility:hidden; pointer-events:none; }
-.story-rail-actions { display:grid; gap:4px; }
-.story-rail button { min-height:44px; min-width:44px; padding:8px 6px; white-space:nowrap; border:0; border-radius:14px; color:var(--ink); background:transparent; font:inherit; font-size:calc(13.5px * var(--rd-fs)); cursor:pointer; }
-.story-rail button svg { width:22px; height:22px; display:block; margin:0 auto 2px; }
-.story-rail button[aria-current="step"] { color:var(--beam); background:color-mix(in srgb,var(--beam) 14%,var(--panel)); box-shadow:inset 0 -3px var(--beam); }
-.story-rail-panel { position:absolute; top:0; right:calc(100% + 12px); width:300px; max-height:70vh; box-shadow:0 12px 32px #0002; overflow:auto; padding:16px; border:1px solid var(--rule); border-radius:20px; background:var(--panel); }
+body:has(#p-tech:not([hidden])) #toTop { visibility:hidden; pointer-events:none; }
+.story-rail-handle { display:flex; flex-direction:column; align-items:center; gap:4px; min-width:48px; min-height:96px; padding:10px 6px; border:1px solid var(--rule); border-radius:18px; background:var(--panel); color:var(--ink); box-shadow:0 8px 24px #0002; font:inherit; font-size:calc(13.5px * var(--rd-fs)); white-space:nowrap; cursor:pointer; }
+.story-rail-handle svg { width:22px; height:22px; color:var(--beam); }
+.story-rail-handle[aria-expanded="true"] { border-color:var(--beam); }
+.story-rail-handle .story-rail-label { writing-mode:vertical-rl; letter-spacing:.2em; font-weight:600; }
+.story-rail-progress { font-size:calc(12.5px * var(--rd-fs) + 1px); color:var(--muted); font-family:'IBM Plex Mono',monospace; }
+.story-rail-panel { position:absolute; top:50%; right:calc(100% + 10px); transform:translateY(-50%); width:min(320px,calc(100vw - 96px)); max-height:min(76vh,640px); overflow:auto; padding:14px; border:1px solid var(--rule); border-radius:20px; background:var(--panel); box-shadow:0 12px 32px #0003; }
 .story-rail-panel[hidden] { display:none; }
 .story-rail-panel a { display:block; min-height:44px; box-sizing:border-box; padding:10px; border-radius:12px; font-size:calc(14px * var(--rd-fs)); color:var(--ink); text-decoration:none; }
-.story-rail-panel a[aria-current="location"] { color:var(--beam); background:var(--panel-2); }
-.story-rail-progress { padding:8px 0; text-align:center; font-size:calc(13.5px * var(--rd-fs)); }
+.story-rail-panel a:hover { background:var(--panel-2); }
+.story-rail-panel a[aria-current="location"] { color:var(--beam); background:var(--panel-2); font-weight:600; }
+.story-rail-panel .story-rail-top { color:var(--muted); }
 .story-faq-controls { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
 .story-faq-controls input { flex:1 1 100%; min-width:0; min-height:48px; padding:10px 18px; box-sizing:border-box; border-radius:999px; border:1px solid var(--rule); background:var(--panel); color:var(--ink); font:inherit; }
 .story-contact-links { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin:20px 0; }
@@ -111,17 +113,7 @@ body:has(#p-tech:not([hidden])) #toTop,body:has(#p-tech:not([hidden])) #asstFab 
 .story-mini-return { display:flex; height:8px; margin:14px 0 10px; border-radius:999px; background:var(--rule); overflow:hidden; }
 .story-mini-return i { height:100%; width:var(--rw); background:var(--rc); }
 #toTop { left:auto; right:24px; transform:none; bottom:92px; }
-.story-rail-panel .story-rail-act { display:block; margin:12px 0 4px; padding:4px 10px; border-radius:10px; font-size:calc(13.5px * var(--rd-fs)); color:var(--muted); }
-.story-rail-panel .story-rail-act:first-child { margin-top:0; }
-.story-rail-panel .story-rail-act.is-hot { color:var(--beam); background:color-mix(in srgb,var(--beam) 12%,var(--panel)); }
-@media(max-width:1099px) {
- .story-rail { top:auto; bottom:0; left:0; right:0; width:auto; border-radius:20px 20px 0 0; padding:4px max(4px,env(safe-area-inset-right)) max(4px,env(safe-area-inset-bottom)); }
- .story-rail-actions { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:0; }
- .story-rail-panel { top:auto; bottom:65px; left:12px; width:min(300px,calc(100vw - 56px)); }
- .story-rail-progress { display:none; }
- body:has(#p-tech:not([hidden])) { padding-bottom:80px; }
- body:has(#p-tech:not([hidden])) .asst-panel { bottom:80px; }
-}
+.story-rail-panel .story-rail-act { display:block; margin:12px 0 4px; padding:4px 10px; font-size:calc(13.5px * var(--rd-fs)); color:var(--muted); }
 @media(max-width:760px) {
  .story-designed .story-main { padding:14px; }
  .story-designed .story-section { margin:20px 0; padding-block:18px; }
@@ -358,45 +350,43 @@ function initStory(){
  document.addEventListener('visibilitychange',function(){models.forEach(function(s){if(document.hidden)stopAuto(s);else {startAuto(s);legacyPlayers.filter(function(x){return x.s===s;}).forEach(playLegacy);}});});
  new MutationObserver(function(){if(root.closest('[hidden]'))models.forEach(function(s){stopAuto(s);s.inView=false;s.mainVisible=s.detailVisible=false;});}).observe(root.closest('.panel')||root,{attributes:true,attributeFilter:['hidden']});
  // 四幕閱讀軌位於 body，避免被面板 transform 改變 fixed 定位。
- var rail=document.createElement('nav');rail.className='story-rail';rail.setAttribute('aria-label','四幕閱讀導覽');rail.innerHTML='<div class="story-rail-actions"><button type="button" data-story-top aria-label="回到技術說明頂端">'+icon('record')+'頂端</button>'+ACTS.map(function(a,i){return '<button type="button" data-story-act="'+i+'" aria-expanded="false" aria-controls="story-rail-panel">'+icon(a[1])+(i+1)+'幕</button>';}).join('')+'<button type="button" data-story-help aria-label="開啟問問題">'+icon('model')+'問題</button></div><p class="story-rail-progress">1／18</p><div class="story-rail-panel" id="story-rail-panel" hidden></div>';document.body.appendChild(rail);
- var current=0,panel=q('.story-rail-panel',rail),actButtons=qa('[data-story-act]',rail);
+ // 目錄：每一種寬度都在右邊，平常只露出把手；滑鼠移過去（或點一下）展開完整章節。不再有「1幕、2幕…」按鈕與底部列。
+ var rail=document.createElement('nav');rail.className='story-rail';rail.setAttribute('aria-label','技術說明章節目錄');
+ rail.innerHTML='<button type="button" class="story-rail-handle" aria-expanded="false" aria-controls="story-rail-panel" aria-label="章節目錄">'+icon('book')+'<span class="story-rail-label">目錄</span><span class="story-rail-progress">1／18</span></button><div class="story-rail-panel" id="story-rail-panel" role="dialog" aria-label="完整章節" hidden></div>';
+ document.body.appendChild(rail);
+ var current=0,panel=q('.story-rail-panel',rail),handle=q('.story-rail-handle',rail),actButtons=[];
  function jump(sec){var offset=0;document.querySelectorAll('.topbar,.tabbar').forEach(function(e){var r=e.getBoundingClientRect();if(r.height)offset=Math.max(offset,r.bottom);});var y=sec.getBoundingClientRect().top+scrollY-offset-18;if(window.__scrollToY)window.__scrollToY(y);else window.scrollTo(0,y);var h=q('h2',sec);h.tabIndex=-1;h.focus({preventScroll:true});}
- actButtons.forEach(function(b){b.addEventListener('click',function(){var a=+b.dataset.storyAct,on=panel.hidden||panel.dataset.act!==String(a);actButtons.forEach(function(x){x.setAttribute('aria-expanded','false');});panel.hidden=!on;panel.dataset.act=String(a);if(!on)return;b.setAttribute('aria-expanded','true');panel.innerHTML='<b>'+ACTS[a][0]+'</b>'+models.filter(function(s){return s.meta[1]===a;}).map(function(s){var h=q('h2',s.sec);return '<a href="#'+h.id+'" data-story-go="'+s.meta[0]+'"'+(models.indexOf(s)===current?' aria-current="location"':'')+'>'+esc(h.dataset.toc)+'</a>';}).join('');qa('a',panel).forEach(function(link){link.addEventListener('click',function(e){e.preventDefault();var s=models.find(function(s){return s.meta[0]===link.dataset.storyGo;});jump(s.sec);history.replaceState(null,'','#'+q('h2',s.sec).id);panel.hidden=true;b.setAttribute('aria-expanded','false');});});});});
- // 電腦版（可滑鼠、1100px 以上）：導覽放在內容右側的空白，依實際內容右緣計算；空白不夠就讓技術說明內容往左讓出位置，不蓋住內容
- var canHover=window.matchMedia('(hover:hover) and (min-width:1100px)'),sideRail=window.matchMedia('(min-width:1100px)'),techPanel=document.getElementById('p-tech');
+ // 位置：依實際內容右緣放在右側空白；空白不夠就讓技術說明內容往左讓出位置，不蓋住內容
+ var techPanel=document.getElementById('p-tech');
  function placeRail(){
    if(!techPanel)return;techPanel.style.paddingRight='';rail.style.right='';rail.style.top='';
-   if(!sideRail.matches||techPanel.hidden)return;
-   // 上緣不壓到頂端列與分頁列，下緣不超出畫面（字級放大時導覽變高）
+   if(techPanel.hidden)return;
+   var railW=rail.offsetWidth||52,edge=document.documentElement.clientWidth,right=root.getBoundingClientRect().right,gap=edge-right,need=railW+16;
+   if(gap>=need)rail.style.right=Math.max(6,Math.round((gap-railW)/2))+'px';
+   else{techPanel.style.paddingRight=Math.ceil(need-gap)+'px';rail.style.right='6px';}
    var head=0;document.querySelectorAll('.topbar,.tabbar').forEach(function(e){var r=e.getBoundingClientRect();if(r.height&&r.top<120)head=Math.max(head,r.bottom);});
-   rail.style.top=Math.round(Math.max(head+12,Math.min(innerHeight*.24,innerHeight-rail.offsetHeight-12)))+'px';
-   var railW=rail.offsetWidth||64,edge=document.documentElement.clientWidth,right=root.getBoundingClientRect().right,gap=edge-right,need=railW+24;
-   if(gap>=need){rail.style.right=Math.max(8,Math.round((gap-railW)/2))+'px';return;}
-   techPanel.style.paddingRight=Math.ceil(need-gap)+'px';rail.style.right='8px';
+   rail.style.top=Math.round(Math.max(head+12,(innerHeight-rail.offsetHeight)/2))+'px';
  }
  window.addEventListener('resize',placeRail,{passive:true});
- if(window.ResizeObserver)new ResizeObserver(placeRail).observe(rail);
+ if(window.ResizeObserver)new ResizeObserver(placeRail).observe(handle);
  new MutationObserver(placeRail).observe(techPanel||root,{attributes:true,attributeFilter:['hidden']});
  new MutationObserver(placeRail).observe(document.documentElement,{attributes:true,attributeFilter:['style','class','data-view','data-fs','data-ls','data-lh','data-w']});
  setTimeout(placeRail,0);
- // 滑鼠移到導覽：跳出完整章節視窗（四幕、十八章，目前章節標示）；移到某一幕時該幕亮起；移開就收起。點章節直接跳過去。
- var fullOpen=false,hoverClose=0;
+ // 完整章節視窗
+ var fullOpen=false,hoverClose=0,canHover=window.matchMedia('(hover:hover)');
  function fullList(){
-   panel.innerHTML=ACTS.map(function(a,i){return '<span class="story-rail-act" data-rail-act="'+i+'">'+(i+1)+'幕　'+esc(a[0])+'</span>'+models.filter(function(s){return s.meta[1]===i;}).map(function(s){var h=q('h2',s.sec);return '<a href="#'+h.id+'" data-story-go="'+s.meta[0]+'"'+(models.indexOf(s)===current?' aria-current="location"':'')+'>'+esc(h.dataset.toc)+'</a>';}).join('');}).join('');
-   qa('a',panel).forEach(function(link){link.addEventListener('click',function(e){e.preventDefault();var s=models.find(function(s){return s.meta[0]===link.dataset.storyGo;});jump(s.sec);history.replaceState(null,'','#'+q('h2',s.sec).id);closeFull();});});
-   panel.dataset.act='all';panel.hidden=false;fullOpen=true;
+   panel.innerHTML='<a href="#" class="story-rail-top" data-story-top>回到頂端</a>'+ACTS.map(function(a,i){return '<span class="story-rail-act">'+esc(a[0])+'</span>'+models.filter(function(s){return s.meta[1]===i;}).map(function(s){var h=q('h2',s.sec);return '<a href="#'+h.id+'" data-story-go="'+s.meta[0]+'"'+(models.indexOf(s)===current?' aria-current="location"':'')+'>'+esc(h.dataset.toc)+'</a>';}).join('');}).join('');
+   qa('a',panel).forEach(function(link){link.addEventListener('click',function(e){e.preventDefault();var s=link.hasAttribute('data-story-top')?models[0]:models.find(function(s){return s.meta[0]===link.dataset.storyGo;});jump(s.sec);if(!link.hasAttribute('data-story-top'))history.replaceState(null,'','#'+q('h2',s.sec).id);closeFull();});});
+   panel.hidden=false;fullOpen=true;handle.setAttribute('aria-expanded','true');
+   var cur=q('a[aria-current="location"]',panel);if(cur)panel.scrollTop=Math.max(0,cur.offsetTop-panel.clientHeight/2);
  }
- function hotAct(a){qa('.story-rail-act',panel).forEach(function(e){e.classList.toggle('is-hot',e.dataset.railAct===String(a));});var t=q('.story-rail-act[data-rail-act="'+a+'"]',panel);if(t)panel.scrollTop=Math.max(0,t.offsetTop-8);}
- function closeFull(){fullOpen=false;panel.hidden=true;actButtons.forEach(function(x){x.setAttribute('aria-expanded','false');});}
- rail.addEventListener('mouseenter',function(){if(!canHover.matches)return;clearTimeout(hoverClose);if(!fullOpen)fullList();var cur=q('[aria-current="step"]',rail);if(cur)hotAct(cur.dataset.storyAct);});
+ function closeFull(){fullOpen=false;panel.hidden=true;handle.setAttribute('aria-expanded','false');}
+ rail.addEventListener('mouseenter',function(){if(!canHover.matches)return;clearTimeout(hoverClose);if(!fullOpen)fullList();});
  rail.addEventListener('mouseleave',function(){if(!canHover.matches)return;hoverClose=setTimeout(closeFull,300);});
- actButtons.forEach(function(b){b.addEventListener('mouseenter',function(){if(canHover.matches&&fullOpen)hotAct(b.dataset.storyAct);});});
- // 完整視窗開著時，點一幕＝跳到那一幕的第一章（不收合清單）
- rail.addEventListener('click',function(e){var b=e.target.closest('[data-story-act]');if(!(e.isTrusted&&b&&canHover.matches&&fullOpen))return;e.stopPropagation();var first=models.find(function(s){return s.meta[1]===+b.dataset.storyAct;});if(first){jump(first.sec);closeFull();}},true);
- q('[data-story-top]',rail).addEventListener('click',function(){jump(models[0].sec);});
- q('[data-story-help]',rail).addEventListener('click',function(){var a=document.getElementById('asstFab');if(a)a.click();});
- document.addEventListener('keydown',function(e){if(e.key==='Escape'){panel.hidden=true;actButtons.forEach(function(b){b.setAttribute('aria-expanded','false');});}});
- document.addEventListener('click',function(e){if(!rail.contains(e.target)){panel.hidden=true;actButtons.forEach(function(b){b.setAttribute('aria-expanded','false');});}});
+ // 點把手：觸控與鍵盤用；滑鼠已經移過去展開時，點一下不收起
+ handle.addEventListener('click',function(){if(!fullOpen)fullList();else if(!canHover.matches||!rail.matches(':hover'))closeFull();});
+ document.addEventListener('keydown',function(e){if(e.key==='Escape'&&fullOpen){closeFull();handle.focus();}});
+ document.addEventListener('click',function(e){if(fullOpen&&!rail.contains(e.target))closeFull();});
  if(window.IntersectionObserver)new IntersectionObserver(function(entries){if(entries[0].isIntersecting){current=0;q('.story-rail-progress',rail).textContent='1／18';actButtons.forEach(function(b){if(+b.dataset.storyAct===0)b.setAttribute('aria-current','step');else b.removeAttribute('aria-current');});}},{threshold:.2}).observe(controls);
  // 每章個別觀察，避免每一畫格掃十八個章節。
  if(window.IntersectionObserver){var progressIO=new IntersectionObserver(function(entries){entries.forEach(function(en){if(!en.isIntersecting)return;current=+en.target.dataset.storyIndex;q('.story-rail-progress',rail).textContent=(current+1)+'／18';actButtons.forEach(function(b){if(+b.dataset.storyAct===+en.target.dataset.storyAct)b.setAttribute('aria-current','step');else b.removeAttribute('aria-current');});});},{rootMargin:'-5% 0px -70% 0px',threshold:0});models.forEach(function(s){progressIO.observe(s.sec);});}

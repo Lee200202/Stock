@@ -12766,7 +12766,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v8-20261013"          # 當日動作與歷史獲利重新核對；人工裁示仍優先
+VERDICT_VERSION = "v9-20261014"          # 當日動作與歷史獲利重新核對；人工裁示仍優先
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 3                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -12994,6 +12994,18 @@ def _asked_refusal(names, transcript):
         m = re.search(r'(?:可不可以|能不能|可以|要不要|該不該)買' + re.escape(n) + r'[^。！!]{0,40}?[？?].{0,90}?我(?:說|叫他|回答?|跟他說)(?:先)?不要', flat)
         if m:
             return m.group(0)[-80:]
+    return ''
+
+
+def _explicit_approval(names, transcript):
+    """原文對本股明講「X可以買」「X是OK的」「X可以了」：回傳那一段，沒有就回空字串。問句與假設句不算（2026/10/14 台達電）。"""
+    flat = re.sub(r'【[^】]{0,40}】|\s', '', str(transcript or ''))
+    for n in sorted({str(x) for x in names if len(str(x)) >= 2}, key=len, reverse=True):
+        for m in re.finditer(re.escape(n) + r'(?:[^，。！？!?]{0,6}[，,])?(?:是OK的|是ok的|可以買|可以了|OK了|ok了)', flat):
+            tail, head = flat[m.end():m.end() + 3], flat[max(0, m.start() - 8):m.start()]
+            if re.match(r'[嗎呢]|[？?]', tail) or re.search(r'如果|假如|假設|要是|可不可以|能不能|要不要', head):
+                continue
+            return flat[max(0, m.start() - 6):m.end() + 8]
     return ''
 
 
@@ -13418,6 +13430,11 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             asked = _asked_refusal(names, transcript)
             if asked:
                 closed = '被問可不可以買，明確回答不要：' + asked
+            else:
+                approved = _explicit_approval(names, transcript)
+                if approved:
+                    entry.update(cls='watch_watch', tier='直接歸類', basis='原文明講可以買：' + approved, enforce=True)
+                    continue
         if closed:
             entry.update(cls='watch_avoid', tier='直接歸類', basis='同句點名且明確當下禁買：' + closed,
                          enforce=True)
@@ -13482,6 +13499,9 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                 held, held_basis = verdict_class(dict(answers[code], buy_today=False), item['_norm'], item['_names'])
                 if held == 'holdings':
                     cls, basis = held, held_basis
+            if cls == 'buy' and entry['current'] != 'buy':
+                # 問卷認為今天買進，但買賣只認明確句或會員通知：這一票以看多計，不丟掉（2026/10/14 台達電「我說台達電可以買」）
+                cls, basis = 'watch_watch', '問卷答今天買進但無法核對成交，以看多計：' + basis
             # 流程判觀望不碰，點名本股的那一句又明講不適合再買：問卷答成偏多、只是回顧或不列都不採用
             # （2026/09/29「晶心科、M31、力旺很強，可是已經不適合你們再買了」：M31 兩票偏多、晶心科三票回顧）。
             if entry['current'] == 'watch_avoid' and cls in ('watch_watch', 'history', 'ignored') and item.get('_closed'):
@@ -13605,6 +13625,19 @@ def apply_verdicts(signals, date_str, final=False):
                 # 代號對得到官方清單時換成正式簡稱，聽寫的字留在 aliases 供段落比對。
                 official = str((_CODE_MAP or {}).get(code) or '').strip()
                 heard = str(moved.get('name') or '').strip()
+                if cat in _VERDICT_HIDDEN and official and heard and _display_name(heard) != _display_name(official) \
+                        and heard not in CONFIRMED_NAMES:
+                    # 不公開的列帶著的代號可能是模型給的、沒有經過代號比對（2026/10/14「連亞」帶著 3086，被換成華義）：先核對名稱
+                    got, got_name, how = resolve_code(heard, '')
+                    if got and got not in (REJECT, UNRESOLVED) and got != code:
+                        print(f"  分類裁決　{heard}：帶著的代號 {code}（{official}）與名稱對不上，代號比對改為 {got} {got_name}")
+                        note_decision('分類裁決', '改列公開前核對代號，改用名稱對到的代號', heard, f'{code}→{got}｜{how}')
+                        moved['code'], code, official = got, got, got_name
+                    elif got != code:
+                        # 對不到別的代號：原列留在不公開，不改列
+                        print(f"  分類裁決　{heard}：帶著的代號 {code}（{official}）與名稱對不上、也比對不出別的代號，留在不公開")
+                        note_decision('分類裁決', '改列公開前代號對不上，留在不公開', heard, f'{code}｜{how}')
+                        continue
                 if official and heard and _display_name(heard) != _display_name(official):
                     moved['aliases'] = list(dict.fromkeys([x for x in (moved.get('aliases') or []) if isinstance(x, str)] + [heard]))
                     moved['原始語音名稱'] = moved.get('原始語音名稱') or heard

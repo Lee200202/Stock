@@ -8415,6 +8415,27 @@ def scrub_notice_words(text) -> str:
     return re.sub(r'(^|[。；\n])[，,：:]+', r'\1', text)
 
 
+# 名字少一個字：只修首字後面接的是時間、動詞或助詞的寫法，而且那兩個字不是任何公司名稱的開頭（「鴻準」是另一家）。
+_NAME_TAIL_AFTER = r'(?=會|在|於|的|股價|今|昨|已|仍|也|則|將|持續|目前|近期)'
+# 開頭的代稱（「該標的…」「由於其…」）與自稱分類的話（「因此作為觀望不碰的標的」）。
+_VAGUE_SUBJECT = re.compile(r'(^|[。！？])(?:該|此)(?:標的|個股|股票|檔股票|檔)')
+_SELF_CLASS = re.compile(r'[，,]?(?:因此|故|而)?(?:被)?(?:作為|列為|歸為)(?:觀望不碰|觀望注意|會員持股|不碰|觀望)(?:的)?(?:標的|個股|對象)(?=[。！？，,；;]|$)')
+
+
+def _public_subject_fixes(text, name):
+    """說明裡的本股名稱掉字、開頭用代稱、或寫著它被歸成哪一類：改成本股名稱或拿掉（2026/10/14 正式站：
+    鴻海「今天鴻會上漲」、聯亞「該標的因漲多存在回檔風險」、玉晶光「由於其近期走勢波動劇烈…因此作為觀望不碰的標的」）。"""
+    text = str(text or '')
+    base = re.sub(r'\*$', '', name)
+    if len(base) >= 2 and base[0] not in '台中大新國華聯光電金上元長東南永日友正力和富宏三亞':
+        starts = {str(n)[:2] for n in (_CODE_MAP or {}).values()}
+        text = re.sub(re.escape(base[0]) + r'(?!' + re.escape(base[1:]) + r')' + _NAME_TAIL_AFTER,
+                      lambda m: base if (base[0] + m.string[m.end():m.end() + 1]) not in starts else m.group(0), text)
+    text = _VAGUE_SUBJECT.sub(lambda m: m.group(1) + base, text)
+    text = re.sub(r'(^|[。！？])由於其', lambda m: m.group(1) + '由於' + base, text)
+    return _SELF_CLASS.sub('', text)
+
+
 def public_narrative(text, row=None, signals=None):
     """正式名稱只改公開說明，證據原句及代號判讀歷程保持原樣。"""
     row, signals = row or {}, signals or {}
@@ -8465,6 +8486,8 @@ def public_narrative(text, row=None, signals=None):
                       lambda m:name+'（'+code+'）', text)
         text = re.sub(re.escape(name)+r'\s*[（(]'+re.escape(name)+r'[）)]',lambda m:name,text)
         text = re.sub('(?:'+re.escape(name)+'){2,}', lambda m:name, text)
+    if name:
+        text = _public_subject_fixes(text, name)
     # 僅去掉相同事實的重複句，不用相似度刪掉不同日期／價格。
     # v107：模型把上一句的結尾再說一次（10/02 鴻準「其吃貨目的即在未來進行拉台…」、神準「顯示多方動能強勁…」），
     # 這一句八成五以上的雙字組都已在前文、且數字全在前文時才刪；有新數字或新內容的句子保留。

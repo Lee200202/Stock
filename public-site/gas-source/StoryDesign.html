@@ -105,6 +105,8 @@ body:has(#p-tech:not([hidden])) #toTop,body:has(#p-tech:not([hidden])) #asstFab 
 .story-ratio { display:flex; height:14px; width:100%; margin:14px 0; overflow:hidden; border-radius:999px; background:var(--panel-2); }
 .story-ratio i { min-width:0; height:100%; background:var(--sc); flex:var(--sw); }
 .story-ratio-caption { font-size:calc(13.5px * var(--rd-fs)); color:var(--muted); }
+/* 減少動態時沒有動畫可重播：「再播圖解」點了不會有變化，不顯示（全站按鈕互動性規則 2026/10/14） */
+@media(prefers-reduced-motion:reduce){ .story-replay { display:none !important; } }
 .story-tracker-more { min-height:44px; padding:12px 22px; border:1px solid var(--rule); border-radius:999px; background:var(--panel); color:var(--ink); cursor:pointer; font:inherit; margin-top:18px; }
 .story-mini-return { display:flex; height:8px; margin:14px 0 10px; border-radius:999px; background:var(--rule); overflow:hidden; }
 .story-mini-return i { height:100%; width:var(--rw); background:var(--rc); }
@@ -222,20 +224,39 @@ function initStory(){
   var status=q('.story-status',s.main);status.dataset.state='pass';status.textContent=m[3];
   var px=function(n){return (n+.5)*W/4;};
   var selected=qa(m[4]||'__none__',s.detail).find(function(b){return b.getAttribute('aria-pressed')==='true';});if(selected)key=Array.prototype.slice.call(selected.attributes).filter(function(a){return a.name.indexOf('data-')===0;}).map(function(a){return a.value;}).join('');
+  var tcls=function(e){var c=e&&e.className||'';return /tone-ok/.test(c)?'viz-pass':/tone-warn|tone-wait/.test(c)?'viz-wait':/tone-stop/.test(c)?'viz-stop':'viz-ink';};
   function chain(data){var cols=mobile?2:data.length,rows=Math.ceil(data.length/cols);H=mobile?rows*110+50:190;
    if(!mobile)H=130;
    data.forEach(function(d,i){var x=(i%cols+.5)*W/cols,y=mobile?48+Math.floor(i/cols)*110:48;
     if(i){var p=(i-1)%cols,py=mobile?48+Math.floor((i-1)/cols)*110:48;out+=line((p+.5)*W/cols,py,x,y);}
     out+=node(x,y,d[0],d[1],d[2],i);if(d[3])out+=text(x,y+70,d[3],'viz-num');});}
-  if(id==='start'||id==='tech-overview'){
-   chain([['film','影片','viz-ink'],['record','原稿','viz-ink'],['shield','核對','viz-pass'],['table','紀錄','viz-pass'],['browser','查詢','viz-pass']]);
+  if(id==='start'){
+   // 三個問題各畫自己的答案（與細節裡的示意介面同一份內容）
+   var pi=+(key||0)||0;
+   if(pi===1){chain([['record','原稿','viz-pass'],['shield','稽核','viz-pass'],['mail','文章','viz-pass'],['clock','績效','viz-wait']]);status.textContent='沒講到的寫「未說明」；原稿、稽核、文章與寄送各自標狀態，文章完成不等於全部完成。';}
+   else if(pi===2){chain([['person','散戶在賣','viz-stop'],['search','先分主詞','viz-pass'],['table','會員續抱','viz-pass']]);status.textContent='「散戶一直賣」不是會員賣出；先分主詞與分類，持股回合只在明講賣出時結束。';}
+   else{chain([['search','搜「立即電」','viz-ink'],['record','力積電 6770','viz-pass'],['table','9/23 原句','viz-pass']]);status.textContent='常見誤字也找得到；每次提及都列出日期與原句。';}
+  }else if(id==='tech-overview'){
+   // 六個階段排成一列，點到的那一站亮起
+   var stages=qa('[data-flow]',s.detail);
+   chain(stages.map(function(b,i){return [['film','clock','search','table','browser','database'][i%6],b.textContent.replace(/^\s*\d+\s*/,'').replace(/[、，].*$/,'').trim().slice(0,7),b===selected?'viz-pass':'viz-ink'];}));
+   if(selected){var fn=q('#flowNote',s.detail);if(fn&&fn.textContent.trim())status.textContent=fn.textContent.trim().slice(0,90);}
   }else if(id==='tech-loading'){
-   H=250;var hit=!/quiet|rare|stale/.test(key);['手機','快取','試算表'].forEach(function(a,i){var y=35+i*65;out+='<rect x="'+W*.1+'" y="'+y+'" width="'+W*.8+'" height="47" rx="12" class="'+(i===(hit?1:2)?'viz-pass':'viz-ink')+'"/>'+use(W*.18,y+24,['browser','database','table'][i],24)+text(W*.52,y+30,a);});out+='<path d="M'+W*.9+' 55V'+(hit?120:190)+'H'+W*.83+'" class="viz-line"/>'+text(W*.52,240,hit?'命中快取：約0.09秒':'回源核對：約7.19秒');status.textContent=hit?'查詢已有有效答案，直接回覆。':'沒有有效答案，回後端核對；背景失敗也不能替過期資料續命。';
+   // 四種情況照細節的資料畫：哪一層回答、要多久
+   var lc={recent:[1,'快取','命中快取：約0.1秒，沒有讀後端','pass'],quiet:[1,'快取（背景備份）','命中背景備份：約0.1～0.3秒','pass'],
+     rare:[2,'快取（沒有這一天）','未命中：回後端讀試算表，這一次較慢','miss'],stale:[2,'快取（備份逾12分鐘不用）','未命中：約7秒回後端重新讀取','stale']}[key]||[1,'快取','命中快取：約0.1秒，沒有讀後端','pass'];
+   H=250;['手機',lc[1],'試算表'].forEach(function(a,i){var y=35+i*65,cl=i===lc[0]?'viz-pass':(i===1&&lc[3]==='stale'?'viz-stop':(i===1&&lc[3]==='miss'?'viz-muted':'viz-ink'));out+='<rect x="'+W*.1+'" y="'+y+'" width="'+W*.8+'" height="47" rx="12" class="'+cl+'"/>'+use(W*.18,y+24,['browser','database','table'][i],24)+text(W*.52,y+30,a);});
+   out+='<path d="M'+W*.9+' 55V'+(lc[0]===1?120:190)+'H'+W*.83+'" class="viz-line"/>'+text(W*.52,240,lc[2]);
+   status.textContent=lc[0]===1?'存好的答案還有效，直接回覆。':'沒有有效答案就回後端；過期的備份不拿來當最新的。';
   }else if(id==='tech-day'){
    H=mobile?330:240;var events=[['10:10','當日操作',0],['11:05','影片回放',1],['11:48','再判讀',1],['12:01','人工修正',1]];var lo=610,hi=750;
+   var noshow=/noshow/.test(key),holiday=/holiday/.test(key),busy=/busy/.test(key);
    if(/late/.test(key)){events[1][0]='11:10';}
-   for(var l=0;l<2;l++){out+=line(30,70+l*95,W-30,70+l*95)+text(W/2,35+l*95,l?'影片路徑':'操作路徑');}
-   events.forEach(function(e,i){var parts=e[0].split(':'),min=+parts[0]*60+(+parts[1]),x=30+(W-60)*(min-lo)/(hi-lo),y=70+e[2]*95;out+='<circle cx="'+x+'" cy="'+y+'" r="'+(i===3?9:6)+'" class="viz-pass"/>'+text(x,y+22,e[0]);if(!mobile)out+=text(x,y+44,e[1]);});out+=text(W/2,mobile?275:230,'10:10～12:30比例軸 · 晚到情境為示意');status.textContent='9/23來源時間實例；收盤後工作沒有精確時刻，不硬塞進比例軸。';
+   if(busy)events[2][1]='模型忙碌，稍後接續';
+   for(var l=0;l<2;l++){var off=holiday||(noshow&&l===1);out+=(off?'<path d="M30 '+(70+l*95)+'H'+(W-30)+'" class="viz-muted"/>':line(30,70+l*95,W-30,70+l*95))+text(W/2,35+l*95,l?(noshow?'影片路徑：找不到當天影片':'影片路徑'):'操作路徑');}
+   events.forEach(function(e,i){if(holiday||(noshow&&e[2]===1))return;var parts=e[0].split(':'),min=+parts[0]*60+(+parts[1]),x=30+(W-60)*(min-lo)/(hi-lo),y=70+e[2]*95;out+='<circle cx="'+x+'" cy="'+y+'" r="'+(i===3?9:6)+'" class="'+(busy&&i===2?'viz-wait':'viz-pass')+'"/>'+text(x,y+22,e[0]);if(!mobile)out+=text(x,y+44,e[1]);});
+   out+=text(W/2,mobile?275:230,holiday?'休市日：台股自動工作暫停，已發布的資料仍可查詢':noshow?'沒有直播：不寄每日總覽，郵件查詢那一天留空':'10:10～12:30比例軸 · 晚到情境為示意');
+   status.textContent=holiday?'休市日不新增每日績效。':noshow?'沒有可驗證的影片原稿，不寄每日總覽。':busy?'模型忙碌時換下一把金鑰或稍後重試，從已完成的片段接著做。':'9/23來源時間實例；收盤後工作沒有精確時刻，不硬塞進比例軸。';
   }else if(id==='tech-agent'){
    var which=selected&&selected.dataset.agent||'context';
    if(which==='context'){H=240;out+='<rect x="20" y="45" width="'+(W-40)+'" height="35" rx="10" class="viz-ink"/><rect x="20" y="45" width="'+Math.max(6,(W-40)*32325/1048576)+'" height="35" rx="6" class="viz-pass"/>'+text(W/2,25,'輸入上限 1,048,576 tokens')+text(W/2,115,'最大單次32,325 · 占3.08%','viz-num')+'<rect x="20" y="155" width="'+(W-40)+'" height="28" rx="8" class="viz-ink"/><rect x="20" y="155" width="'+((W-40)*5861/65536)+'" height="28" rx="8" class="viz-pass"/>'+text(W/2,220,'最大文字輸出5,861／65,536 · 8.94%');status.textContent='10/13實測；輸入與輸出分開核對，不把19次累計當一次上下文。';
@@ -250,7 +271,15 @@ function initStory(){
    var fields=[['某股','舊推薦','回顧','以前'],['勤誠','買點條件','等待900以下','尚未成交'],['某股','明講禁買','條件未成','目前'],['鴻準','散戶在賣','會員續抱','目前'],['力積電','當日操作','買入指令','今天'],['某股','法人換手','反覆買賣','近期'],['某股','技術條件','站上季線','目前'],['友達','反例','不推薦','目前']][selected?+selected.dataset.toneCase:0];
    chain([['table',fields[0],'viz-ink'],['person',fields[1],'viz-ink'],['record',fields[2],'viz-ink'],['clock',fields[3],'viz-wait']]);var te=q('#toneExample',s.detail);status.textContent=te?te.textContent:m[3];
   }else if(id==='tech-number'){
-   H=220;out+=line(W*.1,115,W*.9,115);for(var r=0;r<9;r++)out+=line(W*(.1+r*.1),109,W*(.1+r*.1),122);out+='<rect x="'+W*.4+'" y="84" width="'+W*.2+'" height="45" rx="12" class="viz-pass"/>'+text(W/2,111,'900 以下')+use(W*.18,40,'table',24)+text(W*.18,72,'168張')+use(W*.82,40,'record',24)+text(W*.82,72,'EPS23.73')+text(W/2,183,'股價條件／張數／EPS 是不同單位');status.textContent='數線是單位示意，不是某天真實高低價區間；原句核對後才保留對應數字。';
+   // 點到的數字放上來：能當價位的接到價位軸，不能的標出單位、不放上價位軸
+   H=220;var od=q('#ownDetail',s.detail),pick=selected&&selected.dataset.own,odh=od&&q('b',od),unit=odh?(odh.textContent.split('：')[1]||'').trim():'',okp=od&&/tone-ok/.test(od.className);
+   out+=line(W*.1,135,W*.9,135);for(var r=0;r<9;r++)out+=line(W*(.1+r*.1),129,W*(.1+r*.1),142);
+   out+='<rect x="'+W*.4+'" y="104" width="'+W*.2+'" height="45" rx="12" class="'+(pick&&okp?'viz-pass':'viz-ink')+'"/>'+text(W/2,131,'900 以下');
+   if(pick){out+='<rect x="'+W*.33+'" y="18" width="'+W*.34+'" height="44" rx="12" class="'+(okp?'viz-pass':'viz-stop')+'"/>'+text(W/2,45,pick+'：'+(unit||(okp?'條件價':'不是股價')));
+     out+=okp?'<path d="M'+W/2+' 62V102" class="viz-line"/>':use(W*.74,40,'cross',22)+text(W*.84,45,'不放上價位軸');}
+   else{out+=use(W*.18,40,'table',24)+text(W*.18,72,'168張')+use(W*.82,40,'record',24)+text(W*.82,72,'EPS23.73');}
+   out+=text(W/2,195,'股價條件／張數／EPS 是不同單位');
+   status.textContent=pick?(okp?pick+' 是條件價，價位欄記「900 以下」。':pick+' 是'+(unit||'其他單位')+'，不能當股價。'):'數線是單位示意，不是某天真實高低價區間；原句核對後才保留對應數字。';
   }else if(id==='tech-unnamed'){
    H=260;var two=/two/.test(key),none=/none/.test(key);out+='<path d="M20 20H'+(W-20)+'L'+W*.65+' 90H'+W*.35+'Z" class="viz-ink"/><path d="M'+W*.35+' 110H'+W*.65+'L'+W*.56+' 175H'+W*.44+'Z" class="viz-pass"/>'+text(W/2,52,'前一交易日昨收')+text(W/2,140,'今天高低包住現價')+text(W/2,218,none?'沒有符合 → 不列':two?'兩檔同價 → 不猜':'唯一符合 → 嘉澤3533');status.dataset.state=two||none?'wait':'pass';status.textContent='9/30昨收1770的案例；兩檔或沒有符合是切換示意，不補造公司。';
   }else if(id==='tech-transcript-progress'){
@@ -260,15 +289,27 @@ function initStory(){
   }else if(id==='tech-source-priority'){
    chain(/video/.test(key)?[['mail','無當日操作','viz-ink'],['film','影片原句','viz-ink'],['shield','核對分類','viz-pass'],['record','書面說明','viz-pass']]:[['mail','當日操作','viz-pass'],['lock',/buy/.test(key)?'買入分類':'賣出分類','viz-pass'],['film','影片依據','viz-ink'],['record','書面說明','viz-pass']]);status.textContent='以權威來源決定分類，不是單純誰先到就優先；影片不能把已核對操作翻成相反方向。';
   }else if(id==='tech-public-notes'){
-   var badge=q('.pn-final .tv-badge',s.detail),pending=badge&&/複核/.test(badge.textContent);chain([['record','原句','viz-ink'],['search','數字核對','viz-pass'],['person','主體核對','viz-pass'],[pending?'clock':'browser',pending?'待複核':'公開文字',pending?'viz-wait':'viz-pass']]);if(badge){status.textContent=badge.textContent+'：原有編輯檯與人工保護規則完整保留，可展開核對。';if(pending)status.dataset.state='wait';}
+   // 數字核對、主體核對與最後結果照細節的核對項目與結論上色
+   var fin=q('.pn-final',s.detail),badge=q('.pn-final .tv-badge',s.detail),dropEl=qa('.pn-checks li.pn-drop,.pn-checks li.pn-move',s.detail),drops=dropEl.length,reviews=qa('.pn-checks li.pn-review',s.detail).length;
+   // 中間那一站寫出刪掉的是哪一種（寫作過程、重複的句子、別家的消息、非公開價…），同樣刪一處的案例也看得出差別
+   var dropText=dropEl.map(function(e){return e.textContent;}).join(' '),dropKind=/寫作過程/.test(dropText)?'刪寫作過程':/換開頭|字組|重複/.test(dropText)?'刪重複句':/段落|別家|乙公司/.test(dropText)?'移出別家消息':/成交價|非公開/.test(dropText)?'刪非公開價':/觀望不碰|買點/.test(dropText)?'刪矛盾句':'刪掉 '+drops+' 處';
+   chain([['record','原句','viz-ink'],['search',drops?dropKind:'都對得上',drops?(qa('.pn-checks li.pn-move',s.detail).length?'viz-wait':'viz-stop'):'viz-pass'],['person',reviews?'待決定 '+reviews+' 處':'主體一致',reviews?'viz-wait':'viz-pass'],[fin&&/tone-stop/.test(fin.className)?'cross':fin&&/tone-warn/.test(fin.className)?'clock':'browser',badge?badge.textContent.trim().slice(0,6):'公開文字',tcls(fin)]]);
+   if(badge){status.textContent=badge.textContent+'：原有編輯檯與人工保護規則完整保留，可展開核對。';if(fin&&/tone-warn|tone-stop/.test(fin.className))status.dataset.state='wait';}
   }else if(id==='tech-hold'){
    H=220;var tl=Number(q('#tlSlider').value)||0,point=[.06,.18,.29,.36,.43,.58][tl];out+='<rect x="'+W*.06+'" y="40" width="'+W*.37+'" height="38" rx="12" class="'+(tl<4?'viz-pass':'viz-ink')+'"/><rect x="'+W*.58+'" y="40" width="'+W*.35+'" height="38" rx="12" class="'+(tl===5?'viz-pass':'viz-ink')+'"/>'+text(W*.24,65,'回合一')+text(W*.75,65,'回合二')+'<path d="M'+W*.06+' 165L'+W*.18+' 140L'+W*.29+' 152L'+W*.43+' 112M'+W*.58+' 160L'+W*.75+' 135L'+W*.93+' 120" class="viz-line"/>'+'<circle cx="'+(W*point)+'" cy="105" r="8" class="story-playhead" data-hold-step="'+tl+'"/>'+text(W/2,190,q('#tlDay').textContent+' · '+(tl<4?'回合一持有':tl===4?'回合一結束':'回合二開始'))+text(W/2,218,'曲線為回合示意，非歷史行情或績效');status.textContent=q('#tlState').textContent;
   }else if(id==='tech-failure'){
    H=290;qa('#failLanes .tech-lane',s.detail).forEach(function(e,i){var y=35+i*60,cl=e.classList.contains('tone-ok')?'viz-pass':e.classList.contains('tone-stop')?'viz-stop':'viz-wait',label=q('.tl-name',e).textContent,st=q('.tl-state',e).textContent;out+=text(W*.15,y,label)+line(W*.3,y-5,W*.86,y-5);[.35,.58,.82].forEach(function(x,j){out+='<circle cx="'+W*x+'" cy="'+(y-5)+'" r="9" class="'+cl+'"/>';});out+=text(W*.6,y+22,st);if(cl!=='viz-pass')out+='<path d="M'+W*.58+' '+(y-14)+'q-25 -30 -50 0" class="viz-line"/>';});status.textContent='等待、接續、需人處理分開標示；弧線是續跑方向示意，非今日實際重試次數。';
   }else if(id==='tech-limit'){
-   chain([['search','回查原句','viz-pass'],['clock','核對日期','viz-pass'],['cross','個人買點','viz-stop'],['lock','私人名單','viz-stop']]);status.textContent='可查公開內容；不保證策略有效，不提供私人名單或個人交易建議。';
+   // 問題 → 回答（可以／不行／有條件）照細節上色並寫出理由
+   var cr=q('#canResult',s.detail),cb=cr&&q('.tv-badge',cr),ch=cr&&q('b',cr),qs=selected?selected.textContent.trim():'回查原句';
+   H=mobile?250:190;out+='<rect x="'+W*.04+'" y="40" width="'+W*.42+'" height="56" rx="14" class="viz-ink"/>'+use(W*.1,68,'search',24)+text(W*.27,74,qs.slice(0,14));
+   out+='<path d="M'+W*.47+' 68H'+W*.56+'" class="viz-line"/><circle cx="'+W*.62+'" cy="68" r="30" class="'+tcls(cr)+'"/>'+text(W*.62,74,cb?cb.textContent.trim():'可以');
+   out+=text(W/2,mobile?170:150,ch?ch.textContent.trim().slice(0,30):'能幫你回查來源，不能提供個人投資決策');
   }else if(id==='tech-open'){
-   chain([['record','疑點留底','viz-wait'],['search','核對方法','viz-ink'],['cross','證據仍缺','viz-wait'],['lock','不補猜','viz-wait']]);status.dataset.state='wait';
+   // 實際發生 → 現在怎麼擋 → 目前狀態；標題與狀態照細節
+   var ot=q('#openTitle',s.detail),ob=ot&&q('b',ot),os=ot&&q('.open-state',ot);
+   chain([['record','實際發生',os&&/tone-stop/.test(os.className)?'viz-stop':'viz-wait'],['shield','現在怎麼擋','viz-pass'],[os&&/tone-stop/.test(os.className)?'cross':'clock',os?os.textContent.trim():'未解決',tcls(os)]]);
+   H=Math.max(H,170);out+=text(W/2,H-14,ob?ob.textContent.trim().slice(0,28):'疑點留底，不補猜');status.dataset.state='wait';
   }else if(id==='tech-faq'){
    chain([['database','來源','viz-ink'],['shield','準確度','viz-ink'],['mail','訂閱','viz-ink'],['lock','隱私','viz-ink']]);
   }else {chain([['person','維護者','viz-ink'],['record','原始碼','viz-ink'],['mail','回報問題','viz-pass']]);}

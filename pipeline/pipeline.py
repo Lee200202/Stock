@@ -5977,6 +5977,9 @@ def strip_macro_clauses(signals):
 _REPEAT_FILLER = re.compile(r'今日|今天|目前|當前|現在|昨日|昨天|如預期|隨後|並且?|也|則|因此|所以|指出|提到|強調|表示|提醒|認為|說明|已經?|仍然?|再度|的')
 
 
+_REPEAT_SYNONYM = ((re.compile(r'上漲'), '漲'), (re.compile(r'下跌'), '跌'), (re.compile(r'買入'), '買進'))
+
+
 def _bigrams(text):
     return {text[i:i + 2] for i in range(len(text) - 1)}
 
@@ -5993,9 +5996,28 @@ def drop_repeated_clauses(signals):
             field = 'note' if cat == 'holdings' else 'reason'
             text = str(row.get(field) or '')
             sentences = [s for s in re.split(r'(?<=[。！？!?])', text) if s.strip()]
+            name = str(row.get('name') or '')
+            if cat == 'holdings' and len(sentences) >= 2:
+                # 會員持股的說明裡沒有點名、也沒有續抱字眼的賣出句，是當天別檔的賣出（2026/10/14 力積電「賣掉的持股讓會員賺了十幾塊」是鈺邦）
+                names_here = [n for n in (_display_name(name), name.replace('*', ''), re.sub(r'-?KY$', '', _display_name(name) or '')) if len(n) >= 2]
+                others = {_display_name(v) for v in (_CODE_MAP or {}).values() if len(_display_name(v) or '') >= 2}
+
+                def foreign_sale(s):
+                    # 沒有否定的賣出動作、主詞是講者或會員（賺、獲利、會員），沒有法人／ETF 主詞，也沒有點到任何公司
+                    return (re.search(r'(?<![未沒不])(?:賣掉|賣出|出場|出清|獲利了結|停利)', s)
+                            and not re.search(r'(?:未|沒有|尚未|不等於|不是|並非)[^。，]{0,8}(?:賣|出場|出清)', s)
+                            and re.search(r'會員|賺|獲利', s)
+                            and not re.search(r'ETF|外資|法人|投信|自營|散戶|主力|大戶|公司派', s)
+                            and not any(n in s for n in names_here) and not any(n in s for n in others)
+                            and not re.search(r'續抱|抱著|抱牢|持有|留著|剩下|仍有|還有', s))
+                keep = [s for s in sentences if not foreign_sale(s)]
+                if keep and len(keep) < len(sentences):
+                    print(f"  說明核對　{_display_name(name) or name}：會員持股的說明裡有沒點名的賣出句，是別檔的事，已拿掉")
+                    note_decision('說明核對', '持股說明拿掉沒點名的賣出句', _display_name(name) or name, text[:160])
+                    sentences = keep
+                    row[field] = text = ''.join(keep)
             if len(sentences) < 2:
                 continue
-            name = str(row.get('name') or '')
             own = sorted({n for n in (_display_name(name), name.replace('*', ''), re.sub(r'-?KY$', '', _display_name(name) or ''))
                           if len(n) >= 2}, key=len, reverse=True)
 
@@ -6003,6 +6025,8 @@ def drop_repeated_clauses(signals):
                 c = _ev_norm(clause)
                 for n in own:
                     c = c.replace(_ev_norm(n), '')
+                for pattern, same in _REPEAT_SYNONYM:
+                    c = pattern.sub(same, c)
                 return _REPEAT_FILLER.sub('', c)
             seen = set()
             for clause in _CLAUSE_SPLIT.split(sentences[0].rstrip('。！？!?')):
@@ -8488,6 +8512,8 @@ def public_narrative(text, row=None, signals=None):
         text = re.sub('(?:'+re.escape(name)+'){2,}', lambda m:name, text)
     if name:
         text = _public_subject_fixes(text, name)
+        # 別名換成正式名稱後連寫（2026/10/14「隱藏版光通訊的毅嘉」→「毅嘉的毅嘉」）
+        text = re.sub(re.escape(name) + r'的' + re.escape(name), lambda m: name, text)
     # 僅去掉相同事實的重複句，不用相似度刪掉不同日期／價格。
     # v107：模型把上一句的結尾再說一次（10/02 鴻準「其吃貨目的即在未來進行拉台…」、神準「顯示多方動能強勁…」），
     # 這一句八成五以上的雙字組都已在前文、且數字全在前文時才刪；有新數字或新內容的句子保留。
@@ -9048,6 +9074,9 @@ def strip_implausible_price_claims(ss, signals: dict, date_str: str) -> dict:
         for row in signals.get(cat, []) or []:
             code = str(row.get('code') or '')
             band = _price_band(kmap, code, date_str) if re.fullmatch(r'(?:00981A|\d{4,6})', code) else None
+            if not band and re.fullmatch(r'[1-9]\d{3}', code):
+                # 日K快取沒有這一檔：用最近一個交易日的上市／上櫃行情（2026/10/14 譜瑞-KY 收 547，說明寫著 1545、1800）
+                band = _market_band_map().get(code)
             if not band:
                 continue
             hi, lo = max(band), min(band)

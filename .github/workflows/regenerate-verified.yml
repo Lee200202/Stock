@@ -9,7 +9,7 @@ on:
       mode:
         description: 通過全部品質核對後才更新；不寄送
         type: choice
-        options: [preview, apply, raw, sync, priority-check, reviewed-points, verdicts, titles]
+        options: [preview, apply, raw, sync, priority-check, reviewed-points, source-audit, reviewed-notes, verdicts, titles]
         default: preview
 permissions:
   contents: read
@@ -47,6 +47,14 @@ jobs:
           FINAL_ATTEMPT: 'true'
           PYTHONUNBUFFERED: '1'
         run: |
+          if [ "$MODE" = source-audit ]; then
+            python scripts/audit_saved_source.py --date "$TARGET_DATE"
+            exit 0
+          fi
+          if [ "$MODE" = reviewed-notes ]; then
+            python scripts/apply_reviewed_notes.py --date "$TARGET_DATE"
+            exit 0
+          fi
           if [ "$MODE" = reviewed-points ]; then
             python scripts/apply_reviewed_points.py --date "$TARGET_DATE"
             exit 0
@@ -74,3 +82,12 @@ jobs:
           if [ "$MODE" = apply ]; then ARGS+=(--apply); fi
           if [ "$MODE" = raw ]; then ARGS+=(--raw); fi
           python scripts/regenerate_verified_day.py "${ARGS[@]}"
+
+      - uses: actions/upload-artifact@v4
+        if: inputs.mode == 'source-audit'
+        with:
+          name: source-audit-${{ github.run_id }}
+          path: .source-audit/source.json
+          include-hidden-files: true
+          retention-days: 1
+          if-no-files-found: error

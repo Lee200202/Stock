@@ -13342,6 +13342,37 @@ _SOLD_NEARBY = re.compile(r'賣掉了|賣了|已經賣|賣光|賣出|出清|出�
 HOLD_RECORD_DAYS = 15     # 會員持股列建立的持有，往前看幾天
 
 
+def is_partial_sale_record(row):
+    """只認已解析的賣出紀錄；全數出場優先，與GAS持股回合使用相同規則。"""
+    direction = str(row.get('kind') or row.get('direction') or row.get('方向') or '')
+    kind = direction if direction in ('buy', 'sell') else _dir_kind(direction)
+    if kind != 'sell':
+        return False
+    text = ' '.join(str(row.get(k) or '') for k in ('reason', '理由摘錄', 'direction', '方向'))
+    if re.search(r'全部(?:賣|出)|全數(?:賣|出)|全出|清倉|出清|剩餘.{0,6}(?:全部|全數).{0,4}(?:賣|出)', text):
+        return False
+    return bool(re.search(r'部分(?:部位|持股|張數)?(?:賣出|出場)|(?:賣出|出場)部分|減碼|減持', text))
+
+
+def _partial_notice_sale_codes(ss, date_str):
+    """當天只有部分賣出的代號；若任何一筆明確全出，不豁免持股移除。"""
+    try:
+        values = sheets_retry(ss.worksheet('操作紀錄').get_all_values)
+        head = [str(v).strip() for v in values[0]]
+        if not all(k in head for k in ('日期', '代號', '方向', '來源影片ID', '理由摘錄')):
+            return set()
+        states = {}
+        for values_row in values[1:]:
+            row = dict(zip(head, values_row))
+            if norm_date(row.get('日期')) != date_str or not _is_sms_row(str(row.get('來源影片ID') or '')) or _dir_kind(str(row.get('方向') or '')) != 'sell':
+                continue
+            code = str(row.get('代號') or '').strip()
+            states[code] = states.get(code, True) and is_partial_sale_record(row)
+        return {code for code, partial in states.items() if code and partial}
+    except Exception:
+        return set()
+
+
 def _verdict_known(ss, date_str, with_open=False):
     """操作紀錄裡已有的事實：{代號: [說明]}，以及當日會員通知的買賣 {(代號, 方向)}。讀不到就回空的。
 
@@ -13366,10 +13397,12 @@ def _verdict_known(ss, date_str, with_open=False):
             if _is_sms_row(cell(c_src)):
                 notice.add((code, kind))
             continue
+        if kind == 'sell' and is_partial_sale_record(dict(zip(head, row))):
+            continue  # 部分減碼不是整檔已出場；沒有既存買入或持股仍不建立部位。
         if day < date_str and (code not in last or day >= last[code][0]):
             last[code] = (day, kind, cell(c_name) if c_name >= 0 else '')
     for code, (day, kind, name) in last.items():
-        known[code] = [f"系統紀錄：{day} {'買入' if kind == 'buy' else '賣出'}這一檔，之後到節目前一天沒有其他買賣紀錄"]
+        known[code] = [f"系統紀錄：{day} {'買入' if kind == 'buy' else '賣出'}這一檔，之後到節目前一天沒有全數出場或新的買入紀錄"]
         if kind == 'buy':
             open_positions[code] = name
     if with_open:
@@ -13408,7 +13441,8 @@ def drop_sms_sold_holdings(ss, signals, date_str):
     if not overlap:
         return signals
     _, notice = _verdict_known(ss, date_str)
-    closed = {code for code in overlap if (code, 'sell') in notice and (code, 'buy') not in notice}
+    partial = _partial_notice_sale_codes(ss, date_str)
+    closed = {code for code in overlap if (code, 'sell') in notice and (code, 'buy') not in notice and code not in partial}
     if not closed:
         return signals
     kept = []

@@ -9,7 +9,7 @@ on:
       mode:
         description: 通過全部品質核對後才更新；不寄送
         type: choice
-        options: [preview, apply, raw, sync, priority-check, reviewed-points, source-audit, reviewed-notes, verdicts, titles]
+        options: [preview, apply, raw, sync, priority-check, reviewed-points, source-audit, verdicts, titles]
         default: preview
 permissions:
   contents: read
@@ -49,10 +49,6 @@ jobs:
         run: |
           if [ "$MODE" = source-audit ]; then
             python scripts/audit_saved_source.py --date "$TARGET_DATE"
-            exit 0
-          fi
-          if [ "$MODE" = reviewed-notes ]; then
-            python scripts/apply_reviewed_notes.py --date "$TARGET_DATE"
             exit 0
           fi
           if [ "$MODE" = reviewed-points ]; then

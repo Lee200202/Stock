@@ -34,7 +34,7 @@ def main():
                 page.locator('[data-filter="templates"]').click()
                 assert page.locator(".doc:visible").count() == 1
                 page.locator("#expand").click()
-                assert page.locator(".copy:visible").count() == 14
+                assert page.locator(".copy:visible").count() == 19
                 no_overflow(page)
                 page.locator('[data-filter="all"]').click()
                 page.locator("#search").fill("Multiple authentication")
@@ -44,6 +44,18 @@ def main():
                 page.locator("#search").fill("")
                 page.locator('a.role[href="#design"]').click()
                 assert page.locator("#design details").get_attribute("open") is not None
+                assert page.locator("a.role").count() == 9
+                assert page.locator("a.role .badge.new").count() == 4
+                for idx, skill in ((0, "collab"), (4, "writing"), (8, "automation"), (9, "design")):
+                    page.locator(f'[data-stage="{idx}"]').click()
+                    assert page.locator("#stage-card").get_attribute("class").endswith("k-" + skill)
+                    assert page.locator(f'[data-stage="{idx}"]').get_attribute("aria-pressed") == "true"
+                    assert page.locator("#stage-title").inner_text().startswith(f"{idx + 1:02d}")
+                page.locator('[data-stage="5"]').click()
+                page.locator("#stage-link").click()
+                assert page.locator("#tuning details").get_attribute("open") is not None
+                cols = page.locator(".stages").evaluate("e=>getComputedStyle(e).gridTemplateColumns.split(' ').length")
+                assert cols == (5 if width > 1000 else 3 if width > 600 else 2), (width, cols)
                 no_overflow(page)
                 buttons = page.locator("button:visible").evaluate_all("es=>es.map(e=>{const r=e.getBoundingClientRect();return [r.width,r.height]})")
                 assert all(w >= 44 and h >= 44 for w, h in buttons)
@@ -54,7 +66,7 @@ def main():
                 page.locator("#docs details").evaluate_all("es=>es.forEach(e=>e.open=false)")
                 if width in (1440, 390) and theme == "dark":
                     page.screenshot(path=str(SHOTS / f"handbook-{width}-dark.png"), full_page=True)
-                print(width, theme, "layout, classification examples, search, 14 copyable requests, roles, top passed")
+                print(width, theme, "layout, classification examples, workflow stages, search, 19 copyable requests, 9 roles, top passed")
             page.close()
 
         page = browser.new_page(viewport={"width": 1280, "height": 900}, reduced_motion="no-preference")
@@ -78,11 +90,25 @@ def main():
         page.wait_for_function("document.querySelector('#logic').dataset.playing==='true'")
         page.emulate_media(reduced_motion="reduce")
         page.wait_for_function("document.querySelector('#logic').dataset.playing==='false'")
+        page.emulate_media(reduced_motion="no-preference")
+        page.locator("#pipeline").scroll_into_view_if_needed()
+        page.wait_for_function("document.querySelector('#pipeline').dataset.playing==='true'")
+        before = page.locator("#stage-title").inner_text()
+        page.wait_for_function("t=>document.querySelector('#stage-title').textContent!==t", arg=before, timeout=6000)
+        page.locator('[data-stage="2"]').click()
+        assert page.locator("#pipeline").get_attribute("data-playing") == "false"
+        page.wait_for_timeout(3000)
+        assert page.locator("#stage-title").inner_text().startswith("03"), "Click must hold the chosen stage"
+        page.locator("#pipe-replay").click()
+        page.wait_for_function("document.querySelector('#pipeline').dataset.playing==='true'")
         page.close()
 
         page = browser.new_page(viewport={"width": 360, "height": 900}, java_script_enabled=False)
         page.goto(URL)
-        assert page.locator("#docs .doc").count() == 15
+        assert page.locator("#docs .doc").count() == 20
+        page.locator("#pipeline summary").click()
+        assert page.locator("#pipeline details li").count() == 10
+        assert not page.locator(".stages").is_visible()
         page.locator("#logic summary").click()
         assert page.locator("#logic details li").count() == 4
         assert "部分賣出" in page.locator("#logic details").inner_text()
@@ -93,7 +119,7 @@ def main():
         assert not errors, errors
         assert not [url for url in calls if url.startswith(("http:", "https:"))], "Handbook must remain offline"
         browser.close()
-        print("Loop/replay, keyboard, offscreen pause, reduced motion, no-JS, zero external network passed")
+        print("Loop/replay (examples and workflow), keyboard, offscreen pause, reduced motion, no-JS, zero external network passed")
         print("Screenshots:", SHOTS)
 
 

@@ -70,3 +70,36 @@ Email 查詢／HTML 預覽不等於 Gmail 收件匣。LINE JSON 合法不等於�
 提供元件表：檔案／commit、HEAD／不可變版／原部署版、Pages run、Worker 版本、離線結果、正式 readback、帳本是否變化、速度樣本、未驗項。只有 specs、已存編輯器、建版、已部署、正式驗過是五種狀態。
 
 回退列上一 commit／原部署版本、資料備份位置與重新驗證範圍。回退程式不會自動還原正式資料或瀏覽器新設定。不要將下一交易日尚未發生的端到端驗收寫成已完成。
+
+## 8. Claude Code 端的發布步驟與陷阱
+
+### 8.1 Apps Script（clasp）
+
+1. 建一個新的暫存目錄 `scratch/clasp/headNNN`，複製 `.clasp.json` 進去，在該目錄 `npx --prefix .. clasp pull` 取得編輯器 HEAD。
+2. `python scratch/clasp/compare.py scratch/clasp/headNNN` 列出 `differs`、`only in editor`、`only local`；再加檔名參數（如 `Aiservice.js Index.html`）只複製本輪改到的檔案。不要整包覆蓋：編輯器另有 `Editor.html`、`Editorpanel.html`、`Editorservice.js`、`Review.js`、`Reviewpanel.html`、`Versionlog.html` 等 repo 沒有的檔案，必須保留。
+3. 檔名對應：repo 的 `.gs` 在編輯器是 `.js`；`MailService.gs`、`SheetService.gs` 在編輯器是小寫的 `Mailservice`、`Sheetservice`（其他檔名大小寫相同）。複製時用編輯器的檔名，否則會多出一個同名不同大小寫的檔案。
+4. `clasp push -f` → `clasp create-version "說明"`，記下版本號。
+5. 移 `/exec` 是擁有者步驟（`stock-collaboration` 第 2.3 節）：協作者帳號部署時會收到「Only users in the same domain as the script owner may deploy this script」，重試同一指令沒有用；瀏覽器窗格裡的「管理部署作業」也曾出現權限錯誤。回報「已建立版本 N」，請擁有者切換，切換後讀 `/exec?action=ping` 核對 build。
+6. 定時觸發器跑的是 HEAD，網站刷新與後台按鈕跑 `/exec`：推送後到擁有者切換前，兩條路徑用不同版本的程式。改到資料計算方式時要明講。
+7. `checkProjectFiles()` 的「舊版」標記以檔案裡某個特徵字串判斷（10/14：`MailService.gs 還是舊版（mailHero_ 裡找不到「border-radius:22px」）`）。標記若沒隨程式更新，會誤報舊版；先查標記本身是否過期。
+8. 對齊的四處：GitHub main、編輯器 HEAD、不可變版本、`/exec`。10/15 驗收時版本 479 與 GitHub `3d1f39c` 一致，`/exec` 仍在 478，等擁有者切換。
+
+### 8.2 GitHub 與 Pages
+
+- 沒有 `gh` CLI，用 REST（`stock-automation-triage` 第 9 節）。Pages 建置結果：`GET /repos/Lee200202/Stock/pages/builds/latest`。
+- `tests/` 在 .gitignore：本機測試不會跟著推送，CI 只跑 `.github/workflows/public-site.yml` 列出的 `scripts/check_*`。推送前本機跑 `python -m unittest discover -s tests -p "test_*.py"`。
+- 另一個工作階段可能同時推送：`git fetch` 後 `git pull --rebase`；只 stage 本輪檔案。
+
+### 8.3 修改檔案時的陷阱
+
+- Git Bash 的 heredoc 會吃掉反斜線（即使用 `<<'EOF'`）：含正規式或 `\n` 的修補腳本用 Write 工具寫成檔案再執行。
+- 工作目錄的檔案是 CRLF：修補腳本讀位元組、轉 LF、修改、寫回原本的換行。
+- `scripts/sync_quality.py` 會從 Python 與範本重新產生 GAS 的區塊：直接改那些 GAS 區塊，下次同步就被蓋回。
+- 權限分類器會擋下它判定為正式部署的動作（單日 `apply`、Worker 部署、`/exec` 更新）：被擋就照實回報，請管理者決定，不要換一種方式繞過，也不要去改權限設定。
+
+### 8.4 瀏覽器窗格
+
+- 後台（`/exec?page=admin`）在巢狀跨網域 iframe 裡：`get_page_text`、`find`、`read_page` 只看得到 Google 橫幅；只能截圖、縮放、滾輪、依座標點選。分頁列要拖曳（`left_click_drag`）後再截圖定位。
+- 管理者自己登入（不輸入管理金鑰或 Google 密碼）；勾選「記住這台裝置」後重新載入會自動登入。
+- 「維護工具」分頁的按鈕會啟動正式工作（全面重整、從此步驟重跑）：只看不點，除非管理者要求那一項。
+- 後台顯示的是 `/exec` 指向的版本，不是 HEAD。

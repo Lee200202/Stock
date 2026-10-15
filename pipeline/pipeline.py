@@ -5230,6 +5230,15 @@ def resolve_unclear_names(signals, transcript, ss=None):
             known_aliases = {alias: pair[0] for alias, pair in CONFIRMED_NAMES.items()
                              if len(simple(alias)) == len(simple(heard)) and _npin(simple(alias)) == _npin(simple(heard))
                              and pair[0] in official}
+            if len(set(known_aliases.values())) == 1:
+                # Whole-name syllable equality with an already confirmed alias;
+                # not fuzzy distance and never overrides an exact official name
+                # or a code actually spoken in the source (checked above).
+                code=next(iter(known_aliases.values()))
+                r['aliases']=list(dict.fromkeys(list(r.get('aliases') or [])+[heard]))
+                r['code'],r['name']=code,official[code]
+                note_decision('名稱核對','沿用已確認完整同音',heard,official[code])
+                continue
             candidates.update({code: official[code] for code in known_aliases.values()})
             idx = len(payload) + 1
             payload.append({'id':idx,'heard':heard,'context':r.get('evidence') or [],
@@ -6598,7 +6607,7 @@ def execution_statement(sentence, cat):
     if re.search(r'(?:如果|假如|假設|要是|萬一)[^。！？!?]{0,35}' + action, sentence):
         return False
     if re.search(action + r'[^。！？!?]{0,45}(?:蠢|笨|阿呆|傻|錯誤|錯的|神經病)', sentence):
-        completed = re.search(r'(?:我|我們)(?:今天|今日|早上|早盤|剛剛|剛才)?(?:已經|已|先)?' + action + r'(?:出|掉|了|進)', sentence)
+        completed = re.search(r'(?:我|我們)(?:今天|今日|早上|早盤|剛剛|剛才)(?:已經|已|先)?' + action + r'(?:出|掉|了|進)?', sentence)
         if not completed:
             return False
     if re.search(r'(?:建議|應該|可以|應|要)(?:先|再|去)?' + action, sentence) and not re.search(r'(?:通知|告訴)[^。！？!?]{0,30}會員', sentence):
@@ -7787,6 +7796,7 @@ The standalone pipeline is the deployed runtime; this file documents the helpers
 #   這支股票就漲」，是語音把「出清勤誠」聽成這兩種寫法；隔天講明「秦成900塊錢以下才可以買」。
 #   原文只剩「秦」「程」「城」單字時，程式認不出是哪一檔，整檔就漏掉了。管理者確認是勤誠。
 CONFIRMED_NAMES = {'普威': ('4966', '譜瑞-KY'), '普位': ('4966', '譜瑞-KY'), '譜位': ('4966', '譜瑞-KY'),
+                   '日月光': ('3711', '日月光投控'), '上贏': ('2049', '上銀'),
                    '普銳': ('4966', '譜瑞-KY'), '普瑞': ('4966', '譜瑞-KY'),
                    '加折': ('3533', '嘉澤'), '加哲': ('3533', '嘉澤'), '加澤': ('3533', '嘉澤'), '家澤': ('3533', '嘉澤'),
                    '茂聯': ('3665', '貿聯-KY'),
@@ -13436,30 +13446,34 @@ def _explicit_not_yet(names, transcript):
 
 
 def bounded_current_conditions(names, transcript):
-    """本股最多六短句、240 字的當下條件；遇另一股票或轉場即停。"""
+    """本股最多九短句、320 字的當下條件；遇另一股票或轉場即停。"""
     names={str(n) for n in names if len(str(n))>=2}
     forms=lambda n:{str(n),re.sub(r'(?:[-＊*]|KY)+$','',str(n))}
     own_forms=set().union(*(forms(n) for n in names)) if names else set()
     others={f for n in (_CODE_MAP or {}).values() for f in forms(n) if len(f)>=2}-own_forms
+    others.update(set(CONFIRMED_NAMES)-own_forms)
     sentences=list(_plain_sentences(transcript))
     found=[]
     for i,sentence in enumerate(sentences):
         if not any(n in sentence for n in names) or len(sentence)>180:
             continue
         window=sentence
-        for tail in sentences[i+1:i+6]:
-            if len(window)+len(tail)>240 or re.search(r'接著|另外|下一[檔支隻]|來看另',tail) or any(n in tail for n in others):
+        for tail in sentences[i+1:i+9]:
+            if len(window)+len(tail)>320 or re.search(r'接著|另外|下一[檔支隻]|來看另',tail) or any(n in tail for n in others):
                 break
             window+=tail
-        if re.search(r'誰說|誰講|不是說|並非|沒有說|過去|以前|當時|昨天',sentence):
+        if re.search(r'誰說|誰講|不是說|並非|沒有說|過去|以前|當時|昨天|前幾天|先前',sentence):
             continue
-        if re.search(r'(?:我(?:現在|目前)?(?:不會|不想|不)|還不能|現在不能|不可以)(?:再|去)?買|買點(?:還|尚)?沒(?:有)?出現',window):
+        decision=re.sub(r'可不可以[買賣]|能不能[買賣]|要不要[買賣]|[買賣]點[嗎呢]','',window)
+        if re.search(r'(?:我(?:現在|目前)?(?:不會|不想|不)|還不能|現在不能|不可以)(?:再|去)?(?:買|碰)|不要(?:再)?(?:玩|碰)|買點(?:還|尚)?沒(?:有)?出現|還沒跌完',decision):
             if not re.search(r'如果|假如|假設|要是|萬一',sentence):
                 found.append(('watch_avoid',window))
-        elif re.search(r'不能買[^。！？!?]{0,12}(?:'+'|'.join(map(re.escape,names))+r')',window) and re.search(r'只能等|還沒補|尚未補',window):
+        elif re.search(r'不能買[^。！？!?]{0,12}(?:'+'|'.join(map(re.escape,names))+r')',decision) and re.search(r'只能等|還沒補|尚未補',decision):
             found.append(('watch_avoid',window))
-        elif re.search(r'(?:如果|若|等|回測|跌到)[^。！？!?]{0,18}(?:年線|季線|月線|均線|支撐)[^。！？!?]{0,15}(?:安全|買點|可以買|可布局|可佈局)',window):
-            if not re.search(r'不能買|不會買|不買|買點沒|買點還沒',window):
+        elif (re.search(r'(?:如果|若|等|回測|跌到)[^。！？!?]{0,18}(?:年線|季線|月線|均線|支撐)[^。！？!?]{0,15}(?:安全|買點|可以買|可布局|可佈局)',decision)
+              or re.search(r'(?:'+'|'.join(map(re.escape,names))+r')[^。！？!?]{0,24}(?:就是|是)買點(?![嗎呢？?])',decision)
+              or (re.search(r'(?:季線|年線|月線|均線)向上',decision) and '回測' in decision and '是買點' in decision)):
+            if not re.search(r'不能買|不會買|不買|買點沒|買點還沒',decision):
                 found.append(('watch_watch',window))
         elif re.search(r'(?:現在|目前)[^。！？!?]{0,24}最弱[^。！？!?]{0,12}(?:'+'|'.join(map(re.escape,names))+r')',window):
             found.append(('watch_avoid',window))
@@ -18061,6 +18075,9 @@ CM_PARSE_SYSTEM = (
     "4. 「台積電快不裝牛了」這種對別人家股票的行情評論，沒有叫會員動作，不開筆。\n\n"
 
     "【note 說明重點】\n"
+    "speech_act、evidence 是內部核對欄，不能寫進 note；不要寫『可選買點建議』『屬於哪一類』『分析師點名／強調』『不是成交』。"
+    "note 直接整理本股的事實、技術條件與風險。大盤的60分K／MACD不能搬給個股；只有本股引句可用。"
+    "不要把『等突破季線』改成『必須突破季線才准買』；尚未成立的條件不得寫成已成立。\n"
     "note 必須是自然、完整的敘述句，先寫條件或原因，再銜接操作結論，句尾加句號。\n"
     "禁止用〔〕、【】、[]、+、＋或『技術面：』『操作建議：』等模板拼接。\n"
     "錯誤：〔股價突破季線〕＋〔可續抱〕\n"
@@ -19448,6 +19465,8 @@ _SCRUB_FRAGMENT = re.compile(r'(?:[到在於以約近達至、]|請於|上看|�
 
 
 SMS_TWO_SOURCE_REWRITE_SYSTEM = (
+    '內部分類標籤與證據核對結果不寫進正文；禁止用「分析師」「講者」「可選買點建議」「屬於觀望」當說明。'
+    '操作的主體與狀態不得改變：剩餘續抱不寫成全部賣出；可買不寫成已買；預期突破不寫成已突破或必須等突破才買。'
     '你是繁體中文股票節目紀錄編輯。輸入每項有同一檔股票的盤中通知原說明、方向、價位，'
     '以及已逐字核對的當天影片引句與判讀。請把兩個來源重新寫成一段自然的說明重點，'
     '直接寫本股已證實的技術位置、消息、法人、原因與風險，操作方向已有獨立欄位，不必重複。'

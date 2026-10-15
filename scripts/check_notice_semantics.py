@@ -40,6 +40,7 @@ class Cases(unittest.TestCase):
   for phrase in ('今天賣鴻海跟今天賣聯電一樣蠢。','今天不能賣鴻海。','如果今天賣出鴻海就是阿呆。','昨天賣出鴻海。'):
    self.assertEqual(pl.explicit_today_trades(phrase,{'鴻海','2317'},'sell'),[])
   self.assertTrue(pl.explicit_today_trades('我今天賣出鴻海了。',{'鴻海','2317'},'sell'))
+  self.assertTrue(pl.explicit_today_trades('我今天賣鴻海很蠢。',{'鴻海','2317'},'sell'))
  def test_one_batch_full_notice_and_no_extra_retry(self):
   data={'items':[{'name':n,'code':c,'action':a,'note':'等待買回條件。'} for n,c,a in [('勤誠','8210','買入'),('亞德客','1590','買入'),('嘉澤','3533','觀望注意'),('嘉澤','3533','觀望不碰'),('世芯-KY','3661','觀望不碰')]]}
   mapping={'8210':'勤誠','1590':'亞德客-KY','3533':'嘉澤','3661':'世芯-KY'}
@@ -72,4 +73,13 @@ class Cases(unittest.TestCase):
   with patch.object(pl,'_CODE_MAP',{'1234':'甲股','5678':'乙股'}):
    self.assertEqual(pl.bounded_current_conditions({'甲股'},'甲股。跌了很多。兩千到一千。它的年線在這裡，如果跌到年線就變安全。')[0],'watch_watch')
    self.assertEqual(pl.bounded_current_conditions({'甲股'},'甲股。跌了很多。乙股如果跌到年線就變安全。')[0],'')
+   self.assertEqual(pl.bounded_current_conditions({'甲股'},'甲股可不可以買？需要另外分析。')[0],'')
+   self.assertEqual(pl.bounded_current_conditions({'甲股'},'甲股先前不能買。甲股只要230幾，就是買點。')[0],'watch_watch')
+   self.assertEqual(pl.bounded_current_conditions({'甲股'},'甲股今天不能賣，我沒有買甲股。不要殺低。季線向上、回測季線。回測到這裡。一定是買點。')[0],'watch_watch')
+   self.assertEqual(pl.bounded_current_conditions({'甲股'},'甲股先前賣掉。甲股現在跌了一百多，請不要玩。')[0],'watch_avoid')
+ def test_confirmed_whole_sound_not_model_guess(self):
+  s={c:[] for c in pl.SIGNAL_CATEGORIES};s['watch_watch']=[{'name':'成城','code':pl.UNRESOLVED,'evidence':['成城我就是買這麼低。']}]
+  with patch.object(pl,'get_code_map',return_value={'8210':'勤誠','8097':'常珵'}),patch.object(pl,'call_gemini') as model:
+   out=pl.resolve_unclear_names(s,'成城我就是買這麼低。')
+  self.assertEqual(out['watch_watch'][0]['code'],'8210');self.assertEqual(model.call_count,0)
 if __name__=='__main__':unittest.main()

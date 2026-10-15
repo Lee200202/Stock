@@ -9,7 +9,7 @@ on:
       mode:
         description: 通過全部品質核對後才更新；不寄送
         type: choice
-        options: [preview, apply, raw, sync, priority-check, reviewed-points, reviewed-notes-preview, reviewed-notes, source-audit, reading-preview, reading-apply, notice-preview, notice-apply, backup-status, backup-migrate, verdicts, titles]
+        options: [preview, apply, apply-rules, raw, sync, priority-check, reviewed-points, reviewed-notes-preview, reviewed-notes, source-audit, reading-preview, reading-apply, notice-preview, notice-apply, backup-status, backup-migrate, verdicts, titles]
         default: preview
 permissions:
   contents: read
@@ -108,6 +108,7 @@ jobs:
           fi
           ARGS=(--date "$TARGET_DATE")
           if [ "$MODE" = apply ]; then ARGS+=(--apply); fi
+          if [ "$MODE" = apply-rules ]; then ARGS+=(--apply --rules-only); fi
           if [ "$MODE" = raw ]; then ARGS+=(--raw); fi
           python scripts/regenerate_verified_day.py "${ARGS[@]}"
 

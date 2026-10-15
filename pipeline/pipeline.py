@@ -5945,6 +5945,9 @@ _MACRO_CLAUSE = re.compile(r'匯率|台幣(?:升值|貶值|匯率)?|電子(?:股
 _CLAUSE_SPLIT = re.compile(r'[，；;]|(?<!\d),|,(?!\d)')
 
 
+_MACRO_CONDITION = re.compile(r'^(?:且|並|而|但|則)?(?:只要|如果|若|當|因為|由於|受惠於?|隨著|一旦|在)')
+
+
 def strip_macro_text(text, name):
     """一段個股說明裡，沒有本股名稱、講的是大盤層級的話（匯率、電子成交比重、清洗浮額）的子句拿掉；拿掉後太短就維持原文。
 
@@ -5974,7 +5977,11 @@ def strip_macro_text(text, name):
             kept[0] = re.sub(r'^(?:且|並|而|但|則)', '', kept[0])
             out.append('，'.join(kept) + (end or '。'))
             continue
-        kept = [c.strip() for c in _CLAUSE_SPLIT.split(body) if c.strip() and not _MACRO_CLAUSE.search(c)]
+        clauses = [c.strip() for c in _CLAUSE_SPLIT.split(body) if c.strip()]
+        # 拿掉的大盤子句是條件或原因（「只要台幣貶值，收進來的東西價值就會越高」）：後面的話是它的結果，一起拿掉，不留半句（2026/10/15 上銀）
+        if any(_MACRO_CLAUSE.search(c) and _MACRO_CONDITION.match(c) for c in clauses):
+            continue
+        kept = [c for c in clauses if not _MACRO_CLAUSE.search(c)]
         if not kept or len(_ev_norm(''.join(kept))) < 6:
             continue
         kept[0] = re.sub(r'^(?:且|並|而|但|則)', '', kept[0])
@@ -9871,7 +9878,10 @@ def preserve_explicit_holdings(signals, transcript):
                                       r'|只剩下?(?:' + '|'.join(map(re.escape, held_names)) + r')[^！？!?]{0,30}還沒(?:有)?賣'
                                       r'|我(?:們|張震)?(?:手[上中])?(?:目前|現在)(?:手[上中])?(?:就)?只有(?:' + '|'.join(map(re.escape, held_names)) + r')'
                                       # 「我們有台積電這樣穩穩地抱著會怎麼樣？」（2026/10/08）：有這一檔、抱著。
-                                      r'|(?:我|我們)有(?:' + '|'.join(map(re.escape, held_names)) + r')[^。！？!?，,]{0,10}抱著', scope)
+                                      r'|(?:我|我們)有(?:' + '|'.join(map(re.escape, held_names)) + r')[^。！？!?，,]{0,10}抱著'
+                                      # 「這我的股票今天跌了。6409旭準」（2026/10/15）：說「我的股票」，隔一個句點就報出代號與股名
+                                      r'|(?:我|我們|張震)的股票[^。！？!?]{0,10}[。！？!?，,]?(?:' + re.escape(str(row.get('code') or '____')) + r')?(?:'
+                                      + '|'.join(map(re.escape, held_names)) + r')', scope)
                             and not re.search(r'已經.{0,6}(?:賣掉|出清)|全部賣|已賣', scope) for scope, _ in scopes) if held_names else False
             # 講者點名「我手中的股票有X」，同一段接著講自己買在哪裡：這是他現在的部位（2026/10/07 勤誠：
             # 「張震手中的股票這幾天低檔剛佈局的有8210勤誠…我買的位置還是880以下買進」，那一輪模型列成觀望注意）。
@@ -14180,6 +14190,10 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             if state == '再問':
                 still.append((code, item))
                 continue
+            usable = [v for v in entry['votes'] if v]
+            if entry.get('late') and state == '未定' and len(usable) >= 2 and len(set(usable)) == 1                     and usable[0] in ('holdings', 'watch_watch', 'watch_avoid'):
+                # 可用的票兩票以上、全部一致支持同一個公開分類、沒有反對票：不能用的那一票不算反對（2026/10/15 群聯「未列／觀望注意／觀望注意」）
+                state, decided, why = '定案', usable[0], '最後才被拉回，可用的 ' + str(len(usable)) + ' 票一致、沒有反對票'
             if entry.get('late') and state == '未定':
                 # 沒有三票一致支持公開：放回不公開
                 entry.update(cls='ignored', tier='裁決', enforce=True, new=True,

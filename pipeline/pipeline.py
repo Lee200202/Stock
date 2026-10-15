@@ -14207,8 +14207,19 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                 note_decision('分類裁決', '最後才被拉回的列沒有三票支持，不公開', entry['name'],
                               '各票：' + '、'.join(_VERDICT_LABEL.get(v, v) or '不能用' for v in entry['votes']))
                 continue
-            if entry.get('first_unlisted') and state == '未定' \
-                    and not any(v in ('buy', 'sell', 'holdings', 'watch_watch', 'watch_avoid') for v in entry['votes']):
+            public_votes = [v for v in entry['votes'] if v in ('buy', 'sell', 'holdings', 'watch_watch', 'watch_avoid')]
+            hidden_votes = [v for v in entry['votes'] if v and v not in public_votes]
+            # 觀望兩類靠語氣判斷：問卷沒有任何一票支持公開、至少一票明講只是回顧或只被點名，就不公開
+            # （2026/10/15 南亞「排除／未列／回顧」、台塑化「未列／未列／回顧」，兩檔都只在名單裡被點到；
+            #  回看 10/02 聯電、10/06 長榮同樣的票型，人工核定的正式站也都不列）。全部不能用的票不在此列，無從判斷就照流程。
+            if state == '未定' and entry['current'] in ('watch_watch', 'watch_avoid') and not public_votes and hidden_votes \
+                    and not entry.get('first_unlisted'):
+                entry.update(cls='ignored', tier='裁決', enforce=True, new=True,
+                             basis='｜'.join(x for x in (entry['basis'], why, '問卷沒有一票支持公開、有票明講只是回顧或點名，不公開') if x))
+                note_decision('分類裁決', '觀望沒有一票支持公開，不公開', entry['name'],
+                              '各票：' + '、'.join(_VERDICT_LABEL.get(v, v) or '不能用' for v in entry['votes']))
+                continue
+            if entry.get('first_unlisted') and state == '未定' and not public_votes:
                 # 初判沒有列、只靠稽核補漏補上，問卷沒有任何一票支持公開：不公開（2026/10/15 台塑化只在名單裡被點到）
                 entry.update(cls='ignored', tier='裁決', enforce=True, new=True,
                              basis='｜'.join(x for x in (entry['basis'], why, '初判沒有列、問卷沒有一票支持公開，不公開') if x))

@@ -6957,6 +6957,17 @@ def _cue_is_about(heard, sentence, start, end, names):
 _AUDIENCE_AVOID = re.compile(r'你們?(?:就|先|千萬)?(?:不要|別)(?:再)?(?:去)?(?:玩|碰|買|追|進場|買回來)|(?:不要|別)(?:急著?)(?:買回來|買進|進場)')
 
 
+def _my_stock_statement(names, code, transcript):
+    """「這我的股票今天跌了。6409旭準」：說「我的股票」，隔一個句點就報出代號與股名。回傳那一段，沒有就回空字串。"""
+    flat = re.sub(r'【[^】]{0,40}】|\s', '', str(transcript or ''))
+    own = [str(n) for n in names if len(str(n)) >= 2 and not str(n).isdigit()]
+    if not own:
+        return ''
+    m = re.search(r'(?:我|我們|張震)的股票[^。！？!?]{0,10}[。！？!?，,]?(?:' + re.escape(str(code or '____')) + r')?(?:'
+                  + '|'.join(map(re.escape, sorted(own, key=len, reverse=True))) + r')', flat)
+    return m.group() if m else ''
+
+
 def _audience_prohibition(heard, transcript, names=None):
     """同一句先講本股，後面對觀眾明講不要玩、不要碰、不要買回來：回傳那一句，沒有就回空字串（2026/10/15 聖暉
     「你聖暉賣得很漂亮，現在跌了一百多塊…我賣了，你們不要玩哦」）。
@@ -14063,6 +14074,13 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
         if code in explicit_hold and current not in ('buy', 'sell'):
             entry.update(cls='holdings', tier='直接歸類', basis='原文明講目前持有', enforce=True)
             continue
+        # 已經是持股、原文又直接報出「我的股票…（代號）股名」：是講者自己的部位，不交給問卷（2026/10/15 旭隼「這我的股票今天跌了。6409旭準」，
+        # 三份問卷只看到「旭準昨天是漲還跌？」而把它移出持股）。「繼續抱著」之類照舊由問卷三票決定。
+        if current == 'holdings':
+            mine = _my_stock_statement(names, code, transcript)
+            if mine:
+                entry.update(cls='holdings', tier='直接歸類', basis='原文直接報出自己的部位：' + mine, enforce=True)
+                continue
         # 紀錄上還沒賣出（最近一筆是買入）、今天原文有講到、而且沒有賣出的說法：仍是會員持股。
         # 2026/10/02 同一份原稿三次重播，力積電、世芯-KY、聖暉每次落在不同分類，問卷三票也各不相同；紀錄是唯一不會變的依據。
         others_sold = ({str(r.get('code') or '') for r in signals.get('sell', []) or [] if isinstance(r, dict)}

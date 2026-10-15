@@ -13167,7 +13167,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v12-20261015"          # 禁止殺低不是成交；明確未解除的禁買不以條件買點覆蓋
+VERDICT_VERSION = "v13-20261015"          # 持有引句要貼著本股；補漏才列且無一票支持公開者不公開；對觀眾的禁令直接歸類
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 3                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -13801,6 +13801,12 @@ def verdict_class(answer, passages_norm, names=()):
             return False
         if field == 'holding_now' and _VQ_ASKER.search(q.strip()):
             return False                         # 觀眾提問裡的「我手中有…要出嗎？」是提問者自己的部位
+        if field == 'holding_now' and own:
+            # 持有的引句要在本股名稱前後 40 字內：離得遠的是別的話題（2026/10/15 台塑化只在名單裡，持有引句講的是另一件事）
+            k = _ev_norm(q)
+            at = passages_norm.find(k)
+            if at < 0 or not any(n in passages_norm[max(0, at - 40):at + len(k) + 40] for n in own):
+                return False
         return True
 
     def yes(field):
@@ -14109,6 +14115,8 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
         if not stages[0] and not stages[1] and stages[2]:
             entry['late'] = current
             why.append('兩個階段都沒有列，最後才被拉回')
+        elif not stages[0] and current in ('watch_watch', 'watch_avoid'):
+            entry['first_unlisted'] = True               # 初判沒有列、靠稽核補漏補上的觀望
         if len(set(stages)) > 1:
             why.append('三個階段不一致（' + '→'.join(_VERDICT_LABEL.get(s, s) for s in stages) + '）')
         why += marks
@@ -14177,6 +14185,14 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                 entry.update(cls='ignored', tier='裁決', enforce=True, new=True,
                              basis='｜'.join(x for x in (entry['basis'], why, '最後才被拉回的列沒有得到三票支持，不公開') if x))
                 note_decision('分類裁決', '最後才被拉回的列沒有三票支持，不公開', entry['name'],
+                              '各票：' + '、'.join(_VERDICT_LABEL.get(v, v) or '不能用' for v in entry['votes']))
+                continue
+            if entry.get('first_unlisted') and state == '未定' \
+                    and not any(v in ('buy', 'sell', 'holdings', 'watch_watch', 'watch_avoid') for v in entry['votes']):
+                # 初判沒有列、只靠稽核補漏補上，問卷沒有任何一票支持公開：不公開（2026/10/15 台塑化只在名單裡被點到）
+                entry.update(cls='ignored', tier='裁決', enforce=True, new=True,
+                             basis='｜'.join(x for x in (entry['basis'], why, '初判沒有列、問卷沒有一票支持公開，不公開') if x))
+                note_decision('分類裁決', '補漏才列的觀望沒有一票支持公開，不公開', entry['name'],
                               '各票：' + '、'.join(_VERDICT_LABEL.get(v, v) or '不能用' for v in entry['votes']))
                 continue
             detail = (entry['answer'].get(decided) or {}).get('basis') or ''

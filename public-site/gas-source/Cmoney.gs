@@ -935,8 +935,12 @@ function cmVerifyItems_(items, body, map) {
 
     // 名稱要原字出現。模型改寫過的名稱（把璟德寫成璟德科技）就對不上。
     if (String(body).indexOf(name) < 0) {
-      Logger.log('  會員簡訊：略過「' + name + '」，原文裡沒有這幾個字');
-      return;
+      var stem=name.replace(/(?:[-＊*]|KY)+$/,'').trim();
+      if(stem===name||stem.length<2||String(body).indexOf(stem)<0||!map.byCode[told]||map.byCode[told].name!==name){
+        Logger.log('  會員簡訊：略過「' + name + '」，原文裡沒有這幾個字');
+        return;
+      }
+      name=stem;
     }
 
     // 族群、指數、大盤一律不收。這一支與影片那條線用的是同一份判斷。

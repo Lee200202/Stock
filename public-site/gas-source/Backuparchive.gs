@@ -93,7 +93,7 @@ function backupArchiveRequest_(key,op,namesJson,expectedSource){
   if(op==='migrate'){return migrateBackupArchive_();}
   if(op!=='snapshot'){throw new Error('不支援的備份操作');}
   var names=JSON.parse(namesJson),source=getSS_();
-  var allowed=['操作紀錄','會員持股','每日推播內容','逐字稿判讀稽核','持股追蹤','影片清單'];
+  var allowed=['操作紀錄','會員持股','每日推播內容','逐字稿判讀稽核','持股追蹤','影片清單','會員簡訊'];
   if(!Array.isArray(names)||!names.length||names.length>5||names.some(function(n){return allowed.indexOf(n)<0;})||names.some(function(n,i){return names.indexOf(n)!==i;})){throw new Error('備份分頁不在允許範圍');}
   var stamp=Utilities.formatDate(new Date(),'Asia/Taipei','MMdd_HHmmss'),out=[];
   names.forEach(function(n){var sheet=source.getSheetByName(n);if(!sheet){throw new Error('來源分頁不存在：'+n);}out.push(archiveLiveSheet_(sheet,'備份_'+stamp+'_'+n));});

@@ -18162,7 +18162,10 @@ def verify_sms_item(it: dict, body: str, code_map: dict) -> dict | None:
         name = m_code.group(2).strip()
 
     if name not in body:
-        return None
+        stem = re.sub(r'(?:[-＊*]|KY)+$', '', name).strip()
+        if stem == name or len(stem)<2 or stem not in body or code_map.get(hint)!=name:
+            return None
+        name = stem
     non_stock, _ = is_non_stock(name)
     if non_stock:
         return None

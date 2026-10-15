@@ -41,13 +41,14 @@ class Cases(unittest.TestCase):
    self.assertEqual(pl.explicit_today_trades(phrase,{'鴻海','2317'},'sell'),[])
   self.assertTrue(pl.explicit_today_trades('我今天賣出鴻海了。',{'鴻海','2317'},'sell'))
  def test_one_batch_full_notice_and_no_extra_retry(self):
-  data={'items':[{'name':n,'code':c,'action':a,'note':'等待買回條件。'} for n,c,a in [('勤誠','8210','買入'),('亞德客','1590','買入'),('嘉澤','3533','觀望注意'),('嘉澤','3533','觀望不碰'),('世芯','3661','觀望不碰')]]}
+  data={'items':[{'name':n,'code':c,'action':a,'note':'等待買回條件。'} for n,c,a in [('勤誠','8210','買入'),('亞德客','1590','買入'),('嘉澤','3533','觀望注意'),('嘉澤','3533','觀望不碰'),('世芯-KY','3661','觀望不碰')]]}
   mapping={'8210':'勤誠','1590':'亞德客-KY','3533':'嘉澤','3661':'世芯-KY'}
   def resolve(n,h):return h,mapping[h],'official'
   with patch.object(pl,'call_gemini',return_value=data) as model,patch.object(pl,'resolve_code',side_effect=resolve),patch.object(pl.time,'sleep'):
    items,failed,calls=pl._sms_extract_items({'id':'case','text':NOTICE},__import__('re').compile(r'(?!)'),mapping)
   self.assertFalse(failed);self.assertEqual(calls,1);self.assertEqual(model.call_count,1)
   self.assertIn(NOTICE,model.call_args.args[1]);self.assertFalse(any(x['action'] in ('買入','賣出') for x in items))
+  self.assertIn('3661',[i['code'] for i in items])
  def test_both_trade_candidates_share_one_questionnaire(self):
   text='我今天買進甲股了。我今天賣出乙股了。'
   signals={cat:[] for cat in pl.SIGNAL_CATEGORIES+('history','ignored','uncertain')}

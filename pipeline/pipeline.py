@@ -6946,6 +6946,34 @@ def _cue_is_about(heard, sentence, start, end, names):
     return heard in group
 
 
+# 對觀眾的直白禁令：「你們不要玩／不要碰／不要買／不要追」「不要急著買回來」。
+_AUDIENCE_AVOID = re.compile(r'你們?(?:就|先|千萬)?(?:不要|別)(?:再)?(?:去)?(?:玩|碰|買|追|進場|買回來)|(?:不要|別)(?:急著?)(?:買回來|買進|進場)')
+
+
+def _audience_prohibition(heard, transcript, names=None):
+    """同一句先講本股，後面對觀眾明講不要玩、不要碰、不要買回來：回傳那一句，沒有就回空字串（2026/10/15 聖暉
+    「你聖暉賣得很漂亮，現在跌了一百多塊…我賣了，你們不要玩哦」）。
+    中間點到別檔、假設句，或本股到禁令之間是買進條件（「只能在跌的時候買，漲的時候你就不要追」，2026/10/02 台達電）都不算。"""
+    heard = str(heard or '')
+    if len(heard) < 2:
+        return ''
+    names = names if names is not None else _stance_names(transcript)
+    for s in reversed(_plain_sentences(transcript)):
+        pos = s.find(heard)
+        if pos < 0:
+            continue
+        for m in _AUDIENCE_AVOID.finditer(s, pos + len(heard)):
+            between = s[pos + len(heard):m.start()]
+            if any(n not in heard and heard not in n and n in between for n in names):
+                continue
+            if re.search(r'如果|假如|要是|萬一|假設', s[max(0, pos - 8):m.start()]):
+                continue
+            if re.search(r'(?:跌的時候|拉回|回測|回檔|逢低|壓回|只能在)[^。！？]{0,12}買', s[pos:m.end()]):
+                continue
+            return s
+    return ''
+
+
 def plain_current_stance(heard, transcript, weak=False, names=None):
     """這個名字在原文裡有沒有直白的當下說法。回傳 (分類, 原句) 或 None；從後面的句子找起。"""
     # 「沒有買台積電的人趕快買」是在講人，不是不買：股名後面接「的」不算。
@@ -6973,6 +7001,11 @@ def plain_current_stance(heard, transcript, weak=False, names=None):
         double_negative = re.search(r'(?:不要|別|不用|何必|不必)[^。！？!?]{0,16}為了[^。！？!?]{0,12}不(?:去)?(?:買|碰|追)' + re.escape(heard), s)
         if own_buy.search(s) and not double_negative and not (_LEFT_PAST.search(s) and not _LEFT_NOW.search(s)):
             return ('watch_avoid', s)
+        # 同句先回顧本股的賣出、再對觀眾明講「你們不要玩」：現在的禁令，不因同句有過去語境而跳過（2026/10/15 聖暉）
+        if s == _audience_prohibition(heard, s, names):
+            # 原句從講到本股的那個子句開始，不把前一個話題（別檔的操作）一起帶進說明
+            start = max(s.rfind('，', 0, s.find(heard)), s.rfind(',', 0, s.find(heard))) + 1
+            return ('watch_avoid', s[start:])
         clauses = [c for c in re.split(r'[，,；;]', s) if c]
         at = [k for k, c in enumerate(clauses) if heard in c]
         if weak:
@@ -14019,6 +14052,10 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
         # 已判觀望不碰，又有同句點名的當下禁買，無須問卷重擲。
         # 名稱在禁令後也適用；下一句未點名的「可以買」不能解除本股禁令。
         closed = _named_current_prohibition(row, transcript) if current == 'watch_avoid' else ''
+        if not closed and current == 'watch_avoid':
+            told = next((x for x in (_audience_prohibition(n, transcript) for n in sorted(names, key=len, reverse=True)) if x), '')
+            if told:
+                closed = '對觀眾明講不要玩、不要碰：' + told[-60:]
         if not closed and current not in ('buy', 'sell', 'holdings'):
             asked = _asked_refusal(names, transcript)
             not_yet = '' if asked else _explicit_not_yet(names, transcript)
@@ -14704,7 +14741,8 @@ def history_to_watch(signals, date_str, ss=None, transcript=''):
         if not r.get('view') and third_party_churn(str(r.get('reason') or '')):
             r['view'] = r['reason']; r['view_evidence'] = r.get('evidence') or []
         view, quotes = _current_view(r, segments)
-        if not view and r.get('_date') and r['_date'] < date_str:
+        # 沒有核定日期的回顧列也回頭找現況說法（2026/10/15 聖暉：日期未明，原文另有「我賣了，你們不要玩哦」）
+        if not view and (not r.get('_date') or r['_date'] < date_str):
             names = [r.get('原始語音名稱'), r.get('name')] + list(r.get('aliases') or [])
             for heard in names:
                 if not isinstance(heard, str) or len(heard) < 2:

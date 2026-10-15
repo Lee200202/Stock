@@ -103,6 +103,11 @@ def main():
         page.wait_for_function("document.querySelector('#pipeline').dataset.playing==='true'")
         page.close()
 
+        page = browser.new_page(viewport={"width": 1280, "height": 900})
+        page.goto(URL + "#design")
+        assert page.locator("#design details").get_attribute("open") is not None, "A section anchor must open that section"
+        page.close()
+
         page = browser.new_page(viewport={"width": 360, "height": 900}, java_script_enabled=False)
         page.goto(URL)
         assert page.locator("#docs .doc").count() == 20

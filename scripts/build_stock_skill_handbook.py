@@ -222,6 +222,7 @@ function pPlay(){pStop();if(!pVisible||pManual||document.hidden||reduced.matches
 stageButtons.forEach(b=>b.addEventListener('click',()=>{pManual=true;pStop();showStage(Number(b.dataset.stage));$('#pipe-state').textContent='已停在這一站。按「再播流程」繼續。'}));
 $('#pipe-replay').addEventListener('click',()=>{pManual=false;pPlay();if(reduced.matches)$('#pipe-state').textContent='減少動態模式：不自動播放，可逐站點選。'});
 $('#stage-link').addEventListener('click',()=>{const t=document.querySelector($('#stage-link').getAttribute('href'));if(t){filter='all';$('#search').value='';all('[data-filter]').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.filter==='all')));apply();t.querySelector('details').open=true}});
+function openHash(){const t=location.hash&&document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t&&t.classList.contains('doc')){t.hidden=false;t.querySelector('details').open=true;t.scrollIntoView()}}addEventListener('hashchange',openHash);openHash();
 new IntersectionObserver(es=>{pVisible=es[0].isIntersecting;if(pVisible)pPlay();else pStop()},{threshold:.15}).observe($('#pipeline'));document.addEventListener('visibilitychange',()=>{if(document.hidden)pStop();else pPlay()});reduced.addEventListener('change',pPlay);
 </script></body></html>'''
 

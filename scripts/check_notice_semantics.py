@@ -82,4 +82,21 @@ class Cases(unittest.TestCase):
   with patch.object(pl,'get_code_map',return_value={'8210':'勤誠','8097':'常珵'}),patch.object(pl,'call_gemini') as model:
    out=pl.resolve_unclear_names(s,'成城我就是買這麼低。')
   self.assertEqual(out['watch_watch'][0]['code'],'8210');self.assertEqual(model.call_count,0)
+ def test_unnamed_new_example_cannot_supply_trade_or_holding_evidence(self):
+  tx='大家都在講甲股。來，我舉個例子。昨天我出一半，現在同樣買進。'
+  zones,text=pl._verdict_mark([tx],{'甲股'})
+  self.assertNotIn('出一半',text)
+  tx='大家都在講甲股時候，一個分析師一直跟你講，我寧可你去買這個，所以現在同樣買進。'
+  zones,text=pl._verdict_mark([tx],{'甲股'})
+  self.assertNotIn('同樣買進',text)
+  answer={'holding_now':True,'about_itself':True,'quotes':{'holding_now':['甲股我們還有繼續抱著']}}
+  cls,_=pl.verdict_class(answer,pl._ev_norm('甲股我們還有繼續抱著'),{'甲股'},['甲股我們','還有繼續抱著'])
+  self.assertNotEqual(cls,'holdings')
+ def test_unsupported_watch_candidate_isolated_instead_of_retaining_initial_guess(self):
+  signals={c:[] for c in pl.SIGNAL_CATEGORIES+('history','ignored','uncertain')}
+  signals['watch_avoid']=[{'name':'甲股','code':'1234','reason':'消息面風險。'}]
+  with patch.object(pl,'_verdict_known',return_value=({},set(),{})),patch.object(pl,'_verdict_cache',return_value={}),patch.object(pl,'_own_segments',return_value=['甲股只被點名。']),patch.object(pl,'preserve_explicit_holdings',side_effect=lambda s,t:s),patch.object(pl,'_ask_verdicts',return_value={}),patch.object(pl,'budget_left',return_value=900),patch.object(pl,'GEMINI_KEYS',['dummy']),patch.dict(pl._QUOTA_STOP,{'daily':False}):
+   out=pl._adjudicate_classes(None,signals,'甲股只被點名。','2026/10/15',signals,signals,'on')
+  self.assertEqual(out['watch_avoid'],[])
+  self.assertEqual(out['ignored'][0]['code'],'1234')
 if __name__=='__main__':unittest.main()

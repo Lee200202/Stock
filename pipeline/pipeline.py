@@ -13197,7 +13197,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v13-20261015"          # 持有引句要貼著本股；補漏才列且無一票支持公開者不公開；對觀眾的禁令直接歸類
+VERDICT_VERSION = "v14-20261015"          # 換未具名例子即切段；裁決引句不可跨兩段拼接
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 3                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -13352,6 +13352,11 @@ def _verdict_mark(passages, names):
             again = pattern.search(text, m.end(), stop)
             if again:
                 stop = again.start()             # 下一次點名會建立自己的段落，這一段不用跨過它
+            # 換成未點名的新例子時，後面的「我買／我出一半」沒有本股歸屬。
+            # 保留前面的具名條件，不把整個段落交給模型自行猜代名詞。
+            changed = re.search(r'(?:來[，,]?我(?:要)?(?:給你們?看什麼|舉個例子)|我寧可你(?:們)?(?:去|在這邊去)買這個)', text[m.end():stop])
+            if changed:
+                stop = m.end() + changed.start()
             # 句子已結束、接著換新話題且沒再點名本股，就不把新話題的「發動／買點」交給本股問卷。
             # 10/08「創意回來碰季線。所以記憶體後面有一波。這一個發動…」的後兩句不是創意的條件。
             end = re.search(r'[。！？!?]', text[m.end():stop])
@@ -13807,7 +13812,7 @@ def _verdict_cache(ss, date_str):
     return out
 
 
-def verdict_class(answer, passages_norm, names=()):
+def verdict_class(answer, passages_norm, names=(), quote_zones=None):
     """一份問卷答案 → (分類, 依據)。引句對不回本股段落的那一題不算數；整份答案不能用時分類回空字串。
 
     names 有給時，當天買賣的引句裡要有本股的名稱或代號：既有的成交核對也只認「動作貼著股名」的句子。
@@ -13819,7 +13824,8 @@ def verdict_class(answer, passages_norm, names=()):
 
     def real(field):
         clean = [re.sub(r'[【】]', '', q) for q in (quotes.get(field) or []) if isinstance(q, str)]
-        return [q for q in clean if len(_ev_norm(q)) >= 6 and _ev_norm(q) in passages_norm]
+        return [q for q in clean if len(_ev_norm(q)) >= 6 and _ev_norm(q) in passages_norm
+                and (quote_zones is None or any(_ev_norm(q) in _ev_norm(z) for z in quote_zones))]
 
     def supports(field, q):
         if not _VQ_FAMILY[field].search(q):
@@ -14190,11 +14196,12 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
         still = []
         for code, item in pending:
             entry = verdicts[code]
-            cls, basis = verdict_class(answers.get(code), item['_norm'], item['_names'])
+            zones = [s['text'] for s in item['passages']]
+            cls, basis = verdict_class(answers.get(code), item['_norm'], item['_names'], zones)
             if item.get('_trade_check'):
                 sides=item.get('_trade_sides') or [item['_trade_check']]
                 answer=answers.get(code) if isinstance(answers.get(code),dict) else {}
-                verified=all(verdict_class(dict(answer,**{('sell_today' if side=='buy' else 'buy_today'):False}),item['_norm'],item['_names'])[0]==side
+                verified=all(verdict_class(dict(answer,**{('sell_today' if side=='buy' else 'buy_today'):False}),item['_norm'],item['_names'],zones)[0]==side
                              and explicit_today_trades(transcript,item['_names'],side) for side in sides)
                 entry['votes'].append(cls)
                 entry['answer'][cls or 'uncertain']={'basis':basis,'answer':answers.get(code)}
@@ -14204,7 +14211,7 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                 continue
             if entry.get('open') and cls == 'buy' and isinstance(answers.get(code), dict):
                 # 紀錄上本來就有部位：答案同時勾了今天買進與現在持有時算持有（買賣不由問卷新增）。
-                held, held_basis = verdict_class(dict(answers[code], buy_today=False), item['_norm'], item['_names'])
+                held, held_basis = verdict_class(dict(answers[code], buy_today=False), item['_norm'], item['_names'], zones)
                 if held == 'holdings':
                     cls, basis = held, held_basis
             if cls == 'buy' and entry['current'] != 'buy':
@@ -14236,6 +14243,13 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                 continue
             public_votes = [v for v in entry['votes'] if v in ('buy', 'sell', 'holdings', 'watch_watch', 'watch_avoid')]
             hidden_votes = [v for v in entry['votes'] if v and v not in public_votes]
+            if state == '未定' and entry['current'] in ('watch_watch', 'watch_avoid') and not entry.get('open') and entry['current'] not in public_votes:
+                # 明確條件與已核實部位已在前面直接處理；這裡是有爭議的語氣候選。
+                # 沒有有效引句支持原分類，不因保留初判而發布，也不阻擋其他股票。
+                entry.update(cls='ignored', tier='裁決', enforce=True, new=True,
+                             basis=entry['basis']+'｜原分類沒有有效引句支持，本股不公開')
+                note_decision('分類裁決', '原分類缺少有效支持，本股不公開、其他續跑', entry['name'], why)
+                continue
             # 觀望兩類靠語氣判斷：問卷沒有任何一票支持公開、至少一票明講只是回顧或只被點名，就不公開
             # （2026/10/15 南亞「排除／未列／回顧」、台塑化「未列／未列／回顧」，兩檔都只在名單裡被點到；
             #  回看 10/02 聯電、10/06 長榮同樣的票型，人工核定的正式站也都不列）。全部不能用的票不在此列，無從判斷就照流程。

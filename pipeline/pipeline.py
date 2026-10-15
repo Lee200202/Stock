@@ -8532,7 +8532,7 @@ def scrub_notice_words(text) -> str:
 _NAME_TAIL_AFTER = r'(?=會|在|於|的|股價|今|昨|已|仍|也|則|將|持續|目前|近期)'
 # 開頭的代稱（「該標的…」「由於其…」）與自稱分類的話（「因此作為觀望不碰的標的」）。
 _VAGUE_SUBJECT = re.compile(r'(^|[。！？])(?:該|此)(?:標的|個股|股票|檔股票|檔)')
-_SELF_CLASS = re.compile(r'[，,]?(?:因此|故|而)?(?:被)?(?:作為|列為|歸為)(?:觀望不碰|觀望注意|會員持股|不碰|觀望)(?:的)?(?:標的|個股|對象)(?=[。！？，,；;]|$)')
+_SELF_CLASS = re.compile(r'[，,]?(?:(?:因此|故|而|所以)(?:被)?(?:列入|列)|(?:因此|故|而|所以)?(?:被)?(?:作為|列為|歸為))(?:觀望不碰|觀望注意|會員持股|不碰|觀望)(?:的)?(?:標的|個股|對象)?(?=[。！？，,；;]|$)')
 
 
 def _public_subject_fixes(text, name):
@@ -8546,6 +8546,9 @@ def _public_subject_fixes(text, name):
                       lambda m: base if (base[0] + m.string[m.end():m.end() + 1]) not in starts else m.group(0), text)
     text = _VAGUE_SUBJECT.sub(lambda m: m.group(1) + base, text)
     text = re.sub(r'(^|[。！？])由於其', lambda m: m.group(1) + '由於' + base, text)
+    # 整句只有「本股列觀望注意」：這一句是在講分類本身，整句拿掉
+    text = re.sub(r'(^|[。！？])\s*(?:' + re.escape(base) + r')?\s*(?:列|列為|列入|歸為|屬於)(?:觀望不碰|觀望注意|會員持股)(?:的)?(?:標的|個股|對象)?[。！]',
+                  lambda m: m.group(1), text)
     return _SELF_CLASS.sub('', text)
 
 
@@ -19481,7 +19484,7 @@ def public_sms_note(text, row=None):
         # 「6、70塊」「74到76塊」是一個數量，整組一起留或一起拿，不能只挖後半。
         # 數字連千分位一起認（「1,615元」先前只挖掉「615元」，留下「從1,一路下跌」），前面的「從／自」一起拿掉。
         number = r'(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?'
-        sentence = re.sub(r'(?:在|以|於|從|自)?(?:平盤)?(?:' + number + r'\s*[、~～到至]\s*)?' + number + r'\s*(?:元|塊)(?:附近|以上|以下|之上|之下)?',
+        sentence = re.sub(r'(?:在|以|於|從|自)?(?:平盤)?(?:' + number + r'\s*[、~～到至]\s*)?' + number + r'\s*(?:元|塊)(?:附近|以上|以下|之上|之下|左右|上下|一帶)?',
                           remove_price, sentence)
         for price in known:
             sentence = re.sub(r'(?:在|以|於)?(?:平盤)?(?<![\d.])'+re.escape(price)+r'(?![\d.])(?:以上|以下|之上|之下)', remove_price, sentence)

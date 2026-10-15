@@ -13197,7 +13197,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v14-20261015"          # 換未具名例子即切段；裁決引句不可跨兩段拼接
+VERDICT_VERSION = "v15-20261015"          # 切換未具名例子即停；無有效票時仍保留原稿可直接核對的本股向前條件
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 3                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -14243,7 +14243,21 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                 continue
             public_votes = [v for v in entry['votes'] if v in ('buy', 'sell', 'holdings', 'watch_watch', 'watch_avoid')]
             hidden_votes = [v for v in entry['votes'] if v and v not in public_votes]
-            if state == '未定' and entry['current'] in ('watch_watch', 'watch_avoid') and not entry.get('open') and entry['current'] not in public_votes:
+            raw_watch = ''
+            if entry['current'] == 'watch_watch':
+                # 模型沒有有效答案不代表原稿沒有依據。保留已是注意、同句具名的向前條件；
+                # 純行情、觀眾問句、歷史日期與明確禁買不適用，不新增持股或成交。
+                for zone in zones:
+                    for sentence in _plain_sentences(zone):
+                        if (any(n in _ev_norm(sentence) for n in map(_ev_norm, item['_names']) if n)
+                                and _VQ_ENTRY.search(sentence) and _VQ_OUTLOOK.search(sentence)
+                                and not re.search(r'可不可以|可以不可以|能不能|要不要|[嗎？?]|昨天|以前|先前', sentence)
+                                and not active_prohibit(sentence)):
+                            raw_watch = sentence
+                            break
+                    if raw_watch:
+                        break
+            if state == '未定' and entry['current'] in ('watch_watch', 'watch_avoid') and not entry.get('open') and entry['current'] not in public_votes and not raw_watch:
                 # 明確條件與已核實部位已在前面直接處理；這裡是有爭議的語氣候選。
                 # 沒有有效引句支持原分類，不因保留初判而發布，也不阻擋其他股票。
                 entry.update(cls='ignored', tier='裁決', enforce=True, new=True,

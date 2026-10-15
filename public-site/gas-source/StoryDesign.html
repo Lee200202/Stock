@@ -158,7 +158,7 @@ function initStory(){
  ['tech-subject',2,'person','股票、主體、動作、日期都對上，才列當日成交。','[data-tone-case]','#toneExample','日期核對'],
  ['tech-number',2,'ruler','數字先核對股票與單位，不把張數或EPS當股價。','[data-own]','#ownDetail','單位核對'],
  ['tech-unnamed',2,'funnel','昨收唯一符合且通過本股證據核對，才認公司。','[data-un]','#unChain','公司核對'],
- ['tech-source-priority',2,'mail','當日操作優先決定分類，影片補充本股依據。','[data-source-case]','#sourceResult','分類'],
+ ['tech-source-priority',2,'mail','先核對原文語意，再按來源合併分類與本股說明。','[data-source-case]','#sourceResult','分類'],
  ['tech-public-notes',2,'shield','只公開原句、數字與主詞都能核對的內容。','[data-pn]','.pn-final','公開說明'],
  ['tech-transcript-progress',3,'rail','新稿指紋不同，舊結果不能蓋回；已完成片段留底。','[data-tx]','#txOut','版本保護'],
  ['tech-hold',3,'table','持股有起訖，出場後重新買入另開一個回合。','[data-story-round]','#tlState','持股回合'],
@@ -277,7 +277,8 @@ function initStory(){
    for(var row=0;row<2;row++){out+=text(W/2,25+row*(mobile?190:115),row?'目前原稿':'舊工單');out+=line(20,65+row*(mobile?190:115),W-20,65+row*(mobile?190:115));sts.forEach(function(e,i){var x=20+(W-40)*i/Math.max(1,sts.length-1),y=65+row*(mobile?190:115),cl=row===0&&newer&&i>0?'viz-stop':e.classList.contains('tone-ok')?'viz-pass':e.classList.contains('tone-stop')?'viz-stop':'viz-wait';out+='<circle cx="'+x+'" cy="'+y+'" r="9" class="'+cl+'"/>';if(!mobile||i%2===0)out+=text(x,y+30,['原稿','潤飾','判讀','文章','寄送','績效'][i]);});}
    status.textContent='六站狀態取自目前情境；指紋變更時舊寫回作廢，文章完成不代表績效完成。';
   }else if(id==='tech-source-priority'){
-   chain(/video/.test(key)?[['mail','無當日操作','viz-ink'],['film','影片原句','viz-ink'],['shield','核對分類','viz-pass'],['record','書面說明','viz-pass']]:[['mail','當日操作','viz-pass'],['lock',/buy/.test(key)?'買入分類':'賣出分類','viz-pass'],['film','影片依據','viz-ink'],['record','書面說明','viz-pass']]);status.textContent='以權威來源決定分類，不是單純誰先到就優先；影片不能把已核對操作翻成相反方向。';
+   var sourceNodes=/optional/.test(key)?[['mail','可買建議','viz-ink'],['shield','非已成交','viz-wait'],['search','觀望注意','viz-pass'],['record','不建買入事件','viz-ink']]:/partial/.test(key)?[['mail','昨日減碼','viz-ink'],['person','剩餘持股','viz-pass'],['clock','買回條件未到','viz-wait'],['lock','暫不買回','viz-wait']]:/video/.test(key)?[['mail','無當日操作','viz-ink'],['film','影片原句','viz-ink'],['shield','核對分類','viz-pass'],['record','書面說明','viz-pass']]:[['mail','當日操作','viz-pass'],['lock',/buy/.test(key)?'買入分類':'賣出分類','viz-pass'],['film','影片依據','viz-ink'],['record','書面說明','viz-pass']];
+   chain(sourceNodes);var sr=q('#sourceResult',s.detail);status.textContent=sr?sr.textContent:'先核對原文語意，再按來源合併。';
   }else if(id==='tech-public-notes'){
    // 數字核對、主體核對與最後結果照細節的核對項目與結論上色
    var fin=q('.pn-final',s.detail),badge=q('.pn-final .tv-badge',s.detail),dropEl=qa('.pn-checks li.pn-drop,.pn-checks li.pn-move',s.detail),drops=dropEl.length,reviews=qa('.pn-checks li.pn-review',s.detail).length;

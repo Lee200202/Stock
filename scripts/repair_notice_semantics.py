@@ -34,7 +34,9 @@ def main():
   if not items:raise SystemExit('回傳空清單；人工核對前保留原狀')
   for it in items:
    print('原文核對',it['code'],it['name'],it['action'],it.get('speech_act'))
-  reports.append({'article':r['id'],'date':day,'sourceSha256':digest(r['text']),'calls':calls,'items':items})
+  # The repository is public: an Actions artifact must not contain the private
+  # notice, price, evidence quote, or rewritten private operation detail.
+  reports.append({'article':r['id'],'date':day,'sourceSha256':digest(r['text']),'calls':calls,'items':[{'code':it['code'],'action':it['action'],'speech_act':it.get('speech_act','')} for it in items]})
   plans.append((old,r,items))
  out=ROOT/'.notice-audit';out.mkdir(exist_ok=True);(out/'report.json').write_text(json.dumps(reports,ensure_ascii=False),encoding='utf8')
  if not a.apply or not plans:print('唯讀／沒有待更新項目；未寫入、未寄送');return
@@ -42,7 +44,8 @@ def main():
  fresh=pl.sheets_retry(ws.get_all_values)
  for old,r,items in plans:
   current=next((dict(zip(fresh[0],v)) for v in fresh[1:] if dict(zip(fresh[0],v)).get('文章ID')==r['id']),None)
-  if current!=old:raise SystemExit('核對期間簡訊列已改變；未寫入')
+  critical=('文章ID','發文時間','原文','解析明細','解析版本')
+  if current is None or any(current.get(k)!=old.get(k) for k in critical):raise SystemExit('核對期間原文或解析結果已改變；未寫入')
  sources={'CMONEY-'+r['id'] for _,r,_ in plans};requests=[]
  for tab,field in [('操作紀錄','理由摘錄'),('會員持股','說明重點')]:
   tw=book.worksheet(tab);vals=pl.sheets_retry(tw.get_all_values);h=vals[0];src=h.index('來源影片ID')
@@ -65,7 +68,8 @@ def main():
  for old,r,items in plans:
   current=next(dict(zip(checked[0],v)) for v in checked[1:] if dict(zip(checked[0],v)).get('文章ID')==r['id'])
   assert current['原文']==r['text'] and current['解析明細']==pl.serialize_sms_items(items)
-  for key in ('通知狀態','內容指紋','修訂次數'):assert current.get(key)==old.get(key)
+  prior=next(dict(zip(fresh[0],v)) for v in fresh[1:] if dict(zip(fresh[0],v)).get('文章ID')==r['id'])
+  for key in ('通知狀態','內容指紋','修訂次數'):assert current.get(key)==prior.get(key)
  assert sent==pl._daily_article_status(book,day)
  assert all(before[s.title]==digest(pl.sheets_retry(s.get_all_values)) for s in ledgers)
  pl.queue_sms_content_sync(book,{day})

@@ -96,7 +96,8 @@ class Cases(unittest.TestCase):
   signals={c:[] for c in pl.SIGNAL_CATEGORIES+('history','ignored','uncertain')}
   signals['watch_avoid']=[{'name':'甲股','code':'1234','reason':'消息面風險。'}]
   with patch.object(pl,'_verdict_known',return_value=({},set(),{})),patch.object(pl,'_verdict_cache',return_value={}),patch.object(pl,'_own_segments',return_value=['甲股只被點名。']),patch.object(pl,'preserve_explicit_holdings',side_effect=lambda s,t:s),patch.object(pl,'_ask_verdicts',return_value={}),patch.object(pl,'budget_left',return_value=900),patch.object(pl,'GEMINI_KEYS',['dummy']),patch.dict(pl._QUOTA_STOP,{'daily':False}):
-   out=pl._adjudicate_classes(None,signals,'甲股只被點名。','2026/10/15',signals,signals,'on')
+   snap=pl._class_snapshot(signals)
+   out=pl._adjudicate_classes(None,signals,'甲股只被點名。','2026/10/15',snap,snap,'on')
   self.assertEqual(out['watch_avoid'],[])
   self.assertEqual(out['ignored'][0]['code'],'1234')
 if __name__=='__main__':unittest.main()

@@ -14080,7 +14080,7 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             continue
         # 已經是持股、原文又直接報出「我的股票…（代號）股名」：是講者自己的部位，不交給問卷（2026/10/15 旭隼「這我的股票今天跌了。6409旭準」，
         # 三份問卷只看到「旭準昨天是漲還跌？」而把它移出持股）。「繼續抱著」之類照舊由問卷三票決定。
-        if current == 'holdings':
+        if current not in ('buy', 'sell'):
             mine = _my_stock_statement(names, code, transcript)
             if mine:
                 entry.update(cls='holdings', tier='直接歸類', basis='原文直接報出自己的部位：' + mine, enforce=True)
@@ -14163,6 +14163,9 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
         entry['basis'] = '；'.join(why)
         hit = (cache.get(code) or {}).get('by_fp', {}).get((entry['fp'], VERDICT_VERSION))
         if hit:
+            # 快取的「待確認」是先前判定不公開；改列那一步不搬「待確認」，沿用到現在是公開的列時以「排除」套用（2026/10/15 台塑化）
+            if hit == 'uncertain' and current not in _VERDICT_HIDDEN:
+                hit = 'ignored'
             entry.update(cls=hit, tier='沿用裁決', enforce=True)
             continue
         entry['tier'] = '送裁決'

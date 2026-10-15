@@ -8506,6 +8506,8 @@ def strip_editorial_wrappers(text):
     text = re.sub(r'(?:原文|逐字稿)(?:以|用)(「[^」]+」|[^。；]+?)作為(?:風險)?(?:警示|提醒)', r'\1', str(text or ''))
     text = re.sub(r'(?:逐字稿|影片)(?:補充的|補充)?(?:重點|說明)(?:是|為)[：:]?', '', text)
     text = re.sub(r'(?:原文|逐字稿)(?:補充|提到|提及|強調|提醒|指出|說明)(?:的)?', '', text)
+    # 「作為…的教學回顧／範例」整句是在講這段說明本身，不是這一檔的事（2026/10/15 所羅門）
+    text = re.sub(r'(^|[。！？])\s*作為[^。！？]{0,50}(?:回顧|範例|例子|示範)[。！？]', r'\1', text)
     return text.replace('原文回顧', '先前').replace('原文強調的', '')
 
 
@@ -8569,6 +8571,8 @@ def public_narrative(text, row=None, signals=None):
     text = naturalize_reason(strip_editorial_wrappers(scrub_notice_words(to_traditional(text))))
     for spoken, written in [('多到爆', '眾多'), ('痛批', '指出'), ('極其超級低', '位於低檔')]:
         text = text.replace(spoken, written)
+    # 口語的「崩得亂七八糟」寫成書面語（2026/10/15 所羅門）
+    text = re.sub(r'(?:崩|跌)(?:跌|得|到)?(?:得)?亂七八糟', '大幅下跌', text)
     # 來源可留在內部稽核；公開說明直接呈現已核對的事實。
     text = re.sub(r'原(?:文|稿)(?:說|寫|提到|指出)', '', text)
     text = re.sub(r'目前仍在持股名單[，,]?\s*節目(?:前|中|後)段再次明講尚持有', '目前仍持有', text)

@@ -4689,7 +4689,7 @@ html[data-view="mobile"] .detail-close { position: fixed; top: 12px; right: 12px
 html.is-scrolled .topbar { box-shadow: 0 6px 20px rgba(16, 32, 26, .08); }
 html { scroll-padding-top: 140px; }
 .totop {
-  position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 110;
+  position: fixed; left: 50%; right: auto; bottom: max(12px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 110;
   display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 22px; border-radius: var(--r-pill);
   border: 1px solid var(--rule); background: var(--panel); color: var(--ink); font: inherit; font-size: calc(14.5px * var(--rd-fs)); font-weight: 600;
   box-shadow: 0 10px 28px rgba(16, 32, 26, .16); cursor: pointer;

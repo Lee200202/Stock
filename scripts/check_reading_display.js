@@ -1,0 +1,10 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),crypto=require('node:crypto');
+const c={Utilities:{DigestAlgorithm:{SHA_256:'sha256'},Charset:{UTF_8:'utf8'},computeDigest:(_,s)=>[...crypto.createHash('sha256').update(s).digest()]}};vm.createContext(c);vm.runInContext(fs.readFileSync('public-site/gas-source/SheetService.gs','utf8'),c);
+const base='今天加折在季線附近整理，接下來要觀察景線是否突破。不要追高。';
+const edits=[{quote:base,before:'加折',after:'嘉澤',kind:'stock_name',code:'3533'},{quote:base,before:'景線',after:'頸線',kind:'term'}];
+const draft=base.replace('加折','嘉澤').replace('景線','頸線'),proof={version:'reading-v1-20261015',rawFingerprint:c.transcriptFingerprint_(base),base,edits};
+const row={'原始逐字稿內容':base,'修飾後逐字稿內容':draft,'閱讀校正JSON':JSON.stringify(proof)};
+assert.equal(c.displayTranscriptText_(row),draft);
+for(const patch of [{'閱讀校正JSON':''},{'原始逐字稿內容':base+'新原稿'},{'修飾後逐字稿內容':draft+'新增看法'},{'閱讀校正JSON':JSON.stringify({...proof,edits:[edits[0],edits[0]]})}])assert.equal(c.verifiedReadingDraft_({...row,...patch}),false);
+assert.equal(c.displayTranscriptText_({...row,'閱讀校正JSON':''}),base);
+console.log('GAS display: verified local edits accepted; altered raw/draft/missing proof/overlap rejected.');

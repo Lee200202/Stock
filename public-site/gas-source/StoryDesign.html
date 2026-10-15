@@ -68,7 +68,6 @@
 .story-rail { display:none; position:fixed; z-index:55; right:8px; top:40vh; }
 body:has(#p-tech:not([hidden])) .story-rail { display:block; }
 body:has(#p-tech:not([hidden])) .subnav { display:none !important; }
-body:has(#p-tech:not([hidden])) #toTop { visibility:hidden; pointer-events:none; }
 .story-rail-handle { display:flex; flex-direction:column; align-items:center; gap:4px; min-width:48px; min-height:96px; padding:10px 6px; border:1px solid var(--rule); border-radius:18px; background:var(--panel); color:var(--ink); box-shadow:0 8px 24px #0002; font:inherit; font-size:calc(13.5px * var(--rd-fs)); white-space:nowrap; cursor:pointer; }
 .story-rail-handle svg { width:22px; height:22px; color:var(--beam); }
 .story-rail-handle[aria-expanded="true"] { border-color:var(--beam); }
@@ -112,7 +111,6 @@ body:has(#p-tech:not([hidden])) #toTop { visibility:hidden; pointer-events:none;
 .story-tracker-more { min-height:44px; padding:12px 22px; border:1px solid var(--rule); border-radius:999px; background:var(--panel); color:var(--ink); cursor:pointer; font:inherit; margin-top:18px; }
 .story-mini-return { display:flex; height:8px; margin:14px 0 10px; border-radius:999px; background:var(--rule); overflow:hidden; }
 .story-mini-return i { height:100%; width:var(--rw); background:var(--rc); }
-#toTop { left:auto; right:24px; transform:none; bottom:92px; }
 .story-rail-panel .story-rail-act { display:block; margin:12px 0 4px; padding:4px 10px; font-size:calc(13.5px * var(--rd-fs)); color:var(--muted); }
 @media(max-width:760px) {
  .story-designed .story-main { padding:14px; }

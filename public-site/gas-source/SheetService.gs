@@ -2947,8 +2947,27 @@ function displayTranscriptText_(row) {
   function words(s){return s.replace(/[\s，。！？、；：,.!?;:「」『』“”‘’（）()【】\[\]《》<>〈〉〔〕\-—－_＊*…‧﹒•·～~]/g,'');}
   // Old display drafts may have introduced different companies. They cannot be
   // rehabilitated by a second AI formatter; display the original words instead.
-  if(raw && words(raw)!==words(polished)){return raw;}
+  if(raw && words(raw)!==words(polished)&&!verifiedReadingDraft_(row)){return raw;}
   return polished || raw;
+}
+
+/** 校正版必須能由原稿同字的基底及局部替換重建；原始稿仍是判讀證據。 */
+function verifiedReadingDraft_(row){
+  try{
+    var p=JSON.parse(String(row['閱讀校正JSON']||'{}')),raw=String(row['原始逐字稿內容']||''),draft=String(row['修飾後逐字稿內容']||''),base=p.base;
+    function words(s){return String(s||'').replace(/[\s，。！？、；：,.!?;:「」『』“”‘’（）()【】\[\]《》<>〈〉〔〕\-—－_＊*…‧﹒•·～~]/g,'');}
+    if(p.version!=='reading-v1-20261015'||p.rawFingerprint!==transcriptFingerprint_(raw)||typeof base!=='string'||words(base)!==words(raw)||!Array.isArray(p.edits)||!p.edits.length){return false;}
+    var spans=[];
+    for(var i=0;i<p.edits.length;i++){
+      var e=p.edits[i],q=String(e.quote||''),a=String(e.before||''),b=String(e.after||'');
+      if(!q||!a||!b||base.split(q).length!==2||q.split(a).length!==2||a.length>12||b.length>12){return false;}
+      var at=base.indexOf(q)+q.indexOf(a),end=at+a.length;
+      if(spans.some(function(x){return at<x.end&&end>x.at;})){return false;}
+      spans.push({at:at,end:end,text:b});
+    }
+    spans.sort(function(a,b){return b.at-a.at;}).forEach(function(e){base=base.slice(0,e.at)+e.text+base.slice(e.end);});
+    return base===draft;
+  }catch(e){return false;}
 }
 
 var TX_FORMAT_SYSTEM = "你要替一段直播逐字稿分段並下小標。原文已經拆成編號的句子，格式是「[編號] 句子」。\n你只決定兩件事：從第幾句開始是新的一段、這一段的小標。不要輸出原文，不要改寫、摘要或補字。\n\n=== 在哪裡分段 ===\n判斷依據是「講者換了話題」，不是字數到了就切。以下情況換一段：\n1. 換一檔股票或一個族群。從一檔講到另一檔，是最明確的分段點。\n2. 從大盤轉到個股，或從個股回到大盤。\n3. 從講行情轉到講操作或觀念（為什麼要抱、什麼時候賣、怎麼選股）。\n4. 開始回答會員提問，或提問結束回到盤勢。\n5. 題外話（開場寒暄、時事、抱怨、講古、節目宣傳）自成一段。\n6. 時間推進（等一下開盤、收盤前再看）。\n一段通常 8 到 40 句；同一檔講很久時，可以依技術面、基本面、操作建議再切細。\n\n=== 小標 ===\n每一段一個 6 到 12 個字的小標，讓人掃過去就知道這一段在講什麼、要不要細看。\n講到股票就放股票名稱（照原文的寫法），講大盤就寫大盤在做什麼，講觀念就寫是什麼觀念。\n用原文出現過的詞，不下結論、不加原文沒有的評價。\n好的小標：「台積電填息看法」「會員問記憶體」「大盤量縮等升息」「不要用單日漲跌選股」「節目開場閒聊」\n不好的小標：「內容一」「講者說明」「這一段」「其他」（沒有資訊）\n\n=== 輸出 ===\n只輸出 JSON：{\"sections\":[{\"start\":1,\"title\":\"小標\"},{\"start\":14,\"title\":\"小標\"}]}\nstart 是這一段第一句的編號，由小到大排列；第一段的 start 必須是這一批第一句的編號。";   // 由 scripts/sync_quality.py 從 pipeline.py 同步，不要手改

@@ -9,7 +9,7 @@ on:
       mode:
         description: 通過全部品質核對後才更新；不寄送
         type: choice
-        options: [preview, apply, raw, sync, priority-check, reviewed-points, reviewed-notes-preview, reviewed-notes, source-audit, backup-status, backup-migrate, verdicts, titles]
+        options: [preview, apply, raw, sync, priority-check, reviewed-points, reviewed-notes-preview, reviewed-notes, source-audit, reading-preview, reading-apply, notice-preview, notice-apply, backup-status, backup-migrate, verdicts, titles]
         default: preview
 permissions:
   contents: read
@@ -47,6 +47,22 @@ jobs:
           FINAL_ATTEMPT: 'true'
           PYTHONUNBUFFERED: '1'
         run: |
+          if [ "$MODE" = notice-preview ]; then
+            python scripts/repair_notice_semantics.py --date "$TARGET_DATE"
+            exit 0
+          fi
+          if [ "$MODE" = notice-apply ]; then
+            python scripts/repair_notice_semantics.py --date "$TARGET_DATE" --apply
+            exit 0
+          fi
+          if [ "$MODE" = reading-preview ]; then
+            python scripts/repair_reading_copy.py --date "$TARGET_DATE"
+            exit 0
+          fi
+          if [ "$MODE" = reading-apply ]; then
+            python scripts/repair_reading_copy.py --date "$TARGET_DATE" --apply
+            exit 0
+          fi
           if [ "$MODE" = backup-status ]; then
             python scripts/backup_archive.py
             exit 0
@@ -103,3 +119,19 @@ jobs:
           include-hidden-files: true
           retention-days: 1
           if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: inputs.mode == 'reading-preview' || inputs.mode == 'reading-apply'
+        with:
+          name: reading-audit-${{ github.run_id }}
+          path: .reading-audit/report.json
+          include-hidden-files: true
+          retention-days: 1
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: inputs.mode == 'notice-preview' || inputs.mode == 'notice-apply'
+        with:
+          name: notice-audit-${{ github.run_id }}
+          path: .notice-audit/report.json
+          include-hidden-files: true
+          retention-days: 1
+          if-no-files-found: ignore

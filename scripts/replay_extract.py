@@ -117,6 +117,14 @@ def compare(signals, golden, day=None):
         bad = code in where
         ok &= not bad
         lines.append(f"  {'✗' if bad else '✓'} {names.get(code, '')}（{code}）不應出現" + (f"，實際列在 {'／'.join(LABEL[g] for g in where[code])}" if bad else ""))
+    for code, required in golden.get('required_categories', {}).items():
+        good=all(c in where.get(code,[]) for c in required)
+        ok &= good
+        lines.append(f"  {'✓' if good else '✗'} {names.get(code,code)}：部位與進場立場須分別存在（"+'／'.join(LABEL[c] for c in required)+'）')
+    for cat in golden.get('forbidden_categories', []):
+        bad=[code for code,cats in where.items() if cat in cats]
+        ok &= not bad
+        lines.append(f"  {'✗' if bad else '✓'} 當日不得有{LABEL[cat]}事件"+('：'+','.join(bad) if bad else ''))
     for code, forbidden in golden.get('note_must_not', {}).items():
         for phrase in forbidden:
             bad = any(phrase in note for note in notes.get(code, []))

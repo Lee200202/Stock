@@ -25,7 +25,7 @@ var SHEET_SCHEMA = {
      空白且已有原文的舊資料一律視同「手動」——那一欄是後來才加的，
      在它之前的原文全是人貼的，當成自動就等於允許機器覆蓋人工成果。
      這一欄由 ensureHeaders_ 自動補在最後面，既有試算表不必手動加。 */
-  '影片清單': ['影片ID', '發布日期', '標題', '處理狀態', '失敗原因', '原始逐字稿內容', '修飾後逐字稿內容', '原文更新時間', '原文SHA256', '來源別名', '逐字稿來源'],
+  '影片清單': ['影片ID', '發布日期', '標題', '處理狀態', '失敗原因', '原始逐字稿內容', '修飾後逐字稿內容', '原文更新時間', '原文SHA256', '來源別名', '逐字稿來源', '閱讀校正JSON'],
   // 「序」是同一天同一檔的動作先後。多數列是空的（一天只講一次），
   // 只有「早上賣掉、下午買回來」這種同日來回才會填 1、2。
   // 少了它，持股追蹤只能用固定的優先級猜順序（買一律排在賣前面），
@@ -1246,7 +1246,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-10-14-source-sale-scope-v181';
+var PROJECT_BUILD_ = '2026-10-15-reading-copy-v182';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
@@ -1264,7 +1264,7 @@ var PROJECT_FILES_ = [
   { file: 'Articlequality.gs', names: ['enforceArticleRecords_', 'attachArticleEvidence_'] },
   { file: 'BattleData.gs', names: ['apiGetBattleData'], marker: ['apiGetBattleData', 'volumeUnit'] },
   { file: 'Cachebuilder.gs', names: ['dailyKCacheAfterWrite_', 'dailyKNoData_', 'budgetLeft_', 'trackedCodes_', 'readSnapshotRows_', 'officialDailyAll_', 'auditDailyKCache', 'repairDailyKCache', 'afterDailyKDoneJob', 'rescheduleDailyKTrigger', 'warmKCaches_', 'dailyKFloors_', 'resetDailyKFloor', 'isTradingDateStr_', 'ensurePerformanceContinuityJob_', 'officialDailyKFill_', 'officialDailyKTick_', 'officialDailyKJob', 'fillOfficialDailyKNow', 'auditTrackedSymbolsJob'], marker: ['auditTrackedSymbolsJob', 'symbolAuditDayV94'] },
-  { file: 'Cmoney.gs', names: ['cmMailBody_', 'cmNotifyNew_', 'cmSyncContentTick_', 'cmTranscriptExcerpt_', 'deliveryRetryTick_', 'diagnoseInstantMail', 'cmSetNotifyState_', 'resendInstantMail', 'resendTodaySmsTextCorrection', 'resendTodaySmsFromOwner', 'cmPollSaveFailed_', 'cmVerifyItems_', 'cmPollInterval_'], marker: ['cmPollInterval_', 'Math.max(configured, 2)'] },
+  { file: 'Cmoney.gs', names: ['cmMailBody_', 'cmNotifyNew_', 'cmSyncContentTick_', 'cmTranscriptExcerpt_', 'deliveryRetryTick_', 'diagnoseInstantMail', 'cmSetNotifyState_', 'resendInstantMail', 'resendTodaySmsTextCorrection', 'resendTodaySmsFromOwner', 'cmPollSaveFailed_', 'cmVerifyItems_', 'cmNoticeAction_', 'cmPollInterval_'], marker: ['cmPollInterval_', 'Math.max(configured, 2)'] },
   { file: 'DB.gs', names: ['writeSubscriptionFields_', 'findSubscription_'] },
   { file: 'Evidencequality.gs', names: ['rawTranscript_', 'validEvidence_', 'queueDayEditSync_', 'dayEditSyncTick_', 'runDayEditSync_', 'queueCostSync_'], marker: ['runDayEditSync_', 'cur.githubUntil = 0'] },
   { file: 'Logic.gs', names: ['markChainStep_', 'REFRESH_STEPS_'] },
@@ -1273,7 +1273,7 @@ var PROJECT_FILES_ = [
   { file: 'Quoteservice.gs', names: ['settleClosingQuotesTick_', 'misRows_', 'getFugleKey_', 'fugleFetch_', 'sharesToLots_', 'volumeInLots_', 'hourSlot_', 'readHourlyRows_', 'fugleHistPace_', 'kcPutAll_', 'getCandlesBundle', 'misBatchQuotes_'], marker: ['refreshQuoteCacheJob', 'MIS_DOWN_KEY_'] },
   { file: 'Refreshrunner.gs', names: ['runRefreshAllChunk_', 'withRefreshAllLease_'] },
   { file: 'Setup.gs', names: ['setupSpreadsheet', 'setWebAppUrl', 'webAppUrlReport_', 'checkProjectFiles', 'checkAutomationReadiness', 'ensureAutomationTick', 'withSheetSnapshot_', 'readSheetFields_', 'readSheetDayRow_', 'opsTimed_', 'opsRuntimeFor_', 'opsRuntimeConserve_'], marker: ['everyFiveMinJobRun_', "dueEvery_('quoteConserve', 10)"] },
-  { file: 'SheetService.gs', names: ['fmtDate_', 'withLock_', 'ensureTranscriptLayoutJob', 'transcriptFingerprint_', 'stripTranscribeEcho_', 'readCostOverrides_', 'searchTerms_', 'repairLiwangExitPriceNow', 'rangeCandle_', 'statedNote_', 'trackerRoundList_', 'isManualHoldSource_', 'holdConfirmForOpen_', 'getHoldingsTrackerRead_', 'isPartialSaleRecord_', 'auditPartialSaleHoldings178', 'repairPartialSaleHoldings178'], marker: ['fmtDate_', 'fmtDateMemo_'] },
+  { file: 'SheetService.gs', names: ['fmtDate_', 'withLock_', 'ensureTranscriptLayoutJob', 'transcriptFingerprint_', 'verifiedReadingDraft_', 'stripTranscribeEcho_', 'readCostOverrides_', 'searchTerms_', 'repairLiwangExitPriceNow', 'rangeCandle_', 'statedNote_', 'trackerRoundList_', 'isManualHoldSource_', 'holdConfirmForOpen_', 'getHoldingsTrackerRead_', 'isPartialSaleRecord_', 'auditPartialSaleHoldings178', 'repairPartialSaleHoldings178'], marker: ['fmtDate_', 'fmtDateMemo_'] },
   { file: 'Backuparchive.gs', names: ['setupBackupArchive','backupArchiveRequest_','archiveCopyVerified_'] },
   { file: 'Transcriptstore.gs', names: ['transcriptSha256_', 'selectTranscriptRow_'] }
 ];

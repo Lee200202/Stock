@@ -13,3 +13,5 @@ docs/**/preview*/
 docs/**/preview-*.html
 scripts/preview_*.js
 .wrangler/
+.reading-audit/
+.notice-audit/

@@ -304,13 +304,14 @@
         <button type="button" data-tone-case="0" aria-pressed="true">以前 1580 推薦，沒人買</button><button type="button" data-tone-case="1" aria-pressed="false">勤誠 900 以下是買點</button><button type="button" data-tone-case="2" aria-pressed="false">現在還不能買，要等 ETF 賣完</button><button type="button" data-tone-case="3" aria-pressed="false">散戶一直賣，會員要抱牢</button><button type="button" data-tone-case="4" aria-pressed="false">非公開操作紀錄：今天買進力積電</button><button type="button" data-tone-case="5" aria-pressed="false">外資買一天賣一天</button><button type="button" data-tone-case="6" aria-pressed="false">假跌破後站上季線</button><button type="button" data-tone-case="7" aria-pressed="false">總比去買友達好</button>
       </div>
       <div class="decision-grid" id="toneDecisions" role="group" aria-label="五種結果，也可以直接點">
-        <button type="button" data-decision="buy" class="dc-buy"><b>當日買賣</b><span>今天明確的買進或賣出</span></button>
+        <button type="button" data-decision="buy" class="dc-buy"><b>當日買賣</b><span>本人今日已成交，或明確會員指令</span></button>
         <button type="button" data-decision="hold" class="dc-hold"><b>持股聲明</b><span>明講會員現在手上有</span></button>
         <button type="button" data-decision="watch" class="dc-watch"><b>觀望注意</b><span>本股有正面依據或可照做的買點</span></button>
         <button type="button" data-decision="avoid" class="dc-avoid"><b>觀望不碰</b><span>禁買、負面示範或反覆換手</span></button>
         <button type="button" data-decision="none" class="dc-none"><b>不新增</b><span>只是回顧，沒有現在的立場</span></button>
       </div>
       <p class="tech-result" id="toneExample" aria-live="polite"></p>
+      <p class="tech-legend"><span class="tone-ok">成交：主體＋動作＋日期</span><span class="tone-warn">可買建議：觀望注意</span><span class="tone-stop">條件未到：觀望不碰</span></p>
     </div>
     <div class="tech-lab tech-watch-lab">
       <p class="tech-demo-h">同樣提到股票，為什麼有的列「觀望注意」？<span class="tech-tag">10/08 原稿案例</span></p>
@@ -432,6 +433,8 @@
         <button type="button" data-source-case="sell" aria-pressed="true">先全數賣出，後提持股</button>
         <button type="button" data-source-case="buy" aria-pressed="false">先買入，後談技術條件</button>
         <button type="button" data-source-case="video" aria-pressed="false">沒有當日操作紀錄</button>
+        <button type="button" data-source-case="optional" aria-pressed="false">虛構：想買者可以買</button>
+        <button type="button" data-source-case="partial" aria-pressed="false">虛構：保留部位，暫不買回</button>
       </div>
       <ol class="source-path" id="sourcePath" aria-live="polite">
         <li class="tone-ok"><span class="tp-k">先到的操作</span><b>10/08 當日已記全數賣出</b><p>方向已確定；通知原文與成交價留在後台。</p></li>
@@ -445,7 +448,8 @@
       <ul>
         <li>同日同檔的當日操作紀錄先確定買入、賣出或觀望；逐字稿晚到只能補有原句依據的背景，不得改掉分類，也不得把賣出重新列成持有。10/08 世芯-KY 的全數賣出就是這一關的實際案例。</li>
         <li>沒有當日操作紀錄時，逐字稿經股名、時間、主詞、數字與分類稽核後才發布。不同日期的回顧不算今天的操作。</li>
-        <li>同一天先買後賣等多筆操作依實際先後保留；最新一筆決定目前持有狀態。人工補登另行保護，不被影片或通知自動刪除。</li>
+        <li>來源優先，是先讀原文的意思，不是盲信解析器。可以買的建議不算已成交；「高點賣出者」不是今天賣出。「條件尚未出現、不急買回」列觀望不碰。</li>
+        <li>同一天先買後賣依實際先後保留；全數出場才關閉部位，部分賣出仍保留剩餘持股。持有剩餘部位與暫不買回是兩個維度，可同時成立。人工補登另行保護。</li>
         <li>私人通知原文與成交價留在後台及已同意接收的專用通知；公開說明保留經核對的技術條件。已寄郵件是快照，重新整理網站不重寄。</li>
       </ul>
     </details>
@@ -1330,6 +1334,16 @@
       ['warn', '後到的影片', '講到年線與 MACD', '逐句查證是否確實在說同一檔。'],
       ['ok', '撰稿前合併', '買入＋有依據的技術背景', '原稿若只回顧昨天，不會把今天買入改成回顧。']],
       result: ['網站看見：買入', '公開說明可寫經核對的年線與 MACD；不公開通知成交價。'] },
+    optional: { steps: [
+      ['warn','虛構原句','想買股票者，甲股可以買','沒有說已經買進，也沒有指定必須執行的會員指令。'],
+      ['ok','原文語意核對','買點建議，不是成交','整則原文與其他疑點同批核對；不另開逐檔請求。'],
+      ['ok','撰稿前合併','觀望注意','可補本股技術依據，不新增買入事件或績效回合。']],
+      result:['網站看見：觀望注意','消息來源即使較優先，也不能把「可以買」改寫成「今天買了」。'] },
+    partial: { steps: [
+      ['warn','虛構原句','昨天賣一半，剩餘續抱','歷史減碼不計今天賣出，剩餘部位仍存在。'],
+      ['warn','另一個問題','現在買回條件尚未出現','這是新進場立場，並沒有要求把剩餘部位出清。'],
+      ['ok','分開記錄','持股＋觀望不碰','保留未出場回合；暫不買回不會自動平倉。']],
+      result:['網站看見：部位與進場立場','同一進場語境不重複列注意與不碰；不同維度的持股與不碰可以並存。'] },
     video: { steps: [
       ['skip', '先到的操作', '沒有這檔的當日通知', '沒有操作事實可以優先採用。'],
       ['warn', '後到的影片', '找到股名、主詞與原句', '核對今天的立場、時間與數字。'],

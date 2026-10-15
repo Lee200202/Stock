@@ -5787,5 +5787,18 @@ setTimeout(initCrawlDayPills, 50);
 })();
 window.__fxWatch(['todayAutomation', 'todayHealth', 'todaySmsOps', 'opsCards', 'opsFlow', 'lineCards', 'lineRecent']);
 </script>
+<button type="button" class="totop" id="toTop" aria-label="回到頁面頂端" hidden>
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg><span>回到頂端</span>
+</button>
+<script>
+(function(){
+  var top=document.getElementById('toTop'),pending=false;
+  function paint(){pending=false;top.hidden=(window.pageYOffset||document.documentElement.scrollTop||0)<=window.innerHeight*.9;}
+  function ask(){if(!pending){pending=true;(window.requestAnimationFrame||setTimeout)(paint);}}
+  window.addEventListener('scroll',ask,{passive:true});window.addEventListener('resize',ask);
+  top.addEventListener('click',function(){var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;window.scrollTo({top:0,behavior:reduce?'auto':'smooth'});});
+  paint();
+})();
+</script>
 </body>
 </html>

@@ -13741,8 +13741,11 @@ def sms_first_article_records(ss, signals, date_str):
         # A current entry recommendation/ban does not close a verified existing
         # position. Only an actual trade/order resolves the position lifecycle.
         if not any(e[2]['direction'].startswith(('買', '賣')) for e in events):
+            # 紀錄上持有、由分類裁決依操作紀錄定案的會員持股，同樣是核對過的部位（2026/10/15 勤誠：通知是「可以買」，部位仍在）
+            ledger = (signals.get('_verdicts') or {}).get(code) or {}
+            on_record = ledger.get('cls') == 'holdings' and ledger.get('enforce') and ledger.get('open')
             article['holdings'].extend(row for cat,row in candidates[code]
-                                      if cat=='holdings' and row.get('_evidence_verified'))
+                                      if cat=='holdings' and (row.get('_evidence_verified') or on_record))
         for _, _, event in sorted(events):
             direction = event['direction']
             kind = ('buy' if direction.startswith('買') else 'sell' if direction.startswith('賣') else

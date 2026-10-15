@@ -23,33 +23,43 @@
   },
   "must": {
     "3533": [
-      "holdings"
+      "holdings",
+      "watch_watch"
     ],
     "2330": [
-      "holdings"
+      "holdings",
+      "watch_watch"
     ],
     "1590": [
-      "holdings"
+      "holdings",
+      "watch_watch"
     ],
     "8210": [
-      "holdings"
+      "holdings",
+      "watch_watch"
     ],
     "3592": [
-      "holdings"
+      "holdings",
+      "watch_watch"
     ],
     "6409": [
-      "holdings"
+      "holdings",
+      "watch_watch"
     ],
     "2317": [
+      "holdings",
       "watch_watch"
     ],
     "2303": [
+      "holdings",
       "watch_watch"
     ],
     "8299": [
+      "holdings",
       "watch_watch"
     ],
     "5289": [
+      "holdings",
       "watch_watch"
     ],
     "3661": [
@@ -93,14 +103,6 @@
     "3533": [
       "holdings",
       "watch_avoid"
-    ],
-    "1590": [
-      "holdings",
-      "watch_watch"
-    ],
-    "8210": [
-      "holdings",
-      "watch_watch"
     ]
   },
   "note_must_not": {
@@ -254,5 +256,6 @@
         "日月光跌停板。\n\n日月光本來，我從來沒有分析過日月光，也不關我的事。\n\n就是下面的缺口要補，要它也要回季線，所以日月光還沒跌完啊。\n\n下面的缺口要補完，日月光要回季線。\n\n跟聯發科一樣。\n\n跟聯發科一樣，缺口要補完，缺口。\n\n好，啊你啦，跳空向上去買股票，黑狗周完全不懂股票的人，對不對？\n\n啊前幾天大家又在瘋航運股，你們每次都是高點拼命瘋，低點沒人要。\n\n啊張震現在告訴你，既然台幣貶值，我就把資金"
       ]
     }
-  }
+  },
+  "equivalence": "管理者 2026/10/15：會員持股與觀望注意視為同類，分到哪一類都算通過；歷史教學回顧與觀望不碰同理（未列入必列）。"
 }

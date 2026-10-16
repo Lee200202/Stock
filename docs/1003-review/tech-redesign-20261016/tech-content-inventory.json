@@ -1,0 +1,5368 @@
+{
+  "sourceCommit": "274b492",
+  "items": [
+    {
+      "id": "tc-0001",
+      "kind": "h2",
+      "text": "想找一檔股票上次講了什麼，我做了這個網站",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0002",
+      "kind": "p",
+      "text": "每天中午的直播大約一小時， 買賣、持股、觀望和教學常常混在同一段話裡 ；盤中也會累積不同時間的操作紀錄。以前想查「力積電上次提到的成本」，我得先猜是哪一週，再翻即時紀錄、拖影片時間軸，語音稿還可能把它寫成「立即電」。",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0003",
+      "kind": "p",
+      "text": "所以我做了這個網站： 把每天講過的話整理成可以按日期、按股票查的紀錄，每一筆都能回到原句核對 。說不出依據的就寫「未說明」，不補、不猜。",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0004",
+      "kind": "figcaption",
+      "text": "一筆紀錄的五站路程：以 9/23 為例",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0005",
+      "kind": "button",
+      "text": "▶ 播放這一天",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0006",
+      "kind": "li",
+      "text": "直播與即時紀錄 來源",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0007",
+      "kind": "li",
+      "text": "原稿與指紋 SHA-256",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0008",
+      "kind": "li",
+      "text": "判讀與核對 股名・主詞・數字",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0009",
+      "kind": "li",
+      "text": "寫入紀錄 當日・持股",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0010",
+      "kind": "li",
+      "text": "網站與寄信 Email・LINE",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0011",
+      "kind": "p",
+      "text": "10:10–11:05 即時紀錄先進來、影片回放晚一點出現；兩個來源各自先存下原文，不互相等待。",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0012",
+      "kind": "p",
+      "text": "我是李世勛。網站整理公開直播與即時紀錄，與頻道沒有隸屬關係，也不提供投資建議。先選一個你最常遇到的查找困難，看網站怎麼回答：",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0013",
+      "kind": "button",
+      "text": "① 上次哪一天講到這檔？",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0014",
+      "kind": "button",
+      "text": "② 今天沒買賣，是漏抓還是真的沒講？",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0015",
+      "kind": "button",
+      "text": "③ 說不要碰，是不是會員已經賣了？",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0016",
+      "kind": "li",
+      "text": "以前要怎麼找 先猜是哪一週，再翻即時紀錄、拖影片時間軸。",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0017",
+      "kind": "p",
+      "text": "先猜是哪一週，再翻即時紀錄、拖影片時間軸。",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0018",
+      "kind": "li",
+      "text": "哪裡容易出錯 語音稿把力積電寫成「立即電」，用正確名稱反而搜不到。",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0019",
+      "kind": "p",
+      "text": "語音稿把力積電寫成「立即電」，用正確名稱反而搜不到。",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0020",
+      "kind": "li",
+      "text": "現在得到的回答 個股查詢列出每次提及的日期與原句；常見誤字也找得到。 立即電 力積電 6770 9/23 原句・可回查",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0021",
+      "kind": "p",
+      "text": "個股查詢列出每次提及的日期與原句；常見誤字也找得到。",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0022",
+      "kind": "p",
+      "text": "查找之外，光是「看影片」這件事還有四個痛點：",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0023",
+      "kind": "li",
+      "text": "沒時間看完一整集 觀眾 下班才有空。今天到底買了什麼、賣了什麼？ 網站 10/08：買入亞德客-KY、賣出世芯-KY，各附一段理由。 一集直播的語音稿約一萬字（10/08 是 9,673 字），買賣只是其中幾句，其餘是盤勢、教學和閒聊。 每日總覽把當天分成買入、賣出、觀望注意、觀望不碰、目前持有五類；每一檔一段說明，寫他講到的價位、均線與原因。 每日整理另有三章：盤勢重點、操作紀錄、教學重點；訂閱後寄到信箱，不必開網站。 每日總覽・郵件查詢・訂閱通知",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0024",
+      "kind": "p",
+      "text": "觀眾 下班才有空。今天到底買了什麼、賣了什麼？",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0025",
+      "kind": "p",
+      "text": "網站 10/08：買入亞德客-KY、賣出世芯-KY，各附一段理由。",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0026",
+      "kind": "li",
+      "text": "一集直播的語音稿約一萬字（10/08 是 9,673 字），買賣只是其中幾句，其餘是盤勢、教學和閒聊。",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0027",
+      "kind": "li",
+      "text": "每日總覽把當天分成買入、賣出、觀望注意、觀望不碰、目前持有五類；每一檔一段說明，寫他講到的價位、均線與原因。",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0028",
+      "kind": "li",
+      "text": "每日整理另有三章：盤勢重點、操作紀錄、教學重點；訂閱後寄到信箱，不必開網站。",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0029",
+      "kind": "p",
+      "text": "每日總覽・郵件查詢・訂閱通知",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0030",
+      "kind": "li",
+      "text": "操作散在每一集，沒有一份完整紀錄 觀眾 力積電他到底買過幾次？哪一天進、哪一天出？ 網站 力積電有 3 個回合，每一回合的進場日、出場日與報酬都列出來。 買進在這一集、加碼在下一集、賣出又在三週後；要拼出一檔的來龍去脈，得自己翻筆記或重看好幾集。 持股追蹤像一張資料表：到 10/08 累計 37 檔、44 個回合，每個回合記進場日與進場價、出場日與出場價、報酬，以及出場原因。 個股頁列出這一檔每一次被提到的日期與當時的說明；買了又賣、賣了又買的，可以切換看每一個回合的走勢。 持股追蹤・個股查詢",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0031",
+      "kind": "p",
+      "text": "觀眾 力積電他到底買過幾次？哪一天進、哪一天出？",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0032",
+      "kind": "p",
+      "text": "網站 力積電有 3 個回合，每一回合的進場日、出場日與報酬都列出來。",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0033",
+      "kind": "li",
+      "text": "買進在這一集、加碼在下一集、賣出又在三週後；要拼出一檔的來龍去脈，得自己翻筆記或重看好幾集。",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0034",
+      "kind": "li",
+      "text": "持股追蹤像一張資料表：到 10/08 累計 37 檔、44 個回合，每個回合記進場日與進場價、出場日與出場價、報酬，以及出場原因。",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0035",
+      "kind": "li",
+      "text": "個股頁列出這一檔每一次被提到的日期與當時的說明；買了又賣、賣了又買的，可以切換看每一個回合的走勢。",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0036",
+      "kind": "p",
+      "text": "持股追蹤・個股查詢",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0037",
+      "kind": "li",
+      "text": "一集點到三十檔，分不出哪些真的有動作 觀眾 他今天講了鴻海、國巨、川湖、群聯…到底哪幾檔要注意？ 網站 真正買賣的只有 2 檔；其餘依他的說法分成持有、可以留意、現在不要碰。 10/08 這一集點到約 30 個名稱：有的是今天的買賣，有的是手上的持股，有的只是拿來當反例（「人家成為首富，你不用去幫人家抬轎」）。 整理後是買入 1、賣出 1、會員持股 6、觀望注意 3、觀望不碰 7；只是順口提到、沒有看法的不列。 觀眾提問不算他的看法：「鴻海還可以不可以買？」看的是他的回答「還沒有那麼急」。每一檔的分類都對得回原句。 每日總覽・逐字稿",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0038",
+      "kind": "p",
+      "text": "觀眾 他今天講了鴻海、國巨、川湖、群聯…到底哪幾檔要注意？",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0039",
+      "kind": "p",
+      "text": "網站 真正買賣的只有 2 檔；其餘依他的說法分成持有、可以留意、現在不要碰。",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0040",
+      "kind": "li",
+      "text": "10/08 這一集點到約 30 個名稱：有的是今天的買賣，有的是手上的持股，有的只是拿來當反例（「人家成為首富，你不用去幫人家抬轎」）。",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0041",
+      "kind": "li",
+      "text": "整理後是買入 1、賣出 1、會員持股 6、觀望注意 3、觀望不碰 7；只是順口提到、沒有看法的不列。",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0042",
+      "kind": "li",
+      "text": "觀眾提問不算他的看法：「鴻海還可以不可以買？」看的是他的回答「還沒有那麼急」。每一檔的分類都對得回原句。",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0043",
+      "kind": "p",
+      "text": "每日總覽・逐字稿",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0044",
+      "kind": "li",
+      "text": "聽到的是賺錢的那幾檔，沒有整體成績 觀眾 他常說會員賺了多少。全部算起來呢？ 網站 績效走勢每個交易日記一筆：平均報酬、正報酬比例、持有檔數。 節目裡會回顧漲最多的那幾檔；沒再提到的、還套著的，不會特別講，觀眾也很難自己加總。 持股追蹤把持有中的和已經出場的都列出來，賠錢的回合照樣計入；績效走勢從 2026/07/08 起，每個交易日收盤後記錄。 進出場價怎麼取寫在頁面上：先算當天最高與最低的平均；原稿明講、且落在當天成交區間內的價位，進場取兩者較低、出場取較高。這是估算，不是實際對帳單。 持股追蹤・績效走勢",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0045",
+      "kind": "p",
+      "text": "觀眾 他常說會員賺了多少。全部算起來呢？",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0046",
+      "kind": "p",
+      "text": "網站 績效走勢每個交易日記一筆：平均報酬、正報酬比例、持有檔數。",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0047",
+      "kind": "li",
+      "text": "節目裡會回顧漲最多的那幾檔；沒再提到的、還套著的，不會特別講，觀眾也很難自己加總。",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0048",
+      "kind": "li",
+      "text": "持股追蹤把持有中的和已經出場的都列出來，賠錢的回合照樣計入；績效走勢從 2026/07/08 起，每個交易日收盤後記錄。",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0049",
+      "kind": "li",
+      "text": "進出場價怎麼取寫在頁面上：先算當天最高與最低的平均；原稿明講、且落在當天成交區間內的價位，進場取兩者較低、出場取較高。這是估算，不是實際對帳單。",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0050",
+      "kind": "p",
+      "text": "持股追蹤・績效走勢",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0051",
+      "kind": "p",
+      "text": "接著看資料流與載入速度，再拆開 AI 的閱讀範圍、推論及工具控制；用實際的一天與證據案例核對判讀，最後看公開說明、持股績效、故障與限制。",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0052",
+      "kind": "p",
+      "text": "正在讀取目前的紀錄規模。",
+      "href": null,
+      "oldChapter": "tech-start",
+      "newChapter": "tech-start",
+      "changed": false
+    },
+    {
+      "id": "tc-0053",
+      "kind": "h2",
+      "text": "資料從哪裡來，最後去了哪裡",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0054",
+      "kind": "p",
+      "text": "所有資料都存在同一份 Google 試算表，分成三十多張分頁。我依 資料流動的順序把它們分成六組 ：來源、判讀、紀錄、行情、衍生結果，最後才是網站與寄信；維護時用的紀錄放在最下面一列。",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0055",
+      "kind": "p",
+      "text": "圖上的箭頭表示「誰的資料被誰用到」。例如一支影片會產生好幾筆個股紀錄，這些紀錄和每天的行情一起算出持股回合，最後才變成網站上的持股追蹤與績效走勢。卡片用一般用途描述；實際來源欄位與維護資訊留在後台核對。",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0056",
+      "kind": "p",
+      "text": "點任何一張卡片，會標出它的上游與下游，並說明它的用途；跨好幾欄的線平常收起來，點了才畫出。",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0057",
+      "kind": "p",
+      "text": "圖比畫面寬，可以左右拖移；點任何一張卡片，看它的上游與下游，說明會出現在圖的下方。",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0058",
+      "kind": "button",
+      "text": "取消標示",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0059",
+      "kind": "button",
+      "text": "1 來源",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0060",
+      "kind": "button",
+      "text": "2 判讀",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0061",
+      "kind": "button",
+      "text": "3 紀錄",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0062",
+      "kind": "button",
+      "text": "4 行情",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0063",
+      "kind": "button",
+      "text": "5 衍生",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0064",
+      "kind": "button",
+      "text": "6 網站",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0065",
+      "kind": "h3",
+      "text": "1　來源",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0066",
+      "kind": "button",
+      "text": "影片與原稿 影片清單",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0067",
+      "kind": "button",
+      "text": "等待中的影片 今日影片候選",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0068",
+      "kind": "button",
+      "text": "即時紀錄原文 即時紀錄",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0069",
+      "kind": "button",
+      "text": "即時紀錄漏抓核對 即時紀錄稽核",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0070",
+      "kind": "button",
+      "text": "人工補登 人工補登",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0071",
+      "kind": "h3",
+      "text": "2　判讀",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0072",
+      "kind": "button",
+      "text": "股名辨識經驗 名稱判定紀錄",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0073",
+      "kind": "button",
+      "text": "公司名稱與代號 股票對照表",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0074",
+      "kind": "button",
+      "text": "代號備援清單 代號對照快取",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0075",
+      "kind": "button",
+      "text": "每輪判讀留底 逐字稿判讀稽核",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0076",
+      "kind": "button",
+      "text": "辨識過程 辨識日誌",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0077",
+      "kind": "button",
+      "text": "中斷時做到哪 逐字稿刷新檢查點",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0078",
+      "kind": "h3",
+      "text": "3　紀錄",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0079",
+      "kind": "button",
+      "text": "當日買賣與觀望 操作紀錄",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0080",
+      "kind": "button",
+      "text": "目前持有 持股聲明",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0081",
+      "kind": "button",
+      "text": "待確認的修正 修正建議",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0082",
+      "kind": "h3",
+      "text": "4　行情",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0083",
+      "kind": "button",
+      "text": "每日開高低收 日K快取",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0084",
+      "kind": "button",
+      "text": "盤中報價與快照 即時快取・盤中快照",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0085",
+      "kind": "button",
+      "text": "60 分 K 與分 K 小時K・ 分K歷史・ Yahoo分K",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0086",
+      "kind": "button",
+      "text": "行情代號核對 行情代號驗證",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0087",
+      "kind": "button",
+      "text": "基本面 基本面快取",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0088",
+      "kind": "h3",
+      "text": "5　衍生結果",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0089",
+      "kind": "button",
+      "text": "管理者修正成本 持股成本覆寫",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0090",
+      "kind": "button",
+      "text": "持股回合 持股追蹤",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0091",
+      "kind": "button",
+      "text": "每日績效 每日績效",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0092",
+      "kind": "h3",
+      "text": "6　網站與寄信",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0093",
+      "kind": "button",
+      "text": "每日整理文章 每日推播內容",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0094",
+      "kind": "button",
+      "text": "待同步的郵件 即時紀錄內容同步",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0095",
+      "kind": "button",
+      "text": "訂閱名單 使用者訂閱清單",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0096",
+      "kind": "button",
+      "text": "每封信寄給誰 寄送帳本",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0097",
+      "kind": "button",
+      "text": "LINE 訂閱與推送 LINE 訂閱清單・LINE 寄送帳本",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0098",
+      "kind": "button",
+      "text": "網站畫面 不另存分頁",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0099",
+      "kind": "h3",
+      "text": "維護用紀錄",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0100",
+      "kind": "button",
+      "text": "手動投稿進度 後台工單",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0101",
+      "kind": "button",
+      "text": "自動取稿進度 自動工單",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0102",
+      "kind": "button",
+      "text": "排程與錯誤 系統狀態",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0103",
+      "kind": "button",
+      "text": "匿名使用情形 使用紀錄",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0104",
+      "kind": "button",
+      "text": "問答助理記憶 使用者上下文記憶",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0105",
+      "kind": "button",
+      "text": "封存索引 資料索引",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0106",
+      "kind": "p",
+      "text": "照工作順序看：點一步，這一步讀寫的分頁會在上圖一起亮起來。",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0107",
+      "kind": "button",
+      "text": "1 即時紀錄與影片進來",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0108",
+      "kind": "button",
+      "text": "2 等待回放、聽打",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0109",
+      "kind": "button",
+      "text": "3 判讀與核對",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0110",
+      "kind": "button",
+      "text": "4 寫入紀錄",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0111",
+      "kind": "button",
+      "text": "5 網站與寄信",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0112",
+      "kind": "button",
+      "text": "6 補行情與績效",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0113",
+      "kind": "p",
+      "text": "點上面其中一步，看它讀寫哪些分頁。",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0114",
+      "kind": "summary",
+      "text": "閱讀文字版資料關聯與流程",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0115",
+      "kind": "li",
+      "text": "一支影片（影片與原稿）會產生多輪判讀留底、多筆當日買賣與觀望、多筆持有聲明，用影片 ID 對應。",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0116",
+      "kind": "li",
+      "text": "一則即時紀錄可以提到好幾檔，寫成多筆當日紀錄與持有聲明，也寄給多位收件者；用即時紀錄編號對應 （紀錄裡寫成 獨立紀錄編號） 。手動投稿與人工補登另有自己的編號 （MANUAL-日期、MANUALENTRY- 開頭） ，重跑影片時不會被蓋掉。",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0117",
+      "kind": "li",
+      "text": "一個股票代號連到很多天的紀錄與每日行情。",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0118",
+      "kind": "li",
+      "text": "同一檔的多筆當日紀錄與持有聲明，串成一段一段的持股回合；每日行情提供進場當天最低、出場當天最高與每天收盤。管理者修正成本只對應其中一個回合。",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": true
+    },
+    {
+      "id": "tc-0119",
+      "kind": "li",
+      "text": "每個持股回合在每個交易日記一筆每日績效。",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0120",
+      "kind": "li",
+      "text": "一天的當日紀錄合成一篇整理文章；一篇文章或一則即時紀錄會寄給多位收件者，每一位都有寄送紀錄。",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0121",
+      "kind": "li",
+      "text": "手動投稿與自動取稿的進度各自記下原稿指紋與做到第幾步，中斷時讓下一次接著做。",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0122",
+      "kind": "p",
+      "text": "名詞對照：網站排程是 Google Apps Script，每五分鐘執行一次；雲端工作機是 GitHub Actions，負責聽打與判讀；原稿指紋是 SHA-256，用來確認原稿有沒有被換過。",
+      "href": null,
+      "oldChapter": "tech-overview",
+      "newChapter": "tech-overview",
+      "changed": false
+    },
+    {
+      "id": "tc-0123",
+      "kind": "h2",
+      "text": "資料量與載入速度",
+      "href": null,
+      "oldChapter": "tech-loading",
+      "newChapter": "tech-loading",
+      "changed": false
+    },
+    {
+      "id": "tc-0124",
+      "kind": "p",
+      "text": "紀錄每天增加，首頁仍要先讓今天的重點能讀。做法是先取整理好的總覽，其餘分頁等點開再讀。",
+      "href": null,
+      "oldChapter": "tech-loading",
+      "newChapter": "tech-volume",
+      "changed": false
+    },
+    {
+      "id": "tc-0125",
+      "kind": "p",
+      "text": "54 KB 是 10/07 量到的一次總覽回應大小，並非整個網站或全部原始紀錄；上方筆數依最近一次統計更新。",
+      "href": null,
+      "oldChapter": "tech-loading",
+      "newChapter": "tech-volume",
+      "changed": false
+    },
+    {
+      "id": "tc-0126",
+      "kind": "p",
+      "text": "這次命中約快 80 倍 ；是兩種讀取狀態的比較，不是每次都保證的速度。",
+      "href": null,
+      "oldChapter": "tech-loading",
+      "newChapter": "tech-volume",
+      "changed": false
+    },
+    {
+      "id": "tc-0127",
+      "kind": "p",
+      "text": "畫面時間還包含下載、程式執行與繪製，不能直接與 API 時間相加。",
+      "href": null,
+      "oldChapter": "tech-loading",
+      "newChapter": "tech-volume",
+      "changed": false
+    },
+    {
+      "id": "tc-0128",
+      "kind": "p",
+      "text": "▶ 再播一次 橫條延伸的時間與實測秒數成比例（縮成三分之一），慢的那一條會明顯晚到。",
+      "href": null,
+      "oldChapter": "tech-loading",
+      "newChapter": "tech-volume",
+      "changed": false
+    },
+    {
+      "id": "tc-0129",
+      "kind": "button",
+      "text": "▶ 再播一次",
+      "href": null,
+      "oldChapter": "tech-loading",
+      "newChapter": "tech-volume",
+      "changed": false
+    },
+    {
+      "id": "tc-0130",
+      "kind": "p",
+      "text": "圖表為 2026/10/07 正式站實測：API 未命中 1 次、命中 3 次（圖示約 0.09 秒）；畫面首次 1 次、後續 2 次（圖示中位數）。橫條越短代表越快；秒數會隨網路與後端變動。",
+      "href": null,
+      "oldChapter": "tech-loading",
+      "newChapter": "tech-volume",
+      "changed": false
+    },
+    {
+      "id": "tc-0131",
+      "kind": "p",
+      "text": "快取是什麼",
+      "href": null,
+      "oldChapter": "tech-loading",
+      "newChapter": "tech-loading",
+      "changed": false
+    },
+    {
+      "id": "tc-0132",
+      "kind": "p",
+      "text": "每一種查詢（「今天的總覽」「10/07 的郵件」「2330 的估值」）整理好之後，答案會先存一份，並附上有效時間。下一個人問同一件事時，先看這一份還能不能用。",
+      "href": null,
+      "oldChapter": "tech-loading",
+      "newChapter": "tech-loading",
+      "changed": false
+    },
+    {
+      "id": "tc-0133",
+      "kind": "p",
+      "text": "有效時間：當日總覽與郵件查詢 1 分鐘、逐字稿 10 分鐘、個股估值 1 小時。當日總覽另外每 5 分鐘在背景整理一份備份，所以首頁多半命中。",
+      "href": null,
+      "oldChapter": "tech-loading",
+      "newChapter": "tech-loading",
+      "changed": false
+    },
+    {
+      "id": "tc-0134",
+      "kind": "p",
+      "text": "選一個情境，看這次會不會命中",
+      "href": null,
+      "oldChapter": "tech-loading",
+      "newChapter": "tech-loading",
+      "changed": false
+    },
+    {
+      "id": "tc-0135",
+      "kind": "p",
+      "text": "這裡只演示流程，不會重新查詢、寄送或改動資料。",
+      "href": null,
+      "oldChapter": "tech-loading",
+      "newChapter": "tech-loading",
+      "changed": false
+    },
+    {
+      "id": "tc-0136",
+      "kind": "button",
+      "text": "剛有人看過首頁",
+      "href": null,
+      "oldChapter": "tech-loading",
+      "newChapter": "tech-loading",
+      "changed": true
+    },
+    {
+      "id": "tc-0137",
+      "kind": "button",
+      "text": "半小時沒人看首頁",
+      "href": null,
+      "oldChapter": "tech-loading",
+      "newChapter": "tech-loading",
+      "changed": true
+    },
+    {
+      "id": "tc-0138",
+      "kind": "button",
+      "text": "查很久沒人查的日期",
+      "href": null,
+      "oldChapter": "tech-loading",
+      "newChapter": "tech-loading",
+      "changed": true
+    },
+    {
+      "id": "tc-0139",
+      "kind": "button",
+      "text": "背景整理連續失敗",
+      "href": null,
+      "oldChapter": "tech-loading",
+      "newChapter": "tech-loading",
+      "changed": true
+    },
+    {
+      "id": "tc-0140",
+      "kind": "li",
+      "text": "1　09:05 打開首頁 請求「今天的總覽」",
+      "href": null,
+      "oldChapter": "tech-loading",
+      "newChapter": "tech-loading",
+      "changed": false
+    },
+    {
+      "id": "tc-0141",
+      "kind": "li",
+      "text": "2　命中快取 09:04 有人看過，那一份還在 1 分鐘內",
+      "href": null,
+      "oldChapter": "tech-loading",
+      "newChapter": "tech-loading",
+      "changed": false
+    },
+    {
+      "id": "tc-0142",
+      "kind": "li",
+      "text": "3　約 0.1 秒可讀 沒有讀後端",
+      "href": null,
+      "oldChapter": "tech-loading",
+      "newChapter": "tech-loading",
+      "changed": false
+    },
+    {
+      "id": "tc-0143",
+      "kind": "p",
+      "text": "命中快取。 30 秒前另一位讀者才問過同一件事，存好的答案還有效，直接回覆。你按重新整理也是這條路。",
+      "href": null,
+      "oldChapter": "tech-loading",
+      "newChapter": "tech-loading",
+      "changed": false
+    },
+    {
+      "id": "tc-0144",
+      "kind": "li",
+      "text": "為什麼要存？ 累積紀錄不能每次全送到手機，也不能讓每個人的同一個查詢都重新掃一次試算表。",
+      "href": null,
+      "oldChapter": "tech-loading",
+      "newChapter": "tech-loading",
+      "changed": false
+    },
+    {
+      "id": "tc-0145",
+      "kind": "li",
+      "text": "會不會看到舊資料？ 存好的答案過了有效時間就不用；背景備份超過 12 分鐘沒有重新核對也不用，寧可慢一次。",
+      "href": null,
+      "oldChapter": "tech-loading",
+      "newChapter": "tech-loading",
+      "changed": false
+    },
+    {
+      "id": "tc-0146",
+      "kind": "figcaption",
+      "text": "10/08 正式站截圖：當日分類與持股數字先可讀，其餘分頁按需載入。",
+      "href": null,
+      "oldChapter": "tech-loading",
+      "newChapter": "tech-loading",
+      "changed": false
+    },
+    {
+      "id": "tc-0147",
+      "kind": "h2",
+      "text": "AI 是怎麼讀原稿、查資料，再交出答案的？",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-agent",
+      "changed": false
+    },
+    {
+      "id": "tc-0148",
+      "kind": "p",
+      "text": "模型能提出答案； 把資料交給誰、允許做什麼、何時停止，是網站程式的責任 。先拆開三層，再按卡片走一次。以下互動都是本機示意，不呼叫模型、不執行指令、不寄送。",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-agent",
+      "changed": false
+    },
+    {
+      "id": "tc-0149",
+      "kind": "button",
+      "text": "01 控制程式 Harness 組裝證據・檢查權限",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0150",
+      "kind": "button",
+      "text": "02 模型 Model 閱讀上下文・提出候選",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0151",
+      "kind": "button",
+      "text": "03 工具 Tools 查允許的資料・回傳結果",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0152",
+      "kind": "button",
+      "text": "播放一次查詢 →",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0153",
+      "kind": "p",
+      "text": "先選10/13原稿與操作日期，再送模型；不把整個試算表都塞進去。",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0154",
+      "kind": "figcaption",
+      "text": "點卡片看責任；按播放走一次「準備 → 推論 → 查詢 → 核對」。這是本機動畫，不呼叫真正 API。",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0155",
+      "kind": "button",
+      "text": "① 一次能讀多少？ Context window",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-agent",
+      "changed": false
+    },
+    {
+      "id": "tc-0156",
+      "kind": "button",
+      "text": "② 字怎麼變成輸入？ Tokenization",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-agent",
+      "changed": false
+    },
+    {
+      "id": "tc-0157",
+      "kind": "button",
+      "text": "③ 答案怎麼產生？ Inference",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-agent",
+      "changed": false
+    },
+    {
+      "id": "tc-0158",
+      "kind": "button",
+      "text": "④ 誰真的查資料？ Harness 與工具",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-agent",
+      "changed": false
+    },
+    {
+      "id": "tc-0159",
+      "kind": "button",
+      "text": "⑤ 一檔錯了怎麼辦？ 隔離與續跑",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-agent",
+      "changed": false
+    },
+    {
+      "id": "tc-0160",
+      "kind": "button",
+      "text": "⑥ 換模型就一樣嗎？ 可替換與驗收",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-agent",
+      "changed": false
+    },
+    {
+      "id": "tc-0161",
+      "kind": "p",
+      "text": "10/13 真實判讀 · Gemini 3.5 Flash Lite",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-agent",
+      "changed": false
+    },
+    {
+      "id": "tc-0162",
+      "kind": "li",
+      "text": "01 模型輸入上限 1,048,576 官方 token 上限",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-agent",
+      "changed": false
+    },
+    {
+      "id": "tc-0163",
+      "kind": "li",
+      "text": "02 當天原始稿 13,914字 字數不能直接當 token",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-agent",
+      "changed": false
+    },
+    {
+      "id": "tc-0164",
+      "kind": "li",
+      "text": "03 最大單次輸入 32,325 回應用量實測 tokens",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-agent",
+      "changed": false
+    },
+    {
+      "id": "tc-0165",
+      "kind": "li",
+      "text": "04 占輸入上限 3.08% 不是19次累計容量",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-agent",
+      "changed": false
+    },
+    {
+      "id": "tc-0166",
+      "kind": "p",
+      "text": "",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-agent",
+      "changed": false
+    },
+    {
+      "id": "tc-0167",
+      "kind": "p",
+      "text": "整個資料庫都在模型腦裡嗎？",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-agent",
+      "changed": false
+    },
+    {
+      "id": "tc-0168",
+      "kind": "p",
+      "text": "不是。Context window 是這次推論可處理的上下文範圍。指令、工具規格、對話、原句與查詢結果都會占用輸入。Gemini 3.5 Flash Lite 的輸入上限為1,048,576、輸出上限為65,536 tokens，兩項分開核對；生成設定可能另有較低上限。",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-agent",
+      "changed": false
+    },
+    {
+      "id": "tc-0169",
+      "kind": "li",
+      "text": "試算表是持久資料；本次輸入才是模型當下能讀的內容。",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-agent",
+      "changed": false
+    },
+    {
+      "id": "tc-0170",
+      "kind": "li",
+      "text": "查到新資料後，控制程式再把結果送入下一輪，並非模型自動記住整個網站。",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-agent",
+      "changed": false
+    },
+    {
+      "id": "tc-0171",
+      "kind": "li",
+      "text": "長原稿需保留股名、時間與相鄰上下文；只截半句會誤把過去賣出當今天。",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-agent",
+      "changed": false
+    },
+    {
+      "id": "tc-0172",
+      "kind": "p",
+      "text": "得到什麼：每次判讀都有來源範圍；資料不足不能補猜。",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-agent",
+      "changed": false
+    },
+    {
+      "id": "tc-0173",
+      "kind": "p",
+      "text": "今天一輪判讀，實際用了多少？",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-context",
+      "changed": false
+    },
+    {
+      "id": "tc-0174",
+      "kind": "p",
+      "text": "2026/10/13 11:32～11:37 的自動流程，以下直接取回應 usageMetadata 日誌；不是字數換算，也不是全天重跑總量。輸入與輸出上限分開核對。",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-context",
+      "changed": false
+    },
+    {
+      "id": "tc-0175",
+      "kind": "button",
+      "text": "第一輪擷取",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-context",
+      "changed": false
+    },
+    {
+      "id": "tc-0176",
+      "kind": "button",
+      "text": "最大一次覆核",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-context",
+      "changed": false
+    },
+    {
+      "id": "tc-0177",
+      "kind": "p",
+      "text": "輸入 27,205 ÷ 1,048,576＝2.59%；輸出 4,934 tokens。其餘不是本次請求已使用的容量。",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-context",
+      "changed": false
+    },
+    {
+      "id": "tc-0178",
+      "kind": "p",
+      "text": "19次 已記錄的成功回應",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-context",
+      "changed": false
+    },
+    {
+      "id": "tc-0179",
+      "kind": "p",
+      "text": "179,291 累計輸入 tokens",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-context",
+      "changed": false
+    },
+    {
+      "id": "tc-0180",
+      "kind": "p",
+      "text": "26,113 累計輸出 tokens",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-context",
+      "changed": false
+    },
+    {
+      "id": "tc-0181",
+      "kind": "p",
+      "text": "另記錄思考 6,946 tokens；輸出欄與思考欄分列，不把兩者混成文字字數。累計會重複計入每次附上的原稿，不代表同時占滿上下文。聽打影片、失敗但未記用量的請求及其他日期不包含在此。",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-context",
+      "changed": false
+    },
+    {
+      "id": "tc-0182",
+      "kind": "p",
+      "text": "最大單次才占3.08%，今天的問題不是容量耗盡；分段與本股上下文仍重要，因為要避免時間、主詞與跨公司證據接錯。",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-context",
+      "changed": false
+    },
+    {
+      "id": "tc-0183",
+      "kind": "summary",
+      "text": "查看計算方式與來源",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-context",
+      "changed": false
+    },
+    {
+      "id": "tc-0184",
+      "kind": "li",
+      "text": "最大輸入 32,325／1,048,576；最大文字輸出 5,861／65,536＝8.94%。",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-context",
+      "changed": false
+    },
+    {
+      "id": "tc-0185",
+      "kind": "li",
+      "text": "19次輸入相加＝179,291；19次文字輸出相加＝26,113。不估算全天帳單或金鑰額度。",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-context",
+      "changed": false
+    },
+    {
+      "id": "tc-0186",
+      "kind": "li",
+      "text": "輸出設定上限不等於實際用量；本次擷取程式最多20,000，實際第一輪4,934。",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-context",
+      "changed": false
+    },
+    {
+      "id": "tc-0187",
+      "kind": "p",
+      "text": "Gemini 3.5 Flash Lite官方規格 · 當次執行日誌 · 19筆用量與加總",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-context",
+      "changed": false
+    },
+    {
+      "id": "tc-0188",
+      "kind": "a",
+      "text": "Gemini 3.5 Flash Lite官方規格",
+      "href": "https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite",
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-context",
+      "changed": false
+    },
+    {
+      "id": "tc-0189",
+      "kind": "a",
+      "text": "當次執行日誌",
+      "href": "https://github.com/Lee200202/Stock/actions/runs/38341147246",
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-context",
+      "changed": false
+    },
+    {
+      "id": "tc-0190",
+      "kind": "a",
+      "text": "19筆用量與加總",
+      "href": "https://github.com/Lee200202/Stock/blob/main/docs/1003-review/2026-10-13-agent-usage.json",
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-context",
+      "changed": false
+    },
+    {
+      "id": "tc-0191",
+      "kind": "p",
+      "text": "容量規格核對於10/13；實際使用仍以模型回應為準。此處是具日期的實測快照，不假裝會隨每日資料自動更新。",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-context",
+      "changed": false
+    },
+    {
+      "id": "tc-0192",
+      "kind": "p",
+      "text": "「鴻海／昨天／賣出」只是閱讀用切塊圖，不是實際 tokenizer；中文與代號不能用一字等於一 token 計費。",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-context",
+      "changed": false
+    },
+    {
+      "id": "tc-0193",
+      "kind": "p",
+      "text": "今天這一集，實際怎麼抓到？",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0194",
+      "kind": "p",
+      "text": "10/13 日誌實測 · 模型與切段設定日後可能調整",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0195",
+      "kind": "p",
+      "text": "YouTube Data API 先核對頻道、日期、直播狀態與片長；回放就緒後，把 YouTube URI 和起訖秒數交給 generateContent 串流聽打，不是擷取網站文字當逐字稿。備援設定為 3.1 Flash Lite。",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0196",
+      "kind": "p",
+      "text": "Python 讀原始稿，模型擷取候選、核對疑點、整理說明；程式再查日期、代號、引句、價位與操作來源。當日操作優先，歷史交易不移到今天。",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0197",
+      "kind": "p",
+      "text": "Apps Script 優先使用3.5 Flash Lite，不可用時選可用的Lite型號。程式接住結構化意圖，限制公開查詢；訂閱另走確認程序，不能靠模型一句話就完成。",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0198",
+      "kind": "button",
+      "text": "10/13：11:09 還在直播",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0199",
+      "kind": "button",
+      "text": "查10/13鴻海：今天賣了嗎？",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0200",
+      "kind": "button",
+      "text": "假設：第5段遇到503",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0201",
+      "kind": "li",
+      "text": "01 直播尚未結束 11:09 不送模型聽打",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0202",
+      "kind": "li",
+      "text": "02 回放緩衝中 11:12 等滿5分鐘緩衝",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0203",
+      "kind": "li",
+      "text": "03 就緒才聽打 11:15 5段各指定起訖",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0204",
+      "kind": "li",
+      "text": "04 原稿落地 11:17 13,914字，片段存快取",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0205",
+      "kind": "p",
+      "text": "今天先等待直播與回放，11:15:44開始送第一段、11:17:38原稿存檔，約1分54秒。後續判讀11:32開始、11:37完成；這些是不同階段的時間。",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0206",
+      "kind": "p",
+      "text": "實際依據： 10/13取稿日誌 · 10/13判讀日誌 · 取稿程式 · 助手控制程式",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0207",
+      "kind": "a",
+      "text": "10/13取稿日誌",
+      "href": "https://github.com/Lee200202/Stock/actions/runs/38340342954",
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0208",
+      "kind": "a",
+      "text": "10/13判讀日誌",
+      "href": "https://github.com/Lee200202/Stock/actions/runs/38341147246",
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0209",
+      "kind": "a",
+      "text": "取稿程式",
+      "href": "https://github.com/Lee200202/Stock/blob/main/transcript.py",
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0210",
+      "kind": "a",
+      "text": "助手控制程式",
+      "href": "https://github.com/Lee200202/Stock/blob/main/public-site/gas-source/Aiservice.gs",
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0211",
+      "kind": "summary",
+      "text": "能講清楚底層，和會安裝技能包差在哪裡？",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0212",
+      "kind": "li",
+      "text": "拆得開： 說明指令、證據、token、模型回應及工具結果各自在哪裡；技能是可讀的作業規範，不能取代權限與程式驗證。",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0213",
+      "kind": "li",
+      "text": "做得出： 最小代理是「組裝輸入 → 呼叫模型 → 驗證工具請求 → 執行允許的工具 → 回傳結果 → 判斷停止」的迴圈。檔案、指令、網路各有自己的授權範圍。",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0214",
+      "kind": "li",
+      "text": "驗得過： 換模型後重跑相同原稿、來源優先與錯誤案例，量正確率、延遲和用量，不只比較單價；小專案需有可重現的證據。",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0215",
+      "kind": "li",
+      "text": "本站怎麼做： 每日判讀是程式安排的工作流，Python 負責日期、引句、來源優先與寫入關卡；網站小助手由轉送層提供受限的公開查詢。本章示意一般代理迴圈，不宣稱本站重做了 Claude Code。",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0216",
+      "kind": "p",
+      "text": "白板上可以再拆一層：token編號轉成向量，序列位置與attention讓模型關聯前後文，再產生下一個token的候選分數，由生成設定選出下一單位。推論過程中的KV cache用來重用模型計算，和上一章「網站快取查詢答案」不同；實際架構與限制依模型服務而定。",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0217",
+      "kind": "p",
+      "text": "Huntley 的「自己做代理」是工程能力的觀點，不是普遍的錄取規範。未具名來信的 3K／100K／50 萬與兩週開發，沒有可核驗案例與明確幣別，不能用來計算本站成本或保證效率。",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0218",
+      "kind": "p",
+      "text": "原理依據： Google：token 計數 · Anthropic：工作流與代理 · Claude Code：工具迴圈 · Transformer原始論文 · Huntley：自製代理工作坊",
+      "href": null,
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0219",
+      "kind": "a",
+      "text": "Google：token 計數",
+      "href": "https://ai.google.dev/gemini-api/docs/tokens",
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0220",
+      "kind": "a",
+      "text": "Anthropic：工作流與代理",
+      "href": "https://www.anthropic.com/engineering/building-effective-agents",
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0221",
+      "kind": "a",
+      "text": "Claude Code：工具迴圈",
+      "href": "https://code.claude.com/docs/en/how-claude-code-works",
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0222",
+      "kind": "a",
+      "text": "Transformer原始論文",
+      "href": "https://arxiv.org/abs/1706.03762",
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0223",
+      "kind": "a",
+      "text": "Huntley：自製代理工作坊",
+      "href": "https://ghuntley.com/agent/",
+      "oldChapter": "tech-agent",
+      "newChapter": "tech-harness",
+      "changed": false
+    },
+    {
+      "id": "tc-0224",
+      "kind": "h2",
+      "text": "9 月 23 日，一則即時紀錄和一支影片實際走過的路",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0225",
+      "kind": "p",
+      "text": "上一段是規則，這一段是那天實際留下的紀錄。 時間取自工作紀錄與即時紀錄，價格取自證交所當天的行情 。這一天剛好包含了即時紀錄先到、影片後到、模型聽錯名字與人工改正，幾乎是一個完整的樣本。右邊的按鈕會回到上圖，標出那一張分頁。",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0226",
+      "kind": "li",
+      "text": "10:10 即時紀錄進來 通知買進 6770 力積電。原文先存下來、不等影片；通知裡的價位只留在後台。 即時紀錄原文",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0227",
+      "kind": "p",
+      "text": "通知買進 6770 力積電。原文先存下來、不等影片；通知裡的價位只留在後台。",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0228",
+      "kind": "button",
+      "text": "即時紀錄原文",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0229",
+      "kind": "li",
+      "text": "10:10–10:14 解析這則即時紀錄 力積電以「買入」寫進當日紀錄，首頁的當日買入馬上出現這一檔。 當日買賣與觀望",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0230",
+      "kind": "p",
+      "text": "力積電以「買入」寫進當日紀錄，首頁的當日買入馬上出現這一檔。",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0231",
+      "kind": "button",
+      "text": "當日買賣與觀望",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0232",
+      "kind": "li",
+      "text": "解析後 與影片內容核對 核對同一天、同一檔的原句，再重新整理說明。 查看每日整理",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0233",
+      "kind": "p",
+      "text": "核對同一天、同一檔的原句，再重新整理說明。",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0234",
+      "kind": "button",
+      "text": "查看每日整理",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0235",
+      "kind": "li",
+      "text": "11:05–11:07 影片回放出現，開始聽打 網站排程在 11:05 找到回放，交給雲端工作機分段聽打，約兩分鐘後原稿存檔。 影片與原稿",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0236",
+      "kind": "p",
+      "text": "網站排程在 11:05 找到回放，交給雲端工作機分段聽打，約兩分鐘後原稿存檔。",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0237",
+      "kind": "button",
+      "text": "影片與原稿",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0238",
+      "kind": "li",
+      "text": "11:10–11:15 第一輪判讀，文章發布 逐檔核對股名、主詞與數字後寫入紀錄，產生當天的整理文章。影片裡「準備要季線翻陽的立即電」其實是力積電，這一天卻被模型寫成同是記憶體股的華邦電；之後我把這個例子寫進判讀規則， 同族群換名現在會被擋下 。 每輪判讀留底",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0239",
+      "kind": "p",
+      "text": "逐檔核對股名、主詞與數字後寫入紀錄，產生當天的整理文章。影片裡「準備要季線翻陽的立即電」其實是力積電，這一天卻被模型寫成同是記憶體股的華邦電；之後我把這個例子寫進判讀規則， 同族群換名現在會被擋下 。",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0240",
+      "kind": "button",
+      "text": "每輪判讀留底",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0241",
+      "kind": "li",
+      "text": "11:48–11:55 影片更新後再判讀一次 第二輪的語氣核對把聖暉、祥碩從「觀望注意」改成「觀望不碰」，但兩檔的說明其實都偏多。 每輪判讀留底",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0242",
+      "kind": "p",
+      "text": "第二輪的語氣核對把聖暉、祥碩從「觀望注意」改成「觀望不碰」，但兩檔的說明其實都偏多。",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0243",
+      "kind": "button",
+      "text": "每輪判讀留底",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0244",
+      "kind": "li",
+      "text": "12:01–12:21 人工改回並同步 我在後台逐日編輯把兩檔改回觀望注意，網站與郵件查詢跟著同步了三次。這次之後， 語氣核對改成只看讀者看得到的那段說明 。 當日買賣與觀望",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0245",
+      "kind": "p",
+      "text": "我在後台逐日編輯把兩檔改回觀望注意，網站與郵件查詢跟著同步了三次。這次之後， 語氣核對改成只看讀者看得到的那段說明 。",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0246",
+      "kind": "button",
+      "text": "當日買賣與觀望",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0247",
+      "kind": "li",
+      "text": "中午以後 寄出每日總覽 文章通過品質關卡後才寄。正在讀取當天的寄送紀錄。 每日整理文章",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0248",
+      "kind": "p",
+      "text": "文章通過品質關卡後才寄。正在讀取當天的寄送紀錄。",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0249",
+      "kind": "button",
+      "text": "每日整理文章",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0250",
+      "kind": "li",
+      "text": "收盤後 建立持股回合 力積電這一回合的進場日是 9/23，進場價取當天行情最低 71.90；通知裡講的價位只作後台附註。當天收盤是 73.10。 持股回合",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": true
+    },
+    {
+      "id": "tc-0251",
+      "kind": "p",
+      "text": "力積電這一回合的進場日是 9/23，進場價取當天行情最低 71.90；通知裡講的價位只作後台附註。當天收盤是 73.10。",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": true
+    },
+    {
+      "id": "tc-0252",
+      "kind": "button",
+      "text": "持股回合",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0253",
+      "kind": "li",
+      "text": "之後幾天 記進每日績效 補齊日 K 後重算持股回合，9/23 才記進每日績效。那幾天補日 K 沒有跑完，走勢圖一度停在 9/18；現在每個交易日 17:30 與 19:30 另有保底記錄。 每日績效",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0254",
+      "kind": "p",
+      "text": "補齊日 K 後重算持股回合，9/23 才記進每日績效。那幾天補日 K 沒有跑完，走勢圖一度停在 9/18；現在每個交易日 17:30 與 19:30 另有保底記錄。",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0255",
+      "kind": "button",
+      "text": "每日績效",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0256",
+      "kind": "p",
+      "text": "換成其他日子，會怎麼走：",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0257",
+      "kind": "button",
+      "text": "影片晚到",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0258",
+      "kind": "button",
+      "text": "模型忙碌",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0259",
+      "kind": "button",
+      "text": "沒有直播",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0260",
+      "kind": "button",
+      "text": "休市日",
+      "href": null,
+      "oldChapter": "tech-day",
+      "newChapter": "tech-day",
+      "changed": false
+    },
+    {
+      "id": "tc-0261",
+      "kind": "h2",
+      "text": "語音辨識會把股名聽錯，所以搜尋也認得錯字",
+      "href": null,
+      "oldChapter": "tech-names",
+      "newChapter": "tech-names",
+      "changed": false
+    },
+    {
+      "id": "tc-0262",
+      "kind": "p",
+      "text": "聽打是用語音辨識做的，股名常常被寫成讀音相近的字。我的做法分成三層： 先保留原稿，再查已確認的對照表，最後才看附近的句子 。對照表裡的寫法直接對到正確公司；像「紅海」這種也是一般詞的寫法，要附近真的在講股票才換；找不到可靠對應的，就留下原字給我確認， 不猜一家讀音相近的公司 。",
+      "href": null,
+      "oldChapter": "tech-names",
+      "newChapter": "tech-names",
+      "changed": false
+    },
+    {
+      "id": "tc-0263",
+      "kind": "p",
+      "text": "讀者這一端也受惠：搜尋時打常見的誤字，一樣找得到那次紀錄。",
+      "href": null,
+      "oldChapter": "tech-names",
+      "newChapter": "tech-names",
+      "changed": false
+    },
+    {
+      "id": "tc-0264",
+      "kind": "p",
+      "text": "點一個聽錯的字，看網站怎麼處理",
+      "href": null,
+      "oldChapter": "tech-names",
+      "newChapter": "tech-names",
+      "changed": false
+    },
+    {
+      "id": "tc-0265",
+      "kind": "button",
+      "text": "立即電",
+      "href": null,
+      "oldChapter": "tech-names",
+      "newChapter": "tech-names",
+      "changed": false
+    },
+    {
+      "id": "tc-0266",
+      "kind": "button",
+      "text": "出金城",
+      "href": null,
+      "oldChapter": "tech-names",
+      "newChapter": "tech-names",
+      "changed": false
+    },
+    {
+      "id": "tc-0267",
+      "kind": "button",
+      "text": "加折",
+      "href": null,
+      "oldChapter": "tech-names",
+      "newChapter": "tech-names",
+      "changed": false
+    },
+    {
+      "id": "tc-0268",
+      "kind": "button",
+      "text": "紅海",
+      "href": null,
+      "oldChapter": "tech-names",
+      "newChapter": "tech-names",
+      "changed": false
+    },
+    {
+      "id": "tc-0269",
+      "kind": "button",
+      "text": "玉龍",
+      "href": null,
+      "oldChapter": "tech-names",
+      "newChapter": "tech-names",
+      "changed": false
+    },
+    {
+      "id": "tc-0270",
+      "kind": "button",
+      "text": "與龍",
+      "href": null,
+      "oldChapter": "tech-names",
+      "newChapter": "tech-names",
+      "changed": false
+    },
+    {
+      "id": "tc-0271",
+      "kind": "button",
+      "text": "連帽",
+      "href": null,
+      "oldChapter": "tech-names",
+      "newChapter": "tech-names",
+      "changed": false
+    },
+    {
+      "id": "tc-0272",
+      "kind": "button",
+      "text": "立即電寫成華邦電",
+      "href": null,
+      "oldChapter": "tech-names",
+      "newChapter": "tech-names",
+      "changed": false
+    },
+    {
+      "id": "tc-0273",
+      "kind": "p",
+      "text": "直接對應 要看上下文 不換、不猜",
+      "href": null,
+      "oldChapter": "tech-names",
+      "newChapter": "tech-names",
+      "changed": false
+    },
+    {
+      "id": "tc-0274",
+      "kind": "h2",
+      "text": "同一句有「賣」，要先看誰在賣",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0275",
+      "kind": "p",
+      "text": "同樣說「買、賣」，差在哪裡？",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0276",
+      "kind": "p",
+      "text": "先核對事實，再處理有爭議的語氣。以下甲股句型均為虛構示例。",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0277",
+      "kind": "p",
+      "text": "買入",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0278",
+      "kind": "blockquote",
+      "text": "「我今天買進甲股了。」",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0279",
+      "kind": "li",
+      "text": "01 本人／會員",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0280",
+      "kind": "li",
+      "text": "02 今天",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0281",
+      "kind": "li",
+      "text": "03 已完成買進",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0282",
+      "kind": "li",
+      "text": "04 當日買入",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0283",
+      "kind": "li",
+      "text": "影片須核實已完成；通知須為明確執行指令。",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0284",
+      "kind": "li",
+      "text": "「想買者可以買」是建議，不建立買入事件。",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0285",
+      "kind": "p",
+      "text": "賣出",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0286",
+      "kind": "blockquote",
+      "text": "「我今天把甲股全部賣出了。」",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0287",
+      "kind": "li",
+      "text": "01 本人／會員",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0288",
+      "kind": "li",
+      "text": "02 今天",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0289",
+      "kind": "li",
+      "text": "03 已完成賣出",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0290",
+      "kind": "li",
+      "text": "04 當日賣出",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0291",
+      "kind": "li",
+      "text": "全數出場才關閉整個回合；部分減碼保留剩餘部位。",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0292",
+      "kind": "li",
+      "text": "「今天賣就是殺低」是在反對賣出，不是成交。",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0293",
+      "kind": "p",
+      "text": "會員持股",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0294",
+      "kind": "blockquote",
+      "text": "「甲股只賣一半，剩下繼續抱。」",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0295",
+      "kind": "li",
+      "text": "01 已核對部位",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0296",
+      "kind": "li",
+      "text": "02 尚未全數出場",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0297",
+      "kind": "li",
+      "text": "03 剩餘續抱",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0298",
+      "kind": "li",
+      "text": "04 保留回合",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0299",
+      "kind": "li",
+      "text": "紀錄與本股原句確認本人或會員仍持有。",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0300",
+      "kind": "li",
+      "text": "觀眾說自己持有，不等於講者的部位。",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0301",
+      "kind": "p",
+      "text": "觀望注意",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0302",
+      "kind": "blockquote",
+      "text": "「如果想買，甲股可以買；等回測季線。」",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0303",
+      "kind": "li",
+      "text": "01 本股依據",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0304",
+      "kind": "li",
+      "text": "02 現在或等待條件",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0305",
+      "kind": "li",
+      "text": "03 向前的買點",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0306",
+      "kind": "li",
+      "text": "04 注意追蹤",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0307",
+      "kind": "li",
+      "text": "有可買建議、買點條件或向前的正面技術訊號。",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0308",
+      "kind": "li",
+      "text": "沒有成交證據，不增設交易或成本。",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0309",
+      "kind": "p",
+      "text": "觀望不碰",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0310",
+      "kind": "blockquote",
+      "text": "「甲股買回條件尚未出現，先不要買回。」",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0311",
+      "kind": "li",
+      "text": "01 本股依據",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0312",
+      "kind": "li",
+      "text": "02 當下限制",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0313",
+      "kind": "li",
+      "text": "03 尚未符合買點",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0314",
+      "kind": "li",
+      "text": "04 暫不進場",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0315",
+      "kind": "li",
+      "text": "現在禁買、條件未到或有明確的本股風險。",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0316",
+      "kind": "li",
+      "text": "可以同時保留剩餘持股，不等於全部賣出。",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0317",
+      "kind": "p",
+      "text": "不公開",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0318",
+      "kind": "blockquote",
+      "text": "「今天甲股漲了兩元。」",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0319",
+      "kind": "li",
+      "text": "01 只點名或報價",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0320",
+      "kind": "li",
+      "text": "02 沒有操作結論",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0321",
+      "kind": "li",
+      "text": "03 缺乏向前依據",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0322",
+      "kind": "li",
+      "text": "04 不補猜看法",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0323",
+      "kind": "li",
+      "text": "純行情、歷史回顧或證據不足，不能硬湊分類。",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0324",
+      "kind": "li",
+      "text": "只隔離這一筆，其他已核對股票繼續處理。",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0325",
+      "kind": "p",
+      "text": "部位 ≠ 新進場立場；會員持股與觀望注意可視為同組驗收，交易與成本仍分開核對。",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0326",
+      "kind": "button",
+      "text": "再播判定",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0327",
+      "kind": "summary",
+      "text": "有爭議時，幾票才算數？",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-verdict",
+      "changed": false
+    },
+    {
+      "id": "tc-0328",
+      "kind": "p",
+      "text": "每輪合併所有待判股票，最多三輪；這是單次流程的上限，不是全天上限。同一流程重複核對，不是三位獨立專家。",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-verdict",
+      "changed": false
+    },
+    {
+      "id": "tc-0329",
+      "kind": "p",
+      "text": "每一票都要附本股原句；對不上原文的答案不算票。",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-verdict",
+      "changed": false
+    },
+    {
+      "id": "tc-0330",
+      "kind": "p",
+      "text": "明確部位、原文明講的當下條件先直接歸類；逐字稿成交候選併入同一批事實複核。模型不能憑一票新增成交。",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-verdict",
+      "changed": false
+    },
+    {
+      "id": "tc-0331",
+      "kind": "summary",
+      "text": "例外與依據",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-verdict",
+      "changed": false
+    },
+    {
+      "id": "tc-0332",
+      "kind": "li",
+      "text": "最後才被補收的列，至少兩張可用票完全同類且無反對票，可通過特定公開門檻；不能用兩票假造已完成的買賣。",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-verdict",
+      "changed": false
+    },
+    {
+      "id": "tc-0333",
+      "kind": "li",
+      "text": "缺少有效票時，原稿本身有明確本股向前條件的觀望注意仍保留；沒有支持的爭議列不公開，其他股票續跑。",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-verdict",
+      "changed": false
+    },
+    {
+      "id": "tc-0334",
+      "kind": "li",
+      "text": "人工裁決與已核對的來源事實優先；相同原稿、分類基準與段落指紋可沿用裁決。票數不能保證策略有效。",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-verdict",
+      "changed": false
+    },
+    {
+      "id": "tc-0335",
+      "kind": "a",
+      "text": "閱讀分類裁決基準 ↗",
+      "href": "https://github.com/Lee200202/Stock/blob/main/docs/分類裁決基準.md",
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-verdict",
+      "changed": false
+    },
+    {
+      "id": "tc-0336",
+      "kind": "p",
+      "text": "一句話裡出現「買」「賣」，不代表會員今天有買賣。我把每一句拆成四個問題來看： 講的是哪一檔、誰的動作、已經做了還是條件、說的是哪一天 。當日買賣、目前持有與觀望方向分開存，網站與郵件也保留獨立的持股聲明專區。",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0337",
+      "kind": "p",
+      "text": "例如「鴻準最近散戶一直賣，大戶持股增加，會員要抱牢」，賣的是散戶，會員的動作是續抱；如果只找「賣」這個字，持股就會被錯誤平倉。又如「以前 1580 推薦，當時沒人買」，只是回顧舊推薦，不能變成今天的買入或看多。",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0338",
+      "kind": "p",
+      "text": "點一句話，看它會被放進哪一類",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0339",
+      "kind": "button",
+      "text": "以前 1580 推薦，沒人買",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0340",
+      "kind": "button",
+      "text": "勤誠 900 以下是買點",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0341",
+      "kind": "button",
+      "text": "現在還不能買，要等 ETF 賣完",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0342",
+      "kind": "button",
+      "text": "散戶一直賣，會員要抱牢",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0343",
+      "kind": "button",
+      "text": "非公開操作紀錄：今天買進力積電",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0344",
+      "kind": "button",
+      "text": "外資買一天賣一天",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0345",
+      "kind": "button",
+      "text": "假跌破後站上季線",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0346",
+      "kind": "button",
+      "text": "總比去買友達好",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0347",
+      "kind": "button",
+      "text": "當日買賣 本人今日已成交，或明確會員指令",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0348",
+      "kind": "button",
+      "text": "持股聲明 明講會員現在手上有",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0349",
+      "kind": "button",
+      "text": "觀望注意 本股有正面依據或可照做的買點",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0350",
+      "kind": "button",
+      "text": "觀望不碰 禁買、負面示範或反覆換手",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0351",
+      "kind": "button",
+      "text": "不新增 只是回顧，沒有現在的立場",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0352",
+      "kind": "p",
+      "text": "",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0353",
+      "kind": "p",
+      "text": "成交：主體＋動作＋日期 可買建議：觀望注意 條件未到：觀望不碰",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0354",
+      "kind": "p",
+      "text": "同樣提到股票，為什麼有的列「觀望注意」？ 10/08 原稿案例",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0355",
+      "kind": "button",
+      "text": "金山電：剛開始漲",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0356",
+      "kind": "button",
+      "text": "譜瑞-KY：會跟著衝",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0357",
+      "kind": "button",
+      "text": "創意：碰季線",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0358",
+      "kind": "button",
+      "text": "創見：正在觀察",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0359",
+      "kind": "li",
+      "text": "本股：明講金山電，不借後段別檔的看法。",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0360",
+      "kind": "li",
+      "text": "現在：說它「剛開始漲」，有向前的技術訊號。",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0361",
+      "kind": "li",
+      "text": "結論：列觀望注意；沒有明講會員買入，不寫成當日買賣。",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0362",
+      "kind": "p",
+      "text": "有本股條件或向前訊號 → 注意 只點名或報位置 → 不新增 明講禁止或風險 → 不碰",
+      "href": null,
+      "oldChapter": "tech-subject",
+      "newChapter": "tech-subject",
+      "changed": false
+    },
+    {
+      "id": "tc-0363",
+      "kind": "h2",
+      "text": "「168 張」和「900 以下」都是真數字，只有一個是股價",
+      "href": null,
+      "oldChapter": "tech-number",
+      "newChapter": "tech-number",
+      "changed": false
+    },
+    {
+      "id": "tc-0364",
+      "kind": "p",
+      "text": "一句話裡的數字，可能是張數、條件價、漲跌金額、EPS、股利或均線天數。我的順序是 先找這個數字離哪一檔的名字最近，再看它的單位 ，最後才決定能不能放進價位欄。例如「ETF 賣出勤誠 168 張，勤誠 900 以下才看買點」同時講到交易者、股票、數量和條件價，只有 900 是價位。",
+      "href": null,
+      "oldChapter": "tech-number",
+      "newChapter": "tech-number",
+      "changed": false
+    },
+    {
+      "id": "tc-0365",
+      "kind": "p",
+      "text": "數字聽不清楚、或對不到是哪一檔的，價位欄就記「未說明」。價位欄只留在後台： 公開網站與每日整理不另列價位，非公開操作紀錄的價位也不公開 ；節目公開講的條件（例如「900 以下才看買點」）會留在說明裡。持股的進出場價取當天行情，不是口頭價。",
+      "href": null,
+      "oldChapter": "tech-number",
+      "newChapter": "tech-number",
+      "changed": false
+    },
+    {
+      "id": "tc-0366",
+      "kind": "p",
+      "text": "點原句裡的數字，看它能不能放進價位欄",
+      "href": null,
+      "oldChapter": "tech-number",
+      "newChapter": "tech-number",
+      "changed": false
+    },
+    {
+      "id": "tc-0367",
+      "kind": "p",
+      "text": "ETF 賣出勤誠 168 張；勤誠 900 以下才看買點；高價股今天跌 600 元；聖暉上半年 EPS 23.73 元；台積電除息 7 元；月線是 20 日均線。",
+      "href": null,
+      "oldChapter": "tech-number",
+      "newChapter": "tech-number",
+      "changed": false
+    },
+    {
+      "id": "tc-0368",
+      "kind": "button",
+      "text": "168",
+      "href": null,
+      "oldChapter": "tech-number",
+      "newChapter": "tech-number",
+      "changed": false
+    },
+    {
+      "id": "tc-0369",
+      "kind": "button",
+      "text": "900",
+      "href": null,
+      "oldChapter": "tech-number",
+      "newChapter": "tech-number",
+      "changed": false
+    },
+    {
+      "id": "tc-0370",
+      "kind": "button",
+      "text": "600",
+      "href": null,
+      "oldChapter": "tech-number",
+      "newChapter": "tech-number",
+      "changed": false
+    },
+    {
+      "id": "tc-0371",
+      "kind": "button",
+      "text": "23.73",
+      "href": null,
+      "oldChapter": "tech-number",
+      "newChapter": "tech-number",
+      "changed": false
+    },
+    {
+      "id": "tc-0372",
+      "kind": "button",
+      "text": "7",
+      "href": null,
+      "oldChapter": "tech-number",
+      "newChapter": "tech-number",
+      "changed": false
+    },
+    {
+      "id": "tc-0373",
+      "kind": "button",
+      "text": "20",
+      "href": null,
+      "oldChapter": "tech-number",
+      "newChapter": "tech-number",
+      "changed": false
+    },
+    {
+      "id": "tc-0374",
+      "kind": "p",
+      "text": "選一個數字，看它屬於哪一檔、代表什麼。",
+      "href": null,
+      "oldChapter": "tech-number",
+      "newChapter": "tech-number",
+      "changed": false
+    },
+    {
+      "id": "tc-0375",
+      "kind": "p",
+      "text": "可以當價位 不能當股價",
+      "href": null,
+      "oldChapter": "tech-number",
+      "newChapter": "tech-number",
+      "changed": false
+    },
+    {
+      "id": "tc-0376",
+      "kind": "h2",
+      "text": "他沒講是哪一檔時，我用昨天的收盤價去認",
+      "href": null,
+      "oldChapter": "tech-unnamed",
+      "newChapter": "tech-unnamed",
+      "changed": false
+    },
+    {
+      "id": "tc-0377",
+      "kind": "p",
+      "text": "節目裡常有整段不報名字的話：「我昨天有沒有跟你們講一支股票？這一支股票只要 1745 突破就要大漲……昨天收盤收多少？1770。現在 1800。」只看文字，模型會把它掛到附近剛點名過的公司。10 月 1 日就發生過：這段話被寫進世芯-KY 的說明，而世芯當天的股價是三千七百多元。",
+      "href": null,
+      "oldChapter": "tech-unnamed",
+      "newChapter": "tech-unnamed",
+      "changed": false
+    },
+    {
+      "id": "tc-0378",
+      "kind": "p",
+      "text": "人看到這段話會怎麼做？去翻追蹤中的股票，看 昨天誰收在 1770 。那天只有嘉澤（3533）收 1770，當天的高低是 1760 到 1865，「現在 1800」也對得上。所以我把這個做法寫成固定流程，分三步，每一步都由程式核對：",
+      "href": null,
+      "oldChapter": "tech-unnamed",
+      "newChapter": "tech-unnamed",
+      "changed": false
+    },
+    {
+      "id": "tc-0379",
+      "kind": "li",
+      "text": "找段落 ：模型只負責找出「沒講名字、但明講了收盤價」的段落，照抄原句、標出每個數字是昨天收盤、現在的股價還是關卡。這一步不准猜公司名稱。",
+      "href": null,
+      "oldChapter": "tech-unnamed",
+      "newChapter": "tech-unnamed",
+      "changed": false
+    },
+    {
+      "id": "tc-0380",
+      "kind": "li",
+      "text": "對行情 ：程式拿原話的「昨天收盤」去對追蹤中每一檔前一個交易日的實際收盤價。 一模一樣、而且只有一檔 才算認出來；原話另有「現在幾塊」時，還要落在那一檔當天的高低之間。",
+      "href": null,
+      "oldChapter": "tech-unnamed",
+      "newChapter": "tech-unnamed",
+      "changed": false
+    },
+    {
+      "id": "tc-0381",
+      "kind": "li",
+      "text": "二次稽核 ：認出來的再送一次模型，把公司名稱、實際收盤價和原話一起給它，問這段話歸給這家公司有沒有矛盾。通過了才用正式名稱寫說明，而且每一句仍要逐句核對引用與數字。",
+      "href": null,
+      "oldChapter": "tech-unnamed",
+      "newChapter": "tech-unnamed",
+      "changed": false
+    },
+    {
+      "id": "tc-0382",
+      "kind": "p",
+      "text": "任何一步沒過就 不計入 ，只在判定歷程留原因。這條路只產生觀望注意或觀望不碰（正持有且原話說「抱著」時才列持股聲明），不會產生買入、賣出或新的持有回合。",
+      "href": null,
+      "oldChapter": "tech-unnamed",
+      "newChapter": "tech-unnamed",
+      "changed": false
+    },
+    {
+      "id": "tc-0383",
+      "kind": "p",
+      "text": "同一段話，選前一交易日的比對結果",
+      "href": null,
+      "oldChapter": "tech-unnamed",
+      "newChapter": "tech-unnamed",
+      "changed": false
+    },
+    {
+      "id": "tc-0384",
+      "kind": "button",
+      "text": "昨收 1770 只有一檔",
+      "href": null,
+      "oldChapter": "tech-unnamed",
+      "newChapter": "tech-unnamed",
+      "changed": false
+    },
+    {
+      "id": "tc-0385",
+      "kind": "button",
+      "text": "兩檔都收 1770（假設）",
+      "href": null,
+      "oldChapter": "tech-unnamed",
+      "newChapter": "tech-unnamed",
+      "changed": false
+    },
+    {
+      "id": "tc-0386",
+      "kind": "button",
+      "text": "沒有一檔收 1770（假設）",
+      "href": null,
+      "oldChapter": "tech-unnamed",
+      "newChapter": "tech-unnamed",
+      "changed": false
+    },
+    {
+      "id": "tc-0387",
+      "kind": "li",
+      "text": "原話數字 昨收 1770、現在 1800",
+      "href": null,
+      "oldChapter": "tech-unnamed",
+      "newChapter": "tech-unnamed",
+      "changed": false
+    },
+    {
+      "id": "tc-0388",
+      "kind": "li",
+      "text": "候選股票 嘉澤（3533）",
+      "href": null,
+      "oldChapter": "tech-unnamed",
+      "newChapter": "tech-unnamed",
+      "changed": false
+    },
+    {
+      "id": "tc-0389",
+      "kind": "li",
+      "text": "當天高低 1760～1865 包含 1800",
+      "href": null,
+      "oldChapter": "tech-unnamed",
+      "newChapter": "tech-unnamed",
+      "changed": false
+    },
+    {
+      "id": "tc-0390",
+      "kind": "li",
+      "text": "二次稽核 沒有矛盾",
+      "href": null,
+      "oldChapter": "tech-unnamed",
+      "newChapter": "tech-unnamed",
+      "changed": false
+    },
+    {
+      "id": "tc-0391",
+      "kind": "li",
+      "text": "結果 ✓ 收錄",
+      "href": null,
+      "oldChapter": "tech-unnamed",
+      "newChapter": "tech-unnamed",
+      "changed": false
+    },
+    {
+      "id": "tc-0392",
+      "kind": "p",
+      "text": "嘉澤 9/30 收 1770，當天 1760～1865 包含「現在 1800」。送二次稽核，通過後收錄。",
+      "href": null,
+      "oldChapter": "tech-unnamed",
+      "newChapter": "tech-unnamed",
+      "changed": false
+    },
+    {
+      "id": "tc-0393",
+      "kind": "p",
+      "text": "分不出是哪一檔，不收錄；判定歷程寫「同價兩檔」。",
+      "href": null,
+      "oldChapter": "tech-unnamed",
+      "newChapter": "tech-unnamed",
+      "changed": false
+    },
+    {
+      "id": "tc-0394",
+      "kind": "p",
+      "text": "可能不在追蹤名單，或講的不是收盤價。不收錄，也不掛到附近點名的公司。",
+      "href": null,
+      "oldChapter": "tech-unnamed",
+      "newChapter": "tech-unnamed",
+      "changed": false
+    },
+    {
+      "id": "tc-0395",
+      "kind": "p",
+      "text": "收錄 不計入",
+      "href": null,
+      "oldChapter": "tech-unnamed",
+      "newChapter": "tech-unnamed",
+      "changed": false
+    },
+    {
+      "id": "tc-0396",
+      "kind": "p",
+      "text": "另外補了一道反向的檢查：某一檔的說明裡若出現一個數字，而這個數字在原話裡每一次出現都離這一檔的名字五百字以上、中間還講過別的公司，那一句就刪掉。世芯-KY 那天的「1745」「1800」就是這樣被拿掉的。",
+      "href": null,
+      "oldChapter": "tech-unnamed",
+      "newChapter": "tech-unnamed",
+      "changed": false
+    },
+    {
+      "id": "tc-0397",
+      "kind": "h2",
+      "text": "新稿來了，舊工單會不會蓋回去？",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0398",
+      "kind": "p",
+      "text": "每次讀原稿先記下 指紋 （整份內容算出的 SHA-256），寫回前再讀一次比對。選一個情況，看原稿、潤飾、稽核、文章、寄送與背景績效各自停在哪裡。",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0399",
+      "kind": "p",
+      "text": "選一個情況 示意，不是即時監控",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0400",
+      "kind": "button",
+      "text": "潤飾中原稿更新",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0401",
+      "kind": "button",
+      "text": "相同原稿再貼一次",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0402",
+      "kind": "button",
+      "text": "取消這一次工單",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0403",
+      "kind": "button",
+      "text": "今天暫停自動取稿",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0404",
+      "kind": "button",
+      "text": "模型 503",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0405",
+      "kind": "button",
+      "text": "回應截斷或 JSON 無效",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0406",
+      "kind": "button",
+      "text": "證據缺漏",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0407",
+      "kind": "button",
+      "text": "共用鎖忙碌",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0408",
+      "kind": "li",
+      "text": "原稿 ✓ 保留新稿 偵測到新稿 B，以新稿為準",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0409",
+      "kind": "p",
+      "text": "偵測到新稿 B，以新稿為準",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0410",
+      "kind": "li",
+      "text": "潤飾片段 — 作廢 舊稿做到 5/8，不寫回",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0411",
+      "kind": "p",
+      "text": "舊稿做到 5/8，不寫回",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0412",
+      "kind": "li",
+      "text": "判讀與證據 ⏸ 等待 下一輪改讀新稿",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0413",
+      "kind": "p",
+      "text": "下一輪改讀新稿",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0414",
+      "kind": "li",
+      "text": "網站文章 ⏸ 等待 仍是上一版，沒被舊稿覆蓋",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0415",
+      "kind": "p",
+      "text": "仍是上一版，沒被舊稿覆蓋",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0416",
+      "kind": "li",
+      "text": "寄送關卡 ⏸ 等待 新稿判讀完成才檢查",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0417",
+      "kind": "p",
+      "text": "新稿判讀完成才檢查",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0418",
+      "kind": "li",
+      "text": "背景績效 ⏸ 等待 照常在收盤後",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0419",
+      "kind": "p",
+      "text": "照常在收盤後",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0420",
+      "kind": "li",
+      "text": "1 潤飾中原稿更新 寫回前重讀原稿，指紋不同：舊結果作廢，以新稿為準。",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0421",
+      "kind": "p",
+      "text": "寫回前重讀原稿，指紋不同：舊結果作廢，以新稿為準。",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0422",
+      "kind": "li",
+      "text": "2 相同原稿再貼一次 指紋相同，修飾稿直接沿用；分類與原句照樣重新核對。",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0423",
+      "kind": "p",
+      "text": "指紋相同，修飾稿直接沿用；分類與原句照樣重新核對。",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0424",
+      "kind": "li",
+      "text": "3 取消這一次工單 只停這一個工單；已存的原稿與片段都留著。",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0425",
+      "kind": "p",
+      "text": "只停這一個工單；已存的原稿與片段都留著。",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0426",
+      "kind": "li",
+      "text": "4 今天暫停自動取稿 整天停手，直到貼上原稿或按「恢復自動取稿」。",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0427",
+      "kind": "p",
+      "text": "整天停手，直到貼上原稿或按「恢復自動取稿」。",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0428",
+      "kind": "li",
+      "text": "5 模型 503 服務暫時過載，不是額度用完：換金鑰、退避，片段保留。",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0429",
+      "kind": "p",
+      "text": "服務暫時過載，不是額度用完：換金鑰、退避，片段保留。",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0430",
+      "kind": "li",
+      "text": "6 回應截斷或 JSON 無效 加大輸出空間重送一次；仍有疑點就不宣稱通過。",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0431",
+      "kind": "p",
+      "text": "加大輸出空間重送一次；仍有疑點就不宣稱通過。",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0432",
+      "kind": "li",
+      "text": "7 證據缺漏 找不到原句的那幾檔不發布，列待複核。",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0433",
+      "kind": "p",
+      "text": "找不到原句的那幾檔不發布，列待複核。",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0434",
+      "kind": "li",
+      "text": "8 共用鎖忙碌 文章與寄送已完成；績效留給下一輪——文章完成不等於績效完成。",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0435",
+      "kind": "p",
+      "text": "文章與寄送已完成；績效留給下一輪——文章完成不等於績效完成。",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0436",
+      "kind": "p",
+      "text": "✓ 完成 ↻ 自動接續 ⏸ 等待 ! 待複核 — 不做",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0437",
+      "kind": "summary",
+      "text": "文字版規則與工程細節",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0438",
+      "kind": "li",
+      "text": "寫回前重讀同一筆原稿核對指紋；有新稿就保留新稿，舊結果不蓋回去。相同內容再貼可沿用修飾稿，但分類、證據與寄送核對仍要完成。",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0439",
+      "kind": "li",
+      "text": "總進度只算已回報的步驟；潤飾另顯示完成片段數，約每 30 秒回報一次心跳。心跳只代表工作還在進行，不估完成時間，也不代表完成。",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0440",
+      "kind": "li",
+      "text": "「取消執行」只停這一個工單編號，已落地資料保留；「今天暫停自動取稿」才會停整天，直到貼上原稿或恢復。",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0441",
+      "kind": "li",
+      "text": "Gemini 503 是服務暫時過載，不是額度用完：先換下一把金鑰，整輪都 503 才退避；聽打三輪退避仍過載才用備援模型。額度依 Google 專案計算，同一專案多把金鑰不會增加配額。",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0442",
+      "kind": "li",
+      "text": "回應截斷或 JSON 結構錯誤：加大輸出空間重送一次，仍有待確認項目就不宣稱通過。寄送前補漏只要求缺少的個股與原句，不重寫整篇。",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0443",
+      "kind": "li",
+      "text": "報價控速等待時先放開共用鎖，忙碌就留給下一輪。文章完成不等於績效完成；試算表以序號傳回的日期先換成實際年月日。",
+      "href": null,
+      "oldChapter": "tech-transcript-progress",
+      "newChapter": "tech-transcript-progress",
+      "changed": false
+    },
+    {
+      "id": "tc-0444",
+      "kind": "h2",
+      "text": "盤中先有操作，影片後到：網站該信誰？",
+      "href": null,
+      "oldChapter": "tech-source-priority",
+      "newChapter": "tech-source-priority",
+      "changed": false
+    },
+    {
+      "id": "tc-0445",
+      "kind": "p",
+      "text": "同一天同一檔， 先核對操作紀錄的分類，再用逐字稿補有原句支持的技術背景 。選一張卡，看兩個來源如何合成一則公開紀錄。",
+      "href": null,
+      "oldChapter": "tech-source-priority",
+      "newChapter": "tech-source-priority",
+      "changed": false
+    },
+    {
+      "id": "tc-0446",
+      "kind": "p",
+      "text": "選一個先後情境 示意互動，不會更新資料或寄送",
+      "href": null,
+      "oldChapter": "tech-source-priority",
+      "newChapter": "tech-source-priority",
+      "changed": false
+    },
+    {
+      "id": "tc-0447",
+      "kind": "button",
+      "text": "先全數賣出，後提持股",
+      "href": null,
+      "oldChapter": "tech-source-priority",
+      "newChapter": "tech-source-priority",
+      "changed": false
+    },
+    {
+      "id": "tc-0448",
+      "kind": "button",
+      "text": "先買入，後談技術條件",
+      "href": null,
+      "oldChapter": "tech-source-priority",
+      "newChapter": "tech-source-priority",
+      "changed": false
+    },
+    {
+      "id": "tc-0449",
+      "kind": "button",
+      "text": "沒有當日操作紀錄",
+      "href": null,
+      "oldChapter": "tech-source-priority",
+      "newChapter": "tech-source-priority",
+      "changed": false
+    },
+    {
+      "id": "tc-0450",
+      "kind": "button",
+      "text": "虛構：想買者可以買",
+      "href": null,
+      "oldChapter": "tech-source-priority",
+      "newChapter": "tech-source-priority",
+      "changed": false
+    },
+    {
+      "id": "tc-0451",
+      "kind": "button",
+      "text": "虛構：保留部位，暫不買回",
+      "href": null,
+      "oldChapter": "tech-source-priority",
+      "newChapter": "tech-source-priority",
+      "changed": false
+    },
+    {
+      "id": "tc-0452",
+      "kind": "li",
+      "text": "先到的操作 10/08 當日已記全數賣出 方向已確定；通知原文與成交價留在後台。",
+      "href": null,
+      "oldChapter": "tech-source-priority",
+      "newChapter": "tech-source-priority",
+      "changed": false
+    },
+    {
+      "id": "tc-0453",
+      "kind": "p",
+      "text": "方向已確定；通知原文與成交價留在後台。",
+      "href": null,
+      "oldChapter": "tech-source-priority",
+      "newChapter": "tech-source-priority",
+      "changed": false
+    },
+    {
+      "id": "tc-0454",
+      "kind": "li",
+      "text": "後到的影片 原稿再談這檔股票 逐句核對，但不能把「曾經持有」寫回目前持有。",
+      "href": null,
+      "oldChapter": "tech-source-priority",
+      "newChapter": "tech-source-priority",
+      "changed": false
+    },
+    {
+      "id": "tc-0455",
+      "kind": "p",
+      "text": "逐句核對，但不能把「曾經持有」寫回目前持有。",
+      "href": null,
+      "oldChapter": "tech-source-priority",
+      "newChapter": "tech-source-priority",
+      "changed": false
+    },
+    {
+      "id": "tc-0456",
+      "kind": "li",
+      "text": "撰稿前合併 分類仍是賣出 只補同股、有證據且不改方向的技術理由。",
+      "href": null,
+      "oldChapter": "tech-source-priority",
+      "newChapter": "tech-source-priority",
+      "changed": false
+    },
+    {
+      "id": "tc-0457",
+      "kind": "p",
+      "text": "只補同股、有證據且不改方向的技術理由。",
+      "href": null,
+      "oldChapter": "tech-source-priority",
+      "newChapter": "tech-source-priority",
+      "changed": false
+    },
+    {
+      "id": "tc-0458",
+      "kind": "p",
+      "text": "網站看見：賣出 不再同時顯示「持有」；已寄出的郵件保留原快照。",
+      "href": null,
+      "oldChapter": "tech-source-priority",
+      "newChapter": "tech-source-priority",
+      "changed": false
+    },
+    {
+      "id": "tc-0459",
+      "kind": "p",
+      "text": "分類：當日操作紀錄 說明：逐字稿核對 成交價：公開頁不顯示",
+      "href": null,
+      "oldChapter": "tech-source-priority",
+      "newChapter": "tech-source-priority",
+      "changed": false
+    },
+    {
+      "id": "tc-0460",
+      "kind": "summary",
+      "text": "文字版規則與例外",
+      "href": null,
+      "oldChapter": "tech-source-priority",
+      "newChapter": "tech-source-priority",
+      "changed": false
+    },
+    {
+      "id": "tc-0461",
+      "kind": "li",
+      "text": "同日同檔的當日操作紀錄先確定買入、賣出或觀望；逐字稿晚到只能補有原句依據的背景，不得改掉分類，也不得把賣出重新列成持有。10/08 世芯-KY 的全數賣出就是這一關的實際案例。",
+      "href": null,
+      "oldChapter": "tech-source-priority",
+      "newChapter": "tech-source-priority",
+      "changed": false
+    },
+    {
+      "id": "tc-0462",
+      "kind": "li",
+      "text": "沒有當日操作紀錄時，逐字稿經股名、時間、主詞、數字與分類稽核後才發布。不同日期的回顧不算今天的操作。",
+      "href": null,
+      "oldChapter": "tech-source-priority",
+      "newChapter": "tech-source-priority",
+      "changed": false
+    },
+    {
+      "id": "tc-0463",
+      "kind": "li",
+      "text": "來源優先，是先讀原文的意思，不是盲信解析器。可以買的建議不算已成交；「高點賣出者」不是今天賣出。「條件尚未出現、不急買回」列觀望不碰。",
+      "href": null,
+      "oldChapter": "tech-source-priority",
+      "newChapter": "tech-source-priority",
+      "changed": false
+    },
+    {
+      "id": "tc-0464",
+      "kind": "li",
+      "text": "同一天先買後賣依實際先後保留；全數出場才關閉部位，部分賣出仍保留剩餘持股。持有剩餘部位與暫不買回是兩個維度，可同時成立。人工補登另行保護。",
+      "href": null,
+      "oldChapter": "tech-source-priority",
+      "newChapter": "tech-source-priority",
+      "changed": false
+    },
+    {
+      "id": "tc-0465",
+      "kind": "li",
+      "text": "私人通知原文與成交價留在後台及已同意接收的專用通知；公開說明保留經核對的技術條件。已寄郵件是快照，重新整理網站不重寄。",
+      "href": null,
+      "oldChapter": "tech-source-priority",
+      "newChapter": "tech-source-priority",
+      "changed": false
+    },
+    {
+      "id": "tc-0466",
+      "kind": "h2",
+      "text": "這句話為什麼能公開，另一句為什麼待複核？",
+      "href": null,
+      "oldChapter": "tech-public-notes",
+      "newChapter": "tech-public-notes",
+      "changed": false
+    },
+    {
+      "id": "tc-0467",
+      "kind": "p",
+      "text": "每一則公開說明都要 回得到原句 ：有依據的事實、條件與風險 留 下，寫作過程與重複句 刪 掉，借自別家的消息 移 到內部稽核，有矛盾的交給我 複核 。選一個案例，看從原句到公開文字的每一步。",
+      "href": null,
+      "oldChapter": "tech-public-notes",
+      "newChapter": "tech-public-notes",
+      "changed": false
+    },
+    {
+      "id": "tc-0468",
+      "kind": "p",
+      "text": "選一個案例 甲、乙、丙等公司皆為示意",
+      "href": null,
+      "oldChapter": "tech-public-notes",
+      "newChapter": "tech-public-notes",
+      "changed": false
+    },
+    {
+      "id": "tc-0469",
+      "kind": "button",
+      "text": "技術條件有原句",
+      "href": null,
+      "oldChapter": "tech-public-notes",
+      "newChapter": "tech-public-notes",
+      "changed": false
+    },
+    {
+      "id": "tc-0470",
+      "kind": "button",
+      "text": "換句話重講一次",
+      "href": null,
+      "oldChapter": "tech-public-notes",
+      "newChapter": "tech-public-notes",
+      "changed": false
+    },
+    {
+      "id": "tc-0471",
+      "kind": "button",
+      "text": "借用別家公司的消息",
+      "href": null,
+      "oldChapter": "tech-public-notes",
+      "newChapter": "tech-public-notes",
+      "changed": false
+    },
+    {
+      "id": "tc-0472",
+      "kind": "button",
+      "text": "「觀望不碰」卻寫找買點",
+      "href": null,
+      "oldChapter": "tech-public-notes",
+      "newChapter": "tech-public-notes",
+      "changed": false
+    },
+    {
+      "id": "tc-0473",
+      "kind": "button",
+      "text": "非公開操作紀錄的成交價（虛構）",
+      "href": null,
+      "oldChapter": "tech-public-notes",
+      "newChapter": "tech-public-notes",
+      "changed": false
+    },
+    {
+      "id": "tc-0474",
+      "kind": "button",
+      "text": "人工修正：條件相同",
+      "href": null,
+      "oldChapter": "tech-public-notes",
+      "newChapter": "tech-public-notes",
+      "changed": false
+    },
+    {
+      "id": "tc-0475",
+      "kind": "button",
+      "text": "人工修正：分類改變",
+      "href": null,
+      "oldChapter": "tech-public-notes",
+      "newChapter": "tech-public-notes",
+      "changed": false
+    },
+    {
+      "id": "tc-0476",
+      "kind": "p",
+      "text": "1 原句與來源",
+      "href": null,
+      "oldChapter": "tech-public-notes",
+      "newChapter": "tech-public-notes",
+      "changed": false
+    },
+    {
+      "id": "tc-0477",
+      "kind": "p",
+      "text": "影片原句 觀望注意",
+      "href": null,
+      "oldChapter": "tech-public-notes",
+      "newChapter": "tech-public-notes",
+      "changed": false
+    },
+    {
+      "id": "tc-0478",
+      "kind": "blockquote",
+      "text": "甲公司站回季線，外資連三天買超；前高還沒過，追高要小心。",
+      "href": null,
+      "oldChapter": "tech-public-notes",
+      "newChapter": "tech-public-notes",
+      "changed": false
+    },
+    {
+      "id": "tc-0479",
+      "kind": "p",
+      "text": "2 核對了什麼",
+      "href": null,
+      "oldChapter": "tech-public-notes",
+      "newChapter": "tech-public-notes",
+      "changed": false
+    },
+    {
+      "id": "tc-0480",
+      "kind": "p",
+      "text": "逐字稿補充的重點是： 甲公司站回季線，外資連三天買超，前高未過，追高要留意風險。",
+      "href": null,
+      "oldChapter": "tech-public-notes",
+      "newChapter": "tech-public-notes",
+      "changed": false
+    },
+    {
+      "id": "tc-0481",
+      "kind": "li",
+      "text": "留 季線、外資連三天：原句都有",
+      "href": null,
+      "oldChapter": "tech-public-notes",
+      "newChapter": "tech-public-notes",
+      "changed": false
+    },
+    {
+      "id": "tc-0482",
+      "kind": "li",
+      "text": "留 風險：原句有「追高要小心」",
+      "href": null,
+      "oldChapter": "tech-public-notes",
+      "newChapter": "tech-public-notes",
+      "changed": false
+    },
+    {
+      "id": "tc-0483",
+      "kind": "li",
+      "text": "刪 「逐字稿補充的重點是」是寫作過程，不是事實",
+      "href": null,
+      "oldChapter": "tech-public-notes",
+      "newChapter": "tech-public-notes",
+      "changed": false
+    },
+    {
+      "id": "tc-0484",
+      "kind": "p",
+      "text": "3 公開看見",
+      "href": null,
+      "oldChapter": "tech-public-notes",
+      "newChapter": "tech-public-notes",
+      "changed": false
+    },
+    {
+      "id": "tc-0485",
+      "kind": "p",
+      "text": "甲公司站回季線，外資連三天買超；前高未過，追高要留意風險。",
+      "href": null,
+      "oldChapter": "tech-public-notes",
+      "newChapter": "tech-public-notes",
+      "changed": false
+    },
+    {
+      "id": "tc-0486",
+      "kind": "p",
+      "text": "留：有原句依據 刪：不公開 移：進內部稽核 複核：交給管理者",
+      "href": null,
+      "oldChapter": "tech-public-notes",
+      "newChapter": "tech-public-notes",
+      "changed": false
+    },
+    {
+      "id": "tc-0487",
+      "kind": "summary",
+      "text": "文字版規則",
+      "href": null,
+      "oldChapter": "tech-public-notes",
+      "newChapter": "tech-public-notes",
+      "changed": false
+    },
+    {
+      "id": "tc-0488",
+      "kind": "li",
+      "text": "說明只寫已核對的技術位置、消息、法人動向與風險，不寫「逐字稿補充的重點是」這類寫作過程，也不用推論或重複句湊篇幅。換個開頭再講一次的句子只留一次，有新數字或新條件的句子保留。",
+      "href": null,
+      "oldChapter": "tech-public-notes",
+      "newChapter": "tech-public-notes",
+      "changed": false
+    },
+    {
+      "id": "tc-0489",
+      "kind": "li",
+      "text": "消息必須屬於同一家公司：現金增資、繳款、權利金等事件會回查本股前後文，借自別家的句子移到內部稽核，其餘有依據的照常保留。",
+      "href": null,
+      "oldChapter": "tech-public-notes",
+      "newChapter": "tech-public-notes",
+      "changed": false
+    },
+    {
+      "id": "tc-0490",
+      "kind": "li",
+      "text": "分類與說明語意相反（例如觀望不碰卻寫找買點）時列待複核，不自動改分類或改寫說明。",
+      "href": null,
+      "oldChapter": "tech-public-notes",
+      "newChapter": "tech-public-notes",
+      "changed": false
+    },
+    {
+      "id": "tc-0491",
+      "kind": "li",
+      "text": "非公開操作紀錄的方向放在分類；非公開紀錄的成交價與來源名稱只供後台核對或已同意接收的專用通知。均線週期、成交張數、百分比與 EPS 等不是成交價的數字照常保留。",
+      "href": null,
+      "oldChapter": "tech-public-notes",
+      "newChapter": "tech-public-notes",
+      "changed": false
+    },
+    {
+      "id": "tc-0492",
+      "kind": "li",
+      "text": "人工說明會連同原稿指紋、股票、來源與分類一起記下；重跑時四項都相同才保留，任一項改變就不自動套用、交回待複核。沒有修正紀錄的舊文字不推定為人工修正。",
+      "href": null,
+      "oldChapter": "tech-public-notes",
+      "newChapter": "tech-public-notes",
+      "changed": false
+    },
+    {
+      "id": "tc-0493",
+      "kind": "li",
+      "text": "已寄出的信是當時的快照，規則更新不會改寫或重寄。",
+      "href": null,
+      "oldChapter": "tech-public-notes",
+      "newChapter": "tech-public-notes",
+      "changed": false
+    },
+    {
+      "id": "tc-0494",
+      "kind": "h2",
+      "text": "持股有開始和結束，績效必須跟著日期重算",
+      "href": null,
+      "oldChapter": "tech-hold",
+      "newChapter": "tech-hold",
+      "changed": false
+    },
+    {
+      "id": "tc-0495",
+      "kind": "p",
+      "text": "同一檔可以賣出後再買回，所以用一段一段的「持有回合」記錄。 進場取經日 K 核對的明講進場價與當日高低中點較低者；出場取明講出場價與當日中點較高者。沒有可採用的明講價，就用中點。 轉成觀望不碰或逾期未再提及，沒有實際賣價，只取該日或之前交易日中點， 不能向後借價 ；後台人工修正的成本優先。",
+      "href": null,
+      "oldChapter": "tech-hold",
+      "newChapter": "tech-hold",
+      "changed": false
+    },
+    {
+      "id": "tc-0496",
+      "kind": "p",
+      "text": "每日績效是當天持有中回合的未實現報酬平均；歷史走勢用進場價和每天收盤重算，出場價只影響已結束回合。公式：進場價＝min（明講進場價，（高＋低）÷2）；出場價＝max（明講出場價，（高＋低）÷2）。 這是估算，選有利價位可能使報酬偏高 ；沒有計入手續費、稅和滑價，也未核對實際成交。",
+      "href": null,
+      "oldChapter": "tech-hold",
+      "newChapter": "tech-hold",
+      "changed": false
+    },
+    {
+      "id": "tc-0497",
+      "kind": "p",
+      "text": "播放或拖動日期，看一個回合什麼時候結束",
+      "href": null,
+      "oldChapter": "tech-hold",
+      "newChapter": "tech-hold",
+      "changed": false
+    },
+    {
+      "id": "tc-0498",
+      "kind": "button",
+      "text": "▶ 播放這個回合",
+      "href": null,
+      "oldChapter": "tech-hold",
+      "newChapter": "tech-hold",
+      "changed": false
+    },
+    {
+      "id": "tc-0499",
+      "kind": "li",
+      "text": "8/06 首次買入 建立回合",
+      "href": null,
+      "oldChapter": "tech-hold",
+      "newChapter": "tech-hold",
+      "changed": false
+    },
+    {
+      "id": "tc-0500",
+      "kind": "li",
+      "text": "8/07 再次提及 更新提及日",
+      "href": null,
+      "oldChapter": "tech-hold",
+      "newChapter": "tech-hold",
+      "changed": false
+    },
+    {
+      "id": "tc-0501",
+      "kind": "li",
+      "text": "8/10 最後提及 仍持有",
+      "href": null,
+      "oldChapter": "tech-hold",
+      "newChapter": "tech-hold",
+      "changed": false
+    },
+    {
+      "id": "tc-0502",
+      "kind": "li",
+      "text": "8/17 未滿十日 仍算持有",
+      "href": null,
+      "oldChapter": "tech-hold",
+      "newChapter": "tech-hold",
+      "changed": false
+    },
+    {
+      "id": "tc-0503",
+      "kind": "li",
+      "text": "8/25 確認逾期 回溯定價出場",
+      "href": null,
+      "oldChapter": "tech-hold",
+      "newChapter": "tech-hold",
+      "changed": false
+    },
+    {
+      "id": "tc-0504",
+      "kind": "li",
+      "text": "9/01 重新買入 另開回合",
+      "href": null,
+      "oldChapter": "tech-hold",
+      "newChapter": "tech-hold",
+      "changed": false
+    },
+    {
+      "id": "tc-0505",
+      "kind": "p",
+      "text": "首次買入；沒有可核對的明講價時，進場取 8/06 當日高低中點。",
+      "href": null,
+      "oldChapter": "tech-hold",
+      "newChapter": "tech-hold",
+      "changed": false
+    },
+    {
+      "id": "tc-0506",
+      "kind": "h2",
+      "text": "有一段失敗時，我希望後台說清楚停在哪裡",
+      "href": null,
+      "oldChapter": "tech-failure",
+      "newChapter": "tech-failure",
+      "changed": false
+    },
+    {
+      "id": "tc-0507",
+      "kind": "p",
+      "text": "每天的工作分成四段： 取稿、判讀、網站文章、背景計算 （補日 K、重算持股與績效）。影片可能晚到，模型可能忙，網站排程的一次執行也有六分鐘的時間限制。所以每一段各自記下做到哪裡：已經聽完的片段、已經寫好的文章和補到哪一檔股票，都留著讓下一次接著做。",
+      "href": null,
+      "oldChapter": "tech-failure",
+      "newChapter": "tech-failure",
+      "changed": false
+    },
+    {
+      "id": "tc-0508",
+      "kind": "p",
+      "text": "我的原則是 錯誤要被看見，不能被藏起來 ：文章發布了，不代表績效也算完；讀不到資料時要說讀不到，不能只留一個空白畫面。需要人判斷的錯誤，就明確標出來讓我處理。",
+      "href": null,
+      "oldChapter": "tech-failure",
+      "newChapter": "tech-failure",
+      "changed": false
+    },
+    {
+      "id": "tc-0509",
+      "kind": "p",
+      "text": "選一個狀況，看四段工作分別會怎樣",
+      "href": null,
+      "oldChapter": "tech-failure",
+      "newChapter": "tech-failure",
+      "changed": false
+    },
+    {
+      "id": "tc-0510",
+      "kind": "button",
+      "text": "影片晚到",
+      "href": null,
+      "oldChapter": "tech-failure",
+      "newChapter": "tech-failure",
+      "changed": false
+    },
+    {
+      "id": "tc-0511",
+      "kind": "button",
+      "text": "模型忙碌",
+      "href": null,
+      "oldChapter": "tech-failure",
+      "newChapter": "tech-failure",
+      "changed": false
+    },
+    {
+      "id": "tc-0512",
+      "kind": "button",
+      "text": "一次跑不完",
+      "href": null,
+      "oldChapter": "tech-failure",
+      "newChapter": "tech-failure",
+      "changed": false
+    },
+    {
+      "id": "tc-0513",
+      "kind": "button",
+      "text": "即時紀錄比影片先到",
+      "href": null,
+      "oldChapter": "tech-failure",
+      "newChapter": "tech-failure",
+      "changed": false
+    },
+    {
+      "id": "tc-0514",
+      "kind": "button",
+      "text": "分類被改錯",
+      "href": null,
+      "oldChapter": "tech-failure",
+      "newChapter": "tech-failure",
+      "changed": false
+    },
+    {
+      "id": "tc-0515",
+      "kind": "button",
+      "text": "首頁資料太大",
+      "href": null,
+      "oldChapter": "tech-failure",
+      "newChapter": "tech-failure",
+      "changed": false
+    },
+    {
+      "id": "tc-0516",
+      "kind": "button",
+      "text": "休市日",
+      "href": null,
+      "oldChapter": "tech-failure",
+      "newChapter": "tech-failure",
+      "changed": false
+    },
+    {
+      "id": "tc-0517",
+      "kind": "p",
+      "text": "",
+      "href": null,
+      "oldChapter": "tech-failure",
+      "newChapter": "tech-failure",
+      "changed": false
+    },
+    {
+      "id": "tc-0518",
+      "kind": "p",
+      "text": "完成 等待 自動接著做 需要人處理 今天不做",
+      "href": null,
+      "oldChapter": "tech-failure",
+      "newChapter": "tech-failure",
+      "changed": false
+    },
+    {
+      "id": "tc-0519",
+      "kind": "summary",
+      "text": "管理者附錄：卡住時從哪裡查",
+      "href": null,
+      "oldChapter": "tech-failure",
+      "newChapter": "tech-failure",
+      "changed": false
+    },
+    {
+      "id": "tc-0520",
+      "kind": "li",
+      "text": "先在後台選日期，看取稿、判讀、內容、背景四段狀態與最後更新時間。",
+      "href": null,
+      "oldChapter": "tech-failure",
+      "newChapter": "tech-failure",
+      "changed": false
+    },
+    {
+      "id": "tc-0521",
+      "kind": "li",
+      "text": "原稿沒到：看「自動取稿進度」與取稿工作的紀錄 （自動工單、transcript-gemini） ；手動保留會擋下自動取稿。",
+      "href": null,
+      "oldChapter": "tech-failure",
+      "newChapter": "tech-failure",
+      "changed": false
+    },
+    {
+      "id": "tc-0522",
+      "kind": "li",
+      "text": "原稿已有但文章沒有：看判讀步驟、原稿指紋與辨識過程 （後台工單或自動工單、辨識日誌） 。",
+      "href": null,
+      "oldChapter": "tech-failure",
+      "newChapter": "tech-failure",
+      "changed": false
+    },
+    {
+      "id": "tc-0523",
+      "kind": "li",
+      "text": "文章已有而郵件查詢還是舊的：看「待同步的郵件」；寄送結果以「每封信寄給誰」核對，不能只看雲端工作機顯示成功。",
+      "href": null,
+      "oldChapter": "tech-failure",
+      "newChapter": "tech-failure",
+      "changed": false
+    },
+    {
+      "id": "tc-0524",
+      "kind": "li",
+      "text": "日 K 缺口與單檔持股：在編輯器執行 backfillDailyKStatus() 與 explainHoldingsTracker(代號) ；修好後依序重算持股與績效。",
+      "href": null,
+      "oldChapter": "tech-failure",
+      "newChapter": "tech-failure",
+      "changed": false
+    },
+    {
+      "id": "tc-0525",
+      "kind": "h2",
+      "text": "這些紀錄能幫你回查，也有明確的限制",
+      "href": null,
+      "oldChapter": "tech-limit",
+      "newChapter": "tech-failure",
+      "changed": false
+    },
+    {
+      "id": "tc-0526",
+      "kind": "p",
+      "text": "這個網站擅長的是 追溯節目說過什麼、在哪一天、當時怎麼說的 。它不擅長、也不打算做的是預測漲跌或告訴你該不該買。語音辨識和模型都可能看錯，重跑同一份原稿，文字也可能不同；網站用原句、代號和數字核對來縮小錯誤， 不宣稱每次產生的內容一字不差 。",
+      "href": null,
+      "oldChapter": "tech-limit",
+      "newChapter": "tech-failure",
+      "changed": false
+    },
+    {
+      "id": "tc-0527",
+      "kind": "p",
+      "text": "時間也有限制：雲端工作機的排程可能延遲，影片回放可能晚於直播結束，行情來源也可能延遲。畫面上的時間請當成資料時間，不是即時保證；行情暫時沒有資料時，網站保留可用的舊值並標示時間，不把缺口編成價格。",
+      "href": null,
+      "oldChapter": "tech-limit",
+      "newChapter": "tech-failure",
+      "changed": false
+    },
+    {
+      "id": "tc-0528",
+      "kind": "p",
+      "text": "點一個問題，看網站能不能回答",
+      "href": null,
+      "oldChapter": "tech-limit",
+      "newChapter": "tech-failure",
+      "changed": false
+    },
+    {
+      "id": "tc-0529",
+      "kind": "button",
+      "text": "力積電上次講的成本？",
+      "href": null,
+      "oldChapter": "tech-limit",
+      "newChapter": "tech-failure",
+      "changed": false
+    },
+    {
+      "id": "tc-0530",
+      "kind": "button",
+      "text": "這檔現在該買嗎？",
+      "href": null,
+      "oldChapter": "tech-limit",
+      "newChapter": "tech-failure",
+      "changed": false
+    },
+    {
+      "id": "tc-0531",
+      "kind": "button",
+      "text": "報酬就是我能賺的？",
+      "href": null,
+      "oldChapter": "tech-limit",
+      "newChapter": "tech-failure",
+      "changed": false
+    },
+    {
+      "id": "tc-0532",
+      "kind": "button",
+      "text": "盤中價格是即時的？",
+      "href": null,
+      "oldChapter": "tech-limit",
+      "newChapter": "tech-failure",
+      "changed": false
+    },
+    {
+      "id": "tc-0533",
+      "kind": "button",
+      "text": "會不會聽錯股名？",
+      "href": null,
+      "oldChapter": "tech-limit",
+      "newChapter": "tech-failure",
+      "changed": false
+    },
+    {
+      "id": "tc-0534",
+      "kind": "button",
+      "text": "沒直播會寄信嗎？",
+      "href": null,
+      "oldChapter": "tech-limit",
+      "newChapter": "tech-failure",
+      "changed": false
+    },
+    {
+      "id": "tc-0535",
+      "kind": "button",
+      "text": "沒收到信怎麼辦？",
+      "href": null,
+      "oldChapter": "tech-limit",
+      "newChapter": "tech-failure",
+      "changed": false
+    },
+    {
+      "id": "tc-0536",
+      "kind": "button",
+      "text": "重跑結果一定一樣？",
+      "href": null,
+      "oldChapter": "tech-limit",
+      "newChapter": "tech-failure",
+      "changed": false
+    },
+    {
+      "id": "tc-0537",
+      "kind": "p",
+      "text": "可以 有條件 不行",
+      "href": null,
+      "oldChapter": "tech-limit",
+      "newChapter": "tech-failure",
+      "changed": false
+    },
+    {
+      "id": "tc-0538",
+      "kind": "h2",
+      "text": "還沒解決的事",
+      "href": null,
+      "oldChapter": "tech-open",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0539",
+      "kind": "p",
+      "text": "前一章講的是這個網站本來就不做的事；這一章是 做了、實際出過問題、到現在還沒根治 的事。每一題都寫發生的日期與數字、現在用什麼辦法擋、還缺什麼，不把「已經緩解」寫成「已經解決」。",
+      "href": null,
+      "oldChapter": "tech-open",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0540",
+      "kind": "p",
+      "text": "點一個問題，看它實際發生過什麼",
+      "href": null,
+      "oldChapter": "tech-open",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0541",
+      "kind": "button",
+      "text": "沒報名字的那一段",
+      "href": null,
+      "oldChapter": "tech-open",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0542",
+      "kind": "button",
+      "text": "前後文要抓多長",
+      "href": null,
+      "oldChapter": "tech-open",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0543",
+      "kind": "button",
+      "text": "每次判讀不一樣",
+      "href": null,
+      "oldChapter": "tech-open",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0544",
+      "kind": "button",
+      "text": "流程停在半路",
+      "href": null,
+      "oldChapter": "tech-open",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0545",
+      "kind": "button",
+      "text": "過期資料被送出",
+      "href": null,
+      "oldChapter": "tech-open",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0546",
+      "kind": "button",
+      "text": "一次一個長請求",
+      "href": null,
+      "oldChapter": "tech-open",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0547",
+      "kind": "button",
+      "text": "說明不夠深",
+      "href": null,
+      "oldChapter": "tech-open",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0548",
+      "kind": "p",
+      "text": "整段分析沒有報名字，聽不出是哪一檔 未解決",
+      "href": null,
+      "oldChapter": "tech-open",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0549",
+      "kind": "li",
+      "text": "實際發生 10/08 節目有一段只說「這一支股票」：最高點 1545、突破就起飛、月 K 線 MACD 翻紅。畫面上看得出是哪一檔，語音稿裡沒有名字。這一段先後被寫進力積電（股價 72 元）和譜瑞-KY（558 元）的說明。",
+      "href": null,
+      "oldChapter": "tech-open",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0550",
+      "kind": "p",
+      "text": "10/08 節目有一段只說「這一支股票」：最高點 1545、突破就起飛、月 K 線 MACD 翻紅。畫面上看得出是哪一檔，語音稿裡沒有名字。這一段先後被寫進力積電（股價 72 元）和譜瑞-KY（558 元）的說明。",
+      "href": null,
+      "oldChapter": "tech-open",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0551",
+      "kind": "li",
+      "text": "現在怎麼擋 說明與重點裡的價位，要落在那一檔股價的 0.4 到 2.2 倍之間才留；對不回任何一檔的整段分析當成雜訊，不列成個股，也不去猜。",
+      "href": null,
+      "oldChapter": "tech-open",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0552",
+      "kind": "p",
+      "text": "說明與重點裡的價位，要落在那一檔股價的 0.4 到 2.2 倍之間才留；對不回任何一檔的整段分析當成雜訊，不列成個股，也不去猜。",
+      "href": null,
+      "oldChapter": "tech-open",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0553",
+      "kind": "li",
+      "text": "還缺什麼 這段分析就此從網站上消失。要認出是哪一檔，得讀畫面上的代號（影像辨識）或由人補登，兩件事都還沒做。",
+      "href": null,
+      "oldChapter": "tech-open",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0554",
+      "kind": "p",
+      "text": "這段分析就此從網站上消失。要認出是哪一檔，得讀畫面上的代號（影像辨識）或由人補登，兩件事都還沒做。",
+      "href": null,
+      "oldChapter": "tech-open",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0555",
+      "kind": "p",
+      "text": "想試的方向（都還沒做）：",
+      "href": null,
+      "oldChapter": "tech-open",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0556",
+      "kind": "li",
+      "text": "判讀 讀畫面上的股票代號，補上語音稿沒有的名字；沒把握的仍然不列。 不用固定的前後幾句，改成先把原文切成「一段講一檔」，說明只從那一檔自己的段落取材。 同一份原稿判讀三次，三次一致的直接採用，不一致的才交給規則與人工答案。 對應：沒報名字、前後文、每次不一樣、說明不夠深",
+      "href": null,
+      "oldChapter": "tech-open",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0557",
+      "kind": "li",
+      "text": "讀畫面上的股票代號，補上語音稿沒有的名字；沒把握的仍然不列。",
+      "href": null,
+      "oldChapter": "tech-open",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0558",
+      "kind": "li",
+      "text": "不用固定的前後幾句，改成先把原文切成「一段講一檔」，說明只從那一檔自己的段落取材。",
+      "href": null,
+      "oldChapter": "tech-open",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0559",
+      "kind": "li",
+      "text": "同一份原稿判讀三次，三次一致的直接採用，不一致的才交給規則與人工答案。",
+      "href": null,
+      "oldChapter": "tech-open",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0560",
+      "kind": "p",
+      "text": "對應：沒報名字、前後文、每次不一樣、說明不夠深",
+      "href": null,
+      "oldChapter": "tech-open",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0561",
+      "kind": "li",
+      "text": "自動化 每一步帶一個唯一編號；回應遺失時重問同一個編號，後端認得「這一步做過了」，不必猜。 長工作改成排隊加查詢進度，呼叫端不必抓著一個請求等六分鐘。 後台今日狀態把時間軸與近幾日寄送改成展開時才讀。 對應：流程停在半路、一次一個長請求",
+      "href": null,
+      "oldChapter": "tech-open",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0562",
+      "kind": "li",
+      "text": "每一步帶一個唯一編號；回應遺失時重問同一個編號，後端認得「這一步做過了」，不必猜。",
+      "href": null,
+      "oldChapter": "tech-open",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0563",
+      "kind": "li",
+      "text": "長工作改成排隊加查詢進度，呼叫端不必抓著一個請求等六分鐘。",
+      "href": null,
+      "oldChapter": "tech-open",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0564",
+      "kind": "li",
+      "text": "後台今日狀態把時間軸與近幾日寄送改成展開時才讀。",
+      "href": null,
+      "oldChapter": "tech-open",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0565",
+      "kind": "p",
+      "text": "對應：流程停在半路、一次一個長請求",
+      "href": null,
+      "oldChapter": "tech-open",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0566",
+      "kind": "li",
+      "text": "資料新舊 備份超過 12 分鐘就直接回後端讀；後端也失敗時明講讀不到，不送舊的。 畫面在資料時間旁邊標出「幾分鐘前」，超過上限時換成提醒。 對應：過期資料被送出",
+      "href": null,
+      "oldChapter": "tech-open",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0567",
+      "kind": "li",
+      "text": "備份超過 12 分鐘就直接回後端讀；後端也失敗時明講讀不到，不送舊的。",
+      "href": null,
+      "oldChapter": "tech-open",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0568",
+      "kind": "li",
+      "text": "畫面在資料時間旁邊標出「幾分鐘前」，超過上限時換成提醒。",
+      "href": null,
+      "oldChapter": "tech-open",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0569",
+      "kind": "p",
+      "text": "對應：過期資料被送出",
+      "href": null,
+      "oldChapter": "tech-open",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0570",
+      "kind": "h2",
+      "text": "常見問題",
+      "href": null,
+      "oldChapter": "tech-faq",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0571",
+      "kind": "summary",
+      "text": "網站多久更新一次？",
+      "href": null,
+      "oldChapter": "tech-faq",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0572",
+      "kind": "summary",
+      "text": "為什麼文章有了，績效還在等待？",
+      "href": null,
+      "oldChapter": "tech-faq",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0573",
+      "kind": "summary",
+      "text": "為什麼有時候盤勢只有兩點？",
+      "href": null,
+      "oldChapter": "tech-faq",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0574",
+      "kind": "summary",
+      "text": "為什麼網站上看不到價位欄？",
+      "href": null,
+      "oldChapter": "tech-faq",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0575",
+      "kind": "summary",
+      "text": "節目沒講股票名稱的段落，怎麼知道是哪一檔？",
+      "href": null,
+      "oldChapter": "tech-faq",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0576",
+      "kind": "summary",
+      "text": "持股什麼時候算出場？",
+      "href": null,
+      "oldChapter": "tech-faq",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0577",
+      "kind": "summary",
+      "text": "搜尋可以用聽錯的字嗎？",
+      "href": null,
+      "oldChapter": "tech-faq",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0578",
+      "kind": "summary",
+      "text": "資料錯了怎麼辦？",
+      "href": null,
+      "oldChapter": "tech-faq",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0579",
+      "kind": "summary",
+      "text": "我可以自己貼逐字稿嗎？",
+      "href": null,
+      "oldChapter": "tech-faq",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0580",
+      "kind": "summary",
+      "text": "沒有影片，會寄每日總覽嗎？",
+      "href": null,
+      "oldChapter": "tech-faq",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0581",
+      "kind": "summary",
+      "text": "日 K 和盤中價格為什麼不同？",
+      "href": null,
+      "oldChapter": "tech-faq",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0582",
+      "kind": "summary",
+      "text": "網站會記錄我的資料嗎？",
+      "href": null,
+      "oldChapter": "tech-faq",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0583",
+      "kind": "summary",
+      "text": "可以用 LINE 收通知嗎？",
+      "href": null,
+      "oldChapter": "tech-faq",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0584",
+      "kind": "summary",
+      "text": "怎麼取消訂閱？",
+      "href": null,
+      "oldChapter": "tech-faq",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0585",
+      "kind": "summary",
+      "text": "網站連結顯示「找不到檔案」？",
+      "href": null,
+      "oldChapter": "tech-faq",
+      "newChapter": "tech-faq",
+      "changed": false
+    },
+    {
+      "id": "tc-0586",
+      "kind": "h2",
+      "text": "關於作者",
+      "href": null,
+      "oldChapter": "tech-author",
+      "newChapter": "tech-author",
+      "changed": false
+    },
+    {
+      "id": "tc-0587",
+      "kind": "p",
+      "text": "研究機器學習、深度學習、NLP 與大型語言模型，主要應用在量化金融。",
+      "href": null,
+      "oldChapter": "tech-author",
+      "newChapter": "tech-author",
+      "changed": false
+    },
+    {
+      "id": "tc-0588",
+      "kind": "p",
+      "text": "這個網站是我把語音辨識、大型語言模型與規則核對放進真實每日流程的練習。我最在意的是分工： 模型負責讀懂口語，程式負責核對原句、代號和數字，人負責最後把關 。每一次出錯，我都盡量把原因寫成規則與測試，讓同樣的錯不再發生第二次。",
+      "href": null,
+      "oldChapter": "tech-author",
+      "newChapter": "tech-author",
+      "changed": false
+    },
+    {
+      "id": "tc-0589",
+      "kind": "li",
+      "text": "Email lindanny0213@gmail.com ↗",
+      "href": null,
+      "oldChapter": "tech-author",
+      "newChapter": "tech-author",
+      "changed": false
+    },
+    {
+      "id": "tc-0590",
+      "kind": "a",
+      "text": "Email lindanny0213@gmail.com ↗",
+      "href": "https://mail.google.com/mail/?view=cm&fs=1&to=lindanny0213%40gmail.com",
+      "oldChapter": "tech-author",
+      "newChapter": "tech-author",
+      "changed": false
+    },
+    {
+      "id": "tc-0591",
+      "kind": "li",
+      "text": "GitHub Lee200202 ↗",
+      "href": null,
+      "oldChapter": "tech-author",
+      "newChapter": "tech-author",
+      "changed": false
+    },
+    {
+      "id": "tc-0592",
+      "kind": "a",
+      "text": "GitHub Lee200202 ↗",
+      "href": "https://github.com/Lee200202",
+      "oldChapter": "tech-author",
+      "newChapter": "tech-author",
+      "changed": false
+    },
+    {
+      "id": "tc-0593",
+      "kind": "li",
+      "text": "作品集 研究與專案 ↗",
+      "href": null,
+      "oldChapter": "tech-author",
+      "newChapter": "tech-author",
+      "changed": false
+    },
+    {
+      "id": "tc-0594",
+      "kind": "a",
+      "text": "作品集 研究與專案 ↗",
+      "href": "https://www.notion.so/Shih-Hsun-Lee-8bc6e964fe0a46c199c362a0909eabbb",
+      "oldChapter": "tech-author",
+      "newChapter": "tech-author",
+      "changed": false
+    },
+    {
+      "id": "tc-0595",
+      "kind": "p",
+      "text": "本站與該頻道沒有隸屬關係；內容是公開資訊整理，不構成投資建議。網站記錄匿名使用情形，瀏覽器識別碼不含 Email 或 IP。",
+      "href": null,
+      "oldChapter": "tech-author",
+      "newChapter": "tech-author",
+      "changed": false
+    }
+  ],
+  "originalItems": 595,
+  "preservedExactlyOnce": true,
+  "chapters": 20,
+  "explicitEdits": [
+    "四個快取情境縮短名稱",
+    "資料關聯取價更正為中點核對",
+    "9/23取最低價標示為歷史版本案例"
+  ]
+}

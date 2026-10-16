@@ -118,6 +118,8 @@
   (function () {
     var doc = document.querySelector('.doc');
     if (!doc) { return; }
+    // v184: the chapter book owns its manifest, focus and progress navigation.
+    if (doc.hasAttribute('data-tech-book')) { return; }
 
     var uid = 0, heads = [], links = [], closeTimer = 0, openedAt = 0;
     var aside = document.createElement('aside');

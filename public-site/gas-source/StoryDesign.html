@@ -1,412 +1,65 @@
 <style>
-/* v177：同頁兩種閱讀深度，圖解及四幕導覽。沒有 JS 時不收合原文。 */
-.story-mode-controls { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin:0 0 24px; padding:18px; border:1px solid var(--rule); border-radius:24px; background:var(--panel-2); }
-.story-mode-controls p { flex:1 1 280px; margin:0; font-size:calc(15px * var(--rd-fs)); }
-.story-mode-controls button,.story-chapter-toggle,.story-replay,.story-choices button,.story-faq-controls button,.story-copy { min-height:44px; border:1px solid var(--rule); border-radius:999px; padding:10px 18px; color:var(--ink); background:var(--panel); font:inherit; cursor:pointer; }
-.story-mode-controls button[aria-pressed="true"],.story-choices button[aria-pressed="true"],.story-faq-controls button[aria-pressed="true"] { background:var(--beam); color:var(--bg); border-color:var(--beam); }
-.story-act-banner { display:flex; gap:18px; align-items:center; padding:20px; margin:28px 0 0; border:1px solid var(--rule); border-radius:24px; background:var(--panel-2); }
-.story-act-banner b { display:block; font-size:calc(22px * var(--rd-fs)); }
-.story-act-banner p { margin:8px 0 0; font-size:calc(14px * var(--rd-fs)); }
-.story-act-banner svg { width:40px; height:40px; flex:none; color:var(--beam); }
-.story-designed .story-section { margin:28px 0; padding-block:24px; border-top:1px solid var(--rule);  }
-.story-designed .story-section > h2 { margin:0 0 12px; text-wrap:balance; }
-.story-designed .story-lead { font-size:calc(15px * var(--rd-fs)); margin:10px 0 14px; max-width:none; }
-.story-designed .story-main { position:relative; padding:16px 20px; border:1px solid var(--rule); border-radius:24px; background:var(--panel-2); }
-.story-ticket { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; border-left:4px solid var(--beam); padding-left:12px; margin-bottom:12px; font-size:calc(13.5px * var(--rd-fs)); }
-.story-ticket b { font-size:calc(15px * var(--rd-fs)); }
-.story-ticket .story-stamp { margin-left:auto; padding:5px 12px; border:1px solid var(--rule); border-radius:999px; }
-.story-visual { width:100%; min-width:0; overflow:hidden; }
-.story-visual svg { display:block; width:100%; height:auto; color:var(--beam); }
-.story-visual text { font-family:inherit; font-size:calc(14px * var(--rd-fs)); fill:var(--ink); }
-.story-visual .viz-num { font-family:'IBM Plex Mono',monospace; font-weight:700; }
-.story-visual .viz-ink { fill:var(--panel); stroke:var(--rule); }
-.story-visual .viz-pass { fill:color-mix(in srgb,var(--beam) 15%,var(--panel)); stroke:var(--beam); }
-.story-visual .viz-wait { fill:color-mix(in srgb,var(--wait) 18%,var(--panel)); stroke:var(--wait); }
-.story-visual .viz-stop { fill:color-mix(in srgb,var(--rise) 12%,var(--panel)); stroke:var(--rise); }
-.story-visual .viz-line { fill:none; stroke:var(--beam); stroke-width:2; }
-.story-visual .story-playhead { fill:var(--beam); stroke:var(--panel); stroke-width:3; }
-.story-visual .viz-muted { stroke:var(--rule); fill:none; stroke-dasharray:6 5; }
-.story-status { margin:12px 0 0; padding:10px 14px; border-radius:16px; background:var(--panel); font-size:calc(14px * var(--rd-fs)); line-height:1.65; }
-.story-status::before { content:'✓ '; color:var(--beam); font-weight:700; }
-.story-status[data-state="wait"]::before { content:'! '; color:var(--wait); }
-.story-status[data-state="stop"]::before { content:'× '; color:var(--rise); }
-.story-controls { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:14px; }
-.story-choices { display:flex; flex-wrap:wrap; gap:8px; min-width:0; flex:1 1 500px; }
-.story-choices button { font-size:calc(14px * var(--rd-fs)); text-wrap:balance; }
-@media(min-width:761px) { .story-choices:not(.is-expanded) button[data-story-choice]:nth-child(n+4) { display:none; } }
-.story-choice-count { font-family:'IBM Plex Mono',monospace; font-size:calc(13.5px * var(--rd-fs)); }
-.story-details { padding:0; margin:14px 0 0; }
-.story-details > summary { display:none; }
-.story-details:not([open]) > :not(summary) { display:none !important; }
-.story-chapter-toggle { margin-top:14px; font-size:calc(14px * var(--rd-fs)); }
-.story-designed [hidden] { display:none !important; }
-.story-designed button:focus-visible,.story-rail button:focus-visible,.story-rail a:focus-visible { outline:3px solid var(--beam); outline-offset:3px; }
-.story-designed .story-section:nth-of-type(even) .story-main { background:var(--panel); }
-.story-designed[data-story-depth="short"] .story-lead { display:none; }
-.story-designed[data-story-depth="short"] .story-section { padding-block:14px; }
-.story-designed[data-story-depth="short"] .story-section > h2 { font-size:calc(24px * var(--rd-fs)); margin-bottom:8px; }
-.story-designed[data-story-depth="short"] .story-main { padding-block:10px; }
-.story-designed[data-story-depth="short"] .story-ticket { margin-bottom:6px; }
-.story-designed[data-story-depth="short"] .story-stamp { padding-block:2px; }
-.story-designed .story-status { font-size:calc(14px * var(--rd-fs)); margin:10px 0 0; padding:8px 12px; line-height:1.6; }
-.story-designed[data-story-depth="short"] .story-controls { margin-top:8px; }
-.story-designed .story-chapter-toggle { font-size:calc(14px * var(--rd-fs)); line-height:1.4; margin-top:8px; }
-.story-designed .story-details:not([open]) { margin:0; }
-@media(min-width:1000px) {
- .story-designed[data-story-depth="short"] .story-section { position:relative; }
- .story-designed[data-story-depth="short"] .story-section > h2 { padding-right:180px; min-height:44px; }
- .story-designed[data-story-depth="short"] .story-chapter-toggle { position:absolute; right:0; top:14px; margin:0; }
- .story-designed[data-story-depth="short"] .story-act-banner { padding-block:14px; }
-}
-.src-cards { overflow:clip; }
-.story-text-fallback { margin:12px 0; }
-.story-text-fallback > summary { min-height:44px; padding:10px; cursor:pointer; font-size:calc(14px * var(--rd-fs)); }
-/* 只在操作／第一次進入後播放，主圖一直可閱讀。 */
-@keyframes storyReveal { from { transform:translateY(8px); } to { transform:translateY(0); } }
-.story-main.is-in:not(.is-stopped) .story-visual .viz-part { animation:storyReveal .4s cubic-bezier(.22,1,.36,1) both; animation-delay:calc(var(--i,0) * 130ms); }
-.story-main.is-stopped * { animation:none !important; }
-.story-rail { display:none; position:fixed; z-index:55; right:8px; top:40vh; }
-body:has(#p-tech:not([hidden])) .story-rail { display:block; }
-body:has(#p-tech:not([hidden])) .subnav { display:none !important; }
-.story-rail-handle { display:flex; flex-direction:column; align-items:center; gap:4px; min-width:48px; min-height:96px; padding:10px 6px; border:1px solid var(--rule); border-radius:18px; background:var(--panel); color:var(--ink); box-shadow:0 8px 24px #0002; font:inherit; font-size:calc(13.5px * var(--rd-fs)); white-space:nowrap; cursor:pointer; }
-.story-rail-handle svg { width:22px; height:22px; color:var(--beam); }
-.story-rail-handle[aria-expanded="true"] { border-color:var(--beam); }
-.story-rail-handle .story-rail-label { writing-mode:vertical-rl; letter-spacing:.2em; font-weight:600; }
-.story-rail-progress { font-size:calc(12.5px * var(--rd-fs) + 1px); color:var(--muted); font-family:'IBM Plex Mono',monospace; }
-.story-rail-panel { position:absolute; top:50%; right:calc(100% + 10px); transform:translateY(-50%); width:min(320px,calc(100vw - 96px)); max-height:min(76vh,640px); overflow:auto; padding:14px; border:1px solid var(--rule); border-radius:20px; background:var(--panel); box-shadow:0 12px 32px #0003; }
-.story-rail-panel[hidden] { display:none; }
-.story-rail-panel a { display:block; min-height:44px; box-sizing:border-box; padding:10px; border-radius:12px; font-size:calc(14px * var(--rd-fs)); color:var(--ink); text-decoration:none; }
-.story-rail-panel a:hover { background:var(--panel-2); }
-.story-rail-panel a[aria-current="location"] { color:var(--beam); background:var(--panel-2); font-weight:600; }
-.story-rail-panel .story-rail-top { color:var(--muted); }
-.story-faq-controls { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
-.story-faq-controls input { flex:1 1 100%; min-width:0; min-height:48px; padding:10px 18px; box-sizing:border-box; border-radius:999px; border:1px solid var(--rule); background:var(--panel); color:var(--ink); font:inherit; }
-.story-contact-links { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin:20px 0; }
-.story-contact-links a { display:flex; gap:12px; align-items:center; min-height:64px; padding:16px; border:1px solid var(--rule); border-radius:20px; background:var(--panel-2); color:var(--ink); text-decoration:none; }
-.story-contact-links svg { width:24px; height:24px; flex:none; color:var(--beam); }
-.story-contact-links small { display:block; font-size:calc(13.5px * var(--rd-fs)); }
-.story-packet { position:absolute; top:2px; left:20px; pointer-events:none; padding:6px 12px; font-size:calc(13.5px * var(--rd-fs)); border-radius:999px; background:var(--beam); color:var(--bg); transform:translate(0,0); transition:transform .6s cubic-bezier(.22,1,.36,1); }
-.story-choices [data-story-more] { border-style:dashed; }
-.story-stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:16px; }
-.story-stats p { padding:12px; background:var(--panel); border-radius:16px; margin:0; font-size:calc(13.5px * var(--rd-fs)); }
-.story-stats b { display:block; font-size:calc(24px * var(--rd-fs)); color:var(--beam); }
-.tech-story .th-fill { width:calc(100% - 100% / var(--n)); transform:scaleX(0); transform-origin:left; transition:transform .9s cubic-bezier(.4,0,.2,1); }
-.tech-story .th-packet { left:calc(50% / var(--n)); transition:transform .9s cubic-bezier(.4,0,.2,1); }
-.agent-lab .agent-usage-track span { width:100%; transform:scaleX(.02594); transform-origin:left; transition:transform .3s ease; }
-.story-compact-capture { display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; }
-.story-compact-capture button { min-height:44px; padding:10px 18px; border:1px solid var(--rule); border-radius:999px; background:var(--panel); color:var(--ink); font:inherit; cursor:pointer; }
-.agent-map { position:relative; padding-top:44px !important; }
-.agent-map .agent-map-controls { margin-top:48px; }
-.agent-lab .agent-map .story-map-return { position:absolute; width:calc(100% - 40px); left:20px; top:140px; height:45px; pointer-events:none; color:var(--beam); }
-.story-designed .tech-options button,.story-designed .tech-pains button,.story-designed .agent-choices button { text-wrap:balance; }
-.story-designed .qa details { padding-block:10px; }
-.story-designed[data-story-depth="short"] .load-evidence { display:none; }
-.story-mail-nav { display:flex; flex-wrap:wrap; gap:8px; margin:16px 0; }
-.story-mail-nav button { min-height:44px; border:1px solid var(--rule); border-radius:999px; background:var(--panel); color:var(--ink); padding:8px 18px; font:inherit; cursor:pointer; }
-.story-ratio { display:flex; height:14px; width:100%; margin:14px 0; overflow:hidden; border-radius:999px; background:var(--panel-2); }
-.story-ratio i { min-width:0; height:100%; background:var(--sc); flex:var(--sw); }
-.story-ratio-caption { font-size:calc(13.5px * var(--rd-fs)); color:var(--muted); }
-/* 減少動態時沒有動畫可重播：「再播圖解」點了不會有變化，不顯示（全站按鈕互動性規則 2026/10/14） */
-@media(prefers-reduced-motion:reduce){ .story-replay { display:none !important; } }
-.story-tracker-more { min-height:44px; padding:12px 22px; border:1px solid var(--rule); border-radius:999px; background:var(--panel); color:var(--ink); cursor:pointer; font:inherit; margin-top:18px; }
-.story-mini-return { display:flex; height:8px; margin:14px 0 10px; border-radius:999px; background:var(--rule); overflow:hidden; }
-.story-mini-return i { height:100%; width:var(--rw); background:var(--rc); }
-.story-rail-panel .story-rail-act { display:block; margin:12px 0 4px; padding:4px 10px; font-size:calc(13.5px * var(--rd-fs)); color:var(--muted); }
-@media(max-width:760px) {
- .story-designed .story-main { padding:14px; }
- .story-designed .story-section { margin:20px 0; padding-block:18px; }
- .story-choices { flex-wrap:nowrap; overflow-x:auto; scroll-snap-type:x mandatory; flex-basis:100%; padding:3px 2px 8px; }
- .story-choices button { flex:0 0 auto; max-width:240px; scroll-snap-align:start; }
- .story-contact-links { grid-template-columns:minmax(0,1fr); }
- .story-ticket { gap:6px; }
- .story-ticket .story-stamp { margin-left:0; }
- .story-mode-controls { padding:14px; }
- .story-mode-controls p { flex-basis:100%; }
- .story-choices [data-story-more] { display:none; }
- .story-stats { grid-template-columns:minmax(0,1fr); }
- .agent-lab .agent-map .story-map-return { display:none; }
- .tech-story .th-fill { width:2px; height:calc(100% - 52px); transform:scaleY(0); transform-origin:top; transition-property:transform; }
- .tech-story .th-packet { top:26px; left:26px; transition-property:transform; }
- .story-designed .tech-options,.story-designed .agent-choices { display:flex; flex-wrap:nowrap; overflow-x:auto; scroll-snap-type:x mandatory; padding:4px; }
- .story-designed .tech-options button,.story-designed .agent-choices button { flex:0 0 auto; max-width:240px; scroll-snap-align:start; }
- .story-designed .tech-pains { grid-template-columns:minmax(0,1fr); }
- #mailContent .mc-table,#mailContent .mc-table tbody,#mailContent .mc-table tr,#mailContent .mc-table td { display:block; width:100%; box-sizing:border-box; }
-}
-@media(prefers-reduced-motion:reduce) { .story-main * { animation:none !important; transition:none !important; } .story-packet { transition:none; } }
+/* v184 技術說明：單章圖像閱讀；靜態正文在沒有 JavaScript 時仍完整可讀。 */
+#p-tech:has(.tech-book){padding-right:0}.tech-book{--bk-gap:clamp(24px,2.4vw,40px);--bk-space:clamp(40px,5vw,76px);width:100%;max-width:none!important;font-size:calc(17px * var(--rd-fs));line-height:1.85}.tech-book [hidden]{display:none!important}
+.tech-book p,.tech-book li,.tech-book blockquote{max-width:none;text-align:start;word-spacing:normal;text-justify:none;overflow-wrap:break-word}.tech-book p,.tech-book li{font-size:inherit;line-height:1.85}.tech-book button,.tech-book a{touch-action:manipulation}.tech-book :is(button,a,input):focus-visible{outline:3px solid var(--beam);outline-offset:5px}
+.tech-book .book-index{padding:32px 0 44px;border-bottom:1px solid var(--rule);margin-bottom:40px}.tech-book .book-index h1{font-size:clamp(28px,3vw,48px);line-height:1.4;max-width:100%;text-wrap:balance;margin:16px 0 22px}.tech-book .book-eyebrow{color:var(--beam);font-size:calc(14px * var(--rd-fs));letter-spacing:.06em}
+.tech-book .book-tools{display:flex;gap:16px;align-items:end;flex-wrap:wrap;margin-top:26px}.tech-book .book-tools label{flex:1 1 400px;display:grid;gap:8px}.tech-book .book-tools input{width:100%;max-width:none;border-radius:999px;min-height:52px;padding:12px 24px;background:var(--panel);border:1px solid var(--rule);color:var(--ink);font:inherit}
+.tech-book :is(.book-tools button,.book-motion button,[data-open-contents],[data-dialog-close]){min-height:48px;border:1px solid var(--rule);border-radius:999px;background:var(--panel);color:var(--ink);padding:10px 22px;font:inherit;cursor:pointer}
+.tech-book .book-chapter{margin:0;padding:0 0 48px;border:0;scroll-margin-top:120px}.tech-book .book-heading{margin:0 0 36px}.tech-book .book-heading h2{font-size:calc(30px * var(--rd-fs));border:0;padding:0;margin:12px 0 22px;line-height:1.5;text-wrap:balance}
+.tech-book .book-stage{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(280px,.8fr);gap:var(--bk-gap);align-items:center;margin:32px 0 var(--bk-space);padding:clamp(24px,3vw,48px);border-radius:32px;background:var(--panel-2);border:1px solid var(--rule)}
+.tech-book .book-visual-open{display:block;width:100%;min-width:0;padding:0;text-align:start;border:0;border-radius:24px;overflow:hidden;background:#e6eee7;color:var(--ink);cursor:zoom-in;position:relative;font:inherit}.tech-book .book-art{display:block;width:100%;height:auto;aspect-ratio:960/460}
+.tech-book .book-enlarge{display:flex;gap:10px;align-items:center;justify-content:flex-end;background:var(--panel);padding:12px 18px;border:1px solid var(--rule);border-radius:0 0 24px 24px;font-size:calc(14px * var(--rd-fs));min-height:48px}.tech-book .book-enlarge svg{width:22px;height:22px}
+.tech-book .book-stage figcaption{font-size:inherit;line-height:1.8;text-align:start;padding:0}.tech-book .book-stage figcaption>b{font-size:calc(23px * var(--rd-fs));line-height:1.5;color:var(--ink);display:block}.tech-book .book-stage figcaption>p{font-size:calc(14px * var(--rd-fs));color:var(--muted);margin:18px 0}.tech-book .book-scene-key{padding-left:24px;margin:18px 0}.tech-book .book-scene-key li{font-size:calc(16px * var(--rd-fs))}
+.tech-book [data-book-node].is-current .bk-node-bg{stroke:#057c4f;stroke-width:5;fill:#d6eddf}.tech-book .book-motion{display:flex;flex-wrap:wrap;gap:12px;margin-top:24px}.tech-book .book-five{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:22px;padding:0;margin:40px 0 64px;list-style:none}.tech-book .book-five li{padding:24px;background:var(--panel-2);border:1px solid var(--rule);border-radius:24px;margin:0;min-width:0}.tech-book .book-five b{color:var(--beam)}.tech-book .book-five p{font-size:calc(15px * var(--rd-fs));margin:14px 0 0}
+.tech-book .book-expanded{margin:40px 0;padding:28px;border:1px solid var(--rule);border-radius:24px;background:var(--panel-2)}.tech-book .book-expanded>h3{margin:0 0 20px;font-size:calc(21px * var(--rd-fs));color:var(--ink)}.tech-book .book-subsection{border-top:1px solid var(--rule);margin-top:var(--bk-space);padding-top:32px}
+.tech-book .book-pager{display:grid;grid-template-columns:1fr auto 1fr;gap:20px;align-items:center;border-top:1px solid var(--rule);padding:36px 0 100px;margin-top:var(--bk-space)}.tech-book .book-pager a{display:flex;flex-direction:column;justify-content:center;min-height:86px;min-width:0;border-radius:999px;border:1px solid var(--rule);padding:16px 28px;background:var(--panel);text-decoration:none;color:var(--ink)}.tech-book .book-pager a:last-child{text-align:end;align-items:flex-end}.tech-book .book-pager a span{font-size:calc(14px * var(--rd-fs));color:var(--muted)}.tech-book .book-pager b{font-size:calc(18px * var(--rd-fs));line-height:1.55}
+.tech-book dialog{width:min(1120px,calc(100vw - 48px));max-height:calc(100dvh - 48px);padding:0;border:1px solid var(--rule);border-radius:32px;background:var(--panel);color:var(--ink);overflow:auto;box-shadow:0 24px 100px #0005}.tech-book dialog::backdrop{background:#001d1599;backdrop-filter:blur(8px)}.tech-book .book-dialog-top{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;gap:24px;background:var(--panel);padding:22px 28px;border-bottom:1px solid var(--rule)}.tech-book .book-dialog-top h2{margin:0;border:0;padding:0;font-size:calc(22px * var(--rd-fs))}.tech-book .book-dialog-body{padding:32px}.tech-book .book-dialog-body>img{display:block;width:100%;height:auto;border-radius:24px;background:#e6eee7}.tech-book .book-dialog-body h3{font-size:calc(20px * var(--rd-fs));margin-top:28px}
+.tech-book .book-contents-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;padding:28px}.tech-book .book-contents-grid a{border-radius:24px;border:1px solid var(--rule);padding:20px;text-decoration:none;color:var(--ink);display:grid;gap:10px;min-height:90px}.tech-book .book-contents-grid small{color:var(--beam);font-size:calc(14px * var(--rd-fs))}.tech-book #bookSearchResults{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:22px}.tech-book #bookSearchResults a{padding:18px 24px;border-radius:24px;border:1px solid var(--rule);text-decoration:none;color:var(--ink)}.tech-book .book-alias{display:block;scroll-margin-top:120px}
+.tech-book :is(.tech-lab,.agent-answer,.agent-budget,.agent-real){margin-block:40px;padding:clamp(24px,2.4vw,40px);border-radius:28px;min-width:0;width:100%;max-width:none}.tech-book :is(.tech-options,.agent-choices,.load-choice,.cd-select,.cd-vote-select){display:flex;flex-wrap:wrap;gap:12px;overflow:visible;white-space:normal;margin-block:20px 28px}.tech-book :is(.tech-options,.agent-choices,.load-choice,.cd-select,.cd-vote-select) button{min-height:48px;max-width:100%;font-size:calc(15px * var(--rd-fs));padding:12px 20px;border-radius:999px;white-space:normal}.tech-book .load-choice button[aria-pressed=true]{background:var(--beam);color:var(--bg)}
+.tech-book :is(.pain-cards,.load-charts,.agent-models,.author-grid){gap:28px}.tech-book .pain-card{padding:28px;margin-block:24px}.tech-book .pc-talk p{word-spacing:normal;text-align:start}.tech-book .pc-points{margin:0}.tech-book :is(.tech-path,.source-path,.pn-desk){gap:24px}.tech-book .tech-path>li{padding:24px;border-radius:24px;min-width:0}.tech-book .tech-domains{gap:24px}.tech-book .tech-domain{padding:22px}.tech-book .tech-domain h3{margin:0 0 18px}.tech-book .tech-node-list{gap:12px}.tech-book .tech-node-list button{min-height:64px;min-width:0;padding:16px;border-radius:20px}
+.tech-book .load-evidence{display:block;margin-block:48px}.tech-book .load-evidence img{max-width:100%;height:auto;border-radius:24px}.tech-book .load-chart{padding:28px}.tech-book .load-row{min-width:0}.tech-book .load-row i{width:100%;transform:scaleX(var(--book-scale,1));transform-origin:left;transition:none}.tech-book .agent-usage-track span{width:100%!important;transform:scaleX(var(--book-budget,.02594));transform-origin:left;transition:none}.tech-book .load-replay{display:none!important}.tech-book .agent-map{max-width:none;margin-inline:0}.tech-book .agent-map-steps{gap:24px}
+.tech-book :is(.th-fill,.th-packet,.sr,.src-card,.src-card::after,.src-go,.tok-viz *,.mini *){animation:none!important;opacity:1;transition:none}.tech-book .th-fill{transform-origin:left;transform:scaleX(var(--book-progress,0));width:calc(100% - 52px)}.tech-book .th-packet{display:none}.tech-book .th-line li{opacity:1}.tech-book .tech-hero{padding:28px;margin-block:36px}.tech-book .th-line{gap:16px}.tech-book .src-cards-row{gap:20px}.tech-book .src-card{min-width:0}.tech-book .cd-flow{gap:20px}.tech-book .cd-votes{margin-top:0}
+.book-side-nav{position:fixed;right:8px;top:48%;z-index:85;border:1px solid var(--rule);border-radius:999px;background:var(--panel);color:var(--ink);padding:14px 10px;min-height:70px;min-width:44px;font:600 14px/1.7 sans-serif;writing-mode:vertical-rl;cursor:pointer}.book-side-nav[hidden]{display:none!important}
+@media(min-width:1400px){.tech-book .tech-domains{grid-template-columns:repeat(3,minmax(0,1fr))}.tech-book .tech-node-list{display:grid;grid-template-columns:1fr 1fr}.tech-book .tech-node-list button{width:100%}}
+@media(max-width:1100px){.tech-book .book-stage{grid-template-columns:1fr}.tech-book .book-five{grid-template-columns:repeat(2,minmax(0,1fr))}.tech-book .book-pager{grid-template-columns:1fr 1fr}.tech-book .book-pager>button{grid-column:1/-1;grid-row:2}.tech-book .book-contents-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.tech-book{font-size:calc(16px * var(--rd-fs))}.tech-book .book-heading h2{font-size:calc(24px * var(--rd-fs))}.tech-book .book-stage{padding:22px;gap:24px;border-radius:26px}.tech-book .book-art .bk-label{display:none}.tech-book .book-scene-key{display:flex;flex-wrap:wrap;gap:10px 28px}.tech-book .book-scene-key li{font-size:calc(15px * var(--rd-fs))}.tech-book .book-stage figcaption>b{font-size:calc(20px * var(--rd-fs))}.tech-book :is(.book-five,.book-contents-grid,#bookSearchResults){grid-template-columns:1fr}.tech-book .book-pager{grid-template-columns:1fr;gap:16px}.tech-book .book-pager>button{grid-row:auto;grid-column:auto}.tech-book .book-pager a:last-child{align-items:start;text-align:start}.tech-book .book-tools label{flex-basis:100%}.tech-book dialog{width:calc(100vw - 24px);max-height:calc(100dvh - 24px);border-radius:24px}.tech-book :is(.book-dialog-body,.book-dialog-top,.book-contents-grid){padding:22px}.tech-book :is(.tech-path,.pn-desk,.agent-models,.agent-map-steps){grid-template-columns:1fr}.book-side-nav{right:0;min-width:32px;font-size:13px;padding:10px 6px}.tech-book .th-line{grid-template-columns:1fr}.tech-book .th-fill,.tech-book .th-rail{display:none}.tech-book .th-line li{min-height:68px}.tech-book .th-line small{display:block}.tech-book .book-expanded{padding:24px}.tech-book .load-steps{grid-template-columns:1fr}.tech-book .load-row{grid-template-columns:84px minmax(0,1fr) 90px;gap:10px}.tech-book .load-chart{padding:20px}.tech-book .tech-domain{padding:20px}.tech-book .tech-node-list{grid-template-columns:1fr}.tech-book .author-card{padding:24px}.tech-book .cd-flow{grid-template-columns:1fr 1fr}}
+@media(prefers-reduced-motion:reduce){.tech-book *{animation:none!important;transition:none!important;scroll-behavior:auto!important}.tech-book .book-packet{opacity:0!important}}
+@media print{#p-tech[hidden],.tech-book .book-chapter[hidden]{display:block!important}.tech-book dialog,.tech-book .book-tools,.tech-book .book-pager,.tech-book .book-motion,.book-side-nav{display:none!important}.tech-book .book-chapter{break-before:page}.tech-book .book-stage{break-inside:avoid}}
 </style>
 <script>
-(function(){
-'use strict';
-function initStory(){
- var root=document.querySelector('.tech-story'); if(!root||root.dataset.storyReady)return;root.dataset.storyReady='1';
- var q=function(s,e){return(e||root).querySelector(s);},qa=function(s,e){return Array.prototype.slice.call((e||root).querySelectorAll(s));};
- var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];});};
- var reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
- var paths={film:'M3 4h18v16H3zM8 4v16M16 4v16M3 8h5M3 16h5M16 8h5M16 16h5M10 9l4 3-4 3z',record:'M4 3h16v18H4zM8 8h8M8 12h8M8 16h4',shield:'M12 2l8 3v6c0 6-8 11-8 11S4 17 4 11V5zM8 11l3 3 5-6',table:'M3 4h18v16H3zM3 9h18M3 14h18M9 9v11',browser:'M3 4h18v16H3zM3 9h18M7 6h1M11 6h1',clock:'M12 3a9 9 0 1 0 0 18 9 9 0 1 0 0-18M12 7v6l4 2',model:'M3 4h18v13H9l-5 4v-4H3zM7 10h1M11 10h1M15 10h1',database:'M4 6c0-4 16-4 16 0s-16 4-16 0M4 6v12c0 4 16 4 16 0V6M4 12c0 4 16 4 16 0',search:'M10 3a7 7 0 1 0 0 14 7 7 0 1 0 0-14M15 15l6 6',ear:'M8 8c0-8 13-7 13 1 0 6-6 5-6 10-1 4-7 3-7-1M11 9c0-4 6-4 6 0M4 7v6M1 9v2',ruler:'M3 7h18v10H3zM7 7v5M11 7v3M15 7v5M19 7v3',funnel:'M3 4h18l-7 8v8h-4v-8z',mail:'M3 5h18v14H3zM3 6l9 7 9-7',lock:'M7 10V7a5 5 0 0 1 10 0v3M5 10h14v11H5zM12 14v3',check:'M4 12l5 5L20 5',cross:'M5 5l14 14M19 5 5 19',retry:'M4 8a9 9 0 1 1 0 9M4 3v6h6',rail:'M7 2v20M17 2v20M7 6h10M7 12h10M7 18h10',book:'M3 4c4-2 6-2 9 0 3-2 5-2 9 0v16c-4-2-6-2-9 0-3-2-5-2-9 0zM12 4v16',cut:'M4 4l16 16M4 20 20 4M5 7a3 3 0 1 0 0-6 3 3 0 1 0 0 6M5 23a3 3 0 1 0 0-6 3 3 0 1 0 0 6',person:'M12 3a4 4 0 1 0 0 8 4 4 0 1 0 0-8M4 21v-3c0-7 16-7 16 0v3',grid:'M3 3h18v18H3zM9 3v18M15 3v18M3 9h18M3 15h18'};
- var defs=document.createElement('div');defs.hidden=true;defs.innerHTML='<svg xmlns="http://www.w3.org/2000/svg">'+Object.keys(paths).map(function(k){return '<symbol id="story-i-'+k+'" viewBox="0 0 24 24"><path d="'+paths[k]+'" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>';}).join('')+'</svg>';root.insertBefore(defs,root.firstChild);
- function icon(k){return '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#story-i-'+k+'"/></svg>';}
- var original=qa(':scope > .tech-intro, :scope > .tech-section');
- original.forEach(function(s,i){var h=q('h2',s);if(h&&!h.id)h.id='toc-'+(i+1);qa('h3',s).forEach(function(h,j){if(!h.id)h.id='story-detail-'+i+'-'+j;});});
- var ACTS=[['為什麼做','record','回查紀錄、分辨當日動作、看完整回合'],['資料怎麼流','database','來源、載入路徑、實際處理時間'],['怎麼判讀','search','模型、主體、數字與公開證據'],['怎麼確保可靠','shield','原稿版本、回合、失敗及使用限制']];
- var META=[
- ['start',0,'record','每筆紀錄都能按日期、股票回到原句。','[data-pain]','#painPath','原稿'],
- ['tech-overview',1,'database','來源各自保存，再經判讀、核對與寫入。','[data-flow]','#flowNote','資料流'],
- ['tech-loading',1,'clock','有效快取直接回覆；過期就回後端核對。','[data-load-case]','#loadResult','讀取'],
- ['tech-day',1,'clock','兩條來源時間線，文章與背景績效分開完成。','[data-day]','#dayLane','處理時間'],
- ['tech-agent',2,'model','模型提出候選，控制程式決定資料與工具權限。','[data-agent]','#agentOutput','候選'],
- ['tech-names',2,'ear','已確認的名稱才對應公司；不能只看讀音猜。','[data-heard]','#heardResult','股名核對'],
- ['tech-subject',2,'person','股票、主體、動作、日期都對上，才列當日成交。','[data-tone-case]','#toneExample','日期核對'],
- ['tech-number',2,'ruler','數字先核對股票與單位，不把張數或EPS當股價。','[data-own]','#ownDetail','單位核對'],
- ['tech-unnamed',2,'funnel','昨收唯一符合且通過本股證據核對，才認公司。','[data-un]','#unChain','公司核對'],
- ['tech-source-priority',2,'mail','先核對原文語意，再按來源合併分類與本股說明。','[data-source-case]','#sourceResult','分類'],
- ['tech-public-notes',2,'shield','只公開原句、數字與主詞都能核對的內容。','[data-pn]','.pn-final','公開說明'],
- ['tech-transcript-progress',3,'rail','新稿指紋不同，舊結果不能蓋回；已完成片段留底。','[data-tx]','#txOut','版本保護'],
- ['tech-hold',3,'table','持股有起訖，出場後重新買入另開一個回合。','[data-story-round]','#tlState','持股回合'],
- ['tech-failure',3,'retry','一段等待不等於全部失敗；真正故障仍留原因。','[data-fail]','#failNote','恢復'],
- ['tech-limit',3,'lock','能幫你回查來源，不能提供個人投資決策。','[data-can]','#canResult','使用限制'],
- ['tech-open',3,'search','疑點與嘗試方法分開記；找不到依據就不補猜。','[data-open]','#openTitle','未解問題'],
- ['tech-faq',3,'book','按來源、準確度、訂閱與隱私查找答案。','','','常見問題'],
- ['tech-author',3,'person','程式與模型分工，問題可回報給維護者。','','','維護']
- ];
- // 相容舊章節ID；不同日子的原有案例仍完整保留在細節。
- var sections={};original.forEach(function(s){sections[s.id||'start']=s;});sections.start=original[0];
- // 實際ID允許舊版的命名。
- if(!sections['tech-limit'])sections['tech-limit']=original.find(function(s){return /使用範圍與限制/.test(q('h2',s).dataset.toc||'');});
- if(!sections['tech-open'])sections['tech-open']=original.find(function(s){return /未解問題/.test(q('h2',s).dataset.toc||'');});
- var controls=document.createElement('div');controls.className='story-mode-controls';controls.id='story-mode-controls';controls.innerHTML='<p><b>先看一筆紀錄，怎麼變成有依據的說明。</b><br>四幕、十八章；細節與其他案例隨時可展開。</p><button type="button" data-story-mode="short" aria-pressed="true">先看重點</button><button type="button" data-story-mode="full" aria-pressed="false">完整說明</button>';root.insertBefore(controls,root.firstChild);
- var models=[],mode='short',act=-1;
- META.forEach(function(m,i){var sec=sections[m[0]];if(!sec)return;
-  if(act!==m[1]){act=m[1];var banner=document.createElement('div');banner.className='story-act-banner';banner.id='story-act-'+act;banner.innerHTML=icon(ACTS[act][1])+'<div><b>0'+(act+1)+'　'+ACTS[act][0]+'</b><p>'+ACTS[act][2]+'</p></div>';root.appendChild(banner);}
-  root.appendChild(sec);sec.classList.add('story-section');sec.dataset.storyIndex=String(i);sec.dataset.storyAct=String(act);
-  var h=q('h2',sec),lead=document.createElement('p');lead.className='story-lead';lead.textContent=m[3];
-  var detail=document.createElement('details');detail.className='story-details';detail.id='story-details-'+i;detail.innerHTML='<summary>完整細節與其他案例</summary>';
-  Array.prototype.slice.call(sec.children).forEach(function(c){if(c!==h)detail.appendChild(c);});
-  var main=document.createElement('div');main.className='story-main';main.setAttribute('role','group');main.setAttribute('aria-label',h.dataset.toc+'主圖解');
-  var real=['start','tech-loading','tech-day','tech-agent','tech-subject','tech-author','tech-faq'].indexOf(m[0])>=0;
-  main.innerHTML='<div class="story-ticket"><b>閱讀主線 · 鴻海2317</b><span>10/13：先前260元出場，今天評估238元</span><span class="story-stamp">'+esc(m[6])+'</span></div><div class="story-visual" id="story-visual-'+i+'"></div><p class="story-status" aria-live="polite">'+esc(m[3])+'</p><div class="story-controls"><div class="story-choices" role="group" aria-label="'+esc(h.dataset.toc)+'情境"></div><span class="story-choice-count"></span><button type="button" class="story-replay">再播圖解</button></div>';
-  var tag=document.createElement('small');tag.className='story-diagram-tag';tag.textContent=real?'本機圖解 · 事實日期與示意圖形分開':'流程示意 · 不連線，原有實例可展開';tag.style.fontSize='calc(13.5px * var(--rd-fs))';q('.story-ticket',main).appendChild(tag);
-  var toggle=document.createElement('button');toggle.type='button';toggle.className='story-chapter-toggle';toggle.setAttribute('aria-expanded','false');toggle.setAttribute('aria-controls',detail.id);toggle.textContent='展開這一章';
-  sec.appendChild(lead);sec.appendChild(main);var definitions=detail.querySelector(".class-definition-lab");if(definitions)sec.appendChild(definitions);sec.appendChild(toggle);sec.appendChild(detail);
-  var state={meta:m,sec:sec,main:main,detail:detail,toggle:toggle,key:'',selected:0,step:0,w:0,ready:false,autoTimer:0,pausedByUser:false,inView:false};models.push(state);
-  toggle.addEventListener('click',function(){detail.open=!detail.open;toggle.setAttribute('aria-expanded',String(detail.open));toggle.textContent=detail.open?'收合這一章':'展開這一章';syncTracks();});
-  detail.addEventListener('toggle',function(){toggle.setAttribute('aria-expanded',String(detail.open));toggle.textContent=detail.open?'收合這一章':'展開這一章';});
-  var source=qa(m[4]||'__not_used__',detail),choices=q('.story-choices',main);
-  source.forEach(function(b,n){var c=document.createElement('button');c.type='button';c.textContent=b.textContent;c.dataset.storyChoice=String(n);c.setAttribute('aria-pressed',String(b.getAttribute('aria-pressed')==='true'));choices.appendChild(c);c.addEventListener('click',function(){state.selected=n;state.key=Array.prototype.slice.call(b.attributes).filter(function(a){return a.name.indexOf('data-')===0;}).map(function(a){return a.value;}).join('');b.click();main.classList.add('is-stopped');qa('button',choices).forEach(function(x){x.setAttribute('aria-pressed',String(x===c));});q('.story-choice-count',main).textContent=(n+1)+'／'+source.length;render(state);});});
-  if(!source.length){choices.hidden=true;q('.story-choice-count',main).hidden=true;}
-  else q('.story-choice-count',main).textContent='1／'+source.length;
-  if(source.length>3){var more=document.createElement('button');more.type='button';more.dataset.storyMore='1';more.textContent='更多情境';more.setAttribute('aria-expanded','false');choices.appendChild(more);more.addEventListener('click',function(){var on=choices.classList.toggle('is-expanded');more.setAttribute('aria-expanded',String(on));more.textContent=on?'收起更多':'更多情境';});}
-  q('.story-replay',main).addEventListener('click',function(){state.pausedByUser=false;legacyPlayers.filter(function(x){return x.s===state;}).forEach(function(x){x.paused=false;playLegacy(x);});startAuto(state);main.classList.remove('is-in','is-stopped');void main.offsetWidth;main.classList.add('is-in');state.step=(state.step+1)%5;render(state);});
-  var r=m[5]&&q(m[5],detail);if(r)new MutationObserver(function(){if(state.ready)render(state);}).observe(r,{childList:true,subtree:true,characterData:true});
-  if(window.ResizeObserver)new ResizeObserver(function(entries){var w=entries[0].contentRect.width;if(w>0&&state.near&&(!state.ready||Math.abs(w-state.w)>3))render(state);}).observe(main);
- });
- root.classList.add('story-designed');
- function setMode(v,save){mode=v==='full'?'full':'short';root.dataset.storyDepth=mode;qa('.story-text-fallback').forEach(function(d){d.open=mode==='full';});qa('[data-story-mode]').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.storyMode===mode));});models.forEach(function(s){s.detail.open=mode==='full';s.toggle.setAttribute('aria-expanded',String(s.detail.open));s.toggle.textContent=s.detail.open?'收合這一章':'展開這一章';});if(save)try{localStorage.setItem('stock-tech-reading',mode);}catch(e){};syncTracks();if(window.__docnavRebuild)window.__docnavRebuild();}
- qa('[data-story-mode]').forEach(function(b){b.addEventListener('click',function(){setMode(b.dataset.storyMode,true);});});
- try{mode=localStorage.getItem('stock-tech-reading')||'short';}catch(e){}setMode(mode,false);
- function text(x,y,s,cl){return '<text x="'+x+'" y="'+y+'" text-anchor="middle"'+(cl?' class="'+cl+'"':'')+'>'+esc(s)+'</text>';}
- function use(x,y,k,size){return '<use href="#story-i-'+k+'" x="'+(x-size/2)+'" y="'+(y-size/2)+'" width="'+size+'" height="'+size+'"/>';}
- function line(x1,y1,x2,y2,cls){return '<path class="'+(cls||'viz-line')+'" d="M'+x1+' '+y1+' L'+x2+' '+y2+'"/>';}
- function node(x,y,k,label,state,n){return '<g class="viz-part" style="--i:'+n+'"><circle cx="'+x+'" cy="'+y+'" r="25" class="'+(state||'viz-ink')+'"/>'+use(x,y,k,26)+text(x,y+48,label)+'</g>';}
- function render(s){
-  var box=q('.story-visual',s.main);if(!box.clientWidth)return;
-  var W=Math.max(300,Math.round(box.clientWidth)),mobile=W<650,H=mobile?310:210,out='',m=s.meta,id=m[0],key=s.key,nodes=[];
-  s.w=W;s.ready=true;s.main.dataset.phase=String(s.step);
-  var status=q('.story-status',s.main);status.dataset.state='pass';status.textContent=m[3];
-  var px=function(n){return (n+.5)*W/4;};
-  var selected=qa(m[4]||'__none__',s.detail).find(function(b){return b.getAttribute('aria-pressed')==='true';});if(selected)key=Array.prototype.slice.call(selected.attributes).filter(function(a){return a.name.indexOf('data-')===0;}).map(function(a){return a.value;}).join('');
-  var tcls=function(e){var c=e&&e.className||'';return /tone-ok/.test(c)?'viz-pass':/tone-warn|tone-wait/.test(c)?'viz-wait':/tone-stop/.test(c)?'viz-stop':'viz-ink';};
-  function chain(data){var cols=mobile?2:data.length,rows=Math.ceil(data.length/cols);H=mobile?rows*110+50:190;
-   if(!mobile)H=130;
-   data.forEach(function(d,i){var x=(i%cols+.5)*W/cols,y=mobile?48+Math.floor(i/cols)*110:48;
-    if(i){var p=(i-1)%cols,py=mobile?48+Math.floor((i-1)/cols)*110:48;out+=line((p+.5)*W/cols,py,x,y);}
-    out+=node(x,y,d[0],d[1],d[2],i);if(d[3])out+=text(x,y+70,d[3],'viz-num');});}
-  if(id==='start'){
-   // 三個問題各畫自己的答案（與細節裡的示意介面同一份內容）
-   var pi=+(key||0)||0;
-   if(pi===1){chain([['record','原稿','viz-pass'],['shield','稽核','viz-pass'],['mail','文章','viz-pass'],['clock','績效','viz-wait']]);status.textContent='沒講到的寫「未說明」；原稿、稽核、文章與寄送各自標狀態，文章完成不等於全部完成。';}
-   else if(pi===2){chain([['person','散戶在賣','viz-stop'],['search','先分主詞','viz-pass'],['table','會員續抱','viz-pass']]);status.textContent='「散戶一直賣」不是會員賣出；先分主詞與分類，持股回合只在明講賣出時結束。';}
-   else{chain([['search','搜「立即電」','viz-ink'],['record','力積電 6770','viz-pass'],['table','9/23 原句','viz-pass']]);status.textContent='常見誤字也找得到；每次提及都列出日期與原句。';}
-  }else if(id==='tech-overview'){
-   // 六個階段排成一列，點到的那一站亮起
-   var stages=qa('[data-flow]',s.detail);
-   chain(stages.map(function(b,i){return [['film','clock','search','table','browser','database'][i%6],b.textContent.replace(/^\s*\d+\s*/,'').replace(/[、，].*$/,'').trim().slice(0,7),b===selected?'viz-pass':'viz-ink'];}));
-   if(selected){var fn=q('#flowNote',s.detail);if(fn&&fn.textContent.trim())status.textContent=fn.textContent.trim().slice(0,90);}
-  }else if(id==='tech-loading'){
-   // 四種情況照細節的資料畫：哪一層回答、要多久
-   var lc={recent:[1,'快取','命中快取：約0.1秒，沒有讀後端','pass'],quiet:[1,'快取（背景備份）','命中背景備份：約0.1～0.3秒','pass'],
-     rare:[2,'快取（沒有這一天）','未命中：回後端讀試算表，這一次較慢','miss'],stale:[2,'快取（備份逾12分鐘不用）','未命中：約7秒回後端重新讀取','stale']}[key]||[1,'快取','命中快取：約0.1秒，沒有讀後端','pass'];
-   H=250;['手機',lc[1],'試算表'].forEach(function(a,i){var y=35+i*65,cl=i===lc[0]?'viz-pass':(i===1&&lc[3]==='stale'?'viz-stop':(i===1&&lc[3]==='miss'?'viz-muted':'viz-ink'));out+='<rect x="'+W*.1+'" y="'+y+'" width="'+W*.8+'" height="47" rx="12" class="'+cl+'"/>'+use(W*.18,y+24,['browser','database','table'][i],24)+text(W*.52,y+30,a);});
-   out+='<path d="M'+W*.9+' 55V'+(lc[0]===1?120:190)+'H'+W*.83+'" class="viz-line"/>'+text(W*.52,240,lc[2]);
-   status.textContent=lc[0]===1?'存好的答案還有效，直接回覆。':'沒有有效答案就回後端；過期的備份不拿來當最新的。';
-  }else if(id==='tech-day'){
-   H=mobile?330:240;var events=[['10:10','當日操作',0],['11:05','影片回放',1],['11:48','再判讀',1],['12:01','人工修正',1]];var lo=610,hi=750;
-   var noshow=/noshow/.test(key),holiday=/holiday/.test(key),busy=/busy/.test(key);
-   if(/late/.test(key)){events[1][0]='11:10';}
-   if(busy)events[2][1]='模型忙碌，稍後接續';
-   for(var l=0;l<2;l++){var off=holiday||(noshow&&l===1);out+=(off?'<path d="M30 '+(70+l*95)+'H'+(W-30)+'" class="viz-muted"/>':line(30,70+l*95,W-30,70+l*95))+text(W/2,35+l*95,l?(noshow?'影片路徑：找不到當天影片':'影片路徑'):'操作路徑');}
-   events.forEach(function(e,i){if(holiday||(noshow&&e[2]===1))return;var parts=e[0].split(':'),min=+parts[0]*60+(+parts[1]),x=30+(W-60)*(min-lo)/(hi-lo),y=70+e[2]*95;out+='<circle cx="'+x+'" cy="'+y+'" r="'+(i===3?9:6)+'" class="'+(busy&&i===2?'viz-wait':'viz-pass')+'"/>'+text(x,y+22,e[0]);if(!mobile)out+=text(x,y+44,e[1]);});
-   out+=text(W/2,mobile?275:230,holiday?'休市日：台股自動工作暫停，已發布的資料仍可查詢':noshow?'沒有直播：不寄每日總覽，郵件查詢那一天留空':'10:10～12:30比例軸 · 晚到情境為示意');
-   status.textContent=holiday?'休市日不新增每日績效。':noshow?'沒有可驗證的影片原稿，不寄每日總覽。':busy?'模型忙碌時換下一把金鑰或稍後重試，從已完成的片段接著做。':'9/23來源時間實例；收盤後工作沒有精確時刻，不硬塞進比例軸。';
-  }else if(id==='tech-agent'){
-   var which=selected&&selected.dataset.agent||'context';
-   if(which==='context'){H=240;out+='<rect x="20" y="45" width="'+(W-40)+'" height="35" rx="10" class="viz-ink"/><rect x="20" y="45" width="'+Math.max(6,(W-40)*32325/1048576)+'" height="35" rx="6" class="viz-pass"/>'+text(W/2,25,'輸入上限 1,048,576 tokens')+text(W/2,115,'最大單次32,325 · 占3.08%','viz-num')+'<rect x="20" y="155" width="'+(W-40)+'" height="28" rx="8" class="viz-ink"/><rect x="20" y="155" width="'+((W-40)*5861/65536)+'" height="28" rx="8" class="viz-pass"/>'+text(W/2,220,'最大文字輸出5,861／65,536 · 8.94%');status.textContent='10/13實測；輸入與輸出分開核對，不把19次累計當一次上下文。';
-   }else if(which==='infer'){chain([['record','鴻海','viz-ink'],['grid','仍',s.step>0?'viz-pass':'viz-ink'],['grid','持有',s.step>1?'viz-pass':'viz-ink'],['check','停止',s.step>2?'viz-pass':'viz-ink']]);status.textContent='生成順序示意，不是真實機率；「再播圖解」逐格亮起。生成文字仍須回到來源核對。';
-   }else if(which==='tools'){chain([['model','工具提案','viz-ink'],['lock','核對權限','viz-pass'],['database','取得結果','viz-pass'],['shield','再核對','viz-pass']]);status.textContent='沒有工具結果，就不能宣稱查過資料；只允許既定名稱、參數與權限。';
-   }else if(which==='fault'){H=240;for(var z=0;z<20;z++){out+='<circle cx="'+(25+z%5*(W*.52-40)/4)+'" cy="'+(30+Math.floor(z/5)*42)+'" r="9" class="'+(z===7?'viz-wait':'viz-pass')+'"/>';}out+='<rect x="'+W*.63+'" y="50" width="'+W*.3+'" height="90" rx="12" class="viz-wait"/>'+use(W*.78,78,'lock',26)+text(W*.78,117,'留底、不公開')+text(W/2,222,'20候選／1疑點／19繼續，是數量示意');status.dataset.state='wait';status.textContent='單檔疑點留底；來源或全篇文章出錯仍需停止，不把故障偽裝成通過。';
-   }else if(which==='swap'){chain([['model',s.step%2?'模型B':'模型A','viz-ink'],['grid','同一介面','viz-ink'],['record','同份原稿','viz-pass'],[s.step%2?'cross':'check',s.step%2?'不採用':'驗收通過',s.step%2?'viz-stop':'viz-pass']]);status.textContent='替換與未通過都是示意。每換模型，分類、日期、錯誤案例及用量都重新核對。';
-   }else{chain([['record','原文','viz-ink'],['cut','切塊','viz-ink'],['book','編號','viz-ink'],['grid','向量','viz-pass']]);status.textContent='切法與編號只是示意；展開本章可操作四階段的小單位連動圖。';}
-  }else if(id==='tech-names'){
-   H=mobile?280:210;var x1=W*.2,x2=W*.76, hb=q('#heardResult .tv-badge',s.detail),confirmed=hb&&hb.textContent==='直接對應';out+=use(x1,75,'ear',48)+text(x1,125,selected?selected.textContent:'聽寫名稱');['已確認公司','一般詞','未確認公司'].forEach(function(t,i){var y=30+i*65;out+=line(x1+25,75,x2-65,y+12,i===0&&confirmed?'viz-line':'viz-muted')+'<rect x="'+(x2-60)+'" y="'+(y-9)+'" width="120" height="40" rx="10" class="'+(i===0&&confirmed?'viz-pass':'viz-ink')+'"/>'+text(x2,y+17,t);});out+=text(W/2,mobile?250:205,'線形是流程示意，不是讀音分數');
-  }else if(id==='tech-subject'){
-   var fields=[['某股','舊推薦','回顧','以前'],['勤誠','買點條件','等待900以下','尚未成交'],['某股','明講禁買','條件未成','目前'],['鴻準','散戶在賣','會員續抱','目前'],['力積電','當日操作','買入指令','今天'],['某股','法人換手','反覆買賣','近期'],['某股','技術條件','站上季線','目前'],['友達','反例','不推薦','目前']][selected?+selected.dataset.toneCase:0];
-   chain([['table',fields[0],'viz-ink'],['person',fields[1],'viz-ink'],['record',fields[2],'viz-ink'],['clock',fields[3],'viz-wait']]);var te=q('#toneExample',s.detail);status.textContent=te?te.textContent:m[3];
-  }else if(id==='tech-number'){
-   // 點到的數字放上來：能當價位的接到價位軸，不能的標出單位、不放上價位軸
-   H=220;var od=q('#ownDetail',s.detail),pick=selected&&selected.dataset.own,odh=od&&q('b',od),unit=odh?(odh.textContent.split('：')[1]||'').trim():'',okp=od&&/tone-ok/.test(od.className);
-   out+=line(W*.1,135,W*.9,135);for(var r=0;r<9;r++)out+=line(W*(.1+r*.1),129,W*(.1+r*.1),142);
-   out+='<rect x="'+W*.4+'" y="104" width="'+W*.2+'" height="45" rx="12" class="'+(pick&&okp?'viz-pass':'viz-ink')+'"/>'+text(W/2,131,'900 以下');
-   if(pick){out+='<rect x="'+W*.33+'" y="18" width="'+W*.34+'" height="44" rx="12" class="'+(okp?'viz-pass':'viz-stop')+'"/>'+text(W/2,45,pick+'：'+(unit||(okp?'條件價':'不是股價')));
-     out+=okp?'<path d="M'+W/2+' 62V102" class="viz-line"/>':use(W*.74,40,'cross',22)+text(W*.84,45,'不放上價位軸');}
-   else{out+=use(W*.18,40,'table',24)+text(W*.18,72,'168張')+use(W*.82,40,'record',24)+text(W*.82,72,'EPS23.73');}
-   out+=text(W/2,195,'股價條件／張數／EPS 是不同單位');
-   status.textContent=pick?(okp?pick+' 是條件價，價位欄記「900 以下」。':pick+' 是'+(unit||'其他單位')+'，不能當股價。'):'數線是單位示意，不是某天真實高低價區間；原句核對後才保留對應數字。';
-  }else if(id==='tech-unnamed'){
-   H=260;var two=/two/.test(key),none=/none/.test(key);out+='<path d="M20 20H'+(W-20)+'L'+W*.65+' 90H'+W*.35+'Z" class="viz-ink"/><path d="M'+W*.35+' 110H'+W*.65+'L'+W*.56+' 175H'+W*.44+'Z" class="viz-pass"/>'+text(W/2,52,'前一交易日昨收')+text(W/2,140,'今天高低包住現價')+text(W/2,218,none?'沒有符合 → 不列':two?'兩檔同價 → 不猜':'唯一符合 → 嘉澤3533');status.dataset.state=two||none?'wait':'pass';status.textContent='9/30昨收1770的案例；兩檔或沒有符合是切換示意，不補造公司。';
-  }else if(id==='tech-transcript-progress'){
-   H=mobile?400:250;var sts=qa('#txStages li',s.detail),newer=/newer/.test(key)||!key;
-   for(var row=0;row<2;row++){out+=text(W/2,25+row*(mobile?190:115),row?'目前原稿':'舊工單');out+=line(20,65+row*(mobile?190:115),W-20,65+row*(mobile?190:115));sts.forEach(function(e,i){var x=20+(W-40)*i/Math.max(1,sts.length-1),y=65+row*(mobile?190:115),cl=row===0&&newer&&i>0?'viz-stop':e.classList.contains('tone-ok')?'viz-pass':e.classList.contains('tone-stop')?'viz-stop':'viz-wait';out+='<circle cx="'+x+'" cy="'+y+'" r="9" class="'+cl+'"/>';if(!mobile||i%2===0)out+=text(x,y+30,['原稿','潤飾','判讀','文章','寄送','績效'][i]);});}
-   status.textContent='六站狀態取自目前情境；指紋變更時舊寫回作廢，文章完成不代表績效完成。';
-  }else if(id==='tech-source-priority'){
-   var sourceNodes=/optional/.test(key)?[['mail','可買建議','viz-ink'],['shield','非已成交','viz-wait'],['search','觀望注意','viz-pass'],['record','不建買入事件','viz-ink']]:/partial/.test(key)?[['mail','昨日減碼','viz-ink'],['person','剩餘持股','viz-pass'],['clock','買回條件未到','viz-wait'],['lock','暫不買回','viz-wait']]:/video/.test(key)?[['mail','無當日操作','viz-ink'],['film','影片原句','viz-ink'],['shield','核對分類','viz-pass'],['record','書面說明','viz-pass']]:[['mail','當日操作','viz-pass'],['lock',/buy/.test(key)?'買入分類':'賣出分類','viz-pass'],['film','影片依據','viz-ink'],['record','書面說明','viz-pass']];
-   chain(sourceNodes);var sr=q('#sourceResult',s.detail);status.textContent=sr?sr.textContent:'先核對原文語意，再按來源合併。';
-  }else if(id==='tech-public-notes'){
-   // 數字核對、主體核對與最後結果照細節的核對項目與結論上色
-   var fin=q('.pn-final',s.detail),badge=q('.pn-final .tv-badge',s.detail),dropEl=qa('.pn-checks li.pn-drop,.pn-checks li.pn-move',s.detail),drops=dropEl.length,reviews=qa('.pn-checks li.pn-review',s.detail).length;
-   // 中間那一站寫出刪掉的是哪一種（寫作過程、重複的句子、別家的消息、非公開價…），同樣刪一處的案例也看得出差別
-   var dropText=dropEl.map(function(e){return e.textContent;}).join(' '),dropKind=/寫作過程/.test(dropText)?'刪寫作過程':/換開頭|字組|重複/.test(dropText)?'刪重複句':/段落|別家|乙公司/.test(dropText)?'移出別家消息':/成交價|非公開/.test(dropText)?'刪非公開價':/觀望不碰|買點/.test(dropText)?'刪矛盾句':'刪掉 '+drops+' 處';
-   chain([['record','原句','viz-ink'],['search',drops?dropKind:'都對得上',drops?(qa('.pn-checks li.pn-move',s.detail).length?'viz-wait':'viz-stop'):'viz-pass'],['person',reviews?'待決定 '+reviews+' 處':'主體一致',reviews?'viz-wait':'viz-pass'],[fin&&/tone-stop/.test(fin.className)?'cross':fin&&/tone-warn/.test(fin.className)?'clock':'browser',badge?badge.textContent.trim().slice(0,6):'公開文字',tcls(fin)]]);
-   if(badge){status.textContent=badge.textContent+'：原有編輯檯與人工保護規則完整保留，可展開核對。';if(fin&&/tone-warn|tone-stop/.test(fin.className))status.dataset.state='wait';}
-  }else if(id==='tech-hold'){
-   H=220;var tl=Number(q('#tlSlider').value)||0,point=[.06,.18,.29,.36,.43,.58][tl];out+='<rect x="'+W*.06+'" y="40" width="'+W*.37+'" height="38" rx="12" class="'+(tl<4?'viz-pass':'viz-ink')+'"/><rect x="'+W*.58+'" y="40" width="'+W*.35+'" height="38" rx="12" class="'+(tl===5?'viz-pass':'viz-ink')+'"/>'+text(W*.24,65,'回合一')+text(W*.75,65,'回合二')+'<path d="M'+W*.06+' 165L'+W*.18+' 140L'+W*.29+' 152L'+W*.43+' 112M'+W*.58+' 160L'+W*.75+' 135L'+W*.93+' 120" class="viz-line"/>'+'<circle cx="'+(W*point)+'" cy="105" r="8" class="story-playhead" data-hold-step="'+tl+'"/>'+text(W/2,190,q('#tlDay').textContent+' · '+(tl<4?'回合一持有':tl===4?'回合一結束':'回合二開始'))+text(W/2,218,'曲線為回合示意，非歷史行情或績效');status.textContent=q('#tlState').textContent;
-  }else if(id==='tech-failure'){
-   H=290;qa('#failLanes .tech-lane',s.detail).forEach(function(e,i){var y=35+i*60,cl=e.classList.contains('tone-ok')?'viz-pass':e.classList.contains('tone-stop')?'viz-stop':'viz-wait',label=q('.tl-name',e).textContent,st=q('.tl-state',e).textContent;out+=text(W*.15,y,label)+line(W*.3,y-5,W*.86,y-5);[.35,.58,.82].forEach(function(x,j){out+='<circle cx="'+W*x+'" cy="'+(y-5)+'" r="9" class="'+cl+'"/>';});out+=text(W*.6,y+22,st);if(cl!=='viz-pass')out+='<path d="M'+W*.58+' '+(y-14)+'q-25 -30 -50 0" class="viz-line"/>';});status.textContent='等待、接續、需人處理分開標示；弧線是續跑方向示意，非今日實際重試次數。';
-  }else if(id==='tech-limit'){
-   // 問題 → 回答（可以／不行／有條件）照細節上色並寫出理由
-   var cr=q('#canResult',s.detail),cb=cr&&q('.tv-badge',cr),ch=cr&&q('b',cr),qs=selected?selected.textContent.trim():'回查原句';
-   H=mobile?250:190;out+='<rect x="'+W*.04+'" y="40" width="'+W*.42+'" height="56" rx="14" class="viz-ink"/>'+use(W*.1,68,'search',24)+text(W*.27,74,qs.slice(0,14));
-   out+='<path d="M'+W*.47+' 68H'+W*.56+'" class="viz-line"/><circle cx="'+W*.62+'" cy="68" r="30" class="'+tcls(cr)+'"/>'+text(W*.62,74,cb?cb.textContent.trim():'可以');
-   out+=text(W/2,mobile?170:150,ch?ch.textContent.trim().slice(0,30):'能幫你回查來源，不能提供個人投資決策');
-  }else if(id==='tech-open'){
-   // 實際發生 → 現在怎麼擋 → 目前狀態；標題與狀態照細節
-   var ot=q('#openTitle',s.detail),ob=ot&&q('b',ot),os=ot&&q('.open-state',ot);
-   chain([['record','實際發生',os&&/tone-stop/.test(os.className)?'viz-stop':'viz-wait'],['shield','現在怎麼擋','viz-pass'],[os&&/tone-stop/.test(os.className)?'cross':'clock',os?os.textContent.trim():'未解決',tcls(os)]]);
-   H=Math.max(H,170);out+=text(W/2,H-14,ob?ob.textContent.trim().slice(0,28):'疑點留底，不補猜');status.dataset.state='wait';
-  }else if(id==='tech-faq'){
-   chain([['database','來源','viz-ink'],['shield','準確度','viz-ink'],['mail','訂閱','viz-ink'],['lock','隱私','viz-ink']]);
-  }else {chain([['person','維護者','viz-ink'],['record','原始碼','viz-ink'],['mail','回報問題','viz-pass']]);}
-  if(selected){q('.story-stamp',s.main).textContent=selected.textContent;var result=m[5]&&q(m[5],s.detail),headline=result&&result.querySelector('.tv-badge,.tl-state,b,dt');if(headline&&headline.textContent.trim()){status.textContent=headline.textContent.trim()+'。'+m[3];if(/不行|不能|不列|作廢/.test(headline.textContent))status.dataset.state='stop';else if(/複核|等待/.test(headline.textContent))status.dataset.state='wait';}}
-  box.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+esc(m[3])+'" data-scenario="'+esc(key)+'">'+out+'</svg>';renderPlayhead(s);
- }
- // 圖解只在第一次接近畫面時建立；不支援觀察器時直接可讀。
- // v178：只在真正可見時連續播放；離開／隱藏即暫停，使用者操作後不自動搶回。
- window.__storyAnimationActivate=function(el){if(!el.classList.contains('story-main')&&!el.classList.contains('is-stopped'))el.classList.add('is-live');};
- window.__storyAnimationPause=function(el){el.classList.remove('is-live');};
- function stopAuto(s,keepNative){clearInterval(s.autoTimer);s.autoTimer=0;s.main.classList.remove('is-live');s.main.dataset.playing='false';if(s.meta[0]==='tech-hold'&&!keepNative&&window.__techTimeline&&(document.hidden||s.pausedByUser||!legacyPlayers.some(function(x){return x.s===s&&x.visible&&x.api==='__techTimeline';})))window.__techTimeline.pause();legacyPlayers.filter(function(x){return x.s===s;}).forEach(function(x){if(!document.hidden&&!reduce&&!legacyHeld(x)&&x.visible)return;clearInterval(x.timer);x.timer=0;if(x.api&&!keepNative&&window[x.api])window[x.api].pause();});}
- function startAuto(s){
-   if(reduce||s.pausedByUser||!s.inView||document.hidden||root.closest('[hidden]'))return;
-   s.main.classList.add('is-live','is-in');s.main.dataset.playing='true';
-   if(s.meta[0]==='tech-hold'){if(window.__techTimeline)window.__techTimeline.start();return;}
-   if(s.autoTimer)return;
-   s.autoTimer=setInterval(function(){if(document.hidden||!s.inView){stopAuto(s);return;}s.step=(s.step+1)%5;render(s);},1600);
- }
- function renderPlayhead(s){
-   if(reduce||s.meta[0]==='tech-hold')return;var svg=q('.story-visual svg',s.main);if(!svg)return;
-   var shapes=qa('.viz-part circle,circle.viz-pass,circle.viz-wait,rect.viz-pass,rect.viz-ink',svg);if(!shapes.length)return;
-   var shape=shapes[s.step%shapes.length],b=shape.getBBox(),dot=document.createElementNS('http://www.w3.org/2000/svg','circle');dot.setAttribute('cx',b.x+b.width/2);dot.setAttribute('cy',b.y+b.height/2);dot.setAttribute('r','6');dot.setAttribute('class','story-playhead');dot.setAttribute('aria-hidden','true');svg.appendChild(dot);
- }
- // 使用者點了哪一組就停哪一組（管理者 2026/10/13）：同一章裡選情境、按用量按鈕，不停三層分工圖。
- function userTook(s,target,native){
-   // 播放鈕不一定在圖的容器裡（#tlPlay 在 #tlTrack 外面）：照它控制的播放器找回那一組
-   var own=target.closest('#tlPlay')?'__techTimeline':target.closest('#heroPlay')?'__techHero':target.closest('#agentMapPlay')?'__techMap':'';
-   var x=legacyPlayers.find(function(p){return p.s===s&&(p.el.contains(target)||(own&&p.api===own));});
-   if(x&&x.api!=='__techTimeline'){x.paused=true;clearInterval(x.timer);x.timer=0;if(x.api&&window[x.api]&&!native)window[x.api].pause();return;}
-   // 主圖、持股回合時間線（與主圖同一個播放器）：停這一章的主圖
-   if(x||s.main.contains(target)){s.pausedByUser=true;stopAuto(s,native);}
- }
- root.addEventListener('click',function(e){if(!e.isTrusted)return;var sec=e.target.closest('.story-section'),s=models.find(function(x){return x.sec===sec;});if(!s||e.target.closest('.story-chapter-toggle,.story-replay'))return;userTook(s,e.target,!!e.target.closest('#tlPlay,#heroPlay,#agentMapPlay'));},true);
- root.addEventListener('input',function(e){if(!e.isTrusted)return;var s=models.find(function(x){return x.sec.contains(e.target);});if(s)userTook(s,e.target,false);},true);
- root.addEventListener('stock-tech-timeline',function(){var s=models.find(function(x){return x.meta[0]==='tech-hold';});if(s)render(s);});
- if(window.IntersectionObserver){
-   var nearIO=new IntersectionObserver(function(entries){entries.forEach(function(en){var s=models.find(function(x){return x.main===en.target;});if(!s)return;s.near=en.isIntersecting;if(s.near&&!s.ready)render(s);});},{rootMargin:'250px 0px',threshold:.01});models.forEach(function(s){nearIO.observe(s.main);});
-   var autoIO=new IntersectionObserver(function(entries){entries.forEach(function(en){var s=models.find(function(x){return x.main===en.target;});if(!s)return;if(en.target===s.main)s.mainVisible=en.isIntersecting&&en.intersectionRatio>0;else s.detailVisible=en.isIntersecting&&en.intersectionRatio>=.05;s.inView=!!(s.mainVisible||s.detailVisible);if(s.inView){if(!s.ready)render(s);startAuto(s);}else stopAuto(s);});},{threshold:[0,.01,.25,.5]});models.forEach(function(s){autoIO.observe(s.main);});
- }else models.forEach(render);
- var legacyPlayers=[];
- function legacyHeld(x){return x.paused||(x.s.pausedByUser&&(x.api==='__techTimeline'||x.s.main.contains(x.el)));}
- function playLegacy(x){if(reduce||document.hidden||!x.visible||legacyHeld(x)||root.closest('[hidden]'))return;if(x.api&&window[x.api])window[x.api].start();else if(window.__techPulse)window.__techPulse(x.el);if(!x.timer)x.timer=setInterval(function(){if(!x.visible||document.hidden||legacyHeld(x))return;if(x.api&&window[x.api])window[x.api].start();else if(window.__techPulse)window.__techPulse(x.el);},5000);}
- if(window.IntersectionObserver&&!reduce){var legacyIO=new IntersectionObserver(function(entries){entries.forEach(function(en){var x=legacyPlayers.find(function(x){return x.el===en.target;});if(!x)return;x.visible=en.isIntersecting&&en.intersectionRatio>=.25;if(x.visible)playLegacy(x);else{clearInterval(x.timer);x.timer=0;if(x.api&&window[x.api]&&!(x.api==='__techTimeline'&&x.s.mainVisible&&!x.s.pausedByUser))window[x.api].pause();}});},{threshold:[0,.25,.5]});
-   models.forEach(function(s){qa('#tlTrack,#heroTrack,.agent-map,#loadLab,.tech-path,.tech-real,.tx-stages,.pn-desk,.un-chain,.tech-lanes,.tech-flow,.tech-dayline,.tx-out',s.detail).forEach(function(el){var api=el.id==='tlTrack'?'__techTimeline':el.id==='heroTrack'?'__techHero':el.id==='loadLab'?'__techLoad':el.classList.contains('agent-map')?'__techMap':'';var x={el:el,s:s,api:api,timer:0,visible:false};legacyPlayers.push(x);legacyIO.observe(el);});});}
- var motionPref=window.matchMedia('(prefers-reduced-motion: reduce)');if(motionPref.addEventListener)motionPref.addEventListener('change',function(e){reduce=e.matches;models.forEach(function(s){if(reduce)stopAuto(s);else startAuto(s);});});
- document.addEventListener('visibilitychange',function(){models.forEach(function(s){if(document.hidden)stopAuto(s);else {startAuto(s);legacyPlayers.filter(function(x){return x.s===s;}).forEach(playLegacy);}});});
- new MutationObserver(function(){if(root.closest('[hidden]'))models.forEach(function(s){stopAuto(s);s.inView=false;s.mainVisible=s.detailVisible=false;});}).observe(root.closest('.panel')||root,{attributes:true,attributeFilter:['hidden']});
- // 四幕閱讀軌位於 body，避免被面板 transform 改變 fixed 定位。
- // 目錄：每一種寬度都在右邊，平常只露出把手；滑鼠移過去（或點一下）展開完整章節。不再有「1幕、2幕…」按鈕與底部列。
- var rail=document.createElement('nav');rail.className='story-rail';rail.setAttribute('aria-label','技術說明章節目錄');
- rail.innerHTML='<button type="button" class="story-rail-handle" aria-expanded="false" aria-controls="story-rail-panel" aria-label="章節目錄">'+icon('book')+'<span class="story-rail-label">目錄</span><span class="story-rail-progress">1／18</span></button><div class="story-rail-panel" id="story-rail-panel" role="dialog" aria-label="完整章節" hidden></div>';
- document.body.appendChild(rail);
- var current=0,panel=q('.story-rail-panel',rail),handle=q('.story-rail-handle',rail),actButtons=[];
- function jump(sec){var offset=0;document.querySelectorAll('.topbar,.tabbar').forEach(function(e){var r=e.getBoundingClientRect();if(r.height)offset=Math.max(offset,r.bottom);});var y=sec.getBoundingClientRect().top+scrollY-offset-18;if(window.__scrollToY)window.__scrollToY(y);else window.scrollTo(0,y);var h=q('h2',sec);h.tabIndex=-1;h.focus({preventScroll:true});}
- // 位置：依實際內容右緣放在右側空白；空白不夠就讓技術說明內容往左讓出位置，不蓋住內容
- var techPanel=document.getElementById('p-tech');
- function placeRail(){
-   if(!techPanel)return;techPanel.style.paddingRight='';rail.style.right='';rail.style.top='';
-   if(techPanel.hidden)return;
-   var railW=rail.offsetWidth||52,edge=document.documentElement.clientWidth,right=root.getBoundingClientRect().right,gap=edge-right,need=railW+16;
-   if(gap>=need)rail.style.right=Math.max(6,Math.round((gap-railW)/2))+'px';
-   else{techPanel.style.paddingRight=Math.ceil(need-gap)+'px';rail.style.right='6px';}
-   var head=0;document.querySelectorAll('.topbar,.tabbar').forEach(function(e){var r=e.getBoundingClientRect();if(r.height&&r.top<120)head=Math.max(head,r.bottom);});
-   rail.style.top=Math.round(Math.max(head+12,(innerHeight-rail.offsetHeight)/2))+'px';
- }
- window.addEventListener('resize',placeRail,{passive:true});
- if(window.ResizeObserver)new ResizeObserver(placeRail).observe(handle);
- new MutationObserver(placeRail).observe(techPanel||root,{attributes:true,attributeFilter:['hidden']});
- new MutationObserver(placeRail).observe(document.documentElement,{attributes:true,attributeFilter:['style','class','data-view','data-fs','data-ls','data-lh','data-w']});
- setTimeout(placeRail,0);
- // 完整章節視窗
- var fullOpen=false,hoverClose=0,canHover=window.matchMedia('(hover:hover)');
- function fullList(){
-   panel.innerHTML='<a href="#" class="story-rail-top" data-story-top>回到頂端</a>'+ACTS.map(function(a,i){return '<span class="story-rail-act">'+esc(a[0])+'</span>'+models.filter(function(s){return s.meta[1]===i;}).map(function(s){var h=q('h2',s.sec);return '<a href="#'+h.id+'" data-story-go="'+s.meta[0]+'"'+(models.indexOf(s)===current?' aria-current="location"':'')+'>'+esc(h.dataset.toc)+'</a>';}).join('');}).join('');
-   qa('a',panel).forEach(function(link){link.addEventListener('click',function(e){e.preventDefault();var s=link.hasAttribute('data-story-top')?models[0]:models.find(function(s){return s.meta[0]===link.dataset.storyGo;});jump(s.sec);if(!link.hasAttribute('data-story-top'))history.replaceState(null,'','#'+q('h2',s.sec).id);closeFull();});});
-   panel.hidden=false;fullOpen=true;handle.setAttribute('aria-expanded','true');
-   var cur=q('a[aria-current="location"]',panel);if(cur)panel.scrollTop=Math.max(0,cur.offsetTop-panel.clientHeight/2);
- }
- function closeFull(){fullOpen=false;panel.hidden=true;handle.setAttribute('aria-expanded','false');}
- rail.addEventListener('mouseenter',function(){if(!canHover.matches)return;clearTimeout(hoverClose);if(!fullOpen)fullList();});
- rail.addEventListener('mouseleave',function(){if(!canHover.matches)return;hoverClose=setTimeout(closeFull,300);});
- // 點把手：觸控與鍵盤用；滑鼠已經移過去展開時，點一下不收起
- handle.addEventListener('click',function(){if(!fullOpen)fullList();else if(!canHover.matches||!rail.matches(':hover'))closeFull();});
- document.addEventListener('keydown',function(e){if(e.key==='Escape'&&fullOpen){closeFull();handle.focus();}});
- document.addEventListener('click',function(e){if(fullOpen&&!rail.contains(e.target))closeFull();});
- if(window.IntersectionObserver)new IntersectionObserver(function(entries){if(entries[0].isIntersecting){current=0;q('.story-rail-progress',rail).textContent='1／18';actButtons.forEach(function(b){if(+b.dataset.storyAct===0)b.setAttribute('aria-current','step');else b.removeAttribute('aria-current');});}},{threshold:.2}).observe(controls);
- // 每章個別觀察，避免每一畫格掃十八個章節。
- if(window.IntersectionObserver){var progressIO=new IntersectionObserver(function(entries){entries.forEach(function(en){if(!en.isIntersecting)return;current=+en.target.dataset.storyIndex;q('.story-rail-progress',rail).textContent=(current+1)+'／18';actButtons.forEach(function(b){if(+b.dataset.storyAct===+en.target.dataset.storyAct)b.setAttribute('aria-current','step');else b.removeAttribute('aria-current');});});},{rootMargin:'-5% 0px -70% 0px',threshold:0});models.forEach(function(s){progressIO.observe(s.sec);});}
- // FAQ 搜尋與分類；只有實際問題，沒有新編的回答。
- var faq=sections['tech-faq'],qaBox=faq&&q('.qa',faq);if(qaBox){var filter=document.createElement('div');filter.className='story-faq-controls';filter.innerHTML='<input type="search" aria-label="搜尋常見問題" placeholder="搜尋問題或答案"><button type="button" data-faq-kind="all" aria-pressed="true">全部</button>'+['資料來源','準確度','訂閱','隱私'].map(function(k){return '<button type="button" data-faq-kind="'+k+'" aria-pressed="false">'+k+'</button>';}).join('');qaBox.parentNode.insertBefore(filter,qaBox);var fkind='all',fs=q('input',filter);function faqFilter(){qa('details',qaBox).forEach(function(d){var t=d.textContent,k=/隱私|匿名|資料嗎/.test(t)?'隱私':/訂閱|取消|LINE|寄.*總覽/.test(t)?'訂閱':/错|錯|價位|名稱|兩點/.test(t)?'準確度':'資料來源';d.hidden=!(fkind==='all'||fkind===k)||t.indexOf(fs.value.trim())<0;});}fs.addEventListener('input',faqFilter);qa('[data-faq-kind]',filter).forEach(function(b){b.addEventListener('click',function(){fkind=b.dataset.faqKind;qa('[data-faq-kind]',filter).forEach(function(x){x.setAttribute('aria-pressed',String(x===b));});faqFilter();});});}
- // 作者聯絡卡片與可複製信箱，不更改目的網址。
- var author=sections['tech-author'],links=author&&q('.author-links',author);if(!links&&author)links=q('[aria-label="聯絡與作品"]',author);if(links){links.classList.add('story-contact-links');qa('a',links).forEach(function(a,i){a.insertAdjacentHTML('afterbegin',icon(i===0?'mail':i===1?'record':'browser'));});var copy=document.createElement('button');copy.type='button';copy.className='story-copy';copy.textContent='複製聯絡信箱';links.parentNode.insertBefore(copy,links.nextSibling);copy.addEventListener('click',function(){var address='lindanny0213@gmail.com';if(navigator.clipboard)navigator.clipboard.writeText(address).then(function(){copy.textContent='已複製信箱';},function(){copy.textContent=address;});else copy.textContent=address;});}
- // 把查詢資料包畫成真正有方向的移動；只有示範按鈕觸發。
- var map=q('.agent-map'),play=q('#agentMapPlay');if(map&&play){var packet=document.createElement('span');packet.className='story-packet';packet.textContent='10/13原稿';packet.setAttribute('aria-hidden','true');map.appendChild(packet);var back=document.createElementNS('http://www.w3.org/2000/svg','svg');back.setAttribute('viewBox','0 0 1000 50');back.classList.add('story-map-return');back.setAttribute('aria-hidden','true');back.innerHTML='<path d="M960 2v22H35l10-8m-10 8 10 8" fill="none" stroke="currentColor" stroke-width="2"/>';map.appendChild(back);var packetText={control:'原稿／核對',model:'候選查詢',tool:'核准讀取'};new MutationObserver(function(){var b=q('[data-agent-node][aria-pressed="true"]',map);if(!b)return;var r=b.getBoundingClientRect(),mr=map.getBoundingClientRect(),done=q('#agentNodeDetail').textContent.indexOf('核對完成')>=0;packet.style.transform='translate('+Math.max(0,r.left-mr.left)+'px,'+Math.max(0,(done?r.bottom-mr.top+4:r.top-mr.top-32))+'px)';packet.textContent=done?'結果：10/06已出場':packetText[b.dataset.agentNode];}).observe(q('.agent-map-steps',map),{attributes:true,subtree:true,attributeFilter:['aria-pressed']});}
- // 進度與資料包只用transform；數值仍沿用原有來源。
- function syncTracks(){qa('.th-track').forEach(function(track){var st=getComputedStyle(track),n=+(st.getPropertyValue('--n'))||5,p=+(st.getPropertyValue('--p'))||0,vertical=innerWidth<=760,f=q('.th-fill',track),dot=q('.th-packet',track);if(!f||!dot)return;var ratio=p/Math.max(1,n-1),span=vertical?Math.max(0,track.clientHeight-52):track.clientWidth*(1-1/n);f.style.transform=vertical?'scaleY('+ratio+')':'scaleX('+ratio+')';dot.style.transform=vertical?'translateY('+(ratio*span)+'px)':'translateX('+(ratio*span)+'px)';});}
- qa('.th-track').forEach(function(t){new MutationObserver(syncTracks).observe(t,{attributes:true,attributeFilter:['style']});});window.addEventListener('resize',syncTracks,{passive:true});syncTracks();
- qa('[data-budget]').forEach(function(b){b.addEventListener('click',function(){var e=q('#agentEvidence');e.style.width='100%';e.style.transform='scaleX('+(b.dataset.budget==='full'?.03083:.02594)+')';});});
- // 舊的逐步文字保留為可展開後備，避免同一流程在畫面重複畫兩次。
- ['#txStages','#sourcePath','#failLanes','#unChain','#openPath','ol.load-steps','#agentRoute'].forEach(function(selector){var e=q(selector);if(!e)return;var d=document.createElement('details');d.className='story-text-fallback';d.open=mode==='full';var sum=document.createElement('summary');sum.textContent='文字版逐步狀態';d.appendChild(sum);e.parentNode.insertBefore(d,e);d.appendChild(e);});
- // 真實統計只鏡映既有回應，沒有歷史序列就不畫累積曲線。
- var stats=q('#techLive'),first=models[0];if(stats&&first){var live=document.createElement('div');live.className='story-stats';first.main.appendChild(live);function mirrorStats(){var values=qa('.tech-card',stats);live.innerHTML=values.slice(0,3).map(function(c){var b=c.querySelector('b,strong'),label=c.querySelector('span');return '<p><b>'+esc(b?b.textContent:'—')+'</b>'+esc(label?label.textContent:'資料量')+'</p>';}).join('');}new MutationObserver(mirrorStats).observe(stats,{subtree:true,childList:true,characterData:true});mirrorStats();}
- // 主圖有自己狀態；選舊案例時同步簡述，不執行任何後端方法。
- if(window.__docnavRebuild)window.__docnavRebuild();
- var reveal=window.__techReveal;window.__techReveal=function(){if(reveal)reveal();models.filter(function(s){return s.ready;}).forEach(render);syncTracks();};
+(function(){'use strict';
+function initBook(){
+var root=document.querySelector('[data-tech-book]');if(!root||root.dataset.bookReady)return;
+var chapters=Array.from(root.querySelectorAll('[data-chapter]')),panel=root.closest('.panel'),reduced=matchMedia('(prefers-reduced-motion: reduce)'),modal=root.querySelector('#bookArtDialog'),contents=root.querySelector('#bookContents');
+var states=[],active=null,frame=0,last=null,modalOpen=false,routeQueued=false,aliases={};
+chapters.forEach(function(ch){ch.querySelectorAll('.book-alias').forEach(function(a){aliases[a.id]=ch.id;});});
+function elements(q){return Array.from(root.querySelectorAll(q));}
+function closeDialogs(){[modal,contents].forEach(function(d){if(d.open)d.close();});}
+function setOpen(d,opener){closeDialogs();d._opener=opener;modalOpen=true;sync();d.showModal();}
+[modal,contents].forEach(function(d){d.querySelector('[data-dialog-close]').addEventListener('click',function(){d.close();});d.addEventListener('close',function(){modalOpen=!!root.querySelector('dialog[open]');if(d._opener&&d._opener.isConnected)d._opener.focus({preventScroll:true});sync();});});
+var side=document.createElement('button');side.type='button';side.className='book-side-nav';side.hidden=true;side.setAttribute('aria-haspopup','dialog');document.body.appendChild(side);side.addEventListener('click',function(){setOpen(contents,side);});
+elements('[data-open-contents]').forEach(function(b){b.addEventListener('click',function(){setOpen(contents,b);});});
+function eligible(s){return active===s.ch&&!panel.hidden&&!document.hidden&&!modalOpen&&s.inView&&!s.paused&&!reduced.matches;}
+function sync(){side.hidden=panel.hidden;var any=false;states.forEach(function(s){var on=eligible(s);s.el.dataset.playing=String(on);s.pause.disabled=reduced.matches;s.pause.textContent=reduced.matches?'已減少動態':s.paused?'繼續播放':'暫停圖解';s.dot.style.opacity=on?'1':'0';any=any||on;});if(any&&!frame)frame=requestAnimationFrame(tick);if(!any&&frame){cancelAnimationFrame(frame);frame=0;last=null;}}
+function tick(t){var delta=last===null?0:Math.min(t-last,100);last=t;states.forEach(function(s){if(!eligible(s))return;s.time+=delta;if(s.time>=6000){s.time%=6000;s.cycles++;s.el.dataset.cycles=String(s.cycles);}var scaled=s.time/6000*s.paths.length,k=Math.min(s.paths.length-1,Math.floor(scaled)),p=s.paths[k];if(p){var pos=p.getPointAtLength(p.getTotalLength()*(scaled%1));s.dot.setAttribute('transform','translate('+pos.x+' '+pos.y+')');}var step=Math.floor(s.time/6000*s.nodes.length);s.nodes.forEach(function(n,i){n.classList.toggle('is-current',i===step);});var legacyStep=Math.floor(s.time/1200);if(legacyStep!==s.step){s.step=legacyStep;if(s.ch.id==='tech-start'&&window.__techHero){window.__techHero.step(legacyStep%5);s.ch.style.setProperty('--book-progress',String((legacyStep%5)/4));}if(s.ch.id==='tech-hold'&&window.__techTimeline){window.__techTimeline.step(legacyStep%6);s.ch.style.setProperty('--book-progress',String((legacyStep%6)/5));}s.ch.querySelectorAll('.cd-flow li').forEach(function(n,i){n.classList.toggle('is-current',i===legacyStep%4);});}});frame=0;if(states.some(eligible))frame=requestAnimationFrame(tick);else last=null;}
+chapters.forEach(function(ch){var el=ch.querySelector('.book-stage'),svg=el.querySelector('svg.book-art'),s={ch:ch,el:el,svg:svg,dot:svg.querySelector('.book-packet'),paths:Array.from(svg.querySelectorAll('[data-book-path]')),nodes:Array.from(svg.querySelectorAll('[data-book-node]')),time:0,cycles:0,step:-1,inView:false,paused:false,pause:el.querySelector('[data-book-pause]')};states.push(s);el.querySelector('.book-motion').hidden=false;s.pause.addEventListener('click',function(){s.paused=!s.paused;sync();});el.querySelector('[data-book-replay]').addEventListener('click',function(){s.paused=false;s.time=0;s.step=-1;s.cycles=0;s.el.dataset.cycles='0';sync();});
+el.querySelector('[data-art]').addEventListener('click',function(e){root.querySelector('#bookArtTitle').textContent=ch.querySelector('h2').dataset.toc;var img=root.querySelector('#bookArtImage');img.src=(document.documentElement.dataset.host==='pages'?'assets/tech-book/':'https://lee200202.github.io/Stock/assets/tech-book/')+ch.id+'.svg';img.alt=el.querySelector('figcaption>b').textContent;var desc=root.querySelector('#bookArtDescription');desc.replaceChildren();var h=document.createElement('h3');h.textContent=el.querySelector('figcaption>b').textContent;desc.appendChild(h);var ol=document.createElement('ol');Array.from(el.querySelectorAll('.book-scene-key li')).forEach(function(li){var item=document.createElement('li');item.textContent=li.textContent;ol.appendChild(item);});desc.appendChild(ol);var p=document.createElement('p');p.textContent='';desc.appendChild(p);Array.from(ch.children).filter(function(n){return n.tagName==='P';}).slice(0,3).forEach(function(n){var item=document.createElement('p');item.textContent=n.textContent;desc.appendChild(item);});setOpen(modal,e.currentTarget);});
+ch.addEventListener('click',function(e){var b=e.target.closest('button');if(!b||b.closest('.book-stage,.book-pager')||b.hasAttribute('data-open-contents')||b.id==='heroPlay'||b.id==='tlPlay')return;s.paused=true;sync();});ch.addEventListener('input',function(e){if(e.target.matches('input[type=range]')){s.paused=true;sync();}});var views=new Set(),observer=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting)views.add(e.target);else views.delete(e.target);});s.inView=views.size>0;sync();},{threshold:.2});observer.observe(el);var legacy=ch.querySelector('.tech-hero,#tlTrack');if(legacy)observer.observe(legacy);});
+var cache=states.find(function(s){return s.ch.id==='tech-loading';}),allCache=cache.paths;
+var cacheCases={recent:{paths:[0,3],steps:['相同查詢','找到有效答案','直接回覆手機'],text:'有效快取直接回覆，不讀取試算表。0.09秒為2026/10/07歷史API樣本。'},quiet:{paths:[0,3],steps:['前景快取已過期','找到有效背景備份','先回覆可用答案'],text:'背景整理可能先準備答案；是否可使用由備份年齡決定，與多久沒有訪客無直接關係。'},rare:{paths:[0,1,2],steps:['此日期沒有有效答案','回源讀取並整理','成功後存回與回覆'],text:'此例指定沒有有效答案；歷史查詢也可能命中快取，不能一概判成慢查詢。'},stale:{paths:[0,1,2],steps:['備份超過有效時間','回源重新核對','成功才顯示新結果'],text:'此例為回源成功；來源也失敗時顯示暫無可用資料，不能把過期值當成即時行情。'}};
+function cacheCase(key){var c=cacheCases[key];if(!c)return;cache.paths=c.paths.map(function(i){return allCache[i];});cache.time=0;allCache.forEach(function(p,i){p.style.opacity=c.paths.indexOf(i)>=0?'1':'.18';});cache.svg.querySelector('[data-book-node="2"]').style.opacity=c.paths.indexOf(1)>=0?'1':'.35';['loadAskStep','loadRouteStep','loadEndStep'].forEach(function(id,i){root.querySelector('#'+id).textContent=c.steps[i];});root.querySelector('#loadResult').textContent=c.text;}
+elements('[data-load-case]').forEach(function(b){b.addEventListener('click',function(){cacheCase(b.dataset.loadCase);});});cacheCase('recent');
+function offset(){var bottom=0;document.querySelectorAll('.topbar,.tabbar').forEach(function(el){var r=el.getBoundingClientRect();if(getComputedStyle(el).position==='sticky'&&r.top<r.height)bottom=Math.max(bottom,r.bottom);});return bottom+20;}
+function route(hash,focus){var key;try{key=decodeURIComponent((hash||'').replace(/^#/,''));}catch(e){key='';}if(key==='book-index'){closeDialogs();window.scrollTo(0,root.getBoundingClientRect().top+scrollY-offset());return;}var target=document.getElementById(aliases[key]||key),next=target&&target.closest('[data-chapter]');if(!next)next=active||chapters[0];closeDialogs();if(next.id!=='tech-harness'&&window.__techMap)window.__techMap.pause();active=next;chapters.forEach(function(ch){ch.hidden=ch!==next;});root.dataset.activeChapter=next.id;var num=Number(next.dataset.chapter);side.textContent=String(num).padStart(2,'0')+'／20　目錄';side.setAttribute('aria-label','第'+num+'章，開啟章節目錄');contents.querySelectorAll('a').forEach(function(a){if(a.hash==='#'+next.id)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});if(focus){var heading=next.querySelector('h2');heading.focus({preventScroll:true});var dest=target&&next.contains(target)&&target.getClientRects().length?target:next;window.scrollTo(0,dest.getBoundingClientRect().top+scrollY-offset());}root.dispatchEvent(new CustomEvent('stock-tech-chapter'));window.dispatchEvent(new Event('resize'));sync();}
+root.addEventListener('click',function(e){var go=e.target.closest('button[data-go]');if(go){history.pushState(null,'','#tech-overview');route('#tech-overview',false);}var a=e.target.closest('a[href^="#"]');if(!a||a.getAttribute('href')==='#')return;var key=a.getAttribute('href').slice(1);if(key!=='book-index'&&!document.getElementById(aliases[key]||key))return;e.preventDefault();e.stopPropagation();history.pushState(null,'','#'+key);route('#'+key,true);});
+function fromHistory(){if(routeQueued)return;routeQueued=true;requestAnimationFrame(function(){routeQueued=false;route(location.hash,true);});}addEventListener('popstate',fromHistory);addEventListener('hashchange',fromHistory);
+root.addEventListener('keydown',function(e){if(!e.target.closest('.book-pager')||e.ctrlKey||e.metaKey||e.shiftKey||e.altKey||modalOpen)return;if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;var n=chapters.indexOf(active)+(e.key==='ArrowLeft'?-1:1);if(n<0||n>=chapters.length)return;e.preventDefault();history.pushState(null,'','#'+chapters[n].id);route('#'+chapters[n].id,true);});
+var search=root.querySelector('#bookSearch'),results=root.querySelector('#bookSearchResults');search.addEventListener('input',function(){var q=search.value.trim().toLowerCase();results.replaceChildren();results.hidden=!q;if(!q)return;var found=chapters.filter(function(ch){return ch.textContent.toLowerCase().indexOf(q)>=0;});found.forEach(function(ch){var a=document.createElement('a');a.href='#'+ch.id;a.textContent=ch.dataset.chapter+' · '+ch.querySelector('h2').dataset.toc;results.appendChild(a);});if(!found.length)results.textContent='找不到相關章節，請換一個關鍵字。';});root.querySelector('#bookPrint').addEventListener('click',function(){window.print();});
+[['heroPlay','tech-start'],['tlPlay','tech-hold']].forEach(function(pair){var b=root.querySelector('#'+pair[0]),s=states.find(function(x){return x.ch.id===pair[1];});b.addEventListener('click',function(){s.paused=!s.paused;sync();});});
+elements('[data-budget]').forEach(function(b){b.addEventListener('click',function(){root.querySelector('#agentEvidence').style.setProperty('--book-budget',b.dataset.budget==='full'?'0.03083':'0.02594');});});elements('.load-row[data-secs]').forEach(function(row){var chart=row.closest('.load-chart'),max=Math.max.apply(null,Array.from(chart.querySelectorAll('[data-secs]')).map(function(r){return Number(r.dataset.secs);}));row.querySelector('i').style.setProperty('--book-scale',String(Number(row.dataset.secs)/max));});
+new MutationObserver(function(){sync();if(!panel.hidden)route(location.hash,false);}).observe(panel,{attributes:true,attributeFilter:['hidden']});document.addEventListener('visibilitychange',sync);reduced.addEventListener('change',sync);window.__techBookReveal=function(){route(location.hash,!!location.hash);};
+if(chapters.length!==20||new Set(chapters.map(function(ch){return ch.id;})).size!==20)throw new Error('Tech chapter manifest invalid');root.dataset.bookReady='true';route(location.hash,false);
 }
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initStory);else initStory();
+function safeInit(){try{initBook();}catch(e){document.querySelectorAll('[data-chapter]').forEach(function(ch){ch.hidden=false;});console.error('Tech book initialization failed',e);}}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',safeInit);else safeInit();
 })();
 </script>

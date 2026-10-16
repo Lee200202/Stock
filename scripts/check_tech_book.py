@@ -18,7 +18,7 @@ source=(ROOT/'public-site/gas-source/Tech.html').read_text(encoding='utf-8');sou
 inventory=json.loads((ROOT/'docs/1003-review/tech-redesign-20261016/tech-content-inventory.json').read_text(encoding='utf-8'))
 counts=Counter(n['data-content-id'] for n in soup.select('[data-content-id]'))
 assert all(counts[item['id']]==1 for item in inventory['items'])
-assert len(soup.select('[data-chapter]'))==20 and not soup.select('details')
+assert len(soup.select('[data-chapter]'))==19 and not soup.select('details')
 ids=[n['id'] for n in soup.select('[id]')];assert len(ids)==len(set(ids)),[i for i,n in Counter(ids).items() if n>1]
 server=None
 if options.url:url=options.url
@@ -37,6 +37,7 @@ with sync_playwright() as p:
  assert not errors,errors
  chapter_ids=page.locator('[data-chapter]').evaluate_all('(els)=>els.map(e=>e.id)')
  def go(id):
+  if id=='tech-day':id='tech-overview'
   page.locator('.book-tools [data-open-contents]').click();page.locator('#bookContents a[href="#'+id+'"]').click();assert page.locator('[data-chapter]:visible').count()==1
  # The original six-stage graph remains interactive, not a flattened screenshot.
  go('tech-overview');assert page.locator('#techFlow [data-flow]').count()==6
@@ -66,7 +67,7 @@ with sync_playwright() as p:
     metric['theme']=theme;results.append(metric)
     assert not metric['overflow'],metric
     assert metric['heading']>200,metric
-   print('layout',width,theme,'20 chapters PASS',flush=True)
+   print('layout',width,theme,'19 chapters PASS',flush=True)
  # All retained case controls must produce a distinct visible result.
  go('tech-transcript-progress');seen=set()
  for key in ['newer','same','cancel','pause','m503','trunc','gap','lock']:
@@ -90,7 +91,7 @@ with sync_playwright() as p:
  # Deep links and refresh preserve the active chapter.
  page.goto(url.split('#')[0]+'#toc-10',wait_until='domcontentloaded');page.wait_for_function("document.querySelector('.tech-book')?.dataset.activeChapter==='tech-transcript-progress'");page.reload();page.wait_for_function("document.querySelector('.tech-book')?.dataset.activeChapter==='tech-transcript-progress'")
  # Print reveals all chapters without changing screen routing.
- page.emulate_media(media='print');assert page.locator('[data-chapter]:visible').count()==20;page.emulate_media(media='screen')
+ page.emulate_media(media='print');assert page.locator('[data-chapter]:visible').count()==19;page.emulate_media(media='screen')
  # Search includes inactive chapters.
  page.locator('#bookSearch').fill('快取');assert page.locator('#bookSearchResults a').count()>0;page.locator('#bookSearch').fill('')
  for width in [1916,390]:

@@ -15,7 +15,11 @@ soup=BeautifulSoup(tech,'html.parser')
 inventory=json.loads((ROOT/'docs/1003-review/tech-redesign-20261016/tech-content-inventory.json').read_text(encoding='utf-8'))
 ids=Counter(n['data-content-id'] for n in soup.select('[data-content-id]'))
 assert all(ids[n['id']]==1 for n in inventory['items']), 'retained content missing/duplicated'
-assert len(soup.select('[data-chapter]'))==20
+assert len(soup.select('[data-chapter]'))==19
+assert soup.select_one('[data-tech-book]')['data-chapter-count']=='19'
+assert soup.select_one('#tech-day').find_parent(id='tech-overview')
+assert len(soup.select('#tech-overview .book-stage'))==2
+assert len(soup.select('#bookContents a'))==19
 assert not soup.select('#bookPrint,details')
 assert len(soup.select('#techFlow [data-flow]'))==6
 assert len(soup.select('#techCanvas [data-entity]'))>=34
@@ -41,12 +45,23 @@ assert not re.search(r'\b(fetch|XMLHttpRequest|google\.script\.run|setInterval)\
 assert 'IntersectionObserver' in evidence and 'document.hidden' in evidence
 assert 'prefers-reduced-motion' in evidence and 'data-ev-replay' in evidence
 assert 'getTotalLength' in evidence and 'getPointAtLength' in evidence
-assert 'reflow' in evidence and '0 0 440' in evidence
+assert 'data-mobile-viewbox' in tech
+assert 'data-illustration="bespoke"' in tech
+assert 'reflow' in evidence and 'mobileViewbox' in evidence
 assert "include('TechEvidence')" in (SRC/'Index.html').read_text(encoding='utf-8')
+illustrations=(SRC/'TechIllustrations.html').read_text(encoding='utf-8')
+assert "include('TechIllustrations')" in (SRC/'Index.html').read_text(encoding='utf-8')
+assert not re.search(r'\b(fetch|XMLHttpRequest|google\.script\.run|setInterval)\b',illustrations)
+assert '__techBookRefreshArt' in illustrations
+assert soup.select_one('#classificationBoundaries')
+assert soup.select_one('#voteBoundaryDetails')
+assert len(re.findall('三輪仍分歧',illustrations)) >= 1
+assert '已有部位例外' in illustrations
+assert '選一個情境，看這次會不會命中' not in tech
 # Syntax check every inline program changed by this release, without executing it.
-for name in ['Tech.html','StoryDesign.html','TechEvidence.html']:
+for name in ['Tech.html','StoryDesign.html','TechEvidence.html','TechIllustrations.html']:
     scripts=BeautifulSoup((SRC/name).read_text(encoding='utf-8'),'html.parser').find_all('script')
     for script in scripts:
         check=subprocess.run(['node'],input='new Function('+json.dumps(script.string or script.get_text())+');',capture_output=True,text=True,encoding='utf-8')
         assert check.returncode==0,(name,check.stderr)
-print(f'Tech evidence contract PASS: {len(inventory["items"])} retained content IDs, 20 chapters, 13 source cards, 20 SVGs, 3 interactive labs, 2 new screenshots')
+print(f'Tech evidence contract PASS: {len(inventory["items"])} retained content IDs, 19 chapters, 13 source cards, 20 SVGs, 3 interactive labs, 2 new screenshots')

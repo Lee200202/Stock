@@ -54,19 +54,14 @@
 (function(){'use strict';
 function init(){
 var root=document.querySelector('[data-tech-book]');if(!root)return;
-/* Reflow the actual vectors, not just their container: labels stay readable on phones. */
-var narrow=matchMedia('(max-width:760px)'),artwork=[];
-root.querySelectorAll('svg.book-art').forEach(function(svg){
- var nodes=Array.from(svg.querySelectorAll('[data-book-node]')),paths=Array.from(svg.querySelectorAll('[data-book-path]')),bg=svg.querySelector('rect');
- artwork.push({svg:svg,nodes:nodes,paths:paths,bg:bg,view:svg.getAttribute('viewBox'),size:[bg.getAttribute('width'),bg.getAttribute('height')],positions:nodes.map(function(n){return n.getAttribute('transform');}),routes:paths.map(function(p){return p.getAttribute('d');})});
-});
-function reflow(){artwork.forEach(function(a){
- var small=narrow.matches,cache=a.svg.closest('[data-chapter]').id==='tech-loading';
- a.svg.setAttribute('viewBox',small?'0 0 440 '+(cache?'900':'1040'):a.view);a.bg.setAttribute('width',small?'440':a.size[0]);a.bg.setAttribute('height',small?(cache?'900':'1040'):a.size[1]);
- a.nodes.forEach(function(n,i){n.setAttribute('transform',small?'translate(220,'+(125+i*250)+')':a.positions[i]);});
- a.paths.forEach(function(p,i){p.setAttribute('d',!small?a.routes[i]:cache?['M220 220V275','M220 470V525','M140 625C30 625 30 125 140 125','M300 375C410 375 410 125 300 125'][i]:'M220 '+(230+i*250)+' V'+(270+i*250));});
+/* Each illustration owns its phone layout; text is never hidden to fit. */
+var narrow=matchMedia('(max-width:760px)'),artwork=new WeakMap();
+function reflow(){root.querySelectorAll('svg.book-art').forEach(function(svg){
+ var a=artwork.get(svg);if(!a){a={view:svg.getAttribute('viewBox'),nodes:Array.from(svg.querySelectorAll('[data-book-node]')),paths:Array.from(svg.querySelectorAll('[data-book-path]'))};a.positions=a.nodes.map(function(n){return n.getAttribute('transform');});a.routes=a.paths.map(function(p){return p.getAttribute('d');});artwork.set(svg,a);}
+ var small=narrow.matches,view=small?svg.dataset.mobileViewbox:a.view;svg.setAttribute('viewBox',view);var dims=view.split(' '),bg=svg.querySelector('rect');bg.setAttribute('width',dims[2]);bg.setAttribute('height',dims[3]);
+ a.nodes.forEach(function(n,i){n.setAttribute('transform',small?n.dataset.mobileTransform:a.positions[i]);});a.paths.forEach(function(p,i){p.setAttribute('d',small?p.dataset.mobileD:a.routes[i]);});
 });}
-reflow();narrow.addEventListener('change',reflow);
+window.__techReflowArt=reflow;reflow();narrow.addEventListener('change',reflow);
 var data={
  candidate:{title:'候選名稱，如何成為可公開的個股？',intro:'點到股名只是候選；須核對公司身分、本股原句、當下立場與部位，才決定收錄。',label:'取自10/16已核對案例；流程為教學重組，非即時監控',cases:[
   ['只是比較','聯詠突破季線','3034 聯詠','明講沒有持有','只有比較分析','不列會員持股','沒有獨立當下立場時不列。不能把附近「這一隻是我的」接到已否認持有的聯詠。'],
@@ -88,22 +83,28 @@ var icons={doc:'M5 2h10l4 4v18H5zM15 2v5h5M8 12h8M8 17h8',clock:'M14 2a12 12 0 1
 function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function icon(type,x,y){return '<g class="ev-icon" transform="translate('+x+','+y+')"><path d="'+icons[type]+'"/></g>';}
 function graph(key,c,mobile){
- var coords=mobile?[[30,35],[30,205],[30,375]]:[[30,65],[350,65],[670,65]],w=mobile?380:260,h=135;
- var out='<svg class="evidence-svg '+(mobile?'ev-mobile':'ev-desktop')+'" viewBox="0 0 '+(mobile?'440 760':'960 400')+'" role="img" aria-label="'+esc(c[0]+'判定流程')+'">';
- if(key==='history'){out+='<path class="ev-line" d="'+(mobile?'M15 80V460':'M160 35H800')+'"/>';[0,1,2].forEach(function(i){out+='<circle cx="'+(mobile?15:160+i*320)+'" cy="'+(mobile?80+i*170:35)+'" r="5" fill="currentColor"/>';});}
+ var w=mobile?480:960,h=mobile?1140:690,coords=mobile?[[150,140],[330,470],[150,800]]:key==='fault'?[[170,145],[790,145],[480,410]]:key==='history'?[[250,140],[710,330],[250,510]]:[[170,160],[500,350],[800,160]];
+ var out='<svg class="evidence-svg '+(mobile?'ev-mobile':'ev-desktop')+'" viewBox="0 0 '+w+' '+h+'" role="img" aria-label="'+esc(c[0]+'的來源與判定關係')+'">';
+ var route=mobile?['M210 140H450V350Q450 380 330 380','M240 470H25V680Q25 710 150 710']:key==='fault'?['M230 145H730','M790 225Q790 410 545 410']:key==='history'?['M250 215V330H650','M710 405V510H310']:['M230 160Q350 160 430 300','M565 300Q700 160 737 160'];
+ route.forEach(function(d,i){out+='<path class="ev-line" data-ev-path="'+i+'" d="'+d+'"/>';});
+ if(key==='history')out+='<path class="ev-line" d="'+(mobile?'M40 80V1030':'M70 70V625')+'"/>';
  var labels=[[c[1],c[2]],[c[3],c[4]],[c[5],key==='fault'?'問題留底，不冒充通過':'依證據決定結果']];
- coords.forEach(function(p,i){
-  if(i<2){var next=coords[i+1],d=mobile?'M220 '+(p[1]+h)+' L220 '+next[1]:'M'+(p[0]+w)+' 132 L'+next[0]+' 132';out+='<path class="ev-line" data-ev-path="'+i+'" d="'+d+'"/>';}
-  out+='<g class="ev-step" data-ev-step="'+i+'"><rect class="ev-node" x="'+p[0]+'" y="'+p[1]+'" width="'+w+'" height="'+h+'" rx="18"/>'+icon(key==='history'&&i<2?'clock':i===0?'doc':i===1?'filter':key==='fault'?'stop':'check',p[0]+18,p[1]+18)+'<text x="'+(p[0]+58)+'" y="'+(p[1]+38)+'" font-size="16">0'+(i+1)+' '+(key==='history'?['來源日期','動作時點','處理結果']:['讀取來源','核對歸屬','決定去向'])[i]+'</text><text x="'+(p[0]+18)+'" y="'+(p[1]+80)+'" font-size="'+(mobile?'21':'20')+'" font-weight="600">'+esc(labels[i][0])+'</text><text x="'+(p[0]+18)+'" y="'+(p[1]+111)+'" font-size="16">'+esc(labels[i][1])+'</text></g>';
+ coords.forEach(function(pos,i){
+  var art;if(key==='candidate'&&i===1)art='<path class="ev-node" d="M-90-65H90L28 5V66L-28 45V5Z"/>';
+  else if(i===2&&key==='fault')art='<circle class="ev-block" r="64"/><path class="ev-icon" d="M-30-30L30 30M30-30L-30 30"/>';
+  else if(key==='history')art='<circle class="ev-node" r="64"/><path class="ev-icon" d="M0-40V0L30 18"/>';
+  else if(i===2)art='<circle class="ev-good" r="64"/><path class="ev-icon" d="M-30 0L-8 24L35-27"/>';
+  else art='<path class="ev-node" d="M-58-75H28L60-43V75H-58Z"/><path class="ev-icon" d="M28-75v32h32M-35-15h68M-35 12h68M-35 39h48"/>';
+  out+='<g class="ev-step" data-ev-step="'+i+'" transform="translate('+pos[0]+','+pos[1]+')">'+art+'<text text-anchor="middle" y="112" font-size="23" font-weight="600">'+esc(labels[i][0])+'</text><text text-anchor="middle" y="148" font-size="20">'+esc(labels[i][1])+'</text></g>';
+  if(key==='history')out+='<circle cx="'+(mobile?40:70)+'" cy="'+pos[1]+'" r="7" class="ev-marker"/>';
  });
- var y=mobile?565:250;
+ var y=mobile?1020:625;
  if(key==='fault'){
-  out+='<path class="ev-line" d="'+(mobile?'M220 510v35M220 545h-95v20M220 545h95v20':'M800 200v25H260v25M800 225v25')+'"/>';
-  [[mobile?30:30,mobile?175:520,'19筆通過','繼續整理文章','ev-good'],[mobile?235:610,mobile?175:320,'1筆問題','隔離留底','ev-block']].forEach(function(a,j){out+='<rect x="'+a[0]+'" y="'+y+'" width="'+a[1]+'" height="100" rx="18" class="'+a[4]+'"/><text x="'+(a[0]+18)+'" y="'+(y+38)+'" font-size="23" font-weight="600">'+a[2]+'</text><text x="'+(a[0]+18)+'" y="'+(y+73)+'" font-size="17">'+a[3]+'</text>';for(var n=0;n<(j?1:19);n++)out+='<rect x="'+(a[0]+18+n*(mobile?7:20))+'" y="'+(y+87)+'" width="5" height="7" rx="1" fill="'+(j?'#c27350':'currentColor')+'"/>';});
- }else{
-  out+='<path class="ev-line" d="'+(mobile?'M220 510v55':'M800 200v50')+'"/><rect class="ev-good" x="30" y="'+y+'" width="'+(mobile?380:900)+'" height="100" rx="18"/>'+icon('check',50,y+35)+'<text x="95" y="'+(y+42)+'" font-size="22" font-weight="600">'+(key==='candidate'?'身分正確 ≠ 已經成交':'來源優先 ≠ 見到買賣字就採用')+'</text><text x="95" y="'+(y+74)+'" font-size="16">'+(key==='candidate'?'還需本股、主體、日期與動作證據':'歷史成交、現況與寄送狀態分開')+'</text>';
- }
- return out+'<circle class="ev-marker" r="6" opacity="0"/></svg>';
+  out+='<text x="'+(mobile?100:260)+'" y="'+y+'" text-anchor="middle" font-size="23">19筆通過</text><text x="'+(mobile?370:700)+'" y="'+y+'" text-anchor="middle" font-size="23">1筆隔離</text>';
+  for(var i=0;i<19;i++)out+='<circle cx="'+((mobile?35:100)+(i%10)*(mobile?14:30))+'" cy="'+(y+25+Math.floor(i/10)*14)+'" r="4" fill="currentColor"/>';
+  out+='<circle cx="'+(mobile?370:700)+'" cy="'+(y+25)+'" r="8" fill="#c27350"/>';
+ }else out+='<text x="'+(w/2)+'" y="'+y+'" text-anchor="middle" font-size="22">'+(key==='candidate'?'身分正確 ≠ 已經成交':'歷史、當下立場、寄送分開記')+'</text>';
+ return out+'<circle class="ev-marker" r="7" opacity="0"/></svg>';
 }
 var states=[],raf=0,previous=0,reduce=matchMedia('(prefers-reduced-motion: reduce)');
 function eligible(s){return s.visible&&!s.paused&&!document.hidden&&!s.el.closest('[data-chapter]').hidden&&!document.querySelector('#p-tech').hidden&&!reduce.matches;}

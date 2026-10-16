@@ -1,6 +1,23 @@
 {
-  "version": "proposal-2026-10-16",
+  "version": "proposal-2026-10-16-merged-review",
   "kind": "design-specification-not-production-data",
+  "reviewIntegration": {
+    "source": "tech_doc_ui_ux_redesign_prompt.md",
+    "sourceChapterCount": 18,
+    "targetChapterCount": 20,
+    "decisions": "整合取捨與查證.md",
+    "requiredModules": [
+      {"chapter":"tech-start","module":"五站全景","rule":"五站職責同時可讀，放大與播放是補充"},
+      {"chapter":"tech-overview","module":"六類分群與維護區","rule":"概念群組，不新增表或暗示強制外鍵"},
+      {"chapter":"tech-overview","module":"八類鍵值關聯","rule":"影片、紀錄識別、代號、回合、績效、文章寄送、指紋進度、雙引擎"},
+      {"chapter":"tech-volume","module":"同口徑資料與速度圖","rule":"快照日期、集合重疊、API與畫面時間分開"},
+      {"chapter":"tech-loading","module":"局部UI與快取狀態","rule":"未命中不是失敗，TTL類型與備份層次不同"},
+      {"chapter":"tech-context","module":"19筆留存用量看板","rule":"不同請求最大值、累計、官方上限分開"},
+      {"chapter":"tech-harness","module":"harness職責對照","rule":"輸入、權限、工具、狀態與結果各自有負責者"},
+      {"chapter":"tech-names","module":"校正心得誤抄案例","rule":"出金城為勤誠、加折為嘉澤、連帽未確認；不得加正式別名"}
+    ],
+    "crossChapter": ["可點章節進度與單一目錄", "全章列印", "本機章節搜尋", "不搶控制元件的鍵盤操作"]
+  },
   "chapters": [
     {"id":"tech-start","title":"網站緣起與查詢","from":[".tech-intro"],"aliases":["toc-1"],"visual":"查詢畫面與三張問題圖卡"},
     {"id":"tech-overview","title":"資料來源與流向","from":["#tech-overview"],"aliases":["toc-2"],"visual":"來源、判讀、資料庫與輸出的非對稱系統圖"},

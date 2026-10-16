@@ -1,0 +1,1185 @@
+{
+  "tech189-local-mobile.json": [
+    {
+      "art": 1,
+      "clipped": [],
+      "id": "tech-start",
+      "overflow": false,
+      "width": 390
+    },
+    {
+      "art": 2,
+      "clipped": [],
+      "id": "tech-overview",
+      "overflow": false,
+      "width": 390
+    },
+    {
+      "art": 1,
+      "clipped": [],
+      "id": "tech-volume",
+      "overflow": false,
+      "width": 390
+    },
+    {
+      "art": 1,
+      "clipped": [],
+      "id": "tech-loading",
+      "overflow": false,
+      "width": 390
+    },
+    {
+      "art": 2,
+      "clipped": [],
+      "id": "tech-agent",
+      "overflow": false,
+      "width": 390
+    },
+    {
+      "art": 1,
+      "clipped": [],
+      "id": "tech-context",
+      "overflow": false,
+      "width": 390
+    },
+    {
+      "art": 1,
+      "clipped": [],
+      "id": "tech-harness",
+      "overflow": false,
+      "width": 390
+    },
+    {
+      "art": 1,
+      "clipped": [],
+      "id": "tech-names",
+      "overflow": false,
+      "width": 390
+    },
+    {
+      "art": 1,
+      "clipped": [],
+      "id": "tech-number",
+      "overflow": false,
+      "width": 390
+    },
+    {
+      "art": 1,
+      "clipped": [],
+      "id": "tech-unnamed",
+      "overflow": false,
+      "width": 390
+    },
+    {
+      "art": 1,
+      "clipped": [],
+      "id": "tech-subject",
+      "overflow": false,
+      "width": 390
+    },
+    {
+      "art": 1,
+      "clipped": [],
+      "id": "tech-verdict",
+      "overflow": false,
+      "width": 390
+    },
+    {
+      "art": 1,
+      "clipped": [],
+      "id": "tech-source-priority",
+      "overflow": false,
+      "width": 390
+    },
+    {
+      "art": 1,
+      "clipped": [],
+      "id": "tech-public-notes",
+      "overflow": false,
+      "width": 390
+    },
+    {
+      "art": 1,
+      "clipped": [],
+      "id": "tech-transcript-progress",
+      "overflow": false,
+      "width": 390
+    },
+    {
+      "art": 1,
+      "clipped": [],
+      "id": "tech-hold",
+      "overflow": false,
+      "width": 390
+    },
+    {
+      "art": 1,
+      "clipped": [],
+      "id": "tech-failure",
+      "overflow": false,
+      "width": 390
+    },
+    {
+      "art": 1,
+      "clipped": [],
+      "id": "tech-faq",
+      "overflow": false,
+      "width": 390
+    },
+    {
+      "art": 1,
+      "clipped": [],
+      "id": "tech-author",
+      "overflow": false,
+      "width": 390
+    }
+  ],
+  "tech189-local-desktop.json": [
+    {
+      "clipped": [],
+      "id": "tech-start",
+      "overflow": false,
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "id": "tech-overview",
+      "overflow": false,
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "id": "tech-volume",
+      "overflow": false,
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "id": "tech-loading",
+      "overflow": false,
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "id": "tech-agent",
+      "overflow": false,
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "id": "tech-context",
+      "overflow": false,
+      "width": 1440
+    },
+    {
+      "clipped": [
+        "由程式限制"
+      ],
+      "id": "tech-harness",
+      "overflow": false,
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "id": "tech-names",
+      "overflow": false,
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "id": "tech-number",
+      "overflow": false,
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "id": "tech-unnamed",
+      "overflow": false,
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "id": "tech-subject",
+      "overflow": false,
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "id": "tech-verdict",
+      "overflow": false,
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "id": "tech-source-priority",
+      "overflow": false,
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "id": "tech-public-notes",
+      "overflow": false,
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "id": "tech-transcript-progress",
+      "overflow": false,
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "id": "tech-hold",
+      "overflow": false,
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "id": "tech-failure",
+      "overflow": false,
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "id": "tech-faq",
+      "overflow": false,
+      "width": 1440
+    },
+    {
+      "clipped": [],
+      "id": "tech-author",
+      "overflow": false,
+      "width": 1440
+    }
+  ],
+  "tech189-local-wide.json": [
+    {
+      "clipped": [],
+      "id": "tech-start",
+      "overflow": false,
+      "w": 1916
+    },
+    {
+      "clipped": [],
+      "id": "tech-overview",
+      "overflow": false,
+      "w": 1916
+    },
+    {
+      "clipped": [],
+      "id": "tech-volume",
+      "overflow": false,
+      "w": 1916
+    },
+    {
+      "clipped": [],
+      "id": "tech-loading",
+      "overflow": false,
+      "w": 1916
+    },
+    {
+      "clipped": [],
+      "id": "tech-agent",
+      "overflow": false,
+      "w": 1916
+    },
+    {
+      "clipped": [],
+      "id": "tech-context",
+      "overflow": false,
+      "w": 1916
+    },
+    {
+      "clipped": [],
+      "id": "tech-harness",
+      "overflow": false,
+      "w": 1916
+    },
+    {
+      "clipped": [],
+      "id": "tech-names",
+      "overflow": false,
+      "w": 1916
+    },
+    {
+      "clipped": [],
+      "id": "tech-number",
+      "overflow": false,
+      "w": 1916
+    },
+    {
+      "clipped": [],
+      "id": "tech-unnamed",
+      "overflow": false,
+      "w": 1916
+    },
+    {
+      "clipped": [],
+      "id": "tech-subject",
+      "overflow": false,
+      "w": 1916
+    },
+    {
+      "clipped": [],
+      "id": "tech-verdict",
+      "overflow": false,
+      "w": 1916
+    },
+    {
+      "clipped": [],
+      "id": "tech-source-priority",
+      "overflow": false,
+      "w": 1916
+    },
+    {
+      "clipped": [],
+      "id": "tech-public-notes",
+      "overflow": false,
+      "w": 1916
+    },
+    {
+      "clipped": [],
+      "id": "tech-transcript-progress",
+      "overflow": false,
+      "w": 1916
+    },
+    {
+      "clipped": [],
+      "id": "tech-hold",
+      "overflow": false,
+      "w": 1916
+    },
+    {
+      "clipped": [],
+      "id": "tech-failure",
+      "overflow": false,
+      "w": 1916
+    },
+    {
+      "clipped": [],
+      "id": "tech-faq",
+      "overflow": false,
+      "w": 1916
+    },
+    {
+      "clipped": [],
+      "id": "tech-author",
+      "overflow": false,
+      "w": 1916
+    }
+  ],
+  "tech189-local-360.json": [
+    {
+      "clipped": [],
+      "id": "tech-start",
+      "overflow": false,
+      "w": 360
+    },
+    {
+      "clipped": [],
+      "id": "tech-overview",
+      "overflow": false,
+      "w": 360
+    },
+    {
+      "clipped": [],
+      "id": "tech-volume",
+      "overflow": false,
+      "w": 360
+    },
+    {
+      "clipped": [],
+      "id": "tech-loading",
+      "overflow": false,
+      "w": 360
+    },
+    {
+      "clipped": [],
+      "id": "tech-agent",
+      "overflow": false,
+      "w": 360
+    },
+    {
+      "clipped": [],
+      "id": "tech-context",
+      "overflow": false,
+      "w": 360
+    },
+    {
+      "clipped": [],
+      "id": "tech-harness",
+      "overflow": false,
+      "w": 360
+    },
+    {
+      "clipped": [],
+      "id": "tech-names",
+      "overflow": false,
+      "w": 360
+    },
+    {
+      "clipped": [],
+      "id": "tech-number",
+      "overflow": false,
+      "w": 360
+    },
+    {
+      "clipped": [],
+      "id": "tech-unnamed",
+      "overflow": false,
+      "w": 360
+    },
+    {
+      "clipped": [],
+      "id": "tech-subject",
+      "overflow": false,
+      "w": 360
+    },
+    {
+      "clipped": [],
+      "id": "tech-verdict",
+      "overflow": false,
+      "w": 360
+    },
+    {
+      "clipped": [],
+      "id": "tech-source-priority",
+      "overflow": false,
+      "w": 360
+    },
+    {
+      "clipped": [],
+      "id": "tech-public-notes",
+      "overflow": false,
+      "w": 360
+    },
+    {
+      "clipped": [],
+      "id": "tech-transcript-progress",
+      "overflow": false,
+      "w": 360
+    },
+    {
+      "clipped": [],
+      "id": "tech-hold",
+      "overflow": false,
+      "w": 360
+    },
+    {
+      "clipped": [],
+      "id": "tech-failure",
+      "overflow": false,
+      "w": 360
+    },
+    {
+      "clipped": [],
+      "id": "tech-faq",
+      "overflow": false,
+      "w": 360
+    },
+    {
+      "clipped": [],
+      "id": "tech-author",
+      "overflow": false,
+      "w": 360
+    }
+  ],
+  "tech189-definitions-desktop.json": [
+    {
+      "case": "第一票相同",
+      "chapter": "tech-verdict",
+      "clipped": [],
+      "w": 1440
+    },
+    {
+      "case": "兩票改觀望",
+      "chapter": "tech-verdict",
+      "clipped": [],
+      "w": 1440
+    },
+    {
+      "case": "三票跨分類",
+      "chapter": "tech-verdict",
+      "clipped": [],
+      "w": 1440
+    },
+    {
+      "case": "已有部位例外",
+      "chapter": "tech-verdict",
+      "clipped": [],
+      "w": 1440
+    },
+    {
+      "case": "引句無效",
+      "chapter": "tech-verdict",
+      "clipped": [],
+      "w": 1440
+    },
+    {
+      "case": "三輪仍分歧",
+      "chapter": "tech-verdict",
+      "clipped": [],
+      "w": 1440
+    },
+    {
+      "case": "票多也不造交易",
+      "chapter": "tech-verdict",
+      "clipped": [],
+      "w": 1440
+    },
+    {
+      "case": "當日買進",
+      "chapter": "tech-subject",
+      "clipped": [],
+      "w": 1440
+    },
+    {
+      "case": "只有可以買",
+      "chapter": "tech-subject",
+      "clipped": [],
+      "w": 1440
+    },
+    {
+      "case": "不要殺低",
+      "chapter": "tech-subject",
+      "clipped": [],
+      "w": 1440
+    },
+    {
+      "case": "歷史賣出、暫不買回",
+      "chapter": "tech-subject",
+      "clipped": [],
+      "w": 1440
+    },
+    {
+      "case": "今天部分賣出",
+      "chapter": "tech-subject",
+      "clipped": [],
+      "w": 1440
+    },
+    {
+      "case": "只有歷史回顧",
+      "chapter": "tech-subject",
+      "clipped": [],
+      "w": 1440
+    },
+    {
+      "case": "否認持有",
+      "chapter": "tech-subject",
+      "clipped": [],
+      "w": 1440
+    }
+  ],
+  "tech189-definitions-mobile.json": [
+    {
+      "case": "第一票相同",
+      "chapter": "tech-verdict",
+      "clipped": [],
+      "overflow": false,
+      "w": 390
+    },
+    {
+      "case": "兩票改觀望",
+      "chapter": "tech-verdict",
+      "clipped": [],
+      "overflow": false,
+      "w": 390
+    },
+    {
+      "case": "三票跨分類",
+      "chapter": "tech-verdict",
+      "clipped": [],
+      "overflow": false,
+      "w": 390
+    },
+    {
+      "case": "已有部位例外",
+      "chapter": "tech-verdict",
+      "clipped": [],
+      "overflow": false,
+      "w": 390
+    },
+    {
+      "case": "引句無效",
+      "chapter": "tech-verdict",
+      "clipped": [],
+      "overflow": false,
+      "w": 390
+    },
+    {
+      "case": "三輪仍分歧",
+      "chapter": "tech-verdict",
+      "clipped": [],
+      "overflow": false,
+      "w": 390
+    },
+    {
+      "case": "票多也不造交易",
+      "chapter": "tech-verdict",
+      "clipped": [],
+      "overflow": false,
+      "w": 390
+    },
+    {
+      "case": "當日買進",
+      "chapter": "tech-subject",
+      "clipped": [],
+      "overflow": false,
+      "w": 390
+    },
+    {
+      "case": "只有可以買",
+      "chapter": "tech-subject",
+      "clipped": [],
+      "overflow": false,
+      "w": 390
+    },
+    {
+      "case": "不要殺低",
+      "chapter": "tech-subject",
+      "clipped": [],
+      "overflow": false,
+      "w": 390
+    },
+    {
+      "case": "歷史賣出、暫不買回",
+      "chapter": "tech-subject",
+      "clipped": [],
+      "overflow": false,
+      "w": 390
+    },
+    {
+      "case": "今天部分賣出",
+      "chapter": "tech-subject",
+      "clipped": [],
+      "overflow": false,
+      "w": 390
+    },
+    {
+      "case": "只有歷史回顧",
+      "chapter": "tech-subject",
+      "clipped": [],
+      "overflow": false,
+      "w": 390
+    },
+    {
+      "case": "否認持有",
+      "chapter": "tech-subject",
+      "clipped": [],
+      "overflow": false,
+      "w": 390
+    }
+  ],
+  "tech189-local-cases.json": [
+    {
+      "choice": "只是比較",
+      "clipped": [],
+      "key": "candidate",
+      "result": "沒有獨立當下立場時不列。不能把附近「這一隻是我的」接到已否認持有的聯詠。"
+    },
+    {
+      "choice": "明確買點",
+      "clipped": [],
+      "key": "candidate",
+      "result": "向前的本股買點可以收錄；可買建議沒有成交證據，不建立今日買入或成本。"
+    },
+    {
+      "choice": "姓名／代號衝突",
+      "clipped": [],
+      "key": "candidate",
+      "result": "先對照正式公司名稱與代號；正名只解決身分，不能憑族群創高補出個股買賣立場。"
+    },
+    {
+      "choice": "跨股挪用",
+      "clipped": [],
+      "key": "fault",
+      "result": "10/13案例：不能把下一檔的4400→3900套到創意；該列留底，不公開，其餘通過者繼續。"
+    },
+    {
+      "choice": "歷史變今日",
+      "clipped": [],
+      "key": "fault",
+      "result": "歷史成交與當前立場分開。可保留有依據的「暫不買回」，不能新增今日賣出事件。"
+    },
+    {
+      "choice": "主體接錯",
+      "clipped": [],
+      "key": "fault",
+      "result": "10/14型態：對觀眾的續抱建議可形成觀望注意；不能據此宣稱講者或會員已持有。"
+    },
+    {
+      "choice": "回顧出場",
+      "clipped": [],
+      "key": "history",
+      "result": "「高點賣出者」是在回顧既有部位。若今日條件未到，可列觀望不碰，但不是今天賣出。"
+    },
+    {
+      "choice": "今日執行指令",
+      "clipped": [],
+      "key": "history",
+      "result": "當日通知須有明確執行指令；部分減碼保留剩餘持股，全數出場才關閉整個回合。"
+    },
+    {
+      "choice": "網站更正",
+      "clipped": [],
+      "key": "history",
+      "result": "網站與郵件查詢可同步更正；收件匣內的舊信不會自動改寫，也不因重跑網站而重寄。"
+    }
+  ],
+  "tech189-live-desktop.json": [
+    {
+      "broken": [],
+      "clipped": [],
+      "id": "tech-start",
+      "overflow": false,
+      "ready": "true",
+      "w": 1440
+    },
+    {
+      "broken": [],
+      "clipped": [],
+      "id": "tech-overview",
+      "overflow": false,
+      "ready": "true",
+      "w": 1440
+    },
+    {
+      "broken": [],
+      "clipped": [],
+      "id": "tech-volume",
+      "overflow": false,
+      "ready": "true",
+      "w": 1440
+    },
+    {
+      "broken": [
+        "2026 年 10 月 8 日正式站首頁載入完成，顯示當日分類與持股數字"
+      ],
+      "clipped": [],
+      "id": "tech-loading",
+      "overflow": false,
+      "ready": "true",
+      "w": 1440
+    },
+    {
+      "broken": [
+        "原文、切詞、詞彙表編號與向量位置的四階段互動介面"
+      ],
+      "clipped": [],
+      "id": "tech-agent",
+      "overflow": false,
+      "ready": "true",
+      "w": 1440
+    },
+    {
+      "broken": [],
+      "clipped": [],
+      "id": "tech-context",
+      "overflow": false,
+      "ready": "true",
+      "w": 1440
+    },
+    {
+      "broken": [],
+      "clipped": [],
+      "id": "tech-harness",
+      "overflow": false,
+      "ready": "true",
+      "w": 1440
+    },
+    {
+      "broken": [],
+      "clipped": [],
+      "id": "tech-names",
+      "overflow": false,
+      "ready": "true",
+      "w": 1440
+    },
+    {
+      "broken": [],
+      "clipped": [],
+      "id": "tech-number",
+      "overflow": false,
+      "ready": "true",
+      "w": 1440
+    },
+    {
+      "broken": [],
+      "clipped": [],
+      "id": "tech-unnamed",
+      "overflow": false,
+      "ready": "true",
+      "w": 1440
+    },
+    {
+      "broken": [],
+      "clipped": [],
+      "id": "tech-subject",
+      "overflow": false,
+      "ready": "true",
+      "w": 1440
+    },
+    {
+      "broken": [],
+      "clipped": [],
+      "id": "tech-verdict",
+      "overflow": false,
+      "ready": "true",
+      "w": 1440
+    },
+    {
+      "broken": [],
+      "clipped": [],
+      "id": "tech-source-priority",
+      "overflow": false,
+      "ready": "true",
+      "w": 1440
+    },
+    {
+      "broken": [],
+      "clipped": [],
+      "id": "tech-public-notes",
+      "overflow": false,
+      "ready": "true",
+      "w": 1440
+    },
+    {
+      "broken": [],
+      "clipped": [],
+      "id": "tech-transcript-progress",
+      "overflow": false,
+      "ready": "true",
+      "w": 1440
+    },
+    {
+      "broken": [
+        "神準的進場日期、進場價、目前價格與未實現報酬卡片"
+      ],
+      "clipped": [],
+      "id": "tech-hold",
+      "overflow": false,
+      "ready": "true",
+      "w": 1440
+    },
+    {
+      "broken": [],
+      "clipped": [],
+      "id": "tech-failure",
+      "overflow": false,
+      "ready": "true",
+      "w": 1440
+    },
+    {
+      "broken": [],
+      "clipped": [],
+      "id": "tech-faq",
+      "overflow": false,
+      "ready": "true",
+      "w": 1440
+    },
+    {
+      "broken": [],
+      "clipped": [],
+      "id": "tech-author",
+      "overflow": false,
+      "ready": "true",
+      "w": 1440
+    }
+  ],
+  "notes": [
+    "local-desktop first pass caught tool diagram label clipping; increased height to780 and rechecked; live-desktop final pass has no clipping",
+    "live screenshot checks at chapter entry can be pending due to lazy loading; opened all three image regions and verified widths2480,1249,1320"
+  ],
+  "tech189-live-mobile.json": [
+    {
+      "clipped": [],
+      "id": "tech-start",
+      "overflow": false,
+      "w": 390
+    },
+    {
+      "clipped": [],
+      "id": "tech-overview",
+      "overflow": false,
+      "w": 390
+    },
+    {
+      "clipped": [],
+      "id": "tech-volume",
+      "overflow": false,
+      "w": 390
+    },
+    {
+      "clipped": [],
+      "id": "tech-loading",
+      "overflow": false,
+      "w": 390
+    },
+    {
+      "clipped": [],
+      "id": "tech-agent",
+      "overflow": false,
+      "w": 390
+    },
+    {
+      "clipped": [],
+      "id": "tech-context",
+      "overflow": false,
+      "w": 390
+    },
+    {
+      "clipped": [],
+      "id": "tech-harness",
+      "overflow": false,
+      "w": 390
+    },
+    {
+      "clipped": [],
+      "id": "tech-names",
+      "overflow": false,
+      "w": 390
+    },
+    {
+      "clipped": [],
+      "id": "tech-number",
+      "overflow": false,
+      "w": 390
+    },
+    {
+      "clipped": [],
+      "id": "tech-unnamed",
+      "overflow": false,
+      "w": 390
+    },
+    {
+      "clipped": [],
+      "id": "tech-subject",
+      "overflow": false,
+      "w": 390
+    },
+    {
+      "clipped": [],
+      "id": "tech-verdict",
+      "overflow": false,
+      "w": 390
+    },
+    {
+      "clipped": [],
+      "id": "tech-source-priority",
+      "overflow": false,
+      "w": 390
+    },
+    {
+      "clipped": [],
+      "id": "tech-public-notes",
+      "overflow": false,
+      "w": 390
+    },
+    {
+      "clipped": [],
+      "id": "tech-transcript-progress",
+      "overflow": false,
+      "w": 390
+    },
+    {
+      "clipped": [],
+      "id": "tech-hold",
+      "overflow": false,
+      "w": 390
+    },
+    {
+      "clipped": [],
+      "id": "tech-failure",
+      "overflow": false,
+      "w": 390
+    },
+    {
+      "clipped": [],
+      "id": "tech-faq",
+      "overflow": false,
+      "w": 390
+    },
+    {
+      "clipped": [],
+      "id": "tech-author",
+      "overflow": false,
+      "w": 390
+    }
+  ],
+  "tech189-live-definitions.json": [
+    {
+      "case": "當日買進",
+      "clipped": [],
+      "paused": true,
+      "text": "已完成的本人／會員當日交易才建立成交事件；影片候選仍要經原句與AI事實覆核。有效當日操作通知可依明確執行指令記錄，但「如果想買者可以買」只是建議。",
+      "w": 390
+    },
+    {
+      "case": "只有可以買",
+      "clipped": [],
+      "paused": true,
+      "text": "可辨認的買點、條件或向前技術訊號支持注意；不必要求講者已經買入。沒有成交或持有證據，就不建立成本、交易與持有回合。",
+      "w": 390
+    },
+    {
+      "case": "不要殺低",
+      "clipped": [],
+      "paused": true,
+      "text": "反對賣出不能反讀成禁止買進，也不能推成今天已買。若只是教學例子、沒有本股當下進場立場，可不公開；如另有本股買點，再依證據列注意。",
+      "w": 390
+    },
+    {
+      "case": "歷史賣出、暫不買回",
+      "clipped": [],
+      "paused": true,
+      "text": "歷史成交不移到今天。現在的暫不買回是獨立立場；若過去只賣部分，剩餘持股仍可保留，兩則說明分別對應持有部位與已賣部分。",
+      "w": 390
+    },
+    {
+      "case": "今天部分賣出",
+      "clipped": [],
+      "paused": true,
+      "text": "賣出事件與持有狀態可同時成立。只處理被指明的部位；全數出場才關閉整個回合，不能因「賣出」兩字把全檔平倉。",
+      "w": 390
+    },
+    {
+      "case": "只有歷史回顧",
+      "clipped": [],
+      "paused": true,
+      "text": "回顧是時間屬性，不是固定的偏多或偏空分類。今天若另有新的本股買點，仍可列注意；今天明講禁買則列不碰；只有過去績效、行情或類比，保留原稿即可。",
+      "w": 390
+    },
+    {
+      "case": "否認持有",
+      "clipped": [],
+      "paused": true,
+      "text": "「沒有持有」不等於「不能買」。不能把鄰句的乙股部位接到甲股；若甲股另有向前技術條件，仍可列注意，只有報價或比較則不強行收錄。",
+      "w": 390
+    },
+    {
+      "case": "第一票相同",
+      "clipped": [],
+      "paused": true,
+      "text": "1張可用票與流程一致，可停止本輪詢問。這是既有結果和一次事實覆核相符，不表示模型永遠正確。",
+      "w": 390
+    },
+    {
+      "case": "兩票改觀望",
+      "clipped": [],
+      "paused": true,
+      "text": "注意與不碰互換，須至少兩張有效票支持同一方向。每張都必須附本股、同一語境與有效原句；無效票不當作反對票，也不當作支持票。",
+      "w": 390
+    },
+    {
+      "case": "三票跨分類",
+      "clipped": [],
+      "paused": true,
+      "text": "一般跨公開／不公開或涉及部位的改列，需要三張有效票一致。這是風險門檻；投票仍不能創造沒有證據的成交、成本或部位。",
+      "w": 390
+    },
+    {
+      "case": "已有部位例外",
+      "clipped": [],
+      "paused": true,
+      "text": "紀錄已支持未出場部位時，兩張有效票支持持股可定案；硬紀錄本身不交模型反覆重擲。若本股原文明講沒有持有，仍須核對反證，不套用鄰股部位。",
+      "w": 390
+    },
+    {
+      "case": "引句無效",
+      "clipped": [],
+      "paused": true,
+      "text": "引句不存在、越過本股可引用區、主體不符或把否定讀反，都不能算有效票。重問三次也不會讓錯引句變真；缺乏支持的爭議列隔離留底。",
+      "w": 390
+    },
+    {
+      "case": "三輪仍分歧",
+      "clipped": [],
+      "paused": true,
+      "text": "最多三輪後仍未達門檻，標記未定。不是一律保留或一律刪除：原稿有有效本股向前條件可保留注意；沒有公開支持的爭議列不公開，其他已核對列繼續。",
+      "w": 390
+    },
+    {
+      "case": "票多也不造交易",
+      "clipped": [],
+      "paused": true,
+      "text": "即使票數偏向買入或賣出，也不能取代本人／會員、當日、已執行與本股原句核對。當日通知優先的是原文支持的有效指令，不是錯誤的解析列。",
+      "w": 390
+    }
+  ],
+  "tech189-live-model-cases.json": [
+    {
+      "choice": "context",
+      "clipped": [],
+      "title": "單次輸入占3.08%，累計19次不等於同時占用",
+      "tokenVisible": false,
+      "visible": true
+    },
+    {
+      "choice": "tokens",
+      "clipped": [],
+      "title": "從文字到模型輸入：切分、編號與向量是不同層次",
+      "tokenVisible": true,
+      "visible": false
+    },
+    {
+      "choice": "infer",
+      "clipped": [],
+      "title": "生成逐步選擇下一個token，不等於查詢資料庫",
+      "tokenVisible": false,
+      "visible": true
+    },
+    {
+      "choice": "tools",
+      "clipped": [],
+      "title": "控制程式居中調度，模型與工具以結果反覆交接",
+      "tokenVisible": false,
+      "visible": true
+    },
+    {
+      "choice": "fault",
+      "clipped": [],
+      "title": "完成片段留下檢查點，錯誤列走隔離支線",
+      "tokenVisible": false,
+      "visible": true
+    },
+    {
+      "choice": "swap",
+      "clipped": [],
+      "title": "模型可替換，工具契約與來源證據不跟著改",
+      "tokenVisible": false,
+      "visible": true
+    }
+  ],
+  "tech189-source-parity.json": {
+    "version": 490,
+    "source_commit": "dee442cb7b3dd6cfde5806bd5285298af8d644fa",
+    "checked": 37,
+    "differs": [],
+    "cloud_files": 44
+  },
+  "productionImages": [
+    {
+      "name": "tech-load-overview-20261008.jpg",
+      "naturalWidth": 2480
+    },
+    {
+      "name": "tech-tokenization-20261016.png",
+      "naturalWidth": 1249
+    },
+    {
+      "name": "tech-holding-round-20261016.png",
+      "naturalWidth": 1320
+    }
+  ],
+  "deployment": {
+    "appsScript": 490,
+    "build": "2026-10-16-tech-illustrations-v189",
+    "pagesRun": 38916574773,
+    "sourceCommit": "dee442cb7b3dd6cfde5806bd5285298af8d644fa",
+    "webAppBrowser": "Google: 很抱歉，目前無法開啟這個檔案。",
+    "historyDiagram": {
+      "fixedDates": 3,
+      "movingPackets": 1
+    }
+  }
+}

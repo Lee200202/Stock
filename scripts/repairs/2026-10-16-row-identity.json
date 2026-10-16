@@ -1,0 +1,40 @@
+{
+  "date": "2026/10/16",
+  "video_id": "fstsBmqQESI",
+  "raw_sha256": "e15b545398c6760e095137d7710f40a45f00b7442460e1b18e99ef055a89dc0e",
+  "authorization": "管理者確認四筆非有意新增，同意移除錯位資料並重新套用。2026/10/16。",
+  "rows": [
+    {
+      "sheet": "會員持股",
+      "code": "2303",
+      "name": "聯電",
+      "class": "會員持股",
+      "reason_sha256": "05c123ffbfdaaa10c7f8f6821b530bfc5e74acd98e8b203499540f6a9cf9f467",
+      "foreign_subject": "台積電"
+    },
+    {
+      "sheet": "會員持股",
+      "code": "2605",
+      "name": "新興",
+      "class": "會員持股",
+      "reason_sha256": "43c98531dc113859c7ab7b4ce39147ee092ccd766b95b0130bc9813ced7e9bf7",
+      "foreign_subject": "力積電"
+    },
+    {
+      "sheet": "會員持股",
+      "code": "1717",
+      "name": "長興",
+      "class": "會員持股",
+      "reason_sha256": "c43220d59325f5f91705b63d5542e7d6148f3a510a9432b5f191889a67f5c599",
+      "foreign_subject": "瑞鼎"
+    },
+    {
+      "sheet": "操作紀錄",
+      "code": "4961",
+      "name": "天鈺",
+      "class": "觀望注意",
+      "reason_sha256": "c4edb75330f31bfe787a45a270f25293acda0c0c2d4a362389c115a5116dba08",
+      "foreign_subject": "敦泰"
+    }
+  ]
+}

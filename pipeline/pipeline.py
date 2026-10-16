@@ -8748,6 +8748,17 @@ def _unsupported_note_time(note, row, transcript):
     return [term for term in claimed if normalized(term) not in (near if re.match(r'下|明', term) else wide)]
 
 
+def _alt_amount_conflict(note) -> bool:
+    """「每張5、6百萬元（或5、6百元）」：括號裡換了單位，不能猜是哪一個。前後同一個單位只是換個說法，不算
+    （2026/10/16 鴻海「跌破240元（或230幾元）」被整檔隔離）。"""
+    unit = lambda u: '元' if u in ('元', '塊') else u
+    for m in re.finditer(r'（或[^）]{0,30}?(百萬元|萬元|百元|元)）', str(note or '')):
+        before = re.search(r'(百萬元|萬元|百元|元|塊)\s*$', note[:m.start()])
+        if not before or unit(before.group(1)) != unit(m.group(1)):
+            return True
+    return bool(re.search(r'\d[、，]\d[^。；]{0,12}萬元（或', str(note or '')))
+
+
 def _extreme_note_level(note, row):
     """Flag an impossible-looking *price level* when this row has a price.
 
@@ -8803,7 +8814,7 @@ def quality_overview(signals, transcript='', check_chapters=True):
             hard.append(f'{name} 列觀望不碰，但這一檔自己沒有偏空說法，否定的是前一句的別家')
         if spoken_fragment(note):
             hard.append(f'{name} 的說明是口語殘句：{note[:30]}')
-        if re.search(r'（或[^）]{0,30}(?:元|萬元)）|\d[、，]\d[^。；]{0,12}萬元（或', note):
+        if _alt_amount_conflict(note):
             hard.append(f'{name} 的金額有兩個互相矛盾的單位，不能猜測發布：{note[:55]}')
         if re.search(r'(?:每|一)張[^。；]{0,30}萬元[^。；]{0,12}(?:及|和|與)\s*\d[、，]\d\s*百元', note):
             hard.append(f'{name} 的每張獲利混入未標示單位的百元數字：{note[:55]}')

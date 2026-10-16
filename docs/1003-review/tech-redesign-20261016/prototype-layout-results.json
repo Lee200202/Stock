@@ -1,0 +1,272 @@
+[
+  {
+    "missingImages": 0,
+    "overflow": false,
+    "page": "#cache",
+    "smallControls": 0,
+    "theme": "light",
+    "visible": 1,
+    "width": 360
+  },
+  {
+    "missingImages": 0,
+    "overflow": false,
+    "page": "#agent",
+    "smallControls": 0,
+    "theme": "light",
+    "visible": 1,
+    "width": 360
+  },
+  {
+    "missingImages": 0,
+    "overflow": false,
+    "page": "#guide",
+    "smallControls": 0,
+    "theme": "light",
+    "visible": 1,
+    "width": 360
+  },
+  {
+    "missingImages": 0,
+    "overflow": false,
+    "page": "#cache",
+    "smallControls": 0,
+    "theme": "dark",
+    "visible": 1,
+    "width": 360
+  },
+  {
+    "missingImages": 0,
+    "overflow": false,
+    "page": "#agent",
+    "smallControls": 0,
+    "theme": "dark",
+    "visible": 1,
+    "width": 360
+  },
+  {
+    "missingImages": 0,
+    "overflow": false,
+    "page": "#guide",
+    "smallControls": 0,
+    "theme": "dark",
+    "visible": 1,
+    "width": 360
+  },
+  {
+    "missingImages": 0,
+    "overflow": false,
+    "page": "#cache",
+    "smallControls": 0,
+    "theme": "light",
+    "visible": 1,
+    "width": 390
+  },
+  {
+    "missingImages": 0,
+    "overflow": false,
+    "page": "#agent",
+    "smallControls": 0,
+    "theme": "light",
+    "visible": 1,
+    "width": 390
+  },
+  {
+    "missingImages": 0,
+    "overflow": false,
+    "page": "#guide",
+    "smallControls": 0,
+    "theme": "light",
+    "visible": 1,
+    "width": 390
+  },
+  {
+    "missingImages": 0,
+    "overflow": false,
+    "page": "#cache",
+    "smallControls": 0,
+    "theme": "dark",
+    "visible": 1,
+    "width": 390
+  },
+  {
+    "missingImages": 0,
+    "overflow": false,
+    "page": "#agent",
+    "smallControls": 0,
+    "theme": "dark",
+    "visible": 1,
+    "width": 390
+  },
+  {
+    "missingImages": 0,
+    "overflow": false,
+    "page": "#guide",
+    "smallControls": 0,
+    "theme": "dark",
+    "visible": 1,
+    "width": 390
+  },
+  {
+    "missingImages": 0,
+    "overflow": false,
+    "page": "#cache",
+    "smallControls": 0,
+    "theme": "light",
+    "visible": 1,
+    "width": 768
+  },
+  {
+    "missingImages": 0,
+    "overflow": false,
+    "page": "#agent",
+    "smallControls": 0,
+    "theme": "light",
+    "visible": 1,
+    "width": 768
+  },
+  {
+    "missingImages": 0,
+    "overflow": false,
+    "page": "#guide",
+    "smallControls": 0,
+    "theme": "light",
+    "visible": 1,
+    "width": 768
+  },
+  {
+    "missingImages": 0,
+    "overflow": false,
+    "page": "#cache",
+    "smallControls": 0,
+    "theme": "dark",
+    "visible": 1,
+    "width": 768
+  },
+  {
+    "missingImages": 0,
+    "overflow": false,
+    "page": "#agent",
+    "smallControls": 0,
+    "theme": "dark",
+    "visible": 1,
+    "width": 768
+  },
+  {
+    "missingImages": 0,
+    "overflow": false,
+    "page": "#guide",
+    "smallControls": 0,
+    "theme": "dark",
+    "visible": 1,
+    "width": 768
+  },
+  {
+    "missingImages": 0,
+    "overflow": false,
+    "page": "#cache",
+    "smallControls": 0,
+    "theme": "light",
+    "visible": 1,
+    "width": 1440
+  },
+  {
+    "missingImages": 0,
+    "overflow": false,
+    "page": "#agent",
+    "smallControls": 0,
+    "theme": "light",
+    "visible": 1,
+    "width": 1440
+  },
+  {
+    "missingImages": 0,
+    "overflow": false,
+    "page": "#guide",
+    "smallControls": 0,
+    "theme": "light",
+    "visible": 1,
+    "width": 1440
+  },
+  {
+    "missingImages": 0,
+    "overflow": false,
+    "page": "#cache",
+    "smallControls": 0,
+    "theme": "dark",
+    "visible": 1,
+    "width": 1440
+  },
+  {
+    "missingImages": 0,
+    "overflow": false,
+    "page": "#agent",
+    "smallControls": 0,
+    "theme": "dark",
+    "visible": 1,
+    "width": 1440
+  },
+  {
+    "missingImages": 0,
+    "overflow": false,
+    "page": "#guide",
+    "smallControls": 0,
+    "theme": "dark",
+    "visible": 1,
+    "width": 1440
+  },
+  {
+    "missingImages": 0,
+    "overflow": false,
+    "page": "#cache",
+    "smallControls": 0,
+    "theme": "light",
+    "visible": 1,
+    "width": 1916
+  },
+  {
+    "missingImages": 0,
+    "overflow": false,
+    "page": "#agent",
+    "smallControls": 0,
+    "theme": "light",
+    "visible": 1,
+    "width": 1916
+  },
+  {
+    "missingImages": 0,
+    "overflow": false,
+    "page": "#guide",
+    "smallControls": 0,
+    "theme": "light",
+    "visible": 1,
+    "width": 1916
+  },
+  {
+    "missingImages": 0,
+    "overflow": false,
+    "page": "#cache",
+    "smallControls": 0,
+    "theme": "dark",
+    "visible": 1,
+    "width": 1916
+  },
+  {
+    "missingImages": 0,
+    "overflow": false,
+    "page": "#agent",
+    "smallControls": 0,
+    "theme": "dark",
+    "visible": 1,
+    "width": 1916
+  },
+  {
+    "missingImages": 0,
+    "overflow": false,
+    "page": "#guide",
+    "smallControls": 0,
+    "theme": "dark",
+    "visible": 1,
+    "width": 1916
+  }
+]

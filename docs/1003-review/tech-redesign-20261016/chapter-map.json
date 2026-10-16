@@ -1,0 +1,33 @@
+{
+  "version": "proposal-2026-10-16",
+  "kind": "design-specification-not-production-data",
+  "chapters": [
+    {"id":"tech-start","title":"網站緣起與查詢","from":[".tech-intro"],"aliases":["toc-1"],"visual":"查詢畫面與三張問題圖卡"},
+    {"id":"tech-overview","title":"資料來源與流向","from":["#tech-overview"],"aliases":["toc-2"],"visual":"來源、判讀、資料庫與輸出的非對稱系統圖"},
+    {"id":"tech-day","title":"單日處理時間線","from":["#tech-day"],"aliases":["toc-5"],"visual":"兩條來源時間線與背景工作區"},
+    {"id":"tech-volume","title":"資料規模與首屏","from":["#tech-loading .load-stats","#tech-loading .load-charts","#tech-loading .load-evidence"],"aliases":[],"visual":"資料堆疊切片、同尺度實測橫條及本站截圖"},
+    {"id":"tech-loading","title":"快取查詢與更新","from":["#tech-loading 其餘定義、情境、有效期、來源與限制"],"aliases":["toc-3"],"visual":"手機、快取及試算表空間圖與正確分支動畫"},
+    {"id":"tech-agent","title":"模型輸入與切詞","from":["#tech-agent AI 入門與 tokenization"],"aliases":["toc-4"],"visual":"原句、token、編號與向量的對應圖；示意與實測分開"},
+    {"id":"tech-context","title":"模型容量與用量","from":["#tech-agent context、countTokens、實際模型與用量"],"aliases":[],"visual":"單次上下文、輸入與輸出分開的比例圖"},
+    {"id":"tech-harness","title":"代理推論與工具","from":["#tech-agent inference、harness、模型／工具分工及依據連結"],"aliases":[],"visual":"原稿視窗、控制程式與工具回覆三視窗舞台"},
+    {"id":"tech-names","title":"股名辨識與校字","from":["#tech-names"],"aliases":["toc-6"],"visual":"原始名稱、候選比對與唯一確認的成對卡"},
+    {"id":"tech-number","title":"數字單位與歸屬","from":["#tech-number"],"aliases":["toc-8"],"visual":"句中數字標註與單位分類盤"},
+    {"id":"tech-unnamed","title":"匿名個股與證據","from":["#tech-unnamed"],"aliases":["toc-9"],"visual":"候選漏斗與唯一／兩檔／無符合的並列結果"},
+    {"id":"tech-subject","title":"操作主體與分類","from":["#tech-subject 主體語氣案例與六類定義"],"aliases":["toc-7"],"visual":"主體／日期／動作卡與獨立部位、進場立場雙軸"},
+    {"id":"tech-verdict","title":"分類裁決與證據","from":["#classDefinitions .cd-votes 及對應例外與來源"],"aliases":[],"visual":"有效票、無效票、1／2／3 票與單檔隔離"},
+    {"id":"tech-source-priority","title":"多來源操作合併","from":["#tech-source-priority"],"aliases":["toc-11"],"visual":"兩路資料合併、完整／部分出場與剩餘部位"},
+    {"id":"tech-public-notes","title":"公開說明與核對","from":["#tech-public-notes"],"aliases":["toc-12"],"visual":"原句、核對標記與書面成稿的局部放大圖"},
+    {"id":"tech-transcript-progress","title":"原稿版本與續跑","from":["#tech-transcript-progress"],"aliases":["toc-10"],"visual":"指紋卡、檢查點與舊稿拒寫分支"},
+    {"id":"tech-hold","title":"持股回合與績效","from":["#tech-hold"],"aliases":["toc-13"],"visual":"日期軸、進出場與剩餘持股；算式與取價依據"},
+    {"id":"tech-failure","title":"故障恢復與限制","from":["#tech-failure","#tech-limit"],"aliases":["toc-14","tech-limit","toc-15"],"visual":"等待／失敗／隔離／完成分支與能力邊界"},
+    {"id":"tech-faq","title":"常見問題與改進","from":["#tech-open","#tech-faq"],"aliases":["tech-open","toc-16","toc-17"],"visual":"問題卡、已解／未解與直接可讀答案"},
+    {"id":"tech-author","title":"作者資訊與聲明","from":["#tech-author","現行第三方聲明與風險聲明"],"aliases":["toc-18"],"visual":"作者聯絡向量卡、來源與聲明；保持靜態"}
+  ],
+  "migration": {
+    "required": "執行 AI 必須再產生逐段 content-id 與案例／連結／來源／指標盤點，驗證每項且僅一次落到新章。from 中的文字是內容分配說明，不可直接當 CSS selector。",
+    "noContentDeletion": true,
+    "defaultVisibleChaptersWithJS": 1,
+    "noJavaScript": "所有章節完整可讀，正常錨點跳轉",
+    "previousNext": "每章頁尾橢圓連結，帶章名；首尾提供章節總覽，不自動循環跳章"
+  }
+}

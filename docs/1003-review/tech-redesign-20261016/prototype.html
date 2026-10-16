@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>盤勢有據｜技術頁改版互動原型</title><link rel="stylesheet" href="prototype.css"><script src="prototype.js" defer></script></head>
+<body>
+<svg class="icons" aria-hidden="true"><defs>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+<symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+<symbol id="i-left" viewBox="0 0 24 24"><path d="m12 5-7 7 7 7M5 12h15" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+<symbol id="i-right" viewBox="0 0 24 24"><path d="m12 5 7 7-7 7M19 12H4" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+<symbol id="i-up" viewBox="0 0 24 24"><path d="m5 12 7-7 7 7M12 5v15" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+</defs></svg>
+<a class="skip" href="#content">跳至章節內容</a>
+<div class="wrap">
+<header class="header" id="top"><div class="brand">盤勢有據<small>技術說明改版 · 3 頁互動原型，正式規格共 20 章</small></div><button id="theme" class="only-js" aria-label="切換深淺主題">切換深淺</button></header>
+<div class="intro"><span class="eyebrow">閱讀方式提案 / 2026.10.16</span><h1>每次讀懂一件事，再往下一章。</h1><p>圖解先回答問題；必要規則直接可讀。點圖卡，才打開更大的圖像與深入說明。</p></div>
+<nav class="chapter-links" aria-label="原型章節"><a href="#cache">快取查詢與更新</a><a href="#agent">代理推論與工具</a><a href="#guide">章節導覽與規格</a></nav>
+<main id="content">
+<section class="chapter" id="cache" aria-labelledby="cache-title">
+<header><span class="eyebrow">正式規格第 05 章 · 圖形移動為本機示範，非即時 API</span><h2 id="cache-title" tabindex="-1">已有答案時，為什麼不用再讀試算表？</h2><p>先查仍有效的答案；沒有可用答案時，才回到資料來源整理。</p></header>
+<div class="stage" id="cache-stage">
+<div class="canvas"><svg class="cache-diagram" id="cache-svg" viewBox="0 0 780 480" role="img" aria-labelledby="flow-title flow-desc" data-case="hit">
+<title id="flow-title">手機、快取與資料來源的分支圖</title><desc id="flow-desc">有效快取直接回到手機；沒有有效答案時才讀取右下方的試算表。動畫速度僅供閱讀。</desc>
+<path class="route" id="request" d="M260 170 C350 170 350 110 480 110"/>
+<path class="route" id="return" d="M480 160 C350 160 370 270 260 270"/>
+<path class="route" id="source" d="M650 190 C760 220 760 280 650 290"/>
+<path class="route" id="store" d="M520 290 C425 260 425 225 520 190"/>
+<g><rect class="device" x="70" y="65" width="190" height="350" rx="30"/><rect class="surface" x="87" y="102" width="156" height="260" rx="14"/><path d="M130 84h70" stroke="#6d8c7b" stroke-width="5" stroke-linecap="round"/><circle cx="165" cy="389" r="8" fill="#6d8c7b"/><text x="165" y="154" text-anchor="middle">手機查詢</text><rect x="106" y="185" width="118" height="56" rx="14" fill="#b0d7be"/><text x="165" y="220" text-anchor="middle">整理結果</text><path d="M110 275h110M110 296h84M110 317h98" stroke="#6d8c7b" stroke-width="6" stroke-linecap="round"/></g>
+<g><rect class="device" x="480" y="75" width="230" height="115" rx="25"/><rect class="surface" x="498" y="92" width="42" height="42" rx="10"/><path d="M508 111h22M508 119h17" stroke="#387255" stroke-width="3"/><text x="557" y="120">快取答案</text><text class="minor" x="505" y="163">查詢相同 + 有效時間內</text></g>
+<g class="sheet"><rect class="device" x="480" y="290" width="230" height="142" rx="25"/><text x="595" y="326" text-anchor="middle">試算表資料</text><rect class="surface" x="505" y="342" width="180" height="65" rx="7"/><path d="M505 364h180M505 386h180M555 342v65M620 342v65" fill="none" stroke="#6d8c7b" stroke-width="2"/></g>
+<g class="mobile-names"><text x="92" y="153" text-anchor="middle">手機</text><text x="285" y="97" text-anchor="middle">快取</text><text x="285" y="265" text-anchor="middle">試算表</text></g>
+<circle class="traveller" id="traveller" r="9"/>
+</svg></div>
+<div class="stage-copy"><h3 id="case-heading">有效快取</h3><p class="lead" id="case-result">直接回覆已整理的答案。</p><p class="small" id="case-detail">手機 → 快取 → 手機，不讀試算表。</p>
+<div class="choices only-js" aria-label="選擇查詢情境"><button data-case="hit" aria-pressed="true">有效快取</button><button data-case="backup" aria-pressed="false">背景備份</button><button data-case="history" aria-pressed="false">歷史日期</button><button data-case="expired" aria-pressed="false">備份過期</button></div>
+<div class="motion-controls only-js"><button id="pause">暫停圖解</button><button id="replay">再播圖解</button></div><p class="flow-note" id="flow-note">命中快取：查詢已有存好的答案，而且仍在有效時間內。</p></div>
+</div>
+<section class="section-block" aria-labelledby="three-rules"><h3 id="three-rules">三個判斷，直接看懂。</h3><div class="rules"><div><b>查的是同一件事</b><p>首頁和某一天的文章不是同一個查詢；有首頁快取，不代表每個日期都有。</p></div><div><b>答案仍在有效時間內</b><p>有效期依資料類型而異；過期內容不能假裝成即時行情。</p></div><div><b>備份也要核對年齡</b><p>背景整理可先準備答案。連續失敗且備份太舊時，需回源或清楚顯示暫無可用資料。</p></div></div></section>
+<section class="section-block" aria-labelledby="cards-title"><h3 id="cards-title">點開圖片，看每一層做什麼。</h3><div class="image-grid">
+<button class="image-card" data-dialog="cache-info" aria-haspopup="dialog"><span class="art"><img src="assets/cache-layer.svg" alt="整理答案、有效時間與查詢名稱組成快取卡"></span><span class="card-copy"><span><strong>快取存的是答案</strong><small>不是另一份原稿；必須知道它何時整理、回答什麼問題。</small></span><span class="plus"><svg aria-hidden="true"><use href="#i-plus"/></svg></span></span></button>
+<button class="image-card" data-dialog="source-info" aria-haspopup="dialog"><span class="art"><img src="assets/source-table.svg" alt="原始紀錄的日期、股票與證據資料表"></span><span class="card-copy"><span><strong>資料來源仍保留</strong><small>找不到有效答案，才讀取、整理，再存回快取。</small></span><span class="plus"><svg aria-hidden="true"><use href="#i-plus"/></svg></span></span></button>
+<button class="image-card" data-dialog="before-info" aria-haspopup="dialog"><span class="art"><img class="crop" src="assets/loading-before.webp" alt="2026年10月16日改版前正式站三列同形框的局部截圖"></span><span class="card-copy"><span><strong>這次要修哪裡？</strong><small>原本三列長框改成有位置關係的裝置與資料流。</small></span><span class="plus"><svg aria-hidden="true"><use href="#i-plus"/></svg></span></span></button>
+</div></section>
+<section class="measure section-block"><h3>同一尺度，才看得出差異。</h3><p>以下是 2026/10/07 留存的 API 樣本，不是今天的速度保證。動畫播放時間與 API 秒數分開。</p><div class="bar-row"><span>命中快取</span><span class="bar-rail"><i style="--ratio:0.01252"></i></span><b>0.09 秒</b></div><div class="bar-row"><span>未命中</span><span class="bar-rail"><i style="--ratio:1"></i></span><b>7.19 秒</b></div><p class="caption">命中約 0.09 秒來自 3 次樣本；未命中 7.19 秒為 1 次樣本。條長共用 7.19 秒上限；小值不放大。</p></section>
+<nav class="chapter-pager" aria-label="章節前後導覽"><a href="#guide"><svg aria-hidden="true"><use href="#i-left"/></svg><span><small>查看提案</small><strong>章節導覽與規格</strong></span></a><a href="#agent"><span><small>下一章</small><strong>代理推論與工具</strong></span><svg aria-hidden="true"><use href="#i-right"/></svg></a></nav>
+</section>
+<section class="chapter" id="agent" aria-labelledby="agent-title"><header><span class="eyebrow">正式規格第 08 章 · 不呼叫模型、不讀私人資料</span><h2 id="agent-title" tabindex="-1">模型提出答案，誰負責讓工具真的執行？</h2><p>把原稿、控制程式、模型與工具回覆放在同一張工作桌；讓讀者看見分工。</p></header>
+<figure class="full-figure"><img src="assets/agent-workbench.svg" alt="左方原稿由中央控制程式送至右上模型；工具回覆回到控制程式，核對後才產生結果"><figcaption class="caption">系統概念圖；不是讓模型直接寫試算表，也不是模型自己保證事實正確。</figcaption></figure>
+<div class="split"><div class="board"><span class="number">01</span><h3>先界定這次可以讀什麼</h3><ul class="list"><li>本股證據與必要前後文，保留主體、日期、否定語氣。</li><li>分類規則與結構化回覆要求。</li><li>這次工具允許做的唯讀查詢。</li></ul></div><div class="board"><span class="number">02</span><h3>再核對模型交回什麼</h3><ul class="list"><li>引句是否確實存在，是否屬於同一檔。</li><li>把歷史賣出、建議不要賣與當天賣出分開。</li><li>不通過的單檔隔離；其餘繼續處理並留下紀錄。</li></ul></div></div>
+<section class="section-block"><h3>以圖片打開更深入的問題。</h3><div class="image-grid"><button class="image-card" data-dialog="harness-info" aria-haspopup="dialog"><span class="art"><img src="assets/agent-workbench.svg" alt="代理控制程式的模型與工具分工圖"></span><span class="card-copy"><span><strong>代理不是一個提示詞</strong><small>工具定義、回覆驗證、狀態保存和錯誤恢復一起運作。</small></span><span class="plus"><svg aria-hidden="true"><use href="#i-plus"/></svg></span></span></button></div></section>
+<nav class="chapter-pager" aria-label="章節前後導覽"><a href="#cache"><svg aria-hidden="true"><use href="#i-left"/></svg><span><small>上一章</small><strong>快取查詢與更新</strong></span></a><a href="#guide"><span><small>下一章</small><strong>章節導覽與規格</strong></span><svg aria-hidden="true"><use href="#i-right"/></svg></a></nav></section>
+<section class="chapter" id="guide" aria-labelledby="guide-title"><header><span class="eyebrow">閱讀架構提案 · 本原型只實作前述兩種展示方式與本導覽</span><h2 id="guide-title" tabindex="-1">二十個短章，保留完整內容。</h2><p>不是刪成摘要；每次只看一章的完整內容。下列是正式施工目錄，不是已上線的二十頁。</p></header>
+<ol class="chapter-catalog">
+<li><b>01</b><span>網站緣起與查詢</span></li><li><b>02</b><span>資料來源與流向</span></li><li><b>03</b><span>單日處理時間線</span></li><li><b>04</b><span>資料規模與首屏</span></li><li><b>05</b><span>快取查詢與更新</span></li><li><b>06</b><span>模型輸入與切詞</span></li><li><b>07</b><span>模型容量與用量</span></li><li><b>08</b><span>代理推論與工具</span></li><li><b>09</b><span>股名辨識與校字</span></li><li><b>10</b><span>數字單位與歸屬</span></li><li><b>11</b><span>匿名個股與證據</span></li><li><b>12</b><span>操作主體與分類</span></li><li><b>13</b><span>分類裁決與證據</span></li><li><b>14</b><span>多來源操作合併</span></li><li><b>15</b><span>公開說明與核對</span></li><li><b>16</b><span>原稿版本與續跑</span></li><li><b>17</b><span>持股回合與績效</span></li><li><b>18</b><span>故障恢復與限制</span></li><li><b>19</b><span>常見問題與改進</span></li><li><b>20</b><span>作者資訊與聲明</span></li>
+</ol><div class="rules section-block"><div><b>基本規則直接呈現</b><p>圖卡上的結論不藏起來。視窗補充大圖、例外和查證依據。</p></div><div><b>每章有自己的圖像</b><p>不用同一個三框模板包住全部章節；依問題選擇時間線、工作桌、候選圖或回合軸。</p></div><div><b>一份內容只放一次</b><p>搬移前建立逐段清單；例子、來源、算式及限制均核對保留。</p></div></div>
+<nav class="chapter-pager" aria-label="章節前後導覽"><a href="#agent"><svg aria-hidden="true"><use href="#i-left"/></svg><span><small>上一章</small><strong>代理推論與工具</strong></span></a><a href="#cache"><span><small>回到原型起點</small><strong>快取查詢與更新</strong></span><svg aria-hidden="true"><use href="#i-right"/></svg></a></nav></section>
+</main><footer>設計規格與本機原型，尚未修改正式網站。圖像為自行繪製；局部截圖來自本站。Apple 僅作圖文組織與互動參考。</footer></div>
+<button class="top-button only-js" id="to-top"><svg aria-hidden="true"><use href="#i-up"/></svg>回到頂端</button>
+<dialog id="cache-info" aria-labelledby="cache-info-title"><div class="dialog-top"><h2 id="cache-info-title">快取：附有效時間的整理答案</h2><button class="dialog-close" aria-label="關閉快取說明"><svg aria-hidden="true"><use href="#i-close"/></svg></button></div><div class="dialog-body"><img src="assets/cache-layer.svg" alt="一張附時間與查詢識別的答案卡"><h3>同一個問題，直接取用現成答案。</h3><p>快取讓後端不用每次重讀與整理相同資料。它需要查詢識別、建立時間與有效期限；存在不等於仍可使用。</p><h3>「沒有人看」不代表沒有快取。</h3><p>背景排程也可以準備答案。因此以有效性判斷，不用訪客多久沒來推斷命中。</p></div></dialog>
+<dialog id="source-info" aria-labelledby="source-info-title"><div class="dialog-top"><h2 id="source-info-title">未命中：回到可核對的資料來源</h2><button class="dialog-close" aria-label="關閉來源說明"><svg aria-hidden="true"><use href="#i-close"/></svg></button></div><div class="dialog-body"><img src="assets/source-table.svg" alt="來源紀錄表格"><h3>找不到可用答案，才走右下方路徑。</h3><ol><li>讀取必要資料。</li><li>整理成這次查詢的結果。</li><li>成功後存回快取，再回覆手機。</li></ol><p>如果來源失敗且備份也過期，不能把舊數字當即時報價。本原型的四種情境是閱讀示範，沒有真正的後端請求。</p></div></dialog>
+<dialog id="before-info" aria-labelledby="before-info-title"><div class="dialog-top"><h2 id="before-info-title">改版前：三列長框缺少分支語意</h2><button class="dialog-close" aria-label="關閉改版對照"><svg aria-hidden="true"><use href="#i-close"/></svg></button></div><div class="dialog-body"><img src="assets/loading-before.webp" alt="改版前正式技術頁局部截圖"><h3>畫面要回答「資料往哪裡走」。</h3><p>手機、快取與試算表應該是能辨識的物件。命中路徑不進試算表；未命中才走來源分支。選擇鈕保留一組，移除重複情境章標。</p></div></dialog>
+<dialog id="harness-info" aria-labelledby="harness-info-title"><div class="dialog-top"><h2 id="harness-info-title">控制程式：連接模型、工具與狀態</h2><button class="dialog-close" aria-label="關閉代理說明"><svg aria-hidden="true"><use href="#i-close"/></svg></button></div><div class="dialog-body"><img src="assets/agent-workbench.svg" alt="模型回覆與工具結果返回控制程式"><h3>模型不等於整個代理。</h3><p>模型根據這次輸入產生回覆或工具請求。控制程式核對工具名稱、參數與權限，執行允許的動作，再把工具結果放回下一輪輸入。</p><h3>錯誤要能定位，不能靠重跑碰運氣。</h3><p>保存原稿指紋與已完成步驟；把無法核對的單檔隔離，避免一筆錯誤擋住其他有效結果。正式施工時以現行程式與日誌確認每一條說明。</p></div></dialog>
+<noscript><style>.image-card .plus{display:none}</style><p class="wrap">未啟用 JavaScript：所有章節及圖片仍可閱讀；圖片視窗與動畫需啟用 JavaScript。</p></noscript>
+</body></html>

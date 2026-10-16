@@ -4043,6 +4043,7 @@ function reviewCollect_(sheetName, d) {
       dirCol: cDir + 1,
       nameCol: cName + 1,
       codeCol: cCode + 1,
+      reasonCol: cReason + 1,
       name: nm,
       code: String(vals[i][cCode] || '').trim(),
       cls: isTrade ? String(vals[i][cDir] || '') : '會員持股',
@@ -4052,6 +4053,19 @@ function reviewCollect_(sheetName, d) {
     });
   }
   return out;
+}
+
+/** 寫回前確認那一列還是收集時的同一檔（名稱、代號、說明都沒變）。
+    複審要等模型回覆，期間 GitHub 的單日更新可能刪掉重寫同一天的列，原本的列號就指到別檔了
+    （2026/10/16：寄信前的關卡與單日套用同時跑，四筆錯位列由此而來）。 */
+function reviewRowStill_(it) {
+  try {
+    var sh = getSheet_(it.sheet);
+    if (it.row > sh.getLastRow()) { return false; }
+    var get = function (col) { return col > 0 ? String(sh.getRange(it.row, col).getValue() || '').trim() : ''; };
+    return get(it.nameCol) === it.name && get(it.codeCol) === it.code &&
+           (it.reasonCol <= 0 || get(it.reasonCol) === String(it.reason || '').trim());
+  } catch (e) { return false; }
 }
 
 /** 把複審動過的那幾筆寫進「修正建議」留痕。純紀錄，不需要人核准。 */
@@ -4220,6 +4234,13 @@ function reviewDayRecords_(dateStr) {
   }
 
   if (stat.unsure) { throw new Error('內容複審有 ' + stat.unsure + ' 筆證據不足，未套用本日修改'); }
+  var touched = edits.map(function (e) { return e.it; }).concat(renames.map(function (m) { return m.it; }),
+                                                               moves.map(function (m) { return m.it; }), drops);
+  var shifted = touched.filter(function (it) { return !reviewRowStill_(it); });
+  if (shifted.length) {
+    throw new Error('內容複審期間這一天的紀錄被改寫（' + shifted.map(function (it) { return it.name; }).join('、') +
+                    '），未套用本日修改，下一棒重新收集');
+  }
   // ---- 動資料 ----
   // 順序有意義：先改儲存格（用的是原始列號），最後才刪列。
   // 刪列會讓後面的列往上移，先刪就會改到別人。

@@ -8034,7 +8034,7 @@ def source_inventory(segments):
           不因模型沒交代它就產生「盤點漏項」。
     跨段落邊界的名稱不列（分段優先切在句號，名稱被切開的機會很小）。
     """
-    names = _inventory_names()
+    names = dict(_inventory_names())        # 複製一份：下面依這一份原文補上的讀音與念出的代號，不寫回共用快取
     refs = {}
     for sid, seg in segments.items():
         for heard in _segment_inventory(seg['text'], names):
@@ -8051,7 +8051,14 @@ def source_inventory(segments):
     flat_all = re.sub(r'\s', '', sound_flat)
     for heard, code in spoken_code_pairs(flat_all):
         official = (_CODE_MAP or {}).get(code)
-        if not official or heard in refs or heard in names or _display_name(official) in refs:
+        if not official:
+            continue
+        # 代號優先、名稱其次（2026/10/16 管理者）：原文緊接著念出代號（「3037的新興」），而名稱比對把同一個字對到另一家
+        # （新興航運 2605）時，以念出的代號為準。
+        if heard in names and str(names[heard][0]) != str(code):
+            names[heard] = (code, official, True)
+            continue
+        if heard in refs or heard in names or _display_name(official) in refs:
             continue
         names[heard] = (code, official, True)
         for sid, seg in segments.items():
@@ -9817,9 +9824,15 @@ def verify_holding_subject(signals: dict, transcript: str) -> dict:
                 parents.add(code)
 
     keep = []
+    verdicts = signals.get('_verdicts') or {}
     for row in holdings:
         code = str(row.get('code') or '')
         if code not in index or not re.fullmatch(r'(?:00981A|\d{4,6})', code):
+            keep.append(row)
+            continue
+        # 紀錄上本來就持有、裁決也定在持股：這一關是防止開出不存在的回合，已存在的回合不必再找「我買的」
+        # （2026/10/16 嘉澤減碼一半後的剩餘部位被降成觀望注意，連帶把暫不買回那一列去重掉了）
+        if (verdicts.get(code) or {}).get('open') and (verdicts.get(code) or {}).get('cls') == 'holdings':
             keep.append(row)
             continue
         scopes = [scope for scope, _ in _entity_scope(row, signals, transcript)]
@@ -13549,6 +13562,24 @@ def _explicit_not_yet(names, transcript):
     return ''
 
 
+def _teaching_disclaimer(names, transcript):
+    """本股被點名之後一小段裡，講者明講「我不是叫你買它」「我這是告訴你們…風險」：只是拿來教學的例子，不是對本股的立場。
+    回傳那一段，沒有就回空字串（2026/10/16 欣興：「昨天跌停板…張總你又沒有？對呀，我沒有啊…我不是下你買它，我這告訴你們，
+    你們過去在這邊追逐的，都沒有考慮到這個風險」，管理者：不用列）。同一段另有本股的禁令或買點時不算。"""
+    flat = re.sub(r'【[^】]{0,40}】|\s', '', str(transcript or ''))
+    for n in sorted({str(x) for x in names if len(str(x)) >= 2}, key=len, reverse=True):
+        for m in re.finditer(re.escape(n), flat):
+            window = flat[m.start():m.start() + 420]
+            hit = re.search(r'我(?:不是|並不是|又不是)(?:要|在)?(?:叫|下|推薦)?(?:你|你們)(?:去)?(?:買|追)(?:它|牠|這一[隻支檔])', window)
+            if not hit:
+                continue
+            before = window[:hit.start()]
+            if re.search(r'不能買|不要買|不會買|絕對不|買點|可以買|要注意', before):
+                continue
+            return window[:hit.end() + 30]
+    return ''
+
+
 def bounded_current_conditions(names, transcript):
     """本股最多九短句、320 字的當下條件；遇另一股票或轉場即停。"""
     names={str(n) for n in names if len(str(n))>=2}
@@ -14175,6 +14206,11 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             contested.append((code,{'name':entry['name'],'heard':sorted(names-{entry['name']})[:6],'known':facts,
                                    'passages':sent[:10],'_norm':_ev_norm(text),'_names':sorted(names|{code}),'_trade_check':current,'_trade_sides':sides,'_closed':''}))
             continue
+        if not entry['open'] and current in ('watch_watch', 'watch_avoid', 'history', 'ignored'):
+            lesson = _teaching_disclaimer(names, transcript)
+            if lesson:
+                entry.update(cls='ignored', tier='直接歸類', enforce=True, basis='講者明講只是拿來教學、不是叫人買：' + lesson[:60])
+                continue
         if not entry['open'] and current not in ('buy','sell'):
             if current!='holdings':
                 condition,quote=bounded_current_conditions(names,transcript)

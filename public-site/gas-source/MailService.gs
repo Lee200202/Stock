@@ -2113,6 +2113,19 @@ var AUDIT_SKIP_LABEL = {
  * 回傳 { added, skipped, pending, decisions }
  * decisions 是逐筆的判定明細，狀態信顯示的就是它。
  */
+/** 原文裡緊接著股名念出的四位數代號（「3037的新興」「新興，3037」）；對照表有這個代號才採用，沒有回空字串。 */
+function spokenCodeFor_(name, transcript) {
+  name = String(name || '');
+  var flat = String(transcript || '').replace(/\s+/g, '');
+  if (name.length < 2 || !flat) { return ''; }
+  var esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  var m = flat.match(new RegExp('(?:^|[^0-9])(\\d{4})(?:的|是|叫做|叫)?' + esc)) ||
+          flat.match(new RegExp(esc + '[，,、]?(\\d{4})(?![0-9])'));
+  if (!m) { return ''; }
+  try { var map = loadCodeMap_(); return map && map.byCode && map.byCode[m[1]] ? m[1] : ''; }
+  catch (e) { return ''; }
+}
+
 function autoFixAuditMissing(dateStr) {
   var d = fmtDate_(dateStr || todayStr_());
   var v = digestAuditVerdict_(d);
@@ -2121,7 +2134,31 @@ function autoFixAuditMissing(dateStr) {
     return { added: 0, skipped: 0, pending: 0 };
   }
 
-  var items = v.missing.slice(0, 25);   // 一次最多 25 筆，避免請求過大
+  /* 流程的「分類裁決」已經對這一天這一檔下過結論（包括判定不公開）：補登不再自己另判一次。
+     2026/10/16 流程把聯電、新興、天域判為不公開，寄信前的這一關把它們當成漏抓、另問模型後直接補登，
+     模型回的說明是別檔的（聯電掛著台積電的說明、長興掛著瑞鼎的說明），四筆錯位列就這樣上了網站。
+     兩套分類各判各的只會互相打架；有裁決的以裁決為準，沒有裁決的才補登。 */
+  var ruled = {};
+  try {
+    readSheetObjects_('分類裁決').forEach(function (r) {
+      if (fmtDate_(r['日期']) !== d) { return; }
+      [r['名稱'], r['代號']].forEach(function (x) {
+        var k = String(x || '').replace(/[*＊\s]/g, '').replace(/-?KY$/i, '');
+        if (k) { ruled[k] = String(r['分類'] || '已裁決'); }
+      });
+    });
+  } catch (e) { /* 讀不到裁決表就照原本的方式 */ }
+  var baseName = function (x) { return String(x || '').replace(/[*＊\s]/g, '').replace(/-?KY$/i, ''); };
+  var preRuled = [];
+  var items = v.missing.filter(function (m) {
+    var k = baseName(m.name);
+    if (k && ruled[k]) { preRuled.push({ name: m.name, verdict: '不收', why: '流程分類裁決已判定（' + ruled[k] + '）' }); return false; }
+    return true;
+  }).slice(0, 25);   // 一次最多 25 筆，避免請求過大
+  if (!items.length) {
+    Logger.log(d + ' 稽核候選都已有流程裁決，不另行補登');
+    return { added: 0, skipped: preRuled.length, pending: 0, decisions: preRuled };
+  }
 
   // 判定要看得到上下文才判得準。
   //
@@ -2168,9 +2205,9 @@ function autoFixAuditMissing(dateStr) {
     if (fmtDate_(r['發布日期']) === d) { vid = String(r['影片ID'] || ''); }
   });
 
-  var trades = [], holds = [], pending = [], skipped = 0;
+  var trades = [], holds = [], pending = [], skipped = preRuled.length;
   // 每一筆的判定結果。狀態信要顯示的是這一份，不是稽核那份高召回的候選清單。
-  var decisions = [];
+  var decisions = preRuled.slice();
 
   (res.results || []).forEach(function (r) {
     var n = Number(r.index) - 1;
@@ -2201,11 +2238,24 @@ function autoFixAuditMissing(dateStr) {
       return;
     }
 
+    // 引句與說明都要講到這一檔：模型把同一批裡別檔的說明寫到這一檔時，原句存在也不能收（2026/10/16 聯電、長興）
+    var own = baseName(m.name);
+    var said = (r.evidence || []).some(function (q) { return own && String(q).indexOf(own) >= 0; });
+    var reasonText = String(r.reason || '');
+    if (!said || (reasonText && reasonText.indexOf(own) < 0)) {
+      // 算不收、不算待確認：待確認會讓寄信前的關卡整段失敗
+      skipped++;
+      decisions.push({ name: m.name, verdict: '不收', why: '引句或說明沒有講到這一檔' });
+      Logger.log('  不收　' + m.name + '（引句或說明沒有講到這一檔）');
+      return;
+    }
+
     var dir = String(r.direction || '').trim();
+    var spoken = spokenCodeFor_(own, v2);      // 代號優先：原文緊接著念出代號就用它，名稱比對排第二（2026/10/16 新興 3037）
     if (dir === '會員持股') {
-      holds.push([d, m.name, '', '持有', String(r.reason || '').slice(0, 60), vid]);
+      holds.push([d, m.name, spoken, '持有', String(r.reason || '').slice(0, 60), vid]);
     } else if (['買入', '賣出', '觀望不碰', '觀望注意'].indexOf(dir) >= 0) {
-      trades.push([d, m.name, '', dir, String(r.price || '未說明'),
+      trades.push([d, m.name, spoken, dir, String(r.price || '未說明'),
                    String(r.reason || '').slice(0, 60), vid]);
     } else {
       pending.push(m);

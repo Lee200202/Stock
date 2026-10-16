@@ -8526,7 +8526,7 @@ def strip_editorial_wrappers(text):
 #   「今天早上9.04分，我告訴我的會員，…獲利賣出一次，全部的會員都通知。」→「今天早上9.04分，…獲利賣出一次。」
 _NOTICE_WORD_RULES = [
     # 「何時買回來將會集體通知」（2026/10/16 嘉澤）：通知是會員管道，公開文字寫成「再行說明」
-    (r'(?:將會|將|會)(?:再)?(?:集體|統一|一起|一律)?通知(?:大家|會員|你們)?(?=[，,。；;！!]|$)', '將再行說明'),
+    (r'(?:將會|將|會)(?:再)?(?:行)?(?:集體|統一|一起|一律)?通知(?:大家|會員|你們)?(?=[，,。；;！!]|$)', '將再行說明'),
     (r'(?:新加入|新進|剛加入)(?:的)?會員(?:們)?(?=(?:可以|可)?(?:買進|買入|加碼|賣出|續抱))', ''),
     (r'(?:會員簡訊|簡訊通知(?!(?:了)?(?:所有|全部|全體|全國|一般|新進|新加入)?(?:的)?會員)|盤中(?:即時)?通知|即時通知|會員通知)(?:的)?(?:當日|當天|今日|當時)?(?:通知|說明|指出|提到|要求|內容)?(?:在|以)?[：:]?', ''),
     (r'依(?:照|據)?(?:當日|今日|盤中|上述|該)?(?:的)?(?:通知|簡訊|指示)(?:內容|指示)?[，,]?', ''),
@@ -11644,7 +11644,8 @@ def strip_unsupported_technical_terms(signals: dict, transcript: str, date_str: 
     return signals
 
 
-_NOTE_TECH_RE = re.compile(r'MACD|KD|季線|年線|月線|週線|均線|頸線|缺口|EPS|營收|買超|賣超|法說會|漲停|跌停|長紅|目標價', re.I)
+# 「一半」：部分出場的說法也要在本股自己的原文裡（2026/10/16 世芯-KY 被寫成「4400元賣出一半」，賣一半的是另一檔）
+_NOTE_TECH_RE = re.compile(r'MACD|KD|季線|年線|月線|週線|均線|頸線|缺口|EPS|營收|買超|賣超|法說會|漲停|跌停|長紅|目標價|一半', re.I)
 _UNNAMED_COST_RE = re.compile(r'我(?:們)?(?:是)?買(?:在|的位置是?|進的位置是?)?(\d{2,5}(?:\.\d{1,2})?)(?:塊|元)?(?:的|以下|附近|左右)'
                               r'|(?:我(?:的)?|會員(?:的)?)成本(?:是|在)?(\d{2,5}(?:\.\d{1,2})?)')
 
@@ -13478,7 +13479,8 @@ def _explicitly_not_held(names, transcript):
     """講者明講自己沒有這一檔（「我沒有台達電，我老實跟你講」）：回傳那一句，沒有就回空字串。「我沒有賣X」不算。"""
     flat = re.sub(r'【[^】]{0,40}】|\s', '', str(transcript or ''))
     for n in sorted({str(x) for x in names if len(str(x)) >= 2}, key=len, reverse=True):
-        m = re.search(r'我(?:們)?(?:手上|手中|自己)?(?:並|根本|其實)?沒有(?!賣|出|叫|講|說|推)(?:買)?(?:進)?' + re.escape(n), flat)
+        m = re.search(r'我(?:們)?(?:手上|手中|自己)?(?:並|根本|其實)?沒有(?!賣|出|叫|講|說|推)(?:買)?(?:進)?' + re.escape(n), flat) \
+            or re.search(re.escape(n) + r'(?:啊|呢)?[，,]?我(?:們)?(?:也|根本|其實)?沒有(?!賣|出|叫|講|說|推)(?:買)?(?:啊|呢|喔|哦)?(?=[，,。！？!?]|$)', flat)
         if m:
             return flat[m.start():m.end() + 20]
     return ''
@@ -16946,6 +16948,11 @@ def reconcile_with_prior(signals, prior, date_str, transcript=''):
         if str(rows[0].get('code') or '').strip() in (signals.get('_manual_hidden') or ()):
             accepted.append(f"{name}（前一版{'、'.join(before)}）：人工裁決為不公開，不沿用")
             continue
+        if transcript and any(r.get('_cat') == 'holdings' for r in rows):
+            denied = _explicitly_not_held(_row_names_for_recap({'name': name, 'code': str(rows[0].get('code') or '')}), transcript)
+            if denied:
+                accepted.append(f"{name}（前一版{'、'.join(before)}）：本輪原文明講沒有持有（{denied[:24]}），不沿用")
+                continue
         if transcript:
             # 沿用前一版之前，先用本輪原文核對一次。前一版本身錯了的列不能一路沿用下去：
             # 2026/09/14 的愛普（舊推薦）、金益鼎（原文沒有這家公司）就是這樣連續兩輪被帶回網站。

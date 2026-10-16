@@ -99,7 +99,7 @@ with sync_playwright() as p:
  browser.close()
  # Actual no-JavaScript rendering, not a script flag.
  browser=p.chromium.launch();ctx=browser.new_context(java_script_enabled=False);nojs=ctx.new_page();nojs.goto(url,wait_until='domcontentloaded')
- assert nojs.locator('[data-chapter]').count()==20
+ assert nojs.locator('[data-chapter]:visible').count()==20
  assert nojs.locator('.tech-book').inner_text().count('SHA-256')>0
  browser.close()
 (out/'results.json').write_text(json.dumps({'url':url,'layouts':results,'contentItems':len(inventory['items']),'errors':errors,'result':'PASS'},ensure_ascii=False,indent=2),encoding='utf-8')

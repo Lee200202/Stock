@@ -9502,7 +9502,7 @@ def strip_guessed_names_and_causes(signals: dict, transcript: str) -> dict:
                     other = (pair.group(1) or pair.group(2) or '') if pair else ''
                     if pair and other and other not in own:
                         why = f'把「{other}」和本股當成同一檔並列'
-                    elif _CAUSAL_CLAIM_RE.search(clause):
+                    elif _CAUSAL_CLAIM_RE.search(clause) and not _public_review_covers(row, field, transcript):
                         # 這個子句講的事在原文哪一句：共用一個英數詞（ETF、MACD、數字）或四個以上的雙字組。
                         probe = _ev_norm(_CAUSAL_CLAIM_RE.sub('', clause))
                         words = set(re.findall(r'[A-Za-z]{2,}|\d{2,}', probe))
@@ -13250,7 +13250,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v18-20261016"          # 本股否認先於任何持有升格；直接覆核保留完整相關段落。
+VERDICT_VERSION = "v19-20261016"          # 否認持有不能預設看多；無當下條件時維持不列。
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 3                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -14344,11 +14344,12 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             not_held = ('原文明講沒有持有：' + said) if said else ('持有的只有提問的觀眾：' + asked_hold) if asked_hold else ''
         if not_held:
             entry['not_held'] = not_held
+            entry['not_held_fallback'] = bounded_current_conditions(names, transcript)[0] or 'ignored'
         sent, text = _verdict_mark(_own_segments(row, signals, transcript, 300, 500), names | {code})
         sent = sent[:10]
         if not text:
             if not_held:
-                entry.update(cls='watch_watch', tier='直接歸類', enforce=True, basis=not_held)
+                entry.update(cls=entry.get('not_held_fallback','ignored'), tier='直接歸類', enforce=True, basis=not_held)
                 continue
             entry.update(tier='一致通過', basis='原文找不到本股段落，不裁決')
             continue
@@ -14430,7 +14431,7 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             entry['votes'].append(cls)
             if cls and not entry['answer'].get(cls):
                 entry['answer'][cls] = {'basis': basis, 'answer': answers.get(code)}
-            base = 'ignored' if entry.get('late') else ('watch_watch' if entry.get('not_held') else entry['current'])
+            base = 'ignored' if entry.get('late') else (entry.get('not_held_fallback','ignored') if entry.get('not_held') else entry['current'])
             state, decided, why = verdict_settle(base, entry['votes'],
                                                  last=round_no == VERDICT_MAX_ROUNDS - 1, open_position=bool(entry.get('open')))
             if state == '再問':
@@ -14489,8 +14490,8 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                 continue
             detail = (entry['answer'].get(decided) or {}).get('basis') or ''
             if entry.get('not_held') and state == '未定':
-                # 明講沒有持有、或持有的只有提問的觀眾：沒有多數時也不留在會員持股，以觀望注意定案
-                state, decided, why = '定案', 'watch_watch', '沒有多數時以觀望注意定案｜' + entry['not_held'][:40]
+                # 沒有持有只是否定部位；沒有獨立的當下條件，不能憑否認製造看多立場。
+                state, decided, why = '定案', entry.get('not_held_fallback','ignored'), '沒有多數時依本股當下條件，無條件不列｜' + entry['not_held'][:40]
             entry.update(cls=decided, tier='裁決' if state == '定案' else '未定', enforce=state == '定案', new=True,
                          basis='｜'.join(x for x in (entry['basis'], why, detail) if x))
             if state == '未定':
@@ -16901,6 +16902,13 @@ def _ws_numbers(text):
     return sorted(n.replace(',', '').rstrip('.') for n in re.findall(r'\d+(?:[.,]\d+)*', str(text or '')))
 
 
+def _public_review_covers(row, field, transcript):
+    review = row.get('_public_edit_review') or {}
+    return all(review.get(k) is True for k in ('meaning_preserved','category_consistent','source_supported','written_style_ok')) \
+        and review.get('text_sha256') == hashlib.sha256(str(row.get(field) or '').strip().encode()).hexdigest() \
+        and review.get('source_sha256') == hashlib.sha256(str(transcript or '').encode()).hexdigest()
+
+
 def _polish_accepts(old, new, names, hay_norm='', own=()):
     """改寫只能改寫法。回傳不採用的原因，空字串代表可以用。"""
     old, new = str(old or '').strip(), str(new or '').strip()
@@ -16984,6 +16992,8 @@ def _polish_public_texts(signals, transcript, date_str):
                                           'category_consistent': item.get('category_consistent'),
                                           'source_supported': item.get('source_supported'),
                                           'written_style_ok': item.get('written_style_ok'),
+                                          'text_sha256': hashlib.sha256(new.encode()).hexdigest(),
+                                          'source_sha256': hashlib.sha256(str(transcript or '').encode()).hexdigest(),
                                           'issues': item.get('issues_found') or []}
             approved = all(item.get(k) is True for k in ('meaning_preserved','category_consistent','source_supported','written_style_ok'))
             if row.get('_manual_note_kept'):

@@ -75,5 +75,28 @@ class PublicBatchContract(unittest.TestCase):
         self.assertEqual(pl._explicitly_not_held({'甲公司'},'以前我沒有甲公司，現在已經買進。'),'')
         self.assertEqual(pl._explicitly_not_held({'甲公司'},'我沒有賣甲公司，續抱。'),'')
         self.assertTrue(pl._explicitly_not_held({'甲公司'},'甲公司我沒有啊，只是分析。'))
+    def test_ai_semantics_cannot_be_erased_by_causal_word_filter(self):
+        tx='國巨如果560跌破了，所有散戶會亂砍。'
+        text='國巨若跌破560元，可能引發散戶集中賣壓。'
+        row={'name':'國巨','code':'2327','reason':text,'_public_edit_review':{k:True for k in ('meaning_preserved','category_consistent','source_supported','written_style_ok')}}
+        import hashlib
+        row['_public_edit_review'].update(text_sha256=hashlib.sha256(text.encode()).hexdigest(),source_sha256=hashlib.sha256(tx.encode()).hexdigest())
+        self.assertTrue(pl._public_review_covers(row,'reason',tx))
+        sig={'watch_avoid':[row]}
+        self.assertEqual(pl.strip_guessed_names_and_causes(sig,tx)['watch_avoid'][0]['reason'],text)
+        self.assertFalse(pl._public_review_covers(row,'reason',tx+'來源變更'))
+        row['reason']='另一段不同說明。'
+        self.assertFalse(pl._public_review_covers(row,'reason',tx))
+    def test_denial_does_not_create_bullish_default(self):
+        class Book:
+            def worksheet(self,name):raise KeyError(name)
+        sig={k:[] for k in ('buy','sell','holdings','watch_watch','watch_avoid','history','uncertain','ignored')}
+        sig['ignored']=[{'name':'聯詠','code':'3034','reason':'只是分析。','evidence':[]}]
+        tx='大盤整理。'*80+'這是我的，聯詠我沒有啊，聯詠我只是拿來分析而已，我有瑞鼎。'+'大盤整理。'*80
+        seen=pl._class_snapshot(sig)
+        with patch.object(pl,'_verdict_known',return_value=({},set(),{})),patch.object(pl,'_verdict_cache',return_value={}),patch.object(pl,'_CODE_MAP',{'3034':'聯詠','3592':'瑞鼎'}),patch.object(pl,'call_gemini',return_value='{"verdicts":[]}'),patch.object(pl,'budget_left',return_value=9999),patch.object(pl,'GEMINI_KEYS',['offline']),patch.dict(os.environ,{'CLASS_ADJUDICATION':'on'}):
+            out=pl.adjudicate_classes(Book(),sig,tx,'2026/10/16',seen,seen)
+        self.assertFalse(out['holdings']);self.assertFalse(out['watch_watch'])
+        self.assertEqual(out['_verdicts']['3034']['cls'],'ignored')
 
 if __name__=='__main__':unittest.main()

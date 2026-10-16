@@ -37,7 +37,7 @@
 .tech-book .ev-line{stroke:var(--muted);stroke-width:2;fill:none;opacity:.55;stroke-dasharray:6 7}
 .tech-book .ev-node{fill:var(--panel-2);stroke:var(--rule);stroke-width:1.5}
 .tech-book .ev-step.is-current .ev-node{stroke:var(--beam);stroke-width:3}
-.tech-book .ev-marker{fill:var(--beam)}
+.tech-book .ev-marker,.tech-book .ev-date{fill:var(--beam)}
 .tech-book .ev-icon{fill:none;stroke:var(--beam);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
 .tech-book .ev-block{fill:color-mix(in srgb,#d07147 15%,var(--panel));stroke:#c27350}
 .tech-book .ev-good{fill:color-mix(in srgb,var(--beam) 12%,var(--panel));stroke:var(--beam)}
@@ -96,7 +96,7 @@ function graph(key,c,mobile){
   else if(i===2)art='<circle class="ev-good" r="64"/><path class="ev-icon" d="M-30 0L-8 24L35-27"/>';
   else art='<path class="ev-node" d="M-58-75H28L60-43V75H-58Z"/><path class="ev-icon" d="M28-75v32h32M-35-15h68M-35 12h68M-35 39h48"/>';
   out+='<g class="ev-step" data-ev-step="'+i+'" transform="translate('+pos[0]+','+pos[1]+')">'+art+'<text text-anchor="middle" y="112" font-size="23" font-weight="600">'+esc(labels[i][0])+'</text><text text-anchor="middle" y="148" font-size="20">'+esc(labels[i][1])+'</text></g>';
-  if(key==='history')out+='<circle cx="'+(mobile?40:70)+'" cy="'+pos[1]+'" r="7" class="ev-marker"/>';
+  if(key==='history')out+='<circle cx="'+(mobile?40:70)+'" cy="'+pos[1]+'" r="7" class="ev-date"/>';
  });
  var y=mobile?1020:625;
  if(key==='fault'){

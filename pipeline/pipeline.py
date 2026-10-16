@@ -14468,7 +14468,11 @@ def apply_verdicts(signals, date_str, final=False):
         if target in cats:
             keep = {target} | ({'watch_watch'} if target == 'holdings' else set()) | ({also_cat} if also_cat else set()) | hidden_rows
         else:
-            source = next(((c, r) for want in _VERDICT_ORDER for c, r in pairs if c == want), None)
+            # 另外要保留的那一列（剩餘持股＋暫不買回的不碰）不能拿來搬：搬走就只剩一類（2026/10/16 嘉澤收尾時被搬成持股）
+            movable = [(c, r) for c, r in pairs if c != also_cat]
+            source = next(((c, r) for want in _VERDICT_ORDER for c, r in movable if c == want), None)
+            if source is None and also_cat:
+                source = next(((c, dict(r)) for c, r in pairs if c == also_cat), None)     # 只剩那一列：複製一份，原列照留
             if source is None:
                 if code in kept and target in SIGNAL_CATEGORIES:
                     signals.setdefault(target, []).append(kept[code])      # 後面的規則把整列拿掉了：原樣放回

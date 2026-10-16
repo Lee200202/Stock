@@ -9,7 +9,7 @@
       "code": "2303",
       "name": "聯電",
       "class": "會員持股",
-      "reason_sha256": "05c123ffbfdaaa10c7f8f6821b530bfc5e74acd98e8b203499540f6a9cf9f467",
+      "reason_sha256": "c41cd6fbac3e46170144d27e8adc15e027600692b7925ba4fa0a3d94543d5a8f",
       "foreign_subject": "台積電"
     },
     {
@@ -17,7 +17,7 @@
       "code": "2605",
       "name": "新興",
       "class": "會員持股",
-      "reason_sha256": "43c98531dc113859c7ab7b4ce39147ee092ccd766b95b0130bc9813ced7e9bf7",
+      "reason_sha256": "e2d82f292954fde1118ce753316352e15e8d63c22f302f3cf048963c95607532",
       "foreign_subject": "力積電"
     },
     {
@@ -25,7 +25,7 @@
       "code": "1717",
       "name": "長興",
       "class": "會員持股",
-      "reason_sha256": "c43220d59325f5f91705b63d5542e7d6148f3a510a9432b5f191889a67f5c599",
+      "reason_sha256": "fd5ed2df6bdf102c692fb1f8a9831ac102b0c7d50f04c2d6a7456a9a7b3612ab",
       "foreign_subject": "瑞鼎"
     },
     {
@@ -33,7 +33,7 @@
       "code": "4961",
       "name": "天鈺",
       "class": "觀望注意",
-      "reason_sha256": "c4edb75330f31bfe787a45a270f25293acda0c0c2d4a362389c115a5116dba08",
+      "reason_sha256": "21e9bcb1ab7f3b18ed9523f7c205e3d4ae6c0982feb1ecd58936022473258e72",
       "foreign_subject": "敦泰"
     }
   ]

@@ -125,6 +125,12 @@ def compare(signals, golden, day=None):
         bad=[code for code,cats in where.items() if cat in cats]
         ok &= not bad
         lines.append(f"  {'✗' if bad else '✓'} 當日不得有{LABEL[cat]}事件"+('：'+','.join(bad) if bad else ''))
+    for code, forbidden in golden.get('forbidden_stock_categories', {}).items():
+        bad = [cat for cat in where.get(code, []) if cat in forbidden]
+        ok &= not bad
+        lines.append(f"  {'✗' if bad else '✓'} {names.get(code, code)}（{code}）不得列為" +
+                     '／'.join(LABEL[cat] for cat in forbidden) +
+                     ('，實際 ' + '／'.join(LABEL[cat] for cat in bad) if bad else ''))
     for code, forbidden in golden.get('note_must_not', {}).items():
         for phrase in forbidden:
             bad = any(phrase in note for note in notes.get(code, []))

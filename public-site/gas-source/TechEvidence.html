@@ -1,0 +1,124 @@
+<style>
+/* v188: chapter-independent components; all source anchors remain usable without JS. */
+.tech-book :is(.agent-choices,.tech-options,.cd-select,.cd-vote-select) button{border:1px solid var(--rule);background:var(--panel);color:var(--ink);font-family:inherit;cursor:pointer;line-height:1.6}
+.tech-book :is(.agent-choices,.tech-options,.cd-select,.cd-vote-select) button[aria-pressed=true]{background:var(--beam);border-color:var(--beam);color:var(--bg)}
+.tech-book .agent-budget{background:var(--panel-2);border:1px solid var(--rule)}
+.tech-book .agent-usage-numbers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;margin:28px 0}
+.tech-book .agent-usage-numbers p{padding:20px;margin:0;min-width:0;line-height:1.7}
+.tech-book .agent-usage-numbers b{font-variant-numeric:tabular-nums;font-size:calc(25px * var(--rd-fs));margin-bottom:8px}
+.tech-book .agent-usage-track{height:20px;display:block;border-radius:999px;overflow:hidden;margin:24px 0 14px;background:var(--panel);border:1px solid var(--rule)}
+.tech-book .agent-usage-track span{display:block;height:100%;background:var(--beam)}
+.tech-book .src-cards{margin:26px 0;min-width:0}
+.tech-book .src-cards-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start;max-width:1100px}
+.tech-book .src-card{display:flex;align-items:center;gap:12px;padding:14px 16px;min-height:64px;max-width:100%;min-width:0;border:1px solid var(--rule);border-radius:18px;background:var(--panel);color:var(--ink);text-decoration:none;opacity:1}
+.tech-book .src-card:hover{border-color:var(--beam);background:var(--panel-2)}
+.tech-book .src-card[data-source-kind="執行紀錄"]{border-left:3px solid #b68849}
+.tech-book .src-card[data-source-kind="文件"]{border-left:3px solid #608fae}
+.tech-book .src-card[data-source-kind="原始碼"]{border-left:3px solid var(--beam)}
+.tech-book .src-card .source-icon{width:24px;height:24px;flex:0 0 24px;color:var(--beam)}
+.tech-book .src-card .src-txt{display:grid;gap:4px;min-width:0;flex:1}
+.tech-book .src-card .src-txt b{font-size:calc(15px * var(--rd-fs));line-height:1.55;text-wrap:initial;font-weight:600;overflow-wrap:anywhere}
+.tech-book .src-card .src-txt small{font-size:calc(13px * var(--rd-fs));line-height:1.5;color:var(--muted);font-weight:400;overflow-wrap:anywhere}
+.tech-book .source-go{font-size:18px;color:var(--beam);flex:0 0 auto}
+.tech-book .book-art{aspect-ratio:auto}
+.tech-book .chapter-evidence-photo{margin:44px 0;border:1px solid var(--rule);border-radius:24px;overflow:hidden;background:var(--panel)}
+.tech-book .chapter-evidence-photo img{display:block;width:100%;height:auto}
+.tech-book .chapter-evidence-photo figcaption{padding:20px 24px;font-size:calc(14px * var(--rd-fs));line-height:1.75;color:var(--muted)}
+.tech-book .evidence-lab{padding:clamp(22px,2.5vw,36px);margin:44px 0 60px;border:1px solid var(--rule);border-radius:28px;background:var(--panel-2)}
+.tech-book .evidence-lab h3{margin:0 0 14px;font-size:calc(24px * var(--rd-fs));line-height:1.5}
+.tech-book .evidence-lab .evidence-kind{font-size:calc(13px * var(--rd-fs));color:var(--muted);margin:0 0 12px}
+.tech-book .evidence-choices{display:flex;gap:12px;flex-wrap:wrap;margin:24px 0}
+.tech-book .evidence-lab button{font:inherit;font-size:calc(15px * var(--rd-fs));line-height:1.5;min-height:48px;border-radius:999px;border:1px solid var(--rule);padding:10px 20px;background:var(--panel);color:var(--ink);cursor:pointer}
+.tech-book .evidence-choices button[aria-pressed=true]{background:var(--beam);border-color:var(--beam);color:var(--bg)}
+.tech-book .evidence-lab figure{margin:0}
+.tech-book .evidence-svg{display:block;width:100%;height:auto;background:var(--panel);border-radius:22px;color:var(--ink)}
+.tech-book .ev-mobile{display:none}
+.tech-book .evidence-svg text{font-family:inherit;fill:currentColor}
+.tech-book .ev-line{stroke:var(--muted);stroke-width:2;fill:none;opacity:.55;stroke-dasharray:6 7}
+.tech-book .ev-node{fill:var(--panel-2);stroke:var(--rule);stroke-width:1.5}
+.tech-book .ev-step.is-current .ev-node{stroke:var(--beam);stroke-width:3}
+.tech-book .ev-marker{fill:var(--beam)}
+.tech-book .ev-icon{fill:none;stroke:var(--beam);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.tech-book .ev-block{fill:color-mix(in srgb,#d07147 15%,var(--panel));stroke:#c27350}
+.tech-book .ev-good{fill:color-mix(in srgb,var(--beam) 12%,var(--panel));stroke:var(--beam)}
+.tech-book .evidence-key{display:flex;gap:12px 28px;flex-wrap:wrap;margin:22px 0 12px;padding-left:24px}
+.tech-book .evidence-key li{font-size:calc(15px * var(--rd-fs));margin:0}
+.tech-book .evidence-result{border-left:3px solid var(--beam);padding-left:18px;margin:22px 0 0}
+.tech-book .evidence-motion{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:24px}
+.tech-book .evidence-motion small{font-size:calc(13px * var(--rd-fs));color:var(--muted)}
+@media(max-width:760px){.tech-book .agent-usage-numbers{grid-template-columns:1fr;gap:16px}.tech-book .src-cards-row{grid-template-columns:1fr}.tech-book .ev-desktop{display:none}.tech-book .ev-mobile{display:block}.tech-book .evidence-lab{padding:22px}.tech-book .evidence-lab h3{font-size:calc(21px * var(--rd-fs))}}
+@media(prefers-reduced-motion:reduce){.tech-book .ev-marker{display:none}}
+@media print{.tech-book .evidence-motion{display:none}.tech-book .evidence-svg{break-inside:avoid}}
+</style>
+<script>
+(function(){'use strict';
+function init(){
+var root=document.querySelector('[data-tech-book]');if(!root)return;
+/* Reflow the actual vectors, not just their container: labels stay readable on phones. */
+var narrow=matchMedia('(max-width:760px)'),artwork=[];
+root.querySelectorAll('svg.book-art').forEach(function(svg){
+ var nodes=Array.from(svg.querySelectorAll('[data-book-node]')),paths=Array.from(svg.querySelectorAll('[data-book-path]')),bg=svg.querySelector('rect');
+ artwork.push({svg:svg,nodes:nodes,paths:paths,bg:bg,view:svg.getAttribute('viewBox'),size:[bg.getAttribute('width'),bg.getAttribute('height')],positions:nodes.map(function(n){return n.getAttribute('transform');}),routes:paths.map(function(p){return p.getAttribute('d');})});
+});
+function reflow(){artwork.forEach(function(a){
+ var small=narrow.matches,cache=a.svg.closest('[data-chapter]').id==='tech-loading';
+ a.svg.setAttribute('viewBox',small?'0 0 440 '+(cache?'900':'1040'):a.view);a.bg.setAttribute('width',small?'440':a.size[0]);a.bg.setAttribute('height',small?(cache?'900':'1040'):a.size[1]);
+ a.nodes.forEach(function(n,i){n.setAttribute('transform',small?'translate(220,'+(125+i*250)+')':a.positions[i]);});
+ a.paths.forEach(function(p,i){p.setAttribute('d',!small?a.routes[i]:cache?['M220 220V275','M220 470V525','M140 625C30 625 30 125 140 125','M300 375C410 375 410 125 300 125'][i]:'M220 '+(230+i*250)+' V'+(270+i*250));});
+});}
+reflow();narrow.addEventListener('change',reflow);
+var data={
+ candidate:{title:'候選名稱，如何成為可公開的個股？',intro:'點到股名只是候選；須核對公司身分、本股原句、當下立場與部位，才決定收錄。',label:'取自10/16已核對案例；流程為教學重組，非即時監控',cases:[
+  ['只是比較','聯詠突破季線','3034 聯詠','明講沒有持有','只有比較分析','不列會員持股','沒有獨立當下立場時不列。不能把附近「這一隻是我的」接到已否認持有的聯詠。'],
+  ['明確買點','要注意低檔股票','3545 敦泰','本股守住季線','季線向上','觀望注意','向前的本股買點可以收錄；可買建議沒有成交證據，不建立今日買入或成本。'],
+  ['姓名／代號衝突','聽寫：天域','代號 4961','正名為天鈺','只有族群比較','不憑錯字增列','先對照正式公司名稱與代號；正名只解決身分，不能憑族群創高補出個股買賣立場。']
+ ]},
+ fault:{title:'什麼是「硬傷」？一筆錯誤，如何隔離？',intro:'硬傷是會改變事實的錯誤，例如把別家公司數字、歷史成交或別人的部位接到本股；不是字數短或文句不夠漂亮。',label:'公開原稿的已知錯誤型態；20／1／19為流程示意，非當日統計',cases:[
+  ['跨股挪用','創意：新聞推薦','後段另一檔','4400 → 3900','數字不屬創意','隔離錯誤列','10/13案例：不能把下一檔的4400→3900套到創意；該列留底，不公開，其餘通過者繼續。'],
+  ['歷史變今日','先前高點已賣','今天討論買回','尚未符合條件','不是今日賣出','退回交易候選','歷史成交與當前立場分開。可保留有依據的「暫不買回」，不能新增今日賣出事件。'],
+  ['主體接錯','觀眾：手中有台化','講者：可以續抱','持有者是觀眾','不是會員部位','不建立持股','10/14型態：對觀眾的續抱建議可形成觀望注意；不能據此宣稱講者或會員已持有。']
+ ]},
+ history:{title:'歷史通知與今日指令，差在哪裡？',intro:'以來源日期與動作核對通知；已寄出的內容是當時快照。更新網站、提及歷史成交與新增寄送，是三件不同的事。',label:'原句為去識別化教學例句；不公開私人通知價位',cases:[
+  ['回顧出場','過去：已經賣出','今天：高點賣出者','現在：不急買回','今日成交 0','保留當下立場','「高點賣出者」是在回顧既有部位。若今日條件未到，可列觀望不碰，但不是今天賣出。'],
+  ['今日執行指令','今天的有效來源','明確指示賣出','核對股票與部位','記錄今日指令','區分全部／部分','當日通知須有明確執行指令；部分減碼保留剩餘持股，全數出場才關閉整個回合。'],
+  ['網站更正','已寄信：版本 A','網站修正：版本 B','寄送帳本維持','新增寄送 0','已寄快照不變','網站與郵件查詢可同步更正；收件匣內的舊信不會自動改寫，也不因重跑網站而重寄。']
+ ]}
+};
+var icons={doc:'M5 2h10l4 4v18H5zM15 2v5h5M8 12h8M8 17h8',clock:'M14 2a12 12 0 1 0 0 24 12 12 0 1 0 0-24M14 7v7l5 3',check:'M3 14l6 6L23 5',filter:'M2 3h24L17 14v10l-6-3v-7z',stop:'M5 5l18 18M23 5L5 23'};
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function icon(type,x,y){return '<g class="ev-icon" transform="translate('+x+','+y+')"><path d="'+icons[type]+'"/></g>';}
+function graph(key,c,mobile){
+ var coords=mobile?[[30,35],[30,205],[30,375]]:[[30,65],[350,65],[670,65]],w=mobile?380:260,h=135;
+ var out='<svg class="evidence-svg '+(mobile?'ev-mobile':'ev-desktop')+'" viewBox="0 0 '+(mobile?'440 760':'960 400')+'" role="img" aria-label="'+esc(c[0]+'判定流程')+'">';
+ if(key==='history'){out+='<path class="ev-line" d="'+(mobile?'M15 80V460':'M160 35H800')+'"/>';[0,1,2].forEach(function(i){out+='<circle cx="'+(mobile?15:160+i*320)+'" cy="'+(mobile?80+i*170:35)+'" r="5" fill="currentColor"/>';});}
+ var labels=[[c[1],c[2]],[c[3],c[4]],[c[5],key==='fault'?'問題留底，不冒充通過':'依證據決定結果']];
+ coords.forEach(function(p,i){
+  if(i<2){var next=coords[i+1],d=mobile?'M220 '+(p[1]+h)+' L220 '+next[1]:'M'+(p[0]+w)+' 132 L'+next[0]+' 132';out+='<path class="ev-line" data-ev-path="'+i+'" d="'+d+'"/>';}
+  out+='<g class="ev-step" data-ev-step="'+i+'"><rect class="ev-node" x="'+p[0]+'" y="'+p[1]+'" width="'+w+'" height="'+h+'" rx="18"/>'+icon(key==='history'&&i<2?'clock':i===0?'doc':i===1?'filter':key==='fault'?'stop':'check',p[0]+18,p[1]+18)+'<text x="'+(p[0]+58)+'" y="'+(p[1]+38)+'" font-size="16">0'+(i+1)+' '+(key==='history'?['來源日期','動作時點','處理結果']:['讀取來源','核對歸屬','決定去向'])[i]+'</text><text x="'+(p[0]+18)+'" y="'+(p[1]+80)+'" font-size="'+(mobile?'21':'20')+'" font-weight="600">'+esc(labels[i][0])+'</text><text x="'+(p[0]+18)+'" y="'+(p[1]+111)+'" font-size="16">'+esc(labels[i][1])+'</text></g>';
+ });
+ var y=mobile?565:250;
+ if(key==='fault'){
+  out+='<path class="ev-line" d="'+(mobile?'M220 510v35M220 545h-95v20M220 545h95v20':'M800 200v25H260v25M800 225v25')+'"/>';
+  [[mobile?30:30,mobile?175:520,'19筆通過','繼續整理文章','ev-good'],[mobile?235:610,mobile?175:320,'1筆問題','隔離留底','ev-block']].forEach(function(a,j){out+='<rect x="'+a[0]+'" y="'+y+'" width="'+a[1]+'" height="100" rx="18" class="'+a[4]+'"/><text x="'+(a[0]+18)+'" y="'+(y+38)+'" font-size="23" font-weight="600">'+a[2]+'</text><text x="'+(a[0]+18)+'" y="'+(y+73)+'" font-size="17">'+a[3]+'</text>';for(var n=0;n<(j?1:19);n++)out+='<rect x="'+(a[0]+18+n*(mobile?7:20))+'" y="'+(y+87)+'" width="5" height="7" rx="1" fill="'+(j?'#c27350':'currentColor')+'"/>';});
+ }else{
+  out+='<path class="ev-line" d="'+(mobile?'M220 510v55':'M800 200v50')+'"/><rect class="ev-good" x="30" y="'+y+'" width="'+(mobile?380:900)+'" height="100" rx="18"/>'+icon('check',50,y+35)+'<text x="95" y="'+(y+42)+'" font-size="22" font-weight="600">'+(key==='candidate'?'身分正確 ≠ 已經成交':'來源優先 ≠ 見到買賣字就採用')+'</text><text x="95" y="'+(y+74)+'" font-size="16">'+(key==='candidate'?'還需本股、主體、日期與動作證據':'歷史成交、現況與寄送狀態分開')+'</text>';
+ }
+ return out+'<circle class="ev-marker" r="6" opacity="0"/></svg>';
+}
+var states=[],raf=0,previous=0,reduce=matchMedia('(prefers-reduced-motion: reduce)');
+function eligible(s){return s.visible&&!s.paused&&!document.hidden&&!s.el.closest('[data-chapter]').hidden&&!document.querySelector('#p-tech').hidden&&!reduce.matches;}
+function sync(){states.forEach(function(s){var on=eligible(s);s.el.dataset.playing=String(on);s.el.querySelector('[data-ev-pause]').textContent=reduce.matches?'已減少動態':s.paused?'繼續播放':'暫停圖解';s.el.querySelector('[data-ev-pause]').disabled=reduce.matches;});if(states.some(eligible)&&!raf){previous=0;raf=requestAnimationFrame(tick);}}
+function tick(t){var dt=previous?Math.min(100,t-previous):0;previous=t;states.forEach(function(s){if(!eligible(s))return;s.time+=dt;if(s.time>=6000){s.time%=6000;s.cycles++;s.el.dataset.cycles=String(s.cycles);}var phase=s.time/6000;s.el.querySelectorAll('.evidence-svg').forEach(function(svg){var paths=svg.querySelectorAll('[data-ev-path]'),n=Math.min(1,Math.floor(phase*2)),path=paths[n],point=path.getPointAtLength(path.getTotalLength()*(phase*2%1)),marker=svg.querySelector('.ev-marker');marker.setAttribute('transform','translate('+point.x+' '+point.y+')');marker.setAttribute('opacity','1');svg.querySelectorAll('.ev-step').forEach(function(g,i){g.classList.toggle('is-current',i===Math.min(2,Math.floor(phase*3)));});});});raf=0;if(states.some(eligible))raf=requestAnimationFrame(tick);}
+Object.keys(data).forEach(function(key){
+ var placeholder=Array.from(root.querySelectorAll('[data-evidence-kind]')).find(function(e){return e.dataset.evidenceKind===key;});if(!placeholder)return;
+ var d=data[key],el=placeholder,s={el:el,key:key,index:0,time:0,cycles:0,visible:false,paused:false};states.push(s);
+ el.className='evidence-lab';el.innerHTML='<p class="evidence-kind">'+esc(d.label)+'</p><h3>'+esc(d.title)+'</h3><p>'+esc(d.intro)+'</p><div class="evidence-choices" role="group" aria-label="'+esc(d.title)+'">'+d.cases.map(function(c,i){return '<button type="button" data-ev-case="'+i+'" aria-pressed="'+(i===0)+'">'+esc(c[0])+'</button>';}).join('')+'</div><figure><div class="evidence-drawing"></div><figcaption><ol class="evidence-key"></ol><p class="evidence-result" aria-live="polite"></p></figcaption></figure><div class="evidence-motion"><button type="button" data-ev-pause>暫停圖解</button><button type="button" data-ev-replay>再播圖解</button><small>本機動畫，不呼叫模型或寄送通知</small></div>';
+ function draw(){var c=d.cases[s.index];el.querySelector('.evidence-drawing').innerHTML=graph(key,c,false)+graph(key,c,true);el.querySelector('.evidence-key').innerHTML=[c[1]+'／'+c[2],c[3]+'／'+c[4],c[5]].map(function(t){return '<li>'+esc(t)+'</li>';}).join('');el.querySelector('.evidence-result').textContent=c[6];el.querySelectorAll('[data-ev-case]').forEach(function(b){b.setAttribute('aria-pressed',String(Number(b.dataset.evCase)===s.index));});}
+ draw();el.querySelectorAll('[data-ev-case]').forEach(function(b){b.addEventListener('click',function(){s.index=Number(b.dataset.evCase);s.time=0;s.paused=true;draw();sync();});});el.querySelector('[data-ev-pause]').addEventListener('click',function(){s.paused=!s.paused;sync();});el.querySelector('[data-ev-replay]').addEventListener('click',function(){s.time=0;s.cycles=0;s.el.dataset.cycles='0';s.paused=false;sync();});
+ new IntersectionObserver(function(entries){s.visible=entries.some(function(e){return e.isIntersecting;});sync();},{threshold:.15}).observe(el.querySelector('.evidence-drawing'));
+});
+document.addEventListener('visibilitychange',sync);root.addEventListener('stock-tech-chapter',sync);reduce.addEventListener('change',sync);sync();
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+})();
+</script>

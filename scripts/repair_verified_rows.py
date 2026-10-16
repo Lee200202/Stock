@@ -6,6 +6,7 @@ notification calls. Atomic Sheets batch also records the repair receipt.
 """
 import argparse
 import hashlib
+import importlib.util
 import json
 import sys
 from datetime import datetime
@@ -13,9 +14,10 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'pipeline'))
 from backup_archive import backup_tables
-import pipeline as pl
+spec = importlib.util.spec_from_file_location('verified_row_repair_pipeline', ROOT / 'pipeline/pipeline.py')
+pl = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(pl)
 
 
 def digest(value):
@@ -42,6 +44,8 @@ def find_rows(values, sheet, day, plans):
             raise ValueError('身分不存在或不唯一：' + plan['code'])
         num, r = candidates[0]
         note = r.get(field, '')
+        print('身分指紋', sheet, plan['code'], plan['name'],
+              hashlib.sha256(note.encode()).hexdigest(), '字數', len(note))
         if hashlib.sha256(note.encode()).hexdigest() != plan['reason_sha256']:
             raise ValueError('說明已變更，保留資料：' + plan['code'])
         if pl._is_sms_row(r.get('來源影片ID', '')):

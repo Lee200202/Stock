@@ -2391,8 +2391,6 @@ function restatesEarlier_(key, earlier) {
       $('mailSubj').textContent = r.subject || ('[' + r.date + '] 每日整理');
       $('mailMeta').textContent = '寄送狀態：' + (r.sent || '未寄送');
       $('mailContent').innerHTML = r.html || '';
-      var mc=$('mailContent'),nav=document.createElement('nav');nav.className='story-mail-nav';nav.setAttribute('aria-label','本期三章導覽');
-      Array.prototype.slice.call(mc.querySelectorAll('h2')).forEach(function(h,i){h.id='mail-part-'+i;h.style.scrollMarginTop='150px';var b=document.createElement('button');b.type='button';b.textContent=['① 盤勢','② 操作','③ 教學'][i]||h.textContent;b.addEventListener('click',function(){h.scrollIntoView({block:'start',behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});});nav.appendChild(b);});if(nav.children.length)mc.insertBefore(nav,mc.firstChild);
     }).withFailureHandler(function () {
       if (requestId !== mailRequestId) { return; }
       $('mailSubj').textContent = date;

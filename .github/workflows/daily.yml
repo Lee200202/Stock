@@ -283,6 +283,12 @@ jobs:
           echo "探測結果：${{ steps.preflight.outputs.reason }}"
           echo "本輪沒有要處理的資料，直接結束。"
 
+      - name: 離線發布與AI批次審閱契約（不呼叫模型）
+        if: steps.preflight.outputs.has_work == 'true'
+        run: |
+          python scripts/check_public_edit_batch.py
+          node scripts/check_gate_decision_contract.js
+
       - name: 執行每日流程
         if: steps.preflight.outputs.has_work == 'true'
         env:

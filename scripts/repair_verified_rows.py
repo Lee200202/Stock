@@ -93,7 +93,9 @@ def main():
     ledgers = {ws.title: digest(pl.sheets_retry(ws.get_all_values)) for ws in book.worksheets()
                if ws.title in ('寄送帳本', 'LINE 寄送帳本')}
     sent = pl._daily_article_status(book, day)
-    backup_tables(pl, book, tables)
+    # The existing archive permits the three production content tables. The
+    # correction log is append-only here; no existing log cell is changed.
+    backup_tables(pl, book, tables[:3])
     for name, ws in sheets.items():
         if digest(pl.sheets_retry(ws.get_all_values)) != digest(values[name]):
             raise SystemExit('備份期間正式資料變動，取消寫入：' + name)

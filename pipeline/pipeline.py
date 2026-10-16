@@ -13562,6 +13562,24 @@ def _explicit_not_yet(names, transcript):
     return ''
 
 
+def _analogy_only(names, transcript):
+    """本股每一次出現都是「下一個X」的比喻（「下一個台塑南亞集團…30塊以下的那一隻」講的是另一檔未具名的股票）：
+    回傳其中一句，否則回空字串（2026/10/16 南亞被三份問卷答成會員持股）。"""
+    flat = re.sub(r'【[^】]{0,40}】|\s', '', str(transcript or ''))
+    hits = []
+    for n in sorted({str(x) for x in names if len(str(x)) >= 2}, key=len, reverse=True):
+        for m in re.finditer(re.escape(n), flat):
+            if any(m.start() < a < m.end() or a < m.start() < b for a, b in hits):
+                continue
+            hits.append((m.start(), m.end()))
+    if not hits:
+        return ''
+    if all(re.search(r'下一(?:個|隻|支|檔)[^。！？!?，,]{0,6}$', flat[max(0, a - 10):a]) for a, _ in hits):
+        a = hits[0][0]
+        return flat[max(0, a - 10):a + 40]
+    return ''
+
+
 def _teaching_disclaimer(names, transcript):
     """本股被點名之後一小段裡，講者明講「我不是叫你買它」「我這是告訴你們…風險」：只是拿來教學的例子，不是對本股的立場。
     回傳那一段，沒有就回空字串（2026/10/16 欣興：「昨天跌停板…張總你又沒有？對呀，我沒有啊…我不是下你買它，我這告訴你們，
@@ -14206,6 +14224,11 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             contested.append((code,{'name':entry['name'],'heard':sorted(names-{entry['name']})[:6],'known':facts,
                                    'passages':sent[:10],'_norm':_ev_norm(text),'_names':sorted(names|{code}),'_trade_check':current,'_trade_sides':sides,'_closed':''}))
             continue
+        if not entry['open'] and current not in ('buy', 'sell'):
+            analogy = _analogy_only(names, transcript)
+            if analogy:
+                entry.update(cls='ignored', tier='直接歸類', enforce=True, basis='本股只出現在「下一個X」的比喻裡：' + analogy[:60])
+                continue
         if not entry['open'] and current in ('watch_watch', 'watch_avoid', 'history', 'ignored'):
             lesson = _teaching_disclaimer(names, transcript)
             if lesson:
@@ -17238,7 +17261,8 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None
 
 
 def finalize_name_and_owned_watch(signals, raw, date_str):
-    """以原稿名稱邊界與同日持有狀態作最後一道公開分類核對。"""
+    """以原稿名稱邊界與同日持有狀態作最後一道公開分類核對。
+    已持有就不重複列觀望；裁決明確要另列的那一類（減碼後剩餘持股＋暫不買回的不碰）照留（2026/10/16 嘉澤）。"""
     if raw and not re.search(r'友達|(?<!持)有達(?![美邁])', raw):
         for cat in ('watch_watch', 'watch_avoid', 'holdings'):
             before = len(signals.get(cat, []) or [])
@@ -17251,7 +17275,8 @@ def finalize_name_and_owned_watch(signals, raw, date_str):
         kept = []
         for row in signals.get(cat, []) or []:
             key = (str(row.get('code') or ''), str(row.get('_date') or date_str))
-            if key in held_keys:
+            also = ((signals.get('_verdicts') or {}).get(key[0]) or {}).get('also') or ('',)
+            if key in held_keys and also[0] != cat:
                 note_decision('同日分類', '已持有不重複列觀望', str(row.get('name') or ''), cat)
             else:
                 kept.append(row)

@@ -1,0 +1,568 @@
+{
+  "url": "https://lee200202.github.io/Stock/?tab=tech",
+  "layouts": [
+    {
+      "width": 1440,
+      "page": "tech-start",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "light"
+    },
+    {
+      "width": 1440,
+      "page": "tech-overview",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "light"
+    },
+    {
+      "width": 1440,
+      "page": "tech-day",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "light"
+    },
+    {
+      "width": 1440,
+      "page": "tech-volume",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "light"
+    },
+    {
+      "width": 1440,
+      "page": "tech-loading",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "light"
+    },
+    {
+      "width": 1440,
+      "page": "tech-agent",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "light"
+    },
+    {
+      "width": 1440,
+      "page": "tech-context",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "light"
+    },
+    {
+      "width": 1440,
+      "page": "tech-harness",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "light"
+    },
+    {
+      "width": 1440,
+      "page": "tech-names",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "light"
+    },
+    {
+      "width": 1440,
+      "page": "tech-number",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "light"
+    },
+    {
+      "width": 1440,
+      "page": "tech-unnamed",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "light"
+    },
+    {
+      "width": 1440,
+      "page": "tech-subject",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "light"
+    },
+    {
+      "width": 1440,
+      "page": "tech-verdict",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "light"
+    },
+    {
+      "width": 1440,
+      "page": "tech-source-priority",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "light"
+    },
+    {
+      "width": 1440,
+      "page": "tech-public-notes",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "light"
+    },
+    {
+      "width": 1440,
+      "page": "tech-transcript-progress",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "light"
+    },
+    {
+      "width": 1440,
+      "page": "tech-hold",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "light"
+    },
+    {
+      "width": 1440,
+      "page": "tech-failure",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "light"
+    },
+    {
+      "width": 1440,
+      "page": "tech-faq",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "light"
+    },
+    {
+      "width": 1440,
+      "page": "tech-author",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "light"
+    },
+    {
+      "width": 1440,
+      "page": "tech-start",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "dark"
+    },
+    {
+      "width": 1440,
+      "page": "tech-overview",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "dark"
+    },
+    {
+      "width": 1440,
+      "page": "tech-day",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "dark"
+    },
+    {
+      "width": 1440,
+      "page": "tech-volume",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "dark"
+    },
+    {
+      "width": 1440,
+      "page": "tech-loading",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "dark"
+    },
+    {
+      "width": 1440,
+      "page": "tech-agent",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "dark"
+    },
+    {
+      "width": 1440,
+      "page": "tech-context",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "dark"
+    },
+    {
+      "width": 1440,
+      "page": "tech-harness",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "dark"
+    },
+    {
+      "width": 1440,
+      "page": "tech-names",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "dark"
+    },
+    {
+      "width": 1440,
+      "page": "tech-number",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "dark"
+    },
+    {
+      "width": 1440,
+      "page": "tech-unnamed",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "dark"
+    },
+    {
+      "width": 1440,
+      "page": "tech-subject",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "dark"
+    },
+    {
+      "width": 1440,
+      "page": "tech-verdict",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "dark"
+    },
+    {
+      "width": 1440,
+      "page": "tech-source-priority",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "dark"
+    },
+    {
+      "width": 1440,
+      "page": "tech-public-notes",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "dark"
+    },
+    {
+      "width": 1440,
+      "page": "tech-transcript-progress",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "dark"
+    },
+    {
+      "width": 1440,
+      "page": "tech-hold",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "dark"
+    },
+    {
+      "width": 1440,
+      "page": "tech-failure",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "dark"
+    },
+    {
+      "width": 1440,
+      "page": "tech-faq",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "dark"
+    },
+    {
+      "width": 1440,
+      "page": "tech-author",
+      "overflow": false,
+      "heading": 1320,
+      "theme": "dark"
+    },
+    {
+      "width": 390,
+      "page": "tech-start",
+      "overflow": false,
+      "heading": 354,
+      "theme": "light"
+    },
+    {
+      "width": 390,
+      "page": "tech-overview",
+      "overflow": false,
+      "heading": 354,
+      "theme": "light"
+    },
+    {
+      "width": 390,
+      "page": "tech-day",
+      "overflow": false,
+      "heading": 354,
+      "theme": "light"
+    },
+    {
+      "width": 390,
+      "page": "tech-volume",
+      "overflow": false,
+      "heading": 354,
+      "theme": "light"
+    },
+    {
+      "width": 390,
+      "page": "tech-loading",
+      "overflow": false,
+      "heading": 354,
+      "theme": "light"
+    },
+    {
+      "width": 390,
+      "page": "tech-agent",
+      "overflow": false,
+      "heading": 354,
+      "theme": "light"
+    },
+    {
+      "width": 390,
+      "page": "tech-context",
+      "overflow": false,
+      "heading": 354,
+      "theme": "light"
+    },
+    {
+      "width": 390,
+      "page": "tech-harness",
+      "overflow": false,
+      "heading": 354,
+      "theme": "light"
+    },
+    {
+      "width": 390,
+      "page": "tech-names",
+      "overflow": false,
+      "heading": 354,
+      "theme": "light"
+    },
+    {
+      "width": 390,
+      "page": "tech-number",
+      "overflow": false,
+      "heading": 354,
+      "theme": "light"
+    },
+    {
+      "width": 390,
+      "page": "tech-unnamed",
+      "overflow": false,
+      "heading": 354,
+      "theme": "light"
+    },
+    {
+      "width": 390,
+      "page": "tech-subject",
+      "overflow": false,
+      "heading": 354,
+      "theme": "light"
+    },
+    {
+      "width": 390,
+      "page": "tech-verdict",
+      "overflow": false,
+      "heading": 354,
+      "theme": "light"
+    },
+    {
+      "width": 390,
+      "page": "tech-source-priority",
+      "overflow": false,
+      "heading": 354,
+      "theme": "light"
+    },
+    {
+      "width": 390,
+      "page": "tech-public-notes",
+      "overflow": false,
+      "heading": 354,
+      "theme": "light"
+    },
+    {
+      "width": 390,
+      "page": "tech-transcript-progress",
+      "overflow": false,
+      "heading": 354,
+      "theme": "light"
+    },
+    {
+      "width": 390,
+      "page": "tech-hold",
+      "overflow": false,
+      "heading": 354,
+      "theme": "light"
+    },
+    {
+      "width": 390,
+      "page": "tech-failure",
+      "overflow": false,
+      "heading": 354,
+      "theme": "light"
+    },
+    {
+      "width": 390,
+      "page": "tech-faq",
+      "overflow": false,
+      "heading": 354,
+      "theme": "light"
+    },
+    {
+      "width": 390,
+      "page": "tech-author",
+      "overflow": false,
+      "heading": 354,
+      "theme": "light"
+    },
+    {
+      "width": 390,
+      "page": "tech-start",
+      "overflow": false,
+      "heading": 354,
+      "theme": "dark"
+    },
+    {
+      "width": 390,
+      "page": "tech-overview",
+      "overflow": false,
+      "heading": 354,
+      "theme": "dark"
+    },
+    {
+      "width": 390,
+      "page": "tech-day",
+      "overflow": false,
+      "heading": 354,
+      "theme": "dark"
+    },
+    {
+      "width": 390,
+      "page": "tech-volume",
+      "overflow": false,
+      "heading": 354,
+      "theme": "dark"
+    },
+    {
+      "width": 390,
+      "page": "tech-loading",
+      "overflow": false,
+      "heading": 354,
+      "theme": "dark"
+    },
+    {
+      "width": 390,
+      "page": "tech-agent",
+      "overflow": false,
+      "heading": 354,
+      "theme": "dark"
+    },
+    {
+      "width": 390,
+      "page": "tech-context",
+      "overflow": false,
+      "heading": 354,
+      "theme": "dark"
+    },
+    {
+      "width": 390,
+      "page": "tech-harness",
+      "overflow": false,
+      "heading": 354,
+      "theme": "dark"
+    },
+    {
+      "width": 390,
+      "page": "tech-names",
+      "overflow": false,
+      "heading": 354,
+      "theme": "dark"
+    },
+    {
+      "width": 390,
+      "page": "tech-number",
+      "overflow": false,
+      "heading": 354,
+      "theme": "dark"
+    },
+    {
+      "width": 390,
+      "page": "tech-unnamed",
+      "overflow": false,
+      "heading": 354,
+      "theme": "dark"
+    },
+    {
+      "width": 390,
+      "page": "tech-subject",
+      "overflow": false,
+      "heading": 354,
+      "theme": "dark"
+    },
+    {
+      "width": 390,
+      "page": "tech-verdict",
+      "overflow": false,
+      "heading": 354,
+      "theme": "dark"
+    },
+    {
+      "width": 390,
+      "page": "tech-source-priority",
+      "overflow": false,
+      "heading": 354,
+      "theme": "dark"
+    },
+    {
+      "width": 390,
+      "page": "tech-public-notes",
+      "overflow": false,
+      "heading": 354,
+      "theme": "dark"
+    },
+    {
+      "width": 390,
+      "page": "tech-transcript-progress",
+      "overflow": false,
+      "heading": 354,
+      "theme": "dark"
+    },
+    {
+      "width": 390,
+      "page": "tech-hold",
+      "overflow": false,
+      "heading": 354,
+      "theme": "dark"
+    },
+    {
+      "width": 390,
+      "page": "tech-failure",
+      "overflow": false,
+      "heading": 354,
+      "theme": "dark"
+    },
+    {
+      "width": 390,
+      "page": "tech-faq",
+      "overflow": false,
+      "heading": 354,
+      "theme": "dark"
+    },
+    {
+      "width": 390,
+      "page": "tech-author",
+      "overflow": false,
+      "heading": 354,
+      "theme": "dark"
+    }
+  ],
+  "contentItems": 595,
+  "errors": [],
+  "result": "PASS"
+}

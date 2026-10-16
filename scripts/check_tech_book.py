@@ -47,6 +47,10 @@ with sync_playwright() as p:
  assert len(flow_results)==6
  page.locator('#techCanvas [data-entity="video"]').click();assert page.locator('#techEntityDetail').is_visible()
  page.locator('#techEntityDetail .tg-x').click()
+ go('tech-day');page.locator('[data-go="video"]').first.click()
+ assert page.locator('.tech-book').get_attribute('data-active-chapter')=='tech-overview'
+ assert page.locator('#techEntityDetail').is_visible()
+ page.locator('#techEntityDetail .tg-x').click()
  for size in ['l','x']:
   page.set_viewport_size({'width':1916,'height':857});page.evaluate('(s)=>{document.documentElement.dataset.w="w";document.documentElement.dataset.fs=s}',size)
   for id in chapter_ids:

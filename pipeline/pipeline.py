@@ -13245,7 +13245,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v16-20261016"          # 否認持有、「你要注意哪一隻？…股名」、引出下一檔的禁令、已出場股票的當下條件、暫不買回
+VERDICT_VERSION = "v17-20261016"          # 否認持有、「你要注意哪一隻？…股名」、引出下一檔的禁令、已出場股票的當下條件、暫不買回
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 3                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -14636,7 +14636,10 @@ def save_verdicts(ss, date_str, signals):
     rows = []
     now = datetime.now(TAIPEI).strftime("%Y/%m/%d %H:%M:%S")
     for code, entry in (signals.get('_verdicts') or {}).items():
-        if not entry.get('new'):
+        # Direct, source-verified decisions also bind the downstream mail gate.
+        # They are saved as facts, not reusable model votes (the cache only
+        # reuses tier=裁決). Otherwise the gate can re-add a rejected stock.
+        if not entry.get('new') and not (entry.get('enforce') and entry.get('tier') == '直接歸類'):
             continue
         answer = ((entry.get('answer') or {}).get(entry.get('cls')) or {}).get('answer') or {}
         votes = '／'.join(_VERDICT_LABEL.get(v, v) or '不能用' for v in entry.get('votes') or [])
@@ -16834,7 +16837,8 @@ _WS_PARTICLE = re.compile(r'[啊啦喔哦嘛咧欸齁蛤呀吼](?=[，。！、�
 _WS_PERSON = re.compile(r'(?<![自忘])我(?:們)?|你(?:們)?|人家|張總|講者|老師|(?<!其他)(?<!別的)(?<!很多)(?<!有些)(?<!這些)(?<!那些)分析師(?:明確|也|則|並|已|再次|特別|直接|更)*(?:指出|表示|認為|與|的不同|帶領|提醒|指示|建議|點名|強調|說明|點出|看好|預期|判斷|分析|坦言)'
                         r'|(?<!其)他(?=是|在|會|的|帶領|認為|說|表示|指出|提醒|強調)')
 _WS_SLANG = re.compile(r'淅瀝嘩拉|稀里嘩啦|老馬賽|賣金丟|死抱活抱|拜託|真的欸|沒錯啊|來來來|厚[，,]|哇|打(?:一個|個)?噴嚏|賣一賣|買一買|咻{2,}|超好睡'
-                       r'|\d\s*(?:幾)?塊|還在手裡|摸很久|沒有那麼急|叫(?:會員|大家|投資人)(?:去)?[買賣]|(?:這|那)邊|一模一樣|天高')
+                       r'|\d\s*(?:幾)?塊|還在手裡|摸很久|沒有那麼急|叫(?:會員|大家|投資人)(?:去)?[買賣]|(?:這|那)邊|一模一樣|天高'
+                       r'|(?i:(?<![A-Za-z])OK(?![A-Za-z]))|說明說明|要破早就破')
 _WS_KEEP_TERMS = ('季線', '年線', '月線', '週線', '均線', '頸線', '缺口', 'MACD', 'KD', '漲停', '跌停', '長紅', '長黑', 'EPS', '營收',
                   '外資', '投信', '法人', '目標價', '法說會', '背離', '成本', '買超', '賣超', '量縮', '爆量', '打底', '美元指數')
 _WS_BUY = re.compile(r'(?<![未沒不有])(?:買進|買入|買回|[佈布]局|承接|加碼)')

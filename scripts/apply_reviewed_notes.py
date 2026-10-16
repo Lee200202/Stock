@@ -1,26 +1,45 @@
 """Apply source-bound reviewed notes without reclassification, model calls, or delivery."""
 from backup_archive import backup_tables
-import argparse,json,hashlib,sys
+import argparse,json,hashlib,sys,importlib.util
 from pathlib import Path
 from datetime import datetime
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'pipeline'));sys.path.insert(0,str(ROOT/'scripts'))
-import pipeline as pl
+spec=importlib.util.spec_from_file_location('reviewed_notes_pipeline',ROOT/'pipeline/pipeline.py')
+pl=importlib.util.module_from_spec(spec);spec.loader.exec_module(pl)
 from apply_reviewed_points import source_quote,digest
 from gspread.utils import rowcol_to_a1
 LABEL={'buy':'買入','sell':'賣出','holdings':'會員持股','watch_watch':'觀望注意','watch_avoid':'觀望不碰'}
+
+def reviewed_items(golden):
+    """Separate notes by code AND category; a remaining lot is not a buy-back stance."""
+    out = dict(golden.get('reviewed_notes') or {})
+    for item in golden.get('reviewed_note_variants') or []:
+        code, cat = str(item.get('code') or ''), item.get('category')
+        if not code or cat not in LABEL:
+            raise ValueError('分類別說明缺少代號或有效分類')
+        key = code + ':' + cat
+        if key in out or (code in out and out[code].get('category') == cat):
+            raise ValueError('重複的代號與分類說明：' + key)
+        out[key] = item
+    return out
+
+def note_item(reviewed, code, cat):
+    item = reviewed.get(code + ':' + str(cat)) or reviewed.get(code)
+    return item if item and item.get('category') == cat else None
 
 def plan_notes(tables,reviewed,day,video_id):
     updates={};matched=set();signals={cat:[] for cat in LABEL};edits=[]
     for tab,values in tables.items():
         head=values[0];field='說明重點' if tab=='會員持股' else '理由摘錄';patches=[]
         for n,cells in enumerate(values[1:],2):
-            row=dict(zip(head,cells));code=str(row.get('代號') or '');item=reviewed.get(code)
-            if not item or pl.norm_date(row.get('日期'))!=day:continue
+            row=dict(zip(head,cells));code=str(row.get('代號') or '')
+            if pl.norm_date(row.get('日期'))!=day:continue
             cat='holdings' if tab=='會員持股' else next((k for k,v in LABEL.items() if v==row.get('方向')),None)
-            if cat!=item['category']:continue
+            item=note_item(reviewed,code,cat)
+            if not item:continue
             source=str(row.get('來源影片ID') or '')
             if source!=video_id and not pl._is_sms_row(source):continue  # 不覆蓋無關人工補登／其他来源。
-            matched.add(code);text=item['text'];name=str(row.get('股票名稱') or '')
+            matched.add((code,cat));text=item['text'];name=str(row.get('股票名稱') or '')
             if str(row.get(field) or '')!=text:patches.append({'range':rowcol_to_a1(n,head.index(field)+1),'values':[[text]]})
             signals[cat].append({'code':code,'name':name,'reason':text,'note':text,'evidence':item['quotes'],'_evidence_verified':True})
             if source==video_id:edits.append((tab,name,code,cat,text,source))
@@ -29,19 +48,21 @@ def plan_notes(tables,reviewed,day,video_id):
 
 def main():
     p=argparse.ArgumentParser();p.add_argument('--date',required=True);p.add_argument('--apply',action='store_true');a=p.parse_args();day=pl.norm_date(a.date)
-    golden=json.loads((ROOT/'scripts/golden'/f"{day.replace('/','-')}.json").read_text(encoding='utf-8'));reviewed=golden.get('reviewed_notes') or {}
+    golden=json.loads((ROOT/'scripts/golden'/f"{day.replace('/','-')}.json").read_text(encoding='utf-8'));reviewed=reviewed_items(golden)
     if not reviewed:raise SystemExit('No reviewed notes')
     book=pl.open_sheets();source={};raw,_=pl.existing_transcript(book,'',day,snapshot=source);sha=hashlib.sha256(raw.encode()).hexdigest()
     if sha!=golden.get('reviewed_notes_sha256'):raise SystemExit('原文指紋改變，未寫入')
-    for code,item in reviewed.items():
+    for key,item in reviewed.items():
+        code=key.split(':',1)[0]
         if item.get('category') not in golden.get('must',{}).get(code,[]) or not item.get('text'):raise SystemExit('分類未經答案核對：'+code)
         item['quotes']=[source_quote(raw,q) for q in item.get('quotes') or []]
         if not item['quotes']:raise SystemExit('缺少原句：'+code)
     tabs=('操作紀錄','會員持股');before={t:book.worksheet(t).get_all_values() for t in tabs}
     updates,matched,signals,manual=plan_notes(before,reviewed,day,source['video_id'])
     additions=[]
-    for code,item in reviewed.items():
-        if code in matched:continue
+    for key,item in reviewed.items():
+        code=key.split(':',1)[0]
+        if (code,item['category']) in matched:continue
         if not item.get('add_if_missing') or item['category']!='watch_avoid' or not pl.shared_list_refusal({'name':golden['names'][code]},raw):raise SystemExit('沒有匹配列，未寫入：'+code)
         cm=pl.get_code_map()
         if pl._display_name(cm.get(code))!=pl._display_name(golden['names'][code]):raise SystemExit('官方名稱與代號不符：'+code)
@@ -60,6 +81,8 @@ def main():
     stamp=datetime.now(pl.TAIPEI).strftime('%m%d_%H%M%S')
     backup_tables(pl,book,tabs+('每日推播內容',))
     if any(digest(before[t])!=digest(book.worksheet(t).get_all_values()) for t in tabs):raise SystemExit('備份期間資料已變，未寫入')
+    fresh={};latest,_=pl.existing_transcript(book,source['video_id'],day,snapshot=fresh)
+    if hashlib.sha256(latest.encode()).hexdigest()!=sha:raise SystemExit('備份期間原文已變，未寫入')
     for t,changes in updates.items():
         if changes:pl.sheets_retry(book.worksheet(t).batch_update,changes,value_input_option='RAW')
     if additions:pl.sheets_retry(book.worksheet('操作紀錄').append_rows,additions,value_input_option='RAW')

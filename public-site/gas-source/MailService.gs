@@ -2134,6 +2134,21 @@ function autoFixAuditMissing(dateStr) {
     return { added: 0, skipped: 0, pending: 0 };
   }
 
+  var v2 = '';
+  try {
+    readSheetObjects_('影片清單').forEach(function (r) {
+      if (fmtDate_(r['發布日期']) !== d) { return; }
+      var t = rawTranscript_(r);
+      if (t.length > v2.length) { v2 = t; }
+    });
+  } catch (e) { /* 下方保留來源不可讀狀態，不用模型挑出的單句新增資料 */ }
+
+  if (!v2) {
+    Logger.log(d + ' 補漏暫停：原始逐字稿不可讀，沒有新增資料');
+    return { added: 0, skipped: 0, pending: v.missing.length,
+             decisions: [{ verdict: '待確認', why: '來源原稿不可讀，補漏未寫入' }] };
+  }
+
   /* 流程的「分類裁決」已經對這一天這一檔下過結論（包括判定不公開）：補登不再自己另判一次。
      2026/10/16 流程把聯電、新興、天域判為不公開，寄信前的這一關把它們當成漏抓、另問模型後直接補登，
      模型回的說明是別檔的（聯電掛著台積電的說明、長興掛著瑞鼎的說明），四筆錯位列就這樣上了網站。
@@ -2147,12 +2162,17 @@ function autoFixAuditMissing(dateStr) {
         if (k) { ruled[k] = String(r['分類'] || '已裁決'); }
       });
     });
-  } catch (e) { /* 讀不到裁決表就照原本的方式 */ }
+  } catch (e) {
+    Logger.log(d + ' 補漏暫停：分類裁決不可讀，沒有另外重新判讀');
+    return { added: 0, skipped: 0, pending: v.missing.length,
+             decisions: [{ verdict: '待確認', why: '分類裁決不可讀，補漏未寫入' }] };
+  }
   var baseName = function (x) { return String(x || '').replace(/[*＊\s]/g, '').replace(/-?KY$/i, ''); };
   var preRuled = [];
   var items = v.missing.filter(function (m) {
-    var k = baseName(m.name);
-    if (k && ruled[k]) { preRuled.push({ name: m.name, verdict: '不收', why: '流程分類裁決已判定（' + ruled[k] + '）' }); return false; }
+    var k = baseName(m.name), code = spokenCodeFor_(baseName(m.name), v2);
+    var settled = ruled[code] || ruled[k];
+    if (settled) { preRuled.push({ name: m.name, verdict: '不收', why: '流程分類裁決已判定（' + settled + '）' }); return false; }
     return true;
   }).slice(0, 25);   // 一次最多 25 筆，避免請求過大
   if (!items.length) {
@@ -2167,14 +2187,6 @@ function autoFixAuditMissing(dateStr) {
   // 用一句斷章取義的話做判斷，集團順帶點名與真的給立場長得幾乎一樣。
   // 改成回逐字稿抓那一檔前後各數百字，模型才看得出他是在講整個集團、
   // 拿它當族群例子，還是真的單獨對這一檔說了要怎麼做。
-  var v2 = '';
-  try {
-    readSheetObjects_('影片清單').forEach(function (r) {
-      if (fmtDate_(r['發布日期']) !== d) { return; }
-      var t = rawTranscript_(r);
-      if (t.length > v2.length) { v2 = t; }
-    });
-  } catch (e) { /* 讀不到就退回只用 evidence */ }
 
   var payload = items.map(function (m, i) {
     var snip = '';
@@ -2253,10 +2265,10 @@ function autoFixAuditMissing(dateStr) {
     var dir = String(r.direction || '').trim();
     var spoken = spokenCodeFor_(own, v2);      // 代號優先：原文緊接著念出代號就用它，名稱比對排第二（2026/10/16 新興 3037）
     if (dir === '會員持股') {
-      holds.push([d, m.name, spoken, '持有', String(r.reason || '').slice(0, 60), vid]);
+      holds.push([d, m.name, spoken, '持有', String(r.reason || '').trim(), vid]);
     } else if (['買入', '賣出', '觀望不碰', '觀望注意'].indexOf(dir) >= 0) {
       trades.push([d, m.name, spoken, dir, String(r.price || '未說明'),
-                   String(r.reason || '').slice(0, 60), vid]);
+                   String(r.reason || '').trim(), vid]);
     } else {
       pending.push(m);
       decisions.push({ name: m.name, verdict: '待確認', why: '方向判不出來' });

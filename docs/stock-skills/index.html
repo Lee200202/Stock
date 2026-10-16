@@ -490,8 +490,8 @@ html[data-theme=dark]{--bg:#101915;--panel:#19251f;--text:#ebf3ee;--muted:#afc1b
 </tr>
 <tr>
   <td>連結</td>
-  <td>依用途用膠囊或圖示卡，狀態與目的清楚</td>
-  <td>真實 URL、執行紀錄能開、外連可辨識</td>
+  <td>來源與依據一律用來源卡（<code>src-card</code>：圖示＋標題＋種類・網域＋↗），正文與 chunk 裡不放帶底線的文字連結；站內切換用膠囊</td>
+  <td>真實 URL、執行紀錄能開、外連可辨識；卡片大小一致（第 13 節）</td>
 </tr>
 <tr>
   <td>回到頂端</td>
@@ -557,7 +557,7 @@ html[data-theme=dark]{--bg:#101915;--panel:#19251f;--text:#ebf3ee;--muted:#afc1b
 </tr>
 </tbody>
 </table></div>
-<p>文字只補規則、例外與資料限制，不再用四張長文字卡冒充圖解。需要數字時列來源日期、樣本數、單位、量測起終點；示意明示虛構。Tokenizer 編號／切詞未實測就標示意；模型容量、實際 token 用量、每日請求數及價格分開計算，不能拿中文字數直接當 token。模型名稱與官方規格須按目前程式、run 及官方文件重新核對。</p>
+<p>文字只補規則、例外與資料限制，不再用四張長文字卡冒充圖解。分工：<strong>清單類內容</strong>（痛點、想試的方向、作者資訊、聲明）用一張一列的全版卡片；<strong>定義、篩選、判定、狀態轉移、先後順序</strong>一律用圖像（第 12 節），卡片只當圖像旁的補充。需要數字時列來源日期、樣本數、單位、量測起終點；示意明示虛構。Tokenizer 編號／切詞未實測就標示意；模型容量、實際 token 用量、每日請求數及價格分開計算，不能拿中文字數直接當 token。模型名稱與官方規格須按目前程式、run 及官方文件重新核對。</p>
 <h2>5. 動畫與獨立 HTML 檔</h2>
 <ul>
 <li>本次累積偏好為「進入可視範圍自動播放，持續循環；使用者點選該模組後停止；再播恢復循環」。只暫停該模組，不改其他模組。離屏、分頁隱藏暫停；回來時尊重手動停止狀態。</li>
@@ -576,7 +576,50 @@ html[data-theme=dark]{--bg:#101915;--panel:#19251f;--text:#ebf3ee;--muted:#afc1b
 <p>LINE 已有整合，先讀目前 <code>Line.gs</code>、relay 和佇列，不新增第二套寄送。卡片分段依官方現行大小上限核對；超量明示並連到有權查看的完整頁，不切半句。改格式保留綁定、同意與帳本。</p>
 <h2>7. 驗收矩陣</h2>
 <p>實際檢查 1440／1280／768／390／360px、深淺色、字級放大、長股名／長文、載入／空白／錯誤、鍵盤、減少動態。量 <code>innerWidth</code> 與頁面寬度，不能只信工具要求的 viewport。驗證無整頁橫捲、浮層不擋關鍵內容、按鈕至少 44px。</p>
-<p>本專案候選腳本：<code>check_tech_story.py</code>、<code>check_class_definitions.py</code>、<code>check_tech_autoplay.py</code>、<code>check_centered_top.py</code>、<code>check_admin_layout.py</code>、<code>check_stock_search.py</code>；先查腳本是否存在、CLI 參數和現行 DOM，按改動選測。舊 <code>preview_v101*</code> 不一定仍是有效關卡。真實瀏覽器要操作同一流程；離線通過不代表正式站、Gmail 或 LINE 真機已驗。</p>
+<p>本專案的檢查腳本（先 <code>ls scripts</code> 確認存在、讀 <code>--help</code> 或開頭說明，再依改動挑選；舊 <code>preview_v101*</code> 不一定仍是有效關卡）：</p>
+<div class="table-wrap" tabindex="0" role="region" aria-label="可左右捲動的規格表"><table>
+<thead>
+<tr>
+  <th>要驗什麼</th>
+  <th>腳本</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>技術頁章節結構、錨點、閱讀模式</td>
+  <td><code>check_tech_story.py</code>、<code>check_story_redesign.py</code>、<code>check_tech_book.py</code>（10/16 起的章節書）</td>
+</tr>
+<tr>
+  <td>版面大空格、元件與 SVG 實際渲染尺寸</td>
+  <td><code>audit_site_layout.py</code>、<code>audit_tech_layout.py</code></td>
+</tr>
+<tr>
+  <td>每個按鈕點下去畫面有沒有變</td>
+  <td><code>audit_story_choices.py</code>（圖解選項）、<code>audit_site_buttons.py</code>（全站，假 API）</td>
+</tr>
+<tr>
+  <td>自播、點選停止、群組範圍</td>
+  <td><code>check_tech_autoplay.py</code>、<code>check_agent_map_autoplay.py</code>、<code>check_agent_animation.py</code></td>
+</tr>
+<tr>
+  <td>右側目錄位置（寬版、大字）</td>
+  <td><code>check_story_rail.py</code></td>
+</tr>
+<tr>
+  <td>分類定義圖卡</td>
+  <td><code>check_class_definitions.py</code>、<code>check_agent_chapter.py</code></td>
+</tr>
+<tr>
+  <td>回到頂端、後台版面、股票搜尋</td>
+  <td><code>check_centered_top.py</code>、<code>check_admin_layout.py</code>、<code>check_stock_search.py</code></td>
+</tr>
+<tr>
+  <td>Pages 與 <code>/exec</code> 同源、巢狀 include</td>
+  <td><code>check_original_parity.py</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>真實瀏覽器要操作同一流程；離線通過不代表正式站、Gmail 或 LINE 真機已驗。</p>
 <h2>8. 常見誤修與完成定義</h2>
 <p>避免：只改本機鏡像；移除資料鉤子；用全域 CSS 放大導致卡片爆版；把內文均線數字當私人價位；移除正常行情時間時也刪新鮮度判斷；影片／圖解在切換後仍顯示上一選項；再播只播一輪；測試主題鍵用錯而兩次其實都淺色。</p>
 <p>完成需有受影響畫面的實際操作與截圖、寬度／主題／狀態、測試及發布面證據。若原 <code>/exec</code> 在瀏覽器只見 Google 錯誤，獨立列出；Pages 視覺通過加上來源一致，不等於原 Web App 已成功渲染。</p>
@@ -754,6 +797,30 @@ html[data-theme=dark]{--bg:#101915;--panel:#19251f;--text:#ebf3ee;--muted:#afc1b
   <td>前後台全部放在畫面底部中央，不放右下角</td>
   <td><code>check_centered_top.py</code></td>
 </tr>
+<tr>
+  <td>10/16</td>
+  <td>技術頁圖像</td>
+  <td>「有硬傷的列」是什麼案例要用圖像呈現；硬傷、歷史通知的定義、候選個股怎麼篩選，都改成圖像結合動畫，全站其他章節比照</td>
+  <td>第 12 節</td>
+</tr>
+<tr>
+  <td>10/16</td>
+  <td>來源連結</td>
+  <td>「Gemini 3.5 Flash Lite 官方規格 · 當次執行日誌 · 19 筆用量與加總」這種帶底線的連結要和卡片形式對齊</td>
+  <td>第 13 節</td>
+</tr>
+<tr>
+  <td>10/16</td>
+  <td>選項按鈕</td>
+  <td>「第一輪擷取／最大一次覆核」的樣式沒有對齊其他 chunk，要重新設計並逐章檢查</td>
+  <td>第 13 節</td>
+</tr>
+<tr>
+  <td>10/16</td>
+  <td>元件尺寸</td>
+  <td>「10/13 取稿日誌」那組來源卡太大，逐章檢查有沒有同樣情形</td>
+  <td>第 13、14 節</td>
+</tr>
 </tbody>
 </table></div>
 <h2>10. 只改被要求的部分（10/14 教訓）</h2>
@@ -771,6 +838,124 @@ html[data-theme=dark]{--bg:#101915;--panel:#19251f;--text:#ebf3ee;--muted:#afc1b
 <li>GAS 的 <code>include()</code> 是 <code>createHtmlOutputFromFile(...).getContent()</code>，<strong>不會執行巢狀的 <code>&lt;?!= include() ?&gt;</code></strong>：被 include 的檔案裡再 include 另一個檔案，在 Pages 版正常、在 <code>/exec</code> 版會原樣輸出模板標籤或缺內容。共用片段（如 <code>StoryDesign</code>）要直接從 <code>Index.html</code> include；<code>scripts/check_original_parity.py</code> 有這個檢查。</li>
 <li>Pages 版由 <code>scripts/build_original_site.py</code> 從同一份 GAS 正本產生；兩邊顯示不一致時先查 include 與建置腳本，再查 <code>/exec</code> 版本。</li>
 </ul>
+<h2>12. 圖像優先：定義、篩選、判定、狀態（10/16）</h2>
+<p>管理者 10/16：「圖像式結合動畫會更具視覺性」，卡片「較容易編寫」但不是首選。凡是在回答「怎麼判、怎麼篩、走到哪一步、為什麼被擋」的內容，都先畫圖，再用一兩句文字補例外。</p>
+<div class="table-wrap" tabindex="0" role="region" aria-label="可左右捲動的規格表"><table>
+<thead>
+<tr>
+  <th>要說明</th>
+  <th>圖像</th>
+  <th>動畫（進入畫面自播、點選停止）</th>
+  <th>資料來源</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>候選個股怎麼篩選</td>
+  <td>漏斗：原文名稱盤點 → 擷取 → 代號比對 → 品質關卡 → 分類裁決 → 公開，每層標檔數</td>
+  <td>一顆顆股名從上方落下，在被擋的那一層變灰並標原因（日常用語、只點名、比喻、教學例子…）</td>
+  <td>某一天真實日誌的檔數（例：10/16 盤點 25 → 擷取 16 → 代號比對 15 → 公開 13），標日期與 run</td>
+</tr>
+<tr>
+  <td>「有硬傷的列」是什麼</td>
+  <td>一列資料穿過一排檢查閘門（原句存在、講的是本股、數字單位一致、沒有通知用字、沒有內部字樣），失敗的閘門亮紅</td>
+  <td>列往右移，遇到失敗閘門停下、彈出那一句實際的錯誤樣態；按「看另一個例子」換案例</td>
+  <td>真實案例（10/16 鴻海「240元（或230幾元）」單位誤判、10/14 「待確認註記」內部字樣），標示已修或示意</td>
+</tr>
+<tr>
+  <td>單檔隔離 vs 整天停止</td>
+  <td>兩條軌道：單檔問題只把那一格移到「留底」，整體問題（原稿指紋變了、寫入衝突）整條軌道停住</td>
+  <td>切換兩種情境，軌道狀態跟著變</td>
+  <td>規則本身，不放統計</td>
+</tr>
+<tr>
+  <td>歷史通知的定義</td>
+  <td>時間軸：通知時間、影片時間、今天；同一檔在軸上的事件點（買、減碼、暫不買回）</td>
+  <td>拖動今天的位置，事件點由「當日」變「回顧」</td>
+  <td>規則，可用示意日期</td>
+</tr>
+<tr>
+  <td>分類定義</td>
+  <td>誰／何日／動作／結果四格（第 4 節）</td>
+  <td>點正例與反例，四格逐格亮起</td>
+  <td>規則</td>
+</tr>
+<tr>
+  <td>直接歸類、覆核、三票</td>
+  <td>三層分流圖：直接歸類 → AI 覆核（不同意就改送問卷）→ 三票</td>
+  <td>一檔股票沿路徑走，覆核否決時跳到問卷那條</td>
+  <td>10/16 起的流程</td>
+</tr>
+</tbody>
+</table></div>
+<p>畫圖規則：</p>
+<ul>
+<li>圖上每個數字都是真實資料或明示示意；真實數字標日期、run 編號、樣本數。</li>
+<li>每個按鈕都要讓圖本身變化（第 11 節）；圖下最多兩句文字，不重述圖上已經看得到的內容。</li>
+<li>SVG 要有 <code>role=&quot;img&quot;</code> 與文字替代（或 <code>&lt;figure&gt;</code>＋<code>&lt;figcaption&gt;</code>），沒有 JavaScript 時以靜態最終狀態呈現；減少動態時不自播。</li>
+<li>用卡片寫出來比較快，不是用卡片的理由；先畫圖，畫不出來再問管理者。</li>
+</ul>
+<h2>13. 元件一致性與尺寸上限（10/16）</h2>
+<p>同一種用途只用一種元件，新章節沿用既有 class，不另起一套。</p>
+<div class="table-wrap" tabindex="0" role="region" aria-label="可左右捲動的規格表"><table>
+<thead>
+<tr>
+  <th>用途</th>
+  <th>唯一元件</th>
+  <th>規格</th>
+  <th>不可以</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>來源、依據、日誌、程式連結</td>
+  <td><code>src-cards</code> &gt; <code>src-cards-row</code> &gt; <code>a.src-card</code>（圖示＋<code>&lt;b&gt;</code>標題＋<code>&lt;small&gt;</code>種類・網域＋↗）</td>
+  <td>單張寬約 230–320px、高約 64–80px；一列放不下就換行</td>
+  <td>正文裡帶底線的文字連結；同一章混用文字連結與卡片</td>
+</tr>
+<tr>
+  <td>圖解裡的情境切換</td>
+  <td>相鄰章節已在用的那一個選項膠囊元件（先查：10/16 技術頁有 <code>agent-choices</code>、<code>agent-chips</code>，章節書有 <code>pn-chip</code>；挑同一章節書裡最多章節用的那一種），同高、同圓角、同字級、用 <code>aria-pressed</code> 表示選中</td>
+  <td>高度至少 44px；選中狀態的底色與其他章節一致</td>
+  <td>為單一章節新增 <code>agent-small</code> 這類縮小變體；用文字或下拉選單代替</td>
+</tr>
+<tr>
+  <td>清單內容</td>
+  <td>一張一列的全版卡片</td>
+  <td>第 1 節</td>
+  <td>2×2 塞滿</td>
+</tr>
+<tr>
+  <td>數值與結果</td>
+  <td>結果卡（標籤＋大字數值＋單位）</td>
+  <td>數字與單位分開排版</td>
+  <td>只用顏色表示</td>
+</tr>
+</tbody>
+</table></div>
+<p>尺寸陷阱：</p>
+<ul>
+<li><code>grid-template-columns: repeat(auto-fit, minmax(230px, 1fr))</code> 在卡片數少時會把每張拉滿整列（10/16「10/13 取稿日誌」那組來源卡變得很大）。來源卡改用 <code>auto-fill</code>、或給 <code>.src-card</code> 設 <code>max-width</code>，讓一張、兩張時也維持原尺寸。</li>
+<li>新增元件前，先找現有章節是否已有同用途的元件（<code>rg -n 'class=&quot;[^&quot;]*src-card' public-site/gas-source</code>），有就沿用。</li>
+<li>驗收時量同一類元件的實際寬高：同類元件之間寬度差超過 1.5 倍、或單一元件超過內容欄寬一半而內容只有一行，視為過大。</li>
+</ul>
+<h2>14. 技術頁逐章驗收程序</h2>
+<p>管理者要求「全站逐一章節驗收是否有該情形發生」時，照章節順序逐章做，並把結果整理成表格回報（章節、問題、改法、截圖），不要只抽查幾章。</p>
+<ol>
+<li>列出所有章節 ID（<code>rg -o 'id=&quot;tech-[^&quot;]+&quot;' public-site/gas-source/Tech.html</code> 或章節書的 manifest），一章一列建表。</li>
+<li>每章在三種設定截圖：1440、390、管理者設定（1916×857、<code>data-w=&quot;w&quot;</code>、<code>data-fs=&quot;l&quot;</code>）。</li>
+<li>每章逐項檢查：<ul>
+<li>有沒有圖像（定義、篩選、判定類內容是否還是純卡片或純文字）；</li>
+<li>按鈕點下去圖本身有沒有變（<code>audit_story_choices.py</code>）；</li>
+<li>來源連結是不是都是來源卡、有沒有底線文字連結（<code>rg -n '&lt;a [^&gt;]*href' </code> 對照 <code>src-card</code>）；</li>
+<li>選項膠囊是否是共用元件（class、高度、圓角、字級一致）；</li>
+<li>有沒有過大的元件或大空格（<code>audit_tech_layout.py</code>、<code>audit_site_layout.py</code>）；</li>
+<li>自播是否進入畫面才開始、點選只停該組（<code>check_tech_autoplay.py</code>）。</li>
+</ul>
+</li>
+<li>修完再跑一次全部腳本，正式站（Pages 與 <code>/exec</code>）各讀回一次。</li>
+<li>回報時把「這次修了哪幾章、哪幾章原本就沒問題、哪幾章留待下一輪」分開寫。</li>
+</ol>
 </div></details></section><section class="doc" data-group="content" id="content"><details><summary><span class="tag k-content">內容</span>來源與分類稽核</summary><div class="prose"><p><code>stock-content-audit</code> · 併入（補 10/05–10/15 分類裁示與逐字稿聽錯樣態；寫法移到文字技能） · <a href="skills/stock-content-audit/SKILL.md">技能入口</a></p><h1>原句、分類與書面說明</h1>
 <h2>1. 證據鏈與來源分工</h2>
 <p>對同一天記下：原始逐字稿、影片 ID、通知文章 ID／修訂、SHA-256、規則版本、操作紀錄、人工修正、文章快照、寄送帳本。先讀完整原稿自行做「代號、主體、日期、部位、現況立場、引句、疑點」表，再看預期答案，減少被舊分類帶偏。</p>
@@ -1017,6 +1202,42 @@ html[data-theme=dark]{--bg:#101915;--panel:#19251f;--text:#ebf3ee;--muted:#afc1b
   <td>加名稱別名前先問</td>
 </tr>
 <tr>
+  <td>10/16</td>
+  <td>聯詠</td>
+  <td>「這一隻是我的，聯詠我沒有啊，只是拿來分析而已，我有瑞頂」</td>
+  <td>股名後緊接否認持有，不算報出部位（<code>_my_stock_statement</code>）</td>
+</tr>
+<tr>
+  <td>10/16</td>
+  <td>敦泰</td>
+  <td>「你要注意哪一隻股票？還在低檔的。3545敦泰」</td>
+  <td>提示在股名之前、股名句只有名稱：直接觀望注意（<code>bounded_current_conditions</code>）</td>
+</tr>
+<tr>
+  <td>10/16</td>
+  <td>敦泰／國巨</td>
+  <td>「我不會買的股票是什麼？我絕對不會買它…我不買國巨的原因」</td>
+  <td>引出下一檔的禁令不算前一檔</td>
+</tr>
+<tr>
+  <td>10/16</td>
+  <td>鴻海</td>
+  <td>10/06 已在 260 賣出，今天「23X 是買點、今天漲了不會去追」</td>
+  <td>已出場股票的當下條件照條件歸類，不當回顧</td>
+</tr>
+<tr>
+  <td>10/16</td>
+  <td>嘉澤</td>
+  <td>「賣掉的嘉澤，什麼時候買回來？我會跟你們講」</td>
+  <td>暫不買回：觀望不碰</td>
+</tr>
+<tr>
+  <td>10/16</td>
+  <td>聯電</td>
+  <td>「聯電已經不是賣點…我沒有買聯電，只是告訴你不要殺低」</td>
+  <td>反對賣出的教學例子，列或不列都算通過；未改規則</td>
+</tr>
+<tr>
   <td>10/15</td>
   <td>族群段落</td>
   <td>要求把過去已稽核正確的族群段落併入資料庫，方便快速判斷</td>
@@ -1130,6 +1351,11 @@ html[data-theme=dark]{--bg:#101915;--panel:#19251f;--text:#ebf3ee;--muted:#afc1b
   <td>人當主詞</td>
   <td>「張震表示」「老師強調」「分析師點名」「講者認為」「被點名」</td>
   <td>省略主詞，直接寫事實與條件</td>
+</tr>
+<tr>
+  <td>轉述動詞開頭</td>
+  <td>「明確表示現在還不能買」「明言目前叫大家先不要動」「指出追價者…」「宣告從此不再碰」（2026/10/16，講者主詞拿掉後只剩動詞）</td>
+  <td>直接寫內容；<code>_REPORTING_LEAD</code> 在句首與逗號後拿掉，句中「表示支撐有效」不動</td>
 </tr>
 <tr>
   <td>寫作過程</td>
@@ -1877,9 +2103,9 @@ html[data-theme=dark]{--bg:#101915;--panel:#19251f;--text:#ebf3ee;--muted:#afc1b
 <h2>3. GAS 原部署</h2>
 <ol>
 <li>新版內容、manifest／markers、<code>GAS_BUILD</code>／<code>PROJECT_BUILD_</code> 與更新紀錄相符；保持 Properties、試算表、密鑰、寄送旗標。</li>
-<li>CLI 確認 staging 工作目錄及 <code>.clasp.json</code>。先建立目錄再以它為 workdir，不能在同一命令才建立尚不存在的 workdir。可用目前本機 clasp 安裝（曾在 <code>scratch/clasp/node_modules/.bin/clasp.cmd</code>），先查存在與 CLI 語法。</li>
+<li>CLI 確認 staging 工作目錄及 <code>.clasp.json</code>。先建立目錄再以它為 workdir，不能在同一命令才建立尚不存在的 workdir。clasp 裝在 <code>scratch/clasp/node_modules</code>：Codex 端曾直接呼叫 <code>scratch/clasp/node_modules/.bin/clasp.cmd</code>，Claude Code 端在 <code>scratch/clasp/headNNN</code> 裡用 <code>npx --prefix .. clasp</code>（第 8.1 節）；兩者是同一份安裝，先查存在與 CLI 語法。</li>
 <li>對照雲端 HEAD 後推送；儲存／push 是 HEAD，create-version 是不可變版本，更新原 deployment 才是 <code>/exec</code> 上線。</li>
-<li>在編輯器明確選取 <code>checkProjectFiles()</code> 並核對目前程式確有此函式。重新載入後下拉曾回到 <code>setupSpreadsheet</code>，不可沿用舊選取直接按 Run。不要為檢查執行初始化／重裝觸發器。</li>
+<li><code>checkProjectFiles()</code> 要在編輯器裡選取後執行：Codex 端可在已登入的瀏覽器操作，Claude Code 端沒有登入編輯器、改用重新 <code>clasp pull</code> 後 <code>compare.py</code> 比對（第 8.1 節）。編輯器重新載入後下拉曾回到 <code>setupSpreadsheet</code>，不可沿用舊選取直接按 Run；它的「舊版」判斷靠檔案裡的特徵字串，字串過期會誤報（第 8.1 節第 7 點）。不要為檢查執行初始化／重裝觸發器。</li>
 <li>編輯原「管理部署作業」，保持執行身分、存取權、部署 ID 與 URL。協作者可 push／建版但可能無權 deploy；重複相同 CLI 不會解掉 domain 限制。用已授權且登入的 owner 流程；需要使用者處理時列具體版本及阻擋原因。</li>
 <li>讀正式 <code>/exec?action=ping</code>，核對預期 build；傳播可能延遲，先有限重讀並確認部署版本，不每讀到舊值就再建一版。必要時拉指定不可變版本與 Git 來源比對，HEAD 相同不等於 production 相同。</li>
 </ol>
@@ -1924,8 +2150,8 @@ html[data-theme=dark]{--bg:#101915;--panel:#19251f;--text:#ebf3ee;--muted:#afc1b
 </tr>
 <tr>
   <td>GHA</td>
-  <td><code>gh run list/view</code>；dispatch 先讀 workflow inputs／concurrency</td>
-  <td>假設 <code>apply</code> 不寫資料、排多個 pending 互相取消</td>
+  <td>Codex 端：<code>gh run list/view</code>；Claude Code 端沒有 <code>gh</code>，用 REST（<code>scratch/v139/gh.py</code>，第 8.2 節）。dispatch 前先讀 workflow inputs／concurrency</td>
+  <td>假設 <code>apply</code> 不寫資料；同一 concurrency group 連續排多個 run（只留一個 pending，其餘被取消，10/16 的 10/15 重播就這樣被取消）</td>
 </tr>
 <tr>
   <td>正式 UI</td>
@@ -1959,12 +2185,16 @@ html[data-theme=dark]{--bg:#101915;--panel:#19251f;--text:#ebf3ee;--muted:#afc1b
 <li>定時觸發器跑的是 HEAD，網站刷新與後台按鈕跑 <code>/exec</code>：推送後到擁有者切換前，兩條路徑用不同版本的程式。改到資料計算方式時要明講。</li>
 <li><code>checkProjectFiles()</code> 的「舊版」標記以檔案裡某個特徵字串判斷（10/14：<code>MailService.gs 還是舊版（mailHero_ 裡找不到「border-radius:22px」）</code>）。標記若沒隨程式更新，會誤報舊版；先查標記本身是否過期。</li>
 <li>對齊的四處：GitHub main、編輯器 HEAD、不可變版本、<code>/exec</code>。10/15 驗收時版本 479 與 GitHub <code>3d1f39c</code> 一致，<code>/exec</code> 仍在 478，等擁有者切換。</li>
+<li>推送來源要用<strong>已提交</strong>的版本，不用工作區：<code>git worktree add &quot;$TEMP/wtgas&quot; HEAD</code>，在那個目錄執行 <code>compare.py</code>，避免把另一個工作階段尚未提交的 <code>Tech.html</code>、<code>Stylesheet.html</code> 推進編輯器；用完 <code>git worktree remove --force</code>。</li>
+<li><code>compare.py</code> 用 repo 檔名比對，<code>MailService.gs</code>、<code>SheetService.gs</code> 會出現在 <code>only local</code>、編輯器的 <code>Mailservice.js</code>、<code>Sheetservice.js</code> 出現在 <code>only in editor</code>：這兩個要手動複製成編輯器的小寫檔名。推送後重新 <code>clasp pull</code> 到新目錄，再跑一次 <code>compare.py</code> 確認 <code>differs: []</code>。</li>
+<li><code>/exec?action=ping</code> 回的是 <code>Config.gs</code> 的 <code>GAS_BUILD</code> 字串；這一版沒改 <code>GAS_BUILD</code> 時，ping 分不出 <code>/exec</code> 指向哪一個版本號（10/16：484、485、486 的 build 都是 <code>2026-10-16-tech-book-v184r1</code>）。要嘛在改動時一起更新 <code>GAS_BUILD</code>（先確認沒有別的工作階段正在改 <code>Config.gs</code>），要嘛請擁有者在「管理部署作業」看版本號回報；不要把「build 字串相同」寫成「已確認是新版」。</li>
 </ol>
 <h3>8.2 GitHub 與 Pages</h3>
 <ul>
 <li>沒有 <code>gh</code> CLI，用 REST（<code>stock-automation-triage</code> 第 9 節）。Pages 建置結果：<code>GET /repos/Lee200202/Stock/pages/builds/latest</code>。</li>
 <li><code>tests/</code> 在 .gitignore：本機測試不會跟著推送，CI 只跑 <code>.github/workflows/public-site.yml</code> 列出的 <code>scripts/check_*</code>。推送前本機跑 <code>python -m unittest discover -s tests -p &quot;test_*.py&quot;</code>。</li>
-<li>另一個工作階段可能同時推送：<code>git fetch</code> 後 <code>git pull --rebase</code>；只 stage 本輪檔案。</li>
+<li>另一個工作階段可能同時推送：先 <code>git fetch</code>。工作區有別人未提交的改動時 <code>git pull --rebase</code> 會拒絕執行，不要為了 pull 而 stash 或還原別人的檔案；改用 <code>git merge --ff-only origin/main</code>（別人改的檔案上游沒動時可以快轉），或確認 <code>git log HEAD..origin/main</code> 是空的再直接 push。</li>
+<li>只 stage 本輪檔案。同一個檔案裡混有別人的修改時，只暫存自己的區塊：<code>git diff -U0 檔案 &gt; d.diff</code>，留下自己的 hunk，<code>git apply --cached --unidiff-zero d.diff</code>，再用 <code>git diff --cached</code> 確認（10/16 <code>JavaScript.html</code> 同時有另一個工作階段的 <code>data-tech-book</code> 改動）。</li>
 </ul>
 <h3>8.3 修改檔案時的陷阱</h3>
 <ul>
@@ -1979,6 +2209,60 @@ html[data-theme=dark]{--bg:#101915;--panel:#19251f;--text:#ebf3ee;--muted:#afc1b
 <li>管理者自己登入（不輸入管理金鑰或 Google 密碼）；勾選「記住這台裝置」後重新載入會自動登入。</li>
 <li>「維護工具」分頁的按鈕會啟動正式工作（全面重整、從此步驟重跑）：只看不點，除非管理者要求那一項。</li>
 <li>後台顯示的是 <code>/exec</code> 指向的版本，不是 HEAD。</li>
+</ul>
+<h2>9. 正式資料寫入的並行安全（10/16 事故）</h2>
+<p>GitHub 的單日更新（<code>apply</code>／<code>apply-rules</code>）會刪掉並重寫那一天的列；Apps Script 也有好幾個定時工作會讀寫同一天的列。兩邊同時跑就會互相蓋掉，或寫到錯的列。</p>
+<div class="table-wrap" tabindex="0" role="region" aria-label="可左右捲動的規格表"><table>
+<thead>
+<tr>
+  <th>Apps Script 寫入者</th>
+  <th>什麼時候跑</th>
+  <th>寫什麼</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>寄信前品質關卡（<code>runQualityGate_</code> → 稽核／複審／重寫）</td>
+  <td>12:00–22:00 每五分鐘一棒的 <code>dailyPushJob</code>，當天第一次寄送前</td>
+  <td>稽核：<code>autoFixAuditMissing</code> 補登漏抓的列；複審：<code>reviewDayRecords_</code> 改分類、改名稱、刪列；重寫：重寫每日整理</td>
+</tr>
+<tr>
+  <td><code>resolveBlankCodes_</code></td>
+  <td>撰稿、刷新時</td>
+  <td>依名稱補空白代號（寫成數字）</td>
+</tr>
+<tr>
+  <td><code>cleanNamesPhase_</code>、全面重整</td>
+  <td>後台按鈕、全面重整工作</td>
+  <td>名稱清理</td>
+</tr>
+<tr>
+  <td>逐日同步</td>
+  <td>後台存檔後、假日與夜間</td>
+  <td>同步到網站快取</td>
+</tr>
+</tbody>
+</table></div>
+<p>10/16 發生的事：流程把聯電、新興、天域判為不公開，寄信前的關卡把它們當成漏抓，另外問模型後直接補登。模型回的說明是別檔的（聯電掛著台積電的說明、長興掛著瑞鼎的說明），代號留空後又被名稱補成數字，四筆錯位列就上了網站。已修正（<code>7b2cee3</code>）：</p>
+<ul>
+<li>補登不收流程「分類裁決」當天已裁決過的股票；引句與說明要講到這一檔；原文念出的代號優先。</li>
+<li>複審寫回前確認那一列的名稱、代號、說明沒變；被別的工作改寫過就整天不寫，下一棒重新收集。</li>
+</ul>
+<p>發布時的檢查：</p>
+<ol>
+<li>套用前看當天的寄送狀態與關卡狀態。12:00–22:00 還是「待寄送」時，關卡可能正在跑：先告訴管理者「今天的信還沒寄出、關卡可能同時寫入」，讓管理者決定要不要先寄、先等或先套用。</li>
+<li>套用後用公開 API（<code>apiSearchByDate</code>）讀回，檢查每一列代號的型別：流程寫的是字串，Apps Script 寫的（手動補登、通知列、關卡補登、代號補填）是數字。數字代號的列要逐筆看是誰寫的、說明是不是在講這一檔。</li>
+<li>讀回持股追蹤（<code>apiGetHoldingsTracker</code>）：今天有沒有新開或被結束的回合（10/16 聯詠被錯開一個回合、嘉澤的回合被錯誤結束）。</li>
+<li>要刪錯列時用有指紋的修復流程（<code>regenerate-verified.yml</code> 的 <code>row-repair-preview</code>／<code>row-repair-apply</code>：鎖定日期、股名、代號與說明指紋，先備份），不在後台手動刪；刪除前要管理者同意。</li>
+<li>已寄出的信不會跟著網站改：寄出前發現錯誤，要先問管理者要不要讓它照常寄出。</li>
+</ol>
+<h2>10. 測試基準與工具雜項</h2>
+<ul>
+<li><strong>先量基準再說回歸</strong>：<code>tests/*.js</code> 有一批測試依賴未進版控的本機檔案，在乾淨的 HEAD 上本來就會失敗（10/16 有 13 個）。宣稱「我的改動沒有造成失敗」前，用 <code>git worktree add</code> 在乾淨的 HEAD 與「HEAD＋本輪 diff」各跑一次，比較兩份失敗清單。</li>
+<li><strong>Windows 編碼</strong>：<code>quick_validate.py</code> 等讀中文檔的腳本要加 <code>PYTHONUTF8=1</code>，否則 cp950 讀檔失敗；Python 輸出中文時加 <code>PYTHONIOENCODING=utf-8</code>。</li>
+<li><strong>等待</strong>：不用 <code>sleep</code> 等工作完成；GitHub run 用 <code>gh.py wait</code>，長時間工作用背景執行。同一個 concurrency group 要一個跑完再送下一個。</li>
+<li><strong>用量</strong>：送出會用到模型的 run 前，估算請求數（單日重播或套用約 14–18 個模型回覆，可在日誌數 <code>finish=</code> 的次數），並記錄當天累計；額度台灣 15:00 歸零。</li>
+<li><strong>管理者中止工具呼叫時</strong>：停下來等管理者說明，不要換一種方式重試同一件事。</li>
 </ul>
 </div></details></section><section class="doc" data-group="assistant" id="assistant"><details><summary><span class="tag k-assistant">助理</span>網站 AI 助理</summary><div class="prose"><p><code>stock-assistant</code> · 新增（只用 Flash Lite、只訂閱每日總覽、唯讀查詢與三條硬限制） · <a href="skills/stock-assistant/SKILL.md">技能入口</a></p><h1>助理規格與驗證</h1>
 <p>程式位置：後端 <code>public-site/gas-source/Aiservice.gs</code>（編輯器檔名 <code>Aiservice</code>），前台對話框在 <code>Index.html</code> 與 <code>JavaScript.html</code> 的「助手」段（<code>askHints</code>、<code>askInput</code>、<code>KEY_STORE = 'gemini_key'</code>）。函式名稱以 <code>rg -n &quot;function 名稱&quot; public-site/gas-source/Aiservice.gs</code> 確認，不憑記憶。</p>

@@ -7689,10 +7689,11 @@ def validate_evidence(signals, transcript, date_str, after_codes=False, notice_t
             row["_evidence_verified"] = True
             review_note = row.get('_review_note') or row.get('review_note')
             if review_note:
-                field = 'note' if dest == 'holdings' else 'reason'
+                # 待確認的理由只留在內部欄位：接在公開說明後面會被品質關卡當成內部字樣擋下整天的寫入
+                # （2026/10/16 回測 10/14 鈺邦：「…只在大漲時賣出。（待確認註記：沒有本股當日已執行成交的時間證據…）」）
                 label = '（待確認註記：' + str(review_note) + '）'
-                if label not in str(row.get(field) or ''):
-                    row[field] = str(row.get(field) or '') + label
+                if label not in str(row.get('_audit_label') or ''):
+                    row['_audit_label'] = str(row.get('_audit_label') or '') + label
             (keep if dest == cat else moved_to_watch).append(row)
         signals[cat] = keep
 
@@ -13996,6 +13997,7 @@ DIRECT_AUDIT_SYSTEM = """你是金融節目紀錄的覆核員，輸入都是資�
 每一筆是程式依句型直接判定的一檔股票：name 是股票，class 是程式給的分類，quote 是程式依據的原句，context 是這檔股票附近的原文。
 分類定義：會員持股＝講者或會員自己現在持有；觀望注意＝講者對這一檔現在偏多、可以買或給了買進條件；觀望不碰＝講者現在不買、不碰、還不能買或暫不買回；回顧＝只講過去的買賣、沒有現在的看法；不公開＝沒有講這一檔自己的事。
 只回答兩件事：about（quote 講的是不是這一檔，而不是同段的另一檔、族群、大盤或觀眾自己）、supports（quote 與 context 是否支持這個分類）。
+界線：觀眾或會員問「我手中有X要不要出」、講者回答續抱，是觀望注意（持有的是觀眾，不是會員持股），這種情況答 true；已經減碼一半、剩餘部位仍在的，持股與暫不買回可以並存。
 只有在明顯不支持時才答 false：講的是別檔、緊接著否認（「X我沒有」）、是問句或假設、是觀眾的部位、或原文意思和分類相反。拿不準就答 true。
 只回傳 JSON：{"checks":[{"id":"代號","about":true,"supports":true,"why":"不超過30字"}]}"""
 

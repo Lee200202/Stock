@@ -6963,9 +6963,14 @@ def _my_stock_statement(names, code, transcript):
     own = [str(n) for n in names if len(str(n)) >= 2 and not str(n).isdigit()]
     if not own:
         return ''
-    m = re.search(r'(?:我|我們|張震)的股票[^。！？!?]{0,10}[。！？!?，,]?(?:' + re.escape(str(code or '____')) + r')?(?:'
-                  + '|'.join(map(re.escape, sorted(own, key=len, reverse=True))) + r')', flat)
-    return m.group() if m else ''
+    pattern = (r'(?:我|我們|張震)的股票[^。！？!?]{0,10}[。！？!?，,]?(?:' + re.escape(str(code or '____')) + r')?(?:'
+               + '|'.join(map(re.escape, sorted(own, key=len, reverse=True))) + r')')
+    for m in re.finditer(pattern, flat):
+        # 「這一隻是我的，聯詠我沒有啊，聯詠我只是拿來分析而已，我有瑞頂」：股名後面緊接著否認持有，不是報出部位（2026/10/16 聯詠）
+        if re.match(r'(?:啊|呢|喔|哦)?[，,]?(?:我|我們)?(?:也|都|根本)?(?:沒有|沒買|沒在|不是我的|只是(?:拿來)?(?:分析|舉例|講))', flat[m.end():m.end() + 12]):
+            continue
+        return m.group()
+    return ''
 
 
 def _audience_prohibition(heard, transcript, names=None):
@@ -8564,7 +8569,13 @@ def _public_subject_fixes(text, name):
     # 整句只有「本股列觀望注意」：這一句是在講分類本身，整句拿掉
     text = re.sub(r'(^|[。！？])\s*(?:' + re.escape(base) + r')?\s*(?:列|列為|列入|歸為|屬於)(?:觀望不碰|觀望注意|會員持股)(?:的)?(?:標的|個股|對象)?[。！]',
                   lambda m: m.group(1), text)
+    text = _REPORTING_LEAD.sub(lambda m: m.group(1), text)
     return _SELF_CLASS.sub('', text)
+
+
+# 句首只剩轉述動詞（主詞是講者、已被拿掉）：「明確表示被動元件目前不碰」→「被動元件目前不碰」（2026/10/16 國巨、世芯-KY、聯發科、欣興）。
+# 只認句首或逗號後、而且後面還有內容；「表示季線支撐有效」這種「代表」的意思在句中，不動。
+_REPORTING_LEAD = re.compile(r'(^|[。！？；;]|[，,](?=明確|明言|直言|宣告))(?:並|也|更|則)?(?:明確|直接|特別|再次)?(?:表示|明言|直言|宣告|指出)(?:了)?[：:，,]?(?=[^。！？；;]{4})')
 
 
 def public_narrative(text, row=None, signals=None):
@@ -13197,7 +13208,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v15-20261015"          # 切換未具名例子即停；無有效票時仍保留原稿可直接核對的本股向前條件
+VERDICT_VERSION = "v16-20261016"          # 否認持有、「你要注意哪一隻？…股名」、引出下一檔的禁令、已出場股票的當下條件、暫不買回
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 3                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -13522,21 +13533,40 @@ def bounded_current_conditions(names, transcript):
     others.update(set(CONFIRMED_NAMES)-own_forms)
     sentences=list(_plain_sentences(transcript))
     found=[]
+    pointer=re.compile(r'(?:你|你們)(?:就)?(?:要|應該要|可以)注意(?:的是)?(?:哪一[隻支檔]|這一[隻支檔]|的股票)')
     for i,sentence in enumerate(sentences):
         if not any(n in sentence for n in names) or len(sentence)>180:
             continue
-        window=sentence
+        window,next_other,used=sentence,False,0
         for tail in sentences[i+1:i+9]:
-            if len(window)+len(tail)>320 or re.search(r'接著|另外|下一[檔支隻]|來看另',tail) or any(n in tail for n in others):
+            if len(window)+len(tail)>320 or re.search(r'接著|另外|下一[檔支隻]|來看另',tail):
+                break
+            if any(n in tail for n in others):
+                next_other=True
                 break
             window+=tail
+            used+=1
+        # 視窗收尾後三句內報出下一檔：視窗尾巴的「它」「我不會買的是什麼？」是在引出那一檔
+        nxt=''.join(sentences[i+1+used:i+4+used])
+        next_other=next_other or any(n in nxt for n in others)
+        head=''.join(sentences[max(0,i-2):i])
+        bare=len(re.sub(r'[\d，,。！？!?\s啊來好那]','',re.sub('|'.join(map(re.escape,sorted(names,key=len,reverse=True))),'',sentence)))<=2
+        if bare and pointer.search(head) and not re.search(r'不要|不能|不會|小心|風險|如果|假如',head[pointer.search(head).start():]):
+            found.append(('watch_watch',head+sentence))
+            continue
         if re.search(r'誰說|誰講|不是說|並非|沒有說|過去|以前|當時|昨天|前幾天|先前',sentence):
             continue
         decision=re.sub(r'可不可以[買賣]|能不能[買賣]|要不要[買賣]|[買賣]點[嗎呢]','',window)
-        if re.search(r'(?:我(?:現在|目前)?(?:不會|不想|不)|還不能|現在不能|不可以)(?:再|去)?(?:買|碰)|不要(?:再)?(?:玩|碰)|買點(?:還|尚)?沒(?:有)?出現|還沒跌完',decision):
+        refusal=re.search(r'(?:我(?:現在|目前)?(?:不會|不想|不)|還不能|現在不能|不可以)(?:再|去)?(?:買|碰)|不要(?:再)?(?:玩|碰)|買點(?:還|尚)?沒(?:有)?出現|還沒跌完',decision)
+        if refusal and next_other and len(sentence)<=refusal.start() and re.search(r'[它牠]|的股票是什麼|是哪一[隻支檔]',decision[refusal.start():refusal.end()+8]):
+            refusal=None
+        if refusal:
             if not re.search(r'如果|假如|假設|要是|萬一',sentence):
                 found.append(('watch_avoid',window))
         elif re.search(r'不能買[^。！？!?]{0,12}(?:'+'|'.join(map(re.escape,names))+r')',decision) and re.search(r'只能等|還沒補|尚未補',decision):
+            found.append(('watch_avoid',window))
+        elif re.search(r'賣掉的(?:'+'|'.join(map(re.escape,names))+r')[^。！？!?]{0,16}什麼時候(?:要)?買回(?:來)?',decision) \
+                and re.search(r'什麼時候(?:要)?買回(?:來)?[？?，,]?[^。！？!?]{0,4}(?:我會(?:跟你們|告訴你們)?(?:講|說|通知|告訴)|不用(?:急|緊張))',decision):
             found.append(('watch_avoid',window))
         elif (re.search(r'(?:如果|若|等|回測|跌到)[^。！？!?]{0,18}(?:年線|季線|月線|均線|支撐)[^。！？!?]{0,15}(?:安全|買點|可以買|可布局|可佈局)',decision)
               or re.search(r'(?:'+'|'.join(map(re.escape,names))+r')[^。！？!?]{0,24}(?:就是|是)買點(?![嗎呢？?])',decision)
@@ -14077,6 +14107,15 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
         # 同樣的情況列成會員持股（2026/10/14 世芯-KY：原文只有「10月8號…我說快賣」，紀錄上 10/08 已賣出）：
         # 紀錄上最近一筆是賣出、之後沒有部位，今天沒有買進通知也沒有今天買進的明確句，那一列是在回顧，不是現在持有。
         if current == 'holdings' and code in known and not entry['open'] and 'buy' not in cats \
+                and any('賣出這一檔' in fact for fact in known.get(code, [])) and not explicit_today_trades(transcript, names, 'buy'):
+            # 已經出場的股票，今天另有本股的當下條件（「鴻海23X是買點…今天漲了不會去追」）：是之後的進場看法，不是回顧（2026/10/16 鴻海）
+            condition, quote = bounded_current_conditions(names, transcript)
+            # 「你有一只股票，鴻海集團的」講的是集團裡另一檔（2026/10/12 鴻準），不是本股的條件
+            if condition and not any(re.search(re.escape(n) + r'集團', quote) for n in names if len(n) >= 2):
+                row['evidence'] = list(dict.fromkeys(list(row.get('evidence') or []) + [quote]))
+                entry.update(cls=condition, tier='直接歸類', enforce=True, basis='紀錄上已出場，今天另有本股當下條件：' + quote[:60])
+                continue
+        if current == 'holdings' and code in known and not entry['open'] and 'buy' not in cats \
                 and any('賣出這一檔' in fact for fact in known.get(code, [])) and not explicit_today_trades(transcript, names, 'buy')                 and not (_hold_advice_to_viewer(names, transcript) or _explicit_approval(names, transcript)
                          or _explicit_not_yet(names, transcript) or _asked_refusal(names, transcript)):
             # 今天對本股另有明確的現況說法（回答續抱、明講可以買或不能買）時不是回顧（2026/10/14 台化：紀錄上很早賣過，今天回答會員續抱）
@@ -14097,6 +14136,12 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
         # 2026/10/02 同一份原稿三次重播，力積電、世芯-KY、聖暉每次落在不同分類，問卷三票也各不相同；紀錄是唯一不會變的依據。
         others_sold = ({str(r.get('code') or '') for r in signals.get('sell', []) or [] if isinstance(r, dict)}
                        | {k[0] for k in notice if k[1] == 'sell'}) - {code, ''}
+        if entry['open'] and current != 'sell' and not explicit_today_trades(transcript, names, 'sell'):
+            condition, quote = bounded_current_conditions(names, transcript)
+            if condition == 'watch_avoid' and re.search(r'什麼時候(?:要)?買回', quote):
+                row['evidence'] = list(dict.fromkeys(list(row.get('evidence') or []) + [quote]))
+                entry.update(cls='watch_avoid', tier='直接歸類', enforce=True, basis='已減碼或出場，明講買回時機未到：' + quote[:60])
+                continue
         if entry['open'] and current != 'sell' and not explicit_today_trades(transcript, names, 'sell') \
                 and not _sold_near_self(row, transcript, names, others_sold):
             entry.update(cls='holdings', tier='直接歸類', basis='紀錄上持有（最近一筆是買入、沒有賣出），今天原文有講到、沒有賣出的說法', enforce=True)

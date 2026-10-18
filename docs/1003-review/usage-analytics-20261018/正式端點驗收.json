@@ -82,5 +82,71 @@
         ]
       }
     }
+  },
+  {
+    "gasVersion": 493,
+    "sentSeconds": 50,
+    "status": 200,
+    "seconds": 5.92,
+    "response": {
+      "ok": true,
+      "result": {
+        "ok": true,
+        "n": 1,
+        "added": 1,
+        "updated": 0,
+        "unchanged": 0,
+        "stays": [
+          {
+            "page": "驗收/v190r4",
+            "seconds": 50
+          }
+        ]
+      }
+    }
+  },
+  {
+    "gasVersion": 493,
+    "sentSeconds": 80,
+    "status": 200,
+    "seconds": 4.507,
+    "response": {
+      "ok": true,
+      "result": {
+        "ok": true,
+        "n": 1,
+        "added": 0,
+        "updated": 1,
+        "unchanged": 0,
+        "stays": [
+          {
+            "page": "驗收/v190r4",
+            "seconds": 80
+          }
+        ]
+      }
+    }
+  },
+  {
+    "gasVersion": 493,
+    "sentSeconds": 80,
+    "status": 200,
+    "seconds": 6.747,
+    "response": {
+      "ok": true,
+      "result": {
+        "ok": true,
+        "n": 1,
+        "added": 0,
+        "updated": 0,
+        "unchanged": 1,
+        "stays": [
+          {
+            "page": "驗收/v190r4",
+            "seconds": 80
+          }
+        ]
+      }
+    }
   }
 ]

@@ -1,0 +1,104 @@
+{
+  "desktopTabs": [
+    {
+      "left": 52,
+      "navLeft": 52,
+      "navWidth": 1320,
+      "overflow": false,
+      "panelWidth": 1320,
+      "tab": "今日與投稿",
+      "width": 1440
+    },
+    {
+      "left": 52,
+      "navLeft": 52,
+      "navWidth": 1320,
+      "overflow": false,
+      "panelWidth": 1320,
+      "tab": "逐日編輯",
+      "width": 1440
+    },
+    {
+      "left": 60,
+      "navLeft": 60,
+      "navWidth": 1320,
+      "overflow": false,
+      "panelWidth": 1320,
+      "tab": "持股追蹤",
+      "width": 1440
+    },
+    {
+      "left": 52,
+      "navLeft": 52,
+      "navWidth": 1320,
+      "overflow": false,
+      "panelWidth": 1320,
+      "tab": "維護工具",
+      "width": 1440
+    },
+    {
+      "left": 52,
+      "navLeft": 52,
+      "navWidth": 1320,
+      "overflow": false,
+      "panelWidth": 1320,
+      "tab": "會員簡訊",
+      "width": 1440
+    },
+    {
+      "left": 52,
+      "navLeft": 52,
+      "navWidth": 1320,
+      "overflow": false,
+      "panelWidth": 1320,
+      "tab": "自動化監控",
+      "width": 1440
+    },
+    {
+      "left": 52,
+      "navLeft": 52,
+      "navWidth": 1320,
+      "overflow": false,
+      "panelWidth": 1320,
+      "tab": "LINE",
+      "width": 1440
+    },
+    {
+      "left": 52,
+      "navLeft": 52,
+      "navWidth": 1320,
+      "overflow": false,
+      "panelWidth": 1320,
+      "tab": "版本沿革",
+      "width": 1440
+    },
+    {
+      "left": 60,
+      "navLeft": 60,
+      "navWidth": 1320,
+      "overflow": false,
+      "panelWidth": 1320,
+      "tab": "使用分析",
+      "width": 1440
+    }
+  ],
+  "devices": [
+    {
+      "left": 298,
+      "navLeft": 298,
+      "navWidth": 1320,
+      "overflow": false,
+      "panelWidth": 1320,
+      "width": 1916
+    },
+    {
+      "overflow": false,
+      "width": 390
+    },
+    {
+      "overflow": false,
+      "view": "觀眾",
+      "width": 360
+    }
+  ]
+}

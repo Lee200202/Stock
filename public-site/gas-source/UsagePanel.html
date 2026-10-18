@@ -57,6 +57,9 @@
 @keyframes usageGrow{from{transform:scaleX(0)}to{transform:scaleX(1)}}@keyframes usageDraw{from{stroke-dashoffset:2000}to{stroke-dashoffset:0}}
 @media(max-width:1050px){#p-usage .usage-cards{grid-template-columns:repeat(2,minmax(0,1fr))}#p-usage .usage-row{grid-template-columns:repeat(3,minmax(0,1fr))}#p-usage .usage-row>div:first-child{grid-column:1/-1}}
 @media(max-width:700px){#p-usage .usage-grid{grid-template-columns:1fr}#p-usage .usage-metric,#p-usage .usage-chart,#p-usage .usage-info{padding:20px}#p-usage .usage-metric b{font-size:calc(23px * var(--rd-fs))}#p-usage .usage-bar{grid-template-columns:minmax(70px,1fr) minmax(60px,1.2fr) auto;gap:10px}#p-usage .usage-row{grid-template-columns:repeat(2,minmax(0,1fr))}#p-usage .usage-activity{gap:3px}#p-usage .usage-hour{height:35px}}
+#p-usage .usage-head{margin-bottom:8px;gap:12px}#p-usage .usage-head h2{line-height:1.25;margin-bottom:8px}#p-usage .usage-head p{margin:6px 0 0;line-height:1.6}
+#p-usage .usage-period legend{position:absolute;width:1px;height:1px;clip-path:inset(50%);overflow:hidden;margin:0}#p-usage .usage-controls{margin:16px 0 20px;align-items:center}#p-usage .usage-tabs{margin:0 0 20px;padding:4px}
+#p-usage .usage-metric{padding:20px}#p-usage .usage-metric b{line-height:1.2;margin:10px 0}
 @media(max-width:440px){#p-usage .usage-cards{grid-template-columns:1fr}#p-usage .usage-row>div:last-child{grid-column:1/-1}#p-usage .usage-bar{grid-template-columns:1fr auto}#p-usage .usage-rail{grid-row:2;grid-column:1/-1}#p-usage .usage-bar span:last-child{grid-column:2;grid-row:1}}
 @media(prefers-reduced-motion:reduce){#p-usage .usage-chart .usage-rail i,#p-usage .usage-chart .usage-line,#p-usage .rf-dot circle{animation:none!important}#p-usage .usage-hour{transition:none}}
 </style>

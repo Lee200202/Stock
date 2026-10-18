@@ -1,0 +1,49 @@
+<script>
+/* v190: one cumulative snapshot per document/day/page, bounded batches. */
+(function(w){'use strict';
+function create(opt){
+ opt=opt||{};var clock=opt.clock||Date.now,doc=opt.document||document,storage=opt.storage;
+ var uid='',nonce='s'+clock().toString(36)+Math.random().toString(36).slice(2,12),current=opt.page||'overview';
+ try{storage=storage||w.localStorage;uid=storage.getItem('zzVisitor')||'';if(!uid){uid='v'+clock().toString(36)+Math.random().toString(36).slice(2,9);storage.setItem('zzVisitor',uid);}}catch(e){uid='v'+nonce;}
+ var prefix=opt.prefix||'',device=opt.device||'desktop',visible=!doc.hidden,since=clock(),queue={},order=[],totals={},lastAttempt=-Infinity,inflight=false,sequence=0,landing=prefix+current;
+ var source='直接/未知';try{var u=new URL(doc.referrer);source=u.hostname===w.location.hostname?'站內':u.hostname.slice(0,100);}catch(e){}
+ function day(t){return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(t));}
+ function visit(){var now=clock(),v;try{v=JSON.parse(storage.getItem('zzVisit190')||'null');}catch(e){}
+  if(!v||typeof v.id!=='string'||now-Number(v.last)>1800000||now<Number(v.last))v={id:nonce+'v'+now.toString(36),last:now};v.last=now;try{storage.setItem('zzVisit190',JSON.stringify(v));}catch(e){}return v.id;}
+ var visitId=visit();
+ function state(page,d){var key=visitId+'|'+d+'|'+page;if(!totals[key])totals[key]={page:page,day:d,visit:visitId,ms:0,views:0,scroll:0,actions:{},revision:0,hours:new Array(24).fill(0)};return totals[key];}
+ state(current,day(since)).views=1;
+ function put(e){var key=e.visit+'|'+e.day+'|'+e.page+'|'+e.action+'|'+e.target;if(!queue[key])order.push(key);queue[key]=e;
+  while(order.length>40){delete queue[order.shift()];}}
+ function snapshot(s){s.revision++;put({v:2,session:nonce,visit:s.visit,day:s.day,page:prefix+s.page,action:'停留',target:prefix+s.page,seconds:Math.min(86400,Math.floor(s.ms/1000)),device:device,referrer:source,landing:landing,depth:s.scroll,views:s.views,reports:s.revision,count:0,hours:s.hours.map(function(n){return Math.floor(n/1000);})});}
+ function checkpoint(){var now=clock();if(!visible){since=now;return;}var start=since;since=now;if(now<=start)return;
+  // A suspended computer must not become hours of reading time.
+  if(now-start>120000)start=now-60000;
+  var touched={};while(start<now){var cut=Math.min(now,(Math.floor(start/3600000)+1)*3600000),s=state(current,day(start)),hour=(Math.floor(start/3600000)+8)%24,span=cut-start;s.ms+=span;s.hours[hour]+=span;s.views=Math.max(1,s.views);touched[s.day]=s;start=cut;}
+  Object.keys(touched).forEach(function(d){snapshot(touched[d]);});
+ }
+ function flush(force,beacon){if(inflight||!order.length||(!force&&clock()-lastAttempt<30000))return;
+  var batch=order.splice(0,40).map(function(k){var e=queue[k];delete queue[k];return e;});lastAttempt=clock();inflight=true;
+  function done(ok){inflight=false;if(!ok)batch.forEach(function(e){var k=e.visit+'|'+e.day+'|'+e.page+'|'+e.action+'|'+e.target;if(!queue[k]){order.unshift(k);queue[k]=e;}else{queue[k].seconds=Math.max(queue[k].seconds,e.seconds);queue[k].count=Math.max(queue[k].count,e.count);}});while(order.length>40)delete queue[order.pop()];}
+  try{if(beacon&&!opt.send&&typeof w.__usageFinalSend190==='function'&&w.__usageFinalSend190(uid,batch)){done(true);return;}(opt.send||function(who,events,cb){google.script.run.withSuccessHandler(function(r){cb(!!r&&r.ok===true);}).withFailureHandler(function(){cb(false);}).apiLogUsage(who,events);})(uid,batch,done);}catch(e){done(false);}
+ }
+ function page(name){name=String(name||'overview').slice(0,40);if(name===current)return;checkpoint();current=name;since=clock();visitId=visit();var s=state(current,day(since));s.views++;snapshot(s);if(order.length>=10)flush(false);}
+ function act(action,target){checkpoint();visitId=visit();action=String(action||'').slice(0,40);target=String(target||'').slice(0,80);
+  if(action==='查股票')target=/^\d{4,6}[A-Z]?$/.test(target)?target:'股名關鍵字';
+  var s=state(current,day(clock())),k=action+'|'+target;s.actions[k]=(s.actions[k]||0)+1;
+  put({v:2,session:nonce,visit:s.visit,day:s.day,page:prefix+current,action:action,target:target,seconds:0,device:device,referrer:source,landing:landing,depth:s.scroll,views:0,reports:++sequence,count:s.actions[k]});if(order.length>=10)flush(false);}
+ function end(final){checkpoint();visible=false;flush(!!final,!!final);}
+ function resume(){if(!doc.hidden&&!visible){visible=true;since=clock();visitId=visit();}}
+ doc.addEventListener('visibilitychange',function(){if(doc.hidden)end(false);else resume();});
+ w.addEventListener('pagehide',function(){end(true);});w.addEventListener('pageshow',resume);
+ var timer=(opt.interval||w.setInterval)(function(){if(!doc.hidden){resume();checkpoint();visitId=visit();}flush(false);},60000);
+ if(!opt.noAuto){
+  var pendingScroll=false;doc.addEventListener('scroll',function(){if(pendingScroll||doc.hidden)return;pendingScroll=true;w.requestAnimationFrame(function(){pendingScroll=false;var el=doc.documentElement,pct=Math.min(100,Math.floor((w.scrollY+w.innerHeight)/Math.max(el.scrollHeight,1)*100/25)*25),s=state(current,day(clock()));if(pct>s.scroll){s.scroll=pct;snapshot(s);}});},{passive:true});
+  var chapter='';doc.addEventListener('stock-tech-chapter',function(e){var next=e.target.dataset.activeChapter;if(next&&next!==chapter){chapter=next;act('閱讀章節',next);}},true);
+  doc.addEventListener('click',function(e){var a=e.target.closest('a[href]');if(a){try{var url=new URL(a.href);if(/^https?:$/.test(url.protocol)&&url.hostname!==w.location.hostname)act('外連',url.hostname);}catch(x){}return;}var b=e.target.closest('[data-book-replay],[data-ev-replay]');if(b)act('重播圖解',b.closest('[data-chapter]')?.id||'圖解');});
+ }
+ return{page:page,act:act,end:function(){end(true);},flush:function(){checkpoint();flush(true);}};
+}
+w.StockUsage={create:create};
+})(window);
+</script>

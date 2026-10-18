@@ -54,7 +54,7 @@ var SHEET_SCHEMA = {
   /* 使用紀錄。訪客識別是瀏覽器本地產生的隨機碼，不是 Email、也不是 IP，
      清掉瀏覽器資料就換一個新的，這邊無從還原成任何真人身分。
      只留 90 天：它的價值是「這一週大家在看什麼」，不是永久檔案。 */
-  '使用紀錄': ['時間', '訪客識別', '頁面', '動作', '對象', '停留秒數', '裝置'],
+  '使用紀錄': ['時間', '訪客識別', '頁面', '動作', '對象', '停留秒數', '裝置', '彙整識別', '瀏覽批次', '更新時間', '來源網域', '閱讀深度', '快照次數', '入口頁', '瀏覽次數', '互動次數', '來源版本', '時段秒數'],
   // 代號與名稱的權威對照，來自證交所與櫃買中心公開清單。每週更新。
   '股票對照表': ['代號', '名稱', '市場', '產業', '更新時間'],
   // 日K 落地快取。線上不再逐月向證交所抓，網站載入才會快。
@@ -1246,11 +1246,12 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-10-16-tech-illustrations-v189';
+var PROJECT_BUILD_ = '2026-10-18-usage-analytics-v190';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
 var PROJECT_FILES_ = [
+  { file: 'UsageAnalytics.gs', names: ['usageWrite190_', 'usageAggregate190_', 'usageAnalytics190_'] },
   { file: 'SiteBridge.gs', names: ['siteBridge_', 'siteBridgeSetup'], marker: ['siteBridge_', 'args.length > 8'] },
   { file: 'Marketservice.gs', names: ['mergedHourlyHistory_', 'backfillHourlyHistoryJob', 'auditHourlyCoverage', 'installMarketDataJobs', 'migrateV94'], marker: ['backfillHourlyHistoryJobRun_', 'tally.ok'] },
   { file: 'Line.gs', names: ['lineWebhook_', 'lineSignatureOk_', 'lineParseText_', 'lineQueueSms_', 'lineQueueSmsTextCorrection_', 'lineDailyTick_', 'lineDeliverTick_', 'lineClassify_', 'lineSectorReply_', 'apiGetLineEntry', 'apiAdminLineStatus', 'apiAdminLineSaveConfig', 'lineSetupCheck', 'lineValidateTemplates', 'lineSetupRichMenus', 'lineRichMenuHealth_', 'lineChartUrl_', 'lineHoldingVisualFlex_', 'LINE_OUTBOX_COLS_', 'lineSmsActive_', 'lineMsg_', 'lineSmsStateFlex_', 'lineRecipientBreakdown_', 'lineDiagnose_', 'apiAdminLineDiagnose', 'diagnoseLineDelivery', 'lineStockFlex_'], marker: ['lineWebhook_', 'gasAt'] },
@@ -1280,6 +1281,8 @@ var PROJECT_FILES_ = [
 
 // HTML 檔名不含 .html；marker 是這一版才有的字串。
 var PROJECT_HTML_ = [
+  { file: 'UsageTracker', marker: 'w.StockUsage' },
+  { file: 'UsagePanel', marker: 'usagePeriod' },
   { file: 'StoryDesign', marker: 'v184 技術說明' },
   { file: 'Index', marker: "include('TechEvidence')" },
   { file: 'TechIllustrations', marker: 'var drawings=' },

@@ -27,8 +27,8 @@ def admin_allowlist(source: str, start: str) -> set[str]:
 
 def main() -> None:
     public = invoked("Index.html", "JavaScript.html", "Tech.html",
-                     "Settings.html", "Unsubscribed.html")
-    admin = invoked("Admin.html")
+                     "Settings.html", "Unsubscribed.html", "UsageTracker.html")
+    admin = invoked("Admin.html", "UsagePanel.html")
     for name in public:
         if f"{name}: {name}" not in GAS or f"'{name}'" not in WORKER:
             raise SystemExit(f"Missing public bridge method: {name}")

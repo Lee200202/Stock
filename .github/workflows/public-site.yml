@@ -34,6 +34,8 @@ jobs:
           python-version: '3.11'
       - name: 原始介面與 API 方法對齊
         run: python scripts/check_original_parity.py
+      - name: 使用紀錄彙整與匿名分析
+        run: node scripts/check_usage_tracking.js
       - name: 報價排程模擬（盤中批次、收盤結算、轉送備援）
         run: node scripts/check_quote_flow.js
       - name: 後端橋接實測（失敗就保留上一版網站）

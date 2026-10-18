@@ -1,0 +1,12 @@
+{
+  "tests": 17,
+  "scenario": "240秒，120次切到背景後返回，結束時補送",
+  "legacyRequests": 120,
+  "newRequests": 9,
+  "legacyRows": 120,
+  "newStayRows": 1,
+  "requestReduction": 92.5,
+  "rowReduction": 99.16666666666667,
+  "finalSeconds": 240,
+  "note": "離線受控重現；不是正式站帳單降幅。"
+}

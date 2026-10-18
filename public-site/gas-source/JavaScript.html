@@ -401,74 +401,12 @@
 
      為什麼要批次送：每切一次分頁就打一次後端，在 Apps Script 上會排隊，
      而排隊排的是同一條線——使用者真正在等的那幾支請求會被它拖慢。
-     所以先收在陣列裡，湊到十筆或離開頁面時才送一次。
+     所以先收在陣列裡，每分鐘批次或離開頁面時才送一次。
 
      整段用 try 包起來，而且任何一步失敗都只是不記錄。
      這是旁支，不該讓它有機會弄壞任何使用者看得到的東西。
      ================================================================== */
-  var USE = (function () {
-    var KEY = 'zzVisitor';
-    var id = '';
-    try {
-      id = localStorage.getItem(KEY) || '';
-      if (!id) {
-        id = 'v' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-        localStorage.setItem(KEY, id);
-      }
-    } catch (e) { id = 'anon'; }
-
-    var q = [];
-    var page = 'overview';
-    var since = Date.now();
-    var device = (function () {
-      try {
-        return matchMedia('(max-width: 620px)').matches ? 'mobile' : 'desktop';
-      } catch (e) { return ''; }
-    })();
-
-    function flush(sync) {
-      if (!q.length) { return; }
-      var batch = q.splice(0, 40);
-      try {
-        google.script.run
-          .withFailureHandler(function () { /* 記不下來就算了 */ })
-          .apiLogUsage(id, batch);
-      } catch (e) { /* 同上 */ }
-      if (sync) { q.length = 0; }
-    }
-
-    function push(action, target, seconds) {
-      try {
-        q.push({ page: page, action: action, target: target || '',
-                 seconds: seconds || 0, device: device });
-        if (q.length >= 10) { flush(false); }
-      } catch (e) { /* 記不下來就算了 */ }
-    }
-
-    return {
-      /* 換頁。先把上一頁停了多久記下來，再開始算新的那一頁。 */
-      page: function (name) {
-        var sec = Math.round((Date.now() - since) / 1000);
-        if (sec > 0 && sec < 86400) { push('停留', page, sec); }
-        page = name;
-        since = Date.now();
-        /* 進入分頁不記錄：它與下一次的「停留」是同一件事的兩半，
-           而停留那一筆本來就帶著頁面名稱與秒數。後端也會擋一次。 */
-      },
-      act: function (action, target) { push(action, target); },
-      end: function () {
-        var sec = Math.round((Date.now() - since) / 1000);
-        if (sec > 0 && sec < 86400) { push('停留', page, sec); }
-        flush(true);
-      }
-    };
-  })();
-
-  /* 關掉分頁時把還沒送出去的補送。visibilitychange 比 unload 可靠——
-     手機上切到別的 App 常常不會觸發 unload。 */
-  document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'hidden') { USE.end(); }
-  });
+  var USE = window.StockUsage.create({page:document.body.getAttribute('data-tab')||'overview',device:matchMedia('(max-width:620px)').matches?'mobile':'desktop'});
 
   /* 切到某一個面板。
 

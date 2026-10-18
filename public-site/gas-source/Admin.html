@@ -1318,7 +1318,8 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
         <svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M4 12h4l2-4 4 8 2-4h4"/></svg>自動化監控</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="line">
         <svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5c-5 0-9 3.1-9 7 0 2.4 1.5 4.5 3.9 5.8L6.5 20.5l3.7-2.3c.6.1 1.2.2 1.8.2 5 0 9-3.1 9-7s-4-6.9-9-6.9z"/><path d="M8 10.5v3M11 10.5v3M14 10.5v3h2"/></svg>LINE</button>
-      <button class="tab" role="tab" aria-selected="false" data-tab="ver">
+      <button class="tab" role="tab" data-tab="usage" aria-selected="false" aria-controls="p-usage"><svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V4M4 20h17M8 16l4-6 4 3 5-8" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>使用分析</button>
+<button class="tab" role="tab" aria-selected="false" data-tab="ver">
         <svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>版本沿革</button>
     </nav>
   </div>
@@ -2039,7 +2040,8 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
     <!-- ============ 版本沿革 ============ -->
     <!-- 從技術說明頁搬過來的。它的讀者只有維護的人，放在公開頁面對訪客是雜訊，
          而且會隨每次改版一直長。內容在 Changelog.html，樣式沿用 Stylesheet 的 .ver。 -->
-    <section class="panel" id="p-ver" role="tabpanel" hidden>
+    <?!= include('UsagePanel'); ?>
+<section class="panel" id="p-ver" role="tabpanel" hidden>
       <div class="card">
         <?!= include('Changelog'); ?>
       </div>
@@ -2050,6 +2052,7 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
 </div>
 
 <?!= include('TimeDisplay'); ?>
+<?!= include('UsageTracker'); ?>
 <script>
 function $(id){ return document.getElementById(id); }
 
@@ -2066,48 +2069,7 @@ var root = document.documentElement;
    記進入時間、開了哪一個分頁、停留多久，以及按了哪些會動到資料的按鈕。
    後台只有自己人在用，但正因為只有幾個人，「上次是誰在什麼時候動了什麼」
    反而更值得留——出事的時候那是唯一的線索。 */
-var ADMIN_USE = (function () {
-  var id = 'admin';
-  try {
-    var k = localStorage.getItem('zzVisitor');
-    if (k) { id = k; }
-  } catch (e) { /* 讀不到就用 admin */ }
-
-  var q = [], page = 'post', since = Date.now();
-
-  function flush() {
-    if (!q.length) { return; }
-    var batch = q.splice(0, 40);
-    try {
-      google.script.run.withFailureHandler(function () {}).apiLogUsage(id, batch);
-    } catch (e) { /* 記不下來就算了 */ }
-  }
-  function push(action, target, seconds) {
-    try {
-      q.push({ page: '後台/' + page, action: action, target: target || '',
-               seconds: seconds || 0, device: 'admin' });
-      if (q.length >= 8) { flush(); }
-    } catch (e) {}
-  }
-  return {
-    page: function (name) {
-      var sec = Math.round((Date.now() - since) / 1000);
-      if (sec > 0 && sec < 86400) { push('停留', page, sec); }
-      page = name; since = Date.now();
-      /* 進入分頁不記錄：它與下一次的「停留」是同一件事的兩半，
-         而停留那一筆本來就帶著頁面名稱與秒數。後端也會擋一次。 */
-    },
-    act: function (a, t) { push(a, t); },
-    end: function () {
-      var sec = Math.round((Date.now() - since) / 1000);
-      if (sec > 0 && sec < 86400) { push('停留', page, sec); }
-      flush();
-    }
-  };
-})();
-document.addEventListener('visibilitychange', function () {
-  if (document.visibilityState === 'hidden') { ADMIN_USE.end(); }
-});
+var ADMIN_USE = window.StockUsage.create({page:'post',prefix:'後台/',device:'admin'});
 
 window.__onLayoutChange = function (what) {
   if (what === 'view' || what === 'w') {
@@ -2160,6 +2122,7 @@ window.__onLayoutChange = function (what) {
       if (btn.dataset.tab === 'smsadmin' && window.__loadSmsAdminDays) {
         window.__loadSmsAdminDays();
       }
+      if (btn.dataset.tab === 'usage' && window.__loadUsage) { window.__loadUsage(); }
       ADMIN_USE.page(btn.dataset.tab);
       // 藏著的面板量不到寬度，切過來才算得出一排放得下幾格
       layoutAllSteps();

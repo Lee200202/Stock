@@ -1,0 +1,84 @@
+<style>
+#p-usage .usage-head{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:24px}
+#p-usage .usage-head h2{margin:0 0 12px;font-size:calc(29px * var(--rd-fs))}
+#p-usage .usage-controls,#p-usage .usage-tabs{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:18px 0 26px}
+#p-usage button,#p-usage select{min-height:46px;border-radius:999px;padding:10px 20px;border:1px solid var(--rule);background:var(--panel);color:var(--ink);font:inherit;cursor:pointer}
+#p-usage button[aria-pressed=true]{background:var(--beam);color:var(--bg);border-color:var(--beam)}
+#p-usage .usage-controls select{width:auto;min-width:150px}#p-usage .usage-controls input[type=checkbox]{width:auto}#p-usage .usage-controls label{display:flex;align-items:center;gap:8px}
+#p-usage .usage-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:20px;margin-bottom:28px}
+#p-usage .usage-metric,#p-usage .usage-chart,#p-usage .usage-info{padding:24px;border:1px solid var(--rule);border-radius:26px;background:var(--panel)}
+#p-usage .usage-metric b{display:block;font-family:var(--mono);font-size:calc(29px * var(--rd-fs));margin:12px 0;color:var(--beam);overflow-wrap:anywhere}
+#p-usage .usage-metric small{font-size:calc(13px * var(--rd-fs));line-height:1.6;color:var(--muted)}
+#p-usage .usage-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
+#p-usage h2,#p-usage h3{white-space:normal;overflow-wrap:anywhere}
+#p-usage .usage-row>div{min-width:0;overflow-wrap:anywhere;white-space:normal}
+#p-usage .usage-chart h3{margin:0 0 20px;font-size:calc(21px * var(--rd-fs))}
+#p-usage .usage-chart svg{display:block;width:100%;height:auto;color:var(--beam)}
+#p-usage .usage-chart svg text{fill:var(--muted);font:16px var(--mono)}
+#p-usage .usage-empty{padding:30px 20px;line-height:1.9;border:1px dashed var(--rule);border-radius:20px;color:var(--muted)}
+#p-usage .usage-bars{display:grid;gap:20px}
+#p-usage .usage-bar{display:grid;grid-template-columns:minmax(90px,1fr) minmax(90px,2fr) auto;gap:14px;align-items:center;min-width:0}
+#p-usage .usage-bar span{overflow-wrap:anywhere;font-size:calc(14px * var(--rd-fs))}
+#p-usage .usage-rail{height:13px;border-radius:999px;background:var(--panel-2);overflow:hidden}
+#p-usage .usage-rail i{display:block;height:100%;background:var(--beam);border-radius:999px;transform-origin:left}
+#p-usage .usage-row{display:grid;grid-template-columns:minmax(130px,1.4fr) repeat(3,minmax(80px,1fr)) minmax(120px,1.5fr);gap:18px;align-items:center;padding:18px 20px;border:1px solid var(--rule);border-radius:20px;margin:12px 0;background:var(--panel)}
+#p-usage .usage-row b{font-family:var(--mono);font-size:calc(15px * var(--rd-fs))}
+#p-usage .usage-row small{display:block;color:var(--muted);font-size:calc(13px * var(--rd-fs));margin-bottom:7px}
+#p-usage .usage-person{width:100%;text-align:left!important;border-radius:20px!important;padding:0!important;border:0!important;background:none!important}
+#p-usage .usage-info{line-height:1.9;margin-top:24px}
+#p-usage .usage-info ul{padding-left:22px}#p-usage .usage-info li+li{margin-top:12px}
+#p-usage .usage-activity{display:grid;grid-template-columns:repeat(24,minmax(0,1fr));gap:5px;margin-top:18px}
+#p-usage .usage-hour{height:48px;border-radius:7px;background:var(--beam);min-width:0;transition:opacity .4s}
+#p-usage .usage-axis{display:flex;justify-content:space-between;margin:12px 0;color:var(--muted);font:calc(13px * var(--rd-fs)) var(--mono)}
+#p-usage .usage-chart.is-animated .usage-rail i{animation:usageGrow .65s ease-out both}
+#p-usage .usage-chart.is-animated .usage-line{animation:usageDraw .9s ease-out both;stroke-dasharray:2000;stroke-dashoffset:0}
+#usagePersonDialog{max-width:min(850px,calc(100vw - 32px));width:100%;border:1px solid var(--rule);border-radius:28px;background:var(--bg);color:var(--ink);padding:28px;max-height:85vh;overflow:auto}
+#usagePersonDialog::backdrop{background:#0008}#usagePersonDialog button{float:right;min-height:44px;border-radius:999px;background:var(--panel);color:var(--ink);border:1px solid var(--rule);padding:10px 20px;font:inherit}
+#usagePersonDialog p,#usagePersonDialog li{line-height:1.9}#usagePersonDialog li+li{margin-top:12px}
+@keyframes usageGrow{from{transform:scaleX(0)}to{transform:scaleX(1)}}@keyframes usageDraw{from{stroke-dashoffset:2000}to{stroke-dashoffset:0}}
+@media(max-width:1050px){#p-usage .usage-cards{grid-template-columns:repeat(2,minmax(0,1fr))}#p-usage .usage-row{grid-template-columns:repeat(3,minmax(0,1fr))}#p-usage .usage-row>div:first-child{grid-column:1/-1}}
+@media(max-width:700px){#p-usage .usage-grid{grid-template-columns:1fr}#p-usage .usage-metric,#p-usage .usage-chart,#p-usage .usage-info{padding:20px}#p-usage .usage-metric b{font-size:calc(23px * var(--rd-fs))}#p-usage .usage-bar{grid-template-columns:minmax(70px,1fr) minmax(60px,1.2fr) auto;gap:10px}#p-usage .usage-row{grid-template-columns:repeat(2,minmax(0,1fr))}#p-usage .usage-activity{gap:3px}#p-usage .usage-hour{height:35px}}
+@media(max-width:440px){#p-usage .usage-cards{grid-template-columns:1fr}#p-usage .usage-row>div:last-child{grid-column:1/-1}#p-usage .usage-bar{grid-template-columns:1fr auto}#p-usage .usage-rail{grid-row:2;grid-column:1/-1}#p-usage .usage-bar span:last-child{grid-column:2;grid-row:1}}
+@media(prefers-reduced-motion:reduce){#p-usage .usage-chart .usage-rail i,#p-usage .usage-chart .usage-line{animation:none!important}#p-usage .usage-hour{transition:none}}
+</style>
+<section class="panel" id="p-usage" hidden>
+ <div class="acol">
+  <header class="usage-head"><div><h2>使用分析</h2><p class="hint">了解哪些內容留住讀者、訪客從哪裡來，以及是否持續回訪。</p></div><button type="button" id="usageRefresh">更新分析</button></header>
+  <div class="usage-controls"><label for="usagePeriod">期間</label><select id="usagePeriod"><option value="7">最近7天</option><option value="28" selected>最近28天</option><option value="90">最近90天</option></select><label><input type="checkbox" id="usageAdmin">包含後台操作</label><span class="hint" id="usageAt" aria-live="polite">開啟本頁時才讀取</span></div>
+  <div id="usageStatus" class="hint" role="status"></div>
+  <nav class="usage-tabs" aria-label="使用分析分類"><button type="button" data-usage-view="overview" aria-pressed="true">總覽</button><button type="button" data-usage-view="content" aria-pressed="false">內容</button><button type="button" data-usage-view="source" aria-pressed="false">來源</button><button type="button" data-usage-view="audience" aria-pressed="false">觀眾</button><button type="button" data-usage-view="efficiency" aria-pressed="false">收集效率</button></nav>
+  <div id="usageCards" class="usage-cards"></div><div id="usageBody"></div>
+  <section class="usage-info"><h3>如何解讀？</h3><ul><li><b>可見閱讀：</b>只計頁面在前景可見的時間，切至背景即暫停；不是眼球追蹤，也不代表已讀懂。</li><li><b>匿名訪客：</b>隨機瀏覽器識別，不與訂閱信箱或會員名單串接；換裝置或清除資料可能重算。</li><li><b>瀏覽工作階段：</b>同一瀏覽器30分鐘沒有活動後，下一次活動另起一段。回訪＝所選期間至少2個台灣日期有紀錄；常訪＝至少3天，是忠誠度的行為代理。</li><li><b>投入瀏覽：</b>至少10秒、至少2次頁面瀏覽或有互動。來源只收網域；直接／未知包含瀏覽器未提供來源的情況，不是完整上網歷史。</li><li><b>同期比較：</b>與等長前一期比較。新制觀察窗未覆蓋前一期時顯示「資料尚不足」，不把缺資料當成零成長。</li><li><b>舊資料：</b>缺少批次識別的舊秒數可能重複，不納入新制閱讀與回訪統計；舊列保留供稽核。閱讀深度是當時展開頁面的最深位置，不代表看完整個網站。</li></ul></section>
+ </div>
+</section>
+<dialog id="usagePersonDialog" aria-labelledby="usagePersonTitle"><button type="button" id="usagePersonClose">關閉</button><h2 id="usagePersonTitle">匿名訪客閱讀概況</h2><div id="usagePersonBody"></div></dialog>
+<script>
+(function(){'use strict';function init(){
+ var data=null,view='overview',busy=false,queued=false,last=0,root=document.querySelector('#p-usage'),body=document.querySelector('#usageBody'),status=document.querySelector('#usageStatus');if(!root)return;
+ var names={overview:'每日總覽',tracker:'持股追蹤',perf:'績效走勢',subscribe:'訂閱通知',mail:'郵件查詢',sms:'盤中紀錄',tx:'逐字稿',tech:'技術說明',stock:'個股查詢'};
+ function esc(s){return String(s??'').replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+ function label(s){return names[s]||s;}function num(n){return Number(n||0).toLocaleString('zh-TW',{maximumFractionDigits:1});}function duration(n){n=Math.round(Number(n)||0);return n>=3600?num(n/3600)+' 小時':n>=60?num(n/60)+' 分鐘':n+' 秒';}
+ function pct(n){return n===null||n===undefined?'—':num(n)+'%';}function empty(s){return'<p class="usage-empty">'+esc(s||'這個期間還沒有新制資料。累積後會在這裡呈現，不以示意資料代替正式數字。')+'</p>';}
+ function delta(a,b){return !data.comparable?'同期資料尚不足':b>0?(a>=b?'+':'')+num((a-b)/b*100)+'% 較前一期':a>0?'前期為0，無百分比基準':'與前期相同';}
+ function cards(){var c=data.current,p=data.previous;document.querySelector('#usageCards').innerHTML=[['匿名訪客',num(c.visitors),delta(c.visitors,p.visitors)],['可見閱讀時間',duration(c.seconds),delta(c.seconds,p.seconds)],['每位訪客閱讀',duration(c.average),delta(c.average,p.average)],['回訪比例',pct(c.returnRate),c.returning+' 位跨日回訪 · '+c.frequent+' 位常訪']].map(function(x){return'<article class="usage-metric"><span>'+x[0]+'</span><b>'+esc(x[1])+'</b><small>'+esc(x[2])+'</small></article>';}).join('');}
+ function bars(rows,key,format){if(!rows.length)return empty();var max=Math.max.apply(null,rows.map(function(r){return Number(r[key])||0;}))||1;return'<div class="usage-bars">'+rows.slice(0,12).map(function(r){var title=r.page?label(r.page):r.name||r.action+' · '+r.target;return'<div class="usage-bar"><span>'+esc(title)+'</span><span class="usage-rail"><i style="width:'+Math.max(1,Number(r[key])/max*100)+'%"></i></span><span>'+esc(format(r[key]))+'</span></div>';}).join('')+'</div>';}
+ function chart(title,html){return'<section class="usage-chart"><h3>'+title+'</h3>'+html+'</section>';}
+ function trend(){var rows=data.current.trend;if(!rows.length)return empty();var max=Math.max.apply(null,rows.map(function(r){return r.seconds;}))||1,w=960,h=240,coords=rows.map(function(r,i){return[60+i*(840/Math.max(1,rows.length-1)),190-r.seconds/max*150];});var line=coords.map(function(p,i){return(i?'L':'M')+p[0]+','+p[1];}).join(' ');return'<svg viewBox="0 0 '+w+' '+h+'" role="img" aria-label="每日可見閱讀時間，詳細值列於圖下"><path d="M60 30V190H920" fill="none" stroke="currentColor" opacity=".25"/><path class="usage-line" d="'+line+'" fill="none" stroke="currentColor" stroke-width="3"/>'+coords.map(function(p,i){return'<circle cx="'+p[0]+'" cy="'+p[1]+'" r="5" fill="currentColor"><title>'+esc(rows[i].day+' '+duration(rows[i].seconds))+'</title></circle>';}).join('')+'</svg><div class="usage-axis"><span>'+esc(rows[0].day.slice(5))+'</span><span>'+esc(rows[rows.length-1].day.slice(5))+'</span></div><p class="hint">'+rows.map(function(r){return esc(r.day.slice(5))+' '+esc(duration(r.seconds));}).join(' · ')+'</p>';}
+ function hours(){var a=data.current.hours,max=Math.max.apply(null,a)||1;return'<div class="usage-activity" role="img" aria-label="台灣時間0至23點的可見閱讀時長">'+a.map(function(n,i){return'<span class="usage-hour" style="opacity:'+(.12+.88*n/max)+'" title="'+i+'時 '+esc(duration(n))+'"></span>';}).join('')+'</div><div class="usage-axis"><span>00</span><span>06</span><span>12</span><span>18</span><span>23時</span></div><p class="hint">每段時間按實際前景計時分配，深色代表閱讀時間較多。</p>';}
+ function people(){return data.current.people.length?data.current.people.map(function(p,i){return'<button type="button" class="usage-person" data-person="'+i+'"><article class="usage-row"><div><small>匿名訪客</small><b>'+esc(p.id)+'</b></div><div><small>可見閱讀</small>'+esc(duration(p.seconds))+'</div><div><small>活躍日期</small>'+p.activeDays+' 天</div><div><small>瀏覽／頁面</small>'+p.sessions+' 次／'+p.pages+' 頁</div><div><small>最近出現</small>'+esc(p.last)+'</div></article></button>';}).join(''):empty();}
+ function render(){if(!data)return;cards();var c=data.current;
+  if(view==='overview')body.innerHTML='<div class="usage-grid">'+chart('每日閱讀趨勢',trend())+chart('最常閱讀的頁面',bars(c.pages,'seconds',duration))+chart('常用時段',hours())+chart('投入瀏覽',c.sessions?'<p><b>'+pct(c.engagement)+'</b> 的瀏覽有至少10秒、2次瀏覽或互動。</p><p>'+num(c.sessions)+' 次瀏覽 · '+num(c.views)+' 次頁面瀏覽</p>':empty())+'</div>';
+  else if(view==='content')body.innerHTML='<div class="usage-grid">'+chart('內容閱讀時間',bars(c.pages,'seconds',duration))+chart('頁面瀏覽次數',bars(c.pages,'views',num))+chart('閱讀深度',bars(c.pages,'depth',pct))+chart('常用操作與章節',bars(c.actions,'count',num))+'</div>';
+  else if(view==='source')body.innerHTML='<div class="usage-grid">'+chart('來源網站',bars(c.sources,'count',num))+chart('入口頁面',bars(c.landings||[],'count',num))+chart('裝置上的匿名訪客',bars(c.devices,'visitors',num))+chart('外部連結點擊',bars(c.actions.filter(function(x){return x.action==='外連';}),'count',num))+'</div><p class="hint">來源是進站時瀏覽器提供的網域；外連是本站按出的連結。兩者不是訪客的完整瀏覽歷史。</p>';
+  else if(view==='audience')body.innerHTML=chart('每位匿名訪客的閱讀與活躍度',people())+'<p class="hint">依可見閱讀排序，最多50位；點選可看常讀頁面與活躍日期。回訪／常訪是本期間的行為代理，不作真人身分判定。</p>';
+  else body.innerHTML='<div class="usage-grid">'+chart('同一頁只保留一筆','<p><b>'+pct(c.rowReduction)+'</b> 快照列已合併</p><p>'+num(c.snapshots)+' 次客戶端快照 → '+num(c.snapshotRows)+' 筆停留彙整列</p><p class="hint">'+esc(data.definitions.rowReduction)+'</p>')+chart('送出節奏','<p>前景每60秒批次送出；快速切到背景至少間隔30秒。離開頁面另作一次盡力補送。</p><p>同一次開啟、同一台灣日期、同一頁合併；重送取最大累計值。</p>')+chart('資料與讀取','<p>本次讀取 '+num(data.scanned)+' 列 · '+esc(data.cached?'使用60秒內分析快取':'重新整理統計')+'</p><p>舊版 '+num(data.legacyExcluded)+' 列未納入新制秒數及回訪。</p><p class="hint">不以減少列數宣稱帳單、流量或Apps Script執行秒數等比例下降。</p>')+chart('同期變化','<p>訪客 '+esc(delta(c.visitors,data.previous.visitors))+'</p><p>可見閱讀 '+esc(delta(c.seconds,data.previous.seconds))+'</p><p class="hint">觀察窗起點：'+esc(data.coverageFrom||'尚無新制資料')+'</p>')+'</div>';
+  var reduced=matchMedia('(prefers-reduced-motion:reduce)').matches;if(!reduced){var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('is-animated');io.unobserve(e.target);}});},{threshold:.15});body.querySelectorAll('.usage-chart').forEach(function(e){io.observe(e);});}
+ }
+ function signatureNow(){return JSON.stringify({usage:true,days:Number(document.querySelector('#usagePeriod').value),includeAdmin:document.querySelector('#usageAdmin').checked,refresh:false});}
+ function load(force){if(!window.KEY)return;if(busy){queued=true;return;}var opts={usage:true,days:Number(document.querySelector('#usagePeriod').value),includeAdmin:document.querySelector('#usageAdmin').checked,refresh:!!force},signature=JSON.stringify(opts).replace('"refresh":true','"refresh":false');if(!force&&data&&signature===last){render();return;}busy=true;status.textContent='正在整理使用分析…';document.querySelector('#usageRefresh').disabled=true;
+  google.script.run.withSuccessHandler(function(r){busy=false;document.querySelector('#usageRefresh').disabled=false;if(signature!==signatureNow()||queued){queued=false;load(false);return;}if(!r||!r.ok){status.textContent='無法讀取分析：'+((r&&r.reason)||'請稍後再試');return;}data=r;last=signature;status.textContent=r.truncated?'目前只涵蓋最近30,000列，並非完整期間。':!r.current.visitors?'新制資料尚在累積；舊版重複快照不計入閱讀時間。':'';document.querySelector('#usageAt').textContent=r.generatedAt+' · 後端 '+num((r.ms||0)/1000)+' 秒';render();}).withFailureHandler(function(){busy=false;document.querySelector('#usageRefresh').disabled=false;if(queued){queued=false;load(false);return;}status.textContent='分析暫時無法讀取，既有畫面保留。';}).apiAdminTodayStatus(KEY,opts);
+ }
+ document.querySelectorAll('[data-usage-view]').forEach(function(b){b.addEventListener('click',function(){view=b.dataset.usageView;document.querySelectorAll('[data-usage-view]').forEach(function(x){x.setAttribute('aria-pressed',String(x===b));});render();});});document.querySelector('#usagePeriod').addEventListener('change',function(){load(false);});document.querySelector('#usageAdmin').addEventListener('change',function(){load(false);});document.querySelector('#usageRefresh').addEventListener('click',function(){load(true);});
+ body.addEventListener('click',function(e){var b=e.target.closest('[data-person]');if(!b||!data)return;var p=data.current.people[Number(b.dataset.person)];document.querySelector('#usagePersonTitle').textContent=p.id;document.querySelector('#usagePersonBody').innerHTML='<p>可見閱讀 '+esc(duration(p.seconds))+' · '+p.activeDays+' 個活躍日期 · '+p.sessions+' 次瀏覽</p><p>本期間活躍日比例 '+pct(p.activeDays/data.days*100)+'</p><h3>常讀頁面</h3><ul>'+p.topPages.map(function(x){return'<li>'+esc(label(x.page))+'：'+esc(duration(x.seconds))+'</li>';}).join('')+'</ul><h3>活躍日期</h3><p>'+esc(p.activeDates.join(' · '))+'</p><p>最深閱讀位置 '+pct(p.depth)+'；不代表已讀完整頁面。</p>';document.querySelector('#usagePersonDialog').showModal();});document.querySelector('#usagePersonClose').addEventListener('click',function(){document.querySelector('#usagePersonDialog').close();});window.__loadUsage=function(){load(false);};
+}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();})();
+</script>

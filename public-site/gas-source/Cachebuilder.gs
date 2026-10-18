@@ -3275,46 +3275,7 @@ var USAGE_MAX_BATCH = 40;
  * who：瀏覽器本地產生的隨機識別碼
  */
 function apiLogUse(who, events) {
-  try {
-    if (!events || !events.length) { return { ok: true, n: 0 }; }
-
-    var id = String(who || '').slice(0, 40).replace(/[^\w-]/g, '');
-    if (!id) { return { ok: false, reason: 'no id' }; }
-
-    var now = nowStamp_();
-    var rows = [];
-    events.slice(0, USAGE_MAX_BATCH).forEach(function (e) {
-      if (!e) { return; }
-      /* 「進入分頁」不記。
-
-         它與「停留」是同一件事的兩半，而「停留」那一筆本來就帶著頁面名稱
-         與秒數——進入的那一筆只是多一列沒有資訊量的紀錄，
-         而且每切一次分頁就多一列，是使用紀錄裡數量最多、價值最低的一種。
-
-         擋在後端而不是只改前端：已經開著頁面的瀏覽器、以及快取住的舊 HTML，
-         都還會繼續送這個動作。前端改完要等快取過期才會生效，後端擋掉是立刻的。
-         前端那邊也一併不再送，省一次往返與一次寫入。 */
-      if (String(e.action || '') === '進入分頁') { return; }
-      rows.push([
-        now, id,
-        String(e.page || '').slice(0, 40),
-        String(e.action || '').slice(0, 40),
-        String(e.target || '').slice(0, 80),
-        Math.max(0, Math.min(86400, Number(e.seconds) || 0)),
-        String(e.device || '').slice(0, 20)
-      ]);
-    });
-    if (!rows.length) { return { ok: true, n: 0 }; }
-
-    withLock_(function () {
-      var sh = getSheet_(USAGE_SHEET);
-      sh.getRange(sh.getLastRow() + 1, 1, rows.length, 7).setValues(rows);
-    });
-    return { ok: true, n: rows.length };
-  } catch (e) {
-    // 記不下來不該讓使用者看到任何東西壞掉。這是旁支，不是主線。
-    return { ok: false, reason: String(e && e.message || e).slice(0, 80) };
-  }
+  return usageWrite190_(who, events);
 }
 
 /**

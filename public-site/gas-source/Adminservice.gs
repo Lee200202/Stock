@@ -701,6 +701,7 @@ function apiAdminTodayStatus(key, part) {
 function apiAdminTodayStatusRun_(key, part) {
   try {
     adminAuth_(key);
+    if (part && typeof part === 'object' && part.usage === true) { return usageAnalytics190_(part); }
     var today = todayStr_(), hm = Number(Utilities.formatDate(new Date(), TZ, 'HHmm'));
     /* v152 分段計時：後端花的時間分成幾段回報（laps），超過 8 秒時畫面直接列出來，才知道慢在哪一張表。 */
     var laps = [], lapAt = Date.now();

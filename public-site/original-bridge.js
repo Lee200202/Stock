@@ -3,6 +3,9 @@
 (function () {
   'use strict';
   const endpoint = '__SITE_API_URL__';
+  window.__usageFinalSend190 = function(who, events) {
+    try { return navigator.sendBeacon(endpoint, new Blob([JSON.stringify({method:'apiLogUsage',args:[who,events]})], {type:'text/plain'})); } catch (e) { return false; }
+  };
   // 讓畫面知道現在由 GitHub Pages 提供：載入失敗的提示不再叫人處理 Google 帳號（那只發生在 Apps Script 網址）。
   try { document.documentElement.dataset.host = 'pages'; } catch (e) {}
   const params = new URLSearchParams(location.search);

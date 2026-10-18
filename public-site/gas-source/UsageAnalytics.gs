@@ -53,12 +53,12 @@ function usageAggregate190_(rows,days,now){
   // Defensive deduplication of retry rows, if a previous release ever wrote one.
   if(keys[key]){if(Number(r[5])>Number(keys[key][5]))keys[key]=r;}else keys[key]=r;
  });Object.keys(keys).forEach(function(k){clean.push(keys[k]);});
- function roll(list){var users={},visits={},pages={},sources={},landings={},devices={},actions={},trend={},hours=new Array(24).fill(0),total=0,views=0,reports=0,stays=0;
-  list.forEach(function(r){var parts=JSON.parse(String(r[7]).slice(5)),date=parts[2],id=String(r[1]),visit=String(r[8]),sec=Number(r[5])||0,u=users[id]||(users[id]={seconds:0,days:{},visits:{},pages:{},reading:{},last:'',depth:0});u.days[date]=true;u.visits[visit]=true;u.pages[r[2]]=true;var stamp=r[9] instanceof Date?Utilities.formatDate(r[9],'Asia/Taipei','yyyy/MM/dd HH:mm:ss'):String(r[9]||'');if(stamp>u.last)u.last=stamp;
+ function roll(list){var users=Object.create(null),visits=Object.create(null),pages=Object.create(null),sources=Object.create(null),landings=Object.create(null),devices=Object.create(null),actions=Object.create(null),trend=Object.create(null),hours=new Array(24).fill(0),total=0,views=0,reports=0,stays=0;
+  list.forEach(function(r){var parts=JSON.parse(String(r[7]).slice(5)),date=parts[2],id=String(r[1]),visit=id+'|'+String(r[8]),sec=Number(r[5])||0,u=users[id]||(users[id]={seconds:0,days:Object.create(null),visits:Object.create(null),pages:Object.create(null),reading:Object.create(null),last:'',depth:0});u.days[date]=true;u.visits[visit]=true;u.pages[r[2]]=true;var stamp=r[9] instanceof Date?Utilities.formatDate(r[9],'Asia/Taipei','yyyy/MM/dd HH:mm:ss'):String(r[9]||'');if(stamp>u.last)u.last=stamp;
    var v=visits[visit]||(visits[visit]={seconds:0,views:0,acted:false,source:r[10]||'直接/未知',landing:r[13]||r[2]});if(r[3]==='停留'){stays++;total+=sec;views+=Number(r[14])||0;reports+=Number(r[12])||1;u.seconds+=sec;u.reading[r[2]]=(u.reading[r[2]]||0)+sec;u.depth=Math.max(u.depth,Number(r[11])||0);v.seconds+=sec;v.views+=Number(r[14])||0;
-    var p=pages[r[2]]||(pages[r[2]]={page:r[2],seconds:0,views:0,users:{},depth:0,rows:0});p.seconds+=sec;p.views+=Number(r[14])||0;p.users[id]=true;p.depth+=Number(r[11])||0;p.rows++;
-    var t=trend[date]||(trend[date]={day:date,seconds:0,users:{}});t.seconds+=sec;t.users[id]=true;
-    var d=devices[r[6]]||(devices[r[6]]={name:r[6],users:{},seconds:0});d.users[id]=true;d.seconds+=sec;
+    var p=pages[r[2]]||(pages[r[2]]={page:r[2],seconds:0,views:0,users:Object.create(null),depth:0,rows:0});p.seconds+=sec;p.views+=Number(r[14])||0;p.users[id]=true;p.depth+=Number(r[11])||0;p.rows++;
+    var t=trend[date]||(trend[date]={day:date,seconds:0,users:Object.create(null)});t.seconds+=sec;t.users[id]=true;
+    var d=devices[r[6]]||(devices[r[6]]={name:r[6],users:Object.create(null),seconds:0});d.users[id]=true;d.seconds+=sec;
     try{JSON.parse(r[17]||'[]').forEach(function(n,i){if(i<24)hours[i]+=Number(n)||0;});}catch(e){}
    }else{v.acted=true;var ak=r[3]+'|'+r[4],a=actions[ak]||(actions[ak]={action:r[3],target:r[4],count:0});a.count+=Number(r[15])||1;}
   });

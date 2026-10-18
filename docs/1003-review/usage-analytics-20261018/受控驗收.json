@@ -1,5 +1,5 @@
 {
-  "tests": 17,
+  "tests": 19,
   "scenario": "240秒，120次切到背景後返回，結束時補送",
   "legacyRequests": 120,
   "newRequests": 9,

@@ -2,7 +2,8 @@
 
 Plans are corrections, never classification answer files or automatic aliases.
 Atomic mutations include their receipt. Re-running verifies final state and only
-resumes refresh. SMS/manual rows and all other dates are outside the write set.
+resumes refresh. SMS and all other dates are outside the write set; legacy manual
+transcript rows require explicit per-item, date-bound source review.
 """
 import argparse
 import hashlib

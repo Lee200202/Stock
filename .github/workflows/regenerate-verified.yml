@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       date:
-        description: 已有原稿的日期 YYYY/MM/DD（最近三十天；apply 須有該日人工答案）
+        description: 已有原稿日期 YYYY/MM/DD（一般重判限三十天；來源修正須有指紋計畫）
         required: true
       mode:
         description: 通過全部品質核對後才更新；不寄送

@@ -1,5 +1,5 @@
 {
-  "url": "http://127.0.0.1:59984/?tab=tech",
+  "url": "https://lee200202.github.io/Stock/?tab=tech",
   "diagrams": [
     {
       "chapter": "tech-start",
@@ -197,26 +197,6 @@
         151,
         301,
         452
-      ]
-    },
-    {
-      "chapter": "tech-quality-loop",
-      "diagram": 1,
-      "client": 308,
-      "scroll": 1000,
-      "files": [
-        "08-tech-quality-loop-1-part01.png",
-        "08-tech-quality-loop-1-part02.png",
-        "08-tech-quality-loop-1-part03.png",
-        "08-tech-quality-loop-1-part04.png",
-        "08-tech-quality-loop-1-part05.png"
-      ],
-      "offsets": [
-        0,
-        173,
-        346,
-        519,
-        692
       ]
     },
     {
@@ -573,6 +553,24 @@
         "data-graph-part02.png",
         "data-graph-part03.png",
         "data-graph-part04.png"
+      ],
+      "offsets": [
+        0,
+        229,
+        459,
+        688
+      ]
+    },
+    {
+      "chapter": "tech-quality-skills-graph",
+      "diagram": 1,
+      "client": 352,
+      "scroll": 1040,
+      "files": [
+        "skills-graph-part01.png",
+        "skills-graph-part02.png",
+        "skills-graph-part03.png",
+        "skills-graph-part04.png"
       ],
       "offsets": [
         0,

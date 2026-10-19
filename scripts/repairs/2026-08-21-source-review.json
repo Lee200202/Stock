@@ -111,6 +111,21 @@
         "根 據 格 蘭 移 動 平 均 八 大 法 則"
       ],
       "rationale": "提問者部位與反彈建議分開，不把別人的成本變成講者持有。"
+    },
+    {
+      "code": "2377",
+      "name": "微星",
+      "category": "watch_watch",
+      "action": "delete",
+      "text": "",
+      "quotes": [
+        "維 星 100 塊 錢 以 下 是 我 每 天 推 薦 的 維 星"
+      ],
+      "rationale": "原稿只有維心／維星聽寫，沒有可核實的代號或足以排除其他公司的身分線索；先移出本日公開分析並留待核對，不把未定寫成確定沒有提到，也不建立永久排除規則。",
+      "previous_note_sha256": "bc68f92303a43b9e8b3b1ad1e139620aaa1d82dc3b1343dca17379cc274f401b",
+      "previous_source_id": "MANUAL-20260821",
+      "reviewed_manual_source": true,
+      "manual_source_review_reason": "原日舊手動投稿的候選身分不足；本輪完整來源審核後暫停公開，不刪除原稿、歷史持股或通知。"
     }
   ]
 }

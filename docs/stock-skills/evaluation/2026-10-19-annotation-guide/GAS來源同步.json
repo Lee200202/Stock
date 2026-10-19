@@ -1,10 +1,12 @@
 {
-  "commit": "3063500",
+  "commit": "0a9a114",
   "matched": 41,
   "differs": [],
   "missing": [],
   "cloud_file_count": 48,
-  "version_created": 494,
-  "original_deployment_update": "rejected: only users in same domain as owner",
-  "original_deployed_version": 493
+  "version_created": 495,
+  "original_deployment_update": "rejected at 494: only users in same domain as owner; no blind retry",
+  "original_deployed_version": 493,
+  "immutable_version_readback": 495,
+  "immutable_matched": 41
 }

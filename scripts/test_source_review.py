@@ -57,6 +57,17 @@ class SourceReviewTests(unittest.TestCase):
         t,p,n=fixture();p['items'][2]['category']='buy'
         with self.assertRaises(ValueError):m.make_changes(t,p,n)
 
+    def test_manual_submission_repair_is_explicit_date_bound_and_sms_is_protected(self):
+        t,p,n=fixture();t['會員持股'][2][5]='MANUAL-20261019'
+        p['items'][0]['previous_source_id']='MANUAL-20261019'
+        with self.assertRaises(ValueError):m.make_changes(t,p,n)
+        p['items'][0].update(reviewed_manual_source=True,manual_source_review_reason='完整來源已覆核')
+        changes=m.make_changes(t,p,n)
+        m.verify_final(m.projected(t,changes),p)
+        p['items'][0]['previous_source_id']='CMONEY-123'
+        t['會員持股'][2][5]='CMONEY-123'
+        with self.assertRaises(ValueError):m.make_changes(t,p,n)
+
     def test_single_atomic_batch_contains_receipt_and_ordered_mutations(self):
         t,p,n=fixture();changes=m.make_changes(t,p,n)
         req=m.requests_for(changes,{'操作紀錄':1,'會員持股':2,'修正建議':3},[['receipt']])

@@ -35,6 +35,21 @@ def normalize_day(value):
     return str(value or '').strip()[:10].replace('-', '/')
 
 
+def reviewed_source(item, plan):
+    source = item.get('previous_source_id', plan['video_id'])
+    if source != plan['video_id']:
+        # Old manually submitted transcript rows can have a different ID than
+        # the subsequently saved video. This is explicit repair authorization,
+        # not permission for the classifier to overwrite manual or SMS rows.
+        if (source != 'MANUAL-' + plan['date'].replace('/', '') or
+                item.get('reviewed_manual_source') is not True or
+                not item.get('manual_source_review_reason')):
+            raise ValueError('非本影片來源未經逐筆覆核')
+    if source.upper().startswith(('CMONEY-', 'SMS-')):
+        raise ValueError('此工具不修改通知列')
+    return source
+
+
 def make_changes(tables, plan, names):
     """Pure planner. Fail closed on duplicates, changed source, or changed notes."""
     changes = []
@@ -90,7 +105,7 @@ def make_changes(tables, plan, names):
             raise ValueError('修正身分不存在或不唯一：' + code)
         index, old = candidates[0]
         field = '說明重點' if old_sheet == '會員持股' else '理由摘錄'
-        if (old.get('來源影片ID') != plan['video_id'] or
+        if (old.get('來源影片ID') != reviewed_source(item, plan) or
                 sha(old.get(field, '')) != item.get('previous_note_sha256')):
             raise ValueError('來源或說明指紋改變，保留現值：' + code)
         if old_cat in ('buy', 'sell') and not historic_ok:
@@ -155,7 +170,7 @@ def verify_final(tables, plan):
         rows = [dict(zip(tables[tab][0], cells)) for cells in tables[tab][1:]]
         rows = [r for r in rows if normalize_day(r.get('日期')) == plan['date'] and
                 str(r.get('代號', '')).strip() == item['code'] and
-                r.get('來源影片ID') == plan['video_id']]
+                r.get('來源影片ID') == reviewed_source(item, plan)]
         if item['action'] == 'delete':
             if rows:
                 raise ValueError('待移除的當日錯列仍存在：' + item['code'])
@@ -169,7 +184,7 @@ def verify_final(tables, plan):
                        [dict(zip(tables[tab][0], x)) for x in tables[tab][1:]]
                        if normalize_day(r.get('日期')) == plan['date'] and
                        str(r.get('代號', '')).strip() == item['code'] and
-                       r.get('來源影片ID') == plan['video_id']):
+                       r.get('來源影片ID') == reviewed_source(item, plan)):
                     raise ValueError('舊分類未移除：' + item['code'])
 
 
@@ -212,7 +227,8 @@ def main():
                     print('來源列', tab, r.get('代號'), category(tab, r),
                           r.get('來源影片ID'), sha(r.get('說明重點') or r.get('理由摘錄') or ''))
                     target = any(i['code'] == str(r.get('代號') or '') for i in plan['items'])
-                    if args.inspect_only and target and r.get('來源影片ID') == plan['video_id']:
+                    if args.inspect_only and target and r.get('來源影片ID') in (
+                            plan['video_id'], 'MANUAL-' + day.replace('/', '')):
                         print('計畫原列', json.dumps({'code': str(r.get('代號') or ''),
                             'category': category(tab, r), 'sourceId': r.get('來源影片ID'),
                             'note': r.get('說明重點') or r.get('理由摘錄') or ''}, ensure_ascii=False))
@@ -261,7 +277,7 @@ def main():
             if item['action'] == 'delete':
                 continue
             tab = '會員持股' if item['category'] == 'holdings' else '操作紀錄'
-            edit = {'v': 1, 'sourceId': plan['video_id'], 'sourceSha256': plan['raw_sha256'],
+            edit = {'v': 1, 'sourceId': reviewed_source(item, plan), 'sourceSha256': plan['raw_sha256'],
                     'category': item['category'], 'note': item['text']}
             logs.append([stamp, day, '保留人工說明', tab, item['name'], item['code'],
                          json.dumps(edit, ensure_ascii=False), '已套用（人工說明）', stamp])

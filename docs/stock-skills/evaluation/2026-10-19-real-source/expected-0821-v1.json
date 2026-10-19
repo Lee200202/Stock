@@ -1,0 +1,112 @@
+{
+  "names": {
+    "3152": "璟德",
+    "1519": "華城",
+    "8436": "大江",
+    "4966": "譜瑞-KY",
+    "5269": "祥碩",
+    "2609": "陽明",
+    "2603": "長榮",
+    "2615": "萬海",
+    "2303": "聯電",
+    "2454": "聯發科",
+    "3661": "世芯-KY",
+    "2327": "國巨",
+    "6488": "環球晶",
+    "6182": "合晶",
+    "5483": "中美晶"
+  },
+  "must": {
+    "3152": [
+      "buy"
+    ],
+    "1519": [
+      "holdings",
+      "watch_watch"
+    ],
+    "8436": [
+      "holdings",
+      "watch_watch"
+    ],
+    "4966": [
+      "holdings",
+      "watch_watch"
+    ],
+    "5269": [
+      "holdings",
+      "watch_watch"
+    ],
+    "2609": [
+      "watch_avoid"
+    ],
+    "2603": [
+      "watch_avoid"
+    ],
+    "2615": [
+      "watch_avoid"
+    ],
+    "2303": [
+      "watch_avoid"
+    ],
+    "2454": [
+      "watch_avoid"
+    ],
+    "3661": [
+      "watch_avoid"
+    ],
+    "2327": [
+      "watch_avoid"
+    ],
+    "6488": [
+      "watch_avoid"
+    ],
+    "6182": [
+      "watch_avoid"
+    ],
+    "5483": [
+      "watch_avoid"
+    ]
+  },
+  "must_not": [
+    "2330",
+    "3008",
+    "2308",
+    "3081",
+    "6215",
+    "3167"
+  ],
+  "forbidden_categories": [
+    "sell"
+  ],
+  "unresolved": [
+    "維星身分及現在立場不清；不靠價格猜代號",
+    "匿名900元個股不猜名",
+    "華城、譜瑞與祥碩的持股/注意依accepted政策，部位聲明另驗",
+    "環球晶、合晶、中美晶共同負面段落需保留全段確認否定作用"
+  ],
+  "date": "2026/08/21",
+  "raw_sha256": "a771ca3f6772170f6e05f9a104f61a30258ee7ba6032fbb137b3efd0d1717e28",
+  "video_id": "0RpzVw6gdlw",
+  "label_origin": "agent_independent_source_review",
+  "review_status": "draft_not_human_gold",
+  "target_result_exposure": "not_viewed_in_this_run_prior_history_unknown",
+  "policy": "content-audit six classes plus owner holding/watch accepted; facts checked separately",
+  "frozen_at": "2026-10-19T10:04:20+08:00",
+  "strict_reference": {
+    "3152": "buy",
+    "1519": "holdings",
+    "8436": "holdings",
+    "4966": "holdings",
+    "5269": "holdings",
+    "2609": "watch_avoid",
+    "2603": "watch_avoid",
+    "2615": "watch_avoid",
+    "2303": "watch_avoid",
+    "2454": "watch_avoid",
+    "3661": "watch_avoid",
+    "2327": "watch_avoid",
+    "6488": "watch_avoid",
+    "6182": "watch_avoid",
+    "5483": "watch_avoid"
+  }
+}

@@ -33,7 +33,7 @@
 
 ## 4. 技術說明的故事與圖像
 
-沿用現行章節 ID、目錄、四幕／閱讀模式；改章節順序時同步預告、進度、前後章與相容錨點。子目錄用約 6–10 字具體名詞短語，主標可用問句。直接跳章也應理解問題與結論。
+沿用現行章節 ID、目錄及閱讀模式；舊紀錄的「四幕」不是必須恢復的功能。改章節順序時同步預告、進度、前後章與相容錨點。子目錄用約 6–10 字具體名詞短語，主標可用問句。直接跳章也應理解問題與結論。
 
 每章以「讀者問題 → 操作選擇 → 依據圖像 → 結果」建立一條故事。可用：
 
@@ -137,7 +137,7 @@ LINE 已有整合，先讀目前 `Line.gs`、relay 和佇列，不新增第二�
 
 ## 10. 只改被要求的部分（10/14 教訓）
 
-- 管理者要求「子目錄放右邊、滑過去展開」，同一輪我另外放大了卡片高度、膠囊寬度、圖形幅度——那一則訊息裡雖然也提到「卡片高度有點太窄可否調寬」，但管理者看到結果後判定「跟說好不一致」，要求恢復。之後：版面放大這類主觀調整，先做一個截圖給管理者看，同意後再推。
+- 管理者要求「子目錄放右邊、滑過去展開」，同一輪我另外放大了卡片高度、膠囊寬度、圖形幅度——那一則訊息裡雖然也提到「卡片高度有點太窄可否調寬」，但管理者看到結果後判定「跟說好不一致」，要求恢復。此案例限制未授權的順手改版；若本次已明確授權全站重設，先完成具體修改與驗收，不重問已給的授權。
 - 恢復時用 git 找到被要求的那一版（`git log -p -- public-site/gas-source/StoryDesign.html`），逐項比對恢復，不憑記憶重寫。
 - 驗收要在管理者自己的設定下截圖：1916×857、`html[data-w="w"]`（寬版 1700px；`x` 為 2000px、`m` 1400px、`n` 1100px）、`html[data-fs="l"|"x"]`（字級 1.25／1.5 倍；`s` .92、`m` 1），加上 1440 與 390。浮動元件（右側目錄）的位置要由實際內容邊界計算，不能假設內容寬 1320px（v181r2 的目錄在寬版大字時蓋住正文）。
 - 不要順手改卡片樣式、字級、配色；沒有被要求的視覺改動要先提案。
@@ -215,3 +215,67 @@ LINE 已有整合，先讀目前 `Line.gs`、relay 和佇列，不新增第二�
 - 全站圖解不可只換字而沿用同一組左中右或四格方框。容量用量尺／條圖，快取用請求與回傳支線，資料用網路，歷史用日期軸，部位用部分／全部分支，裁決用有效票與無效票。手機另安排節點與路徑，不能只縮小桌面圖；箭線不得穿過標籤。
 - 定義說明分開交易事件、持有狀態與新進場立場；歷史回顧不是固定偏多／偏空類別。投票圖須對照現行程式，說明有效引句、一般門檻、已有部位例外及未定處置；不能畫成三位獨立專家，也不能暗示票多就能建立交易。
 - 每個選項都更新實際圖面、標題與結論；放大視窗必須顯示目前選項的SVG及其說明，不用開頁時捕捉的舊圖。保留既有內容ID、舊錨點與來源，合章另核對目錄、章號與前後章。
+
+## 15. 寬版、控制項與資訊層次（10/19）
+
+這一節整理 10/16–10/19 後續要求，與舊範例衝突時先依目前任務及最新要求判斷，不把歷史像素或版號當永久規格。
+
+### 寬鬆但各分頁一致
+
+- 「拉到全版」是用滿使用者選擇的共用內容欄，仍有兩側留白；不是 `100vw` 伸出父容器，也不是只把使用分析改成更寬。先量每日總覽、持股、績效、郵件、逐字稿、技術頁與後台共用 `.wrap` 或現行容器的左右邊界，再修異常頁。
+- 共用設定決定內容最大寬度及字級。圖表、工具列與表單跟隨父層 `width:100%; min-width:0`；來源小卡可緊湊，不必為全版把一個短連結拉到整列。
+- 同設定下主容器的左右邊界應一致（量測四捨五入誤差約 2px 內）；真正屬抽屜、全螢幕圖表或刻意閱讀欄的例外另記。用實際 viewport 與設定量測，不只讀 CSS 宣告。
+- 卡距、內距及行高沿用變數；標題、數字、描述、操作有清楚層次。寬版大字不能讓三個短數字卡堆成三個螢幕，也不能用縮小字級補救；必要時按比較關係重新分欄，手機自然堆疊。
+
+### 自製外觀，保留原生操作
+
+按鈕、期間分段膠囊、勾選及切換依現有設計自行設計外觀；不要留一個與主題不合的白色預設下拉。優先樣式化原生元素，只有必要才做自訂 combobox，並完整實作對應的鍵盤、焦點、展開與選取語意。
+
+```html
+<!-- 範例結構；實際顏色／尺寸沿用現行主題變數，不直接新增另一套色系。 -->
+<fieldset class="period-picker">
+  <legend>期間</legend>
+  <label class="period-pill"><input type="radio" name="period" value="7" checked><span>7 天</span></label>
+  <label class="period-pill"><input type="radio" name="period" value="28"><span>28 天</span></label>
+</fieldset>
+<label class="analysis-switch">
+  <input type="checkbox" name="includeAdmin">
+  <span class="switch-track" aria-hidden="true"></span>
+  <span>包含後台</span>
+</label>
+```
+
+```css
+.period-picker { display:flex; flex-wrap:wrap; gap:.6rem; border:0; padding:0; min-width:0 }
+.period-pill,.analysis-switch { position:relative; display:inline-flex; align-items:center; gap:.6rem; min-height:44px; cursor:pointer }
+.period-pill input,.analysis-switch input { position:absolute; width:1px; height:1px; opacity:0 }
+.period-pill span { display:block; border:1px solid currentColor; border-radius:999px; padding:.55rem 1.1rem }
+.period-pill input:checked + span { font-weight:800; box-shadow:inset 0 0 0 2px currentColor }
+.period-pill input:focus-visible + span,.analysis-switch input:focus-visible + .switch-track { outline:3px solid currentColor; outline-offset:4px }
+.switch-track { width:46px; height:28px; border:2px solid currentColor; border-radius:999px; padding:2px; flex:none }
+.switch-track::after { content:""; display:block; width:20px; height:20px; border-radius:50%; background:currentColor }
+.analysis-switch input:checked + .switch-track::after { transform:translateX(18px) }
+@media (forced-colors:active) {
+  .period-pill input,.analysis-switch input { position:static; width:auto; height:auto; opacity:1 }
+  .analysis-switch .switch-track { display:none }
+}
+```
+
+範例還要接原有資料更新邏輯與 disabled 狀態，不是假按鈕。表單保留 label；圖示以現有 SVG 元件為主，裝飾圖不重複朗讀。多選不是單選按鈕，純情境選擇不是任意宣稱 tabs。測 Tab／Shift+Tab、Space、radio 方向鍵、焦點可見及高對比。
+
+### 數據頁的閱讀順序
+
+使用分析依「本期摘要與同期變化 → 趨勢 → 回訪／RF 分群 → 匿名個別明細」呈現。主要畫面以數字與圖形回答問題：日期範圍、分母、單位、比較期、缺值要找得到；內部 Prompt、測試代號、施工限制不出現在一般閱讀流程。
+
+- 摘要的增減以可比期間計算；當期未完日另註明或對齊比較，不把完整上週與本週半天直接稱衰退。
+- RF 以最近回訪時間與不同 session 次數為軸；沒有消費金額就不叫完整 RFM、不把閱讀時間當金錢。依匿名訪客／session 的實際定義標示，不能承諾跨裝置辨識真人。
+- 停留只計可見且符合目前活躍定義的時間，重送採同一 session／頁面的最大累計值或既有冪等規則，不逐次相加；背景頁不累積。閒置與真正閱讀不同，清楚保留量測限制。
+- 一般讀者先看數字與趨勢，指標定義可按資訊鈕展開；技術說明的核心分類邊界與流程不能因此全部藏起來。
+
+### 動畫與驗收
+
+技術流程圖維持滑入循環／點選停止／再播恢復；統計圖以一次入場或資料變更轉場為預設，不循環改動數字或模擬有新資料。兩者都遵守 reduced-motion、離屏／背景暫停及無 JavaScript 可讀。動畫不新增 API 呼叫。
+
+驗收表逐頁記：viewport、字級／寬度設定、主容器實際邊界、控制項操作、圖表標籤與工具提示、深淺色、狀態、截圖。不得只以 `scrollWidth <= innerWidth` 宣稱圖中文字可讀；SVG／canvas 的文字與邊界也逐項看。新樣式要在 Pages 與 GAS 受影響介面各驗，無法開啟的一面列未驗。
+
+若要比較改版成效，將任務完成率、找資料時間、誤觸與可用性列為主指標，參考 `stock-rule-tuning/references/evaluation.md`；單次截圖或停留時間提高不構成 A/B 因果證據。

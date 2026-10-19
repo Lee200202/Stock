@@ -1,0 +1,108 @@
+{
+  "date": "2026/10/19",
+  "raw_sha256": "b4190456680ff3db4ec6c098ea428e416bea37ed083ef411bc5926fa1b5bad1c",
+  "video_id": "FOf7lv1av-c",
+  "label_origin": "agent_independent_source_review",
+  "review_status": "draft_not_human_gold",
+  "target_result_exposure": "not_viewed_in_this_run_prior_history_unknown",
+  "policy": "content-audit current definitions; holdings/watch accepted only for public category; no transaction equivalence",
+  "frozen_at": "2026-10-19T14:07:46.299843+08:00",
+  "must": {
+    "3661": [
+      "watch_avoid"
+    ],
+    "2327": [
+      "watch_avoid"
+    ],
+    "2454": [
+      "watch_avoid"
+    ],
+    "2303": [
+      "watch_avoid"
+    ],
+    "6488": [
+      "watch_avoid"
+    ],
+    "6770": [
+      "holdings",
+      "watch_watch"
+    ],
+    "3533": [
+      "holdings",
+      "watch_watch"
+    ],
+    "5269": [
+      "holdings",
+      "watch_watch"
+    ],
+    "6409": [
+      "holdings",
+      "watch_watch"
+    ],
+    "3558": [
+      "holdings",
+      "watch_watch"
+    ],
+    "1590": [
+      "holdings",
+      "watch_watch"
+    ],
+    "3592": [
+      "holdings",
+      "watch_watch"
+    ],
+    "3645": [
+      "holdings",
+      "watch_watch"
+    ],
+    "2317": [
+      "holdings",
+      "watch_watch"
+    ],
+    "2330": [
+      "holdings",
+      "watch_watch"
+    ]
+  },
+  "names": {
+    "3661": "世芯-KY",
+    "2327": "國巨",
+    "2454": "聯發科",
+    "2303": "聯電",
+    "6488": "環球晶",
+    "6770": "力積電",
+    "3533": "嘉澤",
+    "5269": "祥碩",
+    "6409": "旭隼",
+    "3558": "神準",
+    "1590": "亞德客-KY",
+    "3592": "瑞鼎",
+    "3645": "達邁",
+    "2317": "鴻海",
+    "2330": "台積電"
+  },
+  "must_not": [
+    "3266",
+    "3037",
+    "3167"
+  ],
+  "unresolved": [
+    "台郡6269：個別提問後回答賣，不等於講者今日已成交；若列風險建議可接受，禁止當今日實際賣出。",
+    "旭準／聖準要分別核對旭隼／神準，不可合成一檔；祥碩僅諧音，身份置信度另列。",
+    "新日新應辨新日興，只有相對弱勢描述是否列風險仍需覆核。禾伸堂諧音未核定，不強迫猜代號。",
+    "台積電目前部位與對新買者的慢／不買建議分軸，不能以建議改寫持有事實。",
+    "買賣欄若另有同日會員通知須核對通知原文；本表只驗逐字稿，不把通知當模型表現。"
+  ],
+  "evidence": {
+    "3661": "不是今天，我沒有今天要買；還沒完全翻陽，缺口還沒補。",
+    "6770": "我有力積電啊…我幹嘛賣？",
+    "1590": "工具機…只挑龍頭大戶買很多的亞德客；可以買的股票叫做雅德客。",
+    "3592": "不是叫你買聯詠…瑞鼎…259會突破。",
+    "3645": "3645達邁…季線翻揚…好好注意摺疊手機概念股。",
+    "2317": "除非你真的可以抱著…那你可以買；我沒有主動叫會員買鴻海。",
+    "2454": "聯發科缺口還沒有補完，所以聯發科不碰。",
+    "2303": "當時講159就是要賣聯電…現在…等反彈而已啊，你也不能買啊。",
+    "6269": "張總早，請問我有台郡（6269），要賣嗎？…張震說賣。"
+  },
+  "forbidden_categories": []
+}

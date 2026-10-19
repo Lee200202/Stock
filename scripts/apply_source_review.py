@@ -177,7 +177,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--date', required=True)
     parser.add_argument('--apply', action='store_true')
+    parser.add_argument('--inspect-only', action='store_true')
     args = parser.parse_args()
+    if args.apply and args.inspect_only:
+        raise ValueError('inspect-only不能同時寫入')
     sys.path.insert(0, str(ROOT / 'pipeline'))
     import pipeline as pl
     from apply_reviewed_points import source_quote
@@ -208,6 +211,14 @@ def main():
                 if normalize_day(r.get('日期')) == day:
                     print('來源列', tab, r.get('代號'), category(tab, r),
                           r.get('來源影片ID'), sha(r.get('說明重點') or r.get('理由摘錄') or ''))
+                    target = any(i['code'] == str(r.get('代號') or '') for i in plan['items'])
+                    if args.inspect_only and target and r.get('來源影片ID') == plan['video_id']:
+                        print('計畫原列', json.dumps({'code': str(r.get('代號') or ''),
+                            'category': category(tab, r), 'sourceId': r.get('來源影片ID'),
+                            'note': r.get('說明重點') or r.get('理由摘錄') or ''}, ensure_ascii=False))
+    if args.inspect_only:
+        print('唯讀原列核對完成；模型0、備份0、寫入0、寄送0')
+        return
     ledger_names = [w.title for w in book.worksheets()
                     if w.title in ('寄送帳本', 'LINE 寄送帳本')]
     ledger_hashes = {n: digest(book.worksheet(n).get_all_values()) for n in ledger_names}

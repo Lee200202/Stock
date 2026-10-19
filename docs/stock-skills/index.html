@@ -1239,10 +1239,10 @@ html[data-theme=dark]{--bg:#101915;--panel:#19251f;--text:#ebf3ee;--muted:#afc1b
   <td>只有數字、沒有名稱不建列</td>
 </tr>
 <tr>
-  <td>10/08</td>
-  <td>「每張至少賺 600 元」</td>
-  <td>是世芯-KY 的獲利數字，照原話保留；南亞科可有可無</td>
-  <td>答案檔不列南亞科</td>
+  <td>10/08（舊裁示，後續已更正單位）</td>
+  <td>世芯-KY獲利單位、南亞科</td>
+  <td>後續來源核對為每股約600元／每張約60萬元；不能沿用早期每張600元。南亞科該日可有可無</td>
+  <td>獲利須核對股／張換算及原文，單日可有可無不變全域排除</td>
 </tr>
 <tr>
   <td>10/08</td>
@@ -1992,7 +1992,7 @@ html[data-theme=dark]{--bg:#101915;--panel:#19251f;--text:#ebf3ee;--muted:#afc1b
 </table></div>
 <ul>
 <li>同一 concurrency group 只留一個 pending；連續排多個 run 會互相取消，先查。</li>
-<li>單日 <code>apply-rules</code> 屬於正式資料更新：管理者在對話中點名該日期（或明講「更新今日網站內容」「開放全線推送部署」）才執行。</li>
+<li>單日 <code>apply-rules</code> 屬於正式資料更新：依當前明示範圍授權執行；已要求繼續其他日期驗收與網站更新時，可在來源核對、備份與限定範圍後處理，記錄選日及變更，不逐日重問。</li>
 <li>每個 run 讀日誌：<code>最終分類</code>、<code>✗／✓</code> 比對行、<code>品質錯誤</code>、<code>寫入後核對</code>、<code>網站郵件查詢…刷新完成</code>。</li>
 </ul>
 <h2>4. 答案檔（<code>scripts/golden/YYYY-MM-DD.json</code>）</h2>
@@ -2045,7 +2045,7 @@ html[data-theme=dark]{--bg:#101915;--panel:#19251f;--text:#ebf3ee;--muted:#afc1b
 <li><strong>價位與名稱規則</strong>：用證交所 <code>STOCK_DAY_ALL</code> 與櫃買 <code>tpex_mainboard_daily_close_quotes</code> 的高低價對其他日期試跑，確認只改目標案例（宏達電→鴻海），其他日期只記錄不改。</li>
 <li><strong>文字規則</strong>：對全部已發布說明回測（見 <code>stock-public-writing</code> 第 9 節）。</li>
 <li><strong>預設值改動</strong>：列出歷史上同樣票型的案例，查正式站人工核定的結果是否一致（例：10/02 聯電、10/06 長榮正式站都不列，與「沒有一票支持就不公開」一致）。</li>
-<li>沒有答案檔覆蓋的日期，比對正式站已人工核定的頁面（<code>apiSearchByDate</code>）。</li>
+<li>沒有答案檔的日期，先完整原稿及當時通知／部位獨立判定並保存，再比工作流；正式站API只核對發布結果及現值，不能充當分類答案。標註來源審核草稿與未定候選，不能宣稱通過金標。</li>
 </ul>
 <h2>6. 變異量測與停止重跑</h2>
 <ul>
@@ -2800,8 +2800,8 @@ html[data-theme=dark]{--bg:#101915;--panel:#19251f;--text:#ebf3ee;--muted:#afc1b
 <li><code>python scratch/clasp/compare.py scratch/clasp/headNNN</code> 列出 <code>differs</code>、<code>only in editor</code>、<code>only local</code>；再加檔名參數（如 <code>Aiservice.js Index.html</code>）只複製本輪改到的檔案。不要整包覆蓋：編輯器另有 <code>Editor.html</code>、<code>Editorpanel.html</code>、<code>Editorservice.js</code>、<code>Review.js</code>、<code>Reviewpanel.html</code>、<code>Versionlog.html</code> 等 repo 沒有的檔案，必須保留。</li>
 <li>檔名對應：repo 的 <code>.gs</code> 在編輯器是 <code>.js</code>；<code>MailService.gs</code>、<code>SheetService.gs</code> 在編輯器是小寫的 <code>Mailservice</code>、<code>Sheetservice</code>（其他檔名大小寫相同）。複製時用編輯器的檔名，否則會多出一個同名不同大小寫的檔案。</li>
 <li><code>clasp push -f</code> → <code>clasp create-version &quot;說明&quot;</code>，記下版本號。</li>
-<li>移 <code>/exec</code> 是擁有者步驟（<code>stock-collaboration</code> 第 2.3 節）：協作者帳號部署時會收到「Only users in the same domain as the script owner may deploy this script」，重試同一指令沒有用；瀏覽器窗格裡的「管理部署作業」也曾出現權限錯誤。回報「已建立版本 N」，請擁有者切換，切換後讀 <code>/exec?action=ping</code> 核對 build。</li>
-<li>定時觸發器跑的是 HEAD，網站刷新與後台按鈕跑 <code>/exec</code>：推送後到擁有者切換前，兩條路徑用不同版本的程式。改到資料計算方式時要明講。</li>
+<li>原 <code>/exec</code> 更新依本次授權與當前帳號能力執行。歷史曾出現「Only users in the same domain as the script owner may deploy this script」及瀏覽器權限錯誤；當前若重現，停止該部署並請擁有者協助，不繞過。未遇到時不能把舊拒絕當永久擁有者限定。更新後核對原deployment指向、版本來源及實際畫面，ping只作一項證據。</li>
+<li>定時觸發器跑的是 HEAD，網站刷新與後台按鈕跑 <code>/exec</code>：推送後到原部署更新前，兩條路徑可能使用不同版本。改到資料計算方式時要明講。</li>
 <li><code>checkProjectFiles()</code> 的「舊版」標記以檔案裡某個特徵字串判斷（10/14：<code>MailService.gs 還是舊版（mailHero_ 裡找不到「border-radius:22px」）</code>）。標記若沒隨程式更新，會誤報舊版；先查標記本身是否過期。</li>
 <li>對齊的四處：GitHub main、編輯器 HEAD、不可變版本、<code>/exec</code>。10/15 驗收時版本 479 與 GitHub <code>3d1f39c</code> 一致，<code>/exec</code> 仍在 478，等擁有者切換。</li>
 <li>推送來源要用<strong>已提交</strong>的版本，不用工作區：<code>git worktree add &quot;$TEMP/wtgas&quot; HEAD</code>，在那個目錄執行 <code>compare.py</code>，避免把另一個工作階段尚未提交的 <code>Tech.html</code>、<code>Stylesheet.html</code> 推進編輯器；用完 <code>git worktree remove --force</code>。</li>

@@ -83,8 +83,8 @@ Email 查詢／HTML 預覽不等於 Gmail 收件匣。LINE JSON 合法不等於�
 2. `python scratch/clasp/compare.py scratch/clasp/headNNN` 列出 `differs`、`only in editor`、`only local`；再加檔名參數（如 `Aiservice.js Index.html`）只複製本輪改到的檔案。不要整包覆蓋：編輯器另有 `Editor.html`、`Editorpanel.html`、`Editorservice.js`、`Review.js`、`Reviewpanel.html`、`Versionlog.html` 等 repo 沒有的檔案，必須保留。
 3. 檔名對應：repo 的 `.gs` 在編輯器是 `.js`；`MailService.gs`、`SheetService.gs` 在編輯器是小寫的 `Mailservice`、`Sheetservice`（其他檔名大小寫相同）。複製時用編輯器的檔名，否則會多出一個同名不同大小寫的檔案。
 4. `clasp push -f` → `clasp create-version "說明"`，記下版本號。
-5. 移 `/exec` 是擁有者步驟（`stock-collaboration` 第 2.3 節）：協作者帳號部署時會收到「Only users in the same domain as the script owner may deploy this script」，重試同一指令沒有用；瀏覽器窗格裡的「管理部署作業」也曾出現權限錯誤。回報「已建立版本 N」，請擁有者切換，切換後讀 `/exec?action=ping` 核對 build。
-6. 定時觸發器跑的是 HEAD，網站刷新與後台按鈕跑 `/exec`：推送後到擁有者切換前，兩條路徑用不同版本的程式。改到資料計算方式時要明講。
+5. 原 `/exec` 更新依本次授權與當前帳號能力執行。歷史曾出現「Only users in the same domain as the script owner may deploy this script」及瀏覽器權限錯誤；當前若重現，停止該部署並請擁有者協助，不繞過。未遇到時不能把舊拒絕當永久擁有者限定。更新後核對原deployment指向、版本來源及實際畫面，ping只作一項證據。
+6. 定時觸發器跑的是 HEAD，網站刷新與後台按鈕跑 `/exec`：推送後到原部署更新前，兩條路徑可能使用不同版本。改到資料計算方式時要明講。
 7. `checkProjectFiles()` 的「舊版」標記以檔案裡某個特徵字串判斷（10/14：`MailService.gs 還是舊版（mailHero_ 裡找不到「border-radius:22px」）`）。標記若沒隨程式更新，會誤報舊版；先查標記本身是否過期。
 8. 對齊的四處：GitHub main、編輯器 HEAD、不可變版本、`/exec`。10/15 驗收時版本 479 與 GitHub `3d1f39c` 一致，`/exec` 仍在 478，等擁有者切換。
 9. 推送來源要用**已提交**的版本，不用工作區：`git worktree add "$TEMP/wtgas" HEAD`，在那個目錄執行 `compare.py`，避免把另一個工作階段尚未提交的 `Tech.html`、`Stylesheet.html` 推進編輯器；用完 `git worktree remove --force`。

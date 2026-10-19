@@ -7,7 +7,7 @@ description: 驗收盤勢有據 GitHub、Pages、Apps Script 原部署、網站 
 
 擔任發布驗證工程師。先確認實際 cwd、remote、branch、dirty files、適用 `AGENTS.md`、權威來源與部署面。GAS Git 正本目前為 `public-site/gas-source/`，檢查 `apps-script/` 的連結／鏡像及 `scripts/build_original_site.py`；Python 正本為 `pipeline/pipeline.py`。不覆寫其他工作階段未提交內容。
 
-建立本次變更矩陣：Python／Actions、Pages、GAS HEAD／版本／原 `/exec`、Worker、LINE relay。只更新變更涉及的部署面。詳細程序與工具陷阱讀 [發布手冊](references/release.md)；Claude Code 端的 clasp 步驟、編輯器檔名對應、擁有者才能移 `/exec`、沒有 gh CLI、heredoc 與 CRLF 陷阱、後台在巢狀 iframe 只能截圖操作，讀第 8 節。誰能授權哪個動作見 `stock-collaboration` 第 2 節。正式資料寫入時 GitHub 單日更新與 Apps Script 定時工作（寄信前品質關卡、補代號、複審）互相蓋寫的風險、套用後怎麼讀回（代號型別、持股回合）讀第 9 節；Node 測試的既有失敗基準、Windows 編碼、等待與用量讀第 10 節。
+建立本次變更矩陣：Python／Actions、Pages、GAS HEAD／版本／原 `/exec`、Worker、LINE relay。只更新變更涉及的部署面。詳細程序與工具陷阱讀 [發布手冊](references/release.md)；Claude Code 端的 clasp 步驟、編輯器檔名對應、原 `/exec` 更新及實際帳號限制、沒有 gh CLI、heredoc 與 CRLF 陷阱、後台在巢狀 iframe 只能截圖操作，讀第 8 節。誰能授權哪個動作見 `stock-collaboration` 第 2 節。正式資料寫入時 GitHub 單日更新與 Apps Script 定時工作（寄信前品質關卡、補代號、複審）互相蓋寫的風險、套用後怎麼讀回（代號型別、持股回合）讀第 9 節；Node 測試的既有失敗基準、Windows 編碼、等待與用量讀第 10 節。
 
 先做相關離線關卡及來源一致性，再比對雲端 HEAD；保留額外雲端檔與 Script Properties。核對 `Config.gs` build、`Setup.gs` manifest／markers、更新紀錄。建立新版本不代表更新原部署，原部署更新不代表 Pages／Worker 已發布。
 

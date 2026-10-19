@@ -1,0 +1,444 @@
+[
+  {
+    "date": "2026/09/23",
+    "run_id": "39220214012",
+    "source_sha256": "cf4c6799937c45c99bef881619772f8425457339f004e4abaf71557fdbc785b0",
+    "reference_sha256": "cf4c6799937c45c99bef881619772f8425457339f004e4abaf71557fdbc785b0",
+    "status": "completed",
+    "golden_injection": false,
+    "usage": "本輪呼叫 Gemini 16 次（約 6.6 次/分，節流上限 15 次/分）　adjudicate-r 3、context-review 2、stock-context 2、assess-json- 1、excluded-review 1、unclear 1、direct-audit 1、theme-judge 1",
+    "checks": [
+      {
+        "code": "2330",
+        "name": "台積電",
+        "expected": [
+          "holdings"
+        ],
+        "actual": [
+          "holdings"
+        ],
+        "strict": true,
+        "accepted": true
+      },
+      {
+        "code": "2317",
+        "name": "鴻海",
+        "expected": [
+          "watch_watch"
+        ],
+        "actual": [
+          "holdings"
+        ],
+        "strict": false,
+        "accepted": true
+      },
+      {
+        "code": "2354",
+        "name": "鴻準",
+        "expected": [
+          "holdings"
+        ],
+        "actual": [
+          "holdings"
+        ],
+        "strict": true,
+        "accepted": true
+      },
+      {
+        "code": "5536",
+        "name": "聖暉*",
+        "expected": [
+          "holdings",
+          "watch_watch"
+        ],
+        "actual": [
+          "holdings"
+        ],
+        "strict": true,
+        "accepted": true
+      },
+      {
+        "code": "2404",
+        "name": "漢唐",
+        "expected": [
+          "watch_watch"
+        ],
+        "actual": [
+          "watch_watch"
+        ],
+        "strict": true,
+        "accepted": true
+      },
+      {
+        "code": "8210",
+        "name": "勤誠",
+        "expected": [
+          "watch_avoid"
+        ],
+        "actual": [
+          "watch_avoid"
+        ],
+        "strict": true,
+        "accepted": true
+      },
+      {
+        "code": "6770",
+        "name": "力積電",
+        "expected": [
+          "watch_watch"
+        ],
+        "actual": [
+          "watch_watch"
+        ],
+        "strict": true,
+        "accepted": true
+      },
+      {
+        "code": "3661",
+        "name": "世芯-KY",
+        "expected": [
+          "watch_watch"
+        ],
+        "actual": [
+          "watch_watch"
+        ],
+        "strict": true,
+        "accepted": true
+      },
+      {
+        "code": "5269",
+        "name": "祥碩",
+        "expected": [
+          "watch_watch"
+        ],
+        "actual": [
+          "holdings"
+        ],
+        "strict": false,
+        "accepted": true
+      },
+      {
+        "code": "2303",
+        "name": "聯電",
+        "expected": [
+          "watch_avoid"
+        ],
+        "actual": [
+          "watch_avoid"
+        ],
+        "strict": true,
+        "accepted": true
+      },
+      {
+        "code": "2409",
+        "name": "友達",
+        "expected": [
+          "watch_avoid"
+        ],
+        "actual": [],
+        "strict": false,
+        "accepted": false
+      },
+      {
+        "code": "2615",
+        "name": "萬海",
+        "expected": [
+          "watch_avoid"
+        ],
+        "actual": [],
+        "strict": false,
+        "accepted": false
+      },
+      {
+        "code": "6533",
+        "name": "晶心科",
+        "expected": [
+          "watch_avoid"
+        ],
+        "actual": [],
+        "strict": false,
+        "accepted": false
+      },
+      {
+        "code": "3529",
+        "name": "力旺",
+        "expected": [
+          "watch_avoid"
+        ],
+        "actual": [],
+        "strict": false,
+        "accepted": false
+      },
+      {
+        "code": "6643",
+        "name": "M31",
+        "expected": [
+          "watch_avoid"
+        ],
+        "actual": [
+          "watch_avoid"
+        ],
+        "strict": true,
+        "accepted": true
+      },
+      {
+        "code": "2408",
+        "name": "南亞科",
+        "expected": [
+          "watch_avoid"
+        ],
+        "actual": [
+          "watch_avoid"
+        ],
+        "strict": true,
+        "accepted": true
+      },
+      {
+        "code": "2344",
+        "name": "華邦電",
+        "expected": [
+          "watch_avoid"
+        ],
+        "actual": [],
+        "strict": false,
+        "accepted": false
+      },
+      {
+        "code": "8299",
+        "name": "群聯",
+        "expected": [
+          "watch_avoid"
+        ],
+        "actual": [
+          "watch_avoid"
+        ],
+        "strict": true,
+        "accepted": true
+      },
+      {
+        "code": "5347",
+        "name": "世界",
+        "expected": [
+          "watch_avoid"
+        ],
+        "actual": [
+          "watch_avoid"
+        ],
+        "strict": true,
+        "accepted": true
+      },
+      {
+        "code": "2327",
+        "name": "國巨*",
+        "expected": [
+          "watch_avoid"
+        ],
+        "actual": [
+          "watch_avoid"
+        ],
+        "strict": true,
+        "accepted": true
+      },
+      {
+        "code": "3443",
+        "name": "創意",
+        "expected": [
+          "watch_avoid"
+        ],
+        "actual": [
+          "watch_avoid"
+        ],
+        "strict": true,
+        "accepted": true
+      },
+      {
+        "code": "2454",
+        "name": "聯發科",
+        "expected": [
+          "watch_avoid"
+        ],
+        "actual": [
+          "watch_avoid"
+        ],
+        "strict": true,
+        "accepted": true
+      }
+    ],
+    "unscored_codes": [
+      "2221"
+    ],
+    "interpretation": "代理完整來源核對草稿的一致情形，不是人類金標準確率；持股/注意放寬不豁免部位事實，來源外通知另看。"
+  },
+  {
+    "date": "2026/09/16",
+    "run_id": "39220579304",
+    "source_sha256": "e816a7c4b57875cb2ba215cfc404d1ec925f7f06645c25522207ed4fce4d43d6",
+    "reference_sha256": "e816a7c4b57875cb2ba215cfc404d1ec925f7f06645c25522207ed4fce4d43d6",
+    "status": "completed",
+    "golden_injection": false,
+    "usage": "本輪呼叫 Gemini 13 次（約 5.8 次/分，節流上限 15 次/分）　adjudicate-r 3、context-review 2、stock-context 2、assess-json- 1、excluded-review 1、theme-judge 1、industry-pick 1、public-edit 1",
+    "checks": [
+      {
+        "code": "2330",
+        "name": "台積電",
+        "expected": [
+          "watch_watch",
+          "holdings"
+        ],
+        "actual": [],
+        "strict": false,
+        "accepted": false
+      },
+      {
+        "code": "2317",
+        "name": "鴻海",
+        "expected": [
+          "watch_watch"
+        ],
+        "actual": [
+          "holdings"
+        ],
+        "strict": false,
+        "accepted": true
+      },
+      {
+        "code": "2354",
+        "name": "鴻準",
+        "expected": [
+          "holdings"
+        ],
+        "actual": [
+          "holdings"
+        ],
+        "strict": true,
+        "accepted": true
+      },
+      {
+        "code": "5269",
+        "name": "祥碩",
+        "expected": [
+          "holdings"
+        ],
+        "actual": [
+          "holdings"
+        ],
+        "strict": true,
+        "accepted": true
+      },
+      {
+        "code": "3014",
+        "name": "聯陽",
+        "expected": [
+          "holdings"
+        ],
+        "actual": [
+          "holdings"
+        ],
+        "strict": true,
+        "accepted": true
+      },
+      {
+        "code": "2308",
+        "name": "台達電",
+        "expected": [
+          "watch_watch"
+        ],
+        "actual": [],
+        "strict": false,
+        "accepted": false
+      },
+      {
+        "code": "2404",
+        "name": "漢唐",
+        "expected": [
+          "watch_avoid"
+        ],
+        "actual": [
+          "watch_watch"
+        ],
+        "strict": false,
+        "accepted": false
+      },
+      {
+        "code": "8210",
+        "name": "勤誠",
+        "expected": [
+          "watch_avoid"
+        ],
+        "actual": [],
+        "strict": false,
+        "accepted": false
+      },
+      {
+        "code": "3008",
+        "name": "大立光",
+        "expected": [
+          "watch_avoid"
+        ],
+        "actual": [
+          "watch_avoid"
+        ],
+        "strict": true,
+        "accepted": true
+      },
+      {
+        "code": "2454",
+        "name": "聯發科",
+        "expected": [
+          "watch_avoid"
+        ],
+        "actual": [
+          "watch_avoid"
+        ],
+        "strict": true,
+        "accepted": true
+      },
+      {
+        "code": "2303",
+        "name": "聯電",
+        "expected": [
+          "watch_avoid"
+        ],
+        "actual": [],
+        "strict": false,
+        "accepted": false
+      },
+      {
+        "code": "6770",
+        "name": "力積電",
+        "expected": [
+          "watch_avoid"
+        ],
+        "actual": [],
+        "strict": false,
+        "accepted": false
+      },
+      {
+        "code": "2327",
+        "name": "國巨*",
+        "expected": [
+          "watch_avoid"
+        ],
+        "actual": [
+          "watch_avoid"
+        ],
+        "strict": true,
+        "accepted": true
+      },
+      {
+        "code": "6781",
+        "name": "AES-KY",
+        "expected": [
+          "watch_watch"
+        ],
+        "actual": [],
+        "strict": false,
+        "accepted": false
+      }
+    ],
+    "unscored_codes": [
+      "2402"
+    ],
+    "interpretation": "代理完整來源核對草稿的一致情形，不是人類金標準確率；持股/注意放寬不豁免部位事實，來源外通知另看。"
+  }
+]

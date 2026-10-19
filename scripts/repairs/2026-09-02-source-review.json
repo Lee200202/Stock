@@ -1,0 +1,54 @@
+{
+  "date": "2026/09/02",
+  "video_id": "MANUAL-20260902",
+  "raw_sha256": "2204c9e6d871e0565b2eeeed662690ef9f9b4ce5be4ba90947b5c92f1c90aa8f",
+  "authorization": "管理者2026/10/19指示先更新今日，再測其他日期並發布有原稿支持的修正；不寄送。",
+  "review_basis": "本輪先完整閱讀原稿獨立判定，再比對工作流。網站只用於舊列指紋；身份、主體、日期及本股證據重新核對。未定項不猜填。",
+  "items": [
+    {
+      "code": "6415",
+      "name": "矽力*-KY",
+      "category": "watch_avoid",
+      "action": "insert",
+      "text": "矽力*-KY反彈至季線附近反覆受壓，短線上漲仍須面對均線阻力，目前不以反彈視為新的買點。後續觀察能否有效突破並站穩季線，當日未提出實際賣出指令。",
+      "quotes": [
+        "再 來  6415 你 有 沒 有 看 到 ？ 他 只 要 彈 來 薊 限 就 下 來  彈 來 薊 限 就 下 來  好  現 在 漲 又 要 談 薊 限  談 到 薊 限 又 下 來"
+      ],
+      "rationale": "只念代號仍是可辨識的候選；下一檔宜鼎的EPS不是矽力的基本面，兩段須分開。"
+    },
+    {
+      "code": "6533",
+      "name": "晶心科",
+      "category": "buy",
+      "action": "delete",
+      "text": "",
+      "quotes": [
+        "所 以 我 的 會 員 昨 天 去 賣 了 金 星 科  大 家 都 賺 錢",
+        "那 我 昨 天 快 12 點 的 時 候 去 把 它 買 回 來"
+      ],
+      "rationale": "本人明講昨天先賣後買回，不能同時記為9/02當日買賣；保留既有持股列，未改寫9/01交易或任何通知列。",
+      "previous_note_sha256": "60bddedc742d133d920ab0c008df89d98794fecd34103fdad54f32db23212765",
+      "historical_trade_review": {
+        "actor_and_time_reviewed": true,
+        "event_date": "2026/09/01"
+      }
+    },
+    {
+      "code": "6533",
+      "name": "晶心科",
+      "category": "sell",
+      "action": "delete",
+      "text": "",
+      "quotes": [
+        "所 以 我 的 會 員 昨 天 去 賣 了 金 星 科  大 家 都 賺 錢",
+        "那 我 昨 天 快 12 點 的 時 候 去 把 它 買 回 來"
+      ],
+      "rationale": "本人明講昨天先賣後買回，不能同時記為9/02當日買賣；保留既有持股列，未改寫9/01交易或任何通知列。",
+      "previous_note_sha256": "2a35cdbc6c37029c7d42c58860d97cc4d31f510a5604bdcf3f412f6614d0425a",
+      "historical_trade_review": {
+        "actor_and_time_reviewed": true,
+        "event_date": "2026/09/01"
+      }
+    }
+  ]
+}

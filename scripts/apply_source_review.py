@@ -198,6 +198,13 @@ def main():
             raise ValueError('缺少書面說明')
     worksheets = {n: book.worksheet(n) for n in TABLES + ('修正建議',)}
     tables = {n: pl.sheets_retry(worksheets[n].get_all_values) for n in worksheets}
+    if not args.apply:
+        for tab in TABLES:
+            for cells in tables[tab][1:]:
+                r = dict(zip(tables[tab][0], cells))
+                if normalize_day(r.get('日期')) == day:
+                    print('來源列', tab, r.get('代號'), category(tab, r),
+                          r.get('來源影片ID'), sha(r.get('說明重點') or r.get('理由摘錄') or ''))
     ledger_names = [w.title for w in book.worksheets()
                     if w.title in ('寄送帳本', 'LINE 寄送帳本')]
     ledger_hashes = {n: digest(book.worksheet(n).get_all_values()) for n in ledger_names}

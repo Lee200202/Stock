@@ -65,6 +65,15 @@ class SourceReviewTests(unittest.TestCase):
         self.assertEqual(req[-1]['appendCells']['sheetId'],3)
         self.assertEqual(req[1]['deleteDimension']['range']['startIndex'],2)
 
+    def test_historical_trade_requires_explicit_review_and_cannot_be_today(self):
+        t,p,n=fixture();t['操作紀錄'][1][3]='賣出'
+        p['items'][1]['previous_category']='sell'
+        with self.assertRaises(ValueError):m.make_changes(t,p,n)
+        p['items'][1]['historical_trade_review']={'actor_and_time_reviewed':True,'event_date':'2026/10/19'}
+        with self.assertRaises(ValueError):m.make_changes(t,p,n)
+        p['items'][1]['historical_trade_review']['event_date']='2026/10/18'
+        m.make_changes(t,p,n)
+
     def test_final_state_verification_rejects_note_or_class_drift(self):
         t,p,n=fixture();out=m.projected(t,m.make_changes(t,p,n))
         out['操作紀錄'][1][3]='觀望不碰'

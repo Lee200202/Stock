@@ -46,7 +46,12 @@ def make_changes(tables, plan, names):
         seen.add((code, cat))
         if item.get('action') != 'delete' and names.get(code) != item['name']:
             raise ValueError('官方名稱與代號不符：' + code)
-        if cat in ('buy', 'sell'):
+        historical = item.get('historical_trade_review') or {}
+        historic_ok = (historical.get('actor_and_time_reviewed') is True and
+                       historical.get('event_date', '') < plan['date'] and
+                       len(historical.get('event_date', '')) == 10 and
+                       normalize_day(historical.get('event_date')) == historical.get('event_date'))
+        if cat in ('buy', 'sell') and not (item.get('action') == 'delete' and historic_ok):
             raise ValueError('此修正工具不新增或更動成交事實；須另走交易覆核')
         old_cat = item.get('previous_category', cat)
         old_sheet = '會員持股' if old_cat == 'holdings' else '操作紀錄'
@@ -85,8 +90,8 @@ def make_changes(tables, plan, names):
         if (old.get('來源影片ID') != plan['video_id'] or
                 sha(old.get(field, '')) != item.get('previous_note_sha256')):
             raise ValueError('來源或說明指紋改變，保留現值：' + code)
-        if old_cat in ('buy', 'sell'):
-            raise ValueError('不得改動已存在成交')
+        if old_cat in ('buy', 'sell') and not historic_ok:
+            raise ValueError('更正歷史誤記成交須另附已覆核的主體與實際事件日')
         if item.get('action') == 'delete':
             changes.append({'kind': 'delete', 'sheet': old_sheet,
                             'index': index, 'item': item})

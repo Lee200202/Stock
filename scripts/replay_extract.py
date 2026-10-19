@@ -300,6 +300,25 @@ def main():
     raw, polished = pl.existing_transcript(book, "", date, snapshot=snap)
     if not raw:
         raise SystemExit(f"{date} 沒有原始逐字稿")
+    context_hashes = {}
+    original_known = pl._verdict_known
+    def measured_known(*a, **kw):
+        result = original_known(*a, **kw)
+        context_hashes['known_with_open' if kw.get('with_open') else 'known'] = hashlib.sha256(
+            json.dumps(result, ensure_ascii=False, sort_keys=True,
+                       default=lambda x: sorted(x) if isinstance(x, set) else str(x)).encode()).hexdigest()
+        return result
+    pl._verdict_known = measured_known
+    def save_report(report):
+        if args.report_json:
+            destination = Path(args.report_json)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(json.dumps(report, ensure_ascii=False, indent=2, default=str)+'\n', encoding='utf-8')
+    manifest = {"date": date, "source_sha256": hashlib.sha256(raw.encode('utf-8')).hexdigest(),
+                "build": pl.pipeline_build(), "read_only": True, "classification_injection": False,
+                "golden_comparison": bool(args.golden),
+                "verdict_cache": "disabled_including_manual" if args.fresh_verdicts else "existing_table"}
+    save_report(dict(manifest, status='started', rows={}, exit_code=None))
 
     def stop(ss, date_str, signals, *a, **kw):
         raise Reached(signals)
@@ -321,6 +340,11 @@ def main():
         raise SystemExit("流程沒有走到寫入前一步（可能判定這一天已經做完）")
     except Reached as r:
         signals = r.signals
+    except Exception as exc:
+        save_report(dict(manifest, status='failed_before_write', rows={}, exit_code=1,
+                         error_type=type(exc).__name__, usage=pl.gemini_usage_report(),
+                         position_context_hashes=context_hashes, blocked_writes=len(book.blocked)))
+        raise
 
     print(f"\n===== 重播結果 {date}（沒有寫進試算表；攔下寫入 {len(book.blocked)} 次） =====")
     for cat, label in LABEL.items():
@@ -372,21 +396,19 @@ def main():
             code = 2
     if args.report_json:
         published = signals.get('_article_records')
-        rows = {cat: [{"code": str(r.get('code') or ''), "name": r.get('name'),
+        def public_rows(collection):
+            return {cat: [{"code": str(r.get('code') or ''), "name": r.get('name'),
                        "date": r.get('_date') or date,
                        "note": pl.public_narrative(str(r.get('reason') or r.get('note') or ''), r, signals)}
-                      for r in (published.get(cat, []) if isinstance(published, dict) and cat in published
-                                else signals.get(cat, [])) if isinstance(r, dict)] for cat in LABEL}
-        report = {"date": date, "source_sha256": hashlib.sha256(raw.encode('utf-8')).hexdigest(),
-                  "build": pl.pipeline_build(), "read_only": True, "blocked_writes": len(book.blocked),
-                  "golden_comparison": bool(args.golden), "classification_injection": False,
-                  "verdict_cache": "disabled_including_manual" if args.fresh_verdicts else "existing_table",
+                      for r in collection.get(cat, []) if isinstance(r, dict)] for cat in LABEL}
+        rows = public_rows(published if isinstance(published, dict) else signals)
+        report = {**manifest, "status": "completed", "blocked_writes": len(book.blocked),
                   "other_context": "target-day notices, pre-date positions, name memo; not frozen across runs",
-                  "rows": rows, "errors": errors, "warnings": warns, "exit_code": code,
+                  "position_context_hashes": context_hashes,
+                  "rows": rows, "transcript_rows": public_rows(signals),
+                  "errors": errors, "warnings": warns, "exit_code": code,
                   "usage": pl.gemini_usage_report(), "verdicts": signals.get('_verdicts', {})}
-        destination = Path(args.report_json)
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(json.dumps(report, ensure_ascii=False, indent=2, default=str)+'\n', encoding='utf-8')
+        save_report(report)
     if code:
         print(f"\n結束代碼 {code}：這是檢查結果（{'答案不符' if code == 2 else '通用檢查有錯'}），不是程式錯誤。")
         sys.exit(code)

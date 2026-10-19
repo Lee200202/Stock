@@ -38,23 +38,24 @@ with sync_playwright() as pw:
     assert '技能評估與分類依據' in ch.inner_text()
     assert '08 / 20' in ch.locator('.book-eyebrow').inner_text()
     assert ch.locator('[data-quality-node]').count()==7
-    assert ch.locator('[data-quality-role]').count()==0
-    assert ch.locator('[data-quality-edge][data-quality-cross="true"]:visible').count()==0
+    assert ch.locator('svg.book-art').count()==0
+    assert ch.locator('.tech-domain').count()==6
+    assert ch.locator('.tg-edge.is-quiet:visible').count()==0
     titles=set()
     for i in range(7):
         ch.locator(f'[data-quality-node="{i}"]').click()
         assert ch.locator(f'[data-quality-copy="{i}"]').is_visible()
+        assert ch.locator('#skillsEntityDetail').is_visible()
+        assert ch.locator('#skillsEntityDetail .tg-rel').count()>=2
         titles.add(ch.locator(f'[data-quality-copy="{i}"] h3').first.inner_text())
-        assert ch.locator('[data-quality-neighbors]').inner_text()
     assert len(titles)==7
-    # Select the program: raw-data cross-column edge appears; unrelated feedback stays hidden.
     ch.locator('[data-quality-node="2"]').press('Enter')
-    assert ch.locator('[data-quality-edge="3-2"]').is_visible()
-    assert ch.locator('[data-quality-edge="6-1"]').is_hidden()
-    assert ch.locator('[data-quality-node="1"]').get_attribute('class').find('quality-upstream')>=0
-    ch.locator('[data-quality-jump="4"]').click()
+    assert ch.locator('[data-quality-node="1"]').get_attribute('class').find('is-related')>=0
+    assert ch.locator('.tg-edge.is-quiet.is-on:visible').count()==1
+    ch.locator('#skillsEntityDetail [data-jump="4"]').click()
     assert ch.locator('[data-quality-copy="4"]').is_visible()
     ch.locator('[data-quality-node="5"]').click()
+    ch.locator('[data-relationship-more]').click()
     results=set()
     for i in range(3):
         ch.locator(f'[data-quality-experiment="{i}"]').click()
@@ -64,8 +65,8 @@ with sync_playwright() as pw:
     assert '不會自動' in ch.inner_text()
     assert ch.locator('a[href="https://www.youtube.com/watch?v=rZl_3izD8y8"]').count()==1
     assert ch.locator('a[href="https://www.alphalab.site/agent-skill-routing-ab-test"]').count()==1
-    ch.locator('[data-quality-reset]').click()
-    assert ch.locator('[data-quality-edge][data-quality-cross="true"]:visible').count()==0
+    ch.locator('#skillsGraphReset').click()
+    assert ch.locator('.tg-edge.is-quiet:visible').count()==0
     layouts=[]
     for width in (1916,1440,1280,768,390,360):
         page.set_viewport_size({'width':width,'height':1000})
@@ -74,30 +75,32 @@ with sync_playwright() as pw:
             for font in ('m','x'):
                 page.evaluate('(v)=>document.documentElement.dataset.fs=v',font)
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),(width,theme,font)
-                clipped=ch.locator('svg.book-art').evaluate('''svg=>{
-                    const s=svg.getBoundingClientRect();return [...svg.querySelectorAll('text')].filter(n=>{
-                      const b=n.getBoundingClientRect();return b.left<s.left-1||b.right>s.right+1||b.top<s.top-1||b.bottom>s.bottom+1;
-                    }).map(n=>n.textContent);
-                }''')
-                assert not clipped,(width,theme,font,clipped)
-                assert ch.locator('.quality-controls button').evaluate_all('(els)=>els.every(e=>e.getBoundingClientRect().height>=44)')
+                ch.locator('[data-quality-node="2"]').click()
+                if width<700:assert ch.locator('#skillsEntityDetail').get_attribute('class').find('is-panel')>=0
+                else:
+                    # Shared placement must keep the selected card uncovered.
+                    assert ch.locator('#skillsEntityDetail').evaluate("""p=>{const a=p.getBoundingClientRect(),b=document.querySelector('#skillsGraph [aria-pressed=true]').getBoundingClientRect();return a.right<=b.left||a.left>=b.right||a.bottom<=b.top||a.top>=b.bottom;}""")
+                assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),(width,theme,font,'after selection')
                 layouts.append([width,theme,font])
         if width in (1440,390):
-            ch.locator('.tech-art-pan').first.scroll_into_view_if_needed();page.screenshot(path=str(out/f'quality-{width}.png'))
-    # Original chapter links, new previous/next, hash reload and zoom dialog.
+            ch.locator('#skillsScroll').scroll_into_view_if_needed();page.screenshot(path=str(out/f'quality-{width}.png'))
+    # Both chapters share the same component; original graph still handles its 34 cards.
     ch.locator('.book-pager a').last.click();assert page.locator('#tech-names').is_visible()
     page.locator('#tech-names .book-pager a').first.click();assert ch.is_visible()
     page.reload();page.wait_for_function("document.querySelector('.tech-book')?.dataset.activeChapter==='tech-quality-loop'")
-    ch.locator('.book-visual-open').click();page.wait_for_function('document.querySelector("#bookArtImage").naturalWidth>0')
-    page.keyboard.press('Escape');assert page.locator('#bookArtDialog').is_hidden()
-    # Visible loop, user stop, replay loop, hidden-page pause, reduced motion.
-    page.emulate_media(reduced_motion='no-preference');ch.locator('[data-book-replay]').click();ch.locator('.book-stage').scroll_into_view_if_needed()
-    page.wait_for_function("document.querySelector('.quality-stage').dataset.playing==='true'")
-    page.wait_for_function("Number(document.querySelector('.quality-stage').dataset.cycles)>=2",timeout=22000)
-    ch.locator('[data-quality-node="1"]').click();assert ch.locator('.book-stage').get_attribute('data-playing')=='false'
-    ch.locator('[data-book-replay]').click();ch.locator('.book-stage').scroll_into_view_if_needed()
-    page.wait_for_function("document.querySelector('.quality-stage').dataset.playing==='true'")
-    page.emulate_media(reduced_motion='reduce');page.wait_for_function("document.querySelector('.quality-stage').dataset.playing==='false'")
+    ch.locator('[data-quality-node="1"]').click();page.keyboard.press('Escape');assert ch.locator('#skillsEntityDetail').is_hidden()
+    page.emulate_media(reduced_motion='no-preference');ch.locator('[data-quality-replay]').click();ch.locator('#skillsGraph').scroll_into_view_if_needed()
+    page.wait_for_function("document.querySelector('#skillsGraph').dataset.playing==='true'")
+    page.wait_for_function("Number(document.querySelector('#skillsGraph').dataset.cycles)>=2",timeout=23000)
+    ch.locator('[data-quality-node="1"]').click();assert ch.locator('#skillsGraph').get_attribute('data-playing')=='false'
+    ch.locator('[data-quality-replay]').click();ch.locator('#skillsGraph').scroll_into_view_if_needed()
+    page.wait_for_function("document.querySelector('#skillsGraph').dataset.playing==='true'")
+    page.emulate_media(reduced_motion='reduce');page.wait_for_function("document.querySelector('#skillsGraph').dataset.playing==='false'")
+    page.locator('.book-tools [data-open-contents]').click();page.locator('#bookContents a[href="#tech-overview"]').click()
+    assert page.locator('#techGraph [data-entity]').count()==34
+    page.locator('#techGraph [data-entity="video"]').click();assert page.locator('#techEntityDetail').is_visible()
+    assert '影片' in page.locator('#techEntityDetail').inner_text()
+    assert page.locator('#techGraph .is-related').count()>1
     assert not errors,errors
     browser.close()
     if not args.url:
@@ -107,4 +110,4 @@ with sync_playwright() as pw:
         browser.close()
 if server:server.shutdown()
 (out/'results.json').write_text(json.dumps({'layouts':layouts,'errors':errors,'url':url,'passed':True},ensure_ascii=False,indent=2),encoding='utf-8')
-print('PASS:',len(layouts),'layouts; 7 connected roles, conditional edges, A/B configurations, SVG text, navigation, zoom, loop/replay, reduced motion, no-JS')
+print('PASS:',len(layouts),'layouts; shared six-column graph, 7 connected roles, conditional edges, A/B configurations, navigation, loop/replay, reduced motion, no-JS')

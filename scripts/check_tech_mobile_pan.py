@@ -49,6 +49,7 @@ with sync_playwright() as pw:
  go('tech-agent');page.locator('[data-agent="tokens"]').click();tok=page.locator('#tokViz');tok.scroll_into_view_if_needed()
  assert tok.is_visible();assert tok.evaluate('(e)=>e.scrollWidth>e.clientWidth');capture(tok,'tokenization','tech-agent-tokenization',1)
  go('tech-overview');graph=page.locator('#techScroll');graph.scroll_into_view_if_needed();capture(graph,'data-graph','tech-overview-data-graph',1)
+ go('tech-quality-loop');graph=page.locator('#skillsScroll');graph.scroll_into_view_if_needed();capture(graph,'skills-graph','tech-quality-skills-graph',1)
  # All three original screenshots have working independent enlarge controls.
  for id in ('tech-loading','tech-agent','tech-hold'):
   go(id);photo=page.locator('#'+id+' [data-evidence-photo]');photo.click();page.wait_for_function('document.querySelector("#bookArtImage").naturalWidth>0');assert page.locator('#bookArtDialog').is_visible();page.keyboard.press('Escape')

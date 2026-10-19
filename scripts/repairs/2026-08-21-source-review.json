@@ -16,7 +16,10 @@
         "跌 破 機 限 反 彈 到 機 限 制 賣 點"
       ],
       "rationale": "細金元是矽晶圓族群聽寫，不是精元公司；本段沒有本股觀點，移除錯誤身分列。",
-      "previous_note_sha256": "71b7ee00f0efdbf32310cadd6cccc304e61ec124847716b4dba5b714310cb41d"
+      "previous_note_sha256": "71b7ee00f0efdbf32310cadd6cccc304e61ec124847716b4dba5b714310cb41d",
+      "previous_source_id": "MANUAL-20260821",
+      "reviewed_manual_source": true,
+      "manual_source_review_reason": "核對原始儲存列與完整8/21原稿，確認為該日舊手動投稿解析結果；本次只更正已指明的誤認身分與歷史事件日期，不觸及通知列。"
     },
     {
       "code": "5880",
@@ -29,7 +32,10 @@
         "跌 破 機 限 反 彈 到 機 限 制 賣 點"
       ],
       "rationale": "環球晶、合晶、中美晶是矽晶圓名單；合金不能對成金融股合庫金。",
-      "previous_note_sha256": "ad8d5564a78940aaadeb7ffad7ea2831499150f40bcd2237f7b2b6554446561c"
+      "previous_note_sha256": "ad8d5564a78940aaadeb7ffad7ea2831499150f40bcd2237f7b2b6554446561c",
+      "previous_source_id": "MANUAL-20260821",
+      "reviewed_manual_source": true,
+      "manual_source_review_reason": "核對原始儲存列與完整8/21原稿，確認為該日舊手動投稿解析結果；本次只更正已指明的誤認身分與歷史事件日期，不觸及通知列。"
     },
     {
       "code": "6182",
@@ -55,7 +61,10 @@
         "現 在 利 基 電 多 少 ？ 67 張 總 可 不 可 以 買 ？ 等 一 下 哦  等 一 下 再 讓 這 些 人 賣 在 低 點  賣 完 了 你 才 可 以 買"
       ],
       "rationale": "力基電／立基電一貫指力積電；67元與8/14歷史操作在同段，不應配成另一家立積。",
-      "previous_note_sha256": "20cf5006c8e26ced9e619e2fd74461813d8b60963f6493a253071c7e4a696090"
+      "previous_note_sha256": "20cf5006c8e26ced9e619e2fd74461813d8b60963f6493a253071c7e4a696090",
+      "previous_source_id": "MANUAL-20260821",
+      "reviewed_manual_source": true,
+      "manual_source_review_reason": "核對原始儲存列與完整8/21原稿，確認為該日舊手動投稿解析結果；本次只更正已指明的誤認身分與歷史事件日期，不觸及通知列。"
     },
     {
       "code": "6770",
@@ -86,7 +95,10 @@
       "historical_trade_review": {
         "actor_and_time_reviewed": true,
         "event_date": "2026/08/20"
-      }
+      },
+      "previous_source_id": "MANUAL-20260821",
+      "reviewed_manual_source": true,
+      "manual_source_review_reason": "核對原始儲存列與完整8/21原稿，確認為該日舊手動投稿解析結果；本次只更正已指明的誤認身分與歷史事件日期，不觸及通知列。"
     },
     {
       "code": "2303",

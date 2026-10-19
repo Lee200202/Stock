@@ -44,11 +44,12 @@
         "那 我 昨 天 快 12 點 的 時 候 去 把 它 買 回 來"
       ],
       "rationale": "本人明講昨天先賣後買回，不能同時記為9/02當日買賣；保留既有持股列，未改寫9/01交易或任何通知列。",
-      "previous_note_sha256": "2a35cdbc6c37029c7d42c58860d97cc4d31f510a5604bdcf3f412f6614d0425a",
+      "previous_note_sha256": "0a831291750d01187af57642b76b56e3287856bc445e19f20948d192c9e894b9",
       "historical_trade_review": {
         "actor_and_time_reviewed": true,
         "event_date": "2026/09/01"
-      }
+      },
+      "previous_note_text": "昨早盤急漲快 20 塊，研判隔日沖拉高短線賣股，故先獲利賣出收權利金"
     }
   ]
 }

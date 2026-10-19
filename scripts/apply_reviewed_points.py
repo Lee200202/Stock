@@ -38,12 +38,20 @@ def main():
     parser.add_argument('--date', required=True)
     args = parser.parse_args()
     day = pl.norm_date(args.date)
-    reviewed = json.loads((ROOT / 'scripts/golden' / (day.replace('/', '-') + '.json')).read_text(encoding='utf-8')).get('public_points_review')
+    # Source-reviewed writing is not a classification answer file. A separate
+    # correction plan avoids turning today's agent draft into injected gold.
+    plan_path = ROOT / 'scripts/repairs' / (day.replace('/', '-') + '-points-review.json')
+    plan = json.loads(plan_path.read_text(encoding='utf-8')) if plan_path.exists() else None
+    if plan and plan.get('date') != day:
+        raise SystemExit('章節修正計畫日期不一致')
+    reviewed = (plan or json.loads((ROOT / 'scripts/golden' / (day.replace('/', '-') + '.json')).read_text(encoding='utf-8'))).get('public_points_review')
     if not reviewed:
         raise SystemExit('該日沒有人工逐句核對的章節修正；未寫入')
     book = pl.open_sheets()
     source = {}
     raw, _ = pl.existing_transcript(book, '', day, snapshot=source)
+    if plan and source.get('video_id') != plan.get('video_id'):
+        raise SystemExit('章節修正計畫影片不一致')
     if hashlib.sha256(raw.encode()).hexdigest() != reviewed['sha256']:
         raise SystemExit('原稿指紋已變；須重新核對，未寫入')
     points = []

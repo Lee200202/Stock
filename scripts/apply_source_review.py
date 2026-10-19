@@ -47,10 +47,13 @@ def make_changes(tables, plan, names):
         if item.get('action') != 'delete' and names.get(code) != item['name']:
             raise ValueError('官方名稱與代號不符：' + code)
         historical = item.get('historical_trade_review') or {}
+        try:
+            event_date = datetime.strptime(historical.get('event_date', ''), '%Y/%m/%d').strftime('%Y/%m/%d')
+        except (ValueError, TypeError):
+            event_date = ''
         historic_ok = (historical.get('actor_and_time_reviewed') is True and
-                       historical.get('event_date', '') < plan['date'] and
-                       len(historical.get('event_date', '')) == 10 and
-                       normalize_day(historical.get('event_date')) == historical.get('event_date'))
+                       bool(event_date) and event_date < plan['date'] and
+                       event_date == historical.get('event_date'))
         if cat in ('buy', 'sell') and not (item.get('action') == 'delete' and historic_ok):
             raise ValueError('此修正工具不新增或更動成交事實；須另走交易覆核')
         old_cat = item.get('previous_category', cat)
@@ -266,7 +269,10 @@ def main():
         print('正式列逐欄讀回一致；其他日期與受保護來源未變')
     if not args.apply:
         return
-    result = pl.maybe_refresh_site(force=True, only=['smsmail', 'tracker', 'perf'], date_str=day) or {}
+    steps = ['smsmail', 'tracker', 'perf']
+    if any(item.get('historical_trade_review') for item in plan['items']):
+        steps.insert(2, 'perfhist')
+    result = pl.maybe_refresh_site(force=True, only=steps, date_str=day) or {}
     if not result.get('ok'):
         raise RuntimeError('資料已保存；只需重跑本模式接續刷新，不重新判讀')
     verify_final({n: worksheets[n].get_all_values() for n in TABLES}, plan)

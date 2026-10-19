@@ -1,0 +1,16 @@
+{
+  "passed": true,
+  "context": "fresh non-persistent Chromium context; no imported cookies/login",
+  "build": "v192r1",
+  "widths": [
+    1440,
+    390
+  ],
+  "chapters": 20,
+  "nodes": 7,
+  "originalDeployment": 497,
+  "frameHosts": [
+    "n-gkdwrsm5tjvzpwotzox2eudw5hnls27gfwynm4a-0lu-script.googleusercontent.com",
+    "script.google.com"
+  ]
+}

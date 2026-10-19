@@ -110,6 +110,12 @@ def make_changes(tables, plan, names):
             raise ValueError('來源或說明指紋改變，保留現值：' + code)
         if old_cat in ('buy', 'sell') and not historic_ok:
             raise ValueError('更正歷史誤記成交須另附已覆核的主體與實際事件日')
+        if old_cat in ('buy', 'sell'):
+            earlier = [dict(zip(tables[old_sheet][0], cells)) for cells in tables[old_sheet][1:]]
+            if not any(normalize_day(r.get('日期')) == event_date and
+                       str(r.get('代號') or '').strip() == code and
+                       category(old_sheet, r) == old_cat for r in earlier):
+                raise ValueError('實際事件日沒有相應交易；先核對完整帳本，不移除：' + code)
         if item.get('action') == 'delete':
             changes.append({'kind': 'delete', 'sheet': old_sheet,
                             'index': index, 'item': item})

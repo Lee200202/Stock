@@ -83,6 +83,8 @@ class SourceReviewTests(unittest.TestCase):
         p['items'][1]['historical_trade_review']={'actor_and_time_reviewed':True,'event_date':'2026/10/19'}
         with self.assertRaises(ValueError):m.make_changes(t,p,n)
         p['items'][1]['historical_trade_review']['event_date']='2026/10/18'
+        with self.assertRaises(ValueError):m.make_changes(t,p,n)
+        t['操作紀錄'].append(['2026/10/18','乙','2222','賣出','123','已賣','earlier','1'])
         m.make_changes(t,p,n)
 
     def test_final_state_verification_rejects_note_or_class_drift(self):

@@ -1,0 +1,63 @@
+{
+  "2026/09/23": {
+    "date_api": true,
+    "items": 5,
+    "trades_unchanged": true,
+    "trace": {
+      "status": 200,
+      "seconds": 38.97,
+      "cache": "miss",
+      "snapshotAge": null
+    },
+    "counts": {
+      "buy": 1,
+      "sell": 0,
+      "holdings": 2,
+      "watchWatch": 5,
+      "watchAvoid": 13
+    },
+    "mail_phrases": {
+      "勤誠雖已回到900元以下": true,
+      "世界先進已隨成熟製程族群上漲": true,
+      "萬海所屬航運部位先前已全數出場": true
+    },
+    "mail_trace": {
+      "status": 200,
+      "seconds": 4.77,
+      "cache": "miss",
+      "snapshotAge": null
+    },
+    "sent": "已寄送"
+  },
+  "2026/09/16": {
+    "date_api": true,
+    "items": 7,
+    "trades_unchanged": true,
+    "trace": {
+      "status": 200,
+      "seconds": 9.32,
+      "cache": "miss",
+      "snapshotAge": null
+    },
+    "counts": {
+      "buy": 0,
+      "sell": 0,
+      "holdings": 3,
+      "watchWatch": 4,
+      "watchAvoid": 8
+    },
+    "mail_phrases": {
+      "台達電已整理約三個月": true,
+      "當日仍未買回": true,
+      "全年10元為獲利預估": true,
+      "除息7元": true
+    },
+    "mail_trace": {
+      "status": 200,
+      "seconds": 5.89,
+      "cache": "miss",
+      "snapshotAge": null
+    },
+    "sent": "已寄送"
+  }
+}

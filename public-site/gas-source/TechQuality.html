@@ -1,0 +1,46 @@
+<style>
+/* v191: one evidence standard for incoming and archived transcripts. */
+.tech-book .quality-intro{margin:24px 0 32px;max-width:none}
+.tech-book .quality-controls{display:flex;flex-wrap:wrap;gap:12px;margin:24px 0}
+.tech-book .quality-controls button{font:inherit;min-height:48px;padding:10px 24px;border-radius:999px;border:1px solid var(--rule);background:var(--panel);color:var(--ink);cursor:pointer}
+.tech-book .quality-controls button[aria-pressed=true]{background:var(--beam);border-color:var(--beam);color:var(--bg)}
+.tech-book .quality-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;margin:32px 0}
+.tech-book .quality-summary>div{padding:22px;border:1px solid var(--rule);border-radius:24px;background:var(--panel-2)}
+.tech-book .quality-summary b{display:block;font-size:calc(30px * var(--rd-fs));line-height:1.4;font-variant-numeric:tabular-nums;color:var(--beam)}
+.tech-book .quality-summary span{display:block;margin-top:8px}
+.tech-book .quality-case{margin:28px 0 40px;padding:clamp(20px,3vw,36px);border:1px solid var(--rule);border-radius:28px;background:var(--panel-2)}
+.tech-book .quality-case h4{font:inherit;font-weight:750;margin:0 0 16px}
+.tech-book .quality-quote{margin:0;padding:18px 22px;border-left:3px solid var(--beam);border-radius:16px;background:var(--panel)}
+.tech-book .quality-case-flow{display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin:24px 0}
+.tech-book .quality-case-flow>div{flex:1 1 240px;padding:20px;border:1px solid var(--rule);border-radius:22px;min-width:0}
+.tech-book .quality-case-flow small{display:block;font-size:calc(14px * var(--rd-fs));color:var(--ink-muted);margin-bottom:8px}
+.tech-book .quality-case-flow strong{display:block;font-size:calc(20px * var(--rd-fs));line-height:1.7}
+.tech-book .quality-case-flow>svg{width:34px;height:34px;color:var(--beam);flex:0 0 34px}
+.tech-book .quality-case-flow .quality-outcome{border:2px solid var(--beam);background:var(--panel)}
+.tech-book .quality-checks{list-style:none;padding:0;margin:24px 0;display:grid;gap:16px}
+.tech-book .quality-checks li{display:flex;gap:16px;align-items:flex-start;margin:0;padding:20px 24px;border:1px solid var(--rule);border-radius:22px}
+.tech-book .quality-checks svg{width:28px;height:28px;flex:0 0 28px;color:var(--beam);margin-top:5px}
+.tech-book .quality-checks b{display:block}
+.tech-book .quality-note{border-left:3px solid var(--beam);padding:16px 24px;background:var(--panel-2);border-radius:18px}
+@media(max-width:760px){.tech-book .quality-summary{grid-template-columns:1fr;gap:16px}.tech-book .quality-case-flow{display:grid;grid-template-columns:1fr;gap:14px}.tech-book .quality-case-flow>svg{transform:rotate(90deg);justify-self:center}.tech-book .quality-controls button{flex:1 1 140px}.tech-book .quality-summary>div{display:flex;align-items:baseline;gap:20px}.tech-book .quality-summary span{margin:0}}
+</style>
+<script>
+(function(){'use strict';
+function init(){
+ var ch=document.getElementById('tech-quality-loop');if(!ch||ch.dataset.qualityReady)return;ch.dataset.qualityReady='true';
+ var modes={
+  incoming:{title:'新稿：先確認今日事實',source:'今日原稿',sub:'同日通知與當時部位',copy:'先保留原稿與來源指紋，讀當日通知及截至當時的部位；自行分類後，才比較工作流。已確認的今日錯誤先修復並讀回，再擴大歷史測試。'},
+  archive:{title:'歷史：還原當時可知的資料',source:'歷史原稿',sub:'只用目標日以前資料',copy:'分類定義保持相同，通知、部位及價格回到目標日期。沒有答案日也先讀全文、自行分類並保存草稿；後來買進或賣出，不能倒填成過去已知。'}
+ };
+ ch.querySelectorAll('[data-quality-mode]').forEach(function(b){b.addEventListener('click',function(){var m=modes[b.dataset.qualityMode];ch.querySelectorAll('[data-quality-mode]').forEach(function(x){x.setAttribute('aria-pressed',String(x===b));});ch.querySelector('[data-quality-mode-title]').textContent=m.title;ch.querySelector('[data-quality-mode-copy]').textContent=m.copy;ch.querySelector('[data-quality-source-label]').textContent=m.source;ch.querySelector('[data-quality-source-sub]').textContent=m.sub;});});
+ var cases=[
+  ['勤誠：低價不等於條件已到','9/16、9/23：需等ETF賣完；目前尚未進場。','未來有低接機會','現在仍需等待','觀望不碰','把未來買點與現在進場許可分開，不能只看到900元以下便改為可以買。'],
+  ['聯電：引句在原稿，不代表屬於本股','9/23：159元以上聯電不買；下一段改談鴻海平盤下買點。','鴻海的低接買點','聯電的套牢壓力','只保留聯電不追條件','同一篇的真實句子，仍可能被接到錯的公司；公司與主張需一起核對。'],
+  ['台積電：7元是股利','9/16：台積電當日除息7元，盤中尚未完全填息。','現金股利7元','不是觀察股價7元','清除錯填的價位欄','數字與單位都正確，也可能放錯欄位；股利、EPS、張數與股價要分清。'],
+  ['晶心科：昨天賣，不是今天賣','9/23回顧前一天270餘元出場，並說目前不建議追買。','過去已出場','今天暫不追買','回顧＋觀望不碰','歷史交易保留原事件日；今天另外有進場限制就記現況，不重複造一筆賣出。']
+ ];
+ ch.querySelectorAll('[data-quality-case]').forEach(function(b){b.addEventListener('click',function(){var d=cases[Number(b.dataset.qualityCase)];ch.querySelectorAll('[data-quality-case]').forEach(function(x){x.setAttribute('aria-pressed',String(x===b));});['title','quote','input','fact','outcome','reason'].forEach(function(k,i){ch.querySelector('[data-quality-'+k+']').textContent=d[i];});var t=ch.querySelector('[data-quality-graph-check]');t.textContent=['當下條件','公司歸屬','數字性質','事件日期'][Number(b.dataset.qualityCase)];});});
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+})();
+</script>

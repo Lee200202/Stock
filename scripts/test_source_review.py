@@ -27,6 +27,24 @@ def fixture():
 
 
 class SourceReviewTests(unittest.TestCase):
+    def test_clear_dividend_or_eps_as_price_requires_explicit_review(self):
+        t,p,n=fixture(); item=p['items'][1]
+        item['clear_non_trade_price']=True
+        with self.assertRaises(ValueError):m.make_changes(t,p,n)
+        item['non_trade_price_review_reason']='原文7元是現金股利，不是進出場或觀察股價'
+        out=m.projected(t,m.make_changes(t,p,n));m.verify_final(out,p)
+        self.assertEqual(out['操作紀錄'][1][4],'未說明')
+        out['操作紀錄'][1][4]='7'
+        with self.assertRaises(ValueError):m.verify_final(out,p)
+        item.pop('clear_non_trade_price')
+        out=m.projected(t,m.make_changes(t,p,n))
+        self.assertEqual(out['操作紀錄'][1][4],'123')
+
+    def test_clear_price_cannot_modify_holding_or_transaction_cost(self):
+        t,p,n=fixture();p['items'][0].update(action='update',text='已核對續抱',
+            clear_non_trade_price=True,non_trade_price_review_reason='不應改持有成本')
+        with self.assertRaises(ValueError):m.make_changes(t,p,n)
+
     def test_plan_preserves_historical_position_and_non_targets(self):
         tables,p,n=fixture(); before=copy.deepcopy(tables)
         changes=m.make_changes(tables,p,n); out=m.projected(tables,changes)

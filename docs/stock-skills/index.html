@@ -22,7 +22,7 @@ html[data-theme=dark]{--bg:#101915;--panel:#19251f;--text:#ebf3ee;--muted:#afc1b
 <details><summary>沒有 JavaScript 也能讀的四種結果</summary><ul><li>可以買：進場建議，觀望注意，不新增成交。</li><li>今天已買：本人今天完成且證據核實，才是當日買入候選。</li><li>不要殺低：不是今日賣出；有已核對部位時保持持有。</li><li>部分賣出：保留減碼事件及剩餘部位；暫不買回可另列不碰，不關整檔。</li></ul></details></section>
 <section class="tools js-only" aria-label="規格篩選"><label for="search">找規則、工具或範本</label><input class="search" id="search" type="search" placeholder="例如：可以買、自稱分類、回測、clasp、Flash Lite、務必" autocomplete="off"><div class="filters" role="group" aria-label="領域篩選"><button type="button" data-filter="all" aria-pressed="true">全部</button><button type="button" data-filter="common" aria-pressed="false">共用規格</button><button type="button" data-filter="templates" aria-pressed="false">請求範本</button><button type="button" data-filter="design" aria-pressed="false">設計</button><button type="button" data-filter="content" aria-pressed="false">內容</button><button type="button" data-filter="writing" aria-pressed="false">文字</button><button type="button" data-filter="tuning" aria-pressed="false">規則</button><button type="button" data-filter="market" aria-pressed="false">行情</button><button type="button" data-filter="automation" aria-pressed="false">流程</button><button type="button" data-filter="release" aria-pressed="false">發布</button><button type="button" data-filter="assistant" aria-pressed="false">助理</button><button type="button" data-filter="collab" aria-pressed="false">協作</button></div><p id="count" class="note muted" role="status"></p><button type="button" id="expand">展開目前結果</button></section>
 <div id="docs"><section class="doc" data-group="common" id="common-0"><details open><summary>盤勢有據：常用工作規格與指令</summary><div class="prose"><p>整理日期：2026/10/19。這份手冊將歷次已確認偏好整理成可重用規格，不代表今天已重新執行取稿、改寫正式資料或寄送。詳細任務規則分別放在九個 skills；本文件負責路由、角色與常用請求。基礎來源是 2026/10/03–10/15 管理者在 Claude Code 與 Codex 兩邊的 193 則訊息，另補 10/16–10/19 的共用寬版、自製控制項、資訊層次與量化評估要求；版本紀錄與現行程式用於核對。</p>
-<p>本次另將反覆註解整理為 <strong>27項常設引導</strong>（5項評估、9項內容、6項工作流、7項介面），整合進既有 stock-collaboration，沒有增加重疊技能。詳見 <a href="skills/stock-collaboration/references/repeated-annotations.md">反覆註解引導</a>。依任務讀相關項目，單日例子不作永久規則。</p>
+<p>本次另將反覆註解整理為 <strong>27項常設引導</strong>（5項評估、9項內容、6項工作流、7項介面），整合進既有 stock-collaboration，沒有增加重疊技能。專案根目錄AGENTS.md亦加入入口，供後續工作先讀協作引導。詳見 <a href="skills/stock-collaboration/references/repeated-annotations.md">反覆註解引導</a>。依任務讀相關項目，單日例子不作永久規則。</p>
 </div></details></section><section class="doc" data-group="common" id="common-1"><details><summary>1. 如何使用與維護</summary><div class="prose"><p>版本化來源在 <code>docs/stock-skills/skills/</code>，實際供 Codex 使用的副本在 <code>C:/Users/user/.codex/skills/stock-*/</code>。本輪更新兩者並驗內容雜湊相同。之後先修改版本化來源，再用 <code>python scripts/build_stock_skill_handbook.py --install</code> 更新原安裝；不帶 <code>--install</code> 只產生 HTML、檢查引用，不更動本機技能。公開閱讀版在 <code>https://lee200202.github.io/stock-skills-handbook/</code>（repo <code>Lee200202/stock-skills-handbook</code>，GitHub Pages 從 main 根目錄發布），同一支建置腳本的另一份副本在該 repo 的 <code>scripts/</code>。</p>
 <p>技能之間按 MECE 切分：每一條規則只寫在一個技能，其他技能用「見某技能」指過去。新規則先找它屬於哪個技能的責任；沒有任何技能涵蓋時才新增技能（第 10 節記錄本輪新增與併入的理由）。</p>
 <p>同目錄 <code>index.html</code> 是可離線打開的視覺索引，從本手冊及九個技能的參考文件自動建立，不是正式技術頁。下次不要只改 HTML 而忘了 Markdown；重建後再驗畫面與同步。</p>
@@ -136,7 +136,7 @@ html[data-theme=dark]{--bg:#101915;--panel:#19251f;--text:#ebf3ee;--muted:#afc1b
 </tr>
 <tr>
   <td>「請提出 ai prompt，我會拿給其他 ai 執行」</td>
-  <td>collaboration 第 5 節 ＋ 對應領域技能的規格</td>
+  <td>collaboration 第 4 節 ＋ 對應領域技能的規格</td>
 </tr>
 </tbody>
 </table></div>

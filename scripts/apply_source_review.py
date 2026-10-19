@@ -125,6 +125,12 @@ def make_changes(tables, plan, names):
             raise ValueError('不認得的修正動作')
         new = dict(old)
         new[field] = item['text']
+        if item.get('clear_non_trade_price') is True:
+            if old_sheet != '操作紀錄' or old_cat not in ('watch_watch', 'watch_avoid'):
+                raise ValueError('只可清除觀望列誤填的非股價數字')
+            if not item.get('non_trade_price_review_reason'):
+                raise ValueError('清除非股價數字須附原句覆核理由')
+            new['價位說明'] = '未說明'
         if old_sheet == '操作紀錄':
             new['方向'] = LABEL[cat]
         changes.append({'kind': 'update', 'sheet': old_sheet, 'index': index,
@@ -186,6 +192,8 @@ def verify_final(tables, plan):
             field = '說明重點' if tab == '會員持股' else '理由摘錄'
             if len(rows) != 1 or rows[0].get(field) != item['text']:
                 raise ValueError('修正後分類／說明未一致：' + item['code'])
+            if item.get('clear_non_trade_price') is True and rows[0].get('價位說明') != '未說明':
+                raise ValueError('非股價數字尚未清除：' + item['code'])
             if item.get('previous_category') and item['previous_category'] != item['category']:
                 if any(category(tab, r) == item['previous_category'] for r in
                        [dict(zip(tables[tab][0], x)) for x in tables[tab][1:]]

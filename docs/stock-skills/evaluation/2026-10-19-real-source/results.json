@@ -1,0 +1,4227 @@
+{
+  "interpretation": "source-reviewed constraint agreement, not overall accuracy or human gold",
+  "website_is_not_ground_truth": true,
+  "runs": [
+    {
+      "run_id": "39188221527",
+      "date": "2026/08/21",
+      "variant": "A-original",
+      "commit": "fb0c17e",
+      "verdict_cache": "existing",
+      "reference": "expected-0821-v1.json",
+      "run_url": "https://github.com/Lee200202/Stock/actions/runs/39188221527",
+      "status": "scored",
+      "label_origin": "agent_independent_source_review",
+      "review_status": "draft_not_human_gold",
+      "raw_sha256": "a771ca3f6772170f6e05f9a104f61a30258ee7ba6032fbb137b3efd0d1717e28",
+      "reference_sha256": "221b5cab12a8cadf3e0c2abae4f64c25c162cc6320a2c0e7887ac5d4a488943f",
+      "scope": "transcript rows before notice-priority article; website ignored",
+      "model_calls": 14,
+      "constraint_score": {
+        "matched_required": 7,
+        "required": 15,
+        "missing": [
+          "3152",
+          "2609",
+          "2603",
+          "2615",
+          "3661",
+          "6182",
+          "5483"
+        ],
+        "wrong_category": [
+          {
+            "code": "2454",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_watch"
+            ],
+            "ok": false
+          }
+        ],
+        "forbidden_present": [
+          {
+            "code": "2330",
+            "actual": [
+              "holdings"
+            ],
+            "ok": false
+          }
+        ],
+        "checks": [
+          {
+            "code": "3152",
+            "expected": [
+              "buy"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "1519",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "8436",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "4966",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "5269",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2609",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "2603",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "2615",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "2303",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2454",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_watch"
+            ],
+            "ok": false
+          },
+          {
+            "code": "3661",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "2327",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "6488",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "6182",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "5483",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          }
+        ],
+        "exclusion_checks": [
+          {
+            "code": "2330",
+            "actual": [
+              "holdings"
+            ],
+            "ok": false
+          },
+          {
+            "code": "3008",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "2308",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "3081",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "6215",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "3167",
+            "actual": [],
+            "ok": true
+          }
+        ],
+        "unscored_codes": [],
+        "forbidden_category_rows": []
+      },
+      "rows": {
+        "1519": [
+          {
+            "class": "holdings",
+            "name": "華城",
+            "note": "華城在底部下跌三個月後，季線雖然向下，但在底部並非賣點。一旦突破季線，季線將翻揚向上，符合預期配置。"
+          }
+        ],
+        "4966": [
+          {
+            "class": "holdings",
+            "name": "譜瑞-KY",
+            "note": "因與AMD及Google資源有關，持續注意。"
+          }
+        ],
+        "5269": [
+          {
+            "class": "holdings",
+            "name": "祥碩",
+            "note": "祥碩在大盤下跌時逆勢大漲，目前股價在1400多元進行整理。受惠於轉給AMD操作Google的TPU消息激勵，後續持續看好。"
+          }
+        ],
+        "8436": [
+          {
+            "class": "holdings",
+            "name": "大江",
+            "note": "大江在低檔底部爆量後一路向上，本周每日走高且創下新高。"
+          }
+        ],
+        "2330": [
+          {
+            "class": "holdings",
+            "name": "台積電",
+            "note": "Google手機晶片去年採用台積電，今年進行更換。"
+          }
+        ],
+        "2454": [
+          {
+            "class": "watch_watch",
+            "name": "聯發科",
+            "note": "聯發科雖於今日上漲，但主動型ETF昨日全數減碼賣出。主因Google將AI的TPU交給超微製作，而非聯發科。"
+          }
+        ],
+        "2303": [
+          {
+            "class": "watch_avoid",
+            "name": "聯電",
+            "note": "有投資人買在180元的聯電，屬於27年來的最高點。由於違反跳空缺口以上絕對不能買的邏輯，不宜盲目追高。"
+          }
+        ],
+        "2327": [
+          {
+            "class": "watch_avoid",
+            "name": "國巨*",
+            "note": "被動元件族群熱潮已過，國巨股價在1000多元時曾受到政論節目討論老闆為首富等消息推升，目前價位顯示可能進行假破底，回測並跌破前低，不建議盲目加碼。"
+          }
+        ],
+        "6488": [
+          {
+            "class": "watch_avoid",
+            "name": "環球晶",
+            "note": "矽晶圓族群走勢轉弱，符合格蘭碧移動平均線的反彈賣點，不宜進場承接。"
+          }
+        ]
+      },
+      "source_hash_matches_reference": null,
+      "legacy_limit": "Old log did not print raw SHA or structured report; separate source snapshot recorded, exact replay-input hash not certified.",
+      "log_artifact_local": "C:/Users/user/Stock/scratch/real-eval-20261019/logs/0821-baseline-1.log",
+      "workflow_conclusion": "success"
+    },
+    {
+      "run_id": "39207384076",
+      "date": "2026/09/22",
+      "variant": "A-original",
+      "commit": "fb0c17e",
+      "verdict_cache": "existing",
+      "reference": "expected-0922-v1.json",
+      "run_url": "https://github.com/Lee200202/Stock/actions/runs/39207384076",
+      "status": "scored",
+      "label_origin": "agent_independent_source_review",
+      "review_status": "draft_not_human_gold",
+      "raw_sha256": "8e7de07c9de14683b903f088802f9a3d80aa6cecabf794c60d6f1f7a03219776",
+      "reference_sha256": "07acc526bb7a358918938fdbf43432150cd918f2daab3a2cc41df538564d433f",
+      "scope": "transcript rows before notice-priority article; website ignored",
+      "model_calls": 16,
+      "constraint_score": {
+        "matched_required": 13,
+        "required": 14,
+        "missing": [
+          "2404"
+        ],
+        "wrong_category": [],
+        "forbidden_present": [],
+        "checks": [
+          {
+            "code": "5536",
+            "expected": [
+              "buy"
+            ],
+            "actual": [
+              "buy"
+            ],
+            "ok": true
+          },
+          {
+            "code": "6533",
+            "expected": [
+              "sell"
+            ],
+            "actual": [
+              "sell"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2330",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "3533",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "3661",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2317",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2354",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2308",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "watch_watch"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2404",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "4966",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "5269",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "3481",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2303",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2454",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          }
+        ],
+        "exclusion_checks": [
+          {
+            "code": "2603",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "3036",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "2408",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "3167",
+            "actual": [],
+            "ok": true
+          }
+        ],
+        "unscored_codes": [],
+        "forbidden_category_rows": []
+      },
+      "rows": {
+        "5536": [
+          {
+            "class": "buy",
+            "name": "聖暉*",
+            "note": "聖暉上半年每股盈餘達23.73元，營收在7、8月開始明顯爆發，且在底部打底一個多月。隨著台積電設備工程題材漢唐過季線帶動啟動，於影片當日早上請會員進場買進，作為低檔布局的標的。"
+          }
+        ],
+        "6533": [
+          {
+            "class": "sell",
+            "name": "晶心科",
+            "note": "晶心科打底一個月後向上衝高創新高，於影片當日將晶心科全數賣出獲利了結，賣在270幾元。轉而去買其他低檔潛力股票。"
+          }
+        ],
+        "2330": [
+          {
+            "class": "holdings",
+            "name": "台積電",
+            "note": "台積電季線向上且走勢穩健，高點突破新高在即，會員持有一百張1,000多元的部位持續抱牢不賣。新高價為2535，高點幾乎必過。"
+          }
+        ],
+        "2317": [
+          {
+            "class": "holdings",
+            "name": "鴻海",
+            "note": "鴻海季線向上並在三角形末端壓縮整理，自238元推薦買進後持續看好，外資短線反覆賣買不影響多頭結構，建議會員繼續抱牢，拉回可注意。"
+          }
+        ],
+        "2354": [
+          {
+            "class": "holdings",
+            "name": "鴻準",
+            "note": "鴻準一路沿著月線走，大戶買那麼多，後面一定有利多。利多預期在液冷散熱題材，比較便宜，保守者可注意。"
+          }
+        ],
+        "3533": [
+          {
+            "class": "holdings",
+            "name": "嘉澤",
+            "note": "嘉澤表現強勢於同業貿聯-KY，且於當日攻上漲停板，手中有持股的會員持續續抱，享受多頭行情。"
+          }
+        ],
+        "3661": [
+          {
+            "class": "holdings",
+            "name": "世芯-KY",
+            "note": "世芯-KY在ETF賣壓完全解除後隨即大漲500多元。目前手中有持股的會員續抱，展現強勢反彈格局。"
+          }
+        ],
+        "4966": [
+          {
+            "class": "holdings",
+            "name": "譜瑞-KY",
+            "note": "譜瑞-KY是AMD概念股，目前還在季線之下。今年EPS將近100塊，值得注意。"
+          }
+        ],
+        "5269": [
+          {
+            "class": "holdings",
+            "name": "祥碩",
+            "note": "祥碩為超微概念股，目前量縮洗盤。月洗量越少，等待一出量就出去。"
+          }
+        ],
+        "2308": [
+          {
+            "class": "watch_watch",
+            "name": "台達電",
+            "note": "台達電季線向上，且已經過季線。季線底先扣1,009塊，再來這邊有一個缺口，此時買進相對安全。"
+          }
+        ],
+        "2303": [
+          {
+            "class": "watch_avoid",
+            "name": "聯電",
+            "note": "聯電雖然基期剛好、有投資人想買，但此時追高買進有套牢風險。分析師明言不建議在此時盲目追買。"
+          }
+        ],
+        "2454": [
+          {
+            "class": "watch_avoid",
+            "name": "聯發科",
+            "note": "聯發科季線向上，但股價已經漲很高。沒有拉回就不會想要去分析，不硬要追高。"
+          }
+        ],
+        "3481": [
+          {
+            "class": "watch_avoid",
+            "name": "群創",
+            "note": "群創目前在季線之下，且被季線壓住。選群創會很難過，且昨天沒有漲停。"
+          }
+        ]
+      },
+      "source_hash_matches_reference": null,
+      "legacy_limit": "Old log did not print raw SHA or structured report; separate source snapshot recorded, exact replay-input hash not certified.",
+      "log_artifact_local": "C:/Users/user/Stock/scratch/real-eval-20261019/logs/0922-baseline-1.log",
+      "workflow_conclusion": "success"
+    },
+    {
+      "run_id": "39208135613",
+      "date": "2026/10/19",
+      "variant": "A-original",
+      "commit": "fb0c17e",
+      "verdict_cache": "existing",
+      "reference": "expected-1019-v1.json",
+      "run_url": "https://github.com/Lee200202/Stock/actions/runs/39208135613",
+      "status": "scored",
+      "label_origin": "agent_independent_source_review",
+      "review_status": "draft_not_human_gold",
+      "raw_sha256": "b4190456680ff3db4ec6c098ea428e416bea37ed083ef411bc5926fa1b5bad1c",
+      "reference_sha256": "36cc3f45d49587cf7330379c7f99ac280bd40a9df47f2ae833caaf8cf7b7f30d",
+      "scope": "transcript rows before notice-priority article; website ignored",
+      "model_calls": 16,
+      "constraint_score": {
+        "matched_required": 9,
+        "required": 15,
+        "missing": [
+          "6488",
+          "5269",
+          "3558"
+        ],
+        "wrong_category": [
+          {
+            "code": "3661",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_watch"
+            ],
+            "ok": false
+          },
+          {
+            "code": "2317",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": false
+          },
+          {
+            "code": "2330",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": false
+          }
+        ],
+        "forbidden_present": [],
+        "checks": [
+          {
+            "code": "3661",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_watch"
+            ],
+            "ok": false
+          },
+          {
+            "code": "2327",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2454",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2303",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "6488",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "6770",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "3533",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "5269",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "6409",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "3558",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "1590",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "3592",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "3645",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2317",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": false
+          },
+          {
+            "code": "2330",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": false
+          }
+        ],
+        "exclusion_checks": [
+          {
+            "code": "3266",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "3037",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "3167",
+            "actual": [],
+            "ok": true
+          }
+        ],
+        "unscored_codes": [
+          "2402"
+        ],
+        "forbidden_category_rows": []
+      },
+      "rows": {
+        "6770": [
+          {
+            "class": "holdings",
+            "name": "力積電",
+            "note": "持有力積電，認為其為記憶體中未來爆發性最大者，後續上看七十幾、八十幾、九十幾元，因此持續續抱而不賣出。"
+          }
+        ],
+        "3533": [
+          {
+            "class": "holdings",
+            "name": "嘉澤",
+            "note": "會員持有嘉澤，認為在1200元以下股價往下時柱子越來越大，代表是大戶買進護盤，在大跌時不隨意亂殺低而選擇續抱。"
+          }
+        ],
+        "1590": [
+          {
+            "class": "holdings",
+            "name": "亞德客-KY",
+            "note": "亞德客-KY專挑龍頭大戶買很多、追求安全的標的。目前尚未買進，會員在等3300元的價位。"
+          }
+        ],
+        "3592": [
+          {
+            "class": "holdings",
+            "name": "瑞鼎",
+            "note": "瑞鼎的三大法人每天都在買超，且K線顯示沒有背離，顯示這一支股票還沒有走完，259元將會突破。所屬的驅動IC族群近期也需要注意。"
+          }
+        ],
+        "3645": [
+          {
+            "class": "holdings",
+            "name": "達邁",
+            "note": "達邁為摺疊手機概念股，蘋果摺疊手機搶到翻掉。現行很強且季線翻揚，值得加以注意。"
+          }
+        ],
+        "2402": [
+          {
+            "class": "holdings",
+            "name": "毅嘉",
+            "note": "大盤要判斷止穩與否並進場加碼，必須符合兩個條件，其中一個條件是要爆巨量下殺、散戶賣出來且融資大減。"
+          }
+        ],
+        "6409": [
+          {
+            "class": "holdings",
+            "name": "旭隼",
+            "note": "早上，會員跟我聊天了。"
+          }
+        ],
+        "3661": [
+          {
+            "class": "watch_watch",
+            "name": "世芯-KY",
+            "note": "世芯-KY先前大漲來到4400元，目前目標在等待其跌多一點再行低檔佈局。會員操作世芯-KY沒有賠過一次錢。"
+          }
+        ],
+        "2327": [
+          {
+            "class": "watch_avoid",
+            "name": "國巨*",
+            "note": "國巨散戶持有的1080元與560元成本皆已跌破，目前來到511元跌停附近。絕對不碰國巨，六字頭以上應趕快賣出，預期會殺到散戶學本無歸才會止跌。"
+          }
+        ],
+        "2454": [
+          {
+            "class": "watch_avoid",
+            "name": "聯發科",
+            "note": "聯發科的缺口尚未完全補完，因此目前不碰，須等待缺口補完再說是否可以買進。"
+          }
+        ],
+        "2303": [
+          {
+            "class": "watch_avoid",
+            "name": "聯電",
+            "note": "先前於159缺口已建議動作，現在詢問怎麼辦只能等反彈，並強調目前不能買。先前已指出159缺口時要賣出聯電。"
+          }
+        ],
+        "2317": [
+          {
+            "class": "watch_avoid",
+            "name": "鴻海",
+            "note": "鴻海過去幾個月跌破240元（如230幾元）為低點機會，適合心胸寬大的人。未主動叫會員買鴻海，若持有破季線或破240幾元的人更不能賣。"
+          }
+        ],
+        "2330": [
+          {
+            "class": "watch_avoid",
+            "name": "台積電",
+            "note": "台積電今天跌破季線，適合心胸寬大、穩扎穩打且想長抱的人買進。會員有100張從1700多塊抱到現在，不適合所有人買進的原因是漲勢較慢。"
+          }
+        ]
+      },
+      "source_hash_matches_reference": null,
+      "legacy_limit": "Old log did not print raw SHA or structured report; separate source snapshot recorded, exact replay-input hash not certified.",
+      "log_artifact_local": "C:/Users/user/Stock/scratch/real-eval-20261019/logs/1019-baseline-1.log",
+      "workflow_conclusion": "success",
+      "post_review_v2_sensitivity": {
+        "matched_required": 9,
+        "required": 14,
+        "missing": [
+          "6488",
+          "3558"
+        ],
+        "wrong_category": [
+          {
+            "code": "3661",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_watch"
+            ],
+            "ok": false
+          },
+          {
+            "code": "2317",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": false
+          },
+          {
+            "code": "2330",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": false
+          }
+        ],
+        "forbidden_present": [],
+        "checks": [
+          {
+            "code": "3661",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_watch"
+            ],
+            "ok": false
+          },
+          {
+            "code": "2327",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2454",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2303",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "6488",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "6770",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "3533",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "6409",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "3558",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "1590",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "3592",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "3645",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2317",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": false
+          },
+          {
+            "code": "2330",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": false
+          }
+        ],
+        "exclusion_checks": [
+          {
+            "code": "3266",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "3037",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "3167",
+            "actual": [],
+            "ok": true
+          }
+        ],
+        "unscored_codes": [
+          "2402"
+        ],
+        "forbidden_category_rows": []
+      }
+    },
+    {
+      "run_id": "39208138774",
+      "date": "2026/09/02",
+      "variant": "A-original",
+      "commit": "fb0c17e",
+      "verdict_cache": "existing",
+      "reference": "expected-0902-v1.json",
+      "run_url": "https://github.com/Lee200202/Stock/actions/runs/39208138774",
+      "status": "scored",
+      "label_origin": "agent_independent_source_review",
+      "review_status": "draft_not_human_gold",
+      "raw_sha256": "2204c9e6d871e0565b2eeeed662690ef9f9b4ce5be4ba90947b5c92f1c90aa8f",
+      "reference_sha256": "55ade4f6db4aade008c0d13a84a39e20b0a59fac4af9d4d3a452a60755a01589",
+      "scope": "transcript rows before notice-priority article; website ignored",
+      "model_calls": 19,
+      "constraint_score": {
+        "matched_required": 10,
+        "required": 18,
+        "missing": [
+          "6415",
+          "2449",
+          "6147",
+          "2327",
+          "2603",
+          "3661",
+          "4966"
+        ],
+        "wrong_category": [
+          {
+            "code": "3711",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_watch"
+            ],
+            "ok": false
+          }
+        ],
+        "forbidden_present": [],
+        "checks": [
+          {
+            "code": "2308",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2303",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "3711",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_watch"
+            ],
+            "ok": false
+          },
+          {
+            "code": "5439",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2337",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "6415",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "2449",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "6147",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "2327",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "3481",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2603",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "3661",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "2330",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2354",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2201",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "1519",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "6533",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "4966",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [],
+            "ok": false
+          }
+        ],
+        "exclusion_checks": [
+          {
+            "code": "3167",
+            "actual": [],
+            "ok": true
+          }
+        ],
+        "unscored_codes": [
+          "2317",
+          "2615",
+          "8183"
+        ],
+        "forbidden_category_rows": []
+      },
+      "rows": {
+        "2317": [
+          {
+            "class": "holdings",
+            "name": "鴻海",
+            "note": "鴻海在238元附近為明確買點，不必等補完237.5元的缺口，目前已隨行情上漲，會員與持有者續抱。"
+          }
+        ],
+        "2354": [
+          {
+            "class": "holdings",
+            "name": "鴻準",
+            "note": "鴻準突破前高且成交量縮小，顯示籌碼被大戶鎖定，創歷史新高且外資持續買超，會員續抱獲利中。"
+          }
+        ],
+        "6533": [
+          {
+            "class": "holdings",
+            "name": "晶心科",
+            "note": "晶心科昨日趁隔日衝高在70幾元（約282.5元）高點先賣出，隨後在跌到250幾元時全面買回賺取價差，月K線MACD翻揚，九月份持續看好續抱。"
+          }
+        ],
+        "2330": [
+          {
+            "class": "holdings",
+            "name": "台積電",
+            "note": "台積電為大盤關鍵指標，指數要過前高必須等台積電帶量站上2470點，目前技術面正在調整整理，會員持股續抱未賣出。"
+          }
+        ],
+        "2201": [
+          {
+            "class": "holdings",
+            "name": "裕隆",
+            "note": "裕隆從4月份最低點開始，400張以上大戶比例一路增加，經過28元打底八個月後翻身，月線MACD翻揚。具備新店裕隆城土地開發等資產題材與每股淨值60.65元，先前高出低吸後會員目前續抱。"
+          }
+        ],
+        "1519": [
+          {
+            "class": "holdings",
+            "name": "華城",
+            "note": "華城前一日漲32元、今日跌6元，觀察到三大法人前一日賣超、今日轉為買超，大摩持續買進。屬於正常震盪，會員目前續抱不理會短線波動。"
+          }
+        ],
+        "8183": [
+          {
+            "class": "holdings",
+            "name": "精星",
+            "note": "會員目前持續持有。"
+          }
+        ],
+        "3711": [
+          {
+            "class": "watch_watch",
+            "name": "日月光投控",
+            "note": "日月光投控基本面良好，技術面還不到買點。該股需要時間進行技術面修正，須耐心等候訊號再行留意。"
+          }
+        ],
+        "2308": [
+          {
+            "class": "watch_avoid",
+            "name": "台達電",
+            "note": "台達電基本面雖好，但散戶人數暴增一倍，技術面仍未調整完畢，目前不宜盲目進場買進。根據葛蘭碧移動平均八大法則，前一日未賣出者今日隨即下跌100元。"
+          }
+        ],
+        "2303": [
+          {
+            "class": "watch_avoid",
+            "name": "聯電",
+            "note": "符合葛蘭碧移動平均八大法則的賣點，先前已提醒最多來到135至137元附近。今日股價隨即下跌，目前不宜進場追高。"
+          }
+        ],
+        "5439": [
+          {
+            "class": "watch_avoid",
+            "name": "高技",
+            "note": "符合葛蘭碧移動平均八大法則。目前技術面顯示不宜盲目買進，須有耐心等待。"
+          }
+        ],
+        "2337": [
+          {
+            "class": "watch_avoid",
+            "name": "旺宏",
+            "note": "符合葛蘭碧移動平均八大法則。目前不宜進場承接。"
+          }
+        ],
+        "3481": [
+          {
+            "class": "watch_avoid",
+            "name": "群創",
+            "note": "群創股東人數暴增一倍達到100多萬，由於散戶過多，容易因利空隨便亂殺。籌碼過於凌亂，目前根本不敢碰。"
+          }
+        ],
+        "2615": [
+          {
+            "class": "watch_avoid",
+            "name": "萬海",
+            "note": "萬海今日反彈高點結束，60分K線跌破35均且反彈35均結束，長榮準備往220以下下跌。被動元件、矽晶圓與ABF等有風險的股票目前均不碰，下一檔目標等待拉回再行評估。"
+          }
+        ]
+      },
+      "source_hash_matches_reference": null,
+      "legacy_limit": "Old log did not print raw SHA or structured report; separate source snapshot recorded, exact replay-input hash not certified.",
+      "log_artifact_local": "C:/Users/user/Stock/scratch/real-eval-20261019/logs/0902-baseline-1.log",
+      "workflow_conclusion": "success"
+    },
+    {
+      "run_id": "39208375497",
+      "date": "2026/08/21",
+      "variant": "A-fresh",
+      "commit": "d16e818",
+      "verdict_cache": "disabled",
+      "reference": "expected-0821-v1.json",
+      "run_url": "https://github.com/Lee200202/Stock/actions/runs/39208375497",
+      "status": "scored",
+      "label_origin": "agent_independent_source_review",
+      "review_status": "draft_not_human_gold",
+      "raw_sha256": "a771ca3f6772170f6e05f9a104f61a30258ee7ba6032fbb137b3efd0d1717e28",
+      "reference_sha256": "221b5cab12a8cadf3e0c2abae4f64c25c162cc6320a2c0e7887ac5d4a488943f",
+      "scope": "transcript rows before notice-priority article; website ignored",
+      "model_calls": 12,
+      "constraint_score": {
+        "matched_required": 9,
+        "required": 15,
+        "missing": [
+          "3152",
+          "2609",
+          "2603",
+          "6488",
+          "6182",
+          "5483"
+        ],
+        "wrong_category": [],
+        "forbidden_present": [
+          {
+            "code": "2330",
+            "actual": [
+              "holdings"
+            ],
+            "ok": false
+          }
+        ],
+        "checks": [
+          {
+            "code": "3152",
+            "expected": [
+              "buy"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "1519",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "8436",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "4966",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "5269",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2609",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "2603",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "2615",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2303",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2454",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "3661",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2327",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "6488",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "6182",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "5483",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          }
+        ],
+        "exclusion_checks": [
+          {
+            "code": "2330",
+            "actual": [
+              "holdings"
+            ],
+            "ok": false
+          },
+          {
+            "code": "3008",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "2308",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "3081",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "6215",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "3167",
+            "actual": [],
+            "ok": true
+          }
+        ],
+        "unscored_codes": [],
+        "forbidden_category_rows": []
+      },
+      "rows": {
+        "1519": [
+          {
+            "class": "holdings",
+            "name": "華城",
+            "note": "華城近期打出底部形態。"
+          }
+        ],
+        "5269": [
+          {
+            "class": "holdings",
+            "name": "祥碩",
+            "note": "祥碩這兩天在1400多元附近整理，在市場下跌時相對抗跌。因轉給AMD操刀Google的TPU，後續表現不用過於擔心。"
+          }
+        ],
+        "4966": [
+          {
+            "class": "holdings",
+            "name": "譜瑞-KY",
+            "note": "譜瑞-KY與AMD及Google資源相關，操作上不宜隨意追價。"
+          }
+        ],
+        "8436": [
+          {
+            "class": "holdings",
+            "name": "大江",
+            "note": "大江在底部爆量後往上走高，本週連續上漲沒有下跌。會員持有的傳統產業股表現穩健，未受市場下跌影響。"
+          }
+        ],
+        "2330": [
+          {
+            "class": "holdings",
+            "name": "台積電",
+            "note": "Google手機晶片去年採用台積電，今年則更換為其他供應商。"
+          }
+        ],
+        "2303": [
+          {
+            "class": "watch_avoid",
+            "name": "聯電",
+            "note": "聯電買在180元屬於歷史高點，依據格蘭碧移動平均八大法則，跳空缺口以上不宜買進，應避免盲目追高或期待漲到200元。"
+          }
+        ],
+        "2454": [
+          {
+            "class": "watch_avoid",
+            "name": "聯發科",
+            "note": "主動型ETF近期全面減碼聯發科，且Google的AI晶片TPU轉由AMD製作，法人籌碼鬆動，建議等候幾天判斷後再做決定，不宜見漲盲目追買。"
+          }
+        ],
+        "3661": [
+          {
+            "class": "watch_avoid",
+            "name": "世芯-KY",
+            "note": "世芯-KY短線隨漲隨跌，提醒投資人切勿見漲直接追進，以免面臨短線回檔風險。"
+          }
+        ],
+        "2327": [
+          {
+            "class": "watch_avoid",
+            "name": "國巨*",
+            "note": "國巨在1000多元時受新聞與話題影響上漲，目前面臨高檔修正風險，切勿盲目追高。"
+          }
+        ],
+        "2615": [
+          {
+            "class": "watch_avoid",
+            "name": "萬海",
+            "note": "萬海目前暫時不予推薦。"
+          }
+        ]
+      },
+      "recorded_source_sha256": "a771ca3f6772170f6e05f9a104f61a30258ee7ba6032fbb137b3efd0d1717e28",
+      "source_hash_matches_reference": true,
+      "build": "d16e818·d9b698e2",
+      "workflow_check_errors": [],
+      "replay_exit_code": 0,
+      "log_artifact_local": "C:/Users/user/Stock/scratch/real-eval-20261019/logs/0821-baselinefresh-1.log",
+      "workflow_conclusion": "success"
+    },
+    {
+      "run_id": "39208379032",
+      "date": "2026/08/21",
+      "variant": "B1-fresh",
+      "commit": "0758962",
+      "verdict_cache": "disabled",
+      "reference": "expected-0821-v1.json",
+      "run_url": "https://github.com/Lee200202/Stock/actions/runs/39208379032",
+      "status": "scored",
+      "label_origin": "agent_independent_source_review",
+      "review_status": "draft_not_human_gold",
+      "raw_sha256": "a771ca3f6772170f6e05f9a104f61a30258ee7ba6032fbb137b3efd0d1717e28",
+      "reference_sha256": "221b5cab12a8cadf3e0c2abae4f64c25c162cc6320a2c0e7887ac5d4a488943f",
+      "scope": "transcript rows before notice-priority article; website ignored",
+      "model_calls": 13,
+      "constraint_score": {
+        "matched_required": 7,
+        "required": 15,
+        "missing": [
+          "2609",
+          "2603",
+          "2615",
+          "2327",
+          "6488",
+          "6182",
+          "5483"
+        ],
+        "wrong_category": [
+          {
+            "code": "3152",
+            "expected": [
+              "buy"
+            ],
+            "actual": [
+              "watch_watch"
+            ],
+            "ok": false
+          }
+        ],
+        "forbidden_present": [],
+        "checks": [
+          {
+            "code": "3152",
+            "expected": [
+              "buy"
+            ],
+            "actual": [
+              "watch_watch"
+            ],
+            "ok": false
+          },
+          {
+            "code": "1519",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "8436",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "4966",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "5269",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2609",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "2603",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "2615",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "2303",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2454",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "3661",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2327",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "6488",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "6182",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "5483",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          }
+        ],
+        "exclusion_checks": [
+          {
+            "code": "2330",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "3008",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "2308",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "3081",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "6215",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "3167",
+            "actual": [],
+            "ok": true
+          }
+        ],
+        "unscored_codes": [],
+        "forbidden_category_rows": []
+      },
+      "rows": {
+        "1519": [
+          {
+            "class": "holdings",
+            "name": "華城",
+            "note": "華城近期打出底部型態。"
+          }
+        ],
+        "5269": [
+          {
+            "class": "holdings",
+            "name": "祥碩",
+            "note": "祥碩在週三逆勢大漲，這兩天進行整理仍維持在1400多元，不用擔心。消息指出其轉給AMD操作Google的TPU，後續表現值得關注。"
+          }
+        ],
+        "4966": [
+          {
+            "class": "holdings",
+            "name": "譜瑞-KY",
+            "note": "當時雖面臨質疑但後續證實正確。與AMD及Google資源相關，後續表現值得留意。"
+          }
+        ],
+        "8436": [
+          {
+            "class": "holdings",
+            "name": "大江",
+            "note": "先前在低檔爆量時即建議持有，本週持續往上走高且創新高。"
+          }
+        ],
+        "3152": [
+          {
+            "class": "watch_watch",
+            "name": "璟德",
+            "note": "今天早上9點多幫一般會員買進璟德，買進理由包括經歷減資缺口回補、股本變小股價變高，且股價已從高檔跌了100多元，在低檔進場布局。"
+          }
+        ],
+        "2454": [
+          {
+            "class": "watch_avoid",
+            "name": "聯發科",
+            "note": "主動型ETF如00981A等在昨日全面減碼聯發科，且Google手機晶片訂單改由聯發科供應但AI的TPU轉給AMD，目前籌碼鬆動且法人持續調節，建議想買的人先等幾天判斷完，切勿看到上漲就盲目衝進去。"
+          }
+        ],
+        "3661": [
+          {
+            "class": "watch_avoid",
+            "name": "世芯-KY",
+            "note": "不要看到世芯-KY上漲就盲目追進，昨天一堆人追高後今天隨即下跌。依據葛蘭碧移動平均線八大法則，此為高檔跌破季線後的反彈賣點。"
+          }
+        ],
+        "2303": [
+          {
+            "class": "watch_avoid",
+            "name": "聯電",
+            "note": "聯電買在180元為27年來的最高點，且跳空缺口以上絕對不能買。反彈至130幾元時應把握機會賣出。"
+          }
+        ]
+      },
+      "recorded_source_sha256": "a771ca3f6772170f6e05f9a104f61a30258ee7ba6032fbb137b3efd0d1717e28",
+      "source_hash_matches_reference": true,
+      "build": "0758962·017b06b7",
+      "workflow_check_errors": [],
+      "replay_exit_code": 0,
+      "log_artifact_local": "C:/Users/user/Stock/scratch/real-eval-20261019/logs/0821-candidate-1.log",
+      "workflow_conclusion": "success"
+    },
+    {
+      "run_id": "39208850239",
+      "date": "2026/08/21",
+      "variant": "B2-fresh",
+      "commit": "b3ef549",
+      "verdict_cache": "disabled",
+      "reference": "expected-0821-v1.json",
+      "run_url": "https://github.com/Lee200202/Stock/actions/runs/39208850239",
+      "status": "scored",
+      "label_origin": "agent_independent_source_review",
+      "review_status": "draft_not_human_gold",
+      "raw_sha256": "a771ca3f6772170f6e05f9a104f61a30258ee7ba6032fbb137b3efd0d1717e28",
+      "reference_sha256": "221b5cab12a8cadf3e0c2abae4f64c25c162cc6320a2c0e7887ac5d4a488943f",
+      "scope": "transcript rows before notice-priority article; website ignored",
+      "model_calls": 14,
+      "constraint_score": {
+        "matched_required": 9,
+        "required": 15,
+        "missing": [
+          "3152",
+          "2609",
+          "2603",
+          "2615",
+          "6182",
+          "5483"
+        ],
+        "wrong_category": [],
+        "forbidden_present": [],
+        "checks": [
+          {
+            "code": "3152",
+            "expected": [
+              "buy"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "1519",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "8436",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "4966",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "5269",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2609",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "2603",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "2615",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "2303",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2454",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "3661",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2327",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "6488",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "6182",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "5483",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          }
+        ],
+        "exclusion_checks": [
+          {
+            "code": "2330",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "3008",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "2308",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "3081",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "6215",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "3167",
+            "actual": [],
+            "ok": true
+          }
+        ],
+        "unscored_codes": [
+          "2377"
+        ],
+        "forbidden_category_rows": []
+      },
+      "rows": {
+        "2377": [
+          {
+            "class": "holdings",
+            "name": "微星",
+            "note": "微星在100元以下時長期推薦並帶領會員佈局。面對市場追高心態，強調應遵循專業低檔佈局策略，切勿借錢買股票。"
+          }
+        ],
+        "1519": [
+          {
+            "class": "holdings",
+            "name": "華城",
+            "note": "華城近期打出底部型態。後續走勢值得持續注意。"
+          }
+        ],
+        "4966": [
+          {
+            "class": "holdings",
+            "name": "譜瑞-KY",
+            "note": "因與AMD及Google資源相關，會員持續操作並值得關注。"
+          }
+        ],
+        "5269": [
+          {
+            "class": "holdings",
+            "name": "祥碩",
+            "note": "祥碩股價維持在1400多元進行整理。因傳出轉給AMD操作Google的TPU消息而大漲，後續動向值得關注。"
+          }
+        ],
+        "8436": [
+          {
+            "class": "holdings",
+            "name": "大江",
+            "note": "大江具備低檔爆量特色。近期走勢連續上漲且創新高。"
+          }
+        ],
+        "2454": [
+          {
+            "class": "watch_avoid",
+            "name": "聯發科",
+            "note": "主動型ETF近期全面在減碼聯發科，且Google手機晶片雖由聯發科供應但AI TPU轉給超微(AMD)，籌碼鬆動且面臨法人賣壓，建議暫時不要盲目追高，需等待幾天判斷完籌碼變化後再行評估。"
+          }
+        ],
+        "2303": [
+          {
+            "class": "watch_avoid",
+            "name": "聯電",
+            "note": "聯電買在180元是27年來的最高點，跳空缺口以上絕對不能買。近期已跌到120元。"
+          }
+        ],
+        "3661": [
+          {
+            "class": "watch_avoid",
+            "name": "世芯-KY",
+            "note": "不要看到上漲就盲目衝進去，世芯-KY昨日上漲今日隨即下跌。根據葛蘭碧移動平均八大法則。"
+          }
+        ],
+        "2327": [
+          {
+            "class": "watch_avoid",
+            "name": "國巨*",
+            "note": "被動元件族群熱潮已過，恐將進行假破底並回測前低，政論節目宣傳時往往是高點，不宜輕易加碼或盲目搶短解套。國巨在1000多元時政論節目宣傳常為高點。"
+          }
+        ],
+        "6488": [
+          {
+            "class": "watch_avoid",
+            "name": "環球晶",
+            "note": "矽晶圓族群如環球晶等過去熱門股已走空。根據葛蘭碧移動平均八大法則。"
+          }
+        ]
+      },
+      "recorded_source_sha256": "a771ca3f6772170f6e05f9a104f61a30258ee7ba6032fbb137b3efd0d1717e28",
+      "source_hash_matches_reference": true,
+      "build": "b3ef549·ac075946",
+      "workflow_check_errors": [],
+      "replay_exit_code": 0,
+      "log_artifact_local": "C:/Users/user/Stock/scratch/real-eval-20261019/logs/0821-candidate-2.log",
+      "workflow_conclusion": "success"
+    },
+    {
+      "run_id": "39208847105",
+      "date": "2026/10/19",
+      "variant": "B2-fresh",
+      "commit": "b3ef549",
+      "verdict_cache": "disabled",
+      "reference": "expected-1019-v1.json",
+      "run_url": "https://github.com/Lee200202/Stock/actions/runs/39208847105",
+      "status": "scored",
+      "label_origin": "agent_independent_source_review",
+      "review_status": "draft_not_human_gold",
+      "raw_sha256": "b4190456680ff3db4ec6c098ea428e416bea37ed083ef411bc5926fa1b5bad1c",
+      "reference_sha256": "36cc3f45d49587cf7330379c7f99ac280bd40a9df47f2ae833caaf8cf7b7f30d",
+      "scope": "transcript rows before notice-priority article; website ignored",
+      "model_calls": 18,
+      "constraint_score": {
+        "matched_required": 10,
+        "required": 15,
+        "missing": [
+          "3661",
+          "5269",
+          "6409",
+          "3558"
+        ],
+        "wrong_category": [
+          {
+            "code": "2317",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": false
+          }
+        ],
+        "forbidden_present": [],
+        "checks": [
+          {
+            "code": "3661",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "2327",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2454",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2303",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "6488",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "6770",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "3533",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "5269",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "6409",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "3558",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "1590",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "3592",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "3645",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2317",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": false
+          },
+          {
+            "code": "2330",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          }
+        ],
+        "exclusion_checks": [
+          {
+            "code": "3266",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "3037",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "3167",
+            "actual": [],
+            "ok": true
+          }
+        ],
+        "unscored_codes": [
+          "2049"
+        ],
+        "forbidden_category_rows": []
+      },
+      "rows": {
+        "2330": [
+          {
+            "class": "holdings",
+            "name": "台積電",
+            "note": "會員持有100張自1700多塊抱到現在穩定賺錢。雖然今天跌破季線並下跌30塊，但屬於適合心胸寬大、穩扎穩打長抱的標的，董事長魏哲家亦未賣出半張，強調跌破季線乃正常震盪，不用緊張。"
+          }
+        ],
+        "6770": [
+          {
+            "class": "holdings",
+            "name": "力積電",
+            "note": "自身持有記憶體力積電部位，認為其未來爆發性在記憶體族群中最好。看好將往70、80、90元邁進，不隨市場恐慌殺低，續抱等待爆發。"
+          }
+        ],
+        "3533": [
+          {
+            "class": "holdings",
+            "name": "嘉澤",
+            "note": "嘉澤在1200以下股價往下時，柱狀圖越來越大，顯示並非散戶所買，而是大戶故意佈局的假破底。強調現階段不隨意在大跌時亂殺低，抱著續抱享有一段漲幅。"
+          }
+        ],
+        "3645": [
+          {
+            "class": "holdings",
+            "name": "達邁",
+            "note": "蘋果摺疊手機熱銷，帶動相關概念股表現，其中3645達邁現行很強且季線翻揚。相較於其他現行較弱、未站上季線的概念股，達邁為值得注意的強勢標的。"
+          }
+        ],
+        "1590": [
+          {
+            "class": "holdings",
+            "name": "亞德客-KY",
+            "note": "操作上挑選龍頭且大戶買進的亞德客-KY，以確保操作安全性。"
+          }
+        ],
+        "3592": [
+          {
+            "class": "holdings",
+            "name": "瑞鼎",
+            "note": "驅動IC族群中瑞鼎尚未走完，三大法人持續買超。K線沒有背離，預期將突破259元。"
+          }
+        ],
+        "2327": [
+          {
+            "class": "watch_avoid",
+            "name": "國巨*",
+            "note": "六字頭以上及散戶成本均已全面跌破，且出現511元跌停與破底現象，認為散戶籌碼全數套牢賠錢。絕對不碰國巨，強調散戶成本如1080元與560元皆已死無全屍，絕不建議進場買進。"
+          }
+        ],
+        "2454": [
+          {
+            "class": "watch_avoid",
+            "name": "聯發科",
+            "note": "聯發科缺口尚未完全補完，暫時不碰。需等待後續缺口補完與技術面修正再行評估，現階段不建議貿然進場。"
+          }
+        ],
+        "2303": [
+          {
+            "class": "watch_avoid",
+            "name": "聯電",
+            "note": "先前已指出159缺口要賣出聯電，目前面對套牢與下跌只能等待反彈。針對現況並無買進指示，現階段不能買進。"
+          }
+        ],
+        "6488": [
+          {
+            "class": "watch_avoid",
+            "name": "環球晶",
+            "note": "針對盲目聽信他人買進矽晶圓環球晶，指出其為散戶容易受傷的反例。所屬族群近期有波動，但未有進場規劃，維持現狀。"
+          }
+        ],
+        "2049": [
+          {
+            "class": "watch_avoid",
+            "name": "上銀",
+            "note": "工具機族群中不挑上銀，僅挑選龍頭且大戶買進的亞德客-KY，故此標的暫不作推薦與優先佈局考量。"
+          }
+        ],
+        "2317": [
+          {
+            "class": "watch_avoid",
+            "name": "鴻海",
+            "note": "鴻海過去幾個月跌破240元、在230幾元（如238、239元）時被視為低點，上週四提及23X元可買進，結果隔天大漲4塊半來到240幾元。目前未主動叫會員買進鴻海，並指出鴻海破240幾元、持有者更不能賣，要等待真正的大魚。"
+          }
+        ]
+      },
+      "recorded_source_sha256": "b4190456680ff3db4ec6c098ea428e416bea37ed083ef411bc5926fa1b5bad1c",
+      "source_hash_matches_reference": true,
+      "build": "b3ef549·ac075946",
+      "workflow_check_errors": [],
+      "replay_exit_code": 0,
+      "log_artifact_local": "C:/Users/user/Stock/scratch/real-eval-20261019/logs/1019-candidate-2.log",
+      "workflow_conclusion": "success",
+      "post_review_v2_sensitivity": {
+        "matched_required": 10,
+        "required": 14,
+        "missing": [
+          "3661",
+          "6409",
+          "3558"
+        ],
+        "wrong_category": [
+          {
+            "code": "2317",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": false
+          }
+        ],
+        "forbidden_present": [],
+        "checks": [
+          {
+            "code": "3661",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "2327",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2454",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2303",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "6488",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "6770",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "3533",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "6409",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "3558",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "1590",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "3592",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "3645",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2317",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": false
+          },
+          {
+            "code": "2330",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          }
+        ],
+        "exclusion_checks": [
+          {
+            "code": "3266",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "3037",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "3167",
+            "actual": [],
+            "ok": true
+          }
+        ],
+        "unscored_codes": [
+          "2049"
+        ],
+        "forbidden_category_rows": []
+      }
+    },
+    {
+      "run_id": "39209224011",
+      "date": "2026/09/22",
+      "variant": "B2-fresh",
+      "commit": "34a79a5",
+      "verdict_cache": "disabled",
+      "reference": "expected-0922-v1.json",
+      "run_url": "https://github.com/Lee200202/Stock/actions/runs/39209224011",
+      "status": "scored",
+      "label_origin": "agent_independent_source_review",
+      "review_status": "draft_not_human_gold",
+      "raw_sha256": "8e7de07c9de14683b903f088802f9a3d80aa6cecabf794c60d6f1f7a03219776",
+      "reference_sha256": "07acc526bb7a358918938fdbf43432150cd918f2daab3a2cc41df538564d433f",
+      "scope": "transcript rows before notice-priority article; website ignored",
+      "model_calls": 14,
+      "constraint_score": {
+        "matched_required": 12,
+        "required": 14,
+        "missing": [
+          "2308",
+          "2404"
+        ],
+        "wrong_category": [],
+        "forbidden_present": [],
+        "checks": [
+          {
+            "code": "5536",
+            "expected": [
+              "buy"
+            ],
+            "actual": [
+              "buy"
+            ],
+            "ok": true
+          },
+          {
+            "code": "6533",
+            "expected": [
+              "sell"
+            ],
+            "actual": [
+              "sell"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2330",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "3533",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "3661",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2317",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2354",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2308",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "2404",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "4966",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "5269",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "3481",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2303",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2454",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          }
+        ],
+        "exclusion_checks": [
+          {
+            "code": "2603",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "3036",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "2408",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "3167",
+            "actual": [],
+            "ok": true
+          }
+        ],
+        "unscored_codes": [],
+        "forbidden_category_rows": []
+      },
+      "rows": {
+        "5536": [
+          {
+            "class": "buy",
+            "name": "聖暉*",
+            "note": "早上已請會員進場買進聖暉，上半年的每股盈餘為23.73元，表現相當亮眼。在打底一個多月後，具備基本面轉強與技術面打底完成的雙重優勢，低檔布局相對安全。"
+          }
+        ],
+        "6533": [
+          {
+            "class": "sell",
+            "name": "晶心科",
+            "note": "在大漲時將晶心科在270幾元價位全數獲利了結，順利實現利潤，隨後股價隨即拉回。今日因準備買進其他股票而將其賣出。"
+          }
+        ],
+        "2330": [
+          {
+            "class": "holdings",
+            "name": "台積電",
+            "note": "季線持續向上且長線趨勢看好，會員手中持有100張、成本在1000多元的部位續抱不賣，預期高點將挑戰歷史新高價位。"
+          }
+        ],
+        "2317": [
+          {
+            "class": "holdings",
+            "name": "鴻海",
+            "note": "季線維持向上走勢，且在技術面上壓縮成三角形收斂末端準備發動。會員在238元附近買進後持續持有，建議拉回或下跌時可持續布局。"
+          }
+        ],
+        "3533": [
+          {
+            "class": "holdings",
+            "name": "嘉澤",
+            "note": "股價表現相當強勢並於今日亮燈漲停，走勢表現超越同族群的貿聯。會員手中持續續抱，享受多頭強勢上攻的果實。"
+          }
+        ],
+        "3661": [
+          {
+            "class": "holdings",
+            "name": "世芯-KY",
+            "note": "先前受到ETF賣壓干擾，但在賣壓消化完畢後展開大漲，目前波段漲幅已相當可觀。會員手中持續續抱，享受強勢股的波段利潤。"
+          }
+        ],
+        "2354": [
+          {
+            "class": "holdings",
+            "name": "鴻準",
+            "note": "鴻準一路沿著月線走，波段走勢規則。大戶買很多且後面有利多，預期在液冷散熱題材，保守者可注意。"
+          }
+        ],
+        "4966": [
+          {
+            "class": "holdings",
+            "name": "譜瑞-KY",
+            "note": "譜瑞-KY為AMD概念股，目前還在季線之下。今年EPS將近一百塊，值得加以注意。"
+          }
+        ],
+        "5269": [
+          {
+            "class": "holdings",
+            "name": "祥碩",
+            "note": "祥碩目前量縮洗盤，等待一出量就出去。量縮是為了讓前面追高的人解套，還沒大漲前可以注意超微概念股。"
+          }
+        ],
+        "2303": [
+          {
+            "class": "watch_avoid",
+            "name": "聯電",
+            "note": "一般投資人往往在股票基期剛動時才一窩蜂去追買，提醒應避免盲目跟進。此時買進聯電有可能會套住。"
+          }
+        ],
+        "2454": [
+          {
+            "class": "watch_avoid",
+            "name": "聯發科",
+            "note": "聯發科季線向上，但因為已經漲高且沒有拉回，不敢買進。對於已經漲很高的股票不追高，沒有拉回就不進行分析。"
+          }
+        ],
+        "3481": [
+          {
+            "class": "watch_avoid",
+            "name": "群創",
+            "note": "群創今天遭到季線壓住，選群創會很難過。"
+          }
+        ]
+      },
+      "recorded_source_sha256": "8e7de07c9de14683b903f088802f9a3d80aa6cecabf794c60d6f1f7a03219776",
+      "source_hash_matches_reference": true,
+      "build": "34a79a5·ac075946",
+      "workflow_check_errors": [
+        "台達電（2308）原文有直白說法卻沒有收錄：我過去講了三個月不要買台達電，我過去一個禮拜有沒有跟你們講台達電會很強，對不對？"
+      ],
+      "replay_exit_code": 3,
+      "log_artifact_local": "C:/Users/user/Stock/scratch/real-eval-20261019/logs/0922-candidate-2.log",
+      "workflow_conclusion": "failure"
+    },
+    {
+      "run_id": "39209450735",
+      "date": "2026/09/02",
+      "variant": "B2-fresh",
+      "commit": "8e10348",
+      "verdict_cache": "disabled",
+      "reference": "expected-0902-v1.json",
+      "run_url": "https://github.com/Lee200202/Stock/actions/runs/39209450735",
+      "status": "scored",
+      "label_origin": "agent_independent_source_review",
+      "review_status": "draft_not_human_gold",
+      "raw_sha256": "2204c9e6d871e0565b2eeeed662690ef9f9b4ce5be4ba90947b5c92f1c90aa8f",
+      "reference_sha256": "55ade4f6db4aade008c0d13a84a39e20b0a59fac4af9d4d3a452a60755a01589",
+      "scope": "transcript rows before notice-priority article; website ignored",
+      "model_calls": 17,
+      "constraint_score": {
+        "matched_required": 11,
+        "required": 18,
+        "missing": [
+          "2337",
+          "6415",
+          "2449",
+          "6147",
+          "2327",
+          "2603",
+          "3661"
+        ],
+        "wrong_category": [],
+        "forbidden_present": [],
+        "checks": [
+          {
+            "code": "2308",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2303",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "3711",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "5439",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2337",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "6415",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "2449",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "6147",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "2327",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "3481",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2603",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "3661",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "2330",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2354",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2201",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "1519",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "6533",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "4966",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "watch_watch"
+            ],
+            "ok": true
+          }
+        ],
+        "exclusion_checks": [
+          {
+            "code": "3167",
+            "actual": [],
+            "ok": true
+          }
+        ],
+        "unscored_codes": [
+          "2317",
+          "5289"
+        ],
+        "forbidden_category_rows": []
+      },
+      "rows": {
+        "2317": [
+          {
+            "class": "holdings",
+            "name": "鴻海",
+            "note": "前幾天在238元建議會員買進（不需等237.5補缺口），目前已上漲且會員續抱獲利。"
+          }
+        ],
+        "2354": [
+          {
+            "class": "holdings",
+            "name": "鴻準",
+            "note": "顯示籌碼被大戶鎖定，創新高後持續抱著。"
+          }
+        ],
+        "6533": [
+          {
+            "class": "holdings",
+            "name": "晶心科",
+            "note": "原本在250元附近有持股，昨日高檔調節後在251元買回，月K線MACD翻揚，繼續續抱。"
+          }
+        ],
+        "1519": [
+          {
+            "class": "holdings",
+            "name": "華城",
+            "note": "三大法人買超，雖然短線小跌但外資持續買進，目前持有續抱。"
+          }
+        ],
+        "2330": [
+          {
+            "class": "holdings",
+            "name": "台積電",
+            "note": "指數要過前高需等台積電突破2470，目前技術面在調整整理中，持股續抱未賣出。"
+          }
+        ],
+        "2201": [
+          {
+            "class": "holdings",
+            "name": "裕隆",
+            "note": "裕隆經過28元打底八個月與兩年多終於翻身，400張以上大戶比例增加。月K線MACD翻揚，目前持股續抱。"
+          }
+        ],
+        "4966": [
+          {
+            "class": "watch_watch",
+            "name": "譜瑞-KY",
+            "note": "譜瑞-KY與另一檔高速傳輸股同屬高速傳輸族群。若覺得另一檔價位較高，可注意這檔較低價的高速傳輸關注標的。"
+          }
+        ],
+        "2308": [
+          {
+            "class": "watch_avoid",
+            "name": "台達電",
+            "note": "台達電散戶人數暴增一倍，追高風險大，絕對不要買。正進行技術面調整以突破前方大量區。"
+          }
+        ],
+        "2303": [
+          {
+            "class": "watch_avoid",
+            "name": "聯電",
+            "note": "先前已指出聯電最多來到135至137元季線。目前股價已下跌，不宜追高。"
+          }
+        ],
+        "5439": [
+          {
+            "class": "watch_avoid",
+            "name": "高技",
+            "note": "高技符合格蘭碧移動平均八大法則反彈遇壓。目前不應買進。"
+          }
+        ],
+        "5289": [
+          {
+            "class": "watch_avoid",
+            "name": "宜鼎",
+            "note": "宜鼎單計EPS達100多元。目前技術面受季線壓抑，未突破前不宜貿然買進。"
+          }
+        ],
+        "3481": [
+          {
+            "class": "watch_avoid",
+            "name": "群創",
+            "note": "群創股東人數暴增一倍，散戶過多容易因利空隨便亂殺。因為散戶太多，根本不敢碰。"
+          }
+        ],
+        "3711": [
+          {
+            "class": "watch_avoid",
+            "name": "日月光投控",
+            "note": "日月光投控基本面雖好，但技術面受季線壓抑還不到買點。目前需要時間進行技術面修正，需耐心等待。"
+          }
+        ]
+      },
+      "recorded_source_sha256": "2204c9e6d871e0565b2eeeed662690ef9f9b4ce5be4ba90947b5c92f1c90aa8f",
+      "source_hash_matches_reference": true,
+      "build": "8e10348·ac075946",
+      "workflow_check_errors": [],
+      "replay_exit_code": 0,
+      "log_artifact_local": "C:/Users/user/Stock/scratch/real-eval-20261019/logs/0902-candidate-2.log",
+      "workflow_conclusion": "success"
+    },
+    {
+      "run_id": "39209681784",
+      "date": "2026/08/21",
+      "variant": "B2-repeat",
+      "commit": "34a79a5",
+      "verdict_cache": "disabled",
+      "reference": "expected-0821-v1.json",
+      "run_url": "https://github.com/Lee200202/Stock/actions/runs/39209681784",
+      "status": "scored",
+      "label_origin": "agent_independent_source_review",
+      "review_status": "draft_not_human_gold",
+      "raw_sha256": "a771ca3f6772170f6e05f9a104f61a30258ee7ba6032fbb137b3efd0d1717e28",
+      "reference_sha256": "221b5cab12a8cadf3e0c2abae4f64c25c162cc6320a2c0e7887ac5d4a488943f",
+      "scope": "transcript rows before notice-priority article; website ignored",
+      "model_calls": 17,
+      "constraint_score": {
+        "matched_required": 8,
+        "required": 15,
+        "missing": [
+          "3152",
+          "2609",
+          "2603",
+          "2615",
+          "6488",
+          "6182",
+          "5483"
+        ],
+        "wrong_category": [],
+        "forbidden_present": [],
+        "checks": [
+          {
+            "code": "3152",
+            "expected": [
+              "buy"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "1519",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "8436",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "4966",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "5269",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2609",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "2603",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "2615",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "2303",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2454",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "3661",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2327",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "6488",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "6182",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "5483",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          }
+        ],
+        "exclusion_checks": [
+          {
+            "code": "2330",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "3008",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "2308",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "3081",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "6215",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "3167",
+            "actual": [],
+            "ok": true
+          }
+        ],
+        "unscored_codes": [
+          "2377"
+        ],
+        "forbidden_category_rows": []
+      },
+      "rows": {
+        "1519": [
+          {
+            "class": "holdings",
+            "name": "華城",
+            "note": "華城近期打出底部型態，需持續注意後續走勢。"
+          }
+        ],
+        "4966": [
+          {
+            "class": "holdings",
+            "name": "譜瑞-KY",
+            "note": "譜瑞-KY後續表現強勢，與AMD及Google資源相關，後續持續關注。"
+          }
+        ],
+        "5269": [
+          {
+            "class": "holdings",
+            "name": "祥碩",
+            "note": "祥碩因傳出轉給AMD操刀Google TPU的消息而大漲，目前股價在1400多元進行整理，無需擔心，後續持續關注。"
+          }
+        ],
+        "8436": [
+          {
+            "class": "holdings",
+            "name": "大江",
+            "note": "大江先前在低檔底部爆量時切入，本週每日持續往上走高創新高，會員持續保有持股。"
+          }
+        ],
+        "2377": [
+          {
+            "class": "watch_watch",
+            "name": "微星",
+            "note": "微星在100元以下時持續推薦與佈局。"
+          }
+        ],
+        "2454": [
+          {
+            "class": "watch_avoid",
+            "name": "聯發科",
+            "note": "主動型ETF如00981A等近期全面在市場中減碼並賣出聯發科，背後涉及Google TPU晶片訂單轉給超微AMD等產業面變化，建議想買的人先等待幾天評估判斷，切勿看到上漲就盲目追高。"
+          }
+        ],
+        "3661": [
+          {
+            "class": "watch_avoid",
+            "name": "世芯-KY",
+            "note": "世芯-KY昨日許多人看到上漲而衝進去，今日隨即下跌。根據葛蘭碧移動平均線八大法則，不宜介入，切勿看到股價上漲盲目追高。"
+          }
+        ],
+        "2303": [
+          {
+            "class": "watch_avoid",
+            "name": "聯電",
+            "note": "聯電買在180元屬於26年來的高點，切勿聽信市場傳言認為會漲到200元而盲目追高。跳空缺口以上絕對不能買，反彈應適時賣出。"
+          }
+        ],
+        "2327": [
+          {
+            "class": "watch_avoid",
+            "name": "國巨*",
+            "note": "國巨股價在1000多元時，因相關話題而上漲，屬於高檔回落的族群。不要盲目相信新聞與政論節目推薦，未來預期將回測前低。"
+          }
+        ]
+      },
+      "recorded_source_sha256": "a771ca3f6772170f6e05f9a104f61a30258ee7ba6032fbb137b3efd0d1717e28",
+      "source_hash_matches_reference": true,
+      "build": "34a79a5·ac075946",
+      "workflow_check_errors": [],
+      "replay_exit_code": 0,
+      "log_artifact_local": "C:/Users/user/Stock/scratch/real-eval-20261019/logs/0821-candidate-2-repeat.log",
+      "workflow_conclusion": "success"
+    },
+    {
+      "run_id": "39209714332",
+      "date": "2026/10/19",
+      "variant": "B3-fresh",
+      "commit": "10a4feb",
+      "verdict_cache": "disabled",
+      "reference": "expected-1019-v1.json",
+      "run_url": "https://github.com/Lee200202/Stock/actions/runs/39209714332",
+      "status": "scored",
+      "label_origin": "agent_independent_source_review",
+      "review_status": "draft_not_human_gold",
+      "raw_sha256": "b4190456680ff3db4ec6c098ea428e416bea37ed083ef411bc5926fa1b5bad1c",
+      "reference_sha256": "36cc3f45d49587cf7330379c7f99ac280bd40a9df47f2ae833caaf8cf7b7f30d",
+      "scope": "transcript rows before notice-priority article; website ignored",
+      "model_calls": 18,
+      "constraint_score": {
+        "matched_required": 9,
+        "required": 15,
+        "missing": [
+          "3661",
+          "5269",
+          "6409",
+          "3558",
+          "2330"
+        ],
+        "wrong_category": [
+          {
+            "code": "2317",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": false
+          }
+        ],
+        "forbidden_present": [],
+        "checks": [
+          {
+            "code": "3661",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "2327",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2454",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2303",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "6488",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "6770",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "3533",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "5269",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "6409",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "3558",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "1590",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "3592",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "3645",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2317",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": false
+          },
+          {
+            "code": "2330",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [],
+            "ok": false
+          }
+        ],
+        "exclusion_checks": [
+          {
+            "code": "3266",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "3037",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "3167",
+            "actual": [],
+            "ok": true
+          }
+        ],
+        "unscored_codes": [
+          "6269"
+        ],
+        "forbidden_category_rows": []
+      },
+      "rows": {
+        "6770": [
+          {
+            "class": "holdings",
+            "name": "力積電",
+            "note": "會員及目前持有力積電，認為其為記憶體族群中未來爆發力最強的標的，預期上看70、80、90元，堅定續抱不隨意殺低。說明指出在市場一片看弱時不隨意在低檔賣出阿呆股。"
+          }
+        ],
+        "3533": [
+          {
+            "class": "holdings",
+            "name": "嘉澤",
+            "note": "會員持有嘉澤且目前處於獲利狀態，隨時可以選擇賣出，但強調不打算在大跌時隨意亂賣股票。"
+          }
+        ],
+        "1590": [
+          {
+            "class": "holdings",
+            "name": "亞德客-KY",
+            "note": "亞德客-KY專挑龍頭大戶買很多的標的，以會員的安全為主。目前還在等並尚未買進，會員有人喊3300加油想買進。"
+          }
+        ],
+        "3592": [
+          {
+            "class": "holdings",
+            "name": "瑞鼎",
+            "note": "驅動IC族群的瑞鼎尚未走完，三大法人每天都是買超。K線沒有背離且259會突破，提醒注意該檔股票目前的法人動向與表現。"
+          }
+        ],
+        "3645": [
+          {
+            "class": "holdings",
+            "name": "達邁",
+            "note": "達邁現行很強且季線翻揚，受到關注。身為蘋果摺疊手機概念股，受到摺疊手機熱銷帶動相關題材表現。"
+          }
+        ],
+        "2327": [
+          {
+            "class": "watch_avoid",
+            "name": "國巨*",
+            "note": "散戶成本1080元與560元皆已跌破，籌碼面呈現兩極化且持續殺低，絕對不買也不碰國巨，若在六字頭未賣將會後悔。提醒投資人切勿盲目聽信分析師推薦而去接刀或幫忙解套。"
+          }
+        ],
+        "2454": [
+          {
+            "class": "watch_avoid",
+            "name": "聯發科",
+            "note": "目前聯發科的缺口尚未補完，技術面調整尚未完成，因此現階段不碰，不宜進場買進。聯發科還沒到可以買的時候，不要去亂買。"
+          }
+        ],
+        "6488": [
+          {
+            "class": "watch_avoid",
+            "name": "環球晶",
+            "note": "提醒投資人切勿聽信市場雜音去亂買環球晶等容易受傷的股票。目前不建議隨意進場佈局環球晶。"
+          }
+        ],
+        "2317": [
+          {
+            "class": "watch_avoid",
+            "name": "鴻海",
+            "note": "上個禮拜四提及23X可以買，結果禮拜五大漲4塊半來到240幾元。目前沒有主動叫會員買鴻海，持有者破極線更不能賣，要等真正的大魚。"
+          }
+        ],
+        "2303": [
+          {
+            "class": "watch_avoid",
+            "name": "聯電",
+            "note": "聯電先前159缺口已指出要賣出，目前只能等待反彈，並非進場買進時機。行情不是今天馬上要衝進去，現階段不能買。"
+          }
+        ],
+        "6269": [
+          {
+            "class": "watch_avoid",
+            "name": "台郡",
+            "note": "會員於早上9點24分詢問是否要賣出台郡，因其符合大漲、爆巨量且出現技術指標背離的訊號，當場明確指示獲利賣出。說明指出不隨意在下跌時殺低，只在股價大漲且技術面背離時進行獲利了結。"
+          }
+        ]
+      },
+      "recorded_source_sha256": "b4190456680ff3db4ec6c098ea428e416bea37ed083ef411bc5926fa1b5bad1c",
+      "source_hash_matches_reference": true,
+      "build": "10a4feb·740877b9",
+      "workflow_check_errors": [
+        "鴻海 列觀望不碰，說明卻只有偏多的內容：上個禮拜四提及23X可以買，結果禮拜五大漲4塊半來到240幾元。目前沒有主動叫會員買鴻海，持有者破極線更不能賣，要等真正",
+        "台積電（2330）原文有直白說法卻沒有收錄：啊老師今天台積電可以買嗎？"
+      ],
+      "replay_exit_code": 2,
+      "log_artifact_local": "C:/Users/user/Stock/scratch/real-eval-20261019/logs/1019-candidate-3.log",
+      "workflow_conclusion": "failure",
+      "post_review_v2_sensitivity": {
+        "matched_required": 9,
+        "required": 14,
+        "missing": [
+          "3661",
+          "6409",
+          "3558",
+          "2330"
+        ],
+        "wrong_category": [
+          {
+            "code": "2317",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": false
+          }
+        ],
+        "forbidden_present": [],
+        "checks": [
+          {
+            "code": "3661",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "2327",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2454",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2303",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "6488",
+            "expected": [
+              "watch_avoid"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": true
+          },
+          {
+            "code": "6770",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "3533",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "6409",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "3558",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [],
+            "ok": false
+          },
+          {
+            "code": "1590",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "3592",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "3645",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "holdings"
+            ],
+            "ok": true
+          },
+          {
+            "code": "2317",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [
+              "watch_avoid"
+            ],
+            "ok": false
+          },
+          {
+            "code": "2330",
+            "expected": [
+              "holdings",
+              "watch_watch"
+            ],
+            "actual": [],
+            "ok": false
+          }
+        ],
+        "exclusion_checks": [
+          {
+            "code": "3266",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "3037",
+            "actual": [],
+            "ok": true
+          },
+          {
+            "code": "3167",
+            "actual": [],
+            "ok": true
+          }
+        ],
+        "unscored_codes": [
+          "6269"
+        ],
+        "forbidden_category_rows": []
+      }
+    }
+  ],
+  "model_logical_calls": 188,
+  "http_request_attempts_including_retries": null,
+  "quota_note": "Logical calls only; no claim about account Peak RPM or complete HTTP attempts.",
+  "side_effects": "12 read-only replay runs and source/notes previews; no production applies or notifications dispatched by this experiment."
+}

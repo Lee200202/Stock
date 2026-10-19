@@ -1,0 +1,625 @@
+{
+  "schema_version": 1,
+  "retrieved_at": "2026-10-19T09:47:03+08:00",
+  "source": "apiListTranscriptDates",
+  "response_sha256": "75d8aebaca531a30741fb58d130c4faf3ceecb0307d1ab1725b79863d984a331",
+  "model_requests": 0,
+  "production_writes": 0,
+  "summary": {
+    "dates": 67,
+    "without_golden": 54,
+    "earliest": "2026/07/08",
+    "latest": "2026/10/16",
+    "display_chars": 1228249
+  },
+  "limitations": [
+    "Metadata inventory only; not full raw transcript retrieval or completed classification.",
+    "Displayed text length is not raw length or token usage.",
+    "Dates with unknown prior exposure are not certified unseen holdouts."
+  ],
+  "dates": [
+    {
+      "date": "2026/10/16",
+      "video_id": "fstsBmqQESI",
+      "display_chars": 12802,
+      "has_golden": true,
+      "prior_exposure": "known_regression",
+      "label_status": "existing_golden",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/10/15",
+      "video_id": "HdtgKbljRo4",
+      "display_chars": 13632,
+      "has_golden": true,
+      "prior_exposure": "known_regression",
+      "label_status": "existing_golden",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/10/14",
+      "video_id": "2LgOWHZ9fDo",
+      "display_chars": 11451,
+      "has_golden": true,
+      "prior_exposure": "known_regression",
+      "label_status": "existing_golden",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/10/13",
+      "video_id": "cntnOKc-a5M",
+      "display_chars": 13001,
+      "has_golden": true,
+      "prior_exposure": "known_regression",
+      "label_status": "existing_golden",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/10/12",
+      "video_id": "EpJtqsk6iWM",
+      "display_chars": 11827,
+      "has_golden": true,
+      "prior_exposure": "known_regression",
+      "label_status": "existing_golden",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/10/08",
+      "video_id": "jFEjgYVTshQ",
+      "display_chars": 9771,
+      "has_golden": true,
+      "prior_exposure": "known_regression",
+      "label_status": "existing_golden",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/10/07",
+      "video_id": "KOZj0OKE44Q",
+      "display_chars": 12788,
+      "has_golden": true,
+      "prior_exposure": "known_regression",
+      "label_status": "existing_golden",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/10/06",
+      "video_id": "hfI1SUnZ55M",
+      "display_chars": 11708,
+      "has_golden": true,
+      "prior_exposure": "known_regression",
+      "label_status": "existing_golden",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/10/05",
+      "video_id": "yQI37oAJuWY",
+      "display_chars": 11148,
+      "has_golden": true,
+      "prior_exposure": "known_regression",
+      "label_status": "existing_golden",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/10/02",
+      "video_id": "9gOR6wlX-qU",
+      "display_chars": 13600,
+      "has_golden": true,
+      "prior_exposure": "known_regression",
+      "label_status": "existing_golden",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/10/01",
+      "video_id": "OIyHRwVD7Ok",
+      "display_chars": 13611,
+      "has_golden": true,
+      "prior_exposure": "known_regression",
+      "label_status": "existing_golden",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/09/30",
+      "video_id": "Qj2jHrZ1AG8",
+      "display_chars": 12156,
+      "has_golden": true,
+      "prior_exposure": "known_regression",
+      "label_status": "existing_golden",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/09/29",
+      "video_id": "1pBWFD_-iKo",
+      "display_chars": 12338,
+      "has_golden": true,
+      "prior_exposure": "known_regression",
+      "label_status": "existing_golden",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/09/23",
+      "video_id": "jh4PEa8VB6E",
+      "display_chars": 11081,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/09/22",
+      "video_id": "GQVd2VZjgIc",
+      "display_chars": 8798,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/09/21",
+      "video_id": "MANUAL-20260921",
+      "display_chars": 14970,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/09/18",
+      "video_id": "MANUAL-20260918",
+      "display_chars": 13684,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/09/17",
+      "video_id": "MANUAL-20260917",
+      "display_chars": 14300,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/09/16",
+      "video_id": "MANUAL-20260916",
+      "display_chars": 11104,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/09/15",
+      "video_id": "MANUAL-20260915",
+      "display_chars": 12080,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/09/14",
+      "video_id": "MANUAL-20260914",
+      "display_chars": 13804,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/09/11",
+      "video_id": "MANUAL-20260911",
+      "display_chars": 11466,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/09/10",
+      "video_id": "MANUAL-20260910",
+      "display_chars": 13526,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/09/09",
+      "video_id": "MANUAL-20260909",
+      "display_chars": 20976,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/09/08",
+      "video_id": "MANUAL-20260908",
+      "display_chars": 19859,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/09/07",
+      "video_id": "MANUAL-20260907",
+      "display_chars": 19343,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/09/04",
+      "video_id": "MANUAL-20260904",
+      "display_chars": 24389,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/09/03",
+      "video_id": "MANUAL-20260903",
+      "display_chars": 20248,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/09/02",
+      "video_id": "MANUAL-20260902",
+      "display_chars": 19152,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/09/01",
+      "video_id": "MANUAL-20260901",
+      "display_chars": 19504,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/08/31",
+      "video_id": "MANUAL-20260831",
+      "display_chars": 19298,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/08/28",
+      "video_id": "MANUAL-20260828",
+      "display_chars": 20889,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/08/27",
+      "video_id": "MANUAL-20260827",
+      "display_chars": 18116,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/08/26",
+      "video_id": "sKY_lNGDIWE",
+      "display_chars": 22394,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/08/25",
+      "video_id": "MANUAL-20260825",
+      "display_chars": 18857,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/08/24",
+      "video_id": "MANUAL-20260824",
+      "display_chars": 22153,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/08/21",
+      "video_id": "0RpzVw6gdlw",
+      "display_chars": 21195,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/08/20",
+      "video_id": "MANUAL-20260820",
+      "display_chars": 19208,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/08/19",
+      "video_id": "MANUAL-20260819",
+      "display_chars": 24344,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/08/18",
+      "video_id": "MANUAL-20260818",
+      "display_chars": 23900,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/08/17",
+      "video_id": "MANUAL-20260817",
+      "display_chars": 20159,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/08/14",
+      "video_id": "Qzry8vT86GI",
+      "display_chars": 22393,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/08/13",
+      "video_id": "u2QnCsRSJYs",
+      "display_chars": 23952,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/08/12",
+      "video_id": "dYB99DyR2qc",
+      "display_chars": 18562,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/08/11",
+      "video_id": "AAzp18Cad34",
+      "display_chars": 16253,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/08/10",
+      "video_id": "5ERl6l4EAh8",
+      "display_chars": 18759,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/08/07",
+      "video_id": "FZnPoL3nUNI",
+      "display_chars": 21598,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/08/06",
+      "video_id": "84LB2wsbCTU",
+      "display_chars": 20000,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/08/05",
+      "video_id": "gkZ6hjNzgGA",
+      "display_chars": 19999,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/08/04",
+      "video_id": "gQKm7K5Gz6I",
+      "display_chars": 23416,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/08/03",
+      "video_id": "R3tlnUVUCoE",
+      "display_chars": 22796,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/07/31",
+      "video_id": "y0NVz5uFies",
+      "display_chars": 24598,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/07/29",
+      "video_id": "wfPsqBfGIKo",
+      "display_chars": 21080,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/07/28",
+      "video_id": "1Ij1N3yRD-M",
+      "display_chars": 22060,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/07/27",
+      "video_id": "7glKsU0pyWE",
+      "display_chars": 24447,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/07/24",
+      "video_id": "OeHDjtxN6Kc",
+      "display_chars": 23400,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/07/23",
+      "video_id": "HggC0pIrgbc",
+      "display_chars": 23272,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/07/22",
+      "video_id": "vwLvdORyxnk",
+      "display_chars": 20981,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/07/21",
+      "video_id": "ySoR_34HXr4",
+      "display_chars": 22195,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/07/20",
+      "video_id": "aLpYOi66CQY",
+      "display_chars": 22460,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/07/17",
+      "video_id": "weS6u6kvssQ",
+      "display_chars": 22871,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/07/16",
+      "video_id": "W2z6FPoY1MU",
+      "display_chars": 22459,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/07/15",
+      "video_id": "6LKoO97bQTI",
+      "display_chars": 22203,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/07/14",
+      "video_id": "JMtQJJUbeYs",
+      "display_chars": 23538,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/07/13",
+      "video_id": "IIyGKTB1cS8",
+      "display_chars": 21708,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/07/09",
+      "video_id": "SzphV_0TsOQ",
+      "display_chars": 22226,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    },
+    {
+      "date": "2026/07/08",
+      "video_id": "ySWghUvF9cw",
+      "display_chars": 22393,
+      "has_golden": false,
+      "prior_exposure": "unknown",
+      "label_status": "not_reviewed",
+      "split": "unassigned"
+    }
+  ]
+}

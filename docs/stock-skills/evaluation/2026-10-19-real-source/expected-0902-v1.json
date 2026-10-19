@@ -1,0 +1,114 @@
+{
+  "date": "2026/09/02",
+  "raw_sha256": "2204c9e6d871e0565b2eeeed662690ef9f9b4ce5be4ba90947b5c92f1c90aa8f",
+  "video_id": "MANUAL-20260902",
+  "label_origin": "agent_independent_source_review",
+  "review_status": "draft_not_human_gold",
+  "target_result_exposure": "not_viewed_in_this_run_prior_history_unknown",
+  "policy": "content-audit current definitions; holdings/watch accepted only for public category; no transaction equivalence",
+  "frozen_at": "2026-10-19T14:07:46.301805+08:00",
+  "must": {
+    "2308": [
+      "watch_avoid"
+    ],
+    "2303": [
+      "watch_avoid"
+    ],
+    "3711": [
+      "watch_avoid"
+    ],
+    "5439": [
+      "watch_avoid"
+    ],
+    "2337": [
+      "watch_avoid"
+    ],
+    "6415": [
+      "watch_avoid"
+    ],
+    "2449": [
+      "watch_avoid"
+    ],
+    "6147": [
+      "watch_avoid"
+    ],
+    "2327": [
+      "watch_avoid"
+    ],
+    "3481": [
+      "watch_avoid"
+    ],
+    "2603": [
+      "watch_avoid"
+    ],
+    "3661": [
+      "watch_avoid"
+    ],
+    "2330": [
+      "holdings",
+      "watch_watch"
+    ],
+    "2354": [
+      "holdings",
+      "watch_watch"
+    ],
+    "2201": [
+      "holdings",
+      "watch_watch"
+    ],
+    "1519": [
+      "holdings",
+      "watch_watch"
+    ],
+    "6533": [
+      "holdings",
+      "watch_watch"
+    ],
+    "4966": [
+      "holdings",
+      "watch_watch"
+    ]
+  },
+  "names": {
+    "2308": "台達電",
+    "2303": "聯電",
+    "3711": "日月光投控",
+    "5439": "高技",
+    "2337": "旺宏",
+    "6415": "矽力*-KY",
+    "2449": "京元電子",
+    "6147": "頎邦",
+    "2327": "國巨",
+    "3481": "群創",
+    "2603": "長榮",
+    "3661": "世芯-KY",
+    "2330": "台積電",
+    "2354": "鴻準",
+    "2201": "裕隆",
+    "1519": "華城",
+    "6533": "晶心科",
+    "4966": "譜瑞-KY"
+  },
+  "must_not": [
+    "3167"
+  ],
+  "unresolved": [
+    "祥碩未具名段的EPS52／除息45不可光靠數字猜公司；只作待核。",
+    "萬海、陽明共用航運反彈結束風險可收，但過去買賣不是今日成交。",
+    "匿名600附近候選今天還不是買點，不猜名稱。",
+    "鴻海238是前幾天推薦，現況仍正面但只作補充覆核，不當今日買入。",
+    "大立光、雲豹、森崴是兩年前媒體爭議例子，不自動列今日操作。"
+  ],
+  "evidence": {
+    "6533": "我昨天快12點的時候去把它買回來…這一支股票還會繼續漲。",
+    "2201": "玉龍…每股淨值60.65…那就抱著。",
+    "1519": "我有這一支股票叫華城…今天…沒事不要理他。",
+    "2330": "我有台積電我沒有賣啊…一定要…過2470。",
+    "3661": "我很想買他可是我沒有買…除非跌到三字頭否則不買。",
+    "3711": "3711日月光…技術面還不到買點。"
+  },
+  "forbidden_categories": [
+    "buy",
+    "sell"
+  ]
+}

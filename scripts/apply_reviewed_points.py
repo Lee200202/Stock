@@ -71,6 +71,10 @@ def main():
     sent = pl._daily_article_status(book, day)
     stamp = datetime.now(pl.TAIPEI).strftime('%m%d_%H%M%S')
     backup_tables(pl,book,('逐字稿判讀稽核','每日推播內容'))
+    fresh = {}
+    latest, _ = pl.existing_transcript(book, source['video_id'], day, snapshot=fresh)
+    if hashlib.sha256(latest.encode()).hexdigest() != reviewed['sha256']:
+        raise SystemExit('備份期間原稿改變，未寫入章節修正')
     # Append a new evidence batch; do not rewrite the original model audit.
     pl.save_evidence_audit(book, source['video_id'], day, raw, signals)
     pl.commit_evidence_manifest(book, source['video_id'], day, raw)

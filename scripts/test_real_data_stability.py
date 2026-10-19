@@ -1,5 +1,6 @@
 """Real-source failure regressions. No network, spreadsheet writes or model requests."""
 import importlib.util
+import hashlib
 import os
 from pathlib import Path
 import unittest
@@ -78,6 +79,24 @@ class EvidenceBoundaries(unittest.TestCase):
             out = pl.adjudicate_classes(object(), signals, text, '2026/08/21')
         self.assertFalse(out['holdings'])
         self.assertEqual(out['_verdicts']['2330']['cls'], 'ignored')
+
+    def test_unsupported_price_cannot_survive_a_rejected_rewrite(self):
+        source = '亞德客大戶買進。世芯還沒買，會員想買3300。'
+        claim = '會員在等3300元的價位'
+        row = {'name': '亞德客-KY', 'code': '1590', 'note': '亞德客尚未買進，會員在等3300元的價位。',
+               '_input_source_rejection': {'source_sha256': hashlib.sha256(source.encode()).hexdigest(), 'claims': [claim]}}
+        with patch.object(pl, 'quality_overview', return_value=([], [], [])):
+            result = pl.quarantine_public_rows({'holdings': [row]}, source)
+        self.assertFalse(result['holdings'])
+        self.assertEqual(len(result['_publication_quarantine']), 1)
+
+    def test_removed_bad_claim_or_different_source_is_not_quarantined_by_stale_review(self):
+        for source, note in [('原始來源', '亞德客大戶持股比例增加。'), ('更換來源', '會員在等3300元的價位。')]:
+            row = {'code': '1590', 'note': note, '_input_source_rejection': {
+                'source_sha256': hashlib.sha256('原始來源'.encode()).hexdigest(), 'claims': ['會員在等3300元的價位']}}
+            with patch.object(pl, 'quality_overview', return_value=([], [], [])):
+                result = pl.quarantine_public_rows({'holdings': [row]}, source)
+            self.assertEqual(len(result['holdings']), 1)
 
 
 if __name__ == '__main__':

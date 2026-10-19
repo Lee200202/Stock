@@ -35,17 +35,37 @@ with sync_playwright() as pw:
     ch=page.locator('#tech-quality-loop');assert ch.is_visible()
     assert page.locator('[data-chapter]').count()==20
     assert page.locator('#bookContents a').count()==20
-    page.locator('[data-quality-mode="archive"]').click()
-    assert '只用目標日以前資料' in ch.inner_text()
-    assert '不能倒填' in ch.inner_text()
-    assert '歷史原稿' in ch.locator('svg.book-art').text_content()
+    assert '技能評估與分類依據' in ch.inner_text()
+    assert '08 / 20' in ch.locator('.book-eyebrow').inner_text()
+    assert ch.locator('[data-quality-node]').count()==7
+    assert ch.locator('[data-quality-role]').count()==0
+    assert ch.locator('[data-quality-edge][data-quality-cross="true"]:visible').count()==0
+    titles=set()
+    for i in range(7):
+        ch.locator(f'[data-quality-node="{i}"]').click()
+        assert ch.locator(f'[data-quality-copy="{i}"]').is_visible()
+        titles.add(ch.locator(f'[data-quality-copy="{i}"] h3').first.inner_text())
+        assert ch.locator('[data-quality-neighbors]').inner_text()
+    assert len(titles)==7
+    # Select the program: raw-data cross-column edge appears; unrelated feedback stays hidden.
+    ch.locator('[data-quality-node="2"]').press('Enter')
+    assert ch.locator('[data-quality-edge="3-2"]').is_visible()
+    assert ch.locator('[data-quality-edge="6-1"]').is_hidden()
+    assert ch.locator('[data-quality-node="1"]').get_attribute('class').find('quality-upstream')>=0
+    ch.locator('[data-quality-jump="4"]').click()
+    assert ch.locator('[data-quality-copy="4"]').is_visible()
+    ch.locator('[data-quality-node="5"]').click()
     results=set()
-    for i in range(4):
-        ch.locator(f'[data-quality-case="{i}"]').click()
-        results.add(ch.locator('[data-quality-outcome]').inner_text())
-    assert len(results)==4
-    ch.locator('[data-quality-mode="incoming"]').click()
-    assert '今日原稿' in ch.locator('svg.book-art').text_content()
+    for i in range(3):
+        ch.locator(f'[data-quality-experiment="{i}"]').click()
+        results.add(ch.locator('[data-quality-metric]').inner_text())
+    assert len(results)==3
+    ch.locator('[data-quality-node="1"]').click()
+    assert '不會自動' in ch.inner_text()
+    assert ch.locator('a[href="https://www.youtube.com/watch?v=rZl_3izD8y8"]').count()==1
+    assert ch.locator('a[href="https://www.alphalab.site/agent-skill-routing-ab-test"]').count()==1
+    ch.locator('[data-quality-reset]').click()
+    assert ch.locator('[data-quality-edge][data-quality-cross="true"]:visible').count()==0
     layouts=[]
     for width in (1916,1440,1280,768,390,360):
         page.set_viewport_size({'width':width,'height':1000})
@@ -63,10 +83,10 @@ with sync_playwright() as pw:
                 assert ch.locator('.quality-controls button').evaluate_all('(els)=>els.every(e=>e.getBoundingClientRect().height>=44)')
                 layouts.append([width,theme,font])
         if width in (1440,390):
-            ch.locator('.book-stage').scroll_into_view_if_needed();page.screenshot(path=str(out/f'quality-{width}.png'))
+            ch.locator('.tech-art-pan').first.scroll_into_view_if_needed();page.screenshot(path=str(out/f'quality-{width}.png'))
     # Original chapter links, new previous/next, hash reload and zoom dialog.
-    ch.locator('.book-pager a').last.click();assert page.locator('#tech-transcript-progress').is_visible()
-    page.locator('#tech-transcript-progress .book-pager a').first.click();assert ch.is_visible()
+    ch.locator('.book-pager a').last.click();assert page.locator('#tech-names').is_visible()
+    page.locator('#tech-names .book-pager a').first.click();assert ch.is_visible()
     page.reload();page.wait_for_function("document.querySelector('.tech-book')?.dataset.activeChapter==='tech-quality-loop'")
     ch.locator('.book-visual-open').click();page.wait_for_function('document.querySelector("#bookArtImage").naturalWidth>0')
     page.keyboard.press('Escape');assert page.locator('#bookArtDialog').is_hidden()
@@ -74,7 +94,7 @@ with sync_playwright() as pw:
     page.emulate_media(reduced_motion='no-preference');ch.locator('[data-book-replay]').click();ch.locator('.book-stage').scroll_into_view_if_needed()
     page.wait_for_function("document.querySelector('.quality-stage').dataset.playing==='true'")
     page.wait_for_function("Number(document.querySelector('.quality-stage').dataset.cycles)>=2",timeout=22000)
-    ch.locator('[data-quality-case="1"]').click();assert ch.locator('.book-stage').get_attribute('data-playing')=='false'
+    ch.locator('[data-quality-node="1"]').click();assert ch.locator('.book-stage').get_attribute('data-playing')=='false'
     ch.locator('[data-book-replay]').click();ch.locator('.book-stage').scroll_into_view_if_needed()
     page.wait_for_function("document.querySelector('.quality-stage').dataset.playing==='true'")
     page.emulate_media(reduced_motion='reduce');page.wait_for_function("document.querySelector('.quality-stage').dataset.playing==='false'")
@@ -83,8 +103,8 @@ with sync_playwright() as pw:
     if not args.url:
         browser=pw.chromium.launch();ctx=browser.new_context(java_script_enabled=False);p=ctx.new_page();p.goto(url)
         assert p.locator('#tech-quality-loop').is_visible()
-        assert '股利，不能填成觀察股價' in p.locator('#tech-quality-loop').inner_text()
+        assert '程式：先核對分類依據' in p.locator('#tech-quality-loop').inner_text()
         browser.close()
 if server:server.shutdown()
 (out/'results.json').write_text(json.dumps({'layouts':layouts,'errors':errors,'url':url,'passed':True},ensure_ascii=False,indent=2),encoding='utf-8')
-print('PASS:',len(layouts),'layouts; modes, cases, SVG text, navigation, zoom, loop/replay, reduced motion, no-JS')
+print('PASS:',len(layouts),'layouts; 7 connected roles, conditional edges, A/B configurations, SVG text, navigation, zoom, loop/replay, reduced motion, no-JS')

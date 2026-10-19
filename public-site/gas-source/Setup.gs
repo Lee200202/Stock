@@ -1246,7 +1246,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-10-19-quality-diagnosis-v191';
+var PROJECT_BUILD_ = '2026-10-19-mobile-art-pan-v192';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
@@ -1287,7 +1287,7 @@ var PROJECT_HTML_ = [
   { file: 'Index', marker: "include('TechEvidence')" },
   { file: 'TechIllustrations', marker: 'var drawings=' },
   { file: 'TechEvidence', marker: 'v188: chapter-independent components' },
-  { file: 'TechQuality', marker: 'v191: one evidence standard' },
+  { file: 'TechQuality', marker: 'v192: evidence roles and controlled Skills comparisons' },
   { file: 'JavaScript', marker: '__fxRiseIn' },
   { file: 'Stylesheet', marker: 'load-charts' },
   { file: 'Changelog', marker: 'v188 技術圖解與章節元件' },

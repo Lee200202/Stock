@@ -1,0 +1,588 @@
+{
+  "url": "http://127.0.0.1:59984/?tab=tech",
+  "diagrams": [
+    {
+      "chapter": "tech-start",
+      "diagram": 1,
+      "client": 308,
+      "scroll": 760,
+      "files": [
+        "01-tech-start-1-part01.png",
+        "01-tech-start-1-part02.png",
+        "01-tech-start-1-part03.png",
+        "01-tech-start-1-part04.png"
+      ],
+      "offsets": [
+        0,
+        151,
+        301,
+        452
+      ]
+    },
+    {
+      "chapter": "tech-overview",
+      "diagram": 1,
+      "client": 308,
+      "scroll": 760,
+      "files": [
+        "02-tech-overview-1-part01.png",
+        "02-tech-overview-1-part02.png",
+        "02-tech-overview-1-part03.png",
+        "02-tech-overview-1-part04.png"
+      ],
+      "offsets": [
+        0,
+        151,
+        301,
+        452
+      ]
+    },
+    {
+      "chapter": "tech-overview",
+      "diagram": 2,
+      "client": 308,
+      "scroll": 760,
+      "files": [
+        "02-tech-overview-2-part01.png",
+        "02-tech-overview-2-part02.png",
+        "02-tech-overview-2-part03.png",
+        "02-tech-overview-2-part04.png"
+      ],
+      "offsets": [
+        0,
+        151,
+        301,
+        452
+      ]
+    },
+    {
+      "chapter": "tech-volume",
+      "diagram": 1,
+      "client": 308,
+      "scroll": 760,
+      "files": [
+        "03-tech-volume-1-part01.png",
+        "03-tech-volume-1-part02.png",
+        "03-tech-volume-1-part03.png",
+        "03-tech-volume-1-part04.png"
+      ],
+      "offsets": [
+        0,
+        151,
+        301,
+        452
+      ]
+    },
+    {
+      "chapter": "tech-loading",
+      "diagram": 1,
+      "client": 308,
+      "scroll": 760,
+      "files": [
+        "04-tech-loading-1-part01.png",
+        "04-tech-loading-1-part02.png",
+        "04-tech-loading-1-part03.png",
+        "04-tech-loading-1-part04.png"
+      ],
+      "offsets": [
+        0,
+        151,
+        301,
+        452
+      ]
+    },
+    {
+      "chapter": "tech-loading",
+      "diagram": 2,
+      "client": 332,
+      "scroll": 900,
+      "files": [
+        "04-tech-loading-2-part01.png",
+        "04-tech-loading-2-part02.png",
+        "04-tech-loading-2-part03.png",
+        "04-tech-loading-2-part04.png"
+      ],
+      "offsets": [
+        0,
+        189,
+        379,
+        568
+      ]
+    },
+    {
+      "chapter": "tech-agent",
+      "diagram": 1,
+      "client": 308,
+      "scroll": 760,
+      "files": [
+        "05-tech-agent-1-part01.png",
+        "05-tech-agent-1-part02.png",
+        "05-tech-agent-1-part03.png",
+        "05-tech-agent-1-part04.png"
+      ],
+      "offsets": [
+        0,
+        151,
+        301,
+        452
+      ]
+    },
+    {
+      "chapter": "tech-agent",
+      "diagram": 2,
+      "client": 258,
+      "scroll": 760,
+      "files": [
+        "05-tech-agent-2-part01.png",
+        "05-tech-agent-2-part02.png",
+        "05-tech-agent-2-part03.png",
+        "05-tech-agent-2-part04.png"
+      ],
+      "offsets": [
+        0,
+        167,
+        335,
+        502
+      ]
+    },
+    {
+      "chapter": "tech-agent",
+      "diagram": 4,
+      "client": 352,
+      "scroll": 900,
+      "files": [
+        "05-tech-agent-4-part01.png",
+        "05-tech-agent-4-part02.png",
+        "05-tech-agent-4-part03.png",
+        "05-tech-agent-4-part04.png"
+      ],
+      "offsets": [
+        0,
+        183,
+        365,
+        548
+      ]
+    },
+    {
+      "chapter": "tech-context",
+      "diagram": 1,
+      "client": 308,
+      "scroll": 760,
+      "files": [
+        "06-tech-context-1-part01.png",
+        "06-tech-context-1-part02.png",
+        "06-tech-context-1-part03.png",
+        "06-tech-context-1-part04.png"
+      ],
+      "offsets": [
+        0,
+        151,
+        301,
+        452
+      ]
+    },
+    {
+      "chapter": "tech-harness",
+      "diagram": 1,
+      "client": 308,
+      "scroll": 760,
+      "files": [
+        "07-tech-harness-1-part01.png",
+        "07-tech-harness-1-part02.png",
+        "07-tech-harness-1-part03.png",
+        "07-tech-harness-1-part04.png"
+      ],
+      "offsets": [
+        0,
+        151,
+        301,
+        452
+      ]
+    },
+    {
+      "chapter": "tech-quality-loop",
+      "diagram": 1,
+      "client": 308,
+      "scroll": 1000,
+      "files": [
+        "08-tech-quality-loop-1-part01.png",
+        "08-tech-quality-loop-1-part02.png",
+        "08-tech-quality-loop-1-part03.png",
+        "08-tech-quality-loop-1-part04.png",
+        "08-tech-quality-loop-1-part05.png"
+      ],
+      "offsets": [
+        0,
+        173,
+        346,
+        519,
+        692
+      ]
+    },
+    {
+      "chapter": "tech-names",
+      "diagram": 1,
+      "client": 308,
+      "scroll": 760,
+      "files": [
+        "09-tech-names-1-part01.png",
+        "09-tech-names-1-part02.png",
+        "09-tech-names-1-part03.png",
+        "09-tech-names-1-part04.png"
+      ],
+      "offsets": [
+        0,
+        151,
+        301,
+        452
+      ]
+    },
+    {
+      "chapter": "tech-names",
+      "diagram": 2,
+      "client": 308,
+      "scroll": 760,
+      "files": [
+        "09-tech-names-2-part01.png",
+        "09-tech-names-2-part02.png",
+        "09-tech-names-2-part03.png",
+        "09-tech-names-2-part04.png"
+      ],
+      "offsets": [
+        0,
+        151,
+        301,
+        452
+      ]
+    },
+    {
+      "chapter": "tech-number",
+      "diagram": 1,
+      "client": 308,
+      "scroll": 760,
+      "files": [
+        "10-tech-number-1-part01.png",
+        "10-tech-number-1-part02.png",
+        "10-tech-number-1-part03.png",
+        "10-tech-number-1-part04.png"
+      ],
+      "offsets": [
+        0,
+        151,
+        301,
+        452
+      ]
+    },
+    {
+      "chapter": "tech-unnamed",
+      "diagram": 1,
+      "client": 308,
+      "scroll": 760,
+      "files": [
+        "11-tech-unnamed-1-part01.png",
+        "11-tech-unnamed-1-part02.png",
+        "11-tech-unnamed-1-part03.png",
+        "11-tech-unnamed-1-part04.png"
+      ],
+      "offsets": [
+        0,
+        151,
+        301,
+        452
+      ]
+    },
+    {
+      "chapter": "tech-subject",
+      "diagram": 1,
+      "client": 308,
+      "scroll": 760,
+      "files": [
+        "12-tech-subject-1-part01.png",
+        "12-tech-subject-1-part02.png",
+        "12-tech-subject-1-part03.png",
+        "12-tech-subject-1-part04.png"
+      ],
+      "offsets": [
+        0,
+        151,
+        301,
+        452
+      ]
+    },
+    {
+      "chapter": "tech-subject",
+      "diagram": 2,
+      "client": 258,
+      "scroll": 760,
+      "files": [
+        "12-tech-subject-2-part01.png",
+        "12-tech-subject-2-part02.png",
+        "12-tech-subject-2-part03.png",
+        "12-tech-subject-2-part04.png"
+      ],
+      "offsets": [
+        0,
+        167,
+        335,
+        502
+      ]
+    },
+    {
+      "chapter": "tech-verdict",
+      "diagram": 1,
+      "client": 308,
+      "scroll": 760,
+      "files": [
+        "13-tech-verdict-1-part01.png",
+        "13-tech-verdict-1-part02.png",
+        "13-tech-verdict-1-part03.png",
+        "13-tech-verdict-1-part04.png"
+      ],
+      "offsets": [
+        0,
+        151,
+        301,
+        452
+      ]
+    },
+    {
+      "chapter": "tech-verdict",
+      "diagram": 2,
+      "client": 308,
+      "scroll": 760,
+      "files": [
+        "13-tech-verdict-2-part01.png",
+        "13-tech-verdict-2-part02.png",
+        "13-tech-verdict-2-part03.png",
+        "13-tech-verdict-2-part04.png"
+      ],
+      "offsets": [
+        0,
+        151,
+        301,
+        452
+      ]
+    },
+    {
+      "chapter": "tech-verdict",
+      "diagram": 3,
+      "client": 258,
+      "scroll": 760,
+      "files": [
+        "13-tech-verdict-3-part01.png",
+        "13-tech-verdict-3-part02.png",
+        "13-tech-verdict-3-part03.png",
+        "13-tech-verdict-3-part04.png"
+      ],
+      "offsets": [
+        0,
+        167,
+        335,
+        502
+      ]
+    },
+    {
+      "chapter": "tech-source-priority",
+      "diagram": 1,
+      "client": 308,
+      "scroll": 760,
+      "files": [
+        "14-tech-source-priority-1-part01.png",
+        "14-tech-source-priority-1-part02.png",
+        "14-tech-source-priority-1-part03.png",
+        "14-tech-source-priority-1-part04.png"
+      ],
+      "offsets": [
+        0,
+        151,
+        301,
+        452
+      ]
+    },
+    {
+      "chapter": "tech-source-priority",
+      "diagram": 2,
+      "client": 308,
+      "scroll": 760,
+      "files": [
+        "14-tech-source-priority-2-part01.png",
+        "14-tech-source-priority-2-part02.png",
+        "14-tech-source-priority-2-part03.png",
+        "14-tech-source-priority-2-part04.png"
+      ],
+      "offsets": [
+        0,
+        151,
+        301,
+        452
+      ]
+    },
+    {
+      "chapter": "tech-public-notes",
+      "diagram": 1,
+      "client": 308,
+      "scroll": 760,
+      "files": [
+        "15-tech-public-notes-1-part01.png",
+        "15-tech-public-notes-1-part02.png",
+        "15-tech-public-notes-1-part03.png",
+        "15-tech-public-notes-1-part04.png"
+      ],
+      "offsets": [
+        0,
+        151,
+        301,
+        452
+      ]
+    },
+    {
+      "chapter": "tech-transcript-progress",
+      "diagram": 1,
+      "client": 308,
+      "scroll": 760,
+      "files": [
+        "16-tech-transcript-progress-1-part01.png",
+        "16-tech-transcript-progress-1-part02.png",
+        "16-tech-transcript-progress-1-part03.png",
+        "16-tech-transcript-progress-1-part04.png"
+      ],
+      "offsets": [
+        0,
+        151,
+        301,
+        452
+      ]
+    },
+    {
+      "chapter": "tech-hold",
+      "diagram": 1,
+      "client": 308,
+      "scroll": 760,
+      "files": [
+        "17-tech-hold-1-part01.png",
+        "17-tech-hold-1-part02.png",
+        "17-tech-hold-1-part03.png",
+        "17-tech-hold-1-part04.png"
+      ],
+      "offsets": [
+        0,
+        151,
+        301,
+        452
+      ]
+    },
+    {
+      "chapter": "tech-hold",
+      "diagram": 2,
+      "client": 352,
+      "scroll": 900,
+      "files": [
+        "17-tech-hold-2-part01.png",
+        "17-tech-hold-2-part02.png",
+        "17-tech-hold-2-part03.png",
+        "17-tech-hold-2-part04.png"
+      ],
+      "offsets": [
+        0,
+        183,
+        365,
+        548
+      ]
+    },
+    {
+      "chapter": "tech-failure",
+      "diagram": 1,
+      "client": 308,
+      "scroll": 760,
+      "files": [
+        "18-tech-failure-1-part01.png",
+        "18-tech-failure-1-part02.png",
+        "18-tech-failure-1-part03.png",
+        "18-tech-failure-1-part04.png"
+      ],
+      "offsets": [
+        0,
+        151,
+        301,
+        452
+      ]
+    },
+    {
+      "chapter": "tech-faq",
+      "diagram": 1,
+      "client": 308,
+      "scroll": 760,
+      "files": [
+        "19-tech-faq-1-part01.png",
+        "19-tech-faq-1-part02.png",
+        "19-tech-faq-1-part03.png",
+        "19-tech-faq-1-part04.png"
+      ],
+      "offsets": [
+        0,
+        151,
+        301,
+        452
+      ]
+    },
+    {
+      "chapter": "tech-author",
+      "diagram": 1,
+      "client": 308,
+      "scroll": 760,
+      "files": [
+        "20-tech-author-1-part01.png",
+        "20-tech-author-1-part02.png",
+        "20-tech-author-1-part03.png",
+        "20-tech-author-1-part04.png"
+      ],
+      "offsets": [
+        0,
+        151,
+        301,
+        452
+      ]
+    },
+    {
+      "chapter": "tech-agent-tokenization",
+      "diagram": 1,
+      "client": 304,
+      "scroll": 1130,
+      "files": [
+        "tokenization-part01.png",
+        "tokenization-part02.png",
+        "tokenization-part03.png",
+        "tokenization-part04.png",
+        "tokenization-part05.png"
+      ],
+      "offsets": [
+        0,
+        206,
+        413,
+        620,
+        826
+      ]
+    },
+    {
+      "chapter": "tech-overview-data-graph",
+      "diagram": 1,
+      "client": 352,
+      "scroll": 1040,
+      "files": [
+        "data-graph-part01.png",
+        "data-graph-part02.png",
+        "data-graph-part03.png",
+        "data-graph-part04.png"
+      ],
+      "offsets": [
+        0,
+        229,
+        459,
+        688
+      ]
+    }
+  ],
+  "count": 32,
+  "errors": [],
+  "passed": true
+}

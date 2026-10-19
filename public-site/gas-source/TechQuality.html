@@ -1,46 +1,58 @@
+<!-- v192: evidence roles and controlled Skills comparisons; client-only. -->
 <style>
-/* v191: one evidence standard for incoming and archived transcripts. */
-.tech-book .quality-intro{margin:24px 0 32px;max-width:none}
-.tech-book .quality-controls{display:flex;flex-wrap:wrap;gap:12px;margin:24px 0}
-.tech-book .quality-controls button{font:inherit;min-height:48px;padding:10px 24px;border-radius:999px;border:1px solid var(--rule);background:var(--panel);color:var(--ink);cursor:pointer}
-.tech-book .quality-controls button[aria-pressed=true]{background:var(--beam);border-color:var(--beam);color:var(--bg)}
-.tech-book .quality-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;margin:32px 0}
-.tech-book .quality-summary>div{padding:22px;border:1px solid var(--rule);border-radius:24px;background:var(--panel-2)}
-.tech-book .quality-summary b{display:block;font-size:calc(30px * var(--rd-fs));line-height:1.4;font-variant-numeric:tabular-nums;color:var(--beam)}
-.tech-book .quality-summary span{display:block;margin-top:8px}
-.tech-book .quality-case{margin:28px 0 40px;padding:clamp(20px,3vw,36px);border:1px solid var(--rule);border-radius:28px;background:var(--panel-2)}
-.tech-book .quality-case h4{font:inherit;font-weight:750;margin:0 0 16px}
-.tech-book .quality-quote{margin:0;padding:18px 22px;border-left:3px solid var(--beam);border-radius:16px;background:var(--panel)}
-.tech-book .quality-case-flow{display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin:24px 0}
-.tech-book .quality-case-flow>div{flex:1 1 240px;padding:20px;border:1px solid var(--rule);border-radius:22px;min-width:0}
-.tech-book .quality-case-flow small{display:block;font-size:calc(14px * var(--rd-fs));color:var(--ink-muted);margin-bottom:8px}
-.tech-book .quality-case-flow strong{display:block;font-size:calc(20px * var(--rd-fs));line-height:1.7}
-.tech-book .quality-case-flow>svg{width:34px;height:34px;color:var(--beam);flex:0 0 34px}
-.tech-book .quality-case-flow .quality-outcome{border:2px solid var(--beam);background:var(--panel)}
-.tech-book .quality-checks{list-style:none;padding:0;margin:24px 0;display:grid;gap:16px}
-.tech-book .quality-checks li{display:flex;gap:16px;align-items:flex-start;margin:0;padding:20px 24px;border:1px solid var(--rule);border-radius:22px}
-.tech-book .quality-checks svg{width:28px;height:28px;flex:0 0 28px;color:var(--beam);margin-top:5px}
-.tech-book .quality-checks b{display:block}
-.tech-book .quality-note{border-left:3px solid var(--beam);padding:16px 24px;background:var(--panel-2);border-radius:18px}
-@media(max-width:760px){.tech-book .quality-summary{grid-template-columns:1fr;gap:16px}.tech-book .quality-case-flow{display:grid;grid-template-columns:1fr;gap:14px}.tech-book .quality-case-flow>svg{transform:rotate(90deg);justify-self:center}.tech-book .quality-controls button{flex:1 1 140px}.tech-book .quality-summary>div{display:flex;align-items:baseline;gap:20px}.tech-book .quality-summary span{margin:0}}
+.tech-book .quality-references,.tech-book .quality-ab{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;margin:32px 0}
+.tech-book .quality-references>section,.tech-book .quality-ab>section,.tech-book .quality-measures>section{padding:28px;border:1px solid var(--rule);border-radius:24px;background:var(--panel);min-width:0}
+.tech-book .quality-references h3,.tech-book .quality-ab h4{margin-top:0}
+.tech-book .quality-source-note{font-size:calc(14px * var(--rd-fs));color:var(--muted);line-height:1.8}
+.tech-book .quality-modes,.tech-book .quality-cases{display:flex;flex-wrap:wrap;gap:12px;margin:24px 0}
+.tech-book :is(.quality-modes,.quality-cases) button{font:inherit;font-size:calc(15px * var(--rd-fs));min-height:48px;border-radius:999px;padding:10px 22px;border:1px solid var(--rule);color:var(--ink);background:var(--panel);cursor:pointer;line-height:1.6}
+.tech-book :is(.quality-modes,.quality-cases) button[aria-pressed=true]{background:var(--beam);border-color:var(--beam);color:var(--bg)}
+.tech-book .quality-case{padding:28px;border:1px solid var(--rule);border-radius:24px;background:var(--panel-2);margin:24px 0 48px}
+.tech-book .quality-case h4{font-size:calc(21px * var(--rd-fs));margin:0 0 16px}
+.tech-book .quality-basis{padding-left:26px;margin:28px 0 48px}.tech-book .quality-basis li{padding:12px 0}.tech-book .quality-basis span{display:block;margin-top:8px}
+.tech-book .quality-arm{display:inline-grid;place-items:center;width:48px;height:48px;border-radius:50%;background:var(--beam);color:var(--bg);font-weight:800;margin-bottom:16px}
+.tech-book .quality-check{border-left:3px solid var(--beam);padding-left:20px;margin-bottom:48px}
+.tech-book .quality-measures{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;margin:28px 0 44px}.tech-book .quality-measures p{margin-bottom:0}
+@media(max-width:760px){.tech-book :is(.quality-references,.quality-ab,.quality-measures){grid-template-columns:1fr}.tech-book :is(.quality-references>section,.quality-ab>section,.quality-measures>section,.quality-case){padding:22px}}
+
+.tech-book .quality-stage{align-items:start;grid-template-columns:minmax(0,1fr)}
+.tech-book .quality-stage .quality-references,.tech-book .quality-stage .quality-ab,.tech-book .quality-stage .quality-measures{gap:20px;margin:24px 0}
+.tech-book .quality-stage .quality-references>section{padding:18px}.tech-book .quality-stage .quality-node-copy h3{font-size:calc(21px * var(--rd-fs));line-height:1.55}
+.tech-book .quality-stage [data-quality-node]{cursor:pointer;outline:none}.tech-book .quality-stage [data-quality-cross=true]{display:none}
+.tech-book .quality-stage .quality-selected .bk-node-bg,.tech-book .quality-stage [data-quality-node]:focus-visible .bk-node-bg{stroke:#bd5934;stroke-width:5}
+.tech-book .quality-stage .quality-upstream .bk-node-bg{stroke:#3e7b9a;stroke-width:4}.tech-book .quality-stage .quality-downstream .bk-node-bg{stroke:#26734d;stroke-width:4}
+.tech-book .quality-stage .quality-linked{stroke:#bd5934;stroke-width:4}
+.tech-book .quality-neighbors{margin:22px 0}.tech-book .quality-neighbor-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0}
+.tech-book .quality-neighbor-row>b{font-size:calc(14px * var(--rd-fs));color:var(--muted)}
+.tech-book .quality-neighbor-row button,.tech-book [data-quality-reset]{font:inherit;min-height:44px;padding:8px 16px;border:1px solid var(--rule);border-radius:999px;background:var(--panel);color:var(--ink);cursor:pointer;line-height:1.5}
+.tech-book .quality-node-copy[hidden]{display:none}
+@media(max-width:1100px){.tech-book .quality-stage .tech-art-pan .book-art{width:1000px;min-width:1000px;max-width:none}}
 </style>
 <script>
-(function(){'use strict';
-function init(){
- var ch=document.getElementById('tech-quality-loop');if(!ch||ch.dataset.qualityReady)return;ch.dataset.qualityReady='true';
- var modes={
-  incoming:{title:'新稿：先確認今日事實',source:'今日原稿',sub:'同日通知與當時部位',copy:'先保留原稿與來源指紋，讀當日通知及截至當時的部位；自行分類後，才比較工作流。已確認的今日錯誤先修復並讀回，再擴大歷史測試。'},
-  archive:{title:'歷史：還原當時可知的資料',source:'歷史原稿',sub:'只用目標日以前資料',copy:'分類定義保持相同，通知、部位及價格回到目標日期。沒有答案日也先讀全文、自行分類並保存草稿；後來買進或賣出，不能倒填成過去已知。'}
- };
- ch.querySelectorAll('[data-quality-mode]').forEach(function(b){b.addEventListener('click',function(){var m=modes[b.dataset.qualityMode];ch.querySelectorAll('[data-quality-mode]').forEach(function(x){x.setAttribute('aria-pressed',String(x===b));});ch.querySelector('[data-quality-mode-title]').textContent=m.title;ch.querySelector('[data-quality-mode-copy]').textContent=m.copy;ch.querySelector('[data-quality-source-label]').textContent=m.source;ch.querySelector('[data-quality-source-sub]').textContent=m.sub;});});
- var cases=[
-  ['勤誠：低價不等於條件已到','9/16、9/23：需等ETF賣完；目前尚未進場。','未來有低接機會','現在仍需等待','觀望不碰','把未來買點與現在進場許可分開，不能只看到900元以下便改為可以買。'],
-  ['聯電：引句在原稿，不代表屬於本股','9/23：159元以上聯電不買；下一段改談鴻海平盤下買點。','鴻海的低接買點','聯電的套牢壓力','只保留聯電不追條件','同一篇的真實句子，仍可能被接到錯的公司；公司與主張需一起核對。'],
-  ['台積電：7元是股利','9/16：台積電當日除息7元，盤中尚未完全填息。','現金股利7元','不是觀察股價7元','清除錯填的價位欄','數字與單位都正確，也可能放錯欄位；股利、EPS、張數與股價要分清。'],
-  ['晶心科：昨天賣，不是今天賣','9/23回顧前一天270餘元出場，並說目前不建議追買。','過去已出場','今天暫不追買','回顧＋觀望不碰','歷史交易保留原事件日；今天另外有進場限制就記現況，不重複造一筆賣出。']
- ];
- ch.querySelectorAll('[data-quality-case]').forEach(function(b){b.addEventListener('click',function(){var d=cases[Number(b.dataset.qualityCase)];ch.querySelectorAll('[data-quality-case]').forEach(function(x){x.setAttribute('aria-pressed',String(x===b));});['title','quote','input','fact','outcome','reason'].forEach(function(k,i){ch.querySelector('[data-quality-'+k+']').textContent=d[i];});var t=ch.querySelector('[data-quality-graph-check]');t.textContent=['當下條件','公司歸屬','數字性質','事件日期'][Number(b.dataset.qualityCase)];});});
+(function(){'use strict';function init(){var ch=document.querySelector('#tech-quality-loop');if(!ch)return;
+var stage=ch.querySelector('.quality-stage'),svg=stage.querySelector('svg.book-art'),labels=['參考網站與影片','Skills維護手冊','程式核對','固定原稿與當時資料','AI語意核對','A/B比較','獨立覆核與回歸'];
+var summaries=['參考來源提出評估假說；本站仍須以自己的資料與獨立核對確認結果。','Skills規定程序與邊界；通過驗證後須同步到正式Prompt與程式。','程式先核對來源、身分、日期與部位，再依核定事實決定分類。','A/B固定相同原稿、目標日通知與部位；新稿與歷史稿沿用同一分類依據。','AI處理否定、主體、時間及公司歸屬，每個主張附本股引句。','A與B只改一個變因；同題、同模型、同工具，保存失敗與重試。','獨立覆核分辨失敗層，再決定修Skills描述、程序、Prompt或工作流；未見日回歸後才採用。'];
+var edges=Array.from(svg.querySelectorAll('[data-quality-edge]')).map(function(p){var ids=p.dataset.qualityEdge.split('-').map(Number);return {p:p,a:ids[0],b:ids[1],cross:p.dataset.qualityCross==='true'};});
+function linkButtons(name,ids){var row=document.createElement('div'),title=document.createElement('b');row.className='quality-neighbor-row';title.textContent=name;row.appendChild(title);if(!ids.length){var t=document.createElement('span');t.textContent='無直接節點';row.appendChild(t);}ids.forEach(function(i){var b=document.createElement('button');b.type='button';b.dataset.qualityJump=i;b.textContent=labels[i];b.addEventListener('click',function(){select(i,true,true);});row.appendChild(b);});return row;}
+function select(id,manual,panTo){
+ var upstream=id===null?[]:edges.filter(function(e){return e.b===id;}).map(function(e){return e.a;}),downstream=id===null?[]:edges.filter(function(e){return e.a===id;}).map(function(e){return e.b;});
+ svg.querySelectorAll('[data-quality-node]').forEach(function(g){var i=Number(g.dataset.qualityNode);g.classList.toggle('quality-selected',i===id);g.classList.toggle('quality-upstream',upstream.indexOf(i)>=0);g.classList.toggle('quality-downstream',downstream.indexOf(i)>=0);g.setAttribute('aria-pressed',String(i===id));});
+ edges.forEach(function(e){var active=e.a===id||e.b===id;e.p.style.display=e.cross&&!active?'none':'inline';e.p.classList.toggle('quality-linked',active);e.p.style.opacity=id===null?'.65':active?'1':'.18';});
+ ch.querySelectorAll('[data-quality-copy]').forEach(function(n){n.hidden=Number(n.dataset.qualityCopy)!==(id===null?0:id);});
+ ch.querySelector('[data-quality-current-summary]').textContent=id===null?'點任一圖卡，查看它的用途、分類依據與直接上游／下游。跨欄關係只在相關節點選取時顯示。':summaries[id];
+ var nav=ch.querySelector('[data-quality-neighbors]');nav.replaceChildren();if(id!==null){nav.append(linkButtons('上游',upstream),linkButtons('下游',downstream));}
+ if(window.__techBookSelectRoutes)window.__techBookSelectRoutes(stage,manual);
+ if(panTo&&id!==null){var g=svg.querySelector('[data-quality-node="'+id+'"]'),pan=stage.querySelector('.tech-art-pan');if(pan){var r=g.getBoundingClientRect(),box=pan.getBoundingClientRect();pan.scrollTo({left:pan.scrollLeft+r.x+r.width/2-box.x-box.width/2,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});}}
 }
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
-})();
+svg.querySelectorAll('[data-quality-node]').forEach(function(g){g.addEventListener('click',function(e){e.stopPropagation();select(Number(g.dataset.qualityNode),true,false);});g.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();select(Number(g.dataset.qualityNode),true,false);}});});
+ch.querySelector('[data-quality-reset]').addEventListener('click',function(){select(null,true,false);});
+stage.querySelector('[data-book-replay]').addEventListener('click',function(){select(null,false,false);});
+select(null,false,false);
+var experiments=[
+ ['不提供目標Skill','相同任務、工具與資料，建立基準。','提供目前Skill','只增加目標Skill，記錄是否真的載入及採用。','比較任務完成、證據正確、副作用、呼叫與耗用量；不是只看有沒有提到技能名稱。'],
+ ['原觸發描述','技能正文不變，保留既有適用範圍。','改寫觸發描述','只調整何時用與何時不用，正文與其他設定相同。','檢查選錯、漏選與實際啟用。這是維護代理的技能選取評估，不是Python每日分類已自動載入Skill。'],
+ ['原分類程序','固定現行Prompt、分類依據與停止條件，保存完整輸出。','候選分類程序','只修改一個已確認缺口，例如先列主體、日期與本股歸屬；其餘設定凍結。','新稿與歷史原稿成對比較，記錄誤收、漏收、事實錯誤及變異，再跑未見日期；不把修好的網站當B組答案。']
+];
+ch.querySelectorAll('[data-quality-experiment]').forEach(function(b){b.addEventListener('click',function(){var r=experiments[Number(b.dataset.qualityExperiment)];['a','a-detail','b','b-detail','metric'].forEach(function(k,i){ch.querySelector('[data-quality-'+k+']').textContent=r[i];});ch.querySelectorAll('[data-quality-experiment]').forEach(function(x){x.setAttribute('aria-pressed',String(x===b));});});});
+}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();})();
 </script>

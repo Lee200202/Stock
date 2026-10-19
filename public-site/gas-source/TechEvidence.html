@@ -49,19 +49,52 @@
 @media(max-width:760px){.tech-book .agent-usage-numbers{grid-template-columns:1fr;gap:16px}.tech-book .src-cards-row{grid-template-columns:1fr}.tech-book .ev-desktop{display:none}.tech-book .ev-mobile{display:block}.tech-book .evidence-lab{padding:22px}.tech-book .evidence-lab h3{font-size:calc(21px * var(--rd-fs))}}
 @media(prefers-reduced-motion:reduce){.tech-book .ev-marker{display:none}}
 @media print{.tech-book .evidence-motion{display:none}.tech-book .evidence-svg{break-inside:avoid}}
+
+/* v192: scroll the artwork, never the page; zoom stays a separate control. */
+.tech-book .book-image-group{min-width:0;max-width:100%;border-radius:24px;overflow:hidden;background:#e6eee7}
+.tech-book .tech-art-pan{max-width:100%;min-width:0;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y pinch-zoom;scrollbar-width:thin;scrollbar-color:var(--beam) var(--panel)}
+.tech-book .tech-art-pan:focus-visible{outline:3px solid var(--beam);outline-offset:-3px}
+.tech-book .book-image-group>.book-visual-open{border-radius:0;background:var(--panel);cursor:zoom-in}
+.tech-book .art-pan-hint{display:none;margin:0;padding:8px 16px;color:var(--muted);font-size:calc(13px * var(--rd-fs));background:var(--panel);line-height:1.6}
+@media(max-width:760px){
+ .tech-book .tech-art-pan .book-art,.tech-book .tech-art-pan .ev-desktop{width:760px;min-width:760px;max-width:none;height:auto}
+ .tech-book .tech-art-pan img{width:900px;min-width:900px;max-width:none;height:auto}
+ .tech-book .tech-art-pan .ev-desktop{display:block}.tech-book .tech-art-pan .ev-mobile{display:none}
+ .tech-book #tokViz{grid-template-columns:repeat(4,260px);gap:30px;overflow-x:auto;max-width:100%;padding-bottom:16px}
+ .tech-book #tokViz .tok-stage:not(:last-child)::after{content:"→";left:auto;right:-25px;top:50%;bottom:auto}
+ .tech-book .art-pan-hint{display:flex;align-items:center;justify-content:space-between;gap:12px}
+ .tech-book .art-pan-hint svg{width:22px;height:22px;flex:none}
+ /* No-JS fallback retains the original button and provides native horizontal pan. */
+ .tech-book .book-visual-open:not(.art-pan-ready){overflow-x:auto;touch-action:pan-x pan-y pinch-zoom}
+ .tech-book .book-visual-open:not(.art-pan-ready)>.book-art{width:760px;min-width:760px;max-width:none}
+}
+@media print{.tech-book .tech-art-pan{overflow:visible}.tech-book .tech-art-pan .book-art,.tech-book .tech-art-pan img{width:100%;min-width:0}.tech-book .art-pan-hint{display:none}}
 </style>
 <script>
 (function(){'use strict';
 function init(){
 var root=document.querySelector('[data-tech-book]');if(!root)return;
-/* Each illustration owns its phone layout; text is never hidden to fit. */
+/* Keep legible desktop geometry; narrow screens pan inside the figure. */
 var narrow=matchMedia('(max-width:760px)'),artwork=new WeakMap();
 function reflow(){root.querySelectorAll('svg.book-art').forEach(function(svg){
  var a=artwork.get(svg);if(!a){a={view:svg.getAttribute('viewBox'),nodes:Array.from(svg.querySelectorAll('[data-book-node]')),paths:Array.from(svg.querySelectorAll('[data-book-path]'))};a.positions=a.nodes.map(function(n){return n.getAttribute('transform');});a.routes=a.paths.map(function(p){return p.getAttribute('d');});artwork.set(svg,a);}
- var small=narrow.matches,view=small?svg.dataset.mobileViewbox:a.view;svg.setAttribute('viewBox',view);var dims=view.split(' '),bg=svg.querySelector('rect');bg.setAttribute('width',dims[2]);bg.setAttribute('height',dims[3]);
+ var small=false,view=a.view;svg.setAttribute('viewBox',view);var dims=view.split(' '),bg=svg.querySelector('rect');bg.setAttribute('width',dims[2]);bg.setAttribute('height',dims[3]);
  a.nodes.forEach(function(n,i){n.setAttribute('transform',small?n.dataset.mobileTransform:a.positions[i]);});a.paths.forEach(function(p,i){p.setAttribute('d',small?p.dataset.mobileD:a.routes[i]);});
 });}
 window.__techReflowArt=reflow;reflow();narrow.addEventListener('change',reflow);
+function panRegion(pan,label){
+ pan.classList.add('tech-art-pan');pan.tabIndex=0;pan.setAttribute('role','region');pan.setAttribute('aria-label',label+'，可左右滑動');
+ pan.addEventListener('keydown',function(e){if(e.target!==pan)return;var x=e.key==='ArrowRight'?180:e.key==='ArrowLeft'?-180:0;if(x){e.preventDefault();pan.scrollBy({left:x,behavior:'auto'});}});
+}
+var tokenViz=root.querySelector('#tokViz');if(tokenViz)panRegion(tokenViz,'文字變成輸入的四階段');
+root.querySelectorAll('.book-visual-open').forEach(function(button){
+ var group=document.createElement('div');group.className='book-image-group';button.before(group);
+ var pan=document.createElement('div');panRegion(pan,button.getAttribute('aria-label')||'圖解');
+ Array.from(button.childNodes).forEach(function(n){if(!(n.nodeType===1&&n.classList.contains('book-enlarge')))pan.appendChild(n);});
+ var hint=document.createElement('p');hint.className='art-pan-hint';hint.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span>左右滑動查看完整圖</span>';
+ group.append(pan,hint,button);button.classList.add('art-pan-ready');
+});
+
 var data={
  candidate:{title:'候選名稱，如何成為可公開的個股？',intro:'點到股名只是候選；須核對公司身分、本股原句、當下立場與部位，才決定收錄。',label:'取自10/16已核對案例；流程為教學重組，非即時監控',cases:[
   ['只是比較','聯詠突破季線','3034 聯詠','明講沒有持有','只有比較分析','不列會員持股','沒有獨立當下立場時不列。不能把附近「這一隻是我的」接到已否認持有的聯詠。'],
@@ -83,7 +116,7 @@ var icons={doc:'M5 2h10l4 4v18H5zM15 2v5h5M8 12h8M8 17h8',clock:'M14 2a12 12 0 1
 function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function icon(type,x,y){return '<g class="ev-icon" transform="translate('+x+','+y+')"><path d="'+icons[type]+'"/></g>';}
 function graph(key,c,mobile){
- var w=mobile?480:960,h=mobile?1140:690,coords=mobile?[[150,140],[330,470],[150,800]]:key==='fault'?[[170,145],[790,145],[480,410]]:key==='history'?[[250,140],[710,330],[250,510]]:[[170,160],[500,350],[800,160]];
+ var w=mobile?480:960,h=mobile?1140:key==='history'?790:690,coords=mobile?[[150,140],[330,470],[150,800]]:key==='fault'?[[170,145],[790,145],[480,410]]:key==='history'?[[250,140],[710,330],[250,510]]:[[170,160],[500,350],[800,160]];
  var out='<svg class="evidence-svg '+(mobile?'ev-mobile':'ev-desktop')+'" viewBox="0 0 '+w+' '+h+'" role="img" aria-label="'+esc(c[0]+'的來源與判定關係')+'">';
  var route=mobile?['M210 140H450V350Q450 380 330 380','M240 470H25V680Q25 710 150 710']:key==='fault'?['M230 145H730','M790 225Q790 410 545 410']:key==='history'?['M250 215V330H650','M710 405V510H310']:['M230 160Q350 160 430 300','M565 300Q700 160 737 160'];
  route.forEach(function(d,i){out+='<path class="ev-line" data-ev-path="'+i+'" d="'+d+'"/>';});
@@ -98,7 +131,7 @@ function graph(key,c,mobile){
   out+='<g class="ev-step" data-ev-step="'+i+'" transform="translate('+pos[0]+','+pos[1]+')">'+art+'<text text-anchor="middle" y="112" font-size="23" font-weight="600">'+esc(labels[i][0])+'</text><text text-anchor="middle" y="148" font-size="20">'+esc(labels[i][1])+'</text></g>';
   if(key==='history')out+='<circle cx="'+(mobile?40:70)+'" cy="'+pos[1]+'" r="7" class="ev-date"/>';
  });
- var y=mobile?1020:625;
+ var y=mobile?1020:key==='history'?745:625;
  if(key==='fault'){
   out+='<text x="'+(mobile?100:260)+'" y="'+y+'" text-anchor="middle" font-size="23">19筆通過</text><text x="'+(mobile?370:700)+'" y="'+y+'" text-anchor="middle" font-size="23">1筆隔離</text>';
   for(var i=0;i<19;i++)out+='<circle cx="'+((mobile?35:100)+(i%10)*(mobile?14:30))+'" cy="'+(y+25+Math.floor(i/10)*14)+'" r="4" fill="currentColor"/>';
@@ -114,6 +147,7 @@ Object.keys(data).forEach(function(key){
  var placeholder=Array.from(root.querySelectorAll('[data-evidence-kind]')).find(function(e){return e.dataset.evidenceKind===key;});if(!placeholder)return;
  var d=data[key],el=placeholder,s={el:el,key:key,index:0,time:0,cycles:0,visible:false,paused:false};states.push(s);
  el.className='evidence-lab';el.innerHTML='<p class="evidence-kind">'+esc(d.label)+'</p><h3>'+esc(d.title)+'</h3><p>'+esc(d.intro)+'</p><div class="evidence-choices" role="group" aria-label="'+esc(d.title)+'">'+d.cases.map(function(c,i){return '<button type="button" data-ev-case="'+i+'" aria-pressed="'+(i===0)+'">'+esc(c[0])+'</button>';}).join('')+'</div><figure><div class="evidence-drawing"></div><figcaption><ol class="evidence-key"></ol><p class="evidence-result" aria-live="polite"></p></figcaption></figure><div class="evidence-motion"><button type="button" data-ev-pause>暫停圖解</button><button type="button" data-ev-replay>再播圖解</button><small>本機動畫，不呼叫模型或寄送通知</small></div>';
+ panRegion(el.querySelector('.evidence-drawing'),d.title);
  function draw(){var c=d.cases[s.index];el.querySelector('.evidence-drawing').innerHTML=graph(key,c,false)+graph(key,c,true);el.querySelector('.evidence-key').innerHTML=[c[1]+'／'+c[2],c[3]+'／'+c[4],c[5]].map(function(t){return '<li>'+esc(t)+'</li>';}).join('');el.querySelector('.evidence-result').textContent=c[6];el.querySelectorAll('[data-ev-case]').forEach(function(b){b.setAttribute('aria-pressed',String(Number(b.dataset.evCase)===s.index));});}
  draw();el.querySelectorAll('[data-ev-case]').forEach(function(b){b.addEventListener('click',function(){s.index=Number(b.dataset.evCase);s.time=0;s.paused=true;draw();sync();});});el.querySelector('[data-ev-pause]').addEventListener('click',function(){s.paused=!s.paused;sync();});el.querySelector('[data-ev-replay]').addEventListener('click',function(){s.time=0;s.cycles=0;s.el.dataset.cycles='0';s.paused=false;sync();});
  new IntersectionObserver(function(entries){s.visible=entries.some(function(e){return e.isIntersecting;});sync();},{threshold:.15}).observe(el.querySelector('.evidence-drawing'));

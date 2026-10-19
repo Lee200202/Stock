@@ -83,7 +83,7 @@ with sync_playwright() as p:
  for key,n in [('recent',2),('quiet',2),('rare',3),('stale',3)]:
   page.locator('[data-load-case="'+key+'"]').click();assert page.locator('#tech-loading .book-stage').get_attribute('data-playing')=='false';assert page.locator('#tech-loading .book-art [data-book-path]').evaluate_all('(els)=>els.filter(e=>e.style.opacity==="1").length')==n
  # Modal, native Escape and opener focus.
- page.locator('#tech-loading .book-visual-open').click();page.wait_for_function("document.querySelector('#bookArtImage').naturalWidth>0");assert page.locator('#bookArtDialog').is_visible();page.screenshot(path=str(out/'dialog.png'));page.keyboard.press('Escape');assert page.locator('#bookArtDialog').is_hidden();assert page.evaluate("document.activeElement.classList.contains('book-visual-open')")
+ page.locator('#tech-loading .book-visual-open[data-art]').click();page.wait_for_function("document.querySelector('#bookArtImage').naturalWidth>0");assert page.locator('#bookArtDialog').is_visible();page.screenshot(path=str(out/'dialog.png'));page.keyboard.press('Escape');assert page.locator('#bookArtDialog').is_hidden();assert page.evaluate("document.activeElement.classList.contains('book-visual-open')")
  # Replay means a loop, not a one-shot. Scroll to the stage before checking eligibility.
  page.locator('#tech-loading [data-book-replay]').click();page.locator('#tech-loading .book-stage').scroll_into_view_if_needed();page.wait_for_function("document.querySelector('#tech-loading .book-stage').dataset.playing==='true'")
  page.wait_for_function("Number(document.querySelector('#tech-loading .book-stage').dataset.cycles)>=2",timeout=22000)

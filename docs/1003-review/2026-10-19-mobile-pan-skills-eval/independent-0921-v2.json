@@ -1,0 +1,192 @@
+{
+  "date": "2026/09/21",
+  "sourceSha": "e2acfbdff59887349e2d4eced21efad246964686f7c59cec8a7c4eda736ac9df",
+  "referenceType": "agent-review-v2-after-workflow-exposure",
+  "sourceRead": "full raw; spaces removed only in reading view",
+  "notes": "不是人工金標；京元電子需當日交易證據、嘉澤持股需當時紀錄；未看目標流程輸出",
+  "rows": [
+    {
+      "code": "2330",
+      "name": "台積電",
+      "classification": "會員持股",
+      "lines": "001-007",
+      "reason": "明講會員有且未賣；後續突破2535為看法，不是今日買入"
+    },
+    {
+      "code": "2327",
+      "name": "國巨",
+      "classification": "觀望不碰",
+      "lines": "008-011,075",
+      "reason": "當下仍反對被動元件；舊賣出不算今日"
+    },
+    {
+      "code": "3014",
+      "name": "聯陽",
+      "classification": "會員持股",
+      "lines": "016-021,108-112",
+      "reason": "明講會員都有，買130出頭；等待除息8.5缺口，8.5不是成本"
+    },
+    {
+      "code": "3094",
+      "name": "聯傑",
+      "classification": "身分待核對",
+      "lines": "013-015,106",
+      "reason": "原稿連接屬近音候選，不能僅憑族群與讀音認定公司，不計必收"
+    },
+    {
+      "code": "2409",
+      "name": "友達",
+      "classification": "觀望注意",
+      "lines": "021,063-064",
+      "reason": "明講沒有持有，但相對群創好且創高"
+    },
+    {
+      "code": "3481",
+      "name": "群創",
+      "classification": "觀望不碰",
+      "lines": "021",
+      "reason": "反對由友達上漲推定群創跟漲並追買"
+    },
+    {
+      "code": "2303",
+      "name": "聯電",
+      "classification": "觀望不碰",
+      "lines": "028-035,106",
+      "reason": "159是上週五賣點，今天缺口風險；無今日成交"
+    },
+    {
+      "code": "2603",
+      "name": "長榮",
+      "classification": "不列",
+      "lines": "036-037",
+      "reason": "兩年前缺口回補的歷史賣出例"
+    },
+    {
+      "code": "2615",
+      "name": "萬海",
+      "classification": "不列",
+      "lines": "036-037",
+      "reason": "航運歷史出場例，沒有新的明確本股現況"
+    },
+    {
+      "code": "2609",
+      "name": "陽明",
+      "classification": "不列",
+      "lines": "036-037",
+      "reason": "航運歷史出場例"
+    },
+    {
+      "code": "2449",
+      "name": "京元電子",
+      "classification": "待核對交易證據",
+      "lines": "039-048,074",
+      "reason": "當日明確叫會員賣，未明說已成交；需核對當日通知再定今日賣出或觀望不碰，不憑問句建立成交"
+    },
+    {
+      "code": "2454",
+      "name": "聯發科",
+      "classification": "觀望不碰",
+      "lines": "064",
+      "reason": "明講不是能追的股票、缺口，不持有"
+    },
+    {
+      "code": "3008",
+      "name": "大立光",
+      "classification": "觀望不碰",
+      "lines": "064",
+      "reason": "明講不要買且仍要往下"
+    },
+    {
+      "code": "2308",
+      "name": "台達電",
+      "classification": "觀望注意",
+      "lines": "064-065",
+      "reason": "季線轉上已多頭，拉回買；不是今日成交"
+    },
+    {
+      "code": "2317",
+      "name": "鴻海",
+      "classification": "觀望注意",
+      "lines": "067-071,125",
+      "reason": "季線今日翻揚低檔布局，不推成今日成交"
+    },
+    {
+      "code": "3661",
+      "name": "世芯-KY",
+      "classification": "會員持股",
+      "lines": "077-096,124",
+      "reason": "明講有，ETF出清及營收新高；096未具名高檔爆量股票不直接接本股；096未具名不要碰段落可能在換圖，若無可追查圖面不得推定其公司，也不能硬說一定屬於別股"
+    },
+    {
+      "code": "3533",
+      "name": "嘉澤",
+      "classification": "觀望注意",
+      "lines": "099-100",
+      "reason": "ETF剩80張每日40，等待兩天後機會，持股需當時部位紀錄補證"
+    },
+    {
+      "code": "3529",
+      "name": "力旺",
+      "classification": "不列",
+      "lines": "100-101",
+      "reason": "沒有持有，僅走勢比較，未明確給當下進場立場"
+    },
+    {
+      "code": "6643",
+      "name": "M31",
+      "classification": "觀望注意",
+      "lines": "101",
+      "reason": "底部準備突破，向前看法"
+    },
+    {
+      "code": "6533",
+      "name": "晶心科",
+      "classification": "會員持股",
+      "lines": "102-105,113",
+      "reason": "明講有，中線月K看300以上，今天跌非賣出"
+    },
+    {
+      "code": "5269",
+      "name": "祥碩",
+      "classification": "會員持股",
+      "lines": "113-119",
+      "reason": "明講有不賣，10月MACD翻紅與2000合理價看法非保證"
+    },
+    {
+      "code": "4966",
+      "name": "譜瑞-KY",
+      "classification": "會員持股",
+      "lines": "114",
+      "reason": "明講有，未另給本股技術，不借祥碩MACD"
+    },
+    {
+      "code": "6781",
+      "name": "AES-KY",
+      "classification": "觀望注意",
+      "lines": "120",
+      "reason": "明講沒有該族群，關注但非追高"
+    },
+    {
+      "code": "2354",
+      "name": "鴻準",
+      "classification": "觀望注意",
+      "lines": "125",
+      "reason": "大戶持股增加，跌時觀察，不確定題材不能寫成事實；證交所公司名錄確認2354，v1誤填2312（金寶）"
+    },
+    {
+      "code": "8210",
+      "name": "勤誠",
+      "classification": "不列",
+      "lines": "120",
+      "reason": "行程為先前800多買1000多賣的歷史例，非今日動作"
+    },
+    {
+      "code": "2404",
+      "name": "漢唐",
+      "classification": "不列",
+      "lines": "120",
+      "reason": "先前920買1300多賣，非今日動作"
+    }
+  ],
+  "exposure": "已看過目標重播；v1保留不改，v2修正身分與不確定範圍，不作盲測金標"
+}

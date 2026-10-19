@@ -10,6 +10,10 @@ on:
       date:
         description: '要重播哪一天 YYYY/MM/DD'
         required: true
+      fresh_verdicts:
+        description: '停用人工／模型裁決快取，測量新判讀；仍讀當日通知及歷史部位'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -45,6 +49,7 @@ jobs:
           GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
           REPLAY_DATE: ${{ inputs.date }}
+          FRESH_VERDICTS: ${{ inputs.fresh_verdicts }}
           FINAL_ATTEMPT: 'true'
           PYTHONUNBUFFERED: '1'
         run: |
@@ -52,6 +57,14 @@ jobs:
             echo "::error::日期格式錯誤，要寫成 YYYY/MM/DD"; exit 1
           fi
           GOLDEN="scripts/golden/$(printf '%s' "$REPLAY_DATE" | awk -F/ '{printf "%04d-%02d-%02d", $1, $2, $3}').json"
-          ARGS=(--date "$REPLAY_DATE")
+          ARGS=(--date "$REPLAY_DATE" --report-json .replay-report/result.json)
+          if [ "$FRESH_VERDICTS" = true ]; then ARGS+=(--fresh-verdicts); fi
           if [ -f "$GOLDEN" ]; then ARGS+=(--golden "$GOLDEN"); fi
           python scripts/replay_extract.py "${ARGS[@]}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: replay-result-${{ github.run_id }}
+          path: .replay-report/result.json
+          retention-days: 7
+          if-no-files-found: warn

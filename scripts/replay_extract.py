@@ -17,6 +17,7 @@ golden 檔的格式見 scripts/golden/README.md。
 """
 import argparse
 import difflib
+import hashlib
 import importlib.util
 import json
 import re
@@ -289,6 +290,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--date", required=True)
     ap.add_argument("--golden", default="")
+    ap.add_argument("--fresh-verdicts", action="store_true", help="不讀人工與模型裁決快取；保留目標日前的部位及名稱資料")
+    ap.add_argument("--report-json", default="", help="保存可比較的唯讀結果與實驗模式，不保存金鑰或通知原文")
     args = ap.parse_args()
     date = pl.norm_date(args.date)
 
@@ -303,6 +306,9 @@ def main():
     pl.write_results = stop
     pl.save_evidence_audit = lambda *a, **kw: None
     pl.save_refresh_checkpoint = lambda *a, **kw: None
+    if args.fresh_verdicts:
+        pl._verdict_cache = lambda *a, **kw: {}
+        print('實驗模式：人工／模型裁決快取停用；仍會讀目標日通知與歷史部位、名稱資料，非完全無外部上下文。')
     try:
         pl.name_memo_load(book)
     except Exception as e:
@@ -364,6 +370,23 @@ def main():
         print(f"\n===== 與人工核對的答案比對：{'全部符合' if ok else '有不符'} =====\n{report}")
         if not ok:
             code = 2
+    if args.report_json:
+        published = signals.get('_article_records')
+        rows = {cat: [{"code": str(r.get('code') or ''), "name": r.get('name'),
+                       "date": r.get('_date') or date,
+                       "note": pl.public_narrative(str(r.get('reason') or r.get('note') or ''), r, signals)}
+                      for r in (published.get(cat, []) if isinstance(published, dict) and cat in published
+                                else signals.get(cat, [])) if isinstance(r, dict)] for cat in LABEL}
+        report = {"date": date, "source_sha256": hashlib.sha256(raw.encode('utf-8')).hexdigest(),
+                  "build": pl.pipeline_build(), "read_only": True, "blocked_writes": len(book.blocked),
+                  "golden_comparison": bool(args.golden), "classification_injection": False,
+                  "verdict_cache": "disabled_including_manual" if args.fresh_verdicts else "existing_table",
+                  "other_context": "target-day notices, pre-date positions, name memo; not frozen across runs",
+                  "rows": rows, "errors": errors, "warnings": warns, "exit_code": code,
+                  "usage": pl.gemini_usage_report(), "verdicts": signals.get('_verdicts', {})}
+        destination = Path(args.report_json)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(json.dumps(report, ensure_ascii=False, indent=2, default=str)+'\n', encoding='utf-8')
     if code:
         print(f"\n結束代碼 {code}：這是檢查結果（{'答案不符' if code == 2 else '通用檢查有錯'}），不是程式錯誤。")
         sys.exit(code)

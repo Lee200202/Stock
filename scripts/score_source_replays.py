@@ -36,7 +36,10 @@ def score(reference, rows):
             'missing':[c['code'] for c in checks if not c['actual']],
             'wrong_category':[c for c in checks if c['actual'] and not c['ok']],
             'forbidden_present':[c for c in excluded if not c['ok']],
-            'checks':checks, 'exclusion_checks':excluded}
+            'checks':checks, 'exclusion_checks':excluded,
+            'unscored_codes':sorted(set(rows)-set(reference.get('must',{}))-set(reference.get('must_not',[]))),
+            'forbidden_category_rows':[{'code':c,**r} for c,rs in rows.items() for r in rs
+                                       if r['class'] in reference.get('forbidden_categories',[])]}
 
 
 def main():

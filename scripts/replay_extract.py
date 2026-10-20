@@ -1,14 +1,15 @@
 """只讀不寫的重播：用真的模型，把某一天存好的原始逐字稿重新跑一次「擷取→稽核→代號比對→品質關卡→最終分類」，
-印出最後會寫進網站的每一檔分類與說明，並和人工核對過的答案比對。
+印出最終分類與說明。網站現況不是正確答案，不作評分或逐檔差異基準。
 
 試算表只讀：所有寫入（操作紀錄、會員持股、每日整理、判定歷程、名稱判定紀錄、辨識日誌）都被攔下。
-一次大約 8～10 次模型呼叫。
+模型呼叫數依原稿、階段與重試而變，以當次用量紀錄為準。
 
-三種檢查，前兩種不需要人工答案，任何一天都能跑：
+兩層檢查與一種可選的獨立草稿對照：
   通用檢查　　每一天都該成立的事（原文明講今天賣掉的要在賣出、說明不帶內部字樣、同一句不講兩遍……）。
-  網站比對　　和試算表裡這一天目前的資料（網站上看到的那一份，含後台補的）逐檔對照，只列出差異。
   答案比對　　scripts/golden/ 有這一天的人工答案時才做。
-結束代碼：0 全部通過；2 答案不符；3 通用檢查有錯。2 和 3 是檢查結果，不是程式壞掉。
+  來源審核　　可傳入事先凍結的代理分類草稿，綁原稿SHA，推論結束才比對；非核定人工答案。
+通用檢查通過不證明分類完整、說明歸屬或正確率。沒有參考時標明未評估。
+結束代碼：0 已執行檢查未報錯（不等於分類正確）；2 核定答案不符；3 通用檢查有錯；4 獨立草稿差異待核。
 
     python scripts/replay_extract.py --date 2026/10/06
     python scripts/replay_extract.py --date 2026/10/06 --golden scripts/golden/2026-10-06.json
@@ -26,6 +27,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / 'scripts'))
+from replay_reference import load_reference, compare_reference
 spec = importlib.util.spec_from_file_location("pipeline_replay", ROOT / "pipeline" / "pipeline.py")
 pl = importlib.util.module_from_spec(spec)
 sys.modules["pipeline_replay"] = pl
@@ -290,6 +293,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--date", required=True)
     ap.add_argument("--golden", default="")
+    ap.add_argument("--independent-review", default="", help="凍結的代理來源審核草稿；同日同原稿SHA，僅推論後比對，不送入模型")
     ap.add_argument("--fresh-verdicts", action="store_true", help="不讀人工與模型裁決快取；保留目標日前的部位及名稱資料")
     ap.add_argument("--report-json", default="", help="保存可比較的唯讀結果與實驗模式，不保存金鑰或通知原文")
     args = ap.parse_args()
@@ -300,6 +304,8 @@ def main():
     raw, polished = pl.existing_transcript(book, "", date, snapshot=snap)
     if not raw:
         raise SystemExit(f"{date} 沒有原始逐字稿")
+    # 在模型請求之前驗證來源綁定；此資料不傳入任何擷取、補問或裁決函式。
+    reference = load_reference(args.independent_review, date, raw) if args.independent_review else None
     context_hashes = {}
     original_known = pl._verdict_known
     def measured_known(*a, **kw):
@@ -317,6 +323,9 @@ def main():
     manifest = {"date": date, "source_sha256": hashlib.sha256(raw.encode('utf-8')).hexdigest(),
                 "build": pl.pipeline_build(), "read_only": True, "classification_injection": False,
                 "golden_comparison": bool(args.golden),
+                "website_as_reference": False,
+                "independent_review": ({k: reference[k] for k in
+                    ('kind', 'review_sha256', 'target_result_exposure')} if reference else None),
                 "verdict_cache": "disabled_including_manual" if args.fresh_verdicts else "existing_table"}
     save_report(dict(manifest, status='started', rows={}, exit_code=None))
 
@@ -334,6 +343,7 @@ def main():
         print(f"名稱判定紀錄讀取略過（{type(e).__name__}）")
 
     print(f"===== 重播 {date}：原始逐字稿 {len(raw)} 字（唯讀，不寫入） =====")
+    print('評估界線：不以網站現況當答案；通用檢查只核對已實作的關卡，不代表分類或說明全面正確。')
     try:
         pl._stage_extract_impl(book, {"id": snap.get("video_id", ""), "title": ""}, date, polished or raw,
                                set(), set(), replace_video=False, v1=raw)
@@ -385,15 +395,21 @@ def main():
         print("  ✗ " + e)
     for w in warns:
         print("  ・提醒　" + w)
-    report, _ = site_compare(signals, site_rows(book, date))
-    print(f"\n===== 與網站目前這一天的資料比對（僅供對照） =====\n{report}")
     code = 3 if errors else 0
+    reference_result = None
+    if reference:
+        reference_result, text_report = compare_reference(signals, reference, date)
+        print(f"\n===== 獨立來源審核草稿比對（非核定答案） =====\n{text_report}")
+        if reference_result['status'] == 'differences_for_review' and not code:
+            code = 4
     if args.golden:
         golden = json.loads(Path(args.golden).read_text(encoding="utf-8"))
         ok, report = compare(signals, golden, date)
         print(f"\n===== 與人工核對的答案比對：{'全部符合' if ok else '有不符'} =====\n{report}")
         if not ok:
             code = 2
+    if not args.golden and not reference:
+        print('\n分類品質：未評估（未提供核定答案或獨立來源審核草稿）；不得由通用檢查綠燈推定正確。')
     if args.report_json:
         published = signals.get('_article_records')
         def public_rows(collection):
@@ -406,11 +422,15 @@ def main():
                   "other_context": "target-day notices, pre-date positions, name memo; not frozen across runs",
                   "position_context_hashes": context_hashes,
                   "rows": rows, "transcript_rows": public_rows(signals),
+                  "independent_review_comparison": reference_result,
+                  "classification_evaluation": ('golden_and_independent_draft' if args.golden and reference else
+                      'golden' if args.golden else 'independent_draft' if reference else 'not_evaluated'),
                   "errors": errors, "warnings": warns, "exit_code": code,
                   "usage": pl.gemini_usage_report(), "verdicts": signals.get('_verdicts', {})}
         save_report(report)
     if code:
-        print(f"\n結束代碼 {code}：這是檢查結果（{'答案不符' if code == 2 else '通用檢查有錯'}），不是程式錯誤。")
+        reason = {2: '核定答案不符', 3: '通用檢查有錯', 4: '獨立來源審核草稿差異待核（非核定答案不符）'}[code]
+        print(f"\n結束代碼 {code}：這是檢查結果（{reason}），不是程式錯誤。")
         sys.exit(code)
 
 

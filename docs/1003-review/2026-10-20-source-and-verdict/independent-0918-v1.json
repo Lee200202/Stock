@@ -1,0 +1,173 @@
+{
+  "mode": "independent_review",
+  "date": "2026/09/18",
+  "video_id": "MANUAL-20260918",
+  "source_sha256": "0ffae69dcccc1b5323661dac774608dad2672b7d4f09ad48cdaf3a26f694c243",
+  "target_result_exposure": "not_read_this_turn_before_freeze",
+  "status": "agent_draft_not_human_gold",
+  "policy": "六類共同定義；個股原句/主體/日期/部位分軸；既有13天不是新日事實",
+  "notification_context": "not_yet_verified; no positive today execution inferred from transcript; verified notices may override",
+  "rows": [
+    {
+      "code": "3529",
+      "name": "力旺",
+      "expected": "unresolved",
+      "basis": "點名權利金族群及代號，未有本股向前看法，單純族群點名不公開",
+      "quote": "3529 立 望"
+    },
+    {
+      "code": "6643",
+      "name": "M31",
+      "expected": "unresolved",
+      "basis": "點名權利金族群，未確認是否承接晶心科持股的共同主體，不假設持有",
+      "quote": "6643M31"
+    },
+    {
+      "code": "6533",
+      "name": "晶心科",
+      "expected": "holdings",
+      "basis": "股票名稱聽寫多次不同，但6533代號、本人股票及會員續抱互相支持",
+      "quote": "這 本 來 就 是 我 的 股 票 嘛"
+    },
+    {
+      "code": "4916",
+      "name": "事欣科",
+      "expected": "unresolved",
+      "basis": "低軌衛星96至106與四星科聽寫可能指事欣科，但未明確念代號，需身分複核，不能僅價格認定",
+      "quote": "這 個 是 低 軌 衛 星"
+    },
+    {
+      "code": "2330",
+      "name": "台積電",
+      "expected": "holdings",
+      "basis": "收尾本人明講仍抱著，非僅開頭漲十元行情",
+      "quote": "台積電我還抱著嘛"
+    },
+    {
+      "code": "2317",
+      "name": "鴻海",
+      "expected": "watch_watch",
+      "basis": "會員沒有鴻海；現回補缺口，下週季線翻揚，明確回檔買點，不是本人已買入",
+      "quote": "我的會員沒有紅海"
+    },
+    {
+      "code": "2354",
+      "name": "鴻準",
+      "expected": "holdings",
+      "basis": "同段明確區分會員有的是鴻準，不能把鴻海買點當其交易價",
+      "quote": "我 的 會 員 有 的 是 紅 準"
+    },
+    {
+      "code": "2303",
+      "name": "聯電",
+      "expected": "watch_avoid",
+      "basis": "159元以上建議個別提問者賣、缺口壓力不宜追，不是本人/全體會員已成交",
+      "quote": "你 今 天 不 應 該 再 買 連 電"
+    },
+    {
+      "code": "2383",
+      "name": "台光電",
+      "expected": "watch_avoid",
+      "basis": "同博基板應避開並點名龍頭，昨日黑K及對應成交量支持風險判斷",
+      "quote": "你 來 看 龍 頭 就 台 光 電"
+    },
+    {
+      "code": "6213",
+      "name": "聯茂",
+      "expected": "watch_avoid",
+      "basis": "同博基板禁買與其昨日跌停黑K量能分析，今日反彈不解除禁令",
+      "quote": "那 你 來 看 連 帽 昨 天 這 一 根 量"
+    },
+    {
+      "code": "6488",
+      "name": "環球晶",
+      "expected": "watch_avoid",
+      "basis": "矽晶圓族群禁買，昨跌35元且今未漲，不把矽晶圓聽寫錯字當京元電子",
+      "quote": "昨 天 環 球 金 跌 35 塊"
+    },
+    {
+      "code": "3037",
+      "name": "欣興",
+      "expected": "watch_avoid",
+      "basis": "ABF禁買，等反彈補缺口再出；對觀眾的解套建議不是本人持有或當日賣出",
+      "quote": "手 中 有 星 星 的 先 不 急"
+    },
+    {
+      "code": "6409",
+      "name": "旭隼",
+      "expected": "holdings",
+      "basis": "逆變器描述與續準近音，明講本人持有、給自己會員籌碼圖並續抱。名稱仍須名錄驗證",
+      "quote": "你們都知道我有一支股票叫做續準"
+    },
+    {
+      "code": "8210",
+      "name": "勤誠",
+      "expected": "watch_watch",
+      "basis": "本人沒有；ETF賣光後不跌，900以下不擋買，明確正面佈局",
+      "quote": "900以下你們買我都不會擋你們"
+    },
+    {
+      "code": "3533",
+      "name": "嘉澤",
+      "expected": "holdings",
+      "basis": "本人明講有，ETF剩120張待賣完預期上漲；1240/1120/120是張數不是價格",
+      "quote": "我有這一支股票加折"
+    },
+    {
+      "code": "3661",
+      "name": "世芯-KY",
+      "expected": "watch_watch",
+      "basis": "明確推薦、三家ETF出清後低檔有人承接；無本人今天買進成交，是否已有部位待當時紀錄",
+      "quote": "四星KY是低檔ETF都賣光了"
+    },
+    {
+      "code": "3443",
+      "name": "創意",
+      "expected": "ignored",
+      "basis": "僅漲停及與世芯對應作比較，沒有獨立前瞻或買點",
+      "quote": "創意漲停"
+    },
+    {
+      "code": "3665",
+      "name": "貿聯-KY",
+      "expected": "ignored",
+      "basis": "作嘉澤對照只說漲停，前瞻是嘉澤，不轉嫁至貿聯",
+      "quote": "加折對應的股票是冒臉"
+    },
+    {
+      "code": "5269",
+      "name": "祥碩",
+      "expected": "holdings_or_watch_watch",
+      "basis": "季線突破下週翻揚，已漲幾百元；那我買的放著語句所指須按部位紀錄核實，原稿足以支持注意",
+      "quote": "想碩長了幾百塊起來了"
+    },
+    {
+      "code": "4966",
+      "name": "譜瑞-KY",
+      "expected": "holdings_or_watch_watch",
+      "basis": "普位近音、高速傳輸，自己假跌破收斂四天並有800多缺口；不借祥碩季線翻揚。部位仍需紀錄核實",
+      "quote": "普位後續的成長性還蠻強的"
+    },
+    {
+      "code": "2404",
+      "name": "漢唐",
+      "expected": "ignored",
+      "basis": "只是下週未具名台積電設備新股的類比，不能當本股推薦",
+      "quote": "它跟漢堂是一樣的"
+    },
+    {
+      "code": "3167",
+      "name": "大量",
+      "expected": "not_a_stock",
+      "basis": "最大量這根K棒是成交量語彙，不是公司",
+      "quote": "最大量的地方找出來"
+    },
+    {
+      "code": "",
+      "name": "其他匿名股票/ETF",
+      "expected": "unresolved",
+      "basis": "251.5漲停/45除息149等無身分，不以價格硬配；ETF出清不等於本人賣出",
+      "quote": ""
+    }
+  ]
+}

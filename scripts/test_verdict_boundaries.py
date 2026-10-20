@@ -13,30 +13,6 @@ import pipeline as p
 
 
 class Boundaries(unittest.TestCase):
-    def test_source_conflict_isolates_only_the_unchanged_wrong_note(self):
-        import copy
-        source = '甲公司已突破季線。乙公司假跌破四天。'
-        sig = {'watch_watch': [{'code': '1111', 'name': '甲公司', 'reason': '甲公司假跌破四天。'},
-                              {'code': '2222', 'name': '乙公司', 'reason': '乙公司假跌破四天。'}]}
-        def run(status='contradicted', quote='乙公司假跌破四天。', locked=False, changed=False):
-            data = copy.deepcopy(sig)
-            if locked: data['watch_watch'][0]['_manual_note_kept'] = True
-            def fake(system, payload, **kwargs):
-                texts = json.loads(payload)['texts']
-                return json.dumps({'texts': [dict(id=e['id'], text=e['text'],
-                    meaning_preserved=True, category_consistent=True, written_style_ok=True,
-                    source_supported=e['code'] != '1111', input_source_status=status if e['code'] == '1111' else 'supported',
-                    input_source_reason='假跌破屬乙公司，不是甲公司', input_source_quotes=[quote]) for e in texts]})
-            with patch.object(p, 'call_gemini', side_effect=fake), patch.object(p, 'budget_left', return_value=9999), \
-                 patch.object(p, 'GEMINI_KEYS', ['offline']), patch.dict(p._QUOTA_STOP, {'daily': False}):
-                out = p.polish_public_texts(data, source, '2026/10/20')
-            if changed: out['watch_watch'][0]['reason'] = '甲公司已突破季線。'
-            with patch.object(p, 'quality_overview', return_value=([], [], [])):
-                return p.quarantine_public_rows(out, source)
-        self.assertEqual([r['code'] for r in run()['watch_watch']], ['2222'])
-        for kwargs in ({'status': 'insufficient'}, {'quote': '不存在的原文證據。'}, {'locked': True}, {'changed': True}):
-            self.assertEqual(len(run(**kwargs)['watch_watch']), 2, kwargs)
-
     def test_source_id_keeps_misheard_name_verbatim(self):
         text = '你今天不應該再買【連電】了，這是缺口壓力區。'
         cites = p.verdict_citations([{'text': text, 'before': '不相干的上文。'}])

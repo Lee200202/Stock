@@ -1,0 +1,375 @@
+{
+  "mode": "independent_review",
+  "target_date": "2026/10/20",
+  "video_id": "MLOiLNJBiEw",
+  "raw_sha256": "7996a07ee0a066fe0a77831e602b82cacc4738d42105c65a6f7608acb7aec812",
+  "raw_chars": 13541,
+  "whole_transcript_read": true,
+  "target_result_exposure": "not_read_this_turn",
+  "review_status": "agent_source_review_draft",
+  "as_of_positions": "not_read_yet",
+  "candidates": [
+    {
+      "code": "2327",
+      "name": "國巨*",
+      "selected_categories": [
+        "watch_avoid"
+      ],
+      "actor": "speaker",
+      "events": "none",
+      "position": "not_holding",
+      "entry_stance": "avoid_now",
+      "quote": "不準碰國巨。",
+      "rationale": "年線沒有到，你們都別想進場。",
+      "status": "decided"
+    },
+    {
+      "code": "2449",
+      "name": "京元電子",
+      "selected_categories": [
+        "watch_avoid"
+      ],
+      "actor": "speaker",
+      "events": "none",
+      "position": "unknown",
+      "entry_stance": "avoid_now",
+      "quote": "不準碰細金源。",
+      "rationale": "原稿金源電／細金源疑為京元電子；待官方名錄與完整語境覆核，不自行擴增永久別名。",
+      "status": "needs_review"
+    },
+    {
+      "code": "6531",
+      "name": "愛普*",
+      "selected_categories": [
+        "watch_avoid"
+      ],
+      "actor": "speaker",
+      "events": "none",
+      "position": "unknown",
+      "entry_stance": "avoid_now",
+      "quote": "愛普，這樣跌。",
+      "rationale": "融資暴增／法人賣，與瑞鼎反向對照；後面會跌指向愛普。",
+      "status": "decided"
+    },
+    {
+      "code": "3661",
+      "name": "世芯-KY",
+      "selected_categories": [
+        "watch_avoid"
+      ],
+      "actor": "speaker",
+      "events": "none",
+      "position": "not_holding",
+      "entry_stance": "avoid_now",
+      "quote": "啊我現在沒有賣股票，我沒有買四星KY。",
+      "rationale": "規劃下一檔、假設下週3400多不是今日買入；仍未進場。",
+      "status": "decided"
+    },
+    {
+      "code": "5536",
+      "name": "聖暉*",
+      "selected_categories": [],
+      "actor": "speaker",
+      "events": "none",
+      "position": "not_holding",
+      "entry_stance": "no_current_view",
+      "quote": "我有沒有賣聖暉，賺這一段，賺這一段？",
+      "rationale": "機會成本的歷史案例；可接受回顧不公開，若另判當下避免買回須附獨立證據。",
+      "status": "decided"
+    },
+    {
+      "code": "6533",
+      "name": "晶心科",
+      "selected_categories": [],
+      "actor": "speaker",
+      "events": "none",
+      "position": "unknown",
+      "entry_stance": "no_current_view",
+      "quote": "我有沒有賣晶心科？",
+      "rationale": "歷史獲利與資金轉換，沒有今日成交或新立場。",
+      "status": "decided"
+    },
+    {
+      "code": null,
+      "name": "預光",
+      "selected_categories": [],
+      "actor": "speaker",
+      "events": "unknown",
+      "position": "unknown",
+      "entry_stance": "unknown",
+      "quote": "我有沒有賣這一支股票，預光？",
+      "rationale": "身分未唯一確定；不能只因賣270幾猜成另一家公司。",
+      "status": "needs_review"
+    },
+    {
+      "code": "2330",
+      "name": "台積電",
+      "selected_categories": [
+        "watch_watch"
+      ],
+      "actor": "speaker",
+      "events": "none",
+      "position": "unknown",
+      "entry_stance": "positive",
+      "quote": "台積電一年在季線以下的次數不多，那你們要好好把握。",
+      "rationale": "本股技術位置、投信93億是台積電；241億是全台股。持股另查目標日之前部位。",
+      "status": "decided"
+    },
+    {
+      "code": "2303",
+      "name": "聯電",
+      "selected_categories": [
+        "watch_watch"
+      ],
+      "actor": "speaker",
+      "events": "none",
+      "position": "not_holding",
+      "entry_stance": "positive",
+      "quote": "130以下，不準賣聯電。",
+      "rationale": "另有明天成熟製程止穩向上；我沒有聯電排除會員部位。不是今日成交。",
+      "status": "decided"
+    },
+    {
+      "code": "6770",
+      "name": "力積電",
+      "selected_categories": [
+        "watch_watch"
+      ],
+      "actor": "speaker",
+      "events": "none",
+      "position": "unknown",
+      "entry_stance": "positive",
+      "quote": "同樣的，成熟製成還有力積電，還有世界先進。",
+      "rationale": "共同明確不要殺低、成熟製程回穩看法；不把130元分派給力積電。持股另核紀錄。",
+      "status": "decided"
+    },
+    {
+      "code": "5347",
+      "name": "世界",
+      "selected_categories": [
+        "watch_watch"
+      ],
+      "actor": "speaker",
+      "events": "none",
+      "position": "unknown",
+      "entry_stance": "positive",
+      "quote": "全部不準在這一個地方去殺低。",
+      "rationale": "緊接力積電與世界先進的共同建議；不是今日買入，也不共用聯電價位。",
+      "status": "decided"
+    },
+    {
+      "code": "2317",
+      "name": "鴻海",
+      "selected_categories": [
+        "watch_watch"
+      ],
+      "actor": "speaker",
+      "events": "none",
+      "position": "unknown",
+      "entry_stance": "positive",
+      "quote": "我有沒有告訴你，鴻海只要240以下， 就有人會買，不是外資， 就有人會買。",
+      "rationale": "昨日239.5及23幾買點與今日現況分時點；沒有今日成交。",
+      "status": "decided"
+    },
+    {
+      "code": "2354",
+      "name": "鴻準",
+      "selected_categories": [
+        "watch_watch"
+      ],
+      "actor": "speaker",
+      "events": "none",
+      "position": "unknown",
+      "entry_stance": "positive",
+      "quote": "啊鴻海漲，紅準也會跟著漲。",
+      "rationale": "本股向前預期，可列注意；如有可靠未出場紀錄可列持股，但不得以今日卡片倒證。",
+      "status": "decided"
+    },
+    {
+      "code": "2344",
+      "name": "華邦電",
+      "selected_categories": [
+        "watch_avoid"
+      ],
+      "actor": "speaker",
+      "events": "none",
+      "position": "unknown",
+      "entry_stance": "avoid_now",
+      "quote": "華邦電南亞科我幾乎不太看了。",
+      "rationale": "當沖隔日沖干擾、不喜歡參與的本股與共同立場。",
+      "status": "decided"
+    },
+    {
+      "code": "2408",
+      "name": "南亞科",
+      "selected_categories": [
+        "watch_avoid"
+      ],
+      "actor": "speaker",
+      "events": "none",
+      "position": "unknown",
+      "entry_stance": "avoid_now",
+      "quote": "華邦電南亞科就每天隔日衝、當沖的在裡面搞來搞去、搞得很煩，我不喜歡那一種東西。",
+      "rationale": "明講不關注此兩檔，非只有中性點名。",
+      "status": "decided"
+    },
+    {
+      "code": "8299",
+      "name": "群聯",
+      "selected_categories": [
+        "watch_watch"
+      ],
+      "actor": "speaker",
+      "events": "none",
+      "position": "not_holding",
+      "entry_stance": "positive",
+      "quote": "宜鼎來到年線，群聯也來到年線，那你還有什麼好緊張的？",
+      "rationale": "明講沒有群聯，有年線佈局條件；EPS187可能聽打數字，未核不可改寫為18.7或自行放大。",
+      "status": "decided"
+    },
+    {
+      "code": "5289",
+      "name": "宜鼎",
+      "selected_categories": [
+        "watch_watch"
+      ],
+      "actor": "speaker",
+      "events": "none",
+      "position": "not_holding",
+      "entry_stance": "positive",
+      "quote": "我分析這個東西是為了要教你們，選股票，如果你的股票來到年線，你就好好的佈局，等它",
+      "rationale": "明講沒有宜鼎；年線位置＋佈局正面條件。",
+      "status": "decided"
+    },
+    {
+      "code": "8454",
+      "name": "富邦媒",
+      "selected_categories": [],
+      "actor": "speaker",
+      "events": "none",
+      "position": "not_holding",
+      "entry_stance": "no_current_view",
+      "quote": "現在我有買富邦美嗎？我根本沒有買啊。",
+      "rationale": "過往持有、賣出教學，沒有當前新買點或交易。",
+      "status": "decided"
+    },
+    {
+      "code": "3491",
+      "name": "達邁",
+      "selected_categories": [
+        "holdings"
+      ],
+      "actor": "speaker",
+      "events": "none",
+      "position": "holding",
+      "entry_stance": "unknown",
+      "quote": "達邁是我們的股票。",
+      "rationale": "當前持有聲明，資訊少可短寫，不借匿名圖表。",
+      "status": "decided"
+    },
+    {
+      "code": "2402",
+      "name": "毅嘉",
+      "selected_categories": [
+        "holdings"
+      ],
+      "actor": "speaker",
+      "events": "none",
+      "position": "holding",
+      "entry_stance": "unknown",
+      "quote": "億佳是我們的股票。",
+      "rationale": "已知聽打近音，本股明講持有，沒有具名技術依據不補別股。",
+      "status": "decided"
+    },
+    {
+      "code": "5269",
+      "name": "祥碩",
+      "selected_categories": [
+        "holdings"
+      ],
+      "actor": "speaker",
+      "events": "none",
+      "position": "holding",
+      "entry_stance": "unknown",
+      "quote": "想碩是我們的股票。",
+      "rationale": "已知聽打近音，本股明講持有。",
+      "status": "decided"
+    },
+    {
+      "code": "3533",
+      "name": "嘉澤",
+      "selected_categories": [
+        "holdings"
+      ],
+      "actor": "speaker",
+      "events": "none",
+      "position": "holding",
+      "entry_stance": "unknown",
+      "quote": "嘉澤是我們的股票。",
+      "rationale": "具名持有；1580元段落未具名，未核歸屬不直接配給嘉澤。",
+      "status": "decided"
+    },
+    {
+      "code": "3592",
+      "name": "瑞鼎",
+      "selected_categories": [
+        "holdings"
+      ],
+      "actor": "speaker",
+      "events": "none",
+      "position": "holding",
+      "entry_stance": "positive",
+      "quote": "瑞鼎是我們的股票。",
+      "rationale": "瑞鼎融資減、外資投信買、法人庫存增加，與愛普籌碼相反。",
+      "status": "decided"
+    },
+    {
+      "code": "5274",
+      "name": "信驊",
+      "selected_categories": [],
+      "actor": "speaker",
+      "events": "none",
+      "position": "unknown",
+      "entry_stance": "no_current_view",
+      "quote": "想買信化，就買信化。",
+      "rationale": "假設隨意想買的舉例，未提供本股當下分析。",
+      "status": "decided"
+    },
+    {
+      "code": "2059",
+      "name": "川湖",
+      "selected_categories": [],
+      "actor": "speaker",
+      "events": "none",
+      "position": "unknown",
+      "entry_stance": "no_current_view",
+      "quote": "想買穿湖，就買穿湖。",
+      "rationale": "假設句，非會員持有或今日買進。",
+      "status": "decided"
+    },
+    {
+      "code": null,
+      "name": "未具名會員持股／蘋果摺疊機／隱形版光通訊",
+      "selected_categories": [],
+      "actor": "speaker",
+      "events": "none",
+      "position": "holding",
+      "entry_stance": "positive",
+      "quote": "我昨天要是沒有講，我肚子痛，好不好？",
+      "rationale": "有持有與技術語意但本日原稿沒有名稱，不以價位、產業或既有文章強猜。",
+      "status": "needs_review"
+    },
+    {
+      "code": null,
+      "name": "ETF00981A／00406A",
+      "selected_categories": [],
+      "actor": "speaker",
+      "events": "none",
+      "position": "unknown",
+      "entry_stance": "no_current_view",
+      "quote": "00981A昨天",
+      "rationale": "說明台積電資金流，不新增個股卡，ETF代號聽打另留待核。",
+      "status": "needs_review"
+    }
+  ]
+}

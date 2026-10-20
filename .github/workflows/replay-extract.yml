@@ -79,6 +79,9 @@ jobs:
             ARGS+=(--independent-review "$REVIEW_PATH")
           fi
           python scripts/replay_extract.py "${ARGS[@]}"
+      - name: 診斷摘要（不以網站為答案）
+        if: always()
+        run: python scripts/summarize_replay.py .replay-report/result.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:

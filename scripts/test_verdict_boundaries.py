@@ -13,6 +13,50 @@ import pipeline as p
 
 
 class Boundaries(unittest.TestCase):
+    def run_entry_candidate(self, text, stance, valid=True):
+        signals = {k: [] for k in p._VERDICT_ORDER}
+        signals['watch_watch'] = [{'code': '1111', 'name': '甲公司', 'reason': '候選看法', 'evidence': []}]
+        seen = p._class_snapshot({k: [] for k in p._VERDICT_ORDER})
+        def fact_batch(items, *args, **kwargs):
+            if not valid:
+                return {}
+            result = {}
+            for code, item in items:
+                cites = p.verdict_citations(item['passages'])
+                fields = ('buy_today', 'sell_today', 'holding_now', 'past_trade', 'stance')
+                a = {'id': code, 'holding_actor': 'none', 'scope_relation': 'own', 'now': stance,
+                     'exit_advice': 'none', 'tone': 'bearish' if stance == 'prohibit' else 'bullish',
+                     'shared_rule_ids': [], 'unsure': '', 'buy_today': False, 'sell_today': False,
+                     'holding_now': False, 'past_trade': False, 'about_itself': True,
+                     'quote_ids': {k: [x['id'] for x in cites] if k == 'stance' else [] for k in fields}}
+                result[code] = p.bind_verdict_citations(a, cites, require_facts=True)
+            return result
+        with patch.object(p, '_verdict_known', return_value=({}, set(), {})), \
+             patch.object(p, '_verdict_cache', return_value={}), \
+             patch.object(p, '_ask_verdicts', side_effect=fact_batch) as ask, \
+             patch.object(p, '_audit_direct_verdicts', return_value=[]), \
+             patch.object(p, '_CODE_MAP', {'1111': '甲公司'}), \
+             patch.object(p, 'budget_left', return_value=9999), patch.object(p, 'GEMINI_KEYS', ['offline']), \
+             patch.dict(p._QUOTA_STOP, {'daily': False}):
+            out = p._adjudicate_classes(object(), signals, text, '2026/10/20', seen, seen, 'on')
+        self.assertGreater(ask.call_count, 0)
+        self.assertNotEqual(out['_verdicts']['1111']['tier'], '直接歸類')
+        return out
+
+    def test_entry_question_never_bypasses_structured_final_answer(self):
+        text = '甲公司今天漲，那是不是甲公司可以買了？甲公司融資增加，法人持續賣出，我不選這一種。'
+        out = self.run_entry_candidate(text, 'prohibit')
+        self.assertEqual([r['code'] for r in out['watch_avoid']], ['1111'])
+        self.assertFalse(out['watch_watch'])
+
+    def test_explicit_entry_survives_source_bound_batch_confirmation(self):
+        out = self.run_entry_candidate('我說甲公司可以買，甲公司回到季線，可以佈局。', 'buy_ok')
+        self.assertEqual([r['code'] for r in out['watch_watch']], ['1111'])
+
+    def test_entry_candidate_with_missing_answers_is_not_lexically_published(self):
+        out = self.run_entry_candidate('甲公司今天漲，是不是甲公司可以買了？', 'none', valid=False)
+        self.assertFalse(out['watch_watch'])
+
     def disputed(self, target='watch_avoid', last='watch_watch'):
         votes = [target, last, target]
         return {'name': '甲公司', 'current': 'ignored', 'cls': 'ignored', 'basis': '測試分歧', 'answer': {},
@@ -114,6 +158,8 @@ class Boundaries(unittest.TestCase):
         props = cfg['responseJsonSchema']['properties']['verdicts']['items']
         self.assertIn('exit_advice', props['required'])
         self.assertIn('quote_ids', props['required'])
+        self.assertEqual(cfg['thinkingConfig']['thinkingLevel'], 'high')
+        self.assertGreaterEqual(cfg['maxOutputTokens'], min(p.MAX_OUT, 8192))
 
     def answer(self, text, **fields):
         return dict(about_itself=True, now='none', tone='neutral', quotes={'stance': [text]}, **fields)

@@ -2073,11 +2073,15 @@ def gemini_generation_config(model, max_out=MAX_OUT, thinking=0, want_json=False
     """Shared by production and smoke tests; rebuilt after each model rotation."""
     cfg = {"maxOutputTokens": min(max_out, MAX_OUT)}
     if re.search(r'gemini-3(?:\.|-)', model):
-        level = (os.environ.get('GEMINI_THINKING_LEVEL', '').strip().lower() or 'medium')
+        verdict = tag.startswith('adjudicate-r')
+        level = (os.environ.get('GEMINI_VERDICT_THINKING_LEVEL' if verdict else 'GEMINI_THINKING_LEVEL', '').strip().lower()
+                 or ('high' if verdict else 'medium'))
         if level not in ('low', 'medium', 'high'):
             raise ValueError('GEMINI_THINKING_LEVEL 必須是 low、medium 或 high')
         cfg['thinkingConfig'] = {'thinkingLevel': level}
         cfg['maxOutputTokens'] = min(MAX_OUT, max(max_out, 4096))
+        if verdict and level == 'high':
+            cfg['maxOutputTokens'] = min(MAX_OUT, max(max_out, 8192))
     else:
         cfg['temperature'] = 0.1
         if 'gemini-2.5' in model:
@@ -13252,14 +13256,14 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v24-20261020-recheck"   # 三輪未定且兩票有原句支持的觀望，合批追加一次衝突覆核。
+VERDICT_VERSION = "v25-20261020-entry"     # 推薦疑句不直接升格；缺少依據的初判不代替合批語意核對。
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 3                   # 常規三輪；兩份新事實題支持而未定的觀望，僅追加一次合批覆核，沿用15RPM限流。
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
 VERDICT_REQUEST_CHARS = 48000            # 一個請求裝多少字的輸入（約五萬多 token）。一天的量通常一個請求就裝完
 VERDICT_NEUTRAL_CLASS = 'ignored'        # 只描述行情、沒有偏多偏空的結論：不列（2026/10/08 管理者規則）
 _VERDICT_LABEL = {'buy': '買入', 'sell': '賣出', 'holdings': '會員持股', 'watch_watch': '觀望注意', 'watch_avoid': '觀望不碰',
-                  'history': '回顧', 'uncertain': '待確認', 'ignored': '排除', '': '未列'}
+                  'history': '回顧', 'uncertain': '待確認', 'ignored': '排除', '': '無效／缺答（不計票）'}
 _VERDICT_ORDER = ('buy', 'sell', 'holdings', 'watch_avoid', 'watch_watch', 'history', 'uncertain', 'ignored')
 _VERDICT_HIDDEN = ('history', 'uncertain', 'ignored', '')
 
@@ -14078,7 +14082,12 @@ def verdict_unopposed_watch_facts(entry):
 
 def close_watch_disputes(verdicts, pending, transcript, date_str):
     """一次合批新判讀；仍須第三份同向原句，不將兩票自動當公開分類。"""
-    if not pending or _QUOTA_STOP.get('daily') or budget_left() < 300 or not GEMINI_KEYS:
+    if not pending:
+        return
+    if _QUOTA_STOP.get('daily') or budget_left() < 300 or not GEMINI_KEYS:
+        for code, _ in pending:
+            verdicts[code]['closure_check'] = {'accepted': False, 'status': 'not_run',
+                'basis': '額度、時間或金鑰不足；未執行覆核，不計反對票'}
         return
     answers = _ask_verdicts(pending, date_str, VERDICT_MAX_ROUNDS, reference_source=transcript)
     for code, item in pending:
@@ -14503,8 +14512,8 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             else:
                 approved = _explicit_approval(names, transcript)
                 if approved:
-                    entry.update(cls='watch_watch', tier='直接歸類', basis='原文明講可以買：' + approved, enforce=True)
-                    continue
+                    # 可以買的字樣也可能出現在反問裡。只記候選，交同一批事實問卷讀完回答，不先升格再請模型猜同不同意。
+                    entry['approval_candidate'] = approved
         if closed:
             entry.update(cls='watch_avoid', tier='直接歸類', basis='同句點名且明確當下禁買：' + closed,
                          enforce=True)
@@ -14609,8 +14618,10 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             if entry['current'] == 'watch_avoid' and cls in ('watch_watch', 'history', 'ignored') and item.get('_closed'):
                 cls, basis = 'watch_avoid', '點名本股的那一句明講不適合再買：' + item['_closed'][-40:]
             entry['votes'].append(cls)
-            entry.setdefault('fact_votes', []).append({'class': cls, 'verified': bool(
-                isinstance(answers.get(code), dict) and answers[code].get('_facts_schema') == VERDICT_VERSION and cls)})
+            entry.setdefault('fact_votes', []).append({'class': cls, 'basis': basis,
+                'verified': bool(isinstance(answers.get(code), dict) and answers[code].get('_facts_schema') == VERDICT_VERSION and cls),
+                'facts': {k: answers[code].get(k) for k in ('now', 'exit_advice', 'tone', 'about_itself', 'holding_actor')}
+                         if isinstance(answers.get(code), dict) else {}})
             view, _ = verdict_class(dict(answers[code], buy_today=False, sell_today=False, holding_now=False),
                                     item['_norm'], item['_names'], zones) if isinstance(answers.get(code), dict) else ('', '')
             entry.setdefault('view_votes', []).append(view == 'watch_watch')
@@ -14626,6 +14637,9 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             state, decided, why = verdict_settle(base, entry['votes'],
                                                  last=round_no == VERDICT_MAX_ROUNDS - 1, open_position=bool(entry.get('open')),
                                                  late=bool(entry.get('late')))
+            if (state == '定案' and decided in _VERDICT_HIDDEN and len(entry['votes']) == 1
+                    and isinstance(answers.get(code), dict) and answers[code].get('_facts_schema') == VERDICT_VERSION):
+                state, decided, why = '再問', '', '不公開決定也至少核對兩份完整事實題，避免只讀點名句便提前結束'
             if state == '再問':
                 still.append((code, item))
                 continue
@@ -14717,7 +14731,11 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
         if entry['tier'] in ('裁決', '沿用裁決', '未定', '人工裁決') or entry['cls'] != entry['current']:
             votes = '／'.join(_VERDICT_LABEL.get(v, v) or '不能用' for v in entry['votes'])
             print(f"  分類裁決　{entry['name']}（{code}）{entry['tier']}：流程「{_VERDICT_LABEL.get(entry['current'], entry['current'])}」"
-                  + (f"、問卷「{votes}」" if votes else '') + f" → {_VERDICT_LABEL.get(entry['cls'], entry['cls'])}｜{entry['basis'][:110]}")
+                  + (f"、問卷「{votes}」" if votes else '') + f" → {_VERDICT_LABEL.get(entry['cls'], entry['cls'])}｜{entry['basis']}")
+            if entry['cls'] in _VERDICT_HIDDEN:
+                for i, fact in enumerate(entry.get('fact_votes', []), 1):
+                    print(f"    　第{i}輪：{_VERDICT_LABEL.get(fact.get('class'), fact.get('class'))}；"
+                          f"原句核對={fact.get('basis')}；事實題={json.dumps(fact.get('facts', {}), ensure_ascii=False)}")
             for cls, kept_answer in (entry.get('answer') or {}).items():
                 a = kept_answer.get('answer') or {}
                 facts = [k for k in ('buy_today', 'sell_today', 'holding_now', 'past_trade', 'about_itself') if a.get(k) is True]

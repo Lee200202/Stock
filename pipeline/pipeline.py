@@ -14480,6 +14480,8 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                 entry.setdefault('unusable_answers', []).append({'round': round_no + 1, 'basis': basis,
                                                                   'answer': answers.get(code)})
                 item['_validation_feedback'] = basis
+                note_decision('裁決引句檢查', '無效票不計數', code,
+                              f'第{round_no + 1}輪：{basis}；來源與主體門檻保留，不把無效票當成反對票')
             if cls and not entry['answer'].get(cls):
                 entry['answer'][cls] = {'basis': basis, 'answer': answers.get(code)}
             base = verdict_comparison_base(entry)

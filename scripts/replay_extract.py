@@ -6,7 +6,7 @@
 
 兩層檢查與一種可選的獨立草稿對照：
   通用檢查　　每一天都該成立的事（原文明講今天賣掉的要在賣出、說明不帶內部字樣、同一句不講兩遍……）。
-  答案比對　　scripts/golden/ 有這一天的人工答案時才做。
+  答案比對　　scripts/golden/ 有這一天的既有答案檔時才做；審核來源與範圍依檔案紀錄，不由路徑推定人工核定。
   來源審核　　可傳入事先凍結的代理分類草稿，綁原稿SHA，推論結束才比對；非核定人工答案。
 通用檢查通過不證明分類完整、說明歸屬或正確率。沒有參考時標明未評估。
 結束代碼：0 已執行檢查未報錯（不等於分類正確）；2 核定答案不符；3 通用檢查有錯；4 獨立草稿差異待核。
@@ -292,7 +292,7 @@ def site_compare(signals, current):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--date", required=True)
-    ap.add_argument("--golden", default="")
+    ap.add_argument("--golden", default="", help="既有答案檔；審核來源與適用範圍以檔內紀錄為準")
     ap.add_argument("--independent-review", default="", help="凍結的代理來源審核草稿；同日同原稿SHA，僅推論後比對，不送入模型")
     ap.add_argument("--fresh-verdicts", action="store_true", help="不讀人工與模型裁決快取；保留目標日前的部位及名稱資料")
     ap.add_argument("--report-json", default="", help="保存可比較的唯讀結果與實驗模式，不保存金鑰或通知原文")
@@ -405,7 +405,7 @@ def main():
     if args.golden:
         golden = json.loads(Path(args.golden).read_text(encoding="utf-8"))
         ok, report = compare(signals, golden, date)
-        print(f"\n===== 與人工核對的答案比對：{'全部符合' if ok else '有不符'} =====\n{report}")
+        print(f"\n===== 與既有答案檔比對（審核範圍依檔內紀錄）：{'全部符合' if ok else '有不符'} =====\n{report}")
         if not ok:
             code = 2
     if not args.golden and not reference:

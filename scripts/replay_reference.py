@@ -8,6 +8,23 @@ LABELS = {'buy': '買入', 'sell': '賣出', 'holdings': '會員持股',
           'watch_watch': '觀望注意', 'watch_avoid': '觀望不碰'}
 
 
+def workflow_diagnostic(signals, code, actual):
+    """只摘取流程痕跡；它是原因線索，不能代替來源判斷或替缺答決定語意。"""
+    entry = (signals.get('_verdicts') or {}).get(code)
+    if not isinstance(entry, dict):
+        return {'status': 'no_verdict_trace', 'basis': '沒有本股裁決痕跡，需回查候選建立或其他隔離階段'}
+    votes = list(entry.get('votes') or [])
+    invalid = [{'round': a.get('round'), 'basis': a.get('basis')}
+               for a in entry.get('unusable_answers') or [] if isinstance(a, dict)]
+    incomplete = bool(invalid or any(not v for v in votes))
+    status = ('review_incomplete' if incomplete else 'post_verdict_check' if
+              entry.get('cls') in CATEGORIES and entry.get('cls') not in actual else 'verdict_trace')
+    return {'status': status, 'initial_class': entry.get('current'), 'final_class': entry.get('cls'),
+            'tier': entry.get('tier'), 'votes': votes, 'basis': str(entry.get('basis') or '')[:600],
+            'invalid_answers': invalid,
+            'incomplete_is_not_evidence_of_no_stance': incomplete}
+
+
 def load_reference(path, date, raw):
     """只接受綁定同日同原稿的代理草稿；未知身分／待核項不當成不收錄答案。"""
     payload = Path(path).read_bytes()
@@ -80,6 +97,7 @@ def compare_reference(signals, reference, date):
         kind = ('missing' if expected and not got else 'unexpected_collection' if not expected else
                 'direction_or_category_difference')
         differences.append({'code': code, **judgment, 'actual': sorted(got), 'difference': kind,
+                            'workflow_diagnostic': workflow_diagnostic(signals, code, got),
                             'holding_watch_label_only': bool(expected and got and
                                 expected | got <= {'holdings', 'watch_watch'})})
     unknown_codes = {r['code'] for r in reference['unresolved'] if r['code']}
@@ -98,6 +116,10 @@ def compare_reference(signals, reference, date):
         lines.append(f"  ≠ {row['name']}（{row['code']}）來源審核草稿：{label(row['expected'])}；"
                      f"流程輸出：{label(row['actual'])}；差異：{row['difference']}")
         lines.append(f"    判斷依據：{row['basis']}；引句：{row['quote']}")
+        trace = row['workflow_diagnostic']
+        lines.append(f"    流程痕跡：{trace['status']}；{trace['basis']}")
+        if trace.get('incomplete_is_not_evidence_of_no_stance'):
+            lines.append('    有無效／缺答，表示審核未完成，不能推定本股沒有立場。')
     if unreviewed:
         lines.append('  未有獨立判斷的流程輸出，待核：' + '、'.join(unreviewed))
     return result, '\n'.join(lines)

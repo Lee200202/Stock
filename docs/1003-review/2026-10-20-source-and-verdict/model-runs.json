@@ -1,0 +1,814 @@
+[
+  {
+    "date": "2026/10/20",
+    "source_sha256": "7996a07ee0a066fe0a77831e602b82cacc4738d42105c65a6f7608acb7aec812",
+    "build": "469daf1·1ec4d409",
+    "read_only": true,
+    "classification_injection": false,
+    "golden_comparison": false,
+    "verdict_cache": "disabled_including_manual",
+    "other_context": "target-day notices, pre-date positions, name memo; not frozen across runs",
+    "position_context_hashes": {
+      "known_with_open": "096266a70ead61a7675f35a256a26d887a0af7b921bbb7184dbdd0bd1d9a81fb"
+    },
+    "errors": [
+      "愛普（6531）原文有直白說法卻沒有收錄：愛普漲欸，那是不是愛普可以買了？"
+    ],
+    "exit_code": 3,
+    "usage": "本輪呼叫 Gemini 15 次（約 5.4 次/分，節流上限 15 次/分）　adjudicate-r 3、context-review 2、stock-context 2、assess-json- 1、excluded-review 1、unclear 1、direct-audit 1、theme-judge 1",
+    "run": "39391616194",
+    "rows": {
+      "buy": [],
+      "sell": [],
+      "holdings": [
+        "3645",
+        "2402",
+        "5269",
+        "3533",
+        "6770",
+        "3592",
+        "2354"
+      ],
+      "watch_watch": [
+        "5347",
+        "2330",
+        "8299"
+      ],
+      "watch_avoid": [
+        "2327"
+      ]
+    },
+    "review_kind": "agent_source_draft_not_human_gold",
+    "comparison": {
+      "scope": "decided candidates only; unresolved excluded, not counted as correct exclusions",
+      "missing": [
+        {
+          "code": "6531",
+          "name": "愛普*",
+          "expected": [
+            "watch_avoid"
+          ]
+        },
+        {
+          "code": "3661",
+          "name": "世芯-KY",
+          "expected": [
+            "watch_avoid"
+          ]
+        },
+        {
+          "code": "2303",
+          "name": "聯電",
+          "expected": [
+            "watch_watch"
+          ]
+        },
+        {
+          "code": "2317",
+          "name": "鴻海",
+          "expected": [
+            "watch_watch"
+          ]
+        },
+        {
+          "code": "2344",
+          "name": "華邦電",
+          "expected": [
+            "watch_avoid"
+          ]
+        },
+        {
+          "code": "2408",
+          "name": "南亞科",
+          "expected": [
+            "watch_avoid"
+          ]
+        },
+        {
+          "code": "5289",
+          "name": "宜鼎",
+          "expected": [
+            "watch_watch"
+          ]
+        }
+      ],
+      "label_mismatches": [],
+      "false_collections": [],
+      "accepted_policy_label_mismatches": [],
+      "accepted_policy": "holding/watch grouped for content evaluation only; actual ownership still needs evidence",
+      "unreviewed_output_codes": [],
+      "classification_does_not_validate_note_ownership": true
+    }
+  },
+  {
+    "date": "2026/10/20",
+    "source_sha256": "7996a07ee0a066fe0a77831e602b82cacc4738d42105c65a6f7608acb7aec812",
+    "build": "6581396·63af7915",
+    "read_only": true,
+    "classification_injection": false,
+    "golden_comparison": false,
+    "verdict_cache": "disabled_including_manual",
+    "other_context": "target-day notices, pre-date positions, name memo; not frozen across runs",
+    "position_context_hashes": {
+      "known_with_open": "096266a70ead61a7675f35a256a26d887a0af7b921bbb7184dbdd0bd1d9a81fb"
+    },
+    "errors": [
+      "愛普（6531）原文有直白說法卻沒有收錄：愛普漲欸，那是不是愛普可以買了？"
+    ],
+    "exit_code": 3,
+    "usage": "本輪呼叫 Gemini 18 次（約 6.9 次/分，節流上限 15 次/分）　adjudicate-r 3、context-review 2、theme-judge 2、summary-topup 2、stock-context 2、assess-json- 1、excluded-review 1、unclear 1",
+    "run": "39392228588",
+    "rows": {
+      "buy": [],
+      "sell": [],
+      "holdings": [
+        "3645",
+        "2402",
+        "5269",
+        "3533",
+        "3592",
+        "2354",
+        "6770"
+      ],
+      "watch_watch": [
+        "2303",
+        "8299",
+        "2330",
+        "5289"
+      ],
+      "watch_avoid": [
+        "2327"
+      ]
+    },
+    "review_kind": "agent_source_draft_not_human_gold",
+    "comparison": {
+      "scope": "decided candidates only; unresolved excluded, not counted as correct exclusions",
+      "missing": [
+        {
+          "code": "6531",
+          "name": "愛普*",
+          "expected": [
+            "watch_avoid"
+          ]
+        },
+        {
+          "code": "3661",
+          "name": "世芯-KY",
+          "expected": [
+            "watch_avoid"
+          ]
+        },
+        {
+          "code": "5347",
+          "name": "世界",
+          "expected": [
+            "watch_watch"
+          ]
+        },
+        {
+          "code": "2317",
+          "name": "鴻海",
+          "expected": [
+            "watch_watch"
+          ]
+        },
+        {
+          "code": "2344",
+          "name": "華邦電",
+          "expected": [
+            "watch_avoid"
+          ]
+        },
+        {
+          "code": "2408",
+          "name": "南亞科",
+          "expected": [
+            "watch_avoid"
+          ]
+        }
+      ],
+      "label_mismatches": [],
+      "false_collections": [],
+      "accepted_policy_label_mismatches": [],
+      "accepted_policy": "holding/watch grouped for content evaluation only; actual ownership still needs evidence",
+      "unreviewed_output_codes": [],
+      "classification_does_not_validate_note_ownership": true
+    }
+  },
+  {
+    "date": "2026/09/18",
+    "source_sha256": "0ffae69dcccc1b5323661dac774608dad2672b7d4f09ad48cdaf3a26f694c243",
+    "build": "53f411b·2cf7c9e4",
+    "read_only": true,
+    "classification_injection": false,
+    "golden_comparison": false,
+    "verdict_cache": "disabled_including_manual",
+    "other_context": "target-day notices, pre-date positions, name memo; not frozen across runs",
+    "position_context_hashes": {
+      "known_with_open": "ad29a0376e59450d00dbc1b150533ba7b1c8c46ae03d7aef934d872f47da045e"
+    },
+    "errors": [
+      "聯電（2303）原文有直白說法卻沒有收錄：所以你今天不應該再買連電了不然很多人都說連電比較強啊你連電補缺口了你再去買你就是"
+    ],
+    "exit_code": 3,
+    "usage": "本輪呼叫 Gemini 15 次（約 5.2 次/分，節流上限 15 次/分）　adjudicate-r 3、context-review 2、stock-context 2、assess-json- 1、excluded-review 1、unclear 1、theme-judge 1、industry-pick 1",
+    "run": "39392842130",
+    "rows": {
+      "buy": [],
+      "sell": [],
+      "holdings": [
+        "6533",
+        "2354",
+        "3661",
+        "2330"
+      ],
+      "watch_watch": [
+        "2317",
+        "8210",
+        "5269",
+        "4966",
+        "3529",
+        "6643"
+      ],
+      "watch_avoid": [
+        "6488",
+        "2383"
+      ]
+    },
+    "review_kind": "agent_source_draft_not_human_gold"
+  },
+  {
+    "date": "2026/09/18",
+    "source_sha256": "0ffae69dcccc1b5323661dac774608dad2672b7d4f09ad48cdaf3a26f694c243",
+    "build": "43be94b·e471c16a",
+    "read_only": true,
+    "classification_injection": false,
+    "golden_comparison": false,
+    "verdict_cache": "disabled_including_manual",
+    "other_context": "target-day notices, pre-date positions, name memo; not frozen across runs",
+    "position_context_hashes": {
+      "known_with_open": "ad29a0376e59450d00dbc1b150533ba7b1c8c46ae03d7aef934d872f47da045e"
+    },
+    "errors": [],
+    "exit_code": 0,
+    "usage": "本輪呼叫 Gemini 14 次（約 6.7 次/分，節流上限 15 次/分）　adjudicate-r 3、context-review 2、stock-context 2、assess-json- 1、excluded-review 1、theme-judge 1、industry-pick 1、unnamed-stock 1",
+    "run": "39424324710",
+    "rows": {
+      "buy": [],
+      "sell": [],
+      "holdings": [
+        "6533",
+        "2354",
+        "3533",
+        "3661",
+        "2330",
+        "3529"
+      ],
+      "watch_watch": [
+        "2317",
+        "5269",
+        "4966"
+      ],
+      "watch_avoid": [
+        "2303",
+        "6488",
+        "2383"
+      ]
+    },
+    "review_kind": "agent_source_draft_not_human_gold"
+  },
+  {
+    "date": "2026/09/18",
+    "source_sha256": "0ffae69dcccc1b5323661dac774608dad2672b7d4f09ad48cdaf3a26f694c243",
+    "build": "f8f80ba·0e9082f7",
+    "read_only": true,
+    "classification_injection": false,
+    "golden_comparison": false,
+    "verdict_cache": "disabled_including_manual",
+    "other_context": "target-day notices, pre-date positions, name memo; not frozen across runs",
+    "position_context_hashes": {
+      "known_with_open": "ad29a0376e59450d00dbc1b150533ba7b1c8c46ae03d7aef934d872f47da045e"
+    },
+    "errors": [],
+    "exit_code": 0,
+    "usage": "本輪呼叫 Gemini 19 次（約 8.0 次/分，節流上限 15 次/分）　adjudicate-r 3、theme-judge 3、context-review 2、summary-topup 2、stock-context 2、assess-json- 1、excluded-review 1、unclear 1",
+    "run": "39424907221",
+    "rows": {
+      "buy": [],
+      "sell": [],
+      "holdings": [
+        "2354",
+        "6533",
+        "3661",
+        "2330"
+      ],
+      "watch_watch": [
+        "2317",
+        "5269",
+        "4966",
+        "8210"
+      ],
+      "watch_avoid": [
+        "2303",
+        "6488",
+        "2383"
+      ]
+    },
+    "review_kind": "agent_source_draft_not_human_gold"
+  },
+  {
+    "date": "2026/10/20",
+    "source_sha256": "7996a07ee0a066fe0a77831e602b82cacc4738d42105c65a6f7608acb7aec812",
+    "build": "d4b1737·e471c16a",
+    "read_only": true,
+    "classification_injection": false,
+    "golden_comparison": false,
+    "verdict_cache": "disabled_including_manual",
+    "other_context": "target-day notices, pre-date positions, name memo; not frozen across runs",
+    "position_context_hashes": {
+      "known_with_open": "096266a70ead61a7675f35a256a26d887a0af7b921bbb7184dbdd0bd1d9a81fb"
+    },
+    "errors": [
+      "台積電（2330）原文有直白說法卻沒有收錄：所以，投資朋友你要注意，台積電是你最不用擔心的。"
+    ],
+    "exit_code": 3,
+    "usage": "本輪呼叫 Gemini 17 次（約 5.1 次/分，節流上限 15 次/分）　adjudicate-r 3、context-review 2、theme-judge 2、stock-context 2、assess-json- 1、excluded-review 1、unclear 1、direct-audit 1",
+    "run": "39425870611",
+    "rows": {
+      "buy": [],
+      "sell": [],
+      "holdings": [
+        "3645",
+        "2402",
+        "5269",
+        "3533",
+        "3592",
+        "6770",
+        "2354"
+      ],
+      "watch_watch": [
+        "2303",
+        "8299",
+        "2317"
+      ],
+      "watch_avoid": [
+        "2327",
+        "6531",
+        "5347",
+        "3661"
+      ]
+    },
+    "review_kind": "agent_source_draft_not_human_gold",
+    "comparison": {
+      "scope": "decided candidates only; unresolved excluded, not counted as correct exclusions",
+      "missing": [
+        {
+          "code": "2330",
+          "name": "台積電",
+          "expected": [
+            "watch_watch"
+          ]
+        },
+        {
+          "code": "2344",
+          "name": "華邦電",
+          "expected": [
+            "watch_avoid"
+          ]
+        },
+        {
+          "code": "2408",
+          "name": "南亞科",
+          "expected": [
+            "watch_avoid"
+          ]
+        },
+        {
+          "code": "5289",
+          "name": "宜鼎",
+          "expected": [
+            "watch_watch"
+          ]
+        }
+      ],
+      "label_mismatches": [
+        {
+          "code": "5347",
+          "name": "世界",
+          "expected": [
+            "watch_watch"
+          ],
+          "actual": [
+            "watch_avoid"
+          ]
+        }
+      ],
+      "false_collections": [],
+      "accepted_policy_label_mismatches": [
+        {
+          "code": "5347",
+          "name": "世界",
+          "expected": [
+            "watch_watch"
+          ],
+          "actual": [
+            "watch_avoid"
+          ]
+        }
+      ],
+      "accepted_policy": "holding/watch grouped for content evaluation only; actual ownership still needs evidence",
+      "unreviewed_output_codes": [],
+      "classification_does_not_validate_note_ownership": true
+    }
+  },
+  {
+    "date": "2026/10/20",
+    "source_sha256": "7996a07ee0a066fe0a77831e602b82cacc4738d42105c65a6f7608acb7aec812",
+    "build": "b46318b·979216d8",
+    "read_only": true,
+    "classification_injection": false,
+    "golden_comparison": false,
+    "verdict_cache": "disabled_including_manual",
+    "other_context": "target-day notices, pre-date positions, name memo; not frozen across runs",
+    "position_context_hashes": {
+      "known_with_open": "096266a70ead61a7675f35a256a26d887a0af7b921bbb7184dbdd0bd1d9a81fb"
+    },
+    "errors": [
+      "台積電（2330）原文有直白說法卻沒有收錄：所以，投資朋友你要注意，台積電是你最不用擔心的。"
+    ],
+    "exit_code": 3,
+    "usage": "本輪呼叫 Gemini 15 次（約 3.3 次/分，節流上限 15 次/分）　adjudicate-r 3、context-review 2、stock-context 2、assess-json- 1、excluded-review 1、unclear 1、direct-audit 1、theme-judge 1",
+    "run": "39428360100",
+    "rows": {
+      "buy": [],
+      "sell": [],
+      "holdings": [
+        "2354",
+        "3645",
+        "2402",
+        "5269",
+        "3533",
+        "6770",
+        "3592"
+      ],
+      "watch_watch": [
+        "8299",
+        "6531"
+      ],
+      "watch_avoid": [
+        "2327"
+      ]
+    },
+    "review_kind": "agent_source_draft_not_human_gold",
+    "comparison": {
+      "scope": "decided candidates only; unresolved excluded, not counted as correct exclusions",
+      "missing": [
+        {
+          "code": "3661",
+          "name": "世芯-KY",
+          "expected": [
+            "watch_avoid"
+          ]
+        },
+        {
+          "code": "2330",
+          "name": "台積電",
+          "expected": [
+            "watch_watch"
+          ]
+        },
+        {
+          "code": "2303",
+          "name": "聯電",
+          "expected": [
+            "watch_watch"
+          ]
+        },
+        {
+          "code": "5347",
+          "name": "世界",
+          "expected": [
+            "watch_watch"
+          ]
+        },
+        {
+          "code": "2317",
+          "name": "鴻海",
+          "expected": [
+            "watch_watch"
+          ]
+        },
+        {
+          "code": "2344",
+          "name": "華邦電",
+          "expected": [
+            "watch_avoid"
+          ]
+        },
+        {
+          "code": "2408",
+          "name": "南亞科",
+          "expected": [
+            "watch_avoid"
+          ]
+        },
+        {
+          "code": "5289",
+          "name": "宜鼎",
+          "expected": [
+            "watch_watch"
+          ]
+        }
+      ],
+      "label_mismatches": [
+        {
+          "code": "6531",
+          "name": "愛普*",
+          "expected": [
+            "watch_avoid"
+          ],
+          "actual": [
+            "watch_watch"
+          ]
+        }
+      ],
+      "false_collections": [],
+      "accepted_policy_label_mismatches": [
+        {
+          "code": "6531",
+          "name": "愛普*",
+          "expected": [
+            "watch_avoid"
+          ],
+          "actual": [
+            "watch_watch"
+          ]
+        }
+      ],
+      "accepted_policy": "holding/watch grouped for content evaluation only; actual ownership still needs evidence",
+      "unreviewed_output_codes": [],
+      "classification_does_not_validate_note_ownership": true
+    }
+  },
+  {
+    "date": "2026/10/20",
+    "source_sha256": "7996a07ee0a066fe0a77831e602b82cacc4738d42105c65a6f7608acb7aec812",
+    "build": "9452656·388494cc",
+    "read_only": true,
+    "classification_injection": false,
+    "golden_comparison": false,
+    "verdict_cache": "disabled_including_manual",
+    "other_context": "target-day notices, pre-date positions, name memo; not frozen across runs",
+    "position_context_hashes": {
+      "known_with_open": "096266a70ead61a7675f35a256a26d887a0af7b921bbb7184dbdd0bd1d9a81fb"
+    },
+    "errors": [],
+    "exit_code": 0,
+    "usage": "本輪呼叫 Gemini 15 次（約 4.1 次/分，節流上限 15 次/分）　adjudicate-r 3、context-review 2、stock-context 2、assess-json- 1、excluded-review 1、unclear 1、direct-audit 1、theme-judge 1",
+    "run": "39430181888",
+    "rows": {
+      "buy": [],
+      "sell": [],
+      "holdings": [
+        "3645",
+        "2402",
+        "5269",
+        "3533",
+        "6770",
+        "3592",
+        "2354"
+      ],
+      "watch_watch": [
+        "2303",
+        "5347",
+        "8299",
+        "5289",
+        "2330",
+        "2317"
+      ],
+      "watch_avoid": [
+        "2327",
+        "6531"
+      ]
+    },
+    "review_kind": "agent_source_draft_not_human_gold",
+    "comparison": {
+      "scope": "decided candidates only; unresolved excluded, not counted as correct exclusions",
+      "missing": [
+        {
+          "code": "3661",
+          "name": "世芯-KY",
+          "expected": [
+            "watch_avoid"
+          ]
+        },
+        {
+          "code": "2344",
+          "name": "華邦電",
+          "expected": [
+            "watch_avoid"
+          ]
+        },
+        {
+          "code": "2408",
+          "name": "南亞科",
+          "expected": [
+            "watch_avoid"
+          ]
+        }
+      ],
+      "label_mismatches": [],
+      "false_collections": [],
+      "accepted_policy_label_mismatches": [],
+      "accepted_policy": "holding/watch grouped for content evaluation only; actual ownership still needs evidence",
+      "unreviewed_output_codes": [],
+      "classification_does_not_validate_note_ownership": true
+    }
+  },
+  {
+    "date": "2026/10/20",
+    "source_sha256": "7996a07ee0a066fe0a77831e602b82cacc4738d42105c65a6f7608acb7aec812",
+    "build": "babfc91·1d84976b",
+    "read_only": true,
+    "classification_injection": false,
+    "golden_comparison": false,
+    "verdict_cache": "disabled_including_manual",
+    "other_context": "target-day notices, pre-date positions, name memo; not frozen across runs",
+    "position_context_hashes": {
+      "known_with_open": "096266a70ead61a7675f35a256a26d887a0af7b921bbb7184dbdd0bd1d9a81fb"
+    },
+    "errors": [],
+    "exit_code": 0,
+    "usage": "本輪呼叫 Gemini 19 次（約 2.4 次/分，節流上限 15 次/分）　adjudicate-r 4、stock-context 3、context-review 2、theme-judge 2、assess-json- 1、excluded-review 1、unclear 1、direct-audit 1",
+    "run": "39431739641",
+    "rows": {
+      "buy": [],
+      "sell": [],
+      "holdings": [
+        "3645",
+        "2402",
+        "5269",
+        "3533",
+        "6770",
+        "3592",
+        "2354"
+      ],
+      "watch_watch": [
+        "2303",
+        "5347",
+        "2330",
+        "6531",
+        "2317",
+        "5289",
+        "8299"
+      ],
+      "watch_avoid": [
+        "2327",
+        "3661"
+      ]
+    },
+    "review_kind": "agent_source_draft_not_human_gold",
+    "comparison": {
+      "scope": "decided candidates only; unresolved excluded, not counted as correct exclusions",
+      "missing": [
+        {
+          "code": "2344",
+          "name": "華邦電",
+          "expected": [
+            "watch_avoid"
+          ]
+        },
+        {
+          "code": "2408",
+          "name": "南亞科",
+          "expected": [
+            "watch_avoid"
+          ]
+        }
+      ],
+      "label_mismatches": [
+        {
+          "code": "6531",
+          "name": "愛普*",
+          "expected": [
+            "watch_avoid"
+          ],
+          "actual": [
+            "watch_watch"
+          ]
+        }
+      ],
+      "false_collections": [],
+      "accepted_policy_label_mismatches": [
+        {
+          "code": "6531",
+          "name": "愛普*",
+          "expected": [
+            "watch_avoid"
+          ],
+          "actual": [
+            "watch_watch"
+          ]
+        }
+      ],
+      "accepted_policy": "holding/watch grouped for content evaluation only; actual ownership still needs evidence",
+      "unreviewed_output_codes": [],
+      "classification_does_not_validate_note_ownership": true
+    }
+  },
+  {
+    "date": "2026/10/20",
+    "source_sha256": "7996a07ee0a066fe0a77831e602b82cacc4738d42105c65a6f7608acb7aec812",
+    "build": "27b445c·0d79ab99",
+    "read_only": true,
+    "classification_injection": false,
+    "golden_comparison": false,
+    "verdict_cache": "disabled_including_manual",
+    "other_context": "target-day notices, pre-date positions, name memo; not frozen across runs",
+    "position_context_hashes": {
+      "known_with_open": "096266a70ead61a7675f35a256a26d887a0af7b921bbb7184dbdd0bd1d9a81fb"
+    },
+    "errors": [
+      "台積電（2330）原文有直白說法卻沒有收錄：所以，投資朋友你要注意，台積電是你最不用擔心的。"
+    ],
+    "exit_code": 3,
+    "usage": "本輪呼叫 Gemini 17 次（約 2.1 次/分，節流上限 15 次/分）　adjudicate-r 3、context-review 2、theme-judge 2、stock-context 2、assess-json- 1、excluded-review 1、unclear 1、direct-audit 1",
+    "run": "39435719008",
+    "rows": {
+      "buy": [],
+      "sell": [],
+      "holdings": [
+        "3645",
+        "2402",
+        "5269",
+        "3533",
+        "6770",
+        "3592",
+        "2354"
+      ],
+      "watch_watch": [
+        "8299",
+        "5289"
+      ],
+      "watch_avoid": [
+        "2327",
+        "6531",
+        "2408"
+      ]
+    },
+    "review_kind": "agent_source_draft_not_human_gold",
+    "comparison": {
+      "scope": "decided candidates only; unresolved excluded, not counted as correct exclusions",
+      "missing": [
+        {
+          "code": "3661",
+          "name": "世芯-KY",
+          "expected": [
+            "watch_avoid"
+          ]
+        },
+        {
+          "code": "2330",
+          "name": "台積電",
+          "expected": [
+            "watch_watch"
+          ]
+        },
+        {
+          "code": "2303",
+          "name": "聯電",
+          "expected": [
+            "watch_watch"
+          ]
+        },
+        {
+          "code": "5347",
+          "name": "世界",
+          "expected": [
+            "watch_watch"
+          ]
+        },
+        {
+          "code": "2317",
+          "name": "鴻海",
+          "expected": [
+            "watch_watch"
+          ]
+        },
+        {
+          "code": "2344",
+          "name": "華邦電",
+          "expected": [
+            "watch_avoid"
+          ]
+        }
+      ],
+      "label_mismatches": [],
+      "false_collections": [],
+      "accepted_policy_label_mismatches": [],
+      "accepted_policy": "holding/watch grouped for content evaluation only; actual ownership still needs evidence",
+      "unreviewed_output_codes": [],
+      "classification_does_not_validate_note_ownership": true
+    }
+  }
+]

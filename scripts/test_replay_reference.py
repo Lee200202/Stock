@@ -47,6 +47,18 @@ class ReferenceChecks(unittest.TestCase):
         self.assertNotIn('網站：', text)
         self.assertFalse(report['model_input'])
 
+    def test_transport_or_evidence_failure_is_not_reported_as_a_semantic_exclusion(self):
+        ref = self.load(self.source())
+        data = {'_verdicts': {'1111': {'current': 'watch_avoid', 'cls': 'ignored', 'tier': '裁決',
+                 'votes': ['', 'watch_avoid', ''], 'basis': '沒有多數',
+                 'unusable_answers': [{'round': 1, 'basis': 'MAX_TOKENS', 'answer': {'must_not_export': 'private'}}]}}}
+        report, text = compare_reference(data, ref, DAY)
+        trace = report['differences'][0]['workflow_diagnostic']
+        self.assertEqual(trace['status'], 'review_incomplete')
+        self.assertEqual(trace['invalid_answers'], [{'round': 1, 'basis': 'MAX_TOKENS'}])
+        self.assertNotIn('private', json.dumps(report))
+        self.assertIn('不能推定本股沒有立場', text)
+
     def test_unresolved_is_not_a_correct_exclusion_and_unreviewed_output_is_flagged(self):
         ref = self.load(self.source())
         signals = {'watch_avoid': [{'code': '1111'}, {'code': '2222'}, {'code': '3333'}]}

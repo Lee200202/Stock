@@ -157,7 +157,7 @@ POSITIVE = re.compile(r'看好|佈局|布局|買點|續抱|(?:準備|即將|將�
 
 
 def invariants(signals, raw):
-    """每一天都該成立的事。回傳 (錯誤, 提醒)；錯誤代表流程有洞，提醒是品質上值得看一眼。"""
+    """程式關卡與規則候選檢查。回傳 (錯誤, 提醒)，語意提示仍可能誤報，不能當核定答案。"""
     errors, warns = [], []
     rows = [(cat, r) for cat in LABEL for r in signals.get(cat, []) or [] if isinstance(r, dict)]
     placed = set()
@@ -210,7 +210,7 @@ def invariants(signals, raw):
     for rejected in signals.get('_publication_quarantine') or []:
         placed.add(str(rejected.get('code') or ''))
         warns.append(str(rejected.get('name') or '') + ' 已隔離不公開：' + '；'.join(rejected.get('_quarantine_reasons') or []))
-    # 原文盤點到、講得很直白的台股不能沒有下落。
+    # 舊規則盤點只產生待核候選：反問、轉場等仍可能誤中，不能稱作核定漏收。
     try:
         for item in pl.source_inventory(pl.source_segments(raw)):
             heard, code = item["name"], str(item["code"])
@@ -219,7 +219,7 @@ def invariants(signals, raw):
                 continue
             pick = pl.plain_current_stance(heard, raw, weak=bool(item.get("weak")))
             if pick:
-                errors.append(f"{official or heard}（{code}）原文有直白說法卻沒有收錄：{pick[1][:40]}")
+                errors.append(f"{official or heard}（{code}）規則盤點候選沒有收錄（待核語氣、主體與最後回答，非核定答案）：{pick[1][:80]}")
     except Exception as e:
         warns.append(f"盤點檢查略過（{type(e).__name__}：{e}）")
     # 長原稿的教學至少三個獨立主題；盤勢若只有兩個有證據的主題，不強行拆成三點。

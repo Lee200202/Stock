@@ -2073,15 +2073,11 @@ def gemini_generation_config(model, max_out=MAX_OUT, thinking=0, want_json=False
     """Shared by production and smoke tests; rebuilt after each model rotation."""
     cfg = {"maxOutputTokens": min(max_out, MAX_OUT)}
     if re.search(r'gemini-3(?:\.|-)', model):
-        verdict = tag.startswith('adjudicate-r')
-        level = (os.environ.get('GEMINI_VERDICT_THINKING_LEVEL' if verdict else 'GEMINI_THINKING_LEVEL', '').strip().lower()
-                 or ('high' if verdict else 'medium'))
+        level = os.environ.get('GEMINI_THINKING_LEVEL', '').strip().lower() or 'medium'
         if level not in ('low', 'medium', 'high'):
             raise ValueError('GEMINI_THINKING_LEVEL 必須是 low、medium 或 high')
         cfg['thinkingConfig'] = {'thinkingLevel': level}
         cfg['maxOutputTokens'] = min(MAX_OUT, max(max_out, 4096))
-        if verdict and level == 'high':
-            cfg['maxOutputTokens'] = min(MAX_OUT, max(max_out, 8192))
     else:
         cfg['temperature'] = 0.1
         if 'gemini-2.5' in model:
@@ -13256,7 +13252,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v25-20261020-entry"     # 推薦疑句不直接升格；缺少依據的初判不代替合批語意核對。
+VERDICT_VERSION = "v26-20261020-transport" # 合批失敗留原因；維持原推理設定，不因加大思考截斷整批。
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 3                   # 常規三輪；兩份新事實題支持而未定的觀望，僅追加一次合批覆核，沿用15RPM限流。
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -14307,6 +14303,9 @@ def _ask_verdicts(items, date_str, round_no, reference_source=''):
             data = safe_load_json(raw, default={})
         except Exception as e:
             print(f"  分類裁決　第 {round_no + 1} 輪有一批問不到（{type(e).__name__}: {str(e)[:60]}），這幾檔維持原分類")
+            for code, _ in batch:
+                answers[code] = {'_citation_error': f'合批請求失敗，未完成事實審核：{type(e).__name__}: {str(e)[:180]}',
+                                 '_transport_error': True}
             continue
         for v in (data.get('verdicts') if isinstance(data, dict) else None) or []:
             if isinstance(v, dict) and str(v.get('id') or '') in dict(batch):

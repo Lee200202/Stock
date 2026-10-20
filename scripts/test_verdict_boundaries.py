@@ -158,8 +158,8 @@ class Boundaries(unittest.TestCase):
         props = cfg['responseJsonSchema']['properties']['verdicts']['items']
         self.assertIn('exit_advice', props['required'])
         self.assertIn('quote_ids', props['required'])
-        self.assertEqual(cfg['thinkingConfig']['thinkingLevel'], 'high')
-        self.assertGreaterEqual(cfg['maxOutputTokens'], min(p.MAX_OUT, 8192))
+        self.assertEqual(cfg['thinkingConfig']['thinkingLevel'], 'medium')
+        self.assertGreaterEqual(cfg['maxOutputTokens'], min(p.MAX_OUT, 4096))
 
     def answer(self, text, **fields):
         return dict(about_itself=True, now='none', tone='neutral', quotes={'stance': [text]}, **fields)
@@ -253,6 +253,15 @@ class Boundaries(unittest.TestCase):
             out = p._ask_verdicts([('1111', item)], '2026/10/20', 0)
         self.assertEqual(len(calls), 1)
         self.assertEqual(out['1111']['quotes']['stance'], ['甲公司不要追高。'])
+
+    def test_truncated_batch_is_unreviewed_not_a_neutral_vote(self):
+        item = {'name': '甲公司', 'heard': [], 'known': [], 'passages': [{'text': '甲公司現在不參與。'}]}
+        with patch.object(p, 'call_gemini', side_effect=RuntimeError('finishReason=MAX_TOKENS')):
+            out = p._ask_verdicts([('1111', item)], '2026/10/20', 0)
+        cls, reason = p.verdict_class(out['1111'], p._ev_norm(item['passages'][0]['text']))
+        self.assertEqual(cls, '')
+        self.assertIn('MAX_TOKENS', reason)
+        self.assertTrue(out['1111']['_transport_error'])
 
     def test_position_denial_does_not_erase_a_current_view(self):
         for cls in ('watch_watch', 'watch_avoid'):

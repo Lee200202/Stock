@@ -13,6 +13,68 @@ import pipeline as p
 
 
 class Boundaries(unittest.TestCase):
+    def answer(self, text, **fields):
+        return dict(about_itself=True, now='none', tone='neutral', quotes={'stance': [text]}, **fields)
+
+    def test_exit_prohibition_cannot_be_published_as_entry_prohibition(self):
+        text = '世界全部不准在這一個地方去殺低。'
+        a = self.answer(text, stance_action='exit', scope_relation='own')
+        a.update(now='prohibit', tone='bearish')
+        self.assertEqual(p.verdict_class(a, p._ev_norm(text), ['世界'], [text])[0], '')
+        a.update(now='none', tone='bullish')
+        self.assertEqual(p.verdict_class(a, p._ev_norm(text), ['世界'], [text])[0], 'watch_watch')
+
+    def test_institution_or_viewer_ownership_is_not_our_position(self):
+        text = '外資持有甲公司，目前還抱著沒有賣出。'
+        for actor in ('institution', 'viewer', 'unknown', 'none'):
+            a = self.answer(text, holding_actor=actor, holding_now=True)
+            a['quotes']['holding_now'] = [text]
+            self.assertNotEqual(p.verdict_class(a, p._ev_norm(text), ['甲公司'], [text])[0], 'holdings')
+
+    def test_background_rule_supports_view_but_never_transaction_or_ownership(self):
+        own = '宜鼎回到年線，我沒有這一檔。'
+        before = '如果你的股票來到年線，你就好好的佈局，等它。'
+        passages = [{'text': own, 'before': before}]
+        citations, background = p.verdict_citations(passages), p.verdict_citations(passages, True)
+        refs = {k: [citations[0]['id']] if k == 'stance' else []
+                for k in ('buy_today', 'sell_today', 'holding_now', 'past_trade', 'stance')}
+        a = {'about_itself': True, 'now': 'conditional', 'tone': 'bullish', 'stance_action': 'entry',
+             'scope_relation': 'shared_rule', 'quote_ids': refs, 'shared_rule_ids': [background[0]['id']]}
+        bound = p.bind_verdict_citations(a, citations, background)
+        self.assertEqual(p.verdict_class(bound, p._ev_norm(own), ['宜鼎'], [own])[0], 'watch_watch')
+        for field in ('buy_today', 'holding_now'):
+            bad = dict(a, **{field: True}, quote_ids=dict(refs, **{field: [background[0]['id']]}))
+            self.assertEqual(p.verdict_class(p.bind_verdict_citations(bad, citations, background), p._ev_norm(own))[0], '')
+        a['scope_relation'] = 'own'
+        self.assertIn('_citation_error', p.bind_verdict_citations(a, citations, background))
+
+    def test_shared_named_predicate_is_available_to_both_not_a_neighbor_prediction(self):
+        rows = [{'code': '1111', 'name': '甲公司'}, {'code': '2222', 'name': '乙公司'}]
+        signals = {'watch_avoid': rows}
+        shared = '甲公司、乙公司每天當沖，我不參與這兩檔。'
+        for row in rows:
+            self.assertIn(shared, p._verdict_scope_segments(row, signals, shared))
+        separate = '甲公司、乙公司，甲公司不買，乙公司可以佈局。'
+        for row in rows:
+            segments = p._verdict_scope_segments(row, signals, separate)
+            # 不得把逐檔分別敘述新增為共同子句。
+            self.assertEqual(segments, p._own_segments(row, signals, separate, 300, 500))
+
+    def test_three_positive_views_can_preserve_watch_without_inventing_position(self):
+        entry = {'votes': ['watch_watch', 'holdings', 'watch_watch'], 'view_votes': [True, True, True]}
+        self.assertTrue(p.verdict_positive_view_consensus(entry))
+        for views in ([True, False, True], [True, True], [False, False, False]):
+            self.assertFalse(p.verdict_positive_view_consensus(dict(entry, view_votes=views)))
+        self.assertFalse(p.verdict_positive_view_consensus(dict(entry, votes=['watch_watch', 'watch_avoid', 'watch_watch'])))
+
+    def test_context_cache_is_invalidated_by_background_source_and_asof_facts(self):
+        passages = [{'text': '甲公司回到年線。', 'before': '股票回到年線可以佈局。'}]
+        fp = p.verdict_context_fingerprint('1111', passages, ['無部位'], '完整原稿')
+        self.assertEqual(fp, p.verdict_context_fingerprint('1111', passages, ['無部位'], '完整原稿'))
+        self.assertNotEqual(fp, p.verdict_context_fingerprint('1111', [dict(passages[0], before='還不能買。')], ['無部位'], '完整原稿'))
+        self.assertNotEqual(fp, p.verdict_context_fingerprint('1111', passages, ['仍有部位'], '完整原稿'))
+        self.assertNotEqual(fp, p.verdict_context_fingerprint('1111', passages, ['無部位'], '更正完整原稿'))
+
     def test_source_id_keeps_misheard_name_verbatim(self):
         text = '你今天不應該再買【連電】了，這是缺口壓力區。'
         cites = p.verdict_citations([{'text': text, 'before': '不相干的上文。'}])

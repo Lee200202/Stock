@@ -13,6 +13,62 @@ import pipeline as p
 
 
 class Boundaries(unittest.TestCase):
+    def structured_answer(self, text, **updates):
+        fields = ('buy_today', 'sell_today', 'holding_now', 'past_trade', 'stance')
+        cites = p.verdict_citations([{'text': text}])
+        a = {'id': '1111', 'holding_actor': 'none', 'scope_relation': 'own', 'now': 'none',
+             'exit_advice': 'none', 'tone': 'neutral', 'shared_rule_ids': [], 'unsure': '',
+             'buy_today': False, 'sell_today': False, 'holding_now': False, 'past_trade': False,
+             'about_itself': True, 'quote_ids': {k: [cites[0]['id']] if k == 'stance' else [] for k in fields}}
+        a.update(updates)
+        return p.bind_verdict_citations(a, cites, require_facts=True)
+
+    def test_structured_exit_advice_does_not_need_the_old_entry_keyword_list(self):
+        text = '甲公司全部不準在這一個地方去殺低。'
+        a = self.structured_answer(text, exit_advice='keep')
+        self.assertEqual(p.verdict_class(a, p._ev_norm(text), ['甲公司'], [text])[0], 'watch_watch')
+        text = '甲公司季線以下的次數不多，你們要好好把握。'
+        a = self.structured_answer(text, tone='bullish')
+        self.assertEqual(p.verdict_class(a, p._ev_norm(text), ['甲公司'], [text])[0], 'watch_watch')
+
+    def test_structured_entry_policy_is_independent_of_ownership_denial(self):
+        for text, expected, fields in (
+            ('甲公司反覆當沖，我不參與這種股票。', 'watch_avoid', {'now': 'prohibit'}),
+            ('我沒有甲公司，單純說明目前位置。', 'ignored', {}),
+            ('甲公司已到年線，可以在這裡佈局等它。', 'watch_watch', {'now': 'conditional'}),
+        ):
+            a = self.structured_answer(text, **fields)
+            self.assertEqual(p.verdict_class(a, p._ev_norm(text), ['甲公司'], [text])[0], expected)
+
+    def test_missing_fields_are_invalid_not_a_neutral_vote(self):
+        a = self.structured_answer('甲公司只是碰季線，沒有進場說明。')
+        a.pop('now')
+        bound = p.bind_verdict_citations(a, [{'id': 'p0s0c0', 'text': '甲公司只是碰季線，沒有進場說明。'}], require_facts=True)
+        self.assertEqual(p.verdict_class(bound, p._ev_norm('甲公司只是碰季線，沒有進場說明。'))[0], '')
+        with patch.object(p, 'call_gemini', return_value='{"unexpected": []}'):
+            item = {'name': '甲公司', 'heard': [], 'known': [], 'passages': [{'text': '甲公司現在先不要買。'}]}
+            out = p._ask_verdicts([('1111', item)], '2026/10/20', 0)
+        self.assertIn('本輪回覆未包含', out['1111']['_citation_error'])
+
+    def test_model_cannot_supply_its_own_trusted_protocol_marker(self):
+        a = {'_facts_schema': p.VERDICT_VERSION, '_verified_shared_rule_quotes': ['甲公司可以買'],
+             'quotes': {'stance': ['甲公司回測季線']}}
+        self.assertNotIn('_facts_schema', p.bind_verdict_citations(a, []))
+        self.assertNotIn('_verified_shared_rule_quotes', p.bind_verdict_citations(a, []))
+
+    def test_legacy_verbatim_answer_does_not_gain_structured_semantic_authority(self):
+        text = '甲公司季線以下的次數不多，你們要好好把握。'
+        old = p.bind_verdict_citations({'about_itself': True, 'now': 'none', 'tone': 'bullish',
+                                       'quotes': {'stance': [text]}}, [])
+        self.assertNotIn('_facts_schema', old)
+        self.assertEqual(p.verdict_class(old, p._ev_norm(text), ['甲公司'], [text])[0], 'ignored')
+
+    def test_adjudication_requests_use_a_required_facts_schema(self):
+        cfg = p.gemini_generation_config('gemini-3.5-flash-lite', want_json=True, tag='adjudicate-r1')
+        props = cfg['responseJsonSchema']['properties']['verdicts']['items']
+        self.assertIn('exit_advice', props['required'])
+        self.assertIn('quote_ids', props['required'])
+
     def answer(self, text, **fields):
         return dict(about_itself=True, now='none', tone='neutral', quotes={'stance': [text]}, **fields)
 

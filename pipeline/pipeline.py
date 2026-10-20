@@ -13257,7 +13257,7 @@ VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off�
 VERDICT_REQUEST_CHARS = 48000            # 一個請求裝多少字的輸入（約五萬多 token）。一天的量通常一個請求就裝完
 VERDICT_NEUTRAL_CLASS = 'ignored'        # 只描述行情、沒有偏多偏空的結論：不列（2026/10/08 管理者規則）
 _VERDICT_LABEL = {'buy': '買入', 'sell': '賣出', 'holdings': '會員持股', 'watch_watch': '觀望注意', 'watch_avoid': '觀望不碰',
-                  'history': '回顧', 'uncertain': '待確認', 'ignored': '排除', '': '未列'}
+                  'history': '回顧', 'uncertain': '待確認', 'ignored': '排除', '': '無效／缺答（不計票）'}
 _VERDICT_ORDER = ('buy', 'sell', 'holdings', 'watch_avoid', 'watch_watch', 'history', 'uncertain', 'ignored')
 _VERDICT_HIDDEN = ('history', 'uncertain', 'ignored', '')
 

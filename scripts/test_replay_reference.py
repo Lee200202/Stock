@@ -10,6 +10,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 from replay_reference import load_reference, compare_reference
+from summarize_replay import summarize
 
 DAY, RAW = '2026/10/20', '甲公司現在不參與，乙公司年線可以佈局。'
 
@@ -90,6 +91,15 @@ class ReferenceChecks(unittest.TestCase):
                                   {'code': '1111', 'expected': 'holdings'}]}):
             with self.assertRaises(ValueError):
                 self.load(self.source(**changes))
+
+    def test_actions_summary_does_not_claim_accuracy_or_use_website(self):
+        self.assertIn('分類品質未評估', summarize({}))
+        self.assertIn('未取得重播結果', summarize(None))
+        review, _ = compare_reference({}, self.load(self.source()), DAY)
+        report = summarize({'date': DAY, 'independent_review_comparison': review})
+        self.assertIn('現在不參與是本股的當下立場', report)
+        self.assertIn('代理草稿不是核定人工金標', report)
+        self.assertNotIn('網站：', report)
 
     def test_entry_point_never_reads_website_comparison_or_injects_reference(self):
         with contextlib.redirect_stdout(io.StringIO()), patch.dict(os.environ,

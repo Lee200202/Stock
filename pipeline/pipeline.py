@@ -13252,9 +13252,9 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v23-20261020-facts"     # 語意由批次事實題判斷；程式核對結構、原句與部位。
+VERDICT_VERSION = "v24-20261020-recheck"   # 三輪未定且兩票有原句支持的觀望，合批追加一次衝突覆核。
 VERDICT_VOTES = 3
-VERDICT_MAX_ROUNDS = 3                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
+VERDICT_MAX_ROUNDS = 3                   # 常規三輪；兩份新事實題支持而未定的觀望，僅追加一次合批覆核，沿用15RPM限流。
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
 VERDICT_REQUEST_CHARS = 48000            # 一個請求裝多少字的輸入（約五萬多 token）。一天的量通常一個請求就裝完
 VERDICT_NEUTRAL_CLASS = 'ignored'        # 只描述行情、沒有偏多偏空的結論：不列（2026/10/08 管理者規則）
@@ -14055,6 +14055,51 @@ def verdict_positive_view_consensus(entry):
             and len(entry.get('view_votes') or []) == 3 and all(entry['view_votes']))
 
 
+def verdict_watch_recheck_target(entry):
+    """只覆核已有兩份合法事實題支持的觀望，不以缺答、舊票或部位製造第三票。"""
+    votes = entry.get('votes') or []
+    if (len(votes) != 3 or entry.get('open') or entry.get('trade_check')
+            or any(v in ('buy', 'sell', 'holdings') for v in votes)
+            or entry.get('current') not in _VERDICT_HIDDEN + ('watch_watch', 'watch_avoid')):
+        return ''
+    facts = entry.get('fact_votes') or []
+    for target in ('watch_watch', 'watch_avoid'):
+        if sum(v == target for v in votes) >= 2 and sum(1 for f in facts if f.get('class') == target and f.get('verified') is True) >= 2:
+            return target
+    return ''
+
+
+def verdict_unopposed_watch_facts(entry):
+    """無效票不作反對；兩份完整同向觀望事實題與既有晚補政策一致。"""
+    target = verdict_watch_recheck_target(entry)
+    usable = [v for v in entry.get('votes', []) if v]
+    return target if target and len(usable) == 2 and set(usable) == {target} else ''
+
+
+def close_watch_disputes(verdicts, pending, transcript, date_str):
+    """一次合批新判讀；仍須第三份同向原句，不將兩票自動當公開分類。"""
+    if not pending or _QUOTA_STOP.get('daily') or budget_left() < 300 or not GEMINI_KEYS:
+        return
+    answers = _ask_verdicts(pending, date_str, VERDICT_MAX_ROUNDS, reference_source=transcript)
+    for code, item in pending:
+        entry, answer = verdicts[code], answers.get(code)
+        target = verdict_watch_recheck_target(entry)
+        cls, why = verdict_class(answer, item['_norm'], item['_names'], [s['text'] for s in item['passages']])
+        trusted = (isinstance(answer, dict) and answer.get('_facts_schema') == VERDICT_VERSION
+                   and not any(answer.get(k) for k in ('buy_today', 'sell_today', 'holding_now')))
+        agreed = bool(target and cls == target and trusted)
+        entry['closure_check'] = {'target': target, 'result': cls, 'basis': why, 'accepted': agreed, 'answer': answer}
+        entry['votes'].append(cls if trusted else '')
+        if agreed:
+            entry['answer'][target] = {'basis': why, 'answer': answer}
+            entry.update(cls=target, tier='裁決', enforce=True, new=True,
+                         basis=entry['basis']+'｜合批衝突覆核再獲同向原句，合計三份有效支持：'+why)
+        else:
+            entry.update(cls='ignored', tier='未定', enforce=True, new=True,
+                         basis=entry['basis']+'｜合批衝突覆核未確認第三份同向依據，留待確認')
+        note_decision('觀望衝突覆核', '三份原句支持，公開' if agreed else '尚未確認，不公開', entry['name'], why)
+
+
 def verdict_settle(current, votes, last=False, open_position=False, late=False):
     """照目前收到的票決定下一步：('定案', 分類, 說明)、('未定', 目前分類, 說明) 或 ('再問', '', '')。
 
@@ -14530,7 +14575,7 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             if verdicts[code].get('trade_check'):
                 verdicts[code].update(cls='uncertain',enforce=True,basis='當日成交候選尚未完成AI複核，本股暫不公開')
         contested = []
-    pending = list(contested)
+    pending, closure_pending = list(contested), []
     for round_no in range(VERDICT_MAX_ROUNDS):
         if not pending:
             break
@@ -14564,6 +14609,8 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             if entry['current'] == 'watch_avoid' and cls in ('watch_watch', 'history', 'ignored') and item.get('_closed'):
                 cls, basis = 'watch_avoid', '點名本股的那一句明講不適合再買：' + item['_closed'][-40:]
             entry['votes'].append(cls)
+            entry.setdefault('fact_votes', []).append({'class': cls, 'verified': bool(
+                isinstance(answers.get(code), dict) and answers[code].get('_facts_schema') == VERDICT_VERSION and cls)})
             view, _ = verdict_class(dict(answers[code], buy_today=False, sell_today=False, holding_now=False),
                                     item['_norm'], item['_names'], zones) if isinstance(answers.get(code), dict) else ('', '')
             entry.setdefault('view_votes', []).append(view == 'watch_watch')
@@ -14588,6 +14635,17 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             if entry.get('late') and state == '未定' and len(usable) >= 2 and len(set(usable)) == 1                     and usable[0] in ('holdings', 'watch_watch', 'watch_avoid'):
                 # 可用的票兩票以上、全部一致支持同一個公開分類、沒有反對票：不能用的那一票不算反對（2026/10/15 群聯「未列／觀望注意／觀望注意」）
                 state, decided, why = '定案', usable[0], '最後才被拉回，可用的 ' + str(len(usable)) + ' 票一致、沒有反對票'
+            target = verdict_watch_recheck_target(entry) if state == '未定' else ''
+            unopposed = verdict_unopposed_watch_facts(entry) if target else ''
+            if unopposed:
+                state, decided, why = '定案', unopposed, '兩份完整事實題同向、無有效反對票；缺答不作反對'
+                target = ''
+            if target:
+                item['_validation_feedback'] = '三輪在本股當下進場立場有分歧。請重新讀完所有原文，區分反問與回答、不要賣與不要買、可執行買點與尚未成熟的前提；不要求任何特定答案。'
+                closure_pending.append((code, item))
+                entry.update(cls='ignored', tier='未定', enforce=True, new=True,
+                             basis=entry['basis']+'｜兩份有效觀望依據，待一次合批衝突覆核')
+                continue
             if entry.get('late') and state == '未定':
                 # 沒有三票一致支持公開：放回不公開
                 entry.update(cls='ignored', tier='裁決', enforce=True, new=True,
@@ -14645,6 +14703,7 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                 note_decision('分類裁決', '沒有定案，維持原分類，待人工確認', entry['name'],
                               why + '；各票：' + '、'.join(_VERDICT_LABEL.get(v, v) or '不能用' for v in entry['votes']))
         pending = still
+    close_watch_disputes(verdicts, closure_pending, transcript, date_str)
     for code, entry in verdicts.items():
         denial = _explicitly_not_held(direct_ctx[code][1], transcript) if code in direct_ctx else ''
         if denial and entry.get('cls') == 'holdings' and entry.get('tier') != '人工裁決':

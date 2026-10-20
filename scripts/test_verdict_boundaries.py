@@ -13,6 +13,52 @@ import pipeline as p
 
 
 class Boundaries(unittest.TestCase):
+    def disputed(self, target='watch_avoid', last='watch_watch'):
+        votes = [target, last, target]
+        return {'name': '甲公司', 'current': 'ignored', 'cls': 'ignored', 'basis': '測試分歧', 'answer': {},
+                'votes': votes, 'fact_votes': [{'class': v, 'verified': bool(v)} for v in votes]}
+
+    def test_recheck_requires_two_valid_facts_and_never_invents_trades_or_positions(self):
+        self.assertEqual(p.verdict_watch_recheck_target(self.disputed(last='')), 'watch_avoid')
+        for change in ({'open': True}, {'trade_check': True}, {'current': 'holdings'},
+                       {'votes': ['watch_avoid', 'sell', 'watch_avoid']},
+                       {'votes': ['watch_avoid', '', '']}, {'fact_votes': []}):
+            self.assertEqual(p.verdict_watch_recheck_target(dict(self.disputed(), **change)), '')
+
+    def test_missing_vote_is_not_opposition_but_a_real_opposition_needs_recheck(self):
+        self.assertEqual(p.verdict_unopposed_watch_facts(self.disputed(last='')), 'watch_avoid')
+        self.assertEqual(p.verdict_unopposed_watch_facts(self.disputed()), '')
+        self.assertEqual(p.verdict_unopposed_watch_facts(dict(self.disputed(last=''), fact_votes=[])), '')
+        self.assertEqual(p.verdict_unopposed_watch_facts(self.disputed(target='watch_watch', last='')), 'watch_watch')
+
+    def test_one_batch_recheck_needs_a_third_support_and_records_opposition(self):
+        text = '甲公司反覆當沖，目前不參與這一檔。'
+        a = self.structured_answer(text, now='prohibit')
+        entries = {'1111': self.disputed(), '2222': self.disputed(target='watch_watch', last='watch_avoid')}
+        item = {'_norm': p._ev_norm(text), '_names': ['甲公司'], 'passages': [{'text': text}]}
+        with patch.object(p, '_ask_verdicts', return_value={'1111': a, '2222': a}) as ask, \
+             patch.object(p, 'GEMINI_KEYS', ['offline']), patch.object(p, 'budget_left', return_value=9999), \
+             patch.dict(p._QUOTA_STOP, {'daily': False}):
+            p.close_watch_disputes(entries, [('1111', item), ('2222', item)], text, '2026/10/20')
+        self.assertEqual(ask.call_count, 1)
+        self.assertEqual(entries['1111']['cls'], 'watch_avoid')
+        self.assertTrue(entries['1111']['closure_check']['accepted'])
+        self.assertEqual(entries['2222']['cls'], 'ignored')
+        self.assertFalse(entries['2222']['closure_check']['accepted'])
+        self.assertEqual(len(entries['1111']['votes']), 4)
+
+    def test_recheck_cannot_use_an_unverified_or_foreign_quote_as_third_vote(self):
+        text = '甲公司只是行情描述。'
+        entry = self.disputed()
+        item = {'_norm': p._ev_norm(text), '_names': ['甲公司'], 'passages': [{'text': text}]}
+        wrong = self.structured_answer('乙公司目前不要買進。', now='prohibit')
+        with patch.object(p, '_ask_verdicts', return_value={'1111': wrong}), \
+             patch.object(p, 'GEMINI_KEYS', ['offline']), patch.object(p, 'budget_left', return_value=9999), \
+             patch.dict(p._QUOTA_STOP, {'daily': False}):
+            p.close_watch_disputes({'1111': entry}, [('1111', item)], text, '2026/10/20')
+        self.assertEqual(entry['cls'], 'ignored')
+        self.assertFalse(entry['closure_check']['accepted'])
+
     def structured_answer(self, text, **updates):
         fields = ('buy_today', 'sell_today', 'holding_now', 'past_trade', 'stance')
         cites = p.verdict_citations([{'text': text}])

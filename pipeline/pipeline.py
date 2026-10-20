@@ -14028,7 +14028,7 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, background_
     return VERDICT_NEUTRAL_CLASS, '只描述行情，沒有偏多偏空的結論，不列：' + stance[0][:40]
 
 
-def verdict_settle(current, votes, last=False, open_position=False):
+def verdict_settle(current, votes, last=False, open_position=False, late=False):
     """照目前收到的票決定下一步：('定案', 分類, 說明)、('未定', 目前分類, 說明) 或 ('再問', '', '')。
 
     票是問卷算出來的分類，空字串是不能用的答案（不計票）。
@@ -14041,7 +14041,7 @@ def verdict_settle(current, votes, last=False, open_position=False):
     hidden = lambda c: c in _VERDICT_HIDDEN
     same = lambda a, b: a == b or (hidden(a) and hidden(b))
     got = [v for v in votes if v]
-    if len(got) == 1 and same(got[0], current):
+    if len(got) == 1 and same(got[0], current) and not late:
         return '定案', current, '問卷與流程一致'
     if got:
         top = max(dict.fromkeys(got), key=got.count)
@@ -14460,11 +14460,18 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             if entry['current'] == 'watch_avoid' and cls in ('watch_watch', 'history', 'ignored') and item.get('_closed'):
                 cls, basis = 'watch_avoid', '點名本股的那一句明講不適合再買：' + item['_closed'][-40:]
             entry['votes'].append(cls)
+            if not cls:
+                entry.setdefault('unusable_answers', []).append({'round': round_no + 1, 'basis': basis,
+                                                                  'answer': answers.get(code)})
             if cls and not entry['answer'].get(cls):
                 entry['answer'][cls] = {'basis': basis, 'answer': answers.get(code)}
-            base = 'ignored' if entry.get('late') else (entry.get('not_held_fallback','ignored') if entry.get('not_held') else entry['current'])
+            # 否認部位只否定持股，不否定已有本股依據的正負面分析。
+            # 當前是觀望時仍以該分析作比較；當前是持股才使用「未持有」的安全退路。
+            base = 'ignored' if entry.get('late') else (entry.get('not_held_fallback','ignored')
+                    if entry.get('not_held') and entry['current'] == 'holdings' else entry['current'])
             state, decided, why = verdict_settle(base, entry['votes'],
-                                                 last=round_no == VERDICT_MAX_ROUNDS - 1, open_position=bool(entry.get('open')))
+                                                 last=round_no == VERDICT_MAX_ROUNDS - 1, open_position=bool(entry.get('open')),
+                                                 late=bool(entry.get('late')))
             if state == '再問':
                 still.append((code, item))
                 continue

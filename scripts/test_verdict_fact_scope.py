@@ -98,6 +98,10 @@ class FactScope(unittest.TestCase):
         self.assertNotEqual(p.verdict_settle('ignored', ['watch_watch'], last=True)[0], '定案')
         self.assertEqual(p.verdict_settle('ignored', ['watch_watch'] * 3)[1], 'watch_watch')
 
+    def test_late_candidate_is_not_silenced_by_one_recap_vote(self):
+        self.assertEqual(p.verdict_settle('ignored', ['history'], late=True)[0], '再問')
+        self.assertEqual(p.verdict_settle('ignored', ['history', 'history'], late=True)[0], '定案')
+
 
 if __name__ == '__main__':
     unittest.main()

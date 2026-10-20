@@ -31,7 +31,7 @@ class Boundaries(unittest.TestCase):
                  patch.object(p, 'GEMINI_KEYS', ['offline']), patch.dict(p._QUOTA_STOP, {'daily': False}):
                 out = p.polish_public_texts(data, source, '2026/10/20')
             if changed: out['watch_watch'][0]['reason'] = '甲公司已突破季線。'
-            with patch.object(p, 'quality_overview', return_value=([], [], [])):
+            with patch.object(p, 'quality_overview', side_effect=lambda *a, **kw: ([], [], [])):
                 return p.quarantine_public_rows(out, source)
         self.assertEqual([r['code'] for r in run()['watch_watch']], ['2222'])
         for kwargs in ({'status': 'insufficient'}, {'quote': '不存在的原文證據。'}, {'locked': True}, {'changed': True}):

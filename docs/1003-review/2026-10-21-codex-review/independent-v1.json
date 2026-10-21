@@ -1,0 +1,244 @@
+{
+  "mode": "independent_review",
+  "target_date": "2026/10/21",
+  "raw_sha256": "6a65d0403d55fc6cc777f78deeede3825ca149478298e810a488d5879fe2b4cd",
+  "video_id": "6iuyHqHwnjI",
+  "review_status": "agent_source_review_draft",
+  "whole_transcript_read": true,
+  "target_result_exposure": "workflow_names_and_git_change_topics_seen; target_output_rows_not_read_before_this_freeze; polished_reading_copy_seen_before_raw",
+  "as_of_positions": "not_read_yet; no today execution inferred from transcript",
+  "candidates": [
+    {
+      "code": "2317",
+      "name": "鴻海",
+      "selected_categories": [
+        "watch_watch"
+      ],
+      "quote": "240以下都是紅海的買點",
+      "rationale": "既往買點在本日再次肯定並有目前回升評估；不是今日買入。",
+      "status": "decided"
+    },
+    {
+      "code": "2327",
+      "name": "國巨*",
+      "selected_categories": [
+        "watch_avoid"
+      ],
+      "quote": "我就是不會買國具",
+      "rationale": "明確不參與，反彈仍有套牢解套壓力；不把ASR的56擅自補成560。",
+      "status": "decided"
+    },
+    {
+      "code": "2303",
+      "name": "聯電",
+      "selected_categories": [
+        "watch_watch"
+      ],
+      "quote": "130塊錢以下的連電就跟230幾的紅海是一模一樣的",
+      "rationale": "明講未持有，季線向上、不要殺低並預期漲回，屬正面建議。",
+      "status": "decided"
+    },
+    {
+      "code": "6770",
+      "name": "力積電",
+      "selected_categories": [
+        "holdings"
+      ],
+      "quote": "我沒有連電我只有立基電",
+      "rationale": "否認聯電持股之後明講自己部位，等待站回季線。",
+      "status": "decided"
+    },
+    {
+      "code": "2330",
+      "name": "台積電",
+      "selected_categories": [
+        "holdings"
+      ],
+      "quote": "來開始講我的股票啊台積電有什麼好講啊站回季限",
+      "rationale": "本人持股段落，站回季線並看補缺口；2490是預期缺口位置，不是已成交。",
+      "status": "decided"
+    },
+    {
+      "code": "3558",
+      "name": "神準",
+      "selected_categories": [
+        "holdings"
+      ],
+      "quote": "我有沒有每天一直講我有神準有啊",
+      "rationale": "明講持有及挑戰前高，不以漲跌替代部位證據。",
+      "status": "decided"
+    },
+    {
+      "code": "3661",
+      "name": "世芯-KY",
+      "selected_categories": [
+        "watch_avoid"
+      ],
+      "quote": "我沒有看到那一根量我是不會買的",
+      "rationale": "昨日未買且現在量能條件未出現，未賣其他部位取得資金；不是今日賣出。",
+      "status": "decided"
+    },
+    {
+      "code": "3533",
+      "name": "嘉澤",
+      "selected_categories": [
+        "holdings"
+      ],
+      "quote": "我賣掉一半1580來啊現在加折幾塊1835我又沒有賣",
+      "rationale": "往日部分減碼後仍留部位，沒有今日執行事件；不新增今日賣出。",
+      "status": "decided"
+    },
+    {
+      "code": "3592",
+      "name": "瑞鼎",
+      "selected_categories": [
+        "watch_watch"
+      ],
+      "quote": "這一支股票後面一定會大漲融資大減法人庫存大增",
+      "rationale": "現在重申正面籌碼及60分MACD未背離；本日明講本人持有不足，部位另核。",
+      "status": "decided"
+    },
+    {
+      "code": "3545",
+      "name": "敦泰",
+      "selected_categories": [
+        "watch_watch"
+      ],
+      "quote": "你應該去注意3545的蹲態",
+      "rationale": "明確注意尚未突破、築底約三個月的驅動IC標的，不能借國巨禁買。",
+      "status": "decided"
+    },
+    {
+      "code": "2439",
+      "name": "美律",
+      "selected_categories": [
+        "watch_watch"
+      ],
+      "quote": "有一支股票你們應該值得留意的叫做2439美率",
+      "rationale": "自身季線突破回測、法人承接與後續正面看法；本日並無明確本人持有句，待查當時部位。",
+      "status": "decided"
+    },
+    {
+      "code": "8299",
+      "name": "群聯",
+      "selected_categories": [
+        "watch_watch"
+      ],
+      "quote": "我說他都來連線了你們在賣什麼意思的我昨天有沒有講群聯",
+      "rationale": "與宜鼎共用年線及不要殺低結論，並非不准買；只用共同技術條件，不互借數字。",
+      "status": "decided"
+    },
+    {
+      "code": "5289",
+      "name": "宜鼎",
+      "selected_categories": [
+        "watch_watch"
+      ],
+      "quote": "5289移頂移頂比較弱啦可是移頂說真的它股本比較小拉起來的速度是比較快的",
+      "rationale": "共同年線條件加本股前瞻；較弱不等於不碰，不能只讀讓步句前半。",
+      "status": "decided"
+    },
+    {
+      "code": "6269",
+      "name": "台郡",
+      "selected_categories": [
+        "watch_avoid"
+      ],
+      "quote": "昨天最強的台俊富橋台昨天不是最好的賣點嗎",
+      "rationale": "三檔同作追逐強勢後轉弱的現在風險例，非今日賣出；身分由台郡前段完整名確認。",
+      "status": "decided"
+    },
+    {
+      "code": "1815",
+      "name": "富喬",
+      "selected_categories": [
+        "watch_avoid"
+      ],
+      "quote": "台俊富橋台",
+      "rationale": "與台郡台玻同一短名單共用追高風險，非會員實際賣出。",
+      "status": "decided"
+    },
+    {
+      "code": "1802",
+      "name": "台玻",
+      "selected_categories": [
+        "watch_avoid"
+      ],
+      "quote": "台郡橋跌台播跌",
+      "rationale": "共同風險例，昨天最強／今天跌弱，不能借大盤或國巨價位。",
+      "status": "decided"
+    },
+    {
+      "code": "5536",
+      "name": "聖暉*",
+      "selected_categories": [],
+      "quote": "前面一隻賺錢賣掉的股票叫做聖輝",
+      "rationale": "過往低買獲利例，今天沒有新的本股買點或禁買立場。",
+      "status": "decided"
+    },
+    {
+      "code": "2359",
+      "name": "所羅門",
+      "selected_categories": [],
+      "quote": "很久很久以前",
+      "rationale": "過往交易教學，沒有今日操作；單純未再買不能代替本股當下風險分析。",
+      "status": "decided"
+    },
+    {
+      "code": "2454",
+      "name": "聯發科",
+      "selected_categories": [],
+      "quote": "台積電聯發科之月光連電",
+      "rationale": "僅半導體成交比重名單。",
+      "status": "decided"
+    },
+    {
+      "code": "3711",
+      "name": "日月光投控",
+      "selected_categories": [],
+      "quote": "台積電聯發科之月光連電",
+      "rationale": "僅半導體成交比重名單，無本股分析。",
+      "status": "decided"
+    },
+    {
+      "code": "3443",
+      "name": "創意",
+      "selected_categories": [],
+      "quote": "創意常常開盤試撮合跌停板然後當天大漲",
+      "rationale": "試撮合教學例，非本股現在進場立場。",
+      "status": "decided"
+    },
+    {
+      "code": "3034",
+      "name": "聯詠",
+      "selected_categories": [],
+      "quote": "如果聯貴3592你也覺得長了一段",
+      "rationale": "驅動IC及價格比較，引向敦泰；沒有本人持有或本股前瞻結論。",
+      "status": "decided"
+    },
+    {
+      "code": "3167",
+      "name": "大量",
+      "selected_categories": [],
+      "quote": "這兩根紅棒是出大量的",
+      "rationale": "K棒量能用語，不是公司。",
+      "status": "decided"
+    },
+    {
+      "code": "6409",
+      "name": "旭隼",
+      "selected_categories": [],
+      "status": "needs_review",
+      "quote": "序賣啊我為什麼要賣",
+      "rationale": "校正版有旭準，但原始字詞缺漏；需當時未出場紀錄或原片圖面，不能只從校正版建列。"
+    },
+    {
+      "code": "2354",
+      "name": "鴻準及匿名摺疊手機標的",
+      "selected_categories": [],
+      "status": "needs_review",
+      "quote": "折疊手機概念股",
+      "rationale": "本股未點名，不能只用題材或前一日身分猜回。"
+    }
+  ]
+}

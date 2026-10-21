@@ -376,7 +376,8 @@ class BatchReceipt(unittest.TestCase):
     def test_anchor_candidates_expose_only_target_name_slices_not_shared_premise(self):
         source = '這兩檔回到年線不要殺低。' + '原句' * 45 + '甲公司乙公司。'
         item = dict(name='甲公司', heard=[], known={}, passages=[],
-                    _names=['甲公司','1111'], _semantic_zones=[source])
+                    _names=['甲公司','1111'], _semantic_zones=[source],
+                    _validation_feedback=[{'issue':'本股歸屬未確認','about_itself':False}])
         with patch.object(pl, 'call_gemini', return_value='{"verdicts":[]}') as ask:
             pl._ask_verdicts([('1111', item)], '2026/10/21', 0)
         stock = __import__('json').loads(ask.call_args.args[1])['stocks'][0]
@@ -385,6 +386,8 @@ class BatchReceipt(unittest.TestCase):
         self.assertTrue(all('甲公司' in index[i] for i in stock['anchor_ids']))
         self.assertNotIn('u0', stock['anchor_ids'])
         self.assertIn('這兩檔回到年線不要殺低', index['u0'])
+        self.assertEqual(stock['validation_feedback'], item['_validation_feedback'])
+        self.assertNotIn('expected', stock)
 
 
 if __name__ == '__main__': unittest.main()

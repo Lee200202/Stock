@@ -13316,7 +13316,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v35-explicit-source-anchors-20261021" # 錨點候選只標來源名稱位置，不替模型決定方向。
+VERDICT_VERSION = "v36-validation-feedback-20261021" # 重問附本股實際無效原因，不帶預期分類。
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 5                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -13365,7 +13365,8 @@ semantic另分兩個事實：entry_restricted_now（現在明講不買或條件�
 每檔加semantic：entity=company/ordinary/uncertain；role=current_view/current_risk/historical_only/general_example/neutral_description/uncertain；direction=positive/negative/neutral；scope=self/shared；members=[本股原文寫法]；anchor_id=含本股原字的來源片段id；quote_id=真正支持結論的來源片段id。
 anchor_id與quote_id可在context前後不同句，但必須在同一小段可確認歸屬；不得跨公司借主詞。直接選id，不重寫原字；支持不到填空字串，不編id。
 anchor_ids是程式逐字比對後列出的本股名稱片段編號；anchor_id只能從本股anchor_ids選，沒有則填空。不要把只有「這兩支」或「我昨天有沒有講」但還未出現本股名字的前一片選作anchor。前置共同結論可作quote_id，與後面具名anchor分開。anchor_ids不是方向、公司用途或持有證據；這些仍須理解完整上下文。
-舊欄about_itself只表示有本股自己的資訊，不能單靠它決定是否公開；now=buy_ok/conditional/not_yet/prohibit/none，tone=bullish/bearish/neutral，請與semantic一致。所有肯定的事實題在quote_ids同名欄選來源id；stance可選與semantic.quote_id相同的id。
+舊欄about_itself只表示有本股自己的資訊，不要求本人持有、技術指標、業績或新買點。具名股票被用作現在追高風險的反面例子，也有本股資訊；不能一面回答company＋current_risk＋本股具名引句，另一面只因是在教學就答about_itself=false。若結論真的在說別檔或只是市場通則，應修正semantic的歸屬／角色，不把通則借來再勾false。此欄不能單靠它決定是否公開；now=buy_ok/conditional/not_yet/prohibit/none，tone=bullish/bearish/neutral，請與semantic一致。所有肯定的事實題在quote_ids同名欄選來源id；stance可選與semantic.quote_id相同的id。
+validation_feedback若有內容，是上次回覆實際未通過的結構／歸屬檢查及當時欄位，不是標準答案。重新讀原句，修正矛盾；無法確認仍答uncertain，不為通過檢查而改成立場或補造事實。
 每個stocks都要回答，不新增id。只回JSON：
 context改用帶id的原文片段，每片可能始於半句；請依順序連續理解，不因片段邊界拆開共同結論。不要重新打字抄原句：semantic用anchor_id選含本股原字的片段，quote_id選真正支持現在判斷的片段；兩者可以不同。quotes改用quote_ids逐欄填原片段id陣列。這只解決抄引句錯字，不放寬歸屬。
 quote_ids固定有buy_today、sell_today、holding_now、past_trade、stance五個鍵，各值是片段id陣列；沒有支持原句用空陣列。支持shared時仍需在members列出所指成員，不能拿另一檔的個別條件作本股證據。
@@ -14425,6 +14426,7 @@ def _ask_verdicts(items, date_str, round_no):
     unit_maps = {code: semantic_context().units(item.get('_semantic_zones', [])) for code, item in items}
     stocks = [(code, {'id': code, 'date': item.get('date') or date_str, 'name': item['name'], 'heard': item['heard'],
                       'known': item['known'], 'passages': item['passages'],
+                      'validation_feedback': item.get('_validation_feedback', []),
                       'anchor_ids': [unit['id'] for unit in unit_maps[code]
                                      if any(_ev_norm(name) in _ev_norm(unit['text'])
                                             for name in item.get('_names', []) if len(_ev_norm(name)) >= 2)],
@@ -14824,6 +14826,14 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             if not cls:
                 entry.setdefault('unusable_answers', []).append({'round': round_no + 1, 'basis': basis,
                                                                   'answer': answers.get(code)})
+                failed = answers.get(code) if isinstance(answers.get(code), dict) else {}
+                semantics = failed.get('semantic') if isinstance(failed.get('semantic'), dict) else {}
+                item['_validation_feedback'] = (item.get('_validation_feedback', []) + [{
+                    'issue': basis,
+                    'about_itself': failed.get('about_itself'),
+                    'semantic_fields': {key: semantics.get(key) for key in (
+                        'entity', 'role', 'direction', 'scope', 'members', 'anchor_id', 'quote_id')},
+                }])[-2:]
             if item.get('_trade_check'):
                 sides=item.get('_trade_sides') or [item['_trade_check']]
                 answer=answers.get(code) if isinstance(answers.get(code),dict) else {}

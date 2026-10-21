@@ -269,5 +269,14 @@ class BatchReceipt(unittest.TestCase):
         self.assertEqual(receipt['unknown'], ['9999'])
         self.assertEqual(receipt['raw_response'], raw)
 
+    def test_a_bare_array_reply_is_the_answer_list(self):
+        # 2026/10/21 cc37e04 重播第 4、5 輪：模型只回陣列，六檔完整答案被當成缺答
+        item = dict(name='甲公司', heard=[], known={}, passages=[])
+        pl._VERDICT_BATCH_RECEIPTS.clear()
+        with patch.object(pl, 'call_gemini', return_value='[{"id":"1111","about_itself":false}]'):
+            answers = pl._ask_verdicts([('1111', item)], '2026/10/21', 0)
+        self.assertEqual(list(answers), ['1111'])
+        self.assertEqual(pl._VERDICT_BATCH_RECEIPTS[-1]['missing'], [])
+
 
 if __name__ == '__main__': unittest.main()

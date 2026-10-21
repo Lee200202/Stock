@@ -14405,7 +14405,8 @@ def _ask_verdicts(items, date_str, round_no):
         except Exception as e:
             print(f"  分類裁決　第 {round_no + 1} 輪有一批問不到（{type(e).__name__}: {str(e)[:60]}），這幾檔維持原分類")
             continue
-        received = (data.get('verdicts') if isinstance(data, dict) else None) or []
+        # 模型有時只回陣列、少了外層 {"verdicts": …}（2026/10/21 第 4、5 輪六檔完整答案因此全被當成缺答）：陣列就是答案清單。
+        received = (data.get('verdicts') if isinstance(data, dict) else data if isinstance(data, list) else None) or []
         if not isinstance(received, list):
             received = []
         expected = {code for code, _ in batch}

@@ -6101,6 +6101,11 @@ def drop_speaker_sentences(signals):
             if _ANALYST_SUBJECT.search(text):
                 text = re.sub(r'(^|[，。；])並(?=(?:明確|也|再次)?(?:指出|表示|提醒|指示|建議|點名|強調|說明|點出))', r'\1', _ANALYST_SUBJECT.sub('', text))
                 row[field] = text
+            if cat in ('watch_avoid', 'watch_watch'):
+                clean_watch = re.sub(r'(?:目前|我們|手中)?持股(?:還在)?賺錢不用賣(?:[^。！？!?]{0,20})?[。！？!?]?', '', str(row.get(field) or ''))
+                clean_watch = re.sub(r'(?:若|要|如果)?賣(?:我)?一定會(?:跟你們?講|事先告知)[^。！？!?]{0,20}[。！？!?]?', '', clean_watch).strip()
+                if clean_watch != str(row.get(field) or ''):
+                    row[field] = text = clean_watch
             if not _SPEAKER_IN_NOTE.search(text):
                 continue
             kept = [s for s in re.split(r'(?<=[。！？!?])', text) if s.strip() and not _SPEAKER_IN_NOTE.search(s)]
@@ -7047,7 +7052,7 @@ def plain_current_stance(heard, transcript, weak=False, names=None):
         # 觀眾或會員的提問不是講者的看法（2026/10/08：「跌下來很多人說，張總，鴻海還可以不可以買？」被當成「可以買」
         # 補列成觀望注意；他的回答是「還沒有那麼急，線型還沒收斂」）。問句裡的「可以買」「要注意」不算偏多說法。
         # 只認「可不可以買／能不能買／要不要買／還可以買嗎」這種問買不買的句型；句尾順口的「對不對？」「你有沒有看到？」不算提問。
-        asked = re.search('(?:可以不可以|可不可以|能不能|要不要|該不該)(?:再)?(?:去)?(?:買|追|進場)|還可以(?:買|追)?嗎', s)
+        asked = re.search(r'(?:可以不可以|可不可以|能不能|要不要|該不該)(?:再)?(?:去)?(?:買|追|進場)|還可以(?:買|追)?嗎|(?:是不是|是否|能否)[^。！？!?]{0,16}(?:可以|能|該)?(?:再)?(?:去)?(?:買|追|進場)|(?:可以|能|該)(?:再)?(?:去)?(?:買|追|進場)[^。！？!?]{0,8}[？?]', s)
         if not asked and any(_cue_is_about(heard, s, m.start(), m.end(), names) for m in re.finditer(_LEFT_WATCH, s)) \
                 and re.search(_LEFT_WATCH, near(-1, 1)):
             return ('watch_watch', s)
@@ -7879,8 +7884,8 @@ CONFIRMED_NAMES = {'普威': ('4966', '譜瑞-KY'), '普位': ('4966', '譜瑞-K
     # 同一天「城成」是等 00981A 賣完、破 900 的勤誠（既有的出金城／初清程／秦城是同一檔）。
     '立即電': ('6770','力積電'), '立基電': ('6770','力積電'), '力基電': ('6770','力積電'),
     '城成': ('8210','勤誠'), '勤城': ('8210','勤誠'), '晶成': ('8210','勤誠'),
-    '玉金光': ('3406','玉晶光'), '環球金': ('6488','環球晶'), '國具': ('2327','國巨*'),
-    '聖輝': ('5536','聖暉*'), '聖暉': ('5536','聖暉*'), '有達': ('2409','友達'),
+    '玉金光': ('3406','玉晶光'), '環球金': ('6488','環球晶'), '國具': ('2327','國巨'),
+    '聖輝': ('5536','聖暉'), '聖暉': ('5536','聖暉'), '有達': ('2409','友達'),
     # 2026/09/22：液冷散熱段「跟奇鴻，雙鴻，他們的題材連接在一起」——散熱指標股 3017 奇鋐。
     # 台積電設備供應鏈名單「朋億、瑞澤、亞翔、楊基工程、巨漢」——銳澤 7703、洋基工程 6691。
     '奇鴻': ('3017','奇鋐'), '瑞澤': ('7703','銳澤'), '楊基工程': ('6691','洋基工程'),
@@ -7909,7 +7914,8 @@ CONFIRMED_NAMES = {'普威': ('4966', '譜瑞-KY'), '普位': ('4966', '譜瑞-K
     '裕龍': ('2201','裕隆'), '雨龍': ('2201','裕隆'), '羽龍': ('2201','裕隆'), '語龍': ('2201','裕隆'), '宇龍': ('2201','裕隆'), '玉隆': ('2201','裕隆'),
     '浴隆': ('2201','裕隆'), '育隆': ('2201','裕隆'), '預隆': ('2201','裕隆'), '御隆': ('2201','裕隆'), '遇隆': ('2201','裕隆'), '愈隆': ('2201','裕隆'),
     '欲隆': ('2201','裕隆'), '喻隆': ('2201','裕隆'), '郁隆': ('2201','裕隆'), '譽隆': ('2201','裕隆'), '豫隆': ('2201','裕隆'), '雨隆': ('2201','裕隆'),
-    '羽隆': ('2201','裕隆'), '語隆': ('2201','裕隆')}
+    '羽隆': ('2201','裕隆'), '語隆': ('2201','裕隆'),
+    '旭準': ('6409','旭隼'), '富橋': ('1815','富喬'), '美綠': ('2439','美律')}
 # 管理者確認的讀音：名稱唸起來與左邊完全相同（不分聲調，前後鼻音視為同音）時，對到右邊那一檔。
 # 只在「正式名稱完全相同」「去後綴後相同」都比不到時才用，所以原文明寫的宇隆仍是 2233。
 CONFIRMED_SOUNDS = {'裕隆': ('2201', '裕隆'),
@@ -8983,6 +8989,9 @@ def flag_category_contradictions(signals) -> list:
     return flagged
 
 
+_COORD_PREFIX = re.compile(r'^[，,、\s]*(?:(?:還有|另外|以及|和|與|及|加上?)(?:一[支檔個])?|跟|同|也(?:有|是)?)[^。！？!?]{0,15}$')
+
+
 def _entity_scope(row, signals, transcript, before_chars=180, after_chars=160, with_offsets=False):
     """只用本股名稱附近、且未跨過其他公司名字的原文；僅作歸屬疑點偵測。
     with_offsets=True 時每筆多帶 (窗口起, 窗口迄)，位置是去空白後的原文。"""
@@ -9017,8 +9026,10 @@ def _entity_scope(row, signals, transcript, before_chars=180, after_chars=160, w
     chunks=[]
     for name in sorted(names,key=len,reverse=True):
         for m in re.finditer(re.escape(name),source):
-            before=max([m.start()-before_chars,0]+[b for a,b in cuts if b<=m.start()])
-            after=min([m.end()+after_chars,len(source)]+[a for a,b in cuts if a>=m.end()])
+            valid_cuts_before = [b for a, b in cuts if b <= m.start() and not _COORD_PREFIX.match(source[b:m.start()])]
+            before=max([m.start()-before_chars,0]+valid_cuts_before)
+            valid_cuts_after = [a for a, b in cuts if a >= m.end() and not _COORD_PREFIX.match(source[m.end():a])]
+            after=min([m.end()+after_chars,len(source)]+valid_cuts_after)
             chunks.append((source[before:after],source[m.start():after]) + ((before, after) if with_offsets else ()))
     return chunks
 
@@ -13380,7 +13391,8 @@ def _verdict_markers(text, cls):
     return hits
 
 
-VERDICT_ZONE_BEFORE, VERDICT_ZONE_AFTER = 80, 220
+VERDICT_ZONE_BEFORE, VERDICT_ZONE_AFTER = 120, 220
+_GROUP_PREMISE = re.compile(r'(?:記憶體|被動元件|矽智財|IC設計|散熱|族群|這[兩三四幾]支|這[兩三四幾]檔|這些|大家|都來|都到|年線|季線|月線|不要再?賣|不准(?:再?)?(?:碰|賣|殺)|不能(?:再?)?(?:碰|賣)|不用賣|買點|進場|出清|減碼)')
 
 
 def _verdict_mark(passages, names):
@@ -13404,6 +13416,11 @@ def _verdict_mark(passages, names):
         zones = []
         for m in pattern.finditer(text):
             begin = max((text.rfind(ch, 0, m.start()) for ch in '。！？!?'), default=-1) + 1
+            lead_start = max(0, m.start() - 140)
+            m_premise = _GROUP_PREMISE.search(text[lead_start:m.start()])
+            if m_premise:
+                p_begin = max((text.rfind(ch, 0, lead_start + m_premise.start()) for ch in '。！？!?'), default=-1) + 1
+                begin = min(begin, p_begin)
             begin = max(begin, m.start() - VERDICT_ZONE_BEFORE)
             stop = min(len(text), m.end() + VERDICT_ZONE_AFTER)
             tail = re.search(r'[。！？!?]', text[stop:stop + 40])            # 收在句尾，不把一句話切半
@@ -13999,9 +14016,9 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
         return at >= 0 and bool(re.search(r'那時候|那個時候|當時|以前|之前|先前', passages_norm[max(0, at - 40):at]))
     if now in ('prohibit', 'not_yet') and not any(_VQ_REFUSAL.search(_VQ_ANTISELL.sub('', q)) and not recalled(q) for q in stance):
         now = 'none'
-        if hold_advice:
-            # 只有「不要賣、不要殺低」：講者看多、叫人抱著；沒有部位的人列觀望注意（會員持股由上面的持有題處理）
-            return 'watch_watch', '叫人不要賣、不要殺低（續抱、看多）：' + hold_advice[0][:40]
+    if now in ('none', 'prohibit', 'not_yet') and hold_advice and not any(_VQ_REFUSAL.search(_VQ_ANTISELL.sub('', q)) and not recalled(q) for q in stance):
+        # 只有「不要賣、不要殺低」：講者看多、叫人抱著；沒有部位的人列觀望注意（會員持股由上面的持有題處理）
+        return 'watch_watch', '叫人不要賣、不要殺低（續抱、看多）：' + hold_advice[0][:40]
     if not stance:
         return ('history', '只回顧過去的買賣：' + first('past_trade')) if past else ('', '有講這一檔，但引不出原文')
     if now in ('prohibit', 'not_yet'):
@@ -14545,6 +14562,8 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             base = 'ignored' if entry.get('late') else (entry.get('not_held_fallback','ignored') if denied_holding else entry['current'])
             state, decided, why = verdict_settle(base, entry['votes'],
                                                  last=round_no == VERDICT_MAX_ROUNDS - 1, open_position=bool(entry.get('open')))
+            if denied_holding and len([v for v in entry['votes'] if v]) < 2 and round_no < VERDICT_MAX_ROUNDS - 1:
+                state = '再問'
             if state == '再問':
                 still.append((code, item))
                 continue
@@ -17404,20 +17423,20 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None
             save_recognition_log(ss, str((video or {}).get('id') or ''), date_str, v1 or v2, text)
 
 
-_SALE_CLAIM = re.compile(r'賣掉一半|賣了一半|已(?:經)?(?:賣出|賣掉|出清|減碼)|出清了|減碼了|獲利了結了')
+_SALE_CLAIM = re.compile(r'賣[掉了一]半|已(?:經)?(?:在[^，。！？!?]{0,12})?(?:賣出|賣掉|出清|減碼|獲利了結)(?:了)?(?:一半|[1-9一二三四五六七八九]成)?|出清了|減碼了|獲利了結了')
 
 
 def strip_unrecorded_sale_claims(signals):
     """會員持股列的說明裡「已賣掉一半」「已出清」這類賣出事實，要有今天的賣出列才留；沒有就拿掉那一句。
     部位與賣出由紀錄與會員通知決定，說明不能自己宣告減碼（2026/10/21 嘉澤）。"""
     sold = {str(r.get('code') or '') for r in signals.get('sell', []) or [] if isinstance(r, dict)}
-    for row in signals.get('holdings', []) or []:
+    for row in list(signals.get('holdings', []) or []) + list(signals.get('_article_records', []) or []):
         if not isinstance(row, dict) or str(row.get('code') or '') in sold:
             continue
         note = str(row.get('note') or '')
         if not _SALE_CLAIM.search(note):
             continue
-        kept = [x for x in re.split(r'(?<=[。！？])', note) if x.strip() and not _SALE_CLAIM.search(x)]
+        kept = [x for x in re.split(r'(?<=[。！？!?])', note) if x.strip() and not _SALE_CLAIM.search(x)]
         row['note'] = ''.join(kept)
         print(f"  說明核對　{row.get('name')}：拿掉沒有賣出紀錄的賣出說法")
         note_decision('個股說明', '持股說明寫了沒有紀錄的賣出，拿掉那一句', str(row.get('name') or ''), note[:80])
@@ -17445,6 +17464,10 @@ def finalize_name_and_owned_watch(signals, raw, date_str):
             else:
                 kept.append(row)
         signals[cat] = kept
+    for cat in SIGNAL_CATEGORIES + ('history', 'ignored', '_article_records'):
+        for row in signals.get(cat, []) or []:
+            if isinstance(row, dict) and row.get('name'):
+                row['name'] = _display_name(row['name'])
     return signals
 
 

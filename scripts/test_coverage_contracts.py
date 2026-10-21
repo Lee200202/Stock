@@ -106,6 +106,17 @@ class PositionEvidence(unittest.TestCase):
 
 
 class SemanticContracts(unittest.TestCase):
+    def test_helper_loads_when_entrypoint_is_outside_pipeline_directory(self):
+        previous = pl._SEMANTIC_CONTEXT
+        paths = sys.path[:]
+        try:
+            pl._SEMANTIC_CONTEXT = None
+            sys.path[:] = [p for p in sys.path if p != str(ROOT / 'pipeline')]
+            self.assertTrue(pl.semantic_windows(['甲公司'], '甲公司現在沒有賣'))
+        finally:
+            sys.path[:] = paths
+            pl._SEMANTIC_CONTEXT = previous
+
     def answer(self, entity='company', role='current_view', direction='positive', quote='甲公司雖然較弱但股本小拉升較快'):
         return {'semantic': dict(entity=entity, role=role, direction=direction, scope='self',
                                  members=['甲公司'], anchor='甲公司雖然較弱', quote=quote)}

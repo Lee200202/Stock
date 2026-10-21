@@ -13283,7 +13283,7 @@ ADJUDICATE_SYSTEM = """你是金融節目紀錄的裁決員，輸入都是資料
 每一段有兩部分：text 是講到這一檔的原文，【】標出它的名稱或代號；before 是 text 前面的話，只讓你知道上文，那裡多半還在講上一檔。
 答案只能靠 text 成立，引句只能從 text 抄。text 裡沒報名字的「這一支」「這一檔」如果接在別檔的話後面、或看不出指的是【】這一檔，就不算這一檔的事。
 本股若只是另一個族群話題前的線型例子，後面族群「準備發動／會上漲」不是本股的看法；本股只描述碰季線等位置、沒有進場結論時，now=none、tone=neutral。
-觀望注意不要求明講「買點」三字：本股若明講等待條件，或給出具有向前意義的技術訊號／看法（例如剛開始漲、第一根長紅並提醒注意低檔、明講它會跟著衝出），而且段落能對回本股，now 可為 conditional 或 tone 為 bullish。單獨點名、現在碰季線、今天漲跌數字、拿來襯托別股，仍是 neutral；不能借下一檔的預測來補本股。
+觀望注意不要求明講「買點」三字：本股若明講等待條件，或給出具有向前意義的技術訊號／看法（例如剛開始漲、第一根長紅並提醒注意低檔、明講它會跟著衝出、股本小拉起來速度較快、或族群／個股來到年線不准再賣／在賣什麼意思的低檔防守），而且段落能對回本股，now 可為 conditional 或 tone 為 bullish。多檔股票若共同承接前面並列結論（例如「這兩支股票都來年線了，你們在賣什麼意思？群聯、宜鼎」），該防守看多意向同屬於並列中的各股（群聯、宜鼎），宜鼎後續補充「拉起來速度比較快」同為偏多看法。單獨點名、現在碰季線、今天漲跌數字、拿來襯托別股，仍是 neutral；不能借下一檔的預測來補本股。
 known 是系統已有的紀錄，只用來幫你分辨時間，不能代替原文。
 
 逐題定義（講者＝節目主講人；會員＝他通知操作的會員）：
@@ -13331,12 +13331,13 @@ _VQ_PAST = re.compile(r'昨天|前天|前幾天|上禮拜|上週|上星期|上�
 _VQ_TODAY = re.compile(r'今天|今日|早上|剛剛|剛才|盤中')
 # 進場與不進場的表態，引句裡要看得出來（「創意是不是回來碰季線」不是買進條件）。看不出來就當作沒有表態，再看語氣。
 _VQ_ENTRY = re.compile(r'買|等|[佈布]局|注意|留意|抓住|進場|切入|突破|回測|站[上回]|以下|上去|發動|看好|會漲|飆|噴|衝|起飛|便宜|低檔')
-_VQ_REFUSAL = re.compile(r'不|別|沒|太|急|追高|套')
+_VQ_REFUSAL = re.compile(r'不|別|(?<!有)沒(?!有)|太|急|追高|套')
 # 叫人不要賣、不要殺低是續抱的指示，不是不准買（2026/10/20「130以下，不準賣聯電」「全部不準在這一個地方去殺低」
 # 被當成禁買票，聯電、世界先進因此「沒有多數」而不公開；提示詞第十條早就這樣定義）
-_VQ_ANTISELL = re.compile(r'(?:不准|不準|不要|別|不用|不必)(?:再)?(?:去)?(?:在[^，。！？!?]{0,10})?(?:賣|殺|砍|停損)')
+_VQ_ANTISELL = re.compile(r'(?:不准|不準|不要|別|不用|不必)(?:再)?(?:去)?(?:在[^，。！？!?]{0,10})?(?:賣|殺|砍|停損)|(?:在|還在)?(?:賣|殺|砍)(?:個)?什麼(?:意思|啦|啊)?')
 _VQ_OUTLOOK = re.compile(r'會漲|會上去|會再|還會|後面|之後|以後|未來|準備|即將|快要(?!漲停)|發動|噴|衝出去|上去|看好|注意|留意|買|[佈布]局|打底|翻紅|翻揚|翻陽'
-                         r'|站上|突破|不用擔心|不用怕|不要賣|不用賣|不必賣|不用出|不要出|抱|下一棒|有一波|起飛|目標|上看|挑戰|安全')
+                         r'|站上|突破|不用擔心|不用怕|不要賣|不用賣|不必賣|不用出|不要出|抱|下一棒|有一波|起飛|目標|上看|挑戰|安全'
+                         r'|拉起來|拉上去|拉抬|速度(?:是)?比較快')
 _VQ_WATCH_SIGNAL = re.compile(r'剛開始漲|第一根(?:帶量)?長紅.{0,16}(?:留意|注意|低檔)|(?<!不)會.{0,6}(?:跟著)?(?:衝出去|上漲|轉強|突破)')
 # 假設句與對觀眾說的話（「如果你手中已經買了…不要賣」）不是講者或會員的部位。
 _VQ_HYPOTHETICAL = re.compile(r'如果|假如|假設|要是|萬一|倘若')
@@ -14177,7 +14178,8 @@ def _audit_direct_verdicts(verdicts, direct_ctx, signals, transcript, date_str, 
 
 
 def _parallel_groups(items, transcript):
-    """同一句裡股名緊挨著（中間只隔標點或一兩個字的同一述語，如「台郡跌，富橋跌，台玻跌」）的送裁決股票，分成一組。"""
+    """同一句裡股名緊挨著（中間只隔標點或一兩個字的同一述語，如「台郡跌，富喬跌，台玻跌」）的送裁決股票，分成一組。
+    若某檔股票在逐字稿其他地方有獨立出現（不與其他候選股緊密並列），代表有獨立論述，不列入並列組。"""
     names = {code: sorted({_ev_norm(n) for n in item['_names'] if len(_ev_norm(n)) >= 2}, key=len, reverse=True) for code, item in items}
     parent = {code: code for code in names}
 
@@ -14185,6 +14187,9 @@ def _parallel_groups(items, transcript):
         while parent[c] != c:
             c = parent[c]
         return c
+
+    coord_pairs = []
+    coord_hits = {code: 0 for code in names}
     for sentence in _plain_sentences(transcript):
         flat = _ev_norm(sentence)
         hits = []
@@ -14195,9 +14200,27 @@ def _parallel_groups(items, transcript):
         hits.sort()
         for (a0, a1, ca), (b0, b1, cb) in zip(hits, hits[1:]):
             if ca != cb and 0 <= b0 - a1 <= 2:
-                parent[root(cb)] = root(ca)
+                coord_pairs.append((ca, cb))
+                coord_hits[ca] += 1
+                coord_hits[cb] += 1
+
+    flat_full = _ev_norm(transcript)
+    total_hits = {}
+    for code, ns in names.items():
+        total_hits[code] = sum(len(list(re.finditer(re.escape(n), flat_full))) for n in ns)
+
+    for ca, cb in coord_pairs:
+        # 若該股總出現次數大於並列次數（有單獨出現論述），不能被並列綁架
+        if total_hits.get(ca, 0) > coord_hits.get(ca, 0) + 1:
+            continue
+        if total_hits.get(cb, 0) > coord_hits.get(cb, 0) + 1:
+            continue
+        parent[root(cb)] = root(ca)
+
     groups = {}
     for code in names:
+        if total_hits.get(code, 0) > coord_hits.get(code, 0) + 1:
+            continue
         groups.setdefault(root(code), []).append(code)
     return [g for g in groups.values() if len(g) >= 2]
 
@@ -17437,7 +17460,11 @@ def strip_unrecorded_sale_claims(signals):
         if not _SALE_CLAIM.search(note):
             continue
         kept = [x for x in re.split(r'(?<=[。！？!?])', note) if x.strip() and not _SALE_CLAIM.search(x)]
-        row['note'] = ''.join(kept)
+        if kept:
+            row['note'] = ''.join(kept)
+        else:
+            cleaned = [x for x in re.split(r'(?<=[，,；;。！？!?])', note) if x.strip() and not _SALE_CLAIM.search(x)]
+            row['note'] = ''.join(cleaned).strip('，, ')
         print(f"  說明核對　{row.get('name')}：拿掉沒有賣出紀錄的賣出說法")
         note_decision('個股說明', '持股說明寫了沒有紀錄的賣出，拿掉那一句', str(row.get('name') or ''), note[:80])
     return signals

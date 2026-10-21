@@ -4340,3 +4340,123 @@ function restatesEarlier_(key, earlier) {
 })();
 window.__fxWatch(['tblBuy', 'tblSell', 'tblWatchWatch', 'tblWatchAvoid', 'trackerTable', 'smsList', 'dateResult', 'stockRecord', 'dRecord', 'dTracker', 'perfTable', 'ledger']);
 </script>
+<script>
+/* v193 捲動敘事（stock-scroll-story，2026/10/21）：首屏主要動作、訊號帶暫停鈕、區塊進場浮起、探索卡片列。
+   進場只做位移與縮放，不把內容藏成透明；減少動態時全部不動。沒有 JavaScript 時卡片列仍可橫捲、內容照常顯示。 */
+(function () {
+  var root = document.documentElement;
+  root.classList.add('ss-js');
+  var reduce = false;
+  try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+
+  function goTab(name) {
+    var b = document.querySelector('button.tab[data-tab="' + name + '"]');
+    if (b) { b.click(); }
+  }
+  document.addEventListener('click', function (e) {
+    var t = e.target && e.target.closest && e.target.closest('[data-ss-tab]');
+    if (t) { goTab(t.getAttribute('data-ss-tab')); }
+  });
+
+  /* 看今天的紀錄：捲到第一個有個股的分類；四類都空時捲到買入。 */
+  var cta = document.getElementById('ssToToday');
+  if (cta) {
+    cta.addEventListener('click', function () {
+      var sects = [].slice.call(document.querySelectorAll('#p-overview > .sect'));
+      var to = sects.filter(function (s) { return s.querySelector('tr.sk-row'); })[0] || sects[0];
+      if (!to) { return; }
+      var bars = 0;
+      document.querySelectorAll('.topbar, .tabbar').forEach(function (x) { bars += x.offsetHeight || 0; });
+      var y = to.getBoundingClientRect().top + (window.pageYOffset || 0) - bars - 12;
+      try { window.scrollTo({ top: y, behavior: reduce ? 'auto' : 'smooth' }); } catch (e) { window.scrollTo(0, y); }
+    });
+  }
+
+  /* 訊號帶暫停鈕：滑過與按住本來就會停；這顆是給想讓它一直停著的人。 */
+  var band = document.querySelector('.signalband'), pause = document.getElementById('bandPause');
+  if (band && pause) {
+    pause.addEventListener('click', function () {
+      var on = pause.getAttribute('aria-pressed') !== 'true';
+      pause.setAttribute('aria-pressed', on ? 'true' : 'false');
+      pause.setAttribute('aria-label', on ? '繼續捲動訊號帶' : '暫停捲動訊號帶');
+      band.classList.toggle('is-paused', on);
+    });
+  }
+
+  /* 進場浮起：區塊第一次進入畫面時從下方 28px、略小縮回原位，只播一次。
+     門檻用 0＋底部內縮，很高的區塊（十幾張卡片）也一進畫面就觸發。 */
+  var io = (!reduce && 'IntersectionObserver' in window) ? new IntersectionObserver(function (es) {
+    es.forEach(function (en) {
+      if (en.isIntersecting) { en.target.classList.add('is-in'); io.unobserve(en.target); }
+    });
+  }, { threshold: 0, rootMargin: '0px 0px -8% 0px' }) : null;
+  function arm(sel, stagger) {
+    if (!io) { return; }
+    document.querySelectorAll(sel).forEach(function (el, i) {
+      if (el.classList.contains('ss-rise')) { return; }
+      if (stagger) { el.style.setProperty('--ss-i', i); }
+      el.classList.add('ss-rise');
+      io.observe(el);
+    });
+  }
+  arm('#p-overview > .sect, #p-tracker > .sect, #p-perf > .sect, #p-tx > .sect, #p-mail > .sect, ' +
+      '#p-subscribe > .sect.subgrid > .card, #p-subscribe > .ss-faqs, .ss-explore', false);
+  arm('.ss-night .stat', true);
+
+  /* 探索卡片列：左右箭頭（到頭停用）、進度點（目前位置拉長）、鍵盤左右鍵換卡。 */
+  document.querySelectorAll('[data-ss-shelf]').forEach(function (wrap) {
+    var shelf = wrap.querySelector('.ss-shelf');
+    var dots = wrap.querySelector('.ss-dots');
+    var prev = wrap.querySelector('[data-ss-prev]'), next = wrap.querySelector('[data-ss-next]');
+    if (!shelf) { return; }
+    var cards = [].slice.call(shelf.children);
+    var stops = 0, raf = 0;
+    function step() { return cards[1] ? cards[1].offsetLeft - cards[0].offsetLeft : shelf.clientWidth; }
+    function max() { return Math.max(0, shelf.scrollWidth - shelf.clientWidth); }
+    function go(left) { try { shelf.scrollTo({ left: left, behavior: reduce ? 'auto' : 'smooth' }); } catch (e) { shelf.scrollLeft = left; } }
+    function current() { return shelf.scrollLeft >= max() - 2 ? stops - 1 : Math.round(shelf.scrollLeft / (step() || 1)); }
+    function build() {
+      if (!shelf.clientWidth) { return; }
+      var n = max() > 2 ? Math.ceil((max() - 2) / (step() || 1)) + 1 : 1;
+      if (n !== stops) {
+        stops = n;
+        var h = '';
+        for (var i = 0; i < n; i++) { h += '<button type="button" aria-label="第 ' + (i + 1) + ' 段，共 ' + n + ' 段"></button>'; }
+        if (dots) { dots.innerHTML = h; dots.hidden = n < 2; }
+      }
+      update();
+    }
+    function update() {
+      raf = 0;
+      var c = current();
+      if (prev) { prev.disabled = shelf.scrollLeft <= 2; }
+      if (next) { next.disabled = shelf.scrollLeft >= max() - 2; }
+      if (dots) {
+        [].forEach.call(dots.children, function (d, i) { d.setAttribute('aria-current', i === c ? 'true' : 'false'); });
+      }
+    }
+    shelf.addEventListener('scroll', function () { if (!raf) { raf = requestAnimationFrame(update); } }, { passive: true });
+    if (prev) { prev.addEventListener('click', function () { go(Math.max(0, shelf.scrollLeft - step())); }); }
+    if (next) { next.addEventListener('click', function () { go(Math.min(max(), shelf.scrollLeft + step())); }); }
+    if (dots) {
+      dots.addEventListener('click', function (e) {
+        var i = [].indexOf.call(dots.children, e.target);
+        if (i >= 0) { go(i === stops - 1 ? max() : i * step()); }
+      });
+    }
+    shelf.addEventListener('keydown', function (e) {
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') { return; }
+      var i = cards.indexOf(document.activeElement);
+      if (i < 0) { return; }
+      var j = Math.min(cards.length - 1, Math.max(0, i + (e.key === 'ArrowRight' ? 1 : -1)));
+      if (j === i) { return; }
+      e.preventDefault();
+      cards[j].focus({ preventScroll: true });
+      go(Math.min(max(), cards[j].offsetLeft - cards[0].offsetLeft));
+    });
+    if (window.ResizeObserver) { new ResizeObserver(build).observe(shelf); }
+    else { window.addEventListener('resize', build); }
+    build();
+  });
+})();
+</script>

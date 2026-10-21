@@ -49,16 +49,21 @@
 
 所有尺寸乘上 `var(--rd-fs)`（使用者字級設定）；寬度沿用 `--wrapmax`（使用者欄寬設定）。
 
-| 類別 | 淺色 | 深色 |
+實作時直接改寫網站既有的變數（`--bg`、`--panel`…），不另起一套名稱，舊元件自動跟上。
+
+| 類別（既有變數） | 淺色 | 深色 |
 |---|---|---|
-| 頁面底 `--ss-bg` | `#fbfbfd` | `#000000` |
-| 卡片底 `--ss-tile` | `#f5f5f7` | `#1c1c1e` |
-| 浮層底 `--ss-surface` | `#ffffff` | `#161618` |
-| 主文字 `--ss-ink` | `#1d1d1f` | `#f5f5f7` |
-| 次文字 `--ss-muted` | `#6e6e73` | `#a1a1a6` |
-| 分隔 `--ss-line` | `rgba(0,0,0,.08)` | `rgba(255,255,255,.12)` |
-| 主要動作 `--ss-action` | `#0071e3` | `#2997ff` |
-| 沉浸段落底 `--ss-night` | `#08080c` | `#08080c` |
+| 頁面底 `--bg` | `#F5F5F7` | `#000000` |
+| 卡片底 `--panel` | `#FFFFFF` | `#1C1C1E` |
+| 卡片裡的卡片 `--panel-2` | `#F5F5F7` | `#2C2C2E` |
+| 主文字 `--ink` | `#1D1D1F` | `#F5F5F7` |
+| 次文字 `--muted` | `#6E6E73` | `#A1A1A6` |
+| 分隔 `--rule` | `#D2D2D7` | `#3A3A3C` |
+| 主要動作 `--brand`／連結 `--brand-2` | `#0071E3`／`#0066CC` | `#2997FF` |
+| 沉浸段落底 `--ss-night` | `#08080C` | `#08080C` |
+| 陰影 `--lift` | 無 | 無 |
+
+選中的分頁、分段控制與日曆選中日用 `--ink` 實心（Apple 的深色膠囊），主要動作才用藍色。
 
 分類色照舊（買入／上漲紅、賣出／下跌綠、持股紫、觀望注意藍、觀望不碰琥珀），不因改版換色。
 
@@ -82,32 +87,33 @@
 
 | class | 元件 | 規格 |
 |---|---|---|
-| `.ss-reveal` | 進場淡入 | 初始 `opacity:0; transform:scale(1.03)`；可見後加 `.is-in` 回到 1；只播一次。**沒有 JavaScript 或減少動態時一開始就是可見的**（以 `html.js` 前綴才隱藏） |
-| `.ss-count` | 數字跳動 | 進入畫面時從 0 跳到實際值（約 1 秒，ease-out）；`data-final` 存實際值；減少動態時直接顯示；文字內容永遠是正確數字（讀屏與複製不受影響） |
+| `.ss-rise` | 進場浮起 | 初始 `transform: translateY(28px) scale(.985)`，進入畫面加 `.is-in` 回原位，只播一次；**不改透明度**——參考網站的「透明＋放大」淡入在本站不用：v107 管理者回報列表捲進來前是透明的，手機上像資料沒載入（`stock-site-design`：不要把內容預設透明等捲動才顯示）。觀察門檻用 `threshold:0`＋底部內縮 8%，很高的區塊也會觸發。只套在區塊外框，不套在個股列（個股列已有資料重畫時的 `fx-rise`） |
+| 數字 | 大數字 | 不從 0 數上去：資料到了直接寫真值（v54：先顯示 0 再跳成真值像資料錯了）；之後更新才用既有 `tick()` 從舊值滑到新值。進場只做 `.ss-rise` 位移 |
 | `.ss-shelf` | 橫向卡片列 | `display:grid; grid-auto-flow:column; grid-auto-columns: min(84%, 360px); overflow-x:auto; scroll-snap-type:x mandatory`；兩側 44px 圓形箭頭（到頭時停用）；下方進度點；鍵盤左右鍵可移動 |
 | `.ss-marquee` | 無縫跑馬燈 | 內容複製一份，`translateX(0 → -50%)` linear infinite；滑鼠移上去或焦點進入時暫停；旁邊有明顯的暫停鈕；減少動態時改成可橫捲的靜態列 |
 | `.ss-night` | 沉浸深色段落 | 背景 `--ss-night`、白字；只用在一段關鍵數字或宣言，不連續兩段 |
 | `.ss-tile` | 大卡 | `--ss-tile` 底、28px 圓角、無陰影 |
 | `.ss-cta` / `.ss-link` | 主要／次要動作 | 主要：`--ss-action` 實心膠囊，至少 44px 高；次要：同色文字加「›」 |
-| `.ss-nav` | 浮動導覽 | 捲動超過 24px 後，分頁列變成圓角半透明長條（`backdrop-filter: saturate(180%) blur(20px)`） |
+| `.ss-nav` | 浮動導覽 | 頂列與分頁列半透明＋`backdrop-filter: saturate(180%) blur(20px)`，捲動後分頁列下緣出現細線；**寬度 899px 以下與手機版設定改回實心底**（v107：毛玻璃讓低階手機捲動掉格） |
 | `.ss-pause` | 播放／暫停 | 每個自動播放的群組一顆；`aria-pressed` 與 `aria-label` 寫明控制哪一段 |
 | `details.ss-faq` | 折疊說明 | 右側「+」，打開時旋轉 45° 成「×」 |
 
 進場淡入的最小實作：
 
 ```css
-html.js .ss-reveal { opacity: 0; transform: scale(1.03); }
-html.js .ss-reveal.is-in { opacity: 1; transform: none;
-  transition: opacity 1.1s cubic-bezier(.2,.55,.3,1), transform 1.1s cubic-bezier(.2,.55,.3,1); }
-@media (prefers-reduced-motion: reduce) { html.js .ss-reveal { opacity: 1; transform: none; } }
+html.ss-js .ss-rise { transform: translateY(28px) scale(.985); }
+html.ss-js .ss-rise.is-in { transform: none; transition: transform 1.1s cubic-bezier(.2,.55,.3,1);
+  transition-delay: calc(var(--ss-i, 0) * 80ms); }
+@media (prefers-reduced-motion: reduce) { html.ss-js .ss-rise { transform: none; transition: none; } }
 ```
 
 ```js
-const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('is-in'); io.unobserve(e.target); } }), { threshold: .15 });
-document.querySelectorAll('.ss-reveal').forEach(el => io.observe(el));
+const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('is-in'); io.unobserve(e.target); } }),
+  { threshold: 0, rootMargin: '0px 0px -8% 0px' });
+document.querySelectorAll('.ss-rise').forEach(el => io.observe(el));
 ```
 
-動態載入的內容（每日總覽卡片、持股回合）要在渲染完成後再交給同一個觀察器；已在畫面內的直接加 `.is-in`，不要讓使用者看到空白再跳出。
+`ss-js` 由 `<head>` 裡一行內嵌程式掛上，沒有 JavaScript 時不位移，舊有的 `.mui-blur-fade` 也直接顯示。隱藏分頁裡的區塊在分頁打開時才會相交，不需另外處理。
 
 ## 4. 套到盤勢有據
 
@@ -121,13 +127,23 @@ document.querySelectorAll('.ss-reveal').forEach(el => io.observe(el));
 | 技術說明 | 沿用章節書的結構，只套權杖（字型、色、圓角、膠囊、進場淡入） | 章節錨點、目錄、圖解互動與自播規則（`stock-site-design` 第 11–14 節） |
 | 個股面板 | 價格用 display 數字；段落導覽用膠囊；估值卡用大卡 | 報價來源與時間 |
 
+### 4.1 實作現況（v193，2026/10/21）
+
+- 樣式在 `Stylesheet.html` 最後的「v193 樣式層」，選擇器都以 `body[data-tab]` 開頭，後台共用同一份樣式表也不受影響；程式在 `JavaScript.html` 最後一段。
+- 首屏：`#ssToToday`（捲到第一個有個股的分類）、`.ss-link[data-ss-tab]`（切分頁，全站共用這個屬性）。訊號帶暫停鈕 `#bandPause`。
+- 沉浸段落：`.ss-night` 包住四格統計與 `#statBasis`，段落內重新指定深色權杖（漲跌色用深色主題那組）。
+- 大卡：`#p-overview／tracker／perf／tx／mail > .sect`；**599px 以下收掉外層大卡**，個股卡直接放在頁底並改回白底（兩層內距會把說明欄擠窄約 40px）。
+- 探索卡片列 `.ss-explore[data-ss-shelf]` 放在每日總覽最後，六張卡各連到一個分頁；不是 `.sect`，因為四區的類別色圓點依 `.sect` 順序。
+- 訂閱頁最後是 `details.ss-faq` 常見問題，只談每日總覽。
+- 預覽：`scratch/ss/preview.py` 以 Playwright 打開正式 Pages 網址、只把網頁本身換成本機 `_site` 建置，API 照常走正式 Worker（Worker 只接受 Pages 來源，本機網址會被擋；內建瀏覽器也不能從公開網頁讀本機檔案）。
+
 ## 5. 不可以照搬
 
 - **倒數計時、限時免費、劃線原價、學員見證、「保證」字眼**：這是投資資訊網站，不製造急迫感，也不放無法查證的見證。
 - 參考網站的照片、字型檔、商標、文案。插圖用程式畫的向量圖或網站自己的資料圖。
 - 擋住內容的固定底部列：畫面底部中央是「回到頂端」的位置（`stock-site-design` 第 2 節），不再放第二個固定列。
 - 劫持捲動（一次捲一屏、捲動時鎖住頁面）。
-- 用動畫隱藏資料：數字跳動時文字內容就是正確值；深色段落裡的資料仍要有日期與來源。
+- 用動畫隱藏資料：不從 0 數上去、不把內容預設透明；深色段落裡的資料仍要有日期與來源。
 
 ## 6. 驗收
 

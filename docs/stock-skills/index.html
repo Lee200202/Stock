@@ -1234,57 +1234,64 @@ html[data-theme=dark]{--bg:#101915;--panel:#19251f;--text:#ebf3ee;--muted:#afc1b
 </ul>
 <h2>2. 設計權杖（盤勢有據版）</h2>
 <p>所有尺寸乘上 <code>var(--rd-fs)</code>（使用者字級設定）；寬度沿用 <code>--wrapmax</code>（使用者欄寬設定）。</p>
+<p>實作時直接改寫網站既有的變數（<code>--bg</code>、<code>--panel</code>…），不另起一套名稱，舊元件自動跟上。</p>
 <div class="table-wrap" tabindex="0" role="region" aria-label="可左右捲動的規格表"><table>
 <thead>
 <tr>
-  <th>類別</th>
+  <th>類別（既有變數）</th>
   <th>淺色</th>
   <th>深色</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-  <td>頁面底 <code>--ss-bg</code></td>
-  <td><code>#fbfbfd</code></td>
+  <td>頁面底 <code>--bg</code></td>
+  <td><code>#F5F5F7</code></td>
   <td><code>#000000</code></td>
 </tr>
 <tr>
-  <td>卡片底 <code>--ss-tile</code></td>
-  <td><code>#f5f5f7</code></td>
-  <td><code>#1c1c1e</code></td>
+  <td>卡片底 <code>--panel</code></td>
+  <td><code>#FFFFFF</code></td>
+  <td><code>#1C1C1E</code></td>
 </tr>
 <tr>
-  <td>浮層底 <code>--ss-surface</code></td>
-  <td><code>#ffffff</code></td>
-  <td><code>#161618</code></td>
+  <td>卡片裡的卡片 <code>--panel-2</code></td>
+  <td><code>#F5F5F7</code></td>
+  <td><code>#2C2C2E</code></td>
 </tr>
 <tr>
-  <td>主文字 <code>--ss-ink</code></td>
-  <td><code>#1d1d1f</code></td>
-  <td><code>#f5f5f7</code></td>
+  <td>主文字 <code>--ink</code></td>
+  <td><code>#1D1D1F</code></td>
+  <td><code>#F5F5F7</code></td>
 </tr>
 <tr>
-  <td>次文字 <code>--ss-muted</code></td>
-  <td><code>#6e6e73</code></td>
-  <td><code>#a1a1a6</code></td>
+  <td>次文字 <code>--muted</code></td>
+  <td><code>#6E6E73</code></td>
+  <td><code>#A1A1A6</code></td>
 </tr>
 <tr>
-  <td>分隔 <code>--ss-line</code></td>
-  <td><code>rgba(0,0,0,.08)</code></td>
-  <td><code>rgba(255,255,255,.12)</code></td>
+  <td>分隔 <code>--rule</code></td>
+  <td><code>#D2D2D7</code></td>
+  <td><code>#3A3A3C</code></td>
 </tr>
 <tr>
-  <td>主要動作 <code>--ss-action</code></td>
-  <td><code>#0071e3</code></td>
-  <td><code>#2997ff</code></td>
+  <td>主要動作 <code>--brand</code>／連結 <code>--brand-2</code></td>
+  <td><code>#0071E3</code>／<code>#0066CC</code></td>
+  <td><code>#2997FF</code></td>
 </tr>
 <tr>
   <td>沉浸段落底 <code>--ss-night</code></td>
-  <td><code>#08080c</code></td>
-  <td><code>#08080c</code></td>
+  <td><code>#08080C</code></td>
+  <td><code>#08080C</code></td>
+</tr>
+<tr>
+  <td>陰影 <code>--lift</code></td>
+  <td>無</td>
+  <td>無</td>
 </tr>
 </tbody>
 </table></div>
+<p>選中的分頁、分段控制與日曆選中日用 <code>--ink</code> 實心（Apple 的深色膠囊），主要動作才用藍色。</p>
 <p>分類色照舊（買入／上漲紅、賣出／下跌綠、持股紫、觀望注意藍、觀望不碰琥珀），不因改版換色。</p>
 <div class="table-wrap" tabindex="0" role="region" aria-label="可左右捲動的規格表"><table>
 <thead>
@@ -1346,14 +1353,14 @@ html[data-theme=dark]{--bg:#101915;--panel:#19251f;--text:#ebf3ee;--muted:#afc1b
 </thead>
 <tbody>
 <tr>
-  <td><code>.ss-reveal</code></td>
-  <td>進場淡入</td>
-  <td>初始 <code>opacity:0; transform:scale(1.03)</code>；可見後加 <code>.is-in</code> 回到 1；只播一次。<strong>沒有 JavaScript 或減少動態時一開始就是可見的</strong>（以 <code>html.js</code> 前綴才隱藏）</td>
+  <td><code>.ss-rise</code></td>
+  <td>進場浮起</td>
+  <td>初始 <code>transform: translateY(28px) scale(.985)</code>，進入畫面加 <code>.is-in</code> 回原位，只播一次；<strong>不改透明度</strong>——參考網站的「透明＋放大」淡入在本站不用：v107 管理者回報列表捲進來前是透明的，手機上像資料沒載入（<code>stock-site-design</code>：不要把內容預設透明等捲動才顯示）。觀察門檻用 <code>threshold:0</code>＋底部內縮 8%，很高的區塊也會觸發。只套在區塊外框，不套在個股列（個股列已有資料重畫時的 <code>fx-rise</code>）</td>
 </tr>
 <tr>
-  <td><code>.ss-count</code></td>
-  <td>數字跳動</td>
-  <td>進入畫面時從 0 跳到實際值（約 1 秒，ease-out）；<code>data-final</code> 存實際值；減少動態時直接顯示；文字內容永遠是正確數字（讀屏與複製不受影響）</td>
+  <td>數字</td>
+  <td>大數字</td>
+  <td>不從 0 數上去：資料到了直接寫真值（v54：先顯示 0 再跳成真值像資料錯了）；之後更新才用既有 <code>tick()</code> 從舊值滑到新值。進場只做 <code>.ss-rise</code> 位移</td>
 </tr>
 <tr>
   <td><code>.ss-shelf</code></td>
@@ -1383,7 +1390,7 @@ html[data-theme=dark]{--bg:#101915;--panel:#19251f;--text:#ebf3ee;--muted:#afc1b
 <tr>
   <td><code>.ss-nav</code></td>
   <td>浮動導覽</td>
-  <td>捲動超過 24px 後，分頁列變成圓角半透明長條（<code>backdrop-filter: saturate(180%) blur(20px)</code>）</td>
+  <td>頂列與分頁列半透明＋<code>backdrop-filter: saturate(180%) blur(20px)</code>，捲動後分頁列下緣出現細線；<strong>寬度 899px 以下與手機版設定改回實心底</strong>（v107：毛玻璃讓低階手機捲動掉格）</td>
 </tr>
 <tr>
   <td><code>.ss-pause</code></td>
@@ -1398,15 +1405,16 @@ html[data-theme=dark]{--bg:#101915;--panel:#19251f;--text:#ebf3ee;--muted:#afc1b
 </tbody>
 </table></div>
 <p>進場淡入的最小實作：</p>
-<pre><code class="language-css">html.js .ss-reveal { opacity: 0; transform: scale(1.03); }
-html.js .ss-reveal.is-in { opacity: 1; transform: none;
-  transition: opacity 1.1s cubic-bezier(.2,.55,.3,1), transform 1.1s cubic-bezier(.2,.55,.3,1); }
-@media (prefers-reduced-motion: reduce) { html.js .ss-reveal { opacity: 1; transform: none; } }
+<pre><code class="language-css">html.ss-js .ss-rise { transform: translateY(28px) scale(.985); }
+html.ss-js .ss-rise.is-in { transform: none; transition: transform 1.1s cubic-bezier(.2,.55,.3,1);
+  transition-delay: calc(var(--ss-i, 0) * 80ms); }
+@media (prefers-reduced-motion: reduce) { html.ss-js .ss-rise { transform: none; transition: none; } }
 </code></pre>
-<pre><code class="language-js">const io = new IntersectionObserver(es =&gt; es.forEach(e =&gt; { if (e.isIntersecting) { e.target.classList.add('is-in'); io.unobserve(e.target); } }), { threshold: .15 });
-document.querySelectorAll('.ss-reveal').forEach(el =&gt; io.observe(el));
+<pre><code class="language-js">const io = new IntersectionObserver(es =&gt; es.forEach(e =&gt; { if (e.isIntersecting) { e.target.classList.add('is-in'); io.unobserve(e.target); } }),
+  { threshold: 0, rootMargin: '0px 0px -8% 0px' });
+document.querySelectorAll('.ss-rise').forEach(el =&gt; io.observe(el));
 </code></pre>
-<p>動態載入的內容（每日總覽卡片、持股回合）要在渲染完成後再交給同一個觀察器；已在畫面內的直接加 <code>.is-in</code>，不要讓使用者看到空白再跳出。</p>
+<p><code>ss-js</code> 由 <code>&lt;head&gt;</code> 裡一行內嵌程式掛上，沒有 JavaScript 時不位移，舊有的 <code>.mui-blur-fade</code> 也直接顯示。隱藏分頁裡的區塊在分頁打開時才會相交，不需另外處理。</p>
 <h2>4. 套到盤勢有據</h2>
 <div class="table-wrap" tabindex="0" role="region" aria-label="可左右捲動的規格表"><table>
 <thead>
@@ -1454,13 +1462,23 @@ document.querySelectorAll('.ss-reveal').forEach(el =&gt; io.observe(el));
 </tr>
 </tbody>
 </table></div>
+<h3>4.1 實作現況（v193，2026/10/21）</h3>
+<ul>
+<li>樣式在 <code>Stylesheet.html</code> 最後的「v193 樣式層」，選擇器都以 <code>body[data-tab]</code> 開頭，後台共用同一份樣式表也不受影響；程式在 <code>JavaScript.html</code> 最後一段。</li>
+<li>首屏：<code>#ssToToday</code>（捲到第一個有個股的分類）、<code>.ss-link[data-ss-tab]</code>（切分頁，全站共用這個屬性）。訊號帶暫停鈕 <code>#bandPause</code>。</li>
+<li>沉浸段落：<code>.ss-night</code> 包住四格統計與 <code>#statBasis</code>，段落內重新指定深色權杖（漲跌色用深色主題那組）。</li>
+<li>大卡：<code>#p-overview／tracker／perf／tx／mail &gt; .sect</code>；<strong>599px 以下收掉外層大卡</strong>，個股卡直接放在頁底並改回白底（兩層內距會把說明欄擠窄約 40px）。</li>
+<li>探索卡片列 <code>.ss-explore[data-ss-shelf]</code> 放在每日總覽最後，六張卡各連到一個分頁；不是 <code>.sect</code>，因為四區的類別色圓點依 <code>.sect</code> 順序。</li>
+<li>訂閱頁最後是 <code>details.ss-faq</code> 常見問題，只談每日總覽。</li>
+<li>預覽：<code>scratch/ss/preview.py</code> 以 Playwright 打開正式 Pages 網址、只把網頁本身換成本機 <code>_site</code> 建置，API 照常走正式 Worker（Worker 只接受 Pages 來源，本機網址會被擋；內建瀏覽器也不能從公開網頁讀本機檔案）。</li>
+</ul>
 <h2>5. 不可以照搬</h2>
 <ul>
 <li><strong>倒數計時、限時免費、劃線原價、學員見證、「保證」字眼</strong>：這是投資資訊網站，不製造急迫感，也不放無法查證的見證。</li>
 <li>參考網站的照片、字型檔、商標、文案。插圖用程式畫的向量圖或網站自己的資料圖。</li>
 <li>擋住內容的固定底部列：畫面底部中央是「回到頂端」的位置（<code>stock-site-design</code> 第 2 節），不再放第二個固定列。</li>
 <li>劫持捲動（一次捲一屏、捲動時鎖住頁面）。</li>
-<li>用動畫隱藏資料：數字跳動時文字內容就是正確值；深色段落裡的資料仍要有日期與來源。</li>
+<li>用動畫隱藏資料：不從 0 數上去、不把內容預設透明；深色段落裡的資料仍要有日期與來源。</li>
 </ul>
 <h2>6. 驗收</h2>
 <ul>

@@ -7,6 +7,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;600&family=Noto+Serif+TC:wght@700&display=swap" rel="stylesheet">
   <?!= include('Stylesheet'); ?>
+  <!-- v193：有 JavaScript 才掛 ss-js，進場效果與淡入只在那時生效；沒有 JavaScript 時標語與數字直接顯示。 -->
+  <script>document.documentElement.classList.add('ss-js');</script>
 </head>
 <body data-tab="<?= initialTab ?>" data-stock="<?= initialStock ?>">
 
@@ -126,6 +128,11 @@
       <!-- v103：主標語是網站的初衷；原本的標題成為說明句。計數膠囊移到下面一整排，五顆等寬。 -->
       <h1 class="mui-blur-fade">投資，是為了讓家人過更好的生活</h1>
       <p class="lede mui-blur-fade">所以只記錄影片裡明講的每一筆買賣；沒講到的就標示未說明，不推測、不補完。</p>
+      <!-- v193：一屏一件事——一個主要動作、一個次要連結（stock-scroll-story） -->
+      <div class="ss-actions">
+        <button type="button" class="ss-cta" id="ssToToday">看今天的紀錄</button>
+        <button type="button" class="ss-link" data-ss-tab="subscribe">每天收一封整理</button>
+      </div>
     </div>
     <div class="ledger" id="ledger" aria-label="當日各類紀錄有無"></div>
   </div>
@@ -133,9 +140,20 @@
 
 <div class="signalband bleed" aria-label="當日訊號帶">
   <div class="mui-marquee" id="band"></div>
+  <button type="button" class="ss-pause" id="bandPause" aria-pressed="false" aria-label="暫停捲動訊號帶">
+    <svg class="i-pause" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="2" width="3.6" height="12" rx="1"/><rect x="9.4" y="2" width="3.6" height="12" rx="1"/></svg>
+    <svg class="i-play" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.2v11.6a.8.8 0 0 0 1.2.7l9.4-5.8a.8.8 0 0 0 0-1.4L5.2 1.5A.8.8 0 0 0 4 2.2z"/></svg>
+  </button>
 </div>
 
-<div class="stats bleed mui-blur-fade">
+<!-- v193：四格統計放進全寬深色段落（沉浸段落只有這一段） -->
+<section class="ss-night bleed" aria-labelledby="ssNightH">
+<div class="wrap">
+<div class="ss-explore-h">
+  <h2 class="ss-night-h" id="ssNightH">持股追蹤一覽</h2>
+  <button type="button" class="ss-link" data-ss-tab="tracker">看每一檔</button>
+</div>
+<div class="stats mui-blur-fade">
   <div class="stat">
     <div class="k">追蹤標的</div>
     <div class="v"><span class="num" id="stCount">—</span><span class="u">檔</span></div>
@@ -153,7 +171,9 @@
     <div class="v"><span class="num" id="stPos">—</span><span class="u">%</span></div>
   </div>
 </div>
-<div class="wrap"><p class="basis" id="statBasis"></p></div>
+<p class="basis" id="statBasis"></p>
+</div>
+</section>
 </div><!-- /#overviewTop -->
 
 <main class="wrap">
@@ -194,6 +214,27 @@
 
       <div id="dateResult" style="margin-top:18px;"></div>
     </div>
+
+    <!-- v193 探索卡片列：Apple「了解 iPhone」那種橫向吸附卡片，附箭頭、進度點與鍵盤左右（stock-scroll-story §3 .ss-shelf）。
+         不是 .sect：每日總覽四區的類別色圓點與摺疊程式以 .sect 的順序為準。 -->
+    <section class="ss-explore" data-ss-shelf aria-labelledby="ssExploreH">
+      <div class="ss-explore-h">
+        <h2 id="ssExploreH">繼續探索</h2>
+        <div class="ss-paddles">
+          <button type="button" class="ss-paddle" data-ss-prev aria-label="上一張卡片"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+          <button type="button" class="ss-paddle" data-ss-next aria-label="下一張卡片"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+        </div>
+      </div>
+      <div class="ss-shelf" role="group" aria-label="網站其他分頁">
+      <button type="button" class="ss-card k-tracker" data-ss-tab="tracker"><svg class="ss-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/></svg><span class="ss-eyebrow">持股追蹤</span><strong>每一檔從進場到現在</strong><p>持有中與已出場分開列，報酬逐回合計算。</p><span class="ss-go" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M6 3l5 5-5 5"/></svg></span></button>
+      <button type="button" class="ss-card k-perf" data-ss-tab="perf"><svg class="ss-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/></svg><span class="ss-eyebrow">績效走勢</span><strong>整體績效每天一個點</strong><p>平均報酬、正報酬比例與持有檔數的走勢。</p><span class="ss-go" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M6 3l5 5-5 5"/></svg></span></button>
+      <button type="button" class="ss-card k-tx" data-ss-tab="tx"><svg class="ss-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg><span class="ss-eyebrow">逐字稿</span><strong>每筆紀錄都能對回原話</strong><p>依日期查看當天影片的逐字稿。</p><span class="ss-go" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M6 3l5 5-5 5"/></svg></span></button>
+      <button type="button" class="ss-card k-mail" data-ss-tab="mail"><svg class="ss-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg><span class="ss-eyebrow">郵件查詢</span><strong>每天寄出的整理</strong><p>點日期查看當天寄出的內容。</p><span class="ss-go" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M6 3l5 5-5 5"/></svg></span></button>
+      <button type="button" class="ss-card k-subscribe" data-ss-tab="subscribe"><svg class="ss-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span class="ss-eyebrow">訂閱通知</span><strong>每天收一封整理</strong><p>影片整理完成後寄出，隨時可以取消。</p><span class="ss-go" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M6 3l5 5-5 5"/></svg></span></button>
+      <button type="button" class="ss-card k-tech" data-ss-tab="tech"><svg class="ss-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><span class="ss-eyebrow">技術說明</span><strong>從影片到紀錄的每一步</strong><p>取稿、分類、撰寫與驗收的流程圖解。</p><span class="ss-go" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M6 3l5 5-5 5"/></svg></span></button>
+      </div>
+      <div class="ss-dots" role="group" aria-label="卡片位置"></div>
+    </section>
   </section>
 
   <!-- v94 市場總覽已移除；以下保留持股追蹤與個股圖表。 -->
@@ -321,6 +362,14 @@
         </div>
       </div>
 
+    </div>
+
+    <!-- v193 常見問題：折疊說明，主畫面只放結論（stock-scroll-story §3 details.ss-faq）。只談每日總覽，不提其他通知。 -->
+    <div class="sect ss-faqs">
+      <div class="sect-h"><h2>常見問題</h2></div>
+      <details class="ss-faq"><summary>多久寄一次？</summary><p>每個交易日影片整理完成後寄出一封。</p></details>
+      <details class="ss-faq"><summary>信裡有什麼？</summary><p>當天影片講到的每一檔與操作方向，和網站的每日總覽相同。</p></details>
+      <details class="ss-faq"><summary>怎麼取消？</summary><p>每封信底部都有取消訂閱連結；也可以在上方「管理現有訂閱」填入 Email，停止接收所有信件。</p></details>
     </div>
   </section>
 

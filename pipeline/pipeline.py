@@ -13406,6 +13406,8 @@ now　講者對「現在要不要進場」的表態，about_itself 為 false 時
 　只說「我沒有買【甲】」而沒有說為什麼不買、也沒有說以後不買，是陳述沒有部位，不是表態。
 　同一檔前後講法不同時，以最後一次、而且是對現在的指示為準。
 講者否認自己在推薦它（「你叫我們買【甲】哦？不是」「我不是叫你買它」「這一支我沒有推薦」）是不推薦：now 填 prohibit，引那一句。
+wait_now　講者有沒有明講「他現在不買、還不會買、時候還沒到、要等的條件還沒出現」（「我沒有看到那一根量，我是不會買的」「還沒到，先不要」「年線沒有到你們都別想進場」）。這一題和 now 分開回答：就算他同時講了以後的買點，只要明講現在還不買，就是 true。
+　不算：叫人不要賣、不要殺低（那是續抱）；只說「我還沒有買」而沒有說現在不買或時候未到；講的是別檔或觀眾；回顧以前講過的話；條件已經發生、他說現在可以買了。
 tone　now 是 none 時才有作用（只說它今天漲、漲停、創新高、比同業強，是行情描述，填 neutral；偏多要有他對之後的判斷，或叫人注意、買進、抱著的意思）：bullish＝對本股現在與之後偏多，包含剛開始漲、第一根長紅並值得注意、明講它會跟著衝出去；bearish＝偏空，或拿它當大跌、追高受傷、風險的例子；neutral＝只描述已發生的行情或只回顧過去（「【甲】回來碰季線，在季線附近整理」），沒有偏多或偏空的結論；這種不會列出來，所以不要為了讓它有分類而勉強填 bullish 或 bearish。
 　反話與賣壓竭盡是偏多：「想賣的趕快賣，我的會員不准賣」「假跌破」「賣完就漲」不是 bearish。
 
@@ -13413,7 +13415,7 @@ tone　now 是 none 時才有作用（只說它今天漲、漲停、創新高、
 quotes 不可以留空白交卷：about_itself 是 true 而 stance 沒有引句，這一份答案會整份作廢。
 段落不足以判斷時照實答 false／none，並在 unsure 寫一句原因；不要猜，也不要為了讓它有分類而放寬定義。
 
-只輸出 JSON：{"verdicts":[{"id":"代號","buy_today":false,"sell_today":false,"holding_now":false,"past_trade":false,"about_itself":true,"now":"none","tone":"neutral","quotes":{"buy_today":[],"sell_today":[],"holding_now":[],"past_trade":[],"stance":[]},"unsure":""}]}
+只輸出 JSON：{"verdicts":[{"id":"代號","buy_today":false,"sell_today":false,"holding_now":false,"past_trade":false,"about_itself":true,"now":"none","wait_now":false,"tone":"neutral","quotes":{"buy_today":[],"sell_today":[],"holding_now":[],"past_trade":[],"stance":[],"wait_now":[]},"unsure":""}]}
 每一筆 stocks 都要有一筆 verdicts，id 照抄。"""
 
 # 引句裡要看得出答案：答「今天買進」卻引一句沒有買字的話，那一題不算數。
@@ -14118,6 +14120,10 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
     # 真實重播裡群聯、宜鼎、聯電的正確答案因此被改掉。現在只核對引句是不是本股段落的原文，立場照 AI 的答案。
     if not stance:
         return ('history', '只回顧過去的買賣：' + first('past_trade')) if past else ('', '有講這一檔，但引不出原文')
+    waiting = real('wait_now') if answer.get('wait_now') is True else []
+    if waiting and now in ('buy_ok', 'conditional', 'none'):
+        # 獨立的事實題答「現在還不買、時候未到」且引得到本股原文：有條件也是還沒到，以現在還不能買計（2026/10/21 世芯-KY）
+        return 'watch_avoid', '現在還不買、條件還沒到：' + waiting[0][:40]
     if now in ('prohibit', 'not_yet'):
         return 'watch_avoid', ('明講不買：' if now == 'prohibit' else '現在還不能買：') + stance[0][:40]
     if now in ('buy_ok', 'conditional'):

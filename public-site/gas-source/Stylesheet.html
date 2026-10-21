@@ -5372,6 +5372,19 @@ body[data-tab] .scrollprog i { background: var(--ink); }
   cursor: pointer; transition: width .35s var(--ss-ease), background-color .2s ease; }
 .ss-dots button[aria-current="true"] { width: 28px; background: var(--ink); }
 @media (pointer: coarse) { .ss-dots button { position: relative; } .ss-dots button::after { content: ""; position: absolute; inset: -17px -8px; } }
+.ss-explore-h, .ss-dots { max-width: 960px; margin-inline: auto; }
+.ss-shelf { --shelf-card-width: min(70vw, calc(420px * var(--rd-fs))); position: relative; max-width: 960px; margin-inline: auto;
+  grid-auto-columns: var(--shelf-card-width); padding-inline: 0; scroll-padding-inline: 50%; }
+.ss-card { scroll-snap-align: center; }
+.ss-shelf-pause { display: inline-grid; place-items: center; flex: none; width: 44px; height: 44px; padding: 0;
+  border: 1px solid var(--rule); border-radius: 50%; background: var(--panel); color: var(--ink); font: 600 16px/1 sans-serif; cursor: pointer; }
+.ss-shelf-pause:hover { background: var(--panel-2); }
+.ss-shelf-pause[hidden] { display: none; }
+.k-fresh { display: inline-flex; align-items: center; max-width: 100%; padding: 6px 12px; border-radius: 999px;
+  background: var(--panel-2); color: var(--muted); font-size: calc(13px * var(--rd-fs)); line-height: 1.4; }
+.k-help { margin: 14px 0 20px; padding: 0 18px; border: 1px solid var(--rule); border-radius: 22px; background: var(--panel); }
+.k-help summary { padding: 14px 0; cursor: pointer; font-weight: 600; }
+.k-help p { margin: 0 0 16px; color: var(--muted); font-size: calc(14px * var(--rd-fs)); line-height: 1.7; }
 
 /* ---------- 常見問題（details.ss-faq） ---------- */
 .ss-faq { border-top: 1px solid var(--rule); }
@@ -5404,6 +5417,7 @@ html.ss-js .ss-rise.is-in { transform: none; transition: transform 1.1s var(--ss
   .ss-paddles { display: none; }
   .ss-pause { right: 10px; }
   .ss-card { min-height: calc(260px * var(--rd-fs)); }
+  .ss-shelf { --shelf-card-width: min(82vw, calc(420px * var(--rd-fs))); }
 }
 html[data-view="mobile"] body[data-tab] .hero .bigdate { font-size: calc(48px * var(--rd-fs)); }
 html[data-view="mobile"] .ss-paddles { display: none; }

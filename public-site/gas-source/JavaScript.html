@@ -3630,7 +3630,7 @@ function restatesEarlier_(key, earlier) {
       showCandles(p, memo[p]);
       return;
     }
-    if(!background){rawData = [];setChartVisible(false);$('periodNote').textContent = 'K 線載入中…';}
+    if(!background){rawData = [];setChartVisible(false);$('periodNote').textContent = 'K 線載入中…';$('kFresh').textContent='讀取走勢中';}
     if (candlePending[code]) { return; }   // 回來時會畫當下選的週期
     candlePending[code] = true;
     google.script.run.withSuccessHandler(function (b) {
@@ -3644,10 +3644,11 @@ function restatesEarlier_(key, earlier) {
     }).withFailureHandler(function () {
       delete candlePending[code];
       if (code !== currentCode) { return; }
-      if(background){$('periodNote').textContent+='　更新暫未成功，保留上次圖表。';return;}
+      if(background){$('periodNote').textContent+='　更新暫未成功，保留上次圖表。';$('kFresh').textContent='更新暫未成功 · 顯示上次資料';return;}
       // 失敗的時候也要收起來，連線斷掉時那一大塊白方塊照樣會留在畫面上。
       setChartVisible(false);
       $('periodNote').textContent = 'K 線載入失敗，請重新整理再試。';
+      $('kFresh').textContent = '走勢讀取失敗';
       paintTrend();
     }).apiGetCandlesBundle(code);
   }
@@ -3666,6 +3667,7 @@ function restatesEarlier_(key, earlier) {
     rawData = rows || [];
 
     if (!rawData.length) {
+      $('kFresh').textContent = '目前沒有' + (p === 'month' ? '月' : p === 'week' ? '週' : p === 'hour' ? '60 分' : '日') + ' K 資料';
       // 資料庫沒有這一檔或這個週期的資料，就直接說明，不再現爬空轉。
       if (p === 'hour') {
         $('periodNote').textContent = '這一檔尚無 60 分 K，請先看日 K。';
@@ -3689,6 +3691,9 @@ function restatesEarlier_(key, earlier) {
     if(p==='hour'&&candleMemo[currentCode]&&candleMemo[currentCode].hourCoverage){var hc=candleMemo[currentCode].hourCoverage;$('periodNote').textContent+='　'+hc.source+'。'+(hc.note||'');}
     var preview = rawData.find(function(r){return r._provisional;});
     if(preview) $('periodNote').textContent += '　盤中預覽（快取更新 '+preview._asOf+'），尚非正式收盤日K，不計入績效。';
+    var unit = p === 'month' ? '月 K' : p === 'week' ? '週 K' : p === 'hour' ? '60 分 K' : '日 K';
+    var lastDate = String(rawData[rawData.length-1].date).slice(0, 10);
+    $('kFresh').textContent = unit + ' · ' + lastDate + (preview ? ' 盤中預覽' : ' 最新資料');
     renderChart();
   }
 
@@ -4402,46 +4407,67 @@ window.__fxWatch(['tblBuy', 'tblSell', 'tblWatchWatch', 'tblWatchAvoid', 'tracke
   arm('#p-overview > .sect, #p-tracker > .sect, #p-perf > .sect, #p-tx > .sect, #p-mail > .sect, ' +
       '#p-subscribe > .sect.subgrid > .card, #p-subscribe > .ss-faqs, .ss-explore', false);
   arm('.ss-night .stat', true);
+  arm('#detail .detail-body > .sect', false);
 
-  /* 探索卡片列：左右箭頭（到頭停用）、進度點（目前位置拉長）、鍵盤左右鍵換卡。 */
+  /* 探索卡片列：置中、短距離自動輪播；觸碰後留足閱讀時間，保留滑動、進度點與鍵盤。 */
   document.querySelectorAll('[data-ss-shelf]').forEach(function (wrap) {
     var shelf = wrap.querySelector('.ss-shelf');
     var dots = wrap.querySelector('.ss-dots');
-    var prev = wrap.querySelector('[data-ss-prev]'), next = wrap.querySelector('[data-ss-next]');
+    var pauseButton = wrap.querySelector('[data-ss-pause]');
     if (!shelf) { return; }
     var cards = [].slice.call(shelf.children);
-    var stops = 0, raf = 0;
-    function step() { return cards[1] ? cards[1].offsetLeft - cards[0].offsetLeft : shelf.clientWidth; }
-    function max() { return Math.max(0, shelf.scrollWidth - shelf.clientWidth); }
-    function go(left) { try { shelf.scrollTo({ left: left, behavior: reduce ? 'auto' : 'smooth' }); } catch (e) { shelf.scrollLeft = left; } }
-    function current() { return shelf.scrollLeft >= max() - 2 ? stops - 1 : Math.round(shelf.scrollLeft / (step() || 1)); }
-    function build() {
-      if (!shelf.clientWidth) { return; }
-      var n = max() > 2 ? Math.ceil((max() - 2) / (step() || 1)) + 1 : 1;
-      if (n !== stops) {
-        stops = n;
-        var h = '';
-        for (var i = 0; i < n; i++) { h += '<button type="button" aria-label="第 ' + (i + 1) + ' 段，共 ' + n + ' 段"></button>'; }
-        if (dots) { dots.innerHTML = h; dots.hidden = n < 2; }
-      }
-      update();
+    var raf = 0, motion = 0, timer = 0, wake = 0, visible = false, stopped = reduce;
+    var hovering = false, focused = false, holdUntil = 0;
+    function position(i) { return Math.max(0, Math.min(shelf.scrollWidth - shelf.clientWidth,
+      shelf.scrollLeft + cards[i].getBoundingClientRect().left - shelf.getBoundingClientRect().left -
+      (shelf.clientWidth - cards[i].offsetWidth) / 2)); }
+    function current() {
+      var best = 0, distance = Infinity;
+      cards.forEach(function (_, i) { var d = Math.abs(shelf.scrollLeft - position(i)); if (d < distance) { distance = d; best = i; } });
+      return best;
     }
+    function layout() {
+      var wanted = Math.max(0, (shelf.clientWidth - cards[0].offsetWidth) / 2);
+      if (Math.abs((parseFloat(getComputedStyle(shelf).paddingLeft) || 0) - wanted) > 1) { shelf.style.paddingInline = wanted + 'px'; }
+    }
+    function go(i, instant) {
+      i = (i + cards.length) % cards.length;
+      if (motion) { cancelAnimationFrame(motion); motion = 0; }
+      var from = shelf.scrollLeft, to = position(i), start = 0;
+      if (instant || reduce || Math.abs(to - from) < 1) { shelf.scrollLeft = to; update(); return; }
+      shelf.style.scrollSnapType = 'none';
+      function animate(t) {
+        if (!start) { start = t; }
+        var p = Math.min(1, (t - start) / 320), ease = 1 - Math.pow(1 - p, 3);
+        shelf.scrollLeft = from + (to - from) * ease;
+        if (p < 1) { motion = requestAnimationFrame(animate); }
+        else { motion = 0; shelf.style.scrollSnapType = ''; update(); }
+      }
+      motion = requestAnimationFrame(animate);
+    }
+    function canPlay() { return !stopped && !hovering && !focused && Date.now() >= holdUntil && visible && !document.hidden && !reduce && cards.length > 1; }
+    function schedule(delay) {
+      clearTimeout(timer);
+      if (canPlay()) { timer = setTimeout(function () { go(current() + 1); schedule(3600); }, delay || 3600); }
+    }
+    function defer() { clearTimeout(wake); holdUntil = Date.now() + 6500; schedule(); wake = setTimeout(function () { schedule(3600); }, 6550); }
     function update() {
       raf = 0;
       var c = current();
-      if (prev) { prev.disabled = shelf.scrollLeft <= 2; }
-      if (next) { next.disabled = shelf.scrollLeft >= max() - 2; }
       if (dots) {
         [].forEach.call(dots.children, function (d, i) { d.setAttribute('aria-current', i === c ? 'true' : 'false'); });
       }
     }
+    if (dots) {
+      dots.innerHTML = cards.map(function (_, i) { return '<button type="button" aria-label="顯示第 ' + (i + 1) + ' 張，共 ' + cards.length + ' 張"></button>'; }).join('');
+      dots.hidden = cards.length < 2;
+    }
     shelf.addEventListener('scroll', function () { if (!raf) { raf = requestAnimationFrame(update); } }, { passive: true });
-    if (prev) { prev.addEventListener('click', function () { go(Math.max(0, shelf.scrollLeft - step())); }); }
-    if (next) { next.addEventListener('click', function () { go(Math.min(max(), shelf.scrollLeft + step())); }); }
+    ['pointerdown', 'touchstart', 'wheel'].forEach(function (eventName) { shelf.addEventListener(eventName, defer, { passive: true }); });
     if (dots) {
       dots.addEventListener('click', function (e) {
         var i = [].indexOf.call(dots.children, e.target);
-        if (i >= 0) { go(i === stops - 1 ? max() : i * step()); }
+        if (i >= 0) { defer(); go(i); }
       });
     }
     shelf.addEventListener('keydown', function (e) {
@@ -4452,11 +4478,29 @@ window.__fxWatch(['tblBuy', 'tblSell', 'tblWatchWatch', 'tblWatchAvoid', 'tracke
       if (j === i) { return; }
       e.preventDefault();
       cards[j].focus({ preventScroll: true });
-      go(Math.min(max(), cards[j].offsetLeft - cards[0].offsetLeft));
+      defer(); go(j);
     });
-    if (window.ResizeObserver) { new ResizeObserver(build).observe(shelf); }
-    else { window.addEventListener('resize', build); }
-    build();
+    if (pauseButton) {
+      pauseButton.hidden = reduce || cards.length < 2;
+      pauseButton.addEventListener('click', function () {
+        stopped = !stopped;
+        pauseButton.setAttribute('aria-pressed', String(stopped));
+        pauseButton.setAttribute('aria-label', stopped ? '繼續探索卡自動播放' : '暫停探索卡自動播放');
+        pauseButton.textContent = stopped ? '▶' : 'Ⅱ';
+        schedule();
+      });
+    }
+    wrap.addEventListener('mouseenter', function () { hovering = true; schedule(); });
+    wrap.addEventListener('mouseleave', function () { hovering = false; schedule(3600); });
+    wrap.addEventListener('focusin', function () { focused = true; schedule(); });
+    wrap.addEventListener('focusout', function (e) { if (!wrap.contains(e.relatedTarget)) { focused = false; schedule(3600); } });
+    document.addEventListener('visibilitychange', function () { schedule(3600); });
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver(function (entries) { visible = entries[0].isIntersecting; schedule(3600); }, { threshold: .25 }).observe(wrap);
+    } else { visible = true; }
+    if (window.ResizeObserver) { new ResizeObserver(function () { var i = current(); layout(); go(i, true); }).observe(shelf); }
+    else { window.addEventListener('resize', function () { var i = current(); layout(); go(i, true); }); }
+    layout(); go(0, true); schedule(3600);
   });
 })();
 </script>

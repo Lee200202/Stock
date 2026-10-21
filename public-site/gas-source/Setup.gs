@@ -1246,7 +1246,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-10-21-scroll-story-v193';
+var PROJECT_BUILD_ = '2026-10-21-scroll-story-v194';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
@@ -1283,13 +1283,13 @@ var PROJECT_FILES_ = [
 var PROJECT_HTML_ = [
   { file: 'UsageTracker', marker: 'w.StockUsage' },
   { file: 'UsagePanel', marker: 'usagePeriod' },
-  { file: 'StoryDesign', marker: 'v184 技術說明' },
-  { file: 'Index', marker: "include('TechEvidence')" },
+  { file: 'StoryDesign', marker: 'book-motion-ready' },
+  { file: 'Index', marker: 'id="kFresh"' },
   { file: 'TechIllustrations', marker: 'var drawings=' },
   { file: 'TechEvidence', marker: 'v188: chapter-independent components' },
   { file: 'TechQuality', marker: 'v192r1: shared relationship graph, controlled Skills comparisons' },
-  { file: 'JavaScript', marker: 'v193 捲動敘事' },
-  { file: 'Stylesheet', marker: 'v193 捲動敘事改版' },
+  { file: 'JavaScript', marker: '暫停探索卡自動播放' },
+  { file: 'Stylesheet', marker: '.ss-shelf-pause' },
   { file: 'Changelog', marker: 'v188 技術圖解與章節元件' },
   { file: 'Tech', marker: 'classDefinitions' },
   { file: 'Admin', marker: 'id="mLog" href="https://script.google.com/home/projects/' },

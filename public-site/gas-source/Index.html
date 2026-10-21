@@ -215,15 +215,12 @@
       <div id="dateResult" style="margin-top:18px;"></div>
     </div>
 
-    <!-- v193 探索卡片列：Apple「了解 iPhone」那種橫向吸附卡片，附箭頭、進度點與鍵盤左右（stock-scroll-story §3 .ss-shelf）。
+    <!-- 探索卡片列：中央卡片自動輪播，保留手動滑動、鍵盤與進度點。
          不是 .sect：每日總覽四區的類別色圓點與摺疊程式以 .sect 的順序為準。 -->
     <section class="ss-explore" data-ss-shelf aria-labelledby="ssExploreH">
       <div class="ss-explore-h">
         <h2 id="ssExploreH">繼續探索</h2>
-        <div class="ss-paddles">
-          <button type="button" class="ss-paddle" data-ss-prev aria-label="上一張卡片"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
-          <button type="button" class="ss-paddle" data-ss-next aria-label="下一張卡片"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
-        </div>
+        <button type="button" class="ss-shelf-pause" data-ss-pause aria-pressed="false" aria-label="暫停探索卡自動播放">Ⅱ</button>
       </div>
       <div class="ss-shelf" role="group" aria-label="網站其他分頁">
       <button type="button" class="ss-card k-tracker" data-ss-tab="tracker"><svg class="ss-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/></svg><span class="ss-eyebrow">持股追蹤</span><strong>每一檔從進場到現在</strong><p>持有中與已出場分開列，報酬逐回合計算。</p><span class="ss-go" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M6 3l5 5-5 5"/></svg></span></button>
@@ -565,7 +562,7 @@
       </div>
 
       <div class="sect" id="dSecK">
-        <div class="sect-h"><h2>K 線</h2></div>
+        <div class="sect-h"><h2>價格走勢與技術面</h2><span class="k-fresh" id="kFresh" role="status">讀取走勢中</span></div>
         <!-- v67（0925 規格 3.2／3.3）：主工具列只剩一行——左邊週期是全頁唯一的膠囊分段控制，右邊區間是文字分段；
              均線與布林改成 K 線圖上方的圖例標籤（點圖例開關），副圖開關移到各自的標題列。 -->
         <div class="chartbar kbar">
@@ -607,6 +604,7 @@
           <span><b>MACD</b><i id="rMacd">—</i></span>
           <span><b>K / D</b><i id="rKD">—</i></span>
         </div>
+        <details class="k-help"><summary>技術指標怎麼看</summary><p>均線看不同週期的平均收盤價；布林通道呈現價格波動區間。MACD 比較長短期動能，KD 顯示收盤價在近期區間的位置。這些讀數是觀察線索，不單獨代表進出場訊號。</p></details>
         <p class="notice" id="periodNote"></p>
       </div>
 

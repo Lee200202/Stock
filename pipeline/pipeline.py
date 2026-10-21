@@ -11250,7 +11250,7 @@ def fill_empty_notes(signals, transcript=''):
             quotes = [q for q in [row.get('view'), row.get('time_evidence')] + list(row.get('evidence') or [])
                       if isinstance(q, str) and len(_ev_norm(q)) >= 8]
             # 引句可能是一大段口語：拆成句子，只取一句、九十字以內的；這一列沒有可用引句時才看原文裡點名本股的句子。
-            stance = (_LEFT_AVOID + r'|幹(?:什麼|嘛)') if cat == 'watch_avoid' else (r'賣' if cat == 'sell' else _LEFT_WATCH + r'|買點|注意|續抱')
+            stance = (_LEFT_AVOID + r'|幹(?:什麼|嘛)') if cat == 'watch_avoid' else (r'賣' if cat == 'sell' else _LEFT_WATCH + r'|買點|注意|續抱|不想賣|不會賣|抱著')
 
             def choose(texts, need_name):
                 best, best_score = '', -1
@@ -11265,6 +11265,8 @@ def fill_empty_notes(signals, transcript=''):
                             continue
                         if sent.endswith(('？', '?')) and not cue:
                             continue                      # 問句只有看得出態度時才用（「你們去買X幹什麼？」）
+                        if not named and not cue:
+                            continue                      # 沒點名本股也看不出立場的句子多半屬於前一檔（旭隼被補成「賺不多啦，賺100」）
                         score = 3 * cue + 2 * named
                         if score > best_score:
                             best, best_score = sent, score
@@ -13281,9 +13283,10 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v20-20261021"          # 缺答不算反對、不准賣不是禁買、並列與前文的共同結論、可用票一致放行、反問不是可以買
+VERDICT_VERSION = "v21-20261021"          # v20＋否認部位只改部位軸、並列同述語整組判定、不能用的答案補問到五輪
 VERDICT_VOTES = 3
-VERDICT_MAX_ROUNDS = 3                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
+VERDICT_MAX_ROUNDS = 5                   # 一輪一個請求（只問還缺可用答案的那幾檔）；2026/10/21 富喬、群聯、宜鼎三票裡兩票以上不能用，
+                                         # 補問兩輪換掉不能用的答案，一天多 0～2 個請求（額度每分鐘 15 次、每天 500 次）
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
 VERDICT_REQUEST_CHARS = 48000            # 一個請求裝多少字的輸入（約五萬多 token）。一天的量通常一個請求就裝完
 VERDICT_NEUTRAL_CLASS = 'ignored'        # 只描述行情、沒有偏多偏空的結論：不列（2026/10/08 管理者規則）
@@ -14187,6 +14190,57 @@ def _audit_direct_verdicts(verdicts, direct_ctx, signals, transcript, date_str, 
     return demoted
 
 
+def _parallel_groups(items, transcript):
+    """同一句裡股名緊挨著（中間只隔標點或一兩個字的同一述語，如「台郡跌，富橋跌，台玻跌」）的送裁決股票，分成一組。"""
+    names = {code: sorted({_ev_norm(n) for n in item['_names'] if len(_ev_norm(n)) >= 2}, key=len, reverse=True) for code, item in items}
+    parent = {code: code for code in names}
+
+    def root(c):
+        while parent[c] != c:
+            c = parent[c]
+        return c
+    for sentence in _plain_sentences(transcript):
+        flat = _ev_norm(sentence)
+        hits = []
+        for code, ns in names.items():
+            for n in ns:
+                for m in re.finditer(re.escape(n), flat):
+                    hits.append((m.start(), m.end(), code))
+        hits.sort()
+        for (a0, a1, ca), (b0, b1, cb) in zip(hits, hits[1:]):
+            if ca != cb and 0 <= b0 - a1 <= 2:
+                parent[root(cb)] = root(ca)
+    groups = {}
+    for code in names:
+        groups.setdefault(root(code), []).append(code)
+    return [g for g in groups.values() if len(g) >= 2]
+
+
+def _settle_parallel_groups(verdicts, items, transcript):
+    """並列同一述語的股票：本股自己可用的票不到兩張時，公開與否看整組合併的票（2026/10/21 台郡一票不碰、富喬三票都不能用、
+    台玻兩票不列，同一句話卻一檔公開、兩檔不公開）。本股自己有兩票以上的照本股的結果。"""
+    try:
+        groups = _parallel_groups(items, transcript)
+    except Exception as e:
+        print(f"  分類裁決　並列分組沒有完成（{type(e).__name__}），各檔照原結果")
+        return
+    public = ('buy', 'sell', 'holdings', 'watch_watch', 'watch_avoid')
+    for group in groups:
+        entries = [verdicts[c] for c in group if c in verdicts]
+        pooled = [v for e in entries for v in e.get('votes') or [] if v]
+        for entry in entries:
+            own = [v for v in entry.get('votes') or [] if v]
+            if len(own) >= 2 or entry.get('tier') in ('直接歸類', '人工裁決') or entry.get('open') or entry.get('trade_check'):
+                continue
+            cls = entry.get('cls')
+            if cls in public and pooled.count(cls) < 2 and sum(1 for v in pooled if v not in public) >= 2:
+                names = '、'.join(e['name'] for e in entries)
+                entry.update(cls='ignored', tier='裁決', enforce=True, new=True,
+                             basis=f"並列同一述語（{names}），本股可用票不到兩張，整組合併的票不支持公開")
+                note_decision('分類裁決', '並列同一述語，整組合併的票不支持公開', entry['name'],
+                              '整組各票：' + '、'.join(_VERDICT_LABEL.get(v, v) for v in pooled))
+
+
 def _ask_verdicts(items, date_str, round_no):
     """問一輪。items 是 [(代號, 項目)]；回傳 {代號: 問卷答案}。問不到的那一批回空的，不擋流程。"""
     answers = {}
@@ -14490,6 +14544,8 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             zones = [s['text'] for s in item['passages']]
             leads = _lead_zones(item['passages'], item['_names'], transcript)
             cls, basis = verdict_class(answers.get(code), item['_norm'] + ''.join(map(_ev_norm, leads)), item['_names'], zones, leads)
+            if not cls:
+                entry.setdefault('unusable', []).append(basis[:40])
             if item.get('_trade_check'):
                 sides=item.get('_trade_sides') or [item['_trade_check']]
                 answer=answers.get(code) if isinstance(answers.get(code),dict) else {}
@@ -14534,6 +14590,16 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                 elif agree <= {'holdings', 'watch_watch'}:
                     decided = 'holdings' if entry.get('open') else 'watch_watch'
                     state, why = '定案', '可用的 ' + str(len(usable)) + ' 票都是會員持股或觀望注意（同一組）、沒有反對票'
+            if state == '未定' and entry.get('not_held') and entry['current'] == 'holdings':
+                # 流程把本股列成會員持股、原文卻明講沒有持有：否認的是部位，不是立場。部位改掉之後，觀望兩類照觀望互換的門檻——
+                # 可用的票過半、至少兩票同一個方向就採用（2026/10/21 聯電「我沒有聯電…130以下不要再賣了…它會漲回來」，
+                # 問卷「觀望注意／排除／觀望注意」原本因為要三票一致而不列）。
+                watch_votes = [v for v in usable if v in ('watch_watch', 'watch_avoid')]
+                if watch_votes:
+                    lean = max(dict.fromkeys(watch_votes), key=watch_votes.count)
+                    if watch_votes.count(lean) >= 2 and watch_votes.count(lean) * 2 > len(usable):
+                        state, decided = '定案', lean
+                        why = f'原文否認持有，只改部位；可用的 {len(usable)} 票裡 {watch_votes.count(lean)} 票是{_VERDICT_LABEL[lean]}'
             if entry.get('late') and state == '未定':
                 # 沒有三票一致支持公開：放回不公開
                 entry.update(cls='ignored', tier='裁決', enforce=True, new=True,
@@ -14598,6 +14664,7 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                 note_decision('分類裁決', '沒有定案，維持原分類，待人工確認', entry['name'],
                               why + '；各票：' + '、'.join(_VERDICT_LABEL.get(v, v) or '不能用' for v in entry['votes']))
         pending = still
+    _settle_parallel_groups(verdicts, contested, transcript)
     for code, entry in verdicts.items():
         denial = _explicitly_not_held(direct_ctx[code][1], transcript) if code in direct_ctx else ''
         if denial and entry.get('cls') == 'holdings' and entry.get('tier') != '人工裁決':
@@ -14611,7 +14678,8 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
         if entry['tier'] in ('裁決', '沿用裁決', '未定', '人工裁決') or entry['cls'] != entry['current']:
             votes = '／'.join(_VERDICT_LABEL.get(v, v) or '不能用' for v in entry['votes'])
             print(f"  分類裁決　{entry['name']}（{code}）{entry['tier']}：流程「{_VERDICT_LABEL.get(entry['current'], entry['current'])}」"
-                  + (f"、問卷「{votes}」" if votes else '') + f" → {_VERDICT_LABEL.get(entry['cls'], entry['cls'])}｜{entry['basis'][:110]}")
+                  + (f"、問卷「{votes}」" if votes else '') + f" → {_VERDICT_LABEL.get(entry['cls'], entry['cls'])}｜{entry['basis'][:110]}"
+                  + (f"｜不能用的答案：{'／'.join(entry['unusable'][:3])}" if entry.get('unusable') else ''))
             for cls, kept_answer in (entry.get('answer') or {}).items():
                 a = kept_answer.get('answer') or {}
                 facts = [k for k in ('buy_today', 'sell_today', 'holding_now', 'past_trade', 'about_itself') if a.get(k) is True]
@@ -17367,6 +17435,26 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None
             save_recognition_log(ss, str((video or {}).get('id') or ''), date_str, v1 or v2, text)
 
 
+_SALE_CLAIM = re.compile(r'賣掉一半|賣了一半|已(?:經)?(?:賣出|賣掉|出清|減碼)|出清了|減碼了|獲利了結了')
+
+
+def strip_unrecorded_sale_claims(signals):
+    """會員持股列的說明裡「已賣掉一半」「已出清」這類賣出事實，要有今天的賣出列才留；沒有就拿掉那一句。
+    部位與賣出由紀錄與會員通知決定，說明不能自己宣告減碼（2026/10/21 嘉澤）。"""
+    sold = {str(r.get('code') or '') for r in signals.get('sell', []) or [] if isinstance(r, dict)}
+    for row in signals.get('holdings', []) or []:
+        if not isinstance(row, dict) or str(row.get('code') or '') in sold:
+            continue
+        note = str(row.get('note') or '')
+        if not _SALE_CLAIM.search(note):
+            continue
+        kept = [x for x in re.split(r'(?<=[。！？])', note) if x.strip() and not _SALE_CLAIM.search(x)]
+        row['note'] = ''.join(kept)
+        print(f"  說明核對　{row.get('name')}：拿掉沒有賣出紀錄的賣出說法")
+        note_decision('個股說明', '持股說明寫了沒有紀錄的賣出，拿掉那一句', str(row.get('name') or ''), note[:80])
+    return signals
+
+
 def finalize_name_and_owned_watch(signals, raw, date_str):
     """以原稿名稱邊界與同日持有狀態作最後一道公開分類核對。
     已持有就不重複列觀望；裁決明確要另列的那一類（減碼後剩餘持股＋暫不買回的不碰）照留（2026/10/16 嘉澤）。"""
@@ -17740,6 +17828,7 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     signals = strip_distant_company_names(signals, TX["audit"])
     signals = strip_unsupported_time_clauses(signals, TX["audit"])
     signals = repair_public_note_contradictions(signals)
+    signals = strip_unrecorded_sale_claims(signals)
     signals = drop_lot_profit_unit_conflicts(signals, TX["audit"])
     signals = resolve_watch_holding_overlap(signals, date_str, TX["audit"])
     signals = drop_speaker_sentences(signals)

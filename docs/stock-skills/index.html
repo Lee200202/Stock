@@ -5,27 +5,27 @@
 <style>
 :root{--bg:#f3f2ec;--panel:#fff;--text:#18352e;--muted:#536b62;--line:#cbd8cf;--accent:#126449;--soft:#e2efe7;--focus:#985400;color-scheme:light}
 html[data-theme=dark]{--bg:#101915;--panel:#19251f;--text:#ebf3ee;--muted:#afc1b6;--line:#3e5749;--accent:#83e2ba;--soft:#243b30;--focus:#ffd086;color-scheme:dark}
-*{box-sizing:border-box}html{scroll-padding-top:22px}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.8 system-ui,"Microsoft JhengHei",sans-serif;letter-spacing:.02em}button,input{font:inherit;color:inherit}button,a,input{touch-action:manipulation}a{color:var(--accent);text-underline-offset:4px}button{cursor:pointer;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:9px 19px;min-height:46px}button[aria-pressed=true]{background:var(--accent);color:var(--bg);border-color:var(--accent)}:focus-visible{outline:3px solid var(--focus);outline-offset:4px}main{max-width:1420px;padding:28px 30px 120px;margin:auto}.top{display:flex;gap:18px;align-items:center;justify-content:space-between}.brand{font-weight:800;letter-spacing:.07em}.muted,small{color:var(--muted)}h1{font-size:clamp(30px,4vw,54px);line-height:1.35;margin:18px 0}h2{font-size:24px;line-height:1.5}p{margin:12px 0}.hero{background:var(--accent);color:var(--bg);padding:clamp(24px,4vw,44px);border-radius:32px;margin:24px 0}.hero p{max-width:920px}.hero .eyebrow{font-size:14px;letter-spacing:.12em}.roles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.role{padding:20px;border:1px solid var(--line);border-radius:24px;background:var(--panel);text-decoration:none;display:flex;flex-direction:column;gap:10px;min-width:0}.role strong{color:var(--text);font-size:19px}.role small{font-size:13px;overflow-wrap:anywhere}.role>span,.tag{font-weight:750;color:var(--k,var(--accent))}.role{border-top:5px solid var(--k,var(--accent))}.role>span{display:flex;justify-content:space-between;gap:10px;align-items:center}.badge{font-style:normal;font-size:13px;font-weight:700;padding:2px 12px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}.badge.new{background:var(--k,var(--accent));border-color:var(--k,var(--accent));color:var(--panel)}.role .change{font-size:14px;line-height:1.7}.k-design{--k:#1f5fbf}.k-content{--k:#8a4b00}.k-writing{--k:#7a3e9d}.k-tuning{--k:#a2361f}.k-market{--k:#0b6e6e}.k-automation{--k:#4d6a00}.k-release{--k:#126449}.k-assistant{--k:#8a2f62}.k-collab{--k:#6b5600}html[data-theme=dark] .k-design{--k:#8fb8ff}html[data-theme=dark] .k-content{--k:#f0b46a}html[data-theme=dark] .k-writing{--k:#d3a6f0}html[data-theme=dark] .k-tuning{--k:#ff9f8a}html[data-theme=dark] .k-market{--k:#6fd6d6}html[data-theme=dark] .k-automation{--k:#b8d86a}html[data-theme=dark] .k-release{--k:#83e2ba}html[data-theme=dark] .k-assistant{--k:#f29cc8}html[data-theme=dark] .k-collab{--k:#e3cf6a}html.js .stages.js-only{display:grid}.stages{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:18px 0}.stage{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;border-radius:22px;padding:14px 18px;border:2px solid var(--line);border-left:6px solid var(--k);min-width:0}.stage b{color:var(--muted);font-size:14px}.stage span{font-weight:750;font-size:17px}.stage small{color:var(--k)}.stage[aria-pressed=true]{background:var(--soft);color:var(--text);border-color:var(--k);transform:translateY(-2px)}.stage-card{border:2px solid var(--k);border-radius:26px;padding:24px;background:var(--panel)}.stage-top{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline}.stage-top strong{font-size:24px}#stage-what{font-size:17px}.result.three{grid-template-columns:repeat(3,minmax(0,1fr))}.result.three strong{font-size:17px;line-height:1.7;margin-top:6px}#pipeline details{margin-top:16px}#pipeline li{margin:10px 0}.panel{padding:26px;border:1px solid var(--line);border-radius:28px;background:var(--panel);margin:24px 0}.logic-head{display:flex;gap:16px;justify-content:space-between;align-items:center}.logic-head h2{margin:0}.cases,.filters{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0}.flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;list-style:none;padding:0;counter-reset:flow}.flow li{padding:20px;border-radius:22px;background:var(--soft);border:2px solid transparent;min-width:0;position:relative}.flow li b{display:block;font-size:22px}.flow li.active{border-color:var(--accent);transform:translateY(-3px)}.flow li:before{counter-increment:flow;content:"0" counter(flow);display:block;font-weight:800;color:var(--muted)}.result{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.result>div{padding:20px;border:1px solid var(--line);border-radius:22px}.result strong{font-size:22px;display:block}.result span{color:var(--muted)}#example{padding:14px 18px;border-radius:18px;background:var(--soft)}.tools{margin-top:32px}.search{display:block;width:100%;min-height:56px;padding:13px 24px;border:1px solid var(--line);border-radius:999px;background:var(--panel)}.doc{margin:18px 0;scroll-margin-top:20px}.doc details{border:1px solid var(--line);border-radius:24px;background:var(--panel);overflow:hidden}.doc summary{cursor:pointer;min-height:58px;padding:18px 24px;font-size:20px;font-weight:750;overflow-wrap:anywhere}.tag{font-size:14px;margin-right:14px}.prose{padding:0 26px 26px;overflow-wrap:anywhere}.prose h1{font-size:28px}.prose h2{margin-top:24px}.prose h3{font-size:20px}.prose li{margin:8px 0}.prose pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--soft);padding:20px;border-radius:18px;position:relative}.prose code{font-size:14px;font-family:ui-monospace,Consolas,monospace}.prose pre code{font-size:15px;line-height:1.9}.prose table{width:100%;border-collapse:collapse;min-width:560px}.table-wrap{overflow:auto;margin:18px 0;border:1px solid var(--line);border-radius:16px}.prose th,.prose td{padding:13px 16px;border-bottom:1px solid var(--line);vertical-align:top;text-align:left}.prose th{background:var(--soft)}.copy{display:block;margin:12px 0 0 auto;font-size:14px}.top-button{position:fixed;bottom:max(12px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);box-shadow:0 4px 20px #0002;z-index:5}.no-results{padding:24px}.note{font-size:14px}.js-only{display:none}html.js .js-only{display:block}html.js .cases.js-only{display:flex}.prose>h1:first-child{display:none}
+*{box-sizing:border-box}html{scroll-padding-top:22px}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.8 system-ui,"Microsoft JhengHei",sans-serif;letter-spacing:.02em}button,input{font:inherit;color:inherit}button,a,input{touch-action:manipulation}a{color:var(--accent);text-underline-offset:4px}button{cursor:pointer;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:9px 19px;min-height:46px}button[aria-pressed=true]{background:var(--accent);color:var(--bg);border-color:var(--accent)}:focus-visible{outline:3px solid var(--focus);outline-offset:4px}main{max-width:1420px;padding:28px 30px 120px;margin:auto}.top{display:flex;gap:18px;align-items:center;justify-content:space-between}.brand{font-weight:800;letter-spacing:.07em}.muted,small{color:var(--muted)}h1{font-size:clamp(30px,4vw,54px);line-height:1.35;margin:18px 0}h2{font-size:24px;line-height:1.5}p{margin:12px 0}.hero{background:var(--accent);color:var(--bg);padding:clamp(24px,4vw,44px);border-radius:32px;margin:24px 0}.hero p{max-width:920px}.hero .eyebrow{font-size:14px;letter-spacing:.12em}.roles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.role{padding:20px;border:1px solid var(--line);border-radius:24px;background:var(--panel);text-decoration:none;display:flex;flex-direction:column;gap:10px;min-width:0}.role strong{color:var(--text);font-size:19px}.role small{font-size:13px;overflow-wrap:anywhere}.role>span,.tag{font-weight:750;color:var(--k,var(--accent))}.role{border-top:5px solid var(--k,var(--accent))}.role>span{display:flex;justify-content:space-between;gap:10px;align-items:center}.badge{font-style:normal;font-size:13px;font-weight:700;padding:2px 12px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}.badge.new{background:var(--k,var(--accent));border-color:var(--k,var(--accent));color:var(--panel)}.role .change{font-size:14px;line-height:1.7}.k-design{--k:#1f5fbf}.k-content{--k:#8a4b00}.k-writing{--k:#7a3e9d}.k-tuning{--k:#a2361f}.k-market{--k:#0b6e6e}.k-automation{--k:#4d6a00}.k-release{--k:#126449}.k-assistant{--k:#8a2f62}.k-collab{--k:#6b5600}.k-story{--k:#0057b8}html[data-theme=dark] .k-design{--k:#8fb8ff}html[data-theme=dark] .k-content{--k:#f0b46a}html[data-theme=dark] .k-writing{--k:#d3a6f0}html[data-theme=dark] .k-tuning{--k:#ff9f8a}html[data-theme=dark] .k-market{--k:#6fd6d6}html[data-theme=dark] .k-automation{--k:#b8d86a}html[data-theme=dark] .k-release{--k:#83e2ba}html[data-theme=dark] .k-assistant{--k:#f29cc8}html[data-theme=dark] .k-collab{--k:#e3cf6a}html[data-theme=dark] .k-story{--k:#7cc0ff}html.js .stages.js-only{display:grid}.stages{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:18px 0}.stage{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;border-radius:22px;padding:14px 18px;border:2px solid var(--line);border-left:6px solid var(--k);min-width:0}.stage b{color:var(--muted);font-size:14px}.stage span{font-weight:750;font-size:17px}.stage small{color:var(--k)}.stage[aria-pressed=true]{background:var(--soft);color:var(--text);border-color:var(--k);transform:translateY(-2px)}.stage-card{border:2px solid var(--k);border-radius:26px;padding:24px;background:var(--panel)}.stage-top{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline}.stage-top strong{font-size:24px}#stage-what{font-size:17px}.result.three{grid-template-columns:repeat(3,minmax(0,1fr))}.result.three strong{font-size:17px;line-height:1.7;margin-top:6px}#pipeline details{margin-top:16px}#pipeline li{margin:10px 0}.panel{padding:26px;border:1px solid var(--line);border-radius:28px;background:var(--panel);margin:24px 0}.logic-head{display:flex;gap:16px;justify-content:space-between;align-items:center}.logic-head h2{margin:0}.cases,.filters{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0}.flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;list-style:none;padding:0;counter-reset:flow}.flow li{padding:20px;border-radius:22px;background:var(--soft);border:2px solid transparent;min-width:0;position:relative}.flow li b{display:block;font-size:22px}.flow li.active{border-color:var(--accent);transform:translateY(-3px)}.flow li:before{counter-increment:flow;content:"0" counter(flow);display:block;font-weight:800;color:var(--muted)}.result{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.result>div{padding:20px;border:1px solid var(--line);border-radius:22px}.result strong{font-size:22px;display:block}.result span{color:var(--muted)}#example{padding:14px 18px;border-radius:18px;background:var(--soft)}.tools{margin-top:32px}.search{display:block;width:100%;min-height:56px;padding:13px 24px;border:1px solid var(--line);border-radius:999px;background:var(--panel)}.doc{margin:18px 0;scroll-margin-top:20px}.doc details{border:1px solid var(--line);border-radius:24px;background:var(--panel);overflow:hidden}.doc summary{cursor:pointer;min-height:58px;padding:18px 24px;font-size:20px;font-weight:750;overflow-wrap:anywhere}.tag{font-size:14px;margin-right:14px}.prose{padding:0 26px 26px;overflow-wrap:anywhere}.prose h1{font-size:28px}.prose h2{margin-top:24px}.prose h3{font-size:20px}.prose li{margin:8px 0}.prose pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--soft);padding:20px;border-radius:18px;position:relative}.prose code{font-size:14px;font-family:ui-monospace,Consolas,monospace}.prose pre code{font-size:15px;line-height:1.9}.prose table{width:100%;border-collapse:collapse;min-width:560px}.table-wrap{overflow:auto;margin:18px 0;border:1px solid var(--line);border-radius:16px}.prose th,.prose td{padding:13px 16px;border-bottom:1px solid var(--line);vertical-align:top;text-align:left}.prose th{background:var(--soft)}.copy{display:block;margin:12px 0 0 auto;font-size:14px}.top-button{position:fixed;bottom:max(12px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);box-shadow:0 4px 20px #0002;z-index:5}.no-results{padding:24px}.note{font-size:14px}.js-only{display:none}html.js .js-only{display:block}html.js .cases.js-only{display:flex}.prose>h1:first-child{display:none}
 @media(max-width:1000px){.roles{grid-template-columns:repeat(2,minmax(0,1fr))}.flow{grid-template-columns:repeat(2,minmax(0,1fr))}.stages{grid-template-columns:repeat(3,minmax(0,1fr))}.result.three{grid-template-columns:1fr}}
 @media(max-width:600px){main{padding:16px 16px 110px}.roles{grid-template-columns:1fr}.role{padding:20px}.panel{padding:20px}.logic-head{align-items:flex-start;flex-direction:column}.flow,.result{grid-template-columns:1fr}.stages{grid-template-columns:repeat(2,minmax(0,1fr))}.stage{padding:12px 14px}.stage-card{padding:20px}.hero{border-radius:26px}.prose{padding:0 20px 20px}.doc summary{padding:18px 20px;font-size:18px}.prose table{min-width:520px}.top{align-items:flex-start}.top .brand{max-width:190px}}
 @media(prefers-reduced-motion:no-preference){.flow li,.stage{transition:transform .2s,border-color .2s,background .2s}.stage-card{transition:border-color .3s}}
 @media print{button,.tools,.top-button{display:none!important}main{padding:0}.roles{display:none}.doc details{border:0}.prose{padding:0}body{background:#fff;color:#000}}
 </style></head><body><main>
 <div class="top"><div><div class="brand">盤勢有據 · 工作手冊</div><small>整理日期 2026/10/19 · 可離線閱讀</small></div><button type="button" id="theme" aria-label="切換深淺主題" class="js-only">切換深色</button></div>
-<header class="hero"><div class="eyebrow">規格 × 技能 × 可複製請求</div><h1>把每次確認的規則，<br>變成下次工作的起點。</h1><p>先選任務角色，再查完整規格。九個技能各管一個問題：協作與授權、介面、分類證據、公開文字、規則調整、行情、自動化、發布驗收、網站助理；同一條規則只寫在一個地方。</p><p>本檔是工作規格索引，不會讀取正式資料、呼叫 AI 或發送通知。</p></header>
-<nav class="roles" aria-label="九種工作角色"><a class="role k-design" href="#design"><span>設計<em class="badge">併入</em></span><strong>介面與圖解設計</strong><small>stock-site-design</small><small class="change">補共用寬版、自製可及控制項、數據閱讀層次與動畫分工</small></a><a class="role k-content" href="#content"><span>內容<em class="badge">併入</em></span><strong>來源與分類稽核</strong><small>stock-content-audit</small><small class="change">區分 accepted 驗收、部位事實與獨立評估，支援歷史樣本擴充</small></a><a class="role k-writing" href="#writing"><span>文字<em class="badge">併入</em></span><strong>公開文字與書面說明</strong><small>stock-public-writing</small><small class="change">改為 AI 批次語意審閱，錯例作 rubric，保留證據與通道核對</small></a><a class="role k-tuning" href="#tuning"><span>規則<em class="badge">併入</em></span><strong>規則調整與回測</strong><small>stock-rule-tuning</small><small class="change">補技能路由、離線 A/B、歷史樣本擴充、AI 裁判與答案污染檢查</small></a><a class="role k-market" href="#market"><span>行情<em class="badge">併入</em></span><strong>行情與回合計算</strong><small>stock-market-data</small><small class="change">補逐次行情與持股裁示、證交所／櫃買來源實務</small></a><a class="role k-automation" href="#automation"><span>流程<em class="badge">併入</em></span><strong>自動化與續跑</strong><small>stock-automation-triage</small><small class="change">補 10/05–10/15 事故表與沒有 gh CLI 時的 Actions 操作</small></a><a class="role k-release" href="#release"><span>發布<em class="badge">併入</em></span><strong>同步發布與驗收</strong><small>stock-release-check</small><small class="change">補品質提升的證據門檻，區分已安裝、已評估與已發布</small></a><a class="role k-assistant" href="#assistant"><span>助理<em class="badge new">新增</em></span><strong>網站 AI 助理</strong><small>stock-assistant</small><small class="change">只用 Flash Lite、只訂閱每日總覽、唯讀查詢與三條硬限制</small></a><a class="role k-collab" href="#collab"><span>協作<em class="badge new">新增</em></span><strong>協作、授權與交接</strong><small>stock-collaboration</small><small class="change">反覆註解引導、當日優先、判斷差異與授權交接</small></a></nav>
+<header class="hero"><div class="eyebrow">規格 × 技能 × 可複製請求</div><h1>把每次確認的規則，<br>變成下次工作的起點。</h1><p>先選任務角色，再查完整規格。十個技能各管一個問題：協作與授權、介面、視覺語言、分類證據、公開文字、規則調整、行情、自動化、發布驗收、網站助理；同一條規則只寫在一個地方。</p><p>本檔是工作規格索引，不會讀取正式資料、呼叫 AI 或發送通知。</p></header>
+<nav class="roles" aria-label="十種工作角色"><a class="role k-design" href="#design"><span>設計<em class="badge">併入</em></span><strong>介面與圖解設計</strong><small>stock-site-design</small><small class="change">補共用寬版、自製可及控制項、數據閱讀層次與動畫分工</small></a><a class="role k-story" href="#story"><span>視覺<em class="badge new">新增</em></span><strong>捲動敘事視覺語言</strong><small>stock-scroll-story</small><small class="change">zenbu 與 Apple 產品頁實測：權杖、進場淡入、數字跳動、卡片列與暫停</small></a><a class="role k-content" href="#content"><span>內容<em class="badge">併入</em></span><strong>來源與分類稽核</strong><small>stock-content-audit</small><small class="change">區分 accepted 驗收、部位事實與獨立評估，支援歷史樣本擴充</small></a><a class="role k-writing" href="#writing"><span>文字<em class="badge">併入</em></span><strong>公開文字與書面說明</strong><small>stock-public-writing</small><small class="change">改為 AI 批次語意審閱，錯例作 rubric，保留證據與通道核對</small></a><a class="role k-tuning" href="#tuning"><span>規則<em class="badge">併入</em></span><strong>規則調整與回測</strong><small>stock-rule-tuning</small><small class="change">補技能路由、離線 A/B、歷史樣本擴充、AI 裁判與答案污染檢查</small></a><a class="role k-market" href="#market"><span>行情<em class="badge">併入</em></span><strong>行情與回合計算</strong><small>stock-market-data</small><small class="change">補逐次行情與持股裁示、證交所／櫃買來源實務</small></a><a class="role k-automation" href="#automation"><span>流程<em class="badge">併入</em></span><strong>自動化與續跑</strong><small>stock-automation-triage</small><small class="change">補 10/05–10/15 事故表與沒有 gh CLI 時的 Actions 操作</small></a><a class="role k-release" href="#release"><span>發布<em class="badge">併入</em></span><strong>同步發布與驗收</strong><small>stock-release-check</small><small class="change">補品質提升的證據門檻，區分已安裝、已評估與已發布</small></a><a class="role k-assistant" href="#assistant"><span>助理<em class="badge new">新增</em></span><strong>網站 AI 助理</strong><small>stock-assistant</small><small class="change">只用 Flash Lite、只訂閱每日總覽、唯讀查詢與三條硬限制</small></a><a class="role k-collab" href="#collab"><span>協作<em class="badge new">新增</em></span><strong>協作、授權與交接</strong><small>stock-collaboration</small><small class="change">反覆註解引導、當日優先、判斷差異與授權交接</small></a></nav>
 <section class="panel" id="pipeline" aria-labelledby="pipe-title"><div class="logic-head"><h2 id="pipe-title">一天的資料，經過哪些技能把關？</h2><button type="button" id="pipe-replay" class="js-only">再播流程</button></div><p class="muted">從一則訊息到正式站共十站，每站只由一個技能負責。點選一站看關卡、常犯錯誤與完成證據。</p><div class="stages js-only" role="group" aria-label="流程站點"><button type="button" class="stage k-collab" data-stage="0" aria-pressed="true"><b>01</b><span>拆句與授權</span><small>協作</small></button><button type="button" class="stage k-automation" data-stage="1" aria-pressed="false"><b>02</b><span>取稿與原稿</span><small>流程</small></button><button type="button" class="stage k-content" data-stage="2" aria-pressed="false"><b>03</b><span>校字與股名</span><small>內容</small></button><button type="button" class="stage k-content" data-stage="3" aria-pressed="false"><b>04</b><span>分類與裁決</span><small>內容</small></button><button type="button" class="stage k-writing" data-stage="4" aria-pressed="false"><b>05</b><span>撰寫說明</span><small>文字</small></button><button type="button" class="stage k-tuning" data-stage="5" aria-pressed="false"><b>06</b><span>規則調整</span><small>規則</small></button><button type="button" class="stage k-market" data-stage="6" aria-pressed="false"><b>07</b><span>行情與回合</span><small>行情</small></button><button type="button" class="stage k-release" data-stage="7" aria-pressed="false"><b>08</b><span>發布與驗收</span><small>發布</small></button><button type="button" class="stage k-automation" data-stage="8" aria-pressed="false"><b>09</b><span>通知與帳本</span><small>流程</small></button><button type="button" class="stage k-design" data-stage="9" aria-pressed="false"><b>10</b><span>介面與助理</span><small>設計</small></button></div><div class="stage-card js-only k-collab" id="stage-card"><div class="stage-top"><span class="tag" id="stage-skill">協作、授權與交接</span><strong id="stage-title">01 拆句與授權</strong></div><p id="stage-what">把管理者的一則訊息拆成逐項待辦，對照哪些動作已授權、哪些是擁有者步驟。</p><div class="result three"><div><span>關卡</span><strong id="stage-gate">核對已有授權與變更範圍；對外寄送另需授權</strong></div><div><span>常犯錯誤</span><strong id="stage-mistake">把貼上紀錄寫的「已完成」當成事實</strong></div><div><span>完成證據</span><strong id="stage-proof">拆句清單、結案報告</strong></div></div><a id="stage-link" href="#collab">讀這個技能的完整規格</a></div><p id="pipe-state" class="note muted js-only" aria-live="polite">捲到這裡會依序播放；點選任一站即停止。</p><details><summary>沒有 JavaScript 也能讀的十站流程</summary><ol><li><strong>拆句與授權</strong>（協作、授權與交接，<code>stock-collaboration</code>）：把管理者的一則訊息拆成逐項待辦，對照哪些動作已授權、哪些是擁有者步驟。關卡：核對已有授權與變更範圍；對外寄送另需授權。常犯：把貼上紀錄寫的「已完成」當成事實。證據：拆句清單、結案報告。</li><li><strong>取稿與原稿</strong>（自動化與續跑，<code>stock-automation-triage</code>）：偵測影片、轉錄、保存原稿與指紋，失敗時保留已完成片段續跑。關卡：原稿 SHA-256 不變；直播中延後，不當失敗。常犯：400 重複認證時換三把金鑰空等。證據：原稿字數、指紋、片段與 run。</li><li><strong>校字與股名</strong>（來源與分類稽核，<code>stock-content-audit</code>）：核對名稱、代號與聽錯的字；不確定的字合併一批請模型修。關卡：價位對得上本股；日常用語先排除。常犯：合法代號就當對（宏達電其實是鴻海）。證據：名稱判定紀錄、逐處採用憑證。</li><li><strong>分類與裁決</strong>（來源與分類稽核，<code>stock-content-audit</code>）：明確事實直接歸類，有疑點的送問卷，引句逐字核對後由程式決定分類。關卡：引句在可引用範圍；跨公開或持股要三票。常犯：「今天賣很蠢」當成今日賣出。證據：獨立分類表、答案檔比對。</li><li><strong>撰寫說明</strong>（公開文字與書面說明，<code>stock-public-writing</code>）：把本股的技術位置、量能、籌碼、基本面整理成書面說明，清掉口語與大盤子句。關卡：不借鄰股數字；前台不出現會員通知。常犯：「作為觀望不碰的標的」這種自稱分類。證據：逐則讀 print_public_texts 與正式站。</li><li><strong>規則調整</strong>（規則調整與回測，<code>stock-rule-tuning</code>）：判錯時找成因，固定來源做成對比較；回歸、未見與人工輔助分開報告。關卡：核對答案注入與快取，保留來源、預算及失敗紀錄。常犯：人工輔助預覽當獨立品質證明。證據：run、commit、來源指紋、用量及逐日差異。</li><li><strong>行情與回合</strong>（行情與回合計算，<code>stock-market-data</code>）：報價、日 K、持股回合與報酬；進出場取當日高低中點與明講價。關卡：同股同價；收盤後標「收盤」。常犯：「略過 240」改寫成「成功 240」。證據：check_tracker_midprice 逐回合比對。</li><li><strong>發布與驗收</strong>（同步發布與驗收，<code>stock-release-check</code>）：依授權更新受影響的 GitHub、Pages、GAS 原部署與 Worker，正式站讀回。關卡：/exec?action=ping 的 build 與 GitHub 一致。常犯：建了版本就說已上線。證據：commit、版本號、正式讀回。</li><li><strong>通知與帳本</strong>（自動化與續跑，<code>stock-automation-triage</code>）：每日總覽 Email／LINE 與盤中通知，依帳本防重寄。關卡：已寄送不重寄；未知結果先核對。常犯：平台接受當成收件者已讀。證據：Email 與 LINE 各自的帳本。</li><li><strong>介面與助理</strong>（介面與圖解設計，<code>stock-site-design</code>）：前台呈現、技術頁圖解與網站 AI 助理的回答。關卡：按鈕要讓圖解有可見變化；助理三條硬限制。常犯：順手放大卡片與圖形。證據：1916 寬版大字與 1440、390 截圖。</li></ol></details><script type="application/json" id="stage-data">[["拆句與授權", "collab", "協作、授權與交接", "把管理者的一則訊息拆成逐項待辦，對照哪些動作已授權、哪些是擁有者步驟。", "核對已有授權與變更範圍；對外寄送另需授權", "把貼上紀錄寫的「已完成」當成事實", "拆句清單、結案報告"], ["取稿與原稿", "automation", "自動化與續跑", "偵測影片、轉錄、保存原稿與指紋，失敗時保留已完成片段續跑。", "原稿 SHA-256 不變；直播中延後，不當失敗", "400 重複認證時換三把金鑰空等", "原稿字數、指紋、片段與 run"], ["校字與股名", "content", "來源與分類稽核", "核對名稱、代號與聽錯的字；不確定的字合併一批請模型修。", "價位對得上本股；日常用語先排除", "合法代號就當對（宏達電其實是鴻海）", "名稱判定紀錄、逐處採用憑證"], ["分類與裁決", "content", "來源與分類稽核", "明確事實直接歸類，有疑點的送問卷，引句逐字核對後由程式決定分類。", "引句在可引用範圍；跨公開或持股要三票", "「今天賣很蠢」當成今日賣出", "獨立分類表、答案檔比對"], ["撰寫說明", "writing", "公開文字與書面說明", "把本股的技術位置、量能、籌碼、基本面整理成書面說明，清掉口語與大盤子句。", "不借鄰股數字；前台不出現會員通知", "「作為觀望不碰的標的」這種自稱分類", "逐則讀 print_public_texts 與正式站"], ["規則調整", "tuning", "規則調整與回測", "判錯時找成因，固定來源做成對比較；回歸、未見與人工輔助分開報告。", "核對答案注入與快取，保留來源、預算及失敗紀錄", "人工輔助預覽當獨立品質證明", "run、commit、來源指紋、用量及逐日差異"], ["行情與回合", "market", "行情與回合計算", "報價、日 K、持股回合與報酬；進出場取當日高低中點與明講價。", "同股同價；收盤後標「收盤」", "「略過 240」改寫成「成功 240」", "check_tracker_midprice 逐回合比對"], ["發布與驗收", "release", "同步發布與驗收", "依授權更新受影響的 GitHub、Pages、GAS 原部署與 Worker，正式站讀回。", "/exec?action=ping 的 build 與 GitHub 一致", "建了版本就說已上線", "commit、版本號、正式讀回"], ["通知與帳本", "automation", "自動化與續跑", "每日總覽 Email／LINE 與盤中通知，依帳本防重寄。", "已寄送不重寄；未知結果先核對", "平台接受當成收件者已讀", "Email 與 LINE 各自的帳本"], ["介面與助理", "design", "介面與圖解設計", "前台呈現、技術頁圖解與網站 AI 助理的回答。", "按鈕要讓圖解有可見變化；助理三條硬限制", "順手放大卡片與圖形", "1916 寬版大字與 1440、390 截圖"]]</script></section>
 <section class="panel" id="logic" aria-labelledby="logic-title"><div class="logic-head"><h2 id="logic-title">一句「買賣」，為何可能得到不同分類？</h2><button type="button" id="replay" class="js-only">再播判定</button></div><p class="muted">以下全部是虛構甲股句型；先分動作、日期與部位，再決定進場立場。</p>
 <div class="cases js-only" role="group" aria-label="比較句型"><button type="button" data-case="0" aria-pressed="true">可以買</button><button type="button" data-case="1" aria-pressed="false">今天已買</button><button type="button" data-case="2" aria-pressed="false">不要殺低</button><button type="button" data-case="3" aria-pressed="false">部分賣出</button></div>
 <p id="example">虛構示例：「如果想買股票，甲股可以買。」</p><ol class="flow"><li><b>核對主體</b><span id="actor">對尚未進場者的建議</span></li><li><b>核對動作</b><span id="action">可以買，沒有完成成交</span></li><li><b>分開判斷</b><span id="axis">部位事實與新進場立場</span></li><li><b>保留證據</b><span id="proof">原句核對，不靠「買」單字</span></li></ol>
 <div class="result"><div><span>部位／交易</span><strong id="position">不新增交易</strong></div><div><span>新進場立場</span><strong id="stance">觀望注意</strong></div></div><p id="animation-state" class="note muted" aria-live="polite">點選例子可比較；減少動態模式不自動播放。</p>
 <details><summary>沒有 JavaScript 也能讀的四種結果</summary><ul><li>可以買：進場建議，觀望注意，不新增成交。</li><li>今天已買：本人今天完成且證據核實，才是當日買入候選。</li><li>不要殺低：不是今日賣出；有已核對部位時保持持有。</li><li>部分賣出：保留減碼事件及剩餘部位；暫不買回可另列不碰，不關整檔。</li></ul></details></section>
-<section class="tools js-only" aria-label="規格篩選"><label for="search">找規則、工具或範本</label><input class="search" id="search" type="search" placeholder="例如：可以買、自稱分類、回測、clasp、Flash Lite、務必" autocomplete="off"><div class="filters" role="group" aria-label="領域篩選"><button type="button" data-filter="all" aria-pressed="true">全部</button><button type="button" data-filter="common" aria-pressed="false">共用規格</button><button type="button" data-filter="templates" aria-pressed="false">請求範本</button><button type="button" data-filter="design" aria-pressed="false">設計</button><button type="button" data-filter="content" aria-pressed="false">內容</button><button type="button" data-filter="writing" aria-pressed="false">文字</button><button type="button" data-filter="tuning" aria-pressed="false">規則</button><button type="button" data-filter="market" aria-pressed="false">行情</button><button type="button" data-filter="automation" aria-pressed="false">流程</button><button type="button" data-filter="release" aria-pressed="false">發布</button><button type="button" data-filter="assistant" aria-pressed="false">助理</button><button type="button" data-filter="collab" aria-pressed="false">協作</button></div><p id="count" class="note muted" role="status"></p><button type="button" id="expand">展開目前結果</button></section>
-<div id="docs"><section class="doc" data-group="common" id="common-0"><details open><summary>盤勢有據：常用工作規格與指令</summary><div class="prose"><p>整理日期：2026/10/19。這份手冊將歷次已確認偏好整理成可重用規格，不代表今天已重新執行取稿、改寫正式資料或寄送。詳細任務規則分別放在九個 skills；本文件負責路由、角色與常用請求。基礎來源是 2026/10/03–10/15 管理者在 Claude Code 與 Codex 兩邊的 193 則訊息，另補 10/16–10/19 的共用寬版、自製控制項、資訊層次與量化評估要求；版本紀錄與現行程式用於核對。</p>
+<section class="tools js-only" aria-label="規格篩選"><label for="search">找規則、工具或範本</label><input class="search" id="search" type="search" placeholder="例如：可以買、自稱分類、回測、clasp、Flash Lite、務必" autocomplete="off"><div class="filters" role="group" aria-label="領域篩選"><button type="button" data-filter="all" aria-pressed="true">全部</button><button type="button" data-filter="common" aria-pressed="false">共用規格</button><button type="button" data-filter="templates" aria-pressed="false">請求範本</button><button type="button" data-filter="design" aria-pressed="false">設計</button><button type="button" data-filter="story" aria-pressed="false">視覺</button><button type="button" data-filter="content" aria-pressed="false">內容</button><button type="button" data-filter="writing" aria-pressed="false">文字</button><button type="button" data-filter="tuning" aria-pressed="false">規則</button><button type="button" data-filter="market" aria-pressed="false">行情</button><button type="button" data-filter="automation" aria-pressed="false">流程</button><button type="button" data-filter="release" aria-pressed="false">發布</button><button type="button" data-filter="assistant" aria-pressed="false">助理</button><button type="button" data-filter="collab" aria-pressed="false">協作</button></div><p id="count" class="note muted" role="status"></p><button type="button" id="expand">展開目前結果</button></section>
+<div id="docs"><section class="doc" data-group="common" id="common-0"><details open><summary>盤勢有據：常用工作規格與指令</summary><div class="prose"><p>整理日期：2026/10/19。這份手冊將歷次已確認偏好整理成可重用規格，不代表今天已重新執行取稿、改寫正式資料或寄送。詳細任務規則分別放在十個 skills（2026/10/21 新增 <code>stock-scroll-story</code>）；本文件負責路由、角色與常用請求。基礎來源是 2026/10/03–10/15 管理者在 Claude Code 與 Codex 兩邊的 193 則訊息，另補 10/16–10/19 的共用寬版、自製控制項、資訊層次與量化評估要求；版本紀錄與現行程式用於核對。</p>
 <p>本次另將反覆註解整理為 <strong>27項常設引導</strong>（5項評估、9項內容、6項工作流、7項介面），整合進既有 stock-collaboration，沒有增加重疊技能。專案根目錄AGENTS.md亦加入入口，供後續工作先讀協作引導。詳見 <a href="skills/stock-collaboration/references/repeated-annotations.md">反覆註解引導</a>。依任務讀相關項目，單日例子不作永久規則。</p>
 </div></details></section><section class="doc" data-group="common" id="common-1"><details><summary>1. 如何使用與維護</summary><div class="prose"><p>版本化來源在 <code>docs/stock-skills/skills/</code>，實際供 Codex 使用的副本在 <code>C:/Users/user/.codex/skills/stock-*/</code>。本輪更新兩者並驗內容雜湊相同。之後先修改版本化來源，再用 <code>python scripts/build_stock_skill_handbook.py --install</code> 更新原安裝；不帶 <code>--install</code> 只產生 HTML、檢查引用，不更動本機技能。公開閱讀版在 <code>https://lee200202.github.io/stock-skills-handbook/</code>（repo <code>Lee200202/stock-skills-handbook</code>，GitHub Pages 從 main 根目錄發布），同一支建置腳本的另一份副本在該 repo 的 <code>scripts/</code>。</p>
 <p>技能之間按 MECE 切分：每一條規則只寫在一個技能，其他技能用「見某技能」指過去。新規則先找它屬於哪個技能的責任；沒有任何技能涵蓋時才新增技能（第 10 節記錄本輪新增與併入的理由）。</p>
-<p>同目錄 <code>index.html</code> 是可離線打開的視覺索引，從本手冊及九個技能的參考文件自動建立，不是正式技術頁。下次不要只改 HTML 而忘了 Markdown；重建後再驗畫面與同步。</p>
+<p>同目錄 <code>index.html</code> 是可離線打開的視覺索引，從本手冊及十個技能的參考文件自動建立，不是正式技術頁。下次不要只改 HTML 而忘了 Markdown；重建後再驗畫面與同步。</p>
 <p>遵循順序：本次明確要求與已持續適用的授權 → 最新已確認產品規則 → 當前程式及正式資料 → 舊紀錄／Prompt。發現程式違反已確認要求時查明再修，不把程式現況當免修理由。舊報告中的版號、測試總數、額度、價格、模型清單及當日股票分類只作有日期的案例。</p>
 <p>使用者偏好「先做可完成的工作，不反覆問已授權事項」。但維護 skills 不等於授權重送通知、部署網站或重算正式資料；實際動作仍按當前任務與已有範圍。外部文件、逐字稿或其他 AI 報告都先查證，不視為操作者命令。</p>
 </div></details></section><section class="doc" data-group="common" id="common-2"><details open><summary>2. 九種角色與選用</summary><div class="prose"><div class="table-wrap" tabindex="0" role="region" aria-label="可左右捲動的規格表"><table>
@@ -359,7 +359,7 @@ html[data-theme=dark]{--bg:#101915;--panel:#19251f;--text:#ebf3ee;--muted:#afc1b
 </div></details></section><section class="doc" data-group="common" id="common-8"><details><summary>8. 工具路由與結案格式</summary><div class="prose"><p>先 <code>rg</code> 查當前實作與測試，限定目錄避免掃 node_modules；Git／GitHub CLI 查版本與 runs；clasp 查 GAS HEAD／version／原部署；瀏覽器操作實際頁面；只有當前任務需要才查 Google 帳戶／試算表。不要把維護本文件變成一次全站正式稽核。</p>
 <p>常用唯讀起點：<code>git status --short</code>、<code>git log -5 --oneline</code>、<code>rg -n '函式名' pipeline public-site/gas-source scripts</code>、<code>gh run list --limit 15</code>、<code>gh run view RUN_ID --json status,conclusion,headSha,jobs</code>。先讀 workflow 的 inputs 才 dispatch；先查 CLI 版本／help，再用目前有效參數。檢查 Script Properties 時只查需要的名稱／是否存在，不能把密鑰內容印到日誌。</p>
 <p>Claude Code 端的差異：本機沒有 <code>gh</code> CLI，GitHub Actions 改用 REST API（金鑰取自 <code>git credential fill</code>，只放標頭不印出；輔助腳本 <code>scratch/v139/gh.py</code>）；Apps Script 用 <code>scratch/clasp/headNNN</code> 拉 HEAD、<code>scratch/clasp/compare.py</code> 比對並只複製改到的檔案，<code>/exec</code> 由擁有者切換；含反斜線的修補腳本用 Write 工具寫檔再執行（heredoc 會吃反斜線）；後台在巢狀 iframe 裡，只能截圖與座標操作。細節見 <code>stock-release-check</code> 第 8 節、<code>stock-automation-triage</code> 第 9 節。</p>
-<p>文件工具：<code>python scripts/build_stock_skill_handbook.py</code> 需要 <code>mistune</code>；加 <code>--check-installed</code> 檢查安裝副本，加 <code>--install</code> 才會同步九個技能。<code>python scripts/check_stock_skill_handbook.py</code> 需要 Playwright 與 Chromium，驗的是離線手冊，沒有正式站或模型請求。技能格式另用系統 skill-creator 的 <code>quick_validate.py</code>（需要 PyYAML）。不要把這三種檢查稱為正式網站驗收。</p>
+<p>文件工具：<code>python scripts/build_stock_skill_handbook.py</code> 需要 <code>mistune</code>；加 <code>--check-installed</code> 檢查安裝副本，加 <code>--install</code> 才會同步十個技能。<code>python scripts/check_stock_skill_handbook.py</code> 需要 Playwright 與 Chromium，驗的是離線手冊，沒有正式站或模型請求。技能格式另用系統 skill-creator 的 <code>quick_validate.py</code>（需要 PyYAML）。不要把這三種檢查稱為正式網站驗收。</p>
 <p>結案模板：<strong>結果</strong>（已完成／有待驗項）→ <strong>改動與原因</strong> → <strong>實測</strong>（命令、日期、來源、樣本、最後版本）→ <strong>正式面</strong>（各 commit／deployment／build）→ <strong>未驗與回退</strong>。涉及通知單列「有無寄送、帳本是否變化、服務接受或真機」，避免誤會。</p>
 </div></details></section><section class="doc" data-group="common" id="common-9"><details><summary>9. 規則來源與可追溯性</summary><div class="prose"><p>這些偏好來自本專案歷次需求及現行資料，不是通用投資建議或保證有效的交易策略。更新時優先核對：</p>
 <ul>
@@ -437,7 +437,7 @@ html[data-theme=dark]{--bg:#101915;--panel:#19251f;--text:#ebf3ee;--muted:#afc1b
 </tr>
 </tbody>
 </table></div>
-</div></details></section><section class="doc" data-group="common" id="common-11"><details><summary>11. 量化優化與新規範（2026/10/19）</summary><div class="prose"><p>九個技能維持各自職責；評估方法集中在 <code>stock-rule-tuning/references/evaluation.md</code>，設計與發布技能指向同一份規格，不再多建一個相近入口。</p>
+</div></details></section><section class="doc" data-group="common" id="common-11"><details><summary>11. 量化優化與新規範（2026/10/19）</summary><div class="prose"><p>各技能維持各自職責；評估方法集中在 <code>stock-rule-tuning/references/evaluation.md</code>，設計與發布技能指向同一份規格，不再多建一個相近入口。</p>
 <div class="table-wrap" tabindex="0" role="region" aria-label="可左右捲動的規格表"><table>
 <thead>
 <tr>
@@ -1082,6 +1082,395 @@ html[data-theme=dark]{--bg:#101915;--panel:#19251f;--text:#ebf3ee;--muted:#afc1b
 <p>技術流程圖維持滑入循環／點選停止／再播恢復；統計圖以一次入場或資料變更轉場為預設，不循環改動數字或模擬有新資料。兩者都遵守 reduced-motion、離屏／背景暫停及無 JavaScript 可讀。動畫不新增 API 呼叫。</p>
 <p>驗收表逐頁記：viewport、字級／寬度設定、主容器實際邊界、控制項操作、圖表標籤與工具提示、深淺色、狀態、截圖。不得只以 <code>scrollWidth &lt;= innerWidth</code> 宣稱圖中文字可讀；SVG／canvas 的文字與邊界也逐項看。新樣式要在 Pages 與 GAS 受影響介面各驗，無法開啟的一面列未驗。</p>
 <p>若要比較改版成效，將任務完成率、找資料時間、誤觸與可用性列為主指標，參考 <code>stock-rule-tuning/references/evaluation.md</code>；單次截圖或停留時間提高不構成 A/B 因果證據。</p>
+</div></details></section><section class="doc" data-group="story" id="story"><details><summary><span class="tag k-story">視覺</span>捲動敘事視覺語言</summary><div class="prose"><p><code>stock-scroll-story</code> · 新增（zenbu 與 Apple 產品頁實測：權杖、進場淡入、數字跳動、卡片列與暫停） · <a href="skills/stock-scroll-story/SKILL.md">技能入口</a></p><h1>捲動敘事設計規格</h1>
+<p>2026/10/21 以瀏覽器實際操作兩個參考網站後整理。數值是當天以 <code>getComputedStyle</code> 讀出的實測值，網站之後可能改版；需要精確行為時重新檢查。參考的是結構與節奏，不是素材。</p>
+<h2>1. 參考網站實測</h2>
+<h3>1.1 zenbu「AI 變現全修班」（https://zenbuapps.com/ai-free，Next.js）</h3>
+<div class="table-wrap" tabindex="0" role="region" aria-label="可左右捲動的規格表"><table>
+<thead>
+<tr>
+  <th>段落</th>
+  <th>看到的效果</th>
+  <th>實作（實測）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>開場</td>
+  <td>白底、置中大標兩行，第二行關鍵字加橘色底線；一句灰色說明；超大數字倒數；一顆黑色主要按鈕</td>
+  <td>標題 37.6px（窄版）、字重 600、字距 -0.035em、行高 1.23；字型 <code>&quot;Zalando Sans SemiExpanded&quot;</code>＋系統字</td>
+</tr>
+<tr>
+  <td>痛點卡片列</td>
+  <td>照片底圖卡片（人物情境照）＋底部漸層壓字（標題＋兩行說明），整列自動向左慢速滑動</td>
+  <td><code>@keyframes zap-pain-marq { 0% {translateX(0)} 100% {translateX(-50%)} }</code>，62 秒一圈、linear、infinite；卡片內容複製一份接在後面形成無縫循環</td>
+</tr>
+<tr>
+  <td>宣言大字</td>
+  <td>「讓 AI 成為／真正幫你<strong>收入倍增</strong>的工具／而不是更多的<strong>焦慮</strong>」：關鍵詞橘色；「焦慮」二字隨捲動由灰轉黑</td>
+  <td>捲動進度驅動顏色</td>
+</tr>
+<tr>
+  <td>技能卡輪播</td>
+  <td>照片卡橫向排列，可左右滑、下方圓點表示目前第幾張，左右箭頭</td>
+  <td><code>scroll-snap-type: x mandatory</code></td>
+</tr>
+<tr>
+  <td>課程內容</td>
+  <td>進入時整頁背景淡入成近黑色（<code>rgb(8,8,12)</code>，0.6 秒）；區塊高約 5,100px，左側文字隨捲動依序換成六項技能；「接案行情 NT$92,105 → NT$100,000」數字往上跳，下方範圍條同步填滿</td>
+  <td>固定背景層 <code>opacity</code> 0→1；<code>.zbw-how__sticky</code> 以 <code>position: sticky; top: 116px</code> 釘住；捲動到每一步時換內容、數字跳動</td>
+</tr>
+<tr>
+  <td>學員回饋</td>
+  <td>三列引言卡片，交錯反向慢速跑馬燈</td>
+  <td><code>zb-mqL</code> 140 秒、<code>zb-mqR</code> 168 秒（反向）、<code>zb-mqL</code> 196 秒；<code>.zb-mq__row:hover { animation-play-state: paused }</code></td>
+</tr>
+<tr>
+  <td>報名卡</td>
+  <td>價格對比（劃線原價）＋勾選清單＋主要按鈕</td>
+  <td>—</td>
+</tr>
+<tr>
+  <td>常見問題</td>
+  <td>折疊清單，右側「+」</td>
+  <td>點開內嵌展開</td>
+</tr>
+<tr>
+  <td>導覽</td>
+  <td>頂部導覽捲動後變樣式；右上漢堡鈕打開全螢幕選單</td>
+  <td><code>nav.zb-nav.scrolled</code> sticky；選單 <code>details</code> 分組</td>
+</tr>
+<tr>
+  <td>底部報名列</td>
+  <td>捲過首屏後從底部浮出（課名＋倒數＋按鈕）</td>
+  <td><code>.zap-bar.is-on</code>，fixed bottom</td>
+</tr>
+<tr>
+  <td>進場動畫</td>
+  <td>區塊進入時從略大縮回原尺寸並淡入</td>
+  <td><code>@keyframes zbw-land { 0% {opacity:0; transform:scale(1.045)} 100% {opacity:1; transform:scale(1)} }</code>，1.5–1.9 秒，<code>cubic-bezier(0.2, 0.55, 0.3, 1)</code>，只播一次；箭頭圖示 1.05 秒 ease-in-out 無限輕推</td>
+</tr>
+<tr>
+  <td>減少動態</td>
+  <td>有 <code>@media (prefers-reduced-motion: reduce)</code> 關掉動畫</td>
+  <td>—</td>
+</tr>
+<tr>
+  <td>圓角</td>
+  <td>16px 最多、18px 次之，按鈕與膠囊 999px</td>
+  <td>—</td>
+</tr>
+</tbody>
+</table></div>
+<h3>1.2 Apple 台灣 iPhone（https://www.apple.com/tw/iphone/、/tw/iphone-17/）</h3>
+<div class="table-wrap" tabindex="0" role="region" aria-label="可左右捲動的規格表"><table>
+<thead>
+<tr>
+  <th>元素</th>
+  <th>看到的效果</th>
+  <th>實測值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>字型與色</td>
+  <td>內文深灰、背景白</td>
+  <td><code>&quot;SF Pro TC&quot;, &quot;SF Pro Text&quot;, &quot;PingFang TC&quot;, &quot;Helvetica Neue&quot;</code>；內文 <code>#1d1d1f</code>；頁首大標 64px／字重 600／行高 70px</td>
+</tr>
+<tr>
+  <td>機型圖示列</td>
+  <td>頁首下方一排機型小圖＋名稱（全新標籤），可橫滑，右側箭頭</td>
+  <td>—</td>
+</tr>
+<tr>
+  <td>主視覺卡（tile）</td>
+  <td>兩張大卡並排：灰底與黑底各一，大標＋一句副標＋兩個動作</td>
+  <td>背景 <code>#f5f5f7</code>／<code>#000</code>，圓角 28px，<strong>沒有陰影</strong>，約 629×628</td>
+</tr>
+<tr>
+  <td>主要／次要動作</td>
+  <td>藍色實心膠囊「進一步了解」＋藍字連結「購買 &gt;」</td>
+  <td>主要：<code>#0071e3</code> 底白字、內距 11px 21px、圓角 980px、14px；次要：<code>#0066cc</code> 文字</td>
+</tr>
+<tr>
+  <td>系列卡片列</td>
+  <td>「探索全系列產品」橫向卡片，含顏色圓點、價格、兩個動作</td>
+  <td><code>scroll-container</code>：<code>scroll-snap-type: x mandatory</code>；左右圓形箭頭（<code>paddlenav</code>，36px 圓）</td>
+</tr>
+<tr>
+  <td>「了解 iPhone」卡片牆</td>
+  <td>344×436 的直式卡（小標題＋兩行大字＋圖），右下「+」；點開是全螢幕白色大圓角面板，右上圓形關閉鈕，內文「<strong>粗體開頭句。</strong>灰色延續文字」</td>
+  <td><code>card tile tile-rounded card-hover</code>，圓角 28px</td>
+</tr>
+<tr>
+  <td>浮動產品導覽</td>
+  <td>捲動後頁首變成圓角半透明長條：左側產品名，右側「探索」外框膠囊、「購買」藍色膠囊</td>
+  <td>—</td>
+</tr>
+<tr>
+  <td>重點特色圖庫</td>
+  <td>大圓角媒體卡；下方一顆淺灰膠囊，裡面一排進度點，目前那一格拉長成進度條並隨時間填滿，右邊暫停鈕</td>
+  <td><code>all-access-pass</code>、<code>play-pause-button</code>（每段動畫都有自己的播放／暫停鈕，<code>aria-label</code> 寫明「暫停 iPhone 17 動畫」）</td>
+</tr>
+<tr>
+  <td>章節分頁</td>
+  <td>底部一排膠囊分頁（超瓷晶盾、Center Stage、相機系統…）切換上方媒體</td>
+  <td><code>role=&quot;tablist&quot;</code>，選中 <code>rgba(29,29,31,.6)</code></td>
+</tr>
+<tr>
+  <td>捲動影片</td>
+  <td>一段區塊捲動時影片逐格播放</td>
+  <td><code>video-scrub-container</code>、<code>sticky-scroll-container</code></td>
+</tr>
+</tbody>
+</table></div>
+<h3>1.3 兩者共通、值得借用的節奏</h3>
+<ul>
+<li>大字、緊字距、少字；每屏一個訊息、一個主要動作。</li>
+<li>段落輪替：白底安靜 → 深色沉浸 → 灰底卡片互動。</li>
+<li>進場只播一次的淡入；探索用橫向吸附卡片列，一定附箭頭與目前位置。</li>
+<li>細節收在展開（折疊清單、全螢幕面板）裡，主畫面只放結論。</li>
+<li>任何自動播放都有暫停：滑鼠移上去暫停、明顯的播放／暫停鈕。</li>
+</ul>
+<h2>2. 設計權杖（盤勢有據版）</h2>
+<p>所有尺寸乘上 <code>var(--rd-fs)</code>（使用者字級設定）；寬度沿用 <code>--wrapmax</code>（使用者欄寬設定）。</p>
+<div class="table-wrap" tabindex="0" role="region" aria-label="可左右捲動的規格表"><table>
+<thead>
+<tr>
+  <th>類別</th>
+  <th>淺色</th>
+  <th>深色</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>頁面底 <code>--ss-bg</code></td>
+  <td><code>#fbfbfd</code></td>
+  <td><code>#000000</code></td>
+</tr>
+<tr>
+  <td>卡片底 <code>--ss-tile</code></td>
+  <td><code>#f5f5f7</code></td>
+  <td><code>#1c1c1e</code></td>
+</tr>
+<tr>
+  <td>浮層底 <code>--ss-surface</code></td>
+  <td><code>#ffffff</code></td>
+  <td><code>#161618</code></td>
+</tr>
+<tr>
+  <td>主文字 <code>--ss-ink</code></td>
+  <td><code>#1d1d1f</code></td>
+  <td><code>#f5f5f7</code></td>
+</tr>
+<tr>
+  <td>次文字 <code>--ss-muted</code></td>
+  <td><code>#6e6e73</code></td>
+  <td><code>#a1a1a6</code></td>
+</tr>
+<tr>
+  <td>分隔 <code>--ss-line</code></td>
+  <td><code>rgba(0,0,0,.08)</code></td>
+  <td><code>rgba(255,255,255,.12)</code></td>
+</tr>
+<tr>
+  <td>主要動作 <code>--ss-action</code></td>
+  <td><code>#0071e3</code></td>
+  <td><code>#2997ff</code></td>
+</tr>
+<tr>
+  <td>沉浸段落底 <code>--ss-night</code></td>
+  <td><code>#08080c</code></td>
+  <td><code>#08080c</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>分類色照舊（買入／上漲紅、賣出／下跌綠、持股紫、觀望注意藍、觀望不碰琥珀），不因改版換色。</p>
+<div class="table-wrap" tabindex="0" role="region" aria-label="可左右捲動的規格表"><table>
+<thead>
+<tr>
+  <th>字級</th>
+  <th>用途</th>
+  <th>規格</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>display</td>
+  <td>開場大標、沉浸段落數字</td>
+  <td><code>clamp(40px, 6vw, 80px)</code>／行高 1.05／字距 -0.035em／600</td>
+</tr>
+<tr>
+  <td>h1</td>
+  <td>分頁標題</td>
+  <td><code>clamp(32px, 4.2vw, 56px)</code>／1.1／-0.03em／600</td>
+</tr>
+<tr>
+  <td>h2</td>
+  <td>段落標題</td>
+  <td><code>clamp(26px, 3vw, 40px)</code>／1.15／-0.025em／600</td>
+</tr>
+<tr>
+  <td>eyebrow</td>
+  <td>段落小標</td>
+  <td>14px／600／主要動作色或分類色</td>
+</tr>
+<tr>
+  <td>body</td>
+  <td>內文</td>
+  <td>17px／1.6</td>
+</tr>
+<tr>
+  <td>caption</td>
+  <td>補充、日期、來源</td>
+  <td>14px／<code>--ss-muted</code></td>
+</tr>
+<tr>
+  <td>數字</td>
+  <td>價格、報酬、檔數</td>
+  <td><code>font-variant-numeric: tabular-nums</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>字型：<code>-apple-system, &quot;SF Pro TC&quot;, &quot;PingFang TC&quot;, &quot;Noto Sans TC&quot;, system-ui, sans-serif</code>；代碼與時間戳保留 <code>IBM Plex Mono</code>。</p>
+<p>圓角：大卡 28px、一般卡片 20px、膠囊與按鈕 999px。段落上下留白 <code>clamp(72px, 10vw, 140px)</code>；卡片內距 <code>clamp(24px, 3vw, 40px)</code>；卡片間距 16–24px。陰影只用在浮起的元素（浮動導覽、面板），一般卡片不用陰影。</p>
+<p>動態：進場 <code>cubic-bezier(.2,.55,.3,1)</code>，0.9–1.4 秒；同一組元素依序延遲 80ms；滑過 200ms；跑馬燈 60–200 秒一圈；進場判定可見 15%。</p>
+<h2>3. 元件規格與程式範本（全站共用 class）</h2>
+<div class="table-wrap" tabindex="0" role="region" aria-label="可左右捲動的規格表"><table>
+<thead>
+<tr>
+  <th>class</th>
+  <th>元件</th>
+  <th>規格</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><code>.ss-reveal</code></td>
+  <td>進場淡入</td>
+  <td>初始 <code>opacity:0; transform:scale(1.03)</code>；可見後加 <code>.is-in</code> 回到 1；只播一次。<strong>沒有 JavaScript 或減少動態時一開始就是可見的</strong>（以 <code>html.js</code> 前綴才隱藏）</td>
+</tr>
+<tr>
+  <td><code>.ss-count</code></td>
+  <td>數字跳動</td>
+  <td>進入畫面時從 0 跳到實際值（約 1 秒，ease-out）；<code>data-final</code> 存實際值；減少動態時直接顯示；文字內容永遠是正確數字（讀屏與複製不受影響）</td>
+</tr>
+<tr>
+  <td><code>.ss-shelf</code></td>
+  <td>橫向卡片列</td>
+  <td><code>display:grid; grid-auto-flow:column; grid-auto-columns: min(84%, 360px); overflow-x:auto; scroll-snap-type:x mandatory</code>；兩側 44px 圓形箭頭（到頭時停用）；下方進度點；鍵盤左右鍵可移動</td>
+</tr>
+<tr>
+  <td><code>.ss-marquee</code></td>
+  <td>無縫跑馬燈</td>
+  <td>內容複製一份，<code>translateX(0 → -50%)</code> linear infinite；滑鼠移上去或焦點進入時暫停；旁邊有明顯的暫停鈕；減少動態時改成可橫捲的靜態列</td>
+</tr>
+<tr>
+  <td><code>.ss-night</code></td>
+  <td>沉浸深色段落</td>
+  <td>背景 <code>--ss-night</code>、白字；只用在一段關鍵數字或宣言，不連續兩段</td>
+</tr>
+<tr>
+  <td><code>.ss-tile</code></td>
+  <td>大卡</td>
+  <td><code>--ss-tile</code> 底、28px 圓角、無陰影</td>
+</tr>
+<tr>
+  <td><code>.ss-cta</code> / <code>.ss-link</code></td>
+  <td>主要／次要動作</td>
+  <td>主要：<code>--ss-action</code> 實心膠囊，至少 44px 高；次要：同色文字加「›」</td>
+</tr>
+<tr>
+  <td><code>.ss-nav</code></td>
+  <td>浮動導覽</td>
+  <td>捲動超過 24px 後，分頁列變成圓角半透明長條（<code>backdrop-filter: saturate(180%) blur(20px)</code>）</td>
+</tr>
+<tr>
+  <td><code>.ss-pause</code></td>
+  <td>播放／暫停</td>
+  <td>每個自動播放的群組一顆；<code>aria-pressed</code> 與 <code>aria-label</code> 寫明控制哪一段</td>
+</tr>
+<tr>
+  <td><code>details.ss-faq</code></td>
+  <td>折疊說明</td>
+  <td>右側「+」，打開時旋轉 45° 成「×」</td>
+</tr>
+</tbody>
+</table></div>
+<p>進場淡入的最小實作：</p>
+<pre><code class="language-css">html.js .ss-reveal { opacity: 0; transform: scale(1.03); }
+html.js .ss-reveal.is-in { opacity: 1; transform: none;
+  transition: opacity 1.1s cubic-bezier(.2,.55,.3,1), transform 1.1s cubic-bezier(.2,.55,.3,1); }
+@media (prefers-reduced-motion: reduce) { html.js .ss-reveal { opacity: 1; transform: none; } }
+</code></pre>
+<pre><code class="language-js">const io = new IntersectionObserver(es =&gt; es.forEach(e =&gt; { if (e.isIntersecting) { e.target.classList.add('is-in'); io.unobserve(e.target); } }), { threshold: .15 });
+document.querySelectorAll('.ss-reveal').forEach(el =&gt; io.observe(el));
+</code></pre>
+<p>動態載入的內容（每日總覽卡片、持股回合）要在渲染完成後再交給同一個觀察器；已在畫面內的直接加 <code>.is-in</code>，不要讓使用者看到空白再跳出。</p>
+<h2>4. 套到盤勢有據</h2>
+<div class="table-wrap" tabindex="0" role="region" aria-label="可左右捲動的規格表"><table>
+<thead>
+<tr>
+  <th>分頁</th>
+  <th>怎麼套</th>
+  <th>不要動</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>每日總覽</td>
+  <td>開場：最近一筆日期用 display 大字、標語用 h1，一句灰色說明、一個「看今天的紀錄」動作；五類計數改成沉浸深色段落，數字跳動；訊號帶改成可暫停的跑馬燈；四個分類各成一張大卡（eyebrow 用分類色），裡面是原本的個股卡片；「翻到某一天」行事曆放在灰底大卡</td>
+  <td>個股卡片內容與點擊進個股、報價與「待更新／收盤」標示、紅漲綠跌</td>
+</tr>
+<tr>
+  <td>持股追蹤</td>
+  <td>摘要數字用大字並跳動；持有／已出場切換用膠囊；回合卡片沿用，外層換成大卡</td>
+  <td>回合計算、進出場價、排序、問號展開的公式說明</td>
+</tr>
+<tr>
+  <td>績效走勢</td>
+  <td>標題＋一句說明＋圖表放在大卡；指標與區間切換用膠囊</td>
+  <td>圖表數值、十字線對齊</td>
+</tr>
+<tr>
+  <td>訂閱通知</td>
+  <td>一屏一件事：大標「每天收一封整理」＋表單在白色浮層卡；常見問題用 <code>details.ss-faq</code></td>
+  <td>只能訂閱每日總覽；不出現會員通知</td>
+</tr>
+<tr>
+  <td>郵件查詢、逐字稿</td>
+  <td>行事曆與內容放大卡；段落標題用 h2</td>
+  <td>原文完整、不裁切</td>
+</tr>
+<tr>
+  <td>技術說明</td>
+  <td>沿用章節書的結構，只套權杖（字型、色、圓角、膠囊、進場淡入）</td>
+  <td>章節錨點、目錄、圖解互動與自播規則（<code>stock-site-design</code> 第 11–14 節）</td>
+</tr>
+<tr>
+  <td>個股面板</td>
+  <td>價格用 display 數字；段落導覽用膠囊；估值卡用大卡</td>
+  <td>報價來源與時間</td>
+</tr>
+</tbody>
+</table></div>
+<h2>5. 不可以照搬</h2>
+<ul>
+<li><strong>倒數計時、限時免費、劃線原價、學員見證、「保證」字眼</strong>：這是投資資訊網站，不製造急迫感，也不放無法查證的見證。</li>
+<li>參考網站的照片、字型檔、商標、文案。插圖用程式畫的向量圖或網站自己的資料圖。</li>
+<li>擋住內容的固定底部列：畫面底部中央是「回到頂端」的位置（<code>stock-site-design</code> 第 2 節），不再放第二個固定列。</li>
+<li>劫持捲動（一次捲一屏、捲動時鎖住頁面）。</li>
+<li>用動畫隱藏資料：數字跳動時文字內容就是正確值；深色段落裡的資料仍要有日期與來源。</li>
+</ul>
+<h2>6. 驗收</h2>
+<ul>
+<li>寬度 1440、1916×857（寬版 <code>data-w=&quot;w&quot;</code>、大字 <code>data-fs=&quot;l&quot;</code>／<code>&quot;x&quot;</code>）、768、390、360；深淺色；減少動態；關閉 JavaScript。</li>
+<li>每個卡片列：箭頭、鍵盤左右、觸控滑動、進度點都正確；到頭時箭頭停用。</li>
+<li>每個跑馬燈與自動播放：滑過暫停、暫停鈕可用、減少動態時靜止。</li>
+<li>進場淡入：初次進入、切換分頁、動態載入的卡片都會出現，不會停在透明。</li>
+<li>數字跳動結束後等於 API 的實際值；讀回正式站與 API 比對。</li>
+<li>原有功能全部走一遍：切分頁、個股查詢與候選、持股排序與回合、績效切換、訂閱表單（不送出）、郵件與逐字稿日期、回到頂端、設定（字級、欄寬、深淺色）。</li>
+</ul>
 </div></details></section><section class="doc" data-group="content" id="content"><details><summary><span class="tag k-content">內容</span>來源與分類稽核</summary><div class="prose"><p><code>stock-content-audit</code> · 併入（區分 accepted 驗收、部位事實與獨立評估，支援歷史樣本擴充） · <a href="skills/stock-content-audit/SKILL.md">技能入口</a></p><h1>原句、分類與書面說明</h1>
 <h2>1. 證據鏈與來源分工</h2>
 <p>對同一天記下：原始逐字稿、影片 ID、通知文章 ID／修訂、SHA-256、規則版本、操作紀錄、人工修正、文章快照、寄送帳本。先讀完整原稿自行做「代號、主體、日期、部位、現況立場、引句、疑點」表，再看預期答案，減少被舊分類帶偏。</p>
@@ -1149,6 +1538,13 @@ html[data-theme=dark]{--bg:#101915;--panel:#19251f;--text:#ebf3ee;--muted:#afc1b
 <p>價格、EPS、產業只能佐證疑點，不能單獨證明公司。未點名持股若有既有專門流程，可從已核對未出場紀錄與描述建立候選，再唯一化核對；不能用股價猜匿名新標的。官方名單讀取不完整時先修來源，不宣稱半份名單外的公司不存在。</p>
 <p>上下文是語意範圍，不是固定越長越好。現行一般條件檢查曾擴為最多九短句／320 字；裁決可引用區約股名句後 220 字。實作以現行 helper 為準。遇下一家公司、明顯轉場或「來，我舉例」「我寧可你買這個」換成匿名新標的就停止；前文可供理解，不自動成為可引用引句。不得拼接相隔段落偽造逐字引句。</p>
 <p>本股名詞／數字／時間／因果逐項對回原句：大盤 60 分 200 均不能搬成個股技術位；SpaceX 沒賺錢不能寫成其供應商沒賺錢；並列持股不能互借成本或 MACD。名字在段落末才報出的連續本股敘述可回指，但先驗證不是已換主角。</p>
+<h3>引句改字與引用區不足要分開診斷</h3>
+<ul>
+<li>原稿聽打為「連電」，模型引用時寫成「聯電」，是引用被正名，不代表沒有該股看法。證據保留原字；公開說明才正名、書面化。不要放寬逐字檢核去接納改過的引句，優先測試由程式編號、模型選編號、程式取回原文的證據傳輸。</li>
+<li>判斷失敗時保存原始答案、每輪無效原因、可引用區及背景。區分未回覆、編號無效、改字、引句越界、動作方向錯、主體錯及模型立場不一致，不把它們全部說成「三票不同」。</li>
+<li>若共同條件被裁到 <code>before</code>、或本股後段在短窗外，不能只降票數或擴成整篇皆可引用。先確認哪一段共同適用、哪一項價格仍屬個股；補足語意理解範圍時保留引用權的邊界。</li>
+<li>「我沒有本股」只反駁部位；不能抹掉另有原句的正面或負面分析。外資持有、ETF出清及觀眾問部位各有不同主體；先分軸再比分類。新傳輸或問卷設計須過既有反例及真實歷史重播，實驗失敗不因網站已修好而改稱通過。</li>
+</ul>
 <h2>5. 分類裁決與穩定性</h2>
 <ol>
 <li>核實當日通知、人工修正及明確部位／禁買事實先處理；通知解析不符原句就修解析，不保護錯列。</li>
@@ -1409,6 +1805,10 @@ html[data-theme=dark]{--bg:#101915;--panel:#19251f;--text:#ebf3ee;--muted:#afc1b
 </tr>
 </tbody>
 </table></div>
+<h2>12. GitHub 診斷輸出的基準</h2>
+<p>唯讀重播不再預設列出「網站：不碰／重播：沒有」這種逐檔對照。網站可用來驗收已發布資料，不能當分類正確答案，也不能用網站比對欄暗示漏收已成立。</p>
+<p>分類評估應以推論前保存、附原稿SHA的獨立來源判斷或核定答案為基準。<code>replay-extract.yml</code> 可傳入 <code>independent_review</code>；草稿不送進模型，推論後才顯示原判斷、引句與流程差異。代理草稿不是人類金標；待核身分不評分，未判讀輸出另列待核。缺少基準時標「分類品質未評估」，通用檢查綠燈不等於分類正確。</p>
+<p>「不碰變沒有」要逐筆回查候選是否建立、本股及共用結論是否可見、模型事實題是否漏答／回答無立場、證據是否失效、票型與門檻是否擋住、直接規則是否繞過裁決、收尾是否刪列。不得統稱門檻太嚴，也不得為對齊網站回填分類。</p>
 <h1>自行分類與沒有答案日期的驗收</h1>
 <p>適用：管理者要求先讀原稿自行分類、建立較早日期的新答案，或確認未來新稿仍採既有標準。這是 <code>stock-content-audit</code> 的工作模式；不另建分類技能，也不授權寫入正式站。與 <code>evidence.md</code> 共用六類定義，以下將它落成可填選項與交付格式。</p>
 <h2>1. 舊答案提供標準，不提供新日期的事實</h2>

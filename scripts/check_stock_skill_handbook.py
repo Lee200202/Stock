@@ -44,7 +44,7 @@ def main():
                 page.locator("#search").fill("")
                 page.locator('a.role[href="#design"]').click()
                 assert page.locator("#design details").get_attribute("open") is not None
-                assert page.locator("a.role").count() == 9
+                assert page.locator("a.role").count() == 10
                 # 新增／更新狀態會隨技能沿革改變，不把舊版的新增數量當版面關卡。
                 assert page.locator("a.role .badge").count() == page.locator("a.role").count()
                 for idx, skill in ((0, "collab"), (4, "writing"), (8, "automation"), (9, "design")):
@@ -67,7 +67,7 @@ def main():
                 page.locator("#docs details").evaluate_all("es=>es.forEach(e=>e.open=false)")
                 if width in (1440, 390) and theme == "dark":
                     page.screenshot(path=str(SHOTS / f"handbook-{width}-dark.png"), full_page=True)
-                print(width, theme, "layout, classification examples, workflow stages, search, 19 copyable requests, 9 roles, top passed")
+                print(width, theme, "layout, classification examples, workflow stages, search, 19 copyable requests, 10 roles, top passed")
             page.close()
 
         page = browser.new_page(viewport={"width": 1280, "height": 900}, reduced_motion="no-preference")
@@ -111,7 +111,7 @@ def main():
 
         page = browser.new_page(viewport={"width": 360, "height": 900}, java_script_enabled=False)
         page.goto(URL)
-        assert page.locator("#docs .doc").count() == 21
+        assert page.locator("#docs .doc").count() == 22
         page.locator("#pipeline summary").click()
         assert page.locator("#pipeline details li").count() == 10
         assert not page.locator(".stages").is_visible()

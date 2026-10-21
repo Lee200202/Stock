@@ -14428,6 +14428,7 @@ def _ask_verdicts(items, date_str, round_no):
     # （2026/10/21 run 39599805554 群聯五票都判對、五票都綁不上）。
     name_units = {code: _name_unit_ids(unit_maps[code], item.get('_names') or [item['name']] + list(item.get('heard') or []))
                   for code, item in items}
+    identity_pending = {code for code, item in items if item.get('_identity_pending')}
     stocks = [(code, {'id': code, 'date': item.get('date') or date_str, 'name': item['name'], 'heard': item['heard'],
                       'known': item['known'], 'passages': item['passages'],
                       'context': unit_maps[code], 'name_unit_ids': name_units[code]}) for code, item in order]
@@ -14468,8 +14469,11 @@ def _ask_verdicts(items, date_str, round_no):
             print('  裁決批次收件不完整：' + json.dumps({k: receipt[k] for k in ('round', 'missing', 'unknown', 'response_keys')}, ensure_ascii=False))
         for v in received:
             if isinstance(v, dict) and str(v.get('id') or '') in dict(batch):
-                answers[str(v['id'])] = _anchor_on_name_unit(
-                    semantic_context().resolve_units(v, unit_maps[str(v['id'])]), unit_maps[str(v['id'])], name_units[str(v['id'])])
+                resolved = semantic_context().resolve_units(v, unit_maps[str(v['id'])])
+                # 身分還在核對的候選（同音配對、用途有疑義）不代換錨點：要 AI 自己選到含本股原字的片段（2026/10/21 直得）
+                code = str(v['id'])
+                answers[code] = resolved if code in identity_pending else \
+                    _anchor_on_name_unit(resolved, unit_maps[code], name_units[code])
     return answers
 
 
@@ -14792,7 +14796,8 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
         # 持有是事實，三個階段一致又沒有疑點就採用。觀望兩類與「要不要列」靠的是語氣，10/08 同一份原稿的初判
         # 一致率只有五成到七成（宏達電 52%、創意 65%、環球晶 71%），三個階段彼此也不獨立：這幾類第一次出現一律裁決。
         # 三階段一致只代表模型三次都這樣寫，不是部位證據：紀錄上沒有未出場部位時照樣送問卷（2026/10/21 宜鼎）。
-        if len(set(stages)) == 1 and not marks and current == 'holdings' and entry['open']                 and not entry.get('not_held') and not entry.get('identity_review_pending'):
+        if len(set(stages)) == 1 and not marks and current == 'holdings' and entry['open'] \
+                and not entry.get('not_held') and not entry.get('identity_review_pending'):
             entry.update(tier='一致通過', basis='初判、覆核、規則後同為會員持股，段落沒有疑點')
             continue
         why = [] if current == 'holdings' else ['分類靠語氣判斷（' + _VERDICT_LABEL.get(current, current) + '）']
@@ -14857,6 +14862,7 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                                  '_norm': _ev_norm(''.join(contexts)), '_names': sorted(names|{code}), '_closed': ''}))
     for code, item in contested:
         item['_semantic_zones'] = semantic_windows(item['_names'], transcript)
+        item['_identity_pending'] = bool(verdicts[code].get('identity_review_pending'))   # 身分待核：anchor 不代換
     if contested and (_QUOTA_STOP.get('daily') or budget_left() < 300 or not GEMINI_KEYS):
         print(f"  分類裁決　時間或配額不足，{len(contested)} 檔有疑點的這一輪不裁決，維持原分類")
         note_decision('分類裁決', '時間或配額不足，本輪未裁決', date_str, '、'.join(v['name'] for _, v in contested)[:300])

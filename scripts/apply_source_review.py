@@ -216,8 +216,21 @@ def main():
     from apply_reviewed_points import source_quote
     from backup_archive import backup_tables
     day = pl.norm_date(args.date)
-    plan = json.loads((ROOT / 'scripts/repairs' /
-                       (day.replace('/', '-') + '-source-review.json')).read_text(encoding='utf-8'))
+    plan_path = ROOT / 'scripts/repairs' / (day.replace('/', '-') + '-source-review.json')
+    if args.inspect_only and not plan_path.exists():
+        # 還沒有計畫時先看保存的原稿：計畫的引句必須逐字來自流程實際讀的那一份（可能是後台投稿的 MANUAL 列），
+        # 不能用網站顯示的另一份。唯讀：模型0、備份0、寫入0、寄送0。
+        source = {}
+        raw, _ = pl.existing_transcript(pl.open_sheets(), '', day, snapshot=source)
+        print('原稿來源', json.dumps({k: v for k, v in source.items() if not isinstance(v, (list, dict))}, ensure_ascii=False))
+        print('原稿指紋', sha(raw), '字數', len(raw))
+        print('===== 原稿開始 =====')
+        for i in range(0, len(raw), 400):
+            print(raw[i:i + 400])
+        print('===== 原稿結束 =====')
+        print('唯讀原稿核對完成；模型0、備份0、寫入0、寄送0')
+        return
+    plan = json.loads(plan_path.read_text(encoding='utf-8'))
     if plan['date'] != day or not plan.get('authorization') or not plan.get('review_basis'):
         raise ValueError('缺少日期一致的授權及來源審核說明')
     book = pl.open_sheets()

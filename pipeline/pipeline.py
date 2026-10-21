@@ -14762,9 +14762,10 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             agree = set(usable)
             if state == '未定' and entry.get('hints') and not usable:
                 # 語氣規則只是提示（2026/10/21）：問卷五輪都沒有可用的答案時，沒有 AI 的判斷可以採用，才依提示列出並標未裁決。
-                entry.update(cls=entry['current'], tier='未定', enforce=True, new=True,
-                             basis=entry['basis'] + '｜問卷沒有可用的答案，依程式提示')
-                note_decision('分類裁決', '問卷沒有可用的答案，依程式提示', entry['name'], why)
+                # 這是暫存判斷，不是 AI 確認：標未定、不進快取（快取只沿用「裁決」），並記成疑點讓整天留在待複核。
+                entry.update(cls=entry['current'], tier='未定', enforce=True, new=True, hint_only=True,
+                             basis=entry['basis'] + '｜問卷沒有可用的答案，暫依程式提示，待複核')
+                note_decision('分類裁決', '問卷沒有可用的答案，暫依程式提示', entry['name'], why)
                 continue
             if state == '未定' and (entry.get('late') or entry['current'] in _VERDICT_HIDDEN) and len(usable) >= 2:
                 # 可用的票兩票以上、全部支持同一個公開分類、沒有反對票：不能用的那一票不算反對（2026/10/15 群聯「未列／觀望注意／觀望注意」；
@@ -14850,6 +14851,10 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                               why + '；各票：' + '、'.join(_VERDICT_LABEL.get(v, v) or '不能用' for v in entry['votes']))
         pending = still
     _settle_parallel_groups(verdicts, contested, transcript)
+    for code, entry in verdicts.items():
+        if entry.get('hint_only') or (entry.get('tier') == '未裁決' and entry.get('hints')):
+            signals.setdefault('_repair_gaps', []).append(
+                f"語氣待 AI 確認：{entry['name']} 沒有可用的問卷答案，暫依程式提示列{_VERDICT_LABEL.get(entry['cls'], entry['cls'])}")
     # 管理者 2026/10/21：會員持股判成觀望注意的一律寫入會員持股；不是會員持股的，判成會員持股也只算觀望注意。
     # 「是不是會員持股」看紀錄上未出場的部位（entry['open']）或今天原文明講持有；觀望不碰、買賣與人工裁決不動。
     for code, entry in verdicts.items():

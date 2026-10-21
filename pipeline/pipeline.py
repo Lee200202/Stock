@@ -7056,6 +7056,12 @@ def plain_current_stance(heard, transcript, weak=False, names=None):
         if not asked and any(_cue_is_about(heard, s, m.start(), m.end(), names) for m in re.finditer(_LEFT_WATCH, s)) \
                 and re.search(_LEFT_WATCH, near(-1, 1)):
             return ('watch_watch', s)
+        # 先下評語、後報名字／族群並列防守看多前提：「昨天有沒有跟你講記憶體不要再賣？...群聯、宜鼎」
+        lead = ''.join(sents[max(0, i - 4):i])
+        if not asked and re.search(r'(?:這[兩三幾]支(?:股票)?|族群|記憶體)[^。！？!?]{0,50}(?:不要再?賣|不准再?賣|都來年線|來年線|在賣什麼意思)', lead):
+            return ('watch_watch', lead + s)
+        if not asked and re.search(r'拉起來(?:的)?速度(?:是)?比較快', s):
+            return ('watch_watch', s)
     return None
 
 
@@ -13623,6 +13629,8 @@ def _teaching_disclaimer(names, transcript):
             window = flat[m.start():m.start() + 420]
             hit = re.search(r'我(?:不是|並不是|又不是)(?:要|在)?(?:叫|下|推薦)?(?:你|你們)(?:去)?(?:買|追)(?:它|牠|這一[隻支檔])', window)
             if not hit:
+                if re.search(r'試[搓撮]合(?:跌停板)?.*?(?:逼你賣|洗盤)', window):
+                    return window[:60]
                 continue
             before = window[:hit.start()]
             if re.search(r'不能買|不要買|不會買|絕對不|買點|可以買|要注意', before):
@@ -14226,28 +14234,34 @@ def _parallel_groups(items, transcript):
 
 
 def _settle_parallel_groups(verdicts, items, transcript):
-    """並列同一述語的股票：本股自己可用的票不到兩張時，公開與否看整組合併的票（2026/10/21 台郡一票不碰、富喬三票都不能用、
-    台玻兩票不列，同一句話卻一檔公開、兩檔不公開）。本股自己有兩票以上的照本股的結果。"""
+    """並列同一述語股票：受限於同一句同一述語（2026/10/21 台郡跌、富喬跌、台玻跌），
+    整組的公開結論應一致，不能同一述語有一檔公開、其他兩檔不公開。
+    若整組多數未達公開門檻（例如多數未達2票偏多/偏空，或整組投票多數為排除），則整組不公開。"""
     try:
         groups = _parallel_groups(items, transcript)
     except Exception as e:
-        print(f"  分類裁決　並列分組沒有完成（{type(e).__name__}），各檔照原結果")
+        print(f"  裁決　並列組失敗（{type(e).__name__}），各股依原結果")
         return
     public = ('buy', 'sell', 'holdings', 'watch_watch', 'watch_avoid')
     for group in groups:
         entries = [verdicts[c] for c in group if c in verdicts]
+        if len(entries) < 2:
+            continue
         pooled = [v for e in entries for v in e.get('votes') or [] if v]
         for entry in entries:
-            own = [v for v in entry.get('votes') or [] if v]
-            if len(own) >= 2 or entry.get('tier') in ('直接歸類', '人工裁決') or entry.get('open') or entry.get('trade_check'):
-                continue
             cls = entry.get('cls')
-            if cls in public and pooled.count(cls) < 2 and sum(1 for v in pooled if v not in public) >= 2:
+            if cls not in public or entry.get('tier') in ('人工核定',) or entry.get('open') or entry.get('trade_check'):
+                continue
+            own = [v for v in entry.get('votes') or [] if v]
+            own_public = [v for v in own if v in public]
+            other_entries = [e for e in entries if e != entry]
+            others_all_ignored = all(e.get('cls') not in public for e in other_entries)
+            if others_all_ignored and (len(own_public) < 2 or pooled.count('ignored') > pooled.count(cls)):
                 names = '、'.join(e['name'] for e in entries)
                 entry.update(cls='ignored', tier='裁決', enforce=True, new=True,
-                             basis=f"並列同一述語（{names}），本股可用票不到兩張，整組合併的票不支持公開")
-                note_decision('分類裁決', '並列同一述語，整組合併的票不支持公開', entry['name'],
-                              '整組各票：' + '、'.join(_VERDICT_LABEL.get(v, v) for v in pooled))
+                             basis=f"並列同一述語（{names}），同組其他股票皆未收錄，整組票數不符獨立公開條件")
+                note_decision('裁決', '並列同一述語，同組未收錄，整組不公開', entry['name'],
+                              '整組票數：' + '、'.join(_VERDICT_LABEL.get(v, v) for v in pooled))
 
 
 def _ask_verdicts(items, date_str, round_no):

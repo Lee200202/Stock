@@ -56,7 +56,7 @@ def windows(names, transcript, normalize):
         if len(normalize(name)) < 2:
             continue
         for match in re.finditer(re.escape(name), text):
-            a, b = max(0, match.start()-450), min(len(text), match.end()+550)
+            a, b = max(0, match.start()-300), min(len(text), match.end()+350)
             spans.append((a, b))
     merged = []
     for a, b in sorted(set(spans)):
@@ -71,7 +71,7 @@ def stance(answer, names, zones, normalize):
     """Return None for an incomplete/unbound semantic answer, not a negative vote.
 
     Both a literal target-name anchor and the semantic conclusion must occur in
-    the same bounded source window, within 600 normalized characters. Shared
+    the same bounded source window, within 240 normalized characters. Shared
     conclusions require an explicit target member. No generated prose is evidence.
     """
     if not isinstance(answer, dict) or not zones:
@@ -108,7 +108,7 @@ def stance(answer, names, zones, normalize):
         quotes = [m.start() for m in re.finditer(re.escape(q), flat)]
         anchor_found = anchor_found or bool(anchors)
         named_quote_found = named_quote_found or bool(quotes and any(n in q for n in bound))
-        if any(abs(x-y) <= 600 for x in anchors for y in quotes):
+        if any(abs(x-y) <= 240 for x in anchors for y in quotes):
             supported = True
             break
     if not supported and not (anchor_found and named_quote_found):

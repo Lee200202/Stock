@@ -257,6 +257,73 @@ class SemanticContracts(unittest.TestCase):
 
 
 class BatchReceipt(unittest.TestCase):
+    def test_scoped_identity_survives_publication_without_permanent_alias(self):
+        answer = {'about_itself': True, 'semantic': {'entity':'company','anchor':'台播今天追強之後轉弱'}}
+        entry = {'cls':'watch_avoid','enforce':True,'name':'台播','answer':{'watch_avoid':{'answer':answer}}}
+        signals = {'ignored':[{'code':'1802','name':'台播','reason':'待核'}], '_verdicts':{'1802':entry}}
+        with patch.object(pl, '_CODE_MAP', {'1802':'台玻','4736':'泰博'}), patch.object(pl, '_CODE_MAP_FULL', True), \
+             patch.object(pl, 'resolve_code', return_value=(pl.UNRESOLVED,'','ambiguous')) as lookup:
+            pl.apply_verdicts(signals, '2026/10/21')
+        self.assertEqual(signals['watch_avoid'][0]['name'], '台玻')
+        self.assertIn('台播', signals['watch_avoid'][0]['aliases'])
+        self.assertNotIn('台播', pl.CONFIRMED_NAMES)
+        lookup.assert_not_called()
+
+    def test_scoped_identity_needs_source_company_assertion_and_unique_directory_match(self):
+        answer = {'about_itself':True,'semantic':{'entity':'company','anchor':'甲播現在還不能追價'}}
+        entry = {'answer': {'watch_avoid': {'answer':answer}}}
+        with patch.object(pl,'_CODE_MAP', {'1111':'甲玻','2222':'甲波'}), patch.object(pl,'_CODE_MAP_FULL',True):
+            self.assertFalse(pl.scoped_verdict_identity('甲播','甲玻','1111',entry,'watch_avoid'))
+        answer['semantic']['entity'] = 'ordinary'
+        with patch.object(pl,'_CODE_MAP', {'1111':'甲玻'}), patch.object(pl,'_CODE_MAP_FULL',True):
+            self.assertFalse(pl.scoped_verdict_identity('甲播','甲玻','1111',entry,'watch_avoid'))
+    def test_final_position_policy_does_not_create_positions_or_promote_pending(self):
+        entries = {str(i): e for i, e in enumerate([
+            {'cls':'watch_watch','tier':'裁決','open':True},
+            {'cls':'watch_watch','tier':'裁決','open':False},
+            {'cls':'watch_watch','tier':'未定','open':True},
+            {'cls':'watch_watch','tier':'人工裁決','open':True},
+            {'cls':'watch_avoid','tier':'裁決','open':True}])}
+        pl.finalize_position_identity(entries, {})
+        self.assertEqual([e['cls'] for e in entries.values()],
+                         ['holdings','watch_watch','watch_watch','watch_watch','watch_avoid'])
+
+    def test_a_holding_without_a_position_or_own_statement_is_watched(self):
+        # 管理者 2026/10/21：不是會員持股的，判成會員持股也只算觀望注意（10/21 宜鼎三階段一致免問）
+        entries = {'a': {'cls': 'holdings', 'tier': '一致通過', 'open': False, 'basis': '初判、覆核、規則後同為會員持股'},
+                   'b': {'cls': 'holdings', 'tier': '裁決', 'open': False, 'basis': '明講目前持有：我有甲公司'},
+                   'c': {'cls': 'holdings', 'tier': '直接歸類', 'open': True, 'basis': '紀錄上持有（最近一筆是買入）'}}
+        pl.finalize_position_identity(entries, {})
+        self.assertEqual([e['cls'] for e in entries.values()], ['watch_watch', 'holdings', 'holdings'])
+
+    def test_conflicting_identity_is_quarantined_not_confirmed_as_a_noncompany(self):
+        signals = {'watch_watch': [{'code':'1111','name':'甲公司'}]}
+        entries = {'1111': {'cls':'watch_watch','tier':'裁決','open':False,
+                            'identity_prior':'ordinary','name':'甲公司'}}
+        pl.finalize_position_identity(entries, signals)
+        signals['_verdicts'] = entries
+        pl.apply_verdicts(signals, '2026/10/21')
+        self.assertEqual(signals['watch_watch'], [])
+        self.assertEqual(signals['uncertain'][0]['code'], '1111')
+        self.assertTrue(signals['_quality_requires_review'])
+
+    def test_wider_context_is_not_unlimited_ownership_of_the_next_topic(self):
+        a = {'semantic': {'entity': 'company', 'role': 'current_view', 'direction': 'positive',
+             'scope': 'self', 'members': ['甲公司'], 'anchor': '甲公司只是用來解釋試撮合',
+             'quote': '另一隻股票是我的現在還持有'}}
+        text = a['semantic']['anchor'] + '無關背景' * 90 + a['semantic']['quote']
+        self.assertIsNone(pl.semantic_stance(a, ['甲公司'], [text]))
+        shared = '這兩檔都回到年線不要殺低' + '共同背景' * 12 + '甲公司還有乙公司'
+        a['semantic'].update(scope='shared', members=['甲公司','乙公司'],
+                             anchor='甲公司還有乙公司', quote='這兩檔都回到年線不要殺低', sell_discouraged=True)
+        self.assertEqual(pl.semantic_stance(a, ['甲公司'], [shared])[0], 'watch_watch')
+    def test_adjudication_schema_requires_the_evidence_container_not_a_default_class(self):
+        cfg = pl.gemini_generation_config('gemini-3.5-flash-lite', want_json=True, tag='adjudicate-r1')
+        row = cfg['responseJsonSchema']['properties']['verdicts']['items']
+        self.assertIn('semantic', row['required'])
+        self.assertIn('quote_ids', row['required'])
+        self.assertFalse(row['additionalProperties'])
+        self.assertNotIn('default', str(row))
     def test_source_ids_return_original_words_and_unknown_ids_are_empty(self):
         units = [{'id': 'u0', 'text': '甲公司我說不要殺低不要殺低'},
                  {'id': 'u1', 'text': '這兩檔現在都回到年線附近了'}]

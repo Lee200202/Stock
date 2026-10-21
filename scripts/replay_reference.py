@@ -17,10 +17,13 @@ def workflow_diagnostic(signals, code, actual):
     invalid = [{'round': a.get('round'), 'basis': a.get('basis')}
                for a in entry.get('unusable_answers') or [] if isinstance(a, dict)]
     incomplete = bool(invalid or any(not v for v in votes))
-    status = ('review_incomplete' if incomplete else 'post_verdict_check' if
+    block = entry.get('publish_block') if not actual else None
+    status = ('publication_identity_block' if block else 'review_incomplete' if incomplete else 'post_verdict_check' if
               entry.get('cls') in CATEGORIES and entry.get('cls') not in actual else 'verdict_trace')
     return {'status': status, 'initial_class': entry.get('current'), 'final_class': entry.get('cls'),
-            'tier': entry.get('tier'), 'votes': votes, 'basis': str(entry.get('basis') or '')[:600],
+            'tier': entry.get('tier'), 'votes': votes, 'basis': str(entry.get('basis') or '')[:600]
+                + ('｜公開前身分核對阻擋：' + json.dumps(block, ensure_ascii=False) if block else ''),
+            'publication_block': block,
             'invalid_answers': invalid,
             'incomplete_is_not_evidence_of_no_stance': incomplete}
 

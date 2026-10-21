@@ -2,6 +2,20 @@
 import re
 
 
+def source_excerpt(quote, source, normalize):
+    """Resolve punctuation-only quote differences to literal source, never new words."""
+    q = normalize(quote)
+    if len(q) < 8:
+        return ''
+    at = normalize(source).find(q)
+    if at < 0:
+        return ''
+    offsets = [i for i, ch in enumerate(source) for _ in normalize(ch)]
+    if at+len(q) > len(offsets):
+        return ''
+    return source[offsets[at]:offsets[at+len(q)-1]+1]
+
+
 def windows(names, transcript, normalize):
     """Wider context is evidence to judge, not inherited ownership of its contents."""
     text = re.sub(r'\s+', '', str(transcript or ''))

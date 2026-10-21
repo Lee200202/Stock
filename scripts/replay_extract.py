@@ -428,7 +428,8 @@ def main():
                   "classification_evaluation": ('golden_and_independent_draft' if args.golden and reference else
                       'golden' if args.golden else 'independent_draft' if reference else 'not_evaluated'),
                   "errors": errors, "warnings": warns, "exit_code": code,
-                  "usage": pl.gemini_usage_report(), "verdicts": signals.get('_verdicts', {})}
+                  "usage": pl.gemini_usage_report(), "verdicts": signals.get('_verdicts', {}),
+                  "candidate_inventory": signals.get('_candidate_inventory_audit', {})}
         save_report(report)
     if code:
         reason = {2: '核定答案不符', 3: '通用檢查有錯', 4: '獨立來源審核草稿差異待核（非核定答案不符）'}[code]

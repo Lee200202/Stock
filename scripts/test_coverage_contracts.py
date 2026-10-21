@@ -170,7 +170,7 @@ class SemanticContracts(unittest.TestCase):
         with patch.object(pl, '_CODE_MAP', {'1815': '富喬'}), patch.object(pl, 'GEMINI_KEYS', ['offline']), \
              patch.object(pl, 'budget_left', return_value=1000), patch.object(pl, 'call_gemini', return_value=__import__('json').dumps(response,ensure_ascii=False)):
             pl.discover_source_candidates(signals, text, '2026/10/21')
-        self.assertEqual(list(signals), ['ignored'])
+        self.assertEqual([key for key in signals if not key.startswith('_')], ['ignored'])
         self.assertEqual(signals['ignored'][0]['code'], '1815')
         self.assertNotIn('price', signals['ignored'][0])
         self.assertNotIn('富橋', pl.CONFIRMED_NAMES)
@@ -189,6 +189,17 @@ class SemanticContracts(unittest.TestCase):
     def test_runtime_failure_is_not_a_green_quality_report(self):
         _, hard, _ = pl.quality_overview({'_classification_runtime_error': 'load failed'}, check_chapters=False)
         self.assertTrue(any('裁決未完成' in item for item in hard))
+
+    def test_discovery_punctuation_resolves_to_literal_source_not_model_numbers(self):
+        source = '甲公司原本價位130元現在不要賣'
+        excerpt = pl.semantic_context().source_excerpt('甲公司原本價位130元，現在不要賣。', source, pl._ev_norm)
+        self.assertEqual(excerpt, source)
+        self.assertEqual(pl.semantic_context().source_excerpt('甲公司原本價位139元現在不要賣', source, pl._ev_norm), '')
+
+    def test_hidden_initial_agreement_requires_two_usable_votes(self):
+        self.assertEqual(pl.verdict_settle('ignored', ['ignored'])[0], '再問')
+        self.assertEqual(pl.verdict_settle('ignored', ['ignored', 'ignored'])[0], '定案')
+        self.assertEqual(pl.verdict_settle('watch_watch', ['watch_watch'])[0], '定案')
 
 
 if __name__ == '__main__': unittest.main()

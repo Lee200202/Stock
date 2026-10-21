@@ -6132,6 +6132,11 @@ def drop_speaker_sentences(signals):
             if _ANALYST_SUBJECT.search(text):
                 text = re.sub(r'(^|[，。；])並(?=(?:明確|也|再次)?(?:指出|表示|提醒|指示|建議|點名|強調|說明|點出))', r'\1', _ANALYST_SUBJECT.sub('', text))
                 row[field] = text
+            if cat in ('watch_avoid', 'watch_watch'):
+                # 「這個要不要賣？不用啦，還賺錢…要賣我一定會跟你講」是講者在談自己的持股，不屬於任何一檔觀望股（2026/10/21 被寫進國巨）
+                clean = re.sub(r'[^。！？!?]*(?:持股(?:還在)?賺錢不用賣|(?:要|若|如果)?賣(?:我)?一定會(?:跟你們?講|事先告知))[^。！？!?]*[。！？!?]?', '', text).strip()
+                if clean != text and len(_ev_norm(clean)) >= 8:
+                    row[field] = text = clean
             if not _SPEAKER_IN_NOTE.search(text):
                 continue
             kept = [s for s in re.split(r'(?<=[。！？!?])', text) if s.strip() and not _SPEAKER_IN_NOTE.search(s)]
@@ -7078,7 +7083,9 @@ def plain_current_stance(heard, transcript, weak=False, names=None):
         # 觀眾或會員的提問不是講者的看法（2026/10/08：「跌下來很多人說，張總，鴻海還可以不可以買？」被當成「可以買」
         # 補列成觀望注意；他的回答是「還沒有那麼急，線型還沒收斂」）。問句裡的「可以買」「要注意」不算偏多說法。
         # 只認「可不可以買／能不能買／要不要買／還可以買嗎」這種問買不買的句型；句尾順口的「對不對？」「你有沒有看到？」不算提問。
-        asked = re.search('(?:可以不可以|可不可以|能不能|要不要|該不該)(?:再)?(?:去)?(?:買|追|進場)|還可以(?:買|追)?嗎', s)
+        asked = re.search(r'(?:可以不可以|可不可以|能不能|要不要|該不該)(?:再)?(?:去)?(?:買|追|進場)|還可以(?:買|追)?嗎'
+                          r'|(?:是不是|是否|能否)[^。！？!?]{0,16}(?:可以|能|該)?(?:再)?(?:去)?(?:買|追|進場)'
+                          r'|(?:可以|能|該)(?:再)?(?:去)?(?:買|追|進場)[^。！？!?]{0,8}[？?]', s)
         if not asked and any(_cue_is_about(heard, s, m.start(), m.end(), names) for m in re.finditer(_LEFT_WATCH, s)) \
                 and re.search(_LEFT_WATCH, near(-1, 1)):
             return ('watch_watch', s)
@@ -8054,6 +8061,10 @@ def _display_name(name):
     return re.sub(r'[*＊]+$', '', str(name or '').strip())
 
 
+# 名單與部位的說法（「還有一支X」「X 5289」「我有X」「叫做X」）：出現在兩字股名旁邊時，那兩個字是在報股票，不是日常用語。
+_NAME_LIST_CUE = re.compile(r'[一這][支隻檔]|\d{4}|我有|我的|叫做|注意')
+
+
 def source_inventory(segments):
     """只做名稱定位，使用這輪已載入的官方表；不增加模型或行情呼叫。
 
@@ -8101,7 +8112,18 @@ def source_inventory(segments):
         code, name, confirmed = names[heard]
         item = {'name': heard, 'code': code, 'official_name': name, 'refs': refs[heard][:5]}
         if len(heard) <= 2 and not confirmed and not re.fullmatch(r'[A-Za-z0-9*-]+', heard):
-            item['weak'] = True
+            # 兩個字的官方簡稱常是日常用語（全國、大量），但真的股票也多是兩個字（群聯、神準、瑞鼎、台郡、台玻）。
+            # 名稱前後 12 字內有股票字眼（漲跌、買賣、線型、新高、持有）就當正式候選，漏列時要逐檔再問，不默默消失（2026/10/21）。
+            cued = any(_HEARD_STOCK_CUE.search(flat_all[max(0, m.start() - 12):m.end() + 12])
+                       or _NAME_LIST_CUE.search(flat_all[max(0, m.start() - 8):m.end() + 8])
+                       for m in re.finditer(re.escape(heard), flat_all))
+            if cued:
+                try:
+                    cued = not _only_ordinary_word(heard, code, flat_all)   # 「投信在高檔大量賣出」的大量仍是日常用語
+                except Exception:
+                    cued = False
+            if not cued:
+                item['weak'] = True
         found_items.append(item)
     return found_items
 
@@ -9014,6 +9036,10 @@ def flag_category_contradictions(signals) -> list:
     return flagged
 
 
+# 別檔名稱與本股之間只有並列連接（「群聯，還有一支宜蘭之光，5289宜鼎」「A和B」）時，那一刀不切：兩檔共用前面的話。
+_COORD_PREFIX = re.compile(r'^[，,、\s]*(?:(?:還有|另外|以及|和|與|及|加上?)(?:一[支隻檔個])?|跟|同|也(?:有|是)?)[^。！？!?]{0,15}$')
+
+
 def _entity_scope(row, signals, transcript, before_chars=180, after_chars=160, with_offsets=False):
     """只用本股名稱附近、且未跨過其他公司名字的原文；僅作歸屬疑點偵測。
     with_offsets=True 時每筆多帶 (窗口起, 窗口迄)，位置是去空白後的原文。"""
@@ -9048,8 +9074,8 @@ def _entity_scope(row, signals, transcript, before_chars=180, after_chars=160, w
     chunks=[]
     for name in sorted(names,key=len,reverse=True):
         for m in re.finditer(re.escape(name),source):
-            before=max([m.start()-before_chars,0]+[b for a,b in cuts if b<=m.start()])
-            after=min([m.end()+after_chars,len(source)]+[a for a,b in cuts if a>=m.end()])
+            before=max([m.start()-before_chars,0]+[b for a,b in cuts if b<=m.start() and not _COORD_PREFIX.match(source[b:m.start()])])
+            after=min([m.end()+after_chars,len(source)]+[a for a,b in cuts if a>=m.end() and not _COORD_PREFIX.match(source[m.end():a])])
             chunks.append((source[before:after],source[m.start():after]) + ((before, after) if with_offsets else ()))
     return chunks
 
@@ -13283,7 +13309,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v21-20261021"          # v20＋否認部位只改部位軸、並列同述語整組判定、不能用的答案補問到五輪
+VERDICT_VERSION = "v22-20261021"          # v21＋無標點原稿依修飾稿斷句、指向後面名單的共同結論、已出場股票的向前說法送裁決
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 5                   # 一輪一個請求（只問還缺可用答案的那幾檔）；2026/10/21 富喬、群聯、宜鼎三票裡兩票以上不能用，
                                          # 補問兩輪換掉不能用的答案，一天多 0～2 個請求（額度每分鐘 15 次、每天 500 次）
@@ -13354,7 +13380,8 @@ _VQ_ENTRY = re.compile(r'買|等|[佈布]局|注意|留意|抓住|進場|切入|
 _VQ_REFUSAL = re.compile(r'不|別|沒|太|急|追高|套')
 # 叫人不要賣、不要殺低是續抱的指示，不是不准買（2026/10/20「130以下，不準賣聯電」「全部不準在這一個地方去殺低」
 # 被當成禁買票，聯電、世界先進因此「沒有多數」而不公開；提示詞第十條早就這樣定義）
-_VQ_ANTISELL = re.compile(r'(?:不准|不準|不要|別|不用|不必)(?:再)?(?:去)?(?:在[^，。！？!?]{0,10})?(?:賣|殺|砍|停損)')
+_VQ_ANTISELL = re.compile(r'(?:不准|不準|不要|別|不用|不必)(?:再)?(?:去)?(?:在[^，。！？!?]{0,10})?(?:賣|殺|砍|停損)'
+                          r'|(?:你們?)?(?:還)?在(?:賣|殺|砍)(?:個)?什麼(?:意思)?')   # 反問「你們在賣什麼意思」＝不要賣
 _VQ_OUTLOOK = re.compile(r'會漲|會上去|會再|還會|後面|之後|以後|未來|準備|即將|快要(?!漲停)|發動|噴|衝出去|上去|看好|注意|留意|買|[佈布]局|打底|翻紅|翻揚|翻陽'
                          r'|站上|突破|不用擔心|不用怕|不要賣|不用賣|不必賣|不用出|不要出|抱|下一棒|有一波|起飛|目標|上看|挑戰|安全')
 _VQ_WATCH_SIGNAL = re.compile(r'剛開始漲|第一根(?:帶量)?長紅.{0,16}(?:留意|注意|低檔)|(?<!不)會.{0,6}(?:跟著)?(?:衝出去|上漲|轉強|突破)')
@@ -13412,6 +13439,7 @@ def _verdict_markers(text, cls):
 
 
 VERDICT_ZONE_BEFORE, VERDICT_ZONE_AFTER = 80, 220
+VERDICT_LEAD_BACK = 160                  # 「這兩支股票」這類指向後面名單的句子，往前最多找這麼遠
 
 
 def _verdict_mark(passages, names):
@@ -13436,6 +13464,18 @@ def _verdict_mark(passages, names):
         for m in pattern.finditer(text):
             begin = max((text.rfind(ch, 0, m.start()) for ch in '。！？!?'), default=-1) + 1
             begin = max(begin, m.start() - VERDICT_ZONE_BEFORE)
+            # 結論在股名之前、用「這兩支／這幾檔／這些股票」指向後面的名單（2026/10/21「記憶體不要再賣了？我有沒有跟你講這兩支股票？
+            # 我說他都來年線了…群聯，還有一支…宜鼎」）：指向句與它前一句屬於後面每一檔，納入可引用範圍。段落本來就不跨過別檔名稱。
+            ahead_from = max(0, begin - VERDICT_LEAD_BACK)
+            pointer = list(re.finditer(r'這[兩二三四幾些](?:支|隻|檔)(?:股票)?|這些股票', text[ahead_from:begin]))
+            if pointer:
+                at = ahead_from + pointer[-1].start()
+                start = max((text.rfind(ch, 0, at) for ch in '。！？!?'), default=-1) + 1
+                edge = start - 1
+                while edge > 0 and text[edge - 1] in '。！？!?':
+                    edge -= 1                     # 連續的句尾符號算同一個句尾
+                prev = max((text.rfind(ch, 0, max(edge, 0)) for ch in '。！？!?'), default=-1) + 1
+                begin = max(prev, ahead_from)
             stop = min(len(text), m.end() + VERDICT_ZONE_AFTER)
             tail = re.search(r'[。！？!?]', text[stop:stop + 40])            # 收在句尾，不把一句話切半
             stop = stop + tail.end() if tail else stop
@@ -14028,11 +14068,13 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
     def recalled(q):
         at = passages_norm.find(_ev_norm(q))
         return at >= 0 and bool(re.search(r'那時候|那個時候|當時|以前|之前|先前', passages_norm[max(0, at - 40):at]))
-    if now in ('prohibit', 'not_yet') and not any(_VQ_REFUSAL.search(_VQ_ANTISELL.sub('', q)) and not recalled(q) for q in stance):
+    real_refusal = any(_VQ_REFUSAL.search(_VQ_ANTISELL.sub('', q)) and not recalled(q) for q in stance)
+    if now in ('prohibit', 'not_yet') and not real_refusal:
         now = 'none'
-        if hold_advice:
-            # 只有「不要賣、不要殺低」：講者看多、叫人抱著；沒有部位的人列觀望注意（會員持股由上面的持有題處理）
-            return 'watch_watch', '叫人不要賣、不要殺低（續抱、看多）：' + hold_advice[0][:40]
+    if now in ('none', 'prohibit', 'not_yet') and hold_advice and not real_refusal:
+        # 只有「不要賣、不要殺低」：講者看多、叫人抱著；沒有部位的人列觀望注意（會員持股由上面的持有題處理）。
+        # 問卷答 now=none 也一樣（2026/10/21 群聯、聯電：引句是「不要再賣了」，答案卻是沒有立場）
+        return 'watch_watch', '叫人不要賣、不要殺低（續抱、看多）：' + hold_advice[0][:40]
     if not stance:
         return ('history', '只回顧過去的買賣：' + first('past_trade')) if past else ('', '有講這一檔，但引不出原文')
     if now in ('prohibit', 'not_yet'):
@@ -14188,6 +14230,17 @@ def _audit_direct_verdicts(verdicts, direct_ctx, signals, transcript, date_str, 
                                '_closed': _verdict_closed(transcript, names)}))
     print(f"  直接歸類覆核　{len(picks)} 檔合併一問，{len(demoted)} 檔改送問卷")
     return demoted
+
+
+def _forward_named_sentence(names, transcript):
+    """點名本股、同一句有進場字眼與向前看法（買點、會漲、以下買、注意…）的句子；問句與明確禁買不算。"""
+    own = [_ev_norm(n) for n in names if len(_ev_norm(n)) >= 2]
+    for sentence in _plain_sentences(transcript):
+        flat = _ev_norm(sentence)
+        if any(n in flat for n in own) and (_VQ_ENTRY.search(sentence) and _VQ_OUTLOOK.search(sentence) or '買點' in sentence) \
+                and not re.search(r'可不可以|可以不可以|能不能|要不要|[嗎？?]$', sentence.strip()) and not active_prohibit(sentence):
+            return sentence
+    return ''
 
 
 def _parallel_groups(items, transcript):
@@ -14410,6 +14463,13 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                 row['evidence'] = list(dict.fromkeys(list(row.get('evidence') or []) + [quote]))
                 entry.update(cls=condition, tier='直接歸類', enforce=True, basis='紀錄上已出場，今天另有本股當下條件：' + quote[:60])
                 continue
+        if current == 'holdings' and code in known and not entry['open'] and 'buy' not in cats \
+                and any('賣出這一檔' in fact for fact in known.get(code, [])) and not explicit_today_trades(transcript, names, 'buy') \
+                and _forward_named_sentence(names, transcript):
+            # 紀錄上已出場、今天又有點名本股的向前說法（「240以下都是X的買點」「X只要23X你買就對了」）：部位軸是不持有，
+            # 立場交給問卷，底線改成觀望注意；不直接當回顧（2026/10/21 鴻海在一輪重播被直接判成回顧）。
+            current = 'watch_watch'
+            entry['current'] = 'watch_watch'
         if current == 'holdings' and code in known and not entry['open'] and 'buy' not in cats \
                 and any('賣出這一檔' in fact for fact in known.get(code, [])) and not explicit_today_trades(transcript, names, 'buy')                 and not (_hold_advice_to_viewer(names, transcript) or _explicit_approval(names, transcript)
                          or _explicit_not_yet(names, transcript) or _asked_refusal(names, transcript)):
@@ -15368,6 +15428,17 @@ def heard_form(name, transcript):
             piece = sentence[i:i + len(name)]
             if piece != name and all(_has_cjk(c) for c in piece) and not _HEARD_ORDINARY.search(piece) and _syllable_key(piece) == key                     and _HEARD_BEFORE.search(sentence[:i]) and _HEARD_AFTER.match(sentence[i + len(name):]):
                 return piece
+    # 前後字的條件靠標點；聽打沒有標點時（「禮拜一瑞頂下跌…驅動ic瑞頂來瑞頂有沒有」）改看重複：同音、至少有一個字和正式名稱相同、
+    # 出現兩次以上且至少一次旁邊有股票字眼，才算本股。要求同一個字是為了擋掉日常用語（宜鼎和「一定」同音卻沒有共同的字）。
+    # 只用在紀錄上持有的股票（見呼叫端）。
+    seen = {}
+    for i in range(len(hay) - len(name) + 1):
+        piece = hay[i:i + len(name)]
+        if piece != name and all(_has_cjk(c) for c in piece) and set(piece) & set(name) and not _HEARD_ORDINARY.search(piece)                 and _syllable_key(piece) == key:
+            seen.setdefault(piece, []).append(i)
+    for piece, at in sorted(seen.items(), key=lambda kv: -len(kv[1])):
+        if len(at) >= 2 and any(_HEARD_STOCK_CUE.search(hay[max(0, i - 12):i + len(name) + 12]) for i in at):
+            return piece
     return ''
 
 
@@ -16850,8 +16921,51 @@ def stage_transcript(ss, video, date_str, on_step=None):
     return v1, v2
 
 
+_PUNCT_MARKS = '，。！？、；：,.!?;:'
+
+
+def punctuation_density(text):
+    flat = re.sub(r'\s+', '', str(text or ''))
+    return 100 * sum(1 for c in flat if c in _PUNCT_MARKS) / max(1, len(flat))
+
+
+def punctuate_from_polished(raw, polished):
+    """原稿幾乎沒有標點（逐字以空白分隔的手動稿）時，借修飾稿的標點斷句：字一律取原稿，只在兩份對得上的位置插入標點。
+    斷句、可引用範圍、同音比對都靠句號；沒有標點時整集變成一句，鄰檔的話會被算進本股（2026/10/21 宜鼎的「股本比較小」寫進世芯-KY）。
+    引句核對去掉空白與標點後比，結果和原稿完全相同；對不上的字照原稿，不採用修飾稿改過的字。"""
+    flat = re.sub(r'\s+', '', str(raw or ''))
+    pol = re.sub(r'\s+', '', str(polished or ''))
+    if not flat or not pol:
+        return str(raw or '')
+    marks, chars = {}, []
+    for c in pol:
+        if c in _PUNCT_MARKS:
+            if chars:
+                marks.setdefault(len(chars) - 1, c)
+        else:
+            chars.append(c)
+    sm = difflib.SequenceMatcher(None, flat, ''.join(chars), autojunk=False)
+    out_marks = {}
+    for a, b, size in sm.get_matching_blocks():
+        for k in range(size):
+            if b + k in marks:
+                out_marks[a + k] = marks[b + k]
+    out = []
+    for i, c in enumerate(flat):
+        out.append(c)
+        nxt = flat[i + 1] if i + 1 < len(flat) else ''
+        if i in out_marks and c not in _PUNCT_MARKS and nxt not in _PUNCT_MARKS:
+            out.append(out_marks[i])
+    return ''.join(out)
+
+
 def transcript_sources(v1, v2):
     raw = str(v1 or '')
+    if raw.strip() and v2 and punctuation_density(raw) < 3 and punctuation_density(v2) >= 6:
+        fixed = punctuate_from_polished(raw, v2)
+        if _ev_norm(fixed) == _ev_norm(raw):
+            print(f'判讀斷句：原稿每百字標點 {punctuation_density(raw):.1f}，依修飾稿補標點斷句（字一律取原稿，引句核對不變）')
+            raw = fixed
     if not raw.strip():
         raise ValueError('缺少原始逐字稿；不得把修飾稿冒充原文。請補入已核對的來源。')
     # 用正規化後的字數比。原文字間有空白、修飾稿沒有，直接比字數會把正常的潤飾誤判成壓縮過頭。
@@ -17435,21 +17549,41 @@ def stage_extract(ss, video, date_str, v2, done_trades, done_holds, on_step=None
             save_recognition_log(ss, str((video or {}).get('id') or ''), date_str, v1 or v2, text)
 
 
-_SALE_CLAIM = re.compile(r'賣掉一半|賣了一半|已(?:經)?(?:賣出|賣掉|出清|減碼)|出清了|減碼了|獲利了結了')
+_SALE_CLAIM = re.compile(r'賣(?:掉|出)?(?:了一?|一)?半|已(?:經)?(?:[^，。！？!?]{0,12})?(?:賣出|賣掉|出清|減碼|獲利了結)(?:了)?(?:一半|[1-9一二三四五六七八九]成)?|出清了|減碼了|獲利了結了')
 
 
 def strip_unrecorded_sale_claims(signals):
     """會員持股列的說明裡「已賣掉一半」「已出清」這類賣出事實，要有今天的賣出列才留；沒有就拿掉那一句。
     部位與賣出由紀錄與會員通知決定，說明不能自己宣告減碼（2026/10/21 嘉澤）。"""
     sold = {str(r.get('code') or '') for r in signals.get('sell', []) or [] if isinstance(r, dict)}
-    for row in signals.get('holdings', []) or []:
+    rows = list(signals.get('holdings', []) or [])
+    if isinstance(signals.get('_article_records'), dict):
+        rows += list(signals['_article_records'].get('holdings', []) or [])
+    for row in rows:
         if not isinstance(row, dict) or str(row.get('code') or '') in sold:
             continue
         note = str(row.get('note') or '')
         if not _SALE_CLAIM.search(note):
             continue
-        kept = [x for x in re.split(r'(?<=[。！？])', note) if x.strip() and not _SALE_CLAIM.search(x)]
-        row['note'] = ''.join(kept)
+        kept = [x for x in re.split(r'(?<=[。！？!?])', note) if x.strip() and not _SALE_CLAIM.search(x)]
+        if kept:
+            row['note'] = ''.join(kept)
+        else:
+            cleaned_clauses = []
+            for c in re.split(r'(?<=[，,；;。！？!?])', note):
+                if not c.strip():
+                    continue
+                c = _SALE_CLAIM.sub('', c)
+                c = re.sub(r'留下主要部位|剩餘(?:的)?(?:另一半)?部位', '', c)
+                c = re.sub(r'(?:後)?並$', '', c.strip('，, '))
+                c = re.sub(r'繼續續抱', '續抱', c)
+                c = c.strip('，, ')
+                if c:
+                    cleaned_clauses.append(c)
+            res = '，'.join(cleaned_clauses)
+            if res and not res.endswith(('。', '！', '？', '.', '!', '?')):
+                res += '。'
+            row['note'] = res
         print(f"  說明核對　{row.get('name')}：拿掉沒有賣出紀錄的賣出說法")
         note_decision('個股說明', '持股說明寫了沒有紀錄的賣出，拿掉那一句', str(row.get('name') or ''), note[:80])
     return signals

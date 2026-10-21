@@ -13318,6 +13318,9 @@ _VQ_TODAY = re.compile(r'今天|今日|早上|剛剛|剛才|盤中')
 # 進場與不進場的表態，引句裡要看得出來（「創意是不是回來碰季線」不是買進條件）。看不出來就當作沒有表態，再看語氣。
 _VQ_ENTRY = re.compile(r'買|等|[佈布]局|注意|留意|抓住|進場|切入|突破|回測|站[上回]|以下|上去|發動|看好|會漲|飆|噴|衝|起飛|便宜|低檔')
 _VQ_REFUSAL = re.compile(r'不|別|沒|太|急|追高|套')
+# 叫人不要賣、不要殺低是續抱的指示，不是不准買（2026/10/20「130以下，不準賣聯電」「全部不準在這一個地方去殺低」
+# 被當成禁買票，聯電、世界先進因此「沒有多數」而不公開；提示詞第十條早就這樣定義）
+_VQ_ANTISELL = re.compile(r'(?:不准|不準|不要|別|不用|不必)(?:再)?(?:去)?(?:在[^，。！？!?]{0,10})?(?:賣|殺|砍|停損)')
 _VQ_OUTLOOK = re.compile(r'會漲|會上去|會再|還會|後面|之後|以後|未來|準備|即將|快要(?!漲停)|發動|噴|衝出去|上去|看好|注意|留意|買|[佈布]局|打底|翻紅|翻揚|翻陽'
                          r'|站上|突破|不用擔心|不用怕|不要賣|不用賣|不必賣|不用出|不要出|抱|下一棒|有一波|起飛|目標|上看|挑戰|安全')
 _VQ_WATCH_SIGNAL = re.compile(r'剛開始漲|第一根(?:帶量)?長紅.{0,16}(?:留意|注意|低檔)|(?<!不)會.{0,6}(?:跟著)?(?:衝出去|上漲|轉強|突破)')
@@ -13494,7 +13497,8 @@ def _explicit_approval(names, transcript):
     for n in sorted({str(x) for x in names if len(str(x)) >= 2}, key=len, reverse=True):
         for m in re.finditer(re.escape(n) + r'(?:[^，。！？!?]{0,6}[，,])?(?:是OK的|是ok的|可以買|可以了|OK了|ok了)', flat):
             tail, head = flat[m.end():m.end() + 3], flat[max(0, m.start() - 8):m.start()]
-            if re.match(r'[嗎呢]|[？?]', tail) or re.search(r'如果|假如|假設|要是|可不可以|能不能|要不要', head):
+            # 「那是不是愛普可以買了？」是反問（2026/10/20 開場：漲的就想買），不是明講可以買
+            if re.match(r'[了啦喔哦]?[嗎呢]|[了啦喔哦]?[？?]', tail) or re.search(r'如果|假如|假設|要是|可不可以|能不能|要不要|是不是|會不會|難道|是否', head):
                 continue
             return flat[max(0, m.start() - 6):m.end() + 8]
     return ''
@@ -13639,7 +13643,7 @@ def bounded_current_conditions(names, transcript):
         if re.search(r'誰說|誰講|不是說|並非|沒有說|過去|以前|當時|昨天|前幾天|先前',sentence):
             continue
         decision=re.sub(r'可不可以[買賣]|能不能[買賣]|要不要[買賣]|[買賣]點[嗎呢]','',window)
-        refusal=re.search(r'(?:我(?:現在|目前)?(?:不會|不想|不)|還不能|現在不能|不可以)(?:再|去)?(?:買|碰)|不要(?:再)?(?:玩|碰)|買點(?:還|尚)?沒(?:有)?出現|還沒跌完'
+        refusal=re.search(r'(?:我(?:現在|目前|就|也|還)?(?:是)?(?:不會|不想|不)|還不能|現在不能|不可以)(?:再|去)?(?:買|碰)|不要(?:再)?(?:玩|碰)|買點(?:還|尚)?沒(?:有)?出現|還沒跌完'
                         # 「現在不用去管台塑集團，那已經不是你的了」：已經漲完、不必再追（2026/10/16 台塑）
                         r'|不用(?:再)?(?:去)?管[^。！？!?]{0,10}(?:已經)?不(?:是你的|關你的事)',decision)
         if refusal and next_other and len(sentence)<=refusal.start() and re.search(r'[它牠]|的股票是什麼|是哪一[隻支檔]',decision[refusal.start():refusal.end()+8]):
@@ -13926,7 +13930,7 @@ def _verdict_cache(ss, date_str):
     return out
 
 
-def verdict_class(answer, passages_norm, names=(), quote_zones=None):
+def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=None):
     """一份問卷答案 → (分類, 依據)。引句對不回本股段落的那一題不算數；整份答案不能用時分類回空字串。
 
     names 有給時，當天買賣的引句裡要有本股的名稱或代號：既有的成交核對也只認「動作貼著股名」的句子。
@@ -13938,8 +13942,10 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None):
 
     def real(field):
         clean = [re.sub(r'[【】]', '', q) for q in (quotes.get(field) or []) if isinstance(q, str)]
-        return [q for q in clean if len(_ev_norm(q)) >= 6 and _ev_norm(q) in passages_norm
-                and (quote_zones is None or any(_ev_norm(q) in _ev_norm(z) for z in quote_zones))]
+        # 立場的引句也可以來自股名之前、中間沒有別檔的那一段（「如果你的股票來到年線，你就好好的佈局…宜鼎是不是來到年線了？」）
+        zones = list(quote_zones or []) + (list(lead_zones or []) if field == 'stance' else [])
+        return [q for q in clean if len(_ev_norm(q)) >= 6 and (_ev_norm(q) in passages_norm or field == 'stance' and lead_zones)
+                and (quote_zones is None or any(_ev_norm(q) in _ev_norm(z) for z in zones))]
 
     def supports(field, q):
         if not _VQ_FAMILY[field].search(q):
@@ -13983,8 +13989,12 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None):
     now, tone = str(answer.get('now') or 'none'), str(answer.get('tone') or 'neutral')
     if now in ('buy_ok', 'conditional') and not any(_VQ_ENTRY.search(q) for q in stance):
         now = 'none'
-    if now in ('prohibit', 'not_yet') and not any(_VQ_REFUSAL.search(q) for q in stance):
+    hold_advice = [q for q in stance if _VQ_ANTISELL.search(q)]
+    if now in ('prohibit', 'not_yet') and not any(_VQ_REFUSAL.search(_VQ_ANTISELL.sub('', q)) for q in stance):
         now = 'none'
+        if hold_advice:
+            # 只有「不要賣、不要殺低」：講者看多、叫人抱著；沒有部位的人列觀望注意（會員持股由上面的持有題處理）
+            return 'watch_watch', '叫人不要賣、不要殺低（續抱、看多）：' + hold_advice[0][:40]
     if not stance:
         return ('history', '只回顧過去的買賣：' + first('past_trade')) if past else ('', '有講這一檔，但引不出原文')
     if now in ('prohibit', 'not_yet'):
@@ -14006,6 +14016,36 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None):
     if past:
         return 'history', '只回顧過去的買賣'
     return VERDICT_NEUTRAL_CLASS, '只描述行情，沒有偏多偏空的結論，不列：' + stance[0][:40]
+
+
+# 三輪都缺答時，本股自己的可引用原文裡有沒有支持流程分類的字眼。只有名單點名（「台塑、台化、南亞、台塑化」）沒有，照舊不公開。
+_ZONE_AVOID_CUE = re.compile(r'不(?:買|碰|追|看|喜歡|建議|推薦|想買)|別碰|跌|賣壓|賣賣|融資暴增|套|風險|小心|還不能|不能買')
+
+
+def _zone_supports(current, zones):
+    text = ''.join(_ev_norm(z) for z in zones or [])
+    if len(text) < 12:
+        return False
+    if current == 'watch_avoid':
+        return bool(_ZONE_AVOID_CUE.search(text))
+    return bool(_VQ_ANTISELL.search(text) or (_VQ_ENTRY.search(text) and _VQ_OUTLOOK.search(text)))
+
+
+def _lead_zones(passages, names, transcript):
+    """每一段股名之前的背景裡，最後一個別檔名稱之後的那一段：講的是接著報出名字的這一檔（2026/10/20 宜鼎）。"""
+    own = {_ev_norm(n) for n in names if len(_ev_norm(n)) >= 2}
+    others = [n for n in (_stance_names(transcript) or []) if len(_ev_norm(n)) >= 2 and not any(
+        _ev_norm(n) in o or o in _ev_norm(n) for o in own)]
+    out = []
+    for p in passages or []:
+        before = _ev_norm(p.get('before') or '')
+        if not before:
+            continue
+        cut = max([before.rfind(_ev_norm(n)) + len(_ev_norm(n)) for n in others if _ev_norm(n) in before] or [0])
+        tail = before[cut:][-260:]
+        if len(tail) >= 12:
+            out.append(tail)
+    return out
 
 
 def verdict_settle(current, votes, last=False, open_position=False):
@@ -14404,7 +14444,8 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
         for code, item in pending:
             entry = verdicts[code]
             zones = [s['text'] for s in item['passages']]
-            cls, basis = verdict_class(answers.get(code), item['_norm'], item['_names'], zones)
+            leads = _lead_zones(item['passages'], item['_names'], transcript)
+            cls, basis = verdict_class(answers.get(code), item['_norm'] + ''.join(map(_ev_norm, leads)), item['_names'], zones, leads)
             if item.get('_trade_check'):
                 sides=item.get('_trade_sides') or [item['_trade_check']]
                 answer=answers.get(code) if isinstance(answers.get(code),dict) else {}
@@ -14438,9 +14479,16 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                 still.append((code, item))
                 continue
             usable = [v for v in entry['votes'] if v]
-            if entry.get('late') and state == '未定' and len(usable) >= 2 and len(set(usable)) == 1                     and usable[0] in ('holdings', 'watch_watch', 'watch_avoid'):
-                # 可用的票兩票以上、全部一致支持同一個公開分類、沒有反對票：不能用的那一票不算反對（2026/10/15 群聯「未列／觀望注意／觀望注意」）
-                state, decided, why = '定案', usable[0], '最後才被拉回，可用的 ' + str(len(usable)) + ' 票一致、沒有反對票'
+            agree = set(usable)
+            if state == '未定' and (entry.get('late') or entry['current'] in _VERDICT_HIDDEN) and len(usable) >= 2:
+                # 可用的票兩票以上、全部支持同一個公開分類、沒有反對票：不能用的那一票不算反對（2026/10/15 群聯「未列／觀望注意／觀望注意」；
+                # 2026/10/20 華邦電原本排除，「觀望不碰／觀望不碰／缺答」）。會員持股與觀望注意算同一組（管理者 2026/10/15），
+                # 但沒有紀錄上的部位就列觀望注意，不由問卷開出持有回合（2026/10/20 台積電「觀望注意／會員持股／觀望注意」）。
+                if len(agree) == 1 and usable[0] in ('watch_watch', 'watch_avoid') or (len(agree) == 1 and usable[0] == 'holdings' and entry.get('open')):
+                    state, decided, why = '定案', usable[0], '可用的 ' + str(len(usable)) + ' 票一致、沒有反對票'
+                elif agree <= {'holdings', 'watch_watch'}:
+                    decided = 'holdings' if entry.get('open') else 'watch_watch'
+                    state, why = '定案', '可用的 ' + str(len(usable)) + ' 票都是會員持股或觀望注意（同一組）、沒有反對票'
             if entry.get('late') and state == '未定':
                 # 沒有三票一致支持公開：放回不公開
                 entry.update(cls='ignored', tier='裁決', enforce=True, new=True,
@@ -14464,6 +14512,13 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                             break
                     if raw_watch:
                         break
+            if state == '未定' and entry['current'] in ('watch_watch', 'watch_avoid') and not usable \
+                    and _zone_supports(entry['current'], zones):
+                # 三輪都沒有可用的答案（截斷、缺欄、引句核對不過）：這是沒有問到，不是模型認為沒有立場。
+                # 維持流程的分類並標未裁決，不改成不公開（2026/10/20 愛普、世界先進的觀望列因此被排除、說明也跟著消失）
+                entry.update(tier='未定', enforce=False, basis=entry['basis'] + '｜問卷沒有可用的答案，維持流程分類')
+                note_decision('分類裁決', '問卷沒有可用的答案，維持流程分類', entry['name'], why)
+                continue
             if state == '未定' and entry['current'] in ('watch_watch', 'watch_avoid') and not entry.get('open') and entry['current'] not in public_votes and not raw_watch:
                 # 明確條件與已核實部位已在前面直接處理；這裡是有爭議的語氣候選。
                 # 沒有有效引句支持原分類，不因保留初判而發布，也不阻擋其他股票。

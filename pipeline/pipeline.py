@@ -13368,6 +13368,7 @@ anchor_id與quote_id可在context前後不同句，但必須在同一小段可�
 每個stocks都要回答，不新增id。只回JSON：
 context改用帶id的原文片段，每片可能始於半句；請依順序連續理解，不因片段邊界拆開共同結論。不要重新打字抄原句：semantic用anchor_id選含本股原字的片段，quote_id選真正支持現在判斷的片段；兩者可以不同。quotes改用quote_ids逐欄填原片段id陣列。這只解決抄引句錯字，不放寬歸屬。
 quote_ids固定有buy_today、sell_today、holding_now、past_trade、stance五個鍵，各值是片段id陣列；沒有支持原句用空陣列。支持shared時仍需在members列出所指成員，不能拿另一檔的個別條件作本股證據。
+members使用輸入stocks的id字串，不重新打股名或同音字；至少包含本股id。其他共同成員若不在本批輸入可不填，不自創代號。這只消除名字重打錯字，仍需anchor_id含本股原字、quote_id真正支持共同結論。
 每個id都回答上述事實欄；bool須用JSON true/false。semantic必填entity、role、direction、entry_restricted_now、sell_discouraged、scope、members、anchor_id、quote_id，值依上列定義各自選擇，沒有預設中性答案。now從buy_ok/conditional/not_yet/prohibit/none選，tone從bullish/bearish/neutral選。不確定的entity或role填uncertain並說明unsure，沒有原句的id填空字串。輸出頂層格式為 {"verdicts":[每檔的事實物件]}。
 """
 

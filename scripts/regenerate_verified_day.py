@@ -36,7 +36,9 @@ def main():
         raise SystemExit('只處理最近三十天的既有原稿')
     golden_file = Path('scripts/golden') / (target.isoformat() + '.json')
     if args.apply and not golden_file.exists():
-        raise SystemExit('正式更新須有該日人工核對答案；本次未寫入')
+        raise SystemExit('正式更新缺少該日人工核對答案檔：' + str(golden_file) +
+                         '；在模型判讀與寫入之前停止，並非部署權限錯誤。'
+                         '先完成原稿核對；若只修已核實內容，使用 source-review-preview 核對來源綁定修正計畫。')
     golden = json.loads(golden_file.read_text(encoding='utf-8')) if golden_file.exists() else {}
     real = pl.open_sheets()
     dry = DryBook(real)

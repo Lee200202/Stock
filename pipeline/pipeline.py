@@ -13316,7 +13316,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v28-current-example-scope-20261021"    # 現況教學例與機制教學例分開；共同結論先核回指，不以故事口吻排除。
+VERDICT_VERSION = "v31-source-ids-reaffirm-scope-20261021" # 來源編號、反問重申、聽寫技術詞及轉場歸屬一起驗證。
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 5                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -13354,6 +13354,11 @@ neutral_description：只有已發生的價格、漲跌、位置或名單，所�
 
 共享結論：可先說這兩支／這幾檔的共同均線條件與不要殺低，稍後才報名字。用整個context確認回指成員，scope=shared、members逐字列出適用名稱，每檔分別回答。共享的只限結論；一檔股本、成本、MACD、籌碼不借給同組另一檔。
 不要只引用報名字那一句就回答「只是點名」。先在context前後找「這兩支／他們」的共同結論及所指名單，再引用真正支持結論的句子。例：先說「這兩支都到年線，現在不要殺低」，接著點名甲、乙，是本日重申的正面操作看法；但「甲股本小、拉起來較快」只屬甲。若只是產業成分名單而沒有可綁定結論，仍不公開。
+反問式重申：「我昨天有沒有講甲還有乙？」可用來再次點明目前結論的適用名單。同段另有共同均線條件、「不要再賣」「你們在賣什麼意思」時，先核對回指，確認對甲、乙的本日勸不要殺低，才答current_view、sell_discouraged=true、direction=positive。不能因一句有昨天便當歷史，也不能只憑反問就推定目前立場；只有過去損益仍為historical_only。
+談論股價和均線的上下文中，連線／年限可能是年線、薊限／季限可能是季線、記憶題可能是記憶體。依完整語境理解同音轉寫詞，不改引用原字；語境不足仍待核，不能把任何連線都當年線。
+「我在講其他股票」「換一支」「另外一支」轉題後，沒有明確回指的「這一支」不能歸前一檔。模仿觀眾想賣的話不是講者對本股下指令。
+sell_discouraged只表示講者對本股、或已確認含本股的共同名單，叫人不要賣／不要殺低。用某股說明試撮合和成交不同的一般機制、模擬觀眾害怕跌停，以及之後另一持股不想賣，都不是本股的勸續抱；沒有其他當下立場時為general_example。
+「出大量」「最大量」「爆大量」若用來修飾成交量、紅棒、K線或均線，是量能術語，entity=ordinary；官方名單即使有同字公司，也不能因name已填便預設此處在點它。
 
 semantic另分兩個事實：entry_restricted_now（現在明講不買或條件未到）與sell_discouraged（本股現在勸不要賣、不要殺低）；只依本股quote作答。兩者都true時，保留剩餘部位與不許新進場分軸，進場立場以entry_restricted_now為準。不能因禁止賣就回答現在禁止買。
 每檔加semantic：entity=company/ordinary/uncertain；role=current_view/current_risk/historical_only/general_example/neutral_description/uncertain；direction=positive/negative/neutral；scope=self/shared；members=[本股原文寫法]；anchor_id=含本股原字的來源片段id；quote_id=真正支持結論的來源片段id。

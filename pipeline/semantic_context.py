@@ -24,11 +24,11 @@ def resolve_units(answer, source_units):
     semantic = answer.get('semantic')
     if isinstance(semantic, dict) and ('anchor_id' in semantic or 'quote_id' in semantic):
         semantic = dict(semantic)
-        semantic['anchor'] = index.get(semantic.get('anchor_id'), '')
-        semantic['quote'] = index.get(semantic.get('quote_id'), '')
+        semantic['anchor'] = index.get(semantic['anchor_id'], '') if isinstance(semantic.get('anchor_id'), str) else ''
+        semantic['quote'] = index.get(semantic['quote_id'], '') if isinstance(semantic.get('quote_id'), str) else ''
         answer['semantic'] = semantic
     if isinstance(answer.get('quote_ids'), dict):
-        answer['quotes'] = {field: [index[i] for i in ids if i in index]
+        answer['quotes'] = {field: [index[i] for i in ids if isinstance(i, str) and i in index]
                             for field, ids in answer['quote_ids'].items()
                             if isinstance(ids, list)}
     return answer

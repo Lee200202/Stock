@@ -267,6 +267,10 @@ class BatchReceipt(unittest.TestCase):
         self.assertEqual(fixed['quotes']['stance'], [units[1]['text']])
         bad = pl.semantic_context().resolve_units({'semantic': {'anchor_id': 'u9', 'quote_id': 'u9'}}, units)
         self.assertEqual(bad['semantic']['quote'], '')
+        malformed = pl.semantic_context().resolve_units({'semantic': {'anchor_id': [], 'quote_id': {}},
+            'quote_ids': {'stance': [{}, [], 'u0']}}, units)
+        self.assertEqual(malformed['semantic']['anchor'], '')
+        self.assertEqual(malformed['quotes']['stance'], [units[0]['text']])
 
     def test_source_slices_cover_original_without_rewriting_or_labels(self):
         source = '甲公司這兩檔不要殺低我說不要賣乙公司回到年線附近' * 20

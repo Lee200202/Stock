@@ -15,6 +15,10 @@ on:
         description: '停用人工／模型裁決快取，測量新判讀；仍讀當日通知及歷史部位'
         type: boolean
         default: false
+      stance_probe:
+        description: '只用10/21原稿合批測四檔爭議與五個反例，三輪；非完整流程或盲測'
+        type: boolean
+        default: false
       independent_review:
         description: '可選：repo內來源審核草稿JSON路徑（非人工金標，同日同原稿SHA；只在推論後比對）'
         type: string
@@ -59,6 +63,7 @@ jobs:
           FRESH_VERDICTS: ${{ inputs.fresh_verdicts }}
           INDEPENDENT_REVIEW: ${{ inputs.independent_review }}
           FINAL_ATTEMPT: 'true'
+          STANCE_PROBE: ${{ inputs.stance_probe }}
           PYTHONUNBUFFERED: '1'
         run: |
           if ! printf '%s' "$GEMINI_RPM" | grep -Eq '^([1-9]|1[0-5])$'; then
@@ -78,9 +83,13 @@ jobs:
             esac
             ARGS+=(--independent-review "$REVIEW_PATH")
           fi
-          python scripts/replay_extract.py "${ARGS[@]}"
+          if [ "$STANCE_PROBE" = true ]; then
+            python scripts/probe_stance_cases.py --date "$REPLAY_DATE" --output .replay-report/result.json
+          else
+            python scripts/replay_extract.py "${ARGS[@]}"
+          fi
       - name: 診斷摘要（不以網站為答案）
-        if: always()
+        if: always() && inputs.stance_probe != true
         run: python scripts/summarize_replay.py .replay-report/result.json
       - uses: actions/upload-artifact@v4
         if: always()

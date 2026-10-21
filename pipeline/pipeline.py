@@ -13292,7 +13292,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v27-source-identity-20261021"          # 缺答不算反對、不准賣不是禁買、並列與前文的共同結論、可用票一致放行、反問不是可以買
+VERDICT_VERSION = "v28-current-example-scope-20261021"    # 現況教學例與機制教學例分開；共同結論先核回指，不以故事口吻排除。
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 5                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -13324,7 +13324,12 @@ general_example：只在說一般機制／試撮合不等於成交等教學，�
 neutral_description：只有已發生的價格、漲跌、位置或名單，所有context都沒有當下／後續判斷。
 不確定不是neutral；請將semantic留空、unsure寫明缺什麼。
 
+角色的判斷順序：先查本股目前／後續是否有操作結論或具體風險，再查是否只剩歷史或一般機制。教學口吻、反問、舉例、昨天、前天都不是排除理由。
+若點名股票「昨天強、今天轉弱」，並緊接說明追強者隔天可能更弱，這是在用具體現況提醒不要追價，屬current_risk，不是general_example。即使未直說不能買，也不應遺漏這個當下風險結論。
+反例：只說某股常常試撮合跌停但開盤後上漲，以解釋試撮合不等於成交，且沒有目前買點、風險或操作建議，才是general_example；只有昨天賺錢賣掉、今天無新看法，才是historical_only。
+
 共享結論：可先說這兩支／這幾檔的共同均線條件與不要殺低，稍後才報名字。用整個context確認回指成員，scope=shared、members逐字列出適用名稱，每檔分別回答。共享的只限結論；一檔股本、成本、MACD、籌碼不借給同組另一檔。
+不要只引用報名字那一句就回答「只是點名」。先在context前後找「這兩支／他們」的共同結論及所指名單，再引用真正支持結論的句子。例：先說「這兩支都到年線，現在不要殺低」，接著點名甲、乙，是本日重申的正面操作看法；但「甲股本小、拉起來較快」只屬甲。若只是產業成分名單而沒有可綁定結論，仍不公開。
 
 semantic另分兩個事實：entry_restricted_now（現在明講不買或條件未到）與sell_discouraged（本股現在勸不要賣、不要殺低）；只依本股quote作答。兩者都true時，保留剩餘部位與不許新進場分軸，進場立場以entry_restricted_now為準。不能因禁止賣就回答現在禁止買。
 每檔加semantic：entity=company/ordinary；role=current_view/current_risk/historical_only/general_example/neutral_description；direction=positive/negative/neutral；scope=self/shared；members=[本股原文寫法]；anchor=含本股原字的4至80字原句；quote=8至120字、真正支持角色與方向的原句。

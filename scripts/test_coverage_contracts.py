@@ -257,6 +257,28 @@ class SemanticContracts(unittest.TestCase):
 
 
 class BatchReceipt(unittest.TestCase):
+    def test_final_position_policy_does_not_create_positions_or_promote_pending(self):
+        entries = {str(i): e for i, e in enumerate([
+            {'cls':'watch_watch','tier':'裁決','open':True},
+            {'cls':'watch_watch','tier':'裁決','open':False},
+            {'cls':'watch_watch','tier':'未定','open':True},
+            {'cls':'watch_watch','tier':'人工裁決','open':True},
+            {'cls':'watch_avoid','tier':'裁決','open':True}])}
+        pl.finalize_position_identity(entries, {})
+        self.assertEqual([e['cls'] for e in entries.values()],
+                         ['holdings','watch_watch','watch_watch','watch_watch','watch_avoid'])
+
+    def test_conflicting_identity_is_quarantined_not_confirmed_as_a_noncompany(self):
+        signals = {'watch_watch': [{'code':'1111','name':'甲公司'}]}
+        entries = {'1111': {'cls':'watch_watch','tier':'裁決','open':False,
+                            'identity_prior':'ordinary','name':'甲公司'}}
+        pl.finalize_position_identity(entries, signals)
+        signals['_verdicts'] = entries
+        pl.apply_verdicts(signals, '2026/10/21')
+        self.assertEqual(signals['watch_watch'], [])
+        self.assertEqual(signals['uncertain'][0]['code'], '1111')
+        self.assertTrue(signals['_quality_requires_review'])
+
     def test_wider_context_is_not_unlimited_ownership_of_the_next_topic(self):
         a = {'semantic': {'entity': 'company', 'role': 'current_view', 'direction': 'positive',
              'scope': 'self', 'members': ['甲公司'], 'anchor': '甲公司只是用來解釋試撮合',

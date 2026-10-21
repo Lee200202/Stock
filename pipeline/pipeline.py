@@ -13316,7 +13316,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v31-source-ids-reaffirm-scope-20261021" # 來源編號、反問重申、聽寫技術詞及轉場歸屬一起驗證。
+VERDICT_VERSION = "v32-source-ids-identity-policy-20261021" # 來源編號、反問重申、聽寫技術詞及轉場歸屬一起驗證。
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 5                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -14464,6 +14464,22 @@ def _ask_verdicts(items, date_str, round_no):
 _VERDICT_BATCH_RECEIPTS = []
 
 
+def finalize_position_identity(verdicts, signals):
+    """Confirmed publication policy; never create a position from a tone vote."""
+    for entry in verdicts.values():
+        if entry.get('tier') == '人工裁決':
+            continue
+        if (entry.get('identity_prior') == 'ordinary' and not entry.get('open')
+                and entry.get('cls') in ('buy', 'sell', 'holdings', 'watch_watch', 'watch_avoid')):
+            entry.update(cls='uncertain', tier='未裁決', enforce=True,
+                         basis=entry.get('basis', '') + '｜公司身分與一般詞用途核對矛盾，本股暫不公開')
+            signals['_quality_requires_review'] = True
+        elif (entry.get('cls') == 'watch_watch' and entry.get('open')
+              and entry.get('tier') not in ('未定', '未裁決')):
+            entry.update(cls='holdings', enforce=True,
+                         basis=entry.get('basis', '') + '｜既有未出場部位＋本日正面分析，依發布政策列會員持股')
+
+
 def adjudicate_classes(ss, signals, transcript, date_str, first=None, reviewed=None):
     """把每一檔今天的分類分成直接歸類、一致通過、送裁決三層，結果記在 signals['_verdicts']，再照裁決改列。
 
@@ -14562,6 +14578,7 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
         # 不能直接排掉，也不能把原先候選當成已確認公司；缺答仍由 uncertain 邊界隔離。
         if identity_pending:
             entry['identity_review_pending'] = True
+            entry['identity_prior'] = identity or 'unconfirmed'
             entry['hints'] = ['前置語詞用途核對有疑義；請重新核對原字究竟點名公司或一般用語，不能只按讀音認公司']
         if current in ('buy', 'sell') and explicit_today_trades(transcript, names, current):
             # 成交候選與其他疑點共用本輪問卷，不另發逐檔請求；單次複核不一致就隔離，避免反覆重擲。
@@ -14895,6 +14912,7 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                 note_decision('分類裁決', '沒有定案，維持原分類，待人工確認', entry['name'],
                               why + '；各票：' + '、'.join(_VERDICT_LABEL.get(v, v) or '不能用' for v in entry['votes']))
         pending = still
+    finalize_position_identity(verdicts, signals)
     for code, entry in verdicts.items():
         denial = _explicitly_not_held(direct_ctx[code][1], transcript) if code in direct_ctx else ''
         if denial and entry.get('cls') == 'holdings' and entry.get('tier') != '人工裁決':

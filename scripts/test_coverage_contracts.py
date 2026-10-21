@@ -300,5 +300,17 @@ class BatchReceipt(unittest.TestCase):
         self.assertEqual(list(answers), ['1111'])
         self.assertEqual(pl._VERDICT_BATCH_RECEIPTS[-1]['missing'], [])
 
+    def test_one_broken_answer_does_not_void_the_batch(self):
+        # 2026/10/21 43768e0 重播第 2 輪：一檔寫成「.quotes"」，整批十檔原本全變缺答
+        raw = ('[{"id":"1111","about_itself":false,"semantic":{"entity":"company"}},'
+               '{"id":"2222",.quotes":{}},{"id":"3333","about_itself":true}]')
+        item = dict(name='甲公司', heard=[], known={}, passages=[])
+        pl._VERDICT_BATCH_RECEIPTS.clear()
+        with patch.object(pl, 'call_gemini', return_value=raw):
+            answers = pl._ask_verdicts([('1111', item), ('2222', item), ('3333', item)], '2026/10/21', 0)
+        self.assertIn('1111', answers)
+        self.assertNotIn('2222', answers)                     # 壞掉的那一筆不猜
+        self.assertIn('2222', pl._VERDICT_BATCH_RECEIPTS[-1]['missing'])
+
 
 if __name__ == '__main__': unittest.main()

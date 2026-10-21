@@ -4492,8 +4492,9 @@ window.__fxWatch(['tblBuy', 'tblSell', 'tblWatchWatch', 'tblWatchAvoid', 'tracke
     }
     wrap.addEventListener('mouseenter', function () { hovering = true; schedule(); });
     wrap.addEventListener('mouseleave', function () { hovering = false; schedule(3600); });
-    wrap.addEventListener('focusin', function () { focused = true; schedule(); });
-    wrap.addEventListener('focusout', function (e) { if (!wrap.contains(e.relatedTarget)) { focused = false; schedule(3600); } });
+    /* 只有焦點落在卡片上才算「正在看」；暫停鈕與進度點拿到焦點不算，否則按下繼續後焦點留在按鈕上，輪播不會恢復。 */
+    wrap.addEventListener('focusin', function (e) { focused = shelf.contains(e.target); schedule(3600); });
+    wrap.addEventListener('focusout', function (e) { if (!shelf.contains(e.relatedTarget)) { focused = false; schedule(3600); } });
     document.addEventListener('visibilitychange', function () { schedule(3600); });
     if ('IntersectionObserver' in window) {
       new IntersectionObserver(function (entries) { visible = entries[0].isIntersecting; schedule(3600); }, { threshold: .25 }).observe(wrap);

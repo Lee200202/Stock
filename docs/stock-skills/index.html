@@ -883,6 +883,12 @@ html[data-theme=dark]{--bg:#101915;--panel:#19251f;--text:#ebf3ee;--muted:#afc1b
   <td>「10/13 取稿日誌」那組來源卡太大，逐章檢查有沒有同樣情形</td>
   <td>第 13、14 節</td>
 </tr>
+<tr>
+  <td>10/21</td>
+  <td>全站按鈕</td>
+  <td>按鈕一律橢圓膠囊，不用底線文字連結（首屏「每天收一封整理」被圈出）；次要動作是外框膠囊，副圖「隱藏」開關也是</td>
+  <td><code>scripts/audit_pill_buttons.py</code>（預設正式站，<code>LOCAL=1</code> 量工作區建置）逐分頁列出底線或無框無底的控制項；分段控制裡未選的選項、折疊列、整張可點卡片上的名稱不算</td>
+</tr>
 </tbody>
 </table></div>
 <h2>10. 只改被要求的部分（10/14 教訓）</h2>
@@ -1385,7 +1391,7 @@ html[data-theme=dark]{--bg:#101915;--panel:#19251f;--text:#ebf3ee;--muted:#afc1b
 <tr>
   <td><code>.ss-cta</code> / <code>.ss-link</code></td>
   <td>主要／次要動作</td>
-  <td>主要：<code>--ss-action</code> 實心膠囊，至少 44px 高；次要：同色文字加「›」</td>
+  <td>主要：<code>--ss-action</code> 實心膠囊，至少 44px 高；次要：<strong>外框膠囊</strong>（主要動作色字＋「›」，與主要同高）。Apple 的藍字文字連結不照搬：10/21 管理者要求全站按鈕都是橢圓，不用底線文字</td>
 </tr>
 <tr>
   <td><code>.ss-nav</code></td>

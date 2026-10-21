@@ -62,7 +62,9 @@ def stance(answer, names, zones, normalize):
     named_members = {normalize(n) for n in members if isinstance(n, str)}
     # A literal named anchor already identifies the target. An omitted redundant
     # members list must not invalidate it; an explicit conflicting list still does.
-    bound = own & named_members if named_members else own
+    if named_members and not own & named_members:
+        return None
+    bound = own                        # official and heard spellings are one identity
     if len(a) < 4 or len(q) < 8 or not any(n in a for n in bound):
         return None
     supported = False
@@ -86,6 +88,10 @@ def stance(answer, names, zones, normalize):
         return 'history', '語意核對：只有過去交易，沒有當下立場｜' + quote[:60]
     if role in ('general_example', 'neutral_description'):
         return 'ignored', '語意核對：教學例或中性行情，沒有本股當下立場｜' + quote[:60]
+    if role == 'current_view' and semantic.get('entry_restricted_now') is True:
+        return 'watch_avoid', '語意事實：現在進場條件未到｜' + quote[:60]
+    if role == 'current_view' and semantic.get('sell_discouraged') is True:
+        return 'watch_watch', '語意事實：勸續抱而非禁止進場｜' + quote[:60]
     if role == 'current_risk' and direction == 'negative':
         return 'watch_avoid', '語意核對：本股為當下風險例｜' + quote[:60]
     if role == 'current_view' and direction in ('positive', 'negative'):
@@ -108,7 +114,8 @@ def phonetic_candidates(source, directory, name_sound, char_sounds, inside_term)
     for size in (2, 3, 4):
         for at in range(len(source)-size+1):
             heard = source[at:at+size]
-            matches = index.get(tuple(pins[at:at+size]), [])
+            matches = [(code, name) for code, name in index.get(tuple(pins[at:at+size]), [])
+                       if set(heard) & set(name)]
             if len(matches) != 1 or not re.fullmatch(r'[\u4e00-\u9fff]+', heard):
                 continue
             code, name = matches[0]

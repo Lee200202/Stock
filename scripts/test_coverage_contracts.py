@@ -225,11 +225,35 @@ class SemanticContracts(unittest.TestCase):
 
     def test_phonetic_inventory_proposes_identity_without_classifying_or_global_alias(self):
         source = '台俊富橋昨天最強台播今天跌被動元件跌一定會漲'
-        directory = {'1815': '富喬', '1802': '台玻', '1504': '東元', '5289': '宜鼎'}
+        directory = {'1815': '富喬', '1802': '台玻', '4736': '泰博', '1504': '東元', '5289': '宜鼎'}
         with patch.object(pl, '_CODE_MAP', directory):
             items = pl.semantic_context().phonetic_candidates(source, directory, pl._name_sound, pl._char_pinyin, pl._inside_non_entity_term)
         self.assertEqual({r['code'] for r in items}, {'1815', '1802'})
         self.assertTrue(all('class' not in r and 'price' not in r for r in items))
+
+    def test_official_member_and_heard_anchor_are_one_identity(self):
+        a = self.answer(quote='富橋今天追強之後轉弱需要小心風險')
+        a['semantic'].update(members=['富喬'], anchor='富橋今天追強', role='current_risk', direction='negative')
+        self.assertEqual(pl.semantic_stance(a, ['富喬', '富橋'], [a['semantic']['quote']])[0], 'watch_avoid')
+
+    def test_entry_ban_and_anti_selling_are_separate_semantic_facts(self):
+        a = self.answer(direction='negative')
+        a['semantic']['sell_discouraged'] = True
+        self.assertEqual(pl.semantic_stance(a, ['甲公司'], [a['semantic']['quote']])[0], 'watch_watch')
+        a['semantic']['entry_restricted_now'] = True
+        self.assertEqual(pl.semantic_stance(a, ['甲公司'], [a['semantic']['quote']])[0], 'watch_avoid')
+
+    def test_entity_review_does_not_supply_company_code_or_old_class_to_model(self):
+        source = '底部紅棒出大量季線準備翻揚'
+        answer = {'mentions': [{'id': 'm0', 'use': 'ordinary', 'quote': source, 'why': '成交量用語'}]}
+        signals = {'watch_watch': [{'name': '大量', 'code': '3167'}]}
+        with patch.object(pl, 'GEMINI_KEYS', ['offline']), patch.object(pl, 'budget_left', return_value=1000), \
+             patch.object(pl, 'call_gemini', return_value=__import__('json').dumps(answer,ensure_ascii=False)) as ask:
+            pl.audit_candidate_identity(signals, source, '2026/10/21')
+        payload = __import__('json').loads(ask.call_args.args[1])
+        self.assertNotIn('code', payload['mentions'][0])
+        self.assertNotIn('class', payload['mentions'][0])
+        self.assertEqual(signals['watch_watch'][0]['_source_entity_status'], 'ordinary')
 
 
 if __name__ == '__main__': unittest.main()

@@ -256,4 +256,18 @@ class SemanticContracts(unittest.TestCase):
         self.assertEqual(signals['watch_watch'][0]['_source_entity_status'], 'ordinary')
 
 
+class BatchReceipt(unittest.TestCase):
+    def test_missing_unknown_and_raw_reply_are_preserved_without_creating_votes(self):
+        item = dict(name='甲公司', heard=[], known={}, passages=[])
+        raw = '{"verdicts":[{"id":"9999"}]}'
+        pl._VERDICT_BATCH_RECEIPTS.clear()
+        with patch.object(pl, 'call_gemini', return_value=raw):
+            answers = pl._ask_verdicts([('1111', item)], '2026/10/21', 0)
+        self.assertEqual(answers, {})
+        receipt = pl._VERDICT_BATCH_RECEIPTS[-1]
+        self.assertEqual(receipt['missing'], ['1111'])
+        self.assertEqual(receipt['unknown'], ['9999'])
+        self.assertEqual(receipt['raw_response'], raw)
+
+
 if __name__ == '__main__': unittest.main()

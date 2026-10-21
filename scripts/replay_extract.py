@@ -430,7 +430,8 @@ def main():
                   "errors": errors, "warnings": warns, "exit_code": code,
                   "usage": pl.gemini_usage_report(), "verdicts": signals.get('_verdicts', {}),
                   "candidate_inventory": signals.get('_candidate_inventory_audit', {}),
-                  "source_entity_review": signals.get('_source_entity_review', [])}
+                  "source_entity_review": signals.get('_source_entity_review', []),
+                  "verdict_batch_receipts": signals.get('_verdict_batch_receipts', [])}
         save_report(report)
     if code:
         reason = {2: '核定答案不符', 3: '通用檢查有錯', 4: '獨立來源審核草稿差異待核（非核定答案不符）'}[code]

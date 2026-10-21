@@ -14301,9 +14301,13 @@ def _hold_view_in_zone(zones):
 
 def _range_basis(sentence, zones, kmap, code, date_str):
     """區間操作（「130以下不要賣…當時跟你們講159要賣」）：拿當天價位比對下緣，寫進依據。拿不到行情就只寫下緣。"""
-    found = [m.group(1) for t in [sentence] + [re.sub(r'[【】]', '', z) for z in zones] for m in _LOWER_BOUND.finditer(t)]
+    found = list(dict.fromkeys(m.group(1) for t in [sentence] + [re.sub(r'[【】]', '', z) for z in zones] for m in _LOWER_BOUND.finditer(t)))
     if not found:
         return ''
+    if len(found) > 1:
+        # 原稿寫法不一致（聽打把 130 寫成「13以下」）：照原字列出，不用行情猜哪一個才對
+        return '；區間下緣原稿寫法不一致（' + '／'.join(found) + '），待核對'
+    level_text = found[0]
     band = None
     try:
         band = _price_band(kmap, code, date_str) if kmap else None
@@ -14311,12 +14315,9 @@ def _range_basis(sentence, zones, kmap, code, date_str):
         band = None
     if band and min(band) > 0:
         low, high = min(band), max(band)
-        # 聽打會把 130 寫成「13以下」：有行情時取最接近當天價位的那個下緣
-        level_text = min(found, key=lambda v: abs(float(v) - low))
-        level = float(level_text)
-        where = '位於下緣以下或附近' if low <= level * 1.03 else '高於下緣'
+        where = '位於下緣以下或附近' if low <= float(level_text) * 1.03 else '高於下緣'
         return f'；區間下緣 {level_text}，當日 {low:g}～{high:g}，{where}'
-    return f'；區間下緣 {max(found, key=float)}'
+    return f'；區間下緣 {level_text}'
 
 
 def _forward_named_sentence(names, transcript):

@@ -142,6 +142,9 @@ class SemanticContracts(unittest.TestCase):
     def test_missing_or_invalid_semantics_is_not_a_negative_vote(self):
         self.assertIsNone(pl.semantic_stance({}, ['甲公司'], ['甲公司']))
         self.assertIsNone(pl.semantic_stance(self.answer(), ['甲公司'], []))
+        answer = {'about_itself': True, 'tone': 'bullish', 'now': 'buy_ok',
+                  'quotes': {'stance': ['甲公司目前可以買進']}}
+        self.assertEqual(pl.verdict_class(answer, '甲公司目前可以買進', ['甲公司'], semantic_zones=['甲公司目前可以買進'])[0], '')
 
     def test_shared_prior_conclusion_has_explicit_member_anchor(self):
         a = self.answer(quote='這兩支股票年線附近不應該恐慌殺低')

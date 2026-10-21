@@ -14087,6 +14087,11 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
     own = [_ev_norm(n) for n in names if len(_ev_norm(n)) >= 2]
     if not isinstance(answer, dict):
         return '', '沒有答案'
+    semantic = semantic_stance(answer, names, semantic_zones)
+    if semantic_zones and semantic is None:
+        return '', '語意欄缺答或本股原句無法綁定，這一票不採用'
+    if semantic and (answer.get('semantic') or {}).get('entity') == 'ordinary':
+        return semantic                 # 術語不能因另一檔的持有句變成部位。
     quotes = answer.get('quotes') if isinstance(answer.get('quotes'), dict) else {}
 
     def real(field):
@@ -14132,7 +14137,6 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
         return 'sell', '當天賣出：' + first('sell_today')
     if hold:
         return 'holdings', '明講目前持有：' + first('holding_now')
-    semantic = semantic_stance(answer, names, semantic_zones)
     if semantic is not None:
         return semantic
     if answer.get('about_itself') is not True:

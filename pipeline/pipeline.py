@@ -13316,7 +13316,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v34-verified-position-facts-20261021" # 來源編號與本人部位事實；一致標籤不能代替持有證據。
+VERDICT_VERSION = "v35-explicit-source-anchors-20261021" # 錨點候選只標來源名稱位置，不替模型決定方向。
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 5                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -13364,6 +13364,7 @@ sell_discouraged只表示講者對本股、或已確認含本股的共同名單�
 semantic另分兩個事實：entry_restricted_now（現在明講不買或條件未到）與sell_discouraged（本股現在勸不要賣、不要殺低）；只依本股quote作答。兩者都true時，保留剩餘部位與不許新進場分軸，進場立場以entry_restricted_now為準。不能因禁止賣就回答現在禁止買。
 每檔加semantic：entity=company/ordinary/uncertain；role=current_view/current_risk/historical_only/general_example/neutral_description/uncertain；direction=positive/negative/neutral；scope=self/shared；members=[本股原文寫法]；anchor_id=含本股原字的來源片段id；quote_id=真正支持結論的來源片段id。
 anchor_id與quote_id可在context前後不同句，但必須在同一小段可確認歸屬；不得跨公司借主詞。直接選id，不重寫原字；支持不到填空字串，不編id。
+anchor_ids是程式逐字比對後列出的本股名稱片段編號；anchor_id只能從本股anchor_ids選，沒有則填空。不要把只有「這兩支」或「我昨天有沒有講」但還未出現本股名字的前一片選作anchor。前置共同結論可作quote_id，與後面具名anchor分開。anchor_ids不是方向、公司用途或持有證據；這些仍須理解完整上下文。
 舊欄about_itself只表示有本股自己的資訊，不能單靠它決定是否公開；now=buy_ok/conditional/not_yet/prohibit/none，tone=bullish/bearish/neutral，請與semantic一致。所有肯定的事實題在quote_ids同名欄選來源id；stance可選與semantic.quote_id相同的id。
 每個stocks都要回答，不新增id。只回JSON：
 context改用帶id的原文片段，每片可能始於半句；請依順序連續理解，不因片段邊界拆開共同結論。不要重新打字抄原句：semantic用anchor_id選含本股原字的片段，quote_id選真正支持現在判斷的片段；兩者可以不同。quotes改用quote_ids逐欄填原片段id陣列。這只解決抄引句錯字，不放寬歸屬。
@@ -14406,7 +14407,7 @@ def _audit_direct_verdicts(verdicts, direct_ctx, signals, transcript, date_str, 
         print(f"  直接歸類覆核　{entry['name']}（{code}）：{item['class']}的依據不成立（{why}），改送問卷")
         note_decision('直接歸類覆核', '依據不成立，改送問卷', entry['name'], f"{item['class']}｜{item['quote'][:60]}｜{why}")
         facts = known.get(code, [])
-        entry.update(cls=entry['current'], tier='送裁決', enforce=False, direct_audit=why,
+        entry.update(cls=entry['current'], tier='送裁決', enforce=False, direct_audit=why, own_position_verified=False,
                      basis='直接歸類覆核否決（' + why + '）：' + item['quote'][:40],
                      fp=hashlib.sha256('\n'.join([VERDICT_VERSION, code, _ev_norm(text)] + facts).encode('utf-8')).hexdigest()[:16])
         names = set(direct_ctx[code][1])
@@ -14424,6 +14425,9 @@ def _ask_verdicts(items, date_str, round_no):
     unit_maps = {code: semantic_context().units(item.get('_semantic_zones', [])) for code, item in items}
     stocks = [(code, {'id': code, 'date': item.get('date') or date_str, 'name': item['name'], 'heard': item['heard'],
                       'known': item['known'], 'passages': item['passages'],
+                      'anchor_ids': [unit['id'] for unit in unit_maps[code]
+                                     if any(_ev_norm(name) in _ev_norm(unit['text'])
+                                            for name in item.get('_names', []) if len(_ev_norm(name)) >= 2)],
                       'context': unit_maps[code]}) for code, item in order]
     batches, size = [[]], 0
     for code, stock in stocks:                               # 依字數裝箱：能一個請求送完就不拆

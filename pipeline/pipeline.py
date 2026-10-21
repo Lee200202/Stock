@@ -14146,7 +14146,9 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
         return '', '語意欄缺答或本股原句無法綁定，這一票不採用'
     if semantic and (answer.get('semantic') or {}).get('entity') == 'ordinary':
         return semantic                 # 術語不能因另一檔的持有句變成部位。
-    if semantic and (answer.get('semantic') or {}).get('role') in ('current_view', 'current_risk') and answer.get('about_itself') is not True:
+    # 只有明答 false 才是「不是本股」；漏填（None）時，語意欄已用含本股原字的片段綁定，不因格式漏欄作廢
+    # （2026/10/21 探測 39595442633：語意判斷正確，about_itself 沒填，十檔裡七檔被當成歸屬未確認）。
+    if semantic and (answer.get('semantic') or {}).get('role') in ('current_view', 'current_risk') and answer.get('about_itself') is False:
         return '', '本股歸屬未確認，不能只憑同音或語氣分類'
     quotes = answer.get('quotes') if isinstance(answer.get('quotes'), dict) else {}
 

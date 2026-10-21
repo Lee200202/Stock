@@ -175,5 +175,20 @@ class SemanticContracts(unittest.TestCase):
         self.assertNotIn('price', signals['ignored'][0])
         self.assertNotIn('富橋', pl.CONFIRMED_NAMES)
 
+    def test_existing_unlocated_hidden_candidate_gets_source_spelling(self):
+        text = '富橋昨天最強今天追高的人有風險'
+        response = {'candidates': [{'code': '1815', 'heard': '富橋', 'quote': text}]}
+        signals = {'ignored': [{'name': '富喬', 'code': '1815'}]}
+        with patch.object(pl, '_CODE_MAP', {'1815': '富喬'}), patch.object(pl, 'GEMINI_KEYS', ['offline']), \
+             patch.object(pl, 'budget_left', return_value=1000), patch.object(pl, 'call_gemini', return_value=__import__('json').dumps(response,ensure_ascii=False)):
+            pl.discover_source_candidates(signals, text, '2026/10/21')
+        self.assertEqual(len(signals['ignored']), 1)
+        self.assertEqual(signals['ignored'][0]['aliases'], ['富橋'])
+        self.assertNotIn('holdings', signals)
+
+    def test_runtime_failure_is_not_a_green_quality_report(self):
+        _, hard, _ = pl.quality_overview({'_classification_runtime_error': 'load failed'}, check_chapters=False)
+        self.assertTrue(any('裁決未完成' in item for item in hard))
+
 
 if __name__ == '__main__': unittest.main()

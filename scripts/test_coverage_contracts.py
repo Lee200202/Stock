@@ -288,6 +288,18 @@ class BatchReceipt(unittest.TestCase):
         self.assertEqual([e['cls'] for e in entries.values()],
                          ['holdings','watch_watch','watch_watch','watch_watch','watch_avoid'])
 
+    def test_an_anchor_without_the_name_moves_to_the_nearest_name_unit(self):
+        # 2026/10/21 run 39599805554：群聯五票判對，anchor 選了沒有股名的結論片段而全部作廢
+        units = [{'id': 'u0', 'text': '別的話題'}, {'id': 'u1', 'text': '這兩支都到年線，你們在賣什麼'},
+                 {'id': 'u2', 'text': '我昨天有沒有講甲公司還有乙公司'}]
+        ids = pl._name_unit_ids(units, ['甲公司'])
+        self.assertEqual(ids, ['u2'])
+        ans = {'semantic': {'anchor_id': 'u1', 'quote_id': 'u1', 'anchor': units[1]['text'], 'quote': units[1]['text']}}
+        out = pl._anchor_on_name_unit(ans, units, ids)
+        self.assertEqual(out['semantic']['anchor_id'], 'u2')
+        self.assertEqual(out['semantic']['quote'], units[1]['text'])          # 引句與判斷不動
+        self.assertIs(pl._anchor_on_name_unit({'semantic': {'anchor_id': 'u1'}}, units, ids)['semantic']['anchor_id'], 'u1')  # 沒有 quote 不補
+
     def test_a_holding_without_a_position_or_own_statement_is_watched(self):
         # 管理者 2026/10/21：不是會員持股的，判成會員持股也只算觀望注意（10/21 宜鼎三階段一致免問）
         entries = {'a': {'cls': 'holdings', 'tier': '一致通過', 'open': False, 'basis': '初判、覆核、規則後同為會員持股'},

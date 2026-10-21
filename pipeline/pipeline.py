@@ -13362,7 +13362,7 @@ sell_discouraged只表示講者對本股、或已確認含本股的共同名單�
 「出大量」「最大量」「爆大量」若用來修飾成交量、紅棒、K線或均線，是量能術語，entity=ordinary；官方名單即使有同字公司，也不能因name已填便預設此處在點它。
 
 semantic另分兩個事實：entry_restricted_now（現在明講不買或條件未到）與sell_discouraged（本股現在勸不要賣、不要殺低）；只依本股quote作答。兩者都true時，保留剩餘部位與不許新進場分軸，進場立場以entry_restricted_now為準。不能因禁止賣就回答現在禁止買。
-每檔加semantic：entity=company/ordinary/uncertain；role=current_view/current_risk/historical_only/general_example/neutral_description/uncertain；direction=positive/negative/neutral；scope=self/shared；members=[本股原文寫法]；anchor_id=含本股原字的來源片段id；quote_id=真正支持結論的來源片段id。
+每檔加semantic：entity=company/ordinary/uncertain；role=current_view/current_risk/historical_only/general_example/neutral_description/uncertain；direction=positive/negative/neutral；scope=self/shared；members=[本股原文寫法]；anchor_id=含本股原字的來源片段id，只能從該檔name_unit_ids裡選；quote_id=真正支持結論的來源片段id。
 anchor_id與quote_id可在context前後不同句，但必須在同一小段可確認歸屬；不得跨公司借主詞。直接選id，不重寫原字；支持不到填空字串，不編id。
 舊欄about_itself只表示有本股自己的資訊，不能單靠它決定是否公開；now=buy_ok/conditional/not_yet/prohibit/none，tone=bullish/bearish/neutral，請與semantic一致。所有肯定的事實題在quote_ids同名欄選來源id；stance可選與semantic.quote_id相同的id。
 每個stocks都要回答，不新增id。只回JSON：
@@ -14424,9 +14424,13 @@ def _ask_verdicts(items, date_str, round_no):
     answers = {}
     order = items[round_no % len(items):] + items[:round_no % len(items)] if items else []   # 每一輪換順序，位置不影響答案
     unit_maps = {code: semantic_context().units(item.get('_semantic_zones', [])) for code, item in items}
+    # 哪些片段含本股原字由程式算好交給 AI：模型常把結論那一片當 anchor，片段裡沒有股名就整票作廢
+    # （2026/10/21 run 39599805554 群聯五票都判對、五票都綁不上）。
+    name_units = {code: _name_unit_ids(unit_maps[code], item.get('_names') or [item['name']] + list(item.get('heard') or []))
+                  for code, item in items}
     stocks = [(code, {'id': code, 'date': item.get('date') or date_str, 'name': item['name'], 'heard': item['heard'],
                       'known': item['known'], 'passages': item['passages'],
-                      'context': unit_maps[code]}) for code, item in order]
+                      'context': unit_maps[code], 'name_unit_ids': name_units[code]}) for code, item in order]
     batches, size = [[]], 0
     for code, stock in stocks:                               # 依字數裝箱：能一個請求送完就不拆
         length = len(json.dumps(stock, ensure_ascii=False))
@@ -14464,11 +14468,33 @@ def _ask_verdicts(items, date_str, round_no):
             print('  裁決批次收件不完整：' + json.dumps({k: receipt[k] for k in ('round', 'missing', 'unknown', 'response_keys')}, ensure_ascii=False))
         for v in received:
             if isinstance(v, dict) and str(v.get('id') or '') in dict(batch):
-                answers[str(v['id'])] = semantic_context().resolve_units(v, unit_maps[str(v['id'])])
+                answers[str(v['id'])] = _anchor_on_name_unit(
+                    semantic_context().resolve_units(v, unit_maps[str(v['id'])]), unit_maps[str(v['id'])], name_units[str(v['id'])])
     return answers
 
 
 _VERDICT_BATCH_RECEIPTS = []
+
+
+def _name_unit_ids(source_units, names):
+    own = [_ev_norm(n) for n in names if len(_ev_norm(n)) >= 2]
+    return [u['id'] for u in source_units if any(n in _ev_norm(u['text']) for n in own)]
+
+
+def _anchor_on_name_unit(answer, source_units, name_ids):
+    """AI 的 anchor 片段沒有本股原字時，換成離 quote 最近、含本股原字的片段；距離仍由 semantic_context.stance 的 240 字限制核對。
+    只換位置錨點，不改 AI 的角色、方向或引句，也不替沒有 quote 的答案補證據。"""
+    semantic = answer.get('semantic') if isinstance(answer, dict) else None
+    if not isinstance(semantic, dict) or not name_ids or semantic.get('anchor_id') in name_ids:
+        return answer
+    order = {u['id']: i for i, u in enumerate(source_units)}
+    at = order.get(semantic.get('quote_id'))
+    if at is None:
+        return answer
+    best = min(name_ids, key=lambda i: abs(order.get(i, 10 ** 6) - at))
+    semantic = dict(semantic, anchor_id=best, anchor=next(u['text'] for u in source_units if u['id'] == best),
+                    anchor_replaced=semantic.get('anchor_id'))
+    return dict(answer, semantic=semantic)
 
 
 def _salvage_verdict_objects(raw):

@@ -257,6 +257,16 @@ class SemanticContracts(unittest.TestCase):
 
 
 class BatchReceipt(unittest.TestCase):
+    def test_wider_context_is_not_unlimited_ownership_of_the_next_topic(self):
+        a = {'semantic': {'entity': 'company', 'role': 'current_view', 'direction': 'positive',
+             'scope': 'self', 'members': ['甲公司'], 'anchor': '甲公司只是用來解釋試撮合',
+             'quote': '另一隻股票是我的現在還持有'}}
+        text = a['semantic']['anchor'] + '無關背景' * 90 + a['semantic']['quote']
+        self.assertIsNone(pl.semantic_stance(a, ['甲公司'], [text]))
+        shared = '這兩檔都回到年線不要殺低' + '共同背景' * 12 + '甲公司還有乙公司'
+        a['semantic'].update(scope='shared', members=['甲公司','乙公司'],
+                             anchor='甲公司還有乙公司', quote='這兩檔都回到年線不要殺低', sell_discouraged=True)
+        self.assertEqual(pl.semantic_stance(a, ['甲公司'], [shared])[0], 'watch_watch')
     def test_adjudication_schema_requires_the_evidence_container_not_a_default_class(self):
         cfg = pl.gemini_generation_config('gemini-3.5-flash-lite', want_json=True, tag='adjudicate-r1')
         row = cfg['responseJsonSchema']['properties']['verdicts']['items']

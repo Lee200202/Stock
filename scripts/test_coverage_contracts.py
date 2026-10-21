@@ -105,4 +105,61 @@ class PositionEvidence(unittest.TestCase):
         self.assertEqual(set(positions), {'1111', '4444'})
 
 
+class SemanticContracts(unittest.TestCase):
+    def answer(self, entity='company', role='current_view', direction='positive', quote='甲公司雖然較弱但股本小拉升較快'):
+        return {'semantic': dict(entity=entity, role=role, direction=direction, scope='self',
+                                 members=['甲公司'], anchor='甲公司雖然較弱', quote=quote)}
+
+    def test_concession_and_non_dictionary_outlook_can_support_watch(self):
+        a = self.answer()
+        result = pl.semantic_stance(a, ['甲公司'], ['甲公司雖然較弱但股本小拉升較快'])
+        self.assertEqual(result[0], 'watch_watch')
+
+    def test_risk_example_does_not_require_a_ban_keyword(self):
+        a = self.answer(role='current_risk', direction='negative')
+        self.assertEqual(pl.semantic_stance(a, ['甲公司'], [a['semantic']['quote']])[0], 'watch_avoid')
+
+    def test_general_mechanism_is_not_a_current_buy_view(self):
+        a = self.answer(role='general_example')
+        self.assertEqual(pl.semantic_stance(a, ['甲公司'], [a['semantic']['quote']])[0], 'ignored')
+
+    def test_ordinary_word_cannot_borrow_a_positive_paragraph(self):
+        a = self.answer(entity='ordinary')
+        self.assertEqual(pl.semantic_stance(a, ['甲公司'], [a['semantic']['quote']])[0], 'ignored')
+
+    def test_anchor_member_and_exact_source_are_mandatory(self):
+        a = self.answer()
+        for field, value in [('anchor', '另一家公司'), ('quote', '甲公司明天一定漲停不存在'),
+                             ('members', ['乙公司']), ('role', 'buy_today'), ('scope', 'guessed')]:
+            with self.subTest(field=field):
+                b = copy.deepcopy(a); b['semantic'][field] = value
+                self.assertIsNone(pl.semantic_stance(b, ['甲公司'], [a['semantic']['quote']]))
+
+    def test_distant_quotation_does_not_bind_to_target(self):
+        a = self.answer(quote='這裡是別的股票之後會上漲')
+        self.assertIsNone(pl.semantic_stance(a, ['甲公司'], ['甲公司雖然較弱'+'甲'*700+a['semantic']['quote']]))
+
+    def test_missing_or_invalid_semantics_is_not_a_negative_vote(self):
+        self.assertIsNone(pl.semantic_stance({}, ['甲公司'], ['甲公司']))
+        self.assertIsNone(pl.semantic_stance(self.answer(), ['甲公司'], []))
+
+    def test_shared_prior_conclusion_has_explicit_member_anchor(self):
+        a = self.answer(quote='這兩支股票年線附近不應該恐慌殺低')
+        a['semantic'].update(scope='shared', members=['甲公司', '乙公司'])
+        self.assertEqual(pl.semantic_stance(a, ['甲公司'], [a['semantic']['quote']+'。甲公司雖然較弱，還有乙公司'])[0], 'watch_watch')
+
+    def test_discovery_is_a_hidden_candidate_not_a_position_or_price(self):
+        text = '富橋昨天最強今天追高的人有風險'
+        response = {'candidates': [{'code': '1815', 'heard': '富橋', 'quote': text},
+                                   {'code': '9999', 'heard': '假公司', 'quote': '假公司不存在'}]}
+        signals = {}
+        with patch.object(pl, '_CODE_MAP', {'1815': '富喬'}), patch.object(pl, 'GEMINI_KEYS', ['offline']), \
+             patch.object(pl, 'budget_left', return_value=1000), patch.object(pl, 'call_gemini', return_value=__import__('json').dumps(response,ensure_ascii=False)):
+            pl.discover_source_candidates(signals, text, '2026/10/21')
+        self.assertEqual(list(signals), ['ignored'])
+        self.assertEqual(signals['ignored'][0]['code'], '1815')
+        self.assertNotIn('price', signals['ignored'][0])
+        self.assertNotIn('富橋', pl.CONFIRMED_NAMES)
+
+
 if __name__ == '__main__': unittest.main()

@@ -14069,14 +14069,25 @@ def discover_source_candidates(signals, transcript, date_str):
     return signals
 
 
+_SEMANTIC_CONTEXT = None
+
+
+def semantic_context():
+    global _SEMANTIC_CONTEXT
+    if _SEMANTIC_CONTEXT is None:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('stock_semantic_context', os.path.join(os.path.dirname(__file__), 'semantic_context.py'))
+        _SEMANTIC_CONTEXT = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(_SEMANTIC_CONTEXT)
+    return _SEMANTIC_CONTEXT
+
+
 def semantic_windows(names, transcript):
-    from semantic_context import windows
-    return windows(names, transcript, _ev_norm)
+    return semantic_context().windows(names, transcript, _ev_norm)
 
 
 def semantic_stance(answer, names, zones):
-    from semantic_context import stance
-    return stance(answer, names, zones, _ev_norm)
+    return semantic_context().stance(answer, names, zones, _ev_norm)
 
 
 def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=None, semantic_zones=None):
@@ -14357,6 +14368,8 @@ def adjudicate_classes(ss, signals, transcript, date_str, first=None, reviewed=N
         return _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode)
     except Exception as e:
         print(f"  分類裁決　這一輪沒有完成（{type(e).__name__}: {str(e)[:80]}），維持原分類")
+        signals['_classification_runtime_error'] = type(e).__name__ + ': ' + str(e)[:160]
+        signals['_quality_requires_review'] = True
         note_decision('分類裁決', '沒有完成，維持原分類', date_str, f'{type(e).__name__}: {str(e)[:200]}')
         for entry in (signals.get('_verdicts') or {}).values():
             entry['enforce'] = False

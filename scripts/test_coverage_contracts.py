@@ -257,6 +257,20 @@ class SemanticContracts(unittest.TestCase):
 
 
 class BatchReceipt(unittest.TestCase):
+    def test_no_position_holding_needs_verified_source_fact_not_basis_wording(self):
+        entries = {
+            'a': {'cls':'holdings','tier':'一致通過','open':False,'basis':'原文明講目前持有'},
+            'b': {'cls':'holdings','tier':'裁決','open':False,'own_position_verified':True},
+            'c': {'cls':'holdings','tier':'裁決','open':True},
+            'd': {'cls':'holdings','tier':'未定','open':False},
+            'e': {'cls':'holdings','tier':'人工裁決','open':False},
+        }
+        pl.finalize_position_identity(entries, {})
+        self.assertEqual(entries['a']['cls'], 'watch_watch')
+        self.assertTrue(entries['a']['enforce'])
+        for key in 'bcde':
+            self.assertEqual(entries[key]['cls'], 'holdings')
+
     def test_scoped_identity_survives_publication_without_permanent_alias(self):
         answer = {'about_itself': True, 'semantic': {'entity':'company','anchor':'台播今天追強之後轉弱'}}
         entry = {'cls':'watch_avoid','enforce':True,'name':'台播','answer':{'watch_avoid':{'answer':answer}}}

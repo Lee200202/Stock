@@ -13316,7 +13316,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v33-source-ids-scoped-identity-20261021" # 來源編號、反問重申、聽寫技術詞及轉場歸屬一起驗證。
+VERDICT_VERSION = "v34-verified-position-facts-20261021" # 來源編號與本人部位事實；一致標籤不能代替持有證據。
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 5                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -14488,6 +14488,11 @@ def finalize_position_identity(verdicts, signals):
               and entry.get('tier') not in ('未定', '未裁決')):
             entry.update(cls='holdings', enforce=True,
                          basis=entry.get('basis', '') + '｜既有未出場部位＋本日正面分析，依發布政策列會員持股')
+        elif (entry.get('cls') == 'holdings' and not entry.get('open')
+              and not entry.get('own_position_verified')
+              and entry.get('tier') not in ('未定', '未裁決')):
+            entry.update(cls='watch_watch', enforce=True,
+                         basis=entry.get('basis', '') + '｜無既有部位或本日已核對本人持有事實，僅列正面觀察')
 
 
 def adjudicate_classes(ss, signals, transcript, date_str, first=None, reviewed=None):
@@ -14645,14 +14650,14 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                          basis='紀錄上已經賣出、之後沒有買回也沒有持股列，今天沒有買進：會員持股列是回顧')
             continue
         if code in explicit_hold and current not in ('buy', 'sell') and not ownership_denial:
-            entry.update(cls='holdings', tier='直接歸類', basis='原文明講目前持有', enforce=True)
+            entry.update(cls='holdings', tier='直接歸類', basis='原文明講目前持有', enforce=True, own_position_verified=True)
             continue
         # 已經是持股、原文又直接報出「我的股票…（代號）股名」：是講者自己的部位，不交給問卷（2026/10/15 旭隼「這我的股票今天跌了。6409旭準」，
         # 三份問卷只看到「旭準昨天是漲還跌？」而把它移出持股）。「繼續抱著」之類照舊由問卷三票決定。
         if current not in ('buy', 'sell'):
             mine = _my_stock_statement(names, code, transcript)
             if mine and not ownership_denial:
-                entry.update(cls='holdings', tier='直接歸類', basis='原文直接報出自己的部位：' + mine, enforce=True)
+                entry.update(cls='holdings', tier='直接歸類', basis='原文直接報出自己的部位：' + mine, enforce=True, own_position_verified=True)
                 continue
         # 紀錄上還沒賣出（最近一筆是買入）、今天原文有講到、而且沒有賣出的說法：仍是會員持股。
         # 2026/10/02 同一份原稿三次重播，力積電、世芯-KY、聖暉每次落在不同分類，問卷三票也各不相同；紀錄是唯一不會變的依據。
@@ -14722,7 +14727,7 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
         marks = _verdict_markers(text, current)
         # 持有是事實，三個階段一致又沒有疑點就採用。觀望兩類與「要不要列」靠的是語氣，10/08 同一份原稿的初判
         # 一致率只有五成到七成（宏達電 52%、創意 65%、環球晶 71%），三個階段彼此也不獨立：這幾類第一次出現一律裁決。
-        if len(set(stages)) == 1 and not marks and current == 'holdings' and not entry.get('not_held') and not entry.get('identity_review_pending'):
+        if len(set(stages)) == 1 and not marks and current == 'holdings' and entry.get('open') and not entry.get('not_held') and not entry.get('identity_review_pending'):
             entry.update(tier='一致通過', basis='初判、覆核、規則後同為會員持股，段落沒有疑點')
             continue
         why = [] if current == 'holdings' else ['分類靠語氣判斷（' + _VERDICT_LABEL.get(current, current) + '）']
@@ -14757,7 +14762,7 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
         entry['fp'] = hashlib.sha256('\n'.join([VERDICT_VERSION, code, _ev_norm(text)] + facts).encode('utf-8')).hexdigest()[:16]
         entry['basis'] = '；'.join(why + entry.get('hints', []))
         hit = (cache.get(code) or {}).get('by_fp', {}).get((entry['fp'], VERDICT_VERSION))
-        if hit:
+        if hit and not (hit == 'holdings' and not entry.get('open')):
             # 快取的「待確認」是先前判定不公開；改列那一步不搬「待確認」，沿用到現在是公開的列時以「排除」套用（2026/10/15 台塑化）
             if hit == 'uncertain' and current not in _VERDICT_HIDDEN:
                 hit = 'ignored'
@@ -14808,6 +14813,9 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             zones = [s['text'] for s in item['passages']]
             leads = _lead_zones(item['passages'], item['_names'], transcript)
             cls, basis = verdict_class(answers.get(code), item['_norm'] + ''.join(map(_ev_norm, leads)), item['_names'], zones, leads, item.get('_semantic_zones'))
+            if cls == 'holdings':
+                # verdict_class has already bound holding_now to this stock's source.
+                entry['own_position_verified'] = True
             entry.setdefault('attempts', []).append({'round': round_no + 1, 'class': cls, 'basis': basis, 'answer': answers.get(code)})
             if not cls:
                 entry.setdefault('unusable_answers', []).append({'round': round_no + 1, 'basis': basis,

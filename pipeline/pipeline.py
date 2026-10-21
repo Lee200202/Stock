@@ -1729,6 +1729,35 @@ def strip_transcribe_echo(text):
     return out, removed
 
 
+def transcript_quality(text, names=None):
+    """一份原稿的辨識品質（唯讀）：去空白字數、標點比例、對得上正式股名的不同檔數。"""
+    flat = re.sub(r'\s+', '', str(text or ''))
+    punct = len(re.findall(r'[，。！？、；：,.!?]', flat))
+    hits = 0
+    if names:
+        hits = sum(1 for n in names if len(n) >= 2 and n in flat)
+    return {'chars': len(flat), 'punct_per_100': round(100 * punct / max(1, len(flat)), 1), 'names': hits}
+
+
+def _warn_transcript_quality(date_str, chosen, variants):
+    """同日有多份原稿時列出各份的辨識品質；選到的那份明顯較差就警示（2026/10/21 手動稿只對得上自動稿約一半的股名，
+    逐字以空白分隔、幾乎沒有標點，下午重跑後漏列六檔）。只警示，不改選哪一份：手動優先是管理者的設定。"""
+    try:
+        names = {re.sub(r'[*＊]', '', str(n)) for n in get_code_map().values()}
+    except Exception:
+        names = set()
+    stats = [(transcript_quality(v, names), v == chosen) for v in variants]
+    for q, picked in stats:
+        print(f"  原文品質　{'採用' if picked else '未採用'}：{q['chars']} 字、每百字標點 {q['punct_per_100']}、對得上股名 {q['names']} 檔")
+    best = max((q['names'] for q, _ in stats), default=0)
+    mine = next((q for q, picked in stats if picked), None)
+    if mine and best and mine['names'] < 0.75 * best:
+        message = (f'{date_str} 採用的原文只對得上 {mine["names"]} 檔股名，另一份有 {best} 檔；'
+                   f'辨識品質明顯較差，分類可能漏列，請管理者確認要用哪一份原稿')
+        print('警告：' + message)
+        note_decision('讀取原文', '採用的原文辨識品質較差', date_str, message)
+
+
 def existing_transcript(ss, video_id, date_str, snapshot=None):
     rows = video_rows(ss)
     idx, row = select_transcript_row(rows, video_id, date_str)
@@ -1738,6 +1767,8 @@ def existing_transcript(ss, video_id, date_str, snapshot=None):
         message = f'{date_str} 同日存在 {len(variants)} 份不同原文；採 ID／更新時間優先，請乾跑整併工具確認'
         print('警告：' + message)
         note_decision('讀取原文', '同日多份原文', date_str, message)
+        if row is not None:
+            _warn_transcript_quality(date_str, str(row.get('原始逐字稿內容') or ''), variants)
     if row is None:
         return '', ''
     if row.get('逐字稿來源') == '手動保留':

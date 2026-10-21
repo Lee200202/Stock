@@ -14049,6 +14049,15 @@ def _lead_zones(passages, names, transcript):
         tail = before[cut:][-260:]
         if len(tail) >= 12:
             out.append(tail)
+    # 並列的股名共用同一個述語：「華邦電南亞科我幾乎不太看了」「力積電、世界先進全部不準殺低」——可引用範圍在下一個股名切開，
+    # 述語只算給排在後面的那一檔（2026/10/20 華邦電）。本股與別檔直接相連或只隔「、和跟及與」時，整句都算本股的。
+    if others:
+        joined = '|'.join(re.escape(_ev_norm(n)) for n in sorted(others, key=len, reverse=True))
+        mine = '|'.join(re.escape(o) for o in sorted(own, key=len, reverse=True))
+        for sentence in _plain_sentences(transcript):
+            flat = _ev_norm(sentence)
+            if mine and re.search('(?:' + mine + ')(?:[、，,]|和|跟|及|與|還有)?(?:' + joined + ')|(?:' + joined + ')(?:[、，,]|和|跟|及|與|還有)?(?:' + mine + ')', flat):
+                out.append(flat)
     return out
 
 

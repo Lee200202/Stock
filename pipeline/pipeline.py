@@ -14409,6 +14409,9 @@ def _ask_verdicts(items, date_str, round_no):
         received = (data.get('verdicts') if isinstance(data, dict) else data if isinstance(data, list) else None) or []
         if not isinstance(received, list):
             received = []
+        if not received:
+            # 整份解析不了時逐筆撿回：一檔的答案寫壞（2026/10/21 第 2 輪「.quotes"」）不讓同批十檔全部變缺答。
+            received = _salvage_verdict_objects(raw)
         expected = {code for code, _ in batch}
         ids = [str(v.get('id') or '') for v in received if isinstance(v, dict)]
         receipt = {'round': round_no + 1, 'expected': sorted(expected), 'received': ids,
@@ -14425,6 +14428,35 @@ def _ask_verdicts(items, date_str, round_no):
 
 
 _VERDICT_BATCH_RECEIPTS = []
+
+
+def _salvage_verdict_objects(raw):
+    """回覆整份不是合法 JSON 時，把每一個帶 id 的最內層答案物件各自解析；壞掉的那一筆略過，不猜內容。"""
+    text, out, depth, start, in_str, esc = str(raw or ''), [], 0, None, False, False
+    stack = []
+    for i, ch in enumerate(text):
+        if in_str:
+            esc = (ch == '\\' and not esc)
+            if ch == '"' and not esc:
+                in_str = False
+            elif ch != '\\':
+                esc = False
+            continue
+        if ch == '"':
+            in_str = True
+        elif ch == '{':
+            stack.append(i)
+        elif ch == '}' and stack:
+            begin = stack.pop()
+            chunk = text[begin:i + 1]
+            if re.match(r'\{\s*"id"\s*:', chunk):
+                try:
+                    obj = json.loads(chunk, strict=False)
+                except Exception:
+                    obj = None
+                if isinstance(obj, dict) and obj.get('id'):
+                    out.append(obj)
+    return out
 
 
 def adjudicate_classes(ss, signals, transcript, date_str, first=None, reviewed=None):
@@ -14519,7 +14551,12 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             entry.update(tier='直接歸類', basis='當日會員通知已有買賣')
             continue
         identity = next((r.get('_source_entity_status') for _, r in pairs if r.get('_source_entity_status')), '')
-        if identity == 'ordinary':
+        if identity == 'ordinary' and entry['open']:
+            # 紀錄上有未出場的會員部位：身分核對不帶公司名錄，「我有神準」被讀成形容詞（2026/10/21 神準）。
+            # 部位是紀錄，不由一次用途判斷取消；照紀錄的流程走，分歧記成疑點待核。
+            signals.setdefault('_repair_gaps', []).append(
+                f"身分核對與紀錄不一致：{entry['name']} 被判一般用語，但紀錄上有未出場部位，依紀錄處理，待核")
+        elif identity == 'ordinary':
             entry.update(cls='ignored', tier='來源身分核對', enforce=True, basis='未帶公司標籤的來源核對：原字只作一般用語，不是公司')
             continue
         if identity != 'company' and any(r.get('exclusion_reason') == 'source_identity_pending' for _, r in pairs):

@@ -13804,7 +13804,8 @@ def _sold_near_self(row, transcript, names, others_sold):
 _SOLD_NEARBY = re.compile(r'賣掉了|賣了|已經賣|賣光|賣出|出清|出掉|停損|停利|獲利了結|沒有了|(?<!不)(?<!沒有叫你)(?<!不准)(?<!不要)賣掉')
 
 
-HOLD_RECORD_DAYS = 15     # 會員持股列建立的持有，往前看幾天
+HOLD_RECORD_DAYS = 400    # 會員持股列建立的持有，往前看幾天。和持股追蹤同一個規則：持股聲明開的回合，之後沒有賣出就還在
+                          # （2026/10/21：台積電 7/08 由持股聲明開倉、從未賣出，舊的 15 天讓 10/20 裁決不知道它是會員持股）
 
 
 def is_partial_sale_record(row):
@@ -14554,6 +14555,11 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                 and _forward_named_sentence(names, transcript):
             # 紀錄上已出場、今天又有點名本股的向前說法（「240以下都是X的買點」「X只要23X你買就對了」）：部位軸是不持有，
             # 立場交給問卷，底線改成觀望注意；不直接當回顧（2026/10/21 鴻海在一輪重播被直接判成回顧）。
+            current = 'watch_watch'
+            entry['current'] = 'watch_watch'
+        if current in ('ignored', 'history') and code in known and not entry['open']                 and any('賣出這一檔' in fact for fact in known.get(code, [])) and _forward_named_sentence(names, transcript):
+            # 同一種情況但流程把本股列成不公開或回顧（2026/10/20 鴻海「觀望注意／觀望注意／回顧」因為要三票而不列）：
+            # 已出場只說明部位，今天點名本股的向前說法另成立場，以觀望注意為底送問卷。
             current = 'watch_watch'
             entry['current'] = 'watch_watch'
         if current == 'holdings' and code in known and not entry['open'] and 'buy' not in cats \

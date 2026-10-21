@@ -257,6 +257,13 @@ class SemanticContracts(unittest.TestCase):
 
 
 class BatchReceipt(unittest.TestCase):
+    def test_adjudication_schema_requires_the_evidence_container_not_a_default_class(self):
+        cfg = pl.gemini_generation_config('gemini-3.5-flash-lite', want_json=True, tag='adjudicate-r1')
+        row = cfg['responseJsonSchema']['properties']['verdicts']['items']
+        self.assertIn('semantic', row['required'])
+        self.assertIn('quote_ids', row['required'])
+        self.assertFalse(row['additionalProperties'])
+        self.assertNotIn('default', str(row))
     def test_source_ids_return_original_words_and_unknown_ids_are_empty(self):
         units = [{'id': 'u0', 'text': '甲公司我說不要殺低不要殺低'},
                  {'id': 'u1', 'text': '這兩檔現在都回到年線附近了'}]

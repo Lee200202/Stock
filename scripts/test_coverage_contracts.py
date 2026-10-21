@@ -257,6 +257,24 @@ class SemanticContracts(unittest.TestCase):
 
 
 class BatchReceipt(unittest.TestCase):
+    def test_source_ids_return_original_words_and_unknown_ids_are_empty(self):
+        units = [{'id': 'u0', 'text': '甲公司我說不要殺低不要殺低'},
+                 {'id': 'u1', 'text': '這兩檔現在都回到年線附近了'}]
+        answer = {'semantic': {'anchor_id': 'u0', 'quote_id': 'u1'},
+                  'quote_ids': {'stance': ['u1', 'invented'], 'holding_now': []}}
+        fixed = pl.semantic_context().resolve_units(answer, units)
+        self.assertEqual(fixed['semantic']['anchor'], units[0]['text'])
+        self.assertEqual(fixed['quotes']['stance'], [units[1]['text']])
+        bad = pl.semantic_context().resolve_units({'semantic': {'anchor_id': 'u9', 'quote_id': 'u9'}}, units)
+        self.assertEqual(bad['semantic']['quote'], '')
+
+    def test_source_slices_cover_original_without_rewriting_or_labels(self):
+        source = '甲公司這兩檔不要殺低我說不要賣乙公司回到年線附近' * 20
+        units = pl.semantic_context().units([source])
+        self.assertTrue(all(u['text'] in source for u in units))
+        self.assertTrue(all(set(u) == {'id', 'text'} for u in units))
+        self.assertTrue(any('乙公司' in u['text'] for u in units))
+
     def test_missing_unknown_and_raw_reply_are_preserved_without_creating_votes(self):
         item = dict(name='甲公司', heard=[], known={}, passages=[])
         raw = '{"verdicts":[{"id":"9999"}]}'

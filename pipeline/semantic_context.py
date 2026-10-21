@@ -2,6 +2,38 @@
 import re
 
 
+def units(zones, size=80, step=55):
+    """Fixed overlapping source slices, not guessed sentence or topic boundaries."""
+    result, seen = [], set()
+    for zone in zones:
+        for at in range(0, len(zone), step):
+            text = zone[at:at + size]
+            if len(text) < 8 or text in seen:
+                continue
+            seen.add(text)
+            result.append({'id': 'u' + str(len(result)), 'text': text})
+    return result
+
+
+def resolve_units(answer, source_units):
+    """Resolve IDs from this candidate only; unknown IDs cannot invent evidence."""
+    if not isinstance(answer, dict):
+        return answer
+    answer = dict(answer)
+    index = {unit['id']: unit['text'] for unit in source_units}
+    semantic = answer.get('semantic')
+    if isinstance(semantic, dict) and ('anchor_id' in semantic or 'quote_id' in semantic):
+        semantic = dict(semantic)
+        semantic['anchor'] = index.get(semantic.get('anchor_id'), '')
+        semantic['quote'] = index.get(semantic.get('quote_id'), '')
+        answer['semantic'] = semantic
+    if isinstance(answer.get('quote_ids'), dict):
+        answer['quotes'] = {field: [index[i] for i in ids if i in index]
+                            for field, ids in answer['quote_ids'].items()
+                            if isinstance(ids, list)}
+    return answer
+
+
 def source_excerpt(quote, source, normalize):
     """Resolve punctuation-only quote differences to literal source, never new words."""
     q = normalize(quote)

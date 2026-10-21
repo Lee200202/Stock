@@ -13336,7 +13336,9 @@ semantic另分兩個事實：entry_restricted_now（現在明講不買或條件�
 anchor與quote可在context前後不同句，但必須在同一小段可確認歸屬；不得跨公司借主詞。數字與原字不改，不能替原稿補零、補公司名或正名。標點可照原文。支持不到就缺答，不編引用。
 舊欄about_itself只表示有本股自己的資訊，不能單靠它決定是否公開；now=buy_ok/conditional/not_yet/prohibit/none，tone=bullish/bearish/neutral，請與semantic一致。所有肯定的事實題在quotes同名欄附原句；stance可引與semantic.quote相同的原句。
 每個stocks都要回答，不新增id。只回JSON：
-{"verdicts":[{"id":"原id","buy_today":false,"sell_today":false,"holding_now":false,"past_trade":false,"about_itself":true,"now":"none","tone":"neutral","quotes":{"buy_today":[],"sell_today":[],"holding_now":[],"past_trade":[],"stance":[]},"semantic":{"entity":"company","role":"neutral_description","direction":"neutral","entry_restricted_now":false,"sell_discouraged":false,"scope":"self","members":["本股原字"],"anchor":"含本股原字的原句","quote":"支持判斷的原句"},"unsure":""}]}
+context改用帶id的原文片段，每片可能始於半句；請依順序連續理解，不因片段邊界拆開共同結論。不要重新打字抄原句：semantic用anchor_id選含本股原字的片段，quote_id選真正支持現在判斷的片段；兩者可以不同。quotes改用quote_ids逐欄填原片段id陣列。這只解決抄引句錯字，不放寬歸屬。
+quote_ids固定有buy_today、sell_today、holding_now、past_trade、stance五個鍵，各值是片段id陣列；沒有支持原句用空陣列。支持shared時仍需在members列出所指成員，不能拿另一檔的個別條件作本股證據。
+每個id都回答上述事實欄；bool須用JSON true/false。semantic必填entity、role、direction、entry_restricted_now、sell_discouraged、scope、members、anchor_id、quote_id，值依上列定義各自選擇，沒有預設中性答案。now從buy_ok/conditional/not_yet/prohibit/none選，tone從bullish/bearish/neutral選。不確定留semantic空物件並說明unsure。輸出頂層格式為 {"verdicts":[每檔的事實物件]}。
 """
 
 # 引句裡要看得出答案：答「今天買進」卻引一句沒有買字的話，那一題不算數。
@@ -14388,9 +14390,10 @@ def _ask_verdicts(items, date_str, round_no):
     """問一輪。items 是 [(代號, 項目)]；回傳 {代號: 問卷答案}。問不到的那一批回空的，不擋流程。"""
     answers = {}
     order = items[round_no % len(items):] + items[:round_no % len(items)] if items else []   # 每一輪換順序，位置不影響答案
+    unit_maps = {code: semantic_context().units(item.get('_semantic_zones', [])) for code, item in items}
     stocks = [(code, {'id': code, 'date': item.get('date') or date_str, 'name': item['name'], 'heard': item['heard'],
                       'known': item['known'], 'passages': item['passages'],
-                      'context': item.get('_semantic_zones', [])}) for code, item in order]
+                      'context': unit_maps[code]}) for code, item in order]
     batches, size = [[]], 0
     for code, stock in stocks:                               # 依字數裝箱：能一個請求送完就不拆
         length = len(json.dumps(stock, ensure_ascii=False))
@@ -14425,7 +14428,7 @@ def _ask_verdicts(items, date_str, round_no):
             print('  裁決批次收件不完整：' + json.dumps({k: receipt[k] for k in ('round', 'missing', 'unknown', 'response_keys')}, ensure_ascii=False))
         for v in received:
             if isinstance(v, dict) and str(v.get('id') or '') in dict(batch):
-                answers[str(v['id'])] = v
+                answers[str(v['id'])] = semantic_context().resolve_units(v, unit_maps[str(v['id'])])
     return answers
 
 
@@ -14524,13 +14527,13 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             entry.update(tier='直接歸類', basis='當日會員通知已有買賣')
             continue
         identity = next((r.get('_source_entity_status') for _, r in pairs if r.get('_source_entity_status')), '')
-        if identity == 'ordinary':
-            entry.update(cls='ignored', tier='來源身分核對', enforce=True, basis='未帶公司標籤的來源核對：原字只作一般用語，不是公司')
-            continue
-        if identity != 'company' and any(r.get('exclusion_reason') == 'source_identity_pending' for _, r in pairs):
-            entry.update(cls='uncertain', tier='未裁決', enforce=True, basis='同音身分候選尚未核實，不直接公開')
-            signals['_quality_requires_review'] = True
-            continue
+        identity_pending = identity == 'ordinary' or (identity != 'company' and any(
+            r.get('exclusion_reason') == 'source_identity_pending' for _, r in pairs))
+        # 第一位用途覆核員也可能把公司名當形容詞。此時送同一批身分／語意問卷，
+        # 不能直接排掉，也不能把原先候選當成已確認公司；缺答仍由 uncertain 邊界隔離。
+        if identity_pending:
+            entry['identity_review_pending'] = True
+            entry['hints'] = ['前置語詞用途核對有疑義；請重新核對原字究竟點名公司或一般用語，不能只按讀音認公司']
         if current in ('buy', 'sell') and explicit_today_trades(transcript, names, current):
             # 成交候選與其他疑點共用本輪問卷，不另發逐檔請求；單次複核不一致就隔離，避免反覆重擲。
             sent,text=_verdict_mark(_own_segments(row,signals,transcript,300,500),names|{code})
@@ -14663,7 +14666,7 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
         marks = _verdict_markers(text, current)
         # 持有是事實，三個階段一致又沒有疑點就採用。觀望兩類與「要不要列」靠的是語氣，10/08 同一份原稿的初判
         # 一致率只有五成到七成（宏達電 52%、創意 65%、環球晶 71%），三個階段彼此也不獨立：這幾類第一次出現一律裁決。
-        if len(set(stages)) == 1 and not marks and current == 'holdings' and not entry.get('not_held'):
+        if len(set(stages)) == 1 and not marks and current == 'holdings' and not entry.get('not_held') and not entry.get('identity_review_pending'):
             entry.update(tier='一致通過', basis='初判、覆核、規則後同為會員持股，段落沒有疑點')
             continue
         why = [] if current == 'holdings' else ['分類靠語氣判斷（' + _VERDICT_LABEL.get(current, current) + '）']

@@ -1,0 +1,30 @@
+{
+  "mode": "independent_review",
+  "target_date": "2026/09/22",
+  "raw_sha256": "8e7de07c9de14683b903f088802f9a3d80aa6cecabf794c60d6f1f7a03219776",
+  "video_id": "GQVd2VZjgIc",
+  "review_status": "agent_source_review_draft",
+  "whole_transcript_read": true,
+  "target_result_exposure": "本輪先讀完整原稿、未讀9/22目標流程輸出。此日原稿曾用於既有專案評估，不宣稱全專案未見或盲測。",
+  "as_of_positions": "僅以下七項先按明確本人持有、當日代號指令或當下禁買判定；其他正面列尚需當日通知及截至當時部位，不能用今日部位倒推。",
+  "coverage": "部分凍結草稿，七項可決與待核名單；未核對所有聽寫身分，不是完整候選涵蓋或人工金標。額外輸出必須逐一審核，不得以七項通過宣稱整日通過。",
+  "candidates": [
+    {"code":"2330","name":"台積電","selected_categories":["holdings"],"status":"decided","quote":"我有台積電","rationale":"原稿明講自己持有及會員仍抱著，不因創高論述誤判當日買入。"},
+    {"code":"3533","name":"嘉澤","selected_categories":["holdings"],"status":"decided","quote":"我手中有加澤","rationale":"本人手中部位，非只因今日漲停；加澤是原字，正式身分仍由原句及名錄交叉核對。"},
+    {"code":"3661","name":"世芯-KY","selected_categories":["holdings"],"status":"decided","quote":"我有手中 有四星 KY","rationale":"本日前段明講手中有，後段報3661；不能將10/08之後出清狀態倒推至9/22。"},
+    {"code":"5536","name":"聖暉*","selected_categories":["buy"],"status":"decided","quote":"早上這邊就是我請會員進去買的","rationale":"前文報5536聖輝，緊接本日早上會員進場；不是泛稱可以買或舊買點。"},
+    {"code":"2454","name":"聯發科","selected_categories":["watch_avoid"],"status":"decided","quote":"聯發科我不敢買了啦","rationale":"後段明講未拉回不分析、不追高，優先於開場季線向上的共同盤勢背景。"},
+    {"code":"2303","name":"聯電","selected_categories":["watch_avoid"],"status":"decided","quote":"我為什麼不叫你這個時候去追聯電","rationale":"本股現在追買有套牢風險，與當日完成賣出無關；不能把觀眾想買列會員買進。"},
+    {"code":"3167","name":"大量","selected_categories":[],"status":"decided","quote":"最大量是不是全部突破了","rationale":"成交量與K棒柱子的用語，不是公司；不得因官方名錄存在3167而收錄。"},
+    {"code":"6533","name":"晶心科／原字金新科","selected_categories":[],"status":"unresolved","quote":"我今天早上賣什麼","rationale":"事件確為當日賣光，但ASR金新科身分需當日通知或畫面再核對，暫不冒充身分已核定。"},
+    {"code":"2317","name":"鴻海","selected_categories":[],"status":"unresolved","quote":"買下跌的鴻海","rationale":"本日再次肯定季線向上與三角末端買點，方向偏多；需9/22當時部位決定持股或注意。"},
+    {"code":"2354","name":"鴻準","selected_categories":[],"status":"unresolved","quote":"注意鴻準","rationale":"沿月線、大戶與液冷題材的正面判斷清楚；本人／會員部位仍須當時紀錄。"},
+    {"code":"2308","name":"台達電","selected_categories":[],"status":"unresolved","quote":"台達電會很強","rationale":"近期態度轉多不採三個月前禁買；是否持有仍須當時部位。"},
+    {"code":"5269","name":"祥碩","selected_categories":[],"status":"unresolved","quote":"所以， 這一隻股票要注意， 還有 5269 祥碩","rationale":"明確注意、量縮洗盤與後續看法；需當時部位且不可將近100元EPS分配給另一共同成員。"},
+    {"code":"4966","name":"譜瑞-KY／原字普銳","selected_categories":[],"status":"unresolved","quote":"普銳 差 AMD 概念股 還在季線之下","rationale":"與5269共同被要求注意，但本股代號未念出，ASR身分與當時部位均須核對。"},
+    {"code":"2409","name":"友達／原字有達","selected_categories":[],"status":"unresolved","quote":"我沒有有達，我也沒有群創","rationale":"明確否認自己持有，對比仍偏好有達；需核對現在偏好與純過去推薦的界線及ASR身分，不能列會員持股。"},
+    {"code":"3481","name":"群創","selected_categories":[],"status":"unresolved","quote":"季線壓住群創了","rationale":"本人否認持有、相對弱勢；是否足以構成本日不參與立場另行源審，不因季線單字自動決定。"},
+    {"code":"2404","name":"漢唐","selected_categories":[],"status":"unresolved","quote":"會從漢唐過季線開始啟動","rationale":"族群啟動與本股突破分析需分開，當時部位亦待核。"},
+    {"code":"2327","name":"國巨*","selected_categories":[],"status":"unresolved","quote":"國巨還套牢","rationale":"尾段對觀眾部位的敘述，不能直接當作本人持有或當日賣出；是否另有現在風險立場需核對。"}
+  ]
+}

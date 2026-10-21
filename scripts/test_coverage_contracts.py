@@ -198,8 +198,38 @@ class SemanticContracts(unittest.TestCase):
 
     def test_hidden_initial_agreement_requires_two_usable_votes(self):
         self.assertEqual(pl.verdict_settle('ignored', ['ignored'])[0], '再問')
-        self.assertEqual(pl.verdict_settle('ignored', ['ignored', 'ignored'])[0], '定案')
+        self.assertEqual(pl.verdict_settle('ignored', ['ignored', 'ignored'])[0], '再問')
+        self.assertEqual(pl.verdict_settle('ignored', ['ignored', 'ignored', 'ignored'])[0], '定案')
         self.assertEqual(pl.verdict_settle('watch_watch', ['watch_watch'])[0], '定案')
+
+    def test_past_dated_trade_does_not_cover_todays_source_candidate(self):
+        text = '甲公司昨天大漲今天追高的人有風險'
+        response = {'candidates': [{'code': '1111', 'heard': '甲公司', 'quote': text}]}
+        signals = {'sell': [{'name': '甲公司', 'code': '1111', '_date': '2026/10/20'}]}
+        with patch.object(pl, '_CODE_MAP', {'1111': '甲公司'}), patch.object(pl, 'GEMINI_KEYS', ['offline']), \
+             patch.object(pl, 'budget_left', return_value=1000), patch.object(pl, 'call_gemini', return_value=__import__('json').dumps(response,ensure_ascii=False)):
+            pl.discover_source_candidates(signals, text, '2026/10/21')
+        self.assertEqual(len(signals['sell']), 1)
+        self.assertEqual(signals['ignored'][0]['code'], '1111')
+
+    def test_empty_redundant_members_does_not_reject_a_named_original_quote(self):
+        a = self.answer(); a['semantic']['members'] = []
+        self.assertEqual(pl.semantic_stance(a, ['甲公司'], [a['semantic']['quote']])[0], 'watch_watch')
+
+    def test_unverified_trade_is_really_moved_out_of_public_rows(self):
+        row = {'name': '甲公司', 'code': '1111', 'reason': '尚未核對', '_date': '2026/10/21'}
+        signals = {'buy': [row], '_verdicts': {'1111': {'cls': 'uncertain', 'enforce': True, 'name': '甲公司', 'basis': 'AI缺答'}}}
+        pl.apply_verdicts(signals, '2026/10/21')
+        self.assertEqual(signals['buy'], [])
+        self.assertEqual(signals['uncertain'][0]['code'], '1111')
+
+    def test_phonetic_inventory_proposes_identity_without_classifying_or_global_alias(self):
+        source = '台俊富橋昨天最強台播今天跌被動元件跌一定會漲'
+        directory = {'1815': '富喬', '1802': '台玻', '1504': '東元', '5289': '宜鼎'}
+        with patch.object(pl, '_CODE_MAP', directory):
+            items = pl.semantic_context().phonetic_candidates(source, directory, pl._name_sound, pl._char_pinyin, pl._inside_non_entity_term)
+        self.assertEqual({r['code'] for r in items}, {'1815', '1802'})
+        self.assertTrue(all('class' not in r and 'price' not in r for r in items))
 
 
 if __name__ == '__main__': unittest.main()

@@ -59,18 +59,25 @@ def stance(answer, names, zones, normalize):
         return None
     a, q = normalize(anchor), normalize(quote)
     own = {normalize(n) for n in names if len(normalize(n)) >= 2}
-    bound = own & {normalize(n) for n in members if isinstance(n, str)}
+    named_members = {normalize(n) for n in members if isinstance(n, str)}
+    # A literal named anchor already identifies the target. An omitted redundant
+    # members list must not invalidate it; an explicit conflicting list still does.
+    bound = own & named_members if named_members else own
     if len(a) < 4 or len(q) < 8 or not any(n in a for n in bound):
         return None
     supported = False
+    anchor_found = False
+    named_quote_found = False
     for zone in zones:
         flat = normalize(zone)
         anchors = [m.start() for m in re.finditer(re.escape(a), flat)]
         quotes = [m.start() for m in re.finditer(re.escape(q), flat)]
+        anchor_found = anchor_found or bool(anchors)
+        named_quote_found = named_quote_found or bool(quotes and any(n in q for n in bound))
         if any(abs(x-y) <= 600 for x in anchors for y in quotes):
             supported = True
             break
-    if not supported:
+    if not supported and not (anchor_found and named_quote_found):
         return None
     # Entity identity, event role, then stance. None of these creates a trade.
     if entity == 'ordinary':
@@ -84,3 +91,33 @@ def stance(answer, names, zones, normalize):
     if role == 'current_view' and direction in ('positive', 'negative'):
         return ('watch_watch' if direction == 'positive' else 'watch_avoid'), '語意核對：本股當下立場｜' + quote[:60]
     return None
+
+
+def phonetic_candidates(source, directory, name_sound, char_sounds, inside_term):
+    """Conservative identity suggestions only; no category or price is inferred."""
+    index = {}
+    for code, name in directory.items():
+        name = re.sub(r'[*＊]+$', '', str(name))
+        if not re.fullmatch(r'[1-9]\d{3}', str(code)) or not 2 <= len(name) <= 4:
+            continue
+        sound = name_sound(name)
+        if sound:
+            index.setdefault(sound, []).append((str(code), name))
+    pins = char_sounds(source)
+    output, seen = [], set()
+    for size in (2, 3, 4):
+        for at in range(len(source)-size+1):
+            heard = source[at:at+size]
+            matches = index.get(tuple(pins[at:at+size]), [])
+            if len(matches) != 1 or not re.fullmatch(r'[\u4e00-\u9fff]+', heard):
+                continue
+            code, name = matches[0]
+            if heard == name or not set(heard) & set(name) or (code, heard) in seen or inside_term(source, at, size):
+                continue
+            nearby = source[max(0, at-10):at+size+10]
+            if not re.search(r'股|漲|跌|買|賣|均線|季[限線]|年[限線]|創高|主力|融資|外資|投信|最強', nearby):
+                continue
+            seen.add((code, heard))
+            output.append({'code': code, 'heard': heard, 'quote': source[max(0, at-45):at+size+60],
+                           'origin': 'phonetic_candidate_not_confirmed'})
+    return output

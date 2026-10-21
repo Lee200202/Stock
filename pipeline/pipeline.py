@@ -8821,6 +8821,8 @@ def quality_overview(signals, transcript='', check_chapters=True):
     label = {'buy': '買入', 'sell': '賣出', 'holdings': '會員持股', 'watch_watch': '觀望注意', 'watch_avoid': '觀望不碰'}
     rows = [(cat, r) for cat in label for r in signals.get(cat, []) or [] if isinstance(r, dict)]
     notes, hard, soft = [], [], []
+    if signals.get('_classification_runtime_error'):
+        hard.append('分類裁決未完成：' + str(signals['_classification_runtime_error']))
     for cat, r in rows:
         name = _display_name(r.get('name')) or str(r.get('name') or '')
         note = public_narrative(str(r.get('note') if cat == 'holdings' else r.get('reason')) if (r.get('note') if cat == 'holdings' else r.get('reason')) else '', r, signals)
@@ -14230,6 +14232,8 @@ def adjudicate_classes(ss, signals, transcript, date_str, first=None, reviewed=N
         return _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode)
     except Exception as e:
         print(f"  分類裁決　這一輪沒有完成（{type(e).__name__}: {str(e)[:80]}），維持原分類")
+        signals['_classification_runtime_error'] = type(e).__name__ + ': ' + str(e)[:160]
+        signals['_quality_requires_review'] = True
         note_decision('分類裁決', '沒有完成，維持原分類', date_str, f'{type(e).__name__}: {str(e)[:200]}')
         for entry in (signals.get('_verdicts') or {}).values():
             entry['enforce'] = False
@@ -14634,7 +14638,7 @@ def apply_verdicts(signals, date_str, final=False):
     kept = signals.setdefault('_verdict_rows', {})
     for code, entry in verdicts.items():
         target = entry.get('cls')
-        if not entry.get('enforce') or target not in _VERDICT_ORDER or target == 'uncertain':
+        if not entry.get('enforce') or target not in _VERDICT_ORDER:
             continue
         pairs = _verdict_today_rows(signals, date_str).get(code, [])
         cats = [c for c, _ in pairs]

@@ -159,6 +159,8 @@ POSITIVE = re.compile(r'看好|佈局|布局|買點|續抱|(?:準備|即將|將�
 def invariants(signals, raw):
     """程式關卡與規則候選檢查。回傳 (錯誤, 提醒)，語意提示仍可能誤報，不能當核定答案。"""
     errors, warns = [], []
+    if signals.get('_classification_runtime_error'):
+        errors.append('分類裁決未完成：' + str(signals['_classification_runtime_error']))
     rows = [(cat, r) for cat in LABEL for r in signals.get(cat, []) or [] if isinstance(r, dict)]
     placed = set()
     for cat, r in rows:

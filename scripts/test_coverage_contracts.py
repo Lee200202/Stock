@@ -257,6 +257,26 @@ class SemanticContracts(unittest.TestCase):
 
 
 class BatchReceipt(unittest.TestCase):
+    def test_scoped_identity_survives_publication_without_permanent_alias(self):
+        answer = {'about_itself': True, 'semantic': {'entity':'company','anchor':'台播今天追強之後轉弱'}}
+        entry = {'cls':'watch_avoid','enforce':True,'name':'台播','answer':{'watch_avoid':{'answer':answer}}}
+        signals = {'ignored':[{'code':'1802','name':'台播','reason':'待核'}], '_verdicts':{'1802':entry}}
+        with patch.object(pl, '_CODE_MAP', {'1802':'台玻','4736':'泰博'}), patch.object(pl, '_CODE_MAP_FULL', True), \
+             patch.object(pl, 'resolve_code', return_value=(pl.UNRESOLVED,'','ambiguous')) as lookup:
+            pl.apply_verdicts(signals, '2026/10/21')
+        self.assertEqual(signals['watch_avoid'][0]['name'], '台玻')
+        self.assertIn('台播', signals['watch_avoid'][0]['aliases'])
+        self.assertNotIn('台播', pl.CONFIRMED_NAMES)
+        lookup.assert_not_called()
+
+    def test_scoped_identity_needs_source_company_assertion_and_unique_directory_match(self):
+        answer = {'about_itself':True,'semantic':{'entity':'company','anchor':'甲播現在還不能追價'}}
+        entry = {'answer': {'watch_avoid': {'answer':answer}}}
+        with patch.object(pl,'_CODE_MAP', {'1111':'甲玻','2222':'甲波'}), patch.object(pl,'_CODE_MAP_FULL',True):
+            self.assertFalse(pl.scoped_verdict_identity('甲播','甲玻','1111',entry,'watch_avoid'))
+        answer['semantic']['entity'] = 'ordinary'
+        with patch.object(pl,'_CODE_MAP', {'1111':'甲玻'}), patch.object(pl,'_CODE_MAP_FULL',True):
+            self.assertFalse(pl.scoped_verdict_identity('甲播','甲玻','1111',entry,'watch_avoid'))
     def test_final_position_policy_does_not_create_positions_or_promote_pending(self):
         entries = {str(i): e for i, e in enumerate([
             {'cls':'watch_watch','tier':'裁決','open':True},

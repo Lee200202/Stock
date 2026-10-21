@@ -14943,6 +14943,24 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
     return apply_verdicts(signals, date_str)
 
 
+def scoped_verdict_identity(heard, official, code, entry, target):
+    """Use already-bound source identity only; never teach a permanent alias."""
+    if not _CODE_MAP_FULL or not heard or not official:
+        return False
+    answer = ((entry.get('answer') or {}).get(target) or {}).get('answer') or {}
+    semantic = answer.get('semantic') or {}
+    if answer.get('about_itself') is not True or semantic.get('entity') != 'company':
+        return False
+    if _ev_norm(heard) not in _ev_norm(semantic.get('anchor') or ''):
+        return False
+    sound = _name_sound(heard)
+    if not sound or sound != _name_sound(_display_name(official)):
+        return False
+    candidates = {str(k) for k, name in (_CODE_MAP or {}).items()
+                  if set(heard) & set(_display_name(name)) and _name_sound(_display_name(name)) == sound}
+    return candidates == {str(code)}
+
+
 def apply_verdicts(signals, date_str, final=False):
     """照裁決結果改列。可以重複呼叫：收尾（final）那一次把後面規則搬走的列搬回來，並記下是哪一檔。"""
     verdicts = signals.get('_verdicts') or {}
@@ -15019,7 +15037,12 @@ def apply_verdicts(signals, date_str, final=False):
                 if cat in _VERDICT_HIDDEN and official and heard and _display_name(heard) != _display_name(official) \
                         and heard not in CONFIRMED_NAMES:
                     # 不公開的列帶著的代號可能是模型給的、沒有經過代號比對（2026/10/14「連亞」帶著 3086，被換成華義）：先核對名稱
-                    got, got_name, how = resolve_code(heard, '')
+                    if scoped_verdict_identity(heard, official, code, entry, target):
+                        got, got_name, how = code, official, '本次原句已綁定，完整名錄中同音且共享原字的唯一候選'
+                        moved['_identity_binding'] = {'heard': heard, 'code': code, 'method': how,
+                            'anchor': (answer.get('semantic') or {}).get('anchor', '')}
+                    else:
+                        got, got_name, how = resolve_code(heard, '')
                     if got and got not in (REJECT, UNRESOLVED) and got != code:
                         print(f"  分類裁決　{heard}：帶著的代號 {code}（{official}）與名稱對不上，代號比對改為 {got} {got_name}")
                         note_decision('分類裁決', '改列公開前核對代號，改用名稱對到的代號', heard, f'{code}→{got}｜{how}')

@@ -13990,7 +13990,11 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
     if now in ('buy_ok', 'conditional') and not any(_VQ_ENTRY.search(q) for q in stance):
         now = 'none'
     hold_advice = [q for q in stance if _VQ_ANTISELL.search(q)]
-    if now in ('prohibit', 'not_yet') and not any(_VQ_REFUSAL.search(_VQ_ANTISELL.sub('', q)) for q in stance):
+
+    def recalled(q):
+        at = passages_norm.find(_ev_norm(q))
+        return at >= 0 and bool(re.search(r'那時候|那個時候|當時|以前|之前|先前', passages_norm[max(0, at - 40):at]))
+    if now in ('prohibit', 'not_yet') and not any(_VQ_REFUSAL.search(_VQ_ANTISELL.sub('', q)) and not recalled(q) for q in stance):
         now = 'none'
         if hold_advice:
             # 只有「不要賣、不要殺低」：講者看多、叫人抱著；沒有部位的人列觀望注意（會員持股由上面的持有題處理）
@@ -14472,7 +14476,8 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             entry['votes'].append(cls)
             if cls and not entry['answer'].get(cls):
                 entry['answer'][cls] = {'basis': basis, 'answer': answers.get(code)}
-            base = 'ignored' if entry.get('late') else (entry.get('not_held_fallback','ignored') if entry.get('not_held') else entry['current'])
+            denied_holding = entry.get('not_held') and entry['current'] == 'holdings'
+            base = 'ignored' if entry.get('late') else (entry.get('not_held_fallback','ignored') if denied_holding else entry['current'])
             state, decided, why = verdict_settle(base, entry['votes'],
                                                  last=round_no == VERDICT_MAX_ROUNDS - 1, open_position=bool(entry.get('open')))
             if state == '再問':
@@ -14544,7 +14549,7 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                               '各票：' + '、'.join(_VERDICT_LABEL.get(v, v) or '不能用' for v in entry['votes']))
                 continue
             detail = (entry['answer'].get(decided) or {}).get('basis') or ''
-            if entry.get('not_held') and state == '未定':
+            if entry.get('not_held') and entry['current'] == 'holdings' and state == '未定':
                 # 沒有持有只是否定部位；沒有獨立的當下條件，不能憑否認製造看多立場。
                 state, decided, why = '定案', entry.get('not_held_fallback','ignored'), '沒有多數時依本股當下條件，無條件不列｜' + entry['not_held'][:40]
             entry.update(cls=decided, tier='裁決' if state == '定案' else '未定', enforce=state == '定案', new=True,

@@ -2621,7 +2621,8 @@ function restatesEarlier_(key, earlier) {
       return Array.isArray(saved) ? saved.filter(validCustomMA).filter(function(n,i,a){return a.indexOf(n)===i;}).sort(function(a,b){return a-b;}).slice(0,12) : [];
     } catch(e) { return []; }
   }
-  var maDefs = MA_DEFAULTS.map(function(n){return {n:n,on:true};}).concat(loadCustomMAs().map(function(n){return {n:n,on:true,custom:true};})).sort(function(a,b){return a.n-b.n;});
+  // v200r4（管理者 10/22）：預設只開 MA5、MA20，其餘在圖例上點一下再開；自己加的均線照舊顯示
+  var maDefs = MA_DEFAULTS.map(function(n){return {n:n,on:n===5||n===20};}).concat(loadCustomMAs().map(function(n){return {n:n,on:true,custom:true};})).sort(function(a,b){return a.n-b.n;});
   function saveCustomMAs() { try { localStorage.setItem(MA_STORAGE,JSON.stringify(maDefs.filter(function(d){return d.custom;}).map(function(d){return d.n;}))); } catch(e) {} }
   function bollColor() { return css('--boll') || '#1D4ED8'; }
   /* v200r3（管理者 10/22）：均線原本是 1 像素的金褐、青、灰、淡紫，在 K 棒上幾乎分不出來，青色又接近下跌綠。

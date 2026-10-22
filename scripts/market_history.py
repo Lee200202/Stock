@@ -348,7 +348,11 @@ def cmd_build(args):
         _write(out / f'{code}.json', doc)
         meta['codes'][code] = {'first': doc['first'], 'latest': doc['latest'], 'bars': len(rows), 'adjustments': adjustments}
     meta['latest'] = max((v['latest'] for v in meta['codes'].values()), default='')
-    (out / '_meta.json').write_text(json.dumps(meta, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
+    meta['missingCodes'] = sorted(codes - set(meta['codes']))
+    before = _read(out / '_meta.json')
+    if before and {k: v for k, v in before.items() if k != 'updated'} == {k: v for k, v in meta.items() if k != 'updated'}:
+        meta['updated'] = before['updated']
+    _write(out / '_meta.json', meta)
     print(f'產生 {len(meta["codes"])} 檔（要求 {len(codes)} 檔），最新 {meta["latest"]}')
 
 

@@ -67,4 +67,29 @@ class HistoryContract(unittest.TestCase):
   self.assertEqual(rows[0][4],136.5);self.assertEqual(rows[1][4],138);self.assertEqual(rows[0][5],1000)
   rows,adj=h.build_series(e,[{'date':'2026-01-05','code':'2327','prev':1.0,'ref':2.0,'kind':'reduction'}])
   self.assertEqual(adj,[]);self.assertEqual(rows[0][4],546)
+ def test_saturday_skipped_only_when_tpex_calendar_says_closed(self):
+  with tempfile.TemporaryDirectory() as d:
+   for c in ('8299','5289'):h._write(Path(d)/f'tpex/{c}/201702.json',{'rows':[['2017-02-17',1,1,1,1,0,1],['2017-02-18',1,1,1,1,0,1],['2017-02-24',1,1,1,1,0,1]]})
+   a=SimpleNamespace(start='2017-02-18',end='2017-02-25',years=0,deadline_min=1,archive=d,order='newest')
+   with patch.object(h,'fetch_twse_day',return_value={'stat':'OK','rows':[['2330','台積電',190,191,189,189.5,0,1000]]}) as f:h.cmd_fetch_twse(a)
+   asked=sorted(c.args[0].isoformat() for c in f.call_args_list)
+   self.assertIn('2017-02-18',asked);self.assertNotIn('2017-02-25',asked);self.assertNotIn('2017-02-19',asked);self.assertIn('2017-02-20',asked)
+ def test_empty_answers_settle_by_recorded_checks_not_file_time(self):
+  day=h.date(2020,1,1)
+  self.assertEqual(h._empty_settled({'checks':['2020-03-01T10:00:00+08:00','2020-03-05T10:00:00+08:00']},day),'settled')
+  self.assertEqual(h._empty_settled({'checks':['2020-03-01T10:00:00+08:00']},day),'ask')
+  self.assertEqual(h._empty_settled({'checks':[h._iso_now()]},day),'wait')
+  self.assertEqual(h._empty_settled({},day,calendar_closed=True),'settled')
+  self.assertEqual(h._empty_settled({'checkedAt':'2020-01-02T10:00:00+08:00'},day),'ask')
+ def test_otc_probe_starts_at_listing_month_and_refreshes_recent_month(self):
+  with tempfile.TemporaryDirectory() as d:
+   now=h.datetime.now(h.TZ);cur=f'{now.year}{now.month:02d}'
+   h._write(Path(d)/f'tpex/8299/{cur}.json',{'stat':'ok','rows':[[f'{now.year}-{now.month:02d}-01',1,1,1,1,0,1000]]})
+   lm=(now.year*12+now.month-1)-3;listed=f'{lm//12}-{lm%12+1:02d}-15'
+   a=SimpleNamespace(start=None,years=0,deadline_min=1,archive=d,codes='8299',codes_file=None,sheets=False,order='newest')
+   with patch.object(h,'listing_dates',return_value={'8299':{'otc':listed}}),patch.object(h,'twse_first_dates',return_value=({},'')),\
+        patch.object(h,'fetch_tpex_month',return_value={'stat':'ok','rows':[['2020-01-02',1,1,1,1,0,1000]]}) as f:h.cmd_fetch_tpex(a)
+   asked=[(c.args[1],c.args[2]) for c in f.call_args_list]
+   self.assertEqual(len(asked),4);self.assertEqual(asked[0],(now.year,now.month))
+   self.assertEqual(asked[-1],(lm//12,lm%12+1))
 if __name__=='__main__':unittest.main()

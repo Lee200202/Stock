@@ -134,6 +134,88 @@ def _read(path, zipped=False):
         return None  # 損壞檔案必須重新抓，不能略過或中止全部股票
 
 
+# ---------------------------------------------------------------- 少問幾次（v200r2）
+# 檔案時間不能拿來判斷多久沒查：Actions 每次 checkout，所有檔案時間都是「現在」——空回應永遠不重查、本月櫃買資料永遠不更新；
+# 本機則相反，每七天把所有休市日、週六、掛牌前的月份全部重問一次。改用檔案內記錄的查詢時間。
+RECHECK_SEC = 3 * 86400
+
+
+def _iso_now():
+    return datetime.now(TZ).isoformat(timespec='seconds')
+
+
+def _age(stamp):
+    try:
+        return (datetime.now(TZ) - datetime.fromisoformat(stamp)).total_seconds()
+    except (TypeError, ValueError):
+        return float('inf')
+
+
+def _checks(rec):
+    return list((rec or {}).get('checks') or ([rec['checkedAt']] if (rec or {}).get('checkedAt') else []))
+
+
+def _empty_settled(rec, last_day, calendar_closed=False):
+    """空回應還要不要再問：'settled' 不再問、'wait' 上次查不到三天先不問、'ask' 再問一次。
+    定案：櫃買日曆也說那天沒開盤；或在那天 30 天之後、不同的兩天各查過一次都是空的（交易所不會再補登）。"""
+    if calendar_closed:
+        return 'settled'
+    checks = _checks(rec)
+    late = {c[:10] for c in checks if (date.fromisoformat(c[:10]) - last_day).days > 30}
+    if len(late) >= 2:
+        return 'settled'
+    return 'wait' if checks and _age(checks[-1]) < RECHECK_SEC else 'ask'
+
+
+def tpex_calendar(archive):
+    """櫃買個股月資料拼出的交易日曆（上市、上櫃同一套休市日）。同一個月至少兩檔有資料才算知道那個月——單一檔可能整天停牌。
+    回傳 (知道的月份 {'YYYYMM'}, 交易日 {'YYYY-MM-DD'})。"""
+    per_month, days = {}, set()
+    for f in (Path(archive) / 'tpex').glob('*/*.json'):
+        rows = (_read(f) or {}).get('rows') or []
+        if rows:
+            per_month[f.stem] = per_month.get(f.stem, 0) + 1
+            days.update(r[0] for r in rows)
+    return {k for k, n in per_month.items() if n >= 2}, days
+
+
+def listing_dates(archive):
+    """上櫃日期、上市公司成立日期（櫃買與證交所的公司基本資料 OpenAPI），存在 archive/meta/listing.json，一週更新一次。
+    用途：上櫃股票從掛牌那個月開始查，不必一路問到 1994；轉上市的股票不早於成立那個月。查不到就回空的，照舊探查。"""
+    p = Path(archive) / 'meta' / 'listing.json'
+    cached = _read(p)
+    if cached and _age(cached.get('fetchedAt')) < 7 * 86400:
+        return cached['codes']
+    codes = dict((cached or {}).get('codes') or {})
+    try:
+        for r in _get('https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap03_O', 'tpex', tries=1):
+            c = str(r.get('SecuritiesCompanyCode') or '').strip()
+            if CODE_RE.match(c):
+                codes.setdefault(c, {})['otc'] = _ymd(r.get('DateOfListing'))
+                codes[c]['founded'] = _ymd(r.get('DateOfIncorporation'))
+        for r in _get('https://openapi.twse.com.tw/v1/opendata/t187ap03_L', 'twse', tries=1):
+            c = str(r.get('公司代號') or '').strip()
+            if CODE_RE.match(c):
+                codes.setdefault(c, {})['listed'] = _ymd(r.get('上市日期'))
+                codes[c]['founded'] = _ymd(r.get('成立日期'))
+        _write(p, {'fetchedAt': _iso_now(), 'codes': codes})
+    except Exception as e:
+        print(f'公司基本資料暫時取不到，照舊探查：{type(e).__name__}', flush=True)
+    return codes
+
+
+def _ymd(text):
+    s = re.sub(r'\D', '', str(text or ''))
+    try:
+        return date(int(s[:4]), int(s[4:6]), int(s[6:8])).isoformat() if len(s) == 8 else None
+    except ValueError:
+        return None
+
+
+def _month_index(iso):
+    return int(iso[:4]) * 12 + int(iso[5:7]) - 1
+
+
 # ---------------------------------------------------------------- 上市：證交所全市場日報
 
 def fetch_twse_day(day):
@@ -159,36 +241,38 @@ def cmd_fetch_twse(args):
     start = _start(args, end, TWSE_START)
     if end == now.date() and now.hour * 100 + now.minute < 1430:     # 14:30 前今天還沒收盤
         end -= timedelta(days=1)
-    stop, day, done, kept = _deadline(args), end, 0, 0
-    while day >= start:                                               # 由近往遠抓：時間不夠時最近的先有
+    known, trading = tpex_calendar(args.archive)
+    days = [end - timedelta(days=n) for n in range((end - start).days + 1)]   # 預設由近往遠：時間不夠時最近的先有
+    if getattr(args, 'order', 'newest') == 'oldest':
+        days.reverse()   # 第二台機器由遠往近，與 Actions 不重疊（兩個 IP 各自限速）
+    stop, done, kept, skipped = _deadline(args), 0, 0, 0
+    for day in days:
         if time.time() > stop:
             print(f'時間到，停在 {day}，下次續抓'); break
-        if day.weekday() < 6:  # 歷史有週六補班交易日；不能只查週一至週五
-            p = Path(args.archive) / 'twse' / f'{day:%Y}' / f'{day:%Y%m%d}.json.gz'
-            fresh = (now.date() - day).days <= 1
-            cached = _read(p, True)
-            # 有價格的舊檔才永久沿用；空回應隔七天重核，不能當作已確認休市。
-            empty_recent = cached and not cached.get('rows') and time.time() - p.stat().st_mtime < 7 * 86400
-            if cached and ((cached.get('rows') and not fresh) or empty_recent):
-                kept += 1
-            else:
-                try:
-                    rec = {'date': day.isoformat(), **fetch_twse_day(day)}
-                except Exception as e:
-                    print(f'{day} 上市抓取失敗，下次再補：{type(e).__name__}: {str(e)[:80]}', flush=True)
-                    day -= timedelta(days=1); continue
-                # mtime=0：內容沒變時檔案逐位元相同，重抓今天、昨天不會每天多一筆提交
-                if rec['stat'] == 'no-table':
-                    print(f'{day} 來源欄位改變，不保存成休市', flush=True)
-                    day -= timedelta(days=1); continue
-                if not rec['rows']:
-                    rec['checkedAt'] = now.isoformat(timespec='seconds')
-                _write(p, rec, zipped=True)
-                done += 1
-                if done % 50 == 0:
-                    print(f'上市 {day}：已抓 {done} 天（當天 {len(rec["rows"])} 檔）', flush=True)
-        day -= timedelta(days=1)
-    print(f'上市抓取：新抓 {done} 天、沿用 {kept} 天（{start} ～ {end}）')
+        if day.weekday() == 6:   # 星期日從不交易；星期六有補行上班日交易（2017/02/18 等）
+            continue
+        iso, p = day.isoformat(), Path(args.archive) / 'twse' / f'{day:%Y}' / f'{day:%Y%m%d}.json.gz'
+        closed = f'{day:%Y%m}' in known and iso not in trading
+        fresh = (now.date() - day).days <= 1
+        cached = _read(p, True)
+        if cached and not fresh and (cached.get('rows') or _empty_settled(cached, day, closed) != 'ask'):
+            kept += 1; continue
+        if not cached and day.weekday() == 5 and closed:
+            skipped += 1; continue   # 櫃買日曆說這個星期六沒開盤，不必問證交所
+        try:
+            rec = {'date': iso, **fetch_twse_day(day)}
+        except Exception as e:
+            print(f'{day} 上市抓取失敗，下次再補：{type(e).__name__}: {str(e)[:80]}', flush=True); continue
+        if rec['stat'] == 'no-table':
+            print(f'{day} 來源欄位改變，不保存成休市', flush=True); continue
+        if not rec['rows']:
+            rec['checks'] = _checks(cached) + [_iso_now()]
+            rec['checkedAt'] = rec['checks'][0]
+        _write(p, rec, zipped=True)
+        done += 1
+        if done % 50 == 0:
+            print(f'上市 {day}：已抓 {done} 天（當天 {len(rec["rows"])} 檔）', flush=True)
+    print(f'上市抓取：新抓 {done} 天、沿用 {kept} 天、依櫃買日曆略過 {skipped} 個休市週六（{start} ～ {end}）')
 
 
 # ---------------------------------------------------------------- 上櫃：櫃買個股月資料
@@ -233,32 +317,35 @@ def cmd_fetch_tpex(args):
     first, earliest = twse_first_dates(args.archive)
     this_month = now.year * 12 + now.month - 1
     plan = []
+    listing = listing_dates(args.archive)
     for code in sorted(_code_set(args)):
-        d = first.get(code)
+        d, info = first.get(code), listing.get(code) or {}
         if not d:
-            plan.append((code, this_month))
+            # 上櫃股票從掛牌那個月查起；查不到掛牌日（ETF、債券等）照舊往回探查
+            plan.append((code, this_month, _month_index(info['otc']) if info.get('otc') else None))
         elif earliest and date.fromisoformat(d) > date.fromisoformat(earliest) + timedelta(days=31):
-            plan.append((code, int(d[:4]) * 12 + int(d[5:7]) - 1))
+            plan.append((code, _month_index(d), _month_index(info['founded']) if info.get('founded') else None))
     # 先補完全沒有上市封存的股票，避免新上市股票的轉板探查擋住真正上櫃缺口。
-    plan.sort(key=lambda item: (item[0] in first, item[0]))
+    plan.sort(key=lambda item: (item[0] in first, item[0]), reverse=getattr(args, 'order', 'newest') == 'reverse')
     stop, done, kept = _deadline(args), 0, 0
     start = _start(args, now.date(), TPEX_START)
     first_month = start.year * 12 + start.month - 1
-    for code, k in plan:
+    for code, k, floor in plan:
         empty = 0
         # 櫃買偶爾對有資料的月份也回「沒有符合條件的資料」（2026/10/22 實測，隔幾分鐘就正常）。
         # 這一檔確定拿得到資料之前，空的月份不存檔，下次再問；拿到過資料之後，更早的空月份才當作尚未掛牌存下來。
         seen = any(json.loads(f.read_text(encoding='utf-8')).get('rows') for f in (Path(args.archive) / 'tpex' / code).glob('*.json'))
-        while k >= first_month:                                       # 由近往遠；連續三個月沒有資料視為尚未掛牌
+        while k >= max(first_month, floor if floor is not None else first_month):   # 由近往遠，到掛牌（或成立）那個月為止
             if time.time() > stop:
                 print(f'時間到，停在 {code} {k // 12}/{k % 12 + 1:02d}，下次續抓'); print(f'上櫃抓取：新抓 {done} 個月、沿用 {kept} 個月'); return
             y, m = k // 12, k % 12 + 1
             p = Path(args.archive) / 'tpex' / code / f'{y}{m:02d}.json'
             recent = this_month - k <= 1                                # 本月與上月還在變：重抓
             cached = _read(p)
-            age = time.time() - p.stat().st_mtime if p.exists() else float('inf')
-            if cached and ((cached.get('rows') and (not recent or age < 20 * 3600)) or (not cached.get('rows') and age < 7 * 86400)):
-                rec = json.loads(p.read_text(encoding='utf-8')); kept += 1
+            last_day = date(y + m // 12, m % 12 + 1, 1) - timedelta(days=1)
+            if cached and (cached.get('rows') and (not recent or _age(cached.get('fetchedAt')) < 20 * 3600)
+                           or not cached.get('rows') and _empty_settled(cached, last_day) != 'ask'):
+                rec = cached; kept += 1
             else:
                 try:
                     rec = fetch_tpex_month(code, y, m)
@@ -269,8 +356,10 @@ def cmd_fetch_tpex(args):
                     print(f'{code} {y}/{m:02d} 上櫃抓取失敗，下次再補：{type(e).__name__}', flush=True); k -= 1; continue
                 seen = seen or bool(rec['rows'])
                 # 空月只代表待核；不以連續空月推測掛牌日，且仍檢查更早月份。
+                rec['fetchedAt'] = _iso_now()
                 if not rec['rows']:
-                    rec['checkedAt'] = now.isoformat(timespec='seconds')
+                    rec['checks'] = _checks(cached) + [rec['fetchedAt']]
+                    rec['checkedAt'] = rec['checks'][0]
                 _write(p, rec)
                 done += 1
             empty = 0 if rec.get('rows') else empty + 1
@@ -410,11 +499,13 @@ def cmd_build(args):
     events = load_events(args.archive)
     series, names, market = {c: {} for c in codes}, {}, {}
     scanned_days, empty_days, month_coverage = set(), [], {}
+    known, trading = tpex_calendar(args.archive)
     for p in sorted((Path(args.archive) / 'twse').glob('*/*.json.gz')):
         with gzip.open(p, 'rt', encoding='utf-8') as fh:
             rec = json.load(fh)
         scanned_days.add(rec['date'])
-        if not rec.get('rows'):
+        d0 = date.fromisoformat(rec['date'])
+        if not rec.get('rows') and _empty_settled(rec, d0, f'{d0:%Y%m}' in known and rec['date'] not in trading) != 'settled':
             empty_days.append(rec['date'])
         for code, name, o, h, l, c, chg, vol in rec.get('rows', []):
             if code in series:
@@ -461,7 +552,7 @@ def cmd_build(args):
     while day <= end:
         if day.weekday() < 5 and day.isoformat() not in scanned_days:
             missing_days.append(day.isoformat())
-        if day.weekday() == 5 and day.isoformat() not in scanned_days:
+        if day.weekday() == 5 and day.isoformat() not in scanned_days and not (f'{day:%Y%m}' in known and day.isoformat() not in trading):
             missing_saturdays.append(day.isoformat())
         day += timedelta(days=1)
     # 平日不等於交易日；空檔也不等於已核實休市。完整度不能只看根數或工作流成功。
@@ -519,8 +610,11 @@ def main():
         s.add_argument('--start')
         if name == 'fetch-twse':
             s.add_argument('--end')
+            s.add_argument('--order', choices=['newest', 'oldest'], default='newest', help='oldest：第二台機器由遠往近')
         else:
             s.add_argument('--codes'); s.add_argument('--codes-file'); s.add_argument('--sheets', action='store_true')
+        if name == 'fetch-tpex':
+            s.add_argument('--order', choices=['newest', 'reverse'], default='newest', help='reverse：股票順序倒過來，與另一台不重疊')
         if name == 'build':
             s.add_argument('--out', required=True)
     sub.add_parser('fetch-events').add_argument('--archive', required=True)

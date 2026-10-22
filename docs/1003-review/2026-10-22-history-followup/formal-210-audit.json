@@ -1,0 +1,1728 @@
+{
+  "metaUpdated": "2026-10-22T19:08:49+08:00",
+  "requested": 246,
+  "files": 210,
+  "bars": 940417,
+  "missing": [
+    "3182",
+    "4991",
+    "5274",
+    "5347",
+    "5425",
+    "5439",
+    "5475",
+    "5483",
+    "5864",
+    "5904",
+    "6121",
+    "6127",
+    "6143",
+    "6147",
+    "6173",
+    "6182",
+    "6217",
+    "6223",
+    "6274",
+    "6419",
+    "6488",
+    "6510",
+    "6532",
+    "6597",
+    "6643",
+    "6679",
+    "6690",
+    "6910",
+    "8042",
+    "8086",
+    "8096",
+    "8183",
+    "8358",
+    "8390",
+    "8410",
+    "8931"
+  ],
+  "coverageVerified": false,
+  "errors": [],
+  "results": [
+    {
+      "code": "00981A",
+      "bars": 345,
+      "first": "2025-05-27",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "1203",
+      "bars": 5572,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "1301",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "1303",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "1313",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "1326",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "1434",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "1477",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "1503",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "1504",
+      "bars": 5587,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "1513",
+      "bars": 5579,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "1514",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "1519",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "1525",
+      "bars": 5546,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "1528",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "1590",
+      "bars": 3882,
+      "first": "2010-12-13",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "1608",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "1616",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "1727",
+      "bars": 5561,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "1752",
+      "bars": 1152,
+      "first": "2022-01-19",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "1802",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "1815",
+      "bars": 5098,
+      "first": "2006-01-23",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2027",
+      "bars": 5587,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2049",
+      "bars": 4252,
+      "first": "2009-06-26",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2059",
+      "bars": 4502,
+      "first": "2008-06-25",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2072",
+      "bars": 142,
+      "first": "2026-03-26",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2104",
+      "bars": 5586,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2201",
+      "bars": 5580,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "2303",
+      "bars": 5575,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2308",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2313",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2317",
+      "bars": 5580,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "2321",
+      "bars": 5384,
+      "first": "2004-02-11",
+      "latest": "2026-10-21",
+      "adjustments": 4,
+      "issues": []
+    },
+    {
+      "code": "2324",
+      "bars": 5587,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2327",
+      "bars": 5535,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 6,
+      "issues": []
+    },
+    {
+      "code": "2328",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2330",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2332",
+      "bars": 5574,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "2337",
+      "bars": 5566,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "2344",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2345",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2353",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2354",
+      "bars": 5587,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2357",
+      "bars": 5562,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2359",
+      "bars": 5552,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 2,
+      "issues": []
+    },
+    {
+      "code": "2368",
+      "bars": 5581,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "2376",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2377",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2379",
+      "bars": 5580,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2382",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2383",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2387",
+      "bars": 5558,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 4,
+      "issues": []
+    },
+    {
+      "code": "2388",
+      "bars": 5566,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "2399",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2402",
+      "bars": 5587,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2404",
+      "bars": 5581,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "2408",
+      "bars": 5570,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "2409",
+      "bars": 5581,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "2421",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2423",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2426",
+      "bars": 5578,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "2439",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2441",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2449",
+      "bars": 5587,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2451",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2454",
+      "bars": 5587,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2458",
+      "bars": 5581,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "2464",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2472",
+      "bars": 5578,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "2474",
+      "bars": 5587,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2478",
+      "bars": 5574,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 2,
+      "issues": []
+    },
+    {
+      "code": "2480",
+      "bars": 5567,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "2481",
+      "bars": 5583,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "2492",
+      "bars": 5566,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 3,
+      "issues": []
+    },
+    {
+      "code": "2498",
+      "bars": 5587,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2520",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2527",
+      "bars": 5575,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2535",
+      "bars": 5580,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "2537",
+      "bars": 5354,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2603",
+      "bars": 5581,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "2605",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2606",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2609",
+      "bars": 5579,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "2615",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2637",
+      "bars": 3890,
+      "first": "2010-12-01",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "2641",
+      "bars": 2931,
+      "first": "2014-10-09",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "2901",
+      "bars": 5563,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3006",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3008",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3014",
+      "bars": 5579,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "3017",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3019",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3026",
+      "bars": 5571,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 2,
+      "issues": []
+    },
+    {
+      "code": "3034",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3035",
+      "bars": 5578,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "3036",
+      "bars": 5583,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3037",
+      "bars": 5587,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3041",
+      "bars": 5574,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 2,
+      "issues": []
+    },
+    {
+      "code": "3042",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3044",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3081",
+      "bars": 2746,
+      "first": "2015-07-22",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3090",
+      "bars": 4618,
+      "first": "2007-12-31",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3105",
+      "bars": 3618,
+      "first": "2011-12-13",
+      "latest": "2026-10-22",
+      "adjustments": 2,
+      "issues": []
+    },
+    {
+      "code": "3152",
+      "bars": 4562,
+      "first": "2008-03-24",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "3163",
+      "bars": 3391,
+      "first": "2012-12-03",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3178",
+      "bars": 1925,
+      "first": "2018-11-19",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3189",
+      "bars": 5405,
+      "first": "2004-11-01",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3211",
+      "bars": 5400,
+      "first": "2004-11-08",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3227",
+      "bars": 5034,
+      "first": "2006-05-04",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3231",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3260",
+      "bars": 5419,
+      "first": "2004-10-08",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3265",
+      "bars": 5209,
+      "first": "2005-08-02",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3293",
+      "bars": 4986,
+      "first": "2006-07-12",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3324",
+      "bars": 5275,
+      "first": "2005-05-13",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3376",
+      "bars": 4619,
+      "first": "2007-12-31",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3406",
+      "bars": 5122,
+      "first": "2005-12-20",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3443",
+      "bars": 4906,
+      "first": "2006-11-03",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3450",
+      "bars": 5043,
+      "first": "2006-04-12",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3481",
+      "bars": 4893,
+      "first": "2006-10-24",
+      "latest": "2026-10-22",
+      "adjustments": 3,
+      "issues": []
+    },
+    {
+      "code": "3491",
+      "bars": 4615,
+      "first": "2008-01-03",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3508",
+      "bars": 4672,
+      "first": "2007-10-17",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3529",
+      "bars": 3852,
+      "first": "2011-01-24",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3532",
+      "bars": 4627,
+      "first": "2007-12-10",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "3533",
+      "bars": 4634,
+      "first": "2007-12-10",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3545",
+      "bars": 4729,
+      "first": "2007-07-03",
+      "latest": "2026-10-22",
+      "adjustments": 2,
+      "issues": []
+    },
+    {
+      "code": "3558",
+      "bars": 3126,
+      "first": "2013-12-30",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3563",
+      "bars": 1840,
+      "first": "2019-04-02",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3583",
+      "bars": 3328,
+      "first": "2013-03-12",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3587",
+      "bars": 4215,
+      "first": "2009-08-18",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3592",
+      "bars": 1160,
+      "first": "2022-01-07",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3596",
+      "bars": 4327,
+      "first": "2009-03-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3597",
+      "bars": 1602,
+      "first": "2020-03-09",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3617",
+      "bars": 4125,
+      "first": "2009-12-23",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3624",
+      "bars": 3822,
+      "first": "2011-03-16",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3645",
+      "bars": 3682,
+      "first": "2011-10-05",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3653",
+      "bars": 4150,
+      "first": "2009-11-18",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3661",
+      "bars": 2924,
+      "first": "2014-10-28",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3665",
+      "bars": 3796,
+      "first": "2011-04-21",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3691",
+      "bars": 3899,
+      "first": "2010-11-18",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3704",
+      "bars": 3959,
+      "first": "2010-08-16",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "3707",
+      "bars": 2942,
+      "first": "2014-10-01",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3711",
+      "bars": 2067,
+      "first": "2018-04-30",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "3715",
+      "bars": 1008,
+      "first": "2022-08-25",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "4153",
+      "bars": 3273,
+      "first": "2013-05-23",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "4157",
+      "bars": 3113,
+      "first": "2014-01-17",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "4585",
+      "bars": 258,
+      "first": "2025-09-26",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "4721",
+      "bars": 6310,
+      "first": "2001-03-09",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "4739",
+      "bars": 2221,
+      "first": "2017-09-08",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "4746",
+      "bars": 3832,
+      "first": "2011-03-01",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "4916",
+      "bars": 3153,
+      "first": "2013-11-21",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "4919",
+      "bars": 3936,
+      "first": "2010-09-27",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "4935",
+      "bars": 3730,
+      "first": "2011-07-28",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "4938",
+      "bars": 4002,
+      "first": "2010-06-24",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "4958",
+      "bars": 3624,
+      "first": "2011-12-26",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "4961",
+      "bars": 1942,
+      "first": "2018-10-17",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "4966",
+      "bars": 3697,
+      "first": "2011-09-13",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "4968",
+      "bars": 2667,
+      "first": "2015-11-13",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "4979",
+      "bars": 99,
+      "first": "2026-06-01",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "5244",
+      "bars": 1151,
+      "first": "2022-01-19",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "5269",
+      "bars": 3383,
+      "first": "2012-12-12",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "5289",
+      "bars": 3149,
+      "first": "2013-11-27",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "5536",
+      "bars": 3898,
+      "first": "2010-11-10",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "5880",
+      "bars": 3642,
+      "first": "2011-12-01",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "6116",
+      "bars": 5422,
+      "first": "2004-09-06",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "6120",
+      "bars": 4934,
+      "first": "2006-09-13",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "6191",
+      "bars": 4664,
+      "first": "2007-10-19",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "6201",
+      "bars": 5418,
+      "first": "2004-09-27",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "6213",
+      "bars": 4605,
+      "first": "2008-01-21",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "6239",
+      "bars": 5400,
+      "first": "2004-11-08",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "6269",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "6271",
+      "bars": 4635,
+      "first": "2007-11-16",
+      "latest": "2026-10-22",
+      "adjustments": 2,
+      "issues": []
+    },
+    {
+      "code": "6278",
+      "bars": 3960,
+      "first": "2010-08-24",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "6285",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "6409",
+      "bars": 3068,
+      "first": "2014-03-31",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "6412",
+      "bars": 3162,
+      "first": "2013-11-08",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "6415",
+      "bars": 3133,
+      "first": "2013-12-12",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "6442",
+      "bars": 2732,
+      "first": "2015-07-14",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "6449",
+      "bars": 2894,
+      "first": "2014-12-09",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "6456",
+      "bars": 2772,
+      "first": "2015-06-12",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "6491",
+      "bars": 1713,
+      "first": "2019-10-07",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "6505",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "6531",
+      "bars": 2528,
+      "first": "2016-05-31",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "6533",
+      "bars": 2345,
+      "first": "2017-03-14",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "6669",
+      "bars": 1844,
+      "first": "2019-03-27",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "6706",
+      "bars": 1662,
+      "first": "2019-12-19",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "6719",
+      "bars": 1156,
+      "first": "2022-01-13",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "6770",
+      "bars": 1183,
+      "first": "2021-12-06",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "6781",
+      "bars": 1361,
+      "first": "2021-03-22",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "6919",
+      "bars": 493,
+      "first": "2024-10-04",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "6934",
+      "bars": 173,
+      "first": "2026-02-02",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "7750",
+      "bars": 265,
+      "first": "2025-09-17",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "7795",
+      "bars": 184,
+      "first": "2026-01-16",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "8016",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "8046",
+      "bars": 5052,
+      "first": "2006-04-07",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "8081",
+      "bars": 4371,
+      "first": "2008-12-30",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "8112",
+      "bars": 5590,
+      "first": "2004-02-09",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "8131",
+      "bars": 4641,
+      "first": "2007-11-29",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "8150",
+      "bars": 3053,
+      "first": "2014-04-11",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "8210",
+      "bars": 5285,
+      "first": "2005-04-28",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "8261",
+      "bars": 5531,
+      "first": "2004-04-15",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "8271",
+      "bars": 3862,
+      "first": "2010-12-29",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "8299",
+      "bars": 5380,
+      "first": "2004-12-06",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "8436",
+      "bars": 3201,
+      "first": "2013-09-12",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "8454",
+      "bars": 2886,
+      "first": "2014-12-19",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "8996",
+      "bars": 4991,
+      "first": "2006-06-30",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "9911",
+      "bars": 5578,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 1,
+      "issues": []
+    },
+    {
+      "code": "9914",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "9927",
+      "bars": 5574,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 2,
+      "issues": []
+    },
+    {
+      "code": "9944",
+      "bars": 5588,
+      "first": "2004-02-11",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    },
+    {
+      "code": "9958",
+      "bars": 4575,
+      "first": "2008-03-12",
+      "latest": "2026-10-22",
+      "adjustments": 0,
+      "issues": []
+    }
+  ]
+}

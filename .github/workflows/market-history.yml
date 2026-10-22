@@ -1,17 +1,16 @@
 name: market-history
-# 完整歷史日K歷史（v200）：上市抓證交所每日收盤行情、上櫃抓櫃買個股月資料，存在 market-history 分支，
-# 再組成網站追蹤股票的 history/代號.json，由 public-site 一起發佈。不寫試算表、不跑 AI、不寄信。
+run-name: 完整歷史日K · 增量進度與發布核對
 on:
   schedule:
-    - cron: '40 10 * * 1-5' # 台北 18:40，證交所與櫃買收盤資料都已公布
+    - cron: '40 10 * * 1-5'
   workflow_dispatch:
     inputs:
       years:
-        description: '往回補幾年，0＝來源全部可探查範圍'
+        description: '0＝全部可探查範圍；有有效封存就沿用'
         type: number
         default: 0
       minutes:
-        description: '這一次最多抓幾分鐘，沒抓完下次續抓'
+        description: '抓取總預算分鐘；到時保存並續補'
         type: number
         default: 150
 permissions:
@@ -24,6 +23,12 @@ jobs:
   history:
     runs-on: ubuntu-24.04
     timeout-minutes: 190
+    env:
+      SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+      GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
+      GH_TOKEN: ${{ github.token }}
+      YEARS: ${{ inputs.years || 0 }}
+      MINUTES: ${{ inputs.minutes || 150 }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/checkout@v5
@@ -33,97 +38,66 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
-          cache: pip
-          cache-dependency-path: requirements-market.txt
       - run: pip install -r requirements-market.txt
-      - name: 增量補齊與來源邊界契約
-        run: python scripts/test_market_history.py
-      - name: 交易所公告的股數變動（面額變更、減資、ETF 分割／反分割）
-        run: python scripts/market_history.py fetch-events --archive data/archive
-      - name: 上市與上櫃同時抓（第一輪）
-        env:
-          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
-          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
-          YEARS: ${{ inputs.years || 0 }}
-          MINUTES: ${{ inputs.minutes || 80 }}
+      - name: 增量、進度、隔離與保存契約
+        run: python -m unittest scripts/test_market_history.py scripts/test_history_publication.py
+      - name: 記錄起點與目前覆蓋
         run: |
-          # 證交所與櫃買是兩個主機、各自限速：同時抓，不必排隊各用一半時間（v200r2）
-          python scripts/market_history.py fetch-tpex --archive data/archive --sheets --years "$YEARS" --deadline-min "$((MINUTES / 2))" > tpex.log 2>&1 &
-          tpex=$!
-          python scripts/market_history.py fetch-twse --archive data/archive --years "$YEARS" --deadline-min "$((MINUTES / 2))" || twse_failed=1
-          wait "$tpex" || tpex_failed=1
-          tail -n 40 tpex.log
-          test -z "$twse_failed$tpex_failed"
-      - name: 第一輪存檔與發布
+          mkdir -p progress
+          git -C data rev-parse HEAD > progress/start-data-sha.txt
+          python scripts/history_progress_report.py --data data --logs progress --baseline
+      - name: 先保存並發布已有的有效封存
+        id: initial
         continue-on-error: true
-        env:
-          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
-          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          cd data
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          save() {   # 先存本輪封存，再併入遠端（另一台機器可能也推了更早的日子），併完重組 history 再推
-            git add -A archive
-            git diff --cached --quiet || git commit -q -m "market history archive $(TZ=Asia/Taipei date +%F) $1"
-            for i in 1 2 3; do
-              git pull -q --rebase -X theirs origin market-history || { git rebase --abort; sleep 5; continue; }
-              (cd .. && python scripts/market_history.py build --archive data/archive --out data/history --sheets \
-                     && python scripts/market_history.py check --out data/history --archive data/archive) || return 1
-              git add -A history
-              git diff --cached --quiet || git commit -q -m "market history build $(TZ=Asia/Taipei date +%F) $1"
-              git push -q origin HEAD:market-history && return 0
-              sleep 5
-            done
-            return 1
-          }
-          before=$(git rev-parse origin/market-history)
-          save checkpoint && [ "$(git rev-parse HEAD)" != "$before" ] && gh workflow run public-site.yml --ref main || true
-      - name: 上市與上櫃同時抓（第二輪）
+        run: python scripts/publish_market_history.py --data data --label initial --report progress/publication-0-initial.json
+      - name: 起始發布狀態
         if: always() && !cancelled()
-        env:
-          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
-          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
-          YEARS: ${{ inputs.years || 0 }}
-          MINUTES: ${{ inputs.minutes || 80 }}
+        run: python scripts/history_progress_report.py --data data --logs progress
+      - name: 交易所官方股數變動事件
+        run: python -u scripts/market_history.py fetch-events --archive data/archive
+      - name: 第一輪即時進度（上市日／上櫃代號月）
         run: |
-          # 證交所與櫃買是兩個主機、各自限速：同時抓，不必排隊各用一半時間（v200r2）
-          python scripts/market_history.py fetch-tpex --archive data/archive --sheets --years "$YEARS" --deadline-min "$((MINUTES / 2))" > tpex.log 2>&1 &
+          set -o pipefail
+          python -u scripts/market_history.py fetch-tpex --archive data/archive --sheets --years "$YEARS" --deadline-min "$((MINUTES / 2))" --progress-file progress/1-tpex-progress.json 2>&1 | tee progress/1-tpex.log &
           tpex=$!
-          python scripts/market_history.py fetch-twse --archive data/archive --years "$YEARS" --deadline-min "$((MINUTES / 2))" || twse_failed=1
+          twse_failed=0
+          tpex_failed=0
+          python -u scripts/market_history.py fetch-twse --archive data/archive --years "$YEARS" --deadline-min "$((MINUTES / 2))" --progress-file progress/1-twse-progress.json 2>&1 | tee progress/1-twse.log || twse_failed=1
           wait "$tpex" || tpex_failed=1
-          tail -n 40 tpex.log
-          test -z "$twse_failed$tpex_failed"
-      - name: 存回 market-history 分支
-        id: commit
+          test "$twse_failed$tpex_failed" = '00'
+      - name: 第一輪先保存封存再驗證發布
+        id: checkpoint
         if: always() && !cancelled()
-        env:
-          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
-          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
+        continue-on-error: true
+        run: python scripts/publish_market_history.py --data data --label checkpoint --report progress/publication-1-checkpoint.json
+      - name: 第一輪覆蓋與發布摘要
+        if: always() && !cancelled()
+        run: python scripts/history_progress_report.py --data data --logs progress
+      - name: 第二輪即時進度（沿用舊檔、只補缺口）
+        if: always() && !cancelled()
         run: |
-          cd data
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          save() {   # 先存本輪封存，再併入遠端（另一台機器可能也推了更早的日子），併完重組 history 再推
-            git add -A archive
-            git diff --cached --quiet || git commit -q -m "market history archive $(TZ=Asia/Taipei date +%F) $1"
-            for i in 1 2 3; do
-              git pull -q --rebase -X theirs origin market-history || { git rebase --abort; sleep 5; continue; }
-              (cd .. && python scripts/market_history.py build --archive data/archive --out data/history --sheets \
-                     && python scripts/market_history.py check --out data/history --archive data/archive) || return 1
-              git add -A history
-              git diff --cached --quiet || git commit -q -m "market history build $(TZ=Asia/Taipei date +%F) $1"
-              git push -q origin HEAD:market-history && return 0
-              sleep 5
-            done
-            return 1
-          }
-          before=$(git rev-parse origin/market-history)
-          save final
-          if [ "$(git rev-parse HEAD)" = "$before" ]; then echo "changed=false" >> "$GITHUB_OUTPUT"; echo '沒有新資料'; else echo "changed=true" >> "$GITHUB_OUTPUT"; fi
-      - name: 重新發佈網站（帶上新的 history）
-        if: steps.commit.outputs.changed == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh workflow run public-site.yml --ref main
+          set -o pipefail
+          python -u scripts/market_history.py fetch-tpex --archive data/archive --sheets --years "$YEARS" --deadline-min "$((MINUTES / 2))" --progress-file progress/2-tpex-progress.json 2>&1 | tee progress/2-tpex.log &
+          tpex=$!
+          twse_failed=0
+          tpex_failed=0
+          python -u scripts/market_history.py fetch-twse --archive data/archive --years "$YEARS" --deadline-min "$((MINUTES / 2))" --progress-file progress/2-twse-progress.json 2>&1 | tee progress/2-twse.log || twse_failed=1
+          wait "$tpex" || tpex_failed=1
+          test "$twse_failed$tpex_failed" = '00'
+      - name: 最後保存與品質驗證（失敗不冒充發布）
+        id: final
+        if: always() && !cancelled()
+        run: python scripts/publish_market_history.py --data data --label final --report progress/publication-2-final.json
+      - name: 最終進度與覆蓋摘要
+        if: always()
+        run: python scripts/history_progress_report.py --data data --logs progress
+      - name: 保留本輪新增封存與異常證據
+        if: always()
+        run: python scripts/history_progress_archive.py --data data --logs progress
+      - name: 下載進度、品質與未推送封存
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-history-progress-${{ github.run_id }}
+          path: progress/
+          retention-days: 14

@@ -20,6 +20,7 @@ history/代號.json：保留原始成交價與股數。疑似分割只記候選�
 import argparse
 import gzip
 import json
+import math
 import re
 import sys
 import time
@@ -40,6 +41,48 @@ CODE_RE = re.compile(r'^(?:\d{4,6}[A-Z]?)$')
 _last = {'twse': 0.0, 'tpex': 0.0}
 
 
+class HistoryProgress:
+    """探查進度，不代表歷史完整度；有效舊封存沿用另計。"""
+    def __init__(self, market, total, args):
+        self.path = getattr(args, 'progress_file', None)
+        self.started = time.time()
+        self.last_emit = 0
+        self.state = dict(market=market, total=total, processed=0, new=0, refreshed=0, kept=0,
+                          emptyUnverified=0, failed=0, skipped=0, current='', phase='running')
+        self.emit(True)
+
+    def begin(self, current):
+        self.state['current'] = current
+        self.emit()
+
+    def tick(self, result, empty=False):
+        self.state['processed'] += 1
+        self.state[result] += 1
+        if empty:
+            self.state['emptyUnverified'] += 1
+        self.emit()
+
+    def emit(self, force=False, phase=None):
+        if phase:
+            self.state['phase'] = phase
+        now = time.time()
+        if not force and now - self.last_emit < 10:
+            return
+        self.last_emit = now
+        s = self.state
+        s['elapsedSeconds'] = round(now - self.started)
+        s['updatedAt'] = _iso_now()
+        s['percent'] = round(100 * s['processed'] / s['total'], 1) if s['total'] else 100
+        if self.path:
+            _write(Path(self.path), s)
+        filled = min(20, int(s['percent'] / 5))
+        phase_label = {'running': '進行中', 'paused': '本輪預算到，待續補', 'scanned': '本輪已走訪，非完整核實'}[s['phase']]
+        print(f'{s["market"]}探查 [{"█" * filled}{"░" * (20-filled)}] {s["percent"]}% '
+              f'{s["processed"]}/{s["total"]}（尚餘 {s["total"]-s["processed"]}）｜新增封存 {s["new"]}｜複核/更新 {s["refreshed"]}｜沿用 {s["kept"]}｜'
+              f'空回應待核 {s["emptyUnverified"]}｜失敗 {s["failed"]}｜休市略過 {s["skipped"]}｜'
+              f'{s["current"]}｜耗時 {s["elapsedSeconds"]} 秒｜{phase_label}', flush=True)
+
+
 def _get(url, host, tries=4, form=None):
     for attempt in range(tries):
         wait = GAP[host] - (time.time() - _last[host])
@@ -53,9 +96,10 @@ def _get(url, host, tries=4, form=None):
             if text.lstrip().startswith('<'):
                 raise ValueError('回傳網頁不是 JSON')
             return json.loads(text)
-        except Exception:  # 逾時、5xx、被暫時封鎖：退避後重試
+        except Exception as exc:  # 逾時、5xx、被暫時封鎖：退避後重試
             if attempt == tries - 1:
                 raise
+            print(f'{"上市" if host == "twse" else "上櫃"}來源重試 {attempt + 1}/{tries}：{type(exc).__name__}，等待 {4 * (attempt + 1) ** 2} 秒', flush=True)
             time.sleep(4 * (attempt + 1) ** 2)
 
 
@@ -246,32 +290,42 @@ def cmd_fetch_twse(args):
     if getattr(args, 'order', 'newest') == 'oldest':
         days.reverse()   # 第二台機器由遠往近，與 Actions 不重疊（兩個 IP 各自限速）
     stop, done, kept, skipped = _deadline(args), 0, 0, 0
+    progress = HistoryProgress('上市', sum(d.weekday() != 6 for d in days), args)
+    paused = False
     for day in days:
         if time.time() > stop:
+            paused = True
             print(f'時間到，停在 {day}，下次續抓'); break
         if day.weekday() == 6:   # 星期日從不交易；星期六有補行上班日交易（2017/02/18 等）
             continue
         iso, p = day.isoformat(), Path(args.archive) / 'twse' / f'{day:%Y}' / f'{day:%Y%m%d}.json.gz'
+        progress.begin(iso)
         closed = f'{day:%Y%m}' in known and iso not in trading
         fresh = (now.date() - day).days <= 1
         cached = _read(p, True)
-        if cached and not fresh and (cached.get('rows') or _empty_settled(cached, day, closed) != 'ask'):
-            kept += 1; continue
+        if cached and (cached.get('rows') or not fresh and _empty_settled(cached, day, closed) != 'ask'):
+            kept += 1
+            progress.tick('kept', not cached.get('rows') and _empty_settled(cached, day, closed) != 'settled')
+            continue
         if not cached and day.weekday() == 5 and closed:
-            skipped += 1; continue   # 櫃買日曆說這個星期六沒開盤，不必問證交所
+            skipped += 1; progress.tick('skipped'); continue   # 櫃買日曆說這個星期六沒開盤，不必問證交所
         try:
             rec = {'date': iso, **fetch_twse_day(day)}
         except Exception as e:
+            progress.tick('failed')
             print(f'{day} 上市抓取失敗，下次再補：{type(e).__name__}: {str(e)[:80]}', flush=True); continue
         if rec['stat'] == 'no-table':
+            progress.tick('failed')
             print(f'{day} 來源欄位改變，不保存成休市', flush=True); continue
         if not rec['rows']:
             rec['checks'] = _checks(cached) + [_iso_now()]
             rec['checkedAt'] = rec['checks'][0]
         _write(p, rec, zipped=True)
         done += 1
+        progress.tick('refreshed' if cached else 'new', not rec['rows'])
         if done % 50 == 0:
             print(f'上市 {day}：已抓 {done} 天（當天 {len(rec["rows"])} 檔）', flush=True)
+    progress.emit(True, 'paused' if paused else 'scanned')
     print(f'上市抓取：新抓 {done} 天、沿用 {kept} 天、依櫃買日曆略過 {skipped} 個休市週六（{start} ～ {end}）')
 
 
@@ -314,6 +368,7 @@ def twse_first_dates(archive):
 def cmd_fetch_tpex(args):
     """不在上市的追蹤股票整段到櫃買查；上市之前在櫃買交易過的（轉上市），補上市第一天以前的月份。"""
     now = datetime.now(TZ)
+    print('上櫃：先讀取已有封存的上市起點與官方掛牌月份；此階段不重抓已保存的歷史行情。', flush=True)
     first, earliest = twse_first_dates(args.archive)
     this_month = now.year * 12 + now.month - 1
     plan = []
@@ -330,6 +385,8 @@ def cmd_fetch_tpex(args):
     stop, done, kept = _deadline(args), 0, 0
     start = _start(args, now.date(), TPEX_START)
     first_month = start.year * 12 + start.month - 1
+    total = sum(max(0, k - max(first_month, floor if floor is not None else first_month) + 1) for _, k, floor, _ in plan)
+    progress = HistoryProgress('上櫃', total, args)
     for code, k, floor, transfer in plan:
         empty = 0
         # 櫃買偶爾對有資料的月份也回「沒有符合條件的資料」（2026/10/22 實測，隔幾分鐘就正常）。
@@ -337,15 +394,18 @@ def cmd_fetch_tpex(args):
         seen = any(json.loads(f.read_text(encoding='utf-8')).get('rows') for f in (Path(args.archive) / 'tpex' / code).glob('*.json'))
         while k >= max(first_month, floor if floor is not None else first_month):   # 由近往遠，到掛牌（或成立）那個月為止
             if time.time() > stop:
+                progress.emit(True, 'paused')
                 print(f'時間到，停在 {code} {k // 12}/{k % 12 + 1:02d}，下次續抓'); print(f'上櫃抓取：新抓 {done} 個月、沿用 {kept} 個月'); return
             y, m = k // 12, k % 12 + 1
+            progress.begin(f'{code}／{y}-{m:02d}')
             p = Path(args.archive) / 'tpex' / code / f'{y}{m:02d}.json'
-            recent = this_month - k <= 1                                # 本月與上月還在變：重抓
+            recent = this_month == k                                    # 已結束的舊月有資料就沿用
             cached = _read(p)
             last_day = date(y + m // 12, m % 12 + 1, 1) - timedelta(days=1)
             if cached and (cached.get('rows') and (not recent or _age(cached.get('fetchedAt')) < 20 * 3600)
                            or not cached.get('rows') and _empty_settled(cached, last_day) != 'ask'):
                 rec = cached; kept += 1
+                progress.tick('kept', not rec.get('rows') and _empty_settled(rec, last_day) != 'settled')
             else:
                 try:
                     rec = fetch_tpex_month(code, y, m)
@@ -353,6 +413,7 @@ def cmd_fetch_tpex(args):
                         time.sleep(5)
                         rec = fetch_tpex_month(code, y, m)
                 except Exception as e:
+                    progress.tick('failed')
                     print(f'{code} {y}/{m:02d} 上櫃抓取失敗，下次再補：{type(e).__name__}', flush=True); k -= 1; continue
                 seen = seen or bool(rec['rows'])
                 # 空月只代表待核；不以連續空月推測掛牌日，且仍檢查更早月份。
@@ -362,11 +423,13 @@ def cmd_fetch_tpex(args):
                     rec['checkedAt'] = rec['checks'][0]
                 _write(p, rec)
                 done += 1
+                progress.tick('refreshed' if cached else 'new', not rec['rows'])
             empty = 0 if rec.get('rows') else empty + 1
             k -= 1
             # 連續空月可能是暫時來源問題或上市前停牌，不能據此認定不是轉板。
             # 沿用已核對封存，仍探查至官方成立／上櫃月份；時間到由原有預算退出續補。
-        print(f'上櫃 {code}：完成', flush=True)
+        print(f'上櫃 {code}：本輪探查結束（可用與待核數量見進度）', flush=True)
+    progress.emit(True, 'scanned')
     print(f'上櫃抓取：{len(plan)} 檔，新抓 {done} 個月、沿用 {kept} 個月')
 
 
@@ -496,10 +559,30 @@ def build_series(entries, events=None):
     return rows, adjustments
 
 
+def history_row_issue(row):
+    """只隔離來源矛盾，不改價、不把缺失OHLC補成收盤價。"""
+    if len(row) != 7:
+        return '欄位數不符'
+    try:
+        if date.fromisoformat(row[0]).isoformat() != row[0]:
+            return '日期格式不符'
+    except (ValueError, TypeError):
+        return '日期格式不符'
+    if any(type(row[i]) not in (int, float) or not math.isfinite(row[i]) for i in (1, 2, 3, 4, 6)):
+        return '價格或成交股數非有限數字'
+    _, o, h, l, c, _, volume = row
+    if min(o, h, l, c) <= 0 or volume < 0:
+        return '價格非正或成交股數為負'
+    if l > min(o, c) + 1e-9 or h < max(o, c) - 1e-9:
+        return '官方來源開高低收互相矛盾'
+    return ''
+
+
 def cmd_build(args):
     codes = _code_set(args)
     events = load_events(args.archive)
     series, names, market = {c: {} for c in codes}, {}, {}
+    source_files = {c: {} for c in codes}
     scanned_days, empty_days, month_coverage = set(), [], {}
     known, trading = tpex_calendar(args.archive)
     for p in sorted((Path(args.archive) / 'twse').glob('*/*.json.gz')):
@@ -512,6 +595,7 @@ def cmd_build(args):
         for code, name, o, h, l, c, chg, vol in rec.get('rows', []):
             if code in series:
                 series[code][rec['date']] = (rec['date'], o, h, l, c, chg, vol); names[code] = name; market[code] = '上市'
+                source_files[code][rec['date']] = str(p.relative_to(args.archive)).replace('\\', '/')
     for code in codes:
         months, empty_months = [], []
         for p in sorted((Path(args.archive) / 'tpex' / code).glob('*.json')):
@@ -521,6 +605,7 @@ def cmd_build(args):
                 empty_months.append(p.stem)
             for d, o, h, l, c, chg, vol in rec.get('rows', []):
                 series[code].setdefault(d, (d, o, h, l, c, chg, vol))   # 轉上市前的櫃買資料；同一天以上市為準
+                source_files[code].setdefault(d, str(p.relative_to(args.archive)).replace('\\', '/'))
             if rec.get('rows'):
                 market.setdefault(code, '上櫃')
                 if rec.get('name'):
@@ -531,15 +616,27 @@ def cmd_build(args):
     meta = {'updated': datetime.now(TZ).isoformat(timespec='seconds'), 'codes': {},
             'scope': '全部可探查範圍；非固定十年。覆蓋不足不代表掛牌起點。',
             'sourceFloors': {'twse': TWSE_START.isoformat(), 'tpexProbe': TPEX_START.isoformat()},
-            'coverageVerified': False, 'requestedCodes': sorted(codes)}
+            'coverageVerified': False, 'requestedCodes': sorted(codes), 'quarantinedRows': []}
     for code in sorted(series):
         entries = [series[code][d] for d in sorted(series[code])]
+        valid, excluded = [], []
+        for row in entries:
+            reason = history_row_issue(row)
+            if reason:
+                excluded.append({'code': code, 'date': row[0], 'reason': reason,
+                                 'sourceFile': source_files[code].get(row[0], ''),
+                                 'raw': [str(v) if isinstance(v, float) and not math.isfinite(v) else v for v in row]})
+            else:
+                valid.append(row)
+        meta['quarantinedRows'].extend(excluded)
+        entries = valid
         if not entries:
             continue
         rows, adjustments = build_series(entries, events.get(code))
         doc = {'code': code, 'name': names.get(code, ''), 'market': market.get(code, ''),
                'source': '上市：證交所 MI_INDEX 每日收盤行情；上櫃：櫃買中心個股月成交資訊', 'basis': 'raw-except-official-share-events',
                'volumeBasis': 'raw-traded-shares-incl-odd-lots', 'adjustments': adjustments,
+               'excludedRows': excluded,
                'first': rows[0][0], 'latest': rows[-1][0], 'fields': ['date', 'open', 'high', 'low', 'close', 'volume'], 'rows': rows}
         official = {a['date'] for a in adjustments}
         doc['splitCandidates'] = [{'date': b[0], 'factor': split_factor(a[4], b[4], b[5])} for a, b in zip(entries, entries[1:])
@@ -567,6 +664,7 @@ def cmd_build(args):
         meta['updated'] = before['updated']
     _write(out / '_meta.json', meta)
     print(f'產生 {len(meta["codes"])} 檔（要求 {len(codes)} 檔），最新 {meta["latest"]}')
+    print(f'來源矛盾隔離 {len(meta["quarantinedRows"])} 筆，原封存保留，不把缺口當完整')
     print(f'完整度待核：上市尚有 {len(missing_days)} 個平日、{len(missing_saturdays)} 個週六候選日未抓、{len(empty_days)} 個空回應未核實；缺少歷史檔 {len(meta["missingCodes"])} 檔')
 
 
@@ -596,7 +694,7 @@ def cmd_check(args):
             if not rec.get('rows') and date.fromisoformat(rec['date']).weekday() < 5:   # 星期六沒開盤是常態，不算
                 off.setdefault(rec['date'][:4], []).append(rec['date'])
         for y in sorted(off):
-            print(f'{y} 平日休市 {len(off[y])} 天' + ('　偏多，請人工確認' if len(off[y]) > 25 else ''))
+            print(f'{y} 平日空回應 {len(off[y])} 天（不等於已核實休市）' + ('　偏多，請人工確認' if len(off[y]) > 25 else ''))
     print('檢查完成：' + ('有日期或價格錯誤' if bad else '沒有日期或價格錯誤'))
     return 1 if bad else 0
 
@@ -609,6 +707,7 @@ def main():
         s.add_argument('--archive', required=True)
         s.add_argument('--years', type=int, default=0, help='0 為來源可探查全部範圍，不以十年截斷')
         s.add_argument('--deadline-min', type=float)
+        s.add_argument('--progress-file', help='即時探查計數JSON；不等同完整覆蓋')
         s.add_argument('--start')
         if name == 'fetch-twse':
             s.add_argument('--end')

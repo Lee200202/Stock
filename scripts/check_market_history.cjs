@@ -104,4 +104,4 @@ for (const m of [36, 60, 120]) {
   const i = ctx.rangeStartIndex(bars, m), y = +last.slice(0, 4) - m / 12, cutDate = y + last.slice(4);
   ok(bars[i].date >= cutDate && (i === 0 || bars[i - 1].date < cutDate), m + ' 個月起點 ' + bars[i].date);
 }
-console.log('十年日K合併與指標：' + n + ' 項通過');
+console.log('完整歷史日K合併與指標：' + n + ' 項通過');

@@ -17,6 +17,8 @@
 
 ## 2. 本機關卡與來源同步
 
+修改Config的GAS_BUILD或畫面版本標記時，同步Setup的PROJECT_BUILD及PROJECT_HTML；新增共用include也納入檢查。發布前執行 `node scripts/check_project_manifest.cjs`，核對真實HTML標記及版本一致，避免新版被舊檢查表誤報。標記優先採穩定元件識別，不依賴可翻譯的英文註解。
+
 按 diff 選相關測試、數值與畫面，再擴測解決具體風險；不把固定歷史測試總數當門檻。新增回歸失敗需處理，舊失敗也要指出影響，不能只說「本來就有」全部略過。
 
 常用 `scripts/check_original_parity.py`、`scripts/build_original_site.py`；內容、行情、UI 各腳本讀目前參數後執行。`sync_quality.py` 只同步指定 Prompt／共用片段，不能代表全部 Python 與 GAS 等效。

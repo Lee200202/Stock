@@ -1,7 +1,8 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
-const base='public-site/gas-source/';
-const setup=fs.readFileSync(base+'Setup.gs','utf8');
-const config=fs.readFileSync(base+'Config.gs','utf8');
+const base=(process.argv[2]||'public-site/gas-source').replace(/[\\/]$/,'')+'/';
+const readGas=name=>fs.readFileSync(base+name+(fs.existsSync(base+name+'.gs')?'.gs':'.js'),'utf8');
+const setup=readGas('Setup');
+const config=readGas('Config');
 const source=setup.slice(setup.indexOf('var PROJECT_BUILD_'),setup.indexOf('/** 部署後只讀驗收'));
 const files=new Map(fs.readdirSync(base).filter(f=>f.endsWith('.html')).map(f=>[f.slice(0,-5),fs.readFileSync(base+f,'utf8')]));
 const ctx={GAS_BUILD:config.match(/var GAS_BUILD = '([^']+)'/)[1],HtmlService:{createTemplateFromFile:n=>{if(!files.has(n))throw Error('找不到');return {getRawContent:()=>files.get(n)}}},Logger:{log:()=>{}}};

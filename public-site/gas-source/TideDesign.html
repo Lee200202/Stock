@@ -137,4 +137,13 @@ body:not([data-tab]) table thead th{position:sticky;top:0;z-index:15;background:
 .k-retry:hover{background:var(--brand);color:#fff}
 @media (max-width:900px){#detail .dnav{-webkit-mask-image:linear-gradient(90deg,#000 86%,transparent);mask-image:linear-gradient(90deg,#000 86%,transparent)}}
 @media (max-width:600px){#detail .readout{font-size:12.5px;gap:2px 12px}}
+/* v199r1（管理者 10/22）：成組的統計膠囊、分段鈕、圖例與操作列一律置中；標題與內文仍靠左方便閱讀。
+   只作用在前台（body[data-tab]），後台同一份樣式不受影響。會橫向捲動的列用 safe center，放不下時仍從左邊開始。 */
+body[data-tab] .hero-grid>#ledger{justify-self:center;justify-content:center}
+body[data-tab] .mailcal-legend{justify-content:center}
+body[data-tab] #perfRange,body[data-tab] #trackerSortBar,body[data-tab] .book-motion,body[data-tab] .th-ctl{justify-content:center}
+body[data-tab] #p-perf .sect>.chartbar.seg,body[data-tab] #trackerToggle{display:flex;width:fit-content;margin-inline:auto}
+body[data-tab] #detail .chartbar.kbar,body[data-tab] #kLegend,body[data-tab] #detail .tide-segments,body[data-tab] #readout{justify-content:center}
+@media (min-width:1000px){body[data-tab] nav.wrap.tabs,body[data-tab] #detail .dnav{justify-content:safe center}}
+@media (max-width:900px){body[data-tab] #detail .dnav{padding-right:72px}}   /* 手機：右上角關閉鈕浮在導覽列上，留出位置不蓋住「每天講了什麼」 */
 </style>

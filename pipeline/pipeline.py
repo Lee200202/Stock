@@ -11865,6 +11865,9 @@ def verified_note_view(signals, row, category, transcript):
     result = {'category': category, 'open_position': bool(entry.get('open')), 'quotations': []}
     hay = _ev_norm(transcript)
     allowed = {category, 'watch_watch'} if category == 'holdings' else {category}
+    if category == 'holdings' and entry.get('open') and entry.get('also'):
+        allowed.add(entry['also'][0])
+        result['separate_entry_stance'] = entry['also'][0]
     for attempt in entry.get('attempts', []):
         if attempt.get('class') not in allowed:
             continue
@@ -13345,7 +13348,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v37-source-direction-consensus-20261022" # 方向反對與具名中性收錄票分軸；不降低成交或部位證據。
+VERDICT_VERSION = "v38-position-entry-axes-20261022" # 剩餘部位與新進場限制分軸；不擴張並列名單的結論範圍。
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 5                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -13383,6 +13386,7 @@ neutral_description：只有已發生的價格、漲跌、位置或名單，所�
 反例：只說某股常常試撮合跌停但開盤後上漲，以解釋試撮合不等於成交，且沒有目前買點、風險或操作建議，才是general_example；只有昨天賺錢賣掉、今天無新看法，才是historical_only。
 
 共享結論：可先說這兩支／這幾檔的共同均線條件與不要殺低，稍後才報名字。用整個context確認回指成員，scope=shared、members逐字列出適用名稱，每檔分別回答。共享的只限結論；一檔股本、成本、MACD、籌碼不借給同組另一檔。
+不同句的並列名單不得自動合併：前句列甲、乙、丙今日漲停，後句只點甲、乙表示往後不參與，禁令只適用後句確認的甲、乙；丙若沒有其他當下結論，仍為neutral_description。scope=self也不能讓丙借用只點甲、乙的引句。只有「這三檔／以上全部」等可確認回指，才把結論共享給完整名單；鄰近、同產業或同漲跌不是共享依據。
 不要只引用報名字那一句就回答「只是點名」。先在context前後找「這兩支／他們」的共同結論及所指名單，再引用真正支持結論的句子。例：先說「這兩支都到年線，現在不要殺低」，接著點名甲、乙，是本日重申的正面操作看法；但「甲股本小、拉起來較快」只屬甲。若只是產業成分名單而沒有可綁定結論，仍不公開。
 反問式重申：「我昨天有沒有講甲還有乙？」可用來再次點明目前結論的適用名單。同段另有共同均線條件、「不要再賣」「你們在賣什麼意思」時，先核對回指，確認對甲、乙的本日勸不要殺低，才答current_view、sell_discouraged=true、direction=positive。不能因一句有昨天便當歷史，也不能只憑反問就推定目前立場；只有過去損益仍為historical_only。
 談論股價和均線的上下文中，連線／年限可能是年線、薊限／季限可能是季線、記憶題可能是記憶體。依完整語境理解同音轉寫詞，不改引用原字；語境不足仍待核，不能把任何連線都當年線。
@@ -14040,6 +14044,13 @@ def _verdict_cache(ss, date_str):
             entry['manual'] = manual
         cls = back.get(cell("分類"), '')
         if cls and cell("判定方式") == '裁決' and cell("段落指紋"):
+            # 單一分類快取無法還原雙軸原句；這類裁決併入原有批次重核，不壓成一個標籤。
+            try:
+                detail = json.loads(row[head.index('問卷答案')]) if '問卷答案' in head else {}
+            except (ValueError, TypeError, IndexError):
+                detail = {}
+            if isinstance(detail, dict) and detail.get('_requires_multi_axis_review') is True:
+                continue
             entry['by_fp'][(cell("段落指紋"), cell("基準版本"))] = cls
     return out
 
@@ -14516,6 +14527,22 @@ def finalize_position_identity(verdicts, signals):
             entry.update(cls='uncertain', tier='未裁決', enforce=True,
                          basis=entry.get('basis', '') + '｜公司身分與一般詞用途核對矛盾，本股暫不公開')
             signals['_quality_requires_review'] = True
+        elif (entry.get('cls') == 'watch_avoid' and entry.get('open')
+              and not entry.get('not_held') and not entry.get('trade_check')
+              and entry.get('tier') not in ('未定', '未裁決')):
+            usable = [a for a in entry.get('attempts', []) if a.get('class')]
+            restricted = []
+            for attempt in usable:
+                answer = attempt.get('answer') or {}
+                semantic = answer.get('semantic') or {}
+                if (attempt.get('class') == 'watch_avoid' and answer.get('about_itself') is True
+                        and semantic.get('entity') == 'company' and semantic.get('role') == 'current_view'
+                        and semantic.get('entry_restricted_now') is True
+                        and isinstance(semantic.get('quote'), str) and semantic['quote']):
+                    restricted.append(semantic['quote'])
+            if len(restricted) >= 2 and len(restricted) * 2 > len(usable):
+                entry.update(cls='holdings', enforce=True, also=('watch_avoid', restricted[0]),
+                             basis=entry.get('basis', '') + '｜既有剩餘部位與已核對暫不進場分軸保留')
         elif (entry.get('cls') == 'watch_watch' and entry.get('open')
               and entry.get('tier') not in ('未定', '未裁決')):
             entry.update(cls='holdings', enforce=True,
@@ -15165,10 +15192,12 @@ def save_verdicts(ss, date_str, signals):
     for code, entry in (signals.get('_verdicts') or {}).items():
         # 經來源核對的直接決定，也會約束下游郵件關卡。
         # 保存的是事實，不是可重用的模型票；快取只採用
-        # reuses tier=裁決). Otherwise the gate can re-add a rejected stock.
+        # 判定方式為「裁決」的單軸結果；否則下游可能重新補入已拒絕的股票。
         if not entry.get('new') and not (entry.get('enforce') and entry.get('tier') == '直接歸類'):
             continue
         answer = ((entry.get('answer') or {}).get(entry.get('cls')) or {}).get('answer') or {}
+        if entry.get('also'):
+            answer = dict(answer, _requires_multi_axis_review=True)
         votes = '／'.join(_VERDICT_LABEL.get(v, v) or '不能用' for v in entry.get('votes') or [])
         rows.append([date_str, str(signals.get('_video_id') or ''), code, str(entry.get('name') or ''),
                      _VERDICT_LABEL.get(entry.get('cls'), ''), str(entry.get('tier') or ''),

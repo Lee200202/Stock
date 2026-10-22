@@ -176,3 +176,17 @@ body[data-tab] :is(.tab,.dnav button,.tide-segments button,.moreb){transition:ba
 body[data-tab] :is(.tab,.dnav button,.tide-segments button,.moreb):active{transform:scale(.98)}
 @media(prefers-reduced-motion:reduce){body[data-tab] :is(.tab,.dnav button,.tide-segments button,.moreb){transition:none;transform:none!important}}
 </style>
+
+<style id="surfaceSpacingV202">
+/* 功能卡的箭頭回到自然排版，卡片不用為浮動箭頭空出一大段。 */
+body[data-tab] .ss-card{min-height:0;padding:24px;gap:10px}
+body[data-tab] .ss-card .ss-go{position:static;align-self:flex-end;margin-top:auto;flex-shrink:0}
+body[data-tab] .ss-explore{margin-top:32px}
+body[data-tab] .tabbar{padding-block:8px}
+body[data-tab] #detail .detail-body{gap:20px;padding:clamp(16px,2vw,28px)}
+body[data-tab] #detail .detail-body>.sect{padding:22px}
+body[data-tab] #detail :is(.readout,.kchart-box){margin-block:12px}
+body[data-tab] :is(.tabs,#dNav){scrollbar-width:thin;scrollbar-color:var(--beam) transparent}
+body[data-tab] :is(.tabs,#dNav)::-webkit-scrollbar{height:6px}
+@media(max-width:600px){body[data-tab] #detail .detail-body>.sect{padding:16px}body[data-tab] .ss-card{padding:20px}}
+</style>

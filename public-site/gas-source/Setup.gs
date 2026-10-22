@@ -1246,7 +1246,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-10-22-compact-motion-v201';
+var PROJECT_BUILD_ = '2026-10-22-spacing-motion-v202';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
@@ -1285,6 +1285,8 @@ var PROJECT_HTML_ = [
   { file: 'UsagePanel', marker: 'usagePeriod' },
   { file: 'StoryDesign', marker: 'techAppleV199' },
   { file: 'StoryDesign', marker: 'compactScenesV201' },
+  { file: 'StoryDesign', marker: 'spacingBalanceV202' },
+  { file: 'TideDesign', marker: 'surfaceSpacingV202' },
   { file: 'TideDesign', marker: 'compactControlsV201' },
   { file: 'TideDesign', marker: 'rd-tr' },
   { file: 'Index', marker: "include('TideDesign')" },
@@ -1293,7 +1295,7 @@ var PROJECT_HTML_ = [
   { file: 'TechQuality', marker: '.quality-relationship' },
   { file: 'JavaScript', marker: 'function mergeHistoryDay' },
   { file: 'Stylesheet', marker: '.ss-shelf-pause' },
-  { file: 'Changelog', marker: 'v201 圖解與控制項可讀性' },
+  { file: 'Changelog', marker: 'v202 留白與捲動間距' },
   { file: 'Tech', marker: 'classDefinitions' },
   { file: 'Admin', marker: 'id="mLog" href="https://script.google.com/home/projects/' },
   { file: 'Settings', marker: '手機預覽' },

@@ -183,7 +183,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 /* 往下捲、卡片橫移（桌機且未要求減少動態）：區塊固定在畫面，垂直捲動換算成橫向位移 */
 #p-tech .ap-pin{position:relative}
 #p-tech .ap-pin.is-on{height:var(--ap-len,auto)}
-#p-tech .ap-pin.is-on>.ap-stage{position:sticky;top:var(--ap-top,72px);min-height:calc(100vh - var(--ap-top,72px));display:grid;align-content:center;overflow:clip;padding-block:24px}
+#p-tech .ap-pin.is-on>.ap-stage{position:sticky;top:var(--ap-top,72px);min-height:0;display:grid;align-content:start;overflow:clip;padding-block:12px}
 #p-tech .ap-pin.is-on :is(.journey-atlas-track,.journey-gallery){overflow:visible!important;scroll-snap-type:none!important;flex-wrap:nowrap;width:max-content;max-width:none;transform:translate3d(var(--ap-x,0px),0,0);will-change:transform}
 #p-tech .ap-pin.is-on .journey-gallery>*{scroll-snap-align:none;flex:0 0 clamp(320px,32vw,460px);width:clamp(320px,32vw,460px);max-width:460px;white-space:normal}
 #p-tech .ap-progress{height:3px;border-radius:3px;background:var(--ap-line);margin-top:18px;overflow:hidden}
@@ -220,9 +220,10 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   function measure(p){
     var on=mq.matches&&p.stage.offsetParent!==null;
     var dist=on?Math.max(0,p.track.scrollWidth-p.stage.clientWidth+8):0;
-    if(on&&dist<40){on=false;}   // 卡片本來就放得下：不必固定
+    // 內容高過可視範圍時保留原生橫滑，避免固定區把卡片下半截藏住。
+    if(on&&(dist<40||p.stage.scrollHeight>window.innerHeight-topOffset()-24)){on=false;}
     p.on=on;p.dist=dist;p.pin.classList.toggle('is-on',on);
-    if(on){p.pin.style.setProperty('--ap-top',topOffset()+'px');p.pin.style.setProperty('--ap-len',(p.stage.offsetHeight+dist)+'px');}
+    if(on){p.pin.style.setProperty('--ap-top',topOffset()+'px');p.pin.style.setProperty('--ap-len',(p.stage.offsetHeight+dist*.65)+'px');}
     else{p.pin.style.removeProperty('--ap-len');p.track.style.removeProperty('--ap-x');}
     update(p);
   }
@@ -307,4 +308,25 @@ body[data-tab] #p-tech .tech-book .src-card :is(b,strong,small,span){min-width:0
 @keyframes compactFlow{to{stroke-dashoffset:-36}}
 @media(prefers-reduced-motion:reduce){#p-tech .book-stage [data-book-path]{animation:none!important;transition:none!important}}
 @media(max-width:600px){body[data-tab] #p-tech .tech-book .book-stage figcaption{padding:18px}body[data-tab] #p-tech .tech-book .book-heading h2{font-size:min(34px,calc(25px * var(--rd-fs,1)))}body[data-tab] #p-tech .tech-book :is(.tech-pains,.agent-choices,.agent-map-steps,.decision-grid){grid-template-columns:minmax(0,1fr)}}
+</style>
+
+<style id="spacingBalanceV202">
+/* 縮短無內容的捲動區，圖面與長文維持自然高度。 */
+body[data-tab] #p-tech .tech-book .book-index{padding:28px 0 20px;margin-bottom:20px}
+body[data-tab] #p-tech .tech-book .book-index>h1{font-size:min(64px,calc(clamp(32px,4.2vw,54px) * var(--rd-fs,1)))!important;line-height:1.2!important;max-width:100%;text-wrap:wrap}
+body[data-tab] #p-tech .tech-book .book-index>p{max-width:none;margin-bottom:20px}
+body[data-tab] #p-tech .tech-book .book-heading{padding:8px 0 4px;margin-bottom:16px}
+body[data-tab] #p-tech .tech-book .book-heading h2{font-size:min(42px,calc(clamp(25px,2.5vw,34px) * var(--rd-fs,1)))!important;line-height:1.4!important}
+body[data-tab] #p-tech .tech-book .book-strip-row{padding:4px 2px 8px;gap:12px;align-items:stretch}
+body[data-tab] #p-tech .tech-book .book-strip-row>a{min-height:84px;padding:12px 16px;gap:8px}
+body[data-tab] #p-tech .tech-book .book-strip-row>a small{font-size:calc(20px * var(--rd-fs,1))}
+body[data-tab] #p-tech .tech-book .book-chapter{padding-bottom:24px}
+body[data-tab] #p-tech .tech-book .book-stage{margin:18px 0 24px}
+body[data-tab] #p-tech .tech-book :is(.journey-gallery,.journey-atlas-track){padding-bottom:8px}
+body[data-tab] #p-tech .tech-book .journey-gallery-tools{margin-top:10px;gap:12px}
+body[data-tab] #p-tech .tech-book .book-pager{margin-top:24px;padding:16px 0 24px}
+body[data-tab] #p-tech .tech-book .book-pager a{min-height:64px;padding:12px 20px}
+body[data-tab] #p-tech .ap-progress{margin-top:10px}
+body[data-tab] #p-tech .tech-book :is(.tech-hero,.tech-lab,.evidence-lab,.agent-map,.tech-graph){margin-block:24px}
+@media(max-width:600px){body[data-tab] #p-tech .tech-book .book-index{padding-top:20px}body[data-tab] #p-tech .tech-book .book-heading h2{font-size:min(34px,calc(25px * var(--rd-fs,1)))!important}}
 </style>

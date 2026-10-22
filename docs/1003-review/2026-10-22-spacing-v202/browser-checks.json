@@ -1,0 +1,470 @@
+{
+  "chapters": [
+    {
+      "clipped": 0,
+      "id": "tech-start",
+      "overflow": false,
+      "oversizePins": 0,
+      "w": 1280
+    },
+    {
+      "clipped": 0,
+      "id": "tech-overview",
+      "overflow": false,
+      "oversizePins": 0,
+      "w": 1280
+    },
+    {
+      "clipped": 0,
+      "id": "tech-volume",
+      "overflow": false,
+      "oversizePins": 0,
+      "w": 1280
+    },
+    {
+      "clipped": 0,
+      "id": "tech-loading",
+      "overflow": false,
+      "oversizePins": 0,
+      "w": 1280
+    },
+    {
+      "clipped": 0,
+      "id": "tech-agent",
+      "overflow": false,
+      "oversizePins": 0,
+      "w": 1280
+    },
+    {
+      "clipped": 0,
+      "id": "tech-context",
+      "overflow": false,
+      "oversizePins": 0,
+      "w": 1280
+    },
+    {
+      "clipped": 0,
+      "id": "tech-harness",
+      "overflow": false,
+      "oversizePins": 0,
+      "w": 1280
+    },
+    {
+      "clipped": 0,
+      "id": "tech-quality-loop",
+      "overflow": false,
+      "oversizePins": 0,
+      "w": 1280
+    },
+    {
+      "clipped": 0,
+      "id": "tech-names",
+      "overflow": false,
+      "oversizePins": 0,
+      "w": 1280
+    },
+    {
+      "clipped": 0,
+      "id": "tech-number",
+      "overflow": false,
+      "oversizePins": 0,
+      "w": 1280
+    },
+    {
+      "clipped": 0,
+      "id": "tech-unnamed",
+      "overflow": false,
+      "oversizePins": 0,
+      "w": 1280
+    },
+    {
+      "clipped": 0,
+      "id": "tech-subject",
+      "overflow": false,
+      "oversizePins": 0,
+      "w": 1280
+    },
+    {
+      "clipped": 0,
+      "id": "tech-verdict",
+      "overflow": false,
+      "oversizePins": 0,
+      "w": 1280
+    },
+    {
+      "clipped": 0,
+      "id": "tech-source-priority",
+      "overflow": false,
+      "oversizePins": 0,
+      "w": 1280
+    },
+    {
+      "clipped": 0,
+      "id": "tech-public-notes",
+      "overflow": false,
+      "oversizePins": 0,
+      "w": 1280
+    },
+    {
+      "clipped": 0,
+      "id": "tech-transcript-progress",
+      "overflow": false,
+      "oversizePins": 0,
+      "w": 1280
+    },
+    {
+      "clipped": 0,
+      "id": "tech-hold",
+      "overflow": false,
+      "oversizePins": 0,
+      "w": 1280
+    },
+    {
+      "clipped": 0,
+      "id": "tech-failure",
+      "overflow": false,
+      "oversizePins": 0,
+      "w": 1280
+    },
+    {
+      "clipped": 0,
+      "id": "tech-faq",
+      "overflow": false,
+      "oversizePins": 0,
+      "w": 1280
+    },
+    {
+      "clipped": 0,
+      "id": "tech-author",
+      "overflow": false,
+      "oversizePins": 0,
+      "w": 1280
+    }
+  ],
+  "mobile": [
+    {
+      "clipped": 0,
+      "id": "tech-start",
+      "overflow": false,
+      "pinned": 0,
+      "w": 390
+    },
+    {
+      "clipped": 0,
+      "id": "tech-overview",
+      "overflow": false,
+      "pinned": 0,
+      "w": 390
+    },
+    {
+      "clipped": 0,
+      "id": "tech-volume",
+      "overflow": false,
+      "pinned": 0,
+      "w": 390
+    },
+    {
+      "clipped": 0,
+      "id": "tech-loading",
+      "overflow": false,
+      "pinned": 0,
+      "w": 390
+    },
+    {
+      "clipped": 0,
+      "id": "tech-agent",
+      "overflow": false,
+      "pinned": 0,
+      "w": 390
+    },
+    {
+      "clipped": 0,
+      "id": "tech-context",
+      "overflow": false,
+      "pinned": 0,
+      "w": 390
+    },
+    {
+      "clipped": 0,
+      "id": "tech-harness",
+      "overflow": false,
+      "pinned": 0,
+      "w": 390
+    },
+    {
+      "clipped": 0,
+      "id": "tech-quality-loop",
+      "overflow": false,
+      "pinned": 0,
+      "w": 390
+    },
+    {
+      "clipped": 0,
+      "id": "tech-names",
+      "overflow": false,
+      "pinned": 0,
+      "w": 390
+    },
+    {
+      "clipped": 0,
+      "id": "tech-number",
+      "overflow": false,
+      "pinned": 0,
+      "w": 390
+    },
+    {
+      "clipped": 0,
+      "id": "tech-unnamed",
+      "overflow": false,
+      "pinned": 0,
+      "w": 390
+    },
+    {
+      "clipped": 0,
+      "id": "tech-subject",
+      "overflow": false,
+      "pinned": 0,
+      "w": 390
+    },
+    {
+      "clipped": 0,
+      "id": "tech-verdict",
+      "overflow": false,
+      "pinned": 0,
+      "w": 390
+    },
+    {
+      "clipped": 0,
+      "id": "tech-source-priority",
+      "overflow": false,
+      "pinned": 0,
+      "w": 390
+    },
+    {
+      "clipped": 0,
+      "id": "tech-public-notes",
+      "overflow": false,
+      "pinned": 0,
+      "w": 390
+    },
+    {
+      "clipped": 0,
+      "id": "tech-transcript-progress",
+      "overflow": false,
+      "pinned": 0,
+      "w": 390
+    },
+    {
+      "clipped": 0,
+      "id": "tech-hold",
+      "overflow": false,
+      "pinned": 0,
+      "w": 390
+    },
+    {
+      "clipped": 0,
+      "id": "tech-failure",
+      "overflow": false,
+      "pinned": 0,
+      "w": 390
+    },
+    {
+      "clipped": 0,
+      "id": "tech-faq",
+      "overflow": false,
+      "pinned": 0,
+      "w": 390
+    },
+    {
+      "clipped": 0,
+      "id": "tech-author",
+      "overflow": false,
+      "pinned": 0,
+      "w": 390
+    }
+  ],
+  "pages": [
+    {
+      "overflow": false,
+      "tab": "每日總覽",
+      "w": 390
+    },
+    {
+      "overflow": false,
+      "tab": "持股追蹤",
+      "w": 390
+    },
+    {
+      "overflow": false,
+      "tab": "績效走勢",
+      "w": 390
+    },
+    {
+      "overflow": false,
+      "tab": "訂閱通知",
+      "w": 390
+    },
+    {
+      "overflow": false,
+      "tab": "郵件查詢",
+      "w": 390
+    },
+    {
+      "overflow": false,
+      "tab": "逐字稿",
+      "w": 390
+    }
+  ],
+  "desktopPages": [
+    {
+      "overflow": false,
+      "tab": "每日總覽",
+      "w": 1440
+    },
+    {
+      "overflow": false,
+      "tab": "持股追蹤",
+      "w": 1440
+    },
+    {
+      "overflow": false,
+      "tab": "績效走勢",
+      "w": 1440
+    },
+    {
+      "overflow": false,
+      "tab": "訂閱通知",
+      "w": 1440
+    },
+    {
+      "overflow": false,
+      "tab": "郵件查詢",
+      "w": 1440
+    },
+    {
+      "overflow": false,
+      "tab": "逐字稿",
+      "w": 1440
+    },
+    {
+      "overflow": false,
+      "tab": "技術說明",
+      "w": 1440
+    }
+  ],
+  "motion": [
+    {
+      "id": "tech-start",
+      "overflow": false,
+      "path": true,
+      "playing": "true"
+    },
+    {
+      "id": "tech-overview",
+      "overflow": false,
+      "path": true,
+      "playing": "true"
+    },
+    {
+      "id": "tech-volume",
+      "overflow": false,
+      "path": true,
+      "playing": "true"
+    },
+    {
+      "id": "tech-loading",
+      "overflow": false,
+      "path": true,
+      "playing": "true"
+    },
+    {
+      "id": "tech-agent",
+      "overflow": false,
+      "path": true,
+      "playing": "true"
+    },
+    {
+      "id": "tech-context",
+      "overflow": false,
+      "path": true,
+      "playing": "true"
+    },
+    {
+      "id": "tech-harness",
+      "overflow": false,
+      "path": true,
+      "playing": "true"
+    },
+    {
+      "id": "tech-quality-loop",
+      "playing": "true",
+      "kind": "relationship"
+    },
+    {
+      "id": "tech-names",
+      "overflow": false,
+      "path": true,
+      "playing": "true"
+    },
+    {
+      "id": "tech-number",
+      "overflow": false,
+      "path": true,
+      "playing": "true"
+    },
+    {
+      "id": "tech-unnamed",
+      "overflow": false,
+      "path": true,
+      "playing": "true"
+    },
+    {
+      "id": "tech-subject",
+      "overflow": false,
+      "path": true,
+      "playing": "true"
+    },
+    {
+      "id": "tech-verdict",
+      "overflow": false,
+      "path": true,
+      "playing": "true"
+    },
+    {
+      "id": "tech-source-priority",
+      "overflow": false,
+      "path": true,
+      "playing": "true"
+    },
+    {
+      "id": "tech-public-notes",
+      "overflow": false,
+      "path": true,
+      "playing": "true"
+    },
+    {
+      "id": "tech-transcript-progress",
+      "overflow": false,
+      "path": true,
+      "playing": "true"
+    },
+    {
+      "id": "tech-hold",
+      "overflow": false,
+      "path": true,
+      "playing": "true"
+    },
+    {
+      "id": "tech-failure",
+      "overflow": false,
+      "path": true,
+      "playing": "true"
+    },
+    {
+      "id": "tech-faq",
+      "overflow": false,
+      "path": true,
+      "playing": "true"
+    }
+  ]
+}

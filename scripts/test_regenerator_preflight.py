@@ -1,4 +1,4 @@
-"""Missing reference fails before model or sheet access, with an actionable reason."""
+"""缺少參考時，在呼叫模型或試算表前失敗，並回報可處理的原因。"""
 import argparse
 import ast
 from datetime import datetime, timedelta
@@ -14,7 +14,7 @@ class RegeneratorPreflight(unittest.TestCase):
         path = Path(__file__).resolve().parents[1] / 'scripts/regenerate_verified_day.py'
         tree = ast.parse(path.read_text(encoding='utf-8'))
         main = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'main')
-        # Execute exactly the production preflight, excluding all later IO/model code.
+        # 只執行正式流程的前置檢查，排除後續所有輸入輸出與模型程式。
         stop = next(i for i, n in enumerate(main.body) if isinstance(n, ast.Assign) and
                     any(isinstance(t, ast.Name) and t.id == 'golden' for t in n.targets))
         program = ast.Module(body=main.body[:stop], type_ignores=[])

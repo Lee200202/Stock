@@ -1,4 +1,4 @@
-"""Preview/apply one saved reading copy, keeping raw evidence and delivery ledgers."""
+"""預覽或套用已保存的單日閱讀稿，保留原始證據與寄送帳本。"""
 import argparse, hashlib, json, sys
 from pathlib import Path
 from backup_archive import backup_tables

@@ -373,7 +373,7 @@ function safeParseJson_(raw, fallback) {
       } else if (c === '\n') {
         out.push('\\n');
       } else if (c === '\r') {
-        // skip
+        // 跳過
       } else if (c === '\t') {
         out.push('\\t');
       } else {

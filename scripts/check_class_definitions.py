@@ -1,4 +1,4 @@
-"""Local acceptance: six source definitions, voting diagrams, motion and no-JS fallback."""
+"""本機驗收六項來源定義、投票圖解、動畫與無JavaScript備援。"""
 import json
 from playwright.sync_api import sync_playwright
 from check_tech_story import serve_local,open_tech,FAKE_API

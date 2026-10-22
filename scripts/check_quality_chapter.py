@@ -1,4 +1,4 @@
-"""Check source-review chapter: no model/API writes; fake data for local UI."""
+"""檢查來源稽核章節；使用本機假資料，不呼叫模型或API寫入。"""
 import argparse
 import json
 import os
@@ -78,13 +78,13 @@ with sync_playwright() as pw:
                 ch.locator('[data-quality-node="2"]').click()
                 if width<700:assert ch.locator('#skillsEntityDetail').get_attribute('class').find('is-panel')>=0
                 else:
-                    # Shared placement must keep the selected card uncovered.
+                    # 共用配置不能遮住已選取的卡片。
                     assert ch.locator('#skillsEntityDetail').evaluate("""p=>{const a=p.getBoundingClientRect(),b=document.querySelector('#skillsGraph [aria-pressed=true]').getBoundingClientRect();return a.right<=b.left||a.left>=b.right||a.bottom<=b.top||a.top>=b.bottom;}""")
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),(width,theme,font,'after selection')
                 layouts.append([width,theme,font])
         if width in (1440,390):
             ch.locator('#skillsScroll').scroll_into_view_if_needed();page.screenshot(path=str(out/f'quality-{width}.png'))
-    # Both chapters share the same component; original graph still handles its 34 cards.
+    # 兩章共用同一元件，原關聯圖仍須能操作34張卡片。
     ch.locator('.book-pager a').last.click();assert page.locator('#tech-names').is_visible()
     page.locator('#tech-names .book-pager a').first.click();assert ch.is_visible()
     page.reload();page.wait_for_function("document.querySelector('.tech-book')?.dataset.activeChapter==='tech-quality-loop'")

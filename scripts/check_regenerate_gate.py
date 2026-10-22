@@ -1,4 +1,4 @@
-"""Confirm the read-only replay and one-day apply share the publication floor."""
+"""確認唯讀重播與單日套用共用發布最低關卡。"""
 import os
 import json
 
@@ -33,8 +33,8 @@ _, hard, _ = pl.quality_overview({'sell': [{'name': '測試公司', 'reason': '�
 assert any('互相矛盾的單位' in e for e in hard), hard
 print('daily publication: points and contradictory money block release OK')
 
-# A spoken 500–600 per share must not become 500–600 per lot when the same
-# stock's transcript explicitly gives a six-figure per-lot amount.
+# 同一股票原文明講每張六位數金額時，
+# 口述每股500至600元不能變成每張500至600元。
 unit_source = '世芯-KY今天全出。每股賺600元，一張賺60萬。'
 bad_lot = {'name': '世芯-KY', 'code': '3661', 'reason': '世芯-KY全出，每張至少賺5、6百元。'}
 assert pl._lot_profit_unit_conflict(bad_lot['reason'], unit_source, bad_lot)
@@ -42,9 +42,9 @@ assert not pl._lot_profit_unit_conflict(bad_lot['reason'], '另一檔一張賺60
 assert not pl._lot_profit_unit_conflict('世芯-KY每張賺60萬元。', unit_source, bad_lot)
 print('daily publication: per-share/per-lot mismatch blocked for the named stock')
 
-# Same chart numbers do not make an account of the day's market the same
-# point as an entry/position-sizing lesson. The 10/08 apply lost two lessons
-# when the semantic judge treated shared 60/35 as sufficient evidence.
+# 圖上數字相同，不代表當日盤勢敘述，
+# 與進場或部位配置教學是相同重點。10/08套用曾漏掉兩點教學，
+# 因為語意裁判錯把共用60與35視為充分證據。
 market = '大盤今天拉回，指數觸及60分K的35均後收斂，外資短線賣壓減輕，市場仍在等待美元指數回落。'
 lesson = '操作股票應在60分K的35均附近分批布局，先確認持股成本與資金比例，避免急著追高買進。'
 rows = {'market': [{'kind': 'level', 'text': market, '_evidence_verified': True},
@@ -58,8 +58,8 @@ with patch.object(pl, 'call_gemini', return_value=json.dumps({'groups': [['p0', 
 assert not rows['market'][2].get('_duplicate_point')
 print('cross-chapter semantic audit: shared 60/35 alone does not drop a lesson')
 
-# The context-writing pass checks only sentences it adds. A model's original
-# published note can still invent a period (10/08 台積電: 下半年 vs 下週).
+# 補充撰稿只檢查新增句子；模型原始說明仍須另外核對。
+# 公開說明仍可能虛構時間；例如10/08台積電的下半年被寫成下週。
 tsmc = {'name': '台積電', 'code': '2330', 'evidence': ['下個禮拜台積電要公布營收、法說會']}
 raw = '下個禮拜台積電要公布營收、法說會。' + '其他行情說明。' * 30
 wrong = {**tsmc, 'note': '台積電穩穩抱著，下半年法說會前表現強勢。'}
@@ -94,9 +94,9 @@ _, hard, _ = pl.quality_overview({'holdings': [same_scale]}, '力積電目前上
 assert not any('價位與本股已核對價位相差過大' in e for e in hard), hard
 print('daily publication: grossly misattributed price level blocked when a verified row price exists')
 
-# A real transcript can contain the number but leave the stock unnamed when
-# the speaker switches charts. The per-day human audit must reject a known
-# wrong attribution even if a model cites the same raw segment again.
+# 原稿可能含有數字，但講者換圖時並未報出股名；
+# 逐日人工稽核必須拒絕已知錯誤歸屬，
+# 即使模型再次引用同一個原始片段也不接受。
 golden = {'names': {'2330': '台積電', '6770': '力積電', '3443': '創意'},
           'must': {'2330': ['holdings'], '6770': ['holdings']},
           'must_not': ['3443'],

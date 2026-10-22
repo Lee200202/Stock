@@ -1,4 +1,4 @@
-// Render-only acceptance: no messages, requests, sheet writes or credentials.
+// 只驗收畫面渲染，不寄送、不發請求、不寫試算表或使用憑證。
 const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('assert');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ctx={console,Date,JSON,Utilities:{formatDate:()=> '2026/10/14 15:40',getUuid:()=> 'fixture'},PropertiesService:{getScriptProperties:()=>({getProperty:()=>null})},ScriptApp:{getService:()=>({getUrl:()=> 'https://example.com/exec'})},CacheService:{getScriptCache:()=>({get:()=>null})},Logger:{log(){}},esc_:esc,escAttr_:esc,MailApp:{sendEmail(){throw Error('must never send');}},PUBLIC_SITE_URL_DEFAULT:'https://lee200202.github.io/Stock/'};

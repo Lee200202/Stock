@@ -1,5 +1,5 @@
-// Free Cloudflare Worker: public Pages frontend -> existing Apps Script backend.
-// The bridge token stays server-side. Admin methods still require the existing admin key.
+// 免費Cloudflare Worker，將公開Pages前台連接至既有Apps Script後端。
+// 橋接權杖留在伺服器端，管理方法仍須既有管理密鑰。
 const ALLOWED = 'https://lee200202.github.io';
 const BUILD = 'site-api-v178-r1';
 const MAX_ARGS = 8;
@@ -178,8 +178,8 @@ async function readSnapshot(env, key) {
     const checkedAt = beat.validated?.[key] || beat.at;
     if (!checkedAt || Date.now() - checkedAt > SNAP_FRESH_MS) return null;
     if (!beat.hashes || beat.hashes[key] !== entry.hash) return null;
-    // entry.at is the last *change* to the answer. The unchanged answer may
-    // be hours old while a fresh backend check just confirmed it is current.
+    // entry.at是回覆內容最後變更的時間；內容可能數小時未變，
+    // 但後端剛完成的新核對，仍可確認內容是目前狀態。
     return {payload: entry.payload, at: entry.at, validatedAt: checkedAt};
   } catch { return null; }
 }
@@ -201,9 +201,9 @@ async function refreshSnapshots(env) {
     } else report[key] = 'same';
     return out.payload.result;
   };
-  // Apps Script /exec occasionally returns a 200 HTML error page when these
-  // three sheet reads start together. Keep the same keys, but read in order;
-  // a failed key does not stop the remaining snapshots from being checked.
+  // 這三項試算表讀取同時啟動時，Apps Script的/exec偶爾會
+  // 回傳狀態200的HTML錯誤頁；保留相同鍵值，改為依序讀取，
+  // 單一鍵失敗不阻止其餘快照繼續核對。
   for (const [method, args] of [['apiGetDashboard', []], ['apiListRecordDates', []], ['apiListMailDates', []]]) {
     try {
       const list = await take(method, args);

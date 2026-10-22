@@ -38,7 +38,7 @@ function withRefreshAllLease_(dateStr, fn) {
   } finally { lock.releaseLock(); }
   try { return fn(); }
   finally {
-    // If a GAS execution is terminated, the lease expires without manual cleanup.
+    // GAS執行被終止時，租約會自行到期，不需手動清理。
     if (lock.tryLock(1500)) {
       try {
         var current = JSON.parse(props.getProperty(key) || 'null');

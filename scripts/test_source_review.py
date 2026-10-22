@@ -1,4 +1,4 @@
-"""Offline contracts for atomic source-reviewed corrections; no model or network."""
+"""離線驗證原子來源修正契約，不呼叫模型或網路。"""
 import copy
 import importlib.util
 import json

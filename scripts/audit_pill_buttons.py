@@ -1,5 +1,5 @@
-"""List every visible control that looks like a text link (underline, or no border and no background) on each tab.
-Read-only; uses the working-tree build on the real Pages origin (LOCAL=1 for the working-tree build)."""
+"""列出各分頁看起來像文字連結的可見控制項：有底線，或沒有外框與背景。
+只讀取；預設在正式Pages來源驗工作樹版本，LOCAL=1時使用本機工作樹。"""
 import json
 import os
 import subprocess

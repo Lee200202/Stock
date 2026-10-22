@@ -1,4 +1,4 @@
-"""Back up a verified day, apply source priority and refresh without model calls."""
+"""備份已驗證日期，套用來源優先順序並刷新，不呼叫模型。"""
 from backup_archive import backup_tables
 import argparse
 import hashlib

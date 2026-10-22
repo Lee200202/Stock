@@ -1,4 +1,4 @@
-"""Offline checks for source ownership and cross-table category priority."""
+"""離線核對來源歸屬與跨表分類優先順序。"""
 import os
 import sys
 from pathlib import Path

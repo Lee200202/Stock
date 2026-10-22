@@ -110,7 +110,7 @@ function lineAddFriendUrl_() {
 }
 
 /* ------------------------------------------------------------------ *
- * LINE API
+ * LINE程式介面
  * ------------------------------------------------------------------ */
 function lineRequest_(method, path, payload, opts) {
   opts = opts || {};

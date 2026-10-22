@@ -1,8 +1,7 @@
-"""Fresh full-video acceptance using production clients; never writes production sheets.
+"""使用正式客戶端重新驗收完整影片，不寫入正式試算表。
 
-Requires the same environment as transcript.py. Output is a short-lived Actions artifact.
-Run: python scripts/verify_transcript_live.py --date YYYY/MM/DD
-"""
+環境需求與transcript.py相同，輸出為短期Actions產物。
+執行方式：python scripts/verify_transcript_live.py --date YYYY/MM/DD"""
 import argparse
 import difflib
 import hashlib
@@ -39,7 +38,7 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     t.log(f"實際驗收：{v.url}，片長 {t.hms(v.duration_sec)}，通道 generateContent；不寫正式資料")
     if args.audio_only:
-        # Independent text from a different model; do not feed it the candidate transcript.
+        # 由不同模型獨立取得文字，不將待測逐字稿提供給它。
         model = t.GEMINI_FALLBACK_MODEL or t.GEMINI_MODEL
         tr = t.Transcriber(keys, model=model, fallback=[])
         samples = []
@@ -60,7 +59,7 @@ def main():
         (out / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"獨立抽段完成：{len(samples)} 段，模型 {model}，{report['elapsed_sec']} 秒")
         return 0
-    # Every segment starts empty: deliberately do not reuse today's production cache.
+    # 每個片段從空白開始，刻意不重用今日正式快取。
     cache = t.SegmentCache(out / "segments.json")
     cache.clear()
     tr = t.Transcriber(keys, segment_minutes=args.segment_minutes)

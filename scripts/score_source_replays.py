@@ -1,8 +1,6 @@
-"""Score frozen source-review constraints against read-only replay logs.
+"""依凍結來源審核條件評分唯讀重播紀錄。
 
-These are agent-reviewed references, not human gold or an estimate of total
-classification accuracy. Website comparison sections are deliberately ignored.
-"""
+參考資料由代理審閱，不是人工金標或整體分類準確率估計；刻意不使用網站比較區段。"""
 import argparse
 import hashlib
 import json

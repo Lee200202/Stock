@@ -1,4 +1,4 @@
-"""Publish explicitly reviewed article points, keeping stock rows and delivery state."""
+"""發布明確核對的文章重點，保留個股列與寄送狀態。"""
 from backup_archive import backup_tables
 import argparse
 import hashlib
@@ -38,8 +38,8 @@ def main():
     parser.add_argument('--date', required=True)
     args = parser.parse_args()
     day = pl.norm_date(args.date)
-    # Source-reviewed writing is not a classification answer file. A separate
-    # correction plan avoids turning today's agent draft into injected gold.
+    # 來源核對後的書面內容不是分類答案檔。
+    # 使用獨立修正計畫，避免把今天的代理草稿注入成金標。
     plan_path = ROOT / 'scripts/repairs' / (day.replace('/', '-') + '-points-review.json')
     plan = json.loads(plan_path.read_text(encoding='utf-8')) if plan_path.exists() else None
     if plan and plan.get('date') != day:
@@ -75,7 +75,7 @@ def main():
     latest, _ = pl.existing_transcript(book, source['video_id'], day, snapshot=fresh)
     if hashlib.sha256(latest.encode()).hexdigest() != reviewed['sha256']:
         raise SystemExit('備份期間原稿改變，未寫入章節修正')
-    # Append a new evidence batch; do not rewrite the original model audit.
+    # 新增證據批次，不覆寫原始模型稽核。
     pl.save_evidence_audit(book, source['video_id'], day, raw, signals)
     pl.commit_evidence_manifest(book, source['video_id'], day, raw)
     result = pl.maybe_refresh_site(force=True, only=['smsmail'], date_str=day) or {}

@@ -1,7 +1,6 @@
-"""Build an offline handbook from versioned Stock skills; optionally sync installed copies.
+"""從版控內Stock技能建立離線手冊，並可同步已安裝副本。
 
-Requires mistune for Markdown rendering. No network, model or production calls.
-"""
+Markdown渲染需要mistune，不使用網路、模型或正式服務。"""
 from __future__ import annotations
 
 import argparse
@@ -119,7 +118,7 @@ def build() -> str:
             rendered = re.sub(r'href="([^"]+)"', relocate, rendered)
         return rendered.replace('<table>', '<div class="table-wrap" tabindex="0" role="region" aria-label="可左右捲動的規格表"><table>').replace('</table>', '</table></div>')
     intro = (BASE / "常用工作規格與指令.md").read_text(encoding="utf-8")
-    # Put common work and the copyable request templates in separate expandable cards.
+    # 常用工作與可複製請求範本放在不同的展開式卡片。
     chunks = re.split(r"(?m)^(?=## \d+\.)", intro)
     sections = []
     for i, chunk in enumerate(chunks):
@@ -155,7 +154,7 @@ def build() -> str:
 
 
 def pipeline() -> str:
-    """Workflow panel: stage buttons, one detail card, and a no-JS list of every stage."""
+    """工作流面板包含階段按鈕、單張細節卡，以及無JavaScript時的完整階段清單。"""
     label = {key: (name, title, short) for name, title, _, key, short in SKILLS}
     buttons, items, data = [], [], []
     for i, (stage, key, what, gate, mistake, proof) in enumerate(STAGES):

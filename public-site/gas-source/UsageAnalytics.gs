@@ -20,8 +20,8 @@ function usageWrite190_(who,events){
    if(!/^\d{4}-\d{2}-\d{2}$/.test(day)||Math.abs(nowMs-Date.parse(day+'T12:00:00+08:00'))>172800000)day=today.replace(/\//g,'-');
    var key=v2?'u190|'+JSON.stringify([id,e.session,day,page,action,target,String(e.visit||e.session)]):'',existing=null;
    if(key&&pending[key])existing={n:0,row:pending[key]};else if(key)existing=find(key);
-   // Old open tabs have no session ID. Only coalesce long snapshots with the
-   // same inferred start (±30s); never sum their cumulative seconds.
+   // 舊開啟分頁沒有工作階段編號，只合併推估開始時間
+   // 相同的長時間快照，允許正負30秒；累計秒數不相加。
    if(!v2&&action==='停留'&&seconds>=60){
     if(!legacy){var count=Math.min(200,Math.max(0,sh.getLastRow()-1));legacy=count?sh.getRange(sh.getLastRow()-count+1,1,count,18).getValues().map(function(r,i){return{n:sh.getLastRow()-count+1+i,row:r};}):[];}
     var anchor=nowMs-seconds*1000;
@@ -35,7 +35,7 @@ function usageWrite190_(who,events){
    if(hours.reduce(function(a,b){return a+b;},0)>seconds+1)hours=new Array(24).fill(0);
    if(existing&&existing.row){var r=existing.row,old=JSON.stringify(r);r[5]=Math.max(Number(r[5])||0,seconds);r[9]=now;r[11]=Math.max(Number(r[11])||0,depth);r[12]=Math.max(Number(r[12])||0,reports);r[14]=Math.max(Number(r[14])||0,views);r[15]=Math.max(Number(r[15])||0,count);
     if(v2){var prior=[];try{prior=JSON.parse(r[17]||'[]');}catch(x){}r[17]=JSON.stringify(hours.map(function(n,i){return Math.max(n,Number(prior[i])||0);}));}
-    // Timestamp-only retries do not rewrite the sheet.
+    // 只有時間戳變化的重送，不重寫試算表。
     var before=JSON.parse(old);before[9]=r[9];if(JSON.stringify(before)!==JSON.stringify(r)){if(existing.n)sh.getRange(existing.n,1,1,18).setValues([r]);updated++;}else ignored++;
     if(action==='停留')stays.push({page:page,seconds:r[5]});return;
    }
@@ -50,7 +50,7 @@ function usageWrite190_(who,events){
 function usageAggregate190_(rows,days,now){
  var end=now.slice(0,10).replace(/\//g,'-'),endMs=Date.parse(end+'T00:00:00+08:00'),startMs=endMs-(days-1)*86400000,priorStart=startMs-days*86400000;
  var clean=[],legacy=0,earliest='',keys={};rows.forEach(function(r){if(r[16]!=='v2'){legacy++;return;}var key=String(r[7]||''),parts;try{parts=JSON.parse(key.slice(5));}catch(e){return;}var date=parts[2],ms=Date.parse(date+'T00:00:00+08:00');if(!earliest||date<earliest)earliest=date;if(ms<priorStart||ms>endMs)return;
-  // Defensive deduplication of retry rows, if a previous release ever wrote one.
+  // 若舊版曾寫入重送列，讀取時再防禦性去重。
   if(keys[key]){if(Number(r[5])>Number(keys[key][5]))keys[key]=r;}else keys[key]=r;
  });Object.keys(keys).forEach(function(k){clean.push(keys[k]);});
  function roll(list){var users=Object.create(null),visits=Object.create(null),pages=Object.create(null),sources=Object.create(null),landings=Object.create(null),devices=Object.create(null),actions=Object.create(null),trend=Object.create(null),hours=new Array(24).fill(0),total=0,views=0,reports=0,stays=0;

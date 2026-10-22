@@ -1,4 +1,4 @@
-"""Validate this design handoff package, not production implementation."""
+"""驗證設計交接套件，不驗證正式實作。"""
 import json
 import re
 from collections import Counter

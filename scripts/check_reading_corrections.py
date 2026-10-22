@@ -1,4 +1,4 @@
-"""No-network acceptance for batched spelling edits and provenance."""
+"""無網路驗收批次校字與來源證據。"""
 import importlib.util,json,hashlib,unittest,sys
 from pathlib import Path
 from types import SimpleNamespace

@@ -1,4 +1,4 @@
-"""Verified backups in the owner's separate Google spreadsheet. Never falls back to main."""
+"""在管理者獨立的Google試算表保存經驗證備份，不退回主表。"""
 import argparse,json,time,sys
 from pathlib import Path
 import requests
@@ -6,7 +6,7 @@ import requests
 def archive_request(pl,op,names=()):
     if not pl.APPS_SCRIPT_URL or not pl.ADMIN_KEY:
         raise RuntimeError('獨立備份需要 APPS_SCRIPT_URL 與 ADMIN_KEY；未寫入正式資料')
-    # Repeating snapshot is idempotent: the owner indexes source sheet ID + input digest.
+    # 重複快照具有冪等性：備份服務依來源工作表識別碼與輸入摘要索引。
     error=''
     for attempt in range(3):
         try:

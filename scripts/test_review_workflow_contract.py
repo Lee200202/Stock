@@ -1,4 +1,4 @@
-"""Inspection and correction modes must never fall into model regeneration."""
+"""檢查與修正模式不得誤入模型重新生成流程。"""
 from pathlib import Path
 import unittest
 import yaml

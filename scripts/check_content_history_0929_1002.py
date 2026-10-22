@@ -1,7 +1,6 @@
-"""Historical, read-only regression from the official 2026/09/29–10/02 mail view.
+"""從2026/09/29至10/02正式郵件畫面做歷史唯讀回歸。
 
-Only public article excerpts are kept here. No model request or production write occurs.
-"""
+只保存公開文章節錄，不呼叫模型或寫入正式資料。"""
 import os
 import sys
 from pathlib import Path
@@ -19,22 +18,22 @@ def point(text, kind="view"):
 
 
 def check_repeated_points():
-    # 9/29: two teaching bullets repeat the same two seasonal-line entry points.
+    # 9/29：兩個教學重點重複相同的季線進場條件。
     sep29 = {"market": [
         point("股票正確的買點分為兩種：季線以下先布局，或突破後等拉回測季線再買；不在季線向下時追高。"),
         point("買股的正確節奏與買點：第一種在季線以下布局，第二種突破後拉回測季線再買。不要追逐突破季線的高點。"),
     ]}
-    # 9/30: teaching repeats the market bullet's long-term MACD claim verbatim.
+    # 9/30：教學逐字重複盤勢重點的長期MACD敘述。
     sep30 = {"market": [
         point("大盤方向沒有變過，加權指數月K線MACD自去年四月翻紅後未轉弱，長線趨勢仍向上。", "macro"),
         point("大盤方向沒有變過，加權指數月K線MACD自去年四月翻紅後未轉弱，長線趨勢仍向上。"),
     ]}
-    # 10/01: one bullet is intraday index action; another is a news-based entry rule.
+    # 10/01：一點是盤中指數走勢，另一點是依新聞進場的規則。
     oct01 = {"market": [
         point("台股早盤拉高後回落，十點多止跌回穩；觀察短線賣壓是否消化，再評估大盤走勢。", "macro"),
         point("利多新聞若在股價大漲後才公布，追價風險較高；低檔盤整時的消息要結合位置與拉回買點評估。"),
     ]}
-    # 10/02: first two market bullets both report expanded volume above monthly mean.
+    # 10/02：前兩個盤勢重點都在說成交量擴大並超過月均量。
     oct02 = {"market": [
         point("台股成交量放大到九千多億元，突破月均量八千六百多億元；市場在低檔換手，盤面結構仍穩健。", "macro"),
         point("台股成交量放大到九千多億元，突破月均量八千六百多億元；市場在低檔換手，盤面結構仍穩健。", "macro"),
@@ -47,8 +46,8 @@ def check_repeated_points():
 
 
 def check_stock_classification_and_late_duplicates():
-    # The 10/02 transcript explicitly says 台達電 can be bought on a decline,
-    # while not chasing a rise. That is a conditional positive signal.
+    # 10/02原文明講台達電拉回可以買，
+    # 同時要求不追漲，這是有條件的正面訊號。
     delta = "台達電季線翻揚，股價下跌時可以留意買點，但上漲時不要追價。"
     assert pl.watch_tone(delta) == "watch_watch", "條件買點被誤判成不碰"
     # 9/30 勤誠：尚未出現底部訊號，明講「還不能進場買進」。

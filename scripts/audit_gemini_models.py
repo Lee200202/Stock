@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
-"""Monthly, read the official Gemini model list and probe Flash models per configured key.
+"""每月讀取Gemini官方模型名單，依設定的金鑰槽位探測Flash模型。
 
-The JSON report contains model IDs and key slot numbers only, never API keys.
-Temporary quota/server failures are labelled uncertain, not retired.
-"""
+JSON報告只含模型識別碼與金鑰槽號，不含API金鑰。暫時配額或伺服器錯誤標示未確認，不判定為模型下架。"""
 
 import json
 import os

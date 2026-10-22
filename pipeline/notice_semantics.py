@@ -1,4 +1,4 @@
-"""Source-bound notice speech acts; recommendations are not completed trades."""
+"""以原文綁定通知語意；一般建議不等於已完成交易。"""
 import re
 
 VERSION = 'notice-v182-20261015'
@@ -10,12 +10,9 @@ def context(body, name, code=''):
                     if any(x in s for x in forms))
 
 def classify(body, name, code, action):
-    """Return (allowed action, speech act, original evidence), or empty action.
-
-    Explicit member orders retain their existing operation meaning. Optional
-    suggestions do not create an executed position. Position ownership and the
-    current entry stance remain separate dimensions.
-    """
+    """回傳允許操作、語句類型與原文證據；沒有操作時回傳空值。
+    
+    明確會員指令保留既有操作含義；選擇性建議不建立已成交部位。持有狀態與目前進場立場分開處理。"""
     own = context(body, name, code)
     if not own:
         return '', 'missing', ''
@@ -28,7 +25,7 @@ def classify(body, name, code, action):
     optional = bool(re.search(r'可以買|可買|可考慮買', own)) and not current_order
     history = bool(re.search(r'(?:高點|高檔|先前|之前|昨天|昨日|早上|已經|已).{0,12}(?:賣出|賣掉|出清)(?:者|過|後|了|的)', own))
     if blocked and action in ('買入', '賣出', '觀望注意', '觀望不碰'):
-        # An explicit new sell instruction can coexist with a ban on buying back.
+        # 明確的新賣出指令，可以與暫不買回的禁令並存。
         if action == '賣出' and current_order:
             return action, 'order', own
         return '觀望不碰', 'not_yet', own

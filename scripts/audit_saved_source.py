@@ -1,4 +1,4 @@
-"""Read the authoritative saved YouTube transcript; no model, writes, or notifications."""
+"""讀取正式保存的YouTube逐字稿，不呼叫模型、寫入或通知。"""
 import argparse,hashlib,json,sys
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'pipeline'));import pipeline as pl

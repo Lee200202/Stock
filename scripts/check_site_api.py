@@ -1,4 +1,4 @@
-"""Read-only smoke check for the Pages-to-GAS API bridge."""
+"""唯讀基本檢查Pages至GAS的API橋接服務。"""
 
 import json
 import os

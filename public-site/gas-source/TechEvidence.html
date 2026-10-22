@@ -1,5 +1,5 @@
 <style>
-/* v188: chapter-independent components; all source anchors remain usable without JS. */
+/* v188：不依賴特定章節的元件，未啟用JavaScript時所有來源連結仍可使用。 */
 .tech-book :is(.agent-choices,.tech-options,.cd-select,.cd-vote-select) button{border:1px solid var(--rule);background:var(--panel);color:var(--ink);font-family:inherit;cursor:pointer;line-height:1.6}
 .tech-book :is(.agent-choices,.tech-options,.cd-select,.cd-vote-select) button[aria-pressed=true]{background:var(--beam);border-color:var(--beam);color:var(--bg)}
 .tech-book .agent-budget{background:var(--panel-2);border:1px solid var(--rule)}
@@ -50,7 +50,7 @@
 @media(prefers-reduced-motion:reduce){.tech-book .ev-marker{display:none}}
 @media print{.tech-book .evidence-motion{display:none}.tech-book .evidence-svg{break-inside:avoid}}
 
-/* v192: scroll the artwork, never the page; zoom stays a separate control. */
+/* v192：只捲動圖面，不捲動整頁；放大使用獨立控制。 */
 .tech-book .book-image-group{min-width:0;max-width:100%;border-radius:24px;overflow:hidden;background:#e6eee7}
 .tech-book .tech-art-pan{max-width:100%;min-width:0;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y pinch-zoom;scrollbar-width:thin;scrollbar-color:var(--beam) var(--panel)}
 .tech-book .tech-art-pan:focus-visible{outline:3px solid var(--beam);outline-offset:-3px}
@@ -64,7 +64,7 @@
  .tech-book #tokViz .tok-stage:not(:last-child)::after{content:"→";left:auto;right:-25px;top:50%;bottom:auto}
  .tech-book .art-pan-hint{display:flex;align-items:center;justify-content:space-between;gap:12px}
  .tech-book .art-pan-hint svg{width:22px;height:22px;flex:none}
- /* No-JS fallback retains the original button and provides native horizontal pan. */
+ /* 無JavaScript備援保留原按鈕，並提供原生水平捲動。 */
  .tech-book .book-visual-open:not(.art-pan-ready){overflow-x:auto;touch-action:pan-x pan-y pinch-zoom}
  .tech-book .book-visual-open:not(.art-pan-ready)>.book-art{width:760px;min-width:760px;max-width:none}
 }
@@ -74,7 +74,7 @@
 (function(){'use strict';
 function init(){
 var root=document.querySelector('[data-tech-book]');if(!root)return;
-/* Keep legible desktop geometry; narrow screens pan inside the figure. */
+/* 保留可讀的桌面幾何尺寸，窄螢幕在圖內橫滑。 */
 var narrow=matchMedia('(max-width:760px)'),artwork=new WeakMap();
 function reflow(){root.querySelectorAll('svg.book-art').forEach(function(svg){
  var a=artwork.get(svg);if(!a){a={view:svg.getAttribute('viewBox'),nodes:Array.from(svg.querySelectorAll('[data-book-node]')),paths:Array.from(svg.querySelectorAll('[data-book-path]'))};a.positions=a.nodes.map(function(n){return n.getAttribute('transform');});a.routes=a.paths.map(function(p){return p.getAttribute('d');});artwork.set(svg,a);}

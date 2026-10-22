@@ -1,4 +1,4 @@
-"""Read-only original Web App acceptance in a fresh browser context with no Google login."""
+"""在未登入Google的新瀏覽器環境，唯讀驗收原Web App。"""
 from pathlib import Path
 import json
 from urllib.parse import urlsplit
@@ -12,7 +12,7 @@ with sync_playwright() as pw:
     ctx=browser.new_context(viewport={'width':1440,'height':1000},reduced_motion='reduce')
     page=ctx.new_page()
     page.goto(URL,wait_until='domcontentloaded',timeout=60000)
-    # HtmlService renders the app inside its normal sandbox iframe.
+    # HtmlService會在正常的沙箱iframe內呈現應用程式。
     app=None
     for attempt in range(30):
         for frame in page.frames:

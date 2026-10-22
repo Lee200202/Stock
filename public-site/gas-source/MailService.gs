@@ -1603,7 +1603,7 @@ function mailStockName_(v) {
   return String(v == null ? '' : v).replace(/[*＊]+(\s*)$/, '$1');
 }
 
-/** Style explicit price conditions after the existing privacy filter; never infer orders or label EPS as price. */
+/** 先使用既有隱私過濾，再標示明確價位條件；不推測操作，也不將EPS當股價。 */
 function mailConditionPills_(text){
   return String(text||'').replace(/\d[\d,]*(?:\.\d+)?\s*(?:元|塊)\s*(以上|以下|之上|之下|附近)/g,function(full,condition,at,whole){
     var before=whole.slice(Math.max(0,at-20),at);
@@ -1756,8 +1756,8 @@ function normalizeArticleSections_(md) {
       網站　　　每個元素掛 class（mc-name、mc-code、mc-mid、mc-desc、mc-chip⋯），
                 郵件查詢分頁用 CSS 乘上版面設定的字體大小／字距／行距（見 Stylesheet）。 */
 function mdToHtml_(md) {
-  // Transcript-derived text is content, never executable HTML. Escaping before
-  // parsing still preserves Markdown delimiters and numeric comparisons such as <900.
+  // 逐字稿衍生文字只是內容，不是可執行的HTML；先跳脫再解析，
+  // 仍可保留Markdown標記，以及小於900之類的數字比較。
   // v89：模型偶爾寫出簡體字（2026/09/30「避开」），呈現時換回繁體；已存的舊文章不必重寫。
   if (typeof toTraditional_ === 'function') { md = toTraditional_(md); }
   var lines = normalizeArticleSections_(md).replace(/[&<>"']/g, function (ch) {
@@ -1920,7 +1920,7 @@ function mdToHtml_(md) {
       return;
     }
 
-    // The canonical article uses circled section numbers instead of Markdown #.
+    // 正式文章使用圈號章節編號，不使用Markdown井字標題。
     if (/^[①②③④⑤⑥](?:\s|$)/.test(line)) {
       openSection(line.charAt(0));
       html.push('<h2 class="mc-h2" style="font-size:17px;line-height:1.45;margin:0 0 12px;font-weight:700;color:#12161A;">' +

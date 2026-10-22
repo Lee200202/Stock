@@ -1,4 +1,4 @@
-"""Check the offline skill handbook's layout, navigation and safe interactions."""
+"""檢查離線技能手冊的排版、導覽與安全互動。"""
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
@@ -63,7 +63,7 @@ def main():
                 page.locator("#top").click()
                 page.wait_for_function("scrollY < 2")
                 no_overflow(page)
-                # Save a collapsed, representative overview rather than a giant all-text image.
+                # 保存收合後的代表性總覽，不輸出整頁展開的巨幅文字截圖。
                 page.locator("#docs details").evaluate_all("es=>es.forEach(e=>e.open=false)")
                 if width in (1440, 390) and theme == "dark":
                     page.screenshot(path=str(SHOTS / f"handbook-{width}-dark.png"), full_page=True)

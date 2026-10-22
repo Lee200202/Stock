@@ -1168,8 +1168,8 @@ def maybe_refresh_site(only=None, force=False, date_str="", on_progress=None):
             break
 
         if step_failed:
-            # Content, tracker and performance have real dependencies. Do not publish
-            # a performance snapshot after a failed quality/tracker step.
+            # 內容、持股追蹤與績效有實際先後依賴。
+            # 品質或持股追蹤步驟失敗時，不發布績效快照。
             print(f"停止刷新：{label} 失敗，後續相依步驟未執行。")
             break
             # 一步失敗不再整條收工。
@@ -2083,7 +2083,7 @@ def is_target(title: str) -> bool:
 
 
 # ---------------------------------------------------------------- #
-# Gemini
+# Gemini模型呼叫
 # ---------------------------------------------------------------- #
 # 九類 JSON 結構約束（v16 新增）尚未以正式模型實測。某個型號不接受時，Google 回 400，
 # 而既有流程把 400 當成「這一把金鑰不能用」換下一把——每一把都會被同樣拒絕，
@@ -2101,7 +2101,7 @@ def _schema_rejected(status, text, cfg):
 
 
 def gemini_generation_config(model, max_out=MAX_OUT, thinking=0, want_json=False, tag=''):
-    """Shared by production and smoke tests; rebuilt after each model rotation."""
+    """正式流程與基本驗收共用；每次輪替模型後重新建立。"""
     cfg = {"maxOutputTokens": min(max_out, MAX_OUT)}
     if re.search(r'gemini-3(?:\.|-)', model):
         level = (os.environ.get('GEMINI_THINKING_LEVEL', '').strip().lower() or 'medium')
@@ -2957,7 +2957,7 @@ def _norm_pin(p: str) -> str:
     不做這一步的話，chen 對 cheng 的首字比對會判定為不同音，
     放寬門檻不會生效，這些字就永遠對不上。
     """
-    p = re.sub(r"([aeiou])ng", r"\1n", p)          # cheng -> chen
+    p = re.sub(r"([aeiou])ng", r"\1n", p)          # 音節正規化：cheng改為chen。
     return p.replace("zh", "z").replace("ch", "c").replace("sh", "s")
 
 
@@ -5246,8 +5246,8 @@ def resolve_unclear_names(signals, transcript, ss=None):
             pin = ''.join(lazy_pinyin(simple(heard)))
             ranked = sorted(official.items(), key=lambda pair: difflib.SequenceMatcher(
                 None, pin, ''.join(lazy_pinyin(simple(pair[1])))).ratio(), reverse=True)[:12]
-            # Also include official names literally occurring in this item's
-            # verified evidence, without taking names from the display polish.
+            # 同時納入本筆已核對證據中逐字出現的正式名稱，
+            # 不得從展示用修飾稿補入名稱。
             ev = _ev_norm('\n'.join(r.get('evidence') or []))
             ranked += [(c,n) for c,n in official.items() if len(simple(n)) >= 2 and simple(n) in ev]
             # 證據裡念出來的代號、這一筆目前的代號也一定要在候選裡：只靠讀音排前 12 名時，
@@ -5262,9 +5262,9 @@ def resolve_unclear_names(signals, transcript, ss=None):
                              if len(simple(alias)) == len(simple(heard)) and _npin(simple(alias)) == _npin(simple(heard))
                              and pair[0] in official}
             if len(set(known_aliases.values())) == 1:
-                # Whole-name syllable equality with an already confirmed alias;
-                # not fuzzy distance and never overrides an exact official name
-                # or a code actually spoken in the source (checked above).
+                # 只接受與已確認別名整個名稱的音節一致；
+                # 不使用模糊距離，也不能覆蓋精確正式名稱，
+                # 或原文明確報出的代號；這些已於前面檢查。
                 code=next(iter(known_aliases.values()))
                 r['aliases']=list(dict.fromkeys(list(r.get('aliases') or [])+[heard]))
                 r['code'],r['name']=code,official[code]
@@ -5565,7 +5565,7 @@ _EV_STRIP = re.compile(r"[\s,.:;!?\"'()\-~]+")
 
 
 def source_segments(transcript):
-    """Stable offsets; punctuation/line wrapping does not determine AI coverage."""
+    """維持穩定來源位移；標點或換行不決定AI的涵蓋範圍。"""
     text = str(transcript or '')
     result, start = {}, 0
     while start < len(text):
@@ -5597,13 +5597,13 @@ def materialize_evidence(signals, transcript):
                 valid = isinstance(refs, list) and bool(refs) and all(isinstance(s, str) and s in segments for s in refs)
                 row['evidence'] = [segments[s]['text'] for s in dict.fromkeys(refs)] if valid else []
                 row['_source_spans'] = [[segments[s]['start'], segments[s]['end']] for s in dict.fromkeys(refs)] if valid else []
-            # Keep only literal evidence. Never prove a name using a rejected quote.
+            # 只保留逐字證據，不得用已拒絕的引句證明股名。
             row['evidence'] = [q for q in (row.get('evidence') or [])
                                if isinstance(q, str) and _quote_is_real(q, _ev_norm(transcript))]
     return signals
 
 def evidence_gaps(signals, transcript, initial=None):
-    """Return actionable repair requests, including missing draft candidates."""
+    """回傳可執行的修復需求，包含漏掉的草稿候選。"""
     gaps, hay = [], _ev_norm(transcript)
     if not isinstance(signals, dict):
         return ['輸出不是JSON物件']
@@ -5648,7 +5648,7 @@ def evidence_gaps(signals, transcript, initial=None):
     return gaps
 
 def format_readable_transcript(text):
-    # Reflow existing words only. Extremely short ASR paragraphs join together.
+    # 只重排既有文字，將過短的語音聽寫段落合併。
     out, buf = [], ''
     for line in str(text).splitlines():
         line = line.strip()
@@ -6402,7 +6402,7 @@ def canonical_article(signals, date_str, article=''):
                if r.get('_evidence_verified') and r.get('kind') == 'view' and not r.get('_duplicate_point')
                and str(r.get('text') or '').strip()]
     if len(macro) > 2400:
-        # Do not truncate a number or sentence; only keep whole verified bullets.
+        # 不截斷數字或句子，只保留完整且已核對的重點。
         kept = []
         for line in macro.splitlines():
             if len('\n'.join(kept + [line])) > 2400:
@@ -6421,8 +6421,8 @@ def _ev_norm(text) -> str:
 
 
 def _quote_is_real(quote, hay_norm):
-    # Whitespace and punctuation differences are harmless; lexical changes need
-    # an AI repair with source IDs, never fuzzy acceptance of a different fact.
+    # 空白與標點差異不改變事實；字詞有變時，
+    # 必須由AI配合來源編號修復，不模糊接受另一項事實。
     q = _ev_norm(quote)
     return len(q) >= 6 and q in hay_norm
 
@@ -7731,7 +7731,7 @@ def validate_evidence(signals, transcript, date_str, after_codes=False, notice_t
     # 改列觀望注意的買入等整輪跑完才併進去，不會在觀望注意那一輪被重驗第二次。
     signals["watch_watch"].extend(moved_to_watch)
 
-    # Market facts obey the same evidence rule as stocks, including every number.
+    # 盤勢事實與個股遵守相同證據規則，每個數字都須核對。
     market_keep, orphan_headline = [], ''
     for item in signals.get('market', []):
         # 盤勢（①）與教學（③）章同樣是公開文字，句首人名一併拿掉；不影響下面的數字核對。
@@ -8182,7 +8182,7 @@ def inventory_gaps(signals, transcript):
 
 
 def compact_assessment(signals):
-    """Do not resend materialized quotes or internal metadata with source IDs."""
+    """使用來源編號時，不重送已展開的引句或內部中繼資料。"""
     return {cat: [{k: v for k, v in r.items()
                    if not k.startswith('_') and (k != 'evidence' or not r.get('evidence_refs'))}
                   for r in signals.get(cat, []) if isinstance(r, dict)]
@@ -8190,7 +8190,7 @@ def compact_assessment(signals):
 
 
 def recover_context(signals, transcript):
-    """Repair citation location locally; retain the model's category with review notes."""
+    """在本機修復引用位置，保留模型分類並附核對紀錄。"""
     segments = source_segments(transcript)
     hay = _ev_norm(transcript)
     categories = SIGNAL_CATEGORIES + ('history', 'uncertain')
@@ -8222,7 +8222,7 @@ def recover_context(signals, transcript):
                     row['_context_included'] = True
                     row['_review_note'] = '依完整原文補回名稱上下文，保留原判讀分類'
             row['evidence'] = good
-            # A missing separate time quote is a formatting gap, not proof of history.
+            # 缺少獨立時間引句是格式缺口，不能據此證明只是歷史事件。
             if cat in ('buy', 'sell', 'uncertain') and not _ev_norm(row.get('time_evidence')):
                 when = row.get('when')
                 pattern = _WHEN_MARKERS.get(when)
@@ -8272,8 +8272,8 @@ def assessment_payload(date_str, segments, candidates=None, issues=None):
 def assessment_batches(transcript, date_str):
     # 整份原文的讀音命中先算一次，下面每一批只做子字串比對。
     _sound_hits(transcript)
-    # UTF-8 bytes are a conservative token upper estimate, not an exact tokenizer.
-    # Cap normal requests well below known 1M contexts to respect per-minute quotas.
+    # UTF-8位元組數只作保守的token上限估計，不是精確切詞結果。
+    # 一般請求限制低於已知百萬token上下文容量，以符合每分鐘配額。
     context = min(int(os.environ.get('GEMINI_CONTEXT_TOKENS', '1048576')), 1048576)
     cap = min(context, assessment_token_budget())
     limit = cap - len(EXTRACT_SYSTEM.encode('utf-8')) - min(MAX_OUT, 20000) - 4096
@@ -8284,7 +8284,7 @@ def assessment_batches(transcript, date_str):
         trial = dict(batch, **{sid: seg})
         if batch and len(assessment_payload(date_str, trial).encode('utf-8')) > limit:
             result.append(batch)
-            # Preserve the preceding two segments as boundary context, keeping global IDs.
+            # 保留前兩個片段作邊界上下文，並維持全域來源編號。
             batch = dict(list(batch.items())[-2:])
             trial = dict(batch, **{sid: seg})
         if len(assessment_payload(date_str, trial).encode('utf-8')) > limit:
@@ -8340,7 +8340,7 @@ def extract_context_json(transcript, date_str):
             for row in parsed[cat]:
                 if not isinstance(row, dict):
                     continue
-                # Internal validation flags are created by code, never by a model response.
+                # 內部驗證旗標由程式建立，不接受模型回覆自行設定。
                 row = {k: v for k, v in row.items() if not k.startswith('_')}
                 identity = json.dumps(row, ensure_ascii=False, sort_keys=True)
                 if identity not in seen[cat]:
@@ -8757,11 +8757,9 @@ _NOTE_TIME = re.compile(r'上半年|下半年|明年|去年|下個月|上個月|
 
 
 def _unsupported_note_time(note, row, transcript):
-    """Published time claims must be supported by this stock's own source.
-
-    The context-writing pass already checks its new sentences.  This final
-    gate also checks the original/model note, which may bypass that pass.
-    """
+    """公開的時間敘述必須有本股原文支持。
+    
+    補充撰稿階段已檢查新增句子；此最終關卡也檢查可能未經該階段的原始或模型說明。"""
     def normalized(value):
         value = _ev_norm(value)
         return re.sub(r'([上下])(?:個)?(?:禮拜|星期|週)', r'\1週', value)
@@ -12862,8 +12860,8 @@ def audit_context_json(transcript, signals, date_str, editorial_retry=True):
     recover_context(signals, transcript)
     signals = exclude_past_recommendations(signals, transcript)
     gaps = evidence_gaps(signals, transcript) + entity_claim_gaps(signals, transcript)
-    # A valid quote cannot prove coverage or classification. Review semantics even
-    # when local format checks pass; combine it with repair in the same request.
+    # 引句有效不代表候選完整或分類正確；
+    # 即使本機格式檢查通過，仍須語意覆核，並與修復合併請求。
     semantic = os.environ.get('GEMINI_SEMANTIC_AUDIT', 'true').strip().lower() not in ('false', '0', 'off')
     review_gaps = gaps + publication_gaps(signals, transcript) + (['逐段獨立盤點，再比對初稿：補回漏列持股、條件買點及末段名單；核對持有者與未持有者的不同指示。不得因引句有效就認定分類正確。'] if semantic else [])
     # 覆蓋重跑時，把前一版網站上的每一檔交給覆核逐一重新判定，而不是等寫入前才發現少了誰。
@@ -12879,7 +12877,7 @@ def audit_context_json(transcript, signals, date_str, editorial_retry=True):
                              (not r.get('evidence_refs') or set(r['evidence_refs']) & set(batch))]
                         for cat in repaired}
             payload = assessment_payload(date_str, batch, selected, review_gaps)
-            # Recheck the FULL request after attaching candidates; never silently truncate.
+            # 加入候選後重新檢查完整請求，不得靜默截斷。
             cap = min(int(os.environ.get('GEMINI_CONTEXT_TOKENS', '1048576')),
                       assessment_token_budget(), 1048576)
             if len((AUDIT_SYSTEM + payload).encode('utf-8')) + min(MAX_OUT, 20000) + 4096 > cap:
@@ -12920,8 +12918,8 @@ def audit_context_json(transcript, signals, date_str, editorial_retry=True):
             recover_context(repaired, transcript)
             repaired = exclude_past_recommendations(repaired, transcript)
             gaps = evidence_gaps(repaired, transcript, signals) + publication_gaps(repaired, transcript) + entity_claim_gaps(repaired, transcript)
-            # Preserve omitted candidates for the audit sheet; never silently lose
-            # evidence when a review response is shorter than the extraction.
+            # 保留漏掉的候選供稽核表核對；
+            # 覆核回覆比擷取內容短時，不得靜默丟失證據。
             seen = set()
             for cat in SIGNAL_CATEGORIES + ('history', 'uncertain', 'ignored'):
                 for row in repaired.get(cat, []):
@@ -12966,7 +12964,7 @@ def extract_signals(v2, date_str):
 def audit_signals(v2, signals, date_str):
     if signals.pop("_combined_pass", False):
         return audit_context_json(v2, signals, date_str)
-    # Retry only the assessment, never repolish/re-fetch the transcript.
+    # 只重試判讀，不重新潤稿或抓取逐字稿。
     materialize_evidence(signals, v2)
     prompt = (f'影片日期：{date_str}\n初稿（可能有錯）：\n' + json.dumps(signals, ensure_ascii=False) +
               '\n完整原始逐字稿：\n' + indexed_source(v2))
@@ -13914,8 +13912,8 @@ def sms_first_article_records(ss, signals, date_str):
         article[key] = [row for row in article[key] if str(row.get('code') or '') not in grouped
                         or (row.get('_date') or date_str) != date_str]
     for code, events in grouped.items():
-        # A current entry recommendation/ban does not close a verified existing
-        # position. Only an actual trade/order resolves the position lifecycle.
+        # 目前的進場建議或禁買立場，不會關閉已確認的既有部位；
+        # 只有實際交易或操作指令才改變部位生命週期。
         if not any(e[2]['direction'].startswith(('買', '賣')) for e in events):
             # 紀錄上持有、由分類裁決依操作紀錄定案的會員持股，同樣是核對過的部位（2026/10/15 勤誠：通知是「可以買」，部位仍在）
             ledger = (signals.get('_verdicts') or {}).get(code) or {}
@@ -14756,8 +14754,8 @@ def save_verdicts(ss, date_str, signals):
     rows = []
     now = datetime.now(TAIPEI).strftime("%Y/%m/%d %H:%M:%S")
     for code, entry in (signals.get('_verdicts') or {}).items():
-        # Direct, source-verified decisions also bind the downstream mail gate.
-        # They are saved as facts, not reusable model votes (the cache only
+        # 經來源核對的直接決定，也會約束下游郵件關卡。
+        # 保存的是事實，不是可重用的模型票；快取只採用
         # reuses tier=裁決). Otherwise the gate can re-add a rejected stock.
         if not entry.get('new') and not (entry.get('enforce') and entry.get('tier') == '直接歸類'):
             continue
@@ -17521,8 +17519,8 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     step("合併重複", f"目前 {_n(signals)} 檔，把成交歸位、同一類裡同一檔只留一列")
     # 成交歸位排在合併之前：歸位之後那一檔可能與既有的賣出列撞在一起，
     # 讓後面的合併去收就好，不必在這裡另外處理。
-    # The full evidence review decides semantics. Keyword promotion and fixed
-    # bearish precedence must not override its source/date decisions.
+    # 語意由完整證據覆核決定；關鍵字升級與固定的
+    # 偏空優先規則，不得覆蓋其來源或日期判斷。
     signals = merge_duplicates(signals)
     # 裁決與舊版沿用都可能在第一次日常用語核對後重新帶回同名股票，發布前再擋一次。
     signals = drop_ordinary_word_rows(signals, TX['audit'])

@@ -1,4 +1,4 @@
-"""v177: digest/full, every main diagram, anchors, reader rail and no backend writes."""
+"""v177：摘要與全文、各章主圖、錨點與閱讀導覽；不寫入後端。"""
 import json
 from pathlib import Path
 from playwright.sync_api import sync_playwright

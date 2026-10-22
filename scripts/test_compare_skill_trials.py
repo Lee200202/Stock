@@ -1,4 +1,4 @@
-"""Synthetic tests of local aggregation, not measurements of real model quality."""
+"""測試本機彙整器的合成資料，不量測真實模型品質。"""
 import copy
 import unittest
 

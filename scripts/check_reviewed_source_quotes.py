@@ -1,4 +1,4 @@
-"""Human review accepts punctuation differences, never lexical/number changes."""
+"""人工審閱可接受標點差異，不接受字詞或數字改變。"""
 import os
 os.environ.setdefault('SPREADSHEET_ID', 'test')
 os.environ.setdefault('GEMINI_API_KEY', 'AIzaSyDUMMY_local_import_only_0000000000')

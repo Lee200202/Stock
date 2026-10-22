@@ -1495,8 +1495,8 @@ function stepPolish_(job) {
 /* ---------------- 步驟二：擷取 ---------------- */
 
 function stepExtract_(job) {
-  // Current submissions are dispatched to GitHub. Do not let an old trigger
-  // silently use a legacy writer that cannot preserve the evidence/date schema.
+  // 目前提交由GitHub處理，不讓舊觸發器
+  // 靜默呼叫無法保留證據與日期結構的舊版寫入器。
   throw new Error('舊版 Apps Script 擷取流程已停用，請由後台重新送出並在 GitHub 執行 evidence-v1 工單');
   /* legacy
   var row = findVideoRow_(job.videoId);
@@ -1965,8 +1965,8 @@ function stepArticle_(job) {
     if(!hasVideo){articleProgress_('略過','這一天沒有影片逐字稿，郵件內容留空（會員簡訊照常呈現在網站）');return;}
   }
   var signals=attachArticleEvidence_(buildSignalsFromSheet_(d),d);
-  // The Python assessment already produced verified prose. Refresh changes only
-  // the final sheet-based records and audited context, without using more quota.
+  // Python判讀已產生經核對的書面內容；刷新只改變
+  // 最終試算表紀錄與已稽核上下文，不再消耗模型額度。
   article=enforceArticleRecords_(article,signals,d);
   saveDailyArticle_(d,article);
   articleProgress_('寫入',article.length+' 字；標題＋固定四章，資料與郵件已同步');
@@ -3980,9 +3980,9 @@ var REVIEW_MAX_DROP_RATIO = 0.7;
  * 找不到就回空字串，那會讓模型回 confident=false，這一筆就不會被動到。
  */
 function reviewSnips_(v2, name, code) {
-  // Full source is required: a holding/candidate may only be stated at the end.
+  // 必須提供完整來源，持股或候選可能只在結尾才提到。
   return String(v2 || '');
-  /* legacy excerpting disabled
+  /* 已停用舊版節錄邏輯
   var keys = [];
   if (name) { keys.push(name); }
   if (code && /^(?:00981A|\d{4,6})$/.test(String(code))) { keys.push(String(code)); }

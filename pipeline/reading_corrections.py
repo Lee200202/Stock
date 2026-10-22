@@ -1,4 +1,4 @@
-"""One batched reading-copy edit request. Original evidence is never rewritten."""
+"""閱讀稿以單次批次校訂，原始證據不改寫。"""
 import difflib
 import json
 import re
@@ -24,7 +24,7 @@ def words(text):
 
 
 def apply_edits(base, edits):
-    """Anchored replacements, never global substitutions; reject overlaps."""
+    """替換須綁定來源位置，不全域取代，重疊修改不採用。"""
     spans = []
     for edit in edits:
         quote, before, after = (str(edit.get(k) or '') for k in ('quote', 'before', 'after'))
@@ -80,7 +80,7 @@ def validate_edit(edit, base, official, pinyin):
 
 
 def verified_reading(row, fingerprint):
-    """Accept edited display only with reconstructable proof tied to original."""
+    """只有能從原文重建並核對證據的展示修改才採用。"""
     raw, draft = str(row.get('原始逐字稿內容') or ''), str(row.get('修飾後逐字稿內容') or '')
     try:
         proof = json.loads(str(row.get(COL) or '{}'))
@@ -93,11 +93,11 @@ def verified_reading(row, fingerprint):
 
 
 def correct(pl, raw, base):
-    """All spelling uncertainties in one request; failed edits remain unchanged."""
+    """所有不確定字詞合併一個請求，失敗的修改保留原值。"""
     if words(raw) != words(base):
         return base, None
     official = pl.get_code_map()
-    # Official mapping sent once; no individual requests per typo or per stock.
+    # 正式對照表只送一次，不為每個錯字或個股分別呼叫。
     reply = pl.call_gemini(SYSTEM, json.dumps({'text': base, 'official': official}, ensure_ascii=False),
                           want_json=True, thinking=1024, max_out=min(pl.MAX_OUT, 7000), tag='reading-corrections')
     data = pl.safe_load_json(reply, default={})

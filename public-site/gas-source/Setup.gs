@@ -1084,7 +1084,7 @@ function showDeployInfo() {
   out.push('========================================');
   out.push('');
 
-  // ---- 1. APPS_SCRIPT_URL ----
+  // ---- 1. 網站應用程式網址（APPS_SCRIPT_URL） ----
   var url = '';
   try { url = ScriptApp.getService().getUrl(); } catch (e) { url = ''; }
 
@@ -1136,7 +1136,7 @@ function showDeployInfo() {
   }
   out.push('');
 
-  // ---- 2. ADMIN_KEY ----
+  // ---- 2. 管理密鑰（ADMIN_KEY） ----
   var key = PROP.getProperty('ADMIN_KEY');
   out.push('【2】ADMIN_KEY');
   if (!key) {

@@ -1,0 +1,17 @@
+{
+  "kind": "offline_saved_output_paired_check_not_model_replay",
+  "reports": 32,
+  "changes": [
+    {
+      "run": "replay-result-39698681362",
+      "date": "2026/10/15",
+      "code": "3533",
+      "before": "watch_avoid",
+      "after": "holdings",
+      "also": [
+        "watch_avoid",
+        "天2,000塊賣一半加折，賣這邊。對不對？啊我們買這邊。啊買這邊。啊昨天2,000塊賣一半，啊今天加折。今天加折跌到1,800多。啊再等一下，靠近季線比較好。啊"
+      ]
+    }
+  ]
+}

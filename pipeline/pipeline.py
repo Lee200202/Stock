@@ -13348,7 +13348,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v38-position-entry-axes-20261022" # 剩餘部位與新進場限制分軸；不擴張並列名單的結論範圍。
+VERDICT_VERSION = "v39-position-entry-axes-20261022" # 剩餘部位與新進場限制分軸；不擴張並列名單的結論範圍。
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 5                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -14527,7 +14527,7 @@ def finalize_position_identity(verdicts, signals):
             entry.update(cls='uncertain', tier='未裁決', enforce=True,
                          basis=entry.get('basis', '') + '｜公司身分與一般詞用途核對矛盾，本股暫不公開')
             signals['_quality_requires_review'] = True
-        elif (entry.get('cls') == 'watch_avoid' and entry.get('open')
+        elif (entry.get('cls') in ('watch_avoid', 'holdings') and entry.get('open')
               and not entry.get('not_held') and not entry.get('trade_check')
               and entry.get('tier') not in ('未定', '未裁決')):
             usable = [a for a in entry.get('attempts', []) if a.get('class')]
@@ -14535,7 +14535,7 @@ def finalize_position_identity(verdicts, signals):
             for attempt in usable:
                 answer = attempt.get('answer') or {}
                 semantic = answer.get('semantic') or {}
-                if (attempt.get('class') == 'watch_avoid' and answer.get('about_itself') is True
+                if (attempt.get('class') in ('watch_avoid', 'holdings') and answer.get('about_itself') is True
                         and semantic.get('entity') == 'company' and semantic.get('role') == 'current_view'
                         and semantic.get('entry_restricted_now') is True
                         and isinstance(semantic.get('quote'), str) and semantic['quote']):

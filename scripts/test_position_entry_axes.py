@@ -41,6 +41,15 @@ class PositionEntryAxes(unittest.TestCase):
                 self.assertEqual(entry['cls'], 'watch_avoid')
                 self.assertNotIn('also', entry)
 
+    def test_holding_votes_do_not_erase_the_same_answers_entry_restriction(self):
+        entry = self.entry()
+        entry['cls'] = 'holdings'
+        for attempt in entry['attempts']:
+            attempt['class'] = 'holdings'
+        pl.finalize_position_identity({'1111': entry}, {})
+        self.assertEqual(entry['cls'], 'holdings')
+        self.assertEqual(entry['also'][0], 'watch_avoid')
+
     def test_current_risk_alone_is_not_a_verified_wait_to_reenter(self):
         entry = self.entry()
         for attempt in entry['attempts']:

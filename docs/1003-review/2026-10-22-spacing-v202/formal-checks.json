@@ -1,0 +1,122 @@
+[
+  {
+    "id": "tech-start",
+    "overflow": false,
+    "pagerBottom": "24px",
+    "w": 768
+  },
+  {
+    "id": "tech-overview",
+    "overflow": false,
+    "pagerBottom": "24px",
+    "w": 768
+  },
+  {
+    "id": "tech-volume",
+    "overflow": false,
+    "pagerBottom": "24px",
+    "w": 768
+  },
+  {
+    "id": "tech-loading",
+    "overflow": false,
+    "pagerBottom": "24px",
+    "w": 768
+  },
+  {
+    "id": "tech-agent",
+    "overflow": false,
+    "pagerBottom": "24px",
+    "w": 768
+  },
+  {
+    "id": "tech-context",
+    "overflow": false,
+    "pagerBottom": "24px",
+    "w": 768
+  },
+  {
+    "id": "tech-harness",
+    "overflow": false,
+    "pagerBottom": "24px",
+    "w": 768
+  },
+  {
+    "id": "tech-quality-loop",
+    "overflow": false,
+    "pagerBottom": "24px",
+    "w": 768
+  },
+  {
+    "id": "tech-names",
+    "overflow": false,
+    "pagerBottom": "24px",
+    "w": 768
+  },
+  {
+    "id": "tech-number",
+    "overflow": false,
+    "pagerBottom": "24px",
+    "w": 768
+  },
+  {
+    "id": "tech-unnamed",
+    "overflow": false,
+    "pagerBottom": "24px",
+    "w": 768
+  },
+  {
+    "id": "tech-subject",
+    "overflow": false,
+    "pagerBottom": "24px",
+    "w": 768
+  },
+  {
+    "id": "tech-verdict",
+    "overflow": false,
+    "pagerBottom": "24px",
+    "w": 768
+  },
+  {
+    "id": "tech-source-priority",
+    "overflow": false,
+    "pagerBottom": "24px",
+    "w": 768
+  },
+  {
+    "id": "tech-public-notes",
+    "overflow": false,
+    "pagerBottom": "24px",
+    "w": 768
+  },
+  {
+    "id": "tech-transcript-progress",
+    "overflow": false,
+    "pagerBottom": "24px",
+    "w": 768
+  },
+  {
+    "id": "tech-hold",
+    "overflow": false,
+    "pagerBottom": "24px",
+    "w": 768
+  },
+  {
+    "id": "tech-failure",
+    "overflow": false,
+    "pagerBottom": "24px",
+    "w": 768
+  },
+  {
+    "id": "tech-faq",
+    "overflow": false,
+    "pagerBottom": "24px",
+    "w": 768
+  },
+  {
+    "id": "tech-author",
+    "overflow": false,
+    "pagerBottom": "24px",
+    "w": 768
+  }
+]

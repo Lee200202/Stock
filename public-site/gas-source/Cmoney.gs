@@ -608,6 +608,7 @@ function cmAutoReconcileToday_(force) {
   var weekday = Number(Utilities.formatDate(now, TZ, 'u')) <= 5;
   var pr = PropertiesService.getScriptProperties();
   if (!force) {
+    if (typeof marketSessionSkipPull_ === 'function' && marketSessionSkipPull_(now)) { out.skipped = '官方已確認當日休市'; return out; }
     if (!weekday || hhmm < 905 || hhmm > 2100) { out.skipped = '不在稽核時段'; return out; }
     var every = hhmm <= 1530 ? 10 : 60;
     var last = Number(pr.getProperty(CM_RECONCILE_PROP_) || 0);
@@ -716,6 +717,7 @@ function cmoneyPollJobRun_() {
   if (!cmEnabled_()) { return; }
 
   var now = new Date();
+  if (typeof marketSessionSkipPull_ === 'function' && marketSessionSkipPull_(now)) { return; }
   var hhmm = Number(Utilities.formatDate(now, TZ, 'HHmm'));
   var weekday = Number(Utilities.formatDate(now, TZ, 'u')) <= 5;
   var from = Number(cmProp_('CMONEY_START', '900')) || 900;

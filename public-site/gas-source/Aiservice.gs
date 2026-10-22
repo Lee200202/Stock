@@ -325,6 +325,7 @@ function callGemini_(systemText, userText, opt) {
     try {
       return callGeminiOnce_(systemText, userText, opt, keys[pos].key, hardStop, round, pos);
     } catch (e) {
+      if (opt.singleAttempt) { throw e; }
       if (e && e.nextKeyPos >= 0) {
         Logger.log('Gemini 回傳 503（' + geminiKeyName_(keys[pos]) + '），直接改用' +
                    geminiKeyName_(keys[e.nextKeyPos]) +
@@ -459,6 +460,7 @@ function callGeminiOnce_(systemText, userText, opt, apiKey, hardStop, round, key
     detail = String(detail).replace(/AIza[0-9A-Za-z\-_]{10,}/g, '（金鑰已遮蔽）');
 
     lastErr = 'HTTP ' + code + (detail ? '：' + detail.slice(0, 300) : '');
+    if (opt.singleAttempt) { throw new Error(lastErr); }
     // 503：服務端暫時過載，與這把金鑰無關。還有這一輪沒回過 503 的金鑰就直接換過去，
     // 不在原本那一把上退避，也不佔用退避表的格子；每一把都回過 503 才照表等待。
     if (code === 503) {

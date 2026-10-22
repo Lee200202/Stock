@@ -463,6 +463,7 @@ function isTradingNow_() {
   // 時分取自 Utilities.formatDate(TZ)，兩者不一致時週一清晨與週五深夜會判錯。
   // 休市日先前完全沒看，那幾天會白打七十幾檔對外請求。
   if (typeof whyClosed_ === 'function' && whyClosed_(now)) { return false; }
+  if (typeof marketSessionClosed_ === 'function' && marketSessionClosed_(now)) { return false; }
   var hhmm = Number(Utilities.formatDate(now, TZ, 'HHmm'));
   return hhmm >= 900 && hhmm <= 1340;
 }
@@ -493,6 +494,7 @@ function quoteCacheStatus() {
   try { day = JSON.parse(pr.getProperty('QUOTE_DAY_STATS') || '{}'); } catch (e) {}
   try { close = JSON.parse(pr.getProperty(QUOTE_CLOSE_PROP_) || '{}'); } catch (e) {}
   var result = { job: last, fresh: fresh, old: old, total: fresh + old, eligible: codes.length, trading: isTradingNow_(), day: day, close: close };
+  if (typeof marketSessionRead_ === 'function') { result.marketSession = marketSessionRead_(new Date()); }
   Logger.log(JSON.stringify(result));
   return result;
 }
@@ -746,6 +748,7 @@ function settleClosingQuotesTick_(force) {
 
 function refreshQuoteCacheJob() {
   if (!isTradingNow_()) { return; }
+  var sessionStartedAt = Date.now(), sessionLive = 0;
 
   var codes = trackedCodes_();
   if (!codes.length) { return; }
@@ -883,6 +886,7 @@ function refreshQuoteCacheJob() {
     // 批次 MIS 已經查過，缺成交價時再打同一個 MIS 不會產生資料。
     if (q && q.date && q.date !== todayStr_()) { continue; }
     if (!q || q.last == null) { continue; }
+    if (q.date === todayStr_() && Number(q.volume) > 0 && quoteAgeMin_(q.stamp || '') <= 5) { sessionLive++; }
 
     var chg = q.change;
     var pct = q.changePct;
@@ -921,6 +925,11 @@ function refreshQuoteCacheJob() {
     fallback: fallbackTaken, errors: errors.slice(0, 8),
     partial: taken < codes.length, configured: hasFugle_(), note: '缺成交價不採用委買／委賣；持有中與正在查看的股票優先，其餘由游標續抓。' };
   pr.setProperty('QUOTE_JOB_STATUS', JSON.stringify(jobStatus));
+
+  if (typeof marketSessionQuoteHealth_ === 'function') {
+    try { marketSessionQuoteHealth_(sessionLive, sessionStartedAt, new Date()); }
+    catch (e) { Logger.log('盤中異常核對未完成，保留原有抓取與重試'); }
+  }
 
   if (!taken) {
     pr.setProperty(QUOTE_CURSOR_KEY_, nextCursor);

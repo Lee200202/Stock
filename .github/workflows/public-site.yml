@@ -10,6 +10,7 @@ on:
       - scripts/check_project_manifest.cjs
       - scripts/check_custom_ma.cjs
       - scripts/check_market_history.cjs
+      - scripts/check_market_session.cjs
       - scripts/test_history_memory.cjs
       - site-api/**
   workflow_dispatch:
@@ -50,6 +51,8 @@ jobs:
         run: node scripts/check_usage_tracking.js
       - name: 報價排程模擬（盤中批次、收盤結算、轉送備援）
         run: node scripts/check_quote_flow.js
+      - name: 盤中無報價與休市核對安全契約
+        run: node scripts/check_market_session.cjs
       - name: 後端橋接實測（失敗就保留上一版網站）
         env:
           SITE_API_URL: ${{ vars.SITE_API_URL }}

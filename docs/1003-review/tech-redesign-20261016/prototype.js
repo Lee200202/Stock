@@ -1,4 +1,4 @@
-/* Local design prototype. No fetch, model calls, data writes or notifications. */
+/* 本機設計原型，不抓取資料、不呼叫模型、不寫入資料或通知。 */
 (() => {
   'use strict';
   const pages = [...document.querySelectorAll('.chapter')];
@@ -17,7 +17,7 @@
   let active = 'cache', caseKey = 'hit', elapsed = 0, previous = null, frame = 0, cycles=0;
   let inView = false, manualPause = false, modalOpen = false;
   const duration = 5200;
-  // Rearrange the same diagram for a narrow viewport instead of shrinking labels.
+  // 窄螢幕重新排列同一張圖，不縮小標籤。
   const nodes=[...svg.children].filter(el=>el.tagName.toLowerCase()==='g'&&!el.classList.contains('mobile-names'));
   const widePaths={request:'M260 170 C350 170 350 110 480 110',return:'M480 160 C350 160 370 270 260 270',source:'M650 190 C760 220 760 280 650 290',store:'M520 290 C425 260 425 225 520 190'};
   const smallPaths={request:'M158 130 C180 130 178 75 200 75',return:'M200 110 C175 110 180 208 158 208',source:'M327 133 C415 155 415 222 327 240',store:'M230 240 C175 218 180 157 230 133'};
@@ -77,7 +77,7 @@
   document.querySelector('#replay').addEventListener('click',()=>{manualPause=false;elapsed=0;previous=null;cycles=0;stage.dataset.cycles='0';sync();});
   document.querySelector('#theme').addEventListener('click',()=>{document.documentElement.dataset.theme=document.documentElement.dataset.theme==='dark'?'light':'dark';});
   document.querySelector('#to-top').addEventListener('click',()=>scrollTo({top:0,behavior:reduce.matches?'instant':'smooth'}));
-  // Keep the requested central button from covering interactive content.
+  // 保持要求的中央按鈕不遮住互動內容。
   let collisionFrame=0;
   function avoidOverlap(){
     collisionFrame=0; const top=document.querySelector('#to-top'),r=top.getBoundingClientRect();
@@ -100,6 +100,6 @@
   new IntersectionObserver(entries=>{inView=entries[0].isIntersecting;sync();},{threshold:0.2}).observe(svg);
   document.addEventListener('visibilitychange',sync);reduce.addEventListener('change',sync);
   narrow.addEventListener('change',layoutDiagram);
-  // Enhance only after all required elements and controllers have initialized.
+  // 必要元件與控制器都初始化完成後，再啟用互動增強。
   layoutDiagram();selectCase('hit'); document.documentElement.classList.add('enhanced'); route();scheduleOverlap();
 })();

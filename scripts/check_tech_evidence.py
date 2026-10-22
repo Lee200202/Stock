@@ -1,8 +1,6 @@
-"""Static release contract for the chapter artwork and compact source components.
+"""章節插圖與精簡來源元件的靜態發布契約。
 
-UI measurements are collected through the real browser; this script never opens
-a browser, calls a model, or writes production data.
-"""
+介面量測由真實瀏覽器另行收集；本腳本不開瀏覽器、不呼叫模型，也不寫正式資料。"""
 from pathlib import Path
 from collections import Counter
 from bs4 import BeautifulSoup
@@ -58,7 +56,7 @@ assert soup.select_one('#voteBoundaryDetails')
 assert len(re.findall('三輪仍分歧',illustrations)) >= 1
 assert '已有部位例外' in illustrations
 assert '選一個情境，看這次會不會命中' not in tech
-# Syntax check every inline program changed by this release, without executing it.
+# 只檢查本次修改的各個內嵌程式語法，不執行程式。
 for name in ['Tech.html','StoryDesign.html','TechEvidence.html','TechIllustrations.html']:
     scripts=BeautifulSoup((SRC/name).read_text(encoding='utf-8'),'html.parser').find_all('script')
     for script in scripts:

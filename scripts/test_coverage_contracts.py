@@ -1,4 +1,4 @@
-"""Candidate/quote/provenance/position contracts. No models, Sheets or market calls."""
+"""候選、引句、來源與部位契約；不呼叫模型、試算表或行情。"""
 import copy
 import importlib.util
 import os

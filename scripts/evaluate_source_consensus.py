@@ -1,4 +1,4 @@
-"""Frozen-answer ablation only. Never calls models or changes source/production data."""
+"""只以凍結回覆做離線消融，不呼叫模型或更動來源、正式資料。"""
 import argparse
 import copy
 import hashlib
@@ -24,8 +24,8 @@ def evaluate(path):
     changes = []
     for code, original in data.get('verdicts', {}).items():
         entry = copy.deepcopy(original)
-        # Older receipts did not persist the candidate aliases in each entry.
-        # Recover only recorded inventory spellings; never use reference labels.
+        # 舊收據沒有在各筆裁決中保存候選別名。
+        # 只還原盤點已記錄的原字，不使用參考分類標籤。
         entry.setdefault('source_names', sorted(aliases.get(code, set()) | {code, str(entry.get('name', ''))}))
         result = source_direction_consensus(entry, normalize)
         if not result:

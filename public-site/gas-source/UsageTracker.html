@@ -1,5 +1,5 @@
 <script>
-/* v190: one cumulative snapshot per document/day/page, bounded batches. */
+/* v190：每份文件、日期與頁面只保留一份累計快照，批次數量有上限。 */
 (function(w){'use strict';
 function create(opt){
  opt=opt||{};var clock=opt.clock||Date.now,doc=opt.document||document,storage=opt.storage;
@@ -17,7 +17,7 @@ function create(opt){
   while(order.length>40){delete queue[order.shift()];}}
  function snapshot(s){s.revision++;put({v:2,session:nonce,visit:s.visit,day:s.day,page:prefix+s.page,action:'停留',target:prefix+s.page,seconds:Math.min(86400,Math.floor(s.ms/1000)),device:device,referrer:source,landing:landing,depth:s.scroll,views:s.views,reports:s.revision,count:0,hours:s.hours.map(function(n){return Math.floor(n/1000);})});}
  function checkpoint(){var now=clock();if(!visible){since=now;return;}var start=since;since=now;if(now<=start)return;
-  // A suspended computer must not become hours of reading time.
+  // 電腦休眠時間不能變成數小時閱讀時長。
   if(now-start>120000)start=now-60000;
   var touched={};while(start<now){var cut=Math.min(now,(Math.floor(start/3600000)+1)*3600000),s=state(current,day(start)),hour=(Math.floor(start/3600000)+8)%24,span=cut-start;s.ms+=span;s.hours[hour]+=span;s.views=Math.max(1,s.views);touched[s.day]=s;start=cut;}
   Object.keys(touched).forEach(function(d){snapshot(touched[d]);});

@@ -1,4 +1,4 @@
-// v147: pure price rule and the rebuilt round's self-audit.
+// v147：純價位規則與重建回合的自我稽核。
 const fs = require('fs'), vm = require('vm'), assert = require('assert'), path = require('path');
 const src = fs.readFileSync(path.join(__dirname, '..', 'public-site', 'gas-source', 'SheetService.gs'), 'utf8');
 function grab(name) {

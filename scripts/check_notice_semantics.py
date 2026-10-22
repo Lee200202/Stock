@@ -1,4 +1,4 @@
-"""Offline, shared Python/GAS cases for notice speech acts and trade evidence."""
+"""離線共用Python與GAS案例，核對通知語意與交易證據。"""
 import importlib.util, json, os, subprocess, unittest
 from pathlib import Path
 from unittest.mock import patch

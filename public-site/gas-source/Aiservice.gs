@@ -229,8 +229,8 @@ var CALL_STATE_ = { last: 0 };
  * 這個 429 是「當日額度用完」還是「這一分鐘打太多」？
  *
  * Google 兩種都回 429，差別只在訊息裡。實際看到的樣子：
- *   per minute：Quota exceeded for metric: ... requests per minute
- *   per day　 ：Quota exceeded for metric: ... free_tier_requests, limit: 250 (per day)
+ *   每分鐘配額錯誤原文：Quota exceeded for metric: ... requests per minute
+ *   每日配額錯誤原文：Quota exceeded for metric: ... free_tier_requests, limit: 250 (per day)
  * 拿不準時當成每分鐘（可重試），因為誤判成當日額度會讓還能跑的工作提早收工。
  */
 function isDailyQuota_(detail) {

@@ -1,4 +1,4 @@
-"""Offline evidence, source scope and note-only updates. No API or model calls."""
+"""離線核對證據、來源範圍與僅更新說明的操作，不呼叫API或模型。"""
 import os,sys,json,hashlib,unittest
 from pathlib import Path
 from unittest.mock import patch

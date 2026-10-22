@@ -1,13 +1,11 @@
-"""Source-anchored stance contracts; semantic claims are never inferred from prices."""
+"""立場必須綁定來源，不以價位推測語意。"""
 import re
 
 
 def source_direction_consensus(entry, normalize):
-    """Recover only a source-verified direction versus coverage-neutral split.
-
-    Uses already validated attempts, never raw or invalid answers. Company-use
-    objections, opposite directions, trades and ownership are not abstentions.
-    """
+    """只恢復來源已確認、方向與中性收錄票分歧的個股。
+    
+    只使用已驗證回覆，不採原始或無效答案。公司用途異議、反向立場、交易與部位判斷都不能當成棄權。"""
     if (entry.get('tier') != '未定' or entry.get('current') not in ('ignored', 'history', 'uncertain', '')
             or entry.get('identity_prior') == 'ordinary' or entry.get('trade_check')):
         return None
@@ -41,7 +39,7 @@ def source_direction_consensus(entry, normalize):
 
 
 def units(zones, size=80, step=55):
-    """Fixed overlapping source slices, not guessed sentence or topic boundaries."""
+    """以固定且重疊的原文片段切分，不猜測句子或話題邊界。"""
     result, seen = [], set()
     for zone in zones:
         for at in range(0, len(zone), step):
@@ -54,7 +52,7 @@ def units(zones, size=80, step=55):
 
 
 def resolve_units(answer, source_units):
-    """Resolve IDs from this candidate only; unknown IDs cannot invent evidence."""
+    """只解析本候選的來源編號，未知編號不能產生證據。"""
     if not isinstance(answer, dict):
         return answer
     answer = dict(answer)
@@ -73,7 +71,7 @@ def resolve_units(answer, source_units):
 
 
 def source_excerpt(quote, source, normalize):
-    """Resolve punctuation-only quote differences to literal source, never new words."""
+    """只將標點差異還原成逐字來源，不新增字詞。"""
     q = normalize(quote)
     if len(q) < 8:
         return ''
@@ -87,7 +85,7 @@ def source_excerpt(quote, source, normalize):
 
 
 def windows(names, transcript, normalize):
-    """Wider context is evidence to judge, not inherited ownership of its contents."""
+    """較寬上下文供判斷，不代表其中所有內容都屬於本股。"""
     text = re.sub(r'\s+', '', str(transcript or ''))
     spans = []
     for name in set(names):
@@ -106,12 +104,9 @@ def windows(names, transcript, normalize):
 
 
 def stance(answer, names, zones, normalize):
-    """Return None for an incomplete/unbound semantic answer, not a negative vote.
-
-    Both a literal target-name anchor and the semantic conclusion must occur in
-    the same bounded source window, within 240 normalized characters. Shared
-    conclusions require an explicit target member. No generated prose is evidence.
-    """
+    """語意答案缺漏或來源無法綁定時回傳None，不當作反對票。
+    
+    本股具名錨點與語意結論必須出現在同一有界來源窗，正規化後距離不超過240字。共同結論須明確包含本股成員，生成文字不能作證據。"""
     if not isinstance(answer, dict) or not zones:
         return None
     semantic = answer.get('semantic')
@@ -130,11 +125,11 @@ def stance(answer, names, zones, normalize):
     a, q = normalize(anchor), normalize(quote)
     own = {normalize(n) for n in names if len(normalize(n)) >= 2}
     named_members = {normalize(n) for n in members if isinstance(n, str)}
-    # A literal named anchor already identifies the target. An omitted redundant
-    # members list must not invalidate it; an explicit conflicting list still does.
+    # 含本股原字的錨點已能識別目標；
+    # 重複的成員名單漏填不應使其無效，但明確衝突的名單仍拒收。
     if named_members and not own & named_members:
         return None
-    bound = own                        # official and heard spellings are one identity
+    bound = own                        # 正式名稱與已核對聽寫名稱屬於同一身分。
     if len(a) < 4 or len(q) < 8 or not any(n in a for n in bound):
         return None
     supported = False
@@ -151,7 +146,7 @@ def stance(answer, names, zones, normalize):
             break
     if not supported and not (anchor_found and named_quote_found):
         return None
-    # Entity identity, event role, then stance. None of these creates a trade.
+    # 依序核對公司身分、事件角色與立場，任何一項都不新增交易。
     if entity == 'ordinary':
         return 'ignored', '語意核對：原詞為一般用語｜' + quote[:60]
     if role == 'historical_only':
@@ -170,7 +165,7 @@ def stance(answer, names, zones, normalize):
 
 
 def phonetic_candidates(source, directory, name_sound, char_sounds, inside_term):
-    """Conservative identity suggestions only; no category or price is inferred."""
+    """保守提議公司身分，不推測分類或價位。"""
     index = {}
     for code, name in directory.items():
         name = re.sub(r'[*＊]+$', '', str(name))

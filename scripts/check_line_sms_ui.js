@@ -1,5 +1,5 @@
-// Run with: node scripts/check_line_sms_ui.js
-// Exercise the consent path and the LINE Flex cards without contacting LINE.
+// 執行方式：node scripts/check_line_sms_ui.js
+// 驗證同意流程與LINE彈性卡片，不連線LINE。
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');

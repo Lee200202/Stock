@@ -1,4 +1,4 @@
-/* Offline contract checks: no network, Sheets mutation, model, or mail. */
+/* 離線契約檢查，不使用網路、不寫試算表、不呼叫模型或郵件。 */
 const fs = require('fs');
 const vm = require('vm');
 const assert = require('assert/strict');

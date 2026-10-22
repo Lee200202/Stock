@@ -1,4 +1,4 @@
-"""Cross-source holding regression: partial sale cannot close the remaining position. No models/network."""
+"""跨來源持股回歸：部分賣出不能關閉剩餘部位；不呼叫模型或網路。"""
 import importlib.util,os,pathlib,unittest,json
 from unittest.mock import patch
 ROOT=pathlib.Path(__file__).resolve().parents[1]

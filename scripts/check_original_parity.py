@@ -1,4 +1,4 @@
-"""Keep the Pages transport aligned with the original Apps Script UI."""
+"""維持Pages轉接層與原Apps Script介面一致。"""
 
 import hashlib
 import os
@@ -42,8 +42,8 @@ def main() -> None:
     if "getProperty('ADMIN_KEY')" not in GAS:
         raise SystemExit("Admin bridge lost its backend key check")
 
-    # The local GAS editor export is optional on CI. When present, require every
-    # source file to be identical; Pages must not acquire a second, shorter UI.
+    # CI可不提供本機GAS編輯器匯出檔；若有提供，
+    # 每個來源檔都必須相同，Pages不可變成另一套縮減版介面。
     local = os.getenv("GAS_SOURCE_DIR")
     if local:
         for source in Path(local).iterdir():
@@ -52,8 +52,8 @@ def main() -> None:
             target = COPY / source.name
             if not target.is_file() or hashlib.sha256(source.read_bytes()).digest() != hashlib.sha256(target.read_bytes()).digest():
                 raise SystemExit(f"Original GAS source diverged: {source.name}")
-    # Apps Script's include() returns a file's raw content without evaluating template tags,
-    # so a nested include works on Pages (recursive build) but prints as text on /exec (2026/10/14 StoryDesign).
+    # Apps Script的include()直接回傳原始檔內容，不求值其中模板標籤；
+    # 因此巢狀include在Pages遞迴建置可用，但在原/exec會印成文字；2026/10/14的StoryDesign曾發生。
     top_level = {"Index.html", "Admin.html", "Unsubscribed.html", "Editor.html", "Reviewpanel.html", "Editorpanel.html"}
     for html in COPY.glob("*.html"):
         if html.name not in top_level and re.search(r"<\?", html.read_text(encoding="utf-8")):

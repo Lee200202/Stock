@@ -1,4 +1,4 @@
-"""Source-verified neutral coverage is not an opposing direction; no model calls."""
+"""已核對來源的中性收錄票不是反向立場；不呼叫模型。"""
 import copy
 from pathlib import Path
 import sys

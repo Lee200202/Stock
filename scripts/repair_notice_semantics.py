@@ -1,8 +1,6 @@
-"""Audit one day's saved notice originals and atomically replace only their derived rows.
+"""稽核保存的單日通知原文，以原子操作只替換衍生資料列。
 
-Uses the existing batched parser. No fetch, trigger setup, send, or notification
-state reset. Original notices and delivery ledgers remain untouched.
-"""
+使用既有批次解析器，不重新抓取、不安裝觸發器、不寄送，也不重設通知狀態。通知原文與寄送帳本維持不變。"""
 import argparse, hashlib, json, sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -34,8 +32,8 @@ def main():
   if not items:raise SystemExit('回傳空清單；人工核對前保留原狀')
   for it in items:
    print('原文核對',it['code'],it['name'],it['action'],it.get('speech_act'))
-  # The repository is public: an Actions artifact must not contain the private
-  # notice, price, evidence quote, or rewritten private operation detail.
+  # 此儲存庫公開，Actions產物不得包含私人通知、
+  # 價位、證據引句或改寫後的私人操作細節。
   reports.append({'article':r['id'],'date':day,'sourceSha256':digest(r['text']),'calls':calls,'items':[{'code':it['code'],'action':it['action'],'speech_act':it.get('speech_act','')} for it in items]})
   plans.append((old,r,items))
  out=ROOT/'.notice-audit';out.mkdir(exist_ok=True);(out/'report.json').write_text(json.dumps(reports,ensure_ascii=False),encoding='utf8')
@@ -62,7 +60,7 @@ def main():
   n=next(i for i,v in enumerate(fresh[1:],1) if dict(zip(fresh[0],v)).get('文章ID')==r['id'])
   changes={'解析明細':pl.serialize_sms_items(items),'解析狀態':f'已核對 {len(items)} 筆（原文語意）','解析版本':pl.notice_editor().VERSION,'判定時間':pl._sms_now()}
   for key,value in changes.items():requests.append({'updateCells':{'start':{'sheetId':ws.id,'rowIndex':n,'columnIndex':fresh[0].index(key)},'rows':cells([[value]]),'fields':'userEnteredValue'}})
- # One Sheets transaction: detail and operation rows cannot be half-applied.
+ # 以單一試算表交易寫入，細節與操作列不可只完成一半。
  book.batch_update({'requests':requests})
  checked=pl.sheets_retry(ws.get_all_values)
  for old,r,items in plans:

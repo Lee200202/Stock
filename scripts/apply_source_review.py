@@ -1,10 +1,6 @@
-"""Publish a reviewed, source-bound correction plan, without model or delivery calls.
+"""發布已核對並綁定來源的修正計畫，不呼叫模型或通知。
 
-Plans are corrections, never classification answer files or automatic aliases.
-Atomic mutations include their receipt. Re-running verifies final state and only
-resumes refresh. SMS and all other dates are outside the write set; legacy manual
-transcript rows require explicit per-item, date-bound source review.
-"""
+計畫只用於修正，不是分類答案檔或自動別名。原子寫入包含收據，再次執行先核對最終狀態，只續跑刷新。簡訊與其他日期不在寫入範圍內；舊人工逐字稿列須逐項取得綁定日期的來源核對。"""
 import argparse
 import hashlib
 import json
@@ -39,9 +35,9 @@ def normalize_day(value):
 def reviewed_source(item, plan):
     source = item.get('previous_source_id', plan['video_id'])
     if source != plan['video_id']:
-        # Old manually submitted transcript rows can have a different ID than
-        # the subsequently saved video. This is explicit repair authorization,
-        # not permission for the classifier to overwrite manual or SMS rows.
+        # 舊手動逐字稿列的識別碼，可能與
+        # 後來保存的影片不同。此處是明確的來源修復授權，
+        # 不代表分類器可以覆蓋人工或簡訊列。
         if (source != 'MANUAL-' + plan['date'].replace('/', '') or
                 item.get('reviewed_manual_source') is not True or
                 not item.get('manual_source_review_reason')):
@@ -52,7 +48,7 @@ def reviewed_source(item, plan):
 
 
 def make_changes(tables, plan, names):
-    """Pure planner. Fail closed on duplicates, changed source, or changed notes."""
+    """純規劃器遇到重複列、來源或說明變動時停止寫入。"""
     changes = []
     seen = set()
     for item in plan['items']:
@@ -79,8 +75,8 @@ def make_changes(tables, plan, names):
             raise ValueError('不允許跨表改動部位事實')
         head = tables[old_sheet][0]
         candidates = []
-        # Match identity + previous category across all sources. A protected row
-        # must never be bypassed by inserting a second row from the video.
+        # 跨來源比對公司身分與原分類；
+        # 不得以新增影片列的方式繞過受保護資料列。
         for i, cells in enumerate(tables[old_sheet][1:], 2):
             row = dict(zip(head, cells))
             if (normalize_day(row.get('日期')) == plan['date'] and
@@ -95,7 +91,7 @@ def make_changes(tables, plan, names):
                    '方向': LABEL[cat], '持有態度': '續抱'}
             field = '說明重點' if new_sheet == '會員持股' else '理由摘錄'
             row[field] = item['text']
-            # Actual holding header has varied over time; set known stance fields.
+            # 持股表頭曾隨版本改變，設定已知的立場欄位。
             for stance in ('態度', '立場', '目前立場', '持有態度', '持股態度'):
                 if stance in head:
                     row[stance] = '續抱'
@@ -278,7 +274,7 @@ def main():
         verify_final(tables, plan)
         print('既有原子收據與正式資料一致；不重寫，只接續刷新')
     else:
-        # Names supplied to pure planner retain official display spelling.
+        # 純規劃器使用的名稱保留正式顯示寫法。
         changes = make_changes(tables, plan, {i['code']: i['name'] for i in plan['items']})
         expected = projected(tables, changes)
         verify_final(expected, plan)
@@ -310,11 +306,11 @@ def main():
             logs.append([stamp, day, '保留人工說明', tab, item['name'], item['code'],
                          json.dumps(edit, ensure_ascii=False), '已套用（人工說明）', stamp])
         requests = requests_for(changes, {n: w.id for n, w in worksheets.items()}, logs)
-        # Never retry an ambiguous mutation. A rerun checks receipt and final state.
+        # 寫入結果不明時不重試；再次執行先核對收據與最終狀態。
         book.batch_update({'requests': requests})
         after = {n: worksheets[n].get_all_values() for n in TABLES}
         for name in TABLES:
-            # get_all_values trims trailing empty cells; compare canonically.
+            # get_all_values會省略尾端空白儲存格，須先正規化再比對。
             canon = lambda rows: [
                 list(r)[:len(tables[name][0])] +
                 [''] * max(0, len(tables[name][0]) - len(r)) for r in rows]

@@ -1,7 +1,6 @@
-"""v184 chapter reader acceptance: real controls, content identity, branches, motion, layout.
-Usage: python scripts/check_tech_book.py [--url URL] [--quick]
-Local build uses a fake API. Live mode performs read-only UI interactions.
-"""
+"""v184分章閱讀驗收：實際控制項、內容一致、分支、動畫與排版。
+執行方式：python scripts/check_tech_book.py [--url URL] [--quick]
+本機建置使用假API，正式網址模式只做唯讀介面互動。"""
 import argparse, json, os, sys, threading, tempfile, subprocess
 from pathlib import Path
 from collections import Counter
@@ -39,7 +38,7 @@ with sync_playwright() as p:
  def go(id):
   if id=='tech-day':id='tech-overview'
   page.locator('.book-tools [data-open-contents]').click();page.locator('#bookContents a[href="#'+id+'"]').click();assert page.locator('[data-chapter]:visible').count()==1
- # The original six-stage graph remains interactive, not a flattened screenshot.
+ # 原六階段圖保持互動，不壓成靜態截圖。
  go('tech-overview');assert page.locator('#techFlow [data-flow]').count()==6
  assert page.locator('#techCanvas [data-entity]').count()>=30
  flow_results=set()
@@ -68,7 +67,7 @@ with sync_playwright() as p:
     assert not metric['overflow'],metric
     assert metric['heading']>200,metric
    print('layout',width,theme,'20 chapters PASS',flush=True)
- # All retained case controls must produce a distinct visible result.
+ # 保留的每個案例控制項，必須產生不同且可見的結果。
  go('tech-transcript-progress');seen=set()
  for key in ['newer','same','cancel','pause','m503','trunc','gap','lock']:
   page.locator('[data-tx="'+key+'"]').click();seen.add(page.locator('#txStages').inner_text()+page.locator('#txOut').inner_text())
@@ -82,23 +81,23 @@ with sync_playwright() as p:
  go('tech-loading')
  for key,n in [('recent',2),('quiet',2),('rare',3),('stale',3)]:
   page.locator('[data-load-case="'+key+'"]').click();assert page.locator('#tech-loading .book-stage').get_attribute('data-playing')=='false';assert page.locator('#tech-loading .book-art [data-book-path]').evaluate_all('(els)=>els.filter(e=>e.style.opacity==="1").length')==n
- # Modal, native Escape and opener focus.
+ # 檢查放大視窗、原生Escape關閉與焦點回到開啟按鈕。
  page.locator('#tech-loading .book-visual-open[data-art]').click();page.wait_for_function("document.querySelector('#bookArtImage').naturalWidth>0");assert page.locator('#bookArtDialog').is_visible();page.screenshot(path=str(out/'dialog.png'));page.keyboard.press('Escape');assert page.locator('#bookArtDialog').is_hidden();assert page.evaluate("document.activeElement.classList.contains('book-visual-open')")
- # Replay means a loop, not a one-shot. Scroll to the stage before checking eligibility.
+ # 再播代表循環，不是只播一次；先捲到圖面再檢查播放條件。
  page.locator('#tech-loading [data-book-replay]').click();page.locator('#tech-loading .book-stage').scroll_into_view_if_needed();page.wait_for_function("document.querySelector('#tech-loading .book-stage').dataset.playing==='true'")
  page.wait_for_function("Number(document.querySelector('#tech-loading .book-stage').dataset.cycles)>=2",timeout=22000)
  page.emulate_media(reduced_motion='reduce');page.wait_for_function("document.querySelector('#tech-loading .book-stage').dataset.playing==='false'");page.emulate_media(reduced_motion='no-preference')
- # Deep links and refresh preserve the active chapter.
+ # 深層連結及重新整理後，保留目前章節。
  page.goto(url.split('#')[0]+'#toc-10',wait_until='domcontentloaded');page.wait_for_function("document.querySelector('.tech-book')?.dataset.activeChapter==='tech-transcript-progress'");page.reload();page.wait_for_function("document.querySelector('.tech-book')?.dataset.activeChapter==='tech-transcript-progress'")
- # Print reveals all chapters without changing screen routing.
+ # 列印顯示所有章節，不改變螢幕上的章節路由。
  page.emulate_media(media='print');assert page.locator('[data-chapter]:visible').count()==20;page.emulate_media(media='screen')
- # Search includes inactive chapters.
+ # 搜尋涵蓋未啟用的章節。
  page.locator('#bookSearch').fill('快取');assert page.locator('#bookSearchResults a').count()>0;page.locator('#bookSearch').fill('')
  for width in [1916,390]:
   page.set_viewport_size({'width':width,'height':857});go('tech-loading');page.locator('#tech-loading .book-stage').scroll_into_view_if_needed();page.screenshot(path=str(out/f'loading-{width}.png'))
  assert not errors,errors
  browser.close()
- # Actual no-JavaScript rendering, not a script flag.
+ # 實際停用JavaScript驗收，不只設定模擬旗標。
  browser=p.chromium.launch();ctx=browser.new_context(java_script_enabled=False);nojs=ctx.new_page();nojs.goto(url,wait_until='domcontentloaded')
  assert nojs.locator('[data-chapter]:visible').count()==20
  assert nojs.locator('.tech-book').inner_text().count('SHA-256')>0

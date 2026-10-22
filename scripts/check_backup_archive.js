@@ -1,4 +1,4 @@
-// Real archive functions with a fake Sheets service: failure must never remove the source.
+// 使用假試算表服務驗證真實封存函式；失敗時不得移除來源。
 const fs=require('fs'),vm=require('vm'),crypto=require('crypto'),assert=require('assert');
 let next=1,corrupt=false,props={},books={},main;
 class Range{

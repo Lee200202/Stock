@@ -1,19 +1,11 @@
-"""Summarize locally graded, paired A/B trials; no network, models or deployment.
+"""彙整本機評分的成對A/B實驗，不使用網路、模型或部署。
 
-Usage: python scripts/compare_skill_trials.py --manifest PLAN.json --trials RUNS.jsonl --output REPORT.json
-Manifest v1: experiment_id, rubric_hash (SHA256), assistance (unassisted/assisted/component),
-repeats (positive integer), variants {A: {artifact_hash}, B: {artifact_hash}}, and cases
-[{id, unit_id, input_hash, context_hash, split: development/regression/holdout}].
-Each JSONL record: case_id, variant, trial (1..repeats), input_hash, context_hash,
-artifact_hash, rubric_hash, trace_hash, decision_hash (all hashes are SHA256), task_pass
-(bool), hard_errors (string list), latency_ms (finite >=0, includes failures/retries),
-requests, retries (nonnegative integers), input_tokens, output_tokens, thinking_tokens
-(integer or null; provider buckets may overlap, never add blindly).
-Hashes/provenance and grading are supplied by the evaluation harness, not authenticated
-by this aggregator. decision_hash hashes normalized semantic decisions, not prose.
-All planned trials, including failures/timeouts, must be present. Output is descriptive;
-no p-values, claims of independent samples, prices or automatic promotion.
-"""
+執行方式：python scripts/compare_skill_trials.py --manifest PLAN.json --trials RUNS.jsonl --output REPORT.json
+計畫v1包含experiment_id、rubric_hash、assistance、正整數repeats、A與B各自的artifact_hash，及案例的id、unit_id、input_hash、context_hash、split。split分為開發、回歸與保留集。
+每筆JSONL記錄包含案例、版本、輪次、輸入及上下文摘要、產物與評分規範摘要、trace_hash、decision_hash、task_pass、hard_errors、latency_ms、requests、retries與三種token用量。
+所有摘要採SHA256；延遲須為非負有限值並包含失敗與重試。請求及重試次數須為非負整數，用量可為整數或null；供應商欄位可能重疊，不可直接相加。
+來源證據與評分由評估框架提供，本彙整器不負責身分驗證。decision_hash對正規化語意決定取摘要，不對文體取摘要。
+所有計畫輪次包含失敗與逾時都須列入。只輸出描述統計，不提供p值、獨立樣本主張、價格或自動採用。"""
 from __future__ import annotations
 
 import argparse

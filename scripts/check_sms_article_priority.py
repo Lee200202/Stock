@@ -1,4 +1,4 @@
-"""Same-day notice decides article category even when a later transcript disagrees."""
+"""當日通知決定文章分類，即使稍後逐字稿判斷不同。"""
 import os
 
 os.environ.setdefault('SPREADSHEET_ID', 'test-sms-priority')

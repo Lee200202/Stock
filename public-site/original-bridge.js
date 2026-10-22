@@ -1,5 +1,5 @@
-/* The original Apps Script frontend is unchanged. This replaces only the
-   google.script.run transport when that frontend is served by GitHub Pages. */
+/* 原Apps Script前台維持一致，此處只替換
+   前台由GitHub Pages提供時的google.script.run傳輸層。 */
 (function () {
   'use strict';
   const endpoint = '__SITE_API_URL__';

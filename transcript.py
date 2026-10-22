@@ -114,7 +114,7 @@ PLANNED_NO_SHOW_KIND = "預告停播"
 # 太早送過去會拿到「影片無法存取」或半截內容。
 READY_DELAY_MIN = int(os.environ.get("READY_DELAY_MINUTES", "5"))
 
-# Gemini
+# Gemini模型呼叫
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "").strip() or "gemini-3.5-flash-lite"
 
 # 備援模型。可以填多個，逗號分隔，會依序往下試。填 none／off／- 表示不要備援。
@@ -440,7 +440,7 @@ def open_sheets():
 
     # gspread 6 會把 HTTP 錯誤換成別的型別再丟出來，不是原本的 APIError：
     #   403 → 內建的 PermissionError（而且訊息是空的）
-    #   404 → SpreadsheetNotFound
+    # 404對應SpreadsheetNotFound，表示找不到試算表。
     # 只接 APIError 的話這兩種最常見的狀況都會漏掉，使用者看到的是一長串
     # traceback 加一行 PermissionError，完全看不出「要去分享試算表給誰」。
     try:
@@ -605,7 +605,7 @@ def save_transcript(ss, video, date_str, text, source, note=""):
 
 
 # ---------------------------------------------------------------- #
-# YouTube
+# YouTube影片來源
 # ---------------------------------------------------------------- #
 TITLE_DATE = re.compile(r"(20\d{2})[/\-.](\d{1,2})[/\-.](\d{1,2})")
 ISO_DURATION = re.compile(r"P(?:\d+D)?T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?")
@@ -618,7 +618,7 @@ class Video:
     date: date
     url: str = ""
     duration_sec: int = 0
-    live_status: str = "none"       # live / upcoming / none
+    live_status: str = "none"       # 影片狀態依序為直播、預告或一般回放。
     privacy: str = "public"
     ended_at: datetime = None
     detailed: bool = field(default=False)

@@ -1,4 +1,4 @@
-"""Apply source-bound reviewed notes without reclassification, model calls, or delivery."""
+"""套用來源綁定的已核對說明，不重新分類、呼叫模型或寄送。"""
 from backup_archive import backup_tables
 import argparse,json,hashlib,sys,importlib.util
 from pathlib import Path
@@ -11,7 +11,7 @@ from gspread.utils import rowcol_to_a1
 LABEL={'buy':'買入','sell':'賣出','holdings':'會員持股','watch_watch':'觀望注意','watch_avoid':'觀望不碰'}
 
 def reviewed_items(golden):
-    """Separate notes by code AND category; a remaining lot is not a buy-back stance."""
+    """依代號及分類分開處理說明，剩餘部位不等於買回立場。"""
     out = dict(golden.get('reviewed_notes') or {})
     for item in golden.get('reviewed_note_variants') or []:
         code, cat = str(item.get('code') or ''), item.get('category')

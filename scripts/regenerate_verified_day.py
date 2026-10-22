@@ -1,9 +1,6 @@
-"""Regenerate one saved day only after real-model quality gates pass.
+"""只有真實模型品質關卡通過後，才重建已保存的單日內容。
 
-Default is read-only. Apply preserves the source, manual rows, SMS priority and
-delivery states. Before writing, make recoverable worksheet copies in the separate
-private backup spreadsheet. No notification function is called.
-"""
+預設唯讀；正式套用保留來源、人工列、簡訊優先順序與寄送狀態。寫入前在獨立私人備份試算表建立可還原副本，不呼叫通知函式。"""
 from backup_archive import backup_tables
 import argparse
 import hashlib

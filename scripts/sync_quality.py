@@ -1,7 +1,6 @@
-"""Synchronize deployment copies; pipeline/pipeline.py is the sole runtime source.
+"""同步部署副本，pipeline/pipeline.py是唯一執行正本。
 
-Never reinstall stale runtime fragments over a newer pipeline.
-"""
+不得以過期執行片段覆蓋較新流程。"""
 import ast
 import json
 import re
@@ -10,12 +9,12 @@ ROOT=Path(__file__).resolve().parents[1]
 def main():
     source=(ROOT/'pipeline/pipeline.py').read_text(encoding='utf-8')
     ast.parse(source)
-    # Normalize both copies, including mixed line endings after Windows edits.
+    # 正規化兩份副本，包含Windows編輯後的混合換行。
     encoded = source.replace('\r\n', '\n').encode('utf-8')
     (ROOT/'pipeline/pipeline.py').write_bytes(encoded)
     # 根目錄 pipeline.py 會遮住 pipeline/ 套件，讓 transcript.py 無法匯入休市表。
     # 只保留正本；不要再次產生已退役的副本。
-    # Evaluate only string constants needed for prompt mirrors, no API imports.
+    # 只求值提示詞鏡像需要的字串常數，不匯入API。
     values={}
     for node in ast.parse(source).body:
         if isinstance(node,ast.Assign) and isinstance(node.targets[0],ast.Name):
@@ -27,8 +26,8 @@ def main():
     cmtext=re.sub(r'var CM_PARSE_SYSTEM =.*?(?=\n\n/\*\* 這一條裡)',lambda m:'var CM_PARSE_SYSTEM = '+json.dumps(values['CM_PARSE_SYSTEM'],ensure_ascii=False)+';\n',cmtext,flags=re.S)
     cm.write_text(cmtext,encoding='utf-8',newline='\n')
     path=ROOT/'apps-script/Adminpipeline.gs';text=path.read_text(encoding='utf-8-sig')
-    # GAS uses literal source quotes, while Python uses segment IDs. The decision
-    # policy is shared; only the evidence transport and review response differ.
+    # GAS使用逐字來源引句，Python使用片段編號；
+    # 判定政策共用，只有證據傳輸與覆核回覆格式不同。
     aliases = next(ast.literal_eval(n.value) for n in ast.parse(source).body if isinstance(n,ast.Assign) and isinstance(n.targets[0],ast.Name) and n.targets[0].id=='CONFIRMED_NAMES')
     policy = values['POLICY'].replace('這次帶有 S 編號的原始逐字稿', '這次提供的完整原始逐字稿')
     policy = policy.replace('確認名稱見輸入 confirmed_names。', '管理者確認名稱：'+json.dumps(aliases,ensure_ascii=False)+'。')

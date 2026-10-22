@@ -1,4 +1,4 @@
-/* Exact-name relevance must survive more than twelve partial matches. */
+/* 部分相符候選超過十二項時，精確名稱仍須優先。 */
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');

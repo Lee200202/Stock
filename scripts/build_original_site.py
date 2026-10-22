@@ -1,9 +1,6 @@
-"""Render the unmodified Apps Script public HTML includes for GitHub Pages.
+"""將未修改的Apps Script公開HTML片段組裝為GitHub Pages。
 
-The source fragments in public-site/gas-source are byte-for-byte copies of the
-current GAS HTML files. Only the four values normally supplied by doGet and the
-include directives are expanded. Backend calls use a separately deployed relay.
-"""
+public-site/gas-source的片段與目前GAS HTML來源逐位元組相同；只展開通常由doGet提供的四個值及include指示。後端呼叫使用獨立部署的轉接服務。"""
 
 from __future__ import annotations
 
@@ -86,8 +83,8 @@ def build(output: Path, api_url: str) -> None:
     if index.count("<?!= include('JavaScript'); ?>") != 1:
         raise ValueError("Original JavaScript include location changed")
     page = render(SOURCE / "Index.html", values)
-    # GAS sets this through HtmlService.setTitle(APP_TITLE), outside Index.html.
-    # Keep the browser tab identical when the same source is served by Pages.
+    # GAS在Index.html之外，以HtmlService.setTitle(APP_TITLE)設定標題。
+    # 同一來源由Pages提供時，瀏覽器分頁標題也須一致。
     if "<title>" not in page:
         page = page.replace('<meta charset="utf-8">', '<meta charset="utf-8">\n  <title>' + html.escape(app_title) + '</title>', 1)
     if "<?" in page:

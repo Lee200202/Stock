@@ -1,4 +1,4 @@
-/** Fixed article structure, shared facts and no additional AI call on refresh.
+/** 固定文章結構並共用事實，刷新時不新增AI呼叫。
     結構與 pipeline.py 的 canonical_article 一致（2026/09/15 v22）：
     標題一行不編號，① 盤勢總覽 ② 會員操作紀錄（②-1／②-2／②-3）③ 教學重點；不再有「基本資訊」。
     2026/09/17 v44 起不再寫 ④ 風險揭露：信尾固定呈現（mailRiskHtml_），文章裡再寫一次就重複了。

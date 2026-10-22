@@ -1,4 +1,4 @@
-"""Offline responsive proof of the real front/admin scroll controls."""
+"""離線驗證前後台實際回頂控制項的響應式排版。"""
 import json
 from playwright.sync_api import sync_playwright
 from check_tech_story import serve_local,FAKE_API

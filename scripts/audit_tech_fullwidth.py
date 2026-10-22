@@ -1,4 +1,4 @@
-"""Tech page: list cards/boxes that sit alone on their row but do not span the column (all 20 chapters)."""
+"""檢查技術頁全部20章，列出獨占一列卻未使用完整欄寬的卡片與容器。"""
 import os, sys
 from pathlib import Path
 from playwright.sync_api import sync_playwright

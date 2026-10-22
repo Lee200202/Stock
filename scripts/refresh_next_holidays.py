@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
-"""Annually add the next TWSE calendar without rewriting previously verified years.
+"""每年新增下一年度TWSE行事曆，不重寫已核對年度。
 
-The TWSE endpoint can return the *current* year's rows for an unpublished year.
-fetch() rejects those rows; an unpublished calendar never produces a commit.
-"""
+尚未公布的年度可能被TWSE端點回覆成目前年度；fetch()會拒收，不因未發布行事曆產生提交。"""
 
 from __future__ import annotations
 

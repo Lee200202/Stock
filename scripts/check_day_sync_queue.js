@@ -1,4 +1,4 @@
-// A completed GitHub lease must not hold later edits of the same day.
+// 已完成的GitHub租約，不能阻擋同一天後續編輯。
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');

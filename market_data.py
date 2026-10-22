@@ -251,7 +251,7 @@ def update_hours(ss, fetcher, codes, limit):
     codes=sorted(set(codes),key=lambda c:store.rows.get(c,(0,['','']))[1][1])
 
     # ── 第一步：收集所有需要抓取的代號，跳過已抓過和資料已齊的 ──
-    todo = []  # [(code, yahoo_symbol, previous_bars, missing_ranges)]
+    todo = []  # 欄位依序為代號、Yahoo符號、既有K棒與缺少區間。
     today_str = now.strftime('%Y/%m/%d')
     for code in codes:
         if len(todo) >= limit:

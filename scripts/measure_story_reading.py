@@ -1,4 +1,4 @@
-"""Offline digest/full visible heights; real chart data is not fabricated."""
+"""離線量測摘要與全文的可見高度，不虛構實際圖表資料。"""
 import json
 from playwright.sync_api import sync_playwright
 from check_tech_story import serve_local,FAKE_API

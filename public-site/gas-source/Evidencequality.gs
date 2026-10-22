@@ -1,4 +1,4 @@
-/** Evidence-first quality helpers and durable day-edit publication chain. */
+/** 證據優先的品質輔助函式，以及可持續恢復的逐日編輯發布鏈。 */
 function rawTranscript_(row) {
   return String(row['原始逐字稿內容'] || row['修飾後逐字稿內容'] || '');
 }
@@ -38,7 +38,7 @@ function recordChapter_(signals, d) {
   return text;
 }
 
-// Article structure (title + ①–④) lives in Articlequality.gs.
+// 文章結構含標題與①至④章，由Articlequality.gs管理。
 
 var DAY_SYNC_KEY = 'dayEditSyncV1';
 var DAY_SYNC_NAMES = ['同步郵件內容', '重算持股追蹤', '重算歷史績效', '記錄目前績效'];

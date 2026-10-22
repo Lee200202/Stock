@@ -947,7 +947,7 @@ function avoidClosesRound_(sorted, at, tradingDays) {
  * tradingDays 是市場交易日清單（由小到大），用來判斷觀望不碰之後多久沒有下文。
  * 傳空陣列也能跑，那時所有的不碰都照舊視為出場，行為與加這一關之前相同。
  */
-/** Explicit partial disposal never closes the entire position; no share-count inference. */
+/** 明確的部分減碼不會關閉整個部位，也不推測張數。 */
 function isPartialSaleRecord_(r) {
   if (!r || r.kind !== 'sell') return false;
   if(typeof r._verifiedPartialSale==='boolean'){return r._verifiedPartialSale;}
@@ -2945,8 +2945,8 @@ function displayTranscriptText_(row) {
   // 忽略的符號要涵蓋 pipeline.py _ev_norm 會忽略的全部標點（…、‧、〈〉、〔〕、～、－……）。
   // 少一個，修飾稿只要出現一次刪節號就會被判成「字不一樣」，整天改顯示沒有標點的原文（2026/09/13）。
   function words(s){return s.replace(/[\s，。！？、；：,.!?;:「」『』“”‘’（）()【】\[\]《》<>〈〉〔〕\-—－_＊*…‧﹒•·～~]/g,'');}
-  // Old display drafts may have introduced different companies. They cannot be
-  // rehabilitated by a second AI formatter; display the original words instead.
+  // 舊展示稿可能混入另一家公司，
+  // 不能再靠第二次AI格式整理證明正確，改顯示原字。
   if(raw && words(raw)!==words(polished)&&!verifiedReadingDraft_(row)){return raw;}
   return polished || raw;
 }
@@ -3191,7 +3191,7 @@ function clearTranscriptCache() {
   Logger.log('逐字稿快取已清除');
 }
 
-/** v178 acceptance: read-only trace for the 10/14 partial-disposal case. */
+/** v178驗收：唯讀追查10/14部分減碼案例。 */
 function auditPartialSaleHoldings178(){return explainHoldingsTracker('3533');}
 /** 唯讀驗收日期查詢，不啟動模型或寄送。 */
 function auditDateRead181(){
@@ -3199,7 +3199,7 @@ function auditDateRead181(){
   var out={date:r.date,found:r.found,buy:r.buy.length,sell:r.sell.length,holdings:r.holdings.length,watchWatch:r.watchWatch.length,watchAvoid:r.watchAvoid.length,elapsedMs:Date.now()-t};
   Logger.log(JSON.stringify(out));return out;
 }
-/** Back up the derived tracker before correcting its partial-sale round boundaries. No sends. */
+/** 修正部分賣出的回合邊界前，先備份衍生追蹤表；不寄送。 */
 function repairPartialSaleHoldings178(){
   var sh=getSheet_('持股追蹤'),book=sh.getParent(),name='持股備份_1014_v178';
   archiveLiveSheet_(sh,name);Logger.log('已在獨立試算表核對持股追蹤備份：'+name);

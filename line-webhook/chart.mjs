@@ -1,4 +1,4 @@
-// Public, deterministic PNG for LINE Flex. Input contains only published prices; no user IDs or tokens.
+// 為LINE彈性卡片產生可重現的公開PNG；輸入只有已公開價位，不含使用者編號或權杖。
 const WIDTH = 480, HEIGHT = 180;
 const COLORS = { rise: [191, 52, 50], fall: [29, 126, 79], flat: [55, 111, 151] };
 const TABLE = Array.from({ length: 256 }, (_, n) => {

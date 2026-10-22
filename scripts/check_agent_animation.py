@@ -1,4 +1,4 @@
-"""Verify finite user-triggered motion and compare displayed usage with the log report."""
+"""驗證由使用者觸發的有限動畫，並將畫面用量與日誌報告比對。"""
 import json
 from pathlib import Path
 from playwright.sync_api import sync_playwright

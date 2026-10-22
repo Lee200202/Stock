@@ -1,4 +1,4 @@
-"""Offline render acceptance for unsent Email and site mail cards."""
+"""離線驗收尚未寄出的Email與網站郵件卡片。"""
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 ROOT=Path(__file__).resolve().parents[1];out=ROOT/'scratch/ui180';css=(ROOT/'public-site/gas-source/Stylesheet.html').read_text(encoding='utf8')

@@ -1,9 +1,6 @@
-"""Remove explicitly approved mismatched rows after verified private backup.
+"""先驗證私人備份，再移除已明確核准的錯位資料列。
 
-The version-controlled plan binds date, source fingerprint, identity and note
-digest. This is a one-off data repair, not a classification rule. No model or
-notification calls. Atomic Sheets batch also records the repair receipt.
-"""
+版控計畫綁定日期、來源指紋、公司身分與說明摘要。這是單次資料修復，不是分類規則；不呼叫模型或通知。原子試算表批次也記錄修復收據。"""
 import argparse
 import hashlib
 import importlib.util
@@ -25,7 +22,7 @@ def digest(value):
 
 
 def find_rows(values, sheet, day, plans):
-    """All expected identities must exist exactly once and still match the plan."""
+    """所有預期身分都必須恰好出現一次，且仍符合計畫。"""
     head = values[0]
     field = '說明重點' if sheet == '會員持股' else '理由摘錄'
     required = ['日期', '股票名稱', '代號', '來源影片ID', field]
@@ -93,8 +90,8 @@ def main():
     ledgers = {ws.title: digest(pl.sheets_retry(ws.get_all_values)) for ws in book.worksheets()
                if ws.title in ('寄送帳本', 'LINE 寄送帳本')}
     sent = pl._daily_article_status(book, day)
-    # The existing archive permits the three production content tables. The
-    # correction log is append-only here; no existing log cell is changed.
+    # 既有備份機制允許處理三張正式內容表；
+    # 修正紀錄在此只新增，不更動既有儲存格。
     backup_tables(pl, book, tables[:3])
     for name, ws in sheets.items():
         if digest(pl.sheets_retry(ws.get_all_values)) != digest(values[name]):
@@ -114,7 +111,7 @@ def main():
     requests.append({'appendCells': {'sheetId': sheets['修正建議'].id, 'fields': 'userEnteredValue',
                      'rows': [{'values': [{'userEnteredValue': {'stringValue': x}} for x in row]}
                               for row in receipts]}})
-    # Do not retry an uncertain mutation. A rerun checks its receipt first.
+    # 寫入結果不明時不重試；再次執行先核對收據。
     book.batch_update({'requests': requests})
     for name in selected:
         after = pl.sheets_retry(sheets[name].get_all_values)

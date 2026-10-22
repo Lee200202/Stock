@@ -1,8 +1,6 @@
-"""Development probe: real source, supplied identities, no labels in model input.
+"""開發探測使用真實來源及已提供身分，模型輸入不含分類答案。
 
-This isolates context/stance from inventory, positions, note writing and publication.
-It is deliberately not a full pipeline acceptance or a held-out quality estimate.
-"""
+只測上下文與立場，和候選盤點、部位、撰稿及發布分開；不當作完整流程驗收或保留集品質估計。"""
 import argparse
 import hashlib
 import json

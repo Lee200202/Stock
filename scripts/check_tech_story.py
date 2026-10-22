@@ -50,7 +50,7 @@ def open_tech(page, url):
     tab = page.locator('button[data-tab="tech"]').first
     if tab.count():
         tab.click()
-    # Full reading mode is selected only after its containing tab is visible.
+    # 完整閱讀模式須在所屬分頁可見後才選取。
     if page.locator('[data-story-mode="full"]').count():
         page.locator('[data-story-mode="full"]').click()
     page.wait_for_selector('[data-tx="same"]', state='visible', timeout=30000)

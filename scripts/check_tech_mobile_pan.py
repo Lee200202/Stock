@@ -1,4 +1,4 @@
-"""Capture every technical illustration on mobile, plus native touch/keyboard pan."""
+"""逐張擷取手機技術圖解，並驗收原生觸控與鍵盤橫滑。"""
 import argparse,json,os,subprocess,sys,threading,math
 from pathlib import Path
 from functools import partial
@@ -38,22 +38,22 @@ with sync_playwright() as pw:
   for j,pan in enumerate(pans.all()):
    if not pan.is_visible():continue
    pan.scroll_into_view_if_needed()
-   # Text stays within the complete drawing; pan clips the viewport intentionally.
+   # 文字須完整留在圖面內；橫滑只裁切可視範圍。
    for svg in pan.locator('svg.book-art,svg.evidence-svg:visible').all():
     bad=svg.evaluate("""s=>{const r=s.getBoundingClientRect();return [...s.querySelectorAll('text')].filter(t=>{const b=t.getBoundingClientRect();return b.width&& (b.left<r.left-2||b.right>r.right+2||b.top<r.top-2||b.bottom>r.bottom+2)}).map(t=>t.textContent)}""")
     assert not bad,(id,j,bad)
    metric=pan.evaluate('(e)=>({client:e.clientWidth,scroll:e.scrollWidth})');assert metric['scroll']>metric['client'],(id,j,metric)
    label=f'{n+1:02}-{id}-{j+1}'
    capture(pan,label,id,j+1)
- # Additional interactive HTML diagrams retain their full readable geometry.
+ # 其他互動HTML圖解也須維持完整且可讀的幾何尺寸。
  go('tech-agent');page.locator('[data-agent="tokens"]').click();tok=page.locator('#tokViz');tok.scroll_into_view_if_needed()
  assert tok.is_visible();assert tok.evaluate('(e)=>e.scrollWidth>e.clientWidth');capture(tok,'tokenization','tech-agent-tokenization',1)
  go('tech-overview');graph=page.locator('#techScroll');graph.scroll_into_view_if_needed();capture(graph,'data-graph','tech-overview-data-graph',1)
  go('tech-quality-loop');graph=page.locator('#skillsScroll');graph.scroll_into_view_if_needed();capture(graph,'skills-graph','tech-quality-skills-graph',1)
- # All three original screenshots have working independent enlarge controls.
+ # 三張原始截圖都須有獨立且可用的放大控制。
  for id in ('tech-loading','tech-agent','tech-hold'):
   go(id);photo=page.locator('#'+id+' [data-evidence-photo]');photo.click();page.wait_for_function('document.querySelector("#bookArtImage").naturalWidth>0');assert page.locator('#bookArtDialog').is_visible();page.keyboard.press('Escape')
- # Actual touch gesture, then keyboard arrows, must not open zoom or move page horizontally.
+ # 實際觸控拖曳後再測方向鍵，不能誤開放大或使整頁水平移動。
  go('tech-loading');pan=page.locator('#tech-loading .tech-art-pan').first;pan.scroll_into_view_if_needed();pan.evaluate('(e)=>e.scrollLeft=0')
  box=pan.bounding_box();session=ctx.new_cdp_session(page);x=box['x']+box['width']*.8;y=max(160,box['y']+min(150,box['height']/2))
  session.send('Input.dispatchTouchEvent',{'type':'touchStart','touchPoints':[{'x':x,'y':y}]})

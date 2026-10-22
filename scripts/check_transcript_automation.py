@@ -1,7 +1,6 @@
-"""Offline regression checks: no API calls, sheet writes or notifications.
+"""離線回歸檢查，不呼叫API、不寫試算表或通知。
 
-Run: python scripts/check_transcript_automation.py
-"""
+執行方式：python scripts/check_transcript_automation.py"""
 import importlib.util
 import os
 from pathlib import Path
@@ -131,7 +130,7 @@ class Checks(unittest.TestCase):
         self.assertEqual(tr._probe(0), (True, "", False))
         tr.clients[0].models.generate_content.assert_called_once()
         tr.clients[0].interactions.create.assert_not_called()
-        tr._probe(0)  # five-minute health cache
+        tr._probe(0)  # 健康狀態快取保留五分鐘。
         tr.clients[0].models.generate_content.assert_called_once()
 
     def test_probe_conflict_falls_back_once(self):

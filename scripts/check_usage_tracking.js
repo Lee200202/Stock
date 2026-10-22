@@ -1,4 +1,4 @@
-/* Deterministic clocks + a sheet adapter: no network/model/production mutations. */
+/* 固定時鐘配合試算表轉接器，不使用網路、模型或正式資料寫入。 */
 'use strict';
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),crypto=require('crypto');
 let passed=0;function test(name,fn){try{fn();passed++;console.log('PASS '+name);}catch(e){console.error('FAIL '+name);throw e;}}

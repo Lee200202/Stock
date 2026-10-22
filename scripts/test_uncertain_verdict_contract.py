@@ -1,4 +1,4 @@
-"""Publication isolation and runtime completeness; no models or network."""
+"""驗證發布隔離與執行完整度，不呼叫模型或網路。"""
 import importlib.util
 import os
 from pathlib import Path
@@ -26,7 +26,7 @@ class PublicationContracts(unittest.TestCase):
                 self.assertEqual(signals[category], [])
                 self.assertEqual(signals['uncertain'][0]['code'], '1111')
                 self.assertEqual(signals['watch_watch'], [good])
-                # A later stage must not silently make it public again.
+                # 後續階段不得靜默將本股重新公開。
                 signals[category].append(dict(suspect))
                 pl.apply_verdicts(signals, '2026/10/21', final=True)
                 self.assertEqual(signals[category], [])

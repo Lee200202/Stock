@@ -1,4 +1,4 @@
-"""Offline regression: completed trade != today's trade; quarantine is local."""
+"""離線回歸：已完成交易不等於今日交易，隔離只影響本股。"""
 import os
 import sys
 from pathlib import Path

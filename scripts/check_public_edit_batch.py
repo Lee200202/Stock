@@ -1,4 +1,4 @@
-"""Offline public-editor contracts. No API, credentials, or production writes."""
+"""離線驗證公開文字編輯契約，不使用API、憑證或正式寫入。"""
 import copy,importlib.util,json,os,unittest
 from pathlib import Path
 from unittest.mock import patch

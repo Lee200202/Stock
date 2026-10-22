@@ -1,4 +1,4 @@
-"""Autoplay stays local, stops on interaction/offscreen, repeats a holding round, respects motion preference."""
+"""自動播放在本機執行，互動或離開畫面時暫停；持股回合循環播放並尊重動態偏好。"""
 import json
 from playwright.sync_api import sync_playwright
 from check_tech_story import serve_local,open_tech,FAKE_API

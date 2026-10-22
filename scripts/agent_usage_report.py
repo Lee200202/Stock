@@ -1,4 +1,4 @@
-"""Read Gemini usageMetadata logs; no model call and no credential output."""
+"""讀取Gemini的usageMetadata用量紀錄，不呼叫模型，也不輸出憑證。"""
 import argparse
 import json
 import re

@@ -92,4 +92,9 @@ class HistoryContract(unittest.TestCase):
    asked=[(c.args[1],c.args[2]) for c in f.call_args_list]
    self.assertEqual(len(asked),4);self.assertEqual(asked[0],(now.year,now.month))
    self.assertEqual(asked[-1],(lm//12,lm%12+1))
+ def test_transfer_probe_stops_when_not_on_otc_before_listing(self):
+  with tempfile.TemporaryDirectory() as d:
+   a=SimpleNamespace(start=None,years=0,deadline_min=1,archive=d,codes='6770',codes_file=None,sheets=False,order='newest')
+   with patch.object(h,'listing_dates',return_value={'6770':{'listed':'2021-12-06','founded':'2008-04-17'}}),        patch.object(h,'twse_first_dates',return_value=({'6770':'2021-12-06'},'2004-02-11')),        patch.object(h,'fetch_tpex_month',return_value={'stat':'ok','rows':[]}) as f,patch.object(h.time,'sleep'):h.cmd_fetch_tpex(a)
+   self.assertLessEqual(f.call_count,4)
 if __name__=='__main__':unittest.main()

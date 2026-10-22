@@ -322,15 +322,15 @@ def cmd_fetch_tpex(args):
         d, info = first.get(code), listing.get(code) or {}
         if not d:
             # 上櫃股票從掛牌那個月查起；查不到掛牌日（ETF、債券等）照舊往回探查
-            plan.append((code, this_month, _month_index(info['otc']) if info.get('otc') else None))
+            plan.append((code, this_month, _month_index(info['otc']) if info.get('otc') else None, False))
         elif earliest and date.fromisoformat(d) > date.fromisoformat(earliest) + timedelta(days=31):
-            plan.append((code, _month_index(d), _month_index(info['founded']) if info.get('founded') else None))
+            plan.append((code, _month_index(d), _month_index(info['founded']) if info.get('founded') else None, True))
     # 先補完全沒有上市封存的股票，避免新上市股票的轉板探查擋住真正上櫃缺口。
     plan.sort(key=lambda item: (item[0] in first, item[0]), reverse=getattr(args, 'order', 'newest') == 'reverse')
     stop, done, kept = _deadline(args), 0, 0
     start = _start(args, now.date(), TPEX_START)
     first_month = start.year * 12 + start.month - 1
-    for code, k, floor in plan:
+    for code, k, floor, transfer in plan:
         empty = 0
         # 櫃買偶爾對有資料的月份也回「沒有符合條件的資料」（2026/10/22 實測，隔幾分鐘就正常）。
         # 這一檔確定拿得到資料之前，空的月份不存檔，下次再問；拿到過資料之後，更早的空月份才當作尚未掛牌存下來。
@@ -364,6 +364,9 @@ def cmd_fetch_tpex(args):
                 done += 1
             empty = 0 if rec.get('rows') else empty + 1
             k -= 1
+            # 轉上市的股票在櫃買一直交易到上市前一天；上市那個月與前一個月櫃買都沒有，就是從興櫃或直接上市，不必再往回問
+            if transfer and not seen and empty >= 2:
+                print(f'{code}：上市前兩個月櫃買沒有資料，不是轉上市', flush=True); break
         print(f'上櫃 {code}：完成', flush=True)
     print(f'上櫃抓取：{len(plan)} 檔，新抓 {done} 個月、沿用 {kept} 個月')
 

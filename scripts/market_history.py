@@ -162,7 +162,7 @@ def cmd_fetch_twse(args):
     while day >= start:                                               # 由近往遠抓：時間不夠時最近的先有
         if time.time() > stop:
             print(f'時間到，停在 {day}，下次續抓'); break
-        if day.weekday() < 5:
+        if day.weekday() < 6:  # 歷史有週六補班交易日；不能只查週一至週五
             p = Path(args.archive) / 'twse' / f'{day:%Y}' / f'{day:%Y%m%d}.json.gz'
             fresh = (now.date() - day).days <= 1
             cached = _read(p, True)
@@ -363,21 +363,24 @@ def cmd_build(args):
     meta['missingCodes'] = sorted(codes - set(meta['codes']))
     now = datetime.now(TZ)
     end = now.date() - timedelta(days=1 if now.hour * 100 + now.minute < 1430 else 0)
-    missing_days, day = [], TWSE_START
+    missing_days, missing_saturdays, day = [], [], TWSE_START
     while day <= end:
         if day.weekday() < 5 and day.isoformat() not in scanned_days:
             missing_days.append(day.isoformat())
+        if day.weekday() == 5 and day.isoformat() not in scanned_days:
+            missing_saturdays.append(day.isoformat())
         day += timedelta(days=1)
     # 平日不等於交易日；空檔也不等於已核實休市。完整度不能只看根數或工作流成功。
     meta['archiveCoverage'] = {'twse': {'requestedStart': TWSE_START.isoformat(), 'requestedEnd': end.isoformat(),
-        'daysScanned': len(scanned_days), 'missingWeekdays': missing_days, 'emptyDaysUnverified': sorted(empty_days)},
+        'daysScanned': len(scanned_days), 'missingWeekdays': missing_days,
+        'missingSaturdayCandidates': missing_saturdays, 'emptyDaysUnverified': sorted(empty_days)},
         'tpex': month_coverage}
     before = _read(out / '_meta.json')
     if before and {k: v for k, v in before.items() if k != 'updated'} == {k: v for k, v in meta.items() if k != 'updated'}:
         meta['updated'] = before['updated']
     _write(out / '_meta.json', meta)
     print(f'產生 {len(meta["codes"])} 檔（要求 {len(codes)} 檔），最新 {meta["latest"]}')
-    print(f'完整度待核：上市尚有 {len(missing_days)} 個平日未抓、{len(empty_days)} 個空回應未核實；缺少歷史檔 {len(meta["missingCodes"])} 檔')
+    print(f'完整度待核：上市尚有 {len(missing_days)} 個平日、{len(missing_saturdays)} 個週六候選日未抓、{len(empty_days)} 個空回應未核實；缺少歷史檔 {len(meta["missingCodes"])} 檔')
 
 
 def cmd_check(args):

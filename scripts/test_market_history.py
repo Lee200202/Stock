@@ -4,6 +4,13 @@ from types import SimpleNamespace
 from unittest.mock import patch
 s=importlib.util.spec_from_file_location('hist',Path(__file__).with_name('market_history.py'));h=importlib.util.module_from_spec(s);s.loader.exec_module(h)
 class HistoryContract(unittest.TestCase):
+ def test_saturday_is_requested_sunday_is_not(self):
+  with tempfile.TemporaryDirectory() as d:
+   a=SimpleNamespace(start='2017-02-18',end='2017-02-19',years=0,deadline_min=1,archive=d)
+   with patch.object(h,'fetch_twse_day',return_value={'stat':'OK','rows':[['2330','台積電',190,191,189,189.5,0,1000]]}) as f:
+    h.cmd_fetch_twse(a)
+   self.assertEqual([c.args[0].isoformat() for c in f.call_args_list],['2017-02-18'])
+   self.assertTrue((Path(d)/'twse/2017/20170218.json.gz').exists())
  def test_otc_missing_first_before_transfer_probe(self):
   with tempfile.TemporaryDirectory() as d:
    a=SimpleNamespace(start='2026-10-01',years=0,deadline_min=1,archive=d,codes='1590,8299',codes_file=None,sheets=False)

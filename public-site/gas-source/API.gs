@@ -260,8 +260,8 @@ function apiGetQuote(code) {
 
 /** 個股歷史 K 線，period: 'hour' | 'day' | 'week' | 'month' */
 /** 個股 K 線：日K、週K、60 分 K 一次取回（v41）。 */
-function apiGetCandlesBundle(code) {
-  return getCandlesBundle(code);
+function apiGetCandlesBundle(code, opts) {
+  return getCandlesBundle(code, opts);
 }
 
 function apiGetCandles(code, period) {

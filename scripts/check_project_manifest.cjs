@@ -11,6 +11,6 @@ vm.createContext(ctx);vm.runInContext(source,ctx);
 ctx.PROJECT_FILES_=[];
 assert.deepEqual(Array.from(ctx.projectFileProblems_()),[]);
 ctx.GAS_BUILD='過期版本';assert(ctx.projectFileProblems_().some(p=>p.file==='Config.gs'));ctx.GAS_BUILD=ctx.PROJECT_BUILD_;
-const story=files.get('StoryDesign');files.set('StoryDesign',story.replaceAll('techJourneyV197','techStoryV195'));assert(ctx.projectFileProblems_().some(p=>p.file==='StoryDesign.html'));files.set('StoryDesign',story);
+const story=files.get('StoryDesign');files.set('StoryDesign',story.replaceAll('techAppleV199','techStoryV195'));assert(ctx.projectFileProblems_().some(p=>p.file==='StoryDesign.html'));files.set('StoryDesign',story);
 files.delete('TideDesign');assert(ctx.projectFileProblems_().some(p=>p.file==='TideDesign.html'));
 console.log('專案版本、全部HTML標記、舊圖解拒收及缺少共用介面檔：4項契約通過');

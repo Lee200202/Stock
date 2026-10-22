@@ -1853,6 +1853,14 @@ function restatesEarlier_(key, earlier) {
     if (q.date <= lastDate) { return rows; }
     return rows.concat([{ date: q.date, close: q.last, preview: true }]);
   }
+  (function () {
+    var box = document.getElementById('dPxRange'), lastW = 0;
+    if (!box || !window.ResizeObserver) { return; }
+    new ResizeObserver(function (entries) {
+      var w = Math.round(entries[0].contentRect.width);
+      if (Math.abs(w - lastW) > 2 && document.getElementById('detail').classList.contains('open')) { lastW = w; paintTrend(); }
+    }).observe(box);
+  })();
   function paintTrend() {
     var box = $('dPxRange');
     if (!box) { return; }
@@ -2640,7 +2648,12 @@ function restatesEarlier_(key, earlier) {
   };
 
   var detailRequest = 0, detailOrigin = null;
-  function detailUrl(code){var url=new URL(location.href);if(code)url.searchParams.set('stock',code);else url.searchParams.delete('stock');history.replaceState(history.state,'',url.pathname+url.search+url.hash);}
+  /* 個股面板與網址（v199）：從頁面打開時新增一筆瀏覽紀錄，手機返回鍵或瀏覽器上一頁就是關閉面板；
+     面板開著時換股只改網址。直接以 ?stock= 進站的，關閉時只改網址，不往回跳出網站。 */
+  var detailPushed = false;
+  function detailUrl(code){var url=new URL(location.href);if(code)url.searchParams.set('stock',code);else url.searchParams.delete('stock');var href=url.pathname+url.search+url.hash;
+    if(code&&!$('detail').classList.contains('open')&&!/[?&]stock=/.test(location.search)){history.pushState({detail:code},'',href);detailPushed=true;}
+    else{history.replaceState(code?{detail:code}:null,'',href);}}
   var quotePollTimer = null, quotePollPending = 0, quotePolledAt = 0;
   function scheduleDetailQuote_() {
     clearTimeout(quotePollTimer);
@@ -2927,16 +2940,22 @@ function restatesEarlier_(key, earlier) {
     collapseList_($('dRecord'), 'tr.rec-r', TL_HEAD, 'rec');
   }
 
-  function closeDetail() {
+  function closeDetail(fromPop) {
     ++detailRequest; ++candleRequest;
     clearTimeout(quotePollTimer);
     $('detail').classList.remove('open');
     document.body.style.overflow = '';
-    detailUrl('');
+    if (detailPushed && fromPop !== true) { detailPushed = false; history.back(); }
+    else { detailPushed = false; detailUrl(''); }
     if(detailOrigin&&detailOrigin.isConnected)detailOrigin.focus({preventScroll:true});
   }
   $('detailClose').addEventListener('click', closeDetail);
   $('detailBg').addEventListener('click', closeDetail);
+  window.addEventListener('popstate', function () {
+    var code = new URL(location.href).searchParams.get('stock');
+    if (!code && $('detail').classList.contains('open')) { closeDetail(true); }
+    else if (code && isCode(code) && code !== currentCode) { openDetail(code); }
+  });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && $('detail').classList.contains('open')) { closeDetail(); }
     if(e.key==='Tab'&&$('detail').classList.contains('open')){var list=Array.from($('detail').querySelectorAll('button,a[href],input,select,textarea,[tabindex="0"]')).filter(function(el){return !el.disabled&&el.getClientRects().length;});var first=list[0],last=list[list.length-1];if(!first)return;if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}
@@ -3077,6 +3096,9 @@ function restatesEarlier_(key, earlier) {
       return function (r) {
         if (!r || syncing || !chartVisible(from)) { return; }
         if (from !== chart && !(Date.now() - (userInputAt[id] || 0) < 1500)) { return; }
+        if (Date.now() - rangeAppliedAt > 600 && (Date.now() - (userInputAt[id] || 0) < 1500 || Date.now() - (window.__kNavAt || 0) < 1500)) {
+          document.querySelectorAll('[data-krange]').forEach(function (b) { b.setAttribute('aria-pressed', 'false'); });   // v199：自訂範圍不再顯示某個區間
+        }
         syncing = true;
         [chart, volChart, macdChart, kdChart, rsiChart].forEach(function (c) {
           if (c && c !== from && chartVisible(c)) { c.timeScale().setVisibleLogicalRange(r); }
@@ -3136,6 +3158,7 @@ function restatesEarlier_(key, earlier) {
           crossSyncing = false;
         }
         if (on) { showReadout(param.time); }
+        else if (rawData.length) { showReadout(toTime(rawData[rawData.length - 1].date)); }   // v199：離開圖表回到最後一根
       };
     }
     crossPanes.forEach(function (p) { p.chart.subscribeCrosshairMove(crossFrom(p.chart)); });
@@ -3173,6 +3196,14 @@ function restatesEarlier_(key, earlier) {
   }
 
   var wheelHintShown = false;
+  var readoutKeys = [], readoutPos = {};
+  /* 讀數方向（v199，管理者 10/22）：和前一根比，上升紅▲、下降綠▼、持平「–」；前一根算不出來就不標。 */
+  function trendMark(cur, prev) {
+    if (cur == null || prev == null || !isFinite(cur) || !isFinite(prev)) { return ''; }
+    var d = cur - prev;
+    if (Math.abs(d) < 1e-9) { return '<span class="rd-tr rd-flat" aria-label="持平">–</span>'; }
+    return d > 0 ? '<span class="rd-tr rd-up" aria-label="較前一根上升">▲</span>' : '<span class="rd-tr rd-down" aria-label="較前一根下降">▼</span>';
+  }
   function showWheelHint() {
     if (wheelHintShown) { return; }
     wheelHintShown = true;
@@ -3194,14 +3225,15 @@ function restatesEarlier_(key, earlier) {
     $('rLow').textContent = c.low.toFixed(2);
     $('rClose').textContent = c.close.toFixed(2);
     $('rVol').textContent = volText(volMap[key]);
+    var prev = readoutKeys[(readoutPos[key] || 0) - 1];
     var m = macdMap[key];
-    $('rMacd').textContent = (m || m === 0) ? m.toFixed(3) : '—';
-    var kd = kdMap[key];
-    if ($('rKD')) { $('rKD').textContent = kd ? (kd.k.toFixed(1) + ' / ' + kd.d.toFixed(1)) : '—'; }
+    $('rMacd').innerHTML = (m || m === 0) ? m.toFixed(3) + trendMark(m, prev && macdMap[prev]) : '—';
+    var kd = kdMap[key], kp = prev && kdMap[prev];
+    if ($('rKD')) { $('rKD').innerHTML = kd ? (kd.k.toFixed(1) + trendMark(kd.k, kp && kp.k) + ' / ' + kd.d.toFixed(1) + trendMark(kd.d, kp && kp.d)) : '—'; }
     Object.keys(maSeries).forEach(function (n) {
       var el = $('rMA' + n);
-      var v = (maMaps[n] || {})[key];
-      if (el) { el.textContent = v == null ? '—' : v.toFixed(2); }
+      var v = (maMaps[n] || {})[key], pv = prev && (maMaps[n] || {})[prev];
+      if (el) { el.innerHTML = v == null ? '—' : v.toFixed(2) + trendMark(v, pv); }
     });
   }
 
@@ -3382,6 +3414,9 @@ function restatesEarlier_(key, earlier) {
       candleMap[String(bar.time)] = bar;
       return bar;
     }));
+    readoutKeys = rawData.map(function (r) { return String(toTime(r.date)); });
+    readoutPos = {};
+    readoutKeys.forEach(function (k, i) { readoutPos[k] = i; });
     volMap = {};
     volSeries.setData(rawData.map(function (r) {
       var t = toTime(r.date);
@@ -3452,12 +3487,13 @@ function restatesEarlier_(key, earlier) {
 
   /* K 線上直接標出進出場（v67，0925 規格 3.5）：提到（灰圈）、成交（紅色上三角＋價）、出場（綠色下三角＋價），
      加一條水平線：進場價實線（v104 起不畫口頭價位）。只畫在日 K——週、月、60 分 K 對不到同一根，不畫。 */
-  var tradePriceLines = [];
+  var tradePriceLines = [], entrySegment = null;
   function pxShort(v) { return v === null || v === undefined || !isFinite(v) ? '\u2014' : String(Math.round(Number(v) * 100) / 100); }
   function applyTradeMarks() {
     if (!candleSeries) { return; }
     tradePriceLines.forEach(function (l) { try { candleSeries.removePriceLine(l); } catch (e) {} });
     tradePriceLines = [];
+    if (entrySegment) { try { chart.removeSeries(entrySegment); } catch (e) {} entrySegment = null; }
     var t = DETAIL.tracker, list = t && t.roundList || [];
     if (period !== 'day' || !t || !list.length || !rawData.length || DETAIL.code !== currentCode) { candleSeries.setMarkers([]); return; }
     var has = {};
@@ -3478,9 +3514,17 @@ function restatesEarlier_(key, earlier) {
     marks.sort(function (a, b) { return a.time < b.time ? -1 : a.time > b.time ? 1 : 0; });
     candleSeries.setMarkers(marks);
     var lr = list[list.length - 1], entryPx = t.entry || lr.entry;
-    if (entryPx > 0) {
-      tradePriceLines.push(candleSeries.createPriceLine({ price: entryPx, color: css('--rise'), lineWidth: 1, lineStyle: 0,
-        axisLabelVisible: true, title: '進場 ' + pxShort(entryPx) }));
+    /* v199：進場價先前用整條水平線畫滿整段歷史（一年前就有一條「進場」線），右軸又寫一次「進場 225.5」。
+       現在只從進場那一根畫到最後一根（已出場則到出場那一根）；文字留在進場記號，軸上只標價位。 */
+    var segFrom = lr.entryDate && has[lr.entryDate] ? lr.entryDate : '';
+    var lastDay = String(rawData[rawData.length - 1].date).slice(0, 10);
+    var segTo = !t.stillHeld && lr.exitDate && has[lr.exitDate] ? lr.exitDate : lastDay;
+    if (entryPx > 0 && segFrom) {
+      entrySegment = chart.addLineSeries({ color: css('--rise'), lineWidth: 1, priceLineVisible: false, lastValueVisible: true,
+        crosshairMarkerVisible: false });
+      var segPts = [{ time: toTime(segFrom), value: entryPx }];
+      if (segTo !== segFrom) { segPts.push({ time: toTime(segTo), value: entryPx }); }
+      entrySegment.setData(segPts);
     }
   }
 
@@ -3523,7 +3567,7 @@ function restatesEarlier_(key, earlier) {
         maDefs.sort(function(a,b){return a.n-b.n;});saveCustomMAs();maAdding = false; syncMaList(); renderChart();$('maOpen').focus();
       };
       $('maAdd').addEventListener('click', commit);
-      input.addEventListener('keydown', function (e) { if (e.key === 'Enter') { commit(); } if (e.key === 'Escape') { maAdding = false; renderKLegend(); } });
+      input.addEventListener('keydown', function (e) { if (e.key === 'Enter') { commit(); } if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); maAdding = false; renderKLegend(); if ($('maOpen')) { $('maOpen').focus(); } } });
       $('maCancel').addEventListener('click', function () { maAdding = false; renderKLegend(); });
       input.focus();
     } else {
@@ -3573,7 +3617,9 @@ function restatesEarlier_(key, earlier) {
     });
   }
 
+  var rangeAppliedAt = 0;
   function applyChartRange() {
+    rangeAppliedAt = Date.now();
     var n = rawData.length;
     if (!n || !chart) { return; }
     var eff = effectiveRange();
@@ -3602,7 +3648,7 @@ function restatesEarlier_(key, earlier) {
     if (mc) {
       mc.textContent = '12 / 26 / 9' + (n && n < 26 ? '　資料 ' + n + ' 根，MACD 至少要 26 根才顯示' : '');
     }
-    if (kc) { kc.textContent = '9' + (n && n < 9 ? '　資料 ' + n + ' 根，KD 至少要 9 根才算得出' : ''); }
+    if (kc) { kc.textContent = '9, 3, 3' + (n && n < 9 ? '　資料 ' + n + ' 根，KD 至少要 9 根才算得出' : ''); }
   }
 
   /* K 線下方的說明加上資料範圍，一眼分得出「圖只顯示一部分」還是「資料庫本來就只有這麼多」。 */
@@ -3647,8 +3693,13 @@ function restatesEarlier_(key, earlier) {
       var r=chart.timeScale().getVisibleLogicalRange();
       // 每張圖保留同寬右軸，日期線才能在上下圖的相同像素對齊。
       var charts=[chart,volChart,macdChart,kdChart,rsiChart];
-      charts.forEach(function(c){c.priceScale('right').applyOptions({minimumWidth:96,alignLabels:true,entireTextOnly:true});});
-      requestAnimationFrame(function(){var width=Math.max.apply(null,[96].concat(charts.map(function(c){return c.priceScale('right').width();})));charts.forEach(function(c){c.priceScale('right').applyOptions({minimumWidth:width});});});
+      var axisMin=window.innerWidth<600?60:96;   // v199：手機上價軸縮窄，繪圖區不再只剩 216px
+      charts.forEach(function(c){c.priceScale('right').applyOptions({minimumWidth:axisMin,alignLabels:true,entireTextOnly:true});});
+      requestAnimationFrame(function(){var width=Math.max.apply(null,[axisMin].concat(charts.map(function(c){return c.priceScale('right').width();})));charts.forEach(function(c){c.priceScale('right').applyOptions({minimumWidth:width});});});
+      // v199：日期軸只畫在最下面那一張（先前主圖＋每張副圖各一條，疊了四條日期）
+      var shown=[['chart',chart]].concat(definitions.filter(function(d){return paneShown(d[0]);}).map(function(d){return [d[1],d[3]];}));
+      shown.sort(function(a,b){return $(a[0]).compareDocumentPosition($(b[0]))&Node.DOCUMENT_POSITION_FOLLOWING?-1:1;});
+      shown.forEach(function(p,i){p[1].applyOptions({timeScale:{visible:i===shown.length-1}});});
       definitions.forEach(function(d){if(!paneShown(d[0]))return;d[3].applyOptions({width:$(d[1]).clientWidth,timeScale:{timeVisible:period==='hour'}});if(r)d[3].timeScale().setVisibleLogicalRange(r);});
     });
   }
@@ -3668,12 +3719,15 @@ function restatesEarlier_(key, earlier) {
   var candleRequest = 0;
   /* K 線讀取（2026/09/16 v41）：一次取回日K、週K、60 分 K，存在這一頁的記憶體裡 3 分鐘。
      切換日／週／60分直接用暫存，不再每按一次就等一次伺服器；同一檔正在取的時候不重複送出。 */
-  var candleMemo = {}, candlePending = {};
+  var candleMemo = {}, candlePending = {}, candleRetried = {};
   var CANDLE_MEMO_MS = 3 * 60 * 1000;
 
   function loadCandles(code, p, background) {
     ++candleRequest;
     var memo = candleMemo[code];
+    if (p === 'hour' && memo && Date.now() - memo.at < CANDLE_MEMO_MS && !Object.prototype.hasOwnProperty.call(memo, 'hour')) {
+      loadHourly(code, background); return;
+    }
     if (memo && Date.now() - memo.at < CANDLE_MEMO_MS && Object.prototype.hasOwnProperty.call(memo, p)) {
       showCandles(p, memo[p]);
       return;
@@ -3683,8 +3737,13 @@ function restatesEarlier_(key, earlier) {
     candlePending[code] = true;
     google.script.run.withSuccessHandler(function (b) {
       delete candlePending[code];
-      candleMemo[code] = { at: Date.now(), day: (b && b.day) || [], week: (b && b.week) || [], month:(b && b.month)||[], hour: (b && b.hour) || [], hourCoverage:b&&b.hourCoverage };
+      delete candleRetried[code];
+      // v199：開面板只取日／週／月K；60 分 K 在選「60分」時才取（舊版後端仍會一起回，照收）。
+      var fresh = { at: Date.now(), day: (b && b.day) || [], week: (b && b.week) || [], month:(b && b.month)||[] };
+      if (b && Array.isArray(b.hour)) { fresh.hour = b.hour; fresh.hourCoverage = b.hourCoverage; }
+      candleMemo[code] = fresh;
       if (code !== currentCode || !$('detail').classList.contains('open')) { return; }
+      if (period === 'hour' && !fresh.hour) { paintTrend(); loadHourly(code, background); return; }
       var viewport=background&&chart&&chart.timeScale().getVisibleLogicalRange?chart.timeScale().getVisibleLogicalRange():null;
       showCandles(period, candleMemo[code][period] || []);
       if(viewport){chart.timeScale().setVisibleLogicalRange(viewport);}
@@ -3695,10 +3754,39 @@ function restatesEarlier_(key, earlier) {
       if(background){$('periodNote').textContent+='　更新暫未成功，保留上次圖表。';$('kFresh').textContent='更新暫未成功 · 顯示上次資料';return;}
       // 失敗的時候也要收起來，連線斷掉時那一大塊白方塊照樣會留在畫面上。
       setChartVisible(false);
-      $('periodNote').textContent = 'K 線載入失敗，請重新整理再試。';
       $('kFresh').textContent = '走勢讀取失敗';
       paintTrend();
-    }).apiGetCandlesBundle(code);
+      /* v199：後端偶發逾時（10/22 正式站實測 37–55 秒回 502），自動再試一次；
+         仍失敗才給「重新載入走勢」，不必整頁重新整理。 */
+      if (!candleRetried[code]) {
+        candleRetried[code] = true;
+        $('periodNote').textContent = 'K 線讀取逾時，自動重試中…';
+        setTimeout(function () { if (code === currentCode && $('detail').classList.contains('open')) { loadCandles(code, period); } }, 4000);
+        return;
+      }
+      $('periodNote').innerHTML = 'K 線暫時讀取不到。<button type="button" class="k-retry" id="kRetry">重新載入走勢</button>';
+      $('kRetry').addEventListener('click', function () { candleRetried[code] = false; loadCandles(code, period); });
+    }).apiGetCandlesBundle(code, { hour: false });
+  }
+
+  /* 60 分 K 另外取（v199）：開盤時段取 60 分 K 會即時向富果補當天，多數人只看日K，不必每次開面板都等。 */
+  function loadHourly(code, background) {
+    var k = code + ':hour';
+    if (candlePending[k]) { return; }
+    candlePending[k] = true;
+    if (!background) { rawData = []; setChartVisible(false); $('periodNote').textContent = '60 分 K 載入中…'; $('kFresh').textContent = '讀取走勢中'; }
+    google.script.run.withSuccessHandler(function (b) {
+      delete candlePending[k];
+      var memo = candleMemo[code] || (candleMemo[code] = { at: Date.now() });
+      memo.hour = (b && b.hour) || []; memo.hourCoverage = b && b.hourCoverage;
+      if (code === currentCode && period === 'hour' && $('detail').classList.contains('open')) { showCandles('hour', memo.hour); }
+    }).withFailureHandler(function () {
+      delete candlePending[k];
+      if (code !== currentCode || period !== 'hour' || background) { return; }
+      $('kFresh').textContent = '走勢讀取失敗';
+      $('periodNote').innerHTML = '60 分 K 暫時讀取不到。<button type="button" class="k-retry" id="kRetry">重新載入走勢</button>';
+      $('kRetry').addEventListener('click', function () { loadHourly(code); });
+    }).apiGetCandlesBundle(code, { only: 'hour' });
   }
 
   // 只更新正在看的個股，不開全宇宙輪詢；3分鐘共用快取到期才取新值。
@@ -4319,7 +4407,8 @@ function restatesEarlier_(key, earlier) {
     nav.style.top = (head && getComputedStyle(head).position === 'sticky' ? head.offsetHeight : 0) + 'px';
   }
   function spy(sc) {
-    var cur = null, limit = sc.getBoundingClientRect().top + offset() + 4;
+    // v199：段落頂端進到可讀區上方三分之一就算目前段落（先前要完全捲到導覽列下面，K 線標題已在眼前仍亮「進場紀錄」）
+    var cur = null, limit = sc.getBoundingClientRect().top + offset() + Math.round(Math.max(0, sc.clientHeight - offset()) * 0.33);
     [].forEach.call(nav.querySelectorAll('[data-go]'), function (b) {
       var el = document.getElementById(b.getAttribute('data-go'));
       if (el && el.getBoundingClientRect().top <= limit) { cur = b; }

@@ -138,12 +138,138 @@ function startJourney(){
  });});
  var observer=new IntersectionObserver(function(entries){entries.forEach(function(entry){var state=states.find(function(s){return s.el===entry.target;});if(state){state.visible=entry.isIntersecting;sync(state);}else entry.target.dataset.visible=String(entry.isIntersecting);});},{threshold:.25});
  root.querySelectorAll('.journey-flow-wrap').forEach(function(e){observer.observe(e);});
- function update(s){var cards=Array.from(s.el.children),pos=s.el.scrollLeft,best=0,delta=Infinity;cards.forEach(function(c,i){var d=Math.abs(c.offsetLeft-s.el.offsetLeft-pos);if(d<delta){delta=d;best=i;}});s.index=best;s.edgeStart=pos<=2;s.edgeEnd=pos>=Math.max(0,s.el.scrollWidth-s.el.clientWidth)-2;s.count.textContent=(best+1)+' / '+cards.length;s.el.dataset.galleryIndex=String(best);s.prev.disabled=s.edgeStart;s.next.disabled=s.edgeEnd;}
+ function update(s){if(s.el.closest('.ap-pin.is-on'))return;var cards=Array.from(s.el.children),pos=s.el.scrollLeft,best=0,delta=Infinity;cards.forEach(function(c,i){var d=Math.abs(c.offsetLeft-s.el.offsetLeft-pos);if(d<delta){delta=d;best=i;}});s.index=best;s.edgeStart=pos<=2;s.edgeEnd=pos>=Math.max(0,s.el.scrollWidth-s.el.clientWidth)-2;s.count.textContent=(best+1)+' / '+cards.length;s.el.dataset.galleryIndex=String(best);s.prev.disabled=s.edgeStart;s.next.disabled=s.edgeEnd;}
  function go(s,index){var cards=s.el.children,index=Math.max(0,Math.min(cards.length-1,index));s.el.scrollTo({left:cards[index].offsetLeft-s.el.offsetLeft,behavior:reduced.matches?'instant':'smooth'});}
- function sync(s){clearTimeout(s.timer);if(!s.visible||s.stopped||s.hover||document.hidden||reduced.matches)return;s.timer=setTimeout(function(){update(s);if(s.edgeEnd)s.direction=-1;if(s.edgeStart)s.direction=1;s.el.dataset.autoCycles=String(Number(s.el.dataset.autoCycles||0)+1);go(s,s.index+s.direction);sync(s);},5000);}
+ function sync(s){clearTimeout(s.timer);if(s.el.closest('.ap-pin.is-on'))return;if(!s.visible||s.stopped||s.hover||document.hidden||reduced.matches)return;s.timer=setTimeout(function(){update(s);if(s.edgeEnd)s.direction=-1;if(s.edgeStart)s.direction=1;s.el.dataset.autoCycles=String(Number(s.el.dataset.autoCycles||0)+1);go(s,s.index+s.direction);sync(s);},5000);}
  root.querySelectorAll('.book-five,.src-cards-row,.agent-models,.pain-cards').forEach(function(el){if(el.children.length<2||el.closest('dialog')||el.closest('.journey-gallery'))return;el.classList.add('journey-gallery');var tools=document.createElement('div');tools.className='journey-gallery-tools';var s={el:el,index:0,direction:1,visible:false,stopped:false,hover:false,timer:0};var count=document.createElement('span');count.setAttribute('aria-live','off');s.count=count;['prev','next'].forEach(function(key){var b=document.createElement('button');b.type='button';b.setAttribute('aria-label',key==='prev'?'上一張卡片':'下一張卡片');b.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="'+(key==='prev'?'M15 5l-7 7 7 7':'M9 5l7 7-7 7')+'"/></svg>';s[key]=b;b.addEventListener('click',function(){s.stopped=true;sync(s);go(s,s.index+(key==='prev'?-1:1));});});tools.append(count,s.prev,s.next);el.insertAdjacentElement('afterend',tools);states.push(s);el.addEventListener('scroll',function(){requestAnimationFrame(function(){update(s);});},{passive:true});['pointerdown','keydown','focusin'].forEach(function(type){el.addEventListener(type,function(){s.stopped=true;sync(s);});});el.addEventListener('mouseenter',function(){s.hover=true;sync(s);});el.addEventListener('mouseleave',function(){s.hover=false;sync(s);});observer.observe(el);update(s);new ResizeObserver(function(){update(s);}).observe(el);});
  document.addEventListener('visibilitychange',function(){states.forEach(sync);});reduced.addEventListener('change',function(){states.forEach(sync);});root.addEventListener('stock-tech-chapter',function(){requestAnimationFrame(function(){states.forEach(function(s){if(s.el.closest('[data-chapter]')&&s.el.closest('[data-chapter]').hidden){s.visible=false;sync(s);}else update(s);});});});
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',startJourney);else startJourney();
+})();
+</script>
+<style id="techAppleV199">
+/* v199 技術說明：蘋果產品頁＋說明書式版面。二十章原文、錨點、章節切換與圖解互動不變；
+   改的是字級層次、卡片、流程圖與「往下捲、卡片橫移」。依既有裁示：內容不從透明開始、數字不從 0 跳動、
+   900px 以下不用毛玻璃、進場只做位移；目錄仍在右側。 */
+#p-tech .tech-book{--ap-r:28px;--ap-card:var(--panel);--ap-line:var(--rule);--ap-accent:var(--bk-accent,var(--brand));--ap-sub:var(--muted)}
+#p-tech .tech-book .book-index{padding-top:clamp(40px,7vw,120px)}
+#p-tech .tech-book .book-index>.book-eyebrow{font-size:calc(17px * var(--rd-fs));font-weight:650;color:var(--ap-accent);letter-spacing:.02em;margin:0 0 14px}
+#p-tech .tech-book .book-index>h1{font-size:calc(clamp(40px,6.2vw,84px) * var(--rd-fs))!important;line-height:1.06!important;letter-spacing:-.02em;font-weight:760;margin:0 0 18px;max-width:16ch}
+#p-tech .tech-book .book-index>p{font-size:calc(clamp(19px,1.7vw,24px) * var(--rd-fs));color:var(--ap-sub);max-width:36ch;line-height:1.5}
+#p-tech .tech-book .journey-atlas>h2,#p-tech .tech-book .book-heading h2{font-size:calc(clamp(30px,4.2vw,56px) * var(--rd-fs))!important;line-height:1.1!important;letter-spacing:-.015em;font-weight:740}
+#p-tech .tech-book .book-heading .book-eyebrow{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:999px;background:color-mix(in srgb,var(--ap-accent) 12%,transparent);color:var(--ap-accent);font-weight:650;font-size:calc(14.5px * var(--rd-fs))}
+
+/* 六步流程：卡片＋連接線，往下捲時依序點亮 */
+#p-tech .tech-book .journey-atlas-track{gap:28px;padding:8px 4px 18px;counter-reset:ap}
+#p-tech .tech-book .journey-atlas-track>a{position:relative;flex:0 0 clamp(220px,22vw,300px);display:grid;gap:10px;align-content:start;padding:28px 26px 30px;border-radius:var(--ap-r);background:var(--ap-card);border:1px solid var(--ap-line);box-shadow:0 2px 14px rgb(0 0 0 / .05);color:var(--ink);text-decoration:none;transition:transform .45s cubic-bezier(.2,.8,.2,1),border-color .3s,box-shadow .3s}
+#p-tech .tech-book .journey-atlas-track>a svg{width:56px;height:56px}
+#p-tech .tech-book .journey-atlas-track>a small{font:650 calc(13px * var(--rd-fs))/1 ui-monospace,monospace;color:var(--ap-sub)}
+#p-tech .tech-book .journey-atlas-track>a b{font-size:calc(22px * var(--rd-fs));font-weight:700}
+#p-tech .tech-book .journey-atlas-track>a:not(:last-child)::after{content:"";position:absolute;top:50%;left:100%;width:28px;height:2px;background:linear-gradient(90deg,var(--ap-accent) var(--ap-fill,0%),var(--ap-line) 0);transition:--ap-fill .5s}
+#p-tech .tech-book .journey-atlas-track>a.is-lit{border-color:var(--ap-accent);box-shadow:0 10px 30px color-mix(in srgb,var(--ap-accent) 18%,transparent)}
+#p-tech .tech-book .journey-atlas-track>a.is-lit:not(:last-child)::after{--ap-fill:100%}
+#p-tech .tech-book .journey-atlas-track>a:hover{transform:translateY(-6px)}
+@property --ap-fill{syntax:'<percentage>';inherits:false;initial-value:0%}
+
+/* 章節列：說明書式章節卡 */
+#p-tech .tech-book .book-strip-row>a{border-radius:22px;padding:18px 18px 20px;min-height:112px;display:grid;align-content:space-between;background:var(--ap-card);border:1px solid var(--ap-line)}
+#p-tech .tech-book .book-strip-row>a small{font:700 calc(26px * var(--rd-fs))/1 ui-monospace,monospace;color:var(--ap-accent)}
+#p-tech .tech-book .book-strip-row>a[aria-current="true"]{border-color:var(--ap-accent);box-shadow:inset 0 0 0 1px var(--ap-accent)}
+
+/* 章節內卡片列：大圓角、以內容為主的卡片 */
+#p-tech .tech-book .journey-gallery>*{border-radius:var(--ap-r)!important;background:var(--ap-card);border:1px solid var(--ap-line);box-shadow:0 2px 16px rgb(0 0 0 / .05);padding:clamp(22px,2.4vw,34px)}
+#p-tech .tech-book .book-five>li b{display:inline-flex;align-items:center;gap:10px;font-size:calc(20px * var(--rd-fs))}
+
+/* 往下捲、卡片橫移（桌機且未要求減少動態）：區塊固定在畫面，垂直捲動換算成橫向位移 */
+#p-tech .ap-pin{position:relative}
+#p-tech .ap-pin.is-on{height:var(--ap-len,auto)}
+#p-tech .ap-pin.is-on>.ap-stage{position:sticky;top:var(--ap-top,72px);min-height:calc(100vh - var(--ap-top,72px));display:grid;align-content:center;overflow:clip;padding-block:24px}
+#p-tech .ap-pin.is-on :is(.journey-atlas-track,.journey-gallery){overflow:visible!important;scroll-snap-type:none!important;flex-wrap:nowrap;width:max-content;max-width:none;transform:translate3d(var(--ap-x,0px),0,0);will-change:transform}
+#p-tech .ap-pin.is-on .journey-gallery>*{scroll-snap-align:none;flex:0 0 clamp(320px,32vw,460px);width:clamp(320px,32vw,460px);max-width:460px;white-space:normal}
+#p-tech .ap-progress{height:3px;border-radius:3px;background:var(--ap-line);margin-top:18px;overflow:hidden}
+#p-tech .ap-progress>i{display:block;height:100%;width:100%;background:var(--ap-accent);transform-origin:0 50%;transform:scaleX(var(--ap-p,0))}
+#p-tech .ap-pin:not(.is-on) .ap-progress{display:none}
+
+/* 捲入：只做位移，不從透明開始 */
+#p-tech .ap-rise{transform:translateY(26px);transition:transform .8s cubic-bezier(.2,.8,.2,1)}
+#p-tech .ap-rise.is-in{transform:none}
+@media (prefers-reduced-motion:reduce){#p-tech .ap-rise{transform:none;transition:none}#p-tech .tech-book .journey-atlas-track>a{transition:none}}
+@media (max-width:899px){#p-tech .tech-book .journey-atlas-track>a{flex-basis:min(78vw,300px)}#p-tech .tech-book .journey-atlas-track>a:not(:last-child)::after{width:28px}}
+</style>
+<script id="techAppleScriptV199">
+(function(){
+  var root=document.getElementById('p-tech');
+  if(!root||!root.querySelector('.tech-book'))return;
+  var mq=window.matchMedia('(min-width:900px) and (prefers-reduced-motion:no-preference)');
+  var pins=[],ticking=false;
+  function topOffset(){var bar=document.querySelector('.tabs, header.site, .topbar');var b=bar&&bar.getBoundingClientRect();return Math.max(56,Math.min(120,b&&b.bottom>0?Math.round(b.bottom)+8:72));}
+  function wrap(target,extra,atlas){
+    var pin=document.createElement('div');pin.className='ap-pin';
+    var stage=document.createElement('div');stage.className='ap-stage';
+    target.parentNode.insertBefore(pin,target);pin.appendChild(stage);stage.appendChild(target);
+    if(extra&&extra.parentNode){stage.appendChild(extra);}
+    var bar=document.createElement('div');bar.className='ap-progress';bar.setAttribute('aria-hidden','true');bar.innerHTML='<i></i>';stage.appendChild(bar);
+    var track=atlas?target.querySelector('.journey-atlas-track'):target;
+    var p={pin:pin,stage:stage,track:track,atlas:atlas,tools:extra,dist:0,on:false,progress:0};
+    pins.push(p);
+    if(window.ResizeObserver){new ResizeObserver(function(){measure(p);}).observe(stage);}
+    if(extra){extra.addEventListener('click',function(e){var btn=e.target.closest('button');if(!btn||!p.on)return;e.preventDefault();e.stopImmediatePropagation();step(p,/上一/.test(btn.getAttribute('aria-label')||'')?-1:1);},true);}
+    track.addEventListener('focusin',function(e){if(!p.on)return;var items=[].slice.call(track.children),i=items.indexOf(e.target.closest('#p-tech .ap-pin '+(atlas?'.journey-atlas-track':'.journey-gallery')+'>*'));if(i>=0)goTo(p,i,false);});
+    return p;
+  }
+  function measure(p){
+    var on=mq.matches&&p.stage.offsetParent!==null;
+    var dist=on?Math.max(0,p.track.scrollWidth-p.stage.clientWidth+8):0;
+    if(on&&dist<40){on=false;}   // 卡片本來就放得下：不必固定
+    p.on=on;p.dist=dist;p.pin.classList.toggle('is-on',on);
+    if(on){p.pin.style.setProperty('--ap-top',topOffset()+'px');p.pin.style.setProperty('--ap-len',(p.stage.offsetHeight+dist)+'px');}
+    else{p.pin.style.removeProperty('--ap-len');p.track.style.removeProperty('--ap-x');}
+    update(p);
+  }
+  function update(p){
+    if(!p.on)return;
+    var r=p.pin.getBoundingClientRect(),span=Math.max(1,r.height-p.stage.offsetHeight);
+    var prog=Math.min(1,Math.max(0,-(r.top-parseFloat(p.pin.style.getPropertyValue('--ap-top')||72))/span));
+    p.progress=prog;
+    p.track.style.setProperty('--ap-x',(-prog*p.dist).toFixed(1)+'px');
+    p.stage.querySelector('.ap-progress').style.setProperty('--ap-p',prog.toFixed(3));
+    var items=p.track.children,n=items.length,cur=Math.round(prog*(n-1));
+    if(p.atlas){for(var i=0;i<n;i++){items[i].classList.toggle('is-lit',i<=cur);}}
+    var counter=p.tools&&p.tools.querySelector('span');if(counter){counter.textContent=(cur+1)+' / '+n;}
+    if(p.tools){var bs=p.tools.querySelectorAll('button');if(bs[0])bs[0].disabled=cur<=0;if(bs[1])bs[1].disabled=cur>=n-1;}   // 固定橫移時由捲動進度決定能不能再往前／往後
+  }
+  function goTo(p,i,smooth){
+    var n=p.track.children.length,r=p.pin.getBoundingClientRect(),span=Math.max(1,r.height-p.stage.offsetHeight);
+    var top=window.scrollY+r.top-parseFloat(p.pin.style.getPropertyValue('--ap-top')||72)+span*(n>1?i/(n-1):0);
+    window.scrollTo({top:Math.round(top),behavior:smooth===false?'auto':'smooth'});
+  }
+  function step(p,dir){var n=p.track.children.length,cur=Math.round(p.progress*(n-1));goTo(p,Math.max(0,Math.min(n-1,cur+dir)));}
+  function onScroll(){if(ticking)return;ticking=true;requestAnimationFrame(function(){ticking=false;pins.forEach(update);});}
+  // 六步流程與章節卡片列是技術說明的程式在載入後才排好的：內容變動時再掃一次，只包還沒包過的
+  var motionOk=!window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+  var io='IntersectionObserver' in window&&motionOk?new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('is-in');io.unobserve(e.target);}});},{rootMargin:'0px 0px -8% 0px'}):null;
+  function scan(){
+    var atlas=root.querySelector('.journey-atlas');
+    if(atlas&&atlas.querySelector('.journey-atlas-track')&&!atlas.closest('.ap-pin'))measure(wrap(atlas,null,true));
+    root.querySelectorAll('.book-chapter .journey-gallery').forEach(function(g){
+      if(g.closest('.ap-pin'))return;
+      var tools=g.nextElementSibling&&g.nextElementSibling.classList.contains('journey-gallery-tools')?g.nextElementSibling:null;
+      measure(wrap(g,tools,false));
+    });
+    // 捲入時位移浮出（內容一開始就看得見，只做位移）
+    if(io)root.querySelectorAll('.book-heading, .book-chapter figure, .pain-lead').forEach(function(el){
+      if(el.dataset.apRise)return;el.dataset.apRise='1';
+      if(el.getBoundingClientRect().top>window.innerHeight){el.classList.add('ap-rise');io.observe(el);}
+    });
+  }
+  var scanQueued=false;
+  function queueScan(){if(scanQueued)return;scanQueued=true;setTimeout(function(){scanQueued=false;scan();},120);}
+  if(window.MutationObserver)new MutationObserver(queueScan).observe(root,{childList:true,subtree:true});
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',queueScan);else queueScan();
+  window.addEventListener('load',queueScan);
+  window.addEventListener('scroll',onScroll,{passive:true});
+  window.addEventListener('resize',function(){pins.forEach(measure);});
+  if(mq.addEventListener)mq.addEventListener('change',function(){pins.forEach(measure);});
+  window.techApple199={pins:pins,measure:function(){pins.forEach(measure);},scan:scan};
 })();
 </script>

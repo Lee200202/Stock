@@ -1666,20 +1666,32 @@ function hourLiveMergeNeeded_(hist) {
  * 個股 K 線一次取回日K、週K、60 分 K（2026/09/16 v41）。
  * 前端切換日／週／60分不必再等伺服器；三種週期共用同一份日K讀取。
  */
-function getCandlesBundle(code) {
+/* v199：60 分 K 可以分開取。開盤時段取 60 分 K 會即時向富果補當天（UrlFetch），
+   10/22 正式站冷快取一包 5～8 秒、偶發 37～55 秒逾時；多數人只看日K，面板先取日／週／月K，選「60分」才取。
+   opts 省略時照舊整包回傳（後台與舊版前台不受影響）。 */
+function getCandlesBundle(code, opts) {
   code = String(code || '').trim();
+  opts = opts && typeof opts === 'object' ? opts : {};
   var daily = getCachedDailyK(code);   // 量＝股
+  var at = Utilities.formatDate(new Date(), TZ, 'yyyy/MM/dd HH:mm:ss');
+  var hourPart = function () {
+    var hourly = getCandles(code, 'hour');
+    return { hour: hourly, hourCoverage: typeof hourlyCoverage_ === 'function' ? hourlyCoverage_(code, hourly, daily) : null };
+  };
+  if (opts.only === 'hour') {
+    var h = hourPart();
+    return { code: code, hour: h.hour, hourCoverage: h.hourCoverage, at: at };
+  }
   var today = Utilities.formatDate(new Date(), TZ, 'yyyy/MM/dd');
-  var hourly=getCandles(code,'hour');
-  return {
+  var out = {
     code: code,
     day: intradayPreview_(volumeInLots_(daily), getQuoteCache()[code], today),
     week: volumeInLots_(aggregate_(daily, 'week')),
     month: volumeInLots_(aggregate_(daily, 'month')),
-    hour: hourly,
-    hourCoverage: typeof hourlyCoverage_==='function'?hourlyCoverage_(code,hourly,daily):null,
-    at: Utilities.formatDate(new Date(), TZ, 'yyyy/MM/dd HH:mm:ss')
+    at: at
   };
+  if (opts.hour !== false) { var hp = hourPart(); out.hour = hp.hour; out.hourCoverage = hp.hourCoverage; }
+  return out;
 }
 
 /** 14:05 觸發。把當日 60 分 K 從 Fugle 抓下來落地。 */

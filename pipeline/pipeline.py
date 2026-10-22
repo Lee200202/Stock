@@ -15197,7 +15197,9 @@ def save_verdicts(ss, date_str, signals):
             continue
         answer = ((entry.get('answer') or {}).get(entry.get('cls')) or {}).get('answer') or {}
         if entry.get('also'):
-            answer = dict(answer, _requires_multi_axis_review=True)
+            # 保持有效JSON與重核標記，避免長問卷被欄位長度截斷後誤沿用單一分類。
+            answer = {'_requires_multi_axis_review': True,
+                      'separate_stance': entry['also'][0], 'quote': str(entry['also'][1])[:240]}
         votes = '／'.join(_VERDICT_LABEL.get(v, v) or '不能用' for v in entry.get('votes') or [])
         rows.append([date_str, str(signals.get('_video_id') or ''), code, str(entry.get('name') or ''),
                      _VERDICT_LABEL.get(entry.get('cls'), ''), str(entry.get('tier') or ''),

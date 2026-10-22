@@ -66,8 +66,11 @@ class PositionEntryAxes(unittest.TestCase):
             def worksheet(self, name): return Sheet()
         entry = self.entry()
         pl.finalize_position_identity({'1111': entry}, {})
+        entry['answer'] = {'holdings': {'answer': {'long': '原文' * 2000}}}
         pl.save_verdicts(Book(), '2026/10/15', {'_verdicts': {'1111': entry}})
         self.assertTrue(json.loads(stored[0][7])['_requires_multi_axis_review'])
+        self.assertEqual(json.loads(stored[0][7])['separate_stance'], 'watch_avoid')
+        self.assertLess(len(stored[0][7]), 1800)
         self.assertEqual(pl._verdict_cache(Book(), '2026/10/15')['1111']['by_fp'], {})
 
     def test_normal_single_axis_cache_is_still_reused(self):

@@ -150,3 +150,13 @@ body[data-tab] #detail .chartbar.kbar,body[data-tab] #kLegend,body[data-tab] #de
 @media (min-width:1000px){body[data-tab] nav.wrap.tabs,body[data-tab] #detail .dnav{justify-content:safe center}}
 @media (max-width:900px){body[data-tab] #detail .dnav{padding-right:72px}}   /* 手機：右上角關閉鈕浮在導覽列上，留出位置不蓋住「每天講了什麼」 */
 </style>
+<style id="readoutBollV200r3">
+/* v200r3（管理者 10/22）：讀數列第一行日期、開高低收、量；技術指標（MACD、K/D、各均線）換到第二行 */
+#readout .rd-break{flex-basis:100%;height:0;padding:0;margin:0;overflow:hidden}
+/* 布林通道專用藍色：和漲紅、跌綠、各條均線都分得開，亮暗兩種底色都夠清楚 */
+html:root{--boll:#1D4ED8}
+html[data-theme=dark]{--boll:#5B9BFF}
+/* 均線：橘、洋紅、紫、褐、炭黑（暗底改亮色），自訂均線另五色；都避開漲紅、跌綠與布林藍 */
+html:root{--ma5:#D35400;--ma10:#9C1285;--ma20:#6A2FD0;--ma60:#7A4A08;--ma240:#1A1A1A;--ma-x1:#6B8E23;--ma-x2:#00838F;--ma-x3:#AD1457;--ma-x4:#5D4037;--ma-x5:#455A64}
+html[data-theme=dark]{--ma5:#FFA24D;--ma10:#F472D0;--ma20:#B79BFF;--ma60:#FFE45C;--ma240:#F2F2F2;--ma-x1:#B5D86A;--ma-x2:#4DD0E1;--ma-x3:#F48FB1;--ma-x4:#D7B49E;--ma-x5:#B0BEC5}
+</style>

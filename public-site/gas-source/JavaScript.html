@@ -2622,7 +2622,13 @@ function restatesEarlier_(key, earlier) {
   }
   var maDefs = MA_DEFAULTS.map(function(n){return {n:n,on:true};}).concat(loadCustomMAs().map(function(n){return {n:n,on:true,custom:true};})).sort(function(a,b){return a.n-b.n;});
   function saveCustomMAs() { try { localStorage.setItem(MA_STORAGE,JSON.stringify(maDefs.filter(function(d){return d.custom;}).map(function(d){return d.n;}))); } catch(e) {} }
-  function maPalette() { return [css('--wait'), css('--beam'), css('--muted'), '#8E7CC3', '#C39134', '#D08770']; }
+  function bollColor() { return css('--boll') || '#1D4ED8'; }
+  /* v200r3（管理者 10/22）：均線原本是 1 像素的金褐、青、灰、淡紫，在 K 棒上幾乎分不出來，青色又接近下跌綠。
+     改成各自飽和、互不相近的顏色（避開漲紅、跌綠與布林藍），亮暗底色各一組，見 TideDesign 的 readoutBollV200r3。 */
+  function maPalette() {
+    return ['--ma5', '--ma10', '--ma20', '--ma60', '--ma240', '--ma-x1', '--ma-x2', '--ma-x3', '--ma-x4', '--ma-x5']
+      .map(function (k, i) { return css(k) || ['#D35400', '#9C1285', '#6A2FD0', '#7A4A08', '#1A1A1A', '#6B8E23', '#00838F', '#AD1457', '#5D4037', '#455A64'][i]; });
+  }
   function maColor(n) {
     var idx = 0;
     idx = MA_DEFAULTS.indexOf(n); if(idx<0)idx=5+(n%5);
@@ -3397,7 +3403,8 @@ function restatesEarlier_(key, earlier) {
     var frag = document.createElement('span');
     frag.className = 'ma-legend';
     frag.style.display = 'contents';
-    frag.innerHTML = maList.map(function (n) { return '<span><b>MA' + n + '</b><i id="rMA' + n + '">—</i></span>'; }).join('');
+    // 讀數列的均線名稱用圖上同一個顏色，一眼對得到是哪一條（v200r3）
+    frag.innerHTML = maList.map(function (n) { return '<span><b style="color:' + maColor(n) + '">MA' + n + '</b><i id="rMA' + n + '">—</i></span>'; }).join('');
     base.appendChild(frag);
   }
 
@@ -3434,7 +3441,7 @@ function restatesEarlier_(key, earlier) {
     maMaps = {};
     maList.forEach(function (n) {
       if (rawData.length < n) { return; }
-      var s = chart.addLineSeries({ color: maColor(n), lineWidth: n===240?2:1, priceLineVisible: false, lastValueVisible: false });
+      var s = chart.addLineSeries({ color: maColor(n), lineWidth: n === 240 ? 3 : 2, priceLineVisible: false, lastValueVisible: false });   // 年線最粗
       var line = sma(rawData, n);
       s.setData(line);
       maMaps[n] = {};
@@ -3445,9 +3452,11 @@ function restatesEarlier_(key, earlier) {
     bollSeries.forEach(function (s) { chart.removeSeries(s); });
     bollSeries = [];
     if (showBoll && rawData.length >= 20) {
+      /* v200r3（管理者 10/22）：布林原本用 --muted，和 MA20 同一個灰色、又是 1 像素虛線，幾乎看不見。
+         改用全站沒有其他線用的藍色（漲紅、跌綠、均線金／青／灰／紫／橘都不是藍），上下軌加粗為 2 像素虛線，中軌實線。 */
       computeBoll(rawData, 20, 2).forEach(function (b, i) {
         var s = chart.addLineSeries({
-          color: css('--muted'), lineWidth: 1, lineStyle: i === 1 ? 0 : 2,
+          color: bollColor(), lineWidth: i === 1 ? 1 : 2, lineStyle: i === 1 ? 0 : 2,
           priceLineVisible: false, lastValueVisible: false
         });
         s.setData(b);
@@ -3544,7 +3553,7 @@ function restatesEarlier_(key, earlier) {
         (d.custom ? '<button type="button" class="ma-remove" data-remove-ma="'+d.n+'" aria-label="移除 MA'+d.n+'">×</button></span>' : '');
     }).join('') +
       '<button type="button" class="lg lg-boll" id="bollBtn" aria-pressed="' + (showBoll ? 'true' : 'false') + '" title="布林通道（20 日、2 倍標準差）">' +
-        '<i class="dash" style="--lg:' + css('--muted') + '"></i>布林</button>';
+        '<i class="dash" style="--lg:' + bollColor() + '"></i>布林</button>';
     var add = maAdding
       ? '<span class="lg-add"><input type="number" id="maInput" min="2" max="1200" step="1" inputmode="numeric" placeholder="期數" aria-label="新增均線期數" aria-describedby="maError">' +
         '<button type="button" id="maAdd">加入</button><button type="button" class="lg-x" id="maCancel" aria-label="取消">×</button><span id="maError" role="status"></span></span>'

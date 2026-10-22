@@ -1,0 +1,76 @@
+name: market-history
+# 完整歷史日K歷史（v200）：上市抓證交所每日收盤行情、上櫃抓櫃買個股月資料，存在 market-history 分支，
+# 再組成網站追蹤股票的 history/代號.json，由 public-site 一起發佈。不寫試算表、不跑 AI、不寄信。
+on:
+  schedule:
+    - cron: '40 10 * * 1-5' # 台北 18:40，證交所與櫃買收盤資料都已公布
+  workflow_dispatch:
+    inputs:
+      years:
+        description: '往回補幾年，0＝來源全部可探查範圍'
+        type: number
+        default: 0
+      minutes:
+        description: '這一次最多抓幾分鐘，沒抓完下次續抓'
+        type: number
+        default: 150
+permissions:
+  contents: write
+  actions: write
+concurrency:
+  group: market-history
+  cancel-in-progress: false
+jobs:
+  history:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+        with:
+          ref: market-history
+          path: data
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: requirements-market.txt
+      - run: pip install -r requirements-market.txt
+      - name: 增量補齊與來源邊界契約
+        run: python scripts/test_market_history.py
+      - name: 上市每日收盤（證交所）
+        env:
+          YEARS: ${{ inputs.years || 0 }}
+          MINUTES: ${{ inputs.minutes || 80 }}
+        run: python scripts/market_history.py fetch-twse --archive data/archive --years "$YEARS" --deadline-min "$((MINUTES / 2))"
+      - name: 上櫃個股月資料（櫃買中心）
+        env:
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
+          YEARS: ${{ inputs.years || 0 }}
+          MINUTES: ${{ inputs.minutes || 80 }}
+        run: python scripts/market_history.py fetch-tpex --archive data/archive --sheets --years "$YEARS" --deadline-min "$((MINUTES / 2))"
+      - name: 組成追蹤股票的完整歷史日K
+        env:
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
+        run: |
+          python scripts/market_history.py build --archive data/archive --out data/history --sheets
+          python scripts/market_history.py check --out data/history --archive data/archive
+      - name: 存回 market-history 分支
+        id: commit
+        if: always() && !cancelled()
+        working-directory: data
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A archive history
+          if git diff --cached --quiet; then echo "changed=false" >> "$GITHUB_OUTPUT"; echo '沒有新資料'; exit 0; fi
+          git commit -q -m "market history $(TZ=Asia/Taipei date +%F)"
+          git push -q origin HEAD:market-history
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+      - name: 重新發佈網站（帶上新的 history）
+        if: steps.commit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run public-site.yml --ref main

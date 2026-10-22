@@ -1867,7 +1867,8 @@ function restatesEarlier_(key, earlier) {
     var t = DETAIL.tracker, m = t ? (trendModel(t, DETAIL.trendRound) || trendModel(t)) : null;
     if (!m || DETAIL.code !== currentCode) { box.hidden = true; box.innerHTML = ''; return; }
     box.hidden = false;
-    var memo = candleMemo[DETAIL.code], rows = memo && memo.day;
+    // 進場以來走勢與進場價同一口徑：用試算表的原始日K，不用還原分割後的完整歷史（v200）
+    var memo = candleMemo[DETAIL.code], rows = memo && (memo.gasDay || memo.day);
     // 只在這張小圖複製一個盤中點，不把今日現價掛在昨日收盤日期，也不改日K快取。
     rows = detailTrendQuoteRows_(rows, DETAIL.header && DETAIL.header.quote, m.held);
     var cs = getComputedStyle(box);
@@ -3011,7 +3012,8 @@ function restatesEarlier_(key, earlier) {
         rightOffset: 0,
         // 最細的 K 棒間距。「全部」要把一年的日K（約 245 根）放進手機寬度，
         // 1.5 會被夾住而只顯示最近兩百多根，所以放寬到 0.5；要看型態用區間按鈕放大。
-        minBarSpacing: 0.5,
+        // v200：完整歷史日K約 2,450 根，手機繪圖區不到 300 像素，每根只剩 0.1 像素，再放寬到 0.05。
+        minBarSpacing: 0.05,
         tickMarkFormatter: fmtTickMark
       },
       // 拖到邊界時不要有彈跳回彈的動畫，那會讓人以為還能繼續拖。
@@ -3522,8 +3524,10 @@ function restatesEarlier_(key, earlier) {
     if (entryPx > 0 && segFrom) {
       entrySegment = chart.addLineSeries({ color: css('--rise'), lineWidth: 1, priceLineVisible: false, lastValueVisible: true,
         crosshairMarkerVisible: false });
-      var segPts = [{ time: toTime(segFrom), value: entryPx }];
-      if (segTo !== segFrom) { segPts.push({ time: toTime(segTo), value: entryPx }); }
+      // 進場之後若有分割，K 線已還原到分割後口徑；線畫在同一口徑上，記號文字仍寫實際成交價（v200）
+      var hm = (candleMemo[currentCode] || {}).history, segPx = entryPx / splitFactorAfter(hm && hm.adjustments, segFrom);
+      var segPts = [{ time: toTime(segFrom), value: segPx }];
+      if (segTo !== segFrom) { segPts.push({ time: toTime(segTo), value: segPx }); }
       entrySegment.setData(segPts);
     }
   }
@@ -3612,7 +3616,7 @@ function restatesEarlier_(key, earlier) {
       b.disabled = false;
       b.setAttribute('aria-disabled',String(!ok));
       if(!ok)b.setAttribute('aria-describedby','kRangeHint');else b.removeAttribute('aria-describedby');
-      b.title = ok ? '' : ('目前資料從 ' + first + ' 開始，不滿' + (r === '12' ? '一年' : ' ' + r + ' 個月') + '，與「全部」相同。'+(period==='hour'?'較長期間請切換日K、週K或月K。':''));
+      b.title = ok ? '' : ('目前資料從 ' + first + ' 開始，不滿' + (r === '12' ? '一年' : Number(r) % 12 === 0 ? ' ' + Number(r) / 12 + ' 年' : ' ' + r + ' 個月') + '，與「全部」相同。'+(period==='hour'?'較長期間請切換日K、週K或月K。':''));
       b.setAttribute('aria-pressed', r === eff ? 'true' : 'false');
     });
   }
@@ -3661,7 +3665,12 @@ function restatesEarlier_(key, earlier) {
     var note = '　資料範圍 ' + first + ' ～ ' + last + '，共 ' + data.length + ' 根' + unit +
                (p === 'hour' ? '（' + Object.keys(days).length + ' 個交易日）' : '') + '。';
     // 不滿 11 個月：是資料庫本來就只有這麼多，不是圖沒顯示出來
-    if (p !== 'hour' && rangeStartIndex(data, 11) === 0) {
+    var hist = p !== 'hour' && (candleMemo[currentCode] || {}).history;
+    if (hist) {
+      // v200：一年以前的日K來自交易所歷史收盤；分割與反分割已還原，除權息未還原（與進場價同一口徑）
+      var adj = hist.adjustments.map(function (a) { return a.date + (a.factor >= 1 ? ' 1 拆 ' + a.factor : ' ' + Math.round(1 / a.factor) + ' 併 1'); });
+      note += '較早的日K取自證交所／櫃買中心歷史收盤，' + (adj.length ? adj.join('、') + ' 已還原，' : '') + '除權息未還原。';
+    } else if (p !== 'hour' && rangeStartIndex(data, 11) === 0) {
       note += '目前只有這段期間；每天 16:45 自動往回補，最多一年。';
     }
     if (p === 'hour' && rangeStartIndex(data, 1) === 0) {
@@ -3722,6 +3731,106 @@ function restatesEarlier_(key, earlier) {
   var candleMemo = {}, candlePending = {}, candleRetried = {};
   var CANDLE_MEMO_MS = 3 * 60 * 1000;
 
+  /* 完整歷史日K（v200，2026/10/22）。試算表的日K快取只放近 12 個月；更早的日K由 GitHub Actions 每天收盤後
+     從證交所、櫃買中心抓下來（scripts/market_history.py），放在網站同一個網址底下的 history/代號.json。
+     價格保留原始成交口徑；疑似分割不自行改價。成交量是原始股數（含零股）。
+     兩份都有的日期以歷史檔為準；歷史檔還沒有的日期（今天、盤中預覽）用試算表的。週K、月K用合併後的日K重算，
+     算法與 Apps Script aggregate_ 相同。歷史檔讀不到就照舊只畫試算表那一年。 */
+  var HISTORY_BASE = 'https://lee200202.github.io/Stock/history/';
+  var HISTORY_DATE = /^(?:19|20)\d\d-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])$/;
+  var historyMemo = {}, historyDoc = {}, historyReadAt = {};
+  var HISTORY_RETRY_MS = 60000, HISTORY_REFRESH_MS = 20 * 60 * 1000;
+  function loadHistory(code) {
+    var age = Date.now() - (historyReadAt[code] || 0);
+    if (historyMemo[code] && age >= (historyDoc[code] ? HISTORY_REFRESH_MS : HISTORY_RETRY_MS)) {
+      delete historyMemo[code];
+    }
+    if (!historyMemo[code] && window.fetch && window.Promise) {
+      historyReadAt[code] = Date.now();
+      historyMemo[code] = fetch(HISTORY_BASE + encodeURIComponent(code) + '.json', { cache: 'no-cache' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (doc) { return cleanHistory(doc, code); })
+        .catch(function () { return null; })
+        .then(function (h) {
+          // 暫時網路失敗不抹掉本頁已讀到的歷史；空回應一分鐘後可重試。
+          historyDoc[code] = h || historyDoc[code] || null;
+          return historyDoc[code];
+        });
+    }
+    return historyMemo[code] || null;
+  }
+  function cleanHistory(doc, code) {
+    if (!doc || String(doc.code) !== String(code) || !Array.isArray(doc.rows)) { return null; }
+    var rows = [], prev = '';
+    doc.rows.forEach(function (r) {
+      var d = Array.isArray(r) && HISTORY_DATE.test(r[0]) ? r[0].replace(/-/g, '/') : '';
+      var ok = d > prev && [1, 2, 3, 4, 5].every(function (i) { return typeof r[i] === 'number' && isFinite(r[i]) && r[i] >= 0; }) &&
+        r[3] > 0 && r[3] <= Math.min(r[1], r[4]) + 1e-9 && r[2] >= Math.max(r[1], r[4]) - 1e-9;
+      if (ok) { rows.push({ date: d, open: r[1], high: r[2], low: r[3], close: r[4], volume: r[5] / 1000 }); prev = d; }
+    });
+    if (!rows.length) { return null; }
+    var adj = (Array.isArray(doc.adjustments) ? doc.adjustments : []).filter(function (a) {
+      return a && HISTORY_DATE.test(a.date) && a.factor > 0 && isFinite(a.factor);
+    }).map(function (a) { return { date: a.date.replace(/-/g, '/'), factor: a.factor }; });
+    return { rows: rows, adjustments: adj, first: rows[0].date, latest: rows[rows.length - 1].date };
+  }
+  /** 某一天的價格要除以多少才與歷史檔同一口徑：那天之後每一次分割的倍數相乘。 */
+  function splitFactorAfter(adjustments, date) {
+    var k = 1;
+    (adjustments || []).forEach(function (a) { if (String(date).slice(0, 10) < a.date) { k *= a.factor; } });
+    return k;
+  }
+  function mergeHistoryDay(gasDay, hist) {
+    var out = hist.rows.slice(), seen = {};
+    out.forEach(function (r) { seen[r.date] = 1; });
+    (gasDay || []).forEach(function (r) {
+      var d = String(r.date).slice(0, 10).replace(/-/g, '/');
+      if (seen[d]) { return; }
+      var k = splitFactorAfter(hist.adjustments, d), o = {};
+      for (var key in r) { if (Object.prototype.hasOwnProperty.call(r, key)) { o[key] = r[key]; } }
+      if (k !== 1) { ['open', 'high', 'low', 'close'].forEach(function (f) { o[f] = Math.round(r[f] / k * 10000) / 10000; }); }
+      o.date = d;
+      out.push(o);
+    });
+    out.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+    return out;
+  }
+  /* 週K、月K：與 Apps Script aggregate_ 同一套——月以年月分組，週以該週星期一分組（星期日算第 7 天），
+     開取第一根、高低取極值、收取最後一根、量相加，日期記最後一個交易日。盤中預覽不算進去（後端也只用正式日K）。 */
+  function aggregateDaily(daily, unit) {
+    var buckets = {}, keys = [];
+    daily.forEach(function (r) {
+      if (r._provisional) { return; }
+      var key;
+      if (unit === 'month') {
+        key = r.date.slice(0, 7);
+      } else {
+        var p = r.date.split('/'), t = Date.UTC(+p[0], +p[1] - 1, +p[2]), wd = new Date(t).getUTCDay() || 7, m = new Date(t - (wd - 1) * 86400000);
+        key = m.getUTCFullYear() + '/' + pad2(m.getUTCMonth() + 1) + '/' + pad2(m.getUTCDate());
+      }
+      var b = buckets[key];
+      if (!b) {
+        buckets[key] = { date: r.date, open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume };
+        keys.push(key);
+      } else {
+        b.high = Math.max(b.high, r.high); b.low = Math.min(b.low, r.low); b.close = r.close;
+        b.volume = Math.round((b.volume + r.volume) * 1000) / 1000;   // 量是張、最多三位小數（股）；避免浮點誤差累積
+        b.date = r.date;
+      }
+    });
+    return keys.sort().map(function (k) { return buckets[k]; });
+  }
+  /** 把完整歷史併進這一檔的暫存。回傳是否有併進去。 */
+  function applyHistory(memo, hist) {
+    if (!memo || !hist || memo.history === hist) { return false; }
+    memo.gasDay = memo.gasDay || memo.day || [];
+    memo.day = mergeHistoryDay(memo.gasDay, hist);
+    memo.week = aggregateDaily(memo.day, 'week');
+    memo.month = aggregateDaily(memo.day, 'month');
+    memo.history = hist;
+    return true;
+  }
+
   function loadCandles(code, p, background) {
     ++candleRequest;
     var memo = candleMemo[code];
@@ -3735,6 +3844,14 @@ function restatesEarlier_(key, earlier) {
     if(!background){rawData = [];setChartVisible(false);$('periodNote').textContent = 'K 線載入中…';$('kFresh').textContent='讀取走勢中';}
     if (candlePending[code]) { return; }   // 回來時會畫當下選的週期
     candlePending[code] = true;
+    var hist = loadHistory(code);   // 完整歷史與試算表同時取（v200）
+    if (hist) { hist.then(function (h) {
+      if (!h || !candlePending[code] || code !== currentCode || period === 'hour' || !$('detail').classList.contains('open')) { return; }
+      // 靜態歷史先畫，近期日K在背景補回；不因後端冷啟動把已有資料藏起來。
+      var initial = {at: Date.now(), day: [], historyOnly: true};
+      applyHistory(initial, h); candleMemo[code] = initial;
+      showCandles(period, initial[period] || []); paintTrend();
+    }); }
     google.script.run.withSuccessHandler(function (b) {
       delete candlePending[code];
       delete candleRetried[code];
@@ -3742,15 +3859,32 @@ function restatesEarlier_(key, earlier) {
       var fresh = { at: Date.now(), day: (b && b.day) || [], week: (b && b.week) || [], month:(b && b.month)||[] };
       if (b && Array.isArray(b.hour)) { fresh.hour = b.hour; fresh.hourCoverage = b.hourCoverage; }
       candleMemo[code] = fresh;
-      if (code !== currentCode || !$('detail').classList.contains('open')) { return; }
-      if (period === 'hour' && !fresh.hour) { paintTrend(); loadHourly(code, background); return; }
-      var viewport=background&&chart&&chart.timeScale().getVisibleLogicalRange?chart.timeScale().getVisibleLogicalRange():null;
-      showCandles(period, candleMemo[code][period] || []);
-      if(viewport){chart.timeScale().setVisibleLogicalRange(viewport);}
-      paintTrend();   // 進場以來走勢用同一份日 K，不另打 API（v67）
+      function paint() {
+        if (code !== currentCode || !$('detail').classList.contains('open')) { return; }
+        if (period === 'hour' && !fresh.hour) { paintTrend(); loadHourly(code, background); return; }
+        var viewport=background&&chart&&chart.timeScale().getVisibleLogicalRange?chart.timeScale().getVisibleLogicalRange():null;
+        showCandles(period, fresh[period] || []);
+        if(viewport){chart.timeScale().setVisibleLogicalRange(viewport);}
+        paintTrend();   // 進場以來走勢用同一份日 K，不另打 API（v67）
+      }
+      if (Object.prototype.hasOwnProperty.call(historyDoc, code) || !hist) { applyHistory(fresh, historyDoc[code]); paint(); return; }
+      /* 歷史檔通常比試算表先回來；最多再等 2.5 秒，逾時先畫一年，歷史晚到再補畫。 */
+      var drawn = false, timer = setTimeout(function () { drawn = true; paint(); }, 2500);
+      hist.then(function (h) {
+        if (candleMemo[code] !== fresh) { return; }
+        var merged = applyHistory(fresh, h);
+        if (!drawn) { drawn = true; clearTimeout(timer); paint(); return; }
+        if (merged && code === currentCode && period !== 'hour' && $('detail').classList.contains('open')) { showCandles(period, fresh[period] || []); }
+      });
     }).withFailureHandler(function () {
       delete candlePending[code];
       if (code !== currentCode) { return; }
+      var available = candleMemo[code];
+      if (available && available.history && period !== 'hour') {
+        showCandles(period, available[period] || []);
+        $('kFresh').textContent = '歷史日 K · 近期更新暫未成功';
+        paintTrend(); return;
+      }
       if(background){$('periodNote').textContent+='　更新暫未成功，保留上次圖表。';$('kFresh').textContent='更新暫未成功 · 顯示上次資料';return;}
       // 失敗的時候也要收起來，連線斷掉時那一大塊白方塊照樣會留在畫面上。
       setChartVisible(false);

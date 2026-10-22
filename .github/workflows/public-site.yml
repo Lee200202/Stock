@@ -9,6 +9,8 @@ on:
       - scripts/build_original_site.py
       - scripts/check_project_manifest.cjs
       - scripts/check_custom_ma.cjs
+      - scripts/check_market_history.cjs
+      - scripts/test_history_memory.cjs
       - site-api/**
   workflow_dispatch:
 
@@ -40,6 +42,10 @@ jobs:
         run: node scripts/check_project_manifest.cjs
       - name: 自訂均線記憶與輸入邊界
         run: node scripts/check_custom_ma.cjs
+      - name: 完整歷史日K合併、週月K與後端一致、指標核對
+        run: node scripts/check_market_history.cjs
+      - name: 歷史資料記憶、失敗重試與並發去重
+        run: node scripts/test_history_memory.cjs
       - name: 使用紀錄彙整與匿名分析
         run: node scripts/check_usage_tracking.js
       - name: 報價排程模擬（盤中批次、收盤結算、轉送備援）
@@ -52,6 +58,13 @@ jobs:
         env:
           SITE_API_URL: ${{ vars.SITE_API_URL }}
         run: python scripts/build_original_site.py --output _site
+      - name: 附上完整歷史日K歷史（market-history 分支；沒有就照舊只用試算表一年）
+        run: |
+          if git fetch -q --depth=1 origin market-history 2>/dev/null; then
+            git archive FETCH_HEAD history | tar -x -C _site && echo "history：$(ls _site/history | wc -l) 個檔案"
+          else
+            echo '尚無 market-history 分支，略過'
+          fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:

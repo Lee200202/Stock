@@ -154,6 +154,9 @@ function marketSessionValidate_(day, answer, sources, tradingSeen) {
   var source = sources.filter(function (s) { return s.id === answer.sourceId; })[0];
   var quote = String(answer.quote || '').trim();
   if (!source || !quote || quote.length < 8 || source.text.indexOf(quote) < 0 || !marketSessionQuoteHasDay_(quote, source, day)) { return unknown; }
+  // 全市場範圍由程式再核一次，不只信模型的 scope：原句要寫「休市」，且不能是個股、權證、存託憑證的暫停交易公告
+  // （2026/10/22 以真實標題實測：模型若把「泰山…普通股自115年8月13日起暫停交易」誤標成全市場，先前會整天停抓行情）。
+  if (!/休市/.test(quote) || /公司代號|證券代號|公司簡稱|普通股|權證|存託憑證|暫停交易|停止交易/.test(quote)) { return unknown; }
   if (!/^https:\/\/(www|openapi)\.twse\.com\.tw\//.test(source.url)) { return unknown; }
   return { status: 'closed', verified: true, reason: String(answer.reason || '官方資料確認全日休市').slice(0, 240), evidence: { sourceId: source.id, url: source.url, quote: quote, date: day } };
 }

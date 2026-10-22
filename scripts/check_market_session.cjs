@@ -25,6 +25,10 @@ test('局部地區及個股不停止全市場',()=>assert.equal(valid({...good()
 test('下午或盤後停止不當全日休市',()=>assert.equal(valid({...good(),fullDay:false}).verified,false));
 test('未來或有限範圍事實有衝突不停止',()=>assert.equal(valid({...good(),limitedOrFuture:true}).verified,false));
 test('已有當日成交時休市結論不生效',()=>assert.equal(valid(good(),[notice],true).status,'open'));
+test('個股暫停交易公告被模型誤標全市場仍不停止（真實標題）',()=>{const s={...notice,date:'2026-08-12',text:'泰山企業股份有限公司(泰山，公司代號：1218)上市普通股自115年8月13日起暫停交易'};assert.equal(context.marketSessionValidate_('2026-08-13',{...good(),affectedDate:'2026-08-13',quote:s.text},[s],false).verified,false);});
+test('權證與存託憑證暫停交易不當全市場休市',()=>{const s={...notice,date:'2026-04-23',text:'巨騰國際控股有限公司參與發行之臺灣存託憑證(巨騰-DR，證券代號：9136)自115年4月23日上午9時0分起暫停交易'};assert.equal(context.marketSessionValidate_('2026-04-23',{...good(),affectedDate:'2026-04-23',quote:s.text},[s],false).verified,false);});
+test('原句沒有「休市」不停止',()=>{const s={...notice,text:'臺灣證券交易所集中交易市場113年10月31日照常交易'};assert.equal(valid({...good(),quote:s.text},[s]).verified,false);});
+test('真實颱風公告標題通過（2026/07/10）',()=>{const s={...notice,date:'2026-07-09',text:'臺灣證券交易所集中交易市場115年7月10日休市一天'};assert.equal(context.marketSessionValidate_('2026-07-10',{...good(),affectedDate:'2026-07-10',quote:s.text},[s],false).status,'closed');});
 test('非官方網域不停止',()=>assert.equal(valid(good(),[{...notice,url:'https://example.com/news'}]).verified,false));
 test('日期不能只靠發布時間',()=>assert.equal(valid({...good(),quote:'颱風影響相關作業請參閱公告'},[{...notice,text:'颱風影響相關作業請參閱公告'}]).verified,false));
 test('11月1日不會誤配1月1日',()=>assert.equal(context.marketSessionQuoteHasDay_('11月1日休市', {...notice,date:'2024-01-01'},'2024-01-01'),false));

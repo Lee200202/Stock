@@ -1,0 +1,206 @@
+{
+  "desktop": [
+    {
+      "chapter": "tech-start",
+      "scroll": 1425,
+      "width": 1440
+    },
+    {
+      "chapter": "tech-overview",
+      "scroll": 1425,
+      "width": 1440
+    },
+    {
+      "chapter": "tech-volume",
+      "scroll": 1425,
+      "width": 1440
+    },
+    {
+      "chapter": "tech-loading",
+      "scroll": 1425,
+      "width": 1440
+    },
+    {
+      "chapter": "tech-agent",
+      "scroll": 1425,
+      "width": 1440
+    },
+    {
+      "chapter": "tech-context",
+      "scroll": 1425,
+      "width": 1440
+    },
+    {
+      "chapter": "tech-harness",
+      "scroll": 1425,
+      "width": 1440
+    },
+    {
+      "chapter": "tech-quality-loop",
+      "scroll": 1425,
+      "width": 1440
+    },
+    {
+      "chapter": "tech-names",
+      "scroll": 1425,
+      "width": 1440
+    },
+    {
+      "chapter": "tech-number",
+      "scroll": 1425,
+      "width": 1440
+    },
+    {
+      "chapter": "tech-unnamed",
+      "scroll": 1425,
+      "width": 1440
+    },
+    {
+      "chapter": "tech-subject",
+      "scroll": 1425,
+      "width": 1440
+    },
+    {
+      "chapter": "tech-verdict",
+      "scroll": 1425,
+      "width": 1440
+    },
+    {
+      "chapter": "tech-source-priority",
+      "scroll": 1425,
+      "width": 1440
+    },
+    {
+      "chapter": "tech-public-notes",
+      "scroll": 1425,
+      "width": 1440
+    },
+    {
+      "chapter": "tech-transcript-progress",
+      "scroll": 1425,
+      "width": 1440
+    },
+    {
+      "chapter": "tech-hold",
+      "scroll": 1425,
+      "width": 1440
+    },
+    {
+      "chapter": "tech-failure",
+      "scroll": 1425,
+      "width": 1440
+    },
+    {
+      "chapter": "tech-faq",
+      "scroll": 1425,
+      "width": 1440
+    },
+    {
+      "chapter": "tech-author",
+      "scroll": 1425,
+      "width": 1440
+    }
+  ],
+  "mobile": [
+    {
+      "chapter": "tech-start",
+      "scroll": 375,
+      "width": 390
+    },
+    {
+      "chapter": "tech-overview",
+      "scroll": 375,
+      "width": 390
+    },
+    {
+      "chapter": "tech-volume",
+      "scroll": 375,
+      "width": 390
+    },
+    {
+      "chapter": "tech-loading",
+      "scroll": 375,
+      "width": 390
+    },
+    {
+      "chapter": "tech-agent",
+      "scroll": 375,
+      "width": 390
+    },
+    {
+      "chapter": "tech-context",
+      "scroll": 375,
+      "width": 390
+    },
+    {
+      "chapter": "tech-harness",
+      "scroll": 375,
+      "width": 390
+    },
+    {
+      "chapter": "tech-quality-loop",
+      "scroll": 375,
+      "width": 390
+    },
+    {
+      "chapter": "tech-names",
+      "scroll": 375,
+      "width": 390
+    },
+    {
+      "chapter": "tech-number",
+      "scroll": 375,
+      "width": 390
+    },
+    {
+      "chapter": "tech-unnamed",
+      "scroll": 375,
+      "width": 390
+    },
+    {
+      "chapter": "tech-subject",
+      "scroll": 375,
+      "width": 390
+    },
+    {
+      "chapter": "tech-verdict",
+      "scroll": 375,
+      "width": 390
+    },
+    {
+      "chapter": "tech-source-priority",
+      "scroll": 375,
+      "width": 390
+    },
+    {
+      "chapter": "tech-public-notes",
+      "scroll": 375,
+      "width": 390
+    },
+    {
+      "chapter": "tech-transcript-progress",
+      "scroll": 375,
+      "width": 390
+    },
+    {
+      "chapter": "tech-hold",
+      "scroll": 375,
+      "width": 390
+    },
+    {
+      "chapter": "tech-failure",
+      "scroll": 375,
+      "width": 390
+    },
+    {
+      "chapter": "tech-faq",
+      "scroll": 375,
+      "width": 390
+    },
+    {
+      "chapter": "tech-author",
+      "scroll": 375,
+      "width": 390
+    }
+  ]
+}

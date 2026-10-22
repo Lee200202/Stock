@@ -43,7 +43,8 @@
   var root = document.documentElement;
 
   window.__onLayoutChange = function (what) {
-    if (what === 'theme') {
+    // v200r3：字體設定也要重畫圖表——座標軸、價位標籤的字是圖表函式庫畫在 canvas 上的，不吃 CSS
+    if (what === 'theme' || what === 'fs') {
       restyleCharts();
       if (perfChart) { renderPerf(); }
       return;
@@ -2999,9 +3000,14 @@ function restatesEarlier_(key, earlier) {
     return pad2(p.hh || 0) + ':' + pad2(p.mm || 0);               // 時間
   }
 
+  /** 圖表文字跟著版面設定的字體縮放（v200r3）：12 像素 × --rd-fs（小 .92、中 1、大 1.25、特大 1.5）。 */
+  function chartFontSize() {
+    var k = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--rd-fs')) || 1;
+    return Math.round(12 * k);
+  }
   function chartOptions() {
     return {
-      layout: { background: { color: css('--panel') }, textColor: css('--muted'), fontFamily: 'IBM Plex Mono, monospace' },
+      layout: { background: { color: css('--panel') }, textColor: css('--muted'), fontFamily: 'IBM Plex Mono, monospace', fontSize: chartFontSize() },
       localization: { locale: 'zh-TW', timeFormatter: fmtChartTime },
       grid: { vertLines: { color: css('--rule') }, horzLines: { color: css('--rule') } },
       /* 右側縱軸固定寬度（2026/09/16 v38）。K 線、成交量、MACD、KD 是上下四張圖，

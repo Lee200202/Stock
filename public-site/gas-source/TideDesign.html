@@ -162,3 +162,17 @@ html[data-theme=dark]{--boll:#5B9BFF}
 html:root{--ma5:#D35400;--ma10:#9C1285;--ma20:#6A2FD0;--ma60:#7A4A08;--ma240:#1A1A1A;--ma-x1:#6B8E23;--ma-x2:#00838F;--ma-x3:#AD1457;--ma-x4:#5D4037;--ma-x5:#455A64}
 html[data-theme=dark]{--ma5:#FFA24D;--ma10:#F472D0;--ma20:#B79BFF;--ma60:#FFE45C;--ma240:#F2F2F2;--ma-x1:#B5D86A;--ma-x2:#4DD0E1;--ma-x3:#F48FB1;--ma-x4:#D7B49E;--ma-x5:#B0BEC5}
 </style>
+
+<style id="compactControlsV201">
+/* 膠囊依文字長度收合，資訊卡與圖表仍用滿內容欄。 */
+body[data-tab] .tab{min-height:44px;padding:9px 18px;line-height:1.5}
+body[data-tab] #detail .dnav button{min-height:44px;padding:8px 16px;line-height:1.5}
+body[data-tab] #detail .moreb{display:block;width:fit-content;max-width:100%;min-height:44px;padding:10px 20px;margin-inline:auto;line-height:1.5;white-space:normal;overflow-wrap:anywhere}
+body[data-tab] #detail .readout>span:not(.rd-break){min-width:0;max-width:100%;white-space:normal;overflow-wrap:anywhere}
+body[data-tab] #detail .readout :is(b,i){white-space:normal;overflow-wrap:anywhere}
+body[data-tab] #detail :is(.notice,.subcap){min-width:0;max-width:100%;overflow-wrap:anywhere;white-space:normal}
+body[data-tab] :is(.tab,.dnav button,.tide-segments button,.moreb){transition:background-color .22s,color .22s,border-color .22s,transform .22s}
+@media(hover:hover){body[data-tab] :is(.tab,.dnav button,.tide-segments button,.moreb):hover{transform:translateY(-2px)}}
+body[data-tab] :is(.tab,.dnav button,.tide-segments button,.moreb):active{transform:scale(.98)}
+@media(prefers-reduced-motion:reduce){body[data-tab] :is(.tab,.dnav button,.tide-segments button,.moreb){transition:none;transform:none!important}}
+</style>

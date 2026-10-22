@@ -13316,7 +13316,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v36-validation-feedback-20261021" # 重問附本股實際無效原因，不帶預期分類。
+VERDICT_VERSION = "v37-source-direction-consensus-20261022" # 方向反對與具名中性收錄票分軸；不降低成交或部位證據。
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 5                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -14569,7 +14569,8 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
         names = set().union(*[_signal_names(r) | {str(r.get('name') or '')} for _, r in pairs]) - {''}
         ownership_denial = _explicitly_not_held(names, transcript)
         entry = {'name': _display_name(row.get('name')), 'current': current, 'cls': current, 'tier': '', 'basis': '', 'votes': [],
-                 'answer': {}, 'fp': '', 'enforce': False, 'new': False, 'open': code in open_positions}
+                 'answer': {}, 'fp': '', 'enforce': False, 'new': False, 'open': code in open_positions,
+                 'source_names': sorted(names | {code})}
         verdicts[code] = entry
         direct_ctx[code] = (row, names)
         manual = (cache.get(code) or {}).get('manual')
@@ -14948,6 +14949,14 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                 note_decision('分類裁決', '沒有定案，維持原分類，待人工確認', entry['name'],
                               why + '；各票：' + '、'.join(_VERDICT_LABEL.get(v, v) or '不能用' for v in entry['votes']))
         pending = still
+    for code, entry in verdicts.items():
+        recovered = semantic_context().source_direction_consensus(entry, _ev_norm)
+        if recovered:
+            category, reason = recovered
+            entry.update(cls=category, tier='裁決', enforce=True, new=True,
+                         basis=entry.get('basis', '') + '｜來源方向覆核：' + reason,
+                         direction_consensus_recovered=True)
+            note_decision('分類裁決', '原句已核對，方向與中性收錄分軸', entry['name'], reason)
     finalize_position_identity(verdicts, signals)
     for code, entry in verdicts.items():
         denial = _explicitly_not_held(direct_ctx[code][1], transcript) if code in direct_ctx else ''

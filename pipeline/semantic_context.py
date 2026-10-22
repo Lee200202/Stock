@@ -2,6 +2,44 @@
 import re
 
 
+def source_direction_consensus(entry, normalize):
+    """Recover only a source-verified direction versus coverage-neutral split.
+
+    Uses already validated attempts, never raw or invalid answers. Company-use
+    objections, opposite directions, trades and ownership are not abstentions.
+    """
+    if (entry.get('tier') != '未定' or entry.get('current') not in ('ignored', 'history', 'uncertain', '')
+            or entry.get('identity_prior') == 'ordinary' or entry.get('trade_check')):
+        return None
+    names = {normalize(n) for n in entry.get('source_names', []) if isinstance(n, str) and len(normalize(n)) >= 2}
+    if not names:
+        return None
+    attempts = [a for a in entry.get('attempts', []) if a.get('class')]
+    if len(attempts) < 3:
+        return None
+    directions = {a['class'] for a in attempts if a['class'] != 'ignored'}
+    if len(directions) != 1:
+        return None
+    target = next(iter(directions))
+    if target not in ('watch_watch', 'watch_avoid'):
+        return None
+    supporters = [a for a in attempts if a['class'] == target]
+    if len(supporters) < 2 or len(supporters) * 3 < len(attempts) * 2:
+        return None
+    for attempt in attempts:
+        answer = attempt.get('answer') or {}
+        semantic = answer.get('semantic') or {}
+        if semantic.get('entity') != 'company' or answer.get('about_itself') is not True:
+            return None
+        if attempt['class'] == 'ignored':
+            if semantic.get('role') not in ('general_example', 'neutral_description'):
+                return None
+        elif (semantic.get('role') not in ('current_view', 'current_risk')
+              or not any(n in normalize(semantic.get('quote', '')) for n in names)):
+            return None
+    return target, f'{len(supporters)}／{len(attempts)}份有效本股具名方向一致；其餘僅為收錄中性，無反向、身分或成交反對'
+
+
 def units(zones, size=80, step=55):
     """Fixed overlapping source slices, not guessed sentence or topic boundaries."""
     result, seen = [], set()

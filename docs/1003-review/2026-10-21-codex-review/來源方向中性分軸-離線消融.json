@@ -1,0 +1,92 @@
+{
+  "kind": "frozen_answer_counterfactual_not_full_replay",
+  "does_not_validate_inventory_publication_or_notes": true,
+  "results": [
+    {
+      "input_sha256": "ac99a78de2d6594ade88ec30c0ea39e61c8152b9c84d5732fd6036de5485cfff",
+      "run_artifact": "replay-result-39596103575",
+      "date": "2026/10/21",
+      "reference_matched_before": 24,
+      "reference_decided": 25,
+      "changes": [],
+      "models_called": 0
+    },
+    {
+      "input_sha256": "322bc6e6dd7b508dd0b2059e866685d6c24871889a4f954ca8b2bf396f9c4eac",
+      "run_artifact": "replay-result-39597889850",
+      "date": "2026/10/21",
+      "reference_matched_before": 22,
+      "reference_decided": 25,
+      "changes": [],
+      "models_called": 0
+    },
+    {
+      "input_sha256": "596d838030f5a2a04980e728fc9b197d718195c25fff52c35ad5f9219c6d33c9",
+      "run_artifact": "replay-result-39600049337",
+      "date": "2026/10/21",
+      "reference_matched_before": 24,
+      "reference_decided": 25,
+      "changes": [
+        {
+          "code": "1815",
+          "direction": "watch_avoid",
+          "basis": "2／3份有效本股具名方向一致；其餘僅為收錄中性，無反向、身分或成交反對",
+          "reference_effect": "resolves_existing_difference"
+        }
+      ],
+      "models_called": 0
+    },
+    {
+      "input_sha256": "ef2026819913865dadcb6e8bc6136705d012bbf237d6356b1bfa71aec19ed553",
+      "run_artifact": "replay-result-39601332414",
+      "date": "2026/10/21",
+      "reference_matched_before": 24,
+      "reference_decided": 25,
+      "changes": [
+        {
+          "code": "1802",
+          "direction": "watch_avoid",
+          "basis": "2／3份有效本股具名方向一致；其餘僅為收錄中性，無反向、身分或成交反對",
+          "reference_effect": "resolves_existing_difference"
+        }
+      ],
+      "models_called": 0
+    },
+    {
+      "input_sha256": "9c69ff5fdd3497afae4edf5947b3b83dd57cc94b3218a6ad356f71b153c831e9",
+      "run_artifact": "replay-result-39602356014",
+      "date": "2026/10/21",
+      "reference_matched_before": 23,
+      "reference_decided": 25,
+      "changes": [],
+      "models_called": 0
+    },
+    {
+      "input_sha256": "60a31fc16c81f9f6099f3d67710d1ce3a9434eb705e4a6f8bd80f4c488b9e050",
+      "run_artifact": "replay-result-39602917555",
+      "date": "2026/10/21",
+      "reference_matched_before": 23,
+      "reference_decided": 25,
+      "changes": [],
+      "models_called": 0
+    },
+    {
+      "input_sha256": "7938bde854e9739f8b45d3b8a7e7ec2d839434d818a7446357145e8c6151755c",
+      "run_artifact": "replay-result-39597777282",
+      "date": "2026/10/21",
+      "reference_matched_before": 21,
+      "reference_decided": 25,
+      "changes": [],
+      "models_called": 0
+    },
+    {
+      "input_sha256": "78d31a57a22978f2df8712fbb3aec4a95590f8977618aa5000b39740716c2ca3",
+      "run_artifact": "replay-result-39596484486",
+      "date": "2026/10/21",
+      "reference_matched_before": 24,
+      "reference_decided": 25,
+      "changes": [],
+      "models_called": 0
+    }
+  ]
+}

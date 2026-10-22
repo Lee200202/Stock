@@ -153,7 +153,6 @@ def compare(signals, golden, day=None):
 
 
 INTERNAL_WORDS = re.compile(r'待確認註記|模型|補列|初稿|覆核|逐字稿|簡訊|盤中通知|會員通知|依通知|通知指出')
-POSITIVE = re.compile(r'看好|佈局|布局|買點|續抱|(?:準備|即將|將會?|會)大漲|噴出|翻揚|可以買|值得留意|值得注意')
 
 
 def invariants(signals, raw):
@@ -190,24 +189,13 @@ def invariants(signals, raw):
             errors.append(f"{name} 沒有說明（{len(pl._ev_norm(note))} 字）")
         elif len(pl._ev_norm(note)) < 25:
             warns.append(f"{name} 說明只有 {len(pl._ev_norm(note))} 字")
-        if re.search(r"(?:^|[，。；])(?:啊|欸|來)[，,]", note):
-            warns.append(f"{name} 說明是口語原句：{note[:40]}")
-        if re.search(r"老師|講者|張震|張總", note):
-            warns.append(f"{name} 說明提到講者：{note[:40]}")
-        # 三、分類和說明的方向要一致。
-        plain = pl._REVERSAL_CUE.sub("", note)
-        negative = bool(pl._NEGATIVE_CUE.search(plain) or pl._PROHIBIT.search(plain)
-                        or re.search(r"不[^，。；]{0,3}(?:碰|買|追|推薦|建議|適合|敢|考慮|用)|並非|而非|不是叫|沒有(?:叫|推薦|買)|並未"
-                                     r"|未(?:將|把)[^，。；]{0,12}列入[^，。；]{0,6}(?:買進|推薦)|未推薦"
-                                     # 否定的寫法（2026/10/12 南亞科「不可能去注意…未將其納入當前的佈局計畫」被「佈局」兩個字當成偏多）
-                                     r"|(?:回答|說|叫他|跟他說)不要|不可能|不(?:予|會|去|再|列入|納入)?(?:關注|注意|留意|考慮)|未(?:將|把)[^，。；]{0,14}(?:納入|列入)|不(?:作為|列為)|暫不|排除在"
-                                     r"|賣出|賣掉|賣點|了結|先出|調節|壓力|等拉回|拉回再|風險|觀望|幹(?:什麼|嘛)"
-                                     # 「不需再去管其後續漲跌」（2026/10/16 台塑：已經漲完、不必再追）
-                                     r"|不(?:需|用|必)(?:再)?(?:去)?(?:管|理會)|不關[^，。；]{0,8}的事", plain))
-        if cat == "watch_avoid" and not negative and POSITIVE.search(plain):
-            errors.append(f"{name} 列觀望不碰，說明卻只有偏多的內容：{note[:60]}")
-        if cat in ("buy", "watch_watch") and pl.active_prohibit(note):
-            warns.append(f"{name} 列{LABEL[cat]}，說明裡有明確的不要買：{note[:60]}")
+        # 三、文體與方向由同批AI審閱，不以詞表重新判斷否定或買點。
+        field = 'note' if cat == 'holdings' else 'reason'
+        rejection = pl.public_review_rejection(r, field, raw)
+        if rejection:
+            errors.append(f'{name} 目前說明未通過AI事實審閱：{rejection}')
+        elif not pl._public_review_covers(r, field, raw):
+            warns.append(f'{name} 說明AI語意審閱尚未取得同來源、同文字的完整確認')
     # 四、單檔硬傷已留底隔離，算有處理下落；不能再以缺列把整天擋下。
     for rejected in signals.get('_publication_quarantine') or []:
         placed.add(str(rejected.get('code') or ''))

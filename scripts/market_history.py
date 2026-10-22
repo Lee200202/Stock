@@ -364,9 +364,8 @@ def cmd_fetch_tpex(args):
                 done += 1
             empty = 0 if rec.get('rows') else empty + 1
             k -= 1
-            # 轉上市的股票在櫃買一直交易到上市前一天；上市那個月與前一個月櫃買都沒有，就是從興櫃或直接上市，不必再往回問
-            if transfer and not seen and empty >= 2:
-                print(f'{code}：上市前兩個月櫃買沒有資料，不是轉上市', flush=True); break
+            # 連續空月可能是暫時來源問題或上市前停牌，不能據此認定不是轉板。
+            # 沿用已核對封存，仍探查至官方成立／上櫃月份；時間到由原有預算退出續補。
         print(f'上櫃 {code}：完成', flush=True)
     print(f'上櫃抓取：{len(plan)} 檔，新抓 {done} 個月、沿用 {kept} 個月')
 

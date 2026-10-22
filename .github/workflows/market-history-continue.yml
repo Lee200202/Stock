@@ -1,0 +1,39 @@
+name: market-history-continue
+run-name: 完整歷史日K · 雲端接棒檢查
+on:
+  workflow_run:
+    workflows: [market-history]
+    types: [completed]
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: write
+concurrency:
+  group: market-history-continuation-controller
+  cancel-in-progress: false
+jobs:
+  continue:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: 核對雲端接棒契約
+        run: python -m unittest scripts/test_history_continue.py
+      - name: 有剩餘範圍才接棒（不取消、不取代佇列）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/history_continue.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: history-continuation-${{ github.run_id }}
+          path: continuation.json
+          retention-days: 14

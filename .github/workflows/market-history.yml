@@ -43,6 +43,24 @@ jobs:
           YEARS: ${{ inputs.years || 0 }}
           MINUTES: ${{ inputs.minutes || 80 }}
         run: python scripts/market_history.py fetch-twse --archive data/archive --years "$YEARS" --deadline-min "$((MINUTES / 2))"
+      - name: 上市階段中途存檔與發布
+        continue-on-error: true
+        env:
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python scripts/market_history.py build --archive data/archive --out data/history --sheets
+          python scripts/market_history.py check --out data/history --archive data/archive
+          cd data
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A archive history
+          if ! git diff --cached --quiet; then
+            git commit -q -m "market history TWSE checkpoint $(TZ=Asia/Taipei date +%F)"
+            git push -q origin HEAD:market-history
+            gh workflow run public-site.yml --ref main
+          fi
       - name: 上櫃個股月資料（櫃買中心）
         env:
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}

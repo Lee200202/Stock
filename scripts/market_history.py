@@ -238,6 +238,8 @@ def cmd_fetch_tpex(args):
             plan.append((code, this_month))
         elif earliest and date.fromisoformat(d) > date.fromisoformat(earliest) + timedelta(days=31):
             plan.append((code, int(d[:4]) * 12 + int(d[5:7]) - 1))
+    # 先補完全沒有上市封存的股票，避免新上市股票的轉板探查擋住真正上櫃缺口。
+    plan.sort(key=lambda item: (item[0] in first, item[0]))
     stop, done, kept = _deadline(args), 0, 0
     start = _start(args, now.date(), TPEX_START)
     first_month = start.year * 12 + start.month - 1
@@ -315,21 +317,31 @@ def build_series(entries):
 def cmd_build(args):
     codes = _code_set(args)
     series, names, market = {c: {} for c in codes}, {}, {}
+    scanned_days, empty_days, month_coverage = set(), [], {}
     for p in sorted((Path(args.archive) / 'twse').glob('*/*.json.gz')):
         with gzip.open(p, 'rt', encoding='utf-8') as fh:
             rec = json.load(fh)
+        scanned_days.add(rec['date'])
+        if not rec.get('rows'):
+            empty_days.append(rec['date'])
         for code, name, o, h, l, c, chg, vol in rec.get('rows', []):
             if code in series:
                 series[code][rec['date']] = (rec['date'], o, h, l, c, chg, vol); names[code] = name; market[code] = '上市'
     for code in codes:
+        months, empty_months = [], []
         for p in sorted((Path(args.archive) / 'tpex' / code).glob('*.json')):
             rec = json.loads(p.read_text(encoding='utf-8'))
+            months.append(p.stem)
+            if not rec.get('rows'):
+                empty_months.append(p.stem)
             for d, o, h, l, c, chg, vol in rec.get('rows', []):
                 series[code].setdefault(d, (d, o, h, l, c, chg, vol))   # 轉上市前的櫃買資料；同一天以上市為準
             if rec.get('rows'):
                 market.setdefault(code, '上櫃')
                 if rec.get('name'):
                     names.setdefault(code, rec['name'])
+        month_coverage[code] = {'monthsScanned': len(months), 'oldestMonthScanned': min(months, default=None),
+                               'emptyMonthsUnverified': empty_months}
     out = Path(args.out); out.mkdir(parents=True, exist_ok=True)
     meta = {'updated': datetime.now(TZ).isoformat(timespec='seconds'), 'codes': {},
             'scope': '全部可探查範圍；非固定十年。覆蓋不足不代表掛牌起點。',
@@ -349,11 +361,23 @@ def cmd_build(args):
         meta['codes'][code] = {'first': doc['first'], 'latest': doc['latest'], 'bars': len(rows), 'adjustments': adjustments}
     meta['latest'] = max((v['latest'] for v in meta['codes'].values()), default='')
     meta['missingCodes'] = sorted(codes - set(meta['codes']))
+    now = datetime.now(TZ)
+    end = now.date() - timedelta(days=1 if now.hour * 100 + now.minute < 1430 else 0)
+    missing_days, day = [], TWSE_START
+    while day <= end:
+        if day.weekday() < 5 and day.isoformat() not in scanned_days:
+            missing_days.append(day.isoformat())
+        day += timedelta(days=1)
+    # 平日不等於交易日；空檔也不等於已核實休市。完整度不能只看根數或工作流成功。
+    meta['archiveCoverage'] = {'twse': {'requestedStart': TWSE_START.isoformat(), 'requestedEnd': end.isoformat(),
+        'daysScanned': len(scanned_days), 'missingWeekdays': missing_days, 'emptyDaysUnverified': sorted(empty_days)},
+        'tpex': month_coverage}
     before = _read(out / '_meta.json')
     if before and {k: v for k, v in before.items() if k != 'updated'} == {k: v for k, v in meta.items() if k != 'updated'}:
         meta['updated'] = before['updated']
     _write(out / '_meta.json', meta)
     print(f'產生 {len(meta["codes"])} 檔（要求 {len(codes)} 檔），最新 {meta["latest"]}')
+    print(f'完整度待核：上市尚有 {len(missing_days)} 個平日未抓、{len(empty_days)} 個空回應未核實；缺少歷史檔 {len(meta["missingCodes"])} 檔')
 
 
 def cmd_check(args):

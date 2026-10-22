@@ -3668,7 +3668,8 @@ function restatesEarlier_(key, earlier) {
     var hist = p !== 'hour' && (candleMemo[currentCode] || {}).history;
     if (hist) {
       // v200：一年以前的日K來自交易所歷史收盤；分割與反分割已還原，除權息未還原（與進場價同一口徑）
-      var adj = hist.adjustments.map(function (a) { return a.date + (a.factor >= 1 ? ' 1 拆 ' + a.factor : ' ' + Math.round(1 / a.factor) + ' 併 1'); });
+      // v200r1：只還原交易所公告的股數變動（面額變更、減資、ETF 分割／反分割），寫出日期與種類
+      var adj = hist.adjustments.map(function (a) { return a.date + ' ' + (a.kind || (a.factor >= 1 ? '分割' : '反分割')); });
       note += '較早的日K取自證交所／櫃買中心歷史收盤，' + (adj.length ? adj.join('、') + ' 已還原，' : '') + '除權息未還原。';
     } else if (p !== 'hour' && rangeStartIndex(data, 11) === 0) {
       note += '目前只有這段期間；每天 16:45 自動往回補，最多一年。';
@@ -3704,7 +3705,10 @@ function restatesEarlier_(key, earlier) {
       var charts=[chart,volChart,macdChart,kdChart,rsiChart];
       var axisMin=window.innerWidth<600?60:96;   // v199：手機上價軸縮窄，繪圖區不再只剩 216px
       charts.forEach(function(c){c.priceScale('right').applyOptions({minimumWidth:axisMin,alignLabels:true,entireTextOnly:true});});
-      requestAnimationFrame(function(){var width=Math.max.apply(null,[axisMin].concat(charts.map(function(c){return c.priceScale('right').width();})));charts.forEach(function(c){c.priceScale('right').applyOptions({minimumWidth:width});});});
+      requestAnimationFrame(function(){var width=Math.max.apply(null,[axisMin].concat(charts.map(function(c){return c.priceScale('right').width();})));charts.forEach(function(c){c.priceScale('right').applyOptions({minimumWidth:width});});
+        /* v200r1：右軸統一變寬時繪圖區跟著變窄，圖表函式庫保留原本的 K 棒間距，副圖起點就偏掉（手機實測成交量那張差 2.6 像素）。
+           等軸寬生效後，副圖再對齊 K 線圖一次。 */
+        requestAnimationFrame(function(){var rr=chart.timeScale().getVisibleLogicalRange();if(!rr)return;definitions.forEach(function(d){if(paneShown(d[0]))d[3].timeScale().setVisibleLogicalRange(rr);});});});
       // v199：日期軸只畫在最下面那一張（先前主圖＋每張副圖各一條，疊了四條日期）
       var shown=[['chart',chart]].concat(definitions.filter(function(d){return paneShown(d[0]);}).map(function(d){return [d[1],d[3]];}));
       shown.sort(function(a,b){return $(a[0]).compareDocumentPosition($(b[0]))&Node.DOCUMENT_POSITION_FOLLOWING?-1:1;});
@@ -3771,7 +3775,7 @@ function restatesEarlier_(key, earlier) {
     if (!rows.length) { return null; }
     var adj = (Array.isArray(doc.adjustments) ? doc.adjustments : []).filter(function (a) {
       return a && HISTORY_DATE.test(a.date) && a.factor > 0 && isFinite(a.factor);
-    }).map(function (a) { return { date: a.date.replace(/-/g, '/'), factor: a.factor }; });
+    }).map(function (a) { return { date: a.date.replace(/-/g, '/'), factor: a.factor, kind: typeof a.kind === 'string' ? a.kind.slice(0, 8) : '' }; });
     return { rows: rows, adjustments: adj, first: rows[0].date, latest: rows[rows.length - 1].date };
   }
   /** 某一天的價格要除以多少才與歷史檔同一口徑：那天之後每一次分割的倍數相乘。 */
@@ -3821,6 +3825,29 @@ function restatesEarlier_(key, earlier) {
     return keys.sort().map(function (k) { return buckets[k]; });
   }
   /** 把完整歷史併進這一檔的暫存。回傳是否有併進去。 */
+  /* 補畫時保留使用者自己拖曳、縮放後的畫面（v200r1）。歷史檔先畫、近期日K幾秒到幾十秒後才回來，
+     回來時重畫會把畫面拉回區間按鈕的範圍——剛拖到 2015 年的人會被拉回最近一個月。
+     使用者動過畫面時區間按鈕已全部放開（見 sync）；這時記下看到的起訖日期，重畫後找回同一段。
+     用日期不用第幾根：合併後前面可能多出 K 棒，第幾根會對不上。 */
+  function viewDates() {
+    if (!chart || !rawData.length || document.querySelector('[data-krange][aria-pressed="true"]')) { return null; }
+    var r = chart.timeScale().getVisibleLogicalRange();
+    if (!r) { return null; }
+    var a = Math.max(0, Math.ceil(r.from)), b = Math.min(rawData.length - 1, Math.floor(r.to));
+    return a <= b ? { from: String(rawData[a].date), to: String(rawData[b].date), lead: a - r.from, tail: r.to - b } : null;
+  }
+  function restoreViewDates(v) {
+    if (!v || !rawData.length || !chart) { return; }
+    var i = -1, j = -1;
+    for (var k = 0; k < rawData.length; k++) { if (String(rawData[k].date) >= v.from) { i = k; break; } }
+    for (k = rawData.length - 1; k >= 0; k--) { if (String(rawData[k].date) <= v.to) { j = k; break; } }
+    if (i < 0 || j < i) { return; }
+    var range = { from: i - v.lead, to: j + v.tail };
+    [[chart, true], [volChart, true], [macdChart, paneShown('macd')], [kdChart, paneShown('kd')], [rsiChart, paneShown('rsi')]].forEach(function (p) {
+      if (p[0] && p[1]) { p[0].timeScale().setVisibleLogicalRange(range); }
+    });
+    document.querySelectorAll('[data-krange]').forEach(function (b) { b.setAttribute('aria-pressed', 'false'); });
+  }
   function applyHistory(memo, hist) {
     if (!memo || !hist || memo.history === hist) { return false; }
     memo.gasDay = memo.gasDay || memo.day || [];
@@ -3858,13 +3885,16 @@ function restatesEarlier_(key, earlier) {
       // v199：開面板只取日／週／月K；60 分 K 在選「60分」時才取（舊版後端仍會一起回，照收）。
       var fresh = { at: Date.now(), day: (b && b.day) || [], week: (b && b.week) || [], month:(b && b.month)||[] };
       if (b && Array.isArray(b.hour)) { fresh.hour = b.hour; fresh.hourCoverage = b.hourCoverage; }
+      var shown = candleMemo[code];
       candleMemo[code] = fresh;
       function paint() {
         if (code !== currentCode || !$('detail').classList.contains('open')) { return; }
         if (period === 'hour' && !fresh.hour) { paintTrend(); loadHourly(code, background); return; }
         var viewport=background&&chart&&chart.timeScale().getVisibleLogicalRange?chart.timeScale().getVisibleLogicalRange():null;
+        var kept = !background && shown && shown.historyOnly && period !== 'hour' ? viewDates() : null;   // 歷史先畫之後使用者動過畫面
         showCandles(period, fresh[period] || []);
         if(viewport){chart.timeScale().setVisibleLogicalRange(viewport);}
+        restoreViewDates(kept);
         paintTrend();   // 進場以來走勢用同一份日 K，不另打 API（v67）
       }
       if (Object.prototype.hasOwnProperty.call(historyDoc, code) || !hist) { applyHistory(fresh, historyDoc[code]); paint(); return; }
@@ -3874,7 +3904,7 @@ function restatesEarlier_(key, earlier) {
         if (candleMemo[code] !== fresh) { return; }
         var merged = applyHistory(fresh, h);
         if (!drawn) { drawn = true; clearTimeout(timer); paint(); return; }
-        if (merged && code === currentCode && period !== 'hour' && $('detail').classList.contains('open')) { showCandles(period, fresh[period] || []); }
+        if (merged && code === currentCode && period !== 'hour' && $('detail').classList.contains('open')) { var kept = viewDates(); showCandles(period, fresh[period] || []); restoreViewDates(kept); }
       });
     }).withFailureHandler(function () {
       delete candlePending[code];

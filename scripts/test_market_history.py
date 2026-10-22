@@ -52,4 +52,19 @@ class HistoryContract(unittest.TestCase):
    a=SimpleNamespace(start='2020-01-06',end='2020-01-06',years=0,deadline_min=1,archive=d)
    with patch.object(h,'fetch_twse_day',side_effect=TimeoutError):h.cmd_fetch_twse(a)
    self.assertFalse(list(Path(d).rglob('*.gz')))
+ def test_official_events_parse_both_markets(self):
+  tw=h.event_rows(['恢復買賣日期','股票代號','名稱','停止買賣前收盤價格','恢復買賣參考價','漲停價格'],[['114/08/25','2327','國巨','546.00','136.50','150.00']],'par')
+  self.assertEqual(tw,[{'date':'2025-08-25','code':'2327','prev':546.0,'ref':136.5,'kind':'par'}])
+  tp=h.event_rows(['恢復買賣日期','股票代號','名稱','最後交易日之收盤價格','減資恢復買賣開始日參考價格','漲停價格','跌停價格','開始交易基準價','除權參考價'],[['1140113','2740','天蔥','21.55','39.18','43.05','35.30','39.20','0.00']],'reduction')
+  self.assertEqual(tp[0]['date'],'2025-01-13');self.assertEqual(tp[0]['ref'],39.18)
+  etf=h.event_rows(['恢復買賣日期','ETF代號','名稱','分割(反分割)','停止買賣前收盤價格','恢復買賣參考價'],[['114/02/19','00676R','反1','反分割','2.04','20.40']],'etf-split')
+  self.assertEqual(etf[0]['kind'],'etf-reverse')
+  with self.assertRaises(ValueError):h.event_rows(['日期','代號'],[['114/01/01','2330']],'par')
+ def test_official_event_adjusts_only_before_and_checks_archive(self):
+  e=[('2025-08-13',540,550,530,546,1,1000),('2025-08-25',137,140,135,138,1.5,4000)]
+  rows,adj=h.build_series(e,[{'date':'2025-08-25','code':'2327','prev':546.0,'ref':136.5,'kind':'par'}])
+  self.assertEqual(adj[0]['factor'],4.0);self.assertTrue(adj[0]['matchesArchive']);self.assertEqual(adj[0]['kind'],'面額變更')
+  self.assertEqual(rows[0][4],136.5);self.assertEqual(rows[1][4],138);self.assertEqual(rows[0][5],1000)
+  rows,adj=h.build_series(e,[{'date':'2026-01-05','code':'2327','prev':1.0,'ref':2.0,'kind':'reduction'}])
+  self.assertEqual(adj,[]);self.assertEqual(rows[0][4],546)
 if __name__=='__main__':unittest.main()

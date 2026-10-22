@@ -43,6 +43,8 @@ jobs:
           YEARS: ${{ inputs.years || 0 }}
           MINUTES: ${{ inputs.minutes || 80 }}
         run: python scripts/market_history.py fetch-twse --archive data/archive --years "$YEARS" --deadline-min "$((MINUTES / 2))"
+      - name: 交易所公告的股數變動（面額變更、減資、ETF 分割／反分割；中途發布也要還原）
+        run: python scripts/market_history.py fetch-events --archive data/archive
       - name: 上市階段中途存檔與發布
         continue-on-error: true
         env:

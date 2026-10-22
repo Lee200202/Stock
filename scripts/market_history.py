@@ -9,6 +9,7 @@
   python scripts/market_history.py fetch-twse --archive DIR [--start YYYY-MM-DD] [--end YYYY-MM-DD] [--years 10] [--deadline-min N]
   python scripts/market_history.py fetch-tpex --archive DIR (--codes ...|--codes-file F|--sheets) [--years 10] [--deadline-min N]
   python scripts/market_history.py build --archive DIR --out DIR (--codes ...|--codes-file F|--sheets)
+  python scripts/market_history.py fetch-events --archive DIR   # 交易所公告的面額變更、減資、ETF 分割／反分割
   python scripts/market_history.py check --out DIR
 
 archive/twse/YYYY/YYYYMMDD.json.gz：當天上市全部個股與 ETF 的原始收盤（過去日期不重抓，休市日也存 stat）。
@@ -39,14 +40,14 @@ CODE_RE = re.compile(r'^(?:\d{4,6}[A-Z]?)$')
 _last = {'twse': 0.0, 'tpex': 0.0}
 
 
-def _get(url, host, tries=4):
+def _get(url, host, tries=4, form=None):
     for attempt in range(tries):
         wait = GAP[host] - (time.time() - _last[host])
         if wait > 0:
             time.sleep(wait)
         _last[host] = time.time()
         try:
-            response = SESSION.get(url, timeout=45)
+            response = SESSION.post(url, data=form, timeout=45) if form else SESSION.get(url, timeout=45)
             response.raise_for_status()
             text = response.content.decode('utf-8', 'replace')
             if text.lstrip().startswith('<'):
@@ -278,6 +279,91 @@ def cmd_fetch_tpex(args):
     print(f'上櫃抓取：{len(plan)} 檔，新抓 {done} 個月、沿用 {kept} 個月')
 
 
+# ---------------------------------------------------------------- 官方股數變動事件（v200r1）
+# 面額變更、減資、ETF 分割／反分割會讓股價一夕變成幾分之一或幾倍（例：國巨 2025/08/25 面額 10 元改 2.5 元，546 → 136.5）。
+# 不還原的話，均線、MACD、KD 跨過那一天全部失真。只用交易所公告的「停止買賣前收盤價 ÷ 恢復買賣參考價」還原，
+# 不憑價差猜；除權息仍不還原。來源起點：證交所減資表 2011 起（更早回「查詢開始日期小於100年1月1日」），
+# 面額變更 2014 年彈性面額制度後才有；櫃買四張表照年份查。查不到的年份只能靠 splitCandidates 提示人看。
+EVENT_FIRST_YEAR = 2004
+TWSE_EVENTS = {'par': 'change/TWTB8U', 'reduction': 'reducation/TWTAUU', 'etf-split': 'split/TWTCAU'}
+TPEX_EVENTS = {'par': 'pvChgRslt', 'reduction': 'revivt', 'etf-split': 'etfSplitRslt', 'etf-reverse': 'etfRvsRslt'}
+EVENT_KIND = {'par': '面額變更', 'reduction': '減資', 'etf-split': 'ETF分割', 'etf-reverse': 'ETF反分割'}
+
+
+def _roc_date(text):
+    """「114/08/25」或「1140825」→ 2025-08-25。"""
+    s = re.sub(r'\D', '', str(text or ''))
+    if len(s) not in (6, 7):
+        return None
+    try:
+        return date(int(s[:-4]) + 1911, int(s[-4:-2]), int(s[-2:])).isoformat()
+    except ValueError:
+        return None
+
+
+def event_rows(fields, data, key):
+    f = {re.sub(r'\s', '', n): i for i, n in enumerate(fields or [])}
+    di = f.get('恢復買賣日期')
+    ci = next((f[k] for k in ('股票代號', '證券代號', 'ETF代號') if k in f), None)
+    pi = next((f[k] for k in ('停止買賣前收盤價格', '最後交易日之收盤價格') if k in f), None)
+    ri = next((i for k, i in f.items() if '參考價' in k and '除權' not in k), None)
+    si = f.get('分割(反分割)')
+    if data and None in (di, ci, pi, ri):
+        raise ValueError(f'事件表欄位改變：{list(f)[:8]}')
+    out = []
+    for a in data or []:
+        d, code, prev, ref = _roc_date(a[di]), str(a[ci]).strip(), _num(a[pi]), _num(a[ri])
+        if not d or not CODE_RE.match(code) or not prev or not ref or prev <= 0 or ref <= 0:
+            continue
+        kind = ('etf-reverse' if '反' in str(a[si]) else 'etf-split') if si is not None else key
+        out.append({'date': d, 'code': code, 'prev': prev, 'ref': ref, 'kind': kind})
+    return out
+
+
+def fetch_events_year(market, key, y):
+    if market == 'twse':
+        j = _get(f'https://www.twse.com.tw/rwd/zh/{TWSE_EVENTS[key]}?startDate={y}0101&endDate={y}1231&response=json', 'twse')
+        stat, fields, data = str(j.get('stat') or ''), j.get('fields'), j.get('data')
+        if stat.upper() != 'OK':
+            return {'stat': stat, 'rows': []}   # 例：減資表 2011 年以前不受理
+    else:
+        j = _get(f'https://www.tpex.org.tw/www/zh-tw/bulletin/{TPEX_EVENTS[key]}', 'tpex',
+                 form={'startDate': f'{y}/01/01', 'endDate': f'{y}/12/31', 'response': 'json'})
+        t = (j.get('tables') or [{}])[0]
+        stat, fields, data = str(j.get('stat') or ''), t.get('fields'), t.get('data')
+    return {'stat': stat, 'rows': event_rows(fields, data, key)}
+
+
+def cmd_fetch_events(args):
+    """每年一個檔：archive/events/市場-種類-年.json。過去年份查過就沿用，今年與去年每次重查。"""
+    now = datetime.now(TZ)
+    done = kept = 0
+    for market, table in (('twse', TWSE_EVENTS), ('tpex', TPEX_EVENTS)):
+        for key in table:
+            for y in range(now.year, EVENT_FIRST_YEAR - 1, -1):
+                p = Path(args.archive) / 'events' / f'{market}-{key}-{y}.json'
+                if _read(p) is not None and now.year - y > 1:
+                    kept += 1
+                    continue
+                try:
+                    rec = fetch_events_year(market, key, y)
+                except Exception as e:
+                    print(f'{market} {EVENT_KIND[key]} {y} 抓取失敗，下次再補：{type(e).__name__}: {str(e)[:60]}', flush=True)
+                    continue
+                _write(p, rec)
+                done += 1
+    print(f'股數變動事件：新抓 {done} 個年度表、沿用 {kept} 個')
+
+
+def load_events(archive):
+    """代號 → [事件]；同一天同一檔只留一筆（轉板當天兩個市場可能都有）。"""
+    out = {}
+    for p in sorted((Path(archive) / 'events').glob('*.json')):
+        for e in (_read(p) or {}).get('rows', []):
+            out.setdefault(e['code'], {})[e['date']] = e
+    return {c: [v[d] for d in sorted(v)] for c, v in out.items()}
+
+
 # ---------------------------------------------------------------- 組成每檔歷史
 
 def split_factor(prev_close, close, change):
@@ -297,13 +383,18 @@ def split_factor(prev_close, close, change):
     return None
 
 
-def build_series(entries):
-    """entries：[(date, o, h, l, c, chg, vol)] 依日期排序。回傳 (rows, adjustments)。"""
-    adjustments, prev = [], None
-    for e in entries:
-        f = split_factor(prev, e[4], e[5])
-        # 價差只能產生疑似事件，不能自行改寫歷史價格。正式調整需另附官方事件證據。
-        prev = e[4]
+def build_series(entries, events=None):
+    """entries：[(date, o, h, l, c, chg, vol)] 依日期排序；events：交易所公告的股數變動（load_events）。回傳 (rows, adjustments)。
+    價差只能產生疑似事件（splitCandidates），不能自行改寫歷史價格；只有官方事件才還原。"""
+    adjustments = []
+    for e in events or []:
+        if not entries or not entries[0][0] < e['date'] <= entries[-1][0]:
+            continue   # 事件不在這段資料裡：前後沒有 K 棒要接
+        before = [x for x in entries if x[0] < e['date']][-1]
+        adjustments.append({'date': e['date'], 'factor': round(e['prev'] / e['ref'], 6), 'kind': EVENT_KIND.get(e['kind'], e['kind']),
+                            'prevClose': e['prev'], 'refPrice': e['ref'],
+                            # 封存裡停牌前最後一根的收盤應等於公告的停止買賣前收盤價；不等代表封存有缺口，check 會列出
+                            'archiveClose': before[4], 'matchesArchive': abs(before[4] - e['prev']) < 0.006})
     rows = []
     for e in entries:
         k = 1.0
@@ -316,6 +407,7 @@ def build_series(entries):
 
 def cmd_build(args):
     codes = _code_set(args)
+    events = load_events(args.archive)
     series, names, market = {c: {} for c in codes}, {}, {}
     scanned_days, empty_days, month_coverage = set(), [], {}
     for p in sorted((Path(args.archive) / 'twse').glob('*/*.json.gz')):
@@ -351,12 +443,14 @@ def cmd_build(args):
         entries = [series[code][d] for d in sorted(series[code])]
         if not entries:
             continue
-        rows, adjustments = build_series(entries)
+        rows, adjustments = build_series(entries, events.get(code))
         doc = {'code': code, 'name': names.get(code, ''), 'market': market.get(code, ''),
-               'source': '上市：證交所 MI_INDEX 每日收盤行情；上櫃：櫃買中心個股月成交資訊', 'basis': 'raw-unadjusted',
+               'source': '上市：證交所 MI_INDEX 每日收盤行情；上櫃：櫃買中心個股月成交資訊', 'basis': 'raw-except-official-share-events',
                'volumeBasis': 'raw-traded-shares-incl-odd-lots', 'adjustments': adjustments,
                'first': rows[0][0], 'latest': rows[-1][0], 'fields': ['date', 'open', 'high', 'low', 'close', 'volume'], 'rows': rows}
-        doc['splitCandidates'] = [{'date': b[0], 'factor': split_factor(a[4], b[4], b[5])} for a, b in zip(entries, entries[1:]) if split_factor(a[4], b[4], b[5])]
+        official = {a['date'] for a in adjustments}
+        doc['splitCandidates'] = [{'date': b[0], 'factor': split_factor(a[4], b[4], b[5])} for a, b in zip(entries, entries[1:])
+                                  if split_factor(a[4], b[4], b[5]) and b[0] not in official]
         _write(out / f'{code}.json', doc)
         meta['codes'][code] = {'first': doc['first'], 'latest': doc['latest'], 'bars': len(rows), 'adjustments': adjustments}
     meta['latest'] = max((v['latest'] for v in meta['codes'].values()), default='')
@@ -397,13 +491,16 @@ def cmd_check(args):
         jumps = [(a[0], b[0], round(b[4] / a[4], 3)) for a, b in zip(rows, rows[1:]) if b[4] / a[4] > 1.6 or b[4] / a[4] < 0.6]
         if jumps:
             print(p.name, '單日變動超過 ±40%：', jumps[:4])
+        for a in doc.get('adjustments') or []:
+            if a.get('matchesArchive') is False:
+                print(p.name, f"{a['date']} {a.get('kind', '')}：公告停牌前收盤 {a.get('prevClose')}，封存最後一根 {a.get('archiveClose')}，封存可能有缺口")
     if getattr(args, 'archive', None):
         # 平日沒有資料的天數（國定假日、颱風假）。一年超過 25 天多半是抓取時被擋，回報讓人看（不自動刪）
         off = {}
         for f in (Path(args.archive) / 'twse').glob('*/*.json.gz'):
             with gzip.open(f, 'rt', encoding='utf-8') as fh:
                 rec = json.load(fh)
-            if not rec.get('rows'):
+            if not rec.get('rows') and date.fromisoformat(rec['date']).weekday() < 5:   # 星期六沒開盤是常態，不算
                 off.setdefault(rec['date'][:4], []).append(rec['date'])
         for y in sorted(off):
             print(f'{y} 平日休市 {len(off[y])} 天' + ('　偏多，請人工確認' if len(off[y]) > 25 else ''))
@@ -426,9 +523,11 @@ def main():
             s.add_argument('--codes'); s.add_argument('--codes-file'); s.add_argument('--sheets', action='store_true')
         if name == 'build':
             s.add_argument('--out', required=True)
+    sub.add_parser('fetch-events').add_argument('--archive', required=True)
     c = sub.add_parser('check'); c.add_argument('--out', required=True); c.add_argument('--archive')
     args = ap.parse_args()
-    {'fetch-twse': cmd_fetch_twse, 'fetch-tpex': cmd_fetch_tpex, 'build': cmd_build}.get(args.cmd, lambda a: sys.exit(cmd_check(a)))(args)
+    {'fetch-twse': cmd_fetch_twse, 'fetch-tpex': cmd_fetch_tpex, 'build': cmd_build,
+     'fetch-events': cmd_fetch_events}.get(args.cmd, lambda a: sys.exit(cmd_check(a)))(args)
 
 
 if __name__ == '__main__':

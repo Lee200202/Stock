@@ -7,6 +7,7 @@ on:
       - .github/workflows/public-site.yml
       - public-site/**
       - scripts/build_original_site.py
+      - scripts/check_project_manifest.cjs
       - site-api/**
   workflow_dispatch:
 
@@ -34,6 +35,8 @@ jobs:
           python-version: '3.11'
       - name: 原始介面與 API 方法對齊
         run: python scripts/check_original_parity.py
+      - name: 部署版本與畫面檔案標記一致性
+        run: node scripts/check_project_manifest.cjs
       - name: 使用紀錄彙整與匿名分析
         run: node scripts/check_usage_tracking.js
       - name: 報價排程模擬（盤中批次、收盤結算、轉送備援）

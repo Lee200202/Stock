@@ -2603,17 +2603,27 @@ function restatesEarlier_(key, earlier) {
   }
   /* 均線與布林改成 K 線上方的圖例標籤（v67，0925 規格 3.3）：每條線的顏色跟著它在 maDefs 的位置走，
      開關時顏色不會換來換去；自訂的均線加在後面。maList 仍是「目前開著的」那幾條，畫圖與讀數沿用。 */
-  var maDefs = [{ n: 5, on: true }, { n: 10, on: true }, { n: 20, on: true }, { n: 60, on: true }, { n: 240, on: true }];
+  var MA_DEFAULTS = [5, 10, 20, 60, 240], MA_STORAGE = 'panshi_custom_mas';
+  function validCustomMA(n) { return typeof n === 'number' && Number.isInteger(n) && n >= 2 && n <= 1200 && MA_DEFAULTS.indexOf(n) < 0; }
+  function loadCustomMAs() {
+    try {
+      var saved = JSON.parse(localStorage.getItem(MA_STORAGE) || '[]');
+      return Array.isArray(saved) ? saved.filter(validCustomMA).filter(function(n,i,a){return a.indexOf(n)===i;}).sort(function(a,b){return a-b;}).slice(0,12) : [];
+    } catch(e) { return []; }
+  }
+  var maDefs = MA_DEFAULTS.map(function(n){return {n:n,on:true};}).concat(loadCustomMAs().map(function(n){return {n:n,on:true,custom:true};})).sort(function(a,b){return a.n-b.n;});
+  function saveCustomMAs() { try { localStorage.setItem(MA_STORAGE,JSON.stringify(maDefs.filter(function(d){return d.custom;}).map(function(d){return d.n;}))); } catch(e) {} }
   function maPalette() { return [css('--wait'), css('--beam'), css('--muted'), '#8E7CC3', '#C39134', '#D08770']; }
   function maColor(n) {
     var idx = 0;
-    maDefs.forEach(function (d, i) { if (d.n === n) { idx = i; } });
+    idx = MA_DEFAULTS.indexOf(n); if(idx<0)idx=5+(n%5);
     var p = maPalette();
     return p[idx % p.length];
   }
   function syncMaList() {
     maList = maDefs.filter(function (d) { return d.on; }).map(function (d) { return d.n; }).sort(function (a, b) { return a - b; });
   }
+  syncMaList();
   /* 可視區間（2026/09/16 v38）。原本預設只顯示最近 30 根、其餘要往左拖，
      管理者回報「日、週 K 只看得到一個月」。現在預設顯示資料庫裡這一檔的全部區間，
      上方「1月／3月／6月／1年／全部」快速縮放；選好的區間在換股票、換日週時保留。 */
@@ -2629,7 +2639,8 @@ function restatesEarlier_(key, earlier) {
     week: '由日線聚合成週 K；量為當週加總（張）。'
   };
 
-  var detailRequest = 0;
+  var detailRequest = 0, detailOrigin = null;
+  function detailUrl(code){var url=new URL(location.href);if(code)url.searchParams.set('stock',code);else url.searchParams.delete('stock');history.replaceState(history.state,'',url.pathname+url.search+url.hash);}
   var quotePollTimer = null, quotePollPending = 0, quotePolledAt = 0;
   function scheduleDetailQuote_() {
     clearTimeout(quotePollTimer);
@@ -2664,6 +2675,8 @@ function restatesEarlier_(key, earlier) {
   function openDetail(code) {
     var request = ++detailRequest;
     if (!isCode(code)) { return; }
+    if(!$('detail').classList.contains('open'))detailOrigin=document.activeElement;
+    detailUrl(code);
     currentCode = code;
     clearTimeout(quotePollTimer); quotePolledAt = Date.now();
     USE.act('看個股', code);
@@ -2671,6 +2684,7 @@ function restatesEarlier_(key, earlier) {
     document.dispatchEvent(new CustomEvent('tide:stock-reset'));
     $('detail').classList.add('open');
     document.body.style.overflow = 'hidden';
+    $('detailClose').focus({preventScroll:true});
     wheelHintShown = false;
     setTimeout(function () { var kp = $('kPeriod'); if (kp && kp.__place) { kp.__place(); } }, 0);
 
@@ -2918,11 +2932,14 @@ function restatesEarlier_(key, earlier) {
     clearTimeout(quotePollTimer);
     $('detail').classList.remove('open');
     document.body.style.overflow = '';
+    detailUrl('');
+    if(detailOrigin&&detailOrigin.isConnected)detailOrigin.focus({preventScroll:true});
   }
   $('detailClose').addEventListener('click', closeDetail);
   $('detailBg').addEventListener('click', closeDetail);
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && $('detail').classList.contains('open')) { closeDetail(); }
+    if(e.key==='Tab'&&$('detail').classList.contains('open')){var list=Array.from($('detail').querySelectorAll('button,a[href],input,select,textarea,[tabindex="0"]')).filter(function(el){return !el.disabled&&el.getClientRects().length;});var first=list[0],last=list[list.length-1];if(!first)return;if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}
   });
 
   function kv(k, v, na) {
@@ -2964,7 +2981,7 @@ function restatesEarlier_(key, earlier) {
       /* 右側縱軸固定寬度（2026/09/16 v38）。K 線、成交量、MACD、KD 是上下四張圖，
          縱軸刻度字寬不同（102.00、1.2萬、-0.123）會讓每張圖的繪圖區寬度不一樣，
          同一根 K 棒在上下兩張圖的水平位置就對不齊。 */
-      rightPriceScale: { borderColor: css('--rule'), minimumWidth: 72 },
+      rightPriceScale: { borderColor: css('--rule'), minimumWidth: 96, alignLabels: true, entireTextOnly: true },
       timeScale: {
         borderColor: css('--rule'), timeVisible: period === 'hour',
         // 把可視範圍鎖在資料兩端。少了這兩個，往左往右都能一直拖，
@@ -3474,15 +3491,16 @@ function restatesEarlier_(key, earlier) {
     var box = $('kLegend');
     if (!box) { return; }
     var chips = maDefs.map(function (d) {
-      return '<button type="button" class="lg" data-ma="' + d.n + '" aria-pressed="' + (d.on ? 'true' : 'false') + '" title="' + (d.on ? '隱藏' : '顯示') + ' MA' + d.n + '">' +
-        '<i style="--lg:' + maColor(d.n) + '"></i>MA' + d.n + '</button>';
+      return (d.custom ? '<span class="ma-custom-pill">' : '') + '<button type="button" class="lg" data-ma="' + d.n + '" aria-pressed="' + (d.on ? 'true' : 'false') + '" title="' + (d.on ? '隱藏' : '顯示') + ' MA' + d.n + '">' +
+        '<i style="--lg:' + maColor(d.n) + '"></i>MA' + d.n + '</button>' +
+        (d.custom ? '<button type="button" class="ma-remove" data-remove-ma="'+d.n+'" aria-label="移除 MA'+d.n+'">×</button></span>' : '');
     }).join('') +
       '<button type="button" class="lg lg-boll" id="bollBtn" aria-pressed="' + (showBoll ? 'true' : 'false') + '" title="布林通道（20 日、2 倍標準差）">' +
         '<i class="dash" style="--lg:' + css('--muted') + '"></i>布林</button>';
     var add = maAdding
-      ? '<span class="lg-add"><input type="number" id="maInput" min="2" max="250" inputmode="numeric" placeholder="天數" aria-label="新增均線天數">' +
-        '<button type="button" id="maAdd">加入</button><button type="button" class="lg-x" id="maCancel" aria-label="取消">×</button></span>'
-      : '<button type="button" class="lg lg-plus" id="maOpen" title="新增一條均線">＋</button>';
+      ? '<span class="lg-add"><input type="number" id="maInput" min="2" max="1200" step="1" inputmode="numeric" placeholder="期數" aria-label="新增均線期數" aria-describedby="maError">' +
+        '<button type="button" id="maAdd">加入</button><button type="button" class="lg-x" id="maCancel" aria-label="取消">×</button><span id="maError" role="status"></span></span>'
+      : '<button type="button" class="lg lg-plus" id="maOpen" title="新增一條均線" aria-label="新增自訂均線">＋</button>';
     box.innerHTML = chips + add;
     box.querySelectorAll('[data-ma]').forEach(function (b) {
       b.addEventListener('click', function () {
@@ -3493,14 +3511,16 @@ function restatesEarlier_(key, earlier) {
       });
     });
     $('bollBtn').addEventListener('click', function () { showBoll = !showBoll; renderChart(); });
+    box.querySelectorAll('[data-remove-ma]').forEach(function(b){b.addEventListener('click',function(){var n=Number(b.dataset.removeMa);maDefs=maDefs.filter(function(d){return !d.custom||d.n!==n;});saveCustomMAs();syncMaList();renderChart();$('maOpen').focus();});});
     if (maAdding) {
       var input = $('maInput');
       var commit = function () {
-        var n = Math.round(Number(input.value));
-        if (!n || n < 2 || n > 250) { input.focus(); return; }
-        if (!maDefs.some(function (d) { return d.n === n; })) { maDefs.push({ n: n, on: true }); }
+        var n = Number(input.value);
+        if (!Number.isInteger(n) || n < 2 || n > 1200) { $('maError').textContent='請輸入 2–1200 的整數期數。';input.setAttribute('aria-invalid','true');input.focus();return; }
+        if (!maDefs.some(function(d){return d.n===n;}) && maDefs.filter(function(d){return d.custom;}).length>=12) { $('maError').textContent='最多保留 12 條自訂均線，請先移除一條。';return; }
+        if (!maDefs.some(function (d) { return d.n === n; })) { maDefs.push({ n: n, on: true, custom:true }); }
         else { maDefs.forEach(function (d) { if (d.n === n) { d.on = true; } }); }
-        maAdding = false; syncMaList(); renderChart();
+        maDefs.sort(function(a,b){return a.n-b.n;});saveCustomMAs();maAdding = false; syncMaList(); renderChart();$('maOpen').focus();
       };
       $('maAdd').addEventListener('click', commit);
       input.addEventListener('keydown', function (e) { if (e.key === 'Enter') { commit(); } if (e.key === 'Escape') { maAdding = false; renderKLegend(); } });
@@ -3545,8 +3565,10 @@ function restatesEarlier_(key, earlier) {
     var eff = effectiveRange();
     document.querySelectorAll('[data-krange]').forEach(function (b) {
       var r = b.dataset.krange, ok = rangeUsable(r);
-      b.disabled = !ok;
-      b.title = ok ? '' : ('這一檔的資料從 ' + first + ' 開始，不滿' + (r === '12' ? '一年' : ' ' + r + ' 個月') + '，與「全部」相同');
+      b.disabled = false;
+      b.setAttribute('aria-disabled',String(!ok));
+      if(!ok)b.setAttribute('aria-describedby','kRangeHint');else b.removeAttribute('aria-describedby');
+      b.title = ok ? '' : ('目前資料從 ' + first + ' 開始，不滿' + (r === '12' ? '一年' : ' ' + r + ' 個月') + '，與「全部」相同。'+(period==='hour'?'較長期間請切換日K、週K或月K。':''));
       b.setAttribute('aria-pressed', r === eff ? 'true' : 'false');
     });
   }
@@ -3624,7 +3646,9 @@ function restatesEarlier_(key, earlier) {
       if(!chart)return;
       var r=chart.timeScale().getVisibleLogicalRange();
       // 每張圖保留同寬右軸，日期線才能在上下圖的相同像素對齊。
-      [chart,volChart,macdChart,kdChart,rsiChart].forEach(function(c){c.priceScale('right').applyOptions({minimumWidth:84});});
+      var charts=[chart,volChart,macdChart,kdChart,rsiChart];
+      charts.forEach(function(c){c.priceScale('right').applyOptions({minimumWidth:96,alignLabels:true,entireTextOnly:true});});
+      requestAnimationFrame(function(){var width=Math.max.apply(null,[96].concat(charts.map(function(c){return c.priceScale('right').width();})));charts.forEach(function(c){c.priceScale('right').applyOptions({minimumWidth:width});});});
       definitions.forEach(function(d){if(!paneShown(d[0]))return;d[3].applyOptions({width:$(d[1]).clientWidth,timeScale:{timeVisible:period==='hour'}});if(r)d[3].timeScale().setVisibleLogicalRange(r);});
     });
   }
@@ -3718,7 +3742,9 @@ function restatesEarlier_(key, earlier) {
     var unit = p === 'month' ? '月 K' : p === 'week' ? '週 K' : p === 'hour' ? '60 分 K' : '日 K';
     var lastDate = String(rawData[rawData.length-1].date).slice(0, 10);
     $('kFresh').textContent = unit + ' · ' + lastDate + (preview ? ' 盤中預覽' : ' 最新資料');
+    $('kRangeHint').hidden=true;
     renderChart();
+    document.dispatchEvent(new CustomEvent('polish:chart-ready'));
   }
 
   /* 圖表區的顯示與隱藏。工具列一起收——沒有資料時留著一排均線按鈕，
@@ -3735,10 +3761,14 @@ function restatesEarlier_(key, earlier) {
   }
 
   document.querySelectorAll('[data-krange]').forEach(function (b) {
+    function hint(){if(b.getAttribute('aria-disabled')!=='true')return;var h=$('kRangeHint');h.textContent=b.title;h.hidden=false;document.dispatchEvent(new CustomEvent('polish:range-hint'));}
+    b.addEventListener('focus',hint);b.addEventListener('pointerenter',hint);
     b.addEventListener('click', function () {
-      if (b.disabled) { return; }
+      if (b.disabled || b.getAttribute('aria-disabled')==='true') { hint();return; }
+      $('kRangeHint').hidden=true;
       chartRange = b.dataset.krange;
       applyChartRange();   // 會一併更新按鈕的按下狀態
+      document.dispatchEvent(new CustomEvent('polish:chart-ready'));
     });
   });
 

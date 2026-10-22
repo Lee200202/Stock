@@ -1246,7 +1246,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-10-22-visual-journey-v197';
+var PROJECT_BUILD_ = '2026-10-22-interface-polish-v198';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
@@ -1284,14 +1284,14 @@ var PROJECT_HTML_ = [
   { file: 'UsageTracker', marker: 'w.StockUsage' },
   { file: 'UsagePanel', marker: 'usagePeriod' },
   { file: 'StoryDesign', marker: 'techJourneyV197' },
-  { file: 'TideDesign', marker: 'window.TideMath' },
+  { file: 'TideDesign', marker: 'tidePolishV198' },
   { file: 'Index', marker: "include('TideDesign')" },
   { file: 'TechIllustrations', marker: 'var drawings=' },
   { file: 'TechEvidence', marker: '.agent-choices,.tech-options,.cd-select' },
   { file: 'TechQuality', marker: '.quality-relationship' },
   { file: 'JavaScript', marker: '暫停探索卡自動播放' },
   { file: 'Stylesheet', marker: '.ss-shelf-pause' },
-  { file: 'Changelog', marker: 'v197 技術說明圖像敘事重設' },
+  { file: 'Changelog', marker: 'v198 介面細節與動態回饋' },
   { file: 'Tech', marker: 'classDefinitions' },
   { file: 'Admin', marker: 'id="mLog" href="https://script.google.com/home/projects/' },
   { file: 'Settings', marker: '手機預覽' },

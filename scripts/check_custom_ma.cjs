@@ -1,0 +1,11 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const source=fs.readFileSync('public-site/gas-source/JavaScript.html','utf8');
+const prefs=source.slice(source.indexOf('  var MA_DEFAULTS'),source.indexOf('  function maPalette'));
+let store={panshi_custom_mas:'[120,120,240,8.5,0,1201,"60",360]'};
+const ctx={localStorage:{getItem:k=>store[k],setItem:(k,v)=>store[k]=v}};vm.createContext(ctx);vm.runInContext(prefs,ctx);
+assert.deepEqual(Array.from(ctx.loadCustomMAs()),[120,360]);assert.equal(ctx.validCustomMA(8.5),false);assert.equal(ctx.validCustomMA(1200),true);assert.equal(ctx.validCustomMA(1201),false);
+ctx.maDefs=ctx.maDefs.filter(d=>d.n!==120);ctx.saveCustomMAs();assert.equal(store.panshi_custom_mas,'[360]');
+vm.runInContext(prefs,ctx);assert(ctx.maDefs.some(d=>d.n===360&&d.custom));assert(!ctx.maDefs.some(d=>d.n===120));
+store.panshi_custom_mas='bad json';assert.deepEqual(Array.from(ctx.loadCustomMAs()),[]);
+store.panshi_custom_mas=JSON.stringify(Array.from({length:30},(_,i)=>300+i));assert.equal(ctx.loadCustomMAs().length,12);
+console.log('自訂均線：去重、預設保護、整數與邊界、刪除、重開記憶、損毀資料、上限，8項通過');

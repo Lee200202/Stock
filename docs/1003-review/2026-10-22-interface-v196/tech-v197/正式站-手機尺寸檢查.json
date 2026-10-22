@@ -1,0 +1,102 @@
+[
+  {
+    "id": "#tech-start",
+    "sw": 375,
+    "w": 390
+  },
+  {
+    "id": "#tech-overview",
+    "sw": 375,
+    "w": 390
+  },
+  {
+    "id": "#tech-volume",
+    "sw": 375,
+    "w": 390
+  },
+  {
+    "id": "#tech-loading",
+    "sw": 375,
+    "w": 390
+  },
+  {
+    "id": "#tech-agent",
+    "sw": 375,
+    "w": 390
+  },
+  {
+    "id": "#tech-context",
+    "sw": 375,
+    "w": 390
+  },
+  {
+    "id": "#tech-harness",
+    "sw": 375,
+    "w": 390
+  },
+  {
+    "id": "#tech-quality-loop",
+    "sw": 375,
+    "w": 390
+  },
+  {
+    "id": "#tech-names",
+    "sw": 375,
+    "w": 390
+  },
+  {
+    "id": "#tech-number",
+    "sw": 375,
+    "w": 390
+  },
+  {
+    "id": "#tech-unnamed",
+    "sw": 375,
+    "w": 390
+  },
+  {
+    "id": "#tech-subject",
+    "sw": 375,
+    "w": 390
+  },
+  {
+    "id": "#tech-verdict",
+    "sw": 375,
+    "w": 390
+  },
+  {
+    "id": "#tech-source-priority",
+    "sw": 375,
+    "w": 390
+  },
+  {
+    "id": "#tech-public-notes",
+    "sw": 375,
+    "w": 390
+  },
+  {
+    "id": "#tech-transcript-progress",
+    "sw": 375,
+    "w": 390
+  },
+  {
+    "id": "#tech-hold",
+    "sw": 375,
+    "w": 390
+  },
+  {
+    "id": "#tech-failure",
+    "sw": 375,
+    "w": 390
+  },
+  {
+    "id": "#tech-faq",
+    "sw": 375,
+    "w": 390
+  },
+  {
+    "id": "#tech-author",
+    "sw": 375,
+    "w": 390
+  }
+]

@@ -546,14 +546,15 @@
 
     <!-- v101：面板內的段落導覽。黏在標題列下面，點了捲到那一段，捲動時標出目前讀到哪一段。 -->
     <nav class="dnav" id="dNav" aria-label="個股面板段落">
-      <button type="button" data-go="dSecHold" aria-current="true">持有期間</button>
+      <button type="button" data-go="dSecHold" aria-current="true">進場紀錄</button>
       <button type="button" data-go="dSecK">K 線</button>
       <button type="button" data-go="dSecFund">公司資料</button>
       <button type="button" data-go="dSecRec">每天講了什麼</button>
     </nav>
     <div class="detail-body">
       <div class="sect" id="dSecHold">
-        <div class="sect-h"><h2>持有期間</h2></div>
+        <div class="sect-h"><h2>進場紀錄與查證</h2><a class="tide-source-link" href="#dSecRec" data-tide-evidence-link>每日紀錄與來源</a></div>
+        <div class="tide-feature" id="tideFeature"><div class="tide-segments" id="tideRounds" role="group" aria-label="選擇持有回合"></div></div>
         <div class="kv-grid" id="dTracker"></div>
         <!-- 取價區間（v58）：進場日／出場日的當日最低～最高、採用價與張震明講價 -->
         <div class="pxrange" id="dPxRange" hidden></div>
@@ -563,6 +564,7 @@
 
       <div class="sect" id="dSecK">
         <div class="sect-h"><h2>價格走勢與技術面</h2><span class="k-fresh" id="kFresh" role="status">讀取走勢中</span></div>
+
         <!-- v67（0925 規格 3.2／3.3）：主工具列只剩一行——左邊週期是全頁唯一的膠囊分段控制，右邊區間是文字分段；
              均線與布林改成 K 線圖上方的圖例標籤（點圖例開關），副圖開關移到各自的標題列。 -->
         <div class="chartbar kbar">
@@ -584,16 +586,20 @@
         </div>
 
         <div class="klegend" id="kLegend" aria-label="均線與布林通道（點一下開關）"></div>
+        <div class="tide-chart-params" id="tideParams" aria-label="均線與布林設定"></div>
         <div class="kchart-box">
           <div id="chart"></div>
           <div class="wheel-hint" id="wheelHint" hidden>按住 Ctrl 再捲動可縮放</div>
         </div>
-        <div class="subcap" id="volCap">成交量　<span>張</span></div>
+        <div class="subcap" id="volCap">成交量　<span>張 · 20 期均量線（含當根）</span></div>
         <div id="volChart"></div>
-        <div class="subcap" id="macdCap">MACD　<span>12 / 26 / 9</span><button type="button" class="pane-tog" data-pane="macd" aria-pressed="true">隱藏</button></div>
+        <div class="subcap" id="macdCap">MACD　<span>12 / 26 / 9</span></div>
         <div id="macdChart"></div>
-        <div class="subcap" id="kdCap">KD　<span>9</span><button type="button" class="pane-tog" data-pane="kd" aria-pressed="true">隱藏</button></div>
+        <div class="subcap" id="kdCap">KD　<span>9</span></div>
         <div id="kdChart"></div>
+        <div class="subcap" id="tideRsiCap" hidden>RSI · 14 期</div><div id="tideRsi" hidden></div>
+        <div class="tide-segments" role="group" aria-label="副圖選擇"><button type="button" data-tide-pane="none" aria-pressed="false">無副圖</button><button type="button" data-tide-pane="volume" aria-pressed="true">成交量</button><button type="button" data-tide-pane="macd" aria-pressed="true">MACD</button><button type="button" data-tide-pane="rsi" aria-pressed="false">RSI</button><button type="button" data-tide-pane="kd" aria-pressed="true">KD</button></div>
+        <div class="tide-pan" aria-label="圖表平移與縮放"><button type="button" data-tide-nav="left" aria-label="向較早日期移動">←</button><button type="button" data-tide-nav="out" aria-label="縮小走勢圖">−</button><button type="button" data-tide-nav="in" aria-label="放大走勢圖">＋</button><button type="button" data-tide-nav="right" aria-label="向較近日期移動">→</button></div>
         <div class="readout" id="readout">
           <span><b>日期</b><i id="rDate">—</i></span>
           <span><b>開</b><i id="rOpen">—</i></span>
@@ -604,7 +610,6 @@
           <span><b>MACD</b><i id="rMacd">—</i></span>
           <span><b>K / D</b><i id="rKD">—</i></span>
         </div>
-        <details class="k-help"><summary>技術指標怎麼看</summary><p>均線看不同週期的平均收盤價；布林通道呈現價格波動區間。MACD 比較長短期動能，KD 顯示收盤價在近期區間的位置。這些讀數是觀察線索，不單獨代表進出場訊號。</p></details>
         <p class="notice" id="periodNote"></p>
       </div>
 
@@ -626,5 +631,6 @@
 <?!= include('TimeDisplay'); ?>
 <?!= include('UsageTracker'); ?>
 <?!= include('JavaScript'); ?>
+<?!= include('TideDesign'); ?>
 </body>
 </html>

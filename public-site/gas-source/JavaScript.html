@@ -2587,17 +2587,24 @@ function restatesEarlier_(key, earlier) {
   }
 
   /* ---------------- 個股詳情抽屜 ---------------- */
-  var chart, volChart, macdChart, kdChart, candleSeries, volSeries;
+  var chart, volChart, macdChart, kdChart, rsiChart, rsiSeries, rsiMap = {}, candleSeries, volSeries, volAverageSeries;
   var volMap = {};   // 時間 → 成交量（張），十字線讀數用
   var candleMap = {}, maMaps = {};   // 時間 → K 棒、均線值；游標在任何一張圖上都用它們出讀數
   var macdSeries, signalSeries, histSeries, kSeries, dSeries, jSeries;
-  var panes = { macd: true, kd: true };
+  var panes = { volume: true, macd: true, kd: true, rsi: false };
   var maSeries = {}, bollSeries = [], rawData = [], period = 'day', showBoll = false;
-  var maList = [5, 10, 20], macdMap = {}, currentCode = '';
+  var maList = [5, 10, 20, 60, 240], macdMap = {}, currentCode = '';
+  function emitTideChart(){
+    document.dispatchEvent(new CustomEvent('tide:chart',{detail:{code:currentCode,period:period,rows:rawData,
+      daily:(candleMemo[currentCode]||{}).day||[],chart:chart,series:candleSeries,toTime:toTime,
+      tracker:DETAIL.tracker,round:DETAIL.trendRound,
+      selectRound:function(index){var list=DETAIL.tracker&&DETAIL.tracker.roundList||[];DETAIL.trendRound=index===list.length-1?undefined:index;paintTrend();emitTideChart();},
+      paneState:panes,setPane:function(name){if(name==='none'){Object.keys(panes).forEach(function(k){panes[k]=false;});}else{panes[name]=!panes[name];}applyPanes();emitTideChart();},panes:{volume:volChart,macd:macdChart,kd:kdChart,rsi:rsiChart}}}));
+  }
   /* 均線與布林改成 K 線上方的圖例標籤（v67，0925 規格 3.3）：每條線的顏色跟著它在 maDefs 的位置走，
      開關時顏色不會換來換去；自訂的均線加在後面。maList 仍是「目前開著的」那幾條，畫圖與讀數沿用。 */
-  var maDefs = [{ n: 5, on: true }, { n: 10, on: true }, { n: 20, on: true }];
-  function maPalette() { return [css('--wait'), css('--beam'), css('--muted'), '#8E7CC3', '#5B8FF9', '#D08770']; }
+  var maDefs = [{ n: 5, on: true }, { n: 10, on: true }, { n: 20, on: true }, { n: 60, on: true }, { n: 240, on: true }];
+  function maPalette() { return [css('--wait'), css('--beam'), css('--muted'), '#8E7CC3', '#C39134', '#D08770']; }
   function maColor(n) {
     var idx = 0;
     maDefs.forEach(function (d, i) { if (d.n === n) { idx = i; } });
@@ -2661,6 +2668,7 @@ function restatesEarlier_(key, earlier) {
     clearTimeout(quotePollTimer); quotePolledAt = Date.now();
     USE.act('看個股', code);
     DETAIL = { code: code, tracker: undefined, record: undefined };
+    document.dispatchEvent(new CustomEvent('tide:stock-reset'));
     $('detail').classList.add('open');
     document.body.style.overflow = 'hidden';
     wheelHintShown = false;
@@ -2834,6 +2842,7 @@ function restatesEarlier_(key, earlier) {
 
     paintTrend();
     applyTradeMarks();
+    emitTideChart();
 
     /* 回合明細：買了又賣、賣了又買時，把每一段都列出來。
        只有一個回合時不顯示，避免佔版面講一件已經看得到的事。 */
@@ -2999,6 +3008,7 @@ function restatesEarlier_(key, earlier) {
       priceLineVisible: false, lastValueVisible: false
     });
     volChart.priceScale('right').applyOptions({ scaleMargins: { top: 0.12, bottom: 0 } });
+    volAverageSeries = volChart.addLineSeries({color:css('--beam'),lineWidth:1,priceLineVisible:false,lastValueVisible:false});
 
     macdSeries = macdChart.addLineSeries({ color: css('--rise'), lineWidth: 1 });
     signalSeries = macdChart.addLineSeries({ color: css('--wait'), lineWidth: 1 });
@@ -3012,11 +3022,17 @@ function restatesEarlier_(key, earlier) {
     kSeries.createPriceLine({ price: 80, color: css('--rule'), lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '80' });
     kSeries.createPriceLine({ price: 20, color: css('--rule'), lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '20' });
 
+    rsiChart = LightweightCharts.createChart($('tideRsi'), chartOptions());
+    rsiSeries = rsiChart.addLineSeries({color:'#b68add',lineWidth:2,priceLineVisible:false,lastValueVisible:true});
+    [30,70].forEach(function(v){rsiSeries.createPriceLine({price:v,color:css('--rule'),lineStyle:2,lineWidth:1,axisLabelVisible:true});});
+
     // 橫軸同步。只同步「目前顯示中」的圖：對隱藏容器呼叫 setVisibleLogicalRange
     // 會算出錯誤範圍，反過來把可見的那張拖亂，就是關掉其一時另一張跳掉的原因。
     var syncing = false;
     function chartVisible(c) {
-      if (c === chart || c === volChart) { return true; }
+      if (c === chart) { return true; }
+      if (c === volChart) { return paneShown('volume'); }
+      if (c === rsiChart) { return paneShown('rsi'); }
       if (c === macdChart) { return paneShown('macd'); }
       if (c === kdChart) { return paneShown('kd'); }
       return false;
@@ -3029,7 +3045,7 @@ function restatesEarlier_(key, earlier) {
        現在：K 線圖永遠帶動副圖；副圖只有在使用者正在它上面拖曳、滾輪縮放、觸控時（最近 1.5 秒內）才帶動其他圖，
        程式換資料、套區間造成的副圖事件一律不往外傳。 */
     var userInputAt = {};
-    [['chart', chart], ['volChart', volChart], ['macdChart', macdChart], ['kdChart', kdChart]].forEach(function (pair) {
+    [['chart', chart], ['volChart', volChart], ['macdChart', macdChart], ['kdChart', kdChart], ['tideRsi', rsiChart]].forEach(function (pair) {
       var el = $(pair[0]);
       if (!el) { return; }
       var mark = function (e) {
@@ -3045,9 +3061,10 @@ function restatesEarlier_(key, earlier) {
         if (!r || syncing || !chartVisible(from)) { return; }
         if (from !== chart && !(Date.now() - (userInputAt[id] || 0) < 1500)) { return; }
         syncing = true;
-        [chart, volChart, macdChart, kdChart].forEach(function (c) {
+        [chart, volChart, macdChart, kdChart, rsiChart].forEach(function (c) {
           if (c && c !== from && chartVisible(c)) { c.timeScale().setVisibleLogicalRange(r); }
         });
+        requestAnimationFrame(function(){[['chart',chart],['volChart',volChart],['macdChart',macdChart],['kdChart',kdChart],['tideRsi',rsiChart]].forEach(function(p){if(chartVisible(p[1]))$(p[0]).dataset.visibleRange=JSON.stringify(p[1].timeScale().getVisibleLogicalRange());});});
         syncing = false;
       };
     }
@@ -3055,6 +3072,7 @@ function restatesEarlier_(key, earlier) {
     volChart.timeScale().subscribeVisibleLogicalRangeChange(sync(volChart, 'volChart'));
     macdChart.timeScale().subscribeVisibleLogicalRangeChange(sync(macdChart, 'macdChart'));
     kdChart.timeScale().subscribeVisibleLogicalRangeChange(sync(kdChart, 'kdChart'));
+    rsiChart.timeScale().subscribeVisibleLogicalRangeChange(sync(rsiChart, 'tideRsi'));
 
     /* 十字線同步（2026/09/17 v44，管理者要求）。
        游標停在任何一張圖上，其他顯示中的圖在同一根 K 棒畫出同一條垂直線，上方讀數也換成那一根；
@@ -3071,7 +3089,8 @@ function restatesEarlier_(key, earlier) {
       { chart: macdChart, series: function () { return macdSeries; },
         price: function (key) { return macdMap[key]; } },
       { chart: kdChart, series: function () { return kSeries; },
-        price: function (key) { return kdMap[key] ? kdMap[key].k : null; } }
+        price: function (key) { return kdMap[key] ? kdMap[key].k : null; } },
+      { chart: rsiChart, series: function(){return rsiSeries;}, price:function(key){return rsiMap[key];} }
     ];
     function crossFrom(src) {
       return function (param) {
@@ -3106,7 +3125,7 @@ function restatesEarlier_(key, earlier) {
 
     /* Ctrl（⌘）＋滾輪：以游標所在的那一根為中心縮放 K 線圖，副圖由同步帶動（v67）。
        沒按 Ctrl 就不攔，讓頁面照常往下捲；第一次在圖上捲動時提示一次。 */
-    ['chart', 'volChart', 'macdChart', 'kdChart'].forEach(function (id) {
+    ['chart', 'volChart', 'macdChart', 'kdChart', 'tideRsi'].forEach(function (id) {
       var el = $(id);
       if (!el) { return; }
       el.addEventListener('wheel', function (e) {
@@ -3132,6 +3151,7 @@ function restatesEarlier_(key, earlier) {
       volChart.applyOptions({ width: $('volChart').clientWidth });
       macdChart.applyOptions({ width: $('macdChart').clientWidth });
       if (kdChart) { kdChart.applyOptions({ width: $('kdChart').clientWidth }); }
+      if (rsiChart && paneShown('rsi')) { rsiChart.applyOptions({width:$('tideRsi').clientWidth}); }
     });
   }
 
@@ -3174,6 +3194,7 @@ function restatesEarlier_(key, earlier) {
     volChart.applyOptions(chartOptions());
     macdChart.applyOptions(chartOptions());
     if (kdChart) { kdChart.applyOptions(chartOptions()); }
+    if (rsiChart) { rsiChart.applyOptions(chartOptions()); }
     candleSeries.applyOptions({
       upColor: css('--rise'), downColor: css('--fall'),
       borderUpColor: css('--rise'), borderDownColor: css('--fall'),
@@ -3350,13 +3371,16 @@ function restatesEarlier_(key, earlier) {
       volMap[String(t)] = r.volume;
       return { time: t, value: r.volume, color: r.close >= r.open ? css('--rise') : css('--fall') };
     }));
+    var volumeMA=[];
+    rawData.forEach(function(r,i){if(i<19)return;var values=rawData.slice(i-19,i+1).map(function(x){return x.volume;});if(values.every(function(v){return typeof v==='number'&&isFinite(v);}))volumeMA.push({time:toTime(r.date),value:values.reduce(function(a,b){return a+b;},0)/20});});
+    volAverageSeries.setData(volumeMA);
 
     Object.keys(maSeries).forEach(function (n) { chart.removeSeries(maSeries[n]); });
     maSeries = {};
     maMaps = {};
     maList.forEach(function (n) {
       if (rawData.length < n) { return; }
-      var s = chart.addLineSeries({ color: maColor(n), lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+      var s = chart.addLineSeries({ color: maColor(n), lineWidth: n===240?2:1, priceLineVisible: false, lastValueVisible: false });
       var line = sma(rawData, n);
       s.setData(line);
       maMaps[n] = {};
@@ -3390,6 +3414,10 @@ function restatesEarlier_(key, earlier) {
       kdMap = {};
     }
 
+    // RSI 前14期保留相同時間的空白點，避免邏輯索引相差14根。
+    rsiMap = {};
+    window.TideMath.rsi(rawData,14).forEach(function(r){rsiMap[String(toTime(r.date))]=r.value;});
+    rsiSeries.setData(rawData.map(function(r){var t=toTime(r.date),v=rsiMap[String(t)];return v==null?{time:t}:{time:t,value:v};}));
     applyPanes();
 
     chart.applyOptions({ width: $('chart').clientWidth, timeScale: { timeVisible: period === 'hour' } });
@@ -3401,6 +3429,8 @@ function restatesEarlier_(key, earlier) {
     drawMaLegend();
     renderKLegend();
     applyTradeMarks();
+    showReadout(toTime(rawData[rawData.length-1].date));
+    emitTideChart();
   }
 
   /* K 線上直接標出進出場（v67，0925 規格 3.5）：提到（灰圈）、成交（紅色上三角＋價）、出場（綠色下三角＋價），
@@ -3530,7 +3560,7 @@ function restatesEarlier_(key, earlier) {
        同步事件是非同步的：換週期時前一個週期留在副圖上的範圍，可能晚一步經由同步蓋回 K 線圖。
        四張圖根數相同（KD 前段補空白點），同一組「第幾根」就是同一段時間。 */
     var range = { from: from - 0.5, to: n - 0.5 };
-    [chart, volChart, macdChart, kdChart].forEach(function (c) {
+    [chart, volChart, macdChart, kdChart, rsiChart].forEach(function (c) {
       if (!c || (c === macdChart && !paneShown('macd')) || (c === kdChart && !paneShown('kd'))) { return; }
       // 一律填滿寬度；左右邊界鎖在資料兩端（拖不出空白）。拖曳、觸控縮放開著；滾輪留給頁面，Ctrl＋滾輪才縮放（v67）
       c.applyOptions({
@@ -3578,33 +3608,25 @@ function restatesEarlier_(key, earlier) {
     if (!panes[name]) { return false; }
     if (name === 'macd') { return rawData.length >= 26; }
     if (name === 'kd') { return rawData.length >= 9; }
+    if (name === 'rsi') { return rawData.length >= 15; }
     return true;
   }
 
   function applyPanes() {
-    $('macdChart').hidden = !paneShown('macd');
-    $('kdChart').hidden = !paneShown('kd');
-    // 標題列一律留著：開關在標題列上（v67）。關掉的副圖標題改淡色。
-    var mc = $('macdCap'); if (mc) { mc.hidden = false; mc.classList.toggle('off', !panes.macd); }
-    var kc = $('kdCap'); if (kc) { kc.hidden = false; kc.classList.toggle('off', !panes.kd); }
-    // 最下面那張圖要有底線，中間的不要，才不會出現雙線
-    var last = paneShown('kd') ? $('kdChart') : (paneShown('macd') ? $('macdChart') : $('volChart'));
-    [$('volChart'), $('macdChart'), $('kdChart')].forEach(function (el) {
-      el.style.borderBottom = (el === last) ? '1px solid var(--rule)' : 'none';
+    var definitions=[['volume','volChart','volCap',volChart,1],['macd','macdChart','macdCap',macdChart,26],['kd','kdChart','kdCap',kdChart,9],['rsi','tideRsi','tideRsiCap',rsiChart,15]];
+    definitions.forEach(function(d){
+      $(d[1]).hidden=!paneShown(d[0]);$(d[2]).hidden=!panes[d[0]];
+      var note=$(d[2]).querySelector('[data-pane-gap]');
+      if(!note){note=document.createElement('span');note.dataset.paneGap='';$(d[2]).append(note);}
+      note.textContent=panes[d[0]]&&rawData.length<d[4]?' · 資料不足 '+d[4]+' 期':'';
     });
-    setTimeout(function () {
-      var r = chart.timeScale().getVisibleLogicalRange();
-      volChart.applyOptions({ width: $('volChart').clientWidth });
-      if (r) { volChart.timeScale().setVisibleLogicalRange(r); }
-      if (paneShown('macd')) {
-        macdChart.applyOptions({ width: $('macdChart').clientWidth });
-        if (r) { macdChart.timeScale().setVisibleLogicalRange(r); }
-      }
-      if (paneShown('kd')) {
-        kdChart.applyOptions({ width: $('kdChart').clientWidth });
-        if (r) { kdChart.timeScale().setVisibleLogicalRange(r); }
-      }
-    }, 30);
+    requestAnimationFrame(function(){
+      if(!chart)return;
+      var r=chart.timeScale().getVisibleLogicalRange();
+      // 每張圖保留同寬右軸，日期線才能在上下圖的相同像素對齊。
+      [chart,volChart,macdChart,kdChart,rsiChart].forEach(function(c){c.priceScale('right').applyOptions({minimumWidth:84});});
+      definitions.forEach(function(d){if(!paneShown(d[0]))return;d[3].applyOptions({width:$(d[1]).clientWidth,timeScale:{timeVisible:period==='hour'}});if(r)d[3].timeScale().setVisibleLogicalRange(r);});
+    });
   }
 
   /* 副圖開關在各自的標題列右邊（v67，0925 規格 3.3）。MACD 與 KD 各自獨立，也可以兩張都關掉；
@@ -3702,7 +3724,7 @@ function restatesEarlier_(key, earlier) {
   /* 圖表區的顯示與隱藏。工具列一起收——沒有資料時留著一排均線按鈕，
      按了什麼都不會發生，比直接收起來更讓人困惑。 */
   function setChartVisible(on) {
-    ['chart', 'kLegend', 'volCap', 'volChart', 'macdChart', 'kdChart', 'macdCap', 'kdCap', 'readout'].forEach(function (id) {
+    ['chart', 'kLegend', 'volCap', 'volChart', 'macdChart', 'kdChart', 'macdCap', 'kdCap', 'tideRsi', 'tideRsiCap', 'readout'].forEach(function (id) {
       var el = $(id);
       if (el) { el.hidden = !on; }
     });

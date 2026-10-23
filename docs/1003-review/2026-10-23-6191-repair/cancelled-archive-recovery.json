@@ -1,0 +1,741 @@
+{
+  "artifact": 12471962180,
+  "artifactSha256": "af81399128ae02c7f71a66162f165f64e3d0ce2db845db10222fe1b2bea26bfc",
+  "run": 39882087761,
+  "new": 182,
+  "updatedEmpty": 0,
+  "kept": 0,
+  "members": [
+    {
+      "path": "archive/tpex/6491/200908.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/200909.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/200910.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/200911.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/200912.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201001.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201002.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201003.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201004.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201005.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201006.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201007.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201008.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201009.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201010.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201011.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201012.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201101.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201102.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201103.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201104.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201105.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201106.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201107.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201108.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201109.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201110.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201111.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201112.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201201.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201202.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201203.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201204.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201205.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201206.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201207.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201208.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201209.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201210.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201211.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201212.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201301.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201302.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201303.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201304.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201305.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201306.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201307.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201308.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201309.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201310.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201311.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201312.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201401.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201402.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201403.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201404.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201405.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201406.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201407.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201408.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201409.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201410.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201411.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201412.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201501.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201502.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201503.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201504.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201505.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201506.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201507.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6491/201508.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201108.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201109.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201110.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201111.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201112.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201201.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201202.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201203.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201204.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201205.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201206.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201207.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201208.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201209.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201210.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201211.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201212.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201301.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201302.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201303.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201304.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201305.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201306.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201307.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201308.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201309.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201310.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201311.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201312.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201401.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201402.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201403.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201404.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201405.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201406.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201407.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201408.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201409.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201410.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201411.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201412.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201501.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201502.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201503.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201504.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201505.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201506.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201507.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201508.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201509.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201510.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201511.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201512.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201601.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201602.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6531/201603.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201209.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201210.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201211.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201212.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201301.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201302.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201303.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201304.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201305.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201306.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201307.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201308.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201309.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201310.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201311.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201312.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201401.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201402.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201403.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201404.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201405.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201406.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201407.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201408.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201409.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201410.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201411.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201412.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201501.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201502.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201503.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201504.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201505.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201506.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201507.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201508.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201509.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201510.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201511.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201512.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201601.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201602.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201603.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201604.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201605.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201606.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201607.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201608.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201609.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201610.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201611.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201612.json",
+      "action": "new"
+    },
+    {
+      "path": "archive/tpex/6533/201701.json",
+      "action": "new"
+    }
+  ],
+  "newDataBranch": "e5eb4789",
+  "nonemptyRecoveredFiles": 0,
+  "recoveredRows": 0
+}

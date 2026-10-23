@@ -195,6 +195,20 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 #p-tech .ap-rise.is-in{transform:none}
 @media (prefers-reduced-motion:reduce){#p-tech .ap-rise{transform:none;transition:none}#p-tech .tech-book .journey-atlas-track>a{transition:none}}
 @media (max-width:899px){#p-tech .tech-book .journey-atlas-track>a{flex-basis:min(78vw,300px)}#p-tech .tech-book .journey-atlas-track>a:not(:last-child)::after{width:28px}}
+
+/* v207r3（管理者 10/23「排版請用全版呈現，而非分割」）：技術說明的文字卡片在寬螢幕不再橫向一排、每張 460px。
+   一律改成鋪滿內容寬度的格狀排版：痛點一張一列（沿用 v160 左問答、右說明）；三張的模型與開放構想三欄；
+   來源卡與五步驟一列排滿。不切出半張卡、不左右捲動；手機（900px 以下）維持左右滑。章節地圖是導覽，照舊固定橫移。 */
+@media (min-width:900px){
+  #p-tech .tech-book .journey-gallery{display:grid!important;overflow:visible!important;scroll-snap-type:none!important;
+    grid-template-columns:repeat(var(--g-cols,auto-fill),minmax(min(100%,var(--g-min,280px)),1fr));gap:20px;width:auto;max-width:none;transform:none!important;padding:4px 0 8px!important}
+  #p-tech .tech-book .journey-gallery>*{flex:none!important;width:auto!important;max-width:none!important;min-width:0!important}
+  #p-tech .tech-book .pain-cards.journey-gallery:not(.open-ideas){--g-cols:1}
+  #p-tech .tech-book .pain-cards.open-ideas.journey-gallery,#p-tech .tech-book .agent-models.journey-gallery{--g-cols:3;--g-min:0px}
+  #p-tech .tech-book .book-five.journey-gallery{--g-cols:5;--g-min:0px}
+  #p-tech .tech-book .src-cards-row.journey-gallery{--g-min:260px}
+  #p-tech .tech-book .journey-gallery-tools{display:none!important}
+}
 </style>
 <script id="techAppleScriptV199">
 (function(){
@@ -222,6 +236,8 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     var dist=on?Math.max(0,p.track.scrollWidth-p.stage.clientWidth+8):0;
     // 內容高過可視範圍時保留原生橫滑，避免固定區把卡片下半截藏住。
     if(on&&(dist<40||p.stage.scrollHeight>window.innerHeight-topOffset()-24)){on=false;}
+    // v207r3（管理者 10/23）：寬螢幕只有章節地圖左右固定橫移；文字卡片改成鋪滿內容寬度的格狀排版，不再一排四張、每張 460px 把內文擠成窄欄
+    if(on&&!p.atlas){on=false;}
     p.on=on;p.dist=dist;p.pin.classList.toggle('is-on',on);
     if(on){p.pin.style.setProperty('--ap-top',topOffset()+'px');p.pin.style.setProperty('--ap-len',(p.stage.offsetHeight+dist*.65)+'px');}
     else{p.pin.style.removeProperty('--ap-len');p.track.style.removeProperty('--ap-x');}

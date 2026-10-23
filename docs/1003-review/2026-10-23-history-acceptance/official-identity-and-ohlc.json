@@ -1,0 +1,80 @@
+{
+  "sources": {
+    "2": {
+      "url": "https://isin.twse.com.tw/isin/C_public.jsp?strMode=2",
+      "count": 40333,
+      "has3182": false,
+      "knownCode": "2330",
+      "healthy": true
+    },
+    "4": {
+      "url": "https://isin.twse.com.tw/isin/C_public.jsp?strMode=4",
+      "count": 13343,
+      "has3182": false,
+      "knownCode": "8299",
+      "healthy": true
+    },
+    "5": {
+      "url": "https://isin.twse.com.tw/isin/C_public.jsp?strMode=5",
+      "count": 367,
+      "has3182": false,
+      "knownCode": null,
+      "healthy": true
+    }
+  },
+  "sourceContradictions6191January": [
+    {
+      "date": "1995-01-18",
+      "raw": [
+        "1995-01-18",
+        22.7,
+        22.5,
+        22.5,
+        22.5,
+        -0.2,
+        3000
+      ],
+      "reason": "官方來源開高低收互相矛盾"
+    },
+    {
+      "date": "1995-01-25",
+      "raw": [
+        "1995-01-25",
+        21.1,
+        21.6,
+        21.4,
+        21.4,
+        -1.6,
+        5000
+      ],
+      "reason": "官方來源開高低收互相矛盾"
+    },
+    {
+      "date": "1995-01-26",
+      "raw": [
+        "1995-01-26",
+        21.6,
+        21.0,
+        20.2,
+        20.2,
+        -1.2,
+        11000
+      ],
+      "reason": "官方來源開高低收互相矛盾"
+    }
+  ],
+  "freshCompanyLists": {
+    "twse": {
+      "count": 1097,
+      "code3182": false,
+      "knownCodeFound": true,
+      "source": "https://openapi.twse.com.tw/v1/opendata/t187ap03_L"
+    },
+    "tpex": {
+      "count": 894,
+      "code3182": false,
+      "knownCodeFound": true,
+      "source": "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap03_O"
+    }
+  }
+}

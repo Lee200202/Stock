@@ -4,6 +4,29 @@ from types import SimpleNamespace
 from unittest.mock import patch
 s=importlib.util.spec_from_file_location('hist',Path(__file__).with_name('market_history.py'));h=importlib.util.module_from_spec(s);s.loader.exec_module(h)
 class HistoryContract(unittest.TestCase):
+ def test_human_exclusion_applies_to_all_input_routes_without_source_guesses(self):
+  with tempfile.TemporaryDirectory() as d:
+   p=Path(d)/'codes.txt';p.write_text('3182 8299 9999',encoding='utf-8')
+   for args in [SimpleNamespace(codes='3182,8299,9999'),SimpleNamespace(codes_file=str(p)),SimpleNamespace(sheets=True)]:
+    with patch.object(h,'sheet_codes',return_value={'3182','8299','9999'}):
+     selected,excluded,raw=h._select_history_codes(args)
+    self.assertEqual(selected,{'8299','9999'});self.assertEqual(set(excluded),{'3182'});self.assertIn('3182',raw)
+
+ def test_exclusion_preserves_raw_archive_and_is_not_missing_history(self):
+  with tempfile.TemporaryDirectory() as d:
+   a=Path(d)/'archive';out=Path(d)/'history'
+   p=a/'tpex/3182/202610.json';h._write(p,{'rows':[]});before=p.read_bytes()
+   h._write(a/'tpex/8299/200412.json',{'rows':[['2004-12-06',77,81,77,81,0,1165000]]})
+   with patch.object(h,'tpex_calendar',return_value=(set(),set())):
+    h.cmd_build(SimpleNamespace(archive=str(a),out=str(out),codes='3182,8299'))
+   m=json.loads((out/'_meta.json').read_text(encoding='utf-8'))
+   self.assertEqual(m['requestedCodes'],['8299']);self.assertIn('3182',m['inputCodes']);self.assertIn('3182',m['excludedCodes']);self.assertNotIn('3182',m['missingCodes']);self.assertEqual(p.read_bytes(),before)
+
+ def test_excluded_code_never_calls_otc_source(self):
+  with tempfile.TemporaryDirectory() as d:
+   with patch.object(h,'twse_first_dates',return_value=({},'')),patch.object(h,'listing_dates',return_value={}),patch.object(h,'fetch_tpex_month',side_effect=AssertionError('不可抓取3182')):
+    h.cmd_fetch_tpex(SimpleNamespace(archive=d,codes='3182',years=0))
+
  def test_saturday_is_requested_sunday_is_not(self):
   with tempfile.TemporaryDirectory() as d:
    a=SimpleNamespace(start='2017-02-18',end='2017-02-19',years=0,deadline_min=1,archive=d)

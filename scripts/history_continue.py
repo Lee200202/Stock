@@ -1,5 +1,6 @@
 """GitHub 雲端接棒：只續補預算未走完的範圍，不以完整度旗標無限重跑。"""
 import io
+import base64
 import json
 import os
 import re
@@ -63,6 +64,14 @@ def read_progress(run_id, call=api):
         return parse_progress(z.read(item).decode('utf-8', 'replace'))
 
 
+def selection_update_due(call=api):
+    """管理者排除清單有更新時，讓舊版工作完成後再套用一次，不取消進行中工作。"""
+    exclusions = json.loads(Path(__file__).with_name('market_history_exclusions.json').read_text(encoding='utf-8'))
+    record = call('/contents/history/_meta.json?ref=market-history')
+    meta = json.loads(base64.b64decode(record['content']))
+    return sorted(set(exclusions) & set(meta.get('requestedCodes', [])))
+
+
 def control(call=api, read=None):
     read = read or (lambda run_id: read_progress(run_id, call))
     runs = call('/actions/workflows/market-history.yml/runs?per_page=100')['workflow_runs']
@@ -82,6 +91,11 @@ def control(call=api, read=None):
     if progress.get('saved') == 0 and len(eligible) > 1 and eligible[1].get('conclusion') == 'success':
         previous = read(eligible[1]['id'])
     yes, reason = decision(latest, progress, previous)
+    if not yes and set(progress.get('markets', {})) == {'上市', '上櫃'} and all(
+            s.get('phase') == 'scanned' for s in progress['markets'].values()):
+        due = selection_update_due(call)
+        if due:
+            yes, reason = True, '管理者排除清單尚未套用至已發布總表，接續新版增量組裝：' + '、'.join(due)
     result = {'action': 'dispatch' if yes else 'wait', 'reason': reason, 'run': latest['id'], 'progress': progress}
     if yes:
         # 派出前再查一次，縮短與人類／定時工作競爭的視窗。

@@ -126,12 +126,26 @@ def _row(d, code, name, o, h, l, c, chg, vol):
     return [d, code, name, o, h, l, c, chg, int(vol)]
 
 
-def _code_set(args):
+def _raw_code_set(args):
     if getattr(args, 'sheets', False):
         return sheet_codes()
     if getattr(args, 'codes_file', None):
         return {c.strip() for c in Path(args.codes_file).read_text(encoding='utf-8').split() if CODE_RE.match(c.strip())}
     return {c.strip() for c in (getattr(args, 'codes', '') or '').split(',') if CODE_RE.match(c.strip())}
+
+
+def _select_history_codes(args):
+    """只依明確管理者排除，不把來源回空或名錄暫缺自行當成無效代號。"""
+    raw = _raw_code_set(args)
+    exclusions = json.loads(Path(__file__).with_name('market_history_exclusions.json').read_text(encoding='utf-8'))
+    excluded = {code: exclusions[code] for code in sorted(raw & exclusions.keys())}
+    for code, info in excluded.items():
+        print(f'歷史補抓排除 {code}：{info["reason"]}（原封存與操作資料保留）', flush=True)
+    return raw - excluded.keys(), excluded, raw
+
+
+def _code_set(args):
+    return _select_history_codes(args)[0]
 
 
 def sheet_codes():
@@ -579,7 +593,7 @@ def history_row_issue(row):
 
 
 def cmd_build(args):
-    codes = _code_set(args)
+    codes, excluded, raw_codes = _select_history_codes(args)
     events = load_events(args.archive)
     series, names, market = {c: {} for c in codes}, {}, {}
     source_files = {c: {} for c in codes}
@@ -616,7 +630,8 @@ def cmd_build(args):
     meta = {'updated': datetime.now(TZ).isoformat(timespec='seconds'), 'codes': {},
             'scope': '全部可探查範圍；非固定十年。覆蓋不足不代表掛牌起點。',
             'sourceFloors': {'twse': TWSE_START.isoformat(), 'tpexProbe': TPEX_START.isoformat()},
-            'coverageVerified': False, 'requestedCodes': sorted(codes), 'quarantinedRows': []}
+            'coverageVerified': False, 'requestedCodes': sorted(codes), 'quarantinedRows': [],
+            'inputCodes': sorted(raw_codes), 'excludedCodes': excluded}
     for code in sorted(series):
         entries = [series[code][d] for d in sorted(series[code])]
         valid, excluded = [], []

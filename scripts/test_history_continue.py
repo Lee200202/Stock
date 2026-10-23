@@ -2,6 +2,9 @@
 import importlib.util
 from pathlib import Path
 import unittest
+from unittest.mock import patch
+import base64
+import json
 
 spec = importlib.util.spec_from_file_location('continuation', Path(__file__).with_name('history_continue.py'))
 c = importlib.util.module_from_spec(spec)
@@ -17,6 +20,21 @@ def run(status='completed', conclusion='success', id=1):
 
 
 class ContinuationTests(unittest.TestCase):
+    def test_scope_change_rebuilds_once_even_when_old_version_scanned(self):
+        calls = []
+        def api(path, body=None):
+            calls.append((path, body)); return {'workflow_runs': [run()]}
+        with patch.object(c,'selection_update_due',return_value=['3182']):
+            self.assertEqual(c.control(api,lambda _:progress('scanned'))['action'],'dispatch')
+        self.assertEqual(len([body for _,body in calls if body]),1)
+        with patch.object(c,'selection_update_due',return_value=[]):
+            self.assertEqual(c.control(api,lambda _:progress('scanned'))['action'],'wait')
+
+    def test_scope_state_checks_only_explicit_human_exclusions(self):
+        for requested, expected in [(['3182','8299'],['3182']),(['8299'],[])]:
+            record={'content':base64.b64encode(json.dumps({'requestedCodes':requested}).encode()).decode()}
+            self.assertEqual(c.selection_update_due(lambda _:record),expected)
+
     def test_budget_pause_continues(self):
         self.assertTrue(c.decision(run(), progress())[0])
 

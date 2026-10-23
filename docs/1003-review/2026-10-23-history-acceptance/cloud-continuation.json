@@ -1,0 +1,92 @@
+{
+  "latestCompleted": {
+    "id": 39865274592,
+    "progress": {
+      "markets": {
+        "上市": {
+          "processed": 7106,
+          "total": 7106,
+          "remaining": 0,
+          "new": 0,
+          "refreshed": 0,
+          "failed": 0,
+          "phase": "scanned"
+        },
+        "上櫃": {
+          "processed": 21619,
+          "total": 25124,
+          "remaining": 3505,
+          "new": 638,
+          "refreshed": 0,
+          "failed": 0,
+          "phase": "paused"
+        }
+      },
+      "saved": 1327
+    }
+  },
+  "runs": [
+    {
+      "id": 39882087761,
+      "status": "in_progress",
+      "conclusion": null,
+      "created_at": "2026-10-23T01:06:25Z",
+      "head_sha": "e007c3d93dbc70d59f0f2254df8eb7b19717965f",
+      "event": "workflow_dispatch"
+    },
+    {
+      "id": 39865274592,
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-22T22:28:56Z",
+      "head_sha": "e007c3d93dbc70d59f0f2254df8eb7b19717965f",
+      "event": "workflow_dispatch"
+    },
+    {
+      "id": 39838123151,
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-22T19:12:56Z",
+      "head_sha": "e007c3d93dbc70d59f0f2254df8eb7b19717965f",
+      "event": "workflow_dispatch"
+    },
+    {
+      "id": 39806440975,
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-22T15:36:35Z",
+      "head_sha": "e007c3d93dbc70d59f0f2254df8eb7b19717965f",
+      "event": "schedule"
+    }
+  ],
+  "controllers": [
+    {
+      "id": 39882065827,
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-23T01:06:11Z",
+      "event": "workflow_dispatch"
+    },
+    {
+      "id": 39865251107,
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-22T22:28:44Z",
+      "event": "schedule"
+    },
+    {
+      "id": 39838400169,
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-22T19:14:52Z",
+      "event": "schedule"
+    },
+    {
+      "id": 39838084112,
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-22T19:12:40Z",
+      "event": "workflow_run"
+    }
+  ]
+}

@@ -238,3 +238,24 @@ html[data-view=mobile] body[data-tab] table.sk tr.sk-row:has(.sk-quote){grid-tem
 html[data-view=mobile] body[data-tab] .sk-quote{justify-content:flex-start}
 @media(prefers-reduced-motion:reduce){body[data-tab] #overviewTop #ledger .led-pill,body[data-tab] #overviewTop .led-go{transition:none;transform:none!important}}
 </style>
+
+<style id="typeHierarchyV206">
+/* 全站字級以首頁標語為上限；只調整文字層次，不改圖內座標與圖表資料。 */
+:root{--type-display: min(54px,calc(clamp(28px,2.7vw,38px) * var(--rd-fs,1)));--type-section:calc(clamp(23px,2.1vw,30px) * var(--rd-fs,1));--type-card:calc(20px * var(--rd-fs,1));--type-body:calc(17px * var(--rd-fs,1));--type-label:calc(14px * var(--rd-fs,1));--type-number:calc(28px * var(--rd-fs,1))}
+body[data-tab] #overviewTop .hero-say h1,body[data-tab] #p-tech .tech-book .book-index>h1{font-size:var(--type-display)!important;line-height:1.35!important;max-width:100%;text-wrap:wrap;letter-spacing:-.025em}
+body[data-tab] h2,body[data-tab] #p-tech .tech-book .journey-atlas>h2,body[data-tab] #p-tech .tech-book .book-heading h2,body[data-tab] .detail-body .sect-h h2,body:not([data-tab]) .panel h2{font-size:var(--type-section)!important;line-height:1.4!important;letter-spacing:-.015em;text-align:start;text-wrap:wrap;overflow-wrap:anywhere}
+body[data-tab] h3,body[data-tab] .sk-name,body[data-tab] .ss-card strong,body[data-tab] .tech-book .book-stage figcaption>b,body:not([data-tab]) .panel h3{font-size:var(--type-card);line-height:1.45;overflow-wrap:anywhere}
+body[data-tab] .sk-body,body[data-tab] .ss-card p,body[data-tab] .tech-story.tech-book,body[data-tab] #p-tech .tech-book .book-index>p{font-size:var(--type-body);line-height:1.8;max-width:100%}
+body[data-tab] .ss-night .stats .stat .v,body[data-tab] .ss-night .stats .stat .v .num,body[data-tab] #overviewTop #ledger .led-n{font-size:var(--type-number);line-height:1.15;font-variant-numeric:tabular-nums}
+body[data-tab] .sk-quote [data-px]{font-size:calc(22px * var(--rd-fs,1));line-height:1.35;font-variant-numeric:tabular-nums}
+body[data-tab] .sk-quote [data-chg],body[data-tab] .sect-h h2 small{font-size:var(--type-label);line-height:1.5}
+body[data-tab] .sect-h{align-items:baseline;gap:12px;flex-wrap:wrap}
+body[data-tab] .sect-h h2{min-width:0;margin-block:0}
+body[data-tab] .sk-id,body[data-tab] .sk-quote{align-items:baseline;min-width:0}
+body[data-tab] .sk-name{min-width:0}
+body[data-tab] .trend-t b{font-size:var(--type-card);line-height:1.5}
+body[data-tab] #dPrice{font-size:var(--type-number);line-height:1.2;font-variant-numeric:tabular-nums}
+body[data-tab] #p-tech .tech-book .journey-atlas-track>a b{font-size:var(--type-card);line-height:1.45}
+@media(max-width:700px){:root{--type-section:calc(23px * var(--rd-fs,1));--type-card:calc(19px * var(--rd-fs,1));--type-number:calc(26px * var(--rd-fs,1))}}
+html[data-view=mobile]{--type-section:calc(23px * var(--rd-fs,1));--type-card:calc(19px * var(--rd-fs,1));--type-number:calc(26px * var(--rd-fs,1))}
+</style>

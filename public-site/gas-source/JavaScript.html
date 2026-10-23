@@ -46,6 +46,7 @@
     // v200r3：字體設定也要重畫圖表——座標軸、價位標籤的字是圖表函式庫畫在 canvas 上的，不吃 CSS
     if (what === 'theme' || what === 'fs') {
       restyleCharts();
+      paintTrend();
       if (perfChart) { renderPerf(); }
       return;
     }
@@ -919,31 +920,33 @@ function restatesEarlier_(key, earlier) {
     var stale=trading && (day!==today || !isFinite(ms) || Date.now()-ms>300000);
     var t=String(q.time||q.stamp||'');
     var label=day!==today?(day.slice(5)+' 前次行情'):stale?'待更新':hm>=1340?'收盤':'行情 '+(t.match(/\d{2}:\d{2}/)||['時間未提供'])[0];
-    return {last:last,pct:pct,label:label,stale:stale,time:formatTaipeiTime(q.tradeStamp||q.stamp||q.time)||'未提供'};
+    // 前次行情仍是可核對的價格；和「當日過期」分開，必須帶原日期顯示。
+    var previous = /^\d{4}\/\d{2}\/\d{2}$/.test(day) && day < today;
+    return {last:last,pct:pct,label:label,stale:stale,previous:previous,readable:!stale||previous,time:formatTaipeiTime(q.tradeStamp||q.stamp||q.time)||'未提供'};
   }
   function renderQuotes(q, scope) {
     Object.keys(q||{}).forEach(function(code){var incoming=q[code],old=displayedQuotes[code];if(!quoteView(incoming))return;
       if(old && isFinite(quoteMillis(old)) && (!isFinite(quoteMillis(incoming)) || quoteMillis(incoming)<quoteMillis(old)))return;
       incoming=Object.assign({},incoming);var view=quoteView(incoming);incoming.changePct=view.pct;incoming.change=Number(incoming.prevClose)>0?view.last-Number(incoming.prevClose):null;displayedQuotes[code]=incoming;
     });
-    document.querySelectorAll('[data-px]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.px]);el.textContent=v&&!v.stale?fmtPx(v.last):'—';
+    document.querySelectorAll('[data-px]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.px]);el.textContent=v&&v.readable?fmtPx(v.last):'—';
       el.title=v?'成交時間：'+v.time:'目前無可核對的行情';
       var note=el.parentNode.querySelector('.quote-asof');if(!note){note=document.createElement('small');note.className='quote-asof';el.parentNode.appendChild(note);}
-      note.textContent=v?v.stale?v.label:'':'無行情';note.hidden=!!v&&!v.stale;note.classList.toggle('is-stale',!!v&&v.stale);
+      note.textContent=v?v.stale||v.previous?v.label:'':'無行情';note.hidden=!!v&&!v.stale&&!v.previous;note.classList.toggle('is-stale',!!v&&v.stale);
     });
-    document.querySelectorAll('[data-chg]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.chg]);var pct=v&&!v.stale?v.pct:null;
+    document.querySelectorAll('[data-chg]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.chg]);var pct=v&&v.readable?v.pct:null;
       el.textContent=pct==null?'—':(pct>0?'+':'')+pct.toFixed(2)+'%';el.className='px r '+signCls(pct);el.title=v?'成交時間：'+v.time:'無可核對的前收盤價';
     });
     document.querySelectorAll('[data-live-price]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.livePrice]);if(!v)return;el.textContent=v.stale?'—':fmtPx(v.last);var note=el.parentNode.querySelector('.quote-asof');if(!note){note=document.createElement('small');note.className='quote-asof';el.parentNode.appendChild(note);}note.textContent=v.stale?v.label:'';note.hidden=!v.stale;note.title='成交時間：'+v.time;});
     document.querySelectorAll('[data-live-ret]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.liveRet]),entry=Number(el.dataset.entry);if(!v||entry<=0)return;if(v.stale){el.textContent='—';return;}var ret=(v.last-entry)/entry*100;el.textContent=fmtRet(ret);el.parentNode.setAttribute('aria-label','未實現報酬 '+fmtRet(ret));var axis=el.closest('.tx');if(axis)axis.className='tx tx-'+signCls(ret);});
-    document.querySelectorAll('[data-bandpx]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.bandpx]),pct=v&&!v.stale?v.pct:null;
-      el.textContent=v&&!v.stale?fmtPx(v.last)+(pct==null?'':'　'+(pct>0?'▲':pct<0?'▼':'')+Math.abs(pct).toFixed(2)+'%')+(v.stale?'　'+v.label:''):v?v.label:'—';
+    document.querySelectorAll('[data-bandpx]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.bandpx]),pct=v&&v.readable?v.pct:null;
+      el.textContent=v&&v.readable?fmtPx(v.last)+(pct==null?'':'　'+(pct>0?'▲':pct<0?'▼':'')+Math.abs(pct).toFixed(2)+'%')+(v.previous?'　'+v.label:''):v?v.label:'—';
       el.className='px '+signCls(pct);el.title=v?'成交時間：'+v.time:'無可核對行情';
     });
     if(typeof DETAIL!=='undefined'&&DETAIL.header&&currentCode&&$('detail').classList.contains('open')) {
       var shared=displayedQuotes[currentCode],view=quoteView(shared);
-      if(view){DETAIL.header.quote=Object.assign({},shared,{ok:true});$('dPrice').textContent=view.stale?'—':fmtPx(view.last);$('dPrice').className='p '+signCls(view.pct);$('dPrice').title='成交時間：'+view.time;
-        $('dChange').textContent=view.stale?view.label:view.pct==null?'—':(view.pct>0?'▲ ':view.pct<0?'▼ ':'')+Math.abs(Number(shared.change)).toFixed(2)+'　'+view.pct.toFixed(2)+'%';$('dChange').className='d '+signCls(view.pct);$('dChange').title='成交時間：'+view.time;}
+      if(view){DETAIL.header.quote=Object.assign({},shared,{ok:true});$('dPrice').textContent=view.readable?fmtPx(view.last):'—';$('dPrice').className='p '+signCls(view.readable?view.pct:null);$('dPrice').title='成交時間：'+view.time;
+        $('dChange').textContent=!view.readable?view.label:(view.pct==null?'—':(view.pct>0?'▲ ':view.pct<0?'▼ ':'')+Math.abs(Number(shared.change)).toFixed(2)+'　'+view.pct.toFixed(2)+'%')+(view.previous?'　'+view.label:'');$('dChange').className='d '+signCls(view.readable?view.pct:null);$('dChange').title='成交時間：'+view.time;}
     }
   }
   // 同頁共用補查佇列：先畫已取得的報價，只有過期／缺值才接續，不空等下一分鐘。
@@ -1716,7 +1719,8 @@ function restatesEarlier_(key, earlier) {
     if (iEnd - i0 < 1) { return null; }
     var pts = rows.slice(i0, iEnd + 1);
     // 底部兩列：持有期間括弧（寫「持有 N 個交易日」）＋日期（v68：取代原本標題列的「提到 → 成交 → 持有」文字）
-    var H = W < 520 ? 166 : 196, padL = 46, padR = W < 420 ? 84 : 96, padT = 12, padB = 46;
+    var scale = readFontScale_();
+    var H = Math.round((W < 520 * scale ? 180 : 208) * scale), padL = Math.round(54 * scale), padR = Math.round(108 * scale), padT = Math.round(16 * scale), padB = Math.round(54 * scale);
     var pw = W - padL - padR, ph = H - padT - padB;
     var vals = pts.map(function (p) { return p.close; }).concat([m.entry, m.stated, m.end].filter(function (v) { return v > 0; }));
     var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), pad = (hi - lo) * 0.08 || hi * 0.01 || 1;
@@ -1749,7 +1753,7 @@ function restatesEarlier_(key, earlier) {
     var labels = [{ y: yE, t: '進場 ' + pxShort(m.entry), c: 'lb-in' }];
     if (m.stated) { labels.push({ y: Y(m.stated), t: '明講 ' + pxShort(m.stated), c: 'lb-st' }); }
     if (m.end > 0) { labels.push({ y: endY, t: (m.held ? '目前 ' : '出場 ') + pxShort(m.end), c: 'lb-end ' + signCls(m.ret) }); }
-    spreadLabels(labels, padT + 4, padT + ph, 15).forEach(function (l) {
+    spreadLabels(labels, padT + 4, padT + ph, 19 * scale).forEach(function (l) {
       svg += '<text class="tr-lb ' + l.c + '" x="' + (padL + pw + 8) + '" y="' + f1(l.ly + 4) + '">' + esc(l.t) + '</text>';
     });
     // 日期記號與底部日期
@@ -1777,11 +1781,11 @@ function restatesEarlier_(key, earlier) {
       xs.push({ x: xe, t: md_(dates[iEnd]) + (rows[iEnd].preview ? ' 盤中' : ''), c: 'end' });
     }
     // 持有期間：從進場那一根到目前（或出場）那一根畫一條括弧，中間寫持有幾個交易日；紅漲綠跌
-    var heldDays = iEnd - iTrade + 1, yb = padT + ph + 12, spanCls = signCls(m.ret);
+    var heldDays = iEnd - iTrade + 1, yb = padT + ph + 16 * scale, spanCls = signCls(m.ret);
     if (xe - xt >= 8) {
       svg += '<path class="tr-span ' + spanCls + '" d="M' + f1(xt) + ' ' + (yb - 4) + ' V' + yb + ' H' + f1(xe) + ' V' + (yb - 4) + '"/>';
       var spanTxt = (m.held ? '持有 ' : '共持有 ') + heldDays + ' 個交易日';
-      if (xe - xt >= spanTxt.length * 11 + 16) {
+      if (xe - xt >= spanTxt.length * 13 * scale + 16) {
         svg += '<text class="tr-span-lb ' + spanCls + '" x="' + f1((xt + xe) / 2) + '" y="' + (yb + 4) + '" text-anchor="middle">' + spanTxt + '</text>';
       } else if (xe - xt >= 36) {
         svg += '<text class="tr-span-lb ' + spanCls + '" x="' + f1((xt + xe) / 2) + '" y="' + (yb + 4) + '" text-anchor="middle">' + heldDays + ' 天</text>';
@@ -1791,7 +1795,7 @@ function restatesEarlier_(key, earlier) {
     xs.sort(function (p, q) { return p.x - q.x; });
     var lastRight = -1e9;
     xs.forEach(function (p, k) {
-      var w = p.t.length * 7 + 6, anchor = 'middle', left = p.x - w / 2;
+      var w = p.t.length * 9 * scale + 6, anchor = 'middle', left = p.x - w / 2;
       if (k === xs.length - 1 && p.x + w / 2 > padL + pw) { anchor = 'end'; left = p.x - w; }
       if (left < lastRight) { anchor = 'start'; left = Math.max(p.x, lastRight); }
       if (left + w > padL + pw + padR - 4) { return; }   // 真的放不下就省略這一個（記號仍在圖上）
@@ -1873,7 +1877,8 @@ function restatesEarlier_(key, earlier) {
     // 只在這張小圖複製一個盤中點，不把今日現價掛在昨日收盤日期，也不改日K快取。
     rows = detailTrendQuoteRows_(rows, DETAIL.header && DETAIL.header.quote, m.held);
     var cs = getComputedStyle(box);
-    var W = Math.max(260, Math.floor(box.clientWidth - parseFloat(cs.paddingLeft || 0) - parseFloat(cs.paddingRight || 0)));
+    // 放大字體時讓小圖在自己的容器橫滑，不縮小字，也不撐開整頁。
+    var W = Math.max(Math.round(320 * readFontScale_()), Math.floor(box.clientWidth - parseFloat(cs.paddingLeft || 0) - parseFloat(cs.paddingRight || 0)));
     var tr = rows && rows.length ? trendSvg(m, rows, W) : null;
     var loading = !memo && candlePending[DETAIL.code];
     /* v68（管理者 9/25）：標題列不再寫「提到 → 成交 → 持有 N 天」，圖上已有日期記號與持有期間括弧；
@@ -3001,10 +3006,12 @@ function restatesEarlier_(key, earlier) {
     return pad2(p.hh || 0) + ':' + pad2(p.mm || 0);               // 時間
   }
 
-  /** 圖表文字跟著版面設定的字體縮放（v200r3）：12 像素 × --rd-fs（小 .92、中 1、大 1.25、特大 1.5）。 */
+  /** 圖表文字跟著版面設定縮放：13.5 像素 × --rd-fs；設定改變時同步重畫。 */
+  function readFontScale_() {
+    return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--rd-fs')) || 1;
+  }
   function chartFontSize() {
-    var k = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--rd-fs')) || 1;
-    return Math.round(12 * k);
+    return Math.round(13.5 * readFontScale_());
   }
   function chartOptions() {
     return {

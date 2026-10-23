@@ -5456,4 +5456,13 @@ html[data-view="mobile"] body[data-tab] table.sk tr.sk-row, html[data-view="mobi
 html[data-view="mobile"] body[data-tab] .emptyline, html[data-view="mobile"] body[data-tab] .mailcal,
 html[data-view="mobile"] body[data-tab] .tsum-i { background: var(--panel); }
 /* ====== v193 樣式層結束 ====== */
+/* v207（管理者 10/23）：探索卡片列拉到全版、一次看得到多張；左右延伸由 JavaScript 量父層到視窗邊的距離設定，卡片靠左吸附。 */
+.ss-explore-h, .ss-dots { max-width: none; }
+.ss-shelf { --shelf-card-width: clamp(calc(250px * var(--rd-fs)), 25vw, calc(380px * var(--rd-fs))); max-width: none;
+  grid-auto-columns: var(--shelf-card-width); scroll-padding-inline: 0; }
+.ss-card { scroll-snap-align: start; }
+@media (max-width: 899px) { .ss-shelf { --shelf-card-width: min(calc(300px * var(--rd-fs)), 72vw); } }
+/* 回到頂端置中（管理者 10/23）：先前固定在左下角 */
+.totop { left: 50%; right: auto; transform: translateX(-50%); }
+.totop:active { transform: translate(-50%, 1px); }
 </style>

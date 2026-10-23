@@ -4740,79 +4740,100 @@ window.__fxWatch(['tblBuy', 'tblSell', 'tblWatchWatch', 'tblWatchAvoid', 'tracke
   arm('.ss-night .stat', true);
   arm('#detail .detail-body > .sect', false);
 
-  /* 探索卡片列：置中、短距離自動輪播；觸碰後留足閱讀時間，保留滑動、進度點與鍵盤。 */
+  /* 探索卡片列（v207，管理者 10/23）：拉到全版、一次看得到多張，每 2 秒往下一張。
+     先前最寬 960px、一次只置中一張，又在游標停在卡片上時暫停，看起來像沒有動畫。
+     現在：左右延伸到視窗邊緣（用實際量到的位置，不用 100vw，捲軸寬度不會撐出橫向捲動），第一張對齊內容左緣；
+     後面接一份複製卡（螢幕閱讀器與 Tab 鍵略過），一直往右走，走到複製的第一張時瞬間跳回原本那張，看起來是無限輪播。
+     暫停時機：暫停鈕、鍵盤焦點在卡片上、觸碰或拖曳後 4 秒、不在畫面中、分頁不在前景、系統要求減少動態。 */
   document.querySelectorAll('[data-ss-shelf]').forEach(function (wrap) {
     var shelf = wrap.querySelector('.ss-shelf');
     var dots = wrap.querySelector('.ss-dots');
     var pauseButton = wrap.querySelector('[data-ss-pause]');
     if (!shelf) { return; }
-    var cards = [].slice.call(shelf.children);
-    var raf = 0, motion = 0, timer = 0, wake = 0, visible = false, stopped = reduce;
-    var hovering = false, focused = false, holdUntil = 0;
-    function position(i) { return Math.max(0, Math.min(shelf.scrollWidth - shelf.clientWidth,
-      shelf.scrollLeft + cards[i].getBoundingClientRect().left - shelf.getBoundingClientRect().left -
-      (shelf.clientWidth - cards[i].offsetWidth) / 2)); }
+    var cards = [].slice.call(shelf.children), n = cards.length;
+    var STEP_MS = 2000, HOLD_MS = 4000;
+    if (n > 1) {
+      cards.forEach(function (card) {
+        var copy = card.cloneNode(true);
+        copy.setAttribute('aria-hidden', 'true'); copy.tabIndex = -1; copy.classList.add('ss-clone');
+        shelf.appendChild(copy);
+      });
+    }
+    var all = [].slice.call(shelf.children);
+    var motion = 0, timer = 0, visible = false, stopped = reduce, focused = false, holdUntil = 0, raf = 0;
+    function startPad() { return parseFloat(getComputedStyle(shelf).paddingLeft) || 0; }
+    function position(i) { return all[i].offsetLeft - all[0].offsetLeft; }
     function current() {
       var best = 0, distance = Infinity;
-      cards.forEach(function (_, i) { var d = Math.abs(shelf.scrollLeft - position(i)); if (d < distance) { distance = d; best = i; } });
+      all.forEach(function (_, i) { var d = Math.abs(shelf.scrollLeft - position(i)); if (d < distance) { distance = d; best = i; } });
       return best;
     }
     function layout() {
-      var wanted = Math.max(0, (shelf.clientWidth - cards[0].offsetWidth) / 2);
-      if (Math.abs((parseFloat(getComputedStyle(shelf).paddingLeft) || 0) - wanted) > 1) { shelf.style.paddingInline = wanted + 'px'; }
+      // 延伸到視窗左右邊緣：父層到視窗邊的距離變成負邊界，再用同樣寬度的內距讓第一張對齊內容
+      // 用版面位置（offsetLeft 累加）量，不用 getBoundingClientRect：進場動畫把這一區縮到 0.985 時量到的位置會偏 13 像素
+      shelf.style.marginLeft = shelf.style.marginRight = shelf.style.paddingLeft = shelf.style.paddingRight = '';
+      var host = shelf.parentElement, x = 0, vw = document.documentElement.clientWidth;
+      for (var el = host; el; el = el.offsetParent) { x += el.offsetLeft; }
+      var left = Math.max(0, Math.round(x)), right = Math.max(0, Math.round(vw - x - host.offsetWidth));
+      shelf.style.marginLeft = -left + 'px'; shelf.style.marginRight = -right + 'px';
+      shelf.style.paddingLeft = left + 'px'; shelf.style.paddingRight = right + 'px';
+      shelf.style.scrollPaddingLeft = left + 'px';
+    }
+    function update() {
+      raf = 0;
+      var c = current() % n;
+      if (dots) { [].forEach.call(dots.children, function (d, i) { d.setAttribute('aria-current', i === c ? 'true' : 'false'); }); }
     }
     function go(i, instant) {
-      i = (i + cards.length) % cards.length;
       if (motion) { cancelAnimationFrame(motion); motion = 0; }
+      i = Math.max(0, Math.min(all.length - 1, i));
       var from = shelf.scrollLeft, to = position(i), start = 0;
-      if (instant || reduce || Math.abs(to - from) < 1) { shelf.scrollLeft = to; update(); return; }
+      function settle() {
+        // 走到複製的那一份就跳回原本同一張（畫面一模一樣，看不出跳動）
+        if (i >= n) { shelf.scrollLeft = position(i - n); }
+        shelf.style.scrollSnapType = ''; update();
+      }
+      if (instant || reduce || Math.abs(to - from) < 1) { shelf.scrollLeft = to; settle(); return; }
       shelf.style.scrollSnapType = 'none';
       function animate(t) {
         if (!start) { start = t; }
-        var p = Math.min(1, (t - start) / 320), ease = 1 - Math.pow(1 - p, 3);
+        var p = Math.min(1, (t - start) / 450), ease = 1 - Math.pow(1 - p, 3);
         shelf.scrollLeft = from + (to - from) * ease;
-        if (p < 1) { motion = requestAnimationFrame(animate); }
-        else { motion = 0; shelf.style.scrollSnapType = ''; update(); }
+        if (p < 1) { motion = requestAnimationFrame(animate); } else { motion = 0; settle(); }
       }
       motion = requestAnimationFrame(animate);
     }
-    function canPlay() { return !stopped && !hovering && !focused && Date.now() >= holdUntil && visible && !document.hidden && !reduce && cards.length > 1; }
+    function canPlay() { return !stopped && !focused && Date.now() >= holdUntil && visible && !document.hidden && !reduce && n > 1; }
     function schedule(delay) {
       clearTimeout(timer);
-      if (canPlay()) { timer = setTimeout(function () { go(current() + 1); schedule(3600); }, delay || 3600); }
+      if (canPlay()) { timer = setTimeout(function () { go(current() + 1); schedule(STEP_MS); }, delay || STEP_MS); }
+      else if (!stopped && Date.now() < holdUntil) { timer = setTimeout(function () { schedule(STEP_MS); }, holdUntil - Date.now() + 20); }
     }
-    function defer() { clearTimeout(wake); holdUntil = Date.now() + 6500; schedule(); wake = setTimeout(function () { schedule(3600); }, 6550); }
-    function update() {
-      raf = 0;
-      var c = current();
-      if (dots) {
-        [].forEach.call(dots.children, function (d, i) { d.setAttribute('aria-current', i === c ? 'true' : 'false'); });
-      }
-    }
+    function hold() { holdUntil = Date.now() + HOLD_MS; schedule(); }
     if (dots) {
-      dots.innerHTML = cards.map(function (_, i) { return '<button type="button" aria-label="顯示第 ' + (i + 1) + ' 張，共 ' + cards.length + ' 張"></button>'; }).join('');
-      dots.hidden = cards.length < 2;
-    }
-    shelf.addEventListener('scroll', function () { if (!raf) { raf = requestAnimationFrame(update); } }, { passive: true });
-    ['pointerdown', 'touchstart', 'wheel'].forEach(function (eventName) { shelf.addEventListener(eventName, defer, { passive: true }); });
-    if (dots) {
+      dots.innerHTML = cards.map(function (_, i) { return '<button type="button" aria-label="顯示第 ' + (i + 1) + ' 張，共 ' + n + ' 張"></button>'; }).join('');
+      dots.hidden = n < 2;
       dots.addEventListener('click', function (e) {
         var i = [].indexOf.call(dots.children, e.target);
-        if (i >= 0) { defer(); go(i); }
+        if (i >= 0) { hold(); go(i); }
       });
     }
+    shelf.addEventListener('scroll', function () { if (!raf) { raf = requestAnimationFrame(update); } }, { passive: true });
+    ['pointerdown', 'touchstart', 'wheel'].forEach(function (eventName) { shelf.addEventListener(eventName, hold, { passive: true }); });
+    // 手動滑到複製的那一份，停下來時也換回原本那張，下一次自動往右才接得上
+    shelf.addEventListener('scrollend', function () { if (!motion) { var c = current(); if (c >= n) { shelf.scrollLeft = position(c - n); } } });
     shelf.addEventListener('keydown', function (e) {
       if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') { return; }
       var i = cards.indexOf(document.activeElement);
       if (i < 0) { return; }
-      var j = Math.min(cards.length - 1, Math.max(0, i + (e.key === 'ArrowRight' ? 1 : -1)));
+      var j = Math.min(n - 1, Math.max(0, i + (e.key === 'ArrowRight' ? 1 : -1)));
       if (j === i) { return; }
       e.preventDefault();
       cards[j].focus({ preventScroll: true });
-      defer(); go(j);
+      hold(); go(j);
     });
     if (pauseButton) {
-      pauseButton.hidden = reduce || cards.length < 2;
+      pauseButton.hidden = reduce || n < 2;
       pauseButton.addEventListener('click', function () {
         stopped = !stopped;
         pauseButton.setAttribute('aria-pressed', String(stopped));
@@ -4821,18 +4842,17 @@ window.__fxWatch(['tblBuy', 'tblSell', 'tblWatchWatch', 'tblWatchAvoid', 'tracke
         schedule();
       });
     }
-    wrap.addEventListener('mouseenter', function () { hovering = true; schedule(); });
-    wrap.addEventListener('mouseleave', function () { hovering = false; schedule(3600); });
     /* 只有焦點落在卡片上才算「正在看」；暫停鈕與進度點拿到焦點不算，否則按下繼續後焦點留在按鈕上，輪播不會恢復。 */
-    wrap.addEventListener('focusin', function (e) { focused = shelf.contains(e.target); schedule(3600); });
-    wrap.addEventListener('focusout', function (e) { if (!shelf.contains(e.relatedTarget)) { focused = false; schedule(3600); } });
-    document.addEventListener('visibilitychange', function () { schedule(3600); });
+    wrap.addEventListener('focusin', function (e) { focused = shelf.contains(e.target) && !e.target.classList.contains('ss-clone'); schedule(); });
+    wrap.addEventListener('focusout', function (e) { if (!shelf.contains(e.relatedTarget)) { focused = false; schedule(); } });
+    document.addEventListener('visibilitychange', function () { schedule(); });
     if ('IntersectionObserver' in window) {
-      new IntersectionObserver(function (entries) { visible = entries[0].isIntersecting; schedule(3600); }, { threshold: .25 }).observe(wrap);
+      new IntersectionObserver(function (entries) { visible = entries[0].isIntersecting; schedule(); }, { threshold: .25 }).observe(wrap);
     } else { visible = true; }
-    if (window.ResizeObserver) { new ResizeObserver(function () { var i = current(); layout(); go(i, true); }).observe(shelf); }
-    else { window.addEventListener('resize', function () { var i = current(); layout(); go(i, true); }); }
-    layout(); go(0, true); schedule(3600);
+    function relayout() { var i = current() % n; layout(); go(i, true); }
+    if (window.ResizeObserver) { new ResizeObserver(relayout).observe(shelf.parentElement); }
+    else { window.addEventListener('resize', relayout); }
+    layout(); go(0, true); schedule();
   });
 })();
 </script>

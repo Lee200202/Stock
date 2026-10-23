@@ -1246,7 +1246,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-10-23-type-hierarchy-v206';
+var PROJECT_BUILD_ = '2026-10-23-explore-shelf-v207';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
@@ -1299,7 +1299,7 @@ var PROJECT_HTML_ = [
   { file: 'TechQuality', marker: '.quality-relationship' },
   { file: 'JavaScript', marker: 'function mergeHistoryDay' },
   { file: 'Stylesheet', marker: '.ss-shelf-pause' },
-  { file: 'Changelog', marker: 'v203r1 全市場休市原句核對' },
+  { file: 'Changelog', marker: 'v207 繼續探索全版' },
   { file: 'Tech', marker: 'classDefinitions' },
   { file: 'Admin', marker: 'id="mLog" href="https://script.google.com/home/projects/' },
   { file: 'Settings', marker: '手機預覽' },

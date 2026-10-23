@@ -258,4 +258,16 @@ body[data-tab] #dPrice{font-size:var(--type-number);line-height:1.2;font-variant
 body[data-tab] #p-tech .tech-book .journey-atlas-track>a b{font-size:var(--type-card);line-height:1.45}
 @media(max-width:700px){:root{--type-section:calc(23px * var(--rd-fs,1));--type-card:calc(19px * var(--rd-fs,1));--type-number:calc(26px * var(--rd-fs,1))}}
 html[data-view=mobile]{--type-section:calc(23px * var(--rd-fs,1));--type-card:calc(19px * var(--rd-fs,1));--type-number:calc(26px * var(--rd-fs,1))}
+.hero-slogan-breathe{animation:sloganBreathe 9s ease-in-out infinite;animation-play-state:paused}
+@keyframes sloganBreathe{0%,20%,100%{opacity:1}55%,65%{opacity:.55}}
+@media(prefers-reduced-motion:reduce){.hero-slogan-breathe{animation:none!important;opacity:1}}
 </style>
+<script>
+(function(){
+  var slogan=document.querySelector('.hero-slogan-breathe');if(!slogan)return;
+  var reduced=matchMedia('(prefers-reduced-motion: reduce)'),inView=false;
+  function sync(){slogan.style.animationPlayState=inView&&!document.hidden&&!reduced.matches?'running':'paused';}
+  new IntersectionObserver(function(entries){inView=entries[0].isIntersecting;sync();},{threshold:.1}).observe(slogan);
+  document.addEventListener('visibilitychange',sync);reduced.addEventListener('change',sync);sync();
+})();
+</script>

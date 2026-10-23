@@ -540,7 +540,7 @@
      點膠囊直接捲到該區；沒有的那一類照樣列出、寫 0，讀的人才知道「今天沒有」而不是「漏了」。 */
   function ledgerRow(cls, label, n, target) {
     return '<button type="button" class="led-pill ' + cls + (n > 0 ? '' : ' absent') + '" data-jump="' + target + '">' +
-      '<span class="led-k">' + label + '</span><b class="led-n">' + (n > 0 ? n : 0) + '</b></button>';
+      '<span class="led-k">' + label + '</span><b class="led-n">' + (n > 0 ? n : 0) + '</b><svg class="led-go" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>';
   }
   /* 觀望兩類。舊資料若只有 watch，全部歸到觀望不碰，避免畫面空白。 */
   function wAvoid(d) { return (d && d.watchAvoid) ? d.watchAvoid : ((d && d.watch) ? d.watch : []); }
@@ -555,10 +555,6 @@
       ledgerRow('note', '觀望注意', d ? wWatch(d).length : 0, 'tblWatchWatch') +
       ledgerRow('hold', '目前持有', d ? d.holdings.length : 0, 'tab:tracker');
     var oldRatio=document.getElementById('storyDailyRatio');if(oldRatio)oldRatio.remove();
-    var distribution=[['買入',d?d.buy.length:0,'var(--beam)'],['賣出',d?d.sell.length:0,'var(--rise)'],['觀望注意',d?wWatch(d).length:0,'var(--note)'],['觀望不碰',d?wAvoid(d).length:0,'var(--muted)']];
-    var total=distribution.reduce(function(a,x){return a+x[1];},0);
-    var ratio=document.createElement('div');ratio.id='storyDailyRatio';ratio.innerHTML='<div class="story-ratio" role="img" aria-label="'+esc(distribution.map(function(x){return x[0]+' '+x[1]+'筆';}).join('、'))+'">'+distribution.filter(function(x){return x[1]>0;}).map(function(x){return '<i style="--sw:'+x[1]+';--sc:'+x[2]+'"></i>';}).join('')+'</div>';
-    if(total)box.parentNode.insertBefore(ratio,box.nextSibling);
     box.querySelectorAll('[data-jump]').forEach(function (b) {
       b.addEventListener('click', function () {
         var to = b.getAttribute('data-jump');

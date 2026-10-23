@@ -1289,6 +1289,7 @@ var PROJECT_HTML_ = [
   { file: 'StoryDesign', marker: 'spacingBalanceV202' },
   { file: 'TideDesign', marker: 'surfaceSpacingV202' },
   { file: 'TideDesign', marker: 'quotePresentationV205' },
+  { file: 'TideDesign', marker: 'overviewLayoutV205' },
   { file: 'TideDesign', marker: 'compactControlsV201' },
   { file: 'TideDesign', marker: 'rd-tr' },
   { file: 'Index', marker: "include('TideDesign')" },

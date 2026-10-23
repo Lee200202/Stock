@@ -207,3 +207,34 @@ body[data-tab] :is(.tabs,#dNav){scrollbar-width:thin;scrollbar-color:var(--beam)
 body[data-tab] :is(.tabs,#dNav)::-webkit-scrollbar{height:6px}
 @media(max-width:600px){body[data-tab] #detail .detail-body>.sect{padding:16px}body[data-tab] .ss-card{padding:20px}}
 </style>
+
+<style id="overviewLayoutV205">
+/* 開放式首頁：日期、主標語、分類數字連成一個閱讀面，不再套日期或統計卡片。 */
+body[data-tab] #overviewTop .hero{padding:clamp(22px,3vw,38px) 0 18px}
+body[data-tab] #overviewTop .hero-grid{grid-template-columns:minmax(0,1fr);grid-template-areas:"date" "intro" "stats";gap:18px;align-items:start}
+body[data-tab] #overviewTop .hero-say{grid-area:intro;order:0;text-align:start;min-width:0}
+body[data-tab] #overviewTop .hero-say h1{font-size:min(54px,calc(clamp(28px,2.7vw,38px) * var(--rd-fs,1)));line-height:1.35;margin:0;max-width:100%}
+body[data-tab] #overviewTop .hero-record-date{grid-area:date;display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:6px 14px;min-width:0;background:none;border:0;border-radius:0;padding:0}
+body[data-tab] #overviewTop .hero-record-date .eyebrow{font-size:calc(14px * var(--rd-fs,1));line-height:1.5}
+body[data-tab] #overviewTop #heroDate{font-size:min(30px,calc(20px * var(--rd-fs,1)));line-height:1.3;margin:0;white-space:nowrap;letter-spacing:-.02em}
+body[data-tab] #overviewTop #heroDate .sl{margin-inline:.08em;color:var(--muted)}
+body[data-tab] #overviewTop #ledger{grid-area:stats;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));width:100%;margin:8px 0 0;gap:0;justify-self:stretch}
+body[data-tab] #overviewTop #ledger .led-pill{position:relative;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;min-width:0;width:100%;min-height:94px;padding:8px 22px;border:0;border-inline-start:1px solid var(--rule);border-radius:0;background:none;gap:8px;white-space:normal;box-shadow:none;transition:color .2s,background .2s,transform .2s}
+body[data-tab] #overviewTop #ledger .led-pill:first-child{border-inline-start:0;padding-left:0}
+body[data-tab] #overviewTop #ledger .led-n{order:-1;background:none;padding:0;border-radius:0;color:var(--tc,var(--ink));font-size:min(48px,calc(30px * var(--rd-fs,1)));line-height:1;min-width:0;min-height:0}
+body[data-tab] #overviewTop #ledger .led-k{font-size:calc(14.5px * var(--rd-fs,1));line-height:1.45;color:var(--ink)}
+body[data-tab] #overviewTop #ledger .absent .led-n{color:var(--muted)}
+body[data-tab] #overviewTop .led-go{position:absolute;right:16px;top:12px;color:var(--muted);opacity:.6;transition:transform .2s}
+body[data-tab] #overviewTop #ledger .led-pill:hover{transform:translateY(-2px);background:color-mix(in srgb,var(--beam) 5%,transparent)}
+body[data-tab] #overviewTop #ledger .led-pill:hover .led-go{transform:translateX(3px)}
+body[data-tab] #overviewTop .signalband{margin-top:0;padding-block:8px}
+body[data-tab] #overviewTop .chip{min-height:48px;gap:10px;padding:10px 16px;border-radius:18px}
+@media(max-width:700px){body[data-tab] #overviewTop #ledger{grid-template-columns:repeat(6,minmax(0,1fr));row-gap:16px}body[data-tab] #overviewTop #ledger .led-pill{grid-column:span 2;padding:6px;min-height:90px}body[data-tab] #overviewTop #ledger .led-pill:first-child{padding-left:6px}body[data-tab] #overviewTop #ledger .led-pill:nth-child(4){border-inline-start:0}body[data-tab] #overviewTop #ledger .led-pill:nth-child(n+4){grid-column:span 3}body[data-tab] #overviewTop #ledger .led-n{font-size:min(40px,calc(28px * var(--rd-fs,1)))}body[data-tab] #overviewTop .led-go{right:6px;top:8px;width:16px;height:16px}}
+html[data-view=mobile] body[data-tab] #overviewTop #ledger{grid-template-columns:repeat(6,minmax(0,1fr));row-gap:16px}
+html[data-view=mobile] body[data-tab] #overviewTop #ledger .led-pill{grid-column:span 2;padding:6px;min-height:90px}
+html[data-view=mobile] body[data-tab] #overviewTop #ledger .led-pill:nth-child(n+4){grid-column:span 3}
+html[data-view=mobile] body[data-tab] #overviewTop #ledger .led-pill:nth-child(4){border-inline-start:0}
+html[data-view=mobile] body[data-tab] table.sk tr.sk-row:has(.sk-quote){grid-template-columns:minmax(0,1fr);grid-template-areas:"id" "quote" "body";row-gap:12px}
+html[data-view=mobile] body[data-tab] .sk-quote{justify-content:flex-start}
+@media(prefers-reduced-motion:reduce){body[data-tab] #overviewTop #ledger .led-pill,body[data-tab] #overviewTop .led-go{transition:none;transform:none!important}}
+</style>

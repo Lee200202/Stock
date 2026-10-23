@@ -95,7 +95,7 @@ with sync_playwright() as p:
                                             'https://script.google.com/home/projects/')), (w, 'unexpected destination', link)
             if link['visible']:
                 assert link['height'] >= 44 and link['radius'] != '0px', (w, 'link target', link)
-        for tab in ['post', 'manual', 'held', 'maint', 'smsadmin', 'ops', 'line', 'ver']:
+        for tab in ['post', 'manual', 'held', 'maint', 'smsadmin', 'ops', 'line', 'usage', 'ver']:
             pg.locator(f'button.tab[data-tab="{tab}"]').click(); pg.wait_for_timeout(500)
             if tab == 'post':
                 pg.locator('.sms-original-text').wait_for(timeout=10000)
@@ -115,7 +115,7 @@ with sync_playwright() as p:
                 found.append((w, tab, *row)); print('FOUND', w, tab, *row)
             if tab in ('smsadmin', 'line', 'post', 'manual') and OUT:
                 pg.screenshot(path=f'{OUT}/audit-{tab}-{w}.png', full_page=True)
-        print(f'checked {w}px: 8 tabs')
+        print(f'checked {w}px: 9 tabs')
         pg.close()
     b.close()
 srv.shutdown()

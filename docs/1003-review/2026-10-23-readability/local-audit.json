@@ -1,0 +1,1050 @@
+{
+  "checks": [
+    {
+      "width": 1916,
+      "font": "m",
+      "tab": "overview",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 1916,
+      "font": "m",
+      "tab": "tracker",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 1916,
+      "font": "m",
+      "tab": "perf",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 1916,
+      "font": "m",
+      "tab": "subscribe",
+      "overflow": false,
+      "inputs": [
+        [
+          "subEmail",
+          "INPUT",
+          16
+        ],
+        [
+          "subDaily",
+          "INPUT",
+          13.3333
+        ],
+        [
+          "unsubEmail",
+          "INPUT",
+          16
+        ]
+      ]
+    },
+    {
+      "width": 1916,
+      "font": "m",
+      "tab": "mail",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 1916,
+      "font": "m",
+      "tab": "tx",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 1916,
+      "font": "m",
+      "tab": "tech",
+      "overflow": false,
+      "inputs": [
+        [
+          "bookSearch",
+          "INPUT",
+          16
+        ],
+        [
+          "heroRange",
+          "INPUT",
+          13.3333
+        ]
+      ]
+    },
+    {
+      "width": 1916,
+      "font": "m",
+      "stock": "6533",
+      "price": "282.50",
+      "quote": "▼ 8.50　-2.92%　10/22 前次行情",
+      "title": 18,
+      "axis": 12.5,
+      "labels": [],
+      "overflow": false
+    },
+    {
+      "width": 1916,
+      "font": "l",
+      "tab": "overview",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 1916,
+      "font": "l",
+      "tab": "tracker",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 1916,
+      "font": "l",
+      "tab": "perf",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 1916,
+      "font": "l",
+      "tab": "subscribe",
+      "overflow": false,
+      "inputs": [
+        [
+          "subEmail",
+          "INPUT",
+          20
+        ],
+        [
+          "subDaily",
+          "INPUT",
+          13.3333
+        ],
+        [
+          "unsubEmail",
+          "INPUT",
+          20
+        ]
+      ]
+    },
+    {
+      "width": 1916,
+      "font": "l",
+      "tab": "mail",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 1916,
+      "font": "l",
+      "tab": "tx",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 1916,
+      "font": "l",
+      "tab": "tech",
+      "overflow": false,
+      "inputs": [
+        [
+          "bookSearch",
+          "INPUT",
+          20
+        ],
+        [
+          "heroRange",
+          "INPUT",
+          13.3333
+        ]
+      ]
+    },
+    {
+      "width": 1916,
+      "font": "l",
+      "stock": "6533",
+      "price": "282.50",
+      "quote": "▼ 8.50　-2.92%　10/22 前次行情",
+      "title": 22.5,
+      "axis": 15.625,
+      "labels": [],
+      "overflow": false
+    },
+    {
+      "width": 1916,
+      "font": "x",
+      "tab": "overview",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 1916,
+      "font": "x",
+      "tab": "tracker",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 1916,
+      "font": "x",
+      "tab": "perf",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 1916,
+      "font": "x",
+      "tab": "subscribe",
+      "overflow": false,
+      "inputs": [
+        [
+          "subEmail",
+          "INPUT",
+          24
+        ],
+        [
+          "subDaily",
+          "INPUT",
+          13.3333
+        ],
+        [
+          "unsubEmail",
+          "INPUT",
+          24
+        ]
+      ]
+    },
+    {
+      "width": 1916,
+      "font": "x",
+      "tab": "mail",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 1916,
+      "font": "x",
+      "tab": "tx",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 1916,
+      "font": "x",
+      "tab": "tech",
+      "overflow": false,
+      "inputs": [
+        [
+          "bookSearch",
+          "INPUT",
+          24
+        ],
+        [
+          "heroRange",
+          "INPUT",
+          13.3333
+        ]
+      ]
+    },
+    {
+      "width": 1916,
+      "font": "x",
+      "stock": "6533",
+      "price": "282.50",
+      "quote": "▼ 8.50　-2.92%　10/22 前次行情",
+      "title": 27,
+      "axis": 18.75,
+      "labels": [],
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "font": "m",
+      "tab": "overview",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 1440,
+      "font": "m",
+      "tab": "tracker",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 1440,
+      "font": "m",
+      "tab": "perf",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 1440,
+      "font": "m",
+      "tab": "subscribe",
+      "overflow": false,
+      "inputs": [
+        [
+          "subEmail",
+          "INPUT",
+          16
+        ],
+        [
+          "subDaily",
+          "INPUT",
+          13.3333
+        ],
+        [
+          "unsubEmail",
+          "INPUT",
+          16
+        ]
+      ]
+    },
+    {
+      "width": 1440,
+      "font": "m",
+      "tab": "mail",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 1440,
+      "font": "m",
+      "tab": "tx",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 1440,
+      "font": "m",
+      "tab": "tech",
+      "overflow": false,
+      "inputs": [
+        [
+          "bookSearch",
+          "INPUT",
+          16
+        ],
+        [
+          "heroRange",
+          "INPUT",
+          13.3333
+        ]
+      ]
+    },
+    {
+      "width": 1440,
+      "font": "m",
+      "stock": "6533",
+      "price": "282.50",
+      "quote": "▼ 8.50　-2.92%　10/22 前次行情",
+      "title": 18,
+      "axis": 12.5,
+      "labels": [],
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "font": "l",
+      "tab": "overview",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 1440,
+      "font": "l",
+      "tab": "tracker",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 1440,
+      "font": "l",
+      "tab": "perf",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 1440,
+      "font": "l",
+      "tab": "subscribe",
+      "overflow": false,
+      "inputs": [
+        [
+          "subEmail",
+          "INPUT",
+          20
+        ],
+        [
+          "subDaily",
+          "INPUT",
+          13.3333
+        ],
+        [
+          "unsubEmail",
+          "INPUT",
+          20
+        ]
+      ]
+    },
+    {
+      "width": 1440,
+      "font": "l",
+      "tab": "mail",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 1440,
+      "font": "l",
+      "tab": "tx",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 1440,
+      "font": "l",
+      "tab": "tech",
+      "overflow": false,
+      "inputs": [
+        [
+          "bookSearch",
+          "INPUT",
+          20
+        ],
+        [
+          "heroRange",
+          "INPUT",
+          13.3333
+        ]
+      ]
+    },
+    {
+      "width": 1440,
+      "font": "l",
+      "stock": "6533",
+      "price": "282.50",
+      "quote": "▼ 8.50　-2.92%　10/22 前次行情",
+      "title": 22.5,
+      "axis": 15.625,
+      "labels": [],
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "font": "x",
+      "tab": "overview",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 1440,
+      "font": "x",
+      "tab": "tracker",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 1440,
+      "font": "x",
+      "tab": "perf",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 1440,
+      "font": "x",
+      "tab": "subscribe",
+      "overflow": false,
+      "inputs": [
+        [
+          "subEmail",
+          "INPUT",
+          24
+        ],
+        [
+          "subDaily",
+          "INPUT",
+          13.3333
+        ],
+        [
+          "unsubEmail",
+          "INPUT",
+          24
+        ]
+      ]
+    },
+    {
+      "width": 1440,
+      "font": "x",
+      "tab": "mail",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 1440,
+      "font": "x",
+      "tab": "tx",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 1440,
+      "font": "x",
+      "tab": "tech",
+      "overflow": false,
+      "inputs": [
+        [
+          "bookSearch",
+          "INPUT",
+          24
+        ],
+        [
+          "heroRange",
+          "INPUT",
+          13.3333
+        ]
+      ]
+    },
+    {
+      "width": 1440,
+      "font": "x",
+      "stock": "6533",
+      "price": "282.50",
+      "quote": "▼ 8.50　-2.92%　10/22 前次行情",
+      "title": 27,
+      "axis": 18.75,
+      "labels": [],
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "font": "m",
+      "tab": "overview",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 390,
+      "font": "m",
+      "tab": "tracker",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 390,
+      "font": "m",
+      "tab": "perf",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 390,
+      "font": "m",
+      "tab": "subscribe",
+      "overflow": false,
+      "inputs": [
+        [
+          "subEmail",
+          "INPUT",
+          16
+        ],
+        [
+          "subDaily",
+          "INPUT",
+          13.3333
+        ],
+        [
+          "unsubEmail",
+          "INPUT",
+          16
+        ]
+      ]
+    },
+    {
+      "width": 390,
+      "font": "m",
+      "tab": "mail",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 390,
+      "font": "m",
+      "tab": "tx",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 390,
+      "font": "m",
+      "tab": "tech",
+      "overflow": false,
+      "inputs": [
+        [
+          "bookSearch",
+          "INPUT",
+          16
+        ],
+        [
+          "heroRange",
+          "INPUT",
+          13.3333
+        ]
+      ]
+    },
+    {
+      "width": 390,
+      "font": "m",
+      "stock": "6533",
+      "price": "282.50",
+      "quote": "▼ 8.50　-2.92%　10/22 前次行情",
+      "title": 18,
+      "axis": 12.5,
+      "labels": [],
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "font": "l",
+      "tab": "overview",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 390,
+      "font": "l",
+      "tab": "tracker",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 390,
+      "font": "l",
+      "tab": "perf",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 390,
+      "font": "l",
+      "tab": "subscribe",
+      "overflow": false,
+      "inputs": [
+        [
+          "subEmail",
+          "INPUT",
+          20
+        ],
+        [
+          "subDaily",
+          "INPUT",
+          13.3333
+        ],
+        [
+          "unsubEmail",
+          "INPUT",
+          20
+        ]
+      ]
+    },
+    {
+      "width": 390,
+      "font": "l",
+      "tab": "mail",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 390,
+      "font": "l",
+      "tab": "tx",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 390,
+      "font": "l",
+      "tab": "tech",
+      "overflow": false,
+      "inputs": [
+        [
+          "bookSearch",
+          "INPUT",
+          20
+        ],
+        [
+          "heroRange",
+          "INPUT",
+          13.3333
+        ]
+      ]
+    },
+    {
+      "width": 390,
+      "font": "l",
+      "stock": "6533",
+      "price": "282.50",
+      "quote": "▼ 8.50　-2.92%　10/22 前次行情",
+      "title": 22.5,
+      "axis": 15.625,
+      "labels": [],
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "font": "x",
+      "tab": "overview",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 390,
+      "font": "x",
+      "tab": "tracker",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 390,
+      "font": "x",
+      "tab": "perf",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 390,
+      "font": "x",
+      "tab": "subscribe",
+      "overflow": false,
+      "inputs": [
+        [
+          "subEmail",
+          "INPUT",
+          24
+        ],
+        [
+          "subDaily",
+          "INPUT",
+          13.3333
+        ],
+        [
+          "unsubEmail",
+          "INPUT",
+          24
+        ]
+      ]
+    },
+    {
+      "width": 390,
+      "font": "x",
+      "tab": "mail",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 390,
+      "font": "x",
+      "tab": "tx",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 390,
+      "font": "x",
+      "tab": "tech",
+      "overflow": false,
+      "inputs": [
+        [
+          "bookSearch",
+          "INPUT",
+          24
+        ],
+        [
+          "heroRange",
+          "INPUT",
+          13.3333
+        ]
+      ]
+    },
+    {
+      "width": 390,
+      "font": "x",
+      "stock": "6533",
+      "price": "282.50",
+      "quote": "▼ 8.50　-2.92%　10/22 前次行情",
+      "title": 27,
+      "axis": 18.75,
+      "labels": [],
+      "overflow": false
+    },
+    {
+      "width": 360,
+      "font": "m",
+      "tab": "overview",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 360,
+      "font": "m",
+      "tab": "tracker",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 360,
+      "font": "m",
+      "tab": "perf",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 360,
+      "font": "m",
+      "tab": "subscribe",
+      "overflow": false,
+      "inputs": [
+        [
+          "subEmail",
+          "INPUT",
+          16
+        ],
+        [
+          "subDaily",
+          "INPUT",
+          13.3333
+        ],
+        [
+          "unsubEmail",
+          "INPUT",
+          16
+        ]
+      ]
+    },
+    {
+      "width": 360,
+      "font": "m",
+      "tab": "mail",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 360,
+      "font": "m",
+      "tab": "tx",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 360,
+      "font": "m",
+      "tab": "tech",
+      "overflow": false,
+      "inputs": [
+        [
+          "bookSearch",
+          "INPUT",
+          16
+        ],
+        [
+          "heroRange",
+          "INPUT",
+          13.3333
+        ]
+      ]
+    },
+    {
+      "width": 360,
+      "font": "m",
+      "stock": "6533",
+      "price": "282.50",
+      "quote": "▼ 8.50　-2.92%　10/22 前次行情",
+      "title": 18,
+      "axis": 12.5,
+      "labels": [],
+      "overflow": false
+    },
+    {
+      "width": 360,
+      "font": "l",
+      "tab": "overview",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 360,
+      "font": "l",
+      "tab": "tracker",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 360,
+      "font": "l",
+      "tab": "perf",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 360,
+      "font": "l",
+      "tab": "subscribe",
+      "overflow": false,
+      "inputs": [
+        [
+          "subEmail",
+          "INPUT",
+          20
+        ],
+        [
+          "subDaily",
+          "INPUT",
+          13.3333
+        ],
+        [
+          "unsubEmail",
+          "INPUT",
+          20
+        ]
+      ]
+    },
+    {
+      "width": 360,
+      "font": "l",
+      "tab": "mail",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 360,
+      "font": "l",
+      "tab": "tx",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 360,
+      "font": "l",
+      "tab": "tech",
+      "overflow": false,
+      "inputs": [
+        [
+          "bookSearch",
+          "INPUT",
+          20
+        ],
+        [
+          "heroRange",
+          "INPUT",
+          13.3333
+        ]
+      ]
+    },
+    {
+      "width": 360,
+      "font": "l",
+      "stock": "6533",
+      "price": "282.50",
+      "quote": "▼ 8.50　-2.92%　10/22 前次行情",
+      "title": 22.5,
+      "axis": 15.625,
+      "labels": [],
+      "overflow": false
+    },
+    {
+      "width": 360,
+      "font": "x",
+      "tab": "overview",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 360,
+      "font": "x",
+      "tab": "tracker",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 360,
+      "font": "x",
+      "tab": "perf",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 360,
+      "font": "x",
+      "tab": "subscribe",
+      "overflow": false,
+      "inputs": [
+        [
+          "subEmail",
+          "INPUT",
+          24
+        ],
+        [
+          "subDaily",
+          "INPUT",
+          13.3333
+        ],
+        [
+          "unsubEmail",
+          "INPUT",
+          24
+        ]
+      ]
+    },
+    {
+      "width": 360,
+      "font": "x",
+      "tab": "mail",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 360,
+      "font": "x",
+      "tab": "tx",
+      "overflow": false,
+      "inputs": []
+    },
+    {
+      "width": 360,
+      "font": "x",
+      "tab": "tech",
+      "overflow": false,
+      "inputs": [
+        [
+          "bookSearch",
+          "INPUT",
+          24
+        ],
+        [
+          "heroRange",
+          "INPUT",
+          13.3333
+        ]
+      ]
+    },
+    {
+      "width": 360,
+      "font": "x",
+      "stock": "6533",
+      "price": "282.50",
+      "quote": "▼ 8.50　-2.92%　10/22 前次行情",
+      "title": 27,
+      "axis": 18.75,
+      "labels": [],
+      "overflow": false
+    }
+  ],
+  "issues": [],
+  "source": "正式公開資料唯讀快照，無寫入及模型呼叫"
+}

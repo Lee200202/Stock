@@ -1,0 +1,29 @@
+[
+  {
+    "width": 1440,
+    "font": "m",
+    "price": "282.50",
+    "change": "▼ 8.50　-2.92%　10/22 前次行情",
+    "title": 18,
+    "label": 13,
+    "overflow": false
+  },
+  {
+    "width": 390,
+    "font": "x",
+    "price": "282.50",
+    "change": "▼ 8.50　-2.92%　10/22 前次行情",
+    "title": 27,
+    "label": 19.5,
+    "overflow": false
+  },
+  {
+    "width": 360,
+    "font": "x",
+    "price": "282.50",
+    "change": "▼ 8.50　-2.92%　10/22 前次行情",
+    "title": 27,
+    "label": 19.5,
+    "overflow": false
+  }
+]

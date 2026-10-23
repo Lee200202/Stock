@@ -40,7 +40,7 @@ jobs:
           python-version: '3.11'
       - run: pip install -r requirements-market.txt
       - name: 增量、進度、隔離與保存契約
-        run: python -m unittest scripts/test_market_history.py scripts/test_history_publication.py
+        run: python -m unittest scripts/test_market_history.py scripts/test_history_publication.py scripts/test_history_source_recheck.py
       - name: 記錄起點與目前覆蓋
         run: |
           mkdir -p progress
@@ -53,6 +53,8 @@ jobs:
       - name: 起始發布狀態
         if: always() && !cancelled()
         run: python scripts/history_progress_report.py --data data --logs progress
+      - name: 已隔離官方月份定向複核（冷卻沿用、不推測改價）
+        run: python -u scripts/recheck_history_sources.py --archive data/archive --meta data/history/_meta.json --report-dir progress/source-recheck
       - name: 交易所官方股數變動事件
         run: python -u scripts/market_history.py fetch-events --archive data/archive
       - name: 第一輪即時進度（上市日／上櫃代號月）

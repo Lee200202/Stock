@@ -31,14 +31,14 @@ def render(data, logs):
     lines = ['# 完整歷史日K：增量補齊進度',
              datetime.now(ZoneInfo('Asia/Taipei')).strftime('更新：%Y/%m/%d %H:%M:%S（台北）'), '',
              '**探查100%只代表本輪範圍已走訪，不代表全歷史已核實或網站已發布。**', '',
-             '| 階段／市場 | 探查進度 | 尚餘 | 新增檔 | 複核／更新 | 沿用 | 空回應待核 | 失敗 | 目前位置 |',
-             '|---|---|---:|---:|---:|---:|---:|---:|---|']
+             '| 階段／市場 | 探查進度 | 尚餘 | 新增檔 | 複核／更新 | 沿用 | 空回應待核 | 失敗 | 探查HTTP請求 | 目前位置 |',
+             '|---|---|---:|---:|---:|---:|---:|---:|---:|---|']
     for p in sorted(root.glob('*-progress.json')):
         s = read(p)
         pct = min(100, max(0, s.get('percent', 0)))
         bar = '█' * int(pct / 5) + '░' * (20-int(pct / 5))
         phase = {'running': '進行中', 'paused': '預算到，待續補', 'scanned': '已走訪，非完整核實'}.get(s.get('phase'), '待開始')
-        lines.append(f'| {p.stem.replace("-progress", "")}（{phase}） | `{bar}` {pct}% · {s.get("processed", 0)}/{s.get("total", 0)} | {s.get("total", 0)-s.get("processed", 0)} | {s.get("new", 0)} | {s.get("refreshed", 0)} | {s.get("kept", 0)} | {s.get("emptyUnverified", 0)} | {s.get("failed", 0)} | {s.get("current", "—")} |')
+        lines.append(f'| {p.stem.replace("-progress", "")}（{phase}） | `{bar}` {pct}% · {s.get("processed", 0)}/{s.get("total", 0)} | {s.get("total", 0)-s.get("processed", 0)} | {s.get("new", 0)} | {s.get("refreshed", 0)} | {s.get("kept", 0)} | {s.get("emptyUnverified", 0)} | {s.get("failed", 0)} | {s.get("requests", "—")} | {s.get("current", "—")} |')
     lines += ['', '## 與本次開始比較', '', '| 指標 | 開始時 | 目前 | 增加 |', '|---|---:|---:|---:|']
     for key, label in [('twse', '上市日封存'), ('tpex', '上櫃月封存'), ('files', '已組裝個股'), ('bars', '已組裝有效日K')]:
         a, b = baseline.get(key, 0), current[key]
@@ -50,6 +50,11 @@ def render(data, logs):
         s = read(p)
         status = {'failed': '失敗（failed）', 'saving_archive': '保存原始封存中', 'building': '驗證組裝中', 'data_saved': '有效資料已推送', 'awaiting_pages': '等待Pages發布', 'unchanged': '無變更，沿用網站'}.get(s.get('status'), '未知')
         lines.append(f'- **{p.stem}：{status}**；封存已推送={s.get("archiveSaved", False)}；資料分支={s.get("dataSha", "—")[:10]}；Pages已要求發布={s.get("pagesDispatched", False)}。{s.get("error", "")}')
+    quality = read(root / 'source-recheck/source-recheck.json')
+    if quality:
+        lines += ['', '## 已隔離官方來源的定向複查', '',
+                  f'實查{quality.get("attemptedMonths",0)}個月；官方有效更正{quality.get("repairedRows",0)}列；來源失敗{quality.get("failedMonths",0)}個月；冷卻沿用{quality.get("keptCooldownMonths",0)}個月；預算留待續查{quality.get("pendingMonths",0)}個月。',
+                  '只採官方當次回覆已有效更正且原列指紋相符的列；仍須經組裝、品質檢查及正式Pages讀回，不憑價差修改OHLC。']
     lines += ['', 'Pages已要求發布不代表正式網址已讀回；完整度仍以正式 `_meta.json`、逐檔資料與官方邊界核對。',
               '舊檔沿用不是白工：避免重打來源。新增檔含待核空回應，不能當成新增交易日；請同看有效日K增量與待核欄。']
     return '\n'.join(lines) + '\n'

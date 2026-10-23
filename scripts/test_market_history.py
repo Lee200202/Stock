@@ -4,6 +4,32 @@ from types import SimpleNamespace
 from unittest.mock import patch
 s=importlib.util.spec_from_file_location('hist',Path(__file__).with_name('market_history.py'));h=importlib.util.module_from_spec(s);s.loader.exec_module(h)
 class HistoryContract(unittest.TestCase):
+ def test_http_counter_includes_retries_and_preserves_source_gap(self):
+  tick=[100.0];sleeps=[]
+  def sleep(seconds):sleeps.append(seconds);tick[0]+=seconds
+  response=SimpleNamespace(content=b'{"rows":[]}',raise_for_status=lambda:None)
+  with patch.dict(h._last,{'tpex':0}),patch.dict(h._request_count,{'tpex':0}),patch.object(h.time,'time',side_effect=lambda:tick[0]),patch.object(h.time,'sleep',side_effect=sleep),patch.object(h.SESSION,'get',side_effect=[TimeoutError(),response,response]):
+   h._get('https://example.invalid/contract','tpex');h._get('https://example.invalid/contract','tpex')
+   self.assertEqual(h._request_count['tpex'],3);self.assertEqual(sleeps,[4,h.GAP['tpex']])
+
+ def test_empty_month_is_one_request_without_eager_sleep(self):
+  with tempfile.TemporaryDirectory() as d:
+   args=SimpleNamespace(archive=d,codes='8299',start='2020-01-01',years=0)
+   clock=h.datetime(2020,3,20,16,tzinfo=h.TZ)
+   with patch.object(h,'datetime') as dt,patch.object(h,'listing_dates',return_value={}),patch.object(h,'twse_first_dates',return_value=({},'')),patch.object(h,'fetch_tpex_month',return_value={'rows':[]}) as fetch,patch.object(h.time,'sleep',side_effect=AssertionError('不應逐月等5秒')):
+    dt.now.return_value=clock
+    h.cmd_fetch_tpex(args)
+   self.assertEqual(fetch.call_count,3)
+   saved=json.loads((Path(d)/'tpex/8299/202001.json').read_text())
+   self.assertEqual(len(saved['checks']),1);self.assertEqual(saved['retryAfterSeconds'],900)
+
+ def test_first_empty_retry_is_deferred_not_assumed_missing(self):
+  rec={'checks':['2026-10-23T09:00:00+08:00'],'retryAfterSeconds':900}
+  with patch.object(h,'_age',return_value=899):self.assertEqual(h._empty_settled(rec,h.date(2020,1,31)),'wait')
+  with patch.object(h,'_age',return_value=901):self.assertEqual(h._empty_settled(rec,h.date(2020,1,31)),'ask')
+  rec['checks'].append('2026-10-23T09:20:00+08:00');rec['retryAfterSeconds']=h.RECHECK_SEC
+  with patch.object(h,'_age',return_value=1000):self.assertEqual(h._empty_settled(rec,h.date(2020,1,31)),'wait')
+
  def test_human_exclusion_applies_to_all_input_routes_without_source_guesses(self):
   with tempfile.TemporaryDirectory() as d:
    p=Path(d)/'codes.txt';p.write_text('3182 8299 9999',encoding='utf-8')

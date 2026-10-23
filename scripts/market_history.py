@@ -39,6 +39,7 @@ TPEX_START = date(1994, 1, 1)   # 探查範圍，尚未取得的月份維持缺�
 GAP = {'twse': 1.6, 'tpex': 1.2}     # 請求間隔（秒）；過快會被暫時封鎖
 CODE_RE = re.compile(r'^(?:\d{4,6}[A-Z]?)$')
 _last = {'twse': 0.0, 'tpex': 0.0}
+_request_count = {'twse': 0, 'tpex': 0}
 
 
 class HistoryProgress:
@@ -46,6 +47,8 @@ class HistoryProgress:
     def __init__(self, market, total, args):
         self.path = getattr(args, 'progress_file', None)
         self.started = time.time()
+        self.host = 'twse' if market == '上市' else 'tpex'
+        self.start_requests = _request_count[self.host]
         self.last_emit = 0
         self.state = dict(market=market, total=total, processed=0, new=0, refreshed=0, kept=0,
                           emptyUnverified=0, failed=0, skipped=0, current='', phase='running')
@@ -73,6 +76,7 @@ class HistoryProgress:
         s['elapsedSeconds'] = round(now - self.started)
         s['updatedAt'] = _iso_now()
         s['percent'] = round(100 * s['processed'] / s['total'], 1) if s['total'] else 100
+        s['requests'] = _request_count[self.host] - self.start_requests
         if self.path:
             _write(Path(self.path), s)
         filled = min(20, int(s['percent'] / 5))
@@ -80,7 +84,7 @@ class HistoryProgress:
         print(f'{s["market"]}探查 [{"█" * filled}{"░" * (20-filled)}] {s["percent"]}% '
               f'{s["processed"]}/{s["total"]}（尚餘 {s["total"]-s["processed"]}）｜新增封存 {s["new"]}｜複核/更新 {s["refreshed"]}｜沿用 {s["kept"]}｜'
               f'空回應待核 {s["emptyUnverified"]}｜失敗 {s["failed"]}｜休市略過 {s["skipped"]}｜'
-              f'{s["current"]}｜耗時 {s["elapsedSeconds"]} 秒｜{phase_label}', flush=True)
+              f'{s["current"]}｜耗時 {s["elapsedSeconds"]} 秒｜{phase_label}｜探查HTTP請求 {s["requests"]}', flush=True)
 
 
 def _get(url, host, tries=4, form=None):
@@ -89,6 +93,7 @@ def _get(url, host, tries=4, form=None):
         if wait > 0:
             time.sleep(wait)
         _last[host] = time.time()
+        _request_count[host] += 1
         try:
             response = SESSION.post(url, data=form, timeout=45) if form else SESSION.get(url, timeout=45)
             response.raise_for_status()
@@ -196,6 +201,7 @@ def _read(path, zipped=False):
 # 檔案時間不能拿來判斷多久沒查：Actions 每次 checkout，所有檔案時間都是「現在」——空回應永遠不重查、本月櫃買資料永遠不更新；
 # 本機則相反，每七天把所有休市日、週六、掛牌前的月份全部重問一次。改用檔案內記錄的查詢時間。
 RECHECK_SEC = 3 * 86400
+FIRST_EMPTY_RETRY_SEC = 15 * 60
 
 
 def _iso_now():
@@ -214,15 +220,19 @@ def _checks(rec):
 
 
 def _empty_settled(rec, last_day, calendar_closed=False):
-    """空回應還要不要再問：'settled' 不再問、'wait' 上次查不到三天先不問、'ask' 再問一次。
-    定案：櫃買日曆也說那天沒開盤；或在那天 30 天之後、不同的兩天各查過一次都是空的（交易所不會再補登）。"""
+    """新流程首次回空15分鐘後可再查，其後三天冷卻。
+    settled只表示本流程暫停例行重查，不是不存在或掛牌起點的證明。"""
     if calendar_closed:
         return 'settled'
     checks = _checks(rec)
     late = {c[:10] for c in checks if (date.fromisoformat(c[:10]) - last_day).days > 30}
     if len(late) >= 2:
         return 'settled'
-    return 'wait' if checks and _age(checks[-1]) < RECHECK_SEC else 'ask'
+    retry_after = rec.get('retryAfterSeconds', RECHECK_SEC)
+    if not isinstance(retry_after, (int, float)) or not math.isfinite(retry_after):
+        retry_after = RECHECK_SEC
+    retry_after = min(RECHECK_SEC, max(FIRST_EMPTY_RETRY_SEC, retry_after))
+    return 'wait' if checks and _age(checks[-1]) < retry_after else 'ask'
 
 
 def tpex_calendar(archive):
@@ -403,9 +413,8 @@ def cmd_fetch_tpex(args):
     progress = HistoryProgress('上櫃', total, args)
     for code, k, floor, transfer in plan:
         empty = 0
-        # 櫃買偶爾對有資料的月份也回「沒有符合條件的資料」（2026/10/22 實測，隔幾分鐘就正常）。
-        # 這一檔確定拿得到資料之前，空的月份不存檔，下次再問；拿到過資料之後，更早的空月份才當作尚未掛牌存下來。
-        seen = any(json.loads(f.read_text(encoding='utf-8')).get('rows') for f in (Path(args.archive) / 'tpex' / code).glob('*.json'))
+        # 一次回覆已含整月多筆，不逐月睡5秒後立即重打。
+        # 首次回空保留待核，15分鐘後另一輪可複查，不把空月當作掛牌邊界。
         while k >= max(first_month, floor if floor is not None else first_month):   # 由近往遠，到掛牌（或成立）那個月為止
             if time.time() > stop:
                 progress.emit(True, 'paused')
@@ -423,18 +432,15 @@ def cmd_fetch_tpex(args):
             else:
                 try:
                     rec = fetch_tpex_month(code, y, m)
-                    if not rec['rows'] and not seen:
-                        time.sleep(5)
-                        rec = fetch_tpex_month(code, y, m)
                 except Exception as e:
                     progress.tick('failed')
                     print(f'{code} {y}/{m:02d} 上櫃抓取失敗，下次再補：{type(e).__name__}', flush=True); k -= 1; continue
-                seen = seen or bool(rec['rows'])
                 # 空月只代表待核；不以連續空月推測掛牌日，且仍檢查更早月份。
                 rec['fetchedAt'] = _iso_now()
                 if not rec['rows']:
                     rec['checks'] = _checks(cached) + [rec['fetchedAt']]
                     rec['checkedAt'] = rec['checks'][0]
+                    rec['retryAfterSeconds'] = FIRST_EMPTY_RETRY_SEC if len(rec['checks']) == 1 else RECHECK_SEC
                 _write(p, rec)
                 done += 1
                 progress.tick('refreshed' if cached else 'new', not rec['rows'])

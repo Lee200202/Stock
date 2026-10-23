@@ -4760,7 +4760,7 @@ window.__fxWatch(['tblBuy', 'tblSell', 'tblWatchWatch', 'tblWatchAvoid', 'tracke
       });
     }
     var all = [].slice.call(shelf.children);
-    var motion = 0, timer = 0, visible = false, stopped = reduce, focused = false, holdUntil = 0, raf = 0;
+    var motion = 0, timer = 0, fallback = 0, visible = false, stopped = reduce, focused = false, holdUntil = 0, raf = 0;
     function startPad() { return parseFloat(getComputedStyle(shelf).paddingLeft) || 0; }
     function position(i) { return all[i].offsetLeft - all[0].offsetLeft; }
     function current() {
@@ -4793,15 +4793,19 @@ window.__fxWatch(['tblBuy', 'tblSell', 'tblWatchWatch', 'tblWatchAvoid', 'tracke
         if (i >= n) { shelf.scrollLeft = position(i - n); }
         shelf.style.scrollSnapType = ''; update();
       }
+      clearTimeout(fallback);
       if (instant || reduce || Math.abs(to - from) < 1) { shelf.scrollLeft = to; settle(); return; }
       shelf.style.scrollSnapType = 'none';
       function animate(t) {
         if (!start) { start = t; }
         var p = Math.min(1, (t - start) / 450), ease = 1 - Math.pow(1 - p, 3);
         shelf.scrollLeft = from + (to - from) * ease;
-        if (p < 1) { motion = requestAnimationFrame(animate); } else { motion = 0; settle(); }
+        if (p < 1) { motion = requestAnimationFrame(animate); } else { motion = 0; clearTimeout(fallback); settle(); }
       }
       motion = requestAnimationFrame(animate);
+      /* 有些內嵌瀏覽器（例如沒有焦點的 App 內網頁）不給動畫影格，requestAnimationFrame 一直不回來，
+         卡片就停在原地（2026/10/23 實測每秒 0 個影格）。0.7 秒還沒開始動就直接換到下一張，照樣每 2 秒前進。 */
+      fallback = setTimeout(function () { if (motion && !start) { cancelAnimationFrame(motion); motion = 0; shelf.scrollLeft = to; settle(); } }, 700);
     }
     function canPlay() { return !stopped && !focused && Date.now() >= holdUntil && visible && !document.hidden && !reduce && n > 1; }
     function schedule(delay) {

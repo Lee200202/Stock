@@ -1,0 +1,10 @@
+{
+  "dataSha": "9a94d5792e5510e61427553ee7b63c3856782123",
+  "metaUpdated": "2026-10-23T10:23:09+08:00",
+  "plannedMonths": 24730,
+  "missingArchiveMonths": {},
+  "missingArchiveMonthCount": 0,
+  "emptyUnverifiedMonths": 9833,
+  "networkRequests": 0,
+  "note": "計畫範圍已探查不等於全部歷史存在或已驗證；空月仍需核對。"
+}

@@ -1,0 +1,14 @@
+{
+  "run": 39884621542,
+  "status": "success",
+  "dataRef": "cd6b8a125d5558435ac85ded133daaacd5793a43",
+  "metaIdentical": true,
+  "codes": 245,
+  "requested": 245,
+  "bars": 1117145,
+  "quarantinedRows": 80,
+  "changedHistoryFiles": [
+    "history/_meta.json"
+  ],
+  "missingCodes": []
+}

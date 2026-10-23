@@ -1,0 +1,74 @@
+[
+  {
+    "width": 1440,
+    "theme": "light",
+    "font": "150%",
+    "cards": 5,
+    "pauseResume": true,
+    "holdingsNavigation": true,
+    "overflow": false
+  },
+  {
+    "width": 1440,
+    "theme": "dark",
+    "font": "150%",
+    "cards": 5,
+    "pauseResume": true,
+    "holdingsNavigation": true,
+    "overflow": false
+  },
+  {
+    "width": 900,
+    "theme": "light",
+    "font": "150%",
+    "cards": 5,
+    "pauseResume": true,
+    "holdingsNavigation": true,
+    "overflow": false
+  },
+  {
+    "width": 900,
+    "theme": "dark",
+    "font": "150%",
+    "cards": 5,
+    "pauseResume": true,
+    "holdingsNavigation": true,
+    "overflow": false
+  },
+  {
+    "width": 390,
+    "theme": "light",
+    "font": "150%",
+    "cards": 5,
+    "pauseResume": true,
+    "holdingsNavigation": true,
+    "overflow": false
+  },
+  {
+    "width": 390,
+    "theme": "dark",
+    "font": "150%",
+    "cards": 5,
+    "pauseResume": true,
+    "holdingsNavigation": true,
+    "overflow": false
+  },
+  {
+    "width": 360,
+    "theme": "light",
+    "font": "150%",
+    "cards": 5,
+    "pauseResume": true,
+    "holdingsNavigation": true,
+    "overflow": false
+  },
+  {
+    "width": 360,
+    "theme": "dark",
+    "font": "150%",
+    "cards": 5,
+    "pauseResume": true,
+    "holdingsNavigation": true,
+    "overflow": false
+  }
+]

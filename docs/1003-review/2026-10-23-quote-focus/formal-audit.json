@@ -1,0 +1,38 @@
+[
+  {
+    "width": 1440,
+    "font": "150%",
+    "header": true,
+    "noQuoteTimesOutsideDetail": true,
+    "sevenTabs": true,
+    "overflow": false,
+    "detailPrice": "282.50",
+    "detailChange": "▼ 8.50　-2.92%　10/22 收盤"
+  },
+  {
+    "width": 900,
+    "font": "150%",
+    "header": true,
+    "noQuoteTimesOutsideDetail": true,
+    "sevenTabs": true,
+    "overflow": false
+  },
+  {
+    "width": 390,
+    "font": "150%",
+    "header": true,
+    "noQuoteTimesOutsideDetail": true,
+    "sevenTabs": true,
+    "overflow": false,
+    "detailPrice": "282.50",
+    "detailChange": "▼ 8.50　-2.92%　10/22 收盤"
+  },
+  {
+    "width": 360,
+    "font": "150%",
+    "header": true,
+    "noQuoteTimesOutsideDetail": true,
+    "sevenTabs": true,
+    "overflow": false
+  }
+]

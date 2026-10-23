@@ -1,0 +1,10 @@
+{
+  "deployment": {
+    "deploymentId": "AKfycbyLQjAd-CnQ6D6_JP3OY1WwXDkafCJthzeP3G4FDkT4t26PY9Gx1rhrXJjiHVZExQhoaw",
+    "versionNumber": 517,
+    "description": "v204 前次行情與字級一致性 95dff193"
+  },
+  "pingBuild": "2026-10-23-readable-quotes-v204",
+  "sourceCommit": "362379e9",
+  "pagesRun": 39895652685
+}

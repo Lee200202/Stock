@@ -1293,11 +1293,21 @@ function restatesEarlier_(key, earlier) {
     return rows;
   }
   var bandRenderVersion = 0;
+  /* 訊號帶速度（v207r2，管理者 10/23 問是否過快）：先前用「幾檔 × 3 秒」，實測每秒走 114 像素，
+     一檔（類別、股名、代號、價位、漲跌）約 400 像素，3.5 秒就滑出畫面，價位來不及看。
+     改用實際寬度算，固定每秒約 45 像素；報價補上、字體設定改變而寬度變了就重算（差不到 8% 不動，避免跳格）。 */
+  var BAND_PX_PER_SEC = 45, bandSizeObs = null;
+  function setBandSpeed() {
+    var copy = $('band').querySelector('.band-copy');
+    if (!copy || !copy.offsetWidth) { return; }
+    var sec = Math.max(30, Math.round(copy.offsetWidth / BAND_PX_PER_SEC));
+    var cur = parseFloat($('band').style.getPropertyValue('--band-duration')) || 0;
+    if (!cur || Math.abs(sec - cur) / sec > 0.08) { $('band').style.setProperty('--band-duration', sec + 's'); }
+  }
   function renderBand(d) {
     var version = ++bandRenderVersion;
     var entries = signalBandRows(d);
     var parts = entries.map(function (x) { return chip(x.kind, x.label, x.stock); });
-    $('band').style.setProperty('--band-duration', Math.max(46, entries.length * 3) + 's');
     $('band').classList.toggle('is-still', !parts.length);
     if (!parts.length) {
       $('band').innerHTML = '<span class="band-copy"><div class="chip absent-all"><span class="nm">' +
@@ -1307,6 +1317,11 @@ function restatesEarlier_(key, earlier) {
     var html = parts.join('');
     $('band').innerHTML = '<span class="band-copy">' + html + '</span>' +
       '<span class="band-copy" aria-hidden="true">' + html + '</span>';
+    setBandSpeed();
+    if (window.ResizeObserver) {
+      if (!bandSizeObs) { bandSizeObs = new ResizeObserver(setBandSpeed); }
+      bandSizeObs.disconnect(); bandSizeObs.observe($('band').querySelector('.band-copy'));
+    }
     $('band').querySelectorAll('.chip[data-code]').forEach(function (c) {
       if (c.closest('.band-copy').getAttribute('aria-hidden') === 'true') { c.tabIndex = -1; }
       c.addEventListener('click', function () { openDetail(c.dataset.code); });
@@ -4740,7 +4755,7 @@ window.__fxWatch(['tblBuy', 'tblSell', 'tblWatchWatch', 'tblWatchAvoid', 'tracke
   arm('.ss-night .stat', true);
   arm('#detail .detail-body > .sect', false);
 
-  /* 探索卡片列（v207，管理者 10/23）：拉到全版、一次看得到多張，每 2 秒往下一張。
+  /* 探索卡片列（v207，管理者 10/23；v207r2 收回內容寬度、4.5 秒一張）：一次看得到多張、自動往下一張。
      先前最寬 960px、一次只置中一張，又在游標停在卡片上時暫停，看起來像沒有動畫。
      現在：左右延伸到視窗邊緣（用實際量到的位置，不用 100vw，捲軸寬度不會撐出橫向捲動），第一張對齊內容左緣；
      後面接一份複製卡（螢幕閱讀器與 Tab 鍵略過），一直往右走，走到複製的第一張時瞬間跳回原本那張，看起來是無限輪播。
@@ -4751,7 +4766,8 @@ window.__fxWatch(['tblBuy', 'tblSell', 'tblWatchWatch', 'tblWatchAvoid', 'tracke
     var pauseButton = wrap.querySelector('[data-ss-pause]');
     if (!shelf) { return; }
     var cards = [].slice.call(shelf.children), n = cards.length;
-    var STEP_MS = 2000, HOLD_MS = 4000;
+    // v207r2：2 秒太快（一張卡讀完約 4–5 秒），改 4.5 秒一張、滑動 0.6 秒；游標停在卡片上暫停，離開 1 秒後繼續
+    var STEP_MS = 4500, HOLD_MS = 6000, SLIDE_MS = 600;
     if (n > 1) {
       cards.forEach(function (card) {
         var copy = card.cloneNode(true);
@@ -4770,14 +4786,8 @@ window.__fxWatch(['tblBuy', 'tblSell', 'tblWatchWatch', 'tblWatchAvoid', 'tracke
     }
     function layout() {
       // 延伸到視窗左右邊緣：父層到視窗邊的距離變成負邊界，再用同樣寬度的內距讓第一張對齊內容
-      // 用版面位置（offsetLeft 累加）量，不用 getBoundingClientRect：進場動畫把這一區縮到 0.985 時量到的位置會偏 13 像素
-      shelf.style.marginLeft = shelf.style.marginRight = shelf.style.paddingLeft = shelf.style.paddingRight = '';
-      var host = shelf.parentElement, x = 0, vw = document.documentElement.clientWidth;
-      for (var el = host; el; el = el.offsetParent) { x += el.offsetLeft; }
-      var left = Math.max(0, Math.round(x)), right = Math.max(0, Math.round(vw - x - host.offsetWidth));
-      shelf.style.marginLeft = -left + 'px'; shelf.style.marginRight = -right + 'px';
-      shelf.style.paddingLeft = left + 'px'; shelf.style.paddingRight = right + 'px';
-      shelf.style.scrollPaddingLeft = left + 'px';
+      // v207r2（管理者 10/23）：收回內容寬度，與標題、頁面其他區塊同一條左右邊線，不再延伸到視窗邊緣
+      shelf.style.marginLeft = shelf.style.marginRight = shelf.style.paddingLeft = shelf.style.paddingRight = shelf.style.scrollPaddingLeft = '';
     }
     function update() {
       raf = 0;
@@ -4798,7 +4808,7 @@ window.__fxWatch(['tblBuy', 'tblSell', 'tblWatchWatch', 'tblWatchAvoid', 'tracke
       shelf.style.scrollSnapType = 'none';
       function animate(t) {
         if (!start) { start = t; }
-        var p = Math.min(1, (t - start) / 450), ease = 1 - Math.pow(1 - p, 3);
+        var p = Math.min(1, (t - start) / SLIDE_MS), ease = p < .5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
         shelf.scrollLeft = from + (to - from) * ease;
         if (p < 1) { motion = requestAnimationFrame(animate); } else { motion = 0; clearTimeout(fallback); settle(); }
       }
@@ -4807,7 +4817,8 @@ window.__fxWatch(['tblBuy', 'tblSell', 'tblWatchWatch', 'tblWatchAvoid', 'tracke
          卡片就停在原地（2026/10/23 實測每秒 0 個影格）。0.7 秒還沒開始動就直接換到下一張，照樣每 2 秒前進。 */
       fallback = setTimeout(function () { if (motion && !start) { cancelAnimationFrame(motion); motion = 0; shelf.scrollLeft = to; settle(); } }, 700);
     }
-    function canPlay() { return !stopped && !focused && Date.now() >= holdUntil && visible && !document.hidden && !reduce && n > 1; }
+    var overCard = false;
+    function canPlay() { return !stopped && !focused && !overCard && Date.now() >= holdUntil && visible && !document.hidden && !reduce && n > 1; }
     function schedule(delay) {
       clearTimeout(timer);
       if (canPlay()) { timer = setTimeout(function () { go(current() + 1); schedule(STEP_MS); }, delay || STEP_MS); }
@@ -4824,6 +4835,12 @@ window.__fxWatch(['tblBuy', 'tblSell', 'tblWatchWatch', 'tblWatchAvoid', 'tracke
     }
     shelf.addEventListener('scroll', function () { if (!raf) { raf = requestAnimationFrame(update); } }, { passive: true });
     ['pointerdown', 'touchstart', 'wheel'].forEach(function (eventName) { shelf.addEventListener(eventName, hold, { passive: true }); });
+    // 游標停在卡片上（準備點）時不要把卡片滑走；只看滑鼠，觸控裝置沒有懸停
+    shelf.addEventListener('pointerover', function (e) { if (e.pointerType === 'mouse' && e.target.closest('.ss-card')) { overCard = true; clearTimeout(timer); } });
+    shelf.addEventListener('pointerout', function (e) {
+      if (e.pointerType !== 'mouse' || (e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('.ss-card'))) { return; }
+      overCard = false; schedule(1000);
+    });
     // 手動滑到複製的那一份，停下來時也換回原本那張，下一次自動往右才接得上
     shelf.addEventListener('scrollend', function () { if (!motion) { var c = current(); if (c >= n) { shelf.scrollLeft = position(c - n); } } });
     shelf.addEventListener('keydown', function (e) {

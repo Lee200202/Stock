@@ -882,7 +882,7 @@ function restatesEarlier_(key, earlier) {
     }
     return cardList('sk-daily', rows.map(function (r) {
       return rowOpen(tone, r.code) + stockIdCell(r.name, r.code, watch ? '<span class="story-direction" aria-label="'+(tone==='note'?'留意追蹤':'暫不進場')+'"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#story-i-'+(tone==='note'?'search':'shield')+'"/></svg></span>' : '') +
-        quoteCell(r.code, opts.history ? '今日價' : '') +
+        quoteCell(r.code, '') +
         noteCell(publicNarrative_(r.reason,r)) + '</tr>';
     }).join(''));
   }
@@ -919,9 +919,11 @@ function restatesEarlier_(key, earlier) {
     var trading=['Mon','Tue','Wed','Thu','Fri'].indexOf(weekday)>=0 && hm>=900 && hm<=1340;
     var stale=trading && (day!==today || !isFinite(ms) || Date.now()-ms>300000);
     var t=String(q.time||q.stamp||'');
-    var label=day!==today?(day.slice(5)+' 前次行情'):stale?'待更新':hm>=1340?'收盤':'行情 '+(t.match(/\d{2}:\d{2}/)||['時間未提供'])[0];
-    // 前次行情仍是可核對的價格；和「當日過期」分開，必須帶原日期顯示。
+    // 只有個股面板顯示行情時間；收盤必須有來源或 13:30 時戳佐證，舊盤中價不冒稱收盤。
     var previous = /^\d{4}\/\d{2}\/\d{2}$/.test(day) && day < today;
+    var clock=String(q.tradeStamp||q.stamp||q.time||'').match(/\d{2}:\d{2}/);
+    var closed=/收盤/.test(String(q.source||'')+' '+t) || /(?:T| )13:30:00/.test(String(q.stamp||''));
+    var label=(/^\d{4}\/\d{2}\/\d{2}$/.test(day)?day.slice(5)+' ':'')+(closed?'收盤':clock?'成交 '+clock[0]:'時間未提供')+(stale&&!previous?' · 待更新':'');
     return {last:last,pct:pct,label:label,stale:stale,previous:previous,readable:!stale||previous,time:formatTaipeiTime(q.tradeStamp||q.stamp||q.time)||'未提供'};
   }
   function renderQuotes(q, scope) {
@@ -930,23 +932,22 @@ function restatesEarlier_(key, earlier) {
       incoming=Object.assign({},incoming);var view=quoteView(incoming);incoming.changePct=view.pct;incoming.change=Number(incoming.prevClose)>0?view.last-Number(incoming.prevClose):null;displayedQuotes[code]=incoming;
     });
     document.querySelectorAll('[data-px]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.px]);el.textContent=v&&v.readable?fmtPx(v.last):'—';
-      el.title=v?'成交時間：'+v.time:'目前無可核對的行情';
-      var note=el.parentNode.querySelector('.quote-asof');if(!note){note=document.createElement('small');note.className='quote-asof';el.parentNode.appendChild(note);}
-      note.textContent=v?v.stale||v.previous?v.label:'':'無行情';note.hidden=!!v&&!v.stale&&!v.previous;note.classList.toggle('is-stale',!!v&&v.stale);
+      el.title=v&&!v.readable?'報價待更新':v?'點選個股查看行情資料':'目前無可核對的行情';
     });
     document.querySelectorAll('[data-chg]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.chg]);var pct=v&&v.readable?v.pct:null;
-      el.textContent=pct==null?'—':(pct>0?'+':'')+pct.toFixed(2)+'%';el.className='px r '+signCls(pct);el.title=v?'成交時間：'+v.time:'無可核對的前收盤價';
+      el.textContent=pct==null?'—':(pct>0?'▲ ':pct<0?'▼ ':'')+Math.abs(pct).toFixed(2)+'%';el.className='px r '+signCls(pct);el.title=pct==null?'無可核對的前收盤價':'較前收盤價';
     });
-    document.querySelectorAll('[data-live-price]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.livePrice]);if(!v)return;el.textContent=v.stale?'—':fmtPx(v.last);var note=el.parentNode.querySelector('.quote-asof');if(!note){note=document.createElement('small');note.className='quote-asof';el.parentNode.appendChild(note);}note.textContent=v.stale?v.label:'';note.hidden=!v.stale;note.title='成交時間：'+v.time;});
+    document.querySelectorAll('[data-live-price]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.livePrice]);if(!v)return;el.textContent=v.readable?fmtPx(v.last):'—';el.title=v.readable?'點選個股查看行情資料':'報價待更新';});
     document.querySelectorAll('[data-live-ret]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.liveRet]),entry=Number(el.dataset.entry);if(!v||entry<=0)return;if(v.stale){el.textContent='—';return;}var ret=(v.last-entry)/entry*100;el.textContent=fmtRet(ret);el.parentNode.setAttribute('aria-label','未實現報酬 '+fmtRet(ret));var axis=el.closest('.tx');if(axis)axis.className='tx tx-'+signCls(ret);});
     document.querySelectorAll('[data-bandpx]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.bandpx]),pct=v&&v.readable?v.pct:null;
-      el.textContent=v&&v.readable?fmtPx(v.last)+(pct==null?'':'　'+(pct>0?'▲':pct<0?'▼':'')+Math.abs(pct).toFixed(2)+'%')+(v.previous?'　'+v.label:''):v?v.label:'—';
-      el.className='px '+signCls(pct);el.title=v?'成交時間：'+v.time:'無可核對行情';
+      el.textContent=v&&v.readable?fmtPx(v.last)+(pct==null?'':'　'+(pct>0?'▲':pct<0?'▼':'')+Math.abs(pct).toFixed(2)+'%'):'—';
+      el.className='px '+signCls(pct);el.title=v&&!v.readable?'報價待更新':v?'點選個股查看行情資料':'無可核對行情';
     });
+    document.querySelectorAll('.quote-asof').forEach(function(el){el.remove();});
     if(typeof DETAIL!=='undefined'&&DETAIL.header&&currentCode&&$('detail').classList.contains('open')) {
       var shared=displayedQuotes[currentCode],view=quoteView(shared);
       if(view){DETAIL.header.quote=Object.assign({},shared,{ok:true});$('dPrice').textContent=view.readable?fmtPx(view.last):'—';$('dPrice').className='p '+signCls(view.readable?view.pct:null);$('dPrice').title='成交時間：'+view.time;
-        $('dChange').textContent=!view.readable?view.label:(view.pct==null?'—':(view.pct>0?'▲ ':view.pct<0?'▼ ':'')+Math.abs(Number(shared.change)).toFixed(2)+'　'+view.pct.toFixed(2)+'%')+(view.previous?'　'+view.label:'');$('dChange').className='d '+signCls(view.readable?view.pct:null);$('dChange').title='成交時間：'+view.time;}
+        $('dChange').textContent=!view.readable?view.label:(view.pct==null?'—':(view.pct>0?'▲ ':view.pct<0?'▼ ':'')+Math.abs(Number(shared.change)).toFixed(2)+'　'+view.pct.toFixed(2)+'%')+'　'+view.label;$('dChange').className='d '+signCls(view.readable?view.pct:null);$('dChange').title='成交時間：'+view.time;}
     }
   }
   // 同頁共用補查佇列：先畫已取得的報價，只有過期／缺值才接續，不空等下一分鐘。
@@ -1352,6 +1353,7 @@ function restatesEarlier_(key, earlier) {
     if (dashboardDone) { return; }
     $('siteLoadAlert').hidden = false;
     $('stamp').textContent = '資料載入逾時';
+    $('stamp').hidden = false;
     $('stamp').classList.add('err');
   }, 90000);   // v87：傳輸層與這裡都會自動重試，90 秒還沒回來才提示
   function onDashboard(res) {
@@ -1361,7 +1363,8 @@ function restatesEarlier_(key, earlier) {
     var d = res.today;
     // 舊部署若仍回序號，也不印 undefined；資料歸屬由新版後端 fmtDate_ 修復。
     d.date = dashboardDateKey(d.date);
-    $('stamp').textContent = '更新於 ' + formatTaipeiTime(res.updatedAt);
+    $('stamp').textContent = '';
+    $('stamp').hidden = true;
     $('stamp').classList.remove('err');
 
     // 總覽的日期出來了，讓上面那塊會員通知對齊同一天。
@@ -1411,6 +1414,7 @@ function restatesEarlier_(key, earlier) {
       dashboardTries++;
       if (dashboardTries <= 2 && document.documentElement.dataset.host !== 'pages') {
         $('stamp').textContent = '重新連線中…';
+        $('stamp').hidden = false;
         setTimeout(loadDashboard, dashboardTries === 1 ? 5000 : 15000);
         return;
       }
@@ -1419,6 +1423,7 @@ function restatesEarlier_(key, earlier) {
       $('siteLoadAlert').hidden = false;
       // 加 err 讓它在窄螢幕上也留著。時間戳可以藏，「資料讀取失敗」不行。
       $('stamp').textContent = '資料讀取失敗';
+      $('stamp').hidden = false;
       $('stamp').classList.add('err');
       renderLedger(null);
     }).apiGetDashboard();

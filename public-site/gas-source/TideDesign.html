@@ -50,6 +50,20 @@ body :is(h1,h2) br{display:none}
 .detail-body .sect-h h2{font-size:min(34px,calc(24px * var(--rd-fs,1)));line-height:1.4}
 @media(max-width:600px){.detail-body .sect-h{display:flex;flex-wrap:wrap;gap:12px}.detail-body .sect-h>h2{flex-basis:100%;font-size:min(28px,calc(21px * var(--rd-fs,1)));margin:0}.detail-body .sect-h .k-fresh{max-width:100%}}
 </style>
+
+<style id="quotePresentationV205">
+/* 行情時間只留在個股面板，總覽用價格與漲跌幅帶出重點。 */
+body[data-tab] .sk-quote{flex-direction:row;flex-wrap:wrap;align-items:baseline;justify-content:flex-end;gap:6px 10px;min-width:0;max-width:100%}
+body[data-tab] .sk-quote .sk-qk{flex-basis:100%}
+body[data-tab] .sk-quote [data-chg]{font-size:calc(14px * var(--rd-fs,1));padding:3px 10px;line-height:1.4}
+body[data-tab] #overviewTop .hero{padding-bottom:20px}
+body[data-tab] #overviewTop .hero-grid{row-gap:20px}
+body[data-tab] #overviewTop #ledger{margin-top:18px}
+body[data-tab] #overviewTop .signalband{margin-top:12px}
+body[data-tab] #p-overview{padding-top:24px}
+body[data-tab] #p-overview>.sect{padding:clamp(18px,2vw,30px);margin-bottom:18px}
+@media(max-width:700px){body[data-tab] table.sk tr.sk-row:has(.sk-quote){grid-template-columns:minmax(0,1fr);grid-template-areas:"id" "quote" "body";row-gap:12px;padding:20px 20px 22px 30px}body[data-tab] .sk-quote{justify-content:flex-start}body[data-tab] #overviewTop .hero{padding-bottom:12px}}
+</style>
 <script>
 (function(){
   'use strict';

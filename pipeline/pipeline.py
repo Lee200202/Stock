@@ -8279,11 +8279,13 @@ def recover_context(signals, transcript):
 
 
 _DAY_SOURCE_CONTEXT = {}
+_DAY_PRIVATE_NOTICE_PRICES = {}
 
 
 def load_day_source_context(ss, date_str):
     """只載當日通知原文與來源識別；不讀既有分類答案或改寫說明，不新增通用別名。"""
     context = {'date': date_str, 'notices': [], 'company_candidates': {}}
+    private_prices = {}
     values = sheets_retry(ss.worksheet('會員簡訊').get_all_values)
     if values and '原文' in values[0] and '發文時間' in values[0]:
         for cells in values[1:]:
@@ -8298,8 +8300,12 @@ def load_day_source_context(ss, date_str):
             if (norm_date(row.get('日期')) == date_str and _is_sms_row(row.get('來源影片ID'))
                     and re.fullmatch(r'[1-9]\d{3}', str(row.get('代號') or ''))):
                 context['company_candidates'][str(row['代號'])] = str(row.get('股票名稱') or '')
+                if name == '操作紀錄':
+                    private_prices.setdefault(str(row['代號']), []).extend(_ws_numbers(row.get('價位說明') or ''))
     _DAY_SOURCE_CONTEXT.clear()
     _DAY_SOURCE_CONTEXT.update(context)
+    _DAY_PRIVATE_NOTICE_PRICES.clear()
+    _DAY_PRIVATE_NOTICE_PRICES.update(date=date_str, prices=private_prices)
     return context
 
 
@@ -8892,6 +8898,10 @@ def quality_overview(signals, transcript='', check_chapters=True):
         name = _display_name(r.get('name')) or str(r.get('name') or '')
         note = public_narrative(str(r.get('note') if cat == 'holdings' else r.get('reason')) if (r.get('note') if cat == 'holdings' else r.get('reason')) else '', r, signals)
         quoted = [q for q in (r.get('evidence') or []) if isinstance(q, str) and q.strip()]
+        notice_prices = (_DAY_PRIVATE_NOTICE_PRICES.get('prices') or {}).get(str(r.get('code') or ''), [])
+        if ((r.get('_date') or _DAY_PRIVATE_NOTICE_PRICES.get('date')) == _DAY_PRIVATE_NOTICE_PRICES.get('date')
+                and set(notice_prices) & set(_ws_numbers(note))):
+            hard.append(f'{name} 的公開說明包含當日會員通知操作價；須依公開原稿重寫，不以刪改答案繞過')
         notes.append((name, len(note), bool(_CONCRETE.search(note)), bool(quoted)))
         if re.search(r'KY\s*-?\s*KY', note, re.I):
             hard.append(f'{name} 的說明把 -KY 連寫：{note[:30]}')
@@ -14384,6 +14394,28 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
     return apply_verdicts(signals, date_str)
 
 
+def notice_identity_proof(entry, code, official, heard, date_str):
+    """只承接本日原通知及至少兩份有效模型主體確認，不新增全域語音別名。"""
+    context = _DAY_SOURCE_CONTEXT
+    if (context.get('date') != date_str or _quantity_surface(heard)
+            or _display_name((context.get('company_candidates') or {}).get(code) or '') != _display_name(official)):
+        return {}
+    rounds = [r for r in entry.get('round_answers', []) if r.get('class') in SIGNAL_CATEGORIES
+              and (r.get('answer') or {}).get('about_itself') is True]
+    if len({r.get('round') for r in rounds}) < 2:
+        return {}
+    for r in rounds:
+        answer = r['answer']
+        for field, ids in (answer.get('quote_source_ids') or {}).items():
+            if not isinstance(ids, list) or not any(str(i).startswith('N') for i in ids):
+                continue
+            quotes = (answer.get('_verified_quote_sources') or {}).get(field) or []
+            if any(official in q and any(q == n.get('original') for n in context.get('notices', [])) for q in quotes):
+                return {'date': date_str, 'code': code, 'official': official, 'heard': heard,
+                        'notice_source_ids': ids, 'model_rounds': [x['round'] for x in rounds]}
+    return {}
+
+
 def apply_verdicts(signals, date_str, final=False):
     """照裁決結果改列。可以重複呼叫：收尾（final）那一次把後面規則搬走的列搬回來，並記下是哪一檔。"""
     verdicts = signals.get('_verdicts') or {}
@@ -14460,15 +14492,13 @@ def apply_verdicts(signals, date_str, final=False):
                 if cat in _VERDICT_HIDDEN and official and heard and _display_name(heard) != _display_name(official) \
                         and heard not in CONFIRMED_NAMES:
                     # 不公開的列帶著的代號可能是模型給的、沒有經過代號比對（2026/10/14「連亞」帶著 3086，被換成華義）：先核對名稱
-                    got, got_name, how = resolve_code(heard, '')
-                    if got and got not in (REJECT, UNRESOLVED) and got != code:
-                        print(f"  分類裁決　{heard}：帶著的代號 {code}（{official}）與名稱對不上，代號比對改為 {got} {got_name}")
-                        note_decision('分類裁決', '改列公開前核對代號，改用名稱對到的代號', heard, f'{code}→{got}｜{how}')
-                        moved['code'], code, official = got, got, got_name
-                    elif got != code:
+                    proof = notice_identity_proof(entry, code, official, heard, date_str)
+                    if proof:
+                        moved['_day_notice_identity_proof'] = proof
+                    else:
                         # 對不到別的代號：原列留在不公開，不改列
-                        print(f"  分類裁決　{heard}：帶著的代號 {code}（{official}）與名稱對不上、也比對不出別的代號，留在不公開")
-                        note_decision('分類裁決', '改列公開前代號對不上，留在不公開', heard, f'{code}｜{how}')
+                        print(f"  分類裁決　{heard}：{code}（{official}）缺本日來源身分證明，留待核；不以模糊比對換成另一股")
+                        note_decision('分類裁決', '身分證明未完成，留待核', heard, code)
                         continue
                 if official and heard and _display_name(heard) != _display_name(official):
                     moved['aliases'] = list(dict.fromkeys([x for x in (moved.get('aliases') or []) if isinstance(x, str)] + [heard]))

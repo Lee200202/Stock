@@ -7,6 +7,31 @@ from test_source_fact_ledger import p
 
 
 class IdentityContext(unittest.TestCase):
+    def test_notice_identity_proof_is_local_and_cannot_reclassify_an_ordinary_word(self):
+        notice='甲公司會員持股續抱。'
+        answer={'about_itself':True,'quote_source_ids':{'holding_now':['N0001']},'_verified_quote_sources':{'holding_now':[notice]}}
+        entry={'round_answers':[{'round':i,'class':'holdings','answer':copy.deepcopy(answer)} for i in (1,2)]}
+        context={'date':'2026/10/27','company_candidates':{'1111':'甲公司'},'notices':[{'original':notice}]}
+        with patch.object(p,'_DAY_SOURCE_CONTEXT',context):
+            self.assertTrue(p.notice_identity_proof(entry,'1111','甲公司','甲公思','2026/10/27'))
+            self.assertFalse(p.notice_identity_proof(entry,'1111','甲公司','一家','2026/10/27'))
+            self.assertFalse(p.notice_identity_proof(entry,'2222','乙公司','甲公思','2026/10/27'))
+            self.assertFalse(p.notice_identity_proof(entry,'1111','甲公司','甲公思','2026/10/28'))
+            entry['round_answers'].pop()
+            self.assertFalse(p.notice_identity_proof(entry,'1111','甲公司','甲公思','2026/10/27'))
+
+    def test_private_notice_price_blocks_publication_without_rewriting_or_reclassifying(self):
+        row={'code':'1111','name':'甲公司','reason':'甲公司依會員通知785元買進。','_date':'2026/10/27'}
+        original=copy.deepcopy(row)
+        private={'date':'2026/10/27','prices':{'1111':['785']}}
+        with patch.object(p,'_DAY_PRIVATE_NOTICE_PRICES',private):
+            _,hard,_=p.quality_overview({'buy':[row]},check_chapters=False)
+            self.assertTrue(any('會員通知操作價' in x for x in hard))
+            row['reason']='甲公司假破底，外資連續買進，上半年EPS21.83。'
+            _,hard,_=p.quality_overview({'buy':[row]},check_chapters=False)
+            self.assertFalse(any('會員通知操作價' in x for x in hard))
+        self.assertEqual(row['code'],original['code']);self.assertEqual(row['_date'],original['_date'])
+
     def test_original_notice_is_quotable_without_inventing_a_transcript_quote(self):
         raw='這一段只有大盤。'
         item=('1111',{'name':'甲公司','heard':[],'known':[],'passages':[]})

@@ -1,0 +1,42 @@
+{
+  "model_runs": [
+    {
+      "id": "40505142031",
+      "commit": "cd5220e4",
+      "calls": 26,
+      "status": "failed"
+    },
+    {
+      "id": "40506767184",
+      "commit": "bb8dcfb6",
+      "calls": 27,
+      "status": "failed"
+    },
+    {
+      "id": "40508593047",
+      "commit": "aead636e",
+      "calls": 29,
+      "status": "failed"
+    }
+  ],
+  "actual_model_calls": 82,
+  "local_contracts": 81,
+  "applied": false,
+  "merged": false,
+  "last_patch_full_model_verified": false,
+  "formal_counts": [
+    1,
+    0,
+    5,
+    5,
+    8
+  ],
+  "gas_deployment_version": 526,
+  "policy": "群聯宜鼎改不碰；華邦南亞無獨立分析不公開；台達超跌勿殺低等反彈注意",
+  "remaining": [
+    "主張來源對齊不穩",
+    "現況與歷史條件漏判",
+    "最新接續／隱私小修未全日模型重驗"
+  ],
+  "notice_identity_controlflow": "使用真實保存模型結果，本機已能承接6409為holdings，非正式套用或新模型實跑"
+}

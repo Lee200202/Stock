@@ -129,6 +129,37 @@ class PriceContextContract(unittest.TestCase):
         self.assertEqual(signals['watch_watch'], [row])
         self.assertIn('成本1080元', row['reason'])
 
+    def test_missing_source_review_does_not_start_claim_repair(self):
+        # 2026/10/27：模型沒回逐項核對（舊契約或漏填）時，不得把每一項判成不足再整段清空
+        row = {'name': '甲公司', 'code': '1111'}
+        self.assertEqual(p._validated_source_review({}, row, '甲公司回測年線。', '甲公司回測年線。'), {})
+        self.assertEqual(p._validated_source_review({'source_review': {'claims': []}}, row, '甲公司回測年線。', '甲公司回測年線。'), {})
+
+    def test_ellipsis_quote_of_one_passage_is_verified_span_by_span(self):
+        # 10/15 嘉澤重播：模型用「...」節錄同一段前後句，逐段都在原稿且順序相同才算原字引用
+        raw = '昨天甲公司漲到2,000塊。張總，你在這邊叫我們出一半啦。甲公司跌到1,800多。啊再等一下，靠近季線比較好。'
+        text = '甲公司自2,000元回落至1,800多元，等待靠近季線。'
+        reply = {'id': 'c0', 'status': 'supported', 'subject': '甲公司', 'subject_code': '1111', 'explanation': '本股位置',
+                 'source_quote': '昨天甲公司漲到2,000塊...甲公司跌到1,800多。啊再等一下，靠近季線比較好。'}
+        ok = p._validated_source_review({'source_review': {'claims': [reply, dict(reply, id='c1')]}},
+                                        {'name': '甲公司', 'code': '1111'}, text, raw)
+        self.assertEqual(ok['status'], 'supported')
+        swapped = dict(reply, source_quote='甲公司跌到1,800多...昨天甲公司漲到2,000塊')
+        bad = p._validated_source_review({'source_review': {'claims': [swapped, dict(swapped, id='c1')]}},
+                                         {'name': '甲公司', 'code': '1111'}, text, raw)
+        self.assertEqual(bad['status'], 'insufficient')
+
+    def test_insufficient_claims_keep_original_wording(self):
+        # 只有確認跨股才移除；不足（引用不完整）保留原句、只記待核
+        text = '甲公司股本較小，拉抬較快，目前尚未見低檔量能。'
+        raw = '乙公司股本比較小，拉起來速度比較快。甲公司目前尚未見低檔量能。'
+        row = {'name': '甲公司', 'code': '1111', 'reason': text}
+        signals = {'watch_watch': [row]}
+        review = p._validated_source_review({'source_review': {'claims': [{'id': 'c2', 'status': 'supported', 'subject': '甲公司',
+            'subject_code': '1111', 'source_quote': '甲公司目前尚未見低檔量能。', 'explanation': '本股量能'}]}}, row, text, raw)
+        self.assertFalse(p._apply_source_claim_review(signals, row, 'reason', review))
+        self.assertEqual(row['reason'], text)
+
     def test_one_supported_claim_cannot_approve_a_mixed_note(self):
         text = '甲公司股本較小，拉抬較快，目前尚未見低檔量能。'
         raw = '乙公司股本比較小，拉起來速度比較快。甲公司目前尚未見低檔量能。'

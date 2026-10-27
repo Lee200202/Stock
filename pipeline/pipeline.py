@@ -16972,16 +16972,36 @@ def public_edit_response_schema():
         'type': 'object', 'properties': fields, 'required': list(fields)}}}, 'required': ['texts']}
 
 
+def _quote_spans_in_source(quote, transcript_norm):
+    """模型引句可用「…」或「...」節錄同一段的前後句：每一段（至少 6 字）都要逐字出現在原稿，而且前後順序相同。"""
+    raw = str(quote or '').strip()
+    parts = [_ev_norm(p) for p in re.split(r'\.{2,}|…+', raw)]
+    parts = [p for p in parts if p]
+    if not parts or any(len(p) < 6 for p in parts):
+        return False
+    pos = 0
+    for part in parts:
+        at = transcript_norm.find(part, pos)
+        if at < 0:
+            return False
+        pos = at + len(part)
+    return True
+
+
 def _validated_source_review(item, row, old, transcript):
-    """語意由批次模型判讀；程式只核結構、原字引用及版本，不用價位猜主體。"""
+    """語意由批次模型判讀；程式只核結構、原字引用及版本，不用價位猜主體。
+
+    2026/10/27：模型沒有回逐項來源核對（舊契約、或這一則漏填）時回空字典，不啟動逐項刪改——
+    先前會把每一項判成「不足」再全部移除，整段說明被清成空字串（10/15 嘉澤、10/21 世芯、國巨重播）。"""
     review = item.get('source_review')
-    if not isinstance(review, dict):
-        review = {}
-    replies = review.get('claims') if isinstance(review.get('claims'), list) else []
+    if not isinstance(review, dict) or not isinstance(review.get('claims'), list) or not review.get('claims'):
+        return {}
+    replies = review['claims']
     own = {_ev_norm(n) for n in _row_names_for_recap(row) if n}
     segments = source_segments(transcript)
     order = {sid: i for i, sid in enumerate(segments)}
     own_code = str(row.get('code') or '')
+    tx_norm = _ev_norm(transcript)
     number_cautions = _source_number_cautions(row, transcript)
     checked = []
     for claim in _note_claims(old):
@@ -16992,14 +17012,17 @@ def _validated_source_review(item, row, old, transcript):
         subject = str(reply.get('subject') or '').strip()
         subject_code = str(reply.get('subject_code') or '').strip()
         ids = reply.get('source_ids')
-        if (isinstance(ids, list) and 1 <= len(ids) <= 3 and all(isinstance(sid, str) and sid in segments for sid in ids)
-                and [order[sid] for sid in ids] == list(range(order[ids[0]], order[ids[0]] + len(ids)))):
-            quote = ''.join(segments[sid]['text'] for sid in ids)
+        # 講者常在節目前後不同段講同一檔：1～4 個存在的段落編號即可，不必相鄰；每段本來就是原稿，逐段串起來核對
+        if isinstance(ids, list) and 1 <= len(ids) <= 4 and all(isinstance(sid, str) and sid in segments for sid in ids):
+            ids = sorted(dict.fromkeys(ids), key=lambda sid: order[sid])
+            quote = '\n'.join(segments[sid]['text'] for sid in ids)
+            quote_ok = True
         else:
             ids = []
+            quote_ok = _quote_spans_in_source(quote, tx_norm)
         explanation = str(reply.get('explanation') or '').strip()
         valid = (status in ('supported', 'cross_entity', 'asr_uncertain', 'insufficient')
-                 and len(_ev_norm(quote)) >= 6 and _ev_norm(quote) in _ev_norm(transcript) and bool(explanation))
+                 and quote_ok and bool(explanation))
         # 語意由模型判，程式核對它填的主體與代號是否自相矛盾；不以字距或特徵詞強猜主詞。
         literal_code = bool(subject_code and re.search(r'(?<!\d)' + re.escape(subject_code) + r'(?!\d)', re.sub(r'\s+', '', quote)))
         foreign_subject = (subject_code and subject_code != own_code and len(_ev_norm(subject)) >= 2
@@ -17029,16 +17052,20 @@ def _validated_source_review(item, row, old, transcript):
 
 
 def _apply_source_claim_review(signals, row, field, review):
-    """僅處理有來源綁定的這份說明，移除有問題的主張，保留其他已核對技術內容。"""
-    if row.get('_manual_note_kept') or review.get('status') == 'supported':
+    """僅處理有來源綁定的這份說明：確認是別檔主體（cross_entity）的主張移除、人類標記待核數字（asr_uncertain）的改寫；
+    「不足」（模型漏填、引句格式不合）保留原句，只記待核——引用格式失敗不等於內容錯誤，不能拿來刪說明。
+    整段都確認是別檔內容時才會清空，交給 quarantine_public_rows 單檔隔離（10/27 毅嘉列的說明整段是勤誠）。"""
+    if not review or row.get('_manual_note_kept') or review.get('status') in ('supported', 'insufficient'):
         return False
     old = str(row.get(field) or '').strip()
     if review.get('text_sha256') != hashlib.sha256(old.encode()).hexdigest():
         return False
     kept, decisions = [], []
     for claim in review.get('claims') or []:
-        if claim['status'] == 'supported':
+        if claim['status'] in ('supported', 'insufficient'):
             kept.append(claim['text'])
+            if claim['status'] == 'insufficient':
+                signals.setdefault('_repair_gaps', []).append(f'{row.get("name")}：{claim["id"]}來源核對資料不足，保留原句待核')
             continue
         if claim['status'] == 'asr_uncertain':
             # 原字與疑似數字只留內部；不憑比值產生疑似誤聽結論，也不補成另一個數字。
@@ -17055,7 +17082,8 @@ def _apply_source_claim_review(signals, row, field, review):
     new = '。'.join(t.strip('，,；;。') for t in kept if t.strip('，,；;。'))
     row[field] = new + ('。' if new else '')
     row['_claim_repair'] = {'original': old, 'source_sha256': review['source_sha256'],
-                            'removed_or_rewritten': decisions, 'retained_claim_ids': [c['id'] for c in review['claims'] if c['status'] == 'supported']}
+                            'removed_or_rewritten': decisions,
+                            'retained_claim_ids': [c['id'] for c in review['claims'] if c['status'] in ('supported', 'insufficient')]}
     signals.setdefault('_repair_gaps', []).append(f'{row.get("name")}：逐項來源核對隔離{len(decisions)}項主張，保留其他已核對內容；原文留底')
     note_decision('逐項來源核對', '僅隔離問題主張，保留本股其他內容', str(row.get('code') or ''), str(decisions)[:400])
     return True
@@ -17195,12 +17223,7 @@ def _polish_public_texts(signals, transcript, date_str):
             row, field, old, what = pending[key]
             new = str(item.get('text') or '').strip()
             source_review = _validated_source_review(item, row, old, transcript) if field != 'text' else {}
-            if source_review:
-                row['_source_attribution_review'] = source_review
-                if _apply_source_claim_review(signals, row, field, source_review):
-                    repaired += 1
-                    pending.pop(key)
-                    continue
+            # 先留下這一則的AI審閱紀錄，再做逐項來源修復；修復不得讓審閱紀錄消失（契約測試依此核對）
             row['_public_edit_review'] = {'meaning_preserved': item.get('meaning_preserved'),
                                           'category_consistent': item.get('category_consistent'),
                                           'source_supported': item.get('source_supported'),
@@ -17208,6 +17231,13 @@ def _polish_public_texts(signals, transcript, date_str):
                                           'text_sha256': hashlib.sha256(new.encode()).hexdigest(),
                                           'source_sha256': hashlib.sha256(str(transcript or '').encode()).hexdigest(),
                                           'issues': item.get('issues_found') or []}
+            if source_review:
+                row['_source_attribution_review'] = source_review
+                if _apply_source_claim_review(signals, row, field, source_review):
+                    repaired += 1
+                    pending.pop(key)
+                    refused.pop(key, None)
+                    continue
             approved = all(item.get(k) is True for k in ('meaning_preserved','category_consistent','source_supported','written_style_ok'))
             if source_review and source_review.get('status') != 'supported':
                 approved = False

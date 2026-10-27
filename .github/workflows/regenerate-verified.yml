@@ -11,8 +11,17 @@ on:
         type: choice
         options: [preview, apply, apply-rules, raw, sync, priority-check, reviewed-points, reviewed-notes-preview, reviewed-notes, source-audit, reading-preview, reading-apply, notice-preview, notice-apply, backup-status, backup-migrate, row-repair-preview, row-repair-apply, source-review-preview, source-review-apply, source-review-inspect, verdicts, titles]
         default: preview
+      candidate_run:
+        description: 'apply 必填：同一commit且成功的preview執行ID；原封套用該artifact，不重新生成'
+        type: string
+        default: ''
+      reference:
+        description: '推論後才比對的來源參考JSON；不傳入模型'
+        type: string
+        default: ''
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: daily-pipeline
   cancel-in-progress: false
@@ -27,14 +36,31 @@ jobs:
           python-version: '3.11'
           cache: pip
       - run: pip install -r requirements.txt
+      - name: 核對模型候選來源（失敗預覽不能發布）
+        if: inputs.mode == 'apply' || inputs.mode == 'apply-rules'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN: ${{ inputs.candidate_run }}
+          TARGET_DATE: ${{ inputs.date }}
+        run: python scripts/check_candidate_run.py
+      - uses: actions/download-artifact@v4
+        if: inputs.mode == 'apply' || inputs.mode == 'apply-rules'
+        with:
+          name: model-candidate-${{ inputs.candidate_run }}
+          run-id: ${{ inputs.candidate_run }}
+          github-token: ${{ github.token }}
+          path: .model-candidate
       - name: 離線發布與AI批次審閱契約（不呼叫模型）
         run: |
           python scripts/check_public_edit_batch.py
           node scripts/check_gate_decision_contract.js
+          python scripts/test_model_release_candidate.py
       - name: 品質核對與必要更新
         env:
           TARGET_DATE: ${{ inputs.date }}
           MODE: ${{ inputs.mode }}
+          REFERENCE: ${{ inputs.reference }}
+          CANDIDATE_RUN: ${{ inputs.candidate_run }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
           GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
@@ -138,11 +164,25 @@ jobs:
             exit 1
           fi
           ARGS=(--date "$TARGET_DATE")
-          if [ "$MODE" = apply ]; then ARGS+=(--apply); fi
-          if [ "$MODE" = apply-rules ]; then ARGS+=(--apply --rules-only); fi
+          if [ -n "$REFERENCE" ]; then
+            REF_PATH=$(realpath -e -- "$REFERENCE") || exit 1
+            case "$REF_PATH" in "$GITHUB_WORKSPACE"/docs/*.json|"$GITHUB_WORKSPACE"/scripts/*.json) ;;
+              *) echo '參考限repo內docs或scripts JSON'; exit 1 ;;
+            esac
+            ARGS+=(--reference "$REF_PATH")
+          fi
+          if [[ "$MODE" = apply || "$MODE" = apply-rules ]]; then ARGS+=(--apply --candidate .model-candidate/candidate.json); fi
           if [ "$MODE" = raw ]; then ARGS+=(--raw); fi
           python scripts/regenerate_verified_day.py "${ARGS[@]}"
 
+      - uses: actions/upload-artifact@v4
+        if: always() && (inputs.mode == 'preview' || inputs.mode == 'raw')
+        with:
+          name: model-candidate-${{ github.run_id }}
+          path: .model-candidate/candidate.json
+          include-hidden-files: true
+          retention-days: 1
+          if-no-files-found: warn
       - uses: actions/upload-artifact@v4
         if: inputs.mode == 'source-audit'
         with:

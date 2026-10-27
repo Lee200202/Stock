@@ -13257,8 +13257,8 @@ selection_intent分開填：positive_candidate＝正向選股池／主動提醒�
 先找動作主體與時間：放假前、上週四、明講其他日期的賣出是 past_trade；後面的今天跌停不改成交日期。「會員全賺」「以前買過」不證明 holding_now；已全數出場且沒有買回，不是現在持有。「你今天才在賣」是在責備觀眾殺低，不是講者今日執行。新聞推薦／詐騙冒名不是講者看法。只對本股的當下條件與風險回答 now、tone。
 每一筆 stocks 是一檔台股和講者在 date 那一天的節目提到它的幾段原文（passages）；「今天」「當天」都是指那一筆的 date。你不決定分類，只回答下面的事實題；程式會依你的答案決定分類。
 每一段有兩部分：text 是講到這一檔的原文，【】標出它的名稱或代號；before 是 text 前面的話，只讓你知道上文，那裡多半還在講上一檔。
-答案只能靠 text 成立，引句只能從 text 抄。text 裡沒報名字的「這一支」「這一檔」如果接在別檔的話後面、或看不出指的是【】這一檔，就不算這一檔的事。
-本股若只是另一個族群話題前的線型例子，後面族群「準備發動／會上漲」不是本股的看法；本股只描述碰季線等位置、沒有進場結論時，now=none、tone=neutral。
+source是完整原稿、day_notification_context是當日原通知；passages的text／before只作定位，不能當唯一證據邊界。先檢查完整source中本股所有出現及後續指代，再回答，不要找到第一句「沒推薦／以前買」就停止。引句以完整source或原通知的編號核回，仍須確認主體；不明指代不借給本股。
+本股若只是另一個族群話題前的線型例子，後面族群「準備發動／會上漲」不是本股的看法。完整source後續若明確回到本股給出位置、追蹤或低接／高檔不追條件，不能因前句回顧歷史或未推薦而漏掉當下立場。只描述碰季線且全文無本股進場或追蹤結論時，now=none、tone=neutral。
 觀望注意不要求明講「買點」三字：本股若明講等待條件，或給出具有向前意義的技術訊號／看法（例如剛開始漲、第一根長紅並提醒注意低檔、明講它會跟著衝出），而且段落能對回本股，now 可為 conditional 或 tone 為 bullish。單獨點名、現在碰季線、今天漲跌數字、拿來襯托別股，仍是 neutral；不能借下一檔的預測來補本股。
 known 是系統已有的紀錄，只用來幫你分辨時間，不能代替原文。
 
@@ -14137,8 +14137,11 @@ def _ask_verdicts(items, date_str, round_no, transcript=''):
         if not batch:
             continue
         sources = source_segments(transcript) if transcript else {}
+        if _DAY_SOURCE_CONTEXT.get('date') == date_str:
+            for i, notice in enumerate(_DAY_SOURCE_CONTEXT.get('notices') or [], 1):
+                sources[f'N{i:04d}'] = {'text': str(notice.get('original') or ''), 'kind': 'original_notice'}
         payload = json.dumps({'stocks': [stock for _, stock in batch], 'source': sources,
-            'source_id_rule': '先讀完整source及當日通知，passages僅定位提示，不是完整邊界。每個事實題與stance可填quote_source_ids對應S編號，最多3段，程式會還原逐字內容；仍須自己核對該段真正主體與時間，不能借相鄰股。',
+            'source_id_rule': '先讀完整source及當日通知，passages僅定位提示，不是完整邊界。每個事實題與stance可填quote_source_ids對應S原稿或N原通知編號，最多3段，程式還原原字；核對真正主體、當日已買與續抱不同。通知買價不可進公開說明。',
             'day_notification_context': _DAY_SOURCE_CONTEXT if _DAY_SOURCE_CONTEXT.get('date') == date_str else {}}, ensure_ascii=False, separators=(',', ':'))
         try:
             raw = call_gemini(ADJUDICATE_SYSTEM, payload, want_json=True, thinking=1024,
@@ -16825,7 +16828,7 @@ def public_edit_response_schema():
         'type': 'object', 'properties': fields, 'required': list(fields)}}}, 'required': ['texts']}
 
 
-SOURCE_FACTS_VERSION = 'subject-first-v5-open-source-alignment-20261027'
+SOURCE_FACTS_VERSION = 'subject-first-v6-claim-echo-20261027'
 SOURCE_FACTS_SYSTEM = """你是逐字稿事實與主體審核者。輸入只有原稿、公司識別候選及匿名字串檢索命中的段落編號，沒有待審股名與主張配對、分類或標準答案。
 每項fact的subject_codes恰好一個主體。共同結論可拆成兩項同引句、不同主體；「甲和股本小的乙」不能合成兩家公司都股本小的事實。逐一盤點指定段落內的最小事實，不只挑全文大意。當日通知原文若有提供，只供身分／事件參照，不得拿它補造原稿技術面。
 focus_source_ids是優先查核範圍，不是主體答案。逐一閱讀這些段落及前後文，完整列出每個主體各自的最小事實，特別避免只摘要整篇而漏掉指定段落的細節。檢索只證明字串相關，不能以命中、最近名稱或價格決定主體；仍由你判讀上下文，無法確認則列uncertain。
@@ -16962,6 +16965,7 @@ def source_claim_ledger(signals, transcript):
 SOURCE_ALIGNMENT_SYSTEM = """你是原稿事實與匿名主張的對照員。queries沒有原草稿股名、分類或標準答案，不能反推它想被寫給誰。
 facts只是可能漏項的索引，不是原稿的完整事實。必須回讀完整sources，列出所有確實支持匿名主張的原句主體；若索引缺漏，從原稿另建additional_facts，引用S編號、subject_codes恰好一人、statement保留時間與條件，再讓fact_ids引用它。未出現在索引不等於來源沒有。
 coverage只在已讀完整原稿、該匿名主張的所有本股與他股支持都完成盤點時填complete，否則填partial。不能因只找到一個例子便宣稱其他公司都沒有。一般「目前不買」「續抱」可能有多檔，逐項列出，不能只挑一人。
+每項回覆原樣複製query_text，並回答entails_all_details。只有事實支持主張全部細節（包括每個數字、時間、動作、條件）才可true及entailed。不同價格的下跌不能互換；目標價上調不等於跌24%；某句同有否定詞不等於同一主張。不完整支持一律insufficient，不能為配對而挑最相近的fact。
 逐項判斷哪些facts真正支持該匿名主張；fact.statement的主體與事實必須相符，source_quote只核對該主體的上下文，不得因同段另一家公司也說過某事就把它綁給本fact。
 例如某fact只說乙公司股本小，不能支持「目前沒有買進」；另一fact明講甲公司未買進才可。修飾只屬其中一人的特徵不能分享給並列成員。
 列出所有確實支持的fact_ids，沒有則relation=insufficient、fact_ids=[]。不按最近名稱、價格帶判斷。只輸出JSON：{"additional_facts":[],"matches":[{"id":"Q0001","relation":"entailed或insufficient","coverage":"complete或partial","fact_ids":["來源事實ID"]}]}。"""
@@ -16969,6 +16973,7 @@ coverage只在已讀完整原稿、該匿名主張的所有本股與他股支持
 
 def source_alignment_schema():
     props = {'id': {'type': 'string'}, 'relation': {'type': 'string', 'enum': ['entailed', 'insufficient']},
+             'query_text': {'type': 'string'}, 'entails_all_details': {'type': 'boolean'},
              'coverage': {'type': 'string', 'enum': ['complete', 'partial']},
              'fact_ids': {'type': 'array', 'items': {'type': 'string'}}}
     return {'type': 'object', 'properties': {'matches': {'type': 'array', 'items': {
@@ -17040,7 +17045,10 @@ def align_anonymous_claims(signals, transcript, ledger):
             continue
         match = found[0]
         ids = match.get('fact_ids')
-        if match.get('relation') == 'entailed' and isinstance(ids, list) and ids and all(isinstance(fid, str) and fid in ledger['facts'] for fid in ids):
+        expected_query = next(q['text'] for q in queries if q['id'] == key)
+        if (match.get('relation') == 'entailed' and match.get('query_text') == expected_query
+                and match.get('entails_all_details') is True
+                and isinstance(ids, list) and ids and all(isinstance(fid, str) and fid in ledger['facts'] for fid in ids)):
             bindings[claim['id']] = {'text_sha256': hashlib.sha256(claim['text'].encode()).hexdigest(),
                 'fact_ids': list(dict.fromkeys(ids)), 'relation': 'entailed', 'coverage': match.get('coverage', 'partial')}
 
@@ -17143,7 +17151,8 @@ def _validated_source_review(item, row, old, transcript):
                 if not any(belongs):
                     # 對照先讀原稿的事實主體；不讓草稿審閱者機械抄本股代號放行。
                     codes = {c for f in bound for c in f['subject_codes']}
-                    if len(codes) == 1 and (not aligned or aligned.get('coverage') == 'complete'):
+                    exact_numbers = set(_ws_numbers(claim['text'])).issubset(set(_ws_numbers(' '.join(f['source_quote'] for f in bound))))
+                    if len(codes) == 1 and exact_numbers and (not aligned or aligned.get('coverage') == 'complete'):
                         status, subject_code = 'cross_entity', next(iter(codes))
                         quote = bound[0]['subject_quote'] + '\n' + bound[0]['source_quote']
                         explanation = '獨立原稿事實主體屬其他公司：' + '；'.join(f['statement'] for f in bound)
@@ -17181,10 +17190,11 @@ def _apply_source_claim_review(signals, row, field, review):
     old = str(row.get(field) or '').strip()
     if review.get('text_sha256') != hashlib.sha256(old.encode()).hexdigest():
         return False
-    kept, decisions = [], []
+    kept, decisions, retained_reviews = [], [], []
     for claim in review.get('claims') or []:
         if claim['status'] in ('supported', 'insufficient'):
             kept.append(claim['text'])
+            retained_reviews.append(dict(claim))
             if claim['status'] == 'insufficient':
                 signals.setdefault('_repair_gaps', []).append(f'{row.get("name")}：{claim["id"]}來源核對資料不足，保留原句待核')
             continue
@@ -17197,6 +17207,7 @@ def _apply_source_claim_review(signals, row, field, review):
                          and t.lower() not in str(claim.get('source_quote') or '').lower()]
             if safe and not new_terms and claim.get('subject_code') == str(row.get('code') or ''):
                 kept.append(safe.strip('，,；;。'))
+                retained_reviews.append(dict(claim, text=safe.strip('，,；;。'), status='supported'))
         decisions.append(claim)
     if not decisions:
         return False
@@ -17207,6 +17218,10 @@ def _apply_source_claim_review(signals, row, field, review):
                             'retained_claim_ids': [c['id'] for c in review['claims'] if c['status'] in ('supported', 'insufficient')],
                             'retained_pending': any(c['status'] == 'insufficient' for c in review['claims']),
                             'repaired_text_sha256': hashlib.sha256(str(row[field]).strip().encode()).hexdigest()}
+    row['_source_attribution_review'] = dict(review,
+        status='supported' if retained_reviews and all(c['status'] == 'supported' for c in retained_reviews) else 'insufficient',
+        claims=retained_reviews, repaired_from_sha256=review['text_sha256'],
+        text_sha256=row['_claim_repair']['repaired_text_sha256'])
     signals.setdefault('_repair_gaps', []).append(f'{row.get("name")}：逐項來源核對隔離{len(decisions)}項主張，保留其他已核對內容；原文留底')
     note_decision('逐項來源核對', '僅隔離問題主張，保留本股其他內容', str(row.get('code') or ''), str(decisions)[:400])
     return True
@@ -17361,7 +17376,7 @@ def _polish_public_texts(signals, transcript, date_str):
             row = targets[entry['id']][0]
             lean = {k: v for k, v in entry.items() if k not in ('context','evidence')}
             lean['source_hints'] = row.get('evidence_refs') or []
-            lean['claim_fact_matches'] = (row.get('_source_claim_bindings') or {}).get('claims') or {}
+            # 編輯者獨立核原稿，不預先告知匿名對照的配對答案，避免同一錯配被兩階段複誦。
             payload_texts.append(lean)
         source_ledger = signals.get('_source_fact_ledger') or {}
         raw = call_gemini(PUBLIC_EDIT_SYSTEM, json.dumps({'texts': payload_texts, 'sources': source_parts,

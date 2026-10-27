@@ -7,6 +7,21 @@ from test_source_fact_ledger import p
 
 
 class IdentityContext(unittest.TestCase):
+    def test_original_notice_is_quotable_without_inventing_a_transcript_quote(self):
+        raw='這一段只有大盤。'
+        item=('1111',{'name':'甲公司','heard':[],'known':[],'passages':[]})
+        reply={'verdicts':[{'id':'1111','about_itself':True,'holding_now':True,
+            'quotes':{},'quote_source_ids':{'holding_now':['N0001']}}]}
+        def model(system,payload,**kw):
+            data=json.loads(payload)
+            self.assertEqual(data['source']['N0001']['text'],'甲公司會員持股續抱。')
+            self.assertNotIn('答案只能靠 text 成立',system)
+            return json.dumps(reply)
+        context={'date':'2026/10/27','notices':[{'original':'甲公司會員持股續抱。'}]}
+        with patch.object(p,'call_gemini',side_effect=model),patch.object(p,'_DAY_SOURCE_CONTEXT',context),patch.object(p,'_CODE_MAP',{'1111':'甲公司'}):
+            answer=p._ask_verdicts([item],'2026/10/27',0,raw)['1111']
+        self.assertEqual(p.verdict_class(answer,raw,['甲公司'])[0],'holdings')
+
     def test_rejected_ordinary_surface_is_not_an_entity_boundary(self):
         raw='勤誠假破底。看一下他的數字，去年29，今年上半年21.83。'
         row={'name':'勤誠','code':'8210'}

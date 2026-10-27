@@ -12,11 +12,29 @@ def ledger():
   {'id':'F1','subject_codes':['2222'],'source_quote':'乙公司股本比較小，拉起來速度比較快。','subject_quote':'乙公司股本比較小','statement':'乙公司股本較小且拉升較快'},
   {'id':'F2','subject_codes':['1111'],'source_quote':'甲公司尚未見低檔成交量，因此目前沒有買進。','subject_quote':'甲公司尚未見低檔成交量','statement':'甲公司尚待量能條件'}]},RAW,{'1111','2222'})
 class SourceFacts(unittest.TestCase):
+ def test_wrong_query_echo_cannot_bind_a_claim(self):
+  facts=ledger();row={'code':'1111','name':'甲公司','reason':'甲公司股本比較小。'}
+  reply={'additional_facts':[],'matches':[dict(id='Q0001',query_text='另一項主張',entails_all_details=True,relation='entailed',coverage='complete',fact_ids=['F1'])]}
+  with patch.object(p,'call_gemini',return_value=json.dumps(reply)),patch.object(p,'budget_left',return_value=9999),patch.object(p,'_CODE_MAP',{'1111':'甲公司','2222':'乙公司'}):
+   p.align_anonymous_claims({'watch_watch':[row]},RAW,facts)
+  self.assertFalse(row['_source_claim_bindings']['claims'])
+
+ def test_different_price_fact_cannot_force_a_cross_stock_deletion(self):
+  raw='乙公司從4400跌至3500。甲公司的走勢另待確認。'
+  facts=p._validate_source_facts({'facts':[dict(id='F1',subject_codes=['2222'],source_quote=raw,subject_quote=raw,statement='乙公司4400跌至3500')]},raw,{'1111','2222'})
+  text='甲公司從2685跌至1750。';claim=p._note_claims(text)[0]
+  row={'code':'1111','name':'甲公司','reason':text,'_source_fact_ledger':facts,
+    '_source_claim_bindings':{'source_sha256':hashlib.sha256(raw.encode()).hexdigest(),'claims':{'c0':dict(relation='entailed',coverage='complete',text_sha256=hashlib.sha256(claim['text'].encode()).hexdigest(),fact_ids=['F1'])}}}
+  review=p._validated_source_review({},row,text,raw)
+  self.assertEqual(review['status'],'insufficient')
+  self.assertFalse(p._apply_source_claim_review({},row,'reason',review));self.assertEqual(row['reason'],text)
+
  def test_incomplete_index_can_be_extended_but_partial_search_cannot_exclude_target(self):
   for coverage in ('partial','complete'):
    facts=ledger();row={'code':'1111','name':'甲公司','reason':'甲公司股本比較小。','_source_fact_ledger':facts}
-   def answer(*args,**kwargs):
-    return json.dumps({'additional_facts':[], 'matches':[{'id':'Q0001','relation':'entailed','coverage':coverage,'fact_ids':['F1']}]})
+   def answer(system,payload,**kwargs):
+    q=json.loads(payload)['queries'][0]
+    return json.dumps({'additional_facts':[], 'matches':[dict(q,query_text=q['text'],entails_all_details=True,relation='entailed',coverage=coverage,fact_ids=['F1'])]})
    with patch.object(p,'call_gemini',side_effect=answer),patch.object(p,'budget_left',return_value=9999),patch.object(p,'_CODE_MAP',{'1111':'甲公司','2222':'乙公司'}):
     p.align_anonymous_claims({'watch_watch':[row]},RAW,facts)
    r=p._validated_source_review({'source_review':{'claims':[]}},row,row['reason'],RAW)
@@ -94,8 +112,7 @@ class SourceFacts(unittest.TestCase):
    data=json.loads(payload)
    self.assertNotIn('甲公司',json.dumps(data['queries'],ensure_ascii=False))
    self.assertNotIn('watch_watch',payload)
-   return json.dumps({'additional_facts':[],'matches':[{'id':'Q0001','relation':'entailed','coverage':'complete','fact_ids':['F1']},
-    {'id':'Q0002','relation':'entailed','coverage':'complete','fact_ids':['F2']}]})
+   return json.dumps({'additional_facts':[],'matches':[dict(id=q['id'],query_text=q['text'],entails_all_details=True,relation='entailed',coverage='complete',fact_ids=['F1' if i==0 else 'F2']) for i,q in enumerate(data['queries'])]})
   with patch.object(p,'call_gemini',side_effect=align),patch.object(p,'budget_left',return_value=9999),patch.object(p,'_CODE_MAP',{'1111':'甲公司','2222':'乙公司'}):
    p.align_anonymous_claims({'watch_watch':[row]},RAW,ledger())
   replies=[dict(id='c0',status='supported',subject='甲公司',subject_code='1111',source_quote=RAW,source_fact_ids=['F1'],explanation='編輯抄錯股名'),

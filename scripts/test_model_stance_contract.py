@@ -4,6 +4,13 @@ from contextlib import ExitStack
 from unittest.mock import patch
 from test_source_fact_ledger import p
 class ModelStance(unittest.TestCase):
+ def test_historical_candidate_is_not_moved_or_discarded_by_tone_words(self):
+  for text in ('以前買過甲公司，現在不要碰。','以前賣過甲公司，現在可以注意。'):
+   row={'code':'1111','name':'甲公司','reason':text}
+   sig=p.history_to_watch({'history':[row]},'2026/10/27',transcript=text)
+   self.assertEqual(sig['history'][0]['reason'],text)
+   self.assertFalse(sig.get('watch_watch'));self.assertFalse(sig.get('watch_avoid'))
+
  def answer(self,raw,entry,holder='none',tone='neutral'):
   return p.verdict_class({'about_itself':True,'now':'none','tone':tone,'entry_for_new':entry,'holder_advice':holder,
     'quotes':{'stance':[raw]}},p._ev_norm(raw),names=['甲公司'])[0]

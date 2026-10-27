@@ -29,6 +29,17 @@ def run_batch(sig, transform=lambda entry, answer:answer):
     return out,calls
 
 class PublicBatchContract(unittest.TestCase):
+    def test_missing_batch_items_are_retried_once_without_replaying_completed_rows(self):
+        calls=[]
+        def model(system,payload,**kwargs):
+            items=json.loads(payload)['texts'];calls.append([e['id'] for e in items])
+            if len(calls)==1:items=items[:1]
+            return json.dumps({'texts':[dict(id=e['id'],text=e['text'],meaning_preserved=True,
+                source_supported=True,category_consistent=True,written_style_ok=True) for e in items]})
+        with patch.object(pl,'source_claim_ledger',return_value=None),patch.object(pl,'call_gemini',side_effect=model),patch.object(pl,'budget_left',return_value=9999),patch.object(pl,'GEMINI_KEYS',['offline']):
+            pl.polish_public_texts(fixture(),'我有甲公司，成本100元。乙公司在箱型下緣。大盤回測60分K線。','2026/10/16')
+        self.assertEqual(calls,[['n0','n1','n2'],['n1','n2']])
+
     def test_neutral_and_unknown_spelling_both_reviewed_once(self):
         out,calls=run_batch(fixture())
         self.assertEqual(len(calls),1);self.assertEqual(len(calls[0]['texts']),3)

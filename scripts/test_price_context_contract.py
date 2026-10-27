@@ -16,6 +16,14 @@ spec.loader.exec_module(p)
 
 
 class PriceContextContract(unittest.TestCase):
+    def test_local_number_window_miss_is_a_cue_not_a_deletion(self):
+        row={'name':'甲公司','code':'1111','reason':'甲公司去年EPS29元，上半年21.83元，全年估40元。','price':'100元'}
+        before=copy.deepcopy(row)
+        with patch.object(p,'_entity_issue',return_value=(False,True,[])):
+            p.sanitize_entity_claims({'watch_watch':[row]},'長段落的原稿')
+        self.assertEqual(row['reason'],before['reason']);self.assertEqual(row['price'],before['price'])
+        self.assertTrue(row['_entity_source_cues']['number_window_miss'])
+
     def test_historical_or_split_price_does_not_delete_technical_context(self):
         text = '甲公司先前成本1080元，目前回測年線，等待量縮止穩。'
         row = {'code': '1111', 'name': '甲公司', 'reason': text}

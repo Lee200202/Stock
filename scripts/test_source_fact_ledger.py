@@ -12,6 +12,20 @@ def ledger():
   {'id':'F1','subject_codes':['2222'],'source_quote':'乙公司股本比較小，拉起來速度比較快。','subject_quote':'乙公司股本比較小','statement':'乙公司股本較小且拉升較快'},
   {'id':'F2','subject_codes':['1111'],'source_quote':'甲公司尚未見低檔成交量，因此目前沒有買進。','subject_quote':'甲公司尚未見低檔成交量','statement':'甲公司尚待量能條件'}]},RAW,{'1111','2222'})
 class SourceFacts(unittest.TestCase):
+ def test_notice_facts_are_original_and_expire_when_notice_changes(self):
+  raw='甲公司今日名稱被聽錯。';notice='甲公司目前會員持股續抱。'
+  context={'transcript_sha256':hashlib.sha256(raw.encode()).hexdigest(),'notices':[{'original':notice}]}
+  with patch.object(p,'_DAY_SOURCE_CONTEXT',context):
+   facts=p._validate_source_facts({'facts':[dict(id='F1',subject_codes=['1111'],source_ids=['N0001'],statement='甲公司續抱')]},raw,{'1111'})
+   self.assertEqual(facts['facts']['F1']['source_quote'],notice)
+   row={'code':'1111','name':'甲公司','reason':'甲公司會員持股續抱。','_source_fact_ledger':facts}
+   reply={'source_review':{'claims':[dict(id='c0',status='supported',subject='甲公司',subject_code='1111',source_ids=['N0001'],source_fact_ids=['F1'],explanation='當日原通知本人續抱')]}}
+   review=p._validated_source_review(reply,row,row['reason'],raw)
+   self.assertEqual(review['status'],'supported');row['_source_attribution_review']=review
+   self.assertTrue(p._current_source_review(row,raw,'reason'))
+   context['notices'][0]['original']='甲公司已全數賣出。'
+   self.assertFalse(p._current_source_review(row,raw,'reason'))
+
  def test_wrong_query_echo_cannot_bind_a_claim(self):
   facts=ledger();row={'code':'1111','name':'甲公司','reason':'甲公司股本比較小。'}
   reply={'additional_facts':[],'matches':[dict(id='Q0001',query_text='另一項主張',entails_all_details=True,relation='entailed',coverage='complete',fact_ids=['F1'])]}

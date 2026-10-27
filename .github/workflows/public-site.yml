@@ -41,6 +41,8 @@ jobs:
         run: python scripts/check_original_parity.py
       - name: 部署版本與畫面檔案標記一致性
         run: node scripts/check_project_manifest.cjs
+      - name: 公開說明語意保留與紀錄價位隱藏
+        run: node scripts/check_source_fidelity.cjs
       - name: 自訂均線記憶與輸入邊界
         run: node scripts/check_custom_ma.cjs
       - name: 完整歷史日K合併、週月K與後端一致、指標核對

@@ -75,7 +75,6 @@ function collapseKy_(text) { return String(text || '').replace(/-KY(?:\s*-?\s*KY
    與 pipeline.py 的 _META_CLAUSE 同一份清單；寫在這裡，已經存進試算表的舊說明呈現時也會乾淨。
    2026/09/15 的台積電寫成「……但在當日節目中並未將台積電列為當日會員實際買進或持有的個股明細，
    故列入市場教學與觀察範疇」，讀的人要的是他對台積電講了什麼（管理者回報，2026/09/16）。 */
-var META_CLAUSE_RE_ = /歷史回顧|列為觀望|列入觀望|改列|日期未明|依原文語氣|依上下文判|原判|原為買入|原為賣出|不列入當日|非影片當日|非當日執行|依規則|歷史買進|歷史賣出|並未將|未將本檔|(?:並)?未列(?:為|入)|個股明細|故列入|因此列入|列入市場教學|(?:觀察|教學|觀望)範疇|歸類為|分類為|列為.{0,10}?(?:觀望|等待|等候|追蹤|觀察|避開)|屬於.{0,10}?(?:觀察|觀望|避開)(?:的)?(?:對象|標的|名單)|前述價位屬於|並非(?:本日|當日|今日)(?:再次)?(?:買進|買入|賣出)(?:的)?(?:通知|指令)|既有標的的行情與條件追蹤|未新增(?:本日|當日|今日)(?:買賣|交易)(?:通知|指令)?|屬節目看法|不能視為已確定的交易|回顧價位不代表(?:本日|當日|今日)(?:再次)?買進/;
 /** 去掉寫作過程，只留下其中的實際事實與警示。 */
 function stripEditorialWrappers_(text) {
   return String(text || '')
@@ -111,7 +110,10 @@ function publicScrubDeep_(value) {
   if (Array.isArray(value)) return value.map(publicScrubDeep_);
   if (value && Object.prototype.toString.call(value) === '[object Object]') {
     var out = {};
-    Object.keys(value).forEach(function (k) { out[k] = publicScrubDeep_(value[k]); });
+    Object.keys(value).forEach(function (k) {
+      // 公開紀錄不提供操作價位；即時報價物件不屬於紀錄，不受此處影響。
+      out[k] = k === 'price' && ('reason' in value || 'note' in value) ? '不公開' : publicScrubDeep_(value[k]);
+    });
     return out;
   }
   return value;
@@ -143,23 +145,8 @@ function smsNoteBody_(text, row) {
 function publicSmsNote_(text, row) { return smsNoteBody_(publicNarrative_(text, row), row); }
 /** 按頂層逗號、分號、句號切子句，丟掉含內部判斷字眼的那幾句；括號裡的標點不切。 */
 function stripMetaClauses_(text) {
-  var str = String(text || ''), parts = [], buf = '', depth = 0;
-  for (var i = 0; i < str.length; i++) {
-    var ch = str.charAt(i);
-    if (ch === '（' || ch === '(') { depth++; }
-    else if ((ch === '）' || ch === ')') && depth) { depth--; }
-    if (!depth && '，,；;。'.indexOf(ch) >= 0) { parts.push([buf, ch]); buf = ''; }
-    else { buf += ch; }
-  }
-  if (buf) { parts.push([buf, '']); }
-  var kept = [];
-  parts.forEach(function (x) {
-    if (!x[0].replace(/\s/g, '')) { return; }
-    if (!META_CLAUSE_RE_.test(x[0])) { kept.push([x[0], x[1]]); return; }
-    // 丟掉的那一句原本結束了一個句子時，句號讓給前一句，不要把兩句黏成一句。
-    if (x[1] === '。' && kept.length) { kept[kept.length - 1][1] = '。'; }
-  });
-  return kept.map(function (x) { return x[0] + x[1]; }).join('');
+  // 已核對的事實與立場由來源審閱處理；呈現層不以字詞刪除子句，避免抹掉主要觀察條件。
+  return String(text || '');
 }
 /** 說明名稱與代號對齊，原始逐字稿與引用不經過這個函式。 */
 function publicNarrative_(text, row) {

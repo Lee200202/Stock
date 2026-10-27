@@ -13,6 +13,9 @@ def main():
     args = parser.parse_args()
     cases = json.loads(Path(args.cases).read_text(encoding='utf-8'))
     book = DryBook(pl.open_sheets())
+    # 與完整流程相同的公司識別背景；只讀既有別名，不讀分類答案、通知或部位，不新增別名。
+    pl.get_code_map()
+    pl.name_memo_load(book)
     reports, errors = [], []
     for day in cases['days']:
         raw, _ = pl.existing_transcript(book, '', day['date'], snapshot={})

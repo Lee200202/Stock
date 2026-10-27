@@ -16897,6 +16897,9 @@ def _validate_source_facts(data, transcript, codes):
 
 def source_claim_ledger(signals, transcript):
     """每份原稿一次獨立主體盤點；不將草稿／分類／人工期望傳入，亦不寫入公司別名。"""
+    # 正式擷取早已載入官方名稱；固定說明重播也必須取得相同識別背景，否則鄰股代號無法進入候選。
+    if not _CODE_MAP:
+        get_code_map()
     known = {}
     for cat in SIGNAL_CATEGORIES:
         for row in signals.get(cat, []) or []:

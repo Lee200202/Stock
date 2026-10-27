@@ -37,7 +37,7 @@ class SourceFacts(unittest.TestCase):
    d=json.loads(payload);self.assertEqual(set(d),{'sources','company_candidates'})
    self.assertNotIn('刻意放入',payload);self.assertNotIn('watch_watch',payload)
    return json.dumps({'facts':[]})
-  with patch.object(p,'source_inventory',return_value=[]),patch.object(p,'call_gemini',side_effect=fake) as call,patch.object(p,'budget_left',return_value=9999),patch.object(p,'GEMINI_KEYS',['offline']):
+  with patch.object(p,'_CODE_MAP',{'1111':'甲公司','2222':'乙公司'}),patch.object(p,'source_inventory',return_value=[]),patch.object(p,'call_gemini',side_effect=fake) as call,patch.object(p,'budget_left',return_value=9999),patch.object(p,'GEMINI_KEYS',['offline']):
    p.source_claim_ledger(sig,RAW)
   self.assertEqual(call.call_count,1)
  def test_joint_subjects_are_valid_for_both_members(self):

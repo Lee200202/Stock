@@ -1,7 +1,7 @@
 // 免費Cloudflare Worker，將公開Pages前台連接至既有Apps Script後端。
 // 橋接權杖留在伺服器端，管理方法仍須既有管理密鑰。
 const ALLOWED = 'https://lee200202.github.io';
-const BUILD = 'site-api-v178-r1';
+const BUILD = 'site-api-v207r4-source-fidelity';
 const MAX_ARGS = 8;
 const ADMIN_METHODS = ('apiAdminCancelCrawl apiAdminCancelDaySync apiAdminCancelFix ' +
   'apiAdminCancelFullFix apiAdminCancelJob apiAdminCancelRefresh apiAdminCancelSmsJob ' +
@@ -47,6 +47,24 @@ const READ_TTL = {
 const MEMO_MAX = 300;
 const memo = new Map();
 const inFlight = new Map();
+const PUBLIC_RECORD_METHODS = new Set(['apiGetDashboard', 'apiSearchByDate', 'apiSearchStock', 'apiGetStockSummary']);
+
+// 公開傳輸邊界同時處理新回覆及舊快照；後台與已同意接收的原文通知不經此處。
+export function publicRecordPayload(method, value) {
+  if (!PUBLIC_RECORD_METHODS.has(method)) return value;
+  const clean = item => {
+    if (Array.isArray(item)) return item.map(clean);
+    if (!item || typeof item !== 'object') return item;
+    const out = {};
+    for (const [key, field] of Object.entries(item)) {
+      if (key === 'quote') out[key] = field; // 即時行情不是操作價位。
+      else if (key === 'price' && ('reason' in item || 'note' in item)) out[key] = '不公開';
+      else out[key] = clean(field);
+    }
+    return out;
+  };
+  return clean(value);
+}
 /* 可以放心重送的方法：唯讀，或重送結果相同（退訂、查詢與更新訂閱）。
    Apps Script 的 POST 在回 302 之前就已經執行完，轉址那一步回 404 時事情其實做過了；
    寄信、問答這類重送會多做一次的方法只重試一次連線錯誤，不重試 404。 */
@@ -288,13 +306,14 @@ export default {
     }
     // 帶信箱的個股搜尋會記錄使用者查詢，不能當成公開唯讀查詢共用。
     const ttl = body.method === 'apiSearchStock' && body.args[1] ? 0 : READ_TTL[body.method];
+    const respond = (payload, status, extra) => reply(publicRecordPayload(body.method, payload), status, origin, extra);
     const key = ttl ? body.method + ':' + JSON.stringify(body.args) : '';
     const hit = key ? memo.get(key) : null;
-    if (hit && Date.now() - hit.at < ttl * 1000) return reply(hit.body, 200, origin, {'X-Cache': 'hit'});
+    if (hit && Date.now() - hit.at < ttl * 1000) return respond(hit.body, 200, {'X-Cache': 'hit'});
     const snap = key ? await readSnapshot(env, key) : null;
     if (snap) {
       remember(key, snap.payload, Math.max(snap.validatedAt, Date.now() - ttl * 1000 + 30000));
-      return reply(snap.payload, 200, origin, {'X-Cache': 'snapshot',
+      return respond(snap.payload, 200, {'X-Cache': 'snapshot',
         'X-Snapshot-Age': String(Math.round((Date.now() - snap.validatedAt) / 1000)),
         'X-Snapshot-Content-Age': String(Math.round((Date.now() - snap.at) / 1000))});
     }
@@ -308,7 +327,7 @@ export default {
         if (entry.payload?.ok && Date.now() - entry.at < ttl * 1000) {
           // 保留原建立時間，不能每次命中把期限延長。
           remember(key, entry.payload, entry.at);
-          return reply(entry.payload, 200, origin, {'X-Cache': 'edge-hit'});
+          return respond(entry.payload, 200, {'X-Cache': 'edge-hit'});
         }
       }
     } catch (error) { edgeStatus = error.name || 'unavailable'; }
@@ -336,9 +355,9 @@ export default {
         if (ctx && typeof ctx.waitUntil === 'function') { ctx.waitUntil(save); edgeStatus = 'scheduled'; }
         else { await save; edgeStatus = 'stored'; }
       }
-      return reply(out.payload, 200, origin, {...timing, 'X-Edge-Cache':edgeStatus, 'X-Cache': key ? shared ? 'shared' : 'miss' : 'bypass'});
+      return respond(out.payload, 200, {...timing, 'X-Edge-Cache':edgeStatus, 'X-Cache': key ? shared ? 'shared' : 'miss' : 'bypass'});
     }
-    return reply(out.payload, out.status, origin, timing);
+    return respond(out.payload, out.status, timing);
   },
   async scheduled(_event, env, ctx) {
     if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(env.GAS_WEBAPP_URL || '') || !env.SITE_BRIDGE_TOKEN) return;

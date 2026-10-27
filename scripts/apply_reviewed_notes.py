@@ -69,6 +69,15 @@ def main():
         row={'日期':day,'股票名稱':golden['names'][code],'代號':code,'方向':LABEL[item['category']],'價位說明':'未說明','理由摘錄':item['text'],'來源影片ID':source['video_id'],'序':1}
         additions.append([row.get(h,'') for h in before['操作紀錄'][0]]);manual.append(('操作紀錄',row['股票名稱'],code,item['category'],item['text'],source['video_id']))
         signals[item['category']].append({'code':code,'name':row['股票名稱'],'reason':item['text'],'evidence':item['quotes'],'_evidence_verified':True})
+    # 來源修復不是模型獨立通過：原稿指紋及逐字引句已在上面驗證，另綁定審核者確認的本股主體。
+    # 長篇基本面分析可能超出名稱附近窗口，不能因此把原有年度／半年時序刪去。
+    for cat,rows in signals.items():
+        for row in rows:
+            item=note_item(reviewed,str(row['code']),cat)
+            if item and item.get('subject_reviewed') is True:
+                row['_reviewed_note_context']={'code':str(row['code']),'subject_reviewed':True,
+                    'source_sha256':sha,'text_sha256':hashlib.sha256(row['note'].encode()).hexdigest(),
+                    'quotes':item['quotes']}
     overview,hard,_=pl.quality_overview(signals,raw,check_chapters=False)
     for line in overview:
         if not line.startswith(('模型直接產出','盤勢 ')):print('品質概況：'+line)

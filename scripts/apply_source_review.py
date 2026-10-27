@@ -257,6 +257,7 @@ def main():
                             'category': category(tab, r), 'sourceId': r.get('來源影片ID'),
                             'note': r.get('說明重點') or r.get('理由摘錄') or ''}, ensure_ascii=False))
     if args.inspect_only:
+        print('當日文章寄送狀態', pl._daily_article_status(book, day))
         print('唯讀原列核對完成；模型0、備份0、寫入0、寄送0')
         return
     ledger_names = [w.title for w in book.worksheets()

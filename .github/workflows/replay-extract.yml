@@ -73,7 +73,7 @@ jobs:
             echo "::error::日期格式錯誤，要寫成 YYYY/MM/DD"; exit 1
           fi
           if [ "$NOTE_SOURCES_ONLY" = true ]; then
-            python scripts/replay_note_sources.py --cases docs/1003-review/2026-10-27-pipeline-report/note-context-cases.json --report-json .replay-report/result.json
+            python scripts/replay_note_sources.py --date "$REPLAY_DATE" --cases docs/1003-review/2026-10-27-pipeline-report/note-context-cases.json --report-json .replay-report/result.json
             exit $?
           fi
           GOLDEN="scripts/golden/$(printf '%s' "$REPLAY_DATE" | awk -F/ '{printf "%04d-%02d-%02d", $1, $2, $3}').json"

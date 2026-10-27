@@ -10,6 +10,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--cases', required=True)
     parser.add_argument('--report-json', required=True)
+    parser.add_argument('--date', help='只測指定日；未指定時沿用全部固定日期')
     args = parser.parse_args()
     cases = json.loads(Path(args.cases).read_text(encoding='utf-8'))
     book = DryBook(pl.open_sheets())
@@ -18,6 +19,8 @@ def main():
     pl.name_memo_load(book)
     reports, errors = [], []
     for day in cases['days']:
+        if args.date and pl.norm_date(args.date) != day['date']:
+            continue
         raw, _ = pl.existing_transcript(book, '', day['date'], snapshot={})
         sha = hashlib.sha256(raw.encode()).hexdigest()
         if not raw or sha != day['source_sha256']:

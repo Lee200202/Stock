@@ -16913,7 +16913,9 @@ def source_claim_ledger(signals, transcript):
     if _QUOTA_STOP.get('daily') or budget_left() < 240 or not GEMINI_KEYS:
         return {'version': SOURCE_FACTS_VERSION, 'source_sha256': hashlib.sha256(transcript.encode()).hexdigest(),
                 'facts': {}, 'error': '來源主體盤點未完成；不推定說明通過'}
-    raw = call_gemini(SOURCE_FACTS_SYSTEM, json.dumps({'sources': source_segments(transcript),
+    # 舊稿逐字間隔空白；僅移除空白供閱讀，S編號仍還原原稿，不能改字、價位或公司名。
+    readable = {sid: dict(seg, text=''.join(seg['text'].split())) for sid, seg in source_segments(transcript).items()}
+    raw = call_gemini(SOURCE_FACTS_SYSTEM, json.dumps({'sources': readable,
         'company_candidates': known}, ensure_ascii=False, separators=(',', ':')),
         want_json=True, thinking=1024, tag='source-facts', max_out=min(MAX_OUT, 15000))
     return _validate_source_facts(safe_load_json(raw, default={}), transcript, set(known))

@@ -97,6 +97,7 @@ def main():
                          'output_note': row.get(field), 'claim_repair': row.get('_claim_repair'),
                          'human_source_number_cautions': pl._source_number_cautions(row, raw),
                          'input_review': input_review, 'review': review, 'projection': row.get('_source_projection'),
+                         'claim_bindings': row.get('_source_claim_bindings'),
                          'final_verified': final_verified, 'final_errors': hard,
                          'expected_review_status': expected, 'reference_match': passed})
         reports.append({'date': day['date'], 'source_sha256': sha, 'notes': rows,

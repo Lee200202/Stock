@@ -4,6 +4,22 @@ from contextlib import ExitStack
 from unittest.mock import patch
 from test_source_fact_ledger import p
 class ModelStance(unittest.TestCase):
+ def test_independent_neutral_analysis_is_observation_without_inventing_bullishness(self):
+  raw='甲公司今日第一根反彈，後續觀察往季線的位置。'
+  answer={'about_itself':True,'independent_analysis':True,'now':'none','tone':'neutral','entry_for_new':'none',
+    'quotes':{'stance':[raw],'analysis':[raw]}}
+  self.assertEqual(p.verdict_class(answer,p._ev_norm(raw),['甲公司'])[0],'watch_watch')
+  answer['quotes'].pop('analysis')
+  self.assertEqual(p.verdict_class(answer,p._ev_norm(raw),['甲公司'])[0],'ignored')
+
+ def test_analysis_role_does_not_override_real_refusal_or_identity_denial(self):
+  raw='甲公司雖有分析，但目前還沒穩，現在不要買。'
+  answer={'about_itself':True,'independent_analysis':True,'now':'not_yet','entry_for_new':'not_yet','tone':'neutral',
+    'quotes':{'stance':[raw],'analysis':[raw]}}
+  self.assertEqual(p.verdict_class(answer,p._ev_norm(raw),['甲公司'])[0],'watch_avoid')
+  answer['about_itself']=False
+  self.assertEqual(p.verdict_class(answer,p._ev_norm(raw),['甲公司'])[0],'ignored')
+
  def test_historical_candidate_is_not_moved_or_discarded_by_tone_words(self):
   for text in ('以前買過甲公司，現在不要碰。','以前賣過甲公司，現在可以注意。'):
    row={'code':'1111','name':'甲公司','reason':text}

@@ -13231,7 +13231,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v29-20261027-ph6-context-boundaries"          # 語意選股池與授權等待分軸；有效兩票多數，交易事實另行核對
+VERDICT_VERSION = "v30-20261027-independent-analysis-role"          # 語意選股池與授權等待分軸；有效兩票多數，交易事實另行核對
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 3                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -13261,7 +13261,9 @@ holder_advice：hold=現有部位續抱；hold_rebound=對持有者明確要求�
 selection_intent：positive_candidate=正向追蹤池／主動提醒留意；authorization_pending=等正式操作授權；explicit_exclusion=對本股有獨立排斥／風險判斷；neutral=無獨立選股立場。正向興趣與目前暫不買可以同時成立。
 最新政策：主要觀察但明確要求還沒止穩、目前不用急買，entry_for_new與now填not_yet，不能由positive_candidate蓋過；說明仍保留追蹤條件。對持有者超跌勿殺低等反彈，holder_advice=hold_rebound、now=conditional，即使本人沒有要買也保留兩層意思。具體低接價位及高檔不追作為仍適用的操作節奏時填wait_condition／conditional，不能只選前句歷史時間忽略後句條件。
 now填buy_ok／conditional／not_yet／prohibit／none，與前述軸一致；tone填bullish／bearish／neutral，僅為本股現在的獨立方向，不借相鄰公司。明講現在沒有要漲、不宜買是本股風險，不等於只澄清沒有持有。只有位置描述而全文無獨立追蹤或方向才填neutral及none。
-只輸出契約JSON verdicts陣列；每個輸入id都必須回覆，布林欄位填true或false，缺證據可填unsure，不使用語氣字詞表補造答案。"""
+只輸出契約JSON verdicts陣列；每個輸入id都必須回覆，布林欄位填true或false，缺證據可填unsure，不使用語氣字詞表補造答案。
+另填independent_analysis：全篇有本股現在的獨立技術位階、量價、法人、風險或具體低接節奏時true，quotes.analysis及quote_source_ids.analysis附其原句與編號。這不表示推薦買入；先說未推薦、後段再解析該股往季線的位階，也須讀後段再判。只有陪襯漲停、未持有清單或沒有本股獨立內容才false。原稿有本股獨立解析但沒有明確進場語氣時，now及tone可維持none／neutral，由程式保留為中性觀察；不必編造偏多。
+"""
 
 # 引句裡要看得出答案：答「今天買進」卻引一句沒有買字的話，那一題不算數。
 _VQ_FAMILY = {
@@ -13914,7 +13916,10 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
     # 2026/10/27 管理者：「文字上的篩選很容易選錯，要確保不是判斷方向的依據」。進場表態與語氣只由模型讀完整段落判定，
     # 程式只核對它的引句真的出自本股段落（real），不再用「不、沒、買、等、會漲」等字推翻或補判模型的答案。
     # 先前 _VQ_REFUSAL 只要引句有「沒」就維持禁買：10/27「真正的成熟製程，我沒有聯電」因此成了聯電、世界先進的禁買票。
+    analysis = real('analysis') if answer.get('independent_analysis') is True else []
     if not stance:
+        if analysis and now == 'none' and tone == 'neutral':
+            return 'watch_watch', '本股有獨立現況分析，未另宣稱偏多：' + analysis[0][:40]
         return ('history', '只回顧過去的買賣：' + first('past_trade')) if past else ('', '有講這一檔，但引不出原文')
     if now in ('prohibit', 'not_yet'):
         return 'watch_avoid', ('明講不買：' if now == 'prohibit' else '現在還不能買：') + stance[0][:40]
@@ -13924,6 +13929,8 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
         return 'watch_watch', '看法偏多：' + stance[0][:40]
     if tone == 'bearish':
         return 'watch_avoid', '偏空或當作風險例子：' + stance[0][:40]
+    if analysis:
+        return 'watch_watch', '本股有獨立現況分析，未另宣稱偏多：' + analysis[0][:40]
     if past:
         return 'history', '只回顧過去的買賣'
     return VERDICT_NEUTRAL_CLASS, '只描述行情，沒有偏多偏空的結論，不列：' + stance[0][:40]
@@ -14057,6 +14064,7 @@ def _audit_direct_verdicts(verdicts, direct_ctx, signals, transcript, date_str, 
 def verdict_response_schema():
     """約束完整事實題及雙軸欄位，不指定任何分類答案。"""
     props = {'id': {'type': 'string'}, 'unsure': {'type': 'string'}}
+    props['independent_analysis'] = {'type': 'boolean'}
     for field in ('buy_today', 'sell_today', 'holding_now', 'past_trade', 'about_itself'):
         props[field] = {'type': 'boolean'}
     for field, values in {'now': ['none', 'buy_ok', 'conditional', 'not_yet', 'prohibit'],
@@ -14065,7 +14073,7 @@ def verdict_response_schema():
         'selection_intent': ['neutral', 'positive_candidate', 'explicit_exclusion', 'authorization_pending'],
         'holder_advice': ['none', 'hold', 'hold_rebound']}.items():
         props[field] = {'type': 'string', 'enum': values}
-    fields = ('buy_today', 'sell_today', 'holding_now', 'past_trade', 'stance')
+    fields = ('buy_today', 'sell_today', 'holding_now', 'past_trade', 'stance', 'analysis')
     props['quotes'] = {'type': 'object', 'properties': {f: {'type': 'array', 'items': {'type': 'string'}} for f in fields},
                        'required': list(fields)}
     props['quote_source_ids'] = {'type': 'object', 'properties': {f: {'type': 'array', 'items': {'type': 'string'}} for f in fields},
@@ -14111,7 +14119,7 @@ def _ask_verdicts(items, date_str, round_no, transcript=''):
                 restored = {}
                 source_ids = v.get('quote_source_ids') if isinstance(v.get('quote_source_ids'), dict) else {}
                 for field, ids in source_ids.items():
-                    if field in ('buy_today','sell_today','holding_now','past_trade','stance') and isinstance(ids, list) and 1 <= len(ids) <= 3 and all(isinstance(sid, str) and sid in sources for sid in ids):
+                    if field in ('buy_today','sell_today','holding_now','past_trade','stance','analysis') and isinstance(ids, list) and 1 <= len(ids) <= 3 and all(isinstance(sid, str) and sid in sources for sid in ids):
                         restored[field] = [sources[sid]['text'] for sid in dict.fromkeys(ids)]
                 if restored:
                     v['_verified_quote_sources'] = restored
@@ -16692,7 +16700,7 @@ def public_edit_response_schema():
         'type': 'object', 'properties': fields, 'required': list(fields)}}}, 'required': ['texts']}
 
 
-SOURCE_FACTS_VERSION = 'subject-first-v8-verified-projection-20261027'
+SOURCE_FACTS_VERSION = 'subject-first-v9-alignment-contract-20261027'
 SOURCE_FACTS_SYSTEM = """你是逐字稿事實與主體審核者。輸入只有原稿、公司識別候選及匿名字串檢索命中的段落編號，沒有待審股名與主張配對、分類或標準答案。
 每項fact的subject_codes恰好一個主體。共同結論可拆成兩項同引句、不同主體；「甲和股本小的乙」不能合成兩家公司都股本小的事實。逐一盤點指定段落內的最小事實，不只挑全文大意。當日通知原文若有提供，只供身分／事件參照，不得拿它補造原稿技術面。
 focus_source_ids是優先查核範圍，不是主體答案。逐一閱讀這些段落及前後文，完整列出每個主體各自的最小事實，特別避免只摘要整篇而漏掉指定段落的細節。檢索只證明字串相關，不能以命中、最近名稱或價格決定主體；仍由你判讀上下文，無法確認則列uncertain。
@@ -16831,7 +16839,7 @@ coverage只在已讀完整原稿、該匿名主張的所有本股與他股支持
 每項回覆原樣複製query_text，並回答entails_all_details。只有事實支持主張全部細節（包括每個數字、時間、動作、條件）才可true及entailed。不同價格的下跌不能互換；目標價上調不等於跌24%；某句同有否定詞不等於同一主張。不完整支持一律insufficient，不能為配對而挑最相近的fact。
 逐項判斷哪些facts真正支持該匿名主張；fact.statement的主體與事實必須相符，source_quote只核對該主體的上下文，不得因同段另一家公司也說過某事就把它綁給本fact。
 例如某fact只說乙公司股本小，不能支持「目前沒有買進」；另一fact明講甲公司未買進才可。修飾只屬其中一人的特徵不能分享給並列成員。
-列出所有確實支持的fact_ids，沒有則relation=insufficient、fact_ids=[]。不按最近名稱、價格帶判斷。只輸出JSON：{"additional_facts":[],"matches":[{"id":"Q0001","relation":"entailed或insufficient","coverage":"complete或partial","fact_ids":["來源事實ID"]}]}。"""
+列出所有確實支持的fact_ids，沒有則relation=insufficient、fact_ids=[]。不按最近名稱、價格帶判斷。不要遺漏query_text與entails_all_details，這兩欄是程式核對必要資料。只輸出JSON：{"additional_facts":[],"matches":[{"id":"Q0001","query_text":"逐字複製該query.text","entails_all_details":true,"relation":"entailed","coverage":"complete","fact_ids":["來源事實ID"]}]}。若不支持則entails_all_details=false、relation=insufficient、fact_ids=[]。"""
 
 
 def source_alignment_schema():
@@ -16876,6 +16884,7 @@ def align_anonymous_claims(signals, transcript, ledger):
     if not queries or budget_left() < 150:
         return
     matches = []
+    checks = ledger.setdefault('alignment_checks', [])
     known = set(ledger.get('company_candidates') or {}) | {c for f in ledger['facts'].values() for c in f['subject_codes']}
     known.update(str(row.get('code')) for cat in SIGNAL_CATEGORIES for row in signals.get(cat, []) or [] if row.get('code'))
     diagnostics = ledger.setdefault('alignment_batches', [])
@@ -16905,11 +16914,16 @@ def align_anonymous_claims(signals, transcript, ledger):
     for key, (bindings, claim) in targets.items():
         found = [r for r in matches if isinstance(r, dict) and r.get('id') == key]
         if len(found) != 1:
+            checks.append({'query_id': key, 'status': 'missing_or_duplicate', 'received': len(found)})
             continue
         match = found[0]
         ids = match.get('fact_ids')
         expected_query = next(q['text'] for q in queries if q['id'] == key)
-        if (match.get('relation') == 'entailed' and match.get('query_text') == expected_query
+        echo_ok = re.sub(r'\s+', '', str(match.get('query_text') or '')) == re.sub(r'\s+', '', expected_query)
+        checks.append({'query_id': key, 'relation': match.get('relation'), 'query_echo_match': echo_ok,
+            'details_complete': match.get('entails_all_details'), 'coverage': match.get('coverage'),
+            'fact_ids': ids, 'query_sha256': hashlib.sha256(expected_query.encode()).hexdigest()})
+        if (match.get('relation') == 'entailed' and echo_ok
                 and match.get('entails_all_details') is True
                 and isinstance(ids, list) and ids and all(isinstance(fid, str) and fid in ledger['facts'] for fid in ids)):
             bindings[claim['id']] = {'text_sha256': hashlib.sha256(claim['text'].encode()).hexdigest(),

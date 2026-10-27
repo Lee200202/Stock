@@ -12,6 +12,18 @@ def facts():
   dict(id='F2',subject_codes=['1111'],source_quote=RAW,subject_quote=RAW,statement='甲公司目前未放量')]},RAW,{'1111'})
 
 class Ph6Projection(unittest.TestCase):
+ def test_alignment_diagnostics_distinguish_echo_format_from_incomplete_support(self):
+  for complete in (True,False):
+   ledger=facts();row={'code':'1111','name':'甲公司','reason':'甲公司量縮整理。'}
+   def model(system,payload,**kw):
+    query=json.loads(payload)['queries'][0]
+    return json.dumps({'additional_facts':[],'matches':[dict(id=query['id'],query_text=' '+query['text']+'\n',
+      entails_all_details=complete,relation='entailed',coverage='complete',fact_ids=['F1'])]})
+   with patch.object(p,'call_gemini',side_effect=model),patch.object(p,'budget_left',return_value=9999),patch.object(p,'_CODE_MAP',{'1111':'甲公司'}):
+    p.align_anonymous_claims({'watch_watch':[row]},RAW,ledger)
+   self.assertTrue(ledger['alignment_checks'][0]['query_echo_match'])
+   self.assertEqual(bool(row['_source_claim_bindings']['claims']),complete)
+
  def run_review(self,confirmed=True):
   ledger=facts();row={'code':'1111','name':'甲公司','reason':OLD,'_source_fact_ledger':ledger,
     '_source_claim_bindings':{'source_sha256':hashlib.sha256(RAW.encode()).hexdigest(),'claims':{}}}

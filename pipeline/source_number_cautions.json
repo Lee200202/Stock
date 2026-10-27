@@ -1,0 +1,13 @@
+{
+  "kind": "human_source_uncertainties_not_classification_answers",
+  "cautions": [
+    {
+      "source_sha256": "6a65d0403d55fc6cc777f78deeede3825ca149478298e810a488d5879fe2b4cd",
+      "code": "2327",
+      "number": "56",
+      "quote": "後來這一波56是不是跌破了",
+      "reason": "管理者2026/10/27 ph2裁示：此數字無法從保存聽寫核實，不當確切行情輸出，也不能補成560。僅影響本份原稿的數字主張，不否定公司身分或套牢敘述。",
+      "authority": "human-request-2026-10-27-ph2"
+    }
+  ]
+}

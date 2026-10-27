@@ -38,6 +38,7 @@ def main():
             assert row['code'] == case['code'] and row['name'] == case['name'], '來源核對不得換股'
             rows.append({'code': case['code'], 'name': case['name'], 'input_note': case['note'],
                          'output_note': row.get(field), 'claim_repair': row.get('_claim_repair'),
+                         'human_source_number_cautions': pl._source_number_cautions(row, raw),
                          'review': review, 'expected_review_status': expected, 'reference_match': passed})
         reports.append({'date': day['date'], 'source_sha256': sha, 'notes': rows})
     result = {'status': 'completed', 'date': '固定說明跨日來源審閱', 'read_only': True,
@@ -45,6 +46,7 @@ def main():
               'build': pl.pipeline_build(), 'blocked_writes': len(book.blocked),
               'case_manifest_sha256': hashlib.sha256(Path(args.cases).read_bytes()).hexdigest(),
               'reference_kind': '來源審核草稿，非人類核定金標；expected只在推論後比對',
+              'numeric_review_mode': '使用來源指紋綁定的人類待核數字標記；不得稱為未輔助模型自行辨認數字錯誤',
               'days': reports, 'errors': errors, 'warnings': [], 'rows': {},
               'usage': pl.gemini_usage_report(), 'exit_code': 4 if errors else 0}
     destination = Path(args.report_json)

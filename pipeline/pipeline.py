@@ -16942,6 +16942,21 @@ def _note_claims(text):
     return [{'id': f'c{i}', 'text': clause} for i, (clause, _) in enumerate(_split_clauses(str(text or ''))) if clause.strip()]
 
 
+def _source_number_cautions(row, transcript):
+    """人類指出的來源數字疑點僅綁原稿指紋，不變成跨日價差規則或分類答案。"""
+    from pathlib import Path
+    path = Path(__file__).resolve().with_name('source_number_cautions.json')
+    if not path.exists():
+        return []
+    raw = _TX_SCOPED.get('raw') if transcript == _TX_SCOPED.get('fixed') else transcript
+    sha = hashlib.sha256(str(raw or '').encode()).hexdigest()
+    data = json.loads(path.read_text(encoding='utf-8'))
+    return [c for c in data.get('cautions', []) if c.get('source_sha256') == sha
+            and str(c.get('code') or '') == str(row.get('code') or '')
+            and _ev_norm(c.get('quote')) and _ev_norm(c['quote']) in _ev_norm(raw)
+            and str(c.get('number') or '') in _ws_numbers(c['quote'])]
+
+
 def public_edit_response_schema():
     """要求回傳逐項引用欄位；缺項仍由本機核對，不把格式正確當語意正確。"""
     claim = {'type': 'object', 'properties': {
@@ -16967,6 +16982,7 @@ def _validated_source_review(item, row, old, transcript):
     segments = source_segments(transcript)
     order = {sid: i for i, sid in enumerate(segments)}
     own_code = str(row.get('code') or '')
+    number_cautions = _source_number_cautions(row, transcript)
     checked = []
     for claim in _note_claims(old):
         matches = [r for r in replies if isinstance(r, dict) and r.get('id') == claim['id']]
@@ -16996,6 +17012,8 @@ def _validated_source_review(item, row, old, transcript):
             valid = valid and bool(foreign_subject)
         if not valid:
             status, explanation = 'insufficient', '未提供唯一主張編號、可核回的主體及連續原句；不能推定通過'
+        elif subject_code == own_code and any(c['number'] in _ws_numbers(claim['text']) for c in number_cautions):
+            status, explanation = 'asr_uncertain', '本股來源數字有人類標記的待核疑點；原字存在不代表數值已核實，不能補猜'
         safe = str(reply.get('safe_text') or '').strip()
         if status != 'asr_uncertain' or _ws_numbers(safe):
             safe = ''
@@ -17139,6 +17157,7 @@ def _polish_public_texts(signals, transcript, date_str):
                 entries.append({'id': key, 'kind': '個股說明', 'category': label[cat], 'name': _display_name(row.get('name')), 'code': str(row.get('code') or ''),
                                 'text': text, 'issues': ['整批語意與文體審閱'],
                                 'claims': _note_claims(text),
+                                'source_number_cautions': _source_number_cautions(row, transcript),
                                 'context': [t for t, _ in _entity_scope(row, signals, transcript, before_chars=500, after_chars=700)],
                                 'price_suspicions': row.get('_price_context_suspicions') or [],
                                 'evidence': row.get('evidence') or [], 'locked': bool(row.get('_manual_note_kept'))})

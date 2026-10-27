@@ -181,7 +181,19 @@ class PriceContextContract(unittest.TestCase):
     def test_explicit_identity_rejection_remains_an_effective_ignored_vote(self):
         answer = {'about_itself': False, 'buy': False, 'sell': False, 'holding': False,
                   'quotes': {}, 'now': 'none', 'tone': 'neutral'}
-        self.assertEqual(p.verdict_class(answer, p._ev_norm('這個字只是一般語句，沒有在分析公司。'), names=['甲公司']), 'ignored')
+        result = p.verdict_class(answer, p._ev_norm('這個字只是一般語句，沒有在分析公司。'), names=['甲公司'])
+        self.assertEqual(result[0], 'ignored')
+
+    def test_human_number_caution_only_applies_to_the_bound_source(self):
+        raw = '甲公司先前成本1080元，後來這一波56是不是跌破了，原稿數字待核。'
+        caution = {'number': '56', 'quote': raw}
+        row = {'code': '1111', 'name': '甲公司'}
+        item = {'source_review': {'claims': [dict(id='c0', status='supported', source_ids=['S0001'],
+            subject='甲公司', subject_code='1111', explanation='原字存在', safe_text='上方套牢賣壓待消化。')]}}
+        with patch.object(p, '_source_number_cautions', return_value=[caution]):
+            review = p._validated_source_review(item, row, '先前跌破56元後面臨套牢賣壓。', raw)
+        self.assertEqual(review['status'], 'asr_uncertain')
+        self.assertEqual(p._source_number_cautions({'code': '2327'}, raw + '新版更正。'), [])
 
 
 if __name__ == '__main__':

@@ -2,6 +2,7 @@
 import copy
 import os
 import unittest
+from contextlib import ExitStack
 from unittest.mock import patch
 
 os.environ.setdefault('SPREADSHEET_ID', 'offline')
@@ -94,6 +95,46 @@ class CandidateContract(unittest.TestCase):
         for obsolete in ('verified_cache', 'polish_then_enforce', 'reviewed_then_quarantine', 'enrich_sms_notes_from_signals'):
             self.assertNotIn(obsolete, source)
         self.assertIn('replace_video=False', source)
+
+    def test_apply_uses_saved_model_text_without_a_new_model_call(self):
+        import regenerate_verified_day as release
+        class Sheet:
+            def __init__(self, ident, rows): self.id, self.rows = ident, copy.deepcopy(rows)
+            def get_all_values(self): return copy.deepcopy(self.rows)
+        class Book:
+            def __init__(self):
+                self.sheets = {n: Sheet(i, rows) for i, (n, rows) in enumerate({
+                    '操作紀錄': [['日期','股票名稱','代號','方向','價位說明','理由摘錄','來源影片ID','序'],
+                        [DAY,'舊股','2222','觀望不碰','','舊說明','old-video','101']],
+                    '會員持股': [['日期','股票名稱','代號','目前立場','說明重點','來源影片ID']],
+                    '每日推播內容': [['日期','文章','寄送'],[DAY,'舊文章','已寄送']]}.items())}
+                self.writes = 0
+            def worksheet(self, name): return self.sheets[name]
+            def batch_update(self, body):
+                self.writes += 1
+                for req in body['requests']:
+                    update = req['updateCells']; r = update['range']
+                    sheet = next(s for s in self.sheets.values() if s.id == r['sheetId'])
+                    while len(sheet.rows) <= r['startRowIndex']: sheet.rows.append([])
+                    cells = sheet.rows[r['startRowIndex']]
+                    while len(cells) <= r['startColumnIndex']: cells.append('')
+                    cells[r['startColumnIndex']] = update['rows'][0]['values'][0]['userEnteredValue']['stringValue']
+        book = Book()
+        payload = dict(self.payload(), video_id='video', signals={'watch_watch': [
+            {'name':'模型股','code':'3333','reason':'模型實跑的季線等待條件。'}]})
+        payload['state'] = release.state_hashes(book, TABLES)
+        with ExitStack() as stack:
+            stack.enter_context(patch.object(release, 'backup_tables'))
+            for name, value in {'existing_transcript':lambda *a,**kw:('RAW',''),
+                'save_evidence_audit':lambda *a,**kw:None, 'commit_evidence_manifest':lambda *a,**kw:None,
+                'maybe_refresh_site':lambda *a,**kw:{'ok':True}}.items():
+                stack.enter_context(patch.object(release.pl,name,value))
+            model = stack.enter_context(patch.object(release.pl,'call_gemini',side_effect=AssertionError('發布不得問模型')))
+            release.apply_candidate(book,payload,'RAW')
+        self.assertEqual(model.call_count,0)
+        self.assertEqual(book.writes,1)
+        self.assertEqual(book.worksheet('操作紀錄').rows[1][5],'模型實跑的季線等待條件。')
+        self.assertEqual(book.worksheet('每日推播內容').rows[1],[DAY,'模型文章','已寄送'])
 
 
 if __name__ == '__main__':

@@ -20,6 +20,11 @@ class ModelStance(unittest.TestCase):
   p.verify_reason_category(signals);p.drop_only_named_watch_rows(signals)
   after={k:[(r['code'],r['reason']) for r in signals.get(k,[])] for k in before}
   self.assertEqual(before,after)
+ def test_positive_interest_cannot_override_the_current_wait_instruction(self):
+  raw='甲公司是主要追蹤標的，但是還沒穩，現在不用急著買。'
+  answer={'about_itself':True,'now':'not_yet','selection_intent':'positive_candidate',
+    'entry_for_new':'not_yet','holder_advice':'none','quotes':{'stance':[raw]}}
+  self.assertEqual(p.verdict_class(answer,p._ev_norm(raw),['甲公司'])[0],'watch_avoid')
  def test_final_ignored_enforcement_removes_late_public_row(self):
   row={'name':'甲公司','code':'1111','_date':'2026/10/27','reason':'甲公司只是未持有背景對照。'}
   sig={'watch_avoid':[row],'_verdicts':{'1111':{'cls':'ignored','enforce':True,'name':'甲公司','answer':{'ignored':{'answer':{'about_itself':False,'quotes':{}}}}}}}
@@ -47,4 +52,17 @@ class ModelStance(unittest.TestCase):
   with patch.object(p,'_own_segments',return_value=[]),patch.object(p,'_context_sources',return_value=[]):
    p.strip_unsupported_technical_terms({'watch_watch':[row]},'甲公司後面有過場，半年報21.83。')
   self.assertIn('21.83',row['reason']);self.assertIn('EPS',row['_technical_source_cues'])
+ def test_two_valid_public_votes_settle_without_changing_trade_facts(self):
+  self.assertEqual(p.verdict_settle('ignored',['watch_watch','watch_avoid','watch_watch'],last=True)[0:2],('定案','watch_watch'))
+  self.assertEqual(p.verdict_settle('ignored',['watch_watch','watch_avoid',''],last=True)[0],'未定')
+  self.assertEqual(p.verdict_settle('watch_watch',['buy','buy',''],last=True)[0],'未定')
+  self.assertEqual(p.verdict_settle('watch_watch',['holdings','watch_watch','watch_watch'],last=True,open_position=True)[0:2],('定案','holdings'))
+ def test_daily_identity_denial_precedes_ownership_boolean(self):
+  raw='甲公司是這一句旁邊被點名的背景，不是自己的部位。'
+  answer={'about_itself':False,'holding_now':True,'quotes':{'holding_now':[raw]}}
+  self.assertEqual(p.verdict_class(answer,p._ev_norm(raw),['甲公司'])[0],'ignored')
+ def test_my_stock_is_a_valid_holding_fact_without_direction_keyword(self):
+  raw='甲公司本來就是我的股票。'
+  answer={'about_itself':True,'holding_now':True,'quotes':{'holding_now':[raw]}}
+  self.assertEqual(p.verdict_class(answer,p._ev_norm(raw),['甲公司'])[0],'holdings')
 if __name__=='__main__':unittest.main()

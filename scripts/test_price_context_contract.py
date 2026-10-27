@@ -85,8 +85,9 @@ class PriceContextContract(unittest.TestCase):
         self.assertIn('成本1080元', row['_claim_repair']['original'])
         self.assertEqual(row['code'], '1111')
         payload = json.loads(call.call_args.args[1])
-        self.assertEqual(payload['source'], raw)
-        self.assertTrue(payload['texts'][0]['context'])
+        self.assertEqual(''.join(s['text'] for s in payload['sources'].values()), raw)
+        self.assertNotIn('context', payload['texts'][0])
+        self.assertIn('source_hints', payload['texts'][0])
 
     def test_fabricated_or_incomplete_cross_entity_evidence_cannot_delete(self):
         for quote, subject, note in [('乙公司從未說過的1080元成本', '乙公司', '成本1080元'),

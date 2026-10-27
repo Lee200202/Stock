@@ -7,6 +7,40 @@ from test_source_fact_ledger import p
 
 
 class IdentityContext(unittest.TestCase):
+    def test_rejected_ordinary_surface_is_not_an_entity_boundary(self):
+        raw='勤誠假破底。看一下他的數字，去年29，今年上半年21.83。'
+        row={'name':'勤誠','code':'8210'}
+        for reason in ('ordinary_word','ambiguous_weak_name','mention_only'):
+            sig={'holdings':[row],'ignored':[{'name':'數字','code':'5287','exclusion_reason':reason}]}
+            self.assertIn('21.83',''.join(t for t,_ in p._entity_scope(row,sig,raw,after_chars=900)))
+        sig['ignored'][0]['exclusion_reason']='independent_analysis'
+        self.assertNotIn('21.83',''.join(t for t,_ in p._entity_scope(row,sig,raw,after_chars=900)))
+
+    def test_connector_does_not_cut_off_model_evidence(self):
+        raw='甲公司目前尚未推薦。所以工具機落後補漲，後續仍需整理。'
+        _,text=p._verdict_mark([raw],['甲公司'])
+        self.assertIn('後續仍需整理',text)
+
+    def test_today_notice_hold_is_a_position_fact_not_a_buy(self):
+        class Sheet:
+            def __init__(self,rows):self.rows=rows
+            def get_all_values(self):return self.rows
+        class Book:
+            def worksheet(self,name):
+                return Sheet({'操作紀錄':[['日期','代號','股票名稱','方向','來源影片ID']],
+                  '會員持股':[['日期','代號','股票名稱','來源影片ID'],
+                    ['2026/10/27','1111','甲公司','CMONEY-1'],
+                    ['2026/10/27','2222','乙公司','today-video']]}[name])
+        with patch.object(p,'_source_sale_scopes',return_value={}):
+            known,notice,opened=p._verdict_known(Book(),'2026/10/27',with_open=True)
+        self.assertIn('1111',opened);self.assertNotIn('2222',opened)
+        self.assertIn('1111',known);self.assertNotIn(('1111','buy'),notice)
+
+    def test_quantity_resolution_does_not_disable_real_company_codes(self):
+        with patch.object(p,'get_code_map',return_value={'2402':'毅嘉','5287':'數字'}):
+            self.assertEqual(p.resolve_code('一家','')[0],p.REJECT)
+            self.assertEqual(p.resolve_code('毅嘉','2402')[0],'2402')
+            self.assertEqual(p.resolve_code('數字','5287')[0],'5287')
     def test_quantity_is_not_a_confirmed_phonetic_company(self):
         with patch.object(p, 'CONFIRMED_SOUNDS', {'毅嘉': ('2402','毅嘉')}), patch.object(p, '_SOUND_MEMO', {}):
             self.assertNotIn('一家', p._sound_hits('你看這一家公司成交量才多少，半年報21.83。'))

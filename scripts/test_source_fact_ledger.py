@@ -12,6 +12,16 @@ def ledger():
   {'id':'F1','subject_codes':['2222'],'source_quote':'乙公司股本比較小，拉起來速度比較快。','subject_quote':'乙公司股本比較小','statement':'乙公司股本較小且拉升較快'},
   {'id':'F2','subject_codes':['1111'],'source_quote':'甲公司尚未見低檔成交量，因此目前沒有買進。','subject_quote':'甲公司尚未見低檔成交量','statement':'甲公司尚待量能條件'}]},RAW,{'1111','2222'})
 class SourceFacts(unittest.TestCase):
+ def test_incomplete_index_can_be_extended_but_partial_search_cannot_exclude_target(self):
+  for coverage in ('partial','complete'):
+   facts=ledger();row={'code':'1111','name':'甲公司','reason':'甲公司股本比較小。','_source_fact_ledger':facts}
+   def answer(*args,**kwargs):
+    return json.dumps({'additional_facts':[], 'matches':[{'id':'Q0001','relation':'entailed','coverage':coverage,'fact_ids':['F1']}]})
+   with patch.object(p,'call_gemini',side_effect=answer),patch.object(p,'budget_left',return_value=9999),patch.object(p,'_CODE_MAP',{'1111':'甲公司','2222':'乙公司'}):
+    p.align_anonymous_claims({'watch_watch':[row]},RAW,facts)
+   r=p._validated_source_review({'source_review':{'claims':[]}},row,row['reason'],RAW)
+   self.assertEqual(r['status'],'cross_entity' if coverage=='complete' else 'insufficient')
+
  def test_draft_subject_copy_cannot_override_independent_source_subject(self):
   row={'name':'甲公司','code':'1111','reason':'甲公司股本比較小，目前尚未見低檔成交量。','_source_fact_ledger':ledger()}
   replies=[dict(id='c0',status='supported',subject='甲公司',subject_code='1111',source_quote=RAW,source_fact_ids=['F1'],explanation='錯把草稿當主體'),
@@ -84,8 +94,8 @@ class SourceFacts(unittest.TestCase):
    data=json.loads(payload)
    self.assertNotIn('甲公司',json.dumps(data['queries'],ensure_ascii=False))
    self.assertNotIn('watch_watch',payload)
-   return json.dumps({'matches':[{'id':'Q0001','relation':'entailed','fact_ids':['F1']},
-    {'id':'Q0002','relation':'entailed','fact_ids':['F2']}]})
+   return json.dumps({'additional_facts':[],'matches':[{'id':'Q0001','relation':'entailed','coverage':'complete','fact_ids':['F1']},
+    {'id':'Q0002','relation':'entailed','coverage':'complete','fact_ids':['F2']}]})
   with patch.object(p,'call_gemini',side_effect=align),patch.object(p,'budget_left',return_value=9999),patch.object(p,'_CODE_MAP',{'1111':'甲公司','2222':'乙公司'}):
    p.align_anonymous_claims({'watch_watch':[row]},RAW,ledger())
   replies=[dict(id='c0',status='supported',subject='甲公司',subject_code='1111',source_quote=RAW,source_fact_ids=['F1'],explanation='編輯抄錯股名'),
@@ -96,4 +106,20 @@ class SourceFacts(unittest.TestCase):
   row['_source_claim_bindings']['source_sha256']='changed'
   review=p._validated_source_review({'source_review':{'claims':replies}},row,row['reason'],RAW)
   self.assertTrue(all(c['status']=='insufficient' for c in review['claims']))
+ def test_style_rewrite_carries_the_verified_source_fingerprint(self):
+  raw='甲公司現在等季線止穩。'
+  text='甲公司目前等待季線止穩。'
+  facts=p._validate_source_facts({'facts':[dict(id='F1',subject_codes=['1111'],source_quote=raw,
+    subject_quote=raw,statement='甲公司等待季線止穩')]},raw,{'1111'})
+  row={'code':'1111','name':'甲公司','reason':raw,'_source_fact_ledger':facts}
+  claim=dict(id='c0',status='supported',subject='甲公司',subject_code='1111',source_quote=raw,
+    source_fact_ids=['F1'],explanation='本股等待季線止穩')
+  reply={'texts':[dict(id='n0',text=text,meaning_preserved=True,category_consistent=True,
+    source_supported=True,written_style_ok=True,source_review={'claims':[claim]})]}
+  with patch.object(p,'call_gemini',return_value=json.dumps(reply)),patch.object(p,'budget_left',return_value=9999),patch.object(p,'GEMINI_KEYS',['offline']):
+   p._polish_public_texts({'watch_watch':[row],'_source_fact_ledger':facts},raw,'2026/10/27')
+  self.assertEqual(row['reason'],text)
+  self.assertEqual(p._current_source_review(row,raw,'reason')['status'],'supported')
+  row['reason']='甲公司明天大漲。'
+  self.assertFalse(p._current_source_review(row,raw,'reason'))
 if __name__=='__main__':unittest.main()

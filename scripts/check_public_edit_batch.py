@@ -32,7 +32,10 @@ class PublicBatchContract(unittest.TestCase):
     def test_neutral_and_unknown_spelling_both_reviewed_once(self):
         out,calls=run_batch(fixture())
         self.assertEqual(len(calls),1);self.assertEqual(len(calls[0]['texts']),3)
-        self.assertIn('source',calls[0]);self.assertEqual(calls[0]['texts'][0]['evidence'],['我有甲公司，成本100元。'])
+        # 完整原稿以S編號只送一份，不在全文／逐項引句中反覆塞入同樣內容。
+        self.assertNotIn('source',calls[0])
+        self.assertEqual(''.join(s['text'] for s in calls[0]['sources'].values()),'我有甲公司，成本100元。乙公司在箱型下緣。大盤回測60分K線。')
+        self.assertTrue(all('evidence' not in e and 'context' not in e for e in calls[0]['texts']))
         self.assertTrue(out['holdings'][0]['_public_edit_review']['source_supported'])
     def test_semantic_rejection_does_not_move_or_rewrite_stock(self):
         before=fixture()

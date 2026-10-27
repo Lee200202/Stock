@@ -72,7 +72,6 @@ def publication_errors(signals):
         errors.append('分類裁決未完成')
     if signals.get('_publication_quarantine') or signals.get('uncertain'):
         errors.append('仍有隔離／待裁決個股，完整單日候選不予發布')
-    errors.extend(str(x) for x in signals.get('_repair_gaps', []))
     for cat in pl.SIGNAL_CATEGORIES:
         if any(r.get('_manual_note_kept') for r in signals.get(cat, []) or []):
             errors.append('模型候選混入人工保留說明')
@@ -118,6 +117,7 @@ def preview(book, day, raw, source, commit, state, reference, output, snapshots)
         overview, quality_hard, soft = pl.quality_overview(signals, raw)
         errors.extend(hard + quality_hard + publication_errors(signals))
         warnings.extend(soft)
+        warnings.extend(str(x) for x in signals.get('_repair_gaps', []))
         for line in overview:
             print('品質概況：' + line)
         issues, report = reference_check(reference, day, raw, signals)

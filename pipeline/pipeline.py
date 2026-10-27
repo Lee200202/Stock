@@ -16849,8 +16849,9 @@ def public_edit_response_schema():
         'type': 'object', 'properties': fields, 'required': list(fields)}}}, 'required': ['texts']}
 
 
-SOURCE_FACTS_VERSION = 'subject-first-v2-20261027'
-SOURCE_FACTS_SYSTEM = """你是逐字稿事實與主體審核者。輸入只有原稿與公司識別候選，沒有待審說明、分類或標準答案。
+SOURCE_FACTS_VERSION = 'subject-first-v3-focus-20261027'
+SOURCE_FACTS_SYSTEM = """你是逐字稿事實與主體審核者。輸入只有原稿、公司識別候選及匿名字串檢索命中的段落編號，沒有待審股名與主張配對、分類或標準答案。
+focus_source_ids是優先查核範圍，不是主體答案。逐一閱讀這些段落及前後文，完整列出每個主體各自的最小事實，特別避免只摘要整篇而漏掉指定段落的細節。檢索只證明字串相關，不能以命中、最近名稱或價格決定主體；仍由你判讀上下文，無法確認則列uncertain。
 先完整閱讀前後文，依最小事實列出主體；每項附連續逐字引句及source_ids。這不是每股摘要，也不作買賣分類。
 主詞、受詞、講者本人、觀眾持有、歷史與目前必須區分；不要把後面出現的公司套到前面已明確有主體的特徵。
 單一成員的股本、拉抬速度、EPS、價位不共享；同段後面有別股名稱不代表前面在講該股。並列共同結論可填多個subject_codes。
@@ -16905,8 +16906,34 @@ def _validate_source_facts(data, transcript, codes):
             'facts': facts, 'rejected_count': rejected, 'uncertain': data.get('uncertain', []) if isinstance(data, dict) else []}
 
 
+def _source_claim_focus(signals, transcript, known):
+    """主張只供匿名字串檢索，命中段落送語意審閱；不指定主體、不刪句或改分類。"""
+    segments = source_segments(transcript)
+    ids = list(segments)
+    texts = [_ev_norm(segments[s]['text']) for s in ids]
+    names = sorted({n for variants in known.values() for n in variants if len(n) >= 2}
+                   | set(known), key=len, reverse=True)
+    gram = lambda t: {t[i:i + 2] for i in range(len(t) - 1) if all(c.isalnum() for c in t[i:i + 2])}
+    bags = [gram(t) for t in texts]
+    focused = set()
+    for cat in SIGNAL_CATEGORIES:
+        for row in signals.get(cat, []) or []:
+            for claim in _note_claims(str(row.get('note') or row.get('reason') or '')):
+                text = _ev_norm(claim['text'])
+                for name in names:
+                    text = text.replace(_ev_norm(name), '')
+                query = gram(text)
+                scores = [(sum(1 / sum(g in b for b in bags) for g in query & bag), i)
+                          for i, bag in enumerate(bags)]
+                for score, i in sorted(scores, reverse=True)[:2]:
+                    if score <= 0:
+                        continue
+                    focused.update(ids[j] for j in range(max(0, i - 1), min(len(ids), i + 2)))
+    return [s for s in ids if s in focused]
+
+
 def source_claim_ledger(signals, transcript):
-    """每份原稿一次獨立主體盤點；不將草稿／分類／人工期望傳入，亦不寫入公司別名。"""
+    """先盤點原稿主體；匿名主張只定位範圍，不提供草稿主體或期望答案。"""
     # 正式擷取早已載入官方名稱；固定說明重播也必須取得相同識別背景，否則鄰股代號無法進入候選。
     if not _CODE_MAP:
         get_code_map()
@@ -16925,10 +16952,15 @@ def source_claim_ledger(signals, transcript):
                 'facts': {}, 'error': '來源主體盤點未完成；不推定說明通過'}
     # 舊稿逐字間隔空白；僅移除空白供閱讀，S編號仍還原原稿，不能改字、價位或公司名。
     readable = {sid: dict(seg, text=''.join(seg['text'].split())) for sid, seg in source_segments(transcript).items()}
+    focus = _source_claim_focus(signals, transcript, known)
     raw = call_gemini(SOURCE_FACTS_SYSTEM, json.dumps({'sources': readable,
-        'company_candidates': known}, ensure_ascii=False, separators=(',', ':')),
+        'company_candidates': known, 'focus_source_ids': focus}, ensure_ascii=False, separators=(',', ':')),
         want_json=True, thinking=1024, tag='source-facts', max_out=min(MAX_OUT, 15000))
-    return _validate_source_facts(safe_load_json(raw, default={}), transcript, set(known))
+    ledger = _validate_source_facts(safe_load_json(raw, default={}), transcript, set(known))
+    ledger['focus_source_ids'] = focus
+    covered = {sid for fact in ledger['facts'].values() for sid in fact.get('source_ids', [])}
+    ledger['uncovered_focus_source_ids'] = [sid for sid in focus if sid not in covered]
+    return ledger
 
 
 def _quote_spans_in_source(quote, transcript_norm):

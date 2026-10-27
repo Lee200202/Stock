@@ -34,7 +34,7 @@ class SourceFacts(unittest.TestCase):
  def test_source_stage_never_receives_draft_class_or_expected_answer(self):
   sig={'watch_watch':[{'code':'1111','name':'甲公司','reason':'這是刻意放入的待審草稿'}]}
   def fake(system,payload,**kwargs):
-   d=json.loads(payload);self.assertEqual(set(d),{'sources','company_candidates'})
+   d=json.loads(payload);self.assertEqual(set(d),{'sources','company_candidates','focus_source_ids'})
    self.assertNotIn('刻意放入',payload);self.assertNotIn('watch_watch',payload)
    return json.dumps({'facts':[]})
   with patch.object(p,'_CODE_MAP',{'1111':'甲公司','2222':'乙公司'}),patch.object(p,'source_inventory',return_value=[]),patch.object(p,'call_gemini',side_effect=fake) as call,patch.object(p,'budget_left',return_value=9999),patch.object(p,'GEMINI_KEYS',['offline']):

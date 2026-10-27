@@ -40,7 +40,8 @@ def main():
                          'output_note': row.get(field), 'claim_repair': row.get('_claim_repair'),
                          'human_source_number_cautions': pl._source_number_cautions(row, raw),
                          'review': review, 'expected_review_status': expected, 'reference_match': passed})
-        reports.append({'date': day['date'], 'source_sha256': sha, 'notes': rows})
+        reports.append({'date': day['date'], 'source_sha256': sha, 'notes': rows,
+                        'source_fact_ledger': signals.get('_source_fact_ledger')})
     result = {'status': 'completed', 'date': '固定說明跨日來源審閱', 'read_only': True,
               'classification_evaluation': 'not_evaluated', 'classification_injection': False,
               'build': pl.pipeline_build(), 'blocked_writes': len(book.blocked),

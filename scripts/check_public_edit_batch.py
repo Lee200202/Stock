@@ -23,7 +23,8 @@ def run_batch(sig, transform=lambda entry, answer:answer):
             answer={'id':e['id'],'text':e['text'],'meaning_preserved':True,'source_supported':True,'category_consistent':True,'written_style_ok':True,'issues_found':[]}
             answers.append(transform(e,answer))
         return json.dumps({'texts':answers},ensure_ascii=False)
-    with patch.object(pl,'call_gemini',side_effect=fake),patch.object(pl,'budget_left',return_value=9999),patch.object(pl,'GEMINI_KEYS',['offline']),patch.dict(pl._QUOTA_STOP,{'daily':False}):
+    # 此契約隔離公開編輯批次；獨立原稿主體盤點另由test_source_fact_ledger驗證，不以同一份編輯假回覆冒充兩階段。
+    with patch.object(pl,'source_claim_ledger',return_value=None),patch.object(pl,'call_gemini',side_effect=fake),patch.object(pl,'budget_left',return_value=9999),patch.object(pl,'GEMINI_KEYS',['offline']),patch.dict(pl._QUOTA_STOP,{'daily':False}):
         out=pl.polish_public_texts(sig,'我有甲公司，成本100元。乙公司在箱型下緣。大盤回測60分K線。','2026/10/16')
     return out,calls
 

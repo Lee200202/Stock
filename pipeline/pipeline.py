@@ -2120,6 +2120,8 @@ def gemini_generation_config(model, max_out=MAX_OUT, thinking=0, want_json=False
             cfg['responseJsonSchema'] = assessment_response_schema()
         elif _SCHEMA_STATE['on'] and tag.startswith('public-edit'):
             cfg['responseJsonSchema'] = public_edit_response_schema()
+        elif _SCHEMA_STATE['on'] and tag == 'source-facts':
+            cfg['responseJsonSchema'] = source_facts_response_schema()
     return cfg
 
 
@@ -16837,7 +16839,7 @@ def public_edit_response_schema():
         'type': 'object', 'properties': fields, 'required': list(fields)}}}, 'required': ['texts']}
 
 
-SOURCE_FACTS_VERSION = 'subject-first-v1-20261027'
+SOURCE_FACTS_VERSION = 'subject-first-v2-20261027'
 SOURCE_FACTS_SYSTEM = """你是逐字稿事實與主體審核者。輸入只有原稿與公司識別候選，沒有待審說明、分類或標準答案。
 先完整閱讀前後文，依最小事實列出主體；每項附連續逐字引句及source_ids。這不是每股摘要，也不作買賣分類。
 主詞、受詞、講者本人、觀眾持有、歷史與目前必須區分；不要把後面出現的公司套到前面已明確有主體的特徵。
@@ -16845,13 +16847,25 @@ SOURCE_FACTS_SYSTEM = """你是逐字稿事實與主體審核者。輸入只有�
 沒有明講名字的代名詞要讀轉場與上下文；不能只按最近公司字距、價格帶或技術詞認股。身分不明不硬填代號，留在uncertain。
 候選不是已確認主體；一般用語碰巧與股名相同不列事實。數字照原字，歷史拆股或疑似誤聽不可補猜。
 statement只整理該引句確實表達的單一事實並保留時間與條件；subject_quote逐字引出主體與必要指代上下文。
-只輸出JSON：{"facts":[{"id":"F0001","subject_codes":["代號"],"subject_quote":"含主體或可核回指代的原句","source_quote":"本項事實的連續原句","source_ids":["S0001"],"statement":"單一事實"}],"uncertain":[]}。"""
+優先用source_ids引用提供的S編號，程式會還原原字，subject_quote與source_quote可填空字串；不要自行改寫引句。引用需涵蓋主體與該事實，至多4段。
+只輸出JSON：{"facts":[{"id":"F0001","subject_codes":["代號"],"subject_quote":"","source_quote":"","source_ids":["S0001"],"statement":"單一事實，含主體及時間條件"}],"uncertain":[]}。"""
+
+
+def source_facts_response_schema():
+    """來源盤點的欄位與段落ID契約，不限制語意答案。"""
+    props = {'id': {'type': 'string'}, 'subject_codes': {'type': 'array', 'items': {'type': 'string'}},
+        'subject_quote': {'type': 'string'}, 'source_quote': {'type': 'string'},
+        'source_ids': {'type': 'array', 'items': {'type': 'string'}}, 'statement': {'type': 'string'}}
+    return {'type': 'object', 'properties': {'facts': {'type': 'array', 'items': {
+        'type': 'object', 'properties': props, 'required': list(props)}},
+        'uncertain': {'type': 'array', 'items': {'type': 'string'}}}, 'required': ['facts', 'uncertain']}
 
 
 def _validate_source_facts(data, transcript, codes):
     """只驗版本、唯一ID與原字引用；語意主詞由先讀原稿的模型負責，不用字詞猜方向。"""
-    facts, seen = {}, set()
+    facts, seen, rejected = {}, set(), 0
     norm = _ev_norm(transcript)
+    segments = source_segments(transcript)
     for fact in data.get('facts', []) if isinstance(data, dict) else []:
         if not isinstance(fact, dict):
             continue
@@ -16861,14 +16875,24 @@ def _validate_source_facts(data, transcript, codes):
             continue
         seen.add(fid)
         members = fact.get('subject_codes')
+        if isinstance(members, list):
+            members = [str(c) if isinstance(c, int) and not isinstance(c, bool) else c for c in members]
         quote, subject = str(fact.get('source_quote') or ''), str(fact.get('subject_quote') or '')
+        ids = fact.get('source_ids')
+        from_ids = isinstance(ids, list) and 1 <= len(ids) <= 4 and all(isinstance(i, str) and i in segments for i in ids)
+        if from_ids:
+            quote = '\n'.join(segments[i]['text'] for i in dict.fromkeys(ids))
+            # 事實主體由這輪語意答案判讀；ID只還原原字，不用最近名稱自動指定主體。
+            if len(_ev_norm(subject)) < 6 or _ev_norm(subject) not in norm:
+                subject = segments[ids[0]]['text']
         if (not isinstance(members, list) or not members or any(not isinstance(c, str) or c not in codes for c in members)
-                or len(_ev_norm(quote)) < 6 or _ev_norm(quote) not in norm
+                or len(_ev_norm(quote)) < 6 or (not from_ids and _ev_norm(quote) not in norm)
                 or len(_ev_norm(subject)) < 6 or _ev_norm(subject) not in norm or not fact.get('statement')):
+            rejected += 1
             continue
-        facts[fid] = dict(fact, subject_codes=list(dict.fromkeys(members)))
+        facts[fid] = dict(fact, subject_codes=list(dict.fromkeys(members)), source_quote=quote, subject_quote=subject)
     return {'version': SOURCE_FACTS_VERSION, 'source_sha256': hashlib.sha256(transcript.encode()).hexdigest(),
-            'facts': facts, 'uncertain': data.get('uncertain', []) if isinstance(data, dict) else []}
+            'facts': facts, 'rejected_count': rejected, 'uncertain': data.get('uncertain', []) if isinstance(data, dict) else []}
 
 
 def source_claim_ledger(signals, transcript):

@@ -48,6 +48,15 @@ class SourceFacts(unittest.TestCase):
    reply=dict(id='c0',status='supported',subject=row['name'],subject_code=code,source_quote=raw,source_fact_ids=['F1'],explanation='共同結論')
    r=p._validated_source_review({'source_review':{'claims':[reply]}},row,row['name']+'等待止穩。',raw)
    self.assertEqual(r['status'],'supported')
+ def test_source_ids_restore_original_without_accepting_retyped_quotes(self):
+  facts=p._validate_source_facts({'facts':[dict(id='F1',subject_codes=['2222'],source_ids=['S0001'],
+    source_quote='模型重寫的不存在文字',subject_quote='',statement='乙公司的股本特徵')]},RAW,{'1111','2222'})
+  self.assertEqual(facts['facts']['F1']['source_quote'],RAW)
+  self.assertIn(facts['facts']['F1']['subject_quote'],RAW)
+  self.assertEqual(facts['rejected_count'],0)
+  invalid=p._validate_source_facts({'facts':[dict(id='F1',subject_codes=['2222'],source_ids=['不存在'],
+    source_quote='模型重寫的不存在文字',subject_quote='',statement='無效事實')]},RAW,{'1111','2222'})
+  self.assertFalse(invalid['facts'])
  def test_missing_about_itself_does_not_become_a_negative_vote(self):
   for value in [None,0,'false']:
    answer={'about_itself':value,'quotes':{}}

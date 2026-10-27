@@ -1,0 +1,261 @@
+{
+  "date": "2026/10/27",
+  "video_id": "Rx9VY9bEqpU",
+  "raw_sha256": "aa22759a934f0210001a1d65f1fac85806f23bcf2870c0af99f53f962ebd83d0",
+  "authorization": "管理者要求核對2026/10/27並修正今日網站，不重新寄送。",
+  "review_basis": "先唯讀核對現況；本版僅供inspect，不可套用。",
+  "items": [
+    {
+      "code": "8210",
+      "name": "勤誠",
+      "category": "buy",
+      "action": "update",
+      "text": "勤誠近期外資連續兩天站在買方，出現假破低將真上攻的走勢，持續留意後續表現。",
+      "rationale": "等待當日原列來源及指紋核對；僅供inspect。",
+      "quotes": [
+        "各位全國投資朋友大家好，其實好久不見，放假的四天。\n\n我先告訴投資朋友放假四天在幹什麼？\n\n我放"
+      ],
+      "previous_note_sha256": "INSPECT_ONLY"
+    },
+    {
+      "code": "3665",
+      "name": "貿聯-KY",
+      "category": "watch_avoid",
+      "action": "update",
+      "text": "貿聯-KY股價由高檔大幅回檔，自2685元跌至1750元附近，跌幅接近千元，走勢相對疲弱。絕對不要碰貿聯-KY，並強調其股價表現將落後於嘉澤，買進將面臨明顯虧損風險。",
+      "rationale": "等待當日原列來源及指紋核對；僅供inspect。",
+      "quotes": [
+        "各位全國投資朋友大家好，其實好久不見，放假的四天。\n\n我先告訴投資朋友放假四天在幹什麼？\n\n我放"
+      ],
+      "previous_note_sha256": "INSPECT_ONLY"
+    },
+    {
+      "code": "2327",
+      "name": "國巨*",
+      "category": "watch_avoid",
+      "action": "update",
+      "text": "股價持續破底且跌至507元左右。多次強調過去三個月未曾叫會員買進，買入恐面臨嚴重虧損，屬於明確不宜碰觸的標的。",
+      "rationale": "等待當日原列來源及指紋核對；僅供inspect。",
+      "quotes": [
+        "各位全國投資朋友大家好，其實好久不見，放假的四天。\n\n我先告訴投資朋友放假四天在幹什麼？\n\n我放"
+      ],
+      "previous_note_sha256": "INSPECT_ONLY"
+    },
+    {
+      "code": "2454",
+      "name": "聯發科",
+      "category": "watch_avoid",
+      "action": "update",
+      "text": "短線跌幅甚重且缺口未守，媒體報導指出不到一個月慘跌24%。被點名為絕對不碰與不可買進的標的，強調買進者屬於看不懂股票的人。",
+      "rationale": "等待當日原列來源及指紋核對；僅供inspect。",
+      "quotes": [
+        "各位全國投資朋友大家好，其實好久不見，放假的四天。\n\n我先告訴投資朋友放假四天在幹什麼？\n\n我放"
+      ],
+      "previous_note_sha256": "INSPECT_ONLY"
+    },
+    {
+      "code": "2303",
+      "name": "聯電",
+      "category": "watch_avoid",
+      "action": "update",
+      "text": "在成熟製程板塊中明確表示自身並未持有聯電。不建議盲目跟進，屬於目前不碰的標的。",
+      "rationale": "等待當日原列來源及指紋核對；僅供inspect。",
+      "quotes": [
+        "各位全國投資朋友大家好，其實好久不見，放假的四天。\n\n我先告訴投資朋友放假四天在幹什麼？\n\n我放"
+      ],
+      "previous_note_sha256": "INSPECT_ONLY"
+    },
+    {
+      "code": "5347",
+      "name": "世界",
+      "category": "watch_avoid",
+      "action": "update",
+      "text": "在成熟製程板塊中，自身並未持有世界。未予推薦布局，屬於目前不碰的標的。",
+      "rationale": "等待當日原列來源及指紋核對；僅供inspect。",
+      "quotes": [
+        "各位全國投資朋友大家好，其實好久不見，放假的四天。\n\n我先告訴投資朋友放假四天在幹什麼？\n\n我放"
+      ],
+      "previous_note_sha256": "INSPECT_ONLY"
+    },
+    {
+      "code": "2308",
+      "name": "台達電",
+      "category": "watch_avoid",
+      "action": "update",
+      "text": "台達電跌破新低且跌破年線，目前超跌。雖然沒有台達電，但強調不準殺低也不用急著加碼。",
+      "rationale": "等待當日原列來源及指紋核對；僅供inspect。",
+      "quotes": [
+        "各位全國投資朋友大家好，其實好久不見，放假的四天。\n\n我先告訴投資朋友放假四天在幹什麼？\n\n我放"
+      ],
+      "previous_note_sha256": "INSPECT_ONLY"
+    },
+    {
+      "code": "8299",
+      "name": "群聯",
+      "category": "watch_avoid",
+      "action": "update",
+      "text": "記憶體族群聯近期漲跌反覆，群聯還沒有穩。目前對記憶體還沒有任何出手的念頭。",
+      "rationale": "等待當日原列來源及指紋核對；僅供inspect。",
+      "quotes": [
+        "各位全國投資朋友大家好，其實好久不見，放假的四天。\n\n我先告訴投資朋友放假四天在幹什麼？\n\n我放"
+      ],
+      "previous_note_sha256": "INSPECT_ONLY"
+    },
+    {
+      "code": "5289",
+      "name": "宜鼎",
+      "category": "watch_avoid",
+      "action": "update",
+      "text": "記憶體族群中的宜鼎目前還沒有那麼快穩住。目前對記憶體還沒有任何出手的念頭，不用急。",
+      "rationale": "等待當日原列來源及指紋核對；僅供inspect。",
+      "quotes": [
+        "各位全國投資朋友大家好，其實好久不見，放假的四天。\n\n我先告訴投資朋友放假四天在幹什麼？\n\n我放"
+      ],
+      "previous_note_sha256": "INSPECT_ONLY"
+    },
+    {
+      "code": "2408",
+      "name": "南亞科",
+      "category": "watch_avoid",
+      "action": "update",
+      "text": "記憶體族群中的南亞科目前還沒有穩住。目前對記憶體還沒有任何出手的念頭。",
+      "rationale": "等待當日原列來源及指紋核對；僅供inspect。",
+      "quotes": [
+        "各位全國投資朋友大家好，其實好久不見，放假的四天。\n\n我先告訴投資朋友放假四天在幹什麼？\n\n我放"
+      ],
+      "previous_note_sha256": "INSPECT_ONLY"
+    },
+    {
+      "code": "3661",
+      "name": "世芯-KY",
+      "category": "watch_avoid",
+      "action": "update",
+      "text": "世芯-KY目前買進條件尚未成熟，市場高度關注但現階段不宜貿然進場，靜待後續條件出現。",
+      "rationale": "等待當日原列來源及指紋核對；僅供inspect。",
+      "quotes": [
+        "各位全國投資朋友大家好，其實好久不見，放假的四天。\n\n我先告訴投資朋友放假四天在幹什麼？\n\n我放"
+      ],
+      "previous_note_sha256": "INSPECT_ONLY"
+    },
+    {
+      "code": "2049",
+      "name": "上銀",
+      "category": "watch_watch",
+      "action": "update",
+      "text": "同類的上銀漲停板，上個禮拜還在跌，今天第一天漲並往季線走。所屬的工具機族群這一次要漲一波，若真的很想買，最適合買低檔假破底的股票，投資人可多加注意。",
+      "rationale": "等待當日原列來源及指紋核對；僅供inspect。",
+      "quotes": [
+        "各位全國投資朋友大家好，其實好久不見，放假的四天。\n\n我先告訴投資朋友放假四天在幹什麼？\n\n我放"
+      ],
+      "previous_note_sha256": "INSPECT_ONLY"
+    },
+    {
+      "code": "2330",
+      "name": "台積電",
+      "category": "holdings",
+      "action": "update",
+      "text": "過去在1820、2025、2135等低檔買進的部位目前仍持續抱著，未有變動，雖然不建議新會員現階段追買，但既有持股續抱。新會員現階段不要追買，要把資金留在後面準備買別檔。",
+      "rationale": "等待當日原列來源及指紋核對；僅供inspect。",
+      "quotes": [
+        "各位全國投資朋友大家好，其實好久不見，放假的四天。\n\n我先告訴投資朋友放假四天在幹什麼？\n\n我放"
+      ],
+      "previous_note_sha256": "INSPECT_ONLY"
+    },
+    {
+      "code": "6770",
+      "name": "力積電",
+      "category": "holdings",
+      "action": "update",
+      "text": "成熟製程中會員目前持有的標的，雖然目前小套，但在大盤大跌800多點時逆勢漲兩毛展現強烈抗跌力道，有買盤進駐，預期後續會走高。記憶體裡面只有力積電且目前還小套住。",
+      "rationale": "等待當日原列來源及指紋核對；僅供inspect。",
+      "quotes": [
+        "各位全國投資朋友大家好，其實好久不見，放假的四天。\n\n我先告訴投資朋友放假四天在幹什麼？\n\n我放"
+      ],
+      "previous_note_sha256": "INSPECT_ONLY"
+    },
+    {
+      "code": "2402",
+      "name": "毅嘉",
+      "category": "holdings",
+      "action": "update",
+      "text": "毅嘉成交量不高，外資有買進，屬於假破底的股票。目前覺得超級便宜，本來就是會員的股票，指示抱著。",
+      "rationale": "等待當日原列來源及指紋核對；僅供inspect。",
+      "quotes": [
+        "各位全國投資朋友大家好，其實好久不見，放假的四天。\n\n我先告訴投資朋友放假四天在幹什麼？\n\n我放"
+      ],
+      "previous_note_sha256": "INSPECT_ONLY"
+    },
+    {
+      "code": "3533",
+      "name": "嘉澤",
+      "category": "holdings",
+      "action": "update",
+      "text": "嘉澤股價表現強勢且大漲，之前買進後上漲95元，目前續抱。",
+      "rationale": "等待當日原列來源及指紋核對；僅供inspect。",
+      "quotes": [
+        "各位全國投資朋友大家好，其實好久不見，放假的四天。\n\n我先告訴投資朋友放假四天在幹什麼？\n\n我放"
+      ],
+      "previous_note_sha256": "INSPECT_ONLY"
+    },
+    {
+      "code": "1590",
+      "name": "亞德客-KY",
+      "category": "holdings",
+      "action": "update",
+      "text": "亞德客-KY為工具機與機器人概念股，今年EPS預估可達50元。股價跌至年線以下、底部1135且量縮到最小後轉強，今天早上漲了70幾元，續抱。",
+      "rationale": "等待當日原列來源及指紋核對；僅供inspect。",
+      "quotes": [
+        "各位全國投資朋友大家好，其實好久不見，放假的四天。\n\n我先告訴投資朋友放假四天在幹什麼？\n\n我放"
+      ],
+      "previous_note_sha256": "INSPECT_ONLY"
+    },
+    {
+      "code": "6409",
+      "name": "旭隼",
+      "category": "holdings",
+      "action": "update",
+      "text": "旭隼盤面表現續攻且走勢強勢，維持既有格局，會員持股續抱不動作。",
+      "rationale": "等待當日原列來源及指紋核對；僅供inspect。",
+      "quotes": [
+        "各位全國投資朋友大家好，其實好久不見，放假的四天。\n\n我先告訴投資朋友放假四天在幹什麼？\n\n我放"
+      ],
+      "previous_note_sha256": "INSPECT_ONLY"
+    },
+    {
+      "code": "8210",
+      "name": "勤誠",
+      "category": "holdings",
+      "action": "update",
+      "text": "勤誠外資連買兩天，技術面呈現假破底真上攻走勢，續抱。",
+      "rationale": "等待當日原列來源及指紋核對；僅供inspect。",
+      "quotes": [
+        "各位全國投資朋友大家好，其實好久不見，放假的四天。\n\n我先告訴投資朋友放假四天在幹什麼？\n\n我放"
+      ],
+      "previous_note_sha256": "INSPECT_ONLY"
+    },
+    {
+      "code": "3592",
+      "name": "瑞鼎",
+      "category": "holdings",
+      "action": "update",
+      "text": "瑞鼎月K線翻陽，MACD翻陽，底部形態確立，續抱。",
+      "rationale": "等待當日原列來源及指紋核對；僅供inspect。",
+      "quotes": [
+        "各位全國投資朋友大家好，其實好久不見，放假的四天。\n\n我先告訴投資朋友放假四天在幹什麼？\n\n我放"
+      ],
+      "previous_note_sha256": "INSPECT_ONLY"
+    },
+    {
+      "code": "3558",
+      "name": "神準",
+      "category": "holdings",
+      "action": "update",
+      "text": "神準為原有持股，走勢強勢，續抱。",
+      "rationale": "等待當日原列來源及指紋核對；僅供inspect。",
+      "quotes": [
+        "各位全國投資朋友大家好，其實好久不見，放假的四天。\n\n我先告訴投資朋友放假四天在幹什麼？\n\n我放"
+      ],
+      "previous_note_sha256": "INSPECT_ONLY"
+    }
+  ]
+}

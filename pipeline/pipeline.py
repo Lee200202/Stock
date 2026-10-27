@@ -2117,7 +2117,7 @@ def gemini_generation_config(model, max_out=MAX_OUT, thinking=0, want_json=False
         cfg['responseMimeType'] = 'application/json'
         if _SCHEMA_STATE['on'] and tag.startswith('adjudicate-r'):
             cfg['responseJsonSchema'] = verdict_response_schema()
-        elif _SCHEMA_STATE['on'] and tag == 'source-facts':
+        elif _SCHEMA_STATE['on'] and tag.startswith('source-facts'):
             cfg['responseJsonSchema'] = source_facts_response_schema()
         elif _SCHEMA_STATE['on'] and tag.startswith(('assess-json-', 'context-review')):
             # 只限制九類容器，不把持股欄位硬套在盤勢上；語意與引句仍須本機核對。
@@ -7975,6 +7975,11 @@ ASSESSMENT_VERSION = 'context-json-v34'   # 2026/10/15：言語行為、當日�
 _SOUND_MEMO = {}
 
 
+def _quantity_surface(text):
+    """數量詞不是已確認公司別名；公司身分仍可由明確名稱／代號與模型確認。"""
+    return bool(re.fullmatch(r'[一二三四五六七八九十百千兩幾數每][家間檔支隻張個位種次]', str(text or '')))
+
+
 def _sound_hits(flat_source):
     """原文裡用讀音對得上 CONFIRMED_SOUNDS 的寫法。
 
@@ -8000,7 +8005,8 @@ def _sound_hits(flat_source):
         _SOUND_MEMO.update(flat=flat, pins=pins)
     elif known and flat in known:
         # 舊表是超集合：直接用子字串篩，不必再算注音。
-        return {heard: pair for heard, pair in (_SOUND_MEMO.get('table') or {}).items() if heard in flat}
+        return {heard: pair for heard, pair in (_SOUND_MEMO.get('table') or {}).items()
+                if heard in flat and not _quantity_surface(heard)}
     else:
         pins = _char_pinyin(flat)
         _SOUND_MEMO.update(flat=flat, pins=pins)
@@ -8012,7 +8018,7 @@ def _sound_hits(flat_source):
             continue
         size = len(want)
         for i in range(len(pins) - size + 1):
-            if tuple(pins[i:i + size]) == want:
+            if tuple(pins[i:i + size]) == want and not _quantity_surface(flat[i:i + size]):
                 out.setdefault(flat[i:i + size], (code, name))
     _SOUND_MEMO.update(flat=flat, pins=pins, table=dict(out))
     return out
@@ -8026,7 +8032,7 @@ def _confirmed_names_for(flat_source):
             names.setdefault(e['heard'], (e['code'], e.get('real') or ''))
     for heard, pair in _sound_hits(flat_source).items():
         names.setdefault(heard, pair)
-    return names
+    return {heard: pair for heard, pair in names.items() if not _quantity_surface(heard)}
 
 
 def _confirmed_industries():
@@ -8067,7 +8073,7 @@ def source_inventory(segments):
           不因模型沒交代它就產生「盤點漏項」。
     跨段落邊界的名稱不列（分段優先切在句號，名稱被切開的機會很小）。
     """
-    names = dict(_inventory_names())        # 複製一份：下面依這一份原文補上的讀音與念出的代號，不寫回共用快取
+    names = {n: v for n, v in _inventory_names().items() if not _quantity_surface(n)}
     refs = {}
     for sid, seg in segments.items():
         for heard in _segment_inventory(seg['text'], names):
@@ -8253,6 +8259,31 @@ def recover_context(signals, transcript):
     return signals
 
 
+_DAY_SOURCE_CONTEXT = {}
+
+
+def load_day_source_context(ss, date_str):
+    """只載當日通知原文與來源識別；不讀既有分類答案或改寫說明，不新增通用別名。"""
+    context = {'date': date_str, 'notices': [], 'company_candidates': {}}
+    values = sheets_retry(ss.worksheet('會員簡訊').get_all_values)
+    if values and '原文' in values[0] and '發文時間' in values[0]:
+        for cells in values[1:]:
+            row = dict(zip(values[0], cells))
+            if norm_date(str(row.get('發文時間') or '')[:10]) == date_str and row.get('原文'):
+                context['notices'].append({'id': str(row.get('文章ID') or ''),
+                    'time': row['發文時間'], 'original': row['原文']})
+    for name in ('操作紀錄', '會員持股'):
+        values = sheets_retry(ss.worksheet(name).get_all_values)
+        for cells in values[1:] if values else []:
+            row = dict(zip(values[0], cells))
+            if (norm_date(row.get('日期')) == date_str and _is_sms_row(row.get('來源影片ID'))
+                    and re.fullmatch(r'[1-9]\d{3}', str(row.get('代號') or ''))):
+                context['company_candidates'][str(row['代號'])] = str(row.get('股票名稱') or '')
+    _DAY_SOURCE_CONTEXT.clear()
+    _DAY_SOURCE_CONTEXT.update(context)
+    return context
+
+
 def assessment_payload(date_str, segments, candidates=None, issues=None):
     # 語音稿每個字之間有空白，確認名稱要拿去掉空白的原文比對（否則「大 力 光」永遠對不上「大力光」）。
     flat_source = re.sub(r'\s', '', ''.join(seg['text'] for seg in segments.values()))
@@ -8261,6 +8292,9 @@ def assessment_payload(date_str, segments, candidates=None, issues=None):
             'confirmed_names': _confirmed_names_for(flat_source), 'confirmed_industries': _confirmed_industries(),
             'non_equity_names': sorted(NON_EQUITY_NAMES),
             'source': {sid: seg['text'] for sid, seg in segments.items()}}
+    if _DAY_SOURCE_CONTEXT.get('date') == date_str:
+        data['day_notification_context'] = _DAY_SOURCE_CONTEXT
+        data['notification_context_rule'] = '只用當日通知原文確認公司身分、交易與部位事實；不是人工答案。技術說明仍引本股原稿；不要公開通知買價，不把當日ASR推論寫成跨日通用別名。'
     inventory = source_inventory(segments)
     if inventory:
         data['source_inventory'] = inventory
@@ -9070,6 +9104,7 @@ def _entity_scope(row, signals, transcript, before_chars=180, after_chars=160, w
                 # 本輪已收錄的別檔，去掉星號後的兩字名稱也要當切點（力積電的摘錄不能帶進愛普那一句）。
                 others.update(bare(n) for n in ns if len(bare(n)) >= 2)
     others -= names
+    others = {n for n in others if not _quantity_surface(n)}
     cuts = sorted((m.start(),m.end()) for name in others for m in re.finditer(re.escape(name),source))
     chunks=[]
     for name in sorted(names,key=len,reverse=True):
@@ -12893,7 +12928,8 @@ def audit_context_json(transcript, signals, date_str, editorial_retry=True):
 def extract_signals(v2, date_str):
     if os.environ.get("GEMINI_COMBINED_ASSESSMENT", "true").lower() != "false":
         return extract_context_json(v2, date_str)
-    raw = call_gemini(EXTRACT_SYSTEM, f'影片日期：{date_str}\n原始逐字稿（來源編號只作定位）：\n' + indexed_source(v2),
+    context = _DAY_SOURCE_CONTEXT if _DAY_SOURCE_CONTEXT.get('date') == date_str else {}
+    raw = call_gemini(EXTRACT_SYSTEM, f'影片日期：{date_str}\n當日通知原文（僅身分與事件事實）：' + json.dumps(context, ensure_ascii=False) + '\n原始逐字稿（來源編號只作定位）：\n' + indexed_source(v2),
                       want_json=True, thinking=1024, tag='extract', max_out=min(MAX_OUT, 16000))
     return safe_load_json(raw, default={c: [] for c in SIGNAL_CATEGORIES + ('history', 'uncertain', 'ignored', 'market')})
 
@@ -13868,6 +13904,9 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
     def real(field):
         clean = [re.sub(r'[【】]', '', q) for q in (quotes.get(field) or []) if isinstance(q, str)]
         # 立場的引句也可以來自股名之前、中間沒有別檔的那一段（「如果你的股票來到年線，你就好好的佈局…宜鼎是不是來到年線了？」）
+        restored = (answer.get('_verified_quote_sources') or {}).get(field) or []
+        if restored:
+            return restored
         zones = list(quote_zones or []) + (list(lead_zones or []) if field == 'stance' else [])
         return [q for q in clean if len(_ev_norm(q)) >= 6 and (_ev_norm(q) in passages_norm or field == 'stance' and lead_zones)
                 and (quote_zones is None or any(_ev_norm(q) in _ev_norm(z) for z in zones))]
@@ -13885,7 +13924,7 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
             return False
         if field == 'holding_now' and _VQ_ASKER.search(q.strip()):
             return False                         # 觀眾提問裡的「我手中有…要出嗎？」是提問者自己的部位
-        if field == 'holding_now' and own:
+        if field == 'holding_now' and own and not (answer.get('_verified_quote_sources') or {}).get(field):
             # 持有的引句要在本股名稱前後 40 字內：離得遠的是別的話題（2026/10/15 台塑化只在名單裡，持有引句講的是另一件事）
             k = _ev_norm(q)
             at = passages_norm.find(k)
@@ -14084,11 +14123,13 @@ def verdict_response_schema():
     fields = ('buy_today', 'sell_today', 'holding_now', 'past_trade', 'stance')
     props['quotes'] = {'type': 'object', 'properties': {f: {'type': 'array', 'items': {'type': 'string'}} for f in fields},
                        'required': list(fields)}
+    props['quote_source_ids'] = {'type': 'object', 'properties': {f: {'type': 'array', 'items': {'type': 'string'}} for f in fields},
+                                'required': list(fields)}
     return {'type': 'object', 'properties': {'verdicts': {'type': 'array', 'items': {
         'type': 'object', 'properties': props, 'required': list(props)}}}, 'required': ['verdicts']}
 
 
-def _ask_verdicts(items, date_str, round_no):
+def _ask_verdicts(items, date_str, round_no, transcript=''):
     """問一輪。items 是 [(代號, 項目)]；回傳 {代號: 問卷答案}。問不到的那一批回空的，不擋流程。"""
     answers = {}
     order = items[round_no % len(items):] + items[:round_no % len(items)] if items else []   # 每一輪換順序，位置不影響答案
@@ -14105,7 +14146,10 @@ def _ask_verdicts(items, date_str, round_no):
     for batch in batches:
         if not batch:
             continue
-        payload = json.dumps({'stocks': [stock for _, stock in batch]}, ensure_ascii=False, separators=(',', ':'))
+        sources = source_segments(transcript) if transcript else {}
+        payload = json.dumps({'stocks': [stock for _, stock in batch], 'source': sources,
+            'source_id_rule': '先讀完整source及當日通知，passages僅定位提示，不是完整邊界。每個事實題與stance可填quote_source_ids對應S編號，最多3段，程式會還原逐字內容；仍須自己核對該段真正主體與時間，不能借相鄰股。',
+            'day_notification_context': _DAY_SOURCE_CONTEXT if _DAY_SOURCE_CONTEXT.get('date') == date_str else {}}, ensure_ascii=False, separators=(',', ':'))
         try:
             raw = call_gemini(ADJUDICATE_SYSTEM, payload, want_json=True, thinking=1024,
                               tag=f'adjudicate-r{round_no + 1}', max_out=min(MAX_OUT, 3000 + 450 * len(batch)))
@@ -14115,6 +14159,14 @@ def _ask_verdicts(items, date_str, round_no):
             continue
         for v in (data.get('verdicts') if isinstance(data, dict) else None) or []:
             if isinstance(v, dict) and str(v.get('id') or '') in dict(batch):
+                v.pop('_verified_quote_sources', None)
+                restored = {}
+                source_ids = v.get('quote_source_ids') if isinstance(v.get('quote_source_ids'), dict) else {}
+                for field, ids in source_ids.items():
+                    if field in ('buy_today','sell_today','holding_now','past_trade','stance') and isinstance(ids, list) and 1 <= len(ids) <= 3 and all(isinstance(sid, str) and sid in sources for sid in ids):
+                        restored[field] = [sources[sid]['text'] for sid in dict.fromkeys(ids)]
+                if restored:
+                    v['_verified_quote_sources'] = restored
                 answers[str(v['id'])] = v
     return answers
 
@@ -14294,7 +14346,7 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
     for round_no in range(VERDICT_MAX_ROUNDS):
         if not pending:
             break
-        answers = _ask_verdicts(pending, date_str, round_no)
+        answers = _ask_verdicts(pending, date_str, round_no, transcript)
         still = []
         for code, item in pending:
             entry = verdicts[code]
@@ -15070,7 +15122,7 @@ def heard_form(name, transcript):
             continue
         for i in range(len(sentence) - len(name) + 1):
             piece = sentence[i:i + len(name)]
-            if piece != name and all(_has_cjk(c) for c in piece) and not _HEARD_ORDINARY.search(piece) and _syllable_key(piece) == key                     and _HEARD_BEFORE.search(sentence[:i]) and _HEARD_AFTER.match(sentence[i + len(name):]):
+            if piece != name and all(_has_cjk(c) for c in piece) and not _HEARD_ORDINARY.search(piece) and not _quantity_surface(piece) and _syllable_key(piece) == key                     and _HEARD_BEFORE.search(sentence[:i]) and _HEARD_AFTER.match(sentence[i + len(name):]):
                 return piece
     return ''
 
@@ -16877,6 +16929,9 @@ def source_claim_ledger(signals, transcript):
     for item in source_inventory(source_segments(transcript)):
         if item.get('code'):
             known.setdefault(str(item['code']), []).append(item['name'])
+    day_context = _DAY_SOURCE_CONTEXT if _DAY_SOURCE_CONTEXT.get('transcript_sha256') == hashlib.sha256(transcript.encode()).hexdigest() else {}
+    for code, name in (day_context.get('company_candidates') or {}).items():
+        known.setdefault(code, []).append(name)
     if not known:
         return {}
     if _QUOTA_STOP.get('daily') or budget_left() < 240 or not GEMINI_KEYS:
@@ -16885,10 +16940,25 @@ def source_claim_ledger(signals, transcript):
     # 舊稿逐字間隔空白；僅移除空白供閱讀，S編號仍還原原稿，不能改字、價位或公司名。
     readable = {sid: dict(seg, text=''.join(seg['text'].split())) for sid, seg in source_segments(transcript).items()}
     focus = _source_claim_focus(signals, transcript, known)
-    raw = call_gemini(SOURCE_FACTS_SYSTEM, json.dumps({'sources': readable,
-        'company_candidates': known, 'focus_source_ids': focus}, ensure_ascii=False, separators=(',', ':')),
-        want_json=True, thinking=1024, tag='source-facts', max_out=min(MAX_OUT, 15000))
-    ledger = _validate_source_facts(safe_load_json(raw, default={}), transcript, set(known))
+    # 小批指定盤點範圍，避免把整日來源只摘要成十項而漏掉待核細節；全文仍供主體轉場核對。
+    batches = [focus[i:i + 12] for i in range(0, len(focus), 12)] or [[]]
+    ledger = _validate_source_facts({}, transcript, set(known))
+    for index, required in enumerate(batches):
+        if budget_left() < 150:
+            ledger['error'] = '來源分批盤點尚未完成，不推定通過'
+            break
+        source_input = {'sources': readable, 'company_candidates': known, 'focus_source_ids': required}
+        if day_context.get('notices'):
+            source_input['day_notification_context'] = day_context
+        raw = call_gemini(SOURCE_FACTS_SYSTEM, json.dumps(source_input, ensure_ascii=False, separators=(',', ':')),
+            want_json=True, thinking=1024, tag='source-facts' if len(batches) == 1 else f'source-facts-b{index + 1}',
+            max_out=min(MAX_OUT, 15000))
+        part = _validate_source_facts(safe_load_json(raw, default={}), transcript, set(known))
+        for fid, fact in part['facts'].items():
+            key = fid if len(batches) == 1 else f'B{index + 1:02d}-{fid}'
+            ledger['facts'][key] = dict(fact, id=key)
+        ledger['rejected_count'] += part['rejected_count']
+        ledger['uncertain'].extend(part['uncertain'])
     ledger['focus_source_ids'] = focus
     covered = {sid for fact in ledger['facts'].values() for sid in fact.get('source_ids', [])}
     ledger['uncovered_focus_source_ids'] = [sid for sid in focus if sid not in covered]
@@ -17165,9 +17235,10 @@ def _polish_public_texts(signals, transcript, date_str):
         signals.setdefault('_repair_gaps', []).append(f'AI文體待審閱：{len(entries)} 則文字因時間或配額不足未完成，不推定有口語問題')
         return signals
     pending, accepted, refused, repaired = dict(targets), 0, {}, 0
-    for attempt in range(1):  # 每輪一個合併請求；不逐檔追問，缺漏列留內部待審閱原因。
+    for offset in range(0, len(entries), 8):  # 固定小批而非逐股呼叫，避免大批JSON漏交後半部的逐項主張。
+        attempt = 0
         batch = [dict(e, issues=e['issues'] + ([refused[e['id']]] if e['id'] in refused else []))
-                 for e in entries if e['id'] in pending]
+                 for e in entries[offset:offset + 8] if e['id'] in pending]
         if not batch:
             break
         raw = call_gemini(PUBLIC_EDIT_SYSTEM, json.dumps({'texts': batch, 'source': transcript, 'sources': source_segments(transcript),
@@ -17539,6 +17610,8 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
         print(f'原文盤點：官方表暫不可用，仍用確認名稱；後續代號比對再試（{type(e).__name__}）')
     roster = source_inventory(source_segments(TX['extract']))
     print('原文名稱盤點（候選，非分類）：' + ('、'.join(dict.fromkeys(r['name'] for r in roster)) or '無精確命中，交由全文判讀'))
+    load_day_source_context(ss, date_str)
+    _DAY_SOURCE_CONTEXT['transcript_sha256'] = hashlib.sha256(TX['audit'].encode()).hexdigest()
     signals = extract_signals(TX["extract"], date_str)
     print(f"  擷取結果　{signal_roster(signals)}")
 

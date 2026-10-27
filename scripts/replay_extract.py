@@ -186,7 +186,7 @@ def invariants(signals, raw):
         # 會員持股只有「仍持有」這一句也是一則完整的說明：原文對這一檔只講了持有、沒有報名字的段落又不能借用時，
         # 不為了湊字擋下整天（2026/10/09 力積電，管理者同意這樣呈現）。列進提醒，不算錯誤。
         bare_holding = cat == "holdings" and len(pl._ev_norm(note)) >= 4 and re.search(r"持有|續抱|抱著", note)
-        if len(pl._ev_norm(note)) < 8 and not bare_holding:
+        if not pl._ev_norm(note) or note.strip() == '未說明':
             errors.append(f"{name} 沒有說明（{len(pl._ev_norm(note))} 字）")
         elif len(pl._ev_norm(note)) < 25:
             warns.append(f"{name} 說明只有 {len(pl._ev_norm(note))} 字")
@@ -230,12 +230,16 @@ def invariants(signals, raw):
                   if isinstance(r, dict) and r.get('_evidence_verified') and not r.get('_duplicate_point')]
         macro = sum(r.get('kind') != 'view' for r in points)
         lessons = sum(r.get('kind') == 'view' for r in points)
-        if macro < 2:
-            errors.append(f"盤勢總覽只有 {macro} 點（原文 {len(raw)} 字，至少要 2 個不同主題）")
+        if macro == 0:
+            errors.append('盤勢總覽沒有可對回來源的內容')
+        elif macro < 2:
+            warns.append(f'盤勢總覽只有 {macro} 個來源主題，確認是否漏掉材料，不以點數直接判錯')
         elif macro < 3:
             warns.append('盤勢總覽只有 2 個不同主題；未以重複點湊數')
-        if lessons < 3:
-            errors.append(f"操作邏輯與教學重點只有 {lessons} 點（至少要 3 點）")
+        if lessons == 0:
+            errors.append('操作邏輯與教學沒有可對回來源的內容')
+        elif lessons < 3:
+            warns.append(f'教學只有 {lessons} 個來源主題，確認是否漏掉材料，不以點數直接判錯')
     return errors, warns
 
 

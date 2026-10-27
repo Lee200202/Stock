@@ -41,11 +41,11 @@
           "category": "watch_avoid",
           "code": "3661",
           "name": "世芯-KY",
-          "note": "世芯-KY慣性在低點要漲時必須有成交量配合，目前尚未看到相應量能，因此暫時沒有買進。必須等低點出現成交量再行評估。",
+          "note": "世芯-KY股本相對較小且拉抬速度較快，但目前尚未買進。高價股低點若要上漲必須有成交量配合，目前未見相應量能。必須等低點出現成交量再行評估，暫時不追買。",
           "expected_review_status": [
             "cross_entity"
           ],
-          "provenance": "scratch\\worktrees\\1021-verification-notes\\scratch\\report-replay-1027\\40440438907\\result.json"
+          "provenance": "scratch\\worktrees\\1021-verification-notes\\scratch\\report-replay-1027\\40440438907\\result.json -> note_source_reviews[code=3661].review.note_quote (原始送審錯文，非改寫後輸出)"
         },
         {
           "category": "watch_avoid",

@@ -55,16 +55,19 @@ class PriceContextContract(unittest.TestCase):
         self.assertEqual(result, {})
         self.assertTrue(row['_price_context_suspicions'])
 
-    def review(self, status, source_quote, subject='', note_quote='成本1080元', **extra):
+    def review(self, status, source_quote, subject='', note_quote='成本1080元', manual=False, **extra):
         raw = '甲公司目前回測年線，等待量縮止穩。乙公司先前成本1080元，現在跌破季線。'
         text = '甲公司成本1080元，目前回測年線，等待量縮止穩。'
         row = {'name': '甲公司', 'code': '1111', 'reason': text, 'evidence': [raw[:21]]}
+        if manual:
+            row['_manual_note_kept'] = True
         signals = {'watch_watch': [row]}
         answer = dict(id='n0', text=text, meaning_preserved=True, category_consistent=True,
                       source_supported=status == 'supported', written_style_ok=True, issues_found=[],
                       source_review={'claims': [dict(id=c['id'] if note_quote == '成本1080元' else 'missing',
                           status=status if i == 0 else 'supported', source_quote=source_quote,
-                          subject=subject, explanation='先核主體與時間，再看價位是否可能為誤聽。')
+                          subject=subject, subject_code='2222' if status == 'cross_entity' and i == 0 else '1111',
+                          source_ids=[], safe_text='', explanation='先核主體與時間，再看價位是否可能為誤聽。')
                           for i, c in enumerate(p._note_claims(text))]})
         answer.update(extra)
         with patch.object(p, 'call_gemini', return_value=json.dumps({'texts': [answer]}, ensure_ascii=False)) as call, \
@@ -72,13 +75,15 @@ class PriceContextContract(unittest.TestCase):
             p._polish_public_texts(signals, raw, '2026/10/21')
         return signals, row, raw, call
 
-    def test_confirmed_cross_entity_is_isolated_with_source_and_original_preserved(self):
+    def test_only_confirmed_cross_entity_claim_is_removed_and_original_preserved(self):
         signals, row, raw, call = self.review('cross_entity', '乙公司先前成本1080元，現在跌破季線。', '乙公司')
         before = copy.deepcopy(row)
         p.quarantine_public_rows(signals, raw)
-        self.assertEqual(signals['watch_watch'], [])
-        self.assertEqual(signals['uncertain'][0]['reason'], before['reason'])
-        self.assertEqual(signals['uncertain'][0]['code'], '1111')
+        self.assertEqual(signals['watch_watch'], [row])
+        self.assertNotIn('成本1080元', row['reason'])
+        self.assertIn('回測年線', row['reason'])
+        self.assertIn('成本1080元', row['_claim_repair']['original'])
+        self.assertEqual(row['code'], '1111')
         payload = json.loads(call.call_args.args[1])
         self.assertEqual(payload['source'], raw)
         self.assertTrue(payload['texts'][0]['context'])
@@ -95,10 +100,12 @@ class PriceContextContract(unittest.TestCase):
     def test_asr_uncertainty_is_not_a_company_rejection_or_digit_repair(self):
         signals, row, raw, _ = self.review('asr_uncertain', '乙公司先前成本1080元，現在跌破季線。')
         self.assertEqual(row['code'], '1111')
-        self.assertIn('1080', row['reason'])
+        self.assertNotIn('1080', row['reason'])
+        self.assertIn('回測年線', row['reason'])
+        self.assertTrue(signals['_asr_suspect_notes'])
         _, hard, soft = p.quality_overview(signals, raw, check_chapters=False)
         self.assertFalse(any('上下文已確認跨股' in e for e in hard))
-        self.assertTrue(any('聽寫' in e for e in soft))
+        self.assertNotIn('560', row['reason'])
 
     def test_changed_text_or_source_invalidates_attribution_decision(self):
         for changed_source in (False, True):
@@ -117,10 +124,10 @@ class PriceContextContract(unittest.TestCase):
         self.assertIn('_text_before_polish', row)
 
     def test_manual_note_is_preserved_even_when_ai_flags_other_subject(self):
-        signals, row, raw, _ = self.review('cross_entity', '乙公司先前成本1080元，現在跌破季線。', '乙公司')
-        row['_manual_note_kept'] = True
+        signals, row, raw, _ = self.review('cross_entity', '乙公司先前成本1080元，現在跌破季線。', '乙公司', manual=True)
         p.quarantine_public_rows(signals, raw)
         self.assertEqual(signals['watch_watch'], [row])
+        self.assertIn('成本1080元', row['reason'])
 
     def test_one_supported_claim_cannot_approve_a_mixed_note(self):
         text = '甲公司股本較小，拉抬較快，目前尚未見低檔量能。'
@@ -146,6 +153,35 @@ class PriceContextContract(unittest.TestCase):
             config = p.gemini_generation_config('offline', want_json=True, tag='public-edit')
         fields = config['responseJsonSchema']['properties']['texts']['items']['properties']
         self.assertIn('claims', fields['source_review']['required'])
+
+    def test_source_ids_use_original_text_instead_of_model_retyping(self):
+        raw, old = '甲公司回測年線，尚待量縮止穩。', '甲公司回測年線。'
+        answer = {'source_review': {'claims': [dict(id='c0', status='supported', source_ids=['S0001'],
+            source_quote='模型改字或省略的引句', subject='甲公司', subject_code='1111', explanation='本股技術位置')]}}
+        review = p._validated_source_review(answer, {'code': '1111', 'name': '甲公司'}, old, raw)
+        self.assertEqual(review['status'], 'supported')
+        self.assertEqual(review['claims'][0]['source_quote'], raw)
+
+    def test_claim_subject_code_conflict_overrides_blanket_supported(self):
+        raw = '乙公司股本比較小，拉起來速度較快。甲公司尚待低檔成交量。'
+        old = '甲公司股本比較小。'
+        reply = dict(id='c0', status='supported', source_ids=['S0001'], source_quote='',
+                     subject='乙公司', subject_code='2222', explanation='股本特徵真正主體為乙公司')
+        review = p._validated_source_review({'source_review': {'claims': [reply]}},
+                                           {'code': '1111', 'name': '甲公司'}, old, raw)
+        self.assertEqual(review['status'], 'cross_entity')
+
+    def test_shared_group_claim_is_not_rejected_for_also_naming_another_stock(self):
+        raw = '甲公司和乙公司都來到年線，不要再殺低。'
+        answer = {'source_review': {'claims': [dict(id='c0', status='supported', source_ids=['S0001'],
+            subject='甲公司', subject_code='1111', explanation='原句明確涵蓋並列的兩檔')]}}
+        review = p._validated_source_review(answer, {'code': '1111', 'name': '甲公司'}, '甲公司來到年線。', raw)
+        self.assertEqual(review['status'], 'supported')
+
+    def test_explicit_identity_rejection_remains_an_effective_ignored_vote(self):
+        answer = {'about_itself': False, 'buy': False, 'sell': False, 'holding': False,
+                  'quotes': {}, 'now': 'none', 'tone': 'neutral'}
+        self.assertEqual(p.verdict_class(answer, p._ev_norm('這個字只是一般語句，沒有在分析公司。'), names=['甲公司']), 'ignored')
 
 
 if __name__ == '__main__':

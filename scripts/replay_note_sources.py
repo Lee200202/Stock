@@ -34,7 +34,10 @@ def main():
             passed = review.get('status') in expected if expected else None
             if passed is False:
                 errors.append(f'{day["date"]} {case["code"]}：來源審核草稿期望{expected}，實測{review.get("status")}')
+            field = 'note' if case['category'] == 'holdings' else 'reason'
+            assert row['code'] == case['code'] and row['name'] == case['name'], '來源核對不得換股'
             rows.append({'code': case['code'], 'name': case['name'], 'input_note': case['note'],
+                         'output_note': row.get(field), 'claim_repair': row.get('_claim_repair'),
                          'review': review, 'expected_review_status': expected, 'reference_match': passed})
         reports.append({'date': day['date'], 'source_sha256': sha, 'notes': rows})
     result = {'status': 'completed', 'date': '固定說明跨日來源審閱', 'read_only': True,

@@ -1,5 +1,7 @@
 # 重播測試的答案
 
+2026/10/27後正常更新只把本目錄當推論後的參考；不是每份檔案都屬人類核定金標，須看檔內來源／曝光狀態。禁止將 must／must_not、reviewed_notes 或 note_must_not 灌入裁決、刪句或覆蓋模型輸出。成功模型預覽保存artifact，正式套用同一份，不重新生成。詞表的方向與漏收盤點只供人工核查，不能決定語氣／分類。
+
 `scripts/replay_extract.py --golden` 用的檔案。每個檔是一天，由人逐字核對過逐字稿之後寫下：
 
 - `must`：這一檔一定要收，值是可以接受的分類（`buy`、`sell`、`holdings`、`watch_watch`、`watch_avoid`）。講法介於兩類之間的才列兩個。

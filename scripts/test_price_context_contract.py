@@ -35,6 +35,26 @@ class PriceContextContract(unittest.TestCase):
         self.assertEqual((row['code'], row['name']), ('1111', '甲公司'))
         self.assertNotIn('aliases', row)
 
+    def test_distance_alone_does_not_remove_a_comparison_or_incomplete_asr(self):
+        text = '甲公司先前成本1080元，目前回測年線，等待量縮止穩。'
+        row = {'name': '甲公司', 'code': '1111', 'reason': text}
+        raw = '乙公司先前成本1080元。' + '補充市場背景。' * 50 + '甲公司目前回測年線。'
+        with patch.object(p, '_mention_index', return_value={}), \
+             patch.object(p, 'source_inventory', return_value=[]), \
+             patch.object(p, '_price_attribution', return_value=('foreign', '離 2222 只有 4 個字')):
+            p.strip_foreign_price_claims({'watch_watch': [row]}, raw)
+        self.assertEqual(row['reason'], text)
+        self.assertTrue(row['_price_context_suspicions'])
+
+    def test_anonymous_price_match_is_not_promoted_to_verified_writing_source(self):
+        row = {'name': '甲公司', 'code': '1111', 'note': '回測年線，持股續抱。'}
+        raw = '市場背景。' * 50 + '我買在74元以下，短線小幅套牢。'
+        with patch.dict(p._DK_MEMO, {'map': {'1111': {'2026/10/21': [75, 73]}}}), \
+             patch.object(p, '_only_stock_trading_at', return_value=True):
+            result = p.unnamed_cost_passages({'holdings': [row]}, raw, '2026/10/21')
+        self.assertEqual(result, {})
+        self.assertTrue(row['_price_context_suspicions'])
+
     def review(self, status, source_quote, subject='', note_quote='成本1080元', **extra):
         raw = '甲公司目前回測年線，等待量縮止穩。乙公司先前成本1080元，現在跌破季線。'
         text = '甲公司成本1080元，目前回測年線，等待量縮止穩。'
@@ -42,8 +62,10 @@ class PriceContextContract(unittest.TestCase):
         signals = {'watch_watch': [row]}
         answer = dict(id='n0', text=text, meaning_preserved=True, category_consistent=True,
                       source_supported=status == 'supported', written_style_ok=True, issues_found=[],
-                      source_review=dict(status=status, note_quote=note_quote, source_quote=source_quote,
-                                         subject=subject, explanation='先核主體與時間，再看價位是否可能為誤聽。'))
+                      source_review={'claims': [dict(id=c['id'] if note_quote == '成本1080元' else 'missing',
+                          status=status if i == 0 else 'supported', source_quote=source_quote,
+                          subject=subject, explanation='先核主體與時間，再看價位是否可能為誤聽。')
+                          for i, c in enumerate(p._note_claims(text))]})
         answer.update(extra)
         with patch.object(p, 'call_gemini', return_value=json.dumps({'texts': [answer]}, ensure_ascii=False)) as call, \
              patch.object(p, 'budget_left', return_value=1000), patch.object(p, 'GEMINI_KEYS', ['offline']):
@@ -87,6 +109,35 @@ class PriceContextContract(unittest.TestCase):
                 row['reason'] = '甲公司目前回測年線，等待量縮止穩。'
             _, hard, _ = p.quality_overview(signals, raw, check_chapters=False)
             self.assertFalse(any('上下文已確認跨股' in e for e in hard))
+
+    def test_approved_source_review_keeps_technical_claims(self):
+        signals, row, _, _ = self.review('supported', '甲公司目前回測年線，等待量縮止穩。')
+        self.assertIn('回測年線', row['reason'])
+        self.assertIn('等待量縮止穩', row['reason'])
+        self.assertIn('_text_before_polish', row)
+
+    def test_manual_note_is_preserved_even_when_ai_flags_other_subject(self):
+        signals, row, raw, _ = self.review('cross_entity', '乙公司先前成本1080元，現在跌破季線。', '乙公司')
+        row['_manual_note_kept'] = True
+        p.quarantine_public_rows(signals, raw)
+        self.assertEqual(signals['watch_watch'], [row])
+
+    def test_one_supported_claim_cannot_approve_a_mixed_note(self):
+        text = '甲公司股本較小，拉抬較快，目前尚未見低檔量能。'
+        raw = '乙公司股本比較小，拉起來速度比較快。甲公司目前尚未見低檔量能。'
+        row = {'name': '甲公司', 'code': '1111'}
+        answer = {'source_review': {'claims': [{'id': 'c2', 'status': 'supported',
+            'source_quote': '甲公司目前尚未見低檔量能。', 'subject': '甲公司', 'explanation': '後半句量能屬本股'}]}}
+        review = p._validated_source_review(answer, row, text, raw)
+        self.assertEqual(review['status'], 'insufficient')
+        self.assertEqual(len(review['claims']), 3)
+
+    def test_duplicate_claim_answers_are_not_counted_as_verified(self):
+        text, raw = '甲公司目前回測年線。', '甲公司目前回測年線。'
+        claim = dict(id='c0', status='supported', source_quote=raw, subject='甲公司', explanation='本股位置')
+        review = p._validated_source_review({'source_review': {'claims': [claim, claim]}},
+                                             {'name': '甲公司', 'code': '1111'}, text, raw)
+        self.assertEqual(review['status'], 'insufficient')
 
 
 if __name__ == '__main__':

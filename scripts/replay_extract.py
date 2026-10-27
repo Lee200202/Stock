@@ -205,7 +205,7 @@ def invariants(signals, raw):
                                      # 「不需再去管其後續漲跌」（2026/10/16 台塑：已經漲完、不必再追）
                                      r"|不(?:需|用|必)(?:再)?(?:去)?(?:管|理會)|不關[^，。；]{0,8}的事", plain))
         if cat == "watch_avoid" and not negative and POSITIVE.search(plain):
-            errors.append(f"{name} 列觀望不碰，說明卻只有偏多的內容：{note[:60]}")
+            warns.append(f"{name} 觀望不碰的用詞可能有雙層立場，須由原稿語意核對，詞表不決定分類：{note[:60]}")
         if cat in ("buy", "watch_watch") and pl.active_prohibit(note):
             warns.append(f"{name} 列{LABEL[cat]}，說明裡有明確的不要買：{note[:60]}")
     # 四、單檔硬傷已留底隔離，算有處理下落；不能再以缺列把整天擋下。
@@ -221,7 +221,7 @@ def invariants(signals, raw):
                 continue
             pick = pl.plain_current_stance(heard, raw, weak=bool(item.get("weak")))
             if pick:
-                errors.append(f"{official or heard}（{code}）規則盤點候選沒有收錄（待核語氣、主體與最後回答，非核定答案）：{pick[1][:80]}")
+                warns.append(f"{official or heard}（{code}）規則盤點候選沒有收錄（待核語氣、主體與最後回答，非核定答案）：{pick[1][:80]}")
     except Exception as e:
         warns.append(f"盤點檢查略過（{type(e).__name__}：{e}）")
     # 長原稿的教學至少三個獨立主題；盤勢若只有兩個有證據的主題，不強行拆成三點。

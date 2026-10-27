@@ -15,6 +15,10 @@ on:
         description: '停用人工／模型裁決快取，測量新判讀；仍讀當日通知及歷史部位'
         type: boolean
         default: false
+      note_sources_only:
+        description: '只重播固定說明的上下文審閱；不分類、不讀通知或部位，跨日原稿須指紋相同'
+        type: boolean
+        default: false
       independent_review:
         description: '可選：repo內來源審核草稿JSON路徑（非人工金標，同日同原稿SHA；只在推論後比對）'
         type: string
@@ -57,6 +61,7 @@ jobs:
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
           REPLAY_DATE: ${{ inputs.date }}
           FRESH_VERDICTS: ${{ inputs.fresh_verdicts }}
+          NOTE_SOURCES_ONLY: ${{ inputs.note_sources_only }}
           INDEPENDENT_REVIEW: ${{ inputs.independent_review }}
           FINAL_ATTEMPT: 'true'
           PYTHONUNBUFFERED: '1'
@@ -66,6 +71,10 @@ jobs:
           fi
           if ! printf '%s' "$REPLAY_DATE" | grep -Eq '^[0-9]{4}/[0-9]{1,2}/[0-9]{1,2}$'; then
             echo "::error::日期格式錯誤，要寫成 YYYY/MM/DD"; exit 1
+          fi
+          if [ "$NOTE_SOURCES_ONLY" = true ]; then
+            python scripts/replay_note_sources.py --cases docs/1003-review/2026-10-27-pipeline-report/note-context-cases.json --report-json .replay-report/result.json
+            exit $?
           fi
           GOLDEN="scripts/golden/$(printf '%s' "$REPLAY_DATE" | awk -F/ '{printf "%04d-%02d-%02d", $1, $2, $3}').json"
           ARGS=(--date "$REPLAY_DATE" --report-json .replay-report/result.json)

@@ -139,6 +139,14 @@ class PriceContextContract(unittest.TestCase):
                                              {'name': '甲公司', 'code': '1111'}, text, raw)
         self.assertEqual(review['status'], 'insufficient')
 
+    def test_batch_schema_and_claim_numbering_keep_thousands_intact(self):
+        self.assertEqual(p._note_claims('先前成本1,580元，目前回測季線。'),
+                         [{'id': 'c0', 'text': '先前成本1,580元'}, {'id': 'c1', 'text': '目前回測季線'}])
+        with patch.dict(p._SCHEMA_STATE, {'on': True}):
+            config = p.gemini_generation_config('offline', want_json=True, tag='public-edit')
+        fields = config['responseJsonSchema']['properties']['texts']['items']['properties']
+        self.assertIn('claims', fields['source_review']['required'])
+
 
 if __name__ == '__main__':
     unittest.main()

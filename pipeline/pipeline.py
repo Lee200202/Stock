@@ -2118,6 +2118,8 @@ def gemini_generation_config(model, max_out=MAX_OUT, thinking=0, want_json=False
         if _SCHEMA_STATE['on'] and tag.startswith(('assess-json-', 'context-review')):
             # 只限制九類容器，不把持股欄位硬套在盤勢上；語意與引句仍須本機核對。
             cfg['responseJsonSchema'] = assessment_response_schema()
+        elif _SCHEMA_STATE['on'] and tag.startswith('public-edit'):
+            cfg['responseJsonSchema'] = public_edit_response_schema()
     return cfg
 
 
@@ -16937,6 +16939,19 @@ issues 是程式指出這一筆要改的地方；沒有列到的問題看到了�
 def _note_claims(text):
     """按原說明的子句編號，只定位待核項，不由標點判斷語意。"""
     return [{'id': f'c{i}', 'text': clause} for i, (clause, _) in enumerate(_split_clauses(str(text or ''))) if clause.strip()]
+
+
+def public_edit_response_schema():
+    """要求回傳逐項引用欄位；缺項仍由本機核對，不把格式正確當語意正確。"""
+    claim = {'type': 'object', 'properties': {
+        'id': {'type': 'string'}, 'status': {'type': 'string', 'enum': ['supported', 'cross_entity', 'asr_uncertain', 'insufficient']},
+        'explanation': {'type': 'string'}, 'source_quote': {'type': 'string'}, 'subject': {'type': 'string'}},
+        'required': ['id', 'status', 'explanation', 'source_quote', 'subject']}
+    fields = {key: {'type': 'boolean'} for key in ('meaning_preserved', 'category_consistent', 'source_supported', 'written_style_ok')}
+    fields.update(id={'type': 'string'}, text={'type': 'string'}, issues_found={'type': 'array', 'items': {'type': 'string'}},
+                  source_review={'type': 'object', 'properties': {'claims': {'type': 'array', 'items': claim}}, 'required': ['claims']})
+    return {'type': 'object', 'properties': {'texts': {'type': 'array', 'items': {
+        'type': 'object', 'properties': fields, 'required': list(fields)}}}, 'required': ['texts']}
 
 
 def _validated_source_review(item, row, old, transcript):

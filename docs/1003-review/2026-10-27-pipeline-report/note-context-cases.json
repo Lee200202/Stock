@@ -1,0 +1,61 @@
+{
+  "reference_kind": "來源審核草稿，非人工核定金標；舊說明固定，expected不得傳入模型",
+  "days": [
+    {
+      "date": "2026/10/15",
+      "source_sha256": "d61430aac3a6ac42f67c8977fde601492fe158a050e8267dea036db73f99270d",
+      "notes": [
+        {
+          "category": "holdings",
+          "code": "3533",
+          "name": "嘉澤",
+          "note": "剩餘部位續抱並等待靠近季線的第二個買點佈局時機。",
+          "expected_review_status": [
+            "supported"
+          ],
+          "provenance": "scratch\\audit-20261021-codex\\history-1015-v38\\replay-result-39702455604\\result.json"
+        }
+      ]
+    },
+    {
+      "date": "2026/10/20",
+      "source_sha256": "7996a07ee0a066fe0a77831e602b82cacc4738d42105c65a6f7608acb7aec812",
+      "notes": [
+        {
+          "category": "watch_watch",
+          "code": "2317",
+          "name": "鴻海",
+          "note": "鴻海只要在240以下就會有人買進並站回去。先前指出230幾時可買進，目前股價隨後上漲，操作相對穩健。",
+          "expected_review_status": [
+            "supported"
+          ],
+          "provenance": "scratch\\audit-20261020\\replay-1020-facts\\result.json"
+        }
+      ]
+    },
+    {
+      "date": "2026/10/21",
+      "source_sha256": "6a65d0403d55fc6cc777f78deeede3825ca149478298e810a488d5879fe2b4cd",
+      "notes": [
+        {
+          "category": "watch_avoid",
+          "code": "3661",
+          "name": "世芯-KY",
+          "note": "世芯-KY慣性在低點要漲時必須有成交量配合，目前尚未看到相應量能，因此暫時沒有買進。必須等低點出現成交量再行評估。",
+          "expected_review_status": [
+            "cross_entity"
+          ],
+          "provenance": "scratch\\worktrees\\1021-verification-notes\\scratch\\report-replay-1027\\40440438907\\result.json"
+        },
+        {
+          "category": "watch_avoid",
+          "code": "2327",
+          "name": "國巨*",
+          "note": "國巨散戶持有成本為1080元且已賠死，先前跌破56元後目前面臨解套賣壓。主力不想讓散戶輕易解套，因此不會買進國巨，應避開被動元件追高風險。",
+          "expected_review_status": [],
+          "provenance": "scratch\\worktrees\\1021-verification-notes\\scratch\\report-replay-1027\\40440438907\\result.json"
+        }
+      ]
+    }
+  ]
+}

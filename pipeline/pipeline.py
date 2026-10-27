@@ -8776,6 +8776,16 @@ def _unsupported_note_time(note, row, transcript):
     # 只認點名句附近。
     forward = re.split(topic_switch,_name_forward_text(row, transcript),maxsplit=1)[0]
     wide = near + normalized(forward)
+    # 來源修復工具已逐項核對的長段落，可以跨越字數窗口；只認相同公司、原稿及說明的綁定。
+    # 一般模型引句不能設定這份來源修復紀錄，也不因全文出現時間詞就放行。
+    bound = row.get('_reviewed_note_context') or {}
+    if (bound.get('code') == str(row.get('code') or '')
+            and bound.get('source_sha256') == hashlib.sha256(str(transcript).encode()).hexdigest()
+            and bound.get('text_sha256') == hashlib.sha256(str(note).encode()).hexdigest()
+            and bound.get('subject_reviewed') is True):
+        for quote in bound.get('quotes') or []:
+            if isinstance(quote, str) and len(_ev_norm(quote)) >= 6 and _ev_norm(quote) in _ev_norm(transcript):
+                wide += normalized(quote)
     # 引句逐字存在，而且仍在本股既有的話題窗口內，才容許較後面的週線／月線預告。
     # 不因單獨引用下一檔的時間詞就擴大窗口。
     if row.get('_evidence_verified'):

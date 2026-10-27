@@ -2119,6 +2119,8 @@ def gemini_generation_config(model, max_out=MAX_OUT, thinking=0, want_json=False
             cfg['responseJsonSchema'] = verdict_response_schema()
         elif _SCHEMA_STATE['on'] and tag.startswith('source-facts'):
             cfg['responseJsonSchema'] = source_facts_response_schema()
+        elif _SCHEMA_STATE['on'] and tag == 'source-align':
+            cfg['responseJsonSchema'] = source_alignment_schema()
         elif _SCHEMA_STATE['on'] and tag.startswith(('assess-json-', 'context-review')):
             # 只限制九類容器，不把持股欄位硬套在盤勢上；語意與引句仍須本機核對。
             cfg['responseJsonSchema'] = assessment_response_schema()
@@ -7969,7 +7971,7 @@ MANUAL_ENTRY_PREFIX = 'MANUALENTRY-'
 # 規則版本。刷新檢查點與判讀稽核都以「影片、日期、原文指紋、規則版本」為鍵：判讀規則有變就要換號，
 # 否則同一份原文重新投稿會被當成「來源與規則版本相同」，直接從舊檢查點續跑、不重跑判讀
 # （2026/10/01 v97 推上去後第一次重跑就是這樣，資料一筆都沒變）。
-ASSESSMENT_VERSION = 'context-json-v34'   # 2026/10/15：言語行為、當日成交與通知建議分層核對
+ASSESSMENT_VERSION = 'context-json-v35-source-context'   # 原始通知與主體候選分層；量詞不當確認股名
 
 
 _SOUND_MEMO = {}
@@ -8796,6 +8798,8 @@ def _unsupported_note_time(note, row, transcript):
     """公開的時間敘述必須有本股原文支持。
     
     補充撰稿階段已檢查新增句子；此最終關卡也檢查可能未經該階段的原始或模型說明。"""
+    if _source_claims_cover(row, str(note or ''), transcript):
+        return []
     def normalized(value):
         value = _ev_norm(value)
         return re.sub(r'([上下])(?:個)?(?:禮拜|星期|週)', r'\1週', value)
@@ -8885,7 +8889,7 @@ def quality_overview(signals, transcript='', check_chapters=True):
         # 觀望清單不能冒出當前部位；10/08 金山電只有長紅棒，沒有續抱證據。
         if cat in ('watch_watch', 'watch_avoid') and _claims_owned_holding(note):
             hard.append(f'{name} 列觀望卻寫成當前持股，須核對分類與主詞：{note[:45]}')
-        if transcript and _foreign_profit_claim(note, _row_names_for_recap(r), transcript):
+        if transcript and not _source_claims_cover(r, note, transcript) and _foreign_profit_claim(note, _row_names_for_recap(r), transcript):
             hard.append(f'{name} 的說明提到獲利狀況，原文沒有任何一句同時講到這一檔與獲利：{note[:30]}')
         if transcript:
             missing_time = _unsupported_note_time(note, r, transcript)
@@ -9570,7 +9574,7 @@ def strip_guessed_names_and_causes(signals: dict, transcript: str) -> dict:
                     other = (pair.group(1) or pair.group(2) or '') if pair else ''
                     if pair and other and other not in own:
                         why = f'把「{other}」和本股當成同一檔並列'
-                    elif _CAUSAL_CLAIM_RE.search(clause) and not _public_review_covers(row, field, transcript):
+                    elif _CAUSAL_CLAIM_RE.search(clause) and not _public_review_covers(row, field, transcript) and not _source_claims_cover(row, text, transcript):
                         # 這個子句講的事在原文哪一句：共用一個英數詞（ETF、MACD、數字）或四個以上的雙字組。
                         probe = _ev_norm(_CAUSAL_CLAIM_RE.sub('', clause))
                         words = set(re.findall(r'[A-Za-z]{2,}|\d{2,}', probe))
@@ -9620,37 +9624,15 @@ def drop_promotional_points(signals: dict) -> dict:
 
 
 def strip_unsupported_time_clauses(signals: dict, transcript: str) -> dict:
-    """說明裡的時間詞（下週、明天、下個月…）要有本股自己的原句；沒有的那個子句拿掉，不讓整輪因為一個子句被擋下。
-
-    2026/10/08：沒報名字的那一段有「下禮拜要突破了」，勤誠的說明連續幾輪被寫成「等待下週突破」。品質關卡攔得住，
-    但一攔就是整天不更新；現在先把那個子句拿掉並留紀錄，其餘有依據的說明照常發布。判斷沿用品質關卡的同一支檢查。
-    """
+    """時間詞切窗疑點只作線索；是否屬本股交完整來源主張審閱，不直接刪句。"""
     for cat in SIGNAL_CATEGORIES:
         for row in signals.get(cat, []) or []:
             if not isinstance(row, dict):
                 continue
-            field = 'note' if cat == 'holdings' else 'reason'
-            text = str(row.get(field) or '')
-            if not text or not _unsupported_note_time(text, row, transcript):
-                continue
-            kept, dropped = [], []
-            for clause, punct in _split_clauses(text):
-                missing = _unsupported_note_time(clause, row, transcript)
-                if missing:
-                    dropped.append((clause, missing))
-                    if punct == '。' and kept:
-                        kept[-1][1] = '。'
-                    continue
-                kept.append([clause, punct])
-            if not dropped:
-                continue
-            row[field] = ''.join(c + t for c, t in kept).strip('，,；;')
-            if row[field] and row[field][-1] not in '。！？':
-                row[field] += '。'
-            name = str(row.get('name') or '')
-            for clause, missing in dropped:
-                note_decision('說明核對', '刪掉沒有本股依據的時間', name, f"{'、'.join(missing)}：{clause[:60]}")
-                print(f"  說明核對　{name}：時間詞「{'、'.join(missing)}」沒有本股原句，已刪掉那一句　{clause[:36]}")
+            text = str(row.get('note') or row.get('reason') or '')
+            missing = _unsupported_note_time(text, row, transcript)
+            if missing:
+                row['_time_source_cues'] = missing
     return signals
 
 
@@ -13251,7 +13233,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v24-20261027-semantic-pending"          # 缺答／分裂隔離，歷史部位不替當日主體作答，反彈應對與新買意願分離
+VERDICT_VERSION = "v25-20261027-source-id-evidence"          # 完整原稿S編號還原，缺答／分裂不當排除，反彈應對與新買意願分離
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 3                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -16833,8 +16815,9 @@ def public_edit_response_schema():
         'type': 'object', 'properties': fields, 'required': list(fields)}}}, 'required': ['texts']}
 
 
-SOURCE_FACTS_VERSION = 'subject-first-v3-focus-20261027'
+SOURCE_FACTS_VERSION = 'subject-first-v4-anonymous-alignment-20261027'
 SOURCE_FACTS_SYSTEM = """你是逐字稿事實與主體審核者。輸入只有原稿、公司識別候選及匿名字串檢索命中的段落編號，沒有待審股名與主張配對、分類或標準答案。
+每項fact的subject_codes恰好一個主體。共同結論可拆成兩項同引句、不同主體；「甲和股本小的乙」不能合成兩家公司都股本小的事實。逐一盤點指定段落內的最小事實，不只挑全文大意。當日通知原文若有提供，只供身分／事件參照，不得拿它補造原稿技術面。
 focus_source_ids是優先查核範圍，不是主體答案。逐一閱讀這些段落及前後文，完整列出每個主體各自的最小事實，特別避免只摘要整篇而漏掉指定段落的細節。檢索只證明字串相關，不能以命中、最近名稱或價格決定主體；仍由你判讀上下文，無法確認則列uncertain。
 先完整閱讀前後文，依最小事實列出主體；每項附連續逐字引句及source_ids。這不是每股摘要，也不作買賣分類。
 主詞、受詞、講者本人、觀眾持有、歷史與目前必須區分；不要把後面出現的公司套到前面已明確有主體的特徵。
@@ -16848,7 +16831,7 @@ statement只整理該引句確實表達的單一事實並保留時間與條件�
 
 def source_facts_response_schema():
     """來源盤點的欄位與段落ID契約，不限制語意答案。"""
-    props = {'id': {'type': 'string'}, 'subject_codes': {'type': 'array', 'items': {'type': 'string'}},
+    props = {'id': {'type': 'string'}, 'subject_codes': {'type': 'array', 'minItems': 1, 'maxItems': 1, 'items': {'type': 'string'}},
         'subject_quote': {'type': 'string'}, 'source_quote': {'type': 'string'},
         'source_ids': {'type': 'array', 'items': {'type': 'string'}}, 'statement': {'type': 'string'}}
     return {'type': 'object', 'properties': {'facts': {'type': 'array', 'items': {
@@ -16965,6 +16948,60 @@ def source_claim_ledger(signals, transcript):
     return ledger
 
 
+SOURCE_ALIGNMENT_SYSTEM = """你是原稿事實與匿名主張的對照員。queries沒有原草稿股名、分類或標準答案，不能反推它想被寫給誰。
+逐項判斷哪些facts真正支持該匿名主張；fact.statement的主體與事實必須相符，source_quote只核對該主體的上下文，不得因同段另一家公司也說過某事就把它綁給本fact。
+例如某fact只說乙公司股本小，不能支持「目前沒有買進」；另一fact明講甲公司未買進才可。修飾只屬其中一人的特徵不能分享給並列成員。
+列出所有確實支持的fact_ids，沒有則relation=insufficient、fact_ids=[]。不按最近名稱、價格帶判斷。只輸出JSON：{"matches":[{"id":"Q0001","relation":"entailed或insufficient","fact_ids":["來源事實ID"]}]}。"""
+
+
+def source_alignment_schema():
+    props = {'id': {'type': 'string'}, 'relation': {'type': 'string', 'enum': ['entailed', 'insufficient']},
+             'fact_ids': {'type': 'array', 'items': {'type': 'string'}}}
+    return {'type': 'object', 'properties': {'matches': {'type': 'array', 'items': {
+        'type': 'object', 'properties': props, 'required': list(props)}}}, 'required': ['matches']}
+
+
+def align_anonymous_claims(signals, transcript, ledger):
+    """匿名主張對來源事實，不讓草稿股名污染主體；不傳分類或期望答案。"""
+    if not isinstance(ledger, dict):
+        return
+    names = {n for cat in SIGNAL_CATEGORIES for row in signals.get(cat, []) or []
+             for n in _row_names_for_recap(row) if len(n) >= 2}
+    names.update(n for row in (ledger.get('facts') or {}).values()
+                 for code in row.get('subject_codes', [])
+                 for n in [str(code), _display_name((_CODE_MAP or {}).get(code) or '')] if len(n) >= 2)
+    names.update(a for a in CONFIRMED_NAMES if len(a) >= 2)
+    queries, targets = [], {}
+    source_sha = hashlib.sha256(transcript.encode()).hexdigest()
+    for cat in SIGNAL_CATEGORIES:
+        for row in signals.get(cat, []) or []:
+            bindings = {}
+            row['_source_claim_bindings'] = {'source_sha256': source_sha, 'claims': bindings}
+            for claim in _note_claims(str(row.get('note') or row.get('reason') or '')):
+                text = claim['text']
+                for name in sorted(names, key=len, reverse=True):
+                    text = text.replace(name, '')
+                key = f'Q{len(queries) + 1:04d}'
+                queries.append({'id': key, 'text': text})
+                targets[key] = (bindings, claim)
+    if not queries or not ledger.get('facts') or budget_left() < 150:
+        return
+    raw = call_gemini(SOURCE_ALIGNMENT_SYSTEM, json.dumps({'queries': queries,
+        'facts': ledger['facts']}, ensure_ascii=False, separators=(',', ':')),
+        want_json=True, thinking=1024, tag='source-align', max_out=min(MAX_OUT, 2000 + 120 * len(queries)))
+    data = safe_load_json(raw, default={})
+    matches = data.get('matches', []) if isinstance(data, dict) else []
+    for key, (bindings, claim) in targets.items():
+        found = [r for r in matches if isinstance(r, dict) and r.get('id') == key]
+        if len(found) != 1:
+            continue
+        match = found[0]
+        ids = match.get('fact_ids')
+        if match.get('relation') == 'entailed' and isinstance(ids, list) and ids and all(isinstance(fid, str) and fid in ledger['facts'] for fid in ids):
+            bindings[claim['id']] = {'text_sha256': hashlib.sha256(claim['text'].encode()).hexdigest(),
+                'fact_ids': list(dict.fromkeys(ids)), 'relation': 'entailed'}
+
+
 def _quote_spans_in_source(quote, transcript_norm):
     """模型引句可用「…」或「...」節錄同一段的前後句：每一段（至少 6 字）都要逐字出現在原稿，而且前後順序相同。"""
     raw = str(quote or '').strip()
@@ -17032,13 +17069,34 @@ def _validated_source_review(item, row, old, transcript):
         fact_ids = reply.get('source_fact_ids')
         if required:
             facts = ledger.get('facts') or {}
+            bindings = row.get('_source_claim_bindings')
+            aligned = None
+            if isinstance(bindings, dict):
+                candidate = (bindings.get('claims') or {}).get(claim['id']) or {}
+                if (bindings.get('source_sha256') == hashlib.sha256(transcript.encode()).hexdigest()
+                        and candidate.get('text_sha256') == hashlib.sha256(claim['text'].encode()).hexdigest()
+                        and candidate.get('relation') == 'entailed'):
+                    aligned = candidate
+                fact_ids = (aligned or {}).get('fact_ids') or []
             usable = (ledger.get('version') == SOURCE_FACTS_VERSION
                 and ledger.get('source_sha256') == hashlib.sha256(transcript.encode()).hexdigest()
                 and isinstance(fact_ids, list) and bool(fact_ids)
                 and all(isinstance(fid, str) and fid in facts for fid in fact_ids))
-            if usable and len(matches) == 1 and status in ('supported', 'cross_entity', 'asr_uncertain') and explanation:
+            if usable and (aligned or (len(matches) == 1 and status in ('supported', 'cross_entity', 'asr_uncertain') and explanation)):
                 bound = [facts[fid] for fid in fact_ids]
                 belongs = [own_code in f['subject_codes'] for f in bound]
+                if aligned and any(belongs):
+                    # 匿名主張模型已獨立找出支持此主張的事實；僅保留真正屬本股的支持，不沿用編輯者誤綁的ID。
+                    bound = [f for f in bound if own_code in f['subject_codes']]
+                    fact_ids = [f['id'] for f in bound]
+                    belongs = [True] * len(bound)
+                    if status == 'cross_entity' and foreign_subject:
+                        valid = False  # 兩個語意核對有實質矛盾，不能靜默推翻。
+                    else:
+                        status, subject_code, subject = 'supported', own_code, str(row.get('name') or '')
+                        quote = '\n'.join(f['source_quote'] for f in bound)
+                        ids = list(dict.fromkeys(sid for f in bound for sid in f.get('source_ids', [])))
+                        explanation, valid = '匿名主張已對回本股來源事實：' + '；'.join(f['statement'] for f in bound), True
                 if not any(belongs):
                     # 對照先讀原稿的事實主體；不讓草稿審閱者機械抄本股代號放行。
                     codes = {c for f in bound for c in f['subject_codes']}
@@ -17154,6 +17212,18 @@ def _ws_numbers(text):
     return sorted(n.replace(',', '').rstrip('.') for n in re.findall(r'\d+(?:[.,]\d+)*', str(text or '')))
 
 
+def _source_claims_cover(row, text, transcript):
+    """獨立來源＋匿名主張核對的完整指紋證據，可優先於窄字窗；不是文體放行。"""
+    for field in ('reason', 'note'):
+        if str(row.get(field) or '') == text:
+            review = _current_source_review(row, transcript, field)
+            binding = row.get('_source_claim_bindings') or {}
+            if (review.get('status') == 'supported' and review.get('source_facts_required')
+                    and binding.get('source_sha256') == hashlib.sha256(str(transcript or '').encode()).hexdigest()):
+                return True
+    return False
+
+
 def _public_review_covers(row, field, transcript):
     review = row.get('_public_edit_review') or {}
     return all(review.get(k) is True for k in ('meaning_preserved','category_consistent','source_supported','written_style_ok')) \
@@ -17182,6 +17252,7 @@ def polish_public_texts(signals, transcript, date_str):
         return signals
     try:
         ledger = source_claim_ledger(signals, transcript)
+        align_anonymous_claims(signals, transcript, ledger)
         signals['_source_fact_ledger'] = ledger
         for cat in SIGNAL_CATEGORIES:
             for row in signals.get(cat, []) or []:

@@ -62,4 +62,38 @@ class SourceFacts(unittest.TestCase):
    answer={'about_itself':value,'quotes':{}}
    self.assertEqual(p.verdict_class(answer,p._ev_norm(RAW))[0],'')
   self.assertEqual(p.verdict_class({'about_itself':False,'quotes':{}},p._ev_norm(RAW))[0],'ignored')
+ def test_style_only_rejection_retains_a_source_verified_row(self):
+  raw='甲公司目前量縮整理並等待季線止穩。'
+  facts=p._validate_source_facts({'facts':[dict(id='F1',subject_codes=['1111'],source_quote=raw,
+    subject_quote=raw,statement='甲公司等待季線止穩')]},raw,{'1111'})
+  row={'code':'1111','name':'甲公司','reason':raw,'_source_fact_ledger':facts}
+  claim=dict(id='c0',status='supported',subject='甲公司',subject_code='1111',source_quote=raw,
+    source_fact_ids=['F1'],explanation='這項內容確實是甲公司自己的原句')
+  reply={'texts':[dict(id='n0',text=raw,meaning_preserved=True,category_consistent=True,
+    source_supported=True,written_style_ok=False,source_review={'claims':[claim]})]}
+  sig={'watch_watch':[row],'_source_fact_ledger':facts}
+  with patch.object(p,'call_gemini',return_value=json.dumps(reply)),patch.object(p,'budget_left',return_value=9999),patch.object(p,'GEMINI_KEYS',['offline']):
+   p._polish_public_texts(sig,raw,'2026/10/27')
+  self.assertEqual(row['reason'],raw)
+  self.assertEqual(p._current_source_review(row,raw,'reason')['status'],'supported')
+  _,hard,_=p.quality_overview(sig,raw,check_chapters=False)
+  self.assertFalse(any('來源' in x or '審閱' in x for x in hard),hard)
+ def test_anonymous_alignment_cannot_copy_draft_subject_or_borrow_unrelated_fact(self):
+  row={'name':'甲公司','code':'1111','reason':'甲公司股本比較小，目前尚未見低檔成交量。','_source_fact_ledger':ledger()}
+  def align(system,payload,**kw):
+   data=json.loads(payload)
+   self.assertNotIn('甲公司',json.dumps(data['queries'],ensure_ascii=False))
+   self.assertNotIn('watch_watch',payload)
+   return json.dumps({'matches':[{'id':'Q0001','relation':'entailed','fact_ids':['F1']},
+    {'id':'Q0002','relation':'entailed','fact_ids':['F2']}]})
+  with patch.object(p,'call_gemini',side_effect=align),patch.object(p,'budget_left',return_value=9999),patch.object(p,'_CODE_MAP',{'1111':'甲公司','2222':'乙公司'}):
+   p.align_anonymous_claims({'watch_watch':[row]},RAW,ledger())
+  replies=[dict(id='c0',status='supported',subject='甲公司',subject_code='1111',source_quote=RAW,source_fact_ids=['F1'],explanation='編輯抄錯股名'),
+   dict(id='c1',status='supported',subject='甲公司',subject_code='1111',source_quote=RAW,source_fact_ids=['F1'],explanation='編輯抄錯事實ID')]
+  review=p._validated_source_review({'source_review':{'claims':replies}},row,row['reason'],RAW)
+  self.assertEqual([c['status'] for c in review['claims']],['cross_entity','supported'])
+  self.assertEqual(review['claims'][1]['source_fact_ids'],['F2'])
+  row['_source_claim_bindings']['source_sha256']='changed'
+  review=p._validated_source_review({'source_review':{'claims':replies}},row,row['reason'],RAW)
+  self.assertTrue(all(c['status']=='insufficient' for c in review['claims']))
 if __name__=='__main__':unittest.main()

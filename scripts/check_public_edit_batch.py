@@ -88,7 +88,7 @@ class PublicBatchContract(unittest.TestCase):
         self.assertFalse(pl._public_review_covers(row,'reason',tx+'來源變更'))
         row['reason']='另一段不同說明。'
         self.assertFalse(pl._public_review_covers(row,'reason',tx))
-    def test_denial_does_not_create_bullish_default(self):
+    def test_unanswered_denial_is_pending_without_bullish_default(self):
         class Book:
             def worksheet(self,name):raise KeyError(name)
         sig={k:[] for k in ('buy','sell','holdings','watch_watch','watch_avoid','history','uncertain','ignored')}
@@ -98,6 +98,8 @@ class PublicBatchContract(unittest.TestCase):
         with patch.object(pl,'_verdict_known',return_value=({},set(),{})),patch.object(pl,'_verdict_cache',return_value={}),patch.object(pl,'_CODE_MAP',{'3034':'聯詠','3592':'瑞鼎'}),patch.object(pl,'call_gemini',return_value='{"verdicts":[]}'),patch.object(pl,'budget_left',return_value=9999),patch.object(pl,'GEMINI_KEYS',['offline']),patch.dict(os.environ,{'CLASS_ADJUDICATION':'on'}):
             out=pl.adjudicate_classes(Book(),sig,tx,'2026/10/16',seen,seen)
         self.assertFalse(out['holdings']);self.assertFalse(out['watch_watch'])
-        self.assertEqual(out['_verdicts']['3034']['cls'],'ignored')
+        # 本例模擬三輪全部缺答；無持有／無看多仍成立，但不能冒稱模型確認排除。
+        self.assertEqual(out['_verdicts']['3034']['cls'],'uncertain')
+        self.assertTrue(out['_verdicts']['3034']['enforce'])
 
 if __name__=='__main__':unittest.main()

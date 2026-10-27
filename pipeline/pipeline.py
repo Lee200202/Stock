@@ -8926,6 +8926,8 @@ def quality_overview(signals, transcript='', check_chapters=True):
         if extreme:
             soft.append(f'{name} 的說明價位差距待上下文核對：{"、".join(extreme)}；不據此判定跨股')
         source_review = _current_source_review(r, transcript, 'note' if cat == 'holdings' else 'reason')
+        if r.get('_source_projection_pending'):
+            hard.append(f'{name} 的已核實子句投影尚未完成語意／分類複核，不能直接發布')
         if isinstance(r.get('_source_fact_ledger'), dict) and not r.get('_manual_note_kept'):
             repair = r.get('_claim_repair') or {}
             repaired = (repair.get('repaired_text_sha256') == hashlib.sha256(str(r.get('note' if cat == 'holdings' else 'reason') or '').strip().encode()).hexdigest()
@@ -9130,7 +9132,7 @@ def _entity_scope(row, signals, transcript, before_chars=180, after_chars=160, w
         others.update(bare(n) for n in list(others) if len(bare(n)) >= 3)
     for cat in SIGNAL_CATEGORIES + ('history','ignored'):
         for other in signals.get(cat, []):
-            if cat == 'ignored' and other.get('exclusion_reason') in ('ordinary_word', 'ambiguous_weak_name', 'mention_only'):
+            if cat == 'ignored' and other.get('exclusion_reason') in ('ordinary_word', 'ambiguous_weak_name'):
                 continue  # 語意身分審核已否定的詞，不再當成另一家公司切窗。
             ns = {str(n) for n in [other.get('name'),other.get('原始語音名稱')]+list(other.get('aliases') or []) if n and len(str(n))>=2}
             if not ns & names and (not code or str(other.get('code') or '') != code):
@@ -9145,12 +9147,18 @@ def _entity_scope(row, signals, transcript, before_chars=180, after_chars=160, w
         for m in re.finditer(re.escape(name),source):
             before=max([m.start()-before_chars,0]+[b for a,b in cuts if b<=m.start()])
             after=min([m.end()+after_chars,len(source)]+[a for a,b in cuts if a>=m.end()])
+            # 清楚並列的名稱只擴大檢索至短句末，不把共用主詞變成共用EPS／價位證據。
+            boundary = next(((a,b) for a,b in cuts if a == after), None)
+            if boundary and re.fullmatch(r'(?:與|和|及|跟|、)+', source[m.end():after]):
+                ending = re.search(r'[。！？!?；;]', source[boundary[1]:boundary[1]+45])
+                if ending:
+                    after = boundary[1] + ending.end()
             chunks.append((source[before:after],source[m.start():after]) + ((before, after) if with_offsets else ()))
     return chunks
 
 
 def _entity_issue(row, signals, transcript):
-    scopes=_entity_scope(row,signals,transcript)
+    scopes=_entity_scope(row,signals,transcript,before_chars=220,after_chars=450)
     own=' '.join(s[0] for s in scopes)
     name=str(row.get('name') or '')
     subject=str(row.get('price_subject') or '')
@@ -9170,9 +9178,9 @@ def _entity_issue(row, signals, transcript):
         other_target=any(c!=code and a in pe for a,(c,_) in CONFIRMED_NAMES.items())
         mismatch=mismatch or not direct or other_target
     note=str(row.get('note') or row.get('reason') or '')
-    nums=set(re.findall(r'(\d{2,5})(?=(?:多|幾)?(?:塊|元))',note))
+    nums=set(re.findall(r'(?<![.\d])(\d{2,5}(?:\.\d+)?)(?![.\d])(?=(?:多|幾)?(?:塊|元))',note))
     source=re.sub(r'\s+', '', transcript)
-    missing=[n for n in nums if not re.search(r'(?<!\d)'+n+r'(?!\d)',own) and re.search(r'(?<!\d)'+n+r'(?!\d)',source)]
+    missing=[n for n in nums if not re.search(r'(?<![.\d])'+re.escape(n)+r'(?![.\d])',own) and re.search(r'(?<![.\d])'+re.escape(n)+r'(?![.\d])',source)]
     # 至少兩個數字都只在其他語境，才刪除錯接的說明；單一疑點留覆核。
     foreign_note=len(missing)>=2 and bool(scopes)
     return mismatch,foreign_note,scopes
@@ -13223,7 +13231,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v28-20261027-unified-full-source-policy"          # 語意選股池與授權等待分軸；有效兩票多數，交易事實另行核對
+VERDICT_VERSION = "v29-20261027-ph6-context-boundaries"          # 語意選股池與授權等待分軸；有效兩票多數，交易事實另行核對
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 3                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -16684,7 +16692,7 @@ def public_edit_response_schema():
         'type': 'object', 'properties': fields, 'required': list(fields)}}}, 'required': ['texts']}
 
 
-SOURCE_FACTS_VERSION = 'subject-first-v7-original-notice-proof-20261027'
+SOURCE_FACTS_VERSION = 'subject-first-v8-verified-projection-20261027'
 SOURCE_FACTS_SYSTEM = """你是逐字稿事實與主體審核者。輸入只有原稿、公司識別候選及匿名字串檢索命中的段落編號，沒有待審股名與主張配對、分類或標準答案。
 每項fact的subject_codes恰好一個主體。共同結論可拆成兩項同引句、不同主體；「甲和股本小的乙」不能合成兩家公司都股本小的事實。逐一盤點指定段落內的最小事實，不只挑全文大意。當日通知原文若有提供，只供身分／事件參照，不得拿它補造原稿技術面。
 focus_source_ids是優先查核範圍，不是主體答案。逐一閱讀這些段落及前後文，完整列出每個主體各自的最小事實，特別避免只摘要整篇而漏掉指定段落的細節。檢索只證明字串相關，不能以命中、最近名稱或價格決定主體；仍由你判讀上下文，無法確認則列uncertain。
@@ -16972,7 +16980,8 @@ def _validated_source_review(item, row, old, transcript):
             valid = False
         if status == 'cross_entity':
             valid = valid and bool(foreign_subject)
-        fact_ids = reply.get('source_fact_ids')
+        fact_ids = reply.get('source_fact_ids') or reply.get('fact_ids')
+        proposed_fact_ids = list(fact_ids) if isinstance(fact_ids, list) else []
         if required:
             facts = ledger.get('facts') or {}
             bindings = row.get('_source_claim_bindings')
@@ -16983,13 +16992,25 @@ def _validated_source_review(item, row, old, transcript):
                         and candidate.get('text_sha256') == hashlib.sha256(claim['text'].encode()).hexdigest()
                         and candidate.get('relation') == 'entailed'):
                     aligned = candidate
-                fact_ids = (aligned or {}).get('fact_ids') or []
+                if aligned:
+                    fact_ids = aligned.get('fact_ids') or []
+                else:
+                    # 漏配時保留編輯者提出的ID，但不讓未驗證配對自動通過。
+                    # 只有獨立來源盤點的完整同字主張及本股主體皆一致，才可作窄範圍復原。
+                    candidates = proposed_fact_ids or list(facts)
+                    exact = [fid for fid in candidates if isinstance(fid, str) and fid in facts
+                             and facts[fid].get('subject_codes') == [own_code]
+                             and _ev_norm(facts[fid].get('statement')) == _ev_norm(claim['text'])]
+                    if exact:
+                        fact_ids = exact
+                        aligned = {'fact_ids': exact, 'relation': 'entailed', 'coverage': 'partial',
+                                   'origin': 'exact_independent_statement'}
             usable = (ledger.get('version') == SOURCE_FACTS_VERSION
                 and ledger.get('source_sha256') == hashlib.sha256(transcript.encode()).hexdigest()
                 and ledger.get('notice_sha256', '') == attribution_notice_sha(transcript)
                 and isinstance(fact_ids, list) and bool(fact_ids)
                 and all(isinstance(fid, str) and fid in facts for fid in fact_ids))
-            if usable and (aligned or (len(matches) == 1 and status in ('supported', 'cross_entity', 'asr_uncertain') and explanation)):
+            if usable and (not isinstance(bindings, dict) or aligned) and (aligned or (len(matches) == 1 and status in ('supported', 'cross_entity', 'asr_uncertain') and explanation)):
                 bound = [facts[fid] for fid in fact_ids]
                 belongs = [own_code in f['subject_codes'] for f in bound]
                 if aligned and any(belongs):
@@ -17027,7 +17048,8 @@ def _validated_source_review(item, row, old, transcript):
         if status != 'asr_uncertain' or _ws_numbers(safe):
             safe = ''
         checked.append(dict(claim, status=status, explanation=explanation, source_quote=quote, subject=subject,
-                            subject_code=subject_code, source_ids=ids, source_fact_ids=fact_ids or [], safe_text=safe))
+                            subject_code=subject_code, source_ids=ids, source_fact_ids=fact_ids or [],
+                            proposed_fact_ids=proposed_fact_ids, safe_text=safe))
     statuses = {r['status'] for r in checked}
     status = ('cross_entity' if 'cross_entity' in statuses else 'asr_uncertain' if 'asr_uncertain' in statuses
               else 'supported' if statuses == {'supported'} else 'insufficient')
@@ -17038,10 +17060,46 @@ def _validated_source_review(item, row, old, transcript):
             'notice_sha256': attribution_notice_sha(transcript)}
 
 
+def _project_supported_claims(signals, row, field, review):
+    """未知附加主張留內部；只重組已核實主張，並要求一次新的語意／分類審閱。"""
+    claims = review.get('claims') or []
+    kept = [c for c in claims if c.get('status') == 'supported']
+    if (not review.get('source_facts_required') or not kept or not any(c.get('status') == 'insufficient' for c in claims)
+            or row.get('_source_projection') or row.get('_manual_note_kept')):
+        return False
+    old = str(row.get(field) or '').strip()
+    if review.get('text_sha256') != hashlib.sha256(old.encode()).hexdigest():
+        return False
+    new = '。'.join(c['text'].strip('，,；;。') for c in kept if c['text'].strip('，,；;。')) + '。'
+    withheld = [dict(c) for c in claims if c.get('status') != 'supported']
+    row['_source_projection'] = {'original_text': old, 'input_review': dict(review),
+        'withheld_claims': withheld, 'retained_claim_ids': [c['id'] for c in kept],
+        'source_sha256': review.get('source_sha256'), 'notice_sha256': review.get('notice_sha256', ''),
+        'projected_text_sha256': hashlib.sha256(new.encode()).hexdigest(), 'confirmation': 'pending'}
+    row[field] = new
+    row['_source_projection_pending'] = True
+    row['_source_attribution_review'] = dict(review, status='projection_pending', claims=[dict(c) for c in kept],
+        text_sha256=hashlib.sha256(new.encode()).hexdigest())
+    if isinstance(row.get('_source_fact_ledger'), dict):
+        # 投影會重新編子句ID；依同字主張接續原本已核實的證據，不拿舊c0套到新c0。
+        bindings = {}
+        for current in _note_claims(new):
+            matches = [c for c in kept if _ev_norm(c['text']) == _ev_norm(current['text'])]
+            if len(matches) == 1 and matches[0].get('source_fact_ids'):
+                bindings[current['id']] = {'relation': 'entailed', 'coverage': 'partial',
+                    'text_sha256': hashlib.sha256(current['text'].encode()).hexdigest(),
+                    'fact_ids': matches[0]['source_fact_ids']}
+        row['_source_claim_bindings'] = {'source_sha256': review['source_sha256'], 'claims': bindings}
+    signals.setdefault('_repair_gaps', []).append(str(row.get('name')) + '：未核實附加主張留內部，已核實短文待重新審閱')
+    return True
+
+
 def _apply_source_claim_review(signals, row, field, review):
     """僅處理有來源綁定的這份說明：確認是別檔主體（cross_entity）的主張移除、人類標記待核數字（asr_uncertain）的改寫；
     「不足」（模型漏填、引句格式不合）保留原句，只記待核——引用格式失敗不等於內容錯誤，不能拿來刪說明。
     整段都確認是別檔內容時才會清空，交給 quarantine_public_rows 單檔隔離（10/27 毅嘉列的說明整段是勤誠）。"""
+    if review and _project_supported_claims(signals, row, field, review):
+        return True
     if not review or row.get('_manual_note_kept') or review.get('status') in ('supported', 'insufficient'):
         return False
     old = str(row.get(field) or '').strip()
@@ -17070,7 +17128,7 @@ def _apply_source_claim_review(signals, row, field, review):
         return False
     new = '。'.join(t.strip('，,；;。') for t in kept if t.strip('，,；;。'))
     row[field] = new + ('。' if new else '')
-    row['_claim_repair'] = {'original': old, 'source_sha256': review['source_sha256'],
+    row['_claim_repair'] = {'original': old, 'input_review': dict(review), 'source_sha256': review['source_sha256'],
                             'notice_sha256': review.get('notice_sha256', ''), 'removed_or_rewritten': decisions,
                             'retained_claim_ids': [c['id'] for c in review['claims'] if c['status'] in ('supported', 'insufficient')],
                             'retained_pending': any(c['status'] == 'insufficient' for c in review['claims']),
@@ -17244,6 +17302,7 @@ def _polish_public_texts(signals, transcript, date_str):
                           max_out=min(MAX_OUT, 2000 + 500 * len(batch) + 200 * sum(len(e.get('claims') or []) for e in batch)))
         data = safe_load_json(raw, default={})
         received_ids = set()
+        projected_batch = []
         for item in (data.get('texts') if isinstance(data, dict) else None) or []:
             key = str(item.get('id') or '') if isinstance(item, dict) else ''
             if key not in pending:
@@ -17265,6 +17324,13 @@ def _polish_public_texts(signals, transcript, date_str):
                 row['_source_attribution_review'] = source_review
                 if _apply_source_claim_review(signals, row, field, source_review):
                     repaired += 1
+                    if row.get('_source_projection_pending'):
+                        projected = str(row.get(field) or '').strip()
+                        pending[key] = targets[key] = (row, field, projected, what)
+                        current_entry = next(e for e in batch if e['id'] == key)
+                        projected_batch.append(dict(current_entry, text=projected, claims=_note_claims(projected),
+                            issues=['此短文只留下已核實主張；重新核對完整語意、條件、分類及書面品質，不補回未核附加片段']))
+                        continue
                     pending.pop(key)
                     refused.pop(key, None)
                     continue
@@ -17288,6 +17354,10 @@ def _polish_public_texts(signals, transcript, date_str):
                 refused[key] = '上一次改寫沒有採用：' + why
                 continue
             row[field] = new
+            if row.get('_source_projection_pending'):
+                row['_source_projection_pending'] = False
+                row['_source_projection']['confirmation'] = 'model_confirmed'
+                row['_source_projection']['confirmed_text_sha256'] = hashlib.sha256(new.encode()).hexdigest()
             if source_review.get('status') == 'supported':
                 # 四項編輯契約與數字／名稱保留均通過，只改文體後將同一來源證據接到新文字。
                 row['_source_attribution_review'] = dict(source_review,
@@ -17299,8 +17369,9 @@ def _polish_public_texts(signals, transcript, date_str):
             refused.pop(key, None)
             print(f"  書面化　{what}：{old[:26]}… → {new[:40]}…")
         missed = [dict(e, issues=e['issues'] + ['前批漏回本id，請完整回覆本項及各claim來源']) for e in batch if e['id'] not in received_ids]
-        if attempt == 0 and missed and budget_left() >= 150 and not _QUOTA_STOP.get('daily'):
-            batches.append((1, missed))
+        follow_up = {e['id']: e for e in missed + projected_batch}
+        if attempt == 0 and follow_up and budget_left() >= 150 and not _QUOTA_STOP.get('daily'):
+            batches.append((1, list(follow_up.values())))
     dropped = 0
     for key, (row, field, old, what) in list(pending.items()):
         why = refused.get(key, '沒有回覆')

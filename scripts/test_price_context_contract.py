@@ -16,6 +16,14 @@ spec.loader.exec_module(p)
 
 
 class PriceContextContract(unittest.TestCase):
+    def test_complete_decimal_and_cross_paragraph_number_are_not_foreign_by_window(self):
+        raw='甲公司'+('接著說明'*85)+'上半年21.83元，全年40元。'
+        row={'name':'甲公司','code':'1111','reason':'甲公司上半年EPS21.83元，全年40元。'}
+        with patch.object(p,'_CODE_MAP',{}):
+            self.assertFalse(p._entity_issue(row,{'watch_watch':[row]},raw)[1])
+        with patch.object(p,'_entity_scope',return_value=[('甲公司只說83元','甲公司只說83元')]):
+            self.assertTrue(p._entity_issue(row,{'watch_watch':[row]},raw)[1])
+
     def test_local_number_window_miss_is_a_cue_not_a_deletion(self):
         row={'name':'甲公司','code':'1111','reason':'甲公司去年EPS29元，上半年21.83元，全年估40元。','price':'100元'}
         before=copy.deepcopy(row)

@@ -50,11 +50,21 @@ class IdentityContext(unittest.TestCase):
     def test_rejected_ordinary_surface_is_not_an_entity_boundary(self):
         raw='勤誠假破底。看一下他的數字，去年29，今年上半年21.83。'
         row={'name':'勤誠','code':'8210'}
-        for reason in ('ordinary_word','ambiguous_weak_name','mention_only'):
+        for reason in ('ordinary_word','ambiguous_weak_name'):
             sig={'holdings':[row],'ignored':[{'name':'數字','code':'5287','exclusion_reason':reason}]}
             self.assertIn('21.83',''.join(t for t,_ in p._entity_scope(row,sig,raw,after_chars=900)))
         sig['ignored'][0]['exclusion_reason']='independent_analysis'
         self.assertNotIn('21.83',''.join(t for t,_ in p._entity_scope(row,sig,raw,after_chars=900)))
+
+    def test_real_company_mention_is_a_boundary_but_parallel_predicate_is_retained(self):
+        row={'name':'甲公司','code':'1111'}
+        sig={'watch_watch':[row],'ignored':[{'name':'乙公司','code':'2222','exclusion_reason':'mention_only'}]}
+        raw='甲公司整理。接著乙公司EPS21.83，後續觀察。'
+        with patch.object(p,'_CODE_MAP',{}):
+            self.assertNotIn('21.83',''.join(t for t,_ in p._entity_scope(row,sig,raw,after_chars=900)))
+            raw='甲公司跟乙公司，你就好好注意。丙公司明天有別的消息。'
+            material=''.join(t for t,_ in p._entity_scope(row,sig,raw,after_chars=900))
+            self.assertIn('好好注意',material);self.assertNotIn('明天有別的消息',material)
 
     def test_connector_does_not_cut_off_model_evidence(self):
         raw='甲公司目前尚未推薦。所以工具機落後補漲，後續仍需整理。'

@@ -16,7 +16,7 @@ on:
         type: boolean
         default: false
       note_sources_only:
-        description: '只重播固定說明的上下文審閱；不分類、不讀通知或部位，跨日原稿須指紋相同'
+        description: '固定說明／指定分類探針；可按案例唯讀原通知、不讀部位，非整日通過；原稿須同指紋'
         type: boolean
         default: false
       independent_review:

@@ -56,6 +56,57 @@
           "provenance": "scratch\\worktrees\\1021-verification-notes\\scratch\\report-replay-1027\\40440438907\\result.json"
         }
       ]
+    },
+    {
+      "date": "2026/10/27",
+      "source_sha256": "aa22759a934f0210001a1d65f1fac85806f23bcf2870c0af99f53f962ebd83d0",
+      "include_original_notices": true,
+      "notes": [
+        {
+          "code": "3665",
+          "name": "貿聯-KY",
+          "category": "watch_avoid",
+          "note": "貿聯-KY股價由高檔2685元跌至1750元附近，雖然外資調高目標價，但走勢疲弱且遭點名絕對不要碰、絕對不要買。預期其股價表現將被嘉澤全面超越，提醒投資人切勿進場追高。",
+          "draft_sha256": "32b3117ada8702c687ca43ef2592d47484f2cc07b8d62eab2ef6613f6d7a95ac",
+          "require_final_verified": true,
+          "provenance": "40505142031／52fdf0dcfd6b：保存模型草稿，只診斷來源審閱、不注入新分類答案"
+        },
+        {
+          "code": "3008",
+          "name": "大立光",
+          "category": "watch_avoid",
+          "note": "大立光目前走勢並沒有要上漲的跡象，遭點名現階段無需買進。應避免盲目進場布局。",
+          "draft_sha256": "15293feb6a71f4134de959161a603c012056381f8b1e6842055e47479c860f26",
+          "require_final_verified": true,
+          "provenance": "40505142031／52fdf0dcfd6b：保存模型草稿，只診斷來源審閱、不注入新分類答案"
+        },
+        {
+          "code": "6409",
+          "name": "旭隼",
+          "category": "holdings",
+          "note": "旭隼為太陽能逆變器族群，已突破最近兩個月的高點。今日大漲39元，會員續抱。",
+          "draft_sha256": "4a946bd8dc633a26f5eb3fe8c3ce1d76fdca2432a39c705777f0ec6a033733fe",
+          "require_final_verified": true,
+          "provenance": "40505142031／52fdf0dcfd6b：保存模型草稿，只診斷來源審閱、不注入新分類答案"
+        }
+      ],
+      "verdict_probes": [
+        {
+          "code": "2049",
+          "name": "上銀",
+          "expected_categories": [
+            "watch_watch"
+          ]
+        },
+        {
+          "code": "2317",
+          "name": "鴻海",
+          "expected_categories": [
+            "watch_watch"
+          ]
+        }
+      ],
+      "scope": "3份保存模型草稿的來源階段，加2身分全稿裁決；不等於整日分類或發布驗收。"
     }
   ]
 }

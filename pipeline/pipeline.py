@@ -8142,6 +8142,16 @@ def source_inventory(segments):
             if heard in re.sub(r'\s', '', seg['text']):
                 refs.setdefault(heard, []).append(sid)
 
+    # 只念代號、沒有念名稱（2026/10/28「老師早，4526再抱嗎？…這隻股票是什麼？4526」）：只當盤點候選，身分與立場仍交問卷核對。
+    for code in _bare_code_mentions(flat_all):
+        official = (_CODE_MAP or {}).get(code)
+        if not official or code in names or _display_name(official) in refs or any(str(v[0]) == code for v in names.values() if v[0]):
+            continue
+        hits = [sid for sid, seg in segments.items() if code in re.sub(r'\s', '', seg['text'])]
+        if hits:
+            names[code] = (code, official, True)
+            refs[code] = hits
+
     found_items = []
     for heard in sorted(refs):
         code, name, confirmed = names[heard]
@@ -8150,6 +8160,18 @@ def source_inventory(segments):
             item['weak'] = True
         found_items.append(item)
     return found_items
+
+
+def _bare_code_mentions(flat):
+    """原文單獨念出、至少三次的四位數代號。前後緊貼數字、價位單位或買賣動詞的是價位與金額（「1580買的」「7200億」「2490的缺口」），不算。"""
+    counts = {}
+    for m in re.finditer(r'(?<![\d.,])([1-9]\d{3})(?![\d.,])', str(flat or '')):
+        before, after = flat[max(0, m.start() - 2):m.start()], flat[m.end():m.end() + 2]
+        if re.match(r'(?:元|塊|點|億|萬|多|張|%|位|以|附近|上下|左右|的缺|買|賣|年|月|號|日|分|秒)', after) \
+                or re.search(r'(?:在|到|買|賣|破|過|跌|漲|約|近|是|等)$', before):
+            continue
+        counts[m.group(1)] = counts.get(m.group(1), 0) + 1
+    return [code for code, n in counts.items() if n >= 3]
 
 
 # 盤點會在分批估算時對同一段反覆計算（逐段加進去試算請求大小），整份重算一次要十幾秒。
@@ -13250,7 +13272,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v37-20261028-adjacent-source-and-scope-proof"    # 相鄰連續引句、背景角色與獨立主張證明分開核對
+VERDICT_VERSION = "v38-20261028-condition-quote"    # 等待條件要附可核對的條件原句；重提昨天的持有者建議是今天的建議；相鄰連續引句、背景角色與獨立主張證明分開核對
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 3                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -13284,6 +13306,8 @@ selection_intent：positive_candidate=正向追蹤池／主動提醒留意；aut
 最新政策：正向選股池中等待止穩、目前不用急的標的，若仍有追蹤與等待進場條件，entry_for_new=wait_condition、now=conditional，屬觀望注意；不代表今日已買。明確排斥參與填prohibit；須等待正式執行授權、目前不得進場才填not_yet／authorization_pending，不能由positive_candidate蓋過。對持有者超跌勿殺低等反彈，holder_advice=hold_rebound、now=conditional，即使本人沒有要買也保留兩層意思。具體低接價位及高檔不追作為仍適用的操作節奏時填wait_condition／conditional，不能只選前句歷史時間忽略後句條件。
 混合段落先核完整時間順序：前段未持有、未推薦、歷史回顧或陪襯比較，不會否定後段對本股的現況分析、均線路徑或等待買點。後段確有本股獨立分析時，content_role填independent_analysis，quotes.analysis引用該段；past_trade可同時為true。不能只因前段比較就把後段當作他股，亦不能把後段他股分析挪回本股。僅有未持有／選股範圍交代而無本股分析才是position_disclosure／selection_scope／comparison_only。
 now填buy_ok／conditional／not_yet／prohibit／none，與前述軸一致；tone填bullish／bearish／neutral，僅為本股現在的獨立方向，不借相鄰公司。明講現在沒有要漲、不宜買是本股風險，不等於只澄清沒有持有。只有位置描述而全文無獨立追蹤或方向才填neutral及none。
+等待條件的原句：entry_for_new=wait_condition、now=conditional或selection_intent=positive_candidate時，quotes.condition／quote_source_ids.condition必須附「可照做的買進條件」原句（跌到或回到某價位、回測或站上某均線、止穩、平盤以下再買等）；寫不出條件就不是wait_condition。只說反彈不夠、上方套牢區、彈上來還會再下去，是本股的風險判斷：tone=bearish、entry_for_new=none或prohibit、selection_intent=explicit_exclusion，不是等待條件（2026/10/28 國巨）。沒有等待條件時condition留空陣列。
+今天重提昨天給持有者的建議並接著講本股現況（「昨天有沒有跟你們講不要亂殺甲？甲現在要來回震盪打底」）：這是今天仍然有效的持有者建議，holder_advice=hold_rebound，不能因為句子裡有「昨天」就當成只回顧（2026/10/28 台達電）。
 只輸出契約JSON verdicts陣列；每個輸入id都必須回覆，布林欄位填true或false，缺證據可填unsure，不使用語氣字詞表補造答案。
 另填independent_analysis：全篇有本股現在的向前技術位階解讀、量價／法人推論、風險判斷或具體低接節奏時true，quotes.analysis及quote_source_ids.analysis附其原句與編號。這不表示推薦買入；先說未推薦、後段再解析該股往季線的位階，也須讀後段再判。純報漲跌或碰均線位置、只是別股圖例、未持有清單且沒有本股獨立解讀均為false。原稿有本股獨立解析但沒有明確進場語氣時，now及tone可維持none／neutral，由程式保留為中性觀察；不必編造偏多。
 """
@@ -13986,6 +14010,12 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
         now = 'prohibit'
     if holder == 'hold_rebound':
         now = 'conditional'
+    # 2026/10/28：「等待條件」要寫得出可照做的條件（價位、均線、止穩或回測訊號），而且那句要核對得回原稿。
+    # 國巨「這兩天漲的還不夠他一天跌…560有大套牢區，彈上來一定還會再下去」被答成 conditional＋bearish，引句裡沒有任何條件，
+    # 因此列成觀望注意。新格式（quotes 有 condition 欄）沒有可核對的條件原句時，不採用 conditional，改看模型自己的語氣。
+    # 持有者「勿殺低、等反彈」（hold_rebound）的條件就是反彈本身，不另要求。只檢查欄位與原句，不讀字詞。
+    if now == 'conditional' and holder != 'hold_rebound' and 'condition' in quotes and not real('condition'):
+        now = 'none'
     # 2026/10/27 管理者：「文字上的篩選很容易選錯，要確保不是判斷方向的依據」。進場表態與語氣只由模型讀完整段落判定，
     # 程式只核對它的引句真的出自本股段落（real），不再用「不、沒、買、等、會漲」等字推翻或補判模型的答案。
     # 先前 _VQ_REFUSAL 只要引句有「沒」就維持禁買：10/27「真正的成熟製程，我沒有聯電」因此成了聯電、世界先進的禁買票。
@@ -14146,7 +14176,7 @@ def verdict_response_schema(expected_ids=None):
         'selection_intent': ['neutral', 'positive_candidate', 'explicit_exclusion', 'authorization_pending'],
         'holder_advice': ['none', 'hold', 'hold_rebound']}.items():
         props[field] = {'type': 'string', 'enum': values}
-    fields = ('buy_today', 'sell_today', 'holding_now', 'past_trade', 'stance', 'analysis')
+    fields = ('buy_today', 'sell_today', 'holding_now', 'past_trade', 'stance', 'analysis', 'condition')
     props['quotes'] = {'type': 'object', 'properties': {f: {'type': 'array', 'items': {'type': 'string'}} for f in fields},
                        'required': list(fields)}
     props['quote_source_ids'] = {'type': 'object', 'properties': {f: {'type': 'array', 'items': {'type': 'string'}} for f in fields},
@@ -14170,9 +14200,10 @@ def _questionnaire_issues(answer, transcript, names):
     if answer.get('content_role') == 'ordinary_word' and answer.get('independent_analysis') is True:
         issues.append('日常詞身分與本股獨立分析互相矛盾；請核真正公司主體，勿由字面名稱定案')
     # 前後段角色可並存，不再把背景角色與現況分析整題作廢；verdict_class另核有效進場／觀察語意。
-    for field in ('buy_today','sell_today','holding_now','past_trade','stance','analysis'):
+    for field in ('buy_today','sell_today','holding_now','past_trade','stance','analysis','condition'):
         active = (answer.get(field) is True if field in ('buy_today','sell_today','holding_now','past_trade')
             else answer.get('independent_analysis') is True if field == 'analysis'
+            else bool((answer.get('quotes') or {}).get('condition') or (answer.get('quote_source_ids') or {}).get('condition')) if field == 'condition'
             else answer.get('now') not in (None, 'none') or answer.get('tone') not in (None, 'neutral'))
         verified = _questionnaire_verified_quotes(answer, field)
         if active and verified == []:
@@ -14237,7 +14268,7 @@ def _ask_verdicts(items, date_str, round_no, transcript='', repair=True):
                 restored = {}
                 source_ids = v.get('quote_source_ids') if isinstance(v.get('quote_source_ids'), dict) else {}
                 for field, ids in source_ids.items():
-                    if field in ('buy_today','sell_today','holding_now','past_trade','stance','analysis') and isinstance(ids, list) and 1 <= len(ids) <= 3 and all(isinstance(sid, str) and sid in sources for sid in ids):
+                    if field in ('buy_today','sell_today','holding_now','past_trade','stance','analysis','condition') and isinstance(ids, list) and 1 <= len(ids) <= 3 and all(isinstance(sid, str) and sid in sources for sid in ids):
                         restored[field] = [sources[sid]['text'] for sid in dict.fromkeys(ids)]
                 if restored:
                     v['_verified_quote_sources'] = restored

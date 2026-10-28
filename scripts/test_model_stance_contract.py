@@ -76,13 +76,22 @@ class ModelStance(unittest.TestCase):
   self.assertEqual(p.note_length_target(150)['min_chars'],40)
   self.assertEqual(p.note_length_target(400)['level'],'rich')
 
- def test_watch_note_does_not_claim_a_member_holding(self):
-  sig={'watch_watch':[{'name':'甲公司','code':'1111','reason':'甲公司為會員持股，先前推薦後創新高，已突破反壓區。已持有者續抱。'}],
-       'watch_avoid':[{'name':'乙公司','code':'2222','reason':'乙公司為會員持股。'}]}
-  p.drop_watch_holding_claims(sig)
-  self.assertEqual(sig['watch_watch'][0]['reason'],'先前推薦後創新高，已突破反壓區。已持有者續抱。')
-  self.assertEqual(sig['watch_avoid'][0]['reason'],'乙公司為會員持股。')            # 拿掉就不成句：保留並記待核
-  self.assertTrue(any('乙公司' in g for g in sig['_repair_gaps']))
+ def test_watch_note_holding_claim_is_flagged_not_rewritten_after_review(self):
+  text='甲公司為會員持股，先前推薦後創新高。已持有者續抱。'
+  sig={'watch_watch':[{'name':'甲公司','code':'1111','reason':text}],
+       'watch_avoid':[{'name':'乙公司','code':'2222','reason':'乙公司已持有者不宜殺低。'}]}
+  p.flag_watch_holding_claims(sig)
+  self.assertEqual(sig['watch_watch'][0]['reason'],text)                 # 審閱後不改字，指紋不失效
+  self.assertTrue(any('甲公司' in g for g in sig['_repair_gaps']))
+  self.assertFalse(any('乙公司' in g for g in sig['_repair_gaps']))       # 給讀者的條件建議不算
+
+ def test_unreadable_records_are_not_a_confirmed_empty_position(self):
+  class Bad:
+   def worksheet(self,name): raise RuntimeError('quota')
+  p._verdict_known(Bad(),'2026/10/28',with_open=True)
+  self.assertEqual(p._verdict_position_key({'open':False}),'position=unknown')
+  p._VERDICT_RECORDS['readable']=True
+  self.assertEqual(p._verdict_position_key({'open':False}),'position=none')
 
  def test_only_unanimous_settled_verdicts_are_reused(self):
   head=p.VERDICT_HEADERS

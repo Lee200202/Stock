@@ -13726,18 +13726,23 @@ def _partial_notice_sale_codes(ss, date_str):
         return set()
 
 
+_VERDICT_RECORDS = {'readable': True}     # 這一輪讀得到操作紀錄與會員持股；讀不到時「沒有部位」只是不知道
+
+
 def _verdict_known(ss, date_str, with_open=False):
     """操作紀錄裡已有的事實：{代號: [說明]}，以及當日會員通知的買賣 {(代號, 方向)}。讀不到就回空的。
 
     with_open=True 時多回傳 {代號: 名稱}：節目前一天為止最近一筆是買入、還沒有賣出紀錄的股票。
     """
     known, notice, open_positions = {}, set(), {}
+    _VERDICT_RECORDS['readable'] = True
     try:
         values = sheets_retry(ss.worksheet("操作紀錄").get_all_values)
         head = [str(h).strip() for h in values[0]]
         c_date, c_code, c_dir, c_src = head.index("日期"), head.index("代號"), head.index("方向"), head.index("來源影片ID")
     except Exception as e:
         print(f"  分類裁決　讀不到操作紀錄（{str(e)[:60]}），不帶入已知紀錄")
+        _VERDICT_RECORDS['readable'] = False
         return (known, notice, open_positions) if with_open else (known, notice)
     c_name = head.index("股票名稱") if "股票名稱" in head else (head.index("名稱") if "名稱" in head else -1)
     last = {}
@@ -13784,6 +13789,7 @@ def _verdict_known(ss, date_str, with_open=False):
                     open_positions[code] = name
         except Exception as e:
             print(f"  分類裁決　讀不到會員持股（{str(e)[:60]}），紀錄上持有只看操作紀錄")
+            _VERDICT_RECORDS['readable'] = False
     return (known, notice, open_positions) if with_open else (known, notice)
 
 
@@ -13878,6 +13884,8 @@ def sms_first_article_records(ss, signals, date_str):
 def _verdict_position_key(entry):
     """裁決快取鍵裡的部位快照：紀錄上是否持有（操作紀錄最近一筆買入、十五天內會員持股列或當日通知續抱）。
     facts 已含操作紀錄與當日通知的事實；這裡補上十五天會員持股列開出的部位，部位一變，舊票就不沿用（2026/10/28 審閱）。"""
+    if not _VERDICT_RECORDS.get('readable', True):
+        return 'position=unknown'
     return 'position=' + ('open' if entry.get('open') else 'none')
 
 
@@ -14584,7 +14592,9 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             if cls == 'buy' and entry['current'] != 'buy':
                 # 問卷認為今天買進，但買賣只認明確句或會員通知：這一票以看多計，不丟掉（2026/10/14 台達電「我說台達電可以買」）
                 cls, basis = 'watch_watch', '問卷答今天買進但無法核對成交，以看多計：' + basis
-            if cls == 'holdings' and not entry.get('open') and (code, 'buy') not in notice and code not in notice_held:
+            if cls == 'holdings' and not entry.get('open') and (code, 'buy') not in notice and code not in notice_held \
+                    and _VERDICT_RECORDS.get('readable', True):
+                # 紀錄讀不到時不降：那是「不知道」，不是「確認沒有部位」（審閱指出）
                 # 會員持股要有紀錄上的部位：操作紀錄最近一筆是買入、節目前十五天內有會員持股列，或當日會員通知列到。
                 # 都沒有時，問卷讀到的「持有」不開持有回合，以觀望注意計（看多續抱的立場保留）。
                 # 2026/10/28 管理者：敦泰「這也是我會員的股票…這是我之前就有的敦泰…續抱」從未有買入或持股紀錄，應列觀望注意；
@@ -17612,32 +17622,16 @@ def _polish_accepts(old, new, names, hay_norm='', own=()):
 _HOLDING_CLAIM = re.compile(r'會員持股|會員的股票|(?:為|是)(?:既有|先前)?(?:的)?(?:會員)?持股(?!者)|會員(?:先前|目前|仍)?(?:已)?持有(?!者)')
 
 
-def drop_watch_holding_claims(signals):
-    """觀望注意／觀望不碰的說明寫成「會員持股」「會員的股票」：部位以紀錄為準、由分類表示，說明與分類不一致時拿掉那幾個子句。
-    2026/10/28 敦泰：排除單檔覆核寫下「敦泰為會員持股」，補充說明的模型照寫，書面化也保留，網站分類是觀望注意。
-    只檢查部位說法與分類是否一致，不決定方向；拿掉後不到 8 個字就保留原文並記待核，不留空說明。"""
+def flag_watch_holding_claims(signals):
+    """觀望注意／觀望不碰的說明在重寫之後仍寫成「會員持股」「會員的股票」：記待核，不在這裡改字。
+    2026/10/28 敦泰：排除單檔覆核寫下「敦泰為會員持股」，補充說明照寫。修法是補充說明那一輪先標記、照最後分類重寫；
+    書面化與來源審閱之後再刪句會讓審閱指紋失效、整列又被隔離（審閱指出），而詞表也分不出否定與歷史敘述，所以這裡只標記。"""
     for cat in ('watch_watch', 'watch_avoid'):
         for row in signals.get(cat, []) or []:
-            if not isinstance(row, dict):
-                continue
-            text = str(row.get('reason') or '')
-            if not _HOLDING_CLAIM.search(text):
-                continue
-            kept = []
-            for sentence in re.split(r'(?<=[。！？；])', text):
-                end = (re.search(r'[。！？；]$', sentence) or [''])[0] if sentence else ''
-                body = sentence[:len(sentence) - len(end)] if end else sentence
-                parts = [c for c in re.split(r'[，,]', body) if c.strip() and not _HOLDING_CLAIM.search(c)]
-                if parts:
-                    kept.append('，'.join(parts) + (end or ''))
-            new = ''.join(kept).strip('，, ')
-            name = _display_name(row.get('name'))
-            if len(_ev_norm(new)) < 8:
-                signals.setdefault('_repair_gaps', []).append(f'{name}（{cat}）說明寫成會員持股，與分類不一致，拿掉後不足以成句，待重寫')
-                continue
-            row['reason'] = new
-            print(f"  部位一致　{name}：觀望列的說明寫成持有，拿掉該子句：{text[:30]}… → {new[:30]}…")
-            note_decision('部位一致', '觀望列說明不寫會員持股', name, text[:120])
+            if isinstance(row, dict) and _HOLDING_CLAIM.search(str(row.get('reason') or '')):
+                name = _display_name(row.get('name'))
+                signals.setdefault('_repair_gaps', []).append(f'{name}（{cat}）說明仍寫成會員持股，與分類不一致，待核')
+                note_decision('部位一致', '觀望列說明仍寫會員持股，待核', name, str(row.get('reason') or '')[:120])
     return signals
 
 
@@ -17653,12 +17647,12 @@ def polish_public_texts(signals, transcript, date_str):
             for row in signals.get(cat, []) or []:
                 if isinstance(row, dict):
                     row['_source_fact_ledger'] = ledger
-        return drop_watch_holding_claims(_polish_public_texts(signals, transcript, date_str))
+        return flag_watch_holding_claims(_polish_public_texts(signals, transcript, date_str))
     except Exception as e:
         print(f"  書面化　這一輪沒有完成（{type(e).__name__}: {str(e)[:80]}），文字維持原樣")
         note_decision('書面化', '沒有完成，文字維持原樣', date_str, f'{type(e).__name__}: {str(e)[:200]}')
         signals.setdefault('_repair_gaps', []).append('AI文體待審閱：批次未完成；未改寫或推定文體合格')
-        return drop_watch_holding_claims(signals)
+        return flag_watch_holding_claims(signals)
 
 
 def _reconcile_source_evidence(items, pending, transcript, ledger):
@@ -18338,7 +18332,7 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     # 2026/10/08：模型的回覆漏了某幾檔時，那幾檔的說明還停在口語原句（亞德客-KY、環球晶），也再問一次。
     # 補充後仍然不到 30 個字的說明也再問一次（entry 會帶 too_short，提示詞要求把理由與位置寫出來）；最多多這一輪。
     # 觀望列的說明寫成「會員持股／會員的股票」（2026/10/28 敦泰）：先標記，交給這一輪照最後分類重寫，不直接刪句；
-    # 「已持有者續抱」是給讀者的條件建議，不算。重寫後仍不一致，書面化之後才拿掉那個子句。
+    # 「已持有者續抱」是給讀者的條件建議，不算。重寫後仍不一致，書面化之後記待核（不改字）。
     for cat in ('watch_watch', 'watch_avoid'):
         for r in signals.get(cat, []) or []:
             if isinstance(r, dict) and _HOLDING_CLAIM.search(str(r.get('reason') or '')):

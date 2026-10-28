@@ -1,4 +1,5 @@
 """離線核對來源歸屬與跨表分類優先順序。"""
+import json
 import os
 import sys
 from pathlib import Path
@@ -49,12 +50,19 @@ try:
     assert pl._named_current_prohibition(row, quote)
     assert not pl._named_current_prohibition(row, '昨天我不可能叫你現在買世界先進。')
     assert not pl._named_current_prohibition(row, '我不可能叫你現在買世界先進季線以上，回測季線以下可以買。')
+    # 2026/10/27 管理者：方向不由字詞決定。明講禁買也交問卷，引句核對通過的禁買票才列觀望不碰。
     signals = {'watch_avoid': [dict(row, reason='目前不追買。', evidence=[quote])]}
+    prohibit = {'id': '5347', 'buy_today': False, 'sell_today': False, 'holding_now': False, 'past_trade': False,
+                'about_itself': True, 'now': 'prohibit', 'tone': 'bearish', 'unsure': '',
+                'quotes': {'buy_today': [], 'sell_today': [], 'holding_now': [], 'past_trade': [],
+                           'stance': ['我不可能叫你現在買世界先進吧']}}
+    fake = lambda system, payload, **kw: (json.dumps({'verdicts': [prohibit]}, ensure_ascii=False)
+                                          if system is pl.ADJUDICATE_SYSTEM else '{}')
     with patch.object(pl, '_verdict_known', return_value=({}, set(), {})), \
          patch.object(pl, '_verdict_cache', return_value={}), \
-         patch.object(pl, 'call_gemini', side_effect=AssertionError('明確禁買不應呼叫模型')):
+         patch.object(pl, 'call_gemini', side_effect=fake):
         pl._adjudicate_classes(None, signals, quote, '2026/10/06', {}, {}, 'on')
-    assert signals['_verdicts']['5347']['tier'] == '直接歸類'
+    assert signals['_verdicts']['5347']['tier'] == '裁決'
     assert signals['_verdicts']['5347']['cls'] == 'watch_avoid'
     pl._CODE_MAP = {'3661': '世芯-KY', '4916': '事欣科'}
     source = '世芯KY目前仍持有。' + '其他技術說明。' * 40 + '四新科上半年EPS5.49元。'

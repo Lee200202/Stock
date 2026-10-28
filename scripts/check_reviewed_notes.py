@@ -46,13 +46,30 @@ class Reviewed(unittest.TestCase):
   source=json.loads((ROOT/'scratch/audit1014-current/original/source.json').read_text(encoding='utf8'))['raw']
   self.assertTrue(pl._returned_buy_zone({'鴻海','宏達電'},source))
  def test_sold_record_does_not_hide_new_buy_zone(self):
-  signals={k:[] for k in ('buy','sell','holdings','watch_watch','watch_avoid','history','uncertain','ignored')}
-  signals['holdings']=[{'name':'鴻海','code':'2317','note':'仍持有','evidence':[]}]
-  signals['watch_watch']=[{'name':'鴻海','code':'2317','reason':'回到買點','evidence':[]}]
-  class Book:
-   def worksheet(self,n):raise KeyError(n)
-  seen=pl._class_snapshot(signals)
-  with patch.object(pl,'_verdict_known',return_value=({'2317':['系統紀錄：10/06 賣出這一檔']},set(),{})),patch.object(pl,'_verdict_cache',return_value={}),patch.object(pl,'call_gemini',side_effect=AssertionError('explicit advice must not call model')),patch.dict(os.environ,{'CLASS_ADJUDICATION':'on'}):
-   out=pl.adjudicate_classes(Book(),signals,'鴻海又回來前面的買點了。你們要買，可以買。','2026/10/14',seen,seen)
+  # 2026/10/27 管理者：方向不由字詞決定。已出場的部位持有不成立（帳本事實），「回到買點、可以買」交問卷判讀；
+  # 問卷引句核對通過才列觀望注意，問不到答案時退回回顧，不由程式憑「可以買」三個字定案。
+  text='鴻海又回來前面的買點了。你們要買，可以買。'
+  def run(answer):
+   signals={k:[] for k in ('buy','sell','holdings','watch_watch','watch_avoid','history','uncertain','ignored')}
+   signals['holdings']=[{'name':'鴻海','code':'2317','note':'仍持有','evidence':[]}]
+   signals['watch_watch']=[{'name':'鴻海','code':'2317','reason':'回到買點','evidence':[]}]
+   class Book:
+    def worksheet(self,n):raise KeyError(n)
+   seen=pl._class_snapshot(signals)
+   asked=[]
+   def fake(system,payload,**kw):
+    if system is not pl.ADJUDICATE_SYSTEM:return '{}'
+    asked.append(payload)
+    if answer is None:raise RuntimeError('offline')
+    return json.dumps({'verdicts':[answer]},ensure_ascii=False)
+   with patch.object(pl,'_verdict_known',return_value=({'2317':['系統紀錄：10/06 賣出這一檔']},set(),{})),patch.object(pl,'_verdict_cache',return_value={}),patch.object(pl,'call_gemini',side_effect=fake),patch.dict(os.environ,{'CLASS_ADJUDICATION':'on'}):
+    out=pl.adjudicate_classes(Book(),signals,text,'2026/10/14',seen,seen)
+   self.assertTrue(asked,'方向要交問卷判讀')
+   return out
+  buy_ok={'id':'2317','buy_today':False,'sell_today':False,'holding_now':False,'past_trade':False,'about_itself':True,'now':'buy_ok','tone':'bullish',
+          'quotes':{'buy_today':[],'sell_today':[],'holding_now':[],'past_trade':[],'stance':['鴻海又回來前面的買點了']},'unsure':''}
+  out=run(buy_ok)
   self.assertEqual(out['_verdicts']['2317']['cls'],'watch_watch');self.assertFalse(out['holdings']);self.assertEqual(out['watch_watch'][0]['code'],'2317')
+  out=run(None)
+  self.assertFalse(out['holdings']);self.assertEqual(out['_verdicts']['2317']['cls'],'history')
 if __name__=='__main__':unittest.main()

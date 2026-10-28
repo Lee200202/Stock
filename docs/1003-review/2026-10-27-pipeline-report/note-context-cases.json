@@ -103,22 +103,26 @@
         {
           "code": "8299",
           "name": "群聯",
-          "category": "watch_avoid",
+          "category": "watch_watch",
           "note": "記憶體族群低檔將至，群聯目前尚未走穩。對記憶體族群暫無出手念頭，保持觀望。",
           "aliases": [],
           "draft_sha256": "d10912e4867140722d35334fbbd02e8bd34a000f50494add15f772302dca8c74",
           "require_final_verified": true,
-          "provenance": "40615953338 保存模型待核草稿；來源階段用固定輸入，不回填分類答案"
+          "provenance": "40615953338 保存模型待核草稿；來源階段用固定輸入，不回填分類答案",
+          "original_model_category": "watch_avoid",
+          "category_override_provenance": "2026/10/28人類新裁示；固定說明來源審閱不是無輔助分類評估，原稿及草稿指紋未改"
         },
         {
           "code": "5289",
           "name": "宜鼎",
-          "category": "watch_avoid",
+          "category": "watch_watch",
           "note": "記憶體族群走勢尚未那麼快轉強。宜鼎目前不用急著介入，持續觀望。",
           "aliases": [],
           "draft_sha256": "446b562ad1cb3d646739fe9abf8205a7dfc9c17284c6f7a9eb8cc0c15270d910",
           "require_final_verified": true,
-          "provenance": "40615953338 保存模型待核草稿；來源階段用固定輸入，不回填分類答案"
+          "provenance": "40615953338 保存模型待核草稿；來源階段用固定輸入，不回填分類答案",
+          "original_model_category": "watch_avoid",
+          "category_override_provenance": "2026/10/28人類新裁示；固定說明來源審閱不是無輔助分類評估，原稿及草稿指紋未改"
         },
         {
           "code": "2049",
@@ -173,9 +177,25 @@
           "expected_categories": [
             "ignored"
           ]
+        },
+        {
+          "code": "8299",
+          "name": "群聯",
+          "expected_categories": [
+            "watch_watch"
+          ],
+          "reference_authority": "human_override_20261028"
+        },
+        {
+          "code": "5289",
+          "name": "宜鼎",
+          "expected_categories": [
+            "watch_watch"
+          ],
+          "reference_authority": "human_override_20261028"
         }
       ],
-      "scope": "6份固定說明＋6身分全稿探針；不等於整日成功。新增碩禾驗明確中性與缺答不同，原期待未修改。"
+      "scope": "6份固定說明＋8身分全稿探針；不等於整日成功。新增兩項人類政策回歸，期待分類只在模型推論後評分。"
     }
   ]
 }

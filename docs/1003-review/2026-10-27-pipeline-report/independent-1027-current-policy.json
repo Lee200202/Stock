@@ -4,7 +4,7 @@
   "date": "2026/10/27",
   "raw_sha256": "aa22759a934f0210001a1d65f1fac85806f23bcf2870c0af99f53f962ebd83d0",
   "target_result_exposure": "seen",
-  "notification_context": "原稿與當日通知186767113及當時部位；人類最新明確採ph5將群聯、宜鼎列觀望不碰。台達電超跌勿殺低等反彈仍列注意；華邦電、南亞科無獨立分析不公開。非人工金標，已見結果，不作盲測。",
+  "notification_context": "原稿與當日通知186767113及當時部位；2026/10/28人類最新指定群聯、宜鼎觀望注意，覆蓋先前ph5不碰政策。台達電超跌勿殺低等反彈仍注意；華邦電、南亞科無獨立分析不公開。其餘為代理來源審核草稿，已見結果，非盲測。",
   "candidates": [
     {
       "code": "8210",
@@ -67,14 +67,16 @@
     {
       "code": "8299",
       "name": "群聯",
-      "expected": "watch_avoid",
-      "basis": "人類本輪明確改採ph5：雖主要追蹤，但尚未止穩、目前不用急著買，以當下暫不進場為先；說明保留追蹤條件。"
+      "expected": "watch_watch",
+      "basis": "人類2026/10/28最新指定：正向追蹤等待止穩，列觀望注意；不等於已買。",
+      "reference_authority": "human_override"
     },
     {
       "code": "5289",
       "name": "宜鼎",
-      "expected": "watch_avoid",
-      "basis": "人類本輪明確改採ph5：雖主要追蹤，但尚未止穩、目前不用急著買，以當下暫不進場為先；說明保留追蹤條件。"
+      "expected": "watch_watch",
+      "basis": "人類2026/10/28最新指定：正向追蹤等待止穩，列觀望注意；不等於已買。",
+      "reference_authority": "human_override"
     },
     {
       "code": "2049",
@@ -159,6 +161,19 @@
       "name": "新新",
       "expected": "unresolved",
       "basis": "未獲人類確認身份，不以1700目標價與同音猜代號。"
+    }
+  ],
+  "policy_history": [
+    {
+      "date": "2026/10/28",
+      "codes": [
+        "8299",
+        "5289"
+      ],
+      "previous_expected": "watch_avoid",
+      "current_expected": "watch_watch",
+      "authority": "人類最新明確裁示，改列觀望注意並作正確答案；撤回先前ph5裁示",
+      "evaluation": "政策修訂，不能把新舊分數直接當模型改善"
     }
   ]
 }

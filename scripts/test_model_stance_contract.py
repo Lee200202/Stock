@@ -81,7 +81,7 @@ class ModelStance(unittest.TestCase):
   after={k:[(r['code'],r['reason']) for r in signals.get(k,[])] for k in before}
   self.assertEqual(before,after)
  def test_positive_interest_cannot_override_the_current_wait_instruction(self):
-  raw='甲公司是主要追蹤標的，但是還沒穩，現在不用急著買。'
+  raw='甲公司是主要追蹤標的，但正式指令尚未發出，現在不得進場，必須等執行授權。'
   answer={'about_itself':True,'now':'not_yet','selection_intent':'positive_candidate',
     'entry_for_new':'not_yet','holder_advice':'none','quotes':{'stance':[raw]}}
   self.assertEqual(p.verdict_class(answer,p._ev_norm(raw),['甲公司'])[0],'watch_avoid')

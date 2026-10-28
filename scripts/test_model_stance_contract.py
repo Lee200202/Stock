@@ -84,6 +84,10 @@ class ModelStance(unittest.TestCase):
   self.assertEqual(sig['watch_watch'][0]['reason'],text)                 # 審閱後不改字，指紋不失效
   self.assertTrue(any('甲公司' in g for g in sig['_repair_gaps']))
   self.assertFalse(any('乙公司' in g for g in sig['_repair_gaps']))       # 給讀者的條件建議不算
+  for claim in ('敦泰股價創新高，此為先前已佈局持有的驅動IC個股。','甲公司為會員持股。','這是會員的股票。'):
+   self.assertTrue(p._HOLDING_CLAIM.search(claim),claim)
+  for advice in ('已持有者續抱，不必急著賣出。','目前尚未持有，等回測季線。','持有者不宜殺低。'):
+   self.assertFalse(p._HOLDING_CLAIM.search(advice),advice)
 
  def test_unreadable_records_are_not_a_confirmed_empty_position(self):
   class Bad:

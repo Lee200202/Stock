@@ -14453,7 +14453,7 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             facts=known.get(code,[])
             sides=sorted(cats & {'buy','sell'})
             entry['fp']=hashlib.sha256('\n'.join([VERDICT_VERSION,code,','.join(sides),_ev_norm(text),_verdict_position_key(entry)]+facts).encode()).hexdigest()[:16]
-            hit=(cache.get(code) or {}).get('by_fp',{}).get((entry['fp'],VERDICT_VERSION))
+            hit=(cache.get(code) or {}).get('by_fp',{}).get((entry['fp'],VERDICT_VERSION)) if _VERDICT_RECORDS.get('readable', True) else None
             if hit==current:
                 entry.update(tier='沿用裁決',basis='同指紋已完成當日成交複核',enforce=len(sides)==1,execution_verified=True)
                 continue
@@ -14529,7 +14529,8 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
         facts = known.get(code, [])
         entry['fp'] = hashlib.sha256('\n'.join([VERDICT_VERSION, code, _ev_norm(text), _verdict_position_key(entry)] + facts).encode('utf-8')).hexdigest()[:16]
         entry['basis'] = '；'.join(why)
-        hit = (cache.get(code) or {}).get('by_fp', {}).get((entry['fp'], VERDICT_VERSION))
+        # 部位讀不到時不沿用任何模型快取（換了鍵也不行：連續兩輪讀不到會命中上一次未知狀態的票）；人工裁決照舊
+        hit = (cache.get(code) or {}).get('by_fp', {}).get((entry['fp'], VERDICT_VERSION)) if _VERDICT_RECORDS.get('readable', True) else None
         if hit:
             # 快取的「待確認」是先前判定不公開；改列那一步不搬「待確認」，沿用到現在是公開的列時以「排除」套用（2026/10/15 台塑化）
             if hit == 'uncertain' and current not in _VERDICT_HIDDEN:
@@ -14598,8 +14599,11 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                 # 都沒有時，問卷讀到的「持有」不開持有回合，以觀望注意計（看多續抱的立場保留）。
                 # 2026/10/28 管理者：敦泰「這也是我會員的股票…這是我之前就有的敦泰…續抱」從未有買入或持股紀錄，應列觀望注意；
                 # 東台「老師早，4526再抱嗎？」是提問會員自己的股票，可列觀望注意，不能列會員持股。
-                cls, basis = 'watch_watch', ('紀錄與當日通知都沒有這個部位' if _VERDICT_RECORDS.get('readable', True)
-                                             else '這一輪讀不到操作紀錄或會員持股，無法確認部位') + '，問卷的持有不開持有回合，以觀望注意計：' + basis
+                if _VERDICT_RECORDS.get('readable', True):
+                    cls, basis = 'watch_watch', '紀錄與當日通知都沒有這個部位，問卷的持有不開持有回合，以觀望注意計：' + basis
+                else:
+                    # 讀不到紀錄：持有不能確認，「讀不到」也不是看多的依據；這一票不計，要有本股自己的立場票才定案（審閱指出）
+                    cls, basis = '', '這一輪讀不到操作紀錄或會員持股，持有無法確認，這一票不計：' + basis
             # 2026/10/27：不再以「不適合再買」等字詞推翻問卷答案（方向由模型讀原文判定）。
             entry['votes'].append(cls)
             entry.setdefault('round_answers', []).append({'round': round_no + 1, 'class': cls,

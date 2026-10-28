@@ -13248,7 +13248,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v35-20261028-current-view-after-comparison"    # 混合段落以可核現況分析判讀，保留有效否定票
+VERDICT_VERSION = "v36-20261028-precise-quotes-mixed-role"    # 來源編號保留上下文，不擴張模型實際引用
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 3                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -13866,6 +13866,9 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
         # 立場的引句也可以來自股名之前、中間沒有別檔的那一段（「如果你的股票來到年線，你就好好的佈局…宜鼎是不是來到年線了？」）
         restored = (answer.get('_verified_quote_sources') or {}).get(field) or []
         if restored:
+            # S/N編號證明出處與上下文；已有節錄時不可擴成含鄰股的整段證據。
+            if clean:
+                return [q for q in clean if any(_quote_is_real(q, _ev_norm(z)) for z in restored)]
             return restored
         zones = list(quote_zones or []) + (list(lead_zones or []) if field == 'stance' else [])
         return [q for q in clean if len(_ev_norm(q)) >= 6 and (_ev_norm(q) in passages_norm or field == 'stance' and lead_zones)
@@ -14138,6 +14141,8 @@ def _questionnaire_issues(answer, transcript, names):
         issues.append('about_itself=false，卻同時肯定本股當日事件、現持部位或獨立分析；請重讀全文並使事實欄一致，可保留不確定')
     if answer.get('content_role') == 'ordinary_word' and answer.get('independent_analysis') is True:
         issues.append('日常詞身分與本股獨立分析互相矛盾；請核真正公司主體，勿由字面名稱定案')
+    elif answer.get('content_role') in ('position_disclosure','comparison_only','selection_scope','historical_only') and answer.get('independent_analysis') is True:
+        issues.append('角色摘要與獨立分析欄需釐清，但前後段可以並存：請重核全文。若後段確有本股獨立分析，保留analysis並將角色改independent_analysis；若只是未持有清單、選股範圍或鄰股分析，改analysis=false並核實真正主體。不要預設角色或分析哪一欄正確。')
     for field, category in (('buy_today','buy'),('sell_today','sell'),('holding_now','holdings')):
         if answer.get(field) is not True:
             continue

@@ -41,6 +41,11 @@ def add(code, name, cat, action, text, quotes, rationale):
             raise SystemExit(f'{code} 的列不是本支影片產生（{row["sourceId"]}），不在本計畫修改')
         item['previous_source_id'] = row['sourceId']
         item['previous_note_sha256'] = hashlib.sha256(row['note'].encode()).hexdigest()
+        if row['sourceId'].startswith('MANUAL-'):
+            # 12:03 後台逐字稿重跑產生的列：原稿內容與影片原稿相同（只多首尾引號），逐筆讀過原稿與原列才改
+            item['reviewed_manual_source'] = True
+            item['manual_source_review_reason'] = ('後台逐字稿 MANUAL-20261028 是同一支影片 BR1VPxZ8z-k 的原稿重存（內容相同，只多首尾引號），'
+                                                   '本列由當日流程產生，已逐筆對照完整原稿與原列說明覆核。')
     ITEMS.append(item)
 
 

@@ -12,6 +12,32 @@ def facts():
   dict(id='F2',subject_codes=['1111'],source_quote=RAW,subject_quote=RAW,statement='甲公司目前未放量')]},RAW,{'1111'})
 
 class Ph6Projection(unittest.TestCase):
+ def test_missing_initial_reply_does_not_consume_projection_confirmation(self):
+  ledger=facts();row={'code':'1111','name':'甲公司','reason':OLD,'_source_fact_ledger':ledger,
+   '_source_claim_bindings':{'source_sha256':hashlib.sha256(RAW.encode()).hexdigest(),'claims':{}}}
+  sig={'watch_watch':[row],'_source_fact_ledger':ledger};calls=[]
+  def model(system,payload,**kw):
+   entries=json.loads(payload)['texts'];calls.append(entries)
+   schema=kw['response_schema']['properties']['texts'];self.assertEqual(schema['minItems'],len(entries))
+   self.assertEqual(schema['items']['properties']['id']['enum'],[e['id'] for e in entries])
+   if len(calls)==1:return '{"texts":[]}'
+   e=entries[0];claims=[dict(id='c0',status='supported',subject='甲公司',subject_code='1111',source_quote=RAW,source_fact_ids=['F1'],explanation='本股量縮整理')]
+   if len(calls)==2:claims.append(dict(id='c1',status='insufficient',explanation='消息無據'))
+   return json.dumps({'texts':[dict(id=e['id'],text=e['text'],meaning_preserved=True,category_consistent=True,
+     source_supported=len(calls)==3,written_style_ok=True,source_review={'claims':claims})]})
+  with patch.object(p,'call_gemini',side_effect=model),patch.object(p,'budget_left',return_value=9999),patch.object(p,'GEMINI_KEYS',['offline']),patch.object(p,'_DAY_SOURCE_CONTEXT',{}):
+   p._polish_public_texts(sig,RAW,'2026/10/27')
+  self.assertEqual(len(calls),3);self.assertFalse(row['_source_projection_pending'])
+  self.assertEqual(row['reason'],'甲公司量縮整理。')
+
+ def test_duplicate_reply_ids_cannot_approve_a_row_or_retry_forever(self):
+  ledger=facts();row={'code':'1111','name':'甲公司','reason':'甲公司量縮整理。','_source_fact_ledger':ledger}
+  reply=dict(id='n0',text=row['reason'],meaning_preserved=True,category_consistent=True,source_supported=True,written_style_ok=True,
+    source_review={'claims':[dict(id='c0',status='supported',subject='甲公司',subject_code='1111',source_quote=RAW,source_fact_ids=['F1'],explanation='本股') ]})
+  with patch.object(p,'call_gemini',return_value=json.dumps({'texts':[reply,reply]})) as model,patch.object(p,'budget_left',return_value=9999),patch.object(p,'GEMINI_KEYS',['offline']):
+   p._polish_public_texts({'watch_watch':[row],'_source_fact_ledger':ledger},RAW,'2026/10/27')
+  self.assertEqual(model.call_count,2);self.assertNotIn('_source_attribution_review',row)
+
  def test_alignment_diagnostics_distinguish_echo_format_from_incomplete_support(self):
   for complete in (True,False):
    ledger=facts();row={'code':'1111','name':'甲公司','reason':'甲公司量縮整理。'}

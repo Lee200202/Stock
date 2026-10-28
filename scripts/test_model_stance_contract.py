@@ -4,6 +4,30 @@ from contextlib import ExitStack
 from unittest.mock import patch
 from test_source_fact_ledger import p
 class ModelStance(unittest.TestCase):
+ def test_complete_neutral_answers_are_votes_but_missing_fields_are_not(self):
+  raw='甲公司今天漲停，接著談別家公司。'
+  a={'about_itself':True,'independent_analysis':False,'buy_today':False,'sell_today':False,
+     'holding_now':False,'past_trade':False,'now':'none','tone':'neutral','entry_for_new':'none',
+     'holder_advice':'none','selection_intent':'neutral','content_role':'comparison_only','quotes':{'stance':[]}}
+  self.assertEqual(p.verdict_class(a,p._ev_norm(raw),['甲公司'])[0],'ignored')
+  for key in ('now','tone','independent_analysis','holding_now'):
+   missing=copy.deepcopy(a);missing.pop(key)
+   self.assertEqual(p.verdict_class(missing,p._ev_norm(raw),['甲公司'])[0],'')
+  self.assertEqual(p.verdict_class(a,p._ev_norm(raw),['乙公司'])[0],'')
+
+ def test_selection_label_alone_cannot_invent_a_current_prohibition(self):
+  raw='甲公司只說本人未持有。'
+  a={'about_itself':True,'independent_analysis':False,'now':'none','tone':'neutral',
+    'entry_for_new':'none','selection_intent':'explicit_exclusion','quotes':{'stance':[raw]}}
+  self.assertEqual(p.verdict_class(a,p._ev_norm(raw),['甲公司'])[0],'ignored')
+  a['entry_for_new']='not_yet'
+  self.assertEqual(p.verdict_class(a,p._ev_norm(raw),['甲公司'])[0],'watch_avoid')
+
+ def test_questionnaire_schema_requests_evidence_before_summary_role(self):
+  props=p.verdict_response_schema()['properties']['verdicts']['items']['properties']
+  keys=list(props)
+  self.assertLess(keys.index('quote_source_ids'),keys.index('content_role'))
+  self.assertLess(keys.index('entry_for_new'),keys.index('content_role'))
  def test_content_role_precedes_a_mislabelled_entry_axis_without_keyword_matching(self):
   raw='甲公司只是用來說明本人持有範圍。'
   for role in ('position_disclosure','selection_scope','comparison_only'):

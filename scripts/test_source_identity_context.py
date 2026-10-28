@@ -9,6 +9,16 @@ from test_source_fact_ledger import p
 
 
 class IdentityContext(unittest.TestCase):
+    def test_duplicate_questionnaire_ids_are_missing_answers_not_last_reply_wins(self):
+        item=('1111',{'name':'甲公司','heard':['甲公司'],'known':[],'passages':[]})
+        reply={'verdicts':[{'id':'1111','about_itself':False},{'id':'1111','about_itself':True}]}
+        def model(system,payload,**kw):
+            schema=kw['response_schema']['properties']['verdicts']
+            self.assertEqual(schema['minItems'],1);self.assertEqual(schema['items']['properties']['id']['enum'],['1111'])
+            return json.dumps(reply)
+        with patch.object(p,'call_gemini',side_effect=model),patch.object(p,'_DAY_SOURCE_CONTEXT',{}),patch.object(p,'_CODE_MAP',{'1111':'甲公司'}):
+            self.assertEqual(p._ask_verdicts([item],'2026/10/27',0,'甲公司只是範圍對照。'),{})
+
     def test_notice_identity_candidate_reaches_questionnaire_when_transcript_has_no_literal_name(self):
         raw='今天我們的同音股大漲。';notice='1111甲公司會員持股續抱。'
         ctx={'date':'2026/10/27','transcript_sha256':hashlib.sha256(raw.encode()).hexdigest(),

@@ -4,6 +4,41 @@ from unittest.mock import patch
 from test_source_fact_ledger import p
 
 class QueryEvidence(unittest.TestCase):
+ def test_pronoun_witness_includes_neighbouring_named_subject_candidates(self):
+  parts={'S0001':{'text':'甲公司和乙公司是觀察標的。'},'S0002':{'text':'這兩檔目前尚未止穩。'}}
+  raw=''.join(s['text'] for s in parts.values());text='甲公司目前尚未止穩。'
+  ledger=p._validate_source_facts({},raw,{'1111','2222'});ledger['company_candidates']={'1111':['甲公司'],'2222':['乙公司']}
+  row={'code':'1111','name':'甲公司','reason':text}
+  def answer(system,payload,**kw):
+   q=json.loads(payload)['queries'][0]
+   self.assertEqual(set(q['subjects_to_check']),{'1111','2222'})
+   self.assertIn('S0001',q['witness_sources']);return '{"matches":[]}'
+  with patch.object(p,'attribution_sources',return_value=parts),patch.object(p,'call_gemini',side_effect=answer),patch.object(p,'budget_left',return_value=9999),patch.object(p,'_CODE_MAP',{'1111':'甲公司','2222':'乙公司'}):
+   p.align_anonymous_claims({'watch_watch':[row]},raw,ledger,{hashlib.sha256(p._note_claims(text)[0]['text'].encode()).hexdigest():['S0002']})
+
+ def test_independently_complete_core_survives_rejected_auxiliary_evidence(self):
+  raw='甲公司上半年EPS21.83元。';text='甲公司上半年EPS21.83元。'
+  ledger=p._validate_source_facts({},raw,{'1111'});ledger['company_candidates']={'1111':['甲公司']}
+  row={'code':'1111','name':'甲公司','reason':text}
+  def answer(system,payload,**kw):
+   q=json.loads(payload)['queries'][0]
+   return json.dumps({'matches':[dict(id=q['id'],query_text=q['text'],entails_all_details=True,relation='entailed',coverage='complete',
+    evidence=[dict(subject_code='',source_ids=['S0001'],statement='族群背景')],subject_checks=[dict(subject_code='1111',supports_all_details=True,source_ids=['S0001'],statement='甲公司上半年EPS21.83元')])]})
+  with patch.object(p,'call_gemini',side_effect=answer),patch.object(p,'budget_left',return_value=9999),patch.object(p,'_CODE_MAP',{'1111':'甲公司'}):
+   p.align_anonymous_claims({'watch_watch':[row]},raw,ledger,{hashlib.sha256(p._note_claims(text)[0]['text'].encode()).hexdigest():['S0001']})
+  self.assertTrue(row['_source_claim_bindings']['claims']);self.assertEqual(ledger['alignment_checks'][0]['coverage'],'partial')
+  self.assertEqual(ledger['alignment_checks'][0]['evidence_rejected_count'],1)
+
+ def test_anonymous_own_subject_cannot_approve_a_number_missing_from_its_quote(self):
+  raw='甲公司EPS21.83元。';text='甲公司EPS29元。'
+  ledger=p._validate_source_facts({'facts':[dict(id='F1',subject_codes=['1111'],source_ids=['S0001'],statement='甲公司EPS21.83元')]},raw,{'1111'})
+  claim=p._note_claims(text)[0]
+  row={'code':'1111','name':'甲公司','reason':text,'_source_fact_ledger':ledger,'_source_claim_bindings':{
+   'source_sha256':hashlib.sha256(raw.encode()).hexdigest(),'claims':{'c0':dict(text_sha256=hashlib.sha256(claim['text'].encode()).hexdigest(),relation='entailed',coverage='complete',fact_ids=['F1'])}}}
+  reply={'source_review':{'claims':[dict(id='c0',status='supported',subject_code='1111',subject='甲公司',source_ids=['S0001'],explanation='本股') ]}}
+  r=p._validated_source_review(reply,row,text,raw)
+  self.assertEqual(r['status'],'insufficient');self.assertEqual(row['reason'],text)
+
  def test_direct_mode_does_not_spend_calls_on_a_blind_summary(self):
   sig={'watch_watch':[{'code':'1111','name':'甲公司','reason':'甲公司回測季線。'}]}
   with patch.object(p,'_CODE_MAP',{'1111':'甲公司'}),patch.object(p,'source_inventory',return_value=[]),patch.object(p,'call_gemini') as model:

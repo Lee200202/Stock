@@ -71,8 +71,10 @@ def main():
         signals = {}
         for case in day['notes']:
             field = 'note' if case['category'] == 'holdings' else 'reason'
-            signals.setdefault(case['category'], []).append({
-                'name': case['name'], 'code': case['code'], field: case['note']})
+            row = {'name': case['name'], 'code': case['code'], field: case['note']}
+            # 沿用保存模型列當時的身分候選，不把它們加成全域別名，也不當成已確認主體。
+            row.update({key: case[key] for key in ('aliases', '原始語音名稱') if key in case})
+            signals.setdefault(case['category'], []).append(row)
         # 不重跑整日擷取、不讀操作或部位帳本；參考不傳模型。
         probes, probe_errors = run_verdict_probes(day.get('verdict_probes') or [], signals, raw, day['date'])
         errors.extend(probe_errors)

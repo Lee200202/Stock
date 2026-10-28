@@ -4476,8 +4476,8 @@ watch_watch 只收明確正面看法或具體買點（看好、會漲、候選�
 同一檔最後指示、時間與持有/加碼範圍決定狀態；矛盾仍不能解開就 uncertain。
 目前已持有者：持股事實放 holdings。同日同代號的公開分類只留一筆；若講者另外對「還沒有的人」給出當下買進條件或建議（等碰線、等禮拜一、幾塊以下、你要先買），把該條件整理在持股說明裡，並標明適用於尚未持有者，不另開觀望列。若只是回顧從前的買點，不把舊條件寫成今天的新指示。當日會員通知的成交分類優先於影片觀望與持股敘述。
 ignored：貨幣、產業、指數、匿名標的、外國股票、確無本次原文依據者。台股及已確認 ETF 的行情例子、法人交易、ETF 換股也屬本日觀察範圍，不能因此排除。填 name/reason/evidence_refs，保留排除理由供稽核。
-原文點名的行情或法人例子也逐檔列觀望，方向依 watch_avoid 從寬標準，如實描述，不冒充推薦買進。
-中性描述不列（管理者規則，2026/10/08）：只描述這一檔的行情——整理、橫盤、回來碰季線、沿著均線走、資金動向——沒有偏多或偏空的結論，也沒有要人買、等、不要碰，就不列觀望，放 ignored，exclusion_reason=neutral_description，reason 照寫他描述了什麼。同一檔在別處另有結論或指示時，照那個結論列。
+原文點名的行情或法人例子先分清是否本股獨立分析：有向前的技術解讀、風險或操作節奏才依實際意思列觀望；僅報漲跌或作別股背景不自行補立場，不冒充推薦買進。
+純行情報數或他股線型圖例不列：只有整理、橫盤、碰季線或漲跌描述，全文沒有本股獨立解讀、條件或操作立場，放ignored，不能補造推薦。同一檔在別處有向前的技術位階解讀、量價或風險判斷、低接區與高檔不追的操作節奏，須整合全篇，可保留觀察，沒有本人新買意願不等於沒有本股分析；不能宣稱因此已買進或持有。明確條件未到、尚未止穩暫不進場或禁止參與仍優先watch_avoid；只是未持有／未關注名單而無獨立分析仍ignored。
 「我沒有買X，所以我不被跌到」「我沒有這一檔」只是陳述沒有部位，不是負面示範，也不是不買的表態：放 ignored，exclusion_reason=mention_only。原文另外講了這一檔自己的負面行情或風險（它跌停、連跌幾天、追高的人套牢、他說以後也不買）才列 watch_avoid。ETF（00981A 等）一律放 ignored，exclusion_reason=etf_not_a_pick，不進觀望兩類。他講 ETF 的時候，ETF 從來不是要你買的標的，是正在賣的那一方：「晶成你一定要等900以下，還要等00981A賣完，你才可以進場」「你在ETF賣完那一天，9月17號ETF出清」——那是被它賣的那幾檔的進場條件，寫進那幾檔的 reason，不要替 ETF 本身開一列。ETF 的買賣更不能冒充會員買賣。
 history：自己的過去交易，但不是當日、或日期不能確定；不是第三方交易的收容區。網站不單獨呈現回顧：原文另有這一檔現況看法的會列入觀望，沒有的不列（見【日期未明與現況看法】）。
 
@@ -13262,7 +13262,7 @@ selection_intent：positive_candidate=正向追蹤池／主動提醒留意；aut
 最新政策：主要觀察但明確要求還沒止穩、目前不用急買，entry_for_new與now填not_yet，不能由positive_candidate蓋過；說明仍保留追蹤條件。對持有者超跌勿殺低等反彈，holder_advice=hold_rebound、now=conditional，即使本人沒有要買也保留兩層意思。具體低接價位及高檔不追作為仍適用的操作節奏時填wait_condition／conditional，不能只選前句歷史時間忽略後句條件。
 now填buy_ok／conditional／not_yet／prohibit／none，與前述軸一致；tone填bullish／bearish／neutral，僅為本股現在的獨立方向，不借相鄰公司。明講現在沒有要漲、不宜買是本股風險，不等於只澄清沒有持有。只有位置描述而全文無獨立追蹤或方向才填neutral及none。
 只輸出契約JSON verdicts陣列；每個輸入id都必須回覆，布林欄位填true或false，缺證據可填unsure，不使用語氣字詞表補造答案。
-另填independent_analysis：全篇有本股現在的獨立技術位階、量價、法人、風險或具體低接節奏時true，quotes.analysis及quote_source_ids.analysis附其原句與編號。這不表示推薦買入；先說未推薦、後段再解析該股往季線的位階，也須讀後段再判。只有陪襯漲停、未持有清單或沒有本股獨立內容才false。原稿有本股獨立解析但沒有明確進場語氣時，now及tone可維持none／neutral，由程式保留為中性觀察；不必編造偏多。
+另填independent_analysis：全篇有本股現在的向前技術位階解讀、量價／法人推論、風險判斷或具體低接節奏時true，quotes.analysis及quote_source_ids.analysis附其原句與編號。這不表示推薦買入；先說未推薦、後段再解析該股往季線的位階，也須讀後段再判。純報漲跌或碰均線位置、只是別股圖例、未持有清單且沒有本股獨立解讀均為false。原稿有本股獨立解析但沒有明確進場語氣時，now及tone可維持none／neutral，由程式保留為中性觀察；不必編造偏多。
 """
 
 # 引句裡要看得出答案：答「今天買進」卻引一句沒有買字的話，那一題不算數。
@@ -16700,7 +16700,7 @@ def public_edit_response_schema():
         'type': 'object', 'properties': fields, 'required': list(fields)}}}, 'required': ['texts']}
 
 
-SOURCE_FACTS_VERSION = 'subject-first-v9-alignment-contract-20261027'
+SOURCE_FACTS_VERSION = 'subject-first-v10-query-evidence-20261028'
 SOURCE_FACTS_SYSTEM = """你是逐字稿事實與主體審核者。輸入只有原稿、公司識別候選及匿名字串檢索命中的段落編號，沒有待審股名與主張配對、分類或標準答案。
 每項fact的subject_codes恰好一個主體。共同結論可拆成兩項同引句、不同主體；「甲和股本小的乙」不能合成兩家公司都股本小的事實。逐一盤點指定段落內的最小事實，不只挑全文大意。當日通知原文若有提供，只供身分／事件參照，不得拿它補造原稿技術面。
 focus_source_ids是優先查核範圍，不是主體答案。逐一閱讀這些段落及前後文，完整列出每個主體各自的最小事實，特別避免只摘要整篇而漏掉指定段落的細節。檢索只證明字串相關，不能以命中、最近名稱或價格決定主體；仍由你判讀上下文，無法確認則列uncertain。
@@ -16725,7 +16725,7 @@ def source_facts_response_schema():
 
 
 def _validate_source_facts(data, transcript, codes):
-    """只驗版本、唯一ID與原字引用；語意主詞由先讀原稿的模型負責，不用字詞猜方向。"""
+    """核原字引用與數字存在；語意主詞由模型判讀，不按價位猜公司。"""
     facts, seen, rejected = {}, set(), 0
     segments = attribution_sources(transcript)
     norm = _ev_norm('\n'.join(v['text'] for v in segments.values()))
@@ -16751,6 +16751,12 @@ def _validate_source_facts(data, transcript, codes):
         if (not isinstance(members, list) or not members or any(not isinstance(c, str) or c not in codes for c in members)
                 or len(_ev_norm(quote)) < 6 or (not from_ids and _ev_norm(quote) not in norm)
                 or len(_ev_norm(subject)) < 6 or _ev_norm(subject) not in norm or not fact.get('statement')):
+            rejected += 1
+            continue
+        # 數字存在只是一道必要條件，不代表主體／語意成立；不得用草稿數字補造事實。
+        numbers = lambda text: set(re.findall(r'(?<![\d.])\d+(?:\.\d+)?(?![\d.])', str(text).replace(',', '')))
+        statement_numbers = numbers(fact['statement']) - set(members)
+        if not statement_numbers <= numbers(quote):
             rejected += 1
             continue
         facts[fid] = dict(fact, subject_codes=list(dict.fromkeys(members)), source_quote=quote, subject_quote=subject)
@@ -16784,7 +16790,7 @@ def _source_claim_focus(signals, transcript, known):
     return [s for s in ids if s in focused]
 
 
-def source_claim_ledger(signals, transcript):
+def source_claim_ledger(signals, transcript, direct_evidence=False):
     """先盤點原稿主體；匿名主張只定位範圍，不提供草稿主體或期望答案。"""
     # 正式擷取早已載入官方名稱；固定說明重播也必須取得相同識別背景，否則鄰股代號無法進入候選。
     if not _CODE_MAP:
@@ -16802,6 +16808,11 @@ def source_claim_ledger(signals, transcript):
         known.setdefault(code, []).append(name)
     if not known:
         return {}
+    if direct_evidence:
+        # 由匿名主張讀稿時直接附證據，不再先做可能漏項的整日摘要及模型外鍵連接。
+        ledger = _validate_source_facts({}, transcript, set(known))
+        ledger.update(company_candidates=known, evidence_mode='query_owned_source_evidence')
+        return ledger
     if _QUOTA_STOP.get('daily') or budget_left() < 240 or not GEMINI_KEYS:
         return {'version': SOURCE_FACTS_VERSION, 'source_sha256': hashlib.sha256(transcript.encode()).hexdigest(),
                 'facts': {}, 'error': '來源主體盤點未完成；不推定說明通過'}
@@ -16834,22 +16845,25 @@ def source_claim_ledger(signals, transcript):
 
 
 SOURCE_ALIGNMENT_SYSTEM = """你是原稿事實與匿名主張的對照員。queries沒有原草稿股名、分類或標準答案，不能反推它想被寫給誰。
-facts只是可能漏項的索引，不是原稿的完整事實。必須回讀完整sources，列出所有確實支持匿名主張的原句主體；若索引缺漏，從原稿另建additional_facts，引用S編號、subject_codes恰好一人、statement保留時間與條件，再讓fact_ids引用它。未出現在索引不等於來源沒有。
+facts只是可能漏項的索引，不是原稿的完整事實。必須回讀完整sources，每個match直接附evidence：subject_code為原句真正主體、source_ids引用原稿S編號或原通知N編號、statement整理該主體的最小事實。證據直接放在所屬match內，勿另建無法連回主張的全域事實表。未出現在索引不等於來源沒有。
 coverage只在已讀完整原稿、該匿名主張的所有本股與他股支持都完成盤點時填complete，否則填partial。不能因只找到一個例子便宣稱其他公司都沒有。一般「目前不買」「續抱」可能有多檔，逐項列出，不能只挑一人。
 每項回覆原樣複製query_text，並回答entails_all_details。只有事實支持主張全部細節（包括每個數字、時間、動作、條件）才可true及entailed。不同價格的下跌不能互換；目標價上調不等於跌24%；某句同有否定詞不等於同一主張。不完整支持一律insufficient，不能為配對而挑最相近的fact。
 逐項判斷哪些facts真正支持該匿名主張；fact.statement的主體與事實必須相符，source_quote只核對該主體的上下文，不得因同段另一家公司也說過某事就把它綁給本fact。
 例如某fact只說乙公司股本小，不能支持「目前沒有買進」；另一fact明講甲公司未買進才可。修飾只屬其中一人的特徵不能分享給並列成員。
-列出所有確實支持的fact_ids，沒有則relation=insufficient、fact_ids=[]。不按最近名稱、價格帶判斷。不要遺漏query_text與entails_all_details，這兩欄是程式核對必要資料。只輸出JSON：{"additional_facts":[],"matches":[{"id":"Q0001","query_text":"逐字複製該query.text","entails_all_details":true,"relation":"entailed","coverage":"complete","fact_ids":["來源事實ID"]}]}。若不支持則entails_all_details=false、relation=insufficient、fact_ids=[]。"""
+列出所有確實支持的主體證據，同一句支持多檔要逐檔列出，不能只選最像草稿的一檔。不按最近名稱、價格帶判斷。不要遺漏query_text與entails_all_details。statement不得抄入原稿沒有的數字；無完整依據就答insufficient。只輸出JSON：{"matches":[{"id":"Q0001","query_text":"逐字複製該query.text","entails_all_details":true,"relation":"entailed","coverage":"complete","evidence":[{"subject_code":"原稿真正主體代號","source_ids":["S0001"],"statement":"原句確實表達的最小事實，含時間條件"}],"fact_ids":[]}]}。fact_ids只供引用已提供的facts，通常留空；新增證據用evidence，程式會編號。不支持則entails_all_details=false、relation=insufficient、evidence=[]。"""
 
 
 def source_alignment_schema():
     props = {'id': {'type': 'string'}, 'relation': {'type': 'string', 'enum': ['entailed', 'insufficient']},
              'query_text': {'type': 'string'}, 'entails_all_details': {'type': 'boolean'},
              'coverage': {'type': 'string', 'enum': ['complete', 'partial']},
-             'fact_ids': {'type': 'array', 'items': {'type': 'string'}}}
+             'fact_ids': {'type': 'array', 'items': {'type': 'string'}},
+             'evidence': {'type': 'array', 'items': {'type': 'object', 'properties': {
+                 'subject_code': {'type': 'string'}, 'source_ids': {'type': 'array', 'items': {'type': 'string'}},
+                 'statement': {'type': 'string'}}, 'required': ['subject_code', 'source_ids', 'statement']}}}
     return {'type': 'object', 'properties': {'matches': {'type': 'array', 'items': {
         'type': 'object', 'properties': props, 'required': list(props)}},
-        'additional_facts': source_facts_response_schema()['properties']['facts']}, 'required': ['matches','additional_facts']}
+        'additional_facts': source_facts_response_schema()['properties']['facts']}, 'required': ['matches']}
 
 
 def compact_source_facts(ledger):
@@ -16897,7 +16911,7 @@ def align_anonymous_claims(signals, transcript, ledger):
             'facts': compact_source_facts(ledger), 'sources': attribution_sources(transcript),
             'company_candidates': {c: (_CODE_MAP or {}).get(c) or (ledger.get('company_candidates') or {}).get(c) for c in known}},
             ensure_ascii=False, separators=(',', ':')), want_json=True, thinking=1024,
-            tag='source-align', max_out=min(MAX_OUT, 2500 + 180 * len(batch)))
+            tag='source-align', max_out=min(MAX_OUT, 2500 + 420 * len(batch)))
         data = safe_load_json(raw, default={})
         data = data if isinstance(data, dict) else {}
         extra = _validate_source_facts({'facts': data.get('additional_facts') or []}, transcript, known)
@@ -16908,7 +16922,23 @@ def align_anonymous_claims(signals, transcript, ledger):
             remap[fid] = new_id
         received = [m for m in data.get('matches', []) or [] if isinstance(m, dict)]
         for match in received:
-            match['fact_ids'] = [remap.get(fid, fid) for fid in match.get('fact_ids', []) if isinstance(fid, str)]
+            match['fact_ids'] = [remap.get(fid, fid) for fid in (match.get('fact_ids') or []) if isinstance(fid, str)]
+            # 模型不必為新事實維護外鍵：每項主張自己攜帶證據，由程式發唯一ID。
+            embedded = []
+            if match.get('id') in {q['id'] for q in batch}:
+                for n, evidence in enumerate(match.get('evidence') or []):
+                    if isinstance(evidence, dict):
+                        embedded.append(dict(id=f"E{index // 16 + 1}-{match['id']}-{n + 1}",
+                            subject_codes=[evidence.get('subject_code')], source_ids=evidence.get('source_ids'),
+                            statement=evidence.get('statement')))
+            validated = _validate_source_facts({'facts': embedded}, transcript, known)
+            ledger['facts'].update(validated['facts'])
+            ledger['rejected_count'] = ledger.get('rejected_count', 0) + validated['rejected_count']
+            match['evidence_rejected_count'] = validated['rejected_count']
+            match['fact_ids'].extend(validated['facts'])
+            # 一部分證據被退回，不能仍宣稱「完整支持」或用殘餘證據確認跨股。
+            if validated['rejected_count']:
+                match['entails_all_details'] = False
         matches.extend(received)
         diagnostics.append({'requested': len(batch), 'received': len(received), 'added_facts': len(extra['facts'])})
     for key, (bindings, claim) in targets.items():
@@ -16922,7 +16952,8 @@ def align_anonymous_claims(signals, transcript, ledger):
         echo_ok = re.sub(r'\s+', '', str(match.get('query_text') or '')) == re.sub(r'\s+', '', expected_query)
         checks.append({'query_id': key, 'relation': match.get('relation'), 'query_echo_match': echo_ok,
             'details_complete': match.get('entails_all_details'), 'coverage': match.get('coverage'),
-            'fact_ids': ids, 'query_sha256': hashlib.sha256(expected_query.encode()).hexdigest()})
+            'fact_ids': ids, 'evidence_rejected_count': match.get('evidence_rejected_count', 0),
+            'query_sha256': hashlib.sha256(expected_query.encode()).hexdigest()})
         if (match.get('relation') == 'entailed' and echo_ok
                 and match.get('entails_all_details') is True
                 and isinstance(ids, list) and ids and all(isinstance(fid, str) and fid in ledger['facts'] for fid in ids)):
@@ -17239,7 +17270,7 @@ def polish_public_texts(signals, transcript, date_str):
     if os.environ.get('PUBLIC_TEXT_POLISH', '').strip().lower() == 'off':
         return signals
     try:
-        ledger = source_claim_ledger(signals, transcript)
+        ledger = source_claim_ledger(signals, transcript, direct_evidence=True)
         align_anonymous_claims(signals, transcript, ledger)
         signals['_source_fact_ledger'] = ledger
         for cat in SIGNAL_CATEGORIES:

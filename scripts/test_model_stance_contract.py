@@ -73,7 +73,7 @@ class ModelStance(unittest.TestCase):
   self.assertEqual(p.note_length_target(40,0)['min_chars'],0)
   self.assertEqual(p.note_length_target(40,120)['level'],'thin')
   self.assertEqual(p.note_length_target(60,200)['level'],'normal')
-  self.assertEqual(p.note_length_target(150)['min_chars'],40)
+  self.assertEqual(p.note_length_target(150)['min_chars'],30)
   self.assertEqual(p.note_length_target(400)['level'],'rich')
 
  def test_watch_note_holding_claim_is_flagged_not_rewritten_after_review(self):

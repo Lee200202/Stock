@@ -143,8 +143,10 @@ class ModelStance(unittest.TestCase):
   row={'code':'1111','name':'甲公司'}
   self.assertEqual(p.record_position({'_verdicts':{'1111':{'cls':'holdings'}}},row),'none')     # 分類是持股不等於有紀錄
   self.assertEqual(p.record_position({'_verdicts':{'1111':{'open':True}}},row),'open')
-  self.assertEqual(p.record_position({'_verdicts':{'1111':{'notice_trade':True}}},row),'open')
-  self.assertEqual(p.record_position({'_verdicts':{'1111':{'execution_verified':True}}},row),'open')
+  self.assertEqual(p.record_position({'_verdicts':{'1111':{'notice_sides':['buy']}}},row),'open')
+  self.assertEqual(p.record_position({'_verdicts':{'1111':{'open':True,'notice_sides':['sell']}}},row),'sold_today')   # 全數賣出不算仍持有
+  self.assertEqual(p.record_position({'_verdicts':{'1111':{'open':True,'cls':'sell','execution_verified':True}}},row),'sold_today')
+  self.assertEqual(p.record_position({'_verdicts':{'1111':{'execution_verified':True,'cls':'buy'}}},row),'open')
 
  def test_verdict_fingerprint_includes_the_position_snapshot(self):
   self.assertNotEqual(p._verdict_position_key({'open':True}),p._verdict_position_key({'open':False}))

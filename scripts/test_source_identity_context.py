@@ -14,7 +14,7 @@ class IdentityContext(unittest.TestCase):
         reply={'verdicts':[{'id':'1111','about_itself':False},{'id':'1111','about_itself':True}]}
         def model(system,payload,**kw):
             schema=kw['response_schema']['properties']['verdicts']
-            self.assertEqual(schema['minItems'],1);self.assertEqual(schema['items']['properties']['id']['enum'],['1111'])
+            self.assertNotIn('minItems',schema);self.assertEqual(schema['items']['properties']['id']['enum'],['1111'])
             return json.dumps(reply)
         with patch.object(p,'call_gemini',side_effect=model),patch.object(p,'_DAY_SOURCE_CONTEXT',{}),patch.object(p,'_CODE_MAP',{'1111':'甲公司'}):
             self.assertEqual(p._ask_verdicts([item],'2026/10/27',0,'甲公司只是範圍對照。'),{})

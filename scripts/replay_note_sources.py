@@ -116,6 +116,7 @@ def main():
               'numeric_review_mode': '使用來源指紋綁定的人類待核數字標記；不得稱為未輔助模型自行辨認數字錯誤',
               'days': reports, 'errors': errors, 'warnings': [], 'rows': {},
               'usage': pl.gemini_usage_report(), 'exit_code': 4 if errors else 0}
+    result.update(model_calls=pl._GEMINI_CALLS['n'], model_http_calls=pl._GEMINI_CALLS.get('http', 0))
     destination = Path(args.report_json)
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')

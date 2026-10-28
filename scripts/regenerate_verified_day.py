@@ -132,6 +132,7 @@ def preview(book, day, raw, source, commit, state, reference, output, snapshots)
         'signals': signals, 'article': captured.get('article', ''),
         'errors': list(dict.fromkeys(errors)), 'warnings': list(dict.fromkeys(warnings)),
         'status': 'failed' if errors else 'passed', 'model_calls': pl._GEMINI_CALLS['n'],
+        'model_http_calls': pl._GEMINI_CALLS.get('http', 0),
         'usage': pl.gemini_usage_report(), 'blocked_writes': len(dry.blocked),
         'protected_sms_notes': '既有通知說明不由本候選改寫，不計為本輪模型產出'}
     output.parent.mkdir(parents=True, exist_ok=True)

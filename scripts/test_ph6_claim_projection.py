@@ -18,7 +18,7 @@ class Ph6Projection(unittest.TestCase):
   sig={'watch_watch':[row],'_source_fact_ledger':ledger};calls=[]
   def model(system,payload,**kw):
    entries=json.loads(payload)['texts'];calls.append(entries)
-   schema=kw['response_schema']['properties']['texts'];self.assertEqual(schema['minItems'],len(entries))
+   schema=kw['response_schema']['properties']['texts'];self.assertNotIn('minItems',schema)
    self.assertEqual(schema['items']['properties']['id']['enum'],[e['id'] for e in entries])
    if len(calls)==1:return '{"texts":[]}'
    e=entries[0];claims=[dict(id='c0',status='supported',subject='甲公司',subject_code='1111',source_quote=RAW,source_fact_ids=['F1'],explanation='本股量縮整理')]

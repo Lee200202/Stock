@@ -1486,7 +1486,7 @@ def gemini_usage_report() -> str:
                       sorted(_GEMINI_CALLS["by_tag"].items(), key=lambda x: -x[1])[:8])
     mins = max(1.0, (time.monotonic() - RUN_STARTED) / 60)
     return (f"本輪呼叫 Gemini {n} 次（約 {n / mins:.1f} 次/分，"
-            f"節流上限 {GEMINI_RPM} 次/分）　{parts}")
+            f"節流上限 {GEMINI_RPM} 次/分）　{parts}；實際模型HTTP {_GEMINI_CALLS.get('http', n)} 次（含重試與換鑰）")
 
 # 429 回應裡代表「每日」而非「每分鐘」的字樣。Google 兩種都用同一個
 # HTTP 狀態碼，只能靠 quota metric 的名稱分辨。
@@ -2092,12 +2092,14 @@ _SCHEMA_STATE = {'on': True, 'why': ''}
 
 
 def _schema_rejected(status, text, cfg):
-    """這個 400 是不是在拒絕 responseJsonSchema（不是金鑰、也不是其他參數的問題）。"""
+    """schema在場的400可作一次同鑰相容性診斷；不把泛稱參數錯誤當壞金鑰。"""
     if status != 400 or 'responseJsonSchema' not in (cfg or {}):
         return False
     low = str(text or '').lower()
+    if any(t in low for t in ('api_key_invalid', 'api key not valid', 'invalid authentication')):
+        return False
     return ('schema' in low or 'unknown name' in low or 'invalid json payload' in low
-            or 'response_json' in low)
+            or 'response_json' in low or 'request contains an invalid argument' in low)
 
 
 def gemini_generation_config(model, max_out=MAX_OUT, thinking=0, want_json=False, tag=''):
@@ -2310,6 +2312,7 @@ def _call_gemini_only(system_text, user_text, want_json=False, thinking=0, max_o
     # 上一次退避之後回過暫時性錯誤（503）的金鑰，見 switch_gemini_key_transient。
     overloaded = set()
     tries = 0
+    schema_override_failed = False
     # 429 是「這一分鐘打太多」，退避要夠長才有意義。
     # 原本 5/15/40 秒對免費配額太短，常常四次都撞在同一個配額窗口內。
     #
@@ -2351,9 +2354,10 @@ def _call_gemini_only(system_text, user_text, want_json=False, thinking=0, max_o
                 model = current_gemini_model()
                 key = current_gemini_key()
             body['generationConfig'] = gemini_generation_config(model, max_out, thinking, want_json, tag)
-            if response_schema and _SCHEMA_STATE['on']:
+            if response_schema and not schema_override_failed and _SCHEMA_STATE['on']:
                 body['generationConfig']['responseJsonSchema'] = response_schema
             tries += 1
+            _GEMINI_CALLS['http'] = _GEMINI_CALLS.get('http', 0) + 1
             r = requests.post(gemini_url(model), params={"key": key},
                               json=body, timeout=600)
         except requests.RequestException as e:
@@ -2364,6 +2368,12 @@ def _call_gemini_only(system_text, user_text, want_json=False, thinking=0, max_o
         if r.status_code != 200:
             last = f"HTTP {r.status_code}"
             if _schema_rejected(r.status_code, r.text, body.get('generationConfig')):
+                if response_schema and not schema_override_failed:
+                    schema_override_failed = True
+                    print(f"Gemini {tag} 動態schema收到400，先以既有欄位schema同鑰診斷重送一次；缺答與id仍由程式驗證，不標記壞金鑰。")
+                    slot -= 1
+                    skip_delay = True
+                    continue
                 _SCHEMA_STATE.update(on=False, why=api_error_text(r.text or '')[:160])
                 print(f"Gemini {tag} 不接受九類 JSON 結構約束（{_SCHEMA_STATE['why'] or 'HTTP 400'}），"
                       f"本輪改用一般 JSON 模式重送；不是金鑰問題，不換鑰匙、不標記壞掉。")
@@ -2391,6 +2401,8 @@ def _call_gemini_only(system_text, user_text, want_json=False, thinking=0, max_o
                 print(f"Gemini {tag} 回傳 {last}（{key_label(used)}）"
                       f"　Google 原文：{raw_detail or '無可讀訊息'}")
                 broken = _key_problem(r.status_code, r.text or "")
+                if r.status_code == 400 and not any(t in r.text.lower() for t in ('api_key_invalid','api key not valid','invalid authentication')):
+                    raise RuntimeError(f'Gemini 請求參數不相容（{tag}）；沒有標記壞鑰或換鑰重送相同參數。Google：{raw_detail}')
                 if broken and len(GEMINI_KEYS) > 1:
                     if rotate_gemini_key(tag, why="broken", detail=broken, used=used):
                         hits_429 = 0
@@ -14104,7 +14116,6 @@ def verdict_response_schema(expected_ids=None):
     verdicts = {'type': 'array', 'items': {'type': 'object', 'properties': props, 'required': list(props)}}
     if expected_ids:
         props['id']['enum'] = list(expected_ids)
-        verdicts.update(minItems=len(expected_ids), maxItems=len(expected_ids))
     return {'type': 'object', 'properties': {'verdicts': verdicts}, 'required': ['verdicts']}
 
 
@@ -16755,7 +16766,6 @@ def public_edit_response_schema(expected_ids=None):
     texts = {'type': 'array', 'items': {'type': 'object', 'properties': fields, 'required': list(fields)}}
     if expected_ids:
         fields['id']['enum'] = list(expected_ids)
-        texts.update(minItems=len(expected_ids), maxItems=len(expected_ids))
     return {'type': 'object', 'properties': {'texts': texts}, 'required': ['texts']}
 
 

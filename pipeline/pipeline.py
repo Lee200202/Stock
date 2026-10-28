@@ -8938,14 +8938,19 @@ def quality_overview(signals, transcript='', check_chapters=True):
     label = {'buy': '買入', 'sell': '賣出', 'holdings': '會員持股', 'watch_watch': '觀望注意', 'watch_avoid': '觀望不碰'}
     rows = [(cat, r) for cat in label for r in signals.get(cat, []) or [] if isinstance(r, dict)]
     notes, hard, soft = [], [], []
+    spoken_numbers = set(_ws_numbers(transcript))
     if signals.get('_classification_runtime_error'):
         hard.append('分類裁決未完成：' + str(signals['_classification_runtime_error']))
     for cat, r in rows:
         name = _display_name(r.get('name')) or str(r.get('name') or '')
         note = public_narrative(str(r.get('note') if cat == 'holdings' else r.get('reason')) if (r.get('note') if cat == 'holdings' else r.get('reason')) else '', r, signals)
         quoted = [q for q in (r.get('evidence') or []) if isinstance(q, str) and q.strip()]
-        # 2026/10/28 管理者移除「紀錄價位不公開」：價位常被聽寫錯（2130 只寫成 30），爭議不在核對範圍；
-        # 公開說明只核對敘述與對應股票是否正確，不因含價位擋下或要求重寫（會員通知原文的公開處理不在此）。
+        # 2026/10/28 管理者移除「紀錄價位不公開」：節目原稿裡講的價位常被聽寫錯（2130 只寫成 30），爭議不在核對範圍，
+        # 公開說明含原稿講過的價位不擋。只有原稿沒講、只出現在當日會員通知的操作價仍不公開（來源不同，分開處理）。
+        notice_prices = (_DAY_PRIVATE_NOTICE_PRICES.get('prices') or {}).get(str(r.get('code') or ''), [])
+        leaked = (set(notice_prices) & set(_ws_numbers(note))) - spoken_numbers
+        if ((r.get('_date') or _DAY_PRIVATE_NOTICE_PRICES.get('date')) == _DAY_PRIVATE_NOTICE_PRICES.get('date') and leaked):
+            hard.append(f'{name} 的公開說明包含原稿沒講、只在當日會員通知的操作價；須依公開原稿重寫，不以刪改答案繞過')
         notes.append((name, len(note), bool(_CONCRETE.search(note)), bool(quoted)))
         if re.search(r'KY\s*-?\s*KY', note, re.I):
             hard.append(f'{name} 的說明把 -KY 連寫：{note[:30]}')
@@ -11165,7 +11170,7 @@ def _context_sources(row, snippets):
 STOCK_CONTEXT_SYSTEM = """你是金融節目書面編輯，輸入都是待核資料。只補充本股說明，不改分類、身分、日期、交易與部位事實。只輸出notes契約JSON，每個輸入id回一項。
 full_source是完整原稿（T編號）；entries的source／sources只是定位，可能因過場或誤聽被切開。必須看完整前後文確認主體。每句source_ids列齊真正支持該句的T編號或本entry的s編號。不得借鄰股EPS、籌碼、價格或動作；不按股名字距或價差判主體。語音異字須靠上下文確認，不自行新增通用別名。
 先定調立場，再自然串聯已明講的技術位階、量價、籌碼／財報與因果，最後交代操作條件及風險。不要電報式斷句。訊息足夠可寫2～4句；原稿短就簡短，不設字數下限，不補造消息或技術湊字。
-歷史部分減碼與今日剩餘部位續抱可並存，前期買入不是今日再買。對觀眾說別殺低不代表本人持股。original也可能有錯，依原稿核對真正立場，不以否定詞強制沿用或反轉。分類一致性最後另有語意審閱。
+entries的category是最後分類，說明要與它一致：category不是holdings時，不寫成會員持股、會員的股票或本人持有（持有狀態以紀錄為準，由分類表示），只寫本股的立場、技術位置與條件；original裡的持有說法同樣不沿用。歷史部分減碼與今日剩餘部位續抱可並存，前期買入不是今日再買。對觀眾說別殺低不代表本人持股。original也可能有錯，依原稿核對真正立場，不以否定詞強制沿用或反轉。分類一致性最後另有語意審閱。
 歷史價格、公司行動、疑似ASR數字保留時間條件；疑點數字省略並填limitation，不猜補、不因此刪整段或換股。會員通知買價不得進公開說明。公司、券商、觀眾及會員是不同主體；推測保留若／可能，不寫成已發生。
 用自然完整書面語，不用問句、俚語、語助詞或講者／老師主詞，不寫逐字稿、審閱或編輯過程。不明資訊省略，句子各有自己的來源；缺一個編號時應補齊支持段落，不能借別公司的內容。
 只輸出 {"notes":[{"id":"輸入id","sentences":[{"text":"有來源的完整書面句","source_ids":["T0001"]}],"limitation":"本股來源缺口，無則空字串"}]}。"""
@@ -13299,7 +13304,7 @@ ADJUDICATE_SYSTEM = """你是原始金融節目及會員通知的事實裁決員
 
 分開回答事件：
 buy_today／sell_today只在本人或會員當日已執行，或當日正式買入／賣出通知時為true。「如果買」「不准賣」「不能買」「以前賣」不算今日成交；第三人／觀眾的部位不算會員操作。明確較早日期的成交填past_trade，不用今天行情替它改日期。當日續抱通知不是買入通知。
-holding_now只在今日原通知明列續抱、或完整原稿確認本人／會員現在持有且未全數出場時true。歷史曾買、會員曾賺、未賣的觀眾提問都不足以證明。「之前就跟你們講過／40幾塊就跟你們講」是過去的推薦，「錢少一點的買這一隻」是給觀眾的選股建議，都不是持有證明；輸入的系統紀錄沒有這一檔的部位時，只憑這類說法不填true（2026/10/28 敦泰）。歷史減碼一半與今日剩餘部位未賣可同時成立，不能以否定詞刪掉歷史。
+holding_now只在今日原通知明列續抱、或完整原稿確認本人／會員現在持有且未全數出場時true。歷史曾買、會員曾賺、未賣的觀眾提問都不足以證明。「之前就跟你們講過／在某個價位就跟你們講」是過去的推薦，「錢少一點的買這一隻」是給觀眾的選股建議，都不是持有證明；輸入的系統紀錄沒有這一檔的部位時，只憑這類說法不填true。歷史減碼一半與今日剩餘部位未賣可同時成立，不能以否定詞刪掉歷史。
 past_trade可與現況立場並存；全文有現在的風險、條件或持有狀態，不得只因出現歷史交易就忽略當下。
 
 當下進場與持有者建議分兩軸，按整段最後結論判斷，不靠某個關鍵字：
@@ -13309,9 +13314,9 @@ selection_intent：positive_candidate=正向追蹤池／主動提醒留意；aut
 最新政策：正向選股池中等待止穩、目前不用急的標的，若仍有追蹤與等待進場條件，entry_for_new=wait_condition、now=conditional，屬觀望注意；不代表今日已買。明確排斥參與填prohibit；須等待正式執行授權、目前不得進場才填not_yet／authorization_pending，不能由positive_candidate蓋過。對持有者超跌勿殺低等反彈，holder_advice=hold_rebound、now=conditional，即使本人沒有要買也保留兩層意思。具體低接價位及高檔不追作為仍適用的操作節奏時填wait_condition／conditional，不能只選前句歷史時間忽略後句條件。
 混合段落先核完整時間順序：前段未持有、未推薦、歷史回顧或陪襯比較，不會否定後段對本股的現況分析、均線路徑或等待買點。後段確有本股獨立分析時，content_role填independent_analysis，quotes.analysis引用該段；past_trade可同時為true。不能只因前段比較就把後段當作他股，亦不能把後段他股分析挪回本股。僅有未持有／選股範圍交代而無本股分析才是position_disclosure／selection_scope／comparison_only。
 now填buy_ok／conditional／not_yet／prohibit／none，與前述軸一致；tone填bullish／bearish／neutral，僅為本股現在的獨立方向，不借相鄰公司。明講現在沒有要漲、不宜買是本股風險，不等於只澄清沒有持有。只有位置描述而全文無獨立追蹤或方向才填neutral及none。
-等待條件的原句：entry_for_new=wait_condition、now=conditional或selection_intent=positive_candidate時，quotes.condition／quote_source_ids.condition必須附「可照做的買進條件」原句（跌到或回到某價位、回測或站上某均線、止穩、平盤以下再買等）；寫不出條件就不是wait_condition。只說反彈不夠、上方套牢區、彈上來還會再下去，是本股的風險判斷：tone=bearish、entry_for_new=none或prohibit、selection_intent=explicit_exclusion，不是等待條件（2026/10/28 國巨）。沒有等待條件時condition留空陣列。
-已經賣出的股票今天大漲，被拿來當「看到大漲別追、漲停有什麼用、一堆人套在上面」的教學例子，而沒有對本股說現在要怎麼做：這是回顧過去的那次賣出，past_trade=true、content_role=historical_only、now=none、tone=neutral；「我們賣在這邊」是交易紀錄，不是禁買引句（2026/10/28 聖暉，管理者：不放）。本股另有自己的當下條件或明講不能買時才另填。
-今天重提昨天給持有者的建議並接著講本股現況（「昨天有沒有跟你們講不要亂殺甲？甲現在要來回震盪打底」）：這是今天仍然有效的持有者建議，holder_advice=hold_rebound，不能因為句子裡有「昨天」就當成只回顧（2026/10/28 台達電）。
+等待條件的原句：entry_for_new=wait_condition、now=conditional或selection_intent=positive_candidate時，quotes.condition／quote_source_ids.condition必須附「可照做的買進條件」原句（跌到或回到某價位、回測或站上某均線、止穩、平盤以下再買等）；寫不出條件就不是wait_condition。只說反彈不夠、上方套牢區、彈上來還會再下去，是本股的風險判斷：tone=bearish、entry_for_new=none或prohibit、selection_intent=explicit_exclusion，不是等待條件。沒有等待條件時condition留空陣列。
+已經賣出的股票今天大漲，被拿來當「看到大漲別追、漲停有什麼用、一堆人套在上面」的教學例子，而沒有對本股說現在要怎麼做：這是回顧過去的那次賣出，past_trade=true、content_role=historical_only、now=none、tone=neutral；「我們賣在這邊」之類是交易紀錄，不是禁買引句。本股另有自己的當下條件或明講不能買時才另填。
+今天重提昨天給持有者的建議並接著講本股現況（「昨天有沒有跟你們講不要亂殺甲？甲現在要來回震盪打底」）：這是今天仍然有效的持有者建議，holder_advice=hold_rebound，不能因為句子裡有「昨天」就當成只回顧。
 只輸出契約JSON verdicts陣列；每個輸入id都必須回覆，布林欄位填true或false，缺證據可填unsure，不使用語氣字詞表補造答案。
 另填independent_analysis：全篇有本股現在的向前技術位階解讀、量價／法人推論、風險判斷或具體低接節奏時true，quotes.analysis及quote_source_ids.analysis附其原句與編號。這不表示推薦買入；先說未推薦、後段再解析該股往季線的位階，也須讀後段再判。純報漲跌或碰均線位置、只是別股圖例、未持有清單且沒有本股獨立解讀均為false。原稿有本股獨立解析但沒有明確進場語氣時，now及tone可維持none／neutral，由程式保留為中性觀察；不必編造偏多。
 """
@@ -14348,6 +14353,9 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
     # 當日會員通知列到的股票（含續抱）：持有回合可以由通知開出，不受「紀錄上沒有部位」限制
     notice_held = {str(r.get('code') or '') for cat in _VERDICT_ORDER for r in signals.get(cat, []) or []
                    if isinstance(r, dict) and r.get('_notice_candidate_sources')}
+    # 已被擷取列出、沒有補候選標記的股票也可能有當日通知：當日原通知列到的代號全部算（另由紀錄的當日通知續抱開部位）
+    if _DAY_SOURCE_CONTEXT.get('date') == date_str:
+        notice_held |= {str(c) for c in (_DAY_SOURCE_CONTEXT.get('company_candidates') or {})}
     # 紀錄上還沒賣出的股票，今天原文有講到卻沒有任何一列（2026/10/02 重播：力積電「昨天買」被標成今天，日期核對後整列略過）：
     # 補一筆不公開的候選，和其他不公開的台股一樣交給裁決；沒有得到支持就留在不公開。
     listed = {str(r.get('code') or '') for cat in _VERDICT_ORDER for r in signals.get(cat, []) or [] if isinstance(r, dict)}

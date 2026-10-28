@@ -83,13 +83,15 @@ class IdentityContext(unittest.TestCase):
             entry['round_answers'].pop()
             self.assertFalse(p.notice_identity_proof(entry,'1111','甲公司','甲公思','2026/10/27'))
 
-    def test_notice_price_in_a_note_no_longer_blocks_publication_or_reclassifies(self):
+    def test_notice_only_price_blocks_but_a_spoken_price_does_not(self):
         row={'code':'1111','name':'甲公司','reason':'甲公司依會員通知785元買進。','_date':'2026/10/27'}
         original=copy.deepcopy(row)
         private={'date':'2026/10/27','prices':{'1111':['785']}}
         with patch.object(p,'_DAY_PRIVATE_NOTICE_PRICES',private):
             _,hard,_=p.quality_overview({'buy':[row]},check_chapters=False)
-            self.assertFalse(any('會員通知操作價' in x for x in hard))   # 2026/10/28 管理者：價位不再是公開說明的擋件條件
+            self.assertTrue(any('會員通知的操作價' in x for x in hard))   # 原稿沒講、只在通知裡的價位仍不公開
+            _,hard,_=p.quality_overview({'buy':[row]},'甲公司今天785元買進。',check_chapters=False)
+            self.assertFalse(any('會員通知的操作價' in x for x in hard))  # 2026/10/28 管理者：原稿講過的價位不擋
             row['reason']='甲公司假破底，外資連續買進，上半年EPS21.83。'
             _,hard,_=p.quality_overview({'buy':[row]},check_chapters=False)
             self.assertFalse(any('會員通知操作價' in x for x in hard))

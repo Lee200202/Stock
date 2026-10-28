@@ -8149,7 +8149,8 @@ def source_inventory(segments):
     # 只念代號、沒有念名稱（2026/10/28「老師早，4526再抱嗎？…這隻股票是什麼？4526」）：只當盤點候選，身分與立場仍交問卷核對。
     for code in _bare_code_mentions(flat_all):
         official = (_CODE_MAP or {}).get(code)
-        if not official or code in names or _display_name(official) in refs or any(str(v[0]) == code for v in names.values() if v[0]):
+        # 只看今天原文已經找到的名稱：names 是整張名稱表（本來就有「東台→4526」），拿它比會讓每個只念代號的都被略過
+        if not official or code in refs or _display_name(official) in refs or any(str(names[h][0]) == code for h in refs if h in names):
             continue
         hits = [sid for sid, seg in segments.items() if code in re.sub(r'\s', '', seg['text'])]
         if hits:
@@ -13309,6 +13310,7 @@ selection_intent：positive_candidate=正向追蹤池／主動提醒留意；aut
 混合段落先核完整時間順序：前段未持有、未推薦、歷史回顧或陪襯比較，不會否定後段對本股的現況分析、均線路徑或等待買點。後段確有本股獨立分析時，content_role填independent_analysis，quotes.analysis引用該段；past_trade可同時為true。不能只因前段比較就把後段當作他股，亦不能把後段他股分析挪回本股。僅有未持有／選股範圍交代而無本股分析才是position_disclosure／selection_scope／comparison_only。
 now填buy_ok／conditional／not_yet／prohibit／none，與前述軸一致；tone填bullish／bearish／neutral，僅為本股現在的獨立方向，不借相鄰公司。明講現在沒有要漲、不宜買是本股風險，不等於只澄清沒有持有。只有位置描述而全文無獨立追蹤或方向才填neutral及none。
 等待條件的原句：entry_for_new=wait_condition、now=conditional或selection_intent=positive_candidate時，quotes.condition／quote_source_ids.condition必須附「可照做的買進條件」原句（跌到或回到某價位、回測或站上某均線、止穩、平盤以下再買等）；寫不出條件就不是wait_condition。只說反彈不夠、上方套牢區、彈上來還會再下去，是本股的風險判斷：tone=bearish、entry_for_new=none或prohibit、selection_intent=explicit_exclusion，不是等待條件（2026/10/28 國巨）。沒有等待條件時condition留空陣列。
+已經賣出的股票今天大漲，被拿來當「看到大漲別追、漲停有什麼用、一堆人套在上面」的教學例子，而沒有對本股說現在要怎麼做：這是回顧過去的那次賣出，past_trade=true、content_role=historical_only、now=none、tone=neutral；「我們賣在這邊」是交易紀錄，不是禁買引句（2026/10/28 聖暉，管理者：不放）。本股另有自己的當下條件或明講不能買時才另填。
 今天重提昨天給持有者的建議並接著講本股現況（「昨天有沒有跟你們講不要亂殺甲？甲現在要來回震盪打底」）：這是今天仍然有效的持有者建議，holder_advice=hold_rebound，不能因為句子裡有「昨天」就當成只回顧（2026/10/28 台達電）。
 只輸出契約JSON verdicts陣列；每個輸入id都必須回覆，布林欄位填true或false，缺證據可填unsure，不使用語氣字詞表補造答案。
 另填independent_analysis：全篇有本股現在的向前技術位階解讀、量價／法人推論、風險判斷或具體低接節奏時true，quotes.analysis及quote_source_ids.analysis附其原句與編號。這不表示推薦買入；先說未推薦、後段再解析該股往季線的位階，也須讀後段再判。純報漲跌或碰均線位置、只是別股圖例、未持有清單且沒有本股獨立解讀均為false。原稿有本股獨立解析但沒有明確進場語氣時，now及tone可維持none／neutral，由程式保留為中性觀察；不必編造偏多。

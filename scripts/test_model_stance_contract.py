@@ -43,6 +43,12 @@ class ModelStance(unittest.TestCase):
   self.assertEqual(p._bare_code_mentions(flat),['4526'])
   with patch.object(p,'_CODE_MAP',{'4526':'東台'}):
    self.assertEqual(p.is_non_stock('4526')[0],True)   # 剔除規則本身不變；只在代號比對先認官方代號
+  # 名稱表裡本來就有「東台→4526」：只念代號時仍要列成盤點候選；念過名稱的不重複列
+  raw='老師早，4526再抱嗎？張總，4526繼續抱嗎？這隻股票是什麼？4526。嘉澤3533今天也漲。'
+  with patch.object(p,'_CODE_MAP',{'4526':'東台','3533':'嘉澤'}):
+   p._INVENTORY_CACHE['key']=None
+   found={x['code'] for x in p.source_inventory({'S1':{'text':raw}})}
+  self.assertIn('4526',found);self.assertIn('3533',found)
 
  def test_questionnaire_schema_requests_evidence_before_summary_role(self):
   props=p.verdict_response_schema()['properties']['verdicts']['items']['properties']

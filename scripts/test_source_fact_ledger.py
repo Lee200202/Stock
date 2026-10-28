@@ -59,10 +59,12 @@ class SourceFacts(unittest.TestCase):
   replies=[dict(id='c0',status='supported',subject='甲公司',subject_code='1111',source_quote=RAW,source_fact_ids=['F1'],explanation='錯把草稿當主體'),
    dict(id='c1',status='supported',subject='甲公司',subject_code='1111',source_quote=RAW,source_fact_ids=['F2'],explanation='本股自己的量能')]
   review=p._validated_source_review({'source_review':{'claims':replies}},row,row['reason'],RAW)
-  self.assertEqual([c['status'] for c in review['claims']],['cross_entity','supported'])
+  self.assertEqual([c['status'] for c in review['claims']],['insufficient','supported'])
+  # 編輯與匿名主體互相矛盾，不能直接當跨股證實；短文投影也須再審。
   signals={};self.assertTrue(p._apply_source_claim_review(signals,row,'reason',review))
   self.assertNotIn('股本比較小',row['reason']);self.assertIn('低檔成交量',row['reason'])
-  self.assertIn('股本比較小',row['_claim_repair']['original'])
+  self.assertIn('股本比較小',row['_source_projection']['original_text'])
+  self.assertTrue(row['_source_projection_pending'])
  def test_missing_or_stale_fact_id_preserves_input_without_approval(self):
   for facts in [ledger(),dict(ledger(),source_sha256='stale')]:
    row={'name':'甲公司','code':'1111','reason':'甲公司回測季線。','_source_fact_ledger':facts}
@@ -132,7 +134,7 @@ class SourceFacts(unittest.TestCase):
   replies=[dict(id='c0',status='supported',subject='甲公司',subject_code='1111',source_quote=RAW,source_fact_ids=['F1'],explanation='編輯抄錯股名'),
    dict(id='c1',status='supported',subject='甲公司',subject_code='1111',source_quote=RAW,source_fact_ids=['F1'],explanation='編輯抄錯事實ID')]
   review=p._validated_source_review({'source_review':{'claims':replies}},row,row['reason'],RAW)
-  self.assertEqual([c['status'] for c in review['claims']],['cross_entity','supported'])
+  self.assertEqual([c['status'] for c in review['claims']],['insufficient','supported'])
   self.assertEqual(review['claims'][1]['source_fact_ids'],['F2'])
   row['_source_claim_bindings']['source_sha256']='changed'
   review=p._validated_source_review({'source_review':{'claims':replies}},row,row['reason'],RAW)

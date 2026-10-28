@@ -13962,32 +13962,37 @@ def _short_own_quote(quote, window_norm, names):
     return 4 <= len(q) < 6 and q in window_norm and bool(hit) and len(q) - max(len(n) for n in hit) >= 2
 
 
-# 只看省略段的結尾：緊貼下一小句的否定或假設字會改變那一句的意思；中間省掉「你有沒有看到」「聯發科，不買」不影響本句
-_MEANING_GAP = re.compile(r'(?:不是|不|沒有|沒|別|未|非|無|勿|莫|如果|若|假如|假設|要是|萬一|除非|只要|就算|即使)$')
+# 省掉的完整子句若整句只是否定或假設字（「如果，買進」的「如果」）也不能省；「聯發科，不買」這種完整子句可以省
+_MEANING_GAP = re.compile(r'(?:不是|不|沒有|沒|別|未|非|無|勿|莫|如果|若|假如|假設|要是|萬一|除非|只要|就算|即使|真的)')
 
 
-def _clauses_in_order(quote, window_norm):
-    """長引句被模型壓縮過（省掉講者重複的話、用「……」跳過一段）：拆成小句，每一小句（至少 4 字）逐字在所引原段裡、
-    每一小句（含短句）都依順序逐字對上，而且長小句合計涵蓋引句六成以上，就算對得回原段。2026/10/28 國巨「你們只會看到漲的」少重複一次、華邦電中間用「……」、
-    敦泰跳過一段，三輪有兩輪整份作廢。小句仍須逐字，不接受改字。"""
-    parts = [_ev_norm(c) for c in re.split(r'[，。！？；、,!?;：:]+|…+|\.{2,}', str(quote or ''))]
-    whole = _ev_norm(quote)
-    kept = [c for c in parts if len(c) >= 4]
-    if len(whole) < 12 or not kept or sum(len(c) for c in kept) < 0.6 * len(whole):
+def _clauses_in_order(quote, window):
+    """長引句被模型壓縮過（省掉講者重複的整句、用「……」跳過幾句）時，照原稿的子句邊界核對：
+    引句的每一小句都必須等於原稿的一整個子句、或連續幾個完整子句接起來，依原稿順序；只能省略完整的原稿子句，
+    不能從一個子句中間挑字（「甲公司不一定會買進」不能收成「甲公司，買進」，「假如真的買進」不能收成「買進」——審閱反例）。
+    長小句合計要涵蓋引句六成以上；被省掉的子句若只是否定或假設字也不收。window 要傳原稿原文（保留標點）。"""
+    cut = re.compile(r'[，。！？；、,!?;：:\n]+|…+|\.{2,}')     # 原稿子句邊界
+    split = lambda t: [c for c in (_ev_norm(x) for x in cut.split(str(t or ''))) if c]
+    parts, src, whole = split(quote), split(window), _ev_norm(quote)
+    if len(whole) < 12 or len(parts) < 2 or sum(len(c) for c in parts if len(c) >= 4) < 0.6 * len(whole):
         return False
-    # 每一小句（含「不買」、數字、股名這類短句）都要依引句順序逐字對上，不能從別處借來
-    # （審閱反例：甲公司的「不買」「29」被接到乙公司的引句裡，只檢查有沒有出現就會放行）。
-    at, first = 0, True
-    for c in (c for c in parts if c):
-        found = window_norm.find(c, at)
-        if found < 0:
+    at = 0
+    for c in parts:
+        hit = None
+        for j in range(at, len(src)):
+            acc = ''
+            for k in range(j, len(src)):
+                acc += src[k]
+                if acc == c:
+                    hit = (j, k)
+                    break
+                if not c.startswith(acc):
+                    break
+            if hit:
+                break
+        if not hit or any(_MEANING_GAP.fullmatch(x) for x in src[at:hit[0]]):
             return False
-        # 省掉的那一段若有否定或假設字，意思就變了：原稿「甲公司不是不買」不能收成「甲公司，不買」，
-        # 「今天我如果買進甲公司」不能省掉「如果」（審閱反例）。第一小句前面緊貼的這些字也不能省。
-        gap = window_norm[max(0, found - 4):found] if first else window_norm[at:found]
-        if _MEANING_GAP.search(gap):
-            return False
-        at, first = found + len(c), False
+        at = hit[1] + 1
     return True
 
 
@@ -14011,7 +14016,7 @@ def _questionnaire_verified_quotes(answer, field, names=()):
                         int(b[1:]) == int(a[1:]) + 1 for a, b in zip(group, group[1:])):
                     windows.append('\n'.join(restored[start:end + 1]))
     return [q for q in clean if any(_quote_is_real(q, _ev_norm(z)) or _short_own_quote(q, _ev_norm(z), names)
-                                    or _clauses_in_order(q, _ev_norm(z)) for z in windows)]
+                                    or _clauses_in_order(q, z) for z in windows)]
 
 
 def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=None):
@@ -14311,7 +14316,7 @@ def verdict_response_schema(expected_ids=None):
 # 裁決快取以（段落指紋, 版號）為鍵。改了提示詞或答案格式卻忘了升版，正式流程會沿用舊提示詞的票（2026/10/28 審閱指出：
 # v39 之後又改了提示詞，版號沒動）。版號後面自動接提示詞與格式的指紋，內容一變快取就失效；人工裁決不綁版號，不受影響。
 # 引句怎樣算對得回原文也會改變哪些票有效：驗證器版本一起進指紋（2026/10/28 審閱）
-QUOTE_VERIFIER_VERSION = 'q2-20261028-clauses-in-order-no-meaning-gap'
+QUOTE_VERIFIER_VERSION = 'q3-20261028-whole-source-clauses'
 VERDICT_VERSION = VERDICT_VERSION + '+' + hashlib.sha256(
     (ADJUDICATE_SYSTEM + json.dumps(verdict_response_schema(), ensure_ascii=False, sort_keys=True)
      + QUOTE_VERIFIER_VERSION).encode('utf-8')).hexdigest()[:8]

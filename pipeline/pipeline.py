@@ -7978,7 +7978,9 @@ CONFIRMED_NAMES = {'普威': ('4966', '譜瑞-KY'), '普位': ('4966', '譜瑞-K
     '裕龍': ('2201','裕隆'), '雨龍': ('2201','裕隆'), '羽龍': ('2201','裕隆'), '語龍': ('2201','裕隆'), '宇龍': ('2201','裕隆'), '玉隆': ('2201','裕隆'),
     '浴隆': ('2201','裕隆'), '育隆': ('2201','裕隆'), '預隆': ('2201','裕隆'), '御隆': ('2201','裕隆'), '遇隆': ('2201','裕隆'), '愈隆': ('2201','裕隆'),
     '欲隆': ('2201','裕隆'), '喻隆': ('2201','裕隆'), '郁隆': ('2201','裕隆'), '譽隆': ('2201','裕隆'), '豫隆': ('2201','裕隆'), '雨隆': ('2201','裕隆'),
-    '羽隆': ('2201','裕隆'), '語隆': ('2201','裕隆')}
+    '羽隆': ('2201','裕隆'), '語隆': ('2201','裕隆'),
+    # 2026/10/27 管理者核准：「訊準／序準／續準」是旭隼；2026/10/28 管理者核准：「萬紅」是旺宏（「今天萬紅宣佈大利多，結果萬紅跌」）。
+    '訊準': ('6409','旭隼'), '序準': ('6409','旭隼'), '續準': ('6409','旭隼'), '萬紅': ('2337','旺宏')}
 # 管理者確認的讀音：名稱唸起來與左邊完全相同（不分聲調，前後鼻音視為同音）時，對到右邊那一檔。
 # 只在「正式名稱完全相同」「去後綴後相同」都比不到時才用，所以原文明寫的宇隆仍是 2233。
 CONFIRMED_SOUNDS = {'裕隆': ('2201', '裕隆'),
@@ -14474,6 +14476,16 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                 answer=answers.get(code) if isinstance(answers.get(code),dict) else {}
                 verified=all(verdict_class(dict(answer,**{('sell_today' if side=='buy' else 'buy_today'):False}),item['_norm'],item['_names'],zones)[0]==side
                              and explicit_today_trades(transcript,item['_names'],side) for side in sides)
+                if not verified and cls in ('watch_watch','watch_avoid'):
+                    # 2026/10/28 世芯-KY：反話「我都不會跟你講我今天買世芯-KY」被字詞當成今日買入候選；問卷答不是今日成交、
+                    # 而有引句核對過的觀望立場（「我不會今天買」「會跌回3600多」）。成交候選作廢，不整檔隱藏：
+                    # 改當成最後才拉回的觀望列續問，可用票多數一致才公開，否則不列（管理者：明確有錯的都同意改）。
+                    for k in ('_trade_check','_trade_sides'):
+                        item.pop(k,None)
+                    entry.pop('trade_check',None)
+                    entry.update(late=entry['current'],current='ignored',basis=entry.get('basis','')+'｜問卷答不是今日成交，改按觀望續問')
+                    note_decision('成交複核','不是今日成交，改按觀望續問',entry['name'],basis)
+            if item.get('_trade_check'):
                 entry['votes'].append(cls)
                 entry['answer'][cls or 'uncertain']={'basis':basis,'answer':answers.get(code)}
                 entry.update(cls=item['_trade_check'] if verified else 'uncertain',tier='裁決' if verified else '未定',enforce=not verified or len(sides)==1,new=True,

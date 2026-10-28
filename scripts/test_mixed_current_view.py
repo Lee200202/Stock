@@ -13,8 +13,7 @@ class MixedCurrentView(unittest.TestCase):
  def test_mixed_role_with_verified_analysis_retains_current_conditional_view(self):
   for role in ('comparison_only','selection_scope','position_disclosure','historical_only'):
    raw,a=self.answer(role)
-   if role in ('comparison_only','selection_scope','position_disclosure','historical_only'):
-    self.assertIn('前後段可以並存',p._questionnaire_issues(a,raw,['甲公司'])[0])
+   self.assertEqual(p._questionnaire_issues(a,raw,['甲公司']),[])
    self.assertEqual(p.verdict_class(a,p._ev_norm(raw),['甲公司'])[0],'watch_watch')
 
  def test_missing_analysis_quote_cannot_borrow_the_current_view(self):

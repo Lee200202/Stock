@@ -7144,10 +7144,11 @@ def classify_inventory_leftovers(signals, transcript):
 
 
 def align_watch_with_plain_refusal(signals, transcript, final=False):
-    """列在觀望注意、原文卻對這一檔講了不帶條件的「不推薦／不建議／不用買」：照原句改列觀望不碰。
+    """列在觀望注意、原文卻對這一檔講了不帶條件的「不推薦／不建議／不用買」：留提示給後台複核。
 
     2026/10/05 重播：「低軌衛星，華通，我也沒有推薦」，覆核把華通、啟碁寫成觀望注意。
-    同一句還有「拉回、買點、要注意」的不動——那是等條件，交給模型與語氣核對判斷。
+    2026/10/27 管理者：字詞篩選容易選錯，不能決定方向——先前照原句直接改列觀望不碰（final 時還改寫說明），
+    現在只提示；方向交分類裁決的問卷讀完整段落判定。final 參數保留給呼叫端相容。
     """
     keep, known = [], _stance_names(transcript)
     for row in signals.get('watch_watch', []) or []:
@@ -7163,20 +7164,10 @@ def align_watch_with_plain_refusal(signals, transcript, final=False):
             keep.append(row)
             continue
         quote = pick[1]
-        moved = dict(row, watch_bias='watch_avoid', view=quote, _plain_refusal=True)
-        if final and watch_tone(str(row.get('reason') or '')) == 'watch_watch':
-            flat = re.sub(r'\s+', '', transcript)
-            at = flat.find(re.sub(r'\s+', '', quote))
-            tail = flat[at:at + 110] if at >= 0 else ''
-            name = _display_name(row.get('name') or '')
-            moved['reason'] = (name + '目前不宜買進，需等待底部背離訊號。' if re.search(r'等[^。！？!?]{0,5}背離|背離[^。！？!?]{0,5}(?:出現|形成)', tail)
-                               else name + '目前不宜買進。')
-        moved['evidence'] = list(dict.fromkeys([quote] + [q for q in (row.get('evidence') or []) if isinstance(q, str)]))
-        moved['_guard_note'] = '原文對這一檔明講不推薦，由觀望注意改列觀望不碰'
-        signals.setdefault('watch_avoid', []).append(moved)
-        signals['_quality_requires_review'] = True
-        print(f"  直白說法核對　{row.get('name')}：觀望注意 → 觀望不碰：{quote[:50]}")
-        note_decision('直白說法核對', '觀望注意改列觀望不碰', str(row.get('name') or ''), quote[:80])
+        # 2026/10/27 管理者：字詞不決定方向。這裡只留提示給後台複核，分類由分類裁決的問卷決定。
+        keep.append(row)
+        signals.setdefault('_repair_gaps', []).append(f'語氣提示：{row.get("name")} 原文有「{quote[:30]}」，分類仍依問卷')
+        note_decision('直白說法核對', '只提示，不改分類', str(row.get('name') or ''), quote[:80])
     signals['watch_watch'] = keep
     return signals
 
@@ -10571,7 +10562,8 @@ def _other_entity_names(row, signals, transcript):
 
 
 def drop_borrowed_avoidance(signals, transcript):
-    """觀望不碰的依據是前一句對別家公司的否定、這一檔自己沒有任何偏空說法時，移到排除。"""
+    """觀望不碰的依據疑似是前一句對別家公司的否定：留提示待核。
+    2026/10/27 起不再以句子位置移到排除；主詞歸屬交問卷（只採點名本股的段落）與逐項來源核對判斷。"""
     keep = []
     for row in signals.get('watch_avoid', []) or []:
         if not isinstance(row, dict) or row.get('_carried_forward') or row.get('_原分類') in ('buy', 'sell'):
@@ -10582,10 +10574,9 @@ def drop_borrowed_avoidance(signals, transcript):
             keep.append(row)
             continue
         name = str(row.get('name') or '')
-        print(f"  主詞核對　{name}　觀望不碰 → 排除：這一檔自己沒有偏空說法，否定的是前一句的別家（{lender[:36]}）")
-        note_decision('主詞核對', '否定是講別家的，不列', name, lender[:100])
-        signals.setdefault('ignored', []).append(dict(row, exclusion_reason='borrowed_avoidance'))
-        signals.setdefault('_repair_gaps', []).append(f'主詞不符：{name} 的觀望不碰借用了別家的否定，不列')
+        keep.append(row)
+        note_decision('主詞核對', '否定可能是講別家的，只提示', name, lender[:100])
+        signals.setdefault('_repair_gaps', []).append(f'主詞待核：{name} 的觀望不碰可能借用了別家的否定（{lender[:30]}）')
     signals['watch_avoid'] = keep
     return signals
 
@@ -10601,18 +10592,16 @@ def verify_reason_category(signals):
     勤誠在觀望注意，說明卻寫「明講必須等跌破900以下，並且等待00981A等ETF完全賣完後才考慮進場，
     目前還不能買」。依 v18 管理者規則，明講現在還不能買就是觀望不碰——禁止永遠優先。
 
-    只做兩件沒有爭議的事，判斷條件與語氣核對完全相同，不引入新的關鍵字：
-      觀望注意＋說明明講禁止（還不能買、不准碰…）→ 觀望不碰
-      觀望不碰＋說明是明確看多、而且沒有任何偏空或中性依據 → 觀望注意（日期未明轉入的列除外，那類看 view）
-    放在所有說明改寫之後，所以任何一步改過字都還會被檢查一次。
+    兩種情形留提示（2026/10/27 管理者：字詞不決定方向，先前是直接改類）：
+      觀望注意＋說明明講禁止（還不能買、不准碰…）
+      觀望不碰＋說明是明確看多、而且沒有任何偏空或中性依據（日期未明轉入的列除外，那類看 view）
+    放在所有說明改寫之後，所以任何一步改過字都還會被檢查一次；矛盾時該改的是說明，交公開文字審閱。
     """
-    moves = {'watch_watch': [], 'watch_avoid': []}
     # 已經由分類裁決定案的列不在這裡改類：裁決後的分類是最後答案（2026/10/12 鴻海人工裁決觀望不碰，
     # 說明「目前還不是買點」因為有「買點」兩個字被改成觀望注意）。
     settled = {code for code, v in (signals.get('_verdicts') or {}).items()
                if isinstance(v, dict) and v.get('enforce') and v.get('tier') in ('人工裁決', '裁決', '沿用裁決', '直接歸類')}
     for cat in ('watch_watch', 'watch_avoid'):
-        keep = []
         for r in signals.get(cat, []) or []:
             reason = strip_speaker_names(str((r or {}).get('reason') or ''))
             target = cat
@@ -10624,18 +10613,12 @@ def verify_reason_category(signals):
                     and watch_tone(reason) == 'watch_watch' and not _bearish_or_neutral_basis(reason)
                     and not _NOT_YET_NOTE.search(reason)):
                 target = 'watch_watch'
-            if target == cat:
-                keep.append(r)
-                continue
-            moves[target].append(r)
-            name = str(r.get('name') or '')
-            note_decision('一致性核對', '說明與分類矛盾，依說明改類', name,
-                          cat + ' → ' + target + '｜' + _decision_detail(reason))
-            print(f'  一致性核對　{name}　{WATCH_BIAS_LABEL[cat]} → {WATCH_BIAS_LABEL[target]}'
-                  f'（說明：{reason[:40]}）')
-        signals[cat] = keep
-    for cat, rows in moves.items():
-        signals[cat] = list(signals.get(cat) or []) + rows
+            if target != cat:
+                # 2026/10/27 管理者：說明字詞不決定方向；只提示待複核，分類照問卷。
+                name = str(r.get('name') or '')
+                signals.setdefault('_repair_gaps', []).append(f'一致性待核：{name} 說明讀來像{WATCH_BIAS_LABEL[target]}')
+                note_decision('一致性核對', '說明與分類可能矛盾，只提示', name, cat + ' ≠ ' + target + '｜' + _decision_detail(reason))
+                print(f'  一致性核對　{name}　說明讀來像{WATCH_BIAS_LABEL[target]}，分類照問卷不改（說明：{reason[:40]}）')
     return signals
 
 
@@ -10772,13 +10755,14 @@ def normalize_watch_tones(signals):
                         note_decision('語氣核對','中性描述不列',name,_decision_detail(text))
                         print(f"  語氣核對　{name}　不列（只描述行情，沒有偏多偏空的結論）")
                         continue
-                    target='watch_avoid' if active_prohibit(strip_speaker_names(str(text or ''))) else cat
-                # 禁止永遠優先（v18）：公開說明明講現在不能買，立場欄位說可以也不採用。
-                if target=='watch_watch' and active_prohibit(strip_speaker_names(str(text or ''))):
-                    target='watch_avoid'
+                    target=cat
                 how='立場欄位'
             else:
-                target=watch_tone(text)
+                # 2026/10/27 管理者：關鍵字不推翻模型的方向；不一致只記判定歷程。
+                hinted=watch_tone(text)
+                if hinted!=cat:
+                    note_decision('語氣核對','關鍵字與分類不同，只提示',name,cat+'｜關鍵字傾向 '+hinted+'｜'+_decision_detail(text))
+                target=cat
                 how='關鍵字'
                 if (cat=='watch_watch' and target=='watch_avoid' and row.get('_原分類') in ('buy', 'holdings')
                         and not active_prohibit(strip_speaker_names(str(text or '')))):
@@ -13244,7 +13228,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v20-20261021"          # 缺答不算反對、不准賣不是禁買、並列與前文的共同結論、可用票一致放行、反問不是可以買
+VERDICT_VERSION = "v22-20261027"          # 方向只由模型判定（關鍵字只提示）、部位與關注範圍不是看法；缺答不算反對、不准賣不是禁買、並列與前文的共同結論、可用票一致放行、反問不是可以買
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 3                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -13287,7 +13271,21 @@ now　講者對「現在要不要進場」的表態，about_itself 為 false 時
 　「不會買」是他的意願，就算是拿來比照別檔時說的也算（「就像我絕對不會買【甲】一樣」「那我幹嘛去買【甲】」：about_itself 是 true，now 是 prohibit）。
 　只說「我沒有買【甲】」而沒有說為什麼不買、也沒有說以後不買，是陳述沒有部位，不是表態。
 　同一檔前後講法不同時，以最後一次、而且是對現在的指示為準。
-講者否認自己在推薦它（「你叫我們買【甲】哦？不是」「我不是叫你買它」「這一支我沒有推薦」）是不推薦：now 填 prohibit，引那一句。
+講者否認自己在推薦它（「你叫我們買【甲】哦？不是」「這一支我沒有推薦」）是不推薦：now 填 prohibit，引那一句。
+　但「我不是叫你買它，我這是告訴你們…的風險」而同段沒有對【甲】的禁令或買點：是拿它當教學例子，about_itself 填 false。
+
+邊界（2026/10/27 管理者）：先分清楚這句話在講「誰」與「什麼」，再回答 now、tone。
+一、部位與關注範圍不是看法：「我沒有【甲】」「我只有乙」「【甲】我不是在看」「我不是在看【甲】、丙」只說明講者自己的部位或關注範圍，
+　about_itself 填 false、now 填 none，不能拿這句當 stance 引句（10/27「真正的成熟製程，我沒有聯電、我沒有世界先進，我只有力積電」）。
+　同段另外講了【甲】自己的行情、風險、或說以後也不會買它，才照那幾句回答。
+二、主要觀察但還沒穩：「主要是看這兩隻，還沒有穩、不用急」是等待止穩的條件，now 填 conditional；要有「現在不能買／還不行」才是 not_yet。
+三、對已持有的人說「不要殺低、抱著、等反彈」是續抱建議：now 填 conditional（等反彈或止穩再評估）。講者同時說「我沒有【甲】」「我沒有要買【甲】」
+　只是自己的部位與計畫，不改成 prohibit；要明講叫觀眾不要買、不要碰，或說明為什麼以後也不買，才是 prohibit。
+四、同一句列出幾檔一起禁止（「為什麼不讓你買甲跟乙」「甲、乙都不要碰」）：每一檔都是 prohibit，各自引那一句。
+五、嘲諷、反問不是可以買：「【甲】，你們都可以買，阿幾內？」「那是不是【甲】可以買了？」是反話或反問，不能當 buy_ok 的引句。
+六、主詞不借鄰句：前一句講別檔的「我絕對不買乙」「乙不能碰」，不是【甲】的表態；【甲】的答案只能靠點名【甲】、或明確承接【甲】的句子。
+七、股名自成一句後換話題：「【甲】。我說記憶體我目前還沒有買」的後一句講的是族群或自己的部位，不是【甲】的表態。
+八、已賣出的部位：「賣掉的【甲】什麼時候買回？我會跟你們講」是還沒到買回時機，now 填 not_yet；「【甲】又回到買點了，你們要買可以買」是 buy_ok。
 tone　now 是 none 時才有作用（只說它今天漲、漲停、創新高、比同業強，是行情描述，填 neutral；偏多要有他對之後的判斷，或叫人注意、買進、抱著的意思）：bullish＝對本股現在與之後偏多，包含剛開始漲、第一根長紅並值得注意、明講它會跟著衝出去；bearish＝偏空，或拿它當大跌、追高受傷、風險的例子；neutral＝只描述已發生的行情或只回顧過去（「【甲】回來碰季線，在季線附近整理」），沒有偏多或偏空的結論；這種不會列出來，所以不要為了讓它有分類而勉強填 bullish 或 bearish。
 　反話與賣壓竭盡是偏多：「想賣的趕快賣，我的會員不准賣」「假跌破」「賣完就漲」不是 bearish。
 
@@ -13309,47 +13307,9 @@ _VQ_FAMILY = {
 # 引句自己就說是過去的事（「這是我昨天買的」），不能當成當天買賣的依據；除非同一句也說了今天。
 _VQ_PAST = re.compile(r'昨天|前天|前幾天|上禮拜|上週|上星期|上個月|之前|先前|那一天|當時|那時')
 _VQ_TODAY = re.compile(r'今天|今日|早上|剛剛|剛才|盤中')
-# 進場與不進場的表態，引句裡要看得出來（「創意是不是回來碰季線」不是買進條件）。看不出來就當作沒有表態，再看語氣。
-_VQ_ENTRY = re.compile(r'買|等|[佈布]局|注意|留意|抓住|進場|切入|突破|回測|站[上回]|以下|上去|發動|看好|會漲|飆|噴|衝|起飛|便宜|低檔')
-_VQ_REFUSAL = re.compile(r'不|別|沒|太|急|追高|套')
-# 叫人不要賣、不要殺低是續抱的指示，不是不准買（2026/10/20「130以下，不準賣聯電」「全部不準在這一個地方去殺低」
-# 被當成禁買票，聯電、世界先進因此「沒有多數」而不公開；提示詞第十條早就這樣定義）
-_VQ_ANTISELL = re.compile(r'(?:不准|不準|不要|別|不用|不必)(?:再)?(?:去)?(?:在[^，。！？!?]{0,10})?(?:賣|殺|砍|停損)')
-_VQ_OUTLOOK = re.compile(r'會漲|會上去|會再|還會|後面|之後|以後|未來|準備|即將|快要(?!漲停)|發動|噴|衝出去|上去|看好|注意|留意|買|[佈布]局|打底|翻紅|翻揚|翻陽'
-                         r'|站上|突破|不用擔心|不用怕|不要賣|不用賣|不必賣|不用出|不要出|抱|下一棒|有一波|起飛|目標|上看|挑戰|安全')
-_VQ_WATCH_SIGNAL = re.compile(r'剛開始漲|第一根(?:帶量)?長紅.{0,16}(?:留意|注意|低檔)|(?<!不)會.{0,6}(?:跟著)?(?:衝出去|上漲|轉強|突破)')
+# 2026/10/27 管理者：進場與語氣的方向只由模型判定，不再用字詞清單（買、等、不、沒、太、急…）核對或推翻答案。
 # 假設句與對觀眾說的話（「如果你手中已經買了…不要賣」）不是講者或會員的部位。
 _VQ_HYPOTHETICAL = re.compile(r'如果|假如|假設|要是|萬一|倘若')
-# 對還沒買的人明講「不適合再買」「不要再追了」。只用來守住流程已經判的觀望不碰，不會新增分類。
-_VQ_CLOSED = re.compile(r'不適合(?:你們|你|大家|各位|投資人)?(?:現在)?(?:再)?(?:去)?(?:買|追|進場|介入)'
-                        r'|不(?:要|能|可以|該)再(?:去)?(?:追|買)')
-
-
-def _verdict_closed(transcript, names):
-    """原文裡點名本股、後半句又明講不適合再買的那一句；沒有就回空字串。
-
-    看整句而不是本股段落：段落在別家公司名稱前就切開，「晶心科、M31、力旺很強，可是已經不適合你們再買了」
-    這種幾檔共用一個結論的句子，前兩檔的段落裡看不到後半句。股名要在那個說法之前。
-    """
-    flat = re.sub(r'【[^】]{0,40}】|\s', '', str(transcript or ''))
-    own = [str(n) for n in names if len(str(n)) >= 2]
-    for _a, _b, sentence in _flat_sentences(flat):
-        m = _VQ_CLOSED.search(sentence)
-        if m and any(0 <= sentence.find(n) < m.start() for n in own):
-            return sentence
-    return ''
-
-
-# 容易判錯的講法：出現在本股段落、而目前的分類和它對不上時，這一檔不算「一致通過」。寧可多問，不可漏問。
-_VM_PAST = re.compile(r'昨天|前天|前幾天|上禮拜|上週|上星期|上個月|之前|先前|那時候?|當時|早就')
-_VM_REFUSE = re.compile(r'不(?:要|會|能|准|準|用|想|可以)(?:再)?(?:去)?(?:買|追|碰)|別(?:去)?(?:買|追|碰)|不買|不碰|絕對不|還沒有?那麼急|太急')
-_VM_HOLD = re.compile(r'抱著|續抱|還在|沒有?賣|我(?:們)?(?:目前|現在)(?:手[上中])?(?:只)?有|我(?:們)?只有|持有|我的成本|手[中上](?:的)?(?:股票|持股)')
-_VM_TRADE = re.compile(r'(?:今天|今日|早上|剛剛|剛才|盤中)[^。！？!?]{0,14}(?:買|賣)|(?:買|賣)(?:了|掉|進|出)|通知(?:我的)?會員')
-_VM_ASK = re.compile(r'有人問|會員問|觀眾問|問我|可不可以買|能不能買|要不要買|要不要賣|可以買嗎')
-_VM_COMPARE = re.compile(r'比照|跟[^。，,]{1,8}一樣|例如|譬如|總比|其實|不是[^。，,]{1,12}(?:而是|是)|很多人說')
-_VM_IF = re.compile(r'如果|假如|假設|要是|萬一|倘若')
-
-
 def _verdict_markers(text, cls):
     """本股段落裡和目前分類對不上的講法。回傳標記名稱，空的代表沒有疑點。"""
     text = str(text or '')
@@ -13981,52 +13941,31 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
         return ('history', '只回顧過去的買賣') if past else ('ignored', '只被點名，沒有講這一檔自己的事')
     stance = real('stance')
     now, tone = str(answer.get('now') or 'none'), str(answer.get('tone') or 'neutral')
-    if now in ('buy_ok', 'conditional') and not any(_VQ_ENTRY.search(q) for q in stance):
-        now = 'none'
-    hold_advice = [q for q in stance if _VQ_ANTISELL.search(q)]
-
-    def recalled(q):
-        at = passages_norm.find(_ev_norm(q))
-        return at >= 0 and bool(re.search(r'那時候|那個時候|當時|以前|之前|先前', passages_norm[max(0, at - 40):at]))
-    if now in ('prohibit', 'not_yet') and not any(_VQ_REFUSAL.search(_VQ_ANTISELL.sub('', q)) and not recalled(q) for q in stance):
-        now = 'none'
-        if hold_advice:
-            # 只有「不要賣、不要殺低」：講者看多、叫人抱著；沒有部位的人列觀望注意（會員持股由上面的持有題處理）
-            return 'watch_watch', '叫人不要賣、不要殺低（續抱、看多）：' + hold_advice[0][:40]
+    # 2026/10/27 管理者：「文字上的篩選很容易選錯，要確保不是判斷方向的依據」。進場表態與語氣只由模型讀完整段落判定，
+    # 程式只核對它的引句真的出自本股段落（real），不再用「不、沒、買、等、會漲」等字推翻或補判模型的答案。
+    # 先前 _VQ_REFUSAL 只要引句有「沒」就維持禁買：10/27「真正的成熟製程，我沒有聯電」因此成了聯電、世界先進的禁買票。
     if not stance:
         return ('history', '只回顧過去的買賣：' + first('past_trade')) if past else ('', '有講這一檔，但引不出原文')
     if now in ('prohibit', 'not_yet'):
         return 'watch_avoid', ('明講不買：' if now == 'prohibit' else '現在還不能買：') + stance[0][:40]
     if now in ('buy_ok', 'conditional'):
-        return 'watch_watch', ('現在可以買：' if now == 'buy_ok' else '給了買進條件：') + stance[0][:40]
-    # 偏多要看得出他對之後的判斷；「今天漲停」「等一下也要漲停」「優於同業」只是行情（2026/09/30 彩晶、友達被三票答成偏多、
-    # 由不列改成觀望注意，原文是「你叫我們買有達、群創、彩晶哦，不是」）。引句裡沒有向後看的字眼時，當成只描述行情。
-    if tone == 'bullish' and not any(_VQ_OUTLOOK.search(q) for q in stance):
-        tone = 'neutral'
+        return 'watch_watch', ('現在可以買：' if now == 'buy_ok' else '給了買進或等待條件：') + stance[0][:40]
     if tone == 'bullish':
         return 'watch_watch', '看法偏多：' + stance[0][:40]
     if tone == 'bearish':
         return 'watch_avoid', '偏空或當作風險例子：' + stance[0][:40]
-    signal = next((q for q in stance if _VQ_WATCH_SIGNAL.search(q)
-                   and (not own or any(n in _ev_norm(q) for n in own))), '')
-    if signal:
-        return 'watch_watch', '本股有向前的技術訊號：' + signal[:40]
     if past:
         return 'history', '只回顧過去的買賣'
     return VERDICT_NEUTRAL_CLASS, '只描述行情，沒有偏多偏空的結論，不列：' + stance[0][:40]
 
 
 # 三輪都缺答時，本股自己的可引用原文裡有沒有支持流程分類的字眼。只有名單點名（「台塑、台化、南亞、台塑化」）沒有，照舊不公開。
-_ZONE_AVOID_CUE = re.compile(r'不(?:買|碰|追|看|喜歡|建議|推薦|想買)|別碰|跌|賣壓|賣賣|融資暴增|套|風險|小心|還不能|不能買')
 
 
 def _zone_supports(current, zones):
-    text = ''.join(_ev_norm(z) for z in zones or [])
-    if len(text) < 12:
-        return False
-    if current == 'watch_avoid':
-        return bool(_ZONE_AVOID_CUE.search(text))
-    return bool(_VQ_ANTISELL.search(text) or (_VQ_ENTRY.search(text) and _VQ_OUTLOOK.search(text)))
+    """三輪都沒有可用答案時，本股至少要有自己的段落才維持擷取模型的分類（並標未裁決）。
+    2026/10/27 起不再以字詞判斷段落「支不支持」注意或不碰：方向不由關鍵字決定。"""
+    return len(''.join(_ev_norm(z) for z in zones or [])) >= 12
 
 
 def _lead_zones(passages, names, transcript):
@@ -14145,7 +14084,7 @@ def _audit_direct_verdicts(verdicts, direct_ctx, signals, transcript, date_str, 
         names = set(direct_ctx[code][1])
         demoted.append((code, {'name': entry['name'], 'heard': sorted(n for n in names if n != entry['name'])[:6], 'known': facts,
                                'passages': sent[:10], '_norm': _ev_norm(text), '_names': sorted(names | {code}),
-                               '_closed': _verdict_closed(transcript, names)}))
+                               }))
     print(f"  直接歸類覆核　{len(picks)} 檔合併一問，{len(demoted)} 檔改送問卷")
     return demoted
 
@@ -14281,30 +14220,14 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                 continue
             entry.update(tier='送裁決',basis='本人當日成交候選，併入同批事實複核',trade_check=current)
             contested.append((code,{'name':entry['name'],'heard':sorted(names-{entry['name']})[:6],'known':facts,
-                                   'passages':sent[:10],'_norm':_ev_norm(text),'_names':sorted(names|{code}),'_trade_check':current,'_trade_sides':sides,'_closed':''}))
+                                   'passages':sent[:10],'_norm':_ev_norm(text),'_names':sorted(names|{code}),'_trade_check':current,'_trade_sides':sides}))
             continue
         if not entry['open'] and current not in ('buy', 'sell'):
             analogy = _analogy_only(names, transcript)
             if analogy:
                 entry.update(cls='ignored', tier='直接歸類', enforce=True, basis='本股只出現在「下一個X」的比喻裡：' + analogy[:60])
                 continue
-        if not entry['open'] and current in ('watch_watch', 'watch_avoid', 'history', 'ignored'):
-            lesson = _teaching_disclaimer(names, transcript)
-            if lesson:
-                entry.update(cls='ignored', tier='直接歸類', enforce=True, basis='講者明講只是拿來教學、不是叫人買：' + lesson[:60])
-                continue
-        if not entry['open'] and current not in ('buy','sell'):
-            if current!='holdings':
-                condition,quote=bounded_current_conditions(names,transcript)
-                if condition:
-                    row['evidence']=list(dict.fromkeys(list(row.get('evidence') or [])+[quote]))
-                    entry.update(cls=condition,tier='直接歸類',basis='本股當下條件：'+quote,enforce=True)
-                    continue
-            returned=_returned_buy_zone(names,transcript)
-            if returned:
-                row['evidence']=list(dict.fromkeys(list(row.get('evidence') or [])+[returned]))
-                entry.update(cls='watch_watch',tier='直接歸類',enforce=True,basis='已出場後重新回到買點，明確肯定可買；不是當日成交：'+returned)
-                continue
+        # 2026/10/27 管理者：「只是教學例子」「本股當下條件」「回到買點」先前以字詞直接定類、跳過問卷；改由問卷讀原文判斷。
         # 紀錄上這一檔最近一筆是賣出、之後沒有再買回；今天沒有賣出通知（上面已排除）、原文也沒有「今天賣＋股名」的明確句（上面已排除）：
         # 今天的「賣出」是在回顧那一次，不是當日成交（2026/10/12 聖暉「先前以970元獲利了結」，10/05 就賣了；同一份原稿有時判回顧、有時留在賣出）。
         if current == 'sell' and code in known and not entry['open']:
@@ -14314,76 +14237,29 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
         # 紀錄上最近一筆是賣出、之後沒有部位，今天沒有買進通知也沒有今天買進的明確句，那一列是在回顧，不是現在持有。
         if current == 'holdings' and code in known and not entry['open'] and 'buy' not in cats \
                 and any('賣出這一檔' in fact for fact in known.get(code, [])) and not explicit_today_trades(transcript, names, 'buy'):
-            # 已經出場的股票，今天另有本股的當下條件（「鴻海23X是買點…今天漲了不會去追」）：是之後的進場看法，不是回顧（2026/10/16 鴻海）
-            condition, quote = bounded_current_conditions(names, transcript)
-            # 「你有一只股票，鴻海集團的」講的是集團裡另一檔（2026/10/12 鴻準），不是本股的條件
-            if condition and not any(re.search(re.escape(n) + r'集團', quote) for n in names if len(n) >= 2):
-                row['evidence'] = list(dict.fromkeys(list(row.get('evidence') or []) + [quote]))
-                entry.update(cls=condition, tier='直接歸類', enforce=True, basis='紀錄上已出場，今天另有本股當下條件：' + quote[:60])
-                continue
-        if current == 'holdings' and code in known and not entry['open'] and 'buy' not in cats \
-                and any('賣出這一檔' in fact for fact in known.get(code, [])) and not explicit_today_trades(transcript, names, 'buy')                 and not (_hold_advice_to_viewer(names, transcript) or _explicit_approval(names, transcript)
-                         or _explicit_not_yet(names, transcript) or _asked_refusal(names, transcript)):
-            # 今天對本股另有明確的現況說法（回答續抱、明講可以買或不能買）時不是回顧（2026/10/14 台化：紀錄上很早賣過，今天回答會員續抱）
-            entry.update(cls='history', tier='直接歸類', enforce=True,
-                         basis='紀錄上已經賣出、之後沒有買回也沒有持股列，今天沒有買進：會員持股列是回顧')
-            continue
-        if code in explicit_hold and current not in ('buy', 'sell') and not ownership_denial:
+            # 紀錄上已全數出場、之後沒有買回：持有不成立（這是帳本事實）。今天對它的立場（之後的條件、續抱建議、不能買）
+            # 交給問卷讀原文判斷，問卷沒有定論才列回顧——2026/10/27 起不以「可以買」「不准賣」等字直接決定（管理者）。
+            entry.update(not_held='紀錄上已全數出場、今天沒有買進', not_held_fallback='history', exited=True)
+        if code in explicit_hold and current not in ('buy', 'sell') and not ownership_denial and not entry.get('exited'):
             entry.update(cls='holdings', tier='直接歸類', basis='原文明講目前持有', enforce=True)
             continue
         # 已經是持股、原文又直接報出「我的股票…（代號）股名」：是講者自己的部位，不交給問卷（2026/10/15 旭隼「這我的股票今天跌了。6409旭準」，
         # 三份問卷只看到「旭準昨天是漲還跌？」而把它移出持股）。「繼續抱著」之類照舊由問卷三票決定。
         if current not in ('buy', 'sell'):
             mine = _my_stock_statement(names, code, transcript)
-            if mine and not ownership_denial:
+            if mine and not ownership_denial and not entry.get('exited'):
                 entry.update(cls='holdings', tier='直接歸類', basis='原文直接報出自己的部位：' + mine, enforce=True)
                 continue
         # 紀錄上還沒賣出（最近一筆是買入）、今天原文有講到、而且沒有賣出的說法：仍是會員持股。
         # 2026/10/02 同一份原稿三次重播，力積電、世芯-KY、聖暉每次落在不同分類，問卷三票也各不相同；紀錄是唯一不會變的依據。
         others_sold = ({str(r.get('code') or '') for r in signals.get('sell', []) or [] if isinstance(r, dict)}
                        | {k[0] for k in notice if k[1] == 'sell'}) - {code, ''}
-        if entry['open'] and not ownership_denial and current != 'sell' and not explicit_today_trades(transcript, names, 'sell'):
-            condition, quote = bounded_current_conditions(names, transcript)
-            if condition == 'watch_avoid' and re.search(r'什麼時候(?:要)?買回', quote):
-                # 紀錄上仍持有（減碼一半後的剩餘部位）：持股照留、回合不結束，另列一筆觀望不碰表示暫不買回
-                # （2026/10/15 管理者：嘉澤＝持股＋不碰；10/16 只列不碰時持股追蹤把整個回合結束了）
-                row['evidence'] = list(dict.fromkeys(list(row.get('evidence') or []) + [quote]))
-                entry.update(cls='holdings', tier='直接歸類', enforce=True, also=('watch_avoid', quote),
-                             basis='紀錄上持有（減碼後的剩餘部位），另列暫不買回：' + quote[:60])
-                continue
         if entry['open'] and not ownership_denial and current != 'sell' and not explicit_today_trades(transcript, names, 'sell') \
                 and not _sold_near_self(row, transcript, names, others_sold):
             entry.update(cls='holdings', tier='直接歸類', basis='紀錄上持有（最近一筆是買入、沒有賣出），今天原文有講到、沒有賣出的說法', enforce=True)
             continue
-        # 已判觀望不碰，又有同句點名的當下禁買，無須問卷重擲。
-        # 名稱在禁令後也適用；下一句未點名的「可以買」不能解除本股禁令。
-        closed = _named_current_prohibition(row, transcript) if current == 'watch_avoid' else ''
-        if not closed and current == 'watch_avoid':
-            told = next((x for x in (_audience_prohibition(n, transcript) for n in sorted(names, key=len, reverse=True)) if x), '')
-            if told:
-                closed = '對觀眾明講不要玩、不要碰：' + told[-60:]
-        if not closed and current not in ('buy', 'sell', 'holdings'):
-            asked = _asked_refusal(names, transcript)
-            not_yet = '' if asked else _explicit_not_yet(names, transcript)
-            if asked:
-                closed = '被問可不可以買，明確回答不要：' + asked
-            elif not_yet:
-                closed = '原文明講本股現在不能買：' + not_yet
-            else:
-                approved = _explicit_approval(names, transcript)
-                if approved:
-                    entry.update(cls='watch_watch', tier='直接歸類', basis='原文明講可以買：' + approved, enforce=True)
-                    continue
-        if closed:
-            entry.update(cls='watch_avoid', tier='直接歸類', basis='同句點名且明確當下禁買：' + closed,
-                         enforce=True)
-            continue
-        # 觀眾問自己持有的這一檔要不要出、講者回答續抱：是對本股之後的看法（觀望注意），持有的是觀眾、不是會員持股。
-        if current not in ('buy', 'sell', 'watch_avoid') and not entry['open']:
-            advice = _hold_advice_to_viewer(names, transcript)
-            if advice:
-                entry.update(cls='watch_watch', tier='直接歸類', enforce=True, basis='觀眾問持有的這一檔要不要出，回答續抱：' + advice)
-                continue
+        # 2026/10/27 管理者：語氣與方向不由字詞判定。先前這裡用「不要碰／不能買／可以買／不准賣」等字直接把觀望列定案
+        # （同句禁買、對觀眾明講、被問回答、明講不能買、明講可以買、回答觀眾續抱），跳過問卷；現在一律交問卷讀原文判斷。
         # 紀錄上沒有未賣出的部位、原文又明講「我沒有X」的會員持股：以觀望注意為底重新裁決，不留在會員持股（2026/10/14 台達電）。
         # 原文的持有只出現在觀眾或會員的提問裡（「張總，我手中有6張台化…要出嗎？」）：同樣以觀望注意為底（2026/10/14 台化）。
         not_held = ''
@@ -14393,7 +14269,7 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             not_held = ('原文明講沒有持有：' + said) if said else ('持有的只有提問的觀眾：' + asked_hold) if asked_hold else ''
         if not_held:
             entry['not_held'] = not_held
-            entry['not_held_fallback'] = bounded_current_conditions(names, transcript)[0] or 'ignored'
+            entry.setdefault('not_held_fallback', 'ignored')
         sent, text = _verdict_mark(_own_segments(row, signals, transcript, 300, 500), names | {code})
         sent = sent[:10]
         if not text:
@@ -14434,7 +14310,7 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
         entry['tier'] = '送裁決'
         contested.append((code, {'name': entry['name'], 'heard': sorted(n for n in names if n != entry['name'])[:6], 'known': facts,
                                  'passages': sent, '_norm': _ev_norm(text), '_names': sorted(names | {code}),
-                                 '_closed': _verdict_closed(transcript, names)}))
+                                 }))
     contested += _audit_direct_verdicts(verdicts, direct_ctx, signals, transcript, date_str, known)
     if contested and (_QUOTA_STOP.get('daily') or budget_left() < 300 or not GEMINI_KEYS):
         print(f"  分類裁決　時間或配額不足，{len(contested)} 檔有疑點的這一輪不裁決，維持原分類")
@@ -14474,10 +14350,7 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             if cls == 'buy' and entry['current'] != 'buy':
                 # 問卷認為今天買進，但買賣只認明確句或會員通知：這一票以看多計，不丟掉（2026/10/14 台達電「我說台達電可以買」）
                 cls, basis = 'watch_watch', '問卷答今天買進但無法核對成交，以看多計：' + basis
-            # 流程判觀望不碰，點名本股的那一句又明講不適合再買：問卷答成偏多、只是回顧或不列都不採用
-            # （2026/09/29「晶心科、M31、力旺很強，可是已經不適合你們再買了」：M31 兩票偏多、晶心科三票回顧）。
-            if entry['current'] == 'watch_avoid' and cls in ('watch_watch', 'history', 'ignored') and item.get('_closed'):
-                cls, basis = 'watch_avoid', '點名本股的那一句明講不適合再買：' + item['_closed'][-40:]
+            # 2026/10/27：不再以「不適合再買」等字詞推翻問卷答案（方向由模型讀原文判定）。
             entry['votes'].append(cls)
             if cls and not entry['answer'].get(cls):
                 entry['answer'][cls] = {'basis': basis, 'answer': answers.get(code)}
@@ -14508,20 +14381,7 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                 continue
             public_votes = [v for v in entry['votes'] if v in ('buy', 'sell', 'holdings', 'watch_watch', 'watch_avoid')]
             hidden_votes = [v for v in entry['votes'] if v and v not in public_votes]
-            raw_watch = ''
-            if entry['current'] == 'watch_watch':
-                # 模型沒有有效答案不代表原稿沒有依據。保留已是注意、同句具名的向前條件；
-                # 純行情、觀眾問句、歷史日期與明確禁買不適用，不新增持股或成交。
-                for zone in zones:
-                    for sentence in _plain_sentences(zone):
-                        if (any(n in _ev_norm(sentence) for n in map(_ev_norm, item['_names']) if n)
-                                and _VQ_ENTRY.search(sentence) and _VQ_OUTLOOK.search(sentence)
-                                and not re.search(r'可不可以|可以不可以|能不能|要不要|[嗎？?]|昨天|以前|先前', sentence)
-                                and not active_prohibit(sentence)):
-                            raw_watch = sentence
-                            break
-                    if raw_watch:
-                        break
+            raw_watch = ''   # 2026/10/27：不再以字詞替觀望注意背書
             if state == '未定' and entry['current'] in ('watch_watch', 'watch_avoid') and not usable \
                     and _zone_supports(entry['current'], zones):
                 # 三輪都沒有可用的答案（截斷、缺欄、引句核對不過）：這是沒有問到，不是模型認為沒有立場。
@@ -15028,16 +14888,16 @@ def drop_only_named_watch_rows(signals):
     2026/10/08：原文是「很多人說華邦電，不是；很多人說南亞科，不是。記憶體的龍頭是群聯」。南亞科先被放進會員持股，
     主詞核對改成觀望注意，說明是「在討論記憶體族群時被點到，澄清南亞科非龍頭。」——照這句話它就只是被點名。
     只處理觀望注意與觀望不碰；說明裡有任何看法、位置、買賣或籌碼的字就不動。
+    2026/10/27 起只提示：說明是程式後段產生的文字，不能用它的字詞決定要不要列（要不要列由問卷判定）。
     """
     for cat in ('watch_watch', 'watch_avoid'):
         keep = []
         for row in signals.get(cat, []) or []:
             note = str(row.get('reason') or '') if isinstance(row, dict) else ''
             if isinstance(row, dict) and note and _ONLY_NAMED_NOTE.search(note) and not _NOTE_HAS_STANCE.search(_ONLY_NAMED_NOTE.sub('', note)):
-                moved = dict(row, _原分類=cat)
-                signals.setdefault('ignored', []).append(moved)
-                print(f"  點名核對　{row.get('name')}：說明只寫被點到、沒有看法（{note[:30]}），由「{cat}」改列排除")
-                note_decision('點名核對', '只是被點名，改列排除', str(row.get('name') or ''), note[:80])
+                note_decision('點名核對', '說明只寫被點到，只提示', str(row.get('name') or ''), note[:80])
+                signals.setdefault('_repair_gaps', []).append(f'說明待核：{row.get("name")} 的說明只寫被點到')
+                keep.append(row)
                 continue
             keep.append(row)
         signals[cat] = keep

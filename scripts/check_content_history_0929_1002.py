@@ -56,8 +56,9 @@ def check_stock_classification_and_late_duplicates():
     caution = {"watch_watch": [{"name": "勤誠", "code": "8210", "aliases": ["秦成"], "reason": "同樣股票，我會告訴你，這個可以買。"}],
                "watch_avoid": []}
     pl.align_watch_with_plain_refusal(caution, "秦成還不能買。理由在於需要等底部背離。", final=True)
-    assert not caution["watch_watch"] and len(caution["watch_avoid"]) == 1
-    assert "等待底部背離" in caution["watch_avoid"][0]["reason"]
+    # 2026/10/27 管理者：字詞不決定方向，直白說法只留提示，方向交分類裁決的問卷
+    assert len(caution["watch_watch"]) == 1 and not caution["watch_avoid"], "字詞不得改類"
+    assert any("勤誠" in g for g in caution.get("_repair_gaps", [])), "直白說法要留提示"
     rows = {"holdings": [
         {"code": "5536", "name": "聖暉*", "note": "昨日上漲，今日拉回屬於洗盤。", "stance": "持有"},
         {"code": "5536", "name": "聖暉*", "note": "現有部位續抱。", "stance": "持有"},

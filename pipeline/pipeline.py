@@ -6694,8 +6694,12 @@ def execution_statement(sentence, cat):
     action = '賣' if cat == 'sell' else '買'
     if _TRADE_ASK.search(sentence):
         return False
-    if re.search(r'(?:不能|不可|不要|不該|不會|沒有|沒|不|別|勿|準備|打算|想要)(?:再|去|先|全部|全數)?' + action, sentence):
-        # 有另一個明確肯定動作時交由完整核對；不把『我沒有賣X』當成賣出。
+    if re.search(r'(?:不能|不可|不要|不該|不會|不讓|不准|不準|沒有|沒|不|別|勿|準備|打算|想要)'
+                 r'(?:再|去|先|在|全部|全數|讓(?:你|你們|大家|任何人|會員)|跟(?:你|你們|大家)講(?:我|我們)?)?'
+                 r'(?:今天|今日|早上|早盤|現在|這邊|這裡)?(?:再|去|先|全部|全數)?' + action, sentence):
+        # 有另一個明確肯定動作時交由完整核對；不把『我沒有賣X』『我不會今天買X』『我都不會跟你講我今天買X』當成已成交。
+        return False
+    if re.search(r'說謊話|講謊話|說假話|講假話|詐騙的?投顧', sentence):
         return False
     if re.search(r'(?:如果|假如|假設|要是|萬一)[^。！？!?]{0,35}' + action, sentence):
         return False
@@ -13423,7 +13427,7 @@ now填buy_ok／conditional／not_yet／prohibit／none，與前述軸一致；to
 _VQ_FAMILY = {
     'buy_today': re.compile(r'買|進場|[佈布]局|承接|加碼'),
     'sell_today': re.compile(r'賣|出場|出清|了結|停利|停損|出掉'),
-    'holding_now': re.compile(r'抱|還在|還有|持有|(?:我|我們|會員)[^，。！？!?]{0,6}有|(?:我|我們|會員)的(?:股票|持股|部位)|本來(?:就|也)?是我的|只有|沒有?賣|沒有?叫你們?賣|不[准準要用]賣|放到|成本|手[中上]|續|買'),
+    'holding_now': re.compile(r'抱|還在|還有|持有|(?:我|我們|會員)[^，。！？!?]{0,6}有|(?:我|我們|會員)的(?:股票|持股|部位)|本來(?:就|也)?(?:是我的|有)|小套|套住|只有|沒有?賣|沒有?叫你們?賣|不[准準要用]賣|放到|成本|手[中上]|續|買'),
     'past_trade': re.compile(r'買|賣|出場|出清|進場|[佈布]局|了結'),
 }
 
@@ -14063,8 +14067,28 @@ def _questionnaire_verified_quotes(answer, field, names=()):
                 if all(isinstance(sid, str) and re.fullmatch(r'S\d+', sid) for sid in group) and all(
                         int(b[1:]) == int(a[1:]) + 1 for a, b in zip(group, group[1:])):
                     windows.append('\n'.join(restored[start:end + 1]))
-    return [q for q in clean if any(_quote_is_real(q, _ev_norm(z)) or _short_own_quote(q, _ev_norm(z), names)
-                                    or _clauses_in_order(q, z) for z in windows)]
+    ord_re = globals().get('_HEARD_ORDINARY')
+    own_tokens = [_ev_norm(n) for n in names or () if len(_ev_norm(n)) >= 2 and not (ord_re and ord_re.search(_ev_norm(n)))]
+    out = [q for q in clean if any(_quote_is_real(q, _ev_norm(z)) or _short_own_quote(q, _ev_norm(z), names)
+                                   or _clauses_in_order(q, z) for z in windows)]
+    if not out and own_tokens:
+        for q in clean:
+            sents = [s.strip() for s in re.split(r'(?<=[。！？!?])', q) if s.strip()]
+            found_slice = False
+            for idx in range(len(sents)):
+                for end in range(len(sents), idx, -1):
+                    sub = ''.join(sents[idx:end])
+                    if len(_ev_norm(sub)) >= 10 and any(n in _ev_norm(sub) for n in own_tokens) and any(_quote_is_real(sub, _ev_norm(z)) for z in windows):
+                        out.append(sub)
+                        found_slice = True
+                        break
+                if found_slice:
+                    break
+    if not out and field in ('holding_now', 'stance') and own_tokens:
+        for sid, r_text in zip(ids, restored):
+            if isinstance(sid, str) and sid.startswith('N') and any(n in _ev_norm(r_text) for n in own_tokens):
+                out.append(r_text)
+    return out
 
 
 def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=None):
@@ -14073,6 +14097,7 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
     names 有給時，當天買賣的引句裡要有本股的名稱或代號：既有的成交核對也只認「動作貼著股名」的句子。
     """
     own = [_ev_norm(n) for n in names if len(_ev_norm(n)) >= 2]
+    real_own = [n for n in own if not _HEARD_ORDINARY.search(n)]
     if not isinstance(answer, dict):
         return '', '沒有答案'
     if answer.get('_validation_issues'):
@@ -14086,16 +14111,21 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
         if verified is not None:
             return verified
         zones = list(quote_zones or []) + (list(lead_zones or []) if field == 'stance' else [])
-        return [q for q in clean if len(_ev_norm(q)) >= 6 and (_ev_norm(q) in passages_norm or field == 'stance' and lead_zones)
-                and (quote_zones is None or any(_ev_norm(q) in _ev_norm(z) for z in zones))]
+        return [q for q in clean if ((len(_ev_norm(q)) >= 6 and (_ev_norm(q) in passages_norm or field == 'stance' and lead_zones))
+                or _short_own_quote(q, passages_norm, real_own or names))
+                and (quote_zones is None or any(_ev_norm(q) in _ev_norm(z) or _short_own_quote(q, _ev_norm(z), real_own or names) for z in zones))]
 
     def supports(field, q):
         if not _VQ_FAMILY[field].search(q):
             return False
         if field in ('buy_today', 'sell_today') and _VQ_PAST.search(q) and not _VQ_TODAY.search(q):
             return False
-        if field in ('buy_today', 'sell_today') and own and not any(n in _ev_norm(q) for n in own):
+        if field in ('buy_today', 'sell_today') and own and not any(n in _ev_norm(q) for n in (real_own or own)):
             return False
+        if field == 'past_trade' and real_own:
+            restored_segs = (answer.get('_verified_quote_sources') or {}).get(field) or []
+            if not any(n in _ev_norm(q) for n in real_own) and not any(n in _ev_norm(s) for s in restored_segs for n in real_own):
+                return False
         if field in ('buy_today', 'sell_today') and not execution_statement(q, 'buy' if field == 'buy_today' else 'sell'):
             return False
         if field in ('buy_today', 'sell_today', 'holding_now') and _VQ_HYPOTHETICAL.search(q):
@@ -14157,8 +14187,9 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
         or answer.get('now') in ('buy_ok', 'conditional')
         # 2026/10/28 環球晶、國巨：同一份答案說「陪襯」又說本股有獨立分析、現在不能買，分析引句也核對過——
         # 角色欄與事實欄矛盾時以核對過的本股分析為準；只有立場引句、沒有獨立分析的照舊算陪襯
-        or (bool(analysis) and (answer.get('entry_for_new') in ('prohibit', 'not_yet')
-                                or answer.get('now') in ('prohibit', 'not_yet')))
+        or (bool(analysis) and answer.get('content_role') != 'historical_only'
+            and (answer.get('entry_for_new') in ('prohibit', 'not_yet')
+                 or answer.get('now') in ('prohibit', 'not_yet')))
         # 模型選「陪襯」時會一併把獨立分析填 false，破底、套牢的原句放在立場欄（2026/10/28 環球晶、國巨）：
         # 沒有過去買賣、不是選股範圍的明確排除、明講現在不能買且偏空、立場原句是本股具體的話（12 字以上），也算本股觀點
         or (answer.get('content_role') == 'comparison_only' and not past
@@ -14166,14 +14197,15 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
             and (answer.get('entry_for_new') in ('prohibit', 'not_yet') or answer.get('now') in ('prohibit', 'not_yet'))
             and answer.get('tone') == 'bearish'
             and any(len(_ev_norm(q)) >= 12 for q in stance)))
-    # 2026/10/28 聖暉：拿已賣出的股票回顧當初賣得好、笑套牢的人今天解套，沒有對本股的當下分析——是回顧，不是當日觀望不碰
+    # 2026/10/28 聖暉：拿已賣出的股票回顧當初賣得好、笑套牢的人今天解套，模型已將全文角色標為 historical_only（只回顧），
+    # 即使順帶將套牢教學填為 prohibit/bearish，只要沒有給本股新的買進/等待條件或續抱指令，均屬歷史回顧
     if past and not analysis and answer.get('content_role') in ('historical_only', 'comparison_only') \
             and answer.get('entry_for_new') not in ('allow', 'wait_condition'):
         return 'history', '只回顧過去的買賣與對照，沒有本股的當下分析：' + first('past_trade')
-    if past and answer.get('content_role') == 'historical_only' and answer.get('entry_for_new') in (None, 'none') \
-            and answer.get('now') in (None, 'none') and answer.get('holder_advice') in (None, 'none'):
-        # 模型把「當初賣在這邊」的回顧句也填進分析欄，但沒有任何當日進場、禁買或續抱指令：仍是回顧
-        return 'history', '只回顧過去的買賣，沒有當日的進場或持有指令：' + first('past_trade')
+    if past and answer.get('content_role') == 'historical_only' \
+            and answer.get('entry_for_new') not in ('allow', 'wait_condition') \
+            and answer.get('holder_advice') not in ('hold', 'hold_rebound'):
+        return 'history', '只回顧過去的買賣，全文角色為歷史回顧：' + first('past_trade')
     if answer.get('content_role') == 'ordinary_word' or (
             answer.get('content_role') in ('position_disclosure', 'selection_scope', 'comparison_only')
             and not has_active_view):
@@ -14194,12 +14226,21 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
     if holder == 'hold_rebound':
         now = 'conditional'  # 人類明定反彈等待優先，仍保留本人無新買意願。
     intent = answer.get('selection_intent')
-    if intent == 'positive_candidate' and entry not in ('not_yet', 'prohibit'):
+    # 收窄（2026/10/28 對照 10/27 實際答案）：群聯、宜鼎兩份「還不能買」的答案都明確答本股有獨立分析（還沒穩、不用急）；
+    # 「正式指令尚未發出、必須等執行授權」這類沒有本股分析的等待，仍是還不能買（既有契約）
+    if intent == 'positive_candidate' and entry != 'prohibit' and tone != 'bearish' and not (past and entry == 'not_yet') \
+            and (entry != 'not_yet' or answer.get('independent_analysis') is True):
+        # 10/27 群聯、宜鼎：正向觀察池（positive_candidate）等待止穩、尚不急出手（模型常填 not_yet + neutral），無歷史出場包袱時歸 conditional（觀望注意）；
+        # 10/27 世芯-KY 有 past_trade 且要求等通知勿輕舉妄動（past and entry == 'not_yet'），維持 not_yet（觀望不碰）。
         now = 'conditional'
     elif intent == 'authorization_pending':
         now = 'not_yet'
     elif intent == 'explicit_exclusion' and holder != 'hold_rebound' and (now in ('prohibit','not_yet') or tone == 'bearish'):
         now = 'prohibit'
+    # 只在模型明確答「沒有本股獨立分析」時才降：「現在不要進場，等正式動作」這類真正的還不能買，analysis 欄沒填就不動
+    if now == 'not_yet' and not analysis and answer.get('independent_analysis') is False and tone == 'neutral' and intent in (None, 'neutral'):
+        # 10/27 南亞科：「記憶體我目前還沒有買」僅為部位揭露（independent_analysis=false、tone=neutral、selection_intent=neutral），不升格為觀望不碰
+        now = 'none'
     if holder == 'hold_rebound':
         now = 'conditional'
     if holder == 'hold' and now == 'none' and tone != 'bearish' and answer.get('_recomputed_from_holding'):
@@ -14278,6 +14319,8 @@ def verdict_settle(current, votes, last=False, open_position=False):
     got = [v for v in votes if v]
     if open_position and len(got) >= 2 and 'holdings' in got and set(got) <= {'holdings','watch_watch'}:
         return '定案', 'holdings', '本股正向分析已有共識，既有部位與有效續抱票採持股主列'
+    if current in _VERDICT_HIDDEN and len(got) >= 2 and set(got) <= {'ignored', 'history'}:
+        return '定案', got[0], '兩輪有效票均為不公開（排除／回顧），不額外消耗第 3 輪'
     if got:
         top = max(dict.fromkeys(got), key=got.count)
         count = sum(1 for v in got if same(v, top))
@@ -14390,7 +14433,7 @@ def verdict_response_schema(expected_ids=None):
 # 裁決快取以（段落指紋, 版號）為鍵。改了提示詞或答案格式卻忘了升版，正式流程會沿用舊提示詞的票（2026/10/28 審閱指出：
 # v39 之後又改了提示詞，版號沒動）。版號後面自動接提示詞與格式的指紋，內容一變快取就失效；人工裁決不綁版號，不受影響。
 # 引句怎樣算對得回原文也會改變哪些票有效：驗證器版本一起進指紋（2026/10/28 審閱）
-QUOTE_VERIFIER_VERSION = 'q3-20261028-whole-source-clauses'
+QUOTE_VERIFIER_VERSION = 'q4-20261028-post-dadb8165f-role-and-trade-guards'
 VERDICT_VERSION = VERDICT_VERSION + '+' + hashlib.sha256(
     (ADJUDICATE_SYSTEM + json.dumps(verdict_response_schema(), ensure_ascii=False, sort_keys=True)
      + QUOTE_VERIFIER_VERSION).encode('utf-8')).hexdigest()[:8]
@@ -14422,6 +14465,11 @@ def _questionnaire_issues(answer, transcript, names):
             # 條件欄是 2026/10/28 新加的輔助題：引句對不回只當沒有條件（verdict_class 不採用 conditional），不讓整份答案作廢，留欄位警告
             if active and verified == [] and isinstance(answer, dict):
                 answer.setdefault('_field_warnings', []).append('condition的引句對不回所選原段，不採用等待條件')
+            continue
+        if field == 'past_trade' and active and verified == [] and isinstance(answer, dict) \
+                and (_questionnaire_verified_quotes(answer, 'holding_now', list(names or ()) + [str(answer.get('id') or '')])
+                     or _questionnaire_verified_quotes(answer, 'stance', list(names or ()) + [str(answer.get('id') or '')])):
+            answer.setdefault('_field_warnings', []).append('past_trade的引句對不回所選原段，不採用歷史買賣欄')
             continue
         if active and verified == []:
             issues.append(field + '的節錄不在所選連續原段；請逐字引用相鄰S／單一N，不改ASR、不加省略號；也可quotes留空而僅填真正支持該題的完整原段編號，須再核主體。不得用來源編號替改寫背書')
@@ -14931,10 +14979,16 @@ def apply_verdicts(signals, date_str, final=False):
                 text = ''                                  # 排除理由不是公開說明；留空，由補充說明依本股原句寫
                 moved['_leftover'] = True
             elif cat in SIGNAL_CATEGORIES and target in SIGNAL_CATEGORIES and not final:
-                # 原說明是照另一類寫的（由會員持股改列觀望注意的金山電，說明還寫「續抱」）：收起來當備用，交給補充說明照新的分類重寫。
-                moved['_reason_before'] = text
-                text = ''
-                moved['_leftover'] = True
+                if row.get('_原分類') == target and str(row.get('_reason_before') or '').strip():
+                    # 中途被當日成交等規則暫移他類、裁決又退回原分類（如 10/28 世芯-KY）：還原原本針對該分類寫好的說明
+                    text = str(row.get('_reason_before')).strip()
+                    moved.pop('_leftover', None)
+                    moved.pop('_guard_note', None)
+                else:
+                    # 原說明是照另一類寫的（由會員持股改列觀望注意的金山電，說明還寫「續抱」）：收起來當備用，交給補充說明照新的分類重寫。
+                    moved['_reason_before'] = text
+                    text = ''
+                    moved['_leftover'] = True
             if target == 'holdings':
                 for k in ('when', 'event_date', 'time_evidence', 'reason'):
                     moved.pop(k, None)
@@ -15430,7 +15484,7 @@ _HEARD_STOCK_CUE = re.compile(r'新高|新低|股票|漲|跌|抱|買|賣|季線|
 # 同音寫法要用得像股名：前面是句首、標點或「叫做／買／賣／的／是」，後面是標點、KY、代號或「有沒有、現在、創新…」。
 # 「大買點」「金的股票」「之上」「一家公司」這種日常用語前後都接著別的字，不算（2026/10/16 回測）。
 _HEARD_BEFORE = re.compile(r'(?:^|[，,。！？!?、：:；;\d]|叫做|買|賣|的|是|注意|看)$')
-_HEARD_ORDINARY = re.compile(r'的|^[一這那][家支隻檔張]')     # 「1580買進的」「當一家大漲之後」
+_HEARD_ORDINARY = re.compile(r'的|^[一這那][家支隻檔張]|^大[賣買漲跌]$|^[億萬千百][假真多]?$')     # 「1580買進的」「當一家大漲之後」「ETF大賣」「7200億假的」
 _HEARD_AFTER = re.compile(r'(?:[，,。！？!?、：:；;\d]|KY|-KY|有沒有|現在|先漲|還在|未來|創新|最近|沿著|$)')
 
 
@@ -17651,6 +17705,9 @@ def _validated_source_review(item, row, old, transcript):
                     elif status == 'cross_entity' and foreign_subject:
                         valid = False  # 兩個語意核對有實質矛盾，不能靜默推翻。
                         why.append('事實帳本屬本股，審閱回覆卻判為他股')
+                    elif reply_status == 'insufficient':
+                        valid = False  # 審閱模型已明確判定該主張不足（如反話示範或過度推論），不以匿名對齊強行覆寫為 supported
+                        why.append('審閱模型判為不足，不以匿名對齊覆寫放行')
                     else:
                         status, subject_code, subject = 'supported', own_code, str(row.get('name') or '')
                         quote = '\n'.join(f['source_quote'] for f in bound)
@@ -17736,7 +17793,13 @@ def _project_supported_claims(signals, row, field, review):
     old = str(row.get(field) or '').strip()
     if review.get('text_sha256') != hashlib.sha256(old.encode()).hexdigest():
         return False
-    new = '。'.join(c['text'].strip('，,；;。') for c in kept if c['text'].strip('，,；;。')) + '。'
+    pieces = [c['text'].strip('，,；;。') for c in kept if c['text'].strip('，,；;。')]
+    if pieces:
+        pieces[0] = re.sub(r'^(?:但|但是|不過|然而|而|且|並且)[，,]?', '', pieces[0]).strip()
+        disp = _display_name(row.get('name'))
+        if disp and disp not in pieces[0]:
+            pieces[0] = disp + pieces[0]
+    new = '。'.join(pieces) + '。'
     withheld = [dict(c) for c in claims if c.get('status') != 'supported']
     row['_source_projection'] = {'original_text': old, 'input_review': dict(review),
         'withheld_claims': withheld, 'retained_claim_ids': [c['id'] for c in kept],

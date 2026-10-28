@@ -23,15 +23,30 @@ def run_batch(sig, transform=lambda entry, answer:answer):
             answer={'id':e['id'],'text':e['text'],'meaning_preserved':True,'source_supported':True,'category_consistent':True,'written_style_ok':True,'issues_found':[]}
             answers.append(transform(e,answer))
         return json.dumps({'texts':answers},ensure_ascii=False)
-    with patch.object(pl,'call_gemini',side_effect=fake),patch.object(pl,'budget_left',return_value=9999),patch.object(pl,'GEMINI_KEYS',['offline']),patch.dict(pl._QUOTA_STOP,{'daily':False}):
+    # 此契約隔離公開編輯批次；獨立原稿主體盤點另由test_source_fact_ledger驗證，不以同一份編輯假回覆冒充兩階段。
+    with patch.object(pl,'source_claim_ledger',return_value=None),patch.object(pl,'call_gemini',side_effect=fake),patch.object(pl,'budget_left',return_value=9999),patch.object(pl,'GEMINI_KEYS',['offline']),patch.dict(pl._QUOTA_STOP,{'daily':False}):
         out=pl.polish_public_texts(sig,'我有甲公司，成本100元。乙公司在箱型下緣。大盤回測60分K線。','2026/10/16')
     return out,calls
 
 class PublicBatchContract(unittest.TestCase):
+    def test_missing_batch_items_are_retried_once_without_replaying_completed_rows(self):
+        calls=[]
+        def model(system,payload,**kwargs):
+            items=json.loads(payload)['texts'];calls.append([e['id'] for e in items])
+            if len(calls)==1:items=items[:1]
+            return json.dumps({'texts':[dict(id=e['id'],text=e['text'],meaning_preserved=True,
+                source_supported=True,category_consistent=True,written_style_ok=True) for e in items]})
+        with patch.object(pl,'source_claim_ledger',return_value=None),patch.object(pl,'call_gemini',side_effect=model),patch.object(pl,'budget_left',return_value=9999),patch.object(pl,'GEMINI_KEYS',['offline']):
+            pl.polish_public_texts(fixture(),'我有甲公司，成本100元。乙公司在箱型下緣。大盤回測60分K線。','2026/10/16')
+        self.assertEqual(calls,[['n0','n1','n2'],['n1','n2']])
+
     def test_neutral_and_unknown_spelling_both_reviewed_once(self):
         out,calls=run_batch(fixture())
         self.assertEqual(len(calls),1);self.assertEqual(len(calls[0]['texts']),3)
-        self.assertIn('source',calls[0]);self.assertEqual(calls[0]['texts'][0]['evidence'],['我有甲公司，成本100元。'])
+        # 完整原稿以S編號只送一份，不在全文／逐項引句中反覆塞入同樣內容。
+        self.assertNotIn('source',calls[0])
+        self.assertEqual(''.join(s['text'] for s in calls[0]['sources'].values()),'我有甲公司，成本100元。乙公司在箱型下緣。大盤回測60分K線。')
+        self.assertTrue(all('evidence' not in e and 'context' not in e for e in calls[0]['texts']))
         self.assertTrue(out['holdings'][0]['_public_edit_review']['source_supported'])
     def test_semantic_rejection_does_not_move_or_rewrite_stock(self):
         before=fixture()
@@ -87,7 +102,7 @@ class PublicBatchContract(unittest.TestCase):
         self.assertFalse(pl._public_review_covers(row,'reason',tx+'來源變更'))
         row['reason']='另一段不同說明。'
         self.assertFalse(pl._public_review_covers(row,'reason',tx))
-    def test_denial_does_not_create_bullish_default(self):
+    def test_unanswered_denial_is_pending_without_bullish_default(self):
         class Book:
             def worksheet(self,name):raise KeyError(name)
         sig={k:[] for k in ('buy','sell','holdings','watch_watch','watch_avoid','history','uncertain','ignored')}
@@ -97,6 +112,8 @@ class PublicBatchContract(unittest.TestCase):
         with patch.object(pl,'_verdict_known',return_value=({},set(),{})),patch.object(pl,'_verdict_cache',return_value={}),patch.object(pl,'_CODE_MAP',{'3034':'聯詠','3592':'瑞鼎'}),patch.object(pl,'call_gemini',return_value='{"verdicts":[]}'),patch.object(pl,'budget_left',return_value=9999),patch.object(pl,'GEMINI_KEYS',['offline']),patch.dict(os.environ,{'CLASS_ADJUDICATION':'on'}):
             out=pl.adjudicate_classes(Book(),sig,tx,'2026/10/16',seen,seen)
         self.assertFalse(out['holdings']);self.assertFalse(out['watch_watch'])
-        self.assertEqual(out['_verdicts']['3034']['cls'],'ignored')
+        # 本例模擬三輪全部缺答；無持有／無看多仍成立，但不能冒稱模型確認排除。
+        self.assertEqual(out['_verdicts']['3034']['cls'],'uncertain')
+        self.assertTrue(out['_verdicts']['3034']['enforce'])
 
 if __name__=='__main__':unittest.main()

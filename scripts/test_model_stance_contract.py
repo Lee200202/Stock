@@ -4,6 +4,19 @@ from contextlib import ExitStack
 from unittest.mock import patch
 from test_source_fact_ledger import p
 class ModelStance(unittest.TestCase):
+ def test_content_role_precedes_a_mislabelled_entry_axis_without_keyword_matching(self):
+  raw='甲公司只是用來說明本人持有範圍。'
+  for role in ('position_disclosure','selection_scope','comparison_only'):
+   a={'about_itself':True,'content_role':role,'entry_for_new':'prohibit','now':'prohibit',
+      'quotes':{'stance':[raw]}}
+   self.assertEqual(p.verdict_class(a,p._ev_norm(raw),['甲公司'])[0],'ignored')
+   a['quotes']={};self.assertEqual(p.verdict_class(a,p._ev_norm(raw),['甲公司'])[0],'')
+
+ def test_actual_holding_fact_precedes_a_position_disclosure_role(self):
+  raw='甲公司會員持股繼續抱著。'
+  a={'about_itself':True,'content_role':'position_disclosure','holding_now':True,'quotes':{'holding_now':[raw]}}
+  self.assertEqual(p.verdict_class(a,p._ev_norm(raw),['甲公司'])[0],'holdings')
+
  def test_independent_neutral_analysis_is_observation_without_inventing_bullishness(self):
   raw='甲公司今日第一根反彈，後續觀察往季線的位置。'
   answer={'about_itself':True,'independent_analysis':True,'now':'none','tone':'neutral','entry_for_new':'none',

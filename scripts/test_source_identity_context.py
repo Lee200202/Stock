@@ -1,12 +1,46 @@
 """量詞、跨股切窗、通知原文及S編號引用的正反例，不呼叫模型。"""
 import copy
+import hashlib
 import json
 import unittest
 from unittest.mock import patch
+from contextlib import ExitStack
 from test_source_fact_ledger import p
 
 
 class IdentityContext(unittest.TestCase):
+    def test_notice_identity_candidate_reaches_questionnaire_when_transcript_has_no_literal_name(self):
+        raw='今天我們的同音股大漲。';notice='1111甲公司會員持股續抱。'
+        ctx={'date':'2026/10/27','transcript_sha256':hashlib.sha256(raw.encode()).hexdigest(),
+            'company_candidates':{'1111':'甲公司'},'notices':[{'original':notice}]}
+        sig={};seen=[]
+        def ask(items,date,round_no,transcript):
+            self.assertEqual(transcript,raw);seen.append(items)
+            return {'1111':{'about_itself':True,'content_role':'position_disclosure','holding_now':True,
+                'quotes':{},'_verified_quote_sources':{'holding_now':[notice]}}}
+        with ExitStack() as stack:
+            for name,value in {'_DAY_SOURCE_CONTEXT':ctx,'_CODE_MAP':{'1111':'甲公司'},
+                '_verdict_known':lambda *a,**k:({},set(),{}),'_verdict_cache':lambda *a,**k:{},
+                '_own_segments':lambda *a,**k:[],'_verdict_mark':lambda *a,**k:([],''),
+                '_audit_direct_verdicts':lambda *a,**k:[],'_ask_verdicts':ask,
+                'budget_left':lambda:9999,'GEMINI_KEYS':['offline']}.items():stack.enter_context(patch.object(p,name,value))
+            p._adjudicate_classes(None,sig,raw,'2026/10/27',{}, {},'on')
+        self.assertGreaterEqual(len(seen),2);self.assertEqual(sig['_verdicts']['1111']['cls'],'holdings')
+        self.assertEqual(sig['holdings'][0]['code'],'1111')
+
+    def test_notice_only_identity_is_a_hidden_candidate_not_a_preassigned_position(self):
+        raw='這段語音只出現同音異字。'
+        context={'date':'2026/10/27','transcript_sha256':hashlib.sha256(raw.encode()).hexdigest(),
+            'company_candidates':{'1111':'甲公司','2222':'乙公司'},'notices':[{'original':'1111甲公司會員持股續抱。'}]}
+        sig={}
+        with patch.object(p,'_DAY_SOURCE_CONTEXT',context):
+            p._add_notice_verdict_candidates(sig,raw,'2026/10/27')
+            p._add_notice_verdict_candidates(sig,raw,'2026/10/27')
+            self.assertEqual([r['code'] for r in sig['ignored']],['1111'])
+            self.assertFalse(sig.get('holdings'));self.assertFalse(sig.get('buy'))
+            self.assertEqual(sig['ignored'][0]['reason'],'')
+            other={};p._add_notice_verdict_candidates(other,raw+'變更','2026/10/27');self.assertFalse(other)
+
     def test_notice_identity_proof_is_local_and_cannot_reclassify_an_ordinary_word(self):
         notice='甲公司會員持股續抱。'
         answer={'about_itself':True,'quote_source_ids':{'holding_now':['N0001']},'_verified_quote_sources':{'holding_now':[notice]}}

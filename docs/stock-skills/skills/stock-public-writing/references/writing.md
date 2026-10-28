@@ -83,15 +83,15 @@
 依現行 `pipeline/pipeline.py`（函式名稱每次以 `rg -n "def 名稱"` 確認）：
 
 1. 補充說明：`enrich_stock_context`（提示詞 `STOCK_CONTEXT_SYSTEM`，一次合併多檔，逐句以 `source_ids` 對回原句）。
-2. 書面化：`polish_public_texts`（提示詞 `PUBLIC_EDIT_SYSTEM`；數字、技術名詞、股名、買賣方向不變才採用）。
-3. 清理：`strip_foreign_price_claims`、`strip_implausible_price_claims`（行情帶 0.4–2.2 倍；日 K 快取沒有的股票用上市櫃最近行情）、`strip_guessed_names_and_causes`、`strip_distant_company_names`、`strip_unsupported_time_clauses`、`drop_speaker_sentences`、`strip_macro_clauses`（`strip_macro_text`）、`drop_repeated_clauses`、`strip_leading_conjunctions`、`fill_empty_notes`。
+2. 來源與文字前處理：先完成可能改字的結構整理；價位異常、距離及技術詞只作查核線索，不能依行情帶刪句或換股。函式即使仍沿用 `strip_foreign_price_claims`、`strip_implausible_price_claims` 等舊名，也以當前是否只記cue的實作為準，不恢復舊文體或方向詞表。
+3. 最後書面化：`polish_public_texts` 對匿名主張直接讀完整來源、逐項附主體與原字證據，再由 `PUBLIC_EDIT_SYSTEM` 核對公開說明。主體衝突或來源漏項最多合批回查一次；未核附加主張若只留內部，保留短文仍須重新審閱。已核文字後續改字使指紋失效，不以更新hash代替語意核實。數字、公司與操作事實不可因文體改寫變動。
 4. 公開呈現：`public_narrative`（`strip_editorial_wrappers`、`_public_subject_fixes`、正式名稱與別名、連寫收斂）、通知列 `public_sms_note`。
 5. 會員通知優先的撰稿紀錄：`sms_first_article_records`；通知列說明在寫入階段由 `enrich_sms_notes_from_signals` 用同日原文補寫，同樣經過大盤子句清理。
 6. 已核對且原稿指紋、股票、來源、分類都相同的書面說明（答案檔 `reviewed_notes` 綁 `reviewed_notes_sha256`）沿用，避免同一份原稿每次套用都重寫。
 
 ## 9. 改寫規則時的驗收
 
-- 先寫最小反例單元測試（`tests/test_regression_MMDD.py`；`tests/` 在 .gitignore，不進版控）。
+- 先寫最小正反例並放入版控 `scripts/test_*.py`；不要把交接必需契約只留在被忽略的 `tests/`。
 - **對全部已發布說明回測**：從公開 API 讀 9/29 起每天的說明，套新規則，列出每一則被改動的前後文字；只能動到目標樣態。曾發生的回歸：自稱分類規則把「譜瑞-KY列觀望注意。」改成「譜瑞-KY。」——要整句刪而不是留下股名。
 - 套用後逐則讀 `print_public_texts` 的輸出（日誌「觀望注意　X（N 字）：…」行）與正式站讀回，查口語、殘句、借股、重講與大盤子句。
 - 答案檔可用 `note_must_not` 列某檔不得出現的說法；寫入後再讀回通知列說明（通知列說明在寫入階段才改寫，寫入前的比對看不到）。

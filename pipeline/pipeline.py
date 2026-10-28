@@ -13231,7 +13231,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v30-20261027-independent-analysis-role"          # 語意選股池與授權等待分軸；有效兩票多數，交易事實另行核對
+VERDICT_VERSION = "v31-20261028-notice-candidates-content-role"      # 身分候選、內容角色與當下立場分軸，事件仍核對原文
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 3                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -13249,6 +13249,7 @@ ADJUDICATE_SYSTEM = """你是原始金融節目及會員通知的事實裁決員
 - true：有本股獨立技術、量價、消息、風險、可行進場條件或追蹤判斷，或本人／會員的當日交易與現有部位陳述。
 - false：日常量詞／名詞誤當股票；只在列舉未持有或不在觀察池的對照組出現，全文無本股獨立分析；別股被借來比喻且無本股現況。僅「不是在看甲乙，主要看丙丁」不能將甲乙判成禁買。單說同族群漲停只是背景，不能把後面真正分析的另一檔推薦分給它。
 公司候選與open_position／known只是識別與部位歷史，不能證明某個日常詞就是該股。語音異字可用完整轉場、題材及原通知協助辨主體；不按股價接近或最近股名字距強猜，無法確認填unsure。不得新增跨日別名。
+另填content_role：independent_analysis=本股獨立現況／風險／操作條件；position_disclosure=只說本人有無持有；selection_scope=只界定自己看的是其他標的；comparison_only=未被獨立分析的陪襯；historical_only=只回顧；ordinary_word=日常詞；unclear=未定。只有position_disclosure或selection_scope，不能把「本人沒持有／我不看它」擴成禁買指令。若後文另有本股獨立分析，應以全文改填independent_analysis；已核實的當日交易／續抱事實另依事件欄保留。
 
 分開回答事件：
 buy_today／sell_today只在本人或會員當日已執行，或當日正式買入／賣出通知時為true。「如果買」「不准賣」「不能買」「以前賣」不算今日成交；第三人／觀眾的部位不算會員操作。明確較早日期的成交填past_trade，不用今天行情替它改日期。當日續抱通知不是買入通知。
@@ -13894,6 +13895,8 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
     if answer.get('about_itself') is False:
         return ('history', '只回顧過去的買賣') if past else ('ignored', '只被點名，沒有講這一檔自己的事')
     stance = real('stance')
+    if answer.get('content_role') in ('position_disclosure', 'selection_scope', 'comparison_only', 'ordinary_word'):
+        return ('ignored', '模型確認僅為部位／選股範圍或陪襯，無本股獨立分析') if stance else ('', '內容角色沒有可核原句')
     now, tone = str(answer.get('now') or 'none'), str(answer.get('tone') or 'neutral')
     # 新問卷分離空手進場與持有者建議；只映射結構化語意答案，不讀關鍵字決定方向。
     entry, holder = answer.get('entry_for_new'), answer.get('holder_advice')
@@ -14063,7 +14066,8 @@ def _audit_direct_verdicts(verdicts, direct_ctx, signals, transcript, date_str, 
 
 def verdict_response_schema():
     """約束完整事實題及雙軸欄位，不指定任何分類答案。"""
-    props = {'id': {'type': 'string'}, 'unsure': {'type': 'string'}}
+    props = {'id': {'type': 'string'}, 'unsure': {'type': 'string'},
+        'content_role': {'type': 'string', 'enum': ['independent_analysis','position_disclosure','selection_scope','comparison_only','historical_only','ordinary_word','unclear']}}
     props['independent_analysis'] = {'type': 'boolean'}
     for field in ('buy_today', 'sell_today', 'holding_now', 'past_trade', 'about_itself'):
         props[field] = {'type': 'boolean'}
@@ -14130,7 +14134,7 @@ def _ask_verdicts(items, date_str, round_no, transcript=''):
 def adjudicate_classes(ss, signals, transcript, date_str, first=None, reviewed=None):
     """把每一檔今天的分類分成直接歸類、一致通過、送裁決三層，結果記在 signals['_verdicts']，再照裁決改列。
 
-    這一步出任何錯都不擋流程：印一行、記一筆，分類維持規則處理後的樣子。
+    這一步出錯保留候選與錯誤紀錄；_classification_runtime_error會阻止正式發布。
     """
     mode = os.environ.get('CLASS_ADJUDICATION', '').strip().lower() or VERDICT_DEFAULT_MODE
     if mode == 'off':
@@ -14147,10 +14151,28 @@ def adjudicate_classes(ss, signals, transcript, date_str, first=None, reviewed=N
         return signals
 
 
+def _add_notice_verdict_candidates(signals, transcript, date_str):
+    """同日原通知具名但擷取漏列的公司，也送模型；不憑名稱直接補買賣或持股。"""
+    context = _DAY_SOURCE_CONTEXT
+    if (context.get('date') != date_str
+            or context.get('transcript_sha256') != hashlib.sha256(transcript.encode()).hexdigest()):
+        return
+    listed = {str(r.get('code') or '') for cat in _VERDICT_ORDER for r in signals.get(cat, []) or [] if isinstance(r, dict)}
+    for code, name in (context.get('company_candidates') or {}).items():
+        if code in listed or not re.fullmatch(r'[1-9]\d{3}', code) or not name:
+            continue
+        originals = [n['original'] for n in context.get('notices') or [] if n.get('original')
+                     and (_ev_norm(_display_name(name)) in _ev_norm(n['original']) or re.search(r'(?<!\d)' + re.escape(code) + r'(?!\d)', n['original']))]
+        if originals:
+            signals.setdefault('ignored', []).append({'code': code, 'name': name, 'reason': '', 'evidence': [],
+                'exclusion_reason': 'notice_identity_candidate', '_notice_candidate_sources': originals})
+
+
 def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode):
     import contextlib
     import io
     known, notice, open_positions = _verdict_known(ss, date_str, with_open=True)
+    _add_notice_verdict_candidates(signals, transcript, date_str)
     # 紀錄上還沒賣出的股票，今天原文有講到卻沒有任何一列（2026/10/02 重播：力積電「昨天買」被標成今天，日期核對後整列略過）：
     # 補一筆不公開的候選，和其他不公開的台股一樣交給裁決；沒有得到支持就留在不公開。
     listed = {str(r.get('code') or '') for cat in _VERDICT_ORDER for r in signals.get(cat, []) or [] if isinstance(r, dict)}
@@ -14248,6 +14270,9 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             entry['not_held'] = not_held
             entry.setdefault('not_held_fallback', 'ignored')
         sent, text = _verdict_mark(_own_segments(row, signals, transcript, 300, 500), names | {code})
+        if not text and row.get('_notice_candidate_sources'):
+            sent = [{'text': q, 'before': ''} for q in row['_notice_candidate_sources']]
+            text = '\n'.join(row['_notice_candidate_sources'])
         sent = sent[:10]
         if not text:
             if not_held:
@@ -16700,7 +16725,7 @@ def public_edit_response_schema():
         'type': 'object', 'properties': fields, 'required': list(fields)}}}, 'required': ['texts']}
 
 
-SOURCE_FACTS_VERSION = 'subject-first-v13-scoped-evidence-recheck-20261028'
+SOURCE_FACTS_VERSION = 'subject-first-v14-witness-subject-checks-20261028'
 SOURCE_FACTS_SYSTEM = """你是逐字稿事實與主體審核者。輸入只有原稿、公司識別候選及匿名字串檢索命中的段落編號，沒有待審股名與主張配對、分類或標準答案。
 每項fact的subject_codes恰好一個主體。共同結論可拆成兩項同引句、不同主體；「甲和股本小的乙」不能合成兩家公司都股本小的事實。逐一盤點指定段落內的最小事實，不只挑全文大意。當日通知原文若有提供，只供身分／事件參照，不得拿它補造原稿技術面。
 focus_source_ids是優先查核範圍，不是主體答案。逐一閱讀這些段落及前後文，完整列出每個主體各自的最小事實，特別避免只摘要整篇而漏掉指定段落的細節。檢索只證明字串相關，不能以命中、最近名稱或價格決定主體；仍由你判讀上下文，無法確認則列uncertain。
@@ -16848,6 +16873,7 @@ SOURCE_ALIGNMENT_SYSTEM = """你是原稿事實與匿名主張的對照員。que
 facts只是可能漏項的索引，不是原稿的完整事實。必須回讀完整sources，每個match直接附evidence：subject_code為原句真正主體、source_ids引用原稿S編號或原通知N編號、statement整理該主體的最小事實。證據直接放在所屬match內，勿另建無法連回主張的全域事實表。未出現在索引不等於來源沒有。
 coverage只在已讀完整原稿、該匿名主張的所有本股與他股支持都完成盤點時填complete，否則填partial。不能因只找到一個例子便宣稱其他公司都沒有。一般「目前不買」「續抱」可能有多檔，逐項列出，不能只挑一人。
 每個query的focus_source_ids只是匿名詞形檢索得到的原文及鄰段，先讀這些段落再回查全文；不是主體答案，也不限制證據只能在該處。匿名句可能同時適用多家公司，不知道待審公司是誰不代表insufficient；列出所有支持者交下輪比對。原句「不讓你買甲跟乙、現在又沒有要漲」應分別記錄甲、乙的共同立場，不因匿名或並列而漏掉。
+若query附witness_sources及subjects_to_check，這些公司只是原字提到的候選，請逐一回subject_checks，每個代號都回答supports_all_details。true須附該公司自己的statement及source_ids；false留空statement與source_ids。不能只檢查第一位或隨手挑一位。共同結論可能有兩人都true；同段另一人自己的EPS不共用。檢查清單沒有待審股名配對，不是要求所有公司都成立。
 每項回覆原樣複製query_text，並回答entails_all_details。只有事實支持主張全部細節（包括每個數字、時間、動作、條件）才可true及entailed。不同價格的下跌不能互換；目標價上調不等於跌24%；某句同有否定詞不等於同一主張。不完整支持一律insufficient，不能為配對而挑最相近的fact。
 逐項判斷哪些facts真正支持該匿名主張；fact.statement的主體與事實必須相符，source_quote只核對該主體的上下文，不得因同段另一家公司也說過某事就把它綁給本fact。
 例如某fact只說乙公司股本小，不能支持「目前沒有買進」；另一fact明講甲公司未買進才可。修飾只屬其中一人的特徵不能分享給並列成員。
@@ -16859,6 +16885,10 @@ def source_alignment_schema():
              'query_text': {'type': 'string'}, 'entails_all_details': {'type': 'boolean'},
              'coverage': {'type': 'string', 'enum': ['complete', 'partial']},
              'fact_ids': {'type': 'array', 'items': {'type': 'string'}},
+             'subject_checks': {'type': 'array', 'items': {'type': 'object', 'properties': {
+                 'subject_code': {'type': 'string'}, 'supports_all_details': {'type': 'boolean'},
+                 'source_ids': {'type': 'array', 'items': {'type': 'string'}}, 'statement': {'type': 'string'}},
+                 'required': ['subject_code','supports_all_details','source_ids','statement']}},
              'evidence': {'type': 'array', 'items': {'type': 'object', 'properties': {
                  'subject_code': {'type': 'string'}, 'source_ids': {'type': 'array', 'items': {'type': 'string'}},
                  'statement': {'type': 'string'}}, 'required': ['subject_code', 'source_ids', 'statement']}}}
@@ -16902,6 +16932,9 @@ def align_anonymous_claims(signals, transcript, ledger, source_hints=None):
                 if witnessed:
                     # 衝突重讀把逐字證人放在該匿名主張旁，不讓長全文／舊索引淹沒共同主體。
                     queries[-1]['witness_sources'] = {s: attribution_sources(transcript)[s] for s in witnessed}
+                    literal = _ev_norm(' '.join(attribution_sources(transcript)[s]['text'] for s in witnessed))
+                    queries[-1]['subjects_to_check'] = [code for code, forms in (ledger.get('company_candidates') or {}).items()
+                        if any(len(_ev_norm(n)) >= 2 and _ev_norm(n) in literal for n in ([code] + (forms if isinstance(forms, list) else [forms])))]
                 targets[key] = (bindings, claim)
     if not queries or budget_left() < 150:
         return
@@ -16911,22 +16944,23 @@ def align_anonymous_claims(signals, transcript, ledger, source_hints=None):
     known.update(str(row.get('code')) for cat in SIGNAL_CATEGORIES for row in signals.get(cat, []) or [] if row.get('code'))
     diagnostics = ledger.setdefault('alignment_batches', [])
     evidence_pass = ledger['alignment_passes'] = ledger.get('alignment_passes', 0) + 1
-    for index in range(0, len(queries), 16):
+    batch_size = 6 if source_hints else 16
+    for index in range(0, len(queries), batch_size):
         if budget_left() < 120:
             diagnostics.append({'requested': len(queries) - index, 'received': 0, 'deferred': 'time_budget'})
             break
-        batch = queries[index:index + 16]
+        batch = queries[index:index + batch_size]
         raw = call_gemini(SOURCE_ALIGNMENT_SYSTEM, json.dumps({'queries': batch,
             'facts': compact_source_facts(ledger), 'sources': attribution_sources(transcript),
             'company_candidates': {c: (_CODE_MAP or {}).get(c) or (ledger.get('company_candidates') or {}).get(c) for c in known}},
             ensure_ascii=False, separators=(',', ':')), want_json=True, thinking=1024,
-            tag='source-align', max_out=min(MAX_OUT, 2500 + 420 * len(batch)))
+            tag='source-align', max_out=min(MAX_OUT, 2500 + (800 if source_hints else 420) * len(batch)))
         data = safe_load_json(raw, default={})
         data = data if isinstance(data, dict) else {}
         extra = _validate_source_facts({'facts': data.get('additional_facts') or []}, transcript, known)
         remap = {}
         for fid, fact in extra['facts'].items():
-            new_id = f'A{evidence_pass}-{index // 16 + 1}-{fid}'
+            new_id = f'A{evidence_pass}-{index // batch_size + 1}-{fid}'
             ledger['facts'][new_id] = dict(fact, id=new_id)
             remap[fid] = new_id
         received = [m for m in data.get('matches', []) or [] if isinstance(m, dict)]
@@ -16935,9 +16969,19 @@ def align_anonymous_claims(signals, transcript, ledger, source_hints=None):
             # 模型不必為新事實維護外鍵：每項主張自己攜帶證據，由程式發唯一ID。
             embedded = []
             if match.get('id') in {q['id'] for q in batch}:
-                for n, evidence in enumerate(match.get('evidence') or []):
+                query = next(q for q in batch if q['id'] == match['id'])
+                checks_for_subject = [c for c in match.get('subject_checks') or [] if isinstance(c, dict)]
+                requested_subjects = query.get('subjects_to_check') or []
+                complete_subjects = all(len([c for c in checks_for_subject if c.get('subject_code') == code and isinstance(c.get('supports_all_details'), bool)]) == 1 for code in requested_subjects)
+                match['subject_inventory_complete'] = complete_subjects
+                if not complete_subjects:
+                    match['coverage'] = 'partial'
+                evidence_rows = list(match.get('evidence') or [])
+                evidence_rows += [dict(subject_code=c.get('subject_code'), source_ids=c.get('source_ids'), statement=c.get('statement'))
+                    for c in checks_for_subject if c.get('subject_code') in requested_subjects and c.get('supports_all_details') is True]
+                for n, evidence in enumerate(evidence_rows):
                     if isinstance(evidence, dict):
-                        embedded.append(dict(id=f"E{evidence_pass}-{index // 16 + 1}-{match['id']}-{n + 1}",
+                        embedded.append(dict(id=f"E{evidence_pass}-{index // batch_size + 1}-{match['id']}-{n + 1}",
                             subject_codes=[evidence.get('subject_code')], source_ids=evidence.get('source_ids'),
                             statement=evidence.get('statement')))
             validated = _validate_source_facts({'facts': embedded}, transcript, known)
@@ -16962,6 +17006,7 @@ def align_anonymous_claims(signals, transcript, ledger, source_hints=None):
         checks.append({'query_id': key, 'relation': match.get('relation'), 'query_echo_match': echo_ok,
             'details_complete': match.get('entails_all_details'), 'coverage': match.get('coverage'),
             'fact_ids': ids, 'evidence_rejected_count': match.get('evidence_rejected_count', 0),
+            'subject_inventory_complete': match.get('subject_inventory_complete'),
             'query_sha256': hashlib.sha256(expected_query.encode()).hexdigest()})
         if (match.get('relation') == 'entailed' and echo_ok
                 and match.get('entails_all_details') is True

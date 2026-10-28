@@ -99,6 +99,36 @@
             "序準"
           ],
           "原始語音名稱": "訊準"
+        },
+        {
+          "code": "8299",
+          "name": "群聯",
+          "category": "watch_avoid",
+          "note": "記憶體族群低檔將至，群聯目前尚未走穩。對記憶體族群暫無出手念頭，保持觀望。",
+          "aliases": [],
+          "draft_sha256": "d10912e4867140722d35334fbbd02e8bd34a000f50494add15f772302dca8c74",
+          "require_final_verified": true,
+          "provenance": "40615953338 保存模型待核草稿；來源階段用固定輸入，不回填分類答案"
+        },
+        {
+          "code": "5289",
+          "name": "宜鼎",
+          "category": "watch_avoid",
+          "note": "記憶體族群走勢尚未那麼快轉強。宜鼎目前不用急著介入，持續觀望。",
+          "aliases": [],
+          "draft_sha256": "446b562ad1cb3d646739fe9abf8205a7dfc9c17284c6f7a9eb8cc0c15270d910",
+          "require_final_verified": true,
+          "provenance": "40615953338 保存模型待核草稿；來源階段用固定輸入，不回填分類答案"
+        },
+        {
+          "code": "2049",
+          "name": "上銀",
+          "category": "watch_watch",
+          "note": "上銀今天第一天漲停板，股價逐步往季線走高。若想尋找低檔標的，可不用管大盤跌勢好好注意此類低基期個股。",
+          "aliases": [],
+          "draft_sha256": "9e5a3141b88ceb35a84e2d1e03c164d88c4f1288c475a555413b7bbc6eb105c1",
+          "require_final_verified": true,
+          "provenance": "40615953338 保存模型待核草稿；來源階段用固定輸入，不回填分類答案"
         }
       ],
       "verdict_probes": [
@@ -115,9 +145,30 @@
           "expected_categories": [
             "watch_watch"
           ]
+        },
+        {
+          "code": "2303",
+          "name": "聯電",
+          "expected_categories": [
+            "ignored"
+          ]
+        },
+        {
+          "code": "2408",
+          "name": "南亞科",
+          "expected_categories": [
+            "ignored"
+          ]
+        },
+        {
+          "code": "6409",
+          "name": "旭隼",
+          "expected_categories": [
+            "holdings"
+          ]
         }
       ],
-      "scope": "3份保存模型草稿的來源階段，加2身分全稿裁決；不等於整日分類或發布驗收。"
+      "scope": "6份保存模型說明的來源核對，加5身分全稿裁決；非整日驗收。沒有為通過而修改原期待。"
     }
   ]
 }

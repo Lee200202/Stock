@@ -2357,7 +2357,8 @@ def _call_gemini_only(system_text, user_text, want_json=False, thinking=0, max_o
             if response_schema and not schema_override_failed and _SCHEMA_STATE['on']:
                 body['generationConfig']['responseJsonSchema'] = response_schema
             tries += 1
-            _GEMINI_CALLS['http'] = _GEMINI_CALLS.get('http', 0) + 1
+            with _GEMINI_LOCK:
+                _GEMINI_CALLS['http'] = _GEMINI_CALLS.get('http', 0) + 1
             r = requests.post(gemini_url(model), params={"key": key},
                               json=body, timeout=600)
         except requests.RequestException as e:
@@ -13247,7 +13248,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v33-20261028-explicit-neutral-evidence-first"    # 明確中性是有效票；缺答與缺證仍隔離
+VERDICT_VERSION = "v34-20261028-reconcile-inconsistent-evidence"    # 矛盾答案同批修復一次，不增加投票槽
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 3                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -13855,6 +13856,8 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
     own = [_ev_norm(n) for n in names if len(_ev_norm(n)) >= 2]
     if not isinstance(answer, dict):
         return '', '沒有答案'
+    if answer.get('_validation_issues'):
+        return '', '同份問卷的事實與主體／引用矛盾，補核仍未完成：' + '；'.join(answer['_validation_issues'])[:180]
     quotes = answer.get('quotes') if isinstance(answer.get('quotes'), dict) else {}
 
     def real(field):
@@ -14119,12 +14122,35 @@ def verdict_response_schema(expected_ids=None):
     return {'type': 'object', 'properties': {'verdicts': verdicts}, 'required': ['verdicts']}
 
 
-def _ask_verdicts(items, date_str, round_no, transcript=''):
+def _questionnaire_issues(answer, transcript, names):
+    """核同份回答自相矛盾及事件引用失敗，不從詞形指定觀望方向。"""
+    if not isinstance(answer, dict):
+        return ['本id沒有回覆']
+    issues = []
+    if answer.get('about_itself') is False and any(answer.get(f) is True for f in ('buy_today','sell_today','holding_now','independent_analysis')):
+        issues.append('about_itself=false，卻同時肯定本股當日事件、現持部位或獨立分析；請重讀全文並使事實欄一致，可保留不確定')
+    if answer.get('content_role') in ('comparison_only','selection_scope','ordinary_word','historical_only') and answer.get('independent_analysis') is True:
+        issues.append('內容角色只屬陪襯／背景／歷史，卻勾現在有獨立分析；請核各段真正主體與時間')
+    for field, category in (('buy_today','buy'),('sell_today','sell'),('holding_now','holdings')):
+        if answer.get(field) is not True:
+            continue
+        probe = dict(answer, about_itself=True, content_role='independent_analysis', independent_analysis=False)
+        probe.pop('_validation_issues',None)
+        for other in ('buy_today','sell_today','holding_now'):
+            probe[other] = other == field
+        if verdict_class(probe, _ev_norm(transcript), names)[0] != category:
+            issues.append(field + '=true，但目前引用未通過事件事實核對；請回讀所有原稿／原通知，選真正支持該題的原句，無證據可改false或保留未定')
+    return issues
+
+
+def _ask_verdicts(items, date_str, round_no, transcript='', repair=True):
     """問一輪。items 是 [(代號, 項目)]；回傳 {代號: 問卷答案}。問不到的那一批回空的，不擋流程。"""
     answers = {}
+    failed_request_ids = set()
     order = items[round_no % len(items):] + items[:round_no % len(items)] if items else []   # 每一輪換順序，位置不影響答案
     stocks = [(code, {'id': code, 'date': item.get('date') or date_str, 'name': _display_name((_CODE_MAP or {}).get(code) or item['name']), 'heard': item['heard'],
-                      'known': item['known'], 'open_position': item.get('_open_position'), 'passages': item['passages']}) for code, item in order]
+                      'known': item['known'], 'open_position': item.get('_open_position'), 'passages': item['passages'],
+                      'answer_validation': item.get('_answer_validation')}) for code, item in order]
     batches, size = [[]], 0
     for code, stock in stocks:                               # 依字數裝箱：能一個請求送完就不拆
         length = len(json.dumps(stock, ensure_ascii=False))
@@ -14145,11 +14171,12 @@ def _ask_verdicts(items, date_str, round_no, transcript=''):
             'day_notification_context': _DAY_SOURCE_CONTEXT if _DAY_SOURCE_CONTEXT.get('date') == date_str else {}}, ensure_ascii=False, separators=(',', ':'))
         try:
             raw = call_gemini(ADJUDICATE_SYSTEM, payload, want_json=True, thinking=1024,
-                              tag=f'adjudicate-r{round_no + 1}', max_out=min(MAX_OUT, 3000 + 450 * len(batch)),
+                              tag=f'adjudicate-r{round_no + 1}' + ('' if repair else '-repair'), max_out=min(MAX_OUT, 3000 + 450 * len(batch)),
                               response_schema=verdict_response_schema([code for code, _ in batch]))
             data = safe_load_json(raw, default={})
         except Exception as e:
             print(f"  分類裁決　第 {round_no + 1} 輪有一批問不到（{type(e).__name__}: {str(e)[:60]}），這幾檔維持原分類")
+            failed_request_ids.update(code for code, _ in batch)
             continue
         replies = (data.get('verdicts') if isinstance(data, dict) else None) or []
         counts = {}
@@ -14160,6 +14187,7 @@ def _ask_verdicts(items, date_str, round_no, transcript=''):
         for v in replies:
             if isinstance(v, dict) and str(v.get('id') or '') in dict(batch) and counts.get(str(v.get('id') or '')) == 1:
                 v.pop('_verified_quote_sources', None)
+                v.pop('_validation_issues', None)
                 restored = {}
                 source_ids = v.get('quote_source_ids') if isinstance(v.get('quote_source_ids'), dict) else {}
                 for field, ids in source_ids.items():
@@ -14168,6 +14196,27 @@ def _ask_verdicts(items, date_str, round_no, transcript=''):
                 if restored:
                     v['_verified_quote_sources'] = restored
                 answers[str(v['id'])] = v
+    retry = []
+    for code, item in items:
+        if code in failed_request_ids:
+            continue
+        answer = answers.get(code)
+        names = [item['name'],code] + list(item.get('heard') or [])
+        issues = _questionnaire_issues(answer, transcript, names)
+        if issues:
+            if isinstance(answer,dict):
+                answer['_validation_issues'] = issues
+            if repair:
+                retry.append((code, dict(item, _answer_validation={'issues':issues,
+                    'previous_answer':{k:v for k,v in (answer or {}).items() if not k.startswith('_')},
+                    'instruction':'只修復事實欄自相矛盾或無法核回的引句，不提供期待分類；請重讀全部S/N來源，也可維持不確定。這是同一票補核，不是新的一票。'})))
+    if retry and budget_left() >= 150 and not _QUOTA_STOP.get('daily'):
+        corrected = _ask_verdicts(retry,date_str,round_no,transcript,repair=False)
+        for code, item in retry:
+            if code in corrected:
+                prior = answers.get(code)
+                answers[code] = corrected[code]
+                answers[code]['_answer_repair'] = {'previous_answer':prior,'checks':item['_answer_validation']['issues'],'replaces_same_vote':True}
     return answers
 
 

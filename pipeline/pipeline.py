@@ -16700,7 +16700,7 @@ def public_edit_response_schema():
         'type': 'object', 'properties': fields, 'required': list(fields)}}}, 'required': ['texts']}
 
 
-SOURCE_FACTS_VERSION = 'subject-first-v12-evidence-conflict-20261028'
+SOURCE_FACTS_VERSION = 'subject-first-v13-scoped-evidence-recheck-20261028'
 SOURCE_FACTS_SYSTEM = """你是逐字稿事實與主體審核者。輸入只有原稿、公司識別候選及匿名字串檢索命中的段落編號，沒有待審股名與主張配對、分類或標準答案。
 每項fact的subject_codes恰好一個主體。共同結論可拆成兩項同引句、不同主體；「甲和股本小的乙」不能合成兩家公司都股本小的事實。逐一盤點指定段落內的最小事實，不只挑全文大意。當日通知原文若有提供，只供身分／事件參照，不得拿它補造原稿技術面。
 focus_source_ids是優先查核範圍，不是主體答案。逐一閱讀這些段落及前後文，完整列出每個主體各自的最小事實，特別避免只摘要整篇而漏掉指定段落的細節。檢索只證明字串相關，不能以命中、最近名稱或價格決定主體；仍由你判讀上下文，無法確認則列uncertain。
@@ -16895,9 +16895,13 @@ def align_anonymous_claims(signals, transcript, ledger, source_hints=None):
                     text = text.replace(name, '')
                 key = f'Q{len(queries) + 1:04d}'
                 focus = _source_claim_focus({'watch_watch': [{'reason': text}]}, transcript, {})
-                focus += (source_hints or {}).get(hashlib.sha256(claim['text'].encode()).hexdigest(), [])
+                witnessed = (source_hints or {}).get(hashlib.sha256(claim['text'].encode()).hexdigest(), [])
+                focus = witnessed + focus
                 focus = list(dict.fromkeys(s for s in focus if s in attribution_sources(transcript)))
                 queries.append({'id': key, 'text': text, 'focus_source_ids': focus})
+                if witnessed:
+                    # 衝突重讀把逐字證人放在該匿名主張旁，不讓長全文／舊索引淹沒共同主體。
+                    queries[-1]['witness_sources'] = {s: attribution_sources(transcript)[s] for s in witnessed}
                 targets[key] = (bindings, claim)
     if not queries or budget_left() < 150:
         return
@@ -17312,7 +17316,7 @@ def _reconcile_source_evidence(items, pending, transcript, ledger):
             continue
         supplied = (item.get('source_review') or {}).get('claims') or []
         missing = {c['id'] for c in review.get('claims', []) if c.get('status') != 'supported'}
-        valid_hints = {}
+        valid_hints, disputed = {}, []
         for claim in _note_claims(old):
             candidates = [c for c in supplied if isinstance(c, dict) and c.get('id') == claim['id']]
             if claim['id'] not in missing or len(candidates) != 1:
@@ -17320,17 +17324,30 @@ def _reconcile_source_evidence(items, pending, transcript, ledger):
             ids = candidates[0].get('source_ids')
             if isinstance(ids, list) and 1 <= len(ids) <= 4 and all(isinstance(s, str) and s in parts for s in ids):
                 valid_hints[hashlib.sha256(claim['text'].encode()).hexdigest()] = ids
+                disputed.append(claim)
         if valid_hints:
             row['_source_evidence_recheck'] = {'status': 'requested', 'prior_review': review}
             probe = dict(row);probe.pop('_source_claim_bindings', None)
-            probes.append(probe);originals.append((row, probe));hints.update(valid_hints)
+            probe.pop('note', None);probe['reason'] = '。'.join(c['text'] for c in disputed) + '。'
+            probes.append(probe);originals.append((row, probe, disputed));hints.update(valid_hints)
     if not probes or budget_left() < 150 or _QUOTA_STOP.get('daily'):
         return
     # 原回覆只提供原字段落作檢索證人，不提供本股／標準答案；新模型仍須讀全文判主體。
-    align_anonymous_claims({'watch_watch': probes}, transcript, ledger, source_hints=hints)
-    for row, probe in originals:
+    # 重讀不帶前輪摘要作答案，僅讀完整來源、候選身分及爭議原句。
+    fresh_ledger = _validate_source_facts({}, transcript, set(ledger.get('company_candidates') or {}))
+    fresh_ledger.update(company_candidates=ledger.get('company_candidates') or {},
+        alignment_passes=ledger.get('alignment_passes', 0))
+    align_anonymous_claims({'watch_watch': probes}, transcript, fresh_ledger, source_hints=hints)
+    ledger['facts'].update(fresh_ledger['facts'])
+    ledger['alignment_passes'] = fresh_ledger.get('alignment_passes', ledger.get('alignment_passes', 0))
+    for key in ('alignment_checks', 'alignment_batches'):
+        ledger.setdefault(key, []).extend(fresh_ledger.get(key) or [])
+    ledger['rejected_count'] = ledger.get('rejected_count', 0) + fresh_ledger.get('rejected_count', 0)
+    for row, probe, disputed in originals:
         old = (row.get('_source_claim_bindings') or {}).get('claims') or {}
-        fresh = (probe.get('_source_claim_bindings') or {}).get('claims') or {}
+        received = (probe.get('_source_claim_bindings') or {}).get('claims') or {}
+        fresh = {c['id']: candidate for c in disputed for candidate in received.values()
+                 if candidate.get('text_sha256') == hashlib.sha256(c['text'].encode()).hexdigest()}
         row['_source_claim_bindings'] = {'source_sha256': hashlib.sha256(transcript.encode()).hexdigest(),
             'claims': dict(old, **fresh)}
         row['_source_evidence_recheck'].update(status='completed', rebound_claim_ids=list(fresh))

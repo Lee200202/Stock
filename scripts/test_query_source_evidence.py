@@ -46,7 +46,9 @@ class QueryEvidence(unittest.TestCase):
   reply=dict(id='n0',source_review={'claims':[dict(id='c0',status='supported',subject='甲公司',subject_code='1111',source_ids=['S0001'],explanation='兩檔共同的當下限制')]})
   self.assertEqual(p._validated_source_review(reply,row,text,raw)['status'],'insufficient')
   def answer(system,payload,**kw):
-   q=json.loads(payload)['queries'][0];self.assertNotIn('甲公司',q['text']);self.assertIn('S0001',q['focus_source_ids'])
+   data=json.loads(payload);q=data['queries'][0]
+   self.assertFalse(data['facts']);self.assertNotIn('甲公司',q['text']);self.assertIn('S0001',q['focus_source_ids'])
+   self.assertEqual(q['witness_sources']['S0001']['text'],raw)
    return json.dumps({'matches':[dict(id=q['id'],query_text=q['text'],relation='entailed',entails_all_details=True,coverage='complete',
      evidence=[dict(subject_code=c,source_ids=['S0001'],statement=n+'目前沒有要上漲') for c,n in [('1111','甲公司'),('2222','乙公司')]])]})
   with patch.object(p,'call_gemini',side_effect=answer) as model,patch.object(p,'budget_left',return_value=9999),patch.object(p,'_CODE_MAP',{'1111':'甲公司','2222':'乙公司'}):

@@ -13276,7 +13276,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v38-20261028-condition-quote"    # 等待條件要附可核對的條件原句；重提昨天的持有者建議是今天的建議；相鄰連續引句、背景角色與獨立主張證明分開核對
+VERDICT_VERSION = "v39-20261028-holding-needs-record"    # 問卷的持有要有紀錄上的部位；等待條件要附可核對的條件原句；重提昨天的持有者建議是今天的建議；相鄰連續引句、背景角色與獨立主張證明分開核對
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 3                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -13300,7 +13300,7 @@ ADJUDICATE_SYSTEM = """你是原始金融節目及會員通知的事實裁決員
 
 分開回答事件：
 buy_today／sell_today只在本人或會員當日已執行，或當日正式買入／賣出通知時為true。「如果買」「不准賣」「不能買」「以前賣」不算今日成交；第三人／觀眾的部位不算會員操作。明確較早日期的成交填past_trade，不用今天行情替它改日期。當日續抱通知不是買入通知。
-holding_now只在今日原通知明列續抱、或完整原稿確認本人／會員現在持有且未全數出場時true。歷史曾買、會員曾賺、未賣的觀眾提問都不足以證明。歷史減碼一半與今日剩餘部位未賣可同時成立，不能以否定詞刪掉歷史。
+holding_now只在今日原通知明列續抱、或完整原稿確認本人／會員現在持有且未全數出場時true。歷史曾買、會員曾賺、未賣的觀眾提問都不足以證明。「之前就跟你們講過／40幾塊就跟你們講」是過去的推薦，「錢少一點的買這一隻」是給觀眾的選股建議，都不是持有證明；輸入的系統紀錄沒有這一檔的部位時，只憑這類說法不填true（2026/10/28 敦泰）。歷史減碼一半與今日剩餘部位未賣可同時成立，不能以否定詞刪掉歷史。
 past_trade可與現況立場並存；全文有現在的風險、條件或持有狀態，不得只因出現歷史交易就忽略當下。
 
 當下進場與持有者建議分兩軸，按整段最後結論判斷，不靠某個關鍵字：
@@ -14348,7 +14348,6 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
     # 當日會員通知列到的股票（含續抱）：持有回合可以由通知開出，不受「紀錄上沒有部位」限制
     notice_held = {str(r.get('code') or '') for cat in _VERDICT_ORDER for r in signals.get(cat, []) or []
                    if isinstance(r, dict) and r.get('_notice_candidate_sources')}
-    tx_flat = re.sub(r'\s', '', str(transcript or ''))
     # 紀錄上還沒賣出的股票，今天原文有講到卻沒有任何一列（2026/10/02 重播：力積電「昨天買」被標成今天，日期核對後整列略過）：
     # 補一筆不公開的候選，和其他不公開的台股一樣交給裁決；沒有得到支持就留在不公開。
     listed = {str(r.get('code') or '') for cat in _VERDICT_ORDER for r in signals.get(cat, []) or [] if isinstance(r, dict)}
@@ -14541,10 +14540,12 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             if cls == 'buy' and entry['current'] != 'buy':
                 # 問卷認為今天買進，但買賣只認明確句或會員通知：這一票以看多計，不丟掉（2026/10/14 台達電「我說台達電可以買」）
                 cls, basis = 'watch_watch', '問卷答今天買進但無法核對成交，以看多計：' + basis
-            if cls == 'holdings' and not entry.get('open') and (code, 'buy') not in notice and code not in notice_held                     and code in tx_flat and _ev_norm(_display_name(entry['name'])) not in _ev_norm(transcript):
-                # 原文只念代號、沒有念名稱，紀錄與當日通知也沒有部位：那是提問會員自己的股票，不由問卷開出持有回合
-                # （2026/10/28 管理者：東台「老師早，4526再抱嗎？」可列觀望注意，不能列會員持股）。有念名稱的照問卷（10/28 敦泰「之前就有的敦泰」）。
-                cls, basis = 'watch_watch', '只念代號、紀錄與當日通知都沒有這個部位，持有的是提問者，以觀望注意計：' + basis
+            if cls == 'holdings' and not entry.get('open') and (code, 'buy') not in notice and code not in notice_held:
+                # 會員持股要有紀錄上的部位：操作紀錄最近一筆是買入、節目前十五天內有會員持股列，或當日會員通知列到。
+                # 都沒有時，問卷讀到的「持有」不開持有回合，以觀望注意計（看多續抱的立場保留）。
+                # 2026/10/28 管理者：敦泰「這也是我會員的股票…這是我之前就有的敦泰…續抱」從未有買入或持股紀錄，應列觀望注意；
+                # 東台「老師早，4526再抱嗎？」是提問會員自己的股票，可列觀望注意，不能列會員持股。
+                cls, basis = 'watch_watch', '紀錄與當日通知都沒有這個部位，問卷的持有不開持有回合，以觀望注意計：' + basis
             # 2026/10/27：不再以「不適合再買」等字詞推翻問卷答案（方向由模型讀原文判定）。
             entry['votes'].append(cls)
             entry.setdefault('round_answers', []).append({'round': round_no + 1, 'class': cls,

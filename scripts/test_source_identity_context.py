@@ -38,6 +38,25 @@ class IdentityContext(unittest.TestCase):
         self.assertGreaterEqual(len(seen),2);self.assertEqual(sig['_verdicts']['1111']['cls'],'holdings')
         self.assertEqual(sig['holdings'][0]['code'],'1111')
 
+    def test_spoken_holding_without_a_record_position_stays_watch(self):
+        # 2026/10/28 管理者：敦泰「這也是我會員的股票…之前就有的…續抱」沒有任何買入或持股紀錄，應列觀望注意不是會員持股。
+        raw='驅動IC還有一隻甲公司，40幾塊就跟你們講，今天創新高。這也是我會員的股票，這是我之前就有的甲公司，續抱。'
+        def run(opened):
+            sig={'watch_watch':[{'code':'1111','name':'甲公司','reason':'甲公司創新高續抱。'}]}
+            def ask(items,date,round_no,transcript):
+                return {c:{'about_itself':True,'holding_now':True,'now':'none','tone':'bullish',
+                    'quotes':{'holding_now':['這是我之前就有的甲公司'],'stance':['續抱']}} for c,_ in items}
+            with ExitStack() as stack:
+                for name,value in {'_DAY_SOURCE_CONTEXT':{},'_CODE_MAP':{'1111':'甲公司'},
+                    '_verdict_known':lambda *a,**k:({},set(),opened),'_verdict_cache':lambda *a,**k:{},
+                    '_own_segments':lambda *a,**k:[],'_verdict_mark':lambda *a,**k:([{'id':'S1','text':raw}],p._ev_norm(raw)),
+                    '_audit_direct_verdicts':lambda *a,**k:[],'_ask_verdicts':ask,
+                    'budget_left':lambda:9999,'GEMINI_KEYS':['offline']}.items():stack.enter_context(patch.object(p,name,value))
+                p._adjudicate_classes(None,sig,raw,'2026/10/28',{}, {},'on')
+            return sig['_verdicts']['1111']['cls']
+        self.assertEqual(run({}),'watch_watch')
+        self.assertEqual(run({'1111':'甲公司'}),'holdings')
+
     def test_notice_only_identity_is_a_hidden_candidate_not_a_preassigned_position(self):
         raw='這段語音只出現同音異字。'
         context={'date':'2026/10/27','transcript_sha256':hashlib.sha256(raw.encode()).hexdigest(),

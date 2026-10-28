@@ -1,0 +1,1574 @@
+{
+  "date": "2026/10/28",
+  "recorded_at": "2026-10-28T02:56:44.627004+00:00",
+  "target_date": "2026/10/27",
+  "main_commit": "202b5b5a5257c72a110c2b8a4518205753420cfc",
+  "candidate_code_commit": "8f5f85f80144a25213ecbf5fd461154b51c52968",
+  "local_contracts": {
+    "tests": 123,
+    "failures": 0,
+    "errors": 0,
+    "scope": "offline mocked contracts, not model accuracy"
+  },
+  "source_stage_runs": [
+    {
+      "run_id": "40440438907",
+      "build": "f3e01f2·4f3f0ca7",
+      "exit_code": 0,
+      "model_calls": 20,
+      "model_http_calls": null,
+      "errors": [],
+      "source_notes": [],
+      "classification_probes": []
+    },
+    {
+      "run_id": "40441227686",
+      "build": "bbad25b·ace007ea",
+      "exit_code": 0,
+      "model_calls": 17,
+      "model_http_calls": null,
+      "errors": [],
+      "source_notes": [],
+      "classification_probes": []
+    },
+    {
+      "run_id": "40441799353",
+      "build": "55d6ecc·39d6a2e7",
+      "exit_code": 4,
+      "model_calls": 3,
+      "model_http_calls": null,
+      "errors": [
+        "2026/10/15 3533：來源審核草稿期望['supported']，實測insufficient",
+        "2026/10/21 3661：來源審核草稿期望['cross_entity']，實測supported"
+      ],
+      "source_notes": [
+        {
+          "date": "2026/10/15",
+          "code": "3533",
+          "final_verified": null,
+          "input_review_status": null,
+          "reference_match": false
+        },
+        {
+          "date": "2026/10/20",
+          "code": "2317",
+          "final_verified": null,
+          "input_review_status": null,
+          "reference_match": true
+        },
+        {
+          "date": "2026/10/21",
+          "code": "3661",
+          "final_verified": null,
+          "input_review_status": null,
+          "reference_match": false
+        },
+        {
+          "date": "2026/10/21",
+          "code": "2327",
+          "final_verified": null,
+          "input_review_status": null,
+          "reference_match": null
+        }
+      ],
+      "classification_probes": []
+    },
+    {
+      "run_id": "40442767591",
+      "build": "e99ceac·2126bed2",
+      "exit_code": 4,
+      "model_calls": 3,
+      "model_http_calls": null,
+      "errors": [
+        "2026/10/21 3661：來源審核草稿期望['cross_entity']，實測insufficient"
+      ],
+      "source_notes": [
+        {
+          "date": "2026/10/15",
+          "code": "3533",
+          "final_verified": null,
+          "input_review_status": null,
+          "reference_match": true
+        },
+        {
+          "date": "2026/10/20",
+          "code": "2317",
+          "final_verified": null,
+          "input_review_status": null,
+          "reference_match": true
+        },
+        {
+          "date": "2026/10/21",
+          "code": "3661",
+          "final_verified": null,
+          "input_review_status": null,
+          "reference_match": false
+        },
+        {
+          "date": "2026/10/21",
+          "code": "2327",
+          "final_verified": null,
+          "input_review_status": null,
+          "reference_match": null
+        }
+      ],
+      "classification_probes": []
+    },
+    {
+      "run_id": "40443642150",
+      "build": "6b527f2·0959b8b5",
+      "exit_code": 4,
+      "model_calls": 3,
+      "model_http_calls": null,
+      "errors": [
+        "2026/10/15 3533：來源審核草稿期望['supported']，實測insufficient",
+        "2026/10/21 3661：來源審核草稿期望['cross_entity']，實測supported"
+      ],
+      "source_notes": [
+        {
+          "date": "2026/10/15",
+          "code": "3533",
+          "final_verified": null,
+          "input_review_status": null,
+          "reference_match": false
+        },
+        {
+          "date": "2026/10/20",
+          "code": "2317",
+          "final_verified": null,
+          "input_review_status": null,
+          "reference_match": true
+        },
+        {
+          "date": "2026/10/21",
+          "code": "3661",
+          "final_verified": null,
+          "input_review_status": null,
+          "reference_match": false
+        },
+        {
+          "date": "2026/10/21",
+          "code": "2327",
+          "final_verified": null,
+          "input_review_status": null,
+          "reference_match": null
+        }
+      ],
+      "classification_probes": []
+    },
+    {
+      "run_id": "40465913604",
+      "build": "49db67e·fa2ea6e9",
+      "exit_code": 4,
+      "model_calls": 6,
+      "model_http_calls": null,
+      "errors": [
+        "2026/10/20 2317：來源審核草稿期望['supported']，實測insufficient",
+        "2026/10/21 3661：來源審核草稿期望['cross_entity']，實測insufficient"
+      ],
+      "source_notes": [
+        {
+          "date": "2026/10/15",
+          "code": "3533",
+          "final_verified": null,
+          "input_review_status": null,
+          "reference_match": true
+        },
+        {
+          "date": "2026/10/20",
+          "code": "2317",
+          "final_verified": null,
+          "input_review_status": null,
+          "reference_match": false
+        },
+        {
+          "date": "2026/10/21",
+          "code": "3661",
+          "final_verified": null,
+          "input_review_status": null,
+          "reference_match": false
+        },
+        {
+          "date": "2026/10/21",
+          "code": "2327",
+          "final_verified": null,
+          "input_review_status": null,
+          "reference_match": null
+        }
+      ],
+      "classification_probes": []
+    },
+    {
+      "run_id": "40466529415",
+      "build": "a0fb550·5852ce1c",
+      "exit_code": 4,
+      "model_calls": 6,
+      "model_http_calls": null,
+      "errors": [
+        "2026/10/21 3661：來源審核草稿期望['cross_entity']，實測insufficient"
+      ],
+      "source_notes": [
+        {
+          "date": "2026/10/15",
+          "code": "3533",
+          "final_verified": null,
+          "input_review_status": null,
+          "reference_match": true
+        },
+        {
+          "date": "2026/10/20",
+          "code": "2317",
+          "final_verified": null,
+          "input_review_status": null,
+          "reference_match": true
+        },
+        {
+          "date": "2026/10/21",
+          "code": "3661",
+          "final_verified": null,
+          "input_review_status": null,
+          "reference_match": false
+        },
+        {
+          "date": "2026/10/21",
+          "code": "2327",
+          "final_verified": null,
+          "input_review_status": null,
+          "reference_match": null
+        }
+      ],
+      "classification_probes": []
+    },
+    {
+      "run_id": "40467047398",
+      "build": "74590e9·143bb722",
+      "exit_code": 4,
+      "model_calls": 6,
+      "model_http_calls": null,
+      "errors": [
+        "2026/10/21 3661：來源審核草稿期望['cross_entity']，實測insufficient"
+      ],
+      "source_notes": [
+        {
+          "date": "2026/10/15",
+          "code": "3533",
+          "final_verified": null,
+          "input_review_status": null,
+          "reference_match": true
+        },
+        {
+          "date": "2026/10/20",
+          "code": "2317",
+          "final_verified": null,
+          "input_review_status": null,
+          "reference_match": true
+        },
+        {
+          "date": "2026/10/21",
+          "code": "3661",
+          "final_verified": null,
+          "input_review_status": null,
+          "reference_match": false
+        },
+        {
+          "date": "2026/10/21",
+          "code": "2327",
+          "final_verified": null,
+          "input_review_status": null,
+          "reference_match": null
+        }
+      ],
+      "classification_probes": []
+    },
+    {
+      "run_id": "40467506437",
+      "build": "64d9d7e·4f7754c9",
+      "exit_code": 4,
+      "model_calls": 2,
+      "model_http_calls": null,
+      "errors": [
+        "2026/10/21 3661：來源審核草稿期望['cross_entity']，實測insufficient"
+      ],
+      "source_notes": [
+        {
+          "date": "2026/10/21",
+          "code": "3661",
+          "final_verified": null,
+          "input_review_status": null,
+          "reference_match": false
+        },
+        {
+          "date": "2026/10/21",
+          "code": "2327",
+          "final_verified": null,
+          "input_review_status": null,
+          "reference_match": null
+        }
+      ],
+      "classification_probes": []
+    },
+    {
+      "run_id": "40473482304",
+      "build": "85464ba·3e350c43",
+      "exit_code": 4,
+      "model_calls": 3,
+      "model_http_calls": null,
+      "errors": [
+        "2026/10/21 3661：來源審核草稿期望['cross_entity']，實測insufficient"
+      ],
+      "source_notes": [
+        {
+          "date": "2026/10/21",
+          "code": "3661",
+          "final_verified": null,
+          "input_review_status": null,
+          "reference_match": false
+        },
+        {
+          "date": "2026/10/21",
+          "code": "2327",
+          "final_verified": null,
+          "input_review_status": null,
+          "reference_match": null
+        }
+      ],
+      "classification_probes": []
+    },
+    {
+      "run_id": "40501057567",
+      "build": "11b17e4·7459c556",
+      "exit_code": 0,
+      "model_calls": 4,
+      "model_http_calls": null,
+      "errors": [],
+      "source_notes": [
+        {
+          "date": "2026/10/21",
+          "code": "3661",
+          "final_verified": null,
+          "input_review_status": null,
+          "reference_match": true
+        },
+        {
+          "date": "2026/10/21",
+          "code": "2327",
+          "final_verified": null,
+          "input_review_status": null,
+          "reference_match": null
+        }
+      ],
+      "classification_probes": []
+    },
+    {
+      "run_id": "40515132704",
+      "build": "4f2fe4b·e90bdd0e",
+      "exit_code": 4,
+      "model_calls": 8,
+      "model_http_calls": null,
+      "errors": [
+        "2026/10/27 2049：局部分類探針未通過：定案／ignored",
+        "2026/10/27 2317：局部分類探針未通過：定案／ignored",
+        "2026/10/27 3665：修後說明尚未完整核實：貿聯-KY 的來源主體或主張尚未核實；原說明留底，隔離本列而不清空或推定通過",
+        "2026/10/27 3008：修後說明尚未完整核實：大立光 的來源主體或主張尚未核實；原說明留底，隔離本列而不清空或推定通過",
+        "2026/10/27 6409：修後說明尚未完整核實：旭隼 的來源主體或主張尚未核實；原說明留底，隔離本列而不清空或推定通過"
+      ],
+      "source_notes": [
+        {
+          "date": "2026/10/27",
+          "code": "3665",
+          "final_verified": false,
+          "input_review_status": "insufficient",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "3008",
+          "final_verified": false,
+          "input_review_status": "insufficient",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "6409",
+          "final_verified": false,
+          "input_review_status": "insufficient",
+          "reference_match": null
+        }
+      ],
+      "classification_probes": [
+        {
+          "date": "2026/10/27",
+          "code": "2049",
+          "category": "ignored",
+          "reference_match": false
+        },
+        {
+          "date": "2026/10/27",
+          "code": "2317",
+          "category": "ignored",
+          "reference_match": false
+        }
+      ]
+    },
+    {
+      "run_id": "40516919299",
+      "build": "7c8b9b8·2b36b9e7",
+      "exit_code": 4,
+      "model_calls": 8,
+      "model_http_calls": null,
+      "errors": [
+        "2026/10/27 3665：修後說明尚未完整核實：貿聯-KY 的來源主體或主張尚未核實；原說明留底，隔離本列而不清空或推定通過",
+        "2026/10/27 3008：修後說明尚未完整核實：大立光 的來源主體或主張尚未核實；原說明留底，隔離本列而不清空或推定通過",
+        "2026/10/27 6409：修後說明尚未完整核實：旭隼 的來源主體或主張尚未核實；原說明留底，隔離本列而不清空或推定通過"
+      ],
+      "source_notes": [
+        {
+          "date": "2026/10/27",
+          "code": "3665",
+          "final_verified": false,
+          "input_review_status": "insufficient",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "3008",
+          "final_verified": false,
+          "input_review_status": "insufficient",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "6409",
+          "final_verified": false,
+          "input_review_status": "cross_entity",
+          "reference_match": null
+        }
+      ],
+      "classification_probes": [
+        {
+          "date": "2026/10/27",
+          "code": "2049",
+          "category": "watch_watch",
+          "reference_match": true
+        },
+        {
+          "date": "2026/10/27",
+          "code": "2317",
+          "category": "watch_watch",
+          "reference_match": true
+        }
+      ]
+    },
+    {
+      "run_id": "40614742069",
+      "build": "9bf23a3·46f5c2fd",
+      "exit_code": 4,
+      "model_calls": 6,
+      "model_http_calls": null,
+      "errors": [
+        "2026/10/27 3008：修後說明尚未完整核實：大立光 的來源主體或主張尚未核實；原說明留底，隔離本列而不清空或推定通過"
+      ],
+      "source_notes": [
+        {
+          "date": "2026/10/27",
+          "code": "3665",
+          "final_verified": true,
+          "input_review_status": "cross_entity",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "3008",
+          "final_verified": false,
+          "input_review_status": "insufficient",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "6409",
+          "final_verified": true,
+          "input_review_status": "cross_entity",
+          "reference_match": null
+        }
+      ],
+      "classification_probes": [
+        {
+          "date": "2026/10/27",
+          "code": "2049",
+          "category": "watch_watch",
+          "reference_match": true
+        },
+        {
+          "date": "2026/10/27",
+          "code": "2317",
+          "category": "watch_watch",
+          "reference_match": true
+        }
+      ]
+    },
+    {
+      "run_id": "40615014721",
+      "build": "04a2e50·c98d5562",
+      "exit_code": 4,
+      "model_calls": 6,
+      "model_http_calls": null,
+      "errors": [
+        "2026/10/27 3008：修後說明尚未完整核實：大立光 的來源主體或主張尚未核實；原說明留底，隔離本列而不清空或推定通過"
+      ],
+      "source_notes": [
+        {
+          "date": "2026/10/27",
+          "code": "3665",
+          "final_verified": true,
+          "input_review_status": "cross_entity",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "3008",
+          "final_verified": false,
+          "input_review_status": "cross_entity",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "6409",
+          "final_verified": true,
+          "input_review_status": "insufficient",
+          "reference_match": null
+        }
+      ],
+      "classification_probes": [
+        {
+          "date": "2026/10/27",
+          "code": "2049",
+          "category": "watch_watch",
+          "reference_match": true
+        },
+        {
+          "date": "2026/10/27",
+          "code": "2317",
+          "category": "watch_watch",
+          "reference_match": true
+        }
+      ]
+    },
+    {
+      "run_id": "40615414454",
+      "build": "a8373b7·920ae088",
+      "exit_code": 4,
+      "model_calls": 7,
+      "model_http_calls": null,
+      "errors": [
+        "2026/10/27 3008：修後說明尚未完整核實：大立光 的來源主體或主張尚未核實；原說明留底，隔離本列而不清空或推定通過"
+      ],
+      "source_notes": [
+        {
+          "date": "2026/10/27",
+          "code": "3665",
+          "final_verified": true,
+          "input_review_status": "insufficient",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "3008",
+          "final_verified": false,
+          "input_review_status": "insufficient",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "6409",
+          "final_verified": true,
+          "input_review_status": "insufficient",
+          "reference_match": null
+        }
+      ],
+      "classification_probes": [
+        {
+          "date": "2026/10/27",
+          "code": "2049",
+          "category": "watch_watch",
+          "reference_match": true
+        },
+        {
+          "date": "2026/10/27",
+          "code": "2317",
+          "category": "watch_watch",
+          "reference_match": true
+        }
+      ]
+    },
+    {
+      "run_id": "40615776746",
+      "build": "cdced23·36b62ea6",
+      "exit_code": 0,
+      "model_calls": 6,
+      "model_http_calls": null,
+      "errors": [],
+      "source_notes": [
+        {
+          "date": "2026/10/27",
+          "code": "3665",
+          "final_verified": true,
+          "input_review_status": "supported",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "3008",
+          "final_verified": true,
+          "input_review_status": "supported",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "6409",
+          "final_verified": true,
+          "input_review_status": "supported",
+          "reference_match": null
+        }
+      ],
+      "classification_probes": [
+        {
+          "date": "2026/10/27",
+          "code": "2049",
+          "category": "watch_watch",
+          "reference_match": true
+        },
+        {
+          "date": "2026/10/27",
+          "code": "2317",
+          "category": "watch_watch",
+          "reference_match": true
+        }
+      ]
+    },
+    {
+      "run_id": "40617375201",
+      "build": "b7f067a·aafb92cd",
+      "exit_code": 4,
+      "model_calls": 8,
+      "model_http_calls": null,
+      "errors": [
+        "2026/10/27 2049：局部分類探針未通過：定案／ignored",
+        "2026/10/27 3665：修後說明尚未完整核實：貿聯-KY 的已核實子句投影尚未完成語意／分類複核，不能直接發布",
+        "2026/10/27 8299：修後說明尚未完整核實：群聯 的已核實子句投影尚未完成語意／分類複核，不能直接發布",
+        "2026/10/27 5289：修後說明尚未完整核實：宜鼎 的來源主體或主張尚未核實；原說明留底，隔離本列而不清空或推定通過"
+      ],
+      "source_notes": [
+        {
+          "date": "2026/10/27",
+          "code": "3665",
+          "final_verified": false,
+          "input_review_status": "insufficient",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "3008",
+          "final_verified": true,
+          "input_review_status": "supported",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "6409",
+          "final_verified": true,
+          "input_review_status": "supported",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "8299",
+          "final_verified": false,
+          "input_review_status": "insufficient",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "5289",
+          "final_verified": false,
+          "input_review_status": "insufficient",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "2049",
+          "final_verified": true,
+          "input_review_status": "cross_entity",
+          "reference_match": null
+        }
+      ],
+      "classification_probes": [
+        {
+          "date": "2026/10/27",
+          "code": "2049",
+          "category": "ignored",
+          "reference_match": false
+        },
+        {
+          "date": "2026/10/27",
+          "code": "2317",
+          "category": "watch_watch",
+          "reference_match": true
+        },
+        {
+          "date": "2026/10/27",
+          "code": "2303",
+          "category": "ignored",
+          "reference_match": true
+        },
+        {
+          "date": "2026/10/27",
+          "code": "2408",
+          "category": "ignored",
+          "reference_match": true
+        },
+        {
+          "date": "2026/10/27",
+          "code": "6409",
+          "category": "holdings",
+          "reference_match": true
+        }
+      ]
+    },
+    {
+      "run_id": "40618979925",
+      "build": "e7e2f44·732d20eb",
+      "exit_code": 4,
+      "model_calls": 1,
+      "model_http_calls": 3,
+      "errors": [
+        "2026/10/27 2049：局部分類探針未通過：未定／uncertain",
+        "2026/10/27 2317：局部分類探針未通過：未定／uncertain",
+        "2026/10/27 2303：局部分類探針未通過：未定／uncertain",
+        "2026/10/27 2408：局部分類探針未通過：未定／uncertain",
+        "2026/10/27 6409：局部分類探針未通過：未定／uncertain",
+        "2026/10/27 3691：局部分類探針未通過：未定／uncertain",
+        "2026/10/27 3665：修後說明尚未完整核實：",
+        "2026/10/27 3008：修後說明尚未完整核實：",
+        "2026/10/27 6409：修後說明尚未完整核實：",
+        "2026/10/27 8299：修後說明尚未完整核實：",
+        "2026/10/27 5289：修後說明尚未完整核實：",
+        "2026/10/27 2049：修後說明尚未完整核實："
+      ],
+      "source_notes": [
+        {
+          "date": "2026/10/27",
+          "code": "3665",
+          "final_verified": false,
+          "input_review_status": null,
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "3008",
+          "final_verified": false,
+          "input_review_status": null,
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "6409",
+          "final_verified": false,
+          "input_review_status": null,
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "8299",
+          "final_verified": false,
+          "input_review_status": null,
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "5289",
+          "final_verified": false,
+          "input_review_status": null,
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "2049",
+          "final_verified": false,
+          "input_review_status": null,
+          "reference_match": null
+        }
+      ],
+      "classification_probes": [
+        {
+          "date": "2026/10/27",
+          "code": "2049",
+          "category": "uncertain",
+          "reference_match": false
+        },
+        {
+          "date": "2026/10/27",
+          "code": "2317",
+          "category": "uncertain",
+          "reference_match": false
+        },
+        {
+          "date": "2026/10/27",
+          "code": "2303",
+          "category": "uncertain",
+          "reference_match": false
+        },
+        {
+          "date": "2026/10/27",
+          "code": "2408",
+          "category": "uncertain",
+          "reference_match": false
+        },
+        {
+          "date": "2026/10/27",
+          "code": "6409",
+          "category": "uncertain",
+          "reference_match": false
+        },
+        {
+          "date": "2026/10/27",
+          "code": "3691",
+          "category": "uncertain",
+          "reference_match": false
+        }
+      ]
+    },
+    {
+      "run_id": "40619742938",
+      "build": "a6d5aa2·1c73c54d",
+      "exit_code": 4,
+      "model_calls": 11,
+      "model_http_calls": 11,
+      "errors": [
+        "2026/10/27 2049：局部分類探針未通過：定案／ignored",
+        "2026/10/27 6409：局部分類探針未通過：未定／uncertain",
+        "2026/10/27 3008：修後說明尚未完整核實：大立光 的來源主體或主張尚未核實；原說明留底，隔離本列而不清空或推定通過"
+      ],
+      "source_notes": [
+        {
+          "date": "2026/10/27",
+          "code": "3665",
+          "final_verified": true,
+          "input_review_status": "supported",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "3008",
+          "final_verified": false,
+          "input_review_status": "insufficient",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "6409",
+          "final_verified": true,
+          "input_review_status": "supported",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "8299",
+          "final_verified": true,
+          "input_review_status": "insufficient",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "5289",
+          "final_verified": true,
+          "input_review_status": "insufficient",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "2049",
+          "final_verified": true,
+          "input_review_status": "insufficient",
+          "reference_match": null
+        }
+      ],
+      "classification_probes": [
+        {
+          "date": "2026/10/27",
+          "code": "2049",
+          "category": "ignored",
+          "reference_match": false
+        },
+        {
+          "date": "2026/10/27",
+          "code": "2317",
+          "category": "watch_watch",
+          "reference_match": true
+        },
+        {
+          "date": "2026/10/27",
+          "code": "2303",
+          "category": "ignored",
+          "reference_match": true
+        },
+        {
+          "date": "2026/10/27",
+          "code": "2408",
+          "category": "ignored",
+          "reference_match": true
+        },
+        {
+          "date": "2026/10/27",
+          "code": "6409",
+          "category": "uncertain",
+          "reference_match": false
+        },
+        {
+          "date": "2026/10/27",
+          "code": "3691",
+          "category": "ignored",
+          "reference_match": true
+        }
+      ]
+    },
+    {
+      "run_id": "40620730289",
+      "build": "9d3b145·cac4616e",
+      "exit_code": 4,
+      "model_calls": 11,
+      "model_http_calls": 11,
+      "errors": [
+        "2026/10/27 2049：局部分類探針未通過：定案／ignored",
+        "2026/10/27 2317：局部分類探針未通過：未定／uncertain"
+      ],
+      "source_notes": [
+        {
+          "date": "2026/10/27",
+          "code": "3665",
+          "final_verified": true,
+          "input_review_status": "insufficient",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "3008",
+          "final_verified": true,
+          "input_review_status": "supported",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "6409",
+          "final_verified": true,
+          "input_review_status": "insufficient",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "8299",
+          "final_verified": true,
+          "input_review_status": "insufficient",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "5289",
+          "final_verified": true,
+          "input_review_status": "supported",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "2049",
+          "final_verified": true,
+          "input_review_status": "insufficient",
+          "reference_match": null
+        }
+      ],
+      "classification_probes": [
+        {
+          "date": "2026/10/27",
+          "code": "2049",
+          "category": "ignored",
+          "reference_match": false
+        },
+        {
+          "date": "2026/10/27",
+          "code": "2317",
+          "category": "uncertain",
+          "reference_match": false
+        },
+        {
+          "date": "2026/10/27",
+          "code": "2303",
+          "category": "ignored",
+          "reference_match": true
+        },
+        {
+          "date": "2026/10/27",
+          "code": "2408",
+          "category": "ignored",
+          "reference_match": true
+        },
+        {
+          "date": "2026/10/27",
+          "code": "6409",
+          "category": "holdings",
+          "reference_match": true
+        },
+        {
+          "date": "2026/10/27",
+          "code": "3691",
+          "category": "ignored",
+          "reference_match": true
+        }
+      ]
+    },
+    {
+      "run_id": "40621214543",
+      "build": "9d3b145·cac4616e",
+      "exit_code": 0,
+      "model_calls": 3,
+      "model_http_calls": 3,
+      "errors": [],
+      "source_notes": [
+        {
+          "date": "2026/10/15",
+          "code": "3533",
+          "final_verified": true,
+          "input_review_status": "supported",
+          "reference_match": true
+        }
+      ],
+      "classification_probes": []
+    },
+    {
+      "run_id": "40621503626",
+      "build": "9d3b145·cac4616e",
+      "exit_code": 4,
+      "model_calls": 4,
+      "model_http_calls": 4,
+      "errors": [
+        "2026/10/21 3661：原說明來源審核草稿期望['cross_entity']，實測insufficient"
+      ],
+      "source_notes": [
+        {
+          "date": "2026/10/21",
+          "code": "3661",
+          "final_verified": true,
+          "input_review_status": "insufficient",
+          "reference_match": false
+        },
+        {
+          "date": "2026/10/21",
+          "code": "2327",
+          "final_verified": true,
+          "input_review_status": "asr_uncertain",
+          "reference_match": null
+        }
+      ],
+      "classification_probes": []
+    },
+    {
+      "run_id": "40623078592",
+      "build": "622a0cd·eb491af4",
+      "exit_code": 4,
+      "model_calls": 11,
+      "model_http_calls": 11,
+      "errors": [
+        "2026/10/27 2303：局部分類探針未通過：未定／uncertain",
+        "2026/10/27 2408：局部分類探針未通過：未定／uncertain",
+        "2026/10/27 3691：局部分類探針未通過：定案／watch_watch"
+      ],
+      "source_notes": [
+        {
+          "date": "2026/10/27",
+          "code": "3665",
+          "final_verified": true,
+          "input_review_status": "insufficient",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "3008",
+          "final_verified": true,
+          "input_review_status": "insufficient",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "6409",
+          "final_verified": true,
+          "input_review_status": "supported",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "8299",
+          "final_verified": true,
+          "input_review_status": "cross_entity",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "5289",
+          "final_verified": true,
+          "input_review_status": "insufficient",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "2049",
+          "final_verified": true,
+          "input_review_status": "insufficient",
+          "reference_match": null
+        }
+      ],
+      "classification_probes": [
+        {
+          "date": "2026/10/27",
+          "code": "2049",
+          "category": "watch_watch",
+          "reference_match": true
+        },
+        {
+          "date": "2026/10/27",
+          "code": "2317",
+          "category": "watch_watch",
+          "reference_match": true
+        },
+        {
+          "date": "2026/10/27",
+          "code": "2303",
+          "category": "uncertain",
+          "reference_match": false
+        },
+        {
+          "date": "2026/10/27",
+          "code": "2408",
+          "category": "uncertain",
+          "reference_match": false
+        },
+        {
+          "date": "2026/10/27",
+          "code": "6409",
+          "category": "holdings",
+          "reference_match": true
+        },
+        {
+          "date": "2026/10/27",
+          "code": "3691",
+          "category": "watch_watch",
+          "reference_match": false
+        },
+        {
+          "date": "2026/10/27",
+          "code": "8299",
+          "category": "watch_watch",
+          "reference_match": true
+        },
+        {
+          "date": "2026/10/27",
+          "code": "5289",
+          "category": "watch_watch",
+          "reference_match": true
+        }
+      ]
+    },
+    {
+      "run_id": "40623541794",
+      "build": "8f5f85f·f374b9a2",
+      "exit_code": 4,
+      "model_calls": 12,
+      "model_http_calls": 12,
+      "errors": [
+        "2026/10/27 2049：局部分類探針未通過：未定／uncertain",
+        "2026/10/27 6409：局部分類探針未通過：未定／uncertain",
+        "2026/10/27 3691：局部分類探針未通過：未定／uncertain",
+        "2026/10/27 8299：局部分類探針未通過：未定／uncertain",
+        "2026/10/27 3008：修後說明尚未完整核實：大立光 的來源主體或主張尚未核實；原說明留底，隔離本列而不清空或推定通過"
+      ],
+      "source_notes": [
+        {
+          "date": "2026/10/27",
+          "code": "3665",
+          "final_verified": true,
+          "input_review_status": "insufficient",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "3008",
+          "final_verified": false,
+          "input_review_status": "insufficient",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "6409",
+          "final_verified": true,
+          "input_review_status": "supported",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "8299",
+          "final_verified": true,
+          "input_review_status": "insufficient",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "5289",
+          "final_verified": true,
+          "input_review_status": "insufficient",
+          "reference_match": null
+        },
+        {
+          "date": "2026/10/27",
+          "code": "2049",
+          "final_verified": true,
+          "input_review_status": "cross_entity",
+          "reference_match": null
+        }
+      ],
+      "classification_probes": [
+        {
+          "date": "2026/10/27",
+          "code": "2049",
+          "category": "uncertain",
+          "reference_match": false
+        },
+        {
+          "date": "2026/10/27",
+          "code": "2317",
+          "category": "watch_watch",
+          "reference_match": true
+        },
+        {
+          "date": "2026/10/27",
+          "code": "2303",
+          "category": "ignored",
+          "reference_match": true
+        },
+        {
+          "date": "2026/10/27",
+          "code": "2408",
+          "category": "ignored",
+          "reference_match": true
+        },
+        {
+          "date": "2026/10/27",
+          "code": "6409",
+          "category": "uncertain",
+          "reference_match": false
+        },
+        {
+          "date": "2026/10/27",
+          "code": "3691",
+          "category": "uncertain",
+          "reference_match": false
+        },
+        {
+          "date": "2026/10/27",
+          "code": "8299",
+          "category": "uncertain",
+          "reference_match": false
+        },
+        {
+          "date": "2026/10/27",
+          "code": "5289",
+          "category": "watch_watch",
+          "reference_match": true
+        }
+      ]
+    }
+  ],
+  "latest_1027_targeted": {
+    "run_id": "40623541794",
+    "build": "8f5f85f·f374b9a2",
+    "exit_code": 4,
+    "model_calls": 12,
+    "model_http_calls": 12,
+    "errors": [
+      "2026/10/27 2049：局部分類探針未通過：未定／uncertain",
+      "2026/10/27 6409：局部分類探針未通過：未定／uncertain",
+      "2026/10/27 3691：局部分類探針未通過：未定／uncertain",
+      "2026/10/27 8299：局部分類探針未通過：未定／uncertain",
+      "2026/10/27 3008：修後說明尚未完整核實：大立光 的來源主體或主張尚未核實；原說明留底，隔離本列而不清空或推定通過"
+    ],
+    "source_notes": [
+      {
+        "date": "2026/10/27",
+        "code": "3665",
+        "final_verified": true,
+        "input_review_status": "insufficient",
+        "reference_match": null
+      },
+      {
+        "date": "2026/10/27",
+        "code": "3008",
+        "final_verified": false,
+        "input_review_status": "insufficient",
+        "reference_match": null
+      },
+      {
+        "date": "2026/10/27",
+        "code": "6409",
+        "final_verified": true,
+        "input_review_status": "supported",
+        "reference_match": null
+      },
+      {
+        "date": "2026/10/27",
+        "code": "8299",
+        "final_verified": true,
+        "input_review_status": "insufficient",
+        "reference_match": null
+      },
+      {
+        "date": "2026/10/27",
+        "code": "5289",
+        "final_verified": true,
+        "input_review_status": "insufficient",
+        "reference_match": null
+      },
+      {
+        "date": "2026/10/27",
+        "code": "2049",
+        "final_verified": true,
+        "input_review_status": "cross_entity",
+        "reference_match": null
+      }
+    ],
+    "classification_probes": [
+      {
+        "date": "2026/10/27",
+        "code": "2049",
+        "category": "uncertain",
+        "reference_match": false
+      },
+      {
+        "date": "2026/10/27",
+        "code": "2317",
+        "category": "watch_watch",
+        "reference_match": true
+      },
+      {
+        "date": "2026/10/27",
+        "code": "2303",
+        "category": "ignored",
+        "reference_match": true
+      },
+      {
+        "date": "2026/10/27",
+        "code": "2408",
+        "category": "ignored",
+        "reference_match": true
+      },
+      {
+        "date": "2026/10/27",
+        "code": "6409",
+        "category": "uncertain",
+        "reference_match": false
+      },
+      {
+        "date": "2026/10/27",
+        "code": "3691",
+        "category": "uncertain",
+        "reference_match": false
+      },
+      {
+        "date": "2026/10/27",
+        "code": "8299",
+        "category": "uncertain",
+        "reference_match": false
+      },
+      {
+        "date": "2026/10/27",
+        "code": "5289",
+        "category": "watch_watch",
+        "reference_match": true
+      }
+    ]
+  },
+  "full_day_previews": [
+    {
+      "envelope_sha256": "6e05fc4c068036c41ce4c3dfe04ff22beea617e6366f4da9c5ab983e04799e74",
+      "run_id": "40470169912",
+      "commit": "d509ff182dfdd6730f41dc99fa0fdd1e89a85fce",
+      "status": "failed",
+      "errors": [
+        "仍有隔離／待裁決個股，完整單日候選不予發布",
+        "market[1] 摘要數字沒有對應原句，請勿補值",
+        "排除覆核：上銀 若為本次點名台股／ETF，行情、法人、換股亦列觀望；用原文風險／等待條件判方向，不能虛構推薦。純過往交易無現況則 history。",
+        "排除覆核：碩禾 若為本次點名台股／ETF，行情、法人、換股亦列觀望；用原文風險／等待條件判方向，不能虛構推薦。純過往交易無現況則 history。",
+        "排除覆核：鴻海 若為本次點名台股／ETF，行情、法人、換股亦列觀望；用原文風險／等待條件判方向，不能虛構推薦。純過往交易無現況則 history。",
+        "排除覆核：台達電 若為本次點名台股／ETF，行情、法人、換股亦列觀望；用原文風險／等待條件判方向，不能虛構推薦。純過往交易無現況則 history。",
+        "排除覆核：世界先進 若為本次點名台股／ETF，行情、法人、換股亦列觀望；用原文風險／等待條件判方向，不能虛構推薦。純過往交易無現況則 history。",
+        "排除覆核：南亞科 若為本次點名台股／ETF，行情、法人、換股亦列觀望；用原文風險／等待條件判方向，不能虛構推薦。純過往交易無現況則 history。",
+        "排除覆核：華邦電 若為本次點名台股／ETF，行情、法人、換股亦列觀望；用原文風險／等待條件判方向，不能虛構推薦。純過往交易無現況則 history。",
+        "排除覆核：群聯 若為本次點名台股／ETF，行情、法人、換股亦列觀望；用原文風險／等待條件判方向，不能虛構推薦。純過往交易無現況則 history。",
+        "排除覆核：宜鼎 若為本次點名台股／ETF，行情、法人、換股亦列觀望；用原文風險／等待條件判方向，不能虛構推薦。純過往交易無現況則 history。",
+        "排除覆核：世芯-KY 若為本次點名台股／ETF，行情、法人、換股亦列觀望；用原文風險／等待條件判方向，不能虛構推薦。純過往交易無現況則 history。",
+        "排除覆核：一家 若為本次點名台股／ETF，行情、法人、換股亦列觀望；用原文風險／等待條件判方向，不能虛構推薦。純過往交易無現況則 history。",
+        "盤勢內容偏短：重新找全文不同主題，原文充足時至少6點、每點70–140字；資料不足須在 changes 說明，禁止重複或補造。",
+        "教學內容偏短：重新找全文不同主題，原文充足時至少6點、每點120–220字；資料不足須在 changes 說明，禁止重複或補造。",
+        "大立光說明偏短：重讀本股全部前後文，補齊已明講的技術位置、題材、法人或風險及價位條件，2～4句、70～160字；來源不足留內部理由，不借相鄰公司。",
+        "嘉澤說明偏短：重讀本股全部前後文，補齊已明講的技術位置、題材、法人或風險及價位條件，2～4句、70～160字；來源不足留內部理由，不借相鄰公司。",
+        "台積電說明偏短：重讀本股全部前後文，補齊已明講的技術位置、題材、法人或風險及價位條件，2～4句、70～160字；來源不足留內部理由，不借相鄰公司。",
+        "力積電說明偏短：重讀本股全部前後文，補齊已明講的技術位置、題材、法人或風險及價位條件，2～4句、70～160字；來源不足留內部理由，不借相鄰公司。",
+        "瑞鼎說明偏短：重讀本股全部前後文，補齊已明講的技術位置、題材、法人或風險及價位條件，2～4句、70～160字；來源不足留內部理由，不借相鄰公司。",
+        "神準說明偏短：重讀本股全部前後文，補齊已明講的技術位置、題材、法人或風險及價位條件，2～4句、70～160字；來源不足留內部理由，不借相鄰公司。",
+        "勤誠說明的多個數字只在其他標的語境：重讀本股持有事實，不搬昨日買進與今日漲跌。",
+        "勤誠：說明裡的EPS在本股原文沒有，已移除那一句",
+        "大立光說明偏短：本股可證實的背景有限，未借用其他公司或補造",
+        "聯發科說明偏短：本股可證實的背景有限，未借用其他公司或補造",
+        "勤誠說明偏短：本股可證實的背景有限，未借用其他公司或補造",
+        "嘉澤說明偏短：本股可證實的背景有限，未借用其他公司或補造",
+        "台積電說明偏短：本股可證實的背景有限，未借用其他公司或補造",
+        "力積電說明偏短：本股可證實的背景有限，未借用其他公司或補造",
+        "瑞鼎說明偏短：本股可證實的背景有限，未借用其他公司或補造",
+        "神準說明偏短：本股可證實的背景有限，未借用其他公司或補造",
+        "毅嘉說明偏短：本股可證實的背景有限，未借用其他公司或補造",
+        "貿聯-KY：c4來源核對資料不足，保留原句待核",
+        "貿聯-KY：逐項來源核對隔離2項主張，保留其他已核對內容；原文留底",
+        "AI文體待審閱：個股說明　瑞鼎 未取得有效審閱結果（AI未確認語意、分類、本股來源與書面品質；不採用改寫）",
+        "AI文體待審閱：個股說明　神準 未取得有效審閱結果（AI未確認語意、分類、本股來源與書面品質；不採用改寫）",
+        "AI文體待審閱：個股說明　亞德客-KY 未取得有效審閱結果（AI未確認語意、分類、本股來源與書面品質；不採用改寫）",
+        "AI文體待審閱：個股說明　毅嘉 未取得有效審閱結果（AI未確認語意、分類、本股來源與書面品質；不採用改寫）",
+        "AI文體待審閱：個股說明　勤誠 未取得有效審閱結果（AI未確認語意、分類、本股來源與書面品質；不採用改寫）",
+        "AI文體待審閱：個股說明　上銀 未取得有效審閱結果（AI未確認語意、分類、本股來源與書面品質；不採用改寫）",
+        "AI文體待審閱：個股說明　大立光 未取得有效審閱結果（AI未確認語意、分類、本股來源與書面品質；不採用改寫）",
+        "AI文體待審閱：個股說明　聯發科 未取得有效審閱結果（AI未確認語意、分類、本股來源與書面品質；不採用改寫）",
+        "獨立來源草稿差異待核"
+      ],
+      "model_calls": 13,
+      "model_http_calls": null,
+      "source_sha256": "aa22759a934f0210001a1d65f1fac85806f23bcf2870c0af99f53f962ebd83d0",
+      "answer_injection": false
+    },
+    {
+      "envelope_sha256": "35749d3bfef7c27a5ce034dffa2bd99fa6f920c8ff840f7744f5baca2c34fc0b",
+      "run_id": "40471404015",
+      "commit": "74f4504509f6b7a8a45ce22b830d5e7009f3655e",
+      "status": "failed",
+      "errors": [
+        "仍有隔離／待裁決個股，完整單日候選不予發布",
+        "獨立來源草稿差異待核"
+      ],
+      "model_calls": 18,
+      "model_http_calls": null,
+      "source_sha256": "aa22759a934f0210001a1d65f1fac85806f23bcf2870c0af99f53f962ebd83d0",
+      "answer_injection": false
+    },
+    {
+      "envelope_sha256": "d1afaf3574454ff7c6520b60f31570416dd7e9edf3e65ba5211269e59445fabd",
+      "run_id": "40501480385",
+      "commit": "11b17e4122dcc432d67e0c85b21ea92590c547df",
+      "status": "failed",
+      "errors": [
+        "仍有隔離／待裁決個股，完整單日候選不予發布",
+        "獨立來源草稿差異待核"
+      ],
+      "model_calls": 24,
+      "model_http_calls": null,
+      "source_sha256": "aa22759a934f0210001a1d65f1fac85806f23bcf2870c0af99f53f962ebd83d0",
+      "answer_injection": false
+    },
+    {
+      "envelope_sha256": "52fdf0dcfd6b63b31f7e74fb2a70e88dfcd515e373f61ff9938959ccffcf9919",
+      "run_id": "40505142031",
+      "commit": "cd5220e4fc31841d47d7726870249df7f4760597",
+      "status": "failed",
+      "errors": [
+        "仍有隔離／待裁決個股，完整單日候選不予發布",
+        "獨立來源草稿差異待核"
+      ],
+      "model_calls": 26,
+      "model_http_calls": null,
+      "source_sha256": "aa22759a934f0210001a1d65f1fac85806f23bcf2870c0af99f53f962ebd83d0",
+      "answer_injection": false
+    },
+    {
+      "envelope_sha256": "5fa7b98f3d2507293da1d7b362a0cc81563fe7e1f214d5c156b83f5d8cc10aa6",
+      "run_id": "40506767184",
+      "commit": "bb8dcfb6bf1fa565457e56da4d90d9bf86f56ab4",
+      "status": "failed",
+      "errors": [
+        "仍有隔離／待裁決個股，完整單日候選不予發布",
+        "獨立來源草稿差異待核"
+      ],
+      "model_calls": 27,
+      "model_http_calls": null,
+      "source_sha256": "aa22759a934f0210001a1d65f1fac85806f23bcf2870c0af99f53f962ebd83d0",
+      "answer_injection": false
+    },
+    {
+      "envelope_sha256": "e0880f8531abdfea4a1b207361f7de001262a0e86ba24fd0c0193302c5fa775c",
+      "run_id": "40508593047",
+      "commit": "aead636e6ab385c587b5a5d54878e2f6b471b5ce",
+      "status": "failed",
+      "errors": [
+        "仍有隔離／待裁決個股，完整單日候選不予發布",
+        "獨立來源草稿差異待核"
+      ],
+      "model_calls": 29,
+      "model_http_calls": null,
+      "source_sha256": "aa22759a934f0210001a1d65f1fac85806f23bcf2870c0af99f53f962ebd83d0",
+      "answer_injection": false
+    },
+    {
+      "envelope_sha256": "8644951575131f53ce80d89fa45e4d78e62e4736503d7f0fff08af2563921951",
+      "run_id": "40615953338",
+      "commit": "cdced2386339c0f4cffa48c70dac94a84d5fc813",
+      "status": "failed",
+      "errors": [
+        "仍有隔離／待裁決個股，完整單日候選不予發布",
+        "獨立來源草稿差異待核"
+      ],
+      "model_calls": 31,
+      "model_http_calls": null,
+      "source_sha256": "aa22759a934f0210001a1d65f1fac85806f23bcf2870c0af99f53f962ebd83d0",
+      "answer_injection": false
+    }
+  ],
+  "latest_full_candidate_passed": false,
+  "applied_candidate_run": null,
+  "formal_data_changed": false,
+  "main_experiment_merged": false,
+  "gas_original_version": 526,
+  "latest_human_policy": {
+    "date": "2026/10/28",
+    "8299": "watch_watch",
+    "5289": "watch_watch",
+    "overrides": "prior ph5 watch_avoid",
+    "reference_exposure": "seen human override; no inference injection"
+  },
+  "formal_readback": {
+    "snapshot": "formal-latest-ph8.json",
+    "counts": {
+      "buy": 1,
+      "sell": 0,
+      "watchWatch": 5,
+      "watchAvoid": 5,
+      "holdings_daily": 8
+    },
+    "8299": "watchWatch",
+    "5289": "watchWatch",
+    "browser_checked": true,
+    "write_needed": false
+  },
+  "preserved": [
+    "other worktrees uncommitted files",
+    "notification state",
+    "email and LINE ledgers"
+  ],
+  "limitations": [
+    "2026/10/27 is seen development data",
+    "fixed source review is not full-day classification acceptance",
+    "policy revision does not prove model improvement",
+    "older runs without an HTTP counter cannot be assigned invented HTTP totals",
+    "10/21 3661 initial cross-entity diagnosis still failed in 40621503626 despite safe output repair"
+  ]
+}

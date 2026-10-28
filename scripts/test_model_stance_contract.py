@@ -113,6 +113,13 @@ class ModelStance(unittest.TestCase):
   for cut in ('鈺邦，你來看，它是不是跟。','記憶體族群以及。','他把。','這一檔股票會從。'):
    self.assertTrue(p.spoken_fragment(cut),cut)
 
+ def test_source_review_failure_names_the_check_that_failed(self):
+  # 2026/10/28 審閱：七檔隔離都寫成同一句「未提供唯一主張編號…」，看不出卡在哪一關；判定不變，只記卡點
+  row={'code':'1111','name':'甲公司','_source_fact_ledger':{'facts':{}}}
+  r=p._validated_source_review({'source_review':{'claims':[]}},row,'甲公司今天大漲。','甲公司今天大漲，外資連續買超。')
+  self.assertEqual(r['status'],'insufficient')
+  self.assertIn('沒有唯一回覆',r['claims'][0]['explanation'])
+
  def test_verdict_fingerprint_includes_the_position_snapshot(self):
   self.assertNotEqual(p._verdict_position_key({'open':True}),p._verdict_position_key({'open':False}))
 

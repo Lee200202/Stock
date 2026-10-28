@@ -8989,7 +8989,10 @@ def quality_overview(signals, transcript='', check_chapters=True):
         if source_review.get('status') == 'cross_entity' and not r.get('_manual_note_kept'):
             hard.append(f'{name} 的說明上下文已確認跨股：{source_review["explanation"]}')
         elif source_review.get('status') == 'insufficient' and source_review.get('source_facts_required') and not r.get('_manual_note_kept'):
-            hard.append(f'{name} 的來源主體或主張尚未核實；原說明留底，隔離本列而不清空或推定通過')
+            stuck = [str(c.get('id') or '') + '「' + str(c.get('text') or '')[:18] + '」' + str(c.get('explanation') or '').replace('未通過來源核對：', '').replace('；不能推定通過', '')
+                     for c in source_review.get('claims') or [] if isinstance(c, dict) and c.get('status') == 'insufficient']
+            hard.append(f'{name} 的來源主體或主張尚未核實；原說明留底，隔離本列而不清空或推定通過'
+                        + ('（卡點：' + '｜'.join(stuck[:3])[:220] + '）' if stuck else ''))
         elif source_review.get('status') in ('asr_uncertain', 'insufficient'):
             soft.append(f'{name} 的說明聽寫或歸屬待核：{source_review["explanation"]}')
         if transcript and cat == 'watch_avoid' and not r.get('_carried_forward') and r.get('_原分類') not in ('buy', 'sell') \
@@ -17362,6 +17365,20 @@ def _validated_source_review(item, row, old, transcript):
         explanation = str(reply.get('explanation') or '').strip()
         valid = (status in ('supported', 'cross_entity', 'asr_uncertain', 'insufficient')
                  and quote_ok and bool(explanation))
+        # 2026/10/28 審閱：每一條失敗路徑最後都被寫成同一句「未提供唯一主張編號…」，看不出卡在哪一關。
+        # 逐條記下實際卡點，判定本身不變。
+        reply_status = status
+        why = []
+        if len(matches) != 1:
+            why.append(f'本主張沒有唯一回覆（{len(matches)} 則）')
+        elif status not in ('supported', 'cross_entity', 'asr_uncertain', 'insufficient'):
+            why.append(f'回覆狀態不合法（{status}）')
+        if matches and not quote_ok:
+            why.append('引句或段落編號對不回原稿')
+        if matches and not explanation:
+            why.append('回覆沒有說明')
+        if reply_status == 'insufficient':
+            why.append('審閱模型自己判為不足')
         # 語意由模型判，程式核對它填的主體與代號是否自相矛盾；不以字距或特徵詞強猜主詞。
         literal_code = bool(subject_code and re.search(r'(?<!\d)' + re.escape(subject_code) + r'(?!\d)', re.sub(r'\s+', '', quote)))
         foreign_subject = (subject_code and subject_code != own_code and len(_ev_norm(subject)) >= 2
@@ -17370,7 +17387,10 @@ def _validated_source_review(item, row, old, transcript):
             status = 'cross_entity'
         elif status == 'supported' and subject_code != own_code:
             valid = False
+            why.append(f'回覆主體代號不是本股（{subject_code or "空"}）')
         if status == 'cross_entity':
+            if not foreign_subject:
+                why.append('判為他股但引句裡沒有那家公司')
             valid = valid and bool(foreign_subject)
         fact_ids = reply.get('source_fact_ids') or reply.get('fact_ids')
         proposed_fact_ids = list(fact_ids) if isinstance(fact_ids, list) else []
@@ -17413,8 +17433,10 @@ def _validated_source_review(item, row, old, transcript):
                     own_numbers = set(_ws_numbers(claim['text'])).issubset(set(_ws_numbers(' '.join(f['source_quote'] for f in bound))))
                     if not own_numbers:
                         explanation, valid = '主張數字未完整出現在本股所引來源；留原文待核，不猜改數字', False
+                        why.append('主張數字未完整出現在本股所引來源')
                     elif status == 'cross_entity' and foreign_subject:
                         valid = False  # 兩個語意核對有實質矛盾，不能靜默推翻。
+                        why.append('事實帳本屬本股，審閱回覆卻判為他股')
                     else:
                         status, subject_code, subject = 'supported', own_code, str(row.get('name') or '')
                         quote = '\n'.join(f['source_quote'] for f in bound)
@@ -17429,6 +17451,7 @@ def _validated_source_review(item, row, old, transcript):
                         # 來源索引只找到乙，不能證明甲不適用；並列共同立場常被盤點漏一人。
                         # 兩階段衝突交語意重讀，不能用「沒列出本股」自動刪本股句子。
                         explanation, valid = '匿名主體與編輯原句判讀衝突；保留原文待合批核對', False
+                        why.append('匿名主體與編輯原句判讀衝突')
                     elif len(codes) == 1 and exact_numbers and (not aligned or aligned.get('coverage') == 'complete'
                             or (status == 'cross_entity' and subject_code in codes and foreign_subject and quote_ok
                                 and ((aligned.get('subject_checks') or {}).get(own_code) or {}).get('supports_all_details') is False
@@ -17441,18 +17464,32 @@ def _validated_source_review(item, row, old, transcript):
                         valid = True
                     else:
                         valid = False
+                        why.append('對到的來源事實不屬本股（' + '、'.join(sorted(codes)) + '）')
                 elif not all(belongs) or subject_code != own_code:
                     valid = False
+                    why.append('部分來源事實不屬本股' if not all(belongs) else f'回覆主體代號不是本股（{subject_code or "空"}）')
             else:
                 valid = False
+                if ledger.get('version') != SOURCE_FACTS_VERSION or ledger.get('source_sha256') != hashlib.sha256(transcript.encode()).hexdigest() \
+                        or ledger.get('notice_sha256', '') != attribution_notice_sha(transcript):
+                    why.append('來源事實帳本的版本或原稿／通知指紋不符')
+                elif not (isinstance(fact_ids, list) and fact_ids):
+                    why.append('沒有對到任何來源事實編號')
+                elif not all(isinstance(fid, str) and fid in facts for fid in fact_ids):
+                    why.append('來源事實編號不存在')
+                elif isinstance(bindings, dict) and not aligned:
+                    why.append('匿名主張對齊未通過（不是 entailed，或文字指紋已變）')
+                else:
+                    why.append('對齊與審閱回覆都不足以單獨成立')
         if not valid:
-            status, explanation = 'insufficient', '未提供唯一主張編號、可核回的主體及連續原句；不能推定通過'
+            status = 'insufficient'
+            explanation = '未通過來源核對：' + '；'.join(dict.fromkeys(why or ['未提供唯一主張編號、可核回的主體及連續原句'])) + '；不能推定通過'
         elif subject_code == own_code and any(c['number'] in _ws_numbers(claim['text']) for c in number_cautions):
             status, explanation = 'asr_uncertain', '本股來源數字有人類標記的待核疑點；原字存在不代表數值已核實，不能補猜'
         safe = str(reply.get('safe_text') or '').strip()
         if status != 'asr_uncertain' or _ws_numbers(safe):
             safe = ''
-        checked.append(dict(claim, status=status, explanation=explanation, source_quote=quote, subject=subject,
+        checked.append(dict(claim, status=status, explanation=explanation, reply_status=reply_status, source_quote=quote, subject=subject,
                             subject_code=subject_code, source_ids=ids, source_fact_ids=fact_ids or [],
                             proposed_fact_ids=proposed_fact_ids, safe_text=safe))
     statuses = {r['status'] for r in checked}

@@ -1701,8 +1701,9 @@
     },
     "8299": "watchWatch",
     "5289": "watchWatch",
-    "browser_checked": true,
-    "write_needed": false
+    "browser_checked": false,
+    "write_needed": false,
+    "browser_scope": "本輪僅正式API讀回；ph8曾實際瀏覽器驗收，本輪未重做UI操作且未寫正式資料"
   },
   "preserved": [
     "other worktrees uncommitted files",

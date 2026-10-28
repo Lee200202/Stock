@@ -23,6 +23,27 @@ class ModelStance(unittest.TestCase):
   a['entry_for_new']='not_yet'
   self.assertEqual(p.verdict_class(a,p._ev_norm(raw),['甲公司'])[0],'watch_avoid')
 
+ def test_waiting_condition_needs_a_verified_condition_quote(self):
+  # 2026/10/28 國巨：答 conditional 卻寫不出任何條件，不能列觀望注意；改看模型自己的語氣
+  raw='甲公司這兩天漲的還不夠他一天跌，上方有大套牢區，彈上來一定還會再下去。如果回到年線就可以注意甲公司。'
+  base={'about_itself':True,'independent_analysis':False,'buy_today':False,'sell_today':False,'holding_now':False,
+        'past_trade':False,'now':'conditional','tone':'bearish','entry_for_new':'wait_condition','holder_advice':'none',
+        'selection_intent':'neutral','content_role':'independent_analysis',
+        'quotes':{'stance':['甲公司這兩天漲的還不夠他一天跌'],'condition':[]}}
+  self.assertEqual(p.verdict_class(base,p._ev_norm(raw),['甲公司'])[0],'watch_avoid')
+  with_condition=copy.deepcopy(base);with_condition['quotes']['condition']=['如果回到年線就可以注意甲公司']
+  self.assertEqual(p.verdict_class(with_condition,p._ev_norm(raw),['甲公司'])[0],'watch_watch')
+  rebound=copy.deepcopy(base);rebound.update(holder_advice='hold_rebound',entry_for_new='none')
+  self.assertEqual(p.verdict_class(rebound,p._ev_norm(raw),['甲公司'])[0],'watch_watch')
+  legacy=copy.deepcopy(base);legacy['quotes'].pop('condition')
+  self.assertEqual(p.verdict_class(legacy,p._ev_norm(raw),['甲公司'])[0],'watch_watch')
+
+ def test_bare_spoken_code_is_only_an_inventory_candidate(self):
+  flat='老師早，4526再抱嗎？張總，4526繼續抱嗎？這隻股票是什麼？4526。你怎麼不賣1580？1580買的可不可以賣？今天7200億假的。缺口是2490。'
+  self.assertEqual(p._bare_code_mentions(flat),['4526'])
+  with patch.object(p,'_CODE_MAP',{'4526':'東台'}):
+   self.assertEqual(p.is_non_stock('4526')[0],True)   # 剔除規則本身不變；只在代號比對先認官方代號
+
  def test_questionnaire_schema_requests_evidence_before_summary_role(self):
   props=p.verdict_response_schema()['properties']['verdicts']['items']['properties']
   keys=list(props)

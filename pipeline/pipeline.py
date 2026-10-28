@@ -3156,6 +3156,10 @@ def resolve_code(name: str, hint: str):
     if is_foreign_stock(name, set(m.values())):
         return REJECT, name, "剔除：外國股票，不在台股掛牌"
 
+    # 原文只念代號（2026/10/28「老師早，4526再抱嗎？」）：名稱就是官方清單上的代號，直接採用，不當成英文縮寫剔除。
+    if re.fullmatch(r'[1-9]\d{3}', name) and name in m:
+        return name, m[name], "原文只念代號"
+
     # 3. 非個股先剔除。必須在比對之前，否則「台塑集團」會被硬湊成「台積電」。
     bad, why = is_non_stock(name)
     if bad:
@@ -14339,6 +14343,9 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
     import io
     known, notice, open_positions = _verdict_known(ss, date_str, with_open=True)
     _add_notice_verdict_candidates(signals, transcript, date_str)
+    # 當日會員通知列到的股票（含續抱）：持有回合可以由通知開出，不受「紀錄上沒有部位」限制
+    notice_held = {str(r.get('code') or '') for cat in _VERDICT_ORDER for r in signals.get(cat, []) or []
+                   if isinstance(r, dict) and r.get('_notice_candidate_sources')}
     # 紀錄上還沒賣出的股票，今天原文有講到卻沒有任何一列（2026/10/02 重播：力積電「昨天買」被標成今天，日期核對後整列略過）：
     # 補一筆不公開的候選，和其他不公開的台股一樣交給裁決；沒有得到支持就留在不公開。
     listed = {str(r.get('code') or '') for cat in _VERDICT_ORDER for r in signals.get(cat, []) or [] if isinstance(r, dict)}
@@ -14531,6 +14538,9 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             if cls == 'buy' and entry['current'] != 'buy':
                 # 問卷認為今天買進，但買賣只認明確句或會員通知：這一票以看多計，不丟掉（2026/10/14 台達電「我說台達電可以買」）
                 cls, basis = 'watch_watch', '問卷答今天買進但無法核對成交，以看多計：' + basis
+            if cls == 'holdings' and not entry.get('open') and (code, 'buy') not in notice and code not in notice_held:
+                # 持有回合只由紀錄或當日通知開出，與買賣相同（2026/10/20 台積電；2026/10/28 管理者：東台是提問會員自己的部位，不能列會員持股）。
+                cls, basis = 'watch_watch', '問卷答現在持有，但紀錄與當日通知都沒有這個部位，以觀望注意計：' + basis
             # 2026/10/27：不再以「不適合再買」等字詞推翻問卷答案（方向由模型讀原文判定）。
             entry['votes'].append(cls)
             entry.setdefault('round_answers', []).append({'round': round_no + 1, 'class': cls,

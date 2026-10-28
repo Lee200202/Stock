@@ -7469,6 +7469,8 @@ def review_excluded_stocks(signals, transcript, date_str):
         note_decision('排除單檔覆核', '時間或配額不足，本輪未問', date_str,
                       '、'.join(t['official'] or t['heard'] for t in targets.values()))
         print(f"排除單檔覆核：{len(entries)} 檔未收錄，時間或配額不足，本輪未問")
+        for t in targets.values():
+            _hold_for_adjudication(signals, t, t['official'] or t['heard'], transcript)
         return signals
     print(f"排除單檔覆核：{len(entries)} 檔點到名卻沒有分類（"
           + '、'.join(t['official'] or t['heard'] for t in targets.values()) + '），逐檔單獨再問一次')
@@ -7482,6 +7484,8 @@ def review_excluded_stocks(signals, transcript, date_str):
     except (RuntimeError, ValueError, TypeError, RateLimited) as exc:
         print(f'排除單檔覆核未完成：{str(exc)[:100]}；維持原判')
         note_decision('排除單檔覆核', '未完成，維持原判', date_str, str(exc)[:120])
+        for t in targets.values():
+            _hold_for_adjudication(signals, t, t['official'] or t['heard'], transcript)
         return signals
     hay = _ev_norm(transcript)
     done = set()
@@ -7537,6 +7541,7 @@ def review_excluded_stocks(signals, transcript, date_str):
             print(f"  排除單檔覆核　{label}：回覆的引用或數字未通過核對，維持排除")
             continue
         if _foreign_profit_claim(note, [t['heard'], t['official']], transcript):
+            _hold_for_adjudication(signals, t, label, transcript)
             note_decision('排除單檔覆核', '獲利狀況不是這一檔的，維持排除', label, note[:100])
             print(f"  排除單檔覆核　{label}：說明裡的獲利狀況在原文不是講這一檔，維持排除：{note[:40]}")
             continue
@@ -7545,6 +7550,7 @@ def review_excluded_stocks(signals, transcript, date_str):
         # 只是被點到名（「近期市場看到的相關標的包含華通」）不是看法：觀望注意要有對這一檔的指示（會漲、可以注意、續抱、等拉回…）。
         # 2026/10/07 重播：華通以這一句被列成觀望注意，補充時又被寫上別家公司的「沒有賺錢」。
         if verdict == 'watch_watch' and not says_sell(note) and not _has_directive(note)                 and not re.search('翻陽|翻紅|翻揚|向上|突破|留著|抱著|續抱|持有|持股|看好|留意|注意|會漲|買點|布局|佈局|不用賣', note):
+            _hold_for_adjudication(signals, t, label, transcript)
             note_decision('排除單檔覆核', '只是被點到名，維持排除', label, note[:100])
             print(f"  排除單檔覆核　{label}：只是被點到名，沒有對這一檔的指示，維持排除：{note[:40]}")
             continue
@@ -7560,6 +7566,9 @@ def review_excluded_stocks(signals, transcript, date_str):
         signals['_quality_requires_review'] = True
         print(f"  排除單檔覆核　{label}（{t['code']}）→ {WATCH_BIAS_LABEL[verdict]}：{note[:60]}")
         note_decision('排除單檔覆核', '收錄為' + WATCH_BIAS_LABEL[verdict], label, note[:100])
+    for uid, t in targets.items():
+        if uid not in done:      # 模型漏回這一檔：同樣交給三輪問卷
+            _hold_for_adjudication(signals, t, t['official'] or t['heard'], transcript)
     return signals
 
 
@@ -14125,6 +14134,10 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
     if answer.get('about_itself') is False:
         return ('history', '只回顧過去的買賣') if past else ('ignored', '只被點名，沒有講這一檔自己的事')
     stance = real('stance')
+    if not stance and answer.get('_recomputed_from_holding'):
+        # 持有不成立、改照立場重算時，模型常把「繼續抱著」只放在持有欄、立場欄空著（2026/10/28 東台、敦泰）：
+        # 已核對的持有原句就是它對本股的立場，拿來當立場引句，不讓整張票因此作廢
+        stance = real('holding_now')
     # 完整回答「無立場／無獨立分析」可以沒有立場引句；缺欄位不能用預設none冒充排除。
     explicit_neutral = (answer.get('now') == 'none' and answer.get('tone') == 'neutral'
         and answer.get('independent_analysis') is False
@@ -14145,11 +14158,22 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
         # 2026/10/28 環球晶、國巨：同一份答案說「陪襯」又說本股有獨立分析、現在不能買，分析引句也核對過——
         # 角色欄與事實欄矛盾時以核對過的本股分析為準；只有立場引句、沒有獨立分析的照舊算陪襯
         or (bool(analysis) and (answer.get('entry_for_new') in ('prohibit', 'not_yet')
-                                or answer.get('now') in ('prohibit', 'not_yet'))))
+                                or answer.get('now') in ('prohibit', 'not_yet')))
+        # 模型選「陪襯」時會一併把獨立分析填 false，破底、套牢的原句放在立場欄（2026/10/28 環球晶、國巨）：
+        # 沒有過去買賣、不是選股範圍的明確排除、明講現在不能買且偏空、立場原句是本股具體的話（12 字以上），也算本股觀點
+        or (answer.get('content_role') == 'comparison_only' and not past
+            and answer.get('selection_intent') != 'explicit_exclusion'
+            and (answer.get('entry_for_new') in ('prohibit', 'not_yet') or answer.get('now') in ('prohibit', 'not_yet'))
+            and answer.get('tone') == 'bearish'
+            and any(len(_ev_norm(q)) >= 12 for q in stance)))
     # 2026/10/28 聖暉：拿已賣出的股票回顧當初賣得好、笑套牢的人今天解套，沒有對本股的當下分析——是回顧，不是當日觀望不碰
     if past and not analysis and answer.get('content_role') in ('historical_only', 'comparison_only') \
             and answer.get('entry_for_new') not in ('allow', 'wait_condition'):
         return 'history', '只回顧過去的買賣與對照，沒有本股的當下分析：' + first('past_trade')
+    if past and answer.get('content_role') == 'historical_only' and answer.get('entry_for_new') in (None, 'none') \
+            and answer.get('now') in (None, 'none') and answer.get('holder_advice') in (None, 'none'):
+        # 模型把「當初賣在這邊」的回顧句也填進分析欄，但沒有任何當日進場、禁買或續抱指令：仍是回顧
+        return 'history', '只回顧過去的買賣，沒有當日的進場或持有指令：' + first('past_trade')
     if answer.get('content_role') == 'ordinary_word' or (
             answer.get('content_role') in ('position_disclosure', 'selection_scope', 'comparison_only')
             and not has_active_view):
@@ -14178,6 +14202,9 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
         now = 'prohibit'
     if holder == 'hold_rebound':
         now = 'conditional'
+    if holder == 'hold' and now == 'none' and tone != 'bearish' and answer.get('_recomputed_from_holding'):
+        # 重算非會員持股時，「建議持有者續抱」本身就是偏多的立場（觀眾問「再抱嗎」答「繼續抱著」），不落成中性不列
+        tone = 'bullish'
     # 2026/10/28：「等待條件」要寫得出可照做的條件（價位、均線、止穩或回測訊號），而且那句要核對得回原稿。
     # 國巨「這兩天漲的還不夠他一天跌…560有大套牢區，彈上來一定還會再下去」被答成 conditional＋bearish，引句裡沒有任何條件，
     # 因此列成觀望注意。新格式（quotes 有 condition 欄）沒有可核對的條件原句時，不採用 conditional，改看模型自己的語氣。
@@ -14385,6 +14412,12 @@ def _questionnaire_issues(answer, transcript, names):
             else bool((answer.get('quotes') or {}).get('condition') or (answer.get('quote_source_ids') or {}).get('condition')) if field == 'condition'
             else answer.get('now') not in (None, 'none') or answer.get('tone') not in (None, 'neutral'))
         verified = _questionnaire_verified_quotes(answer, field, list(names or ()) + [str(answer.get('id') or '')])
+        if field == 'analysis' and active and verified == [] and isinstance(answer, dict) \
+                and _questionnaire_verified_quotes(answer, 'stance', list(names or ()) + [str(answer.get('id') or '')]):
+            # 2026/10/28 環球晶：立場引句完全正確，分析欄寫了一句濃縮過的話，整張票作廢；補核時模型又被提示改成沒有分析。
+            # 立場已有核對過的原句時，分析欄只當沒附（verdict_class 不採用它），留欄位警告
+            answer.setdefault('_field_warnings', []).append('analysis的引句對不回所選原段，改以已核實的stance原句裁決')
+            continue
         if field == 'condition':
             # 條件欄是 2026/10/28 新加的輔助題：引句對不回只當沒有條件（verdict_class 不採用 conditional），不讓整份答案作廢，留欄位警告
             if active and verified == [] and isinstance(answer, dict):
@@ -14739,7 +14772,8 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                 if _VERDICT_RECORDS.get('readable', True):
                     # 2026/10/28 國巨：持有引句其實是嘉澤那一段，這份答案對國巨本身是偏空——一律改成觀望注意會變成假的看多票。
                     # 持有不成立時，用同一份答案（持有改 false）重算，照模型對本股的立場；重算不出來就不計票
-                    alt, alt_basis = verdict_class(dict(answers.get(code) or {}, holding_now=False), item['_norm'], item['_names'], zones)
+                    alt, alt_basis = verdict_class(dict(answers.get(code) or {}, holding_now=False, _recomputed_from_holding=True),
+                                                   item['_norm'], item['_names'], zones)
                     cls = alt if alt in ('watch_watch', 'watch_avoid', 'history', 'ignored') else ''
                     basis = '紀錄與當日通知都沒有這個部位，問卷的持有不成立，依同份答案的本股立場：' + (alt_basis if cls else '重算不出立場，不計票')
                 else:

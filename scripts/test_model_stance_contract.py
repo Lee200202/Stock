@@ -66,7 +66,10 @@ class ModelStance(unittest.TestCase):
   raw='甲公司今日第一根反彈，後續觀察往季線的位置。'
   answer={'about_itself':True,'independent_analysis':True,'now':'none','tone':'neutral','entry_for_new':'none',
     'quotes':{'stance':[raw],'analysis':[raw]}}
-  self.assertEqual(p.verdict_class(answer,p._ev_norm(raw),['甲公司'])[0],'watch_watch')
+  # 2026/10/28：模型自己答沒有進場立場、語氣中性，依 2026/10/08 管理者規則（只描述行情、沒有結論：不列）不公開；
+  # 有方向時（tone=bullish 或等待條件）才列觀望注意（10/28 管理者：聖暉不放）
+  self.assertEqual(p.verdict_class(answer,p._ev_norm(raw),['甲公司'])[0],'ignored')
+  self.assertEqual(p.verdict_class(dict(answer,tone='bullish'),p._ev_norm(raw),['甲公司'])[0],'watch_watch')
   answer['quotes'].pop('analysis')
   self.assertEqual(p.verdict_class(answer,p._ev_norm(raw),['甲公司'])[0],'ignored')
 

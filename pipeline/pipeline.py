@@ -14036,7 +14036,9 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
     if tone == 'bearish':
         return 'watch_avoid', '偏空或當作風險例子：' + stance[0][:40]
     if analysis:
-        return 'watch_watch', '本股有獨立現況分析，未另宣稱偏多：' + analysis[0][:40]
+        # 2026/10/28：有本股獨立分析、但模型自己答沒有進場立場也沒有偏多偏空，依 2026/10/08 管理者規則（只描述行情、沒有結論：不列）
+        # 不公開。先前預設列觀望注意，10/28 重播把聖暉「今天大漲有什麼用」、晶心科「破新低後漲停」列成觀望注意（管理者：聖暉不放）。
+        return VERDICT_NEUTRAL_CLASS, '本股有現況分析，但沒有進場立場或偏多偏空結論，不列：' + analysis[0][:40]
     if past:
         return 'history', '只回顧過去的買賣'
     return VERDICT_NEUTRAL_CLASS, '只描述行情，沒有偏多偏空的結論，不列：' + stance[0][:40]
@@ -14346,6 +14348,7 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
     # 當日會員通知列到的股票（含續抱）：持有回合可以由通知開出，不受「紀錄上沒有部位」限制
     notice_held = {str(r.get('code') or '') for cat in _VERDICT_ORDER for r in signals.get(cat, []) or []
                    if isinstance(r, dict) and r.get('_notice_candidate_sources')}
+    tx_flat = re.sub(r'\s', '', str(transcript or ''))
     # 紀錄上還沒賣出的股票，今天原文有講到卻沒有任何一列（2026/10/02 重播：力積電「昨天買」被標成今天，日期核對後整列略過）：
     # 補一筆不公開的候選，和其他不公開的台股一樣交給裁決；沒有得到支持就留在不公開。
     listed = {str(r.get('code') or '') for cat in _VERDICT_ORDER for r in signals.get(cat, []) or [] if isinstance(r, dict)}
@@ -14538,9 +14541,10 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             if cls == 'buy' and entry['current'] != 'buy':
                 # 問卷認為今天買進，但買賣只認明確句或會員通知：這一票以看多計，不丟掉（2026/10/14 台達電「我說台達電可以買」）
                 cls, basis = 'watch_watch', '問卷答今天買進但無法核對成交，以看多計：' + basis
-            if cls == 'holdings' and not entry.get('open') and (code, 'buy') not in notice and code not in notice_held:
-                # 持有回合只由紀錄或當日通知開出，與買賣相同（2026/10/20 台積電；2026/10/28 管理者：東台是提問會員自己的部位，不能列會員持股）。
-                cls, basis = 'watch_watch', '問卷答現在持有，但紀錄與當日通知都沒有這個部位，以觀望注意計：' + basis
+            if cls == 'holdings' and not entry.get('open') and (code, 'buy') not in notice and code not in notice_held                     and code in tx_flat and _ev_norm(_display_name(entry['name'])) not in _ev_norm(transcript):
+                # 原文只念代號、沒有念名稱，紀錄與當日通知也沒有部位：那是提問會員自己的股票，不由問卷開出持有回合
+                # （2026/10/28 管理者：東台「老師早，4526再抱嗎？」可列觀望注意，不能列會員持股）。有念名稱的照問卷（10/28 敦泰「之前就有的敦泰」）。
+                cls, basis = 'watch_watch', '只念代號、紀錄與當日通知都沒有這個部位，持有的是提問者，以觀望注意計：' + basis
             # 2026/10/27：不再以「不適合再買」等字詞推翻問卷答案（方向由模型讀原文判定）。
             entry['votes'].append(cls)
             entry.setdefault('round_answers', []).append({'round': round_no + 1, 'class': cls,

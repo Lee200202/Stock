@@ -106,6 +106,13 @@ class ModelStance(unittest.TestCase):
   self.assertTrue(got['1111']['by_fp']);self.assertFalse(got['2222']['by_fp'])   # 2 比 1 定案不沿用
   self.assertTrue(got['3333']['by_fp']);self.assertFalse(got['4444']['by_fp'])   # 缺答不算反對；只有一票不沿用
 
+ def test_complete_words_ending_in_a_connector_are_not_spoken_fragments(self):
+  # 2026/10/28 大立光：「…曾提及。」被當成停在「及」上的殘句，整檔隔離
+  for done in ('權值股現階段不追價，先前在2000多塊時曾提及。','外資持續參與。','股權已經轉讓。','會員依建議聽從。','跌勢可能波及。'):
+   self.assertFalse(p.spoken_fragment(done),done)
+  for cut in ('鈺邦，你來看，它是不是跟。','記憶體族群以及。','他把。','這一檔股票會從。'):
+   self.assertTrue(p.spoken_fragment(cut),cut)
+
  def test_verdict_fingerprint_includes_the_position_snapshot(self):
   self.assertNotEqual(p._verdict_position_key({'open':True}),p._verdict_position_key({'open':False}))
 

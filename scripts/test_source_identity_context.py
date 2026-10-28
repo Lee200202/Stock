@@ -90,8 +90,11 @@ class IdentityContext(unittest.TestCase):
         with patch.object(p,'_DAY_PRIVATE_NOTICE_PRICES',private):
             _,hard,_=p.quality_overview({'buy':[row]},check_chapters=False)
             self.assertTrue(any('會員通知的操作價' in x for x in hard))   # 原稿沒講、只在通知裡的價位仍不公開
-            _,hard,_=p.quality_overview({'buy':[row]},'甲公司今天785元買進。',check_chapters=False)
-            self.assertFalse(any('會員通知的操作價' in x for x in hard))  # 2026/10/28 管理者：原稿講過的價位不擋
+            _,hard,_=p.quality_overview({'buy':[row]},'乙公司今天785元。甲公司今天買進。',check_chapters=False)
+            self.assertTrue(any('會員通知的操作價' in x for x in hard))   # 別檔講過同一個數字不放行
+            spoken=dict(row,evidence=['甲公司今天785元買進'])
+            _,hard,_=p.quality_overview({'buy':[spoken]},'甲公司今天785元買進。',check_chapters=False)
+            self.assertFalse(any('會員通知的操作價' in x for x in hard))  # 2026/10/28 管理者：本股原稿講過的價位不擋
             row['reason']='甲公司假破底，外資連續買進，上半年EPS21.83。'
             _,hard,_=p.quality_overview({'buy':[row]},check_chapters=False)
             self.assertFalse(any('會員通知操作價' in x for x in hard))

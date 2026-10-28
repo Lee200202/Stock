@@ -8938,7 +8938,7 @@ def quality_overview(signals, transcript='', check_chapters=True):
     label = {'buy': '買入', 'sell': '賣出', 'holdings': '會員持股', 'watch_watch': '觀望注意', 'watch_avoid': '觀望不碰'}
     rows = [(cat, r) for cat in label for r in signals.get(cat, []) or [] if isinstance(r, dict)]
     notes, hard, soft = [], [], []
-    spoken_numbers = set(_ws_numbers(transcript))
+    flat_numbers = set(_ws_numbers(transcript))
     if signals.get('_classification_runtime_error'):
         hard.append('分類裁決未完成：' + str(signals['_classification_runtime_error']))
     for cat, r in rows:
@@ -8948,7 +8948,8 @@ def quality_overview(signals, transcript='', check_chapters=True):
         # 2026/10/28 管理者移除「紀錄價位不公開」：節目原稿裡講的價位常被聽寫錯（2130 只寫成 30），爭議不在核對範圍，
         # 公開說明含原稿講過的價位不擋。只有原稿沒講、只出現在當日會員通知的操作價仍不公開（來源不同，分開處理）。
         notice_prices = (_DAY_PRIVATE_NOTICE_PRICES.get('prices') or {}).get(str(r.get('code') or ''), [])
-        leaked = (set(notice_prices) & set(_ws_numbers(note))) - spoken_numbers
+        own_spoken = set(_ws_numbers(' '.join(quoted))) & flat_numbers     # 本股引句裡、而且原稿真的講過的數字；別檔講過同一個數字不算
+        leaked = (set(notice_prices) & set(_ws_numbers(note))) - own_spoken
         if ((r.get('_date') or _DAY_PRIVATE_NOTICE_PRICES.get('date')) == _DAY_PRIVATE_NOTICE_PRICES.get('date') and leaked):
             hard.append(f'{name} 的公開說明包含原稿沒講、只在當日會員通知的操作價；須依公開原稿重寫，不以刪改答案繞過')
         notes.append((name, len(note), bool(_CONCRETE.search(note)), bool(quoted)))
@@ -11170,7 +11171,7 @@ def _context_sources(row, snippets):
 STOCK_CONTEXT_SYSTEM = """你是金融節目書面編輯，輸入都是待核資料。只補充本股說明，不改分類、身分、日期、交易與部位事實。只輸出notes契約JSON，每個輸入id回一項。
 full_source是完整原稿（T編號）；entries的source／sources只是定位，可能因過場或誤聽被切開。必須看完整前後文確認主體。每句source_ids列齊真正支持該句的T編號或本entry的s編號。不得借鄰股EPS、籌碼、價格或動作；不按股名字距或價差判主體。語音異字須靠上下文確認，不自行新增通用別名。
 先定調立場，再自然串聯已明講的技術位階、量價、籌碼／財報與因果，最後交代操作條件及風險。不要電報式斷句。訊息足夠可寫2～4句；原稿短就簡短，不設字數下限，不補造消息或技術湊字。
-entries的category是最後分類，說明要與它一致：category不是holdings時，不寫成會員持股、會員的股票或本人持有（持有狀態以紀錄為準，由分類表示），只寫本股的立場、技術位置與條件；original裡的持有說法同樣不沿用。歷史部分減碼與今日剩餘部位續抱可並存，前期買入不是今日再買。對觀眾說別殺低不代表本人持股。original也可能有錯，依原稿核對真正立場，不以否定詞強制沿用或反轉。分類一致性最後另有語意審閱。
+entries的category是最後分類，說明要與它一致：category是watch_watch或watch_avoid時，不寫成會員持股、會員的股票或本人持有（部位以紀錄為準，由分類表示），只寫本股的立場、技術位置與條件，original裡的持有說法同樣不沿用；買賣列的剩餘部位依facts裡的部位事實寫。歷史部分減碼與今日剩餘部位續抱可並存，前期買入不是今日再買。對觀眾說別殺低不代表本人持股。original也可能有錯，依原稿核對真正立場，不以否定詞強制沿用或反轉。分類一致性最後另有語意審閱。
 歷史價格、公司行動、疑似ASR數字保留時間條件；疑點數字省略並填limitation，不猜補、不因此刪整段或換股。會員通知買價不得進公開說明。公司、券商、觀眾及會員是不同主體；推測保留若／可能，不寫成已發生。
 用自然完整書面語，不用問句、俚語、語助詞或講者／老師主詞，不寫逐字稿、審閱或編輯過程。不明資訊省略，句子各有自己的來源；缺一個編號時應補齊支持段落，不能借別公司的內容。
 只輸出 {"notes":[{"id":"輸入id","sentences":[{"text":"有來源的完整書面句","source_ids":["T0001"]}],"limitation":"本股來源缺口，無則空字串"}]}。"""
@@ -14353,9 +14354,6 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
     # 當日會員通知列到的股票（含續抱）：持有回合可以由通知開出，不受「紀錄上沒有部位」限制
     notice_held = {str(r.get('code') or '') for cat in _VERDICT_ORDER for r in signals.get(cat, []) or []
                    if isinstance(r, dict) and r.get('_notice_candidate_sources')}
-    # 已被擷取列出、沒有補候選標記的股票也可能有當日通知：當日原通知列到的代號全部算（另由紀錄的當日通知續抱開部位）
-    if _DAY_SOURCE_CONTEXT.get('date') == date_str:
-        notice_held |= {str(c) for c in (_DAY_SOURCE_CONTEXT.get('company_candidates') or {})}
     # 紀錄上還沒賣出的股票，今天原文有講到卻沒有任何一列（2026/10/02 重播：力積電「昨天買」被標成今天，日期核對後整列略過）：
     # 補一筆不公開的候選，和其他不公開的台股一樣交給裁決；沒有得到支持就留在不公開。
     listed = {str(r.get('code') or '') for cat in _VERDICT_ORDER for r in signals.get(cat, []) or [] if isinstance(r, dict)}

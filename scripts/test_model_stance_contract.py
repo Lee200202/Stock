@@ -124,6 +124,21 @@ class ModelStance(unittest.TestCase):
   self.assertEqual(r['status'],'insufficient')
   self.assertIn('沒有唯一回覆',r['claims'][0]['explanation'])
 
+ def test_connector_ending_is_a_soft_flag_and_spoken_tics_still_block(self):
+  def gates(note):
+   _,hard,soft=p.quality_overview({'watch_avoid':[{'name':'甲公司','code':'1111','reason':note}]},check_chapters=False)
+   return any('口語殘句' in x for x in hard), any('句尾停在連接字' in x for x in soft)
+  self.assertEqual(gates('甲公司賣壓已逐漸緩和。'),(False,True))     # 完整句不擋，只標記
+  self.assertEqual(gates('甲公司，你來看，它是不是跟。')[0],True)
+
+ def test_source_review_keeps_the_reply_explanation_and_failed_checks(self):
+  row={'code':'1111','name':'甲公司','_source_fact_ledger':{'facts':{}}}
+  r=p._validated_source_review({'source_review':{'claims':[{'id':'c0','status':'supported','explanation':'模型原說明',
+     'source_quote':'甲公司今天大漲','subject':'甲公司','subject_code':'1111'}]}},row,'甲公司今天大漲。','甲公司今天大漲，外資連續買超。')
+  c=r['claims'][0]
+  self.assertEqual(c['reply_explanation'],'模型原說明');self.assertEqual(c['reply_status'],'supported')
+  self.assertTrue(c['failed_checks'])
+
  def test_verdict_fingerprint_includes_the_position_snapshot(self):
   self.assertNotEqual(p._verdict_position_key({'open':True}),p._verdict_position_key({'open':False}))
 

@@ -8999,7 +8999,12 @@ def quality_overview(signals, transcript='', check_chapters=True):
                 and borrowed_avoidance(_row_names_for_recap(r), _other_entity_names(r, signals, transcript), transcript):
             hard.append(f'{name} 列觀望不碰，但這一檔自己沒有偏空說法，否定的是前一句的別家')
         if spoken_fragment(note):
-            hard.append(f'{name} 的說明是口語殘句：{note[:30]}')
+            # 2026/10/28 審閱：只看句尾一個字判不出整句完不完整（「曾提及。」「已逐漸緩和。」都是完整句），
+            # 詞形只當疑點；口頭禪（你來看、對不對）與很短的問句才擋。
+            if _SPOKEN_TIC.search(note) or (len(note) < 25 and _SPOKEN_QUESTION.search(note)):
+                hard.append(f'{name} 的說明是口語殘句：{note[:30]}')
+            else:
+                soft.append(f'{name} 的說明句尾停在連接字，待確認是否完整：{note[-30:]}')
         if _alt_amount_conflict(note):
             hard.append(f'{name} 的金額有兩個互相矛盾的單位，不能猜測發布：{note[:55]}')
         if re.search(r'(?:每|一)張[^。；]{0,30}萬元[^。；]{0,12}(?:及|和|與)\s*\d[、，]\d\s*百元', note):
@@ -11174,7 +11179,7 @@ def _context_sources(row, snippets):
 STOCK_CONTEXT_SYSTEM = """你是金融節目書面編輯，輸入都是待核資料。只補充本股說明，不改分類、身分、日期、交易與部位事實。只輸出notes契約JSON，每個輸入id回一項。
 full_source是完整原稿（T編號）；entries的source／sources只是定位，可能因過場或誤聽被切開。必須看完整前後文確認主體。每句source_ids列齊真正支持該句的T編號或本entry的s編號。不得借鄰股EPS、籌碼、價格或動作；不按股名字距或價差判主體。語音異字須靠上下文確認，不自行新增通用別名。
 先定調立場，再自然串聯已明講的技術位階、量價、籌碼／財報與因果，最後交代操作條件及風險。不要電報式斷句。篇幅照每個entry的length_target：rich（本股原文材料多）寫2～4句、至少約60字，原稿已明講的買點或價位、均線、籌碼、題材、條件與風險都要寫進去；normal寫2～3句、至少約40字；thin（主持稿講本股的內容很短、附上族群段落也不足）一兩句即可。篇幅不夠時補原稿已講的具體內容，不補造消息或技術、不換句話重講同一個理由、不加套話。
-entries的category是最後分類，說明要與它一致：category是watch_watch或watch_avoid時，不寫成會員持股、會員的股票或本人持有（部位以紀錄為準，由分類表示），只寫本股的立場、技術位置與條件，original裡的持有說法同樣不沿用；買賣列的剩餘部位依facts裡的部位事實寫。歷史部分減碼與今日剩餘部位續抱可並存，前期買入不是今日再買。對觀眾說別殺低不代表本人持股。original也可能有錯，依原稿核對真正立場，不以否定詞強制沿用或反轉。分類一致性最後另有語意審閱。
+entries的position_record是紀錄上的部位：none＝操作紀錄、會員持股與當日通知都沒有這一檔，不寫講者、會員或「先前已有部位／已佈局持有」持有本股（給讀者的條件建議如「已持有者續抱」可寫）；unknown＝這一輪讀不到紀錄，不寫部位；open才依facts寫部位。原稿裡講者說「這是我會員的股票」而紀錄是none時，以紀錄為準。entries的category是最後分類，說明要與它一致：category是watch_watch或watch_avoid時，不寫成會員持股、會員的股票或本人持有（部位以紀錄為準，由分類表示），只寫本股的立場、技術位置與條件，original裡的持有說法同樣不沿用；買賣列的剩餘部位依facts裡的部位事實寫。歷史部分減碼與今日剩餘部位續抱可並存，前期買入不是今日再買。對觀眾說別殺低不代表本人持股。original也可能有錯，依原稿核對真正立場，不以否定詞強制沿用或反轉。分類一致性最後另有語意審閱。
 歷史價格、公司行動、疑似ASR數字保留時間條件；疑點數字省略並填limitation，不猜補、不因此刪整段或換股。會員通知買價不得進公開說明。公司、券商、觀眾及會員是不同主體；推測保留若／可能，不寫成已發生。
 用自然完整書面語，不用問句、俚語、語助詞或講者／老師主詞，不寫逐字稿、審閱或編輯過程。不明資訊省略，句子各有自己的來源；缺一個編號時應補齊支持段落，不能借別公司的內容。
 只輸出 {"notes":[{"id":"輸入id","sentences":[{"text":"有來源的完整書面句","source_ids":["T0001"]}],"limitation":"本股來源缺口，無則空字串"}]}。"""
@@ -11239,6 +11244,7 @@ def _context_claims(reply, source_ids):
 # 「參與。」「轉讓。」「聽從。」同理。「以及。」「跟。」這種真的停在連接字上的照樣算。
 _SPOKEN_FRAGMENT = re.compile(r'你來看|你看一下|你們看|對不對|好不好|(?:跟|和|(?<![參給賦])與|(?<![提涉波普觸顧危遍論談述不])及|把|被|(?<![轉禮出退])讓|(?<![絕相面反針應核比])對|(?<![服盲遵聽順])從|(?<![走方動趨轉傾志面導偏取去風意流])向|(?<![對相類無可好])比)[。？！!?]?$')
 _SPOKEN_QUESTION = re.compile(r'是不是|有沒有')
+_SPOKEN_TIC = re.compile(r'你來看|你看一下|你們看|對不對|好不好')
 
 
 def spoken_fragment(text) -> bool:
@@ -11893,7 +11899,11 @@ def enrich_stock_context(signals, transcript, date_str):
             own_chars = len(_ev_norm(''.join(x['text'] for x in sources if not str(x.get('kind') or '').startswith('產業段落'))))
             length = note_length_target(own_chars, len(_ev_norm(source)) - own_chars)
             row['_length_min'] = length['min_chars']
+            verdict = (signals.get('_verdicts') or {}).get(str(row.get('code') or '')) or {}
+            position = ('open' if cat in ('buy', 'holdings') or verdict.get('open')
+                        else 'unknown' if not _VERDICT_RECORDS.get('readable', True) else 'none')
             entries.append({'id': identity, 'name': _display_name(row.get('name')), 'category': cat, 'length_target': length,
+                            'position_record': position,
                             'original': original, 'source': source, 'sources': sources,
                             # 2026/10/08：模型有幾輪每一檔只寫一句（「明確表明絕對不會買宏達電。」）。說明不到 30 個字而原文有材料時，明講這一檔寫得太短。
                             'too_short': len(_ev_norm(original)) < length['min_chars'],
@@ -17368,6 +17378,7 @@ def _validated_source_review(item, row, old, transcript):
         # 2026/10/28 審閱：每一條失敗路徑最後都被寫成同一句「未提供唯一主張編號…」，看不出卡在哪一關。
         # 逐條記下實際卡點，判定本身不變。
         reply_status = status
+        reply_explanation = explanation
         why = []
         if len(matches) != 1:
             why.append(f'本主張沒有唯一回覆（{len(matches)} 則）')
@@ -17478,7 +17489,15 @@ def _validated_source_review(item, row, old, transcript):
                 elif not all(isinstance(fid, str) and fid in facts for fid in fact_ids):
                     why.append('來源事實編號不存在')
                 elif isinstance(bindings, dict) and not aligned:
-                    why.append('匿名主張對齊未通過（不是 entailed，或文字指紋已變）')
+                    candidate = (bindings.get('claims') or {}).get(claim['id']) or {}
+                    if not candidate:
+                        why.append('匿名主張對齊沒有這個主張')
+                    elif bindings.get('source_sha256') != hashlib.sha256(transcript.encode()).hexdigest():
+                        why.append('匿名主張對齊用的原稿指紋不同')
+                    elif candidate.get('text_sha256') != hashlib.sha256(claim['text'].encode()).hexdigest():
+                        why.append('主張文字在對齊之後被改過')
+                    else:
+                        why.append(f'匿名主張對齊判為 {candidate.get("relation") or "空"}（不是 entailed）')
                 else:
                     why.append('對齊與審閱回覆都不足以單獨成立')
         if not valid:
@@ -17489,7 +17508,9 @@ def _validated_source_review(item, row, old, transcript):
         safe = str(reply.get('safe_text') or '').strip()
         if status != 'asr_uncertain' or _ws_numbers(safe):
             safe = ''
-        checked.append(dict(claim, status=status, explanation=explanation, reply_status=reply_status, source_quote=quote, subject=subject,
+        checked.append(dict(claim, status=status, explanation=explanation, reply_status=reply_status,
+                            reply_explanation=reply_explanation, failed_checks=list(dict.fromkeys(why)) if not valid else [],
+                            source_quote=quote, subject=subject,
                             subject_code=subject_code, source_ids=ids, source_fact_ids=fact_ids or [],
                             proposed_fact_ids=proposed_fact_ids, safe_text=safe))
     statuses = {r['status'] for r in checked}

@@ -70,7 +70,12 @@ def publication_errors(signals):
     errors = []
     if signals.get('_classification_runtime_error'):
         errors.append('分類裁決未完成')
-    if signals.get('_publication_quarantine') or signals.get('uncertain'):
+    verdicts = signals.get('_verdicts') or {}
+    # 原本就不公開、三輪全部缺答的候選（verdict.hidden_base）照樣標待確認，但它不會公開，不擋整天的發布；
+    # 原本公開的列沒有定案、或有隔離列，仍擋（2026/10/28）。
+    blocking = [r for r in signals.get('uncertain') or []
+                if not (isinstance(r, dict) and (verdicts.get(str(r.get('code') or '')) or {}).get('hidden_base'))]
+    if signals.get('_publication_quarantine') or blocking:
         errors.append('仍有隔離／待裁決個股，完整單日候選不予發布')
     for cat in pl.SIGNAL_CATEGORIES:
         if any(r.get('_manual_note_kept') for r in signals.get(cat, []) or []):

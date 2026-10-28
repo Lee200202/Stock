@@ -13962,6 +13962,26 @@ def _short_own_quote(quote, window_norm, names):
     return 4 <= len(q) < 6 and q in window_norm and bool(hit) and len(q) - max(len(n) for n in hit) >= 2
 
 
+def _clauses_in_order(quote, window_norm):
+    """長引句被模型壓縮過（省掉講者重複的話、用「……」跳過一段）：拆成小句，每一小句（至少 4 字）逐字在所引原段裡、
+    每一小句（含短句）都依順序逐字對上，而且長小句合計涵蓋引句六成以上，就算對得回原段。2026/10/28 國巨「你們只會看到漲的」少重複一次、華邦電中間用「……」、
+    敦泰跳過一段，三輪有兩輪整份作廢。小句仍須逐字，不接受改字。"""
+    parts = [_ev_norm(c) for c in re.split(r'[，。！？；、,!?;：:]+|…+|\.{2,}', str(quote or ''))]
+    whole = _ev_norm(quote)
+    kept = [c for c in parts if len(c) >= 4]
+    if len(whole) < 12 or not kept or sum(len(c) for c in kept) < 0.6 * len(whole):
+        return False
+    # 每一小句（含「不買」、數字、股名這類短句）都要依引句順序逐字對上，不能從別處借來
+    # （審閱反例：甲公司的「不買」「29」被接到乙公司的引句裡，只檢查有沒有出現就會放行）。
+    at = 0
+    for c in (c for c in parts if c):
+        found = window_norm.find(c, at)
+        if found < 0:
+            return False
+        at = found + len(c)
+    return True
+
+
 def _questionnaire_verified_quotes(answer, field, names=()):
     """只接受所指原段中的引句；相鄰S可連續核對，N與非相鄰S不可跨接。"""
     restored = (answer.get('_verified_quote_sources') or {}).get(field) or []
@@ -13981,7 +14001,8 @@ def _questionnaire_verified_quotes(answer, field, names=()):
                 if all(isinstance(sid, str) and re.fullmatch(r'S\d+', sid) for sid in group) and all(
                         int(b[1:]) == int(a[1:]) + 1 for a, b in zip(group, group[1:])):
                     windows.append('\n'.join(restored[start:end + 1]))
-    return [q for q in clean if any(_quote_is_real(q, _ev_norm(z)) or _short_own_quote(q, _ev_norm(z), names) for z in windows)]
+    return [q for q in clean if any(_quote_is_real(q, _ev_norm(z)) or _short_own_quote(q, _ev_norm(z), names)
+                                    or _clauses_in_order(q, _ev_norm(z)) for z in windows)]
 
 
 def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=None):
@@ -14300,6 +14321,8 @@ def _questionnaire_issues(answer, transcript, names):
             else bool((answer.get('quotes') or {}).get('condition') or (answer.get('quote_source_ids') or {}).get('condition')) if field == 'condition'
             else answer.get('now') not in (None, 'none') or answer.get('tone') not in (None, 'neutral'))
         verified = _questionnaire_verified_quotes(answer, field, list(names or ()) + [str(answer.get('id') or '')])
+        if field == 'condition':
+            continue      # 條件欄是 2026/10/28 新加的輔助題：引句對不回只當沒有條件（verdict_class 會改看語氣），不讓整份答案作廢
         if active and verified == []:
             issues.append(field + '的節錄不在所選連續原段；請逐字引用相鄰S／單一N，不改ASR、不加省略號；也可quotes留空而僅填真正支持該題的完整原段編號，須再核主體。不得用來源編號替改寫背書')
     for field, category in (('buy_today','buy'),('sell_today','sell'),('holding_now','holdings')):
@@ -14693,9 +14716,18 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             # 原先由字詞或缺答直接定類的路徑停用，交語意問卷與未完成隔離。
             # 原先由字詞或缺答直接定類的路徑停用，交語意問卷與未完成隔離。
             detail = (entry['answer'].get(decided) or {}).get('basis') or ''
-            if state == '未定':
+            base_hidden = (entry.get('late') or entry['current']) in _VERDICT_HIDDEN
+            cast = [v for v in entry['votes'] if v]
+            if state == '未定' and base_hidden and cast and not any(public_votes.count(v) >= 2 for v in set(public_votes)):
+                # 原本就不公開的候選有可用的票、卻沒有公開多數（2026/10/28 達邁「排除／會員持股／回顧」）：維持不公開。
+                # 它從沒取得公開資格，不必標待確認擋住整天的發布；原本公開的列沒有多數照舊待確認。
+                decided = 'ignored' if (entry.get('late') or entry['current']) in ('', 'uncertain') else (entry.get('late') or entry['current'])
+                why += '｜不公開的候選沒有公開多數，維持不公開'
+            elif state == '未定':
                 decided = 'uncertain'
                 why += '｜缺答或分裂不是排除證據，候選隔離待核'
+                # 三輪全部缺答仍標待確認（不能冒稱模型確認排除），但它原本就不公開：記下來，發布關卡不因它擋整天
+                entry['hidden_base'] = base_hidden
             # 原先由字詞或缺答直接定類的路徑停用，交語意問卷與未完成隔離。
             entry.update(cls=decided, tier='裁決' if state == '定案' else '未定', enforce=True, new=True,
                          basis='｜'.join(x for x in (entry['basis'], why, detail) if x))
@@ -18486,6 +18518,25 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
                     r.pop('_source_facts', None)
                     if r.pop('_holding_claim', None) == 'set':
                         r.pop('_leftover', None)
+        # 重寫之後觀望列仍寫成會員持股、紀錄上又沒有部位（2026/10/28 敦泰連續幾輪都寫「會員持股」）：在書面化與來源審閱之前
+        # 拿掉那個子句，審閱看到的就是最後的文字（審閱之後改字會讓指紋失效）。拿掉後不成句就保留，交給最後的待核標記。
+        for cat in ('watch_watch', 'watch_avoid'):
+            for r in signals.get(cat, []) or []:
+                text = str(r.get('reason') or '') if isinstance(r, dict) else ''
+                if not text or not _HOLDING_CLAIM.search(text) or record_position(signals, r) != 'none':
+                    continue
+                kept = []
+                for sentence in re.split(r'(?<=[。！？；])', text):
+                    end = sentence[-1] if sentence and sentence[-1] in '。！？；' else ''
+                    body = sentence[:-1] if end else sentence
+                    parts = [c for c in re.split(r'[，,]', body) if c.strip() and not _HOLDING_CLAIM.search(c)]
+                    if parts:
+                        kept.append('，'.join(parts) + end)
+                new = ''.join(kept).strip('，, ')
+                if len(_ev_norm(new)) >= 8:
+                    r['reason'] = new
+                    print(f"  部位一致　{_display_name(r.get('name'))}：紀錄上沒有部位，審閱前拿掉寫成持有的子句：{text[:28]}… → {new[:28]}…")
+                    note_decision('部位一致', '審閱前拿掉寫成持有的子句', _display_name(r.get('name')), text[:120])
     # 說明裡的成本／買賣價若明顯是隔壁那一檔的，刪掉那一句（管理者回報鴻準238，2026/09/16）。
     signals = strip_foreign_price_claims(signals, TX["audit"], ss, date_str)
     signals = strip_implausible_price_claims(ss, signals, date_str)

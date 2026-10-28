@@ -13962,6 +13962,25 @@ def _short_own_quote(quote, window_norm, names):
     return 4 <= len(q) < 6 and q in window_norm and bool(hit) and len(q) - max(len(n) for n in hit) >= 2
 
 
+def _clauses_in_order(quote, window_norm):
+    """長引句被模型壓縮過（省掉講者重複的話、用「……」跳過一段）：拆成小句，每一小句（至少 4 字）逐字在所引原段裡、
+    順序一致、短小句也都在原段裡，而且長小句合計涵蓋引句六成以上，就算對得回原段。2026/10/28 國巨「你們只會看到漲的」少重複一次、華邦電中間用「……」、
+    敦泰跳過一段，三輪有兩輪整份作廢。小句仍須逐字，不接受改字。"""
+    parts = [_ev_norm(c) for c in re.split(r'[，。！？；、,!?;：:]+|…+|\.{2,}', str(quote or ''))]
+    whole = _ev_norm(quote)
+    kept = [c for c in parts if len(c) >= 4]
+    # 短小句（股名、「不買」）也要在原段裡出現；長小句合計涵蓋六成以上
+    if len(whole) < 12 or not kept or sum(len(c) for c in kept) < 0.6 * len(whole)             or any(c not in window_norm for c in parts if 0 < len(c) < 4):
+        return False
+    at = 0
+    for c in kept:
+        found = window_norm.find(c, at)
+        if found < 0:
+            return False
+        at = found + len(c)
+    return True
+
+
 def _questionnaire_verified_quotes(answer, field, names=()):
     """只接受所指原段中的引句；相鄰S可連續核對，N與非相鄰S不可跨接。"""
     restored = (answer.get('_verified_quote_sources') or {}).get(field) or []
@@ -13981,7 +14000,8 @@ def _questionnaire_verified_quotes(answer, field, names=()):
                 if all(isinstance(sid, str) and re.fullmatch(r'S\d+', sid) for sid in group) and all(
                         int(b[1:]) == int(a[1:]) + 1 for a, b in zip(group, group[1:])):
                     windows.append('\n'.join(restored[start:end + 1]))
-    return [q for q in clean if any(_quote_is_real(q, _ev_norm(z)) or _short_own_quote(q, _ev_norm(z), names) for z in windows)]
+    return [q for q in clean if any(_quote_is_real(q, _ev_norm(z)) or _short_own_quote(q, _ev_norm(z), names)
+                                    or _clauses_in_order(q, _ev_norm(z)) for z in windows)]
 
 
 def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=None):
@@ -14300,6 +14320,8 @@ def _questionnaire_issues(answer, transcript, names):
             else bool((answer.get('quotes') or {}).get('condition') or (answer.get('quote_source_ids') or {}).get('condition')) if field == 'condition'
             else answer.get('now') not in (None, 'none') or answer.get('tone') not in (None, 'neutral'))
         verified = _questionnaire_verified_quotes(answer, field, list(names or ()) + [str(answer.get('id') or '')])
+        if field == 'condition':
+            continue      # 條件欄是 2026/10/28 新加的輔助題：引句對不回只當沒有條件（verdict_class 會改看語氣），不讓整份答案作廢
         if active and verified == []:
             issues.append(field + '的節錄不在所選連續原段；請逐字引用相鄰S／單一N，不改ASR、不加省略號；也可quotes留空而僅填真正支持該題的完整原段編號，須再核主體。不得用來源編號替改寫背書')
     for field, category in (('buy_today','buy'),('sell_today','sell'),('holding_now','holdings')):

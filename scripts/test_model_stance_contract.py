@@ -167,6 +167,14 @@ class ModelStance(unittest.TestCase):
   with patch.object(p,'_CODE_MAP',{'6409':'旭隼'}),patch.object(p,'_DAY_SOURCE_CONTEXT',{}):
    self.assertEqual(len(p.drop_ordinary_word_rows(sig(),raw)['holdings']),0)   # 沒有通知照舊不開持股
 
+ def test_condensed_long_quote_counts_only_when_every_clause_is_verbatim_in_order(self):
+  win=p._ev_norm('國巨這兩天漲的還不夠他一天跌。你有沒有看到？上個禮拜跌一根黑K棒，這兩天還漲不過去。啊你們只會看到你們只會看到漲的，你們只會看到漲的。而不是知道買賣股票要懂成本。')
+  self.assertTrue(p._clauses_in_order('國巨這兩天漲的還不夠他一天跌。上個禮拜跌一根黑K棒，這兩天還漲不過去。……而不是知道買賣股票要懂成本。',win))
+  self.assertFalse(p._clauses_in_order('國巨這兩天漲的還不夠他一天跌。這兩天會大漲突破。',win))                 # 有一句不是原話
+  self.assertFalse(p._clauses_in_order('而不是知道買賣股票要懂成本。國巨這兩天漲的還不夠他一天跌。',win))      # 順序顛倒
+  self.assertTrue(p._clauses_in_order('大立光，不買。這是我現在的邏輯。',p._ev_norm('大立光，不買。聯發科，不買。這是我現在的邏輯。')))
+  self.assertFalse(p._clauses_in_order('台積電我本連賣都沒有賣，台積電會補缺口。',p._ev_norm('台積電我本來連賣都沒有賣，台積電會來補這一個缺口。')))  # 改字不收
+
  def test_verdict_fingerprint_includes_the_position_snapshot(self):
   self.assertNotEqual(p._verdict_position_key({'open':True}),p._verdict_position_key({'open':False}))
 

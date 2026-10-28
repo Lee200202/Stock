@@ -13962,6 +13962,10 @@ def _short_own_quote(quote, window_norm, names):
     return 4 <= len(q) < 6 and q in window_norm and bool(hit) and len(q) - max(len(n) for n in hit) >= 2
 
 
+# 只看省略段的結尾：緊貼下一小句的否定或假設字會改變那一句的意思；中間省掉「你有沒有看到」「聯發科，不買」不影響本句
+_MEANING_GAP = re.compile(r'(?:不是|不|沒有|沒|別|未|非|無|勿|莫|如果|若|假如|假設|要是|萬一|除非|只要|就算|即使)$')
+
+
 def _clauses_in_order(quote, window_norm):
     """長引句被模型壓縮過（省掉講者重複的話、用「……」跳過一段）：拆成小句，每一小句（至少 4 字）逐字在所引原段裡、
     每一小句（含短句）都依順序逐字對上，而且長小句合計涵蓋引句六成以上，就算對得回原段。2026/10/28 國巨「你們只會看到漲的」少重複一次、華邦電中間用「……」、
@@ -13973,12 +13977,17 @@ def _clauses_in_order(quote, window_norm):
         return False
     # 每一小句（含「不買」、數字、股名這類短句）都要依引句順序逐字對上，不能從別處借來
     # （審閱反例：甲公司的「不買」「29」被接到乙公司的引句裡，只檢查有沒有出現就會放行）。
-    at = 0
+    at, first = 0, True
     for c in (c for c in parts if c):
         found = window_norm.find(c, at)
         if found < 0:
             return False
-        at = found + len(c)
+        # 省掉的那一段若有否定或假設字，意思就變了：原稿「甲公司不是不買」不能收成「甲公司，不買」，
+        # 「今天我如果買進甲公司」不能省掉「如果」（審閱反例）。第一小句前面緊貼的這些字也不能省。
+        gap = window_norm[max(0, found - 4):found] if first else window_norm[at:found]
+        if _MEANING_GAP.search(gap):
+            return False
+        at, first = found + len(c), False
     return True
 
 
@@ -14301,8 +14310,11 @@ def verdict_response_schema(expected_ids=None):
 
 # 裁決快取以（段落指紋, 版號）為鍵。改了提示詞或答案格式卻忘了升版，正式流程會沿用舊提示詞的票（2026/10/28 審閱指出：
 # v39 之後又改了提示詞，版號沒動）。版號後面自動接提示詞與格式的指紋，內容一變快取就失效；人工裁決不綁版號，不受影響。
+# 引句怎樣算對得回原文也會改變哪些票有效：驗證器版本一起進指紋（2026/10/28 審閱）
+QUOTE_VERIFIER_VERSION = 'q2-20261028-clauses-in-order-no-meaning-gap'
 VERDICT_VERSION = VERDICT_VERSION + '+' + hashlib.sha256(
-    (ADJUDICATE_SYSTEM + json.dumps(verdict_response_schema(), ensure_ascii=False, sort_keys=True)).encode('utf-8')).hexdigest()[:8]
+    (ADJUDICATE_SYSTEM + json.dumps(verdict_response_schema(), ensure_ascii=False, sort_keys=True)
+     + QUOTE_VERIFIER_VERSION).encode('utf-8')).hexdigest()[:8]
 
 
 def _questionnaire_issues(answer, transcript, names):
@@ -14322,7 +14334,10 @@ def _questionnaire_issues(answer, transcript, names):
             else answer.get('now') not in (None, 'none') or answer.get('tone') not in (None, 'neutral'))
         verified = _questionnaire_verified_quotes(answer, field, list(names or ()) + [str(answer.get('id') or '')])
         if field == 'condition':
-            continue      # 條件欄是 2026/10/28 新加的輔助題：引句對不回只當沒有條件（verdict_class 會改看語氣），不讓整份答案作廢
+            # 條件欄是 2026/10/28 新加的輔助題：引句對不回只當沒有條件（verdict_class 不採用 conditional），不讓整份答案作廢，留欄位警告
+            if active and verified == [] and isinstance(answer, dict):
+                answer.setdefault('_field_warnings', []).append('condition的引句對不回所選原段，不採用等待條件')
+            continue
         if active and verified == []:
             issues.append(field + '的節錄不在所選連續原段；請逐字引用相鄰S／單一N，不改ASR、不加省略號；也可quotes留空而僅填真正支持該題的完整原段編號，須再核主體。不得用來源編號替改寫背書')
     for field, category in (('buy_today','buy'),('sell_today','sell'),('holding_now','holdings')):
@@ -17782,6 +17797,7 @@ def _polish_accepts(old, new, names, hay_norm='', own=()):
 
 # 2026/10/28 重播：敦泰換成「此為先前已佈局持有的驅動IC個股」，舊式樣沒抓到。只用來標記、送回重寫，不刪字；
 # 「已持有者續抱」「尚未持有」不算。
+_CONDITIONAL = re.compile(r'若|如果|假如|假設|要是|萬一|者')
 _HOLDING_CLAIM = re.compile(r'會員持股|會員的股票|(?:為|是)(?:既有|先前)?(?:的)?(?:會員)?持股(?!者)|會員(?:先前|目前|仍)?(?:已)?持有(?!者)'
                             r'|(?:先前|之前|早已|已經|已)(?:已)?(?:佈局|布局)?持有(?!者)')
 
@@ -17792,7 +17808,8 @@ def flag_watch_holding_claims(signals):
     書面化與來源審閱之後再刪句會讓審閱指紋失效、整列又被隔離（審閱指出），而詞表也分不出否定與歷史敘述，所以這裡只標記。"""
     for cat in ('watch_watch', 'watch_avoid'):
         for row in signals.get(cat, []) or []:
-            if isinstance(row, dict) and _HOLDING_CLAIM.search(str(row.get('reason') or '')):
+            if isinstance(row, dict) and any(_HOLDING_CLAIM.search(c) and not _CONDITIONAL.search(c)
+                                             for c in re.split(r'[，,。；！？]', str(row.get('reason') or ''))):
                 name = _display_name(row.get('name'))
                 signals.setdefault('_repair_gaps', []).append(f'{name}（{cat}）說明仍寫成會員持股，與分類不一致，待核')
                 note_decision('部位一致', '觀望列說明仍寫會員持股，待核', name, str(row.get('reason') or '')[:120])
@@ -18501,7 +18518,8 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     # 「已持有者續抱」是給讀者的條件建議，不算。重寫後仍不一致，書面化之後記待核（不改字）。
     for cat in ('watch_watch', 'watch_avoid'):
         for r in signals.get(cat, []) or []:
-            if isinstance(r, dict) and _HOLDING_CLAIM.search(str(r.get('reason') or '')):
+            if isinstance(r, dict) and any(_HOLDING_CLAIM.search(c) and not _CONDITIONAL.search(c)
+                                           for c in re.split(r'[，,。；！？]', str(r.get('reason') or ''))):
                 r['_holding_claim'] = 'had' if r.get('_leftover') else 'set'     # 原本就是補列的，重寫後保留旗標
                 r['_leftover'] = True
     if any(isinstance(r, dict) and r.get('_holding_claim') for cat in ('watch_watch', 'watch_avoid') for r in signals.get(cat, []) or []) or any(isinstance(r, dict) and (r.get('_note_withdrawn') or r.get('_missing_facts')
@@ -18518,25 +18536,8 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
                     r.pop('_source_facts', None)
                     if r.pop('_holding_claim', None) == 'set':
                         r.pop('_leftover', None)
-        # 重寫之後觀望列仍寫成會員持股、紀錄上又沒有部位（2026/10/28 敦泰連續幾輪都寫「會員持股」）：在書面化與來源審閱之前
-        # 拿掉那個子句，審閱看到的就是最後的文字（審閱之後改字會讓指紋失效）。拿掉後不成句就保留，交給最後的待核標記。
-        for cat in ('watch_watch', 'watch_avoid'):
-            for r in signals.get(cat, []) or []:
-                text = str(r.get('reason') or '') if isinstance(r, dict) else ''
-                if not text or not _HOLDING_CLAIM.search(text) or record_position(signals, r) != 'none':
-                    continue
-                kept = []
-                for sentence in re.split(r'(?<=[。！？；])', text):
-                    end = sentence[-1] if sentence and sentence[-1] in '。！？；' else ''
-                    body = sentence[:-1] if end else sentence
-                    parts = [c for c in re.split(r'[，,]', body) if c.strip() and not _HOLDING_CLAIM.search(c)]
-                    if parts:
-                        kept.append('，'.join(parts) + end)
-                new = ''.join(kept).strip('，, ')
-                if len(_ev_norm(new)) >= 8:
-                    r['reason'] = new
-                    print(f"  部位一致　{_display_name(r.get('name'))}：紀錄上沒有部位，審閱前拿掉寫成持有的子句：{text[:28]}… → {new[:28]}…")
-                    note_decision('部位一致', '審閱前拿掉寫成持有的子句', _display_name(r.get('name')), text[:120])
+        # 2026/10/28 審閱：詞表刪句（審閱前或審閱後都一樣）會誤刪歷史出場句與給讀者的條件句，改了意思；不由程式刪。
+        # 部位事實（record_position）同時交給補充說明與最後的書面化審閱，由模型改寫與紀錄矛盾的持有說法；程式只標記待核。
     # 說明裡的成本／買賣價若明顯是隔壁那一檔的，刪掉那一句（管理者回報鴻準238，2026/09/16）。
     signals = strip_foreign_price_claims(signals, TX["audit"], ss, date_str)
     signals = strip_implausible_price_claims(ss, signals, date_str)

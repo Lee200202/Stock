@@ -14592,14 +14592,14 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             if cls == 'buy' and entry['current'] != 'buy':
                 # 問卷認為今天買進，但買賣只認明確句或會員通知：這一票以看多計，不丟掉（2026/10/14 台達電「我說台達電可以買」）
                 cls, basis = 'watch_watch', '問卷答今天買進但無法核對成交，以看多計：' + basis
-            if cls == 'holdings' and not entry.get('open') and (code, 'buy') not in notice and code not in notice_held \
-                    and _VERDICT_RECORDS.get('readable', True):
-                # 紀錄讀不到時不降：那是「不知道」，不是「確認沒有部位」（審閱指出）
+            if cls == 'holdings' and not entry.get('open') and (code, 'buy') not in notice and code not in notice_held:
+                # 紀錄讀不到時同樣不開持有回合（不新增模型推測的持股），但依據寫明是「讀不到」不是「確認沒有」，快取鍵記 unknown 不沿用
                 # 會員持股要有紀錄上的部位：操作紀錄最近一筆是買入、節目前十五天內有會員持股列，或當日會員通知列到。
                 # 都沒有時，問卷讀到的「持有」不開持有回合，以觀望注意計（看多續抱的立場保留）。
                 # 2026/10/28 管理者：敦泰「這也是我會員的股票…這是我之前就有的敦泰…續抱」從未有買入或持股紀錄，應列觀望注意；
                 # 東台「老師早，4526再抱嗎？」是提問會員自己的股票，可列觀望注意，不能列會員持股。
-                cls, basis = 'watch_watch', '紀錄與當日通知都沒有這個部位，問卷的持有不開持有回合，以觀望注意計：' + basis
+                cls, basis = 'watch_watch', ('紀錄與當日通知都沒有這個部位' if _VERDICT_RECORDS.get('readable', True)
+                                             else '這一輪讀不到操作紀錄或會員持股，無法確認部位') + '，問卷的持有不開持有回合，以觀望注意計：' + basis
             # 2026/10/27：不再以「不適合再買」等字詞推翻問卷答案（方向由模型讀原文判定）。
             entry['votes'].append(cls)
             entry.setdefault('round_answers', []).append({'round': round_no + 1, 'class': cls,

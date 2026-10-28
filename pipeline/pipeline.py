@@ -16700,7 +16700,7 @@ def public_edit_response_schema():
         'type': 'object', 'properties': fields, 'required': list(fields)}}}, 'required': ['texts']}
 
 
-SOURCE_FACTS_VERSION = 'subject-first-v10-query-evidence-20261028'
+SOURCE_FACTS_VERSION = 'subject-first-v11-focused-query-evidence-20261028'
 SOURCE_FACTS_SYSTEM = """你是逐字稿事實與主體審核者。輸入只有原稿、公司識別候選及匿名字串檢索命中的段落編號，沒有待審股名與主張配對、分類或標準答案。
 每項fact的subject_codes恰好一個主體。共同結論可拆成兩項同引句、不同主體；「甲和股本小的乙」不能合成兩家公司都股本小的事實。逐一盤點指定段落內的最小事實，不只挑全文大意。當日通知原文若有提供，只供身分／事件參照，不得拿它補造原稿技術面。
 focus_source_ids是優先查核範圍，不是主體答案。逐一閱讀這些段落及前後文，完整列出每個主體各自的最小事實，特別避免只摘要整篇而漏掉指定段落的細節。檢索只證明字串相關，不能以命中、最近名稱或價格決定主體；仍由你判讀上下文，無法確認則列uncertain。
@@ -16847,6 +16847,7 @@ def source_claim_ledger(signals, transcript, direct_evidence=False):
 SOURCE_ALIGNMENT_SYSTEM = """你是原稿事實與匿名主張的對照員。queries沒有原草稿股名、分類或標準答案，不能反推它想被寫給誰。
 facts只是可能漏項的索引，不是原稿的完整事實。必須回讀完整sources，每個match直接附evidence：subject_code為原句真正主體、source_ids引用原稿S編號或原通知N編號、statement整理該主體的最小事實。證據直接放在所屬match內，勿另建無法連回主張的全域事實表。未出現在索引不等於來源沒有。
 coverage只在已讀完整原稿、該匿名主張的所有本股與他股支持都完成盤點時填complete，否則填partial。不能因只找到一個例子便宣稱其他公司都沒有。一般「目前不買」「續抱」可能有多檔，逐項列出，不能只挑一人。
+每個query的focus_source_ids只是匿名詞形檢索得到的原文及鄰段，先讀這些段落再回查全文；不是主體答案，也不限制證據只能在該處。匿名句可能同時適用多家公司，不知道待審公司是誰不代表insufficient；列出所有支持者交下輪比對。原句「不讓你買甲跟乙、現在又沒有要漲」應分別記錄甲、乙的共同立場，不因匿名或並列而漏掉。
 每項回覆原樣複製query_text，並回答entails_all_details。只有事實支持主張全部細節（包括每個數字、時間、動作、條件）才可true及entailed。不同價格的下跌不能互換；目標價上調不等於跌24%；某句同有否定詞不等於同一主張。不完整支持一律insufficient，不能為配對而挑最相近的fact。
 逐項判斷哪些facts真正支持該匿名主張；fact.statement的主體與事實必須相符，source_quote只核對該主體的上下文，不得因同段另一家公司也說過某事就把它綁給本fact。
 例如某fact只說乙公司股本小，不能支持「目前沒有買進」；另一fact明講甲公司未買進才可。修飾只屬其中一人的特徵不能分享給並列成員。
@@ -16893,7 +16894,8 @@ def align_anonymous_claims(signals, transcript, ledger):
                 for name in sorted(names, key=len, reverse=True):
                     text = text.replace(name, '')
                 key = f'Q{len(queries) + 1:04d}'
-                queries.append({'id': key, 'text': text})
+                focus = _source_claim_focus({'watch_watch': [{'reason': text}]}, transcript, {})
+                queries.append({'id': key, 'text': text, 'focus_source_ids': focus})
                 targets[key] = (bindings, claim)
     if not queries or budget_left() < 150:
         return

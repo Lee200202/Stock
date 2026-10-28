@@ -50,6 +50,13 @@ class ModelStance(unittest.TestCase):
    found={x['code'] for x in p.source_inventory({'S1':{'text':raw}})}
   self.assertIn('4526',found);self.assertIn('3533',found)
 
+ def test_verdict_cache_version_carries_the_prompt_and_schema_fingerprint(self):
+  # 改了裁決提示詞或答案格式，快取鍵自動換掉，不靠人記得升版（2026/10/28 審閱）
+  import hashlib,json
+  want=hashlib.sha256((p.ADJUDICATE_SYSTEM+json.dumps(p.verdict_response_schema(),ensure_ascii=False,sort_keys=True)).encode('utf-8')).hexdigest()[:8]
+  self.assertTrue(p.VERDICT_VERSION.endswith('+'+want))
+  self.assertEqual(p.VERDICT_VERSION.count('+'),1)
+
  def test_questionnaire_schema_requests_evidence_before_summary_role(self):
   props=p.verdict_response_schema()['properties']['verdicts']['items']['properties']
   keys=list(props)

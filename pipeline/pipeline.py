@@ -13281,7 +13281,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v39-20261028-holding-needs-record"    # 問卷的持有要有紀錄上的部位；等待條件要附可核對的條件原句；重提昨天的持有者建議是今天的建議；相鄰連續引句、背景角色與獨立主張證明分開核對
+VERDICT_VERSION = "v40-20261028-generic-boundaries"    # 執行時自動接上提示詞與答案格式指紋（見 verdict_response_schema 之後）；提示詞界線不含股名與預期分類；問卷的持有要有紀錄上的部位；問卷的持有要有紀錄上的部位；等待條件要附可核對的條件原句；重提昨天的持有者建議是今天的建議；相鄰連續引句、背景角色與獨立主張證明分開核對
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 3                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -14200,6 +14200,12 @@ def verdict_response_schema(expected_ids=None):
     if expected_ids:
         props['id']['enum'] = list(expected_ids)
     return {'type': 'object', 'properties': {'verdicts': verdicts}, 'required': ['verdicts']}
+
+
+# 裁決快取以（段落指紋, 版號）為鍵。改了提示詞或答案格式卻忘了升版，正式流程會沿用舊提示詞的票（2026/10/28 審閱指出：
+# v39 之後又改了提示詞，版號沒動）。版號後面自動接提示詞與格式的指紋，內容一變快取就失效；人工裁決不綁版號，不受影響。
+VERDICT_VERSION = VERDICT_VERSION + '+' + hashlib.sha256(
+    (ADJUDICATE_SYSTEM + json.dumps(verdict_response_schema(), ensure_ascii=False, sort_keys=True)).encode('utf-8')).hexdigest()[:8]
 
 
 def _questionnaire_issues(answer, transcript, names):

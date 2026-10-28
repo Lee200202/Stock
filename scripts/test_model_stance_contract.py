@@ -50,6 +50,56 @@ class ModelStance(unittest.TestCase):
    found={x['code'] for x in p.source_inventory({'S1':{'text':raw}})}
   self.assertIn('4526',found);self.assertIn('3533',found)
 
+ def test_short_quote_with_own_name_in_the_cited_passage_counts(self):
+  # 2026/10/28 大立光：「大立光，不買。」去標點 5 字，被 6 字門檻當成引用不實
+  seg='大立光， 不買。聯發科， 不買。這是我現在的邏輯。'
+  a={'about_itself':True,'now':'prohibit','tone':'bearish','entry_for_new':'prohibit',
+     'quotes':{'stance':['大立光， 不買。']},'_verified_quote_sources':{'stance':[seg]}}
+  self.assertEqual(p._questionnaire_verified_quotes(a,'stance',['大立光']),['大立光， 不買。'])
+  self.assertEqual(p._questionnaire_verified_quotes(a,'stance',['聯發科']),[])       # 沒有本股名稱不放寬
+  b=dict(a,quotes={'stance':['不買不碰。']})
+  self.assertEqual(p._questionnaire_verified_quotes(b,'stance',['大立光']),[])
+  c=dict(a,quotes={'stance':['大立光，不賣。']})
+  self.assertEqual(p._questionnaire_verified_quotes(c,'stance',['大立光']),[])      # 不在所選原段不放寬
+  self.assertEqual(p.verdict_class(a,p._ev_norm(seg),['大立光'])[0],'watch_avoid')
+  code_only={'about_itself':True,'now':'prohibit','tone':'bearish','quotes':{'stance':['4526。']},
+     '_verified_quote_sources':{'stance':['這隻股票是什麼？4526。好，']}}
+  self.assertEqual(p._questionnaire_verified_quotes(code_only,'stance',['4526','東台']),[])   # 只有代號，沒有主張
+  name_only=dict(a,quotes={'stance':['大立光。']})
+  self.assertEqual(p._questionnaire_verified_quotes(name_only,'stance',['大立光']),[])
+
+ def test_note_length_follows_the_material(self):
+  # 2026/10/28 管理者：材料真的少，短沒關係；有材料就不應該那麼短
+  self.assertEqual(p.note_length_target(40,0)['min_chars'],0)
+  self.assertEqual(p.note_length_target(40,120)['level'],'thin')
+  self.assertEqual(p.note_length_target(60,200)['level'],'normal')
+  self.assertEqual(p.note_length_target(150)['min_chars'],40)
+  self.assertEqual(p.note_length_target(400)['level'],'rich')
+
+ def test_watch_note_does_not_claim_a_member_holding(self):
+  sig={'watch_watch':[{'name':'甲公司','code':'1111','reason':'甲公司為會員持股，先前推薦後創新高，已突破反壓區。已持有者續抱。'}],
+       'watch_avoid':[{'name':'乙公司','code':'2222','reason':'乙公司為會員持股。'}]}
+  p.drop_watch_holding_claims(sig)
+  self.assertEqual(sig['watch_watch'][0]['reason'],'先前推薦後創新高，已突破反壓區。已持有者續抱。')
+  self.assertEqual(sig['watch_avoid'][0]['reason'],'乙公司為會員持股。')            # 拿掉就不成句：保留並記待核
+  self.assertTrue(any('乙公司' in g for g in sig['_repair_gaps']))
+
+ def test_only_unanimous_settled_verdicts_are_reused(self):
+  head=p.VERDICT_HEADERS
+  def row(code,votes,cls='觀望不碰'):
+   return ['2026/10/28','v',code,'甲',cls,'裁決',votes+'｜依據','{}','fp'+code,'v40','t','']
+  class WS:
+   def get_all_values(self): return [head,row('1111','觀望不碰／觀望不碰'),row('2222','觀望不碰／排除／觀望不碰'),
+                                     row('3333','無效／缺答（不計票）／觀望不碰／觀望不碰'),row('4444','觀望不碰')]
+  class Book:
+   def worksheet(self,name): return WS()
+  got=p._verdict_cache(Book(),'2026/10/28')
+  self.assertTrue(got['1111']['by_fp']);self.assertFalse(got['2222']['by_fp'])   # 2 比 1 定案不沿用
+  self.assertTrue(got['3333']['by_fp']);self.assertFalse(got['4444']['by_fp'])   # 缺答不算反對；只有一票不沿用
+
+ def test_verdict_fingerprint_includes_the_position_snapshot(self):
+  self.assertNotEqual(p._verdict_position_key({'open':True}),p._verdict_position_key({'open':False}))
+
  def test_verdict_cache_version_carries_the_prompt_and_schema_fingerprint(self):
   # 改了裁決提示詞或答案格式，快取鍵自動換掉，不靠人記得升版（2026/10/28 審閱）
   import hashlib,json

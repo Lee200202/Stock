@@ -103,13 +103,19 @@ def main():
                          'final_verified': final_verified, 'final_errors': hard,
                          'expected_review_status': expected, 'reference_match': passed})
         reports.append({'date': day['date'], 'source_sha256': sha, 'notes': rows,
+                        'fixed_note_source_summary': {'total': len(rows), 'source_verified': sum(r['final_verified'] for r in rows),
+                            'scope': '固定草稿修後來源核實，不是整日分類或全部文體驗收'},
+                        'targeted_verdict_summary': {'total': len(probes), 'reference_matched': sum(r['reference_match'] is True for r in probes),
+                            'scope': '指定探針推論後對參考比對；非整日、非未見日期準確率'},
                         'original_notice_reads': notice_count,
                         'targeted_verdict_probes': probes,
                         'source_fact_ledger': signals.get('_source_fact_ledger')})
     if not reports:
         raise ValueError('指定日期沒有固定案例，不以空測試回報成功')
     result = {'status': 'completed', 'date': '固定說明跨日來源審閱', 'read_only': True,
-              'classification_evaluation': 'not_evaluated', 'classification_injection': False,
+              'classification_evaluation': 'targeted_probes_only' if any(d['targeted_verdict_probes'] for d in reports) else 'not_evaluated',
+              'full_day_classification_evaluation': 'not_evaluated', 'classification_injection': False,
+              'verdict_version': pl.VERDICT_VERSION, 'source_review_version': pl.SOURCE_FACTS_VERSION,
               'build': pl.pipeline_build(), 'blocked_writes': len(book.blocked),
               'case_manifest_sha256': hashlib.sha256(Path(args.cases).read_bytes()).hexdigest(),
               'reference_kind': '來源審核草稿，非人類核定金標；expected只在推論後比對',

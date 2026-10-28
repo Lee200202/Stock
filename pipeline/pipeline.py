@@ -7309,7 +7309,11 @@ def drop_ordinary_word_rows(signals, transcript):
             name = str(row.get('name') or '') if isinstance(row, dict) else ''
             # 只處理「這一筆所有寫法都是同一個兩字簡稱」的：另有較長的原字或管理者確認的名稱時不動。
             ordinary = len(names) == 1 and len(name) == 2 and name in by_name and name not in CONFIRMED_NAMES
-            if ordinary and (_only_ordinary_word(name, by_name[name], transcript)
+            # 當日會員通知列有這一檔（操作紀錄／會員持股裡來自通知的列）：部位由通知證明，不靠原稿有沒有念出股名
+            # （2026/10/28 旭隼：原稿沒念名稱，續抱通知卻有；被當成日常用語刪掉，整份候選的公開列與保留的通知列對不上）。
+            notice_backed = isinstance(row, dict) and str(row.get('code') or by_name.get(name) or '') in (
+                _DAY_SOURCE_CONTEXT.get('company_candidates') or {})
+            if ordinary and not notice_backed and (_only_ordinary_word(name, by_name[name], transcript)
                              or (cat == 'holdings' and not _weak_name_explicitly_stock(name, by_name[name], transcript))):
                 at = re.sub(r'\s', '', transcript).find(name)
                 seen = re.sub(r'\s', '', transcript)[max(0, at - 10):at + 12]
@@ -13967,7 +13971,7 @@ def _questionnaire_verified_quotes(answer, field, names=()):
     clean = [re.sub(r'[【】]', '', q) for q in (quotes.get(field) or []) if isinstance(q, str)]
     if not clean:
         return list(restored)
-    windows = list(restored)
+    windows = list(restored) + list((answer.get('_verified_quote_neighbors') or {}).get(field) or [])
     ids = (answer.get('quote_source_ids') or {}).get(field) or []
     ids = list(dict.fromkeys(ids))
     if len(ids) == len(restored):
@@ -14354,6 +14358,7 @@ def _ask_verdicts(items, date_str, round_no, transcript='', repair=True):
         for v in replies:
             if isinstance(v, dict) and str(v.get('id') or '') in dict(batch) and counts.get(str(v.get('id') or '')) == 1:
                 v.pop('_verified_quote_sources', None)
+                v.pop('_verified_quote_neighbors', None)
                 v.pop('_validation_issues', None)
                 restored = {}
                 source_ids = v.get('quote_source_ids') if isinstance(v.get('quote_source_ids'), dict) else {}
@@ -14362,6 +14367,15 @@ def _ask_verdicts(items, date_str, round_no, transcript='', repair=True):
                         restored[field] = [sources[sid]['text'] for sid in dict.fromkeys(ids)]
                 if restored:
                     v['_verified_quote_sources'] = restored
+                    # 模型常漏列相鄰段的編號（2026/10/28 嘉澤：引句跨 S0011→S0012，編號只列 S0012、S0037，兩輪作廢）。
+                    # 所引 S 段連同前後各一段串起來也可以核對；仍須逐字、仍只限所引段落附近。
+                    order = [sid for sid in sources if sid.startswith('S')]
+                    near = {}
+                    for field, ids in source_ids.items():
+                        if field in restored:
+                            near[field] = ['\n'.join(sources[order[j]]['text'] for j in range(max(0, order.index(sid) - 1), min(len(order), order.index(sid) + 2)))
+                                           for sid in dict.fromkeys(ids) if sid in order]
+                    v['_verified_quote_neighbors'] = near
                 answers[str(v['id'])] = v
     retry = []
     for code, item in items:
@@ -17253,7 +17267,7 @@ def align_anonymous_claims(signals, transcript, ledger, source_hints=None):
                     literal = _ev_norm(' '.join(attribution_sources(transcript)[s]['text'] for s in witnessed))
                     queries[-1]['subjects_to_check'] = [code for code, forms in (ledger.get('company_candidates') or {}).items()
                         if any(len(_ev_norm(n)) >= 2 and _ev_norm(n) in literal for n in ([code] + (forms if isinstance(forms, list) else [forms])))]
-                targets[key] = (bindings, claim)
+                targets[key] = (bindings, claim, str(row.get('code') or ''))
     if not queries or budget_left() < 150:
         return
     matches = []
@@ -17336,7 +17350,7 @@ def align_anonymous_claims(signals, transcript, ledger, source_hints=None):
                     match['entails_all_details'] = False
         matches.extend(received)
         diagnostics.append({'requested': len(batch), 'received': len(received), 'added_facts': len(extra['facts']), 'max_out': max_out})
-    for key, (bindings, claim) in targets.items():
+    for key, (bindings, claim, own_code) in targets.items():
         found = [r for r in matches if isinstance(r, dict) and r.get('id') == key]
         if len(found) != 1:
             checks.append({'query_id': key, 'status': 'missing_or_duplicate', 'received': len(found)})
@@ -17357,6 +17371,19 @@ def align_anonymous_claims(signals, transcript, ledger, source_hints=None):
             bindings[claim['id']] = {'text_sha256': hashlib.sha256(claim['text'].encode()).hexdigest(),
                 'fact_ids': list(dict.fromkeys(ids)), 'relation': 'entailed', 'coverage': match.get('coverage', 'partial'),
                 'subject_checks': match.get('verified_subject_checks') or {}}
+            continue
+        # 匿名主張不知道主體時，整體判「不足」是對的（「還會再往上走」好幾檔都講過）；但對本列自己那一檔的主體檢查
+        # 已核實「完全支持、原句含本股名稱、數字都在」時，這一句就是本股的話（2026/10/28 鴻海、敦泰、台達電被整檔隔離）。
+        # 只綁本股自己的事實，別檔的不沿用。
+        own_check = (match.get('verified_subject_checks') or {}).get(own_code) or {}
+        own_ids = [fid for fid in (ids if isinstance(ids, list) else []) if isinstance(fid, str) and fid in ledger['facts']
+                   and own_code in (ledger['facts'][fid].get('subject_codes') or [])]
+        if (own_code and echo_ok and own_check.get('supports_all_details') is True and own_check.get('source_backed') is True
+                and own_ids):
+            bindings[claim['id']] = {'text_sha256': hashlib.sha256(claim['text'].encode()).hexdigest(),
+                'fact_ids': list(dict.fromkeys(own_ids)), 'relation': 'entailed', 'coverage': 'partial',
+                'origin': 'own_subject_check', 'subject_checks': {own_code: own_check}}
+            checks[-1]['bound_by'] = 'own_subject_check'
 
 
 def _quote_spans_in_source(quote, transcript_norm):

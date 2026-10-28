@@ -31,6 +31,26 @@ class QueryEvidence(unittest.TestCase):
   self.assertEqual(sizes[0],2);self.assertEqual(sizes[1:],[1,1])
   self.assertTrue(any(d.get('retry')=='split_after_truncation' for d in ledger['alignment_batches']))
 
+ def test_ambiguous_anonymous_claim_binds_when_own_subject_check_is_verified(self):
+  # 2026/10/28 鴻海：「還會再往上走」整體判不足（多檔都講過），但對鴻海的主體檢查已完全支持
+  parts={'S0001':{'text':'鴻海它還會在上去，所以不用緊張。'},'S0002':{'text':'大立光不買，目前不碰。'}}
+  raw=''.join(v['text'] for v in parts.values());text='鴻海預期後續還會再往上走。'
+  ledger=p._validate_source_facts({},raw,{'2317','3008'});ledger['company_candidates']={'2317':['鴻海'],'3008':['大立光']}
+  row={'code':'2317','name':'鴻海','reason':text}
+  def answer(system,payload,**kw):
+   q=json.loads(payload)['queries'][0]
+   return json.dumps({'matches':[dict(id=q['id'],query_text=q['text'],relation='insufficient',entails_all_details=False,coverage='partial',
+    evidence=[],subject_checks=[dict(subject_code='2317',supports_all_details=True,source_ids=['S0001'],statement='鴻海它還會在上去，不用緊張')])]})
+  hint={hashlib.sha256(p._note_claims(text)[0]['text'].encode()).hexdigest():['S0001']}
+  with patch.object(p,'attribution_sources',return_value=parts),patch.object(p,'call_gemini',side_effect=answer),patch.object(p,'budget_left',return_value=9999),patch.object(p,'_CODE_MAP',{'2317':'鴻海','3008':'大立光'}):
+   p.align_anonymous_claims({'watch_watch':[row]},raw,ledger,hint)
+  b=row['_source_claim_bindings']['claims']
+  self.assertTrue(b);self.assertEqual(next(iter(b.values()))['origin'],'own_subject_check')
+  row2={'code':'3008','name':'大立光','reason':'大立光預期後續還會再往上走。'}
+  with patch.object(p,'attribution_sources',return_value=parts),patch.object(p,'call_gemini',side_effect=answer),patch.object(p,'budget_left',return_value=9999),patch.object(p,'_CODE_MAP',{'2317':'鴻海','3008':'大立光'}):
+   p.align_anonymous_claims({'watch_watch':[row2]},raw,ledger,{hashlib.sha256(p._note_claims(row2['reason'])[0]['text'].encode()).hexdigest():['S0001']})
+  self.assertFalse(row2['_source_claim_bindings']['claims'])      # 別檔的主體檢查不能綁到大立光
+
  def test_independently_complete_core_survives_rejected_auxiliary_evidence(self):
   raw='甲公司上半年EPS21.83元。';text='甲公司上半年EPS21.83元。'
   ledger=p._validate_source_facts({},raw,{'1111'});ledger['company_candidates']={'1111':['甲公司']}

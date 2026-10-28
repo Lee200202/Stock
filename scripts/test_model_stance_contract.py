@@ -148,6 +148,25 @@ class ModelStance(unittest.TestCase):
   self.assertEqual(p.record_position({'_verdicts':{'1111':{'open':True,'cls':'sell','execution_verified':True}}},row),'sold_today')
   self.assertEqual(p.record_position({'_verdicts':{'1111':{'execution_verified':True,'cls':'buy'}}},row),'open')
 
+ def test_quote_spanning_an_uncited_neighbour_segment_counts(self):
+  # 2026/10/28 嘉澤：引句跨 S0011→S0012，編號只列 S0012，兩輪作廢
+  s11='嘉澤昨天漲130塊，這是不是昨天漲130塊的';s12='嘉澤？那今天早上嘉澤，有沒有漲到2,000多？我也沒有賣啊。'
+  q='這是不是昨天漲130塊的嘉澤？那今天早上嘉澤，有沒有漲到2,000多？'
+  a={'quotes':{'stance':[q]},'_verified_quote_sources':{'stance':[s12]},'_verified_quote_neighbors':{'stance':[s11+chr(10)+s12]}}
+  self.assertEqual(p._questionnaire_verified_quotes(a,'stance',['嘉澤']),[q])
+  self.assertEqual(p._questionnaire_verified_quotes(dict(a,_verified_quote_neighbors={}),'stance',['嘉澤']),[])
+  far=dict(a,quotes={'stance':['別的段落才有的一句話']})
+  self.assertEqual(p._questionnaire_verified_quotes(far,'stance',['嘉澤']),[])
+
+ def test_notice_backed_two_char_holding_is_not_dropped_as_an_ordinary_word(self):
+  # 2026/10/28 旭隼：原稿沒念名稱，續抱通知卻有
+  raw='有一隻股票今天跌，只是洗盤，續抱。'
+  sig=lambda:{'holdings':[{'code':'6409','name':'旭隼','note':'旭隼今日下跌只是洗盤，續抱。'}]}
+  with patch.object(p,'_CODE_MAP',{'6409':'旭隼'}),patch.object(p,'_DAY_SOURCE_CONTEXT',{'company_candidates':{'6409':'旭隼'}}):
+   self.assertEqual(len(p.drop_ordinary_word_rows(sig(),raw)['holdings']),1)
+  with patch.object(p,'_CODE_MAP',{'6409':'旭隼'}),patch.object(p,'_DAY_SOURCE_CONTEXT',{}):
+   self.assertEqual(len(p.drop_ordinary_word_rows(sig(),raw)['holdings']),0)   # 沒有通知照舊不開持股
+
  def test_verdict_fingerprint_includes_the_position_snapshot(self):
   self.assertNotEqual(p._verdict_position_key({'open':True}),p._verdict_position_key({'open':False}))
 

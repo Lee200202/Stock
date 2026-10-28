@@ -8943,10 +8943,8 @@ def quality_overview(signals, transcript='', check_chapters=True):
         name = _display_name(r.get('name')) or str(r.get('name') or '')
         note = public_narrative(str(r.get('note') if cat == 'holdings' else r.get('reason')) if (r.get('note') if cat == 'holdings' else r.get('reason')) else '', r, signals)
         quoted = [q for q in (r.get('evidence') or []) if isinstance(q, str) and q.strip()]
-        notice_prices = (_DAY_PRIVATE_NOTICE_PRICES.get('prices') or {}).get(str(r.get('code') or ''), [])
-        if ((r.get('_date') or _DAY_PRIVATE_NOTICE_PRICES.get('date')) == _DAY_PRIVATE_NOTICE_PRICES.get('date')
-                and set(notice_prices) & set(_ws_numbers(note))):
-            hard.append(f'{name} 的公開說明包含當日會員通知操作價；須依公開原稿重寫，不以刪改答案繞過')
+        # 2026/10/28 管理者移除「紀錄價位不公開」：價位常被聽寫錯（2130 只寫成 30），爭議不在核對範圍；
+        # 公開說明只核對敘述與對應股票是否正確，不因含價位擋下或要求重寫（會員通知原文的公開處理不在此）。
         notes.append((name, len(note), bool(_CONCRETE.search(note)), bool(quoted)))
         if re.search(r'KY\s*-?\s*KY', note, re.I):
             hard.append(f'{name} 的說明把 -KY 連寫：{note[:30]}')

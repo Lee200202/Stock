@@ -16,6 +16,21 @@ class QueryEvidence(unittest.TestCase):
   with patch.object(p,'attribution_sources',return_value=parts),patch.object(p,'call_gemini',side_effect=answer),patch.object(p,'budget_left',return_value=9999),patch.object(p,'_CODE_MAP',{'1111':'甲公司','2222':'乙公司'}):
    p.align_anonymous_claims({'watch_watch':[row]},raw,ledger,{hashlib.sha256(p._note_claims(text)[0]['text'].encode()).hexdigest():['S0002']})
 
+ def test_truncated_alignment_batch_is_split_instead_of_aborting(self):
+  # 2026/10/28 重播：一批 source-align 被截斷，整輪書面化中斷、15 檔全部隔離
+  raw='甲公司上半年EPS21.83元。甲公司外資連續買超。';text='甲公司上半年EPS21.83元。甲公司外資連續買超。'
+  ledger=p._validate_source_facts({},raw,{'1111'});ledger['company_candidates']={'1111':['甲公司']}
+  row={'code':'1111','name':'甲公司','reason':text}
+  sizes=[]
+  def answer(system,payload,**kw):
+   qs=json.loads(payload)['queries'];sizes.append(len(qs))
+   if len(qs)>1: raise RuntimeError('Gemini 輸出遭截斷（source-align）：finishReason=MAX_TOKENS。')
+   return json.dumps({'matches':[]})
+  with patch.object(p,'call_gemini',side_effect=answer),patch.object(p,'budget_left',return_value=9999),patch.object(p,'_CODE_MAP',{'1111':'甲公司'}):
+   p.align_anonymous_claims({'watch_watch':[row]},raw,ledger)
+  self.assertEqual(sizes[0],2);self.assertEqual(sizes[1:],[1,1])
+  self.assertTrue(any(d.get('retry')=='split_after_truncation' for d in ledger['alignment_batches']))
+
  def test_independently_complete_core_survives_rejected_auxiliary_evidence(self):
   raw='甲公司上半年EPS21.83元。';text='甲公司上半年EPS21.83元。'
   ledger=p._validate_source_facts({},raw,{'1111'});ledger['company_candidates']={'1111':['甲公司']}

@@ -139,6 +139,13 @@ class ModelStance(unittest.TestCase):
   self.assertEqual(c['reply_explanation'],'模型原說明');self.assertEqual(c['reply_status'],'supported')
   self.assertTrue(c['failed_checks'])
 
+ def test_record_position_comes_from_records_not_from_the_class(self):
+  row={'code':'1111','name':'甲公司'}
+  self.assertEqual(p.record_position({'_verdicts':{'1111':{'cls':'holdings'}}},row),'none')     # 分類是持股不等於有紀錄
+  self.assertEqual(p.record_position({'_verdicts':{'1111':{'open':True}}},row),'open')
+  self.assertEqual(p.record_position({'_verdicts':{'1111':{'notice_trade':True}}},row),'open')
+  self.assertEqual(p.record_position({'_verdicts':{'1111':{'execution_verified':True}}},row),'open')
+
  def test_verdict_fingerprint_includes_the_position_snapshot(self):
   self.assertNotEqual(p._verdict_position_key({'open':True}),p._verdict_position_key({'open':False}))
 

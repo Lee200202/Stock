@@ -17513,6 +17513,14 @@ def compact_source_facts(ledger):
             for fid, f in (ledger.get('facts') or {}).items()}
 
 
+def _identity_forms(code, forms):
+    """主體比對用的寫法：官方簡稱與代號之外，加上管理者核准的聽寫別名（2026/10/28 環球晶：原稿念「環球金」，
+    主體檢查只拿「環球晶」比，原句被判成不是本股，正確的觀望不碰被來源隔離）。"""
+    forms = forms if isinstance(forms, list) else ([forms] if forms else [])
+    aliases = [a for a, v in CONFIRMED_NAMES.items() if isinstance(v, tuple) and str(v[0]) == str(code)]
+    return [str(code)] + list(forms) + aliases
+
+
 def _source_subject_checks(checks, requested, transcript, known):
     """保存有原段及身分錨點的逐主體對質；false是語意回答，不從缺少fact推論。"""
     sources = attribution_sources(transcript)
@@ -17527,10 +17535,9 @@ def _source_subject_checks(checks, requested, transcript, known):
         if not isinstance(ids, list) or not 1 <= len(ids) <= 4 or not all(isinstance(s, str) and s in sources for s in ids):
             continue
         quote = '\n'.join(sources[s]['text'] for s in ids)
-        forms = known.get(code) or []
-        forms = forms if isinstance(forms, list) else [forms]
+        forms = _identity_forms(code, known.get(code) or [])
         if (len(_ev_norm(statement)) < 6
-                or not any(_ev_norm(n) in _ev_norm(quote) for n in [code] + forms if len(_ev_norm(n)) >= 2)
+                or not any(_ev_norm(n) in _ev_norm(quote) for n in forms if len(_ev_norm(n)) >= 2)
                 or not (set(_ws_numbers(statement)) - {code}) <= set(_ws_numbers(quote))):
             continue
         verified[code] = {'supports_all_details': check['supports_all_details'], 'source_ids': list(ids),
@@ -17575,7 +17582,7 @@ def align_anonymous_claims(signals, transcript, ledger, source_hints=None):
                     queries[-1]['witness_sources'] = {s: attribution_sources(transcript)[s] for s in witnessed}
                     literal = _ev_norm(' '.join(attribution_sources(transcript)[s]['text'] for s in witnessed))
                     queries[-1]['subjects_to_check'] = [code for code, forms in (ledger.get('company_candidates') or {}).items()
-                        if any(len(_ev_norm(n)) >= 2 and _ev_norm(n) in literal for n in ([code] + (forms if isinstance(forms, list) else [forms])))]
+                        if any(len(_ev_norm(n)) >= 2 and _ev_norm(n) in literal for n in _identity_forms(code, forms))]
                 targets[key] = (bindings, claim, str(row.get('code') or ''))
     if not queries or budget_left() < 150:
         return
@@ -18068,6 +18075,8 @@ def _polish_accepts(old, new, names, hay_norm='', own=()):
 
 # 2026/10/28 重播：敦泰換成「此為先前已佈局持有的驅動IC個股」，舊式樣沒抓到。只用來標記、送回重寫，不刪字；
 # 「已持有者續抱」「尚未持有」不算。
+_MEMBER_HOLDING_CLAIM = re.compile(r'會員(?:的)?(?:持股|股票)|會員(?:目前|仍|先前)?(?:已)?持有(?!者)')
+_EXIT_WORDS = re.compile(r'賣|出場|出清|了結|已無|全數|全部')
 _CONDITIONAL = re.compile(r'若|如果|假如|假設|要是|萬一|者')
 _HOLDING_CLAIM = re.compile(r'會員持股|會員的股票|(?:為|是)(?:既有|先前)?(?:的)?(?:會員)?持股(?!者)|會員(?:先前|目前|仍)?(?:已)?持有(?!者)'
                             r'|(?:先前|之前|早已|已經|已)(?:已)?(?:佈局|布局)?持有(?!者)')
@@ -18807,6 +18816,28 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
                     r.pop('_source_facts', None)
                     if r.pop('_holding_claim', None) == 'set':
                         r.pop('_leftover', None)
+        # 重寫之後觀望列仍明講「會員持股／會員的股票」，而紀錄上確定沒有部位（2026/10/29 預覽：敦泰「屬於會員持股」，
+        # 寫作與書面化都拿到 position_record=none 仍照寫）：在書面化與來源審閱之前拿掉那個子句。
+        # 範圍刻意很窄：只認明講會員持有的說法；條件句（若…）與歷史出場句（賣、出場、出清…）不動；讀不到紀錄不動；
+        # 拿掉後不足以成句就保留，交給待核標記。
+        for cat in ('watch_watch', 'watch_avoid'):
+            for r in signals.get(cat, []) or []:
+                text = str(r.get('reason') or '') if isinstance(r, dict) else ''
+                if not text or not _MEMBER_HOLDING_CLAIM.search(text) or record_position(signals, r) != 'none':
+                    continue
+                kept = []
+                for sentence in re.split(r'(?<=[。！？；])', text):
+                    end = sentence[-1] if sentence and sentence[-1] in '。！？；' else ''
+                    body = sentence[:-1] if end else sentence
+                    parts = [c for c in re.split(r'[，,]', body) if c.strip() and not (
+                        _MEMBER_HOLDING_CLAIM.search(c) and not _CONDITIONAL.search(c) and not _EXIT_WORDS.search(c))]
+                    if parts:
+                        kept.append('，'.join(parts) + end)
+                new = ''.join(kept).strip('，, ')
+                if new != text.strip('，, ') and len(_ev_norm(new)) >= 8:
+                    r['reason'] = new
+                    print(f"  部位一致　{_display_name(r.get('name'))}：紀錄上沒有部位，審閱前拿掉明講會員持有的子句：{text[:28]}… → {new[:28]}…")
+                    note_decision('部位一致', '審閱前拿掉明講會員持有的子句', _display_name(r.get('name')), text[:120])
         # 2026/10/28 審閱：詞表刪句（審閱前或審閱後都一樣）會誤刪歷史出場句與給讀者的條件句，改了意思；不由程式刪。
         # 部位事實（record_position）同時交給補充說明與最後的書面化審閱，由模型改寫與紀錄矛盾的持有說法；程式只標記待核。
     # 說明裡的成本／買賣價若明顯是隔壁那一檔的，刪掉那一句（管理者回報鴻準238，2026/09/16）。

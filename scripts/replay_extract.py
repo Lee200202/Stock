@@ -224,7 +224,7 @@ def invariants(signals, raw):
                 warns.append(f"{official or heard}（{code}）規則盤點候選沒有收錄（待核語氣、主體與最後回答，非核定答案）：{pick[1][:80]}")
     except Exception as e:
         warns.append(f"盤點檢查略過（{type(e).__name__}：{e}）")
-    # 長原稿的教學至少三個獨立主題；盤勢若只有兩個有證據的主題，不強行拆成三點。
+    # 長原稿的盤勢與教學都至少兩個不同且有證據的主題；只有兩個時提醒，不強行拆成三點。
     if len(pl._ev_norm(raw)) >= pl.LESSON_MIN_SOURCE:
         points = [r for r in (signals.get('market') or [])
                   if isinstance(r, dict) and r.get('_evidence_verified') and not r.get('_duplicate_point')]
@@ -234,8 +234,12 @@ def invariants(signals, raw):
             errors.append(f"盤勢總覽只有 {macro} 點（原文 {len(raw)} 字，至少要 2 個不同主題）")
         elif macro < 3:
             warns.append('盤勢總覽只有 2 個不同主題；未以重複點湊數')
-        if lessons < 3:
-            errors.append(f"操作邏輯與教學重點只有 {lessons} 點（至少要 3 點）")
+        # 管理者 2026/10/29：與每日流程的 quality_overview 一致——補問仍以 3 點為目標，
+        # 原稿只有兩個不同且有據的主題時只提醒，不靠重複或套話湊第三點，也不擋整天；少於 2 點才擋。
+        if lessons < 2:
+            errors.append(f"操作邏輯與教學重點只有 {lessons} 點（原文 {len(raw)} 字，至少要 2 個不同主題）")
+        elif lessons < 3:
+            warns.append('操作邏輯與教學重點只有 2 個不同主題；未以重複點湊數')
     return errors, warns
 
 

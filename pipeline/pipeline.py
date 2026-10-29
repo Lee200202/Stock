@@ -14312,6 +14312,13 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
             and answer.get('entry_for_new') not in ('allow', 'wait_condition') \
             and answer.get('holder_advice') not in ('hold', 'hold_rebound'):
         return 'history', '只回顧過去的買賣，全文角色為歷史回顧：' + first('past_trade')
+    _retro_trap_re = re.compile(r'獲利了結|賣在這邊|賣在最高|大賺|跌多慘|跌了\s*\d+|套在|解不了套|漲停有什麼用|大漲有什麼用|拉上來要解套')
+    if past and not has_current_instruction \
+            and answer.get('entry_for_new') not in ('allow', 'wait_condition') \
+            and answer.get('holder_advice') not in ('hold', 'hold_rebound') \
+            and (stance or analysis) \
+            and all(_retro_trap_re.search(s) for q in (stance + analysis) for s in re.split(r'[。！？!?\n]+', q) if s.strip()):
+        return 'history', '只回顧過去的買賣與套牢教學，無本股當下指令：' + first('past_trade')
     if answer.get('content_role') == 'ordinary_word' or (
             answer.get('content_role') in ('position_disclosure', 'selection_scope', 'comparison_only')
             and not has_active_view):
@@ -14550,7 +14557,7 @@ def verdict_response_schema(expected_ids=None):
 # 裁決快取以（段落指紋, 版號）為鍵。改了提示詞或答案格式卻忘了升版，正式流程會沿用舊提示詞的票（2026/10/28 審閱指出：
 # v39 之後又改了提示詞，版號沒動）。版號後面自動接提示詞與格式的指紋，內容一變快取就失效；人工裁決不綁版號，不受影響。
 # 引句怎樣算對得回原文也會改變哪些票有效：驗證器版本一起進指紋（2026/10/28 審閱）
-QUOTE_VERIFIER_VERSION = 'q6-20261029-after-eacff5764-structural-guards'
+QUOTE_VERIFIER_VERSION = 'q8-20261029-after-c476d800c-projection-and-retro-guards'
 VERDICT_VERSION = VERDICT_VERSION + '+' + hashlib.sha256(
     (ADJUDICATE_SYSTEM + json.dumps(verdict_response_schema(), ensure_ascii=False, sort_keys=True)
      + QUOTE_VERIFIER_VERSION).encode('utf-8')).hexdigest()[:8]
@@ -17523,7 +17530,8 @@ def _identity_forms(code, forms):
     主體檢查只拿「環球晶」比，原句被判成不是本股，正確的觀望不碰被來源隔離）。"""
     forms = forms if isinstance(forms, list) else ([forms] if forms else [])
     aliases = [a for a, v in CONFIRMED_NAMES.items() if isinstance(v, tuple) and str(v[0]) == str(code)]
-    return [str(code)] + list(forms) + aliases
+    officials = [_display_name(v[1]) for v in CONFIRMED_NAMES.values() if isinstance(v, tuple) and str(v[0]) == str(code)]
+    return list(dict.fromkeys([str(code)] + list(forms) + aliases + officials))
 
 
 def _source_subject_checks(checks, requested, transcript, known):
@@ -17541,7 +17549,7 @@ def _source_subject_checks(checks, requested, transcript, known):
             continue
         quote = '\n'.join(sources[s]['text'] for s in ids)
         forms = _identity_forms(code, known.get(code) or [])
-        if (len(_ev_norm(statement)) < 6
+        if (len(_ev_norm(statement)) < 4
                 or not any(_ev_norm(n) in _ev_norm(quote) for n in forms if len(_ev_norm(n)) >= 2)
                 or not (set(_ws_numbers(statement)) - {code}) <= set(_ws_numbers(quote))):
             continue
@@ -17612,7 +17620,7 @@ def align_anonymous_claims(signals, transcript, ledger, source_hints=None):
             # 2026/10/28 一批思考用掉 3,879 tokens、只剩 201）：多留 4096
             raw = call_gemini(SOURCE_ALIGNMENT_SYSTEM, json.dumps({'queries': batch,
                 'facts': compact_source_facts(ledger), 'sources': attribution_sources(transcript),
-                'company_candidates': {c: (_CODE_MAP or {}).get(c) or (ledger.get('company_candidates') or {}).get(c) for c in known}},
+                'company_candidates': {c: _identity_forms(c, (ledger.get('company_candidates') or {}).get(c) or (_CODE_MAP or {}).get(c)) for c in known}},
                 ensure_ascii=False, separators=(',', ':')), want_json=True, thinking=1024,
                 tag='source-align', max_out=max_out)
         except RuntimeError as e:
@@ -17742,9 +17750,26 @@ def _validated_source_review(item, row, old, transcript):
     tx_norm = _ev_norm('\n'.join(v['text'] for v in segments.values()))
     number_cautions = _source_number_cautions(row, transcript)
     checked = []
+    prior_proj_claims = ((row.get('_source_attribution_review') or {}).get('claims') or []) if row.get('_source_projection_pending') else []
     for claim in _note_claims(old):
         matches = [r for r in replies if isinstance(r, dict) and r.get('id') == claim['id']]
         reply = matches[0] if len(matches) == 1 else {}
+        if row.get('_source_projection_pending') and reply.get('status') not in ('insufficient', 'cross_entity', 'asr_uncertain'):
+            prior_matches = [c for c in prior_proj_claims if isinstance(c, dict) and _ev_norm(c.get('text')) == _ev_norm(claim['text']) and c.get('status') == 'supported']
+            if len(prior_matches) >= 1 and (not matches or not reply.get('source_ids') or not reply.get('explanation')):
+                p_claim = prior_matches[0]
+                reply = {
+                    'id': claim['id'],
+                    'status': reply.get('status') or 'supported',
+                    'explanation': str(reply.get('explanation') or p_claim.get('explanation') or '沿用投影前已核實之本股來源證據'),
+                    'source_quote': str(reply.get('source_quote') or p_claim.get('source_quote') or ''),
+                    'subject': str(reply.get('subject') or p_claim.get('subject') or row.get('name') or ''),
+                    'subject_code': str(reply.get('subject_code') or p_claim.get('subject_code') or own_code),
+                    'source_ids': reply.get('source_ids') or p_claim.get('source_ids') or [],
+                    'source_fact_ids': reply.get('source_fact_ids') or p_claim.get('source_fact_ids') or [],
+                    'safe_text': str(reply.get('safe_text') or ''),
+                }
+                matches = [reply]
         status = reply.get('status')
         quote = str(reply.get('source_quote') or '').strip()
         subject = str(reply.get('subject') or '').strip()
@@ -17922,12 +17947,16 @@ def _project_supported_claims(signals, row, field, review):
     old = str(row.get(field) or '').strip()
     if review.get('text_sha256') != hashlib.sha256(old.encode()).hexdigest():
         return False
-    pieces = [c['text'].strip('，,；;。') for c in kept if c['text'].strip('，,；;。')]
-    if pieces:
-        pieces[0] = re.sub(r'^(?:但|但是|不過|然而|而|且|並且)[，,]?', '', pieces[0]).strip()
+    kept = [dict(c, text=c['text'].strip('，,；;。')) for c in kept if c['text'].strip('，,；;。')]
+    while len(kept) > 1 and re.fullmatch(r'(?:雖然|儘管|雖)[^，,。；;]{1,15}', kept[-1]['text']):
+        kept.pop()
+    if kept:
+        first_piece = re.sub(r'^(?:但|但是|不過|然而|而|且|並且|因此|所以|故|因而)[，,]?', '', kept[0]['text']).strip()
         disp = _display_name(row.get('name'))
-        if disp and disp not in pieces[0]:
-            pieces[0] = disp + pieces[0]
+        if disp and disp not in first_piece:
+            first_piece = disp + first_piece
+        kept[0]['text'] = first_piece
+    pieces = [c['text'] for c in kept]
     new = '。'.join(pieces) + '。'
     withheld = [dict(c) for c in claims if c.get('status') != 'supported']
     row['_source_projection'] = {'original_text': old, 'input_review': dict(review),
@@ -17939,11 +17968,11 @@ def _project_supported_claims(signals, row, field, review):
     row['_source_attribution_review'] = dict(review, status='projection_pending', claims=[dict(c) for c in kept],
         text_sha256=hashlib.sha256(new.encode()).hexdigest())
     if isinstance(row.get('_source_fact_ledger'), dict):
-        # 投影會重新編子句ID；依同字主張接續原本已核實的證據，不拿舊c0套到新c0。
+        # 投影會重新編子句ID；依同字主張接續原本已核實的證據（含首句補回本股主詞後之文字），不拿舊c0套到新c0。
         bindings = {}
         for current in _note_claims(new):
             matches = [c for c in kept if _ev_norm(c['text']) == _ev_norm(current['text'])]
-            if len(matches) == 1 and matches[0].get('source_fact_ids'):
+            if len(matches) >= 1 and matches[0].get('source_fact_ids'):
                 bindings[current['id']] = {'relation': 'entailed', 'coverage': 'partial',
                     'text_sha256': hashlib.sha256(current['text'].encode()).hexdigest(),
                     'fact_ids': matches[0]['source_fact_ids']}
@@ -18143,7 +18172,10 @@ def _reconcile_source_evidence(items, pending, transcript, ledger):
             candidates = [c for c in supplied if isinstance(c, dict) and c.get('id') == claim['id']]
             if claim['id'] not in missing or len(candidates) != 1:
                 continue
-            ids = candidates[0].get('source_ids')
+            ids = candidates[0].get('source_ids') or (
+                [s for s in (row.get('evidence_refs') or []) if isinstance(s, str) and s in parts][:4]
+                if candidates[0].get('status') == 'supported' else []
+            )
             if isinstance(ids, list) and 1 <= len(ids) <= 4 and all(isinstance(s, str) and s in parts for s in ids):
                 valid_hints[hashlib.sha256(claim['text'].encode()).hexdigest()] = ids
                 disputed.append(claim)
@@ -18299,8 +18331,11 @@ def _polish_public_texts(signals, transcript, date_str):
             own = (_display_name(row.get('name')), str(row.get('name') or '')) if field != 'text' else ()
             why = _polish_accepts(old, new, names, hay, own)
             if why:
-                refused[key] = '上一次改寫沒有採用：' + why
-                continue
+                if row.get('_source_projection_pending') and not written_style_issues(old, hay):
+                    new = old
+                else:
+                    refused[key] = '上一次改寫沒有採用：' + why
+                    continue
             row[field] = new
             if row.get('_source_projection_pending'):
                 row['_source_projection_pending'] = False
@@ -18840,6 +18875,9 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
                         kept.append('，'.join(parts) + end)
                 new = ''.join(kept).strip('，, ')
                 if new != text.strip('，, ') and len(_ev_norm(new)) >= 8:
+                    disp = _display_name(r.get('name'))
+                    if disp and disp in text and disp not in new:
+                        new = disp + re.sub(r'^(?:但|但是|不過|然而|而|且|並且)[，,]?', '', new).strip()
                     r['reason'] = new
                     print(f"  部位一致　{_display_name(r.get('name'))}：紀錄上沒有部位，審閱前拿掉明講會員持有的子句：{text[:28]}… → {new[:28]}…")
                     note_decision('部位一致', '審閱前拿掉明講會員持有的子句', _display_name(r.get('name')), text[:120])

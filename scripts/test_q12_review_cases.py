@@ -59,6 +59,9 @@ class TodayTradeEvidence(unittest.TestCase):
     def test_t07_a_viewers_purchase_is_not_ours(self):
         self.assertFalse(buys('有觀眾說他今天買了3017奇鋐，問我怎麼辦？'))
 
+    def test_t07b_a_viewer_clause_does_not_erase_our_own_trade(self):
+        self.assertTrue(buys('今天我買進3017奇鋐，觀眾說他也買進奇鋐。'))
+
     def test_t08_yesterdays_sale_is_not_todays(self):
         self.assertFalse(sells('我昨天已經賣掉奇鋐了，今天它又漲。'))
 
@@ -80,6 +83,14 @@ class TodayTradeEvidence(unittest.TestCase):
 class CompanyIdentity(unittest.TestCase):
     """方向裁決不能把一般詞或跨詞拼接改列公開；真公司有本股語境時照常。"""
 
+    def setUp(self):
+        # 正式流程會載入官方簡稱清單；這裡只放案例會用到的幾家。
+        self._code_map = pl._CODE_MAP
+        pl._CODE_MAP = {'2327': '國巨', '5347': '世界', '9921': '巨大', '2382': '廣達', '2330': '台積電'}
+
+    def tearDown(self):
+        pl._CODE_MAP = self._code_map
+
     def promote(self, name, code, transcript):
         with contextlib.redirect_stdout(io.StringIO()):
             signals = {'ignored': [{'name': name, 'code': code, '_date': '2026/10/29'}], '_verdicts': {
@@ -93,6 +104,15 @@ class CompanyIdentity(unittest.TestCase):
 
     def test_i02_guoju_rally_is_not_giant(self):
         self.assertEqual(self.promote('巨大', '9921', '昨天國巨大漲，所有人又講國巨活起來了。'), [])
+
+    def test_i05_a_neighbours_price_move_is_not_borrowed(self):
+        self.assertFalse(pl._weak_name_explicitly_stock('世界', '5347', '你世界第一名，國巨今天跌10元。'))
+        self.assertFalse(pl._weak_name_explicitly_stock('巨大', '9921', '昨天國巨大漲，今天國巨跌20元。'))
+        self.assertEqual(self.promote('巨大', '9921', '昨天國巨大漲，今天國巨跌20元。'), [])
+
+    def test_i06_own_spoken_price_move_counts(self):
+        self.assertTrue(pl._weak_name_explicitly_stock('廣達', '2382', '廣達昨天漲2塊2，今天跌10塊半。'))
+        self.assertTrue(pl._weak_name_explicitly_stock('巨大', '9921', '巨大今天跌20元，自行車庫存還沒去化。'))
 
     def test_i03_real_companies_still_promote(self):
         self.assertEqual(self.promote('世界', '5347', '5347世界先進今天跌破季線，不要碰。'), ['5347'])
@@ -135,6 +155,19 @@ class ClaimTense(unittest.TestCase):
         # 「X面」評語交對齊提示逐項核對，程式不用字面比對（會誤刪「MACD翻紅…的強勢技術面」這種有據句）。
         self.assertFalse(pl._claim_overreach('瑞鼎具備月週K線MACD翻紅與日K線突破所有均線的強勢技術面',
                                              '月K線MACD翻紅。週K線MACD翻紅。日K線突破所有均線。', {'瑞鼎'}))
+
+
+class ReviewStamps(unittest.TestCase):
+    def test_f03_a_review_stamp_expires_when_the_text_or_source_changes(self):
+        import hashlib
+        tx = '神準創新高。'
+        text = '神準股價創新高。'
+        row = {'note': text, '_source_attribution_review': {
+            'status': 'supported', 'text_sha256': hashlib.sha256(text.encode()).hexdigest(),
+            'source_sha256': hashlib.sha256(tx.encode()).hexdigest(), 'notice_sha256': pl.attribution_notice_sha(tx)}}
+        self.assertTrue(pl._current_source_review(row, tx))
+        self.assertEqual(pl._current_source_review(dict(row, note=text + '續抱。'), tx), {})
+        self.assertEqual(pl._current_source_review(row, tx + '另一段。'), {})
 
 
 class ThinkingLevel(unittest.TestCase):

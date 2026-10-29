@@ -6894,10 +6894,12 @@ def explicit_today_trades(transcript, names, cat):
             continue
         if re.search(r'你(?:們)?(?:今天|今日)?才(?:在)?(?:賣|買)|(?:不能|不要|不該|別|正要|準備)(?:再|去)?(?:賣|買)', s):
             continue  # 責備觀眾殺低、禁止動作與準備動作，不是本人已成交
-        # 操作的人是觀眾或旁人（「有觀眾說他今天買了奇鋐，問我怎麼辦」）：動作所在子句裡，動作前最近的主詞不是我／會員就不算。
+        # 逐個交易事件看是誰做的（「有觀眾說他今天買了奇鋐，問我怎麼辦」）：本檔的每個交易子句，動作前最近的主詞都是觀眾或旁人、
+        # 不是我／會員，這一句才不算；同句另有本人的交易（「今天我買進奇鋐，觀眾說他也買進奇鋐」）照算。
         trade_verb = r'賣(?:出|掉|了)?' if cat == 'sell' else r'買(?:進|了|回)?'
-        if any(re.search(r'(?:觀眾|粉絲|網友|有人|散戶|人家|他們|他|她)(?:(?!我|會員)[^，,；;]){0,10}?' + trade_verb + r'[^，,；;]{0,12}' + nm, c)
-               for c in re.split(r'[，,；;]', s)):
+        trade_clauses = [c for c in re.split(r'[，,；;]', s) if re.search(trade_verb + r'[^，,；;]{0,12}' + nm, c)]
+        if trade_clauses and all(re.search(r'(?:觀眾|粉絲|網友|有人|散戶|人家|他們|他|她)(?:(?!我|會員)[^，,；;]){0,10}?' + trade_verb + r'[^，,；;]{0,12}' + nm, c)
+                                 for c in trade_clauses):
             continue
         # 「所以我今天只有賣一隻股票。大漲的時候賣，世芯-KY。」：動作在前一句交代了今天，這一句只報名字（2026/10/08）。
         if cat == 'sell' and re.search(r'賣[，,]\s*' + nm + r'$', s.rstrip('。！？!? ')):
@@ -7371,16 +7373,47 @@ def _only_ordinary_word(heard, code, transcript):
     return all(_ORDINARY_BEFORE.search(flat[max(0, at - 3):at]) or _ORDINARY_AFTER.match(flat[at + 2:at + 8]) for at in spots)
 
 
+_COMPANY_MENTION_CACHE = {}
+
+
+def _company_mention_re(heard):
+    """官方簡稱清單裡其他公司的名稱或任一四碼代號（不含與 heard 互相包含的名稱）；清單換了才重建。"""
+    key = (heard, id(_CODE_MAP), len(_CODE_MAP or {}))
+    if key not in _COMPANY_MENTION_CACHE:
+        names = {_display_name(v) for v in (_CODE_MAP or {}).values() if isinstance(v, str)}
+        others = sorted((n for n in names if len(n) >= 2 and n not in heard and heard not in n), key=len, reverse=True)
+        _COMPANY_MENTION_CACHE[key] = re.compile(''.join(re.escape(n) + '|' for n in others) + r'(?<!\d)\d{4}(?!\d)')
+    return _COMPANY_MENTION_CACHE[key]
+
+
 def _weak_name_explicitly_stock(heard, code, transcript):
-    """兩字通用詞若要開成持股，原句須有可辨的股名語境，不能只靠問卷三票。"""
+    """兩字通用詞若要開成持股或改列公開，原句須有可辨的本股語境，不能只靠問卷三票。
+
+    語境只看這個名稱自己後面、到下一家公司名稱或代號之前的字（2026/10/29 審閱者反例：「你世界第一名，國巨今天跌10元」
+    「國巨大漲，今天國巨跌20元」的跌幅是國巨的，不能借給「世界」「巨大」）。名稱夾在另一家公司名稱裡（「國巨大」的「巨大」）不算出現。
+    """
     flat = re.sub(r'\s', '', str(transcript or ''))
     if code and (re.search(r'(?<!\d)' + re.escape(code) + r'[^。！？!?]{0,6}' + re.escape(heard), flat)
                  or re.search(re.escape(heard) + r'[^。！？!?]{0,6}' + re.escape(code) + r'(?!\d)', flat)):
         return True
-    name = re.escape(heard)
-    return bool(re.search(r'(?:這是|叫做|名叫|股票是|這一?[支檔隻]是|我有|你有|我們有|會員有|買進|買入|買|持有|續抱|抱著|驅動IC的|電源管理IC的)' + name, flat)
-                or re.search(name + r'[^。！？!?]{0,24}(?:股票|股價|季線|月線|年線|均線|K線|日K|週K|周K|月K|MACD|KD|高點|低點|創新高|創高|沒有量|出量|突破|翻紅|翻陽|背離|漲停|跌停|買進|買入|賣出|續抱|持有|目標價|EPS|(?:漲|跌)了?[0-9一二三四五六七八九十兩])', flat)
-                or re.search(r'(?:^|[，,。！？!?])' + name + r'[呢啊喔哦嘛]?[。！？!?][\s\S]{0,45}?(?:MACD|KD|均線|季線|月線|年線|K線|翻紅|翻陽|突破|創新高|高點沒有量)', flat))
+    spans = [(m.start(), m.end()) for m in _company_mention_re(heard).finditer(flat) if m.group() != code]
+    after_pat = re.compile(r'(?:股票|股價|季線|月線|年線|均線|K線|日K|週K|周K|月K|MACD|KD|高點|低點|創新高|創高|沒有量|出量|突破|翻紅|翻陽|背離|漲停|跌停|買進|買入|賣出|續抱|持有|目標價|EPS)')
+    next_sentence_pat = re.compile(r'MACD|KD|均線|季線|月線|年線|K線|翻紅|翻陽|突破|創新高|高點沒有量')
+    for m in re.finditer(re.escape(heard), flat):
+        i, j = m.start(), m.end()
+        if any(a < j and b > i for a, b in spans):
+            continue                                   # 「國巨大」：這兩個字屬於國巨
+        if re.search(r'(?:這是|叫做|名叫|股票是|這一?[支檔隻]是|我有|你有|我們有|會員有|買進|買入|買|持有|續抱|抱著|驅動IC的|電源管理IC的)$', flat[:i]):
+            return True
+        stop = min([a for a, _ in spans if a >= j] + [len(flat)])
+        window = flat[j:min(stop, j + 24)]
+        window = re.split(r'[。！？!?]', window, 1)[0]
+        if after_pat.search(window) or re.search(r'(?:漲|跌)了?[0-9一二三四五六七八九十兩]', re.split(r'[，,；;]', window, 1)[0]):
+            return True
+        if (re.match(r'[呢啊喔哦嘛]?[。！？!?]', flat[j:j + 2]) and (i == 0 or flat[i - 1] in '，,。！？!?')
+                and next_sentence_pat.search(flat[j:min(stop, j + 47)])):
+            return True                                # 「瑞鼎。月K線MACD翻紅」：名稱單獨一句，下一句講本股技術面
+    return False
 
 
 def drop_ordinary_word_rows(signals, transcript):
@@ -14754,7 +14787,7 @@ def verdict_response_schema(expected_ids=None):
 # 裁決快取以（段落指紋, 版號）為鍵。改了提示詞或答案格式卻忘了升版，正式流程會沿用舊提示詞的票（2026/10/28 審閱指出：
 # v39 之後又改了提示詞，版號沒動）。版號後面自動接提示詞與格式的指紋，內容一變快取就失效；人工裁決不綁版號，不受影響。
 # 引句怎樣算對得回原文也會改變哪些票有效：驗證器版本一起進指紋（2026/10/28 審閱）
-QUOTE_VERIFIER_VERSION = 'q12r3-20261029-actor-identity-fills'
+QUOTE_VERIFIER_VERSION = 'q12r4-20261029-event-actor-own-span'
 VERDICT_VERSION = VERDICT_VERSION + '+' + hashlib.sha256(
     (ADJUDICATE_SYSTEM + json.dumps(verdict_response_schema(), ensure_ascii=False, sort_keys=True)
      + QUOTE_VERIFIER_VERSION).encode('utf-8')).hexdigest()[:8]

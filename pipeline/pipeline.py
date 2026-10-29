@@ -6879,15 +6879,26 @@ def explicit_today_trades(transcript, names, cat):
         revealed = revealed or bool(re.search(r'哪一?[隻支檔](?:股票|個股)?[？?：:]', s))
         verbs = '賣|出場' if cat == 'sell' else '買|進場|布局'
         pending = re.search(r'等[^。！？!?]{0,16}(?:才|再)(?:要)?(?:下單|' + verbs + r')|(?:還沒|尚未|未)(?:有)?(?:下單|成交|' + verbs + r')', s)
+        # 已成交的那一段要是本檔自己的：子句帶本檔名稱，或沒有主詞、緊接在本檔名稱那一段後面（「就是奇鋐，已成交一半」）；
+        # 「尚未下單，台積電已成交一半」是別檔，不算。
+        clauses = re.split(r'[，,；;]', s)
         done = any(re.search(r'(?:已(?:經)?|先)?成交(?:了)?(?:一半|一部分|部分|[一兩二三四五六七八九十幾\d]+[張成])|部分成交', c)
                    and not re.search(r'上週|上禮拜|昨天|前天|之前|以前|但|不過', c)
-                   for c in re.split(r'[，,；;]', s))
+                   and (any(n in c for n in names)
+                        or (re.match(r'(?:今天|今日|早上|早盤|剛剛|先|其中)?(?:已|成交|部分)', c)
+                            and i > 0 and any(n in clauses[i - 1] for n in names)))
+                   for i, c in enumerate(clauses))
         if revealed and pending and not done:
             continue
         if not execution_statement(s, cat) or not any(n in s for n in names):
             continue
         if re.search(r'你(?:們)?(?:今天|今日)?才(?:在)?(?:賣|買)|(?:不能|不要|不該|別|正要|準備)(?:再|去)?(?:賣|買)', s):
             continue  # 責備觀眾殺低、禁止動作與準備動作，不是本人已成交
+        # 操作的人是觀眾或旁人（「有觀眾說他今天買了奇鋐，問我怎麼辦」）：動作所在子句裡，動作前最近的主詞不是我／會員就不算。
+        trade_verb = r'賣(?:出|掉|了)?' if cat == 'sell' else r'買(?:進|了|回)?'
+        if any(re.search(r'(?:觀眾|粉絲|網友|有人|散戶|人家|他們|他|她)(?:(?!我|會員)[^，,；;]){0,10}?' + trade_verb + r'[^，,；;]{0,12}' + nm, c)
+               for c in re.split(r'[，,；;]', s)):
+            continue
         # 「所以我今天只有賣一隻股票。大漲的時候賣，世芯-KY。」：動作在前一句交代了今天，這一句只報名字（2026/10/08）。
         if cat == 'sell' and re.search(r'賣[，,]\s*' + nm + r'$', s.rstrip('。！？!? ')):
             prefix = ''.join(sentences[max(0, index - 3):index])[-120:]
@@ -7368,7 +7379,7 @@ def _weak_name_explicitly_stock(heard, code, transcript):
         return True
     name = re.escape(heard)
     return bool(re.search(r'(?:這是|叫做|名叫|股票是|這一?[支檔隻]是|我有|你有|我們有|會員有|買進|買入|買|持有|續抱|抱著|驅動IC的|電源管理IC的)' + name, flat)
-                or re.search(name + r'[^。！？!?]{0,24}(?:股票|股價|季線|月線|年線|均線|K線|日K|週K|周K|月K|MACD|KD|高點|低點|創新高|創高|沒有量|出量|突破|翻紅|翻陽|背離|漲停|跌停|買進|買入|賣出|續抱|持有|目標價|EPS)', flat)
+                or re.search(name + r'[^。！？!?]{0,24}(?:股票|股價|季線|月線|年線|均線|K線|日K|週K|周K|月K|MACD|KD|高點|低點|創新高|創高|沒有量|出量|突破|翻紅|翻陽|背離|漲停|跌停|買進|買入|賣出|續抱|持有|目標價|EPS|(?:漲|跌)了?[0-9一二三四五六七八九十兩])', flat)
                 or re.search(r'(?:^|[，,。！？!?])' + name + r'[呢啊喔哦嘛]?[。！？!?][\s\S]{0,45}?(?:MACD|KD|均線|季線|月線|年線|K線|翻紅|翻陽|突破|創新高|高點沒有量)', flat))
 
 
@@ -14743,7 +14754,7 @@ def verdict_response_schema(expected_ids=None):
 # 裁決快取以（段落指紋, 版號）為鍵。改了提示詞或答案格式卻忘了升版，正式流程會沿用舊提示詞的票（2026/10/28 審閱指出：
 # v39 之後又改了提示詞，版號沒動）。版號後面自動接提示詞與格式的指紋，內容一變快取就失效；人工裁決不綁版號，不受影響。
 # 引句怎樣算對得回原文也會改變哪些票有效：驗證器版本一起進指紋（2026/10/28 審閱）
-QUOTE_VERIFIER_VERSION = 'q12r2-20261029-fills-list-tense'
+QUOTE_VERIFIER_VERSION = 'q12r3-20261029-actor-identity-fills'
 VERDICT_VERSION = VERDICT_VERSION + '+' + hashlib.sha256(
     (ADJUDICATE_SYSTEM + json.dumps(verdict_response_schema(), ensure_ascii=False, sort_keys=True)
      + QUOTE_VERIFIER_VERSION).encode('utf-8')).hexdigest()[:8]
@@ -15253,6 +15264,17 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                 quotes = [q for qs in (a.get('quotes') or {}).values() for q in (qs or []) if isinstance(q, str)]
                 print(f"    　答成{_VERDICT_LABEL.get(cls, cls)}的那一份：{'、'.join(facts) or '全部為否'}；now={a.get('now')}、tone={a.get('tone')}；"
                       f"引句 {' / '.join(q[:28] for q in quotes[:3])}" + (f"；{str(a.get('unsure'))[:50]}" if a.get('unsure') else ''))
+    for code, entry in verdicts.items():
+        # 只用兩字名稱寫法、停在不公開的列：先記下原文有沒有這家公司的股名語境，apply_verdicts 改列公開前要看（身分與方向分開）。
+        # 這一列所有寫法（正式名稱、聽寫別名）都要看：原稿念「季家」「金策」時，用正式名稱查不到。
+        if entry.get('current') not in _VERDICT_HIDDEN or str(code) in (_DAY_SOURCE_CONTEXT.get('company_candidates') or {}):
+            continue
+        forms = set()
+        for _cat, _row in today.get(code, []):
+            forms |= {str(n) for n in _signal_names(_row) | {str(_row.get('name') or '')} if n}
+        forms = {f for f in forms | {str(entry.get('name') or '')} if f and not f.isdigit()}
+        if forms and all(len(_display_name(f)) == 2 for f in forms) and not any(f in CONFIRMED_NAMES for f in forms):
+            entry['identity_confirmed'] = any(_weak_name_explicitly_stock(_display_name(f), str(code), transcript) for f in forms)
     signals['_verdicts'] = verdicts
     signals['_manual_hidden'] = sorted(code for code, entry in (cache or {}).items()
                                        if isinstance(entry, dict) and entry.get('manual') in ('history', 'uncertain', 'ignored'))
@@ -15364,6 +15386,12 @@ def apply_verdicts(signals, date_str, final=False):
                 # 代號對得到官方清單時換成正式簡稱，聽寫的字留在 aliases 供段落比對。
                 official = str((_CODE_MAP or {}).get(code) or '').strip()
                 heard = str(moved.get('name') or '').strip()
+                # 先確認身分再談方向：兩字名稱從排除改列公開，原文要有可辨的股名語境（2026/10/29 run 40854560586
+                # 「你世界第一名」「國巨大漲」被問卷拿國巨的話投成觀望不碰）。真正的 5347 世界先進、9921 巨大有代號或本股分析時照常改列。
+                if cat in _VERDICT_HIDDEN and entry.get('identity_confirmed') is False:
+                    print(f"  分類裁決　{heard}（{code}）身分未確認：原文沒有這家公司的股名語境（可能是一般詞或跨詞拼接），留在不公開")
+                    note_decision('分類裁決', '身分未確認，不改列公開', heard, code)
+                    continue
                 if cat in _VERDICT_HIDDEN and official and heard and _display_name(heard) != _display_name(official) \
                         and heard not in CONFIRMED_NAMES:
                     # 不公開的列帶著的代號可能是模型給的、沒有經過代號比對（2026/10/14「連亞」帶著 3086，被換成華義）：先核對名稱

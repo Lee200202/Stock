@@ -8046,7 +8046,8 @@ CONFIRMED_NAMES = {'普威': ('4966', '譜瑞-KY'), '普位': ('4966', '譜瑞-K
     '欲隆': ('2201','裕隆'), '喻隆': ('2201','裕隆'), '郁隆': ('2201','裕隆'), '譽隆': ('2201','裕隆'), '豫隆': ('2201','裕隆'), '雨隆': ('2201','裕隆'),
     '羽隆': ('2201','裕隆'), '語隆': ('2201','裕隆'),
     # 2026/10/27 管理者核准：「訊準／序準／續準」是旭隼；2026/10/28 管理者核准：「萬紅」是旺宏（「今天萬紅宣佈大利多，結果萬紅跌」）。
-    '訊準': ('6409','旭隼'), '序準': ('6409','旭隼'), '續準': ('6409','旭隼'), '萬紅': ('2337','旺宏')}
+    '訊準': ('6409','旭隼'), '序準': ('6409','旭隼'), '續準': ('6409','旭隼'), '萬紅': ('2337','旺宏'),
+    '金策': ('3653','健策'), '季家': ('2376','技嘉')}   # 管理者 2026/10/29 確認
 # 管理者確認的讀音：名稱唸起來與左邊完全相同（不分聲調，前後鼻音視為同音）時，對到右邊那一檔。
 # 只在「正式名稱完全相同」「去後綴後相同」都比不到時才用，所以原文明寫的宇隆仍是 2233。
 CONFIRMED_SOUNDS = {'裕隆': ('2201', '裕隆'),
@@ -15034,6 +15035,13 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             base = 'ignored' if entry.get('late') else (entry.get('not_held_fallback','ignored') if denied_holding else entry['current'])
             state, decided, why = verdict_settle(base, entry['votes'],
                                                  last=round_no == VERDICT_MAX_ROUNDS - 1, open_position=bool(entry.get('open')))
+            if (state == '未定' and base != 'buy' and entry['votes'].count('buy') >= 2
+                    and explicit_today_trades(transcript, item['_names'], 'buy')):
+                # 2026/10/29 力智：擷取把今天的買回列成觀望，兩份問卷都答今天買進，原文同段也有程式核得到的當日成交句
+                # （「跌到這邊，買力智…今天我新增加了這一隻股票」）。兩者都成立才改列買入，並記為已核成交，發布關卡照常再核一次。
+                state, decided = '定案', 'buy'
+                why = f"{entry['votes'].count('buy')}／{len([v for v in entry['votes'] if v])} 票今天買進，原文有程式可核對的當日成交句"
+                entry['execution_verified'] = True
             if state == '再問':
                 still.append((code, item))
                 continue

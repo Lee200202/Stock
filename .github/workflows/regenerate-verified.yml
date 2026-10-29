@@ -9,7 +9,7 @@ on:
       mode:
         description: 通過全部品質核對後才更新；不寄送
         type: choice
-        options: [preview, apply, apply-rules, raw, sync, priority-check, reviewed-points, reviewed-notes-preview, reviewed-notes, source-audit, reading-preview, reading-apply, notice-preview, notice-apply, backup-status, backup-migrate, row-repair-preview, row-repair-apply, source-review-preview, source-review-apply, source-review-inspect, verdicts, titles]
+        options: [preview, direct, apply, apply-rules, raw, sync, priority-check, reviewed-points, reviewed-notes-preview, reviewed-notes, source-audit, reading-preview, reading-apply, notice-preview, notice-apply, backup-status, backup-migrate, row-repair-preview, row-repair-apply, source-review-preview, source-review-apply, source-review-inspect, verdicts, titles]
         default: preview
       candidate_run:
         description: 'apply 必填：同一commit且成功的preview執行ID；原封套用該artifact，不重新生成'
@@ -165,7 +165,7 @@ jobs:
             python scripts/sync_source_priority.py --date "$TARGET_DATE"
             exit 0
           fi
-          if [[ "$MODE" != preview && "$MODE" != apply && "$MODE" != apply-rules && "$MODE" != raw ]]; then
+          if [[ "$MODE" != preview && "$MODE" != direct && "$MODE" != apply && "$MODE" != apply-rules && "$MODE" != raw ]]; then
             echo '未處理的模式，停止；不呼叫模型或寫入'
             exit 1
           fi
@@ -180,6 +180,7 @@ jobs:
           if [[ "$MODE" = apply || "$MODE" = apply-rules ]]; then ARGS+=(--apply --candidate .model-candidate/candidate.json); fi
           if [ "$MODE" = raw ]; then ARGS+=(--raw); fi
           if [[ "$MODE" = preview && "$ACCEPT_MODEL" = yes ]]; then ARGS+=(--accept-model); fi
+          if [ "$MODE" = direct ]; then ARGS+=(--direct); fi
           python scripts/regenerate_verified_day.py "${ARGS[@]}"
 
       - uses: actions/upload-artifact@v4

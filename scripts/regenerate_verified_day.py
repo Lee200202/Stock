@@ -193,6 +193,16 @@ def apply_candidate(book, payload, raw):
     latest, _ = pl.existing_transcript(book, payload['video_id'], day, snapshot=fresh)
     if latest != raw:
         raise ValueError('備份期間原稿已變，未寫入')
+    # 表格列數不夠時先加列（2026/10/29：操作紀錄只有 1230 列，寫第 1231 列被 API 擋下，整批沒寫入）。
+    for name in TABLES:
+        ws = book.worksheet(name)
+        need_rows = len(after[name]) + 20
+        need_cols = max((len(r) for r in after[name]), default=0)
+        rows_now, cols_now = getattr(ws, 'row_count', None), getattr(ws, 'col_count', None)
+        if isinstance(rows_now, int) and rows_now < need_rows:
+            ws.add_rows(need_rows - rows_now)
+        if isinstance(cols_now, int) and cols_now < need_cols:
+            ws.add_cols(need_cols - cols_now)
     requests = cell_requests(before, after, {n: book.worksheet(n).id for n in TABLES})
     if requests:
         book.batch_update({'requests': requests})
@@ -222,6 +232,8 @@ def main():
     p.add_argument('--raw', action='store_true', help='相容入口；所有預覽均不注入答案')
     p.add_argument('--rules-only', action='store_true', help='相容入口；所有預覽均不注入答案')
     p.add_argument('--accept-model', action='store_true', help='管理者明示以這一次模型結果為準：隔離與參考差異改列警告')
+    p.add_argument('--direct', action='store_true',
+                   help='管理者 2026/10/29：當作正常跑資料——同一次執行先由模型產出，再直接寫入（不經另一次 apply）；以模型結果為準，硬傷照擋')
     a = p.parse_args()
     if a.apply and not a.candidate:
         raise SystemExit('發布必須提供已成功預覽的候選檔，不再重新生成或灌入答案')
@@ -247,6 +259,11 @@ def main():
         if payload['run_id'] != os.environ.get('CANDIDATE_RUN'):
             raise SystemExit('artifact內的run ID與已驗證GitHub預覽不同')
         pl.call_gemini = lambda *a, **kw: (_ for _ in ()).throw(RuntimeError('發布階段禁止模型呼叫'))
+        apply_candidate(book, payload, raw)
+    elif a.direct:
+        preview(book, day, raw, source, commit, state, reference, Path(a.output), snapshots, accept_model=True)
+        payload = json.loads(Path(a.output).read_text(encoding='utf-8'))['payload']
+        pl.call_gemini = lambda *a, **kw: (_ for _ in ()).throw(RuntimeError('寫入階段禁止模型呼叫'))
         apply_candidate(book, payload, raw)
     else:
         preview(book, day, raw, source, commit, state, reference, Path(a.output), snapshots, accept_model=a.accept_model)

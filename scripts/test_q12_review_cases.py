@@ -113,6 +113,8 @@ class CompanyIdentity(unittest.TestCase):
     def test_i06_own_spoken_price_move_counts(self):
         self.assertTrue(pl._weak_name_explicitly_stock('廣達', '2382', '廣達昨天漲2塊2，今天跌10塊半。'))
         self.assertTrue(pl._weak_name_explicitly_stock('巨大', '9921', '巨大今天跌20元，自行車庫存還沒去化。'))
+        # 2026/10/29 原稿「想碩下跌。我還抱著。」
+        self.assertTrue(pl._weak_name_explicitly_stock('想碩', '5269', '有啊，想碩下跌。我還抱著。'))
 
     def test_i03_real_companies_still_promote(self):
         self.assertEqual(self.promote('世界', '5347', '5347世界先進今天跌破季線，不要碰。'), ['5347'])

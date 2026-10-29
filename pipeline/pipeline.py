@@ -7397,7 +7397,7 @@ def _weak_name_explicitly_stock(heard, code, transcript):
                  or re.search(re.escape(heard) + r'[^。！？!?]{0,6}' + re.escape(code) + r'(?!\d)', flat)):
         return True
     spans = [(m.start(), m.end()) for m in _company_mention_re(heard).finditer(flat) if m.group() != code]
-    after_pat = re.compile(r'(?:股票|股價|季線|月線|年線|均線|K線|日K|週K|周K|月K|MACD|KD|高點|低點|創新高|創高|沒有量|出量|突破|翻紅|翻陽|背離|漲停|跌停|買進|買入|賣出|續抱|持有|目標價|EPS)')
+    after_pat = re.compile(r'(?:股票|股價|季線|月線|年線|均線|K線|日K|週K|周K|月K|MACD|KD|高點|低點|創新高|創高|沒有量|出量|突破|翻紅|翻陽|背離|漲停|跌停|下跌|上漲|大漲|大跌|拉回|買進|買入|賣出|續抱|持有|目標價|EPS)')
     next_sentence_pat = re.compile(r'MACD|KD|均線|季線|月線|年線|K線|翻紅|翻陽|突破|創新高|高點沒有量')
     for m in re.finditer(re.escape(heard), flat):
         i, j = m.start(), m.end()

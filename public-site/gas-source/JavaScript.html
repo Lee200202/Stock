@@ -1540,6 +1540,7 @@ function restatesEarlier_(key, earlier) {
         trackerPriceMode = b.dataset.trackerPrice;
         renderTracker(source);
         if (typeof DETAIL !== 'undefined' && DETAIL.tracker) paintTracker();
+        if (typeof perfModeChanged_ === 'function') perfModeChanged_();
       });
     });
   }
@@ -2490,6 +2491,41 @@ function restatesEarlier_(key, earlier) {
   var perfChart, perfSeries, perfReferenceLine = null, perfData = null, perfField = 'avgReturn', perfRange = 10;
   var PERF_LABEL = { avgReturn: '平均報酬 %', positiveRatio: '正報酬比例 %', holding: '持有檔數' };
 
+  /* 計算方式（v209，2026/10/29 管理者：整體績效與持股追蹤對齊）：與持股追蹤共用同一個切換（trackerPriceMode）。
+     中點計算＝原本的欄位；低進高出＝後端另存的試算欄（進場取取價日最低價，持有中用當天收盤）。
+     持有檔數兩種算法相同。舊列沒有試算欄時是 null，圖表略過、不拿中點補。 */
+  function perfKey_(field) {
+    return trackerPriceMode === 'lowHigh' && field !== 'holding' ? field + 'LowHigh' : field;
+  }
+  function perfHasLowHigh_() {
+    return !!(perfData && perfData.series && perfData.series.some(function (r) { return r.avgReturnLowHigh !== null && r.avgReturnLowHigh !== undefined; }));
+  }
+  function renderPerfCalculation() {
+    var box = $('perfCalculation');
+    if (!box) return;
+    box.innerHTML = [{k:'midpoint', s:'中點計算'}, {k:'lowHigh', s:'低進高出'}].map(function(m) {
+      return '<button type="button" class="pill" data-perf-price="' + m.k + '" aria-pressed="' + (trackerPriceMode === m.k) + '">' + m.s + '</button>';
+    }).join('');
+    box.querySelectorAll('[data-perf-price]').forEach(function(b) {
+      b.addEventListener('click', function() {
+        trackerPriceMode = b.dataset.perfPrice;
+        perfModeChanged_();
+        if (window.__tracker) { try { renderTracker(window.__tracker); } catch (e) {} }
+      });
+    });
+  }
+  function perfModeChanged_() {
+    renderPerfCalculation();
+    var how = $('perfHow');
+    if (how) how.textContent = trackerPriceMode === 'lowHigh'
+      ? '一個點代表一個交易日。低進高出試算：每檔進場取該回合取價日的最低價，持有中以當天收盤計算；缺有效最低價的不計入，不改用中點。'
+      : '一個點代表一個交易日。平均報酬只計入有進場價與當日價者；每個交易日收盤後記錄，起點 2026/07/08。';
+    if (perfData && perfData.series && perfData.series.length) {
+      try { renderPerf(); } catch (e) {}
+      renderPerfTable(); updatePerfNote();
+    }
+  }
+
   function perfSlice() {
     var arr = perfData.series;
     return (perfRange === 'all' || arr.length <= perfRange) ? arr : arr.slice(arr.length - perfRange);
@@ -2529,8 +2565,9 @@ function restatesEarlier_(key, earlier) {
        Number(null) 與 Number('') 都是 0，直接丟進圖裡就會變成一條平在 0 的線，
        看起來像那段期間績效掛零，實際上是沒有資料。
        後端已經改成回 null，這裡再擋一次：舊資料還沒重算過時也不會畫錯。 */
+    var key = perfKey_(perfField);
     var pts = perfSlice().map(function (r) {
-      var v = r[perfField];
+      var v = r[key];
       if (v === null || v === undefined || v === '') { return null; }
       var n = Number(v);
       return isFinite(n) ? { time: r.date.replace(/\//g, '-'), value: n } : null;
@@ -2569,16 +2606,16 @@ function restatesEarlier_(key, earlier) {
   }
 
   function renderPerfTable() {
-    var s = perfSlice().slice().reverse();
+    var s = perfSlice().slice().reverse(), ak = perfKey_('avgReturn'), pk = perfKey_('positiveRatio');
     $('perfTable').innerHTML = '<div class="card flush"><table><thead><tr>' +
       '<th>日期</th><th class="r">持有<span class="th-long">檔數</span></th>' +
       '<th class="r">平均<span class="th-long">報酬</span></th><th class="r">正報酬<span class="th-long">比例</span></th></tr></thead><tbody>' +
       s.map(function (r) {
         return '<tr><td class="code">' + esc(r.date) + '</td>' +
           '<td class="px r">' + r.holding + '</td>' +
-          '<td class="px r ' + signCls(r.avgReturn) + '">' + fmtRet(r.avgReturn) + '</td>' +
+          '<td class="px r ' + signCls(r[ak]) + '">' + fmtRet(r[ak]) + '</td>' +
           // 算不出來的日子是 null，不能呼叫 toFixed（先前整張表會因此畫不出來）。
-          '<td class="px r">' + (r.positiveRatio == null ? '\u2014' : r.positiveRatio.toFixed(1) + '%') + '</td></tr>';
+          '<td class="px r">' + (r[pk] == null ? '\u2014' : r[pk].toFixed(1) + '%') + '</td></tr>';
       }).join('') + '</tbody></table></div>';
   }
 
@@ -2587,7 +2624,8 @@ function restatesEarlier_(key, earlier) {
     var shown = perfSlice().length;
     var label = perfRange === 'all' ? '全部' : ('近 ' + perfRange + ' 個交易日');
     $('perfNote').textContent = '顯示' + label + '（' + shown + ' 筆），自 ' +
-      perfData.since + ' 起共 ' + perfData.days + ' 個交易日。' + (perfData.note || '');
+      perfData.since + ' 起共 ' + perfData.days + ' 個交易日。' + (perfData.note || '') +
+      (trackerPriceMode === 'lowHigh' ? (perfHasLowHigh_() ? '目前顯示低進高出試算。' : '低進高出試算要等下一次重算績效歷史後才會有資料。') : '');
     /* 資料落後（v54）：最後一點早於最近交易日超過一天時照實寫出來，
        不讓讀者以為那幾天沒有變動（2026/09/23 停在 9/18）。收盤後才記當天，所以落後一天不提示。 */
     var stale = $('perfStale');
@@ -2637,6 +2675,7 @@ function restatesEarlier_(key, earlier) {
       }
       /* 圖表元件（CDN）沒載入時，表格、落後提示與說明照樣要出來（v54）。
          先前 renderPerf 一丟錯，後面兩行都不會跑，整頁只剩一個空框。 */
+      renderPerfCalculation();
       try { renderPerf(); }
       catch (e) { $('perfChart').innerHTML = '<p class="emptyline">走勢圖沒有載入成功，下方表格仍是完整資料。</p>'; }
       renderPerfTable();

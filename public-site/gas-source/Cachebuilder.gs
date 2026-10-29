@@ -2388,7 +2388,7 @@ function backfillPerformanceJob() {
   });
 
   CACHE.remove('perf_series');
-  CACHE.remove('perf_series_v54_'+(typeof PERFORMANCE_START_DATE==='string'?PERFORMANCE_START_DATE:''));
+  CACHE.remove(PERF_CACHE_PREFIX_+(typeof PERFORMANCE_START_DATE==='string'?PERFORMANCE_START_DATE:''));
 
   var first = rows[0], last = rows[rows.length - 1];
   Logger.log('');
@@ -2512,11 +2512,17 @@ function snapshotPerformanceJobRun_() {
     var sh = getSheet_('每日績效');
     var values = sh.getDataRange().getValues();
 
-    var row = [today, t.summary.priced, t.summary.holding, t.summary.avgReturn, t.summary.positiveRatio];
+    var lhRets = (t.held || []).map(perfLowHighHeldReturn_).filter(function (v) { return v !== null; });
+    var lh = perfSummary_(lhRets);
+    var row = [today, t.summary.priced, t.summary.holding, t.summary.avgReturn, t.summary.positiveRatio,
+               lhRets.length, lh.avg === null ? '' : lh.avg, lh.pos === null ? '' : lh.pos];
+    if (String(values[0][5] || '') !== PERF_HEADERS_[5]) {
+      sh.getRange(1, 1, 1, PERF_HEADERS_.length).setValues([PERF_HEADERS_]);   // 舊表補上低進高出三欄的表頭
+    }
 
     for (var i = 1; i < values.length; i++) {
       if (fmtDate_(values[i][0]) === today) {
-        sh.getRange(i + 1, 1, 1, 5).setValues([row]);   // 同一天重跑就覆蓋
+        sh.getRange(i + 1, 1, 1, row.length).setValues([row]);   // 同一天重跑就覆蓋
         return;
       }
     }
@@ -2524,7 +2530,7 @@ function snapshotPerformanceJobRun_() {
   });
 
   CACHE.remove('perf_series');
-  CACHE.remove('perf_series_v54_'+(typeof PERFORMANCE_START_DATE==='string'?PERFORMANCE_START_DATE:''));
+  CACHE.remove(PERF_CACHE_PREFIX_+(typeof PERFORMANCE_START_DATE==='string'?PERFORMANCE_START_DATE:''));
   Logger.log('已記錄 ' + today + ' 的績效：平均報酬 ' + t.summary.avgReturn + '%，正報酬比例 ' + t.summary.positiveRatio + '%');
   // 後台時間軸看得到「績效寫進去了」（v67，0925 規格 A4）；寫不進去不影響績效本身
   try {
@@ -2557,6 +2563,30 @@ function snapshotPerformanceJobRun_() {
  * 已出場的回合不列入某一天的統計，與 snapshotPerformanceJob 一致——
  * 它記的是「持有中」那一組的平均，已實現的那組另外看。
  * ==================================================================== */
+/* 每日績效的欄位（2026/10/29 起多三欄低進高出試算）。 */
+var PERF_HEADERS_ = ['日期', '計入報酬檔數', '持有檔數', '平均報酬', '正報酬比例',
+                     '計入報酬檔數（低進高出）', '平均報酬（低進高出）', '正報酬比例（低進高出）'];
+var PERF_CACHE_PREFIX_ = 'perf_series_v209_';
+
+/* 一組報酬 → 平均與正報酬比例（四捨五入與既有中點欄位相同）。 */
+function perfSummary_(rets) {
+  if (!rets.length) { return { avg: null, pos: null }; }
+  var sum = rets.reduce(function (s, x) { return s + x; }, 0);
+  return { avg: Math.round(sum / rets.length * 100) / 100,
+           pos: Math.round(rets.filter(function (x) { return x > 0; }).length / rets.length * 1000) / 10 };
+}
+
+/* 持有中一檔的低進高出報酬：與前台 trackerLowHighItem_ 同一規則——回合要完整、進場取最後一回合取價日最低價、
+   現價用追蹤表的目前價；缺任何一項回 null（不計入，不改用中點或零價）。 */
+function perfLowHighHeldReturn_(item) {
+  var rs = (item && item.calculationRounds) || [];
+  if (!item || !item.stillHeld || !rs.length || rs.length !== (Number(item.rounds) || 1)) { return null; }
+  var e = Number(rs[rs.length - 1].entryLow), x = Number(item.current);
+  if (!isFinite(e) || e <= 0 || !isFinite(x) || x <= 0) { return null; }
+  return Math.round((x / e - 1) * 10000) / 100;
+}
+
+
 function rebuildPerformanceHistoryJob(fromDate) {
   var start = Date.now();
 
@@ -2671,14 +2701,16 @@ function rebuildPerformanceHistoryJob(fromDate) {
     }
   }
 
-  /* 某一檔在 D 這一天的未實現報酬。沒持有、或算不出價就回 null。 */
-  function retOn(h, d) {
+  /* 某一檔在 D 這一天的未實現報酬。沒持有、或算不出價就回 null。
+     lowHigh＝true 時是「低進高出」試算（2026/10/29 管理者：整體績效與持股追蹤對齊兩種計算）：
+     進場改取該回合取價日的最低價（回合JSON 的 el），持有中一樣用當天收盤；缺有效最低價就不計，不退回中點。 */
+  function retOn(h, d, lowHigh) {
     for (var i = 0; i < h.rounds.length; i++) {
       var rd = h.rounds[i];
       var open = String(rd.od || rd.o || '');
       if (!open || open > d) { continue; }
       if (rd.c && rd.c <= d) { continue; }        // 那一天之前已經出場
-      var entry = Number(rd.e);
+      var entry = Number(lowHigh ? rd.el : rd.e);
       if (!isFinite(entry) || entry <= 0) { return { held: true, ret: null }; }
       var px = closes[h.code] && closes[h.code][d];
       if (!isFinite(px) || px <= 0) { return { held: true, ret: null }; }
@@ -2689,12 +2721,14 @@ function rebuildPerformanceHistoryJob(fromDate) {
 
   var out = [];
   days.forEach(function (d) {
-    var total = 0, priced = [];
+    var total = 0, priced = [], pricedLH = [];
     holdingsByCode.forEach(function (h) {
       var v = retOn(h, d);
       if (!v.held) { return; }
       total++;
       if (v.ret !== null) { priced.push(v.ret); }
+      var w = retOn(h, d, true);
+      if (w.ret !== null) { pricedLH.push(w.ret); }
     });
     if (!total) { return; }                        // 那一天沒有任何持倉，不畫點
     /* 有持倉、但一檔都算不出報酬（沒有進場價或那天沒有收盤）＝那一天的績效是
@@ -2709,12 +2743,14 @@ function rebuildPerformanceHistoryJob(fromDate) {
       pos = Math.round(priced.filter(function (x) { return x > 0; }).length
                        / priced.length * 1000) / 10;
     }
-    out.push([d, priced.length, total, avg === null ? '' : avg, pos === null ? '' : pos]);
+    var lh = perfSummary_(pricedLH);
+    out.push([d, priced.length, total, avg === null ? '' : avg, pos === null ? '' : pos,
+              pricedLH.length, lh.avg === null ? '' : lh.avg, lh.pos === null ? '' : lh.pos]);
   });
 
   withLock_(function () {
     var sh = getSheet_('每日績效');
-    var headers = ['日期', '計入報酬檔數', '持有檔數', '平均報酬', '正報酬比例'];
+    var headers = PERF_HEADERS_;
     if (from) {
       /* 指定起點時只換掉那一段，起點之前的歷史點原樣保留。
          全表重寫會把「還沒有回合JSON 的那段更早期歷史」一起清掉。 */
@@ -2724,7 +2760,11 @@ function rebuildPerformanceHistoryJob(fromDate) {
         var dd = fmtDate_(vals[i][0]);
         // 資料起點之前的舊列不保留：那是本站還沒有任何紀錄的日子，
         // 留著就是把「沒有資料」畫成一條線。
-        if (dd && dd < from && (!dataFloor || dd >= dataFloor)) { keep.push(vals[i].slice(0, 5)); }
+        if (dd && dd < from && (!dataFloor || dd >= dataFloor)) {
+          var kept = vals[i].slice(0, PERF_HEADERS_.length);
+          while (kept.length < PERF_HEADERS_.length) { kept.push(''); }
+          keep.push(kept);
+        }
       }
       out = keep.concat(out);
       out.sort(function (a, b) { return String(a[0]) < String(b[0]) ? -1 : 1; });
@@ -2735,7 +2775,7 @@ function rebuildPerformanceHistoryJob(fromDate) {
   });
 
   CACHE.remove('perf_series');
-  CACHE.remove('perf_series_v54_'+(typeof PERFORMANCE_START_DATE==='string'?PERFORMANCE_START_DATE:''));
+  CACHE.remove(PERF_CACHE_PREFIX_+(typeof PERFORMANCE_START_DATE==='string'?PERFORMANCE_START_DATE:''));
   Logger.log('績效歷史重算完成：' + out.length + ' 個交易日，' +
              holdingsByCode.length + ' 檔納入計算（耗時 ' +
              Math.round((Date.now() - start) / 1000) + ' 秒）');
@@ -2754,7 +2794,7 @@ function numOrNull_(v) {
 /** 績效走勢，供折線圖 */
 function getPerformanceSeries() {
   var floor=typeof PERFORMANCE_START_DATE==='string'?PERFORMANCE_START_DATE:'';
-  var cacheKey='perf_series_v54_'+floor;
+  var cacheKey=PERF_CACHE_PREFIX_+floor;
   var hit = CACHE.get(cacheKey);
   if (hit) { return JSON.parse(hit); }
 
@@ -2795,7 +2835,11 @@ function getPerformanceSeries() {
          Number('') 會回 0，把「不知道」變成「零報酬」——這是走勢圖出現
          假的平線的直接原因。回 null，由前端略過這個點。 */
       avgReturn: numOrNull_(r['平均報酬']),
-      positiveRatio: numOrNull_(r['正報酬比例'])
+      positiveRatio: numOrNull_(r['正報酬比例']),
+      // 低進高出試算（舊列沒有這三欄時是 null，前端顯示「重算後提供」，不拿中點補）
+      totalLowHigh: numOrNull_(r[PERF_HEADERS_[5]]),
+      avgReturnLowHigh: numOrNull_(r[PERF_HEADERS_[6]]),
+      positiveRatioLowHigh: numOrNull_(r[PERF_HEADERS_[7]])
     };
   });
 

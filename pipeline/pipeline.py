@@ -10083,7 +10083,12 @@ def preserve_explicit_holdings(signals, transcript):
                 for scope, _ in scopes:
                     for heard in _row_names_for_recap(row):
                         match = re.search(re.escape(heard) + r'.{0,110}(?:你(?:們)?繼續抱著|繼續抱著|續抱)', scope, re.S)
-                        if match and not re.search(r'如果|假如|假設|倘若|已經.{0,6}(?:賣掉|出清)|全部賣|已賣', match.group()):
+                        # 會員或觀眾問自己的部位（2026/10/28 東台「老師早，4526再抱嗎？…張總，4526繼續抱嗎？」）：持有的是提問者，
+                        # 講者答續抱只是回答，不是老師的會員持股（管理者 10/29：會員單獨的操作）。這段比對是在認「誰持有」，不判方向。
+                        asker = bool(match) and bool(re.search(
+                            r'(?:再|繼續|還要|要)抱嗎|(?:要|可以|能不能|該不該|需不需要)[^，。！？!?]{0,6}(?:出|賣|抱)[^，。！？!?]{0,4}嗎'
+                            r'|要不要賣|會員問|問我|老師早', match.group()))
+                        if match and not asker and not re.search(r'如果|假如|假設|倘若|已經.{0,6}(?:賣掉|出清)|全部賣|已賣', match.group()):
                             owned, continuation = True, scope
                             break
                     if owned:

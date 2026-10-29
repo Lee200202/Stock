@@ -243,6 +243,11 @@ def main():
     if not today - timedelta(days=30) <= target <= today:
         raise SystemExit('限最近三十天既有原稿')
     reference = Path(a.reference) if a.reference else ROOT / 'scripts/golden' / (day.replace('/', '-') + '.json')
+    # 正式品質驗收：明確指定的參考檔不存在就先停，不浪費模型額度。沒指定、預設答案檔也沒有：照跑，但只是未評分的診斷，候選不能發布。
+    if a.reference and not reference.exists():
+        raise SystemExit(f'指定的來源參考不存在：{a.reference}（參考檔放在 repo 的 scripts/golden 或 docs）；在模型判讀與寫入之前停止')
+    if not reference.exists():
+        print(f'沒有 {day} 的來源參考（scripts/golden）：本次是未評分的診斷，候選不能發布')
     commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
     book, source = pl.open_sheets(), {}
     raw, _ = pl.existing_transcript(book, '', day, snapshot=source)

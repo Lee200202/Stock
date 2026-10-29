@@ -1,0 +1,46 @@
+name: offline-contracts
+
+# 流程正本改動時自動跑離線契約；不呼叫模型、不連外、不讀寫試算表，不需要任何 secret。
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/offline-contracts.yml
+      - pipeline/**
+      - scripts/run_offline_contracts.py
+      - scripts/test_*.py
+      - scripts/regenerate_verified_day.py
+      - scripts/replay_extract.py
+      - scripts/replay_reference.py
+      - scripts/model_release_candidate.py
+      - scripts/golden/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: offline-contracts-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: 離線契約（逐支結果）
+        run: python scripts/run_offline_contracts.py --json offline-contracts.json
+      - name: 保存逐支結果
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: offline-contracts-${{ github.sha }}
+          path: offline-contracts.json
+          retention-days: 14
+          if-no-files-found: warn

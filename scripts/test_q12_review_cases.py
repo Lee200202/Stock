@@ -6,9 +6,11 @@ T：今日成交證據；I：公司身分；S：共同結論範圍；C：時態�
 import contextlib
 import importlib.util
 import io
+import json
 import os
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 os.environ.setdefault('SPREADSHEET_ID', 'offline')
 os.environ.setdefault('GEMINI_API_KEY', 'offline-placeholder')
@@ -86,16 +88,17 @@ class CompanyIdentity(unittest.TestCase):
     def setUp(self):
         # 正式流程會載入官方簡稱清單；這裡只放案例會用到的幾家。
         self._code_map = pl._CODE_MAP
-        pl._CODE_MAP = {'2327': '國巨', '5347': '世界', '9921': '巨大', '2382': '廣達', '2330': '台積電'}
+        pl._CODE_MAP = {'2327': '國巨', '5347': '世界', '9921': '巨大', '2382': '廣達', '2330': '台積電', '5287': '數字',
+                        '5269': '祥碩', '3592': '瑞鼎', '2400': '芯鼎'}
 
     def tearDown(self):
         pl._CODE_MAP = self._code_map
 
-    def promote(self, name, code, transcript):
+    def promote(self, name, code, transcript, others=()):
         with contextlib.redirect_stdout(io.StringIO()):
             signals = {'ignored': [{'name': name, 'code': code, '_date': '2026/10/29'}], '_verdicts': {
                 code: {'cls': 'watch_avoid', 'enforce': True, 'name': name, 'current': 'ignored', 'basis': '2/2',
-                       'identity_confirmed': pl._weak_name_explicitly_stock(name, code, transcript)}}}
+                       'identity_confirmed': pl._weak_name_explicitly_stock(name, code, transcript, others)}}}
             pl.apply_verdicts(signals, '2026/10/29')
         return [r.get('code') for r in signals.get('watch_avoid') or []]
 
@@ -106,9 +109,17 @@ class CompanyIdentity(unittest.TestCase):
         self.assertEqual(self.promote('巨大', '9921', '昨天國巨大漲，所有人又講國巨活起來了。'), [])
 
     def test_i05_a_neighbours_price_move_is_not_borrowed(self):
-        self.assertFalse(pl._weak_name_explicitly_stock('世界', '5347', '你世界第一名，國巨今天跌10元。'))
-        self.assertFalse(pl._weak_name_explicitly_stock('巨大', '9921', '昨天國巨大漲，今天國巨跌20元。'))
-        self.assertEqual(self.promote('巨大', '9921', '昨天國巨大漲，今天國巨跌20元。'), [])
+        # 國巨是當天另一個公開列：它的漲跌不借給「世界」「巨大」。
+        self.assertFalse(pl._weak_name_explicitly_stock('世界', '5347', '你世界第一名，國巨今天跌10元。', ['國巨']))
+        self.assertFalse(pl._weak_name_explicitly_stock('巨大', '9921', '昨天國巨大漲，今天國巨跌20元。', ['國巨']))
+        self.assertEqual(self.promote('巨大', '9921', '昨天國巨大漲，今天國巨跌20元。', ['國巨']), [])
+        # 沒有當天名單時，「代號＋簡稱」仍是已確認的公司提及。
+        self.assertFalse(pl._weak_name_explicitly_stock('世界', '5347', '你世界第一名，2327國巨今天跌10元。'))
+
+    def test_i07_a_price_or_an_ordinary_word_is_not_a_company_boundary(self):
+        # 「2400」是股價（也剛好是某家公司的代號），「數字」是一般用語（名錄有同名公司）：都不能切掉本股語境。
+        self.assertTrue(pl._weak_name_explicitly_stock('祥碩', '5269', '祥碩今天2400元站回季線。', ['國巨']))
+        self.assertTrue(pl._weak_name_explicitly_stock('瑞鼎', '3592', '瑞鼎看一下他的數字，月K線MACD翻紅。', ['國巨']))
 
     def test_i06_own_spoken_price_move_counts(self):
         self.assertTrue(pl._weak_name_explicitly_stock('廣達', '2382', '廣達昨天漲2塊2，今天跌10塊半。'))
@@ -170,6 +181,48 @@ class ReviewStamps(unittest.TestCase):
         self.assertTrue(pl._current_source_review(row, tx))
         self.assertEqual(pl._current_source_review(dict(row, note=text + '續抱。'), tx), {})
         self.assertEqual(pl._current_source_review(row, tx + '另一段。'), {})
+
+
+class AlignmentBatchRetry(unittest.TestCase):
+    """整批四項以上全部回「不足」且零證據：對半重問一次（2026/10/29 三次預覽的第 3 批都這樣，瑞鼎因此被隔離）。"""
+
+    TX = '來，我有瑞鼎。我有沒有告訴你月K線MACD翻紅。週K線MACD翻紅。日K線突破所有均線。所以人家怎麼跌不管它的事。'
+    NOTE = '瑞鼎的月K線MACD翻紅。瑞鼎的週K線MACD翻紅。瑞鼎日K線突破所有均線。瑞鼎人家怎麼跌不管它的事。'
+
+    def run_alignment(self, answer):
+        calls = []
+
+        def fake(system, payload, **kw):
+            batch = json.loads(payload)['queries']
+            calls.append([q['id'] for q in batch])
+            return json.dumps({'matches': [answer(len(calls), q) for q in batch]}, ensure_ascii=False)
+
+        signals = {'holdings': [{'name': '瑞鼎', 'code': '3592', 'note': self.NOTE, '_date': '2026/10/29'}]}
+        ledger = {'facts': {}, 'company_candidates': {'3592': ['瑞鼎']}}
+        with patch.object(pl, 'call_gemini', fake), patch.object(pl, 'budget_left', lambda: 10_000),                 contextlib.redirect_stdout(io.StringIO()):
+            pl.align_anonymous_claims(signals, self.TX, ledger)
+        return calls, ledger, signals['holdings'][0]['_source_claim_bindings']['claims']
+
+    @staticmethod
+    def insufficient(q):
+        return {'id': q['id'], 'query_text': q['text'], 'entails_all_details': False, 'relation': 'insufficient',
+                'coverage': 'partial', 'evidence': [], 'fact_ids': [], 'subject_checks': []}
+
+    def entailed(self, q):
+        return {'id': q['id'], 'query_text': q['text'], 'entails_all_details': True, 'relation': 'entailed',
+                'coverage': 'complete', 'fact_ids': [], 'subject_checks': [],
+                'evidence': [{'subject_code': '3592', 'source_ids': ['S0001'], 'statement': '瑞鼎' + q['text']}]}
+
+    def test_an_all_insufficient_batch_is_asked_again_in_halves(self):
+        calls, ledger, bindings = self.run_alignment(lambda n, q: self.insufficient(q) if n == 1 else self.entailed(q))
+        self.assertEqual([len(c) for c in calls], [4, 2, 2])
+        self.assertIn('split_after_all_insufficient', [d.get('retry') for d in ledger['alignment_batches']])
+        self.assertEqual(len(bindings), 4)        # 拆開後的回答才採用，沒有重複或沿用第一批的「不足」
+
+    def test_a_batch_that_stays_insufficient_is_accepted_after_one_retry(self):
+        calls, ledger, bindings = self.run_alignment(lambda n, q: self.insufficient(q))
+        self.assertEqual([len(c) for c in calls], [4, 2, 2])  # 只重問一次，不無限重擲
+        self.assertEqual(bindings, {})
 
 
 class ThinkingLevel(unittest.TestCase):

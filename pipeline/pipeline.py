@@ -7373,30 +7373,31 @@ def _only_ordinary_word(heard, code, transcript):
     return all(_ORDINARY_BEFORE.search(flat[max(0, at - 3):at]) or _ORDINARY_AFTER.match(flat[at + 2:at + 8]) for at in spots)
 
 
-_COMPANY_MENTION_CACHE = {}
+def _company_mention_spans(heard, code, flat, others=()):
+    """可以當換股邊界的位置：只有已確認是公司提及的寫法——當天其他公開列的名稱，或「四碼代號＋該代號自己的簡稱」（「2327國巨」）。
+    單獨的四碼數字可能是股價、年份或數量（「祥碩今天2400元」），名錄撞名的一般詞（「看一下他的數字」）也不算，不能拿來切掉本股語境。"""
+    spans = []
+    for n in sorted({str(x) for x in others if x and len(str(x)) >= 2 and str(x) not in heard and heard not in str(x)}, key=len, reverse=True):
+        spans += [(m.start(), m.end()) for m in re.finditer(re.escape(n), flat)]
+    for m in re.finditer(r'(?<!\d)(\d{4})(?!\d)', flat):
+        name = _display_name((_CODE_MAP or {}).get(m.group(1)) or '')
+        if m.group(1) != code and len(name) >= 2 and flat.startswith(name, m.end()):
+            spans.append((m.start(), m.end() + len(name)))
+    return spans
 
 
-def _company_mention_re(heard):
-    """官方簡稱清單裡其他公司的名稱或任一四碼代號（不含與 heard 互相包含的名稱）；清單換了才重建。"""
-    key = (heard, id(_CODE_MAP), len(_CODE_MAP or {}))
-    if key not in _COMPANY_MENTION_CACHE:
-        names = {_display_name(v) for v in (_CODE_MAP or {}).values() if isinstance(v, str)}
-        others = sorted((n for n in names if len(n) >= 2 and n not in heard and heard not in n), key=len, reverse=True)
-        _COMPANY_MENTION_CACHE[key] = re.compile(''.join(re.escape(n) + '|' for n in others) + r'(?<!\d)\d{4}(?!\d)')
-    return _COMPANY_MENTION_CACHE[key]
-
-
-def _weak_name_explicitly_stock(heard, code, transcript):
+def _weak_name_explicitly_stock(heard, code, transcript, others=()):
     """兩字通用詞若要開成持股或改列公開，原句須有可辨的本股語境，不能只靠問卷三票。
 
-    語境只看這個名稱自己後面、到下一家公司名稱或代號之前的字（2026/10/29 審閱者反例：「你世界第一名，國巨今天跌10元」
+    語境只看這個名稱自己後面、到下一個已確認的公司提及之前的字（2026/10/29 審閱者反例：「你世界第一名，國巨今天跌10元」
     「國巨大漲，今天國巨跌20元」的跌幅是國巨的，不能借給「世界」「巨大」）。名稱夾在另一家公司名稱裡（「國巨大」的「巨大」）不算出現。
+    others 是當天其他已公開候選的名稱寫法；沒給時只認「代號＋簡稱」當邊界。
     """
     flat = re.sub(r'\s', '', str(transcript or ''))
     if code and (re.search(r'(?<!\d)' + re.escape(code) + r'[^。！？!?]{0,6}' + re.escape(heard), flat)
                  or re.search(re.escape(heard) + r'[^。！？!?]{0,6}' + re.escape(code) + r'(?!\d)', flat)):
         return True
-    spans = [(m.start(), m.end()) for m in _company_mention_re(heard).finditer(flat) if m.group() != code]
+    spans = _company_mention_spans(heard, code, flat, others)
     after_pat = re.compile(r'(?:股票|股價|季線|月線|年線|均線|K線|日K|週K|周K|月K|MACD|KD|高點|低點|創新高|創高|沒有量|出量|突破|翻紅|翻陽|背離|漲停|跌停|下跌|上漲|大漲|大跌|拉回|買進|買入|賣出|續抱|持有|目標價|EPS)')
     next_sentence_pat = re.compile(r'MACD|KD|均線|季線|月線|年線|K線|翻紅|翻陽|突破|創新高|高點沒有量')
     for m in re.finditer(re.escape(heard), flat):
@@ -7421,6 +7422,9 @@ def drop_ordinary_word_rows(signals, transcript):
     by_name = {}
     for c, n in (_CODE_MAP or {}).items():
         by_name.setdefault(_display_name(n), c)
+    # 當天其他公開列的寫法：判斷兩字名稱的語境時，當作換股邊界（不借鄰股的漲跌）。
+    public_forms = [(str(r.get('code') or ''), n) for c in SIGNAL_CATEGORIES for r in signals.get(c, []) or [] if isinstance(r, dict)
+                    for n in _signal_names(r) | {str(r.get('name') or '')} if n]
     for cat in SIGNAL_CATEGORIES + ('history', 'uncertain'):
         keep = []
         for row in signals.get(cat, []) or []:
@@ -7433,7 +7437,8 @@ def drop_ordinary_word_rows(signals, transcript):
             notice_backed = isinstance(row, dict) and str(row.get('code') or by_name.get(name) or '') in (
                 _DAY_SOURCE_CONTEXT.get('company_candidates') or {})
             if ordinary and not notice_backed and (_only_ordinary_word(name, by_name[name], transcript)
-                             or (cat == 'holdings' and not _weak_name_explicitly_stock(name, by_name[name], transcript))):
+                             or (cat == 'holdings' and not _weak_name_explicitly_stock(
+                                 name, by_name[name], transcript, [n for c, n in public_forms if c != by_name[name] and n not in names]))):
                 at = re.sub(r'\s', '', transcript).find(name)
                 seen = re.sub(r'\s', '', transcript)[max(0, at - 10):at + 12]
                 why = '只是日常用語' if _only_ordinary_word(name, by_name[name], transcript) else '缺少可辨的股名語境，不據此開持股'
@@ -14787,7 +14792,7 @@ def verdict_response_schema(expected_ids=None):
 # 裁決快取以（段落指紋, 版號）為鍵。改了提示詞或答案格式卻忘了升版，正式流程會沿用舊提示詞的票（2026/10/28 審閱指出：
 # v39 之後又改了提示詞，版號沒動）。版號後面自動接提示詞與格式的指紋，內容一變快取就失效；人工裁決不綁版號，不受影響。
 # 引句怎樣算對得回原文也會改變哪些票有效：驗證器版本一起進指紋（2026/10/28 審閱）
-QUOTE_VERIFIER_VERSION = 'q12r4-20261029-event-actor-own-span'
+QUOTE_VERIFIER_VERSION = 'q12r5-20261029-confirmed-boundaries-batch-retry'
 VERDICT_VERSION = VERDICT_VERSION + '+' + hashlib.sha256(
     (ADJUDICATE_SYSTEM + json.dumps(verdict_response_schema(), ensure_ascii=False, sort_keys=True)
      + QUOTE_VERIFIER_VERSION).encode('utf-8')).hexdigest()[:8]
@@ -15307,7 +15312,9 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             forms |= {str(n) for n in _signal_names(_row) | {str(_row.get('name') or '')} if n}
         forms = {f for f in forms | {str(entry.get('name') or '')} if f and not f.isdigit()}
         if forms and all(len(_display_name(f)) == 2 for f in forms) and not any(f in CONFIRMED_NAMES for f in forms):
-            entry['identity_confirmed'] = any(_weak_name_explicitly_stock(_display_name(f), str(code), transcript) for f in forms)
+            others = [str(n) for c2, pairs2 in today.items() if c2 != code for cat2, r2 in pairs2 if cat2 in SIGNAL_CATEGORIES
+                      for n in _signal_names(r2) | {str(r2.get('name') or '')} if n]
+            entry['identity_confirmed'] = any(_weak_name_explicitly_stock(_display_name(f), str(code), transcript, others) for f in forms)
     signals['_verdicts'] = verdicts
     signals['_manual_hidden'] = sorted(code for code, entry in (cache or {}).items()
                                        if isinstance(entry, dict) and entry.get('manual') in ('history', 'uncertain', 'ignored'))
@@ -17894,6 +17901,7 @@ def align_anonymous_claims(signals, transcript, ledger, source_hints=None):
     evidence_pass = ledger['alignment_passes'] = ledger.get('alignment_passes', 0) + 1
     batch_size = 6 if source_hints else 16
     work = [queries[i:i + batch_size] for i in range(0, len(queries), batch_size)]
+    batch_retried = set()
     bno = 0
     while work:
         batch = work.pop(0)
@@ -17931,6 +17939,16 @@ def align_anonymous_claims(signals, transcript, ledger, source_hints=None):
             ledger['facts'][new_id] = dict(fact, id=new_id)
             remap[fid] = new_id
         received = [m for m in data.get('matches', []) or [] if isinstance(m, dict)]
+        # 整批失效：四項以上全部回「不足」、沒有任何證據或主體檢查——三次 10/29 預覽的同一位置那批都這樣，
+        # 連原稿逐字就有的「日K線突破所有均線」也是（瑞鼎因此被隔離）。這不是逐項判斷，對半拆開重問一次；
+        # 拆開後仍全部不足就照單收，判準不放寬。
+        if (len(batch) >= 4 and not batch_retried.intersection(q['id'] for q in batch) and len(received) == len(batch)
+                and not extra['facts'] and all(m.get('relation') != 'entailed' and not m.get('evidence') and not m.get('fact_ids')
+                                               and not m.get('subject_checks') for m in received)):
+            batch_retried.update(q['id'] for q in batch)
+            work[:0] = [batch[:len(batch) // 2], batch[len(batch) // 2:]]
+            diagnostics.append({'requested': len(batch), 'received': len(received), 'retry': 'split_after_all_insufficient', 'max_out': max_out})
+            continue
         for match in received:
             match['fact_ids'] = [remap.get(fid, fid) for fid in (match.get('fact_ids') or []) if isinstance(fid, str) and remap.get(fid, fid) in ledger['facts']]
             # 模型不必為新事實維護外鍵：每項主張自己攜帶證據，由程式發唯一ID。

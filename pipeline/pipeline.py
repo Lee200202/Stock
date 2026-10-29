@@ -14023,7 +14023,7 @@ def _clauses_in_order(quote, window):
     引句的每一小句都必須等於原稿的一整個子句、或連續幾個完整子句接起來，依原稿順序；只能省略完整的原稿子句，
     不能從一個子句中間挑字（「甲公司不一定會買進」不能收成「甲公司，買進」，「假如真的買進」不能收成「買進」——審閱反例）。
     長小句合計要涵蓋引句六成以上；被省掉的子句若只是否定或假設字也不收。window 要傳原稿原文（保留標點）。"""
-    cut = re.compile(r'[，。！？；、,!?;：:\n]+|…+|\.{2,}')     # 原稿子句邊界
+    cut = re.compile(r'[，。！？；、,!?;：:\n]+|…+|\.{2,}|\s+[啊阿喔哦欸耶]\s*')     # 原稿子句邊界
     split = lambda t: [c for c in (_ev_norm(x) for x in cut.split(str(t or ''))) if c]
     parts, src, whole = split(quote), split(window), _ev_norm(quote)
     if len(whole) < 12 or len(parts) < 2 or sum(len(c) for c in parts if len(c) >= 4) < 0.6 * len(whole):
@@ -14055,8 +14055,30 @@ def _questionnaire_verified_quotes(answer, field, names=()):
         return None
     quotes = answer.get('quotes') if isinstance(answer.get('quotes'), dict) else {}
     clean = [re.sub(r'[【】]', '', q) for q in (quotes.get(field) or []) if isinstance(q, str)]
+    ord_re = globals().get('_HEARD_ORDINARY')
+    own_tokens = [_ev_norm(n) for n in names or () if len(_ev_norm(n)) >= 2 and not (ord_re and ord_re.search(_ev_norm(n)))]
     if not clean:
-        return list(restored)
+        if not own_tokens:
+            return list(restored)
+        scoped = []
+        for r_text in restored:
+            sents = [s.strip() for s in re.split(r'(?<=[。！？!?\n])', r_text) if s.strip()]
+            if any(n in _ev_norm(r_text) for n in own_tokens) and len(sents) > 1:
+                keep = []
+                active_own = False
+                for s in sents:
+                    s_norm = _ev_norm(s)
+                    if any(n in s_norm for n in own_tokens):
+                        keep.append(s)
+                        active_own = True
+                    elif active_own and not re.search(r'[A-Za-z0-9\u4e00-\u9fff]{1,6}公司|[1-9]\d{3}', s):
+                        keep.append(s)
+                    else:
+                        active_own = False
+                scoped.append(''.join(keep) if keep else r_text)
+            else:
+                scoped.append(r_text)
+        return scoped
     windows = list(restored) + list((answer.get('_verified_quote_neighbors') or {}).get(field) or [])
     ids = (answer.get('quote_source_ids') or {}).get(field) or []
     ids = list(dict.fromkeys(ids))
@@ -14067,27 +14089,26 @@ def _questionnaire_verified_quotes(answer, field, names=()):
                 if all(isinstance(sid, str) and re.fullmatch(r'S\d+', sid) for sid in group) and all(
                         int(b[1:]) == int(a[1:]) + 1 for a, b in zip(group, group[1:])):
                     windows.append('\n'.join(restored[start:end + 1]))
-    ord_re = globals().get('_HEARD_ORDINARY')
-    own_tokens = [_ev_norm(n) for n in names or () if len(_ev_norm(n)) >= 2 and not (ord_re and ord_re.search(_ev_norm(n)))]
     out = [q for q in clean if any(_quote_is_real(q, _ev_norm(z)) or _short_own_quote(q, _ev_norm(z), names)
                                    or _clauses_in_order(q, z) for z in windows)]
     if not out and own_tokens:
+        restored_has_own = any(n in _ev_norm(r) for r in restored for n in own_tokens)
         for q in clean:
             sents = [s.strip() for s in re.split(r'(?<=[。！？!?])', q) if s.strip()]
             found_slice = False
             for idx in range(len(sents)):
                 for end in range(len(sents), idx, -1):
                     sub = ''.join(sents[idx:end])
-                    if len(_ev_norm(sub)) >= 10 and any(n in _ev_norm(sub) for n in own_tokens) and any(_quote_is_real(sub, _ev_norm(z)) for z in windows):
+                    sub_norm = _ev_norm(sub)
+                    if len(sub_norm) >= 10 and (
+                        any(n in sub_norm for n in own_tokens)
+                        or (restored_has_own and len(sub_norm) >= 24 and not re.search(r'[A-Za-z0-9\u4e00-\u9fff]{1,6}公司|[1-9]\d{3}', sub))
+                    ) and any(_quote_is_real(sub, _ev_norm(z)) for z in windows):
                         out.append(sub)
                         found_slice = True
                         break
                 if found_slice:
                     break
-    if not out and field in ('holding_now', 'stance') and own_tokens:
-        for sid, r_text in zip(ids, restored):
-            if isinstance(sid, str) and sid.startswith('N') and any(n in _ev_norm(r_text) for n in own_tokens):
-                out.append(r_text)
     return out
 
 
@@ -14132,6 +14153,66 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
             return False
         if field == 'holding_now' and _VQ_ASKER.search(q.strip()):
             return False                         # 觀眾提問裡的「我手中有…要出嗎？」是提問者自己的部位
+        if field == 'holding_now':
+            _strip_nonhold_buy = lambda t: re.sub(
+                r'(?:(?:不|沒|沒有|未|別|勿|禁|不能|不要|不會|尚未|還沒有|還沒|很想|想|想要|打算|準備|考慮)[^，。！？!?]{0,4}買(?:進|入|回)?'
+                r'|買(?:進|入)?(?:條件|點|盤|超|方|氣|單))',
+                '',
+                t,
+            )
+            q_unneg = _strip_nonhold_buy(q)
+            if not _VQ_FAMILY['holding_now'].search(q_unneg):
+                return False
+            target_own = real_own or own
+            if target_own:
+                q_norm = _ev_norm(q)
+                if not any(n in q_norm for n in target_own) and re.search(r'[A-Za-z0-9\u4e00-\u9fff]{1,6}公司', q):
+                    return False
+                non_hold_re = re.compile(r'只是觀察|觀察標的|沒有持有|未持有|沒有買|還沒買|還沒有買|不買|不碰|禁買|不能買|不會買|已賣出|全數賣出|全部賣出|已經賣|出清|獲利了結|買進條件未到')
+                pos_hold_re = re.compile(r'續抱|持有|還在|還有|留著|抱著|我的股票|我們的股票|會員持股')
+                if any(n in q_norm for n in target_own):
+                    valid_sent = False
+                    prev_own_ok = False
+                    for s_orig in [x.strip() for x in re.split(r'[。！？!?\n]+', q) if x.strip()]:
+                        s = _strip_nonhold_buy(s_orig)
+                        s_norm = _ev_norm(s_orig)
+                        has_own = any(n in s_norm for n in target_own)
+                        if has_own:
+                            clauses_orig = [c.strip() for c in re.split(r'[，,；;：:]+', s_orig) if c.strip()]
+                            clauses_unneg = [_strip_nonhold_buy(c) for c in clauses_orig]
+                            own_span = []
+                            in_own = False
+                            for c in clauses_orig:
+                                c_norm = _ev_norm(c)
+                                if any(n in c_norm for n in target_own):
+                                    in_own = True
+                                    own_span.append(c)
+                                elif in_own:
+                                    if re.search(r'[A-Za-z0-9\u4e00-\u9fff]{1,6}公司|[1-9]\d{3}', c):
+                                        break
+                                    own_span.append(c)
+                            span_text = '，'.join(own_span)
+                            if non_hold_re.search(span_text) and not pos_hold_re.search(span_text):
+                                prev_own_ok = False
+                                continue
+                            if _VQ_FAMILY['holding_now'].search(s):
+                                span_unneg = _strip_nonhold_buy(span_text)
+                                if _VQ_FAMILY['holding_now'].search(span_unneg):
+                                    valid_sent = True
+                                    break
+                                hold_c = [c for c in clauses_unneg if _VQ_FAMILY['holding_now'].search(c)]
+                                other_co = any(re.search(r'[A-Za-z0-9\u4e00-\u9fff]{1,6}公司', c) and not any(n in _ev_norm(c) for n in target_own) for c in hold_c)
+                                if not other_co or re.search(r'皆|都|全|統統|一律', s):
+                                    valid_sent = True
+                                    break
+                            prev_own_ok = True
+                        else:
+                            if prev_own_ok and _VQ_FAMILY['holding_now'].search(s) and not re.search(r'[A-Za-z0-9\u4e00-\u9fff]{1,6}公司|[1-9]\d{3}', s_orig):
+                                valid_sent = True
+                                break
+                            prev_own_ok = False
+                    if not valid_sent:
+                        return False
         if field == 'holding_now' and own and not (answer.get('_verified_quote_sources') or {}).get(field):
             # 持有的引句要在本股名稱前後 40 字內：離得遠的是別的話題（2026/10/15 台塑化只在名單裡，持有引句講的是另一件事）
             k = _ev_norm(q)
@@ -14197,12 +14278,30 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
             and (answer.get('entry_for_new') in ('prohibit', 'not_yet') or answer.get('now') in ('prohibit', 'not_yet'))
             and answer.get('tone') == 'bearish'
             and any(len(_ev_norm(q)) >= 12 for q in stance)))
-    # 2026/10/28 聖暉：拿已賣出的股票回顧當初賣得好、笑套牢的人今天解套，模型已將全文角色標為 historical_only（只回顧），
-    # 即使順帶將套牢教學填為 prohibit/bearish，只要沒有給本股新的買進/等待條件或續抱指令，均屬歷史回顧
-    if past and not analysis and answer.get('content_role') in ('historical_only', 'comparison_only') \
+    # 區分「純歷史買賣回顧／套牢教學（10/28 聖暉）」與「歷史賣出後附帶本股當下明確禁買／等待指令（R1、世芯）」：
+    # 若 stance/analysis 引句本身含有針對本股的當下拒絕進場或等待條件（排除反話與轉述他人），不得以 historical_only 靜默吞沒。
+    _cur_inst_re = re.compile(
+        r'(?:不買|不要買|不能買|不會[^，。！？!?]{0,8}買|不碰|不要碰|不能碰|不要玩|別碰|別買|不能追|不要追|先不要|暫不|還不能|還不會'
+        r'|等[^，。！？!?]{0,12}(?:止穩|回測|拉回|再評估|再買|再說|通知|動作)|買進條件未到)'
+    )
+    _third_party_re = re.compile(r'說謊話|講謊話|說假話|詐騙|別的投顧|很多投顧|別的分析師|別人叫你|有人說')
+    has_current_instruction = (
+        (answer.get('entry_for_new') in ('prohibit', 'not_yet') or answer.get('now') in ('prohibit', 'not_yet'))
+        and any(
+            not _third_party_re.search(s)
+            and _cur_inst_re.search(s)
+            and (not (real_own or own) or any(n in _ev_norm(s) for n in (real_own or own))
+                 or not re.search(r'[A-Za-z0-9\u4e00-\u9fff]{1,6}公司|[1-9]\d{3}', s))
+            for q in (stance + analysis)
+            for s in re.split(r'[。！？!?\n]+', q) if s.strip()
+        )
+    )
+    if has_current_instruction:
+        has_active_view = True
+    if past and not analysis and not has_current_instruction and answer.get('content_role') in ('historical_only', 'comparison_only') \
             and answer.get('entry_for_new') not in ('allow', 'wait_condition'):
         return 'history', '只回顧過去的買賣與對照，沒有本股的當下分析：' + first('past_trade')
-    if past and answer.get('content_role') == 'historical_only' \
+    if past and not has_current_instruction and answer.get('content_role') == 'historical_only' \
             and answer.get('entry_for_new') not in ('allow', 'wait_condition') \
             and answer.get('holder_advice') not in ('hold', 'hold_rebound'):
         return 'history', '只回顧過去的買賣，全文角色為歷史回顧：' + first('past_trade')
@@ -14433,7 +14532,7 @@ def verdict_response_schema(expected_ids=None):
 # 裁決快取以（段落指紋, 版號）為鍵。改了提示詞或答案格式卻忘了升版，正式流程會沿用舊提示詞的票（2026/10/28 審閱指出：
 # v39 之後又改了提示詞，版號沒動）。版號後面自動接提示詞與格式的指紋，內容一變快取就失效；人工裁決不綁版號，不受影響。
 # 引句怎樣算對得回原文也會改變哪些票有效：驗證器版本一起進指紋（2026/10/28 審閱）
-QUOTE_VERIFIER_VERSION = 'q4-20261028-post-dadb8165f-role-and-trade-guards'
+QUOTE_VERIFIER_VERSION = 'q5-20261028-after-fc5ca969c-r1-r2-guards'
 VERDICT_VERSION = VERDICT_VERSION + '+' + hashlib.sha256(
     (ADJUDICATE_SYSTEM + json.dumps(verdict_response_schema(), ensure_ascii=False, sort_keys=True)
      + QUOTE_VERIFIER_VERSION).encode('utf-8')).hexdigest()[:8]
@@ -14460,6 +14559,11 @@ def _questionnaire_issues(answer, transcript, names):
             # 2026/10/28 環球晶：立場引句完全正確，分析欄寫了一句濃縮過的話，整張票作廢；補核時模型又被提示改成沒有分析。
             # 立場已有核對過的原句時，分析欄只當沒附（verdict_class 不採用它），留欄位警告
             answer.setdefault('_field_warnings', []).append('analysis的引句對不回所選原段，改以已核實的stance原句裁決')
+            continue
+        if field == 'stance' and active and verified == [] and isinstance(answer, dict) \
+                and answer.get('independent_analysis') is True \
+                and _questionnaire_verified_quotes(answer, 'analysis', list(names or ()) + [str(answer.get('id') or '')]):
+            answer.setdefault('_field_warnings', []).append('stance的引句對不回所選原段，改以已核實的analysis原句裁決')
             continue
         if field == 'condition':
             # 條件欄是 2026/10/28 新加的輔助題：引句對不回只當沒有條件（verdict_class 不採用 conditional），不讓整份答案作廢，留欄位警告

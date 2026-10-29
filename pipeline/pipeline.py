@@ -8237,7 +8237,7 @@ def _bare_code_mentions(flat):
     for m in re.finditer(r'(?<![\d.,])([1-9]\d{3})(?![\d.,])', str(flat or '')):
         before, after = flat[max(0, m.start() - 2):m.start()], flat[m.end():m.end() + 2]
         if re.match(r'(?:元|塊|點|億|萬|多|張|%|位|以|附近|上下|左右|的缺|買|賣|年|月|號|日|分|秒)', after) \
-                or re.search(r'(?:在|到|買|賣|破|過|跌|漲|約|近|是|等)$', before):
+                or re.search(r'(?:在|到|買|賣|破|過|跌|漲|約|近|是|等|點)$', before):   # 「最低點3615」是價位（2026/10/29 世芯-KY 昨天低點，不是安可）
             continue
         counts[m.group(1)] = counts.get(m.group(1), 0) + 1
     return [code for code, n in counts.items() if n >= 3]
@@ -11280,6 +11280,11 @@ def _context_source_id(value, known):
     text = str(value if value is not None else '').strip()
     if text in known:
         return text
+    # 2026/10/29 重播：完整原稿的 T 編號被寫成「T021」（少補零），17 檔整批 0/17；補成四位數後是同一段。
+    t = re.fullmatch(r'[\[（(]?\s*[tT]\s*(\d{1,4})\s*[\]）)]?', text)
+    if t:
+        cand = 'T%04d' % int(t.group(1))
+        return cand if cand in known else ''
     m = re.fullmatch(r'[\[（(]?\s*[sS]?\s*(\d{1,3})\s*[\]）)]?', text) or re.search(r'[:：/#.\-_][sS](\d{1,3})$', text)
     cand = 's' + str(int(m.group(1))) if m else ''
     return cand if cand in known else ''

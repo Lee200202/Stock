@@ -19,6 +19,11 @@ on:
         description: '推論後才比對的來源參考JSON；不傳入模型'
         type: string
         default: ''
+      accept_model:
+        description: 'preview 專用：管理者明示以這一次模型結果為準（被擋的單檔照樣不公開、參考差異只記警告；硬傷照擋）'
+        type: choice
+        options: ['no', 'yes']
+        default: 'no'
 permissions:
   contents: read
   actions: read
@@ -61,6 +66,7 @@ jobs:
           MODE: ${{ inputs.mode }}
           REFERENCE: ${{ inputs.reference }}
           CANDIDATE_RUN: ${{ inputs.candidate_run }}
+          ACCEPT_MODEL: ${{ inputs.accept_model }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
           GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
@@ -173,6 +179,7 @@ jobs:
           fi
           if [[ "$MODE" = apply || "$MODE" = apply-rules ]]; then ARGS+=(--apply --candidate .model-candidate/candidate.json); fi
           if [ "$MODE" = raw ]; then ARGS+=(--raw); fi
+          if [[ "$MODE" = preview && "$ACCEPT_MODEL" = yes ]]; then ARGS+=(--accept-model); fi
           python scripts/regenerate_verified_day.py "${ARGS[@]}"
 
       - uses: actions/upload-artifact@v4

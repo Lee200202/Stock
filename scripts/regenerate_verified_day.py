@@ -66,6 +66,11 @@ def reference_check(path, day, raw, signals):
     return ([] if ok else ['來源參考比對有差異']), report
 
 
+# 管理者明示「以這一次模型結果為準」時可轉為警告的兩類（2026/10/29）：被來源審閱擋下的單檔不公開（照樣隔離、不寫入公開分類），
+# 以及與參考答案的差異。硬傷（流程錯誤、文章品質、不變式、人工說明混入）照樣擋。
+MANAGER_WAIVABLE = ('仍有隔離／待裁決個股，完整單日候選不予發布', '來源參考比對有差異', '獨立來源草稿差異待核')
+
+
 def publication_errors(signals):
     errors = []
     if signals.get('_classification_runtime_error'):
@@ -87,7 +92,7 @@ def state_hashes(book, names):
     return {n: digest(book.worksheet(n).get_all_values()) for n in names}
 
 
-def preview(book, day, raw, source, commit, state, reference, output, snapshots):
+def preview(book, day, raw, source, commit, state, reference, output, snapshots, accept_model=False):
     frozen = {name: FrozenSheet(name, inference_values(name, values, day, pl.norm_date))
               for name, values in snapshots.items() if name in INPUTS}
     dry = DryBook(FrozenBook(frozen))
@@ -128,6 +133,12 @@ def preview(book, day, raw, source, commit, state, reference, output, snapshots)
         issues, report = reference_check(reference, day, raw, signals)
         errors.extend(issues)
         print(report)
+    errors = list(dict.fromkeys(errors))
+    waived = [e for e in errors if accept_model and e in MANAGER_WAIVABLE]
+    if waived:
+        errors = [e for e in errors if e not in waived]
+        warnings.extend('管理者接受模型結果：' + e for e in waived)
+        print('管理者指示以本次模型結果為準，以下改列警告：' + '；'.join(waived))
     payload = {'version': VERSION, 'date': day, 'commit': commit,
         'run_id': os.environ.get('GITHUB_RUN_ID', ''), 'mode': 'fresh_model_only',
         'answer_injection': False, 'source_sha256': hashlib.sha256(raw.encode()).hexdigest(),
@@ -135,6 +146,8 @@ def preview(book, day, raw, source, commit, state, reference, output, snapshots)
         'reference_sha256': hashlib.sha256(reference.read_bytes()).hexdigest() if reference.exists() else '',
         'input_snapshot_sha256': {n: digest(ws.values) for n, ws in frozen.items()},
         'signals': signals, 'article': captured.get('article', ''),
+        'manager_accepted': {'waived': waived, 'quarantined': sorted({str(r.get('code') or r.get('name') or '')
+            for r in signals.get('_publication_quarantine') or [] if isinstance(r, dict)})} if waived else None,
         'errors': list(dict.fromkeys(errors)), 'warnings': list(dict.fromkeys(warnings)),
         'status': 'failed' if errors else 'passed', 'model_calls': pl._GEMINI_CALLS['n'],
         'usage': pl.gemini_usage_report(), 'blocked_writes': len(dry.blocked),
@@ -170,7 +183,8 @@ def apply_candidate(book, payload, raw):
                 actual.add((str(r.get('代號', '')), 'holdings' if name == '會員持股' else labels.get(r.get('方向'))))
     if actual != wanted:
         raise ValueError('保留來源與模型公開候選不同，禁止靠舊列補答：' + str(sorted(actual ^ wanted)))
-    if publication_errors(signals):
+    pending = publication_errors(signals)
+    if pending and not ((payload.get('manager_accepted') or {}).get('waived') and set(pending) <= set(MANAGER_WAIVABLE)):
         raise ValueError('候選仍有未完成查核')
     backup_tables(pl, book, TABLES)
     if state_hashes(book, payload['state']) != payload['state']:
@@ -207,6 +221,7 @@ def main():
     p.add_argument('--output', default='.model-candidate/candidate.json')
     p.add_argument('--raw', action='store_true', help='相容入口；所有預覽均不注入答案')
     p.add_argument('--rules-only', action='store_true', help='相容入口；所有預覽均不注入答案')
+    p.add_argument('--accept-model', action='store_true', help='管理者明示以這一次模型結果為準：隔離與參考差異改列警告')
     a = p.parse_args()
     if a.apply and not a.candidate:
         raise SystemExit('發布必須提供已成功預覽的候選檔，不再重新生成或灌入答案')
@@ -234,7 +249,7 @@ def main():
         pl.call_gemini = lambda *a, **kw: (_ for _ in ()).throw(RuntimeError('發布階段禁止模型呼叫'))
         apply_candidate(book, payload, raw)
     else:
-        preview(book, day, raw, source, commit, state, reference, Path(a.output), snapshots)
+        preview(book, day, raw, source, commit, state, reference, Path(a.output), snapshots, accept_model=a.accept_model)
 
 
 if __name__ == '__main__':

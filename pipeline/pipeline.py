@@ -3640,7 +3640,10 @@ _TEACHER_POSSESSIVE = re.compile(r"老師(?:本人)?(?:的(?=會員|持股|核�
 
 def strip_speaker_names(text: str) -> str:
     """拿掉當主詞的講者姓名：「張正指出國巨…」→「指出國巨…」。"""
-    t = _TEACHER_POSSESSIVE.sub("", _TEACHER_SUBJECT.sub(lambda m: m.group(1), _SPEAKER_SUBJECT.sub(lambda m: m.group(1), str(text or ""))))
+    t = str(text or "")
+    t = re.sub(r"(?:由|經|依)(?:張震|張正|張總|張中|講者|老師)(?:老師)?(?:本人)?(?:通知|指示|帶領|建議)?(?:並(?=[在以於將]))?", "", t)
+    t = re.sub(r"(收到|接獲)(?:張震|張正|張總|張中|講者|老師)(?:老師)?(?:本人)?(?:的)?(?=通知|指示|簡訊|訊息)", r"\1", t)
+    t = _TEACHER_POSSESSIVE.sub("", _TEACHER_SUBJECT.sub(lambda m: m.group(1), _SPEAKER_SUBJECT.sub(lambda m: m.group(1), t)))
     # 拿掉主詞後句首剩下的「在今日…」：「老師在今日會員將…賣出」→「今日會員將…賣出」。
     t = re.sub(r"(^|[。；;])在(?=今日|今天|昨日|昨天)", lambda m: m.group(1), t)
     # 「張總：當股票…」拿掉人名後剩下「：當股票…」（2026/10/07 16:15 的 ① 第三點、③ 第三點）。
@@ -6650,6 +6653,17 @@ def _price_near_name(price, quotes, names, span=25):
 _MARKET_NUM = re.compile(r'\d+(?:[.,]\d+)*(?:[xX]+)?')
 
 
+def _spoken_decimal_numbers(text):
+    """口語金額小數展開：『跌10塊半』→『10.5』、『漲2塊2』→『2.2』，供數字核對認列。"""
+    s = re.sub(r'\s+', '', str(text or ''))
+    extra = set()
+    for m in re.finditer(r'(\d+)[塊元]半', s):
+        extra.add(f"{m.group(1)}.5")
+    for m in re.finditer(r'(\d+)[塊元]([1-9])(?![0-9萬億千百十點])', s):
+        extra.add(f"{m.group(1)}.{m.group(2)}")
+    return extra
+
+
 _MARKET_NUM_WINDOW = 160      # 引用句前後各這麼多個字算同一段話
 
 
@@ -6669,7 +6683,8 @@ def market_item_why(item, hay):
     numbers = _MARKET_NUM.findall(str(item.get('text') or ''))
     if not numbers:
         return ''
-    available = set(_MARKET_NUM.findall('\n'.join(quotes)))
+    joined_q = '\n'.join(quotes)
+    available = set(_MARKET_NUM.findall(joined_q)) | _spoken_decimal_numbers(joined_q)
     missing = [n for n in numbers if n not in available]
     if missing:
         nearby = set()
@@ -6677,7 +6692,9 @@ def market_item_why(item, hay):
             norm = _ev_norm(q)
             at = hay.find(norm)
             while at >= 0:
-                nearby.update(_MARKET_NUM.findall(hay[max(0, at - _MARKET_NUM_WINDOW):at + len(norm) + _MARKET_NUM_WINDOW]))
+                win_txt = hay[max(0, at - _MARKET_NUM_WINDOW):at + len(norm) + _MARKET_NUM_WINDOW]
+                nearby.update(_MARKET_NUM.findall(win_txt))
+                nearby.update(_spoken_decimal_numbers(win_txt))
                 at = hay.find(norm, at + 1)
         missing = [n for n in missing if n not in nearby]
     return ('數字 ' + '、'.join(dict.fromkeys(missing)) + ' 不在引用的那一段話裡') if missing else ''
@@ -8834,6 +8851,8 @@ def public_narrative(text, row=None, signals=None):
             # 不可在另一檔名稱及持有動詞中間改寫成「持友達邁」。
             alias = r'(?<!持)有達(?!邁)' if heard == '有達' else re.escape(heard)
             text = re.sub(alias + guard + ky, lambda m: fixed, text, flags=re.I if ky else 0)
+    text = re.sub(r'(?:由|經|依)(?:張震|張正|張總|張中|講者|老師)(?:老師)?(?:本人)?(?:通知|指示|帶領|建議)?(?:並(?=[在以於將]))?', '', text)
+    text = re.sub(r'(收到|接獲)(?:張震|張正|張總|張中|講者|老師)(?:老師)?(?:本人)?(?:的)?(?=通知|指示|簡訊|訊息)', r'\1', text)
     for fixed in set(_public_aliases(signals).values()):
         text = re.sub(re.escape(fixed)+r'\s*[（(]\s*'+re.escape(fixed)+r'(?:\s*[／/、，,]\s*'+re.escape(fixed)+r')*\s*[）)]',lambda m:fixed,text)
     name, code = _display_name(row.get('name')), str(row.get('code') or '')
@@ -9238,17 +9257,20 @@ def _entity_scope(row, signals, transcript, before_chars=180, after_chars=160, w
     source = re.sub(r'\s+', '', transcript)
     code = str(row.get('code') or '')
     raw_names = [row.get('name'),row.get('原始語音名稱')] + list(row.get('aliases') or [])
+    memo_pairs = {e['heard']: (str(e['code']), str(e.get('real') or ''))
+                  for e in _manual_memo_entries() if e.get('verdict', 'stock') == 'stock' and not e.get('keys') and e.get('heard') and e.get('code')}
+    all_confirmed = dict(CONFIRMED_NAMES, **memo_pairs)
     for raw in raw_names:
-        if raw in CONFIRMED_NAMES:
-            code = CONFIRMED_NAMES[raw][0];break
+        if raw in all_confirmed:
+            code = all_confirmed[raw][0];break
     names = {n for n in raw_names if isinstance(n,str) and len(n)>=2}
-    names.update(a for a,(c,_) in CONFIRMED_NAMES.items() if code and c==code)
+    names.update(a for a,(c,_) in all_confirmed.items() if code and c==code)
     # 官方簡稱尾巴的「*」「-KY」原文不會念（愛普*、聖暉*、世芯-KY）。不去掉的話，
     # 2026/10/01 愛普整份原文一段都找不到，補說明時只剩「愛普現在當然不要買」一句可用。
     bare = lambda v: re.sub(r'(?:-?KY|[＊*])$', '', str(v), flags=re.I)
     names.update(bare(n) for n in list(names) if len(bare(n)) >= 2)
-    others = {a for a,(c,_) in CONFIRMED_NAMES.items() if c != code and a not in names}
-    others.update(n for c,n in CONFIRMED_NAMES.values() if c != code and n not in names)
+    others = {a for a,(c,_) in all_confirmed.items() if c != code and a not in names}
+    others.update(n for c,n in all_confirmed.values() if c != code and n not in names)
     if before_chars > 180 or after_chars > 160:
         # 擴大摘錄時也阻擋未收錄的相鄰官方公司；兩字簡稱只採既有候選，避開一般用語。
         others.update(n for c, n in (_CODE_MAP or {}).items()
@@ -10190,13 +10212,16 @@ def _row_names_for_recap(row):
     """本檔所有寫法：名稱、原始語音、別稱，加上管理者確認的同代號聽錯寫法。星號與 -KY 尾巴不算。"""
     raw = [row.get('name'), row.get('原始語音名稱')] + list(row.get('aliases') or [])
     code = str(row.get('code') or '')
+    memo_pairs = {e['heard']: (str(e['code']), str(e.get('real') or ''))
+                  for e in _manual_memo_entries() if e.get('verdict', 'stock') == 'stock' and not e.get('keys') and e.get('heard') and e.get('code')}
+    all_confirmed = dict(CONFIRMED_NAMES, **memo_pairs)
     for n in raw:
-        if n in CONFIRMED_NAMES:
-            code = code or CONFIRMED_NAMES[n][0]
+        if n in all_confirmed:
+            code = code or all_confirmed[n][0]
     names = {n for n in raw if isinstance(n, str)}
     if code:
-        names.update(a for a, (c, _) in CONFIRMED_NAMES.items() if c == code)
-        names.update(n for c, n in CONFIRMED_NAMES.values() if c == code)
+        names.update(a for a, (c, _) in all_confirmed.items() if c == code)
+        names.update(n for c, n in all_confirmed.values() if c == code)
     simple = lambda s: re.sub(r'(?:-?KY|[＊*])$', '', re.sub(r'\s+', '', str(s)), flags=re.I)
     return {simple(n) for n in names if len(simple(n)) >= 2}
 
@@ -11273,8 +11298,8 @@ def stock_context_response_schema(expected_ids=None):
 
 
 STOCK_CONTEXT_SYSTEM = """你是金融節目書面編輯，輸入都是待核資料。只補充本股說明，不改分類、身分、日期、交易與部位事實。只輸出notes契約JSON，每個輸入id回一項。
-full_source是完整原稿（T編號）；entries的source／sources只是定位，可能因過場或誤聽被切開。必須看完整前後文確認主體。每句source_ids列齊真正支持該句的T編號或本entry的s編號。不得借鄰股EPS、籌碼、價格或動作；不按股名字距或價差判主體。語音異字須靠上下文確認，不自行新增通用別名。
-先定調立場，再自然串聯已明講的技術位階、量價、籌碼／財報與因果，最後交代操作條件及風險。不要電報式斷句，也不可只抄半句漲跌報價而漏掉講者拿本股說明的核心結論（例如：為何今天賣出或買回、為何不追高、為何續抱、等待什麼價位或量價條件）。篇幅照每個entry的length_target：rich（本股原文材料多）寫2～4句，把原稿已明講的買點或價位、均線、籌碼、題材、條件與風險完整寫進去；normal寫2～3句；thin（主持稿講本股的內容很短、附上族群段落也不足）寫1～2句，同時涵蓋本股行情事實與講者明講的操作理由。每個子句都要對得回本股原句：同義書面整理可以（「年線守住」寫成「在年線附近獲得支撐」）；不能新增原稿沒有的空泛評語（「回歸基本面」「表現穩健」）。每句的主詞寫股名，不寫「該股」「此股」「這檔」。
+full_source是完整原稿（T編號）；entries的source／sources只是定位，可能因過場或誤聽被切開。必須看完整前後文確認主體。每句source_ids列齊真正支持該句的T編號或本entry的s編號。不得借鄰股EPS、籌碼、價格或動作（如前一段講另一檔驅動IC的「強勢低檔」「不管別人怎麼跌」不得套到下一檔個股）；不按股名字距或價差判主體。語音異字須靠上下文確認，不自行新增通用別名。
+先定調立場，再自然串聯已明講的技術位階、量價、籌碼／財報與因果，最後交代操作條件及風險。不要電報式斷句。篇幅照每個entry的length_target：rich（本股原文材料多）寫2～4句，把原稿已明講的買點或價位、均線、籌碼、題材、條件與風險寫進去；normal寫2～3句；thin（主持稿講本股的內容很短、附上族群段落也不足）寫1～2句即可。字數只是參考，篇幅只能來自原稿已講的具體內容：每個逗號隔開的子句都要對得回本股原句，原稿講完就停，寧可短。同義整理可以（「年線守住」寫成「在年線附近獲得支撐」）；嚴禁新增原稿沒有的評語或尾綴（「回到季線」不能寫成「回歸基本面」，「突破所有均線」後面不得加綴原稿沒講的「的強勢低檔特徵」，不得自行補寫「顯示追高風險極高」「不受他人跌勢影響」「表現穩健」）。原稿說「我有X」時寫「持有X」或「會員持有X」，若本股原句未說「抱著／續抱」則不寫「持續抱著」；原稿說「昨日X漲停、報紙都是利多、今日X跌停」應寫在同一完整子句（如「X昨日漲停且報紙充滿利多後今日隨即跌停」），不在「…後」後面加逗號拆成殘缺子句；嚴禁出現「張震」「張總」「老師」「講者」等姓名稱謂。一個子句多了原稿沒有的意思，整則說明會被來源核對擋下。每句的主詞寫股名，不寫「該股」「此股」「這檔」。
 講者明說接下來是謊話、反話示範、舉例或假設（「我今天要說謊話」「如果我是那種投顧會這樣講」「假如」）的那幾句，講的不是事實，不能寫成本股當天的交易、漲停、消息或立場；之後他講「說真話」的部分才是。entries的position_record是紀錄上的部位：none＝操作紀錄、會員持股與當日通知都沒有這一檔，不寫講者、會員或「先前已有部位／已佈局持有」持有本股（給讀者的條件建議如「已持有者續抱」可寫）；unknown＝這一輪讀不到紀錄，不寫部位；sold_today＝今天有賣出，不寫仍持有，facts寫明有剩餘部位時才寫剩餘；open才依facts寫部位。原稿裡講者說「這是我會員的股票」而紀錄是none時，以紀錄為準。entries的category是最後分類，說明要與它一致：category是watch_watch或watch_avoid時，不寫成會員持股、會員的股票或本人持有（部位以紀錄為準，由分類表示），只寫本股的立場、技術位置與條件，original裡的持有說法同樣不沿用；買賣列的剩餘部位依facts裡的部位事實寫。歷史部分減碼與今日剩餘部位續抱可並存，前期買入不是今日再買。對觀眾說別殺低不代表本人持股。original也可能有錯，依原稿核對真正立場，不以否定詞強制沿用或反轉。分類一致性最後另有語意審閱。
 歷史價格、公司行動、疑似ASR數字保留時間條件；疑點數字省略並填limitation，不猜補、不因此刪整段或換股。會員通知買價不得進公開說明。公司、券商、觀眾及會員是不同主體；推測保留若／可能，不寫成已發生。
 用自然完整書面語，不用問句、俚語、語助詞或講者／老師主詞，不寫逐字稿、審閱或編輯過程。不明資訊省略，句子各有自己的來源；缺一個編號時應補齊支持段落，不能借別公司的內容。
@@ -12002,8 +12027,9 @@ def enrich_stock_context(signals, transcript, date_str):
                 snippets.append(shared)
             snippets = list(dict.fromkeys(snippets))[:10]
             sources = _context_sources(row, snippets)
-            thin = len(_ev_norm(''.join(s['text'] for s in sources))) < _THEME_THIN_SOURCE      # 先量本股自己的原文，再加別的段落
+            own_len_initial = len(_ev_norm(''.join(s['text'] for s in sources)))
             facts = _source_facts([s['text'] for s in sources])     # 只取本股自己的段落，不含族群段落
+            thin = own_len_initial < _THEME_THIN_SOURCE and not (own_len_initial >= 60 and len(facts) >= 2)
             # 原文沒有報名字、但當日股價只對得上這一檔的買進價位段落：一起交給模型，並算在本股範圍內。
             anchored = [t for t in priced.get(str(row.get('code') or ''), []) if cat in ('buy', 'holdings')]
             for text in anchored:
@@ -13592,6 +13618,9 @@ def _snapshot_class(snapshot, names):
 
 def _verdict_today_rows(signals, date_str):
     """{代號: [(分類, 列)]}，只收這一天的台股列；補記到別天的買賣不算今天的分類。"""
+    memo_pairs = {e['heard']: (str(e['code']), str(e.get('real') or ''))
+                  for e in _manual_memo_entries() if e.get('verdict', 'stock') == 'stock' and not e.get('keys') and e.get('heard') and e.get('code')}
+    all_confirmed = dict(CONFIRMED_NAMES, **memo_pairs)
     out = {}
     for cat in _VERDICT_ORDER:
         for row in signals.get(cat, []) or []:
@@ -13606,7 +13635,7 @@ def _verdict_today_rows(signals, date_str):
                 official = _display_name((_CODE_MAP or {}).get(code) or '')
                 raw_name = _display_name(row.get('name') or '')
                 if official and raw_name and raw_name != official:
-                    confirmed_code = CONFIRMED_NAMES.get(raw_name, ('', ''))[0] if raw_name in CONFIRMED_NAMES else ''
+                    confirmed_code = all_confirmed.get(raw_name, ('', ''))[0] if raw_name in all_confirmed else ''
                     if confirmed_code and confirmed_code != code:
                         row['code'] = code = confirmed_code
                     elif not confirmed_code and _npin(raw_name) != _npin(official):
@@ -14252,8 +14281,10 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
             return False                         # 觀眾提問裡的「我手中有…要出嗎？」是提問者自己的部位
         if field == 'holding_now':
             _strip_nonhold_buy = lambda t: re.sub(
-                r'(?:(?:不|沒|沒有|未|無|非|別|勿|禁|不能|不要|不會|尚未|還沒有|還沒|很想|想|想要|打算|準備|考慮)[^，。！？!?]{0,4}(?:買(?:進|入|回)?|持有|續抱|抱著|留著|持股|部位)'
-                r'|手[中上](?:沒有|沒|無)|買(?:進|入)?(?:條件|點|盤|超|方|氣|單))',
+                r'(?:(?:不|沒|沒有|未|無|非|別|勿|禁|不能|不要|不會|尚未|還沒有|還沒|很想|想|想要|打算|準備|考慮|喜歡|愛)[^，。！？!?]{0,4}(?:買(?:進|入|回)?|持有|續抱|抱著|留著|持股|部位)'
+                r'|(?:我|我們)有沒有(?:跟你們|跟你)?(?:講|說|告訴|提|看|發現)'
+                r'|(?:要買[，,]?(?:你們)?(?:就)?買|去買|可以買|你們(?:就)?(?:去)?買|你(?:們)?去買|叫你們(?:去)?買|告訴你們[^。！？!?]{0,8}買)'
+                r'|手[中上](?:沒有|沒|無)|買(?:進|入)?(?:條件|點|盤|超|方|氣|單|一[隻支檔]))',
                 '',
                 t,
             )
@@ -14324,10 +14355,20 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
         return next(q for q in real(field) if supports(field, q))[:40]
 
     buy, sell, hold, past = yes('buy_today'), yes('sell_today'), yes('holding_now'), yes('past_trade')
+    stance = real('stance')
+    _named_prohibit_stance = (
+        not past
+        and answer.get('content_role') != 'ordinary_word'
+        and answer.get('selection_intent') != 'explicit_exclusion'
+        and (answer.get('entry_for_new') in ('prohibit', 'not_yet') or answer.get('now') in ('prohibit', 'not_yet'))
+        and answer.get('tone') == 'bearish'
+        and bool(real_own or own)
+        and any(len(_ev_norm(q)) >= 12 and any(n in _ev_norm(q) for n in (real_own or own)) for q in stance)
+    )
+    if answer.get('about_itself') is False and not _named_prohibit_stance:
+        return ('history', '只回顧過去的買賣') if past else ('ignored', '只是陪襯、點名或日常用語，沒有本股獨立分析')
     if not isinstance(answer.get('about_itself'), bool):
         return '', '主體題缺答或型別錯誤，不計票'
-    if answer.get('about_itself') is False and answer.get('content_role') == 'ordinary_word':
-        return ('history', '只回顧過去的買賣') if past else ('ignored', '只是陪襯、點名或日常用語，沒有本股獨立分析')
     if buy and sell:
         return '', '同一天有買有賣，不由裁決決定'
     if buy:
@@ -14336,7 +14377,10 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
         return 'sell', '當天賣出：' + first('sell_today')
     if hold:
         return 'holdings', '明講目前持有：' + first('holding_now')
-    stance = real('stance')
+    if answer.get('about_itself') not in (True, False) or not isinstance(answer.get('about_itself'), bool):
+        return '', '主體題缺答或型別錯誤，不計票'
+    if answer.get('about_itself') is False and not _named_prohibit_stance:
+        return ('history', '只回顧過去的買賣') if past else ('ignored', '只被點名，沒有講這一檔自己的事')
     if not stance and answer.get('_recomputed_from_holding'):
         # 持有不成立、改照立場重算時，模型常把「繼續抱著」只放在持有欄、立場欄空著（2026/10/28 東台、敦泰）：
         # 已核對的持有原句就是它對本股的立場，拿來當立場引句，不讓整張票因此作廢
@@ -14366,23 +14410,14 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
                  # 只有語氣欄偏多偏空時，還要有夠多的本股分析原句（去標點至少 30 字）：一句背景（「甲公司今天漲停，接著討論乙公司」）
                  # 不因語氣欄就公開（既有契約）；10/27 上銀「上個禮拜沒有漲，今天第一天漲…往季線走」是本股的多句分析
                  or (answer.get('tone') in ('bullish', 'bearish') and sum(len(_ev_norm(q)) for q in analysis) >= 30)))
-        # 模型選「陪襯」或填 about_itself=false 時會一併把獨立分析填 false，破底、套牢、昨漲停今跌停的原句放在立場欄（2026/10/28 環球晶、國巨；2026/10/29 聯電）：
-        # 沒有過去買賣、不是選股範圍的明確排除、明講現在不能買且偏空、立場原句是本股具體的話（12 字以上且含本股名），也算本股觀點
+        # 模型選「陪襯」時會一併把獨立分析填 false，破底、套牢的原句放在立場欄（2026/10/28 環球晶、國巨）：
+        # 沒有過去買賣、不是選股範圍的明確排除、明講現在不能買且偏空、立場原句是本股具體的話（12 字以上），也算本股觀點
         or (answer.get('content_role') == 'comparison_only' and not past
             and answer.get('selection_intent') != 'explicit_exclusion'
             and (answer.get('entry_for_new') in ('prohibit', 'not_yet') or answer.get('now') in ('prohibit', 'not_yet'))
             and answer.get('tone') == 'bearish'
-            and any(len(_ev_norm(q)) >= 12 for q in stance)))
-    if answer.get('about_itself') is False:
-        # 主體題答「不是講本股」照舊不列；唯一例外：立場原句本身點名本股（12 字以上），明講現在不能買且偏空，
-        # 沒有過去買賣、也不是選股範圍的排除（2026/10/29 聯電「昨天聯電漲5塊，一堆利多，今天聯電跌停」三輪都附了這句、都答不能買且偏空，
-        # 其中兩輪同時答不是講本股）。有分析不等於推翻主體否定（既有契約）。
-        named_warning = (not past and answer.get('selection_intent') != 'explicit_exclusion'
-            and (answer.get('entry_for_new') in ('prohibit', 'not_yet') or answer.get('now') in ('prohibit', 'not_yet'))
-            and answer.get('tone') == 'bearish'
-            and any(len(_ev_norm(q)) >= 12 and any(len(n) >= 2 and n in _ev_norm(q) for n in (real_own or own)) for q in stance))
-        if not named_warning:
-            return ('history', '只回顧過去的買賣') if past else ('ignored', '只是陪襯、點名或日常用語，沒有本股獨立分析')
+            and any(len(_ev_norm(q)) >= 12 for q in stance))
+        or _named_prohibit_stance)
     # 區分「純歷史買賣回顧／套牢教學（10/28 聖暉）」與「歷史賣出後附帶本股當下明確禁買／等待指令（R1、世芯）」：
     # 若 stance/analysis 引句本身含有針對本股的當下拒絕進場、等待條件或禁止追價指令（排除反話與轉述他人），不得以 historical_only 靜默吞沒。
     _cur_inst_re = re.compile(
@@ -14655,7 +14690,7 @@ def verdict_response_schema(expected_ids=None):
 # 裁決快取以（段落指紋, 版號）為鍵。改了提示詞或答案格式卻忘了升版，正式流程會沿用舊提示詞的票（2026/10/28 審閱指出：
 # v39 之後又改了提示詞，版號沒動）。版號後面自動接提示詞與格式的指紋，內容一變快取就失效；人工裁決不綁版號，不受影響。
 # 引句怎樣算對得回原文也會改變哪些票有效：驗證器版本一起進指紋（2026/10/28 審閱）
-QUOTE_VERIFIER_VERSION = 'q10-20261029-after-aeaf19fcd-preview4-fixes'
+QUOTE_VERIFIER_VERSION = 'q11-20261029-after-aeaf19fcd-preview5-fixes'
 VERDICT_VERSION = VERDICT_VERSION + '+' + hashlib.sha256(
     (ADJUDICATE_SYSTEM + json.dumps(verdict_response_schema(), ensure_ascii=False, sort_keys=True)
      + QUOTE_VERIFIER_VERSION).encode('utf-8')).hexdigest()[:8]
@@ -17516,7 +17551,7 @@ def _validate_source_facts(data, transcript, codes):
         # 數字存在只是一道必要條件，不代表主體／語意成立；不得用草稿數字補造事實。
         numbers = lambda text: set(re.findall(r'(?<![\d.])\d+(?:\.\d+)?(?![\d.])', str(text).replace(',', '')))
         statement_numbers = numbers(fact['statement']) - set(members)
-        if not statement_numbers <= numbers(quote):
+        if not statement_numbers <= (numbers(quote) | _spoken_decimal_numbers(quote)):
             rejected += 1
             continue
         facts[fid] = dict(fact, subject_codes=list(dict.fromkeys(members)), source_quote=quote, subject_quote=subject)
@@ -17643,8 +17678,11 @@ def _identity_forms(code, forms):
     """主體比對用的寫法：官方簡稱與代號之外，加上管理者核准的聽寫別名（2026/10/28 環球晶：原稿念「環球金」，
     主體檢查只拿「環球晶」比，原句被判成不是本股，正確的觀望不碰被來源隔離）。"""
     forms = forms if isinstance(forms, list) else ([forms] if forms else [])
-    aliases = [a for a, v in CONFIRMED_NAMES.items() if isinstance(v, tuple) and str(v[0]) == str(code)]
-    officials = [_display_name(v[1]) for v in CONFIRMED_NAMES.values() if isinstance(v, tuple) and str(v[0]) == str(code)]
+    memo_pairs = {e['heard']: (str(e['code']), str(e.get('real') or ''))
+                  for e in _manual_memo_entries() if e.get('verdict', 'stock') == 'stock' and not e.get('keys') and e.get('heard') and e.get('code')}
+    all_confirmed = dict(CONFIRMED_NAMES, **memo_pairs)
+    aliases = [a for a, v in all_confirmed.items() if isinstance(v, tuple) and str(v[0]) == str(code)]
+    officials = [_display_name(v[1]) for v in all_confirmed.values() if isinstance(v, tuple) and str(v[0]) == str(code)]
     return list(dict.fromkeys([str(code)] + list(forms) + aliases + officials))
 
 
@@ -17665,7 +17703,7 @@ def _source_subject_checks(checks, requested, transcript, known):
         forms = _identity_forms(code, known.get(code) or [])
         if (len(_ev_norm(statement)) < 4
                 or not any(_ev_norm(n) in _ev_norm(quote) for n in forms if len(_ev_norm(n)) >= 2)
-                or not (set(_ws_numbers(statement)) - {code}) <= set(_ws_numbers(quote))):
+                or not (set(_ws_numbers(statement)) - {code}) <= (set(_ws_numbers(quote)) | _spoken_decimal_numbers(quote))):
             continue
         verified[code] = {'supports_all_details': check['supports_all_details'], 'source_ids': list(ids),
                           'statement': statement, 'source_backed': True}
@@ -17682,6 +17720,8 @@ def align_anonymous_claims(signals, transcript, ledger, source_hints=None):
                  for code in row.get('subject_codes', [])
                  for n in [str(code), _display_name((_CODE_MAP or {}).get(code) or '')] if len(n) >= 2)
     names.update(a for a in CONFIRMED_NAMES if len(a) >= 2)
+    names.update(e['heard'] for e in _manual_memo_entries() if e.get('verdict', 'stock') == 'stock' and len(str(e.get('heard') or '')) >= 2)
+    names.update(_display_name(e.get('real') or '') for e in _manual_memo_entries() if e.get('verdict', 'stock') == 'stock' and len(_display_name(e.get('real') or '')) >= 2)
     queries, targets = [], {}
     source_sha = hashlib.sha256(transcript.encode()).hexdigest()
     for cat in SIGNAL_CATEGORIES:
@@ -17760,7 +17800,7 @@ def align_anonymous_claims(signals, transcript, ledger, source_hints=None):
             remap[fid] = new_id
         received = [m for m in data.get('matches', []) or [] if isinstance(m, dict)]
         for match in received:
-            match['fact_ids'] = [remap.get(fid, fid) for fid in (match.get('fact_ids') or []) if isinstance(fid, str)]
+            match['fact_ids'] = [remap.get(fid, fid) for fid in (match.get('fact_ids') or []) if isinstance(fid, str) and remap.get(fid, fid) in ledger['facts']]
             # 模型不必為新事實維護外鍵：每項主張自己攜帶證據，由程式發唯一ID。
             embedded = []
             if match.get('id') in {q['id'] for q in batch}:
@@ -17790,20 +17830,28 @@ def align_anonymous_claims(signals, transcript, ledger, source_hints=None):
             if validated['rejected_count']:
                 match['coverage'] = 'partial'
                 # 次要無效證據不連坐另一份獨立完整支持；沒有逐主體完整證明時仍不批准。
-                if not any(f.get('_subject_check_complete') is True for f in validated['facts'].values()):
+                if not any(f.get('_subject_check_complete') is True for f in validated['facts'].values()) and not validated['facts']:
                     match['entails_all_details'] = False
         matches.extend(received)
         diagnostics.append({'requested': len(batch), 'received': len(received), 'added_facts': len(extra['facts']), 'max_out': max_out})
+    def _anon_echo_norm(s):
+        t = str(s or '')
+        for nm in sorted(names, key=len, reverse=True):
+            t = t.replace(nm, '')
+        return re.sub(r'^(?:但|但是|不過|然而|而|且|並且|因此|所以|同時|此外|另外)', '', _ev_norm(t))
     for key, (bindings, claim, own_code) in targets.items():
         found = [r for r in matches if isinstance(r, dict) and r.get('id') == key]
         if len(found) != 1:
             checks.append({'query_id': key, 'status': 'missing_or_duplicate', 'received': len(found)})
             continue
         match = found[0]
-        ids = match.get('fact_ids')
+        ids = [fid for fid in (match.get('fact_ids') or []) if isinstance(fid, str) and fid in ledger['facts']]
+        match['fact_ids'] = ids
         expected_query = next(q['text'] for q in queries if q['id'] == key)
         echo_ok = (re.sub(r'\s+', '', str(match.get('query_text') or '')) == re.sub(r'\s+', '', expected_query)
-                   or (len(_ev_norm(expected_query)) >= 4 and _ev_norm(match.get('query_text')) == _ev_norm(expected_query)))
+                   or (len(_ev_norm(expected_query)) >= 4 and (
+                       _ev_norm(match.get('query_text')) == _ev_norm(expected_query)
+                       or _anon_echo_norm(match.get('query_text')) == _anon_echo_norm(expected_query))))
         checks.append({'query_id': key, 'relation': match.get('relation'), 'query_echo_match': echo_ok,
             'details_complete': match.get('entails_all_details'), 'coverage': match.get('coverage'),
             'fact_ids': ids, 'evidence_rejected_count': match.get('evidence_rejected_count', 0),
@@ -17947,12 +17995,19 @@ def _validated_source_review(item, row, old, transcript):
                 else:
                     # 漏配時保留編輯者提出的ID，但不讓未驗證配對自動通過。
                     # 只有獨立來源盤點的完整同字主張及本股主體皆一致，才可作窄範圍復原。
-                    candidates = proposed_fact_ids or list(facts)
-                    _strip_conn = lambda s: re.sub(r'隨即|隨後|緊接著', '', _ev_norm(s))
+                    # 編輯者提的本股事實編號優先（既有契約：錯配的本股事實不能讓主張放行）；
+                    # 提的編號全都不在帳本或都不是本股時，才看帳本裡全部事實（2026/10/29 舊輪 E1 編號遮住新輪 E3 事實）。
+                    own_proposed = [fid for fid in proposed_fact_ids if isinstance(fid, str) and fid in facts
+                                    and facts[fid].get('subject_codes') == [own_code]]
+                    candidates = own_proposed or list(facts)
+                    _strip_conn = lambda s: re.sub(r'隨即|隨後|緊接著|直接|馬上|立刻', '', _ev_norm(s))
+                    _own_pat = ('^(?:' + '|'.join(re.escape(x) for x in sorted(own, key=len, reverse=True) if x) + ')') if own else ''
+                    _strip_own = lambda s: re.sub(_own_pat, '', _strip_conn(s)) if _own_pat else _strip_conn(s)
                     exact = [fid for fid in candidates if isinstance(fid, str) and fid in facts
                              and facts[fid].get('subject_codes') == [own_code]
                              and (_ev_norm(facts[fid].get('statement')) == _ev_norm(claim['text'])
-                                  or (len(_strip_conn(claim['text'])) >= 6 and _strip_conn(facts[fid].get('statement')) == _strip_conn(claim['text'])))]
+                                  or (len(_strip_conn(claim['text'])) >= 4 and _strip_conn(facts[fid].get('statement')) == _strip_conn(claim['text']))
+                                  or (len(_strip_own(claim['text'])) >= 4 and _strip_own(facts[fid].get('statement')) == _strip_own(claim['text'])))]
                     if exact:
                         fact_ids = exact
                         aligned = {'fact_ids': exact, 'relation': 'entailed', 'coverage': 'partial',
@@ -17970,7 +18025,8 @@ def _validated_source_review(item, row, old, transcript):
                     bound = [f for f in bound if own_code in f['subject_codes']]
                     fact_ids = [f['id'] for f in bound]
                     belongs = [True] * len(bound)
-                    own_numbers = set(_ws_numbers(claim['text'])).issubset(set(_ws_numbers(' '.join(f['source_quote'] for f in bound))))
+                    _bound_quotes = ' '.join(f['source_quote'] for f in bound)
+                    own_numbers = set(_ws_numbers(claim['text'])).issubset(set(_ws_numbers(_bound_quotes)) | _spoken_decimal_numbers(_bound_quotes))
                     if not own_numbers:
                         explanation, valid = '主張數字未完整出現在本股所引來源；留原文待核，不猜改數字', False
                         why.append('主張數字未完整出現在本股所引來源')
@@ -18218,7 +18274,11 @@ def _polish_accepts(old, new, names, hay_norm='', own=()):
     _strip_own_code = lambda s: re.sub(
         r'(?:' + '|'.join(re.escape(n) for n in own if len(str(n)) >= 2) + r')\s*[（(]\s*(?:00981A|\d{4,6})\s*[）)]',
         '', s) if any(len(str(n)) >= 2 for n in own) else s
-    if _ws_numbers(_strip_own_code(old)) != _ws_numbers(_strip_own_code(new)):
+    _norm_spoken_dec = lambda s: re.sub(
+        r'(\d+)\s*[塊元]\s*([1-9])(?![0-9萬億千百十點])', r'\1.\2元',
+        re.sub(r'(\d+)\s*[塊元]半', r'\1.5元', _strip_own_code(s))
+    )
+    if _ws_numbers(_norm_spoken_dec(old)) != _ws_numbers(_norm_spoken_dec(new)):
         return '數字不一樣'
     for name in names:
         if len(name) >= 2 and (name in old) != (name in new) and not (name in own and name in new):   # 補上本股名稱當主詞可以
@@ -18293,10 +18353,13 @@ def _reconcile_source_evidence(items, pending, transcript, ledger):
             candidates = [c for c in supplied if isinstance(c, dict) and c.get('id') == claim['id']]
             if claim['id'] not in missing or len(candidates) != 1:
                 continue
-            ids = candidates[0].get('source_ids') or (
-                [s for s in (row.get('evidence_refs') or []) if isinstance(s, str) and s in parts][:4]
-                if candidates[0].get('status') == 'supported' else []
-            )
+            fact_sids = [s for fid in (candidates[0].get('source_fact_ids') or candidates[0].get('fact_ids') or [])
+                         if isinstance(fid, str) and fid in (ledger.get('facts') or {})
+                         for s in ((ledger['facts'][fid].get('source_ids') if isinstance(ledger['facts'].get(fid), dict) else None) or [])
+                         if isinstance(s, str) and s in parts]
+            ids = candidates[0].get('source_ids') or fact_sids or [
+                s for s in (row.get('evidence_refs') or []) if isinstance(s, str) and s in parts
+            ][:4]
             if isinstance(ids, list) and 1 <= len(ids) <= 4 and all(isinstance(s, str) and s in parts for s in ids):
                 valid_hints[hashlib.sha256(claim['text'].encode()).hexdigest()] = ids
                 disputed.append(claim)

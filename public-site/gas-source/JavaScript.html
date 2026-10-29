@@ -918,12 +918,20 @@ function restatesEarlier_(key, earlier) {
       el.textContent=pct==null?'—':(pct>0?'▲ ':pct<0?'▼ ':'')+Math.abs(pct).toFixed(2)+'%';el.className='px r '+signCls(pct);el.title=pct==null?'無可核對的前收盤價':'較前收盤價';
     });
     document.querySelectorAll('[data-live-price]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.livePrice]);if(!v)return;el.textContent=v.readable?fmtPx(v.last):'—';el.title=v.readable?'點選個股查看行情資料':'報價待更新';});
-    document.querySelectorAll('[data-live-ret]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.liveRet]),entry=Number(el.dataset.entry);if(!v||entry<=0)return;if(v.stale){el.textContent='—';return;}var ret=(v.last-entry)/entry*100;el.textContent=fmtRet(ret);el.parentNode.setAttribute('aria-label','未實現報酬 '+fmtRet(ret));var axis=el.closest('.tx');if(axis)axis.className='tx tx-'+signCls(ret);});
+    document.querySelectorAll('[data-live-ret]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.liveRet]),entry=Number(el.dataset.entry);if(!v||entry<=0)return;if(!v.readable){el.textContent='—';return;}var ret=(v.last-entry)/entry*100;el.textContent=fmtRet(ret);el.parentNode.setAttribute('aria-label','未實現報酬 '+fmtRet(ret));var axis=el.closest('.tx');if(axis)axis.className='tx tx-'+signCls(ret);});
     document.querySelectorAll('[data-bandpx]').forEach(function(el){var v=quoteView(displayedQuotes[el.dataset.bandpx]),pct=v&&v.readable?v.pct:null;
       el.textContent=v&&v.readable?fmtPx(v.last)+(pct==null?'':'　'+(pct>0?'▲':pct<0?'▼':'')+Math.abs(pct).toFixed(2)+'%'):'—';
       el.className='px '+signCls(pct);el.title=v&&!v.readable?'報價待更新':v?'點選個股查看行情資料':'無可核對行情';
     });
     document.querySelectorAll('.quote-asof').forEach(function(el){el.remove();});
+    if (trackerPriceMode === 'lowHigh' && window.__tracker && Object.keys(q || {}).length) {
+      var calculated = trackerLowHighView_(window.__tracker, trackerLivePrices_());
+      renderTrackerSummary_(calculated);
+      document.querySelectorAll('[data-live-cum]').forEach(function(el) {
+        var i = calculated.items.filter(function(x) { return x.code === el.dataset.liveCum; })[0];
+        if (i) { el.textContent = '累積 ' + fmtRet(i.cumRet); el.title = '各回合連乘：' + i.roundRets; el.className = 'tx-cum ' + signCls(i.cumRet); }
+      });
+    }
     if(typeof DETAIL!=='undefined'&&DETAIL.header&&currentCode&&$('detail').classList.contains('open')) {
       var shared=displayedQuotes[currentCode],view=quoteView(shared);
       if(view){DETAIL.header.quote=Object.assign({},shared,{ok:true});$('dPrice').textContent=view.readable?fmtPx(view.last):'—';$('dPrice').className='p '+signCls(view.readable?view.pct:null);$('dPrice').title='成交時間：'+view.time;
@@ -1446,6 +1454,95 @@ function restatesEarlier_(key, earlier) {
   /* 持有中與已出場改成互斥兩區，不再混在同一張表。
      兩者的報酬意義不同：持有中是未實現、會變動；已出場是已實現、不再變動。 */
   var trackerView = 'held';
+  var trackerPriceMode = 'midpoint';
+  function trackerPriceNumber_(v) {
+    var n = Number(v);
+    return isFinite(n) && n > 0 ? n : null;
+  }
+  function trackerReturn_(entry, end) {
+    return entry > 0 && end > 0 ? Math.round((end / entry - 1) * 10000) / 100 : null;
+  }
+  function trackerLowHighItem_(item, live) {
+    if (!item) return item;
+    var out = Object.assign({}, item), rs = item.calculationRounds || [];
+    var complete = rs.length === (Number(item.rounds) || 1), last = complete ? rs[rs.length - 1] : null;
+    out._priceMode = 'lowHigh';
+    out.entry = last ? trackerPriceNumber_(last.entryLow) : null;
+    var current = live && Object.prototype.hasOwnProperty.call(live, item.code) ? live[item.code] : item.current;
+    out.current = item.stillHeld ? trackerPriceNumber_(current) : last ? trackerPriceNumber_(last.exitHigh) : null;
+    out.ret = trackerReturn_(out.entry, out.current);
+    out.entrySrc = '低進高出試算：進場取價日最低價';
+    if (!item.stillHeld) out.curSrc = '低進高出試算：出場取價日最高價';
+    out.why = !complete ? '缺少完整回合行情，暫不試算' : !out.entry ? '缺少進場日有效高低價，暫不試算'
+      : !out.current ? (item.stillHeld ? '目前報價待更新，暫不試算' : '缺少出場日有效高低價，暫不試算') : '';
+    var ratios = [], rets = [], closed = [];
+    if (complete) rs.forEach(function(r, n) {
+      var e = trackerPriceNumber_(r.entryLow);
+      var x = n === rs.length - 1 && item.stillHeld ? out.current : trackerPriceNumber_(r.exitHigh);
+      var ret = trackerReturn_(e, x);
+      rets.push(ret); ratios.push(ret === null ? null : x / e);
+      if (r.closed) closed.push(ret);
+    });
+    else for (var n = 0; n < Math.max(0, (Number(item.rounds) || 1) - (item.stillHeld ? 1 : 0)); n++) closed.push(null);
+    out._calculationClosedReturns = closed;
+    out.cumRet = ratios.length && ratios.every(function(r) { return r !== null; })
+      ? Math.round((ratios.reduce(function(a,b) { return a * b; }, 1) - 1) * 10000) / 100 : null;
+    out.roundRets = rets.map(function(r) { return r === null ? '待補' : (r > 0 ? '+' : '') + r.toFixed(2) + '%'; }).join(' × ');
+    if (item.roundList) out.roundList = item.roundList.map(function(r) {
+      return Object.assign({}, r, { entry: trackerPriceNumber_(r.entryLo), exit: trackerPriceNumber_(r.exitHi) });
+    });
+    return out;
+  }
+  function trackerCalculationSummary_(items) {
+    var vals = items.map(function(i) { return i.ret; }).filter(function(v) { return v !== null && v !== undefined && isFinite(v); });
+    return {total: items.length, priced: vals.length,
+      avgReturn: vals.length ? Math.round(vals.reduce(function(a,b) { return a+b; }, 0) / vals.length * 100) / 100 : null,
+      positiveRatio: vals.length ? Math.round(vals.filter(function(v) { return v > 0; }).length / vals.length * 1000) / 10 : null};
+  }
+  function trackerLowHighView_(source, live) {
+    var out = Object.assign({}, source);
+    out.items = (source.items || (source.held || []).concat(source.exited || [])).map(function(i) { return trackerLowHighItem_(i, live); });
+    out.held = out.items.filter(function(i) { return i.stillHeld; });
+    out.exited = out.items.filter(function(i) { return !i.stillHeld; });
+    out.heldSummary = trackerCalculationSummary_(out.held);
+    out.exitedSummary = trackerCalculationSummary_(out.exited);
+    var closed = [];
+    out.items.forEach(function(i) { closed = closed.concat(i._calculationClosedReturns); });
+    var sum = trackerCalculationSummary_(closed.map(function(r) { return {ret:r}; }));
+    out.exitedSummary.priced = sum.priced;
+    out.exitedSummary.rounds = sum.priced;
+    out.exitedSummary.pendingRounds = closed.length - sum.priced;
+    out.exitedSummary.avgReturn = sum.avgReturn;
+    out.exitedSummary.positiveRatio = sum.positiveRatio;
+    return out;
+  }
+  function trackerLivePrices_() {
+    var prices = {};
+    Object.keys(displayedQuotes || {}).forEach(function(c) {
+      var v = quoteView(displayedQuotes[c]);
+      if (v) prices[c] = v.readable ? v.last : null;
+    });
+    return prices;
+  }
+  function trackerItemForView_(item) {
+    return trackerPriceMode === 'lowHigh' ? trackerLowHighItem_(item, trackerLivePrices_()) : item;
+  }
+  function renderTrackerCalculation(source, count) {
+    var bar = $('trackerCalculationBar'), box = $('trackerCalculation');
+    if (!bar || !box) return;
+    bar.hidden = !count;
+    box.innerHTML = [{k:'midpoint', s:'中點計算'}, {k:'lowHigh', s:'低進高出'}].map(function(m) {
+      return '<button type="button" class="pill" data-tracker-price="' + m.k + '" aria-pressed="' +
+        (trackerPriceMode === m.k) + '">' + m.s + '</button>';
+    }).join('');
+    box.querySelectorAll('[data-tracker-price]').forEach(function(b) {
+      b.addEventListener('click', function() {
+        trackerPriceMode = b.dataset.trackerPrice;
+        renderTracker(source);
+        if (typeof DETAIL !== 'undefined' && DETAIL.tracker) paintTracker();
+      });
+    });
+  }
 
   /* 排序（v124，2026/10/05 管理者）：預設依獲利幅度高到低；按另一顆換依據，同一顆再按一次反向。
      沒有值的（還沒補到價、代號待確認）不論方向都排最後；同值時維持後端原本的順序。 */
@@ -1497,6 +1594,8 @@ function restatesEarlier_(key, earlier) {
   }
 
   function renderTracker(t) {
+    var source = t;
+    if (trackerPriceMode === 'lowHigh') t = trackerLowHighView_(source, trackerLivePrices_());
     var held = t.held || (t.items || []).filter(function (i) { return i.stillHeld; });
     var exited = t.exited || (t.items || []).filter(function (i) { return !i.stillHeld; });
     var showing = trackerView === 'held' ? held : exited;
@@ -1510,10 +1609,27 @@ function restatesEarlier_(key, earlier) {
       b.addEventListener('click', function () {
         if (trackerView === b.dataset.tk) { return; }
         trackerView = b.dataset.tk;
-        renderTracker(t);
+        renderTracker(source);
       });
     });
 
+    renderTrackerSummary_(t);
+
+    /* 規則說明隨所選試算方式更新。 */
+    renderTrackerBasis_(t);
+    renderTrackerSort(source, showing.length);
+    renderTrackerCalculation(source, held.length + exited.length);
+    if (!showing.length) {
+      $('trackerTable').innerHTML = trackerView === 'held'
+        ? emptyBlock('目前沒有還在手上的標的', exited.length ? '有 ' + exited.length + ' 檔已經出場，切換上方即可看到。' : (t.note || ''))
+        : emptyBlock('還沒有已出場的標的', '所有講過買入的標的都還在追蹤中。');
+      trackerLoaded = true;
+      return;
+    }
+    renderTrackerRows(t, trackerSorted_(showing));
+  }
+
+  function renderTrackerSummary_(t) {
     var sum = trackerView === 'held' ? t.heldSummary : t.exitedSummary;
     var box = $('trackerSummary');
     if (box) {
@@ -1531,12 +1647,15 @@ function restatesEarlier_(key, earlier) {
              目前又持有中的股票，先前結束的回合也算。畫面只寫回合數，不逐檔列出（2026/10/07 管理者：不必要的資訊不放上來）。 */
           (trackerView === 'exited' && sum.rounds
             ? '<p class="tsum-note">平均與正報酬比例以回合計，共 ' + sum.rounds + ' 個已結束的回合。</p>'
-            : '');
+            : '') +
+          (sum.pendingRounds ? '<p class="tsum-note">另有 ' + sum.pendingRounds + ' 個已結束回合缺少有效高低價，未列入試算。</p>' : '');
       } else {
         box.innerHTML = '';
       }
     }
 
+  }
+  function renderTrackerBasis_(t) {
     /* 規則說明改成一行 + 問號。
 
        先前是把兩段完整的規則全文接起來，加起來兩百多字，就掛在表格下面。
@@ -1600,6 +1719,15 @@ function restatesEarlier_(key, earlier) {
         '</section>' +
       '</div>';
 
+    if (trackerPriceMode === 'lowHigh') {
+      $('trackerBasis').innerHTML = '<div class="basis-line"><span>低進高出試算：進場日最低價；出場日最高價。持有中以目前價計算。</span>' +
+        ' <button type="button" class="whyb" id="basisWhy" aria-expanded="false" aria-controls="basisCards" aria-label="低進高出試算公式">?</button></div>' +
+        '<div class="basis-cards" id="basisCards" hidden><section class="basis-card"><h4>低進高出</h4>' +
+        '<p>報酬＝（出場日最高價 ÷ 進場日最低價 − 1）× 100%；持有中以目前價取代出場價。</p>' +
+        '<p>例如進場日最低 100 元、出場日最高 124 元，試算報酬為 +24%。這是有利價位的假設試算，不代表實際成交，未計入手續費與稅。</p></section>' +
+        '<section class="basis-card"><h4>日期與統計</h4><p>沿用目前追蹤回合的取價交易日；當天無日 K 時只往前找，不借用未來價格。缺少有效高低價的回合不列入平均。</p>' +
+        '<p>平均已實現報酬包含目前持有股票先前已結束的回合。累積報酬以各回合報酬連乘。切換只改變試算畫面，不改操作紀錄與管理者成本。</p></section></div>';
+    }
     var wb = $('basisWhy');
     if (wb) {
       wb.addEventListener('click', function () {
@@ -1610,16 +1738,6 @@ function restatesEarlier_(key, earlier) {
       });
     }
 
-    renderTrackerSort(t, showing.length);
-
-    if (!showing.length) {
-      $('trackerTable').innerHTML = trackerView === 'held'
-        ? emptyBlock('目前沒有還在手上的標的', exited.length ? '有 ' + exited.length + ' 檔已經出場，切換上方即可看到。' : (t.note || ''))
-        : emptyBlock('還沒有已出場的標的', '所有講過買入的標的都還在追蹤中。');
-      trackerLoaded = true;
-      return;
-    }
-    renderTrackerRows(t, trackerSorted_(showing));
   }
 
   /* 價格下方的一行灰字。公開頁不顯示會員通知價位；僅顯示日期與可公開的核對依據。 */
@@ -1657,7 +1775,7 @@ function restatesEarlier_(key, earlier) {
       return {
         r: p, rounds: t.rounds || list.length, index: pick, past: true, entry: p.entry, mention: p.open || '',
         trade: p.entryDate || p.open || '', exit: p.exitDate || '',
-        stated: null, note: '', exitNote: '', entryBasis: '當日高低平均', exitBasis: '當日高低平均',
+        stated: null, note: '', exitNote: '', entryBasis: t._priceMode === 'lowHigh' ? '進場日最低價' : '當日高低平均', exitBasis: t._priceMode === 'lowHigh' ? '出場日最高價' : '當日高低平均',
         end: p.exit, ret: pret, held: false, lo: p.entryLo, hi: p.entryHi
       };
     }
@@ -1671,8 +1789,8 @@ function restatesEarlier_(key, earlier) {
       trade: r.entryDate || t.entryDate || mention,
       exit: t.stillHeld ? '' : (r.exitDate || t.lastSell || ''),
       stated: null, note: '', exitNote: '',   // v104：口頭價位前台不畫（舊後端即使還帶著欄位也不用）
-      entryBasis: /管理者修正成本/.test(String(t.entrySrc || '')) ? '管理者修正成本' : '當日高低平均',
-      exitBasis: '當日高低平均',
+      entryBasis: t._priceMode === 'lowHigh' ? '進場日最低價' : /管理者修正成本/.test(String(t.entrySrc || '')) ? '管理者修正成本' : '當日高低平均',
+      exitBasis: t._priceMode === 'lowHigh' ? '出場日最高價' : '當日高低平均',
       end: t.current, ret: t.ret, held: !!t.stillHeld, lo: r.entryLo, hi: r.entryHi
     };
   }
@@ -1869,7 +1987,7 @@ function restatesEarlier_(key, earlier) {
   function paintTrend() {
     var box = $('dPxRange');
     if (!box) { return; }
-    var t = DETAIL.tracker, m = t ? (trendModel(t, DETAIL.trendRound) || trendModel(t)) : null;
+    var t = trackerItemForView_(DETAIL.tracker), m = t ? (trendModel(t, DETAIL.trendRound) || trendModel(t)) : null;
     if (!m || DETAIL.code !== currentCode) { box.hidden = true; box.innerHTML = ''; return; }
     box.hidden = false;
     // 進場以來走勢與進場價同一口徑：用試算表的原始日K，不用還原分割後的完整歷史（v200）
@@ -1908,6 +2026,7 @@ function restatesEarlier_(key, earlier) {
     }
     var retTxt = m.ret === null || m.ret === undefined ? '\u2014' : fmtRet(m.ret);
     var notes = [];
+    if (t._priceMode === 'lowHigh') notes.push('低進高出試算：進場取最低價，出場取最高價；持有中取目前價。');
     if (!m.held && !m.past && t.exitReason) {
       notes.push('出場原因：' + String(t.exitReason).split('\n').filter(String).join('；'));
     }
@@ -1998,7 +2117,7 @@ function restatesEarlier_(key, earlier) {
     var entryGrey = mentionNote;
     var retTxt = (i.ret === null || i.ret === undefined) ? (i.why ? '待補' : '\u2014') : fmtRet(i.ret);
     var cum = ((i.rounds || 1) > 1 && i.cumRet !== null && i.cumRet !== undefined)
-      ? '<span class="tx-cum ' + signCls(i.cumRet) + '" title="各回合連乘：' + esc(i.roundRets || '') + '">累積 ' + fmtRet(i.cumRet) + '</span>' : '';
+      ? '<span class="tx-cum ' + signCls(i.cumRet) + '"' + (isHeld && i._priceMode === 'lowHigh' ? ' data-live-cum="' + esc(i.code) + '"' : '') + ' title="各回合連乘：' + esc(i.roundRets || '') + '">累積 ' + fmtRet(i.cumRet) + '</span>' : '';
     var sold = /明講賣出/.test(String(i.exitReason || ''));
     return '<div class="tx tx-' + cls + '" title="' + esc(costSrcText(i.entrySrc) + (entryGrey ? '　' + entryGrey : '') + (i.why ? '　' + i.why : '')) + '">' +
       '<div class="tx-end tx-in"><small>' + (inDate ? inDate + ' 進場' : '進場') + '</small><b>' + fmtPx(i.entry) + '</b></div>' +
@@ -2812,7 +2931,7 @@ function restatesEarlier_(key, earlier) {
 
      現在改成把最近一次的立場與那句話擺到最上面。 */
   function paintTracker() {
-    var t = DETAIL.tracker;
+    var t = trackerItemForView_(DETAIL.tracker);
     if (t === undefined) { return; }           // 還沒回來，維持骨架
 
     if (!t) {

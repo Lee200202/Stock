@@ -2180,7 +2180,7 @@ function getHoldingsTracker() {
 
 function getHoldingsTrackerRead_() {
   var hit = readTrackerCache_();
-  if (hit) { return hit; }
+  if (hit && hit.calculationVersion === 1) { return hit; }
 
   var base = readSheetObjects_('持股追蹤');
   if (!base.length) {
@@ -2234,9 +2234,9 @@ function getHoldingsTrackerRead_() {
     var endDate = stillHeld ? today : fmtDate_(r['最近賣出日']);
     /* 本回合實際成交日（v67，0925 規格 4.4）：卡片原本用 roundStart（第一次提到，8/12）配上成交日（8/19）的最低價，
        日期與價格對不上。成交日存在回合JSON 最後一筆的 od；舊資料沒有就退回提到日。 */
-    var tradeDate = roundStart;
+    var tradeDate = roundStart, rj = [];
     try {
-      var rj = JSON.parse(String(r['回合JSON'] || '[]'));
+      rj = JSON.parse(String(r['回合JSON'] || '[]'));
       var lastRj = rj && rj.length ? rj[rj.length - 1] : null;
       if (lastRj && /^\d{4}\/\d{2}\/\d{2}$/.test(String(lastRj.od || ''))) { tradeDate = String(lastRj.od); }
     } catch (e) {}
@@ -2292,7 +2292,9 @@ function getHoldingsTrackerRead_() {
       /* v68：進場一律取當日最低、出場一律取當日最高；口頭價是灰字附註。
          區間（當日最低～最高）與明講價給介面畫區間條，看得出取價落在哪、明講價在哪。 */
       entryNote: String(r['進場明講'] || ''),
-      exitNote: stillHeld ? '' : String(r['出場明講'] || '')
+      exitNote: stillHeld ? '' : String(r['出場明講'] || ''),
+      // 公開行情範圍的唯讀試算資料，不帶通知價、張數或原始回合全文。
+      calculationRounds: trackerCalculationRounds_(rj)
       // roundList（回合明細，畫取價區間圖用）不放在清單裡：三十幾檔都帶會讓快取超過 100KB 上限，
       // 2026/09/24 v58 上線後 CACHE.put 丟「引數過大」，首頁整支讀取失敗。只有個股面板要用，由 getStockTracker 單檔補上。
     };
@@ -2372,6 +2374,7 @@ function getHoldingsTrackerRead_() {
 
   var out = {
     items: held.concat(exited),
+    calculationVersion: 1,
     held: held,
     exited: exited,
     heldSummary: heldSummary,
@@ -2392,6 +2395,19 @@ function getHoldingsTrackerRead_() {
 
 /** 個股在追蹤表裡的單筆資料 */
 /** 回合JSON → 介面用的回合清單（v58）。壞掉或舊資料沒有區間欄位時照樣回傳能用的部分。 */
+function trackerCalculationRounds_(rounds) {
+  if (!Array.isArray(rounds)) { return []; }
+  function range(low, high) {
+    var lo = Number(low), hi = Number(high);
+    return isFinite(lo) && isFinite(hi) && lo > 0 && hi >= lo ? { low: lo, high: hi } : null;
+  }
+  return rounds.map(function (r) {
+    r = r && typeof r === 'object' ? r : {};
+    var entry = range(r.el, r.eh), exit = range(r.xl, r.xh);
+    return { entryLow: entry ? entry.low : null, exitHigh: exit ? exit.high : null, closed: !!r.c };
+  });
+}
+
 function trackerRoundList_(raw) {
   var arr = [];
   try { arr = JSON.parse(String(raw || '[]')) || []; } catch (e) { return []; }

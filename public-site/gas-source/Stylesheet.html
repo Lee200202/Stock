@@ -3114,8 +3114,13 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
 
 /* v124 持股追蹤排序：與「持有／已出場」同一組橢圓膠囊，前面一個小字標題。
    窄螢幕不換行、可以左右滑；選中的那一顆帶方向箭頭，再按一次反向。 */
-.tracker-sortbar { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; min-width: 0; }
+.tracker-controls { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px 24px; margin: 0 0 14px; }
+.tracker-sortbar { display: flex; align-items: center; gap: 10px; margin: 0; min-width: 0; max-width: 100%; }
 .tracker-sortbar[hidden] { display: none; }
+.tracker-calculation { display: flex; align-items: center; gap: 10px; min-width: 0; max-width: 100%; }
+.tracker-calculation[hidden] { display: none; }
+.tracker-calculation .chartbar.seg { display: flex; margin: 0; white-space: nowrap; }
+.tracker-calculation .pill { flex: none; white-space: nowrap; }
 .tracker-sort-k { flex: none; color: var(--muted); font-size: calc(13.5px * var(--rd-fs)); }
 .tracker-sortbar .chartbar.seg { display: flex; flex-wrap: nowrap; margin: 0; min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 .tracker-sortbar .chartbar.seg::-webkit-scrollbar { display: none; }

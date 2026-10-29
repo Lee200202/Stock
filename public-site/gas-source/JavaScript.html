@@ -1649,6 +1649,9 @@ function restatesEarlier_(key, earlier) {
             ? '<p class="tsum-note">平均與正報酬比例以回合計，共 ' + sum.rounds + ' 個已結束的回合。</p>'
             : '') +
           (sum.pendingRounds ? '<p class="tsum-note">另有 ' + sum.pendingRounds + ' 個已結束回合缺少有效高低價，未列入試算。</p>' : '');
+        if (trackerPriceMode === 'lowHigh' && trackerView === 'held' && sum.priced < sum.total) {
+          box.innerHTML += '<p class="tsum-note">平均與正報酬比例以 ' + sum.priced + ' / ' + sum.total + ' 檔有效行情計算；待補或報價待更新的標的未列入。</p>';
+        }
       } else {
         box.innerHTML = '';
       }
@@ -2731,7 +2734,7 @@ function restatesEarlier_(key, earlier) {
   function emitTideChart(){
     document.dispatchEvent(new CustomEvent('tide:chart',{detail:{code:currentCode,period:period,rows:rawData,
       daily:(candleMemo[currentCode]||{}).day||[],chart:chart,series:candleSeries,toTime:toTime,
-      tracker:DETAIL.tracker,round:DETAIL.trendRound,
+      tracker:trackerItemForView_(DETAIL.tracker),round:DETAIL.trendRound,
       selectRound:function(index){var list=DETAIL.tracker&&DETAIL.tracker.roundList||[];DETAIL.trendRound=index===list.length-1?undefined:index;paintTrend();emitTideChart();},
       paneState:panes,setPane:function(name){if(name==='none'){Object.keys(panes).forEach(function(k){panes[k]=false;});}else{panes[name]=!panes[name];}applyPanes();emitTideChart();},panes:{volume:volChart,macd:macdChart,kd:kdChart,rsi:rsiChart}}}));
   }
@@ -2981,7 +2984,7 @@ function restatesEarlier_(key, earlier) {
       kv('進場價', '<span title="' + esc(costSrcText(t.entrySrc)) + '">' + fmtPx(t.entry) + '</span>') +
       (t.openBy === '會員持股聲明'
         ? kv('進場依據', '影片中明講「會員目前持有」，非當日成交'
-             + '<span class="srcnote">沒有對應的買入紀錄，取聲明當日高低平均作追蹤基準</span>') : '') +
+             + '<span class="srcnote">' + (t._priceMode === 'lowHigh' ? '沒有對應的買入紀錄，取聲明取價日最低價作試算基準' : '沒有對應的買入紀錄，取聲明當日高低平均作追蹤基準') + '</span>') : '') +
       kv(t.stillHeld ? '目前價' : '出場價', fmtPx(t.current)) +
       kv(t.stillHeld ? '未實現報酬' : /明講賣出/.test(String(t.exitReason || '')) ? '已實現報酬' : '追蹤期間變化',
          '<span class="' + signCls(t.ret) + '">' + fmtRet(t.ret) + '</span>') +
@@ -3638,7 +3641,7 @@ function restatesEarlier_(key, earlier) {
     tradePriceLines.forEach(function (l) { try { candleSeries.removePriceLine(l); } catch (e) {} });
     tradePriceLines = [];
     if (entrySegment) { try { chart.removeSeries(entrySegment); } catch (e) {} entrySegment = null; }
-    var t = DETAIL.tracker, list = t && t.roundList || [];
+    var t = trackerItemForView_(DETAIL.tracker), list = t && t.roundList || [];
     if (period !== 'day' || !t || !list.length || !rawData.length || DETAIL.code !== currentCode) { candleSeries.setMarkers([]); return; }
     var has = {};
     rawData.forEach(function (r) { has[String(r.date).slice(0, 10)] = 1; });

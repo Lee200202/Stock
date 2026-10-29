@@ -151,7 +151,9 @@ def preview(book, day, raw, source, commit, state, reference, output, snapshots,
         'errors': list(dict.fromkeys(errors)), 'warnings': list(dict.fromkeys(warnings)),
         'status': 'failed' if errors else 'passed', 'model_calls': pl._GEMINI_CALLS['n'],
         'usage': pl.gemini_usage_report(), 'blocked_writes': len(dry.blocked),
-        'protected_sms_notes': '既有通知說明不由本候選改寫，不計為本輪模型產出'}
+        'protected_sms_notes': '既有通知說明不由本候選改寫，不計為本輪模型產出',
+        # 私人診斷：這一次送出的來源對齊請求（匿名查詢、當時的事實帳本、公司候選）與原始回覆，供定位整批不足等異常
+        'alignment_trace': list(getattr(pl, '_ALIGNMENT_TRACE', []))}
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(seal(payload), ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     print(payload['usage'])

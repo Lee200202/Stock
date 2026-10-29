@@ -122,6 +122,13 @@ class CompanyIdentity(unittest.TestCase):
         self.assertTrue(pl._weak_name_explicitly_stock('瑞鼎', '3592', '瑞鼎看一下他的數字，月K線MACD翻紅。'))
         self.assertTrue(pl._weak_name_explicitly_stock('瑞鼎', '3592', '瑞鼎看一下他的數字，MACD翻紅。'))
 
+    def test_i09_a_code_anchors_only_its_own_occurrence(self):
+        # 前文真的講了 5287 數字這家公司，後面「他的數字」仍是一般用語，不能切掉瑞鼎的 MACD 證據；反向排列也一樣。
+        self.assertTrue(pl._weak_name_explicitly_stock('瑞鼎', '3592', '5287數字先不看。瑞鼎看一下他的數字，MACD翻紅。'))
+        self.assertTrue(pl._weak_name_explicitly_stock('瑞鼎', '3592', '瑞鼎看一下他的數字，MACD翻紅。5287數字先不看。'))
+        # 貼著代號的那一次仍是公司提及：「世界」不能借它的漲跌。
+        self.assertFalse(pl._weak_name_explicitly_stock('世界', '5347', '你世界第一名，5287數字今天大漲。'))
+
     def test_i08_boundaries_do_not_depend_on_other_rows_classification(self):
         # 函式只收原稿，沒有「其他候選／分類」參數：鄰股公開與否、一般詞是否誤入候選，都不能改變本股的身分判斷。
         import inspect
@@ -274,6 +281,84 @@ class AlignmentBatchRetry(unittest.TestCase):
         self.assertEqual(len(ledger['alignment_batches'][0]['format_problems']['missing_ids']), 4)
         self.assertEqual(bindings, {})
 
+    def test_truncation_splits_have_a_hard_cap(self):
+        def always_truncated(n, batch):
+            raise RuntimeError('輸出遭截斷（測試）')
+        calls, ledger, bindings = self.run_alignment(None, whole=always_truncated)
+        self.assertLessEqual(len(calls), 1 + pl.ALIGNMENT_TRUNCATION_CALL_CAP)
+        self.assertLessEqual(ledger['alignment_truncation_calls'], pl.ALIGNMENT_TRUNCATION_CALL_CAP)
+        self.assertEqual(bindings, {})
+        with patch.object(pl, 'ALIGNMENT_TRUNCATION_CALL_CAP', 2):
+            calls, ledger, _ = self.run_alignment(None, whole=always_truncated)
+        self.assertEqual([len(c) for c in calls], [4, 2, 2])
+        self.assertIn('truncation_budget', [d.get('deferred') for d in ledger['alignment_batches']])
+
+    def test_sixteen_queries_that_always_truncate_stay_bounded(self):
+        note = ''.join(f'瑞鼎第{i}個主張MACD翻紅。' for i in range(16))
+        calls = []
+
+        def fake(system, payload, **kw):
+            calls.append(len(json.loads(payload)['queries']))
+            raise RuntimeError('輸出遭截斷（測試）')
+
+        signals = {'holdings': [{'name': '瑞鼎', 'code': '3592', 'note': note, '_date': '2026/10/29'}]}
+        ledger = {'facts': {}, 'company_candidates': {'3592': ['瑞鼎']}}
+        with patch.object(pl, 'call_gemini', fake), patch.object(pl, 'budget_left', lambda: 10_000), \
+                contextlib.redirect_stdout(io.StringIO()):
+            pl.align_anonymous_claims(signals, self.TX + note, ledger)
+        self.assertEqual(calls[0], 16)
+        self.assertLessEqual(len(calls), 1 + pl.ALIGNMENT_TRUNCATION_CALL_CAP)   # 先前會送 31 次
+
+    def test_mistyped_reply_fields_are_format_problems_not_crashes(self):
+        def whole(n, batch):
+            if n == 1:
+                bad = [{'id': [batch[0]['id']], 'relation': 'insufficient'},
+                       {'id': batch[1]['id'], 'relation': 'insufficient', 'evidence': 1},
+                       {'id': batch[2]['id'], 'relation': 'insufficient', 'fact_ids': 'E1'},
+                       self.insufficient(batch[3])]
+                return json.dumps({'matches': bad}, ensure_ascii=False)
+            return json.dumps({'matches': [self.insufficient(q) for q in batch]}, ensure_ascii=False)
+        calls, ledger, bindings = self.run_alignment(None, whole=whole)
+        first = ledger['alignment_batches'][0]
+        self.assertEqual(first['format_problems']['mistyped_replies'], 3)
+        self.assertEqual(first.get('retry'), 'format_recheck')
+        self.assertEqual([len(c) for c in calls], [4, 3])        # 只補核型別錯的三項
+        self.assertEqual(bindings, {})                           # 格式錯誤不會變成有來源支持
+
+    def test_the_trace_keeps_the_request_and_the_raw_reply(self):
+        pl._ALIGNMENT_TRACE.clear()
+        self.run_alignment(lambda n, q: self.entailed(q))
+        trace = pl._ALIGNMENT_TRACE[-1]
+        self.assertEqual([q['text'] for q in trace['queries']][2], '日K線突破所有均線')
+        self.assertIn('entailed', trace['raw_reply'])
+        self.assertIn('3592', trace['company_candidates'])
+        pl._ALIGNMENT_TRACE.clear()
+
+    def test_the_recheck_ledger_carries_the_budget_in_and_out(self):
+        seen = {}
+
+        def fake_align(signals, transcript, fresh, source_hints=None):
+            seen.update(retry=fresh['alignment_retry_calls'], trunc=fresh['alignment_truncation_calls'],
+                        keys=list(fresh['alignment_retried_queries']))
+            fresh['alignment_retry_calls'] += 2
+            fresh['alignment_truncation_calls'] += 2
+            fresh['alignment_retried_queries'].append('recheck-key')
+
+        tx = '日K線突破所有均線。'
+        ledger = {'evidence_mode': 'query_owned_source_evidence', 'facts': {}, 'company_candidates': {'3592': ['瑞鼎']},
+                  'alignment_retry_calls': 4, 'alignment_truncation_calls': 6, 'alignment_retried_queries': ['initial-key']}
+        row = {'code': '3592', 'name': '瑞鼎', 'note': '瑞鼎日K線突破所有均線。', '_source_fact_ledger': ledger, 'evidence_refs': ['S0001']}
+        pending = {'1': (row, 'note', row['note'], None)}
+        items = [{'id': '1', 'source_review': {'claims': [{'id': 'c0', 'source_ids': ['S0001']}]}}]
+        review = {'status': 'insufficient', 'claims': [{'id': 'c0', 'status': 'insufficient'}]}
+        with patch.object(pl, 'align_anonymous_claims', fake_align), \
+                patch.object(pl, '_validated_source_review', lambda *a, **k: review), \
+                patch.object(pl, 'budget_left', lambda: 10_000), contextlib.redirect_stdout(io.StringIO()):
+            pl._reconcile_source_evidence(items, pending, tx, ledger)
+        self.assertEqual(seen, {'retry': 4, 'trunc': 6, 'keys': ['initial-key']})        # 新帳本帶入初核用掉的額度
+        self.assertEqual((ledger['alignment_retry_calls'], ledger['alignment_truncation_calls']), (6, 8))   # 補核用掉的帶回
+        self.assertEqual(ledger['alignment_retried_queries'], ['initial-key', 'recheck-key'])
+
     def test_a_truncated_single_query_stays_pending_and_the_rest_are_kept(self):
         def whole(n, batch):
             if any(q['text'] == '日K線突破所有均線' for q in batch):
@@ -295,6 +380,33 @@ class PositionUnknown(unittest.TestCase):
         # 「讀不到」與「確認沒有部位」分開記：後面的持有票據此不計，而不是改判成沒有持股。
         self.assertIs(pl._VERDICT_RECORDS['readable'], False)
         pl._VERDICT_RECORDS['readable'] = True
+
+
+class PositionUnknownVote(unittest.TestCase):
+    def test_p03_a_holding_vote_is_not_counted_when_the_ledger_is_unreadable(self):
+        from contextlib import ExitStack
+        raw = '甲公司本來就是我的股票，繼續抱著。'
+
+        def unreadable(*a, **k):
+            pl._VERDICT_RECORDS['readable'] = False
+            return ({}, set(), {}) if k.get('with_open') else ({}, set())
+
+        answer = {'about_itself': True, 'holding_now': True, 'quotes': {'holding_now': [raw]}}
+        sig = {'holdings': [{'name': '甲公司', 'code': '1111', 'note': '候選', '_date': '2026/10/27'}]}
+        with ExitStack() as stack:
+            for name, value in {'_CODE_MAP': {'1111': '甲公司'}, '_verdict_known': unreadable, '_verdict_cache': lambda *a, **k: {},
+                                '_own_segments': lambda *a, **k: [], '_verdict_mark': lambda *a, **k: ([{'text': raw}], raw),
+                                '_audit_direct_verdicts': lambda *a, **k: [], '_ask_verdicts': lambda *a, **k: {'1111': answer},
+                                'budget_left': lambda: 9999, 'GEMINI_KEYS': ['offline']}.items():
+                stack.enter_context(patch.object(pl, name, value))
+            stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+            out = pl._adjudicate_classes(None, sig, raw, '2026/10/27', {}, {}, 'on')
+        pl._VERDICT_RECORDS['readable'] = True
+        entry = out['_verdicts']['1111']
+        bases = [a['basis'] for a in entry.get('round_answers') or []]
+        self.assertTrue(bases and all('讀不到操作紀錄' in b for b in bases), bases)   # 「讀不到」不是看多或沒有部位的依據
+        self.assertTrue(all(v == '' for v in entry['votes']))                          # 這一票不計
+        self.assertNotEqual(entry.get('cls'), 'holdings')
 
 
 class ThinkingLevel(unittest.TestCase):

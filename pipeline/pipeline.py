@@ -7393,7 +7393,7 @@ def _company_mention_spans(heard, code, flat):
     """原稿裡已核實的其他公司提及位置，當作換股邊界；只看原文，不看任何一檔最後的分類或是否公開。
 
     算公司提及的：三字以上的官方簡稱或管理者確認的別名；講者在原稿念過自己代號的名稱（「2327國巨」）；
-    兩字簡稱則要它自己的子句就帶著股票述語（「國巨今天大漲」）。名錄撞名的一般詞（「看一下他的數字，」子句到此結束）、
+    兩字簡稱則要它自己的子句就帶著股票述語（「國巨今天大漲」）。代號只認貼著這一次出現的位置，不擴及全文同名詞。名錄撞名的一般詞（「看一下他的數字，」子句到此結束）、
     單獨的四碼數字（股價、年份）都不算（2026/10/29 審閱者反例）。"""
     names, pattern = _directory_names()
     spans = []
@@ -7403,8 +7403,9 @@ def _company_mention_spans(heard, code, flat):
             if n == heard or n in heard or heard in n:
                 continue
             c = names.get(n, '')
-            anchored = bool(c) and bool(re.search(r'(?<!\d)' + re.escape(c) + r'[^。！？!?]{0,6}' + re.escape(n), flat)
-                                         or re.search(re.escape(n) + r'[^。！？!?]{0,6}' + re.escape(c) + r'(?!\d)', flat))
+            # 只看這一次出現的位置旁邊有沒有它的代號：前文念過「5287數字」，不代表後面「他的數字」也是那家公司。
+            anchored = bool(c) and bool(re.search(r'(?<!\d)' + re.escape(c) + r'[^。！？!?]{0,6}$', flat[max(0, m.start() - 12):m.start()])
+                                         or re.match(r'[^。！？!?]{0,6}' + re.escape(c) + r'(?!\d)', flat[m.end():m.end() + 12]))
             clause = re.split(r'[，,。！？!?；;]', flat[m.end():m.end() + 24], 1)[0]
             if len(n) >= 3 or anchored or _STOCK_CONTEXT_AFTER.search(clause) or re.search(r'(?:漲|跌)了?[0-9一二三四五六七八九十兩]', clause):
                 spans.append((m.start(), m.end()))
@@ -14817,7 +14818,7 @@ def verdict_response_schema(expected_ids=None):
 # 裁決快取以（段落指紋, 版號）為鍵。改了提示詞或答案格式卻忘了升版，正式流程會沿用舊提示詞的票（2026/10/28 審閱指出：
 # v39 之後又改了提示詞，版號沒動）。版號後面自動接提示詞與格式的指紋，內容一變快取就失效；人工裁決不綁版號，不受影響。
 # 引句怎樣算對得回原文也會改變哪些票有效：驗證器版本一起進指紋（2026/10/28 審閱）
-QUOTE_VERIFIER_VERSION = 'q12r6-20261029-text-boundaries-format-recheck'
+QUOTE_VERIFIER_VERSION = 'q12r7-20261029-capped-truncation-typed-replies'
 VERDICT_VERSION = VERDICT_VERSION + '+' + hashlib.sha256(
     (ADJUDICATE_SYSTEM + json.dumps(verdict_response_schema(), ensure_ascii=False, sort_keys=True)
      + QUOTE_VERIFIER_VERSION).encode('utf-8')).hexdigest()[:8]
@@ -17872,7 +17873,9 @@ def _source_subject_checks(checks, requested, transcript, known):
     return verified
 
 
-ALIGNMENT_RETRY_CALL_CAP = 6   # 一天所有對齊呼叫（初核與各次補核）合計最多為補問多送幾個請求
+ALIGNMENT_RETRY_CALL_CAP = 6        # 同一次日候選處理內（初核與各次補核共用），格式補核＋全不足拆問最多多送幾個請求
+ALIGNMENT_TRUNCATION_CALL_CAP = 8    # 截斷拆批另計的硬上限；用完時其餘截斷的項目留待核
+_ALIGNMENT_TRACE = []                # 這一次處理送出的對齊請求與原始回覆（單日預覽寫進私人候選檔；每日流程不保存）
 
 
 def _alignment_retry_take(ledger, queries, calls):
@@ -17963,7 +17966,10 @@ def align_anonymous_claims(signals, transcript, ledger, source_hints=None):
                 raise
             # 一批被截斷原本讓整輪書面化中斷、全部個股變成「逐項來源審閱未完成」而隔離（2026/10/28 重播 15 檔）。
             # 對半拆開重問；只剩一項仍截斷，那一項留待核，其他照常。
-            if len(batch) > 1:
+            # 截斷拆批也算額外請求：另有硬上限，與格式補核／全不足拆問分開記帳。用完時這一批全部留待核。
+            used = ledger.get('alignment_truncation_calls', 0)
+            if len(batch) > 1 and used + 2 <= ALIGNMENT_TRUNCATION_CALL_CAP:
+                ledger['alignment_truncation_calls'] = used + 2
                 halves = [batch[:len(batch) // 2], batch[len(batch) // 2:]]
                 work[:0] = halves
                 parents.update({tuple(q['id'] for q in h): label for h in halves})
@@ -17971,7 +17977,9 @@ def align_anonymous_claims(signals, transcript, ledger, source_hints=None):
                                     'requested': len(batch), 'received': 0, 'retry': 'split_after_truncation', 'max_out': max_out,
                                     'thinking_level': os.environ.get('GEMINI_THINKING_LEVEL', '').strip().lower() or 'auto'})
             else:
-                diagnostics.append({'requested': 1, 'received': 0, 'deferred': 'truncated', 'query_id': batch[0].get('id'), 'max_out': max_out})
+                diagnostics.append({'batch': label, 'parent': parent, 'query_ids': [q['id'] for q in batch],
+                                    'requested': len(batch), 'received': 0, 'max_out': max_out,
+                                    'deferred': 'truncated' if len(batch) == 1 else 'truncation_budget'})
             continue
         data = safe_load_json(raw, default={})
         data = data if isinstance(data, dict) else {}
@@ -17981,7 +17989,18 @@ def align_anonymous_claims(signals, transcript, ledger, source_hints=None):
             new_id = f'A{evidence_pass}-{bno}-{fid}'
             ledger['facts'][new_id] = dict(fact, id=new_id)
             remap[fid] = new_id
+        _ALIGNMENT_TRACE.append({'batch': label, 'parent': parent, 'queries': json.loads(json.dumps(batch, ensure_ascii=False)),
+            'facts': compact_source_facts(ledger), 'sources_sha256': hashlib.sha256(json.dumps(attribution_sources(transcript),
+                ensure_ascii=False, sort_keys=True).encode()).hexdigest(),
+            'company_candidates': sorted(known), 'raw_reply': str(raw)[:40000]})
         received = [m for m in data.get('matches', []) or [] if isinstance(m, dict)]
+        # 欄位型別不對的回覆（id 不是字串、evidence／fact_ids／subject_checks 不是清單、relation 不是字串）算該項格式錯誤，
+        # 不讓整個函式拋錯，也不當成有來源支持。
+        def _well_typed(m):
+            return (isinstance(m.get('id'), str) and isinstance(m.get('relation', ''), str)
+                    and all(isinstance(m.get(k, []), list) for k in ('evidence', 'fact_ids', 'subject_checks')))
+        mistyped = [m for m in received if not _well_typed(m)]
+        received = [m for m in received if _well_typed(m)]
         # 先核回覆格式：查詢編號要唯一、屬於這一批、relation 是合法值。有回覆但格式不對（重複、陌生編號、空物件）的那幾項
         # 另外補核一次，不冒充「全部不足」；整批完全沒回（漏回）只記缺項待核，不重問。格式完整的照常採用（已有證據的不重問）。
         batch_ids = [q['id'] for q in batch]
@@ -17998,12 +18017,13 @@ def align_anonymous_claims(signals, transcript, ledger, source_hints=None):
         redo = [q for q in batch if q['id'] not in {m.get('id') for m in valid}]
         if redo:
             record['format_problems'] = {k: v for k, v in {
+                'mistyped_replies': len(mistyped),
                 'duplicate_ids': sorted(str(k) for k, ms in by_id.items() if k in batch_ids and len(ms) > 1),
                 'unknown_ids': sorted(str(k) for k in by_id if k not in batch_ids),
                 'missing_ids': [qid for qid in batch_ids if qid not in by_id],
                 'invalid_relation': sorted(str(k) for k, ms in by_id.items() if k in batch_ids and len(ms) == 1
                                            and ms[0].get('relation') not in ('entailed', 'insufficient'))}.items() if v}
-            if received and _alignment_retry_take(ledger, redo, calls=1):
+            if (received or mistyped) and _alignment_retry_take(ledger, redo, calls=1):
                 work.insert(0, redo)
                 parents[tuple(q['id'] for q in redo)] = label
                 record['retry'] = 'format_recheck'
@@ -18618,13 +18638,15 @@ def _reconcile_source_evidence(items, pending, transcript, ledger):
     fresh_ledger.update(company_candidates=ledger.get('company_candidates') or {},
         alignment_passes=ledger.get('alignment_passes', 0),
         alignment_retried_queries=list(ledger.get('alignment_retried_queries') or []),
-        alignment_retry_calls=ledger.get('alignment_retry_calls', 0))
+        alignment_retry_calls=ledger.get('alignment_retry_calls', 0),
+        alignment_truncation_calls=ledger.get('alignment_truncation_calls', 0))
     align_anonymous_claims({'watch_watch': probes}, transcript, fresh_ledger, source_hints=hints)
     ledger['facts'].update(fresh_ledger['facts'])
     ledger['alignment_passes'] = fresh_ledger.get('alignment_passes', ledger.get('alignment_passes', 0))
     # 補問次數與上限跨初核、補核共用
     ledger['alignment_retried_queries'] = fresh_ledger.get('alignment_retried_queries') or []
     ledger['alignment_retry_calls'] = fresh_ledger.get('alignment_retry_calls', 0)
+    ledger['alignment_truncation_calls'] = fresh_ledger.get('alignment_truncation_calls', 0)
     for key in ('alignment_checks', 'alignment_batches'):
         ledger.setdefault(key, []).extend(fresh_ledger.get(key) or [])
     ledger['rejected_count'] = ledger.get('rejected_count', 0) + fresh_ledger.get('rejected_count', 0)

@@ -6873,10 +6873,13 @@ def explicit_today_trades(transcript, names, cat):
         if index > 0 and sentences[index - 1].endswith(('？', '?')) and any(n in s for n in names) and not any(n in sentences[index - 1] for n in names):
             s = sentences[index - 1] + s
             revealed = True
-        # 問句接答句只補回「哪一檔」，不證明已經成交：答句說要等條件才下單，就還沒買（另一位審閱者的反例
-        # 「我們今天買哪一檔股票？就是3017奇鋐，等跌到720才下單」）。
-        if revealed and re.search(r'等[^。！？!?]{0,16}(?:才|再)(?:要)?(?:下單|' + ('賣|出場' if cat == 'sell' else '買|進場|布局') + r')|還沒(?:有)?(?:下單|'
-                                  + ('賣' if cat == 'sell' else '買|進場') + r')', s):
+        # 問句接答句（「哪一檔？／哪檔：X」）只補回是哪一檔，不證明已經成交：答句說還沒下單、要等條件才下單，就還沒做；
+        # 同句也講了已經成交的部分（「已成交一半，剩下等條件」）才算有做（另一位審閱者的反例）。
+        revealed = revealed or bool(re.search(r'哪一?[隻支檔](?:股票|個股)?[？?：:]', s))
+        verbs = '賣|出場' if cat == 'sell' else '買|進場|布局'
+        pending = re.search(r'等[^。！？!?]{0,16}(?:才|再)(?:要)?(?:下單|' + verbs + r')|(?:還沒|尚未|未)(?:有)?(?:下單|成交|' + verbs + r')', s)
+        done = re.search(r'已(?:經)?(?:成交|下單|' + verbs + r')|(?:成交|' + verbs + r')(?:進)?了', s)
+        if revealed and pending and not done:
             continue
         if not execution_statement(s, cat) or not any(n in s for n in names):
             continue
@@ -13731,7 +13734,7 @@ def _shared_conclusion_scope(text, start, end, limit=8):
 
     2026/10/29「昨天玉晶光漲停…今天跌停。昨天金策漲停…。昨天聯電漲5塊…今天聯電跌停。我問你…為什麼我昨天跟你們講，不要買」
     三檔共用一個結論；「台積電守穩季線，會員續抱。奇鋐跟雙鴻，這幾檔股票千萬不要買」的台積電已有自己的結論，不在名單裡。
-    結論句自己點名（「奇鋐跟雙鴻，這幾檔」）時名單就是那幾檔，不再往前收。
+    結論句自己點名（「奇鋐跟雙鴻，這幾檔」）時名單就是那幾檔，不再往前收；往前收到換題句為止。
     """
     conclusion = text[start:end]
     demo = re.search(r'這種|這些|這幾[檔支隻]|這類|以上', conclusion)
@@ -13742,6 +13745,9 @@ def _shared_conclusion_scope(text, start, end, limit=8):
         if re.search(r'續抱|抱著|抱緊|持有|會員|買進|買回|賣出|賣掉|停損|不要|不能|千萬|可以買|留意', s):
             break
         scope.insert(0, s)
+        # 換題句（「接下來只談散熱股」「那我們來看…」）是這份名單的開頭，再往前是另一個話題。
+        if re.search(r'^(?:好[，,]?)?(?:接下來|再來|另外|換(?:個|到)|那我們|我們來|回頭)|(?:只|來)(?:談|講|看)', s):
+            break
     return ''.join(scope)
 
 
@@ -14733,7 +14739,7 @@ def verdict_response_schema(expected_ids=None):
 # 裁決快取以（段落指紋, 版號）為鍵。改了提示詞或答案格式卻忘了升版，正式流程會沿用舊提示詞的票（2026/10/28 審閱指出：
 # v39 之後又改了提示詞，版號沒動）。版號後面自動接提示詞與格式的指紋，內容一變快取就失效；人工裁決不綁版號，不受影響。
 # 引句怎樣算對得回原文也會改變哪些票有效：驗證器版本一起進指紋（2026/10/28 審閱）
-QUOTE_VERIFIER_VERSION = 'q12-20261029-final-generalized-cot-and-depth'
+QUOTE_VERIFIER_VERSION = 'q12r1-20261029-pending-orders-scope-tense'
 VERDICT_VERSION = VERDICT_VERSION + '+' + hashlib.sha256(
     (ADJUDICATE_SYSTEM + json.dumps(verdict_response_schema(), ensure_ascii=False, sort_keys=True)
      + QUOTE_VERIFIER_VERSION).encode('utf-8')).hexdigest()[:8]
@@ -17706,6 +17712,8 @@ coverage只在已讀完整原稿、該匿名主張的所有本股與他股支持
 每項回覆原樣複製query_text，並回答entails_all_details。只有事實支持主張全部細節（包括每個數字、時間、動作、條件）才可true及entailed。不同價格的下跌不能互換；目標價上調不等於跌24%；某句同有否定詞不等於同一主張。不完整支持一律insufficient，不能為配對而挑最相近的fact。
 逐項判斷哪些facts真正支持該匿名主張；fact.statement的主體與事實必須相符，source_quote只核對該主體的上下文，不得因同段另一家公司也說過某事就把它綁給本fact。
 例如某fact只說乙公司股本小，不能支持「目前沒有買進」；另一fact明講甲公司未買進才可。修飾只屬其中一人的特徵不能分享給並列成員。
+時態與語氣也是細節：原句是預期或條件（「會突破」「等它過了再說」），不能支持寫成已完成的主張（「順利突破」）；主張下的評語（某某面強勢、結構完整）要有原句內容對應，只有其中一部分有依據就是insufficient。
+本股是主體、他股或大盤只拿來比較（「人家怎麼跌都不關它的事」「大盤跌它不跌」）仍是本股自己的事實，不是他股主張；反過來，同段講大盤或另一檔的數字，不能配給本股。
 列出所有確實支持的主體證據，同一句支持多檔要逐檔列出，不能只選最像草稿的一檔。不按最近名稱、價格帶判斷。不要遺漏query_text與entails_all_details。statement不得抄入原稿沒有的數字；無完整依據就答insufficient。只輸出JSON：{"matches":[{"id":"Q0001","query_text":"逐字複製該query.text","entails_all_details":true,"relation":"entailed","coverage":"complete","evidence":[{"subject_code":"原稿真正主體代號","source_ids":["S0001"],"statement":"原句確實表達的最小事實，含時間條件"}],"fact_ids":[]}]}。fact_ids只供引用已提供的facts，通常留空；新增證據用evidence，程式會編號。不支持則entails_all_details=false、relation=insufficient、evidence=[]。
 講者明說接下來是謊話、反話示範、舉例或假設（「我今天要說謊話」「如果我是那種投顧會這樣講」「假如」）的那幾句，講的不是事實，不能寫成本股當天的交易、漲停、消息或立場；之後他講「說真話」的部分才是。"""
 
@@ -17938,6 +17946,34 @@ def align_anonymous_claims(signals, transcript, ledger, source_hints=None):
             checks[-1]['bound_by'] = 'own_subject_check'
 
 
+_ORDINARY_MIAN = {'方面', '層面', '全面', '表面', '盤面', '局面', '正面', '負面', '前面', '後面', '上面', '下面', '裡面',
+                  '外面', '場面', '畫面', '見面', '版面', '介面', '檯面', '台面', '對面', '兩面', '反面'}
+
+
+def _claim_overreach(text, source, own_names=()):
+    """對齊模型判「完整支持」後，程式再核它常放過的兩件事（2026/10/29 神準，run 40850017084，審閱者指出）：
+    1. 時態：主張寫成已完成（順利／已經／成功＋動作），原句對同一個動作只有預期或條件（「高點會突破…等它過了再說」）。
+    2. 附加評語：主張用「X面」下判斷（「基本面與技術面同步強勢」），原句沒有這個面向，拿掉面向後剩下的字也對不回原句。
+    只回傳卡點、不改寫；沒過的那一句由逐項投影移出，同一則其他已核實的句子照常保留。"""
+    src = re.sub(r'\s+', '', str(source or ''))
+    claim = re.sub(r'\s+', '', str(text or ''))
+    for m in re.finditer(r'(?:順利|已經|已|成功)([一-鿿]{2})', claim):
+        act = m.group(1)
+        hits = [h.start() for h in re.finditer(re.escape(act), src)]
+        if hits and all(re.search(r'(?:會|將|要|等|準備|可望|有機會|如果|若|才|預期)[^。！？!?，,]{0,6}$', src[max(0, h - 8):h]) for h in hits):
+            return f'主張把原句的預期或條件寫成已完成（「{m.group(0)}」；原句的「{act}」都還沒發生）'
+    labels = [m.group(0) for m in re.finditer(r'[一-鿿]{2}面(?![臨對前子積貌試談板膜具紗])', claim) if m.group(0)[1:] not in _ORDINARY_MIAN]
+    missing = [label for label in labels if label[:2] not in src]
+    if missing:
+        rest = claim
+        for word in sorted([n for n in own_names if n] + labels, key=len, reverse=True):
+            rest = rest.replace(word, '')
+        rest = re.sub(r'[與和及、，,；;。]|同步|皆|都|均|呈現|表現', '', rest)
+        if not any(rest[i:i + 2] in src for i in range(len(rest) - 1)):
+            return f'主張的「{"、".join(missing)}」評語在原句沒有依據，其餘內容也對不回原句'
+    return ''
+
+
 def _quote_spans_in_source(quote, transcript_norm):
     """模型引句可用「…」或「...」節錄同一段的前後句：每一段（至少 6 字）都要逐字出現在原稿，而且前後順序相同。"""
     raw = str(quote or '').strip()
@@ -18147,6 +18183,11 @@ def _validated_source_review(item, row, old, transcript):
                         why.append(f'匿名主張對齊判為 {candidate.get("relation") or "空"}（不是 entailed）')
                 else:
                     why.append('對齊與審閱回覆都不足以單獨成立')
+        if valid and status == 'supported' and required:
+            overreach = _claim_overreach(claim['text'], quote, own)
+            if overreach:
+                valid = False
+                why.append(overreach)
         if not valid:
             status = 'insufficient'
             explanation = '未通過來源核對：' + '；'.join(dict.fromkeys(why or ['未提供唯一主張編號、可核回的主體及連續原句'])) + '；不能推定通過'

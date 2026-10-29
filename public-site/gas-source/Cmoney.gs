@@ -1402,28 +1402,28 @@ function cmMailBody_(a, revised, correction) {
   // 標題卡與每日整理同一個樣式（mc-hero／mc-hero-k），網站的深色模式規則也就一併適用。
   var hero =
     '<div class="mc-hero" style="background:#17322A;background-image:linear-gradient(125deg,#0A4A3C,#0E6551 55%,#1F6F8B);border-radius:28px;padding:24px 24px 26px;margin:0 0 14px;">' +
-      '<div class="mc-hero-k" style="font-size:13px;letter-spacing:0.14em;font-weight:700;color:' +
+      '<div class="mc-hero-k" style="font-size:16px;letter-spacing:0.14em;font-weight:700;color:' +
         (revised || correction ? '#F7DDA5' : '#9CC8B4') + ';">' + (correction ? '文字補充' : revised ? '內容已修訂' : '盤中即時通知') + '</div>' +
       /* 首屏（v54，Codex 規格 83）：大字是「日期 時間 · 會員操作通知」，原文緊接在下面；
          不寫「某某發了一則簡訊」這種沒有資訊的句子，也不等影片或模型補說明。 */
-      '<h1 style="font-size:21px;line-height:1.5;margin:8px 0 0;font-weight:700;color:#FFFFFF;">' +
+      '<h1 style="font-size:26px;line-height:1.5;margin:8px 0 0;font-weight:700;color:#FFFFFF;">' +
         (date ? esc_(date.slice(5)) + ' ' : '') + (clock ? esc_(clock) + ' · ' : '') + '會員操作通知</h1>' +
     '</div>';
 
   var quote = lines.map(function (t) {
     var shown=esc_(t);if(typeof mailConditionPills_==='function'){shown=mailConditionPills_(shown);}
-    return '<p style="margin:0 0 10px;font-size:15.5px;line-height:1.95;color:#12161A;">' + shown + '</p>';
+    return '<p style="margin:0 0 10px;font-size:19px;line-height:1.95;color:#12161A;">' + shown + '</p>';
   }).join('');
 
   var revisedNote = correction
-    ? '<p style="margin:0 0 12px;font-size:13px;line-height:1.7;color:#6B4A08;background:#FCEDCD;' +
+    ? '<p style="margin:0 0 12px;font-size:16px;line-height:1.7;color:#6B4A08;background:#FCEDCD;' +
         'border-radius:10px;padding:8px 12px;">先前通知的原文顯示不完整。這封補上同一則的完整原文，並非新的操作指示；請以原始發文時間與條件核對。</p>'
-    : revised ? '<p style="margin:0 0 12px;font-size:13px;line-height:1.7;color:#6B4A08;background:#FCEDCD;' +
+    : revised ? '<p style="margin:0 0 12px;font-size:16px;line-height:1.7;color:#6B4A08;background:#FCEDCD;' +
         'border-radius:10px;padding:8px 12px;">他剛修改了這一篇，下面是修改後的完整內容；網站上的整理會跟著重新解析。</p>' : '';
 
   var pill = function (href, text, primary) {
     return '<a href="' + esc_(href) + '" target="_blank" rel="noopener noreferrer" style="display:inline-block;margin:0 8px 8px 0;border-radius:999px;' +
-      'padding:14px 26px;line-height:24px;font-size:16px;font-weight:600;text-decoration:none;cursor:pointer;-webkit-text-size-adjust:none;touch-action:manipulation;' +
+      'padding:14px 26px;line-height:24px;font-size:20px;font-weight:600;text-decoration:none;cursor:pointer;-webkit-text-size-adjust:none;touch-action:manipulation;' +
       (primary ? 'background:#04795C;color:#FFFFFF;border:1px solid #04795C;'
                : 'background:#FFFFFF;color:#12161A;border:1px solid #C3CBC6;') + '">' + text + '</a>';
   };
@@ -1431,7 +1431,7 @@ function cmMailBody_(a, revised, correction) {
   var card =
     '<div class="mc-sec" style="background:#FDFDFC;border:1px solid #D9DFDA;border-radius:24px;' +
       'padding:20px 18px 12px;margin:0 0 14px;">' +
-      '<h2 class="mc-h2" style="font-size:17px;line-height:1.45;margin:0 0 12px;font-weight:700;color:#12161A;">' +
+      '<h2 class="mc-h2" style="font-size:21px;line-height:1.45;margin:0 0 12px;font-weight:700;color:#12161A;">' +
         '<span style="display:inline-block;width:6px;height:16px;border-radius:3px;background:#04795C;' +
           'margin-right:8px;vertical-align:-2px;"></span>簡訊原文</h2>' +
       revisedNote +
@@ -1439,7 +1439,7 @@ function cmMailBody_(a, revised, correction) {
         'padding:16px 18px 8px;margin:0 0 18px;">' + quote + '</div>' +
       (a.url ? pill(a.url, '看原文', true) : '') +
       (site ? pill(site, '到網站看整理', false) : '') +
-      '<p style="margin:6px 0 4px;font-size:13.5px;line-height:1.7;color:#667069;">' +
+      '<p style="margin:6px 0 4px;font-size:16.5px;line-height:1.7;color:#667069;">' +
         '這是轉貼自公開論壇的完整原文，文字沒有改寫；僅限已同意的盤中通知收件者。公開網站的價位另依公開版規則處理。</p>' +
     '</div>';
 

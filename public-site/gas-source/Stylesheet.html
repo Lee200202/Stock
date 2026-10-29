@@ -3118,6 +3118,13 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
 .tracker-sortbar { display: flex; align-items: center; gap: 10px; margin: 0; min-width: 0; max-width: 100%; }
 .tracker-sortbar[hidden] { display: none; }
 .tracker-calculation { display: flex; align-items: center; gap: 10px; min-width: 0; max-width: 100%; }
+/* v209r1（2026/10/29 管理者）：整體績效的「指標」與「計算方式」排在同一行，不換行；畫面太窄時左右滑動，不折成兩行。 */
+.perf-toolbar { display: flex; flex-wrap: nowrap; align-items: center; justify-content: center; gap: 12px 24px; margin: 0 0 14px;
+  overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; scrollbar-width: none; }
+.perf-toolbar::-webkit-scrollbar { display: none; }
+.perf-toolbar .chartbar.seg { flex: none; flex-wrap: nowrap; margin: 0; }
+.perf-toolbar .tracker-calculation { flex: none; max-width: none; }
+.perf-toolbar .pill { flex: none; white-space: nowrap; }
 .tracker-calculation[hidden] { display: none; }
 .tracker-calculation .chartbar.seg { display: flex; margin: 0; white-space: nowrap; }
 .tracker-calculation .pill { flex: none; white-space: nowrap; }

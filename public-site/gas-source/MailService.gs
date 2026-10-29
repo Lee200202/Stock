@@ -90,17 +90,17 @@ function siteBrandLine_() { return siteName_() + '　' + ((typeof SITE_TAGLINE =
    一律 inline style、屬性內不用雙引號、每段文字都寫明顏色（深色模式收件匣不會反白）。 */
 function mailHero_(kicker, title, subHtml, kickerColor) {
   return '<div class="mc-hero" style="background:#17322A;background-image:linear-gradient(125deg,#0A4A3C,#0E6551 55%,#1F6F8B);border-radius:28px;padding:24px 24px 26px;margin:0 0 14px;">' +
-    '<div class="mc-hero-k" style="font-size:13px;letter-spacing:0.14em;font-weight:700;color:' +
+    '<div class="mc-hero-k" style="font-size:14.5px;letter-spacing:0.14em;font-weight:700;color:' +
       (kickerColor || '#9CC8B4') + ';">' + esc_(kicker) + '</div>' +
-    '<h1 style="font-size:21px;line-height:1.5;margin:8px 0 0;font-weight:700;color:#FFFFFF;">' + esc_(title) + '</h1>' +
-    (subHtml ? '<div style="font-size:13.5px;line-height:1.6;color:#9CC8B4;margin:2px 0 0;">' + subHtml + '</div>' : '') +
+    '<h1 style="font-size:24px;line-height:1.5;margin:8px 0 0;font-weight:700;color:#FFFFFF;">' + esc_(title) + '</h1>' +
+    (subHtml ? '<div style="font-size:15px;line-height:1.6;color:#9CC8B4;margin:2px 0 0;">' + subHtml + '</div>' : '') +
   '</div>';
 }
 
 function mailSection_(heading, innerHtml) {
   return '<div class="mc-sec" style="background:#FDFDFC;border:1px solid #D9DFDA;border-radius:24px;' +
       'padding:20px 18px 12px;margin:0 0 14px;">' +
-    '<h2 class="mc-h2" style="font-size:17px;line-height:1.45;margin:0 0 12px;font-weight:700;color:#12161A;">' +
+    '<h2 class="mc-h2" style="font-size:19px;line-height:1.45;margin:0 0 12px;font-weight:700;color:#12161A;">' +
       '<span style="display:inline-block;width:6px;height:16px;border-radius:3px;background:#04795C;' +
         'margin-right:8px;vertical-align:-2px;"></span>' + esc_(heading) + '</h2>' +
     innerHtml +
@@ -109,18 +109,18 @@ function mailSection_(heading, innerHtml) {
 
 function mailPill_(href, text, primary) {
   return '<a href="' + escAttr_(href) + '" target="_blank" rel="noopener noreferrer" style="display:inline-block;margin:0 8px 8px 0;border-radius:999px;' +
-    'padding:14px 26px;line-height:24px;font-size:16px;font-weight:600;text-decoration:none;cursor:pointer;-webkit-text-size-adjust:none;touch-action:manipulation;' +
+    'padding:14px 26px;line-height:24px;font-size:18px;font-weight:600;text-decoration:none;cursor:pointer;-webkit-text-size-adjust:none;touch-action:manipulation;' +
     (primary ? 'background:#04795C;color:#FFFFFF;border:1px solid #04795C;'
              : 'background:#FFFFFF;color:#12161A;border:1px solid #C3CBC6;') + '">' + esc_(text) + '</a>';
 }
 
 function mailBullet_(text) {
-  return '<div class="mail-bullet" style="margin:12px 0;padding-left:16px;text-indent:-13px;font-size:15px;' +
+  return '<div class="mail-bullet" style="margin:12px 0;padding-left:16px;text-indent:-13px;font-size:16.5px;' +
     'line-height:1.85;color:#26312C;"><span style="color:#04795C;font-weight:700;">•</span> ' + esc_(text) + '</div>';
 }
 
 function mailNote_(text) {
-  return '<p style="margin:6px 0 4px;font-size:13.5px;line-height:1.7;color:#667069;">' + esc_(text) + '</p>';
+  return '<p style="margin:6px 0 4px;font-size:15px;line-height:1.7;color:#667069;">' + esc_(text) + '</p>';
 }
 
 /* 管理者通知信的內文（v101）。純文字逐行轉成段落；「標籤：內容」把標籤加粗；全部跳脫，不放連結以外的 HTML。 */
@@ -128,13 +128,13 @@ function adminNoticeHtml_(subject, body) {
   var paras = String(body || '').split(/\n+/).map(function (l) { return l.trim(); }).filter(String).map(function (l) {
     var kv = l.match(/^([^：:。，,\s]{2,14})[：:]\s*([\s\S]+)$/);
     var text = kv ? '<b style="color:#12161A;">' + esc_(kv[1]) + '</b>：' + esc_(kv[2]) : esc_(l);
-    return '<p class="mc-p" style="margin:12px 0;font-size:15px;line-height:1.85;color:#26312C;">' + text + '</p>';
+    return '<p class="mc-p" style="margin:12px 0;font-size:16.5px;line-height:1.85;color:#26312C;">' + text + '</p>';
   }).join('');
   var now = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy/MM/dd HH:mm');
   return mailShell_(mailPreheader_(subject) +
-    '<div class="mc-brand" style="padding:2px 4px 10px;font-size:12px;letter-spacing:0.14em;font-weight:700;color:#4A5A52;">' + siteBrandLine_() + '</div>' +
+    '<div class="mc-brand" style="padding:2px 4px 10px;font-size:13px;letter-spacing:0.14em;font-weight:700;color:#4A5A52;">' + siteBrandLine_() + '</div>' +
     mailHero_('管理者通知', subject, esc_(now)) +
-    mailSection_('通知內容', paras || '<p class="mc-p" style="margin:12px 0;font-size:15px;line-height:1.85;color:#26312C;">（沒有內文）</p>') +
+    mailSection_('通知內容', paras || '<p class="mc-p" style="margin:12px 0;font-size:16.5px;line-height:1.85;color:#26312C;">（沒有內文）</p>') +
     mailNote_('這封信只寄給管理者；處理進度與原因可到後台「今日與投稿」「自動化監控」核對。'));
 }
 
@@ -153,14 +153,14 @@ function subscriptionItemsHtml_(on) {
     var yes = !!on[k.key];
     return '<div style="border-left:3px solid ' + (yes ? '#04795C' : '#C3CBC6') + ';background:' +
         (yes ? '#F3F6F4' : '#FFFFFF') + ';border-radius:20px;padding:10px 14px 8px;margin:0 0 10px;">' +
-      '<div style="font-size:15px;line-height:1.5;font-weight:700;color:' + (yes ? '#12161A' : '#667069') + ';">' +
+      '<div style="font-size:16.5px;line-height:1.5;font-weight:700;color:' + (yes ? '#12161A' : '#667069') + ';">' +
         esc_(k.name) +
-        '<span style="display:inline-block;margin-left:8px;border-radius:999px;padding:0 8px;font-size:13px;' +
+        '<span style="display:inline-block;margin-left:8px;border-radius:999px;padding:0 8px;font-size:14.5px;' +
           'line-height:20px;font-weight:700;vertical-align:1px;background:' + (yes ? '#BEE2CC' : '#E8ECEA') +
           ';color:' + (yes ? '#04583F' : '#5F6E67') + ';">' + (yes ? '已訂閱' : '未訂閱') + '</span></div>' +
-      '<div style="font-size:13.5px;line-height:1.6;font-weight:600;color:' + (yes ? '#04795C' : '#8A958F') +
+      '<div style="font-size:15px;line-height:1.6;font-weight:600;color:' + (yes ? '#04795C' : '#8A958F') +
         ';margin:2px 0 4px;">' + esc_(k.when) + '</div>' +
-      '<div style="font-size:13.5px;line-height:1.75;color:' + (yes ? '#26312C' : '#8A958F') + ';">' + esc_(k.desc) + '</div>' +
+      '<div style="font-size:15px;line-height:1.75;color:' + (yes ? '#26312C' : '#8A958F') + ';">' + esc_(k.desc) + '</div>' +
     '</div>';
   }).join('');
 }
@@ -191,7 +191,7 @@ function sendWelcomeMail_(email, token, daily, codes, isNew, sms) {
       mailBullet_('這些是紀錄整理，不是投資建議。')) +
 
     mailSection_('想調整或停掉',
-      '<p style="margin:0 0 12px;font-size:15.5px;line-height:1.955;color:#26312C;">' +
+      '<p style="margin:0 0 12px;font-size:17px;line-height:1.955;color:#26312C;">' +
         '到網站的「訂閱通知」分頁，可以開啟或停止每日總覽；其他通知由管理者處理。' +
         '要停止所有信件，請用網站的「停止接收所有信件」或信尾的取消訂閱。</p>' +
       (site ? mailPill_(site, '到網站管理訂閱', true) : ''));
@@ -279,7 +279,7 @@ function sendUnsubscribeLink(email) {
     })) +
 
     mailSection_('想調整內容',
-      '<p style="margin:0 0 12px;font-size:15.5px;line-height:1.955;color:#26312C;">' +
+      '<p style="margin:0 0 12px;font-size:17px;line-height:1.955;color:#26312C;">' +
         '到網站的「訂閱」分頁可調整每日總覽。要停止所有通知，請用「停止接收所有信件」；' +
         '其他通知請洽管理者或使用信尾退訂連結。</p>' +
       (site ? mailPill_(site, '到網站管理訂閱', true) : '') +
@@ -1228,7 +1228,7 @@ function statusReportJob() {
     : ok ? '正常' : (status === '等待中' || status === '處理中' || status === '完成' ? '進行中' : '需要注意');
 
   var html = '<table role="presentation" width="100%" cellpadding="8" cellspacing="0" ' +
-    'style="width:100%;border-collapse:collapse;font-size:13px;line-height:1.6;color:#26312C;">' +
+    'style="width:100%;border-collapse:collapse;font-size:14.5px;line-height:1.6;color:#26312C;">' +
     '<tr><td>本日輪詢次數</td><td>' + runs.length + ' 次</td></tr>' +
     '<tr><td>影片處理狀態</td><td>' + esc_(status) + '</td></tr>' +
     '<tr><td>原始逐字稿</td><td>' + v1 + ' 字</td></tr>' +
@@ -1297,7 +1297,7 @@ function statusReportJob() {
     noShow ? 1 : 0, fails.length ? String(fails[fails.length - 1]['說明'] || '') : '',
     gate && gate.date === today ? JSON.stringify(gate.auditStat || {}) : ''].join('|');
   var branded = mailShell_(mailPreheader_(today + ' 取稿狀態：' + head) +
-    '<div style="padding:4px 2px 8px;font-size:13px;font-weight:700;letter-spacing:.08em;color:#17322A;">' + siteBrandLine_() + '</div>' +
+    '<div style="padding:4px 2px 8px;font-size:14.5px;font-weight:700;letter-spacing:.08em;color:#17322A;">' + siteBrandLine_() + '</div>' +
     mailHero_('自動化監控', today + ' · ' + head, '逐字稿、稽核與每日推播的最新進度') +
     mailSection_('今日流程', html) + mailNote_('資料來源：系統狀態、影片清單、操作紀錄、會員持股及每日推播內容。'));
   var mail = {
@@ -1501,7 +1501,7 @@ function failureAlertJob() {
   }
 
   var branded = mailShell_(mailPreheader_(subject) +
-    '<div style="padding:4px 2px 8px;font-size:13px;font-weight:700;letter-spacing:.08em;color:#17322A;">' + siteBrandLine_() + '</div>' +
+    '<div style="padding:4px 2px 8px;font-size:14.5px;font-weight:700;letter-spacing:.08em;color:#17322A;">' + siteBrandLine_() + '</div>' +
     mailHero_('自動化監控', '取稿需要處理', esc_(today)) + mailSection_('檢查結果', body));
   MailApp.sendEmail({ to: owner, subject: subject, body: mailPlainText_(branded), htmlBody: branded });
 }
@@ -1536,14 +1536,17 @@ var MAIL_FONT_ = "-apple-system,BlinkMacSystemFont,'PingFang TC','Noto Sans TC',
    代號是四到六位數字，本來就不需要等寬字體；改用與全信相同的字體，並把顏色寫明。 */
 var MAIL_CODE_COLOR_ = '#3E4944';
 
+/* 2026/10/29 管理者：參考 TradingView 的信，內容拉到收件匣全寬，字級跟著放大。
+   不再限制 680px 上限，寬度交給收件匣；外距縮小，字級全信約放大一成。
+   網站「郵件查詢」的字級由 Stylesheet.html 的 .mail-content 規則決定，不受這裡影響。 */
 function mailShell_(inner) {
   return '<div class="mail-shell" style="margin:0;padding:0;background:#E8EAE7;">' +
     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" ' +
       'style="width:100%;border-collapse:collapse;background:#E8EAE7;">' +
-    '<tr><td align="center" style="padding:24px 12px;">' +
+    '<tr><td align="center" style="padding:20px 8px;">' +
       '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" ' +
-        'style="width:100%;max-width:680px;border-collapse:collapse;">' +
-      '<tr><td class="mail-col" style="font-family:' + MAIL_FONT_ + ';font-size:15.5px;line-height:1.95;' +
+        'style="width:100%;max-width:100%;border-collapse:collapse;">' +
+      '<tr><td class="mail-col" style="font-family:' + MAIL_FONT_ + ';font-size:17px;line-height:1.95;' +
         'letter-spacing:0.04em;color:#12161A;text-align:left;">' + inner + '</td></tr>' +
       '</table>' +
     '</td></tr></table></div>';
@@ -1561,9 +1564,9 @@ var MAIL_RISK_LINES_ = [
 ];
 function mailRiskHtml_() {
   return '<div class="mc-risk" style="margin:0 0 12px;">' +
-      '<div class="mc-risk-h" style="font-size:14px;font-weight:700;color:#12161A;margin:0 0 8px;">風險揭露與重要提醒</div>' +
+      '<div class="mc-risk-h" style="font-size:15.5px;font-weight:700;color:#12161A;margin:0 0 8px;">風險揭露與重要提醒</div>' +
       MAIL_RISK_LINES_.map(function (line) {
-        return '<div class="mc-risk-li" style="font-size:13px;line-height:1.75;color:#26312C;margin:0 0 6px;">• ' + line + '</div>';
+        return '<div class="mc-risk-li" style="font-size:14.5px;line-height:1.75;color:#26312C;margin:0 0 6px;">• ' + line + '</div>';
       }).join('') +
     '</div>';
 }
@@ -1616,7 +1619,7 @@ function mailConditionPills_(text){
 
 function wrapMail_(inner, email, token, kind, pre) {
   var head =
-    '<div class="mc-brand" style="padding:2px 4px 10px;font-size:12px;letter-spacing:0.14em;' +
+    '<div class="mc-brand" style="padding:2px 4px 10px;font-size:13px;letter-spacing:0.14em;' +
          'font-weight:700;color:#4A5A52;">' + siteBrandLine_() + '</div>';
   var unsub = unsubscribeUrl_(email, token, kind);
   var foot =
@@ -1624,16 +1627,16 @@ function wrapMail_(inner, email, token, kind, pre) {
          'padding:20px 18px;margin:14px 0 0;">' +
       mailRiskHtml_() +
       '<div style="border-top:1px solid #E4E8E6;margin:0 0 12px;"></div>' +
-      '<div style="font-size:13px;font-weight:700;color:#12161A;margin:0 0 2px;">不想再收到這封信？</div>' +
-      '<div style="font-size:12px;line-height:1.7;color:#667069;margin:0 0 10px;">' +
+      '<div style="font-size:14.5px;font-weight:700;color:#12161A;margin:0 0 2px;">不想再收到這封信？</div>' +
+      '<div style="font-size:13px;line-height:1.7;color:#667069;margin:0 0 10px;">' +
         (kind === 'daily' || kind === 'sms'
           ? '可停止' + UNSUB_SCOPE_LABEL_[kind] + '，或停止所有通知。'
           : '按下後確認，即可停止所有通知。') + '</div>' +
       (unsub
         ? '<a href="' + unsub + '" target="_blank" rel="noopener noreferrer" ' +
            'style="display:inline-block;border:1px solid #C3CBC6;border-radius:999px;background:#FFFFFF;' +
-           'padding:12px 20px;min-height:44px;box-sizing:border-box;font-size:14px;color:#12161A;text-decoration:none;font-weight:600;cursor:pointer;-webkit-text-size-adjust:none;touch-action:manipulation;">取消訂閱</a>'
-        : '<div style="font-size:12px;color:#8A6410;">退訂連結暫時無法產生，請回覆這封信告知要停止哪一種通知。</div>') +
+           'padding:12px 20px;min-height:44px;box-sizing:border-box;font-size:15.5px;color:#12161A;text-decoration:none;font-weight:600;cursor:pointer;-webkit-text-size-adjust:none;touch-action:manipulation;">取消訂閱</a>'
+        : '<div style="font-size:13px;color:#8A6410;">退訂連結暫時無法產生，請回覆這封信告知要停止哪一種通知。</div>') +
     '</div>';
   /* v87（2026/09/30 管理者）：信尾不再寫「前台已移至 GitHub Pages…改用系統瀏覽器」那一段，佔版位又與讀者無關。 */
   return mailShell_(mailPreheader_(pre) + head + inner + foot);
@@ -1794,7 +1797,7 @@ function mdToHtml_(md) {
 
   function chip(text, t) {
     return '<span class="mc-chip tn-' + (t ? t.key : 'none') + '" style="display:inline-block;white-space:nowrap;' +
-           'border-radius:999px;padding:1px 12px;font-size:13.5px;line-height:22px;font-weight:700;' +
+           'border-radius:999px;padding:1px 12px;font-size:15px;line-height:22px;font-weight:700;' +
            'background:' + (t ? t.hbg : '#E4E8E5') + ';color:' + (t ? t.ink : '#3E4944') + ';">' + text + '</span>';
   }
 
@@ -1843,19 +1846,19 @@ function mdToHtml_(md) {
       }
       wdesc=mailConditionPills_(wdesc);
       html.push('<table class="mc-table mc-stack mc-stock-card" role="presentation" width="100%" cellpadding="0" cellspacing="0" '+
-        'style="width:100%;border-collapse:separate;border-spacing:0;margin:8px 0 16px;border:1px solid '+ln+';border-radius:24px;overflow:hidden;font-family:'+MAIL_FONT_+';font-size:15.5px;line-height:1.95;"><tbody>');
+        'style="width:100%;border-collapse:separate;border-spacing:0;margin:8px 0 16px;border:1px solid '+ln+';border-radius:24px;overflow:hidden;font-family:'+MAIL_FONT_+';font-size:17px;line-height:1.95;"><tbody>');
       var sep = '';
       html.push('<tr>' +
-          '<td bgcolor="' + bg + '" class="' + cls + ' mc-name" style="background:' + bg + ';padding:22px 24px 8px;' + sep +
-            'border-left:4px solid ' + bar + ';vertical-align:top;font-weight:700;font-size:16.5px;line-height:1.55;color:#12161A;' +
+          '<td bgcolor="' + bg + '" class="' + cls + ' mc-name" style="background:' + bg + ';padding:24px 28px 8px;' + sep +
+            'border-left:4px solid ' + bar + ';vertical-align:top;font-weight:700;font-size:18.5px;line-height:1.55;color:#12161A;' +
             'overflow-wrap:break-word;word-break:normal;">' +
             '<span class="mc-stock-label" style="display:inline-block;margin-right:12px;white-space:normal;">' + mailStockName_(cells[0]) + '</span>' +
-            (codeIdx >= 0 && cells[codeIdx] ? ' <span class="mc-code" style="font-weight:400;font-size:13.5px;letter-spacing:0.04em;color:' +
+            (codeIdx >= 0 && cells[codeIdx] ? ' <span class="mc-code" style="font-weight:400;font-size:15px;letter-spacing:0.04em;color:' +
               MAIL_CODE_COLOR_ + ';display:inline-block;white-space:nowrap;">' + cells[codeIdx] + '</span>' : '') +
-            (tags ? ' <span class="mc-mid" style="display:inline-block;margin:0 0 0 12px;vertical-align:middle;text-align:left;font-weight:400;font-size:13.5px;line-height:1.9;color:#26312C;">' + tags + '</span>' : '') +
+            (tags ? ' <span class="mc-mid" style="display:inline-block;margin:0 0 0 12px;vertical-align:middle;text-align:left;font-weight:400;font-size:15px;line-height:1.9;color:#26312C;">' + tags + '</span>' : '') +
           '</td></tr>' +
-          '<tr><td bgcolor="' + bg + '" class="' + cls + ' mc-desc" style="background:' + bg + ';padding:4px 24px 24px;' +
-            'border-left:4px solid ' + bar + ';vertical-align:top;font-size:15.5px;line-height:1.95;color:#26312C;' +
+          '<tr><td bgcolor="' + bg + '" class="' + cls + ' mc-desc" style="background:' + bg + ';padding:4px 28px 26px;' +
+            'border-left:4px solid ' + bar + ';vertical-align:top;font-size:17px;line-height:1.95;color:#26312C;' +
             'overflow-wrap:break-word;word-break:break-word;">' + (wdesc || '未說明') + '</td></tr></tbody></table>');
     });
     heads = null; body = [];
@@ -1915,21 +1918,21 @@ function mdToHtml_(md) {
       var t = title[1].replace(/^(?:張震|張正)\s*[：:]\s*/, '');
       // text-wrap:balance：支援的收件匣會把標題平均折行，最後一個字不會單獨掉到下一行（v54，Codex 規格 84）；不支援的照舊，不硬截。
       html.push('<div class="mc-hero" style="background:#17322A;background-image:linear-gradient(125deg,#0A4A3C,#0E6551 55%,#1F6F8B);border-radius:28px;padding:24px 24px 26px;margin:0 0 14px;">' +
-                '<div class="mc-hero-k" style="font-size:13px;letter-spacing:0.14em;font-weight:700;color:#9CC8B4;">每日整理</div>' +
-                '<h1 style="font-size:21px;line-height:1.5;margin:8px 0 0;font-weight:700;color:#FFFFFF;text-wrap:balance;">' + t + '</h1></div>');
+                '<div class="mc-hero-k" style="font-size:14.5px;letter-spacing:0.14em;font-weight:700;color:#9CC8B4;">每日整理</div>' +
+                '<h1 style="font-size:24px;line-height:1.5;margin:8px 0 0;font-weight:700;color:#FFFFFF;text-wrap:balance;">' + t + '</h1></div>');
       return;
     }
 
     // 正式文章使用圈號章節編號，不使用Markdown井字標題。
     if (/^[①②③④⑤⑥](?:\s|$)/.test(line)) {
       openSection(line.charAt(0));
-      html.push('<h2 class="mc-h2" style="font-size:17px;line-height:1.45;margin:0 0 12px;font-weight:700;color:#12161A;">' +
+      html.push('<h2 class="mc-h2" style="font-size:19px;line-height:1.45;margin:0 0 12px;font-weight:700;color:#12161A;">' +
                 '<span style="display:inline-block;width:6px;height:16px;border-radius:3px;background:#04795C;' +
                 'margin-right:8px;vertical-align:-2px;"></span>' + line + '</h2>');
       return;
     }
     if (/^[①②③④⑤⑥][-－]\d/.test(line)) {
-      html.push('<h3 class="mc-h3" style="font-size:15px;line-height:1.5;margin:18px 0 8px;font-weight:700;color:#12161A;">' +
+      html.push('<h3 class="mc-h3" style="font-size:16.5px;line-height:1.5;margin:18px 0 8px;font-weight:700;color:#12161A;">' +
                 line + '</h3>');
       return;
     }
@@ -1947,7 +1950,7 @@ function mdToHtml_(md) {
     var toneLine = toneOf_(line);
     if (toneLine && line.length <= 6) {
       html.push('<div class="mc-tone" style="margin:12px 0 4px;">' + chip(line, toneLine) +
-                (MAIL_TONE_LABEL_[toneLine.key] ? '<span class="mc-tone-k" style="font-size:12px;color:#667069;margin-left:8px;">' +
+                (MAIL_TONE_LABEL_[toneLine.key] ? '<span class="mc-tone-k" style="font-size:13px;color:#667069;margin-left:8px;">' +
                   MAIL_TONE_LABEL_[toneLine.key] + '</span>' : '') + '</div>');
       return;
     }
@@ -1957,11 +1960,11 @@ function mdToHtml_(md) {
       // 「觀念標題：說明」「節目名稱：……」把冒號前的標籤加粗，掃讀時一眼抓到重點。
       var kv = text.match(/^([^：:。，,]{2,16})[：:]\s*([\s\S]+)$/);
       if (kv) { text = '<b style="color:#12161A;">' + kv[1] + '</b>：' + kv[2]; }
-      html.push('<div class="mail-bullet" style="margin:12px 0;padding-left:16px;text-indent:-13px;font-size:15px;' +
+      html.push('<div class="mail-bullet" style="margin:12px 0;padding-left:16px;text-indent:-13px;font-size:16.5px;' +
                 'line-height:1.85;color:#26312C;"><span style="color:#04795C;font-weight:700;">•</span> ' + text + '</div>');
       return;
     }
-    html.push('<p class="mc-p" style="margin:12px 0;font-size:15px;line-height:1.85;color:#26312C;">' + stripConceptParens_(line) + '</p>');
+    html.push('<p class="mc-p" style="margin:12px 0;font-size:16.5px;line-height:1.85;color:#26312C;">' + stripConceptParens_(line) + '</p>');
   });
 
   closeTable();

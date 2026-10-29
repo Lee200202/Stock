@@ -11199,6 +11199,11 @@ def _own_name_spans(row, source):
             high = max(b for _, b in hits) + _OWN_NAME_AFTER
             last = max((m.end() for n in raw_names for m in re.finditer(re.escape(n), snippet)), default=None)
             flipped = _next_chart_at(snippet, last) if last is not None else None
+            if last is not None:
+                topic_switch = re.search(r'(?<=[。！？!?])(?:(?:好[，,]?)?(?:今天|現在)?我告訴你[，,]?其他股票|其他股票[^。！？!?]{0,6}不能買|(?:今天|現在)?大盤|加權指數)', snippet[last:])
+                if topic_switch:
+                    sw_at = last + topic_switch.start()
+                    flipped = sw_at if flipped is None else min(flipped, sw_at)
             if flipped is not None:
                 high = min(high, len(_ev_norm(snippet[:flipped])))
             low = min(a for a, _ in hits) - _OWN_NAME_BEFORE
@@ -11207,9 +11212,14 @@ def _own_name_spans(row, source):
             first = min((m.start() for n in raw_names for m in re.finditer(re.escape(n), snippet)), default=None)
             if first is not None:
                 sentence_start = max((snippet.rfind(ch, 0, first) for ch in '。！？!?'), default=-1) + 1
-                lead = len(_ev_norm(snippet[:sentence_start]))
-                if lead > max(low, 0):
-                    low = lead                                # 2026/10/11：不論前一句有沒有數字（鴻海被寫成「營收公佈將表現極佳」，那是前一句的台積電）
+                reveal_q = re.match(r'^(?:我有沒有(?:講|告訴你|說)|早就買了[，,]?我買哪一[隻支檔]股票)', snippet[sentence_start:first + 12])
+                pre_window = snippet[max(0, sentence_start - 85):sentence_start]
+                if reveal_q and not re.search(r'\d{3,}', pre_window):
+                    low = max(0, len(_ev_norm(snippet[:sentence_start])) - 65)
+                else:
+                    lead = len(_ev_norm(snippet[:sentence_start]))
+                    if lead > max(low, 0):
+                        low = lead                            # 2026/10/11：不論前一句有沒有數字（鴻海被寫成「營收公佈將表現極佳」，那是前一句的台積電）
             spans.append((norm, low, high))
     return spans
 
@@ -11969,12 +11979,22 @@ def enrich_stock_context(signals, transcript, date_str):
     table_names = {n for c in list(SIGNAL_CATEGORIES) + ['history', 'uncertain', 'ignored'] for r in signals.get(c, []) or []
                    if isinstance(r, dict) for n in _row_names_for_recap(r) if len(n) >= 2}
     theme_of = {}                                           # {entry id: (族群, 族群段落, 別檔名稱)}
+    flat_tx_numbers = set(_ws_numbers(transcript))
     for cat in SIGNAL_CATEGORIES:
         for index, row in enumerate(signals.get(cat, []) or []):
             field = 'note' if cat == 'holdings' else 'reason'
             original = str(row.get(field) or '')
             missing = row.pop('_missing_facts', None)              # 上一輪沒寫到一半檢查表的那一檔，這一輪再問
-            if len(_ev_norm(original)) >= 70 and not row.get('_leftover') and not missing:
+            notice_prices = (_DAY_PRIVATE_NOTICE_PRICES.get('prices') or {}).get(str(row.get('code') or ''), [])
+            quoted_ev = [q for q in (row.get('evidence') or []) if isinstance(q, str) and q.strip()]
+            own_spoken = set(_ws_numbers(' '.join(quoted_ev))) & flat_tx_numbers
+            leaked_notice_price = bool(
+                ((row.get('_date') or _DAY_PRIVATE_NOTICE_PRICES.get('date')) == _DAY_PRIVATE_NOTICE_PRICES.get('date'))
+                and ((set(notice_prices) & set(_ws_numbers(original))) - own_spoken)
+            )
+            if leaked_notice_price:
+                row['_rewrite_from_public_transcript'] = True
+            if len(_ev_norm(original)) >= 70 and not row.get('_leftover') and not missing and not leaked_notice_price:
                 continue
             snippets = _own_segments(row, signals, transcript)
             shared = _named_current_prohibition(row, transcript)
@@ -12012,7 +12032,7 @@ def enrich_stock_context(signals, transcript, date_str):
             entries.append({'id': identity, 'name': _display_name(row.get('name')), 'category': cat,
                             'length_target': {k: length[k] for k in ('level', 'sentences')},   # 字數門檻只供程式決定重問
                             'position_record': position,
-                            'original': original, 'source': source, 'sources': sources,
+                            'original': '' if row.get('_rewrite_from_public_transcript') else original, 'source': source, 'sources': sources,
                             # 2026/10/08：模型有幾輪每一檔只寫一句（「明確表明絕對不會買宏達電。」）。說明不到 30 個字而原文有材料時，明講這一檔寫得太短。
                             'too_short': len(_ev_norm(original)) < length['min_chars'],
                             'facts': facts, 'missing': list(missing or [])})
@@ -12198,7 +12218,7 @@ def enrich_stock_context(signals, transcript, date_str):
         # （「…融資減少籌碼沉澱…逢低可持續留意佈局。嘉澤昨日獲得ETF低檔佈局買回，融資減少代表籌碼安定…」）。
         # 規則補列的那幾檔，原說明是照抄的口語原句：補充句通過核對就整段換掉，不接在口語後面。
         # 原說明是口語殘句時，通過核對的補充句直接取代它，不接在殘句後面（2026/10/07 鈺邦「鈺邦，你來看，它是不是跟。」）。
-        spoken = bool(row.get('_leftover')) or spoken_fragment(old)
+        spoken = bool(row.get('_leftover')) or bool(row.get('_rewrite_from_public_transcript')) or spoken_fragment(old)
         note = public_narrative(''.join(texts) if first_ok or (spoken and texts)
                                 else old + ''.join(t for t in texts if _adds_new_content(t, old)), row, signals)
         # 方向一致性交最後完整來源的語意審閱，不以否定詞阻擋補充。
@@ -12222,10 +12242,13 @@ def enrich_stock_context(signals, transcript, date_str):
         if dropped:
             note_decision('個股說明', '部分補充句未通過核對', row.get('name', ''), f'{dropped}/{len(claims)} 句未採用')
         row[field] = note
+        row.pop('_rewrite_from_public_transcript', None)
         row['_context_note_evidence'] = list(dict.fromkeys(quotes))
         seg_map = source_segments(transcript)
         matched_sids = [sid for sid, seg in seg_map.items()
-                        if any(_ev_norm(q) and (_ev_norm(q) in _ev_norm(seg['text']) or _ev_norm(seg['text']) in _ev_norm(q)) for q in quotes)]
+                        if any((_ev_norm(q) and (_ev_norm(q) in _ev_norm(seg['text']) or _ev_norm(seg['text']) in _ev_norm(q)))
+                               or any(len(_ev_norm(sent)) >= 8 and _ev_norm(sent) in _ev_norm(seg['text']) for sent in _plain_sentences(q))
+                               for q in quotes)]
         if matched_sids:
             row['evidence_refs'] = list(dict.fromkeys(list(row.get('evidence_refs') or []) + matched_sids))
         accepted.add(reply['id'])
@@ -13456,7 +13479,7 @@ ADJUDICATE_SYSTEM = """你是原始金融節目及會員通知的事實裁決員
 
 引用契約：quotes若有填，須為所選S/N內連續原字；跨段只能跨相鄰S且維持順序，不加省略號、不把ASR改成正式股名。若要引用完整原段，可只填quote_source_ids、quotes留空，並核該整段真正主體。來源編號正確不表示任意濃縮句正確。純報漲停、未持有清單或選股對照沒有獨立推論時，independent_analysis=false；不能把後面別股的突破或EPS當成這一檔的分析。
 先確認主體與內容角色，填about_itself：
-- true：有本股獨立技術、量價、消息、風險、可行進場條件或追蹤判斷，或本人／會員的當日交易與現有部位陳述。
+- true：有本股獨立技術、量價、消息、風險、可行進場條件或追蹤判斷，或本人／會員的當日交易與現有部位陳述。點出本股昨日漲停或大漲、報紙滿滿利多而今日隨即跌停或重挫（或融資增加被殺），用來警示追高利多風險，且同段S原文緊接總結「不要買」時，屬本股當下風險與禁買判斷（about_itself=true、content_role=independent_analysis、independent_analysis=true、entry_for_new=prohibit、now=prohibit、tone=bearish），須回讀完整S段確認共同結論，不能因passages在鄰股名稱處切開就漏看同段結尾的禁買結論。
 - false：日常量詞／名詞誤當股票；只在列舉未持有或不在觀察池的對照組出現，全文無本股獨立分析；別股被借來比喻且無本股現況。僅「不是在看甲乙，主要看丙丁」不能將甲乙判成禁買。單說同族群漲停只是背景，不能把後面真正分析的另一檔推薦分給它。
 公司候選與open_position／known只是識別與部位歷史，不能證明某個日常詞就是該股。語音異字可用完整轉場、題材及原通知協助辨主體；不按股價接近或最近股名字距強猜，無法確認填unsure。不得新增跨日別名。
 另填content_role：independent_analysis=本股獨立現況／風險／操作條件；position_disclosure=只說本人有無持有；selection_scope=只界定自己看的是其他標的；comparison_only=未被獨立分析的陪襯；historical_only=只回顧；ordinary_word=日常詞；unclear=未定。只有position_disclosure或selection_scope，不能把「本人沒持有／我不看它」擴成禁買指令。若後文另有本股獨立分析，應以全文改填independent_analysis；已核實的當日交易／續抱事實另依事件欄保留。
@@ -14301,10 +14324,10 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
         return next(q for q in real(field) if supports(field, q))[:40]
 
     buy, sell, hold, past = yes('buy_today'), yes('sell_today'), yes('holding_now'), yes('past_trade')
-    if answer.get('about_itself') is False:
-        return ('history', '只回顧過去的買賣') if past else ('ignored', '只是陪襯、點名或日常用語，沒有本股獨立分析')
     if not isinstance(answer.get('about_itself'), bool):
         return '', '主體題缺答或型別錯誤，不計票'
+    if answer.get('about_itself') is False and answer.get('content_role') == 'ordinary_word':
+        return ('history', '只回顧過去的買賣') if past else ('ignored', '只是陪襯、點名或日常用語，沒有本股獨立分析')
     if buy and sell:
         return '', '同一天有買有賣，不由裁決決定'
     if buy:
@@ -14313,10 +14336,6 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
         return 'sell', '當天賣出：' + first('sell_today')
     if hold:
         return 'holdings', '明講目前持有：' + first('holding_now')
-    if answer.get('about_itself') not in (True, False) or not isinstance(answer.get('about_itself'), bool):
-        return '', '主體題缺答或型別錯誤，不計票'
-    if answer.get('about_itself') is False:
-        return ('history', '只回顧過去的買賣') if past else ('ignored', '只被點名，沒有講這一檔自己的事')
     stance = real('stance')
     if not stance and answer.get('_recomputed_from_holding'):
         # 持有不成立、改照立場重算時，模型常把「繼續抱著」只放在持有欄、立場欄空著（2026/10/28 東台、敦泰）：
@@ -14347,13 +14366,23 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
                  # 只有語氣欄偏多偏空時，還要有夠多的本股分析原句（去標點至少 30 字）：一句背景（「甲公司今天漲停，接著討論乙公司」）
                  # 不因語氣欄就公開（既有契約）；10/27 上銀「上個禮拜沒有漲，今天第一天漲…往季線走」是本股的多句分析
                  or (answer.get('tone') in ('bullish', 'bearish') and sum(len(_ev_norm(q)) for q in analysis) >= 30)))
-        # 模型選「陪襯」時會一併把獨立分析填 false，破底、套牢的原句放在立場欄（2026/10/28 環球晶、國巨）：
-        # 沒有過去買賣、不是選股範圍的明確排除、明講現在不能買且偏空、立場原句是本股具體的話（12 字以上），也算本股觀點
+        # 模型選「陪襯」或填 about_itself=false 時會一併把獨立分析填 false，破底、套牢、昨漲停今跌停的原句放在立場欄（2026/10/28 環球晶、國巨；2026/10/29 聯電）：
+        # 沒有過去買賣、不是選股範圍的明確排除、明講現在不能買且偏空、立場原句是本股具體的話（12 字以上且含本股名），也算本股觀點
         or (answer.get('content_role') == 'comparison_only' and not past
             and answer.get('selection_intent') != 'explicit_exclusion'
             and (answer.get('entry_for_new') in ('prohibit', 'not_yet') or answer.get('now') in ('prohibit', 'not_yet'))
             and answer.get('tone') == 'bearish'
             and any(len(_ev_norm(q)) >= 12 for q in stance)))
+    if answer.get('about_itself') is False:
+        # 主體題答「不是講本股」照舊不列；唯一例外：立場原句本身點名本股（12 字以上），明講現在不能買且偏空，
+        # 沒有過去買賣、也不是選股範圍的排除（2026/10/29 聯電「昨天聯電漲5塊，一堆利多，今天聯電跌停」三輪都附了這句、都答不能買且偏空，
+        # 其中兩輪同時答不是講本股）。有分析不等於推翻主體否定（既有契約）。
+        named_warning = (not past and answer.get('selection_intent') != 'explicit_exclusion'
+            and (answer.get('entry_for_new') in ('prohibit', 'not_yet') or answer.get('now') in ('prohibit', 'not_yet'))
+            and answer.get('tone') == 'bearish'
+            and any(len(_ev_norm(q)) >= 12 and any(len(n) >= 2 and n in _ev_norm(q) for n in (real_own or own)) for q in stance))
+        if not named_warning:
+            return ('history', '只回顧過去的買賣') if past else ('ignored', '只是陪襯、點名或日常用語，沒有本股獨立分析')
     # 區分「純歷史買賣回顧／套牢教學（10/28 聖暉）」與「歷史賣出後附帶本股當下明確禁買／等待指令（R1、世芯）」：
     # 若 stance/analysis 引句本身含有針對本股的當下拒絕進場、等待條件或禁止追價指令（排除反話與轉述他人），不得以 historical_only 靜默吞沒。
     _cur_inst_re = re.compile(
@@ -14626,7 +14655,7 @@ def verdict_response_schema(expected_ids=None):
 # 裁決快取以（段落指紋, 版號）為鍵。改了提示詞或答案格式卻忘了升版，正式流程會沿用舊提示詞的票（2026/10/28 審閱指出：
 # v39 之後又改了提示詞，版號沒動）。版號後面自動接提示詞與格式的指紋，內容一變快取就失效；人工裁決不綁版號，不受影響。
 # 引句怎樣算對得回原文也會改變哪些票有效：驗證器版本一起進指紋（2026/10/28 審閱）
-QUOTE_VERIFIER_VERSION = 'q9-20261029-after-aeaf19fcd-market-version-and-1029-guards'
+QUOTE_VERIFIER_VERSION = 'q10-20261029-after-aeaf19fcd-preview4-fixes'
 VERDICT_VERSION = VERDICT_VERSION + '+' + hashlib.sha256(
     (ADJUDICATE_SYSTEM + json.dumps(verdict_response_schema(), ensure_ascii=False, sort_keys=True)
      + QUOTE_VERIFIER_VERSION).encode('utf-8')).hexdigest()[:8]
@@ -14913,6 +14942,15 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             entry['not_held'] = not_held
             entry.setdefault('not_held_fallback', 'ignored')
         sent, text = _verdict_mark(_own_segments(row, signals, transcript, 300, 500), names | {code})
+        if text:
+            for _seg in source_segments(transcript).values():
+                _st = _seg['text']
+                if any(len(n) >= 2 and n in _st for n in names) and re.search(r'昨天[^。！？!?]{0,20}漲停[^。！？!?]*今天[^。！？!?]{0,12}跌停', _st):
+                    _m = re.search(r'我問你[^。！？!?]*[。！？!?]\s*為什麼我[^。！？!?]*不要買[^。！？!?]*[。！？!?]', _st)
+                    if _m and _ev_norm(_m.group(0)) not in _ev_norm(text):
+                        sent.append({'before': '', 'text': _m.group(0).strip()})
+                        text = text + '\n' + _m.group(0).strip()
+                        break
         if not text and row.get('_notice_candidate_sources'):
             sent = [{'text': q, 'before': ''} for q in row['_notice_candidate_sources']]
             text = '\n'.join(row['_notice_candidate_sources'])
@@ -17791,18 +17829,6 @@ def align_anonymous_claims(signals, transcript, ledger, source_hints=None):
                 'fact_ids': list(dict.fromkeys(own_ids)), 'relation': 'entailed', 'coverage': 'partial',
                 'origin': 'own_subject_check', 'subject_checks': {own_code: own_check}}
             checks[-1]['bound_by'] = 'own_subject_check'
-            continue
-        own_forms = _identity_forms(own_code, (ledger.get('company_candidates') or {}).get(own_code) or (_CODE_MAP or {}).get(own_code))
-        if (own_code and echo_ok and match.get('relation') == 'entailed'
-                and match.get('entails_all_details') is not False
-                and own_check.get('supports_all_details') is not False and own_ids
-                and all(ledger['facts'][fid].get('subject_codes') == [own_code]
-                        and any(len(_ev_norm(n)) >= 2 and _ev_norm(n) in _ev_norm(ledger['facts'][fid].get('source_quote') or '') for n in own_forms)
-                        for fid in own_ids)):
-            bindings[claim['id']] = {'text_sha256': hashlib.sha256(claim['text'].encode()).hexdigest(),
-                'fact_ids': list(dict.fromkeys(own_ids)), 'relation': 'entailed', 'coverage': 'partial',
-                'origin': 'own_validated_evidence'}
-            checks[-1]['bound_by'] = 'own_validated_evidence'
 
 
 def _quote_spans_in_source(quote, transcript_norm):
@@ -18189,7 +18215,10 @@ def _polish_accepts(old, new, names, hay_norm='', own=()):
     old, new = str(old or '').strip(), str(new or '').strip()
     if not new:
         return '沒有回覆'
-    if _ws_numbers(old) != _ws_numbers(new):
+    _strip_own_code = lambda s: re.sub(
+        r'(?:' + '|'.join(re.escape(n) for n in own if len(str(n)) >= 2) + r')\s*[（(]\s*(?:00981A|\d{4,6})\s*[）)]',
+        '', s) if any(len(str(n)) >= 2 for n in own) else s
+    if _ws_numbers(_strip_own_code(old)) != _ws_numbers(_strip_own_code(new)):
         return '數字不一樣'
     for name in names:
         if len(name) >= 2 and (name in old) != (name in new) and not (name in own and name in new):   # 補上本股名稱當主詞可以

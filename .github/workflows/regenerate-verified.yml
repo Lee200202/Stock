@@ -40,7 +40,7 @@ jobs:
         with:
           python-version: '3.11'
           cache: pip
-      - run: pip install -r requirements.txt
+      - run: pip install -r requirements.txt pyyaml
       - name: 核對模型候選來源（失敗預覽不能發布）
         if: inputs.mode == 'apply' || inputs.mode == 'apply-rules'
         env:

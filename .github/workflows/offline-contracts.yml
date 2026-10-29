@@ -33,7 +33,7 @@ jobs:
         with:
           python-version: '3.11'
           cache: pip
-      - run: pip install -r requirements.txt
+      - run: pip install -r requirements.txt pyyaml
       - name: 離線契約（逐支結果）
         run: python scripts/run_offline_contracts.py --json offline-contracts.json
       - name: 保存逐支結果

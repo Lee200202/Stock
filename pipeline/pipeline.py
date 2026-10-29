@@ -6874,11 +6874,14 @@ def explicit_today_trades(transcript, names, cat):
             s = sentences[index - 1] + s
             revealed = True
         # 問句接答句（「哪一檔？／哪檔：X」）只補回是哪一檔，不證明已經成交：答句說還沒下單、要等條件才下單，就還沒做；
-        # 同句也講了已經成交的部分（「已成交一半，剩下等條件」）才算有做（另一位審閱者的反例）。
+        # 同一句明講本檔今天先成交了一部分（「已成交一半，剩下等條件」）才算有做；已下單不是成交，
+        # 別檔成交（「但台積電已成交」）或以前成交（「上週已成交」）也不算（另一位審閱者的反例）。
         revealed = revealed or bool(re.search(r'哪一?[隻支檔](?:股票|個股)?[？?：:]', s))
         verbs = '賣|出場' if cat == 'sell' else '買|進場|布局'
         pending = re.search(r'等[^。！？!?]{0,16}(?:才|再)(?:要)?(?:下單|' + verbs + r')|(?:還沒|尚未|未)(?:有)?(?:下單|成交|' + verbs + r')', s)
-        done = re.search(r'已(?:經)?(?:成交|下單|' + verbs + r')|(?:成交|' + verbs + r')(?:進)?了', s)
+        done = any(re.search(r'(?:已(?:經)?|先)?成交(?:了)?(?:一半|一部分|部分|[一兩二三四五六七八九十幾\d]+[張成])|部分成交', c)
+                   and not re.search(r'上週|上禮拜|昨天|前天|之前|以前|但|不過', c)
+                   for c in re.split(r'[，,；;]', s))
         if revealed and pending and not done:
             continue
         if not execution_statement(s, cat) or not any(n in s for n in names):
@@ -13746,7 +13749,8 @@ def _shared_conclusion_scope(text, start, end, limit=8):
             break
         scope.insert(0, s)
         # 換題句（「接下來只談散熱股」「那我們來看…」）是這份名單的開頭，再往前是另一個話題。
-        if re.search(r'^(?:好[，,]?)?(?:接下來|再來|另外|換(?:個|到)|那我們|我們來|回頭)|(?:只|來)(?:談|講|看)', s):
+        # 「再來精測昨天也漲停」是名單的延續，不算換題。
+        if re.search(r'^(?:好[，,]?)?(?:接下來|換(?:個|到)|那我們|我們來|回頭)|(?:只|來)(?:談|講|看)', s):
             break
     return ''.join(scope)
 
@@ -14739,7 +14743,7 @@ def verdict_response_schema(expected_ids=None):
 # 裁決快取以（段落指紋, 版號）為鍵。改了提示詞或答案格式卻忘了升版，正式流程會沿用舊提示詞的票（2026/10/28 審閱指出：
 # v39 之後又改了提示詞，版號沒動）。版號後面自動接提示詞與格式的指紋，內容一變快取就失效；人工裁決不綁版號，不受影響。
 # 引句怎樣算對得回原文也會改變哪些票有效：驗證器版本一起進指紋（2026/10/28 審閱）
-QUOTE_VERIFIER_VERSION = 'q12r1-20261029-pending-orders-scope-tense'
+QUOTE_VERIFIER_VERSION = 'q12r2-20261029-fills-list-tense'
 VERDICT_VERSION = VERDICT_VERSION + '+' + hashlib.sha256(
     (ADJUDICATE_SYSTEM + json.dumps(verdict_response_schema(), ensure_ascii=False, sort_keys=True)
      + QUOTE_VERIFIER_VERSION).encode('utf-8')).hexdigest()[:8]
@@ -17946,14 +17950,11 @@ def align_anonymous_claims(signals, transcript, ledger, source_hints=None):
             checks[-1]['bound_by'] = 'own_subject_check'
 
 
-_ORDINARY_MIAN = {'方面', '層面', '全面', '表面', '盤面', '局面', '正面', '負面', '前面', '後面', '上面', '下面', '裡面',
-                  '外面', '場面', '畫面', '見面', '版面', '介面', '檯面', '台面', '對面', '兩面', '反面'}
-
-
 def _claim_overreach(text, source, own_names=()):
-    """對齊模型判「完整支持」後，程式再核它常放過的兩件事（2026/10/29 神準，run 40850017084，審閱者指出）：
-    1. 時態：主張寫成已完成（順利／已經／成功＋動作），原句對同一個動作只有預期或條件（「高點會突破…等它過了再說」）。
-    2. 附加評語：主張用「X面」下判斷（「基本面與技術面同步強勢」），原句沒有這個面向，拿掉面向後剩下的字也對不回原句。
+    """對齊模型判「完整支持」後，程式再核時態（2026/10/29 神準「高點壓力順利突破」，run 40850017084，審閱者指出）：
+    主張寫成已完成（順利／已經／成功＋動作），原句對同一個動作只有預期或條件（「高點會突破…等它過了再說」）。
+    「基本面與技術面同步強勢」這類面向評語不在這裡用字面比對：原稿常不用「技術面」三個字（瑞鼎「月週K線MACD翻紅」），
+    字面比對會拿掉有依據的句子，改由對齊提示要求逐項核對。
     只回傳卡點、不改寫；沒過的那一句由逐項投影移出，同一則其他已核實的句子照常保留。"""
     src = re.sub(r'\s+', '', str(source or ''))
     claim = re.sub(r'\s+', '', str(text or ''))
@@ -17962,15 +17963,6 @@ def _claim_overreach(text, source, own_names=()):
         hits = [h.start() for h in re.finditer(re.escape(act), src)]
         if hits and all(re.search(r'(?:會|將|要|等|準備|可望|有機會|如果|若|才|預期)[^。！？!?，,]{0,6}$', src[max(0, h - 8):h]) for h in hits):
             return f'主張把原句的預期或條件寫成已完成（「{m.group(0)}」；原句的「{act}」都還沒發生）'
-    labels = [m.group(0) for m in re.finditer(r'[一-鿿]{2}面(?![臨對前子積貌試談板膜具紗])', claim) if m.group(0)[1:] not in _ORDINARY_MIAN]
-    missing = [label for label in labels if label[:2] not in src]
-    if missing:
-        rest = claim
-        for word in sorted([n for n in own_names if n] + labels, key=len, reverse=True):
-            rest = rest.replace(word, '')
-        rest = re.sub(r'[與和及、，,；;。]|同步|皆|都|均|呈現|表現', '', rest)
-        if not any(rest[i:i + 2] in src for i in range(len(rest) - 1)):
-            return f'主張的「{"、".join(missing)}」評語在原句沒有依據，其餘內容也對不回原句'
     return ''
 
 

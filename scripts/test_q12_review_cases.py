@@ -94,11 +94,11 @@ class CompanyIdentity(unittest.TestCase):
     def tearDown(self):
         pl._CODE_MAP = self._code_map
 
-    def promote(self, name, code, transcript, others=()):
+    def promote(self, name, code, transcript):
         with contextlib.redirect_stdout(io.StringIO()):
             signals = {'ignored': [{'name': name, 'code': code, '_date': '2026/10/29'}], '_verdicts': {
                 code: {'cls': 'watch_avoid', 'enforce': True, 'name': name, 'current': 'ignored', 'basis': '2/2',
-                       'identity_confirmed': pl._weak_name_explicitly_stock(name, code, transcript, others)}}}
+                       'identity_confirmed': pl._weak_name_explicitly_stock(name, code, transcript)}}}
             pl.apply_verdicts(signals, '2026/10/29')
         return [r.get('code') for r in signals.get('watch_avoid') or []]
 
@@ -109,17 +109,23 @@ class CompanyIdentity(unittest.TestCase):
         self.assertEqual(self.promote('巨大', '9921', '昨天國巨大漲，所有人又講國巨活起來了。'), [])
 
     def test_i05_a_neighbours_price_move_is_not_borrowed(self):
-        # 國巨是當天另一個公開列：它的漲跌不借給「世界」「巨大」。
-        self.assertFalse(pl._weak_name_explicitly_stock('世界', '5347', '你世界第一名，國巨今天跌10元。', ['國巨']))
-        self.assertFalse(pl._weak_name_explicitly_stock('巨大', '9921', '昨天國巨大漲，今天國巨跌20元。', ['國巨']))
-        self.assertEqual(self.promote('巨大', '9921', '昨天國巨大漲，今天國巨跌20元。', ['國巨']), [])
-        # 沒有當天名單時，「代號＋簡稱」仍是已確認的公司提及。
+        # 邊界只由原文決定：國巨自己的子句帶著漲跌，就是公司提及，它的漲跌不借給「世界」「巨大」——不論國巨最後有沒有公開。
+        self.assertFalse(pl._weak_name_explicitly_stock('世界', '5347', '你世界第一名，國巨今天跌10元。'))
+        self.assertFalse(pl._weak_name_explicitly_stock('世界', '5347', '你世界第一名，國巨今天大漲。'))
+        self.assertFalse(pl._weak_name_explicitly_stock('巨大', '9921', '昨天國巨大漲，今天國巨跌20元。'))
+        self.assertEqual(self.promote('巨大', '9921', '昨天國巨大漲，今天國巨跌20元。'), [])
         self.assertFalse(pl._weak_name_explicitly_stock('世界', '5347', '你世界第一名，2327國巨今天跌10元。'))
 
     def test_i07_a_price_or_an_ordinary_word_is_not_a_company_boundary(self):
         # 「2400」是股價（也剛好是某家公司的代號），「數字」是一般用語（名錄有同名公司）：都不能切掉本股語境。
-        self.assertTrue(pl._weak_name_explicitly_stock('祥碩', '5269', '祥碩今天2400元站回季線。', ['國巨']))
-        self.assertTrue(pl._weak_name_explicitly_stock('瑞鼎', '3592', '瑞鼎看一下他的數字，月K線MACD翻紅。', ['國巨']))
+        self.assertTrue(pl._weak_name_explicitly_stock('祥碩', '5269', '祥碩今天2400元站回季線。'))
+        self.assertTrue(pl._weak_name_explicitly_stock('瑞鼎', '3592', '瑞鼎看一下他的數字，月K線MACD翻紅。'))
+        self.assertTrue(pl._weak_name_explicitly_stock('瑞鼎', '3592', '瑞鼎看一下他的數字，MACD翻紅。'))
+
+    def test_i08_boundaries_do_not_depend_on_other_rows_classification(self):
+        # 函式只收原稿，沒有「其他候選／分類」參數：鄰股公開與否、一般詞是否誤入候選，都不能改變本股的身分判斷。
+        import inspect
+        self.assertEqual(list(inspect.signature(pl._weak_name_explicitly_stock).parameters), ['heard', 'code', 'transcript'])
 
     def test_i06_own_spoken_price_move_counts(self):
         self.assertTrue(pl._weak_name_explicitly_stock('廣達', '2382', '廣達昨天漲2塊2，今天跌10塊半。'))
@@ -189,16 +195,18 @@ class AlignmentBatchRetry(unittest.TestCase):
     TX = '來，我有瑞鼎。我有沒有告訴你月K線MACD翻紅。週K線MACD翻紅。日K線突破所有均線。所以人家怎麼跌不管它的事。'
     NOTE = '瑞鼎的月K線MACD翻紅。瑞鼎的週K線MACD翻紅。瑞鼎日K線突破所有均線。瑞鼎人家怎麼跌不管它的事。'
 
-    def run_alignment(self, answer):
+    def run_alignment(self, answer, ledger=None, whole=None):
         calls = []
 
         def fake(system, payload, **kw):
             batch = json.loads(payload)['queries']
             calls.append([q['id'] for q in batch])
+            if whole:
+                return whole(len(calls), batch)
             return json.dumps({'matches': [answer(len(calls), q) for q in batch]}, ensure_ascii=False)
 
         signals = {'holdings': [{'name': '瑞鼎', 'code': '3592', 'note': self.NOTE, '_date': '2026/10/29'}]}
-        ledger = {'facts': {}, 'company_candidates': {'3592': ['瑞鼎']}}
+        ledger = ledger if ledger is not None else {'facts': {}, 'company_candidates': {'3592': ['瑞鼎']}}
         with patch.object(pl, 'call_gemini', fake), patch.object(pl, 'budget_left', lambda: 10_000),                 contextlib.redirect_stdout(io.StringIO()):
             pl.align_anonymous_claims(signals, self.TX, ledger)
         return calls, ledger, signals['holdings'][0]['_source_claim_bindings']['claims']
@@ -223,6 +231,70 @@ class AlignmentBatchRetry(unittest.TestCase):
         calls, ledger, bindings = self.run_alignment(lambda n, q: self.insufficient(q))
         self.assertEqual([len(c) for c in calls], [4, 2, 2])  # 只重問一次，不無限重擲
         self.assertEqual(bindings, {})
+        first, *children = ledger['alignment_batches']
+        self.assertEqual({c['parent'] for c in children}, {first['batch']})     # 子批記得父批
+        self.assertEqual(first['query_texts'][2], '日K線突破所有均線')            # 保存實際送出的匿名查詢文字
+        self.assertTrue(all(r['relation'] == 'insufficient' for r in first['replies']))
+
+    def test_initial_and_recheck_calls_share_one_retry(self):
+        ledger = {'facts': {}, 'company_candidates': {'3592': ['瑞鼎']}}
+        first, _, _ = self.run_alignment(lambda n, q: self.insufficient(q), ledger=ledger)
+        again, _, _ = self.run_alignment(lambda n, q: self.insufficient(q), ledger=ledger)
+        self.assertEqual([len(c) for c in first], [4, 2, 2])
+        self.assertEqual([len(c) for c in again], [4])          # 同一批主張已補問過，第二次呼叫不再拆
+        self.assertEqual(ledger['alignment_retry_calls'], 2)
+
+    def test_duplicate_ids_are_a_format_problem_not_all_insufficient(self):
+        def whole(n, batch):
+            if n == 1:
+                dup = [self.insufficient(batch[0])] * 4
+                return json.dumps({'matches': dup}, ensure_ascii=False)
+            return json.dumps({'matches': [self.entailed(q) for q in batch]}, ensure_ascii=False)
+        calls, ledger, bindings = self.run_alignment(None, whole=whole)
+        first = ledger['alignment_batches'][0]
+        self.assertEqual(first.get('retry'), 'format_recheck')
+        self.assertEqual(first['format_problems']['duplicate_ids'], [calls[0][0]])
+        self.assertEqual(sorted(first['format_problems']['missing_ids']), sorted(calls[0][1:]))
+        self.assertEqual([len(c) for c in calls], [4, 4])       # 重複的那一項與缺回的三項一起補核一次，不是對半拆
+        self.assertEqual(len(bindings), 4)
+
+    def test_empty_objects_are_a_format_problem(self):
+        def whole(n, batch):
+            if n == 1:
+                return json.dumps({'matches': [{}, {}, {}, {}]})
+            return json.dumps({'matches': [self.insufficient(q) for q in batch]}, ensure_ascii=False)
+        calls, ledger, bindings = self.run_alignment(None, whole=whole)
+        self.assertEqual(ledger['alignment_batches'][0].get('retry'), 'format_recheck')
+        self.assertNotIn('split_after_all_insufficient', [d.get('retry') for d in ledger['alignment_batches']])
+        self.assertEqual(bindings, {})                          # 補核後仍不足就保留不足
+
+    def test_an_omitted_reply_is_recorded_as_missing_and_not_re_asked(self):
+        calls, ledger, bindings = self.run_alignment(None, whole=lambda n, batch: json.dumps({'matches': []}))
+        self.assertEqual([len(c) for c in calls], [4])
+        self.assertEqual(len(ledger['alignment_batches'][0]['format_problems']['missing_ids']), 4)
+        self.assertEqual(bindings, {})
+
+    def test_a_truncated_single_query_stays_pending_and_the_rest_are_kept(self):
+        def whole(n, batch):
+            if any(q['text'] == '日K線突破所有均線' for q in batch):
+                raise RuntimeError('輸出遭截斷（測試）')
+            return json.dumps({'matches': [self.entailed(q) for q in batch]}, ensure_ascii=False)
+        calls, ledger, bindings = self.run_alignment(None, whole=whole)
+        self.assertIn('truncated', [d.get('deferred') for d in ledger['alignment_batches']])
+        self.assertEqual(len(bindings), 3)                      # 截斷的那一項待核，其餘三項照常
+
+
+class PositionUnknown(unittest.TestCase):
+    def test_p03_an_unreadable_ledger_is_unknown_not_no_position(self):
+        class Broken:
+            def worksheet(self, name):
+                raise OSError('試算表暫時讀不到')
+        with contextlib.redirect_stdout(io.StringIO()):
+            known, notice, open_positions = pl._verdict_known(Broken(), '2026/10/29', with_open=True)
+        self.assertEqual((known, notice, open_positions), ({}, set(), {}))
+        # 「讀不到」與「確認沒有部位」分開記：後面的持有票據此不計，而不是改判成沒有持股。
+        self.assertIs(pl._VERDICT_RECORDS['readable'], False)
+        pl._VERDICT_RECORDS['readable'] = True
 
 
 class ThinkingLevel(unittest.TestCase):

@@ -17487,7 +17487,7 @@ SOURCE_ALIGNMENT_SYSTEM = """你是原稿事實與匿名主張的對照員。que
 facts只是可能漏項的索引，不是原稿的完整事實。必須回讀完整sources，每個match直接附evidence：subject_code為原句真正主體、source_ids引用原稿S編號或原通知N編號、statement整理該主體的最小事實。證據直接放在所屬match內，勿另建無法連回主張的全域事實表。未出現在索引不等於來源沒有。
 coverage只在已讀完整原稿、該匿名主張的所有本股與他股支持都完成盤點時填complete，否則填partial。不能因只找到一個例子便宣稱其他公司都沒有。一般「目前不買」「續抱」可能有多檔，逐項列出，不能只挑一人。
 每個query的focus_source_ids只是匿名詞形檢索得到的原文及鄰段，先讀這些段落再回查全文；不是主體答案，也不限制證據只能在該處。匿名句可能同時適用多家公司，不知道待審公司是誰不代表insufficient；列出所有支持者交下輪比對。原句「不讓你買甲跟乙、現在又沒有要漲」應分別記錄甲、乙的共同立場，不因匿名或並列而漏掉。
-若query附subjects_to_check（可能另附witness_sources），這些公司只是焦點原段原字提到的候選，請逐一回subject_checks，每個代號都回答supports_all_details。true須附該公司自己的statement及source_ids；false也須附核對主體轉場的source_ids與statement，說明該公司實際被敘述什麼、為何不支持這項特徵；無法確定不要填false，該項留缺答。不能只檢查第一位或隨手挑一位。共同結論可能有兩人都true；同段另一人自己的EPS不共用。後面出現甲公司未買，不能把前面乙公司的股本特徵套給甲。檢查清單沒有待審股名配對，不是要求所有公司都成立。
+若query附witness_sources及subjects_to_check，這些公司只是原字提到的候選，請逐一回subject_checks，每個代號都回答supports_all_details。true須附該公司自己的statement及source_ids；false也須附核對主體轉場的source_ids與statement，說明該公司實際被敘述什麼、為何不支持這項特徵；無法確定不要填false，該項留缺答。不能只檢查第一位或隨手挑一位。共同結論可能有兩人都true；同段另一人自己的EPS不共用。後面出現甲公司未買，不能把前面乙公司的股本特徵套給甲。檢查清單沒有待審股名配對，不是要求所有公司都成立。
 每項回覆原樣複製query_text，並回答entails_all_details。只有事實支持主張全部細節（包括每個數字、時間、動作、條件）才可true及entailed。不同價格的下跌不能互換；目標價上調不等於跌24%；某句同有否定詞不等於同一主張。不完整支持一律insufficient，不能為配對而挑最相近的fact。
 逐項判斷哪些facts真正支持該匿名主張；fact.statement的主體與事實必須相符，source_quote只核對該主體的上下文，不得因同段另一家公司也說過某事就把它綁給本fact。
 例如某fact只說乙公司股本小，不能支持「目前沒有買進」；另一fact明講甲公司未買進才可。修飾只屬其中一人的特徵不能分享給並列成員。
@@ -17588,16 +17588,6 @@ def align_anonymous_claims(signals, transcript, ledger, source_hints=None):
                     literal = _ev_norm(' '.join(attribution_sources(transcript)[s]['text'] for s in witnessed))
                     queries[-1]['subjects_to_check'] = [code for code, forms in (ledger.get('company_candidates') or {}).items()
                         if any(len(_ev_norm(n)) >= 2 and _ev_norm(n) in literal for n in _identity_forms(code, forms))]
-                else:
-                    # 第一輪也做逐主體核對（2026/10/29 預覽：「大立光不買也不碰」「華邦電股價容易受到散戶情緒干擾」這類開頭寫股名的主張，
-                    # 去掉股名後好幾檔都講過同樣的話，整體判不足，本股主體檢查又只在第二輪才做，三輪預覽各有 2～4 檔因此被隔離）。
-                    # 列的是焦點原段裡原字出現的所有公司（最多 6 家），不單獨點名本股，不洩漏草稿寫給誰。
-                    parts = attribution_sources(transcript)
-                    literal = _ev_norm(' '.join(parts[s_]['text'] for s_ in focus[:4] if s_ in parts))
-                    named = [code for code, forms in (ledger.get('company_candidates') or {}).items()
-                             if any(len(_ev_norm(n)) >= 2 and _ev_norm(n) in literal for n in _identity_forms(code, forms))]
-                    if named:
-                        queries[-1]['subjects_to_check'] = named[:6]
                 targets[key] = (bindings, claim, str(row.get('code') or ''))
     if not queries or budget_left() < 150:
         return

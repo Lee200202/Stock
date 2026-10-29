@@ -46,7 +46,7 @@ jobs:
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
           GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
-          GEMINI_THINKING_LEVEL: ${{ vars.GEMINI_THINKING_LEVEL || 'medium' }}
+          GEMINI_THINKING_LEVEL: ${{ vars.GEMINI_THINKING_LEVEL || 'auto' }}
           GEMINI_SEMANTIC_AUDIT: ${{ vars.GEMINI_SEMANTIC_AUDIT || 'true' }}
           GEMINI_COMBINED_ASSESSMENT: ${{ vars.GEMINI_COMBINED_ASSESSMENT || 'true' }}
           GEMINI_ASSESSMENT_TOKEN_BUDGET: ${{ vars.GEMINI_ASSESSMENT_TOKEN_BUDGET || '150000' }}

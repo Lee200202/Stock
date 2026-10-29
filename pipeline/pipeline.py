@@ -2106,13 +2106,13 @@ def gemini_generation_config(model, max_out=MAX_OUT, thinking=0, want_json=False
     """正式流程與基本驗收共用；每次輪替模型後重新建立。"""
     cfg = {"maxOutputTokens": min(max_out, MAX_OUT)}
     if re.search(r'gemini-3(?:\.|-)', model):
-        env_level = os.environ.get('GEMINI_THINKING_LEVEL', '').strip().lower()
-        if env_level:
-            if env_level not in ('low', 'medium', 'high'):
-                raise ValueError('GEMINI_THINKING_LEVEL 必須是 low、medium 或 high')
-            level = env_level
-        else:
-            level = 'high' if thinking >= 2048 else 'medium'
+        # auto（預設）：只有分類裁決第二輪以後、補核（thinking≥2048）升 high，其他步驟 medium；
+        # 人工指定 low／medium／high 就一律照指定，不覆寫。
+        level = os.environ.get('GEMINI_THINKING_LEVEL', '').strip().lower() or 'auto'
+        if level == 'auto':
+            level = 'high' if tag.startswith('adjudicate-r') and thinking >= 2048 else 'medium'
+        if level not in ('low', 'medium', 'high'):
+            raise ValueError('GEMINI_THINKING_LEVEL 必須是 auto、low、medium 或 high')
         cfg['thinkingConfig'] = {'thinkingLevel': level}
         cfg['maxOutputTokens'] = min(MAX_OUT, max(max_out, 8192 if level == 'high' else 4096))
     else:
@@ -6869,8 +6869,15 @@ def explicit_today_trades(transcript, names, cat):
     hits = []
     sentences = _plain_sentences(transcript)
     for index, s in enumerate(sentences):
+        revealed = False
         if index > 0 and sentences[index - 1].endswith(('？', '?')) and any(n in s for n in names) and not any(n in sentences[index - 1] for n in names):
             s = sentences[index - 1] + s
+            revealed = True
+        # 問句接答句只補回「哪一檔」，不證明已經成交：答句說要等條件才下單，就還沒買（另一位審閱者的反例
+        # 「我們今天買哪一檔股票？就是3017奇鋐，等跌到720才下單」）。
+        if revealed and re.search(r'等[^。！？!?]{0,16}(?:才|再)(?:要)?(?:下單|' + ('賣|出場' if cat == 'sell' else '買|進場|布局') + r')|還沒(?:有)?(?:下單|'
+                                  + ('賣' if cat == 'sell' else '買|進場') + r')', s):
+            continue
         if not execution_statement(s, cat) or not any(n in s for n in names):
             continue
         if re.search(r'你(?:們)?(?:今天|今日)?才(?:在)?(?:賣|買)|(?:不能|不要|不該|別|正要|準備)(?:再|去)?(?:賣|買)', s):
@@ -13719,6 +13726,25 @@ def _explicitly_not_held(names, transcript):
     return ''
 
 
+def _shared_conclusion_scope(text, start, end, limit=8):
+    """段尾共同結論涵蓋的文字：結論句本身，加上往前連續、還沒交代自己操作或立場的列舉句。
+
+    2026/10/29「昨天玉晶光漲停…今天跌停。昨天金策漲停…。昨天聯電漲5塊…今天聯電跌停。我問你…為什麼我昨天跟你們講，不要買」
+    三檔共用一個結論；「台積電守穩季線，會員續抱。奇鋐跟雙鴻，這幾檔股票千萬不要買」的台積電已有自己的結論，不在名單裡。
+    結論句自己點名（「奇鋐跟雙鴻，這幾檔」）時名單就是那幾檔，不再往前收。
+    """
+    conclusion = text[start:end]
+    demo = re.search(r'這種|這些|這幾[檔支隻]|這類|以上', conclusion)
+    if demo and re.search(r'[跟和及、與]', conclusion[:demo.start()]):
+        return conclusion
+    scope = [conclusion]
+    for s in reversed(re.findall(r'[^。！？!?]*[。！？!?]', text[:start])[-limit:]):
+        if re.search(r'續抱|抱著|抱緊|持有|會員|買進|買回|賣出|賣掉|停損|不要|不能|千萬|可以買|留意', s):
+            break
+        scope.insert(0, s)
+    return ''.join(scope)
+
+
 def _viewer_holding_question(names, transcript):
     """持有的是提問的觀眾或會員（「張總，我手中有6張X，…要出嗎？」）：回傳那一句，沒有就回空字串（2026/10/14 台化）。"""
     flat = re.sub(r'【[^】]{0,40}】|\s', '', str(transcript or ''))
@@ -15005,6 +15031,10 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                         _m = re.search(r'(?:我問你[^。！？!?]*[。！？!?]\s*)?(?:為什麼我|所以我|我才)[^。！？!?]*(?:不要買|不能買|不要碰|別買|不要追)[^。！？!?]*[。！？!?]', _st)
                     if not _m:
                         _m = re.search(r'[^。！？!?]*(?:這種|這些|這幾[檔支隻]|這類|以上)[^。！？!?]{0,24}(?:股票|個股)[^。！？!?]*(?:千萬不要|絕對不要|不要去?接刀|不要買|不能買|不要碰|不能碰|不要追|都可以(?:特別)?留意|值得留意|好好的?抱著|續抱)[^。！？!?]*[。！？!?]', _st)
+                    # 同一段只代表位置接近，不代表共用結論：本股要在結論涵蓋的列舉裡才補（另一位審閱者的反例
+                    # 「台積電守穩季線，會員續抱。奇鋐跟雙鴻，這幾檔股票千萬不要買」，台積電不在名單裡）。
+                    if _m and not any(len(n) >= 2 and n in _shared_conclusion_scope(_st, _m.start(), _m.end()) for n in names):
+                        _m = None
                     if _m and _ev_norm(_m.group(0)) not in _ev_norm(text):
                         sent.append({'before': '', 'text': _m.group(0).strip()})
                         text = text + '\n' + _m.group(0).strip()
@@ -17815,7 +17845,7 @@ def align_anonymous_claims(signals, transcript, ledger, source_hints=None):
             if len(batch) > 1:
                 work[:0] = [batch[:len(batch) // 2], batch[len(batch) // 2:]]
                 diagnostics.append({'requested': len(batch), 'received': 0, 'retry': 'split_after_truncation', 'max_out': max_out,
-                                    'thinking_level': os.environ.get('GEMINI_THINKING_LEVEL', '').strip().lower() or 'medium'})
+                                    'thinking_level': os.environ.get('GEMINI_THINKING_LEVEL', '').strip().lower() or 'auto'})
             else:
                 diagnostics.append({'requested': 1, 'received': 0, 'deferred': 'truncated', 'query_id': batch[0].get('id'), 'max_out': max_out})
             continue

@@ -14155,8 +14155,8 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
             return False                         # 觀眾提問裡的「我手中有…要出嗎？」是提問者自己的部位
         if field == 'holding_now':
             _strip_nonhold_buy = lambda t: re.sub(
-                r'(?:(?:不|沒|沒有|未|別|勿|禁|不能|不要|不會|尚未|還沒有|還沒|很想|想|想要|打算|準備|考慮)[^，。！？!?]{0,4}買(?:進|入|回)?'
-                r'|買(?:進|入)?(?:條件|點|盤|超|方|氣|單))',
+                r'(?:(?:不|沒|沒有|未|無|非|別|勿|禁|不能|不要|不會|尚未|還沒有|還沒|很想|想|想要|打算|準備|考慮)[^，。！？!?]{0,4}(?:買(?:進|入|回)?|持有|續抱|抱著|留著|持股|部位)'
+                r'|手[中上](?:沒有|沒|無)|買(?:進|入)?(?:條件|點|盤|超|方|氣|單))',
                 '',
                 t,
             )
@@ -14169,7 +14169,6 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
                 if not any(n in q_norm for n in target_own) and re.search(r'[A-Za-z0-9\u4e00-\u9fff]{1,6}公司', q):
                     return False
                 non_hold_re = re.compile(r'只是觀察|觀察標的|沒有持有|未持有|沒有買|還沒買|還沒有買|不買|不碰|禁買|不能買|不會買|已賣出|全數賣出|全部賣出|已經賣|出清|獲利了結|買進條件未到')
-                pos_hold_re = re.compile(r'續抱|持有|還在|還有|留著|抱著|我的股票|我們的股票|會員持股')
                 if any(n in q_norm for n in target_own):
                     valid_sent = False
                     prev_own_ok = False
@@ -14192,11 +14191,11 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
                                         break
                                     own_span.append(c)
                             span_text = '，'.join(own_span)
-                            if non_hold_re.search(span_text) and not pos_hold_re.search(span_text):
+                            span_unneg = _strip_nonhold_buy(span_text)
+                            if non_hold_re.search(span_text) and not _VQ_FAMILY['holding_now'].search(span_unneg):
                                 prev_own_ok = False
                                 continue
                             if _VQ_FAMILY['holding_now'].search(s):
-                                span_unneg = _strip_nonhold_buy(span_text)
                                 if _VQ_FAMILY['holding_now'].search(span_unneg):
                                     valid_sent = True
                                     break
@@ -14266,11 +14265,14 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
         or answer.get('holder_advice') in ('hold', 'hold_rebound')
         or answer.get('selection_intent') == 'positive_candidate'
         or answer.get('now') in ('buy_ok', 'conditional')
-        # 2026/10/28 環球晶、國巨：同一份答案說「陪襯」又說本股有獨立分析、現在不能買，分析引句也核對過——
+        # 2026/10/28 環球晶、國巨 & 2026/10/27 上銀：同一份答案說「陪襯」又說本股有獨立分析且具明確進場或偏多／偏空結論，分析引句也核對過——
         # 角色欄與事實欄矛盾時以核對過的本股分析為準；只有立場引句、沒有獨立分析的照舊算陪襯
         or (bool(analysis) and answer.get('content_role') != 'historical_only'
             and (answer.get('entry_for_new') in ('prohibit', 'not_yet')
-                 or answer.get('now') in ('prohibit', 'not_yet')))
+                 or answer.get('now') in ('prohibit', 'not_yet')
+                 # 只有語氣欄偏多偏空時，還要有夠多的本股分析原句（去標點至少 30 字）：一句背景（「甲公司今天漲停，接著討論乙公司」）
+                 # 不因語氣欄就公開（既有契約）；10/27 上銀「上個禮拜沒有漲，今天第一天漲…往季線走」是本股的多句分析
+                 or (answer.get('tone') in ('bullish', 'bearish') and sum(len(_ev_norm(q)) for q in analysis) >= 30)))
         # 模型選「陪襯」時會一併把獨立分析填 false，破底、套牢的原句放在立場欄（2026/10/28 環球晶、國巨）：
         # 沒有過去買賣、不是選股範圍的明確排除、明講現在不能買且偏空、立場原句是本股具體的話（12 字以上），也算本股觀點
         or (answer.get('content_role') == 'comparison_only' and not past
@@ -14279,9 +14281,9 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
             and answer.get('tone') == 'bearish'
             and any(len(_ev_norm(q)) >= 12 for q in stance)))
     # 區分「純歷史買賣回顧／套牢教學（10/28 聖暉）」與「歷史賣出後附帶本股當下明確禁買／等待指令（R1、世芯）」：
-    # 若 stance/analysis 引句本身含有針對本股的當下拒絕進場或等待條件（排除反話與轉述他人），不得以 historical_only 靜默吞沒。
+    # 若 stance/analysis 引句本身含有針對本股的當下拒絕進場、等待條件或禁止追價指令（排除反話與轉述他人），不得以 historical_only 靜默吞沒。
     _cur_inst_re = re.compile(
-        r'(?:不買|不要買|不能買|不會[^，。！？!?]{0,8}買|不碰|不要碰|不能碰|不要玩|別碰|別買|不能追|不要追|先不要|暫不|還不能|還不會'
+        r'(?:不買|不要買|不能買|不會[^，。！？!?]{0,8}買|不碰|不要碰|不能碰|不要玩|別碰|別買|別動|別追|勿追|勿買|勿碰|切勿|不可|不追|不能追|不要追|不宜|不建議|不考慮|先不要|暫不|暫緩|尚未|還不能|還不會|還沒|未到|先觀望|看戲'
         r'|等[^，。！？!?]{0,12}(?:止穩|回測|拉回|再評估|再買|再說|通知|動作)|買進條件未到)'
     )
     _third_party_re = re.compile(r'說謊話|講謊話|說假話|詐騙|別的投顧|很多投顧|別的分析師|別人叫你|有人說')
@@ -14340,6 +14342,17 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
     if now == 'not_yet' and not analysis and answer.get('independent_analysis') is False and tone == 'neutral' and intent in (None, 'neutral'):
         # 10/27 南亞科：「記憶體我目前還沒有買」僅為部位揭露（independent_analysis=false、tone=neutral、selection_intent=neutral），不升格為觀望不碰
         now = 'none'
+    if (now in ('prohibit', 'not_yet') or tone == 'bearish') and not analysis and answer.get('independent_analysis') is False and not past and stance:
+        # 10/27 聯電、世界先進（舊版問卷未填 content_role='position_disclosure'）：引句僅為「真正的成熟製程，我沒有聯電／我沒有世界先進」，
+        # 無任何當下禁買／等待指令與本股風險描述，屬純未持有揭露，不因 explicit_exclusion 升格為觀望不碰。
+        _pure_no_hold = all(
+            re.search(r'(?:我|我們|手[中上]|目前)(?:還)?(?:沒有|沒|無)', q)
+            and not _cur_inst_re.search(q)
+            and not re.search(r'跌|破|套|空|差|弱|貴|高|危|險|死|慘|賠|不能|不要|不碰|別碰|別買|不買', q)
+            for q in stance
+        )
+        if _pure_no_hold:
+            now, tone = 'none', 'neutral'
     if holder == 'hold_rebound':
         now = 'conditional'
     if holder == 'hold' and now == 'none' and tone != 'bearish' and answer.get('_recomputed_from_holding'):
@@ -14532,7 +14545,7 @@ def verdict_response_schema(expected_ids=None):
 # 裁決快取以（段落指紋, 版號）為鍵。改了提示詞或答案格式卻忘了升版，正式流程會沿用舊提示詞的票（2026/10/28 審閱指出：
 # v39 之後又改了提示詞，版號沒動）。版號後面自動接提示詞與格式的指紋，內容一變快取就失效；人工裁決不綁版號，不受影響。
 # 引句怎樣算對得回原文也會改變哪些票有效：驗證器版本一起進指紋（2026/10/28 審閱）
-QUOTE_VERIFIER_VERSION = 'q5-20261028-after-fc5ca969c-r1-r2-guards'
+QUOTE_VERIFIER_VERSION = 'q6-20261029-after-eacff5764-structural-guards'
 VERDICT_VERSION = VERDICT_VERSION + '+' + hashlib.sha256(
     (ADJUDICATE_SYSTEM + json.dumps(verdict_response_schema(), ensure_ascii=False, sort_keys=True)
      + QUOTE_VERIFIER_VERSION).encode('utf-8')).hexdigest()[:8]

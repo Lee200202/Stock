@@ -2106,11 +2106,15 @@ def gemini_generation_config(model, max_out=MAX_OUT, thinking=0, want_json=False
     """正式流程與基本驗收共用；每次輪替模型後重新建立。"""
     cfg = {"maxOutputTokens": min(max_out, MAX_OUT)}
     if re.search(r'gemini-3(?:\.|-)', model):
-        level = (os.environ.get('GEMINI_THINKING_LEVEL', '').strip().lower() or 'medium')
-        if level not in ('low', 'medium', 'high'):
-            raise ValueError('GEMINI_THINKING_LEVEL 必須是 low、medium 或 high')
+        env_level = os.environ.get('GEMINI_THINKING_LEVEL', '').strip().lower()
+        if env_level:
+            if env_level not in ('low', 'medium', 'high'):
+                raise ValueError('GEMINI_THINKING_LEVEL 必須是 low、medium 或 high')
+            level = env_level
+        else:
+            level = 'high' if thinking >= 2048 else 'medium'
         cfg['thinkingConfig'] = {'thinkingLevel': level}
-        cfg['maxOutputTokens'] = min(MAX_OUT, max(max_out, 4096))
+        cfg['maxOutputTokens'] = min(MAX_OUT, max(max_out, 8192 if level == 'high' else 4096))
     else:
         cfg['temperature'] = 0.1
         if 'gemini-2.5' in model:
@@ -4622,7 +4626,15 @@ uncertain 的 suggested_category 只用 buy/sell/holdings/watch_avoid/watch_watc
 別名要是本次原文中的完整股名，不可只是另一句詞或另一家公司的字串片段。像「持有達邁」「你有達美輪」中的「有達」都不是友達；原文沒清楚點名友達、也沒念2409時，不收友達。已明確說某檔上週四全數賣出，今天用「我有」籠統回顧，不能把它重新列為今天持股或賣出；較明確的日期和全出紀錄優先。當日會員操作通知若有同檔買賣，分類先照通知，影片只補有本股依據的說明。後段未點名股票卻重提目標價或會員抱著時，只有前文唯一點名的本股具有相同價位、技術關卡與仍持有證據，才能把後段歸給它；不可依最近一次提到的別檔或共同族群承接。無法唯一確認就省略這個價位與持有敘述。公開說明以書面語整理本股技術、籌碼及條件，不能直接貼口語原句；材料不足可短，不搬鄰檔指標。
 """
 
-EXTRACT_SYSTEM = POLICY + "\n合併擷取、分類、日期、補漏及摘要。source鍵為S編號；source_inventory是原文名稱候選，逐一分類或說明排除，不代表推薦或持有。再讀全文補諧音與末段漏項，輸出完整九類陣列；不抄引句、不假設記得其他批。"
+COT_FIVE_LAYERS = (
+    "\n【五層式判讀思考鏈（內化逐層執行，不輸出思考過程）】"
+    "①實體與跨句指代層：串聯『先鋪陳特徵或買點、後問句揭曉股名』及『同段多股並列＋段尾共同結論』，剔除日常量詞與產業名；"
+    "②主體與語態歸屬層：嚴格區分本人／會員部位（我有／會員有）vs 對觀眾公開建議（要買你們就買／喜歡買→觀望注意）vs 反問預告（我有沒有講→非持有）vs 反話示範（取說真話後結論）vs 觀眾提問（手中有X要出嗎→觀望注意）；"
+    "③時間軸與帳本對齊層：分離當日已執行成交、既有未出場部位續抱、歷史已出場回顧、當下禁買＋未來條件（當下禁令優先）；"
+    "④四維度深度萃取層：在個股說明、①盤勢總覽與③教學重點自然融合原稿已明講的『技術面位階均線指標、訊息與籌碼反應、整體市場資金架構輪動、操作心法與紀律』；"
+    "⑤逐字證據守門層：每項事實與數字須在所引S段落有依據，不借鄰股數據、不將私人通知買價寫入公開說明。"
+)
+EXTRACT_SYSTEM = POLICY + COT_FIVE_LAYERS + "\n合併擷取、分類、日期、補漏及摘要。source鍵為S編號；source_inventory是原文名稱候選，逐一分類或說明排除，不代表推薦或持有。再讀全文補諧音與末段漏項，輸出完整九類陣列；不抄引句、不假設記得其他批。"
 
 
 AUDIT_SYSTEM = POLICY + "\n這是追加覆核。重讀本次提供的全部來源段落；分批時不假設收到其他批原文。逐筆校對初稿並補漏，補漏時逐段對照【先盤點，再分類】的六種句型，初稿沒收的公司要補進對應類別，輸出完整九類陣列，不只輸出差異。逐筆重看 watch_watch，語氣偏負面或當風險示範者依從寬標準改列 watch_avoid，但反話、假破底、賣壓竭盡、ETF 賣在低點而結論看多者照句型十保留；逐筆重看 watch_avoid，這幾種看多說法被誤列時改回 holdings 或 watch_watch；公開文字的人名改成省略主詞；教學主題不足時逐段補齊。被刪除的初稿候選須列 ignored/uncertain 並附理由，不能消失。最後獨立核對每檔持有證據與候選名單：不因昨日買進或後文列候選而漏掉仍持有的部位；每個price_evidence需含價位數字且所在段已引用。附 changes 說明修正。"
@@ -6850,13 +6862,15 @@ def explicit_today_trades(transcript, names, cat):
                 r'(?:我|我們)(?:今天)?買(?:進|了)?(?:一隻|一支|一檔)[^。！？!?，,]{0,5}' + nm,
                 # 「今天賣掉4400塊以上的A，賣了，去買1590B」：同一句先講今天賣掉、再講去買哪一檔（2026/10/08 亞德客-KY）。
                 day + r'[^。！？!?]{0,30}賣(?:掉|出|了)[^。！？!?]{0,24}(?:去|再|就)買(?:進|了)?(?:\d{4,6})?' + nm,
-                # 2026/10/29 力智：「我買哪一隻股票？6719力智」「跌到這邊，買力智」，搭配前後句「現在100多，我再把它買回來」「今天我新增加了這一隻股票」
-                r'(?:我買哪一[隻支檔]股票[？?，,]?|跌到這邊[，,]?買(?:進|了)?)(?:\d{4,6})?' + nm]
+                # 泛化跨句揭曉買進／買回標的（「我買哪一隻股票？6719力智」「今天新買進哪一檔股票？就是3017奇鋐」「跌到這邊，買力智」）
+                r'(?:(?:我|我們)?(?:今天|今日|早盤|早上)?(?:新)?(?:買(?:進|入|了|回)?|布局|增加|進場)(?:了)?哪一?[隻支檔](?:股票|個股)?[？?，,：:\s]*(?:就是|是)?|跌到這邊[，,]?買(?:進|了)?|答案揭曉[，,：:\s]*(?:今天|今日|早盤|早上)?(?:我們|我)?(?:新)?(?:買(?:進|入|了)?|布局|增加)(?:的是)?[，,：:\s]*)(?:\d{4,6})?' + nm]
         notice = re.compile(day + r'[^。！？!?]*(?:通知|告訴)[^。！？!?]*會員[^。！？!?]*買進[^。！？!?]{0,12}' + nm)
     pats = [re.compile(p) for p in pats]
     hits = []
     sentences = _plain_sentences(transcript)
     for index, s in enumerate(sentences):
+        if index > 0 and sentences[index - 1].endswith(('？', '?')) and any(n in s for n in names) and not any(n in sentences[index - 1] for n in names):
+            s = sentences[index - 1] + s
         if not execution_statement(s, cat) or not any(n in s for n in names):
             continue
         if re.search(r'你(?:們)?(?:今天|今日)?才(?:在)?(?:賣|買)|(?:不能|不要|不該|別|正要|準備)(?:再|去)?(?:賣|買)', s):
@@ -6897,9 +6911,9 @@ def explicit_today_trades(transcript, names, cat):
             fwd_sents = sentences[index + 1:min(len(sentences), index + 25)]
             back_text = ''.join(back_sents)[-420:]
             fwd_text = ''.join(fwd_sents)[:520]
-            buyback_m = re.search(r'[^。！？!?]*現在[^。！？!?]{0,12}(?:再)?(?:把它)?買回[^。！？!?]*[。！？!?]?', back_text)
-            added_m = re.search(r'[^。！？!?]*(?:今天|今日|早上|早盤)(?:我|我們)?(?:新增加|新增|新買)(?:了)?這一?[隻支檔]股票[^。！？!?]*[。！？!?]?', fwd_text)
-            just_broke_m = re.search(r'這一?[檔隻支](?:個股)?[^。！？!?]{0,12}剛剛(?:全部)?突破', fwd_text)
+            buyback_m = re.search(r'[^。！？!?]*(?:現在[^。！？!?]{0,12}(?:再)?(?:把它)?買回|(?:今天|今日|早盤|早上)[^。！？!?]{0,28}(?:帶會員|我們|我)[^。！？!?]{0,16}(?:進場|布局|買進|新買))[^。！？!?]*[。！？!?]?', back_text)
+            added_m = re.search(r'[^。！？!?]*(?:今天|今日|早上|早盤)(?:我|我們)?(?:新增加|新增|新買|新布局|買進)(?:了)?(?:這一?[隻支檔](?:股票|個股)?|哪一?[隻支檔](?:股票|個股)?)[^。！？!?]*[。！？!?]?', back_text + fwd_text)
+            just_broke_m = re.search(r'(?:這一?[檔隻支](?:個股)?|60分K線)[^。！？!?]{0,16}剛剛(?:全部|(?:打出)?[^。！？!?]{0,6})?突破', fwd_text)
             if (buyback_m and (added_m or just_broke_m)) or added_m:
                 anchored = True
                 extra_context = (buyback_m.group(0) if buyback_m else '') + s + (added_m.group(0) if added_m else '')
@@ -11225,7 +11239,7 @@ def _own_name_spans(row, source):
             last = max((m.end() for n in raw_names for m in re.finditer(re.escape(n), snippet)), default=None)
             flipped = _next_chart_at(snippet, last) if last is not None else None
             if last is not None:
-                topic_switch = re.search(r'(?<=[。！？!?])(?:(?:好[，,]?)?(?:今天|現在)?我告訴你[，,]?其他股票|其他股票[^。！？!?]{0,6}不能買|(?:今天|現在)?大盤|加權指數)', snippet[last:])
+                topic_switch = re.search(r'(?<=[。！？!?])(?:(?:好[，,]?)?(?:今天|現在)?我告訴你[，,]?其他股票|其他股票[^。！？!?]{0,6}不能買|(?:(?:那我們|我們)?(?:回頭|接著|再|另外)?(?:來看|看回|看到|講到|至於))?(?:今天|昨天|現在|目前)?(?:的)?(?:台股)?(?:大盤|加權指數|櫃買指數))', snippet[last:])
                 if topic_switch:
                     sw_at = last + topic_switch.start()
                     flipped = sw_at if flipped is None else min(flipped, sw_at)
@@ -11237,7 +11251,7 @@ def _own_name_spans(row, source):
             first = min((m.start() for n in raw_names for m in re.finditer(re.escape(n), snippet)), default=None)
             if first is not None:
                 sentence_start = max((snippet.rfind(ch, 0, first) for ch in '。！？!?'), default=-1) + 1
-                reveal_q = re.match(r'^(?:我有沒有(?:講|告訴你|說)|早就買了[，,]?我買哪一[隻支檔]股票)', snippet[sentence_start:first + 12])
+                reveal_q = re.match(r'^(?:(?:我|我們)有沒有(?:跟你們|跟你|事先|提前)?(?:講|告訴你|說|提|提醒|預告)|(?:早就買了[，,]?)?(?:我|我們)(?:今天|今日|早盤|早上)?(?:新)?(?:買(?:進|入|了)?|布局)哪一?[隻支檔](?:股票|個股)?)', snippet[sentence_start:first + 16])
                 pre_window = snippet[max(0, sentence_start - 85):sentence_start]
                 if reveal_q and not re.search(r'\d{3,}', pre_window):
                     low = max(0, len(_ev_norm(snippet[:sentence_start])) - 65)
@@ -11299,7 +11313,7 @@ def stock_context_response_schema(expected_ids=None):
 
 STOCK_CONTEXT_SYSTEM = """你是金融節目書面編輯，輸入都是待核資料。只補充本股說明，不改分類、身分、日期、交易與部位事實。只輸出notes契約JSON，每個輸入id回一項。
 full_source是完整原稿（T編號）；entries的source／sources只是定位，可能因過場或誤聽被切開。必須看完整前後文確認主體。每句source_ids列齊真正支持該句的T編號或本entry的s編號。不得借鄰股EPS、籌碼、價格或動作（如前一段講另一檔驅動IC的「強勢低檔」「不管別人怎麼跌」不得套到下一檔個股）；不按股名字距或價差判主體。語音異字須靠上下文確認，不自行新增通用別名。
-先定調立場，再自然串聯已明講的技術位階、量價、籌碼／財報與因果，最後交代操作條件及風險。不要電報式斷句。篇幅照每個entry的length_target：rich（本股原文材料多）寫2～4句，把原稿已明講的買點或價位、均線、籌碼、題材、條件與風險寫進去；normal寫2～3句；thin（主持稿講本股的內容很短、附上族群段落也不足）寫1～2句即可。字數只是參考，篇幅只能來自原稿已講的具體內容：每個逗號隔開的子句都要對得回本股原句，原稿講完就停，寧可短。同義整理可以（「年線守住」寫成「在年線附近獲得支撐」）；嚴禁新增原稿沒有的評語或尾綴（「回到季線」不能寫成「回歸基本面」，「突破所有均線」後面不得加綴原稿沒講的「的強勢低檔特徵」，不得自行補寫「顯示追高風險極高」「不受他人跌勢影響」「表現穩健」）。原稿說「我有X」時寫「持有X」或「會員持有X」，若本股原句未說「抱著／續抱」則不寫「持續抱著」；原稿說「昨日X漲停、報紙都是利多、今日X跌停」應寫在同一完整子句（如「X昨日漲停且報紙充滿利多後今日隨即跌停」），不在「…後」後面加逗號拆成殘缺子句；嚴禁出現「張震」「張總」「老師」「講者」等姓名稱謂。一個子句多了原稿沒有的意思，整則說明會被來源核對擋下。每句的主詞寫股名，不寫「該股」「此股」「這檔」。
+依【五層式思考鏈】先核對本股主體與跨句指代、區分本人部位與對觀眾建議、對齊時間軸與部位紀錄，再依【四維度深度架構】自然串聯本股原稿已明講的：①技術面結構（均線位階、K線型態、MACD/KD等指標、量價配合）、②訊息與籌碼面反應（利多或利空見報後之真實走勢反應、外資／投信／ETF／融資動向、基本面或匯率題材）、③市場架構定位（相對大盤或同族群之強弱位階）、④明確操作條件與風險紀律。不要電報式斷句。篇幅照每個entry的length_target：rich（本股原文材料多）寫2～4句，把原稿已明講的買點或價位、均線、籌碼、題材、條件與風險寫進去；normal寫2～3句；thin（主持稿講本股的內容很短、附上族群段落也不足）寫1～2句即可。字數只是參考，篇幅只能來自原稿已講的具體內容：每個逗號隔開的子句都要對得回本股原句，原稿講完就停，寧可短。同義整理可以（「年線守住」寫成「在年線附近獲得支撐」）；嚴禁新增原稿沒有的評語或尾綴（「回到季線」不能寫成「回歸基本面」，「突破所有均線」後面不得加綴原稿沒講的「的強勢低檔特徵」，不得自行補寫「顯示追高風險極高」「不受他人跌勢影響」「表現穩健」）。原稿說「我有X」時寫「持有X」或「會員持有X」，若本股原句未說「抱著／續抱」則不寫「持續抱著」；原稿說「昨日X漲停、報紙都是利多、今日X跌停」應寫在同一完整子句（如「X昨日漲停且報紙充滿利多後今日隨即跌停」），不在「…後」後面加逗號拆成殘缺子句；嚴禁出現「張震」「張總」「老師」「講者」等姓名稱謂。一個子句多了原稿沒有的意思，整則說明會被來源核對擋下。每句的主詞寫股名，不寫「該股」「此股」「這檔」。
 講者明說接下來是謊話、反話示範、舉例或假設（「我今天要說謊話」「如果我是那種投顧會這樣講」「假如」）的那幾句，講的不是事實，不能寫成本股當天的交易、漲停、消息或立場；之後他講「說真話」的部分才是。entries的position_record是紀錄上的部位：none＝操作紀錄、會員持股與當日通知都沒有這一檔，不寫講者、會員或「先前已有部位／已佈局持有」持有本股（給讀者的條件建議如「已持有者續抱」可寫）；unknown＝這一輪讀不到紀錄，不寫部位；sold_today＝今天有賣出，不寫仍持有，facts寫明有剩餘部位時才寫剩餘；open才依facts寫部位。原稿裡講者說「這是我會員的股票」而紀錄是none時，以紀錄為準。entries的category是最後分類，說明要與它一致：category是watch_watch或watch_avoid時，不寫成會員持股、會員的股票或本人持有（部位以紀錄為準，由分類表示），只寫本股的立場、技術位置與條件，original裡的持有說法同樣不沿用；買賣列的剩餘部位依facts裡的部位事實寫。歷史部分減碼與今日剩餘部位續抱可並存，前期買入不是今日再買。對觀眾說別殺低不代表本人持股。original也可能有錯，依原稿核對真正立場，不以否定詞強制沿用或反轉。分類一致性最後另有語意審閱。
 歷史價格、公司行動、疑似ASR數字保留時間條件；疑點數字省略並填limitation，不猜補、不因此刪整段或換股。會員通知買價不得進公開說明。公司、券商、觀眾及會員是不同主體；推測保留若／可能，不寫成已發生。
 用自然完整書面語，不用問句、俚語、語助詞或講者／老師主詞，不寫逐字稿、審閱或編輯過程。不明資訊省略，句子各有自己的來源；缺一個編號時應補齊支持段落，不能借別公司的內容。
@@ -12869,7 +12883,7 @@ existing的每一點都已經收錄，不要再輸出一次，也不要改幾個
 來源不足可少給，禁止把同一句拆成三點或借用其他股票。仍只輸出market陣列與evidence_refs。"""
 
 SUMMARY_TOPUP_SYSTEM += """
-敘事先呈現有原句依據的盤面現象，再連結量價／匯率與資金結構、族群位階、當日應對。只整理來源有談到的維度，不為模板加入CPO、法人、ETF、行情或因果。教學以常見誤區、判斷依據及原稿例子串聯，與盤勢與個股章節避免重複。身分未明可整理不具名的利多與股價反應觀念，不把未確認的同音公司或匿名目標價當事實。篇幅依材料調整，不強制每點80字或湊四個維度。"""
+敘事先呈現有原句依據的盤面現象，再深度連結技術面位階（如大盤60分K均線、底部或壓力型態、盤中關鍵時段賣壓消化）、量價／匯率與法人籌碼結構、高低位階族群資金輪動及當日操作應對。只整理來源有談到的維度，不為模板加入CPO、法人、ETF、行情或因果。第③章操作心法與教學重點以散戶常見誤區（如見報紙利多追高、跌到支撐殺低）、講者核心心法與紀律（如『有賣才有買、漲時賣跌時買』、底部持股耐心、看懂利多出盡與真假突破）及當日原稿實例完整串聯，與盤勢與個股章節互補而不重複。身分未明可整理不具名的利多與股價反應觀念，不把未確認的同音公司或匿名目標價當事實。篇幅依材料調整，不強制每點80字或湊四個維度。"""
 
 
 # 語意重複交給模型判斷（v143）。字面比對抓得到「用字相近」的重複，抓不到換句話較多的：
@@ -13505,6 +13519,7 @@ ADJUDICATE_SYSTEM = """你是原始金融節目及會員通知的事實裁決員
 
 引用契約：quotes若有填，須為所選S/N內連續原字；跨段只能跨相鄰S且維持順序，不加省略號、不把ASR改成正式股名。若要引用完整原段，可只填quote_source_ids、quotes留空，並核該整段真正主體。來源編號正確不表示任意濃縮句正確。純報漲停、未持有清單或選股對照沒有獨立推論時，independent_analysis=false；不能把後面別股的突破或EPS當成這一檔的分析。
 先確認主體與內容角色，填about_itself：
+【五層式思考鏈】作答前依序核對：①實體與跨句指代解構（先鋪陳特徵後問句揭曉股名者須前後串聯；同段多股並列＋段尾共同結論須回讀完整S段套用；剔除日常量詞與產業名）→②主體與語態歸屬（嚴格區分本人／會員部位 vs 對觀眾公開建議『要買你們就買／喜歡買』vs 反問預告『我有沒有講』vs 反話示範『如果我是那種投顧』vs 觀眾提問『手中有X要出嗎』）→③時間軸與部位帳本對齊（當日已成交 vs 既有未出場部位續抱 vs 歷史已出場回顧）→④當下禁令優先於未來條件→⑤逐字原段證據核對。
 - true：有本股獨立技術、量價、消息、風險、可行進場條件或追蹤判斷，或本人／會員的當日交易與現有部位陳述。點出本股昨日漲停或大漲、報紙滿滿利多而今日隨即跌停或重挫（或融資增加被殺），用來警示追高利多風險，且同段S原文緊接總結「不要買」時，屬本股當下風險與禁買判斷（about_itself=true、content_role=independent_analysis、independent_analysis=true、entry_for_new=prohibit、now=prohibit、tone=bearish），須回讀完整S段確認共同結論，不能因passages在鄰股名稱處切開就漏看同段結尾的禁買結論。
 - false：日常量詞／名詞誤當股票；只在列舉未持有或不在觀察池的對照組出現，全文無本股獨立分析；別股被借來比喻且無本股現況。僅「不是在看甲乙，主要看丙丁」不能將甲乙判成禁買。單說同族群漲停只是背景，不能把後面真正分析的另一檔推薦分給它。
 公司候選與open_position／known只是識別與部位歷史，不能證明某個日常詞就是該股。語音異字可用完整轉場、題材及原通知協助辨主體；不按股價接近或最近股名字距強猜，無法確認填unsure。不得新增跨日別名。
@@ -13709,7 +13724,9 @@ def _viewer_holding_question(names, transcript):
     flat = re.sub(r'【[^】]{0,40}】|\s', '', str(transcript or ''))
     for n in sorted({str(x) for x in names if len(str(x)) >= 2}, key=len, reverse=True):
         m = re.search(r'(?:張總|老師|張震)[，,、]?(?:請問)?[，,、]?我(?:的)?(?:手中|手上|目前|現在)?(?:有|持有|買了|買的)'
-                      r'[^。！？!?]{0,12}' + re.escape(n) + r'[^。！？!?]{0,40}?[嗎呢][？?]?', flat)
+                      r'[^。！？!?]{0,12}' + re.escape(n) + r'[^。！？!?]{0,40}?(?:[嗎呢]|(?:要不要|該不該|可不可以|能不能)(?:賣|出|留|抱|續抱|砍)|怎麼辦)[？?]?', flat)
+        if not m:
+            m = re.search(r'(?:張總|老師|張震)[^。！？!?]{0,10}' + re.escape(n) + r'[^。！？!?]{0,16}(?:再抱|續抱|還可以抱|還能抱)(?:嗎|呢)?[？?]?', flat)
         if m:
             return m.group()[:60]
     return ''
@@ -14282,7 +14299,7 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
         if field == 'holding_now':
             _strip_nonhold_buy = lambda t: re.sub(
                 r'(?:(?:不|沒|沒有|未|無|非|別|勿|禁|不能|不要|不會|尚未|還沒有|還沒|很想|想|想要|打算|準備|考慮|喜歡|愛)[^，。！？!?]{0,4}(?:買(?:進|入|回)?|持有|續抱|抱著|留著|持股|部位)'
-                r'|(?:我|我們)有沒有(?:跟你們|跟你)?(?:講|說|告訴|提|看|發現)'
+                r'|(?:我|我們)有沒有(?:跟你們|跟你|事先|提前|先)?(?:講|說|告訴|提|提醒|預告|分析|看|發現|警告)(?:過)?(?:你們|你)?'
                 r'|(?:要買[，,]?(?:你們)?(?:就)?買|去買|可以買|你們(?:就)?(?:去)?買|你(?:們)?去買|叫你們(?:去)?買|告訴你們[^。！？!?]{0,8}買)'
                 r'|手[中上](?:沒有|沒|無)|買(?:進|入)?(?:條件|點|盤|超|方|氣|單|一[隻支檔]))',
                 '',
@@ -14690,7 +14707,7 @@ def verdict_response_schema(expected_ids=None):
 # 裁決快取以（段落指紋, 版號）為鍵。改了提示詞或答案格式卻忘了升版，正式流程會沿用舊提示詞的票（2026/10/28 審閱指出：
 # v39 之後又改了提示詞，版號沒動）。版號後面自動接提示詞與格式的指紋，內容一變快取就失效；人工裁決不綁版號，不受影響。
 # 引句怎樣算對得回原文也會改變哪些票有效：驗證器版本一起進指紋（2026/10/28 審閱）
-QUOTE_VERIFIER_VERSION = 'q11-20261029-after-aeaf19fcd-preview5-fixes'
+QUOTE_VERIFIER_VERSION = 'q12-20261029-final-generalized-cot-and-depth'
 VERDICT_VERSION = VERDICT_VERSION + '+' + hashlib.sha256(
     (ADJUDICATE_SYSTEM + json.dumps(verdict_response_schema(), ensure_ascii=False, sort_keys=True)
      + QUOTE_VERIFIER_VERSION).encode('utf-8')).hexdigest()[:8]
@@ -14774,8 +14791,10 @@ def _ask_verdicts(items, date_str, round_no, transcript='', repair=True):
             'source_id_rule': '先讀完整source及當日通知，passages僅定位提示，不是完整邊界。每個事實題與stance可填quote_source_ids對應S原稿或N原通知編號，最多3段，程式還原原字；核對真正主體、當日已買與續抱不同。通知買價不可進公開說明。',
             'day_notification_context': _DAY_SOURCE_CONTEXT if _DAY_SOURCE_CONTEXT.get('date') == date_str else {}}, ensure_ascii=False, separators=(',', ':'))
         try:
-            raw = call_gemini(ADJUDICATE_SYSTEM, payload, want_json=True, thinking=1024,
-                              tag=f'adjudicate-r{round_no + 1}' + ('' if repair else '-repair'), max_out=min(MAX_OUT, 3000 + 450 * len(batch)),
+            _think_budget = 1024 if (round_no == 0 and repair) else (2048 if (round_no == 1 and repair) else 3072)
+            _base_out = 5000 if _think_budget >= 2048 else 3000
+            raw = call_gemini(ADJUDICATE_SYSTEM, payload, want_json=True, thinking=_think_budget,
+                              tag=f'adjudicate-r{round_no + 1}' + ('' if repair else '-repair'), max_out=min(MAX_OUT, _base_out + 450 * len(batch)),
                               response_schema=verdict_response_schema([code for code, _ in batch]))
             data = safe_load_json(raw, default={})
         except Exception as e:
@@ -14980,8 +14999,12 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
         if text:
             for _seg in source_segments(transcript).values():
                 _st = _seg['text']
-                if any(len(n) >= 2 and n in _st for n in names) and re.search(r'昨天[^。！？!?]{0,20}漲停[^。！？!?]*今天[^。！？!?]{0,12}跌停', _st):
-                    _m = re.search(r'我問你[^。！？!?]*[。！？!?]\s*為什麼我[^。！？!?]*不要買[^。！？!?]*[。！？!?]', _st)
+                if any(len(n) >= 2 and n in _st for n in names):
+                    _m = None
+                    if re.search(r'昨天[^。！？!?]{0,20}漲停[^。！？!?]*今天[^。！？!?]{0,12}(?:跌停|被殺|重挫|大跌)', _st):
+                        _m = re.search(r'(?:我問你[^。！？!?]*[。！？!?]\s*)?(?:為什麼我|所以我|我才)[^。！？!?]*(?:不要買|不能買|不要碰|別買|不要追)[^。！？!?]*[。！？!?]', _st)
+                    if not _m:
+                        _m = re.search(r'[^。！？!?]*(?:這種|這些|這幾[檔支隻]|這類|以上)[^。！？!?]{0,24}(?:股票|個股)[^。！？!?]*(?:千萬不要|絕對不要|不要去?接刀|不要買|不能買|不要碰|不能碰|不要追|都可以(?:特別)?留意|值得留意|好好的?抱著|續抱)[^。！？!?]*[。！？!?]', _st)
                     if _m and _ev_norm(_m.group(0)) not in _ev_norm(text):
                         sent.append({'before': '', 'text': _m.group(0).strip()})
                         text = text + '\n' + _m.group(0).strip()
@@ -15116,6 +15139,12 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                 why = f"{entry['votes'].count('buy')}／{len([v for v in entry['votes'] if v])} 票今天買進，原文有程式可核對的當日成交句"
                 entry['execution_verified'] = True
             if state == '再問':
+                if not item.get('_answer_validation'):
+                    item = dict(item, _answer_validation={
+                        'uncertainty_recheck': True,
+                        'prior_votes_count': len(entry['votes']),
+                        'instruction': '前輪票數分裂或引句未過核對；請啟動五層式思考鏈重讀完整S/N來源：①確認跨句揭曉或同段段尾共同結論、②區分本人部位與對觀眾公開建議或反問句、③對齊當日成交／既有部位／歷史回顧時間軸、④當下禁令優先於未來條件、⑤挑出含本股主體的連續原字引句。'
+                    })
                 still.append((code, item))
                 continue
             usable = [v for v in entry['votes'] if v]

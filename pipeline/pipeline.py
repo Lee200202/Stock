@@ -6634,6 +6634,15 @@ def _price_near_name(price, quotes, names, span=25):
                 for at in spots(s, k):
                     if num in s[max(0, at - span):at + len(k) + span]:
                         return True
+        for q in quotes:
+            flat_q = re.sub(r'\s', '', str(q))
+            for k in keys:
+                for at in spots(flat_q, k):
+                    window = flat_q[max(0, at - 180):at + len(k) + 60]
+                    if num in window:
+                        other_codes = set(re.findall(r'(?<!\d)[1-9]\d{3}(?!\d)', window)) - set(keys) - {num}
+                        if not other_codes:
+                            return True
         return False
     return bool(keys) and all(near(n) for n in nums)
 
@@ -6823,7 +6832,9 @@ def explicit_today_trades(transcript, names, cat):
                 r'(?:我|我們)(?:今天)?買了?(?:一隻|一支|一檔)?股票[，,]?' + nm,
                 r'(?:我|我們)(?:今天)?買(?:進|了)?(?:一隻|一支|一檔)[^。！？!?，,]{0,5}' + nm,
                 # 「今天賣掉4400塊以上的A，賣了，去買1590B」：同一句先講今天賣掉、再講去買哪一檔（2026/10/08 亞德客-KY）。
-                day + r'[^。！？!?]{0,30}賣(?:掉|出|了)[^。！？!?]{0,24}(?:去|再|就)買(?:進|了)?(?:\d{4,6})?' + nm]
+                day + r'[^。！？!?]{0,30}賣(?:掉|出|了)[^。！？!?]{0,24}(?:去|再|就)買(?:進|了)?(?:\d{4,6})?' + nm,
+                # 2026/10/29 力智：「我買哪一隻股票？6719力智」「跌到這邊，買力智」，搭配前後句「現在100多，我再把它買回來」「今天我新增加了這一隻股票」
+                r'(?:我買哪一[隻支檔]股票[？?，,]?|跌到這邊[，,]?買(?:進|了)?)(?:\d{4,6})?' + nm]
         notice = re.compile(day + r'[^。！？!?]*(?:通知|告訴)[^。！？!?]*會員[^。！？!?]*買進[^。！？!?]{0,12}' + nm)
     pats = [re.compile(p) for p in pats]
     hits = []
@@ -6861,8 +6872,20 @@ def explicit_today_trades(transcript, names, cat):
             continue
         # 「賣出的X」「X賣了」只是完成式，不是日期。時間必須貼著成交動作，
         # 不能把後面「今天跌多少」借給前面的歷史成交。
-        verb = re.compile(r'賣(?:出|掉|了)?' if cat == 'sell' else r'買(?:進|了)?')
+        verb = re.compile(r'賣(?:出|掉|了)?' if cat == 'sell' else r'買(?:進|了|回)?|新增加')
         anchored = _said_today(s, verb)
+        extra_context = ''
+        if not anchored and cat == 'buy':
+            back_sents = sentences[max(0, index - 16):index]
+            fwd_sents = sentences[index + 1:min(len(sentences), index + 25)]
+            back_text = ''.join(back_sents)[-420:]
+            fwd_text = ''.join(fwd_sents)[:520]
+            buyback_m = re.search(r'[^。！？!?]*現在[^。！？!?]{0,12}(?:再)?(?:把它)?買回[^。！？!?]*[。！？!?]?', back_text)
+            added_m = re.search(r'[^。！？!?]*(?:今天|今日|早上|早盤)(?:我|我們)?(?:新增加|新增|新買)(?:了)?這一?[隻支檔]股票[^。！？!?]*[。！？!?]?', fwd_text)
+            just_broke_m = re.search(r'這一?[檔隻支](?:個股)?[^。！？!?]{0,12}剛剛(?:全部)?突破', fwd_text)
+            if (buyback_m and (added_m or just_broke_m)) or added_m:
+                anchored = True
+                extra_context = (buyback_m.group(0) if buyback_m else '') + s + (added_m.group(0) if added_m else '')
         if not anchored and not other:
             # 簡短回接只沿用同一檔的已執行動作，不借用「今天大盤跌」等背景時間。
             prefix = ''.join(sentences[max(0, index - 6):index])[-220:]
@@ -6871,7 +6894,7 @@ def explicit_today_trades(transcript, names, cat):
             anchored = anchored or bool(re.search(r'(?:賣掉了|賣了)[，,](?:今天)?早上賣的', s))
         if not notice.search(s) and not anchored:
             continue
-        hits.append(s)
+        hits.append(extra_context or s)
     return list(dict.fromkeys(hits))
 
 
@@ -7300,9 +7323,9 @@ def _weak_name_explicitly_stock(heard, code, transcript):
                  or re.search(re.escape(heard) + r'[^。！？!?]{0,6}' + re.escape(code) + r'(?!\d)', flat)):
         return True
     name = re.escape(heard)
-    return bool(re.search(r'(?:這是|叫做|名叫|股票是|這一?[支檔隻]是)' + name, flat)
-                or re.search(name + r'[^。！？!?]{0,16}(?:股票|股價|季線|月線|漲停|跌停|買進|買入|賣出|續抱|持有|目標價|EPS)', flat)
-                or re.search(r'(?:^|[，,。！？!?])' + name + r'[呢啊喔哦嘛]?[。！？!?][^。！？!?]{0,30}(?:MACD|KD|均線|季線|月線|翻紅|突破)', flat))
+    return bool(re.search(r'(?:這是|叫做|名叫|股票是|這一?[支檔隻]是|我有|你有|我們有|會員有|買進|買入|買|持有|續抱|抱著|驅動IC的|電源管理IC的)' + name, flat)
+                or re.search(name + r'[^。！？!?]{0,24}(?:股票|股價|季線|月線|年線|均線|K線|日K|週K|周K|月K|MACD|KD|高點|低點|創新高|創高|沒有量|出量|突破|翻紅|翻陽|背離|漲停|跌停|買進|買入|賣出|續抱|持有|目標價|EPS)', flat)
+                or re.search(r'(?:^|[，,。！？!?])' + name + r'[呢啊喔哦嘛]?[。！？!?][\s\S]{0,45}?(?:MACD|KD|均線|季線|月線|年線|K線|翻紅|翻陽|突破|創新高|高點沒有量)', flat))
 
 
 def drop_ordinary_word_rows(signals, transcript):
@@ -8050,7 +8073,9 @@ MANUAL_ENTRY_PREFIX = 'MANUALENTRY-'
 # 規則版本。刷新檢查點與判讀稽核都以「影片、日期、原文指紋、規則版本」為鍵：判讀規則有變就要換號，
 # 否則同一份原文重新投稿會被當成「來源與規則版本相同」，直接從舊檢查點續跑、不重跑判讀
 # （2026/10/01 v97 推上去後第一次重跑就是這樣，資料一筆都沒變）。
-ASSESSMENT_VERSION = 'context-json-v35-source-context'   # 原始通知與主體候選分層；量詞不當確認股名
+# 注意：public-site/gas-source/Articlequality.gs 的 attachArticleEvidence_ 以 /^(evidence-v2|context-json-v\d+)$/ 驗版號，
+# 後綴不可加英文字串（2026/10/29 因 context-json-v35-source-context 不符正規表達式，導致網站盤勢與教學整章空白）。
+ASSESSMENT_VERSION = 'context-json-v36'                  # 原始通知與主體候選分層；版號維持 v+純數字以相容網站端
 
 
 _SOUND_MEMO = {}
@@ -8809,15 +8834,16 @@ def public_narrative(text, row=None, signals=None):
             alias = r'(?<!持)有達(?!邁)' if heard == '有達' else re.escape(heard)
             text = re.sub(alias + guard + ky, lambda m: fixed, text, flags=re.I if ky else 0)
     for fixed in set(_public_aliases(signals).values()):
-        text = re.sub(re.escape(fixed)+r'\s*[（(]'+re.escape(fixed)+r'[）)]',lambda m:fixed,text)
+        text = re.sub(re.escape(fixed)+r'\s*[（(]\s*'+re.escape(fixed)+r'(?:\s*[／/、，,]\s*'+re.escape(fixed)+r')*\s*[）)]',lambda m:fixed,text)
     name, code = _display_name(row.get('name')), str(row.get('code') or '')
     # 已存入的 10/12 舊資料也在呈現時修復；正式來源列另由逐日同步改正。
     if code == '3645':
         text = text.replace('持友達邁', '持有達邁')
+    text = text.replace('續報', '續抱')
     if name and re.fullmatch(r'(?:00981A|\d{4,6})', code):
         text = re.sub(re.escape(name) + r'\s*(?:[（(]\s*(?:00981A|\d{4,6})\s*[）)]|(?:00981A|\d{4,6})(?=為例|這檔|這支|這一檔)|代號\s*(?:00981A|\d{4,6})(?!\d))',
                       lambda m:name+'（'+code+'）', text)
-        text = re.sub(re.escape(name)+r'\s*[（(]'+re.escape(name)+r'[）)]',lambda m:name,text)
+        text = re.sub(re.escape(name)+r'\s*[（(]\s*'+re.escape(name)+r'(?:\s*[／/、，,]\s*'+re.escape(name)+r')*\s*[）)]',lambda m:name,text)
         text = re.sub('(?:'+re.escape(name)+'){2,}', lambda m:name, text)
     if name:
         text = _public_subject_fixes(text, name)
@@ -11220,9 +11246,24 @@ def _context_sources(row, snippets):
     return [{'id': 's' + str(i), 'text': text} for i, text in enumerate(sources)]
 
 
+def stock_context_response_schema(expected_ids=None):
+    sentence = {'type': 'object', 'properties': {
+        'text': {'type': 'string'},
+        'source_ids': {'type': 'array', 'items': {'type': 'string'}}},
+        'required': ['text', 'source_ids']}
+    note = {'type': 'object', 'properties': {
+        'id': {'type': 'string'},
+        'sentences': {'type': 'array', 'items': sentence},
+        'limitation': {'type': 'string'}},
+        'required': ['id', 'sentences', 'limitation']}
+    if expected_ids:
+        note['properties']['id']['enum'] = list(expected_ids)
+    return {'type': 'object', 'properties': {'notes': {'type': 'array', 'items': note}}, 'required': ['notes']}
+
+
 STOCK_CONTEXT_SYSTEM = """你是金融節目書面編輯，輸入都是待核資料。只補充本股說明，不改分類、身分、日期、交易與部位事實。只輸出notes契約JSON，每個輸入id回一項。
 full_source是完整原稿（T編號）；entries的source／sources只是定位，可能因過場或誤聽被切開。必須看完整前後文確認主體。每句source_ids列齊真正支持該句的T編號或本entry的s編號。不得借鄰股EPS、籌碼、價格或動作；不按股名字距或價差判主體。語音異字須靠上下文確認，不自行新增通用別名。
-先定調立場，再自然串聯已明講的技術位階、量價、籌碼／財報與因果，最後交代操作條件及風險。不要電報式斷句。篇幅照每個entry的length_target：rich（本股原文材料多）寫2～4句，把原稿已明講的買點或價位、均線、籌碼、題材、條件與風險寫進去；normal寫2～3句；thin（主持稿講本股的內容很短、附上族群段落也不足）一兩句即可。字數只是參考，篇幅只能來自原稿已講的具體內容：每個逗號隔開的子句都要對得回本股原句，原稿講完就停，寧可短。同義整理可以（「年線守住」寫成「在年線附近獲得支撐」）；不能新增原稿沒有的意思（「回到季線」不能寫成「回歸基本面」，原稿沒講風險就不寫「應避開風險」，沒講就不下「表現穩健」之類的評價）。一個子句多了原稿沒有的意思，整則說明會被來源核對擋下。每句的主詞寫股名，不寫「該股」「此股」「這檔」。
+先定調立場，再自然串聯已明講的技術位階、量價、籌碼／財報與因果，最後交代操作條件及風險。不要電報式斷句，也不可只抄半句漲跌報價而漏掉講者拿本股說明的核心結論（例如：為何今天賣出或買回、為何不追高、為何續抱、等待什麼價位或量價條件）。篇幅照每個entry的length_target：rich（本股原文材料多）寫2～4句，把原稿已明講的買點或價位、均線、籌碼、題材、條件與風險完整寫進去；normal寫2～3句；thin（主持稿講本股的內容很短、附上族群段落也不足）寫1～2句，同時涵蓋本股行情事實與講者明講的操作理由。每個子句都要對得回本股原句：同義書面整理可以（「年線守住」寫成「在年線附近獲得支撐」）；不能新增原稿沒有的空泛評語（「回歸基本面」「表現穩健」）。每句的主詞寫股名，不寫「該股」「此股」「這檔」。
 講者明說接下來是謊話、反話示範、舉例或假設（「我今天要說謊話」「如果我是那種投顧會這樣講」「假如」）的那幾句，講的不是事實，不能寫成本股當天的交易、漲停、消息或立場；之後他講「說真話」的部分才是。entries的position_record是紀錄上的部位：none＝操作紀錄、會員持股與當日通知都沒有這一檔，不寫講者、會員或「先前已有部位／已佈局持有」持有本股（給讀者的條件建議如「已持有者續抱」可寫）；unknown＝這一輪讀不到紀錄，不寫部位；sold_today＝今天有賣出，不寫仍持有，facts寫明有剩餘部位時才寫剩餘；open才依facts寫部位。原稿裡講者說「這是我會員的股票」而紀錄是none時，以紀錄為準。entries的category是最後分類，說明要與它一致：category是watch_watch或watch_avoid時，不寫成會員持股、會員的股票或本人持有（部位以紀錄為準，由分類表示），只寫本股的立場、技術位置與條件，original裡的持有說法同樣不沿用；買賣列的剩餘部位依facts裡的部位事實寫。歷史部分減碼與今日剩餘部位續抱可並存，前期買入不是今日再買。對觀眾說別殺低不代表本人持股。original也可能有錯，依原稿核對真正立場，不以否定詞強制沿用或反轉。分類一致性最後另有語意審閱。
 歷史價格、公司行動、疑似ASR數字保留時間條件；疑點數字省略並填limitation，不猜補、不因此刪整段或換股。會員通知買價不得進公開說明。公司、券商、觀眾及會員是不同主體；推測保留若／可能，不寫成已發生。
 用自然完整書面語，不用問句、俚語、語助詞或講者／老師主詞，不寫逐字稿、審閱或編輯過程。不明資訊省略，句子各有自己的來源；缺一個編號時應補齊支持段落，不能借別公司的內容。
@@ -11993,9 +12034,10 @@ def enrich_stock_context(signals, transcript, date_str):
             gap(row, '合併上下文超過安全輸入預算，未補造')
         return signals
     print(f'個股說明補充：{len(entries)} 檔合併一問，跨段整理技術位置、題材與風險')
+    schema = stock_context_response_schema([e['id'] for e in entries])
     try:
         parsed = safe_load_json(call_gemini(STOCK_CONTEXT_SYSTEM, payload, want_json=True,
-            thinking=1024, tag='stock-context', max_out=min(MAX_OUT, 12000)))
+            thinking=1024, tag='stock-context', max_out=min(MAX_OUT, 12000), response_schema=schema))
         replies = parsed.get('notes') if isinstance(parsed, dict) else None
         if not isinstance(replies, list):
             raise ValueError('個股說明回應缺少 notes 陣列')
@@ -12046,7 +12088,7 @@ def enrich_stock_context(signals, transcript, date_str):
             again = safe_load_json(call_gemini(
                 STOCK_CONTEXT_SYSTEM + '\n上一次回覆的 source_ids 沒有對到 sources 的編號，整批無法採用。'
                 '每一句的 source_ids 只能填該 entry.sources 裡的 id（s0、s1……），不要填原句、頁碼或自編的編號。',
-                payload, want_json=True, thinking=1024, tag='stock-context', max_out=min(MAX_OUT, 12000)))
+                payload, want_json=True, thinking=1024, tag='stock-context', max_out=min(MAX_OUT, 12000), response_schema=schema))
             second = again.get('notes') if isinstance(again, dict) else None
             if isinstance(second, list):
                 print(f'  個股說明補充：重問後可用 {usable(second)}/{len(entries)} 筆' + ('' if usable(second) * 3 >= len(entries) else '；格式樣本　' + sample(second)))
@@ -12175,6 +12217,11 @@ def enrich_stock_context(signals, transcript, date_str):
             note_decision('個股說明', '部分補充句未通過核對', row.get('name', ''), f'{dropped}/{len(claims)} 句未採用')
         row[field] = note
         row['_context_note_evidence'] = list(dict.fromkeys(quotes))
+        seg_map = source_segments(transcript)
+        matched_sids = [sid for sid, seg in seg_map.items()
+                        if any(_ev_norm(q) and (_ev_norm(q) in _ev_norm(seg['text']) or _ev_norm(seg['text']) in _ev_norm(q)) for q in quotes)]
+        if matched_sids:
+            row['evidence_refs'] = list(dict.fromkeys(list(row.get('evidence_refs') or []) + matched_sids))
         accepted.add(reply['id'])
         limitation = str(reply.get('limitation') or '').strip()
         if len(_ev_norm(note)) < 70:
@@ -13430,7 +13477,7 @@ now填buy_ok／conditional／not_yet／prohibit／none，與前述軸一致；to
 
 # 引句裡要看得出答案：答「今天買進」卻引一句沒有買字的話，那一題不算數。
 _VQ_FAMILY = {
-    'buy_today': re.compile(r'買|進場|[佈布]局|承接|加碼'),
+    'buy_today': re.compile(r'買|進場|[佈布]局|承接|加碼|新增'),
     'sell_today': re.compile(r'賣|出場|出清|了結|停利|停損|出掉'),
     'holding_now': re.compile(r'抱|還在|還有|持有|(?:我|我們|會員)[^，。！？!?]{0,6}有|(?:我|我們|會員)的(?:股票|持股|部位)|本來(?:就|也)?(?:是我的|有)|小套|套住|只有|沒有?賣|沒有?叫你們?賣|不[准準要用]賣|放到|成本|手[中上]|續|買'),
     'past_trade': re.compile(r'買|賣|出場|出清|進場|[佈布]局|了結'),
@@ -13526,6 +13573,15 @@ def _verdict_today_rows(signals, date_str):
                 continue
             if cat in SIGNAL_CATEGORIES and (row.get('_date') or date_str) != date_str:
                 continue
+            if cat in _VERDICT_HIDDEN and not row.get('_notice_candidate_sources'):
+                official = _display_name((_CODE_MAP or {}).get(code) or '')
+                raw_name = _display_name(row.get('name') or '')
+                if official and raw_name and raw_name != official:
+                    confirmed_code = CONFIRMED_NAMES.get(raw_name, ('', ''))[0] if raw_name in CONFIRMED_NAMES else ''
+                    if confirmed_code and confirmed_code != code:
+                        row['code'] = code = confirmed_code
+                    elif not confirmed_code and _npin(raw_name) != _npin(official):
+                        continue
             out.setdefault(code, []).append((cat, row))
     return out
 
@@ -14144,10 +14200,17 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
     def supports(field, q):
         if not _VQ_FAMILY[field].search(q):
             return False
+        restored_segs = (answer.get('_verified_quote_sources') or {}).get(field) or []
         if field in ('buy_today', 'sell_today') and _VQ_PAST.search(q) and not _VQ_TODAY.search(q):
-            return False
+            now_buyback = (field == 'buy_today' and (
+                re.search(r'現在[^。！？!?]{0,12}(?:再)?(?:把它)?買回|跌到這邊[，,]?買|剛剛(?:全部)?突破', q)
+                or any(_VQ_TODAY.search(s) for s in restored_segs)))
+            if not now_buyback:
+                return False
         if field in ('buy_today', 'sell_today') and own and not any(n in _ev_norm(q) for n in (real_own or own)):
-            return False
+            other_co = re.search(r'[A-Za-z0-9\u4e00-\u9fff]{1,6}公司|[1-9]\d{3}', q)
+            if other_co or not restored_segs or not any(n in _ev_norm(s) for s in restored_segs for n in (real_own or own)):
+                return False
         if field == 'past_trade' and real_own:
             restored_segs = (answer.get('_verified_quote_sources') or {}).get(field) or []
             if not any(n in _ev_norm(q) for n in real_own) and not any(n in _ev_norm(s) for s in restored_segs for n in real_own):
@@ -14557,7 +14620,7 @@ def verdict_response_schema(expected_ids=None):
 # 裁決快取以（段落指紋, 版號）為鍵。改了提示詞或答案格式卻忘了升版，正式流程會沿用舊提示詞的票（2026/10/28 審閱指出：
 # v39 之後又改了提示詞，版號沒動）。版號後面自動接提示詞與格式的指紋，內容一變快取就失效；人工裁決不綁版號，不受影響。
 # 引句怎樣算對得回原文也會改變哪些票有效：驗證器版本一起進指紋（2026/10/28 審閱）
-QUOTE_VERIFIER_VERSION = 'q8-20261029-after-c476d800c-projection-and-retro-guards'
+QUOTE_VERIFIER_VERSION = 'q9-20261029-after-aeaf19fcd-market-version-and-1029-guards'
 VERDICT_VERSION = VERDICT_VERSION + '+' + hashlib.sha256(
     (ADJUDICATE_SYSTEM + json.dumps(verdict_response_schema(), ensure_ascii=False, sort_keys=True)
      + QUOTE_VERIFIER_VERSION).encode('utf-8')).hexdigest()[:8]
@@ -14937,7 +15000,7 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                 held, held_basis = verdict_class(dict(answers[code], buy_today=False), item['_norm'], item['_names'], zones)
                 if held == 'holdings':
                     cls, basis = held, held_basis
-            if cls == 'buy' and entry['current'] != 'buy':
+            if cls == 'buy' and entry['current'] != 'buy' and not explicit_today_trades(transcript, item['_names'], 'buy'):
                 # 問卷認為今天買進，但買賣只認明確句或會員通知：這一票以看多計，不丟掉（2026/10/14 台達電「我說台達電可以買」）
                 cls, basis = 'watch_watch', '問卷答今天買進但無法核對成交，以看多計：' + basis
             if cls == 'holdings' and not entry.get('open') and (code, 'buy') not in notice and code not in notice_held:
@@ -17587,7 +17650,8 @@ def align_anonymous_claims(signals, transcript, ledger, source_hints=None):
                     neighbours = [source_order[j] for sid in witnessed if sid in source_order
                         for j in range(max(0, source_order.index(sid) - 1), min(len(source_order), source_order.index(sid) + 2))]
                     witnessed = list(dict.fromkeys(witnessed + neighbours))
-                focus = witnessed + focus
+                row_refs = [s for s in (row.get('evidence_refs') or []) if isinstance(s, str)]
+                focus = witnessed + row_refs + focus
                 focus = list(dict.fromkeys(s for s in focus if s in attribution_sources(transcript)))
                 queries.append({'id': key, 'text': text, 'focus_source_ids': focus})
                 if witnessed:
@@ -17687,7 +17751,8 @@ def align_anonymous_claims(signals, transcript, ledger, source_hints=None):
         match = found[0]
         ids = match.get('fact_ids')
         expected_query = next(q['text'] for q in queries if q['id'] == key)
-        echo_ok = re.sub(r'\s+', '', str(match.get('query_text') or '')) == re.sub(r'\s+', '', expected_query)
+        echo_ok = (re.sub(r'\s+', '', str(match.get('query_text') or '')) == re.sub(r'\s+', '', expected_query)
+                   or (len(_ev_norm(expected_query)) >= 4 and _ev_norm(match.get('query_text')) == _ev_norm(expected_query)))
         checks.append({'query_id': key, 'relation': match.get('relation'), 'query_echo_match': echo_ok,
             'details_complete': match.get('entails_all_details'), 'coverage': match.get('coverage'),
             'fact_ids': ids, 'evidence_rejected_count': match.get('evidence_rejected_count', 0),
@@ -17713,6 +17778,18 @@ def align_anonymous_claims(signals, transcript, ledger, source_hints=None):
                 'fact_ids': list(dict.fromkeys(own_ids)), 'relation': 'entailed', 'coverage': 'partial',
                 'origin': 'own_subject_check', 'subject_checks': {own_code: own_check}}
             checks[-1]['bound_by'] = 'own_subject_check'
+            continue
+        own_forms = _identity_forms(own_code, (ledger.get('company_candidates') or {}).get(own_code) or (_CODE_MAP or {}).get(own_code))
+        if (own_code and echo_ok and match.get('relation') == 'entailed'
+                and match.get('entails_all_details') is not False
+                and own_check.get('supports_all_details') is not False and own_ids
+                and all(ledger['facts'][fid].get('subject_codes') == [own_code]
+                        and any(len(_ev_norm(n)) >= 2 and _ev_norm(n) in _ev_norm(ledger['facts'][fid].get('source_quote') or '') for n in own_forms)
+                        for fid in own_ids)):
+            bindings[claim['id']] = {'text_sha256': hashlib.sha256(claim['text'].encode()).hexdigest(),
+                'fact_ids': list(dict.fromkeys(own_ids)), 'relation': 'entailed', 'coverage': 'partial',
+                'origin': 'own_validated_evidence'}
+            checks[-1]['bound_by'] = 'own_validated_evidence'
 
 
 def _quote_spans_in_source(quote, transcript_norm):
@@ -17832,9 +17909,11 @@ def _validated_source_review(item, row, old, transcript):
                     # 漏配時保留編輯者提出的ID，但不讓未驗證配對自動通過。
                     # 只有獨立來源盤點的完整同字主張及本股主體皆一致，才可作窄範圍復原。
                     candidates = proposed_fact_ids or list(facts)
+                    _strip_conn = lambda s: re.sub(r'隨即|隨後|緊接著', '', _ev_norm(s))
                     exact = [fid for fid in candidates if isinstance(fid, str) and fid in facts
                              and facts[fid].get('subject_codes') == [own_code]
-                             and _ev_norm(facts[fid].get('statement')) == _ev_norm(claim['text'])]
+                             and (_ev_norm(facts[fid].get('statement')) == _ev_norm(claim['text'])
+                                  or (len(_strip_conn(claim['text'])) >= 6 and _strip_conn(facts[fid].get('statement')) == _strip_conn(claim['text'])))]
                     if exact:
                         fact_ids = exact
                         aligned = {'fact_ids': exact, 'relation': 'entailed', 'coverage': 'partial',
@@ -18331,7 +18410,7 @@ def _polish_public_texts(signals, transcript, date_str):
             own = (_display_name(row.get('name')), str(row.get('name') or '')) if field != 'text' else ()
             why = _polish_accepts(old, new, names, hay, own)
             if why:
-                if row.get('_source_projection_pending') and not written_style_issues(old, hay):
+                if (row.get('_source_projection_pending') or field == 'text') and not written_style_issues(old, hay):
                     new = old
                 else:
                     refused[key] = '上一次改寫沒有採用：' + why

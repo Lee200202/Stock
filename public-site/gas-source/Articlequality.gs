@@ -68,9 +68,10 @@ function attachArticleEvidence_(signals, d) {
   try { rows = readSheetObjects_('逐字稿判讀稽核'); } catch(e) { return signals; }
   var items = [], latest = null;
   rows.forEach(function(r){
+    // 2026/10/29：pipeline 版本字串帶了後綴（context-json-v35-source-context），這裡不認，網站 ① 盤勢與 ③ 教學整章空白；後綴也接受。
     // 規則版本從 evidence-v2 升到 context-json-v3 之後，這裡仍只認 evidence-v2，
     // 於是整批大盤摘要都被略過，信件盤勢章（當時第③章）變成「本支影片沒有已驗證的大盤摘要」（2026/09/11）。
-    if(fmtDate_(r['影片日期'])!==d || !/^(evidence-v2|context-json-v\d+)$/.test(String(r['規則版本']||''))){return;}
+    if(fmtDate_(r['影片日期'])!==d || !/^(evidence-v2|context-json-v\d+(?:-[a-z0-9-]+)?)$/i.test(String(r['規則版本']||''))){return;}
     try {
       var p=JSON.parse(r['判讀JSON']); p.video=r['來源影片ID']; items.push(p);
       if(p.category==='manifest' && p.item.status==='published'){latest={video:p.video,batch:p.batch};}

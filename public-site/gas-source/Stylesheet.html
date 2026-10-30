@@ -3816,6 +3816,10 @@ html[data-view="mobile"] #perfTable .th-long { display: none; }
 .tech-story .tech-card b { display: block; font-family: "IBM Plex Mono", monospace; font-size: calc(clamp(24px, 2.4vw, 32px) * var(--rd-fs)); line-height: 1.15; color: var(--beam); }
 .tech-story .tech-card span { display: block; margin-top: 6px; font-size: calc(15px * var(--rd-fs)); font-weight: 600; color: var(--ink); }
 .tech-story .tech-card small { display: block; margin-top: 4px; line-height: 1.45; }
+/* 第一章的紀錄規模：桌面一排四張，窄版與手機閱讀模式兩欄。 */
+.tech-story #techLive { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 760px) { .tech-story #techLive { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+html[data-view="mobile"] .tech-story #techLive { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 /* 全寬互動區：與文字上下排列，四周留白 */
 .tech-story .tech-lab { margin: 28px 0 12px; padding: clamp(18px, 2.6vw, 30px); border: 1px solid var(--rule); border-radius: 18px; background: var(--panel); }
 .tech-story .tech-demo-h { margin: 0 0 14px; font-size: calc(14.5px * var(--rd-fs)); font-weight: 700; color: var(--ink); }

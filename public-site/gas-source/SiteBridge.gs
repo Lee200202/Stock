@@ -77,7 +77,7 @@ function siteBridge_(e) {
       'apiAdminManualEntry apiAdminMergeTranscripts apiAdminOpsDay apiAdminPreviewCleanup ' +
       'apiAdminRebuildMail apiAdminReclassify apiAdminResumeFullFix apiAdminResumeJob ' +
       'apiAdminRetryFullFixStep apiAdminRunInfo apiAdminSetDailyPushStart ' +
-      'apiAdminSetHoldingCost apiAdminSmsDays apiAdminSmsState apiAdminStartDaySync ' +
+      'apiAdminSetHoldingCost apiAdminSetTrackerExcluded apiAdminSmsDays apiAdminSmsState apiAdminStartDaySync ' +
       'apiAdminStartFullFix apiAdminStartRefreshFrom apiAdminStartSmsJob apiAdminSubmit ' +
       'apiAdminTodayStatus apiAdminUpdateRow').split(' ');
     if (adminNames.indexOf(method) < 0) { return { ok: false, error: 'method-not-allowed' }; }

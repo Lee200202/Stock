@@ -1618,13 +1618,14 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
             <button type="button" class="ghost sm" id="heldLoadBtn">重新讀取清單</button>
           </div>
         </div>
-        <p class="hint">按「修改」或在文字點兩下編輯；改完按「儲存變更並重算績效」。現價來自行情快取。</p>
+        <p class="hint">按「修改」或在文字點兩下編輯；改完按「儲存變更並重算績效」。可移除持有或已出場股票的所有追蹤回合，原始紀錄保留，並可在下方還原。現價來自行情快取。</p>
         <div class="chartbar seg held-toggle" id="heldToggle" role="group" aria-label="持股狀態">
           <button type="button" class="pill" data-hk="held" aria-pressed="true">持有</button><button type="button" class="pill" data-hk="exited" aria-pressed="false">已出場</button>
         </div>
         <div class="tracker-sortbar" id="heldSortBar"><span class="tracker-sort-k">排序</span><div class="chartbar seg" id="heldSort" role="group" aria-label="排序方式"></div></div>
         <div class="amsg" id="heldMsg"></div>
         <div id="heldList" class="held-list"><div class="erow-empty">切到這一頁時讀取。</div></div>
+        <details id="heldRemoved" hidden style="margin-top:18px"><summary>已移除的追蹤（可還原）</summary><div id="heldRemovedList" class="held-list" style="margin-top:12px"></div></details>
         <div class="savebar" id="heldSaveBar" hidden>
           <div class="held-save-info">
             <span class="tag wait" style="border-color:var(--wait);color:var(--wait);font-weight:700">未儲存變更</span>
@@ -4925,7 +4926,9 @@ var mergeTxFingerprint='';
               '<small class="hp-ret ' + (x.ret > 0 ? 'up' : x.ret < 0 ? 'down' : '') + '">' + ret + '</small>' +
             '</span>' +
             (exitLine ? '<span class="hx">' + esc(exitLine) + '</span>' : '') +
+            '<span class="held-row-actions" style="display:flex;gap:8px;flex-wrap:wrap">' +
             '<button type="button" class="btn sm ghost h-edit-btn" aria-label="修改' + esc(x.name) + '（' + esc(x.code) + '）持股資料">修改</button>' +
+            '<button type="button" class="btn sm danger h-remove-btn" aria-label="移除' + esc(x.name) + '（' + esc(x.code) + '）所有追蹤回合">移除追蹤</button></span>' +
           '</div>' +
           '<!-- 卡片式編輯（如圖中 erow 形式，外圍帶框線） -->' +
           '<div class="herow-card" hidden>' +
@@ -5000,6 +5003,8 @@ var mergeTxFingerprint='';
       var editBtn = wrap.querySelector('.h-edit-btn');
       var cancelBtn = wrap.querySelector('.h-cancel-btn');
       var clearBtn = wrap.querySelector('.h-clear-btn');
+      var removeBtn = wrap.querySelector('.h-remove-btn');
+      if (removeBtn) { removeBtn.addEventListener('click', function () { setExcluded(item.code, item.name, true); }); }
 
       var origName = nameInput.value.trim();
       var origCode = codeInput.value.trim();
@@ -5171,6 +5176,40 @@ var mergeTxFingerprint='';
     }
   }
 
+  function setExcluded(code, name, exclude) {
+    if ($('heldList').querySelector('.hrow-wrap.dirty')) {
+      show($('heldMsg'), 'warn', '還有未儲存的修改，請先儲存或收起，再移除或還原追蹤。'); return;
+    }
+    var question = exclude ? '移除 ' + name + '（' + code + '）所有持有及已出場追蹤回合？\n\n將重算追蹤統計與績效。逐日原始紀錄、通知及寄送狀態保留，可由「已移除的追蹤」還原。'
+      : '還原 ' + name + '（' + code + '）所有追蹤回合並重算績效？';
+    if (!window.confirm(question)) { return; }
+    $('heldList').querySelectorAll('.h-remove-btn').forEach(function (button) { button.disabled = true; });
+    show($('heldMsg'), 'warn', exclude ? '正在移除追蹤…' : '正在還原追蹤…');
+    google.script.run.withSuccessHandler(function (r) {
+      if (!r || !r.ok) { show($('heldMsg'), 'err', r && r.reason ? r.reason : '更新失敗'); load(); return; }
+      show($('heldMsg'), 'ok', r.message); load();
+      if (!r.unchanged) { watch(true); }
+    }).withFailureHandler(function (error) {
+      show($('heldMsg'), 'err', '結果尚未確認，請重新讀取清單後再操作：' + (error && error.message || '連線失敗')); load();
+    }).apiAdminSetTrackerExcluded(KEY, String(code), exclude);
+  }
+
+  function drawRemoved(removed) {
+    $('heldRemoved').hidden = !removed.length;
+    $('heldRemovedList').innerHTML = removed.map(function (x) {
+      return '<div class="card"><b>' + esc(x.name || x.code) + '（' + esc(x.code) + '）</b>' +
+        '<p class="hint">移除於 ' + esc(x.at || '') + '；所有原始紀錄保留。</p>' +
+        '<button type="button" class="btn sm ghost" data-restore-tracker="' + esc(x.code) + '">還原追蹤</button></div>';
+    }).join('');
+    $('heldRemovedList').querySelectorAll('[data-restore-tracker]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var code = button.getAttribute('data-restore-tracker');
+        var target = removed.filter(function (x) { return String(x.code) === code; })[0];
+        if (target) { setExcluded(code, target.name || code, false); }
+      });
+    });
+  }
+
   function clearRow(wrap, i) {
     var x = items[i];
     hide($('heldMsg'));
@@ -5235,6 +5274,7 @@ var mergeTxFingerprint='';
     google.script.run.withSuccessHandler(function (r) {
       if (!r || !r.ok) { $('heldList').innerHTML = '<div class="erow-empty">讀取失敗：' + esc(r ? r.reason : '沒有回應') + '</div>'; return; }
       lists = { held: r.items || [], exited: r.exited || [] };
+      drawRemoved(r.removed || []);
       applySort(); paintToggle(); draw();
     }).withFailureHandler(function () {
       $('heldList').innerHTML = '<div class="erow-empty">連線失敗，按「重新讀取清單」再試一次。</div>';

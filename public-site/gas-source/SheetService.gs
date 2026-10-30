@@ -1362,6 +1362,7 @@ function rebuildHoldingsTrackerJobRun_(options) {
                holdDropped: 0, holdPending: 0 };
   var holdDroppedList = [];
   var costOverrides = readCostOverrides_();   // 管理者修正成本（v54），鍵＝代號|回合開始日
+  var trackerExclusions = readTrackerExclusions_();
 
   // 交易日曆：日K快取裡出現過的所有日期。用來判斷「幾個交易日沒再提及」。
   var tradingDays = (function () {
@@ -1381,6 +1382,7 @@ function rebuildHoldingsTrackerJobRun_(options) {
 
   Object.keys(groups).forEach(function (key) {
     var g = groups[key];
+    if (trackerExclusions[String(g.code || '').trim()]) { return; }
     var recs = sortRecords_(g.records);
     var hasBuy = recs.some(function (r) { return r.kind === 'buy'; });
     var hasHold = recs.some(function (r) { return r.kind === 'hold'; });
@@ -2169,6 +2171,23 @@ function trackerPriceAudit_() {
   } catch (e) { return null; }
 }
 
+/** 可復原的追蹤排除；不刪除逐日操作、通知、持股聲明或成本覆寫。 */
+function readTrackerExclusions_() {
+  var props = PropertiesService.getScriptProperties().getProperties(), out = {};
+  Object.keys(props).forEach(function (key) {
+    if (!/^TRACKER_EXCLUDE_(?:00981A|\d{4,6})$/.test(key)) { return; }
+    var value = JSON.parse(props[key]);
+    if (!value || !value.code || key !== 'TRACKER_EXCLUDE_' + value.code) { throw new Error('追蹤移除紀錄格式有誤，請先核對管理紀錄。'); }
+    out[value.code] = value;
+  });
+  return out;
+}
+
+function trackerExclusionsVersion_() {
+  var excluded = readTrackerExclusions_();
+  return Object.keys(excluded).sort().map(function (code) { return code + ':' + excluded[code].at; }).join('|');
+}
+
 function getHoldingsTracker() {
   if (typeof SHEET_SNAPSHOT_ !== 'undefined' && SHEET_SNAPSHOT_ && SHEET_SNAPSHOT_.__trackerResult) {
     return SHEET_SNAPSHOT_.__trackerResult;
@@ -2180,13 +2199,15 @@ function getHoldingsTracker() {
 
 function getHoldingsTrackerRead_() {
   var hit = readTrackerCache_();
-  if (hit && hit.calculationVersion === 1) { return hit; }
+  if (hit && hit.calculationVersion === 1 && hit.exclusionsVersion === trackerExclusionsVersion_()) { return hit; }
 
-  var base = readSheetObjects_('持股追蹤');
+  var exclusions = readTrackerExclusions_();
+  var base = readSheetObjects_('持股追蹤').filter(function (r) { return !exclusions[String(r['代號'] || '').trim()]; });
   if (!base.length) {
     return {
-      items: [], summary: null,
-      note: '持股追蹤尚未建立。管理者請在 Apps Script 執行 bootstrapAll()。',
+      items: [], held: [], exited: [], summary: null, calculationVersion: 1,
+      exclusionsVersion: trackerExclusionsVersion_(),
+      note: Object.keys(exclusions).length ? '目前沒有納入追蹤的股票；管理者可在後台還原已移除的追蹤。' : '持股追蹤尚未建立。管理者請在 Apps Script 執行 bootstrapAll()。',
       basis: ''
     };
   }
@@ -2375,6 +2396,7 @@ function getHoldingsTrackerRead_() {
   var out = {
     items: held.concat(exited),
     calculationVersion: 1,
+    exclusionsVersion: trackerExclusionsVersion_(),
     held: held,
     exited: exited,
     heldSummary: heldSummary,

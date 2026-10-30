@@ -1036,9 +1036,45 @@ function apiAdminHeldList(key) {
       if (closed) { out.closed = true; out.lastSell = i.lastSell || ''; out.exitReason = String(i.exitReason || ''); }
       return out;
     };
-    return { ok: true, items: held.map(function (i) { return view(i, false); }),
+    var removed = readTrackerExclusions_();
+    return { ok: true, removed: Object.keys(removed).sort().map(function (code) { return removed[code]; }), items: held.map(function (i) { return view(i, false); }),
              exited: exited.map(function (i) { return view(i, true); }) };
   } catch (e) { return { ok: false, reason: String(e.message || e) }; }
+}
+
+/** 移除整檔追蹤（含已結束回合）；原始資料保留，可由同一入口還原。 */
+function apiAdminSetTrackerExcluded(key, code, exclude) {
+  try {
+    adminAuth_(key);
+    code = String(code || '').trim();
+    if (!/^(?:00981A|\d{4,6})$/.test(code) || typeof exclude !== 'boolean') { throw new Error('代號或移除狀態不正確。'); }
+    var excluded = readTrackerExclusions_(), old = excluded[code];
+    if (!!old === exclude) { return { ok: true, unchanged: true, message: exclude ? '這檔已移除追蹤。' : '這檔目前沒有移除紀錄。' }; }
+    var tracker = getHoldingsTracker();
+    var target = (tracker.items || []).filter(function (item) { return String(item.code) === code; })[0];
+    if (exclude && !target) { throw new Error('這檔已不在持股追蹤，請重新讀取清單。'); }
+    var from = exclude ? (target.firstBuy || target.roundStart) : old.from;
+    var value = { code: code, name: exclude ? target.name : old.name, from: from, at: nowStamp_() };
+    withLock_(function () {
+      var props = PropertiesService.getScriptProperties(), property = 'TRACKER_EXCLUDE_' + code;
+      var previous = props.getProperty(property);
+      if ((previous || '') !== (old ? JSON.stringify(old) : '')) { throw new Error('追蹤狀態已變，請重新讀取。'); }
+      if (exclude) { props.setProperty(property, JSON.stringify(value)); } else { props.deleteProperty(property); }
+      try {
+        getSheet_('修正建議').appendRow([new Date(), todayStr_(), exclude ? '移除追蹤' : '還原追蹤',
+          '持股追蹤', value.name, code, JSON.stringify({scope:'all_rounds', previous:old || null, state:exclude ? value : null}),
+          '已套用（原始資料保留，可還原）', new Date()]);
+      } catch (error) {
+        if (previous) { props.setProperty(property, previous); } else { props.deleteProperty(property); }
+        throw error;
+      }
+    });
+    CACHE.remove('tracker');
+    CACHE.remove(typeof DASH_CACHE_KEY_ !== 'undefined' ? DASH_CACHE_KEY_ : 'dash_v94');
+    if (typeof SHEET_SNAPSHOT_ !== 'undefined' && SHEET_SNAPSHOT_) { delete SHEET_SNAPSHOT_.__trackerResult; }
+    var queued = queueCostSync_(from);
+    return { ok: true, message: (exclude ? '已移除 ' : '已還原 ') + value.name + '（' + code + '）所有追蹤回合。原始紀錄與寄送狀態保留；持股及績效正在重算。', date:queued.date };
+  } catch (error) { return { ok:false, reason:String(error.message || error) }; }
 }
 
 function apiAdminSetHoldingCost(key, code, roundStart, cost, note, customName, newCode, newRoundStart) {

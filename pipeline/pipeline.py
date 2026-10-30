@@ -7344,8 +7344,8 @@ def _foreign_profit_claim(note, names, transcript) -> bool:
     return not any(_PROFIT_WORDS.search(sent) and any(n in sent for n in names) for sent in _plain_sentences(transcript))
 
 
-_ORDINARY_BEFORE = re.compile(r'(?:最|很|好|太|超|真|更|夠|這麼|那麼|非常|比較|多麼)$')
-_ORDINARY_AFTER = re.compile(r'就好')
+_ORDINARY_BEFORE = re.compile(r'(?:最|很|好|太|超|真|更|夠|這麼|那麼|非常|比較|多麼|(?:用|湧|爆|放|帶)出|出現|(?<!賣)出)$')
+_ORDINARY_AFTER = re.compile(r'(?:就好|出貨|生產|買超|賣超|買盤|賣壓|換手|湧入|湧出)')
 
 
 def _only_ordinary_word(heard, code, transcript):
@@ -7434,6 +7434,8 @@ def _weak_name_explicitly_stock(heard, code, transcript):
         i, j = m.start(), m.end()
         if any(a < j and b > i for a, b in spans):
             continue                                   # 「國巨大」：這兩個字屬於國巨
+        if _ORDINARY_BEFORE.search(flat[max(0, i - 3):i]) or _ORDINARY_AFTER.match(flat[j:j + 8]):
+            continue                                   # 「用出大量」「最大量」「大量出貨」是一般詞語境，不算股名提及
         if re.search(r'(?:這是|叫做|名叫|股票是|這一?[支檔隻]是|我有|你有|我們有|會員有|買進|買入|買|持有|續抱|抱著|驅動IC的|電源管理IC的)$', flat[:i]):
             return True
         stop = min([a for a, _ in spans if a >= j] + [len(flat)])
@@ -8356,8 +8358,12 @@ def _bare_code_mentions(flat):
     counts = {}
     for m in re.finditer(r'(?<![\d.,])([1-9]\d{3})(?![\d.,])', str(flat or '')):
         before, after = flat[max(0, m.start() - 2):m.start()], flat[m.end():m.end() + 2]
+        after_clause = flat[m.end():m.end() + 24]
+        before_clause = flat[max(0, m.start() - 16):m.start()]
         if re.match(r'(?:元|塊|點|億|萬|多|張|%|位|以|附近|上下|左右|的缺|買|賣|年|月|號|日|分|秒)', after) \
-                or re.search(r'(?:在|到|買|賣|破|過|跌|漲|約|近|是|等|點)$', before):   # 「最低點3615」是價位（2026/10/29 世芯-KY 昨天低點，不是安可）
+                or re.search(r'(?:在|到|買|賣|破|過|跌|漲|約|近|是|等|點)$', before) \
+                or re.match(r'[，,、]?(?:(?:我|誰敢)?(?:昨天|前天|今天|當時|禮拜[一二三四五六日天])?(?:有沒有)?(?:跟你們|跟你|告訴你們|告訴你)?(?:講|說)?[？?，,、]*)?(?:不是最低點|不是最高點|最低點|最高點|高點|低點|一定破|必破|會破|跌破|破了|有沒有破|守住|沒破|這個缺口|缺口)', after_clause) \
+                or re.search(r'(?:成本|缺口|低點|高點|價位|目標價)[^。！？!?]{0,8}$', before_clause):   # 「最低點3615」「3615，一定破」「3615不是最低點」是價位（2026/10/29–30 世芯-KY 低點，不是安可）
             continue
         counts[m.group(1)] = counts.get(m.group(1), 0) + 1
     return [code for code, n in counts.items() if n >= 3]
@@ -14818,7 +14824,7 @@ def verdict_response_schema(expected_ids=None):
 # 裁決快取以（段落指紋, 版號）為鍵。改了提示詞或答案格式卻忘了升版，正式流程會沿用舊提示詞的票（2026/10/28 審閱指出：
 # v39 之後又改了提示詞，版號沒動）。版號後面自動接提示詞與格式的指紋，內容一變快取就失效；人工裁決不綁版號，不受影響。
 # 引句怎樣算對得回原文也會改變哪些票有效：驗證器版本一起進指紋（2026/10/28 審閱）
-QUOTE_VERIFIER_VERSION = 'q12r7-20261029-capped-truncation-typed-replies'
+QUOTE_VERIFIER_VERSION = 'q12r8-20261030-volume-words-price-candidates'
 VERDICT_VERSION = VERDICT_VERSION + '+' + hashlib.sha256(
     (ADJUDICATE_SYSTEM + json.dumps(verdict_response_schema(), ensure_ascii=False, sort_keys=True)
      + QUOTE_VERIFIER_VERSION).encode('utf-8')).hexdigest()[:8]

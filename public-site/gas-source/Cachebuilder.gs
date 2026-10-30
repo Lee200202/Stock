@@ -2320,8 +2320,9 @@ function repairDailyKCache() {
  * 已出場的標的在出場日之後不列入。
  */
 function backfillPerformanceJob() {
+  var excluded = readTrackerExclusions_();
   var base = readSheetObjects_('持股追蹤').filter(function (r) {
-    return /^(?:00981A|\d{4,6})$/.test(String(r['代號']).trim()) && Number(r['進場價']);
+    return !excluded[String(r['代號']).trim()] && /^(?:00981A|\d{4,6})$/.test(String(r['代號']).trim()) && Number(r['進場價']);
   });
   if (!base.length) {
     Logger.log('持股追蹤沒有可用的進場價，請先執行 backfillDailyKJob()（會自動續跑到補完）與 rebuildHoldingsTrackerJob()');
@@ -2660,8 +2661,10 @@ function rebuildPerformanceHistoryJob(fromDate) {
   // 每一檔的回合。沒有回合JSON 的列跳過（那是舊版寫的，重算一次追蹤就會有）。
   var holdingsByCode = [];
   var noJson = 0;
+  var trackerExcluded = readTrackerExclusions_();
   readSheetObjects_('持股追蹤').forEach(function (r) {
     var code = String(r['代號'] || '').trim();
+    if (trackerExcluded[code]) { return; }
     if (!/^(?:00981A|\d{4,6})$/.test(code)) { return; }
     var raw = String(r['回合JSON'] || '').trim();
     if (!raw) { noJson++; return; }

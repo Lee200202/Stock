@@ -1,0 +1,87 @@
+{
+  "run": 41456581688,
+  "commit": "c431dd8093561492945df2a5445352ee7badb35b",
+  "usage": {
+    "n": 6,
+    "by_tag": {
+      "adjudicate-r": 6
+    },
+    "http": 6
+  },
+  "tally": {
+    "total": 6,
+    "right": 6,
+    "same": 6,
+    "unusable": 0,
+    "asked": 18,
+    "a_keep": 6,
+    "a_open": 0,
+    "a_harm": 0,
+    "b_total": 12,
+    "b_fixed": 12,
+    "b_open": 0,
+    "b_harm": 0
+  },
+  "dates": [
+    {
+      "date": "2026/10/27",
+      "source_sha256": "aa22759a934f0210001a1d65f1fac85806f23bcf2870c0af99f53f962ebd83d0",
+      "results": [
+        {
+          "code": "3008",
+          "votes": [
+            "watch_avoid",
+            "watch_avoid",
+            "watch_avoid"
+          ]
+        },
+        {
+          "code": "8299",
+          "votes": [
+            "watch_avoid",
+            "watch_avoid",
+            "watch_avoid"
+          ]
+        },
+        {
+          "code": "5289",
+          "votes": [
+            "watch_avoid",
+            "watch_avoid",
+            "watch_avoid"
+          ]
+        }
+      ]
+    },
+    {
+      "date": "2026/11/02",
+      "source_sha256": "aae43c004dbeab44fbc71c8c46a548d6b70c20654fdaf056d07335dddf236f48",
+      "results": [
+        {
+          "code": "3008",
+          "votes": [
+            "watch_avoid",
+            "watch_avoid",
+            "watch_avoid"
+          ]
+        },
+        {
+          "code": "8299",
+          "votes": [
+            "watch_avoid",
+            "watch_avoid",
+            "watch_avoid"
+          ]
+        },
+        {
+          "code": "5289",
+          "votes": [
+            "watch_avoid",
+            "watch_avoid",
+            "watch_avoid"
+          ]
+        }
+      ]
+    }
+  ]
+}

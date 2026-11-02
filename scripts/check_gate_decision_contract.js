@@ -37,3 +37,50 @@ const long='甲公司回測向上的季線後維持持有。'+ '後續觀察量�
 r=run({reason:long});assert.equal(r.calls,1);assert.equal(r.writes[0].rows[0][4],long);
 r=run({wrong:true});assert.equal(r.writes.length,0);assert.equal(r.result.skipped,1);
 console.log('6 gate contracts passed: ruled names/codes, unreadable source/decision, full sentences, own-stock note.');
+
+// 後台原稿重判只能派出既有 main 預覽，不另建理由文字裁決器。
+const adminSource=fs.readFileSync('public-site/gas-source/Adminservice.gs','utf8').replace(/\r\n/g,'\n');
+const adminStart=adminSource.indexOf('function apiAdminReclassify(');
+const adminEnd=adminSource.indexOf('/* ==================================================================== *',adminStart);
+assert(adminStart>0 && adminEnd>adminStart);
+function adminPreview(opts={}) {
+  const sent=[],urls=[];let released=0;
+  const ctx={
+    adminAuth_:()=>{if(opts.authFail)throw Error('auth');},
+    fmtDate_:x=>x||'',todayStr_:()=> '2026/11/02',
+    LockService:{getScriptLock:()=>({tryLock:()=>!opts.busy,releaseLock:()=>released++})},
+    dayVideoRow_:()=>{if(opts.readFail)throw Error('read failed');return opts.missing?null:{'原始逐字稿內容':opts.polishedOnly?'':'甲公司目前仍要等。','修飾後逐字稿內容':'修飾稿'};},
+    githubCfg_:()=>({repo:'Lee200202/Stock',token:'offline',ref:opts.ref||'main'}),githubHeaders_:()=>({}),
+    UrlFetchApp:{fetch:u=>{urls.push(u);return {getResponseCode:()=>opts.http||200,getContentText:()=>JSON.stringify({workflow_runs:opts.runs||[]})};}},
+    dispatchGithub_:(inputs,wf,marker)=>{sent.push({inputs,wf,marker});return opts.dispatchFail?{ok:false,reason:'dispatch failed'}:{ok:true,runUrl:'https://github.com/Lee200202/Stock/actions/runs/123'};},
+    getSheet_:()=>{throw Error('preview must not write rows');},callGemini_:()=>{throw Error('no second model flow');}
+  };
+  vm.createContext(ctx);vm.runInContext(adminSource.slice(adminStart,adminEnd),ctx);
+  const result=ctx.apiAdminReclassify('offline',opts.day===undefined?'2026/11/02':opts.day);
+  return {result,sent,urls,released};
+}
+let adminCases=0;
+function adminCheck(name,fn){fn();adminCases++;}
+for(const opts of [{day:''},{day:'2026/09/01'},{day:'2026/11/03'},{authFail:true},{busy:true},{missing:true},{polishedOnly:true},{readFail:true},{ref:'old-branch'},{http:403}]) {
+  adminCheck(JSON.stringify(opts),()=>{const x=adminPreview(opts);assert.equal(x.result.ok,false);assert.equal(x.sent.length,0);});
+}
+for(const status of ['queued','in_progress','waiting','pending','requested']) {
+  adminCheck(status,()=>{const x=adminPreview({runs:[{status}]});assert.equal(x.result.ok,false);assert.equal(x.sent.length,0);assert.equal(x.released,1);});
+}
+adminCheck('canonical preview only',()=>{
+ const x=adminPreview();assert.equal(x.result.ok,true);assert.equal(x.result.previewOnly,true);assert.equal(x.sent.length,1);assert.equal(x.released,1);
+ assert.equal(x.sent[0].wf,'regenerate-verified.yml');assert.equal(x.sent[0].marker,'2026/11/02');
+ assert.equal(JSON.stringify(x.sent[0].inputs),JSON.stringify({date:'2026/11/02',mode:'preview'}));
+});
+adminCheck('dispatch failure is preserved',()=>{const x=adminPreview({dispatchFail:true});assert.equal(x.result.ok,false);assert.equal(x.released,1);});
+adminCheck('workflow-specific result lookup',()=>{
+ const a=adminSource.indexOf('function latestRunInfo_('),b=adminSource.indexOf('function latestRunUrl_(',a);const urls=[];
+ const ctx={githubCfg_:()=>({repo:'Lee200202/Stock',token:'offline',workflow:'daily.yml'}),UrlFetchApp:{fetch:u=>{urls.push(u);return {getResponseCode:()=>200,getContentText:()=>'{"workflow_runs":[]}'};}}};
+ vm.createContext(ctx);vm.runInContext(adminSource.slice(a,b),ctx);
+ ctx.latestRunInfo_('', 'regenerate-verified.yml');ctx.latestRunInfo_();
+ assert(urls[0].includes('/regenerate-verified.yml/runs?'));assert(urls[1].includes('/daily.yml/runs?'));
+});
+assert(!adminSource.includes('var PIPE_RECLASSIFY_SYSTEM ='));
+const adminHtml=fs.readFileSync('public-site/gas-source/Admin.html','utf8');
+assert(!adminHtml.includes('id="reclsAll"'));assert(!adminHtml.includes('觀望注意（看好、留意、等回檔）'));
+console.log(adminCases+' admin source-preview contracts passed; no model, sheet write, email or LINE calls.');

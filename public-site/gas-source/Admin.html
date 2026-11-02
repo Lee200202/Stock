@@ -1555,8 +1555,8 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
           <div class="field">
             <label for="mCls">分類</label>
             <select id="mCls">
-              <option value="觀望注意">觀望注意（看好、留意、等回檔）</option>
-              <option value="觀望不碰">觀望不碰（現在不要進場）</option>
+              <option value="觀望注意">觀望注意（目前可留意、買點已成立）</option>
+              <option value="觀望不碰">觀望不碰（仍需等待、暫不進場）</option>
               <option value="會員持股">會員持股（明講會員手上有）</option>
               <option value="買入">買入（當天明講執行）</option>
               <option value="賣出">賣出（當天明講執行）</option>
@@ -1741,9 +1741,9 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
         </div>
 
         <div class="mtool" id="fixTool">
-          <div class="mt-h"><b>指定日期：重寫郵件／重新分類</b><span>會改資料</span><span>Apps Script</span></div>
+          <div class="mt-h"><b>指定日期：重寫郵件／原稿分類預覽</b><span>會改資料</span><span>Apps Script</span></div>
           <p>手動改過試算表之後用，一次一天。網站即時讀試算表，但<b>郵件內容是撰稿當下存下來的文字，不會自己變</b>：
-             選日期後按「開始重寫郵件」重新產生那一天的郵件。「開始重新分類」依說明重判觀望不碰／觀望注意。
+             選日期後按「開始重寫郵件」重新產生那一天的郵件。「原稿分類預覽」把所選日期交給 main 工作流，依完整原稿與通知／部位重判；只建立候選，不直接改網站。
              （在「逐日編輯」儲存的修改會自動同步，不需要再來這裡。）</p>
         <!-- 與「逐日編輯」同一個日曆元件。原本這裡是瀏覽器內建的 date 欄位，
                那個東西在每個瀏覽器長得都不一樣，深色模式下常常整個看不見，
@@ -1760,17 +1760,10 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
             </div>
           </div>
           <div class="amsg" id="fixDateMsg"></div>
-          <!-- 日期改成日曆之後，「留空代表全部」這個用法沒有地方表達了。
-               重新分類是唯一需要它的功能（規則改了要套用到整段歷史），
-               所以補一個勾選；重寫郵件沒有這一項，因為把每一天的信全部重寫
-               要花掉幾百次模型呼叫，那應該走「全面重整」而不是這裡。 -->
-          <div class="lockrow">
-            <input type="checkbox" id="reclsAll">
-            <label for="reclsAll">重新分類時不限日期（套用到全部歷史，忽略上面選的那一天）</label>
-          </div>
+          <p class="hint">原稿分類預覽一次只處理所選日期，正式發布仍須通過候選驗收。</p>
           <div class="btnrow">
             <button class="ghost" id="mailBtn">開始重寫郵件</button>
-            <button class="ghost" id="reclsBtn">開始重新分類</button>
+            <button class="ghost" id="reclsBtn">原稿分類預覽（不寫入）</button>
             <button class="ghost" id="fixStateBtn">查看進度</button>
             <button class="danger" id="fixCancelBtn" disabled>取消執行</button>
           </div>
@@ -3788,27 +3781,20 @@ $('mailBtn').addEventListener('click', function(){
 });
 
 $('reclsBtn').addEventListener('click', function(){
-  var all = $('reclsAll').checked;
-  if(!all && !fixDate()){ show($('fixMsg'),'err','請先在上面的日曆選一天，或勾「不限日期」。'); return; }
-  $('reclsBtn').disabled = true; $('reclsBtn').textContent = '分類中…';
-  $('fixCancelBtn').disabled = false;
-  fixPolling(true); pollFix();
-  show($('fixMsg'),'warn', all ? '正在重新分類全部歷史，一次最多 40 筆，可能要按好幾次。'
-                               : '正在重新分類 ' + fixDate() + ' 的觀望類紀錄。');
-  google.script.run
-    .withSuccessHandler(function(r){
-      $('reclsBtn').disabled = false; $('reclsBtn').textContent = '重新分類觀望類';
-      pollFix();
-      if(r && r.cancelled) show($('fixMsg'),'warn', r.reason);
-      else if(r && r.ok) show($('fixMsg'),'ok', r.message);
-      else show($('fixMsg'),'err', (r ? r.reason : '失敗') + (r && r.advice ? '\n\n' + r.advice : ''));
-    })
-    .withFailureHandler(function(){
-      $('reclsBtn').disabled = false; $('reclsBtn').textContent = '重新分類觀望類';
-      pollFix();
-      show($('fixMsg'),'err','連線中斷。下面的進度讀的是伺服器狀態，還在往前走就代表沒有停。');
-    })
-    .apiAdminReclassify(KEY, $('reclsAll').checked ? '' : fixDate());
+  if(!fixDate()){ show($('fixMsg'),'err','請先在上面的日曆選一天；預覽不會改寫正式資料。'); return; }
+  var btn=$('reclsBtn'); btn.disabled=true; btn.textContent='正在派出原稿預覽…';
+  show($('fixMsg'),'warn','正在核對原始逐字稿與既有佇列；這一步不會直接改分類。');
+  google.script.run.withSuccessHandler(function(r){
+    btn.disabled=false; btn.textContent='原稿分類預覽（不寫入）';
+    show($('fixMsg'),r && r.ok ? 'ok' : 'err',r ? (r.ok ? r.message : r.reason) : '預覽派工沒有回應。');
+    if(r && r.ok && r.runUrl && r.runUrl.indexOf('https://github.com/')===0) {
+      var link=document.createElement('a');link.href=r.runUrl;link.target='_blank';link.rel='noopener';
+      link.textContent=' 查看模型預覽與驗收結果 ↗';$('fixMsg').appendChild(link);
+    }
+  }).withFailureHandler(function(){
+    btn.disabled=false;btn.textContent='原稿分類預覽（不寫入）';
+    show($('fixMsg'),'err','派工回應中斷，請先查看 GitHub 單日品質工作紀錄，避免重複點擊。');
+  }).apiAdminReclassify(KEY,fixDate());
 });
 
 

@@ -3174,137 +3174,42 @@ function apiAdminRebuildMail(key, dateStr) {
   }
 }
 
-/**
- * 重新分類某一天（或全部）的觀望類紀錄。
- *
- * 對應上游的 reclassify 模式。判斷依據是理由摘錄的結論：
- * 結論是現在不要進場就歸觀望不碰，否則歸觀望注意。
- * 分類規則調整後，用這一支把舊資料一起套用新標準。
- */
-var PIPE_RECLASSIFY_SYSTEM =
-  '你要判斷講者對每一檔股票的結論是「現在不要進場」還是「值得留意」。\n' +
-  '\n' +
-  '只看一件事：講者對「現在進場」的態度。\n' +
-  '\n' +
-  '判斷規則：以整段話的結論為準，不要被前半句的鋪陳帶走。\n' +
-  '講者很常先講這檔公司多好、適合什麼人，最後才說現在不要買。\n' +
-  '那種情況結論是不要買，一律歸 avoid。\n' +
-  '  「適合退休、想穩定賺錢的投資人，現在已漲上去，不用買了」→ avoid\n' +
-  '  「作為範本，急跌後急彈不要買，會整理兩個月」→ avoid\n' +
-  '\n' +
-  '只要出現不要買、不用買、別追、來不及、漲上去了、會整理這類字眼，\n' +
-  '若最後仍是禁買歸 avoid；若明確給同一股拉回後買點，則依條件歸 watch。\n' +
-  '語氣偏負面也歸 avoid，不必等到明講不准碰：\n' +
-  '  拿它當追高受傷的例子（昨天大漲今天大跌、漲幾塊隔天跌更多、追高容易套牢）→ avoid\n' +
-  '  外資買一天賣一天、散戶跟著追會被套 → avoid\n' +
-  '  昨天去買今天就跌、動作越多勝率越低 → avoid\n' +
-  '說明前面描述的是追高受傷或下跌風險時，後面就算接了「等待機會」「逢低布局」，結論仍是 avoid。\n' +
-  '看好、會漲、好股票、等回檔進場、跌到某價位可以買，歸 watch。\n' +
-  '只有中性盤整或法人反覆換手、沒有明確正面依據歸 avoid。明確本股低檔買點歸 watch，不能因不要追高就忽略買點。\n' +
-  '拿它當反例也歸 avoid：「總比你去買環球金好」「買的人全部賠錢」「不准買」。\n' +
-  '族群點名並講本股業績好、不用擔心、會過季線（「業績很好不必擔心」）歸 watch，不因句中有「觀察」兩字改判中性。\n' +
-  '「現在還不能買／還不行，要等 ETF 賣完才考慮」當下結論是不進場，歸 avoid；只給買點（900以下是買點）而沒說現在不能買才歸 watch。\n' +
-  '漲多缺口還沒補、切勿追高、拿它當負面示範（跌停、跟跌）歸 avoid，不因句中有「買」「等」改判 watch。\n' +
-  '正面評價即使沒講買點也歸 watch：資產或長線價值高、淨值高、法人持續買超、體質穩健、適合切入、可持續留意，\n' +
-  '只要整段沒有負面說法（追高、套牢、轉弱、賣超、風險高……）。\n' +
-  '  「淨值高、資產價值非常高，具備長線價值，若拉回可持續注意」→ watch\n' +
-  '  「外資持續買進，相對穩健，適合資金較少者切入」→ watch\n' +
-  '  「資產價值高，但追高容易套牢」→ avoid（有負面說法）\n' +
-  '反話與「賣壓竭盡」是看多，歸 watch，不因字面有賣、破底、賣壓、跌改判 avoid（2026/09/17 祥碩、勤誠判錯）：\n' +
-  '  「假破底後站上季線，目標價看2000元，拉回或打底後可注意」→ watch（假破底＝沒量跌破新低，是看多）\n' +
-  '  「等待賣壓減輕、散戶在低點賣完後，將是真正可以賺錢準備大漲的時機」→ watch\n' +
-  '  「你們想賣的趕快賣，我的會員不准賣」→ watch（不准賣是續抱，不是不准買）\n' +
-  '  「只要ETF賣在低點的股票不會跌了」→ watch（負面示範的是 ETF 的操作，不是這一檔）\n' +
-  '但同一段明講「現在還不能買／還不行」時仍歸 avoid。\n' +
-  '限制後段解除時依後段判斷（v54）：先說「還不能買，要等 ETF 賣完」，後面明講「ETF 已經賣完了，現在可以在 880 買」→ watch；\n' +
-  '順序反過來（先說可以、後面又說還不能買）仍歸 avoid。\n' +
-  '「拉回可以布局」「整理三個月、像某股啟動前，拉回承接」是低檔買點，歸 watch，不因「整理」「拉回」改判 avoid。\n' +
-  '散戶賣、外資賣、ETF 換股不是會員賣出，也不是本股偏空；「散戶在賣、大戶增加」是看多理由。\n' +
-  '\n' +
-  '要分清楚「現在不要買」與「現在還沒買」，字面很像，意思相反：\n' +
-  '  現在不要買　他叫你別碰（不准碰、追高、還沒跌完、一定會殺破）→ avoid\n' +
-  '  現在還沒買　他自己想買、只是在等時機 → watch\n' +
-  '「候選名單」「口袋名單」「我以後要買」「等它洗完我就買」「可以抄起來」\n' +
-  '「列出來給你看」這幾種說法一律 watch，那是他最看好的一批。\n' +
-  '這一批的說明天生同時帶正負詞——「列入追蹤名單，仍在整理，暫不進場」——\n' +
-  '不要被「暫不」帶走：他講的是時機，不是否定這一檔。\n' +
-  '實際判錯過（2026/09/10）：聖暉、信紘科、辛耘、牧德四檔候選名單全判成\n' +
-  'avoid，於是他最想買的名單出現在「語氣偏空，暫不進場」那張表裡。\n' +
-  '\n' +
-  '只回傳 JSON，index 對應輸入編號：\n' +
-  '{"results":[{"index":1,"cls":"avoid 或 watch"}]}';
-
+/** 觀望重判沿用唯一 Python 工作流；這個入口只派出原稿預覽，不依既有說明直接寫分類。 */
 function apiAdminReclassify(key, dateStr) {
+  var lock = null;
   try {
     adminAuth_(key);
+    lock = LockService.getScriptLock();
+    if (!lock.tryLock(1000)) { lock = null; throw new Error('另一個後台請求尚未結束，未重複派工。'); }
     var d = fmtDate_(dateStr) || '';
-    fixJobBegin_('recls', (d || '全部歷史') + '：正在讀取操作紀錄');
-
-    var sh = getSheet_('操作紀錄');
-    var vals = sh.getDataRange().getValues();
-    var head = vals[0];
-    var cDate = head.indexOf('日期'), cDir = head.indexOf('方向');
-    var cName = head.indexOf('股票名稱'), cReason = head.indexOf('理由摘錄');
-
-    fixJobStep_(1, '共 ' + (vals.length - 1) + ' 列，正在挑出觀望類');
-
-    var items = [];
-    for (var i = 1; i < vals.length; i++) {
-      var dir = String(vals[i][cDir] || '');
-      if (dir.indexOf('觀望') < 0) { continue; }
-      if (d && fmtDate_(vals[i][cDate]) !== d) { continue; }
-      items.push({ row: i + 1, name: String(vals[i][cName] || ''),
-                   dir: dir, reason: String(vals[i][cReason] || '') });
+    if (!d) { throw new Error('請先選一天；原稿分類預覽不支援一次改全部歷史。'); }
+    var today = todayStr_();
+    var age = (Date.parse(today.split('/').join('-')) - Date.parse(d.split('/').join('-'))) / 86400000;
+    if (!isFinite(age) || age < 0 || age > 30) { throw new Error('單日模型預覽限最近30天；歷史來源修復請使用有指紋的修正計畫。'); }
+    var source = dayVideoRow_(d);
+    if (!source || !String(source['原始逐字稿內容'] || '').trim()) {
+      throw new Error('這一天沒有可用的原始逐字稿，不能用修飾稿或既有說明代判。');
     }
-    if (!items.length) {
-      var none = '沒有觀望類紀錄需要重新分類。';
-      fixJobEnd_('完成', none);
-      return { ok: true, message: none };
-    }
-
-    // 一次最多 40 筆，避免請求過大而被截斷
-    var batch = items.slice(0, 40);
-    fixJobStep_(2, '這一批 ' + batch.length + ' 筆' +
-                   (items.length > 40 ? '（總共 ' + items.length + ' 筆，要分批）' : '') +
-                   '，正在送 AI 判定，約一分鐘');
-    fixJobAbort_();
-    var payload = batch.map(function (x, n) {
-      return (n + 1) + '. ' + x.name + '：' + (x.reason || '（無說明）');
-    }).join('\n');
-
-    var raw = callGemini_(PIPE_RECLASSIFY_SYSTEM, payload,
-                          { maxOut: 2048, temperature: 0, json: true });
-    var res = JSON.parse(String(raw).replace(/^```json|^```|```$/gm, '').trim());
-    fixJobStep_(3, 'AI 回覆 ' + ((res.results || []).length) + ' 筆判定，正在寫回試算表');
-
-    var changed = 0;
-    (res.results || []).forEach(function (r) {
-      var n = Number(r.index) - 1;
-      if (!(n >= 0 && n < batch.length)) { return; }
-      var want = r.cls === 'avoid' ? '觀望不碰' : '觀望注意';
-      if (batch[n].dir === want) { return; }
-      sh.getRange(batch[n].row, cDir + 1).setValue(want);
-      changed++;
-      Logger.log('  重新分類　' + batch[n].name + '　' + batch[n].dir + ' → ' + want);
+    var g = githubCfg_();
+    if (g.ref !== 'main') { throw new Error('分類預覽須使用 main，請先核對 GitHub 分支設定。'); }
+    if (!g.repo || !g.token) { throw new Error('GitHub 派工設定不完整，未派出預覽。'); }
+    var wf = 'regenerate-verified.yml';
+    var res = UrlFetchApp.fetch('https://api.github.com/repos/' + g.repo + '/actions/workflows/' + wf +
+      '/runs?branch=main&per_page=100', {muteHttpExceptions:true,headers:githubHeaders_(g.token)});
+    if (res.getResponseCode() !== 200) { throw new Error('讀不到現有預覽佇列，未重複派工。'); }
+    var active = (JSON.parse(res.getContentText()).workflow_runs || []).filter(function(r) {
+      return ['queued','in_progress','waiting','pending','requested'].indexOf(r.status) >= 0;
     });
-
-    fixJobStep_(4, '改動 ' + changed + ' 筆，正在清除持股追蹤快取');
-    CACHE.remove('tracker');
-
-    var msg = '檢視 ' + batch.length + ' 筆，改動 ' + changed + ' 筆。' +
-              (items.length > 40 ? '（還有 ' + (items.length - 40) + ' 筆，請再執行一次）' : '') +
-              ' 改完記得按「立即刷新網站」。';
-    fixJobEnd_('完成', msg);
-    return { ok: true, message: msg, remaining: Math.max(0, items.length - 40) };
+    if (active.length) { return {ok:false,reason:'已有單日品質工作在執行或排隊，請先查看執行紀錄；沒有重複派工。'}; }
+    var result = dispatchGithub_({date:d,mode:'preview'}, wf, d);
+    if (!result.ok) { return result; }
+    result.previewOnly = true;
+    result.message = '已派出 ' + d + ' 的原稿分類預覽。這一步不寫正式資料、不寄送；預覽通過後，才能套用同一份候選。';
+    return result;
   } catch (e) {
-    var m = String(e && e.message || e);
-    if (m.indexOf('FIXJOB_CANCELLED') >= 0) {
-      fixJobEnd_('已取消', '在送 AI 判定之前停下，這一輪沒有改動任何一列。');
-      return { ok: false, cancelled: true,
-               reason: '已取消。停在送 AI 之前，沒有改動任何一列，也沒有花掉模型額度。' };
-    }
-    fixJobEnd_('失敗', '', m);
-    return { ok: false, reason: m, advice: troubleshoot_(m) };
+    return {ok:false,reason:String(e && e.message || e)};
+  } finally {
+    if (lock) { lock.releaseLock(); }
   }
 }
 
@@ -5714,7 +5619,7 @@ function githubCfg_() {
  * 觸發一次 workflow_dispatch。
  * inputs 是要傳給工作流程的參數，例如 { admin_job: 'true' }。
  */
-function dispatchGithub_(inputs, workflowName) {
+function dispatchGithub_(inputs, workflowName, runMarker) {
   var g = githubCfg_();
   if (!g.repo || !g.token) {
     return { ok: false,
@@ -5726,8 +5631,8 @@ function dispatchGithub_(inputs, workflowName) {
   // workflow_dispatch 的 204 回應不會帶 run id。派工前先記住目前最新一筆，
   // 派工後只接受「比它更新」的 workflow_dispatch，避免後台剛好顯示到
   // 另一個排程或另一位管理者啟動的工作。
-  var marker = String((inputs || {}).sms_job_id || '');
-  var before = latestRunInfo_(marker);
+  var marker = String(runMarker || (inputs || {}).sms_job_id || '');
+  var before = latestRunInfo_(marker, workflowName);
   var url = 'https://api.github.com/repos/' + g.repo +
             '/actions/workflows/' + encodeURIComponent(workflowName || g.workflow) + '/dispatches';
   var res;
@@ -5752,7 +5657,7 @@ function dispatchGithub_(inputs, workflowName) {
     var found = null;
     for (var poll = 0; poll < 5; poll++) {
       Utilities.sleep(poll === 0 ? 1800 : 900);
-      var latest = latestRunInfo_(marker);
+      var latest = latestRunInfo_(marker, workflowName);
       if (latest && (!before || String(latest.id) !== String(before.id))) {
         found = latest;
         break;
@@ -5777,13 +5682,13 @@ function dispatchGithub_(inputs, workflowName) {
 }
 
 /** 查這個 workflow 最近一次手動派工；排程執行不會冒充剛按下的工作。 */
-function latestRunInfo_(marker) {
+function latestRunInfo_(marker, workflowName) {
   var g = githubCfg_();
   if (!g.repo || !g.token) { return null; }
   try {
     var res = UrlFetchApp.fetch(
       'https://api.github.com/repos/' + g.repo + '/actions/workflows/' +
-      encodeURIComponent(g.workflow) + '/runs?event=workflow_dispatch&per_page=10',
+      encodeURIComponent(workflowName || g.workflow) + '/runs?event=workflow_dispatch&per_page=10',
       { muteHttpExceptions: true,
         headers: { Authorization: 'Bearer ' + g.token,
                    Accept: 'application/vnd.github+json',

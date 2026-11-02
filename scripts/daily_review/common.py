@@ -11,6 +11,26 @@ from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def _normalize_service_account():
+    """雲端環境變數欄位是一行一值：金鑰可以貼成 Base64 一行，或壓成一行的 JSON；這裡統一還原成 JSON 字串。"""
+    import base64
+    value = os.environ.get('GOOGLE_SHEETS_SERVICE_ACCOUNT', '').strip()
+    if not value or value.startswith('{'):
+        return
+    try:
+        decoded = base64.b64decode(value + '=' * (-len(value) % 4)).decode('utf-8').strip()
+    except Exception:
+        decoded = ''
+    if decoded.startswith('{'):
+        os.environ['GOOGLE_SHEETS_SERVICE_ACCOUNT'] = decoded
+        return
+    raise SystemExit('GOOGLE_SHEETS_SERVICE_ACCOUNT 不是服務帳戶金鑰（要整份 JSON 或它的 Base64，'
+                     f'目前只有 {len(value)} 字，可能貼成了金鑰 ID）')
+
+
+_normalize_service_account()
 TAIPEI = timezone(timedelta(hours=8))
 WORK = Path(os.environ.get('DAILY_REVIEW_WORKDIR') or ROOT / '.daily-review')
 

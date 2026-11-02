@@ -1,0 +1,43 @@
+{
+  "policy": "2026/11/02-pending-entry-is-avoid",
+  "description": "新政策重算歷史，不修改舊 golden；只於推論後評分。非未見驗收。",
+  "days": {
+    "2026/10/27": {
+      "names": {
+        "3008": "大立光",
+        "8299": "群聯",
+        "5289": "宜鼎"
+      },
+      "must": {
+        "3008": [
+          "watch_avoid"
+        ],
+        "8299": [
+          "watch_avoid"
+        ],
+        "5289": [
+          "watch_avoid"
+        ]
+      }
+    },
+    "2026/11/02": {
+      "names": {
+        "3008": "大立光",
+        "8299": "群聯",
+        "5289": "宜鼎"
+      },
+      "must": {
+        "3008": [
+          "watch_avoid"
+        ],
+        "8299": [
+          "watch_avoid"
+        ],
+        "5289": [
+          "watch_avoid"
+        ]
+      },
+      "source_sha256": "aae43c004dbeab44fbc71c8c46a548d6b70c20654fdaf056d07335dddf236f48"
+    }
+  }
+}

@@ -24,7 +24,7 @@ class ModelStance(unittest.TestCase):
   self.assertEqual(p.verdict_class(a,p._ev_norm(raw),['甲公司'])[0],'watch_avoid')
 
  def test_waiting_condition_needs_a_verified_condition_quote(self):
-  # 2026/10/28 國巨：答 conditional 卻寫不出任何條件，不能列觀望注意；改看模型自己的語氣
+  # 2026/11/02：仍待條件成立列不碰；持有者勿殺低屬另一軸，無進場禁令時仍可注意
   raw='甲公司這兩天漲的還不夠他一天跌，上方有大套牢區，彈上來一定還會再下去。如果回到年線就可以注意甲公司。'
   base={'about_itself':True,'independent_analysis':False,'buy_today':False,'sell_today':False,'holding_now':False,
         'past_trade':False,'now':'conditional','tone':'bearish','entry_for_new':'wait_condition','holder_advice':'none',
@@ -32,11 +32,11 @@ class ModelStance(unittest.TestCase):
         'quotes':{'stance':['甲公司這兩天漲的還不夠他一天跌'],'condition':[]}}
   self.assertEqual(p.verdict_class(base,p._ev_norm(raw),['甲公司'])[0],'watch_avoid')
   with_condition=copy.deepcopy(base);with_condition['quotes']['condition']=['如果回到年線就可以注意甲公司']
-  self.assertEqual(p.verdict_class(with_condition,p._ev_norm(raw),['甲公司'])[0],'watch_watch')
+  self.assertEqual(p.verdict_class(with_condition,p._ev_norm(raw),['甲公司'])[0],'watch_avoid')
   rebound=copy.deepcopy(base);rebound.update(holder_advice='hold_rebound',entry_for_new='none')
   self.assertEqual(p.verdict_class(rebound,p._ev_norm(raw),['甲公司'])[0],'watch_watch')
   legacy=copy.deepcopy(base);legacy['quotes'].pop('condition')
-  self.assertEqual(p.verdict_class(legacy,p._ev_norm(raw),['甲公司'])[0],'watch_watch')
+  self.assertEqual(p.verdict_class(legacy,p._ev_norm(raw),['甲公司'])[0],'watch_avoid')
 
  def test_bare_spoken_code_is_only_an_inventory_candidate(self):
   flat='老師早，4526再抱嗎？張總，4526繼續抱嗎？這隻股票是什麼？4526。你怎麼不賣1580？1580買的可不可以賣？今天7200億假的。缺口是2490。'
@@ -297,11 +297,11 @@ class ModelStance(unittest.TestCase):
   self.assertIn('2308',[str(x.get('code')) for x in out['ignored']])
 
  def test_positive_candidate_not_yet_needs_own_analysis_and_position_disclosure_needs_explicit_no_analysis(self):
-  # 10/27 實際答案：群聯、宜鼎「還不能買」那兩票都答本股有獨立分析（還沒穩、不用急）→ 觀望注意
+  # 2026/11/02 新政策重算 10/27 保存案例：正向名單尚未回穩仍為觀望不碰；不改歷史答案檔
   raw='我說我記憶體在看的是群聯，跟這一隻宜蘭之光。他也還沒有穩。所以我還沒有對記憶體有任何出手的念頭。'
   a={'about_itself':True,'independent_analysis':True,'entry_for_new':'not_yet','now':'not_yet','tone':'neutral','selection_intent':'positive_candidate',
      'holder_advice':'none','past_trade':False,'quotes':{'stance':[raw],'analysis':[raw]}}
-  self.assertEqual(p.verdict_class(a,p._ev_norm(raw),['群聯'])[0],'watch_watch')
+  self.assertEqual(p.verdict_class(a,p._ev_norm(raw),['群聯'])[0],'watch_avoid')
   # 10/27 南亞科：「記憶體我目前還沒有買」，明確答沒有獨立分析 → 不列
   raw2='南亞科。我說記憶體我目前還沒有買，好，我還沒有買。'
   b={'about_itself':True,'independent_analysis':False,'entry_for_new':'not_yet','now':'not_yet','tone':'neutral','selection_intent':'neutral',
@@ -379,9 +379,36 @@ class ModelStance(unittest.TestCase):
     'quotes':{'stance':[raw]}},p._ev_norm(raw),names=['甲公司'])[0]
  def test_nonholding_and_waiting_are_not_word_based_prohibitions(self):
   self.assertEqual(self.answer('甲公司我沒有要買，已經超跌了，不要殺低，等它反彈。','none','hold_rebound'),'watch_watch')
-  self.assertEqual(self.answer('甲公司我沒有要買，已經超跌了，不要殺低，等它反彈。','prohibit','hold_rebound'),'watch_watch')
-  self.assertEqual(self.answer('甲公司是主要觀察的股票，還沒有穩，目前沒有出手念頭，不用急。','wait_condition'),'watch_watch')
+  self.assertEqual(self.answer('甲公司我沒有要買，已經超跌了，不要殺低，等它反彈。','prohibit','hold_rebound'),'watch_avoid')
+  self.assertEqual(self.answer('甲公司是主要觀察的股票，還沒有穩，目前沒有出手念頭，不用急。','wait_condition'),'watch_avoid')
   self.assertEqual(self.answer('甲公司量能條件未到，現在不要進場，等正式動作。','not_yet'),'watch_avoid')
+
+ def test_pending_entry_policy_has_no_stock_or_word_special_case(self):
+  cases=[('大立光','所以台達電還要等，大立光還要等，聯發科還要等，不要急'),
+         ('群聯','我說群聯還沒有回穩之前，你們都不要碰'),
+         ('宜鼎','群聯與宜鼎這兩隻都沒有漲，那你就不要亂買'),
+         ('甲公司','甲公司目前尚不符合執行前提，即使展望樂觀也未達啟動標準。')]
+  for name,raw in cases:
+   a=dict(about_itself=True,independent_analysis=True,now='conditional',tone='bullish',
+     entry_for_new='wait_condition',selection_intent='positive_candidate',holder_advice='none',quotes={'stance':[raw],'analysis':[raw]})
+   self.assertEqual(p.verdict_class(a,p._ev_norm(raw),[name])[0],'watch_avoid',name)
+   a['quotes']={'stance':['甲公司原文不存在的交易指令']}
+   self.assertEqual(p.verdict_class(a,p._ev_norm(raw),[name])[0],'',name)
+
+ def test_extraction_stance_uses_the_same_pending_policy(self):
+  for tone in ('bullish','neutral','bearish'):
+   self.assertEqual(p.category_from_stance({'subject_ok':True,'now':'conditional','tone':tone}),'watch_avoid')
+  self.assertEqual(p.category_from_stance({'subject_ok':True,'now':'buy_ok','tone':'bullish'}),'watch_watch')
+  self.assertEqual(p.category_from_stance({'subject_ok':False,'now':'conditional','tone':'bullish'}),'uncertain')
+
+ def test_actionable_signal_and_verified_holding_remain_separate(self):
+  raw='甲公司已回穩站回季線，目前在可進場區間，可以留意。'
+  self.assertEqual(self.answer(raw,'allow'),'watch_watch')
+  held='甲公司是我們會員持股，剩餘部位續抱；空手的人等回穩再進場。'
+  a=dict(about_itself=True,holding_now=True,entry_for_new='wait_condition',now='conditional',
+     quotes={'holding_now':[held],'stance':[held]})
+  self.assertEqual(p.verdict_class(a,p._ev_norm(held),['甲公司'])[0],'holdings')
+
  def test_flags_cannot_move_or_erase_rows(self):
   signals={'watch_watch':[dict(name='甲公司',code='1111',reason='甲公司目前還不能買。')],
    'watch_avoid':[dict(name='乙公司',code='2222',reason='乙公司已轉強並突破，後續偏多。')]}

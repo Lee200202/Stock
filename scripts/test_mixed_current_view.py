@@ -14,7 +14,7 @@ class MixedCurrentView(unittest.TestCase):
   for role in ('comparison_only','selection_scope','position_disclosure','historical_only'):
    raw,a=self.answer(role)
    self.assertEqual(p._questionnaire_issues(a,raw,['甲公司']),[])
-   self.assertEqual(p.verdict_class(a,p._ev_norm(raw),['甲公司'])[0],'watch_watch')
+   self.assertEqual(p.verdict_class(a,p._ev_norm(raw),['甲公司'])[0],'watch_avoid')
 
  def test_missing_analysis_quote_cannot_borrow_the_current_view(self):
   raw,a=self.answer();a['quotes']={}
@@ -44,12 +44,19 @@ class MixedCurrentView(unittest.TestCase):
  def test_past_event_does_not_hide_present_analysis(self):
   raw,a=self.answer('historical_only');a['past_trade']=True
   a['quotes']['past_trade']=['甲公司以前沒有買']
-  self.assertEqual(p.verdict_class(a,p._ev_norm(raw),['甲公司'])[0],'watch_watch')
+  self.assertEqual(p.verdict_class(a,p._ev_norm(raw),['甲公司'])[0],'watch_avoid')
 
  def test_policy_does_not_turn_waiting_into_executed_purchase(self):
   raw,a=self.answer('independent_analysis');a['selection_intent']='positive_candidate'
-  self.assertEqual(p.verdict_class(a,p._ev_norm(raw),['甲公司'])[0],'watch_watch')
+  self.assertEqual(p.verdict_class(a,p._ev_norm(raw),['甲公司'])[0],'watch_avoid')
   a['selection_intent']='authorization_pending';a['entry_for_new']='not_yet'
   self.assertEqual(p.verdict_class(a,p._ev_norm(raw),['甲公司'])[0],'watch_avoid')
+
+class ActionableMixedView(unittest.TestCase):
+ def test_established_signal_with_current_permission_still_watch(self):
+  raw='甲公司以前沒有買，今天已站回季線，目前可以留意。'
+  for role in ('comparison_only','historical_only','independent_analysis'):
+   _,a=MixedCurrentView().answer(role,'allow');a['now']='buy_ok';a['quotes']={'analysis':[raw],'stance':[raw]}
+   self.assertEqual(p.verdict_class(a,p._ev_norm(raw),['甲公司'])[0],'watch_watch')
 
 if __name__=='__main__':unittest.main()

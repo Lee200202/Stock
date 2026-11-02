@@ -152,7 +152,9 @@ jobs:
           fi
           if [ "$MODE" = verdicts ]; then
             # 唯讀：只把有人工答案的日子送分類問卷，量準確與一致；日期可用逗號分隔
-            python scripts/adjudicate_probe.py --dates "$TARGET_DATE" --repeat 3
+            VERDICT_OPTS=(--dates "$TARGET_DATE" --repeat 3 --report-json .verdict-probe/report.json)
+            if [ -n "$REFERENCE" ]; then VERDICT_OPTS+=(--reference "$REFERENCE"); fi
+            python scripts/adjudicate_probe.py "${VERDICT_OPTS[@]}"
             exit 0
           fi
           if [ "$MODE" = titles ]; then
@@ -215,3 +217,12 @@ jobs:
           include-hidden-files: true
           retention-days: 1
           if-no-files-found: ignore
+
+      - uses: actions/upload-artifact@v4
+        if: always() && inputs.mode == 'verdicts'
+        with:
+          name: verdict-probe-${{ github.run_id }}
+          path: .verdict-probe/report.json
+          include-hidden-files: true
+          retention-days: 1
+          if-no-files-found: warn

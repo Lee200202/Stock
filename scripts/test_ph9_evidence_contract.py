@@ -11,7 +11,7 @@ class EvidenceContract(unittest.TestCase):
  def test_adjacent_source_quote_keeps_the_model_excerpt_not_whole_paragraph(self):
   a=self.answer(['S0031','S0032'],['乙公司今日已買。甲公司等待','止穩再評估，尚未出手。'],'甲公司等待止穩再評估')
   self.assertEqual(p._questionnaire_verified_quotes(a,'stance'),['甲公司等待止穩再評估'])
-  self.assertEqual(p.verdict_class(a,'甲公司等待止穩再評估。',['甲公司'])[0],'watch_watch')
+  self.assertEqual(p.verdict_class(a,'甲公司等待止穩再評估。',['甲公司'])[0],'watch_avoid')
 
  def test_nonadjacent_or_reversed_or_different_notices_do_not_join(self):
   for ids in (['S0031','S0033'],['S0032','S0031'],['N0001','N0002'],['S0031','N0001']):

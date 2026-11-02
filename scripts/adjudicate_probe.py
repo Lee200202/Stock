@@ -4,10 +4,12 @@
   二、流程判對時：照定案規則走，會不會被問卷改錯。
   三、流程判錯時（公開的被漏掉、不該列的被列出、觀望方向相反）：能不能救回，還是標成未定交人工。
 
-不寫任何資料、不改分類、不寄送。輸入的分類取自人工答案，與當輪擷取結果無關。
+不寫任何資料、不改分類、不寄送。選段只用待測代號／名稱，預期分類僅在推論後評分；每個日期帶自己的完整原稿。
 """
 import argparse
 import json
+import hashlib
+import os
 from pathlib import Path
 
 from replay_extract import DryBook, pl
@@ -63,7 +65,17 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dates', required=True, help='逗號分隔，YYYY/MM/DD')
     parser.add_argument('--repeat', type=int, default=3)
+    parser.add_argument('--reference', default='', help='政策回歸清單；分類只於模型完成後評分，不傳入模型')
+    parser.add_argument('--report-json', default='')
     args = parser.parse_args()
+    reference = {}
+    if args.reference:
+        ref = Path(args.reference).resolve()
+        root = Path(__file__).resolve().parents[1]
+        if root not in ref.parents or ref.suffix != '.json' or ref.relative_to(root).parts[0] not in ('docs','scripts'):
+            parser.error('參考限 repo 內 docs/scripts JSON')
+        reference = json.loads(ref.read_text(encoding='utf-8'))
+    reports = []
     dry = DryBook(pl.open_sheets())
     try:
         pl.get_code_map()
@@ -72,21 +84,29 @@ def main():
     tally = {'total': 0, 'right': 0, 'same': 0, 'unusable': 0, 'asked': 0,
              'a_keep': 0, 'a_open': 0, 'a_harm': 0, 'b_total': 0, 'b_fixed': 0, 'b_open': 0, 'b_harm': 0}
     days = []
+    required_cases = 0
     for raw_day in [d for d in args.dates.split(',') if d.strip()]:
         day = pl.norm_date(raw_day.strip())
         golden_file = Path('scripts/golden') / (day.replace('/', '-') + '.json')
-        if not golden_file.exists():
+        policy_day = (reference.get('days') or {}).get(day)
+        if not policy_day and not golden_file.exists():
             print(f'{day} 沒有人工答案，略過')
             continue
-        golden = json.loads(golden_file.read_text(encoding='utf-8'))
+        golden = policy_day or json.loads(golden_file.read_text(encoding='utf-8'))
+        required_cases += len(golden.get('names') or {})
         transcript, _polished = pl.existing_transcript(dry, '', day, snapshot={})
         if not transcript:
             print(f'{day} 讀不到原始逐字稿，略過')
             continue
+        source_hash = hashlib.sha256(transcript.encode()).hexdigest()
+        if golden.get('source_sha256') and golden['source_sha256'] != source_hash:
+            raise RuntimeError(day + ' 原稿指紋已變；停止，不呼叫模型')
         signals, want = build(golden)
-        known, _notice = pl._verdict_known(dry, day)
+        # 選段不讀預期分類；所有候選使用相同中性容器。
+        signals = {'ignored': [row for rows in signals.values() for row in rows]}
+        known, _notice, opened = pl._verdict_known(dry, day, with_open=True)
         items, start = [], {}
-        for cat in pl._VERDICT_ORDER:
+        for cat in signals:
             for row in signals[cat]:
                 code = row['code']
                 names = pl._signal_names(row) | {row['name']}
@@ -94,28 +114,37 @@ def main():
                 if not text:
                     print(f"  {row['name']}（{code}）原文找不到本股段落，不問")
                     continue
-                start[code] = cat
+                start[code] = next((c for c in want[code] if c not in HIDDEN), 'ignored')
                 items.append((day + '#' + code, {'date': day, 'code': code, 'name': row['name'],
                                                  'heard': sorted(n for n in names if n not in (row['name'], code))[:6],
-                                                 'known': known.get(code, []), 'passages': sent[:10], '_norm': pl._ev_norm(text),
+                                                 'known': known.get(code, []), '_open_position': (code in opened) if pl._VERDICT_RECORDS.get('readable',True) else None, 'passages': sent[:10], '_norm': pl._ev_norm(text),
                                                  '_names': sorted(names | {code})}))
-        days.append((day, items, start, want))
-    everything = [pair for _day, items, _start, _want in days for pair in items]
+        days.append((day, items, start, want, transcript))
+    everything = [pair for _day, items, _start, _want, _source in days for pair in items]
     votes, kept = {key: [] for key, _ in everything}, {key: [] for key, _ in everything}
-    for round_no in range(args.repeat):
-        answers = pl._ask_verdicts(everything, '', round_no)        # 所有日期同一個請求（依字數裝箱）
-        for key, item in everything:
-            cls, basis = pl.verdict_class(answers.get(key), item['_norm'], item['_names'])
-            votes[key].append(cls)
-            kept[key].append((cls, basis, answers.get(key) or {}))
-    for day, items, start, want in days:
+    for day, items, start, want, transcript in days:
+        pl.load_day_source_context(dry, day)
+        source_hash = hashlib.sha256(transcript.encode()).hexdigest()
+        by_code = [(item['code'], item) for _, item in items]
+        for round_no in range(args.repeat):
+            # S/N 引句須對到該日完整原稿，不能用跨日期或缺少原稿的請求。
+            answers = pl._ask_verdicts(by_code, day, round_no, transcript=transcript)
+            for key, item in items:
+                answer = answers.get(item['code'])
+                cls, basis = pl.verdict_class(answer, item['_norm'], item['_names'])
+                votes[key].append(cls)
+                kept[key].append((cls, basis, answer or {}))
+        reports.append({'date':day,'source_sha256':source_hash,'verdict_version':pl.VERDICT_VERSION,
+            'results':[{'code':item['code'],'votes':votes[key],'answers':kept[key],
+                        'accepted_after_inference':sorted(want[item['code']])} for key,item in items]})
         print(f'\n{day}　{len(items)} 檔 × {args.repeat} 輪')
         for key, item in items:
             code = item['code']
             got = votes[key]
             usable = [v for v in got if v]
             top = max(dict.fromkeys(usable), key=usable.count) if usable else ''
-            ok = accepted(top, want[code])
+            state, cls = settle(start[code], got)
+            ok = state == '定案' and accepted(cls, want[code]) and sum(accepted(v,want[code]) for v in usable) >= 2
             agree = len(set(got)) == 1
             tally['total'] += 1
             tally['right'] += ok
@@ -150,7 +179,16 @@ def main():
               f"答案不能用 {t['unusable']}／{t['asked']} 份")
         print(f"  流程判對時：維持正確 {t['a_keep']}、標成未定（仍維持正確）{t['a_open']}、被改錯 {t['a_harm']}")
         print(f"  流程判錯時（{t['b_total']} 種情況）：救回 {t['b_fixed']}、標成未定交人工 {t['b_open']}、仍錯而且定案 {t['b_harm']}")
+    report = {'policy':reference.get('policy','existing-reference'),'commit':os.environ.get('GITHUB_SHA',''),
+        'days':reports,'tally':tally,'usage':pl._GEMINI_CALLS,'blocked_writes':dry.blocked,
+        'scope':'問卷邊界回歸；不是整日擷取、說明或發布驗收'}
+    if args.report_json:
+        dest=Path(args.report_json);dest.parent.mkdir(parents=True,exist_ok=True)
+        dest.write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
+    print(pl.usage_summary() if hasattr(pl,'usage_summary') else json.dumps(pl._GEMINI_CALLS))
     print('唯讀檢驗，未寫入任何資料')
+    if not tally['total'] or tally['total'] != required_cases or tally['right'] != tally['total'] or dry.blocked:
+        raise SystemExit(4)
 
 
 if __name__ == '__main__':

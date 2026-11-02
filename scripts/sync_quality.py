@@ -19,7 +19,7 @@ def main():
     for node in ast.parse(source).body:
         if isinstance(node,ast.Assign) and isinstance(node.targets[0],ast.Name):
             name=node.targets[0].id
-            if name in ('POLICY','POLISH_SYSTEM','EXTRACT_SYSTEM','AUDIT_SYSTEM','ARTICLE_SYSTEM','TX_FORMAT_SYSTEM','CM_PARSE_SYSTEM'):
+            if name in ('COT_FIVE_LAYERS','POLICY','POLISH_SYSTEM','EXTRACT_SYSTEM','AUDIT_SYSTEM','ARTICLE_SYSTEM','TX_FORMAT_SYSTEM','CM_PARSE_SYSTEM'):
                 values[name]=eval(compile(ast.Expression(node.value),'<prompt>','eval'),{'__builtins__':{}},values)
     cm=ROOT/'apps-script/Cmoney.gs'
     cmtext=cm.read_text(encoding='utf-8')

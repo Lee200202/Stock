@@ -244,7 +244,7 @@ class IdentityContext(unittest.TestCase):
         with patch.object(p,'call_gemini',return_value=json.dumps(reply)),patch.object(p,'_CODE_MAP',{'1111':'甲公司'}),patch.object(p,'_DAY_SOURCE_CONTEXT',{}):
             answer=p._ask_verdicts([item],'2026/10/27',0,raw)['1111']
         self.assertEqual(answer['_verified_quote_sources']['stance'],[raw])
-        self.assertEqual(p.verdict_class(answer,'被切斷的定位窗')[0],'watch_watch')
+        self.assertEqual(p.verdict_class(answer,'被切斷的定位窗')[0],'watch_avoid')
         reply['verdicts'][0]['quote_source_ids']={'stance':['missing']}
         with patch.object(p,'call_gemini',return_value=json.dumps(reply)),patch.object(p,'_CODE_MAP',{'1111':'甲公司'}):
             answer=p._ask_verdicts([item],'2026/10/27',0,raw)['1111']

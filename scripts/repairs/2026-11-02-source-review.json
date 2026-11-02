@@ -2,24 +2,53 @@
   "date": "2026/11/02",
   "video_id": "mkU0PqylKGs",
   "raw_sha256": "aae43c004dbeab44fbc71c8c46a548d6b70c20654fdaf056d07335dddf236f48",
-  "authorization": "管理者 2026/11/02 晚間裁示：台達電、聯發科同段既說還沒有／還不敢碰、又說還要等，一律列觀望不碰；請調整當日內容。聯發科網站已是觀望不碰，只改台達電。郵件已寄出，不重寄。",
-  "review_basis": "2026/11/02 雲端複核排程提出待裁示，管理者在對話中裁定；引句逐字出自當日原稿。前一版計畫（國巨、群聯、宜鼎、大立光、祥碩、譜瑞-KY）已套用，見 git 紀錄。",
+  "authorization": "管理者 2026/11/02 最新裁示：大立光目前還要等待、群聯及宜鼎尚未回穩均列觀望不碰；調整今日網站與通用流程。保留已套用台達電修正，不重寄 Email／LINE、不新增交易或會員持股。",
+  "review_basis": "延續 d7ce57079 已驗收的台達電修正；本次只更正三檔等待條件尚未成立的觀望分類。依完整族群段落核對群聯、宜鼎的並列主體與共同不要買結論，保留 Git 舊計畫與原子收據。",
   "items": [
     {
-      "code": "2308",
-      "name": "台達電",
+      "code": "3008",
+      "name": "大立光",
       "category": "watch_avoid",
       "previous_category": "watch_watch",
       "action": "update",
-      "text": "台達電上週五跌停，目前還沒有轉強；跌停後還不能急著買，一定要用60分K線確認，還要再等。",
+      "text": "大立光目前仍需等待，暫不進場，不必急著買。",
       "quotes": [
-        "跌停可以買了嗎？還沒有，還沒有，一定要用60分，一定要用60分K線看",
-        "台達電禮拜五最弱的股票，還沒有轉強",
         "所以台達電還要等，大立光還要等，聯發科還要等，不要急"
       ],
-      "rationale": "被問跌停可以買了嗎答「還沒有」，屬當下否定；同段雖說「還要等」，依管理者 2026/11/02 晚間裁示一律列觀望不碰。",
+      "rationale": "依管理者最新裁示：目前仍需等待、尚未回穩或條件未成立，屬暫不進場；正向觀察名單不能覆蓋目前等待狀態。",
       "previous_source_id": "mkU0PqylKGs",
-      "previous_note_sha256": "54166af89c2cb3f1f5ac57d9bf651de6a60a6083939981766c175aaa0fe624f5"
+      "previous_note_sha256": "bb79fc1f4681ecb3cb47ffd34159b90a28afb70229605990421ec2a216e761d1"
+    },
+    {
+      "code": "8299",
+      "name": "群聯",
+      "category": "watch_avoid",
+      "previous_category": "watch_watch",
+      "action": "update",
+      "text": "群聯是記憶體族群的觀察指標，目前尚未回穩；回穩之前暫不進場。",
+      "quotes": [
+        "這兩隻股票還沒有回穩之前，記憶體你不要碰",
+        "我說群聯還沒有回穩之前，你們都不要碰"
+      ],
+      "rationale": "依管理者最新裁示：目前仍需等待、尚未回穩或條件未成立，屬暫不進場；正向觀察名單不能覆蓋目前等待狀態。",
+      "previous_source_id": "mkU0PqylKGs",
+      "previous_note_sha256": "47b7217ca98f2e9ab3528db04fafe459e456e42c3ea1a3fe7fb471f6c7cfdc33"
+    },
+    {
+      "code": "5289",
+      "name": "宜鼎",
+      "category": "watch_avoid",
+      "previous_category": "watch_watch",
+      "action": "update",
+      "text": "宜鼎與群聯是記憶體族群的觀察指標；兩檔尚未回穩前暫不進場，不宜急著買記憶體股。",
+      "quotes": [
+        "這兩隻股票還沒有回穩之前，記憶體你不要碰",
+        "我只要你看最龍頭的兩隻，一隻叫做8299群聯，一隻叫做5289宜鼎",
+        "這兩隻都沒有漲，那你就不要亂買"
+      ],
+      "rationale": "依管理者最新裁示：目前仍需等待、尚未回穩或條件未成立，屬暫不進場；正向觀察名單不能覆蓋目前等待狀態。",
+      "previous_source_id": "mkU0PqylKGs",
+      "previous_note_sha256": "4a4d4cfcc100e5256f2d94944efdfeba3bc3c07b6b5a412fabcb590814f16683"
     }
   ]
 }

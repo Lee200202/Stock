@@ -70,8 +70,33 @@ def pipeline():
     return pl
 
 
+def key_diagnostics():
+    """金鑰載入失敗時只印結構（不印任何金鑰內容），用來判斷是貼上時被截斷、換行被改掉，還是內容被改動。"""
+    import base64
+    try:
+        info = json.loads(os.environ.get('GOOGLE_SHEETS_SERVICE_ACCOUNT', ''))
+    except Exception as e:
+        return f'金鑰不是合法 JSON（{type(e).__name__}）'
+    key = str(info.get('private_key') or '')
+    lines = key.strip().splitlines()
+    body = ''.join(l for l in lines if not l.startswith('-----'))
+    try:
+        der = len(base64.b64decode(body, validate=True))
+    except Exception:
+        der = -1
+    return ('金鑰結構：type=%s，email 結尾=%s，private_key_id 長度=%d，私鑰行數=%d，開頭標記=%s，結尾標記=%s，'
+            '內含字面反斜線n=%s，含空白=%s，本體長度=%d，本體可解碼=%s（DER %d 位元組）') % (
+        info.get('type'), str(info.get('client_email', '')).split('@')[-1], len(str(info.get('private_key_id') or '')),
+        len(lines), lines[0] == '-----BEGIN PRIVATE KEY-----' if lines else False,
+        lines[-1] == '-----END PRIVATE KEY-----' if lines else False, chr(92) + 'n' in key, ' ' in body, len(body),
+        der > 0, der)
+
+
 def open_book(pl):
-    return pl.open_sheets()
+    try:
+        return pl.open_sheets()
+    except ValueError as e:
+        raise SystemExit('試算表連線失敗：' + str(e) + chr(10) + key_diagnostics())
 
 
 def open_log():

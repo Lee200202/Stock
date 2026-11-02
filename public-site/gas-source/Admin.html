@@ -3784,6 +3784,8 @@ $('reclsBtn').addEventListener('click', function(){
   if(!fixDate()){ show($('fixMsg'),'err','請先在上面的日曆選一天；預覽不會改寫正式資料。'); return; }
   var btn=$('reclsBtn'); btn.disabled=true; btn.textContent='正在派出原稿預覽…';
   show($('fixMsg'),'warn','正在核對原始逐字稿與既有佇列；這一步不會直接改分類。');
+  function resetPreviewButton(){btn.disabled=false;btn.textContent='原稿分類預覽（不寫入）';}
+  function dispatchPreview(){
   google.script.run.withSuccessHandler(function(r){
     btn.disabled=false; btn.textContent='原稿分類預覽（不寫入）';
     show($('fixMsg'),r && r.ok ? 'ok' : 'err',r ? (r.ok ? r.message : r.reason) : '預覽派工沒有回應。');
@@ -3795,6 +3797,16 @@ $('reclsBtn').addEventListener('click', function(){
     btn.disabled=false;btn.textContent='原稿分類預覽（不寫入）';
     show($('fixMsg'),'err','派工回應中斷，請先查看 GitHub 單日品質工作紀錄，避免重複點擊。');
   }).apiAdminReclassify(KEY,fixDate());
+  }
+  // 新 Pages 不能把「預覽」送到仍會直接寫入的舊部署。
+  google.script.run.withSuccessHandler(function(r){
+    if(!r || !r.ok || r.sourceClassificationPreview!==1){
+      resetPreviewButton();show($('fixMsg'),'err','後端尚未切換到支援原稿預覽的版本。未派工、未更動資料；請完成原 Apps Script 部署更新後再試。');return;
+    }
+    dispatchPreview();
+  }).withFailureHandler(function(){
+    resetPreviewButton();show($('fixMsg'),'err','無法核對後端預覽能力，尚未派工或更動資料。');
+  }).apiAdminFixState(KEY);
 });
 
 

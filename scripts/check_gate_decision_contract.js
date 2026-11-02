@@ -83,4 +83,16 @@ adminCheck('workflow-specific result lookup',()=>{
 assert(!adminSource.includes('var PIPE_RECLASSIFY_SYSTEM ='));
 const adminHtml=fs.readFileSync('public-site/gas-source/Admin.html','utf8');
 assert(!adminHtml.includes('id="reclsAll"'));assert(!adminHtml.includes('觀望注意（看好、留意、等回檔）'));
+
+for(const capability of [undefined,0,1]) {
+ adminCheck('frontend deployment capability '+capability,()=>{
+  let handler=null,dispatched=0;const nodes={reclsBtn:{addEventListener:(event,fn)=>handler=fn},fixMsg:{}};
+  const ctx={$:id=>nodes[id],fixDate:()=> '2026/11/02',KEY:'offline',show:()=>{},document:{}};
+  ctx.google={script:{}};Object.defineProperty(ctx.google.script,'run',{get(){let success=()=>{};const chain={withSuccessHandler:fn=>{success=fn;return chain;},withFailureHandler:()=>chain,
+    apiAdminFixState:()=>success({ok:true,sourceClassificationPreview:capability}),apiAdminReclassify:()=>{dispatched++;success({ok:false,reason:'offline dispatch stopped'});}};return chain;}});
+  const a=adminHtml.indexOf("$('reclsBtn').addEventListener('click', function(){"),b=adminHtml.indexOf('\n});',a)+4;
+  vm.createContext(ctx);vm.runInContext(adminHtml.slice(a,b),ctx);handler();
+  assert.equal(dispatched,capability===1?1:0);assert.equal(nodes.reclsBtn.disabled,false);
+ });
+}
 console.log(adminCases+' admin source-preview contracts passed; no model, sheet write, email or LINE calls.');

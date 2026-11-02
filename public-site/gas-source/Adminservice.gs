@@ -3105,7 +3105,7 @@ function articleProgress_(phase, note) {
 function apiAdminFixState(key) {
   try {
     adminAuth_(key);
-    return { ok: true, state: fixJobState_() };
+    return { ok: true, state: fixJobState_(), sourceClassificationPreview: 1 };
   } catch (e) {
     return { ok: false, reason: String(e.message || e) };
   }

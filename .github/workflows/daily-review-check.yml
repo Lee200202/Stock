@@ -1,0 +1,85 @@
+name: daily-review-check
+
+# 每日寄信前複核的腳本實測（不呼叫模型）：用服務帳戶取當日輸入包、凍結 repo 裡的判讀檔、比對網站、寫複核紀錄。
+# 正式的每日判讀由 Claude 雲端排程做（docs/daily-review/每日複核作業.md）；這裡用來驗收腳本與紀錄表。
+# repo 是公開的：產出檔只上傳差異表與狀態，不上傳原稿與會員通知。
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 日期 YYYY/MM/DD
+        required: true
+      reading:
+        description: repo 內的判讀 JSON（留空只取輸入包）
+        default: ''
+      judged:
+        description: repo 內的 judged JSON（留空不寫紀錄）
+        default: ''
+      hold:
+        description: 是否把當天設為「複核中」
+        type: choice
+        options: ['no', 'yes']
+        default: 'no'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily-review
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: 取輸入包、凍結判讀、比對、寫紀錄
+        env:
+          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          REVIEW_LOG_ID: ${{ vars.REVIEW_LOG_ID }}
+          GEMINI_API_KEY: offline
+          DATE: ${{ inputs.date }}
+          READING: ${{ inputs.reading }}
+          JUDGED: ${{ inputs.judged }}
+          HOLD: ${{ inputs.hold }}
+        run: |
+          DAY_DIR=".daily-review/$(echo "$DATE" | tr -d '/')"
+          ARGS=(--date "$DATE"); if [ "$HOLD" = yes ]; then ARGS+=(--hold); fi
+          set +e
+          python scripts/daily_review/fetch_day.py "${ARGS[@]}"
+          code=$?
+          set -e
+          case $code in
+            0) ;;
+            3) echo '主流程還沒寫完（NOT_READY）'; exit 0 ;;
+            4) echo '非交易日（NO_TRADING_DAY）'; exit 0 ;;
+            5) echo '今日無影片（NO_VIDEO），不複核'; exit 0 ;;
+            *) exit $code ;;
+          esac
+          if [ -n "$READING" ]; then
+            cp "$READING" "$DAY_DIR/reading.json"
+            python scripts/daily_review/freeze_reading.py "$DAY_DIR/reading.json"
+            python scripts/daily_review/compare_site.py --date "$DATE"
+          fi
+          if [ -n "$JUDGED" ]; then
+            python scripts/daily_review/write_log.py "$JUDGED"
+          fi
+          mkdir -p .review-out
+          for f in status.json diffs.json diffs.md reading.sha256; do
+            if [ -f "$DAY_DIR/$f" ]; then cp "$DAY_DIR/$f" .review-out/; fi
+          done
+      - name: 保存差異表（不含原稿與通知）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-review-${{ github.run_id }}
+          path: .review-out
+          retention-days: 7
+          if-no-files-found: ignore

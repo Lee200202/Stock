@@ -1912,6 +1912,8 @@ function lineDailyTick_() {
   var hhmm = Number(Utilities.formatDate(new Date(), 'Asia/Taipei', 'HHmm'));
   var startHm = typeof dailyPushStartTime_ === 'function' ? Number(dailyPushStartTime_(today)) : 1200;
   if (hhmm < startHm || hhmm > 2200) { return { skipped: 'window' }; }
+  // 與每日整理信同一個複核暫緩（Dailyreview.gs）：LINE 總覽不比信件先送出未複核的內容
+  if (typeof dailyReviewHold_ === 'function' && dailyReviewHold_(today)) { return { skipped: 'review' }; }
   var cache = CacheService.getScriptCache();
   if (cache.get('line_daily_' + today)) { return { skipped: 'queued' }; }
   var st = lineTodayState_();

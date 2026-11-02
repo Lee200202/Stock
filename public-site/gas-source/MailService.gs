@@ -881,6 +881,9 @@ function dailyPushJob() {
   if (Number(Utilities.formatDate(new Date(), TZ, 'HHmm')) < startHm) {
     return pushWhy_(today, '未到今日設定的最早寄送時間 ' + startHm.slice(0, 2) + ':' + startHm.slice(2));
   }
+  // 每日寄信前複核進行中：等複核完成，最晚 13:00 照原內容寄出（Dailyreview.gs，2026/11/02）
+  var reviewHold = typeof dailyReviewHold_ === 'function' ? dailyReviewHold_(today) : '';
+  if (reviewHold) { return pushWhy_(today, reviewHold); }
   var sh = getSheet_('每日推播內容');
   var rows = sh.getDataRange().getValues();
 

@@ -1,0 +1,54 @@
+name: daily-review-apply
+
+# 試行期後：雲端排程把明確錯誤的修正計畫推到分支 daily-review/apply-YYYYMMDD，這裡依序預覽、套用、讀回。
+# 只走既有的修正工具（scripts/apply_source_review.py、scripts/apply_reviewed_points.py）：
+# 先備份、引句逐字核對原稿、寫完讀回；不改成交事實、不加別名、不動寄送帳本、不呼叫模型、不寄信。
+# 試行期（到 2026/11/14）一律拒絕套用。
+on:
+  push:
+    branches: ['daily-review/apply-*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: regenerate-verified
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: 預覽並套用當日修正計畫
+        env:
+          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
+          PYTHONUNBUFFERED: '1'
+          GEMINI_API_KEY: offline
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          STAMP="${BRANCH#daily-review/apply-}"
+          if ! [[ "$STAMP" =~ ^20[0-9]{6}$ ]]; then echo "分支名稱要是 daily-review/apply-YYYYMMDD"; exit 1; fi
+          DAY="${STAMP:0:4}/${STAMP:4:2}/${STAMP:6:2}"
+          if [[ "$STAMP" < "20261117" ]]; then echo "試行期（到 2026/11/14）只記錄、不套用：$DAY"; exit 1; fi
+          TODAY=$(TZ=Asia/Taipei date +%Y%m%d)
+          if [ "$STAMP" != "$TODAY" ]; then echo "只能修正當天：$DAY"; exit 1; fi
+          PLAN="scripts/repairs/${DAY//\//-}-source-review.json"
+          POINTS="scripts/repairs/${DAY//\//-}-points-review.json"
+          if [ ! -f "$PLAN" ] && [ ! -f "$POINTS" ]; then echo "沒有修正計畫"; exit 1; fi
+          if [ -f "$PLAN" ]; then
+            python scripts/apply_source_review.py --date "$DAY"
+            python scripts/apply_source_review.py --date "$DAY" --apply
+          fi
+          if [ -f "$POINTS" ]; then
+            python scripts/apply_reviewed_points.py --date "$DAY"
+          fi

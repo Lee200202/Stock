@@ -401,6 +401,10 @@ function everyFiveMinJobRun_() {
   // 後台逐日編輯可在休市與夜間儲存；先接續郵件、持股和績效佇列，
   // 不受下方的市場時段早退影響。沒有待辦時只讀少量屬性。
   safe_('dayEditSyncTick_', function(){dayEditSyncTick_();});
+  // 每日複核紀錄表還沒建立：以擁有者身分自動建立一次，並把連結寄給管理者（Dailyreview.gs）
+  if (typeof dailyReviewEnsureLog_ === 'function') { safe_('dailyReviewEnsureLog_', dailyReviewEnsureLog_); }
+  // 每日複核日報：到時間的待寄通知用管理者通知寄出（Dailyreview.gs）；11:30 到夜間收工前才開紀錄表
+  if (hhmm >= 1130 && typeof dailyReviewNoticeTick_ === 'function') { safe_('dailyReviewNoticeTick_', dailyReviewNoticeTick_); }
   // 夜間只續送待送通知與恢復中斷工單；沒有市場總覽採樣。
   if (hhmm < 800 || hhmm >= 2230) {
 

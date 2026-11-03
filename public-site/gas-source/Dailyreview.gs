@@ -145,11 +145,14 @@ function dailyReviewCardsHtml_(summary, rows, logUrl) {
     return '<p style="margin:4px 0 10px;font-size:16px;color:#26312C;">今天未複核：' + e(summary['備註'] || '沒有影片') + '</p>';
   }
   var count = function (k) { return Number(summary[k]) || 0; };
-  var tiles = DAILY_REVIEW_SEV_.map(function (s) {
-    return '<td width="25%" style="padding:4px;"><div style="background:' + s.bg + ';border-radius:16px;padding:12px 6px;text-align:center;">' +
-      '<div style="font-size:30px;line-height:1.1;font-weight:700;color:' + s.fg + ';">' + count(s.key) + '</div>' +
-      '<div style="font-size:13px;letter-spacing:.06em;color:' + s.fg + ';margin-top:4px;">' + s.key + '</div></div></td>';
-  }).join('');
+  // 二乘二（管理者 2026/11/03：四格排一列太擠）：上排明確錯誤、待確認，下排邊界、複核錯
+  var tile = function (s) {
+    return '<td width="50%" style="padding:5px;"><div style="background:' + s.bg + ';border-radius:16px;padding:14px 10px;text-align:center;">' +
+      '<div style="font-size:32px;line-height:1.1;font-weight:700;color:' + s.fg + ';">' + count(s.key) + '</div>' +
+      '<div style="font-size:14px;letter-spacing:.06em;color:' + s.fg + ';margin-top:4px;">' + s.key + '</div></div></td>';
+  };
+  var sev = DAILY_REVIEW_SEV_;
+  var tiles = tile(sev[0]) + tile(sev[1]) + '</tr><tr>' + tile(sev[2]) + tile(sev[3]);
   var stateLabel = { '已完成': '已完成', '修正中': '修正套用中', '修正失敗': '修正套用失敗', '複核中': '複核進行中' }[state] || state;
   var html = '<p style="margin:0 0 8px;font-size:15px;color:#4A5A52;">比對 ' + e(summary['比對檔數'] || 0) + ' 檔・已修正 ' +
     '<b style="color:#0A4A3C;">' + count('已修正') + '</b> 項・' + e(stateLabel) + '</p>' +

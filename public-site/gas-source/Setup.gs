@@ -1266,7 +1266,7 @@ var PROJECT_FILES_ = [
   { file: 'Code.gs', names: ['doGet', 'doPost', 'include', 'configMissing_', 'configMissingResponse_'], marker: ['doPost', 'x-line-signature'] },
   { file: 'API.gs', names: ['jsonOut_', 'apiLookupSubscription', 'apiUpdateSubscription', 'renderUnsubscribePage_', 'apiGetCandlesBundle', 'apiUnsubscribeConfirm', 'apiGetStockSummary', 'apiGetTechStats', 'techDemo_', 'publicTracker_', 'dashCachePut_', 'dashCacheGet_'], marker: ['apiGetDashboard', 'getQuotesFor(quoteCodes, false, true, true)'] },
   { file: 'Adminpipeline.gs', names: ['pipeIsForeign_', 'pipeBase_', 'PIPE_EXTRACT_SYSTEM'], marker: ['PIPE_EXTRACT_SYSTEM', '券商先前低價累積'] },
-  { file: 'Adminservice.gs', names: ['adminAuth_', 'apiAdminLogin', 'PIPE_RECLASSIFY_SYSTEM', 'apiAdminTodayStatus', 'adminTodaySmsOriginals_', 'dayVideoRow_', 'apiAdminHeldList', 'apiAdminSetHoldingCost', 'apiAdminHoldToday', 'apiAdminKCoverage', 'apiAdminOpsDay', 'recordManualNoteEdit_'], marker: ['apiAdminKCoverage', 'dateMemo'] },
+  { file: 'Adminservice.gs', names: ['adminAuth_', 'apiAdminLogin', 'dispatchGithub_', 'apiAdminTodayStatus', 'adminTodaySmsOriginals_', 'dayVideoRow_', 'apiAdminHeldList', 'apiAdminSetHoldingCost', 'apiAdminHoldToday', 'apiAdminKCoverage', 'apiAdminOpsDay', 'recordManualNoteEdit_'], marker: ['apiAdminKCoverage', 'dateMemo'] },
   { file: 'Aiservice.gs', names: ['validateKey', 'assistantModelCatalog_', 'sanitizeDraft_', 'draftReady_', 'isPromptProbe_', 'guardReply_', 'explicitSubscribeConfirm_'], marker: ['assistantModelCatalog_', 'supportedGenerationMethods'] },
   { file: 'Articlequality.gs', names: ['enforceArticleRecords_', 'attachArticleEvidence_'] },
   { file: 'BattleData.gs', names: ['apiGetBattleData'], marker: ['apiGetBattleData', 'volumeUnit'] },

@@ -104,23 +104,28 @@ class NameLearning(unittest.TestCase):
         return {'heard': heard, 'code': code, 'name': name, 'keys': list(keys), 'why': '測試', 'quotes': [heard + '原句']}
 
     def test_misheard_name_is_written_as_review_source(self):
-        new, skipped, bad = name_memo.plan_rows(self.HEAD, [], [self.item('雅德客', '1590', '亞德客-KY')], OFFICIAL, '2026/11/03')
+        new, skipped, bad, _ = name_memo.plan_rows(self.HEAD, [], [self.item('雅德客', '1590', '亞德客-KY')], OFFICIAL, '2026/11/03')
         self.assertEqual(bad, [])
         self.assertEqual(new[0][:5] + new[0][6:8], ['雅德客', 'stock', '亞德客-KY', '1590', '', '複核', '2026/11/03'])
 
     def test_a_real_company_name_needs_context_keys(self):
-        _, _, bad = name_memo.plan_rows(self.HEAD, [], [self.item('力致', '6719', '力智')], OFFICIAL, '2026/11/03')
+        _, _, bad, _ = name_memo.plan_rows(self.HEAD, [], [self.item('力致', '6719', '力智')], OFFICIAL, '2026/11/03')
         self.assertTrue(any('情境關鍵詞' in b for b in bad))
-        new, _, bad = name_memo.plan_rows(self.HEAD, [], [self.item('力致', '6719', '力智', ['加澤', '180'])], OFFICIAL, '2026/11/03')
+        new, _, bad, _ = name_memo.plan_rows(self.HEAD, [], [self.item('力致', '6719', '力智', ['加澤', '180'])], OFFICIAL, '2026/11/03')
         self.assertEqual(bad, [])
         self.assertEqual(new[0][4], '加澤、180')
 
     def test_existing_row_is_skipped_and_a_conflicting_trusted_row_stops(self):
         rows = [['雅德客', 'stock', '亞德客-KY', '1590', '', '', '人工', '', '1', '']]
-        _, skipped, _ = name_memo.plan_rows(self.HEAD, rows, [self.item('雅德客', '1590', '亞德客-KY')], OFFICIAL, 'd')
+        _, skipped, _, _ = name_memo.plan_rows(self.HEAD, rows, [self.item('雅德客', '1590', '亞德客-KY')], OFFICIAL, 'd')
         self.assertEqual(skipped, ['雅德客'])
-        _, _, bad = name_memo.plan_rows(self.HEAD, rows, [self.item('雅德客', '6719', '力智')], OFFICIAL, 'd')
+        _, _, bad, _ = name_memo.plan_rows(self.HEAD, rows, [self.item('雅德客', '6719', '力智')], OFFICIAL, 'd')
         self.assertTrue(any('管理者' in b for b in bad))
+
+    def test_an_untrusted_existing_row_is_upgraded_not_duplicated(self):
+        rows = [['雅德客', 'stock', '亞德客-KY', '1590', '', '', 'ai', '', '3', '']]
+        new, skipped, bad, upgrade = name_memo.plan_rows(self.HEAD, rows, [self.item('雅德客', '1590', '亞德客-KY')], OFFICIAL, 'd')
+        self.assertEqual((new, skipped, bad, upgrade), ([], [], [], [2]))
 
     def test_pipeline_applies_review_source_like_manual(self):
         src = (ROOT / 'pipeline/pipeline.py').read_text(encoding='utf-8')

@@ -23,14 +23,15 @@ TRUSTED = ('人工', '複核')
 
 
 def plan_rows(head, rows, items, official, day):
-    """純函式：回傳 (要新增的列, 已存在而略過的唸法, 問題清單)。rows 是表上現有資料列（不含表頭）。"""
+    """純函式：回傳 (要新增的列, 已存在而略過的唸法, 問題清單, 要升級成「複核」的列號)。rows 是表上現有資料列（不含表頭）。
+    同名同代號同情境的列已存在但來源是 ai／規則（流程不會直接套用），改成升級那一列的來源，不另外新增。"""
     by_name = {}
     for code, name in official.items():
         by_name.setdefault(name, set()).add(code)
     col = {h: i for i, h in enumerate(head)}
     cell = lambda r, h: str(r[col[h]]).strip() if h in col and col[h] < len(r) else ''
     existing = [(cell(r, '聽到的名稱'), cell(r, '代號'), cell(r, '情境關鍵詞'), cell(r, '來源')) for r in rows]
-    new, skipped, bad = [], [], []
+    new, skipped, bad, upgrade = [], [], [], []
     for it in items:
         heard, code, name = str(it.get('heard') or '').strip(), str(it.get('code') or '').strip(), str(it.get('name') or '').strip()
         keys = [k for k in (it.get('keys') or []) if str(k).strip()]
@@ -48,15 +49,20 @@ def plan_rows(head, rows, items, official, day):
         if clash:
             bad.append(f'{heard}：表上已有{clash[0][3]}紀錄對到 {clash[0][1]}，需要管理者決定')
             continue
-        if any(e[0] == heard and e[1] == code and e[2] == key_text for e in existing):
+        same = [n for n, e in enumerate(existing) if e[0] == heard and e[1] == code and e[2] == key_text]
+        if any(existing[n][3] in TRUSTED for n in same):
             skipped.append(heard)
+            continue
+        if same:
+            upgrade.append(same[0] + 2)      # 試算表列號（表頭是第 1 列）
+            existing[same[0]] = (heard, code, key_text, '複核')
             continue
         values = {'聽到的名稱': heard, '判定': 'stock', '正式名稱': name, '代號': code, '情境關鍵詞': key_text,
                   '依據': f'每日複核 {day} 確認：{it["why"]}'[:200], '來源': '複核', '建立日期': day,
                   '命中次數': 0, '最後命中': ''}
         new.append([values.get(h, '') for h in head])
         existing.append((heard, code, key_text, '複核'))
-    return new, skipped, bad
+    return new, skipped, bad, upgrade
 
 
 def main():
@@ -93,25 +99,33 @@ def main():
     head = [str(h).strip() for h in values[0]]
     if [h for h in pl.NAME_MEMO_HEADERS if h not in head]:
         raise SystemExit('名稱判定紀錄表頭不完整，未寫入')
-    new, skipped, bad = plan_rows(head, values[1:], plan['items'], official, day)
+    new, skipped, bad, upgrade = plan_rows(head, values[1:], plan['items'], official, day)
     if bad:
         raise SystemExit('股名學習不通過：\n' + '\n'.join(bad))
     for r in new:
         print('記入名稱判定紀錄（複核）：', r[head.index('聽到的名稱')], '→', r[head.index('代號')], r[head.index('正式名稱')],
               ('情境：' + r[head.index('情境關鍵詞')]) if r[head.index('情境關鍵詞')] else '')
     if skipped:
-        print('表上已有、略過：', '、'.join(skipped))
+        print('表上已有人工／複核紀錄、略過：', '、'.join(skipped))
+    for n in upgrade:
+        print('既有紀錄升級為「複核」：第', n, '列', values[n - 1][head.index('聽到的名稱')], '→', values[n - 1][head.index('代號')])
     if not args.apply:
         print('預覽完成；寫入 0')
         return
     if new:
         pl.append_rows_safe(ws, new)
+    src_col = pl._col_letter(head.index('來源'))
+    for n in upgrade:
+        ws.update([['複核']], f'{src_col}{n}', value_input_option='RAW')
     after = pl.sheets_retry(ws.get_all_values)
+    for n in upgrade:
+        if str(after[n - 1][head.index('來源')]).strip() != '複核':
+            raise SystemExit('升級後讀回不一致')
     seen = [[str(x) for x in row[:len(head)]] for row in after]
     for r in new:
         if [str(x) for x in r] not in seen:
             raise SystemExit('寫入後讀回不一致')
-    print(f'名稱判定紀錄：新增 {len(new)} 列、讀回一致；之後的比對會直接套用')
+    print(f'名稱判定紀錄：新增 {len(new)} 列、升級 {len(upgrade)} 列、讀回一致；之後的比對會直接套用')
 
 
 if __name__ == '__main__':

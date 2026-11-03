@@ -11,6 +11,7 @@ import json
 from common import ROOT, norm_day, now, open_log, rows_of
 
 PENDING = ('待套用', '修正中')
+FAIL_NOTE = '修正套用失敗，郵件照原內容寄出'
 
 
 def plan_texts(day):
@@ -57,7 +58,8 @@ def main():
         fixed = sum(1 for r in rows_of(detail)[1] if norm_day(r.get('日期')) == day and r.get('處理') == '已修正')
         row.update({'狀態': '修正失敗' if args.failed else '已完成', '已修正': fixed,
                     '完成時間': now().strftime('%H:%M:%S'),
-                    '備註': (row.get('備註', '') + ' 修正套用失敗，郵件照原內容寄出').strip() if args.failed else row.get('備註', '')})
+                    '備註': (row.get('備註', '') + ' ' + FAIL_NOTE).strip() if args.failed
+                            else row.get('備註', '').replace(FAIL_NOTE, '').strip()})   # 重跑成功就拿掉先前的失敗註記
         summary.update([[row.get(h, '') for h in shead]], f'A{idx}', value_input_option='RAW')
     print('MARKED', day, '修正失敗' if args.failed else '已修正', len(changed), '列')
 

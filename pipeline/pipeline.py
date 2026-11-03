@@ -21892,7 +21892,9 @@ def enrich_sms_notes_from_signals(ss, date_str, signals, transcript):
         _SMS_TX_CACHE.setdefault(date_str, transcript)
     code_map = get_code_map() or {}
     # 後台改過說明的列不重寫：列上的說明與解析明細保存的不一樣，就是人改的。
-    stored_notes, edited_rows = {}, set()
+    # 複核修正（scripts/apply_notice_reason_fix.py）兩邊同時改成同一句、比對看不出來，改由解析明細的 reviewed 標記保護
+    # （2026/11/03 晶心科：11:57 修好的理由在 12:08 的簡訊解析被這裡整句重寫回通知口吻）。
+    stored_notes, edited_rows, reviewed_codes = {}, set(), set()
     try:
         sms_values = sheets_retry(ss.worksheet('會員簡訊').get_all_values)
         if sms_values and all(k in sms_values[0] for k in ['發文時間', '解析明細']):
@@ -21907,6 +21909,8 @@ def enrich_sms_notes_from_signals(ss, date_str, signals, transcript):
                 for d in detail if isinstance(detail, list) else []:
                     if isinstance(d, dict):
                         stored_notes.setdefault(str(d.get('code') or ''), []).append(str(d.get('reason') or d.get('note') or ''))
+                        if d.get('reviewed'):
+                            reviewed_codes.add(str(d.get('code') or ''))
     except Exception as exc:
         print(f'簡訊說明補充：讀不到解析明細，無法分辨後台改過的列（{exc}）；照舊處理')
     # 先盤點同日要補的列，模型整批重寫一次，避免一檔一呼叫把額度與時間用完。
@@ -21928,6 +21932,10 @@ def enrich_sms_notes_from_signals(ss, date_str, signals, transcript):
             if len(row) <= max(ci.values()) or row[ci['日期']] != date_str or not str(row[ci['來源影片ID']]).startswith('CMONEY-'):
                 continue
             code, original = str(row[ci['代號']]), str(row[ci[field]])
+            if code in reviewed_codes:
+                edited_rows.add(f'{tab}:{i}')
+                print(f'  簡訊說明補充：{row[ci["股票名稱"]]}（{code}）的說明已經複核修正，不重寫')
+                continue
             if stored_notes.get(code) and not any(
                     _same_note(original, s) or _same_note(original, public_sms_note(s, {'code': code}))
                     for s in stored_notes[code]):
@@ -22034,7 +22042,7 @@ def enrich_sms_notes_from_signals(ss, date_str, signals, transcript):
             if not isinstance(items,list):continue
             changed=False
             for item in items:
-                if not isinstance(item,dict):continue
+                if not isinstance(item,dict) or item.get('reviewed'):continue
                 field='reason' if 'reason' in item else 'note';old=item.get(field) or '';note=public_sms_note(old,item)
                 for candidate in by_code.get(str(item.get('code') or ''),[]):
                     note=sms_context_note(note,candidate,transcript,item)

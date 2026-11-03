@@ -115,7 +115,9 @@ def main():
             continue
         if sha(current or '') != item['previous_reason_sha256'] or sha(mine.get('reason') or '') != item['previous_reason_sha256']:
             raise ValueError('理由已被改動，保留現值：' + item['code'])
-        new_detail = [dict(d, reason=item['text']) if str(d.get('code')) == item['code'] else d for d in detail]
+        # reviewed：之後的簡訊解析（雙來源重寫）看到這個標記就不再改寫這一句
+        new_detail = [dict(d, reason=item['text'], reviewed='通知理由修正 ' + day) if str(d.get('code')) == item['code'] else d
+                      for d in detail]
         writes.append((item, ti, si, json.dumps(new_detail, ensure_ascii=False)))
         print('改', item['code'], item['name'], '\n  舊理由指紋：', item['previous_reason_sha256'][:12], '\n  新：', item['text'])
     if done:

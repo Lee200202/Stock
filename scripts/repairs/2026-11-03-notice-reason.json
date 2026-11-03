@@ -10,8 +10,8 @@
       "name": "晶心科",
       "notice_source_id": "CMONEY-187437610",
       "article_id": "187437610",
-      "previous_reason_sha256": "af7a45b9efcf8726318fb81a33356ff56893f367c577da59f9e1216d95768fba",
-      "previous_reason_chars": 18,
+      "previous_reason_sha256": "211ea0604a601d3f98a0cb63d9f1c1fb1076779e310eba8c9960f788cab66a90",
+      "previous_reason_chars": 82,
       "text": "晶心科現金增資認股（認購價195元）今日取得股票，持有者全部以市價賣出；賣在270幾元，每張賺快80元。",
       "rationale": "原稿：認股認195元、一早請持有者全部市價賣出、賣在270幾元每張賺快80元；改寫只用原稿事實。",
       "quotes": [
@@ -21,5 +21,5 @@
       ]
     }
   ],
-  "note": "舊理由原句是外洩的通知用語，套用後改存指紋；套用當時的計畫見 git 紀錄 98028453f。"
+  "note": "第一次套用（11:57）後，12:08 的簡訊解析把理由整句重寫回通知口吻；本次重新套用並在解析明細加 reviewed 標記，之後的簡訊解析不再改寫。舊理由只存指紋。"
 }

@@ -81,6 +81,14 @@ class NoticeReasonPlan(unittest.TestCase):
                 self.assertNotIn('previous_reason', it)
                 self.assertEqual(len(it['previous_reason_sha256']), 64)
 
+    def test_reviewed_reason_is_locked_against_the_sms_rewrite(self):
+        tool = (ROOT / 'scripts/apply_notice_reason_fix.py').read_text(encoding='utf-8')
+        self.assertIn("reviewed='通知理由修正 ' + day", tool)
+        src = (ROOT / 'pipeline/pipeline.py').read_text(encoding='utf-8')
+        body = src.split('stored_notes, edited_rows, reviewed_codes = {}, set(), set()')[1].split('\ndef ')[0]
+        self.assertIn('if code in reviewed_codes:', body)
+        self.assertIn("if not isinstance(item,dict) or item.get('reviewed'):continue", body)
+
     def test_fingerprint_search_finds_the_old_sentence(self):
         old = '今天全部賣出。'
         digest = hashlib.sha256(old.encode('utf-8')).hexdigest()

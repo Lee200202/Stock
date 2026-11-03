@@ -81,8 +81,10 @@ function dailyReviewHold_(today) {
     if (sh && sh.getLastRow() > 1) {
       var rows = sh.getRange(2, 1, sh.getLastRow() - 1, 2).getDisplayValues();
       for (var i = rows.length - 1; i >= 0; i--) {
-        if (String(rows[i][0]).trim().replace(/-/g, '/') === today && String(rows[i][1]).trim() === '複核中') {
-          why = '每日寄信前複核進行中（最晚 13:00 照原內容寄出）'; break;
+        var st = String(rows[i][1]).trim();
+        if (String(rows[i][0]).trim().replace(/-/g, '/') === today && (st === '複核中' || st === '修正中')) {
+          why = st === '修正中' ? '複核修正套用中（最晚 13:00 照當時內容寄出）' : '每日寄信前複核進行中（最晚 13:00 照原內容寄出）';
+          break;
         }
       }
     }
@@ -91,21 +93,116 @@ function dailyReviewHold_(today) {
   return why;
 }
 
-/** 每 5 分鐘：把「通知」分頁到時間的待寄日報用管理者通知寄出，標記已寄。 */
-function dailyReviewNoticeTick_() {
-  var book = dailyReviewBook_();
-  var sh = book && book.getSheetByName('通知');
-  if (!sh || sh.getLastRow() < 2) { return; }
-  var to = dailyReviewNotifyTo_();
-  if (!to.length) { return; }
+/** 管理者 2026/11/03：複核不再單獨寄信，一律在 12:30 起的「爬取狀態」信裡用卡片呈現（statusReportJob 呼叫
+    dailyReviewStatusSection_）。保留這個名稱給五分鐘排程呼叫，但不寄任何信。 */
+function dailyReviewNoticeTick_() {}
+
+var DAILY_REVIEW_MAIL_AT_ = '12:30:00';
+// 同一個色相由深到淺，深＝嚴重。
+var DAILY_REVIEW_SEV_ = [
+  { key: '明確錯誤', bg: '#0A4A3C', fg: '#FFFFFF' },
+  { key: '待確認', bg: '#2F7A63', fg: '#FFFFFF' },
+  { key: '邊界', bg: '#9CC8B4', fg: '#12161A' },
+  { key: '複核錯', bg: '#DCEDE5', fg: '#12161A' }
+];
+
+/** 今天的複核卡片區塊（12:30 起才有）。回傳 { html, state, markRows }；沒有東西時回 null。讀不到紀錄表就不影響狀態信。 */
+function dailyReviewStatusSection_(today) {
   var now = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy/MM/dd HH:mm:ss');
-  var head = DAILY_REVIEW_TABS_['通知'];
-  var values = sh.getRange(2, 1, sh.getLastRow() - 1, head.length).getDisplayValues();
-  values.forEach(function (r, i) {
-    if (String(r[6]).trim() !== '待寄' || String(r[3]).trim() > now) { return; }
-    var mail = { to: to.join(','), subject: String(r[4]), body: String(r[5]) };
-    try { if (typeof adminNoticeHtml_ === 'function') { mail.htmlBody = adminNoticeHtml_(mail.subject, mail.body); } } catch (e) { delete mail.htmlBody; }
-    MailApp.sendEmail(mail);
-    sh.getRange(i + 2, 7, 1, 2).setValues([['已寄', now]]);
-  });
+  if (now < today + ' ' + DAILY_REVIEW_MAIL_AT_) { return null; }
+  var book;
+  try { book = dailyReviewBook_(); } catch (e) { return null; }
+  if (!book) { return null; }
+  var read = function (name) {
+    var sh = book.getSheetByName(name);
+    if (!sh || sh.getLastRow() < 2) { return []; }
+    var v = sh.getRange(1, 1, sh.getLastRow(), sh.getLastColumn()).getDisplayValues();
+    return v.slice(1).map(function (r, i) {
+      var o = { _row: i + 2 };
+      v[0].forEach(function (h, j) { o[h] = r[j]; });
+      return o;
+    }).filter(function (o) { return String(o['日期']).trim().replace(/-/g, '/') === today; });
+  };
+  var summary = read('每日摘要').pop();
+  if (!summary) { return null; }
+  var rows = read('差異明細');
+  var notices = read('通知').filter(function (o) { return String(o['狀態']).trim() === '待寄'; });
+  var html = dailyReviewCardsHtml_(summary, rows, book.getUrl());
+  return { html: html, state: [summary['狀態'], summary['已修正'], rows.length,
+           rows.map(function (r) { return r['處理']; }).join(',')].join('/'),
+           mark: function () {
+             var sh = book.getSheetByName('通知');
+             notices.forEach(function (o) { sh.getRange(o._row, 7, 1, 2).setValues([['已併入狀態信', now]]); });
+           } };
+}
+
+/** 純函式（可離線測）：每日摘要一列＋差異明細當天各列 → 卡片 HTML。字少、卡片多：嚴重度數字、今日網站修改、明確錯誤、待你裁示。 */
+function dailyReviewCardsHtml_(summary, rows, logUrl) {
+  var e = typeof esc_ === 'function' ? esc_ : function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+  var cut = function (s, n) { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
+  var state = String(summary['狀態'] || '').trim();
+  if (state === '未執行') {
+    return '<p style="margin:4px 0 10px;font-size:16px;color:#26312C;">今天未複核：' + e(summary['備註'] || '沒有影片') + '</p>';
+  }
+  var count = function (k) { return Number(summary[k]) || 0; };
+  var tiles = DAILY_REVIEW_SEV_.map(function (s) {
+    return '<td width="25%" style="padding:4px;"><div style="background:' + s.bg + ';border-radius:16px;padding:12px 6px;text-align:center;">' +
+      '<div style="font-size:30px;line-height:1.1;font-weight:700;color:' + s.fg + ';">' + count(s.key) + '</div>' +
+      '<div style="font-size:13px;letter-spacing:.06em;color:' + s.fg + ';margin-top:4px;">' + s.key + '</div></div></td>';
+  }).join('');
+  var stateLabel = { '已完成': '已完成', '修正中': '修正套用中', '修正失敗': '修正套用失敗', '複核中': '複核進行中' }[state] || state;
+  var html = '<p style="margin:0 0 8px;font-size:15px;color:#4A5A52;">比對 ' + e(summary['比對檔數'] || 0) + ' 檔・已修正 ' +
+    '<b style="color:#0A4A3C;">' + count('已修正') + '</b> 項・' + e(stateLabel) + '</p>' +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 12px;"><tr>' + tiles + '</tr></table>';
+
+  var color = {};
+  DAILY_REVIEW_SEV_.forEach(function (s) { color[s.key] = s.bg; });
+  var card = function (title, chip, accent, lines) {
+    return '<div style="border:1px solid #D9DFDA;border-left:5px solid ' + accent + ';border-radius:14px;background:#F6F8F6;padding:12px 14px;margin:0 0 10px;">' +
+      '<div style="font-size:17px;font-weight:700;color:#12161A;">' + e(title) +
+      (chip ? '<span style="display:inline-block;margin-left:8px;padding:1px 10px;border-radius:999px;background:' + accent +
+        ';color:' + (accent === '#9CC8B4' || accent === '#DCEDE5' ? '#12161A' : '#FFFFFF') + ';font-size:12.5px;font-weight:600;vertical-align:2px;">' + e(chip) + '</span>' : '') +
+      '</div>' +
+      '<ul style="margin:6px 0 0;padding-left:20px;font-size:15px;line-height:1.7;color:#26312C;">' +
+      lines.filter(function (l) { return l[1]; }).map(function (l) {
+        return '<li><b style="color:#12161A;">' + e(l[0]) + '</b>' + e(l[1]) + '</li>';
+      }).join('') + '</ul></div>';
+  };
+  var name = function (r) { return (r['名稱'] || '') + (r['代號'] ? ' ' + r['代號'] : ''); };
+  var sub = function (title, inner) {
+    return inner ? '<div style="font-size:15px;font-weight:700;color:#0A4A3C;letter-spacing:.08em;margin:14px 0 8px;">' + title + '</div>' + inner : '';
+  };
+
+  var fixed = rows.filter(function (r) { return r['處理'] === '已修正'; });
+  html += sub('今日網站修改', fixed.map(function (r) {
+    var cls = r['網站分類'] && r['複核分類'] && r['網站分類'] !== r['複核分類'] ? r['網站分類'] + ' → ' + r['複核分類'] : '';
+    return card(name(r), r['差異類型'], '#0A4A3C', [['分類：', cls], ['改成：', cut(r['修正後'], 70)]]);
+  }).join(''));
+
+  var detail = function (r) {
+    var some = function (x) { return !!x; };
+    return [['網站：', cut([r['網站分類'], r['修正前']].filter(some).join('｜'), 70)],
+            ['判斷：', cut([r['複核分類'], r['判斷理由']].filter(some).join('｜'), 90)],
+            ['原句：', r['原文依據'] ? '「' + cut(r['原文依據'], 60) + '」' : ''],
+            ['處理：', r['處理']]];
+  };
+  html += sub('明確錯誤', rows.filter(function (r) { return r['嚴重度'] === '明確錯誤'; }).map(function (r) {
+    return card(name(r), r['差異類型'], color['明確錯誤'], detail(r));
+  }).join(''));
+  // 已經修正的待確認（例如管理者當天就裁示了）只出現在「今日網站修改」，不再列成待裁示
+  html += sub('待你裁示', rows.filter(function (r) { return r['嚴重度'] === '待確認' && r['處理'] !== '已修正'; }).map(function (r) {
+    return card(name(r), r['差異類型'], color['待確認'], detail(r));
+  }).join(''));
+  var minor = rows.filter(function (r) { return r['嚴重度'] === '邊界' || r['嚴重度'] === '複核錯'; });
+  if (minor.length) {
+    html += '<p style="margin:10px 0 4px;font-size:14.5px;color:#4A5A52;">邊界／複核錯（不需處理）：' +
+      e(minor.map(function (r) { return r['名稱'] + '（' + r['嚴重度'] + '）'; }).join('、')) + '</p>';
+  }
+  if (!rows.length) {
+    html += '<p style="margin:4px 0 8px;font-size:15.5px;color:#26312C;">網站內容與獨立判讀一致，今天沒有修改。</p>';
+  }
+  if (logUrl) {
+    html += '<p style="margin:10px 0 4px;font-size:14px;"><a href="' + e(logUrl) + '" style="color:#04795C;">完整紀錄（每日複核紀錄試算表）</a></p>';
+  }
+  return html;
 }

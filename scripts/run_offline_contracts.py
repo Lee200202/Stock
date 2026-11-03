@@ -38,6 +38,7 @@ SUITES = [
     'test_model_release_candidate',
     'test_regenerator_preflight',
     'test_review_workflow_contract',
+    'test_daily_review_autofix',
     'test_reviewed_note_context',
     'test_replay_reference',
     'test_source_review',

@@ -8170,6 +8170,21 @@ CONFIRMED_NAMES = {'普威': ('4966', '譜瑞-KY'), '普位': ('4966', '譜瑞-K
     '訊準': ('6409','旭隼'), '序準': ('6409','旭隼'), '續準': ('6409','旭隼'), '萬紅': ('2337','旺宏'),
     '金策': ('6510','精測'), '季家': ('2376','技嘉'),   # 管理者 2026/10/29 確認（金策是精測；原稿念「健策」才是 3653）
     '普惠': ('4966','譜瑞-KY')}   # 管理者 2026/11/02 確認（「我有普惠，我有亞德客…」）
+
+
+def _load_reviewed_aliases(path=None):
+    """每日寄信前複核確認的聽寫別名（管理者 2026/11/03 授權雲端複核自行判定，見 docs/daily-review/裁示紀錄.md）。
+    檔案由複核修正工作流程在套用成功後同步到 main；程式內建的別名優先，不被覆蓋。"""
+    from pathlib import Path
+    path = Path(path) if path else Path(__file__).resolve().with_name('reviewed_aliases.json')
+    try:
+        entries = json.loads(path.read_text(encoding='utf-8'))
+    except FileNotFoundError:
+        return {}
+    return {str(e['heard']): (str(e['code']), str(e['name'])) for e in entries}
+
+
+CONFIRMED_NAMES.update({k: v for k, v in _load_reviewed_aliases().items() if k not in CONFIRMED_NAMES})
 # 管理者確認的讀音：名稱唸起來與左邊完全相同（不分聲調，前後鼻音視為同音）時，對到右邊那一檔。
 # 只在「正式名稱完全相同」「去後綴後相同」都比不到時才用，所以原文明寫的宇隆仍是 2233。
 CONFIRMED_SOUNDS = {'裕隆': ('2201', '裕隆'),

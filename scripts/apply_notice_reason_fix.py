@@ -3,6 +3,7 @@
 只改兩個欄位的同一句公開理由：操作紀錄.理由摘錄、會員簡訊.解析明細[].reason。
 股票、方向、價位、來源、通知原文、寄送帳本一律不動。計畫在 scripts/repairs/<日期>-notice-reason.json，
 引句逐字核對原稿；寫入前先做獨立備份（需 APPS_SCRIPT_URL／ADMIN_KEY），寫完逐欄讀回，再刷新郵件／追蹤／績效。
+舊理由只存指紋（previous_reason_sha256、previous_reason_chars）：舊句就是外洩的通知用語，不能寫進公開 repo。
 不加 --apply 只預覽。"""
 import argparse
 import hashlib
@@ -55,7 +56,16 @@ def locate(trades, sms, plan, item):
     return ti, trow, si, srow, detail, mine[0]
 
 
+def contains_sha(text, chars, digest_hex):
+    """text 裡有沒有長度 chars、指紋相同的一段（確認舊理由已不在文章裡，而不必把舊句寫進計畫）。"""
+    return any(sha(text[i:i + chars]) == digest_hex for i in range(0, max(0, len(text) - chars + 1)))
+
+
 def check_item(item, raw_compact, source_quote, raw):
+    if 'previous_reason' in item:
+        raise ValueError('計畫不得寫入舊理由原句（通知用語），請改用 previous_reason_sha256／previous_reason_chars')
+    if not item.get('previous_reason_sha256') or not item.get('previous_reason_chars'):
+        raise ValueError('缺少舊理由指紋')
     if not item.get('rationale') or not item.get('quotes') or not item.get('text'):
         raise ValueError('缺少修正依據')
     for q in item['quotes']:
@@ -103,11 +113,11 @@ def main():
             if current != item['text'] or mine.get('reason') != item['text']:
                 raise ValueError('已有收據但資料與計畫不一致：' + item['code'])
             continue
-        if current != item['previous_reason'] or mine.get('reason') != item['previous_reason']:
+        if sha(current or '') != item['previous_reason_sha256'] or sha(mine.get('reason') or '') != item['previous_reason_sha256']:
             raise ValueError('理由已被改動，保留現值：' + item['code'])
         new_detail = [dict(d, reason=item['text']) if str(d.get('code')) == item['code'] else d for d in detail]
         writes.append((item, ti, si, json.dumps(new_detail, ensure_ascii=False)))
-        print('改', item['code'], item['name'], '\n  舊：', item['previous_reason'], '\n  新：', item['text'])
+        print('改', item['code'], item['name'], '\n  舊理由指紋：', item['previous_reason_sha256'][:12], '\n  新：', item['text'])
     if done:
         print('既有收據與資料一致；只接續刷新')
     elif not args.apply:
@@ -142,9 +152,10 @@ def main():
     if not result.get('ok'):
         raise RuntimeError('資料已保存；只需重跑本模式接續刷新')
     article = next((r for r in book.worksheet('每日推播內容').get_all_values()[1:] if norm_day(r[0]) == day), [''])
-    stale = [i['previous_reason'] for i in plan['items'] if i['previous_reason'] in ' '.join(article)]
+    stale = [i['code'] for i in plan['items']
+             if contains_sha(' '.join(article), int(i['previous_reason_chars']), i['previous_reason_sha256'])]
     if stale:
-        raise RuntimeError('刷新後文章仍含舊理由，須人工核對：' + '；'.join(stale))
+        raise RuntimeError('刷新後文章仍含舊理由，須人工核對：' + '、'.join(stale))
     if sent != pl._daily_article_status(book, day) or any(
             digest(book.worksheet(n).get_all_values()) != h for n, h in ledger_before.items()):
         raise RuntimeError('寄送狀態或帳本變動，請核對')

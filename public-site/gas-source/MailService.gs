@@ -1294,18 +1294,25 @@ function statusReportJob() {
   html = html.replace(/<td>/g, '<td style="border-bottom:1px solid #E6EAE6;padding:8px 6px;color:#26312C;">');
 
   // 狀態不變就不重寄；寄信成功後才記錄，失敗可由下一棒重試。
+  // 每日寄信前複核（管理者 2026/11/03）：不另寄信，12:30 起接在今日流程下面，用卡片列出網站改了什麼與各項判定。
+  var review = null;
+  try { review = typeof dailyReviewStatusSection_ === 'function' ? dailyReviewStatusSection_(today) : null; }
+  catch (e) { Logger.log('複核區塊略過：' + e); }
   var stateKey = 'STATUS_MAIL_STATE_' + today;
   var state = [head, status, v1, v2, trades.length, holds.length,
     push ? String(push['寄送狀態'] || '未寄送') : '尚未產生', fails.length,
     noShow ? 1 : 0, fails.length ? String(fails[fails.length - 1]['說明'] || '') : '',
-    gate && gate.date === today ? JSON.stringify(gate.auditStat || {}) : ''].join('|');
+    gate && gate.date === today ? JSON.stringify(gate.auditStat || {}) : '', review ? review.state : ''].join('|');
   var branded = mailShell_(mailPreheader_(today + ' 取稿狀態：' + head) +
     '<div style="padding:4px 2px 8px;font-size:16px;font-weight:700;letter-spacing:.08em;color:#17322A;">' + siteBrandLine_() + '</div>' +
     mailHero_('自動化監控', today + ' · ' + head, '逐字稿、稽核與每日推播的最新進度') +
-    mailSection_('今日流程', html) + mailNote_('資料來源：系統狀態、影片清單、操作紀錄、會員持股及每日推播內容。'));
+    mailSection_('今日流程', html) + (review ? mailSection_('寄信前複核', review.html) : '') +
+    mailNote_('資料來源：系統狀態、影片清單、操作紀錄、會員持股及每日推播內容' + (review ? '；複核來自每日複核紀錄試算表。' : '。')));
+  // 有複核區塊時，原本收複核日報的信箱（REVIEW_NOTIFY_TO）也一起收這封
+  var recipients = review && typeof dailyReviewNotifyTo_ === 'function' ? dailyReviewNotifyTo_() : to;
   var mail = {
-    to: to.join(','),
-    subject: '[狀態] ' + today + ' 爬取' + head,
+    to: recipients.join(','),
+    subject: '[狀態] ' + today + ' 爬取' + head + (review ? '・寄信前複核' : ''),
     body: mailPlainText_(branded),
     htmlBody: branded
   };
@@ -1318,6 +1325,7 @@ function statusReportJob() {
     }
     MailApp.sendEmail(mail);
     props.setProperty(stateKey, state);
+    if (review) { try { review.mark(); } catch (e) { Logger.log('複核通知標記失敗：' + e); } }
 
     // 順手清掉七天前的旗標，免得指令碼屬性無限累積。
     var keep = {};

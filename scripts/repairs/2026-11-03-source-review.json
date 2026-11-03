@@ -2,34 +2,100 @@
   "date": "2026/11/03",
   "video_id": "5qb5lPou960",
   "raw_sha256": "166db7830ee69125ac32701fec28dd1027195bb4ed80be8a614d37f1604d4dff",
-  "authorization": "管理者 2026/11/03 指示：試行期結束，明確錯誤須修正並更新網站；確認聽寫『力致』＝力智 6719、『雅德客』＝亞德客-KY 1590。不新增成交、不重寄 Email／LINE、不動寄送帳本。",
-  "review_basis": "每日複核 2026/11/03：獨立判讀凍結後比對網站。原稿『禮拜四賣加澤，轉到180幾塊的力致』對應紀錄上 10/29 買入、11/02 持股列的力智 6719，已有會員持股列，3483 觀望注意列為代號與說明不符的重複；『這一支股票，雅德客…年線以下絕佳買點，我買在這邊』對應紀錄上 10/21 買入未出場、11/02 持股列的亞德客-KY 1590，網站漏收。",
+  "authorization": "管理者 2026/11/03：依觀望邊界問卷確立的規則，以當日實際跑一次確認後更新網站；真實模型預覽（run 41615134134）通過的五檔沿用預覽說明，未收錄的鴻海單獨處理，不重跑整天。不新增成交、不重寄、不動寄送帳本。",
+  "review_basis": "2026/11/03 單日預覽（新邊界 v42）與參考答案 scripts/golden/2026-11-03.json 比對：台積電、世芯-KY、台達電、聯電、宜鼎判為觀望注意，群聯、大立光判為觀望不碰，與問卷一致；鴻海沒有收錄，依原稿另寫。前一版計畫（力致刪除、亞德客-KY 補列）已套用，見 git 紀錄。引句逐字出自當日原稿。",
   "items": [
     {
-      "code": "3483",
-      "name": "力致",
+      "code": "2330",
+      "name": "台積電",
       "category": "watch_watch",
-      "action": "delete",
-      "rationale": "管理者確認聽寫『力致』即力智 6719（上週四轉買），會員持股已有 6719 列；3483 觀望注意列代號與自己的說明（力智）不符且與持股重複，移除。",
+      "previous_category": "watch_avoid",
+      "action": "update",
+      "text": "講者公開台積電的買點是2280元，價位到了可自行進場；沒到之前不追，先等大環境回穩。",
       "quotes": [
-        "所以我買了力致，對不對？"
+        "台積電，如果，你們運氣好，有2280，你們就去買吧，我不會擋你們",
+        "除非有2280，否則，就不用再問我"
       ],
+      "rationale": "A1：給了明確買點；依管理者 2026/11/03 觀望邊界問卷。",
       "previous_source_id": "5qb5lPou960",
-      "previous_note_sha256": "542c18a5ed1ab694d7baadb9f0dac000672b8f48ff7b21d500e9b07090abf299"
+      "previous_note_sha256": "fe94b46dabe96b1558671250ff63bf6b15bbbcf88067bcfe6636d3fb6dacad7a"
     },
     {
-      "code": "1590",
-      "name": "亞德客-KY",
-      "category": "holdings",
-      "action": "insert",
-      "text": "年線以下出現絕佳買點，已先布局但尚未上漲，原因是大環境還沒穩；預期大環境一穩就會快速反彈，且看得出有人在吃貨。",
-      "rationale": "管理者確認聽寫『雅德客』即亞德客-KY 1590；紀錄上 10/21 買入未出場、11/02 有會員持股列，原稿明講『我買在這邊』仍布局，依 10/29 裁示列會員持股。",
+      "code": "3661",
+      "name": "世芯-KY",
+      "category": "watch_watch",
+      "previous_category": "watch_avoid",
+      "action": "update",
+      "text": "世芯-KY跌破3300元時技術面買點浮現，講者看好也想買，但大環境尚未收斂穩固而暫不進場，列為大環境回穩後優先注意的標的。",
       "quotes": [
-        "年線以下，絕佳買點到了",
-        "跌那麼多，我買在這邊",
-        "大環境一穩，它噴得比誰都快",
-        "因為有人在吃貨"
-      ]
+        "不是世芯-KY不好，我不買，我也想買啊",
+        "世芯-KY跌破3,300，你知道嗎？我都流口水了"
+      ],
+      "rationale": "A2：不碰的理由只有大環境；依管理者 2026/11/03 觀望邊界問卷。",
+      "previous_source_id": "5qb5lPou960",
+      "previous_note_sha256": "e5c6b04886e940d59d5c13018b7335decbe52b95995a48579abbaaecffa20eea"
+    },
+    {
+      "code": "2308",
+      "name": "台達電",
+      "category": "watch_watch",
+      "previous_category": "watch_avoid",
+      "action": "update",
+      "text": "台達電跌破1300元是技術面買點，列入功課清單，等大環境回穩後再進場布局。",
+      "quotes": [
+        "我的技術分析告訴我，台達電跌破1,300就是買點",
+        "這些股票先留下來做功課，聯電，台達電，功課先做好"
+      ],
+      "rationale": "A3：技術面買點、先做功課；依管理者 2026/11/03 觀望邊界問卷。",
+      "previous_source_id": "5qb5lPou960",
+      "previous_note_sha256": "107e3b99ac9d20121887fca7dd99e6cf17c32bfe8ae52aa4c7cc6f73a2a49fba"
+    },
+    {
+      "code": "2303",
+      "name": "聯電",
+      "category": "watch_watch",
+      "previous_category": "watch_avoid",
+      "action": "update",
+      "text": "聯電近期外資買超仍持續下跌，但技術面已出現背離，列為大環境回穩後優先注意的候選標的。",
+      "quotes": [
+        "聯電也背離了，你有沒有看到？這邊創新低，這邊再往走，聯電也背離了",
+        "這些股票先留下來做功課，聯電，台達電，功課先做好"
+      ],
+      "rationale": "A3：背離、先做功課；依管理者 2026/11/03 觀望邊界問卷。",
+      "previous_source_id": "5qb5lPou960",
+      "previous_note_sha256": "4e223c9c8cdb70d93325f2535cb9a711a20cf2ce39e0ec979983caa416f3c164"
+    },
+    {
+      "code": "5289",
+      "name": "宜鼎",
+      "category": "watch_watch",
+      "previous_category": "watch_avoid",
+      "action": "update",
+      "text": "記憶體族群中講者改為只看宜鼎，籌碼比群聯安定；點名為大環境回穩後會買的記憶體股，目前還沒漲，不急著進場。",
+      "quotes": [
+        "我不看群聯，我只看宜鼎",
+        "我未來等大環境回穩，我會買的記憶體就是這支股票",
+        "這一支股票，籌碼反而比群聯安定，可是目前還是還沒有漲，所以不急不急"
+      ],
+      "rationale": "B1：點名為之後要買的；依管理者 2026/11/03 觀望邊界問卷。",
+      "previous_source_id": "5qb5lPou960",
+      "previous_note_sha256": "a1b7fddb0e4753f2d694d78842fadb40f3c86b33da6804ce334c2153231149ac"
+    },
+    {
+      "code": "2317",
+      "name": "鴻海",
+      "category": "watch_watch",
+      "previous_category": "watch_avoid",
+      "action": "update",
+      "text": "講者認為鴻海是這一波對的股票，先前提示240元以下可以買；昨天漲到250元、今天隨大環境拉回，但在低成本位置買進的部位相對安全。",
+      "quotes": [
+        "我有沒有告訴你鴻海，是這一波對的股票",
+        "張正當時告訴你240以下，你就是給我買就對了",
+        "因為大環境還沒穩，可是至少你買到低成本的位置"
+      ],
+      "rationale": "D3：這一波對的股票；預覽沒有收錄，依原稿單獨處理；依管理者 2026/11/03 觀望邊界問卷。",
+      "previous_source_id": "5qb5lPou960",
+      "previous_note_sha256": "64b2dad0c43a6bb464be9f36017c54f9437f24417099b02bd2b1b26ab5ea057b"
     }
   ]
 }

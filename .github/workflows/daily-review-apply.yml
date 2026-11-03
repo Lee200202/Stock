@@ -3,15 +3,15 @@ name: daily-review-apply
 # 雲端排程把明確錯誤的修正計畫推到分支 daily-review/apply-YYYYMMDD，這裡依序預覽、套用、讀回。
 # 只走既有的修正工具（apply_notice_reason_fix／apply_source_review／apply_reviewed_points）：
 # 先備份、引句逐字核對原稿、寫完讀回；不改成交事實、不動寄送帳本、不呼叫模型、不寄信。
-# 管理者 2026/11/03：試行期提前結束；股名聽錯且身分確定時，排程可自行修正並記別名（pipeline/reviewed_aliases.json），
-# 套用成功後這裡把新別名併進 main（只動那一個檔），並在複核紀錄標「已修正」；失敗就標「修正失敗」，郵件不再等。
+# 管理者 2026/11/03：試行期提前結束；股名聽錯且身分確定時，排程自行修正當天並寫股名學習計畫（<日期>-name-memo.json），
+# 套用成功後在複核紀錄標「已修正」、把股名寫進主資料「名稱判定紀錄」（來源＝複核，之後比對直接套用）；失敗就標「修正失敗」，郵件不再等。
 on:
   push:
     # 雲端排程的工作階段若只能推 claude/ 開頭的分支，就用第二種名稱
     branches: ['daily-review/apply-*', 'claude/daily-review-apply-*']
 
 permissions:
-  contents: write   # 只用來把 pipeline/reviewed_aliases.json 的新別名併進 main
+  contents: read
 
 concurrency:
   group: regenerate-verified
@@ -50,7 +50,8 @@ jobs:
           PLAN="scripts/repairs/${DAY//\//-}-source-review.json"
           POINTS="scripts/repairs/${DAY//\//-}-points-review.json"
           NOTICE="scripts/repairs/${DAY//\//-}-notice-reason.json"
-          if [ ! -f "$PLAN" ] && [ ! -f "$POINTS" ] && [ ! -f "$NOTICE" ]; then echo "沒有修正計畫"; exit 1; fi
+          MEMO="scripts/repairs/${DAY//\//-}-name-memo.json"
+          if [ ! -f "$PLAN" ] && [ ! -f "$POINTS" ] && [ ! -f "$NOTICE" ] && [ ! -f "$MEMO" ]; then echo "沒有修正計畫"; exit 1; fi
           if [ -f "$NOTICE" ]; then
             python scripts/apply_notice_reason_fix.py --date "$DAY"
             python scripts/apply_notice_reason_fix.py --date "$DAY" --apply
@@ -71,25 +72,14 @@ jobs:
           GEMINI_API_KEY: offline
         run: |
           cd scripts/daily_review && python mark_fixed.py --date "$DAY"
-      - name: 檢查並同步複核確認的別名到 main
+      - name: 股名學習：確認的聽錯股名寫進名稱判定紀錄（來源＝複核）
         env:
           GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
           GEMINI_API_KEY: offline
-          BRANCH: ${{ github.ref_name }}
         run: |
-          python scripts/daily_review/aliases.py check
-          git fetch -q origin main
-          if git diff --quiet origin/main HEAD -- pipeline/reviewed_aliases.json; then echo "沒有新別名"; exit 0; fi
-          cp pipeline/reviewed_aliases.json /tmp/proposed.json
-          git checkout -q -B alias-sync origin/main
-          python scripts/daily_review/aliases.py merge pipeline/reviewed_aliases.json /tmp/proposed.json
-          python scripts/daily_review/aliases.py check
-          git config user.name "daily-review-apply"
-          git config user.email "actions@users.noreply.github.com"
-          git add pipeline/reviewed_aliases.json
-          git commit -q -m "data(aliases): ${DAY} 複核確認的聽寫別名（來自 ${BRANCH}）"
-          git push -q origin HEAD:main
+          python scripts/daily_review/name_memo.py --date "$DAY"
+          python scripts/daily_review/name_memo.py --date "$DAY" --apply
       - name: 套用失敗時標記，郵件不再等
         if: failure() && steps.apply.outcome == 'failure'
         env:

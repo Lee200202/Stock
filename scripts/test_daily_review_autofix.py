@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 sys.path.insert(0, str(ROOT / 'scripts' / 'daily_review'))
 import aliases  # noqa: E402
+import name_memo  # noqa: E402
 import mark_fixed  # noqa: E402
 import write_log  # noqa: E402
 import apply_notice_reason_fix as notice  # noqa: E402
@@ -96,20 +97,52 @@ class NoticeReasonPlan(unittest.TestCase):
         self.assertFalse(notice.contains_sha('改寫過的文章', len(old), digest))
 
 
+class NameLearning(unittest.TestCase):
+    HEAD = ['聽到的名稱', '判定', '正式名稱', '代號', '情境關鍵詞', '依據', '來源', '建立日期', '命中次數', '最後命中']
+
+    def item(self, heard, code, name, keys=()):
+        return {'heard': heard, 'code': code, 'name': name, 'keys': list(keys), 'why': '測試', 'quotes': [heard + '原句']}
+
+    def test_misheard_name_is_written_as_review_source(self):
+        new, skipped, bad = name_memo.plan_rows(self.HEAD, [], [self.item('雅德客', '1590', '亞德客-KY')], OFFICIAL, '2026/11/03')
+        self.assertEqual(bad, [])
+        self.assertEqual(new[0][:5] + new[0][6:8], ['雅德客', 'stock', '亞德客-KY', '1590', '', '複核', '2026/11/03'])
+
+    def test_a_real_company_name_needs_context_keys(self):
+        _, _, bad = name_memo.plan_rows(self.HEAD, [], [self.item('力致', '6719', '力智')], OFFICIAL, '2026/11/03')
+        self.assertTrue(any('情境關鍵詞' in b for b in bad))
+        new, _, bad = name_memo.plan_rows(self.HEAD, [], [self.item('力致', '6719', '力智', ['加澤', '180'])], OFFICIAL, '2026/11/03')
+        self.assertEqual(bad, [])
+        self.assertEqual(new[0][4], '加澤、180')
+
+    def test_existing_row_is_skipped_and_a_conflicting_trusted_row_stops(self):
+        rows = [['雅德客', 'stock', '亞德客-KY', '1590', '', '', '人工', '', '1', '']]
+        _, skipped, _ = name_memo.plan_rows(self.HEAD, rows, [self.item('雅德客', '1590', '亞德客-KY')], OFFICIAL, 'd')
+        self.assertEqual(skipped, ['雅德客'])
+        _, _, bad = name_memo.plan_rows(self.HEAD, rows, [self.item('雅德客', '6719', '力智')], OFFICIAL, 'd')
+        self.assertTrue(any('管理者' in b for b in bad))
+
+    def test_pipeline_applies_review_source_like_manual(self):
+        src = (ROOT / 'pipeline/pipeline.py').read_text(encoding='utf-8')
+        self.assertIn("NAME_MEMO_TRUSTED = ('人工', '複核')", src)
+        self.assertIn("if e.get('source') not in NAME_MEMO_TRUSTED:", src)
+
+
 class ApplyWorkflowAndMail(unittest.TestCase):
-    def test_apply_then_mark_then_alias_sync_and_failure_only_after_apply(self):
+    def test_apply_then_mark_then_name_learning_and_failure_only_after_apply(self):
         wf = yaml.safe_load((ROOT / '.github/workflows/daily-review-apply.yml').read_text(encoding='utf-8'))
         steps = wf['jobs']['apply']['steps']
         names = [s.get('name', '') for s in steps]
         i_apply = next(i for i, s in enumerate(steps) if s.get('id') == 'apply')
         i_mark = next(i for i, n in enumerate(names) if '標記已修正' in n)
-        i_alias = next(i for i, n in enumerate(names) if '別名' in n)
+        i_alias = next(i for i, n in enumerate(names) if '股名學習' in n)
         self.assertLess(i_apply, i_mark)
         self.assertLess(i_mark, i_alias)
         fail = next(s for s in steps if '失敗' in s.get('name', ''))
         self.assertIn("steps.apply.outcome == 'failure'", fail['if'])
-        self.assertIn('git add pipeline/reviewed_aliases.json', steps[i_alias]['run'])
-        self.assertNotIn('git add -A', steps[i_alias]['run'])
+        self.assertIn('name_memo.py --date "$DAY" --apply', steps[i_alias]['run'])
+        self.assertNotIn('git push', yaml.safe_dump(wf, allow_unicode=True))   # 不再推 main，只寫資料庫
+        self.assertEqual(wf['permissions'], {'contents': 'read'})
 
     def test_review_mail_is_folded_into_the_status_mail(self):
         gs = (ROOT / 'public-site/gas-source/Dailyreview.gs').read_text(encoding='utf-8')

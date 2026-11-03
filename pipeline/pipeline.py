@@ -4750,7 +4750,7 @@ def name_memo_lookup(memo, heard, context_text):
         hits.append(e)
     if not hits:
         return None
-    hits.sort(key=lambda e: (e["source"] != "人工", not e["keys"]))
+    hits.sort(key=lambda e: (e["source"] not in NAME_MEMO_TRUSTED, not e["keys"]))
     return hits[0]
 
 
@@ -4769,6 +4769,9 @@ def name_memo_lookup(memo, heard, context_text):
 # ------------------------------------------------------------------ #
 _NAME_EVENTS = []
 NAME_MEMO_SUGGEST_HITS = 3
+# 直接套用的來源：人工＝管理者在表上確認；複核＝每日寄信前複核確認股名聽錯後寫入
+# （管理者 2026/11/03 授權雲端複核自行判定，scripts/daily_review/name_memo.py；本身是另一家公司名稱的必須帶情境關鍵詞）
+NAME_MEMO_TRUSTED = ('人工', '複核')
 
 
 def note_name_event(heard, verdict, real='', code='', why='', source='規則'):
@@ -4783,10 +4786,10 @@ def note_name_event(heard, verdict, real='', code='', why='', source='規則'):
 
 
 def _manual_memo_entries():
-    """試算表上來源為「人工」的判定。代號必須在這一輪的官方清單裡，打錯的代號不採用。"""
+    """試算表上來源為「人工」或「複核」的判定。代號必須在這一輪的官方清單裡，打錯的代號不採用。"""
     out = []
     for e in (_NAME_MEMO or []):
-        if e.get('source') != '人工':
+        if e.get('source') not in NAME_MEMO_TRUSTED:
             continue
         if e.get('verdict', 'stock') == 'stock':
             code = str(e.get('code') or '')
@@ -4881,7 +4884,7 @@ def name_memo_record(ss, events):
         print(f"  名稱判定紀錄：本輪 {len(seen)} 組名稱辨識，新增 {len(new)} 列、累加 {len(updates) // 2} 列")
         for heard in sorted({k[0] for k in seen}):
             keys = by_heard.get(heard, [])
-            if len({k[1:] for k in keys}) != 1 or any(index[k][2] == '人工' for k in keys):
+            if len({k[1:] for k in keys}) != 1 or any(index[k][2] in NAME_MEMO_TRUSTED for k in keys):
                 continue
             key = keys[0]
             if index[key][1] >= NAME_MEMO_SUGGEST_HITS and key[1] == 'stock' and key[2]:

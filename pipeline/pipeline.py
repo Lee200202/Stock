@@ -20526,10 +20526,13 @@ def load_saved_sms_items(raw_detail: str) -> tuple[bool, list[dict]]:
             "price": price,
             "limit": limit,
             "priceText": price_text,
-            "note": public_sms_note(str(raw.get("reason") or raw.get("note") or "").strip(), {"name": name, "code": code, "price": price}),
+            # 複核修正過的說明原樣保留，不再過一次公開化改寫
+            "note": (str(raw.get("reason") or raw.get("note") or "").strip() if raw.get("reviewed") else
+                     public_sms_note(str(raw.get("reason") or raw.get("note") or "").strip(), {"name": name, "code": code, "price": price})),
             "speech_act": str(raw.get("speech_act") or ''),
             "notice_evidence": str(raw.get("notice_evidence") or ''),
             "tag": "既有解析明細",
+            **({"reviewed": str(raw["reviewed"])} if raw.get("reviewed") else {}),
         })
     return True, out
 
@@ -20547,6 +20550,7 @@ def serialize_sms_items(items: list[dict]) -> str:
             "reason": naturalize_reason(it.get("note", "")),
             "speech_act": it.get("speech_act", ""),
             "notice_evidence": it.get("notice_evidence", ""),
+            **({"reviewed": it["reviewed"]} if it.get("reviewed") else {}),
         }
         for it in items
     ], ensure_ascii=False)
@@ -20586,12 +20590,19 @@ def keep_admin_edited_notes(items, src_id, old_detail, sheet_notes):
     2026/10/05：09:41 的文章在 12:30 被補寫，整篇重新解析，管理者剛改好的勤誠、聖暉說明被模型的新句子蓋掉。
     """
     try:
-        old = {(str(d.get("code") or ""), str(d.get("dir") or "")): str(d.get("reason") or d.get("note") or "")
-               for d in json.loads(old_detail or "[]") if isinstance(d, dict)}
+        detail = [d for d in json.loads(old_detail or "[]") if isinstance(d, dict)]
     except (ValueError, TypeError):
         return items
+    old = {(str(d.get("code") or ""), str(d.get("dir") or "")): str(d.get("reason") or d.get("note") or "") for d in detail}
+    # 2026/11/03 晶心科：複核修正（reviewed 標記）把列與明細改成同一句，上面的比對看不出來；12:08 整篇重新解析就被蓋回通知口吻。
+    reviewed = {(str(d.get("code") or ""), str(d.get("dir") or "")): str(d.get("reviewed"))
+                for d in detail if d.get("reviewed")}
     for it in items:
         key = (str(it.get("code") or ""), str(it.get("action") or ""))
+        if key in reviewed and old.get(key):
+            print(f"  {src_id} {it.get('name')}（{key[0]}）{key[1]}：說明已複核修正，沿用複核版本")
+            it["note"], it["reviewed"] = old[key], reviewed[key]
+            continue
         now = sheet_notes.get((src_id,) + key, "")
         if now.strip() and key in old and not _same_note(now, old[key]):
             print(f"  {src_id} {it.get('name')}（{key[0]}）{key[1]}：說明在後台改過，沿用後台版本")

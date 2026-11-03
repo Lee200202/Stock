@@ -8,8 +8,9 @@
 import argparse
 import hashlib
 import json
+import re
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,6 +32,10 @@ def day_of(value):
 
 
 def norm_day(value):
+    # 簡訊解析用 USER_ENTERED 寫列時，日期欄會變成日期格式，讀出來可能是序號（2026/11/03 晶心科列＝46329）
+    text = str(value or '').strip()
+    if re.fullmatch(r'\d{5}', text):
+        return (datetime(1899, 12, 30) + timedelta(days=int(text))).strftime('%Y/%m/%d')
     parts = day_of(value).split('/')
     return '/'.join([parts[0]] + [p.zfill(2) for p in parts[1:]]) if len(parts) == 3 else day_of(value)
 

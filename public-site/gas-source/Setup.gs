@@ -784,10 +784,16 @@ function diagnoseTracker() {
 }
 
 /** 取得試算表物件，其他 Service 檔共用 */
+/* 同一次執行只開一次主資料試算表（2026/11/03）。先前每次 getSheet_ 都重新 openById，五分鐘總排程一棒裡二十幾支工作
+   各自開好幾次，「沒事做就返回」的工作每次也要 1.7～2.6 秒（觸發器耗時紀錄）。只快取試算表本身、以 ID 為鍵；
+   分頁物件不快取（維護工具會刪除重建分頁）。 */
+var _SS_OPEN_ = { id: '', ss: null };
 function getSS_() {
   var id = PROP.getProperty('SPREADSHEET_ID');
   if (!id) { throw new Error('尚未設定 SPREADSHEET_ID，請先執行 setupSpreadsheet()。'); }
-  return SpreadsheetApp.openById(id);
+  if (_SS_OPEN_.ss && _SS_OPEN_.id === id) { return _SS_OPEN_.ss; }
+  _SS_OPEN_ = { id: id, ss: SpreadsheetApp.openById(id) };
+  return _SS_OPEN_.ss;
 }
 
 /**
@@ -1266,7 +1272,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-11-03-trigger-runtime-v212r2';
+var PROJECT_BUILD_ = '2026-11-03-open-sheet-once-v212r3';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。

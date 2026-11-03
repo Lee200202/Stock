@@ -12,6 +12,8 @@ on:
       - scripts/check_market_history.cjs
       - scripts/check_market_session.cjs
       - scripts/check_gate_audit_tolerance.js
+      - scripts/check_line_claim_fast.js
+      - scripts/check_quote_flow.js
       - scripts/test_history_memory.cjs
       - site-api/**
   workflow_dispatch:
@@ -58,6 +60,8 @@ jobs:
         run: node scripts/check_market_session.cjs
       - name: 品質關卡稽核容錯（格式錯重送、稽核未完成不擋複審）
         run: node scripts/check_gate_audit_tolerance.js
+      - name: LINE 去重快速路徑（首次送達不搶鎖、不讀帳本）
+        run: node scripts/check_line_claim_fast.js
       - name: 後端橋接實測（失敗就保留上一版網站）
         env:
           SITE_API_URL: ${{ vars.SITE_API_URL }}

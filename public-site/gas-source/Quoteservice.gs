@@ -740,6 +740,16 @@ function settleClosingQuotesTick_(force) {
     st.done = true;
     st.noData = pending.filter(function (c) { return !fresh[c]; });
   }
+  /* 2026/11/03：超過五檔整天沒有收盤資料時，上一條不成立，會每次整張讀快取、對外補抓，一路試到 40 次（22:30），
+     一天約 8 分鐘觸發器時間。15:00 之後日K已是主要來源（官方日K約 14:45、15:05 補齊）：同一批代號連續三次都補不到，
+     就記為無資料收工，讀取端照實顯示最後一個交易日的收盤。 */
+  var stuck = pending.filter(function (c) { return !fresh[c]; }).sort().join(',');
+  st.samePending = stuck && stuck === st.lastPending ? (st.samePending || 0) + 1 : 0;
+  st.lastPending = stuck.slice(0, 2000);
+  if (!st.done && hhmm >= 1500 && st.samePending >= 2) {
+    st.done = true;
+    st.noData = pending.filter(function (c) { return !fresh[c]; }).slice(0, 40);
+  }
   st.last = { fromK: fromK, fromMis: fromMis, fromFugle: fromFugle, misNote: misNote };
   pr.setProperty(QUOTE_CLOSE_PROP_, JSON.stringify(st));
   Logger.log('收盤價：換成收盤價 ' + settled.length + ' 檔（日K ' + fromK + '、MIS ' + fromMis + '、富果 ' + fromFugle + '），尚餘 ' + st.pending + ' 檔' + (misNote ? '；MIS：' + misNote : ''));

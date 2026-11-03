@@ -3166,7 +3166,7 @@ function cmContentSyncStatus_(){
 function cmContentSyncPending_(date){
   var rows=getSheet_('簡訊內容同步').getDataRange().getDisplayValues();
   for(var i=rows.length-1;i>0;i--){
-    if(fmtDate_(rows[i][0])===date){return rows[i][2]!=='完成';}
+    if(fmtDate_(rows[i][0])===date){return rows[i][2]!=='完成'&&rows[i][2]!=='略過';}
   }
   return false;
 }
@@ -3175,15 +3175,22 @@ function cmSyncContentTick_(){
   // 多數五分鐘輪次根本沒有待同步簡訊。先只讀三欄佇列，避免每次都讀整張每日文章。
   var pendingSh=getSheet_('簡訊內容同步'),last=pendingSh.getLastRow();
   if(last<2){return;}
-  var pending=pendingSh.getRange(2,1,last-1,3).getDisplayValues().some(function(r){return r[0]&&r[2]!=='完成';});
+  // 「略過」＝那一天沒有每日文章（休播、無影片），不再每棒重試（2026/11/03：9/24、10/22 兩列卡住，每棒整張讀每日推播內容，一天約 12 分鐘）
+  var pending=pendingSh.getRange(2,1,last-1,3).getDisplayValues().some(function(r){return r[0]&&r[2]!=='完成'&&r[2]!=='略過';});
   if(!pending){return;}
   var lock=LockService.getScriptLock();if(!lock.tryLock(500)){return;}
   try{
     var sh=pendingSh,rows=sh.getDataRange().getDisplayValues();
     var available={};getSheet_('每日推播內容').getDataRange().getValues().slice(1).forEach(function(r){if(r[1]){available[fmtDate_(r[0])]=true;}});
     for(var i=rows.length-1;i>0;i--){
-      var r=rows[i];if(r[2]==='完成'||!r[0]){continue;}
-      if(!available[r[0]]){continue;} // 沒有原文章時等逐字稿，不能拿簡訊生出半封日報。
+      var r=rows[i];if(r[2]==='完成'||r[2]==='略過'||!r[0]){continue;}
+      if(!available[r[0]]){
+        // 沒有原文章時等逐字稿，不能拿簡訊生出半封日報；但過了那一天仍沒有文章（休播、無影片），就不會再有了。
+        if(String(r[0])<todayStr_()){
+          sh.getRange(i+1,3,1,3).setValues([['略過',Utilities.formatDate(new Date(),TZ,'yyyy/MM/dd HH:mm:ss'),'這一天沒有每日文章（休播或無影片），不同步郵件查詢內容']]);
+        }
+        continue;
+      }
       try{
         stepArticle_({date:r[0],_codesDone:true,_nested:true});
         // Python 可能在重建途中又送來同日新版本；舊結果不能把新工作標完成。

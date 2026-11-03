@@ -14,6 +14,8 @@ var PROP = PropertiesService.getScriptProperties();
 
 var SHEET_SCHEMA = {
   '簡訊內容同步':['日期','版本','狀態','更新時間','備註'],
+  // 2026/11/03：觸發器耗時每小時快照（今天累計；明細含五分鐘總排程的每一段），量測調整前後的差異
+  '觸發器耗時紀錄':['時間','今日累計分鐘','明細JSON'],
   '分K歷史':['代號','更新時間','資料JSON','來源','狀態'],
   'Yahoo分K':['代號','更新時間','資料JSON','來源','狀態'],
   '逐字稿判讀稽核': ['來源影片ID', '影片日期', '原文SHA256', '規則版本', '判讀JSON', '更新時間'],
@@ -343,6 +345,18 @@ function opsRuntimeFor_(dateStr) {
     handlers: list, recorded: list.length > 0 };
 }
 
+/** 每小時把今天的觸發器累計（各支與五分鐘總排程的每一段）記一列到「觸發器耗時紀錄」。
+    後台卡片只顯示前三段；完整明細才量得出調整前後各段每次平均差多少。寫不進去不影響排程。 */
+function opsRuntimeLogTick_() {
+  if (!dueEvery_('opsRuntimeLog', 60)) { return; }
+  var day = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyyMMdd');
+  var o = {};
+  try { o = JSON.parse(PropertiesService.getScriptProperties().getProperty(OPS_RUNTIME_PREFIX_ + day) || '{}') || {}; } catch (e) { o = {}; }
+  var total = 0;
+  Object.keys(o).forEach(function (k) { total += o[k].ms || 0; });
+  getSheet_('觸發器耗時紀錄').appendRow([nowStamp_(), Math.round(total / 6000) / 10, JSON.stringify(o)]);
+}
+
 /** 今天估算已用到一半時，行情更新改隔棒做；寄送、補抓與盤中快照仍每棒執行。 */
 function opsRuntimeConserve_() {
   var used = opsRuntimeFor_();
@@ -390,6 +404,7 @@ function everyFiveMinJob() {
 function everyFiveMinJobRun_() {
   // 監控頁用這個時間判斷五分鐘總排程有沒有停擺；只記啟動，不宣稱後續工作成功。
   try { PropertiesService.getScriptProperties().setProperty('OPS_HEARTBEAT_AT', String(Date.now())); } catch (e) { Logger.log('監控心跳無法寫入：' + e); }
+  safe_('opsRuntimeLogTick_', opsRuntimeLogTick_);
   var tz = 'Asia/Taipei';
   var now = new Date();
   var hhmm = Number(Utilities.formatDate(now, tz, 'HHmm'));
@@ -1251,7 +1266,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-11-03-gate-audit-tolerance-v212r1';
+var PROJECT_BUILD_ = '2026-11-03-trigger-runtime-v212r2';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。

@@ -260,8 +260,17 @@ function lineStatTouch_() {
 }
 
 /** 先查持久帳本，再短暫佔用事件；失敗時移除佔用，工作佇列才有機會重跑。 */
-function lineClaimEvent_(id) {
+function lineClaimEvent_(id, firstDelivery) {
   if (!id) { return 'new'; }
+  /* 2026/11/03：首次送達（LINE 沒標重送、轉送服務第一次轉交）只看快取並佔用，不搶全站寫入鎖、不搜尋事件帳本。
+     先前每則互動在這裡花 0.8～1.3 秒，五分鐘排程佔著鎖時還會更久。重送與重試照舊走完整的帳本核對。 */
+  if (firstDelivery) {
+    var fc = CacheService.getScriptCache(), fk = 'lineev_' + id, seen = fc.get(fk);
+    if (seen === 'done') { return 'duplicate'; }
+    if (seen === 'processing') { return 'busy'; }
+    fc.put(fk, 'processing', 180);
+    return 'new';
+  }
   return withLock_(function () {
     var c = CacheService.getScriptCache(), k = 'lineev_' + id;
     var cached = c.get(k);
@@ -290,7 +299,8 @@ function lineHandleEvent_(ev, channel, timing) {
   ev = ev || {};
   var id = String(ev.webhookEventId || ''), out = { id: id, type: String(ev.type || '') };
   var started = Date.now();
-  var claim = lineClaimEvent_(id);
+  var firstDelivery = !(ev.deliveryContext && ev.deliveryContext.isRedelivery) && !(Number(timing.attempt) > 1);
+  var claim = lineClaimEvent_(id, firstDelivery);
   var claimMs = Date.now() - started;
   if (claim === 'duplicate') { out.skipped = 'duplicate'; return out; }
   if (claim === 'busy') { out.error = 'event-busy'; return out; }

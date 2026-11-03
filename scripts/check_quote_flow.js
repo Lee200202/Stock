@@ -25,6 +25,11 @@ const base = c => 100 + (Number(c) % 97);
 const closeOf = c => base(c) + 50;                                              // 收盤價和任何盤中價都不同
 const taipei = (ymd, hms) => Date.parse(ymd.replace(/\//g, '-') + 'T' + hms + '+08:00');
 
+// noData 可以是一檔代號或代號陣列（2026/11/03：多檔整天沒有收盤資料時，收盤結算不能試到 22:30）
+function noDataCode(scenario, c) {
+  return Array.isArray(scenario.noData) ? scenario.noData.includes(c) : c === scenario.noData;
+}
+
 function makeWorld(scenario) {
   const clock = {now: taipei(DAY, '08:55:00')};
   const stats = {fugle: 0, misDirect: 0, misRelay: 0, jobMs: 0};
@@ -67,7 +72,7 @@ function makeWorld(scenario) {
     const seen = new Set(), out = [];
     decodeURIComponent(channels).split('|').forEach(ch => {
       const c = ch.replace(/^(?:tse|otc)_/, '').replace(/\.tw$/, '');
-      if (!ch.startsWith('tse_') || seen.has(c) || c === scenario.noData) { out.push({z: '-'}); return; }
+      if (!ch.startsWith('tse_') || seen.has(c) || noDataCode(scenario, c)) { out.push({z: '-'}); return; }
       seen.add(c);
       const p = parts(new Date(clock.now)), closed = secOfDay() >= 13 * 3600 + 30 * 60;
       // 盤中有一部分列在這一刻不是成交訊息（z 是 "-"）：scenario.noTrade 是比例，每次查詢每一檔各自決定（固定的偽亂數，可重現）。
@@ -98,7 +103,7 @@ function makeWorld(scenario) {
       stats.fugle++; clock.now += scenario.fugleMs || 1750;                       // 含限速等待；正式環境實測一棒 30 秒 17 檔
       const c = decodeURIComponent(url.split('/intraday/quote/')[1]), p = parts(new Date(clock.now));
       // 當天沒有成交的那一檔，逐檔來源回的是前一個交易日，程式不採用。
-      return response(200, {symbol: c, name: '股' + c, date: c === scenario.noData ? '2026-10-05' : p.yyyy + '-' + p.MM + '-' + p.dd, previousClose: base(c) - 1,
+      return response(200, {symbol: c, name: '股' + c, date: noDataCode(scenario, c) ? '2026-10-05' : p.yyyy + '-' + p.MM + '-' + p.dd, previousClose: base(c) - 1,
         lastTrade: {price: priceNow(c), time: Math.min(clock.now, taipei(today(), '13:30:00')) * 1000}, openPrice: base(c),
         highPrice: base(c) + 60, lowPrice: base(c) - 2, total: {tradeVolume: volNow(c)}});
     }
@@ -141,7 +146,7 @@ function makeWorld(scenario) {
   });
   const view = codes => codes.forEach(c => CACHE.put('quote_viewed_' + c, String(clock.now), 1800));
   const row = c => sheet.rows.slice(1).find(r => String(r[0]) === c);
-  const landDailyK = ymd => CODES.filter(c => c !== scenario.noData).forEach(c => {
+  const landDailyK = ymd => CODES.filter(c => !noDataCode(scenario, c)).forEach(c => {
     const prior = dailyK[c] && dailyK[c].length > 2 ? dailyK[c].filter(r => r.date < ymd)
       : [{date: '2026/10/05', open: base(c), high: base(c) + 3, low: base(c) - 3, close: base(c) - 1, volume: 900000}];
     const rows = prior.concat([{date: ymd, open: base(c), high: base(c) + 60, low: base(c) - 2, close: closeOf(c), volume: (1000 + Number(c) % 50) * 1000}]);
@@ -350,6 +355,22 @@ function main() {
   assert.equal(st.done, true); assert.deepEqual(st.noData, [lonely]);
   assert.ok(st.tries <= 25, `收盤結算試了 ${st.tries} 次`);
   report.push(`十、一檔當天沒有成交資料：其餘 ${CODES.length - 1} 檔結算為收盤價，那一檔記為無資料後收工（共試 ${st.tries} 次）`);
+}
+
+/* ---- 十之二、八檔當天沒有收盤資料（超過「五檔以內」的收工規則）：收盤結算要在合理次數內收工 ---- */
+{
+  const lonely = CODES.filter(c => !HELD.includes(c)).slice(0, 8);
+  const w = makeWorld({direct: false, relay: true, noData: lonely});
+  let settleMs = 0, settleRuns = 0;
+  const orig = w.ctx.settleClosingQuotesTick_;
+  w.ctx.settleClosingQuotesTick_ = function () { const s = w.clock.now; const r = orig.apply(this, arguments); settleMs += w.clock.now - s; settleRuns++; return r; };
+  runDay(w);
+  const st = JSON.parse(w.props.get('QUOTE_CLOSE_SETTLE'));
+  console.log(`（量測）十之二：結算 ${settleRuns} 棒被叫起，實際嘗試 ${st.tries} 次，結算耗時 ${(settleMs / 60000).toFixed(1)} 分，done=${st.done}`);
+  assert.equal(finalRows(w).length, CODES.length - 8);
+  assert.equal(st.done, true, '八檔沒有資料時仍要收工');
+  assert.ok(st.tries <= 25, `收盤結算試了 ${st.tries} 次`);
+  report.push(`十之二、八檔當天沒有收盤資料：其餘 ${CODES.length - 8} 檔結算為收盤價，收工前共試 ${st.tries} 次，結算排程耗時 ${(settleMs / 60000).toFixed(1)} 分`);
 }
 
 /* ---- 十一、盤中七成的列在那一刻沒有成交價（2026/10/07 實況） ---- */

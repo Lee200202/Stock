@@ -40,6 +40,7 @@ SUITES = [
     'test_review_workflow_contract',
     'test_daily_review_autofix',
     'test_reviewed_sms_reason',
+    'test_watch_boundary_1103',
     'test_reviewed_note_context',
     'test_replay_reference',
     'test_source_review',

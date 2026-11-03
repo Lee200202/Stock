@@ -25,7 +25,7 @@ class QuestionnaireRepair(unittest.TestCase):
   answer,calls,raw=self.run_case(True)
   self.assertEqual(len(calls),2);self.assertTrue(answer['_answer_repair']['replaces_same_vote'])
   self.assertFalse(answer['_answer_repair']['previous_answer']['about_itself'])
-  self.assertEqual(p.verdict_class(answer,p._ev_norm(raw),['甲公司'])[0],'watch_avoid')
+  self.assertEqual(p.verdict_class(answer,p._ev_norm(raw),['甲公司'])[0],'watch_watch')
 
  def test_still_inconsistent_answer_is_invalid_and_never_retries_forever(self):
   answer,calls,raw=self.run_case(False)

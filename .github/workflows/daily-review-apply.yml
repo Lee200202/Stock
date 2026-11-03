@@ -3,7 +3,7 @@ name: daily-review-apply
 # 試行期後：雲端排程把明確錯誤的修正計畫推到分支 daily-review/apply-YYYYMMDD，這裡依序預覽、套用、讀回。
 # 只走既有的修正工具（scripts/apply_source_review.py、scripts/apply_reviewed_points.py）：
 # 先備份、引句逐字核對原稿、寫完讀回；不改成交事實、不加別名、不動寄送帳本、不呼叫模型、不寄信。
-# 試行期（到 2026/11/14）一律拒絕套用。
+# 管理者 2026/11/03 指示試行期提前結束：2026/11/03 起可套用（之前的日期一律拒絕）。
 on:
   push:
     branches: ['daily-review/apply-*']
@@ -39,12 +39,17 @@ jobs:
           STAMP="${BRANCH#daily-review/apply-}"
           if ! [[ "$STAMP" =~ ^20[0-9]{6}$ ]]; then echo "分支名稱要是 daily-review/apply-YYYYMMDD"; exit 1; fi
           DAY="${STAMP:0:4}/${STAMP:4:2}/${STAMP:6:2}"
-          if [[ "$STAMP" < "20261117" ]]; then echo "試行期（到 2026/11/14）只記錄、不套用：$DAY"; exit 1; fi
+          if [[ "$STAMP" < "20261103" ]]; then echo "試行期已於 2026/11/03 結束；更早日期不套用：$DAY"; exit 1; fi
           TODAY=$(TZ=Asia/Taipei date +%Y%m%d)
           if [ "$STAMP" != "$TODAY" ]; then echo "只能修正當天：$DAY"; exit 1; fi
           PLAN="scripts/repairs/${DAY//\//-}-source-review.json"
           POINTS="scripts/repairs/${DAY//\//-}-points-review.json"
-          if [ ! -f "$PLAN" ] && [ ! -f "$POINTS" ]; then echo "沒有修正計畫"; exit 1; fi
+          NOTICE="scripts/repairs/${DAY//\//-}-notice-reason.json"
+          if [ ! -f "$PLAN" ] && [ ! -f "$POINTS" ] && [ ! -f "$NOTICE" ]; then echo "沒有修正計畫"; exit 1; fi
+          if [ -f "$NOTICE" ]; then
+            python scripts/apply_notice_reason_fix.py --date "$DAY"
+            python scripts/apply_notice_reason_fix.py --date "$DAY" --apply
+          fi
           if [ -f "$PLAN" ]; then
             python scripts/apply_source_review.py --date "$DAY"
             python scripts/apply_source_review.py --date "$DAY" --apply

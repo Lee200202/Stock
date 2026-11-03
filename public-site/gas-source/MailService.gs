@@ -1102,8 +1102,9 @@ var DIGEST_AUDIT_SYSTEM =
   '每一筆 missing 都必須自問 is_stock：只有你確信它是單一上市櫃公司才填 true，' +
   '否則填 false。consistent 為 true 當且僅當沒有任何 is_stock 為 true 的漏抓。';
 
-/** 稽核只要求缺漏清單，不要求重做全文擷取；截斷／格式錯誤只補送同一請求一次。 */
-function gateJsonResponse_(systemText, userText, maxOut) {
+/** 稽核只要求缺漏清單，不要求重做全文擷取；截斷／格式錯誤只補送同一請求一次。
+    valid 有給時，JSON 解析得了但形狀不對（2026/11/03：回覆少了 missing 陣列）也當格式錯誤重送一次；第二次照樣回傳，由呼叫端判斷。 */
+function gateJsonResponse_(systemText, userText, maxOut, valid) {
   var budget = maxOut || 8192;
   for (var attempt = 0; attempt < 2; attempt++) {
     try {
@@ -1111,7 +1112,12 @@ function gateJsonResponse_(systemText, userText, maxOut) {
         maxOut: attempt ? Math.min(budget * 2, 32768) : budget,
         temperature: 0, thinkingLevel: 'low', json: true
       });
-      return JSON.parse(String(raw).replace(/^```json|^```|```$/gm, '').trim());
+      var parsed = JSON.parse(String(raw).replace(/^```json|^```|```$/gm, '').trim());
+      if (!attempt && valid && !valid(parsed)) {
+        Logger.log('品質關卡回覆格式不完整（' + String(raw).slice(0, 80) + '），重送同一請求一次。');
+        continue;
+      }
+      return parsed;
     } catch (e) {
       if (attempt || !(e instanceof SyntaxError || /MAX_TOKENS/.test(String(e && e.message || e)))) { throw e; }
       Logger.log('品質關卡 JSON 截斷或格式異常，增加輸出空間重送同一請求一次；不換金鑰、不套用半截結果。');
@@ -1124,7 +1130,7 @@ var DIGEST_MISSING_SYSTEM_ =
   '目前資料已存在的股票（同名、同代號或可確認的同音別名）不列 missing。只列原文明確點名的台股或已確認 ETF。\n' +
   '點名個股的行情、法人交易、ETF 換股、風險例子仍須核對當下觀察，不因只是舉例排除。產業、貨幣、集團、未確認匿名標的、海外公司不列個股。\n' +
   '今天明講執行才列買入／賣出；明確目前會員持有、續抱或不准賣才列會員持股。純歷史交易或舊推薦沒有現況條件，不新增分類。\n' +
-  '禁買、尚不能買、負面示範、法人反覆換手及中性整理列觀望不碰；可照做買點或有本股正面依據才列觀望注意。不要自行增加等待機會或買點。\n' +
+  '本股看法正面（點名之後要買、給買點、技術轉好、看好、叫持有者別殺低），就算還要等回穩或等大環境，列觀望注意；明講不碰或剔除、被問能不能買答還沒有而無正面看法、預期還會跌、本股自身風險、法人反覆換手列觀望不碰；只當追高反面教材或中性整理不列。不要自行增加等待機會或買點。\n' +
   '每筆 evidence 必須是本股原句，保留否定、條件、時態，不移用鄰股的消息或價位。不能確認身份或方向時不新增，放在 pending，交人工核對。\n' +
   '只回 {"missing":[{"name":"原文名稱","where":"買入/賣出/觀望不碰/觀望注意/會員持股","evidence":"本股原句","is_stock":true}],"pending":[]}；沒有缺漏回空陣列。不要輸出已收錄股票、推論過程、文章、教學或其他欄位。';
 
@@ -1140,7 +1146,11 @@ function digestAuditVerdict_(dateStr) {
                    watchWatch: s.watchWatch, holdings: s.holdings };
 
     var j = gateJsonResponse_(DIGEST_MISSING_SYSTEM_,
-      '影片日期：' + d + '\n網站結構化紀錄:\n' + JSON.stringify(struct) + '\n\n原始逐字稿:\n' + v2, 8192);
+      '影片日期：' + d + '\n網站結構化紀錄:\n' + JSON.stringify(struct) + '\n\n原始逐字稿:\n' + v2, 8192,
+      function (x) { return Array.isArray(x) || !!(x && (Array.isArray(x.missing) || x.consistent === true)); });
+    // 明確的格式變體（2026/11/03）：整個回覆就是缺漏陣列；或明講 consistent=true 但沒附 missing（＝沒有缺漏）。
+    if (Array.isArray(j)) { j = { missing: j }; }
+    if (j && !Array.isArray(j.missing) && j.consistent === true) { j.missing = []; }
     if (!j || !Array.isArray(j.missing)) { throw new Error('稽核缺少 missing 陣列，未放行'); }
     if (j.pending && (!Array.isArray(j.pending) || j.pending.length)) {
       throw new Error('稽核仍有待確認項目，未放行：' + JSON.stringify(j.pending).slice(0, 300));
@@ -1279,7 +1289,8 @@ function statusReportJob() {
   if (gate && gate.date === today && (gate.audit || gate.auditStat)) {
     var gs = gate.auditStat || { added: 0, skipped: 0, pending: 0 };
     html += '<p><b>漏抓判定：</b>收 ' + (gs.added || 0) + ' 筆、不收 ' +
-            (gs.skipped || 0) + ' 筆、待你確認 ' + (gs.pending || 0) + ' 筆</p>';
+            (gs.skipped || 0) + ' 筆、待你確認 ' + (gs.pending || 0) + ' 筆' +
+            (gs.note ? '（' + esc_(gs.note) + '）' : '') + '</p>';
     var det = (gate.audit || []).filter(function (x) { return x.verdict !== '收'; });
     if (det.length) {
       html += '<ul>' + det.map(function (x) {
@@ -2479,13 +2490,26 @@ function gateAdvance_(st) {
   // phase 一律在做完之後才往前推。做到一半失敗時 phase 留在原地，
   // 重試才會從失敗的那一段接著做，而不是跳過它假裝做完了。
   if (st.phase === '稽核') {
-    var a = autoFixAuditMissing(d);
-    if (a.pending) { throw new Error('稽核仍有 ' + a.pending + ' 筆待確認，請核對原文'); }
+    /* 2026/11/03 管理者：郵件準時優先，但不要因為稽核一次格式錯就整輪跳過 AI 複審。
+       先前稽核失敗或有待確認時整個關卡算失敗，連續兩次就自動放行，後面的內容複審與重寫一次都沒做
+       （9/30–10/2 截斷、10/15 一筆待確認、11/03 少了 missing 陣列）。現在稽核未完成只記警告、接著複審；
+       漏收由 11:40 的每日寄信前複核把關，待確認項目照舊寫進修正建議。額度用完仍往外拋。 */
+    var a;
+    try {
+      a = autoFixAuditMissing(d);
+    } catch (eAudit) {
+      if (typeof isQuotaExhausted_ === 'function' && isQuotaExhausted_(eAudit)) { throw eAudit; }
+      var why = String(eAudit && eAudit.message || eAudit).slice(0, 120);
+      st.auditStat = { added: 0, skipped: 0, pending: 0, note: '稽核未完成：' + why };
+      st.phase = '複審';
+      return '完整性稽核未完成（' + why + '），繼續內容複審；漏收由每日寄信前複核把關';
+    }
     st.changed += (Number(a.added) || 0);
     // 判定明細留在狀態裡，狀態信直接讀這一份。
     // 這樣信裡呈現的是「判過之後的結論」，不是稽核那份高召回的候選清單。
     st.audit = (a.decisions || []).slice(0, 30);
-    st.auditStat = { added: a.added, skipped: a.skipped, pending: a.pending };
+    st.auditStat = { added: a.added, skipped: a.skipped, pending: a.pending,
+                     note: a.pending ? '留待人工 ' + a.pending + ' 筆（見修正建議與關卡紀錄），不擋寄信' : '' };
     st.phase = '複審';
     return '完整性稽核：收 ' + a.added + '、不收 ' + a.skipped +
            '、留待人工 ' + a.pending;

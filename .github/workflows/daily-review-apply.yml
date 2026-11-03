@@ -7,7 +7,8 @@ name: daily-review-apply
 # 套用成功後這裡把新別名併進 main（只動那一個檔），並在複核紀錄標「已修正」；失敗就標「修正失敗」，郵件不再等。
 on:
   push:
-    branches: ['daily-review/apply-*']
+    # 雲端排程的工作階段若只能推 claude/ 開頭的分支，就用第二種名稱
+    branches: ['daily-review/apply-*', 'claude/daily-review-apply-*']
 
 permissions:
   contents: write   # 只用來把 pipeline/reviewed_aliases.json 的新別名併進 main
@@ -40,8 +41,8 @@ jobs:
           GEMINI_API_KEY: offline
           BRANCH: ${{ github.ref_name }}
         run: |
-          STAMP="${BRANCH#daily-review/apply-}"
-          if ! [[ "$STAMP" =~ ^20[0-9]{6}$ ]]; then echo "分支名稱要是 daily-review/apply-YYYYMMDD"; exit 1; fi
+          STAMP="${BRANCH##*apply-}"
+          if ! [[ "$STAMP" =~ ^20[0-9]{6}$ ]]; then echo "分支名稱要是 daily-review/apply-YYYYMMDD 或 claude/daily-review-apply-YYYYMMDD"; exit 1; fi
           DAY="${STAMP:0:4}/${STAMP:4:2}/${STAMP:6:2}"
           if [[ "$STAMP" < "20261103" ]]; then echo "試行期已於 2026/11/03 結束；更早日期不套用：$DAY"; exit 1; fi
           TODAY=$(TZ=Asia/Taipei date +%Y%m%d)
@@ -98,5 +99,5 @@ jobs:
           GEMINI_API_KEY: offline
           BRANCH: ${{ github.ref_name }}
         run: |
-          STAMP="${BRANCH#daily-review/apply-}"
+          STAMP="${BRANCH##*apply-}"
           cd scripts/daily_review && python mark_fixed.py --date "${STAMP:0:4}/${STAMP:4:2}/${STAMP:6:2}" --failed

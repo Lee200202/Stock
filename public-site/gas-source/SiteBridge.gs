@@ -66,7 +66,7 @@ function siteBridge_(e) {
     var adminNames = ('apiAdminCancelCrawl apiAdminCancelDaySync apiAdminCancelFix ' +
       'apiAdminCancelFullFix apiAdminCancelJob apiAdminCancelRefresh apiAdminCancelSmsJob ' +
       'apiAdminChainState apiAdminCrawlState apiAdminCrawlTranscript apiAdminDayRows ' +
-      'apiAdminDaySyncState apiAdminDecisions apiAdminDeleteRow apiAdminDeleteSms ' +
+      'apiAdminReviewHistory apiAdminReviewHistorySave apiAdminDaySyncState apiAdminDecisions apiAdminDeleteRow apiAdminDeleteSms ' +
       'apiAdminDeleteSmsBatch apiAdminDispatch apiAdminFixState apiAdminFullFixState ' +
       'apiAdminHeldList apiAdminHoldToday apiAdminJobStatus ' +
       'apiAdminKCoverage apiAdminLineBindCode apiAdminLineClearTesters ' +

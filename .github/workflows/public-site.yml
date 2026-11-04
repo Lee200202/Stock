@@ -13,6 +13,7 @@ on:
       - scripts/check_market_session.cjs
       - scripts/check_gate_audit_tolerance.js
       - scripts/check_line_claim_fast.js
+      - scripts/check_review_history.cjs
       - scripts/check_ss_open_once.js
       - scripts/check_quote_flow.js
       - scripts/test_history_memory.cjs
@@ -63,6 +64,8 @@ jobs:
         run: node scripts/check_gate_audit_tolerance.js
       - name: LINE 去重快速路徑（首次送達不搶鎖、不讀帳本）
         run: node scripts/check_line_claim_fast.js
+      - name: 複核歷程分頁、修訂版本與網站更新契約
+        run: node scripts/check_review_history.cjs
       - name: 主資料試算表一次執行只開一次
         run: node scripts/check_ss_open_once.js
       - name: 後端橋接實測（失敗就保留上一版網站）

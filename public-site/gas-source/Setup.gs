@@ -1272,11 +1272,12 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-11-03-open-sheet-once-v212r3';
+var PROJECT_BUILD_ = '2026-11-04-review-history-v213';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
 var PROJECT_FILES_ = [
+  { file: 'Reviewhistory.gs', names: ['apiAdminReviewHistory', 'apiAdminReviewHistorySave', 'reviewHistorySnapshot_'] },
   { file: 'UsageAnalytics.gs', names: ['usageWrite190_', 'usageAggregate190_', 'usageAnalytics190_'] },
   { file: 'SiteBridge.gs', names: ['siteBridge_', 'siteBridgeSetup'], marker: ['siteBridge_', 'args.length > 8'] },
   { file: 'Marketservice.gs', names: ['mergedHourlyHistory_', 'backfillHourlyHistoryJob', 'auditHourlyCoverage', 'installMarketDataJobs', 'migrateV94'], marker: ['backfillHourlyHistoryJobRun_', 'tally.ok'] },
@@ -1308,6 +1309,7 @@ var PROJECT_FILES_ = [
 
 // HTML 檔名不含 .html；marker 是這一版才有的字串。
 var PROJECT_HTML_ = [
+  { file: 'ReviewHistoryPanel', marker: 'rhExport' },
   { file: 'UsageTracker', marker: 'w.StockUsage' },
   { file: 'UsagePanel', marker: 'usagePeriod' },
   { file: 'StoryDesign', marker: 'techAppleV199' },

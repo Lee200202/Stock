@@ -3586,6 +3586,9 @@ function apiAdminUpdateRow(key, payload) {
   withLock_(function () {
     var sh = getSheet_(sheetName);
     var head = sh.getDataRange().getValues()[0];
+    if (payload.expectedRowHash && reviewHistoryHash_(sh.getRange(row,1,1,head.length).getValues()[0]) !== payload.expectedRowHash) {
+      throw new Error('網站資料在儲存前已更新，本次沒有覆寫；請重新讀取。');
+    }
     var vid = '';
     var cVid = head.indexOf('來源影片ID');
     if (cVid >= 0) { vid = String(sh.getRange(row, cVid + 1).getValue() || ''); }

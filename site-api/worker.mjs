@@ -1,12 +1,12 @@
 // 免費Cloudflare Worker，將公開Pages前台連接至既有Apps Script後端。
 // 橋接權杖留在伺服器端，管理方法仍須既有管理密鑰。
 const ALLOWED = 'https://lee200202.github.io';
-const BUILD = 'site-api-v210-tracker-exclusions';
+const BUILD = 'site-api-v213-review-history';
 const MAX_ARGS = 8;
 const ADMIN_METHODS = ('apiAdminCancelCrawl apiAdminCancelDaySync apiAdminCancelFix ' +
   'apiAdminCancelFullFix apiAdminCancelJob apiAdminCancelRefresh apiAdminCancelSmsJob ' +
   'apiAdminChainState apiAdminCrawlState apiAdminCrawlTranscript apiAdminDayRows ' +
-  'apiAdminDaySyncState apiAdminDecisions apiAdminDeleteRow apiAdminDeleteSms ' +
+  'apiAdminReviewHistory apiAdminReviewHistorySave apiAdminDaySyncState apiAdminDecisions apiAdminDeleteRow apiAdminDeleteSms ' +
   'apiAdminDeleteSmsBatch apiAdminDispatch apiAdminFixState apiAdminFullFixState ' +
   'apiAdminHeldList apiAdminHoldToday apiAdminJobStatus ' +
   'apiAdminKCoverage apiAdminLineBindCode apiAdminLineClearTesters ' +

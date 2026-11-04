@@ -1318,6 +1318,7 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
         <svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M4 12h4l2-4 4 8 2-4h4"/></svg>自動化監控</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="line">
         <svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5c-5 0-9 3.1-9 7 0 2.4 1.5 4.5 3.9 5.8L6.5 20.5l3.7-2.3c.6.1 1.2.2 1.8.2 5 0 9-3.1 9-7s-4-6.9-9-6.9z"/><path d="M8 10.5v3M11 10.5v3M14 10.5v3h2"/></svg>LINE</button>
+      <button class="tab" role="tab" id="reviewHistoryTab" data-tab="reviewhistory" aria-selected="false" aria-controls="p-reviewhistory">複核與修改紀錄</button>
       <button class="tab" role="tab" data-tab="usage" aria-selected="false" aria-controls="p-usage"><svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V4M4 20h17M8 16l4-6 4 3 5-8" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>使用分析</button>
 <button class="tab" role="tab" aria-selected="false" data-tab="ver">
         <svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>版本沿革</button>
@@ -2034,6 +2035,7 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
     <!-- ============ 版本沿革 ============ -->
     <!-- 從技術說明頁搬過來的。它的讀者只有維護的人，放在公開頁面對訪客是雜訊，
          而且會隨每次改版一直長。內容在 Changelog.html，樣式沿用 Stylesheet 的 .ver。 -->
+    <?!= include('ReviewHistoryPanel'); ?>
     <?!= include('UsagePanel'); ?>
 <section class="panel" id="p-ver" role="tabpanel" hidden>
       <div class="card">
@@ -2116,6 +2118,7 @@ window.__onLayoutChange = function (what) {
       if (btn.dataset.tab === 'smsadmin' && window.__loadSmsAdminDays) {
         window.__loadSmsAdminDays();
       }
+      if (btn.dataset.tab === 'reviewhistory' && window.__loadReviewHistory) { window.__loadReviewHistory(); }
       if (btn.dataset.tab === 'usage' && window.__loadUsage) { window.__loadUsage(); }
       ADMIN_USE.page(btn.dataset.tab);
       // 藏著的面板量不到寬度，切過來才算得出一排放得下幾格

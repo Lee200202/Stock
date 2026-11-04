@@ -57,10 +57,13 @@ check('read failure is not zero records',()=>{c.dailyReviewBook_=()=>null;assert
 const html=fs.readFileSync(path.join(src,'ReviewHistoryPanel.html'),'utf8');
 let js=html.match(/<script>([\s\S]*?)<\/script>/)[1];new vm.Script(js);
 // Expose pure helpers only in this in-memory copy; no browser state or production hooks.
-js=js.replace("if(document.readyState==='loading')",'this.probe={esc,iso,fence,markdown,state};if(document.readyState===\'loading\')');
+js=js.replace("if(document.readyState==='loading')",'this.probe={esc,iso,fence,markdown,state,fields,severityTone};if(document.readyState===\'loading\')');
 const ui={document:{readyState:'loading',addEventListener(){}},window:{},console};vm.createContext(ui);vm.runInContext(js.replace("'use strict';",''),ui);
 check('MD uses real newlines and safe code fences',()=>{assert.equal(ui.probe.iso('2026/11/04'),'2026-11-04');assert.equal(ui.probe.fence('a\n```\nb'),'````text\na\n```\nb\n````');});
 check('untrusted content is HTML escaped',()=>assert.equal(ui.probe.esc('<img onerror="x">'),'&lt;img onerror=&quot;x&quot;&gt;'));
 check('MD retains original, revisions and full report',()=>{Object.assign(ui.probe.state,{start:range.start,end:range.end,entries:[entry],reports:first.reports,summaries:[],candidates:[]});let md=ui.probe.markdown();assert(md.includes('原始複核紀錄'));assert(md.includes(first.reports[0].text));assert(md.includes(entry.sourceHash));});
 check('website write checks raw hash inside existing lock',()=>{let s=fs.readFileSync(path.join(src,'Adminservice.gs'),'utf8');assert(s.includes('payload.expectedRowHash'));});
+check('class/severity choices retain unfamiliar original values',()=>{const el={innerHTML:''};ui.document.getElementById=()=>el;ui.probe.fields({'網站分類':'不列（對照例）','嚴重度':'邊界'},['網站分類','嚴重度']);assert(el.innerHTML.includes('<select data-field="網站分類">'));assert(el.innerHTML.includes('value="不列（對照例）" selected'));assert.equal(ui.probe.severityTone('複核錯'),'review');});
+check('stock names/codes support editable candidates',()=>{const el={innerHTML:''};ui.document.getElementById=()=>el;ui.probe.fields({'名稱':'<不執行>','代號':'2330'},['名稱','代號']);assert(el.innerHTML.includes('<datalist'));assert(!el.innerHTML.includes('<不執行>'));});
+check('two calendar cards replace native date inputs',()=>{assert(html.indexOf('按日查看')<html.indexOf('按區間彙整'));assert(!html.includes('type="date"'));assert(html.includes('id="rhDatePicker"'));});
 console.log('Review history: '+n+' contracts passed');

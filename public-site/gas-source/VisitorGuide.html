@@ -6,6 +6,8 @@ html:has(.visitor-dialog[open]){overflow:hidden}
 .visitor-dialog h2,.visitor-dialog h3{margin-top:0}.visitor-dialog p{line-height:1.75}.visitor-head{position:sticky;top:0;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:clamp(12px,3vw,28px) 0;background:var(--panel);border-bottom:1px solid var(--rule)}.visitor-head h2{margin:0}.visitor-head .act{flex:none}
 .visitor-options,.review-timeline-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:16px 0}
 .visitor-options button,.review-timeline-steps button{text-align:left;min-width:0;white-space:normal}
+#visitorGuide .visitor-options{display:flex;flex-wrap:wrap}
+#visitorGuide .visitor-options button{flex:1 0 max-content;white-space:nowrap;padding-inline:clamp(14px,2vw,30px)}
 .visitor-options button[aria-pressed=true],.review-timeline-steps button[aria-pressed=true]{border-color:var(--beam);box-shadow:inset 0 0 0 1px var(--beam);color:var(--beam)}
 .visitor-answer,.review-timeline-detail{border:1px solid var(--rule);border-radius:20px;background:var(--panel-2);padding:18px;margin-top:12px;overflow-wrap:anywhere}
 .visitor-answer .act{display:inline-block;text-decoration:none}.visitor-dialog textarea{width:100%;min-height:135px;box-sizing:border-box;padding:14px;border:1px solid var(--rule);border-radius:14px;background:var(--panel-2);color:var(--ink);font:inherit;resize:vertical}
@@ -16,6 +18,7 @@ html:has(.visitor-dialog[open]){overflow:hidden}
 .review-timeline-steps svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.6}.review-timeline-steps small{color:var(--muted);font-weight:normal}
 .visitor-options button,.review-timeline-steps button{transition:transform .16s,box-shadow .16s}.visitor-options button:active,.review-timeline-steps button:active{transform:scale(.97)}
 @media(max-width:700px){.visitor-options,.review-timeline-steps{grid-template-columns:1fr}.review-timeline-steps button{display:grid;grid-template-columns:26px 1fr;align-items:center}.review-timeline-steps small{grid-column:2}}
+@media(max-width:700px){#visitorGuide .visitor-options button{flex-basis:100%}}
 @media(prefers-reduced-motion:reduce){.visitor-options button,.review-timeline-steps button{transition:none;transform:none!important}}
 </style>
 
@@ -23,7 +26,7 @@ html:has(.visitor-dialog[open]){overflow:hidden}
   <div class="visitor-head"><h2 id="visitorGuideTitle">第一次來盤勢有據？</h2><button type="button" class="act ghost" data-visitor-close>關閉</button></div>
   <p>選一個你想做的事，我們帶你找到入口。之後也可從「版面設定」再開啟新手教學。</p>
   <div class="visitor-options" role="group" aria-label="選擇使用情境">
-    <button type="button" class="act ghost" data-guide="overview" aria-pressed="true">我想看張正當日內容</button>
+    <button type="button" class="act ghost" data-guide="overview" aria-pressed="true">我想看張震當日內容</button>
     <button type="button" class="act ghost" data-guide="tracker" aria-pressed="false">我想查持股追蹤</button>
     <button type="button" class="act ghost" data-guide="subscribe" aria-pressed="false">我想調整郵件訂閱</button>
   </div>

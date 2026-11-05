@@ -7,6 +7,9 @@ const READ_ADMIN = new Set(('apiAdminLogin apiAdminChainState apiAdminCrawlState
 export const POLICY = Object.freeze({idle: 15 * 60000, public: 30 * 60000,
   trusted: 7 * 86400000, fresh: 5 * 60000, otp: 5 * 60000, ip: 7 * 86400000, audit: 90 * 86400000});
 export const COOKIE = Object.freeze({session: '__Host-psSession', trust: '__Host-psTrust', pre: '__Host-psPre'});
+const AI_TICKET_MS = 5 * 60000;
+const AI_SESSION_MS = 15 * 60000;
+const AI_READ_METHODS = new Set(['apiAdminLogin', 'apiAdminTodayStatus', 'apiAdminReviewHistory', 'apiAdminHeldList', 'apiAdminChainState', 'apiAdminDaySyncState']);
 const hex = b => Array.from(new Uint8Array(b), x => x.toString(16).padStart(2, '0')).join('');
 export const random = () => hex(crypto.getRandomValues(new Uint8Array(32)));
 export const sha = async s => hex(await crypto.subtle.digest('SHA-256', enc.encode(s)));
@@ -125,18 +128,18 @@ export class AdminSecurity {
     if (fresh && now - s.verified >= POLICY.fresh) deny('fresh-auth-required', 403);
     return {key, s, d};
   }
-  async issue(device, meta, personal, actor, verified = this.now()) {
+  async issue(device, meta, personal, actor, verified = this.now(), ai = false) {
     const now = this.now(), sessionToken = random(), trustToken = personal ? random() : '';
     const csrf = random(), d = await this.store.get('d:' + device) || {id:device, created:now, name:''};
     // New manual login/resume supersedes this browser's former sessions (not other browsers).
     for (const [k, s] of await this.store.list({prefix:'s:'})) if (s.device === device) await this.store.delete(k);
     for (const [k, t] of await this.store.list({prefix:'t:'})) if (t.device === device) await this.store.delete(k);
-    const expires = personal ? (verified === 0 ? Math.min(d.trustUntil, now + POLICY.trusted) : now + POLICY.trusted) : now + POLICY.public;
-    const s = {device, actor, csrf, created:now, active:now, connected:now, expires, verified, personal, epoch:this.env.ADMIN_AUTH_EPOCH};
+    const expires = personal ? (verified === 0 ? Math.min(d.trustUntil, now + POLICY.trusted) : now + POLICY.trusted) : now + (ai ? AI_SESSION_MS : POLICY.public);
+    const s = {device, actor, csrf, created:now, active:now, connected:now, expires, verified, personal, ai, epoch:this.env.ADMIN_AUTH_EPOCH};
     await this.store.put('s:' + await sha(sessionToken), s);
     Object.assign(d, {revoked:0, signedOut:0, actor, ua:meta.ua, maskedIp:meta.maskedIp, ip:await this.seal(meta.ip || ''),
       ipAt:now, country:meta.country, city:meta.city, login:now, active:now, connected:now, expires, personal,
-      trustUntil:personal ? expires : 0});
+      ai, trustUntil:personal ? expires : 0});
     await this.store.put('d:' + device, d);
     if (personal) await this.store.put('t:' + await sha(trustToken), {device, actor, expires, epoch:this.env.ADMIN_AUTH_EPOCH});
     return {s, setCookies:[cookie(COOKIE.session, sessionToken), cookie(COOKIE.trust, trustToken,
@@ -162,11 +165,26 @@ export class AdminSecurity {
         const token = random(), csrf = random();
         await this.store.put('p:' + await sha(token), {csrf, expires:now + 15 * 60000});
         let session = null;
-        try { const a = await this.session(request); session = {device:a.d.id, csrf:a.s.csrf, expires:a.s.expires}; } catch {}
+        try { const a = await this.session(request); session = {device:a.d.id, csrf:a.s.csrf, expires:a.s.expires, ai:!!a.s.ai}; } catch {}
         const t = await this.store.get('t:' + await sha(cookies(request)[COOKIE.trust] || ''));
         const d = t && await this.store.get('d:' + t.device);
         return json({ok:true, csrf, session, canResume:!!(t && d && !d.revoked && t.epoch === this.env.ADMIN_AUTH_EPOCH && t.expires > now)}, 200,
           [cookie(COOKIE.pre, token)]);
+      }
+      if (path === '/ai-login' && request.method === 'POST') {
+        await this.pre(request);
+        await this.limit('ai-login:' + meta.ip, 12, 15 * 60000);
+        if (typeof input.ticket !== 'string' || !/^PS-AI-[a-f0-9]{64}$/.test(input.ticket)) deny('ai-ticket-invalid');
+        const key = 'ai:' + await sha(input.ticket);
+        const ticket = await this.store.get(key);
+        const issuer = ticket && await this.store.get('d:' + ticket.device);
+        if (!ticket || !issuer || issuer.revoked || ticket.expires <= now || ticket.epoch !== this.env.ADMIN_AUTH_EPOCH) deny('ai-ticket-invalid');
+        // The authority serializes requests. Consume before issuing any session.
+        await this.store.delete(key);
+        const device = random().slice(0, 24);
+        const out = await this.issue(device, meta, false, 'AI 臨時存取', 0, true);
+        await this.audit('ai-login', meta, device, 'AI 臨時存取', ticket.reference);
+        return json({ok:true, csrf:out.s.csrf, device, expires:out.s.expires, ai:true}, 200, out.setCookies);
       }
       if (['/login', '/verify', '/resume'].includes(path)) {
         if (request.method !== 'POST') deny('method', 405);
@@ -223,12 +241,22 @@ export class AdminSecurity {
         await this.audit('trust-resume', meta, t.device, t.actor);
         return json({ok:true, csrf:out.s.csrf, device:t.device, expires:out.s.expires}, 200, out.setCookies);
       }
-      const sensitive = ['/revoke', '/revoke-others', '/ip'].includes(path);
+      const sensitive = ['/revoke', '/revoke-others', '/ip', '/ai-ticket'].includes(path);
       const a = await this.session(request, sensitive);
+      if (a.s.ai && !['/session','/activity','/logout','/admit'].includes(path)) deny('ai-read-only',403);
+      if (path === '/ai-ticket' && request.method === 'POST') {
+        await this.limit('ai-issue:' + a.d.id, 5, 15 * 60000);
+        const ticket = 'PS-AI-' + random();
+        const expires = now + AI_TICKET_MS;
+        const reference = random().slice(0,12);
+        await this.store.put('ai:' + await sha(ticket), {device:a.d.id, reference, expires, epoch:this.env.ADMIN_AUTH_EPOCH});
+        await this.audit('ai-ticket-issued', meta, a.d.id, a.s.actor, reference);
+        return json({ok:true, ticket, reference, expires});
+      }
       if (path === '/session' && request.method === 'GET') {
         a.s.connected = now; a.d.connected = now;
         await this.store.put(a.key, a.s); await this.store.put('d:' + a.d.id, a.d);
-        return json({ok:true, csrf:a.s.csrf, device:a.d.id, expires:a.s.expires, idleExpires:a.s.active + POLICY.idle});
+        return json({ok:true, csrf:a.s.csrf, device:a.d.id, expires:a.s.expires, ai:!!a.s.ai, idleExpires:a.s.active + POLICY.idle});
       }
       if (path === '/activity' && request.method === 'POST') {
         a.s.active = now; a.d.active = now;
@@ -237,7 +265,7 @@ export class AdminSecurity {
       if (path === '/devices' && request.method === 'GET') {
         const devices = Array.from((await this.store.list({prefix:'d:'})).values()).map(d => ({id:d.id, name:d.name,
           actor:d.actor, ua:d.ua, maskedIp:d.maskedIp, country:d.country, city:d.city, login:d.login, active:d.active,
-          connected:d.connected, expires:d.expires, trustUntil:d.trustUntil, personal:d.personal,
+          connected:d.connected, expires:d.expires, trustUntil:d.trustUntil, personal:d.personal, ai:!!d.ai,
           status:d.revoked ? 'revoked' : d.signedOut ? 'signedout' : d.expires <= now ? 'expired' : now - d.active >= POLICY.idle ? 'locked' : 'active', current:d.id === a.d.id}));
         return json({ok:true, devices});
       }
@@ -277,6 +305,7 @@ export class AdminSecurity {
       if (path === '/admit' && request.method === 'POST') {
         // Worker validates the fixed method allowlist; DO issues no general reusable credential.
         if (!/^apiAdmin[A-Za-z]+$/.test(input.method) || !Array.isArray(input.args) || input.args.length > 8) deny('method', 400);
+        if (a.s.ai && !AI_READ_METHODS.has(input.method)) deny('ai-read-only',403);
         if(!READ_ADMIN.has(input.method))await this.audit('admit:' + input.method, meta, a.d.id, a.s.actor);
         return json({ok:true, grant:await gatewayEnvelope(this.env, input.method, input.args, a.d.id)});
       }
@@ -289,7 +318,7 @@ export class AdminSecurity {
   alarm() { // Same serialized authority as HTTP requests.
     const p = this.tail.then(async () => {
       const now = this.now();
-      for (const prefix of ['a:', 'd:', 's:', 't:', 'p:', 'r:']) {
+      for (const prefix of ['a:', 'd:', 's:', 't:', 'p:', 'r:', 'ai:']) {
         for (const [key, row] of await this.store.list({prefix})) {
           if (prefix === 'a:') {
             if (now - row.at > POLICY.audit) { await this.store.delete(key); continue; }

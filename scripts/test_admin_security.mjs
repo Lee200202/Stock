@@ -29,11 +29,11 @@ afterEach(()=>{globalThis.fetch=originalFetch;});
 class Browser {
   jar={}; pre='';csrf='';ip='203.0.113.14';
   async send(path,body){const r=await auth.fetch(new Request('https://authority/'+path,{method:body===undefined?'GET':'POST',
-    headers:{cookie:Object.entries(this.jar).map(([k,v])=>k+'='+v).join('; '),'X-CSRF-Token':['login','verify','resume'].includes(path)?this.pre:this.csrf,
+    headers:{cookie:Object.entries(this.jar).map(([k,v])=>k+'='+v).join('; '),'X-CSRF-Token':['login','verify','resume','ai-login'].includes(path)?this.pre:this.csrf,
       'CF-Connecting-IP':this.ip,'User-Agent':'test-browser','Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)}));
     for(const c of r.headers.getSetCookie()){const [pair]=c.split(';'),i=pair.indexOf('=');this.jar[pair.slice(0,i)]=pair.slice(i+1);}
     const b=await r.json();if(path==='bootstrap'&&b.ok)this.pre=b.csrf;
-    if(['verify','resume','session'].includes(path)&&b.ok)this.csrf=b.csrf;
+    if(['verify','resume','session','ai-login'].includes(path)&&b.ok)this.csrf=b.csrf;
     return {r,b};}
   async code(personal=false,email='manager@example.test'){
     await this.send('bootstrap');const out=await this.send('login',{password,email,personal});assert.equal(out.r.status,200);
@@ -226,4 +226,27 @@ test('static secure admin may be staged while authentication is disabled; API re
   assert.equal(page.status,200);assert.equal(page.headers.get('X-Frame-Options'),'DENY');
   assert.equal((await adminRoute(new Request('https://admin.test/admin-api/bootstrap'),env,[],()=>{})).status,503);
   assert.equal((await store.list({prefix:'s:'})).size,0);
+});
+test('AI ticket is consumed once across concurrent browsers, with read-only access and no email',async()=>{
+  const owner=new Browser();await owner.login();
+  const {ticket}=(await owner.send('ai-ticket',{})).b;
+  const a=new Browser(),b=new Browser();await a.send('bootstrap');await b.send('bootstrap');
+  const results=await Promise.all([a.send('ai-login',{ticket,personal:true}),b.send('ai-login',{ticket})]);
+  assert.deepEqual(results.map(x=>x.r.status).sort(),[200,401]);
+  const reader=results[0].r.ok?a:b;
+  assert.equal(mail.length,1);
+  assert.equal((await reader.send('admit',{method:'apiAdminReviewHistory',args:[null,{}]})).r.status,200);
+  assert.equal((await reader.send('admit',{method:'apiAdminReviewHistorySave',args:[null,{}]})).r.status,403);
+  assert.equal((await reader.send('devices')).r.status,403);
+  assert.equal((await reader.send('ai-ticket',{})).r.status,403);
+  assert.equal((await reader.send('bootstrap')).b.canResume,false);
+  now+=15*60000;
+  assert.equal((await reader.send('session')).r.status,401);
+});
+test('AI tickets expire after five minutes and cannot be issued from a stale verification',async()=>{
+  const owner=new Browser();await owner.login();const {ticket}=(await owner.send('ai-ticket',{})).b;
+  now+=5*60000;
+  const reader=new Browser();await reader.send('bootstrap');
+  assert.equal((await reader.send('ai-login',{ticket})).r.status,401);
+  assert.equal((await owner.send('ai-ticket',{})).r.status,403);
 });

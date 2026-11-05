@@ -19,7 +19,7 @@ export async function adminRoute(request, env, adminMethods, forward) {
   if (request.method === 'POST' && (request.headers.get('Origin') !== url.origin ||
       !/^application\/json(?:;|$)/i.test(request.headers.get('Content-Type') || ''))) return json({ok:false,error:'origin'},403);
   if (!['GET','POST'].includes(request.method)) return json({ok:false,error:'method'},405);
-  const routes = new Set(['bootstrap','login','verify','resume','session','activity','devices','events','rename','revoke','revoke-others','ip','logout','rpc']);
+  const routes = new Set(['bootstrap','login','verify','resume','ai-login','ai-ticket','session','activity','devices','events','rename','revoke','revoke-others','ip','logout','rpc']);
   if (!routes.has(url.pathname.slice('/admin-api/'.length))) return json({ok:false,error:'not-found'},404);
   const stub = env.ADMIN_AUTH.get(env.ADMIN_AUTH.idFromName('admin-authority-v1'));
   const doRequest = async (path, body) => {

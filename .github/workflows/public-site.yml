@@ -17,6 +17,7 @@ on:
       - scripts/check_review_history.cjs
       - scripts/test_admin_security.mjs
       - scripts/check_admin_security_ui.cjs
+      - scripts/check_visitor_guide.cjs
       - scripts/build_secure_admin.py
       - scripts/check_ss_open_once.js
       - scripts/check_quote_flow.js
@@ -55,6 +56,7 @@ jobs:
         run: |
           node --test scripts/test_admin_security.mjs
           node scripts/check_admin_security_ui.cjs
+          node scripts/check_visitor_guide.cjs
       - name: 部署版本與畫面檔案標記一致性
         run: node scripts/check_project_manifest.cjs
       - name: 公開說明語意保留與紀錄價位隱藏

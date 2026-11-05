@@ -3,7 +3,7 @@ export {AdminSecurity} from './admin-security.mjs';
 // Cloudflare Worker，將公開Pages前台連接至既有Apps Script後端。
 // 橋接權杖留在伺服器端，管理方法仍須既有管理密鑰。
 const ALLOWED = 'https://lee200202.github.io';
-const BUILD = 'site-api-v216-admin-security';
+const BUILD = 'site-api-v217-visitor-guide';
 const MAX_ARGS = 8;
 const ADMIN_METHODS = ('apiAdminCancelCrawl apiAdminCancelDaySync apiAdminCancelFix ' +
   'apiAdminCancelFullFix apiAdminCancelJob apiAdminCancelRefresh apiAdminCancelSmsJob ' +
@@ -33,7 +33,7 @@ const METHODS = new Set([
   'apiListTranscriptDates', 'apiLogUsage', 'apiLookupSubscription',
   'apiResetSession', 'apiSearchByDate', 'apiSearchStock',
   'apiSendUnsubscribeLink', 'apiStopAllMail', 'apiSubscribe',
-  'apiSuggestCodes', 'apiUnsubscribeConfirm', 'apiUpdateSubscription', 'apiValidateKey', ...ADMIN_METHODS
+  'apiSuggestCodes', 'apiSubmitFeedback', 'apiUnsubscribeConfirm', 'apiUpdateSubscription', 'apiValidateKey', ...ADMIN_METHODS
 ]);
 
 /* 公開唯讀結果只在有效期內重用；不以過期資料掩蓋後端失敗。

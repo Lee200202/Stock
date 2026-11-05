@@ -26,7 +26,7 @@ def admin_allowlist(source: str, start: str) -> set[str]:
 
 
 def main() -> None:
-    public = invoked("Index.html", "JavaScript.html", "Tech.html",
+    public = invoked("Index.html", "JavaScript.html", "Tech.html", "VisitorGuide.html",
                      "Settings.html", "Unsubscribed.html", "UsageTracker.html")
     admin = invoked("Admin.html", "UsagePanel.html", "ReviewHistoryPanel.html")
     for name in public:

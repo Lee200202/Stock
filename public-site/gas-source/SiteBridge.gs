@@ -54,6 +54,7 @@ function siteBridge_(e) {
     apiSendUnsubscribeLink: apiSendUnsubscribeLink,
     apiStopAllMail: apiStopAllMail,
     apiSubscribe: apiSubscribe,
+    apiSubmitFeedback: apiSubmitFeedback,
     apiSuggestCodes: apiSuggestCodes,
     apiUnsubscribeConfirm: apiUnsubscribeConfirm,
     apiUpdateSubscription: apiUpdateSubscription,

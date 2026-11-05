@@ -1,0 +1,214 @@
+<style>
+.visitor-dialog{width:min(740px,calc(100% - 28px));max-height:calc(100dvh - 32px);padding:clamp(18px,4vw,30px);border:1px solid var(--rule);border-radius:26px;background:var(--panel);color:var(--ink);box-shadow:var(--shadow);overflow:auto}
+.visitor-dialog::backdrop{background:rgba(8,29,25,.58)}
+#visitorFeedback{width:100%;height:100dvh;max-width:none;max-height:none;margin:0;border:0;border-radius:0;box-sizing:border-box;padding:clamp(18px,4vw,52px)}
+#visitorFeedback textarea{min-height:clamp(180px,40vh,420px)}
+.visitor-dialog h2,.visitor-dialog h3{margin-top:0}.visitor-dialog p{line-height:1.75}.visitor-head{display:flex;align-items:start;justify-content:space-between;gap:12px}.visitor-head .act{flex:none}
+.visitor-options,.review-timeline-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:16px 0}
+.visitor-options button,.review-timeline-steps button{text-align:left;min-width:0;white-space:normal}
+.visitor-options button[aria-pressed=true],.review-timeline-steps button[aria-pressed=true]{border-color:var(--beam);box-shadow:inset 0 0 0 1px var(--beam);color:var(--beam)}
+.visitor-answer,.review-timeline-detail{border:1px solid var(--rule);border-radius:20px;background:var(--panel-2);padding:18px;margin-top:12px;overflow-wrap:anywhere}
+.visitor-answer .act{display:inline-block;text-decoration:none}.visitor-dialog textarea{width:100%;min-height:135px;box-sizing:border-box;padding:14px;border:1px solid var(--rule);border-radius:14px;background:var(--panel-2);color:var(--ink);font:inherit;resize:vertical}
+.visitor-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:15px}.visitor-trap{position:absolute;left:-10000px}.visitor-tools{padding:8px 0 0;border-top:1px solid var(--rule);display:flex;gap:8px;flex-wrap:wrap}
+.review-timeline{margin:22px 0;padding:clamp(16px,3vw,26px);border:1px solid var(--rule);border-radius:24px;background:var(--panel)}
+.review-timeline-steps{grid-template-columns:repeat(5,minmax(0,1fr));position:relative}
+.review-timeline-steps button{position:relative;display:flex;align-items:flex-start;flex-direction:column;gap:6px}
+.review-timeline-steps svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.6}.review-timeline-steps small{color:var(--muted);font-weight:normal}
+.visitor-options button,.review-timeline-steps button{transition:transform .16s,box-shadow .16s}.visitor-options button:active,.review-timeline-steps button:active{transform:scale(.97)}
+@media(max-width:700px){.visitor-options,.review-timeline-steps{grid-template-columns:1fr}.review-timeline-steps button{display:grid;grid-template-columns:26px 1fr;align-items:center}.review-timeline-steps small{grid-column:2}}
+@media(prefers-reduced-motion:reduce){.visitor-options button,.review-timeline-steps button{transition:none;transform:none!important}}
+</style>
+
+<dialog class="visitor-dialog" id="visitorGuide" aria-labelledby="visitorGuideTitle">
+  <div class="visitor-head"><h2 id="visitorGuideTitle">第一次來盤勢有據？</h2><button type="button" class="act ghost" data-visitor-close>關閉</button></div>
+  <p>選一個你想做的事，我們帶你找到入口。之後也可從「版面設定」再開啟新手教學。</p>
+  <div class="visitor-options" role="group" aria-label="選擇使用情境">
+    <button type="button" class="act ghost" data-guide="overview" aria-pressed="true">我想看張正當日內容</button>
+    <button type="button" class="act ghost" data-guide="tracker" aria-pressed="false">我想查持股追蹤</button>
+    <button type="button" class="act ghost" data-guide="subscribe" aria-pressed="false">我想調整郵件訂閱</button>
+  </div>
+  <section class="visitor-answer" aria-live="polite">
+    <h3 id="guideAnswerTitle">從每日總覽開始</h3>
+    <p id="guideAnswerText">看今天的盤勢、教學重點和個股分類。先確認頁面日期，再點個股看完整說明。</p>
+    <button type="button" class="act" id="guideGo">前往每日總覽</button>
+  </section>
+  <div class="visitor-actions"><button type="button" class="act ghost" data-visitor-feedback>提供意見回饋</button></div>
+</dialog>
+
+<dialog class="visitor-dialog" id="visitorFeedback" aria-labelledby="visitorFeedbackTitle">
+  <div class="visitor-head"><h2 id="visitorFeedbackTitle">意見回饋</h2><button type="button" class="act ghost" data-visitor-close>關閉</button></div>
+  <p>告訴我們你在哪個頁面遇到問題，或希望補上什麼。內容更正可附日期和股票代號。請避免填入信箱、電話或密碼。</p>
+  <form id="visitorFeedbackForm">
+    <div class="visitor-options" role="group" aria-label="回饋分類">
+      <button type="button" class="act ghost" aria-pressed="true" data-feedback-kind="操作問題">操作問題</button>
+      <button type="button" class="act ghost" aria-pressed="false" data-feedback-kind="內容更正">內容更正</button>
+      <button type="button" class="act ghost" aria-pressed="false" data-feedback-kind="功能建議">功能建議</button>
+    </div>
+    <label for="visitorFeedbackText">回饋內容</label>
+    <textarea id="visitorFeedbackText" maxlength="1000" placeholder="例如，手機版的持股追蹤找不到日期篩選。"></textarea>
+    <div class="visitor-trap" aria-hidden="true"><input id="visitorWebsite" tabindex="-1" autocomplete="off" aria-label="請保留空白"></div>
+    <div class="visitor-actions"><button type="submit" class="act" id="visitorSendFeedback">提交回饋</button></div>
+    <p id="visitorFeedbackStatus" role="status" aria-live="polite"></p>
+  </form>
+</dialog>
+
+<template id="claudeReviewTimeline">
+  <section class="review-timeline" aria-labelledby="claudeTimelineTitle">
+    <h3 id="claudeTimelineTitle">網站更新後，Claude 怎麼接手複核？</h3>
+    <p>網站先完成當日整理。Claude 雲端排程在寄信前另讀原稿，對照這份已上站的結果。以下是流程與台北時間的排程標記，實際完成時間依當日紀錄。</p>
+    <div class="review-timeline-steps" role="group" aria-label="Claude 複核時間軸">
+      <button class="act ghost" type="button" data-review-step="0" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="15" rx="2"/><path d="M3 8h18m-13 5h8"/></svg><b>網站先更新</b><small>原流程完成後</small></button>
+      <button class="act ghost" type="button" data-review-step="1" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 7v6l3 2"/></svg><b>雲端複核啟動</b><small>交易日 11:40 排程</small></button>
+      <button class="act ghost" type="button" data-review-step="2" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h7v14H3zm11 0h7v14h-7zM5 9h3m8 0h3"/></svg><b>獨立判讀與比對</b><small>原稿備齊後</small></button>
+      <button class="act ghost" type="button" data-review-step="3" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6M4 5h8m0 14h8"/></svg><b>有證據才修正</b><small>預覽、寫入、讀回</small></button>
+      <button class="act ghost" type="button" data-review-step="4" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 7 9-7"/></svg><b>寄送與留存紀錄</b><small>複核暫緩至 13:00</small></button>
+    </div>
+    <div class="review-timeline-detail" aria-live="polite"><h4></h4><p></p></div>
+    <div class="book-motion"><button type="button" class="act ghost" data-review-play>播放流程</button></div>
+  </section>
+</template>
+
+<script>
+(function(){
+  'use strict';
+  var guide = document.getElementById('visitorGuide');
+  var feedback = document.getElementById('visitorFeedback');
+  var menu = document.getElementById('setMenu');
+  var guideKey = 'zzVisitorGuideSeenV1';
+  var guideCase = 'overview';
+  var feedbackKind = '操作問題';
+  var feedbackPage = 'overview';
+  var scenarios = {
+    overview:['從每日總覽開始','看今天的盤勢、教學重點和個股分類。先確認頁面日期，再點個股看完整說明。','前往每日總覽'],
+    tracker:['打開持股追蹤','按個股查看追蹤回合、進出場狀態和行情。可切換收盤價或日內高低價試算，兩者代表不同計算方式。','前往持股追蹤'],
+    subscribe:['管理既有訂閱','到「訂閱通知」填入原信箱，可查看或調整訂閱。要停止接收，可用信尾的取消訂閱連結，開啟確認頁後再確認。','管理或取消訂閱']
+  };
+  function button(text, action) {
+    var el = document.createElement('button');
+    el.type = 'button';
+    el.className = 'act ghost';
+    el.textContent = text;
+    el.addEventListener('click', action);
+    return el;
+  }
+  function open(dialog) {
+    if (guide.open && dialog !== guide) guide.close();
+    if (menu && !menu.hidden) document.getElementById('setBtn').click();
+    if (!dialog.open) dialog.showModal();
+  }
+  function showGuide() {
+    try { localStorage.setItem(guideKey, '1'); } catch (error) {}
+    open(guide);
+  }
+  function showFeedback() {
+    feedbackPage = document.querySelector('button.tab[aria-selected="true"]')?.dataset.tab || 'overview';
+    open(feedback);
+  }
+  if (menu) {
+    var tools = document.createElement('div');
+    tools.className = 'visitor-tools';
+    tools.append(button('新手教學', showGuide), button('意見回饋', showFeedback));
+    menu.append(tools);
+  }
+  document.querySelectorAll('[data-visitor-close]').forEach(function(el){
+    el.addEventListener('click', function(){ el.closest('dialog').close(); });
+  });
+  document.querySelector('[data-visitor-feedback]').addEventListener('click', showFeedback);
+  guide.querySelectorAll('[data-guide]').forEach(function(el){
+    el.addEventListener('click', function(){
+      guideCase = el.dataset.guide;
+      guide.querySelectorAll('[data-guide]').forEach(function(item){ item.setAttribute('aria-pressed',String(item === el)); });
+      var scenario = scenarios[guideCase];
+      document.getElementById('guideAnswerTitle').textContent = scenario[0];
+      document.getElementById('guideAnswerText').textContent = scenario[1];
+      document.getElementById('guideGo').textContent = scenario[2];
+    });
+  });
+  function focusSubscription() {
+    var target = document.getElementById('manage-subscription');
+    if (target) {
+      target.focus({preventScroll:true});
+      target.scrollIntoView({block:'center'});
+    }
+  }
+  document.getElementById('guideGo').addEventListener('click', function(){
+    guide.close();
+    var tab = document.querySelector('button.tab[data-tab="' + guideCase + '"]');
+    if (tab) tab.click();
+    if (guideCase === 'subscribe') requestAnimationFrame(focusSubscription);
+    else if (tab) tab.focus();
+  });
+  feedback.querySelectorAll('[data-feedback-kind]').forEach(function(el){
+    el.addEventListener('click', function(){
+      feedbackKind = el.dataset.feedbackKind;
+      feedback.querySelectorAll('[data-feedback-kind]').forEach(function(item){ item.setAttribute('aria-pressed',String(item === el)); });
+    });
+  });
+  document.getElementById('visitorFeedbackForm').addEventListener('submit', function(event){
+    event.preventDefault();
+    var text = document.getElementById('visitorFeedbackText');
+    var status = document.getElementById('visitorFeedbackStatus');
+    var submit = document.getElementById('visitorSendFeedback');
+    if (submit.disabled) return;
+    var message = text.value.trim();
+    if (message.length < 8 || message.length > 1000) {
+      status.textContent = '請輸入 8 至 1,000 字。';
+      text.focus();
+      return;
+    }
+    submit.disabled = true;
+    status.textContent = '正在提交…';
+    google.script.run.withSuccessHandler(function(result){
+      submit.disabled = false;
+      status.textContent = result?.ok ? '已收到回饋，謝謝你。' : result?.message || '目前無法提交，內容仍保留在表單。';
+      if (result?.ok && text.value.trim() === message) text.value = '';
+    }).withFailureHandler(function(){
+      submit.disabled = false;
+      status.textContent = '回饋服務暫時無法使用，內容仍保留在表單。';
+    }).apiSubmitFeedback({kind:feedbackKind,page:feedbackPage,message:message,website:document.getElementById('visitorWebsite').value});
+  });
+
+  var chapter = document.getElementById('tech-review-records');
+  if (chapter) {
+    var fragment = document.getElementById('claudeReviewTimeline').content.cloneNode(true);
+    var timeline = fragment.querySelector('.review-timeline');
+    chapter.querySelector('.book-heading').after(fragment);
+    var steps = Array.from(timeline.querySelectorAll('[data-review-step]'));
+    var detail = timeline.querySelector('.review-timeline-detail');
+    var play = timeline.querySelector('[data-review-play]');
+    var current = 0;
+    var timer;
+    var copy = [
+      ['先產出可供查閱的內容','原流程完成取稿、分類、說明與發布，網站先呈現當日整理。Claude 複核使用當日原稿、當時部位及已上站的內容作為不同來源。'],
+      ['啟動後確認當日資料是否齊全','排程設定在台北時間 11:40 啟動。原稿或整理尚未齊全時按流程等候，最多檢查到 12:40。休市或沒有影片則記錄原因。'],
+      ['先保存自己的判讀，再找差異','Claude 先依原稿獨立分類並保存結果，再和網站逐檔比較。差異分成明確錯誤、待確認、分類邊界及複核誤判，每項保留原句與處置理由。'],
+      ['修正計畫經發布流程核對','有明確證據的項目才產生修正計畫。GitHub 先預覽、核對原文與待修資料是否變動，再套用並讀回。證據不足或資料已變動會留待確認。'],
+      ['寄送進度與網站修正分開記錄','整理信依寄送條件與帳本處理。若複核或套用仍在進行，複核暫緩最多到 13:00，其他寄送條件仍照常核對。已寄的信件保留當時內容，後續網站修正另留紀錄。']
+    ];
+    function select(index) {
+      current = index;
+      steps.forEach(function(step,i){step.setAttribute('aria-pressed',String(i === index));});
+      detail.querySelector('h4').textContent = copy[index][0];
+      detail.querySelector('p').textContent = copy[index][1];
+    }
+    function stop() { clearInterval(timer); timer = null; play.textContent = '播放流程'; }
+    steps.forEach(function(step,index){ step.addEventListener('click',function(){stop();select(index);}); });
+    play.addEventListener('click',function(){
+      if (timer) {stop();return;}
+      select(0);
+      play.textContent = '暫停流程';
+      timer = setInterval(function(){if (document.hidden || current === steps.length-1) stop();else select(current+1);},2600);
+    });
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) play.hidden = true;
+    if ('IntersectionObserver' in window) new IntersectionObserver(function(entries){ if (!entries[0].isIntersecting) stop(); }).observe(timeline);
+    select(0);
+  }
+  if (location.hash === '#manage-subscription') requestAnimationFrame(focusSubscription);
+  var seen = false;
+  try { seen = localStorage.getItem(guideKey) === '1'; } catch (error) {}
+  var query = new URLSearchParams(location.search);
+  if (query.get('guide') === '1' || (!seen && !document.body.dataset.tab && !location.search && !location.hash)) {
+    window.addEventListener('load',showGuide,{once:true});
+  }
+})();
+</script>

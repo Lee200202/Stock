@@ -1,8 +1,6 @@
 import {json} from './admin-security.mjs';
 export async function adminRoute(request, env, adminMethods, forward) {
   const url = new URL(request.url);
-  if (env.ADMIN_SECURITY_ENABLED !== 'true') return json({ok:false, error:'security-not-enabled'}, 503);
-  if (!env.ADMIN_AUTH) return json({ok:false, error:'security-not-configured'}, 503);
   const api = url.pathname.startsWith('/admin-api/');
   if (!api) {
     if (!['GET','HEAD'].includes(request.method)) return json({ok:false,error:'method'},405);
@@ -16,6 +14,8 @@ export async function adminRoute(request, env, adminMethods, forward) {
     headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'self'");
     return new Response(response.body, {status:response.status, headers});
   }
+  if (env.ADMIN_SECURITY_ENABLED !== 'true') return json({ok:false, error:'security-not-enabled'}, 503);
+  if (!env.ADMIN_AUTH) return json({ok:false, error:'security-not-configured'}, 503);
   if (request.method === 'POST' && (request.headers.get('Origin') !== url.origin ||
       !/^application\/json(?:;|$)/i.test(request.headers.get('Content-Type') || ''))) return json({ok:false,error:'origin'},403);
   if (!['GET','POST'].includes(request.method)) return json({ok:false,error:'method'},405);

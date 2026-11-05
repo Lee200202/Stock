@@ -196,9 +196,34 @@ test('a revoke queued before another admission is an immediate authorization bar
 });
 test('GAS mail quota reserve fails closed and never invokes MailApp when quota is low',()=>{
   let calls=0;const ctx={ADMIN_SECURITY_CONTEXT_:{actor:'test'},LockService:{getScriptLock:()=>({tryLock:()=>true,releaseLock(){}})},
-    CacheService:{getScriptCache:()=>({get:()=>null,put(){}})},MailApp:{getRemainingDailyQuota:()=>19,sendEmail(){calls++;}}};
+    CacheService:{getScriptCache:()=>({get:()=>null,put(){}})},MailApp:{getRemainingDailyQuota:()=>20,sendEmail(){calls++;}}};
   vm.createContext(ctx);vm.runInContext(readFileSync(new URL('../public-site/gas-source/Adminauth.gs',import.meta.url),'utf8'),ctx);
   vm.runInContext('ADMIN_SECURITY_CONTEXT_={actor:"test"};',ctx);
   const result=vm.runInContext('adminSecurityEmail_("test@example.invalid","123456","a".repeat(64))',ctx);
   assert.equal(result.ok,false);assert.equal(calls,0);
+});
+test('machine day-sync remains authorized after cutover, without making service keys browser credentials',()=>{
+  const props=new Map([['ADMIN_SECURITY_ENABLED','true'],['ADMIN_MACHINE_KEY_ROTATED','true'],['ADMIN_KEY','rotated-machine-fixture']]);
+  const ctx={PropertiesService:{getScriptProperties:()=>({getProperty:k=>props.get(k)})},configMissing_:()=>[],rememberWebAppUrl_(){},jsonOut_:x=>x};
+  vm.createContext(ctx);
+  vm.runInContext(readFileSync(new URL('../public-site/gas-source/Adminauth.gs',import.meta.url),'utf8'),ctx);
+  const src=readFileSync(new URL('../public-site/gas-source/Adminservice.gs',import.meta.url),'utf8');
+  vm.runInContext(src.slice(src.indexOf('function adminAuth_(key)'),src.indexOf('/* ------------------------------------------------------------------',src.indexOf('function adminAuth_(key)'))),ctx);
+  vm.runInContext(readFileSync(new URL('../public-site/gas-source/Code.gs',import.meta.url),'utf8'),ctx);
+  ctx.configMissing_=()=>[];ctx.rememberWebAppUrl_=()=>{};
+  vm.runInContext('function apiDaySyncDrive_(key,op,id){adminAuth_(key);return {ok:true,op:op,id:id};}',ctx);
+  assert.throws(()=>vm.runInContext('adminAuth_("rotated-machine-fixture")',ctx));
+  assert.equal(vm.runInContext('doGet({parameter:{action:"day-sync",key:"rotated-machine-fixture",op:"state"}})',ctx).ok,true);
+  assert.equal(ctx.ADMIN_SECURITY_CONTEXT_,null);
+  assert.throws(()=>vm.runInContext('adminAuth_("rotated-machine-fixture")',ctx));
+  assert.equal(vm.runInContext('doGet({parameter:{action:"day-sync",key:"old-browser-fixture",op:"state"}})',ctx).ok,false);
+  props.set('ADMIN_MACHINE_KEY_ROTATED','false');
+  assert.equal(vm.runInContext('doGet({parameter:{action:"day-sync",key:"rotated-machine-fixture",op:"state"}})',ctx).ok,false);
+});
+test('static secure admin may be staged while authentication is disabled; API remains closed',async()=>{
+  env.ADMIN_SECURITY_ENABLED='false';env.ADMIN_ASSETS={fetch:async()=>new Response('<h1>empty login UI</h1>')};
+  const page=await adminRoute(new Request('https://admin.test/admin/'),env,[],()=>{});
+  assert.equal(page.status,200);assert.equal(page.headers.get('X-Frame-Options'),'DENY');
+  assert.equal((await adminRoute(new Request('https://admin.test/admin-api/bootstrap'),env,[],()=>{})).status,503);
+  assert.equal((await store.list({prefix:'s:'})).size,0);
 });

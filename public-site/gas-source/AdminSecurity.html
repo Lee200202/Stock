@@ -31,6 +31,8 @@
   try{localStorage.removeItem('zzAdminKey');sessionStorage.removeItem('zzAdminKey');}catch(e){}
   function say(text){$('loginMsg').className='amsg show err';$('loginMsg').textContent=text;}
   var messages={'login-failed':'密語或信箱格式不正確。','code-invalid':'驗證碼不正確，請檢查信件。','code-expired':'驗證碼已過期或嘗試次數已用完，請重新申請。','rate-limited':'嘗試過於頻繁，請稍後再試。','mail-unavailable':'驗證信暫時無法寄出，尚未建立登入。','fresh-auth-required':'這項操作需要重新輸入密語並完成 Email 驗證。','trust-expired':'此裝置信任已到期或撤銷，請重新登入。'};
+  messages['security-not-enabled']='新版安全登入正在完成擁有者設定，尚未啟用。現有後台及每日排程暫時維持原流程。';
+  messages['security-not-configured']='安全登入設定尚未完成，請由擁有者完成密語設定後再試。';
   function errorText(e){return messages[e.message]||'安全服務暫時無法完成請求，請稍後再試。';}
   async function api(path,body,login){
     var opts={method:body===undefined?'GET':'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-CSRF-Token':login?pre:csrf}};

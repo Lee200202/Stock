@@ -3,6 +3,13 @@ var ADMIN_SECURITY_CONTEXT_ = null;
 function adminSecurityEnabled_() {
   return PropertiesService.getScriptProperties().getProperty('ADMIN_SECURITY_ENABLED') === 'true';
 }
+/** Only Code.gs's fixed machine routes may mint this execution-local context. */
+function adminMachineContext_(key,operation) {
+  var p=PropertiesService.getScriptProperties(),real=p.getProperty('ADMIN_KEY');
+  if(['day-sync','diagnostic'].indexOf(operation)<0||!real||String(key||'')!==real||
+     p.getProperty('ADMIN_MACHINE_KEY_ROTATED')!=='true')throw new Error('機器服務密鑰不正確或尚未完成輪替。');
+  ADMIN_SECURITY_CONTEXT_={actor:'machine:'+operation};return ADMIN_SECURITY_CONTEXT_;
+}
 function adminSecurityHex_(bytes) {
   return bytes.map(function(b){return ('0'+((b+256)%256).toString(16)).slice(-2);}).join('');
 }
@@ -30,7 +37,7 @@ function adminSecurityEmail_(email,code,id) {
   var lock=LockService.getScriptLock();if(!lock.tryLock(5000))throw new Error('驗證碼服務忙碌。');
   try{var cache=CacheService.getScriptCache(),key='admin-mail:'+id;
     if(cache.get(key))return {ok:false,reason:'請重新申請驗證碼。'};
-    if(MailApp.getRemainingDailyQuota()<20)return {ok:false,reason:'保留每日整理信額度，暫停登入驗證碼。'};
+    if(MailApp.getRemainingDailyQuota()<=20)return {ok:false,reason:'保留每日整理信額度，暫停登入驗證碼。'};
     cache.put(key,'pending',600); // Ambiguous delivery must not be retried automatically.
     MailApp.sendEmail({to:email,subject:'盤勢有據｜後台登入驗證碼',name:'盤勢有據',
       body:'您正在登入盤勢有據後台。\n\n驗證碼：'+code+'\n\n有效時間五分鐘，限用一次。請勿轉寄或提供給他人。若不是您本人操作，請忽略這封信。'});

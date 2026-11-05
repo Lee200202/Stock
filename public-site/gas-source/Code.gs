@@ -20,7 +20,10 @@ function doGet(e) {
     catch(err){return jsonOut_({ok:false,error:String(err.message||err).slice(0,250)});}
   }
   if(params.action==='day-sync'){
-    try{return jsonOut_(apiDaySyncDrive_(params.key||'',params.op||'state',params.id||'',params.index));}
+    try{
+      var syncKey=typeof adminSecurityEnabled_==='function'&&adminSecurityEnabled_()?adminMachineContext_(params.key||'','day-sync'):(params.key||'');
+      return jsonOut_(apiDaySyncDrive_(syncKey,params.op||'state',params.id||'',params.index));
+    }
     catch(err){
       /* 失敗原因要留得下來（v67，0925 規格 R6）：9/24 16:01、16:20、16:35 Actions 只看到 exit 1。
          寫一列系統狀態「失敗」，後台今日狀態與時間軸才看得到同一段原因；密鑰錯誤不寫（避免被拿來灌表）。 */
@@ -28,6 +31,7 @@ function doGet(e) {
       try{if(!/密鑰|權限|未授權/.test(why)){getSheet_('系統狀態').appendRow([nowStamp_(),'失敗','逐日編輯同步（'+(params.op||'state')+'）：'+why.slice(0,200),'day-sync','GitHub Actions']);}}catch(e2){}
       return jsonOut_({ok:false,error:why});
     }
+    finally{if(typeof ADMIN_SECURITY_CONTEXT_!=='undefined')ADMIN_SECURITY_CONTEXT_=null;}
   }
 
 
@@ -133,8 +137,9 @@ function doGet(e) {
      任何人反覆打這個網址，就能耗掉每分鐘 50～55 次的行情額度。改成要帶 ADMIN_KEY。 */
   if ((params.action === 'debugDailyK' || params.action === 'probe') &&
       typeof adminAuth_ === 'function') {
-    try { adminAuth_(params.key || ''); }
+    try { adminAuth_(typeof adminSecurityEnabled_==='function'&&adminSecurityEnabled_()?adminMachineContext_(params.key||'','diagnostic'):(params.key||'')); }
     catch (authErr) { return jsonOut_({ ok: false, error: 'unauthorized', message: String(authErr.message || authErr) }); }
+    finally { if(typeof ADMIN_SECURITY_CONTEXT_!=='undefined')ADMIN_SECURITY_CONTEXT_=null; }
   }
 
   if (params.action === 'debugDailyK') {

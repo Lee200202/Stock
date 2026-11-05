@@ -44,6 +44,7 @@
   <div class="setmenu" id="setMenu" role="dialog" aria-label="版面設定" hidden>
     <div class="setmenu-h">版面設定</div>
     <div class="txset" id="txSet"></div>
+    <button class="act ghost" type="button" id="resetLayout">恢復預設</button>
   </div>
 </div>
 
@@ -222,6 +223,17 @@
   });
 
   paint();
+
+  document.getElementById('resetLayout').addEventListener('click', function () {
+    theme = view = '';
+    AXES.forEach(function (key) { state[key] = ''; });
+    [THEME_KEY, VIEW_KEY, KEY].forEach(function (key) { write(key, ''); });
+    applyTheme();
+    applyView();
+    applyAxes();
+    paint();
+    ['theme','view','fs'].forEach(notify);
+  });
 
   function close() { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); }
   function open() { menu.hidden = false; btn.setAttribute('aria-expanded', 'true'); }

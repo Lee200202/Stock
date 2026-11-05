@@ -91,7 +91,7 @@
 
     window.__scrollTabIntoView = function (btn) {
       var r = btn.getBoundingClientRect(), c = tabs.getBoundingClientRect();
-      if (r.left < c.left || r.right > c.right) {
+      if (window.matchMedia('(max-width: 700px)').matches || r.left < c.left || r.right > c.right) {
         tabs.scrollLeft += (r.left - c.left) - (c.width - r.width) / 2;
       }
     };
@@ -1239,7 +1239,12 @@ function restatesEarlier_(key, earlier) {
         var table = tr.closest('table');
         if (table) { table.querySelectorAll('tr.active').forEach(function (r) { r.classList.remove('active'); }); }
         tr.classList.add('active');
-        openDetail(tr.dataset.code);
+        var history = tr.closest('#dateResult');
+        var overview = tr.closest('#p-overview');
+        openDetail(tr.dataset.code, overview && {
+          source: history ? 'history' : 'latest',
+          date: (history || $('heroDate')).dataset.feedbackDate
+        });
       });
     });
   }
@@ -1387,6 +1392,7 @@ function restatesEarlier_(key, earlier) {
       return;
     }
 
+    $('heroDate').dataset.feedbackDate = d.date;
     var p = d.date.split('/');
     $('heroDate').innerHTML = d.date ? p[0] + '<span class="sl">/</span>' + p[1] + '<span class="sl">/</span>' + p[2] : '日期待核對';
 
@@ -1454,6 +1460,7 @@ function restatesEarlier_(key, earlier) {
   /* 持有中與已出場改成互斥兩區，不再混在同一張表。
      兩者的報酬意義不同：持有中是未實現、會變動；已出場是已實現、不再變動。 */
   var trackerView = 'held';
+  var trackerJumpCode = '';
   var trackerPriceMode = 'midpoint';
   function trackerPriceNumber_(v) {
     var n = Number(v);
@@ -1599,6 +1606,24 @@ function restatesEarlier_(key, earlier) {
     if (trackerPriceMode === 'lowHigh') t = trackerLowHighView_(source, trackerLivePrices_());
     var held = t.held || (t.items || []).filter(function (i) { return i.stillHeld; });
     var exited = t.exited || (t.items || []).filter(function (i) { return !i.stillHeld; });
+    var jumpCode = trackerJumpCode;
+    if (jumpCode) {
+      trackerJumpCode = '';
+      var match = function (item) { return String(item.code) === jumpCode; };
+      var view = held.some(match) ? 'held' : exited.some(match) ? 'exited' : '';
+      if (view) trackerView = view;
+      requestAnimationFrame(function () {
+        if ($('p-tracker').hidden) return;
+        var card = $('trackerTable').querySelector('.tracker-card[data-code="' + jumpCode + '"]');
+        $('trackerJumpStatus').textContent = card ? '已找到 ' + jumpCode : '持股追蹤目前沒有 ' + jumpCode + ' 的紀錄。';
+        if (card) {
+          card.scrollIntoView({block:'center'});
+          card.querySelector('button')?.focus({preventScroll:true});
+        } else {
+          $('trackerJumpStatus').focus();
+        }
+      });
+    }
     var showing = trackerView === 'held' ? held : exited;
 
     $('trackerToggle').innerHTML =
@@ -2363,10 +2388,12 @@ function restatesEarlier_(key, earlier) {
 
   function openTx(date) {
     txCurDate = date;
+    delete $('txResult').dataset.feedbackDate;
     $('txResult').innerHTML = '<p class="notice">載入中</p>';
     google.script.run.withSuccessHandler(function (r) {
-      renderTx(r);
+      if (date === txCurDate) renderTx(r);
     }).withFailureHandler(function () {
+      if (date !== txCurDate) return;
       $('txResult').innerHTML = emptyBlock('載入失敗', '請重新整理頁面再試。');
     }).apiGetTranscript(date);
   }
@@ -2377,6 +2404,7 @@ function restatesEarlier_(key, earlier) {
         (r && r.reason) || '這一天可能沒有直播，或影片還沒處理完。');
       return;
     }
+    $('txResult').dataset.feedbackDate = r.date || '';
     var secs = r.sections || [];
     var head =
       '<div class="txbar">' +
@@ -2452,6 +2480,7 @@ function restatesEarlier_(key, earlier) {
   var mailRequestId = 0;
   function openMail(date, quiet) {
     var requestId = ++mailRequestId;
+    delete $('mailBody').dataset.feedbackDate;
     $('mailHint').hidden = true;
     $('mailBody').hidden = false;
     $('mailSubj').textContent = '載入中…';
@@ -2467,6 +2496,7 @@ function restatesEarlier_(key, earlier) {
         return;
       }
       $('mailSubj').textContent = r.subject || ('[' + r.date + '] 每日整理');
+      $('mailBody').dataset.feedbackDate = r.date || date;
       $('mailMeta').textContent = '寄送狀態：' + (r.sent || '未寄送');
       $('mailContent').innerHTML = r.html || '';
     }).withFailureHandler(function () {
@@ -2483,6 +2513,10 @@ function restatesEarlier_(key, earlier) {
       window.__tracker = t;
       renderTracker(t);
     }).withFailureHandler(function () {
+      if (trackerJumpCode) {
+        $('trackerJumpStatus').textContent = '目前無法載入持股追蹤，請重新整理後再試。';
+        trackerJumpCode = '';
+      }
       $('trackerTable').innerHTML = emptyBlock('載入失敗', '請重新整理頁面再試一次。');
     }).apiGetHoldingsTracker();
   }
@@ -2705,6 +2739,7 @@ function restatesEarlier_(key, earlier) {
   var dayRequest = 0;
   function showDay(date) {
     var request = ++dayRequest;
+    delete $('dateResult').dataset.feedbackDate;
     $('dateResult').innerHTML = '<p class="notice">查詢中</p>';
     google.script.run.withSuccessHandler(function (r) {
       if (request !== dayRequest) return;
@@ -2720,6 +2755,7 @@ function restatesEarlier_(key, earlier) {
         '<h3 class="day-h">觀望不碰<small>語氣偏空，暫不進場</small></h3>' + tradeTable(wAvoid(r), 'dir-watch', { history: true }) +
         '<h3 class="day-h">觀望注意<small>語氣偏多，留意追蹤</small></h3>' + tradeTable(wWatch(r), 'dir-note', { history: true }) +
         '<h3 class="day-h">會員持股</h3>' + holdTable(r.holdings);
+      $('dateResult').dataset.feedbackDate = r.date || date;
       bindRows($('dateResult'));
       fillQuotes($('dateResult'));
       $('dateResult').scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
@@ -2860,7 +2896,7 @@ function restatesEarlier_(key, earlier) {
   document.addEventListener('visibilitychange', function () {
     if (!document.hidden && Date.now() - quotePolledAt >= 300000) { refreshDetailQuote_(); }
   });
-  function openDetail(code) {
+  function openDetail(code, context) {
     var request = ++detailRequest;
     if (!isCode(code)) { return; }
     if(!$('detail').classList.contains('open'))detailOrigin=document.activeElement;
@@ -2868,6 +2904,10 @@ function restatesEarlier_(key, earlier) {
     currentCode = code;
     clearTimeout(quotePollTimer); quotePolledAt = Date.now();
     USE.act('看個股', code);
+    $('detail').dataset.code = code;
+    $('detail').dataset.feedbackDate = context?.date || '';
+    $('detail').dataset.feedbackSource = context?.source || '';
+    $('detailVisitorActions').hidden = !context;
     DETAIL = { code: code, tracker: undefined, record: undefined };
     document.dispatchEvent(new CustomEvent('tide:stock-reset'));
     $('detail').classList.add('open');
@@ -3124,6 +3164,17 @@ function restatesEarlier_(key, earlier) {
     else { detailPushed = false; detailUrl(''); }
     if(detailOrigin&&detailOrigin.isConnected)detailOrigin.focus({preventScroll:true});
   }
+  $('detailTrackerJump').addEventListener('click', function () {
+    var code = $('detail').dataset.code;
+    if (!isCode(code)) return;
+    trackerJumpCode = code;
+    $('trackerJumpStatus').textContent = '正在持股追蹤查找 ' + code;
+    closeDetail();
+    var tab = document.querySelector('button.tab[data-tab="tracker"]');
+    activateTab('tracker', tab);
+    if (trackerJumpCode && trackerLoaded && window.__tracker) renderTracker(window.__tracker);
+    tab.focus({preventScroll:true});
+  });
   $('detailClose').addEventListener('click', closeDetail);
   $('detailBg').addEventListener('click', closeDetail);
   window.addEventListener('popstate', function () {

@@ -7,7 +7,15 @@ const guide = fs.readFileSync(base+'VisitorGuide.html','utf8');
 new vm.Script(guide.match(/<script>([\s\S]*?)<\/script>/)[1]);
 const rows=[], messages=[], cache=new Map(), props=new Map([['OWNER_EMAIL','owner@example.test']]);
 let sheet, quota=99, failMail=false;
-const fixture = {appendRow:row=>rows.push(row),setFrozenRows(){}};
+const fixture = {
+  appendRow:row=>rows.push(row),
+  setFrozenRows(){},
+  getLastColumn:()=>rows[0].length,
+  getRange:(row,column)=>({
+    getValues:()=>[rows[row-1].slice()],
+    setValue:value=>{rows[row-1][column-1]=value;}
+  })
+};
 const context = {
   LockService:{getScriptLock:()=>({tryLock:()=>true,releaseLock(){}})},
   CacheService:{getScriptCache:()=>({get:key=>cache.get(key),put:(key,value)=>cache.set(key,value)})},
@@ -37,4 +45,23 @@ assert.equal(messages.length,1);
 quota=99;failMail=true;
 assert.equal(submit('通知失敗時仍接受這筆測試回饋').ok,true);
 assert.equal(rows.length,4);
+quota=99;failMail=false;
+rows[0].pop(); // A sheet created before structured context has the original five headers.
+const details = {kind:'內容更正',viewingDate:'2026-11-05',theme:'dark',viewport:'390x668',
+  stockCode:'2330',issue:'跨股借句'};
+const report = submit('逐字稿中的個股來源需要核對。', details);
+assert.equal(report.ok,true);
+assert.ok(report.receipt);
+assert.equal(rows[0][5],'畫面資訊');
+assert.equal(rows[4][4],report.receipt);
+assert.match(rows[4][5],/2026-11-05[\s\S]*深色[\s\S]*390x668[\s\S]*2330[\s\S]*跨股借句/);
+assert.ok(messages.at(-1).body.includes(rows[4][5]));
+assert.equal(submit('逐字稿中的個股來源需要核對。', details).receipt,report.receipt);
+assert.equal(rows.length,5);
+assert.equal(submit('逐字稿中的個股來源需要核對。',{...details,viewingDate:'2026-11-04'}).ok,true);
+assert.equal(rows.length,6);
+assert.equal(Object.keys(context.feedbackContext_({
+  viewingDate:'2026-02-30',theme:'<img>',viewport:'x',stockCode:'=2+2',issue:'自行輸入'
+},'內容更正')).length,0);
+assert.equal(Object.keys(context.feedbackContext_({stockCode:'2330',issue:'跨股借句'},'操作問題')).length,0);
 console.log('Visitor guide script parses. Feedback validation, safe cell, duplicate, owner-only notification, quota and mail failure checks passed.');

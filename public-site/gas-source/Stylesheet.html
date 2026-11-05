@@ -1673,7 +1673,7 @@ h1, h2, h3, h4, .sect-h h2, .card h2 { letter-spacing: var(--rd-ls); }
    否則在手機上會有一半跑到畫面外面。 */
 .setmenu {
   position: absolute; top: calc(100% + 8px); right: 0; z-index: 60;
-  width: min(420px, calc(100vw - 24px));
+  width: min(clamp(460px, 25vw, 640px), calc(100vw - 24px));
   box-sizing: border-box;
   border: 1px solid var(--rule); background: var(--panel);
   box-shadow: 0 12px 32px rgba(0, 0, 0, .18); border-radius: 10px;
@@ -1685,6 +1685,9 @@ h1, h2, h3, h4, .sect-h h2, .card h2 { letter-spacing: var(--rd-ls); }
   overflow-y: auto;
 }
 .setmenu[hidden] { display: none; }
+/* The sticky navigation is a sibling stacking context. Raise the header while
+   its settings panel is open so navigation cannot obscure the first rows. */
+.topbar:has(#setMenu:not([hidden])) { z-index: 160; }
 .setmenu-h {
   font-size: calc(13.5px * var(--rd-fs)); font-weight: 600; color: var(--muted);
   letter-spacing: .08em; margin-bottom: 12px;
@@ -1708,7 +1711,7 @@ h1, h2, h3, h4, .sect-h h2, .card h2 { letter-spacing: var(--rd-ls); }
 .setmenu .txset-row { align-items: flex-start; gap: 8px; margin-bottom: 12px; }
 .setmenu .txset-l { min-width: 100%; margin-bottom: 2px; }
 .setmenu .segs { display: flex; width: 100%; }
-.setmenu .segs button { flex: 1 1 0; min-width: 0; min-height: 44px; padding: 9px 6px; text-align: center; font-size: calc(15.5px * var(--rd-fs)); line-height: 1.5; }
+.setmenu .segs button { flex: 1 1 0; min-width: 0; min-height: 44px; padding: 9px 6px; text-align: center; font-size: calc(15.5px * var(--rd-fs)); line-height: 1.5; white-space: nowrap; }
 .setmenu .setmenu-h { font-size: calc(17px * var(--rd-fs)); }
 .setmenu .txset-l { font-size: calc(15.5px * var(--rd-fs)); }
 .setmenu .txset-hint { font-size: calc(14.5px * var(--rd-fs)); line-height: 1.8; }
@@ -1716,6 +1719,7 @@ h1, h2, h3, h4, .sect-h h2, .card h2 { letter-spacing: var(--rd-ls); }
 @media (max-width: 640px) {
   .setmenu { position: fixed; top: 76px; left: 12px; right: 12px;
     width: auto; max-height: calc(100dvh - 88px); }
+  .setmenu .segs button { font-size: min(calc(15.5px * var(--rd-fs)), 4.2vw); padding-inline: 4px; }
 }
 .segs button {
   padding: 7px 15px; border: none; background: var(--panel); color: var(--muted);

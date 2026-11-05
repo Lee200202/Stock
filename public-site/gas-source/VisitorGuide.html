@@ -1,9 +1,9 @@
 <style>
-.visitor-dialog{width:min(740px,calc(100% - 28px));max-height:calc(100dvh - 32px);padding:clamp(18px,4vw,30px);border:1px solid var(--rule);border-radius:26px;background:var(--panel);color:var(--ink);box-shadow:var(--shadow);overflow:auto}
+.visitor-dialog{position:fixed;inset:0;width:100%;height:100dvh;max-width:none;max-height:none;box-sizing:border-box;margin:0;border:0;border-radius:0;padding:0 clamp(16px,4vw,52px) clamp(18px,4vw,52px);background:var(--panel);color:var(--ink);overflow:auto;overscroll-behavior:contain}
 .visitor-dialog::backdrop{background:rgba(8,29,25,.58)}
-#visitorFeedback{width:100%;height:100dvh;max-width:none;max-height:none;margin:0;border:0;border-radius:0;box-sizing:border-box;padding:clamp(18px,4vw,52px)}
+html:has(.visitor-dialog[open]){overflow:hidden}
 #visitorFeedback textarea{min-height:clamp(180px,40vh,420px)}
-.visitor-dialog h2,.visitor-dialog h3{margin-top:0}.visitor-dialog p{line-height:1.75}.visitor-head{display:flex;align-items:start;justify-content:space-between;gap:12px}.visitor-head .act{flex:none}
+.visitor-dialog h2,.visitor-dialog h3{margin-top:0}.visitor-dialog p{line-height:1.75}.visitor-head{position:sticky;top:0;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:clamp(12px,3vw,28px) 0;background:var(--panel);border-bottom:1px solid var(--rule)}.visitor-head h2{margin:0}.visitor-head .act{flex:none}
 .visitor-options,.review-timeline-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:16px 0}
 .visitor-options button,.review-timeline-steps button{text-align:left;min-width:0;white-space:normal}
 .visitor-options button[aria-pressed=true],.review-timeline-steps button[aria-pressed=true]{border-color:var(--beam);box-shadow:inset 0 0 0 1px var(--beam);color:var(--beam)}

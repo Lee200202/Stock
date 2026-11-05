@@ -2035,6 +2035,7 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
     <!-- ============ 版本沿革 ============ -->
     <!-- 從技術說明頁搬過來的。它的讀者只有維護的人，放在公開頁面對訪客是雜訊，
          而且會隨每次改版一直長。內容在 Changelog.html，樣式沿用 Stylesheet 的 .ver。 -->
+    <?!= include('ReviewHistoryViews'); ?>
     <?!= include('ReviewHistoryPanel'); ?>
     <?!= include('UsagePanel'); ?>
 <section class="panel" id="p-ver" role="tabpanel" hidden>
@@ -2192,6 +2193,7 @@ function doLogin(){
       if($('remember').checked) saveKey(k); else clearKey();
       $('loginWrap').style.display = 'none';
       $('app').style.display = 'block';
+      if(window.__openReviewHistoryLink)window.__openReviewHistoryLink();
       if ($('acctMenu')) { $('acctMenu').hidden = false; }
       render(r.data);
       // 全面重整可能是上次留下來還在跑的，登入就把它的進度撈一次，

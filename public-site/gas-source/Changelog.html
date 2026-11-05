@@ -12,7 +12,12 @@
 
   <h2>版本沿革</h2>
   <p>這裡記錄從最初能動的版本到今天，每一次比較關鍵的調整，以及為什麼要改。</p>
+  <p>依已標記日期由早到最新整理；未標日期的早期項目另外保留，不推算日期。版本項目記錄當時變更，不代表每一項目前仍採同一政策。</p><div class="ver-controls"><button type="button" data-version-jump="first">查看最早日期</button><button type="button" data-version-jump="last">查看最新日期</button><span id="versionDayCount"></span></div>
   <div class="ver">
+<div class="ver-i"><div class="ver-t">原稿驗收與分類核對（2026/10/27）</div><div class="ver-b">單日更新要求先產出模型候選，再核對原稿與參考；保留歷史時間、財報及本股上下文。人工來源修復與未輔助模型品質分開記錄。依據：d15d1ac68、e69f26425。</div></div>
+<div class="ver-i"><div class="ver-t">統一主程式與引句契約（2026/10/28）</div><div class="ver-b">Codex與Claude主程式整併至main；壓縮引句須保留原句順序與完整子句，歷史回顧、當前立場及部位分開處理。完成離線回歸不代表當日候選已通過正式發布驗收。依據：72e2cc9ff、f7be91060、fc5ca969c。</div></div>
+<div class="ver-i"><div class="ver-t">成交身分與來源對齊（2026/10/29）</div><div class="ver-b">成交證據核對本人、當日與本股；一般詞不借鄰股語境，身分切窗改讀原稿。來源回覆先檢查格式，整批不足及截斷依子批與共用預算補核；保存查詢及回覆。此日多次預覽仍有誤擋或漏放，沒有因此替換當日網站。依據：3f6f96859、a5e5d11db、ec7bc40c2。</div></div>
+    <div class="ver-i"><div class="ver-t">v214 複核紀錄檢視與滿版日曆（2026/11/05）</div><div class="ver-b">日曆鋪滿卡片，區間挑日改為近滿版自訂面板。每日摘要加入來源時間軸與六項指標；差異預設收合，可切左右對照或單筆檢視，並以獨立分頁開啟。日報保留完整原文、差異索引及複製功能。使用線條圖示，不放表情符號；歷史郵件快照與正式同步狀態分開呈現，保留既有修訂、網站編輯與完整區間 MD 匯出。</div></div>
     <div class="ver-i"><div class="ver-t">v213r4 複核與修改紀錄（2026/11/04）</div><div class="ver-b">後台新增每日複核紀錄頁，可按日曆或區間讀取完整差異、日報與提示詞候選，以卡片對照原因與修正前後。管理者修訂另留歷程，不覆寫原始紀錄；修改網站先讀取當前列並核對版本，再沿用郵件內容、持股與績效同步。不重新寄送。完整區間可匯出 MD 供後續工作流分析。r1：常駐日曆與區間分成上下兩卡，起訖改用共用自訂日曆；分類、嚴重度及狀態提供選單與候選寫法，嚴重度採顏色加文字辨認，手機修正前後上下對照。r2：前後台共用自訂下拉選單與可輸入候選，彈窗按鈕不再套用瀏覽器預設灰底；選項具勾選、鍵盤操作與點選動畫，減少動態設定時停用動畫。r3：可輸入候選收為欄位內的展開箭頭，沒有候選時不增加空白按鈕；補明確欄位標籤與存檔讀回完成提示。r4：未儲存草稿改用頁內自訂確認，不再開瀏覽器確認框；儲存進行中先等待回應，避免重複送出。</div></div>
     <div class="ver-i"><div class="ver-t">v212r3 主資料只開一次（2026/11/03）</div><div class="ver-b">每次讀分頁都重新打開主資料試算表，五分鐘總排程一棒裡二十幾支工作各開好幾次；「沒事做就返回」的工作每次也要 1.7～2.6 秒。改成同一次執行只開一次（以 ID 為鍵），分頁物件不快取。觸發器、網站 API 與 LINE 查詢都受惠。</div></div>
     <div class="ver-i"><div class="ver-t">v212r2 觸發器耗時與 LINE 回覆（2026/11/03）</div><div class="ver-b">觸發器今日累計約 122 分（參考上限 90）。簡訊內容同步佇列裡休播日（9/24、10/22）兩列永遠等待，每棒整張讀每日推播內容，約 12 分／天：過了那一天仍沒有文章就標「略過」。收盤結算在超過五檔沒有收盤資料時會試到 22:30（40 次）：15:00 後同一批連續三次補不到就收工。LINE 首次送達的去重改走快取，不搶全站寫入鎖、不搜尋事件帳本。新增「觸發器耗時紀錄」分頁，每小時記今日各段累計，量測前後差異。</div></div>
@@ -869,3 +874,12 @@ everyFiveMinJob 帶動，而從週五最後一棒之後就沒有再成功寫進�
       <div class="ver-b">說明文字改為一個完整自然句，提示詞明確禁止中括號加號模板，寫入與顯示前另有規則正規化。會員簡訊每完成一篇便保存解析明細檢查點，Gemini 429 恢復後只接續未完成文章；舊的英文 Date 字串可直接還原，仍缺日期時再按文章 ID 向來源清單回查，無法驗證者維持隔離。初次解析為空但原文含合法台股與操作語意時，會自動做第二次完整性稽核。四號併入流程新增全站九步同步進度，後台日曆也改從既有簡訊建構，不再因 merge 工單沒有稽核列而顯示整月空白。</div>
     </div>
   </div>
+<style>
+#p-ver .ver-controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:22px 0}#p-ver .ver-day{border:1px solid var(--rule);border-radius:24px;margin:18px 0;padding:16px 22px;scroll-margin-top:120px;background:var(--panel)}#p-ver .ver-day>summary{cursor:pointer;min-height:44px;line-height:1.8;font-weight:700;padding:6px 0}#p-ver .ver-day .ver-i{margin-left:12px}#p-ver #versionDayCount{color:var(--muted);line-height:1.6}
+</style><script>
+(function(){function initVersionDays(){var root=document.querySelector('#p-ver .ver');if(!root)return;var nodes=Array.from(root.children).filter(function(n){return n.classList.contains('ver-i');}),groups={},undated=[];
+ nodes.forEach(function(n,i){var title=n.querySelector('.ver-t'),m=(title?title.textContent:'').match(/(20\d{2})[/-](\d{2})[/-](\d{2})/);if(!m){undated.push(n);return;}var day=m[1]+'/'+m[2]+'/'+m[3];(groups[day]||(groups[day]=[])).push(n);});
+ function group(label,items,open){var box=document.createElement('details'),head=document.createElement('summary'),body=document.createElement('div');box.className='ver-day';box.open=!!open;head.textContent=label+' · '+items.length+' 項';box.append(head,body);items.forEach(function(n){body.appendChild(n);});root.appendChild(box);return box;}
+ if(undated.length)group('早期紀錄（原文未標日期）',undated.reverse(),false);var dates=Object.keys(groups).sort();dates.forEach(function(day,i){var items=groups[day].reverse();group(day,items,i===dates.length-1).dataset.versionDate=day;});var count=document.getElementById('versionDayCount');if(count)count.textContent=dates.length+' 個有日期的更新日 · '+nodes.length+' 項紀錄';document.querySelectorAll('[data-version-jump]').forEach(function(b){b.addEventListener('click',function(){var list=root.querySelectorAll('[data-version-date]'),target=list[b.dataset.versionJump==='last'?list.length-1:0];if(target){target.open=true;target.scrollIntoView({block:'start',behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'auto':'smooth'});}});});
+ }if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initVersionDays);else initVersionDays();})();
+</script>

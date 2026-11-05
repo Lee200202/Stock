@@ -1272,7 +1272,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-11-04-review-history-controls-v213r4';
+var PROJECT_BUILD_ = '2026-11-05-review-history-views-v214';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
@@ -1309,6 +1309,7 @@ var PROJECT_FILES_ = [
 
 // HTML 檔名不含 .html；marker 是這一版才有的字串。
 var PROJECT_HTML_ = [
+  { file: 'ReviewHistoryViews', marker: 'StockReviewHistoryViews' },
   { file: 'ControlDesign', marker: 'ui-select-button' },
   { file: 'ReviewHistoryPanel', marker: 'rhExport' },
   { file: 'UsageTracker', marker: 'w.StockUsage' },

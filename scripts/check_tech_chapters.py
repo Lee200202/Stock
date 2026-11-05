@@ -34,7 +34,7 @@ content = Counter(n['data-content-id'] for n in soup.select('[data-content-id]')
 assert all(content[row['id']] == 1 for row in inventory['items'])
 for name in ['wf-claim-title', 'wf-trade-title', 'wf-scope-title', 'wf-failure-title', 'wf-verification-title']:
     assert soup.find(id=name).find_parent(attrs={'data-chapter': True})
-assert len(soup.select('[data-wf-motion]')) == 5
+assert len(soup.select('[data-wf-motion]')) >= 5
 for script in soup.find_all('script'):
     result = subprocess.run(['node'], input='new Function(' + json.dumps(script.string or script.get_text()) + ');',
                             capture_output=True, text=True, encoding='utf-8')

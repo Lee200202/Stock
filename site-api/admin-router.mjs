@@ -28,7 +28,7 @@ export async function adminRoute(request, env, adminMethods, forward) {
     headers.set('X-Admin-City', request.cf?.city || '');
     // Location metadata is trusted only from the incoming edge, never a JSON field.
     if(body===undefined&&request.method==='POST'){
-      const raw=await limitedBody(request);body=JSON.parse(raw);
+      const raw=await limitedBody(request);try{body=JSON.parse(raw);}catch{throw new Error('json');}
     }
     return stub.fetch(new Request('https://authority' + path, {method:body === undefined ? request.method : 'POST',
       headers, body:body === undefined ? undefined : JSON.stringify(body)}));
@@ -45,7 +45,7 @@ export async function adminRoute(request, env, adminMethods, forward) {
     if (!admitted.ok || !grant.ok) return json(grant, admitted.status);
     const out = await forward(env, {...body, grant:grant.grant}, false);
     return json(out.payload, out.status);
-  } catch(e) { return json({ok:false,error:e.message==='size'?'size':'security-unavailable'},e.message==='size'?413:503); }
+  } catch(e) { return json({ok:false,error:['size','json'].includes(e.message)?e.message:'security-unavailable'},e.message==='size'?413:e.message==='json'?400:503); }
 }
 async function limitedBody(request){
   const reader=request.body?.getReader();if(!reader)return '';

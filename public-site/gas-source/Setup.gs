@@ -1164,8 +1164,12 @@ function showDeployInfo() {
 
   // ---- 2. 管理密鑰（ADMIN_KEY） ----
   var key = PROP.getProperty('ADMIN_KEY');
+  var secureAdmin = typeof adminSecurityEnabled_ === 'function' && adminSecurityEnabled_();
   out.push('【2】ADMIN_KEY');
-  if (!key) {
+  if (secureAdmin) {
+    out.push('  '+(key?'機器服務密鑰已設定（不顯示）':'機器服務密鑰尚未設定，請擁有者檢查。'));
+    out.push('  安全後台使用獨立人工密語及 Email 驗證，不能用此機器密鑰登入。');
+  } else if (!key) {
     // 沒設過就直接產一組，省得自己想。用 UUID 去掉連字號，夠長也夠亂。
     key = Utilities.getUuid().replace(/-/g, '');
     PROP.setProperty('ADMIN_KEY', key);
@@ -1213,7 +1217,7 @@ function showDeployInfo() {
     out.push('  （尚未取得 /exec 網址，同上）');
   } else if (url) {
     out.push('  ' + url + '?page=admin');
-    out.push('  用上面那組 ADMIN_KEY 登入。可以加到手機主畫面當捷徑。');
+    out.push(secureAdmin?'  原入口會引導到 Worker 安全後台，請使用人工密語及自己的 Email 驗證。':'  用上面那組 ADMIN_KEY 登入。可以加到手機主畫面當捷徑。');
     out.push('  注意要用這個完整網址，不要用網站裡看到的 googleusercontent 網址，');
     out.push('  那是內層沙箱的位址，直接開會是空白頁。');
   } else {
@@ -1225,6 +1229,8 @@ function showDeployInfo() {
   out.push('');
   if (devOnly) {
     out.push('  （尚未取得 /exec 網址，同上）');
+  } else if (secureAdmin) {
+    out.push('  安全模式不將機器服務密鑰組成網址或寫入日誌。請由已授權排程核對服務通道。');
   } else if (url) {
     out.push('  ' + url + '?action=refresh&key=' + encodeURIComponent(key));
     out.push('');

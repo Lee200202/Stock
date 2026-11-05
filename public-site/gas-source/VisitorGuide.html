@@ -21,7 +21,7 @@ html:has(.visitor-dialog[open]){overflow:hidden}
 .visitor-tour svg{position:absolute;inset:0;width:100%;height:100%;fill:rgba(8,29,25,.62)}
 .visitor-tour-ring{position:absolute;box-sizing:border-box;border:2px solid #56d6ad;border-radius:12px;box-shadow:0 0 0 4px rgba(86,214,173,.35),0 0 22px rgba(86,214,173,.55);animation:visitor-halo 2.4s ease-in-out infinite alternate}
 @keyframes visitor-halo{to{box-shadow:0 0 0 7px rgba(86,214,173,.18),0 0 28px rgba(86,214,173,.48)}}
-.visitor-coach{position:absolute;pointer-events:auto;box-sizing:border-box;width:min(420px,calc(100% - 24px));max-height:calc(100dvh - 24px);display:flex;flex-direction:column;overflow:hidden;padding:14px;border:1px solid var(--rule);border-radius:18px;background:var(--panel);color:var(--ink);box-shadow:var(--shadow)}
+.visitor-coach{position:absolute;inset:auto 0 0;pointer-events:auto;box-sizing:border-box;width:100%;max-height:42dvh;display:flex;flex-direction:column;overflow:hidden;padding:14px clamp(12px,4vw,56px) max(14px,env(safe-area-inset-bottom));border-top:1px solid var(--rule);border-radius:18px 18px 0 0;background:var(--panel);color:var(--ink);box-shadow:var(--shadow)}
 .visitor-coach h2{font-size:1.15em;margin:4px 0 0;line-height:1.35}
 .visitor-coach-head,.visitor-coach-actions,.visitor-feedback-actions{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
 .visitor-coach-copy{min-height:0;overflow:auto;overscroll-behavior:contain}
@@ -46,7 +46,6 @@ body:has(#detail.open) .visitor-tour{visibility:hidden}
 .visitor-coach :focus-visible,.visitor-dialog :focus-visible{outline:2px solid var(--beam);outline-offset:2px}
 @media(max-width:900px){body[data-tab] .topbar-in{flex-wrap:nowrap;gap:8px}body[data-tab] .topbar .brand-sub{display:none}}
 @media(max-width:900px),(max-height:740px){
-  .visitor-coach{inset:auto 12px max(12px,env(safe-area-inset-bottom));width:min(580px,calc(100% - 24px));margin-inline:auto;max-height:42dvh}
   .visitor-coach .visitor-coach-expand{display:inline-block}
   .visitor-coach:not([data-expanded]) .visitor-coach-copy{display:none}
   .visitor-coach-head{flex-wrap:nowrap;align-items:start}
@@ -239,7 +238,7 @@ body:has(#detail.open) .visitor-tour{visibility:hidden}
     var left = Math.max(0, rect.left - 5);
     var top = Math.max(topLimit, rect.top - 5);
     var right = Math.min(width, rect.right + 5);
-    var roomBelow = compact.matches ? coach.getBoundingClientRect().top - 8 : height;
+    var roomBelow = Math.min(height, coach.getBoundingClientRect().top - 8);
     var bottom = Math.min(roomBelow, rect.bottom + 5);
     var ring = byId('visitorTourRing');
     var shade = 'M0 0H' + width + 'V' + height + 'H0Z';
@@ -254,39 +253,14 @@ body:has(#detail.open) .visitor-tour{visibility:hidden}
       Object.assign(ring.style, {left:left+'px',top:top+'px',width:(right-left)+'px',height:(bottom-top)+'px'});
     }
     byId('visitorTourShade').setAttribute('d', shade);
-    if (compact.matches) {
-      ['top','left','max-height'].forEach(function (key) { coach.style.removeProperty(key); });
-      return;
-    }
-    var card = coach.getBoundingClientRect();
-    var x = Math.min(Math.max(12,left), Math.max(12,width-card.width-12));
-    var above = top - Math.max(topLimit,12) - 14;
-    var below = height - bottom - 26;
-    var sideRight = right + card.width + 24 <= width;
-    var sideLeft = left >= card.width + 24;
-    var y, available;
-    if (below >= card.height || (below >= above && !sideLeft && !sideRight)) {
-      y = bottom + 14;
-      available = below;
-    } else if (above >= card.height || (!sideLeft && !sideRight)) {
-      available = above;
-      y = top - 14 - Math.min(card.height, available);
-    } else {
-      x = sideRight ? right + 12 : left - card.width - 12;
-      y = Math.min(Math.max(top,12), Math.max(12,height-card.height-12));
-      available = height - y - 12;
-    }
-    coach.style.maxHeight = Math.max(0,available) + 'px';
-    coach.style.left = x + 'px';
-    coach.style.top = y + 'px';
   }
   function bringTargetIntoView() {
     var target = targetForStep();
     if (!visible(target) || target.closest('.topbar,.tabbar')) return;
     var rect = target.getBoundingClientRect();
     var top = fixedHeaderBottom() + 12;
-    var bottom = compact.matches ? coach.getBoundingClientRect().top - 12 : innerHeight - 12;
-    if (rect.top >= top && rect.bottom <= bottom) return;
+    var bottom = coach.getBoundingClientRect().top - 12;
+    if (bottom <= top || (rect.top >= top && rect.bottom <= bottom)) return;
     var destination = top + Math.max(0,(bottom-top-Math.min(rect.height, bottom-top))/2);
     window.scrollBy({top:rect.top-destination, behavior:compact.matches || reduced.matches ? 'instant' : 'smooth'});
   }

@@ -28,9 +28,8 @@ html:has(.visitor-dialog[open]){overflow:hidden}
 .visitor-coach-copy p{margin:8px 0;line-height:1.55}
 .visitor-coach-tip{padding:8px 10px;border-radius:10px;background:var(--panel-2)}
 .visitor-coach .act,.visitor-tools .act,.visitor-detail-actions .act{padding:7px 12px;min-height:36px}
-.visitor-coach-jump,.visitor-coach-dots,.visitor-context,.visitor-stock-choices{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.visitor-coach-dots button{padding:0;width:24px;height:24px;border:0;border-radius:50%;background:transparent;color:var(--ink);cursor:pointer}
-.visitor-coach-dots button[aria-current=step]{background:var(--beam);color:var(--on-beam,#fff)}
+.visitor-context,.visitor-stock-choices{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.visitor-coach-jump{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:8px;margin-block:8px}
 .visitor-coach-jump label,.visitor-count,.visitor-context{color:var(--muted);font-size:.88em}
 .visitor-coach select,#visitorFeedback :is(input,select):not(.visitor-trap input){max-width:100%;padding:7px;border:1px solid var(--rule);border-radius:10px;background:var(--panel);color:var(--ink);font:inherit}
 .visitor-coach .visitor-coach-expand{display:none}
@@ -52,7 +51,6 @@ body:has(#detail.open) .visitor-tour{visibility:hidden}
   .visitor-coach:not([data-expanded]) .visitor-coach-copy{display:none}
   .visitor-coach-head{flex-wrap:nowrap;align-items:start}
   .visitor-coach-actions{justify-content:flex-start;margin-top:6px}
-  .visitor-coach-dots{display:none}
 }
 @media(prefers-reduced-motion:reduce){.visitor-tour-ring{animation:none}}
 </style>
@@ -68,12 +66,11 @@ body:has(#detail.open) .visitor-tour{visibility:hidden}
     <div class="visitor-coach-copy" id="visitorTourCopy">
       <p id="visitorTourText"></p>
       <p class="visitor-coach-tip" id="visitorTourTip"></p>
-      <div class="visitor-coach-dots" id="visitorTourDots" role="group" aria-label="導覽步驟"></div>
-      <div class="visitor-coach-jump">
-        <label for="visitorTourJump">直接跳到</label>
-        <select id="visitorTourJump" data-native-select="true"></select>
-        <button type="button" class="act ghost" id="visitorTourFeedback">意見回饋</button>
-      </div>
+      <button type="button" class="act ghost" id="visitorTourFeedback">意見回饋</button>
+    </div>
+    <div class="visitor-coach-jump">
+      <label for="visitorTourJump">直接跳到</label>
+      <select id="visitorTourJump" data-native-select="true"></select>
     </div>
     <div class="visitor-coach-actions">
       <button type="button" class="act ghost" id="visitorTourPrev">上一步</button>
@@ -176,7 +173,6 @@ body:has(#detail.open) .visitor-tour{visibility:hidden}
   var frame = 0;
   var following;
   var tourObserver = new ResizeObserver(queueSpotlight);
-  var dots = [];
 
   function button(text, action) {
     var el = document.createElement('button');
@@ -209,11 +205,6 @@ body:has(#detail.open) .visitor-tour{visibility:hidden}
   route.forEach(function (step, index) {
     var item = new Option((index + 1) + '　' + step[1] + ' · ' + step[2], index);
     jump.add(item);
-    var dot = button(String(index + 1), function () { showStep(index); });
-    dot.className = '';
-    dot.setAttribute('aria-label', item.text);
-    byId('visitorTourDots').append(dot);
-    dots.push(dot);
   });
 
   function targetForStep() {
@@ -310,10 +301,6 @@ body:has(#detail.open) .visitor-tour{visibility:hidden}
     byId('visitorTourText').textContent = step[4];
     byId('visitorTourTip').textContent = index === route.length-1
       ? '您可以直接點齒輪試試。' : '聚光區內的網站控制項可以直接操作。';
-    dots.forEach(function (dot, i) {
-      if (i === index) dot.setAttribute('aria-current','step');
-      else dot.removeAttribute('aria-current');
-    });
     jump.value = index;
     previous.setAttribute('aria-disabled', String(index === 0));
     next.textContent = index === route.length-1 ? '完成導覽' : '下一步';

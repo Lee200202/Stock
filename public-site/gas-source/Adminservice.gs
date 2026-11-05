@@ -72,6 +72,10 @@ function apiAdminSetDailyPushStart(key, hhmm) {
  * 忘記或沒設過時，在編輯器執行 showDeployInfo() 會印出來（沒有就自動產生一組）。
  */
 function adminAuth_(key) {
+  if (typeof adminSecurityEnabled_ === 'function' && adminSecurityEnabled_()) {
+    if (ADMIN_SECURITY_CONTEXT_ && key === ADMIN_SECURITY_CONTEXT_) return true;
+    throw new Error('請由同源安全後台重新登入。舊管理密鑰已不能直接登入。');
+  }
   var real = PropertiesService.getScriptProperties().getProperty('ADMIN_KEY');
   if (!real) {
     throw new Error('尚未設定 ADMIN_KEY。請在 Apps Script 編輯器執行 showDeployInfo()，' +

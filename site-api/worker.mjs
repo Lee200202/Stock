@@ -1,7 +1,9 @@
-// 免費Cloudflare Worker，將公開Pages前台連接至既有Apps Script後端。
+import {adminRoute} from './admin-router.mjs';
+export {AdminSecurity} from './admin-security.mjs';
+// Cloudflare Worker，將公開Pages前台連接至既有Apps Script後端。
 // 橋接權杖留在伺服器端，管理方法仍須既有管理密鑰。
 const ALLOWED = 'https://lee200202.github.io';
-const BUILD = 'site-api-v213-review-history';
+const BUILD = 'site-api-v216-admin-security';
 const MAX_ARGS = 8;
 const ADMIN_METHODS = ('apiAdminCancelCrawl apiAdminCancelDaySync apiAdminCancelFix ' +
   'apiAdminCancelFullFix apiAdminCancelJob apiAdminCancelRefresh apiAdminCancelSmsJob ' +
@@ -282,10 +284,12 @@ export default {
   async fetch(request, env, ctx) {
     const origin = request.headers.get('Origin') || '';
     const path = new URL(request.url).pathname;
-    if (path === '/healthz') return reply({ok: true, ready: !!(env.GAS_WEBAPP_URL && env.SITE_BRIDGE_TOKEN), build: BUILD}, 200, origin);
+    if (path.startsWith('/admin/') || path.startsWith('/admin-api/')) return adminRoute(request, env, ADMIN_METHODS, callBackend);
+    if (path === '/healthz') return reply({ok: true, ready: !!(env.GAS_WEBAPP_URL && env.SITE_BRIDGE_TOKEN), build: BUILD,
+      adminSecurityEnabled:env.ADMIN_SECURITY_ENABLED==='true'}, 200, origin);
     if (path === '/quote-relay') return quoteRelay(request, env);
     if (path !== '/api') return reply({ok: false, error: 'not-found'}, 404, origin);
-    if (origin !== ALLOWED) return reply({ok: false, error: 'origin'}, 403, origin);
+    if (origin !== ALLOWED && origin !== new URL(request.url).origin) return reply({ok: false, error: 'origin'}, 403, origin);
     if (request.method === 'OPTIONS') return reply({}, 204, origin);
     if (request.method !== 'POST') return reply({ok: false, error: 'method'}, 405, origin);
     if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(env.GAS_WEBAPP_URL || '') ||
@@ -303,6 +307,9 @@ export default {
     }
     if (body.method.startsWith('apiAdmin') && (typeof body.args[0] !== 'string' || !body.args[0])) {
       return reply({ok: false, error: 'admin-key-required'}, 401, origin);
+    }
+    if (body.method.startsWith('apiAdmin') && env.ADMIN_SECURITY_ENABLED === 'true') {
+      return reply({ok:false,error:'use-secure-admin'}, 403, origin);
     }
     // 帶信箱的個股搜尋會記錄使用者查詢，不能當成公開唯讀查詢共用。
     const ttl = body.method === 'apiSearchStock' && body.args[1] ? 0 : READ_TTL[body.method];

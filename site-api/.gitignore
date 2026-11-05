@@ -1,0 +1,4 @@
+admin-assets/
+.wrangler/
+.dev.vars
+.dev.vars.*

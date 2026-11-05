@@ -1,0 +1,125 @@
+<style>
+.as-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.as-stat{padding:20px;border:1px solid var(--rule);border-radius:var(--r-card,20px);background:var(--panel-2)}.as-stat b{display:block;font-size:28px;color:var(--beam)}
+.as-fields{display:grid;grid-template-columns:1fr 1fr;gap:18px}.as-fields input{width:100%;min-height:48px;padding:12px;border:1px solid var(--rule);border-radius:12px;background:var(--panel);color:var(--ink);font:inherit}
+.as-devices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:20px 0}.as-device{border:1px solid var(--rule);border-radius:20px;padding:22px;background:var(--panel-2);overflow-wrap:anywhere}.as-device h3{margin:0 0 12px}.as-device dl{display:grid;grid-template-columns:100px minmax(0,1fr);gap:9px;margin:14px 0}.as-device dt{color:var(--muted)}.as-device dd{margin:0}.as-controls{display:flex;gap:9px;flex-wrap:wrap;margin:16px 0}.as-controls button{transition:transform .14s,background .14s}.as-controls button:active{transform:scale(.97)}
+.as-badge{display:inline-block;padding:5px 12px;border:1px solid var(--rule);border-radius:99px;font-size:.85em}.as-confirm{padding:18px;border:1px solid var(--beam);border-radius:18px;background:var(--panel-2)}.as-event{display:grid;grid-template-columns:170px minmax(0,1fr) 1fr;gap:12px;padding:14px 0;border-bottom:1px solid var(--rule);overflow-wrap:anywhere}.as-mode{display:flex;align-items:flex-start;gap:12px;margin:20px 0}.as-mode input{margin-top:5px;flex:none}.as-login-note{max-width:72ch;line-height:1.8}.as-note{color:var(--muted);line-height:1.8}.as-steps{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:20px 0}.as-steps span{border:1px solid var(--rule);padding:8px 16px;border-radius:99px}.as-steps span[aria-current]{color:var(--beam);border-color:var(--beam)}
+@media(max-width:760px){.as-fields,.as-devices{grid-template-columns:1fr}.as-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.as-event{grid-template-columns:1fr}.as-device{padding:18px}.as-device dl{grid-template-columns:85px minmax(0,1fr)}}
+@media(prefers-reduced-motion:reduce){.as-controls button{transition:none}.as-controls button:active{transform:none}}
+</style>
+<script>
+(function(){
+  'use strict';
+  // Same template on the legacy host remains a migration guide until the owner enables cutover.
+  var secure=location.pathname==='/admin/'&&location.protocol==='https:';
+  if(!secure){
+    if(location.hostname==='lee200202.github.io'&&/\/admin(?:-legacy)?\.html$/.test(location.pathname)){
+      window.__adminMigrationPending=true;
+      fetch('https://zhangzhen-site-api.rainforecast2026-6fb.workers.dev/healthz',{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('unavailable');return r.json();}).then(function(b){
+        if(b.adminSecurityEnabled){
+          try{localStorage.removeItem('zzAdminKey');sessionStorage.removeItem('zzAdminKey');}catch(e){}
+          var target=new URL('https://zhangzhen-site-api.rainforecast2026-6fb.workers.dev/admin/'),q=new URLSearchParams(location.search);
+          ['reviewDate','reviewRecord'].forEach(function(k){var v=q.get(k);if(v&&v.length<=200)target.searchParams.set(k,v);});
+          location.replace(target.href);
+        }else{window.__adminMigrationPending=false;if(window.__legacyAdminStart)window.__legacyAdminStart();}
+      }).catch(function(){window.__adminMigrationPending=false;});
+    }
+    return;
+  }
+  var $=function(id){return document.getElementById(id);}, csrf='',pre='',hasCode=false,session=null,canResume=false,lastActivity=0,locked=false,idleAt=0;
+  var loginCard=$('loginWrap').querySelector('.card');
+  loginCard.innerHTML='<h2>安全管理登入</h2><p class="as-login-note">輸入管理密語與您自己的信箱，再輸入信件中的一次性驗證碼。持有密語且完成信箱驗證者可進入管理後台；信箱不是預先核准名單。</p><div class="as-steps" aria-label="登入步驟"><span id="asStep1" aria-current="step">密語與信箱</span><span aria-hidden="true">→</span><span id="asStep2">Email 驗證碼</span></div><div class="as-fields"><div class="field"><label for="key">管理密語</label><input type="password" id="key" autocomplete="current-password" maxlength="256"></div><div class="field"><label for="asEmail">您的信箱</label><input id="asEmail" type="email" autocomplete="email" maxlength="254"></div></div><label class="as-mode"><input type="checkbox" id="remember"><span>這是我的個人裝置，信任最多七天<br><small class="as-note">預設為公用模式：最長三十分鐘，閒置十五分鐘鎖定。</small></span></label><div class="field" id="asCodeField" hidden><label for="asCode">六位驗證碼</label><input id="asCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}"><p class="as-note" id="asCodeNote"></p></div><div class="as-controls"><button id="loginBtn" type="button" disabled>載入登入服務</button><button id="asResume" type="button" class="ghost" hidden>繼續使用這台裝置</button><button id="asRestart" type="button" class="ghost" hidden>重新輸入與寄碼</button></div><div class="amsg" id="loginMsg" role="status" aria-live="polite"></div><p class="as-note">不再將管理密語儲存在本站。登出不會刪除瀏覽器密碼管理員的資料；公用電腦請勿讓瀏覽器儲存密語。</p>';
+  try{localStorage.removeItem('zzAdminKey');sessionStorage.removeItem('zzAdminKey');}catch(e){}
+  function say(text){$('loginMsg').className='amsg show err';$('loginMsg').textContent=text;}
+  var messages={'login-failed':'密語或信箱格式不正確。','code-invalid':'驗證碼不正確，請檢查信件。','code-expired':'驗證碼已過期或嘗試次數已用完，請重新申請。','rate-limited':'嘗試過於頻繁，請稍後再試。','mail-unavailable':'驗證信暫時無法寄出，尚未建立登入。','fresh-auth-required':'這項操作需要重新輸入密語並完成 Email 驗證。','trust-expired':'此裝置信任已到期或撤銷，請重新登入。'};
+  function errorText(e){return messages[e.message]||'安全服務暫時無法完成請求，請稍後再試。';}
+  async function api(path,body,login){
+    var opts={method:body===undefined?'GET':'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-CSRF-Token':login?pre:csrf}};
+    if(body!==undefined)opts.body=JSON.stringify(body);
+    var r=await fetch('/admin-api/'+path,opts),b=await r.json();
+    if(!r.ok||!b.ok){var e=new Error(b.error||'unavailable');e.status=r.status;throw e;}return b;
+  }
+  async function bootstrap(){
+    try{var b=await api('bootstrap');pre=b.csrf;session=b.session;csrf=session?session.csrf:'';canResume=!!b.canResume;
+      $('asResume').hidden=!session&&!canResume;$('loginBtn').disabled=false;$('loginBtn').textContent='寄送驗證碼';}
+    catch(e){say(errorText(e));$('loginBtn').textContent='登入服務尚未就緒';}
+  }
+  function reset(){hasCode=false;$('asCodeField').hidden=true;$('asCode').value='';$('key').value='';$('asRestart').hidden=true;$('asEmail').readOnly=false;$('remember').disabled=false;
+    $('asStep1').setAttribute('aria-current','step');$('asStep2').removeAttribute('aria-current');$('loginBtn').textContent='寄送驗證碼';$('key').focus();}
+  function lock(){if(locked)return;locked=true;window.onbeforeunload=null;location.replace('/admin/?locked=1');}
+  async function login(done){
+    var btn=$('loginBtn');btn.disabled=true;
+    try{
+      if(!hasCode){
+        var password=$('key').value;
+        var b=await api('login',{password:password,email:$('asEmail').value,personal:$('remember').checked},true);password='';$('key').value='';
+        hasCode=true;$('asEmail').readOnly=true;$('remember').disabled=true;$('asCodeField').hidden=false;$('asRestart').hidden=false;btn.textContent='驗證並登入';
+        $('asStep1').removeAttribute('aria-current');$('asStep2').setAttribute('aria-current','step');
+        $('asCodeNote').textContent='驗證碼已由寄信服務接受，有效五分鐘；六十秒後可重新申請。請以最新一封為準。';$('asCode').focus();
+        $('asRestart').disabled=true;setTimeout(function(){$('asRestart').disabled=false;},60000);
+      }else{
+        var b=await api('verify',{code:$('asCode').value},true);csrf=b.csrf;session=b;$('asCode').value='';hasCode=false;
+        await done();
+      }
+    }catch(e){say(errorText(e));}finally{btn.disabled=false;}
+  }
+  window.AdminSecurity={login:login,entered:function(){idleAt=Date.now()+15*60000;},async logout(forget){try{await api('logout',{forget:!!forget});location.replace('/admin/');}catch(e){status(errorText(e));}},
+    rpc:async function(method,args){
+      var copy=args.slice();copy[0]=null;
+      var b=await api('rpc',{method:method,args:copy});return b.result;
+    }};
+  $('asRestart').addEventListener('click',reset);
+  $('asCode').addEventListener('keydown',function(e){if(e.key==='Enter')$('loginBtn').click();});
+  $('asResume').addEventListener('click',async function(){
+    this.disabled=true;
+    try{if(session){var b=await api('session');csrf=b.csrf;}else{var b=await api('resume',{},true);csrf=b.csrf;session=b;}
+      await window.__secureEnter();}catch(e){say(errorText(e));session=null;$('asResume').hidden=true;}finally{this.disabled=false;}
+  });
+  window.addEventListener('admin-session-expired',lock);
+  ['pointerdown','keydown'].forEach(function(type){document.addEventListener(type,function(e){
+    if(!e.isTrusted||!session||$('app').style.display!=='block')return;
+    idleAt=Date.now()+15*60000;
+    if(Date.now()-lastActivity<60000)return;
+    lastActivity=Date.now();api('activity',{}).catch(function(e){if(e.status===401)lock();});
+  },{passive:true});});
+  setInterval(function(){if(session&&$('app').style.display==='block')api('session').catch(function(e){if(e.status===401)lock();});},60000);
+  setInterval(function(){if(session&&$('app').style.display==='block'&&(idleAt&&Date.now()>=idleAt||Date.now()>=session.expires))lock();},5000);
+  function status(text){$('asStatus').textContent=text;}
+  function element(tag,text,cls){var n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;}
+  var ops=$('p-ops'),flow=document.createElement('div');while(ops.firstChild)flow.appendChild(ops.firstChild);
+  var navigation=element('div',undefined,'as-controls');navigation.setAttribute('role','tablist');
+  var flowBtn=element('button','流程狀態','ghost'),securityBtn=element('button','登入與裝置','ghost');flowBtn.type=securityBtn.type='button';
+  navigation.append(flowBtn,securityBtn);ops.append(navigation,flow);
+  var security=element('div',undefined,'card');security.hidden=true;security.innerHTML='<h2>登入與裝置</h2><p class="as-note">裝置為本站的瀏覽器紀錄，不是硬體識別。位置為 IP 概略推估；背景連線不代表有人操作。完整 IP 最多保留七天，安全事件九十天。</p><div class="as-grid" id="asStats"></div><div class="as-controls"><button type="button" id="asReload" class="ghost">重新讀取</button><button type="button" id="asReauth" class="ghost">重新驗證敏感操作</button><button type="button" id="asRevokeOthers" class="ghost">撤銷其他所有裝置</button></div><p id="asStatus" role="status" aria-live="polite"></p><div id="asConfirm" class="as-confirm" hidden></div><div id="asDevices" class="as-devices"></div><h3>最近安全事件</h3><p class="as-note">最多顯示最近二百項，不含密語、驗證碼或登入憑證。</p><div id="asEvents"></div>';
+  ops.append(security);
+  function switchTab(sec){flow.hidden=sec;security.hidden=!sec;flowBtn.setAttribute('aria-selected',String(!sec));securityBtn.setAttribute('aria-selected',String(sec));if(sec)refresh();}
+  flowBtn.addEventListener('click',function(){switchTab(false);});securityBtn.addEventListener('click',function(){switchTab(true);});
+  flowBtn.setAttribute('role','tab');securityBtn.setAttribute('role','tab');flowBtn.setAttribute('aria-selected','true');securityBtn.setAttribute('aria-selected','false');
+  function time(n){return n?new Date(n).toLocaleString('zh-TW',{timeZone:'Asia/Taipei',hour12:false}):'未提供';}
+  var stateLabels={active:'有效',locked:'閒置鎖定',expired:'已到期',revoked:'已撤銷',signedout:'已登出'};
+  var actions={'code-sent':'申請登入驗證碼','login-failed':'密語登入失敗','code-failed':'驗證碼失敗',login:'手動驗證登入','trust-resume':'信任裝置恢復',logout:'登出',rename:'裝置重新命名',revoke:'撤銷裝置','revoke-others':'撤銷其他裝置','view-ip':'查看完整 IP'};
+  async function change(path,body){try{await api(path,body);status('操作完成，已重新讀回。');await refresh();}catch(e){status(errorText(e));}}
+  function confirm(text,doIt){var box=$('asConfirm');box.replaceChildren(element('p',text));var controls=element('div',undefined,'as-controls');
+    var yes=element('button','確認撤銷'),no=element('button','取消','ghost');yes.type=no.type='button';controls.append(yes,no);box.append(controls);box.hidden=false;yes.focus();
+    no.onclick=function(){box.hidden=true;};yes.onclick=async function(){yes.disabled=true;try{await doIt();}finally{box.hidden=true;}};
+  }
+  async function refresh(){
+    $('asReload').disabled=true;
+    try{var results=await Promise.all([api('devices'),api('events')]),devices=results[0].devices,events=results[1].events;
+      $('asStats').replaceChildren();[['有效登入',devices.filter(function(d){return d.status==='active';}).length],['有效信任裝置',devices.filter(function(d){return d.trustUntil>Date.now()&&d.status!=='revoked';}).length],['近二十四小時失敗',results[1].failed24],['顯示安全事件',events.length]].forEach(function(v){var n=element('div',undefined,'as-stat');n.append(element('b',String(v[1])),element('span',v[0]));$('asStats').append(n);});
+      $('asDevices').replaceChildren();devices.sort(function(a,b){return Number(b.current)-Number(a.current)||b.login-a.login;}).forEach(function(d){
+        var card=element('article',undefined,'as-device');card.append(element('h3',(d.name||'未命名裝置')+(d.current?' · 目前裝置':'')),element('span',stateLabels[d.status]||d.status,'as-badge'));
+        var dl=element('dl');[['紀錄 ID',d.id],['驗證信箱',d.actor],['瀏覽器',d.ua],['概略地區',[d.country,d.city].filter(Boolean).join(' / ')||'未提供'],['最近 IP',d.maskedIp],['最近登入',time(d.login)],['最後操作',time(d.active)],['背景連線',time(d.connected)],['登入到期',time(d.expires)],['信任期限',d.personal?time(d.trustUntil):'公用模式，不保留信任']].forEach(function(v){dl.append(element('dt',v[0]),element('dd',v[1]));});card.append(dl);
+        var input=element('input');input.type='text';input.value=d.name||'';input.maxLength=60;input.placeholder='為這台裝置命名';input.setAttribute('aria-label','裝置名稱 '+d.id);input.style.cssText='width:100%;min-height:44px;background:var(--panel);color:var(--ink);border:1px solid var(--rule);border-radius:12px;padding:10px';card.append(input);
+        var controls=element('div',undefined,'as-controls'),rename=element('button','儲存名稱','ghost'),ip=element('button','查看完整 IP','ghost'),revoke=element('button',d.current?'登出並忘記此裝置':'撤銷此裝置','ghost');rename.type=ip.type=revoke.type='button';controls.append(rename,ip,revoke);card.append(controls);
+        rename.onclick=function(){change('rename',{device:d.id,name:input.value});};
+        ip.onclick=async function(){ip.disabled=true;try{var b=await api('ip',{device:d.id});status('裝置 '+d.id+'：'+b.ip);}catch(e){status(errorText(e));}finally{ip.disabled=false;}};
+        revoke.disabled=d.status==='revoked';revoke.onclick=function(){confirm('撤銷「'+(d.name||d.id)+'」的所有登入與信任資格？已受理的背景工單不會取消。',async function(){await change('revoke',{device:d.id});if(d.current)lock();});};$('asDevices').append(card);
+      });
+      $('asEvents').replaceChildren();events.forEach(function(e){var line=element('div',undefined,'as-event');line.append(element('time',time(e.at)),element('span',actions[e.action]||(/^[a-z]+:apiAdmin/.test(e.action)?'已受理管理操作：'+e.action.split(':')[1]:e.action)),element('span',(e.actor||'未驗證')+' · '+(e.maskedIp||'未提供')));$('asEvents').append(line);});
+    }catch(e){status(errorText(e));}finally{$('asReload').disabled=false;}
+  }
+  $('asReload').onclick=refresh;$('asRevokeOthers').onclick=function(){confirm('撤銷其他所有裝置的登入與信任資格？目前這台保留。',function(){return change('revoke-others',{});});};
+  $('asReauth').onclick=function(){reset();$('loginWrap').style.display='block';$('app').style.display='none';say('請再次輸入密語與信箱收碼，完成後可進行敏感操作。');};
+  bootstrap();
+})();
+</script>

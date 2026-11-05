@@ -190,6 +190,10 @@ function doGet(e) {
    */
   // 舊後台網址轉向同一個現行後台，避免收藏的連結失效。
   if (params.page === 'admin' || params.page === 'admin-legacy') {
+    if(typeof adminSecurityEnabled_==='function'&&adminSecurityEnabled_()){
+      return HtmlService.createHtmlOutput('<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="robots" content="noindex"><title>安全後台入口</title></head><body style="font-family:sans-serif;padding:32px;line-height:1.8"><h1>後台已改用安全登入</h1><p>請至同源安全後台輸入管理密語並完成 Email 驗證。舊密鑰不再用於人工登入。</p><a target="_top" rel="noopener" href="https://zhangzhen-site-api.rainforecast2026-6fb.workers.dev/admin/">前往安全後台</a></body></html>')
+        .setTitle('安全後台入口').addMetaTag('viewport','width=device-width, initial-scale=1');
+    }
     try {
       // 用 Template 而不是 HtmlOutput，才能把網頁應用程式的絕對網址注入進去。
       // 後台頁面裡的「回首頁」連結需要它：沙箱 iframe 內的相對網址

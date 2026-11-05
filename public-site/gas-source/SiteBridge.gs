@@ -60,6 +60,11 @@ function siteBridge_(e) {
     apiValidateKey: apiValidateKey
   };
   var method = String(body.method || '');
+  if(method === 'adminSecurityEmail'){
+    try{ADMIN_SECURITY_CONTEXT_=adminSecurityGrant_(body);return {ok:true,result:adminSecurityEmail_.apply(null,args)};}
+    catch(securityError){return {ok:false,error:'admin-security-denied'};}
+    finally{ADMIN_SECURITY_CONTEXT_=null;}
+  }
   if (!Object.prototype.hasOwnProperty.call(methods, method)) {
     /* 後台原版面也可從 Pages 開，但絕不能只靠前端隱藏按鈕。
        所有後台請求在這裡再驗一次 ADMIN_KEY；登入交原函式驗證並回原有訊息。 */
@@ -82,7 +87,10 @@ function siteBridge_(e) {
       'apiAdminTodayStatus apiAdminUpdateRow').split(' ');
     if (adminNames.indexOf(method) < 0) { return { ok: false, error: 'method-not-allowed' }; }
     var adminKey = PropertiesService.getScriptProperties().getProperty('ADMIN_KEY');
-    if (method !== 'apiAdminLogin' && (!adminKey || String(args[0] || '') !== adminKey)) {
+    if(typeof adminSecurityEnabled_==='function'&&adminSecurityEnabled_()){
+      try{ADMIN_SECURITY_CONTEXT_=adminSecurityGrant_(body);args=args.slice();args[0]=ADMIN_SECURITY_CONTEXT_;}
+      catch(securityError){return {ok:false,error:'admin-security-denied'};}
+    } else if (method !== 'apiAdminLogin' && (!adminKey || String(args[0] || '') !== adminKey)) {
       return { ok: false, error: 'admin-unauthorized' };
     }
     if (typeof globalThis[method] !== 'function') { return { ok: false, error: 'method-unavailable' }; }
@@ -99,4 +107,5 @@ function siteBridge_(e) {
     return { ok: true, result: result };
   }
   catch (err) { return { ok: false, error: String(err && err.message || err).slice(0, 200) }; }
+  finally { ADMIN_SECURITY_CONTEXT_=null; }
 }

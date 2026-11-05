@@ -2050,6 +2050,7 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
 
 <?!= include('TimeDisplay'); ?>
 <?!= include('UsageTracker'); ?>
+<?!= include('AdminSecurity'); ?>
 <script>
 function $(id){ return document.getElementById(id); }
 
@@ -2164,8 +2165,8 @@ var STORE = 'zzAdminKey';
 /* 記住密鑰只寫在這台裝置的瀏覽器裡，不會送到任何地方。
    用 try 包起來是因為無痕模式或關閉儲存權限時存取會直接拋錯，
    那種情況只要靜靜地不記住就好，不該讓整個登入流程壞掉。 */
-function loadKey(){ try { return localStorage.getItem(STORE) || ''; } catch(e){ return ''; } }
-function saveKey(k){ try { localStorage.setItem(STORE, k); } catch(e){} }
+function loadKey(){ if(window.AdminSecurity)return '';try { return localStorage.getItem(STORE) || ''; } catch(e){ return ''; } }
+function saveKey(k){ if(window.AdminSecurity)return;try { localStorage.setItem(STORE, k); } catch(e){} }
 function clearKey(){ try { localStorage.removeItem(STORE); } catch(e){} }
 
 function show(el, cls, text){ el.className = 'amsg show ' + cls; el.textContent = text; }
@@ -2179,6 +2180,7 @@ $('loginBtn').addEventListener('click', doLogin);
 $('key').addEventListener('keydown', function(e){ if(e.key==='Enter') doLogin(); });
 
 function doLogin(){
+  if(window.AdminSecurity){window.AdminSecurity.login(window.__secureEnter);return;}
   var k = $('key').value.trim();
   if(!k){ show($('loginMsg'),'err','請輸入管理密鑰。'); return; }
   $('loginBtn').disabled = true;
@@ -2216,14 +2218,29 @@ function doLogin(){
 }
 
 // 開頁時若這台裝置記過密鑰，直接填入並自動登入，省一次手動輸入。
-(function(){
+window.__legacyAdminStart=function(){
+  if(window.AdminSecurity)return;
   var k = loadKey();
   if(k){
     $('key').value = k;
     $('remember').checked = true;
     setTimeout(doLogin, 60);
   }
-})();
+};
+if(!window.__adminMigrationPending)window.__legacyAdminStart();
+
+window.__secureEnter=async function(){
+  return new Promise(function(resolve,reject){
+    google.script.run.withSuccessHandler(function(r){
+      if(!r||!r.ok){show($('loginMsg'),'err',r&&r.reason||'無法讀取管理資料。');reject(new Error('admin-state'));return;}
+      KEY='session';clearKey();$('loginWrap').style.display='none';$('app').style.display='block';
+      window.AdminSecurity.entered();
+      if($('acctMenu'))$('acctMenu').hidden=false;
+      if(window.__openReviewHistoryLink)window.__openReviewHistoryLink();
+      render(r.data);pollFull();pollRun();pollCrawl();pollChain();pollSms();resolve();
+    }).withFailureHandler(function(e){show($('loginMsg'),'err','管理資料暫時讀取失敗。');reject(e);}).apiAdminLogin('session');
+  });
+};
 
 /* ---------------- 畫面 ---------------- */
 function render(d){
@@ -2847,6 +2864,7 @@ $('cancelBtn').addEventListener('click', function(){
 });
 
 $('forgetBtn').addEventListener('click', function(){
+  if(window.AdminSecurity){window.AdminSecurity.logout(true);return;}
   clearKey();
   $('acctPop').hidden = true;
   $('acctToggle').setAttribute('aria-expanded', 'false');
@@ -2866,6 +2884,7 @@ document.addEventListener('keydown', function(ev){
 });
 
 $('logoutBtn').addEventListener('click', function(){
+  if(window.AdminSecurity){window.AdminSecurity.logout(false);return;}
   stopPoll();
   if(fullTimer){ clearInterval(fullTimer); fullTimer = null; }
   if(refTimer){ clearInterval(refTimer); refTimer = null; }

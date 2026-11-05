@@ -545,8 +545,7 @@ function apiResetSession(sessionId) {
  * 「從這一步重跑」挑一個接著做即可。
  */
 function apiAdminCancelRefresh(key) {
-  var real = PropertiesService.getScriptProperties().getProperty('ADMIN_KEY');
-  if (!real || String(key) !== real) { return { ok: false, reason: '管理密鑰不正確' }; }
+  try { adminAuth_(key); } catch(e) { return {ok:false,reason:'管理登入已失效'}; }
   var st = chainState_();
   if (!st) { return { ok: false, reason: '目前沒有進行中的刷新。' }; }
   st.cancelled = true;
@@ -561,8 +560,7 @@ function apiAdminCancelRefresh(key) {
 
 /** 後台用：刷新鏈跑到哪一步了。 */
 function apiAdminChainState(key) {
-  var real = PropertiesService.getScriptProperties().getProperty('ADMIN_KEY');
-  if (!real || String(key) !== real) { return { ok: false, reason: '管理密鑰不正確' }; }
+  try { adminAuth_(key); } catch(e) { return {ok:false,reason:'管理登入已失效'}; }
   var raw = PropertiesService.getScriptProperties().getProperty(CHAIN_KEY_);
   var st = null;
   try { st = raw ? JSON.parse(raw) : null; } catch (e) { st = null; }

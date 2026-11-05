@@ -4,8 +4,13 @@
   "main": "./worker.mjs",
   "compatibility_date": "2026-09-28",
   "vars": {
+    "ADMIN_SECURITY_ENABLED": "false",
+    "ADMIN_AUTH_EPOCH": "20261105-v1",
     "GAS_WEBAPP_URL": "https://script.google.com/macros/s/AKfycbyLQjAd-CnQ6D6_JP3OY1WwXDkafCJthzeP3G4FDkT4t26PY9Gx1rhrXJjiHVZExQhoaw/exec"
   },
+  "durable_objects": { "bindings": [{"name":"ADMIN_AUTH", "class_name":"AdminSecurity"}] },
+  "migrations": [{"tag":"admin-security-v1", "new_sqlite_classes":["AdminSecurity"]}],
+  "assets": {"directory":"./admin-assets", "binding":"ADMIN_ASSETS", "run_worker_first":true},
   // v107：常用公開資料的全域快照。台北 06:00–23:59 每 5 分鐘更新一次（UTC 22:00–15:59）。
   "kv_namespaces": [
     { "binding": "SNAP", "id": "56e1242de552491f8bf9f74bded61bb3" }

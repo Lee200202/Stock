@@ -2,7 +2,7 @@
    前台由GitHub Pages提供時的google.script.run傳輸層。 */
 (function () {
   'use strict';
-  const endpoint = '__SITE_API_URL__';
+  const endpoint = location.pathname === '/admin/' ? new URL('/api', location.origin).href : '__SITE_API_URL__';
   window.__usageFinalSend190 = function(who, events) {
     try { return navigator.sendBeacon(endpoint, new Blob([JSON.stringify({method:'apiLogUsage',args:[who,events]})], {type:'text/plain'})); } catch (e) { return false; }
   };
@@ -51,6 +51,11 @@
     'apiListTranscriptDates', 'apiGetTranscript', 'apiSuggestCodes', 'apiLookupSubscription', 'apiUnsubscribeConfirm']);
   const wait = ms => new Promise(r => setTimeout(r, ms));
   async function requestOnce(name, args) {
+    if (location.pathname === '/admin/' && name.startsWith('apiAdmin')) {
+      if(!window.AdminSecurity)throw new Error('安全登入服務尚未載入');
+      try{return await window.AdminSecurity.rpc(name,args);}
+      catch(e){if(e.status===401)window.dispatchEvent(new Event('admin-session-expired'));throw e;}
+    }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 75000);
     try {

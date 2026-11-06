@@ -1371,6 +1371,15 @@ function rebuildHoldingsTrackerJobRun_(options) {
       var d = fmtDate_(r['日期']);
       if (d && d <= now && isFinite(Number(r['收'])) && Number(r['收']) > 0) { set[d] = 1; }
     });
+    /* 2026/11/06：今天的日K要約 14:45 才進快取。今天的節目已處理完（影片清單今天那一列「完成」）時，
+       今天就是一個「講過而沒有提到」的交易日，先算進來；否則中午前每一檔都少算一天
+       （毅嘉、達邁最後提及 10/20，11/06 節目後已是第 11 個交易日，卻要等到下午才出場）。過去的日子仍以日K快取為準。 */
+    try {
+      var todayDone = isTradingDateStr_(now) && readSheetObjects_('影片清單').some(function (r) {
+        return fmtDate_(r['發布日期']) === now && String(r['處理狀態'] || '') === '完成';
+      });
+      if (todayDone && !set[now]) { set[now] = 1; }
+    } catch (e) { Logger.log('持股追蹤：今天的節目狀態讀不到，交易日只算到日K快取（' + e + '）'); }
     return Object.keys(set).sort();
   })();
   function tradingDaysAfter_(dateStr) {

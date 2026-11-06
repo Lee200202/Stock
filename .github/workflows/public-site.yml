@@ -20,6 +20,7 @@ on:
       - scripts/check_visitor_guide.cjs
       - scripts/build_secure_admin.py
       - scripts/check_ss_open_once.js
+      - scripts/check_tracker_stale_calendar.js
       - scripts/check_quote_flow.js
       - scripts/test_history_memory.cjs
       - site-api/**
@@ -85,6 +86,8 @@ jobs:
         run: node scripts/check_review_history.cjs
       - name: 主資料試算表一次執行只開一次
         run: node scripts/check_ss_open_once.js
+      - name: 持股追蹤交易日曆（今天的節目處理完也算一天）
+        run: node scripts/check_tracker_stale_calendar.js
       - name: 後端橋接實測（失敗就保留上一版網站）
         env:
           SITE_API_URL: ${{ vars.SITE_API_URL }}

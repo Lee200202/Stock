@@ -146,5 +146,49 @@ class WeeklyChapters(unittest.TestCase):
         self.assertEqual(week.judge(self.row('章節空白'), [], '')[0], '需人工', '讀不到文章不能當通過')
 
 
+class SecondRoundApply(unittest.TestCase):
+    """2026/11/06：同一天第二輪推到同一分支，工作流程又把上午的章節計畫重套一次，蓋掉下午核對過的兩章。"""
+    def test_only_plans_changed_in_this_push_are_applied(self):
+        import yaml
+        wf = yaml.safe_load((ROOT / '.github/workflows/daily-review-apply.yml').read_text(encoding='utf-8'))
+        step = next(s for s in wf['jobs']['apply']['steps'] if s.get('id') == 'apply')
+        self.assertEqual(step['env'].get('BEFORE'), '${{ github.event.before }}')
+        run = step['run']
+        self.assertIn('git diff --name-only "$BEFORE" "$GITHUB_SHA"', run)
+        skip = run.index('for F in PLAN POINTS NOTICE')
+        self.assertLess(skip, run.index('apply_reviewed_points.py'), '要在套用之前決定略過')
+        self.assertLess(skip, run.index('apply_source_review.py'))
+
+    def test_skip_logic_in_bash(self):
+        import shutil
+        bash = shutil.which('bash')
+        if not bash:
+            self.skipTest('沒有 bash')
+        with tempfile.TemporaryDirectory() as d:
+            subprocess.run(['git', 'init', '-q', d], check=True)
+            env = dict(os.environ, GIT_AUTHOR_NAME='t', GIT_AUTHOR_EMAIL='t@t', GIT_COMMITTER_NAME='t', GIT_COMMITTER_EMAIL='t@t')
+            rep = Path(d, 'scripts/repairs'); rep.mkdir(parents=True)
+            (rep / '2026-11-06-points-review.json').write_text('{}', encoding='utf-8')
+            subprocess.run(['git', '-C', d, 'add', '-A'], check=True, env=env)
+            subprocess.run(['git', '-C', d, 'commit', '-qm', 'r1'], check=True, env=env)
+            before = subprocess.run(['git', '-C', d, 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip()
+            (rep / '2026-11-06-source-review.json').write_text('{}', encoding='utf-8')
+            subprocess.run(['git', '-C', d, 'add', '-A'], check=True, env=env)
+            subprocess.run(['git', '-C', d, 'commit', '-qm', 'r2'], check=True, env=env)
+            sha = subprocess.run(['git', '-C', d, 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip()
+            wf = (ROOT / '.github/workflows/daily-review-apply.yml').read_text(encoding='utf-8')
+            block = wf[wf.index('          # 2026/11/06：同一天第二輪'):wf.index('          if [ -f "$NOTICE" ]; then')]
+            script = ('DAY=2026/11/06\nPLAN="scripts/repairs/${DAY//\\//-}-source-review.json"\n'
+                      'POINTS="scripts/repairs/${DAY//\\//-}-points-review.json"\nNOTICE="scripts/repairs/${DAY//\\//-}-notice-reason.json"\n'
+                      + '\n'.join(l[10:] for l in block.splitlines()) + '\necho "PLAN=$PLAN"; echo "POINTS=$POINTS"\n')
+            out = subprocess.run([bash, '-c', script], cwd=d, capture_output=True, text=True,
+                                 env=dict(env, BEFORE=before, GITHUB_SHA=sha)).stdout
+            self.assertIn('PLAN=scripts/repairs/2026-11-06-source-review.json', out, '這次新增的計畫要套用')
+            self.assertIn('POINTS=/nonexistent/POINTS', out, '前一輪的章節計畫不重套')
+            out = subprocess.run([bash, '-c', script], cwd=d, capture_output=True, text=True,
+                                 env=dict(env, BEFORE='0' * 40, GITHUB_SHA=sha)).stdout
+            self.assertIn('POINTS=scripts/repairs/2026-11-06-points-review.json', out, '新分支第一次推送全部套用')
+
+
 if __name__ == '__main__':
     unittest.main()

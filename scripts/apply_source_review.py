@@ -4,6 +4,7 @@
 import argparse
 import hashlib
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 import sys
@@ -47,6 +48,36 @@ def reviewed_source(item, plan):
     return source
 
 
+SELF_TRADE_TODAY = re.compile(r'(?:我|我們)(?:今天|今日|早上|早盤|剛剛|剛才)(?:已經|已|有)?(?:再|先)?(買|賣)')
+
+
+def reviewed_trade_problems(item, plan):
+    """純函式：管理者明示核准補列的當日成交（trade_review）要全部成立，回傳問題清單。
+
+    2026/11/06 管理者核准：11/05「我今天買世芯-KY，2,950塊」因同句前面無關的「如果」被當成假設句而漏列。
+    只准新增（不改、不刪既有成交）；主體是講者本人、日期是影片當天；價位與買賣方向都要出自同一句本人今日成交的原句。"""
+    review = item.get('trade_review') or {}
+    out = []
+    if item.get('action') != 'insert':
+        out.append('補列成交只准新增')
+    if review.get('actor_and_time_reviewed') is not True or not review.get('authorization'):
+        out.append('補列成交要有主體與時間覆核，以及管理者授權')
+    if review.get('event_date') != plan.get('date'):
+        out.append('補列成交的日期要是影片當天')
+    quote = str(review.get('price_quote') or '')
+    flat = re.sub(r'[\s,，]', '', quote)
+    m = SELF_TRADE_TODAY.search(flat)
+    want = '買' if item.get('category') == 'buy' else '賣'
+    if not m or m.group(1) != want:
+        out.append('price_quote 要是講者本人今天' + want + '的原句')
+    price = re.sub(r'[,，\s]', '', str(review.get('price') or ''))
+    if not re.fullmatch(r'\d+(?:\.\d+)?', price) or price not in flat:
+        out.append('價位要出自 price_quote')
+    if quote not in (item.get('quotes') or []):
+        out.append('price_quote 要列在 quotes（會逐字核對原稿）')
+    return out
+
+
 def make_changes(tables, plan, names):
     """純規劃器遇到重複列、來源或說明變動時停止寫入。"""
     changes = []
@@ -66,7 +97,12 @@ def make_changes(tables, plan, names):
         historic_ok = (historical.get('actor_and_time_reviewed') is True and
                        bool(event_date) and event_date < plan['date'] and
                        event_date == historical.get('event_date'))
-        if cat in ('buy', 'sell') and not (item.get('action') == 'delete' and historic_ok):
+        trade_insert = cat in ('buy', 'sell') and bool(item.get('trade_review'))
+        if trade_insert:
+            problems = reviewed_trade_problems(item, plan)
+            if problems:
+                raise ValueError('補列成交不成立：' + '；'.join(problems))
+        elif cat in ('buy', 'sell') and not (item.get('action') == 'delete' and historic_ok):
             raise ValueError('此修正工具不新增或更動成交事實；須另走交易覆核')
         old_cat = item.get('previous_category', cat)
         old_sheet = '會員持股' if old_cat == 'holdings' else '操作紀錄'
@@ -87,7 +123,8 @@ def make_changes(tables, plan, names):
             if candidates:
                 raise ValueError('新增身分已存在，須重新審核：' + code)
             row = {'日期': plan['date'], '股票名稱': item['name'], '代號': code,
-                   '來源影片ID': plan['video_id'], '序': '1', '價位說明': '未說明',
+                   '來源影片ID': plan['video_id'], '序': '1',
+                   '價位說明': re.sub(r'[,，\s]', '', str(item['trade_review']['price'])) if trade_insert else '未說明',
                    '方向': LABEL[cat], '持有態度': '續抱'}
             field = '說明重點' if new_sheet == '會員持股' else '理由摘錄'
             row[field] = item['text']
@@ -322,7 +359,7 @@ def main():
     if not args.apply:
         return
     steps = ['smsmail', 'tracker', 'perf']
-    if any(item.get('historical_trade_review') for item in plan['items']):
+    if any(item.get('historical_trade_review') or item.get('trade_review') for item in plan['items']):
         steps.insert(2, 'perfhist')
     result = pl.maybe_refresh_site(force=True, only=steps, date_str=day) or {}
     if not result.get('ok'):

@@ -1,6 +1,8 @@
 """修正由會員通知產生的買賣列「理由摘錄」措辭（通知用語外洩），不改成交事實。
 
 只改兩個欄位的同一句公開理由：操作紀錄.理由摘錄、會員簡訊.解析明細[].reason。
+2026/11/06 管理者核准（週檢討 Q4）：通知產生的會員持股列也可以改，item 加 "sheet": "會員持股"，改的是 會員持股.說明重點
+與解析明細裡同一檔 dir=會員持股 那一項的 reason；兩處舊句不同時，解析明細用 previous_detail_sha256。
 股票、方向、價位、來源、通知原文、寄送帳本一律不動。計畫在 scripts/repairs/<日期>-notice-reason.json，
 引句逐字核對原稿；寫入前先做獨立備份（需 APPS_SCRIPT_URL／ADMIN_KEY），寫完逐欄讀回，再刷新郵件／追蹤／績效。
 舊理由只存指紋（previous_reason_sha256、previous_reason_chars）：舊句就是外洩的通知用語，不能寫進公開 repo。
@@ -40,6 +42,15 @@ def norm_day(value):
     return '/'.join([parts[0]] + [p.zfill(2) for p in parts[1:]]) if len(parts) == 3 else day_of(value)
 
 
+def target(item):
+    """(工作表, 欄位, 解析明細的 dir 條件)。"""
+    if item.get('sheet', '操作紀錄') == '會員持股':
+        return '會員持股', '說明重點', lambda d: str(d.get('dir') or '') == '會員持股'
+    if item.get('sheet', '操作紀錄') != '操作紀錄':
+        raise ValueError('sheet 只能是 操作紀錄 或 會員持股')
+    return '操作紀錄', '理由摘錄', lambda d: str(d.get('dir') or '') != '會員持股'
+
+
 def locate(trades, sms, plan, item):
     th = trades[0]
     rows = [(i, dict(zip(th, c))) for i, c in enumerate(trades[1:], 2)]
@@ -47,7 +58,7 @@ def locate(trades, sms, plan, item):
            str(r.get('代號', '')).strip() == item['code'] and
            r.get('來源影片ID') == item['notice_source_id']]
     if len(hit) != 1:
-        raise ValueError('操作紀錄通知列不存在或不唯一：' + item['code'])
+        raise ValueError(target(item)[0] + '通知列不存在或不唯一：' + item['code'])
     ti, trow = hit[0]
     sh = sms[0]
     shit = [(i, dict(zip(sh, c))) for i, c in enumerate(sms[1:], 2) if str(c[0]).strip() == item['article_id']]
@@ -55,9 +66,10 @@ def locate(trades, sms, plan, item):
         raise ValueError('會員簡訊列不存在或不唯一：' + item['article_id'])
     si, srow = shit[0]
     detail = json.loads(srow.get('解析明細') or '[]')
-    mine = [d for d in detail if str(d.get('code')) == item['code']]
+    wanted = target(item)[2]
+    mine = [d for d in detail if str(d.get('code')) == item['code'] and wanted(d)]
     if len(mine) != 1:
-        raise ValueError('解析明細沒有唯一對應的買賣項目')
+        raise ValueError('解析明細沒有唯一對應的項目')
     return ti, trow, si, srow, detail, mine[0]
 
 
@@ -101,7 +113,11 @@ def main():
         raise ValueError('原稿指紋／影片已變，未寫入')
     for item in plan['items']:
         check_item(item, None, source_quote, raw)
-    ws_t, ws_s, ws_r = book.worksheet('操作紀錄'), book.worksheet('會員簡訊'), book.worksheet('修正建議')
+    sheets = {target(i)[0] for i in plan['items']}
+    if len(sheets) != 1:
+        raise ValueError('一份計畫只改一張表（操作紀錄或會員持股）')
+    tab, field, _ = target(plan['items'][0])
+    ws_t, ws_s, ws_r = book.worksheet(tab), book.worksheet('會員簡訊'), book.worksheet('修正建議')
     trades, sms, receipts = (pl.sheets_retry(w.get_all_values) for w in (ws_t, ws_s, ws_r))
     receipt = '通知理由修正:' + digest(plan)
     done = any(receipt in str(r) for r in receipts[1:])
@@ -113,16 +129,15 @@ def main():
     requests, writes = [], []
     for item in plan['items']:
         ti, trow, si, srow, detail, mine = locate(trades, sms, plan, item)
-        current = trow.get('理由摘錄')
+        current = trow.get(field)
         if done:
             if current != item['text'] or mine.get('reason') != item['text']:
                 raise ValueError('已有收據但資料與計畫不一致：' + item['code'])
             continue
-        if sha(current or '') != item['previous_reason_sha256'] or sha(mine.get('reason') or '') != item['previous_reason_sha256']:
+        if sha(current or '') != item['previous_reason_sha256'] or                 sha(mine.get('reason') or '') != item.get('previous_detail_sha256', item['previous_reason_sha256']):
             raise ValueError('理由已被改動，保留現值：' + item['code'])
         # reviewed：之後的簡訊解析（雙來源重寫）看到這個標記就不再改寫這一句
-        new_detail = [dict(d, reason=item['text'], reviewed='通知理由修正 ' + day) if str(d.get('code')) == item['code'] else d
-                      for d in detail]
+        new_detail = [dict(d, reason=item['text'], reviewed='通知理由修正 ' + day) if d is mine else d for d in detail]
         writes.append((item, ti, si, json.dumps(new_detail, ensure_ascii=False)))
         print('改', item['code'], item['name'], '\n  舊理由指紋：', item['previous_reason_sha256'][:12], '\n  新：', item['text'])
     if done:
@@ -132,17 +147,17 @@ def main():
         return
     if args.apply and not done:
         from backup_archive import backup_tables
-        backup_tables(pl, book, ('操作紀錄', '會員簡訊', '每日推播內容', '持股追蹤'))
+        backup_tables(pl, book, tuple(dict.fromkeys((tab, '操作紀錄', '會員簡訊', '每日推播內容', '持股追蹤'))))
         cell = lambda v: {'userEnteredValue': {'stringValue': str(v)}}
         for item, ti, si, detail_json in writes:
-            requests.append({'updateCells': {'start': {'sheetId': ws_t.id, 'rowIndex': ti - 1, 'columnIndex': th.index('理由摘錄')},
+            requests.append({'updateCells': {'start': {'sheetId': ws_t.id, 'rowIndex': ti - 1, 'columnIndex': th.index(field)},
                                              'rows': [{'values': [cell(item['text'])]}], 'fields': 'userEnteredValue'}})
             requests.append({'updateCells': {'start': {'sheetId': ws_s.id, 'rowIndex': si - 1, 'columnIndex': sh.index('解析明細')},
                                              'rows': [{'values': [cell(detail_json)]}], 'fields': 'userEnteredValue'}})
         stamp = datetime.now(pl.TAIPEI).strftime('%Y/%m/%d %H:%M:%S')
         meta = json.dumps({'receipt': receipt, 'plan': plan}, ensure_ascii=False)
         requests.append({'appendCells': {'sheetId': ws_r.id, 'fields': 'userEnteredValue', 'rows': [{'values': [cell(x) for x in
-            [stamp, day, '通知用語外洩修正', '操作紀錄／會員簡訊解析明細', '', '', meta, '已套用（獨立備份可復原）', stamp]]}]}})
+            [stamp, day, '通知用語外洩修正', tab + '／會員簡訊解析明細', '', '', meta, '已套用（獨立備份可復原）', stamp]]}]}})
         # 備份期間資料有變就不寫
         if digest(ws_t.get_all_values()) != digest(trades) or digest(ws_s.get_all_values()) != digest(sms):
             raise ValueError('備份期間資料變動，未寫入')
@@ -152,7 +167,7 @@ def main():
     trades2, sms2 = ws_t.get_all_values(), ws_s.get_all_values()
     for item in plan['items']:
         _, trow, _, _, _, mine = locate(trades2, sms2, plan, item)
-        if trow.get('理由摘錄') != item['text'] or mine.get('reason') != item['text']:
+        if trow.get(field) != item['text'] or mine.get('reason') != item['text']:
             raise RuntimeError('寫入後讀回不一致：' + item['code'])
     print('操作紀錄與解析明細逐欄讀回一致')
     result = pl.maybe_refresh_site(force=True, only=['smsmail', 'tracker', 'perf'], date_str=day) or {}

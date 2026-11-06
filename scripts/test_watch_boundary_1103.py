@@ -76,7 +76,9 @@ class WatchBoundary1103(unittest.TestCase):
         self.assertIn('大環境的等待適用所有股票，不是本股的禁令', src)
         self.assertIn('最新政策（2026/11/03 管理者問卷）', src)
         self.assertNotIn('即使是正向觀察名單或未來看好也不改成注意', src)
-        self.assertIn('VERDICT_VERSION = "v42-20261103-market-wait-is-watch"', src)
+        # 11/03 的邊界上線時升到 v42；之後的管理者裁示（11/06 v43）再往上升，舊快取都不能沿用
+        m = __import__('re').search(r'VERDICT_VERSION = "v(\d+)-', src)
+        self.assertTrue(m and int(m.group(1)) >= 42, '裁決版號要 v42 以上')
         gas = (ROOT / 'public-site/gas-source/Adminpipeline.gs').read_text(encoding='utf-8')
         self.assertIn('大環境的等待適用所有股票', gas)
 

@@ -6797,8 +6797,27 @@ def execution_statement(sentence, cat):
         return False
     if re.search(r'說謊話|講謊話|說假話|講假話|詐騙的?投顧', sentence):
         return False
-    if re.search(r'(?:如果|假如|假設|要是|萬一)[^。！？!?]{0,35}' + action, sentence):
-        return False
+    hypo = re.search(r'(?:如果|假如|假設|要是|萬一)[^。！？!?]{0,35}' + action, sentence)
+    if hypo:
+        # 2026/11/06 管理者核准（週檢討 Q2）：假設詞只管它自己那個子句。11/05「如果有的話，多拖一天321…
+        # 張震今天告訴你買買買買，我今天買世芯-KY，2,950塊」前面的「如果」跟成交無關，本人今日買進卻被當成假設而漏列。
+        # 假設詞之後隔了逗號、分號，另一個子句是本人今天的買賣（我／我們＋今天／早上…＋買／賣），才算已成交。
+        # 「如果跌，我今天就買」「如果跌破，我今天會買」不算（就、會不是完成）；「如果我今天買」同一子句的假設也不算。
+        later = sentence[hypo.start():]
+        done = None
+        for m in re.finditer(r'(?:我|我們)(?:今天|今日|早上|早盤|剛剛|剛才)(?:已經|已|有)?(?:再|先)?' + action
+                             + r'(?:了|進|回|出|掉)?', later):
+            parts = re.split(r'[，,；;]', later[:m.start()])
+            prev = [c for c in parts[:-1] if c.strip()]
+            hyp = lambda c: re.search(r'(?:如果|假如|假設|要是|萬一)', c)
+            # 本句與緊接在前的那個子句都不是假設（「如果大盤再跌，我今天買」仍是條件句）
+            # 買賣動詞後面要直接接標的或價位（「我今天買世芯-KY，2,950塊」）；「我今天買，搞不好明天被套」只是接著假設講下去（11/03 回測）
+            tail = later[m.end():m.end() + 1]
+            if prev and not hyp(parts[-1]) and not hyp(prev[-1]) and tail and not re.match(r'[，,。！？!?；;、\s]', tail):
+                done = m
+                break
+        if not done:
+            return False
     if re.search(action + r'[^。！？!?]{0,45}(?:蠢|笨|阿呆|傻|錯誤|錯的|神經病)', sentence):
         completed = re.search(r'(?:我|我們)(?:今天|今日|早上|早盤|剛剛|剛才)(?:已經|已|先)?' + action + r'(?:出|掉|了|進)?', sentence)
         if not completed:
@@ -13686,7 +13705,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v42-20261103-market-wait-is-watch"    # 執行時自動接上提示詞與答案格式指紋（見 verdict_response_schema 之後）；提示詞界線不含股名與預期分類；問卷的持有要有紀錄上的部位；問卷的持有要有紀錄上的部位；等待條件要附可核對的條件原句；重提昨天的持有者建議是今天的建議；相鄰連續引句、背景角色與獨立主張證明分開核對
+VERDICT_VERSION = "v43-20261106-open-position-not-denied-price-only-neutral"    # 執行時自動接上提示詞與答案格式指紋（見 verdict_response_schema 之後）；提示詞界線不含股名與預期分類；問卷的持有要有紀錄上的部位；問卷的持有要有紀錄上的部位；等待條件要附可核對的條件原句；重提昨天的持有者建議是今天的建議；相鄰連續引句、背景角色與獨立主張證明分開核對
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 3                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -13712,6 +13731,7 @@ ADJUDICATE_SYSTEM = """你是原始金融節目及會員通知的事實裁決員
 分開回答事件：
 buy_today／sell_today只在本人或會員當日已執行，或當日正式買入／賣出通知時為true。「如果買」「不准賣」「不能買」「以前賣」不算今日成交；第三人／觀眾的部位不算會員操作。明確較早日期的成交填past_trade，不用今天行情替它改日期。當日續抱通知不是買入通知。
 holding_now只在今日原通知明列續抱、或完整原稿確認本人／會員現在持有且未全數出場時true。歷史曾買、會員曾賺、未賣的觀眾提問都不足以證明。「之前就跟你們講過／在某個價位就跟你們講」是過去的推薦，「錢少一點的買這一隻」是給觀眾的選股建議，都不是持有證明；輸入的系統紀錄沒有這一檔的部位時，只憑這類說法不填true。歷史減碼一半與今日剩餘部位未賣可同時成立，不能以否定詞刪掉歷史。
+紀錄上仍有未出場部位（open_position）的股票，講者今天說本人今天沒有買、會員早就買了、我讓會員套牢、我有沒有告訴你我有甲，是在說會員部位仍在：holding_now=true；本人今天沒有加碼不是否認部位，只有明講已經賣出或全部出場才是（2026/11/06 管理者裁示）。
 past_trade可與現況立場並存；全文有現在的風險、條件或持有狀態，不得只因出現歷史交易就忽略當下。
 
 當下進場與持有者建議分兩軸，按整段最後結論判斷，不靠某個關鍵字：
@@ -13720,7 +13740,7 @@ holder_advice：hold=現有部位續抱；hold_rebound=對持有者明確要求�
 selection_intent：positive_candidate=正向追蹤池／主動提醒留意；authorization_pending=等正式操作授權；explicit_exclusion=對本股有獨立排斥／風險判斷；neutral=無獨立選股立場。正向興趣與目前暫不買可以同時成立。
 最新政策（2026/11/03 管理者問卷）：本股看法正面而等回穩、等價位、等背離確認或等大環境，entry_for_new=wait_condition、now=conditional，屬觀望注意；講者說「我還不碰、還沒買」而理由只有大環境，也一樣。當下可執行買點填allow、now=buy_ok，屬觀望注意但不是已成交。本股自己被否定（被問能不能買答還沒有、本股還沒轉強）而沒有正面看法填not_yet；明講不碰、不買、剔除、預期還會跌或點出本股自己的風險填prohibit或tone=bearish，屬觀望不碰。只拿來當追高反面教材而沒有本股其他看法，about_itself=false。單純未持有不等於不能買。持有者超跌勿殺低等反彈另填holder_advice=hold_rebound；沒有新進場限制時可保留注意建議，但不能把它當本人持股，也不能覆蓋明確的新進場等待。完整核前後文及條件現在是否已成立，不依「等／不」字面判方向。
 混合段落先核完整時間順序：前段未持有、未推薦、歷史回顧或陪襯比較，不會否定後段對本股的現況分析、均線路徑或等待買點。後段確有本股獨立分析時，content_role填independent_analysis，quotes.analysis引用該段；past_trade可同時為true。不能只因前段比較就把後段當作他股，亦不能把後段他股分析挪回本股。僅有未持有／選股範圍交代而無本股分析才是position_disclosure／selection_scope／comparison_only。
-now填buy_ok／conditional／not_yet／prohibit／none，與前述軸一致；tone填bullish／bearish／neutral，僅為本股現在的獨立方向，不借相鄰公司。明講現在沒有要漲、不宜買是本股風險，不等於只澄清沒有持有。只有位置描述而全文無獨立追蹤或方向才填neutral及none。
+now填buy_ok／conditional／not_yet／prohibit／none，與前述軸一致；tone填bullish／bearish／neutral，僅為本股現在的獨立方向，不借相鄰公司。明講現在沒有要漲、不宜買是本股風險，不等於只澄清沒有持有。只有位置描述而全文無獨立追蹤或方向才填neutral及none。只報本股股價漲跌、跌停，或在族群一起下跌時被點名（「你看甲早上有沒有跌停」「某族群最近連甲都一直在跌」），沒有本股自己的判斷、條件或建議：independent_analysis=false、now=none、tone=neutral，不列觀望（2026/11/06 管理者裁示）。
 等待條件的原句：entry_for_new=wait_condition或now=conditional時，quotes.stance及quotes.condition／quote_source_ids.condition引用本股的等待條件原句（等回穩、等價位、等大環境、背離後先做功課）；只有還要等、不急等簡短指令也可形成等待，不必編造具體訊號。allow只可由目前已可執行的買點／區間或已成立訊號支持；條件尚未成立不可填allow。只說反彈不夠、上方套牢區、彈上來還會再下去，是本股的風險判斷：tone=bearish、entry_for_new=none或prohibit、selection_intent=explicit_exclusion，不是等待條件。沒有等待條件時condition留空陣列。
 已經賣出的股票今天大漲，被拿來當「看到大漲別追、漲停有什麼用、一堆人套在上面」的教學例子，而沒有對本股說現在要怎麼做：這是回顧過去的那次賣出，past_trade=true、content_role=historical_only、now=none、tone=neutral；「我們賣在這邊」之類是交易紀錄，不是禁買引句。本股另有自己的當下條件或明講不能買時才另填。
 今天重提昨天給持有者的建議並接著講本股現況（「昨天有沒有跟你們講不要亂殺甲？甲現在要來回震盪打底」）：這是今天仍然有效的持有者建議，holder_advice=hold_rebound，不能因為句子裡有「昨天」就當成只回顧。

@@ -9,7 +9,7 @@ on:
       mode:
         description: 通過全部品質核對後才更新；不寄送
         type: choice
-        options: [preview, direct, apply, apply-rules, raw, sync, priority-check, reviewed-points, reviewed-notes-preview, reviewed-notes, source-audit, reading-preview, reading-apply, notice-preview, notice-apply, backup-status, backup-migrate, row-repair-preview, row-repair-apply, source-review-preview, source-review-apply, source-review-inspect, verdicts, titles]
+        options: [preview, direct, apply, apply-rules, raw, sync, priority-check, reviewed-points, reviewed-notes-preview, reviewed-notes, source-audit, reading-preview, reading-apply, notice-preview, notice-apply, notice-reason-preview, notice-reason-apply, backup-status, backup-migrate, row-repair-preview, row-repair-apply, source-review-preview, source-review-apply, source-review-inspect, verdicts, titles]
         default: preview
       candidate_run:
         description: 'apply 必填：同一commit且成功的preview執行ID；原封套用該artifact，不重新生成'
@@ -104,6 +104,15 @@ jobs:
           fi
           if [ "$MODE" = row-repair-apply ]; then
             python scripts/repair_verified_rows.py --date "$TARGET_DATE" --apply
+            exit 0
+          fi
+          # 2026/11/06：通知產生的買賣列理由或會員持股列說明（scripts/repairs/<日期>-notice-reason.json）；舊句只存指紋
+          if [ "$MODE" = notice-reason-preview ]; then
+            python scripts/apply_notice_reason_fix.py --date "$TARGET_DATE"
+            exit 0
+          fi
+          if [ "$MODE" = notice-reason-apply ]; then
+            python scripts/apply_notice_reason_fix.py --date "$TARGET_DATE" --apply
             exit 0
           fi
           if [ "$MODE" = notice-preview ]; then

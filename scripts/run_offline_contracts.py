@@ -50,6 +50,7 @@ SUITES = [
     'test_transcript_tpm',
     'test_weekly_review',
     'test_chapter_review',
+    'test_weekly_20261106',
 ]
 
 GUARD = r'''

@@ -6282,6 +6282,12 @@ def _compose_episode_title(signals, transcript, date_str):
         refused = []
         for cand in candidates:
             why = _episode_title_why(cand, source_flat, material_norm, stock_names)
+            if not why:
+                # 2026/11/06 週檢討：標題用了只在當日會員通知出現的用語（裁示紀錄 三），換下一個候選。
+                if notice_only_terms(cand, transcript, day_notice_originals(date_str), stock_names):
+                    # 公開日誌不印這個候選（含通知用語）；請模型只用原稿的說法重擬。
+                    refused.append(('（候選略）', '含只在當日會員通知出現、原稿沒有的用語，請只用原稿的說法'))
+                    continue
             if why:
                 refused.append((cand, why))
                 continue
@@ -6713,6 +6719,55 @@ def market_item_why(item, hay):
                 at = hay.find(norm, at + 1)
         missing = [n for n in missing if n not in nearby]
     return ('數字 ' + '、'.join(dict.fromkeys(missing)) + ' 不在引用的那一段話裡') if missing else ''
+
+
+# 2026/11/06 週檢討：會員通知不得外洩（裁示紀錄 三，10/06、11/02）。
+# 主判讀同時看得到原稿與當日通知原文（通知只用來核對身分與部位），盤勢①、教學③偶爾把只在通知裡的用語寫進公開重點
+# （11/02 ①③、11/06 ①③與標題）。盤勢與教學的唯一證據是原稿，所以這裡只看「三個以上連續漢字、出現在當日通知、
+# 原稿沒有」的用語：兩字詞（今日、出現、因此、買進）書面與口語寫法不同，不能當外洩，複核也判過不是外洩；
+# 含虛字的片段、當日個股名稱（官方名與聽寫不同）都不算。
+_NOTICE_TERM_STOP = set('的了是在有我你他她它們就也都要會不和與及或而但這那一個些很最還再已把被讓從到對為於以')
+_NOTICE_TERM_GENERAL = ('今日', '昨日', '明日', '本日', '今天', '昨天', '明天', '目前')
+
+
+def notice_only_terms(text, transcript, notices, names=()):
+    """text 裡只在當日會員通知出現、原稿沒有的三字以上用語（連續命中併成一個片語）；沒有就回空串列。"""
+    # 時間詞的書面寫法（今日、昨日）原稿說成今天、昨天，是一般用語（11/06 複核判為邊界），和名稱一樣當成斷點。
+    cut = sorted({str(n) for n in names if len(str(n)) >= 2} | set(_NOTICE_TERM_GENERAL), key=len, reverse=True)
+
+    def runs(s):
+        s = str(s or '')
+        for n in cut:
+            s = s.replace(n, '｜')
+        return re.findall(r'[一-鿿]+', s)
+
+    def tri(s):
+        return {r[i:i + 3] for r in runs(s) for i in range(len(r) - 2)}
+
+    source = tri(transcript)
+    private = {g for n in notices or () for g in tri(n) if g not in source and not (set(g) & _NOTICE_TERM_STOP)}
+    found = []
+    if not private:
+        return found
+    for r in runs(text):
+        i = 0
+        while i <= len(r) - 3:
+            if r[i:i + 3] in private:
+                j = i + 3
+                while j < len(r) and r[j - 2:j + 1] in private:
+                    j += 1
+                found.append(r[i:j])
+                i = j
+            else:
+                i += 1
+    return list(dict.fromkeys(found))
+
+
+def day_notice_originals(date_str):
+    """當日會員通知原文（load_day_source_context 載入的那一份）；別天或沒有載入回空串列。"""
+    if _DAY_SOURCE_CONTEXT.get('date') != date_str:
+        return []
+    return [str(n.get('original') or '') for n in _DAY_SOURCE_CONTEXT.get('notices') or [] if n.get('original')]
 
 
 def market_item_verified(item, hay):
@@ -7961,10 +8016,22 @@ def validate_evidence(signals, transcript, date_str, after_codes=False, notice_t
 
     # 盤勢事實與個股遵守相同證據規則，每個數字都須核對。
     market_keep, orphan_headline = [], ''
+    notices = day_notice_originals(date_str)
+    stock_names = {v for c in SIGNAL_CATEGORIES + ('history', 'uncertain', 'ignored') for r in signals.get(c, []) or [] if isinstance(r, dict)
+                   for v in (_display_name(r.get('name')), str(r.get('name') or ''), str(r.get('原始語音名稱') or ''))} - {''}
     for item in signals.get('market', []):
         # 盤勢（①）與教學（③）章同樣是公開文字，句首人名一併拿掉；不影響下面的數字核對。
         item['text'] = strip_speaker_names(item.get('text'))
         why = market_item_why(item, hay)
+        if not why and notices and notice_only_terms(str(item.get('text') or '') + str(item.get('headline') or ''),
+                                                      transcript, notices, stock_names):
+            # 只在當日會員通知才有的用語不進公開重點（裁示紀錄 三）；剔除後由只看原稿的章節補問補足點數。
+            # 日誌與缺口紀錄都不印那個用語與整點文字（工作流程日誌是公開的），標題也不搬到別點。
+            label = '教學' if item.get('kind') == 'view' else '盤勢'
+            print(f"  {label}重點未採用（含只在當日會員通知出現、原稿沒有的用語；交由只看原稿的補問重寫）")
+            note_decision('品質關卡', f'{label}重點含通知專屬用語，未採用', date_str, '裁示紀錄 三：會員通知不得外洩')
+            signals.setdefault('_repair_gaps', []).append(f'{label}重點含只在當日會員通知出現的用語，已剔除待補問')
+            continue
         if not why:
             item['_evidence_verified'] = True
             market_keep.append(item)

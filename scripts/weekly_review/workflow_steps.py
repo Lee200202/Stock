@@ -45,6 +45,11 @@ def run_replay(day, golden, report, cwd=None):
     return {'exit_code': code, 'misses': misses, 'errors': len(rep.get('errors') or []), 'requests': int(m.group(1)) if m else 0}
 
 
+def miss_key(line):
+    """不符的比對鍵：股票＋應為，不含「實際」（11/06：分支「實際 觀望注意」、main「實際 沒有收錄」是同一個漏收持股）。"""
+    return re.split(r'[，,]\s*實際', str(line), maxsplit=1)[0].strip()
+
+
 def judge_day(branch, base, again=None):
     """純函式：這一天算不算通過，回傳 (通過, 擋下合併的不符)。
 
@@ -55,12 +60,14 @@ def judge_day(branch, base, again=None):
         return True, []
     if again is not None and again['exit_code'] == 0:
         return True, []
-    steady = [m for m in branch['misses'] if again is None or m in again['misses']]
+    again_keys = {miss_key(m) for m in (again or {}).get('misses', [])}
+    steady = [m for m in branch['misses'] if again is None or miss_key(m) in again_keys]
     if again is not None and not steady and again['exit_code'] != 3 and branch['exit_code'] != 3:
         return True, []
     if base is None:
         return False, steady or branch['misses']
-    new = [m for m in steady if m not in base['misses']]
+    base_keys = {miss_key(m) for m in base['misses']}
+    new = [m for m in steady if miss_key(m) not in base_keys]
     errors_ok = min(branch['errors'], (again or branch)['errors']) <= base['errors']
     if base['exit_code'] != 0 and not new and errors_ok:
         return True, []
@@ -89,7 +96,7 @@ def replay(gate_path, out_path):
             print(f'{role} {day} 分支未通過，再跑分支一輪，量哪些不符是穩定的', flush=True)
             again = run_replay(day, golden, ROOT / '.weekly' / f'replay-{stamp}-2.json')
             requests += again['requests']
-            if again['exit_code'] != 0 and [m for m in branch['misses'] if m in again['misses']]:
+            if again['exit_code'] != 0 and {miss_key(m) for m in branch['misses']} & {miss_key(m) for m in again['misses']}:
                 print(f'{role} {day} 兩輪都有的不符，改用 main 的程式重播同一天、同一份答案做對照', flush=True)
                 base = run_replay(day, golden, ROOT / '.weekly' / f'replay-{stamp}-main.json', cwd=main_checkout())
                 requests += base['requests']

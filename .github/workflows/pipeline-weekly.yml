@@ -138,6 +138,7 @@ jobs:
         if: always()
         with:
           name: weekly-${{ github.run_id }}
-          path: .weekly/
+          # .weekly/main 是 main 的對照工作樹，不上傳（2026/11/06 整個資料夾上傳時沒有產生 artifact）
+          path: .weekly/*.json
           retention-days: 14
           if-no-files-found: warn

@@ -130,6 +130,17 @@ class Robustness1106(unittest.TestCase):
         self.assertEqual(ws.judge_day(r1, None, {'exit_code': 0, 'errors': 0, 'misses': []}), (True, []))
         self.assertFalse(ws.judge_day(dict(r1, exit_code=3), None, dict(r2, exit_code=3))[0], '通用錯誤不能當變異放行')
 
+    def test_same_stock_and_expectation_is_the_same_miss(self):
+        """11/03 實際資料：分支兩輪「實際 觀望注意」、main「實際 沒有收錄」，都是亞德客-KY 應為會員持股。"""
+        import workflow_steps as ws
+        b = {'exit_code': 2, 'errors': 0, 'misses': ['✗ 鴻海（2317）應為 觀望注意，實際 沒有收錄', '✗ 亞德客-KY（1590）應為 會員持股，實際 觀望注意']}
+        b2 = {'exit_code': 2, 'errors': 0, 'misses': ['✗ 亞德客-KY（1590）應為 會員持股，實際 觀望注意']}
+        main = {'exit_code': 2, 'errors': 0, 'misses': ['✗ 台積電（2330）應為 會員持股／觀望注意，實際 沒有收錄',
+                                                        '✗ 鴻海（2317）應為 觀望注意，實際 沒有收錄', '✗ 亞德客-KY（1590）應為 會員持股，實際 沒有收錄']}
+        self.assertEqual(ws.judge_day(b, main, b2), (True, []))
+        self.assertEqual(ws.miss_key('✗ 亞德客-KY（1590）應為 會員持股，實際 沒有收錄'), '✗ 亞德客-KY（1590）應為 會員持股')
+        self.assertFalse(ws.judge_day(b, dict(main, misses=main['misses'][:2]), b2)[0], 'main 沒漏亞德客時仍要擋')
+
     def test_backup_lock_busy_is_retried(self):
         sys.path.insert(0, str(ROOT / 'scripts'))
         import backup_archive as ba

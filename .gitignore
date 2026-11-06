@@ -18,3 +18,5 @@ scripts/preview_*.js
 
 # 每日複核的本機輸入包（含原稿與會員通知，不進版控）
 .daily-review/
+.weekly-review/
+.weekly/

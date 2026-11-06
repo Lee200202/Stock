@@ -18,4 +18,4 @@
 部署、同步與正式讀回依 `stock-release-check`，不把建立版本當已部署。
 常設介面、批次審閱、15RPM及驗收要求見協作技能的 `references/repeated-annotations.md`。
 換 Claude 帳號或換電腦的交接清單與格式規範見 `docs/交接/帳號移轉交接規範.md`；
-每日寄信前複核的雲端排程設定與提示詞見 `docs/daily-review/雲端排程設定.md`。
+雲端排程（每日 11:40 寄信前複核、每週五 17:00 流程檢討）的設定、提示詞與重建步驟見 `docs/雲端排程/雲端排程總覽.md`。

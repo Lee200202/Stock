@@ -1,0 +1,143 @@
+name: pipeline-weekly
+run-name: 每週流程檢討 ${{ github.ref_name }}
+
+# 管理者 2026/11/06：每週五 17:00 雲端排程（盤勢有據 每週流程檢討）整理這一週的邊界與錯誤，
+# 在分支上修通用規則、補答案檔與測試、寫本週未修正明確錯誤的逐檔修正計畫，推到 claude/pipeline-weekly-YYYYMMDD。
+# 這裡依序：守門 → 離線契約 → 真實模型重播（本週重播日＋保留日，唯讀）→ 逐檔修正 → 全部通過才合併 main → 線上驗收 → 寫複核紀錄「每週檢討」。
+# 未通過的實驗不合併（AGENTS.md）；不寄信、不動成交事實與寄送帳本、不部署 Apps Script／Worker。
+on:
+  push:
+    branches: ['claude/pipeline-weekly-*', 'pipeline-weekly/*']
+
+permissions:
+  contents: write
+
+concurrency:
+  # 與擷取重播共用：同一個 Gemini 專案一次只跑一組重播
+  group: gemini-readonly-quality-replay
+  cancel-in-progress: false
+
+jobs:
+  weekly:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    env:
+      BRANCH: ${{ github.ref_name }}
+      PYTHONUNBUFFERED: '1'
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: pip install -r requirements.txt pyyaml
+      - name: 守門（只准改週檢討該改的檔）
+        id: gate
+        continue-on-error: true
+        env:
+          GEMINI_API_KEY: offline
+          SPREADSHEET_ID: offline
+        run: |
+          mkdir -p .weekly
+          git fetch -q origin main
+          python scripts/weekly_review/check_plan.py --base origin/main --branch "$BRANCH" --json .weekly/gate.json
+      - name: 離線契約（分支程式，不呼叫模型）
+        id: offline
+        if: steps.gate.outcome == 'success'
+        continue-on-error: true
+        run: |
+          python scripts/check_public_edit_batch.py
+          node scripts/check_gate_decision_contract.js
+          python scripts/run_offline_contracts.py
+      - name: 真實模型重播（本週重播日＋保留日；唯讀，答案只在推論後評分）
+        id: replay
+        if: steps.gate.outcome == 'success' && steps.offline.outcome == 'success'
+        continue-on-error: true
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+          GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          GEMINI_THINKING_LEVEL: ${{ vars.GEMINI_THINKING_LEVEL || 'auto' }}
+          GEMINI_SEMANTIC_AUDIT: ${{ vars.GEMINI_SEMANTIC_AUDIT || 'true' }}
+          GEMINI_COMBINED_ASSESSMENT: ${{ vars.GEMINI_COMBINED_ASSESSMENT || 'true' }}
+          GEMINI_ASSESSMENT_TOKEN_BUDGET: ${{ vars.GEMINI_ASSESSMENT_TOKEN_BUDGET || '150000' }}
+          GEMINI_CONTEXT_TOKENS: ${{ vars.GEMINI_CONTEXT_TOKENS || '1048576' }}
+          GEMINI_MAX_OUT: ${{ vars.GEMINI_MAX_OUT }}
+          GEMINI_RPM: '10'
+          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          FINAL_ATTEMPT: 'true'
+        run: python scripts/weekly_review/workflow_steps.py replay .weekly/gate.json .weekly/replays.json
+      - name: 本週未修正的明確錯誤：逐檔修正計畫（先預覽再套用）
+        id: repairs
+        if: steps.gate.outcome == 'success'
+        continue-on-error: true
+        env:
+          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
+          GEMINI_API_KEY: offline
+        run: python scripts/weekly_review/workflow_steps.py repairs .weekly/gate.json .weekly/repairs.json
+      - name: 合併到 main（守門、離線契約、重播全部通過才合併）
+        id: merge
+        if: steps.gate.outcome == 'success' && steps.offline.outcome == 'success' && (steps.replay.outcome == 'success' || steps.replay.outcome == 'skipped')
+        continue-on-error: true
+        env:
+          GEMINI_API_KEY: offline
+          SPREADSHEET_ID: offline
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch -q origin main
+          git checkout -q -B weekly-merge origin/main
+          git merge --no-ff "$GITHUB_SHA" -m "chore(weekly): merge ${BRANCH} after gate, offline contracts and replays passed"
+          python scripts/run_offline_contracts.py
+          git push origin HEAD:main
+          echo "MERGED_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: 線上驗收（本週每一項明確錯誤，網站現在是否正確）
+        if: always()
+        continue-on-error: true
+        env:
+          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          REVIEW_LOG_ID: ${{ vars.REVIEW_LOG_ID }}
+          GEMINI_API_KEY: offline
+        run: |
+          STAMP="${BRANCH##*-}"; STAMP="${STAMP##*/}"
+          python scripts/weekly_review/week.py verify --date "${STAMP:0:4}/${STAMP:4:2}/${STAMP:6:2}" --json .weekly/verify.json
+      - name: 寫複核紀錄「每週檢討」並決定結論
+        if: always()
+        env:
+          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          REVIEW_LOG_ID: ${{ vars.REVIEW_LOG_ID }}
+          GEMINI_API_KEY: offline
+          GATE: ${{ steps.gate.outcome }}
+          OFFLINE: ${{ steps.offline.outcome }}
+          REPLAY: ${{ steps.replay.outcome }}
+          REPAIRS: ${{ steps.repairs.outcome }}
+          MERGE: ${{ steps.merge.outcome }}
+        run: |
+          STAMP="${BRANCH##*-}"; STAMP="${STAMP##*/}"
+          DAY="${STAMP:0:4}/${STAMP:4:2}/${STAMP:6:2}"
+          python scripts/weekly_review/workflow_steps.py result .weekly | tee -a "$GITHUB_STEP_SUMMARY"
+          PLAN=$(python -c "import json;print(json.load(open('.weekly/gate.json')).get('plan_path',''))" 2>/dev/null || true)
+          FLAGS=(--mark-fixed --tag "$BRANCH")
+          if [ -n "$PLAN" ]; then FLAGS+=(--plan "$PLAN"); fi
+          if [ "$MERGE" = success ]; then FLAGS+=(--merged); fi
+          python scripts/weekly_review/week.py log --date "$DAY" --stage 工作流程 --json .weekly/result.json "${FLAGS[@]}"
+          if [ "$GATE" != success ] || [ "$OFFLINE" != success ] || [ "$REPAIRS" = failure ] || { [ "$REPLAY" != success ] && [ "$REPLAY" != skipped ]; } || [ "$MERGE" != success ]; then
+            echo "::error::每週流程檢討未全部通過，詳見上方結論與複核紀錄「每週檢討」"; exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: weekly-${{ github.run_id }}
+          path: .weekly/
+          retention-days: 14
+          if-no-files-found: warn

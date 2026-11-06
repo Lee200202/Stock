@@ -48,6 +48,7 @@ SUITES = [
     'test_compare_skill_trials',
     'test_transcript_noon_cutoff',
     'test_transcript_tpm',
+    'test_weekly_review',
 ]
 
 GUARD = r'''

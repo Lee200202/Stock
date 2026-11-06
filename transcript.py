@@ -895,6 +895,13 @@ FALLBACK_TIMEOUT = int(os.environ.get('TRANSCRIPT_FALLBACK_TIMEOUT_SEC', '180'))
 MIN_SPLIT_SECONDS = 5 * 60
 MAX_ROUNDS = 3
 RETRY_WAIT = (30, 90)           # 兩次合計超過一分鐘，順便避開每分鐘額度限制
+# 免費層每分鐘輸入 token 上限（2026/11/06：gemini-3.5-flash-lite 為 250,000，依金鑰所屬專案與模型計算）。
+# 五段 15 分鐘的影片幾乎連續送出，同一把金鑰一分鐘內累計超過上限，第 5 段回 429 才換金鑰。
+# 現在送出前先估這一段的輸入量：同一把金鑰最近一分鐘加上去會超過安全線就換一把有空間的；都沒空間才等。
+INPUT_TPM = int(os.environ.get("TRANSCRIPT_INPUT_TPM", "250000"))
+INPUT_TPM_SAFETY = float(os.environ.get("TRANSCRIPT_INPUT_TPM_SAFETY", "0.85"))
+INPUT_TOKENS_PER_SEC = float(os.environ.get("TRANSCRIPT_INPUT_TOKENS_PER_SEC", "100"))  # 低解析度影片＋聲音的保守估計；跑過一段後改用實際值
+TPM_WINDOW_SEC = 62
 PROBE_PROMPT = "請只回覆：OK"
 PROBE_TIMEOUT = int(os.environ.get("KEY_PROBE_TIMEOUT_SECONDS", "30"))
 NON_RETRYABLE = {401, 403, 404}  # 金鑰無效、沒權限、模型不存在：重試不會成功
@@ -1023,6 +1030,8 @@ class Transcriber:
         self.healthy_until = {}
         self.models_used = []
         self.keys_used = []
+        self.tpm_log = {}               # (金鑰編號, 模型) → [[送出時間, 輸入 token], ...]，只留最近一分鐘
+        self.tokens_per_sec = INPUT_TOKENS_PER_SEC
 
     @property
     def model(self):
@@ -1070,6 +1079,57 @@ class Transcriber:
             raise NotReadyYet('本輪時間預算用盡，已完成片段保留')
         model_limit = FALLBACK_TIMEOUT if self.model_index else SEGMENT_TIMEOUT
         return max(1, min(model_limit, left))
+
+    # ---- 每分鐘輸入上限 ---- #
+    def _tpm_entries(self, key):
+        now = time.monotonic()
+        lst = self.tpm_log.setdefault((key, self.model), [])
+        lst[:] = [e for e in lst if now - e[0] < TPM_WINDOW_SEC]
+        return lst
+
+    def _tpm_used(self, key):
+        return sum(e[1] for e in self._tpm_entries(key))
+
+    def _tpm_wait(self, key, need):
+        """這把金鑰要等幾秒，最近一分鐘的量加上 need 才會在安全線以下。need 本身就超過時不等（單段無法再省）。"""
+        cap = INPUT_TPM * INPUT_TPM_SAFETY
+        entries = sorted(self._tpm_entries(key))
+        used = sum(e[1] for e in entries)
+        if used + need <= cap or need >= cap:
+            return 0.0
+        now = time.monotonic()
+        for t, tokens in entries:
+            used -= tokens
+            if used + need <= cap:
+                return max(0.0, TPM_WINDOW_SEC - (now - t))
+        return 0.0
+
+    def _tpm_order(self, order, need):
+        """有空間的金鑰排前面（目前這把有空間就沿用）；都沒有空間就等最快空出來的那一把。"""
+        if not INPUT_TPM or len(order) == 0:
+            return order
+        waits = {k: self._tpm_wait(k, need) for k in order}
+        roomy = [k for k in order if waits[k] == 0]
+        if roomy:
+            if roomy[0] != order[0]:
+                log(f"    金鑰 #{order[0] + 1} 最近一分鐘已送約 {self._tpm_used(order[0]):,} tokens，"
+                    f"這段約 {need:,}，改用金鑰 #{roomy[0] + 1} 避開每分鐘輸入上限")
+            return roomy + [k for k in order if k not in roomy]
+        k = min(order, key=lambda x: waits[x])
+        wait = waits[k]
+        try:
+            left = self._timeout()
+        except NotReadyYet:
+            left = 0
+        if wait > 0 and left > wait + 60:
+            log(f"    每把金鑰最近一分鐘都接近輸入上限（{INPUT_TPM:,} tokens），等 {wait:.0f} 秒後用金鑰 #{k + 1} 送出")
+            time.sleep(wait)
+        return [k] + [x for x in order if x != k]
+
+    def _tpm_note(self, key, tokens):
+        entry = [time.monotonic(), int(tokens)]
+        self._tpm_entries(key).append(entry)
+        return entry
 
     # ---- 內部 ---- #
     def _available(self):
@@ -1156,6 +1216,8 @@ class Transcriber:
                 raise QuotaExhausted(f"所有金鑰在 {self.model} 的額度都已用完：{last_error}")
             first = keys.index(self.key_index) if self.key_index in keys else 0
             order = keys[first:] + keys[:first]
+            need = int((end - start) * self.tokens_per_sec) + 2000   # 影片＋聲音＋提示詞與詞表
+            order = self._tpm_order(order, need)
 
             all_quota = True
             overloaded_keys = 0
@@ -1200,6 +1262,7 @@ class Transcriber:
                 }
                 log(f"    送出 {hms(start)}–{hms(end)}（第 {attempt} 次{tag}"
                     f"{('，fps=' + str(self.fps)) if use_fps else ''}）")
+                sent = self._tpm_note(key, need)
                 try:
                     result = self._run(request)
                 except Exception as exc:
@@ -1226,6 +1289,8 @@ class Transcriber:
                         detail = _quota_summary(message) or message[:300]
                         if _is_daily_quota(message) or is_quota_403:
                             self.exhausted.add((key, self.model))
+                        else:
+                            sent[1] = max(sent[1], INPUT_TPM)   # 每分鐘上限：這把一分鐘內視為已滿，不馬上再選它
                     else:
                         all_quota = False
                         detail = message[:300]
@@ -1259,6 +1324,11 @@ class Transcriber:
                     continue
 
                 self.healthy_until[(key, self.model)] = time.monotonic() + 300
+                actual = int(getattr(result, "input_tokens", 0) or 0)
+                if actual > 0:
+                    sent[1] = actual
+                    self.tokens_per_sec = max(20.0, actual / max(1, end - start))
+                    log(f"    完成，輸入 {actual:,} tokens（金鑰 #{key + 1} 最近一分鐘 {self._tpm_used(key):,}／上限 {INPUT_TPM:,}）")
                 complete = status not in ("incomplete", "budget_exceeded", "max_tokens")
                 # 模型把請求文字照抄回來時拿掉（見 strip_transcribe_echo）。整段只剩回聲＝這一段沒有聽打到，當失敗重送。
                 text, echo = strip_transcribe_echo(text)
@@ -1381,9 +1451,12 @@ class Transcriber:
         ])
         stream = self.client.models.generate_content_stream(
             model=self.model, contents=contents, config=types.GenerateContentConfig(**config))
-        parts, finish, blocked = [], "", ""
+        parts, finish, blocked, input_tokens = [], "", "", 0
         try:
             for chunk in stream:
+                usage = getattr(chunk, "usage_metadata", None)
+                if usage is not None and getattr(usage, "prompt_token_count", None):
+                    input_tokens = int(usage.prompt_token_count)
                 if time.monotonic() > deadline:
                     raise NotReadyYet('本段聽打時間已到，已完成片段保留，下輪優先重試主模型')
                 blocked = str(getattr(getattr(chunk, "prompt_feedback", None), "block_reason", "") or blocked)
@@ -1401,9 +1474,9 @@ class Transcriber:
                 close()
         text = "".join(parts)
         if finish == "STOP":
-            return _StreamResult(status="completed", output_text=text)
+            return _StreamResult(status="completed", output_text=text, input_tokens=input_tokens)
         if finish == "MAX_TOKENS":
-            return _StreamResult(status="max_tokens", output_text=text)
+            return _StreamResult(status="max_tokens", output_text=text, input_tokens=input_tokens)
         return _StreamResult(status="failed", output_text="",
                              errors=f"generateContent 未正常結束：{finish or blocked or '串流在完成前結束'}")
 
@@ -1603,6 +1676,7 @@ class _StreamResult:
     status: str
     output_text: str
     errors: object = None
+    input_tokens: int = 0
 
 
 # ---------------------------------------------------------------- #

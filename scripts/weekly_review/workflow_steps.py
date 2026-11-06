@@ -45,17 +45,26 @@ def run_replay(day, golden, report, cwd=None):
     return {'exit_code': code, 'misses': misses, 'errors': len(rep.get('errors') or []), 'requests': int(m.group(1)) if m else 0}
 
 
-def judge_day(branch, base):
-    """純函式：這一天算不算通過。分支全過就通過；分支沒過時，main 用同一份答案也沒過，
-    而且分支的每一項不符 main 都有、通用錯誤不比 main 多，代表是既有問題、不是這次改動造成（2026/11/06）。"""
+def judge_day(branch, base, again=None):
+    """純函式：這一天算不算通過，回傳 (通過, 擋下合併的不符)。
+
+    模型每輪判讀不同（2026/11/06 第一次週檢討：10/29 分支兩輪漏的股票完全不同，main 又漏另外幾檔）。
+    所以只有「分支兩輪都出現、main 沒有」的不符才算這次改動造成的退步；只有一輪出現的是單次變異，記錄但不擋。
+    通用錯誤分支不得比 main 多。沒有第二輪或 main 對照時不放行。"""
     if branch['exit_code'] == 0:
         return True, []
-    if base is None:
-        return False, branch['misses']
-    new = [m for m in branch['misses'] if m not in base['misses']]
-    if base['exit_code'] != 0 and not new and branch['errors'] <= base['errors']:
+    if again is not None and again['exit_code'] == 0:
         return True, []
-    return False, new or branch['misses']
+    steady = [m for m in branch['misses'] if again is None or m in again['misses']]
+    if again is not None and not steady and again['exit_code'] != 3 and branch['exit_code'] != 3:
+        return True, []
+    if base is None:
+        return False, steady or branch['misses']
+    new = [m for m in steady if m not in base['misses']]
+    errors_ok = min(branch['errors'], (again or branch)['errors']) <= base['errors']
+    if base['exit_code'] != 0 and not new and errors_ok:
+        return True, []
+    return False, new or steady
 
 
 def main_checkout():
@@ -75,17 +84,22 @@ def replay(gate_path, out_path):
         golden = ROOT / 'scripts/golden' / f'{day.replace("/", "-")}.json'
         branch = run_replay(day, golden, ROOT / '.weekly' / f'replay-{stamp}.json')
         requests += branch['requests']
-        base = None
+        base = again = None
         if branch['exit_code'] != 0 and gate.get('pipeline_changed'):
-            print(f'{role} {day} 分支未通過，改用 main 的程式重播同一天、同一份答案做對照', flush=True)
-            base = run_replay(day, golden, ROOT / '.weekly' / f'replay-{stamp}-main.json', cwd=main_checkout())
-            requests += base['requests']
-        ok, new = judge_day(branch, base)
+            print(f'{role} {day} 分支未通過，再跑分支一輪，量哪些不符是穩定的', flush=True)
+            again = run_replay(day, golden, ROOT / '.weekly' / f'replay-{stamp}-2.json')
+            requests += again['requests']
+            if again['exit_code'] != 0 and [m for m in branch['misses'] if m in again['misses']]:
+                print(f'{role} {day} 兩輪都有的不符，改用 main 的程式重播同一天、同一份答案做對照', flush=True)
+                base = run_replay(day, golden, ROOT / '.weekly' / f'replay-{stamp}-main.json', cwd=main_checkout())
+                requests += base['requests']
+        ok, new = judge_day(branch, base, again)
         results.append({'role': role, 'date': day, 'exit_code': branch['exit_code'], 'ok': ok, 'misses': branch['misses'][:20],
                         'new_misses': new[:20], 'baseline_misses': (base or {}).get('misses', [])[:20],
                         'baseline_exit_code': (base or {}).get('exit_code'), 'errors': branch['errors'],
-                        'requests': branch['requests'] + (base or {}).get('requests', 0)})
-        verdict = '通過' if branch['exit_code'] == 0 else ('與 main 相同的既有問題，不算本次退步' if ok else '未通過（本次改動造成或 main 沒有的不符）')
+                        'second_misses': (again or {}).get('misses', [])[:20],
+                        'requests': branch['requests'] + (base or {}).get('requests', 0) + (again or {}).get('requests', 0)})
+        verdict = '通過' if branch['exit_code'] == 0 else ('不符只是單次變異或 main 也有，不算本次退步' if ok else '未通過（分支兩輪都有、main 沒有的不符）')
         print(f"{role} {day}：{verdict}；不符 {len(branch['misses'])} 項，新增 {len(new)} 項", flush=True)
     save(out_path, {'results': results, 'requests': requests, 'ran': bool(days)})
     sys.exit(0 if all(r['ok'] for r in results) else 1)
@@ -136,9 +150,10 @@ def result(folder):
     for r in replays.get('results') or []:
         same = r['ok'] and r['exit_code'] != 0
         rows.append({'date': r['date'], 'item': f"重播（{r['role']}）",
-                     'result': ('通過（與 main 相同的既有不符）' if same else '通過') if r['ok'] else '未通過',
+                     'result': ('通過（不符只是單次變異或 main 也有）' if same else '通過') if r['ok'] else '未通過',
                      'note': f"結束代碼 {r['exit_code']}；通用錯誤 {r['errors']}；模型請求 {r['requests']}；"
                              + ('不符：' + '；'.join(r['misses']) if r['misses'] else '')
+                             + ('；分支第二輪不符：' + ('；'.join(r.get('second_misses') or []) or '無') if r.get('second_misses') is not None and r['exit_code'] != 0 else '')
                              + (f"；main 對照結束代碼 {r.get('baseline_exit_code')}，main 也不符：" + '；'.join(r.get('baseline_misses') or [])
                                 if r.get('baseline_exit_code') is not None else '')
                              + ('；本次新增的不符：' + '；'.join(r.get('new_misses') or []) if not r['ok'] else '')})

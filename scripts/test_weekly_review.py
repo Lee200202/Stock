@@ -116,6 +116,20 @@ class Robustness1106(unittest.TestCase):
         self.assertEqual(ws.judge_day({'exit_code': 0, 'misses': [], 'errors': 0}, None), (True, []))
         self.assertFalse(ws.judge_day(branch, None)[0], '沒有對照就不放行')
 
+    def test_one_off_misses_are_variance_not_regression(self):
+        """10/29 實際資料：分支兩輪漏的股票完全不同，main 漏另外幾檔。"""
+        import workflow_steps as ws
+        r1 = {'exit_code': 2, 'errors': 0, 'misses': ['✗ 大立光（3008）應為 觀望不碰，實際 沒有收錄']}
+        r2 = {'exit_code': 2, 'errors': 0, 'misses': ['✗ 亞德客-KY（1590）應為 會員持股／觀望注意，實際 沒有收錄',
+                                                     '✗ 玉晶光（3406）應為 觀望不碰，實際 沒有收錄']}
+        main = {'exit_code': 2, 'errors': 0, 'misses': ['✗ 玉晶光（3406）應為 觀望不碰，實際 沒有收錄']}
+        self.assertEqual(ws.judge_day(r1, None, r2), (True, []), '兩輪沒有共同的不符＝單次變異')
+        steady = dict(r2, misses=r2['misses'] + r1['misses'])
+        self.assertEqual(ws.judge_day(r1, main, steady), (False, r1['misses']), '兩輪都漏、main 沒漏才擋')
+        self.assertEqual(ws.judge_day(r1, dict(main, misses=main['misses'] + r1['misses']), steady), (True, []))
+        self.assertEqual(ws.judge_day(r1, None, {'exit_code': 0, 'errors': 0, 'misses': []}), (True, []))
+        self.assertFalse(ws.judge_day(dict(r1, exit_code=3), None, dict(r2, exit_code=3))[0], '通用錯誤不能當變異放行')
+
     def test_backup_lock_busy_is_retried(self):
         sys.path.insert(0, str(ROOT / 'scripts'))
         import backup_archive as ba

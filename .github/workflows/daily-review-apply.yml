@@ -40,6 +40,7 @@ jobs:
           PYTHONUNBUFFERED: '1'
           GEMINI_API_KEY: offline
           BRANCH: ${{ github.ref_name }}
+          BEFORE: ${{ github.event.before }}
         run: |
           STAMP="${BRANCH##*apply-}"
           if ! [[ "$STAMP" =~ ^20[0-9]{6}$ ]]; then echo "分支名稱要是 daily-review/apply-YYYYMMDD 或 claude/daily-review-apply-YYYYMMDD"; exit 1; fi
@@ -52,16 +53,34 @@ jobs:
           NOTICE="scripts/repairs/${DAY//\//-}-notice-reason.json"
           MEMO="scripts/repairs/${DAY//\//-}-name-memo.json"
           if [ ! -f "$PLAN" ] && [ ! -f "$POINTS" ] && [ ! -f "$NOTICE" ] && [ ! -f "$MEMO" ]; then echo "沒有修正計畫"; exit 1; fi
-          if [ -f "$NOTICE" ]; then
-            python scripts/apply_notice_reason_fix.py --date "$DAY"
-            python scripts/apply_notice_reason_fix.py --date "$DAY" --apply
+          # 2026/11/06：同一天第二輪推到同一個分支時，只套用這次推送改到的計畫檔。
+          # 前一輪已套用的舊計畫（例如上午的章節計畫）不再重套，免得蓋掉之後另外核對過的內容。
+          if [[ -n "$BEFORE" && ! "$BEFORE" =~ ^0+$ ]] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            CHANGED=$(git diff --name-only "$BEFORE" "$GITHUB_SHA")
+            for F in PLAN POINTS NOTICE; do
+              if [ -f "${!F}" ] && ! grep -qxF "${!F}" <<< "$CHANGED"; then echo "這次推送沒有改到 ${!F}，前一輪已套用，不重套"; printf -v "$F" '%s' "/nonexistent/${F}"; fi
+            done
           fi
-          if [ -f "$PLAN" ]; then
-            python scripts/apply_source_review.py --date "$DAY"
-            python scripts/apply_source_review.py --date "$DAY" --apply
-          fi
-          if [ -f "$POINTS" ]; then
-            python scripts/apply_reviewed_points.py --date "$DAY"
+          # 2026/11/06：暫時性錯誤（備份鎖忙碌、網路、Apps Script 逾時）不馬上標修正失敗，150 秒後整組重試一次。
+          # 每支工具寫入前都先核對最終狀態，已寫入的不會重寫；預覽沒過就不會套用（每一步都檢查結束代碼）。
+          run_plans() {
+            if [ -f "$NOTICE" ]; then
+              python scripts/apply_notice_reason_fix.py --date "$DAY" || return 1
+              python scripts/apply_notice_reason_fix.py --date "$DAY" --apply || return 1
+            fi
+            if [ -f "$PLAN" ]; then
+              python scripts/apply_source_review.py --date "$DAY" || return 1
+              python scripts/apply_source_review.py --date "$DAY" --apply || return 1
+            fi
+            if [ -f "$POINTS" ]; then
+              python scripts/apply_reviewed_points.py --date "$DAY" || return 1
+            fi
+            return 0
+          }
+          if ! run_plans; then
+            echo "第一次套用沒有完成，150 秒後整組重試一次"
+            sleep 150
+            run_plans
           fi
           echo "DAY=$DAY" >> "$GITHUB_ENV"
       - name: 複核紀錄標記已修正

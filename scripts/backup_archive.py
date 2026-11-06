@@ -3,20 +3,32 @@ import argparse,json,time,sys
 from pathlib import Path
 import requests
 
+LOCK_BUSY='備份鎖忙碌'
+sleep=time.sleep
+
 def archive_request(pl,op,names=()):
     if not pl.APPS_SCRIPT_URL or not pl.ADMIN_KEY:
         raise RuntimeError('獨立備份需要 APPS_SCRIPT_URL 與 ADMIN_KEY；未寫入正式資料')
     # 重複快照具有冪等性：備份服務依來源工作表識別碼與輸入摘要索引。
+    # 2026/11/06：Apps Script 的備份要拿整個專案的鎖（只等 10 秒），五分鐘排程正在跑時就回「備份鎖忙碌」。
+    # 以前這個錯誤不在重試範圍，單日章節修正因此中斷；現在鎖忙碌也重試，間隔漸長，合計約 4 分鐘。
     error=''
-    for attempt in range(3):
+    waits=(5,10,15,20,30,40,50,60)
+    for attempt in range(len(waits)+1):
         try:
             r=requests.get(pl.APPS_SCRIPT_URL,params={'action':'backup-archive','key':pl.ADMIN_KEY,'source':pl.SPREADSHEET_ID,'op':op,'names':json.dumps(list(names),ensure_ascii=False)},timeout=230,headers={'User-Agent':'stock-backup-archive'})
             data=r.json()
-            if not data.get('ok'):raise RuntimeError(data.get('error') or '備份未通過核對')
-            return data
+            if not data.get('ok'):
+                message=str(data.get('error') or '備份未通過核對')
+                if LOCK_BUSY not in message:raise RuntimeError(message)
+                error=message
+            else:
+                return data
         except (requests.RequestException,ValueError) as exc:
             error=type(exc).__name__
-            if attempt<2:time.sleep(5*(attempt+1))
+        if attempt<len(waits):
+            print(f'獨立備份第 {attempt+1} 次未完成（{error}），{waits[attempt]} 秒後重試',flush=True)
+            sleep(waits[attempt])
     raise RuntimeError('備份回應未能確認；正式寫入已停止：'+error)
 
 def backup_tables(pl,book,names):

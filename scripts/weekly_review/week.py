@@ -15,6 +15,7 @@
 import argparse
 import json
 import os
+import re
 import sys
 import time
 from datetime import datetime, timedelta
@@ -139,7 +140,12 @@ def verify_rows(detail_rows, sites, days, texts=None):
         if d not in days or r.get('嚴重度') != '明確錯誤':
             continue
         code = str(r.get('代號') or '').strip()
-        result, why = judge(r, sites.get(d, {}).get(code, []), texts.get(d, ''))
+        codes = [c for c in re.split(r'[／/、,，\s]+', code) if c] if not code.startswith(('①', '③', '—')) else [code]
+        # 2026/11/06：每日紀錄把兩檔合寫成「8299／5289」時，逐檔對網站，全部通過才算通過
+        parts = [judge(r, sites.get(d, {}).get(c, []), texts.get(d, '')) for c in codes or [code]]
+        bad = [x for x in parts if x[0] != '通過']
+        result = '通過' if not bad else ('未通過' if any(x[0] == '未通過' for x in bad) else '需人工')
+        why = '；'.join(f'{c}：{x[1]}' for c, x in zip(codes, parts)) if len(codes) > 1 else parts[0][1]
         out.append({'date': d, 'code': code, 'name': r.get('名稱', ''), 'type': r.get('差異類型', ''),
                     'handling': r.get('處理', ''), 'result': result, 'why': why})
     return out

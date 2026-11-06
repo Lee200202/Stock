@@ -102,6 +102,53 @@ class Gate(unittest.TestCase):
             self.assertIn(name, src, f'{name} 不在 sync_quality.py，守門清單過期')
 
 
+class Robustness1106(unittest.TestCase):
+    """2026/11/06 第一次週檢討：保留日的既有不符擋下合併；備份鎖忙碌中斷章節修正；合寫代號對不到網站。"""
+    def test_existing_failures_on_main_do_not_block_the_merge(self):
+        import workflow_steps as ws
+        miss = '✗ 亞德客-KY（1590）應為 會員持股，實際 沒有收錄'
+        branch = {'exit_code': 2, 'misses': [miss], 'errors': 0}
+        self.assertEqual(ws.judge_day(branch, {'exit_code': 2, 'misses': [miss], 'errors': 0}), (True, []))
+        self.assertEqual(ws.judge_day(branch, {'exit_code': 0, 'misses': [], 'errors': 0})[0], False, 'main 過、分支沒過＝退步')
+        self.assertEqual(ws.judge_day(dict(branch, misses=[miss, '✗ 新的']), {'exit_code': 2, 'misses': [miss], 'errors': 0}),
+                         (False, ['✗ 新的']))
+        self.assertFalse(ws.judge_day(dict(branch, errors=2), {'exit_code': 2, 'misses': [miss], 'errors': 1})[0])
+        self.assertEqual(ws.judge_day({'exit_code': 0, 'misses': [], 'errors': 0}, None), (True, []))
+        self.assertFalse(ws.judge_day(branch, None)[0], '沒有對照就不放行')
+
+    def test_backup_lock_busy_is_retried(self):
+        sys.path.insert(0, str(ROOT / 'scripts'))
+        import backup_archive as ba
+        replies = [{'ok': False, 'error': '備份鎖忙碌，稍後重試'}, {'ok': False, 'error': '備份鎖忙碌，稍後重試'}, {'ok': True, 'verified': ['a']}]
+        calls = []
+        class R:
+            def __init__(self, d): self.d = d
+            def json(self): return self.d
+        old = (ba.requests.get, ba.sleep)
+        try:
+            ba.requests.get = lambda *a, **k: (calls.append(1), R(replies[len(calls) - 1]))[1]
+            ba.sleep = lambda s: None
+            pl = type('P', (), {'APPS_SCRIPT_URL': 'x', 'ADMIN_KEY': 'k', 'SPREADSHEET_ID': 's'})
+            self.assertTrue(ba.archive_request(pl, 'snapshot', ['a'])['ok'])
+            self.assertEqual(len(calls), 3)
+            ba.requests.get = lambda *a, **k: R({'ok': False, 'error': '來源不符'})
+            with self.assertRaises(RuntimeError):
+                ba.archive_request(pl, 'snapshot', ['a'])
+        finally:
+            ba.requests.get, ba.sleep = old
+
+    def test_combined_codes_are_checked_one_by_one(self):
+        days = week.week_of('2026/11/06')[1]
+        row = {'日期': '2026/11/02', '代號': '8299／5289', '名稱': '群聯／宜鼎', '差異類型': '分類', '可接受集合': 'watch_watch',
+               '嚴重度': '明確錯誤', '處理': '待管理者'}
+        both = {'2026/11/02': {'8299': [{'category': 'watch_watch', 'note': ''}], '5289': [{'category': 'watch_watch', 'note': ''}]}}
+        self.assertEqual(week.verify_rows([row], both, days)[0]['result'], '通過')
+        one = {'2026/11/02': {'8299': [{'category': 'watch_watch', 'note': ''}], '5289': [{'category': 'watch_avoid', 'note': ''}]}}
+        got = week.verify_rows([row], one, days)[0]
+        self.assertEqual(got['result'], '未通過')
+        self.assertIn('5289', got['why'])
+
+
 class Workflow(unittest.TestCase):
     def setUp(self):
         self.wf = yaml.safe_load((ROOT / '.github/workflows/pipeline-weekly.yml').read_text(encoding='utf-8'))

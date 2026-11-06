@@ -61,16 +61,26 @@ jobs:
               if [ -f "${!F}" ] && ! grep -qxF "${!F}" <<< "$CHANGED"; then echo "這次推送沒有改到 ${!F}，前一輪已套用，不重套"; printf -v "$F" '%s' "/nonexistent/${F}"; fi
             done
           fi
-          if [ -f "$NOTICE" ]; then
-            python scripts/apply_notice_reason_fix.py --date "$DAY"
-            python scripts/apply_notice_reason_fix.py --date "$DAY" --apply
-          fi
-          if [ -f "$PLAN" ]; then
-            python scripts/apply_source_review.py --date "$DAY"
-            python scripts/apply_source_review.py --date "$DAY" --apply
-          fi
-          if [ -f "$POINTS" ]; then
-            python scripts/apply_reviewed_points.py --date "$DAY"
+          # 2026/11/06：暫時性錯誤（備份鎖忙碌、網路、Apps Script 逾時）不馬上標修正失敗，150 秒後整組重試一次。
+          # 每支工具寫入前都先核對最終狀態，已寫入的不會重寫；預覽沒過就不會套用（每一步都檢查結束代碼）。
+          run_plans() {
+            if [ -f "$NOTICE" ]; then
+              python scripts/apply_notice_reason_fix.py --date "$DAY" || return 1
+              python scripts/apply_notice_reason_fix.py --date "$DAY" --apply || return 1
+            fi
+            if [ -f "$PLAN" ]; then
+              python scripts/apply_source_review.py --date "$DAY" || return 1
+              python scripts/apply_source_review.py --date "$DAY" --apply || return 1
+            fi
+            if [ -f "$POINTS" ]; then
+              python scripts/apply_reviewed_points.py --date "$DAY" || return 1
+            fi
+            return 0
+          }
+          if ! run_plans; then
+            echo "第一次套用沒有完成，150 秒後整組重試一次"
+            sleep 150
+            run_plans
           fi
           echo "DAY=$DAY" >> "$GITHUB_ENV"
       - name: 複核紀錄標記已修正

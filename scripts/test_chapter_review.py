@@ -159,6 +159,13 @@ class SecondRoundApply(unittest.TestCase):
         self.assertLess(skip, run.index('apply_reviewed_points.py'), '要在套用之前決定略過')
         self.assertLess(skip, run.index('apply_source_review.py'))
 
+    def test_transient_failure_is_retried_once_and_preview_still_gates_apply(self):
+        run = (ROOT / '.github/workflows/daily-review-apply.yml').read_text(encoding='utf-8')
+        body = run[run.index('run_plans() {'):run.index('            return 0')]
+        self.assertEqual(body.count('|| return 1'), 5, '每一步都檢查結束代碼，預覽沒過不會接著套用')
+        self.assertIn('if ! run_plans; then', run)
+        self.assertIn('sleep 150', run)
+
     def test_skip_logic_in_bash(self):
         import shutil
         bash = shutil.which('bash')
@@ -177,7 +184,7 @@ class SecondRoundApply(unittest.TestCase):
             subprocess.run(['git', '-C', d, 'commit', '-qm', 'r2'], check=True, env=env)
             sha = subprocess.run(['git', '-C', d, 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip()
             wf = (ROOT / '.github/workflows/daily-review-apply.yml').read_text(encoding='utf-8')
-            block = wf[wf.index('          # 2026/11/06：同一天第二輪'):wf.index('          if [ -f "$NOTICE" ]; then')]
+            block = wf[wf.index('          # 2026/11/06：同一天第二輪'):wf.index('          # 2026/11/06：暫時性錯誤')]
             script = ('DAY=2026/11/06\nPLAN="scripts/repairs/${DAY//\\//-}-source-review.json"\n'
                       'POINTS="scripts/repairs/${DAY//\\//-}-points-review.json"\nNOTICE="scripts/repairs/${DAY//\\//-}-notice-reason.json"\n'
                       + '\n'.join(l[10:] for l in block.splitlines()) + '\necho "PLAN=$PLAN"; echo "POINTS=$POINTS"\n')

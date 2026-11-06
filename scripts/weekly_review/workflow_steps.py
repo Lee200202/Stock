@@ -28,12 +28,42 @@ def save(path, value):
     Path(path).write_text(json.dumps(value, ensure_ascii=False, indent=1), encoding='utf-8')
 
 
-def run(cmd):
+def run(cmd, cwd=None):
     print('$', ' '.join(cmd), flush=True)
-    p = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, encoding='utf-8', errors='replace')
+    p = subprocess.run(cmd, cwd=cwd or ROOT, capture_output=True, text=True, encoding='utf-8', errors='replace')
     sys.stdout.write(p.stdout[-20000:])
     sys.stderr.write(p.stderr[-5000:])
     return p.returncode, p.stdout
+
+
+def run_replay(day, golden, report, cwd=None):
+    code, out = run([sys.executable, 'scripts/replay_extract.py', '--date', day, '--fresh-verdicts',
+                     '--golden', str(golden), '--report-json', str(report)], cwd=cwd)
+    rep = load(report, {}) or {}
+    m = re.search(r'實際模型HTTP (\d+) 次', str(rep.get('usage') or '')) or re.search(r'呼叫 Gemini (\d+) 次', str(rep.get('usage') or ''))
+    misses = [l.strip() for l in out.splitlines() if TICK.match(l) and l.strip().startswith('✗')]
+    return {'exit_code': code, 'misses': misses, 'errors': len(rep.get('errors') or []), 'requests': int(m.group(1)) if m else 0}
+
+
+def judge_day(branch, base):
+    """純函式：這一天算不算通過。分支全過就通過；分支沒過時，main 用同一份答案也沒過，
+    而且分支的每一項不符 main 都有、通用錯誤不比 main 多，代表是既有問題、不是這次改動造成（2026/11/06）。"""
+    if branch['exit_code'] == 0:
+        return True, []
+    if base is None:
+        return False, branch['misses']
+    new = [m for m in branch['misses'] if m not in base['misses']]
+    if base['exit_code'] != 0 and not new and branch['errors'] <= base['errors']:
+        return True, []
+    return False, new or branch['misses']
+
+
+def main_checkout():
+    """main 的程式放在 .weekly/main（只建一次），重播既有問題的對照組。"""
+    path = ROOT / '.weekly' / 'main'
+    if not path.exists():
+        subprocess.run(['git', 'worktree', 'add', '--detach', str(path), 'origin/main'], cwd=ROOT, check=True)
+    return path
 
 
 def replay(gate_path, out_path):
@@ -41,17 +71,22 @@ def replay(gate_path, out_path):
     days = [('本週', d) for d in gate.get('replay_days') or []] + [('保留日', d) for d in gate.get('holdout_days') or []]
     results, requests = [], 0
     for role, day in days:
-        report = ROOT / '.weekly' / ('replay-' + day.replace('/', '') + '.json')
-        code, out = run([sys.executable, 'scripts/replay_extract.py', '--date', day, '--fresh-verdicts',
-                         '--golden', f'scripts/golden/{day.replace("/", "-")}.json', '--report-json', str(report)])
-        rep = load(report, {}) or {}
-        m = re.search(r'實際模型HTTP (\d+) 次', str(rep.get('usage') or '')) or re.search(r'呼叫 Gemini (\d+) 次', str(rep.get('usage') or ''))
-        n = int(m.group(1)) if m else 0
-        requests += n
-        misses = [l.strip() for l in out.splitlines() if TICK.match(l) and l.strip().startswith('✗')]
-        results.append({'role': role, 'date': day, 'exit_code': code, 'ok': code == 0, 'misses': misses[:20],
-                        'errors': len(rep.get('errors') or []), 'requests': n})
-        print(f"{role} {day}：{'通過' if code == 0 else '未通過（結束代碼 %d）' % code}；不符 {len(misses)} 項", flush=True)
+        stamp = day.replace('/', '')
+        golden = ROOT / 'scripts/golden' / f'{day.replace("/", "-")}.json'
+        branch = run_replay(day, golden, ROOT / '.weekly' / f'replay-{stamp}.json')
+        requests += branch['requests']
+        base = None
+        if branch['exit_code'] != 0 and gate.get('pipeline_changed'):
+            print(f'{role} {day} 分支未通過，改用 main 的程式重播同一天、同一份答案做對照', flush=True)
+            base = run_replay(day, golden, ROOT / '.weekly' / f'replay-{stamp}-main.json', cwd=main_checkout())
+            requests += base['requests']
+        ok, new = judge_day(branch, base)
+        results.append({'role': role, 'date': day, 'exit_code': branch['exit_code'], 'ok': ok, 'misses': branch['misses'][:20],
+                        'new_misses': new[:20], 'baseline_misses': (base or {}).get('misses', [])[:20],
+                        'baseline_exit_code': (base or {}).get('exit_code'), 'errors': branch['errors'],
+                        'requests': branch['requests'] + (base or {}).get('requests', 0)})
+        verdict = '通過' if branch['exit_code'] == 0 else ('與 main 相同的既有問題，不算本次退步' if ok else '未通過（本次改動造成或 main 沒有的不符）')
+        print(f"{role} {day}：{verdict}；不符 {len(branch['misses'])} 項，新增 {len(new)} 項", flush=True)
     save(out_path, {'results': results, 'requests': requests, 'ran': bool(days)})
     sys.exit(0 if all(r['ok'] for r in results) else 1)
 
@@ -99,8 +134,14 @@ def result(folder):
                  'note': '；'.join(gate.get('problems') or []) or ('改了流程' if gate.get('pipeline_changed') else '沒有改流程程式')})
     rows.append({'item': '離線契約', 'result': {'success': '通過', 'failure': '不通過'}.get(outcome['OFFLINE'], '未執行')})
     for r in replays.get('results') or []:
-        rows.append({'date': r['date'], 'item': f"重播（{r['role']}）", 'result': '通過' if r['ok'] else '未通過',
-                     'note': f"結束代碼 {r['exit_code']}；通用錯誤 {r['errors']}；模型請求 {r['requests']}；" + '；'.join(r['misses'])})
+        same = r['ok'] and r['exit_code'] != 0
+        rows.append({'date': r['date'], 'item': f"重播（{r['role']}）",
+                     'result': ('通過（與 main 相同的既有不符）' if same else '通過') if r['ok'] else '未通過',
+                     'note': f"結束代碼 {r['exit_code']}；通用錯誤 {r['errors']}；模型請求 {r['requests']}；"
+                             + ('不符：' + '；'.join(r['misses']) if r['misses'] else '')
+                             + (f"；main 對照結束代碼 {r.get('baseline_exit_code')}，main 也不符：" + '；'.join(r.get('baseline_misses') or [])
+                                if r.get('baseline_exit_code') is not None else '')
+                             + ('；本次新增的不符：' + '；'.join(r.get('new_misses') or []) if not r['ok'] else '')})
     for r in reps.get('repairs') or []:
         rows.append({'date': r.get('date', ''), 'item': '修正計畫', 'result': '已套用' if r['ok'] else '套用失敗',
                      'note': f"{r.get('file')}　{r.get('note', '')}"})

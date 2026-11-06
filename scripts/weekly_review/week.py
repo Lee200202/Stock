@@ -31,6 +31,9 @@ WEEK_HEAD = ['週', '紀錄時間', '階段', '日期', '代號', '名稱', '項
 PUBLIC = ('buy', 'sell', 'holdings', 'watch_watch', 'watch_avoid')
 HIDDEN = ('history', 'ignored', 'uncertain')
 CLASS_TYPES = ('分類', '漏收', '今日買賣')
+# ①③章節（2026/11/06）：可從目前的文章機械驗收的類型；其他章節類型（幻覺、漏主題、說明不清）看處理狀態並確認那一點已不在文章
+CHAPTER_COUNTABLE = ('章節空白', '章節點數不足', '章節過短')
+CHAPTER_KEY = {'①': 'macro', '③': 'lessons'}
 GONE_TYPES = ('應排除卻公開', '複核未涵蓋')
 
 
@@ -72,10 +75,42 @@ def site_rows(book, days):
     return out
 
 
-def judge(row, items):
+def articles(book, days):
+    """{日期: 目前的文章全文}（每日推播內容的文字稿）。"""
+    days = set(days)
+    return {norm_day(r.get('日期')): str(r.get('文字稿') or '') for r in rows_of(book.worksheet('每日推播內容'))[1]
+            if norm_day(r.get('日期')) in days}
+
+
+def judge_chapter(row, article):
+    """純函式：①③章節的差異列對照目前的文章。"""
+    from chapters import chapter_points, SHORT, TARGET, NAMES
+    kind, key = str(row.get('差異類型') or ''), CHAPTER_KEY.get(str(row.get('代號') or '').strip())
+    if not key or not article:
+        return '需人工', f'{kind}：讀不到那天的文章或章節代號'
+    points = chapter_points(article)[key]
+    if kind == '章節空白':
+        return ('通過' if points else '未通過'), f'{NAMES[key]}現在 {len(points)} 點'
+    if kind == '章節點數不足':
+        return ('通過' if len(points) >= TARGET else '未通過'), f'{NAMES[key]}現在 {len(points)} 點（目標 {TARGET}）'
+    if kind == '章節過短':
+        short = [p for p in points if len(p) < SHORT[key]]
+        return ('未通過' if short else '通過'), f'{NAMES[key]}過短的點 {len(short)} 個'
+    stem = str(row.get('網站分類') or '')[:20]
+    still = bool(stem) and any(stem in p for p in points)
+    if still:
+        return '未通過', f'{kind}：有問題的那一點還在文章裡'
+    if str(row.get('處理') or '') in ('已修正', '週檢討確認已正確'):
+        return '通過', f'{kind}：那一點已不在文章，處理狀態「{row.get("處理")}」'
+    return '需人工', f'{kind}：處理狀態「{row.get("處理") or "空白"}」，請人工確認'
+
+
+def judge(row, items, article=''):
     """純函式：一列差異明細（明確錯誤）對照目前網站的那一檔，回傳 (結果, 說明)。結果：通過／未通過／需人工。"""
     from compare_site import duplicated_sentence
     kind = str(row.get('差異類型') or '')
+    if kind.startswith('章節'):
+        return judge_chapter(row, article)
     public = [x['category'] for x in items if x['category'] in PUBLIC]
     shown = '、'.join(LABEL[c] for c in public) or '未收錄'
     if kind in CLASS_TYPES:
@@ -96,14 +131,15 @@ def judge(row, items):
     return '需人工', f'{kind}：沒有自動驗收方法，處理狀態「{row.get("處理") or "空白"}」'
 
 
-def verify_rows(detail_rows, sites, days):
+def verify_rows(detail_rows, sites, days, texts=None):
+    texts = texts or {}
     out = []
     for r in detail_rows:
         d = norm_day(r.get('日期'))
         if d not in days or r.get('嚴重度') != '明確錯誤':
             continue
         code = str(r.get('代號') or '').strip()
-        result, why = judge(r, sites.get(d, {}).get(code, []))
+        result, why = judge(r, sites.get(d, {}).get(code, []), texts.get(d, ''))
         out.append({'date': d, 'code': code, 'name': r.get('名稱', ''), 'type': r.get('差異類型', ''),
                     'handling': r.get('處理', ''), 'result': result, 'why': why})
     return out
@@ -161,7 +197,7 @@ def cmd_fetch(a):
     book = open_book(pl)
     open_days = trading(days)
     sites = site_rows(book, days)
-    checks = verify_rows(data['detail'], sites, days)
+    checks = verify_rows(data['detail'], sites, days, articles(book, days))
     week_gold, holdout = golden_index(days)
     out = WORK / stamp_of(friday)
     payload = {'week': friday, 'days': days, 'trading_days': open_days, 'fetched_at': now().strftime('%Y/%m/%d %H:%M:%S'),
@@ -198,7 +234,7 @@ def cmd_fetch(a):
 def cmd_verify(a):
     friday, days, _log, data = load_week(a.date or today())
     book = open_book(pipeline())
-    checks = verify_rows(data['detail'], site_rows(book, days), days)
+    checks = verify_rows(data['detail'], site_rows(book, days), days, articles(book, days))
     if a.json:
         write_json(Path(a.json), {'week': friday, 'checks': checks})
     for c in checks:

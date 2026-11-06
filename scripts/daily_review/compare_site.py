@@ -4,12 +4,15 @@
 
 讀：操作紀錄／會員持股的今天列（網站與郵件就是由它們組成）、每日推播內容的文章。
 寫：.daily-review/<日期>/site.json、diffs.json、diffs.md
-差異類型：分類、漏收、複核未涵蓋、應排除卻公開、今日買賣、通知用語外洩、說明重複
+差異類型：分類、漏收、複核未涵蓋、應排除卻公開、今日買賣、通知用語外洩、說明重複；
+①③章節（2026/11/06）：章節空白、章節點數不足、章節數字不在原稿、章節過短，並寫 chapters.md 讓複核者對照凍結判讀的主題
+（幻覺、漏掉的重點、說明不清等語意判斷由複核者寫進 judged.json）。
 """
 import argparse
 import json
 import re
 
+from chapters import chapter_diffs, chapters_markdown
 from common import LABEL, WORK, DIRECTION, norm_day, open_book, pipeline, read_json, rows_of, sha, today, write_json
 
 
@@ -124,6 +127,8 @@ def main():
         diffs.append({'code': '—', 'name': '公開文字', 'site': phrase, 'review': '', 'accept': [],
                       'type': '通知用語外洩', 'quote': '', 'review_why': '只出現在當日會員通知，原稿與修飾稿都沒有',
                       'site_note': ''})
+    diffs += chapter_diffs(article, raw)
+    (out / 'chapters.md').write_text(chapters_markdown(article, reading.get('chapters')), encoding='utf-8')
     write_json(out / 'diffs.json', diffs)
     lines = [f'# {day} 比對差異（{len(diffs)} 項；判讀 {len(reviewed)} 檔，網站 {len(site)} 檔）', '',
              '| 代號 | 名稱 | 網站 | 複核 | 類型 | 原句 | 網站說明 |', '|---|---|---|---|---|---|---|']
@@ -131,6 +136,7 @@ def main():
         lines.append(f"| {d['code']} | {d['name']} | {d['site']} | {d['review']} | {d['type']} | {d['quote'][:40]} | {str(d['site_note'])[:60]} |")
     (out / 'diffs.md').write_text('\n'.join(lines) + '\n', encoding='utf-8')
     print('\n'.join(lines))
+    print('\n章節對照：', out / 'chapters.md')
 
 
 if __name__ == '__main__':

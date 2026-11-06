@@ -49,6 +49,7 @@ SUITES = [
     'test_transcript_noon_cutoff',
     'test_transcript_tpm',
     'test_weekly_review',
+    'test_chapter_review',
 ]
 
 GUARD = r'''

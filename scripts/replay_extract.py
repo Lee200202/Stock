@@ -140,6 +140,28 @@ def compare(signals, golden, day=None):
             bad = any(phrase in note for note in notes.get(code, []))
             ok &= not bad
             lines.append(f"  {'✗' if bad else '✓'} {names.get(code, '')}（{code}）說明不得含「{phrase}」")
+    # ①盤勢與③教學（管理者 2026/11/06：兩章也要回歸）：chapter_min 點數下限；chapter_required 某章至少一點含其中一個詞
+    # （數字、指標或觀念，推論後才比對，不送進模型）；chapter_must_not 某章不得出現的說法（已確認的幻覺或錯置）。
+    shown = [r for r in (signals.get('market') or []) if isinstance(r, dict) and r.get('_evidence_verified')
+             and not r.get('_duplicate_point') and str(r.get('text') or '').strip()]
+    chapters = {'macro': [str(r.get('text')) for r in shown if r.get('kind') != 'view'],
+                'lessons': [str(r.get('text')) for r in shown if r.get('kind') == 'view']}
+    chapter_name = {'macro': '①盤勢', 'lessons': '③教學'}
+    for key, need in (golden.get('chapter_min') or {}).items():
+        got = len(chapters.get(key, []))
+        ok &= got >= int(need)
+        lines.append(f"  {'✓' if got >= int(need) else '✗'} {chapter_name.get(key, key)}至少 {need} 點，實際 {got} 點")
+    for item in golden.get('chapter_required') or []:
+        key, words = item.get('chapter', ''), [w for w in item.get('any_of') or [] if w]
+        good = any(w in t for t in chapters.get(key, []) for w in words)
+        ok &= good
+        lines.append(f"  {'✓' if good else '✗'} {chapter_name.get(key, key)}要涵蓋：{item.get('topic') or '／'.join(words)}"
+                     + ('' if good else f"（找不到 {'／'.join(words)}）"))
+    for item in golden.get('chapter_must_not') or []:
+        key, phrase = item.get('chapter', ''), item.get('phrase', '')
+        bad = bool(phrase) and any(phrase in t for t in chapters.get(key, []))
+        ok &= not bad
+        lines.append(f"  {'✗' if bad else '✓'} {chapter_name.get(key, key)}不得出現「{phrase}」")
     for code in golden.get("single", []):                      # 這一檔只能有一列（2026/10/02 聖暉一度有兩筆持股加一筆觀望注意）
         got = where.get(code, [])
         ok &= len(got) <= 1

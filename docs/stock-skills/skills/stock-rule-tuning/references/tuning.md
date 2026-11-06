@@ -76,6 +76,9 @@
 | `note_must_not` | 某檔說明不得含的字串 |
 | `reviewed_notes` ＋ `reviewed_notes_sha256` | 已核對的書面說明，綁原稿指紋 |
 | `equivalence`、`why`、`review_basis` | 管理者裁示與判斷依據的文字紀錄 |
+| `chapter_min` | ①盤勢（`macro`）與③教學（`lessons`）各至少幾點（2026/11/06） |
+| `chapter_required` | `[{chapter, topic, any_of}]`：該章至少一點含 `any_of` 其中一個詞；用原稿的數字或專有名詞，不用語氣詞 |
+| `chapter_must_not` | `[{chapter, phrase}]`：該章不得出現的已確認錯誤說法 |
 
 建立方式：完整讀當天保存的原稿與通知，**先自己獨立分類**（公司、主體、日期、部位、現況立場、原句），再看正式站與流程結果；只把有明確依據或管理者裁示的列入。可接受兩種結果的股票（教學回顧或不碰）留在 must 之外。
 

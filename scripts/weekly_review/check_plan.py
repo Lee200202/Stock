@@ -74,6 +74,12 @@ def golden_problems(path, old, new):
         missing = set(old_obj.get(key) or []) - set(new_obj.get(key) or [])
         if missing:
             out.append(f'{path}：既有答案 {key} 少了 {sorted(missing)}')
+    for key in ('chapter_required', 'chapter_must_not'):
+        if [x for x in old_obj.get(key) or [] if x not in (new_obj.get(key) or [])]:
+            out.append(f'{path}：既有章節答案 {key} 被改動或刪除')
+    for key, n in (old_obj.get('chapter_min') or {}).items():
+        if int((new_obj.get('chapter_min') or {}).get(key, 0)) < int(n):
+            out.append(f'{path}：chapter_min.{key} 被調低')
     if old_obj.get('raw_sha256') and new_obj.get('raw_sha256') != old_obj.get('raw_sha256'):
         out.append(f'{path}：raw_sha256 被改動')
     return out

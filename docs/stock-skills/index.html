@@ -1094,6 +1094,22 @@ html[data-theme=dark]{--bg:#101915;--panel:#19251f;--text:#ebf3ee;--muted:#afc1b
 <p>技術流程圖維持滑入循環／點選停止／再播恢復；統計圖以一次入場或資料變更轉場為預設，不循環改動數字或模擬有新資料。兩者都遵守 reduced-motion、離屏／背景暫停及無 JavaScript 可讀。動畫不新增 API 呼叫。</p>
 <p>驗收表逐頁記：viewport、字級／寬度設定、主容器實際邊界、控制項操作、圖表標籤與工具提示、深淺色、狀態、截圖。不得只以 <code>scrollWidth &lt;= innerWidth</code> 宣稱圖中文字可讀；SVG／canvas 的文字與邊界也逐項看。新樣式要在 Pages 與 GAS 受影響介面各驗，無法開啟的一面列未驗。</p>
 <p>若要比較改版成效，將任務完成率、找資料時間、誤觸與可用性列為主指標，參考 <code>stock-rule-tuning/references/evaluation.md</code>；單次截圖或停留時間提高不構成 A/B 因果證據。</p>
+<h2>複核紀錄介面驗收（2026/11/05）</h2>
+<ul>
+<li>後台摘要、差異明細、完整日報及正式網站現況各有來源。時間軸只用已記錄時間；分鐘不補秒，缺值不補零，摘要完成不等於同步或寄送完成。</li>
+<li>比對檔數與差異筆數分母不同；跨日摘要合計標比對筆次。卡片篩選只改畫面，完整區間MD不能跟著少列，下載後解析原始／目前／歷程／完整日報核對。</li>
+<li>常駐日曆鋪滿內容卡；起訖選日接近滿版。實測1440／1916及390、大字、深淺色、短視窗、鍵盤和reduced-motion。</li>
+<li>差異預設收合，卡片／左右對照／單筆均須可編輯、回原文與翻頁；新分頁只帶日期及非機密紀錄ID，不把密鑰放進URL。</li>
+<li>使用自訂控制與SVG線條圖示，不用emoji、keycap或裝飾數字。原始證據文字照存，不為外觀刪改來源。</li>
+<li>取消未儲存內容用頁內自訂確認；存檔進行中不得先關閉並假稱完成。不要用真實股票變更測版；可用同值不寫入與已授權可還原註記測試，另標真正四步同步未測面。</li>
+</ul>
+<p>技術說明按故事線拆章時，章節數由實際內容決定；同步宣告數、目錄、章號、前後導覽、搜尋及舊錨點。使用<code>python -B scripts/check_tech_chapters.py</code>核對結構，實際逐章點選與互動另用瀏覽器驗收，不固定舊的19或20章。</p>
+<h2>15. 全版覆蓋、設定面板與實際介面截圖</h2>
+<ul>
+<li>管理者指定教學、回饋或日曆操作全版時，量測開啟後的覆蓋層是否填滿可見視窗，包含上方分頁和底部。背景停止捲動，內層長內容可捲動，關閉鈕保持可達。檢查 Escape、鍵盤操作、關閉後焦點，以及從教學切換到回饋時只開一層。</li>
+<li>齒輪設定面板沿用靠右彈層，桌面以約四分之一視窗為寬度基準，並保留字級選項所需的最小寬度。手機限制在視窗內。在 100%、125%、150% 與寬字距下，選項中的中文與百分比仍排同一行，不截斷。驗收面板位於黏頂頁籤上方，實點面板上緣與最下方入口，不能只看 z-index。</li>
+<li>設定提示只寫使用者需要知道的內容。上列圖示保留可存取名稱。郵件教學要從已驗收的真實介面截圖，保留定位所需的周邊，紅框圈在實際圖示與入口上。逐步截取齒輪、捲到設定底部、新手教學所有情境。截圖不得把圖示改成文字按鈕或省略實際同層選項。兩封草稿各確認圖片載入、窄版無橫向溢出及連結目的地。</li>
+</ul>
 </div></details></section><section class="doc" data-group="story" id="story"><details><summary><span class="tag k-story">視覺</span>捲動敘事視覺語言</summary><div class="prose"><p><code>stock-scroll-story</code> · 新增（zenbu 與 Apple 產品頁實測：權杖、進場淡入、數字跳動、卡片列與暫停） · <a href="skills/stock-scroll-story/SKILL.md">技能入口</a></p><h1>捲動敘事設計規格</h1>
 <p>2026/10/21 以瀏覽器實際操作兩個參考網站後整理。數值是當天以 <code>getComputedStyle</code> 讀出的實測值，網站之後可能改版；需要精確行為時重新檢查。參考的是結構與節奏，不是素材。</p>
 <h2>1. 參考網站實測</h2>
@@ -2269,6 +2285,20 @@ document.querySelectorAll('.ss-rise').forEach(el =&gt; io.observe(el));
 <li>每章約 2–3 點（管理者 2026/10/07：只列一點偏少；看過逐字稿有內容就補上）。實際下限與上限以現行 <code>canonical_article</code> 與文章核對程式為準，不恢復舊版 6–10 點。</li>
 <li>每點要有原文支持；同章與跨章去重：意思相近（只換開頭、沒有新數字或新條件）只留一點，換另一個有內容的重點（2026/10/07 ①有兩點語意相近）。</li>
 <li>寫成書面重點，不貼長段原話；教學重點要寫出操作邏輯（例如「突破季線後回測季線再上去才是買點」），不是只寫「講解了季線」。</li>
+<li>2026/11/06 管理者：兩章也要每天審、每週回歸，<strong>要有一定的內容與詳細的技術說明</strong>，不可有幻覺。審核標準（每日作業 <code>docs/daily-review/每日複核作業.md</code> 第 4-1 節是同一份）：<ul>
+<li>①盤勢依序檢查有沒有漏：指數漲跌與關鍵點位、位階與均線（年線、季線、60分K）、量能、法人或融資籌碼、族群資金輪動、匯率與重大事件、下一步多空看法。只寫原稿有講的維度。</li>
+<li>③教學每點寫成「觀念標題：做法 → 明講的原因 → 適用對象與條件 → 當天例子 → 要避免的錯誤」，約 120～220 字；材料只有一句時可以短。</li>
+<li>每個數字都要在該點自己的引句裡；講者的說法用「講者指出／認為」，不把講者對事實的說法改寫成更確定的事實（11/06 國巨「一張不是1,000股」改寫成「一拆四後換算回拆分前」）。</li>
+<li>私人理財分享（換匯、買房）可以寫，但要寫明是講者個人的做法、沒有鼓勵觀眾。</li>
+<li>11/06 實例：原本兩章各 3 點，都有依據，但漏了年線位階、1.11兆底部出量、族群全面下跌、台幣匯率，教學每點只有 74～95 字。改成各 6 點後的寫法見 <code>scripts/repairs/2026-11-06-points-review.json</code>。</li>
+</ul>
+</li>
+<li>工具：<ul>
+<li><code>scripts/daily_review/chapters.py</code>：拆兩章、列機械疑點、<code>check-plan</code> 驗章節修正計畫。</li>
+<li>章節修正一律走 <code>scripts/apply_reviewed_points.py</code>（整份取代兩章）。</li>
+<li>重播回歸用答案檔的 <code>chapter_min</code>、<code>chapter_required</code>、<code>chapter_must_not</code>（見 <code>stock-rule-tuning</code> 第 4 節）。</li>
+</ul>
+</li>
 </ul>
 <h2>6. 每集標題</h2>
 <ul>
@@ -2519,6 +2549,18 @@ document.querySelectorAll('.ss-rise').forEach(el =&gt; io.observe(el));
 <tr>
   <td><code>equivalence</code>、<code>why</code>、<code>review_basis</code></td>
   <td>管理者裁示與判斷依據的文字紀錄</td>
+</tr>
+<tr>
+  <td><code>chapter_min</code></td>
+  <td>①盤勢（<code>macro</code>）與③教學（<code>lessons</code>）各至少幾點（2026/11/06）</td>
+</tr>
+<tr>
+  <td><code>chapter_required</code></td>
+  <td><code>[{chapter, topic, any_of}]</code>：該章至少一點含 <code>any_of</code> 其中一個詞；用原稿的數字或專有名詞，不用語氣詞</td>
+</tr>
+<tr>
+  <td><code>chapter_must_not</code></td>
+  <td><code>[{chapter, phrase}]</code>：該章不得出現的已確認錯誤說法</td>
 </tr>
 </tbody>
 </table></div>
@@ -3177,6 +3219,9 @@ document.querySelectorAll('.ss-rise').forEach(el =&gt; io.observe(el));
 <li>觸發與取消屬於對外動作：10/05 的同意是針對那次事故；單日 <code>apply</code> 要管理者在對話中點名日期（見 <code>stock-collaboration</code> 第 2 節）。</li>
 <li>讀模型額度：管理者會貼 AI Studio 的 RPM／TPM／RPD；送出前估算請求數（<code>stock-rule-tuning</code> 第 9 節）。</li>
 </ul>
+<h2>UI發布後的自動化健康核對（2026/11/05）</h2>
+<p>先記台北日期與時間窗。未到09:05通知、11:05取稿、12:00最早寄送時，不把等待當故障。查當日觸發器心跳及必要觸發器，再讀最近已完成交易日的原稿、工單、郵件接受帳本、同步與績效時序；GitHub成功但未呼叫模型的略過輪不是完整流程驗收。</p>
+<p>同時看累計觸發器耗時與參考預算：目前綠燈不抵銷前一日超過參考值。先列實際來源與耗時再判定是否需優化，不為健康巡檢重裝、派工或重寄。郵件服務接受不等於收件者已讀，休市／未開盤保留報價不等於來源漏抓。</p>
 </div></details></section><section class="doc" data-group="release" id="release"><details><summary><span class="tag k-release">發布</span>同步發布與驗收</summary><div class="prose"><p><code>stock-release-check</code> · 併入（補品質提升的證據門檻，區分已安裝、已評估與已發布） · <a href="skills/stock-release-check/SKILL.md">技能入口</a></p><h1>發布、版本同步與實測交付</h1>
 <h2>1. 權威與範圍</h2>
 <p>工作前讀 cwd／<code>git status --short</code>／remote／branch／目前 build；找適用的 <code>AGENTS.md</code>，不存在就不虛構。源碼以目前 Git 追蹤、symlink 及構建腳本確認。<code>public-site/gas-source/</code> 是現行正本；<code>apps-script/</code> 可能連到它，不可只改未追蹤鏡像。其他工作階段的 dirty files 不加入本輪 commit。</p>
@@ -3392,6 +3437,9 @@ document.querySelectorAll('.ss-rise').forEach(el =&gt; io.observe(el));
 <li>除 HTML／CSS／JS 外，比對放大視窗的 SVG 與公開截圖資產。Pages 資產發布成功後，再驗圖解視窗與圖片的實際載入；<code>HTTP 200</code> 或部署版本正確不能代替圖片完整呈現。</li>
 <li>章節驗收以實際 <code>innerWidth</code>、字級與深淺色紀錄，不能只記工具要求的尺寸。瀏覽器尺寸覆寫可能只作用在當前分頁；量到另一個寬度時先修正測試分頁，不把它算進目標矩陣。</li>
 </ul>
+<h2>紀錄與說明同步驗收（2026/11/05）</h2>
+<p>每日摘要的完成、寄送快照、修改紀錄、正式網站及通知帳本分列證據。技術頁引用舊日實驗須標日期，不把已解缺陷寫成現行限制，也不把離線通過改寫成模型已穩定。版本沿革按已知日期分組由早到新，無日期的舊項目另列，不從版本號猜日期。</p>
+<p>複核後台新增include時確認Pages及GAS都實際載入；卡片、對照、單筆、新分頁及MD區間匯出用真實資料讀回。原部署由擁有者更新後，核對實際部署版本與來源，不能只信build文字。正式資料同值儲存可驗無寫入；不能據此宣稱改寫後同步已實測。</p>
 </div></details></section><section class="doc" data-group="assistant" id="assistant"><details><summary><span class="tag k-assistant">助理</span>網站 AI 助理</summary><div class="prose"><p><code>stock-assistant</code> · 新增（只用 Flash Lite、只訂閱每日總覽、唯讀查詢與三條硬限制） · <a href="skills/stock-assistant/SKILL.md">技能入口</a></p><h1>助理規格與驗證</h1>
 <p>程式位置：後端 <code>public-site/gas-source/Aiservice.gs</code>（編輯器檔名 <code>Aiservice</code>），前台對話框在 <code>Index.html</code> 與 <code>JavaScript.html</code> 的「助手」段（<code>askHints</code>、<code>askInput</code>、<code>KEY_STORE = 'gemini_key'</code>）。函式名稱以 <code>rg -n &quot;function 名稱&quot; public-site/gas-source/Aiservice.gs</code> 確認，不憑記憶。</p>
 <h2>1. 管理者的裁示（2026/10/12）</h2>

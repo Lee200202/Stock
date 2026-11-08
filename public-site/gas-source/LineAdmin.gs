@@ -127,7 +127,11 @@ function lineAdminReviewData_(day, latestIfMissing) {
   if (!book) { return null; }
   var sums = lineAdminReadTab_(book, '每日摘要', '');
   var summary = sums.filter(function (o) { return o['日期'] === day; }).pop();
-  if (!summary && latestIfMissing && sums.length) { summary = sums[sums.length - 1]; day = summary['日期']; }
+  // 隨時查看（「今日稽核」「待裁示」）：今天沒有或今天沒跑（週末、休市、無影片）就看最近一次真的有複核的那天
+  if (latestIfMissing && (!summary || String(summary['狀態'] || '').trim() === '未執行')) {
+    var ran = sums.filter(function (o) { return String(o['狀態'] || '').trim() !== '未執行'; });
+    if (ran.length) { summary = ran[ran.length - 1]; day = summary['日期']; }
+  }
   if (!summary) { return null; }
   return { day: day, summary: summary, rows: lineAdminReadTab_(book, '差異明細', day), url: book.getUrl() };
 }

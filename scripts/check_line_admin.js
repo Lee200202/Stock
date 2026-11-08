@@ -135,3 +135,17 @@ assert.equal(called.o.headers['anthropic-beta'], 'experimental-cc-routine-2026-0
 assert.match(JSON.parse(called.o.payload).text, /R1,R2/);
 
 console.log('LINE 管理者模式：解析、期限、卡片、權限、收件人與觸發檢查通過');
+
+// ---- r1：隨時查看時跳過「未執行」的日子 ----
+(() => {
+  const sheet = (vals) => ({ getLastRow: () => vals.length, getLastColumn: () => vals[0].length,
+    getRange: () => ({ getDisplayValues: () => vals }) });
+  const sums = [['日期', '狀態'], ['2026/11/06', '已完成'], ['2026/11/07', '未執行'], ['2026/11/08', '未執行']];
+  const detail = [['日期', '代號', '嚴重度', '處理'], ['2026/11/06', '8299', '待確認', '待管理者']];
+  ctx.dailyReviewBook_ = () => ({ getSheetByName: n => (n === '每日摘要' ? sheet(sums) : n === '差異明細' ? sheet(detail) : null), getUrl: () => 'u' });
+  const d = ctx.lineAdminReviewData_('2026/11/08', true);
+  assert.equal(d.day, '2026/11/06');
+  assert.equal(d.rows.length, 1);
+  assert.equal(ctx.lineAdminReviewData_('2026/11/08', false).summary['狀態'], '未執行');   // 自動推送仍看當天
+})();
+console.log('r1 隨時查看跳過未執行通過');

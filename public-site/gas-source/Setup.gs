@@ -98,7 +98,7 @@ var SHEET_SCHEMA = {
   '人工補登': ['補登時間', '日期', '股票名稱', '代號', '方向', '價位說明', '理由摘錄', '逐字稿節錄', '狀態'],
   /* LINE 官方帳號（v73，見 Line.gs）。與 Email 的「使用者訂閱清單」「寄送帳本」分開：
      LINE 以 userId 識別、各自開關、各自記帳；不能把 userId 塞進 Email 欄。欄位與 Line.gs 的 LINE_*_COLS_ 相同（測試核對）。 */
-  'LINE 訂閱清單': ['使用者ID', '頻道', '好友狀態', '每日總覽', '盤中通知', '同意時間', '同意版本', '建立時間', '更新時間', '最後互動', '測試身分'],
+  'LINE 訂閱清單': ['使用者ID', '頻道', '好友狀態', '每日總覽', '盤中通知', '同意時間', '同意版本', '建立時間', '更新時間', '最後互動', '測試身分', '管理者模式'],
   'LINE 事件帳本': ['事件ID', '類型', '使用者', '收到時間', '重送', '處理結果'],
   'LINE 待送訊息': ['訊息ID', '種類', '日期', '內容版本', '來源', '建立時間', '到期時間', '狀態', '收件人數', '已接受', '失敗', '待送', '備註', '更新時間', '內容JSON'],
   'LINE 寄送帳本': ['訊息ID', '日期', '收件者', '狀態', '嘗試次數', '重試金鑰', '最後錯誤', '更新時間', '接受時間', '請求ID']
@@ -420,6 +420,8 @@ function everyFiveMinJobRun_() {
   if (typeof dailyReviewEnsureLog_ === 'function') { safe_('dailyReviewEnsureLog_', dailyReviewEnsureLog_); }
   // 每日複核日報：到時間的待寄通知用管理者通知寄出（Dailyreview.gs）；11:30 到夜間收工前才開紀錄表
   if (hhmm >= 1130 && typeof dailyReviewNoticeTick_ === 'function') { safe_('dailyReviewNoticeTick_', dailyReviewNoticeTick_); }
+  // LINE 管理者模式（LineAdmin.gs）：複核完成就送稽核結果與待裁示；裁示完成就回報。沒有待辦時只讀屬性。
+  if (typeof lineAdminTick_ === 'function') { safe_('lineAdminTick_', lineAdminTick_); }
   // 夜間只續送待送通知與恢復中斷工單；沒有市場總覽採樣。
   if (hhmm < 800 || hhmm >= 2230) {
 
@@ -1278,7 +1280,7 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-11-06-tracker-stale-today-v218r2';
+var PROJECT_BUILD_ = '2026-11-08-line-admin-v219';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
@@ -1289,6 +1291,7 @@ var PROJECT_FILES_ = [
   { file: 'UsageAnalytics.gs', names: ['usageWrite190_', 'usageAggregate190_', 'usageAnalytics190_'] },
   { file: 'SiteBridge.gs', names: ['siteBridge_', 'siteBridgeSetup'], marker: ['siteBridge_', 'args.length > 8'] },
   { file: 'Marketservice.gs', names: ['mergedHourlyHistory_', 'backfillHourlyHistoryJob', 'auditHourlyCoverage', 'installMarketDataJobs', 'migrateV94'], marker: ['backfillHourlyHistoryJobRun_', 'tally.ok'] },
+  { file: 'LineAdmin.gs', names: ['lineAdminParseRuling_', 'lineAdminRuleDate_', 'lineAdminReviewFlex_', 'lineAdminPendingFlex_', 'lineAdminTick_', 'lineAdminFire_', 'LINE_ADMIN_RULE_COLS_'], marker: ['lineAdminFire_', 'experimental-cc-routine-2026-04-01'] },
   { file: 'Line.gs', names: ['lineWebhook_', 'lineSignatureOk_', 'lineParseText_', 'lineQueueSms_', 'lineQueueSmsTextCorrection_', 'lineDailyTick_', 'lineDeliverTick_', 'lineClassify_', 'lineSectorReply_', 'apiGetLineEntry', 'apiAdminLineStatus', 'apiAdminLineSaveConfig', 'lineSetupCheck', 'lineValidateTemplates', 'lineSetupRichMenus', 'lineRichMenuHealth_', 'lineChartUrl_', 'lineHoldingVisualFlex_', 'LINE_OUTBOX_COLS_', 'lineSmsActive_', 'lineMsg_', 'lineSmsStateFlex_', 'lineRecipientBreakdown_', 'lineDiagnose_', 'apiAdminLineDiagnose', 'diagnoseLineDelivery', 'lineStockFlex_'], marker: ['lineWebhook_', 'gasAt'] },
   { file: 'MarketSession.gs', names: ['marketSessionClosed_', 'marketSessionQuoteHealth_', 'marketSessionSkipPull_', 'marketSessionValidate_', 'diagnoseMarketSession', 'previewMarketSessionReview'], marker: ['marketSessionQuoteHealth_', 'MARKET_SESSION_WAIT_MS_'] },
   { file: 'Holidays.gs', names: ['marketHolidaySet_', 'isMarketHoliday_', 'whyClosed_', 'refreshHolidayYear_', 'checkNextYearHolidays'], marker: ['refreshHolidayYear_', 'HOLIDAY_PROP_PREFIX_'] },

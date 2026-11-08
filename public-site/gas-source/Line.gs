@@ -27,7 +27,7 @@ var LINE_EVENTS_SHEET_ = 'LINE 事件帳本';
 var LINE_OUTBOX_SHEET_ = 'LINE 待送訊息';
 var LINE_LEDGER_SHEET_ = 'LINE 寄送帳本';
 // 欄位與 Setup.gs 的 SHEET_SCHEMA 相同（測試會核對）。內容JSON 放最後一欄：列清單時不讀它。
-var LINE_SUBS_COLS_ = ['使用者ID', '頻道', '好友狀態', '每日總覽', '盤中通知', '同意時間', '同意版本', '建立時間', '更新時間', '最後互動', '測試身分'];
+var LINE_SUBS_COLS_ = ['使用者ID', '頻道', '好友狀態', '每日總覽', '盤中通知', '同意時間', '同意版本', '建立時間', '更新時間', '最後互動', '測試身分', '管理者模式'];
 var LINE_EVENTS_COLS_ = ['事件ID', '類型', '使用者', '收到時間', '重送', '處理結果'];
 var LINE_OUTBOX_COLS_ = ['訊息ID', '種類', '日期', '內容版本', '來源', '建立時間', '到期時間', '狀態', '收件人數', '已接受', '失敗', '待送', '備註', '更新時間', '內容JSON'];
 var LINE_LEDGER_COLS_ = ['訊息ID', '日期', '收件者', '狀態', '嘗試次數', '重試金鑰', '最後錯誤', '更新時間', '接受時間', '請求ID'];
@@ -376,12 +376,21 @@ function lineParseText_(raw, uid) {
     .replace(/[！-～]/g, function (c) { var x = String.fromCharCode(c.charCodeAt(0) - 0xFEE0); return /[0-9A-Za-z]/.test(x) ? x : c; })
     .replace(/\s+/g, '').trim();
   if (!t) { return { a: 'outofscope', kind: 'empty', raw: raw }; }
+  // 2026/11/08：管理者裁示「〔日期〕〔代號〕分類—說明」可以比一般查詢長；是否為管理者由 lineRoute_ 判斷
+  var rule = typeof lineAdminParseRuling_ === 'function' ? lineAdminParseRuling_(raw) : null;
+  if (rule) { return { a: 'adminrule', rule: rule, raw: t }; }
   if (t.length > 120) { return { a: 'toolong' }; }
   // 套話檢查用原文（英文的「ignore previous」要靠空白）與去空白後的文字各看一次
   if (typeof isPromptProbe_ === 'function' && (isPromptProbe_(String(raw || '')) || isPromptProbe_(t))) { return { a: 'probe' }; }
   var m;
   if ((m = t.match(/^(?:管理者)?綁定(\d{6})$/))) { return { a: 'bind', code: m[1] }; }
   if (/^(?:說明|使用說明|幫助|help|功能|選單|怎麼用|\?|？)$/i.test(t)) { return { a: 'help' }; }
+  // 管理者模式（LineAdmin.gs）：登入只對綁定過的帳號生效
+  if (/^(?:管理者|管理員)(?:登入|模式|登錄)$|^(?:登入|進入|切換)(?:管理者|管理員)(?:模式)?$/.test(t)) { return { a: 'adminon' }; }
+  if (/^(?:取消|退出|離開|關閉|結束)(?:管理者|管理員)(?:模式)?$|^(?:管理者|管理員)(?:登出|退出)$|^回到使用者(?:模式)?$/.test(t)) { return { a: 'adminoff' }; }
+  if (/^(?:今日稽核|今天稽核|今日複核|稽核結果|複核結果|今日稽核結果)$/.test(t)) { return { a: 'adminreview' }; }
+  if (/^(?:待裁示|待我裁示|待你裁示|裁示清單|待處理裁示)$/.test(t)) { return { a: 'adminpending' }; }
+  if (/^(?:裁示格式|裁示說明|怎麼裁示)$/.test(t)) { return { a: 'adminformat' }; }
 
   // 特殊隱藏機關：啟用／關閉盤中通知
   if (/^(?:我要|請幫我|幫我)?(?:啟用|開啟|加訂)(?:盤中即時通知|盤中通知)$/.test(t) || /^(?:我要啟用盤中通知|我要開啟盤中通知|啟用盤中通知|開啟盤中通知)$/.test(t)) {
@@ -522,7 +531,21 @@ function lineEventRoute_(uid, ch, act) {
 function lineRoute_(uid, ch, act, deferTouch) {
   act = act || {};
   if (!deferTouch && act.a !== 'tab') { lineTouch_(uid, ch); }
+  // 管理者模式：快速回覆按鈕換成管理者的那一組；管理者指令只對開著管理者模式的綁定帳號生效
+  LINE_ADMIN_CTX_ = typeof lineAdminActive_ === 'function' && lineAdminActive_(uid);
+  if (/^(?:adminreview|adminpending|adminformat|adminrule|rulepick|ruleok|ruleno)$/.test(act.a || '') && !LINE_ADMIN_CTX_) {
+    return act.a === 'adminrule' ? lineOutOfScopeReply_('general', act.raw) : lineAdminDeny_();
+  }
   switch (act.a) {
+    case 'adminon': return lineAdminOnReply_(uid, ch);
+    case 'adminoff': return lineAdminOffReply_(uid, ch);
+    case 'adminreview': return lineAdminReviewReply_();
+    case 'adminpending': return lineAdminPendingReply_();
+    case 'adminformat': return [lineAdminFormatFlex_()];
+    case 'adminrule': return lineAdminRuleReply_(uid, act.rule);
+    case 'rulepick': return lineAdminPickReply_(uid, act);
+    case 'ruleok': return lineAdminRuleOk_(uid, act.k);
+    case 'ruleno': return lineAdminRuleNo_(uid);
     case 'sub': return lineSubReply_(uid, ch, act.k, true);
     case 'unsub': return lineSubReply_(uid, ch, act.k, false);
     case 'secretsms': return lineSecretSmsReply_(uid, ch, act.on === true || act.on === '1');
@@ -533,7 +556,7 @@ function lineRoute_(uid, ch, act, deferTouch) {
     case 'private': return [lineText_('目前公開訂閱只提供每日總覽。你可以輸入「訂閱每日總覽」。')];
     case 'tracker': return lineTrackerReply_();
     case 'market': return [lineText_('市場總覽已停用。可以查個股、持股追蹤或今日整理。',lineQuickMain_())];
-    case 'help': return [lineHelpFlex_()];
+    case 'help': return LINE_ADMIN_CTX_ ? [lineAdminHomeFlex_(false), lineHelpFlex_()] : [lineHelpFlex_()];
     case 'greeting': return lineGreetingReply_();
     case 'thanks': return lineThanksReply_();
     case 'confirm_stock': return lineConfirmStockReply_(uid);
@@ -568,19 +591,19 @@ function lineSubsRead_() {
     rows.push({ row: i + 1, uid: uid, channel: String(g('頻道') || '').trim(), friend: String(g('好友狀態') || '').trim() || 'follow',
       daily: lineOn_(g('每日總覽')), sms: lineOn_(g('盤中通知')), consentAt: String(g('同意時間') || ''), consentVer: String(g('同意版本') || ''),
       createdAt: String(g('建立時間') || ''), updatedAt: String(g('更新時間') || ''), lastSeen: String(g('最後互動') || ''),
-      tester: String(g('測試身分') || '').trim() === '管理者' });
+      tester: String(g('測試身分') || '').trim() === '管理者', adminMode: lineOn_(g('管理者模式')) });
   }
   return { sh: sh, ci: ci, rows: rows };
 }
 function lineSubRowValues_(s) {
   var by = { '使用者ID': s.uid, '頻道': s.channel, '好友狀態': s.friend, '每日總覽': s.daily ? '開啟' : '關閉', '盤中通知': s.sms ? '開啟' : '關閉',
     '同意時間': s.consentAt || '', '同意版本': s.consentVer || '', '建立時間': s.createdAt || '', '更新時間': s.updatedAt || '',
-    '最後互動': s.lastSeen || '', '測試身分': s.tester ? '管理者' : '' };
+    '最後互動': s.lastSeen || '', '測試身分': s.tester ? '管理者' : '', '管理者模式': s.tester && s.adminMode ? '開啟' : '' };
   return LINE_SUBS_COLS_.map(function (k) { return by[k]; });
 }
 function lineFindSub_(uid, ch) {
   var rows = lineSubsRead_().rows.filter(function (x) { return x.uid === uid && (!ch || !x.channel || x.channel === ch); });
-  return rows[0] || { uid: uid, channel: ch, friend: 'follow', daily: false, sms: false, tester: false };
+  return rows[0] || { uid: uid, channel: ch, friend: 'follow', daily: false, sms: false, tester: false, adminMode: false };
 }
 /** 讀改寫整列都在鎖裡：同一人連按兩個按鈕，兩個選項都要留下來（加訂保留既有選項）。 */
 function lineUpsertSub_(uid, ch, fn) {
@@ -588,7 +611,7 @@ function lineUpsertSub_(uid, ch, fn) {
     var t = lineSubsRead_();
     var s = t.rows.filter(function (x) { return x.uid === uid && (!ch || !x.channel || x.channel === ch); })[0];
     var created = !s;
-    if (!s) { s = { row: 0, uid: uid, channel: ch, friend: 'follow', daily: false, sms: false, consentAt: '', consentVer: '', createdAt: lineNow_(), updatedAt: '', lastSeen: '', tester: false }; }
+    if (!s) { s = { row: 0, uid: uid, channel: ch, friend: 'follow', daily: false, sms: false, consentAt: '', consentVer: '', createdAt: lineNow_(), updatedAt: '', lastSeen: '', tester: false, adminMode: false }; }
     if (!s.channel && ch) { s.channel = ch; }
     var before = { daily: s.daily, sms: s.sms, friend: s.friend };
     fn(s, created);
@@ -678,8 +701,11 @@ function lineBindReply_(uid, ch, code) {
     return true;
   });
   if (!ok) { return [lineText_('綁定碼不正確或已過期。請到後台 LINE 分頁重新產生。')]; }
-  lineUpsertSub_(uid, ch, function (s) { s.tester = true; s.lastSeen = lineNow_(); });
-  return [lineText_('已綁定為測試帳號。推送設為「只送測試帳號」時，只有綁定的帳號會收到；後台的「送一則測試」也只送到這裡。')];
+  // 2026/11/08：綁定＝確認管理者身分，同時開啟管理者模式（之後用「管理者登入」／「取消管理者」切換）
+  lineUpsertSub_(uid, ch, function (s) { s.tester = true; s.adminMode = true; s.lastSeen = lineNow_(); });
+  if (typeof lineAdminUids_ === 'function') { lineAdminUids_(true); LINE_ADMIN_CTX_ = true; }
+  return [lineText_('已綁定為管理者（也是測試帳號：推送設為「只送測試帳號」時只有綁定的帳號會收到）。'),
+          typeof lineAdminHomeFlex_ === 'function' ? lineAdminHomeFlex_(true) : lineText_('已開啟管理者模式。')];
 }
 
 /* ------------------------------------------------------------------ *
@@ -1085,6 +1111,7 @@ function linePb_(label, data, display, extra) {
 function lineMsg_(label, message) { return { type: 'message', label: lineClip_(label, 20), text: lineClip_(message, 300) }; }
 function lineUri_(label, uri) { return { type: 'uri', label: lineClip_(label, 20), uri: uri }; }
 function lineQuickMain_() {
+  if (typeof LINE_ADMIN_CTX_ !== 'undefined' && LINE_ADMIN_CTX_ && typeof lineAdminQuick_ === 'function') { return lineAdminQuick_(); }
   return [linePb_('今日整理', 'a=today', '今日整理'), linePb_('查個股', 'a=askstock', '查個股', { inputOption: 'openKeyboard' }),
           linePb_('持股追蹤', 'a=tracker', '持股追蹤'),
           linePb_('使用說明', 'a=help', '使用說明'), linePb_('管理訂閱', 'a=manage', '管理訂閱')];
@@ -1553,7 +1580,8 @@ function lineRecipients_(kind, mode) {
   // 測試與正式頻道共用一份試算表時，尚未確認 botUserId 絕不可跨頻道發送。
   if (!bot) { return []; }
   return lineSubsRead_().rows.filter(function (s) {
-    return s.friend !== 'blocked' && s.channel === bot && (kind === 'daily' ? s.daily : lineSmsActive_(s)) && (mode !== 'test' || s.tester);
+    // 2026/11/08：admin＝綁定的管理者且開著管理者模式（LineAdmin.gs）
+    return s.friend !== 'blocked' && s.channel === bot && (kind === 'admin' ? s.tester && s.adminMode : kind === 'daily' ? s.daily : lineSmsActive_(s)) && (mode !== 'test' || s.tester);
   });
 }
 
@@ -1570,7 +1598,7 @@ function lineRecipientBreakdown_(kind, mode) {
     n.total++;
     if (!bot || s.channel !== bot) { n.otherChannel++; return; }
     if (s.friend === 'blocked') { n.blocked++; return; }
-    if (kind === 'daily' ? !s.daily : !s.sms) { n.off++; return; }
+    if (kind === 'admin' ? !(s.tester && s.adminMode) : kind === 'daily' ? !s.daily : !s.sms) { n.off++; return; }
     if (kind === 'sms' && !lineSmsActive_(s)) { n.needKeyword++; return; }
     if (mode === 'test' && !s.tester) { n.notTester++; return; }
     n.eligible++;
@@ -1584,7 +1612,7 @@ function lineBreakdownText_(kind, mode, n) {
   if (mode === 'off') { parts.push('推送模式是「關閉」'); }
   if (n.otherChannel && !n.noBot) { parts.push('屬於其他 LINE 頻道 ' + n.otherChannel); }
   if (n.blocked) { parts.push('封鎖 ' + n.blocked); }
-  if (n.off) { parts.push('沒開' + (kind === 'daily' ? '每日總覽 ' : '盤中通知 ') + n.off); }
+  if (n.off) { parts.push('沒開' + (kind === 'admin' ? '管理者模式 ' : kind === 'daily' ? '每日總覽 ' : '盤中通知 ') + n.off); }
   if (n.needKeyword) { parts.push('用按鈕開啟、還沒輸入「開啟盤中通知」確認 ' + n.needKeyword); }
   if (n.notTester) { parts.push('只送測試帳號，非測試帳號 ' + n.notTester); }
   return '會收到 ' + n.eligible + '／' + n.total + ' 位' + (parts.length ? '；' + parts.join('、') : '');
@@ -1691,7 +1719,7 @@ function lineDeliverOne_(t, msg, mode, ctx) {
       // v87：收件人為零不能只安靜標完成——寫明每一類各幾位，後台推送紀錄與系統狀態都看得到。
       var why = lineBreakdownText_(msg.kind, mode, lineRecipientBreakdown_(msg.kind, mode));
       lineOutboxSet_(t, msg, { state: 'done', total: 0, open: 0, note: '沒有收件人：' + why });
-      lineStatusNote_('LINE ' + (msg.kind === 'daily' ? '每日總覽' : '盤中通知') + ' ' + msg.id + ' 沒有送出：' + why);
+      lineStatusNote_('LINE ' + (msg.kind === 'admin' ? '管理者通知' : msg.kind === 'daily' ? '每日總覽' : '盤中通知') + ' ' + msg.id + ' 沒有送出：' + why);
       return res;
     }
     if (!led.rows.length) { led = lineLedgerCreate_(msg, subs); }

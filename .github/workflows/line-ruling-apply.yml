@@ -1,0 +1,76 @@
+name: line-ruling-apply
+
+# 2026/11/08 管理者核定：管理者在 LINE 下的裁示（任何日期，預設當天）由雲端排程「管理者裁示」寫成來源核對修正計畫，
+# 推到 claude/line-ruling-YYYYMMDD-HHMMSS（YYYYMMDD 是要改的那一天）。這裡預覽、套用、讀回、刷新網站，
+# 再把複核紀錄「管理者裁示」的列標成已完成／失敗；Apps Script 五分鐘內把結果回報到管理者的 LINE。
+# 只走既有的 apply_source_review（先備份、引句逐字核對原稿、寫完讀回）；不改成交事實、不動寄送帳本、不呼叫模型、不寄信。
+on:
+  push:
+    branches: ['claude/line-ruling-*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: regenerate-verified
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: 預覽並套用管理者裁示
+        id: apply
+        env:
+          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
+          PYTHONUNBUFFERED: '1'
+          GEMINI_API_KEY: offline
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          if ! [[ "$BRANCH" =~ ^claude/line-ruling-(20[0-9]{6})-[0-9]{4,6}$ ]]; then echo "分支名稱要是 claude/line-ruling-YYYYMMDD-HHMMSS"; exit 1; fi
+          STAMP="${BASH_REMATCH[1]}"
+          DAY="${STAMP:0:4}/${STAMP:4:2}/${STAMP:6:2}"
+          TODAY=$(TZ=Asia/Taipei date +%Y%m%d)
+          OLDEST=$(TZ=Asia/Taipei date -d '30 days ago' +%Y%m%d)
+          if [[ "$STAMP" > "$TODAY" ]]; then echo "不能修正未來的日期：$DAY"; exit 1; fi
+          if [[ "$STAMP" < "$OLDEST" ]]; then echo "只修正最近 30 天：$DAY"; exit 1; fi
+          PLAN="scripts/repairs/${DAY//\//-}-source-review.json"
+          if [ ! -f "$PLAN" ]; then echo "沒有修正計畫 $PLAN"; exit 1; fi
+          run_plan() {
+            python scripts/apply_source_review.py --date "$DAY" || return 1
+            python scripts/apply_source_review.py --date "$DAY" --apply || return 1
+          }
+          # 暫時性錯誤（備份鎖忙碌、網路、Apps Script 逾時）150 秒後重試一次；工具寫入前先核對最終狀態，已寫入的不重寫。
+          if ! run_plan; then
+            echo "第一次套用沒有完成，150 秒後重試一次"
+            sleep 150
+            run_plan
+          fi
+          echo "DAY=$DAY" >> "$GITHUB_ENV"
+      - name: 管理者裁示標記已完成
+        env:
+          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
+          REVIEW_LOG_ID: ${{ vars.REVIEW_LOG_ID }}
+          GEMINI_API_KEY: offline
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          cd scripts/daily_review && python rulings.py finish --branch "$BRANCH" --note "$DAY 已套用並刷新網站（run ${{ github.run_id }}）"
+      - name: 套用失敗時標記
+        if: failure() && steps.apply.outcome == 'failure'
+        env:
+          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
+          REVIEW_LOG_ID: ${{ vars.REVIEW_LOG_ID }}
+          GEMINI_API_KEY: offline
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          cd scripts/daily_review && python rulings.py finish --branch "$BRANCH" --failed --note "套用失敗，網站未改（run ${{ github.run_id }}）；詳見 Actions 紀錄"

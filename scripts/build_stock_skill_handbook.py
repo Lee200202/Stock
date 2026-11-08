@@ -25,6 +25,7 @@ SKILLS = (
     ("stock-release-check", "同步發布與驗收", "release.md", "release", "發布"),
     ("stock-assistant", "網站 AI 助理", "assistant.md", "assistant", "助理"),
     ("stock-collaboration", "協作、授權與交接", "collaboration.md", "collab", "協作"),
+    ("stock-cloud-sync", "雲端與本機銜接", "cloud-sync.md", "cloud", "雲端"),
 )
 # 2026/10/15 整併：哪些技能是新增、哪些是把新規則併入既有技能。
 STATUS = {
@@ -38,6 +39,7 @@ STATUS = {
     "stock-release-check": ("併入", "補品質提升的證據門檻，區分已安裝、已評估與已發布"),
     "stock-assistant": ("新增", "只用 Flash Lite、只訂閱每日總覽、唯讀查詢與三條硬限制"),
     "stock-collaboration": ("新增", "反覆註解引導、當日優先、判斷差異與授權交接"),
+    "stock-cloud-sync": ("新增", "只有帳號的電腦怎麼操作、回本機開工清單、雲端排程↔GitHub↔網站銜接驗收"),
 }
 # 一天的資料從訊息到正式站經過的站點：(站名, 技能 key, 做什麼, 關卡, 常犯錯誤, 完成證據)
 STAGES = (
@@ -198,8 +200,8 @@ html[data-theme=dark]{--bg:#101915;--panel:#19251f;--text:#ebf3ee;--muted:#afc1b
 @media print{button,.tools,.top-button{display:none!important}main{padding:0}.roles{display:none}.doc details{border:0}.prose{padding:0}body{background:#fff;color:#000}}
 </style></head><body><main>
 <div class="top"><div><div class="brand">盤勢有據 · 工作手冊</div><small>整理日期 2026/10/19 · 可離線閱讀</small></div><button type="button" id="theme" aria-label="切換深淺主題" class="js-only">切換深色</button></div>
-<header class="hero"><div class="eyebrow">規格 × 技能 × 可複製請求</div><h1>把每次確認的規則，<br>變成下次工作的起點。</h1><p>先選任務角色，再查完整規格。十個技能各管一個問題：協作與授權、介面、視覺語言、分類證據、公開文字、規則調整、行情、自動化、發布驗收、網站助理；同一條規則只寫在一個地方。</p><p>本檔是工作規格索引，不會讀取正式資料、呼叫 AI 或發送通知。</p></header>
-<nav class="roles" aria-label="十種工作角色">@@ROLES@@</nav>
+<header class="hero"><div class="eyebrow">規格 × 技能 × 可複製請求</div><h1>把每次確認的規則，<br>變成下次工作的起點。</h1><p>先選任務角色，再查完整規格。十一個技能各管一個問題：協作與授權、介面、視覺語言、分類證據、公開文字、規則調整、行情、自動化、發布驗收、網站助理、雲端銜接；同一條規則只寫在一個地方。</p><p>本檔是工作規格索引，不會讀取正式資料、呼叫 AI 或發送通知。</p></header>
+<nav class="roles" aria-label="十一種工作角色">@@ROLES@@</nav>
 @@PIPELINE@@
 <section class="panel" id="logic" aria-labelledby="logic-title"><div class="logic-head"><h2 id="logic-title">一句「買賣」，為何可能得到不同分類？</h2><button type="button" id="replay" class="js-only">再播判定</button></div><p class="muted">以下全部是虛構甲股句型；先分動作、日期與部位，再決定進場立場。</p>
 <div class="cases js-only" role="group" aria-label="比較句型"><button type="button" data-case="0" aria-pressed="true">可以買</button><button type="button" data-case="1" aria-pressed="false">今天已買</button><button type="button" data-case="2" aria-pressed="false">不要殺低</button><button type="button" data-case="3" aria-pressed="false">部分賣出</button></div>

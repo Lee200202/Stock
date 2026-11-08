@@ -26,6 +26,7 @@ description: 將盤勢有據管理者反覆註解、途中修正與交接紀錄�
 | 取稿、排程、續跑、通知與帳本 | stock-automation-triage |
 | GitHub、Pages、GAS、Worker 及正式讀回 | stock-release-check |
 | 前台 AI 助理能力邊界 | stock-assistant |
+| 雲端排程與環境、只有帳號的電腦怎麼操作、回本機對齊雲端產出 | stock-cloud-sync |
 
 分類差異的交付包含「我的判斷與本股證據 → 流程結果 → 最早分歧 → 定義／資訊缺口 → 修正 → 未見案例結果」。來源綁定的正式修復與流程品質證明分開報告；修好網頁不代表模型已穩定。
 

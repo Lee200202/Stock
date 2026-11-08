@@ -149,3 +149,13 @@ console.log('LINE 管理者模式：解析、期限、卡片、權限、收件�
   assert.equal(ctx.lineAdminReviewData_('2026/11/08', false).summary['狀態'], '未執行');   // 自動推送仍看當天
 })();
 console.log('r1 隨時查看跳過未執行通過');
+
+// ---- r2：測試雲端（只限管理者） ----
+assert.equal(ctx.lineParseText_('測試雲端', 'U1').a, 'admintest');
+assert.match(ctx.lineRoute_('Uuser', 'bot', { a: 'admintest' }, true)[0].text, /只開放給管理者/);
+called = null;
+assert.match(ctx.lineRoute_('Uadmin', 'bot', { a: 'admintest' }, true)[0].text, /雲端觸發成功/);
+assert.match(JSON.parse(called.o.payload).text, /測試/);
+ctx.UrlFetchApp = { fetch: () => ({ getResponseCode: () => 401 }) };
+assert.match(ctx.lineAdminTestReply_()[0].text, /HTTP 401/);
+console.log('r2 測試雲端通過');

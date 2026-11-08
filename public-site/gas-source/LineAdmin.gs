@@ -348,6 +348,14 @@ function lineAdminRuleNo_(uid) {
   return [lineText_('已取消這則裁示，網站不會改。', lineAdminQuick_())];
 }
 
+/** 「測試雲端」：只檢查觸發設定與雲端排程能不能啟動；沒有待處理裁示時排程讀完佇列就結束，不改網站。 */
+function lineAdminTestReply_() {
+  var r = lineAdminFire_(['測試（沒有待處理裁示，讀完佇列就結束）']);
+  if (r.ok) { return [lineText_('雲端觸發成功：「盤勢有據 管理者裁示」已啟動。沒有待處理裁示時它讀完佇列就結束，不會改網站（約 1–3 分鐘）。', lineAdminQuick_())]; }
+  return [lineText_(r.reason === 'unset' ? '雲端觸發尚未設定：Apps Script 指令碼屬性要有 CLAUDE_RULING_FIRE_URL（…/routines/trig_…/fire）與 CLAUDE_RULING_FIRE_TOKEN。'
+    : '雲端觸發失敗（' + r.reason + '）。HTTP 401 表示 Token 不對或已重新產生；404 表示 Fire URL 不對。', lineAdminQuick_())];
+}
+
 /* ---------------- 觸發雲端排程 ---------------- */
 function lineAdminFire_(ids) {
   var url = lineProp_('CLAUDE_RULING_FIRE_URL'), token = lineProp_('CLAUDE_RULING_FIRE_TOKEN');

@@ -391,6 +391,7 @@ function lineParseText_(raw, uid) {
   if (/^(?:今日稽核|今天稽核|今日複核|稽核結果|複核結果|今日稽核結果)$/.test(t)) { return { a: 'adminreview' }; }
   if (/^(?:待裁示|待我裁示|待你裁示|裁示清單|待處理裁示)$/.test(t)) { return { a: 'adminpending' }; }
   if (/^(?:裁示格式|裁示說明|怎麼裁示)$/.test(t)) { return { a: 'adminformat' }; }
+  if (/^(?:測試雲端|雲端測試|測試裁示觸發)$/.test(t)) { return { a: 'admintest' }; }
 
   // 特殊隱藏機關：啟用／關閉盤中通知
   if (/^(?:我要|請幫我|幫我)?(?:啟用|開啟|加訂)(?:盤中即時通知|盤中通知)$/.test(t) || /^(?:我要啟用盤中通知|我要開啟盤中通知|啟用盤中通知|開啟盤中通知)$/.test(t)) {
@@ -533,7 +534,7 @@ function lineRoute_(uid, ch, act, deferTouch) {
   if (!deferTouch && act.a !== 'tab') { lineTouch_(uid, ch); }
   // 管理者模式：快速回覆按鈕換成管理者的那一組；管理者指令只對開著管理者模式的綁定帳號生效
   LINE_ADMIN_CTX_ = typeof lineAdminActive_ === 'function' && lineAdminActive_(uid);
-  if (/^(?:adminreview|adminpending|adminformat|adminrule|rulepick|ruleok|ruleno)$/.test(act.a || '') && !LINE_ADMIN_CTX_) {
+  if (/^(?:adminreview|adminpending|adminformat|admintest|adminrule|rulepick|ruleok|ruleno)$/.test(act.a || '') && !LINE_ADMIN_CTX_) {
     return act.a === 'adminrule' ? lineOutOfScopeReply_('general', act.raw) : lineAdminDeny_();
   }
   switch (act.a) {
@@ -542,6 +543,7 @@ function lineRoute_(uid, ch, act, deferTouch) {
     case 'adminreview': return lineAdminReviewReply_();
     case 'adminpending': return lineAdminPendingReply_();
     case 'adminformat': return [lineAdminFormatFlex_()];
+    case 'admintest': return lineAdminTestReply_();
     case 'adminrule': return lineAdminRuleReply_(uid, act.rule);
     case 'rulepick': return lineAdminPickReply_(uid, act);
     case 'ruleok': return lineAdminRuleOk_(uid, act.k);

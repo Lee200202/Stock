@@ -371,14 +371,17 @@ function lineParseData_(data) {
 
 var LINE_ADVICE_RE_ = /(?:明天|今天|現在|何時|什麼時候)?(?:能不能|可不可以|可以|該不該|要不要|該|能|要)(?:買|賣|進場|出場|加碼|停損|抱)(?:嗎|呢)?|會(?:漲|跌)(?:嗎|到)?|目標價|進場點|買點在哪|推薦(?:哪|什麼)/;
 
-function lineParseText_(raw, uid) {
+function lineParseText_(raw, uid, noRule) {
   var t = String(raw || '')
     .replace(/[！-～]/g, function (c) { var x = String.fromCharCode(c.charCodeAt(0) - 0xFEE0); return /[0-9A-Za-z]/.test(x) ? x : c; })
     .replace(/\s+/g, '').trim();
   if (!t) { return { a: 'outofscope', kind: 'empty', raw: raw }; }
   // 2026/11/08：管理者裁示「〔日期〕〔代號〕分類—說明」可以比一般查詢長；是否為管理者由 lineRoute_ 判斷
-  var rule = typeof lineAdminParseRuling_ === 'function' ? lineAdminParseRuling_(raw) : null;
-  if (rule) { return { a: 'adminrule', rule: rule, raw: t }; }
+  var rule = !noRule && typeof lineAdminParseRuling_ === 'function' ? lineAdminParseRuling_(raw) : null;
+  if (rule) { return { a: 'adminrule', rule: rule, raw: t, src: String(raw || '') }; }
+  // v220：一般句子的裁示（「勤誠需是買進或會員持股，應根據簡訊方向判定」）。不是管理者時 lineRoute_ 會改回一般查詢。
+  var free = !noRule && typeof lineAdminLooseRuling_ === 'function' ? lineAdminLooseRuling_(raw) : null;
+  if (free) { return { a: 'adminfree', free: free, raw: t, src: String(raw || '') }; }
   if (t.length > 120) { return { a: 'toolong' }; }
   // 套話檢查用原文（英文的「ignore previous」要靠空白）與去空白後的文字各看一次
   if (typeof isPromptProbe_ === 'function' && (isPromptProbe_(String(raw || '')) || isPromptProbe_(t))) { return { a: 'probe' }; }
@@ -392,6 +395,7 @@ function lineParseText_(raw, uid) {
   if (/^(?:待裁示|待我裁示|待你裁示|裁示清單|待處理裁示)$/.test(t)) { return { a: 'adminpending' }; }
   if (/^(?:裁示格式|裁示說明|怎麼裁示)$/.test(t)) { return { a: 'adminformat' }; }
   if (/^(?:測試雲端|雲端測試|測試裁示觸發)$/.test(t)) { return { a: 'admintest' }; }
+  if (/^(?:裁示進度|裁示狀態|進度|修改進度|修正進度)$/.test(t)) { return { a: 'adminprogress' }; }
 
   // 特殊隱藏機關：啟用／關閉盤中通知
   if (/^(?:我要|請幫我|幫我)?(?:啟用|開啟|加訂)(?:盤中即時通知|盤中通知)$/.test(t) || /^(?:我要啟用盤中通知|我要開啟盤中通知|啟用盤中通知|開啟盤中通知)$/.test(t)) {
@@ -534,8 +538,18 @@ function lineRoute_(uid, ch, act, deferTouch) {
   if (!deferTouch && act.a !== 'tab') { lineTouch_(uid, ch); }
   // 管理者模式：快速回覆按鈕換成管理者的那一組；管理者指令只對開著管理者模式的綁定帳號生效
   LINE_ADMIN_CTX_ = typeof lineAdminActive_ === 'function' && lineAdminActive_(uid);
-  if (/^(?:adminreview|adminpending|adminformat|admintest|adminrule|rulepick|ruleok|ruleno)$/.test(act.a || '') && !LINE_ADMIN_CTX_) {
-    return act.a === 'adminrule' ? lineOutOfScopeReply_('general', act.raw) : lineAdminDeny_();
+  // v220：像裁示的句子先確認身分。管理者模式→裁示；綁定過但登出→問要不要切換；其他人→照一般查詢回覆。
+  if ((act.a === 'adminrule' || act.a === 'adminfree') && !LINE_ADMIN_CTX_) {
+    var who = lineFindSub_(uid, ch);
+    if (who && who.tester && typeof lineAdminIdentityReply_ === 'function') { return lineAdminIdentityReply_(uid, act.src || act.raw); }
+    return lineRoute_(uid, ch, lineParseText_(act.src || act.raw, uid, true), true);
+  }
+  if (act.a === 'rulequery') {
+    var q = typeof lineAdminQueryText_ === 'function' ? lineAdminQueryText_(uid) : '';
+    return q ? lineRoute_(uid, ch, lineParseText_(q, uid, true), true) : [lineText_('請直接輸入股票代號或名稱。', lineQuickMain_())];
+  }
+  if (/^(?:adminreview|adminpending|adminformat|admintest|adminprogress|rulepick|ruleok|ruleno)$/.test(act.a || '') && !LINE_ADMIN_CTX_) {
+    return lineAdminDeny_();
   }
   switch (act.a) {
     case 'adminon': return lineAdminOnReply_(uid, ch);
@@ -545,6 +559,9 @@ function lineRoute_(uid, ch, act, deferTouch) {
     case 'adminformat': return [lineAdminFormatFlex_()];
     case 'admintest': return lineAdminTestReply_();
     case 'adminrule': return lineAdminRuleReply_(uid, act.rule);
+    case 'adminfree': return lineAdminFreeReply_(uid, act.free);
+    case 'adminprogress': return lineAdminProgressReply_();
+    case 'ruleresume': return lineAdminResumeReply_(uid, ch);
     case 'rulepick': return lineAdminPickReply_(uid, act);
     case 'ruleok': return lineAdminRuleOk_(uid, act.k);
     case 'ruleno': return lineAdminRuleNo_(uid);

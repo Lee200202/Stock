@@ -6,6 +6,7 @@
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
+import re
 import os
 from pathlib import Path
 import sys
@@ -59,7 +60,14 @@ def today():
 
 
 def norm_day(value):
-    return str(value or '').strip()[:10].replace('-', '/')
+    """'2026-11-09'、'2026/11/9'（簡訊解析寫的列沒有補零）、試算表日期序號 → '2026/11/09'。
+    2026/11/09：勤誠通知列日期是 2026/11/9，舊寫法比不到，複核與裁示都說「找不到這一列」。"""
+    text = str(value or '').strip()
+    if re.fullmatch(r'\d{5}', text):
+        return (datetime(1899, 12, 30) + timedelta(days=int(text))).strftime('%Y/%m/%d')
+    text = text[:10].replace('-', '/')
+    m = re.match(r'^(\d{4})/(\d{1,2})/(\d{1,2})', text)
+    return f'{m.group(1)}/{int(m.group(2)):02d}/{int(m.group(3)):02d}' if m else text
 
 
 def sha(text):

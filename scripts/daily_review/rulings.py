@@ -6,7 +6,8 @@
     python scripts/daily_review/rulings.py finish --branch B [--failed] [--note 文字]
                                                                         套用中 → 已完成／失敗（line-ruling-apply.yml）
     python scripts/daily_review/rulings.py rows --date 2026/11/06 --code 8299
-                                                                        唯讀：那天網站上這一檔的列（分類、來源、說明與指紋），寫計畫用
+                                                                        唯讀：那天網站上這一檔的列（分類、來源、說明與指紋），寫計畫用；
+                                                                        會員通知產生的列另附 notice（文章ID、通知內容指紋）
 
 狀態流：待處理（Apps Script 在管理者按「確認送出」後寫入）→ 處理中 → 套用中（推了分支）→ 已完成／失敗；
 只記錄、不改網站的寫「已記錄」。Apps Script 每五分鐘把已完成／失敗／已記錄的列回報到管理者的 LINE。
@@ -63,8 +64,16 @@ def detail_updates(head, rows, finished, texts):
 SHEET_CAT = {'買入': 'buy', '賣出': 'sell', '觀望注意': 'watch_watch', '觀望不碰': 'watch_avoid'}
 
 
-def site_rows(tables, day, code):
-    """純函式：操作紀錄／會員持股裡那一天、那一檔的列 → 寫修正計畫需要的欄位。"""
+def site_rows(tables, day, code, sms=None):
+    """純函式：操作紀錄／會員持股裡那一天、那一檔的列 → 寫修正計畫需要的欄位。
+    v220：會員通知產生的列（來源 CMONEY-）另附 notice：文章ID、通知內容指紋、舊理由長度，寫 notice-ruling 計畫用；
+    不附通知原文（公開 repo 不能放）。sms 是「會員簡訊」分頁的值。"""
+    fp = {}
+    if sms:
+        head = sms[0]
+        for cells in sms[1:]:
+            r = dict(zip(head, cells))
+            fp[str(r.get('文章ID') or '').strip()] = r.get('內容指紋') or sha(r.get('原文') or '')
     out = []
     for tab, values in tables.items():
         if not values:
@@ -75,9 +84,16 @@ def site_rows(tables, day, code):
             if norm_day(r.get('日期')) != day or str(r.get('代號') or '').strip() != code:
                 continue
             note = r.get('說明重點') or r.get('理由摘錄') or ''
-            out.append({'sheet': tab, 'category': 'holdings' if tab == '會員持股' else SHEET_CAT.get(r.get('方向'), r.get('方向')),
-                        'name': r.get('股票名稱', ''), 'source_id': r.get('來源影片ID', ''),
-                        'previous_note_sha256': sha(note), 'note': note})
+            row = {'sheet': tab, 'category': 'holdings' if tab == '會員持股' else SHEET_CAT.get(r.get('方向'), r.get('方向')),
+                   'direction': '會員持股' if tab == '會員持股' else r.get('方向', ''), 'price_text': r.get('價位說明', ''),
+                   'name': r.get('股票名稱', ''), 'source_id': r.get('來源影片ID', ''),
+                   'previous_note_sha256': sha(note), 'previous_note_chars': len(note), 'note': note}
+            src = str(r.get('來源影片ID') or '')
+            if src.upper().startswith(('CMONEY-', 'SMS-')):
+                art = src.split('-', 1)[1]
+                row['notice'] = {'article_id': art, 'notice_sha256': fp.get(art, ''),
+                                 'tool': 'scripts/apply_notice_ruling.py（來源核對工具不改通知列）'}
+            out.append(row)
     return out
 
 
@@ -96,7 +112,8 @@ def main():
         pl = pipeline()
         book = open_book(pl)
         tables = {n: book.worksheet(n).get_all_values() for n in ('操作紀錄', '會員持股')}
-        print(json.dumps(site_rows(tables, norm_day(a.date), a.code.strip()), ensure_ascii=False, indent=1))
+        sms = book.worksheet('會員簡訊').get_all_values()
+        print(json.dumps(site_rows(tables, norm_day(a.date), a.code.strip(), sms), ensure_ascii=False, indent=1))
         return
     ws = open_log().worksheet(TAB)
     head, rows = rows_of(ws)

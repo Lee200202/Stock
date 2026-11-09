@@ -159,3 +159,92 @@ assert.match(JSON.parse(called.o.payload).text, /測試/);
 ctx.UrlFetchApp = { fetch: () => ({ getResponseCode: () => 401 }) };
 assert.match(ctx.lineAdminTestReply_()[0].text, /HTTP 401/);
 console.log('r2 測試雲端通過');
+
+// ---- v220：一般句子的裁示、身分確認、進度回報（2026/11/09 勤誠「需是買進或會員持股，應根據簡訊方向判定」被當成查個股） ----
+(() => {
+  const L = s => ctx.lineAdminLooseRuling_(s);
+  const q = L('勤誠需是買進或會員持股，應根據簡訊方向判定，請稍作調整');
+  assert.equal(q.lead, '勤誠'); assert.deepEqual([...q.cats], ['買入', '會員持股']); assert.equal(q.notice, true); assert.equal(q.month, 0);
+  const q2 = L('11/06 3008 應改為觀望注意，原稿說等量縮');
+  assert.equal(q2.month, 11); assert.equal(q2.day, 6); assert.equal(q2.code, '3008'); assert.deepEqual([...q2.cats], ['觀望注意']);
+  assert.equal(L('勤誠的說明要修正，列為會員持股才對').lead, '勤誠');
+  assert.deepEqual([...L('8210 依簡訊應列買入，570元以下').cats], ['買入']);
+  assert.equal(L('8210 依簡訊應列買入，570元以下').code, '8210');        // 570 元不是代號
+  // 問句、沒有裁示語氣、沒有分類詞都不是裁示
+  for (const s of ['台積電應該買進嗎', '請問勤誠是不是會員持股', '我覺得勤誠可以買進', '會員持股', '持股追蹤', '勤誠今天怎麼說', '應該要注意', '今天有影片嗎']) {
+    assert.equal(L(s), null, s);
+  }
+  assert.equal(ctx.lineParseText_('勤誠需是買進或會員持股，應根據簡訊方向判定，請稍作調整', 'U1').a, 'adminfree');
+  assert.equal(ctx.lineParseText_('勤誠需是買進或會員持股，應根據簡訊方向判定', 'U1', true).a !== 'adminfree', true);   // noRule 時照一般解析
+  assert.equal(ctx.lineParseText_('裁示進度', 'U1').a, 'adminprogress');
+  assert.equal(ctx.lineParseText_('2330 會員持股—紀錄上還沒出場', 'U1').a, 'adminrule');   // 舊格式照舊
+
+  // 套到哪一檔、哪一天：差異明細裡還沒處理完的列優先（11/09 勤誠修正未完成）
+  const det = [
+    { 日期: '2026/11/09', 代號: '8210', 名稱: '勤誠', 嚴重度: '明確錯誤', 處理: '待管理者' },
+    { 日期: '2026/11/05', 代號: '8210', 名稱: '勤誠', 嚴重度: '明確錯誤', 處理: '已修正' },
+    { 日期: '2026/11/09', 代號: '—', 名稱: '公開文字', 嚴重度: '明確錯誤', 處理: '待管理者' },
+    { 日期: '2026/09/01', 代號: '2330', 名稱: '台積電', 嚴重度: '待確認', 處理: '待管理者' },
+  ];
+  const open = ctx.lineAdminOpenRows_(det, '2026/11/09', 30);
+  assert.deepEqual([...open.map(r => r.代號)], ['8210']);
+  const resolve = s => (s === '勤誠' || s === '8210' ? { code: '8210', name: '勤誠' } : null);
+  let t = ctx.lineAdminPickTarget_(q, open, null, resolve, '2026/11/10');
+  assert.deepEqual({ ...t }, { date: '2026/11/09', code: '8210', name: '勤誠' });   // 隔天才裁示也套到 11/09
+  t = ctx.lineAdminPickTarget_(L('2026/11/05 勤誠應改成會員持股'), open, null, resolve, '2026/11/10');
+  assert.equal(t.date, '2026/11/05');
+  t = ctx.lineAdminPickTarget_(L('應改為觀望注意，原稿說等量縮回穩'), [], null, resolve, '2026/11/10');
+  assert.equal(t.error, 'stock');
+  t = ctx.lineAdminPickTarget_(L('應改為觀望注意，原稿說等量縮回穩'), [], { date: '2026/11/06', code: '3008', name: '大立光' }, resolve, '2026/11/10');
+  assert.deepEqual({ ...t }, { date: '2026/11/06', code: '3008', name: '大立光' });   // 先按「裁示這一檔」
+
+  // 身分：管理者模式→確認卡；綁定但登出→身分確認；沒綁定→一般回覆
+  ctx.lineResolveStock_ = s => resolve(s) || {};
+  ctx.dailyReviewBook_ = () => null;
+  ctx.todayStr_ = () => '2026/11/09';
+  ctx.lineMd_ = ctx.lineMd_ || (d => d);
+  cacheStore.clear();
+  const act = ctx.lineParseText_('勤誠需是買進或會員持股，應根據簡訊方向判定，請稍作調整', 'Uadmin');
+  const asAdmin = ctx.lineRoute_('Uadmin', 'bot', act, true);
+  assert.match(asAdmin[0].altText, /確認裁示（管理者）.*勤誠 8210 → 買入／會員持股/);
+  assert.match(JSON.stringify(asAdmin[0]), /依當天會員通知（簡訊）的方向判定/);
+  assert.match(JSON.stringify(asAdmin[0]), /管理者身分/);
+  const asBound = ctx.lineRoute_('Ubound', 'bot', act, true);
+  assert.match(asBound[0].altText, /你目前是使用者身分/);
+  const btn = asBound[0].contents.footer.contents.map(b => ctx.lineParseData_(b.action.data).a);
+  assert.deepEqual([...btn], ['ruleresume', 'rulequery']);
+  ctx.lineOutOfScopeReply_ = () => [{ type: 'text', text: 'outofscope' }];
+  ctx.lineStockReply_ = q => [{ type: 'text', text: 'stock:' + q }];
+  const asUser = ctx.lineRoute_('Uuser', 'bot', act, true);
+  assert.doesNotMatch(JSON.stringify(asUser), /裁示|管理者/);              // 一般使用者不透露管理者功能
+  // 「切換管理者並裁示」→ 開管理者模式，接著出確認卡
+  let modeSet = null;
+  ctx.lineUpsertSub_ = (uid, ch, fn) => { const s = subs.find(x => x.uid === uid); fn(s); modeSet = [uid, s.adminMode]; return { sub: s }; };
+  const resumed = ctx.lineRoute_('Ubound', 'bot', { a: 'ruleresume' }, true);
+  assert.deepEqual(modeSet, ['Ubound', true]);
+  assert.match(resumed[0].text, /已切換為管理者身分/);
+  assert.match(resumed[1].altText, /確認裁示（管理者）/);
+  subs.find(x => x.uid === 'Ubound').adminMode = false; ctx.lineAdminUids_(true);
+  // 「當作一般查詢」→ 照一般解析回覆
+  ctx.lineRoute_('Ubound', 'bot', act, true);
+  assert.doesNotMatch(JSON.stringify(ctx.lineRoute_('Ubound', 'bot', { a: 'rulequery' }, true)), /確認裁示/);
+  assert.match(ctx.lineRoute_('Uuser', 'bot', { a: 'adminprogress' }, true)[0].text, /只開放給管理者/);
+
+  // 修正未完成的卡片也能「裁示這一檔」
+  const fx = ctx.lineAdminReviewFlex_({ ...data, day: '2026/11/09', rows: [{ ...det[0], 網站分類: '觀望注意＋會員持股', 複核分類: '會員持股' }] });
+  const fail = fx.contents.contents[1];
+  assert.equal(ctx.lineParseData_(fail.footer.contents[0].action.data).a, 'rulepick');
+  assert.equal(ctx.lineParseData_(fail.footer.contents[0].action.data).c, '8210');
+
+  // 進度回報：接手回報一次、結果回報一次；舊版只寫時間戳記的列視為已回報結果
+  const rp = ctx.lineAdminReportPlan_([
+    { 裁示ID: 'A', 狀態: '處理中', LINE回報: '' }, { 裁示ID: 'B', 狀態: '套用中', LINE回報: '接手 2026/11/09 14:00:00' },
+    { 裁示ID: 'C', 狀態: '已完成', LINE回報: '接手 2026/11/09 14:00:00' }, { 裁示ID: 'D', 狀態: '失敗', LINE回報: '2026/11/08 22:00:00' },
+    { 裁示ID: 'E', 狀態: '已完成', LINE回報: '' }, { 裁示ID: 'F', 狀態: '待處理', LINE回報: '' }]);
+  assert.deepEqual([...rp.started.map(r => r.裁示ID)], ['A']);
+  assert.deepEqual([...rp.final.map(r => r.裁示ID)], ['C', 'E']);
+  const st = ctx.lineAdminStartedFlex_([{ 日期: '2026/11/09', 代號: '8210', 名稱: '勤誠', 裁示分類: '買入／會員持股', 管理者說明: 'x', 狀態: '處理中' }]);
+  assert.match(st.altText, /勤誠 雲端已接手/);
+  assert.equal(st.contents.body.contents[0].contents.length, 2);           // 兩個分類兩個色塊
+})();
+console.log('v220 一般句子裁示、身分確認、進度回報通過');

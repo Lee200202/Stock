@@ -53,6 +53,7 @@ SUITES = [
     'test_rulings_1106',
     'test_weekly_20261106',
     'test_line_rulings',
+    'test_notice_ruling',
 ]
 
 GUARD = r'''

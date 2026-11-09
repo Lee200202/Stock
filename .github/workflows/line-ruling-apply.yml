@@ -4,6 +4,9 @@ name: line-ruling-apply
 # 推到 claude/line-ruling-YYYYMMDD-HHMMSS（YYYYMMDD 是要改的那一天）。這裡預覽、套用、讀回、刷新網站，
 # 再把複核紀錄「管理者裁示」的列標成已完成／失敗；Apps Script 五分鐘內把結果回報到管理者的 LINE。
 # 只走既有的 apply_source_review（先備份、引句逐字核對原稿、寫完讀回）；不改成交事實、不動寄送帳本、不呼叫模型、不寄信。
+# 2026/11/09 管理者核准（勤誠 11/09）：裁示「依簡訊方向判定」且要改的是會員通知產生的列時，雲端改寫
+# scripts/repairs/<日期>-notice-ruling.json，這裡用 apply_notice_ruling.py 套用（通知要有明確指令、只改同一列的方向與理由）。
+# 只套用這次提交新增或改動的計畫檔，不重跑 main 上同名的舊計畫。
 on:
   push:
     branches: ['claude/line-ruling-*']
@@ -21,6 +24,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -45,10 +50,22 @@ jobs:
           if [[ "$STAMP" > "$TODAY" ]]; then echo "不能修正未來的日期：$DAY"; exit 1; fi
           if [[ "$STAMP" < "$OLDEST" ]]; then echo "只修正最近 30 天：$DAY"; exit 1; fi
           PLAN="scripts/repairs/${DAY//\//-}-source-review.json"
-          if [ ! -f "$PLAN" ]; then echo "沒有修正計畫 $PLAN"; exit 1; fi
+          NOTICE="scripts/repairs/${DAY//\//-}-notice-ruling.json"
+          CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || true)
+          USE_PLAN=""; USE_NOTICE=""
+          if [ -f "$PLAN" ] && grep -qxF "$PLAN" <<<"$CHANGED"; then USE_PLAN=1; fi
+          if [ -f "$NOTICE" ] && grep -qxF "$NOTICE" <<<"$CHANGED"; then USE_NOTICE=1; fi
+          if [ -z "$USE_PLAN$USE_NOTICE" ]; then echo "這次提交沒有 $PLAN 或 $NOTICE"; exit 1; fi
+          echo "套用：${USE_PLAN:+來源核對修正 }${USE_NOTICE:+依通知方向裁示}"
           run_plan() {
-            python scripts/apply_source_review.py --date "$DAY" || return 1
-            python scripts/apply_source_review.py --date "$DAY" --apply || return 1
+            if [ -n "$USE_PLAN" ]; then
+              python scripts/apply_source_review.py --date "$DAY" || return 1
+              python scripts/apply_source_review.py --date "$DAY" --apply || return 1
+            fi
+            if [ -n "$USE_NOTICE" ]; then
+              python scripts/apply_notice_ruling.py --date "$DAY" || return 1
+              python scripts/apply_notice_ruling.py --date "$DAY" --apply || return 1
+            fi
           }
           # 暫時性錯誤（備份鎖忙碌、網路、Apps Script 逾時）150 秒後重試一次；工具寫入前先核對最終狀態，已寫入的不重寫。
           if ! run_plan; then

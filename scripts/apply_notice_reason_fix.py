@@ -144,6 +144,8 @@ def main():
     ap.add_argument('--date', required=True)
     ap.add_argument('--apply', action='store_true')
     args = ap.parse_args()
+    sys.path.insert(0, str(ROOT / 'scripts' / 'daily_review'))
+    import common  # noqa: F401  雲端環境的金鑰是 Base64 一行，先還原成 JSON（2026/11/10：排程才能在推送前預覽）
     import pipeline as pl
     from apply_reviewed_points import source_quote
     day = pl.norm_date(args.date)

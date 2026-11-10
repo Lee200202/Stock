@@ -9,6 +9,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'pipeline'))
+sys.path.insert(0, str(ROOT / 'scripts' / 'daily_review'))
+import common  # noqa: F401,E402  雲端金鑰 Base64 先還原（2026/11/10）
 import pipeline as pl
 
 RECEIPT = '章節修正:'

@@ -272,6 +272,8 @@ def main():
     if args.apply and args.inspect_only:
         raise ValueError('inspect-only不能同時寫入')
     sys.path.insert(0, str(ROOT / 'pipeline'))
+    sys.path.insert(0, str(ROOT / 'scripts' / 'daily_review'))
+    import common  # noqa: F401  雲端環境的金鑰是 Base64 一行，先還原成 JSON（2026/11/10：排程才能在推送前預覽）
     import pipeline as pl
     from apply_reviewed_points import source_quote
     from backup_archive import backup_tables

@@ -3991,8 +3991,8 @@ document.querySelectorAll('.ss-rise').forEach(el =&gt; io.observe(el));
 雲端排程「每日寄信前複核」（claude.ai，11:40）
   ├─ 讀：fetch_day.py --hold（服務帳戶金鑰 → 試算表；把當天設成「複核中」，郵件最晚等到 13:00）
   ├─ 寫：write_log.py → 複核紀錄「每日摘要」「差異明細」
-  └─ 有明確錯誤：推 daily-review/apply-&lt;今天&gt;（被拒就推 claude/daily-review-apply-&lt;今天&gt;）
-        └─ GitHub daily-review-apply.yml：預覽 → 套用 → 讀回 → Apps Script 刷新 → mark_fixed（GitHub Secret 的金鑰）
+  └─ 有明確錯誤：先跑 preflight.py ＋各工具預覽（格式在雲端確定），再推 daily-review/apply-&lt;今天&gt;（被拒就推 claude/daily-review-apply-&lt;今天&gt;）
+        └─ GitHub daily-review-apply.yml：推送前檢查 → 看收據決定跳過哪份 → 預覽 → 套用 → 讀回 → Apps Script 刷新 → mark_fixed（GitHub Secret 的金鑰）
 12:30 Apps Script 把複核結果併進「爬取狀態」信
 雲端排程「每週流程檢討」（週五 17:00）→ 推 claude/pipeline-weekly-&lt;週五&gt; → pipeline-weekly.yml 守門、重播、全過才合併 main
 </code></pre>
@@ -4170,14 +4170,26 @@ document.querySelectorAll('.ss-rise').forEach(el =&gt; io.observe(el));
 <p>不要做的驗收：13:00 前手動跑每日排程（郵件會等）；推 <code>daily-review/apply-*</code> 測試（工作流程會把當天標成「修正失敗」）；為了測試改網站正式內容再改回來（會員可能在中間看到，且單日 apply 只收當天）。</p>
 <h2>5. 已知陷阱</h2>
 <ul>
-<li><strong>週末跑每日排程只驗第 0 步</strong>：<code>fetch_day.py</code> 先查日曆，非交易日在連試算表前就結束，金鑰沒被用到。</li>
-<li><strong>身分</strong>：<code>~/.claude.json</code> 的 <code>oauthAccount</code> 可能是舊快取；看 claude.ai 的帳號頁或 <code>$CLAUDE_CODE_USER_EMAIL</code>。工作階段的登入在它啟動時就固定，換帳號後要開新工作階段。</li>
-<li><strong>重複排程</strong>：兩個工作階段同時重建會各建一份；<code>create</code> 前立刻再 <code>list</code> 一次。多的那份先停用、改名「（重複，請刪除）」，由管理者在網頁刪（API 不能刪）。</li>
-<li><strong>一次性排程</strong>：<code>run_once_at</code> 跑完自動停用（<code>ended_reason: run_once_fired</code>），仍留在列表，管理者可刪。</li>
-<li><strong>網路</strong>：Default 環境顯示「受限 · 無網域」時仍連得到 Google 試算表需要的主機（實測），不一定要加允許清單；連不到才加 <code>sheets.googleapis.com</code>、<code>oauth2.googleapis.com</code>、<code>www.googleapis.com</code>。</li>
-<li><strong>換金鑰順序</strong>：GCP 產生新金鑰 → 更新 GitHub Secret → 更新雲端環境 → 兩邊都驗 READY → 才刪舊金鑰。只換一邊、先刪舊的，隔天主流程或排程就讀不到試算表。</li>
-<li><strong>每週 <code>failure</code> 不等於壞掉</strong>：守門沒過時工作流程以失敗結束、不合併，但紀錄照寫；看 log 的「結論」段。</li>
-<li><strong>Claude 改不了的設定</strong>：雲端環境、排程刪除、Actions 的正式 apply，被權限擋下是預期行為；說明要管理者按哪裡，不繞過。</li>
+<li><p><strong>套用推了好幾輪（11/10 五輪）</strong>：三輪是計畫檔本身的錯（引句不到 6 字、刪除項缺指紋、同一則通知兩檔互蓋）。2026/11/10 起：雲端推送前一律跑 <code>scripts/daily_review/preflight.py</code>；工作流程看「修正建議」的收據判斷某份計畫是否真的套用過（<code>plan_receipt.py</code>），前一輪失敗的計畫即使沒改也會再套；重推成功時，先前標「修正失敗」的列會改回「已修正」。</p>
+</li>
+<li><p><strong>單日資料修正只收當天</strong>：<code>daily-review-apply</code> 只接受台北今天的分支日期；要改前幾天走 <code>line-ruling-apply</code>（最近 30 天，需要管理者裁示）。需要正式試算表指紋、本機又沒有金鑰時，開一次性雲端排程（<code>run_once_at</code>，同一個環境）去算指紋、寫計畫、預覽再推。</p>
+</li>
+<li><p><strong>週末跑每日排程只驗第 0 步</strong>：<code>fetch_day.py</code> 先查日曆，非交易日在連試算表前就結束，金鑰沒被用到。</p>
+</li>
+<li><p><strong>身分</strong>：<code>~/.claude.json</code> 的 <code>oauthAccount</code> 可能是舊快取；看 claude.ai 的帳號頁或 <code>$CLAUDE_CODE_USER_EMAIL</code>。工作階段的登入在它啟動時就固定，換帳號後要開新工作階段。</p>
+</li>
+<li><p><strong>重複排程</strong>：兩個工作階段同時重建會各建一份；<code>create</code> 前立刻再 <code>list</code> 一次。多的那份先停用、改名「（重複，請刪除）」，由管理者在網頁刪（API 不能刪）。</p>
+</li>
+<li><p><strong>一次性排程</strong>：<code>run_once_at</code> 跑完自動停用（<code>ended_reason: run_once_fired</code>），仍留在列表，管理者可刪。</p>
+</li>
+<li><p><strong>網路</strong>：Default 環境顯示「受限 · 無網域」時仍連得到 Google 試算表需要的主機（實測），不一定要加允許清單；連不到才加 <code>sheets.googleapis.com</code>、<code>oauth2.googleapis.com</code>、<code>www.googleapis.com</code>。</p>
+</li>
+<li><p><strong>換金鑰順序</strong>：GCP 產生新金鑰 → 更新 GitHub Secret → 更新雲端環境 → 兩邊都驗 READY → 才刪舊金鑰。只換一邊、先刪舊的，隔天主流程或排程就讀不到試算表。</p>
+</li>
+<li><p><strong>每週 <code>failure</code> 不等於壞掉</strong>：守門沒過時工作流程以失敗結束、不合併，但紀錄照寫；看 log 的「結論」段。</p>
+</li>
+<li><p><strong>Claude 改不了的設定</strong>：雲端環境、排程刪除、Actions 的正式 apply，被權限擋下是預期行為；說明要管理者按哪裡，不繞過。</p>
+</li>
 </ul>
 <div class="table-wrap" tabindex="0" role="region" aria-label="可左右捲動的規格表"><table>
 <thead>

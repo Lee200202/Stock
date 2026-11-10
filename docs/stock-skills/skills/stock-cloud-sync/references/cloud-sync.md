@@ -11,8 +11,8 @@
 雲端排程「每日寄信前複核」（claude.ai，11:40）
   ├─ 讀：fetch_day.py --hold（服務帳戶金鑰 → 試算表；把當天設成「複核中」，郵件最晚等到 13:00）
   ├─ 寫：write_log.py → 複核紀錄「每日摘要」「差異明細」
-  └─ 有明確錯誤：推 daily-review/apply-<今天>（被拒就推 claude/daily-review-apply-<今天>）
-        └─ GitHub daily-review-apply.yml：預覽 → 套用 → 讀回 → Apps Script 刷新 → mark_fixed（GitHub Secret 的金鑰）
+  └─ 有明確錯誤：先跑 preflight.py ＋各工具預覽（格式在雲端確定），再推 daily-review/apply-<今天>（被拒就推 claude/daily-review-apply-<今天>）
+        └─ GitHub daily-review-apply.yml：推送前檢查 → 看收據決定跳過哪份 → 預覽 → 套用 → 讀回 → Apps Script 刷新 → mark_fixed（GitHub Secret 的金鑰）
 12:30 Apps Script 把複核結果併進「爬取狀態」信
 雲端排程「每週流程檢討」（週五 17:00）→ 推 claude/pipeline-weekly-<週五> → pipeline-weekly.yml 守門、重播、全過才合併 main
 ```
@@ -80,6 +80,9 @@
 不要做的驗收：13:00 前手動跑每日排程（郵件會等）；推 `daily-review/apply-*` 測試（工作流程會把當天標成「修正失敗」）；為了測試改網站正式內容再改回來（會員可能在中間看到，且單日 apply 只收當天）。
 
 ## 5. 已知陷阱
+
+- **套用推了好幾輪（11/10 五輪）**：三輪是計畫檔本身的錯（引句不到 6 字、刪除項缺指紋、同一則通知兩檔互蓋）。2026/11/10 起：雲端推送前一律跑 `scripts/daily_review/preflight.py`；工作流程看「修正建議」的收據判斷某份計畫是否真的套用過（`plan_receipt.py`），前一輪失敗的計畫即使沒改也會再套；重推成功時，先前標「修正失敗」的列會改回「已修正」。
+- **單日資料修正只收當天**：`daily-review-apply` 只接受台北今天的分支日期；要改前幾天走 `line-ruling-apply`（最近 30 天，需要管理者裁示）。需要正式試算表指紋、本機又沒有金鑰時，開一次性雲端排程（`run_once_at`，同一個環境）去算指紋、寫計畫、預覽再推。
 
 - **週末跑每日排程只驗第 0 步**：`fetch_day.py` 先查日曆，非交易日在連試算表前就結束，金鑰沒被用到。
 - **身分**：`~/.claude.json` 的 `oauthAccount` 可能是舊快取；看 claude.ai 的帳號頁或 `$CLAUDE_CODE_USER_EMAIL`。工作階段的登入在它啟動時就固定，換帳號後要開新工作階段。

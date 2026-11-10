@@ -105,6 +105,10 @@ def plan_writes(plan, trades, sms, field, done, day):
     return writes, work, planned_cells
 
 
+def position_only_text(name):
+    return f'{name}為紀錄上仍持有的會員持股，今天原稿沒有談到本股，部位不變。'
+
+
 def unchanged_rows_or_raise(plan, planned_cells, trades_now, sms_now):
     """純函式：備份後重讀，要寫的每一列（操作紀錄／會員持股列與會員簡訊列）列號與內容都沒變才放行。"""
     for item in plan['items']:
@@ -119,6 +123,14 @@ def check_item(item, raw_compact, source_quote, raw):
         raise ValueError('計畫不得寫入舊理由原句（通知用語），請改用 previous_reason_sha256／previous_reason_chars')
     if not item.get('previous_reason_sha256') or not item.get('previous_reason_chars'):
         raise ValueError('缺少舊理由指紋')
+    if item.get('position_only'):
+        # 2026/11/10 管理者授權（祥碩 5269）：通知產生的持股列說明照抄通知，但當天原稿完全沒談到這一檔，找不到原句可改寫。
+        # 只准會員持股列、只准固定句型陳述部位事實，不需引句；任何評論或價位都不行。
+        if item.get('sheet') != '會員持股' or item.get('text') != position_only_text(item.get('name', '')):
+            raise ValueError('position_only 只用於會員持股列，且 text 必須是固定句：' + position_only_text(item.get('name', '')))
+        if not item.get('rationale'):
+            raise ValueError('缺少修正依據')
+        return
     if not item.get('rationale') or not item.get('quotes') or not item.get('text'):
         raise ValueError('缺少修正依據')
     for q in item['quotes']:

@@ -87,6 +87,25 @@ class SameNoticeTwoStocks(unittest.TestCase):
             nr.plan_writes(PLAN, trades, sms, '理由摘錄', True, '2026/11/10')
 
 
+class PositionOnlyHoldingNote(unittest.TestCase):
+    """祥碩 11/10：通知產生的持股列說明照抄通知、原稿沒談到本股 → 只准固定句陳述部位，不需引句。"""
+
+    def base(self, **kw):
+        it = dict(code='5269', name='祥碩', sheet='會員持股', position_only=True, notice_source_id='CMONEY-1', article_id='1',
+                  previous_reason_sha256='a' * 64, previous_reason_chars=10, text=nr.position_only_text('祥碩'),
+                  rationale='原稿沒有談到祥碩')
+        it.update(kw)
+        return it
+
+    def test_fixed_sentence_on_holdings_passes_without_quotes(self):
+        nr.check_item(self.base(), None, lambda r, q: None, RAW)
+
+    def test_any_other_text_or_sheet_is_refused(self):
+        for bad in (self.base(text='祥碩續抱，目標價1000元。'), self.base(sheet='操作紀錄'), self.base(rationale='')):
+            with self.assertRaises(ValueError):
+                nr.check_item(bad, None, lambda r, q: None, RAW)
+
+
 class RowScopedGuard(unittest.TestCase):
     def test_other_rows_may_change(self):
         trades, sms = tables()

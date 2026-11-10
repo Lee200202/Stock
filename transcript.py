@@ -919,6 +919,23 @@ OVERLOAD_HINTS = ("high demand", "overloaded", "unavailable", "try again later",
                   "resource exhausted", "server is busy", "temporarily")
 
 
+TAIL_MERGE_SECONDS = int(os.environ.get('TRANSCRIPT_TAIL_MERGE_SEC', '120'))
+
+
+def plan_segments(duration_sec, segment_seconds, min_tail=TAIL_MERGE_SECONDS):
+    """純函式：切段計畫 [(開始秒, 結束秒)]。
+
+    2026/11/10：影片長 1:00:01，第 5 段只剩 1:00:00–1:00:01 一秒，Gemini 每次回 400 INVALID_ARGUMENT，
+    前 4 段早已完成，卻每三分鐘重試一次、拖了二十多分鐘。片尾不足 min_tail 秒的零頭併進前一段
+    （前一段最多多出 2 分鐘，遠低於模型輸出上限），不再單獨送一段幾乎沒有內容的片段。"""
+    duration_sec = max(0, int(duration_sec or 0))
+    plan = [(s, min(s + segment_seconds, duration_sec)) for s in range(0, duration_sec, segment_seconds)]
+    if len(plan) > 1 and plan[-1][1] - plan[-1][0] < min_tail:
+        tail = plan.pop()
+        plan[-1] = (plan[-1][0], tail[1])
+    return plan
+
+
 def _err(exc):
     """SDK 的 HTTP 錯誤帶 status_code 與 body；連線錯誤則沒有 status_code。"""
     status = getattr(exc, "status_code", None)
@@ -1052,9 +1069,9 @@ class Transcriber:
         self.models_used, self.keys_used = [], []
         done = cache if cache is not None else {}
         sections = []
-        total = max(1, (duration_sec + self.segment_seconds - 1) // self.segment_seconds)
-        for n, start in enumerate(range(0, duration_sec, self.segment_seconds), 1):
-            end = min(start + self.segment_seconds, duration_sec)
+        plan = plan_segments(duration_sec, self.segment_seconds)
+        total = max(1, len(plan))
+        for n, (start, end) in enumerate(plan, 1):
             key = (start, end)
             if key in done:
                 log(f"  第 {n}/{total} 段　{hms(start)}–{hms(end)}　沿用上一輪已完成的結果")
@@ -2062,7 +2079,7 @@ def cmd_status(args) -> int:
             log(f"頻道　　　{v.title}")
             log(f"　　　　　{v.url}")
             log(f"片長　　　{hms(v.duration_sec)}"
-                + (f"　約需 {max(1, (v.duration_sec + SEGMENT_MINUTES * 60 - 1) // (SEGMENT_MINUTES * 60))} 段"
+                + (f"　約需 {max(1, len(plan_segments(v.duration_sec, max(SEGMENT_MINUTES, 5) * 60)))} 段"
                    if v.duration_sec else ""))
             log(f"回放狀態　{v.status_text(now)}")
     except Exception as e:

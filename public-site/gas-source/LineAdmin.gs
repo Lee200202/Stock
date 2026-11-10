@@ -189,14 +189,15 @@ function lineAdminChip_(text, color) {
     { backgroundColor: color || LINE_C_.accent, cornerRadius: '999px', paddingAll: '4px', paddingStart: '10px', paddingEnd: '10px', flex: 0 });
 }
 function lineAdminFormatLines_() {
+  // 2026/11/10 管理者：裁示格式以「股票 分類—說明」為主（股票寫名稱或代號都可以）。
   return [
-    fxText_('格式：分類—說明', { size: 'md', weight: 'bold', color: LINE_C_.ink }),
-    fxText_('分類寫在「—」前面，管理者的說明寫在後面。沒寫日期就是今天；要改別天，在最前面加日期與代號。', { size: 'sm', color: LINE_C_.ink, margin: 'sm' }),
+    fxText_('格式：股票 分類—說明', { size: 'md', weight: 'bold', color: LINE_C_.ink }),
+    fxText_('先寫股票（名稱或代號），再寫正確分類，「—」後面寫說明。沒寫日期就是今天；要改別天，在最前面加日期。', { size: 'sm', color: LINE_C_.ink, margin: 'sm' }),
     fxBox_('vertical', [
-      fxText_('觀望注意—原稿說等拉回月線再看，是正面等待，不是不碰', { size: 'sm', color: LINE_C_.ink }),
+      fxText_('勤誠 買入—簡訊明寫請買進，依簡訊方向判定', { size: 'sm', color: LINE_C_.ink }),
       fxText_('2330 會員持股—紀錄上還沒出場，持股說明照原稿寫', { size: 'sm', color: LINE_C_.ink, margin: 'sm' }),
       fxText_('11/06 3008 觀望注意—等量縮回穩才買，屬於注意', { size: 'sm', color: LINE_C_.ink, margin: 'sm' }),
-      fxText_('2317 不列—只是舉例，沒有本股看法', { size: 'sm', color: LINE_C_.ink, margin: 'sm' })
+      fxText_('鴻海 不列—只是舉例，沒有本股看法', { size: 'sm', color: LINE_C_.ink, margin: 'sm' })
     ], { backgroundColor: LINE_C_.soft, cornerRadius: '12px', paddingAll: '12px', margin: 'md' }),
     fxText_('也可以直接用一句話：「勤誠應依簡訊方向判定，列買入或會員持股」。句子裡要有股票、分類與「應、需、改、判定」這類字；寫到簡訊或通知，雲端會照當天會員通知的方向判定（簡訊優先，買入與會員持股同時成立就兩列都留）。', { size: 'sm', color: LINE_C_.ink, margin: 'md' }),
     fxText_('可用分類：' + LINE_ADMIN_CATS_.join('、'), { size: 'xs', color: LINE_C_.muted, margin: 'md' }),
@@ -204,7 +205,7 @@ function lineAdminFormatLines_() {
   ];
 }
 function lineAdminFormatFlex_() {
-  return lineFlex_('裁示格式：分類—說明，例如「觀望注意—原稿說等拉回再看」。',
+  return lineFlex_('裁示格式：股票 分類—說明，例如「勤誠 買入—依簡訊方向判定」。',
     fxBubble_(fxHeader_('管理者・裁示格式', '這樣輸入'), lineAdminFormatLines_(), []));
 }
 function lineAdminHomeFlex_(justOn) {
@@ -544,12 +545,40 @@ function lineAdminFire_(ids) {
   }
 }
 
+/* ---------------- 裁示驗收卡（2026/11/10 管理者） ---------------- */
+// 新版部署後，五分鐘排程主動推一張驗收卡給已綁定且開著管理者模式的帳號（每個版本只推一次，08:00–23:30）。
+// 管理者照卡片格式回覆一則裁示 → 確認卡 → 雲端接手回報 → 套用結果回報，整條流程一次驗完。
+var LINE_ADMIN_VERIFY_BUILD_ = '2026-11-10-line-admin-v220r1';
+function lineAdminVerifyFlex_() {
+  var steps = [['1 輸入', '照下面的格式回覆一則裁示（股票 分類—說明）'], ['2 確認', '馬上回一張確認卡，按「確認送出」才生效'],
+               ['3 雲端接手', '約五分鐘內推一則「雲端已接手」'], ['4 結果', '網站改好並讀回後推「已完成」；改不了會說明原因'],
+               ['隨時查', '輸入「裁示進度」看最近五則']];
+  return lineFlex_('裁示驗收：請回覆一則「股票 分類—說明」，雲端會依原稿改網站並回報進度。', fxBubble_(
+    fxHeader_('管理者・裁示驗收', '請回覆一則裁示', '#0A4A3C'),
+    steps.map(function (r) { return fxBox_('vertical', [fxText_(r[0], { size: 'sm', weight: 'bold', color: LINE_C_.ink }), fxText_(r[1], { size: 'xs', color: LINE_C_.muted })]); })
+      .concat(lineAdminFormatLines_().slice(0, 3)),
+    [fxBtn_(linePb_('待裁示', 'a=adminpending', '待裁示'), 'secondary'), fxBtn_(linePb_('裁示格式', 'a=adminformat', '裁示格式'), 'link')]));
+}
+function lineAdminVerifyTick_() {
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty('LINE_ADMIN_VERIFY_SENT') === LINE_ADMIN_VERIFY_BUILD_) { return 'sent'; }
+  var hhmm = Number(Utilities.formatDate(new Date(), 'Asia/Taipei', 'HHmm'));
+  if (hhmm < 800 || hhmm > 2330) { return 'window'; }
+  if (!lineAdminUids_().length) { return 'no-admin'; }
+  var q = lineQueue_({ id: 'admin-verify|' + LINE_ADMIN_VERIFY_BUILD_, kind: 'admin', date: todayStr_(), source: '管理者裁示驗收卡',
+    expiresAt: Date.now() + 12 * 3600 * 1000, messages: [lineAdminVerifyFlex_()] });
+  props.setProperty('LINE_ADMIN_VERIFY_SENT', LINE_ADMIN_VERIFY_BUILD_);
+  if (q.created) { lineDeliverTick_({ only: q.id, budgetMs: 30000 }); }
+  return q.created ? 'queued' : 'exists';
+}
+
 /* ---------------- 五分鐘排程 ---------------- */
 function lineAdminTick_() {
   if (!lineConfigured_() || linePushMode_() === 'off') { return { skipped: 'off' }; }
   var out = {};
   try { out.rulings = lineAdminRulingTick_(); } catch (e) { out.rulingsError = String(e && e.message || e); }
   try { out.review = lineAdminReviewTick_(); } catch (e2) { out.reviewError = String(e2 && e2.message || e2); }
+  try { out.verify = lineAdminVerifyTick_(); } catch (e3) { out.verifyError = String(e3 && e3.message || e3); }
   return out;
 }
 /** 複核一完成就送 ① ②（同一天只送一次）。 */

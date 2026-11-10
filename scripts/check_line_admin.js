@@ -248,3 +248,35 @@ console.log('r2 測試雲端通過');
   assert.equal(st.contents.body.contents[0].contents.length, 2);           // 兩個分類兩個色塊
 })();
 console.log('v220 一般句子裁示、身分確認、進度回報通過');
+
+// ---- 2026/11/10：「股票 分類—說明」為主格式、部署後推一次驗收卡 ----
+(() => {
+  let r2 = ctx.lineAdminParseRuling_('勤誠 買入—簡訊明寫請買進，依簡訊方向判定');
+  assert.equal(r2.name, '勤誠'); assert.equal(r2.cat, '買入'); assert.match(r2.text, /依簡訊方向/);
+  r2 = ctx.lineAdminParseRuling_('11/09 8210 買入—簡訊明寫請買進');
+  assert.equal(r2.code, '8210'); assert.equal(r2.day, 9);
+  const card = ctx.lineAdminFormatFlex_();
+  assert.match(card.altText, /股票 分類—說明/);
+  assert.match(JSON.stringify(card), /格式：股票 分類—說明/);
+  // 卡片上的每個範例都要真的解析得出來（不可以示範一個系統讀不懂的格式）
+  const examples = JSON.stringify(card).match(/"text":"[^"]*"/g).map(s => s.slice(8, -1))
+    .filter(s => /^(?:\d{1,2}\/\d{1,2}\s)?[^\s—「」：]+\s[^\s—]+—/.test(s));
+  assert.ok(examples.length >= 4, examples.join('|'));
+  for (const ex of examples) { assert.ok(ctx.lineAdminParseRuling_(ex), '範例解析不到：' + ex); }
+  const props = new Map();
+  let queued = 0, delivered = 0;
+  ctx.PropertiesService = { getScriptProperties: () => ({ getProperty: k => (props.has(k) ? props.get(k) : null), setProperty: (k, v) => props.set(k, v) }) };
+  ctx.todayStr_ = () => '2026/11/10';
+  ctx.lineAdminUids_ = () => ['Uadmin'];
+  ctx.lineQueue_ = job => { queued++; assert.match(JSON.stringify(job.messages), /管理者・裁示驗收/); return { created: true, id: job.id }; };
+  ctx.lineDeliverTick_ = () => { delivered++; };
+  ctx.Utilities = { formatDate: () => '2240' };
+  assert.equal(ctx.lineAdminVerifyTick_(), 'queued');
+  assert.equal(ctx.lineAdminVerifyTick_(), 'sent');                         // 同一版只推一次
+  assert.equal(queued, 1); assert.equal(delivered, 1);
+  props.clear(); ctx.Utilities = { formatDate: () => '0230' };
+  assert.equal(ctx.lineAdminVerifyTick_(), 'window');                       // 半夜不推
+  ctx.Utilities = { formatDate: () => '1000' }; ctx.lineAdminUids_ = () => [];
+  assert.equal(ctx.lineAdminVerifyTick_(), 'no-admin');                     // 沒有開著管理者模式的人就不推
+})();
+console.log('11/10 股票 分類—說明格式、驗收卡只推一次通過');

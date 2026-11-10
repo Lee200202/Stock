@@ -280,3 +280,44 @@ console.log('v220 一般句子裁示、身分確認、進度回報通過');
   assert.equal(ctx.lineAdminVerifyTick_(), 'no-admin');                     // 沒有開著管理者模式的人就不推
 })();
 console.log('11/10 股票 分類—說明格式、驗收卡只推一次通過');
+
+// ---- 2026/11/10：管理者用一般問句查（規則先、Gemini 後；非管理者不呼叫模型） ----
+(() => {
+  ctx.todayStr_ = () => '2026/11/10';
+  const qi = s => ctx.lineAdminQueryIntent_(s, '2026/11/10');
+  assert.deepEqual({ ...qi('11月9號待裁示的有哪些') }, { intent: 'pending', day: '2026/11/09' });
+  assert.deepEqual({ ...qi('昨天的稽核結果') }, { intent: 'review', day: '2026/11/09' });
+  assert.deepEqual({ ...qi('11/6 改了哪些') }, { intent: 'review', day: '2026/11/06' });
+  assert.deepEqual({ ...qi('前天還有待確認的嗎') }, { intent: 'pending', day: '2026/11/08' });
+  assert.equal(qi('裁示進度如何').intent, 'progress');
+  assert.equal(qi('台積電'), null);
+  assert.equal(ctx.lineAdminSpokenDate_('12/30 待裁示', '2026/01/05'), '2025/12/30');   // 一月問十二月是去年
+  const act = ctx.lineParseText_('11月9號待裁示的有哪些', 'Ua', false);
+  assert.equal(act.a, 'adminquery'); assert.equal(act.q.day, '2026/11/09');
+
+  const calls = [];
+  ctx.lineAdminPendingReply_ = d => { calls.push(['pending', d]); return [{ type: 'text', text: 'pending ' + d }]; };
+  ctx.lineAdminReviewReply_ = d => { calls.push(['review', d]); return [{ type: 'text', text: 'review ' + d }]; };
+  ctx.lineAdminActive_ = uid => uid === 'Uadmin';
+  ctx.lineTouch_ = () => {};
+  assert.equal(ctx.lineRoute_('Uadmin', 'bot', act, true)[0].text, 'pending 2026/11/09');
+  // 非管理者：不透露管理者功能，改回一般解析
+  ctx.lineOutOfScopeReply_ = () => [{ type: 'text', text: 'outofscope' }];
+  ctx.lineStockReply_ = q => [{ type: 'text', text: 'stock:' + q }];
+  ctx.lineFindSub_ = () => ({});
+  let geminiCalls = 0;
+  ctx.callGemini_ = () => { geminiCalls++; return '{"intent":"review","date":"2026/11/09","stock":""}'; };
+  assert.doesNotMatch(JSON.stringify(ctx.lineRoute_('Uuser', 'bot', act, true)), /pending|裁示|管理者/);
+  // 規則抓不到的管理者句子 → Gemini 判斷意圖與日期，答案由既有函式產生
+  const vague = ctx.lineParseText_('那天被抓出來的問題後來都處理好了沒', 'Uadmin', false);
+  assert.equal(vague.a, 'outofscope');
+  assert.equal(ctx.lineRoute_('Uadmin', 'bot', vague, true)[0].text, 'review 2026/11/09');
+  assert.equal(geminiCalls, 1);
+  assert.equal(ctx.lineRoute_('Uuser', 'bot', vague, true)[0].text, 'outofscope');
+  assert.equal(geminiCalls, 1);                                                      // 非管理者不呼叫模型
+  ctx.callGemini_ = () => { throw new Error('QUOTA_DAILY'); };
+  assert.equal(ctx.lineRoute_('Uadmin', 'bot', vague, true)[0].text, 'outofscope');   // 模型失敗照舊回覆
+  ctx.callGemini_ = () => '{"intent":"stock","date":"","stock":"台積電"}';
+  assert.equal(ctx.lineRoute_('Uadmin', 'bot', vague, true)[0].text, 'stock:台積電');
+})();
+console.log('11/10 管理者一般問句：規則判斷日期與意圖、Gemini 備援、非管理者不呼叫模型通過');

@@ -396,6 +396,9 @@ function lineParseText_(raw, uid, noRule) {
   if (/^(?:裁示格式|裁示說明|怎麼裁示)$/.test(t)) { return { a: 'adminformat' }; }
   if (/^(?:測試雲端|雲端測試|測試裁示觸發)$/.test(t)) { return { a: 'admintest' }; }
   if (/^(?:裁示進度|裁示狀態|進度|修改進度|修正進度)$/.test(t)) { return { a: 'adminprogress' }; }
+  // 2026/11/10：管理者用一般問句查（「11月9號待裁示的有哪些」）；不是管理者時 lineRoute_ 改回一般查詢
+  var aq = !noRule && typeof lineAdminQueryIntent_ === 'function' ? lineAdminQueryIntent_(raw, typeof todayStr_ === 'function' ? todayStr_() : '') : null;
+  if (aq) { return { a: 'adminquery', q: aq, raw: t, src: String(raw || '') }; }
 
   // 特殊隱藏機關：啟用／關閉盤中通知
   if (/^(?:我要|請幫我|幫我)?(?:啟用|開啟|加訂)(?:盤中即時通知|盤中通知)$/.test(t) || /^(?:我要啟用盤中通知|我要開啟盤中通知|啟用盤中通知|開啟盤中通知)$/.test(t)) {
@@ -543,6 +546,17 @@ function lineRoute_(uid, ch, act, deferTouch) {
     var who = lineFindSub_(uid, ch);
     if (who && who.tester && typeof lineAdminIdentityReply_ === 'function') { return lineAdminIdentityReply_(uid, act.src || act.raw); }
     return lineRoute_(uid, ch, lineParseText_(act.src || act.raw, uid, true), true);
+  }
+  if (act.a === 'adminquery') {
+    if (!LINE_ADMIN_CTX_) { return lineRoute_(uid, ch, lineParseText_(act.src || act.raw, uid, true), true); }
+    return lineAdminIntentReply_(act.q) || lineOutOfScopeReply_('general', act.raw);
+  }
+  // 2026/11/10：管理者的話規則判斷不了、原本會回「不在服務範圍」時，請 Gemini 判斷意圖與日期（只有管理者會呼叫模型）。
+  if (act.a === 'outofscope' && act.kind === 'general' && LINE_ADMIN_CTX_ && typeof lineAdminGeminiIntent_ === 'function') {
+    var gq = lineAdminGeminiIntent_(act.raw, todayStr_());
+    if (gq && gq.intent === 'stock' && gq.stock) { return lineStockReply_(gq.stock, uid); }
+    var gr = gq && lineAdminIntentReply_(gq);
+    if (gr) { return gr; }
   }
   if (act.a === 'rulequery') {
     var q = typeof lineAdminQueryText_ === 'function' ? lineAdminQueryText_(uid) : '';

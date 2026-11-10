@@ -361,15 +361,16 @@ function lineAdminReportPlan_(rows) {
 
 /* ---------------- 互動：查看、挑選、裁示、確認 ---------------- */
 function lineAdminDeny_() { return [lineText_('這個指令只開放給管理者。', lineQuickMain_())]; }
-function lineAdminReviewReply_() {
-  var data = lineAdminReviewData_(todayStr_(), true);
-  if (!data) { return [lineText_('還沒有複核紀錄。', lineAdminQuick_())]; }
+function lineAdminReviewReply_(day) {
+  var data = day ? lineAdminReviewData_(day, false) : lineAdminReviewData_(todayStr_(), true);
+  if (!data) { return [lineText_(day ? (lineMd_(day) || day) + ' 沒有複核紀錄（休市、沒有影片，或那天複核沒有執行）。' : '還沒有複核紀錄。', lineAdminQuick_())]; }
   var out = [lineAdminReviewFlex_(data)], p = lineAdminPendingFlex_(data);
   if (p) { out.push(p); }
   return out;
 }
-function lineAdminPendingReply_() {
-  var data = lineAdminReviewData_(todayStr_(), true);
+function lineAdminPendingReply_(day) {
+  var data = day ? lineAdminReviewData_(day, false) : lineAdminReviewData_(todayStr_(), true);
+  if (day && !data) { return [lineText_((lineMd_(day) || day) + ' 沒有複核紀錄（休市、沒有影片，或那天複核沒有執行）。', lineAdminQuick_())]; }
   var p = data && lineAdminPendingFlex_(data);
   if (p) { return [p]; }
   return [lineText_((data ? (lineMd_(data.day) || data.day) + ' ' : '') + '沒有待你裁示的項目。要改其他股票，直接輸入「代號 分類—說明」。', lineAdminQuick_())];
@@ -542,6 +543,64 @@ function lineAdminFire_(ids) {
     return code >= 200 && code < 300 ? { ok: true } : { ok: false, reason: 'HTTP ' + code };
   } catch (e) {
     return { ok: false, reason: '連線失敗' };
+  }
+}
+
+/* ---------------- 管理者的一般問句（2026/11/10 管理者） ---------------- */
+// 「11月9號待裁示的有哪些」以前被當成服務範圍外。先用規則抓「日期＋要看什麼」；規則抓不到、又是管理者時，
+// 才請 Gemini（Flash Lite）只判斷意圖與日期，回答一律由既有函式從複核紀錄產生，模型不寫答案內容。
+var LINE_ADMIN_INTENTS_ = ['review', 'pending', 'progress', 'format'];
+/** 純函式：從句子取日期（11月9號、11/9、2026/11/09、昨天、前天、今天）。回傳 YYYY/MM/DD 或 ''。 */
+function lineAdminSpokenDate_(raw, today) {
+  var s = String(raw || '').replace(/[０-９]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); }).replace(/\s+/g, '');
+  var base = String(today || '').split('/').map(Number), y = base[0], m, d, hit;
+  if (!y) { return ''; }
+  var shift = function (n) { var dt = new Date(Date.UTC(base[0], base[1] - 1, base[2] - n)); return dt.getUTCFullYear() + '/' + ('0' + (dt.getUTCMonth() + 1)).slice(-2) + '/' + ('0' + dt.getUTCDate()).slice(-2); };
+  if (/前天/.test(s)) { return shift(2); }
+  if (/昨天|昨日/.test(s)) { return shift(1); }
+  if ((hit = s.match(/(?:(20\d{2})[年/.-])?(\d{1,2})(?:月|[/.-])(\d{1,2})(?:日|號|号)?/))) {
+    y = hit[1] ? Number(hit[1]) : y; m = Number(hit[2]); d = Number(hit[3]);
+    if (m < 1 || m > 12 || d < 1 || d > 31) { return ''; }
+    if (!hit[1] && m > base[1]) { y -= 1; }                         // 一月問「12/30」是去年
+    return y + '/' + ('0' + m).slice(-2) + '/' + ('0' + d).slice(-2);
+  }
+  if (/今天|今日/.test(s)) { return String(today); }
+  return '';
+}
+/** 純函式：規則判斷管理者想看什麼。回傳 { intent, day } 或 null（沒有明確的查詢詞就不猜）。 */
+function lineAdminQueryIntent_(raw, today) {
+  var s = String(raw || '').replace(/\s+/g, '');
+  if (!s || s.length > 60) { return null; }
+  var intent = /待裁示|要裁示|需要裁示|待我裁示|待你裁示|還沒裁示|待確認|待處理/.test(s) ? 'pending'
+    : /裁示進度|裁示狀態|處理到哪|處理進度|修正進度|修改進度/.test(s) ? 'progress'
+    : /稽核|複核|改了什麼|修了什麼|修正了什麼|改了哪些|修了哪些|明確錯誤|邊界|複核錯/.test(s) ? 'review'
+    : /怎麼裁示|裁示格式|裁示怎麼打|格式是什麼/.test(s) ? 'format' : '';
+  if (!intent) { return null; }
+  return { intent: intent, day: intent === 'format' || intent === 'progress' ? '' : lineAdminSpokenDate_(s, today) };
+}
+/** 規則判斷不了時才問 Gemini；只回 JSON 意圖與日期，失敗就回 null（照舊回服務範圍外）。 */
+function lineAdminGeminiIntent_(raw, today) {
+  if (typeof callGemini_ !== 'function') { return null; }
+  var sys = '你是 LINE 機器人的意圖判斷器，使用者是網站管理者。只回 JSON：{"intent": "review|pending|progress|format|stock|other", "date": "YYYY/MM/DD 或空字串", "stock": "股票名稱或代號或空字串"}。' +
+    'review＝想看某天複核／稽核結果、改了什麼、明確錯誤；pending＝想看某天還要他裁示的項目；progress＝想看裁示處理進度；format＝問裁示怎麼輸入；' +
+    'stock＝想查某檔股票的紀錄；other＝其他。今天是 ' + today + '（台北）。相對日期換算成確切日期；沒提日期就給空字串。不要解釋。';
+  try {
+    var out = JSON.parse(String(callGemini_(sys, String(raw || '').slice(0, 200), { json: true, maxOut: 200, temperature: 0, maxWaitMs: 12000, singleAttempt: true }) || '{}'));
+    var intent = String(out.intent || '');
+    if (LINE_ADMIN_INTENTS_.indexOf(intent) < 0 && intent !== 'stock') { return null; }
+    var day = /^20\d{2}\/\d{2}\/\d{2}$/.test(String(out.date || '')) ? String(out.date) : '';
+    return { intent: intent, day: day, stock: String(out.stock || '').slice(0, 20), via: 'gemini' };
+  } catch (e) {
+    return null;
+  }
+}
+function lineAdminIntentReply_(q) {
+  switch (q.intent) {
+    case 'review': return lineAdminReviewReply_(q.day || '');
+    case 'pending': return lineAdminPendingReply_(q.day || '');
+    case 'progress': return lineAdminProgressReply_();
+    case 'format': return [lineAdminFormatFlex_()];
+    default: return null;
   }
 }
 

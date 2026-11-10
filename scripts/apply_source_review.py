@@ -78,8 +78,35 @@ def reviewed_trade_problems(item, plan):
     return out
 
 
+def prefix_unchanged(before, now):
+    """純函式：now 的前 len(before) 列與 before 相同（尾端空白正規化），只容許表尾新增列。"""
+    width = len(before[0]) if before else 0
+    canon = lambda rows: [list(r)[:width] + [''] * max(0, width - len(r)) for r in rows]
+    return len(now) >= len(before) and canon(now[:len(before)]) == canon(before)
+
+
+def plan_problems(plan):
+    """純函式：計畫格式問題（不需連線）。2026/11/10：缺指紋以前要到套用時才報「指紋改變」，誤導又多推一輪。"""
+    problems = []
+    for item in plan.get('items', []):
+        code = str(item.get('code') or '?')
+        action = item.get('action')
+        if action not in ('insert', 'update', 'delete'):
+            problems.append(code + '：action 要是 insert／update／delete')
+        if item.get('category') not in LABEL:
+            problems.append(code + '：category 不認得')
+        if action in ('update', 'delete') and not re.fullmatch(r'[0-9a-f]{64}', str(item.get('previous_note_sha256') or '')):
+            problems.append(code + '：' + str(action) + ' 要有舊說明指紋 previous_note_sha256（64 位十六進位）')
+        if action in ('insert', 'update') and not item.get('text'):
+            problems.append(code + '：缺新說明 text')
+    return problems
+
+
 def make_changes(tables, plan, names):
     """純規劃器遇到重複列、來源或說明變動時停止寫入。"""
+    problems = plan_problems(plan)
+    if problems:
+        raise ValueError('修正計畫格式不完整：' + '；'.join(problems))
     changes = []
     seen = set()
     for item in plan['items']:
@@ -324,7 +351,8 @@ def main():
             return
         backup_tables(pl, book, TABLES + ('每日推播內容',))
         for name, values in tables.items():
-            if digest(worksheets[name].get_all_values()) != digest(values):
+            # 2026/11/10：簡訊解析會在表尾補新列；只要原有各列（含要改的列）不變就放行，表尾新增的列不影響這次寫入。
+            if not prefix_unchanged(values, worksheets[name].get_all_values()):
                 raise ValueError('備份期間資料變動，未寫入：' + name)
         fresh = {}
         latest, _ = pl.existing_transcript(book, plan['video_id'], day, snapshot=fresh)
@@ -348,11 +376,8 @@ def main():
         book.batch_update({'requests': requests})
         after = {n: worksheets[n].get_all_values() for n in TABLES}
         for name in TABLES:
-            # get_all_values會省略尾端空白儲存格，須先正規化再比對。
-            canon = lambda rows: [
-                list(r)[:len(tables[name][0])] +
-                [''] * max(0, len(tables[name][0]) - len(r)) for r in rows]
-            if canon(after[name]) != canon(expected[name]):
+            # get_all_values會省略尾端空白儲存格，須先正規化再比對；表尾由其他程序新增的列不算非預期變動。
+            if not prefix_unchanged(expected[name], after[name]):
                 raise RuntimeError('原子寫入後非預期變動，需核對備份：' + name)
         verify_final(after, plan)
         print('正式列逐欄讀回一致；其他日期與受保護來源未變')

@@ -53,14 +53,30 @@ jobs:
           NOTICE="scripts/repairs/${DAY//\//-}-notice-reason.json"
           MEMO="scripts/repairs/${DAY//\//-}-name-memo.json"
           if [ ! -f "$PLAN" ] && [ ! -f "$POINTS" ] && [ ! -f "$NOTICE" ] && [ ! -f "$MEMO" ]; then echo "沒有修正計畫"; exit 1; fi
-          # 2026/11/06：同一天第二輪推到同一個分支時，只套用這次推送改到的計畫檔。
-          # 前一輪已套用的舊計畫（例如上午的章節計畫）不再重套，免得蓋掉之後另外核對過的內容。
+          # 2026/11/10：先做和雲端排程相同的推送前檢查（格式、指紋、引句長度），計畫檔有錯就在動任何資料前停下並列出全部問題。
+          python scripts/daily_review/preflight.py --date "$DAY"
+          # 2026/11/06：同一天第二輪推到同一個分支時，前一輪已套用的舊計畫（例如上午的章節計畫）不再重套，免得蓋掉之後另外核對過的內容。
+          # 2026/11/10：「已套用」改看主資料的收據，不再只看 git 差異——11/10 第三輪通知理由計畫失敗，第四、五輪卻當成已套用而跳過。
+          #             讀不到收據時（網路或權限）才退回 11/06 的 git 差異判斷。
+          if APPLIED=$(python scripts/daily_review/plan_receipt.py --date "$DAY" 2>/dev/null); then
+            RECEIPTS=1; echo "${APPLIED:-（今天還沒有已套用的計畫）}"
+          else
+            RECEIPTS=""; APPLIED=""; echo "讀不到套用收據，改用 git 差異判斷"
+          fi
+          CHANGED=""
           if [[ -n "$BEFORE" && ! "$BEFORE" =~ ^0+$ ]] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
             CHANGED=$(git diff --name-only "$BEFORE" "$GITHUB_SHA")
-            for F in PLAN POINTS NOTICE; do
-              if [ -f "${!F}" ] && ! grep -qxF "${!F}" <<< "$CHANGED"; then echo "這次推送沒有改到 ${!F}，前一輪已套用，不重套"; printf -v "$F" '%s' "/nonexistent/${F}"; fi
-            done
           fi
+          for F in PLAN POINTS NOTICE; do
+            [ -f "${!F}" ] || continue
+            if [ -n "$CHANGED" ] && grep -qxF "${!F}" <<< "$CHANGED"; then continue; fi
+            if [ -n "$RECEIPTS" ]; then
+              if grep -qxF "APPLIED ${!F}" <<< "$APPLIED"; then echo "${!F} 已有套用收據，這次推送沒有改它，不重套"; printf -v "$F" '%s' "/nonexistent/${F}"
+              else echo "${!F} 沒有套用收據（前一輪沒有成功），這一輪照樣套用"; fi
+            elif [ -n "$CHANGED" ]; then
+              echo "這次推送沒有改到 ${!F}，前一輪已套用，不重套"; printf -v "$F" '%s' "/nonexistent/${F}"
+            fi
+          done
           # 2026/11/06：暫時性錯誤（備份鎖忙碌、網路、Apps Script 逾時）不馬上標修正失敗，150 秒後整組重試一次。
           # 每支工具寫入前都先核對最終狀態，已寫入的不會重寫；預覽沒過就不會套用（每一步都檢查結束代碼）。
           run_plans() {

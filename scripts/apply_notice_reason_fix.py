@@ -78,6 +78,42 @@ def contains_sha(text, chars, digest_hex):
     return any(sha(text[i:i + chars]) == digest_hex for i in range(0, max(0, len(text) - chars + 1)))
 
 
+def plan_writes(plan, trades, sms, field, done, day):
+    """純函式：回傳 (writes=[(item, 列號, 簡訊列號)], work={簡訊列號: 改好的解析明細}, planned_cells)。
+
+    2026/11/10：同一則通知改兩檔（世芯-KY、宜鼎）時，兩檔共用同一格「解析明細」。以前每一檔各自從原始明細改一份再寫回，
+    第二筆把第一筆蓋掉，讀回就不一致。現在同一列通知的修改累積在同一份明細上，最後每列只寫一次。"""
+    writes, work, planned_cells = [], {}, {}
+    for item in plan['items']:
+        ti, trow, si, srow, detail, _ = locate(trades, sms, plan, item)
+        detail = work.setdefault(si, detail)
+        mine = [d for d in detail if str(d.get('code')) == item['code'] and target(item)[2](d)][0]
+        current = trow.get(field)
+        if done:
+            if current != item['text'] or mine.get('reason') != item['text']:
+                raise ValueError('已有收據但資料與計畫不一致（之後被改寫，或舊版工具同一則通知多檔互蓋）：' + item['code'] +
+                                 '；請另寫新計畫，只補不一致的欄位（舊值用 previous_detail_sha256）')
+            continue
+        if sha(current or '') != item['previous_reason_sha256'] or \
+                sha(mine.get('reason') or '') != item.get('previous_detail_sha256', item['previous_reason_sha256']):
+            raise ValueError('理由已被改動，保留現值：' + item['code'])
+        # reviewed：之後的簡訊解析（雙來源重寫）看到這個標記就不再改寫這一句
+        mine.update(reason=item['text'], reviewed='通知理由修正 ' + day)
+        planned_cells[(ti, si)] = (trades[ti - 1], sms[si - 1])
+        writes.append((item, ti, si))
+        print('改', item['code'], item['name'], '\n  舊理由指紋：', item['previous_reason_sha256'][:12], '\n  新：', item['text'])
+    return writes, work, planned_cells
+
+
+def unchanged_rows_or_raise(plan, planned_cells, trades_now, sms_now):
+    """純函式：備份後重讀，要寫的每一列（操作紀錄／會員持股列與會員簡訊列）列號與內容都沒變才放行。"""
+    for item in plan['items']:
+        ti, _, si, _, _, _ = locate(trades_now, sms_now, plan, item)
+        before = planned_cells.get((ti, si))
+        if before is None or trades_now[ti - 1] != before[0] or sms_now[si - 1] != before[1]:
+            raise ValueError('備份期間這一列資料變動，未寫入：' + item['code'])
+
+
 def check_item(item, raw_compact, source_quote, raw):
     if 'previous_reason' in item:
         raise ValueError('計畫不得寫入舊理由原句（通知用語），請改用 previous_reason_sha256／previous_reason_chars')
@@ -126,20 +162,8 @@ def main():
     ledger_before = {n: digest(book.worksheet(n).get_all_values()) for n in ledgers}
     sent = pl._daily_article_status(book, day)
     th, sh = trades[0], sms[0]
-    requests, writes = [], []
-    for item in plan['items']:
-        ti, trow, si, srow, detail, mine = locate(trades, sms, plan, item)
-        current = trow.get(field)
-        if done:
-            if current != item['text'] or mine.get('reason') != item['text']:
-                raise ValueError('已有收據但資料與計畫不一致：' + item['code'])
-            continue
-        if sha(current or '') != item['previous_reason_sha256'] or                 sha(mine.get('reason') or '') != item.get('previous_detail_sha256', item['previous_reason_sha256']):
-            raise ValueError('理由已被改動，保留現值：' + item['code'])
-        # reviewed：之後的簡訊解析（雙來源重寫）看到這個標記就不再改寫這一句
-        new_detail = [dict(d, reason=item['text'], reviewed='通知理由修正 ' + day) if d is mine else d for d in detail]
-        writes.append((item, ti, si, json.dumps(new_detail, ensure_ascii=False)))
-        print('改', item['code'], item['name'], '\n  舊理由指紋：', item['previous_reason_sha256'][:12], '\n  新：', item['text'])
+    requests = []
+    writes, work, planned_cells = plan_writes(plan, trades, sms, field, done, day)
     if done:
         print('既有收據與資料一致；只接續刷新')
     elif not args.apply:
@@ -149,18 +173,20 @@ def main():
         from backup_archive import backup_tables
         backup_tables(pl, book, tuple(dict.fromkeys((tab, '操作紀錄', '會員簡訊', '每日推播內容', '持股追蹤'))))
         cell = lambda v: {'userEnteredValue': {'stringValue': str(v)}}
-        for item, ti, si, detail_json in writes:
+        for item, ti, si in writes:
             requests.append({'updateCells': {'start': {'sheetId': ws_t.id, 'rowIndex': ti - 1, 'columnIndex': th.index(field)},
                                              'rows': [{'values': [cell(item['text'])]}], 'fields': 'userEnteredValue'}})
-            requests.append({'updateCells': {'start': {'sheetId': ws_s.id, 'rowIndex': si - 1, 'columnIndex': sh.index('解析明細')},
-                                             'rows': [{'values': [cell(detail_json)]}], 'fields': 'userEnteredValue'}})
+        for si, detail in work.items():
+            if any(w[2] == si for w in writes):
+                requests.append({'updateCells': {'start': {'sheetId': ws_s.id, 'rowIndex': si - 1, 'columnIndex': sh.index('解析明細')},
+                                                 'rows': [{'values': [cell(json.dumps(detail, ensure_ascii=False))]}], 'fields': 'userEnteredValue'}})
         stamp = datetime.now(pl.TAIPEI).strftime('%Y/%m/%d %H:%M:%S')
         meta = json.dumps({'receipt': receipt, 'plan': plan}, ensure_ascii=False)
         requests.append({'appendCells': {'sheetId': ws_r.id, 'fields': 'userEnteredValue', 'rows': [{'values': [cell(x) for x in
             [stamp, day, '通知用語外洩修正', tab + '／會員簡訊解析明細', '', '', meta, '已套用（獨立備份可復原）', stamp]]}]}})
-        # 備份期間資料有變就不寫
-        if digest(ws_t.get_all_values()) != digest(trades) or digest(ws_s.get_all_values()) != digest(sms):
-            raise ValueError('備份期間資料變動，未寫入')
+        # 備份期間要改的那幾列有變就不寫。2026/11/10：以前比整張表，五分鐘排程一動「會員簡訊」任何一格就整組失敗；
+        # 現在只比要寫的列（重新定位後列號與整列內容都要相同），其他列的變動不影響這次寫入。
+        unchanged_rows_or_raise(plan, planned_cells, ws_t.get_all_values(), ws_s.get_all_values())
         book.batch_update({'requests': requests})
     if not args.apply:
         return

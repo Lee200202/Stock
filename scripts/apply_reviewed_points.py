@@ -11,6 +11,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'pipeline'))
 import pipeline as pl
 
+RECEIPT = '章節修正:'
+
+
 def digest(value):
     return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
 
@@ -67,7 +70,9 @@ def main():
         raise SystemExit('人工章節仍不通過品質核對：' + '；'.join(hard))
     names = {w.title for w in book.worksheets()}
     ledgers = [n for n in ('寄送帳本', 'LINE 寄送帳本') if n in names]
-    before = {n: digest(book.worksheet(n).get_all_values()) for n in ledgers + ['操作紀錄', '會員持股']}
+    before = {n: digest(book.worksheet(n).get_all_values()) for n in ledgers}
+    # 2026/11/10：個股兩張表只要原有各列不變即可，簡訊解析在表尾補新列不算本程式造成的變動。
+    rows_before = {n: book.worksheet(n).get_all_values() for n in ('操作紀錄', '會員持股')}
     sent = pl._daily_article_status(book, day)
     stamp = datetime.now(pl.TAIPEI).strftime('%m%d_%H%M%S')
     backup_tables(pl,book,('逐字稿判讀稽核','每日推播內容'))
@@ -81,8 +86,17 @@ def main():
     result = pl.maybe_refresh_site(force=True, only=['smsmail'], date_str=day) or {}
     if not result.get('ok'):
         raise RuntimeError('章節已保存，郵件查詢尚需接續刷新；未寄送')
-    if sent != pl._daily_article_status(book, day) or any(before[n] != digest(book.worksheet(n).get_all_values()) for n in before):
+    from apply_source_review import prefix_unchanged
+    if sent != pl._daily_article_status(book, day) or any(before[n] != digest(book.worksheet(n).get_all_values()) for n in before) \
+            or not all(prefix_unchanged(v, book.worksheet(n).get_all_values()) for n, v in rows_before.items()):
         raise RuntimeError('同期資料或帳本變動，須讀回核對；本程式未更改分類或寄送')
+    if plan:
+        # 2026/11/10：留收據；同一天再推時，工作流程據此判斷這份計畫是否真的套用過
+        # （以前只看 git 差異，前一輪失敗的計畫也被當成已套用而跳過）。
+        now = datetime.now(pl.TAIPEI).strftime('%Y/%m/%d %H:%M:%S')
+        meta = json.dumps({'receipt': RECEIPT + digest(plan), 'date': day}, ensure_ascii=False)
+        book.worksheet('修正建議').append_row([now, day, '章節修正', '每日推播內容', '', '', meta, '已套用', now],
+                                           value_input_option='RAW')
     print('人工章節核對及網站刷新完成；原稿、個股列與寄送帳本不變，未呼叫模型或寄送')
 
 if __name__ == '__main__':

@@ -153,8 +153,11 @@ def main():
     sent = pl._daily_article_status(book, day)
     th, sh = trades[0], sms[0]
     writes = []
+    # 同一則通知裁示多檔時，修改累積在同一份解析明細上（2026/11/10，避免第二筆蓋掉第一筆）。
+    work, planned = {}, {}
     for item in plan['items']:
         ti, trow, others, si, srow, detail = locate(trades, sms, day, item)
+        detail = work.setdefault(si, detail)
         if sha(srow.get('原文') or '') != item['notice_sha256'] or str(srow.get('內容指紋') or item['notice_sha256']) != item['notice_sha256']:
             raise ValueError('通知內容已變（指紋不符），未寫入：' + item['code'])
         if done:
@@ -174,9 +177,11 @@ def main():
         mine = detail_item(detail, item, item['previous_direction'])
         if not mine:
             raise ValueError('解析明細沒有唯一對應的項目：' + item['code'])
-        new_detail = [dict(d, dir=item['direction'], reason=item['text'], speech_act='order' if item['direction'] in VERB else d.get('speech_act', ''),
-                           reviewed='管理者裁示 ' + day + ' ' + ','.join(plan['ruling_ids'])) if d is mine else d for d in detail]
-        writes.append((item, ti, si, json.dumps(new_detail, ensure_ascii=False)))
+        mine.update(dir=item['direction'], reason=item['text'],
+                    speech_act='order' if item['direction'] in VERB else mine.get('speech_act', ''),
+                    reviewed='管理者裁示 ' + day + ' ' + ','.join(plan['ruling_ids']))
+        planned[(ti, si)] = (trades[ti - 1], sms[si - 1])
+        writes.append((item, ti, si))
         print('改', item['code'], item['name'], item['previous_direction'], '→', item['direction'], '（價位照舊：' + str(trow.get('價位說明') or '') + '）',
               '\n  舊理由指紋：', item['previous_reason_sha256'][:12], '\n  新：', item['text'])
     if done:
@@ -189,18 +194,24 @@ def main():
         backup_tables(pl, book, ('操作紀錄', '會員簡訊', '每日推播內容', '持股追蹤'))
         cell = lambda v: {'userEnteredValue': {'stringValue': str(v)}}
         requests = []
-        for item, ti, si, detail_json in writes:
+        for item, ti, si in writes:
             for col, value in (('方向', item['direction']), ('理由摘錄', item['text'])):
                 requests.append({'updateCells': {'start': {'sheetId': ws_t.id, 'rowIndex': ti - 1, 'columnIndex': th.index(col)},
                                                  'rows': [{'values': [cell(value)]}], 'fields': 'userEnteredValue'}})
+        for si in sorted({w[2] for w in writes}):
             requests.append({'updateCells': {'start': {'sheetId': ws_s.id, 'rowIndex': si - 1, 'columnIndex': sh.index('解析明細')},
-                                             'rows': [{'values': [cell(detail_json)]}], 'fields': 'userEnteredValue'}})
+                                             'rows': [{'values': [cell(json.dumps(work[si], ensure_ascii=False))]}], 'fields': 'userEnteredValue'}})
         stamp = datetime.now(pl.TAIPEI).strftime('%Y/%m/%d %H:%M:%S')
         meta = json.dumps({'receipt': receipt, 'plan': plan}, ensure_ascii=False)
         requests.append({'appendCells': {'sheetId': ws_r.id, 'fields': 'userEnteredValue', 'rows': [{'values': [cell(x) for x in
             [stamp, day, '管理者裁示（依通知方向）', '操作紀錄／會員簡訊解析明細', '', '', meta, '已套用（獨立備份可復原）', stamp]]}]}})
-        if digest(ws_t.get_all_values()) != digest(trades) or digest(ws_s.get_all_values()) != digest(sms):
-            raise ValueError('備份期間資料變動，未寫入')
+        # 只比要寫的列（2026/11/10：五分鐘排程改到「會員簡訊」其他列不再讓整組失敗）
+        trades_now, sms_now = ws_t.get_all_values(), ws_s.get_all_values()
+        for item in plan['items']:
+            ti, _, _, si, _, _ = locate(trades_now, sms_now, day, item)
+            before = planned.get((ti, si))
+            if before is None or trades_now[ti - 1] != before[0] or sms_now[si - 1] != before[1]:
+                raise ValueError('備份期間這一列資料變動，未寫入：' + item['code'])
         book.batch_update({'requests': requests})
     if not args.apply:
         return

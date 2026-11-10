@@ -26,10 +26,18 @@ def plan_texts(day):
 
 
 def updates(day, head, rows, texts, failed):
-    """純函式：回傳 [(列號, 新的整列)]；只動當天、處理欄是待套用的列。"""
+    """純函式：回傳 [(列號, 新的整列)]；只動當天、處理欄是待套用的列。
+
+    2026/11/10：同一天第一輪失敗會把待套用標成「修正失敗」，之後重推成功時那些列卻還留著「修正失敗」
+    （11/10 留了 19 列）。成功時，當天標「修正失敗」且在修正計畫裡的代號，以及章節列（代號不是數字），一併改回已修正。"""
     out = []
     for i, r in enumerate(rows, 2):
-        if norm_day(r.get('日期')) != day or r.get('處理') not in PENDING:
+        if norm_day(r.get('日期')) != day:
+            continue
+        code = str(r.get('代號') or '').strip()
+        retried = (not failed and r.get('處理') == '修正失敗' and
+                   (code in texts or (code and not code.isdecimal())))
+        if r.get('處理') not in PENDING and not retried:
             continue
         r = dict(r, 處理='修正失敗' if failed else '已修正')
         if not failed and texts.get(str(r.get('代號'))) and not r.get('修正後'):

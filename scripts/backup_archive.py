@@ -4,6 +4,7 @@ from pathlib import Path
 import requests
 
 LOCK_BUSY='備份鎖忙碌'
+SOURCE_MOVED='備份核對不符'
 sleep=time.sleep
 
 def archive_request(pl,op,names=()):
@@ -20,7 +21,8 @@ def archive_request(pl,op,names=()):
             data=r.json()
             if not data.get('ok'):
                 message=str(data.get('error') or '備份未通過核對')
-                if LOCK_BUSY not in message:raise RuntimeError(message)
+                # 2026/11/10：快照期間來源分頁被五分鐘排程改到（「備份核對不符：會員簡訊」）也是暫時性的，重試即可；原分頁不受影響。
+                if LOCK_BUSY not in message and SOURCE_MOVED not in message:raise RuntimeError(message)
                 error=message
             else:
                 return data

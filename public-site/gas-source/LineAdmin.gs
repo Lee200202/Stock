@@ -1235,10 +1235,62 @@ function lineAdminFastTick_() {
   else { try { ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'lineAdminFastTick_') { ScriptApp.deleteTrigger(t); } }); } catch (e2) {} }
   return res;
 }
-/** 純函式：雲端對話的結果 → LINE 訊息。已記錄＝文字回答；待確認＝雲端提出的做法＋確認卡。 */
+/* 2026/11/11（管理者）：雲端的回答用卡片呈現，一點一張。雲端把 --note 寫成 JSON：
+   {"summary":"一句總結","items":[{"type":"待確認","title":"…","status":"已修正","detail":"…","ref":"差異明細第87列","date":"2026/11/11","code":"2317","qid":"Q…"}]}
+   type 決定顏色；有 code 且還沒處理的可「裁示這一檔」，有 qid 的可「看這一題」。不是 JSON 就照舊用文字。 */
+var LINE_ADMIN_ITEM_TYPES_ = {
+  '明確錯誤': '#B42318', '待確認': '#B54708', '邊界': '#175CD3', '複核錯': '#475467', '已修正': '#067647',
+  '問題': '#B54708', '裁示': '#0A4A3C', '候選': '#6941C6', '提醒': '#B42318', '資訊': '#344054'
+};
+/** 純函式：結果欄若是卡片 JSON 就回物件，否則 null。 */
+function lineAdminParseCards_(text) {
+  var t = String(text || '').trim();
+  if (t.charAt(0) !== '{') { return null; }
+  try {
+    var o = JSON.parse(t);
+    if (!o || (!o.summary && !(o.items && o.items.length))) { return null; }
+    o.items = (Array.isArray(o.items) ? o.items : []).filter(function (it) { return it && (it.title || it.detail); }).slice(0, 9);
+    return o;
+  } catch (e) { return null; }
+}
+/** 純函式：一點一張卡。 */
+function lineAdminCardBubble_(it, day) {
+  var type = LINE_ADMIN_ITEM_TYPES_[it.type] ? it.type : '資訊', color = LINE_ADMIN_ITEM_TYPES_[type];
+  var code = String(it.code || '').trim(), btns = [];
+  if (/^\d{4,6}[A-Z]?$/.test(code) && !/已修正|已處理|已記錄|只記錄/.test(String(it.status || ''))) {
+    btns.push(fxBtn_(linePb_('裁示這一檔', 'a=rulepick&d=' + encodeURIComponent(it.date || day || '') + '&c=' + encodeURIComponent(code) + '&n=' + encodeURIComponent(it.name || ''), '裁示 ' + (it.name || '') + ' ' + code)));
+  }
+  if (it.qid) { btns.push(fxBtn_(linePb_('看這一題', 'a=qshow&q=' + encodeURIComponent(it.qid), '看這一題'), 'secondary')); }
+  return fxBubble_(fxHeader_(type + (it.status ? '・' + lineAdminCut_(it.status, 12) : ''), lineAdminCut_(it.title || it.detail, 40), color), [
+    it.detail ? fxText_(lineAdminCut_(it.detail, 300), { size: 'sm', color: LINE_C_.ink, wrap: true }) : null,
+    it.ref ? fxNote_('依據：' + lineAdminCut_(it.ref, 80)) : null
+  ].filter(Boolean), btns);
+}
+/** 純函式：卡片 JSON → 一則 carousel（摘要卡＋每點一張）。 */
+function lineAdminCardsMsg_(r, cards) {
+  var ask = lineAdminCut_(r['管理者說明'], 40), day = lineFmtDay_(r['日期']);
+  var count = {};
+  cards.items.forEach(function (it) { var k = LINE_ADMIN_ITEM_TYPES_[it.type] ? it.type : '資訊'; count[k] = (count[k] || 0) + 1; });
+  var chips = Object.keys(count).map(function (k) { return lineAdminChip_(k + ' ' + count[k], LINE_ADMIN_ITEM_TYPES_[k]); });
+  var head = fxBubble_(fxHeader_('雲端 Claude 回覆', ask, '#0A4A3C'), [
+    fxText_(lineAdminCut_(cards.summary || '共 ' + cards.items.length + ' 點', 300), { size: 'sm', color: LINE_C_.ink, wrap: true }),
+    chips.length ? fxBox_('horizontal', chips.slice(0, 3), { spacing: 'sm', margin: 'md' }) : null,
+    chips.length > 3 ? fxBox_('horizontal', chips.slice(3, 6), { spacing: 'sm', margin: 'sm' }) : null,
+    cards.items.length ? fxNote_('往右滑看每一點；顏色＝類型。') : null
+  ].filter(Boolean), []);
+  var bubbles = [head].concat(cards.items.map(function (it) { return lineAdminCardBubble_(it, day); }));
+  var msg = { type: 'flex', altText: lineClip_('雲端 Claude 回覆「' + ask + '」：' + (cards.summary || ''), 400),
+              contents: bubbles.length > 1 ? { type: 'carousel', contents: bubbles } : head };
+  msg.quickReply = { items: lineAdminQuick_().map(function (a) { return { type: 'action', action: a }; }) };
+  return msg;
+}
+/** 純函式：雲端對話的結果 → LINE 訊息。已記錄＝卡片（JSON）或文字回答；待確認＝雲端提出的做法＋確認卡。 */
 function lineAdminChatResultMsgs_(rows) {
   return (rows || []).slice(0, 4).map(function (r) {
     var ask = lineAdminCut_(r['管理者說明'], 40), ans = String(r['結果'] || '').trim();
+    var cards = lineAdminParseCards_(ans);
+    if (cards && r['狀態'] !== '待確認' && r['狀態'] !== '失敗') { return lineAdminCardsMsg_(r, cards); }
+    if (cards) { ans = cards.summary || cards.items.map(function (it) { return it.title + '：' + (it.detail || ''); }).join('；'); }
     if (r['狀態'] === '待確認') {
       var id = encodeURIComponent(r['裁示ID']);
       return lineFlex_('雲端理解你要：' + lineAdminCut_(ans, 60), fxBubble_(

@@ -42,7 +42,7 @@ def transition(head, rows, *, ids=None, branch=None, state, require=None, set_br
         if set_branch is not None:
             r['分支'] = set_branch
         if note is not None:
-            r['結果'] = note[:600]   # 2026/11/11：對話的回答較長
+            r['結果'] = note[:4000]   # 2026/11/11：對話的回答可能是卡片 JSON
         out.append((i, [r.get(h, '') for h in head]))
     return out
 
@@ -59,6 +59,24 @@ def detail_updates(head, rows, finished, texts):
             r['修正後'] = texts[str(r['代號'])]
         out.append((i, [r.get(h, '') for h in head]))
     return out
+
+
+def check_note(note):
+    """2026/11/11：--note 以 { 開頭就要是合法的卡片 JSON（LINE 用卡片呈現）；不合格直接擋下讓排程修。"""
+    t = (note or '').strip()
+    if not t.startswith('{'):
+        return
+    try:
+        o = json.loads(t)
+    except ValueError as e:
+        raise SystemExit('卡片 JSON 不合法：' + str(e))
+    if not isinstance(o, dict) or not (o.get('summary') or o.get('items')):
+        raise SystemExit('卡片 JSON 需要 summary 或 items')
+    for it in o.get('items') or []:
+        if not isinstance(it, dict) or not (it.get('title') or it.get('detail')):
+            raise SystemExit('每一點需要 title 或 detail')
+    if len(t) > 4000:
+        raise SystemExit('卡片 JSON 超過 4000 字，請精簡')
 
 
 SHEET_CAT = {'買入': 'buy', '賣出': 'sell', '觀望注意': 'watch_watch', '觀望不碰': 'watch_avoid'}
@@ -103,7 +121,7 @@ def main():
     p = sub.add_parser('list'); p.add_argument('--state', default='')
     p = sub.add_parser('claim'); p.add_argument('--ids', required=True)
     p = sub.add_parser('set'); p.add_argument('--ids', required=True); p.add_argument('--state', required=True)
-    p.add_argument('--branch'); p.add_argument('--note')
+    p.add_argument('--branch'); p.add_argument('--note'); p.add_argument('--note-file', help='從檔案讀 --note（卡片 JSON 用，避免引號問題）')
     p = sub.add_parser('finish'); p.add_argument('--branch', required=True)
     p.add_argument('--failed', action='store_true'); p.add_argument('--note')
     p = sub.add_parser('rows'); p.add_argument('--date', required=True); p.add_argument('--code', required=True)
@@ -115,6 +133,10 @@ def main():
         sms = book.worksheet('會員簡訊').get_all_values()
         print(json.dumps(site_rows(tables, norm_day(a.date), a.code.strip(), sms), ensure_ascii=False, indent=1))
         return
+    if getattr(a, 'note_file', None):
+        a.note = open(a.note_file, encoding='utf-8').read().strip()
+    if getattr(a, 'note', None):
+        check_note(a.note)
     ws = open_log().worksheet(TAB)
     head, rows = rows_of(ws)
     stamp = now().strftime('%Y/%m/%d %H:%M:%S')

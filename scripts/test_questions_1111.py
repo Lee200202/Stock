@@ -21,3 +21,15 @@ row = dict(zip(head, values))
 assert qid == 'Q202611111200003' and row['問題ID'] == qid and row['日期'] == '2026/11/11' and row['狀態'] == '待回答'
 assert row['選項'] == '["勤誠 8210", "另一檔，我來說"]'
 print('11/11 管理者問題：選項 2–4 個、去重、長度上限、整列欄位通過')
+
+# 2026/11/11：雲端對話的卡片 JSON 檢查（rulings.py check_note）
+from rulings import check_note  # noqa: E402
+check_note('一般文字')
+check_note('{"summary":"x","items":[{"title":"a"}]}')
+for bad in ('{壞掉', '{"items":[{"x":1}]}', '{"foo":1}'):
+    try:
+        check_note(bad)
+    except SystemExit:
+        continue
+    raise AssertionError('應該擋下：' + bad)
+print('11/11 卡片 JSON 檢查通過')

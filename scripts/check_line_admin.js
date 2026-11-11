@@ -767,3 +767,34 @@ console.log('11/11 送雲端前確認文字：規則修錯字、Gemini 補全、
   ctx.lineProp_ = prevProp;
 })();
 console.log('11/11 短語音殘句：規則猜常用問句、模型失敗也能猜、猜不到不送雲端通過');
+
+// ---- 2026/11/11（管理者）：雲端回答用卡片呈現，一點一張 ----
+(() => {
+  const note = JSON.stringify({ summary: '今天沒有要你確認的東西；待確認 4 項都已修正。', items: [
+    { type: '待確認', title: '③教學重點第1點', status: '已修正', detail: '只寫不追紅盤、選黑K佈局，已補做法與例子。', ref: '差異明細第87列' },
+    { type: '邊界', title: '世芯-KY 3661', status: '只記錄', detail: '網站未列，複核認為可列觀望不碰。', ref: '差異明細第92列', code: '3661', name: '世芯-KY', date: '2026/11/11' },
+    { type: '邊界', title: '鴻海 2317', status: '待你決定', detail: '觀望不碰或注意都可。', code: '2317', name: '鴻海' },
+    { type: '問題', title: '鴻海要改嗎？', status: '已處理', detail: '你選維持觀望不碰。', qid: 'Q202611111753280' },
+    { type: '候選', title: '提示詞候選 31–40', status: '待管理者', detail: '週五檢討前要看。' },
+    { type: '怪類型', title: '其他', detail: 'x' }] });
+  const cards = ctx.lineAdminParseCards_(note);
+  assert.equal(cards.items.length, 6);
+  assert.equal(ctx.lineAdminParseCards_('一般文字回答'), null);
+  assert.equal(ctx.lineAdminParseCards_('{壞掉'), null);
+  const [msg] = ctx.lineAdminChatResultMsgs_([{ 裁示ID: 'C1', 裁示分類: '對話', 管理者說明: '今天待確認', 日期: '2026/11/11', 狀態: '已記錄', 結果: note }]);
+  assert.equal(msg.contents.type, 'carousel'); assert.equal(msg.contents.contents.length, 7);   // 摘要＋六點
+  const b = msg.contents.contents;
+  assert.match(JSON.stringify(b[0]), /今天沒有要你確認的東西/); assert.match(JSON.stringify(b[0]), /邊界 2/);
+  assert.equal(b[1].header.backgroundColor, '#B54708'); assert.equal(b[2].header.backgroundColor, '#175CD3');
+  assert.equal(b[5].header.backgroundColor, '#6941C6'); assert.equal(b[6].header.backgroundColor, '#344054');   // 不認得的類型當資訊
+  assert.match(b[1].header.contents[0].text, /待確認・已修正/);
+  assert.equal(b[2].footer, undefined);                                                       // 只記錄 → 不給裁示鈕
+  assert.equal(ctx.lineParseData_(b[3].footer.contents[0].action.data).a, 'rulepick');         // 待你決定 → 可裁示
+  assert.equal(ctx.lineParseData_(b[4].footer.contents[0].action.data).a, 'qshow');
+  assert(Buffer.byteLength(JSON.stringify(msg.contents)) < 50000);
+  // 文字回答照舊；待確認用摘要寫進確認卡
+  assert.match(ctx.lineAdminChatResultMsgs_([{ 裁示ID: 'C2', 管理者說明: 'x', 狀態: '已記錄', 結果: '純文字' }])[0].text, /純文字/);
+  const prop = ctx.lineAdminChatResultMsgs_([{ 裁示ID: 'C3', 管理者說明: '鴻海改注意', 狀態: '待確認', 結果: JSON.stringify({ summary: '把鴻海改成觀望注意' }) }])[0];
+  assert.match(JSON.stringify(prop), /把鴻海改成觀望注意/); assert.match(JSON.stringify(prop), /chatok/);
+})();
+console.log('11/11 雲端回答卡片：摘要卡＋每點一張、類型顏色、裁示／看題按鈕、文字與待確認照舊通過');

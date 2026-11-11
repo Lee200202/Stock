@@ -316,7 +316,10 @@ console.log('11/10 股票 分類—說明格式、驗收卡只推一次通過');
   assert.equal(ctx.lineRoute_('Uuser', 'bot', vague, true)[0].text, 'outofscope');
   assert.equal(geminiCalls, 1);                                                      // 非管理者不呼叫模型
   ctx.callGemini_ = () => { throw new Error('QUOTA_DAILY'); };
-  assert.equal(ctx.lineRoute_('Uadmin', 'bot', vague, true)[0].text, 'outofscope');   // 模型失敗照舊回覆
+  // 2026/11/11：管理者模式下模型失敗不再回使用者端的「不在服務範圍」，改出送雲端確認卡
+  ctx.lineAdminReviewData_ = () => ({ day: '2026/11/10', rows: [], summary: {} });
+  assert.match(ctx.lineRoute_('Uadmin', 'bot', vague, true)[0].altText, /送給雲端・管理者提問/);
+  ctx.lineResolveStock_ = q => /台積電|2330/.test(q) ? { code: '2330', name: '台積電' } : { none: true, q };
   ctx.callGemini_ = () => '{"intent":"stock","date":"","stock":"台積電"}';
   assert.equal(ctx.lineRoute_('Uadmin', 'bot', vague, true)[0].text, 'stock:台積電');
 })();
@@ -359,3 +362,37 @@ console.log('11/10 管理者一般問句：規則判斷日期與意圖、Gemini 
   assert.match(ctx.lineRoute_('Uadmin', 'bot', vague, true)[0].altText, /管理者指示/);
 })();
 console.log('11/11 管理者指示：一般句子送雲端確認卡、查股照舊、使用者不透露不呼叫模型通過');
+
+// ---- 2026/11/11（管理者）：管理者模式只接管理者的話，不落到使用者端的「找不到這檔股票」 ----
+(() => {
+  ctx.todayStr_ = () => '2026/11/11';
+  ctx.lineAdminActive_ = uid => uid === 'Uadmin';
+  ctx.lineAdminReviewData_ = () => ({ day: '2026/11/11', rows: [], summary: {} });
+  ctx.lineResolveStock_ = q => /台積電|2330/.test(q) ? { code: '2330', name: '台積電' } : { none: true, q };
+  const pend = [];
+  ctx.lineAdminPendingReply_ = d => { pend.push(d); return [{ type: 'text', text: 'pending ' + d }]; };
+  // 「需要管理者裁示（語音寫成才是）」的問句由規則直接列待裁示
+  for (const s of ['今天有沒有需要管理者才是的事情請明確列出', '今天有沒有需要管理者裁示的事情', '今日有要我決定的嗎', '今天有沒有需要我決定的事情']) {
+    const a = ctx.lineParseText_(s, 'Uadmin', false);
+    assert.equal(a.a, 'adminquery', s); assert.equal(a.q.intent, 'pending', s);
+    assert.equal(ctx.lineRoute_('Uadmin', 'bot', a, true)[0].text, 'pending 2026/11/11', s);
+  }
+  // 查不到的股票、模型判不出來的句子 → 送雲端確認卡（提問），不回「找不到」
+  let gem = 0; ctx.callGemini_ = () => { gem++; return '{"intent":"stock","date":"","stock":"今日"}'; };
+  const ask = ctx.lineRoute_('Uadmin', 'bot', { a: 'outofscope', kind: 'general', raw: '今天雲端回報的結果你看過了嗎' }, true);
+  assert.match(ask[0].altText, /送給雲端・管理者提問/); assert.equal(gem, 1);
+  const st = ctx.lineRoute_('Uadmin', 'bot', { a: 'stock', q: '今日雲端到底改了什麼內容' }, true);
+  assert.match(st[0].altText, /送給雲端/);
+  assert.doesNotMatch(JSON.stringify(st), /找不到/);
+  // 查得到的股票照舊查；打招呼不送雲端
+  assert.equal(ctx.lineRoute_('Uadmin', 'bot', { a: 'stock', q: '台積電' }, true)[0].text, 'stock:台積電');
+  assert.ok(!ctx.lineAdminSendable_('謝謝！')); assert.ok(ctx.lineAdminSendable_('今天的結果呢'));
+  // 提問的回報卡顯示「回答」並保留較長的雲端說明
+  const bubble = JSON.stringify(ctx.lineAdminRuleBubble_({ '狀態': '已記錄', '日期': '2026/11/11', '名稱': '管理者提問', '代號': '', '裁示分類': '指示',
+    '管理者說明': '今天有沒有要我決定的', '結果': '甲'.repeat(350) }));
+  assert.match(bubble, /回答/); assert.match(bubble, /甲{350}/);
+  // 使用者：同一句照一般查詢，不出管理者卡
+  ctx.lineFindSub_ = () => ({});
+  assert.doesNotMatch(JSON.stringify(ctx.lineRoute_('Uuser', 'bot', { a: 'stock', q: '今日雲端到底改了什麼內容' }, true)), /送給雲端|管理者/);
+})();
+console.log('11/11 管理者模式只接管理者的話：待裁示問句直接列出、其餘送雲端確認、查股與使用者端照舊通過');

@@ -325,7 +325,7 @@ function lineAdminRuleBubble_(r) {
   return fxBubble_(fxHeader_(stage[0], title, stage[2]), [
     lineAdminCatChips_(r['裁示分類']),
     lineAdminLine_('管理者說明', lineAdminCut_(r['管理者說明'], 160)),
-    lineAdminLine_(ok ? '網站' : '進度', lineAdminCut_(r['結果'] || stage[1], 200)),
+    lineAdminLine_(ok ? '網站' : r['名稱'] === '管理者提問' && r['結果'] ? '回答' : '進度', lineAdminCut_(r['結果'] || stage[1], r['裁示分類'] === '指示' ? 400 : 200)),
     r['更新時間'] ? fxText_('更新：' + r['更新時間'], { size: 'xxs', color: LINE_C_.muted }) : null,
     ok ? fxNote_('網站已更新；12:30 狀態信與複核紀錄也會列在「今日網站修改」。更新網站不會重寄已寄出的信。') : null
   ].filter(Boolean), []);
@@ -494,12 +494,29 @@ function lineAdminLooksLikeInstruction_(raw) {
   if (/(?:嗎|呢|\?|？)[。！!]*$/.test(flat) && !/(?:請|幫我|應該|不算|就是|其實|改成|寫進|加入)/.test(flat)) { return false; }
   return /(?:請|幫我|應該|應當|不算|算是|就是|其實|改成|改為|寫進|加入|以後|之後|裁示|判定|確認|不要|不用|要把|記得|規則|工作流|流程|外洩|同音|指的是|講的是)/.test(flat);
 }
+/** 純函式：管理者模式下這句話值不值得送雲端（太短、純符號、打招呼不送）。 */
+function lineAdminSendable_(raw) {
+  var flat = String(raw || '').replace(/[\s，,。.！!？?～~、…]+/g, '');
+  if (flat.length < 4 || flat.length > 600) { return false; }
+  return !/^(?:你好|您好|哈囉|嗨|早安|午安|晚安|謝謝|感謝|謝啦|好的|好喔|收到|了解|知道了|ok|OK|沒事)+$/.test(flat);
+}
+/** 純函式：管理者的句子是問題（要雲端查了回答）還是指示（要雲端照做）。 */
+function lineAdminIsQuestion_(raw) {
+  var flat = String(raw || '').replace(/\s+/g, '');
+  return /(?:嗎|呢|了沒|好沒|沒有?|\?|？)[。！!]*$/.test(flat) || /有沒有|是不是|是否|哪些|哪幾|什麼|怎麼|如何|為什麼|為何|多少|幾檔|列出/.test(flat);
+}
+/** 查得到的股票（代號、正式名稱、已確認別名）。讀不到代號表時當作查不到。 */
+function lineAdminStockHit_(q) {
+  try { var r = lineResolveStock_(q); return !!(r && !r.none && (r.code || (r.choices && r.choices.length))); } catch (e) { return false; }
+}
 function lineAdminInstructionFlex_(d) {
-  return lineFlex_('送給雲端・管理者指示：' + lineAdminCut_(d.text, 60), fxBubble_(
-    fxHeader_('送給雲端・管理者指示', '對應 ' + (lineMd_(d.date) || d.date) + ' 的複核', '#0A4A3C'),
-    [lineAdminLine_('指示內容', lineAdminCut_(d.text, 300)),
-     fxNote_('送出後雲端會讀那天的原稿與複核紀錄核對：能改的直接改網站並讀回，屬於流程規則的寫進週五檢討清單。雲端接手、完成都會在這裡回報（約 5–20 分鐘），也可以隨時輸入「裁示進度」。')],
-    [fxBtn_(linePb_('確認送出', 'a=ruleok&k=' + encodeURIComponent(d.id), '確認送出指示')),
+  var ask = d.name === '管理者提問', label = ask ? '管理者提問' : '管理者指示';
+  return lineFlex_('送給雲端・' + label + '：' + lineAdminCut_(d.text, 60), fxBubble_(
+    fxHeader_('送給雲端・' + label, '對應 ' + (lineMd_(d.date) || d.date) + ' 的複核', '#0A4A3C'),
+    [lineAdminLine_(ask ? '提問內容' : '指示內容', lineAdminCut_(d.text, 300)),
+     fxNote_(ask ? '送出後雲端會讀那天的原稿與複核紀錄查證後回答，不改網站；答案在這裡回報（約 3–10 分鐘），也可以隨時輸入「裁示進度」。'
+       : '送出後雲端會讀那天的原稿與複核紀錄核對：能改的直接改網站並讀回，屬於流程規則的寫進週五檢討清單。雲端接手、完成都會在這裡回報（約 5–20 分鐘），也可以隨時輸入「裁示進度」。')],
+    [fxBtn_(linePb_('確認送出', 'a=ruleok&k=' + encodeURIComponent(d.id), '確認送出' + (ask ? '提問' : '指示'))),
      fxBtn_(linePb_('當作一般查詢', 'a=rulequery', '當作一般查詢'), 'secondary'),
      fxBtn_(linePb_('取消', 'a=ruleno&k=' + encodeURIComponent(d.id), '取消這則指示'), 'link')]));
 }
@@ -507,7 +524,7 @@ function lineAdminInstructionReply_(uid, raw) {
   var data = null;
   try { data = lineAdminReviewData_(todayStr_(), true); } catch (e) { data = null; }
   var draft = { id: 'R' + Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyyMMddHHmmss') + Math.floor(Math.random() * 900 + 100),
-                date: data ? data.day : todayStr_(), code: '', name: '管理者指示', cat: '指示', text: lineClip_(String(raw || '').trim(), 500) };
+                date: data ? data.day : todayStr_(), code: '', name: lineAdminIsQuestion_(raw) ? '管理者提問' : '管理者指示', cat: '指示', text: lineClip_(String(raw || '').trim(), 500) };
   var cache = CacheService.getScriptCache();
   cache.put('line_rule_draft_' + uid, JSON.stringify(draft), 900);
   cache.put('line_rule_text_' + uid, String(raw || ''), 900);   // 「當作一般查詢」用
@@ -607,7 +624,9 @@ function lineAdminQueryIntent_(raw, today) {
   if (!s || s.length > 60) { return null; }
   // 2026/11/11：「其實…就是…」「…不算…，請寫進…」這類是指示，不是查詢（交給 lineAdminLooksLikeInstruction_）
   if (/(?:不算|就是|其實|改成|改為|寫進|加入|應該)/.test(s)) { return null; }
-  var intent = /待裁示|要裁示|需要裁示|待我裁示|待你裁示|還沒裁示|待確認|待處理/.test(s) ? 'pending'
+  // 2026/11/11：「今天有沒有需要管理者裁示（語音常寫成『才是』）／要我決定的事情」也是待裁示
+  var intent = /待裁示|要裁示|需要裁示|待我裁示|待你裁示|還沒裁示|待確認|待處理/.test(s) ||
+      /(?:需要|要|待|等)(?:管理者|管理員|我|你)(?:來)?(?:裁示|才是|決定|處理|確認|回覆)|管理者(?:才是|裁示|決定)的(?:事|項|內容|有)|待辦|待決定|要我決定/.test(s) ? 'pending'
     : /裁示進度|裁示狀態|處理到哪|處理進度|修正進度|修改進度/.test(s) ? 'progress'
     : /稽核|複核|改了什麼|修了什麼|修正了什麼|改了哪些|修了哪些|明確錯誤|邊界|複核錯/.test(s) ? 'review'
     : /怎麼裁示|裁示格式|裁示怎麼打|格式是什麼/.test(s) ? 'format' : '';

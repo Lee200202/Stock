@@ -551,18 +551,22 @@ function lineRoute_(uid, ch, act, deferTouch) {
     if (!LINE_ADMIN_CTX_) { return lineRoute_(uid, ch, lineParseText_(act.src || act.raw, uid, true), true); }
     return lineAdminIntentReply_(act.q) || lineOutOfScopeReply_('general', act.raw);
   }
-  // 2026/11/11：管理者的一般指示（回答每日複核的問題、補充判讀規則）先出確認卡，確認後送雲端。
-  if (LINE_ADMIN_CTX_ && (act.a === 'outofscope' || act.a === 'stock') && typeof lineAdminLooksLikeInstruction_ === 'function' &&
-      lineAdminLooksLikeInstruction_(act.src || act.raw || act.q || '')) {
-    return lineAdminInstructionReply_(uid, act.src || act.raw || act.q);
-  }
-  // 2026/11/10：管理者的話規則判斷不了、原本會回「不在服務範圍」時，請 Gemini 判斷意圖與日期（只有管理者會呼叫模型）。
-  if (act.a === 'outofscope' && act.kind === 'general' && LINE_ADMIN_CTX_ && typeof lineAdminGeminiIntent_ === 'function') {
-    var gq = lineAdminGeminiIntent_(act.raw, todayStr_());
-    if (gq && gq.intent === 'stock' && gq.stock) { return lineStockReply_(gq.stock, uid); }
-    if (gq && gq.intent === 'instruction' && typeof lineAdminInstructionReply_ === 'function') { return lineAdminInstructionReply_(uid, act.raw); }
-    var gr = gq && lineAdminIntentReply_(gq);
-    if (gr) { return gr; }
+  // 2026/11/11（管理者）：管理者模式只接管理者的話。不是管理者查詢、也不是查得到的股票，就出「送給雲端」確認卡，
+  // 不再落到使用者端的「找不到這檔股票」或「不在服務範圍」。順序：指示語氣 → Gemini 判斷查詢意圖 → 其餘一律送雲端確認。
+  if (LINE_ADMIN_CTX_ && typeof lineAdminInstructionReply_ === 'function' && (act.a === 'outofscope' || act.a === 'stock')) {
+    var said = String(act.src || act.raw || act.q || '');
+    var realStock = act.a === 'stock' && (act.c || lineAdminStockHit_(act.q || said));
+    if (!realStock) {
+      if (lineAdminLooksLikeInstruction_(said)) { return lineAdminInstructionReply_(uid, said); }
+      if (act.a === 'outofscope' && typeof lineAdminGeminiIntent_ === 'function') {
+        // 2026/11/10：規則判斷不了的管理者句子請 Gemini 判斷意圖與日期（只有管理者會呼叫模型），答案由既有函式產生
+        var gq = lineAdminGeminiIntent_(said, todayStr_());
+        if (gq && gq.intent === 'stock' && gq.stock && lineAdminStockHit_(gq.stock)) { return lineStockReply_(gq.stock, uid); }
+        var gr = gq && /^(?:review|pending|progress|format)$/.test(gq.intent) && lineAdminIntentReply_(gq);
+        if (gr) { return gr; }
+      }
+      if (lineAdminSendable_(said)) { return lineAdminInstructionReply_(uid, said); }
+    }
   }
   if (act.a === 'rulequery') {
     var q = typeof lineAdminQueryText_ === 'function' ? lineAdminQueryText_(uid) : '';

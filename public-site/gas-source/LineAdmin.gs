@@ -45,10 +45,7 @@ function lineAdminSetMode_(uid, ch, on) {
 }
 function lineAdminOnReply_(uid, ch) {
   var s = lineFindSub_(uid, ch);
-  if (!s.tester) {
-    return [lineText_('管理者模式要先確認身分：到網站後台「LINE」分頁按「產生綁定碼」，十分鐘內在這裡輸入「管理者綁定 123456」' +
-      '（換成畫面上的六位數）。綁定一次後，之後輸入「管理者登入」就能切換。', lineQuickMain_())];
-  }
+  if (!s.tester) { return lineAdminDeny_(uid, ch); }   // 2026/11/11：使用者端不透露管理者功能與綁定方式
   lineAdminSetMode_(uid, ch, true);
   LINE_ADMIN_CTX_ = true;
   lineAdminMenuLink_(uid, true);   // 下方圖文選單換成管理者版
@@ -443,10 +440,39 @@ function lineAdminReportPlan_(rows) {
 }
 
 /* ---------------- 互動：查看、挑選、裁示、確認 ---------------- */
-function lineAdminDeny_() { return [lineText_('這個指令只開放給管理者。', lineQuickMain_())]; }
-function lineAdminReviewReply_(day, only) {
+/** 2026/11/11（管理者）：使用者端不透露管理者功能；只有綁定過管理者的帳號（目前是使用者身分）才提示怎麼切換。 */
+function lineAdminDeny_(uid, ch) {
+  var who = null;
+  try { who = uid ? lineFindSub_(uid, ch) : null; } catch (e) { who = null; }
+  if (who && who.tester) { return [lineText_('這是管理者功能，你現在是使用者身分。要用的話先輸入「管理者登入」。', lineQuickMain_())]; }
+  return [lineText_('目前沒有提供這項功能。可以查今日整理、個股紀錄、持股追蹤，或管理 LINE 通知。', lineQuickMain_())];
+}
+/** 純函式：差異明細裡屬於這一檔的列（代號或名稱相符）。 */
+function lineAdminRowsForStock_(rows, stock) {
+  var q = String(stock || '').replace(/\s+/g, '');
+  if (!q) { return []; }
+  return (rows || []).filter(function (r) {
+    var code = String(r['代號'] || '').trim(), name = String(r['名稱'] || '').replace(/\s+/g, '');
+    return (code && code !== '—' && (q === code || q.indexOf(code) >= 0)) || (name.length >= 2 && (q === name || q.indexOf(name) >= 0));
+  });
+}
+/** 2026/11/11（管理者）：問某一檔（「鴻海為什麼是邊界」）只回那一檔的卡，不把整天的稽核都丟出來。 */
+function lineAdminStockReviewFlex_(data, hits) {
+  var md = lineMd_(data.day) || data.day;
+  var bubbles = hits.slice(0, LINE_ADMIN_ITEM_BUBBLES_).map(function (r) { return lineAdminSevBubble_(r, data.day); });
+  var alt = md + ' ' + lineAdminName_(hits[0]) + '：' + hits.map(function (r) { return (r['嚴重度'] || '') + '・' + lineAdminRowState_(r); }).join('、');
+  var msg = { type: 'flex', altText: lineClip_(alt, 400), contents: bubbles.length > 1 ? { type: 'carousel', contents: bubbles } : bubbles[0] };
+  msg.quickReply = { items: lineAdminQuick_().map(function (a) { return { type: 'action', action: a }; }) };
+  return msg;
+}
+function lineAdminReviewReply_(day, only, stock) {
   var data = day ? lineAdminReviewData_(day, false) : lineAdminReviewData_(todayStr_(), true);
   if (!data) { return [lineText_(day ? (lineMd_(day) || day) + ' 沒有複核紀錄（休市、沒有影片，或那天複核沒有執行）。' : '還沒有複核紀錄。', lineAdminQuick_())]; }
+  if (stock) {
+    var hits = lineAdminRowsForStock_(data.rows, stock);
+    if (hits.length) { return [lineAdminStockReviewFlex_(data, hits)]; }
+    return [lineText_((lineMd_(data.day) || data.day) + ' 的複核沒有提到「' + lineClip_(stock, 12) + '」：網站和獨立判讀一致，沒有差異。', lineAdminQuick_())];
+  }
   only = LINE_ADMIN_SEV_ORDER_.indexOf(only) >= 0 ? only : '';
   if (only) { return [lineAdminReviewFlex_(data, only)]; }
   var out = [lineAdminReviewFlex_(data)], p = lineAdminPendingFlex_(data);
@@ -457,7 +483,8 @@ function lineAdminPendingReply_(day) {
   var data = day ? lineAdminReviewData_(day, false) : lineAdminReviewData_(todayStr_(), true);
   if (day && !data) { return [lineText_((lineMd_(day) || day) + ' 沒有複核紀錄（休市、沒有影片，或那天複核沒有執行）。', lineAdminQuick_())]; }
   var p = data && lineAdminPendingFlex_(data);
-  if (p) { return [p]; }
+  var qs = lineAdminQuestionsFlex_(lineAdminQuestions_('待回答'));   // 2026/11/11：每日複核要你決定的題目
+  if (p || qs) { return [qs, p].filter(Boolean); }
   return [lineText_((data ? (lineMd_(data.day) || data.day) + ' ' : '') + '沒有待你裁示的項目。要改其他股票，直接輸入「代號 分類—說明」。', lineAdminQuick_())];
 }
 function lineAdminPickReply_(uid, act) {
@@ -506,6 +533,7 @@ function lineAdminRuleOk_(uid, key) {
   withLock_(function () {
     sh.getRange(Math.max(sh.getLastRow(), 1) + 1, 1, 1, LINE_ADMIN_RULE_COLS_.length).setValues([LINE_ADMIN_RULE_COLS_.map(function (k) { return row[k]; })]);
   });
+  if (d.qid) { try { lineAdminQuestionMark_(d.qid, d.said || d.text, d.id); } catch (eq) { Logger.log('管理者問題標記失敗：' + eq); } }
   lineSetProp_('LINE_RULE_OPEN', '1');
   var fired = lineAdminFire_([d.id]);
   var tail = fired.ok ? '雲端已開始處理，完成後在這裡回報（約 5–20 分鐘）。' :
@@ -716,7 +744,8 @@ var LINE_ADMIN_AI_SCHEMA_ = {
 var LINE_ADMIN_AI_SYSTEM_ = [
   '你是「盤勢有據」LINE 機器人的第一關，對話對象是已驗證的網站管理者。網站每天整理一支股市直播，雲端每天中午做寄信前複核，把差異分成四級：明確錯誤、待確認、邊界、複核錯（複核自己判錯）。',
   '你的工作：理解管理者這一句話想做什麼，只回 JSON。intent：',
-  'review＝想看某天稽核／複核結果，或某一分級的明細（例如「待確認的明細是什麼」→ review，severity 填待確認）；',
+  'review＝想看某天稽核／複核結果，或某一分級的明細（例如「待確認的明細是什麼」→ review，severity 填待確認）；只問某一檔時 stock 填那一檔，只回那一檔；',
+  '問「某檔為什麼是邊界／待確認／被改」這類單一股票的原因，用 answer 依那一檔的判斷理由回答（reply 開頭寫日期、名稱代號、分級與處理狀態），不要用 review 列出整天；',
   'pending＝想看還要他裁示／決定的項目；progress＝想看他之前裁示的處理進度；format＝問裁示怎麼輸入；',
   'stock＝只是想查某檔股票在網站上的紀錄（stock 填名稱或代號）；',
   'answer＝用下面提供的複核資料或裁示紀錄就能回答的問題（reply 寫答案）；',
@@ -746,6 +775,7 @@ function lineAdminAiContext_() {
         return { 日期: r['日期'], 名稱: r['名稱'], 代號: r['代號'], 分類: r['裁示分類'], 狀態: r['狀態'], 說明: lineAdminCut_(r['管理者說明'], 60), 結果: lineAdminCut_(r['結果'], 140) };
       });
     }
+    out.待回答問題 = lineAdminQuestions_('待回答').slice(0, 6).map(function (r) { return { 問題ID: r['問題ID'], 日期: r['日期'], 問題: lineAdminCut_(r['問題'], 120), 選項: lineAdminQOptions_(r) }; });
   } catch (e) { /* 讀不到就只靠句子判斷 */ }
   return out;
 }
@@ -785,7 +815,7 @@ function lineAdminAiCall_(raw, context) {
 /** 第一關的理解 → 回覆。回 null 表示交回規則處理。 */
 function lineAdminAiReply_(uid, raw, ai) {
   switch (ai.intent) {
-    case 'review': return lineAdminReviewReply_(ai.date, ai.severity);
+    case 'review': return lineAdminReviewReply_(ai.date, ai.severity, ai.stock);
     case 'pending': return lineAdminPendingReply_(ai.date);
     case 'progress': return lineAdminProgressReply_();
     case 'format': return [lineAdminFormatFlex_()];
@@ -845,6 +875,8 @@ function lineAdminQueryIntent_(raw, today) {
   if (!s || s.length > 60) { return null; }
   // 2026/11/11：「其實…就是…」「…不算…，請寫進…」這類是指示，不是查詢（交給 lineAdminLooksLikeInstruction_）
   if (/(?:不算|就是|其實|改成|改為|寫進|加入|應該)/.test(s)) { return null; }
+  // 2026/11/11：「鴻海為什麼是邊界」問的是單一原因，不是整天的稽核清單
+  if (/(?:為什麼|為何|怎麼會|原因|理由)/.test(s)) { return null; }
   // 2026/11/11：「今天有沒有需要管理者裁示（語音常寫成『才是』）／要我決定的事情」也是待裁示
   var intent = /待裁示|要裁示|需要裁示|待我裁示|待你裁示|還沒裁示|待確認|待處理/.test(s) ||
       /(?:需要|要|待|等)(?:管理者|管理員|我|你)(?:來)?(?:裁示|才是|決定|處理|確認|回覆)|管理者(?:才是|裁示|決定)的(?:事|項|內容|有)|待辦|待決定|要我決定/.test(s) ? 'pending'
@@ -907,6 +939,117 @@ function lineAdminVerifyTick_() {
   return q.created ? 'queued' : 'exists';
 }
 
+/* ---------------- 管理者問題（2026/11/11 管理者） ---------------- */
+// 每日複核要管理者決定的事寫在「管理者問題」分頁，附雲端預想的 2–4 個回答選項；這裡推到 LINE：
+// 選一個選項或「自訂回答」→ 確認卡 →「確認送出」才寫「管理者裁示」（指示／管理者回答）並觸發雲端，題目改「已回答」。
+var LINE_ADMIN_Q_TAB_ = '管理者問題';
+var LINE_ADMIN_Q_COLS_ = ['建立時間', '問題ID', '日期', '問題', '背景', '選項', '狀態', '回答', '裁示ID', '更新時間', 'LINE推送'];
+function lineAdminQOptions_(r) {
+  try { var o = JSON.parse(String(r['選項'] || '[]')); return Array.isArray(o) ? o.map(String).filter(String).slice(0, 4) : []; } catch (e) { return []; }
+}
+function lineAdminQuestions_(state) {
+  var book = lineAdminBook_();
+  if (!book) { return []; }
+  return lineAdminReadTab_(book, LINE_ADMIN_Q_TAB_, '').filter(function (r) { return r['問題ID'] && (!state || r['狀態'] === state); });
+}
+/** 純函式：一題一張卡；選項各一顆按鈕，最後一顆「自訂回答」。 */
+function lineAdminQuestionBubble_(r) {
+  var opts = lineAdminQOptions_(r), id = encodeURIComponent(r['問題ID']);
+  var marks = ['①', '②', '③', '④'];
+  return fxBubble_(fxHeader_('要你決定・' + (lineMd_(r['日期']) || r['日期']), lineAdminCut_(r['問題'], 60), '#B54708'), [
+    lineAdminLine_('問題', lineAdminCut_(r['問題'], 200)),
+    lineAdminLine_('背景', lineAdminCut_(r['背景'], 200)),
+    opts.length ? fxBox_('vertical', opts.map(function (o, i) { return fxText_(marks[i] + ' ' + o, { size: 'sm', color: LINE_C_.ink, wrap: true }); }), { spacing: 'sm' }) : null,
+    fxNote_('選一個或按「自訂回答」自己寫；送出前會再給你確認。')
+  ].filter(Boolean), opts.map(function (o, i) {
+    return fxBtn_(linePb_(lineClip_(marks[i] + ' ' + o, 20), 'a=qpick&q=' + id + '&o=' + i, '選 ' + marks[i] + ' ' + lineClip_(o, 30)), i === 0 ? undefined : 'secondary');
+  }).concat([fxBtn_(linePb_('自訂回答', 'a=qcustom&q=' + id, '自訂回答'), 'link')]));
+}
+function lineAdminQuestionsFlex_(rows) {
+  if (!rows.length) { return null; }
+  var bubbles = rows.slice(0, 10).map(lineAdminQuestionBubble_);
+  return { type: 'flex', altText: lineClip_('要你決定 ' + rows.length + ' 件事：' + rows.map(function (r) { return r['問題']; }).join('；'), 400),
+           contents: bubbles.length > 1 ? { type: 'carousel', contents: bubbles } : bubbles[0] };
+}
+function lineAdminQuestionById_(qid) {
+  return lineAdminQuestions_('').filter(function (r) { return r['問題ID'] === qid; })[0] || null;
+}
+/** 回答的確認卡；draft 帶 qid，確認送出時把題目改成已回答。 */
+function lineAdminAnswerConfirm_(uid, q, answer) {
+  var said = lineClip_(String(answer || '').trim(), 400);
+  var draft = { id: 'R' + Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyyMMddHHmmss') + Math.floor(Math.random() * 900 + 100),
+                date: lineFmtDay_(q['日期']), code: '', name: '管理者回答', cat: '指示', said: said, qid: q['問題ID'],
+                text: lineClip_('回答複核問題 ' + q['問題ID'] + '：' + q['問題'] + '\n管理者回答：' + said, 800) };
+  CacheService.getScriptCache().put('line_rule_draft_' + uid, JSON.stringify(draft), 900);
+  return [lineFlex_('送給雲端・回答複核問題：' + lineAdminCut_(said, 60), fxBubble_(
+    fxHeader_('送給雲端・回答複核問題', '對應 ' + (lineMd_(draft.date) || draft.date) + ' 的複核', '#0A4A3C'),
+    [lineAdminLine_('問題', lineAdminCut_(q['問題'], 200)), lineAdminLine_('你的回答', lineAdminCut_(said, 300)),
+     fxNote_('送出後雲端會讀那天的原稿與說明重點，照你的回答確認目前說法要怎麼調整：能改的改網站並讀回，屬於規則的記給週五檢討。接手與結果都會在這裡回報。')],
+    [fxBtn_(linePb_('確認送出', 'a=ruleok&k=' + encodeURIComponent(draft.id), '確認送出回答')),
+     fxBtn_(linePb_('改選', 'a=qshow&q=' + encodeURIComponent(q['問題ID']), '改選'), 'secondary'),
+     fxBtn_(linePb_('取消', 'a=ruleno&k=' + encodeURIComponent(draft.id), '取消這個回答'), 'link')]))];
+}
+function lineFmtDay_(d) { var s = String(d || '').replace(/-/g, '/'); var m = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})/); return m ? m[1] + '/' + ('0' + m[2]).slice(-2) + '/' + ('0' + m[3]).slice(-2) : s; }
+function lineAdminQPickReply_(uid, qid, idx) {
+  var q = lineAdminQuestionById_(qid);
+  if (!q) { return [lineText_('找不到這一題，可能已被刪除。', lineAdminQuick_())]; }
+  if (q['狀態'] !== '待回答') { return [lineText_('這一題已經' + q['狀態'] + (q['回答'] ? '（你的回答：' + lineClip_(q['回答'], 40) + '）' : '') + '。', lineAdminQuick_())]; }
+  var opt = lineAdminQOptions_(q)[Number(idx)];
+  if (!opt) { return [lineText_('這個選項不存在，請重新選。', lineAdminQuick_())]; }
+  return lineAdminAnswerConfirm_(uid, q, opt);
+}
+function lineAdminQCustomReply_(uid, qid) {
+  var q = lineAdminQuestionById_(qid);
+  if (!q || q['狀態'] !== '待回答') { return [lineText_('這一題已經處理過或找不到了。', lineAdminQuick_())]; }
+  CacheService.getScriptCache().put('line_q_ctx_' + uid, qid, 1800);
+  return [lineText_('請直接輸入你對這一題的回答：\n「' + lineClip_(q['問題'], 80) + '」\n送出前會再給你確認。', lineAdminQuick_())];
+}
+function lineAdminQShowReply_(qid) {
+  var q = lineAdminQuestionById_(qid);
+  return q ? [lineAdminQuestionsFlex_([q])] : [lineText_('找不到這一題。', lineAdminQuick_())];
+}
+/** 「自訂回答」之後管理者打的下一句當作回答；回 null 表示沒有在等回答。 */
+function lineAdminQAnswerTyped_(uid, said) {
+  var cache = CacheService.getScriptCache(), qid = cache.get('line_q_ctx_' + uid);
+  if (!qid || !String(said || '').trim()) { return null; }
+  cache.remove('line_q_ctx_' + uid);
+  var q = lineAdminQuestionById_(qid);
+  return q && q['狀態'] === '待回答' ? lineAdminAnswerConfirm_(uid, q, said) : null;
+}
+/** 確認送出後：題目改成已回答，記下回答與裁示ID。 */
+function lineAdminQuestionMark_(qid, answer, rulingId) {
+  var book = lineAdminBook_();
+  var sh = book && book.getSheetByName(LINE_ADMIN_Q_TAB_);
+  if (!sh) { return false; }
+  var v = sh.getDataRange().getValues(), head = v[0].map(String), now = lineNow_();
+  for (var i = 1; i < v.length; i++) {
+    if (String(v[i][head.indexOf('問題ID')]) !== qid) { continue; }
+    var set = { '狀態': '已回答', '回答': answer, '裁示ID': rulingId, '更新時間': now };
+    Object.keys(set).forEach(function (k) { var c = head.indexOf(k); if (c >= 0) { sh.getRange(i + 1, c + 1).setValue(set[k]); } });
+    return true;
+  }
+  return false;
+}
+/** 五分鐘排程：新的待回答題目推給開著管理者模式的帳號（每題只推一次，08:00–23:30）。 */
+function lineAdminQuestionTick_() {
+  var hhmm = Number(Utilities.formatDate(new Date(), 'Asia/Taipei', 'HHmm'));
+  if (hhmm < 800 || hhmm > 2330) { return 'window'; }
+  if (!lineAdminUids_().length) { return 'no-admin'; }
+  var book = lineAdminBook_(), sh = book && book.getSheetByName(LINE_ADMIN_Q_TAB_);
+  if (!sh) { return 'no-tab'; }
+  var fresh = lineAdminReadTab_(book, LINE_ADMIN_Q_TAB_, '').filter(function (r) { return r['問題ID'] && r['狀態'] === '待回答' && !String(r['LINE推送'] || '').trim(); });
+  if (!fresh.length) { return 'none'; }
+  var ids = fresh.map(function (r) { return r['問題ID']; });
+  var q = lineQueue_({ id: 'admin-q|' + ids.join(',').slice(0, 120), kind: 'admin', date: todayStr_(), source: '管理者問題 ' + ids.join(','),
+    expiresAt: Date.now() + 12 * 3600 * 1000, messages: [lineAdminQuestionsFlex_(fresh)] });
+  var col = LINE_ADMIN_Q_COLS_.indexOf('LINE推送') + 1, head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
+  col = head.indexOf('LINE推送') + 1 || col;
+  var stamp = lineNow_();
+  fresh.forEach(function (r) { sh.getRange(r._row, col).setValue(stamp); });
+  if (q.created) { lineDeliverTick_({ only: q.id, budgetMs: 30000 }); }
+  return { pushed: ids.length };
+}
+
 /* ---------------- 五分鐘排程 ---------------- */
 function lineAdminTick_() {
   if (!lineConfigured_() || linePushMode_() === 'off') { return { skipped: 'off' }; }
@@ -914,6 +1057,7 @@ function lineAdminTick_() {
   try { out.rulings = lineAdminRulingTick_(); } catch (e) { out.rulingsError = String(e && e.message || e); }
   try { out.review = lineAdminReviewTick_(); } catch (e2) { out.reviewError = String(e2 && e2.message || e2); }
   try { out.verify = lineAdminVerifyTick_(); } catch (e3) { out.verifyError = String(e3 && e3.message || e3); }
+  try { out.questions = lineAdminQuestionTick_(); } catch (e4) { out.questionsError = String(e4 && e4.message || e4); }
   return out;
 }
 /** 複核一完成就送 ① ②（同一天只送一次）。 */

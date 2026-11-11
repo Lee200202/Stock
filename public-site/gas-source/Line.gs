@@ -542,6 +542,10 @@ function lineRoute_(uid, ch, act, deferTouch) {
   // 管理者模式：快速回覆按鈕換成管理者的那一組；管理者指令只對開著管理者模式的綁定帳號生效
   LINE_ADMIN_CTX_ = typeof lineAdminActive_ === 'function' && lineAdminActive_(uid);
   if (LINE_ADMIN_CTX_ && typeof lineAdminMenuEnsure_ === 'function') { lineAdminMenuEnsure_(uid); }
+  if (LINE_ADMIN_CTX_ && typeof lineAdminQAnswerTyped_ === 'function' && /^(?:outofscope|stock|adminquery|adminfree|adminrule|greeting|thanks)$/.test(act.a || '')) {
+    var typedAnswer = lineAdminQAnswerTyped_(uid, act.src || act.raw || act.q || '');
+    if (typedAnswer) { return typedAnswer; }
+  }
   // v220：像裁示的句子先確認身分。管理者模式→裁示；綁定過但登出→問要不要切換；其他人→照一般查詢回覆。
   if ((act.a === 'adminrule' || act.a === 'adminfree') && !LINE_ADMIN_CTX_) {
     var who = lineFindSub_(uid, ch);
@@ -565,6 +569,11 @@ function lineRoute_(uid, ch, act, deferTouch) {
       // 第一關（預設 Gemini，設了 ANTHROPIC_API_KEY 則 Claude Sonnet）；2026/11/10 的 Gemini 意圖判斷已併入第一關，不再重複呼叫
       var ai1 = typeof lineAdminAi_ === 'function' ? lineAdminAi_(uid, said) : null;
       if (ai1) { return ai1; }
+      if (/(?:為什麼|為何|怎麼會|原因|理由|邊界|待確認|複核錯|明確錯誤|稽核|複核)/.test(said) && typeof lineAdminRowsForStock_ === 'function') {
+        var rd = null; try { rd = lineAdminReviewData_(todayStr_(), true); } catch (eR) { rd = null; }
+        var one = rd ? lineAdminRowsForStock_(rd.rows, said) : [];
+        if (one.length) { return [lineAdminStockReviewFlex_(rd, one)]; }
+      }
       if (act.a === 'stock' && lineAdminStockHit_(act.q || said)) { return lineStockReply_(act.q || said, uid); }
       if (lineAdminLooksLikeInstruction_(said)) { return lineAdminInstructionReply_(uid, said); }
       if (lineAdminSendable_(said)) { return lineAdminInstructionReply_(uid, said); }
@@ -574,14 +583,17 @@ function lineRoute_(uid, ch, act, deferTouch) {
     var q = typeof lineAdminQueryText_ === 'function' ? lineAdminQueryText_(uid) : '';
     return q ? lineRoute_(uid, ch, lineParseText_(q, uid, true), true) : [lineText_('請直接輸入股票代號或名稱。', lineQuickMain_())];
   }
-  if (/^(?:adminreview|adminpending|adminformat|admintest|adminprogress|adminsev|rulepick|ruleok|ruleno)$/.test(act.a || '') && !LINE_ADMIN_CTX_) {
-    return lineAdminDeny_();
+  if (/^(?:adminreview|adminpending|adminformat|admintest|adminprogress|adminsev|rulepick|ruleok|ruleno|qpick|qcustom|qshow)$/.test(act.a || '') && !LINE_ADMIN_CTX_) {
+    return lineAdminDeny_(uid, ch);
   }
   switch (act.a) {
     case 'adminon': return lineAdminOnReply_(uid, ch);
     case 'adminoff': return lineAdminOffReply_(uid, ch);
     case 'adminreview': return lineAdminReviewReply_();
     case 'adminsev': return lineAdminReviewReply_(String(act.d || ''), String(act.s || ''));
+    case 'qpick': return lineAdminQPickReply_(uid, String(act.q || ''), act.o);
+    case 'qcustom': return lineAdminQCustomReply_(uid, String(act.q || ''));
+    case 'qshow': return lineAdminQShowReply_(String(act.q || ''));
     case 'adminpending': return lineAdminPendingReply_();
     case 'adminformat': return [lineAdminFormatFlex_()];
     case 'admintest': return lineAdminTestReply_();

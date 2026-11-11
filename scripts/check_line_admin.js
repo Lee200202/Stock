@@ -17,6 +17,7 @@ const ctx = vm.createContext({
 for (const f of ['Line.gs', 'LineAdmin.gs']) {
   vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f });
 }
+const ORIG = { lineAdminReviewReply_: ctx.lineAdminReviewReply_, lineAdminPendingReply_: ctx.lineAdminPendingReply_ };   // 後面的測試會換掉，需要時還原
 
 // ---- 裁示解析 ----
 const p = s => ctx.lineAdminParseRuling_(s);
@@ -122,17 +123,19 @@ cacheStore.clear();
 assert.deepEqual([...ctx.lineAdminUids_(true)], ['Uadmin']);   // 沒綁定的人即使欄位被改成開啟也不算
 assert.deepEqual([...ctx.lineRecipients_('admin', 'on').map(s => s.uid)], ['Uadmin']);
 assert.deepEqual([...ctx.lineRecipients_('daily', 'on').map(s => s.uid)], ['Uadmin', 'Uuser']);   // 管理者照常收每日總覽
-assert.match(ctx.lineRoute_('Uuser', 'bot', { a: 'adminpending' }, true)[0].text, /只開放給管理者/);
+assert.match(ctx.lineRoute_('Uuser', 'bot', { a: 'adminpending' }, true)[0].text, /目前沒有提供這項功能/);   // 2026/11/11：使用者端不透露管理者功能
+assert.doesNotMatch(ctx.lineRoute_('Uuser', 'bot', { a: 'adminpending' }, true)[0].text, /管理者/);
 assert.equal(ctx.lineRoute_('Uuser', 'bot', { a: 'adminrule', rule: r, raw: 'x' }, true)[0].text, 'outofscope');
-assert.match(ctx.lineRoute_('Ubound', 'bot', { a: 'ruleok', k: 'R1' }, true)[0].text, /只開放給管理者/);
+assert.match(ctx.lineRoute_('Ubound', 'bot', { a: 'ruleok', k: 'R1' }, true)[0].text, /先輸入「管理者登入」/);   // 綁定過的帳號才提示切換
 // 管理者模式的快速回覆換成管理者那一組，回到使用者後恢復
 ctx.lineRoute_('Uadmin', 'bot', { a: 'tab' }, true);
 assert(ctx.lineQuickMain_().some(a => a.label === '待裁示'));
 ctx.lineRoute_('Uuser', 'bot', { a: 'tab' }, true);
 assert(!ctx.lineQuickMain_().some(a => a.label === '待裁示'));
-// 沒綁定的人「管理者登入」只看到請先綁定
+// 沒綁定的人「管理者登入」：2026/11/11 起不透露管理者功能與綁定方式（綁定說明只在網站後台）
 ctx.lineFindSub_ = uid => subs.find(s => s.uid === uid) || { uid, tester: false };
-assert.match(ctx.lineAdminOnReply_('Uuser', 'bot')[0].text, /管理者綁定 123456/);
+assert.match(ctx.lineAdminOnReply_('Uuser', 'bot')[0].text, /目前沒有提供這項功能/);
+assert.doesNotMatch(ctx.lineAdminOnReply_('Uuser', 'bot')[0].text, /管理者|綁定/);
 
 // ---- 觸發網址只接受 Anthropic 的 routine fire 端點 ----
 const props = {};
@@ -166,7 +169,7 @@ console.log('r1 隨時查看跳過未執行通過');
 
 // ---- r2：測試雲端（只限管理者） ----
 assert.equal(ctx.lineParseText_('測試雲端', 'U1').a, 'admintest');
-assert.match(ctx.lineRoute_('Uuser', 'bot', { a: 'admintest' }, true)[0].text, /只開放給管理者/);
+assert.match(ctx.lineRoute_('Uuser', 'bot', { a: 'admintest' }, true)[0].text, /目前沒有提供這項功能/);
 called = null;
 assert.match(ctx.lineRoute_('Uadmin', 'bot', { a: 'admintest' }, true)[0].text, /雲端觸發成功/);
 assert.match(JSON.parse(called.o.payload).text, /測試/);
@@ -243,7 +246,7 @@ console.log('r2 測試雲端通過');
   // 「當作一般查詢」→ 照一般解析回覆
   ctx.lineRoute_('Ubound', 'bot', act, true);
   assert.doesNotMatch(JSON.stringify(ctx.lineRoute_('Ubound', 'bot', { a: 'rulequery' }, true)), /確認裁示/);
-  assert.match(ctx.lineRoute_('Uuser', 'bot', { a: 'adminprogress' }, true)[0].text, /只開放給管理者/);
+  assert.match(ctx.lineRoute_('Uuser', 'bot', { a: 'adminprogress' }, true)[0].text, /目前沒有提供這項功能/);
 
   // 修正未完成的卡片也能「裁示這一檔」
   const fx = ctx.lineAdminReviewFlex_({ ...data, day: '2026/11/09', rows: [{ ...det[0], 網站分類: '觀望注意＋會員持股', 複核分類: '會員持股' }] });
@@ -524,3 +527,61 @@ console.log('11/11 第一關 Claude Sonnet：分級明細、直接回答、修�
   ctx.lineProp_ = prevProp;
 })();
 console.log('11/11 免費第一關（Gemini）與管理者圖文選單：分流、六格熱區、進入連結、回到使用者解除通過');
+
+// ---- 2026/11/11（管理者）：單一股票只回一張卡；每日複核問題用選項卡；使用者端嚴格不顯示管理者功能 ----
+(() => {
+  ctx.todayStr_ = () => '2026/11/11';
+  ctx.lineAdminActive_ = uid => uid === 'Uadmin';
+  const prevProp = ctx.lineProp_; ctx.lineProp_ = () => '';
+  ctx.callGemini_ = () => { throw new Error('offline'); };          // 第一關失敗 → 規則
+  ctx.lineAdminReviewReply_ = ORIG.lineAdminReviewReply_; ctx.lineAdminPendingReply_ = ORIG.lineAdminPendingReply_;   // 前面測試換掉的回到原函式
+  const rows = [
+    { 日期: '2026/11/11', 代號: '2317', 名稱: '鴻海', 網站分類: '觀望不碰', 複核分類: '觀望注意', 差異類型: '分類', 嚴重度: '邊界', 處理: '只記錄', 判斷理由: '23幾是買點但250有壓力' },
+    { 日期: '2026/11/11', 代號: '③', 名稱: '③教學重點', 差異類型: '章節過短', 嚴重度: '待確認', 處理: '已修正' },
+    { 日期: '2026/11/11', 代號: '3661', 名稱: '世芯-KY', 差異類型: '漏收', 嚴重度: '邊界', 處理: '只記錄' }];
+  ctx.lineAdminReviewData_ = () => ({ day: '2026/11/11', summary: { 狀態: '已完成' }, rows });
+  // 1. 「鴻海為什麼是邊界」不再是整天的稽核：規則不接，第一關失敗時只回鴻海那一張
+  assert.equal(ctx.lineAdminQueryIntent_('鴻海為什麼是邊界', '2026/11/11'), null);
+  let out = ctx.lineRoute_('Uadmin', 'bot', ctx.lineParseText_('鴻海為什麼是邊界', 'Uadmin', false), true);
+  assert.equal(out.length, 1); assert.equal(out[0].contents.type, 'bubble');
+  assert.match(out[0].altText, /鴻海 2317：邊界・只記錄/);
+  assert.equal(out[0].contents.header.backgroundColor, '#175CD3');
+  // 第一關回 review＋stock 也只回那一檔；查不到就說沒提到
+  assert.equal(ctx.lineAdminReviewReply_('', '', '世芯-KY')[0].contents.type, 'bubble');
+  assert.match(ctx.lineAdminReviewReply_('', '', '台積電')[0].text, /沒有提到「台積電」/);
+  // 2. 每日複核問題：選項卡 → 選 → 確認卡 → 確認送出寫裁示並把題目改已回答
+  const qrows = [{ _row: 2, 問題ID: 'Q1', 日期: '2026/11/11', 問題: '「行程」指的是哪一檔？', 背景: '原稿：行程這一檔…', 選項: '["勤誠 8210","其他股票"]', 狀態: '待回答', LINE推送: '' }];
+  ctx.lineAdminQuestions_ = st => qrows.filter(r => !st || r.狀態 === st);
+  const card = ctx.lineAdminQuestionsFlex_(qrows);
+  const btns = card.contents.footer.contents.map(b => ctx.lineParseData_(b.action.data));
+  assert.deepEqual([...btns.map(b => b.a)], ['qpick', 'qpick', 'qcustom']);
+  assert.equal(card.contents.header.backgroundColor, '#B54708');
+  const store = new Map();
+  ctx.CacheService = { getScriptCache: () => ({ get: k => (store.has(k) ? store.get(k) : null), put: (k, v) => store.set(k, String(v)), remove: k => store.delete(k) }) };
+  out = ctx.lineRoute_('Uadmin', 'bot', { a: 'qpick', q: 'Q1', o: '0' }, true);
+  assert.match(out[0].altText, /回答複核問題：勤誠 8210/);
+  let draft = JSON.parse(store.get('line_rule_draft_Uadmin'));
+  assert.equal(draft.qid, 'Q1'); assert.equal(draft.name, '管理者回答'); assert.equal(draft.cat, '指示');
+  assert.match(draft.text, /回答複核問題 Q1：「行程」指的是哪一檔？\n管理者回答：勤誠 8210/);
+  const marked = []; ctx.lineAdminQuestionMark_ = (q, a, id) => { marked.push([q, a, id]); return true; };
+  const wrote = []; ctx.lineAdminBook_ = () => ({}); ctx.lineAdminRuleSheet_ = () => ({ getLastRow: () => 1, getRange: () => ({ setValues: v => wrote.push(v) }) });
+  ctx.withLock_ = f => f(); ctx.lineSetProp_ = () => {}; ctx.lineAdminFire_ = () => ({ ok: true });
+  ctx.lineRoute_('Uadmin', 'bot', { a: 'ruleok', k: draft.id }, true);
+  assert.deepEqual(marked[0].slice(0, 2), ['Q1', '勤誠 8210']); assert.equal(wrote.length, 1);
+  // 自訂回答：下一句就是回答（先給確認卡）
+  ctx.lineRoute_('Uadmin', 'bot', { a: 'qcustom', q: 'Q1' }, true);
+  out = ctx.lineRoute_('Uadmin', 'bot', ctx.lineParseText_('行程是勤誠沒錯，但要寫成勤誠不要寫行程', 'Uadmin', false), true);
+  assert.match(out[0].altText, /回答複核問題：行程是勤誠沒錯/);
+  assert.equal(JSON.parse(store.get('line_rule_draft_Uadmin')).qid, 'Q1');
+  // 待裁示會先列要你決定的題目
+  ctx.lineAdminPendingFlex_ = () => null;
+  assert.match(ctx.lineAdminPendingReply_('')[0].altText, /要你決定 1 件事/);
+  // 3. 使用者端：管理者按鈕、管理者指令一律「沒有提供這項功能」，不出現「管理者」字樣
+  ctx.lineFindSub_ = () => ({ tester: false });
+  for (const act of [{ a: 'qpick', q: 'Q1', o: '0' }, { a: 'qcustom', q: 'Q1' }, { a: 'adminsev', s: '邊界' }, ctx.lineParseText_('今日稽核', 'Uuser', false)]) {
+    const r = ctx.lineRoute_('Uuser', 'bot', act, true);
+    assert.match(r[0].text, /目前沒有提供這項功能/); assert.doesNotMatch(JSON.stringify(r), /管理者|稽核|裁示/);
+  }
+  ctx.lineProp_ = prevProp;
+})();
+console.log('11/11 單一股票一張卡、每日複核問題選項卡（選、自訂、確認、標已回答）、使用者端不透露管理者功能通過');

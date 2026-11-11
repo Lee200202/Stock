@@ -381,7 +381,7 @@ function lineParseText_(raw, uid, noRule) {
   if (rule) { return { a: 'adminrule', rule: rule, raw: t, src: String(raw || '') }; }
   // v220：一般句子的裁示（「勤誠需是買進或會員持股，應根據簡訊方向判定」）。不是管理者時 lineRoute_ 會改回一般查詢。
   var free = !noRule && typeof lineAdminLooseRuling_ === 'function' ? lineAdminLooseRuling_(raw) : null;
-  if (free) { return { a: 'adminfree', free: free, raw: t, src: String(raw || '') }; }
+  if (free) { free.src = String(raw || ''); return { a: 'adminfree', free: free, raw: t, src: free.src }; }
   if (t.length > 120) { return { a: 'toolong' }; }
   // 套話檢查用原文（英文的「ignore previous」要靠空白）與去空白後的文字各看一次
   if (typeof isPromptProbe_ === 'function' && (isPromptProbe_(String(raw || '')) || isPromptProbe_(t))) { return { a: 'probe' }; }
@@ -549,14 +549,21 @@ function lineRoute_(uid, ch, act, deferTouch) {
   }
   if (act.a === 'adminquery') {
     if (!LINE_ADMIN_CTX_) { return lineRoute_(uid, ch, lineParseText_(act.src || act.raw, uid, true), true); }
+    // 2026/11/11：先請第一關（Claude Sonnet）理解，例如「待確認的明細」要的是那一級的明細，不是待裁示清單；失敗才照規則
+    var aq1 = typeof lineAdminAi_ === 'function' ? lineAdminAi_(uid, act.src || act.raw) : null;
+    if (aq1) { return aq1; }
     return lineAdminIntentReply_(act.q) || lineOutOfScopeReply_('general', act.raw);
   }
   // 2026/11/11（管理者）：管理者模式只接管理者的話。不是管理者查詢、也不是查得到的股票，就出「送給雲端」確認卡，
   // 不再落到使用者端的「找不到這檔股票」或「不在服務範圍」。順序：指示語氣 → Gemini 判斷查詢意圖 → 其餘一律送雲端確認。
   if (LINE_ADMIN_CTX_ && typeof lineAdminInstructionReply_ === 'function' && (act.a === 'outofscope' || act.a === 'stock')) {
     var said = String(act.src || act.raw || act.q || '');
-    var realStock = act.a === 'stock' && (act.c || lineAdminStockHit_(act.q || said));
+    // 單純輸入股票（按鈕、代號、短名稱）照舊查股；長句子交給第一關判斷（「鴻海為什麼是邊界」不是查股）
+    var realStock = act.a === 'stock' && (act.c || (said.replace(/\s+/g, '').length <= 10 && lineAdminStockHit_(act.q || said)));
     if (!realStock) {
+      var ai1 = typeof lineAdminAi_ === 'function' ? lineAdminAi_(uid, said) : null;   // 第一關：Claude Sonnet
+      if (ai1) { return ai1; }
+      if (act.a === 'stock' && lineAdminStockHit_(act.q || said)) { return lineStockReply_(act.q || said, uid); }
       if (lineAdminLooksLikeInstruction_(said)) { return lineAdminInstructionReply_(uid, said); }
       if (act.a === 'outofscope' && typeof lineAdminGeminiIntent_ === 'function') {
         // 2026/11/10：規則判斷不了的管理者句子請 Gemini 判斷意圖與日期（只有管理者會呼叫模型），答案由既有函式產生
@@ -572,13 +579,14 @@ function lineRoute_(uid, ch, act, deferTouch) {
     var q = typeof lineAdminQueryText_ === 'function' ? lineAdminQueryText_(uid) : '';
     return q ? lineRoute_(uid, ch, lineParseText_(q, uid, true), true) : [lineText_('請直接輸入股票代號或名稱。', lineQuickMain_())];
   }
-  if (/^(?:adminreview|adminpending|adminformat|admintest|adminprogress|rulepick|ruleok|ruleno)$/.test(act.a || '') && !LINE_ADMIN_CTX_) {
+  if (/^(?:adminreview|adminpending|adminformat|admintest|adminprogress|adminsev|rulepick|ruleok|ruleno)$/.test(act.a || '') && !LINE_ADMIN_CTX_) {
     return lineAdminDeny_();
   }
   switch (act.a) {
     case 'adminon': return lineAdminOnReply_(uid, ch);
     case 'adminoff': return lineAdminOffReply_(uid, ch);
     case 'adminreview': return lineAdminReviewReply_();
+    case 'adminsev': return lineAdminReviewReply_(String(act.d || ''), String(act.s || ''));
     case 'adminpending': return lineAdminPendingReply_();
     case 'adminformat': return [lineAdminFormatFlex_()];
     case 'admintest': return lineAdminTestReply_();

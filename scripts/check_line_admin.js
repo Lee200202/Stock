@@ -69,7 +69,21 @@ const data = { day: '2026/11/06', url: 'https://docs.google.com/spreadsheets/d/x
 const m1 = ctx.lineAdminReviewFlex_(data);
 assert.equal(m1.type, 'flex');
 assert.equal(m1.contents.type, 'carousel');
-assert.equal(m1.contents.contents.length, 3);            // 摘要＋兩檔已修改（台積電、已裁示的大立光）
+assert.equal(m1.contents.contents.length, 5);            // 2026/11/11：摘要＋每一項一張（明確錯誤、待確認兩項、邊界）
+{
+  const cards = m1.contents.contents.slice(1);
+  const kick = cards.map(c => c.header.contents[0].text);
+  assert.deepEqual([...kick], ['明確錯誤・已修正', '待確認・待你裁示', '待確認・已修正', '邊界・只記錄']);   // 依分級排序、標題寫處理狀態
+  assert.deepEqual([...cards.map(c => c.header.backgroundColor)], ['#B42318', '#B54708', '#B54708', '#175CD3']);   // 顏色＝分級
+  assert.equal(ctx.lineParseData_(cards[1].footer.contents[0].action.data).a, 'rulepick');                          // 待你裁示可直接裁示
+  assert.equal(cards[3].footer, undefined);                                                                          // 只記錄的邊界沒有按鈕
+  const sevBtns = m1.contents.contents[0].footer.contents.filter(b => b.action.type === 'postback').map(b => ctx.lineParseData_(b.action.data));
+  assert.deepEqual([...sevBtns.map(b => b.s)], ['明確錯誤', '待確認', '邊界']);                                      // 有項目的分級才有「看…」按鈕
+  const onlyPending = ctx.lineAdminReviewFlex_(data, '待確認');
+  assert.equal(onlyPending.contents.contents.length, 3);
+  assert.match(onlyPending.altText, /11\/06 待確認 2 項/);
+  assert.equal(onlyPending.contents.contents[0].header.backgroundColor, '#B54708');
+}
 assert.match(m1.altText, /已修正 2 項，待你裁示 1 項/);
 const m2 = ctx.lineAdminPendingFlex_(data);
 assert.equal(m2.contents.contents.length, 2);            // 格式說明＋群聯
@@ -396,3 +410,77 @@ console.log('11/11 管理者指示：一般句子送雲端確認卡、查股照�
   assert.doesNotMatch(JSON.stringify(ctx.lineRoute_('Uuser', 'bot', { a: 'stock', q: '今日雲端到底改了什麼內容' }, true)), /送給雲端|管理者/);
 })();
 console.log('11/11 管理者模式只接管理者的話：待裁示問句直接列出、其餘送雲端確認、查股與使用者端照舊通過');
+
+// ---- 2026/11/11（管理者）：第一關 Claude Sonnet 理解管理者的話；查詢直接回答、修改才送 Opus ----
+(() => {
+  ctx.todayStr_ = () => '2026/11/11';
+  ctx.lineAdminActive_ = uid => uid === 'Uadmin';
+  ctx.lineAdminReviewData_ = () => ({ day: '2026/11/11', summary: { 狀態: '已完成', 比對檔數: '9' },
+    rows: [{ 日期: '2026/11/11', 代號: '2317', 名稱: '鴻海', 網站分類: '觀望不碰', 複核分類: '觀望注意', 差異類型: '分類', 嚴重度: '邊界', 處理: '只記錄' }] });
+  ctx.lineAdminBook_ = () => null;
+  ctx.lineResolveStock_ = q => /台積電|2330/.test(q) ? { code: '2330', name: '台積電' } : { none: true, q };
+  const store = new Map();
+  ctx.CacheService = { getScriptCache: () => ({ get: k => (store.has(k) ? store.get(k) : null), put: (k, v) => store.set(k, String(v)), remove: k => store.delete(k) }) };
+  const props = { ANTHROPIC_API_KEY: 'test-key' };
+  const prevProp = ctx.lineProp_; ctx.lineProp_ = k => props[k] || '';
+  let answer = null, status = 200, sent = [];
+  ctx.UrlFetchApp = { fetch: (url, opt) => {
+    sent.push({ url, opt, body: JSON.parse(opt.payload) });
+    return { getResponseCode: () => status, getContentText: () => JSON.stringify(
+      { stop_reason: 'end_turn', content: [{ type: 'thinking', thinking: '' }, { type: 'text', text: JSON.stringify(answer) }] }) };
+  } };
+  const say = (text, a) => { answer = { intent: 'unclear', date: '', severity: '', stock: '', reply: '', summary: '', ...a }; sent = [];
+    return ctx.lineRoute_('Uadmin', 'bot', ctx.lineParseText_(text, 'Uadmin', false), true); };
+  const calls = [];
+  ctx.lineAdminReviewReply_ = (d, sev) => { calls.push(['review', d, sev]); return [{ type: 'text', text: 'review ' + d + ' ' + sev }]; };
+  ctx.lineAdminPendingReply_ = d => { calls.push(['pending', d]); return [{ type: 'text', text: 'pending ' + d }]; };
+
+  // 1. 「待確認的明細」→ 那一級的明細（規則原本會給待裁示清單）
+  let out = say('我想查看待確認的明細是什麼', { intent: 'review', severity: '待確認' });
+  assert.equal(out[0].text, 'review  待確認');
+  const req = sent[0];
+  assert.equal(req.url, 'https://api.anthropic.com/v1/messages');
+  assert.equal(req.body.model, 'claude-sonnet-5-5');
+  assert.equal(req.opt.headers['anthropic-version'], '2026-10-21');
+  assert.equal(req.opt.headers['x-api-key'], 'test-key');
+  assert.equal(req.body.output_config.format.type, 'json_schema');
+  assert.equal(req.body.output_config.effort, 'low');
+  assert.match(req.body.messages[0].content, /鴻海/);                      // 複核資料有帶上
+  assert.match(req.body.messages[0].content, /我想查看待確認的明細是什麼/);
+  // 2. 能直接回答的問題：用第一關的答案，不送雲端
+  out = say('鴻海為什麼是邊界', { intent: 'answer', reply: '11/11 鴻海 2317：網站觀望不碰，複核判觀望注意，兩者都可接受，所以只記錄。' });
+  assert.match(out[0].text, /鴻海 2317/);
+  assert.equal(store.has('line_rule_draft_Uadmin'), false);
+  // 3. 要改東西：確認卡帶「我的理解」，按確認送出才交給 Opus；雲端看到的是原話＋理解
+  out = say('鴻海其實應該是注意，請改', { intent: 'change', date: '2026/11/11', summary: '把 11/11 鴻海 2317 從觀望不碰改成觀望注意。' });
+  assert.match(out[0].altText, /送給雲端・管理者指示/);
+  assert.match(JSON.stringify(out[0]), /我的理解/);
+  let draft = JSON.parse(store.get('line_rule_draft_Uadmin'));
+  assert.equal(draft.cat, '指示'); assert.equal(draft.name, '管理者指示'); assert.equal(draft.date, '2026/11/11');
+  assert.match(draft.text, /^鴻海其實應該是注意，請改\n〔第一關理解，原話為準〕把 11\/11 鴻海/);
+  // 4. 要查原稿才答得出來：提問卡
+  out = say('今天原稿有講到宜鼎的成本嗎', { intent: 'ask_cloud', summary: '查 11/11 原稿宜鼎的成本價。' });
+  assert.match(out[0].altText, /送給雲端・管理者提問/);
+  // 5. 第一關說是查股，且查得到 → 查股；查不到 → 交回規則（送雲端確認卡），不回「找不到」
+  ctx.lineStockReply_ = q => [{ type: 'text', text: 'stock:' + q }];
+  assert.equal(say('幫我看一下台積電最近被提到的紀錄', { intent: 'stock', stock: '台積電' })[0].text, 'stock:台積電');
+  assert.doesNotMatch(JSON.stringify(say('那個今日的東西幫我看一下好了', { intent: 'stock', stock: '今日' })), /找不到/);
+  // 6. 單純輸入股票不呼叫第一關
+  sent = []; assert.equal(ctx.lineRoute_('Uadmin', 'bot', { a: 'stock', q: '台積電' }, true)[0].text, 'stock:台積電'); assert.equal(sent.length, 0);
+  // 7. API 失敗或回覆不合格 → 照規則（不卡住）
+  status = 500;
+  assert.equal(say('今天有沒有需要管理者裁示的事情', {})[0].text, 'pending 2026/11/11');
+  status = 200; answer = { intent: 'nonsense' };
+  assert.equal(ctx.lineAdminAiParse_({ stop_reason: 'end_turn', content: [{ type: 'text', text: '{"intent":"nonsense"}' }] }), null);
+  assert.equal(ctx.lineAdminAiParse_({ stop_reason: 'refusal', content: [] }), null);
+  // 8. 沒設金鑰 → 不呼叫
+  delete props.ANTHROPIC_API_KEY; sent = [];
+  say('今天有沒有需要管理者裁示的事情', { intent: 'answer', reply: 'x' }); assert.equal(sent.length, 0);
+  // 9. 一般使用者永遠不呼叫第一關
+  props.ANTHROPIC_API_KEY = 'test-key'; sent = []; ctx.lineFindSub_ = () => ({});
+  ctx.lineOutOfScopeReply_ = () => [{ type: 'text', text: 'outofscope' }];
+  ctx.lineRoute_('Uuser', 'bot', ctx.lineParseText_('鴻海為什麼是邊界', 'Uuser', false), true);
+  assert.equal(sent.length, 0);
+  ctx.lineProp_ = prevProp; delete ctx.UrlFetchApp;
+})();
+console.log('11/11 第一關 Claude Sonnet：分級明細、直接回答、修改確認卡帶理解、提問送雲端、失敗回規則、使用者不呼叫通過');

@@ -20,7 +20,7 @@ var LINE_ADMIN_RULE_COLS_ = ['建立時間', '裁示ID', '日期', '代號', '�
 var LINE_ADMIN_CATS_ = ['會員持股', '觀望注意', '觀望不碰', '買入', '賣出', '不列'];
 var LINE_ADMIN_CAT_ALIAS_ = { '持股': '會員持股', '注意': '觀望注意', '不碰': '觀望不碰', '買進': '買入', '賣掉': '賣出',
   '刪除': '不列', '移除': '不列', '不列入': '不列' };
-var LINE_ADMIN_CAT_COLOR_ = { '會員持股': '#4A4FA3', '觀望注意': '#1F6F8B', '觀望不碰': '#8A6410', '買入': '#B4342C', '賣出': '#1E7B4F', '不列': '#8A958F' };
+var LINE_ADMIN_CAT_COLOR_ = { '會員持股': '#4A4FA3', '觀望注意': '#1F6F8B', '觀望不碰': '#8A6410', '買入': '#B4342C', '賣出': '#1E7B4F', '不列': '#8A958F', '指示': '#0A4A3C' };
 var LINE_ADMIN_DAYS_BACK_ = 30;          // 與 line-ruling-apply.yml 的期限相同
 var LINE_ADMIN_ITEM_BUBBLES_ = 10;       // 一則最多 12 張：摘要／格式一張＋十張＋「還有幾項」一張
 var LINE_ADMIN_CTX_ = false;             // 這一個事件的發送者是不是開著管理者模式（決定快速回覆按鈕）
@@ -480,6 +480,40 @@ function lineAdminFreeReply_(uid, free) {
   cache.put('line_rule_draft_' + uid, JSON.stringify(draft), 900);
   return [lineAdminConfirmFlex_(draft)];
 }
+/* ---------------- 管理者指示（2026/11/11 管理者） ----------------
+   以前 LINE 只會把「股票 分類—說明」這種逐檔裁示交給雲端；管理者回答每日複核提出的問題、補充判讀規則
+   （例如「追買不算外洩，外洩只看價格；行程是 8210 勤誠」）這類一般句子，會被當成查股或服務範圍外，雲端收不到。
+   現在：開著管理者模式、不是指令／逐檔裁示／查詢、讀起來像指示的句子，先出確認卡；按「確認送出」後寫進
+   「管理者裁示」（裁示分類＝指示），觸發雲端。雲端讀那天的原稿與複核紀錄核對後，能改的改網站、該記的記給週五檢討，
+   接手與結果照逐檔裁示一樣回報到 LINE。 */
+/** 純函式：一般句子是不是管理者的指示（不是查詢、不是問句）。 */
+function lineAdminLooksLikeInstruction_(raw) {
+  var flat = String(raw || '').replace(/\s+/g, '');
+  if (flat.length < 15 || flat.length > 600) { return false; }
+  if (/^(?:請|幫我|麻煩)?(?:查|查詢|看一下|找)/.test(flat) && flat.length < 25) { return false; }
+  if (/(?:嗎|呢|\?|？)[。！!]*$/.test(flat) && !/(?:請|幫我|應該|不算|就是|其實|改成|寫進|加入)/.test(flat)) { return false; }
+  return /(?:請|幫我|應該|應當|不算|算是|就是|其實|改成|改為|寫進|加入|以後|之後|裁示|判定|確認|不要|不用|要把|記得|規則|工作流|流程|外洩|同音|指的是|講的是)/.test(flat);
+}
+function lineAdminInstructionFlex_(d) {
+  return lineFlex_('送給雲端・管理者指示：' + lineAdminCut_(d.text, 60), fxBubble_(
+    fxHeader_('送給雲端・管理者指示', '對應 ' + (lineMd_(d.date) || d.date) + ' 的複核', '#0A4A3C'),
+    [lineAdminLine_('指示內容', lineAdminCut_(d.text, 300)),
+     fxNote_('送出後雲端會讀那天的原稿與複核紀錄核對：能改的直接改網站並讀回，屬於流程規則的寫進週五檢討清單。雲端接手、完成都會在這裡回報（約 5–20 分鐘），也可以隨時輸入「裁示進度」。')],
+    [fxBtn_(linePb_('確認送出', 'a=ruleok&k=' + encodeURIComponent(d.id), '確認送出指示')),
+     fxBtn_(linePb_('當作一般查詢', 'a=rulequery', '當作一般查詢'), 'secondary'),
+     fxBtn_(linePb_('取消', 'a=ruleno&k=' + encodeURIComponent(d.id), '取消這則指示'), 'link')]));
+}
+function lineAdminInstructionReply_(uid, raw) {
+  var data = null;
+  try { data = lineAdminReviewData_(todayStr_(), true); } catch (e) { data = null; }
+  var draft = { id: 'R' + Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyyMMddHHmmss') + Math.floor(Math.random() * 900 + 100),
+                date: data ? data.day : todayStr_(), code: '', name: '管理者指示', cat: '指示', text: lineClip_(String(raw || '').trim(), 500) };
+  var cache = CacheService.getScriptCache();
+  cache.put('line_rule_draft_' + uid, JSON.stringify(draft), 900);
+  cache.put('line_rule_text_' + uid, String(raw || ''), 900);   // 「當作一般查詢」用
+  return [lineAdminInstructionFlex_(draft)];
+}
+
 /** 已綁定、但目前是使用者身分時送出像裁示的句子：先問要不要切換成管理者。 */
 function lineAdminIdentityFlex_() {
   return lineFlex_('你目前是使用者身分。這句看起來是管理者裁示，要切換成管理者並送出嗎？', fxBubble_(
@@ -571,6 +605,8 @@ function lineAdminSpokenDate_(raw, today) {
 function lineAdminQueryIntent_(raw, today) {
   var s = String(raw || '').replace(/\s+/g, '');
   if (!s || s.length > 60) { return null; }
+  // 2026/11/11：「其實…就是…」「…不算…，請寫進…」這類是指示，不是查詢（交給 lineAdminLooksLikeInstruction_）
+  if (/(?:不算|就是|其實|改成|改為|寫進|加入|應該)/.test(s)) { return null; }
   var intent = /待裁示|要裁示|需要裁示|待我裁示|待你裁示|還沒裁示|待確認|待處理/.test(s) ? 'pending'
     : /裁示進度|裁示狀態|處理到哪|處理進度|修正進度|修改進度/.test(s) ? 'progress'
     : /稽核|複核|改了什麼|修了什麼|修正了什麼|改了哪些|修了哪些|明確錯誤|邊界|複核錯/.test(s) ? 'review'
@@ -581,13 +617,13 @@ function lineAdminQueryIntent_(raw, today) {
 /** 規則判斷不了時才問 Gemini；只回 JSON 意圖與日期，失敗就回 null（照舊回服務範圍外）。 */
 function lineAdminGeminiIntent_(raw, today) {
   if (typeof callGemini_ !== 'function') { return null; }
-  var sys = '你是 LINE 機器人的意圖判斷器，使用者是網站管理者。只回 JSON：{"intent": "review|pending|progress|format|stock|other", "date": "YYYY/MM/DD 或空字串", "stock": "股票名稱或代號或空字串"}。' +
+  var sys = '你是 LINE 機器人的意圖判斷器，使用者是網站管理者。只回 JSON：{"intent": "review|pending|progress|format|stock|instruction|other", "date": "YYYY/MM/DD 或空字串", "stock": "股票名稱或代號或空字串"}。' +
     'review＝想看某天複核／稽核結果、改了什麼、明確錯誤；pending＝想看某天還要他裁示的項目；progress＝想看裁示處理進度；format＝問裁示怎麼輸入；' +
-    'stock＝想查某檔股票的紀錄；other＝其他。今天是 ' + today + '（台北）。相對日期換算成確切日期；沒提日期就給空字串。不要解釋。';
+    'stock＝想查某檔股票的紀錄；instruction＝在下指示、回答複核提出的問題或補充判讀規則；other＝其他。今天是 ' + today + '（台北）。相對日期換算成確切日期；沒提日期就給空字串。不要解釋。';
   try {
     var out = JSON.parse(String(callGemini_(sys, String(raw || '').slice(0, 200), { json: true, maxOut: 200, temperature: 0, maxWaitMs: 12000, singleAttempt: true }) || '{}'));
     var intent = String(out.intent || '');
-    if (LINE_ADMIN_INTENTS_.indexOf(intent) < 0 && intent !== 'stock') { return null; }
+    if (LINE_ADMIN_INTENTS_.indexOf(intent) < 0 && intent !== 'stock' && intent !== 'instruction') { return null; }
     var day = /^20\d{2}\/\d{2}\/\d{2}$/.test(String(out.date || '')) ? String(out.date) : '';
     return { intent: intent, day: day, stock: String(out.stock || '').slice(0, 20), via: 'gemini' };
   } catch (e) {

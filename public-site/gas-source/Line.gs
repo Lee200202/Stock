@@ -551,10 +551,16 @@ function lineRoute_(uid, ch, act, deferTouch) {
     if (!LINE_ADMIN_CTX_) { return lineRoute_(uid, ch, lineParseText_(act.src || act.raw, uid, true), true); }
     return lineAdminIntentReply_(act.q) || lineOutOfScopeReply_('general', act.raw);
   }
+  // 2026/11/11：管理者的一般指示（回答每日複核的問題、補充判讀規則）先出確認卡，確認後送雲端。
+  if (LINE_ADMIN_CTX_ && (act.a === 'outofscope' || act.a === 'stock') && typeof lineAdminLooksLikeInstruction_ === 'function' &&
+      lineAdminLooksLikeInstruction_(act.src || act.raw || act.q || '')) {
+    return lineAdminInstructionReply_(uid, act.src || act.raw || act.q);
+  }
   // 2026/11/10：管理者的話規則判斷不了、原本會回「不在服務範圍」時，請 Gemini 判斷意圖與日期（只有管理者會呼叫模型）。
   if (act.a === 'outofscope' && act.kind === 'general' && LINE_ADMIN_CTX_ && typeof lineAdminGeminiIntent_ === 'function') {
     var gq = lineAdminGeminiIntent_(act.raw, todayStr_());
     if (gq && gq.intent === 'stock' && gq.stock) { return lineStockReply_(gq.stock, uid); }
+    if (gq && gq.intent === 'instruction' && typeof lineAdminInstructionReply_ === 'function') { return lineAdminInstructionReply_(uid, act.raw); }
     var gr = gq && lineAdminIntentReply_(gq);
     if (gr) { return gr; }
   }

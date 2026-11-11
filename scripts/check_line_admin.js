@@ -321,3 +321,41 @@ console.log('11/10 股票 分類—說明格式、驗收卡只推一次通過');
   assert.equal(ctx.lineRoute_('Uadmin', 'bot', vague, true)[0].text, 'stock:台積電');
 })();
 console.log('11/10 管理者一般問句：規則判斷日期與意圖、Gemini 備援、非管理者不呼叫模型通過');
+
+// ---- 2026/11/11：管理者指示（回答複核問題、補充規則）送雲端 ----
+(() => {
+  const L = s => ctx.lineAdminLooksLikeInstruction_(s);
+  const answer = '追買不算外洩，外洩只看價格；行程其實就是8210勤誠，集中股票講的是宜鼎，請寫進週五檢討';
+  assert.ok(L(answer));
+  assert.ok(L('11/11 那兩件事：追買這個不算外洩，請寫進週五的流程'));
+  for (const s of ['台積電', '請幫我查台積電', '今天有影片嗎', '那天被抓出來的問題後來都處理好了沒', '11月9號待裁示的有哪些']) assert.ok(!L(s), s);
+  // 解析：不是逐檔裁示、不是查詢句 → 一般句子；管理者路由成指示確認卡
+  const act = ctx.lineParseText_(answer, 'Uadmin', false);
+  assert.notEqual(act.a, 'adminrule'); assert.notEqual(act.a, 'adminquery');
+  const store = new Map();
+  ctx.CacheService = { getScriptCache: () => ({ get: k => (store.has(k) ? store.get(k) : null), put: (k, v) => store.set(k, String(v)), remove: k => store.delete(k) }) };
+  ctx.lineAdminReviewData_ = () => ({ day: '2026/11/11', rows: [], summary: {} });
+  ctx.Utilities = { formatDate: () => '20261111123000' };
+  ctx.lineAdminActive_ = uid => uid === 'Uadmin';
+  let gem = 0; ctx.callGemini_ = () => { gem++; return '{"intent":"other"}'; };
+  const out = ctx.lineRoute_('Uadmin', 'bot', act, true);
+  assert.match(out[0].altText, /送給雲端・管理者指示/);
+  const btns = out[0].contents.footer.contents.map(b => ctx.lineParseData_(b.action.data).a);
+  assert.deepEqual([...btns], ['ruleok', 'rulequery', 'ruleno']);
+  const draft = JSON.parse(store.get('line_rule_draft_Uadmin'));
+  assert.equal(draft.cat, '指示'); assert.equal(draft.code, ''); assert.equal(draft.date, '2026/11/11'); assert.match(draft.text, /追買/);
+  // 使用者：不透露、不呼叫模型
+  ctx.lineOutOfScopeReply_ = () => [{ type: 'text', text: 'outofscope' }];
+  ctx.lineStockReply_ = q => [{ type: 'text', text: 'stock:' + q }];
+  const asUser = ctx.lineRoute_('Uuser', 'bot', act, true);
+  assert.doesNotMatch(JSON.stringify(asUser), /指示|管理者/);
+  assert.equal(gem, 0);
+  // 管理者查股照舊
+  assert.equal(ctx.lineRoute_('Uadmin', 'bot', { a: 'stock', q: '台積電' }, true)[0].text, 'stock:台積電');
+  assert.equal(ctx.lineRoute_('Uadmin', 'bot', { a: 'stock', q: '請幫我查台積電' }, true)[0].text, 'stock:請幫我查台積電');
+  // Gemini 判定為指示的短句也走確認卡
+  ctx.callGemini_ = () => '{"intent":"instruction","date":"","stock":""}';
+  const vague = { a: 'outofscope', kind: 'general', raw: '那個詞我覺得沒問題' };
+  assert.match(ctx.lineRoute_('Uadmin', 'bot', vague, true)[0].altText, /管理者指示/);
+})();
+console.log('11/11 管理者指示：一般句子送雲端確認卡、查股照舊、使用者不透露不呼叫模型通過');

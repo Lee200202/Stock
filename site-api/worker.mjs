@@ -3,7 +3,7 @@ export {AdminSecurity} from './admin-security.mjs';
 // Cloudflare Worker，將公開Pages前台連接至既有Apps Script後端。
 // 橋接權杖留在伺服器端，管理方法仍須既有管理密鑰。
 const ALLOWED = 'https://lee200202.github.io';
-const BUILD = 'site-api-v217-visitor-guide';
+const BUILD = 'site-api-v221-snapshot-tracker';
 const MAX_ARGS = 8;
 const ADMIN_METHODS = ('apiAdminCancelCrawl apiAdminCancelDaySync apiAdminCancelFix ' +
   'apiAdminCancelFullFix apiAdminCancelJob apiAdminCancelRefresh apiAdminCancelSmsJob ' +
@@ -173,7 +173,9 @@ async function callBackend(env, body, retryable) {
    不以舊資料掩蓋失敗。快照只收成功且非空的結果。 */
 const SNAP_FRESH_MS = 12 * 60 * 1000;
 const SNAP_BEAT = 'beat:v1';
-const SNAPPED = new Set(['apiGetDashboard', 'apiListMailDates', 'apiGetMailContent', 'apiListRecordDates']);
+// 2026/11/11：持股追蹤與績效走勢也進五分鐘快照。以前它們只有 2／10 分鐘的邊緣快取，過期後第一位訪客要等約 4 秒。
+const SNAPPED = new Set(['apiGetDashboard', 'apiListMailDates', 'apiGetMailContent', 'apiListRecordDates',
+  'apiGetHoldingsTracker', 'apiGetPerformanceSeries']);
 const snapKey = key => 'snap:v1:' + key;
 
 async function digest(text) {
@@ -224,7 +226,8 @@ async function refreshSnapshots(env) {
   // 這三項試算表讀取同時啟動時，Apps Script的/exec偶爾會
   // 回傳狀態200的HTML錯誤頁；保留相同鍵值，改為依序讀取，
   // 單一鍵失敗不阻止其餘快照繼續核對。
-  for (const [method, args] of [['apiGetDashboard', []], ['apiListRecordDates', []], ['apiListMailDates', []]]) {
+  for (const [method, args] of [['apiGetDashboard', []], ['apiListRecordDates', []], ['apiListMailDates', []],
+                                ['apiGetHoldingsTracker', []], ['apiGetPerformanceSeries', []]]) {
     try {
       const list = await take(method, args);
       if (method === 'apiListMailDates') {

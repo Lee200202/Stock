@@ -61,6 +61,11 @@ jobs:
           node scripts/check_visitor_guide.cjs
       - name: 部署版本與畫面檔案標記一致性
         run: node scripts/check_project_manifest.cjs
+      - name: 網站 API 快照（持股追蹤、績效走勢由五分鐘快照回覆；報價不重播）
+        run: |
+          node scripts/check_site_snapshot.mjs
+          node scripts/check_site_snapshot_1111.mjs
+          node scripts/check_quote_relay_fresh.mjs
       - name: 公開說明語意保留與紀錄價位隱藏
         run: node scripts/check_source_fidelity.cjs
       - name: 技術說明章節、導覽與原始證據保留

@@ -585,3 +585,38 @@ console.log('11/11 免費第一關（Gemini）與管理者圖文選單：分流�
   ctx.lineProp_ = prevProp;
 })();
 console.log('11/11 單一股票一張卡、每日複核問題選項卡（選、自訂、確認、標已回答）、使用者端不透露管理者功能通過');
+
+// ---- 2026/11/11（管理者）：打「1」選選項；管理者模式絕不回使用者端的「不在服務範圍」 ----
+(() => {
+  ctx.todayStr_ = () => '2026/11/11';
+  ctx.lineAdminActive_ = uid => uid === 'Uadmin';
+  const prevProp = ctx.lineProp_; ctx.lineProp_ = () => '';
+  ctx.callGemini_ = () => { throw new Error('offline'); };
+  ctx.lineAdminReviewData_ = () => ({ day: '2026/11/11', summary: {}, rows: [] });
+  const store = new Map();
+  ctx.CacheService = { getScriptCache: () => ({ get: k => (store.has(k) ? store.get(k) : null), put: (k, v) => store.set(k, String(v)), remove: k => store.delete(k) }) };
+  const q = { _row: 2, 問題ID: 'Q202611111753280', 日期: '2026/11/11', 問題: '鴻海 2317 網站列觀望不碰、複核判觀望注意（邊界，只記錄）。要改嗎？',
+    選項: '["維持觀望不碰（250壓力為主）","改成觀望注意（23幾是買點）","兩者都可，不用改"]', 狀態: '待回答', LINE推送: '2026/11/11 18:00:00' };
+  ctx.lineAdminQuestions_ = st => [q].filter(r => !st || r.狀態 === st);
+  ctx.lineOutOfScopeReply_ = () => [{ type: 'text', text: '抱歉，此問題不在我的工作與服務範圍內喔。' }];
+  for (const [text, want] of [['1', '維持觀望不碰（250壓力為主）'], ['選1', '維持觀望不碰（250壓力為主）'], ['我選1', '維持觀望不碰（250壓力為主）'],
+                              ['①', '維持觀望不碰（250壓力為主）'], ['1 維持觀望不碰', '維持觀望不碰（250壓力為主）'], ['維持觀望不碰', '維持觀望不碰（250壓力為主）'],
+                              ['2', '改成觀望注意（23幾是買點）'], ['第三個', '兩者都可，不用改']]) {
+    store.clear();
+    const out = ctx.lineRoute_('Uadmin', 'bot', ctx.lineParseText_(text, 'Uadmin', false), true);
+    assert.match(out[0].altText || '', /回答複核問題/, text);
+    assert.equal(JSON.parse(store.get('line_rule_draft_Uadmin')).said, want, text);
+  }
+  // 沒有待回答題目時打「1」：留在管理者端，不回使用者端的「不在服務範圍」
+  q.狀態 = '已回答';
+  for (const text of ['1', '嗯', '好像怪怪的']) {
+    const out = ctx.lineRoute_('Uadmin', 'bot', ctx.lineParseText_(text, 'Uadmin', false), true);
+    assert.doesNotMatch(JSON.stringify(out), /不在我的工作與服務範圍/, text);
+    if (text.length < 4) assert.match(out[0].text, /還不確定你要做什麼/, text);   // 長一點的句子會出送雲端確認卡，也算管理者端
+  }
+  // 使用者端照舊
+  ctx.lineFindSub_ = () => ({ tester: false });
+  assert.match(ctx.lineRoute_('Uuser', 'bot', ctx.lineParseText_('嗯', 'Uuser', false), true)[0].text, /不在我的工作與服務範圍/);
+  ctx.lineProp_ = prevProp;
+})();
+console.log('11/11 打數字或選項文字即選擇、管理者模式不落到使用者端回覆通過');

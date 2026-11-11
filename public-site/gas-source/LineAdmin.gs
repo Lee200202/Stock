@@ -1016,6 +1016,42 @@ function lineAdminQAnswerTyped_(uid, said) {
   var q = lineAdminQuestionById_(qid);
   return q && q['狀態'] === '待回答' ? lineAdminAnswerConfirm_(uid, q, said) : null;
 }
+/** 2026/11/11（管理者）：沒按按鈕、直接打「1」「選1」「①」「維持觀望不碰」也算選了那個選項。
+    有多題待回答時，數字指最近推送的那一題；寫選項文字時找得到的那一題。回 null 表示不是在回答。 */
+function lineAdminQPickFromText_(said, open) {
+  var flat = String(said || '').replace(/[\s　]+/g, '').replace(/[１-４]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); });
+  if (!flat || flat.length > 40 || !open || !open.length) { return null; }
+  var nums = { '1': 0, '2': 1, '3': 2, '4': 3, '①': 0, '②': 1, '③': 2, '④': 3, '一': 0, '二': 1, '三': 2, '四': 3 };
+  var latest = open.slice().sort(function (a, b) { return String(b['LINE推送'] || b['建立時間'] || '').localeCompare(String(a['LINE推送'] || a['建立時間'] || '')); })[0];
+  var m = flat.match(/^(?:我)?(?:要)?(?:選|選擇)?(?:第)?([1-4①②③④一二三四])(?:個|號|項|個選項)?(?:[。.!！、:：]|$)/) ||
+          flat.match(/^(?:我)?(?:選|選擇)?([1-4①②③④])[、.:：]?(.{2,})$/);
+  if (m) {
+    var idx = nums[m[1]], opts = lineAdminQOptions_(latest);
+    if (opts[idx] !== undefined && (!m[2] || opts[idx].replace(/\s+/g, '').indexOf(m[2].slice(0, 4)) >= 0)) { return { q: latest, option: opts[idx] }; }
+  }
+  if (flat.length < 3) { return null; }
+  for (var i = 0; i < open.length; i++) {
+    var o = lineAdminQOptions_(open[i]);
+    for (var j = 0; j < o.length; j++) {
+      var core = o[j].replace(/\s+/g, '').replace(/[（(].*$/, '');
+      if (core.length >= 3 && (flat === core || flat.indexOf(core) >= 0 || o[j].replace(/\s+/g, '').indexOf(flat) === 0)) { return { q: open[i], option: o[j] }; }
+    }
+  }
+  return null;
+}
+function lineAdminQAnswerByText_(uid, said) {
+  var flat = String(said || '').replace(/\s+/g, '');
+  if (!flat || flat.length > 40) { return null; }
+  var hit = lineAdminQPickFromText_(said, lineAdminQuestions_('待回答'));
+  return hit ? lineAdminAnswerConfirm_(uid, hit.q, hit.option) : null;
+}
+/** 管理者模式下規則與第一關都接不住的句子：留在管理者端回覆，絕不落到使用者端的「不在服務範圍」。 */
+function lineAdminNotSureReply_() {
+  var open = [];
+  try { open = lineAdminQuestions_('待回答'); } catch (e) { open = []; }
+  return [lineText_('這句我還不確定你要做什麼。' + (open.length ? '要回答「要你決定」的題目，可以按卡片上的選項，或直接輸入 1、2、3。' : '') +
+    '也可以按下面的按鈕，或換個說法，例如「待確認的明細」「鴻海為什麼是邊界」「行程指的是勤誠，請改」。', lineAdminQuick_())];
+}
 /** 確認送出後：題目改成已回答，記下回答與裁示ID。 */
 function lineAdminQuestionMark_(qid, answer, rulingId) {
   var book = lineAdminBook_();

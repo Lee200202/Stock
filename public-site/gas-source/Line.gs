@@ -543,7 +543,8 @@ function lineRoute_(uid, ch, act, deferTouch) {
   LINE_ADMIN_CTX_ = typeof lineAdminActive_ === 'function' && lineAdminActive_(uid);
   if (LINE_ADMIN_CTX_ && typeof lineAdminMenuEnsure_ === 'function') { lineAdminMenuEnsure_(uid); }
   if (LINE_ADMIN_CTX_ && typeof lineAdminQAnswerTyped_ === 'function' && /^(?:outofscope|stock|adminquery|adminfree|adminrule|greeting|thanks)$/.test(act.a || '')) {
-    var typedAnswer = lineAdminQAnswerTyped_(uid, act.src || act.raw || act.q || '');
+    var typedAnswer = lineAdminQAnswerTyped_(uid, act.src || act.raw || act.q || '') ||
+      lineAdminQAnswerByText_(uid, act.src || act.raw || act.q || '');   // 2026/11/11：打「1」「維持觀望不碰」也算選了選項
     if (typedAnswer) { return typedAnswer; }
   }
   // v220：像裁示的句子先確認身分。管理者模式→裁示；綁定過但登出→問要不要切換；其他人→照一般查詢回覆。
@@ -557,7 +558,7 @@ function lineRoute_(uid, ch, act, deferTouch) {
     // 2026/11/11：先請第一關（Claude Sonnet）理解，例如「待確認的明細」要的是那一級的明細，不是待裁示清單；失敗才照規則
     var aq1 = typeof lineAdminAi_ === 'function' ? lineAdminAi_(uid, act.src || act.raw) : null;
     if (aq1) { return aq1; }
-    return lineAdminIntentReply_(act.q) || lineOutOfScopeReply_('general', act.raw);
+    return lineAdminIntentReply_(act.q) || lineAdminNotSureReply_();
   }
   // 2026/11/11（管理者）：管理者模式只接管理者的話。不是管理者查詢、也不是查得到的股票，就出「送給雲端」確認卡，
   // 不再落到使用者端的「找不到這檔股票」或「不在服務範圍」。順序：指示語氣 → Gemini 判斷查詢意圖 → 其餘一律送雲端確認。
@@ -627,9 +628,10 @@ function lineRoute_(uid, ch, act, deferTouch) {
     case 'bind': return lineBindReply_(uid, ch, act.code);
     case 'probe': return [lineText_(LINE_SAFE_REPLY_, lineQuickMain_())];
     case 'toolong': return [lineText_('訊息太長了。請輸入股票代號或名稱，或點下方的按鈕。', lineQuickMain_())];
-    case 'outofscope': return lineOutOfScopeReply_(act.kind, act.raw);
+    // 2026/11/11：管理者模式不回使用者端的「不在服務範圍」
+    case 'outofscope': return LINE_ADMIN_CTX_ && typeof lineAdminNotSureReply_ === 'function' ? lineAdminNotSureReply_() : lineOutOfScopeReply_(act.kind, act.raw);
     case 'tab': return [];
-    default: return lineOutOfScopeReply_('general', act.raw);
+    default: return LINE_ADMIN_CTX_ && typeof lineAdminNotSureReply_ === 'function' ? lineAdminNotSureReply_() : lineOutOfScopeReply_('general', act.raw);
   }
 }
 

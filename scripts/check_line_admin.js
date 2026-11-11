@@ -75,7 +75,7 @@ assert.equal(m1.contents.contents.length, 5);            // 2026/11/11：摘要�
   const cards = m1.contents.contents.slice(1);
   const kick = cards.map(c => c.header.contents[0].text);
   assert.deepEqual([...kick], ['明確錯誤・已修正', '待確認・待你裁示', '待確認・已修正', '邊界・只記錄']);   // 依分級排序、標題寫處理狀態
-  assert.deepEqual([...cards.map(c => c.header.backgroundColor)], ['#B42318', '#B54708', '#B54708', '#175CD3']);   // 顏色＝分級
+  assert.deepEqual([...cards.map(c => c.header.backgroundColor)], ['#9B1C1C', '#D0645A', '#D0645A', '#4A9A6A']);   // 顏色＝分級
   assert.equal(ctx.lineParseData_(cards[1].footer.contents[0].action.data).a, 'rulepick');                          // 待你裁示可直接裁示
   assert.equal(cards[3].footer, undefined);                                                                          // 只記錄的邊界沒有按鈕
   const sevBtns = m1.contents.contents[0].footer.contents.filter(b => b.action.type === 'postback').map(b => ctx.lineParseData_(b.action.data));
@@ -83,7 +83,7 @@ assert.equal(m1.contents.contents.length, 5);            // 2026/11/11：摘要�
   const onlyPending = ctx.lineAdminReviewFlex_(data, '待確認');
   assert.equal(onlyPending.contents.contents.length, 3);
   assert.match(onlyPending.altText, /11\/06 待確認 2 項/);
-  assert.equal(onlyPending.contents.contents[0].header.backgroundColor, '#B54708');
+  assert.equal(onlyPending.contents.contents[0].header.backgroundColor, '#D0645A');
 }
 assert.match(m1.altText, /已修正 2 項，待你裁示 1 項/);
 const m2 = ctx.lineAdminPendingFlex_(data);
@@ -545,7 +545,7 @@ console.log('11/11 免費第一關（Gemini）與管理者圖文選單：分流�
   let out = ctx.lineRoute_('Uadmin', 'bot', ctx.lineParseText_('鴻海為什麼是邊界', 'Uadmin', false), true);
   assert.equal(out.length, 1); assert.equal(out[0].contents.type, 'bubble');
   assert.match(out[0].altText, /鴻海 2317：邊界・只記錄/);
-  assert.equal(out[0].contents.header.backgroundColor, '#175CD3');
+  assert.equal(out[0].contents.header.backgroundColor, '#4A9A6A');
   // 第一關回 review＋stock 也只回那一檔；查不到就說沒提到
   assert.equal(ctx.lineAdminReviewReply_('', '', '世芯-KY')[0].contents.type, 'bubble');
   assert.match(ctx.lineAdminReviewReply_('', '', '台積電')[0].text, /沒有提到「台積電」/);
@@ -555,7 +555,7 @@ console.log('11/11 免費第一關（Gemini）與管理者圖文選單：分流�
   const card = ctx.lineAdminQuestionsFlex_(qrows);
   const btns = card.contents.footer.contents.map(b => ctx.lineParseData_(b.action.data));
   assert.deepEqual([...btns.map(b => b.a)], ['qpick', 'qpick', 'qcustom']);
-  assert.equal(card.contents.header.backgroundColor, '#B54708');
+  assert.equal(card.contents.header.backgroundColor, '#D0645A');
   const store = new Map();
   ctx.CacheService = { getScriptCache: () => ({ get: k => (store.has(k) ? store.get(k) : null), put: (k, v) => store.set(k, String(v)), remove: k => store.delete(k) }) };
   out = ctx.lineRoute_('Uadmin', 'bot', { a: 'qpick', q: 'Q1', o: '0' }, true);
@@ -785,8 +785,8 @@ console.log('11/11 短語音殘句：規則猜常用問句、模型失敗也能�
   assert.equal(msg.contents.type, 'carousel'); assert.equal(msg.contents.contents.length, 7);   // 摘要＋六點
   const b = msg.contents.contents;
   assert.match(JSON.stringify(b[0]), /今天沒有要你確認的東西/); assert.match(JSON.stringify(b[0]), /邊界 2/);
-  assert.equal(b[1].header.backgroundColor, '#B54708'); assert.equal(b[2].header.backgroundColor, '#175CD3');
-  assert.equal(b[5].header.backgroundColor, '#6941C6'); assert.equal(b[6].header.backgroundColor, '#344054');   // 不認得的類型當資訊
+  assert.equal(b[1].header.backgroundColor, '#D0645A'); assert.equal(b[2].header.backgroundColor, '#4A9A6A');
+  assert.equal(b[5].header.backgroundColor, '#4A9A6A'); assert.equal(b[6].header.backgroundColor, '#4A9A6A');   // 不認得的類型當資訊
   assert.match(b[1].header.contents[0].text, /待確認・已修正/);
   assert.equal(b[2].footer, undefined);                                                       // 只記錄 → 不給裁示鈕
   assert.equal(ctx.lineParseData_(b[3].footer.contents[0].action.data).a, 'rulepick');         // 待你決定 → 可裁示
@@ -825,3 +825,14 @@ console.log('11/11 雲端回答卡片：摘要卡＋每點一張、類型顏色�
   assert.ok(q.includes('問題'.repeat(120)) && q.includes('背景'.repeat(150)));
 })();
 console.log('11/11 卡片內文完整、giga 寬度、50KB 以內通過');
+
+// ---- 2026/11/11（管理者）：顏色收斂成紅→綠四段（兩深兩淺） ----
+(() => {
+  const used = new Set(Object.values(ctx.LINE_ADMIN_SEV_COLOR_).concat(Object.values(ctx.LINE_ADMIN_ITEM_TYPES_)));
+  assert.deepEqual([...used].sort(), ['#1E5E3E', '#4A9A6A', '#9B1C1C', '#D0645A']);
+  assert.deepEqual({ ...ctx.LINE_ADMIN_SEV_COLOR_ }, { 明確錯誤: '#9B1C1C', 待確認: '#D0645A', 邊界: '#4A9A6A', 複核錯: '#1E5E3E' });
+  // 白字標題對比至少 3:1（標題是粗體大字）
+  const lum = h => { const c = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255).map(v => v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+  for (const h of used) assert.ok(1.05 / (lum(h) + 0.05) >= 3, h + ' 對白字對比不足');
+})();
+console.log('11/11 四段紅綠漸層、白字對比通過');

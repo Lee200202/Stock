@@ -296,7 +296,9 @@ function lineAdminMoreBubble_(n, url) {
 }
 /* 2026/11/11（管理者）：四個分級各一個顏色，每一項一張卡（以前只放已修改的，待確認／邊界／複核錯看不出來）。 */
 var LINE_ADMIN_SEV_ORDER_ = ['明確錯誤', '待確認', '邊界', '複核錯'];
-var LINE_ADMIN_SEV_COLOR_ = { '明確錯誤': '#B42318', '待確認': '#B54708', '邊界': '#175CD3', '複核錯': '#475467' };
+/* 2026/11/11（管理者）：顏色太多樣，改成紅→綠四段漸層（兩深兩淺）：深紅＝明確錯誤、淺紅＝待確認、淺綠＝邊界、深綠＝複核錯（網站對、複核錯）。 */
+var LINE_ADMIN_SCALE_ = { deepRed: '#9B1C1C', red: '#D0645A', green: '#4A9A6A', deepGreen: '#1E5E3E' };
+var LINE_ADMIN_SEV_COLOR_ = { '明確錯誤': LINE_ADMIN_SCALE_.deepRed, '待確認': LINE_ADMIN_SCALE_.red, '邊界': LINE_ADMIN_SCALE_.green, '複核錯': LINE_ADMIN_SCALE_.deepGreen };
 /** 純函式：這一列現在的處理狀態（卡片標題用）。 */
 function lineAdminRowState_(r) {
   if (r['處理'] === '已修正') { return '已修正'; }
@@ -308,7 +310,7 @@ function lineAdminRowState_(r) {
 function lineAdminSevRank_(r) { var k = LINE_ADMIN_SEV_ORDER_.indexOf(r['嚴重度']); return k < 0 ? 9 : k; }
 /** 一項一張卡：頂部色條＝分級，標題＝分級・處理狀態。 */
 function lineAdminSevBubble_(r, day) {
-  var sev = r['嚴重度'] || '其他', color = LINE_ADMIN_SEV_COLOR_[sev] || '#667085', state = lineAdminRowState_(r);
+  var sev = r['嚴重度'] || '其他', color = LINE_ADMIN_SEV_COLOR_[sev] || LINE_ADMIN_SCALE_.green, state = lineAdminRowState_(r);
   var cls = r['網站分類'] && r['複核分類'] && r['網站分類'] !== r['複核分類'] ? r['網站分類'] + ' → ' + r['複核分類'] : (r['複核分類'] || r['網站分類'] || '');
   var open = state === '修正未完成' || state === '待你裁示';
   var code = String(r['代號'] || '').trim();
@@ -963,7 +965,7 @@ function lineAdminQuestions_(state) {
 function lineAdminQuestionBubble_(r) {
   var opts = lineAdminQOptions_(r), id = encodeURIComponent(r['問題ID']);
   var marks = ['①', '②', '③', '④'];
-  return lineAdminBubble_(fxHeader_('要你決定・' + (lineMd_(r['日期']) || r['日期']), lineAdminCut_(r['問題'], LINE_ADMIN_FULL_), '#B54708'), [
+  return lineAdminBubble_(fxHeader_('要你決定・' + (lineMd_(r['日期']) || r['日期']), lineAdminCut_(r['問題'], LINE_ADMIN_FULL_), LINE_ADMIN_SCALE_.red), [
     lineAdminLine_('問題', lineAdminCut_(r['問題'], LINE_ADMIN_FULL_)),
     lineAdminLine_('背景', lineAdminCut_(r['背景'], LINE_ADMIN_FULL_)),
     opts.length ? fxBox_('vertical', opts.map(function (o, i) { return fxText_(marks[i] + ' ' + o, { size: 'sm', color: LINE_C_.ink, wrap: true }); }), { spacing: 'sm' }) : null,
@@ -1242,9 +1244,12 @@ function lineAdminFastTick_() {
 /* 2026/11/11（管理者）：雲端的回答用卡片呈現，一點一張。雲端把 --note 寫成 JSON：
    {"summary":"一句總結","items":[{"type":"待確認","title":"…","status":"已修正","detail":"…","ref":"差異明細第87列","date":"2026/11/11","code":"2317","qid":"Q…"}]}
    type 決定顏色；有 code 且還沒處理的可「裁示這一檔」，有 qid 的可「看這一題」。不是 JSON 就照舊用文字。 */
+// 雲端卡片的類型也併進同一組四色：要處理的偏紅、沒問題的偏綠
 var LINE_ADMIN_ITEM_TYPES_ = {
-  '明確錯誤': '#B42318', '待確認': '#B54708', '邊界': '#175CD3', '複核錯': '#475467', '已修正': '#067647',
-  '問題': '#B54708', '裁示': '#0A4A3C', '候選': '#6941C6', '提醒': '#B42318', '資訊': '#344054'
+  '明確錯誤': LINE_ADMIN_SCALE_.deepRed, '提醒': LINE_ADMIN_SCALE_.deepRed,
+  '待確認': LINE_ADMIN_SCALE_.red, '問題': LINE_ADMIN_SCALE_.red,
+  '邊界': LINE_ADMIN_SCALE_.green, '候選': LINE_ADMIN_SCALE_.green, '資訊': LINE_ADMIN_SCALE_.green,
+  '複核錯': LINE_ADMIN_SCALE_.deepGreen, '已修正': LINE_ADMIN_SCALE_.deepGreen, '裁示': LINE_ADMIN_SCALE_.deepGreen
 };
 /** 純函式：結果欄若是卡片 JSON 就回物件，否則 null。 */
 function lineAdminParseCards_(text) {

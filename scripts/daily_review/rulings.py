@@ -19,7 +19,7 @@ import json
 from common import norm_day, now, open_book, open_log, pipeline, rows_of, sha
 
 TAB = '管理者裁示'
-TERMINAL = ('已完成', '失敗', '已記錄', '已取消')
+TERMINAL = ('已完成', '失敗', '已記錄', '已取消', '待確認', '已轉交')   # 2026/11/11：對話列雲端提出做法＝待確認；管理者確認後 Apps Script 改已轉交
 STATES = ('待處理', '處理中', '套用中') + TERMINAL
 
 
@@ -42,7 +42,7 @@ def transition(head, rows, *, ids=None, branch=None, state, require=None, set_br
         if set_branch is not None:
             r['分支'] = set_branch
         if note is not None:
-            r['結果'] = note[:300]
+            r['結果'] = note[:600]   # 2026/11/11：對話的回答較長
         out.append((i, [r.get(h, '') for h in head]))
     return out
 

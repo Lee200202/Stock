@@ -620,3 +620,69 @@ console.log('11/11 單一股票一張卡、每日複核問題選項卡（選、�
   ctx.lineProp_ = prevProp;
 })();
 console.log('11/11 打數字或選項文字即選擇、管理者模式不落到使用者端回覆通過');
+
+// ---- 2026/11/11（管理者）：Claude 改在雲端執行並回傳（雲端對話） ----
+(() => {
+  ctx.todayStr_ = () => '2026/11/11';
+  ctx.lineAdminActive_ = uid => uid === 'Uadmin';
+  const props = { CLAUDE_RULING_FIRE_URL: 'https://api.anthropic.com/v1/claude_code/routines/trig_x/fire' };
+  const prevProp = ctx.lineProp_; ctx.lineProp_ = k => props[k] || ''; ctx.lineSetProp_ = (k, v) => { props[k] = String(v); };
+  ctx.lineAdminReviewData_ = () => ({ day: '2026/11/11', summary: {}, rows: [] });
+  ctx.lineAdminQuestions_ = () => [];
+  let gem = 0; ctx.callGemini_ = () => { gem++; return '{}'; };
+  const sheet = []; ctx.lineAdminBook_ = () => ({});
+  ctx.lineAdminRuleSheet_ = () => ({ getLastRow: () => sheet.length + 1, getRange: (r, c) => ({ setValues: v => sheet.push(v[0]), setValue: v => { sheet[r - 2][c - 1] = v; } }) });
+  ctx.withLock_ = f => f();
+  const fired = []; ctx.lineAdminFire_ = ids => { fired.push(...ids); return { ok: true }; };
+  const triggers = []; ctx.ScriptApp = { getProjectTriggers: () => triggers.map(h => ({ getHandlerFunction: () => h })), deleteTrigger: t => triggers.splice(triggers.indexOf(t.getHandlerFunction()), 1),
+    newTrigger: h => ({ timeBased: () => ({ after: () => ({ create: () => triggers.push(h) }) }) }) };
+  // 1. 規則接不住的句子 → 寫「對話」列、觸發雲端、立刻回「已交給雲端」，不呼叫 Gemini
+  const out = ctx.lineRoute_('Uadmin', 'bot', ctx.lineParseText_('今天待確認的四項為什麼都已修正了？誰改的', 'Uadmin', false), true);
+  assert.match(out[0].text, /已交給雲端 Claude/);
+  assert.equal(gem, 0);
+  const row = Object.fromEntries(ctx.LINE_ADMIN_RULE_COLS_.map((k, i) => [k, sheet[0][i]]));
+  assert.equal(row.裁示分類, '對話'); assert.equal(row.名稱, '管理者對話'); assert.equal(row.狀態, '待處理'); assert.match(row.管理者說明, /待確認的四項/);
+  assert.deepEqual([...fired], [row.裁示ID]); assert.match(row.裁示ID, /^C/);
+  assert.deepEqual([...triggers], ['lineAdminFastTick_']);                         // 一分鐘後回來看
+  // 2. 回報：對話列不推「接手」；已記錄 → 文字回答；待確認 → 確認卡
+  const plan = ctx.lineAdminReportPlan_([{ 裁示ID: 'C1', 裁示分類: '對話', 狀態: '處理中', LINE回報: '' }, { 裁示ID: 'R1', 裁示分類: '指示', 狀態: '處理中', LINE回報: '' }]);
+  assert.deepEqual([...plan.started.map(r => r.裁示ID)], ['R1']);
+  const msgs = ctx.lineAdminChatResultMsgs_([
+    { 裁示ID: 'C1', 裁示分類: '對話', 管理者說明: '待確認為什麼都已修正', 狀態: '已記錄', 結果: '11/11 第 87–90 列在 11:46 由每日複核修正分支套用。' },
+    { 裁示ID: 'C2', 裁示分類: '對話', 管理者說明: '鴻海改成注意', 狀態: '待確認', 結果: '把 11/11 鴻海 2317 從觀望不碰改成觀望注意，依據「23幾次買點」。' }]);
+  assert.match(msgs[0].text, /雲端 Claude 回覆「待確認為什麼都已修正」：\n\n11\/11 第 87–90 列/);
+  const btns = msgs[1].contents.footer.contents.map(b => ctx.lineParseData_(b.action.data));
+  assert.deepEqual([...btns.map(b => b.a)], ['chatok', 'chatno']); assert.equal(btns[0].r, 'C2');
+  // 3. 確認送出 → 轉成指示、觸發雲端；對話列改已轉交
+  const rows = [{ _row: 2, 裁示ID: 'C2', 裁示分類: '對話', 日期: '2026/11/11', 管理者說明: '鴻海改成注意', 狀態: '待確認', 結果: '把鴻海改成觀望注意' }];
+  ctx.lineAdminReadTab_ = () => rows;
+  const store = new Map();
+  ctx.CacheService = { getScriptCache: () => ({ get: k => (store.has(k) ? store.get(k) : null), put: (k, v) => store.set(k, String(v)), remove: k => store.delete(k) }) };
+  const states = []; ctx.lineAdminChatSetState_ = (r, st) => { states.push(st); r.狀態 = st; };
+  fired.length = 0; sheet.length = 0;
+  const ok = ctx.lineRoute_('Uadmin', 'bot', { a: 'chatok', r: 'C2' }, true);
+  assert.match(ok[0].text, /已送出裁示/);
+  assert.deepEqual([...states], ['已轉交']);
+  const r2 = Object.fromEntries(ctx.LINE_ADMIN_RULE_COLS_.map((k, i) => [k, sheet[0][i]]));
+  assert.equal(r2.裁示分類, '指示'); assert.match(r2.管理者說明, /鴻海改成注意\n〔雲端理解，管理者已確認，原話為準〕把鴻海改成觀望注意/);
+  assert.equal(fired.length, 1);
+  assert.match(ctx.lineRoute_('Uadmin', 'bot', { a: 'chatok', r: 'C2' }, true)[0].text, /已經已轉交/);     // 不能重複送
+  // 取消
+  rows[0].狀態 = '待確認'; states.length = 0;
+  assert.match(ctx.lineRoute_('Uadmin', 'bot', { a: 'chatno', r: 'C2' }, true)[0].text, /已取消/); assert.deepEqual([...states], ['已取消']);
+  // 4. 一分鐘追蹤：還有待處理就再排，沒有就收掉
+  ctx.lineAdminRulingTick_ = () => ({});
+  triggers.length = 0; props.LINE_RULE_OPEN = '1'; props.LINE_CHAT_TRIES = '0';
+  ctx.lineAdminFastTick_(); assert.deepEqual([...triggers], ['lineAdminFastTick_']);
+  props.LINE_RULE_OPEN = ''; ctx.lineAdminFastTick_(); assert.deepEqual([...triggers], []);
+  // 5. 即時的照舊：按鈕指令、選項數字、單股卡不送雲端；使用者端不送雲端
+  fired.length = 0;
+  ctx.lineAdminReviewReply_ = () => [{ type: 'text', text: 'review' }];
+  ctx.lineRoute_('Uadmin', 'bot', { a: 'adminreview' }, true);
+  ctx.lineFindSub_ = () => ({ tester: false });
+  ctx.lineOutOfScopeReply_ = () => [{ type: 'text', text: 'outofscope' }];
+  ctx.lineRoute_('Uuser', 'bot', ctx.lineParseText_('今天待確認的四項為什麼都已修正了？誰改的', 'Uuser', false), true);
+  assert.equal(fired.length, 0);
+  ctx.lineProp_ = prevProp; delete ctx.ScriptApp;
+})();
+console.log('11/11 雲端對話：送雲端即時回覆、結果文字／確認卡、確認轉指示、取消、一分鐘追蹤、即時與使用者端不送通過');

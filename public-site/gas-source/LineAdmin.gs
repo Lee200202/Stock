@@ -433,8 +433,8 @@ function lineAdminReportPlan_(rows) {
   var started = [], final = [];
   rows.forEach(function (r) {
     var st = String(r['狀態'] || '').trim(), rep = lineAdminReported_(r['LINE回報']);
-    if (/^(?:已完成|失敗|已記錄)$/.test(st) && rep !== 'final') { final.push(r); }
-    else if (/^(?:處理中|套用中)$/.test(st) && !rep) { started.push(r); }
+    if (/^(?:已完成|失敗|已記錄|待確認)$/.test(st) && rep !== 'final') { final.push(r); }
+    else if (/^(?:處理中|套用中)$/.test(st) && !rep && r['裁示分類'] !== '對話') { started.push(r); }   // 對話已即時回「已交給雲端」，不再推接手
   });
   return { started: started, final: final };
 }
@@ -842,6 +842,9 @@ function lineAdminAiGemini_(raw, context) {
 }
 /** 管理者模式的自由句子先走這裡：有 Claude 金鑰用 Claude Sonnet，否則用 Gemini；都失敗回 null（交回規則）。 */
 function lineAdminAi_(uid, raw) {
+  // 2026/11/11（管理者）：Claude 在雲端執行（訂閱內），句子送雲端；觸發沒設定或寫不進紀錄才退回模型直接判斷
+  var cloud = lineAdminCloudChat_(uid, raw);
+  if (cloud) { return cloud; }
   var context = lineAdminAiContext_();
   var ai = lineProp_('ANTHROPIC_API_KEY') ? lineAdminAiCall_(raw, context) : null;
   if (!ai) { ai = lineAdminAiGemini_(raw, context); }
@@ -1086,6 +1089,97 @@ function lineAdminQuestionTick_() {
   return { pushed: ids.length };
 }
 
+/* ---------------- 雲端對話（2026/11/11 管理者：Claude 改在雲端執行並回傳，不付 API 費用） ---------------- */
+// 管理者模式下規則接不住的句子，不再用 Gemini 猜：寫一列「管理者裁示」（裁示分類「對話」）並觸發雲端 Claude 排程，
+// 立刻回「已交給雲端」；雲端讀複核紀錄、原稿後回答（已記錄），要改東西時只提出做法（待確認），
+// Apps Script 每分鐘檢查一次，把答案或「確認送出」卡推回 LINE；按確認才轉成指示交給雲端套用。
+var LINE_ADMIN_CHAT_TRIES_ = 15;   // 送出後最多連續檢查 15 分鐘，之後交回五分鐘排程
+function lineAdminCloudChat_(uid, said) {
+  var text = lineClip_(String(said || '').trim(), 500);
+  if (!text) { return null; }
+  if (!lineProp_('CLAUDE_RULING_FIRE_URL')) { return null; }   // 雲端觸發沒設定：交回原本的處理
+  var book = lineAdminBook_();
+  if (!book) { return null; }
+  var day = '';
+  try { var d = lineAdminReviewData_(todayStr_(), true); day = d ? d.day : ''; } catch (e) { day = ''; }
+  var id = 'C' + Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyyMMddHHmmss') + Math.floor(Math.random() * 900 + 100);
+  var now = lineNow_(), sh = lineAdminRuleSheet_(book);
+  var row = { '建立時間': now, '裁示ID': id, '日期': day || todayStr_(), '代號': '', '名稱': '管理者對話', '裁示分類': '對話', '管理者說明': text,
+              '來源': 'LINE', '管理者': lineMask_(uid), '狀態': '待處理', '分支': '', '結果': '', '更新時間': now, 'LINE回報': '' };
+  withLock_(function () {
+    sh.getRange(Math.max(sh.getLastRow(), 1) + 1, 1, 1, LINE_ADMIN_RULE_COLS_.length).setValues([LINE_ADMIN_RULE_COLS_.map(function (k) { return row[k]; })]);
+  });
+  lineSetProp_('LINE_RULE_OPEN', '1');
+  var fired = lineAdminFire_([id]);
+  lineAdminFastTickSchedule_(true);
+  return [lineText_(fired.ok ? '已交給雲端 Claude，讀複核紀錄與原稿後回覆到這裡（約 1–3 分鐘）。要改網站的話，它會先給你確認卡，按「確認送出」才會改。'
+    : '已記下，但雲端觸發暫時失敗（' + fired.reason + '）；每分鐘會再試，回覆一樣會送到這裡。', lineAdminQuick_())];
+}
+/** 每分鐘檢查一次雲端回覆（只在有待處理的裁示或對話時），最多 LINE_ADMIN_CHAT_TRIES_ 次。 */
+function lineAdminFastTickSchedule_(reset) {
+  try {
+    if (reset) { lineSetProp_('LINE_CHAT_TRIES', '0'); }
+    ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'lineAdminFastTick_') { ScriptApp.deleteTrigger(t); } });
+    ScriptApp.newTrigger('lineAdminFastTick_').timeBased().after(60 * 1000).create();
+  } catch (e) { Logger.log('雲端對話追蹤排程失敗：' + e); }
+}
+function lineAdminFastTick_() {
+  var tries = Number(lineProp_('LINE_CHAT_TRIES') || 0) + 1;
+  lineSetProp_('LINE_CHAT_TRIES', String(tries));
+  var res = null;
+  try { res = lineAdminRulingTick_(); } catch (e) { Logger.log('雲端對話追蹤失敗：' + e); }
+  var open = lineProp_('LINE_RULE_OPEN') === '1';
+  if (open && tries < LINE_ADMIN_CHAT_TRIES_) { lineAdminFastTickSchedule_(false); }
+  else { try { ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'lineAdminFastTick_') { ScriptApp.deleteTrigger(t); } }); } catch (e2) {} }
+  return res;
+}
+/** 純函式：雲端對話的結果 → LINE 訊息。已記錄＝文字回答；待確認＝雲端提出的做法＋確認卡。 */
+function lineAdminChatResultMsgs_(rows) {
+  return (rows || []).slice(0, 4).map(function (r) {
+    var ask = lineAdminCut_(r['管理者說明'], 40), ans = String(r['結果'] || '').trim();
+    if (r['狀態'] === '待確認') {
+      var id = encodeURIComponent(r['裁示ID']);
+      return lineFlex_('雲端理解你要：' + lineAdminCut_(ans, 60), fxBubble_(
+        fxHeader_('雲端 Claude・請確認', '要改之前先跟你確認', '#0A4A3C'),
+        [lineAdminLine_('你說', lineAdminCut_(r['管理者說明'], 200)), lineAdminLine_('雲端理解你要', lineAdminCut_(ans, 500)),
+         fxNote_('按「確認送出」後雲端照這個做法讀原稿修改並讀回，接手與結果都會回報；不對就按取消再說一次。')],
+        [fxBtn_(linePb_('確認送出', 'a=chatok&r=' + id, '確認送出')), fxBtn_(linePb_('取消', 'a=chatno&r=' + id, '取消'), 'link')]));
+    }
+    if (r['狀態'] === '失敗') { return lineText_('雲端沒能處理「' + ask + '」：' + (ans || '原因未寫') + '\n可以換個說法再試一次。', lineAdminQuick_()); }
+    return lineText_('雲端 Claude 回覆「' + ask + '」：\n\n' + (ans || '（雲端沒有寫內容）'), lineAdminQuick_());
+  });
+}
+function lineAdminChatRow_(id) {
+  var book = lineAdminBook_();
+  if (!book) { return null; }
+  return lineAdminReadTab_(book, LINE_ADMIN_RULE_TAB_, '').filter(function (r) { return r['裁示ID'] === id; })[0] || null;
+}
+function lineAdminChatSetState_(row, state) {
+  var book = lineAdminBook_(), sh = book && lineAdminRuleSheet_(book);
+  if (!sh || !row) { return; }
+  var c = LINE_ADMIN_RULE_COLS_.indexOf('狀態') + 1, u = LINE_ADMIN_RULE_COLS_.indexOf('更新時間') + 1;
+  sh.getRange(row._row, c).setValue(state); sh.getRange(row._row, u).setValue(lineNow_());
+}
+/** 「確認送出」：雲端提出的做法轉成一則指示交給雲端套用。 */
+function lineAdminChatOkReply_(uid, id) {
+  var r = lineAdminChatRow_(id);
+  if (!r || r['裁示分類'] !== '對話') { return [lineText_('找不到這則對話。', lineAdminQuick_())]; }
+  if (r['狀態'] !== '待確認') { return [lineText_('這則已經' + r['狀態'] + '，不用再確認。', lineAdminQuick_())]; }
+  var draft = { id: 'R' + Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyyMMddHHmmss') + Math.floor(Math.random() * 900 + 100),
+                date: lineFmtDay_(r['日期']), code: '', name: '管理者指示', cat: '指示', said: r['管理者說明'],
+                text: lineClip_(r['管理者說明'] + '\n〔雲端理解，管理者已確認，原話為準〕' + r['結果'], 800) };
+  CacheService.getScriptCache().put('line_rule_draft_' + uid, JSON.stringify(draft), 900);
+  lineAdminChatSetState_(r, '已轉交');
+  var out = lineAdminRuleOk_(uid, draft.id);
+  lineAdminFastTickSchedule_(true);
+  return out;
+}
+function lineAdminChatNoReply_(id) {
+  var r = lineAdminChatRow_(id);
+  if (r && r['狀態'] === '待確認') { lineAdminChatSetState_(r, '已取消'); }
+  return [lineText_('已取消，網站不會改。要的話換個說法再說一次。', lineAdminQuick_())];
+}
+
 /* ---------------- 五分鐘排程 ---------------- */
 function lineAdminTick_() {
   if (!lineConfigured_() || linePushMode_() === 'off') { return { skipped: 'off' }; }
@@ -1137,8 +1231,10 @@ function lineAdminRulingTick_() {
   }
   if (ready.length) {
     var ids = ready.map(function (r) { return r['裁示ID']; });
+    var chats = ready.filter(function (r) { return r['裁示分類'] === '對話'; }), others = ready.filter(function (r) { return r['裁示分類'] !== '對話'; });
+    var msgs = lineAdminChatResultMsgs_(chats).concat(others.length ? [lineAdminResultFlex_(others)] : []).slice(0, 5);
     var q = lineQueue_({ id: 'admin-rule|' + ids.join(',').slice(0, 120), kind: 'admin', date: todayStr_(), source: '管理者裁示 ' + ids.join(','),
-      expiresAt: Date.now() + 6 * 3600 * 1000, messages: [lineAdminResultFlex_(ready)] });
+      expiresAt: Date.now() + 6 * 3600 * 1000, messages: msgs });
     ready.forEach(function (r) { sh.getRange(r._row, col).setValue(stamp); });
     if (q.created) { lineDeliverTick_({ only: q.id, budgetMs: 45000 }); }
     res.reported = ready.length;

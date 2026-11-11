@@ -229,6 +229,7 @@ console.log('r2 測試雲端通過');
   assert.deepEqual([...btn], ['ruleresume', 'rulequery']);
   ctx.lineOutOfScopeReply_ = () => [{ type: 'text', text: 'outofscope' }];
   ctx.lineStockReply_ = q => [{ type: 'text', text: 'stock:' + q }];
+  gem = 0;   // 2026/11/11：管理者那一句會先走第一關（Gemini）；這裡只驗使用者不呼叫
   const asUser = ctx.lineRoute_('Uuser', 'bot', act, true);
   assert.doesNotMatch(JSON.stringify(asUser), /裁示|管理者/);              // 一般使用者不透露管理者功能
   // 「切換管理者並裁示」→ 開管理者模式，接著出確認卡
@@ -364,6 +365,7 @@ console.log('11/10 管理者一般問句：規則判斷日期與意圖、Gemini 
   // 使用者：不透露、不呼叫模型
   ctx.lineOutOfScopeReply_ = () => [{ type: 'text', text: 'outofscope' }];
   ctx.lineStockReply_ = q => [{ type: 'text', text: 'stock:' + q }];
+  gem = 0;   // 2026/11/11：管理者那一句會先走第一關（Gemini）；這裡只驗使用者不呼叫
   const asUser = ctx.lineRoute_('Uuser', 'bot', act, true);
   assert.doesNotMatch(JSON.stringify(asUser), /指示|管理者/);
   assert.equal(gem, 0);
@@ -484,3 +486,41 @@ console.log('11/11 管理者模式只接管理者的話：待裁示問句直接�
   ctx.lineProp_ = prevProp; delete ctx.UrlFetchApp;
 })();
 console.log('11/11 第一關 Claude Sonnet：分級明細、直接回答、修改確認卡帶理解、提問送雲端、失敗回規則、使用者不呼叫通過');
+
+// ---- 2026/11/11（管理者）：不付 API 費用時第一關用 Gemini；管理者圖文選單只連到管理者帳號 ----
+(() => {
+  ctx.todayStr_ = () => '2026/11/11';
+  ctx.lineAdminActive_ = uid => uid === 'Uadmin';
+  ctx.lineAdminReviewData_ = () => ({ day: '2026/11/11', summary: {}, rows: [] });
+  ctx.lineAdminBook_ = () => null;
+  const prevProp = ctx.lineProp_; const props = { LINE_CHANNEL_ACCESS_TOKEN: 't' }; ctx.lineProp_ = k => props[k] || '';
+  const store = new Map();
+  ctx.CacheService = { getScriptCache: () => ({ get: k => (store.has(k) ? store.get(k) : null), put: (k, v) => store.set(k, String(v)), remove: k => store.delete(k) }) };
+  // 1. 沒設 ANTHROPIC_API_KEY：第一關改用 Gemini，同一份提示，回覆照樣分流
+  let gemArgs = null; ctx.callGemini_ = (sys, user, opt) => { gemArgs = { sys, user, opt };
+    return JSON.stringify({ intent: 'review', date: '', severity: '邊界', stock: '', reply: '', summary: '' }); };
+  const calls = []; ctx.lineAdminReviewReply_ = (d, sev) => { calls.push(sev); return [{ type: 'text', text: 'review ' + sev }]; };
+  const api = []; ctx.lineApi_ = (m, path) => { api.push(m + ' ' + path); return { code: 200, json: {} }; };
+  assert.equal(ctx.lineRoute_('Uadmin', 'bot', ctx.lineParseText_('我想看邊界的那幾項', 'Uadmin', false), true)[0].text, 'review 邊界');
+  assert.match(gemArgs.sys, /第一關/); assert.match(gemArgs.sys, /intent、date、severity/); assert.equal(gemArgs.opt.json, true);
+  // 2. 管理者選單：定義六格、熱區不超出 2500×1686
+  const def = ctx.lineAdminMenuDef_();
+  assert.equal(def.areas.length, 6); assert.equal(def.chatBarText, '管理者');
+  for (const a of def.areas) { assert.ok(a.bounds.x + a.bounds.width <= 2500 && a.bounds.y + a.bounds.height <= 1686); }
+  assert.deepEqual([...def.areas.map(a => a.action.data ? ctx.lineParseData_(a.action.data).a : a.action.text)],
+    ['adminreview', 'adminpending', 'adminprogress', 'askstock', 'adminformat', '取消管理者']);
+  // 3. 管理者模式的訊息會補連結選單（已有就不重複）；回到使用者解除
+  props.LINE_ADMIN_MENU = JSON.stringify({ id: 'RM1', name: 'zz-admin-v1' });
+  api.length = 0; store.clear();
+  ctx.lineRoute_('Uadmin', 'bot', { a: 'adminprogress' }, true);
+  assert.ok(api.includes('post /v2/bot/user/Uadmin/richmenu/RM1'), '進入管理者要連結管理者選單');
+  api.length = 0; ctx.lineRoute_('Uadmin', 'bot', { a: 'adminprogress' }, true);
+  assert.ok(!api.some(x => /\/v2\/bot\/user\/Uadmin\/richmenu/.test(x)), '六小時內不重複連結');
+  api.length = 0; ctx.lineAdminMenuLink_('Uadmin', false);
+  assert.ok(api.includes('delete /v2/bot/user/Uadmin/richmenu'), '回到使用者要解除');
+  // 一般使用者不連結
+  api.length = 0; ctx.lineFindSub_ = () => ({}); ctx.lineRoute_('Uuser', 'bot', { a: 'help' }, true);
+  assert.ok(!api.some(x => /richmenu/.test(x)));
+  ctx.lineProp_ = prevProp;
+})();
+console.log('11/11 免費第一關（Gemini）與管理者圖文選單：分流、六格熱區、進入連結、回到使用者解除通過');

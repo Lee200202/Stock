@@ -51,12 +51,14 @@ function lineAdminOnReply_(uid, ch) {
   }
   lineAdminSetMode_(uid, ch, true);
   LINE_ADMIN_CTX_ = true;
+  lineAdminMenuLink_(uid, true);   // 下方圖文選單換成管理者版
   return [lineAdminHomeFlex_(true)];
 }
 function lineAdminOffReply_(uid, ch) {
   var s = lineFindSub_(uid, ch);
   if (s.tester && s.adminMode) { lineAdminSetMode_(uid, ch, false); }
   LINE_ADMIN_CTX_ = false;
+  lineAdminMenuLink_(uid, false);  // 回到全體預設的使用者選單
   return [lineAdminExitFlex_()];
 }
 function lineAdminQuick_() {
@@ -64,6 +66,63 @@ function lineAdminQuick_() {
           linePb_('裁示進度', 'a=adminprogress', '裁示進度'),
           linePb_('裁示格式', 'a=adminformat', '裁示格式'), linePb_('今日整理', 'a=today', '今日整理'),
           linePb_('查個股', 'a=askstock', '查個股', { inputOption: 'openKeyboard' }), lineMsg_('回到使用者', '取消管理者')];
+}
+
+/* ---------------- 管理者圖文選單（2026/11/11 管理者） ---------------- */
+// 進入管理者模式後，畫面下方的圖文選單直接換成管理者版（只連結到這個帳號）；輸入「取消管理者」才解除，回到全體預設的使用者選單。
+// 圖片放在公開 repo（line-webhook/static/richmenu-admin.png，scripts/make_line_richmenu.py 產生），從 GitHub 讀，不必重新部署轉送服務。
+var LINE_ADMIN_MENU_ = { name: 'zz-admin-v1', image: 'richmenu-admin.png',
+  sha256: '806728d2ee5bd357b1913a93526712ce3833742ffa52db2be77d77f22dcded24',
+  url: 'https://raw.githubusercontent.com/Lee200202/Stock/main/line-webhook/static/richmenu-admin.png' };
+function lineAdminMenuDef_() {
+  var W = 2500, TOP = 220, CW = 833, CH = 733;
+  var cell = function (i, action) {
+    var col = i % 3, row = Math.floor(i / 3);
+    return { bounds: { x: col * CW, y: TOP + row * CH, width: col === 2 ? W - 2 * CW : CW, height: CH }, action: action };
+  };
+  return { size: { width: W, height: 1686 }, selected: true, name: LINE_ADMIN_MENU_.name, chatBarText: '管理者',
+    areas: [cell(0, linePb_('今日稽核', 'a=adminreview', '今日稽核')), cell(1, linePb_('待裁示', 'a=adminpending', '待裁示')),
+            cell(2, linePb_('裁示進度', 'a=adminprogress', '裁示進度')), cell(3, linePb_('查個股', 'a=askstock', '查個股', { inputOption: 'openKeyboard' })),
+            cell(4, linePb_('裁示格式', 'a=adminformat', '裁示格式')), cell(5, { type: 'message', label: '回到使用者', text: '取消管理者' })] };
+}
+/** 取得（必要時建立）管理者選單的 ID。版本名稱不同就重建。 */
+function lineAdminMenuId_() {
+  var saved = {};
+  try { saved = JSON.parse(lineProp_('LINE_ADMIN_MENU') || '{}'); } catch (e) { saved = {}; }
+  if (saved.id && saved.name === LINE_ADMIN_MENU_.name) {
+    var chk = lineApi_('get', '/v2/bot/richmenu/' + encodeURIComponent(saved.id));
+    if (chk.code === 200) { return saved.id; }
+  }
+  var img;
+  try { img = UrlFetchApp.fetch(LINE_ADMIN_MENU_.url, { muteHttpExceptions: true }); } catch (e) { img = null; }
+  if (!img || img.getResponseCode() !== 200) { Logger.log('管理者選單圖片讀不到'); return ''; }
+  var bytes = img.getBlob().getBytes();
+  if (lineImageSha256_(bytes) !== LINE_ADMIN_MENU_.sha256) { Logger.log('管理者選單圖片版本不符'); return ''; }
+  var c = lineApi_('post', '/v2/bot/richmenu', lineAdminMenuDef_());
+  if (c.code !== 200 || !c.json || !c.json.richMenuId) { Logger.log('管理者選單建立失敗：' + lineErrText_(c)); return ''; }
+  var up = lineApi_('post', '/v2/bot/richmenu/' + c.json.richMenuId + '/content', null, { data: true, bytes: bytes, contentType: 'image/png' });
+  if (up.code !== 200) { Logger.log('管理者選單圖片上傳失敗：' + lineErrText_(up)); return ''; }
+  if (saved.id && saved.id !== c.json.richMenuId) { lineApi_('delete', '/v2/bot/richmenu/' + encodeURIComponent(saved.id)); }
+  lineSetProp_('LINE_ADMIN_MENU', JSON.stringify({ id: c.json.richMenuId, name: LINE_ADMIN_MENU_.name }));
+  return c.json.richMenuId;
+}
+/** on＝true 連結管理者選單到這個帳號；false 解除（回到全體預設的使用者選單）。失敗不影響回覆。 */
+function lineAdminMenuLink_(uid, on) {
+  if (!uid || !lineProp_('LINE_CHANNEL_ACCESS_TOKEN')) { return false; }
+  var cache = CacheService.getScriptCache(), key = 'line_admin_menu_' + uid;
+  try {
+    if (!on) { lineApi_('delete', '/v2/bot/user/' + encodeURIComponent(uid) + '/richmenu'); cache.remove(key); return true; }
+    var id = lineAdminMenuId_();
+    if (!id) { return false; }
+    var r = lineApi_('post', '/v2/bot/user/' + encodeURIComponent(uid) + '/richmenu/' + id);
+    if (r.code === 200) { cache.put(key, id, 21600); return true; }
+  } catch (e) { Logger.log('管理者選單連結失敗：' + e); }
+  return false;
+}
+/** 已在管理者模式的帳號（例如版本更新前就登入的）第一次互動時補連結；六小時內不重複呼叫。 */
+function lineAdminMenuEnsure_(uid) {
+  try { if (CacheService.getScriptCache().get('line_admin_menu_' + uid)) { return; } } catch (e) { return; }
+  lineAdminMenuLink_(uid, true);
 }
 
 /* ---------------- 文字指令 ---------------- */
@@ -633,7 +692,7 @@ function lineAdminFire_(ids) {
   }
 }
 
-/* ---------------- 第一關：Claude Sonnet 理解管理者的話（2026/11/11 管理者） ---------------- */
+/* ---------------- 第一關：模型理解管理者的話（2026/11/11 管理者；預設 Gemini，設了 ANTHROPIC_API_KEY 則用 Claude Sonnet） ---------------- */
 // 管理者模式下不是固定指令、也不是單純查股的句子，先請 Claude Sonnet 5.5 理解想做什麼：
 //   查詢 → 從複核紀錄直接回答，或出既有卡片（稽核分級、待裁示、裁示進度、格式、查股）；
 //   要改分類、網站、複核判定或規則 → 出「送給雲端」確認卡，按「確認送出」才交給 Opus 雲端排程核對原稿並套用。
@@ -736,10 +795,26 @@ function lineAdminAiReply_(uid, raw, ai) {
     default: return ai.reply ? [lineText_(ai.reply, lineAdminQuick_())] : null;
   }
 }
-/** 管理者模式的自由句子先走這裡；沒設金鑰或失敗回 null。 */
+/** 2026/11/11（管理者）：不另付 API 費用時，第一關用既有的 Gemini（Flash Lite），提示與回覆格式相同。 */
+function lineAdminAiGemini_(raw, context) {
+  if (typeof callGemini_ !== 'function') { return null; }
+  var keys = '只回一個 JSON 物件，鍵固定為 intent、date、severity、stock、reply、summary（都是字串）。intent 只能是 ' +
+    LINE_ADMIN_AI_INTENTS_.join('、') + '；severity 只能是空字串或 明確錯誤、待確認、邊界、複核錯。';
+  try {
+    var text = callGemini_(LINE_ADMIN_AI_SYSTEM_ + '\n' + keys,
+      '今天（台北）：' + todayStr_() + '\n複核資料（JSON）：' + JSON.stringify(context || {}) + '\n\n管理者這一句：' + String(raw || '').slice(0, 600),
+      { json: true, maxOut: 1500, thinkingLevel: 'low', maxWaitMs: 20000, singleAttempt: true });
+    return lineAdminAiParse_({ stop_reason: 'end_turn', content: [{ type: 'text', text: String(text || '') }] });
+  } catch (e) {
+    Logger.log('LINE 第一關（Gemini）失敗：' + e);
+    return null;
+  }
+}
+/** 管理者模式的自由句子先走這裡：有 Claude 金鑰用 Claude Sonnet，否則用 Gemini；都失敗回 null（交回規則）。 */
 function lineAdminAi_(uid, raw) {
-  if (!lineProp_('ANTHROPIC_API_KEY')) { return null; }
-  var ai = lineAdminAiCall_(raw, lineAdminAiContext_());
+  var context = lineAdminAiContext_();
+  var ai = lineProp_('ANTHROPIC_API_KEY') ? lineAdminAiCall_(raw, context) : null;
+  if (!ai) { ai = lineAdminAiGemini_(raw, context); }
   return ai ? lineAdminAiReply_(uid, raw, ai) : null;
 }
 

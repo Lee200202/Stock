@@ -26,6 +26,10 @@ PAGES = {
     'notify': [('管理訂閱', '每日總覽訂閱設定', 'bell'), ('使用說明', '可以這樣問', 'help'),
                ('開啟網站', '完整整理與圖表', 'link')],
 }
+# 2026/11/11：管理者選單（只連結到開著管理者模式的帳號），3×2，熱區與 LineAdmin.gs 的 lineAdminMenuDef_ 對齊。
+ADMIN = [('今日稽核', '四色分級的稽核卡', 'doc'), ('待裁示', '要你決定的項目', 'chat'), ('裁示進度', '雲端處理到哪', 'trend'),
+         ('查個股', '輸入代號或名稱', 'search'), ('裁示格式', '股票 分類—說明', 'help'), ('回到使用者', '離開管理者模式', 'link')]
+ACW = 833
 
 
 def font(path, size):
@@ -103,6 +107,27 @@ def draw_page(page, fpath):
     return img
 
 
+def draw_admin(fpath):
+    img = Image.new('RGB', (W, H), C['bg'])
+    d = ImageDraw.Draw(img)
+    f_tab, f_label, f_sub = font(fpath, 88), font(fpath, 96), font(fpath, 54)
+    d.rectangle([0, 0, W, TAB], fill='#0A4A3C')
+    d.text((W / 2, TAB / 2), '管理者模式', font=f_tab, fill='#FFFFFF', anchor='mm')
+    pad = 28
+    for n, (label, sub, kind) in enumerate(ADMIN):
+        col, row = n % 3, n // 3
+        x, y = col * ACW, TAB + row * CH
+        width = W - 2 * ACW if col == 2 else ACW
+        center = x + width / 2
+        d.rounded_rectangle([x + pad, y + pad, x + width - pad, y + CH - pad], radius=44, fill=C['card'], outline=C['line'], width=4)
+        cy = y + CH * .36
+        d.ellipse([center - 130, cy - 130, center + 130, cy + 130], fill=C['soft'])
+        icon(d, kind, int(center), int(cy), 150, '#0A4A3C')
+        d.text((center, y + CH * .68), label, font=f_label, fill=C['ink'], anchor='mm')
+        d.text((center, y + CH * .82), sub, font=f_sub, fill=C['muted'], anchor='mm')
+    return img
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--font', default='')
@@ -111,9 +136,9 @@ def main():
     if not fpath:
         raise SystemExit('找不到中文粗體字型，請用 --font 指定（例如 NotoSansCJK-Bold.ttc）。')
     os.makedirs(OUT, exist_ok=True)
-    for page in ('query', 'notify'):
+    for page in ('query', 'notify', 'admin'):
         out = os.path.join(OUT, 'richmenu-%s.png' % page)
-        draw_page(page, fpath).save(out, 'PNG', optimize=True)
+        (draw_admin(fpath) if page == 'admin' else draw_page(page, fpath)).save(out, 'PNG', optimize=True)
         size = os.path.getsize(out)
         assert size < 1024 * 1024, out + ' 超過 LINE 圖文選單 1MB 上限'
         print(out, size, 'bytes')

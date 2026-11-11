@@ -541,6 +541,7 @@ function lineRoute_(uid, ch, act, deferTouch) {
   if (!deferTouch && act.a !== 'tab') { lineTouch_(uid, ch); }
   // 管理者模式：快速回覆按鈕換成管理者的那一組；管理者指令只對開著管理者模式的綁定帳號生效
   LINE_ADMIN_CTX_ = typeof lineAdminActive_ === 'function' && lineAdminActive_(uid);
+  if (LINE_ADMIN_CTX_ && typeof lineAdminMenuEnsure_ === 'function') { lineAdminMenuEnsure_(uid); }
   // v220：像裁示的句子先確認身分。管理者模式→裁示；綁定過但登出→問要不要切換；其他人→照一般查詢回覆。
   if ((act.a === 'adminrule' || act.a === 'adminfree') && !LINE_ADMIN_CTX_) {
     var who = lineFindSub_(uid, ch);
@@ -561,17 +562,11 @@ function lineRoute_(uid, ch, act, deferTouch) {
     // 單純輸入股票（按鈕、代號、短名稱）照舊查股；長句子交給第一關判斷（「鴻海為什麼是邊界」不是查股）
     var realStock = act.a === 'stock' && (act.c || (said.replace(/\s+/g, '').length <= 10 && lineAdminStockHit_(act.q || said)));
     if (!realStock) {
-      var ai1 = typeof lineAdminAi_ === 'function' ? lineAdminAi_(uid, said) : null;   // 第一關：Claude Sonnet
+      // 第一關（預設 Gemini，設了 ANTHROPIC_API_KEY 則 Claude Sonnet）；2026/11/10 的 Gemini 意圖判斷已併入第一關，不再重複呼叫
+      var ai1 = typeof lineAdminAi_ === 'function' ? lineAdminAi_(uid, said) : null;
       if (ai1) { return ai1; }
       if (act.a === 'stock' && lineAdminStockHit_(act.q || said)) { return lineStockReply_(act.q || said, uid); }
       if (lineAdminLooksLikeInstruction_(said)) { return lineAdminInstructionReply_(uid, said); }
-      if (act.a === 'outofscope' && typeof lineAdminGeminiIntent_ === 'function') {
-        // 2026/11/10：規則判斷不了的管理者句子請 Gemini 判斷意圖與日期（只有管理者會呼叫模型），答案由既有函式產生
-        var gq = lineAdminGeminiIntent_(said, todayStr_());
-        if (gq && gq.intent === 'stock' && gq.stock && lineAdminStockHit_(gq.stock)) { return lineStockReply_(gq.stock, uid); }
-        var gr = gq && /^(?:review|pending|progress|format)$/.test(gq.intent) && lineAdminIntentReply_(gq);
-        if (gr) { return gr; }
-      }
       if (lineAdminSendable_(said)) { return lineAdminInstructionReply_(uid, said); }
     }
   }

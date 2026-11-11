@@ -1094,10 +1094,73 @@ function lineAdminQuestionTick_() {
 // 立刻回「已交給雲端」；雲端讀複核紀錄、原稿後回答（已記錄），要改東西時只提出做法（待確認），
 // Apps Script 每分鐘檢查一次，把答案或「確認送出」卡推回 LINE；按確認才轉成指示交給雲端套用。
 var LINE_ADMIN_CHAT_TRIES_ = 15;   // 送出後最多連續檢查 15 分鐘，之後交回五分鐘排程
+/* 2026/11/11（管理者）：送雲端前先確認文字。管理者打錯字或語音聽錯（例如「天帶」其實是「今天待確認」）時，
+   先用 Gemini 只做錯字與同音字修正（不改意思、不補內容），出「送給雲端前確認」卡：照修正送出／用原句送出／重新輸入。 */
+var LINE_ADMIN_TERMS_ = ['今天', '昨天', '待確認', '待裁示', '邊界', '複核錯', '明確錯誤', '稽核', '複核', '裁示', '已修正', '只記錄',
+  '觀望注意', '觀望不碰', '會員持股', '買入', '賣出', '說明重點', '盤勢總覽', '教學重點', '原稿', '逐字稿'];
+/** 純函式：常見的語音／同音錯字先用規則修（模型失敗時也有基本修正）。 */
+function lineAdminFixCommonTypos_(text) {
+  return String(text || '')
+    .replace(/(管理者|管理員|要|待|需要)才是/g, '$1裁示').replace(/複合錯/g, '複核錯').replace(/(?:每日|今日|今天)?季核|稽合/g, function (m) { return m.replace(/季核|稽合/, '稽核'); })
+    .replace(/每日季(?!核)/g, '每日稽核').replace(/帶確認/g, '待確認').replace(/帶裁示/g, '待裁示').replace(/便捷(?=的|項|列)/g, '邊界');
+}
+/** 錯字修正：先規則，再請 Gemini 只修錯字（不改意思）。回 { text, clear, note }。 */
+function lineAdminFixText_(said) {
+  var base = lineAdminFixCommonTypos_(said), names = [];
+  try { var d = lineAdminReviewData_(todayStr_(), true); names = (d && d.rows || []).map(function (r) { return r['名稱']; }).filter(String).slice(0, 30); } catch (e) { names = []; }
+  if (typeof callGemini_ !== 'function') { return { text: base, clear: true, note: base !== said ? '修正常見錯字' : '' }; }
+  try {
+    var sys = '你只負責修正網站管理者 LINE 訊息裡的錯字、同音字與語音輸入錯誤，不改意思、不補新內容、不回答問題。' +
+      '常用詞：' + LINE_ADMIN_TERMS_.join('、') + '；今天複核提到的股票：' + (names.join('、') || '（無）') + '。' +
+      '只回 JSON：{"text":"修正後的完整句子","clear":true 或 false,"note":"改了什麼，20 字內，沒改就空字串"}。' +
+      '句子太短或看不出要做什麼時 clear=false，text 寫你最可能的意思（例如「天帶」→「今天待確認的有哪些？」）。';
+    var out = JSON.parse(String(callGemini_(sys, String(base).slice(0, 300), { json: true, maxOut: 400, thinkingLevel: 'low', maxWaitMs: 15000, singleAttempt: true }) || '{}'));
+    var text = lineClip_(String(out.text || '').trim(), 400) || base;
+    return { text: text, clear: out.clear !== false, note: lineClip_(String(out.note || ''), 40) };
+  } catch (e) {
+    return { text: base, clear: String(base).replace(/\s+/g, '').length >= 6, note: base !== said ? '修正常見錯字' : '' };
+  }
+}
 function lineAdminCloudChat_(uid, said) {
   var text = lineClip_(String(said || '').trim(), 500);
   if (!text) { return null; }
   if (!lineProp_('CLAUDE_RULING_FIRE_URL')) { return null; }   // 雲端觸發沒設定：交回原本的處理
+  if (!lineAdminBook_()) { return null; }                         // 複核紀錄讀不到：寫不進對話列，交回原本的處理
+  var fix = lineAdminFixText_(text);
+  var draft = { id: 'D' + Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyyMMddHHmmss') + Math.floor(Math.random() * 900 + 100),
+                said: text, fixed: fix.text, clear: fix.clear, note: fix.note };
+  CacheService.getScriptCache().put('line_chat_draft_' + uid, JSON.stringify(draft), 900);
+  return [lineAdminChatPrecheckFlex_(draft)];
+}
+/** 純函式：「送給雲端前確認」卡。 */
+function lineAdminChatPrecheckFlex_(d) {
+  var changed = d.fixed && d.fixed !== d.said, k = encodeURIComponent(d.id);
+  var btns = changed
+    ? [fxBtn_(linePb_('照這句送出', 'a=chatsend&k=' + k + '&v=1', '照修正後的句子送出')), fxBtn_(linePb_('用原句送出', 'a=chatsend&k=' + k + '&v=0', '用原句送出'), 'secondary')]
+    : [fxBtn_(linePb_('送出', 'a=chatsend&k=' + k + '&v=0', '送出給雲端'))];
+  btns.push(fxBtn_(linePb_('重新輸入', 'a=chatretype', '重新輸入'), 'link'));
+  return lineFlex_('送給雲端前確認：' + lineAdminCut_(changed ? d.fixed : d.said, 60), fxBubble_(
+    fxHeader_('送給雲端前確認一下', changed ? '我幫你修了錯字' : '確認這句沒打錯', '#0A4A3C'),
+    [lineAdminLine_('你輸入', lineAdminCut_(d.said, 200)),
+     changed ? lineAdminLine_('我理解成', lineAdminCut_(d.fixed, 300) + (d.note ? '（' + d.note + '）' : '')) : null,
+     d.clear === false ? fxText_('這句我不太確定意思；建議按「重新輸入」打完整一點，或確認上面的理解再送出。', { size: 'sm', color: LINE_C_.amber, wrap: true }) : null,
+     fxNote_('送出後交給雲端 Claude 讀複核紀錄與原稿回答（約 1–3 分鐘）；要改網站時它會再給你確認卡。')].filter(Boolean), btns));
+}
+function lineAdminChatRetypeReply_(uid) {
+  CacheService.getScriptCache().remove('line_chat_draft_' + uid);
+  return [lineText_('好，請重新輸入，打完整一點，例如「今天待確認的明細是什麼」「鴻海為什麼是邊界」。', lineAdminQuick_())];
+}
+/** 「照這句送出／用原句送出」：寫一列「對話」、觸發雲端。v=1 用修正後的句子（附原輸入）。 */
+function lineAdminChatSend_(uid, key, v) {
+  var cache = CacheService.getScriptCache(), d = null;
+  try { d = JSON.parse(cache.get('line_chat_draft_' + uid) || 'null'); } catch (e) { d = null; }
+  if (!d || d.id !== key) { return [lineText_('這句已逾時或已送出過，請重新輸入。', lineAdminQuick_())]; }
+  cache.remove('line_chat_draft_' + uid);
+  var text = String(v) === '1' && d.fixed && d.fixed !== d.said ? d.fixed + '（原輸入：' + d.said + '）' : d.said;
+  return lineAdminCloudChatSubmit_(uid, text) || [lineText_('複核紀錄暫時讀不到，沒有送出；請稍後再試。', lineAdminQuick_())];
+}
+function lineAdminCloudChatSubmit_(uid, said) {
+  var text = lineClip_(String(said || '').trim(), 600);
   var book = lineAdminBook_();
   if (!book) { return null; }
   var day = '';
@@ -1112,7 +1175,7 @@ function lineAdminCloudChat_(uid, said) {
   lineSetProp_('LINE_RULE_OPEN', '1');
   var fired = lineAdminFire_([id]);
   lineAdminFastTickSchedule_(true);
-  return [lineText_(fired.ok ? '已交給雲端 Claude，讀複核紀錄與原稿後回覆到這裡（約 1–3 分鐘）。要改網站的話，它會先給你確認卡，按「確認送出」才會改。'
+  return [lineText_(fired.ok ? '已交給雲端 Claude：「' + lineAdminCut_(text, 40) + '」\n讀複核紀錄與原稿後回覆到這裡（約 1–3 分鐘）。要改網站的話，它會先給你確認卡，按「確認送出」才會改。'
     : '已記下，但雲端觸發暫時失敗（' + fired.reason + '）；每分鐘會再試，回覆一樣會送到這裡。', lineAdminQuick_())];
 }
 /** 每分鐘檢查一次雲端回覆（只在有待處理的裁示或對話時），最多 LINE_ADMIN_CHAT_TRIES_ 次。 */

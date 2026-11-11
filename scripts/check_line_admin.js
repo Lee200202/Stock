@@ -636,10 +636,17 @@ console.log('11/11 打數字或選項文字即選擇、管理者模式不落到�
   const fired = []; ctx.lineAdminFire_ = ids => { fired.push(...ids); return { ok: true }; };
   const triggers = []; ctx.ScriptApp = { getProjectTriggers: () => triggers.map(h => ({ getHandlerFunction: () => h })), deleteTrigger: t => triggers.splice(triggers.indexOf(t.getHandlerFunction()), 1),
     newTrigger: h => ({ timeBased: () => ({ after: () => ({ create: () => triggers.push(h) }) }) }) };
-  // 1. 規則接不住的句子 → 寫「對話」列、觸發雲端、立刻回「已交給雲端」，不呼叫 Gemini
-  const out = ctx.lineRoute_('Uadmin', 'bot', ctx.lineParseText_('今天待確認的四項為什麼都已修正了？誰改的', 'Uadmin', false), true);
-  assert.match(out[0].text, /已交給雲端 Claude/);
-  assert.equal(gem, 0);
+  // 1. 規則接不住的句子 → 先出「送給雲端前確認」卡（錯字修正）→ 按送出才寫「對話」列、觸發雲端
+  const chatStore = new Map();
+  ctx.CacheService = { getScriptCache: () => ({ get: k => (chatStore.has(k) ? chatStore.get(k) : null), put: (k, v) => chatStore.set(k, String(v)), remove: k => chatStore.delete(k) }) };
+  ctx.callGemini_ = () => { gem++; return JSON.stringify({ text: '今天待確認的四項為什麼都已修正了？誰改的', clear: true, note: '' }); };
+  const pre = ctx.lineRoute_('Uadmin', 'bot', ctx.lineParseText_('今天待確認的四項為什麼都已修正了？誰改的', 'Uadmin', false), true);
+  assert.match(pre[0].altText, /送給雲端前確認/);
+  assert.equal(fired.length, 0);                                                   // 確認前不觸發雲端
+  const sendBtn = pre[0].contents.footer.contents.map(b => ctx.lineParseData_(b.action.data));
+  assert.deepEqual([...sendBtn.map(b => b.a)], ['chatsend', 'chatretype']);         // 沒改字：送出／重新輸入
+  const out = ctx.lineRoute_('Uadmin', 'bot', sendBtn[0], true);
+  assert.match(out[0].text, /已交給雲端 Claude：「今天待確認的四項/);
   const row = Object.fromEntries(ctx.LINE_ADMIN_RULE_COLS_.map((k, i) => [k, sheet[0][i]]));
   assert.equal(row.裁示分類, '對話'); assert.equal(row.名稱, '管理者對話'); assert.equal(row.狀態, '待處理'); assert.match(row.管理者說明, /待確認的四項/);
   assert.deepEqual([...fired], [row.裁示ID]); assert.match(row.裁示ID, /^C/);
@@ -686,3 +693,45 @@ console.log('11/11 打數字或選項文字即選擇、管理者模式不落到�
   ctx.lineProp_ = prevProp; delete ctx.ScriptApp;
 })();
 console.log('11/11 雲端對話：送雲端即時回覆、結果文字／確認卡、確認轉指示、取消、一分鐘追蹤、即時與使用者端不送通過');
+
+// ---- 2026/11/11（管理者）：送雲端前先確認文字（錯字、同音字） ----
+(() => {
+  ctx.todayStr_ = () => '2026/11/11';
+  ctx.lineAdminActive_ = uid => uid === 'Uadmin';
+  const props = { CLAUDE_RULING_FIRE_URL: 'x' };
+  const prevProp = ctx.lineProp_; ctx.lineProp_ = k => props[k] || ''; ctx.lineSetProp_ = () => {};
+  ctx.lineAdminReviewData_ = () => ({ day: '2026/11/11', summary: {}, rows: [{ 代號: '2317', 名稱: '鴻海' }] });
+  ctx.lineAdminQuestions_ = () => [];
+  const store = new Map();
+  ctx.CacheService = { getScriptCache: () => ({ get: k => (store.has(k) ? store.get(k) : null), put: (k, v) => store.set(k, String(v)), remove: k => store.delete(k) }) };
+  const sheet = []; ctx.lineAdminBook_ = () => ({});
+  ctx.lineAdminRuleSheet_ = () => ({ getLastRow: () => sheet.length + 1, getRange: () => ({ setValues: v => sheet.push(v[0]) }) });
+  ctx.withLock_ = f => f(); ctx.lineAdminFire_ = () => ({ ok: true }); ctx.ScriptApp = { getProjectTriggers: () => [], newTrigger: () => ({ timeBased: () => ({ after: () => ({ create() {} }) }) }) };
+  // 規則先修常見語音錯字
+  assert.equal(ctx.lineAdminFixCommonTypos_('今天有沒有需要管理者才是的事，複合錯的帶確認'), '今天有沒有需要管理者裁示的事，複核錯的待確認');
+  // 「天帶」：Gemini 判斷看不懂並給最可能的意思 → 確認卡顯示「我理解成」與提醒，三顆按鈕
+  let sys = ''; ctx.callGemini_ = (s, u) => { sys = s; return JSON.stringify({ text: '今天待確認的有哪些？', clear: false, note: '補成完整問句' }); };
+  const pre = ctx.lineRoute_('Uadmin', 'bot', ctx.lineParseText_('天帶', 'Uadmin', false), true);
+  assert.match(sys, /鴻海/); assert.match(sys, /待確認/);                          // 帶入今天的股名與常用詞
+  const card = JSON.stringify(pre[0]);
+  assert.match(card, /你輸入/); assert.match(card, /天帶/); assert.match(card, /我理解成/); assert.match(card, /今天待確認的有哪些？/); assert.match(card, /不太確定意思/);
+  const btns = pre[0].contents.footer.contents.map(b => ctx.lineParseData_(b.action.data));
+  assert.deepEqual([...btns.map(b => b.a + (b.v || ''))], ['chatsend1', 'chatsend0', 'chatretype']);
+  // 照這句送出 → 雲端收到修正後的句子並附原輸入
+  ctx.lineRoute_('Uadmin', 'bot', btns[0], true);
+  const row = Object.fromEntries(ctx.LINE_ADMIN_RULE_COLS_.map((k, i) => [k, sheet[0][i]]));
+  assert.equal(row.管理者說明, '今天待確認的有哪些？（原輸入：天帶）');
+  assert.match(ctx.lineRoute_('Uadmin', 'bot', btns[0], true)[0].text, /已逾時或已送出過/);   // 不重複送
+  // 重新輸入：清掉草稿，不送
+  ctx.lineRoute_('Uadmin', 'bot', ctx.lineParseText_('天帶', 'Uadmin', false), true);
+  assert.match(ctx.lineRoute_('Uadmin', 'bot', { a: 'chatretype' }, true)[0].text, /請重新輸入/);
+  assert.equal(store.has('line_chat_draft_Uadmin'), false); assert.equal(sheet.length, 1);
+  // Gemini 失敗：仍出確認卡（規則修過的句子）
+  ctx.callGemini_ = () => { throw new Error('quota'); };
+  assert.match(ctx.lineRoute_('Uadmin', 'bot', ctx.lineParseText_('鴻海的帶確認是什麼', 'Uadmin', false), true)[0].altText, /送給雲端前確認：鴻海的待確認是什麼/);
+  // 使用者端不受影響
+  ctx.lineFindSub_ = () => ({ tester: false }); ctx.lineOutOfScopeReply_ = () => [{ type: 'text', text: 'outofscope' }];
+  assert.doesNotMatch(JSON.stringify(ctx.lineRoute_('Uuser', 'bot', ctx.lineParseText_('天帶', 'Uuser', false), true)), /送給雲端/);
+  ctx.lineProp_ = prevProp; delete ctx.ScriptApp;
+})();
+console.log('11/11 送雲端前確認文字：規則修錯字、Gemini 補全、確認卡三選一、送出附原輸入、重新輸入不送、失敗仍可確認通過');

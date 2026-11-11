@@ -584,7 +584,7 @@ function lineRoute_(uid, ch, act, deferTouch) {
     var q = typeof lineAdminQueryText_ === 'function' ? lineAdminQueryText_(uid) : '';
     return q ? lineRoute_(uid, ch, lineParseText_(q, uid, true), true) : [lineText_('請直接輸入股票代號或名稱。', lineQuickMain_())];
   }
-  if (/^(?:adminreview|adminpending|adminformat|admintest|adminprogress|adminsev|rulepick|ruleok|ruleno|qpick|qcustom|qshow|chatok|chatno)$/.test(act.a || '') && !LINE_ADMIN_CTX_) {
+  if (/^(?:adminreview|adminpending|adminformat|admintest|adminprogress|adminsev|rulepick|ruleok|ruleno|qpick|qcustom|qshow|chatok|chatno|chatsend|chatretype)$/.test(act.a || '') && !LINE_ADMIN_CTX_) {
     return lineAdminDeny_(uid, ch);
   }
   switch (act.a) {
@@ -597,6 +597,8 @@ function lineRoute_(uid, ch, act, deferTouch) {
     case 'qshow': return lineAdminQShowReply_(String(act.q || ''));
     case 'chatok': return lineAdminChatOkReply_(uid, String(act.r || ''));
     case 'chatno': return lineAdminChatNoReply_(String(act.r || ''));
+    case 'chatsend': return lineAdminChatSend_(uid, String(act.k || ''), act.v);
+    case 'chatretype': return lineAdminChatRetypeReply_(uid);
     case 'adminpending': return lineAdminPendingReply_();
     case 'adminformat': return [lineAdminFormatFlex_()];
     case 'admintest': return lineAdminTestReply_();

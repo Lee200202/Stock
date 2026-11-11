@@ -15117,6 +15117,53 @@ def _add_notice_verdict_candidates(signals, transcript, date_str):
                 'exclusion_reason': 'notice_identity_candidate', '_notice_candidate_sources': originals})
 
 
+_CODE_INTRO = re.compile(r'(?:叫做|叫|代號|代碼|股票|這一?[支檔隻](?:股票)?(?:叫做|是|就是)?|就是)[，,、：:]?$')
+
+
+def open_position_code_mention(code, transcript):
+    """紀錄上未出場的部位，原文只念代號、沒念股名（2026/11/10「這一支叫做6719」＝力智）：回傳原文裡的代號，否則空字串。
+
+    只認講者用「叫做／代號／這一支」等引出的那一次念法；緊貼數字、價位單位或「買／賣／破」的是價位與金額，不算（同 _bare_code_mentions）。
+    這只讓本股成為送裁決的候選（tuning.md：念出代號時保留身分待辨候選，不直接補交易或持股），分類仍由問卷定。
+    """
+    code = str(code or '')
+    if not re.fullmatch(r'[1-9]\d{3}', code):
+        return ''
+    flat = re.sub(r'\s', '', str(transcript or ''))
+    for m in re.finditer(r'(?<![\d.,])' + code + r'(?![\d.,])', flat):
+        before, after = flat[max(0, m.start() - 12):m.start()], flat[m.end():m.end() + 2]
+        if re.match(r'(?:元|塊|點|億|萬|多|張|%|位|以|附近|上下|左右|的缺|買|賣|年|月|號|日|分|秒)', after):
+            continue
+        if re.search(r'(?:成本|缺口|低點|高點|價位|目標價)[^。！？!?]{0,8}$', before):
+            continue
+        if _CODE_INTRO.search(before):
+            return code
+    return ''
+
+
+def open_position_missing_votes_holding(entry, usable, zones, transcript, names):
+    """紀錄上未出場的部位，問卷三輪只有缺答／無效票或正向票（會員持股、觀望注意）時，列會員持股的依據；不成立回空字串。
+
+    2026/11/09、11/10 台積電：紀錄上 08/05 買入未出場、會員持股列未斷，今天有本股分析（2,280 以下可買、不用賣），
+    流程與單檔覆核都列觀望注意，問卷三輪「缺答／缺答／觀望注意」「缺答×3」→ 待確認，整檔不公開。
+    裁示一-2（10/14、10/28）：會員持股要有紀錄，紀錄上未出場且今天有本股分析就是會員持股（持股／注意同組）；
+    11/06 週檢討 Q3：只有明講已賣出或全部出場才結束部位。缺答不是反對（tuning.md），所以這裡不把它當成「沒有看法」。
+    不成立的情況：沒有紀錄上的部位、原文否認持有、流程的分類不是持股或觀望注意（不碰、排除、回顧、買賣）、
+    任何一張可用票不是持股或觀望注意、本股段落不足、原文有今天賣出本股的明確句。
+    """
+    if not entry.get('open') or entry.get('not_held') or entry.get('exited') or entry.get('trade_check'):
+        return ''
+    if (entry.get('late') or entry.get('current')) not in ('holdings', 'watch_watch') \
+            or entry.get('current') not in ('holdings', 'watch_watch'):
+        return ''
+    if not set(usable) <= {'holdings', 'watch_watch'} or not _zone_supports(entry.get('current'), zones):
+        return ''
+    if explicit_today_trades(transcript, set(names or ()), 'sell'):
+        return ''
+    return ('紀錄上未出場的部位、今天有本股正向分析，問卷可用票 ' + str(len(usable))
+            + ' 張都是會員持股或觀望注意、其餘為缺答（缺答不是反對）：列會員持股（裁示一-2、11/06 Q3）')
+
+
 def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode):
     import contextlib
     import io
@@ -15135,6 +15182,9 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
         heard = heard_form(name, transcript)
         if heard:
             probe['aliases'] = [heard]              # 原文只有同音寫法（「聖準」＝神準）：用原文的寫法找段落
+        elif re.sub(r'(?:-?KY|[＊*])$', '', _display_name(name), flags=re.I) not in re.sub(r'\s', '', transcript) \
+                and open_position_code_mention(code, transcript):
+            probe['aliases'] = [code]               # 原文只念代號（2026/11/10「這一支叫做6719」＝力智）：用代號找段落，仍交問卷
         if _own_segments(probe, signals, transcript, 300, 500):
             signals.setdefault('ignored', []).append(probe)
             print(f"  分類裁決　{_display_name(name)}（{code}）紀錄上還沒賣出，今天原文有講到卻沒有列：補一筆候選送裁決")
@@ -15389,6 +15439,12 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                 elif agree <= {'holdings', 'watch_watch'}:
                     decided = 'holdings' if entry.get('open') else 'watch_watch'
                     state, why = '定案', '可用的 ' + str(len(usable)) + ' 票都是會員持股或觀望注意（同一組）、沒有反對票'
+            if state == '未定':
+                held_why = open_position_missing_votes_holding(entry, usable, zones, transcript, item['_names'])
+                if held_why:
+                    state, decided, why = '定案', 'holdings', held_why
+                    note_decision('分類裁決', '紀錄上未出場、問卷缺答不算反對，列會員持股', entry['name'],
+                                  '各票：' + '、'.join(_VERDICT_LABEL.get(v, v) or '不能用' for v in entry['votes']))
             # 原先由字詞或缺答直接定類的路徑停用，交語意問卷與未完成隔離。
             public_votes = [v for v in entry['votes'] if v in ('buy', 'sell', 'holdings', 'watch_watch', 'watch_avoid')]
             hidden_votes = [v for v in entry['votes'] if v and v not in public_votes]

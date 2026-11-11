@@ -939,7 +939,7 @@ function restatesEarlier_(key, earlier) {
     }
   }
   // 同頁共用補查佇列：先畫已取得的報價，只有過期／缺值才接續，不空等下一分鐘。
-  var quoteQueue = {}, quoteAttempts = {}, quoteQueueTimer = null;
+  var quoteQueue = {}, quoteAttempts = {}, quoteQueueTimer = null, quoteCacheTried = {};
   function queuePageQuotes(codes, reset) {
     (codes || []).forEach(function(c) {
       if (!isCode(c)) return;
@@ -959,7 +959,10 @@ function restatesEarlier_(key, earlier) {
     }).sort();
     if (!codes.length) return;
     pageQuotePending = true;
-    codes.forEach(function(c){quoteAttempts[c] = (quoteAttempts[c] || 0) + 1;});
+    // 2026/11/11：這一批有還沒試過快取的代號時，先只讀快取（不在請求當下打 MIS，約 3 秒就有價格），
+    // 仍過期的下一輪再用即時請求補。快取試過一次的代號不再走快取，避免永遠只讀快取。
+    var cacheFirst = codes.some(function(c){ return !quoteCacheTried[c]; });
+    codes.forEach(function(c){ if (cacheFirst) quoteCacheTried[c] = true; else quoteAttempts[c] = (quoteAttempts[c] || 0) + 1; });
     google.script.run.withSuccessHandler(function(q) {
       pageQuotePending = false;
       renderQuotes(q);
@@ -968,7 +971,7 @@ function restatesEarlier_(key, earlier) {
       pageQuotePending = false;
       quoteQueue = {}; // 來源失敗等下一輪，不在前端放大重試。
       renderQuotes({});
-    }).apiGetQuotesFor(codes);
+    }).apiGetQuotesFor(codes, cacheFirst ? { cacheOnly: true } : {});
   }
   function refreshPageQuotes() {
     if (document.hidden) return;

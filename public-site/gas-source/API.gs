@@ -407,8 +407,12 @@ function apiGetHourlyMeta() {
 }
 
 /** 為總覽表格補上現價。讀即時快取，不對外請求。 */
-function apiGetQuotesFor(codes) {
-  try { return withSheetSnapshot_(function () { return getQuotesFor(codes || [], true, true); }); } catch (e) { return {}; }
+/* 2026/11/11：opts.cacheOnly 只回快取裡已有的報價，不在請求當下打 MIS。
+   以前每位訪客的第一個報價請求都要等盤中即時抓取（實測 Apps Script 本身 15.5 秒）；前端改成先用 cacheOnly 畫出價格（約 3 秒），
+   仍過期的再用原本的即時請求補，五分鐘新鮮度規則與「待更新」標示不變。舊前端不帶 opts，行為照舊。 */
+function apiGetQuotesFor(codes, opts) {
+  var only = !!(opts && opts.cacheOnly);
+  try { return withSheetSnapshot_(function () { return getQuotesFor(codes || [], !only, true, only); }); } catch (e) { return {}; }
 }
 
 /** 郵件查詢：列出所有已產生郵件內容的日期（新到舊）。 */

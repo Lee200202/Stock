@@ -17,7 +17,7 @@ const ctx = vm.createContext({
 for (const f of ['Line.gs', 'LineAdmin.gs']) {
   vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f });
 }
-const ORIG = { lineAdminReviewReply_: ctx.lineAdminReviewReply_, lineAdminPendingReply_: ctx.lineAdminPendingReply_ };   // 後面的測試會換掉，需要時還原
+const ORIG = { lineAdminReviewReply_: ctx.lineAdminReviewReply_, lineAdminPendingReply_: ctx.lineAdminPendingReply_, lineAdminPendingFlex_: ctx.lineAdminPendingFlex_ };   // 後面的測試會換掉，需要時還原
 
 // ---- 裁示解析 ----
 const p = s => ctx.lineAdminParseRuling_(s);
@@ -798,3 +798,30 @@ console.log('11/11 短語音殘句：規則猜常用問句、模型失敗也能�
   assert.match(JSON.stringify(prop), /把鴻海改成觀望注意/); assert.match(JSON.stringify(prop), /chatok/);
 })();
 console.log('11/11 雲端回答卡片：摘要卡＋每點一張、類型顏色、裁示／看題按鈕、文字與待確認照舊通過');
+
+// ---- 2026/11/11（管理者）：卡片內文完整呈現（不截成「…」）、卡片用 giga 寬度 ----
+(() => {
+  const longQuote = '下面這邊有兩個缺口，第一個缺口補一半，第二個缺口要等它回測站穩再說，世芯-KY 兩個缺口至少補一個才買，' + '台積電缺口在下面'.repeat(12);
+  const longWhy = '原稿明講兩個缺口的位置與條件，網站只寫了第一個；' + '依裁示第一節第3條判讀，'.repeat(10);
+  const rows = Array.from({ length: 10 }, (_, i) => ({ 日期: '2026/11/11', 代號: String(2300 + i), 名稱: '股' + i, 網站分類: '觀望注意', 複核分類: '觀望不碰',
+    差異類型: '分類', 嚴重度: i % 2 ? '邊界' : '待確認', 處理: '待管理者', 原文依據: longQuote, 判斷理由: longWhy, 修正前: '網站原本的說明'.repeat(8) }));
+  const m = ctx.lineAdminReviewFlex_({ day: '2026/11/11', rows, summary: { 狀態: '已完成', 比對檔數: '10' } });
+  const s = JSON.stringify(m.contents);
+  assert.ok(s.includes(longQuote), '原句要完整'); assert.ok(s.includes(longWhy), '判斷要完整');
+  assert.doesNotMatch(s.replace(/"altText":"[^"]*"/g, ''), /…/);
+  assert.ok(m.contents.contents.every(b => b.size === 'giga'), '管理者卡片用 giga');
+  assert(Buffer.byteLength(s) < 50000, 'LINE 一則上限 50KB：' + Buffer.byteLength(s));
+  // 雲端卡片：內文、標題、依據都完整
+  const detail = '下面這邊有兩個缺口，' + '補一半再說，'.repeat(40);
+  const [msg] = ctx.lineAdminChatResultMsgs_([{ 裁示ID: 'C1', 管理者說明: '今天世芯-KY 為什麼是邊界？我想看完整的原句與判斷理由', 日期: '2026/11/11', 狀態: '已記錄',
+    結果: JSON.stringify({ summary: '總結'.repeat(80), items: [{ type: '邊界', title: '世芯-KY 3661 兩個缺口的條件', status: '待你決定', detail, ref: '差異明細第92列：' + longQuote }] }) }]);
+  const ms = JSON.stringify(msg.contents);
+  assert.ok(ms.includes(detail) && ms.includes(longQuote) && ms.includes('總結'.repeat(80)) && ms.includes('我想看完整的原句與判斷理由'));
+  assert.ok(msg.contents.contents.every(b => b.size === 'giga'));
+  // 待裁示、題目、確認卡也完整
+  const p = JSON.stringify(ORIG.lineAdminPendingFlex_({ day: '2026/11/11', rows }).contents);
+  assert.ok(p.includes(longQuote));
+  const q = JSON.stringify(ctx.lineAdminQuestionBubble_({ 問題ID: 'Q1', 日期: '2026/11/11', 問題: '問題'.repeat(120), 背景: '背景'.repeat(150), 選項: '["a","b"]' }));
+  assert.ok(q.includes('問題'.repeat(120)) && q.includes('背景'.repeat(150)));
+})();
+console.log('11/11 卡片內文完整、giga 寬度、50KB 以內通過');

@@ -235,6 +235,10 @@ function lineAdminPendingRows_(rows) {
 }
 
 /* ---------------- 卡片（純函式，可離線測） ---------------- */
+/* 2026/11/11（管理者）：卡片內文完整呈現，不再用「…」截斷；只有通知預覽與狀態標籤保留長度上限。 */
+var LINE_ADMIN_FULL_ = 1500;
+/** 管理者卡片一律用最寬的 giga 尺寸，長內容往下排完整顯示。 */
+function lineAdminBubble_(header, body, buttons) { var b = fxBubble_(header, body, buttons); b.size = 'giga'; return b; }
 function lineAdminCut_(s, n) { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
 function lineAdminName_(r) { return (r['名稱'] || '') + (r['代號'] ? ' ' + r['代號'] : ''); }
 function lineAdminLine_(label, value) {
@@ -262,12 +266,12 @@ function lineAdminFormatLines_() {
 }
 function lineAdminFormatFlex_() {
   return lineFlex_('裁示格式：股票 分類—說明，例如「勤誠 買入—依簡訊方向判定」。',
-    fxBubble_(fxHeader_('管理者・裁示格式', '這樣輸入'), lineAdminFormatLines_(), []));
+    lineAdminBubble_(fxHeader_('管理者・裁示格式', '這樣輸入'), lineAdminFormatLines_(), []));
 }
 function lineAdminHomeFlex_(justOn) {
   var rows = [['每天複核完成後', '自動收到兩則：今日稽核結果、待你裁示'], ['裁示', '輸入「分類—說明」或直接用一句話說明，確認後雲端改網站；接手、完成都會回報'],
               ['使用者功能照舊', '每日總覽、盤中通知、查個股都不變']];
-  return lineFlex_('管理者模式' + (justOn ? '已開啟' : '') + '：今日稽核、待裁示、裁示格式、回到使用者。', fxBubble_(
+  return lineFlex_('管理者模式' + (justOn ? '已開啟' : '') + '：今日稽核、待裁示、裁示格式、回到使用者。', lineAdminBubble_(
     fxHeader_('管理者模式', justOn ? '已切換成管理者' : '管理者功能', '#0A4A3C'),
     rows.map(function (r) { return fxBox_('vertical', [fxText_(r[0], { size: 'sm', weight: 'bold', color: LINE_C_.ink }), fxText_(r[1], { size: 'xs', color: LINE_C_.muted })]); })
       .concat([fxNote_('輸入「取消管理者」回到一般使用者。')]),
@@ -276,18 +280,18 @@ function lineAdminHomeFlex_(justOn) {
      fxBtn_(linePb_('裁示格式', 'a=adminformat', '裁示格式'), 'secondary'), fxBtn_(lineMsg_('回到使用者', '取消管理者'), 'link')]));
 }
 function lineAdminExitFlex_() {
-  return lineFlex_('已回到使用者模式。輸入「管理者登入」可再切換。', fxBubble_(
+  return lineFlex_('已回到使用者模式。輸入「管理者登入」可再切換。', lineAdminBubble_(
     fxHeader_('使用者模式', '已回到一般使用者'),
     [fxText_('管理者的稽核推送與裁示已關閉；每日總覽、盤中通知與查詢照舊。', { size: 'sm', color: LINE_C_.ink }),
      fxNote_('要再切換，輸入「管理者登入」。')],
     [fxBtn_(linePb_('今日整理', 'a=today', '今日整理')), fxBtn_(linePb_('使用說明', 'a=help', '使用說明'), 'secondary')]));
 }
 function lineAdminItemBubble_(kicker, r, lines, color, buttons) {
-  return fxBubble_(fxHeader_(kicker, lineAdminName_(r) || '（未命名）', color),
+  return lineAdminBubble_(fxHeader_(kicker, lineAdminName_(r) || '（未命名）', color),
     [r['差異類型'] ? fxBox_('horizontal', [lineAdminChip_(r['差異類型'], color)]) : null].concat(lines).filter(Boolean), buttons || []);
 }
 function lineAdminMoreBubble_(n, url) {
-  return fxBubble_(fxHeader_('還有', '另外 ' + n + ' 項'), [fxText_('放不下的項目請看完整複核紀錄。', { size: 'sm', color: LINE_C_.ink })],
+  return lineAdminBubble_(fxHeader_('還有', '另外 ' + n + ' 項'), [fxText_('放不下的項目請看完整複核紀錄。', { size: 'sm', color: LINE_C_.ink })],
     url ? [fxBtn_(lineUri_('完整紀錄', url), 'secondary')] : []);
 }
 /* 2026/11/11（管理者）：四個分級各一個顏色，每一項一張卡（以前只放已修改的，待確認／邊界／複核錯看不出來）。 */
@@ -310,10 +314,10 @@ function lineAdminSevBubble_(r, day) {
   var code = String(r['代號'] || '').trim();
   var pick = 'a=rulepick&d=' + encodeURIComponent(day) + '&c=' + encodeURIComponent(code) + '&n=' + encodeURIComponent(r['名稱'] || '');
   return lineAdminItemBubble_(sev + '・' + state, r, [
-    lineAdminLine_('分類', lineAdminCut_(cls, 100)),
-    state === '已修正' ? lineAdminLine_('改成', lineAdminCut_(r['修正後'], 160)) : lineAdminLine_('網站現在', lineAdminCut_(r['修正前'], 110)),
-    lineAdminLine_('判斷', lineAdminCut_(r['判斷理由'], 140)),
-    lineAdminLine_('原句', r['原文依據'] ? '「' + lineAdminCut_(r['原文依據'], 90) + '」' : '')
+    lineAdminLine_('分類', lineAdminCut_(cls, LINE_ADMIN_FULL_)),
+    state === '已修正' ? lineAdminLine_('改成', lineAdminCut_(r['修正後'], LINE_ADMIN_FULL_)) : lineAdminLine_('網站現在', lineAdminCut_(r['修正前'], LINE_ADMIN_FULL_)),
+    lineAdminLine_('判斷', lineAdminCut_(r['判斷理由'], LINE_ADMIN_FULL_)),
+    lineAdminLine_('原句', r['原文依據'] ? '「' + lineAdminCut_(r['原文依據'], LINE_ADMIN_FULL_) + '」' : '')
   ], color, open && /^\d{4,6}[A-Z]?$/.test(code) ? [fxBtn_(linePb_('裁示這一檔', pick, '裁示 ' + lineAdminName_(r)))] : []);
 }
 /** ① 今日稽核結果。data = { day, summary, rows, url }；only＝只看某一級（「看待確認」）。 */
@@ -321,7 +325,7 @@ function lineAdminReviewFlex_(data, only) {
   var s = data.summary || {}, rows = data.rows || [], md = lineMd_(data.day) || data.day;
   var state = String(s['狀態'] || '').trim();
   if (state === '未執行') {
-    return lineFlex_(md + ' 未複核：' + (s['備註'] || ''), fxBubble_(fxHeader_('管理者・每日稽核', md + ' 未複核', '#0A4A3C'),
+    return lineFlex_(md + ' 未複核：' + (s['備註'] || ''), lineAdminBubble_(fxHeader_('管理者・每日稽核', md + ' 未複核', '#0A4A3C'),
       [fxText_(s['備註'] || '今天沒有複核。', { size: 'sm', color: LINE_C_.ink })], []));
   }
   var count = function (k) { return rows.filter(function (r) { return r['嚴重度'] === k; }).length; };
@@ -341,7 +345,7 @@ function lineAdminReviewFlex_(data, only) {
     });
   if (data.url) { btns.push(fxBtn_(lineUri_('完整紀錄', data.url), 'secondary')); }
   var headColor = only ? (LINE_ADMIN_SEV_COLOR_[only] || '#0A4A3C') : '#0A4A3C';
-  var head = fxBubble_(fxHeader_('管理者・每日稽核', md + (only ? ' ' + only + ' ' + shown.length + ' 項' : ' 稽核結果'), headColor), [
+  var head = lineAdminBubble_(fxHeader_('管理者・每日稽核', md + (only ? ' ' + only + ' ' + shown.length + ' 項' : ' 稽核結果'), headColor), [
     fxText_('比對 ' + (s['比對檔數'] || 0) + ' 檔・已修正 ' + fixed.length + ' 項・' + stateLabel, { size: 'sm', color: LINE_C_.ink }),
     fxBox_('horizontal', [tile('明確錯誤'), tile('待確認')], { margin: 'md' }),
     fxBox_('horizontal', [tile('邊界'), tile('複核錯')], { margin: 'sm' }),
@@ -359,13 +363,13 @@ function lineAdminReviewFlex_(data, only) {
 function lineAdminPendingFlex_(data) {
   var pending = lineAdminPendingRows_(data.rows), md = lineMd_(data.day) || data.day;
   if (!pending.length) { return null; }
-  var guide = fxBubble_(fxHeader_('管理者・待你裁示', md + ' 共 ' + pending.length + ' 項', '#8A5A00'), lineAdminFormatLines_(), []);
+  var guide = lineAdminBubble_(fxHeader_('管理者・待你裁示', md + ' 共 ' + pending.length + ' 項', '#8A5A00'), lineAdminFormatLines_(), []);
   var items = pending.map(function (r) {
     var data2 = 'a=rulepick&d=' + encodeURIComponent(data.day) + '&c=' + encodeURIComponent(r['代號'] || '') + '&n=' + encodeURIComponent(r['名稱'] || '');
     return lineAdminItemBubble_('待裁示', r, [
-      lineAdminLine_('網站現在', lineAdminCut_([r['網站分類'], r['修正前']].filter(String).join('｜'), 110)),
-      lineAdminLine_('複核判斷', lineAdminCut_([r['複核分類'], r['判斷理由']].filter(String).join('｜'), 140)),
-      lineAdminLine_('原句', r['原文依據'] ? '「' + lineAdminCut_(r['原文依據'], 90) + '」' : '')
+      lineAdminLine_('網站現在', lineAdminCut_([r['網站分類'], r['修正前']].filter(String).join('｜'), LINE_ADMIN_FULL_)),
+      lineAdminLine_('複核判斷', lineAdminCut_([r['複核分類'], r['判斷理由']].filter(String).join('｜'), LINE_ADMIN_FULL_)),
+      lineAdminLine_('原句', r['原文依據'] ? '「' + lineAdminCut_(r['原文依據'], LINE_ADMIN_FULL_) + '」' : '')
     ], '#8A5A00', [fxBtn_(linePb_('裁示這一檔', data2, '裁示 ' + lineAdminName_(r)))]);
   });
   var bubbles = [guide].concat(items.slice(0, LINE_ADMIN_ITEM_BUBBLES_));
@@ -380,7 +384,7 @@ function lineAdminCatChips_(cat) {
   }), { spacing: 'sm' });
 }
 function lineAdminConfirmFlex_(d) {
-  return lineFlex_('確認裁示（管理者）：' + d.date + ' ' + d.name + ' ' + d.code + ' → ' + d.cat, fxBubble_(
+  return lineFlex_('確認裁示（管理者）：' + d.date + ' ' + d.name + ' ' + d.code + ' → ' + d.cat, lineAdminBubble_(
     fxHeader_('確認裁示・管理者身分', (lineMd_(d.date) || d.date) + ' ' + d.name + ' ' + d.code, '#0A4A3C'),
     [lineAdminCatChips_(d.cat),
      lineAdminLine_('管理者說明', d.text),
@@ -402,10 +406,10 @@ var LINE_ADMIN_STAGE_ = {
 function lineAdminRuleBubble_(r) {
   var st = String(r['狀態'] || '').trim(), stage = LINE_ADMIN_STAGE_[st] || [st || '裁示', '', '#8A958F'], ok = st === '已完成';
   var title = (lineMd_(r['日期']) || r['日期']) + ' ' + (r['名稱'] || '') + ' ' + (r['代號'] || '');
-  return fxBubble_(fxHeader_(stage[0], title, stage[2]), [
+  return lineAdminBubble_(fxHeader_(stage[0], title, stage[2]), [
     lineAdminCatChips_(r['裁示分類']),
-    lineAdminLine_('管理者說明', lineAdminCut_(r['管理者說明'], 160)),
-    lineAdminLine_(ok ? '網站' : r['名稱'] === '管理者提問' && r['結果'] ? '回答' : '進度', lineAdminCut_(r['結果'] || stage[1], r['裁示分類'] === '指示' ? 400 : 200)),
+    lineAdminLine_('管理者說明', lineAdminCut_(r['管理者說明'], LINE_ADMIN_FULL_)),
+    lineAdminLine_(ok ? '網站' : r['名稱'] === '管理者提問' && r['結果'] ? '回答' : '進度', lineAdminCut_(r['結果'] || stage[1], LINE_ADMIN_FULL_)),
     r['更新時間'] ? fxText_('更新：' + r['更新時間'], { size: 'xxs', color: LINE_C_.muted }) : null,
     ok ? fxNote_('網站已更新；12:30 狀態信與複核紀錄也會列在「今日網站修改」。更新網站不會重寄已寄出的信。') : null
   ].filter(Boolean), []);
@@ -627,10 +631,10 @@ function lineAdminStockHit_(q) {
 }
 function lineAdminInstructionFlex_(d) {
   var ask = d.name === '管理者提問', label = ask ? '管理者提問' : '管理者指示';
-  return lineFlex_('送給雲端・' + label + '：' + lineAdminCut_(d.said || d.text, 60), fxBubble_(
+  return lineFlex_('送給雲端・' + label + '：' + lineAdminCut_(d.said || d.text, 60), lineAdminBubble_(
     fxHeader_('送給雲端・' + label, '對應 ' + (lineMd_(d.date) || d.date) + ' 的複核', '#0A4A3C'),
-    [lineAdminLine_(ask ? '提問內容' : '指示內容', lineAdminCut_(d.said || d.text, 300)),
-     d.summary ? lineAdminLine_('我的理解', lineAdminCut_(d.summary, 200)) : null,
+    [lineAdminLine_(ask ? '提問內容' : '指示內容', lineAdminCut_(d.said || d.text, LINE_ADMIN_FULL_)),
+     d.summary ? lineAdminLine_('我的理解', lineAdminCut_(d.summary, LINE_ADMIN_FULL_)) : null,
      fxNote_(ask ? '送出後雲端會讀那天的原稿與複核紀錄查證後回答，不改網站；答案在這裡回報（約 3–10 分鐘），也可以隨時輸入「裁示進度」。'
        : '送出後雲端會讀那天的原稿與複核紀錄核對：能改的直接改網站並讀回，屬於流程規則的寫進週五檢討清單。雲端接手、完成都會在這裡回報（約 5–20 分鐘），也可以隨時輸入「裁示進度」。')],
     [fxBtn_(linePb_('確認送出', 'a=ruleok&k=' + encodeURIComponent(d.id), '確認送出' + (ask ? '提問' : '指示'))),
@@ -656,7 +660,7 @@ function lineAdminInstructionReply_(uid, raw, summary, ask, day) {
 
 /** 已綁定、但目前是使用者身分時送出像裁示的句子：先問要不要切換成管理者。 */
 function lineAdminIdentityFlex_() {
-  return lineFlex_('你目前是使用者身分。這句看起來是管理者裁示，要切換成管理者並送出嗎？', fxBubble_(
+  return lineFlex_('你目前是使用者身分。這句看起來是管理者裁示，要切換成管理者並送出嗎？', lineAdminBubble_(
     fxHeader_('身分確認', '你目前是使用者身分', '#8A5A00'),
     [fxText_('這句看起來是管理者裁示。你的帳號已綁定管理者，但現在登出（使用者模式），所以還沒有送出。', { size: 'sm', color: LINE_C_.ink }),
      fxNote_('選「切換管理者並裁示」會開啟管理者模式，接著出現確認卡；按確認送出才會改網站。')],
@@ -923,7 +927,7 @@ function lineAdminVerifyFlex_() {
   var steps = [['1 輸入', '照下面的格式回覆一則裁示（股票 分類—說明）'], ['2 確認', '馬上回一張確認卡，按「確認送出」才生效'],
                ['3 雲端接手', '約五分鐘內推一則「雲端已接手」'], ['4 結果', '網站改好並讀回後推「已完成」；改不了會說明原因'],
                ['隨時查', '輸入「裁示進度」看最近五則']];
-  return lineFlex_('裁示驗收：請回覆一則「股票 分類—說明」，雲端會依原稿改網站並回報進度。', fxBubble_(
+  return lineFlex_('裁示驗收：請回覆一則「股票 分類—說明」，雲端會依原稿改網站並回報進度。', lineAdminBubble_(
     fxHeader_('管理者・裁示驗收', '請回覆一則裁示', '#0A4A3C'),
     steps.map(function (r) { return fxBox_('vertical', [fxText_(r[0], { size: 'sm', weight: 'bold', color: LINE_C_.ink }), fxText_(r[1], { size: 'xs', color: LINE_C_.muted })]); })
       .concat(lineAdminFormatLines_().slice(0, 3)),
@@ -959,9 +963,9 @@ function lineAdminQuestions_(state) {
 function lineAdminQuestionBubble_(r) {
   var opts = lineAdminQOptions_(r), id = encodeURIComponent(r['問題ID']);
   var marks = ['①', '②', '③', '④'];
-  return fxBubble_(fxHeader_('要你決定・' + (lineMd_(r['日期']) || r['日期']), lineAdminCut_(r['問題'], 60), '#B54708'), [
-    lineAdminLine_('問題', lineAdminCut_(r['問題'], 200)),
-    lineAdminLine_('背景', lineAdminCut_(r['背景'], 200)),
+  return lineAdminBubble_(fxHeader_('要你決定・' + (lineMd_(r['日期']) || r['日期']), lineAdminCut_(r['問題'], LINE_ADMIN_FULL_), '#B54708'), [
+    lineAdminLine_('問題', lineAdminCut_(r['問題'], LINE_ADMIN_FULL_)),
+    lineAdminLine_('背景', lineAdminCut_(r['背景'], LINE_ADMIN_FULL_)),
     opts.length ? fxBox_('vertical', opts.map(function (o, i) { return fxText_(marks[i] + ' ' + o, { size: 'sm', color: LINE_C_.ink, wrap: true }); }), { spacing: 'sm' }) : null,
     fxNote_('選一個或按「自訂回答」自己寫；送出前會再給你確認。')
   ].filter(Boolean), opts.map(function (o, i) {
@@ -984,9 +988,9 @@ function lineAdminAnswerConfirm_(uid, q, answer) {
                 date: lineFmtDay_(q['日期']), code: '', name: '管理者回答', cat: '指示', said: said, qid: q['問題ID'],
                 text: lineClip_('回答複核問題 ' + q['問題ID'] + '：' + q['問題'] + '\n管理者回答：' + said, 800) };
   CacheService.getScriptCache().put('line_rule_draft_' + uid, JSON.stringify(draft), 900);
-  return [lineFlex_('送給雲端・回答複核問題：' + lineAdminCut_(said, 60), fxBubble_(
+  return [lineFlex_('送給雲端・回答複核問題：' + lineAdminCut_(said, 60), lineAdminBubble_(
     fxHeader_('送給雲端・回答複核問題', '對應 ' + (lineMd_(draft.date) || draft.date) + ' 的複核', '#0A4A3C'),
-    [lineAdminLine_('問題', lineAdminCut_(q['問題'], 200)), lineAdminLine_('你的回答', lineAdminCut_(said, 300)),
+    [lineAdminLine_('問題', lineAdminCut_(q['問題'], LINE_ADMIN_FULL_)), lineAdminLine_('你的回答', lineAdminCut_(said, LINE_ADMIN_FULL_)),
      fxNote_('送出後雲端會讀那天的原稿與說明重點，照你的回答確認目前說法要怎麼調整：能改的改網站並讀回，屬於規則的記給週五檢討。接手與結果都會在這裡回報。')],
     [fxBtn_(linePb_('確認送出', 'a=ruleok&k=' + encodeURIComponent(draft.id), '確認送出回答')),
      fxBtn_(linePb_('改選', 'a=qshow&q=' + encodeURIComponent(q['問題ID']), '改選'), 'secondary'),
@@ -1178,10 +1182,10 @@ function lineAdminChatPrecheckFlex_(d) {
               fxBtn_(linePb_('看待裁示', 'a=adminpending', '看待裁示'), 'secondary')]
     : [fxBtn_(linePb_('送出', 'a=chatsend&k=' + k + '&v=0', '送出給雲端'))];
   btns.push(fxBtn_(linePb_('重新輸入', 'a=chatretype', '重新輸入'), lost ? 'primary' : 'link'));
-  return lineFlex_('送給雲端前確認：' + lineAdminCut_(changed ? d.fixed : d.said, 60), fxBubble_(
+  return lineFlex_('送給雲端前確認：' + lineAdminCut_(changed ? d.fixed : d.said, 60), lineAdminBubble_(
     fxHeader_('送給雲端前確認一下', changed ? '我幫你修了錯字' : '確認這句沒打錯', '#0A4A3C'),
-    [lineAdminLine_('你輸入', lineAdminCut_(d.said, 200)),
-     changed ? lineAdminLine_('我理解成', lineAdminCut_(d.fixed, 300) + (d.note ? '（' + d.note + '）' : '')) : null,
+    [lineAdminLine_('你輸入', lineAdminCut_(d.said, LINE_ADMIN_FULL_)),
+     changed ? lineAdminLine_('我理解成', lineAdminCut_(d.fixed, LINE_ADMIN_FULL_) + (d.note ? '（' + d.note + '）' : '')) : null,
      d.clear === false ? fxText_(lost ? '這句我看不懂，先不送雲端；請按「重新輸入」打完整一點，或用下面的按鈕。' : '這句我不太確定意思；請確認上面的理解再送出，不對就按「重新輸入」。', { size: 'sm', color: LINE_C_.amber, wrap: true }) : null,
      fxNote_('送出後交給雲端 Claude 讀複核紀錄與原稿回答（約 1–3 分鐘）；要改網站時它會再給你確認卡。')].filter(Boolean), btns));
 }
@@ -1261,19 +1265,19 @@ function lineAdminCardBubble_(it, day) {
     btns.push(fxBtn_(linePb_('裁示這一檔', 'a=rulepick&d=' + encodeURIComponent(it.date || day || '') + '&c=' + encodeURIComponent(code) + '&n=' + encodeURIComponent(it.name || ''), '裁示 ' + (it.name || '') + ' ' + code)));
   }
   if (it.qid) { btns.push(fxBtn_(linePb_('看這一題', 'a=qshow&q=' + encodeURIComponent(it.qid), '看這一題'), 'secondary')); }
-  return fxBubble_(fxHeader_(type + (it.status ? '・' + lineAdminCut_(it.status, 12) : ''), lineAdminCut_(it.title || it.detail, 40), color), [
-    it.detail ? fxText_(lineAdminCut_(it.detail, 300), { size: 'sm', color: LINE_C_.ink, wrap: true }) : null,
-    it.ref ? fxNote_('依據：' + lineAdminCut_(it.ref, 80)) : null
+  return lineAdminBubble_(fxHeader_(type + (it.status ? '・' + lineAdminCut_(it.status, 12) : ''), lineAdminCut_(it.title || it.detail, LINE_ADMIN_FULL_), color), [
+    it.detail ? fxText_(lineAdminCut_(it.detail, LINE_ADMIN_FULL_), { size: 'sm', color: LINE_C_.ink, wrap: true }) : null,
+    it.ref ? fxNote_('依據：' + lineAdminCut_(it.ref, LINE_ADMIN_FULL_)) : null
   ].filter(Boolean), btns);
 }
 /** 純函式：卡片 JSON → 一則 carousel（摘要卡＋每點一張）。 */
 function lineAdminCardsMsg_(r, cards) {
-  var ask = lineAdminCut_(r['管理者說明'], 40), day = lineFmtDay_(r['日期']);
+  var ask = lineAdminCut_(r['管理者說明'], LINE_ADMIN_FULL_), day = lineFmtDay_(r['日期']);
   var count = {};
   cards.items.forEach(function (it) { var k = LINE_ADMIN_ITEM_TYPES_[it.type] ? it.type : '資訊'; count[k] = (count[k] || 0) + 1; });
   var chips = Object.keys(count).map(function (k) { return lineAdminChip_(k + ' ' + count[k], LINE_ADMIN_ITEM_TYPES_[k]); });
-  var head = fxBubble_(fxHeader_('雲端 Claude 回覆', ask, '#0A4A3C'), [
-    fxText_(lineAdminCut_(cards.summary || '共 ' + cards.items.length + ' 點', 300), { size: 'sm', color: LINE_C_.ink, wrap: true }),
+  var head = lineAdminBubble_(fxHeader_('雲端 Claude 回覆', ask, '#0A4A3C'), [
+    fxText_(lineAdminCut_(cards.summary || '共 ' + cards.items.length + ' 點', LINE_ADMIN_FULL_), { size: 'sm', color: LINE_C_.ink, wrap: true }),
     chips.length ? fxBox_('horizontal', chips.slice(0, 3), { spacing: 'sm', margin: 'md' }) : null,
     chips.length > 3 ? fxBox_('horizontal', chips.slice(3, 6), { spacing: 'sm', margin: 'sm' }) : null,
     cards.items.length ? fxNote_('往右滑看每一點；顏色＝類型。') : null
@@ -1287,15 +1291,15 @@ function lineAdminCardsMsg_(r, cards) {
 /** 純函式：雲端對話的結果 → LINE 訊息。已記錄＝卡片（JSON）或文字回答；待確認＝雲端提出的做法＋確認卡。 */
 function lineAdminChatResultMsgs_(rows) {
   return (rows || []).slice(0, 4).map(function (r) {
-    var ask = lineAdminCut_(r['管理者說明'], 40), ans = String(r['結果'] || '').trim();
+    var ask = lineAdminCut_(r['管理者說明'], LINE_ADMIN_FULL_), ans = String(r['結果'] || '').trim();
     var cards = lineAdminParseCards_(ans);
     if (cards && r['狀態'] !== '待確認' && r['狀態'] !== '失敗') { return lineAdminCardsMsg_(r, cards); }
     if (cards) { ans = cards.summary || cards.items.map(function (it) { return it.title + '：' + (it.detail || ''); }).join('；'); }
     if (r['狀態'] === '待確認') {
       var id = encodeURIComponent(r['裁示ID']);
-      return lineFlex_('雲端理解你要：' + lineAdminCut_(ans, 60), fxBubble_(
+      return lineFlex_('雲端理解你要：' + lineAdminCut_(ans, 60), lineAdminBubble_(
         fxHeader_('雲端 Claude・請確認', '要改之前先跟你確認', '#0A4A3C'),
-        [lineAdminLine_('你說', lineAdminCut_(r['管理者說明'], 200)), lineAdminLine_('雲端理解你要', lineAdminCut_(ans, 500)),
+        [lineAdminLine_('你說', lineAdminCut_(r['管理者說明'], LINE_ADMIN_FULL_)), lineAdminLine_('雲端理解你要', lineAdminCut_(ans, LINE_ADMIN_FULL_)),
          fxNote_('按「確認送出」後雲端照這個做法讀原稿修改並讀回，接手與結果都會回報；不對就按取消再說一次。')],
         [fxBtn_(linePb_('確認送出', 'a=chatok&r=' + id, '確認送出')), fxBtn_(linePb_('取消', 'a=chatno&r=' + id, '取消'), 'link')]));
     }

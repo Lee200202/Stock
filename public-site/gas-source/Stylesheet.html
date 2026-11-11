@@ -4836,7 +4836,9 @@ button.tracker-card-name:focus-visible { outline: 3px solid var(--beam); outline
 .tracker-unavailable { color: var(--muted); font-size: calc(13.5px * var(--rd-fs)); }
 .tracker-card-axis { margin-top: 14px; padding: 16px 22px; border-radius: var(--r-md); background: color-mix(in srgb, var(--tc) 5%, var(--panel)); }
 /* 幅度線就在進場價與目前價之間：兩端價位依內容寬度，線填滿中間、與價位同一列，報酬壓在線的正中。 */
-.tracker-card-axis .tx { --px-fs: calc(19px * var(--rd-fs)); grid-template-columns: auto minmax(84px, 1fr) auto; column-gap: 18px; align-items: end; }
+/* 2026/11/10 管理者：兩端欄寬固定成五位數股價（例 10450.00，8 個等寬字）的寬度，中間的線在每一張卡都一樣長、置中；
+   以前兩端是 auto，936.00 與 176.50 這種位數不同的價格會讓線忽長忽短、偏離正中間。 */
+.tracker-card-axis .tx { --px-fs: calc(19px * var(--rd-fs)); --px-col: calc(var(--px-fs) * 5); grid-template-columns: var(--px-col) minmax(84px, 1fr) var(--px-col); column-gap: 18px; align-items: end; }
 .tracker-card-axis .tx-end b { font-size: var(--px-fs); line-height: 1.35; }
 .tracker-card-axis .tx-end small { font-size: calc(13.5px * var(--rd-fs)); }
 .tracker-card-axis .tx-mid { align-self: end; align-items: center; justify-content: center; text-align: center; min-height: 0; height: calc(var(--px-fs) * 1.35); padding: 0; }
@@ -4850,7 +4852,7 @@ button.tracker-card-name:focus-visible { outline: 3px solid var(--beam); outline
   .tracker-card { padding: 20px 20px 22px 30px; }
   .tracker-card::before { left: 11px; top: 20px; bottom: 20px; width: 5px; }
   .tracker-card-axis { padding: 16px 14px; }
-  .tracker-card-axis .tx { --px-fs: calc(16px * var(--rd-fs)); grid-template-columns: auto minmax(70px, 1fr) auto; column-gap: 10px; }
+  .tracker-card-axis .tx { --px-fs: calc(16px * var(--rd-fs)); --px-col: calc(var(--px-fs) * 5); grid-template-columns: var(--px-col) minmax(70px, 1fr) var(--px-col); column-gap: 10px; }
   .tracker-card-axis .tx-ret { padding-inline: 7px; }
   .tracker-card-note { font-size: calc(15px * var(--rd-fs)); }
 }
@@ -4858,7 +4860,7 @@ html[data-view="mobile"] .tracker-list { gap: 12px; }
 html[data-view="mobile"] .tracker-card { padding: 20px 20px 22px 30px; }
 html[data-view="mobile"] .tracker-card::before { left: 11px; top: 20px; bottom: 20px; width: 5px; }
 html[data-view="mobile"] .tracker-card-axis { padding: 16px 14px; }
-html[data-view="mobile"] .tracker-card-axis .tx { --px-fs: calc(16px * var(--rd-fs)); grid-template-columns: auto minmax(70px, 1fr) auto; column-gap: 10px; }
+html[data-view="mobile"] .tracker-card-axis .tx { --px-fs: calc(16px * var(--rd-fs)); --px-col: calc(var(--px-fs) * 5); grid-template-columns: var(--px-col) minmax(70px, 1fr) var(--px-col); column-gap: 10px; }
 html[data-view="mobile"] .tracker-card-axis .tx-ret { padding-inline: 7px; }
 html[data-view="mobile"] .tracker-card-note { font-size: calc(15px * var(--rd-fs)); }
 @media (prefers-reduced-motion: reduce) {

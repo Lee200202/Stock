@@ -735,3 +735,35 @@ console.log('11/11 雲端對話：送雲端即時回覆、結果文字／確認�
   ctx.lineProp_ = prevProp; delete ctx.ScriptApp;
 })();
 console.log('11/11 送雲端前確認文字：規則修錯字、Gemini 補全、確認卡三選一、送出附原輸入、重新輸入不送、失敗仍可確認通過');
+
+// ---- 2026/11/11（管理者）：很短的語音殘句（「天帶」）模型原樣奉還時，規則猜最像的常用問句；猜不到就不送雲端 ----
+(() => {
+  ctx.todayStr_ = () => '2026/11/11';
+  ctx.lineAdminActive_ = uid => uid === 'Uadmin';
+  const prevProp = ctx.lineProp_; ctx.lineProp_ = k => (k === 'CLAUDE_RULING_FIRE_URL' ? 'x' : '');
+  ctx.lineAdminReviewData_ = () => ({ day: '2026/11/11', summary: {}, rows: [] });
+  ctx.lineAdminQuestions_ = () => []; ctx.lineAdminBook_ = () => ({});
+  const store = new Map();
+  ctx.CacheService = { getScriptCache: () => ({ get: k => (store.has(k) ? store.get(k) : null), put: (k, v) => store.set(k, String(v)), remove: k => store.delete(k) }) };
+  for (const [t, want] of [['天帶', '今天待確認的明細是什麼？'], ['帶才是', '今天有哪些要我裁示的？'], ['季核', '今天的稽核結果是什麼？'], ['便捷', '今天的邊界有哪些？']]) {
+    assert.equal(ctx.lineAdminGuessShort_(t), want, t);
+  }
+  assert.equal(ctx.lineAdminGuessShort_('哈'), '');
+  // 模型原樣奉還「天帶」→ 卡片「我理解成：今天待確認的明細是什麼？」，有「照這句送出」
+  ctx.callGemini_ = () => JSON.stringify({ text: '天帶', clear: false, note: '' });
+  let pre = ctx.lineRoute_('Uadmin', 'bot', ctx.lineParseText_('天帶', 'Uadmin', false), true);
+  assert.match(JSON.stringify(pre[0]), /我理解成.*今天待確認的明細是什麼？/);
+  assert.equal(ctx.lineParseData_(pre[0].contents.footer.contents[0].action.data).v, '1');
+  // 模型失敗也一樣
+  ctx.callGemini_ = () => { throw new Error('quota'); };
+  pre = ctx.lineRoute_('Uadmin', 'bot', ctx.lineParseText_('天帶', 'Uadmin', false), true);
+  assert.match(JSON.stringify(pre[0]), /今天待確認的明細是什麼？/);
+  // 看不懂也猜不到：不給「送出」，只有常用按鈕與重新輸入
+  ctx.callGemini_ = () => JSON.stringify({ text: '嗯哼喔', clear: false, note: '' });
+  pre = ctx.lineRoute_('Uadmin', 'bot', ctx.lineParseText_('嗯哼喔', 'Uadmin', false), true);
+  const acts = pre[0].contents.footer.contents.map(b => ctx.lineParseData_(b.action.data).a);
+  assert.ok(!acts.includes('chatsend')); assert.deepEqual([...acts], ['adminsev', 'adminpending', 'chatretype']);
+  assert.match(JSON.stringify(pre[0]), /先不送雲端/);
+  ctx.lineProp_ = prevProp;
+})();
+console.log('11/11 短語音殘句：規則猜常用問句、模型失敗也能猜、猜不到不送雲端通過');

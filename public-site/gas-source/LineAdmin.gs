@@ -1104,8 +1104,44 @@ function lineAdminFixCommonTypos_(text) {
     .replace(/(管理者|管理員|要|待|需要)才是/g, '$1裁示').replace(/複合錯/g, '複核錯').replace(/(?:每日|今日|今天)?季核|稽合/g, function (m) { return m.replace(/季核|稽合/, '稽核'); })
     .replace(/每日季(?!核)/g, '每日稽核').replace(/帶確認/g, '待確認').replace(/帶裁示/g, '待裁示').replace(/便捷(?=的|項|列)/g, '邊界');
 }
+/** 純函式：很短又看不懂的句子（例如「天帶」）先把同音字還原（帶代袋戴→待、才是→裁示、季集→稽、合→核），
+    再對管理者常問的句子找最像的一句。找不到回 ''。 */
+var LINE_ADMIN_GUESS_ = [
+  { keys: ['待確認', '確認'], text: '今天待確認的明細是什麼？' },
+  { keys: ['待裁示', '裁示', '要我決定', '決定'], text: '今天有哪些要我裁示的？' },
+  { keys: ['稽核', '複核', '結果'], text: '今天的稽核結果是什麼？' },
+  { keys: ['邊界'], text: '今天的邊界有哪些？' },
+  { keys: ['複核錯', '判錯'], text: '今天的複核錯有哪些？' },
+  { keys: ['明確錯誤', '錯誤'], text: '今天的明確錯誤改了什麼？' },
+  { keys: ['進度', '處理到哪'], text: '我的裁示處理到哪了？' }
+];
+function lineAdminGuessShort_(text) {
+  var t = String(text || '').replace(/[\s，,。.！!？?～~、…]+/g, '');
+  if (!t || t.length > 8) { return ''; }
+  var n = t.replace(/[帶代袋戴呆]/g, '待').replace(/才是|才式|裁是/g, '裁示').replace(/[季集計]/g, '稽').replace(/[合和何]/g, '核')
+           .replace(/便捷|編界|變界/g, '邊界').replace(/[去取]認|確人/g, '確認');
+  var best = '', score = 0;
+  LINE_ADMIN_GUESS_.forEach(function (g) {
+    var sc = 0;
+    g.keys.forEach(function (k) {
+      if (n.indexOf(k) >= 0) { sc = Math.max(sc, k.length * 2); }
+      else { var hit = k.split('').filter(function (c) { return n.indexOf(c) >= 0; }).length; if (hit) { sc = Math.max(sc, hit); } }
+    });
+    if (sc > score) { score = sc; best = g.text; }
+  });
+  return score >= 1 ? best : '';
+}
 /** 錯字修正：先規則，再請 Gemini 只修錯字（不改意思）。回 { text, clear, note }。 */
 function lineAdminFixText_(said) {
+  var r = lineAdminFixTextRaw_(said);
+  // 2026/11/11：「天帶」這類很短的語音殘句，模型常原樣奉還；規則找得到最像的常用問句就改用它，並標成不確定讓管理者確認
+  if (r.text === lineAdminFixCommonTypos_(String(said || '').trim()) && String(said || '').replace(/\s+/g, '').length <= 8) {
+    var guess = lineAdminGuessShort_(said);
+    if (guess && guess !== r.text) { return { text: guess, clear: false, note: '原句太短，猜你要問這個' }; }
+  }
+  return r;
+}
+function lineAdminFixTextRaw_(said) {
   var base = lineAdminFixCommonTypos_(said), names = [];
   try { var d = lineAdminReviewData_(todayStr_(), true); names = (d && d.rows || []).map(function (r) { return r['名稱']; }).filter(String).slice(0, 30); } catch (e) { names = []; }
   if (typeof callGemini_ !== 'function') { return { text: base, clear: true, note: base !== said ? '修正常見錯字' : '' }; }
@@ -1135,15 +1171,18 @@ function lineAdminCloudChat_(uid, said) {
 /** 純函式：「送給雲端前確認」卡。 */
 function lineAdminChatPrecheckFlex_(d) {
   var changed = d.fixed && d.fixed !== d.said, k = encodeURIComponent(d.id);
+  var lost = !changed && d.clear === false;   // 看不懂、也猜不到：不送雲端，給重新輸入與常用按鈕
   var btns = changed
     ? [fxBtn_(linePb_('照這句送出', 'a=chatsend&k=' + k + '&v=1', '照修正後的句子送出')), fxBtn_(linePb_('用原句送出', 'a=chatsend&k=' + k + '&v=0', '用原句送出'), 'secondary')]
+    : lost ? [fxBtn_(linePb_('看待確認', 'a=adminsev&s=' + encodeURIComponent('待確認'), '看待確認'), 'secondary'),
+              fxBtn_(linePb_('看待裁示', 'a=adminpending', '看待裁示'), 'secondary')]
     : [fxBtn_(linePb_('送出', 'a=chatsend&k=' + k + '&v=0', '送出給雲端'))];
-  btns.push(fxBtn_(linePb_('重新輸入', 'a=chatretype', '重新輸入'), 'link'));
+  btns.push(fxBtn_(linePb_('重新輸入', 'a=chatretype', '重新輸入'), lost ? 'primary' : 'link'));
   return lineFlex_('送給雲端前確認：' + lineAdminCut_(changed ? d.fixed : d.said, 60), fxBubble_(
     fxHeader_('送給雲端前確認一下', changed ? '我幫你修了錯字' : '確認這句沒打錯', '#0A4A3C'),
     [lineAdminLine_('你輸入', lineAdminCut_(d.said, 200)),
      changed ? lineAdminLine_('我理解成', lineAdminCut_(d.fixed, 300) + (d.note ? '（' + d.note + '）' : '')) : null,
-     d.clear === false ? fxText_('這句我不太確定意思；建議按「重新輸入」打完整一點，或確認上面的理解再送出。', { size: 'sm', color: LINE_C_.amber, wrap: true }) : null,
+     d.clear === false ? fxText_(lost ? '這句我看不懂，先不送雲端；請按「重新輸入」打完整一點，或用下面的按鈕。' : '這句我不太確定意思；請確認上面的理解再送出，不對就按「重新輸入」。', { size: 'sm', color: LINE_C_.amber, wrap: true }) : null,
      fxNote_('送出後交給雲端 Claude 讀複核紀錄與原稿回答（約 1–3 分鐘）；要改網站時它會再給你確認卡。')].filter(Boolean), btns));
 }
 function lineAdminChatRetypeReply_(uid) {

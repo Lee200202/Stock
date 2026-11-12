@@ -1,0 +1,44 @@
+name: cloud-cleanup
+run-name: 雲端產物清理（保留 7 天）${{ inputs.dry_run == 'true' && '試跑' || '' }}
+
+# 2026/11/12 管理者：每天推上雲端的分支、產出檔與雲端硬碟備份越積越多 →「保留 7 天、自動清理」。
+# 每日分支先封存（docs/雲端排程/封存/*.patch＋修正計畫進 main）再刪；週檢討與開發分支不動。說明見 scripts/cloud_cleanup.py。
+on:
+  schedule:
+    - cron: '10 6 * * *'   # 台灣 14:10：當天的複核、修正、寄信都結束後
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'true＝只列出要清的東西，不刪'
+        required: false
+        default: 'true'
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: cloud-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - run: pip install requests==2.32.5
+      - name: 清理
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then python scripts/cloud_cleanup.py --dry-run; else python scripts/cloud_cleanup.py; fi

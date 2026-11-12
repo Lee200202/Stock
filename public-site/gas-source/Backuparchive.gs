@@ -62,8 +62,61 @@ function archiveLiveSheet_(sheet,name){
 function backupArchiveStatus_(){
   var source=getSS_(),id=PropertiesService.getScriptProperties().getProperty('BACKUP_SPREADSHEET_ID'),pending=source.getSheets().filter(function(s){return isArchiveBackupName_(s.getName());});
   var out={ok:true,configured:!!id,sourceId:source.getId(),pending:pending.map(function(s){return {id:s.getSheetId(),name:s.getName()};}),remaining:pending.length};
-  if(id){var archive=backupArchiveBook_();out.url=archive.getUrl();out.archived=Math.max(0,archive.getSheets().length-1);}
+  if(id){
+    var archive=backupArchiveBook_(),sheets=archive.getSheets();out.archived=Math.max(0,sheets.length-1);
+    // 2026/11/12 管理者「保留 7 天、自動清理」：回報大小（試算表上限 1,000 萬格）與可清理的份數，只讀。
+    out.cells=sheets.reduce(function(n,s){return n+s.getMaxRows()*s.getMaxColumns();},0);
+    out.cellLimit=10000000;
+    var plan=backupArchivePrunePlan_(archive,7);out.prunable=plan.drop.length;out.prunableCells=plan.cells;out.oldest=plan.oldest;
+  }
   return out;
+}
+/* 2026/11/12 管理者：雲端每天的備份越積越多，「保留 7 天、自動清理」。
+   純規則：核對時間早於 days 天的備份分頁才清；每個來源分頁（來源試算表＋原分頁名稱去掉時間戳）永遠留最新一份，
+   確保隨時有一個還原點；目錄列不刪，狀態改成「已清理 日期」留紀錄。 */
+function backupArchiveAge_(value){
+  if(value&&typeof value.getTime==='function'){return value.getTime();}
+  var m=String(value||'').match(/(\d{4})\/(\d{1,2})\/(\d{1,2})(?:\s+(\d{1,2}):(\d{2}))?/);
+  return m?new Date(+m[1],+m[2]-1,+m[3],+(m[4]||0),+(m[5]||0)).getTime():0;
+}
+function backupArchiveTabKey_(row){
+  return String(row[0])+'|'+String(row[2]).replace(/^(?:備份_|持股備份_|影片整併備份-)\d{4}_\d{6}_/,'').replace(/^(?:備份_|持股備份_|影片整併備份-)/,'');
+}
+function backupArchivePrunePlan_(archive,days){
+  var index=archive.getSheetByName('備份目錄');if(!index){throw new Error('缺少備份目錄');}
+  var rows=index.getDataRange().getValues(),cutoff=Date.now()-days*86400000,latest={},drop=[],cells=0,oldest=0;
+  for(var i=1;i<rows.length;i++){
+    if(/^已清理/.test(String(rows[i][11]))){continue;}
+    var at=backupArchiveAge_(rows[i][6]),key=backupArchiveTabKey_(rows[i]);
+    if(at&&(!oldest||at<oldest)){oldest=at;}
+    if(!latest[key]||at>latest[key].at){latest[key]={at:at,row:i};}
+  }
+  for(var j=1;j<rows.length;j++){
+    if(/^已清理/.test(String(rows[j][11]))){continue;}
+    var t=backupArchiveAge_(rows[j][6]),k=backupArchiveTabKey_(rows[j]);
+    if(!t||t>=cutoff||latest[k].row===j){continue;}
+    var sheet=archive.getSheetById(Number(rows[j][4]));
+    if(sheet&&sheet.getName()!=='備份目錄'){cells+=sheet.getMaxRows()*sheet.getMaxColumns();}
+    drop.push({row:j+1,sheetId:Number(rows[j][4]),name:String(rows[j][5]),at:Utilities.formatDate(new Date(t),'Asia/Taipei','yyyy/MM/dd HH:mm'),exists:!!sheet});
+  }
+  return {drop:drop,cells:cells,oldest:oldest?Utilities.formatDate(new Date(oldest),'Asia/Taipei','yyyy/MM/dd'):''};
+}
+function backupArchivePrune_(days,dry){
+  days=Math.max(7,Number(days)||7);
+  var lock=LockService.getScriptLock();if(!lock.tryLock(10000)){throw new Error('備份鎖忙碌，稍後重試');}
+  try{
+    var archive=backupArchiveBook_(),index=archive.getSheetByName('備份目錄'),plan=backupArchivePrunePlan_(archive,days),done=[],started=Date.now();
+    if(!dry){
+      var stamp=Utilities.formatDate(new Date(),'Asia/Taipei','yyyy/MM/dd');
+      for(var i=0;i<plan.drop.length&&Date.now()-started<200000;i++){
+        var d=plan.drop[i],sheet=d.exists?archive.getSheetById(d.sheetId):null;
+        if(sheet&&sheet.getName()!=='備份目錄'){archive.deleteSheet(sheet);}
+        index.getRange(d.row,12).setValue('已清理 '+stamp+'（保留 '+days+' 天）');done.push(d.name);
+      }
+    }
+    var status=backupArchiveStatus_();status.days=days;status.dry=!!dry;status.plan=plan.drop.slice(0,60);status.pruned=done.length;
+    status.left=plan.drop.length-done.length;return status;
+  }finally{lock.releaseLock();}
 }
 function migrateBackupArchive_(){
   var lock=LockService.getScriptLock();if(!lock.tryLock(10000)){throw new Error('備份鎖忙碌，稍後重試');}
@@ -91,6 +144,9 @@ function backupArchiveRequest_(key,op,namesJson,expectedSource){
   if(expectedSource&&expectedSource!==getSS_().getId()){throw new Error('備份來源試算表與請求不符');}
   if(op==='status'){return backupArchiveStatus_();}
   if(op==='migrate'){return migrateBackupArchive_();}
+  // 2026/11/12：prune-preview 只列會清哪些；prune 才真的刪（保留 7 天，每個分頁至少留最新一份）。
+  if(op==='prune-preview'){return backupArchivePrune_(7,true);}
+  if(op==='prune'){return backupArchivePrune_(7,false);}
   if(op!=='snapshot'){throw new Error('不支援的備份操作');}
   var names=JSON.parse(namesJson),source=getSS_();
   var allowed=['操作紀錄','會員持股','每日推播內容','逐字稿判讀稽核','持股追蹤','影片清單','會員簡訊'];

@@ -228,7 +228,9 @@ function lineAdminReviewData_(day, latestIfMissing) {
     if (ran.length) { summary = ran[ran.length - 1]; day = summary['日期']; }
   }
   if (!summary) { return null; }
-  return { day: day, summary: summary, rows: lineAdminReadTab_(book, '差異明細', day), url: book.getUrl() };
+  var screen = [];
+  try { screen = lineAdminReadTab_(book, '畫面辨識', '').filter(function (r) { return lineFmtDay_(r['日期']) === lineFmtDay_(day); }); } catch (e) { screen = []; }
+  return { day: day, summary: summary, rows: lineAdminReadTab_(book, '差異明細', day), screen: screen, url: book.getUrl() };
 }
 function lineAdminPendingRows_(rows) {
   return (rows || []).filter(function (r) { return r['嚴重度'] === '待確認' && r['處理'] !== '已修正'; });
@@ -322,6 +324,30 @@ function lineAdminSevBubble_(r, day) {
     lineAdminLine_('原句', r['原文依據'] ? '「' + lineAdminCut_(r['原文依據'], LINE_ADMIN_FULL_) + '」' : '')
   ], color, open && /^\d{4,6}[A-Z]?$/.test(code) ? [fxBtn_(linePb_('裁示這一檔', pick, '裁示 ' + lineAdminName_(r)))] : []);
 }
+/* ---------------- 直播畫面辨識（2026/11/12 管理者） ---------------- */
+/** 純函式：有時間的辨識列（整天一列「無／失敗」的不出卡，放在摘要文字）。 */
+function lineAdminScreenRows_(rows) { return (rows || []).filter(function (r) { return String(r['時間'] || '').trim(); }); }
+/** 純函式：摘要卡上的一句畫面辨識狀態。 */
+function lineAdminScreenNote_(rows) {
+  rows = rows || [];
+  if (!rows.length) { return ''; }
+  var timed = lineAdminScreenRows_(rows), marker = rows.filter(function (r) { return !String(r['時間'] || '').trim(); })[0];
+  if (timed.length) { return '畫面辨識 ' + timed.length + ' 處（逐字稿沒講名字、看畫面才知道的股票），往右滑看。'; }
+  if (marker && /失敗/.test(marker['狀態'])) { return '畫面辨識沒有完成：' + lineAdminCut_(marker['說明'], LINE_ADMIN_FULL_); }
+  return '畫面辨識：今天沒有需要看畫面才知道股名的地方。';
+}
+/** 一處畫面辨識一張卡：顏色依處理狀態（已上網站／網站已有＝深綠、待核對／不需處理＝淺綠、待你決定或畫面沒顯示＝淺紅）。 */
+function lineAdminScreenBubble_(r, day) {
+  var st = String(r['狀態'] || '待核對'), sure = String(r['把握'] || '');
+  var color = /已上網站|網站已有/.test(st) ? LINE_ADMIN_SCALE_.deepGreen : (/待你決定/.test(st) || sure === '沒有顯示') ? LINE_ADMIN_SCALE_.red : LINE_ADMIN_SCALE_.green;
+  var who = [r['畫面股名'], r['代號']].filter(String).join(' ') || '畫面沒有顯示個股';
+  return lineAdminBubble_(fxHeader_('畫面辨識・' + st, (r['時間'] || '') + '　' + who, color), [
+    lineAdminLine_('主持人說', r['講者原話'] ? '「' + lineAdminCut_(r['講者原話'], LINE_ADMIN_FULL_) + '」' : ''),
+    lineAdminLine_('畫面', [sure, r['說明']].filter(String).join('｜')),
+    lineAdminLine_('處理', lineAdminCut_(r['處理說明'], LINE_ADMIN_FULL_))
+  ].filter(Boolean), /^\d{4,6}$/.test(String(r['代號'] || '')) && /待你決定/.test(st)
+    ? [fxBtn_(linePb_('裁示這一檔', 'a=rulepick&d=' + encodeURIComponent(day) + '&c=' + encodeURIComponent(r['代號']) + '&n=' + encodeURIComponent(r['畫面股名'] || ''), '裁示 ' + who))] : []);
+}
 /** ① 今日稽核結果。data = { day, summary, rows, url }；only＝只看某一級（「看待確認」）。 */
 function lineAdminReviewFlex_(data, only) {
   var s = data.summary || {}, rows = data.rows || [], md = lineMd_(data.day) || data.day;
@@ -353,9 +379,12 @@ function lineAdminReviewFlex_(data, only) {
     fxBox_('horizontal', [tile('邊界'), tile('複核錯')], { margin: 'sm' }),
     fxText_(!rows.length ? '網站內容與獨立判讀一致，今天沒有修改。' : !shown.length ? '這一級今天沒有項目。' :
       '往右滑看每一項；卡片顏色＝分級，標題寫處理狀態（已修正／只記錄／待你裁示）。', { size: 'sm', color: LINE_C_.ink, margin: 'md' }),
-    pending.length && !only ? fxText_('待你裁示 ' + pending.length + ' 項，請看下一則。', { size: 'sm', weight: 'bold', color: LINE_C_.amber, margin: 'sm' }) : null
+    pending.length && !only ? fxText_('待你裁示 ' + pending.length + ' 項，請看下一則。', { size: 'sm', weight: 'bold', color: LINE_C_.amber, margin: 'sm' }) : null,
+    !only && lineAdminScreenNote_(data.screen) ? fxText_(lineAdminScreenNote_(data.screen), { size: 'sm', color: LINE_C_.ink, margin: 'sm' }) : null
   ], btns);
   var items = shown.map(function (r) { return lineAdminSevBubble_(r, data.day); });
+  // 2026/11/12（管理者）：直播畫面辨識（逐字稿沒講名字、看畫面才知道是哪一檔）也一張一張列出來
+  if (!only) { items = items.concat(lineAdminScreenRows_(data.screen).map(function (r) { return lineAdminScreenBubble_(r, data.day); })); }
   var bubbles = [head].concat(items.slice(0, LINE_ADMIN_ITEM_BUBBLES_));
   if (items.length > LINE_ADMIN_ITEM_BUBBLES_) { bubbles.push(lineAdminMoreBubble_(items.length - LINE_ADMIN_ITEM_BUBBLES_, data.url)); }
   var alt = md + (only ? ' ' + only + ' ' + shown.length + ' 項' : ' 稽核：已修正 ' + fixed.length + ' 項' + (pending.length ? '，待你裁示 ' + pending.length + ' 項' : ''));

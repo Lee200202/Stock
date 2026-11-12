@@ -1,0 +1,68 @@
+name: screen-identify
+run-name: 直播畫面辨識 ${{ inputs.date || '' }}
+
+# 2026/11/12 管理者：逐字稿只有聲音，「這檔」「你看這個」或聽錯的股名要看當時畫面才知道是哪一檔。
+# 回放好之後由 Gemini 直接讀 YouTube 片段（不下載影片），結果寫進複核紀錄「畫面辨識」，11:40 雲端複核核對。
+on:
+  schedule:
+    - cron: '32,47 3 * * 1-5'   # 台灣 11:32、11:47
+    - cron: '2,20 4 * * 1-5'    # 台灣 12:02、12:20（回放晚好的候補）
+  workflow_dispatch:
+    inputs:
+      date:
+        description: '目標日期 YYYY/MM/DD，留空＝今天'
+        required: false
+        default: ''
+      force:
+        description: '已經辨識過也重跑'
+        required: false
+        default: 'false'
+
+concurrency:
+  group: screen-identify
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  identify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - name: 交易日預檢
+        id: calendar
+        if: github.event_name == 'schedule'
+        run: python scripts/screen_identify.py --trading-day-check >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-python@v6
+        if: github.event_name != 'schedule' || steps.calendar.outputs.run == 'true'
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: 安裝相依套件
+        if: github.event_name != 'schedule' || steps.calendar.outputs.run == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt cryptography cffi
+      - name: 看畫面辨識股名
+        if: github.event_name != 'schedule' || steps.calendar.outputs.run == 'true'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+          GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          GEMINI_FALLBACK_MODEL: ${{ vars.GEMINI_FALLBACK_MODEL }}
+          SCREEN_MODEL: ${{ vars.SCREEN_MODEL }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          YOUTUBE_CHANNEL_ID: ${{ vars.YOUTUBE_CHANNEL_ID }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
+          REVIEW_LOG_ID: ${{ vars.REVIEW_LOG_ID }}
+          TARGET_DATE: ${{ inputs.date }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          ARGS=""
+          if [ -n "$TARGET_DATE" ]; then ARGS="$ARGS --date $TARGET_DATE"; fi
+          if [ "$FORCE" = "true" ]; then ARGS="$ARGS --force"; fi
+          python scripts/screen_identify.py $ARGS

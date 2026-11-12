@@ -836,3 +836,33 @@ console.log('11/11 卡片內文完整、giga 寬度、50KB 以內通過');
   for (const h of used) assert.ok(1.05 / (lum(h) + 0.05) >= 3, h + ' 對白字對比不足');
 })();
 console.log('11/11 四段紅綠漸層、白字對比通過');
+
+// ---- 2026/11/12（管理者）：直播畫面辨識出現在今日稽核卡 ----
+(() => {
+  const screen = [
+    { 日期: '2026/11/12', 時間: '0:17:05', 講者原話: '你看這一檔，底部爆量', 畫面股名: '勤誠', 代號: '8210', 把握: '清楚', 說明: 'K線圖左上角', 狀態: '已上網站', 處理說明: '補上勤誠觀望注意' },
+    { 日期: '2026/11/12', 時間: '0:33:40', 講者原話: '再告訴你們一檔', 畫面股名: '', 代號: '', 把握: '沒有顯示', 說明: '只有講者', 狀態: '待你決定', 處理說明: '' },
+    { 日期: '2026/11/12', 時間: '0:41:00', 講者原話: '記憶體只看這一支', 畫面股名: '宜鼎', 代號: '5289', 把握: '模糊', 說明: '報價視窗', 狀態: '待你決定', 處理說明: '' }];
+  const data = { day: '2026/11/12', summary: { 狀態: '已完成', 比對檔數: '8' }, rows: [], screen };
+  const m = ctx.lineAdminReviewFlex_(data);
+  const b = m.contents.contents;
+  assert.equal(b.length, 4);                                          // 摘要＋三處
+  assert.match(JSON.stringify(b[0]), /畫面辨識 3 處/);
+  assert.equal(b[1].header.backgroundColor, '#1E5E3E');                // 已上網站＝深綠
+  assert.equal(b[2].header.backgroundColor, '#D0645A');                // 畫面沒顯示＝淺紅
+  assert.match(b[1].header.contents[1].text, /0:17:05　勤誠 8210/);
+  assert.equal(b[2].footer, undefined);                               // 沒有代號不給裁示鈕
+  assert.equal(ctx.lineParseData_(b[3].footer.contents[0].action.data).c, '5289');
+  assert.ok(b.every(x => x.size === 'giga'));
+  // 只看某一級不放畫面辨識；整天「無」只寫在摘要
+  assert.equal(ctx.lineAdminReviewFlex_(data, '待確認').contents.type, 'bubble');
+  const none = ctx.lineAdminReviewFlex_({ ...data, screen: [{ 日期: '2026/11/12', 時間: '', 狀態: '無' }] });
+  assert.match(JSON.stringify(none), /今天沒有需要看畫面才知道股名的地方/);
+  const fail = ctx.lineAdminReviewFlex_({ ...data, screen: [{ 日期: '2026/11/12', 時間: '', 狀態: '失敗', 說明: 'Gemini 額度用完' }] });
+  assert.match(JSON.stringify(fail), /畫面辨識沒有完成：Gemini 額度用完/);
+  // 上限：差異 10 項＋畫面辨識 5 處仍不超過 12 張
+  const many = Array.from({ length: 10 }, (_, i) => ({ 日期: '2026/11/12', 代號: String(1000 + i), 名稱: '股' + i, 嚴重度: '邊界', 處理: '只記錄' }));
+  const big = ctx.lineAdminReviewFlex_({ ...data, rows: many, screen: screen.concat(screen).slice(0, 5) });
+  assert.ok(big.contents.contents.length <= 12);
+})();
+console.log('11/12 畫面辨識卡：顏色依狀態、摘要一句、裁示鈕、無／失敗、12 張上限通過');

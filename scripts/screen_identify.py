@@ -30,9 +30,11 @@ TAB = '畫面辨識'
 SEGMENT_SECONDS = 15 * 60
 FPS = float(os.environ.get('SCREEN_FPS', '0.5'))          # 兩秒一張畫面：讀得到標題，又不爆輸入量
 CONFIDENCE = ('清楚', '模糊', '沒有顯示')
+# 每段讀幾次（2026/11/12 管理者同意兩次一致才算清楚；設 1 回到單次讀取）。
+PASSES = max(1, int(os.environ.get('SCREEN_PASSES', '2')))
 
 # 純函式與模型介面拆開，方便離線測試；部署時須一起複製這兩個模組。
-from screen_contracts import hms, parse_report, check_codes, explicit, dedupe, not_listed
+from screen_contracts import hms, parse_report, check_codes, consensus, explicit, dedupe, not_listed
 from screen_runtime import Reader
 
 
@@ -80,23 +82,35 @@ def main():
     code_names = load_code_names()
     print(f'{day} 影片 {video.id}，{hms(video.duration_sec)}，分 {len(plan)} 段看畫面（fps={FPS}）')
     reader = Reader()
-    items, errors = [], []
+    items, errors, foreign = [], [], []
     for start, end in plan:
-        try:
-            got, dropped = parse_report(reader.read(url, start, end, learned_pairs), start, end)
-        except RuntimeError as exc:
-            errors.append(f'{hms(start)}–{hms(end)} {exc}')
+        reads = []
+        for n in range(PASSES):
+            try:
+                got, dropped = parse_report(reader.read(url, start, end, learned_pairs), start, end)
+            except RuntimeError as exc:
+                print(f'  {hms(start)}–{hms(end)} 第 {n + 1} 次讀取失敗：{exc}')
+                continue
+            if got is None:
+                print(f'  {hms(start)}–{hms(end)} 第 {n + 1} 次回覆不是 JSON 陣列或未完整')
+                continue
+            why = '、'.join(f'{k} {v} 筆' for k, v in dropped.items())
+            print(f'  {hms(start)}–{hms(end)} 第 {n + 1} 次：{len(got)} 個時刻' + (f'（丟掉：{why}）' if why else ''))
+            foreign += [it for it in got if not_listed(it, code_names)]
+            reads.append(check_codes([it for it in got if not not_listed(it, code_names)], code_names))
+        if not reads:
+            errors.append(f'{hms(start)}–{hms(end)} 讀取失敗')
             continue
-        if got is None:
-            errors.append(f'{hms(start)}–{hms(end)} 回覆不是 JSON 陣列或未完整')
-            continue
-        why = '、'.join(f'{k} {v} 筆' for k, v in dropped.items())
-        print(f'  {hms(start)}–{hms(end)}：{len(got)} 個時刻' + (f'（丟掉：{why}）' if why else ''))
-        items.extend(got)
-    foreign = [it for it in items if not_listed(it, code_names)]
-    items = dedupe(check_codes([it for it in items if not not_listed(it, code_names)], code_names))
+        if PASSES == 1:
+            merged = reads[0]
+        else:
+            merged = consensus(reads[0], reads[1] if len(reads) > 1 else [])
+            print(f'  {hms(start)}–{hms(end)} 兩次一致 {sum(it["agreed"] for it in merged)} 處、只有一次 {sum(not it["agreed"] for it in merged)} 處'
+                  + ('（第二次失敗，清楚全部降成模糊）' if len(reads) < 2 else ''))
+        items.extend(merged)
+    items = dedupe(items)
     if foreign:
-        print(f'不是台股個股、不列 {len(foreign)} 處：' + '、'.join(f"{it['time']} {it.get('name') or it.get('heard')}" for it in foreign))
+        print(f'不是台股個股、不列 {len(foreign)} 處：' + '、'.join(sorted({f"{it['time']} {it.get('name') or it.get('heard')}" for it in foreign})))
     stamp = now().strftime('%Y/%m/%d %H:%M:%S')
     for it in items:
         print(f"  {it['time']} {it['confidence']} {it['code']} {it['name']}｜{it.get('heard', '')}｜{it['said']}｜"

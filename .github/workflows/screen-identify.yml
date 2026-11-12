@@ -61,11 +61,12 @@ jobs:
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           GEMINI_FALLBACK_MODEL: ${{ vars.GEMINI_FALLBACK_MODEL }}
           SCREEN_MODEL: ${{ vars.SCREEN_MODEL }}
-          SCREEN_BUDGET_SECONDS: '540'
-          SCREEN_MAX_REQUESTS: '12'
+          SCREEN_BUDGET_SECONDS: '600'
+          SCREEN_MAX_REQUESTS: '24'
           SCREEN_FPS: '0.5'
           SCREEN_RESOLUTION: default
           SCREEN_THINKING: low
+          SCREEN_PASSES: ${{ vars.SCREEN_PASSES || '2' }}
           SCREEN_SCHEMA: ${{ inputs.schema || vars.SCREEN_SCHEMA || 'off' }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           YOUTUBE_CHANNEL_ID: ${{ vars.YOUTUBE_CHANNEL_ID }}

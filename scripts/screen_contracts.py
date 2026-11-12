@@ -289,6 +289,57 @@ def not_listed(it, code_names):
     return not sounds_listed(name, code_names)
 
 
+def consensus(a, b, window=15):
+    """兩次讀同一段的結果合併（2026/11/12 管理者同意「兩次讀取一致才算清楚」）。
+    同一份程式碼對同一支影片連跑三次，同一個時刻讀成致茂、致茂、聯發科，「這一支今天漲停」讀成良維、友達、元大金；
+    單次讀取的「清楚」不可靠，所以：
+    - 兩次都在 window 秒內讀到同一個代號才配成一對；兩次都「清楚」才保留清楚，否則模糊；
+    - 都沒有代號、8 秒內的兩筆也配成一對（同一個「沒有顯示」時刻不重複寫）；
+    - 沒配到的照樣寫列（不丟召回），但「清楚」降成模糊並寫原因；附近另一次讀到別檔就寫出兩個代號；
+    - 有說出名稱的列（explicit）不降級，之後照樣不寫列。
+    a、b 都要先經過 check_codes。b 是空的（第二次讀取失敗）時，a 的清楚全部降成模糊。"""
+    def pair_ok(x, y):
+        gap = abs(x['sec'] - y['sec'])
+        if x.get('code') and y.get('code'):
+            return x['code'] == y['code'] and gap <= window
+        return not x.get('code') and not y.get('code') and gap <= 8
+
+    def downgrade(it, why):
+        it = dict(it)
+        if it.get('confidence') == '清楚' and not explicit(it):
+            it['confidence'] = '模糊'
+            it['note'] = (why + '；' + it.get('note', ''))[:100]
+        return it
+
+    out, used = [], set()
+    for x in a:
+        cands = [(abs(x['sec'] - y['sec']), j) for j, y in enumerate(b) if j not in used and pair_ok(x, y)]
+        if cands:
+            j = min(cands)[1]
+            used.add(j)
+            y = b[j]
+            keep = dict(x if (x.get('confidence') == '清楚') >= (y.get('confidence') == '清楚') else y)
+            if explicit(x) or explicit(y):
+                keep = dict(x if explicit(x) else y)
+            elif not (x.get('confidence') == '清楚' and y.get('confidence') == '清楚'):
+                keep = downgrade(keep, '兩次讀取只有一次清楚')
+            keep['agreed'] = True
+            out.append(keep)
+            continue
+        out.append(dict(x, agreed=False))
+    out += [dict(y, agreed=False) for j, y in enumerate(b) if j not in used]
+    final = []
+    for it in out:
+        if it['agreed']:
+            final.append(it)
+            continue
+        others = [o for o in out if o is not it and o.get('code') and it.get('code') and o['code'] != it['code']
+                  and abs(o['sec'] - it['sec']) <= 8]
+        why = ('兩次讀到不同股：' + '／'.join(sorted({it['code']} | {o['code'] for o in others}))) if others else '兩次讀取只有一次讀到這一檔'
+        final.append(downgrade(it, why))
+    return sorted(final, key=lambda x: x['sec'])
+
+
 def dedupe(items):
     """只合併同一句、同畫面主體且 8 秒內的重複；先比品質，再保留較佳觀測。"""
     keep = []

@@ -183,6 +183,46 @@ class Contract(unittest.TestCase):
         self.assertEqual(len(s.dedupe([one, two])), 2)
 
 
+class Consensus(unittest.TestCase):
+    codes = {'1111': '甲公司', '2222': '乙公司', '3333': '丙公司'}
+
+    def read(self, **extra):
+        return s.check_codes(parse(observation(**extra)), self.codes)
+
+    def test_both_clear_same_code_is_clear(self):
+        got = s.consensus(self.read(), self.read(second=26, visual_second=26))
+        self.assertEqual([(g['code'], g['confidence'], g['agreed']) for g in got], [('1111', '清楚', True)])
+
+    def test_different_codes_are_fuzzy(self):
+        got = s.consensus(self.read(), self.read(second=22, visual_second=22, screen_code='2222', screen_name='乙公司'))
+        self.assertEqual([g['confidence'] for g in got], ['模糊', '模糊'])
+        self.assertIn('兩次讀到不同股：1111／2222', got[0]['note'])
+
+    def test_seen_once_is_kept_but_fuzzy(self):
+        got = s.consensus(self.read(), [])
+        self.assertEqual((len(got), got[0]['confidence']), (1, '模糊'))
+        self.assertIn('只有一次讀到', got[0]['note'])
+
+    def test_only_one_clear_is_fuzzy(self):
+        got = s.consensus(self.read(), self.read(scene='presenter'))
+        self.assertEqual((len(got), got[0]['confidence']), (1, '模糊'))
+        self.assertIn('只有一次清楚', got[0]['note'])
+
+    def test_far_apart_same_code_not_paired(self):
+        got = s.consensus(self.read(), self.read(second=60, visual_second=60, said='另一句'))
+        self.assertEqual([g['agreed'] for g in got], [False, False])
+
+    def test_no_code_moments_merge(self):
+        blank = dict(screen_code='', screen_name='', confidence='沒有顯示', scene='presenter')
+        got = s.consensus(self.read(**blank), self.read(second=25, visual_second=25, **blank))
+        self.assertEqual(len(got), 1)
+
+    def test_explicit_kept_for_filtering(self):
+        said = dict(said='甲公司看起來不錯', heard='甲公司', speech_kind='explicit')
+        got = s.consensus(self.read(**said), [])
+        self.assertTrue(s.explicit(got[0]))
+
+
 class Prompt(unittest.TestCase):
     def test_layout_and_patterns(self):
         p = s.prompt(900, 1800, [('嘉公司', '甲公司')])

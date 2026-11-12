@@ -45,6 +45,18 @@ var ADMIN_STEPS = ['潤飾', '擷取', '稽核', '代號', '校價', '寫入', '
                    '重算A', '重算B', '重算C', '完成'];
 
 
+/** 設定之後每個交易日整理信的預設最早寄送時間（存在指令碼屬性，不寫死在程式；管理者 2026/11/12）。
+ *  當天若另外按過「儲存今日時間」，當天仍以那個時間為準。 */
+function apiAdminSetDailyPushDefault(key, hhmm) {
+  try {
+    adminAuth_(key);
+    var match = /^(1[2-9]|20|21):([0-5][0-9])$/.exec(String(hhmm || ''));
+    if (!match || Number(match[2]) % 5 !== 0) { throw new Error('請選擇 12:00–21:55 之間、每五分鐘一格的時間。'); }
+    PropertiesService.getScriptProperties().setProperty('DAILY_PUSH_DEFAULT_HM', match[1] + match[2]);
+    return { ok: true, time: match[1] + ':' + match[2], today: todayStr_(), todayStart: dailyPushStartTime_(todayStr_()).replace(/^(..)(..)$/, '$1:$2') };
+  } catch (e) { return { ok: false, reason: String(e.message || e) }; }
+}
+
 /** 設定今日未寄整理信的最早寄送時間，實際寄送仍需文章與品質關卡就緒。 */
 function apiAdminSetDailyPushStart(key, hhmm) {
   try {
@@ -940,6 +952,7 @@ function apiAdminTodayStatusRun_(key, part) {
           success: Number(dk.ok) || 0, failed: Number(dk.failed) || 0, skipped: Number(dk.skipped) || 0 } : null,
         heartbeatAge: heartbeatAge, heartbeatAt: heartbeatAt ? Utilities.formatDate(new Date(heartbeatAt), TZ, 'HH:mm') : '',
         mailStart: dailyPushStartTime_(today).replace(/^(..)(..)$/, '$1:$2'),
+        mailDefault: dailyPushDefaultTime_().replace(/^(..)(..)$/, '$1:$2'),
         missingTriggers: missingTriggers, triggerError: triggerError, alerts: alerts, failures: fails.length,
         closed: closedWhy, autoStart: hmText_(TX_AUTO_START_HM_), days: [today].concat(recentDays),
         prevDay: prevDay, prevMail: prevDay ? mailDays[prevDay] : null, mailNeed: mailNeed, daySync: daySync,

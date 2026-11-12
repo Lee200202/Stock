@@ -142,7 +142,7 @@ function adminNoticeHtml_(subject, body) {
    兩種都列出來：「設定已更新」時一眼看得出現在是哪幾項開著，不必回想當初勾了什麼。
    順序與網站的訂閱表單相同（每日總覽在前）。 */
 var SUB_KINDS_ = [
-  { key: 'daily', name: '每日總覽', when: '交易日 12:10 起',
+  { key: 'daily', name: '每日總覽', when: '交易日 12:10 起（後台可調）',
     desc: '當天內容一備妥就寄出：影片中明講的買入、賣出、觀望不碰、觀望注意與會員持股整理。' },
   { key: 'sms', name: '盤中即時通知', when: '盤中，通常在開盤後到中午之間',
     desc: '管理者確認同意後才會開啟。盤中資料有新內容時寄出；可使用信尾連結隨時停止。' }
@@ -864,15 +864,21 @@ function noVideoToday_(today) {
   }
 }
 
-/** 每日整理信預設最早寄送時刻（HHmm）。 */
+/** 每日整理信預設最早寄送時刻的程式備援（HHmm）；實際以後台「自動化監控 → 設為每日預設」存的 DAILY_PUSH_DEFAULT_HM 為準。 */
 var DAILY_PUSH_DEFAULT_HM_ = '1210';
 
-/** 當日最早寄送時刻；只影響未寄的今日整理，預設 12:10（管理者 2026/11/12：原本 12:00，改 12:10 寄）。 */
+/** 每日預設最早寄送時刻（管理者 2026/11/12：改 12:10，且要能在後台調整，不寫死）。 */
+function dailyPushDefaultTime_() {
+  var saved = String(PropertiesService.getScriptProperties().getProperty('DAILY_PUSH_DEFAULT_HM') || '');
+  return /^(1[2-9]|20|21)[0-5][0-9]$/.test(saved) ? saved : DAILY_PUSH_DEFAULT_HM_;
+}
+
+/** 當日最早寄送時刻：後台「儲存今日時間」只改當天，優先；否則用每日預設。只影響未寄的今日整理。 */
 function dailyPushStartTime_(date) {
   var saved = String(PropertiesService.getScriptProperties().getProperty('DAILY_PUSH_START_TODAY') || '');
   var parts = saved.split('|');
-  var value = parts[0] === String(date).replace(/\D/g, '') ? parts[1] : DAILY_PUSH_DEFAULT_HM_;
-  return /^(1[2-9]|20|21)[0-5][0-9]$/.test(value) ? value : DAILY_PUSH_DEFAULT_HM_;
+  var value = parts[0] === String(date).replace(/\D/g, '') ? parts[1] : '';
+  return /^(1[2-9]|20|21)[0-5][0-9]$/.test(value) ? value : dailyPushDefaultTime_();
 }
 
 function dailyPushJob() {

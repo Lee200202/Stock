@@ -1978,7 +1978,7 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
         <div class="ops-head"><div><h2>自動化監控</h2><p>取稿、判讀、寄信與資料更新的今日進度。每分鐘自動檢查。</p></div><button class="ghost" id="opsRefresh" type="button">立即檢查</button></div>
         <p id="opsStatus" class="ops-note" role="status" aria-live="polite">開啟分頁後載入。</p>
         <div id="opsCards" class="ops-grid"></div>
-        <div class="ops-card ops-mail-setting"><div><h3>今日整理信最早寄送時間</h3><p>文章與品質關卡完成後才寄；實際時間以帳本為準。</p></div><div class="ops-time-actions"><div class="ops-time-picker" id="opsTimePicker"><input id="opsMailTime" type="hidden" value="12:00"><button id="opsTimeToggle" class="ghost ops-time-toggle" type="button" aria-expanded="false" aria-controls="opsTimePanel">12:00 ▾</button><div id="opsTimePanel" class="ops-time-panel" hidden><b>小時</b><div id="opsHourGrid" class="ops-time-grid"></div><b>分鐘（每五分鐘）</b><div id="opsMinuteGrid" class="ops-time-grid"></div><p class="hint">選好後按「儲存今日時間」才會生效。</p></div></div><div class="ops-preset" aria-label="常用時間"><button type="button" class="ghost" data-ops-time="12:00">12:00</button><button type="button" class="ghost" data-ops-time="15:00">15:00</button><button type="button" class="ghost" data-ops-time="18:00">18:00</button></div><button id="opsSaveMailTime" type="button">儲存今日時間</button></div><p id="opsSaveStatus" role="status" aria-live="polite"></p></div>
+        <div class="ops-card ops-mail-setting"><div><h3>整理信最早寄送時間</h3><p>文章與品質關卡完成後才寄；實際時間以帳本為準。<span id="opsMailDefault"></span></p></div><div class="ops-time-actions"><div class="ops-time-picker" id="opsTimePicker"><input id="opsMailTime" type="hidden" value="12:10"><button id="opsTimeToggle" class="ghost ops-time-toggle" type="button" aria-expanded="false" aria-controls="opsTimePanel">12:10 ▾</button><div id="opsTimePanel" class="ops-time-panel" hidden><b>小時</b><div id="opsHourGrid" class="ops-time-grid"></div><b>分鐘（每五分鐘）</b><div id="opsMinuteGrid" class="ops-time-grid"></div><p class="hint">選好後按「儲存今日時間」只改今天；按「設為每日預設」之後每個交易日都用這個時間。</p></div></div><div class="ops-preset" aria-label="常用時間"><button type="button" class="ghost" data-ops-time="12:00">12:00</button><button type="button" class="ghost" data-ops-time="12:10">12:10</button><button type="button" class="ghost" data-ops-time="15:00">15:00</button><button type="button" class="ghost" data-ops-time="18:00">18:00</button></div><button id="opsSaveMailTime" type="button">儲存今日時間</button><button id="opsSaveMailDefault" type="button" class="ghost">設為每日預設</button></div><p id="opsSaveStatus" role="status" aria-live="polite"></p></div>
         <h3 class="ops-section-title">今日郵件與資料時間線</h3><div id="opsFlow" class="ops-flow"></div>
         <div class="ops-events-head"><h3 class="ops-section-title">執行紀錄</h3>
           <label class="ops-day"><span>日期</span><select id="opsDay" aria-label="要看哪一天的執行紀錄"><option value="">今天</option></select></label></div>
@@ -4728,7 +4728,8 @@ var mergeTxFingerprint='';
     var rtTone = !(rt && rt.recorded) ? 'idle' : rt.minutes > 90 ? 'warn' : 'ok';
     var smsTitle = smsMail.accepted ? '已交郵件服務' : o.smsCount ? '有簡訊，待核寄送' : '今天尚無新簡訊';
     $('opsStatus').textContent = (alerts.length ? '需留意：' + alerts.join('；') : '目前沒有偵測到流程異常。') + '　最後檢查：' + r.today + ' ' + r.now + '（台北時間）';
-    if (!timeDirty) { setOpsTime(o.mailStart || '12:00', false); }
+    if (!timeDirty) { setOpsTime(o.mailStart || o.mailDefault || '12:10', false); }
+    $('opsMailDefault').textContent = '每日預設 ' + (o.mailDefault || '12:10') + (o.mailStart && o.mailStart !== o.mailDefault ? '；今天另設 ' + o.mailStart : '') + '。';
     var heartbeat = o.heartbeatAge == null ? '尚無啟動紀錄' : o.heartbeatAt + ' 啟動（' + o.heartbeatAge + ' 分鐘前）';
     $('opsCards').innerHTML =
       card('主排程', o.heartbeatAge == null ? '尚無啟動' : o.heartbeatAge + ' 分鐘前', heartbeat + '。' + ((o.missingTriggers || []).length ? '缺少：' + o.missingTriggers.join('、') : '必要觸發器已安裝。'), o.triggerError || (o.missingTriggers || []).length || (o.trading && o.heartbeatAge > 20) ? 'err' : 'ok') +
@@ -4751,7 +4752,7 @@ var mergeTxFingerprint='';
     $('opsFlow').innerHTML =
       flow('09:05 起', '盤中會員簡訊', smsMail.accepted ? '首次 ' + clock(smsMail.firstAt) + ' 交郵件服務；' + sent(smsMail) + '。' : (o.smsCount ? '有來源文章，尚無寄送紀錄。' : '目前沒有來源文章。'), smsMail.accepted ? 'ok' : 'idle') +
       flow((o.autoStart || '11:05') + ' 起', '影片與逐字稿', closed ? closedTxt + '。' : o.noShow ? '今日無直播，已停止取稿。' : '偵測影片後才派判讀；目前 ' + (o.videoStatus || '等待影片') + '。', closed ? 'closed' : o.videoStatus === '完成' ? 'ok' : 'idle') +
-      flow(o.mailStart || '12:00', '每日總覽信最早寄送', closed ? closedTxt + '。' + prevTxt : daily.accepted ? '實際首次 ' + clock(daily.firstAt) + '；' + sent(daily) + '。' : o.noShow ? '今日無直播，不寄送。' : '文章完成後下一輪排程寄出。', closed ? 'closed' : daily.accepted ? 'ok' : 'idle') +
+      flow(o.mailStart || o.mailDefault || '12:10', '每日總覽信最早寄送', closed ? closedTxt + '。' + prevTxt : daily.accepted ? '實際首次 ' + clock(daily.firstAt) + '；' + sent(daily) + '。' : o.noShow ? '今日無直播，不寄送。' : '文章完成後下一輪排程寄出。', closed ? 'closed' : daily.accepted ? 'ok' : 'idle') +
       flow('16:45 起', '日 K 與持股背景重算', closed ? closedTxt + '（14:05～15:05 的固定排程也略過）。' : dkToday ? '今日日 K 完成於 ' + formatTaipeiTime(o.dailyK.finishedAt) + '；出場價待補 ' + (o.blankExits || []).length + ' 檔。' : '上次完成 ' + (formatTaipeiTime(o.dailyK && o.dailyK.finishedAt) || '尚無') + '。', closed ? 'closed' : dkToday ? 'ok' : 'idle') +
       flow('19:15', '歷史 60 分 K', o.hourlyScheduled ? '排程已安裝。' : '尚未安裝獨立排程。', o.hourlyScheduled ? 'ok' : 'warn');
     /* 執行紀錄可以切日期（v67，0925 規格 A3）：預設今天；今天沒有紀錄（休市、早上）時自動切到最近一個交易日並標示。 */
@@ -4820,7 +4821,7 @@ var mergeTxFingerprint='';
   window.__loadOps = load;
   $('opsRefresh').addEventListener('click', function () { load(true); });
   document.querySelectorAll('[data-ops-time]').forEach(function (btn) {
-    btn.addEventListener('click', function () { setOpsTime(btn.getAttribute('data-ops-time'), true); closeOpsTime(); $('opsSaveStatus').textContent = '已選 ' + $('opsMailTime').value + '；按「儲存今日時間」才會生效。'; });
+    btn.addEventListener('click', function () { setOpsTime(btn.getAttribute('data-ops-time'), true); closeOpsTime(); $('opsSaveStatus').textContent = '已選 ' + $('opsMailTime').value + '；按「儲存今日時間」只改今天，按「設為每日預設」改之後每天。'; });
   });
   $('opsSaveMailTime').addEventListener('click', function () {
     var time = $('opsMailTime').value, btn = this, auth = KEY;
@@ -4836,6 +4837,21 @@ var mergeTxFingerprint='';
       if (auth !== KEY) { return; }
       $('opsSaveStatus').textContent = '儲存失敗：' + (e && e.message ? e.message : '連線逾時');
     }).apiAdminSetDailyPushStart(auth, time);
+  });
+  $('opsSaveMailDefault').addEventListener('click', function () {
+    var time = $('opsMailTime').value, btn = this, auth = KEY;
+    if (!/^\d\d:\d\d$/.test(time)) { $('opsSaveStatus').textContent = '請選擇有效時間。'; return; }
+    btn.disabled = true; $('opsSaveStatus').textContent = '正在儲存每日預設…';
+    google.script.run.withSuccessHandler(function (r) {
+      btn.disabled = false;
+      if (auth !== KEY) { return; }
+      $('opsSaveStatus').textContent = r && r.ok ? '已設定每日預設 ' + r.time + '；之後每個交易日都用這個時間（今天 ' + r.todayStart + '）。' : '儲存失敗：' + (r && r.reason ? r.reason : '沒有回應');
+      if (r && r.ok) { timeDirty = false; closeOpsTime(); load(true); }
+    }).withFailureHandler(function (e) {
+      btn.disabled = false;
+      if (auth !== KEY) { return; }
+      $('opsSaveStatus').textContent = '儲存失敗：' + (e && e.message ? e.message : '連線逾時');
+    }).apiAdminSetDailyPushDefault(auth, time);
   });
   setInterval(function () { if (!document.hidden && !$('p-ops').hidden) { load(false); } }, 60000);
 })();

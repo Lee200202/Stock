@@ -98,6 +98,9 @@ def main():
             print(f'  {hms(start)}–{hms(end)} 第 {n + 1} 次：{len(got)} 個時刻' + (f'（丟掉：{why}）' if why else ''))
             foreign += [it for it in got if not_listed(it, code_names)]
             reads.append(check_codes([it for it in got if not not_listed(it, code_names)], code_names))
+            for it in reads[-1]:   # 每次讀取的原始列（公開逐字稿本來就公開；之後調整合併規則不必再花請求）
+                print(f"    #{n + 1} {it['time']} {it['confidence']} {it['code']} {it['name']}｜{it.get('heard', '')}｜"
+                      f"{it.get('scene')}/{it.get('target_match')}/{it.get('speech_kind')}")
         if not reads:
             errors.append(f'{hms(start)}–{hms(end)} 讀取失敗')
             continue

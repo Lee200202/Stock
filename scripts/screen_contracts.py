@@ -289,11 +289,12 @@ def not_listed(it, code_names):
     return not sounds_listed(name, code_names)
 
 
-def consensus(a, b, window=15):
+def consensus(a, b, window=45):
     """兩次讀同一段的結果合併（2026/11/12 管理者同意「兩次讀取一致才算清楚」）。
     同一份程式碼對同一支影片連跑三次，同一個時刻讀成致茂、致茂、聯發科，「這一支今天漲停」讀成良維、友達、元大金；
     單次讀取的「清楚」不可靠，所以：
-    - 兩次都在 window 秒內讀到同一個代號才配成一對；兩次都「清楚」才保留清楚，否則模糊；
+    - 兩次都在 window 秒內讀到同一個代號才配成一對（K 線圖會停留一陣子，兩次讀取挑到的時刻常差 20–40 秒）；
+      配成一對、而且至少一次「清楚」（那一次已通過代號表、場景、話題、音像的檢查）才保留清楚；兩次都模糊就模糊；
     - 都沒有代號、8 秒內的兩筆也配成一對（同一個「沒有顯示」時刻不重複寫）；
     - 沒配到的照樣寫列（不丟召回），但「清楚」降成模糊並寫原因；附近另一次讀到別檔就寫出兩個代號；
     - 有說出名稱的列（explicit）不降級，之後照樣不寫列。
@@ -321,8 +322,8 @@ def consensus(a, b, window=15):
             keep = dict(x if (x.get('confidence') == '清楚') >= (y.get('confidence') == '清楚') else y)
             if explicit(x) or explicit(y):
                 keep = dict(x if explicit(x) else y)
-            elif not (x.get('confidence') == '清楚' and y.get('confidence') == '清楚'):
-                keep = downgrade(keep, '兩次讀取只有一次清楚')
+            elif not (x.get('confidence') == '清楚' or y.get('confidence') == '清楚'):
+                keep = downgrade(keep, '兩次讀取都不清楚')
             keep['agreed'] = True
             out.append(keep)
             continue

@@ -203,13 +203,16 @@ class Consensus(unittest.TestCase):
         self.assertEqual((len(got), got[0]['confidence']), (1, '模糊'))
         self.assertIn('只有一次讀到', got[0]['note'])
 
-    def test_only_one_clear_is_fuzzy(self):
-        got = s.consensus(self.read(), self.read(scene='presenter'))
+    def test_one_clear_with_same_code_is_clear(self):
+        got = s.consensus(self.read(), self.read(second=50, visual_second=50, scene='presenter'))
+        self.assertEqual((len(got), got[0]['confidence']), (1, '清楚'))
+
+    def test_both_fuzzy_stays_fuzzy(self):
+        got = s.consensus(self.read(scene='chat'), self.read(scene='presenter'))
         self.assertEqual((len(got), got[0]['confidence']), (1, '模糊'))
-        self.assertIn('只有一次清楚', got[0]['note'])
 
     def test_far_apart_same_code_not_paired(self):
-        got = s.consensus(self.read(), self.read(second=60, visual_second=60, said='另一句'))
+        got = s.consensus(self.read(), self.read(second=90, visual_second=90, said='另一句'))
         self.assertEqual([g['agreed'] for g in got], [False, False])
 
     def test_no_code_moments_merge(self):

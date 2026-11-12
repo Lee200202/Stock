@@ -8,6 +8,21 @@ from pathlib import Path
 from screen_contracts import SYSTEM, prompt, schema
 
 
+def tpm_wait(now, sent, est, tpm, window=60.0):
+    """每分鐘輸入 token 上限：要等幾秒，最近 window 秒送出的估計量加上這一次才不超過 tpm。sent＝[(時間, token)]。"""
+    if est >= tpm:
+        return max(0.0, max((t for t, _ in sent), default=now - window) + window - now)
+    recent = sorted((t, k) for t, k in sent if now - t < window)
+    total = sum(k for _, k in recent)
+    wait = 0.0
+    for t, k in recent:
+        if total + est <= tpm:
+            break
+        total -= k
+        wait = t + window - now
+    return max(0.0, wait)
+
+
 def request_timeout():
     """單次請求逾時秒數（15 分鐘片段實測 4–28 秒，偶爾超過 75 秒）。"""
     return float(os.environ.get('SCREEN_TIMEOUT_SECONDS', '150'))
@@ -49,7 +64,10 @@ class Reader:
             raise RuntimeError('不合法的解析度')
         last = '未執行'
         for n in range(2):
-            wait = max(0, 5 - (time.monotonic() - self.last_send))
+            est = int((end - start) * 60) + 2000          # 實測 15 分鐘片段約 53,400 輸入 token（每秒約 59）
+            sent = getattr(self, 'sent', [])
+            wait = max(0, 5 - (time.monotonic() - self.last_send),
+                       tpm_wait(time.monotonic(), sent, est, int(os.environ.get('SCREEN_TPM', '200000'))))
             if self.attempts >= self.max_calls or time.monotonic() + wait + self.timeout > self.deadline or self.total_input >= self.input_budget:
                 raise RuntimeError('達到本輪時間／請求／輸入用量預算')
             time.sleep(wait)
@@ -69,6 +87,7 @@ class Reader:
                               video_metadata=types.VideoMetadata(start_offset=f'{start}s', end_offset=f'{end}s', fps=fps))
             ident = hashlib.sha256(json.dumps([url, start, end, model, text, config], sort_keys=True, default=str).encode()).hexdigest()
             self.attempts += 1
+            self.sent = sent + [(time.monotonic(), est)]
             self.last_send = began = time.monotonic()
             record = dict(request_hash=ident, model=model, start=start, end=end, fps=fps,
                           resolution=self.resolution, thinking=self.thinking, attempt=self.attempts)
@@ -82,6 +101,13 @@ class Reader:
                 last = f'{type(exc).__name__} HTTP {status if isinstance(status, int) else "unknown"}'
                 self._record(record, began)
                 # 不把錯誤全文印到公開 Actions log。
+                # 2026/11/12 兩次讀取實跑：一分鐘內送出約 26.7 萬 token 後第 6 個請求 429（每分鐘 token 上限）。
+                # 第一次 429 等 65 秒換備援模型重試一次；再 429 才停止本輪（可能是每日額度）。
+                if (status == 429 and n == 0 and not getattr(self, 'waited_429', False)
+                        and time.monotonic() + 65 + self.timeout < self.deadline):
+                    self.waited_429 = True
+                    time.sleep(65)
+                    continue
                 if status == 429:
                     self.blocked = True
                     # 可能是專案 RPM/TPM/RPD，停止本輪，不能換三把同專案金鑰重送。

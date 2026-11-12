@@ -338,6 +338,7 @@ class Runtime(unittest.TestCase):
         error = type('QuotaError', (Exception,), {'code': 429})('private details must not be logged')
         with tempfile.TemporaryDirectory() as d:
             r = self.reader(d, error=error)
+            r.waited_429 = True                         # 已經等過一次：這次 429 就停止本輪
             for start in (0, 900):
                 with self.assertRaises(RuntimeError):
                     r.read('https://www.youtube.com/watch?v=test', start, start + 900)
@@ -357,6 +358,35 @@ class Runtime(unittest.TestCase):
             r.models = ['primary', 'fallback']
             r.client = SimpleNamespace(models=SimpleNamespace(generate_content=send))
             r.last_send = -1e9
+            import screen_runtime
+            orig, screen_runtime.time.sleep = screen_runtime.time.sleep, lambda x: None
+            try:
+                self.assertEqual(r.read('https://www.youtube.com/watch?v=test', 0, 900), '[]')
+            finally:
+                screen_runtime.time.sleep = orig
+            self.assertEqual(calls, ['primary', 'fallback'])
+
+    def test_tpm_wait(self):
+        from screen_runtime import tpm_wait
+        self.assertEqual(tpm_wait(100.0, [], 55000, 200000), 0)
+        sent = [(50.0, 55000), (60.0, 55000), (70.0, 55000)]
+        self.assertEqual(tpm_wait(100.0, sent, 55000, 200000), 10.0)   # 等到 50 秒那筆滿一分鐘
+        self.assertEqual(tpm_wait(100.0, sent[1:], 55000, 200000), 0)
+
+    def test_429_waits_once_then_retries(self):
+        calls = []
+        error = type('QuotaError', (Exception,), {'code': 429})('quota')
+
+        def send(**kwargs):
+            calls.append(kwargs['model'])
+            if len(calls) == 1:
+                raise error
+            return SimpleNamespace(candidates=[SimpleNamespace(finish_reason='STOP')], text='[]', usage_metadata=None)
+        with tempfile.TemporaryDirectory() as d:
+            r = self.reader(d)
+            r.models = ['primary', 'fallback']
+            r.client = SimpleNamespace(models=SimpleNamespace(generate_content=send))
+            r.deadline = time.monotonic() + 1000
             import screen_runtime
             orig, screen_runtime.time.sleep = screen_runtime.time.sleep, lambda x: None
             try:

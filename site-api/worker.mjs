@@ -18,7 +18,7 @@ const ADMIN_METHODS = ('apiAdminCancelCrawl apiAdminCancelDaySync apiAdminCancel
   'apiAdminSetSmsEmail ' +
   'apiAdminManualEntry apiAdminMergeTranscripts apiAdminOpsDay apiAdminPreviewCleanup ' +
   'apiAdminRebuildMail apiAdminReclassify apiAdminResumeFullFix apiAdminResumeJob ' +
-  'apiAdminRetryFullFixStep apiAdminRunInfo apiAdminSetDailyPushStart ' +
+  'apiAdminRetryFullFixStep apiAdminRunInfo apiAdminSetDailyPushDefault apiAdminSetDailyPushStart ' +
   'apiAdminSetHoldingCost apiAdminSetTrackerExcluded apiAdminSmsDays apiAdminSmsState apiAdminStartDaySync ' +
   'apiAdminStartFullFix apiAdminStartRefreshFrom apiAdminStartSmsJob apiAdminSubmit ' +
   'apiAdminTodayStatus apiAdminUpdateRow').split(' ');

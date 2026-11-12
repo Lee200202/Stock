@@ -41,8 +41,15 @@ class Contract(unittest.TestCase):
         self.assertEqual((got['sec'], got['time'], got['code'], got['name']), (20, '0:00:20', '1111', '甲公司'))
 
     def test_time_is_never_guessed(self):
-        # 片段 [900,1800) 回 20 秒：不猜成片段內時間，整段判失敗
-        self.assertIsNone(parse(observation(), 900, 1800))
+        # 片段 [900,1800) 回 20 秒：不猜成片段內時間，這一筆丟掉並計數，其他筆照收
+        text = json.dumps(dict(time_origin='video', coverage='complete',
+                               items=[observation(), observation(second=930, visual_second=930)]), ensure_ascii=False)
+        got, dropped = s.parse_report(text, 900, 1800)
+        self.assertEqual(([g['sec'] for g in got], dropped), ([930], 1))
+
+    def test_bare_list_and_fence(self):
+        got = s.parse_items('```json\n' + json.dumps([observation()], ensure_ascii=False) + '\n```', 0, 900)
+        self.assertEqual(got[0]['sec'], 20)
 
     def test_bad_json_is_failure(self):
         self.assertIsNone(s.parse_items('not json', 0, 900))
@@ -54,13 +61,18 @@ class Contract(unittest.TestCase):
         self.assertIsNone(s.parse_items('{"coverage":"partial","time_origin":"video","items":[]}', 0, 900))
 
     def test_end_exclusive(self):
-        self.assertIsNone(parse(observation(second=900)))
+        self.assertEqual(parse(observation(second=900)), [])
 
     def test_bool_is_not_second(self):
-        self.assertIsNone(parse(observation(second=True)))
+        self.assertEqual(parse(observation(second=True)), [])
 
     def test_visual_offset_bound(self):
-        self.assertIsNone(parse(observation(visual_second=100)))
+        self.assertEqual(parse(observation(visual_second=100)), [])
+
+    def test_missing_field_dropped(self):
+        row = observation()
+        del row['scene']
+        self.assertEqual(parse(row), [])
 
     def test_no_digit_stripping(self):
         got = parse(observation(screen_code='5289-KY'))[0]
@@ -93,9 +105,17 @@ class Contract(unittest.TestCase):
     def test_correction_sentence_kept(self):
         row = s.check_codes(parse(observation(said='不是乙公司，叫做甲公司', heard='甲公司', speech_kind='explicit')), {'1111': '甲公司'})[0]
         self.assertFalse(s.explicit(row))
+        row = s.check_codes(parse(observation(said='這一檔是不是乙公司？不是，是甲公司', heard='甲公司', speech_kind='explicit')), {'1111': '甲公司'})[0]
+        self.assertFalse(s.explicit(row))
 
     def test_direct_explicit_removed(self):
         row = s.check_codes(parse(observation(said='甲公司看起來不錯', heard='甲公司', speech_kind='explicit')), {'1111': '甲公司'})[0]
+        self.assertTrue(s.explicit(row))
+
+    def test_heard_holding_whole_sentence(self):
+        # 2026/11/12 實跑：模型把整句填進 heard，仍要認出有說出名稱
+        said = '甲公司是不是底部有爆大量'
+        row = s.check_codes(parse(observation(said=said, heard=said, speech_kind='explicit')), {'1111': '甲公司'})[0]
         self.assertTrue(s.explicit(row))
 
     def test_pronoun_never_explicit(self):
@@ -124,6 +144,8 @@ class Prompt(unittest.TestCase):
         self.assertIn('「嘉公司」可能是甲公司', p)
         self.assertIn('待查線索', p)
         self.assertIn('：無', s.prompt(0, 900))
+        self.assertIn('"time_origin":"video"', p)
+        self.assertIn('不是整句', p)
 
     def test_schema_bounds(self):
         sch = s.schema(900, 1800)['properties']['items']['items']['properties']['second']

@@ -48,9 +48,11 @@ class Reader:
                 raise RuntimeError('達到本輪時間／請求／輸入用量預算')
             time.sleep(wait)
             model = self.models[min(n, len(self.models) - 1)]
-            config = dict(system_instruction=system, response_mime_type='application/json',
-                          response_schema=output_schema,  # Gemini 3 建議溫度維持預設，不設 0
+            config = dict(system_instruction=system, response_mime_type='application/json',  # Gemini 3 建議溫度維持預設，不設 0
                           max_output_tokens=int(os.environ.get('SCREEN_MAX_OUTPUT', '8192')))
+            # SCREEN_SCHEMA=off：不用 response_schema（2026/11/12 實跑：3.5-flash-lite 加 schema 後四段都回空陣列），格式由 parse_report 逐筆檢查。
+            if os.environ.get('SCREEN_SCHEMA', 'on').strip().lower() != 'off':
+                config['response_schema'] = output_schema
             if re.search(r'gemini-3(?:\.|-)', model):
                 config['thinking_config'] = types.ThinkingConfig(thinking_level=self.thinking)
             if self.resolution != 'default':

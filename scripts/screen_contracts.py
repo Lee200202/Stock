@@ -40,7 +40,17 @@ def prompt(start, end, learned=()):
             'explicit 清楚說出本股、other 其他。target_match 只有畫面標題連續且確為發話主體時才是 same。\n'
             'time_origin 固定 video，coverage 固定 complete。沒有事件回 items=[]。'
             '若片段未處理完回 coverage=partial。screen_name/screen_code 只能逐字抄自同一個視窗標題。\n'
-            f'歷史候選讀音（只作待查線索，不得代替畫面或強制更正聲音）：{hints}')
+            f'歷史候選讀音（只作待查線索，不得代替畫面或強制更正聲音）：{hints}\n'
+            + SHAPE)
+
+
+SHAPE = ('只回一個 JSON 物件：{"time_origin":"video","coverage":"complete","items":[{'
+         '"second":發話秒數（整數，從影片開頭算）,"visual_second":看到標題的秒數（整數）,'
+         '"said":"主持人那句話（30 字內）","heard":"指這一檔的那個詞（這一檔、它、聽起來怪的股名；只寫那個詞，不是整句）",'
+         '"screen_name":"左上角名稱，看不到留空","screen_code":"左上角代號，看不到留空",'
+         '"confidence":"清楚|模糊|沒有顯示","scene":"chart|quote|chat|presenter|news|black|transition|other",'
+         '"target_match":"same|different|uncertain","speech_kind":"deictic|misheard|explicit|other",'
+         '"note":"20 字內：在哪裡看到或畫面狀況"}]}')
 
 
 def name_variant(screen, official):
@@ -72,6 +82,10 @@ def schema(start, end):
     }, 'required': ['time_origin', 'coverage', 'items']}
 
 
+FIELDS = ['second', 'visual_second', 'said', 'heard', 'screen_name', 'screen_code', 'confidence',
+          'scene', 'target_match', 'speech_kind', 'note']
+
+
 def norm(s):
     return re.sub(r'[\s*＊.-]', '', unicodedata.normalize('NFKC', str(s)).upper())
 
@@ -88,39 +102,51 @@ def to_sec(s):
     return h * 3600 + m * 60 + sec if m < 60 and sec < 60 else None
 
 
-def parse_items(text, start, end):
-    """不猜相對時間；一筆壞值使該段驗收失敗，不能偽裝成空結果。"""
+def item_ok(it, start, end):
+    """單筆觀測是否合格：時間是本段內的整數（從影片開頭算）、欄位型別與列舉正確。"""
+    if not isinstance(it, dict) or any(k not in it for k in FIELDS):
+        return False
+    sec, vis = it['second'], it['visual_second']
+    if type(sec) is not int or type(vis) is not int or not start <= sec < end or not start <= vis < end:
+        return False
+    if abs(vis - sec) > 8 or it['scene'] not in SCENES or it['target_match'] not in ('same', 'different', 'uncertain'):
+        return False
+    if it['speech_kind'] not in ('deictic', 'misheard', 'explicit', 'other') or it['confidence'] not in ('清楚', '模糊', '沒有顯示'):
+        return False
+    return all(isinstance(it[k], str) for k in ('said', 'heard', 'screen_name', 'screen_code', 'note'))
+
+
+def parse_report(text, start, end):
+    """模型回覆 → (合格觀測, 丟掉的筆數)；整段不能用時回 (None, 0)。
+    不猜相對時間：時間不在本段的那一筆丟掉並計數（2026/11/12 實跑：一筆壞值就丟整段，第一段 15 分鐘全沒了，改成逐筆丟）。
+    回覆不是 JSON、coverage=partial、time_origin 不是 video 才整段失敗。"""
+    raw = str(text or '').strip()
+    m = re.search(r'[\[{].*[\]}]', raw, re.S)
     try:
-        data = json.loads(text)
-        if data['time_origin'] != 'video' or data['coverage'] != 'complete':
-            return None
-        if not isinstance(data['items'], list):
-            return None
-        out = []
-        for it in data['items']:
-            if any(k not in it for k in schema(start, end)['properties']['items']['items']['required']):
-                return None
-            sec, vis = it['second'], it['visual_second']
-            if type(sec) is not int or type(vis) is not int or not start <= sec < end or not start <= vis < end:
-                return None
-            if abs(vis - sec) > 8 or it['scene'] not in SCENES:
-                return None
-            if it['target_match'] not in ('same', 'different', 'uncertain'):
-                return None
-            if it['speech_kind'] not in ('deictic', 'misheard', 'explicit', 'other'):
-                return None
-            if it['confidence'] not in ('清楚', '模糊', '沒有顯示'):
-                return None
-            if any(not isinstance(it[k], str) for k in ('said', 'heard', 'screen_name', 'screen_code', 'note')):
-                return None
-            code = unicodedata.normalize('NFKC', it['screen_code']).strip().upper()
-            # 不剝掉 -KY、非數字或把錯碼剪成有效碼，原始觀測保存在本機候選中。
-            valid_code = bool(re.fullmatch(r'\d{4,6}[A-Z]?', code))
-            out.append(dict(it, sec=sec, time=hms(sec), code=code if valid_code else '',
-                            name=it['screen_name'].strip(), raw_code=code, note=it['note'][:100]))
-        return out
-    except (TypeError, ValueError, KeyError):
-        return None
+        data = json.loads(m.group(0) if m else raw)
+    except ValueError:
+        return None, 0
+    if isinstance(data, list):                      # 不用 schema 時模型偶爾只回陣列
+        data = {'time_origin': 'video', 'coverage': 'complete', 'items': data}
+    if not isinstance(data, dict) or data.get('time_origin') != 'video' or data.get('coverage') != 'complete':
+        return None, 0
+    if not isinstance(data.get('items'), list):
+        return None, 0
+    out, dropped = [], 0
+    for it in data['items']:
+        if not item_ok(it, start, end):
+            dropped += 1
+            continue
+        code = unicodedata.normalize('NFKC', it['screen_code']).strip().upper()
+        # 不剝掉 -KY、非數字或把錯碼剪成有效碼，原始觀測保存在本機候選中。
+        valid_code = bool(re.fullmatch(r'\d{4,6}[A-Z]?', code))
+        out.append(dict(it, sec=it['second'], time=hms(it['second']), code=code if valid_code else '',
+                        name=it['screen_name'].strip(), raw_code=code, note=it['note'][:100]))
+    return out, dropped
+
+
+def parse_items(text, start, end):
+    return parse_report(text, start, end)[0]
 
 
 def same_stock(a, b):
@@ -150,9 +176,12 @@ def explicit(it):
         return False
     said, heard = str(it.get('said', '')), str(it.get('heard', ''))
     # 多主體、否定或更正句交回複核，不能靠字串出現就整列刪掉。
-    if re.search(r'不是|不叫|而是|改口|另外|以及|還有|、', said):
+    if re.search(r'(?<!是)不是|不叫|而是|改口|另外|以及|還有|、', said):
         return False
-    name_ok = same_stock(heard, it['name']) and norm(heard) in norm(said)
+    # 2026/11/12 實跑：模型常把整句也填進 heard。heard 是空的、就是整句、或含有畫面股名時，改看原話裡有沒有這個股名。
+    h = norm(heard)
+    loose = not h or h == norm(said) or norm(it['name']) in h
+    name_ok = norm(it['name']) in norm(said) and (same_stock(heard, it['name']) or loose)
     code_ok = heard == it['code'] and bool(re.search(r'(?<!\d)' + re.escape(it['code']) + r'(?!\d)', said))
     return bool(name_ok or code_ok)
 

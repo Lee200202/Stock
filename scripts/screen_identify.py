@@ -17,7 +17,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import sys
 import time
 from datetime import datetime
@@ -33,7 +32,7 @@ FPS = float(os.environ.get('SCREEN_FPS', '0.5'))          # 兩秒一張畫面�
 CONFIDENCE = ('清楚', '模糊', '沒有顯示')
 
 # 純函式與模型介面拆開，方便離線測試；部署時須一起複製這兩個模組。
-from screen_contracts import SYSTEM, LAYOUT, prompt, hms, to_sec, parse_items, check_codes, same_stock, explicit, dedupe
+from screen_contracts import hms, parse_report, check_codes, explicit, dedupe
 from screen_runtime import Reader
 
 
@@ -84,19 +83,20 @@ def main():
     items, errors = [], []
     for start, end in plan:
         try:
-            got = parse_items(reader.read(url, start, end, learned_pairs), start, end)
+            got, dropped = parse_report(reader.read(url, start, end, learned_pairs), start, end)
         except RuntimeError as exc:
             errors.append(f'{hms(start)}–{hms(end)} {exc}')
             continue
         if got is None:
             errors.append(f'{hms(start)}–{hms(end)} 回覆不符格式（不是 JSON、時間超出本段或未完整）')
             continue
-        print(f'  {hms(start)}–{hms(end)}：{len(got)} 個時刻')
+        print(f'  {hms(start)}–{hms(end)}：{len(got)} 個時刻' + (f'（{dropped} 筆時間或欄位不合格，丟掉）' if dropped else ''))
         items.extend(got)
     items = dedupe(check_codes(items, code_names))
     stamp = now().strftime('%Y/%m/%d %H:%M:%S')
     for it in items:
-        print(f"  {it['time']} {it['confidence']} {it['code']} {it['name']}｜{it.get('heard', '')}｜{it['said']}｜{it['note']}"
+        print(f"  {it['time']} {it['confidence']} {it['code']} {it['name']}｜{it.get('heard', '')}｜{it['said']}｜"
+              f"{it.get('scene')}/{it.get('target_match')}/{it.get('speech_kind')} {it['note']}"
               + ('（有說出名稱，不列）' if explicit(it) else ''))
     known = list(tx.VOCABULARY.split(',')) + learned_names + known_day_names(tx, day)
     new_words = vl.learn(items, known, learned_pairs, code_names)

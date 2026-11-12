@@ -57,7 +57,7 @@ def learn(items, known_names, known_pairs=(), code_names=None):
                 and it.get('scene') in ('chart', 'quote') and it.get('target_match') == 'same'
                 and norm((code_names or {}).get(code, '')) == norm(name)):
             continue
-        if re.search(r'不是|不叫|而是|改口|以及|還有|、', it.get('said', '')):
+        if re.search(r'(?<!是)不是|不叫|而是|改口|以及|還有|、', it.get('said', '')):
             continue
         kinds = []
         if norm(name) not in known:

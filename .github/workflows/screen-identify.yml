@@ -21,6 +21,10 @@ on:
         description: '只印結果，不寫複核紀錄（驗收用）'
         required: false
         default: 'false'
+      schema:
+        description: 'on＝用結構化輸出 response_schema；off＝自由 JSON（程式逐筆檢查）'
+        required: false
+        default: ''
 
 concurrency:
   group: screen-identify
@@ -62,6 +66,7 @@ jobs:
           SCREEN_FPS: '0.5'
           SCREEN_RESOLUTION: default
           SCREEN_THINKING: low
+          SCREEN_SCHEMA: ${{ inputs.schema || vars.SCREEN_SCHEMA || 'off' }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           YOUTUBE_CHANNEL_ID: ${{ vars.YOUTUBE_CHANNEL_ID }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}

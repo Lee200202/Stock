@@ -183,7 +183,10 @@ _FUZZY_FINAL = {'ing': 'in', 'eng': 'en', 'ang': 'an', 'iang': 'ian', 'uang': 'u
 _INITIALS = ('zh', 'ch', 'sh', 'b', 'p', 'm', 'f', 'd', 't', 'n', 'l', 'g', 'k', 'h', 'j', 'q', 'x', 'r', 'z', 'c', 's', 'y', 'w')
 
 
-def _syllables(text):
+_FUZZY_INITIAL = {'zh': 'z', 'ch': 'c', 'sh': 's', 'n': 'l'}
+
+
+def _syllables(text, whole=False):
     """逐字讀音的韻母（台灣口音 in/ing、en/eng 不分）；英文字母（KY）與符號不算。"""
     from pypinyin import Style, lazy_pinyin
     out = []
@@ -192,7 +195,8 @@ def _syllables(text):
             py = lazy_pinyin(ch, style=Style.NORMAL)[0]
             ini = next((i for i in _INITIALS if py.startswith(i)), '')
             fin = py[len(ini):] or py
-            out.append(_FUZZY_FINAL.get(fin, fin))
+            fin = _FUZZY_FINAL.get(fin, fin)
+            out.append((_FUZZY_INITIAL.get(ini, ini) + '|' + fin) if whole else fin)
         elif ch.isdigit():
             out.append(ch)
     return out
@@ -207,6 +211,15 @@ def sound_like(heard, name):
         return False
     hits = sum(x == y for x, y in zip(a, b))
     return hits >= min(2, len(a), len(b)) and hits >= 0.6 * max(len(a), len(b))
+
+
+def sounds_listed(name, code_names):
+    """名稱整個音節（聲母＋韻母，台灣口音 s/sh、z/zh、c/ch、n/l 與 in/ing 等不分）和某一檔上市櫃股名一樣。
+    掃全部代號表用這個較嚴的比法（只比韻母時「黃金」會配到「全新」）。"""
+    a = tuple(_syllables(name, whole=True))
+    if len(a) < 2:
+        return False
+    return any(tuple(_syllables(n, whole=True)) == a for n in code_names.values())
 
 
 def check_codes(items, code_names):
@@ -268,7 +281,12 @@ def not_listed(it, code_names):
     if not code_names or it.get('speech_kind') != 'explicit':
         return False
     listed = {norm(n) for n in code_names.values()}
-    return not name or norm(name) not in listed
+    if not name:
+        return True
+    if norm(name) in listed:
+        return False
+    # 2026/11/12 乾跑：講者畫面時模型把聽到的「四星KY」填進畫面名稱，差點被當成非台股丟掉；音像某一檔上市櫃股名就留著給複核。
+    return not sounds_listed(name, code_names)
 
 
 def dedupe(items):

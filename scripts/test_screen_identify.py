@@ -146,6 +146,8 @@ class Contract(unittest.TestCase):
         self.assertFalse(s.not_listed(parse(observation(speech_kind='explicit'))[0], codes))
         self.assertFalse(s.not_listed(parse(observation(screen_code='', speech_kind='explicit'))[0], codes))
         self.assertFalse(s.not_listed(parse(observation(screen_code='', screen_name='黃金', speech_kind='explicit'))[0], {}))
+        # 畫面名稱其實是聽到的錯名（音像某一檔上市櫃股名）：留著
+        self.assertFalse(s.not_listed(parse(observation(screen_code='', screen_name='四星KY', speech_kind='explicit'))[0], {'3661': '世芯-KY'}))
 
     def test_sound_like(self):
         for a, b in [('行程', '勤誠'), ('四星KY', '世芯-KY'), ('一頂', '宜鼎'), ('連電', '聯電'), ('事欣科', '世芯')]:

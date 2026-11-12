@@ -32,7 +32,7 @@ permissions:
 jobs:
   identify:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
       - name: 交易日預檢
@@ -47,8 +47,7 @@ jobs:
       - name: 安裝相依套件
         if: github.event_name != 'schedule' || steps.calendar.outputs.run == 'true'
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt cryptography cffi
+          python -m pip install -r requirements.txt cryptography cffi
       - name: 看畫面辨識股名
         if: github.event_name != 'schedule' || steps.calendar.outputs.run == 'true'
         env:
@@ -58,6 +57,11 @@ jobs:
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           GEMINI_FALLBACK_MODEL: ${{ vars.GEMINI_FALLBACK_MODEL }}
           SCREEN_MODEL: ${{ vars.SCREEN_MODEL }}
+          SCREEN_BUDGET_SECONDS: '480'
+          SCREEN_MAX_REQUESTS: '12'
+          SCREEN_FPS: '0.5'
+          SCREEN_RESOLUTION: default
+          SCREEN_THINKING: low
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           YOUTUBE_CHANNEL_ID: ${{ vars.YOUTUBE_CHANNEL_ID }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
@@ -72,3 +76,12 @@ jobs:
           if [ "$FORCE" = "true" ]; then ARGS="$ARGS --force"; fi
           if [ "$DRY_RUN" = "true" ]; then ARGS="$ARGS --dry-run"; fi
           python scripts/screen_identify.py $ARGS
+
+      - name: 保存匿名用量（不含逐字稿、觀測列或詞庫）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screen-metrics-${{ github.run_id }}
+          path: scratch/screen-identify/metrics.jsonl
+          if-no-files-found: ignore
+          retention-days: 7

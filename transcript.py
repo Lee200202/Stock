@@ -171,7 +171,9 @@ def vocabulary() -> str:
     words = _DAY_VOCAB + [n for n in _LEARNED if n not in _DAY_VOCAB]
     text = VOCABULARY + ("," + ",".join(words) if words else "")
     if _MISHEARD:
-        text += "（易聽錯，請寫成右邊的股名：" + "、".join(f"{h}→{n}" for h, n in _MISHEARD) + "）"
+        # 2026/11/12 外部 AI 建議：只當辨音參考，不能把另一家真公司硬寫成詞表上的股名。
+        text += ("（以下只供辨音參考，不代表這次一定如此；先忠實寫下聽到的音，若明顯就是右邊的股名才寫右邊；"
+                 "聽到的是另一家真公司就照那家寫：" + "、".join(f"{h}→{n}" for h, n in _MISHEARD) + "）")
     return text
 
 

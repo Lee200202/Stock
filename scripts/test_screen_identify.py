@@ -1,95 +1,269 @@
-"""2026/11/12：直播畫面辨識的純函式（不連 Gemini、不連試算表）。"""
+"""直播畫面辨識的純函式與模型包裝（不連 Gemini、不連試算表）。
+
+2026/11/12 晚改版：採用外部 AI 建議（結構化輸出、證據守門、詞庫撤銷、用量紀錄），
+大部分案例取自其交付的 test_proposal.py；另加本 repo 的調整（代號對上時允許簡稱／KY 寫法差異、
+保留十天歸納的說法清單、新股名在嚴格條件下自動採用）。
+"""
+import json
 import os
 import sys
+import tempfile
+import time
+import unittest
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-sys.path.insert(0, str(Path(__file__).resolve().parent / 'daily_review'))
+from types import SimpleNamespace
+
+HERE = Path(__file__).resolve().parent
+sys.path[:0] = [str(HERE.parent), str(HERE), str(HERE / 'daily_review')]
 os.environ.setdefault('GEMINI_API_KEY', 'offline')
-from screen_identify import dedupe, parse_items, prompt  # noqa: E402
-from screen_refs import day_rows  # noqa: E402
+
+import screen_contracts as s  # noqa: E402
+import vocab_learn as v  # noqa: E402
 from common import LOG_TABS  # noqa: E402
+from screen_refs import day_rows, parse_batch  # noqa: E402
 
-reply = '''```json
-[{"time":"0:17:05","said":"你看這一檔，底部爆量","screen_name":"勤誠","screen_code":"8210","confidence":"清楚","note":"K線圖標題"},
- {"time":"2:10","said":"這檔先不要","screen_name":"","screen_code":"","confidence":"清楚","note":"只有講者"},
- {"time":"0:17:20","said":"這一檔","screen_name":"勤誠","screen_code":"8210","confidence":"模糊","note":""},
- {"time":"1:40:00","said":"超出範圍","screen_name":"x","screen_code":"1234","confidence":"清楚","note":""},
- {"time":"0:20:00","said":"代號亂寫","screen_name":"宜鼎","screen_code":"5289-KY","confidence":"怪","note":""}]
-```'''
-items = parse_items(reply, 900, 1800)
-assert [i['time'] for i in items] == ['0:17:05', '0:17:10', '0:17:20', '0:20:00'], items   # 2:10 是片段內時間→0:17:10；超出範圍的丟掉
-assert items[1]['confidence'] == '模糊'                       # 清楚卻沒有名稱代號 → 模糊
-assert items[3]['code'] == '5289' and items[3]['confidence'] == '模糊'
-kept = dedupe(items)
-assert [(i['time'], i['confidence']) for i in kept] == [('0:17:05', '清楚'), ('0:17:10', '模糊'), ('0:20:00', '模糊')], kept   # 30 秒內同一檔只留一筆
-assert parse_items('不是 JSON', 0, 900) is None and parse_items('[]', 0, 900) == []
-assert '行程' in prompt(0, 900) and '0:15:00' in prompt(0, 900)
-rows = [{'日期': '2026/11/12', '時間': '0:17:05'}, {'日期': '2026-11-11', '時間': '0:01:00'}, {'日期': '2026/11/12', '時間': ''}]
-assert [r['_row'] for r in day_rows(rows, '2026/11/12')] == [2, 4]
-assert LOG_TABS['畫面辨識'][:4] == ['建立時間', '日期', '影片ID', '時間']
 
-# ---- 11/12 追加：左上角技巧、代號表核對、有說出名稱不列、自動學詞 ----
-from screen_identify import LAYOUT, SYSTEM, check_codes, explicit  # noqa: E402
-import vocab_learn as vl  # noqa: E402
-assert '左上角' in LAYOUT and LAYOUT in SYSTEM
-assert '「四星KY」＝世芯-KY' in prompt(0, 900, [('四星KY', '世芯-KY')]) and '之前確認過' not in prompt(0, 900)
-codes = {'2330': '台積電', '2303': '聯電', '3661': '世芯-KY', '6770': '力積電', '8210': '勤誠', '5289': '宜鼎'}
-base = {'time': '0:01:00', 'sec': 60, 'said': '', 'heard': '', 'note': '', 'confidence': '清楚'}
-got = check_codes([dict(base, name='聯電', code='2330'),            # 代號讀錯 → 依名稱更正
-                   dict(base, name='', code='8210'),                 # 只有代號 → 補名稱
-                   dict(base, name='力積電', code=''),               # 只有名稱 → 補代號
-                   dict(base, name='Micron', code=''),               # 美股 → 不列
-                   dict(base, name='立機電', code=''),               # 表裡沒有 → 模糊
-                   dict(base, name='世芯KY', code='3661')], codes)  # -KY 寫法不同仍算同一檔
-assert [(g['name'], g['code'], g['confidence']) for g in got] == [
-    ('聯電', '2303', '清楚'), ('勤誠', '8210', '清楚'), ('力積電', '6770', '清楚'), ('立機電', '', '模糊'), ('世芯KY', '3661', '清楚')], got
-assert '讀成 2330' in got[0]['note']
-assert check_codes([dict(base, name='聯電', code='2330')], {}) == [dict(base, name='聯電', code='2330')]   # 沒有代號表不核對
-# 有說出名稱＝不用看畫面
-assert explicit(dict(base, name='勤誠', code='8210', heard='勤誠', said='你來看勤誠'))
-assert explicit(dict(base, name='勤誠', code='8210', heard='', said='你現在看8210勤誠'))
-assert not explicit(dict(base, name='世芯-KY', code='3661', heard='四星KY', said='我有四星KY'))       # 聽錯 → 要列
-assert not explicit(dict(base, name='宜鼎', code='5289', heard='這一支股票', said='你有講這一支股票'))  # 指代 → 要列
-assert not explicit(dict(base, name='', code='', heard='', said='老師請問', confidence='沒有顯示'))
-# 指代詞判斷
-assert all(vl.is_pronoun(w) for w in ('這一檔', '它', '這一支股票', '第二支', '一檔股票', ''))
-assert not any(vl.is_pronoun(w) for w in ('四星KY', '一頂', '行程', '雅德客'))
-assert vl.norm('世芯-KY') == vl.norm('世芯KY') == '世芯'
-# 自動學詞：新股名直接用；聽錯另列；已知的、指代的、另一檔真股名的不學
-items = [dict(base, name='力積電', code='6770', heard='力積電'),
-         dict(base, name='力積電', code='6770', heard='立機電', time='1:06:53'),
-         dict(base, name='世芯-KY', code='3661', heard='四星KY'),
-         dict(base, name='勤誠', code='8210', heard='這一檔'),
-         dict(base, name='台積電', code='2330', heard='聯電'),               # 說的是另一檔真的股票，不是聽錯
-         dict(base, name='宜鼎', code='5289', heard='一頂', confidence='模糊')]  # 模糊不學
-words = vl.learn(items, ['台積電', '勤誠', '世芯-KY'], [('四星KY', '世芯-KY')], codes)
-assert [(w['類型'], w['聽到'], w['股名'], w['次數']) for w in words] == [
-    ('新股名', '力積電', '力積電', 2), ('聽錯', '立機電', '力積電', 1)], words
-# 11/12 試跑：LINE 截圖上的股名不學、價位不學、同一個音只留次數最多的那一檔
-items2 = [dict(base, name='勤誠', code='8210', heard='四星KY', note='LINE對話截圖'),
-          dict(base, name='世芯-KY', code='3661', heard='四千六', note='K線圖左上角'),
-          dict(base, name='世芯-KY', code='3661', heard='四星', note='K線圖左上角'),
-          dict(base, name='世芯-KY', code='3661', heard='四星', note='K線圖左上角'),
-          dict(base, name='勤誠', code='8210', heard='四星', note='報價視窗')]
-assert [(w['聽到'], w['股名']) for w in vl.learn(items2, ['勤誠', '世芯-KY'], [], codes)] == [('四星', '世芯-KY')]
-from screen_identify import same_stock  # noqa: E402
-assert same_stock('世界先進', '世界') and same_stock('世芯-KY', '世芯-KY') and not same_stock('聯電', '台積電')
-rows = [{'類型': '新股名', '聽到': '力積電', '股名': '力積電', '狀態': '已採用'},
-        {'類型': '聽錯', '聽到': '四星KY', '股名': '世芯-KY', '狀態': '已採用'},
-        {'類型': '聽錯', '聽到': '行程', '股名': '勤誠', '狀態': '待核對'},
-        {'類型': '聽錯', '聽到': '一頂', '股名': '宜鼎', '狀態': '不採用'}]
-assert vl.adopted(rows) == (['世芯-KY', '力積電'], [('四星KY', '世芯-KY')])
-assert vl.HEAD == LOG_TABS[vl.TAB]
-# 聽打詞表帶上學到的詞與易聽錯提示
-import transcript as tx  # noqa: E402
-tx._LEARNED[:], tx._MISHEARD[:] = ['力積電'], [('四星KY', '世芯-KY')]
-assert '力積電' in tx.vocabulary() and '四星KY→世芯-KY' in tx.vocabulary()
-tx._LEARNED[:], tx._MISHEARD[:] = [], []
-from screen_refs import parse_batch  # noqa: E402
-assert parse_batch('0:03:17\t不需處理\t說明\n\n0:04:16\t網站已有') == [('0:03:17', '不需處理', '說明'), ('0:04:16', '網站已有', '')]
-try:
-    parse_batch('0:03:17\t亂寫')
-    raise AssertionError('狀態錯要報錯')
-except SystemExit:
-    pass
-print('11/12 畫面辨識：時間換算、範圍、把握、去重、日期篩選、左上角技巧、代號核對、有名不列、自動學詞通過')
+def observation(**extra):
+    row = dict(second=20, visual_second=20, said='看這一檔的量價', heard='這一檔',
+               screen_code='1111', screen_name='甲公司', confidence='清楚', scene='chart',
+               target_match='same', speech_kind='deictic', note='左上標題')
+    row.update(extra)
+    return row
+
+
+def parse(row, start=0, end=900):
+    return s.parse_items(json.dumps(dict(time_origin='video', coverage='complete', items=[row]), ensure_ascii=False), start, end)
+
+
+class Contract(unittest.TestCase):
+    def test_valid(self):
+        got = parse(observation())[0]
+        self.assertEqual((got['sec'], got['time'], got['code'], got['name']), (20, '0:00:20', '1111', '甲公司'))
+
+    def test_time_is_never_guessed(self):
+        # 片段 [900,1800) 回 20 秒：不猜成片段內時間，整段判失敗
+        self.assertIsNone(parse(observation(), 900, 1800))
+
+    def test_bad_json_is_failure(self):
+        self.assertIsNone(s.parse_items('not json', 0, 900))
+
+    def test_empty_is_success(self):
+        self.assertEqual(s.parse_items('{"time_origin":"video","coverage":"complete","items":[]}', 0, 900), [])
+
+    def test_partial_is_failure(self):
+        self.assertIsNone(s.parse_items('{"coverage":"partial","time_origin":"video","items":[]}', 0, 900))
+
+    def test_end_exclusive(self):
+        self.assertIsNone(parse(observation(second=900)))
+
+    def test_bool_is_not_second(self):
+        self.assertIsNone(parse(observation(second=True)))
+
+    def test_visual_offset_bound(self):
+        self.assertIsNone(parse(observation(visual_second=100)))
+
+    def test_no_digit_stripping(self):
+        got = parse(observation(screen_code='5289-KY'))[0]
+        self.assertEqual((got['code'], got['raw_code']), ('', '5289-KY'))
+
+    def test_conflict_keeps_both_observations(self):
+        got = s.check_codes(parse(observation(screen_name='乙公司')), {'1111': '甲公司', '2222': '乙公司'})[0]
+        self.assertEqual((got['code'], got['name'], got['confidence']), ('1111', '乙公司', '模糊'))
+
+    def test_empty_registry_cannot_certify(self):
+        self.assertEqual(s.check_codes(parse(observation()), {})[0]['confidence'], '模糊')
+
+    def test_chat_is_not_same_subject(self):
+        self.assertEqual(s.check_codes(parse(observation(scene='chat')), {'1111': '甲公司'})[0]['confidence'], '模糊')
+
+    def test_code_only_is_not_certified(self):
+        self.assertEqual(s.check_codes(parse(observation(screen_name='')), {'1111': '甲公司'})[0]['confidence'], '模糊')
+
+    def test_no_prefix_matching_across_stocks(self):
+        self.assertFalse(s.same_stock('甲公司', '甲'))
+        self.assertFalse(s.same_stock('甲公司-KY', '甲公司'))
+
+    def test_spelling_variant_under_same_code(self):
+        # 代號已對上時，簡稱與全名、KY 有無都算同一檔（這是寫法差異，不是兩家公司）
+        codes = {'1111': '甲公司-KY', '2222': '乙丙'}
+        self.assertEqual(s.check_codes(parse(observation(screen_name='甲公司')), codes)[0]['confidence'], '清楚')
+        self.assertEqual(s.check_codes(parse(observation(screen_code='2222', screen_name='乙丙先進')), codes)[0]['confidence'], '清楚')
+        self.assertFalse(s.name_variant('乙', '乙丙'))  # 單字前綴不算
+
+    def test_correction_sentence_kept(self):
+        row = s.check_codes(parse(observation(said='不是乙公司，叫做甲公司', heard='甲公司', speech_kind='explicit')), {'1111': '甲公司'})[0]
+        self.assertFalse(s.explicit(row))
+
+    def test_direct_explicit_removed(self):
+        row = s.check_codes(parse(observation(said='甲公司看起來不錯', heard='甲公司', speech_kind='explicit')), {'1111': '甲公司'})[0]
+        self.assertTrue(s.explicit(row))
+
+    def test_pronoun_never_explicit(self):
+        row = s.check_codes(parse(observation()), {'1111': '甲公司'})[0]
+        self.assertFalse(s.explicit(row))
+
+    def test_dedupe_better_observation(self):
+        first = parse(observation(confidence='模糊'))[0]
+        second = parse(observation(second=25, visual_second=25))[0]
+        self.assertEqual(s.dedupe([first, second])[0]['confidence'], '清楚')
+
+    def test_different_utterance_kept(self):
+        one = parse(observation())[0]
+        two = parse(observation(second=22, visual_second=22, said='另一句獨立評論'))[0]
+        self.assertEqual(len(s.dedupe([one, two])), 2)
+
+
+class Prompt(unittest.TestCase):
+    def test_layout_and_patterns(self):
+        p = s.prompt(900, 1800, [('嘉公司', '甲公司')])
+        self.assertIn('左上角', s.LAYOUT)
+        self.assertIn(s.LAYOUT, s.SYSTEM)
+        self.assertIn('[900, 1800)', p)
+        self.assertIn('0:15:00', p)
+        self.assertIn('F. 說自己的買賣', p)
+        self.assertIn('「嘉公司」可能是甲公司', p)
+        self.assertIn('待查線索', p)
+        self.assertIn('：無', s.prompt(0, 900))
+
+    def test_schema_bounds(self):
+        sch = s.schema(900, 1800)['properties']['items']['items']['properties']['second']
+        self.assertEqual((sch['minimum'], sch['maximum']), (900, 1799))
+
+    def test_sdk_schema_builds_without_request(self):
+        from google.genai import types
+        types.GenerateContentConfig(response_schema=s.schema(0, 900), response_mime_type='application/json')
+
+
+class Vocabulary(unittest.TestCase):
+    codes = {'1111': '甲公司'}
+
+    def rows(self, **extra):
+        return s.check_codes(parse(observation(heard='嘉公司', speech_kind='misheard', **extra)), self.codes)
+
+    def test_new_name_and_misheard(self):
+        out = v.learn(self.rows(), [], code_names=self.codes)
+        self.assertEqual([(x['類型'], x['聽到'], x['股名']) for x in out], [('新股名', '甲公司', '甲公司'), ('聽錯', '嘉公司', '甲公司')])
+
+    def test_known_name_not_relearned(self):
+        self.assertEqual([x['類型'] for x in v.learn(self.rows(), ['甲公司'], code_names=self.codes)], ['聽錯'])
+
+    def test_repeated_time_not_votes(self):
+        out = v.learn(self.rows() * 4, [], code_names=self.codes)
+        self.assertTrue(all(x['次數'] == 1 for x in out))
+
+    def test_price_not_alias(self):
+        rows = s.check_codes(parse(observation(heard='四千六', speech_kind='misheard')), self.codes)
+        self.assertFalse(any(x['類型'] == '聽錯' for x in v.learn(rows, [], code_names=self.codes)))
+
+    def test_scene_blocks_learning(self):
+        self.assertEqual(v.learn(self.rows(scene='chat'), [], code_names=self.codes), [])
+
+    def test_real_other_stock_is_not_misheard(self):
+        codes = {'1111': '甲公司', '2222': '嘉公司'}
+        rows = s.check_codes(parse(observation(heard='嘉公司', speech_kind='misheard')), codes)
+        self.assertFalse(any(x['類型'] == '聽錯' for x in v.learn(rows, [], code_names=codes)))
+
+    def test_conflicting_approved_alias_suppressed(self):
+        rows = [dict(類型='聽錯', 聽到='嘉公司', 股名=n, 狀態='已採用') for n in ('甲公司', '乙公司')]
+        self.assertEqual(v.adopted(rows)[1], [])
+
+    def test_later_rejection_revokes_adoption(self):
+        rows = [dict(類型='聽錯', 聽到='嘉公司', 股名='甲公司', 狀態=st) for st in ('已採用', '不採用')]
+        self.assertEqual(v.adopted(rows), ([], []))
+
+    def test_adopted_names_and_pairs(self):
+        rows = [{'類型': '新股名', '聽到': '丙公司', '股名': '丙公司', '狀態': '已採用'},
+                {'類型': '聽錯', '聽到': '嘉公司', '股名': '甲公司', '狀態': '已採用'},
+                {'類型': '聽錯', '聽到': '戊', '股名': '丁公司', '狀態': '待核對'}]
+        self.assertEqual(v.adopted(rows), (['甲公司', '丙公司'], [('嘉公司', '甲公司')]))
+
+    def test_pronouns(self):
+        self.assertTrue(all(v.is_pronoun(w) for w in ('這一檔', '它', '這一支股票', '第二支', '')))
+        self.assertFalse(any(v.is_pronoun(w) for w in ('嘉公司', '一頂', '行程')))
+
+    def test_vocab_row_states(self):
+        import screen_identify as si
+        new = si.vocab_row({'類型': '新股名', '聽到': '甲公司', '股名': '甲公司'}, 'x', '2026/11/12')
+        mis = si.vocab_row({'類型': '聽錯', '聽到': '嘉公司', '股名': '甲公司'}, 'x', '2026/11/12')
+        self.assertEqual((new['狀態'], mis['狀態']), ('已採用', '待核對'))
+        self.assertEqual(v.HEAD, LOG_TABS[v.TAB])
+
+
+class Runtime(unittest.TestCase):
+    def reader(self, directory, response=None, error=None):
+        from screen_runtime import Reader
+        r = Reader.__new__(Reader)
+
+        def send(**kwargs):
+            if error:
+                raise error
+            return response
+        r.client = SimpleNamespace(models=SimpleNamespace(generate_content=send))
+        r.models, r.used = ['test-model'], []
+        r.attempts, r.last_send, r.deadline = 0, -1e9, time.monotonic() + 480
+        r.max_calls, r.total_input, r.input_budget = 12, 0, 1800000
+        r.thinking, r.resolution, r.fps, r.blocked = 'low', 'default', 0.5, False
+        r.path = Path(directory) / 'metrics.jsonl'
+        return r
+
+    def test_truncated_output_is_failure(self):
+        with tempfile.TemporaryDirectory() as d:
+            r = self.reader(d, SimpleNamespace(candidates=[SimpleNamespace(finish_reason='MAX_TOKENS')], text='{}', usage_metadata=None))
+            with self.assertRaises(RuntimeError):
+                r.read('https://www.youtube.com/watch?v=test', 0, 900)
+            self.assertEqual(r.attempts, 1)
+
+    def test_429_stops_the_round(self):
+        error = type('QuotaError', (Exception,), {'code': 429})('private details must not be logged')
+        with tempfile.TemporaryDirectory() as d:
+            r = self.reader(d, error=error)
+            for start in (0, 900):
+                with self.assertRaises(RuntimeError):
+                    r.read('https://www.youtube.com/watch?v=test', start, start + 900)
+            self.assertEqual(r.attempts, 1)
+            self.assertNotIn('private details', r.path.read_text(encoding='utf-8'))
+
+    def test_budget_stops_before_network(self):
+        with tempfile.TemporaryDirectory() as d:
+            r = self.reader(d)
+            r.attempts = r.max_calls
+            with self.assertRaises(RuntimeError):
+                r.read('https://www.youtube.com/watch?v=test', 0, 900)
+            self.assertFalse(r.path.exists())
+
+    def test_usage_metadata_saved(self):
+        with tempfile.TemporaryDirectory() as d:
+            r = self.reader(d, SimpleNamespace(candidates=[SimpleNamespace(finish_reason='STOP')], text='{}',
+                                               usage_metadata=SimpleNamespace(prompt_token_count=10, candidates_token_count=5)))
+            self.assertEqual(r.read('https://www.youtube.com/watch?v=test', 0, 900), '{}')
+            row = json.loads(r.path.read_text(encoding='utf-8'))
+            self.assertEqual((row['input_tokens'], row['output_tokens']), (10, 5))
+
+
+class ReviewTools(unittest.TestCase):
+    def test_day_rows(self):
+        rows = [{'日期': '2026/11/12', '時間': '0:17:05'}, {'日期': '2026-11-11', '時間': '0:01:00'}, {'日期': '2026/11/12', '時間': ''}]
+        self.assertEqual([r['_row'] for r in day_rows(rows, '2026/11/12')], [2, 4])
+        self.assertEqual(LOG_TABS['畫面辨識'][:4], ['建立時間', '日期', '影片ID', '時間'])
+
+    def test_parse_batch(self):
+        self.assertEqual(parse_batch('0:03:17\t不需處理\t說明\n\n0:04:16\t網站已有'),
+                         [('0:03:17', '不需處理', '說明'), ('0:04:16', '網站已有', '')])
+        with self.assertRaises(SystemExit):
+            parse_batch('0:03:17\t亂寫')
+
+    def test_transcript_hint_is_soft(self):
+        import transcript as tx
+        tx._LEARNED[:], tx._MISHEARD[:] = ['丙公司'], [('嘉公司', '甲公司')]
+        try:
+            text = tx.vocabulary()
+            self.assertIn('丙公司', text)
+            self.assertIn('嘉公司→甲公司', text)
+            self.assertIn('只供辨音參考', text)
+            self.assertNotIn('請寫成右邊', text)
+        finally:
+            tx._LEARNED[:], tx._MISHEARD[:] = [], []
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -61,7 +61,7 @@ jobs:
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           GEMINI_FALLBACK_MODEL: ${{ vars.GEMINI_FALLBACK_MODEL }}
           SCREEN_MODEL: ${{ vars.SCREEN_MODEL }}
-          SCREEN_BUDGET_SECONDS: '480'
+          SCREEN_BUDGET_SECONDS: '540'
           SCREEN_MAX_REQUESTS: '12'
           SCREEN_FPS: '0.5'
           SCREEN_RESOLUTION: default

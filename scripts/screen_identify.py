@@ -32,7 +32,7 @@ FPS = float(os.environ.get('SCREEN_FPS', '0.5'))          # 兩秒一張畫面�
 CONFIDENCE = ('清楚', '模糊', '沒有顯示')
 
 # 純函式與模型介面拆開，方便離線測試；部署時須一起複製這兩個模組。
-from screen_contracts import hms, parse_report, check_codes, explicit, dedupe
+from screen_contracts import hms, parse_report, check_codes, explicit, dedupe, not_listed
 from screen_runtime import Reader
 
 
@@ -93,7 +93,10 @@ def main():
         why = '、'.join(f'{k} {v} 筆' for k, v in dropped.items())
         print(f'  {hms(start)}–{hms(end)}：{len(got)} 個時刻' + (f'（丟掉：{why}）' if why else ''))
         items.extend(got)
-    items = dedupe(check_codes(items, code_names))
+    foreign = [it for it in items if not_listed(it, code_names)]
+    items = dedupe(check_codes([it for it in items if not not_listed(it, code_names)], code_names))
+    if foreign:
+        print(f'不是台股個股、不列 {len(foreign)} 處：' + '、'.join(f"{it['time']} {it.get('name') or it.get('heard')}" for it in foreign))
     stamp = now().strftime('%Y/%m/%d %H:%M:%S')
     for it in items:
         print(f"  {it['time']} {it['confidence']} {it['code']} {it['name']}｜{it.get('heard', '')}｜{it['said']}｜"

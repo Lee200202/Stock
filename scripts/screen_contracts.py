@@ -206,9 +206,26 @@ def explicit(it):
     # 2026/11/12 實跑：模型常把整句也填進 heard。heard 是空的、就是整句、或含有畫面股名時，改看原話裡有沒有這個股名。
     h = norm(heard)
     loose = not h or h == norm(said) or norm(it['name']) in h
-    name_ok = norm(it['name']) in norm(said) and (same_stock(heard, it['name']) or loose)
+    # 代號已核對過，所以 heard 與畫面名稱的寫法差異（亞德客／亞德客-KY）也算說出名稱。
+    name_ok = (norm(it['name']) in norm(said) or name_variant(heard, it['name'])) and (name_variant(heard, it['name']) or loose)
     code_ok = heard == it['code'] and bool(re.search(r'(?<!\d)' + re.escape(it['code']) + r'(?!\d)', said))
     return bool(name_ok or code_ok)
+
+
+def not_listed(it, code_names):
+    """不是台股個股的時刻，不寫列（2026/11/12 實跑：黃金、美光、Micron，以及主持人清楚講了名字、畫面卻沒有個股的時刻）。
+    - 沒讀到有效代號、名稱只有英文字母：美股或商品；
+    - 沒讀到有效代號、主持人是清楚說出名字（explicit），而畫面名稱是空的或不在上市櫃代號表：不需要看畫面，也不是台股。
+    代號表載不到時第二條不判斷。"""
+    if it.get('code'):
+        return False
+    name = it.get('name', '')
+    if name and re.fullmatch(r'[A-Za-z0-9 .&()-]+', name):
+        return True
+    if not code_names or it.get('speech_kind') != 'explicit':
+        return False
+    listed = {norm(n) for n in code_names.values()}
+    return not name or norm(name) not in listed
 
 
 def dedupe(items):

@@ -127,6 +127,26 @@ class Contract(unittest.TestCase):
         row = s.check_codes(parse(observation(said=said, heard=said, speech_kind='explicit')), {'1111': '甲公司'})[0]
         self.assertTrue(s.explicit(row))
 
+    def test_explicit_with_ky_spelling(self):
+        row = s.check_codes(parse(observation(said='甲公司底部有人吃貨', heard='甲公司', speech_kind='explicit')), {'1111': '甲公司-KY'})[0]
+        self.assertTrue(s.explicit(row))
+
+    def test_not_listed(self):
+        codes = {'1111': '甲公司'}
+        rows = parse(observation(screen_code='', screen_name='Micron', speech_kind='explicit'))
+        self.assertTrue(s.not_listed(rows[0], codes))
+        rows = parse(observation(screen_code='', screen_name='黃金', heard='黃金', speech_kind='explicit'))
+        self.assertTrue(s.not_listed(rows[0], codes))
+        rows = parse(observation(screen_code='', screen_name='', confidence='沒有顯示', speech_kind='explicit'))
+        self.assertTrue(s.not_listed(rows[0], codes))
+        # 指代或聽錯、畫面沒東西：留著給複核（例：只有講者時說「這一檔」）
+        rows = parse(observation(screen_code='', screen_name='', confidence='沒有顯示', speech_kind='misheard'))
+        self.assertFalse(s.not_listed(rows[0], codes))
+        # 有代號、或名稱在代號表：留著
+        self.assertFalse(s.not_listed(parse(observation(speech_kind='explicit'))[0], codes))
+        self.assertFalse(s.not_listed(parse(observation(screen_code='', speech_kind='explicit'))[0], codes))
+        self.assertFalse(s.not_listed(parse(observation(screen_code='', screen_name='黃金', speech_kind='explicit'))[0], {}))
+
     def test_pronoun_never_explicit(self):
         row = s.check_codes(parse(observation()), {'1111': '甲公司'})[0]
         self.assertFalse(s.explicit(row))
@@ -234,7 +254,7 @@ class Runtime(unittest.TestCase):
         r.models, r.used = ['test-model'], []
         r.attempts, r.last_send, r.deadline = 0, -1e9, time.monotonic() + 480
         r.max_calls, r.total_input, r.input_budget = 12, 0, 1800000
-        r.thinking, r.resolution, r.fps, r.blocked = 'low', 'default', 0.5, False
+        r.thinking, r.resolution, r.fps, r.blocked, r.timeout = 'low', 'default', 0.5, False, 150
         r.path = Path(directory) / 'metrics.jsonl'
         return r
 
@@ -254,6 +274,27 @@ class Runtime(unittest.TestCase):
                     r.read('https://www.youtube.com/watch?v=test', start, start + 900)
             self.assertEqual(r.attempts, 1)
             self.assertNotIn('private details', r.path.read_text(encoding='utf-8'))
+
+    def test_timeout_retried_once(self):
+        calls = []
+
+        def send(**kwargs):
+            calls.append(kwargs['model'])
+            if len(calls) == 1:
+                raise TimeoutError('read timed out')
+            return SimpleNamespace(candidates=[SimpleNamespace(finish_reason='STOP')], text='[]', usage_metadata=None)
+        with tempfile.TemporaryDirectory() as d:
+            r = self.reader(d)
+            r.models = ['primary', 'fallback']
+            r.client = SimpleNamespace(models=SimpleNamespace(generate_content=send))
+            r.last_send = -1e9
+            import screen_runtime
+            orig, screen_runtime.time.sleep = screen_runtime.time.sleep, lambda x: None
+            try:
+                self.assertEqual(r.read('https://www.youtube.com/watch?v=test', 0, 900), '[]')
+            finally:
+                screen_runtime.time.sleep = orig
+            self.assertEqual(calls, ['primary', 'fallback'])
 
     def test_budget_stops_before_network(self):
         with tempfile.TemporaryDirectory() as d:

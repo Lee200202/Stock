@@ -8,6 +8,11 @@ from pathlib import Path
 from screen_contracts import SYSTEM, prompt, schema
 
 
+def request_timeout():
+    """單次請求逾時秒數（15 分鐘片段實測 4–28 秒，偶爾超過 75 秒）。"""
+    return float(os.environ.get('SCREEN_TIMEOUT_SECONDS', '150'))
+
+
 class Reader:
     def __init__(self):
         import transcript as tx
@@ -17,7 +22,8 @@ class Reader:
             raise RuntimeError('未設定 Gemini 金鑰')
         # 同專案金鑰不輪替來繞過 RPM／RPD；驗證失敗請管理者修設定。
         self.client = genai.Client(api_key=keys[0], http_options={
-            'timeout': 75000, 'retry_options': {'attempts': 1}})
+            'timeout': int(request_timeout() * 1000), 'retry_options': {'attempts': 1}})
+        self.timeout = request_timeout()
         primary = os.environ.get('SCREEN_MODEL', '').strip() or tx.GEMINI_MODEL
         self.models = list(dict.fromkeys([primary] + list(tx.GEMINI_FALLBACK_MODELS)))
         self.used, self.attempts, self.last_send = [], 0, -1e9
@@ -44,7 +50,7 @@ class Reader:
         last = '未執行'
         for n in range(2):
             wait = max(0, 5 - (time.monotonic() - self.last_send))
-            if self.attempts >= self.max_calls or time.monotonic() + wait + 75 > self.deadline or self.total_input >= self.input_budget:
+            if self.attempts >= self.max_calls or time.monotonic() + wait + self.timeout > self.deadline or self.total_input >= self.input_budget:
                 raise RuntimeError('達到本輪時間／請求／輸入用量預算')
             time.sleep(wait)
             model = self.models[min(n, len(self.models) - 1)]
@@ -80,7 +86,8 @@ class Reader:
                     self.blocked = True
                     # 可能是專案 RPM/TPM/RPD，停止本輪，不能換三把同專案金鑰重送。
                     raise RuntimeError('專案限流／額度不足；本輪停止，排程稍後再處理') from None
-                if isinstance(status, int) and status in (500, 502, 503, 504) and n == 0:
+                # 2026/11/12 實跑：45–60 分那段讀到 75 秒逾時（沒有 HTTP 狀態）就整段沒了；逾時、網路錯與 5xx 都換備援模型重試一次。
+                if n == 0 and (not isinstance(status, int) or status in (500, 502, 503, 504)):
                     continue
                 raise RuntimeError(last) from None
             usage = getattr(res, 'usage_metadata', None)

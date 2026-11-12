@@ -160,8 +160,34 @@ DAY_VOCAB_DAYS = 14
 DAY_VOCAB_LIMIT = 40
 
 
+# 2026/11/12：直播畫面辨識學到的詞（複核紀錄「詞庫學習」已採用的列，見 scripts/daily_review/vocab_learn.py）。
+# 新股名當專有名詞；聽錯過的音另外提示「易聽錯」，讓模型照畫面上的正確股名寫。
+_LEARNED = []
+_MISHEARD = []
+LEARNED_LIMIT = 40
+
+
 def vocabulary() -> str:
-    return VOCABULARY + ("," + ",".join(_DAY_VOCAB) if _DAY_VOCAB else "")
+    words = _DAY_VOCAB + [n for n in _LEARNED if n not in _DAY_VOCAB]
+    text = VOCABULARY + ("," + ",".join(words) if words else "")
+    if _MISHEARD:
+        text += "（易聽錯，請寫成右邊的股名：" + "、".join(f"{h}→{n}" for h, n in _MISHEARD) + "）"
+    return text
+
+
+def load_learned_vocabulary():
+    """讀畫面辨識學到的詞；沒有 REVIEW_LOG_ID 或讀不到就不加（聽打照常）。"""
+    sys.path.insert(0, str(Path(__file__).resolve().parent / "scripts" / "daily_review"))
+    try:
+        import vocab_learn
+        names, pairs = vocab_learn.load_adopted()
+    except Exception as e:                                   # noqa: BLE001
+        log(f"（讀不到畫面辨識學到的詞：{type(e).__name__}）")
+        return [], []
+    known = set(VOCABULARY.split(","))
+    _LEARNED[:] = [n for n in names if n not in known][:LEARNED_LIMIT]
+    _MISHEARD[:] = pairs[:LEARNED_LIMIT]
+    return list(_LEARNED), list(_MISHEARD)
 
 
 def load_day_vocabulary(ss, date_str) -> list:
@@ -1768,6 +1794,10 @@ def tick(ss, target: date, force: bool, seen: dict = None) -> bool:
     extra = load_day_vocabulary(ss, date_str)
     if extra:
         log(f"聽打詞表加入近兩週紀錄的股名 {len(extra)} 檔：{'、'.join(extra[:12])}{'…' if len(extra) > 12 else ''}")
+    learned, misheard = load_learned_vocabulary()
+    if learned or misheard:
+        log(f"聽打詞表加入畫面辨識學到的股名 {len(learned)} 檔、易聽錯 {len(misheard)} 組"
+            + (f"：{'、'.join(f'{h}→{n}' for h, n in misheard[:6])}" if misheard else ""))
 
     log(f"Gemini 聽打　模型 {GEMINI_MODEL}"
         + (f"（備援 {'、'.join(GEMINI_FALLBACK_MODELS)}）" if GEMINI_FALLBACK_MODELS else "")

@@ -88,9 +88,10 @@ def main():
             errors.append(f'{hms(start)}–{hms(end)} {exc}')
             continue
         if got is None:
-            errors.append(f'{hms(start)}–{hms(end)} 回覆不符格式（不是 JSON、時間超出本段或未完整）')
+            errors.append(f'{hms(start)}–{hms(end)} 回覆不是 JSON 陣列或未完整')
             continue
-        print(f'  {hms(start)}–{hms(end)}：{len(got)} 個時刻' + (f'（{dropped} 筆時間或欄位不合格，丟掉）' if dropped else ''))
+        why = '、'.join(f'{k} {v} 筆' for k, v in dropped.items())
+        print(f'  {hms(start)}–{hms(end)}：{len(got)} 個時刻' + (f'（丟掉：{why}）' if why else ''))
         items.extend(got)
     items = dedupe(check_codes(items, code_names))
     stamp = now().strftime('%Y/%m/%d %H:%M:%S')

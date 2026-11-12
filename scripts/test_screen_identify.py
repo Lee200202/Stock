@@ -45,7 +45,7 @@ class Contract(unittest.TestCase):
         text = json.dumps(dict(time_origin='video', coverage='complete',
                                items=[observation(), observation(second=930, visual_second=930)]), ensure_ascii=False)
         got, dropped = s.parse_report(text, 900, 1800)
-        self.assertEqual(([g['sec'] for g in got], dropped), ([930], 1))
+        self.assertEqual(([g['sec'] for g in got], dropped), ([930], {'時間不在本段': 1}))
 
     def test_bare_list_and_fence(self):
         got = s.parse_items('```json\n' + json.dumps([observation()], ensure_ascii=False) + '\n```', 0, 900)
@@ -66,13 +66,22 @@ class Contract(unittest.TestCase):
     def test_bool_is_not_second(self):
         self.assertEqual(parse(observation(second=True)), [])
 
-    def test_visual_offset_bound(self):
-        self.assertEqual(parse(observation(visual_second=100)), [])
-
-    def test_missing_field_dropped(self):
+    def test_old_style_time_string(self):
         row = observation()
-        del row['scene']
-        self.assertEqual(parse(row), [])
+        del row['second']
+        row['time'] = '0:00:20'
+        self.assertEqual(parse(row)[0]['sec'], 20)
+        row['time'] = '2:10'                       # 片段 [900,1800) 內的「2:10」不猜成 0:17:10
+        self.assertEqual(s.parse_report(json.dumps([row]), 900, 1800), ([], {'時間不在本段': 1}))
+
+    def test_missing_labels_cannot_be_clear(self):
+        row = observation()
+        del row['scene'], row['target_match']
+        got = s.check_codes(parse(row), {'1111': '甲公司'})[0]
+        self.assertEqual((got['scene'], got['target_match'], got['confidence']), ('other', 'uncertain', '模糊'))
+
+    def test_unknown_confidence_dropped(self):
+        self.assertEqual(s.parse_report(json.dumps([observation(confidence='怪')]), 0, 900), ([], {'把握不明': 1}))
 
     def test_no_digit_stripping(self):
         got = parse(observation(screen_code='5289-KY'))[0]
@@ -138,18 +147,19 @@ class Prompt(unittest.TestCase):
         p = s.prompt(900, 1800, [('嘉公司', '甲公司')])
         self.assertIn('左上角', s.LAYOUT)
         self.assertIn(s.LAYOUT, s.SYSTEM)
-        self.assertIn('[900, 1800)', p)
         self.assertIn('0:15:00', p)
         self.assertIn('F. 說自己的買賣', p)
         self.assertIn('「嘉公司」可能是甲公司', p)
-        self.assertIn('待查線索', p)
-        self.assertIn('：無', s.prompt(0, 900))
-        self.assertIn('"time_origin":"video"', p)
+        self.assertIn('只是線索', p)
+        self.assertNotIn('之前確認過', s.prompt(0, 900))
+        self.assertIn('只回 JSON 陣列', p)
         self.assertIn('不是整句', p)
+        self.assertIn('scene', s.SYSTEM)
 
     def test_schema_bounds(self):
-        sch = s.schema(900, 1800)['properties']['items']['items']['properties']['second']
-        self.assertEqual((sch['minimum'], sch['maximum']), (900, 1799))
+        sch = s.schema(900, 1800)
+        self.assertEqual(sch['type'], 'array')
+        self.assertIn('scene', sch['items']['required'])
 
     def test_sdk_schema_builds_without_request(self):
         from google.genai import types

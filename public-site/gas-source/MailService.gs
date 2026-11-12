@@ -142,7 +142,7 @@ function adminNoticeHtml_(subject, body) {
    兩種都列出來：「設定已更新」時一眼看得出現在是哪幾項開著，不必回想當初勾了什麼。
    順序與網站的訂閱表單相同（每日總覽在前）。 */
 var SUB_KINDS_ = [
-  { key: 'daily', name: '每日總覽', when: '交易日 12:00 起',
+  { key: 'daily', name: '每日總覽', when: '交易日 12:10 起',
     desc: '當天內容一備妥就寄出：影片中明講的買入、賣出、觀望不碰、觀望注意與會員持股整理。' },
   { key: 'sms', name: '盤中即時通知', when: '盤中，通常在開盤後到中午之間',
     desc: '管理者確認同意後才會開啟。盤中資料有新內容時寄出；可使用信尾連結隨時停止。' }
@@ -524,7 +524,7 @@ function pushWhy_(d, why) {
 
    先前唯一的防線是「每日推播內容」那一列的寄送狀態，但那一列會被換掉：
    GitHub 整天重跑會先刪掉那一列、再新增一列「待寄送」；管理者把當天內容刪掉重跑也一樣。
-   狀態一回到待寄送，12:00–22:00 每五分鐘一棒的 dailyPushJob、品質關卡之後那一棒、
+   狀態一回到待寄送，12:10–22:00 每五分鐘一棒的 dailyPushJob、品質關卡之後那一棒、
    後台投稿收尾的「推播信」，任何一個都會再寄一次——後來每更新一次就多一封（2026/09/11）。
 
    所以另外把「已寄出的日期」記在指令碼屬性，不跟著試算表的列走：
@@ -864,12 +864,15 @@ function noVideoToday_(today) {
   }
 }
 
-/** 當日最早寄送時刻；只影響未寄的今日整理，預設 12:00。 */
+/** 每日整理信預設最早寄送時刻（HHmm）。 */
+var DAILY_PUSH_DEFAULT_HM_ = '1210';
+
+/** 當日最早寄送時刻；只影響未寄的今日整理，預設 12:10（管理者 2026/11/12：原本 12:00，改 12:10 寄）。 */
 function dailyPushStartTime_(date) {
   var saved = String(PropertiesService.getScriptProperties().getProperty('DAILY_PUSH_START_TODAY') || '');
   var parts = saved.split('|');
-  var value = parts[0] === String(date).replace(/\D/g, '') ? parts[1] : '1200';
-  return /^(1[2-9]|20|21)[0-5][0-9]$/.test(value) ? value : '1200';
+  var value = parts[0] === String(date).replace(/\D/g, '') ? parts[1] : DAILY_PUSH_DEFAULT_HM_;
+  return /^(1[2-9]|20|21)[0-5][0-9]$/.test(value) ? value : DAILY_PUSH_DEFAULT_HM_;
 }
 
 function dailyPushJob() {
@@ -962,7 +965,7 @@ function dailyPushJob() {
     return pushWhy_(today, '複審後文章變成空的（撰稿失敗）');
   }
 
-  // 防重複寄送的關鍵：12:00 起每五分鐘一棒，前後兩棒可能同時讀到「待寄送」
+  // 防重複寄送的關鍵：12:10 起每五分鐘一棒，前後兩棒可能同時讀到「待寄送」
   // 而各自開始寄，造成一天寄好幾封。這裡用鎖搶占：搶到鎖的 job 先把狀態改成
   // 「寄送中」再放鎖，其餘 job 一看到不是空白就直接退出。先標記、後寄信，
   // 確保同一天只有一個 job 會真正寄出。
@@ -2341,7 +2344,7 @@ function autoFixAuditMissing(dateStr) {
 /**
  * 品質關卡的收尾保險。每日 15:20 觸發。
  *
- * 正常情況下關卡在推播窗口一開（12:00 起）就跑完了，這一支什麼都不用做。
+ * 正常情況下關卡在推播窗口一開（12:10 起）就跑完了，這一支什麼都不用做。
  * 它存在是為了兩種例外：逐字稿在下午才到手，以及關卡中途被中斷。
  * 兩種情況都只要把關卡補跑一次即可，跑完它自己會接回推播。
  *

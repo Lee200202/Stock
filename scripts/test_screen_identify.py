@@ -147,6 +147,25 @@ class Contract(unittest.TestCase):
         self.assertFalse(s.not_listed(parse(observation(screen_code='', speech_kind='explicit'))[0], codes))
         self.assertFalse(s.not_listed(parse(observation(screen_code='', screen_name='黃金', speech_kind='explicit'))[0], {}))
 
+    def test_sound_like(self):
+        for a, b in [('行程', '勤誠'), ('四星KY', '世芯-KY'), ('一頂', '宜鼎'), ('連電', '聯電'), ('事欣科', '世芯')]:
+            self.assertTrue(s.sound_like(a, b), (a, b))
+        for a, b in [('行程', '宜鼎'), ('四星KY', '亞德客-KY'), ('安權', '力旺'), ('順達', '台達電'), ('情成', '力積電')]:
+            self.assertFalse(s.sound_like(a, b), (a, b))
+
+    def test_misheard_needs_sound_or_stays_fuzzy(self):
+        codes = {'1111': '勤誠', '2222': '宜鼎', '3333': '順達', '4444': '台達電'}
+        ok = s.check_codes(parse(observation(heard='行程', screen_name='勤誠', speech_kind='misheard')), codes)[0]
+        bad = s.check_codes(parse(observation(heard='行程', screen_code='2222', screen_name='宜鼎', speech_kind='misheard')), codes)[0]
+        other = s.check_codes(parse(observation(heard='順達', screen_code='4444', screen_name='台達電', speech_kind='misheard')), codes)[0]
+        self.assertEqual((ok['confidence'], bad['confidence'], other['confidence']), ('清楚', '模糊', '模糊'))
+        self.assertIn('音不像', bad['note'])
+        self.assertIn('另一檔股名', other['note'])
+
+    def test_misheard_label_with_right_name_is_explicit(self):
+        row = s.check_codes(parse(observation(said='570 以下買甲公司', heard='甲公司', speech_kind='misheard')), {'1111': '甲公司'})[0]
+        self.assertTrue(s.explicit(row))
+
     def test_pronoun_never_explicit(self):
         row = s.check_codes(parse(observation()), {'1111': '甲公司'})[0]
         self.assertFalse(s.explicit(row))
@@ -190,11 +209,11 @@ class Vocabulary(unittest.TestCase):
     codes = {'1111': '甲公司'}
 
     def rows(self, **extra):
-        return s.check_codes(parse(observation(heard='嘉公司', speech_kind='misheard', **extra)), self.codes)
+        return s.check_codes(parse(observation(heard='甲工司', speech_kind='misheard', **extra)), self.codes)
 
     def test_new_name_and_misheard(self):
         out = v.learn(self.rows(), [], code_names=self.codes)
-        self.assertEqual([(x['類型'], x['聽到'], x['股名']) for x in out], [('新股名', '甲公司', '甲公司'), ('聽錯', '嘉公司', '甲公司')])
+        self.assertEqual([(x['類型'], x['聽到'], x['股名']) for x in out], [('新股名', '甲公司', '甲公司'), ('聽錯', '甲工司', '甲公司')])
 
     def test_known_name_not_relearned(self):
         self.assertEqual([x['類型'] for x in v.learn(self.rows(), ['甲公司'], code_names=self.codes)], ['聽錯'])
@@ -206,6 +225,14 @@ class Vocabulary(unittest.TestCase):
     def test_price_not_alias(self):
         rows = s.check_codes(parse(observation(heard='四千六', speech_kind='misheard')), self.codes)
         self.assertFalse(any(x['類型'] == '聽錯' for x in v.learn(rows, [], code_names=self.codes)))
+
+    def test_spelling_variant_or_unlike_sound_not_learned(self):
+        codes = {'1111': '甲公司-KY'}
+        rows = s.check_codes(parse(observation(heard='甲公司', speech_kind='misheard')), codes)
+        self.assertFalse(any(x['類型'] == '聽錯' for x in v.learn(rows, [], code_names=codes)))
+        codes = {'1111': '宜鼎'}
+        rows = s.check_codes(parse(observation(heard='行程', screen_name='宜鼎', speech_kind='misheard')), codes)
+        self.assertEqual(v.learn(rows, ['宜鼎'], code_names=codes), [])
 
     def test_scene_blocks_learning(self):
         self.assertEqual(v.learn(self.rows(scene='chat'), [], code_names=self.codes), [])

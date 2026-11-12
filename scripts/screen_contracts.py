@@ -179,7 +179,38 @@ def same_stock(a, b):
     return bool(norm(a)) and norm(a) == norm(b)
 
 
+_FUZZY_FINAL = {'ing': 'in', 'eng': 'en', 'ang': 'an', 'iang': 'ian', 'uang': 'uan'}
+_INITIALS = ('zh', 'ch', 'sh', 'b', 'p', 'm', 'f', 'd', 't', 'n', 'l', 'g', 'k', 'h', 'j', 'q', 'x', 'r', 'z', 'c', 's', 'y', 'w')
+
+
+def _syllables(text):
+    """逐字讀音的韻母（台灣口音 in/ing、en/eng 不分）；英文字母（KY）與符號不算。"""
+    from pypinyin import Style, lazy_pinyin
+    out = []
+    for ch in re.sub(r'(?i)-?KY$', '', unicodedata.normalize('NFKC', str(text or ''))):
+        if '一' <= ch <= '鿿':
+            py = lazy_pinyin(ch, style=Style.NORMAL)[0]
+            ini = next((i for i in _INITIALS if py.startswith(i)), '')
+            fin = py[len(ini):] or py
+            out.append(_FUZZY_FINAL.get(fin, fin))
+        elif ch.isdigit():
+            out.append(ch)
+    return out
+
+
+def sound_like(heard, name):
+    """聽到的詞和畫面名稱聽起來像不像（從頭逐字比韻母，至少兩個字對上、且佔較長那邊的六成）。
+    2026/11/12 實跑：行程／勤誠、四星／世芯、一頂／宜鼎、連電／聯電是真的聽錯；
+    行程／宜鼎、四星KY／亞德客-KY、安權／力旺 是畫面換到別檔、模型卻說是同一檔。"""
+    a, b = _syllables(heard), _syllables(name)
+    if not a or not b:
+        return False
+    hits = sum(x == y for x, y in zip(a, b))
+    return hits >= min(2, len(a), len(b)) and hits >= 0.6 * max(len(a), len(b))
+
+
 def check_codes(items, code_names):
+    listed = {norm(n) for n in code_names.values()}
     out = []
     for src in items:
         it = dict(src, identity_verified=False)
@@ -187,17 +218,29 @@ def check_codes(items, code_names):
         verified = bool(official and name_variant(it.get('name', ''), official))
         it['identity_verified'] = verified
         safe_scene = it.get('scene') in ('chart', 'quote') and it.get('target_match') == 'same'
-        if it.get('confidence') == '清楚' and not (verified and safe_scene):
+        heard = str(it.get('heard', ''))
+        why = ''
+        if not (verified and safe_scene):
+            why = '身分或話題待核對'
+        elif it.get('speech_kind') == 'misheard' and heard and not name_variant(heard, it.get('name', '')):
+            # 聽錯的身分只靠模型說「同一檔」不夠：聽到的若是另一檔真股名，或音和畫面名稱不像，交給複核。
+            if norm(heard) in listed:
+                why = f'主持人說的是另一檔股名「{heard}」'
+            elif not sound_like(heard, it.get('name', '')):
+                why = f'聽到「{heard}」和畫面名稱的音不像'
+        if it.get('confidence') == '清楚' and why:
             it['confidence'] = '模糊'
-            it['note'] = ('身分或話題待核對；' + it.get('note', ''))[:100]
+            it['note'] = (why + '；' + it.get('note', ''))[:100]
         # 衝突原樣保留，不能依任一方擅自把代號改成另一檔。
         out.append(it)
     return out
 
 
 def explicit(it):
-    if not (it.get('identity_verified') and it.get('confidence') == '清楚'
-            and it.get('speech_kind') == 'explicit' and it.get('target_match') == 'same'):
+    # 模型偶爾把說對名字的標成 misheard（heard 就是畫面名稱）：只要 heard 與畫面同名，也算說出名稱。
+    kind_ok = it.get('speech_kind') == 'explicit' or (it.get('speech_kind') == 'misheard'
+                                                     and name_variant(it.get('heard', ''), it.get('name', '')))
+    if not (it.get('identity_verified') and it.get('confidence') == '清楚' and kind_ok and it.get('target_match') == 'same'):
         return False
     said, heard = str(it.get('said', '')), str(it.get('heard', ''))
     # 多主體、否定或更正句交回複核，不能靠字串出現就整列刪掉。

@@ -47,6 +47,11 @@ def adopted(rows):
 
 
 def learn(items, known_names, known_pairs=(), code_names=None):
+    # 只有畫面辨識會呼叫 learn；聽打（transcript.py）只讀 adopted，不需要 screen_contracts 與 pypinyin。
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from screen_contracts import name_variant, sound_like
     known = {norm(n) for n in known_names}
     pairs = {(norm(h), norm(n)) for h, n in known_pairs}
     real = {norm(n) for n in (code_names or {}).values()}
@@ -64,6 +69,7 @@ def learn(items, known_names, known_pairs=(), code_names=None):
             kinds.append(('新股名', name))
         if (it.get('speech_kind') == 'misheard' and not is_pronoun(heard)
                 and 2 <= len(norm(heard)) <= 8 and norm(heard) not in real and norm(heard) != norm(name)
+                and not name_variant(heard, name) and sound_like(heard, name)   # 亞德客→亞德客-KY 不是聽錯；音不像不學
                 and (norm(heard), norm(name)) not in pairs
                 and not re.search(r'\d|[元塊點%％]|^[零〇一二兩三四五六七八九十百千萬億]+$', heard)):
             kinds.append(('聽錯', heard))

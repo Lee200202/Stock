@@ -10,8 +10,8 @@
    scripts/repairs/ 裡 main 還沒有的修正計畫複製進 main，提交後才刪分支。
    週檢討（claude/pipeline-weekly-*）與開發分支不動——要不要合併是管理者的事。
 2. GitHub Actions 產出檔（artifacts）超過 7 天的刪掉。
-3. Google 雲端硬碟的獨立備份試算表：請 Apps Script 清掉 7 天前的備份分頁（每個分頁永遠留最新一份，
-   目錄列標「已清理」留紀錄）。Apps Script 還沒部署這個功能時只回報，不算失敗。
+3. Google 雲端硬碟：**一律不動**（管理者 2026/11/12：「雲端硬碟上的所有資料請不要更動，Excel 資料表請勿刪除」）。
+   clean_backups 留著只為紀錄，main() 不呼叫。
 
 --dry-run：全部只列出來，不刪、不提交。
 """
@@ -196,7 +196,7 @@ def main():
     gh = GitHub()
     clean_branches(gh, today, keep, a.dry_run)
     clean_artifacts(gh, keep, a.dry_run)
-    clean_backups(a.dry_run)
+    # 2026/11/12 管理者：「雲端硬碟上的資料一律不要動，Excel 資料表請勿刪除」——只清 GitHub，不呼叫備份清理。
     return 0
 
 

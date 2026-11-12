@@ -1,0 +1,46 @@
+diff --git a/scripts/repairs/2026-11-04-source-review.json b/scripts/repairs/2026-11-04-source-review.json
+new file mode 100644
+index 00000000..7198a0a5
+--- /dev/null
++++ b/scripts/repairs/2026-11-04-source-review.json
+@@ -0,0 +1,40 @@
++{
++  "date": "2026/11/04",
++  "video_id": "fFNJef38M_k",
++  "raw_sha256": "b1c33b0fa8be19f860b1596090561eaec64b887316ac031db10e971dc0ca6215",
++  "authorization": "管理者 2026/11/03：試行期提前結束，每日寄信前複核發現的明確錯誤，依《每日複核作業》第 6 步當天修正並更新網站；不新增成交、不重寄、不動寄送帳本。",
++  "review_basis": "2026/11/04 寄信前複核：先讀完整原稿與當日通知（無個股）獨立判讀並凍結，再與網站比對。世芯-KY只是未點名主角的對照例，台積電說明末句借用台幣匯率。引句逐字出自當日原稿。",
++  "items": [
++    {
++      "code": "3661",
++      "name": "世芯-KY",
++      "category": "watch_watch",
++      "previous_category": "watch_watch",
++      "action": "delete",
++      "rationale": "原稿以未點名的另一檔股票說明『收斂、背離』，四星KY只是對照『沒有收斂』；講者對世芯-KY沒有買點或看好，只當對照例不列（裁示紀錄第一節第3條）。",
++      "quotes": [
++        "四星KY這邊有收斂嗎？",
++        "你看它跟四星KY"
++      ],
++      "previous_source_id": "fFNJef38M_k",
++      "previous_note_sha256": "4a83cba3176df5e8ab9296f9b202c5cdad71904ec5404c3b3f05b4de28ad31f4"
++    },
++    {
++      "code": "2330",
++      "name": "台積電",
++      "category": "holdings",
++      "previous_category": "holdings",
++      "action": "update",
++      "text": "台積電昨天與今天早上的最低點都落在講者公開的買點2280元，缺口也在2280、2260附近；講者表示有2280可自行去買，跌破2280更是可以出手的時機，行情已來到恐慌尾聲但尚未止穩。",
++      "quotes": [
++        "啊昨天台積電最低點2280，就是張正告訴你們的。",
++        "反正有2280，啊或者是不小心跌破，那個都算你們運氣好。",
++        "因為這個行情已經來到恐慌的尾聲",
++        "台積電跌破 2280，其實"
++      ],
++      "rationale": "原說明末句『央行突然大升值』講的是台幣匯率，不是台積電；依不借鄰股、大盤的基準刪除，只保留本股2280買點、最低點與恐慌尾聲；分類（紀錄上未出場的會員持股）不變。",
++      "previous_source_id": "fFNJef38M_k",
++      "previous_note_sha256": "dbdac704e52f3fcf19482b60ae939eb5e8c5a020070f7bbd787034d964c77fea"
++    }
++  ]
++}

@@ -1,0 +1,54 @@
+name: number-digits
+run-name: 數字寫法 ${{ inputs.date }} ${{ inputs.apply == 'true' && '套用' || '預覽' }}
+
+# 2026/11/12 管理者：個股說明裡的「九百五十三元」要呈現成「953元」。
+# 主流程之後寫入時就會換；這裡把已發布的某一天換過來（預覽／套用），不改分類與成交事實、不寄信。
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: '日期 YYYY/MM/DD'
+        required: true
+      apply:
+        description: 'true＝寫入並刷新網站；false＝只預覽'
+        required: false
+        default: 'false'
+      refresh:
+        description: 'true＝只接續刷新網站'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: regenerate-verified
+  cancel-in-progress: false
+
+jobs:
+  digits:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: 換數字寫法
+        env:
+          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
+          PYTHONUNBUFFERED: '1'
+          GEMINI_API_KEY: offline
+          DAY: ${{ inputs.date }}
+          APPLY: ${{ inputs.apply }}
+          REFRESH: ${{ inputs.refresh }}
+        run: |
+          ARGS="--date $DAY"
+          if [ "$APPLY" = "true" ]; then ARGS="$ARGS --apply"; fi
+          if [ "$REFRESH" = "true" ]; then ARGS="$ARGS --refresh"; fi
+          python scripts/apply_number_digits.py $ARGS

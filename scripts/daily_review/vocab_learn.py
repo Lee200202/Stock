@@ -51,6 +51,9 @@ def learn(items, known_names, known_pairs=(), code_names=None):
     """純函式：畫面辨識結果 → 要寫進「詞庫學習」的新列（類型、聽到、股名、代號、次數、時間）。
     只用把握「清楚」且有代號的時刻；已知的詞不再寫。code_names＝{代號: 股名}，用來排除
     「主持人說的是另一檔真的股票」（那是畫面和話題對不上，不是聽錯）。"""
+    # 2026/11/12 試跑：LINE 截圖或講者畫面上的股名常不是主持人正在講的那一檔（「四星KY」配到截圖裡的勤誠），
+    # 價位（「四千六」）也不是股名；同一個音配到幾檔時只留次數最多的那一檔。
+    items = [it for it in items if not re.search(r'LINE|對話|截圖|講者|聊天', str(it.get('note') or ''))]
     known = {norm(n) for n in known_names if n}
     pairs = {(norm(h), norm(n)) for h, n in known_pairs}
     real = {norm(v) for v in (code_names or {}).values()}
@@ -64,11 +67,17 @@ def learn(items, known_names, known_pairs=(), code_names=None):
             row = out.setdefault(key, {'類型': '新股名', '聽到': name, '股名': name, '代號': it['code'], '次數': 0, '時間': it['time']})
             row['次數'] += 1
         if (not is_pronoun(heard) and norm(heard) != norm(name) and norm(name) not in norm(heard)
-                and (norm(heard), norm(name)) not in pairs and norm(heard) not in real and 2 <= len(norm(heard)) <= 8):
+                and (norm(heard), norm(name)) not in pairs and norm(heard) not in real and 2 <= len(norm(heard)) <= 8
+                and not re.search(r'\d|^[零〇一二兩三四五六七八九十百千萬點塊元]+$', heard)):
             key = ('聽錯', heard, name)
             row = out.setdefault(key, {'類型': '聽錯', '聽到': heard, '股名': name, '代號': it['code'], '次數': 0, '時間': it['time']})
             row['次數'] += 1
-    return list(out.values())
+    rows = list(out.values())
+    best = {}
+    for r in rows:
+        if r['類型'] == '聽錯' and r['次數'] > best.get(r['聽到'], (0, ''))[0]:
+            best[r['聽到']] = (r['次數'], r['股名'])
+    return [r for r in rows if r['類型'] != '聽錯' or best[r['聽到']][1] == r['股名']]
 
 
 def load_rows():

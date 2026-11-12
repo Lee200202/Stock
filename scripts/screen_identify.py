@@ -149,7 +149,7 @@ def check_codes(items, code_names):
         if code and code in code_names:
             if not name:
                 it['name'] = code_names[code]
-            elif norm(name) != norm(code_names[code]):
+            elif not same_stock(name, code_names[code]):
                 if len(hits) == 1:
                     it['code'] = hits[0]
                     it['note'] = (it['note'] + f'；代號依名稱更正（讀成 {code}）').strip('；')[:60]
@@ -167,6 +167,13 @@ def check_codes(items, code_names):
             it['confidence'] = '模糊'
         out.append(it)
     return out
+
+
+def same_stock(screen, listed):
+    """純函式：畫面名稱和代號表簡稱是同一檔（表上是簡稱：世界＝世界先進）。"""
+    from vocab_learn import norm
+    a, b = norm(screen), norm(listed)
+    return a == b or (len(b) >= 2 and (a.startswith(b) or b.startswith(a)))
 
 
 def explicit(it):

@@ -13535,6 +13535,69 @@ def cn_number(text: str):
     return total or None
 
 
+# ------------------------------------------------------------------ #
+# 公開文字的數字寫法（2026/11/12 管理者：「說明重點裡的數字直接用中文，例如 930 元都是中文；
+# 要呈現數字比較好看」）。逐字稿常把價位聽寫成「九百五十三元」，說明照抄就變成中文數字。
+# 只換「中文數字＋單位」的量（元、塊、點、張、倍、億、%），不換「三天」「一檔」「第一」這種一般用語；
+# 「一點」「一張」「一塊」「幾百元」「上千張」「一兩百元」這類不是確切數字的也不換。
+# 在所有來源核對與品質關卡之後、寫入試算表與組文章之前才換：核對時仍拿原稿的中文寫法比對。
+# ------------------------------------------------------------------ #
+_CN_QTY_RE = re.compile(
+    r"(百分之)?([零〇一二兩三四五六七八九十百千萬]+)(?:點([零〇一二三四五六七八九]+))?"
+    r"(?(1)|(元|塊錢|塊|點|張|倍|億|%|％|趴))")
+_CN_DIGIT_ONLY = "零〇一二三四五六七八九"
+
+
+def digits_for_reading(text: str) -> str:
+    """把公開文字裡的「中文數字＋單位」換成阿拉伯數字：九百五十三元→953元、百分之二十→20%、三點五倍→3.5倍。"""
+    raw = str(text or "")
+    if not raw or not re.search(r"[一二兩三四五六七八九十百千]", raw):
+        return raw
+
+    def swap(m):
+        pct, part, frac, unit = m.group(1), m.group(2), m.group(3), m.group(4)
+        before = raw[m.start() - 1] if m.start() else ""
+        if not pct and before and before in "第幾數上近好成多":
+            return m.group(0)                         # 「第三張」「幾百元」「上千張」「好幾倍」
+        if part[0] in "百千萬" or re.search(r"[一二兩三四五六七八九]{2}", part):
+            return m.group(0)                         # 「百元」「上千張」「一兩百元」不是確切數字
+        if not pct and not frac and part in ("一", "兩", "二") and unit in ("點", "張", "塊", "倍", "元"):
+            return m.group(0)                         # 「一點」「一張圖」「一塊」：一般用語
+        if unit == "億" and "萬" in part:
+            return m.group(0)
+        value = cn_number(part)
+        if value is None:
+            return m.group(0)
+        number = str(value)
+        if frac:
+            number += "." + "".join(str(_CN_DIGITS[c]) for c in frac)
+        if pct:
+            return number + "%"
+        return number + ("%" if unit in ("％", "趴") else unit)
+
+    return _CN_QTY_RE.sub(swap, raw)
+
+
+def public_number_digits(signals: dict) -> dict:
+    """寫入前把個股說明（操作紀錄理由摘錄、會員持股說明重點）的中文數字換成阿拉伯數字（就地修改）。
+    ①③重點由網站從「逐字稿判讀稽核」重組，不在這裡換，免得信和網站寫法不同。"""
+    changed = 0
+    for cat in list(SIGNAL_CATEGORIES) + ['history']:
+        for row in signals.get(cat, []) or []:
+            if not isinstance(row, dict):
+                continue
+            for field in ('reason', 'note'):
+                old = row.get(field)
+                if isinstance(old, str) and old:
+                    new = digits_for_reading(old)
+                    if new != old:
+                        row[field] = new
+                        changed += 1
+    if changed:
+        print(f"  數字寫法：{changed} 段個股說明的中文數字換成阿拉伯數字")
+    return signals
+
+
 # 技術指標裡的數字不是股價：60分K、5分鐘、20MA、9週KD、日K線、5日均線。
 #
 # 實際算錯過一次：「股價拉回至低檔區，且60分K線顯示收斂末端翻揚」——
@@ -19668,11 +19731,13 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
     save_evidence_audit(ss, video['id'], date_str, TX['audit'], signals)
     # 重點都定了才問標題：這一集設定的主題加上結論，整合成一行（見 compose_episode_title）。
     signals = compose_episode_title(signals, TX["audit"], date_str)
-    article = build_article(v2, signals, date_str)
     quality_hard, _quality_soft = print_quality_overview(signals, TX["audit"])
     if quality_hard:
         print_public_texts(signals, date_str)
         raise RuntimeError('公開文字品質關卡未通過，保留既有正式資料：' + '；'.join(quality_hard[:5]))
+    # 2026/11/12：核對都過了才換數字寫法（核對要用原稿的中文寫法）；文章跟著用換好的文字組。
+    signals = public_number_digits(signals)
+    article = build_article(v2, signals, date_str)
 
     step("寫入", f"把 {_n(signals)} 檔寫進試算表")
     write_results(ss, date_str, signals, article, done_trades, done_holds,

@@ -65,6 +65,15 @@ items = [dict(base, name='力積電', code='6770', heard='力積電'),
 words = vl.learn(items, ['台積電', '勤誠', '世芯-KY'], [('四星KY', '世芯-KY')], codes)
 assert [(w['類型'], w['聽到'], w['股名'], w['次數']) for w in words] == [
     ('新股名', '力積電', '力積電', 2), ('聽錯', '立機電', '力積電', 1)], words
+# 11/12 試跑：LINE 截圖上的股名不學、價位不學、同一個音只留次數最多的那一檔
+items2 = [dict(base, name='勤誠', code='8210', heard='四星KY', note='LINE對話截圖'),
+          dict(base, name='世芯-KY', code='3661', heard='四千六', note='K線圖左上角'),
+          dict(base, name='世芯-KY', code='3661', heard='四星', note='K線圖左上角'),
+          dict(base, name='世芯-KY', code='3661', heard='四星', note='K線圖左上角'),
+          dict(base, name='勤誠', code='8210', heard='四星', note='報價視窗')]
+assert [(w['聽到'], w['股名']) for w in vl.learn(items2, ['勤誠', '世芯-KY'], [], codes)] == [('四星', '世芯-KY')]
+from screen_identify import same_stock  # noqa: E402
+assert same_stock('世界先進', '世界') and same_stock('世芯-KY', '世芯-KY') and not same_stock('聯電', '台積電')
 rows = [{'類型': '新股名', '聽到': '力積電', '股名': '力積電', '狀態': '已採用'},
         {'類型': '聽錯', '聽到': '四星KY', '股名': '世芯-KY', '狀態': '已採用'},
         {'類型': '聽錯', '聽到': '行程', '股名': '勤誠', '狀態': '待核對'},
@@ -76,4 +85,11 @@ import transcript as tx  # noqa: E402
 tx._LEARNED[:], tx._MISHEARD[:] = ['力積電'], [('四星KY', '世芯-KY')]
 assert '力積電' in tx.vocabulary() and '四星KY→世芯-KY' in tx.vocabulary()
 tx._LEARNED[:], tx._MISHEARD[:] = [], []
+from screen_refs import parse_batch  # noqa: E402
+assert parse_batch('0:03:17\t不需處理\t說明\n\n0:04:16\t網站已有') == [('0:03:17', '不需處理', '說明'), ('0:04:16', '網站已有', '')]
+try:
+    parse_batch('0:03:17\t亂寫')
+    raise AssertionError('狀態錯要報錯')
+except SystemExit:
+    pass
 print('11/12 畫面辨識：時間換算、範圍、把握、去重、日期篩選、左上角技巧、代號核對、有名不列、自動學詞通過')

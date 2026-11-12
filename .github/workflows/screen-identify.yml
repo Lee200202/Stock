@@ -17,6 +17,10 @@ on:
         description: '已經辨識過也重跑'
         required: false
         default: 'false'
+      dry_run:
+        description: '只印結果，不寫複核紀錄（驗收用）'
+        required: false
+        default: 'false'
 
 concurrency:
   group: screen-identify
@@ -61,8 +65,10 @@ jobs:
           REVIEW_LOG_ID: ${{ vars.REVIEW_LOG_ID }}
           TARGET_DATE: ${{ inputs.date }}
           FORCE: ${{ inputs.force }}
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
           ARGS=""
           if [ -n "$TARGET_DATE" ]; then ARGS="$ARGS --date $TARGET_DATE"; fi
           if [ "$FORCE" = "true" ]; then ARGS="$ARGS --force"; fi
+          if [ "$DRY_RUN" = "true" ]; then ARGS="$ARGS --dry-run"; fi
           python scripts/screen_identify.py $ARGS

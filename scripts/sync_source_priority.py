@@ -1,4 +1,5 @@
 """備份已驗證日期，套用來源優先順序並刷新，不呼叫模型。"""
+from delivery_guard import delivery_problems, delivery_snapshot  # noqa: E402  2026/11/13 共用的沒有重寄核對
 from backup_archive import backup_tables
 import argparse
 import hashlib
@@ -41,16 +42,15 @@ def main():
         return
     names = [w.title for w in book.worksheets()]
     ledgers = [n for n in names if n in ('寄送帳本', 'LINE 寄送帳本')]
-    before = {n: digest(book.worksheet(n).get_all_values()) for n in ledgers}
-    sent = pl._daily_article_status(book, day)
+    before = delivery_snapshot(book, day, pl._daily_article_status)  # 2026/11/13：只核對當天整理信有沒有重寄
     stamp = datetime.now(ZoneInfo('Asia/Taipei')).strftime('%m%d_%H%M%S')
     backup_tables(pl,book,('操作紀錄','會員持股','每日推播內容'))
     print('三張工作表已備份；僅套用既有來源優先，不重新判讀')
     result = pl.apply_sms_priority(book, [day])
     print('來源優先結果：' + json.dumps(result, ensure_ascii=False))
-    if sent != pl._daily_article_status(book, day) or any(
-            before[n] != digest(book.worksheet(n).get_all_values()) for n in ledgers):
-        raise RuntimeError('同期寄送狀態有變動，需核對帳本；本次未呼叫寄送')
+    problems = delivery_problems(book, before, pl._daily_article_status)
+    if problems:
+        raise RuntimeError('當天整理信疑似重寄，需核對：' + '；'.join(problems[:3]) + '；本次未呼叫寄送')
     steps = ['smsmail', 'tracker', 'perfhist', 'perf']
     for attempt in range(3):
         refreshed = pl.maybe_refresh_site(force=True, only=steps, date_str=day) or {}

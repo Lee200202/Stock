@@ -1,6 +1,7 @@
 """稽核保存的單日通知原文，以原子操作只替換衍生資料列。
 
 使用既有批次解析器，不重新抓取、不安裝觸發器、不寄送，也不重設通知狀態。通知原文與寄送帳本維持不變。"""
+from delivery_guard import delivery_problems, delivery_snapshot  # noqa: E402  2026/11/13 共用的沒有重寄核對
 import argparse, hashlib, json, sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -19,7 +20,7 @@ def main():
  selected=[(i,r,dict(zip(head,r))) for i,r in enumerate(initial[1:],2) if pl.norm_date(dict(zip(head,r)).get('發文時間','').split(' ')[0])==day]
  if not selected:raise SystemExit('沒有該日原文；未寫入')
  ledgers=[s for s in book.worksheets() if s.title in ('寄送帳本','LINE 寄送帳本')]
- before={s.title:digest(pl.sheets_retry(s.get_all_values)) for s in ledgers};sent=pl._daily_article_status(book,day)
+ before=delivery_snapshot(book,day,pl._daily_article_status)  # 2026/11/13：只核對當天整理信有沒有重寄
  code_map=pl.get_code_map();reports=[];plans=[]
  for num,row,old in selected:
   if old.get('解析版本')==pl.notice_editor().VERSION:
@@ -68,8 +69,8 @@ def main():
   assert current['原文']==r['text'] and current['解析明細']==pl.serialize_sms_items(items)
   prior=next(dict(zip(fresh[0],v)) for v in fresh[1:] if dict(zip(fresh[0],v)).get('文章ID')==r['id'])
   for key in ('通知狀態','內容指紋','修訂次數'):assert current.get(key)==prior.get(key)
- assert sent==pl._daily_article_status(book,day)
- assert all(before[s.title]==digest(pl.sheets_retry(s.get_all_values)) for s in ledgers)
+ problems=delivery_problems(book,before,pl._daily_article_status)
+ if problems:raise RuntimeError('當天整理信疑似重寄，請核對：'+'；'.join(problems[:3]))
  pl.queue_sms_content_sync(book,{day})
  print('原文語意更正已原子寫入；原文、通知狀態及寄送帳本不變；只排內容同步，未寄送')
 if __name__=='__main__':main()

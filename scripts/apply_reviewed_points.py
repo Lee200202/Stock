@@ -1,4 +1,5 @@
 """發布明確核對的文章重點，保留個股列與寄送狀態。"""
+from delivery_guard import delivery_problems, delivery_snapshot  # noqa: E402  2026/11/13 共用的沒有重寄核對
 from backup_archive import backup_tables
 import argparse
 import hashlib
@@ -72,7 +73,7 @@ def main():
         raise SystemExit('人工章節仍不通過品質核對：' + '；'.join(hard))
     names = {w.title for w in book.worksheets()}
     ledgers = [n for n in ('寄送帳本', 'LINE 寄送帳本') if n in names]
-    before = {n: digest(book.worksheet(n).get_all_values()) for n in ledgers}
+    before = delivery_snapshot(book, day, pl._daily_article_status)  # 2026/11/13：只核對當天整理信有沒有重寄
     # 2026/11/10：個股兩張表只要原有各列不變即可，簡訊解析在表尾補新列不算本程式造成的變動。
     rows_before = {n: book.worksheet(n).get_all_values() for n in ('操作紀錄', '會員持股')}
     sent = pl._daily_article_status(book, day)
@@ -89,9 +90,11 @@ def main():
     if not result.get('ok'):
         raise RuntimeError('章節已保存，郵件查詢尚需接續刷新；未寄送')
     from apply_source_review import prefix_unchanged
-    if sent != pl._daily_article_status(book, day) or any(before[n] != digest(book.worksheet(n).get_all_values()) for n in before) \
-            or not all(prefix_unchanged(v, book.worksheet(n).get_all_values()) for n, v in rows_before.items()):
-        raise RuntimeError('同期資料或帳本變動，須讀回核對；本程式未更改分類或寄送')
+    problems = delivery_problems(book, before, pl._daily_article_status)
+    if problems:
+        raise RuntimeError('當天整理信疑似重寄，須核對：' + '；'.join(problems[:3]))
+    if not all(prefix_unchanged(v, book.worksheet(n).get_all_values()) for n, v in rows_before.items()):
+        raise RuntimeError('同期個股資料變動，須讀回核對；本程式未更改分類或寄送')
     if plan:
         # 2026/11/10：留收據；同一天再推時，工作流程據此判斷這份計畫是否真的套用過
         # （以前只看 git 差異，前一輪失敗的計畫也被當成已套用而跳過）。

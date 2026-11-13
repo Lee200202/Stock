@@ -46,6 +46,20 @@ class DeliveryGuard(unittest.TestCase):
         # 5. 沒有訊息ID／收件者欄（表頭不認得）→ 不判斷，不誤報
         assert resend_problems([['x']], [['x'], ['y']], DAY) == []
 
+    def test_no_tool_fingerprints_whole_ledgers(self):
+        """整張帳本做指紋會被同時間的 LINE 對話、卡片誤判（11/13）；所有套用工具改用 delivery_guard。"""
+        import re
+        root = Path(__file__).resolve().parent
+        bad = []
+        for f in sorted(root.glob('*.py')):
+            if f.name in ('delivery_guard.py', Path(__file__).name):
+                continue
+            text = f.read_text(encoding='utf-8')
+            whole = re.search(r"digest\([^\n]*(?:get_all_values|sheets_retry)[^\n]*\)[^\n]*for [^\n]*ledger", text)
+            if whole or '同期寄送帳本變動' in text:
+                bad.append(f.name)
+        self.assertEqual(bad, [])
+
 
 if __name__ == '__main__':
     unittest.main()

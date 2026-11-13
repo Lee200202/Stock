@@ -1,4 +1,5 @@
 """預覽或套用已保存的單日閱讀稿，保留原始證據與寄送帳本。"""
+from delivery_guard import delivery_problems, delivery_snapshot  # noqa: E402  2026/11/13 共用的沒有重寄核對
 import argparse, hashlib, json, sys
 from pathlib import Path
 from backup_archive import backup_tables
@@ -22,7 +23,7 @@ def main():
         print('唯讀預覽／沒有可採用校正；沒有改寫或寄送');return
     ledgers=[w for w in ss.worksheets() if w.title in ('寄送帳本','LINE 寄送帳本')]
     digest=lambda v:hashlib.sha256(json.dumps(v,ensure_ascii=False).encode()).hexdigest()
-    before={w.title:digest(pl.sheets_retry(w.get_all_values)) for w in ledgers}
+    before=delivery_snapshot(ss,day,pl._daily_article_status)  # 2026/11/13：只核對當天整理信有沒有重寄
     backup_tables(pl,ss,['影片清單'])
     _,current=pl.select_transcript_row(pl.sheets_retry(ws.get_all_records),'',day)
     if str(current.get('原始逐字稿內容') or '')!=str(row.get('原始逐字稿內容') or '') or str(current.get('修飾後逐字稿內容') or '')!=str(row.get('修飾後逐字稿內容') or ''):
@@ -31,7 +32,8 @@ def main():
     _,check=pl.select_transcript_row(pl.sheets_retry(ws.get_all_records),'',day)
     assert pl.reading_editor().verified_reading(check,pl.transcript_fingerprint)
     assert str(check.get('原始逐字稿內容') or '')==str(row.get('原始逐字稿內容') or '')
-    assert all(before[w.title]==digest(pl.sheets_retry(w.get_all_values)) for w in ledgers)
+    problems=delivery_problems(ss,before,pl._daily_article_status)
+    if problems:raise RuntimeError('當天整理信疑似重寄，請核對：'+'；'.join(problems[:3]))
     pl.ensure_transcript_layout(ss,day,force=True)
     print('閱讀校正版已寫入並重建版面；原稿與寄送帳本一致，沒有重新判讀或寄送')
 if __name__=='__main__':main()

@@ -15,6 +15,7 @@
 - 新理由要有逐字出自當天原稿的引句（quotes），不得含通知／通道字眼；舊理由只存指紋。
 寫入前先做獨立備份，寫完逐欄讀回，再刷新郵件內容／持股追蹤／績效；寄送狀態與帳本不得變動。
 計畫：scripts/repairs/<日期>-notice-ruling.json。不加 --apply 只預覽。"""
+from delivery_guard import delivery_problems, delivery_snapshot  # noqa: E402  2026/11/13 共用的沒有重寄核對
 import argparse
 import hashlib
 import json
@@ -149,7 +150,7 @@ def main():
     done = any(receipt in str(r) for r in receipts[1:])
     names = {w.title for w in book.worksheets()}
     ledgers = [n for n in ('寄送帳本', 'LINE 寄送帳本') if n in names]
-    ledger_before = {n: digest(book.worksheet(n).get_all_values()) for n in ledgers}
+    ledger_before = delivery_snapshot(book, day, pl._daily_article_status)  # 2026/11/13：只核對當天整理信有沒有重寄
     sent = pl._daily_article_status(book, day)
     th, sh = trades[0], sms[0]
     writes = []
@@ -225,9 +226,9 @@ def main():
     result = pl.maybe_refresh_site(force=True, only=['smsmail', 'tracker', 'perf'], date_str=day) or {}
     if not result.get('ok'):
         raise RuntimeError('資料已保存；只需重跑本模式接續刷新')
-    if sent != pl._daily_article_status(book, day) or any(
-            digest(book.worksheet(n).get_all_values()) != h for n, h in ledger_before.items()):
-        raise RuntimeError('寄送狀態或帳本變動，請核對')
+    problems = delivery_problems(book, ledger_before, pl._daily_article_status)
+    if problems:
+        raise RuntimeError('當天整理信疑似重寄，請核對：' + '；'.join(problems[:3]))
     print('郵件內容／追蹤／績效刷新成功；寄送狀態及帳本未變')
 
 

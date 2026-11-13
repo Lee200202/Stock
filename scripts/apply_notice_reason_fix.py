@@ -7,6 +7,7 @@
 引句逐字核對原稿；寫入前先做獨立備份（需 APPS_SCRIPT_URL／ADMIN_KEY），寫完逐欄讀回，再刷新郵件／追蹤／績效。
 舊理由只存指紋（previous_reason_sha256、previous_reason_chars）：舊句就是外洩的通知用語，不能寫進公開 repo。
 不加 --apply 只預覽。"""
+from delivery_guard import delivery_problems, delivery_snapshot  # noqa: E402  2026/11/13 共用的沒有重寄核對
 import argparse
 import hashlib
 import json
@@ -173,7 +174,7 @@ def main():
     done = any(receipt in str(r) for r in receipts[1:])
     names = {w.title for w in book.worksheets()}
     ledgers = [n for n in ('寄送帳本', 'LINE 寄送帳本') if n in names]
-    ledger_before = {n: digest(book.worksheet(n).get_all_values()) for n in ledgers}
+    ledger_before = delivery_snapshot(book, day, pl._daily_article_status)  # 2026/11/13：只核對當天整理信有沒有重寄
     sent = pl._daily_article_status(book, day)
     th, sh = trades[0], sms[0]
     requests = []
@@ -218,9 +219,9 @@ def main():
              if contains_sha(' '.join(article), int(i['previous_reason_chars']), i['previous_reason_sha256'])]
     if stale:
         raise RuntimeError('刷新後文章仍含舊理由，須人工核對：' + '、'.join(stale))
-    if sent != pl._daily_article_status(book, day) or any(
-            digest(book.worksheet(n).get_all_values()) != h for n, h in ledger_before.items()):
-        raise RuntimeError('寄送狀態或帳本變動，請核對')
+    problems = delivery_problems(book, ledger_before, pl._daily_article_status)
+    if problems:
+        raise RuntimeError('當天整理信疑似重寄，請核對：' + '；'.join(problems[:3]))
     print('文章不含舊理由、郵件／追蹤／績效刷新成功；寄送狀態及帳本未變')
 
 

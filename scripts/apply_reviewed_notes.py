@@ -1,4 +1,5 @@
 """套用來源綁定的已核對說明，不重新分類、呼叫模型或寄送。"""
+from delivery_guard import delivery_problems, delivery_snapshot  # noqa: E402  2026/11/13 共用的沒有重寄核對
 from backup_archive import backup_tables
 import argparse,json,hashlib,sys,importlib.util
 from pathlib import Path
@@ -86,7 +87,7 @@ def main():
     count=sum(len(v) for v in updates.values());print('原句核對通過；更新說明',count,'筆，新增明確共同否定',len(additions),'筆；0模型請求')
     if not a.apply:return
     ledger_names=[w.title for w in book.worksheets() if w.title in ('寄送帳本','LINE 寄送帳本')]
-    ledgers={n:digest(book.worksheet(n).get_all_values()) for n in ledger_names};sent=pl._daily_article_status(book,day)
+    ledgers=delivery_snapshot(book,day,pl._daily_article_status)  # 2026/11/13：只核對當天整理信有沒有重寄
     stamp=datetime.now(pl.TAIPEI).strftime('%m%d_%H%M%S')
     backup_tables(pl,book,tabs+('每日推播內容',))
     if any(digest(before[t])!=digest(book.worksheet(t).get_all_values()) for t in tabs):raise SystemExit('備份期間資料已變，未寫入')
@@ -110,6 +111,7 @@ def main():
     if any(remaining.values()):raise RuntimeError('寫入讀回不一致')
     r=pl.maybe_refresh_site(force=True,only=['smsmail','tracker','perf'],date_str=day) or {}
     if not r.get('ok'):raise RuntimeError('說明已保存，請只續跑網站刷新，不重判或重寫')
-    if sent!=pl._daily_article_status(book,day) or any(ledgers[n]!=digest(book.worksheet(n).get_all_values()) for n in ledgers):raise RuntimeError('寄送狀態或帳本有其他執行寫入，需核對')
+    problems=delivery_problems(book,ledgers,pl._daily_article_status)
+    if problems:raise RuntimeError('當天整理信疑似重寄，需核對：'+'；'.join(problems[:3]))
     print('正式說明已讀回；寄送狀態與帳本未變；網站刷新完成；無重新取稿、判讀或寄送')
 if __name__=='__main__':main()

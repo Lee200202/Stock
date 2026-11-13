@@ -56,3 +56,33 @@ def resend_problems(before, after, day, name='寄送帳本'):
 def status_regressed(before, after):
     """寄送狀態從已寄退回未寄（套用把已寄的信改回待寄送，下一棒就會再寄）。"""
     return bool(SENT_RE.search(str(before or ''))) and not SENT_RE.search(str(after or ''))
+
+
+LEDGERS = ('寄送帳本', 'LINE 寄送帳本')
+
+
+def delivery_snapshot(book, day, status_fn=None):
+    """寫入前記下兩張帳本與當天整理信寄送狀態（讀不到的帳本略過）。所有套用工具共用。"""
+    ledgers = {}
+    for name in LEDGERS:
+        try:
+            ledgers[name] = book.worksheet(name).get_all_values()
+        except Exception:                                   # noqa: BLE001  沒有這張表就不核對
+            pass
+    return {'day': day, 'ledgers': ledgers, 'sent': status_fn(book, day) if status_fn else None}
+
+
+def delivery_problems(book, snap, status_fn=None):
+    """刷新後核對：只回報「當天整理信重寄」或「寄送狀態退回未寄」；別的程序同時寫帳本不算。"""
+    out = []
+    for name, before in snap['ledgers'].items():
+        try:
+            now = book.worksheet(name).get_all_values()
+        except Exception:                                   # noqa: BLE001
+            continue
+        out += resend_problems(before, now, snap['day'], name)
+    if status_fn and snap.get('sent') is not None:
+        now_sent = status_fn(book, snap['day'])
+        if status_regressed(snap['sent'], now_sent):
+            out.append(f"當天整理信寄送狀態從「{snap['sent']}」退回「{now_sent or '空'}」，下一棒會再寄")
+    return out

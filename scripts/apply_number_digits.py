@@ -6,6 +6,7 @@
 只改「操作紀錄」理由摘錄與「會員持股」說明重點兩欄的數字寫法，換法和主流程寫入前相同
 （pipeline.digits_for_reading）。不改分類、價位欄、成交事實、通知原文；不呼叫模型、不寄信、不動寄送帳本。
 """
+from delivery_guard import delivery_problems, delivery_snapshot  # noqa: E402  2026/11/13 共用的沒有重寄核對
 import argparse
 import hashlib
 import json
@@ -69,7 +70,7 @@ def main():
     from backup_archive import backup_tables
     names = {w.title for w in book.worksheets()}
     ledgers = [n for n in ('寄送帳本', 'LINE 寄送帳本') if n in names]
-    ledger_before = {n: digest(book.worksheet(n).get_all_values()) for n in ledgers}
+    ledger_before = delivery_snapshot(book, day, pl._daily_article_status)  # 2026/11/13：只核對當天整理信有沒有重寄
     sent = pl._daily_article_status(book, day)
     backup_tables(pl, book, ('操作紀錄', '會員持股', '每日推播內容'))
     requests = []
@@ -102,9 +103,9 @@ def main():
     stale = [old for cells in plan.values() for _, old, new in cells if old in article and new not in article]
     if stale:
         print('注意：刷新後的每日整理仍有舊寫法（可能來自會員簡訊解析）：' + '；'.join(s[:30] for s in stale))
-    if sent != pl._daily_article_status(book, day) or any(
-            digest(book.worksheet(n).get_all_values()) != h for n, h in ledger_before.items()):
-        raise RuntimeError('寄送狀態或帳本變動，請核對')
+    problems = delivery_problems(book, ledger_before, pl._daily_article_status)
+    if problems:
+        raise RuntimeError('當天整理信疑似重寄，請核對：' + '；'.join(problems[:3]))
     print('網站與郵件查詢已刷新；寄送狀態與帳本未變，未呼叫模型、未寄信')
     return 0
 

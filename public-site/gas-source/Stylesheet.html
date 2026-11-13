@@ -3523,6 +3523,8 @@ table.tbl-hold { table-layout: fixed; }
 .tx-end b { display: block; font-family: "IBM Plex Mono", monospace; font-size: calc(15px * var(--rd-fs)); font-weight: 600; line-height: 1.35; white-space: nowrap; }
 .tx-out { text-align: right; }
 .tx-end .stated { max-width: 100%; word-break: keep-all; }
+/* v227r4（管理者 2026/11/13）：多次買進的日期一行寫完，不換行；位在價格與中間線的上方，往右延伸不會壓到線。 */
+.tx-end small.tx-days { white-space: nowrap; overflow-wrap: normal; position: relative; z-index: 1; }
 .tx-out .stated { margin-left: auto; }
 .tx-mid { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 40px;
   padding-top: calc(15px * var(--rd-fs)); } /* 兩端靠上對齊，線軸對準價格那一行（左邊多一行明講灰字時右邊不會往下掉） */

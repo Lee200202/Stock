@@ -2242,7 +2242,7 @@ function restatesEarlier_(key, earlier) {
       ? '<span class="tx-cum ' + signCls(i.cumRet) + '"' + (isHeld && i._priceMode === 'lowHigh' ? ' data-live-cum="' + esc(i.code) + '"' : '') + ' title="各回合連乘：' + esc(i.roundRets || '') + '">累積 ' + fmtRet(i.cumRet) + '</span>' : '';
     var sold = /明講賣出/.test(String(i.exitReason || ''));
     return '<div class="tx tx-' + cls + '" title="' + esc(costSrcText(i.entrySrc) + (entryGrey ? '　' + entryGrey : '') + (i.why ? '　' + i.why : '')) + '">' +
-      '<div class="tx-end tx-in"><small>' + esc(entryLabel) + '</small><b>' + fmtPx(entryShown) + '</b>' + (rowLots ? '<small class="tx-avg">平均成本</small>' : '') + '</div>' +
+      '<div class="tx-end tx-in"><small' + (rowLots ? ' class="tx-days"' : '') + '>' + esc(entryLabel) + '</small><b>' + fmtPx(entryShown) + '</b>' + (rowLots ? '<small class="tx-avg">平均成本</small>' : '') + '</div>' +
       '<div class="tx-mid" aria-label="' + (isHeld ? '未實現報酬 ' : sold ? '已實現報酬 ' : '追蹤期間變化 ') + esc(retTxt) + '"><span class="tx-line"></span>' +
         '<span class="tx-ret"'+(isHeld?' data-live-ret="'+esc(i.code)+'" data-entry="'+Number(i.entry)+'"'+trackerLotsAttr_(i):'')+'>' + retTxt + '</span>' + cum + '</div>' +
       '<div class="tx-end tx-out"><small>' + esc(outDate) + (isHeld ? '' : sold ? ' 賣出' : /未再提及/.test(String(i.exitReason || '')) ? ' 最後提及' : ' 追蹤結束') + '</small><b'+(isHeld?' data-live-price="'+esc(i.code)+'"':'')+'>' + fmtPx(i.current) + '</b>' +

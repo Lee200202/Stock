@@ -2582,8 +2582,9 @@ function trackerCalculationRounds_(rounds) {
     return { entryLow: entry ? entry.low : null, exitHigh: exit ? exit.high : null, closed: !!r.c,
       // v227：低進高出試算也要算分批買進與部分賣出
       entryDate: String(r.od || r.o || ''),
-      adds: (Array.isArray(r.l) ? r.l : []).map(function (l) { return { date: String(l.d || ''), low: Number(l.lo) || null }; }),
-      partials: (Array.isArray(r.ps) ? r.ps : []).map(function (x) { return { date: String(x.d || ''), high: Number(x.hi) || null, fraction: Number(x.f) || 0.5 }; }) };
+      // price＝中點計算用的取價（清單的盤中報酬要用）；low／high＝低進高出試算用
+      adds: (Array.isArray(r.l) ? r.l : []).map(function (l) { return { date: String(l.d || ''), low: Number(l.lo) || null, price: Number(l.p) || null }; }),
+      partials: (Array.isArray(r.ps) ? r.ps : []).map(function (x) { return { date: String(x.d || ''), high: Number(x.hi) || null, price: Number(x.p) || null, fraction: Number(x.f) || 0.5 }; }) };
   });
 }
 

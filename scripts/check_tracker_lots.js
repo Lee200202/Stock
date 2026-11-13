@@ -93,3 +93,8 @@ for (let n = 0; n < 300; n++) {
 }
 assert(/trackerHasLots_\(lr\)/.test(page) && /m\.r && m\.r\.adds/.test(page) && /trackerHasLots_\(r\)/.test(page), '面板即時報酬、走勢圖標記、低進高出都要用分批');
 console.log('前台與後端分批報酬 300 組隨機一致；面板、走勢圖、低進高出接線通過');
+
+// v227r2：清單持有中列的盤中報酬也要用各筆（以前每次報價更新都改回第一筆的 (現價-進場)/進場）
+assert(/trackerLotsAttr_\(i\)/.test(page) && /el\.dataset\.lots\?trackerLotsLive_\(el,v\.last\)/.test(page), '清單盤中報酬要用分批');
+assert(/price: Number\(l\.p\) \|\| null/.test(src) && /price: Number\(x\.p\) \|\| null/.test(src), '清單回合資料要帶中點取價');
+console.log('v227r2 清單盤中報酬接線通過');

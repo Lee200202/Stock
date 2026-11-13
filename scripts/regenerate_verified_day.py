@@ -8,6 +8,7 @@ import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 from backup_archive import backup_tables
+from delivery_guard import resend_problems, status_regressed
 from model_release_candidate import VERSION, TABLES, cell_requests, digest, inference_values, plan_tables, seal, validate
 from replay_extract import DryBook, Reached, compare, invariants, pl
 from replay_reference import load_reference, compare_reference
@@ -86,6 +87,17 @@ def publication_errors(signals):
         if any(r.get('_manual_note_kept') for r in signals.get(cat, []) or []):
             errors.append('模型候選混入人工保留說明')
     return errors
+
+
+LEDGERS = ('寄送帳本', 'LINE 寄送帳本')
+
+
+def sheet_values(book, name):
+    """讀得到就回整張表；沒有這張表（或測試用的假試算表沒有）就回 None，不核對。"""
+    try:
+        return book.worksheet(name).get_all_values()
+    except Exception:                                   # noqa: BLE001
+        return None
 
 
 def state_hashes(book, names):
@@ -171,6 +183,8 @@ def apply_candidate(book, payload, raw):
     """原子套用已保存內容；不呼叫模型或答案修補器，不改通知列。"""
     signals, day = payload['signals'], payload['date']
     before = {n: book.worksheet(n).get_all_values() for n in TABLES}
+    ledger_before = {n: v for n in LEDGERS if (v := sheet_values(book, n)) is not None}
+    sent_before = pl._daily_article_status(book, day)
     after = plan_tables(before, signals, payload['article'], day, payload['video_id'], pl.norm_date,
                        lambda src: pl._is_sms_row(src) or pl._protected_nonvideo_row(src), pl.stance_zh)
     expected = signals.get('_article_records') or signals
@@ -189,7 +203,8 @@ def apply_candidate(book, payload, raw):
     if pending and not ((payload.get('manager_accepted') or {}).get('waived') and set(pending) <= set(MANAGER_WAIVABLE)):
         raise ValueError('候選仍有未完成查核')
     backup_tables(pl, book, TABLES)
-    if state_hashes(book, payload['state']) != payload['state']:
+    if state_hashes(book, {n: h for n, h in payload['state'].items() if n not in LEDGERS}) != {
+            n: h for n, h in payload['state'].items() if n not in LEDGERS}:
         raise ValueError('備份期間快照已變，未寫入')
     fresh = {}
     latest, _ = pl.existing_transcript(book, payload['video_id'], day, snapshot=fresh)
@@ -215,12 +230,15 @@ def apply_candidate(book, payload, raw):
             raise RuntimeError('正式讀回不符，須核對獨立備份：' + name)
     pl.save_evidence_audit(book, payload['video_id'], day, raw, signals)
     pl.commit_evidence_manifest(book, payload['video_id'], day, raw)
-    ledgers = {n: h for n, h in payload['state'].items() if n in ('寄送帳本', 'LINE 寄送帳本')}
-    if state_hashes(book, ledgers) != ledgers:
-        raise RuntimeError('同期寄送帳本變動，須核對')
     result = pl.maybe_refresh_site(force=True, only=['smsmail', 'tracker', 'perfhist', 'perf'], date_str=day) or {}
     if not result.get('ok'):
         raise RuntimeError('候選已寫入；只需續刷新，不再生成模型內容')
+    problems = [p for n, v in ledger_before.items()
+                for p in resend_problems(v, book.worksheet(n).get_all_values(), day, n)]
+    if problems:
+        raise RuntimeError('當天整理信疑似重寄，須核對：' + '；'.join(problems[:3]))
+    if status_regressed(sent_before, pl._daily_article_status(book, day)):
+        raise RuntimeError('當天整理信寄送狀態退回未寄，會再寄一次，須核對')
     print('同一模型候選已原子套用並讀回；通知列、寄送旗標與帳本保留，沒有重新生成或寄送')
 
 
@@ -256,8 +274,9 @@ def main():
     if not raw or not source.get('video_id'):
         raise SystemExit('原稿或影片ID不完整')
     names = {ws.title for ws in book.worksheets()}
-    snapshots = {n: book.worksheet(n).get_all_values()
-                 for n in sorted((INPUTS | {'寄送帳本', 'LINE 寄送帳本'}) & names)}
+    snapshots = {n: book.worksheet(n).get_all_values() for n in sorted(INPUTS & names)}
+    # 2026/11/13：寄送帳本不放進預覽到發布之間的快照——中間任何 LINE 對話、卡片、簡訊通知都會改帳本，
+    # 以前因此每次都報「快照已變」。沒有重寄由 apply_candidate 的 delivery_guard 核對當天整理信的列。
     state = {n: digest(rows) for n, rows in snapshots.items()}
     if a.apply:
         payload = validate(json.loads(Path(a.candidate).read_text(encoding='utf-8')), day=day, commit=commit,

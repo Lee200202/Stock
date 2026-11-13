@@ -1472,6 +1472,30 @@ function restatesEarlier_(key, earlier) {
   function trackerReturn_(entry, end) {
     return entry > 0 && end > 0 ? Math.round((end / entry - 1) * 10000) / 100 : null;
   }
+  /* v227（管理者 2026/11/13）：分批買進與部分賣出，與後端 lotsReturn_ 同一套。
+     整檔報酬＝各次買進報酬的平均；部分賣出由當時已買的每一筆等比例賣掉。lots=[{date, price}]，partials=[{date, price, fraction}]。 */
+  function trackerLotsReturn_(lots, partials, price) {
+    var held = (lots || []).filter(function(l) { return l && l.price > 0; })
+      .map(function(l) { return { d: String(l.date || ''), e: Number(l.price), left: 1, done: 0 }; });
+    if (!held.length) return null;
+    (partials || []).filter(function(x) { return x && x.price > 0; })
+      .sort(function(a, b) { return String(a.date) < String(b.date) ? -1 : String(a.date) > String(b.date) ? 1 : 0; })
+      .forEach(function(x) {
+        var f = Math.min(1, Number(x.fraction) || 0.5);
+        held.forEach(function(l) {
+          if (l.d > String(x.date) || l.left <= 0) return;
+          var sold = l.left * f; l.done += sold * (x.price - l.e) / l.e; l.left -= sold;
+        });
+      });
+    var open = held.some(function(l) { return l.left > 1e-9; });
+    if (open && !(price > 0)) return null;
+    var sum = 0;
+    held.forEach(function(l) { sum += l.done + (l.left > 1e-9 ? l.left * (price - l.e) / l.e : 0); });
+    return Math.round(sum / held.length * 10000) / 100;
+  }
+  function trackerHasLots_(r) {
+    return !!(r && ((r.adds && r.adds.length) || (r.partialSells && r.partialSells.length) || (r.partials && r.partials.length)));
+  }
   function trackerLowHighItem_(item, live) {
     if (!item) return item;
     var out = Object.assign({}, item), rs = item.calculationRounds || [];
@@ -1490,7 +1514,13 @@ function restatesEarlier_(key, earlier) {
       var e = trackerPriceNumber_(r.entryLow);
       var x = n === rs.length - 1 && item.stillHeld ? out.current : trackerPriceNumber_(r.exitHigh);
       var ret = trackerReturn_(e, x);
-      rets.push(ret); ratios.push(ret === null ? null : x / e);
+      if (e && x && trackerHasLots_(r)) {
+        // 低進高出：每一次買進取那天最低價，部分賣出取那天最高價（後端回合清單的 adds／partials）
+        ret = trackerLotsReturn_([{ date: r.entryDate, price: e }].concat((r.adds || []).map(function(a) { return { date: a.date, price: trackerPriceNumber_(a.low) }; })),
+          (r.partials || []).map(function(x2) { return { date: x2.date, price: trackerPriceNumber_(x2.high), fraction: x2.fraction }; }), x);
+        if (n === rs.length - 1) out.ret = ret;
+      }
+      rets.push(ret); ratios.push(ret === null ? null : 1 + ret / 100);
       if (r.closed) closed.push(ret);
     });
     else for (var n = 0; n < Math.max(0, (Number(item.rounds) || 1) - (item.stillHeld ? 1 : 0)); n++) closed.push(null);
@@ -1920,6 +1950,19 @@ function restatesEarlier_(key, earlier) {
     var xt = X(iTrade - i0);
     svg += '<path class="tr-buy" d="M' + f1(xt) + ' ' + f1(yE - 7) + ' l6 10 h-12 z"/>';
     xs.push({ x: xt, t: md_(dates[iTrade]) + ' 進場', c: 'trade' });
+    // v227：同一回合之後每一次買進（加碼）與部分賣出都畫出來，滑過看日期與價位
+    ((m.r && m.r.adds) || []).forEach(function (a) {
+      var ia = a.date ? firstIdx(a.date) : -1;
+      if (ia < i0 || ia > iEnd || !(a.price > 0)) return;
+      var xa = X(ia - i0), ya = Y(a.price);
+      svg += '<path class="tr-buy" d="M' + f1(xa) + ' ' + f1(ya - 7) + ' l6 10 h-12 z"><title>' + esc(md_(dates[ia]) + ' 加碼 ' + pxShort(a.price)) + '</title></path>';
+    });
+    ((m.r && m.r.partialSells) || []).forEach(function (x) {
+      var ip = x.date ? firstIdx(x.date) : -1;
+      if (ip < i0 || ip > iEnd || !(x.price > 0)) return;
+      var xp = X(ip - i0), yp = Y(x.price), part = Math.round((x.fraction || 0.5) * 100) === 50 ? '一半' : Math.round((x.fraction || 0.5) * 100) + '%';
+      svg += '<path class="tr-sell" d="M' + f1(xp) + ' ' + f1(yp + 7) + ' l6 -10 h-12 z"><title>' + esc(md_(dates[ip]) + ' 賣出' + part + ' ' + pxShort(x.price)) + '</title></path>';
+    });
     var xe = X(pts.length - 1);
     if (!m.held && m.end > 0) {
       svg += '<path class="tr-sell" d="M' + f1(xe) + ' ' + f1(endY + 7) + ' l6 -10 h-12 z"/>';
@@ -3005,7 +3048,14 @@ function restatesEarlier_(key, earlier) {
     var t = DETAIL.tracker;
     if (!t || !t.stillHeld || !(t.entry > 0) || !q || !(q.last > 0)) { return; }
     t.current = q.last;
-    t.ret = (q.last / t.entry - 1) * 100;
+    var lr = (t.roundList || [])[(t.roundList || []).length - 1];
+    if (trackerHasLots_(lr)) {
+      // v227：本回合買過好幾次或部分賣出：盤中報價也照各筆平均算，不只看第一筆
+      t.ret = trackerLotsReturn_([{ date: lr.entryDate || lr.open, price: t.entry }].concat((lr.adds || []).map(function (a) { return { date: a.date, price: a.price }; })),
+        lr.partialSells || [], q.last);
+    } else {
+      t.ret = (q.last / t.entry - 1) * 100;
+    }
     // 只更新畫面中的本回合未實現報酬；正式績效與已出場回合不被盤中預覽改寫。
     paintTracker(); paintTrend();
   }

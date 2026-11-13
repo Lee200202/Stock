@@ -72,3 +72,24 @@ assert(/roundHasLots_\(lastRj\)/.test(src), '即時報酬要用分批');
 assert(/roundHasLots_\(rd\)[\s\S]{0,200}lotsReturn_\(li\.lots, li\.partials, px, d\)/.test(cache), '績效歷史要用分批');
 assert(/adds: \(Array\.isArray\(x\.l\)/.test(src) && /partialSells: \(Array\.isArray\(x\.ps\)/.test(src), '圖表要有每一次買賣');
 console.log('v227 分批買進與部分賣出：比例、各筆平均、部分賣出只賣已買的、回合判定、回合JSON 與三處接線通過');
+
+// 前台（JavaScript.html 的 trackerLotsReturn_）與後端 lotsReturn_ 結果必須一致：隨機 300 組
+const page = fs.readFileSync(path.join(dir, 'JavaScript.html'), 'utf8');
+const fstart = page.indexOf('function trackerLotsReturn_(');
+let fd = 0, fend = page.indexOf('{', fstart);
+for (; fend < page.length; fend++) { if (page[fend] === '{') fd++; else if (page[fend] === '}' && --fd === 0) break; }
+vm.runInContext(page.slice(fstart, fend + 1), ctx);
+let seed = 7;
+const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+for (let n = 0; n < 300; n++) {
+  const lots = [], parts = [];
+  const k = 1 + Math.floor(rnd() * 4);
+  for (let i = 0; i < k; i++) lots.push({ d: '2026/10/' + String(10 + i * 3), p: Math.round((50 + rnd() * 100) * 100) / 100 });
+  if (rnd() < 0.6) parts.push({ d: '2026/10/' + String(11 + Math.floor(rnd() * 10)), p: Math.round((50 + rnd() * 100) * 100) / 100, f: [0.5, 1 / 3, 0.3][Math.floor(rnd() * 3)] });
+  const px = Math.round((50 + rnd() * 100) * 100) / 100;
+  const back = run(`lotsReturn_(${J(lots)}, ${J(parts)}, ${px}, null)`);
+  const front = run(`trackerLotsReturn_(${J(lots.map(l => ({ date: l.d, price: l.p })))}, ${J(parts.map(x => ({ date: x.d, price: x.p, fraction: x.f })))}, ${px})`);
+  assert.strictEqual(front, back, 'front/back differ: ' + J({ lots, parts, px }));
+}
+assert(/trackerHasLots_\(lr\)/.test(page) && /m\.r && m\.r\.adds/.test(page) && /trackerHasLots_\(r\)/.test(page), '面板即時報酬、走勢圖標記、低進高出都要用分批');
+console.log('前台與後端分批報酬 300 組隨機一致；面板、走勢圖、低進高出接線通過');

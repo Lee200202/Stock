@@ -2579,7 +2579,11 @@ function trackerCalculationRounds_(rounds) {
   return rounds.map(function (r) {
     r = r && typeof r === 'object' ? r : {};
     var entry = range(r.el, r.eh), exit = range(r.xl, r.xh);
-    return { entryLow: entry ? entry.low : null, exitHigh: exit ? exit.high : null, closed: !!r.c };
+    return { entryLow: entry ? entry.low : null, exitHigh: exit ? exit.high : null, closed: !!r.c,
+      // v227：低進高出試算也要算分批買進與部分賣出
+      entryDate: String(r.od || r.o || ''),
+      adds: (Array.isArray(r.l) ? r.l : []).map(function (l) { return { date: String(l.d || ''), low: Number(l.lo) || null }; }),
+      partials: (Array.isArray(r.ps) ? r.ps : []).map(function (x) { return { date: String(x.d || ''), high: Number(x.hi) || null, fraction: Number(x.f) || 0.5 }; }) };
   });
 }
 

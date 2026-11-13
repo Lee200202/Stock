@@ -1493,6 +1493,15 @@ function restatesEarlier_(key, earlier) {
     held.forEach(function(l) { sum += l.done + (l.left > 1e-9 ? l.left * (price - l.e) / l.e : 0); });
     return Math.round(sum / held.length * 10000) / 100;
   }
+  /* v227r3（管理者 2026/11/13：列出每次買進日期，成本寫平均）：平均買進成本。
+     每次同額買進，便宜那次買到的股數多，所以按股數平均（調和平均）；沒有部分賣出時「現價 ÷ 平均成本 − 1」剛好等於合併報酬。
+     有部分賣出時報酬另含已實現的部分，列上會註明（partials 參數保留，不影響成本）。 */
+  function trackerLotsCost_(lots, partials) {
+    var ps = (lots || []).map(function(l) { return Number(l && l.price); }).filter(function(v) { return v > 0; });
+    if (!ps.length) return null;
+    var inv = ps.reduce(function(sum, v) { return sum + 1 / v; }, 0);
+    return Math.round(ps.length / inv * 100) / 100;
+  }
   function trackerHasLots_(r) {
     return !!(r && ((r.adds && r.adds.length) || (r.partialSells && r.partialSells.length) || (r.partials && r.partials.length)));
   }
@@ -1847,6 +1856,8 @@ function restatesEarlier_(key, earlier) {
     var r = list[last] || {};
     var entry = t.entry || r.entry;
     if (!(entry > 0)) { return null; }
+    var avg = trackerHasLots_(r) ? trackerLotsCost_([{ date: r.entryDate || r.open, price: entry }].concat((r.adds || []).map(function (a) { return { date: a.date, price: a.price }; })),
+      r.partialSells || []) : null;
     var mention = r.open || t.roundStart || '';
     var hold = !!r.hold || t.openBy === '會員持股聲明';
     return {
@@ -1856,7 +1867,8 @@ function restatesEarlier_(key, earlier) {
       stated: null, note: '', exitNote: '',   // v104：口頭價位前台不畫（舊後端即使還帶著欄位也不用）
       entryBasis: t._priceMode === 'lowHigh' ? '進場日最低價' : /管理者修正成本/.test(String(t.entrySrc || '')) ? '管理者修正成本' : '當日高低平均',
       exitBasis: t._priceMode === 'lowHigh' ? '出場日最高價' : '當日高低平均',
-      end: t.current, ret: t.ret, held: !!t.stillHeld, lo: r.entryLo, hi: r.entryHi
+      end: t.current, ret: t.ret, held: !!t.stillHeld, lo: r.entryLo, hi: r.entryHi,
+      firstEntry: entry, avgCost: avg
     };
   }
 
@@ -1905,13 +1917,14 @@ function restatesEarlier_(key, earlier) {
     var scale = readFontScale_();
     var H = Math.round((W < 520 * scale ? 180 : 208) * scale), padL = Math.round(54 * scale), padR = Math.round(108 * scale), padT = Math.round(16 * scale), padB = Math.round(54 * scale);
     var pw = W - padL - padR, ph = H - padT - padB;
-    var vals = pts.map(function (p) { return p.close; }).concat([m.entry, m.stated, m.end].filter(function (v) { return v > 0; }));
+    var vals = pts.map(function (p) { return p.close; }).concat([m.entry, m.avgCost, m.stated, m.end].filter(function (v) { return v > 0; }));
     var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), pad = (hi - lo) * 0.08 || hi * 0.01 || 1;
     lo -= pad; hi += pad;
     var X = function (i) { return padL + i / (pts.length - 1) * pw; };
     var Y = function (v) { return padT + (hi - v) / (hi - lo) * ph; };
     var f1 = function (v) { return (Math.round(v * 10) / 10).toString(); };
-    var yE = Y(m.entry), id = 'tr' + Math.random().toString(36).slice(2, 8);
+    // v227r3：買過好幾次時，水平線與上下色塊以平均成本為準；第一次進場的三角形仍在第一筆的價位
+    var yE = Y(m.avgCost || m.entry), yFirst = Y(m.firstEntry || m.entry), id = 'tr' + Math.random().toString(36).slice(2, 8);
     var line = pts.map(function (p, i) { return (i ? 'L' : 'M') + f1(X(i)) + ' ' + f1(Y(p.close)); }).join(' ');
     var area = line + ' L' + f1(X(pts.length - 1)) + ' ' + f1(yE) + ' L' + f1(X(0)) + ' ' + f1(yE) + ' Z';
     var svg = '<svg class="trend-svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' +
@@ -1933,7 +1946,7 @@ function restatesEarlier_(key, earlier) {
     }
     // 右端文字：進場、明講、目前／出場
     var endY = Y(m.end > 0 ? m.end : pts[pts.length - 1].close);
-    var labels = [{ y: yE, t: '進場 ' + pxShort(m.entry), c: 'lb-in' }];
+    var labels = [{ y: yE, t: m.avgCost ? '平均成本 ' + pxShort(m.avgCost) : '進場 ' + pxShort(m.entry), c: 'lb-in' }];
     if (m.stated) { labels.push({ y: Y(m.stated), t: '明講 ' + pxShort(m.stated), c: 'lb-st' }); }
     if (m.end > 0) { labels.push({ y: endY, t: (m.held ? '目前 ' : '出場 ') + pxShort(m.end), c: 'lb-end ' + signCls(m.ret) }); }
     spreadLabels(labels, padT + 4, padT + ph, 19 * scale).forEach(function (l) {
@@ -1948,7 +1961,7 @@ function restatesEarlier_(key, earlier) {
       xs.push({ x: xm, t: md_(dates[iMention]) + ' 提到', c: 'mention' });
     }
     var xt = X(iTrade - i0);
-    svg += '<path class="tr-buy" d="M' + f1(xt) + ' ' + f1(yE - 7) + ' l6 10 h-12 z"/>';
+    svg += '<path class="tr-buy" d="M' + f1(xt) + ' ' + f1(yFirst - 7) + ' l6 10 h-12 z"/>';
     xs.push({ x: xt, t: md_(dates[iTrade]) + ' 進場', c: 'trade' });
     // v227：同一回合之後每一次買進（加碼）與部分賣出都畫出來，滑過看日期與價位
     ((m.r && m.r.adds) || []).forEach(function (a) {
@@ -2187,13 +2200,18 @@ function restatesEarlier_(key, earlier) {
   }
   /* v227r2：持有中且本回合買過好幾次或部分賣出時，把各筆取價放進列上，盤中報價更新時照各筆平均算（不再只看第一筆）。
      中點計算用 price，低進高出用 low／high；第一筆用這一列的進場價（管理者修正成本也只動第一筆）。 */
-  function trackerLotsAttr_(i) {
+  function trackerRowLots_(i) {
     var rs = i && i.calculationRounds || [], lr = rs[rs.length - 1];
-    if (!lr || !trackerHasLots_(lr)) return '';
+    if (!lr || !trackerHasLots_(lr)) return null;
     var lowHigh = i._priceMode === 'lowHigh';
     var spec = { l: [[lr.entryDate || i.entryDate || '', Number(i.entry)]].concat((lr.adds || []).map(function (a) { return [a.date, lowHigh ? a.low : a.price]; })),
                  s: (lr.partials || []).map(function (x) { return [x.date, lowHigh ? x.high : x.price, x.fraction]; }) };
-    return ' data-lots="' + esc(JSON.stringify(spec)) + '"';
+    // 有一筆缺取價（舊後端沒有中點價）就不分批顯示，避免平均成本只算到一部分
+    return spec.l.every(function (l) { return Number(l[1]) > 0; }) && spec.s.every(function (x) { return Number(x[1]) > 0; }) ? spec : null;
+  }
+  function trackerLotsAttr_(i) {
+    var spec = trackerRowLots_(i);
+    return spec ? ' data-lots="' + esc(JSON.stringify(spec)) + '"' : '';
   }
   function trackerLotsLive_(el, price) {
     try {
@@ -2211,11 +2229,20 @@ function restatesEarlier_(key, earlier) {
     var mentionNote = (i.roundStart && tradeDay && i.roundStart !== tradeDay) ? md_(i.roundStart) + ' 提到' : '';
     var entryGrey = mentionNote;
     var retTxt = (i.ret === null || i.ret === undefined) ? (i.why ? '待補' : '\u2014') : fmtRet(i.ret);
+    // v227r3：同一回合買過好幾次：左端寫每一次買進的日期，價位寫平均成本
+    var rowLots = trackerRowLots_(i), entryShown = i.entry, entryLabel = inDate ? inDate + ' 進場' : '進場';
+    if (rowLots) {
+      var cost = trackerLotsCost_(rowLots.l.map(function (l) { return { date: l[0], price: Number(l[1]) }; }),
+        rowLots.s.map(function (x) { return { date: x[0], price: Number(x[1]), fraction: Number(x[2]) }; }));
+      var days = rowLots.l.map(function (l) { return md_(l[0]); });
+      entryLabel = (days.length > 3 ? days[0] + ' 起 ' + days.length + ' 次' : days.join('、')) + ' 進場' + (rowLots.s.length ? '（有部分賣出）' : '');
+      if (cost) { entryShown = cost; entryGrey = '平均成本：' + rowLots.l.length + ' 次同額買進，按股數平均；第一次 ' + fmtPx(i.entry) + (rowLots.s.length ? '；報酬含部分賣出已實現的部分' : '') + (entryGrey ? '；' + entryGrey : ''); }
+    }
     var cum = ((i.rounds || 1) > 1 && i.cumRet !== null && i.cumRet !== undefined)
       ? '<span class="tx-cum ' + signCls(i.cumRet) + '"' + (isHeld && i._priceMode === 'lowHigh' ? ' data-live-cum="' + esc(i.code) + '"' : '') + ' title="各回合連乘：' + esc(i.roundRets || '') + '">累積 ' + fmtRet(i.cumRet) + '</span>' : '';
     var sold = /明講賣出/.test(String(i.exitReason || ''));
     return '<div class="tx tx-' + cls + '" title="' + esc(costSrcText(i.entrySrc) + (entryGrey ? '　' + entryGrey : '') + (i.why ? '　' + i.why : '')) + '">' +
-      '<div class="tx-end tx-in"><small>' + (inDate ? inDate + ' 進場' : '進場') + '</small><b>' + fmtPx(i.entry) + '</b></div>' +
+      '<div class="tx-end tx-in"><small>' + esc(entryLabel) + '</small><b>' + fmtPx(entryShown) + '</b>' + (rowLots ? '<small class="tx-avg">平均成本</small>' : '') + '</div>' +
       '<div class="tx-mid" aria-label="' + (isHeld ? '未實現報酬 ' : sold ? '已實現報酬 ' : '追蹤期間變化 ') + esc(retTxt) + '"><span class="tx-line"></span>' +
         '<span class="tx-ret"'+(isHeld?' data-live-ret="'+esc(i.code)+'" data-entry="'+Number(i.entry)+'"'+trackerLotsAttr_(i):'')+'>' + retTxt + '</span>' + cum + '</div>' +
       '<div class="tx-end tx-out"><small>' + esc(outDate) + (isHeld ? '' : sold ? ' 賣出' : /未再提及/.test(String(i.exitReason || '')) ? ' 最後提及' : ' 追蹤結束') + '</small><b'+(isHeld?' data-live-price="'+esc(i.code)+'"':'')+'>' + fmtPx(i.current) + '</b>' +

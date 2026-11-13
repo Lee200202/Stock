@@ -98,3 +98,19 @@ console.log('前台與後端分批報酬 300 組隨機一致；面板、走勢�
 assert(/trackerLotsAttr_\(i\)/.test(page) && /el\.dataset\.lots\?trackerLotsLive_\(el,v\.last\)/.test(page), '清單盤中報酬要用分批');
 assert(/price: Number\(l\.p\) \|\| null/.test(src) && /price: Number\(x\.p\) \|\| null/.test(src), '清單回合資料要帶中點取價');
 console.log('v227r2 清單盤中報酬接線通過');
+
+// v227r3：清單與面板寫平均成本（按股數平均）；沒有部分賣出時「現價 ÷ 平均成本 − 1」＝合併報酬
+const cstart = page.indexOf('function trackerLotsCost_(');
+let cd = 0, cend = page.indexOf('{', cstart);
+for (; cend < page.length; cend++) { if (page[cend] === '{') cd++; else if (page[cend] === '}' && --cd === 0) break; }
+vm.runInContext(page.slice(cstart, cend + 1), ctx);
+for (let n = 0; n < 200; n++) {
+  const k = 1 + Math.floor(rnd() * 4), lots = [];
+  for (let i = 0; i < k; i++) lots.push({ date: '2026/10/1' + i, price: Math.round((50 + rnd() * 100) * 100) / 100 });
+  const px = Math.round((50 + rnd() * 100) * 100) / 100;
+  const cost = run(`trackerLotsCost_(${J(lots)}, [])`);
+  const viaCost = Math.round((px / cost - 1) * 10000) / 100;
+  assert(Math.abs(viaCost - run(`trackerLotsReturn_(${J(lots)}, [], ${px})`)) <= 0.05, 'cost vs return ' + J({ lots, px, cost }));
+}
+assert(/平均成本 ' \+ pxShort\(m\.avgCost\)/.test(page) && /entryLabel/.test(page), '面板與清單要寫平均成本');
+console.log('v227r3 平均成本與合併報酬一致（200 組）');

@@ -78,6 +78,9 @@ def reviewed_trade_problems(item, plan):
     return out
 
 
+from delivery_guard import resend_problems, status_regressed  # noqa: E402
+
+
 def prefix_unchanged(before, now):
     """純函式：now 的前 len(before) 列與 before 相同（尾端空白正規化），只容許表尾新增列。"""
     width = len(before[0]) if before else 0
@@ -328,7 +331,8 @@ def main():
         return
     ledger_names = [w.title for w in book.worksheets()
                     if w.title in ('寄送帳本', 'LINE 寄送帳本')]
-    ledger_hashes = {n: digest(book.worksheet(n).get_all_values()) for n in ledger_names}
+    # 2026/11/13：只記當天整理信相關的列（見 delivery_guard.py）；整張表指紋會被同時間的 LINE 對話、卡片誤判。
+    ledger_before = {n: book.worksheet(n).get_all_values() for n in ledger_names}
     sent = pl._daily_article_status(book, day)
     receipt = '來源核對修正:' + digest(plan)
     complete = any(receipt in str(row) for row in tables['修正建議'][1:])
@@ -392,11 +396,14 @@ def main():
     if not result.get('ok'):
         raise RuntimeError('資料已保存；只需重跑本模式接續刷新，不重新判讀')
     verify_final({n: worksheets[n].get_all_values() for n in TABLES}, plan)
-    if sent != pl._daily_article_status(book, day):
-        raise RuntimeError('同期寄送狀態變動，請核對')
-    if any(digest(book.worksheet(n).get_all_values()) != h for n, h in ledger_hashes.items()):
-        raise RuntimeError('同期寄送帳本變動，請核對')
-    print('分類／說明正式讀回、郵件查詢／持股／績效刷新成功；寄送狀態及帳本未變')
+    now_sent = pl._daily_article_status(book, day)
+    if status_regressed(sent, now_sent):
+        raise RuntimeError(f'當天整理信寄送狀態從「{sent}」退回「{now_sent}」，會再寄一次，請核對')
+    problems = [p for n, v in ledger_before.items()
+                for p in resend_problems(v, book.worksheet(n).get_all_values(), day, n)]
+    if problems:
+        raise RuntimeError('當天整理信疑似重寄，請核對：' + '；'.join(problems[:3]))
+    print(f'分類／說明正式讀回、郵件查詢／持股／績效刷新成功；當天整理信沒有重寄（寄送狀態 {sent or "無"} → {now_sent or "無"}）')
 
 
 if __name__ == '__main__':

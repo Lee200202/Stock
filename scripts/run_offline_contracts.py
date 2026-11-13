@@ -57,6 +57,7 @@ SUITES = [
     'test_notice_ruling',
     'test_apply_robustness_1110',
     'test_transcript_tail_1110',
+    'test_delivery_guard_1113',
 ]
 
 GUARD = r'''

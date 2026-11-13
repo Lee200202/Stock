@@ -98,6 +98,8 @@ jobs:
         run: node scripts/check_ss_open_once.js
       - name: 持股追蹤交易日曆（今天的節目處理完也算一天）
         run: node scripts/check_tracker_stale_calendar.js
+      - name: 分批買進與部分賣出的報酬（v227）
+        run: node scripts/check_tracker_lots.js
       - name: 後端橋接實測（失敗就保留上一版網站）
         env:
           SITE_API_URL: ${{ vars.SITE_API_URL }}

@@ -2717,6 +2717,11 @@ function rebuildPerformanceHistoryJob(fromDate) {
       if (!isFinite(entry) || entry <= 0) { return { held: true, ret: null }; }
       var px = closes[h.code] && closes[h.code][d];
       if (!isFinite(px) || px <= 0) { return { held: true, ret: null }; }
+      // v227：分批買進與部分賣出——當天以前買進的各筆平均，部分賣出已實現的部分照賣出價（SheetService 的 lotsReturn_）。
+      if (typeof roundHasLots_ === 'function' && roundHasLots_(rd)) {
+        var li = roundLotsInput_(rd, lowHigh);
+        return { held: true, ret: lotsReturn_(li.lots, li.partials, px, d) };
+      }
       return { held: true, ret: Math.round((px - entry) / entry * 10000) / 100 };
     }
     return { held: false, ret: null };

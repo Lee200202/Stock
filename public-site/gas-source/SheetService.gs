@@ -526,6 +526,89 @@ function midPrice_(k) {
 
 /* 明講價只有經日K觸價核對且落在該取價日區間內才可參與公式。
    「以下買」與「以上賣」是門檻，不保證剛好在門檻成交；超出區間時只取中點。 */
+/* ------------------------------------------------------------------ *
+ * 分批買進與部分賣出（v227，管理者 2026/11/13）
+ *
+ * 一檔股票同一回合裡買了好幾次（加碼）、或只賣掉一部分時，報酬怎麼算。管理者的四個決定：
+ *   1. 每一次買進各算一筆，各有自己的成本與報酬；整檔的報酬＝各筆報酬的平均（每一筆當作同樣金額）。
+ *   2. 部分賣出照講的比例（一半、三分之一、三成…）；只說「部分賣出」「減碼」沒講多少，當成一半。
+ *   3. 部分賣出由當時還在手上的每一筆「等比例」賣掉，不分先後。
+ *   4. 表上主欄顯示合併報酬，明細列出每一次買進與部分賣出。
+ * 取價和第一筆一樣：買進取當日高低平均（有明講價且在當日區間內取兩者較低）；賣出取當日高低平均（明講價取較高）。
+ * 以下都是純函式，Cachebuilder（績效歷史）與 API（即時報酬）共用。
+ * ------------------------------------------------------------------ */
+
+var CN_DIGIT_ = { '一': 1, '二': 2, '兩': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10 };
+
+/** 部分賣出的比例（0–1）。講了比例照講的；沒講就當一半。 */
+function saleFraction_(text) {
+  var t = String(text || '');
+  var m;
+  if (/一半|半數|一半部位|賣半|出一半|砍一半/.test(t)) { return 0.5; }
+  if ((m = /([一二三四五六七八九十兩\d])\s*分之\s*([一二三四五六七八九十兩\d])/.exec(t))) {
+    var den = CN_DIGIT_[m[1]] || Number(m[1]), num = CN_DIGIT_[m[2]] || Number(m[2]);
+    if (den > 0 && num > 0 && num < den) { return num / den; }
+  }
+  if ((m = /(\d{1,2})\s*[%％]/.exec(t)) && Number(m[1]) > 0 && Number(m[1]) < 100) { return Number(m[1]) / 100; }
+  if ((m = /([一二三四五六七八九\d])\s*成/.exec(t))) {
+    var n = CN_DIGIT_[m[1]] || Number(m[1]);
+    if (n > 0 && n < 10) { return n / 10; }
+  }
+  return 0.5;
+}
+
+/**
+ * 分批部位在某個價位的合併報酬（%，兩位小數）；算不出來回 null。
+ *   lots      [{d:'YYYY/MM/DD', p:成本}]，第一筆是本回合第一次買進
+ *   partials  [{d, p:賣出價, f:比例}]
+ *   price     剩下部位的估價（持有中＝現價或當天收盤；已出場＝出場價）
+ *   upto      只看這一天（含）以前的買進與部分賣出；null＝全部
+ * 同一天先買後賣。部分賣出把當時每一筆剩下的部位等比例賣掉。
+ */
+function lotsReturn_(lots, partials, price, upto) {
+  var px = Number(price);
+  var held = (lots || []).filter(function (l) {
+    return l && Number(l.p) > 0 && (!upto || String(l.d) <= upto);
+  }).map(function (l) { return { d: String(l.d), e: Number(l.p), left: 1, done: 0 }; });
+  if (!held.length) { return null; }
+  (partials || []).filter(function (s) {
+    return s && Number(s.p) > 0 && Number(s.f) > 0 && (!upto || String(s.d) <= upto);
+  }).sort(function (a, b) { return String(a.d) < String(b.d) ? -1 : String(a.d) > String(b.d) ? 1 : 0; })
+    .forEach(function (s) {
+      var f = Math.min(1, Number(s.f));
+      held.forEach(function (l) {
+        if (l.d > String(s.d) || l.left <= 0) { return; }
+        var sold = l.left * f;
+        l.done += sold * (Number(s.p) - l.e) / l.e;
+        l.left -= sold;
+      });
+    });
+  var open = held.some(function (l) { return l.left > 1e-9; });
+  if (open && !(px > 0)) { return null; }
+  var sum = 0;
+  held.forEach(function (l) { sum += l.done + (l.left > 1e-9 ? l.left * (px - l.e) / l.e : 0); });
+  return Math.round(sum / held.length * 10000) / 100;
+}
+
+/** 單筆（每一次買進）在某個價位的報酬，給明細與圖表用。 */
+function lotReturn_(lot, partials, price) {
+  return lotsReturn_([lot], partials, price, null);
+}
+
+/** 回合JSON 一筆 → lotsReturn_ 的輸入。lowHigh＝「低進高出」試算：買進取當日最低、賣出取當日最高。 */
+function roundLotsInput_(rj, lowHigh) {
+  var first = { d: String(rj.od || rj.o || ''), p: lowHigh ? rj.el : rj.e };
+  var lots = [first].concat((rj.l || []).map(function (l) { return { d: String(l.d), p: lowHigh ? l.lo : l.p }; }));
+  var partials = (rj.ps || []).map(function (s) { return { d: String(s.d), p: lowHigh ? s.hi : s.p, f: s.f }; });
+  return { lots: lots, partials: partials };
+}
+
+/** 回合JSON 有分批買進或部分賣出嗎（沒有就照舊單一成本算，結果不變）。 */
+function roundHasLots_(rj) {
+  return !!(rj && ((rj.l && rj.l.length) || (rj.ps && rj.ps.length)));
+}
+
+
 function roundPrice_(k, stated, side) {
   var middle = midPrice_(k);
   var said = Number(stated);
@@ -953,7 +1036,9 @@ function isPartialSaleRecord_(r) {
   if(typeof r._verifiedPartialSale==='boolean'){return r._verifiedPartialSale;}
   var text=String(r.reason||'')+' '+String(r.direction||'');
   if(/全部(?:賣|出)|全數(?:賣|出)|全出|清倉|出清|剩餘.*(?:全部|全數).*賣/.test(text)) return false;
-  return /部分(?:部位|持股|張數)?(?:[，、\s]*)(?:賣出|出場)|(?:賣出|出場)(?:部分|部分部位)|減碼|減持/.test(text);
+  if (/部分(?:部位|持股|張數)?(?:[，、\s]*)(?:賣出|出場)|(?:賣出|出場)(?:部分|部分部位)|減碼|減持/.test(text)) return true;
+  // v227（2026/11/13）：講了比例的賣出（賣一半、先賣三分之一、賣出三成、賣 30%）也是部分賣出，以前會被當成出清而結束回合。
+  return /(?:賣|出場)[^，。；後漲跌]{0,4}(?:一半|半數|[一二三四五六七八九十兩\d]\s*分之\s*[一二三四五六七八九\d]|[一二三四五六七八九\d]\s*成(?![本交長功績])|\d{1,2}\s*[%％])|(?:一半|半數)[^，。；]{0,4}(?:賣|出場)/.test(text);
 }
 
 function sourceSaleScopesFromSms_(rows){
@@ -1764,6 +1849,39 @@ function rebuildHoldingsTrackerJobRun_(options) {
       tr_(g, '回合 ' + rd.open.date + ' 套用管理者修正成本 ' + ov.cost + '（' + (ov.at || '修改時間未記') + '）；系統原判：' + systemSrc);
     });
 
+    /* v227：分批買進與部分賣出（管理者 2026/11/13）。取價規則與第一筆相同；同一天重複的買進不重算。
+       管理者修正的成本只套在第一筆。沒有加碼、也沒有部分賣出的回合，報酬與以前完全相同。 */
+    rounds.forEach(function (rd) {
+      rd.lots = []; rd.partials = [];
+      var seen = {}; seen[rd.open.date] = 1;
+      var until = rd.close ? (rd.exitDate || rd.close.date) : '';
+      (rd.adds || []).forEach(function (a) {
+        if (seen[a.date] || (rd.close && a.date > rd.close.date)) { return; }
+        seen[a.date] = 1;
+        var k = rangeCandle_(candles, a.date, false);
+        if (!k || (until && k.date > until)) { rd.lots.push({ d: a.date, said: a.date, p: null }); return; }
+        var ch = roundPrice_(k, a.hint && a.hint.value, 'entry');
+        rd.lots.push({ d: k.date, said: a.date, p: ch.price, lo: Number(k.low), hi: Number(k.high), sp: ch.stated });
+      });
+      (rd.partialSells || []).forEach(function (ps) {
+        if (rd.close && ps.date > rd.close.date) { return; }
+        var f = saleFraction_(ps.reason + ' ' + (ps.direction || ''));
+        var k = rangeCandle_(candles, ps.date, false);
+        if (!k || (until && k.date > until)) { rd.partials.push({ d: ps.date, said: ps.date, p: null, f: f }); return; }
+        var ch = roundPrice_(k, ps.hint && ps.hint.value, 'exit');
+        rd.partials.push({ d: k.date, said: ps.date, p: ch.price, lo: Number(k.low), hi: Number(k.high), sp: ch.stated, f: f });
+      });
+      if (!rd.entry || (!rd.lots.length && !rd.partials.length)) { return; }
+      var px = rd.close ? Number(rd.exit) : (candles.length ? Number(candles[candles.length - 1].close) : null);
+      var first = { d: rd.entryDate || rd.open.date, p: Number(rd.entry) };
+      var combined = lotsReturn_([first].concat(rd.lots), rd.partials, px, null);
+      if (combined !== null) { rd.ret = combined; }
+      rd.firstLotRet = lotReturn_(first, rd.partials, px);
+      rd.lots.forEach(function (l) { l.r = l.p ? lotReturn_(l, rd.partials, px) : null; });
+      tr_(g, '回合 ' + rd.open.date + ' 分批：買進 ' + (rd.lots.length + 1) + ' 筆、部分賣出 ' + rd.partials.length +
+          ' 次，合併報酬 ' + (combined === null ? '待補' : combined + '%'));
+    });
+
     if (lastRound.entry) { stat.ok++; } else if (g.valid) { stat.noPrice++; }
     var midAudit = midPriceAudit_(g.name, rounds);
     stat.midChecked = (stat.midChecked || 0) + midAudit.checked;
@@ -1851,7 +1969,19 @@ function rebuildHoldingsTrackerJobRun_(options) {
       if (rd.avoidIgnored && rd.avoidIgnored.length) {
         head += '　中途曾轉觀望不碰 ' + rd.avoidIgnored.length + ' 次但未出場';
       }
-      if (!rd.close) { return head + ' \u2192 持有中'; }
+      var pct = function (v) { return v === null || v === undefined ? '' : '（' + (v > 0 ? '+' : '') + Number(v).toFixed(2) + '%）'; };
+      if (rd.lots && (rd.lots.length || rd.partials.length)) {
+        head += pct(rd.firstLotRet);
+        rd.lots.forEach(function (l, i) {
+          head += '；第 ' + (i + 2) + ' 次買進 ' + l.said + ' ' + (l.p ? l.p + (l.sp != null ? '（明講價與高低平均較低者）' : '（當日高低平均）') + pct(l.r) : '缺當日K，待補');
+        });
+        rd.partials.forEach(function (ps) {
+          var frac = Math.round(ps.f * 100) === 50 ? '一半' : Math.round(ps.f * 100) + '%';
+          head += '；' + ps.said + ' 部分賣出' + frac + ' ' + (ps.p ? ps.p + (ps.sp != null ? '（明講價與高低平均較高者）' : '（當日高低平均）') : '缺當日K，待補');
+        });
+        head += '；合併報酬為各筆平均';
+      }
+      if (!rd.close) { return head + ' \u2192 持有中' + (rd.lots && (rd.lots.length || rd.partials.length) ? pct(rd.ret) : ''); }
       var tail = ' \u2192 ' + rd.close.date + ' ' +
                  (rd.closeKind === '賣出' ? '賣出' :
                   rd.closeKind === '觀望不碰' ? '轉觀望不碰視為出場' : '逾期未再提及視為出場');
@@ -1949,7 +2079,14 @@ function rebuildHoldingsTrackerJobRun_(options) {
           ev: rd.entryStatedValue || null, es: rd.entryStated || '',
           xv: rd.exitStatedValue || null, xs: rd.exitStated || '',
           ep: rd.entryPriceHint || null, xp: rd.exitPriceHint || null,
-          ck: rd.close ? rd.closeKind : ''
+          ck: rd.close ? rd.closeKind : '',
+          // v227：之後幾次買進與部分賣出（績效歷史、即時報酬與圖上標記用）
+          l: (rd.lots || []).filter(function (l) { return l.p; }).map(function (l) {
+            return { d: l.d, sd: l.said, p: l.p, lo: l.lo, hi: l.hi };
+          }),
+          ps: (rd.partials || []).filter(function (x) { return x.p; }).map(function (x) {
+            return { d: x.d, sd: x.said, p: x.p, lo: x.lo, hi: x.hi, f: Math.round(x.f * 10000) / 10000 };
+          })
         };
       })),
       latestReasonDate,                                            // 最新說明日期（v54）
@@ -2269,6 +2406,13 @@ function getHoldingsTrackerRead_() {
       rj = JSON.parse(String(r['回合JSON'] || '[]'));
       var lastRj = rj && rj.length ? rj[rj.length - 1] : null;
       if (lastRj && /^\d{4}\/\d{2}\/\d{2}$/.test(String(lastRj.od || ''))) { tradeDate = String(lastRj.od); }
+      // v227：本回合有分批買進或部分賣出時，報酬改用各筆平均（成本欄仍是第一筆，管理者修正成本也只動第一筆）。
+      if (lastRj && roundHasLots_(lastRj) && entry && current) {
+        var lr = roundLotsInput_(lastRj, false);
+        lr.lots[0].p = entry;
+        var lret = lotsReturn_(lr.lots, lr.partials, current, null);
+        if (lret !== null) { ret = lret; }
+      }
     } catch (e) {}
 
     /* 缺數字的時候要講出真正的原因。
@@ -2449,7 +2593,10 @@ function trackerRoundList_(raw) {
       open: String(x.o || ''), entryDate: String(x.od || x.o || ''), entry: num(x.e),
       entryLo: num(x.el), entryHi: num(x.eh), entryStated: num(x.ev), entryFormulaHint: num(x.ep), entryNote: String(x.es || ''),
       exitDate: String(x.c || ''), exitTradeDate: String(x.xd || x.c || ''), exit: num(x.x), exitLo: num(x.xl), exitHi: num(x.xh),
-      exitStated: num(x.xv), exitFormulaHint: num(x.xp), exitNote: String(x.xs || ''), closeKind: String(x.ck || ''), hold: x.k === 'hold'
+      exitStated: num(x.xv), exitFormulaHint: num(x.xp), exitNote: String(x.xs || ''), closeKind: String(x.ck || ''), hold: x.k === 'hold',
+      // v227：之後幾次買進與部分賣出（圖上每一次都要標）
+      adds: (Array.isArray(x.l) ? x.l : []).map(function (l) { return { date: String(l.d || ''), said: String(l.sd || l.d || ''), price: num(l.p), lo: num(l.lo), hi: num(l.hi) }; }),
+      partialSells: (Array.isArray(x.ps) ? x.ps : []).map(function (s) { return { date: String(s.d || ''), said: String(s.sd || s.d || ''), price: num(s.p), lo: num(s.lo), hi: num(s.hi), fraction: Number(s.f) || 0.5 }; })
     };
   });
 }

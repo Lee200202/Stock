@@ -1499,7 +1499,10 @@ function restatesEarlier_(key, earlier) {
       ? Math.round((ratios.reduce(function(a,b) { return a * b; }, 1) - 1) * 10000) / 100 : null;
     out.roundRets = rets.map(function(r) { return r === null ? '待補' : (r > 0 ? '+' : '') + r.toFixed(2) + '%'; }).join(' × ');
     if (item.roundList) out.roundList = item.roundList.map(function(r) {
-      return Object.assign({}, r, { entry: trackerPriceNumber_(r.entryLo), exit: trackerPriceNumber_(r.exitHi) });
+      return Object.assign({}, r, { entry: trackerPriceNumber_(r.entryLo), exit: trackerPriceNumber_(r.exitHi),
+        // v227：低進高出試算時，加碼取當日最低、部分賣出取當日最高
+        adds: (r.adds || []).map(function(a) { return Object.assign({}, a, { price: trackerPriceNumber_(a.lo) }); }),
+        partialSells: (r.partialSells || []).map(function(x) { return Object.assign({}, x, { price: trackerPriceNumber_(x.hi) }); }) });
     });
     return out;
   }
@@ -3747,6 +3750,18 @@ function restatesEarlier_(key, earlier) {
       if (r.entryDate && has[r.entryDate]) {
         marks.push({ time: toTime(r.entryDate), position: 'belowBar', color: css('--rise'), shape: 'arrowUp', text: '進場 ' + pxShort(entry) });
       }
+      // v227（管理者 2026/11/13）：之後每一次買進與部分賣出都要標，不只第一次進場。
+      (r.adds || []).forEach(function (a) {
+        if (a.date && a.price && has[a.date]) {
+          marks.push({ time: toTime(a.date), position: 'belowBar', color: css('--rise'), shape: 'arrowUp', text: '加碼 ' + pxShort(a.price) });
+        }
+      });
+      (r.partialSells || []).forEach(function (ps) {
+        if (ps.date && ps.price && has[ps.date]) {
+          var part = Math.round((ps.fraction || 0.5) * 100) === 50 ? '一半' : Math.round((ps.fraction || 0.5) * 100) + '%';
+          marks.push({ time: toTime(ps.date), position: 'aboveBar', color: css('--fall'), shape: 'arrowDown', text: '賣出' + part + ' ' + pxShort(ps.price) });
+        }
+      });
       if (r.exitDate && r.exit && has[r.exitDate] && !(last && t.stillHeld)) {
         marks.push({ time: toTime(r.exitDate), position: 'aboveBar', color: css('--fall'), shape: 'arrowDown', text: '出場 ' + pxShort(r.exit) });
       }

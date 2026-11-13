@@ -11424,6 +11424,30 @@ def _next_chart_at(text, after):
     return starts[1] if len(starts) >= 2 else None
 
 
+# 講者明講引出下一檔：「再告訴你們一檔」「再來一檔」「我給你看<別的名稱>的基本面」。
+# 2026/11/13 週檢討：11/09 祥碩的說明借了「再告訴你們一檔」之後亞德客-KY 的「連續吃貨、籌碼最安定」；
+# 11/10 漢唐的說明借了「我給你看行程（勤誠）的基本面」之後的全年 EPS 40、股價 500 多（裁示三：說明對回本股）。
+_NEXT_STOCK_INTRO = re.compile(
+    r'(?:來[，,]?)?(?:再(?:告訴|跟)你們?(?:講)?|再(?:來|看))一[檔支隻]'
+    r'|(?:來[，,]?)?我(?:再)?給你們?看看?(?P<other>(?!看)[^。！？!?，,\s的]{2,6})的(?:基本面|EPS|營收|K線|線圖)')
+# 「我給你看看它的K線」「看一下這一檔的K線」仍在講本股
+_NEXT_STOCK_SELF = re.compile(r'它|他|牠|這|那|本股|自己|^(?:我|你|大盤|指數)')
+
+
+def _next_stock_intro_at(text, after, own_names):
+    """本股最後一次點名之後，講者明講引出另一檔的位置；沒有就回 None。
+    「我給你看X的基本面」的 X 是代名詞、指示詞或本股自己的寫法時不算（那仍在講本股）。"""
+    own = [_ev_norm(n) for n in own_names if n]
+    for m in _NEXT_STOCK_INTRO.finditer(text, after):
+        other = m.group('other')
+        if other:
+            key = _ev_norm(other)
+            if _NEXT_STOCK_SELF.search(other) or any(o and (o in key or key in o) for o in own):
+                continue
+        return m.start()
+    return None
+
+
 def _own_name_spans(row, source):
     """每段摘錄裡「第一次到最後一次講到本股名稱」的範圍（正規化文字），供引用歸屬核對。
 
@@ -11445,6 +11469,9 @@ def _own_name_spans(row, source):
                 if topic_switch:
                     sw_at = last + topic_switch.start()
                     flipped = sw_at if flipped is None else min(flipped, sw_at)
+                intro_at = _next_stock_intro_at(snippet, last, raw_names)
+                if intro_at is not None:
+                    flipped = intro_at if flipped is None else min(flipped, intro_at)
             if flipped is not None:
                 high = min(high, len(_ev_norm(snippet[:flipped])))
             low = min(a for a, _ in hits) - _OWN_NAME_BEFORE

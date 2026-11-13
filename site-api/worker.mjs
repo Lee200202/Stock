@@ -1,9 +1,10 @@
 import {adminRoute} from './admin-router.mjs';
 export {AdminSecurity} from './admin-security.mjs';
+import {SnapshotCoordinator, buildSnapshotBundle, readSnapshot} from './snapshots.mjs';
 // Cloudflare Worker，將公開Pages前台連接至既有Apps Script後端。
 // 橋接權杖留在伺服器端，管理方法仍須既有管理密鑰。
 const ALLOWED = 'https://lee200202.github.io';
-const BUILD = 'site-api-v221-snapshot-tracker';
+const BUILD = 'site-api-v227-kv-budget';
 const MAX_ARGS = 8;
 const ADMIN_METHODS = ('apiAdminCancelCrawl apiAdminCancelDaySync apiAdminCancelFix ' +
   'apiAdminCancelFullFix apiAdminCancelJob apiAdminCancelRefresh apiAdminCancelSmsJob ' +
@@ -74,9 +75,9 @@ const IDEMPOTENT = new Set([...Object.keys(READ_TTL), 'apiLookupSubscription', '
   'apiUpdateSubscription', 'apiStopAllMail', 'apiSubscribe', 'apiAdminLogin', 'apiAdminTodayStatus',
   'apiAdminLineStatus', 'apiAdminLineDiagnose', 'apiAdminOpsDay']);
 
-function remember(key, body, at = Date.now()) {
+function remember(key, body, at = Date.now(), expiresAt = Infinity) {
   if (memo.has(key)) memo.delete(key);
-  memo.set(key, {at, body});
+  memo.set(key, {at, body, expiresAt});
   while (memo.size > MEMO_MAX) memo.delete(memo.keys().next().value);
 }
 
@@ -167,88 +168,14 @@ async function callBackend(env, body, retryable) {
 }
 
 
-/* v107：常用公開唯讀資料的全域快照（Workers KV）。
-   排程每 5 分鐘向原 Apps Script 取一次，內容有變才寫入；另寫一筆心跳記錄這輪各鍵的雜湊。
-   讀取時心跳在 12 分鐘內、且雜湊對得上才使用快照；排程停擺或後端失敗超過 12 分鐘就回到即時讀取，
-   不以舊資料掩蓋失敗。快照只收成功且非空的結果。 */
-const SNAP_FRESH_MS = 12 * 60 * 1000;
-const SNAP_BEAT = 'beat:v1';
-// 2026/11/11：持股追蹤與績效走勢也進五分鐘快照。以前它們只有 2／10 分鐘的邊緣快取，過期後第一位訪客要等約 4 秒。
-const SNAPPED = new Set(['apiGetDashboard', 'apiListMailDates', 'apiGetMailContent', 'apiListRecordDates',
-  'apiGetHoldingsTracker', 'apiGetPerformanceSeries']);
-const snapKey = key => 'snap:v1:' + key;
-
-async function digest(text) {
-  const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
-  return Array.from(new Uint8Array(bytes).slice(0, 12), b => b.toString(16).padStart(2, '0')).join('');
-}
-function usable(payload) {
-  if (!payload || !payload.ok) return false;
-  const r = payload.result;
-  if (r === null || r === undefined) return false;
-  if (Array.isArray(r)) return r.length > 0;
-  if (typeof r === 'object') return Object.keys(r).length > 0;
-  return true;
-}
-async function readSnapshot(env, key) {
-  if (!env.SNAP || !SNAPPED.has(key.split(':')[0])) return null;
-  try {
-    const [beat, entry] = await Promise.all([env.SNAP.get(SNAP_BEAT, 'json'), env.SNAP.get(snapKey(key), 'json')]);
-    if (!beat || !entry) return null;
-    // 失敗的排程可沿用最近一次成功核對的快照，但最多 12 分鐘；
-    // 不能因為下一輪心跳仍在寫入，就把舊資料的期限無限延長。
-    const checkedAt = beat.validated?.[key] || beat.at;
-    if (!checkedAt || Date.now() - checkedAt > SNAP_FRESH_MS) return null;
-    if (!beat.hashes || beat.hashes[key] !== entry.hash) return null;
-    // entry.at是回覆內容最後變更的時間；內容可能數小時未變，
-    // 但後端剛完成的新核對，仍可確認內容是目前狀態。
-    return {payload: entry.payload, at: entry.at, validatedAt: checkedAt};
-  } catch { return null; }
-}
+/* v227：每輪只寫一包快照，寫入透過唯一協調器限制。
+   此匯出給離線測試使用，公開 API 沒有手動寫快照的入口。 */
 async function refreshSnapshots(env) {
-  if (!env.SNAP) return {skipped: 'no-kv'};
-  const old = await env.SNAP.get(SNAP_BEAT, 'json').catch(() => null);
-  const hashes = {}, validated = {}, report = {};
-  const take = async (method, args) => {
-    const key = method + ':' + JSON.stringify(args);
-    const out = await callBackend(env, {method, args}, true);
-    if (!usable(out.payload)) { report[key] = out.payload?.error || 'empty'; return null; }
-    const body = JSON.stringify(out.payload);
-    const hash = await digest(method === 'apiGetDashboard' ? body.replace(/"updatedAt":"[^"]*"/, '') : body);
-    hashes[key] = hash;
-    validated[key] = Date.now();
-    if (!old || !old.hashes || old.hashes[key] !== hash) {
-      await env.SNAP.put(snapKey(key), JSON.stringify({at: Date.now(), hash, payload: out.payload}), {expirationTtl: 86400});
-      report[key] = 'written';
-    } else report[key] = 'same';
-    return out.payload.result;
-  };
-  // 這三項試算表讀取同時啟動時，Apps Script的/exec偶爾會
-  // 回傳狀態200的HTML錯誤頁；保留相同鍵值，改為依序讀取，
-  // 單一鍵失敗不阻止其餘快照繼續核對。
-  for (const [method, args] of [['apiGetDashboard', []], ['apiListRecordDates', []], ['apiListMailDates', []],
-                                ['apiGetHoldingsTracker', []], ['apiGetPerformanceSeries', []]]) {
-    try {
-      const list = await take(method, args);
-      if (method === 'apiListMailDates') {
-        const first = Array.isArray(list) && list[0];
-        const date = first && (typeof first === 'string' ? first : first.date);
-        if (date) await take('apiGetMailContent', [date]);
-      }
-    } catch (error) { report[method + ':' + JSON.stringify(args)] = 'exception:' + String(error); }
-  }
-  // 一輪暫時失敗不立刻丟掉仍在 12 分鐘內的成功快照；保留原核對時間，
-  // 逾時仍回到即時讀取，不用失敗心跳替舊資料續命。
-  for (const [key, hash] of Object.entries(old?.hashes || {})) {
-    const checkedAt = old.validated?.[key] || old.at;
-    if (!hashes[key] && checkedAt && Date.now() - checkedAt <= SNAP_FRESH_MS) {
-      hashes[key] = hash;
-      validated[key] = checkedAt;
-      report[key] = 'recent-on-failure:' + (report[key] || 'unknown');
-    }
-  }
-  await env.SNAP.put(SNAP_BEAT, JSON.stringify({at: Date.now(), hashes, validated}), {expirationTtl: 86400});
-  return report;
+  const report = await buildSnapshotBundle(env, callBackend);
+  return report.items || report;
+}
+export class SnapshotWriter extends SnapshotCoordinator {
+  constructor(state, env) { super(state, env, callBackend); }
 }
 
 /* 批次報價轉送（v134）。Apps Script 直連證交所 MIS 會「Address unavailable」，這裡代為連線。
@@ -319,28 +246,47 @@ export default {
     const respond = (payload, status, extra) => reply(publicRecordPayload(body.method, payload), status, origin, extra);
     const key = ttl ? body.method + ':' + JSON.stringify(body.args) : '';
     const hit = key ? memo.get(key) : null;
-    if (hit && Date.now() - hit.at < ttl * 1000) return respond(hit.body, 200, {'X-Cache': 'hit'});
-    const snap = key ? await readSnapshot(env, key) : null;
-    if (snap) {
-      remember(key, snap.payload, Math.max(snap.validatedAt, Date.now() - ttl * 1000 + 30000));
-      return respond(snap.payload, 200, {'X-Cache': 'snapshot',
-        'X-Snapshot-Age': String(Math.round((Date.now() - snap.validatedAt) / 1000)),
-        'X-Snapshot-Content-Age': String(Math.round((Date.now() - snap.at) / 1000))});
-    }
+    if (hit && Date.now() < hit.expiresAt && Date.now() - hit.at < ttl * 1000) return respond(hit.body, 200, {'X-Cache': 'hit'});
+    // 先查邊緣快取，命中就不讀KV。快照來源的快取仍受原本逐鍵12分鐘期限約束。
     let edge = null, edgeStatus = 'unavailable';
+    const saveEdge = async entry => {
+      if (!edge) return;
+      const remaining = Math.min(ttl, ((entry.reuseUntil ?? Infinity) - Date.now()) / 1000,
+        entry.snapshot ? (entry.snapshot.validUntil - Date.now()) / 1000 : ttl);
+      if (remaining <= 0) return;
+      const save = caches.default.put(edge, Response.json(entry, {
+        headers: {'Cache-Control': 'public, max-age=' + Math.max(1, Math.floor(remaining))}
+      })).catch(() => { console.warn('public read cache write unavailable'); });
+      if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(save);
+      else await save;
+    };
     try {
       edge = await edgeKey(request, env, key);
       edgeStatus = edge ? 'miss' : 'bypass';
       const cached = edge && await caches.default.match(edge);
       if (cached) {
         const entry = await cached.json();
-        if (entry.payload?.ok && Date.now() - entry.at < ttl * 1000) {
-          // 保留原建立時間，不能每次命中把期限延長。
-          remember(key, entry.payload, entry.at);
-          return respond(entry.payload, 200, {'X-Cache': 'edge-hit'});
+        const validUntil = Math.min(entry.snapshot?.validUntil ?? Infinity, entry.reuseUntil ?? Infinity);
+        if (entry.payload?.ok && Date.now() < validUntil && Date.now() - entry.at < ttl * 1000) {
+          remember(key, entry.payload, entry.at, validUntil);
+          return respond(entry.payload, 200, {'X-Cache': 'edge-hit', ...(entry.snapshot ? {
+            'X-Snapshot-Age': String(Math.round((Date.now() - entry.snapshot.validatedAt) / 1000)),
+            'X-Snapshot-Content-Age': String(Math.round((Date.now() - entry.snapshot.at) / 1000))
+          } : {})});
         }
       }
     } catch (error) { edgeStatus = error.name || 'unavailable'; }
+    const snap = key ? await readSnapshot(env, key) : null;
+    if (snap) {
+      // 最多短暫重用30秒，避免為了少讀KV而延長看到新一輪快照的等待。
+      const reuseUntil = Math.min(snap.validUntil, Date.now() + 30_000);
+      remember(key, snap.payload, Date.now(), reuseUntil);
+      await saveEdge({at: Date.now(), payload: snap.payload, reuseUntil,
+        snapshot: {at: snap.at, validatedAt: snap.validatedAt, validUntil: snap.validUntil}});
+      return respond(snap.payload, 200, {'X-Cache': 'snapshot',
+        'X-Snapshot-Age': String(Math.round((Date.now() - snap.validatedAt) / 1000)),
+        'X-Snapshot-Content-Age': String(Math.round((Date.now() - snap.at) / 1000))});
+    }
     const started = Date.now();
     // 報價不保存結果，但同時查同一組代號仍共用在途請求。
     const flightKey = key || (body.method === 'apiGetQuotesFor' ? body.method + ':' + JSON.stringify(body.args) : null);
@@ -358,12 +304,8 @@ export default {
     if (out.payload && out.payload.ok) {
       if (key) remember(key, out.payload);
       if (edge) {
-        const save = caches.default.put(edge, Response.json({at: Date.now(), payload: out.payload}, {
-          headers: {'Cache-Control': 'public, max-age=' + ttl}
-        })).catch(() => { console.warn('public read cache write unavailable'); });
-        // 跨執行個體快取寫入不是顯示資料的前置條件，不再阻塞成功回應。
-        if (ctx && typeof ctx.waitUntil === 'function') { ctx.waitUntil(save); edgeStatus = 'scheduled'; }
-        else { await save; edgeStatus = 'stored'; }
+        await saveEdge({at: Date.now(), payload: out.payload});
+        edgeStatus = 'scheduled';
       }
       return respond(out.payload, 200, {...timing, 'X-Edge-Cache':edgeStatus, 'X-Cache': key ? shared ? 'shared' : 'miss' : 'bypass'});
     }
@@ -371,7 +313,10 @@ export default {
   },
   async scheduled(_event, env, ctx) {
     if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(env.GAS_WEBAPP_URL || '') || !env.SITE_BRIDGE_TOKEN) return;
-    ctx.waitUntil(refreshSnapshots(env).then(r => console.log('snapshot refresh', JSON.stringify(r))));
+    if (!env.SNAPSHOT_WRITER) { console.error('snapshot writer binding missing'); return; }
+    const id = env.SNAPSHOT_WRITER.idFromName('public-snapshot-writer-v2');
+    ctx.waitUntil(env.SNAPSHOT_WRITER.get(id).fetch('https://snapshot.internal/refresh', {method: 'POST'})
+      .then(async r => console.log('snapshot refresh', r.status, await r.text())));
   }
 };
 export {refreshSnapshots, readSnapshot};

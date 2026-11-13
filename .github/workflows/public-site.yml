@@ -65,6 +65,7 @@ jobs:
         run: |
           node scripts/check_site_snapshot.mjs
           node scripts/check_site_snapshot_1111.mjs
+          node --test scripts/test_snapshot_budget_1113.mjs
           node scripts/check_quote_relay_fresh.mjs
           node scripts/check_quote_cache_first.js
       - name: 公開說明語意保留與紀錄價位隱藏

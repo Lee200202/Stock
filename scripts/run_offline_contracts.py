@@ -53,6 +53,7 @@ SUITES = [
     'test_rulings_1106',
     'test_weekly_20261106',
     'test_weekly_20261113',
+    'test_weekly_20261113b',
     'test_line_rulings',
     'test_notice_ruling',
     'test_apply_robustness_1110',

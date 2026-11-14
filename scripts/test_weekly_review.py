@@ -200,5 +200,36 @@ class Workflow(unittest.TestCase):
         self.assertIn('--fresh-verdicts', (ROOT / 'scripts/weekly_review/workflow_steps.py').read_text(encoding='utf-8'))
 
 
+
+class WeeklyNotifyAndInfra(unittest.TestCase):
+    """2026/11/14：Google 服務故障不算退步、每週結果做成 LINE 卡片（notify.build_card）。"""
+
+    def test_infra_failure_detection(self):
+        import workflow_steps as ws
+        self.assertTrue(ws.is_infra_failure(1, 'RuntimeError: Gemini 連續重試失敗（assess-json-1）：HTTP 503'))
+        self.assertFalse(ws.is_infra_failure(3, 'Gemini 連續重試失敗 HTTP 503'))   # 結束代碼 3 是重播自己的結論
+        self.assertFalse(ws.is_infra_failure(1, 'KeyError: x'))
+
+    def test_card_infra_week_asks_to_rerun(self):
+        import notify
+        result = {'merged': False, 'verdict': '重播遇到 Google 服務暫時故障，未合併',
+                  'rows': [{'item': '守門', 'result': '通過'}, {'item': '離線契約', 'result': '通過'}]}
+        replays = {'requests': 361, 'results': [
+            {'date': '2026/11/09', 'role': '本週', 'ok': False, 'infra': True, 'exit_code': 1, 'requests': 65},
+            {'date': '2026/11/10', 'role': '本週', 'ok': True, 'exit_code': 0, 'requests': 60}]}
+        card = notify.build_card('2026/11/13', result, {'pipeline_changed': True}, replays, {'checks': []}, ['改了一條規則'])
+        self.assertEqual([d['status'] for d in card['days']], ['infra', 'pass'])
+        self.assertEqual(len(card['asks']), 1)
+        self.assertIn('Google', card['asks'][0]['question'])
+        self.assertTrue(card['reportUrl'].endswith('docs/weekly-review/2026-11-13/報告.md'))
+
+    def test_card_merged_week_asks_nothing(self):
+        import notify
+        result = {'merged': True, 'verdict': '已合併', 'rows': [{'item': '守門', 'result': '通過'}, {'item': '離線契約', 'result': '通過'}]}
+        replays = {'results': [{'date': '2026/11/09', 'role': '本週', 'ok': True, 'exit_code': 0}]}
+        card = notify.build_card('2026/11/13', result, {}, replays, {'checks': [{'result': '通過'}]}, [], merged_sha='abcdef1234')
+        self.assertEqual((card['merged'], card['asks'], card['mergedSha']), (True, [], 'abcdef123'))
+        self.assertIn('已合併', card['headline'])
+
 if __name__ == '__main__':
     unittest.main()

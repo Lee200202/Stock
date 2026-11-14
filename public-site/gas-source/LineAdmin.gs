@@ -1372,6 +1372,90 @@ function lineAdminChatNoReply_(id) {
   return [lineText_('已取消，網站不會改。要的話換個說法再說一次。', lineAdminQuick_())];
 }
 
+/* ---------------- 管理者通知：每週流程檢討結果卡（2026/11/14 管理者） ---------------- */
+// 管理者：「每週確定定義問題之後 pipeline 要同步更新；審核結果用卡片寄給 LINE，要管理者指示的在卡片中提出，
+// 善用卡片篇幅，控制視覺化，讓管理者在手機 LINE 上操作方便。」
+// scripts/weekly_review/notify.py 每次週檢討跑完寫一列「管理者通知」（內容是 JSON），這裡五分鐘內推成一組輪播卡：
+//   ① 結論（合併了沒、本週改了什麼）② 重播每一天 ③ 網站線上驗收 ④ 要你決定（選項題由「管理者問題」另推、附按鈕）
+var LINE_ADMIN_NOTICE_TAB_ = '管理者通知';
+var LINE_ADMIN_NOTICE_ICON_ = { pass: '✓', infra: '⚠', fail: '✗' };
+var LINE_ADMIN_NOTICE_COLOR_ = { pass: '#1E7B4F', infra: '#8A5A00', fail: '#9B1C1C' };
+
+function lineAdminUri_(label, uri) { return { type: 'uri', label: lineClip_(label, 20), uri: String(uri) }; }
+
+/** 純函式：一列狀態（左邊大符號、右邊兩行字），重播日與驗收項目共用。 */
+function lineAdminStatusRow_(status, title, note) {
+  var c = LINE_ADMIN_NOTICE_COLOR_[status] || LINE_C_.muted;
+  return fxBox_('horizontal', [
+    fxText_(LINE_ADMIN_NOTICE_ICON_[status] || '•', { size: 'lg', weight: 'bold', color: c, flex: 0, gravity: 'top' }),
+    fxBox_('vertical', [fxText_(title, { size: 'sm', weight: 'bold', color: LINE_C_.ink }),
+                        note ? fxText_(note, { size: 'xs', color: LINE_C_.muted }) : null], { flex: 1, spacing: 'xs' })
+  ], { spacing: 'md' });
+}
+
+/** 純函式：每週檢討通知（notify.py 的 build_card）→ 輪播卡。 */
+function lineAdminWeeklyFlex_(c) {
+  var day = lineMd_(c.date) || c.date, merged = !!c.merged;
+  var days = c.days || [], passN = days.filter(function (d) { return d.status === 'pass'; }).length;
+  var live = c.live || { total: 0, ok: 0, problems: [] };
+  var buttons = [c.reportUrl ? fxBtn_(lineAdminUri_('看本週報告', c.reportUrl)) : null,
+                 c.runUrl ? fxBtn_(lineAdminUri_('看執行紀錄', c.runUrl), 'secondary') : null].filter(Boolean);
+  var summary = lineAdminBubble_(fxHeader_('每週流程檢討・' + day, c.headline || (merged ? '已合併' : '未合併'),
+      merged ? LINE_ADMIN_SCALE_.deepGreen : LINE_ADMIN_SCALE_.deepRed), [
+    fxBox_('horizontal', [
+      lineAdminChip_('守門 ' + (c.gate || '—'), c.gate === '通過' ? LINE_ADMIN_SCALE_.green : LINE_ADMIN_SCALE_.red),
+      lineAdminChip_('離線 ' + (c.offline || '—'), c.offline === '通過' ? LINE_ADMIN_SCALE_.green : LINE_ADMIN_SCALE_.red),
+      lineAdminChip_('重播 ' + passN + '/' + days.length, passN === days.length ? LINE_ADMIN_SCALE_.green : LINE_ADMIN_SCALE_.red)
+    ], { spacing: 'sm' }),
+    lineAdminLine_('流程程式', merged ? '已合併到 main' + (c.mergedSha ? '（' + c.mergedSha + '）' : '') + '，明天的每日流程開始用新規則'
+                                       : '還在分支上，網站的每日流程仍用上週的規則'),
+    (c.changes || []).length ? fxText_('本週改了什麼', { size: 'xxs', color: LINE_C_.muted }) : null,
+    (c.changes || []).length ? fxBox_('vertical', c.changes.slice(0, 6).map(function (t) { return fxBullet_(t); }), { spacing: 'xs' }) : null,
+    (c.asks || []).length ? fxText_('⚑ 有 ' + c.asks.length + ' 件要你決定，選項卡接著送到。', { size: 'sm', weight: 'bold', color: LINE_ADMIN_SCALE_.deepRed, wrap: true }) : null,
+    fxNote_('重播用 Gemini 約 ' + (c.requests || 0) + ' 次請求；結果也寫在複核紀錄「每週檢討」。')
+  ].filter(Boolean), buttons);
+  var replay = lineAdminBubble_(fxHeader_('重播・' + day, '本週與保留日，共 ' + days.length + ' 天', LINE_C_.hero),
+    (days.length ? days.map(function (d) {
+      return lineAdminStatusRow_(d.status, lineMd_(d.date) + '　' + d.role, d.note);
+    }) : [fxText_('這一週沒有重播（流程程式沒有改）。', { size: 'sm', color: LINE_C_.ink })]).concat([
+      fxNote_('✓ 通過　⚠ Google 服務暫時故障（不是退步）　✗ 這次改動造成的退步')]), []);
+  var probs = live.problems || [];
+  var verify = lineAdminBubble_(fxHeader_('網站線上驗收・' + day, '本週明確錯誤 ' + live.total + ' 項，網站正確 ' + live.ok + ' 項',
+      probs.length ? LINE_ADMIN_SCALE_.red : LINE_ADMIN_SCALE_.green),
+    (probs.length ? probs.map(function (p) {
+      return lineAdminStatusRow_('fail', lineMd_(p.date) + '　' + (p.name || '') + (p.code ? ' ' + p.code : ''), (p.type || '') + (p.why ? '：' + p.why : ''));
+    }) : [lineAdminStatusRow_('pass', '全部正確', '本週檢討列出的每一項，網站現在都是對的。')]), []);
+  var bubbles = [summary, replay, verify];
+  return { type: 'flex', altText: lineClip_('每週流程檢討 ' + day + '：' + (c.headline || '') + (c.asks && c.asks.length ? '；要你決定 ' + c.asks.length + ' 件' : ''), 400),
+           contents: { type: 'carousel', contents: bubbles } };
+}
+
+/** 五分鐘排程：「管理者通知」待推送的列推到管理者 LINE（每列一次）。 */
+function lineAdminNoticeTick_() {
+  if (!lineAdminUids_().length) { return 'no-admin'; }
+  var book = lineAdminBook_(), sh = book && book.getSheetByName(LINE_ADMIN_NOTICE_TAB_);
+  if (!sh) { return 'no-tab'; }
+  var fresh = lineAdminReadTab_(book, LINE_ADMIN_NOTICE_TAB_, '').filter(function (r) {
+    return r['通知ID'] && r['狀態'] === '待推送' && !String(r['LINE推送'] || '').trim();
+  });
+  if (!fresh.length) { return 'none'; }
+  var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
+  var colPush = head.indexOf('LINE推送') + 1, colState = head.indexOf('狀態') + 1, out = [];
+  fresh.slice(0, 3).forEach(function (r) {
+    var card = null;
+    try { card = JSON.parse(String(r['內容'] || '{}')); } catch (e) { card = null; }
+    if (!card || card.type !== 'weekly') { sh.getRange(r._row, colState).setValue('格式不明'); return; }
+    var q = lineQueue_({ id: 'admin-notice|' + r['通知ID'], kind: 'admin', date: todayStr_(), source: '管理者通知 ' + r['通知ID'],
+      expiresAt: Date.now() + 48 * 3600 * 1000, messages: [lineAdminWeeklyFlex_(card)] });
+    sh.getRange(r._row, colPush).setValue(lineNow_());
+    sh.getRange(r._row, colState).setValue('已推送');
+    if (q.created) { lineDeliverTick_({ only: q.id, budgetMs: 30000 }); }
+    out.push(r['通知ID']);
+  });
+  // 選項題（「管理者問題」）由 lineAdminQuestionTick_ 接著推，按鈕與既有流程相同
+  return { pushed: out };
+}
+
 /* ---------------- 五分鐘排程 ---------------- */
 function lineAdminTick_() {
   if (!lineConfigured_() || linePushMode_() === 'off') { return { skipped: 'off' }; }
@@ -1379,6 +1463,7 @@ function lineAdminTick_() {
   try { out.rulings = lineAdminRulingTick_(); } catch (e) { out.rulingsError = String(e && e.message || e); }
   try { out.review = lineAdminReviewTick_(); } catch (e2) { out.reviewError = String(e2 && e2.message || e2); }
   try { out.verify = lineAdminVerifyTick_(); } catch (e3) { out.verifyError = String(e3 && e3.message || e3); }
+  try { out.notice = lineAdminNoticeTick_(); } catch (e5) { out.noticeError = String(e5 && e5.message || e5); }
   try { out.questions = lineAdminQuestionTick_(); } catch (e4) { out.questionsError = String(e4 && e4.message || e4); }
   return out;
 }

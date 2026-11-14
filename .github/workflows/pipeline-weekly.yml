@@ -134,6 +134,18 @@ jobs:
           if [ "$GATE" != success ] || [ "$OFFLINE" != success ] || [ "$REPAIRS" = failure ] || { [ "$REPLAY" != success ] && [ "$REPLAY" != skipped ]; } || [ "$MERGE" != success ]; then
             echo "::error::每週流程檢討未全部通過，詳見上方結論與複核紀錄「每週檢討」"; exit 1
           fi
+      - name: 結果卡片寄到管理者 LINE（合併與否都寄；要裁示的另出選項題）
+        if: always()
+        continue-on-error: true
+        env:
+          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          REVIEW_LOG_ID: ${{ vars.REVIEW_LOG_ID }}
+          GEMINI_API_KEY: offline
+        run: |
+          STAMP="${BRANCH##*-}"; STAMP="${STAMP##*/}"
+          git fetch -q origin main || true
+          python scripts/weekly_review/notify.py --folder .weekly --date "${STAMP:0:4}/${STAMP:4:2}/${STAMP:6:2}"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

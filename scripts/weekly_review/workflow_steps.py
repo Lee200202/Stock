@@ -10,6 +10,7 @@
 import json
 import os
 import re
+import time
 import subprocess
 import sys
 from pathlib import Path
@@ -42,7 +43,32 @@ def run_replay(day, golden, report, cwd=None):
     rep = load(report, {}) or {}
     m = re.search(r'實際模型HTTP (\d+) 次', str(rep.get('usage') or '')) or re.search(r'呼叫 Gemini (\d+) 次', str(rep.get('usage') or ''))
     misses = [l.strip() for l in out.splitlines() if TICK.match(l) and l.strip().startswith('✗')]
-    return {'exit_code': code, 'misses': misses, 'errors': len(rep.get('errors') or []), 'requests': int(m.group(1)) if m else 0}
+    return {'exit_code': code, 'misses': misses, 'errors': len(rep.get('errors') or []), 'requests': int(m.group(1)) if m else 0,
+            'infra': is_infra_failure(code, out)}
+
+
+INFRA_RE = re.compile(r'Gemini 連續重試失敗|HTTP (?:429|500|502|503|504)|RESOURCE_EXHAUSTED|UNAVAILABLE|DEADLINE_EXCEEDED|額度')
+
+
+def is_infra_failure(code, out):
+    """純函式：這一輪是被 Google 服務暫時故障打斷（不是流程判讀的結果）。
+    2026/11/13 週檢討：11/09 重播第二輪連續 503 中斷，被當成未通過，這週的流程修正因此沒合併。
+    結束代碼 0／2／3 是重播自己的結論（通過／答案不符／通用錯誤），不算服務故障。"""
+    return code not in (0, 2, 3) and bool(INFRA_RE.search(str(out or '')))
+
+
+def run_replay_retry(day, golden, report, cwd=None, waits=(90, 180)):
+    """服務故障就等一下再跑同一天（最多再跑兩次）；結果帶 attempts 與最後是否仍是服務故障。"""
+    res, used = run_replay(day, golden, report, cwd=cwd), 0
+    for wait in waits:
+        if not res.get('infra'):
+            break
+        print(f'{day} 重播遇到 Google 服務暫時故障，{wait} 秒後重跑同一天', flush=True)
+        time.sleep(wait)
+        used += res['requests']
+        res = run_replay(day, golden, report, cwd=cwd)
+    res['requests'] += used
+    return res
 
 
 def miss_key(line):
@@ -89,24 +115,29 @@ def replay(gate_path, out_path):
     for role, day in days:
         stamp = day.replace('/', '')
         golden = ROOT / 'scripts/golden' / f'{day.replace("/", "-")}.json'
-        branch = run_replay(day, golden, ROOT / '.weekly' / f'replay-{stamp}.json')
+        branch = run_replay_retry(day, golden, ROOT / '.weekly' / f'replay-{stamp}.json')
         requests += branch['requests']
         base = again = None
         if branch['exit_code'] != 0 and gate.get('pipeline_changed'):
             print(f'{role} {day} 分支未通過，再跑分支一輪，量哪些不符是穩定的', flush=True)
-            again = run_replay(day, golden, ROOT / '.weekly' / f'replay-{stamp}-2.json')
+            again = run_replay_retry(day, golden, ROOT / '.weekly' / f'replay-{stamp}-2.json')
             requests += again['requests']
-            if again['exit_code'] != 0 and {miss_key(m) for m in branch['misses']} & {miss_key(m) for m in again['misses']}:
-                print(f'{role} {day} 兩輪都有的不符，改用 main 的程式重播同一天、同一份答案做對照', flush=True)
-                base = run_replay(day, golden, ROOT / '.weekly' / f'replay-{stamp}-main.json', cwd=main_checkout())
+            # 2026/11/14：兩輪都有的不符，或分支有通用錯誤（以前通用錯誤不跑 main 對照，main 也有的錯誤照樣擋下合併）
+            steady_miss = {miss_key(m) for m in branch['misses']} & {miss_key(m) for m in again['misses']}
+            if again['exit_code'] != 0 and (steady_miss or branch['errors'] or again['errors']) and not branch.get('infra'):
+                print(f'{role} {day} 分支兩輪都未通過，改用 main 的程式重播同一天、同一份答案做對照', flush=True)
+                base = run_replay_retry(day, golden, ROOT / '.weekly' / f'replay-{stamp}-main.json', cwd=main_checkout())
                 requests += base['requests']
         ok, new = judge_day(branch, base, again)
-        results.append({'role': role, 'date': day, 'exit_code': branch['exit_code'], 'ok': ok, 'misses': branch['misses'][:20],
+        infra = bool(branch.get('infra') and (again is None or again.get('infra')))
+        results.append({'role': role, 'date': day, 'exit_code': branch['exit_code'], 'ok': ok, 'infra': infra and not ok,
+                        'misses': branch['misses'][:20],
                         'new_misses': new[:20], 'baseline_misses': (base or {}).get('misses', [])[:20],
                         'baseline_exit_code': (base or {}).get('exit_code'), 'errors': branch['errors'],
                         'second_misses': (again or {}).get('misses', [])[:20],
                         'requests': branch['requests'] + (base or {}).get('requests', 0) + (again or {}).get('requests', 0)})
-        verdict = '通過' if branch['exit_code'] == 0 else ('不符只是單次變異或 main 也有，不算本次退步' if ok else '未通過（分支兩輪都有、main 沒有的不符）')
+        verdict = ('通過' if branch['exit_code'] == 0 else '不符只是單次變異或 main 也有，不算本次退步' if ok
+                   else 'Google 服務暫時故障，重跑後仍無法完成（不是流程退步）' if infra else '未通過（分支兩輪都有、main 沒有的不符）')
         print(f"{role} {day}：{verdict}；不符 {len(branch['misses'])} 項，新增 {len(new)} 項", flush=True)
     save(out_path, {'results': results, 'requests': requests, 'ran': bool(days)})
     sys.exit(0 if all(r['ok'] for r in results) else 1)
@@ -179,6 +210,9 @@ def result(folder):
         verdict = '守門不通過，未合併'
     elif outcome['OFFLINE'] != 'success':
         verdict = '離線契約不通過，未合併'
+    elif outcome['REPLAY'] not in ('success', 'skipped', '') and replays.get('results') and all(
+            r['ok'] or r.get('infra') for r in replays['results']):
+        verdict = '重播遇到 Google 服務暫時故障，未合併'
     elif outcome['REPLAY'] not in ('success', 'skipped', ''):
         verdict = '重播未通過，未合併'
     else:

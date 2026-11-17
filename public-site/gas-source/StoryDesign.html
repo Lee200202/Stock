@@ -377,14 +377,14 @@ html body[data-tab] #p-tech .tech-book .tech-pain-lab .tech-pains{gap:10px;margi
 html body[data-tab] #p-tech .tech-book .tech-pain-lab .tech-pains button{min-height:44px;padding:8px 14px}
 html body[data-tab] #p-tech .tech-book .tech-pain-lab .tech-pains button b{font-size:calc(14.2px * var(--rd-fs,1))}
 html body[data-tab] #p-tech .tech-book .tech-path>li{padding:12px 16px!important;border-radius:16px!important}
-html body[data-tab] #p-tech .tech-book .tech-path>li+li::before{content:none!important;display:none!important}
+html body[data-tab] #p-tech .tech-book #painPath>li+li::before{content:none!important;display:none!important}
 html body[data-tab] #p-tech .tech-book .tech-path li p{font-size:calc(14.6px * var(--rd-fs,1));line-height:1.62;margin:4px 0 0}
 html body[data-tab] #p-tech .tech-book .tech-path .mini{margin-top:10px}
 @media(min-width:900px){
-  html body[data-tab] #p-tech .tech-book .tech-path{grid-template-columns:minmax(0,5fr) minmax(0,7fr)!important;grid-auto-rows:auto;gap:12px 16px!important}
-  html body[data-tab] #p-tech .tech-book .tech-path>li:nth-child(1){grid-column:1;grid-row:1}
-  html body[data-tab] #p-tech .tech-book .tech-path>li:nth-child(2){grid-column:1;grid-row:2}
-  html body[data-tab] #p-tech .tech-book .tech-path>li:nth-child(3){grid-column:2;grid-row:1 / span 2}
+  html body[data-tab] #p-tech .tech-book #painPath{grid-template-columns:minmax(0,5fr) minmax(0,7fr)!important;grid-auto-rows:auto;gap:12px 16px!important}
+  html body[data-tab] #p-tech .tech-book #painPath>li:nth-child(1){grid-column:1;grid-row:1}
+  html body[data-tab] #p-tech .tech-book #painPath>li:nth-child(2){grid-column:1;grid-row:2}
+  html body[data-tab] #p-tech .tech-book #painPath>li:nth-child(3){grid-column:2;grid-row:1 / span 2}
 }
 
 /* 四個痛點（管理者 11/17）：一次一張全寬，左右只露出一小段鄰卡；問答播完約 7 秒換下一張，旁邊的暫停圖形可停止輪播 */
@@ -458,6 +458,30 @@ html body[data-tab] #p-tech .tech-book .qa>.book-expanded{padding:14px 18px!impo
 html body[data-tab] #p-tech .tech-book .qa>.book-expanded>h3{font-size:calc(15.5px * var(--rd-fs,1));margin:0 0 4px!important}
 html body[data-tab] #p-tech .tech-book .qa>.book-expanded .a{padding:0!important;font-size:calc(14px * var(--rd-fs,1));line-height:1.62}
 @media(max-width:600px){html body[data-tab] #p-tech .tech-story.tech-book{font-size:calc(15px * var(--rd-fs,1))}}
+</style>
+<style id="techWordsV228r1">
+/* v228r1（管理者 11/17）：章節裡的箭頭改成文字；步驟之間的箭頭符號改成畫出來的短線。 */
+html body[data-tab] #p-tech .tech-story .tech-flow button:not(:last-child)::after{content:""!important;width:12px;height:2px;background:currentColor;font-size:0;line-height:0;border-radius:2px}
+html body[data-tab] #p-tech :is(.tech-story .tech-path li + li, .tech-story .un-chain li + li)::before{content:""!important;width:12px;height:2px;background:currentColor;font-size:0;line-height:0;border-radius:2px}
+html body[data-tab] #p-tech .tech-story .pn-col + .pn-col::before{content:""!important;width:12px;height:2px;background:currentColor;font-size:0;line-height:0;border-radius:2px;margin-top:10px}
+html body[data-tab] #p-tech .tech-book .agent-route li:not(:last-child)::after{content:""!important;width:12px;height:2px;background:currentColor;font-size:0;line-height:0;border-radius:2px;margin-top:9px}
+html body[data-tab] #p-tech .agent-map-steps button:not(:last-child)::after{content:""!important;width:12px;height:2px;background:currentColor;font-size:0;line-height:0;border-radius:2px;margin-top:9px}
+html body[data-tab] #p-tech .tech-book .tok-stage:not(:last-child)::after{content:""!important;width:12px;height:2px;background:currentColor;font-size:0;line-height:0;border-radius:2px;margin-top:9px}
+html body[data-tab] #p-tech .tech-book .wf-flow-line li:not(:last-child)::after{content:""!important;width:12px;height:2px;background:currentColor;font-size:0;line-height:0;border-radius:2px;margin-top:14px}
+html body[data-tab] #p-tech .tech-book .wf-rail span:not(:last-child)::after{content:""!important;width:12px;height:2px;background:currentColor;font-size:0;line-height:0;border-radius:2px;margin-top:10px}
+html body[data-tab] #p-tech .tech-route li+li::before{content:""!important;width:12px;height:2px;background:currentColor;font-size:0;line-height:0;border-radius:2px;margin-top:10px}
+html body[data-tab] #p-tech .tech-story .tech-real button[data-go]::before{content:none!important}
+@media (max-width:1100px){html body[data-tab] #p-tech .tech-story .pn-col + .pn-col::before{width:2px!important;height:12px!important;margin:0 0 5px!important}}
+@media (max-width:760px){html body[data-tab] #p-tech :is(.tech-story .tech-path li + li, .tech-story .un-chain li + li)::before{width:2px!important;height:12px!important;margin:0 0 5px!important}}
+@media (max-width:760px){html body[data-tab] #p-tech .tech-book .agent-route li:not(:last-child)::after{width:2px!important;height:12px!important;margin:0 0 5px!important}}
+@media (max-width:760px){html body[data-tab] #p-tech :is(.tech-book .tok-stage:not(:last-child), .tech-book .tok-stage:nth-child(2))::after{width:2px!important;height:12px!important;margin:0 0 5px!important}}
+@media (max-width:760px){html body[data-tab] #p-tech .agent-map-steps button:not(:last-child)::after{width:2px!important;height:12px!important;margin:0 0 5px!important}}
+@media (max-width:900px){html body[data-tab] #p-tech .tech-book .agent-map-steps>button:not(:last-child)::after{width:2px!important;height:12px!important;margin:0 0 5px!important}}
+@media (max-width:1000px){html body[data-tab] #p-tech .tech-book .wf-flow-line li:nth-child(3)::after{width:2px!important;height:12px!important;margin:0 0 5px!important}}
+@media (max-width:620px){html body[data-tab] #p-tech :is(.tech-book .wf-flow-line li:not(:last-child), .tech-book .wf-flow-line li:nth-child(3))::after{width:2px!important;height:12px!important;margin:0 0 5px!important}}
+@media (max-width:620px){html body[data-tab] #p-tech .tech-book .wf-rail span:not(:last-child)::after{width:2px!important;height:12px!important;margin:0 0 5px!important}}
+@media (max-width:760px){html body[data-tab] #p-tech .tech-book #tokViz .tok-stage:not(:last-child)::after{width:12px!important;height:2px!important;margin:0!important}}
+@media (max-width:600px){html body[data-tab] #p-tech .tech-route li+li::before{width:2px!important;height:12px!important;margin:0 0 5px!important}}
 </style>
 <script id="techBentoScriptV228">
 (function(){

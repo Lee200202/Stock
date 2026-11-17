@@ -103,7 +103,7 @@ function startJourney(){
  paths.forEach(function(item,i){var target=document.getElementById(item[0]);if(!target)return;var a=document.createElement('a');a.href='#'+item[0];a.innerHTML='<svg viewBox="0 0 64 64" aria-hidden="true"><path d="'+item[2]+'" stroke-linecap="round" stroke-linejoin="round"/></svg>';var n=document.createElement('small');n.textContent=String(i+1).padStart(2,'0');var b=document.createElement('b');b.textContent=item[1];a.append(n,b);track.append(a);});
  if(index&&tools)index.insertBefore(atlas,tools);
  var ns='http://www.w3.org/2000/svg';function svg(tag,attrs){var e=document.createElementNS(ns,tag);Object.keys(attrs||{}).forEach(function(k){e.setAttribute(k,attrs[k]);});return e;}
- ['tech-verdict','tech-source-priority','tech-transcript-progress','tech-quality-loop'].forEach(function(id){var ch=document.getElementById(id);if(!ch)return;var keys=Array.from(ch.querySelectorAll('.book-stage .book-scene-key li')).map(function(e){return e.textContent.trim();});if(keys.length<2)return;var frame=document.createElement('div');frame.className='journey-flow-wrap';frame.setAttribute('tabindex','0');frame.setAttribute('aria-label','本章流程圖，可左右捲動');var width=Math.max(700,keys.length*190),art=svg('svg',{viewBox:'0 0 '+width+' 186',role:'img','aria-label':keys.join('，接著')} );art.classList.add('journey-flow');keys.forEach(function(label,i){var x=i*190+14;if(i){art.append(svg('path',{d:'M'+(x-20)+' 88H'+x}));}var g=svg('g',{transform:'translate('+x+',20)'});g.append(svg('rect',{width:166,height:142,rx:24}));var n=svg('text',{x:18,y:35});n.classList.add('flow-n');n.textContent=String(i+1).padStart(2,'0');g.append(n);var text=svg('text',{x:18,y:70});var chars=Array.from(label);for(var j=0;j<chars.length;j+=7){var span=svg('tspan',{x:18,dy:j?25:0});span.textContent=chars.slice(j,j+7).join('');text.append(span);}g.append(text);art.append(g);});frame.append(art);ch.querySelector('.book-stage').insertAdjacentElement('afterend',frame);});
+ ['tech-verdict','tech-source-priority','tech-transcript-progress','tech-quality-loop'].forEach(function(id){var ch=document.getElementById(id);if(!ch)return;var keys=Array.from(ch.querySelectorAll('.book-stage .book-scene-key li')).map(function(e){return e.textContent.trim();});if(keys.length<2)return;var frame=document.createElement('div');frame.className='journey-flow-wrap';frame.setAttribute('tabindex','0');frame.setAttribute('aria-label','本章流程圖，可左右捲動');var width=keys.length*190+4,lines=Math.max.apply(null,keys.map(function(k){return Math.ceil(Array.from(k).length/7);})),rh=60+lines*25,art=svg('svg',{viewBox:'0 0 '+width+' '+(rh+40),role:'img','aria-label':keys.join('，接著')} );art.classList.add('journey-flow');art.style.setProperty('--jf-w',String(width));keys.forEach(function(label,i){var x=i*190+14;if(i){art.append(svg('path',{d:'M'+(x-20)+' '+(20+rh/2)+'H'+x}));}var g=svg('g',{transform:'translate('+x+',20)'});g.append(svg('rect',{width:166,height:rh,rx:20}));var n=svg('text',{x:18,y:35});n.classList.add('flow-n');n.textContent=String(i+1).padStart(2,'0');g.append(n);var text=svg('text',{x:18,y:70});var chars=Array.from(label);for(var j=0;j<chars.length;j+=7){var span=svg('tspan',{x:18,dy:j?25:0});span.textContent=chars.slice(j,j+7).join('');text.append(span);}g.append(text);art.append(g);});frame.append(art);ch.querySelector('.book-stage').insertAdjacentElement('afterend',frame);});
  // 手機圖面跟隨正在說明的節點；使用者拖曳或點選後，把控制權交回使用者。
  requestAnimationFrame(function(){root.querySelectorAll('.book-stage').forEach(function(stage){
   var pan=stage.querySelector('.tech-art-pan');if(!pan)return;var stopped=false,hover=false,last=null,queued=false;
@@ -116,7 +116,7 @@ function startJourney(){
  function update(s){if(s.el.closest('.ap-pin.is-on'))return;var cards=Array.from(s.el.children),pos=s.el.scrollLeft,best=0,delta=Infinity;cards.forEach(function(c,i){var d=Math.abs(c.offsetLeft-s.el.offsetLeft-pos);if(d<delta){delta=d;best=i;}});s.index=best;s.edgeStart=pos<=2;s.edgeEnd=pos>=Math.max(0,s.el.scrollWidth-s.el.clientWidth)-2;s.count.textContent=(best+1)+' / '+cards.length;s.el.dataset.galleryIndex=String(best);s.prev.disabled=s.edgeStart;s.next.disabled=s.edgeEnd;}
  function go(s,index){var cards=s.el.children,index=Math.max(0,Math.min(cards.length-1,index));s.el.scrollTo({left:cards[index].offsetLeft-s.el.offsetLeft,behavior:reduced.matches?'instant':'smooth'});}
  function sync(s){clearTimeout(s.timer);if(s.el.closest('.ap-pin.is-on'))return;if(!s.visible||s.stopped||s.hover||document.hidden||reduced.matches)return;s.timer=setTimeout(function(){update(s);if(s.edgeEnd)s.direction=-1;if(s.edgeStart)s.direction=1;s.el.dataset.autoCycles=String(Number(s.el.dataset.autoCycles||0)+1);go(s,s.index+s.direction);sync(s);},5000);}
- root.querySelectorAll('.book-five,.src-cards-row,.agent-models,.pain-cards').forEach(function(el){if(el.children.length<2||el.closest('dialog')||el.closest('.journey-gallery'))return;el.classList.add('journey-gallery');var tools=document.createElement('div');tools.className='journey-gallery-tools';var s={el:el,index:0,direction:1,visible:false,stopped:false,hover:false,timer:0};var count=document.createElement('span');count.setAttribute('aria-live','off');s.count=count;['prev','next'].forEach(function(key){var b=document.createElement('button');b.type='button';b.setAttribute('aria-label',key==='prev'?'上一張卡片':'下一張卡片');b.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="'+(key==='prev'?'M15 5l-7 7 7 7':'M9 5l7 7-7 7')+'"/></svg>';s[key]=b;b.addEventListener('click',function(){s.stopped=true;sync(s);go(s,s.index+(key==='prev'?-1:1));});});tools.append(count,s.prev,s.next);el.insertAdjacentElement('afterend',tools);states.push(s);el.addEventListener('scroll',function(){requestAnimationFrame(function(){update(s);});},{passive:true});['pointerdown','keydown','focusin'].forEach(function(type){el.addEventListener(type,function(){s.stopped=true;sync(s);});});el.addEventListener('mouseenter',function(){s.hover=true;sync(s);});el.addEventListener('mouseleave',function(){s.hover=false;sync(s);});observer.observe(el);update(s);new ResizeObserver(function(){update(s);}).observe(el);});
+ root.querySelectorAll('.book-five,.src-cards-row,.agent-models,.pain-cards.open-ideas').forEach(function(el){if(el.children.length<2||el.closest('dialog')||el.closest('.journey-gallery'))return;el.classList.add('journey-gallery');var tools=document.createElement('div');tools.className='journey-gallery-tools';var s={el:el,index:0,direction:1,visible:false,stopped:false,hover:false,timer:0};var count=document.createElement('span');count.setAttribute('aria-live','off');s.count=count;['prev','next'].forEach(function(key){var b=document.createElement('button');b.type='button';b.setAttribute('aria-label',key==='prev'?'上一張卡片':'下一張卡片');b.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="'+(key==='prev'?'M15 5l-7 7 7 7':'M9 5l7 7-7 7')+'"/></svg>';s[key]=b;b.addEventListener('click',function(){s.stopped=true;sync(s);go(s,s.index+(key==='prev'?-1:1));});});tools.append(count,s.prev,s.next);el.insertAdjacentElement('afterend',tools);states.push(s);el.addEventListener('scroll',function(){requestAnimationFrame(function(){update(s);});},{passive:true});['pointerdown','keydown','focusin'].forEach(function(type){el.addEventListener(type,function(){s.stopped=true;sync(s);});});el.addEventListener('mouseenter',function(){s.hover=true;sync(s);});el.addEventListener('mouseleave',function(){s.hover=false;sync(s);});observer.observe(el);update(s);new ResizeObserver(function(){update(s);}).observe(el);});
  document.addEventListener('visibilitychange',function(){states.forEach(sync);});reduced.addEventListener('change',function(){states.forEach(sync);});root.addEventListener('stock-tech-chapter',function(){requestAnimationFrame(function(){states.forEach(function(s){if(s.el.closest('[data-chapter]')&&s.el.closest('[data-chapter]').hidden){s.visible=false;sync(s);}else update(s);});});});
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',startJourney);else startJourney();
@@ -314,3 +314,317 @@ body[data-tab] #p-tech .ap-progress{margin-top:10px}
 body[data-tab] #p-tech .tech-book :is(.tech-hero,.tech-lab,.evidence-lab,.agent-map,.tech-graph){margin-block:24px}
 @media(max-width:600px){body[data-tab] #p-tech .tech-book .book-index{padding-top:20px}body[data-tab] #p-tech .tech-book .book-heading h2{font-size:min(34px,calc(25px * var(--rd-fs,1)))!important}}
 </style>
+<style id="techBentoV228">
+/* v228（管理者 11/17）技術說明：字級與內距收斂、第 01 章不規則格狀、案例與防線雙向卡片流、圖解標籤不被虛線穿過、
+   內容右緣不壓到右側「目錄」。24 章內容、錨點、章節切換與圖解互動不變；不加任何符號圖示。 */
+html body[data-tab] #p-tech .tech-story.tech-book{font-size:calc(14.6px * var(--rd-fs,1));line-height:1.62;padding-right:var(--tb-rail,0px)}
+.book-side-nav.tb-nav-slim{right:var(--tb-nav-r,8px)!important;min-width:0!important;padding:10px 4px!important;font-size:calc(12.5px * var(--rd-fs,1))!important;line-height:1.3!important}
+html body[data-tab] #p-tech .tech-book :is(p,li){line-height:1.62}
+
+/* 標題層級 */
+html body[data-tab] #p-tech .tech-book .book-index{padding:18px 0 10px;margin-bottom:10px}
+html body[data-tab] #p-tech .tech-book .book-index>.book-eyebrow{font-size:calc(13.5px * var(--rd-fs,1));margin:0 0 6px}
+html body[data-tab] #p-tech .tech-book .book-index>h1{font-size:calc(clamp(23.7px,2.2vw,29.1px) * var(--rd-fs,1))!important;line-height:1.3!important;margin:6px 0 6px}
+html body[data-tab] #p-tech .tech-book .book-index>p{font-size:calc(15.5px * var(--rd-fs,1));margin:0 0 12px}
+html body[data-tab] #p-tech .tech-book .book-heading{padding:6px 0 2px;margin-bottom:10px}
+html body[data-tab] #p-tech .tech-book .book-heading h2{font-size:calc(clamp(19.5px,1.7vw,23px) * var(--rd-fs,1))!important;line-height:1.4!important;margin:8px 0 10px}
+html body[data-tab] #p-tech .tech-book .book-heading .book-eyebrow{font-size:calc(12.5px * var(--rd-fs,1));padding:4px 12px}
+html body[data-tab] #p-tech .tech-book .journey-atlas>h2{font-size:calc(17px * var(--rd-fs,1))!important;line-height:1.4!important;margin:0 0 12px}
+html body[data-tab] #p-tech .tech-book :is(.book-chapter h3,.book-expanded>h3,.evidence-lab h3){font-size:calc(16px * var(--rd-fs,1));line-height:1.45}
+html body[data-tab] #p-tech .tech-book .book-pager b{font-size:calc(15.5px * var(--rd-fs,1))}
+html body[data-tab] #p-tech .tech-book .book-pager a{min-height:56px;padding:10px 18px}
+
+/* 首屏六步：寬螢幕一列排滿，不再固定畫面左右橫移（那段捲動距離就是標題下方的空白） */
+html body[data-tab] #p-tech .tech-book .journey-atlas{padding:16px 18px!important;margin:10px 0 14px!important;border-radius:24px}
+html body[data-tab] #p-tech .tech-book .journey-atlas-track>a{padding:12px 14px!important;gap:6px!important;border-radius:16px!important}
+html body[data-tab] #p-tech .tech-book .journey-atlas-track>a svg{width:32px!important;height:32px!important}
+html body[data-tab] #p-tech .tech-book .journey-atlas-track>a b{font-size:calc(13.4px * var(--rd-fs,1))!important;white-space:nowrap}
+html body[data-tab] #p-tech .tech-book .journey-atlas-track>a small{font-size:calc(11.5px * var(--rd-fs,1))}
+@media(min-width:900px){
+  html body[data-tab] #p-tech .tech-book .journey-atlas-track{display:grid!important;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px!important;overflow:visible!important;width:auto!important;padding:2px 0 4px!important}
+  html body[data-tab] #p-tech .tech-book .journey-atlas-track>a{flex:none!important;min-width:0}
+  html body[data-tab] #p-tech .tech-book .journey-atlas-track>a:not(:last-child)::after{width:12px!important}
+}
+
+/* 章節開頭圖解：限制圖面高度，說明列收成一列 */
+html body[data-tab] #p-tech .tech-book .book-stage{margin:12px 0 18px;border-radius:24px}
+html body[data-tab] #p-tech .tech-book .book-stage figcaption{padding:10px 18px!important;display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;line-height:1.5}
+html body[data-tab] #p-tech .tech-book .book-stage figcaption>b{font-size:calc(15.2px * var(--rd-fs,1));line-height:1.45}
+html body[data-tab] #p-tech .tech-book .book-scene-key{margin:0!important;gap:6px}
+html body[data-tab] #p-tech .tech-book .book-scene-key li{padding:3px 11px!important;font-size:calc(12.5px * var(--rd-fs,1));line-height:1.5}
+html body[data-tab] #p-tech .tech-book .book-stage .book-motion{margin:0 0 0 auto!important;gap:8px}
+html body[data-tab] #p-tech .tech-book .book-stage .book-motion button{min-height:36px!important;padding:4px 14px!important;font-size:calc(13px * var(--rd-fs,1))}
+@media(min-width:761px){
+  html body[data-tab] #p-tech .tech-book .book-stage .book-visual-open:not(.art-pan-ready){padding:10px!important}
+  html body[data-tab] #p-tech .tech-book .book-stage svg.book-art{--tb-art-h:calc(400px * var(--rd-fs,1));width:min(100%,calc(var(--tb-art-h) * var(--tb-ratio,1.5)))!important;height:auto!important;max-height:none;margin-inline:auto}
+}
+
+/* 圖解標籤底板：虛線從標籤後方經過，不穿過文字 */
+html body[data-tab] #p-tech .tech-book .tb-plate{pointer-events:none}
+html body[data-tab] #p-tech .tech-book .evidence-svg .tb-plate{fill:var(--panel)}
+
+/* 五站路程 */
+html body[data-tab] #p-tech .tech-book .tech-hero{margin-block:16px}
+html body[data-tab] #p-tech .tech-book .th-play .th-ic{display:none}
+html body[data-tab] #p-tech .tech-book .book-five{margin:14px 0}
+html body[data-tab] #p-tech .tech-book .book-five>li{padding:12px 15px!important;border-radius:16px!important}
+html body[data-tab] #p-tech .tech-book .book-five>li b{font-size:calc(13.4px * var(--rd-fs,1))!important;white-space:nowrap}
+html body[data-tab] #p-tech .tech-book .book-five>li p{margin:6px 0 0;font-size:calc(13.6px * var(--rd-fs,1));line-height:1.6}
+@media(min-width:900px){html body[data-tab] #p-tech .tech-book .book-five.journey-gallery{gap:12px!important}}
+
+/* 三選一查找困難：左 5 欄疊兩張短卡，右 7 欄放回答與搜尋示意 */
+html body[data-tab] #p-tech .tech-book .tech-pain-lab .tech-pains{gap:10px;margin-bottom:12px}
+html body[data-tab] #p-tech .tech-book .tech-pain-lab .tech-pains button{min-height:44px;padding:8px 14px}
+html body[data-tab] #p-tech .tech-book .tech-pain-lab .tech-pains button b{font-size:calc(14.2px * var(--rd-fs,1))}
+html body[data-tab] #p-tech .tech-book .tech-path>li{padding:12px 16px!important;border-radius:16px!important}
+html body[data-tab] #p-tech .tech-book .tech-path>li+li::before{content:none!important;display:none!important}
+html body[data-tab] #p-tech .tech-book .tech-path li p{font-size:calc(14.6px * var(--rd-fs,1));line-height:1.62;margin:4px 0 0}
+html body[data-tab] #p-tech .tech-book .tech-path .mini{margin-top:10px}
+@media(min-width:900px){
+  html body[data-tab] #p-tech .tech-book .tech-path{grid-template-columns:minmax(0,5fr) minmax(0,7fr)!important;grid-auto-rows:auto;gap:12px 16px!important}
+  html body[data-tab] #p-tech .tech-book .tech-path>li:nth-child(1){grid-column:1;grid-row:1}
+  html body[data-tab] #p-tech .tech-book .tech-path>li:nth-child(2){grid-column:1;grid-row:2}
+  html body[data-tab] #p-tech .tech-book .tech-path>li:nth-child(3){grid-column:2;grid-row:1 / span 2}
+}
+
+/* 四個痛點（管理者 11/17）：一次一張全寬，左右只露出一小段鄰卡；問答播完約 7 秒換下一張，旁邊的暫停圖形可停止輪播 */
+html body[data-tab] #p-tech .tech-book .pain-lead{margin:18px 0 8px}
+html body[data-tab] #p-tech .tech-book .pain-cards:not(.open-ideas) .pc-head b{font-size:calc(16px * var(--rd-fs,1));line-height:1.45}
+html body[data-tab] #p-tech .tech-book .tb-pc{--tb-pc-peek:28px;--tb-pc-gap:14px;margin:8px 0 18px}
+html body[data-tab] #p-tech .tech-book .tb-pc-view{overflow:clip;padding:4px 0 6px;touch-action:pan-y;border-radius:24px}
+html body[data-tab] #p-tech .tech-book .tb-pc-view:focus-visible{outline:3px solid var(--beam);outline-offset:3px}
+html body[data-tab] #p-tech .tech-book .tb-pc .pain-cards{display:flex!important;align-items:stretch;gap:var(--tb-pc-gap)!important;margin:0!important;padding:0!important;width:auto!important;max-width:none!important;transform:translate3d(var(--tb-pc-x,0px),0,0);transition:transform .65s cubic-bezier(.2,.8,.2,1)}
+html body[data-tab] #p-tech .tech-book .tb-pc .pain-cards>.pain-card{flex:0 0 calc(100% - 2 * (var(--tb-pc-peek) + var(--tb-pc-gap)))!important;width:auto!important;max-width:none!important;margin:0!important;transition:transform .65s cubic-bezier(.2,.8,.2,1)}
+html body[data-tab] #p-tech .tech-book .tb-pc .pain-cards>.pain-card:not(.is-active){cursor:pointer}
+html body[data-tab] #p-tech .tech-book .tb-pc-bar{display:flex;align-items:center;justify-content:flex-end;gap:12px;margin-top:8px}
+html body[data-tab] #p-tech .tech-book .tb-pc-meter{flex:1;max-width:240px;height:3px;border-radius:3px;background:var(--rule);overflow:hidden}
+html body[data-tab] #p-tech .tech-book .tb-pc-meter>i{display:block;height:100%;background:var(--beam);transform-origin:0 50%;transform:scaleX(0)}
+html body[data-tab] #p-tech .tech-book .tb-pc-count{min-width:3.5em;text-align:center;font-variant-numeric:tabular-nums;color:var(--muted);font-size:calc(13.5px * var(--rd-fs,1))}
+html body[data-tab] #p-tech .tech-book .tb-pc-toggle{width:44px;height:44px;flex:none;display:grid;place-items:center;padding:0;border-radius:50%;border:1px solid var(--rule);background:var(--panel);color:var(--ink);cursor:pointer}
+html body[data-tab] #p-tech .tech-book .tb-pc-toggle:hover{border-color:var(--beam)}
+html body[data-tab] #p-tech .tech-book .tb-pc-toggle:focus-visible{outline:3px solid var(--beam);outline-offset:2px}
+html body[data-tab] #p-tech .tech-book .tb-pc-toggle[aria-pressed=true]{background:var(--beam);border-color:var(--beam);color:var(--bg)}
+html body[data-tab] #p-tech .tech-book .tb-pc-toggle svg{width:16px;height:16px;fill:currentColor}
+html body[data-tab] #p-tech .tech-book .tb-pc-toggle[hidden]{display:none}
+html body[data-tab] #p-tech .tech-book .pc-talk.tb-done p{opacity:1!important;animation:none!important;transform:none!important}
+@media(max-width:760px){html body[data-tab] #p-tech .tech-book .tb-pc{--tb-pc-peek:12px;--tb-pc-gap:8px}}
+@media(prefers-reduced-motion:reduce){html body[data-tab] #p-tech .tech-book .tb-pc :is(.pain-cards,.pain-card){transition:none!important}}
+
+/* 規模指標：不等寬一列 */
+html body[data-tab] #p-tech .tech-book #techLive{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:16px 0 8px}
+html body[data-tab] #p-tech .tech-book #techLive .tech-card{padding:12px 16px;border-radius:16px}
+html body[data-tab] #p-tech .tech-book #techLive .tech-card:first-child{border-left:4px solid var(--beam)}
+html body[data-tab] #p-tech .tech-book #techLive .tech-card b{font-size:calc(24.8px * var(--rd-fs,1))}
+html body[data-tab] #p-tech .tech-book #techLive .tech-card span{font-size:calc(14px * var(--rd-fs,1));margin-top:4px}
+html body[data-tab] #p-tech .tech-book #techLive .tech-card small{font-size:calc(12.5px * var(--rd-fs,1))}
+@media(min-width:900px){html body[data-tab] #p-tech .tech-book #techLive{grid-template-columns:4.5fr 2.5fr 2.5fr 2.5fr}}
+
+/* 案例與防線：上排向右、下排向左，卡片寬度不一 */
+html body[data-tab] #p-tech .tech-book .tb-stream{margin:22px 0 6px;padding-top:14px;border-top:1px solid var(--rule)}
+html body[data-tab] #p-tech .tech-book .tb-stream-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:8px 16px;margin-bottom:10px}
+html body[data-tab] #p-tech .tech-book .tb-stream-head h3{margin:0}
+html body[data-tab] #p-tech .tech-book .tb-stream-head p{margin:4px 0 0;color:var(--muted);font-size:calc(13.5px * var(--rd-fs,1))}
+html body[data-tab] #p-tech .tech-book .tb-stream-ctl{display:flex;flex-wrap:wrap;gap:8px}
+html body[data-tab] #p-tech .tech-book .tb-stream-ctl[hidden]{display:none}
+html body[data-tab] #p-tech .tech-book .tb-stream-ctl button{min-height:40px;padding:6px 16px;border-radius:999px;border:1px solid var(--rule);background:var(--panel);color:var(--ink);font:inherit;font-size:calc(13.5px * var(--rd-fs,1));line-height:1.4;cursor:pointer}
+html body[data-tab] #p-tech .tech-book .tb-stream-ctl button:hover{border-color:var(--beam)}
+html body[data-tab] #p-tech .tech-book .tb-stream-ctl button[aria-pressed=true]{background:var(--beam);border-color:var(--beam);color:var(--bg)}
+html body[data-tab] #p-tech .tech-book .tb-stream-ctl button:focus-visible{outline:3px solid var(--beam);outline-offset:2px}
+html body[data-tab] #p-tech .tech-book .tb-row{overflow-x:auto;overflow-y:clip;overscroll-behavior-x:contain;padding:4px 2px 10px;scrollbar-width:thin}
+html body[data-tab] #p-tech .tech-book .tb-stream.is-live .tb-row{overflow-x:clip}
+html body[data-tab] #p-tech .tech-book .tb-track{display:flex;gap:12px;width:max-content}
+html body[data-tab] #p-tech .tech-book .tb-stream.is-live .tb-track{will-change:transform}
+html body[data-tab] #p-tech .tech-book .tb-clone[hidden]{display:none!important}
+html body[data-tab] #p-tech .tech-book .tb-card{flex:none;display:grid;align-content:start;gap:4px;padding:12px 15px;border:1px solid var(--rule);border-radius:16px;background:var(--panel);color:var(--ink);text-decoration:none;transition:transform .2s ease,border-color .2s ease}
+html body[data-tab] #p-tech .tech-book .tb-row[data-tb-dir="-1"] .tb-card{background:var(--panel-2)}
+html body[data-tab] #p-tech .tech-book .tb-s{width:min(76vw,calc(232px * var(--rd-fs,1)))}
+html body[data-tab] #p-tech .tech-book .tb-m{width:min(80vw,calc(284px * var(--rd-fs,1)))}
+html body[data-tab] #p-tech .tech-book .tb-l{width:min(84vw,calc(340px * var(--rd-fs,1)))}
+html body[data-tab] #p-tech .tech-book .tb-card small{font-size:calc(12px * var(--rd-fs,1));line-height:1.4;color:var(--beam);font-weight:600}
+html body[data-tab] #p-tech .tech-book .tb-card b{font-size:calc(14.6px * var(--rd-fs,1));line-height:1.45}
+html body[data-tab] #p-tech .tech-book .tb-card span{font-size:calc(13.4px * var(--rd-fs,1));line-height:1.6;color:var(--muted)}
+html body[data-tab] #p-tech .tech-book .tb-card:hover{border-color:var(--beam);transform:translateY(-3px)}
+html body[data-tab] #p-tech .tech-book .tb-card:focus-visible{outline:3px solid var(--beam);outline-offset:2px}
+@media(prefers-reduced-motion:reduce){html body[data-tab] #p-tech .tech-book .tb-card{transition:none}html body[data-tab] #p-tech .tech-book .tb-card:hover{transform:none}}
+
+/* 第 08、13、14、20 章的步驟小卡：照內容高度，不隨欄寬放大 */
+html body[data-tab] #p-tech .tech-book .journey-flow-wrap{padding-block:6px;margin-block:12px}
+@media(min-width:761px){html body[data-tab] #p-tech .tech-book .journey-flow{min-width:0!important;width:min(100%,calc(var(--jf-w,700) * .82px * var(--rd-fs,1)))}}
+@media(max-width:760px){html body[data-tab] #p-tech .tech-book .journey-flow{min-width:0!important;width:calc(var(--jf-w,700) * .82px * var(--rd-fs,1))}}
+
+/* 第 23 章常見問題：短答不留大片底部空白 */
+html body[data-tab] #p-tech .tech-book .qa{gap:10px}
+html body[data-tab] #p-tech .tech-book .qa>.book-expanded{padding:14px 18px!important;border-radius:18px}
+html body[data-tab] #p-tech .tech-book .qa>.book-expanded>h3{font-size:calc(15.5px * var(--rd-fs,1));margin:0 0 4px!important}
+html body[data-tab] #p-tech .tech-book .qa>.book-expanded .a{padding:0!important;font-size:calc(14px * var(--rd-fs,1));line-height:1.62}
+@media(max-width:600px){html body[data-tab] #p-tech .tech-story.tech-book{font-size:calc(15px * var(--rd-fs,1))}}
+</style>
+<script id="techBentoScriptV228">
+(function(){
+  var root=document.getElementById('p-tech');if(!root)return;
+  var book=root.querySelector('.tech-book');if(!book)return;
+  var reduce=window.matchMedia('(prefers-reduced-motion: reduce)');
+  var NS='http://www.w3.org/2000/svg';
+
+  // 圖解標籤底板：依字數估寬，放在節點最底層；虛線在節點後方經過，移動的點也改走節點下面。
+  function plateFor(g,ev){
+    var ts=[].filter.call(g.children,function(c){return c.tagName.toLowerCase()==='text';});if(!ts.length||g.querySelector(':scope>.tb-plate'))return;
+    var top=Infinity,bot=-Infinity,left=Infinity,right=-Infinity;
+    ts.forEach(function(t){var fs=parseFloat(t.getAttribute('font-size'))||20,y=parseFloat(t.getAttribute('y'))||0,x=parseFloat(t.getAttribute('x'))||0,w=0,a=t.getAttribute('text-anchor')||'start';
+      Array.from(t.textContent).forEach(function(ch){w+=/[⺀-￯]/.test(ch)?fs:fs*.62;});
+      var l=a==='middle'?x-w/2:a==='end'?x-w:x;left=Math.min(left,l);right=Math.max(right,l+w);top=Math.min(top,y-fs*.95);bot=Math.max(bot,y+fs*.3);});
+    var r=document.createElementNS(NS,'rect');r.setAttribute('class','tb-plate');r.setAttribute('aria-hidden','true');
+    r.setAttribute('x',(left-10).toFixed(1));r.setAttribute('y',(top-4).toFixed(1));r.setAttribute('width',(right-left+20).toFixed(1));r.setAttribute('height',(bot-top+8).toFixed(1));r.setAttribute('rx','10');
+    if(!ev)r.setAttribute('fill','#e6eee7');
+    g.insertBefore(r,g.firstChild);
+  }
+  function plates(){
+    root.querySelectorAll('svg.book-art').forEach(function(svg){
+      if(!svg.dataset.tbPlates){svg.dataset.tbPlates='1';var pk=svg.querySelector(':scope>.book-packet'),first=svg.querySelector(':scope>[data-book-node]');if(pk&&first)svg.insertBefore(pk,first);}
+      svg.querySelectorAll('[data-book-node]').forEach(function(g){plateFor(g,false);});
+    });
+    root.querySelectorAll('svg.evidence-svg .ev-step').forEach(function(g){plateFor(g,true);});
+  }
+
+  // 圖面高度上限要知道每張圖的長寬比。內容欄寬與其他分頁相同；「目錄」放進右側留白：留白夠照原樣，
+  // 不夠就換窄版置中在留白裡，連窄版都放不下才讓內容右緣讓出空間。
+  var navFull=0,navSlim=0,navWatched=false;
+  function rdfs(){return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--rd-fs'))||1;}
+  // 寬螢幕的圖面只框住實際畫到的範圍（原圖四周留白很多），同樣高度下字比較大；窄螢幕仍用原圖橫滑。
+  function crop(svg){
+    if(window.innerWidth<761||!svg.getBoundingClientRect().width)return;
+    var cur=svg.getAttribute('viewBox')||'';if(!cur||svg.dataset.tbCrop===cur)return;
+    var ctm=svg.getScreenCTM();if(!ctm)return;var inv=ctm.inverse(),x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+    [].forEach.call(svg.children,function(c,i){
+      var tag=c.tagName.toLowerCase();if((i===0&&tag==='rect')||c.classList.contains('book-packet')||!c.getBBox||!c.getScreenCTM)return;
+      var b;try{b=c.getBBox();}catch(e){return;}if(!b||(!b.width&&!b.height))return;var m=inv.multiply(c.getScreenCTM());
+      [[b.x,b.y],[b.x+b.width,b.y],[b.x,b.y+b.height],[b.x+b.width,b.y+b.height]].forEach(function(p){var X=m.a*p[0]+m.c*p[1]+m.e,Y=m.b*p[0]+m.d*p[1]+m.f;x0=Math.min(x0,X);y0=Math.min(y0,Y);x1=Math.max(x1,X);y1=Math.max(y1,Y);});
+    });
+    if(!isFinite(x0))return;var v=cur.split(/[\s,]+/).map(Number),pad=30;
+    x0=Math.max(v[0],x0-pad);y0=Math.max(v[1],y0-pad);x1=Math.min(v[0]+v[2],x1+pad);y1=Math.min(v[1]+v[3],y1+pad);
+    var nv=[x0,y0,x1-x0,y1-y0].map(function(k){return Math.round(k);}).join(' ');svg.setAttribute('viewBox',nv);svg.dataset.tbCrop=nv;
+  }
+  function fit(){
+    root.querySelectorAll('svg.book-art').forEach(function(svg){crop(svg);var v=(svg.getAttribute('viewBox')||'').split(/[\s,]+/).map(Number);if(v.length===4&&v[3]>0)svg.style.setProperty('--tb-ratio',(v[2]/v[3]).toFixed(4));});
+    var nav=document.querySelector('.book-side-nav');
+    if(nav&&!navWatched&&window.MutationObserver){navWatched=true;new MutationObserver(queue).observe(nav,{attributes:true,attributeFilter:['hidden']});}
+    if(nav&&!nav.hidden&&nav.offsetWidth){if(nav.classList.contains('tb-nav-slim'))navSlim=nav.offsetWidth;else navFull=nav.offsetWidth;}
+    if(window.innerWidth<761||!book.offsetParent||!nav){book.style.removeProperty('--tb-rail');if(nav){nav.classList.remove('tb-nav-slim');nav.style.removeProperty('--tb-nav-r');}return;}
+    var gutter=document.documentElement.clientWidth-book.getBoundingClientRect().right;
+    var full=navFull||Math.round(46*rdfs()),slim=navSlim||Math.round(26*rdfs());
+    if(gutter>=full+14){book.style.removeProperty('--tb-rail');nav.classList.remove('tb-nav-slim');nav.style.removeProperty('--tb-nav-r');return;}
+    nav.classList.add('tb-nav-slim');
+    if(gutter>=slim+6){book.style.removeProperty('--tb-rail');nav.style.setProperty('--tb-nav-r',Math.max(2,Math.floor((gutter-slim)/2))+'px');return;}
+    nav.style.setProperty('--tb-nav-r','2px');book.style.setProperty('--tb-rail',Math.ceil(slim+8-gutter)+'px');
+  }
+
+  // 四個痛點輪播：一次一張全寬，左右露出鄰卡（頭尾各補一張複本，循環時不倒退）。問答動畫約 1.8 秒，播完再停 7 秒換下一張；
+  // 滑鼠停在輪播上、離開畫面、切到背景或要求減少動態時不自動換；暫停圖形按一下停止，再按一下繼續。
+  function carousel(){
+    var ul=root.querySelector('#tech-start .pain-cards:not(.open-ideas)');if(!ul||ul.closest('.tb-pc'))return;
+    var real=[].slice.call(ul.children);if(real.length<2)return;var n=real.length;
+    var box=document.createElement('div');box.className='tb-pc';
+    var view=document.createElement('div');view.className='tb-pc-view';view.tabIndex=0;view.setAttribute('role','region');view.setAttribute('aria-roledescription','輪播');view.setAttribute('aria-label',(ul.getAttribute('aria-label')||'看影片的四個痛點')+'，左右方向鍵切換');
+    ul.parentNode.insertBefore(box,ul);view.appendChild(ul);box.appendChild(view);
+    function clone(c){var d=c.cloneNode(true);d.classList.add('tb-pc-clone');d.setAttribute('aria-hidden','true');d.removeAttribute('data-content-id');d.querySelectorAll('[data-content-id]').forEach(function(e){e.removeAttribute('data-content-id');});return d;}
+    ul.insertBefore(clone(real[n-1]),real[0]);ul.appendChild(clone(real[0]));
+    var track=[].slice.call(ul.children);
+    var bar=document.createElement('div');bar.className='tb-pc-bar';
+    bar.innerHTML='<span class="tb-pc-meter" aria-hidden="true"><i></i></span><span class="tb-pc-count"></span><button type="button" class="tb-pc-toggle" aria-pressed="false" aria-label="停止輪播" title="停止輪播"></button>';
+    box.appendChild(bar);
+    var meter=bar.querySelector('.tb-pc-meter>i'),count=bar.querySelector('.tb-pc-count'),btn=bar.querySelector('.tb-pc-toggle');
+    var PAUSE='<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="2" width="3.4" height="12" rx="1"></rect><rect x="9.6" y="2" width="3.4" height="12" rx="1"></rect></svg>';
+    var PLAY='<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 2.2v11.6L13.8 8z"></path></svg>';
+    var pos=1,stopped=false,hover=false,visible=false,timer=0,snapT=0,swiped=0,ANIM=1800,WAIT=7000;
+    function idx(){return (pos-1+n)%n;}
+    function render(animate){
+      var w=real[0].offsetWidth,gap=parseFloat(getComputedStyle(ul).columnGap)||0,peek=(view.clientWidth-w)/2;
+      if(!animate){ul.style.transition='none';track.forEach(function(c){c.style.transition='none';});}
+      ul.style.setProperty('--tb-pc-x',(peek-pos*(w+gap)).toFixed(1)+'px');
+      track.forEach(function(c,k){var on=k===pos;c.classList.toggle('is-active',on);if(!c.classList.contains('tb-pc-clone')){if(on)c.removeAttribute('aria-hidden');else c.setAttribute('aria-hidden','true');}});
+      if(!animate){void ul.offsetWidth;ul.style.transition='';track.forEach(function(c){c.style.transition='';});}
+      count.textContent=(idx()+1)+' / '+n;
+    }
+    function shown(c){var t=c.querySelector('.pc-talk');if(t){t.classList.remove('pc-wait','pc-play');t.classList.add('tb-done');}}
+    function talk(){var t=track[pos].querySelector('.pc-talk');if(!t)return;if(reduce.matches){shown(track[pos]);return;}t.classList.remove('tb-done','pc-play');t.classList.add('pc-wait');void t.offsetWidth;t.classList.remove('pc-wait');t.classList.add('pc-play');}
+    function running(){return !stopped&&!hover&&visible&&!document.hidden&&!reduce.matches;}
+    function meterTo(ms){meter.style.transition='none';meter.style.transform='scaleX(0)';void meter.offsetWidth;if(ms){meter.style.transition='transform '+ms+'ms linear';meter.style.transform='scaleX(1)';}}
+    function schedule(){clearTimeout(timer);timer=0;if(!running()){meterTo(0);return;}meterTo(ANIM+WAIT);timer=setTimeout(function(){step(1);},ANIM+WAIT);}
+    function snap(){clearTimeout(snapT);snapT=0;if(pos===0||pos===n+1){pos=pos===0?n:1;shown(track[pos]);render(false);}}
+    function move(to){snap();if(to===pos)return;pos=to;render(!reduce.matches);talk();schedule();snapT=setTimeout(snap,reduce.matches?0:700);}
+    function step(d){snap();move(pos+d);}
+    btn.innerHTML=PAUSE;
+    btn.addEventListener('click',function(){stopped=!stopped;btn.setAttribute('aria-pressed',String(stopped));var l=stopped?'繼續輪播':'停止輪播';btn.setAttribute('aria-label',l);btn.title=l;btn.innerHTML=stopped?PLAY:PAUSE;schedule();});
+    track.forEach(function(c,k){c.addEventListener('click',function(){if(Date.now()-swiped<500||k===pos)return;move(k);});});
+    view.addEventListener('mouseenter',function(){hover=true;schedule();});
+    view.addEventListener('mouseleave',function(){hover=false;schedule();});
+    view.addEventListener('keydown',function(e){if(e.key==='ArrowRight'){e.preventDefault();step(1);}else if(e.key==='ArrowLeft'){e.preventDefault();step(-1);}});
+    var sx=null,sy=null;
+    view.addEventListener('pointerdown',function(e){sx=e.clientX;sy=e.clientY;});
+    view.addEventListener('pointerup',function(e){if(sx===null)return;var dx=e.clientX-sx,dy=e.clientY-sy;sx=null;if(Math.abs(dx)>40&&Math.abs(dx)>Math.abs(dy)){swiped=Date.now();step(dx<0?1:-1);}});
+    view.addEventListener('pointercancel',function(){sx=null;});
+    if('IntersectionObserver' in window){new IntersectionObserver(function(es){es.forEach(function(e){var was=visible;visible=e.isIntersecting;if(visible&&!was)talk();schedule();});},{threshold:.35}).observe(view);}else{visible=true;}
+    document.addEventListener('visibilitychange',schedule);
+    function motion(){btn.hidden=reduce.matches;if(reduce.matches)track.forEach(shown);schedule();}
+    if(reduce.addEventListener)reduce.addEventListener('change',motion);
+    if(window.ResizeObserver)new ResizeObserver(function(){render(false);}).observe(view);
+    track.forEach(function(c,k){if(k!==pos)shown(c);});
+    render(false);motion();
+    window.techPain228={step:step,move:move,state:function(){return {index:idx(),pos:pos,stopped:stopped,hover:hover,visible:visible,running:running()};}};
+  }
+
+  // 案例與防線：兩排反向等速移動。滑入那一排停住；「暫停滾動」全停；「對調方向」兩排一起反向，不跳位置。
+  function stream(){
+    var st=root.querySelector('[data-tb-stream]');if(!st||st.dataset.tbReady)return;st.dataset.tbReady='1';
+    var ctl=st.querySelector('.tb-stream-ctl'),pause=st.querySelector('[data-tb-pause]'),swap=st.querySelector('[data-tb-swap]');
+    var rows=[].map.call(st.querySelectorAll('.tb-row'),function(row){return {row:row,tr:row.querySelector('.tb-track'),dir:Number(row.getAttribute('data-tb-dir'))||1,x:0,half:0,hover:false,cloned:false,started:false};});
+    var paused=false,swapped=false,visible=false,manual=false,raf=0,last=0,SPEED=26;
+    function live(){return !reduce.matches&&!manual;}
+    function measure(r){var kids=r.tr.children,n=r.tr.querySelectorAll(':scope>:not(.tb-clone)').length;r.half=live()&&kids[n]?kids[n].offsetLeft-kids[0].offsetLeft:0;
+      if(r.half&&!r.started){r.started=true;r.x=r.dir>0?-r.half*.35:-r.half*.1;}wrapX(r);paint(r);}
+    function wrapX(r){if(!r.half)return;while(r.x>0)r.x-=r.half;while(r.x<=-r.half)r.x+=r.half;}
+    function paint(r){r.tr.style.transform=live()&&r.half?'translate3d('+r.x.toFixed(1)+'px,0,0)':'';}
+    function setup(){
+      var on=live();st.classList.toggle('is-live',on);ctl.hidden=!on;
+      rows.forEach(function(r){
+        if(on&&!r.cloned){var orig=[].slice.call(r.tr.children);for(var k=0;k<2;k++){orig.forEach(function(c){var d=c.cloneNode(true);d.classList.add('tb-clone');d.setAttribute('aria-hidden','true');d.setAttribute('tabindex','-1');r.tr.appendChild(d);});}r.cloned=true;}
+        r.tr.querySelectorAll('.tb-clone').forEach(function(d){d.hidden=!on;});
+        if(!on)r.row.scrollLeft=0;
+        measure(r);
+      });
+      kick();
+    }
+    function frame(t){raf=0;if(!running())return;var dt=last?Math.min(t-last,64)/1000:0;last=t;
+      rows.forEach(function(r){if(r.hover||!r.half)return;r.x+=r.dir*(swapped?-1:1)*SPEED*dt;wrapX(r);paint(r);});
+      raf=requestAnimationFrame(frame);}
+    function running(){return live()&&visible&&!paused&&!document.hidden;}
+    function kick(){if(running()){if(!raf){last=0;raf=requestAnimationFrame(frame);}}else if(raf){cancelAnimationFrame(raf);raf=0;}}
+    rows.forEach(function(r){
+      r.row.addEventListener('mouseenter',function(){r.hover=true;});
+      r.row.addEventListener('mouseleave',function(){r.hover=false;last=0;});
+    });
+    // 鍵盤進入卡片時改成可左右捲動的靜態排列，焦點卡片一定看得到；離開後恢復。
+    st.addEventListener('focusin',function(e){if(e.target.closest('.tb-row')&&e.target.matches(':focus-visible')&&!manual){manual=true;setup();e.target.scrollIntoView({block:'nearest',inline:'nearest'});}});
+    st.addEventListener('focusout',function(e){if(manual&&!(e.relatedTarget&&st.contains(e.relatedTarget))){manual=false;setup();}});
+    pause.addEventListener('click',function(){paused=!paused;pause.setAttribute('aria-pressed',String(paused));pause.textContent=paused?'繼續滾動':'暫停滾動';kick();});
+    swap.addEventListener('click',function(){swapped=!swapped;swap.setAttribute('aria-pressed',String(swapped));if(paused){paused=false;pause.setAttribute('aria-pressed','false');pause.textContent='暫停滾動';}kick();});
+    if('IntersectionObserver' in window){new IntersectionObserver(function(es){es.forEach(function(e){visible=e.isIntersecting;});kick();}).observe(st);}else{visible=true;}
+    document.addEventListener('visibilitychange',kick);
+    if(reduce.addEventListener)reduce.addEventListener('change',setup);
+    if(window.ResizeObserver)new ResizeObserver(function(){rows.forEach(measure);}).observe(st);
+    window.techBento228={rows:rows,state:function(){return {paused:paused,swapped:swapped,visible:visible,live:live(),running:running(),x:rows.map(function(r){return Math.round(r.x);})};}};
+    setup();
+  }
+
+  var queued=false;
+  function run(){queued=false;plates();carousel();fit();stream();}
+  function queue(){if(!queued){queued=true;requestAnimationFrame(run);}}
+  if(window.MutationObserver){
+    new MutationObserver(queue).observe(root,{childList:true,subtree:true});
+    new MutationObserver(queue).observe(document.documentElement,{attributes:true,attributeFilter:['data-w','data-fs']});
+  }
+  if(window.ResizeObserver)new ResizeObserver(queue).observe(book);
+  window.addEventListener('resize',queue);
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',queue);else queue();
+})();
+</script>

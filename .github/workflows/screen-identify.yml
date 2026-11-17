@@ -3,14 +3,15 @@ run-name: 直播畫面辨識 ${{ inputs.date || '' }}
 
 # 2026/11/12 管理者：逐字稿只有聲音，「這檔」「你看這個」或聽錯的股名要看當時畫面才知道是哪一檔。
 # 回放好之後由 Gemini 直接讀 YouTube 片段（不下載影片），結果寫進複核紀錄「畫面辨識」，11:40 雲端複核核對。
-# 2026/11/16：GitHub 的 schedule 會延後好幾小時或整個不跑（11/12、11/13 的 11:32 排程到晚上 7～8 點才跑，
-# 11/16 整個上午一次都沒跑，雲端複核等 15 分鐘落空）。改成主流程 daily-transcript-pipeline 每跑完一次就接著跑：
-# 主流程寫完文章代表回放已處理好，約 4～5 分鐘內寫完畫面辨識，趕得上 11:40 的複核。
+# 2026/11/16–17：GitHub 的 schedule 會延後好幾小時或整個不跑（11/12–11/17 的 11:32 排程都到晚上 7～8 點才跑，
+# 11:40 的雲端複核每天等滿 15 分鐘落空）。改成取稿 transcript-gemini（約 11:14–11:22 跑完）與主流程
+# daily-transcript-pipeline（約 11:28–11:39）每跑完一次就接著跑：取稿成功代表回放已處理好，
+# 約 4～5 分鐘內寫完畫面辨識，11:40 複核開始時通常已經有結果。主流程那一次是同一天的第二道保險。
 # 已經辨識過、回放還沒好、非交易日都會在幾秒內跳過，所以會員簡訊或晚間補跑觸發也不會重複呼叫 Gemini。
 # 原本的 schedule 留作備援。
 on:
   workflow_run:
-    workflows: ['daily-transcript-pipeline']
+    workflows: ['transcript-gemini', 'daily-transcript-pipeline']
     types: [completed]
   schedule:
     - cron: '32,47 3 * * 1-5'   # 台灣 11:32、11:47（備援；實際常延後）
@@ -43,7 +44,7 @@ permissions:
 
 jobs:
   identify:
-    # 主流程失敗的那一次不接著跑（回放或文章可能還沒好），等下一次主流程或備援排程
+    # 取稿或主流程失敗的那一次不接著跑（回放可能還沒好），等下一次取稿／主流程或備援排程
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 15

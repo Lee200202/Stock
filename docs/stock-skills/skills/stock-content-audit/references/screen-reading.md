@@ -2,7 +2,7 @@
 
 管理者 2026/11/12：逐字稿說「這檔」「這隻」或股名聽錯時，到影片當時的畫面確認是哪一檔；「版面固定在左上角是股票跟代碼，寫成技能加快辨認」；「畫面上看到、詞庫裡沒有的字詞，回傳給之後聽打的候選詞單」。
 
-程式：`scripts/screen_identify.py`（`.github/workflows/screen-identify.yml`，11:32 起）；結果在複核紀錄「畫面辨識」「詞庫學習」；每日複核的處理步驟在 `docs/daily-review/每日複核作業.md` 5-2、5-2-1。
+程式：`scripts/screen_identify.py`（`.github/workflows/screen-identify.yml`，取稿與主流程跑完後接著跑）；結果在複核紀錄「畫面辨識」「詞庫學習」；每日複核的處理步驟在 `docs/daily-review/每日複核作業.md` 5-2、5-2-1。
 
 ## 1. 什麼時刻要看畫面
 

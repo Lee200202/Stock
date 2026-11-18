@@ -9388,7 +9388,8 @@ def guard_today_trade_publication(ss, signals, transcript, date_str):
 # 11/18 網站多收華新科（只被拿來示範找最大量K線、算融資斷頭）、創意（只報跌停、跌停打開），說明是硬寫的行情描述。
 # 管理者 10/08「只描述價格變化、沒有結論不列」、11/03 E1、11/06 Q5、11/12：觀望列要有本股自己的看法。
 # 這一關只看最後要公開的說明：至少要有一句本股的結論或條件——價位加判斷、均線／低點位置加判斷、買／不買／等、
-# 風險、看好。只有行情描述（跌停、斷頭、賣壓、一堆人買）就改列不公開並寫進稽核；不改字、不補句、不看股名。
+# 風險、看好。只有行情描述（跌停、斷頭、賣壓、一堆人買），而且問卷／立場欄也沒有進場看法，就改列不公開並寫進稽核；
+# 問卷有進場看法、只是說明沒寫出來的保留並提醒（見 gate_watch_conclusions）。不改字、不補句、不看股名。
 # 管理者裁決或保留人工說明的列不動（分類與說明是人定的）。
 # ---------------------------------------------------------------- #
 _GATE_OTHER_TRADER = re.compile(r'(?:外資|投信|法人|自營商|散戶|主力|ETF|融資|很多人|許多人|一堆人|有人|大家)'
@@ -9432,8 +9433,27 @@ def watch_note_conclusion(text: str) -> str:
     return ''
 
 
+_ENTRY_VIEW_FACTS = (('entry_for_new', ('allow', 'wait_condition', 'prohibit', 'not_yet')),
+                     ('now', ('buy_ok', 'conditional', 'prohibit', 'not_yet')),
+                     ('holder_advice', ('hold', 'hold_rebound')),
+                     ('selection_intent', ('positive_candidate', 'explicit_exclusion', 'authorization_pending')))
+
+
+def stated_entry_view(row: dict, cat: str, verdicts: dict) -> bool:
+    """結構化答案裡有沒有本股的進場看法：優先看投給最後分類的那一份問卷，沒有問卷才看擷取的立場欄。"""
+    entry = verdicts.get(str(row.get('code') or '')) or {}
+    voted = ((entry.get('answer') or {}).get(cat) or {}).get('answer')
+    facts = voted if isinstance(voted, dict) else (
+        row.get('watch_stance') if row.get('_watch_stance_ok') and isinstance(row.get('watch_stance'), dict) else None)
+    return bool(facts) and any(facts.get(k) in values for k, values in _ENTRY_VIEW_FACTS)
+
+
 def gate_watch_conclusions(signals: dict) -> dict:
-    """觀望兩類的說明沒有任何本股結論或條件時改列不公開，原因記進判定歷程與稽核（ignored 列的 _publication_gate）。"""
+    """觀望兩類的說明沒有任何本股結論或條件、問卷也沒有進場看法時改列不公開，原因記進判定歷程與稽核（ignored 列的 _publication_gate）。
+
+    說明的句型只認得常見寫法：11/12 重播的台達電「相較於順達更有優勢」、國巨「短線沒有那麼快表現」是本股看法卻認不出來，
+    而那兩檔問卷都有進場看法（等條件、不買）。所以問卷有進場看法、只是說明沒寫出來的列照樣公開，記「說明偏短」提醒與
+    判定歷程，交複核的「個股說明疑點」；說明與問卷兩邊都沒有本股看法的才不公開（11/18 華新科、創意）。"""
     verdicts = signals.get('_verdicts') or {}
     for cat in ('watch_watch', 'watch_avoid'):
         kept = []
@@ -9445,11 +9465,19 @@ def gate_watch_conclusions(signals: dict) -> dict:
             if row.get('_manual_note_kept') or verdict.get('tier') == '人工裁決' or watch_note_conclusion(text):
                 kept.append(row)
                 continue
+            name = _display_name(row.get('name')) or str(row.get('name') or '')
+            if _ev_norm(text) and stated_entry_view(row, cat, verdicts):
+                kept.append(row)
+                gap = name + '說明偏短：說明沒有寫出本股的結論或條件（問卷有進場看法，保留公開）'
+                if gap not in signals.setdefault('_repair_gaps', []):
+                    signals['_repair_gaps'].append(gap)
+                print(f"  發布前關卡　{name}（{row.get('code')}）說明沒有寫出本股結論，但問卷有進場看法，保留公開並提醒：{text[:80]}")
+                note_decision('發布前關卡', '說明沒有本股結論，問卷有進場看法，保留', str(row.get('code') or name), f'{cat}｜{text[:120]}')
+                continue
             why = ('說明空白' if not _ev_norm(text) else '說明只有行情描述，沒有本股的結論或條件（價位、均線位置加判斷、買／不買／等、風險）')
             moved = dict(row, exclusion_reason='watch_note_no_conclusion',
                          _publication_gate={'category': cat, 'reason': why, 'note': text})
             signals.setdefault('ignored', []).append(moved)
-            name = _display_name(row.get('name')) or str(row.get('name') or '')
             print(f"  發布前關卡　{name}（{row.get('code')}）原列{_VERDICT_LABEL.get(cat, cat)}，改列不公開：{why}｜{text[:160]}")
             note_decision('發布前關卡', '觀望列沒有本股結論，改列不公開', str(row.get('code') or name),
                           f'{cat}｜{why}｜{text[:120]}')

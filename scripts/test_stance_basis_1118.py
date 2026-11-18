@@ -217,6 +217,28 @@ class C_LastGate(unittest.TestCase):
         for t in drop:
             self.assertFalse(p.watch_note_conclusion(t), t)
 
+    def test_weak_note_with_a_stated_entry_view_stays_public_and_is_flagged(self):
+        # 11/12 重播：台達電問卷是「等條件」、國巨是「不買」，說明卻只剩型態描述——保留公開、記提醒
+        vote = lambda **kw: {'answer': {'watch_watch': {'answer': dict(dict(entry_for_new='none', now='none', holder_advice='none',
+                                                                              selection_intent='neutral'), **kw)}}}
+        signals = {'watch_watch': [_row('甲公司', '1111', 'watch_watch', '甲公司呈現島狀反轉型態，相較於乙公司更有優勢。'),
+                                   _row('丙公司', '3333', 'watch_watch', '丙公司今天跌停打開，一堆人買。')],
+                   'watch_avoid': [], 'ignored': [],
+                   '_verdicts': {'1111': vote(entry_for_new='wait_condition', now='conditional'),
+                                 '3333': vote(tone='bearish')}}           # 11/18 華新科那一票：沒有進場看法
+        out = p.gate_watch_conclusions(signals)
+        self.assertEqual([r['name'] for r in out['watch_watch']], ['甲公司'])
+        self.assertEqual([r['name'] for r in out['ignored']], ['丙公司'])
+        self.assertTrue(any(g.startswith('甲公司說明偏短：') for g in out['_repair_gaps']))
+        self.assertEqual(p.needs_review_gaps(out['_repair_gaps']), [])      # 篇幅類提醒，不擋發布
+
+    def test_extraction_stance_is_used_when_there_is_no_vote(self):
+        row = dict(_row('甲公司', '1111', 'watch_avoid', '甲公司今天又跌停。'),
+                   watch_stance={'subject_ok': True, 'now': 'prohibit', 'tone': 'bearish'}, _watch_stance_ok=True)
+        self.assertTrue(p.stated_entry_view(row, 'watch_avoid', {}))
+        self.assertFalse(p.stated_entry_view(dict(row, _watch_stance_ok=False), 'watch_avoid', {}))
+        self.assertFalse(p.stated_entry_view(dict(row, watch_stance={'now': 'none', 'tone': 'bearish'}), 'watch_avoid', {}))
+
     def test_manual_rows_and_other_categories_are_untouched(self):
         signals = {'watch_avoid': [dict(_row('甲公司', '1111', 'watch_avoid', '甲公司今天跌停。'), _manual_note_kept=True),
                                    _row('乙公司', '2222', 'watch_avoid', '乙公司今天跌停。')],

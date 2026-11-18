@@ -4580,11 +4580,11 @@ view 是講者今天的操作邏輯與教學重點（信件第③章）：逐段
 
 【觀望立場逐欄填寫】
 每一筆 watch_watch／watch_avoid 另外輸出 watch_stance 物件（與會員持股的 stance 是不同欄位）。你選的類別只當參考，程式會依 watch_stance 決定最後類別；片語引不出原文時標為待核，交由既有語意問卷確認，不用方向詞表決定。
-watch_stance = {"subject_ok": true 或 false, "now": "buy_ok|conditional|not_yet|prohibit|none", "tone": "bullish|bearish|neutral", "basis": "speaker_judgment|price_move_only|example_only", "tone_refs": ["S0012"], "tone_phrases": ["準備噴出"]}
+watch_stance = {"subject_ok": true 或 false, "now": "buy_ok|conditional|not_yet|prohibit|none", "tone": "bullish|bearish|neutral", "basis": "speaker_judgment|price_move_only|example_only|chase_lesson", "tone_refs": ["S0012"], "tone_phrases": ["準備噴出"]}
   subject_ok：支持句的主詞確實是本檔（不是同段前後的另一家、不是族群、不是 ETF、不是大盤、不是否定句裡被點到的那一家）。
   now：buy_ok＝現在可以進場，或明講看好、可布局、準備噴出、即將翻紅、賣壓出盡後偏多；conditional＝本股看法正面，但要等止穩、等價位、等背離確認或等大環境回穩才進場（只因大環境而說「我還不碰」也填這個）；not_yet＝本股自己還不能買（被問能不能買答「還沒有」、本股還沒轉強）而沒有正面看法，或必須等正式執行指令；prohibit＝不准買、不要碰、切勿追；none＝沒有對現在要不要進場表態。
   tone：講者對本檔「現在與之後」的看法。回顧過去漲跌不算；拿本檔當例子不等於對它有看法，依據另填 basis。
-  basis：本股看法的依據，只答事實、不是分類：speaker_judgment＝講者對本股自己下了判斷、條件、建議或風險結論（該怎麼做、接下來會怎樣）；描述現象（誰在買、誰被斷頭、跌停打開）不算判斷；price_move_only＝只報本股漲跌、跌停、斷頭、跌停打開、法人買賣等行情現象；example_only＝只拿它示範算法、看圖方法、當教學圖例或舉例。拿本股當追高反面教材（昨天漲停今天跌停、別追）是講者對本股的風險判斷，填 speaker_judgment（2026/11/18 管理者取消 11/03 問卷 E1）。
+  basis：本股看法的依據，只答事實、不是分類：speaker_judgment＝講者對本股自己下了判斷、條件、建議或風險結論（該怎麼做、接下來會怎樣）；描述現象（誰在買、誰被斷頭、跌停打開）不算判斷；price_move_only＝只報本股漲跌、跌停、斷頭、跌停打開、法人買賣等行情現象；example_only＝只拿它示範算法、看圖方法、當教學圖例或舉例。chase_lesson＝拿本股昨天大漲或漲停、今天大跌或跌停，教人別追高（「你昨天買什麼意思」「為什麼昨天叫你們不要買」），程式列觀望不碰（2026/11/18 管理者取消 11/03 問卷 E1）。
   tone_refs：支持 tone 的段落編號，段落內必須有本檔名稱或明確代稱。
   tone_phrases：從原文照抄 1～3 個關鍵片語，一個字都不改（程式會逐字核對）。
 填寫順序：一、先判 subject_ok，false 時不要放在觀望兩類，改放 uncertain，reason 照原句寫。二、再判 now：prohibit、not_yet 最後是 watch_avoid；buy_ok、conditional 最後是 watch_watch。三、now 是 none 而 basis 不是 speaker_judgment：不管 tone，兩類都不列，改放 ignored（exclusion_reason=price_or_example_only；2026/11/18）。四、now 是 none、basis 是 speaker_judgment 時才看 tone：bullish 是 watch_watch；bearish 是 watch_avoid；neutral（只描述行情、沒有結論）兩類都不列，改放 ignored（exclusion_reason=neutral_description）。
@@ -6702,11 +6702,12 @@ def market_item_why(item, hay):
         return '沒有引用原文'
     if not all(_quote_is_real(q, hay) for q in quotes):
         return '引用不是原文'
-    numbers = _MARKET_NUM.findall(str(item.get('text') or ''))
+    # 千分位逗號不算不同的數字：說明寫「1600多元」、原稿念「1,600多」是同一個價位（2026/11/18 重播嘉澤補充句因此被退回）。
+    numbers = [n.replace(',', '') for n in _MARKET_NUM.findall(str(item.get('text') or ''))]
     if not numbers:
         return ''
     joined_q = '\n'.join(quotes)
-    available = set(_MARKET_NUM.findall(joined_q)) | _spoken_decimal_numbers(joined_q)
+    available = {str(x).replace(',', '') for x in set(_MARKET_NUM.findall(joined_q)) | _spoken_decimal_numbers(joined_q)}
     missing = [n for n in numbers if n not in available]
     if missing:
         nearby = set()
@@ -6715,7 +6716,7 @@ def market_item_why(item, hay):
             at = hay.find(norm)
             while at >= 0:
                 win_txt = hay[max(0, at - _MARKET_NUM_WINDOW):at + len(norm) + _MARKET_NUM_WINDOW]
-                nearby.update(_MARKET_NUM.findall(win_txt))
+                nearby.update(n.replace(',', '') for n in _MARKET_NUM.findall(win_txt))
                 nearby.update(_spoken_decimal_numbers(win_txt))
                 at = hay.find(norm, at + 1)
         missing = [n for n in missing if n not in nearby]
@@ -9437,7 +9438,8 @@ _ENTRY_VIEW_FACTS = (('entry_for_new', ('allow', 'wait_condition', 'prohibit', '
                      ('now', ('buy_ok', 'conditional', 'prohibit', 'not_yet')),
                      ('holder_advice', ('hold', 'hold_rebound')),
                      ('selection_intent', ('positive_candidate', 'explicit_exclusion', 'authorization_pending')),
-                     ('forward_view', ('rise', 'fall', 'buy_sell_rule')))
+                     ('forward_view', ('rise', 'fall', 'buy_sell_rule')),
+                     ('view_basis', ('chase_lesson',)))
 
 
 def stated_entry_view(row: dict, cat: str, verdicts: dict) -> bool:
@@ -11040,7 +11042,7 @@ def validate_watch_stances(signals, transcript):
     return signals
 
 
-_STANCE_BASIS = ('speaker_judgment', 'price_move_only', 'example_only')
+_STANCE_BASIS = ('speaker_judgment', 'price_move_only', 'example_only', 'chase_lesson')
 
 
 def stance_basis(stance) -> str:
@@ -11063,6 +11065,8 @@ def category_from_stance(stance) -> str:
         return 'watch_watch'
     # 2026/11/18（11/06 Q5、11/12）：沒有進場看法，而且依據只是行情或示範，不管語氣都不列。
     # 依據是模型答的事實題；沒答（舊回覆）照舊看語氣，交給後面的裁決問卷。
+    if stance_basis(stance) == 'chase_lesson':
+        return 'watch_avoid'          # 追高反面教材是本股風險（2026/11/18 管理者取消 11/03 問卷 E1）
     if stance_basis(stance) in ('price_move_only', 'example_only'):
         return 'ignored'
     if stance.get('tone') == 'bullish':
@@ -14019,7 +14023,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v45-20261118-forward-view-fact"    # v45：問卷加「講者對本股今天之後的說法」事實題，有向前說法的股票不因過去買賣列回顧（2026/11/18 管理者：判斷標準寫進流程、明天同樣穩定）；v44：問卷加「本股看法的依據」事實題，沒有進場看法而依據只是行情或示範時由程式列不公開（2026/11/18）；v43： 執行時自動接上提示詞與答案格式指紋（見 verdict_response_schema 之後）；提示詞界線不含股名與預期分類；問卷的持有要有紀錄上的部位；問卷的持有要有紀錄上的部位；等待條件要附可核對的條件原句；重提昨天的持有者建議是今天的建議；相鄰連續引句、背景角色與獨立主張證明分開核對
+VERDICT_VERSION = "v46-20261118-chase-lesson-basis"    # v46：依據題加 chase_lesson（追高反面教材→觀望不碰，管理者取消 E1）；v45：問卷加「講者對本股今天之後的說法」事實題，有向前說法的股票不因過去買賣列回顧（2026/11/18 管理者：判斷標準寫進流程、明天同樣穩定）；v44：問卷加「本股看法的依據」事實題，沒有進場看法而依據只是行情或示範時由程式列不公開（2026/11/18）；v43： 執行時自動接上提示詞與答案格式指紋（見 verdict_response_schema 之後）；提示詞界線不含股名與預期分類；問卷的持有要有紀錄上的部位；問卷的持有要有紀錄上的部位；等待條件要附可核對的條件原句；重提昨天的持有者建議是今天的建議；相鄰連續引句、背景角色與獨立主張證明分開核對
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 3                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -14036,7 +14040,7 @@ ADJUDICATE_SYSTEM = """你是原始金融節目及會員通知的事實裁決員
 引用契約：quotes若有填，須為所選S/N內連續原字；跨段只能跨相鄰S且維持順序，不加省略號、不把ASR改成正式股名。若要引用完整原段，可只填quote_source_ids、quotes留空，並核該整段真正主體。來源編號正確不表示任意濃縮句正確。純報漲停、未持有清單或選股對照沒有獨立推論時，independent_analysis=false；不能把後面別股的突破或EPS當成這一檔的分析。
 先確認主體與內容角色，填about_itself：
 【五層式思考鏈】作答前依序核對：①實體與跨句指代解構（先鋪陳特徵後問句揭曉股名者須前後串聯；同段多股並列＋段尾共同結論須回讀完整S段套用；剔除日常量詞與產業名）→②主體與語態歸屬（嚴格區分本人／會員部位 vs 對觀眾公開建議『要買你們就買／喜歡買』vs 反問預告『我有沒有講』vs 反話示範『如果我是那種投顧』vs 觀眾提問『手中有X要出嗎』）→③時間軸與部位帳本對齊（當日已成交 vs 既有未出場部位續抱 vs 歷史已出場回顧）→④當下禁令優先於未來條件→⑤逐字原段證據核對。
-- true：有本股獨立技術、量價、消息、風險、可行進場條件或追蹤判斷，或本人／會員的當日交易與現有部位陳述。點出本股昨日漲停或大漲、報紙滿滿利多而今日隨即跌停或重挫（或融資增加被殺），用來警示追高利多風險，且同段S原文緊接總結「不要買」時，屬本股當下風險與禁買判斷（about_itself=true、content_role=independent_analysis、independent_analysis=true、entry_for_new=prohibit、now=prohibit、tone=bearish、view_basis=speaker_judgment），須回讀完整S段確認共同結論，不能因passages在鄰股名稱處切開就漏看同段結尾的禁買結論（2026/11/18 管理者取消 11/03 問卷 E1）。
+- true：有本股獨立技術、量價、消息、風險、可行進場條件或追蹤判斷，或本人／會員的當日交易與現有部位陳述。點出本股昨日漲停或大漲、報紙滿滿利多而今日隨即跌停或重挫（或融資增加被殺），用來警示追高利多風險，且同段S原文緊接總結「不要買」時，屬本股當下風險與禁買判斷（about_itself=true、content_role=independent_analysis、independent_analysis=true、entry_for_new=prohibit、now=prohibit、tone=bearish、view_basis=chase_lesson），須回讀完整S段確認共同結論，不能因passages在鄰股名稱處切開就漏看同段結尾的禁買結論（2026/11/18 管理者取消 11/03 問卷 E1）。
 - false：日常量詞／名詞誤當股票；只在列舉未持有或不在觀察池的對照組出現，全文無本股獨立分析；別股被借來比喻且無本股現況。僅「不是在看甲乙，主要看丙丁」不能將甲乙判成禁買。單說同族群漲停只是背景，不能把後面真正分析的另一檔推薦分給它。
 公司候選與open_position／known只是識別與部位歷史，不能證明某個日常詞就是該股。語音異字可用完整轉場、題材及原通知協助辨主體；不按股價接近或最近股名字距強猜，無法確認填unsure。不得新增跨日別名。
 另填content_role：independent_analysis=本股獨立現況／風險／操作條件；position_disclosure=只說本人有無持有；selection_scope=只界定自己看的是其他標的；comparison_only=未被獨立分析的陪襯；historical_only=只回顧；ordinary_word=日常詞；unclear=未定。只有position_disclosure或selection_scope，不能把「本人沒持有／我不看它」擴成禁買指令。若後文另有本股獨立分析，應以全文改填independent_analysis；已核實的當日交易／續抱事實另依事件欄保留。
@@ -14052,14 +14056,14 @@ past_trade可與現況立場並存；全文有現在的風險、條件或持有�
 entry_for_new：allow=現在可布局或當下已有可留意訊號／可執行低接區間，沒有仍待成立的進場前提；wait_condition=本股看法正面，但要等止穩、回穩、價位、背離確認或大環境回穩才進場（只因大環境而說還不碰也填這個）；not_yet=本股自己目前還不能買（被問能不能買答還沒有、本股還沒轉強）而沒有正面看法，或須等正式執行指令；prohibit=明確拒絕參與／不碰；none=沒有獨立新進場立場。
 holder_advice：hold=現有部位續抱；hold_rebound=對持有者明確要求超跌勿殺低、等待反彈；none=未給持有者建議。提醒空手者別追不抹掉本人真實持有，對觀眾說別殺低也不證明講者本人有持股。
 selection_intent：positive_candidate=正向追蹤池／主動提醒留意；authorization_pending=等正式操作授權；explicit_exclusion=對本股有獨立排斥／風險判斷；neutral=無獨立選股立場。正向興趣與目前暫不買可以同時成立。
-最新政策（2026/11/03 管理者問卷）：本股看法正面而等回穩、等價位、等背離確認或等大環境，entry_for_new=wait_condition、now=conditional，屬觀望注意；講者說「我還不碰、還沒買」而理由只有大環境，也一樣。當下可執行買點填allow、now=buy_ok，屬觀望注意但不是已成交。本股自己被否定（被問能不能買答還沒有、本股還沒轉強）而沒有正面看法填not_yet；明講不碰、不買、剔除、預期還會跌或點出本股自己的風險填prohibit或tone=bearish，屬觀望不碰。拿本股當追高反面教材（昨天漲停今天跌停、別追利多）是本股風險：tone=bearish、entry_for_new=prohibit、now=prohibit、view_basis=speaker_judgment（2026/11/18 管理者取消 11/03 問卷 E1）。單純未持有不等於不能買。持有者超跌勿殺低等反彈另填holder_advice=hold_rebound；沒有新進場限制時可保留注意建議，但不能把它當本人持股，也不能覆蓋明確的新進場等待。完整核前後文及條件現在是否已成立，不依「等／不」字面判方向。
+最新政策（2026/11/03 管理者問卷）：本股看法正面而等回穩、等價位、等背離確認或等大環境，entry_for_new=wait_condition、now=conditional，屬觀望注意；講者說「我還不碰、還沒買」而理由只有大環境，也一樣。當下可執行買點填allow、now=buy_ok，屬觀望注意但不是已成交。本股自己被否定（被問能不能買答還沒有、本股還沒轉強）而沒有正面看法填not_yet；明講不碰、不買、剔除、預期還會跌或點出本股自己的風險填prohibit或tone=bearish，屬觀望不碰。拿本股當追高反面教材（昨天漲停今天跌停、別追利多）是本股風險：tone=bearish、entry_for_new=prohibit、now=prohibit、view_basis=chase_lesson（2026/11/18 管理者取消 11/03 問卷 E1）。單純未持有不等於不能買。持有者超跌勿殺低等反彈另填holder_advice=hold_rebound；沒有新進場限制時可保留注意建議，但不能把它當本人持股，也不能覆蓋明確的新進場等待。完整核前後文及條件現在是否已成立，不依「等／不」字面判方向。
 混合段落先核完整時間順序：前段未持有、未推薦、歷史回顧或陪襯比較，不會否定後段對本股的現況分析、均線路徑或等待買點。後段確有本股獨立分析時，content_role填independent_analysis，quotes.analysis引用該段；past_trade可同時為true。不能只因前段比較就把後段當作他股，亦不能把後段他股分析挪回本股。僅有未持有／選股範圍交代而無本股分析才是position_disclosure／selection_scope／comparison_only。
 now填buy_ok／conditional／not_yet／prohibit／none，與前述軸一致；tone填bullish／bearish／neutral，僅為本股現在的獨立方向，不借相鄰公司。明講現在沒有要漲、不宜買是本股風險，不等於只澄清沒有持有。只有位置描述而全文無獨立追蹤或方向才填neutral及none。只報本股股價漲跌、跌停，或在族群一起下跌時被點名（「你看甲早上有沒有跌停」「某族群最近連甲都一直在跌」），沒有本股自己的判斷、條件或建議：independent_analysis=false、now=none、tone=neutral，不列觀望（2026/11/06 管理者裁示）。
 等待條件的原句：entry_for_new=wait_condition或now=conditional時，quotes.stance及quotes.condition／quote_source_ids.condition引用本股的等待條件原句（等回穩、等價位、等大環境、背離後先做功課）；只有還要等、不急等簡短指令也可形成等待，不必編造具體訊號。講者給本股的區間或價位操作（來到某價就買、來到某價就賣；幾塊以下買）也是本股的進場條件：entry_for_new=wait_condition、view_basis=speaker_judgment，condition引買價那一句；提到會員過去照這個區間做過，不把它改成只回顧。allow只可由目前已可執行的買點／區間或已成立訊號支持；條件尚未成立不可填allow。只說反彈不夠、上方套牢區、彈上來還會再下去，是本股的風險判斷：tone=bearish、entry_for_new=none或prohibit、selection_intent=explicit_exclusion，不是等待條件。沒有等待條件時condition留空陣列。
 已經賣出的股票今天大漲，被拿來當「看到大漲別追、漲停有什麼用、一堆人套在上面」的教學例子，而沒有對本股說現在要怎麼做：這是回顧過去的那次賣出，past_trade=true、content_role=historical_only、now=none、tone=neutral；「我們賣在這邊」之類是交易紀錄，不是禁買引句。本股另有自己的當下條件或明講不能買時才另填。
 今天重提昨天給持有者的建議並接著講本股現況（「昨天有沒有跟你們講不要亂殺甲？甲現在要來回震盪打底」）：這是今天仍然有效的持有者建議，holder_advice=hold_rebound，不能因為句子裡有「昨天」就當成只回顧。
 forward_view是講者對本股今天之後的說法，只答事實，不是分類：rise＝說本股之後會漲、會再來到較高的價位、會彈回、會突破（「後面還會再來2,000」「會彈回去」）；fall＝說本股還會跌、會再來到較低的價位、會補下方缺口、會破；buy_sell_rule＝給本股的買賣價位規則（「來到800你賣、來到700你買」「幾塊以下買」）；none＝全文沒有本股今天之後的說法。只回顧過去在哪裡買、賣過幾次、會員過去照這個做過，不算向前說法；同一段既回顧過去、又說了之後會怎樣或價位規則，照向前說法填，content_role不填historical_only，past_trade照實填true，並在quotes.stance引那一句向前說法。程式依此決定：有向前說法的股票不因過去買賣列回顧，rise／fall決定偏多偏空，buy_sell_rule是等價位的進場條件（2026/11/18 管理者：判斷標準寫進流程）。
-view_basis是本股看法的依據，只答事實，不是分類：speaker_judgment＝講者對本股自己下了判斷、條件、建議或風險結論（想買、不買、等某價、會再跌、不能收破某價）；price_move_only＝只報本股漲跌、跌停、跌停打開、斷頭、融資清洗、法人買賣等行情或籌碼現象，講者沒有對本股下判斷；example_only＝只拿它示範算法或看圖方法、當教學圖例或舉例；拿本股當追高反面教材是講者對本股的風險判斷，填speaker_judgment（2026/11/18 管理者取消 11/03 問卷 E1）。講者描述現象（誰在這裡買、誰被斷頭、跌停、跌停打開、融資清得差不多、量最大的K線在哪）不是對本股下判斷；判斷是講者說本股該怎麼做或接下來會怎樣（想買、不買、等某價、多看幾天、還會跌、會回到某價、不能收破某價）。同一檔兩種都有時，有任何一句講者對本股的判斷就填speaker_judgment。程式依此決定：沒有進場看法而依據不是speaker_judgment的不公開，不看語氣，所以不要為了公開改填依據。
+view_basis是本股看法的依據，只答事實，不是分類：speaker_judgment＝講者對本股自己下了判斷、條件、建議或風險結論（想買、不買、等某價、會再跌、不能收破某價）；price_move_only＝只報本股漲跌、跌停、跌停打開、斷頭、融資清洗、法人買賣等行情或籌碼現象，講者沒有對本股下判斷；example_only＝只拿它示範算法或看圖方法、當教學圖例或舉例；chase_lesson＝拿本股昨天大漲或漲停、今天大跌或跌停，教人別追高（「你昨天買什麼意思」「為什麼昨天叫你們不要買」，不要買可在同一串名單的段尾），程式列觀望不碰（2026/11/18 管理者取消 11/03 問卷 E1）；只報跌停、沒有別追的教訓才是price_move_only。講者描述現象（誰在這裡買、誰被斷頭、跌停、跌停打開、融資清得差不多、量最大的K線在哪）不是對本股下判斷；判斷是講者說本股該怎麼做或接下來會怎樣（想買、不買、等某價、多看幾天、還會跌、會回到某價、不能收破某價）。同一檔兩種都有時，有任何一句講者對本股的判斷就填speaker_judgment。程式依此決定：沒有進場看法而依據不是speaker_judgment的不公開，不看語氣，所以不要為了公開改填依據。
 只輸出契約JSON verdicts陣列；每個輸入id都必須回覆，布林欄位填true或false，缺證據可填unsure，不使用語氣字詞表補造答案。
 另填independent_analysis：全篇有本股現在的向前技術位階解讀、量價／法人推論、風險判斷或具體低接節奏時true，quotes.analysis及quote_source_ids.analysis附其原句與編號。這不表示推薦買入；先說未推薦、後段再解析該股往季線的位階，也須讀後段再判。純報漲跌或碰均線位置、只是別股圖例、未持有清單且沒有本股獨立解讀均為false。原稿有本股獨立解析但沒有明確進場語氣時，now及tone可維持none／neutral，由程式保留為中性觀察；不必編造偏多。
 """
@@ -14924,9 +14928,12 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
         and bool(real_own or own)
         and any(len(_ev_norm(q)) >= 12 and any(n in _ev_norm(q) for n in (real_own or own)) for q in stance)
     )
-    if answer.get('about_itself') is False and not _named_prohibit_stance:
+    # 2026/11/18 v46（管理者取消 E1）：依據題答「追高反面教材」，而且立場原句點到本股，就是本股風險，不因主體題答 false 變陪襯。
+    chase_quoted = (answer.get('view_basis') == 'chase_lesson' and not past and bool(real_own or own)
+                    and any(any(n in _ev_norm(q) for n in (real_own or own)) for q in stance))
+    if answer.get('about_itself') is False and not _named_prohibit_stance and not chase_quoted:
         return ('history', '只回顧過去的買賣') if past else ('ignored', '只是陪襯、點名或日常用語，沒有本股獨立分析')
-    if not isinstance(answer.get('about_itself'), bool):
+    if not isinstance(answer.get('about_itself'), bool) and not chase_quoted:
         return '', '主體題缺答或型別錯誤，不計票'
     if buy and sell:
         return '', '同一天有買有賣，不由裁決決定'
@@ -14938,7 +14945,7 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
         return 'holdings', '明講目前持有：' + first('holding_now')
     if answer.get('about_itself') not in (True, False) or not isinstance(answer.get('about_itself'), bool):
         return '', '主體題缺答或型別錯誤，不計票'
-    if answer.get('about_itself') is False and not _named_prohibit_stance:
+    if answer.get('about_itself') is False and not _named_prohibit_stance and not chase_quoted:
         return ('history', '只回顧過去的買賣') if past else ('ignored', '只被點名，沒有講這一檔自己的事')
     if not stance and answer.get('_recomputed_from_holding'):
         # 持有不成立、改照立場重算時，模型常把「繼續抱著」只放在持有欄、立場欄空著（2026/10/28 東台、敦泰）：
@@ -14992,7 +14999,8 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
             and answer.get('tone') == 'bearish'
             and any(len(_ev_norm(q)) >= 12 for q in stance))
         or _named_prohibit_stance
-        or forward_quoted)
+        or forward_quoted
+        or chase_quoted)
     # 區分「純歷史買賣回顧／套牢教學（10/28 聖暉）」與「歷史賣出後附帶本股當下明確禁買／等待指令（R1、世芯）」：
     # 若 stance/analysis 引句本身含有針對本股的當下拒絕進場、等待條件或禁止追價指令（排除反話與轉述他人），不得以 historical_only 靜默吞沒。
     _cur_inst_re = re.compile(
@@ -15078,6 +15086,8 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
         # 重算非會員持股時，「建議持有者續抱」本身就是偏多的立場（觀眾問「再抱嗎」答「繼續抱著」），不落成中性不列
         tone = 'bullish'
     # 2026/11/18 v45：沒有進場欄位答案時，向前說法決定方向：價位規則＝等價位的進場條件；會漲／會跌＝偏多／偏空。
+    if chase_quoted and now == 'none' and holder not in ('hold', 'hold_rebound'):
+        now, tone = 'prohibit', 'bearish'
     if forward_quoted and now == 'none' and holder not in ('hold', 'hold_rebound'):
         if forward == 'buy_sell_rule':
             now = 'conditional'
@@ -15254,7 +15264,7 @@ def verdict_response_schema(expected_ids=None):
         'entry_for_new': ['none', 'allow', 'wait_condition', 'prohibit', 'not_yet'],
         'selection_intent': ['neutral', 'positive_candidate', 'explicit_exclusion', 'authorization_pending'],
         'holder_advice': ['none', 'hold', 'hold_rebound'],
-        'view_basis': ['speaker_judgment', 'price_move_only', 'example_only'],
+        'view_basis': ['speaker_judgment', 'price_move_only', 'example_only', 'chase_lesson'],
         'forward_view': ['none', 'rise', 'fall', 'buy_sell_rule']}.items():
         props[field] = {'type': 'string', 'enum': values}
     fields = ('buy_today', 'sell_today', 'holding_now', 'past_trade', 'stance', 'analysis', 'condition')
@@ -15838,7 +15848,7 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
                 a = kept_answer.get('answer') or {}
                 facts = [k for k in ('buy_today', 'sell_today', 'holding_now', 'past_trade', 'about_itself') if a.get(k) is True]
                 quotes = [q for qs in (a.get('quotes') or {}).values() for q in (qs or []) if isinstance(q, str)]
-                print(f"    　答成{_VERDICT_LABEL.get(cls, cls)}的那一份：{'、'.join(facts) or '全部為否'}；now={a.get('now')}、tone={a.get('tone')}、依據={a.get('view_basis')}；"
+                print(f"    　答成{_VERDICT_LABEL.get(cls, cls)}的那一份：{'、'.join(facts) or '全部為否'}；now={a.get('now')}、tone={a.get('tone')}、依據={a.get('view_basis')}、向前={a.get('forward_view')}；"
                       f"引句 {' / '.join(q[:28] for q in quotes[:3])}" + (f"；{str(a.get('unsure'))[:50]}" if a.get('unsure') else ''))
     for code, entry in verdicts.items():
         # 只用兩字名稱寫法、停在不公開的列：先記下原文有沒有這家公司的股名語境，apply_verdicts 改列公開前要看（身分與方向分開）。
@@ -19811,7 +19821,8 @@ def _stage_extract_impl(ss, video, date_str, v2, done_trades, done_holds, on_ste
                 r['_leftover'] = True
     if any(isinstance(r, dict) and r.get('_holding_claim') for cat in ('watch_watch', 'watch_avoid') for r in signals.get(cat, []) or []) or any(isinstance(r, dict) and (r.get('_note_withdrawn') or r.get('_missing_facts')
                                     or spoken_fragment(str(r.get('note' if cat == 'holdings' else 'reason') or ''))
-                                    or 0 < len(_ev_norm(str(r.get('note' if cat == 'holdings' else 'reason') or ''))) < r.get('_length_min', 30))
+                                    # 空白也重問（2026/11/18 重播：裁決剛補回的觀望列第一輪補充沒通過，說明空白被發布前關卡拿掉）
+                                    or len(_ev_norm(str(r.get('note' if cat == 'holdings' else 'reason') or ''))) < r.get('_length_min', 30))
            for cat in SIGNAL_CATEGORIES for r in signals.get(cat, []) or []):
         signals = enrich_stock_context(signals, TX["audit"], date_str)
         signals = sanitize_entity_claims(signals, TX["audit"])

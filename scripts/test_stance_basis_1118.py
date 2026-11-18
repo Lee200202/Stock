@@ -70,7 +70,7 @@ class A_ViewBasisQuestion(unittest.TestCase):
 
     def test_schema_and_prompt_ask_the_fact_not_the_class(self):
         props = p.verdict_response_schema()['properties']['verdicts']['items']['properties']
-        self.assertEqual(props['view_basis']['enum'], ['speaker_judgment', 'price_move_only', 'example_only'])
+        self.assertEqual(props['view_basis']['enum'], ['speaker_judgment', 'price_move_only', 'example_only', 'chase_lesson'])
         self.assertIn('view_basis', p.verdict_response_schema()['properties']['verdicts']['items']['required'])
         self.assertIn('view_basis是本股看法的依據，只答事實，不是分類', p.ADJUDICATE_SYSTEM)
         for name in ('華新科', '創意', '台達電', '鈊象'):
@@ -135,7 +135,7 @@ class A_ExtractionStance(unittest.TestCase):
         self.assertEqual(f(now='conditional', tone='neutral', basis='price_move_only'), 'watch_watch')
 
     def test_prompt_asks_for_basis(self):
-        self.assertIn('"basis": "speaker_judgment|price_move_only|example_only"', p.EXTRACT_SYSTEM)
+        self.assertIn('"basis": "speaker_judgment|price_move_only|example_only|chase_lesson"', p.EXTRACT_SYSTEM)
         self.assertIn('exclusion_reason=price_or_example_only', p.EXTRACT_SYSTEM)
         self.assertNotIn('拿本檔當追高受傷、操作失誤的例子算 bearish', p.EXTRACT_SYSTEM)
 
@@ -401,6 +401,34 @@ class F_ForwardView(unittest.TestCase):
         row = _row('甲公司', '1111', 'watch_watch', '甲公司股價在1600多元整理。')
         verdicts = {'1111': {'answer': {'watch_watch': {'answer': {'now': 'none', 'entry_for_new': 'none', 'forward_view': 'rise'}}}}}
         self.assertTrue(p.stated_entry_view(row, 'watch_watch', verdicts))
+
+
+class G_ChaseLessonAndNotes(unittest.TestCase):
+    """v46（管理者 2026/11/18 取消 E1）：追高反面教材是依據題的一個事實值，程式列觀望不碰；只報跌停仍不列。"""
+
+    def test_chase_lesson_is_avoid_and_price_only_is_not_listed(self):
+        raw = '昨天甲公司漲停，打開報紙全部甲公司的利多。來，今天甲公司了，跌停。為什麼我昨天跟你們講，不要買'
+        self.assertEqual(klass('甲公司', raw, view_basis='chase_lesson'), 'watch_avoid')
+        # 模型同時答「不是在講本股」：立場原句點到本股，照依據題
+        self.assertEqual(klass('甲公司', raw, view_basis='chase_lesson', about_itself=False,
+                               content_role='comparison_only'), 'watch_avoid')
+        self.assertEqual(klass('甲公司', '今天甲公司跌停打開了，清得差不多了', view_basis='price_move_only'), 'ignored')
+        self.assertEqual(p.category_from_stance({'subject_ok': True, 'now': 'none', 'tone': 'neutral',
+                                                 'basis': 'chase_lesson'}), 'watch_avoid')
+        props = p.verdict_response_schema()['properties']['verdicts']['items']['properties']
+        self.assertIn('chase_lesson', props['view_basis']['enum'])
+
+    def test_thousands_comma_is_the_same_number(self):
+        hay = p._ev_norm('加澤現在幾塊？1,600多，你在賣什麼意思的？我可以很肯定的跟你講，後面還會來，來2,000。')
+        item = {'text': '嘉澤目前股價在1600多元，後面還會再來2000元。',
+                'evidence': ['加澤現在幾塊？1,600多，你在賣什麼意思的？我可以很肯定的跟你講，後面還會來，來2,000。']}
+        self.assertEqual(p.market_item_why(item, hay), '')
+        item['text'] = '嘉澤目前股價在1700多元。'
+        self.assertTrue(p.market_item_why(item, hay))
+
+    def test_empty_notes_get_the_second_writing_pass(self):
+        src = (ROOT / 'pipeline/pipeline.py').read_text(encoding='utf-8')
+        self.assertIn("or len(_ev_norm(str(r.get('note' if cat == 'holdings' else 'reason') or ''))) < r.get('_length_min', 30))", src)
 
 
 if __name__ == '__main__':

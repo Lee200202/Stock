@@ -4584,7 +4584,7 @@ watch_stance = {"subject_ok": true 或 false, "now": "buy_ok|conditional|not_yet
   subject_ok：支持句的主詞確實是本檔（不是同段前後的另一家、不是族群、不是 ETF、不是大盤、不是否定句裡被點到的那一家）。
   now：buy_ok＝現在可以進場，或明講看好、可布局、準備噴出、即將翻紅、賣壓出盡後偏多；conditional＝本股看法正面，但要等止穩、等價位、等背離確認或等大環境回穩才進場（只因大環境而說「我還不碰」也填這個）；not_yet＝本股自己還不能買（被問能不能買答「還沒有」、本股還沒轉強）而沒有正面看法，或必須等正式執行指令；prohibit＝不准買、不要碰、切勿追；none＝沒有對現在要不要進場表態。
   tone：講者對本檔「現在與之後」的看法。回顧過去漲跌不算；拿本檔當例子不等於對它有看法，依據另填 basis。
-  basis：本股看法的依據，只答事實、不是分類：speaker_judgment＝講者對本股自己下了判斷、條件、建議或風險結論；price_move_only＝只報本股漲跌、跌停、斷頭、跌停打開、法人買賣等行情現象；example_only＝只拿它示範算法、當教學圖例或追高反面教材、舉例。
+  basis：本股看法的依據，只答事實、不是分類：speaker_judgment＝講者對本股自己下了判斷、條件、建議或風險結論（該怎麼做、接下來會怎樣）；描述現象（誰在買、誰被斷頭、跌停打開）不算判斷；price_move_only＝只報本股漲跌、跌停、斷頭、跌停打開、法人買賣等行情現象；example_only＝只拿它示範算法、當教學圖例或追高反面教材、舉例。
   tone_refs：支持 tone 的段落編號，段落內必須有本檔名稱或明確代稱。
   tone_phrases：從原文照抄 1～3 個關鍵片語，一個字都不改（程式會逐字核對）。
 填寫順序：一、先判 subject_ok，false 時不要放在觀望兩類，改放 uncertain，reason 照原句寫。二、再判 now：prohibit、not_yet 最後是 watch_avoid；buy_ok、conditional 最後是 watch_watch。三、now 是 none 而 basis 不是 speaker_judgment：不管 tone，兩類都不列，改放 ignored（exclusion_reason=price_or_example_only；2026/11/18）。四、now 是 none、basis 是 speaker_judgment 時才看 tone：bullish 是 watch_watch；bearish 是 watch_avoid；neutral（只描述行情、沒有結論）兩類都不列，改放 ignored（exclusion_reason=neutral_description）。
@@ -14011,7 +14011,7 @@ now填buy_ok／conditional／not_yet／prohibit／none，與前述軸一致；to
 等待條件的原句：entry_for_new=wait_condition或now=conditional時，quotes.stance及quotes.condition／quote_source_ids.condition引用本股的等待條件原句（等回穩、等價位、等大環境、背離後先做功課）；只有還要等、不急等簡短指令也可形成等待，不必編造具體訊號。allow只可由目前已可執行的買點／區間或已成立訊號支持；條件尚未成立不可填allow。只說反彈不夠、上方套牢區、彈上來還會再下去，是本股的風險判斷：tone=bearish、entry_for_new=none或prohibit、selection_intent=explicit_exclusion，不是等待條件。沒有等待條件時condition留空陣列。
 已經賣出的股票今天大漲，被拿來當「看到大漲別追、漲停有什麼用、一堆人套在上面」的教學例子，而沒有對本股說現在要怎麼做：這是回顧過去的那次賣出，past_trade=true、content_role=historical_only、now=none、tone=neutral；「我們賣在這邊」之類是交易紀錄，不是禁買引句。本股另有自己的當下條件或明講不能買時才另填。
 今天重提昨天給持有者的建議並接著講本股現況（「昨天有沒有跟你們講不要亂殺甲？甲現在要來回震盪打底」）：這是今天仍然有效的持有者建議，holder_advice=hold_rebound，不能因為句子裡有「昨天」就當成只回顧。
-view_basis是本股看法的依據，只答事實，不是分類：speaker_judgment＝講者對本股自己下了判斷、條件、建議或風險結論（想買、不買、等某價、會再跌、不能收破某價）；price_move_only＝只報本股漲跌、跌停、跌停打開、斷頭、融資清洗、法人買賣等行情或籌碼現象，講者沒有對本股下判斷；example_only＝只拿它示範算法或看圖方法、當教學圖例、追高反面教材或舉例。同一檔兩種都有時，有任何一句講者對本股的判斷就填speaker_judgment。程式依此決定：沒有進場看法而依據不是speaker_judgment的不公開，不看語氣，所以不要為了公開改填依據。
+view_basis是本股看法的依據，只答事實，不是分類：speaker_judgment＝講者對本股自己下了判斷、條件、建議或風險結論（想買、不買、等某價、會再跌、不能收破某價）；price_move_only＝只報本股漲跌、跌停、跌停打開、斷頭、融資清洗、法人買賣等行情或籌碼現象，講者沒有對本股下判斷；example_only＝只拿它示範算法或看圖方法、當教學圖例、追高反面教材或舉例。講者描述現象（誰在這裡買、誰被斷頭、跌停、跌停打開、融資清得差不多、量最大的K線在哪）不是對本股下判斷；判斷是講者說本股該怎麼做或接下來會怎樣（想買、不買、等某價、多看幾天、還會跌、會回到某價、不能收破某價）。同一檔兩種都有時，有任何一句講者對本股的判斷就填speaker_judgment。程式依此決定：沒有進場看法而依據不是speaker_judgment的不公開，不看語氣，所以不要為了公開改填依據。
 只輸出契約JSON verdicts陣列；每個輸入id都必須回覆，布林欄位填true或false，缺證據可填unsure，不使用語氣字詞表補造答案。
 另填independent_analysis：全篇有本股現在的向前技術位階解讀、量價／法人推論、風險判斷或具體低接節奏時true，quotes.analysis及quote_source_ids.analysis附其原句與編號。這不表示推薦買入；先說未推薦、後段再解析該股往季線的位階，也須讀後段再判。純報漲跌或碰均線位置、只是別股圖例、未持有清單且沒有本股獨立解讀均為false。原稿有本股獨立解析但沒有明確進場語氣時，now及tone可維持none／neutral，由程式保留為中性觀察；不必編造偏多。
 """

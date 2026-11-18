@@ -360,5 +360,48 @@ class E_ReviewNoteSuspicions(unittest.TestCase):
         self.assertEqual(week.judge(row, good, '')[0], '通過')
 
 
+class F_ForwardView(unittest.TestCase):
+    """v45（管理者 2026/11/18：判斷標準寫進流程、明天同稿同結果）：講者對本股今天之後的說法是事實題，
+    有向前說法而且引句核對過，過去的買賣不能把它變成回顧；方向與進場條件由這一題決定。"""
+
+    def vote(self, raw, past_quote, **kw):
+        a = answer(raw, past_trade=True, content_role='historical_only',
+                   quotes={'stance': [raw], 'analysis': [], 'past_trade': [past_quote]}, view_basis='speaker_judgment')
+        a.update(kw)
+        return p.verdict_class(a, p._ev_norm(raw + past_quote), ['甲公司'])[0]
+
+    RISE = '甲公司現在1,600多，你在賣什麼意思的？我可以很肯定的跟你講，甲公司後面還會來，來2,000。'
+    RULE = '甲公司的邏輯就是800到700區間，只要來到800你賣就對了，來到700你買就對了。'
+    PAST_R = '我問你，甲公司2,000塊的時候我總共賣了幾次？'
+    PAST_S = '會員們，甲公司你們操作幾次了？哪一次我不是叫你們800賣，700多買？'
+
+    def test_1118_patterns_are_not_history_when_the_speaker_says_what_comes_next(self):
+        self.assertEqual(self.vote(self.RISE, self.PAST_R, forward_view='rise'), 'watch_watch')       # 11/18 嘉澤
+        self.assertEqual(self.vote(self.RULE, self.PAST_S, forward_view='buy_sell_rule'), 'watch_watch')  # 11/18 鈊象
+        self.assertEqual(self.vote(self.RULE, self.PAST_S, forward_view='buy_sell_rule', tone='bearish'), 'watch_avoid')
+        self.assertEqual(self.vote('甲公司這個價位還會再跌，下面缺口會補。', '甲公司我上個月賣掉了。', forward_view='fall'), 'watch_avoid')
+
+    def test_without_a_forward_statement_a_recap_stays_history(self):
+        self.assertEqual(self.vote(self.RISE, self.PAST_R, forward_view='none'), 'history')
+        self.assertEqual(self.vote(self.RISE, self.PAST_R), 'history')                               # 舊快取沒有這一題：照舊
+        # 已賣出、今天大漲被拿來當教學（10/28 聖暉）：沒有向前說法 → 回顧
+        raw = '甲公司我們賣在這邊，今天大漲有什麼用，一堆人套在上面。'
+        self.assertEqual(self.vote(raw, '甲公司我們之前賣在這邊。', forward_view='none'), 'history')
+
+    def test_a_forward_claim_needs_a_verified_quote(self):
+        a = answer('', past_trade=True, content_role='historical_only', forward_view='rise',
+                   quotes={'stance': [], 'analysis': [], 'past_trade': [self.PAST_R]})
+        self.assertNotIn(p.verdict_class(a, p._ev_norm(self.PAST_R), ['甲公司'])[0], ('watch_watch', 'watch_avoid'))
+
+    def test_schema_prompt_version_and_gate(self):
+        props = p.verdict_response_schema()['properties']['verdicts']['items']['properties']
+        self.assertEqual(props['forward_view']['enum'], ['none', 'rise', 'fall', 'buy_sell_rule'])
+        self.assertIn('forward_view是講者對本股今天之後的說法，只答事實，不是分類', p.ADJUDICATE_SYSTEM)
+        self.assertTrue(re.match(r'v(\d+)-', p.VERDICT_VERSION) and int(re.match(r'v(\d+)-', p.VERDICT_VERSION).group(1)) >= 45)
+        row = _row('甲公司', '1111', 'watch_watch', '甲公司股價在1600多元整理。')
+        verdicts = {'1111': {'answer': {'watch_watch': {'answer': {'now': 'none', 'entry_for_new': 'none', 'forward_view': 'rise'}}}}}
+        self.assertTrue(p.stated_entry_view(row, 'watch_watch', verdicts))
+
+
 if __name__ == '__main__':
     unittest.main()

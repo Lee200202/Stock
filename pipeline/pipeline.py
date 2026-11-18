@@ -9462,11 +9462,15 @@ def gate_watch_conclusions(signals: dict) -> dict:
                 continue
             verdict = verdicts.get(str(row.get('code') or '')) or {}
             text = str(row.get('reason') or '')
-            if row.get('_manual_note_kept') or verdict.get('tier') == '人工裁決' or watch_note_conclusion(text):
+            name = _display_name(row.get('name')) or str(row.get('name') or '')
+            view = stated_entry_view(row, cat, verdicts)
+            # 說明一次都沒點到本股、問卷也沒有進場看法，就認不出那句結論是在講這一檔（11/18 重播：日常用語「安安心心」
+            # 被認成安心，說明只有「遇到這種行情不用亂殺」）。點到本股或問卷有進場看法的照常。
+            named = view or any(n in text for n in _signal_names(row) | {name, str(row.get('name') or '').replace('*', '')} if len(n) >= 2)
+            if row.get('_manual_note_kept') or verdict.get('tier') == '人工裁決' or (named and watch_note_conclusion(text)):
                 kept.append(row)
                 continue
-            name = _display_name(row.get('name')) or str(row.get('name') or '')
-            if _ev_norm(text) and stated_entry_view(row, cat, verdicts):
+            if _ev_norm(text) and view:
                 kept.append(row)
                 gap = name + '說明偏短：說明沒有寫出本股的結論或條件（問卷有進場看法，保留公開）'
                 if gap not in signals.setdefault('_repair_gaps', []):
@@ -9474,7 +9478,9 @@ def gate_watch_conclusions(signals: dict) -> dict:
                 print(f"  發布前關卡　{name}（{row.get('code')}）說明沒有寫出本股結論，但問卷有進場看法，保留公開並提醒：{text[:80]}")
                 note_decision('發布前關卡', '說明沒有本股結論，問卷有進場看法，保留', str(row.get('code') or name), f'{cat}｜{text[:120]}')
                 continue
-            why = ('說明空白' if not _ev_norm(text) else '說明只有行情描述，沒有本股的結論或條件（價位、均線位置加判斷、買／不買／等、風險）')
+            why = ('說明空白' if not _ev_norm(text) else
+                   '說明沒有點到本股，問卷也沒有進場看法' if watch_note_conclusion(text) else
+                   '說明只有行情描述，沒有本股的結論或條件（價位、均線位置加判斷、買／不買／等、風險）')
             moved = dict(row, exclusion_reason='watch_note_no_conclusion',
                          _publication_gate={'category': cat, 'reason': why, 'note': text})
             signals.setdefault('ignored', []).append(moved)

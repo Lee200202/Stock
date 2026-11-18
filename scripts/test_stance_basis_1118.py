@@ -233,6 +233,17 @@ class C_LastGate(unittest.TestCase):
         self.assertTrue(any(g.startswith('甲公司說明偏短：') for g in out['_repair_gaps']))
         self.assertEqual(p.needs_review_gaps(out['_repair_gaps']), [])      # 篇幅類提醒，不擋發布
 
+    def test_unnamed_note_needs_a_stated_view(self):
+        # 11/18 重播：「安安心心」被認成安心，說明只有一句不點名的勸告
+        vote = {'answer': {'watch_watch': {'answer': {'now': 'none', 'tone': 'bullish', 'entry_for_new': 'none'}}}}
+        signals = {'watch_watch': [_row('安心', '1259', 'watch_watch', '遇到這種行情不用亂殺，沒有最壞的情況出現。'),
+                                   _row('甲公司', '1111', 'watch_watch', '季線向上時回測季線是買點，現階段不宜殺低。')],
+                   'watch_avoid': [], 'ignored': [],
+                   '_verdicts': {'1259': vote, '1111': {'answer': {'watch_watch': {'answer': {'holder_advice': 'hold_rebound'}}}}}}
+        out = p.gate_watch_conclusions(signals)
+        self.assertEqual([r['name'] for r in out['watch_watch']], ['甲公司'])     # 不點名但問卷有持有者建議：照常
+        self.assertEqual(out['ignored'][0]['_publication_gate']['reason'], '說明沒有點到本股，問卷也沒有進場看法')
+
     def test_extraction_stance_is_used_when_there_is_no_vote(self):
         row = dict(_row('甲公司', '1111', 'watch_avoid', '甲公司今天又跌停。'),
                    watch_stance={'subject_ok': True, 'now': 'prohibit', 'tone': 'bearish'}, _watch_stance_ok=True)

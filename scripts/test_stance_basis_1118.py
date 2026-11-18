@@ -431,5 +431,22 @@ class G_ChaseLessonAndNotes(unittest.TestCase):
         self.assertIn("or len(_ev_norm(str(r.get('note' if cat == 'holdings' else 'reason') or ''))) < r.get('_length_min', 30))", src)
 
 
+class H_HoldingQuoteFailure(unittest.TestCase):
+    """11/18 台積電：持有引句是觀眾問句，三輪全部無效；只拿掉持有一題，用同份答案的立場重算。成交引句沒過仍整張不計。"""
+    ISSUE = 'holding_now=true，但目前引用未通過事件事實核對；請回讀所有原稿／原通知，選真正支持該題的原句，無證據可改false或保留未定'
+
+    def test_only_the_holding_claim_is_dropped(self):
+        raw = '這一波幾乎沒有不套牢的股票，你甲公司有沒有套牢？套牢。甲公司沒有跌破這一根就是最壞情況沒有出現。'
+        a = answer(raw, holding_now=True, tone='bullish', forward_view='rise', view_basis='speaker_judgment',
+                   quotes={'stance': ['甲公司沒有跌破這一根就是最壞情況沒有出現。'], 'analysis': [],
+                           'holding_now': ['你甲公司有沒有套牢？套牢。']}, _validation_issues=[self.ISSUE])
+        self.assertEqual(p.verdict_class(a, p._ev_norm(raw), ['甲公司'])[0], 'watch_watch')
+
+    def test_trade_failures_still_void_the_vote(self):
+        raw = '我今天買甲公司，買在100塊。'
+        a = answer(raw, buy_today=True, _validation_issues=['buy_today=true，但目前引用未通過事件事實核對；請回讀'])
+        self.assertEqual(p.verdict_class(a, p._ev_norm(raw), ['甲公司'])[0], '')
+
+
 if __name__ == '__main__':
     unittest.main()

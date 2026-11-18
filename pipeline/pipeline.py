@@ -14804,6 +14804,16 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
     if not isinstance(answer, dict):
         return '', '沒有答案'
     if answer.get('_validation_issues'):
+        # 2026/11/18 v46：唯一的問題是「持有」的引句沒過事件核對時，只拿掉持有這一題，用同一份答案的本股立場重算，
+        # 不讓整張票作廢（11/18 台積電三輪都引觀眾問句「你台積電有沒有套牢？」當持有，三輪全部無效、本股消失；
+        # 同份答案另有核對過的本股看法）。買賣事實照舊嚴格：成交引句沒過仍整張不計。會員持股與觀望注意本來就是同組（10/15）。
+        held_only = all(str(i).startswith('holding_now=true，但目前引用未通過事件事實核對') for i in answer['_validation_issues'])
+        if held_only and answer.get('holding_now') is True and not answer.get('_recomputed_from_holding'):
+            fixed = {k: v for k, v in answer.items() if k != '_validation_issues'}
+            fixed.update(holding_now=False, _recomputed_from_holding=True)
+            cls, why = verdict_class(fixed, passages_norm, names, quote_zones, lead_zones)
+            if cls:
+                return cls, '持有的引句未通過核對，只拿掉持有一題，依同份答案的本股立場：' + why
         return '', '同份問卷的事實與主體／引用矛盾，補核仍未完成：' + '；'.join(answer['_validation_issues'])[:180]
     quotes = answer.get('quotes') if isinstance(answer.get('quotes'), dict) else {}
 
@@ -14929,8 +14939,10 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
         and any(len(_ev_norm(q)) >= 12 and any(n in _ev_norm(q) for n in (real_own or own)) for q in stance)
     )
     # 2026/11/18 v46（管理者取消 E1）：依據題答「追高反面教材」，而且立場原句點到本股，就是本股風險，不因主體題答 false 變陪襯。
+    # 原句可能放在立場欄或分析欄（10/29 重播：玉晶光的原句放在分析欄、獨立分析答 false，立場欄空著，被當成陪襯）
+    view_quotes = stance or real('analysis')
     chase_quoted = (answer.get('view_basis') == 'chase_lesson' and not past and bool(real_own or own)
-                    and any(any(n in _ev_norm(q) for n in (real_own or own)) for q in stance))
+                    and any(any(n in _ev_norm(q) for n in (real_own or own)) for q in view_quotes))
     if answer.get('about_itself') is False and not _named_prohibit_stance and not chase_quoted:
         return ('history', '只回顧過去的買賣') if past else ('ignored', '只是陪襯、點名或日常用語，沒有本股獨立分析')
     if not isinstance(answer.get('about_itself'), bool) and not chase_quoted:
@@ -14951,6 +14963,11 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
         # 持有不成立、改照立場重算時，模型常把「繼續抱著」只放在持有欄、立場欄空著（2026/10/28 東台、敦泰）：
         # 已核對的持有原句就是它對本股的立場，拿來當立場引句，不讓整張票因此作廢
         stance = real('holding_now')
+    # 2026/11/18 v46：向前說法與追高教材的事實題由程式決定分類；原句在分析欄也算本股立場原句（獨立分析欄答 false 時分析欄會被丟掉）
+    forward = answer.get('forward_view') if answer.get('forward_view') in ('rise', 'fall', 'buy_sell_rule') else ''
+    forward_quoted = bool(forward) and bool(stance or real('analysis'))
+    if not stance and (chase_quoted or forward_quoted):
+        stance = real('analysis')
     # 完整回答「無立場／無獨立分析」可以沒有立場引句；缺欄位不能用預設none冒充排除。
     explicit_neutral = (answer.get('now') == 'none' and answer.get('tone') == 'neutral'
         and answer.get('independent_analysis') is False
@@ -14965,8 +14982,6 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
     # 2026/11/18 v45：講者對本股今天之後的說法（forward_view，事實題）。有向前說法、且立場或分析引句核對過，
     # 過去的買賣、回顧角色都不能把它變成回顧或不公開；方向與進場條件由這一題決定（11/18 嘉澤「後面還會來2,000」、
     # 鈊象「來到700你買」在重播裡被答成回顧）。
-    forward = answer.get('forward_view') if answer.get('forward_view') in ('rise', 'fall', 'buy_sell_rule') else ''
-    forward_quoted = bool(forward) and bool(stance or real('analysis'))
     # 2026/11/18 A（11/06 Q5、11/12）：依據是模型答的事實題，分類由程式決定。沒有進場看法
     # （空手進場、持有者建議、選股意向、現在立場都沒有），而依據只是報漲跌／斷頭或拿來示範，不管語氣一律不公開。
     # 買賣與持有事實在上面已先處理；沒答依據（舊快取）照舊走語氣。

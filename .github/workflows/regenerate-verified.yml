@@ -9,7 +9,7 @@ on:
       mode:
         description: 通過全部品質核對後才更新；不寄送
         type: choice
-        options: [preview, direct, apply, apply-rules, raw, sync, priority-check, reviewed-points, reviewed-notes-preview, reviewed-notes, source-audit, reading-preview, reading-apply, notice-preview, notice-apply, notice-reason-preview, notice-reason-apply, backup-status, backup-migrate, backup-prune-preview, backup-prune, row-repair-preview, row-repair-apply, source-review-preview, source-review-apply, source-review-inspect, verdicts, titles]
+        options: [preview, direct, apply, apply-rules, raw, sync, priority-check, reviewed-points, reviewed-notes-preview, reviewed-notes, source-audit, reading-preview, reading-apply, notice-preview, notice-apply, notice-reason-preview, notice-reason-apply, backup-status, backup-migrate, backup-prune-preview, backup-prune, backup-rotate, row-repair-preview, row-repair-apply, source-review-preview, source-review-apply, source-review-inspect, verdicts, titles]
         default: preview
       candidate_run:
         description: 'apply 必填：同一commit且成功的preview執行ID；原封套用該artifact，不重新生成'
@@ -142,6 +142,11 @@ jobs:
           fi
           if [ "$MODE" = backup-prune ]; then
             python scripts/backup_archive.py --prune
+            exit 0
+          fi
+          # 2026/11/18：舊備份檔被 Google 設為唯讀，換新檔（舊檔保留）
+          if [ "$MODE" = backup-rotate ]; then
+            python scripts/backup_archive.py --rotate
             exit 0
           fi
           if [ "$MODE" = backup-migrate ]; then

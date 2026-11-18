@@ -138,6 +138,32 @@ function migrateBackupArchive_(){
     var status=backupArchiveStatus_();status.verified=verified;status.errors=errors;status.done=status.remaining===0;return status;
   }finally{lock.releaseLock();}
 }
+/* 2026/11/18 管理者：備份檔超過試算表 1,000 萬格上限後，Google 把它設成永久唯讀（連刪分頁都存不了），所有修正都停在備份。
+   專案的指令碼屬性超過 50 個，編輯器介面改不了，所以由程式換新檔：建立新的「盤勢有據－資料備份」（同樣的備份目錄表頭），
+   新 ID 寫進 BACKUP_SPREADSHEET_ID，舊 ID 依序記在 BACKUP_SPREADSHEET_HISTORY（舊檔保留可讀，不刪）。
+   快照前若目前的檔已達 950 萬格就自動換新，不再讓上限擋住修正。 */
+var BACKUP_ARCHIVE_ROTATE_CELLS_=9500000;
+function backupArchiveCells_(archive){
+  return archive.getSheets().reduce(function(n,s){return n+s.getMaxRows()*s.getMaxColumns();},0);
+}
+function backupArchiveRotate_(force){
+  var lock=LockService.getScriptLock();if(!lock.tryLock(10000)){throw new Error('備份鎖忙碌，稍後重試');}
+  try{
+    var p=PropertiesService.getScriptProperties(),source=getSS_(),old=p.getProperty('BACKUP_SPREADSHEET_ID')||'';
+    if(old&&!force){
+      var cells=0;try{cells=backupArchiveCells_(SpreadsheetApp.openById(old));}catch(e){cells=BACKUP_ARCHIVE_ROTATE_CELLS_;}
+      if(cells<BACKUP_ARCHIVE_ROTATE_CELLS_){return {ok:true,rotated:false,cells:cells};}
+    }
+    var book=SpreadsheetApp.create('盤勢有據－資料備份');
+    book.setSpreadsheetTimeZone('Asia/Taipei');
+    var index=book.getSheets()[0];index.setName('備份目錄');index.getRange(1,1,1,BACKUP_ARCHIVE_HEADER_.length).setValues([BACKUP_ARCHIVE_HEADER_]);
+    index.setFrozenRows(1);index.getRange(1,1,1,BACKUP_ARCHIVE_HEADER_.length).setFontWeight('bold').setBackground('#dceee5');index.setColumnWidths(1,BACKUP_ARCHIVE_HEADER_.length,160);
+    var history=(p.getProperty('BACKUP_SPREADSHEET_HISTORY')||'').split(',').filter(String);
+    if(old&&history.indexOf(old)<0){history.push(old);}
+    p.setProperties({BACKUP_SPREADSHEET_ID:book.getId(),BACKUP_SOURCE_SPREADSHEET_ID:source.getId(),BACKUP_SPREADSHEET_HISTORY:history.join(',')});
+    return {ok:true,rotated:true,previous:old,history:history.length,url:book.getUrl()};
+  }finally{lock.releaseLock();}
+}
 function backupArchiveRequest_(key,op,namesJson,expectedSource){
   var expected=PropertiesService.getScriptProperties().getProperty('ADMIN_KEY');
   if(!expected||String(key)!==expected){throw new Error('未授權');}
@@ -147,10 +173,13 @@ function backupArchiveRequest_(key,op,namesJson,expectedSource){
   // 2026/11/12：prune-preview 只列會清哪些；prune 才真的刪（保留 7 天，每個分頁至少留最新一份）。
   if(op==='prune-preview'){return backupArchivePrune_(7,true);}
   if(op==='prune'){return backupArchivePrune_(7,false);}
+  // 2026/11/18：rotate 換新備份檔（舊檔保留）；snapshot 前到 950 萬格也自動換新
+  if(op==='rotate'){var r=backupArchiveRotate_(true),st=backupArchiveStatus_();st.rotate=r;return st;}
   if(op!=='snapshot'){throw new Error('不支援的備份操作');}
   var names=JSON.parse(namesJson),source=getSS_();
   var allowed=['操作紀錄','會員持股','每日推播內容','逐字稿判讀稽核','持股追蹤','影片清單','會員簡訊'];
   if(!Array.isArray(names)||!names.length||names.length>5||names.some(function(n){return allowed.indexOf(n)<0;})||names.some(function(n,i){return names.indexOf(n)!==i;})){throw new Error('備份分頁不在允許範圍');}
+  backupArchiveRotate_(false);
   var stamp=Utilities.formatDate(new Date(),'Asia/Taipei','MMdd_HHmmss'),out=[];
   names.forEach(function(n){var sheet=source.getSheetByName(n);if(!sheet){throw new Error('來源分頁不存在：'+n);}out.push(archiveLiveSheet_(sheet,'備份_'+stamp+'_'+n));});
   return {ok:true,sourceId:source.getId(),verified:out};

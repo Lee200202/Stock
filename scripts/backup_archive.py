@@ -53,8 +53,14 @@ def prune(pl,dry):
 
 def main():
     p=argparse.ArgumentParser();p.add_argument('--migrate',action='store_true')
-    p.add_argument('--prune-preview',action='store_true');p.add_argument('--prune',action='store_true');a=p.parse_args()
+    p.add_argument('--prune-preview',action='store_true');p.add_argument('--prune',action='store_true')
+    p.add_argument('--rotate',action='store_true',help='2026/11/18：換新備份檔（舊檔已被 Google 設為唯讀；舊檔保留不刪）');a=p.parse_args()
     sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'pipeline'));import pipeline as pl
+    if a.rotate:
+        result=archive_request(pl,'rotate')
+        print(json.dumps({k:result.get(k) for k in ('configured','archived','cells','cellLimit','rotate')},ensure_ascii=False))
+        if not (result.get('rotate') or {}).get('rotated'):raise RuntimeError('沒有換新備份檔')
+        return
     if a.prune_preview or a.prune:
         prune(pl,dry=a.prune_preview);return
     op='migrate' if a.migrate else 'status'

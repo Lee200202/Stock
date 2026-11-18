@@ -40,9 +40,23 @@ def backup_tables(pl,book,names):
     print('獨立備份已核對：'+str(len(names))+' 張工作表')
     return result
 
+def prune(pl,dry):
+    """2026/11/18 管理者同意清掉超過 7 天的獨立備份（備份檔超過試算表 1,000 萬格上限，所有修正寫入都停在備份）。
+    規則在 Apps Script（backupArchivePrune_）：只清核對時間早於 7 天的備份分頁，每個來源分頁永遠留最新一份，目錄列不刪、
+    狀態改成「已清理 日期」。--prune-preview 只列出；--prune 分批清到沒有可清的為止。不動主表、不寄送。"""
+    for _ in range(30):
+        result=archive_request(pl,'prune-preview' if dry else 'prune')
+        print(json.dumps({k:result.get(k) for k in ('cells','cellLimit','archived','prunable','prunableCells','oldest','pruned','left')},ensure_ascii=False))
+        for d in (result.get('plan') or [])[:60]:print('  ',d.get('at'),d.get('name'))
+        if dry or not result.get('left'):return result
+    raise RuntimeError('本輪已到批次上限；可安全接續清理')
+
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--migrate',action='store_true');a=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument('--migrate',action='store_true')
+    p.add_argument('--prune-preview',action='store_true');p.add_argument('--prune',action='store_true');a=p.parse_args()
     sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'pipeline'));import pipeline as pl
+    if a.prune_preview or a.prune:
+        prune(pl,dry=a.prune_preview);return
     op='migrate' if a.migrate else 'status'
     for _ in range(40):
         result=archive_request(pl,op)

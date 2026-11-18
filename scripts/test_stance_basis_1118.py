@@ -151,18 +151,22 @@ class B_PromptsMatchRulings(unittest.TestCase):
                 self.assertNotIn(old, text)
         self.assertNotIn('拿它當風險、追高受傷、散戶被坑、法人大賣、財務操作的例子', p.EXCLUDED_REVIEW_SYSTEM)
 
-    def test_questionnaire_no_longer_turns_a_chase_example_into_a_ban(self):
-        # 10/29 加的「昨天漲停今天跌停＋同段『不要買』→ prohibit」與 11/03 問卷 E1（不列）相反
-        self.assertNotIn('屬本股當下風險與禁買判斷', p.ADJUDICATE_SYSTEM)
-        self.assertIn('這是追高反面教材，不列（2026/11/03 管理者問卷 E1）', p.ADJUDICATE_SYSTEM)
+    def test_e1_is_cancelled_a_chase_example_is_avoid(self):
+        # 管理者 2026/11/18 取消 11/03 問卷 E1：追高反面教材回到觀望不碰；只報跌停（Q5）、只當示範（11/12）照舊不列
+        for text in (p.EXTRACT_SYSTEM, p.AUDIT_SYSTEM, p.EXCLUDED_REVIEW_SYSTEM, p.ADJUDICATE_SYSTEM):
+            self.assertNotIn('2026/11/03 E1）', text)
+            self.assertNotIn('2026/11/03 管理者問卷 E1）：about_itself=false', text)
+        self.assertIn('屬本股當下風險與禁買判斷', p.ADJUDICATE_SYSTEM)
+        self.assertIn('2026/11/18 管理者取消 11/03 問卷 E1', p.ADJUDICATE_SYSTEM)
+        self.assertIn('拿本股當追高反面教材（昨天漲停今天跌停、不要追利多）是本股的風險，列觀望不碰', p.EXTRACT_SYSTEM)
         for name in ('玉晶光', '精測', '大立光'):
             self.assertNotIn(name, p.ADJUDICATE_SYSTEM)
-        # E1 的語意 → 不列；另有本股今天的結論 → 不碰
         raw = '昨天甲公司漲停，打開報紙全部甲公司的利多。今天甲公司跌停。為什麼我昨天跟你們講，不要買'
-        self.assertEqual(klass('甲公司', raw, about_itself=False, content_role='comparison_only',
-                               view_basis='example_only'), 'ignored')
-        self.assertEqual(klass('甲公司', raw + '，甲公司現在也不要碰', entry_for_new='prohibit', now='prohibit',
-                               tone='bearish', view_basis='speaker_judgment'), 'watch_avoid')
+        self.assertEqual(klass('甲公司', raw, entry_for_new='prohibit', now='prohibit', tone='bearish',
+                               view_basis='speaker_judgment', independent_analysis=True,
+                               quotes={'stance': [raw], 'analysis': [raw]}), 'watch_avoid')
+        # 只報跌停（Q5）仍不列
+        self.assertEqual(klass('甲公司', '今天甲公司跌停打開了', tone='bearish', view_basis='price_move_only'), 'ignored')
 
     def test_new_lines_follow_q5_e1_and_the_1103_questionnaire(self):
         self.assertIn('只報本股漲跌、跌停、斷頭、法人一買一賣，或只拿它示範算法', p.EXTRACT_SYSTEM)
@@ -222,7 +226,7 @@ class C_LastGate(unittest.TestCase):
                  '甲公司目前股價在1600多元，後續向上挑戰2000元。']
         drop = ['甲公司今天跌停。', '甲公司昨天跌停，今天跌停打開，融資清得差不多。', '甲公司回來碰季線。',
                 '甲公司在最大量K線以上有一堆人買。', '外資今天買超甲公司3000張。', '甲公司遭遇融資斷頭賣壓。', '',
-                # 11/03 E1：只當追高反面教材
+                # 說明只有漲跌（是否公開另看問卷的進場看法；11/18 取消 E1 後，追高教材由問卷答不碰）
                 '甲公司昨日大漲335元後今日隨即大跌300元。', '甲公司昨日漲停且報紙充滿利多，今日卻直接跌停。',
                 # 模型套話不算本股結論
                 '甲公司值得留意。', '甲公司走勢值得持續關注。']

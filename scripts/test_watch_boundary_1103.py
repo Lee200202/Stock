@@ -46,8 +46,9 @@ CASES = [
      dict(entry_for_new='wait_condition', tone='bullish', selection_intent='positive_candidate'), 'watch_watch'),
     ('D4', '東元', '那傳產股便宜的還有這一支叫東元',
      dict(tone='bullish', selection_intent='positive_candidate'), 'watch_watch'),
+    # E1 原勾「不列」；管理者 2026/11/18 取消 E1：追高反面教材回到觀望不碰
     ('E1', '玉晶光', '昨天玉晶光漲停，打開報紙全部玉晶光。來，今天玉晶光了，跌停',
-     dict(about_itself=False, independent_analysis=False, content_role='comparison_only'), 'ignored'),
+     dict(entry_for_new='prohibit', tone='bearish', view_basis='speaker_judgment'), 'watch_avoid'),
     ('F1', '國巨', '國巨這兩天漲的還不夠他一天跌，彈上來一定還會再下去',
      dict(entry_for_new='prohibit', tone='bearish', selection_intent='explicit_exclusion'), 'watch_avoid'),
     ('F2', '大立光', '我不會碰大立光，昨天大力光，漲60塊，今天跌260',

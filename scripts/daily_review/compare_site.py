@@ -4,7 +4,7 @@
 
 讀：操作紀錄／會員持股的今天列（網站與郵件就是由它們組成）、每日推播內容的文章。
 寫：.daily-review/<日期>/site.json、diffs.json、diffs.md
-差異類型：分類、漏收、複核未涵蓋、應排除卻公開、今日買賣、通知用語外洩、說明重複；
+差異類型：分類、漏收、複核未涵蓋、應排除卻公開、今日買賣、通知用語外洩、說明重複、個股說明疑點；
 ①③章節（2026/11/06）：章節空白、章節點數不足、章節數字不在原稿、章節過短，並寫 chapters.md 讓複核者對照凍結判讀的主題
 （幻覺、漏掉的重點、說明不清等語意判斷由複核者寫進 judged.json）。
 """
@@ -58,6 +58,37 @@ def duplicated_sentence(note):
             if ga and gb and len(ga & gb) / min(len(ga), len(gb)) >= 0.6:
                 return True
     return False
+
+
+# 2026/11/18：分類比對抓不到「說明是硬寫的」（華新科、創意只有行情描述，台達電多了原稿沒有的結論句）。
+# 以下只是疑點，不判對錯：列出來讓複核逐檔對原稿判斷，寫進 judged.json。
+NOTE_MIN_CHARS = 30
+NOTE_STANCE = re.compile(
+    r'可以買|想買|會買|要買|再買|不買|不要買|不能買|別買|買點|賣點|你買|你賣|就買|就賣|要賣|先賣|可以賣|不要賣|賣出|進場|佈局|布局|承接|不碰|別碰|不追|追高|續抱|抱著|觀望|等待|等到|等回|再等|多看|再看|還不能|還不行|不急|不建議|不考慮'
+    r'|減碼|加碼|出場|停損|停利|殺低|剔除|避開|風險|套牢|小心|危險|還會(?:再)?跌|會再跌|看好|會漲|偏多|偏空|轉強|轉弱'
+    r'|支撐|壓力|跌破|站上|突破|守住|背離|候選')
+# 原稿不會這樣講、模型湊字常用的結論套話；與 pipeline._FILLER_CLAUSE 不同步也沒關係，這裡只提示
+NOTE_FILLER = re.compile(
+    r'具備(?:一定(?:的)?|相當(?:的)?)?(?:觀察|參考|投資|留意)價值|再行(?:佈局|布局|進場|介入)|等待回穩與支撐確認'
+    r'|值得持續關注|建議持續(?:關注|留意)|需持續留意|後續表現(?:值得期待|可期)|等待適當(?:的)?機會|屬於明確(?:不碰|不買)的標的'
+    r'|(?:展現|呈現)(?:出)?(?:強勁|穩健|強韌)(?:的)?(?:多頭)?(?:動能|態勢)|具備(?:明確|相當)(?:的)?[^，。；\d]{0,10}(?:潛力|空間)')
+
+
+def note_suspicions(note, extra_filler=None):
+    """一則個股說明的疑點（不是錯誤判定）：少於 30 字、沒有數字也沒有立場、含套話。沒有疑點回空串列。"""
+    text = str(note or '').strip()
+    flat = re.sub(r'[\s，,。！？!?；;：:「」（）()、．.…—\-*•]', '', text)
+    out = []
+    if len(flat) < NOTE_MIN_CHARS:
+        out.append(f'少於 {NOTE_MIN_CHARS} 字（{len(flat)} 字）')
+    if flat and not re.search(r'\d', flat) and not NOTE_STANCE.search(flat):
+        out.append('沒有數字也沒有立場')
+    hits = [m.group(0) for m in NOTE_FILLER.finditer(text)]
+    if extra_filler is not None:
+        hits += [m.group(0) for m in extra_filler.finditer(text)]
+    if hits:
+        out.append('含套話「' + '」「'.join(dict.fromkeys(hits)) + '」')
+    return out
 
 
 def main():
@@ -119,6 +150,14 @@ def main():
             if duplicated_sentence(x['note']):
                 diffs.append({'code': code, 'name': x['name'], 'site': LABEL[x['category']], 'review': '',
                               'accept': [], 'type': '說明重複', 'quote': '', 'review_why': '', 'site_note': x['note']})
+    for code, items in site.items():
+        for x in items:
+            if x['category'] not in ('buy', 'sell', 'holdings', 'watch_watch', 'watch_avoid'):
+                continue
+            why = note_suspicions(x['note'], getattr(pl, '_FILLER_CLAUSE', None))
+            if why:
+                diffs.append({'code': code, 'name': x['name'], 'site': LABEL[x['category']], 'review': '', 'accept': [],
+                              'type': '個股說明疑點', 'quote': '', 'review_why': '；'.join(why), 'site_note': x['note']})
     raw = (out / 'raw.txt').read_text(encoding='utf-8')
     polished = (out / 'polished.txt').read_text(encoding='utf-8') if (out / 'polished.txt').exists() else ''
     notices = (out / 'notices.txt').read_text(encoding='utf-8')
@@ -133,7 +172,8 @@ def main():
     lines = [f'# {day} 比對差異（{len(diffs)} 項；判讀 {len(reviewed)} 檔，網站 {len(site)} 檔）', '',
              '| 代號 | 名稱 | 網站 | 複核 | 類型 | 原句 | 網站說明 |', '|---|---|---|---|---|---|---|']
     for d in diffs:
-        lines.append(f"| {d['code']} | {d['name']} | {d['site']} | {d['review']} | {d['type']} | {d['quote'][:40]} | {str(d['site_note'])[:60]} |")
+        quote = d['quote'][:40] or (d['review_why'][:40] if d['type'] == '個股說明疑點' else '')
+        lines.append(f"| {d['code']} | {d['name']} | {d['site']} | {d['review']} | {d['type']} | {quote} | {str(d['site_note'])[:60]} |")
     (out / 'diffs.md').write_text('\n'.join(lines) + '\n', encoding='utf-8')
     print('\n'.join(lines))
     print('\n章節對照：', out / 'chapters.md')

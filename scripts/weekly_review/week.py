@@ -108,7 +108,7 @@ def judge_chapter(row, article):
 
 def judge(row, items, article=''):
     """純函式：一列差異明細（明確錯誤）對照目前網站的那一檔，回傳 (結果, 說明)。結果：通過／未通過／需人工。"""
-    from compare_site import duplicated_sentence
+    from compare_site import duplicated_sentence, note_suspicions
     kind = str(row.get('差異類型') or '')
     if kind.startswith('章節'):
         return judge_chapter(row, article)
@@ -127,6 +127,12 @@ def judge(row, items, article=''):
     if kind == '說明重複':
         dup = any(duplicated_sentence(x['note']) for x in items)
         return ('未通過' if dup else '通過'), '說明仍有重複句' if dup else '說明已無重複句'
+    if kind == '個股說明疑點':
+        # 2026/11/18：網站已不公開，或說明已沒有疑點才算通過；仍有疑點交人工（疑點不等於錯）
+        if not public:
+            return '通過', '網站已不公開這一檔'
+        left = [w for x in items if x['category'] in PUBLIC for w in note_suspicions(x['note'])]
+        return ('需人工' if left else '通過'), ('說明仍有疑點：' + '；'.join(left)[:80]) if left else '說明已無疑點'
     if str(row.get('處理') or '') in ('已修正', '週檢討確認已正確'):
         return '通過', f'{kind}：依處理狀態「{row.get("處理")}」（這一類沒有逐字自動驗收）'
     return '需人工', f'{kind}：沒有自動驗收方法，處理狀態「{row.get("處理") or "空白"}」'

@@ -78,7 +78,8 @@ class QuestionnairePrompt(unittest.TestCase):
         self.assertIn('在族群一起下跌時被點名', pl.ADJUDICATE_SYSTEM)
         for name in ('勤誠', '亞德客', '創意', '金像電', '世芯'):
             self.assertNotIn(name, pl.ADJUDICATE_SYSTEM)
-        self.assertTrue(pl.VERDICT_VERSION.startswith('v43-20261106'))
+        # 11/06 的裁示在 v43 上線；之後的裁示（11/18 v44 問卷依據題）再往上升，只要求不低於 v43
+        self.assertGreaterEqual(int(__import__('re').match(r'v(\d+)-', pl.VERDICT_VERSION).group(1)), 43)
 
 
 if __name__ == '__main__':

@@ -9493,8 +9493,9 @@ def gate_watch_conclusions(signals: dict) -> dict:
 
 # 擷取階段寫的說明逐句核對（2026/11/18 D）。補充說明（enrich_stock_context）每句都要對得回本股原文：數字在那一段話裡、
 # 技術名詞與操作條件詞在本股原文。擷取時就寫到 70 字以上的說明原本不進補充說明，只有價位核對與技術詞「提示」，
-# 沒有逐句把關（11/18 台達電的「具備觀察價值、等待回穩與支撐確認後再行佈局」原稿沒有）。這裡比照同一套核對，
-# 沒過的子句不用；整則都沒過就清空，交補充說明重寫，材料不夠就不寫。
+# 沒有逐句把關（11/18 台達電的「具備觀察價值、等待回穩與支撐確認後再行佈局」原稿沒有）。這裡逐子句核對：
+# 操作條件詞對不回本股原文的子句不用；整則都沒過就清空，交補充說明重寫，材料不夠就不寫。
+# 數字與技術詞對不到本股段落只記線索（理由見 _note_clause_why）。
 _NOTE_CLAIM_TERMS = (
     (re.compile(r'佈局|布局'), re.compile(r'佈局|布局|買|進場|承接|撿')),
     (re.compile(r'回穩|止穩'), re.compile(r'穩')),
@@ -9504,21 +9505,26 @@ _NOTE_CLAIM_TERMS = (
 
 
 def _note_clause_why(clause, material_norm, terms_norm, hay_norm, material_list):
-    """一個子句沒過的原因；通過回空字串。比照 enrich_stock_context 的逐句核對。"""
+    """一個子句的核對結果 (處置, 原因)：('drop', …) 拿掉；('cue', …) 只記查核線索；('', '') 通過。
+
+    操作條件詞（佈局、回穩、逢低、觀察價值）在本股原文找不到就拿掉——那是模型自己補的結論（11/18 台達電）。
+    數字與技術詞只記線索：11/10 重播實測，本股段落切窗漏掉的「季線」、原稿念成國字的「七字頭」「兩萬多張」會被誤刪
+    （聯發科「季線是第一個反壓」、力積電「7字頭」），與 strip_unsupported_technical_terms 的設計（2026/10/27：切窗漏詞
+    不等於跨股，交來源語意審閱）一致；跨股數字另有 strip_foreign_price_claims 等價位核對。"""
+    for claim, backing in _NOTE_CLAIM_TERMS:
+        if claim.search(clause) and not backing.search(material_norm):
+            return 'drop', '操作條件詞無依據：' + claim.search(clause).group(0)
     numbers = {n.replace(',', '') for n in _MARKET_NUM.findall(clause)}
     if numbers:
         joined = '\n'.join(material_list)
         available = {n.replace(',', '') for n in _MARKET_NUM.findall(joined)} | {
             str(n).replace(',', '') for n in _spoken_decimal_numbers(joined)}
         if numbers - available and not market_item_verified({'text': clause, 'evidence': material_list}, hay_norm):
-            return '數字不在本股原文'
+            return 'cue', '數字不在本股段落'
     missing = [t for t in dict.fromkeys(_NOTE_TECH_RE.findall(clause)) if t.lower() not in terms_norm.lower()]
     if missing:
-        return '技術詞無依據：' + '、'.join(missing)
-    for claim, backing in _NOTE_CLAIM_TERMS:
-        if claim.search(clause) and not backing.search(material_norm):
-            return '操作條件詞無依據：' + claim.search(clause).group(0)
-    return ''
+        return 'cue', '技術詞不在本股段落：' + '、'.join(missing)
+    return '', ''
 
 
 def verify_extracted_note_sentences(signals: dict, transcript: str) -> dict:
@@ -9539,7 +9545,7 @@ def verify_extracted_note_sentences(signals: dict, transcript: str) -> dict:
                 continue
             material_norm = _ev_norm(''.join(material_list))
             terms_norm = _asr_terms(material_norm)
-            kept_sentences, dropped = [], []
+            kept_sentences, dropped, cues = [], [], []
             for sentence in re.split(r'(?<=[。！？!?；;])', text):
                 if not sentence.strip():
                     continue
@@ -9548,14 +9554,20 @@ def verify_extracted_note_sentences(signals: dict, transcript: str) -> dict:
                 clauses = [c for c in re.split(r'，|(?<!\d),|,(?!\d)', body) if c.strip()]
                 good = []
                 for clause in clauses:
-                    why = _note_clause_why(clause, material_norm, terms_norm, hay_norm, material_list)
-                    if why:
+                    kind, why = _note_clause_why(clause, material_norm, terms_norm, hay_norm, material_list)
+                    if kind == 'drop':
                         dropped.append(f'{why}「{clause.strip()[:30]}」')
-                    else:
-                        good.append(clause)
+                        continue
+                    if kind == 'cue':
+                        cues.append(f'{why}「{clause.strip()[:30]}」')
+                    good.append(clause)
                 if good and len(_ev_norm(''.join(good))) >= 6:
                     good[0] = re.sub(r'^(?:且|並且|並|而且|但|則)', '', good[0])
                     kept_sentences.append('，'.join(good) + (end or '。'))
+            name = _display_name(row.get('name')) or str(row.get('name') or '')
+            if cues:
+                row['_note_source_cues'] = cues
+                note_decision('說明逐句核對', '數字或技術詞不在本股段落，只記線索交語意審閱', name, '；'.join(cues)[:300])
             if not dropped:
                 continue
             new = ''.join(kept_sentences)

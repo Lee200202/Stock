@@ -304,12 +304,14 @@ class D_FillerAndSentenceCheck(unittest.TestCase):
             self.assertNotIn(bad, note)
         self.assertIn('1020', note)
 
-    def test_numbers_and_terms_not_in_the_stock_source_are_dropped(self):
+    def test_numbers_and_terms_outside_the_window_are_cues_not_deletions(self):
+        # 11/10 重播：切窗漏掉的「季線」、國字念的「七字頭」被誤刪；數字與技術詞只記線索，交語意審閱與價位核對
         signals, tx = self._delta_signals('台達電股價快破1,000元，目標價1500元，MACD翻紅。')
-        note = p.verify_extracted_note_sentences(signals, tx)['watch_watch'][0]['reason']
-        self.assertIn('1,000', note)
-        self.assertNotIn('1500', note)
-        self.assertNotIn('MACD', note)
+        out = p.verify_extracted_note_sentences(signals, tx)['watch_watch'][0]
+        self.assertEqual(out['reason'], '台達電股價快破1,000元，目標價1500元，MACD翻紅。')
+        cues = '；'.join(out['_note_source_cues'])
+        self.assertIn('1500', cues)
+        self.assertIn('MACD', cues)
 
     def test_supported_note_is_left_alone(self):
         text = '台達電股價快破1,000元，最低點1020元那根是爆量K線，收盤不能跌破1020元。'

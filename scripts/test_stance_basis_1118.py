@@ -448,5 +448,24 @@ class H_HoldingQuoteFailure(unittest.TestCase):
         self.assertEqual(p.verdict_class(a, p._ev_norm(raw), ['甲公司'])[0], '')
 
 
+class I_MethodDemo(unittest.TestCase):
+    """管理者 2026/11/18：拿本股K線示範找最大量、算融資斷頭價，是方法示範，不列；本股另有自己的指示才看指示。"""
+    RAW = '好，甲公司，你仔細看最大量的地方在哪裡？那這一根K線最大量，這個以上一堆的人買，這一根K線融資斷頭。'
+
+    def test_demo_is_not_listed_even_if_the_vote_says_avoid(self):
+        self.assertEqual(klass('甲公司', self.RAW, view_basis='example_only'), 'ignored')
+        self.assertEqual(klass('甲公司', self.RAW, view_basis='example_only', entry_for_new='prohibit',
+                               now='prohibit', tone='bearish'), 'ignored')
+
+    def test_an_own_instruction_still_counts(self):
+        raw = self.RAW + '甲公司我每一段都說不能買，你不要去碰它。'
+        self.assertEqual(klass('甲公司', raw, view_basis='example_only', entry_for_new='prohibit',
+                               now='prohibit', tone='bearish'), 'watch_avoid')
+
+    def test_answer_file_keeps_the_demo_stocks_out(self):
+        g = json.loads((ROOT / 'scripts/golden/2026-11-18.json').read_text(encoding='utf-8'))
+        self.assertIn('2492', g['must_not'])
+
+
 if __name__ == '__main__':
     unittest.main()

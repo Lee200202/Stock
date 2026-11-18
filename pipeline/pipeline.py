@@ -14023,7 +14023,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v46-20261118-chase-lesson-basis"    # v46：依據題加 chase_lesson（追高反面教材→觀望不碰，管理者取消 E1）；v45：問卷加「講者對本股今天之後的說法」事實題，有向前說法的股票不因過去買賣列回顧（2026/11/18 管理者：判斷標準寫進流程、明天同樣穩定）；v44：問卷加「本股看法的依據」事實題，沒有進場看法而依據只是行情或示範時由程式列不公開（2026/11/18）；v43： 執行時自動接上提示詞與答案格式指紋（見 verdict_response_schema 之後）；提示詞界線不含股名與預期分類；問卷的持有要有紀錄上的部位；問卷的持有要有紀錄上的部位；等待條件要附可核對的條件原句；重提昨天的持有者建議是今天的建議；相鄰連續引句、背景角色與獨立主張證明分開核對
+VERDICT_VERSION = "v47-20261118-method-demo"    # v47：依據答「只是示範方法」而沒有本股自己的指示原句，不列（2026/11/18 管理者：華新科、和生堂是方法示範）；v46：依據題加 chase_lesson（追高反面教材→觀望不碰，管理者取消 E1）；v45：問卷加「講者對本股今天之後的說法」事實題，有向前說法的股票不因過去買賣列回顧（2026/11/18 管理者：判斷標準寫進流程、明天同樣穩定）；v44：問卷加「本股看法的依據」事實題，沒有進場看法而依據只是行情或示範時由程式列不公開（2026/11/18）；v43： 執行時自動接上提示詞與答案格式指紋（見 verdict_response_schema 之後）；提示詞界線不含股名與預期分類；問卷的持有要有紀錄上的部位；問卷的持有要有紀錄上的部位；等待條件要附可核對的條件原句；重提昨天的持有者建議是今天的建議；相鄰連續引句、背景角色與獨立主張證明分開核對
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 3                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -14063,7 +14063,7 @@ now填buy_ok／conditional／not_yet／prohibit／none，與前述軸一致；to
 已經賣出的股票今天大漲，被拿來當「看到大漲別追、漲停有什麼用、一堆人套在上面」的教學例子，而沒有對本股說現在要怎麼做：這是回顧過去的那次賣出，past_trade=true、content_role=historical_only、now=none、tone=neutral；「我們賣在這邊」之類是交易紀錄，不是禁買引句。本股另有自己的當下條件或明講不能買時才另填。
 今天重提昨天給持有者的建議並接著講本股現況（「昨天有沒有跟你們講不要亂殺甲？甲現在要來回震盪打底」）：這是今天仍然有效的持有者建議，holder_advice=hold_rebound，不能因為句子裡有「昨天」就當成只回顧。
 forward_view是講者對本股今天之後的說法，只答事實，不是分類：rise＝說本股之後會漲、會再來到較高的價位、會彈回、會突破（「後面還會再來2,000」「會彈回去」）；fall＝說本股還會跌、會再來到較低的價位、會補下方缺口、會破；buy_sell_rule＝給本股的買賣價位規則（「來到800你賣、來到700你買」「幾塊以下買」）；none＝全文沒有本股今天之後的說法。只回顧過去在哪裡買、賣過幾次、會員過去照這個做過，不算向前說法；同一段既回顧過去、又說了之後會怎樣或價位規則，照向前說法填，content_role不填historical_only，past_trade照實填true，並在quotes.stance引那一句向前說法。程式依此決定：有向前說法的股票不因過去買賣列回顧，rise／fall決定偏多偏空，buy_sell_rule是等價位的進場條件（2026/11/18 管理者：判斷標準寫進流程）。
-view_basis是本股看法的依據，只答事實，不是分類：speaker_judgment＝講者對本股自己下了判斷、條件、建議或風險結論（想買、不買、等某價、會再跌、不能收破某價）；price_move_only＝只報本股漲跌、跌停、跌停打開、斷頭、融資清洗、法人買賣等行情或籌碼現象，講者沒有對本股下判斷；example_only＝只拿它示範算法或看圖方法、當教學圖例或舉例；chase_lesson＝拿本股昨天大漲或漲停、今天大跌或跌停，教人別追高（「你昨天買什麼意思」「為什麼昨天叫你們不要買」，不要買可在同一串名單的段尾），程式列觀望不碰（2026/11/18 管理者取消 11/03 問卷 E1）；只報跌停、沒有別追的教訓才是price_move_only。講者描述現象（誰在這裡買、誰被斷頭、跌停、跌停打開、融資清得差不多、量最大的K線在哪）不是對本股下判斷；判斷是講者說本股該怎麼做或接下來會怎樣（想買、不買、等某價、多看幾天、還會跌、會回到某價、不能收破某價）。同一檔兩種都有時，有任何一句講者對本股的判斷就填speaker_judgment。程式依此決定：沒有進場看法而依據不是speaker_judgment的不公開，不看語氣，所以不要為了公開改填依據。
+view_basis是本股看法的依據，只答事實，不是分類：speaker_judgment＝講者對本股自己下了判斷、條件、建議或風險結論（想買、不買、等某價、會再跌、不能收破某價）；price_move_only＝只報本股漲跌、跌停、跌停打開、斷頭、融資清洗、法人買賣等行情或籌碼現象，講者沒有對本股下判斷；example_only＝只拿它示範算法或看圖方法、當教學圖例或舉例（例：拿本股K線示範找最大量、算融資斷頭價，「最大量K線以上買的人全部斷頭」，講者沒有說本股該怎麼做；這是方法示範，不是chase_lesson，entry_for_new與now填none，2026/11/18 管理者）；chase_lesson＝拿本股昨天大漲或漲停、今天大跌或跌停，教人別追高（「你昨天買什麼意思」「為什麼昨天叫你們不要買」，不要買可在同一串名單的段尾；只拿本股K線示範找最大量、算融資斷頭價不算，那是example_only），程式列觀望不碰（2026/11/18 管理者取消 11/03 問卷 E1）；只報跌停、沒有別追的教訓才是price_move_only。講者描述現象（誰在這裡買、誰被斷頭、跌停、跌停打開、融資清得差不多、量最大的K線在哪）不是對本股下判斷；判斷是講者說本股該怎麼做或接下來會怎樣（想買、不買、等某價、多看幾天、還會跌、會回到某價、不能收破某價）。同一檔兩種都有時，有任何一句講者對本股的判斷就填speaker_judgment。程式依此決定：沒有進場看法而依據不是speaker_judgment的不公開，不看語氣，所以不要為了公開改填依據。
 只輸出契約JSON verdicts陣列；每個輸入id都必須回覆，布林欄位填true或false，缺證據可填unsure，不使用語氣字詞表補造答案。
 另填independent_analysis：全篇有本股現在的向前技術位階解讀、量價／法人推論、風險判斷或具體低接節奏時true，quotes.analysis及quote_source_ids.analysis附其原句與編號。這不表示推薦買入；先說未推薦、後段再解析該股往季線的位階，也須讀後段再判。純報漲跌或碰均線位置、只是別股圖例、未持有清單且沒有本股獨立解讀均為false。原稿有本股獨立解析但沒有明確進場語氣時，now及tone可維持none／neutral，由程式保留為中性觀察；不必編造偏多。
 """
@@ -15036,6 +15036,11 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
     )
     if has_current_instruction:
         has_active_view = True
+    # 2026/11/18 v47（管理者：華新科、和生堂只是拿來示範找最大量K線、算融資斷頭，是方法示範，不列）：
+    # 依據題答 example_only，又沒有向前說法、追高教材、買點／等待／持有者建議，引句裡也沒有本股自己的指示（不買、不碰…），
+    # 就不公開——即使同一份答案的進場欄填了不碰（重播裡模型常把「斷頭」讀成禁買）。
+    if answer.get('view_basis') == 'example_only' and not past and not forward_quoted and not chase_quoted             and not has_current_instruction and answer.get('holder_advice') in (None, 'none')             and answer.get('entry_for_new') not in ('allow', 'wait_condition')             and answer.get('selection_intent') != 'positive_candidate':
+        return VERDICT_NEUTRAL_CLASS, '只拿來示範方法，沒有本股自己的指示，不列（2026/11/18 管理者）'
     if past and not analysis and not has_current_instruction and not forward_quoted and answer.get('content_role') in ('historical_only', 'comparison_only') \
             and answer.get('entry_for_new') not in ('allow', 'wait_condition'):
         return 'history', '只回顧過去的買賣與對照，沒有本股的當下分析：' + first('past_trade')

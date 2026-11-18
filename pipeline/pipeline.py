@@ -14035,7 +14035,7 @@ ADJUDICATE_SYSTEM = """你是原始金融節目及會員通知的事實裁決員
 引用契約：quotes若有填，須為所選S/N內連續原字；跨段只能跨相鄰S且維持順序，不加省略號、不把ASR改成正式股名。若要引用完整原段，可只填quote_source_ids、quotes留空，並核該整段真正主體。來源編號正確不表示任意濃縮句正確。純報漲停、未持有清單或選股對照沒有獨立推論時，independent_analysis=false；不能把後面別股的突破或EPS當成這一檔的分析。
 先確認主體與內容角色，填about_itself：
 【五層式思考鏈】作答前依序核對：①實體與跨句指代解構（先鋪陳特徵後問句揭曉股名者須前後串聯；同段多股並列＋段尾共同結論須回讀完整S段套用；剔除日常量詞與產業名）→②主體與語態歸屬（嚴格區分本人／會員部位 vs 對觀眾公開建議『要買你們就買／喜歡買』vs 反問預告『我有沒有講』vs 反話示範『如果我是那種投顧』vs 觀眾提問『手中有X要出嗎』）→③時間軸與部位帳本對齊（當日已成交 vs 既有未出場部位續抱 vs 歷史已出場回顧）→④當下禁令優先於未來條件→⑤逐字原段證據核對。
-- true：有本股獨立技術、量價、消息、風險、可行進場條件或追蹤判斷，或本人／會員的當日交易與現有部位陳述。點出本股昨日漲停或大漲、報紙滿滿利多而今日隨即跌停或重挫（或融資增加被殺），用來警示追高利多風險，且同段S原文緊接總結「不要買」時，屬本股當下風險與禁買判斷（about_itself=true、content_role=independent_analysis、independent_analysis=true、entry_for_new=prohibit、now=prohibit、tone=bearish），須回讀完整S段確認共同結論，不能因passages在鄰股名稱處切開就漏看同段結尾的禁買結論。
+- true：有本股獨立技術、量價、消息、風險、可行進場條件或追蹤判斷，或本人／會員的當日交易與現有部位陳述。點出本股昨日漲停或大漲、報紙滿滿利多而今日隨即跌停或重挫（或融資增加被殺），只用來警示追高利多風險（「為什麼我昨天跟你們講不要買」是說昨天不該追），而對本股今天沒有其他看法：這是追高反面教材，不列（2026/11/03 管理者問卷 E1）：about_itself=false、content_role=comparison_only、now=none、view_basis=example_only。講者另外對本股今天下了結論（現在不要碰、還會跌、等某價、我不會碰它）才是本股當下禁買：entry_for_new=prohibit、now=prohibit、tone=bearish；須回讀完整S段，不能因passages在鄰股名稱處切開就漏看同段的本股結論。
 - false：日常量詞／名詞誤當股票；只在列舉未持有或不在觀察池的對照組出現，全文無本股獨立分析；別股被借來比喻且無本股現況。僅「不是在看甲乙，主要看丙丁」不能將甲乙判成禁買。單說同族群漲停只是背景，不能把後面真正分析的另一檔推薦分給它。
 公司候選與open_position／known只是識別與部位歷史，不能證明某個日常詞就是該股。語音異字可用完整轉場、題材及原通知協助辨主體；不按股價接近或最近股名字距強猜，無法確認填unsure。不得新增跨日別名。
 另填content_role：independent_analysis=本股獨立現況／風險／操作條件；position_disclosure=只說本人有無持有；selection_scope=只界定自己看的是其他標的；comparison_only=未被獨立分析的陪襯；historical_only=只回顧；ordinary_word=日常詞；unclear=未定。只有position_disclosure或selection_scope，不能把「本人沒持有／我不看它」擴成禁買指令。若後文另有本股獨立分析，應以全文改填independent_analysis；已核實的當日交易／續抱事實另依事件欄保留。

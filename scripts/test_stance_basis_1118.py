@@ -151,6 +151,19 @@ class B_PromptsMatchRulings(unittest.TestCase):
                 self.assertNotIn(old, text)
         self.assertNotIn('拿它當風險、追高受傷、散戶被坑、法人大賣、財務操作的例子', p.EXCLUDED_REVIEW_SYSTEM)
 
+    def test_questionnaire_no_longer_turns_a_chase_example_into_a_ban(self):
+        # 10/29 加的「昨天漲停今天跌停＋同段『不要買』→ prohibit」與 11/03 問卷 E1（不列）相反
+        self.assertNotIn('屬本股當下風險與禁買判斷', p.ADJUDICATE_SYSTEM)
+        self.assertIn('這是追高反面教材，不列（2026/11/03 管理者問卷 E1）', p.ADJUDICATE_SYSTEM)
+        for name in ('玉晶光', '精測', '大立光'):
+            self.assertNotIn(name, p.ADJUDICATE_SYSTEM)
+        # E1 的語意 → 不列；另有本股今天的結論 → 不碰
+        raw = '昨天甲公司漲停，打開報紙全部甲公司的利多。今天甲公司跌停。為什麼我昨天跟你們講，不要買'
+        self.assertEqual(klass('甲公司', raw, about_itself=False, content_role='comparison_only',
+                               view_basis='example_only'), 'ignored')
+        self.assertEqual(klass('甲公司', raw + '，甲公司現在也不要碰', entry_for_new='prohibit', now='prohibit',
+                               tone='bearish', view_basis='speaker_judgment'), 'watch_avoid')
+
     def test_new_lines_follow_q5_e1_and_the_1103_questionnaire(self):
         self.assertIn('只報本股漲跌、跌停、斷頭、法人一買一賣，或只拿它示範算法', p.EXTRACT_SYSTEM)
         self.assertIn('依 2026/11/03 管理者問卷列 watch_watch', p.EXTRACT_SYSTEM)

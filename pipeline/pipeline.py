@@ -9406,7 +9406,8 @@ _GATE_ACTION = re.compile(
 _GATE_RISK = re.compile(r'風險|套牢|小心|危險|還會(?:再)?跌|會再跌|恐(?:再|將|續|有)|不宜|還沒跌完|會殺破|追高'
                         r'|(?:一定|應該|就)?會(?:補|跌|下來|再下|崩)|嫌貴|太貴|過高|逃命波|受傷|套死|找死')
 _GATE_VIEW = re.compile(r'看好|會漲|會再漲|會上去|會再上|有機會(?:上|漲|突破|站|回)|看多|偏多|轉強|噴出|背離'
-                        r'|有望|(?:大|一波|一段)行情|有行情|沒事|不用擔心|不必擔心|安全|便宜|低估')
+                        r'|有望|(?:大|一波|一段)行情|有行情|沒事|不用擔心|不必擔心|安全|便宜|低估'
+                        r'|(?:可望|有望|預期|將|會)(?:再度?|重新)?(?:回到|重回|來到|站回|回升|反彈)')
 _GATE_LEVEL = re.compile(r'季線|月線|年線|週線|周線|均線|半年線|頸線|缺口|低點|高點|前低|前高|底部|\d+\s*均|K線')
 _GATE_LEVEL_JUDGE = re.compile(r'支撐|壓力|守住|守不住|跌破|站上|站回|站穩|突破|收復|不能破|沒有破|沒破|轉強|轉弱'
                                r'|翻揚|翻紅|翻陽|打底|回補|補完|背離|反壓|過不去|壓住|壓著')
@@ -9449,7 +9450,7 @@ def gate_watch_conclusions(signals: dict) -> dict:
                          _publication_gate={'category': cat, 'reason': why, 'note': text})
             signals.setdefault('ignored', []).append(moved)
             name = _display_name(row.get('name')) or str(row.get('name') or '')
-            print(f"  發布前關卡　{name}（{row.get('code')}）原列{_VERDICT_LABEL.get(cat, cat)}，改列不公開：{why}｜{text[:40]}")
+            print(f"  發布前關卡　{name}（{row.get('code')}）原列{_VERDICT_LABEL.get(cat, cat)}，改列不公開：{why}｜{text[:160]}")
             note_decision('發布前關卡', '觀望列沒有本股結論，改列不公開', str(row.get('code') or name),
                           f'{cat}｜{why}｜{text[:120]}')
         signals[cat] = kept

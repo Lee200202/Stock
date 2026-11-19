@@ -2492,6 +2492,21 @@ function snapshotPerformanceJobRun_() {
     }
   } catch (e) { Logger.log('歷史每日績效重算失敗，保留記號下次再試：' + e); }
 
+  /* 回合變了就整段重算歷史（2026/11/19）。
+
+     14:50 的重算持股追蹤與這一支都只碰今天：持股追蹤改動過去的回合時（逾期出場被新的提及撤銷、
+     回述成本讓進場日往前、未確認的持有聲明被移除），過去那幾天的點不會跟著改。
+     11/19 譜瑞-KY 從逾期出場改回一路持有，11/02–11/18 的走勢就少了它一檔。
+     回合JSON 的指紋和上次重算歷史時不同，就先整段重算；相同就照舊只記今天。 */
+  try {
+    var fpNow = perfRoundsFingerprint_(perfReadRounds_().list);
+    var fpProps = PropertiesService.getScriptProperties();
+    if (fpNow && fpNow !== fpProps.getProperty('PERF_ROUNDS_FP')) {
+      Logger.log('持股回合與上次重算績效歷史時不同，先整段重算歷史。');
+      rebuildPerformanceHistoryJob();
+    }
+  } catch (eFp) { Logger.log('回合變動檢查失敗，這次只記今天：' + eFp); }
+
   // 舊欄第二格有時寫「曾追蹤總數」、有時寫「持有數」，不能直接改表頭冒充新定義。
   // 首次執行時用既有日K與回合重算全部歷史；失敗就保留舊表，避免混寫。
   var countHeader = String(getSheet_('每日績效').getRange(1, 2).getValue() || '').trim();
@@ -2578,15 +2593,51 @@ function perfSummary_(rets) {
 }
 
 /* 持有中一檔的低進高出報酬：與前台 trackerLowHighItem_ 同一規則——回合要完整、進場取最後一回合取價日最低價、
-   現價用追蹤表的目前價；缺任何一項回 null（不計入，不改用中點或零價）。 */
+   現價用追蹤表的目前價；缺任何一項回 null（不計入，不改用中點或零價）。
+   有加碼或部分賣出時與前台、績效歷史重算一樣用 lotsReturn_：每次買進取當日最低、部分賣出取當日最高（2026/11/19：
+   原本只取第一筆買進，今天這一點和歷史各點口徑不同，11/19 是 −24.59 而歷史算法是 −22.07）。 */
 function perfLowHighHeldReturn_(item) {
   var rs = (item && item.calculationRounds) || [];
   if (!item || !item.stillHeld || !rs.length || rs.length !== (Number(item.rounds) || 1)) { return null; }
-  var e = Number(rs[rs.length - 1].entryLow), x = Number(item.current);
+  var last = rs[rs.length - 1];
+  var e = Number(last.entryLow), x = Number(item.current);
   if (!isFinite(e) || e <= 0 || !isFinite(x) || x <= 0) { return null; }
+  if ((last.adds && last.adds.length) || (last.partials && last.partials.length)) {
+    var lots = [{ d: String(last.entryDate || ''), p: e }].concat((last.adds || []).map(function (a) {
+      return { d: String(a.date || ''), p: a.low };
+    }));
+    var partials = (last.partials || []).map(function (s) { return { d: String(s.date || ''), p: s.high, f: s.fraction }; });
+    return lotsReturn_(lots, partials, x, null);
+  }
   return Math.round((x / e - 1) * 10000) / 100;
 }
 
+
+/* 持股追蹤的回合JSON（績效歷史重算的輸入）。排除名單與代號格式和重算時相同。 */
+function perfReadRounds_() {
+  var list = [], noJson = 0;
+  var trackerExcluded = readTrackerExclusions_();
+  readSheetObjects_('持股追蹤').forEach(function (r) {
+    var code = String(r['代號'] || '').trim();
+    if (trackerExcluded[code]) { return; }
+    if (!/^(?:00981A|\d{4,6})$/.test(code)) { return; }
+    var raw = String(r['回合JSON'] || '').trim();
+    if (!raw) { noJson++; return; }
+    var rounds;
+    try { rounds = JSON.parse(raw); } catch (e) { noJson++; return; }
+    if (!rounds || !rounds.length) { return; }
+    list.push({ code: code, name: String(r['股票名稱'] || ''), rounds: rounds });
+  });
+  return { list: list, noJson: noJson };
+}
+
+/* 回合的指紋：代號排序後連同回合JSON 取 MD5。回合JSON 不含現價，只有回合真的改了才會變。 */
+function perfRoundsFingerprint_(list) {
+  if (!list || !list.length) { return ''; }
+  var text = JSON.stringify(list.map(function (h) { return [h.code, h.rounds]; })
+    .sort(function (a, b) { return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0; }));
+  return Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, text, Utilities.Charset.UTF_8));
+}
 
 function rebuildPerformanceHistoryJob(fromDate) {
   var start = Date.now();
@@ -2659,26 +2710,26 @@ function rebuildPerformanceHistoryJob(fromDate) {
   var requestedFrom = from;
 
   // 每一檔的回合。沒有回合JSON 的列跳過（那是舊版寫的，重算一次追蹤就會有）。
-  var holdingsByCode = [];
-  var noJson = 0;
-  var trackerExcluded = readTrackerExclusions_();
-  readSheetObjects_('持股追蹤').forEach(function (r) {
-    var code = String(r['代號'] || '').trim();
-    if (trackerExcluded[code]) { return; }
-    if (!/^(?:00981A|\d{4,6})$/.test(code)) { return; }
-    var raw = String(r['回合JSON'] || '').trim();
-    if (!raw) { noJson++; return; }
-    var rounds;
-    try { rounds = JSON.parse(raw); } catch (e) { noJson++; return; }
-    if (!rounds || !rounds.length) { return; }
-    holdingsByCode.push({ code: code, name: String(r['股票名稱'] || ''), rounds: rounds });
-  });
+  var roundsRead = perfReadRounds_();
+  var holdingsByCode = roundsRead.list;
+  var noJson = roundsRead.noJson;
 
   /* 逾期未再提及的出場，要從出場日往後重算（2026/09/14）。
 
      判定出場的那天比出場日晚 10 個交易日。中間那段的每日績效，當時是以「持有中」記下的；
      刷新流程只從投稿日期往後重算，那段就一直留著舊值，與持股追蹤的出場日對不起來。
      起點往前延伸到這些出場日，之前的歷史點照舊保留。 */
+  /* 每一檔都有回合JSON 時，一律從資料起點整段重算（2026/11/19）。
+
+     起點只看「現在仍是逾期出場」的回合不夠：逾期出場之後又被提到、回合改回持有中時，回合JSON 不留任何記號。
+     11/19 的譜瑞-KY：11/17 判逾期（出場日回溯 11/02），走勢從 11/02 起拿掉它；11/19 再提到續抱，
+     回合改回 07/07 起一路持有，但局部重算只從 11/19 起算，11/02–11/18 留著少一檔的舊值。
+     整段重算只是多算一百多天的平均（日K與回合本來就整張讀進來），結果一定和現在的回合一致。
+     仍有缺回合JSON 的舊列時照舊局部重算，避免清掉那段算不回來的歷史。 */
+  if (from && !noJson) {
+    Logger.log('績效歷史：每一檔都有回合JSON，從資料起點整段重算（要求的起點 ' + requestedFrom + '）');
+    from = '';
+  }
   if (from) {
     holdingsByCode.forEach(function (h) {
       h.rounds.forEach(function (rd) {
@@ -2782,6 +2833,11 @@ function rebuildPerformanceHistoryJob(fromDate) {
     if (out.length) { sh.getRange(2, 1, out.length, headers.length).setValues(out); }
   });
 
+  // 整段重算過才記下這次用的回合指紋（snapshotPerformanceJob 據此判斷回合有沒有再變）
+  if (!from) {
+    try { PropertiesService.getScriptProperties().setProperty('PERF_ROUNDS_FP', perfRoundsFingerprint_(holdingsByCode)); }
+    catch (eFp) { Logger.log('回合指紋未記下（下次記錄績效時會再整段重算一次）：' + eFp); }
+  }
   CACHE.remove('perf_series');
   CACHE.remove(PERF_CACHE_PREFIX_+(typeof PERFORMANCE_START_DATE==='string'?PERFORMANCE_START_DATE:''));
   Logger.log('績效歷史重算完成：' + out.length + ' 個交易日，' +

@@ -14023,7 +14023,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v47-20261118-method-demo"    # v47：依據答「只是示範方法」而沒有本股自己的指示原句，不列（2026/11/18 管理者：華新科、和生堂是方法示範）；v46：依據題加 chase_lesson（追高反面教材→觀望不碰，管理者取消 E1）；v45：問卷加「講者對本股今天之後的說法」事實題，有向前說法的股票不因過去買賣列回顧（2026/11/18 管理者：判斷標準寫進流程、明天同樣穩定）；v44：問卷加「本股看法的依據」事實題，沒有進場看法而依據只是行情或示範時由程式列不公開（2026/11/18）；v43： 執行時自動接上提示詞與答案格式指紋（見 verdict_response_schema 之後）；提示詞界線不含股名與預期分類；問卷的持有要有紀錄上的部位；問卷的持有要有紀錄上的部位；等待條件要附可核對的條件原句；重提昨天的持有者建議是今天的建議；相鄰連續引句、背景角色與獨立主張證明分開核對
+VERDICT_VERSION = "v48-20261120-weekly-holder-vs-exclusion"    # v48：持有者勿殺低與明講不買並存時新進場以明講不買為準；追高名單的共同教訓可在下一段或為反事實句（2026/11/20 週檢討）；v47：依據答「只是示範方法」而沒有本股自己的指示原句，不列（2026/11/18 管理者：華新科、和生堂是方法示範）；v46：依據題加 chase_lesson（追高反面教材→觀望不碰，管理者取消 E1）；v45：問卷加「講者對本股今天之後的說法」事實題，有向前說法的股票不因過去買賣列回顧（2026/11/18 管理者：判斷標準寫進流程、明天同樣穩定）；v44：問卷加「本股看法的依據」事實題，沒有進場看法而依據只是行情或示範時由程式列不公開（2026/11/18）；v43： 執行時自動接上提示詞與答案格式指紋（見 verdict_response_schema 之後）；提示詞界線不含股名與預期分類；問卷的持有要有紀錄上的部位；問卷的持有要有紀錄上的部位；等待條件要附可核對的條件原句；重提昨天的持有者建議是今天的建議；相鄰連續引句、背景角色與獨立主張證明分開核對
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 3                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -14056,14 +14056,14 @@ past_trade可與現況立場並存；全文有現在的風險、條件或持有�
 entry_for_new：allow=現在可布局或當下已有可留意訊號／可執行低接區間，沒有仍待成立的進場前提；wait_condition=本股看法正面，但要等止穩、回穩、價位、背離確認或大環境回穩才進場（只因大環境而說還不碰也填這個）；not_yet=本股自己目前還不能買（被問能不能買答還沒有、本股還沒轉強）而沒有正面看法，或須等正式執行指令；prohibit=明確拒絕參與／不碰；none=沒有獨立新進場立場。
 holder_advice：hold=現有部位續抱；hold_rebound=對持有者明確要求超跌勿殺低、等待反彈；none=未給持有者建議。提醒空手者別追不抹掉本人真實持有，對觀眾說別殺低也不證明講者本人有持股。
 selection_intent：positive_candidate=正向追蹤池／主動提醒留意；authorization_pending=等正式操作授權；explicit_exclusion=對本股有獨立排斥／風險判斷；neutral=無獨立選股立場。正向興趣與目前暫不買可以同時成立。
-最新政策（2026/11/03 管理者問卷）：本股看法正面而等回穩、等價位、等背離確認或等大環境，entry_for_new=wait_condition、now=conditional，屬觀望注意；講者說「我還不碰、還沒買」而理由只有大環境，也一樣。當下可執行買點填allow、now=buy_ok，屬觀望注意但不是已成交。本股自己被否定（被問能不能買答還沒有、本股還沒轉強）而沒有正面看法填not_yet；明講不碰、不買、剔除、預期還會跌或點出本股自己的風險填prohibit或tone=bearish，屬觀望不碰。拿本股當追高反面教材（昨天漲停今天跌停、別追利多）是本股風險：tone=bearish、entry_for_new=prohibit、now=prohibit、view_basis=chase_lesson（2026/11/18 管理者取消 11/03 問卷 E1）。單純未持有不等於不能買。持有者超跌勿殺低等反彈另填holder_advice=hold_rebound；沒有新進場限制時可保留注意建議，但不能把它當本人持股，也不能覆蓋明確的新進場等待。完整核前後文及條件現在是否已成立，不依「等／不」字面判方向。
+最新政策（2026/11/03 管理者問卷）：本股看法正面而等回穩、等價位、等背離確認或等大環境，entry_for_new=wait_condition、now=conditional，屬觀望注意；講者說「我還不碰、還沒買」而理由只有大環境，也一樣。當下可執行買點填allow、now=buy_ok，屬觀望注意但不是已成交。本股自己被否定（被問能不能買答還沒有、本股還沒轉強）而沒有正面看法填not_yet；明講不碰、不買、剔除、預期還會跌或點出本股自己的風險填prohibit或tone=bearish，屬觀望不碰。拿本股當追高反面教材（昨天漲停今天跌停、別追利多）是本股風險：tone=bearish、entry_for_new=prohibit、now=prohibit、view_basis=chase_lesson（2026/11/18 管理者取消 11/03 問卷 E1）。單純未持有不等於不能買。持有者超跌勿殺低等反彈另填holder_advice=hold_rebound；沒有新進場限制時可保留注意建議，但不能把它當本人持股，也不能覆蓋明確的新進場等待。同一檔同時對持有者說不用賣、抱著、再殺沒有意義，又明講本人或帶會員今天仍不買、堅持不碰（「我還是不會買」「我帶會員不會買」「堅持不碰」）時，兩軸分開填：holder_advice=hold_rebound、entry_for_new=prohibit、selection_intent=explicit_exclusion，新進場以明講不買為準（2026/11/20 週檢討）；「我沒有買」「我沒有像你們買」「沒有叫你們加碼」「不再講它壞話」只是部位揭露或不加碼，不是明講不買；「以前我都叫你們賣」「這半年一直講不能碰」是講過去的說法，今天的立場看今天講的那一句。完整核前後文及條件現在是否已成立，不依「等／不」字面判方向。
 混合段落先核完整時間順序：前段未持有、未推薦、歷史回顧或陪襯比較，不會否定後段對本股的現況分析、均線路徑或等待買點。後段確有本股獨立分析時，content_role填independent_analysis，quotes.analysis引用該段；past_trade可同時為true。不能只因前段比較就把後段當作他股，亦不能把後段他股分析挪回本股。僅有未持有／選股範圍交代而無本股分析才是position_disclosure／selection_scope／comparison_only。
 now填buy_ok／conditional／not_yet／prohibit／none，與前述軸一致；tone填bullish／bearish／neutral，僅為本股現在的獨立方向，不借相鄰公司。明講現在沒有要漲、不宜買是本股風險，不等於只澄清沒有持有。只有位置描述而全文無獨立追蹤或方向才填neutral及none。只報本股股價漲跌、跌停，或在族群一起下跌時被點名（「你看甲早上有沒有跌停」「某族群最近連甲都一直在跌」），沒有本股自己的判斷、條件或建議：independent_analysis=false、now=none、tone=neutral，不列觀望（2026/11/06 管理者裁示）。
 等待條件的原句：entry_for_new=wait_condition或now=conditional時，quotes.stance及quotes.condition／quote_source_ids.condition引用本股的等待條件原句（等回穩、等價位、等大環境、背離後先做功課）；只有還要等、不急等簡短指令也可形成等待，不必編造具體訊號。講者給本股的區間或價位操作（來到某價就買、來到某價就賣；幾塊以下買）也是本股的進場條件：entry_for_new=wait_condition、view_basis=speaker_judgment，condition引買價那一句；提到會員過去照這個區間做過，不把它改成只回顧。allow只可由目前已可執行的買點／區間或已成立訊號支持；條件尚未成立不可填allow。只說反彈不夠、上方套牢區、彈上來還會再下去，是本股的風險判斷：tone=bearish、entry_for_new=none或prohibit、selection_intent=explicit_exclusion，不是等待條件。沒有等待條件時condition留空陣列。
 已經賣出的股票今天大漲，被拿來當「看到大漲別追、漲停有什麼用、一堆人套在上面」的教學例子，而沒有對本股說現在要怎麼做：這是回顧過去的那次賣出，past_trade=true、content_role=historical_only、now=none、tone=neutral；「我們賣在這邊」之類是交易紀錄，不是禁買引句。本股另有自己的當下條件或明講不能買時才另填。
 今天重提昨天給持有者的建議並接著講本股現況（「昨天有沒有跟你們講不要亂殺甲？甲現在要來回震盪打底」）：這是今天仍然有效的持有者建議，holder_advice=hold_rebound，不能因為句子裡有「昨天」就當成只回顧。
 forward_view是講者對本股今天之後的說法，只答事實，不是分類：rise＝說本股之後會漲、會再來到較高的價位、會彈回、會突破（「後面還會再來2,000」「會彈回去」）；fall＝說本股還會跌、會再來到較低的價位、會補下方缺口、會破；buy_sell_rule＝給本股的買賣價位規則（「來到800你賣、來到700你買」「幾塊以下買」）；none＝全文沒有本股今天之後的說法。只回顧過去在哪裡買、賣過幾次、會員過去照這個做過，不算向前說法；同一段既回顧過去、又說了之後會怎樣或價位規則，照向前說法填，content_role不填historical_only，past_trade照實填true，並在quotes.stance引那一句向前說法。程式依此決定：有向前說法的股票不因過去買賣列回顧，rise／fall決定偏多偏空，buy_sell_rule是等價位的進場條件（2026/11/18 管理者：判斷標準寫進流程）。
-view_basis是本股看法的依據，只答事實，不是分類：speaker_judgment＝講者對本股自己下了判斷、條件、建議或風險結論（想買、不買、等某價、會再跌、不能收破某價）；price_move_only＝只報本股漲跌、跌停、跌停打開、斷頭、融資清洗、法人買賣等行情或籌碼現象，講者沒有對本股下判斷；example_only＝只拿它示範算法或看圖方法、當教學圖例或舉例（例：拿本股K線示範找最大量、算融資斷頭價，「最大量K線以上買的人全部斷頭」，講者沒有說本股該怎麼做；這是方法示範，不是chase_lesson，entry_for_new與now填none，2026/11/18 管理者）；chase_lesson＝拿本股昨天大漲或漲停、今天大跌或跌停，教人別追高（「你昨天買什麼意思」「為什麼昨天叫你們不要買」，不要買可在同一串名單的段尾；只拿本股K線示範找最大量、算融資斷頭價不算，那是example_only），程式列觀望不碰（2026/11/18 管理者取消 11/03 問卷 E1）；只報跌停、沒有別追的教訓才是price_move_only。講者描述現象（誰在這裡買、誰被斷頭、跌停、跌停打開、融資清得差不多、量最大的K線在哪）不是對本股下判斷；判斷是講者說本股該怎麼做或接下來會怎樣（想買、不買、等某價、多看幾天、還會跌、會回到某價、不能收破某價）。同一檔兩種都有時，有任何一句講者對本股的判斷就填speaker_judgment。程式依此決定：沒有進場看法而依據不是speaker_judgment的不公開，不看語氣，所以不要為了公開改填依據。
+view_basis是本股看法的依據，只答事實，不是分類：speaker_judgment＝講者對本股自己下了判斷、條件、建議或風險結論（想買、不買、等某價、會再跌、不能收破某價）；price_move_only＝只報本股漲跌、跌停、跌停打開、斷頭、融資清洗、法人買賣等行情或籌碼現象，講者沒有對本股下判斷；example_only＝只拿它示範算法或看圖方法、當教學圖例或舉例（例：拿本股K線示範找最大量、算融資斷頭價，「最大量K線以上買的人全部斷頭」，講者沒有說本股該怎麼做；這是方法示範，不是chase_lesson，entry_for_new與now填none，2026/11/18 管理者）；chase_lesson＝拿本股昨天大漲或漲停、今天大跌或跌停，教人別追高（「你昨天買什麼意思」「為什麼昨天叫你們不要買」，不要買可在同一串名單的段尾；只拿本股K線示範找最大量、算融資斷頭價不算，那是example_only），程式列觀望不碰（2026/11/18 管理者取消 11/03 問卷 E1）；只報跌停、沒有別追的教訓才是price_move_only。追高教訓可以在名單之前（「看到漲就受不了，就會出現…」）、之後或下一段（「我昨天如果叫你買，你只有爽一天」這種反事實句也是教訓）；一句並列多檔「昨天X漲停、今天X跌停」共用同一個教訓時，每一檔都填chase_lesson，content_role不是comparison_only（2026/11/20 週檢討）。只念今天跌停的名單、沒有昨天大漲或漲停的對照與教訓，仍是price_move_only。講者描述現象（誰在這裡買、誰被斷頭、跌停、跌停打開、融資清得差不多、量最大的K線在哪）不是對本股下判斷；判斷是講者說本股該怎麼做或接下來會怎樣（想買、不買、等某價、多看幾天、還會跌、會回到某價、不能收破某價）。同一檔兩種都有時，有任何一句講者對本股的判斷就填speaker_judgment。程式依此決定：沒有進場看法而依據不是speaker_judgment的不公開，不看語氣，所以不要為了公開改填依據。
 只輸出契約JSON verdicts陣列；每個輸入id都必須回覆，布林欄位填true或false，缺證據可填unsure，不使用語氣字詞表補造答案。
 另填independent_analysis：全篇有本股現在的向前技術位階解讀、量價／法人推論、風險判斷或具體低接節奏時true，quotes.analysis及quote_source_ids.analysis附其原句與編號。這不表示推薦買入；先說未推薦、後段再解析該股往季線的位階，也須讀後段再判。純報漲跌或碰均線位置、只是別股圖例、未持有清單且沒有本股獨立解讀均為false。原稿有本股獨立解析但沒有明確進場語氣時，now及tone可維持none／neutral，由程式保留為中性觀察；不必編造偏多。
 """
@@ -14240,6 +14240,34 @@ def _explicitly_not_held(names, transcript):
                 continue  # 過去沒有持有，不能否定後來建立的部位；時序仍交既有裁決核對。
             return flat[m.start():m.end() + 20]
     return ''
+
+
+# 追高反面教材：同一段有「昨天X漲停…今天X跌停」，段內或下一段有講者的共同教訓。
+# 教訓句：「為什麼我昨天跟你們講，不要買」（2026/10/29），或反事實句「我昨天如果叫你買，你只有爽一天」（2026/11/19）。
+_CHASE_PAIR = re.compile(r'昨天[^。！？!?]{0,20}漲停[^。！？!?]*今天[^。！？!?]{0,12}(?:跌停|被殺|重挫|大跌)')
+_CHASE_CONCLUSION = re.compile(
+    r'(?:我問你[^。！？!?]*[。！？!?]\s*)?(?:為什麼我|所以我|我才)[^。！？!?]*(?:不要買|不能買|不要碰|別買|不要追)[^。！？!?]*[。！？!?]'
+    r'|(?:我)?(?:昨天)?(?:如果|要是|假如)(?:我)?(?:昨天)?叫你們?(?:去)?(?:買|追)[^。！？!?]*[。！？!?]')
+
+
+def _chase_conclusion_next(seg_text, next_text, names):
+    """本段有追高名單（昨天漲停、今天跌停）而共同教訓在下一段：回傳那一句教訓，沒有就回空字串。
+
+    2026/11/19「昨天金源電漲停板，今天金源電跌停板…昨天景碩漲停板，今天景碩跌停板」在 S0006，
+    教訓「我昨天如果叫你買，你只有爽一天。」在 S0007；問卷只看到名單，把景碩答成只報漲跌。
+    只找下一段，教訓要在名單之後；本股要在教訓往前收的列舉範圍裡（_shared_conclusion_scope），不跨換題句。
+    """
+    seg_text, next_text = str(seg_text or ''), str(next_text or '')
+    if not next_text or not _CHASE_PAIR.search(seg_text):
+        return ''
+    joined = seg_text + next_text
+    m = _CHASE_CONCLUSION.search(joined, len(seg_text))
+    if not m:
+        return ''
+    scope = _shared_conclusion_scope(joined, m.start(), m.end())
+    if not any(len(n) >= 2 and n in scope and _CHASE_PAIR.search(scope) for n in names):
+        return ''
+    return m.group(0).strip()
 
 
 def _shared_conclusion_scope(text, start, end, limit=8):
@@ -15099,8 +15127,12 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
         )
         if _pure_no_hold:
             now, tone = 'none', 'neutral'
-    if holder == 'hold_rebound' and intent != 'authorization_pending':
-        # 2026/11/03 管理者問卷 D1／D2：叫持有者別殺低（「130以下不準賣…我沒有聯電」）是觀望注意，「我沒有要買」不改變它
+    if holder == 'hold_rebound' and intent != 'authorization_pending' \
+            and not (entry == 'prohibit' and intent == 'explicit_exclusion'):
+        # 2026/11/03 管理者問卷 D1／D2：叫持有者別殺低（「130以下不準賣…我沒有聯電」）是觀望注意，「我沒有要買」不改變它。
+        # 2026/11/20 週檢討：同一份答案又答本股被明講排除（entry_for_new=prohibit 且 selection_intent=explicit_exclusion，
+        # 「可是我還是不會買國巨，我帶會員不會買」），新進場以明講不買為準（問卷 F2／B2；11/02 勿殺低不等於新買進；
+        # 本提示詞「持有者建議不能覆蓋明確的新進場等待」）。持有者建議只管持有者，不再把明講不買蓋成觀望注意。
         now = 'conditional'
     if holder == 'hold' and now == 'none' and tone != 'bearish' and answer.get('_recomputed_from_holding'):
         # 重算非會員持股時，「建議持有者續抱」本身就是偏多的立場（觀眾問「再抱嗎」答「繼續抱著」），不落成中性不列
@@ -15644,21 +15676,25 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             entry.setdefault('not_held_fallback', 'ignored')
         sent, text = _verdict_mark(_own_segments(row, signals, transcript, 300, 500), names | {code})
         if text:
-            for _seg in source_segments(transcript).values():
-                _st = _seg['text']
+            _seg_texts = [_seg['text'] for _seg in source_segments(transcript).values()]
+            for _si, _st in enumerate(_seg_texts):
                 if any(len(n) >= 2 and n in _st for n in names):
                     _m = None
-                    if re.search(r'昨天[^。！？!?]{0,20}漲停[^。！？!?]*今天[^。！？!?]{0,12}(?:跌停|被殺|重挫|大跌)', _st):
-                        _m = re.search(r'(?:我問你[^。！？!?]*[。！？!?]\s*)?(?:為什麼我|所以我|我才)[^。！？!?]*(?:不要買|不能買|不要碰|別買|不要追)[^。！？!?]*[。！？!?]', _st)
+                    if _CHASE_PAIR.search(_st):
+                        _m = _CHASE_CONCLUSION.search(_st)
                     if not _m:
                         _m = re.search(r'[^。！？!?]*(?:這種|這些|這幾[檔支隻]|這類|以上)[^。！？!?]{0,24}(?:股票|個股)[^。！？!?]*(?:千萬不要|絕對不要|不要去?接刀|不要買|不能買|不要碰|不能碰|不要追|都可以(?:特別)?留意|值得留意|好好的?抱著|續抱)[^。！？!?]*[。！？!?]', _st)
                     # 同一段只代表位置接近，不代表共用結論：本股要在結論涵蓋的列舉裡才補（另一位審閱者的反例
                     # 「台積電守穩季線，會員續抱。奇鋐跟雙鴻，這幾檔股票千萬不要買」，台積電不在名單裡）。
                     if _m and not any(len(n) >= 2 and n in _shared_conclusion_scope(_st, _m.start(), _m.end()) for n in names):
                         _m = None
-                    if _m and _ev_norm(_m.group(0)) not in _ev_norm(text):
-                        sent.append({'before': '', 'text': _m.group(0).strip()})
-                        text = text + '\n' + _m.group(0).strip()
+                    _conc = _m.group(0).strip() if _m else ''
+                    if not _conc:
+                        # 2026/11/20 週檢討：追高名單的共同教訓落在下一段（段落在名單後切開），也要帶給本股
+                        _conc = _chase_conclusion_next(_st, _seg_texts[_si + 1] if _si + 1 < len(_seg_texts) else '', names)
+                    if _conc and _ev_norm(_conc) not in _ev_norm(text):
+                        sent.append({'before': '', 'text': _conc})
+                        text = text + '\n' + _conc
                         break
         if not text and row.get('_notice_candidate_sources'):
             sent = [{'text': q, 'before': ''} for q in row['_notice_candidate_sources']]

@@ -1,0 +1,21 @@
+{
+  "date": "2026/11/23",
+  "video_id": "AvOrM_c2wTY",
+  "raw_sha256": "7f5f92064314436c7fdd89761dc8ec46fe60dac9ac73b037c31d8767ccd87c37",
+  "authorization": "管理者 LINE 裁示 R20261123120214285",
+  "review_basis": "管理者說明：講者只說台達電擋很久，沒有其他重點，對技術面沒有說明，改成不列。",
+  "items": [
+    {
+      "code": "2308",
+      "name": "台達電",
+      "category": "watch_avoid",
+      "action": "delete",
+      "previous_note_sha256": "8657a3fe971811bec98d79eefd2369dbfc3ab670bccd659bceeba0946eafa1c9",
+      "quotes": [
+        "說台達電不要買，台達電不要買",
+        "我擋很久，你會不會自己買台達電？會啊！你還是套牢。"
+      ],
+      "rationale": "管理者 LINE 逐檔裁示：當天原稿對台達電只回顧過去一直擋著會員不要買，另外只在政府護盤標的中被點名，沒有本股技術面或今天的條件，依裁示不列。逐檔裁示，不作通用規則。"
+    }
+  ]
+}

@@ -15,6 +15,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import quote
 
 ROOT = Path(__file__).resolve().parents[2]
 REPO_URL = 'https://github.com/Lee200202/Stock'
@@ -84,7 +85,7 @@ def build_card(day, result, gate, replays, verify, changes, run_url='', merged_s
         'live': {'total': len(checks), 'ok': len(checks) - len(still),
                  'problems': [{'date': c.get('date', ''), 'name': c.get('name', ''), 'code': c.get('code', ''),
                                'type': c.get('type', ''), 'why': str(c.get('why', ''))[:120]} for c in still[:6]]},
-        'asks': asks, 'reportUrl': f"{REPO_URL}/blob/main/docs/weekly-review/{day.replace('/', '-')}/報告.md",
+        'asks': asks, 'reportUrl': f"{REPO_URL}/blob/main/" + quote(f"docs/weekly-review/{day.replace('/', '-')}/報告.md"),
         'runUrl': run_url,
     }
 

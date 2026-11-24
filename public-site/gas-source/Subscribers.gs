@@ -225,6 +225,17 @@ function apiAdminLineConversation(key, uid, limit) {
   return { ok: true, rows: rows };
 }
 
+/** 停止對這個 LINE 帳號推送：每日總覽與盤中通知都關。後台只能關；要再開由本人在 LINE 按訂閱（盤中通知需要本人同意）。 */
+function apiAdminLineStop(key, uid) {
+  try { adminAuth_(key); } catch (e) { return { ok: false, reason: String(e.message || e) }; }
+  uid = String(uid || '');
+  if (!/^U[0-9a-f]{32}$/.test(uid)) { return { ok: false, reason: '帳號格式不對。' }; }
+  if (!lineSubsRead_().rows.some(function (s) { return s.uid === uid; })) { return { ok: false, reason: '找不到這個 LINE 帳號。' }; }
+  var r = lineUpsertSub_(uid, '', function (s) { s.daily = false; s.sms = false; });
+  try { getSheet_('系統狀態').appendRow([nowStamp_(), '訂閱管理', '後台停止 LINE 推送 ' + lineMask_(uid), 'admin', 'Apps Script']); } catch (e) {}
+  return { ok: true, before: r.before };
+}
+
 /** mode：cancel（停止寄送，可復原）／restore（恢復）／delete（刪除訂閱列；寄送帳本保留）。 */
 function apiAdminSubscriberRemove(key, email, mode) {
   try { adminAuth_(key); } catch (e) { return { ok: false, reason: String(e.message || e) }; }

@@ -1317,10 +1317,10 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
       <button class="tab" role="tab" aria-selected="false" data-tab="ops">
         <svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M4 12h4l2-4 4 8 2-4h4"/></svg>自動化監控</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="subs">
-        訂閱者</button>
+        <svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><path d="M15.5 4.8a3.3 3.3 0 0 1 0 6.4M18 14.8c2 .7 3.2 2.4 3.5 5.2"/></svg>訂閱者</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="line">
         <svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5c-5 0-9 3.1-9 7 0 2.4 1.5 4.5 3.9 5.8L6.5 20.5l3.7-2.3c.6.1 1.2.2 1.8.2 5 0 9-3.1 9-7s-4-6.9-9-6.9z"/><path d="M8 10.5v3M11 10.5v3M14 10.5v3h2"/></svg>LINE</button>
-      <button class="tab" role="tab" id="reviewHistoryTab" data-tab="reviewhistory" aria-selected="false" aria-controls="p-reviewhistory">複核與修改紀錄</button>
+      <button class="tab" role="tab" id="reviewHistoryTab" data-tab="reviewhistory" aria-selected="false" aria-controls="p-reviewhistory"><svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1"/><path d="M8.5 13l2.5 2.5 4.5-5"/></svg>複核與修改紀錄</button>
       <button class="tab" role="tab" data-tab="usage" aria-selected="false" aria-controls="p-usage"><svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V4M4 20h17M8 16l4-6 4 3 5-8" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>使用分析</button>
 <button class="tab" role="tab" aria-selected="false" data-tab="ver">
         <svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>版本沿革</button>
@@ -2095,6 +2095,39 @@ window.__onLayoutChange = function (what) {
   window.addEventListener('resize', checkOverflow);
   // 切成手機版時欄寬會變，分頁列的溢出狀態要重算，否則右邊那道漸層會留著。
   window.__checkTabOverflow = checkOverflow;
+  /* 2026/11/24：電腦沒有觸控滑動，分頁列放不下時兩側出現左右圓鈕；哪一邊還有分頁才出現哪一顆，
+     按一下捲動大半列。滑鼠滾輪在分頁列上也改成左右捲。 */
+  if (bar && tabs) {
+    var mk = function (dir) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'tab-scroll ' + dir; b.hidden = true;
+      b.setAttribute('aria-label', dir === 'l' ? '分頁往左捲' : '分頁往右捲');
+      b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' + (dir === 'l' ? 'M15 5l-7 7 7 7' : 'M9 5l7 7-7 7') + '"/></svg>';
+      b.addEventListener('click', function () {
+        var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        tabs.scrollBy({ left: (dir === 'l' ? -1 : 1) * Math.max(160, tabs.clientWidth * 0.6), behavior: reduce ? 'auto' : 'smooth' });
+      });
+      bar.appendChild(b); return b;
+    };
+    var bl = mk('l'), br = mk('r');
+    var place = function () {
+      var max = tabs.scrollWidth - tabs.clientWidth, x = tabs.scrollLeft;
+      var canL = max > 4 && x > 4, canR = max > 4 && x < max - 4;
+      bl.hidden = !canL; br.hidden = !canR;
+      tabs.classList.toggle('can-l', canL); tabs.classList.toggle('can-r', canR);
+      var r = tabs.getBoundingClientRect(), rb = bar.getBoundingClientRect();
+      bl.style.left = Math.max(4, r.left - rb.left - 6) + 'px';
+      br.style.right = Math.max(4, rb.right - r.right - 6) + 'px';
+    };
+    tabs.addEventListener('scroll', place, { passive: true });
+    window.addEventListener('resize', place);
+    tabs.addEventListener('wheel', function (e) {
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && tabs.scrollWidth > tabs.clientWidth + 4) { tabs.scrollLeft += e.deltaY; e.preventDefault(); }
+    }, { passive: false });
+    if (window.ResizeObserver) { new ResizeObserver(place).observe(tabs); }
+    place(); setTimeout(place, 300);
+    window.__placeTabScroll = place;
+  }
 
   document.querySelectorAll('button.tab').forEach(function (btn) {
     btn.addEventListener('click', function () {
@@ -4614,13 +4647,9 @@ var mergeTxFingerprint='';
       }).join('')+'</div>' : '<p class="hint">今天尚無已寫入的簡訊個股。</p>';
       $('todaySmsOps').innerHTML = '<section class="sms-stage" data-step="01" aria-labelledby="smsRawHeading"><div class="sms-stage-head"><h3 id="smsRawHeading">逐字原文</h3></div>'+rawHtml+'</section>'+
         '<section class="sms-stage" data-step="02" aria-labelledby="smsWrittenHeading"><div class="sms-stage-head"><h3 id="smsWrittenHeading">已寫入操作</h3></div>'+operationHtml+'</section>';
-      $('todayHealth').innerHTML = (r.items || []).map(function (it) {
-        return '<div class="hitem t-' + esc(it.tone) + '" title="' + esc(it.hint || '') + '" tabindex="0">' +
-          '<span class="hk">' + esc(it.label) + '<i>' + (TONE_LABEL[it.tone] || '') + '</i></span>' +
-          '<b class="hv">' + esc(it.value) + '</b>' +
-          (it.hint ? '<span class="hh">' + esc(it.hint) + '</span>' : '') + '</div>';
-      }).join('') + '<div class="hstamp">' + esc(r.today) + ' ' + esc(r.now) + ' 更新（台北時間）' + (r.ms ? '・<span title="' + esc((r.laps || []).join('、')) + '">後端讀取 ' + (r.ms / 1000).toFixed(1) + ' 秒</span>' : '') + '</div>' +
-        ((r.laps || []).length && r.ms >= 8000 ? '<div class="hstamp">各段秒數：' + esc(r.laps.join('、')) + '</div>' : '');
+      $('todayHealth').innerHTML = todayGroups_(r.items || []) +
+        '<div class="hstamp">' + esc(r.today) + ' ' + esc(r.now) + ' 更新（台北時間）' + (r.ms ? '・後端讀取 ' + (r.ms / 1000).toFixed(1) + ' 秒' : '') + '</div>' +
+        todayLaps_(r.laps || [], r.ms);
       /* 取稿卡的「正常狀態」（v54）：今天的影片已經自動取稿並整理完成時直接講明，不必按任何按鈕；
          沒有直播、或休市也講明，免得新管理者以為要手動做什麼。 */
       var show1 = (r.items || [])[0] || {};
@@ -4684,6 +4713,44 @@ var mergeTxFingerprint='';
   $('opsTimeToggle').addEventListener('click', function () { var opening = $('opsTimePanel').hidden; $('opsTimePanel').hidden = !opening; this.setAttribute('aria-expanded', String(opening)); });
   document.addEventListener('click', function (e) { if (!$('opsTimePicker').contains(e.target)) { closeOpsTime(); } });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('opsTimePanel').hidden) { closeOpsTime(); $('opsTimeToggle').focus(); } });
+  /* 2026/11/24：十幾張互相重疊的狀態卡併成四張流程卡（取稿 → 判讀與紀錄 → 寄送 → 資料與排程）。
+     每張卡的顏色取組內最嚴重的一項；每一項仍逐列寫出，說明只在需要處理（黃、紅）時展開，其他放在滑鼠提示。 */
+  var TODAY_GROUPS_ = [
+    ['取稿', ['今日狀態', '自動取稿', '逐字稿']],
+    ['判讀與紀錄', ['今日紀錄', '會員簡訊', 'Pipeline 稽核', '逐日編輯同步']],
+    ['寄送', ['每日推播', '每日郵件', '郵件投遞']],
+    ['資料與排程', ['補日K', '網站資料讀取', 'Apps Script 排程']]
+  ];
+  var TONE_RANK_ = { err: 4, warn: 3, ok: 2, idle: 1, closed: 1 };
+  function todayGroups_(items) {
+    var used = {};
+    var groups = TODAY_GROUPS_.map(function (g) {
+      var rows = items.filter(function (it) { return g[1].indexOf(it.label) >= 0; });
+      rows.forEach(function (it) { used[items.indexOf(it)] = 1; });
+      return [g[0], rows];
+    });
+    var rest = items.filter(function (it, i) { return !used[i]; });
+    if (rest.length) { groups[3][1] = groups[3][1].concat(rest); }
+    return '<div class="hflow">' + groups.filter(function (g) { return g[1].length; }).map(function (g, gi) {
+      var tone = g[1].reduce(function (t, it) { return (TONE_RANK_[it.tone] || 0) > (TONE_RANK_[t] || 0) ? it.tone : t; }, 'idle');
+      return '<section class="hgroup t-' + esc(tone) + '" style="--i:' + gi + '"><header><span class="hg-step">' + (gi + 1) + '</span><h3>' + esc(g[0]) + '</h3><i>' + (TONE_LABEL[tone] || '') + '</i></header>' +
+        g[1].map(function (it) {
+          var loud = it.tone === 'warn' || it.tone === 'err';
+          return '<div class="hrow t-' + esc(it.tone) + '"' + (it.hint && !loud ? ' title="' + esc(it.hint) + '"' : '') + '><span>' + esc(it.label) + '</span><b>' + esc(it.value) + '</b>' +
+            (loud && it.hint ? '<small>' + esc(it.hint) + '</small>' : '') + '</div>';
+        }).join('') + '</section>';
+    }).join('') + '</div>';
+  }
+  /* 後端讀取各段秒數：一條分段長條，最慢的一段標出來；laps 為「名稱 秒數」字串。 */
+  function todayLaps_(laps, ms) {
+    var parts = laps.map(function (t) { var m = String(t).match(/^(.*\S)\s+([\d.]+)$/); return m ? { n: m[1], s: Number(m[2]) } : null; }).filter(Boolean);
+    if (!parts.length) { return ''; }
+    var total = parts.reduce(function (a, p) { return a + p.s; }, 0) || 1, slow = parts.reduce(function (a, p) { return p.s > a.s ? p : a; }, parts[0]);
+    return '<div class="hlaps" role="img" aria-label="' + esc('後端讀取各段：' + laps.join('、')) + '"><div class="hlaps-bar">' +
+      parts.map(function (p, i) { return '<span class="' + (p === slow ? 'slow' : '') + '" style="flex:' + p.s + ' 1 0;--i:' + i + '" title="' + esc(p.n + ' ' + p.s.toFixed(1) + ' 秒') + '"></span>'; }).join('') +
+      '</div><div class="hlaps-key">' + parts.map(function (p) { return '<span' + (p === slow ? ' class="slow"' : '') + '>' + esc(p.n) + ' ' + p.s.toFixed(1) + '</span>'; }).join('') + '</div>' +
+      '<p class="hlaps-note">最慢：' + esc(slow.n) + ' ' + slow.s.toFixed(1) + ' 秒（佔 ' + Math.round(slow.s / total * 100) + '%）</p></div>';
+  }
   function card(title, value, detail, tone, actionHtml) {
     return '<article class="ops-card" data-tone="' + esc(tone || 'idle') + '"><h3>' + esc(title) + '</h3><strong>' + esc(value) + '</strong><p>' + esc(detail || '') + '</p>' + (actionHtml || '') + '</article>';
   }

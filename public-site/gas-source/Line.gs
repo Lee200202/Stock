@@ -1585,7 +1585,24 @@ function lineOutboxRead_() {
   return { sh: sh, ci: ci, rows: rows };
 }
 /** 建一筆待送。同一個訊息ID只建一次（同一則簡訊重新解析、五分鐘排程重疊都不會多建）。 */
+/* 2026/11/24：LINE 的 uri 動作只收 ASCII（2026/11/20 管理者通知「報告.md」整則被拒，HTTP 400 Invalid action URI）。
+   排入前把每個 uri 的非 ASCII 字元編碼；不是 http(s)／line／tel 或超過 1000 字元的，改連到網站首頁，整則訊息不因一顆按鈕失敗。 */
+var LINE_URI_FALLBACK_ = 'https://lee200202.github.io/Stock/';
+function lineSafeUri_(u) {
+  var s = String(u == null ? '' : u).trim().replace(/[^\x21-\x7e]+/g, function (x) { return encodeURIComponent(x); });
+  return /^(?:https?:\/\/|line:\/\/|tel:)/i.test(s) && s.length <= 1000 ? s : LINE_URI_FALLBACK_;
+}
+function lineFixUris_(node) {
+  if (Array.isArray(node)) { node.forEach(lineFixUris_); return node; }
+  if (!node || typeof node !== 'object') { return node; }
+  Object.keys(node).forEach(function (k) {
+    if ((k === 'uri' || k === 'linkUri') && typeof node[k] === 'string') { node[k] = lineSafeUri_(node[k]); }
+    else if (node[k] && typeof node[k] === 'object') { lineFixUris_(node[k]); }
+  });
+  return node;
+}
 function lineQueue_(m) {
+  lineFixUris_(m.messages || []);
   return withLock_(function () {
     var t = lineOutboxRead_();
     if (t.rows.some(function (r) { return r.id === m.id; })) { return { created: false, id: m.id }; }

@@ -3,13 +3,15 @@
 <style>
 /* 2026/11/24 全後台點選回彈（與前台相同曲線） */@media (prefers-reduced-motion:no-preference){.panel button:not(:disabled),.tab{transition:scale .38s cubic-bezier(.34,1.56,.64,1),opacity .2s,background-color .2s,color .2s}.panel button:not(:disabled):active,.tab:active{scale:.95;transition-duration:.08s}#p-subs .subs-row{animation:subsIn .5s cubic-bezier(.22,1,.36,1) both}}@keyframes subsIn{from{opacity:0;translate:0 8px}}
 .ops-meter{height:8px;margin-top:12px;border-radius:999px;background:color-mix(in srgb,currentColor 18%,transparent);overflow:hidden}.ops-meter span{display:block;height:100%;border-radius:999px;background:currentColor}.ops-meter-t{display:block;margin-top:6px;opacity:.8}/* 維護工具的步驟是狀態不是按鈕：虛線框、無游標 */.steps .step{border-style:dashed;cursor:default}#p-reviewhistory{padding-bottom:96px}#p-usage{padding-bottom:96px}
+.tabbar{position:relative}.tab-scroll{position:absolute;top:50%;translate:0 -50%;z-index:5;display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;padding:0;border:1px solid var(--rule);border-radius:50%;background:var(--panel);color:var(--ink);box-shadow:0 4px 14px #0000001f;cursor:pointer}.tab-scroll[hidden]{display:none}.tab-scroll svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}.tab-scroll:hover{background:var(--panel-2)}.tab-scroll:focus-visible{outline:3px solid var(--beam);outline-offset:2px}@media (prefers-reduced-motion:no-preference){.tab-scroll{transition:scale .38s cubic-bezier(.34,1.56,.64,1),background-color .2s}.tab-scroll:active{scale:.9;transition-duration:.08s}}.tabbar .tabs.can-l{-webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 100%);mask-image:linear-gradient(90deg,transparent,#000 8%,#000 100%)}.tabbar .tabs.can-r{-webkit-mask-image:linear-gradient(90deg,#000 0,#000 92%,transparent);mask-image:linear-gradient(90deg,#000 0,#000 92%,transparent)}.tabbar .tabs.can-l.can-r{-webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent)}.tabbar .tabs:not(.can-l):not(.can-r){-webkit-mask-image:none;mask-image:none}
+.hflow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;grid-column:1/-1}@media(max-width:1100px){.hflow{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:600px){.hflow{grid-template-columns:minmax(0,1fr)}}.hgroup{position:relative;padding:16px 18px 14px 20px;border:1px solid var(--rule);border-radius:var(--r-md,16px);background:var(--panel);min-width:0}.hgroup:before{content:'';position:absolute;left:0;top:12px;bottom:12px;width:4px;border-radius:0 4px 4px 0;background:var(--muted);opacity:.5}.hgroup.t-ok:before{background:var(--fall);opacity:1}.hgroup.t-warn:before{background:var(--wait);opacity:1}.hgroup.t-err:before{background:var(--rise);opacity:1}.hgroup header{display:flex;align-items:center;gap:10px;margin-bottom:8px}.hgroup h3{margin:0;font-size:calc(16px * var(--rd-fs))}.hgroup header i{margin-left:auto;font-style:normal;font-size:calc(12.5px * var(--rd-fs));color:var(--muted)}.hg-step{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--panel-2);font-size:calc(12px * var(--rd-fs));font-weight:700}.hrow{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;padding:7px 0;border-top:1px dashed var(--rule);font-size:calc(13.5px * var(--rd-fs))}.hrow span{color:var(--muted);white-space:nowrap}.hrow b{text-align:right;font-weight:600;overflow-wrap:anywhere}.hrow small{grid-column:1/-1;color:var(--ink);opacity:.85;line-height:1.6}.hrow.t-warn b{color:var(--wait)}.hrow.t-err b{color:var(--rise)}.hlaps{grid-column:1/-1;margin-top:4px}.hlaps-bar{display:flex;gap:2px;height:10px;border-radius:999px;overflow:hidden}.hlaps-bar span{background:color-mix(in srgb,var(--beam) 35%,var(--panel-2))}.hlaps-bar span.slow{background:var(--wait)}.hlaps-key{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:8px;font-size:calc(12.5px * var(--rd-fs));color:var(--muted);font-variant-numeric:tabular-nums}.hlaps-key .slow{color:var(--wait);font-weight:700}.hlaps-note{margin:6px 0 0;font-size:calc(12.5px * var(--rd-fs));color:var(--muted)}@media (prefers-reduced-motion:no-preference){.hgroup{animation:subsIn .5s cubic-bezier(.22,1,.36,1) both;animation-delay:calc(var(--i) * 60ms)}.hlaps-bar span{animation:hlGrow .6s cubic-bezier(.22,1,.36,1) both;transform-origin:left}}@keyframes hlGrow{from{transform:scaleX(0)}}
 #p-subs .subs-head{display:flex;justify-content:space-between;align-items:center;gap:12px 20px;flex-wrap:wrap}
 #p-subs .subs-head h2{margin:0}#p-subs .subs-count{color:var(--muted);font-size:calc(14px * var(--rd-fs))}
 #p-subs .subs-tools{display:flex;gap:10px 14px;flex-wrap:wrap;align-items:center;margin:16px 0 6px}
 #p-subs .subs-seg{display:flex;gap:4px;padding:4px;border:1px solid var(--rule);border-radius:999px;background:var(--panel-2);flex-wrap:wrap}
 #p-subs .subs-seg button{background:transparent;color:var(--ink);border:0;border-radius:999px;padding:8px 16px;min-height:40px;font-weight:500}
 #p-subs .subs-seg button[aria-pressed="true"]{background:var(--panel);color:var(--beam);font-weight:700;box-shadow:0 2px 8px #0001}
-#p-subs .subs-q{flex:1 1 220px;min-width:0;min-height:44px;border:1px solid var(--rule);border-radius:999px;padding:0 18px;background:var(--panel);color:var(--ink);font:inherit}
+#p-subs .subs-head-r{display:flex;align-items:center;gap:12px 16px;flex-wrap:wrap}#p-subs .subs-q{flex:0 1 340px;margin-left:auto;min-width:0;min-height:44px;border:1px solid var(--rule);border-radius:999px;padding:0 18px;background:var(--panel);color:var(--ink);font:inherit}
 #p-subs .subs-list{display:grid;margin-top:10px;border-top:1px solid var(--rule)}
 #p-subs .subs-row{display:grid;grid-template-columns:minmax(0,2.2fr) minmax(0,1.5fr) minmax(0,1.6fr) calc(220px * var(--rd-fs));gap:6px 18px;align-items:center;padding:14px 4px;border-bottom:1px solid var(--rule)}
 #p-subs .subs-row.off{color:var(--muted)}
@@ -26,11 +28,11 @@
 #p-subs .subs-conv{grid-column:1/-1;display:grid;gap:8px;margin:4px 0 6px;padding:14px 16px;border-radius:16px;background:var(--panel-2)}
 #p-subs .subs-conv p{margin:0;line-height:1.7;overflow-wrap:anywhere}#p-subs .subs-conv time{color:var(--muted);font-size:calc(12.5px * var(--rd-fs));margin-right:8px;font-variant-numeric:tabular-nums}
 #p-subs .subs-conv .me{color:var(--beam)}
-@media(max-width:760px){#p-subs .subs-row{grid-template-columns:minmax(0,1fr)}#p-subs .subs-act{justify-content:flex-start}}
+@media(max-width:760px){#p-subs .subs-row{grid-template-columns:minmax(0,1fr)}#p-subs .subs-act{justify-content:flex-start}#p-subs .subs-q{flex:1 1 100%;margin-left:0}}
 </style>
 <section class="panel" id="p-subs" role="tabpanel" hidden>
   <div class="card">
-    <div class="subs-head"><h2>Email 訂閱</h2><span class="subs-count" id="subsEmailCount"></span></div>
+    <div class="subs-head"><h2>Email 訂閱</h2><div class="subs-head-r"><span class="subs-count" id="subsEmailCount"></span><button type="button" class="ghost" id="subsRefresh" style="border-radius:999px">重新整理</button></div></div>
     <div class="subs-tools">
       <div class="subs-seg" role="group" aria-label="篩選 Email 訂閱" id="subsEmailSeg">
         <button type="button" data-f="all" aria-pressed="true">全部</button>
@@ -39,7 +41,6 @@
         <button type="button" data-f="off" aria-pressed="false">已取消</button>
       </div>
       <input type="search" class="subs-q" id="subsEmailQ" placeholder="搜尋 Email" aria-label="搜尋 Email" spellcheck="false">
-      <button type="button" class="ghost" id="subsRefresh" style="border-radius:999px">重新整理</button>
     </div>
     <div class="amsg" id="subsMsg"></div>
     <div class="subs-list" id="subsEmailList"><p class="subs-empty">開啟分頁後載入。</p></div>
@@ -56,7 +57,8 @@
   var $s=function(id){return document.getElementById(id);};
   var h=function(v){return String(v==null?'':v).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
   var data=null,busy=false,filter='all',open={};
-  function msg(tone,text){var m=$s('subsMsg');m.className='amsg '+(text?tone:'');m.textContent=text||'';}
+  function msg(tone,text){var m=$s('subsMsg');m.className='amsg'+(text?' show '+tone:'');m.textContent=text||'';}
+  function why(r){var e=r&&(r.reason||r.error)||'';return e==='method-not-allowed'?'後台 API 還沒更新（網站 API 服務需重新部署）。':e==='admin-security-denied'||e==='admin-unauthorized'?'登入逾時，請重新登入。':(e||'請稍後再試');}
   function years(y,keys){return Object.keys(y||{}).sort().reverse().map(function(k){var v=y[k];return k+'：'+keys.map(function(x){return v[x[0]]?x[1]+' '+v[x[0]]:'';}).filter(Boolean).join('、');}).filter(function(t){return !/：$/.test(t);}).join('；');}
   function renderEmail(){
     var rows=(data&&data.email)||[],q=$s('subsEmailQ').value.trim().toLowerCase();
@@ -86,7 +88,7 @@
         '<div class="subs-tags">'+(r.admin?'<span class="subs-tag admin">管理者端'+(r.adminMode?'':'（已登出）')+'</span>':'')+(r.friend==='blocked'?'<span class="subs-tag">已封鎖</span>':'')+
         (r.daily?'<span class="subs-tag on">每日總覽</span>':'')+(r.sms?'<span class="subs-tag on">盤中通知</span>':'')+'</div>'+
         '<div class="subs-meta">推送 '+(st.push||0)+'・收到 '+(st.received||0)+'・回覆 '+(st.replied||0)+'<small>'+h(years(st.years,[['daily','每日'],['sms','盤中'],['admin','管理者'],['other','其他']]))+'</small></div>'+
-        '<div class="subs-act"><button type="button" class="ghost" data-conv="'+h(r.uid)+'" aria-expanded="'+(open[r.uid]?'true':'false')+'">'+(open[r.uid]?'收起對話':'對話紀錄')+'</button></div>'+
+        '<div class="subs-act">'+((r.daily||r.sms)&&r.friend!=='blocked'?'<button type="button" class="danger" data-line-stop="'+h(r.uid)+'" data-name="'+h(r.name||r.id)+'">停止推送</button>':'')+'<button type="button" class="ghost" data-conv="'+h(r.uid)+'" aria-expanded="'+(open[r.uid]?'true':'false')+'">'+(open[r.uid]?'收起對話':'對話紀錄')+'</button></div>'+
         (open[r.uid]?'<div class="subs-conv" id="conv-'+h(r.uid)+'">'+convHtml(open[r.uid])+'</div>':'')+'</div>';
     }).join(''):'<p class="subs-empty">還沒有 LINE 好友紀錄。</p>';
     $s('subsLineNote').textContent=data?((data.lineStatsFrom?'統計自 '+data.lineStatsFrom+' 起，':'統計尚未累計，')+'每天 19:10 更新；對話保留一年。'):'';
@@ -98,7 +100,7 @@
   }
   function load(){
     if(busy||!window.KEY)return;busy=true;msg('warn','讀取中…');
-    google.script.run.withSuccessHandler(function(r){busy=false;if(!r||!r.ok){msg('err','讀取失敗：'+((r&&r.reason)||'請稍後再試'));return;}data=r;msg('','');renderEmail();renderLine();})
+    google.script.run.withSuccessHandler(function(r){busy=false;if(!r||!r.ok){msg('err','讀取失敗：'+why(r));return;}data=r;msg('','');renderEmail();renderLine();})
       .withFailureHandler(function(e){busy=false;msg('err','讀取失敗：'+(e&&e.message||e));}).apiAdminSubscribers(KEY);
   }
   $s('subsRefresh').addEventListener('click',load);
@@ -111,8 +113,16 @@
       var ask={cancel:'停止寄信給 '+r.email+'？之後可以恢復。',restore:'恢復寄信給 '+r.email+'？',delete:'永久刪除 '+r.email+' 的訂閱資料？無法復原；寄送帳本保留。'}[act];
       if(!confirm(ask))return;
       b.disabled=true;msg('warn','處理中…');
-      google.script.run.withSuccessHandler(function(x){b.disabled=false;if(!x||!x.ok){msg('err','失敗：'+((x&&x.reason)||'請重新登入後再試'));return;}msg('ok',{cancel:'已取消',restore:'已恢復',delete:'已刪除'}[act]+'：'+r.email);load();})
+      google.script.run.withSuccessHandler(function(x){b.disabled=false;if(!x||!x.ok){msg('err','失敗：'+why(x));return;}msg('ok',{cancel:'已取消',restore:'已恢復',delete:'已刪除'}[act]+'：'+r.email);load();})
         .withFailureHandler(function(err){b.disabled=false;msg('err','失敗：'+(err&&err.message||err));}).apiAdminSubscriberRemove(KEY,r.email,act);
+      return;
+    }
+    var stop=e.target.closest('[data-line-stop]');
+    if(stop){
+      if(!confirm('停止對「'+stop.dataset.name+'」推送每日總覽與盤中通知？\n對方之後可以在 LINE 自己重新訂閱。'))return;
+      stop.disabled=true;msg('warn','處理中…');
+      google.script.run.withSuccessHandler(function(x){stop.disabled=false;if(!x||!x.ok){msg('err','失敗：'+why(x));return;}msg('ok','已停止推送：'+stop.dataset.name);load();})
+        .withFailureHandler(function(err){stop.disabled=false;msg('err','失敗：'+(err&&err.message||err));}).apiAdminLineStop(KEY,stop.dataset.lineStop);
       return;
     }
     var c=e.target.closest('[data-conv]');

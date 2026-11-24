@@ -221,7 +221,9 @@ class WeeklyNotifyAndInfra(unittest.TestCase):
         self.assertEqual([d['status'] for d in card['days']], ['infra', 'pass'])
         self.assertEqual(len(card['asks']), 1)
         self.assertIn('Google', card['asks'][0]['question'])
-        self.assertTrue(card['reportUrl'].endswith('docs/weekly-review/2026-11-13/報告.md'))
+        # LINE 只收 ASCII 網址（2026/11/20 管理者通知因「報告.md」HTTP 400）
+        self.assertTrue(card['reportUrl'].endswith('docs/weekly-review/2026-11-13/%E5%A0%B1%E5%91%8A.md'))
+        self.assertTrue(card['reportUrl'].isascii())
 
     def test_card_merged_week_asks_nothing(self):
         import notify

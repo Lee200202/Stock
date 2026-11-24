@@ -16028,7 +16028,9 @@ def _adjudicate_classes(ss, signals, transcript, date_str, first, reviewed, mode
             forms |= {str(n) for n in _signal_names(_row) | {str(_row.get('name') or '')} if n}
         forms = {f for f in forms | {str(entry.get('name') or '')} if f and not f.isdigit()}
         if forms and all(len(_display_name(f)) == 2 for f in forms) and not any(f in CONFIRMED_NAMES for f in forms):
-            entry['identity_confirmed'] = any(_weak_name_explicitly_stock(_display_name(f), str(code), transcript) for f in forms)
+            # 紀錄上未出場、原文只用「這一支叫做6719」念出代號（2026/11/10 力智）：念出的代號就是身分（11/24 重播被這一關擋掉）
+            entry['identity_confirmed'] = (bool(entry.get('open') and open_position_code_mention(code, transcript))
+                                           or any(_weak_name_explicitly_stock(_display_name(f), str(code), transcript) for f in forms))
     signals['_verdicts'] = verdicts
     signals['_manual_hidden'] = sorted(code for code, entry in (cache or {}).items()
                                        if isinstance(entry, dict) and entry.get('manual') in ('history', 'uncertain', 'ignored'))

@@ -3279,7 +3279,7 @@ function restatesEarlier_(key, earlier) {
   $('dValYearsForm').addEventListener('submit', function (event) {
     event.preventDefault();
     var years = $('dValYears').valueAsNumber;
-    if (!Number.isInteger(years) || years < 1 || years > 10) { return; }
+    if (!Number.isInteger(years) || years < 1 || years > 25) { return; }
     valYears = years;
     if (currentCode) { renderValBands(currentCode, valFund); }
   });

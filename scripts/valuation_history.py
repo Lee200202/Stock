@@ -142,7 +142,7 @@ def today():
 def cmd_fetch(args):
     market = args.market
     end = today()
-    start = max(FLOOR[market], end - timedelta(days=round(365.25 * args.years) + 7))
+    start = max(FLOOR[market], end - timedelta(days=round(365.25 * args.years) + 7)) if args.years and args.years > 0 else FLOOR[market]
     stop_at = time.time() + args.deadline_min * 60 if args.deadline_min else None
     days, d = [], end
     while d >= start:                       # 新的先抓：預算用完時最近幾年已齊
@@ -196,7 +196,7 @@ def quantiles(values):
     return out
 
 
-def build(archive, years, end=None, include_history=False):
+def build(archive, years=0, end=None, include_history=False):
     """讀封存 → {代號: 摘要}。兩個市場合併（同代號轉市場時以日期接續）。"""
     files = sorted(Path(archive).glob('*/*/*.json.gz'))
     recs = []
@@ -207,10 +207,10 @@ def build(archive, years, end=None, include_history=False):
     if not recs:
         return {}
     last = end or max(r['date'] for r in recs)
-    first_allowed = (date.fromisoformat(last) - timedelta(days=round(365.25 * years))).isoformat()
+    first_allowed = (date.fromisoformat(last) - timedelta(days=round(365.25 * years))).isoformat() if years and years > 0 else None
     series = {}
     for rec in sorted(recs, key=lambda r: r['date']):
-        if rec['date'] < first_allowed or rec['date'] > last:
+        if (first_allowed and rec['date'] < first_allowed) or rec['date'] > last:
             continue
         for code, vals in rec['rows'].items():
             s = series.setdefault(code, {'market': rec['market'], 'dates': [], 'vals': []})
@@ -222,7 +222,9 @@ def build(archive, years, end=None, include_history=False):
                 s['vals'].append(vals)
     out = {}
     for code, s in series.items():
-        item = {'code': code, 'market': '上市' if s['market'] == 'twse' else '上櫃', 'years': years,
+        span_years = round((date.fromisoformat(s['dates'][-1]) - date.fromisoformat(s['dates'][0])).days / 365.25, 1)
+        item_years = years if years and years > 0 else span_years
+        item = {'code': code, 'market': '上市' if s['market'] == 'twse' else '上櫃', 'years': item_years,
                 'from': s['dates'][0], 'to': s['dates'][-1], 'tradingDays': len(s['dates'])}
         for i, m in enumerate(METRICS):
             pts = [(d, v[i]) for d, v in zip(s['dates'], s['vals']) if v[i] is not None]
@@ -249,7 +251,8 @@ def cmd_build(args):
     for f in outdir.glob('*.json'):
         if f.name not in keep and f.name != '_meta.json':
             f.unlink()
-    meta = {'built': datetime.now(TZ).strftime('%Y-%m-%d %H:%M'), 'codes': len(data), 'years': args.years,
+    meta = {'built': datetime.now(TZ).strftime('%Y-%m-%d %H:%M'), 'codes': len(data),
+            'years': args.years if args.years and args.years > 0 else 'all',
             'to': max((x['to'] for x in data.values()), default='')}
     (outdir / '_meta.json').write_text(json.dumps(meta, ensure_ascii=False), encoding='utf-8')
     print(f'輸出 {len(data)} 檔，資料到 {meta["to"]}')
@@ -275,8 +278,10 @@ def main(argv=None):
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest='cmd', required=True)
     f = sub.add_parser('fetch'); f.add_argument('--archive', required=True); f.add_argument('--market', choices=['twse', 'tpex'], required=True)
-    f.add_argument('--years', type=float, default=5); f.add_argument('--deadline-min', type=float, default=0)
-    b = sub.add_parser('build'); b.add_argument('--archive', required=True); b.add_argument('--out', required=True); b.add_argument('--years', type=float, default=5)
+    f.add_argument('--years', type=float, default=0, help='抓取年數；0 或不傳代表抓到交易所最早可取得日')
+    f.add_argument('--deadline-min', type=float, default=0)
+    b = sub.add_parser('build'); b.add_argument('--archive', required=True); b.add_argument('--out', required=True)
+    b.add_argument('--years', type=float, default=0, help='納入年數；0 或不傳代表納入封存中全部歷史')
     c = sub.add_parser('check'); c.add_argument('--out', required=True)
     args = ap.parse_args(argv)
     return {'fetch': cmd_fetch, 'build': cmd_build, 'check': cmd_check}[args.cmd](args)

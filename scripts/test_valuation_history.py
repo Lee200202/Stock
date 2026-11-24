@@ -59,6 +59,19 @@ class BuildTest(unittest.TestCase):
             self.assertEqual(history[0], ['2019-01-02', 999.0, 1.0, 1.0])
             self.assertEqual(history[-1][1:], [39.0, None, 1.0])
 
+    def test_all_history_window(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d1 = date(2005, 1, 3)
+            d2 = date(2026, 11, 24)
+            vh._write(vh._path(tmp, 'twse', d1), {'date': d1.isoformat(), 'market': 'twse', 'stat': 'ok', 'rows': {'2330': [10.0, 3.0, 1.5]}})
+            vh._write(vh._path(tmp, 'twse', d2), {'date': d2.isoformat(), 'market': 'twse', 'stat': 'ok', 'rows': {'2330': [20.0, 2.0, 5.0]}})
+            out = vh.build(tmp, 0, include_history=True)['2330']
+            self.assertEqual(len(out['history']), 2)
+            self.assertEqual(out['from'], '2005-01-03')
+            self.assertEqual(out['to'], '2026-11-24')
+            self.assertEqual(out['history'][0], ['2005-01-03', 10.0, 3.0, 1.5])
+            self.assertEqual(out['history'][1], ['2026-11-24', 20.0, 2.0, 5.0])
+
 
 
 if __name__ == '__main__':

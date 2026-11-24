@@ -10,6 +10,10 @@ on:
         description: 只用既有封存產生網站資料
         type: boolean
         default: false
+      years:
+        description: '抓取與建立年數；0 為交易所最早可取得日（全歷史）'
+        type: number
+        default: 0
       minutes:
         description: '每個市場的抓取預算分鐘；到時保存，下次續補'
         type: number
@@ -27,6 +31,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       MINUTES: ${{ inputs.minutes || 80 }}
+      YEARS: ${{ inputs.years || 0 }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -48,16 +53,16 @@ jobs:
         if: inputs.build_only != true
         run: |
           set -o pipefail
-          python -u scripts/valuation_history.py fetch --archive _vh/archive --years 10 --market tpex --deadline-min "$MINUTES" 2>&1 | tee tpex.log &
+          python -u scripts/valuation_history.py fetch --archive _vh/archive --years "$YEARS" --market tpex --deadline-min "$MINUTES" 2>&1 | tee tpex.log &
           tpex=$!
           ok=0
-          python -u scripts/valuation_history.py fetch --archive _vh/archive --years 10 --market twse --deadline-min "$MINUTES" 2>&1 | tee twse.log || ok=1
+          python -u scripts/valuation_history.py fetch --archive _vh/archive --years "$YEARS" --market twse --deadline-min "$MINUTES" 2>&1 | tee twse.log || ok=1
           wait "$tpex" || ok=1
           exit $ok
       - name: 產生個股估值資料並檢查
         if: always() && !cancelled()
         run: |
-          python scripts/valuation_history.py build --archive _vh/archive --out _vh/valuation --years 10
+          python scripts/valuation_history.py build --archive _vh/archive --out _vh/valuation --years "$YEARS"
           python scripts/valuation_history.py check --out _vh/valuation
       - name: 保存並觸發網站建置
         if: always() && !cancelled()

@@ -1,5 +1,5 @@
-name: number-digits
-run-name: 數字寫法 ${{ inputs.date }} ${{ inputs.apply == 'true' && '套用' || '預覽' }}
+name: historical-speaker-notes
+run-name: 歷史個股說明 ${{ inputs.apply == 'true' && '套用' || '預覽' }}
 
 # 2026/11/12 管理者：個股說明裡的「九百五十三元」要呈現成「953元」。
 # 主流程之後寫入時就會換；這裡把已發布的某一天換過來（預覽／套用），不改分類與成交事實、不寄信。
@@ -48,7 +48,8 @@ jobs:
           APPLY: ${{ inputs.apply }}
           REFRESH: ${{ inputs.refresh }}
         run: |
-          ARGS="--date $DAY"
-          if [ "$APPLY" = "true" ]; then ARGS="$ARGS --apply"; fi
-          if [ "$REFRESH" = "true" ]; then ARGS="$ARGS --refresh"; fi
-          python scripts/apply_number_digits.py $ARGS
+          if [ "$APPLY" = "true" ]; then
+            python scripts/apply_historical_speaker_notes.py --apply
+          else
+            python scripts/apply_historical_speaker_notes.py
+          fi

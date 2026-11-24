@@ -4275,94 +4275,6 @@ function restatesEarlier_(key, earlier) {
     }
     return historyMemo[code] || null;
   }
-  /* 2026/11/24：K 線價格還原切換與歷年事件時間線。
-     history/代號.json 已依交易所公告還原減資與面額變更（adjustments：除以事件之後各次倍數的乘積）；
-     「未還原」就乘回去。除權息來自 events/代號.json（前收盤 ÷ 參考價），「還原」時把事件前的價格除以倍數。
-     預設維持原口徑（含減資面額還原、未還原除權息），與進場價、持股紀錄同一套價格。 */
-  var EVENTS_BASE = /(?:^|\.)github\.io$|^localhost$|^127\./.test(location.hostname) ? location.origin + location.pathname.replace(/[^/]*$/, '') + 'events/' : 'https://lee200202.github.io/Stock/events/';
-  var eventsMemo = {}, eventsDoc = {}, adjCap = 'adj', adjDiv = 'raw', corpOpen = false, corpTypes = { cap: true, par: true, div: true };
-  function loadEvents(code) {
-    if (!eventsMemo[code] && window.fetch) {
-      eventsMemo[code] = fetch(EVENTS_BASE + encodeURIComponent(code) + '.json', { cache: 'no-cache' })
-        .then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })
-        .then(function (d) {
-          var list = d && String(d.code) === String(code) && Array.isArray(d.dividends) ? d.dividends.filter(function (e) {
-            return e && HISTORY_DATE.test(e.date) && e.factor > 0 && isFinite(e.factor);
-          }).map(function (e) { return { date: e.date.replace(/-/g, '/'), kind: String(e.kind || '除息').slice(0, 4), prev: e.prev, ref: e.ref, value: e.value, factor: e.factor }; }) : [];
-          eventsDoc[code] = list; return list;
-        });
-    }
-    return eventsMemo[code] || Promise.resolve([]);
-  }
-  function adjustedDaily(memo, code) {
-    var hist = memo && memo.history; if (!hist) { return null; }
-    var divs = adjDiv === 'adj' ? (eventsDoc[code] || []) : [];
-    if (adjCap === 'adj' && !divs.length) { return null; }
-    return memo.day.map(function (r) {
-      var d = String(r.date).slice(0, 10), k = 1;
-      if (adjCap === 'raw') { k *= splitFactorAfter(hist.adjustments, d); }
-      divs.forEach(function (e) { if (d < e.date) { k /= e.factor; } });
-      if (k === 1) { return r; }
-      var o = {}; for (var key in r) { if (Object.prototype.hasOwnProperty.call(r, key)) { o[key] = r[key]; } }
-      ['open', 'high', 'low', 'close'].forEach(function (f) { o[f] = Math.round(r[f] * k * 10000) / 10000; });
-      return o;
-    });
-  }
-  function syncAdjSwitches() {
-    var memo = candleMemo[currentCode], hist = memo && memo.history, divs = eventsDoc[currentCode] || [];
-    var capOk = !!(hist && hist.adjustments.length), divOk = !!(hist && divs.length);
-    $('kAdjCap').hidden = !capOk; $('kAdjDiv').hidden = !divOk;
-    $('kAdj').hidden = period === 'hour' || !(capOk || divOk);
-    document.querySelectorAll('[data-adj-cap]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.adjCap === adjCap)); });
-    document.querySelectorAll('[data-adj-div]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.adjDiv === adjDiv)); });
-  }
-  function redrawAdjusted() {
-    var memo = candleMemo[currentCode]; if (!memo || period === 'hour') { return; }
-    var kept = viewDates(); showCandles(period, memo[period] || []); restoreViewDates(kept);
-  }
-  document.querySelectorAll('[data-adj-cap]').forEach(function (b) { b.addEventListener('click', function () { adjCap = b.dataset.adjCap; syncAdjSwitches(); redrawAdjusted(); }); });
-  document.querySelectorAll('[data-adj-div]').forEach(function (b) { b.addEventListener('click', function () { adjDiv = b.dataset.adjDiv; syncAdjSwitches(); redrawAdjusted(); }); });
-
-  var CORP_ICON = {"cap": '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4L8.1 15.9M14.5 14.5L20 20M8.1 8.1L12 12"/></svg>', "par": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>', "div": '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v10"/><path d="M15 9.5c0-1.1-1.3-2-3-2s-3 .9-3 2 1.3 2 3 2 3 .9 3 2-1.3 2-3 2-3-.9-3-2"/></svg>'};
-  function corpType(kind) { return /減資/.test(kind) ? 'cap' : /息|權/.test(kind) && !/面額|分割/.test(kind) ? 'div' : 'par'; }
-  function renderCorpTimeline(code) {
-    var box = $('corpTl'), hist = historyDoc[code], divs = eventsDoc[code] || [];
-    var ev = [];
-    ((hist && hist.adjustments) || []).forEach(function (a) {
-      var t = corpType(a.kind || ''), ratio = a.factor;
-      ev.push({ date: a.date, type: t, title: a.kind || (a.factor >= 1 ? '分割' : '反分割'),
-        detail: a.prev && a.ref ? '停止買賣前收盤 ' + pxShort(a.prev) + '，恢復買賣參考價 ' + pxShort(a.ref) : '交易所公告的股數變動',
-        delta: t === 'par' && ratio > 1 ? '1 股變 ' + (Math.round(ratio * 100) / 100) + ' 股' : t === 'par' ? (Math.round(1 / ratio * 100) / 100) + ' 股併 1 股' : '參考價 ×' + (Math.round(1 / ratio * 100) / 100) });
-    });
-    divs.forEach(function (e) {
-      ev.push({ date: e.date, type: 'div', title: e.kind || '除息', detail: '除權息前收盤 ' + pxShort(e.prev) + '，參考價 ' + pxShort(e.ref),
-        delta: (e.kind === '除權' ? '權值 ' : e.kind === '權息' ? '權息 ' : '息值 ') + (Math.round((e.value || 0) * 100) / 100).toFixed(2) });
-    });
-    if (!ev.length) { box.hidden = true; box.innerHTML = ''; return; }
-    ev.sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
-    var n = { cap: 0, par: 0, div: 0 }; ev.forEach(function (e) { n[e.type]++; });
-    var names = { cap: '減資', par: '面額變更', div: '除權息' };
-    var counts = ['cap', 'par', 'div'].filter(function (t) { return n[t]; }).map(function (t) { return '<span class="corp-badge t-' + t + '">' + names[t] + ' ' + n[t] + (t === 'div' ? ' 筆' : ' 次') + '</span>'; }).join('');
-    var shown = ev.filter(function (e) { return corpTypes[e.type]; });
-    box.innerHTML = '<button type="button" class="corp-head" aria-expanded="' + corpOpen + '" aria-controls="corpBody"><span class="corp-title">歷年減資、面額變更與除權息</span>' + counts + '<span class="corp-toggle">' + (corpOpen ? '收合時間線' : '展開時間線') + '</span></button>' +
-      '<div class="corp-body" id="corpBody"' + (corpOpen ? '' : ' hidden') + '><div class="corp-filters" role="group" aria-label="顯示哪些事件">' +
-      ['cap', 'par', 'div'].filter(function (t) { return n[t]; }).map(function (t) { return '<button type="button" class="corp-filter t-' + t + '" data-corp-type="' + t + '" aria-pressed="' + !!corpTypes[t] + '">' + CORP_ICON[t] + '<span>' + names[t] + '</span></button>'; }).join('') +
-      '<span class="corp-stat">顯示 ' + shown.length + ' / ' + ev.length + ' 筆</span></div>' +
-      (shown.length ? '<ol class="corp-list">' + shown.map(function (e) {
-        return '<li class="corp-node t-' + e.type + '"><span class="corp-ic">' + CORP_ICON[e.type] + '</span><div class="corp-main"><b>' + esc(e.date) + '</b><span class="corp-badge t-' + e.type + '">' + esc(e.title) + '</span><small>' + esc(e.detail) + '</small></div><span class="corp-delta">' + esc(e.delta) + '</span></li>';
-      }).join('') + '</ol>' : '<p class="corp-empty">三類都已關閉，點上方按鈕再顯示。</p>') + '</div>';
-    box.hidden = false;
-    box.querySelector('.corp-head').addEventListener('click', function () { corpOpen = !corpOpen; renderCorpTimeline(code); });
-    box.querySelectorAll('[data-corp-type]').forEach(function (b) { b.addEventListener('click', function () { corpTypes[b.dataset.corpType] = !corpTypes[b.dataset.corpType]; renderCorpTimeline(code); var again = $('corpTl').querySelector('[data-corp-type="' + b.dataset.corpType + '"]'); if (again) { again.focus(); } }); });
-  }
-  function refreshCorp(code) {
-    var h = loadHistory(code);
-    Promise.all([h || Promise.resolve(null), loadEvents(code)]).then(function () {
-      if (code !== currentCode) { return; }
-      renderCorpTimeline(code); syncAdjSwitches();
-      if (adjDiv === 'adj' || adjCap === 'raw') { redrawAdjusted(); }
-    });
-  }
   function cleanHistory(doc, code) {
     if (!doc || String(doc.code) !== String(code) || !Array.isArray(doc.rows)) { return null; }
     var rows = [], prev = '';
@@ -4533,6 +4445,94 @@ function restatesEarlier_(key, earlier) {
     }).apiGetCandlesBundle(code, { hour: false });
   }
 
+  /* 2026/11/24：K 線價格還原切換與歷年事件時間線。
+     history/代號.json 已依交易所公告還原減資與面額變更（adjustments：除以事件之後各次倍數的乘積）；
+     「未還原」就乘回去。除權息來自 events/代號.json（前收盤 ÷ 參考價），「還原」時把事件前的價格除以倍數。
+     預設維持原口徑（含減資面額還原、未還原除權息），與進場價、持股紀錄同一套價格。 */
+  var EVENTS_BASE = /(?:^|\.)github\.io$|^localhost$|^127\./.test(location.hostname) ? location.origin + location.pathname.replace(/[^/]*$/, '') + 'events/' : 'https://lee200202.github.io/Stock/events/';
+  var eventsMemo = {}, eventsDoc = {}, adjCap = 'adj', adjDiv = 'raw', corpOpen = false, corpTypes = { cap: true, par: true, div: true };
+  function loadEvents(code) {
+    if (!eventsMemo[code] && window.fetch) {
+      eventsMemo[code] = fetch(EVENTS_BASE + encodeURIComponent(code) + '.json', { cache: 'no-cache' })
+        .then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })
+        .then(function (d) {
+          var list = d && String(d.code) === String(code) && Array.isArray(d.dividends) ? d.dividends.filter(function (e) {
+            return e && HISTORY_DATE.test(e.date) && e.factor > 0 && isFinite(e.factor);
+          }).map(function (e) { return { date: e.date.replace(/-/g, '/'), kind: String(e.kind || '除息').slice(0, 4), prev: e.prev, ref: e.ref, value: e.value, factor: e.factor }; }) : [];
+          eventsDoc[code] = list; return list;
+        });
+    }
+    return eventsMemo[code] || Promise.resolve([]);
+  }
+  function adjustedDaily(memo, code) {
+    var hist = memo && memo.history; if (!hist) { return null; }
+    var divs = adjDiv === 'adj' ? (eventsDoc[code] || []) : [];
+    if (adjCap === 'adj' && !divs.length) { return null; }
+    return memo.day.map(function (r) {
+      var d = String(r.date).slice(0, 10), k = 1;
+      if (adjCap === 'raw') { k *= splitFactorAfter(hist.adjustments, d); }
+      divs.forEach(function (e) { if (d < e.date) { k /= e.factor; } });
+      if (k === 1) { return r; }
+      var o = {}; for (var key in r) { if (Object.prototype.hasOwnProperty.call(r, key)) { o[key] = r[key]; } }
+      ['open', 'high', 'low', 'close'].forEach(function (f) { o[f] = Math.round(r[f] * k * 10000) / 10000; });
+      return o;
+    });
+  }
+  function syncAdjSwitches() {
+    var memo = candleMemo[currentCode], hist = memo && memo.history, divs = eventsDoc[currentCode] || [];
+    var capOk = !!(hist && hist.adjustments.length), divOk = !!(hist && divs.length);
+    $('kAdjCap').hidden = !capOk; $('kAdjDiv').hidden = !divOk;
+    $('kAdj').hidden = period === 'hour' || !(capOk || divOk);
+    document.querySelectorAll('[data-adj-cap]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.adjCap === adjCap)); });
+    document.querySelectorAll('[data-adj-div]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.adjDiv === adjDiv)); });
+  }
+  function redrawAdjusted() {
+    var memo = candleMemo[currentCode]; if (!memo || period === 'hour') { return; }
+    var kept = viewDates(); showCandles(period, memo[period] || []); restoreViewDates(kept);
+  }
+  document.querySelectorAll('[data-adj-cap]').forEach(function (b) { b.addEventListener('click', function () { adjCap = b.dataset.adjCap; syncAdjSwitches(); redrawAdjusted(); }); });
+  document.querySelectorAll('[data-adj-div]').forEach(function (b) { b.addEventListener('click', function () { adjDiv = b.dataset.adjDiv; syncAdjSwitches(); redrawAdjusted(); }); });
+
+  var CORP_ICON = {"cap": '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4L8.1 15.9M14.5 14.5L20 20M8.1 8.1L12 12"/></svg>', "par": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>', "div": '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v10"/><path d="M15 9.5c0-1.1-1.3-2-3-2s-3 .9-3 2 1.3 2 3 2 3 .9 3 2-1.3 2-3 2-3-.9-3-2"/></svg>'};
+  function corpType(kind) { return /減資/.test(kind) ? 'cap' : /息|權/.test(kind) && !/面額|分割/.test(kind) ? 'div' : 'par'; }
+  function renderCorpTimeline(code) {
+    var box = $('corpTl'), hist = historyDoc[code], divs = eventsDoc[code] || [];
+    var ev = [];
+    ((hist && hist.adjustments) || []).forEach(function (a) {
+      var t = corpType(a.kind || ''), ratio = a.factor;
+      ev.push({ date: a.date, type: t, title: a.kind || (a.factor >= 1 ? '分割' : '反分割'),
+        detail: a.prev && a.ref ? '停止買賣前收盤 ' + pxShort(a.prev) + '，恢復買賣參考價 ' + pxShort(a.ref) : '交易所公告的股數變動',
+        delta: t === 'par' && ratio > 1 ? '1 股變 ' + (Math.round(ratio * 100) / 100) + ' 股' : t === 'par' ? (Math.round(1 / ratio * 100) / 100) + ' 股併 1 股' : '參考價 ×' + (Math.round(1 / ratio * 100) / 100) });
+    });
+    divs.forEach(function (e) {
+      ev.push({ date: e.date, type: 'div', title: e.kind || '除息', detail: '除權息前收盤 ' + pxShort(e.prev) + '，參考價 ' + pxShort(e.ref),
+        delta: (e.kind === '除權' ? '權值 ' : e.kind === '權息' ? '權息 ' : '息值 ') + (Math.round((e.value || 0) * 100) / 100).toFixed(2) });
+    });
+    if (!ev.length) { box.hidden = true; box.innerHTML = ''; return; }
+    ev.sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
+    var n = { cap: 0, par: 0, div: 0 }; ev.forEach(function (e) { n[e.type]++; });
+    var names = { cap: '減資', par: '面額變更', div: '除權息' };
+    var counts = ['cap', 'par', 'div'].filter(function (t) { return n[t]; }).map(function (t) { return '<span class="corp-badge t-' + t + '">' + names[t] + ' ' + n[t] + (t === 'div' ? ' 筆' : ' 次') + '</span>'; }).join('');
+    var shown = ev.filter(function (e) { return corpTypes[e.type]; });
+    box.innerHTML = '<button type="button" class="corp-head" aria-expanded="' + corpOpen + '" aria-controls="corpBody"><span class="corp-title">歷年減資、面額變更與除權息</span>' + counts + '<span class="corp-toggle">' + (corpOpen ? '收合時間線' : '展開時間線') + '</span></button>' +
+      '<div class="corp-body" id="corpBody"' + (corpOpen ? '' : ' hidden') + '><div class="corp-filters" role="group" aria-label="顯示哪些事件">' +
+      ['cap', 'par', 'div'].filter(function (t) { return n[t]; }).map(function (t) { return '<button type="button" class="corp-filter t-' + t + '" data-corp-type="' + t + '" aria-pressed="' + !!corpTypes[t] + '">' + CORP_ICON[t] + '<span>' + names[t] + '</span></button>'; }).join('') +
+      '<span class="corp-stat">顯示 ' + shown.length + ' / ' + ev.length + ' 筆</span></div>' +
+      (shown.length ? '<ol class="corp-list">' + shown.map(function (e) {
+        return '<li class="corp-node t-' + e.type + '"><span class="corp-ic">' + CORP_ICON[e.type] + '</span><div class="corp-main"><b>' + esc(e.date) + '</b><span class="corp-badge t-' + e.type + '">' + esc(e.title) + '</span><small>' + esc(e.detail) + '</small></div><span class="corp-delta">' + esc(e.delta) + '</span></li>';
+      }).join('') + '</ol>' : '<p class="corp-empty">三類都已關閉，點上方按鈕再顯示。</p>') + '</div>';
+    box.hidden = false;
+    box.querySelector('.corp-head').addEventListener('click', function () { corpOpen = !corpOpen; renderCorpTimeline(code); });
+    box.querySelectorAll('[data-corp-type]').forEach(function (b) { b.addEventListener('click', function () { corpTypes[b.dataset.corpType] = !corpTypes[b.dataset.corpType]; renderCorpTimeline(code); var again = $('corpTl').querySelector('[data-corp-type="' + b.dataset.corpType + '"]'); if (again) { again.focus(); } }); });
+  }
+  function refreshCorp(code) {
+    var h = loadHistory(code);
+    Promise.all([h || Promise.resolve(null), loadEvents(code)]).then(function () {
+      if (code !== currentCode) { return; }
+      renderCorpTimeline(code); syncAdjSwitches();
+      if (adjDiv === 'adj' || adjCap === 'raw') { redrawAdjusted(); }
+    });
+  }
   /* 60 分 K 另外取（v199）：開盤時段取 60 分 K 會即時向富果補當天，多數人只看日K，不必每次開面板都等。 */
   function loadHourly(code, background) {
     var k = code + ':hour';

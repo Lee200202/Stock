@@ -127,6 +127,13 @@ jobs:
           else
             echo '尚無 valuation-history 分支，略過'
           fi
+      - name: 附上除權息事件（corp-events 分支；沒有就不提供除權息還原）
+        run: |
+          if git fetch -q --depth=1 origin corp-events 2>/dev/null; then
+            git archive FETCH_HEAD events | tar -x -C _site && echo "events：$(ls _site/events | wc -l) 個檔案"
+          else
+            echo '尚無 corp-events 分支，略過'
+          fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:

@@ -582,6 +582,11 @@
             <button type="button" data-krange="120" aria-pressed="false">10年</button>
             <button type="button" data-krange="all" aria-pressed="false">全部</button>
           </div>
+          <!-- 2026/11/24：價格還原切換。減資／面額變更用 history 檔的官方事件；除權息用 events 檔（證交所、櫃買中心除權除息計算結果表）。 -->
+          <div class="adj-switches" id="kAdj" hidden>
+            <div class="oval-switch" id="kAdjCap" role="group" aria-label="減資與面額變更" hidden><button type="button" data-adj-cap="adj" aria-pressed="true">含減資面額還原</button><button type="button" data-adj-cap="raw" aria-pressed="false">未還原減資面額</button></div>
+            <div class="oval-switch" id="kAdjDiv" role="group" aria-label="除權息" hidden><button type="button" data-adj-div="adj" aria-pressed="false">含除權息還原</button><button type="button" data-adj-div="raw" aria-pressed="true">未還原除權息</button></div>
+          </div>
         </div>
 
         <div class="klegend" id="kLegend" aria-label="均線與布林通道（點一下開關）"></div>
@@ -611,6 +616,7 @@
         </div>
         <p class="notice polish-range-hint" id="kRangeHint" role="status" hidden></p>
         <p class="notice" id="periodNote"></p>
+        <div class="corp-tl" id="corpTl" hidden></div>
       </div>
 
       <div class="sect" id="dSecFund">
@@ -624,6 +630,7 @@
           </form>
         </div>
         <div class="fund-info" id="dFundInfo"></div>
+        <p class="val-meta" id="dValMeta" hidden></p>
         <div class="val-bands" id="dValBands" hidden></div>
         <p class="notice" id="dFundNote" role="status"></p>
       </div>

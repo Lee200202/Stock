@@ -1,0 +1,52 @@
+name: corp-events
+run-name: 除權息事件 · 年度補抓與發布
+# 2026/11/24：個股 K 線「除權息還原」切換與歷年事件時間線。封存與輸出放 corp-events 分支，網站建置時複製到 /events/。
+on:
+  schedule:
+    - cron: '40 11 * * 1-5'     # 台北 19:40
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: write
+concurrency:
+  group: corp-events
+  cancel-in-progress: false
+jobs:
+  events:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - run: pip install 'requests>=2.31,<3'
+      - name: 離線契約
+        run: python -m unittest scripts/test_corp_events.py
+      # repo 本身已有 data/ 資料夾，封存分支取到 _ce/
+      - name: 取出封存分支（沒有就建立）
+        run: |
+          if git fetch -q origin corp-events 2>/dev/null; then
+            git worktree add _ce FETCH_HEAD
+            git -C _ce checkout -q -B corp-events
+          else
+            git worktree add --orphan -b corp-events _ce
+          fi
+      - name: 補抓（今年與去年每次重抓，更早沿用）
+        run: python -u scripts/corp_events.py fetch --archive _ce/archive
+      - name: 產生每檔事件並檢查
+        run: |
+          python scripts/corp_events.py build --archive _ce/archive --out _ce/events
+          python scripts/corp_events.py check --out _ce/events
+      - name: 保存並觸發網站建置
+        run: |
+          cd _ce
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A archive events
+          if git diff --cached --quiet; then echo '沒有新資料'; exit 0; fi
+          git commit -q -m "events: $(date -u +%F)"
+          git push -q origin HEAD:corp-events
+          gh workflow run public-site.yml --ref main

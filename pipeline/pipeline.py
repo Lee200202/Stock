@@ -14148,7 +14148,7 @@ def _verdict_markers(text, cls):
     return ['完整主體、時間與立場待語意核對'] if str(text or '').strip() else []
 
 
-_CHASE_MARK = re.compile(r'追|利多|昨天[^，。！？!?]{0,6}買|(?:漲停|大漲|噴|拉上去)[^。！？!?]{0,40}(?:跌停|大跌|重挫|殺|套)')
+_CHASE_MARK = re.compile(r'追|利多|昨天[^，。！？!?]{0,6}買|(?:漲停|大漲|噴|拉上去)[^！？!?]{0,40}(?:跌|殺|套|重挫)')
 
 
 def chase_quote_ok(quote):

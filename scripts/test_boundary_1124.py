@@ -61,6 +61,7 @@ class ChaseLesson(unittest.TestCase):
         self.assertFalse(p.chase_quote_ok(CHUANGYI[1]))           # 先跌後漲
         self.assertTrue(p.chase_quote_ok('甲公司昨天漲停，今天跌停，你昨天買什麼意思'))
         self.assertTrue(p.chase_quote_ok('甲公司不要追利多'))
+        self.assertTrue(p.chase_quote_ok('昨天玉晶光漲停，打開報紙全部玉晶光。來，今天玉晶光了，跌'))   # 模型截短的引句
 
     def test_etf_sold_at_the_low_is_not_a_chase_lesson(self):
         raw = CHUANGYI[1]

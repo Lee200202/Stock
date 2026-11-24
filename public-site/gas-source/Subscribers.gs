@@ -23,7 +23,12 @@ function subStamp_(v) {
   if (v instanceof Date) { return Utilities.formatDate(v, 'Asia/Taipei', 'yyyy/MM/dd HH:mm:ss'); }
   return String(v == null ? '' : v).trim();
 }
-function subYmd_(v) { return subStamp_(v).replace(/-/g, '/').slice(0, 10); }
+function subYmd_(v) {
+  var t = subStamp_(v);
+  if (/^\d{4}[\/-]\d{1,2}[\/-]\d{1,2}/.test(t)) { return t.replace(/-/g, '/').slice(0, 10); }
+  var d = t ? new Date(t) : null;   // 試算表日期轉成字串後是「Mon Sep 28 2026 …」，改回台北日期
+  return d && !isNaN(d.getTime()) ? Utilities.formatDate(d, 'Asia/Taipei', 'yyyy/MM/dd') : t;
+}
 
 /* ---------------- LINE 對話紀錄與月統計 ---------------- */
 

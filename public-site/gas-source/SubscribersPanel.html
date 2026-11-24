@@ -57,6 +57,7 @@
   var $s=function(id){return document.getElementById(id);};
   var h=function(v){return String(v==null?'':v).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
   var data=null,busy=false,filter='all',open={};
+  function ymd(v){var t=String(v||'');if(!t||/^\d{4}\//.test(t))return t;var d=new Date(t);if(isNaN(d.getTime()))return t;var p=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).format(d);return p.replace(/-/g,'/');}
   function msg(tone,text){var m=$s('subsMsg');m.className='amsg'+(text?' show '+tone:'');m.textContent=text||'';}
   function why(r){var e=r&&(r.reason||r.error)||'';return e==='method-not-allowed'?'後台 API 還沒更新（網站 API 服務需重新部署）。':e==='admin-security-denied'||e==='admin-unauthorized'?'登入逾時，請重新登入。':(e||'請稍後再試');}
   function years(y,keys){return Object.keys(y||{}).sort().reverse().map(function(k){var v=y[k];return k+'：'+keys.map(function(x){return v[x[0]]?x[1]+' '+v[x[0]]:'';}).filter(Boolean).join('、');}).filter(function(t){return !/：$/.test(t);}).join('；');}
@@ -70,7 +71,7 @@
     }).sort(function(a,b){return (b.active-a.active)||String(b.since).localeCompare(String(a.since));});
     $s('subsEmailList').innerHTML=list.length?list.map(function(r){
       var s=r.sent||{},i=rows.indexOf(r);
-      return '<div class="subs-row'+(r.active?'':' off')+'"><div class="subs-main"><b>'+h(r.email)+'</b><small>'+(r.since?'訂閱於 '+h(r.since):'訂閱日未記錄')+'</small></div>'+
+      return '<div class="subs-row'+(r.active?'':' off')+'"><div class="subs-main"><b>'+h(r.email)+'</b><small>'+(r.since?'訂閱於 '+h(ymd(r.since)):'訂閱日未記錄')+'</small></div>'+
         '<div class="subs-tags">'+(r.active?(r.daily?'<span class="subs-tag on">每日總覽</span>':'')+(r.sms?'<span class="subs-tag on">盤中通知（會員簡訊）</span>':''):'<span class="subs-tag">已取消</span>')+'</div>'+
         '<div class="subs-meta">寄出 '+(s.total||0)+' 封'+(s.last?'・最後 '+h(s.last):'')+'<small>'+h(years(s.years,[['daily','每日'],['sms','盤中'],['other','其他']]))+'</small></div>'+
         '<div class="subs-act">'+(r.active?'<button type="button" class="ghost" data-sub-act="cancel" data-i="'+i+'">取消訂閱</button>':'<button type="button" class="ghost" data-sub-act="restore" data-i="'+i+'">恢復</button>')+
@@ -84,7 +85,7 @@
     rows=rows.slice().sort(function(a,b){return (b.admin-a.admin)||String(b.lastSeen).localeCompare(String(a.lastSeen));});
     $s('subsLineList').innerHTML=rows.length?rows.map(function(r){
       var st=r.stats||{};
-      return '<div class="subs-row'+(r.friend==='blocked'?' off':'')+'"><div class="subs-main"><b>'+h(r.name||'未取得名稱')+'</b><small>'+h(r.id)+(r.since?'・加入 '+h(r.since):'')+(r.lastSeen?'・最後互動 '+h(r.lastSeen):'')+'</small></div>'+
+      return '<div class="subs-row'+(r.friend==='blocked'?' off':'')+'"><div class="subs-main"><b>'+h(r.name||'未取得名稱')+'</b><small>'+h(r.id)+(r.since?'・加入 '+h(ymd(r.since)):'')+(r.lastSeen?'・最後互動 '+h(ymd(r.lastSeen)):'')+'</small></div>'+
         '<div class="subs-tags">'+(r.admin?'<span class="subs-tag admin">管理者端'+(r.adminMode?'':'（已登出）')+'</span>':'')+(r.friend==='blocked'?'<span class="subs-tag">已封鎖</span>':'')+
         (r.daily?'<span class="subs-tag on">每日總覽</span>':'')+(r.sms?'<span class="subs-tag on">盤中通知</span>':'')+'</div>'+
         '<div class="subs-meta">推送 '+(st.push||0)+'・收到 '+(st.received||0)+'・回覆 '+(st.replied||0)+'<small>'+h(years(st.years,[['daily','每日'],['sms','盤中'],['admin','管理者'],['other','其他']]))+'</small></div>'+

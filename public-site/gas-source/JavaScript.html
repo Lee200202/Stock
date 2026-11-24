@@ -875,7 +875,7 @@ function restatesEarlier_(key, earlier) {
     });
     note.hidden = !names.length;
     var CAT = { '當日買入': 'buy', '當日賣出': 'sell', '觀望不碰': 'avoid', '觀望注意': 'watch' };
-    note.innerHTML = names.length ? '<b class="ov-empty-k">本日未提到</b>' + names.map(function (n) { return '<span class="cat-' + (CAT[n] || 'watch') + '"><i aria-hidden="true"></i>' + esc(n) + '</span>'; }).join('') : '';
+    note.innerHTML = names.length ? '<div class="sect-h ov-empty-sect"><h2 class="ov-empty-k">本日未提到</h2></div>' + names.map(function (n) { return '<span class="cat-' + (CAT[n] || 'watch') + '"><i aria-hidden="true"></i>' + esc(n) + '</span>'; }).join('') : '';
   }
   function emptyLine(text) {
     return '<p class="emptyline">' + esc(text) + '</p>';
@@ -3358,6 +3358,18 @@ function restatesEarlier_(key, earlier) {
     return { from: rows.length ? rows[0][0] : '', to: doc.to, metrics: metrics };
   }
 
+  /* 2026/11/24：標記膠囊寫了數值後變寬，固定的靠邊門檻擋不住（手機上 84% 就超出卡片）。
+     改成量實際寬度：直線留在排名位置，只把膠囊往內推到剛好不超出。 */
+  function fitValPills() {
+    document.querySelectorAll('#dValBands .vb-pin').forEach(function (pin) {
+      var stage = pin.parentElement, pill = pin.querySelector('.vb-pill'), W = stage && stage.clientWidth;
+      if (!W || !pill) { return; }
+      pin.classList.remove('at-l', 'at-r');
+      var pos = parseFloat(pin.style.left) / 100 * W, pw = pill.offsetWidth, c = Math.min(Math.max(pos, pw / 2), W - pw / 2);
+      pill.style.translate = Math.round(c - pos) + 'px 0';
+    });
+  }
+  window.addEventListener('resize', fitValPills);
   function renderValBands(code, f) {
     var box = $('dValBands'), note = $('dFundNote'), request = ++valRequest, years = valYears;
     note.textContent = '載入近 ' + years + ' 年估值…';
@@ -3397,10 +3409,11 @@ function restatesEarlier_(key, earlier) {
           '</span>' + (pinned ? '' : '<strong>' + esc(value) + '</strong>') + '</div>' + band + '</div>';
       }).join('');
       box.hidden = false;
+      fitValPills();
       var from = range ? range.from : legacy ? doc.from : '';
-      $('dValMeta').hidden = !from;
-      $('dValMeta').textContent = from ? '近 ' + years + ' 年（' + valYmd(from).slice(0, 7) + ' ～ ' + valYmd(doc.to).slice(0, 7) + '）每日估值排名三等分・虧損期間不計本益比' : '';
-      note.textContent = from ? (f ? (f.source || '') : '目前值為區間內最後可用值。') :
+      $('dValMeta').hidden = true;
+      var rangeText = '區間為近 ' + years + ' 年（' + valYmd(from).slice(0, 7) + ' ～ ' + valYmd(doc.to).slice(0, 7) + '）每日估值排名三等分，虧損期間不計本益比。';
+      note.textContent = from ? (f ? (f.source || '') + ' ' + rangeText : '目前值為區間內最後可用值。' + rangeText) :
         '近 ' + years + ' 年估值歷史目前無法取得。' + (f && f.source ? ' ' + f.source : '');
     });
   }

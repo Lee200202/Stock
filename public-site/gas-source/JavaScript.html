@@ -847,6 +847,22 @@ function restatesEarlier_(key, earlier) {
      而真正有內容的觀望兩張表被推到很下面。
 
      改成一行。同樣講清楚「沒有」，但不佔位置。 */
+  /* 2026/11/24：當天確定沒提到的分類不再各佔一張大卡，收成一行「本日未提到：當日買入、當日賣出」。
+     影片整理中、沒有節目等需要說明的空白照舊顯示原卡片。 */
+  function compactEmptyCategories() {
+    var box = $('p-overview'); if (!box) { return; }
+    var note = $('ovEmptyNote');
+    if (!note) { note = document.createElement('p'); note.id = 'ovEmptyNote'; note.className = 'ov-empty'; box.insertBefore(note, box.firstElementChild); }
+    var names = [];
+    ['tblBuy', 'tblSell', 'tblWatchAvoid', 'tblWatchWatch'].forEach(function (id) {
+      var t = $(id), sect = t && t.closest('.sect'); if (!sect) { return; }
+      var only = t.children.length === 1 && t.firstElementChild.classList.contains('emptyline') && /^本日未說明/.test(t.textContent.trim());
+      sect.hidden = only;
+      if (only) { var h = sect.querySelector('h2'); names.push(h ? h.firstChild.textContent.trim() : id); }
+    });
+    note.hidden = !names.length;
+    note.textContent = names.length ? '本日未提到：' + names.join('、') : '';
+  }
   function emptyLine(text) {
     return '<p class="emptyline">' + esc(text) + '</p>';
   }
@@ -1125,6 +1141,7 @@ function restatesEarlier_(key, earlier) {
     // 走到這裡代表首頁資料還停在前一天、當天只有簡訊：影片一定還沒整理完（v54）。
     if ($('tblWatchAvoid')) { $('tblWatchAvoid').innerHTML = tradeTable(avoids, 'dir-watch', { empty: watchEmptyText(true) }); }
     if ($('tblWatchWatch')) { $('tblWatchWatch').innerHTML = tradeTable(watches, 'dir-note', { empty: watchEmptyText(true) }); }
+    compactEmptyCategories();
     if (typeof renderBand === 'function') {
       renderBand({ buy: buys, sell: sells, watchAvoid: avoids, watchWatch: watches });
     }
@@ -1412,6 +1429,7 @@ function restatesEarlier_(key, earlier) {
     $('tblWatchWatch').innerHTML = tradeTable(wWatch(d), 'dir-note', { empty: watchEmptyText(OVERVIEW_PENDING) });
 
     bindRows($('p-overview'));
+    compactEmptyCategories();
     // v88：先前寫成 r.tracker／r.quotes（r 沒有定義），畫面畫完才丟例外，Pages 傳輸層把它當成請求失敗，
     // 首頁每次都顯示「資料讀取失敗」（2026/09/29 起）。
     if (res.tracker) { applyTrackerStats(res.tracker); }
@@ -3221,7 +3239,6 @@ function restatesEarlier_(key, earlier) {
       return;
     }
     $('dFund').innerHTML =
-      kv('市場', f.market || '未提供', !f.market) +
       kv('本益比', f.per ? f.per.toFixed(2) : '未提供', !f.per) +
       kv('股價淨值比', f.pbr ? f.pbr.toFixed(2) : '未提供', !f.pbr) +
       kv('殖利率', f.yld ? f.yld.toFixed(2) + '%' : '未提供', !f.yld) +
@@ -3279,6 +3296,7 @@ function restatesEarlier_(key, earlier) {
         var m = doc[d.k];
         if (!m || !m.q || m.q.length !== 101 || m.q[100] - m.q[0] < 0.01) { return ''; }   // 區間沒有寬度（例如從未配息）不畫
         var fmt = function (x) { return Number(x).toFixed(2) + d.unit; };
+        var num = function (x) { return Number(x).toFixed(d.k === 'yld' ? 2 : 1) + (d.k === 'yld' ? '%' : ''); };
         var span = valSpan(doc, m);
         if (d.loss) {
           return '<div class="vb"><div class="vb-h"><b>' + d.label + '</b><span class="vb-say">近四季虧損，交易所不提供本益比。</span></div></div>';
@@ -3289,15 +3307,16 @@ function restatesEarlier_(key, earlier) {
         var seg = r < 100 / 3 ? '低段' : r < 200 / 3 ? '中段' : '高段';
         var sp = /^\d/.test(span) ? ' ' + span + ' ' : span;
         var say = r >= 100 ? '高於' + sp + '所有交易日' : r <= 0 ? '低於' + sp + '所有交易日' : '高於' + sp + (/^\d/.test(span) ? '' : ' ') + Math.round(r) + '% 的交易日';
-        var aria = d.label + '目前 ' + fmt(now) + '，' + say + '，落在' + seg + '。' + span + '區間 ' + fmt(m.q[0]) + ' 至 ' + fmt(m.q[100]);
+        var aria = d.label + '目前 ' + fmt(now) + '，' + say + '，落在' + seg + '。' + span + '低點 ' + fmt(m.q[0]) + '，三段分界 ' + fmt(m.q[33]) + '、' + fmt(m.q[67]) + '，高點 ' + fmt(m.q[100]);
         return '<div class="vb"><div class="vb-h"><b>' + d.label + '</b><span class="vb-say">目前 ' + fmt(now) + '，' + say + '，落在' + seg + '</span></div>' +
           '<div class="vb-track" role="img" aria-label="' + esc(aria) + '"><span class="vb-seg">低</span><span class="vb-seg">中</span><span class="vb-seg">高</span>' +
           '<span class="vb-mark" style="left:' + pos.toFixed(1) + '%"></span></div>' +
-          '<div class="vb-ends"><span>' + span + '低點 ' + fmt(m.q[0]) + '</span><span>高點 ' + fmt(m.q[100]) + '</span></div></div>';
+          '<div class="vb-ends" aria-hidden="true"><span>' + num(m.q[0]) + '</span><span>' + num(m.q[33]) + '</span><span>' + num(m.q[67]) + '</span><span>' + num(m.q[100]) + '</span></div></div>';
       }).join('');
       if (!html) { box.hidden = true; box.innerHTML = ''; return; }
-      box.innerHTML = html + '<p class="vb-note">依每日收盤估值的排名分成三段，資料至 ' + valYmd(doc.to) + '；本益比以近四季每股盈餘計算，虧損期間不計。</p>';
+      box.innerHTML = html;
       box.hidden = false;
+      $('dFundNote').textContent = '證交所、櫃買中心公開資料' + ((f && String(f.source || '').match(/更新於 ([^。]+)/) || [])[1] ? '，更新於 ' + String(f.source).match(/更新於 ([^。]+)/)[1] : '') + '。區間為' + valSpan(doc, doc.per || doc.pbr || doc.yld).replace(/^(\d.*以來)$/, ' $1 ') + '每日估值排名三等分（至 ' + valYmd(doc.to) + '），虧損期間不計本益比。';
     });
   }
 

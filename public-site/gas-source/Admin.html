@@ -1541,8 +1541,8 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
         <div class="amsg" id="mRowsMsg"></div>
       </div>
 
-      <div class="card">
-        <h2>新增一筆（機器沒擷取到的）</h2>
+      <div class="card" id="mAddCard" hidden>
+        <h2>新增一筆到 <span id="mAddDay"></span>（機器沒擷取到的）</h2>
         <p class="hint">補講者沒說股名、擷取時被略過的個股。建議填代號，名稱與代號會互相驗證；全面重整不會改掉。</p>
         <div class="row">
           <div class="field">
@@ -1810,8 +1810,8 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
             <b>一、補抓最近</b>
             <p>不需輸入日期或編號。「全部文章」會逐頁找到底。</p>
             <div class="btnrow">
-              <button class="ghost" id="smsRecentBtn">開始補抓（最近七天）</button>
-              <button id="smsAllBtn">開始補抓（全部文章）</button>
+              <button id="smsRecentBtn">開始補抓（最近七天）</button>
+              <button class="ghost" id="smsAllBtn">開始補抓（全部文章）</button>
             </div>
           </div>
 
@@ -1828,10 +1828,10 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
             <b>三、重新解析</b>
             <p>提示詞改過或有未解析的簡訊時使用；重跑會取代舊紀錄，不會重複。</p>
             <div class="lockrow sms-all-toggle">
-              <input type="checkbox" id="smsReparseAll" checked>
+              <input type="checkbox" id="smsReparseAll">
               <label for="smsReparseAll">重新解析全部會員簡訊</label>
             </div>
-            <div class="sms-calendar-pick" id="smsSinceCalendarWrap" hidden>
+            <div class="sms-calendar-pick" id="smsSinceCalendarWrap">
               <p class="hint">使用與前台相同的日曆選取起始日；從該日起到今天都會重跑。</p>
               <div class="mailcal sms-date-calendar">
                 <div class="mailcal-head">
@@ -3442,6 +3442,7 @@ if($('smsRecentBtn')) $('smsRecentBtn').addEventListener('click',function(){
   smsStart('recent',{},'smsRecentBtn');
 });
 if($('smsAllBtn')) $('smsAllBtn').addEventListener('click',function(){
+  if(!confirm('逐頁補抓全部會員簡訊文章，時間較長。確定開始？'))return;
   smsStart('all',{},'smsAllBtn');
 });
 if($('smsIdsBtn')) $('smsIdsBtn').addEventListener('click',function(){
@@ -4116,6 +4117,7 @@ function makeAdminCal(opts) {
   if ($('mTxBox')) { $('mTxBox').addEventListener('toggle', function () { loadDayTranscript(false); }); }
 
   function loadRows() {
+    if ($('mAddCard')) { $('mAddCard').hidden = !mDate; $('mAddDay').textContent = mDate || ''; }
     if (!mDate) { return; }
     $('mRowsCard').style.display = 'block';
     loadDayTranscript(false);
@@ -5698,6 +5700,10 @@ setTimeout(initCrawlDayPills, 50);
       card('互動回覆耗時', timing ? (((timing.relay || 0) + timing.total) / 1000).toFixed(1) + ' 秒' : '尚無紀錄', timing ? '最近 ' + formatTaipeiTime(timing.at) + '｜' + (timing.queue != null ? '排隊 ' + (timing.queue / 1000).toFixed(1) + '、GAS 啟動 ' + (timing.start / 1000).toFixed(1) : '轉送 ' + (timing.relay == null ? '—' : (timing.relay / 1000).toFixed(1))) + '、處理 ' + (timing.total / 1000).toFixed(1) + ' 秒' + (timing.attempt > 1 ? '（重送第 ' + timing.attempt + ' 次）' : '') : '測試帳號傳一則查詢後顯示。', !timing ? 'idle' : (timing.relay || 0) + timing.total >= 15000 ? 'err' : (timing.relay || 0) + timing.total >= 8000 ? 'warn' : 'ok') +
       card('通知圖文選單', menu.ok ? '版本已更新' : '需要檢查', (menu.actual ? 'LINE 別名指向 ' + menu.actual + '。' : '') + (menu.reason || '請重新讀取狀態。') + (menu.ok ? ' 請用手機檢查三個入口；若仍看到兩個「今日整理」，重新部署轉送服務後再按「建立圖文選單」。' : ''), menu.ok ? 'ok' : 'warn') +
       card('推送模式', MODE[d.mode], d.mode === 'on' ? '每日總覽送給已訂閱的好友。' : d.mode === 'test' ? '只送綁定的測試帳號，其他好友不會收到。' : '不排也不送；查詢與訂閱開關照常。', d.mode === 'on' ? 'ok' : 'warn');
+    if (q && q.ok && q.type === 'limited' && q.limit) {   // 2026/11/24：額度用量條
+      var qc = Array.from($('lineCards').querySelectorAll('.ops-card')).filter(function (x) { return (x.querySelector('h3') || {}).textContent === '本月訊息額度'; })[0];
+      if (qc) { var pct = Math.min(100, q.used / q.limit * 100); qc.insertAdjacentHTML('beforeend', '<div class="ops-meter" role="img" aria-label="已用 ' + pct.toFixed(1) + '%"><span style="width:' + pct.toFixed(1) + '%"></span></div><small class="ops-meter-t">已用 ' + pct.toFixed(1) + '%</small>'); }
+    }
     if (document.activeElement !== $('lineRelay')) { $('lineRelay').value = d.relayUrl || ''; }
     if (document.activeElement !== $('lineFriend')) { $('lineFriend').value = /line\.me\/R\/ti\/p\//.test(d.addFriendUrl || '') ? '' : (d.addFriendUrl || ''); }
     if (document.activeElement !== $('lineQr')) { $('lineQr').value = d.qrUrl || ''; }

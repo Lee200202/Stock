@@ -16,6 +16,7 @@
 import contextlib
 import io
 import os
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -87,7 +88,8 @@ class HolderAdviceVsExplicitExclusion(unittest.TestCase):
     def test_prompt_states_the_two_axes_and_version_is_bumped(self):
         self.assertIn('新進場以明講不買為準（2026/11/20 週檢討）', p.ADJUDICATE_SYSTEM)
         self.assertIn('「沒有叫你們加碼」', p.ADJUDICATE_SYSTEM)
-        self.assertTrue(p.VERDICT_VERSION.startswith('v48-20261120'))
+        m = re.match(r'v(\d+)-(\d{8})', p.VERDICT_VERSION)   # 之後的版本（11/24 v49）照樣要包含這條
+        self.assertTrue(m and int(m.group(1)) >= 48 and m.group(2) >= '20261120', p.VERDICT_VERSION)
 
 
 class ChaseLessonInNextSegment(unittest.TestCase):

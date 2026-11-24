@@ -3295,12 +3295,29 @@ function restatesEarlier_(key, earlier) {
   // Pages 與本機預覽讀同一網址底下的檔案；Apps Script 原頁面（googleusercontent）讀 Pages。
   var VALUATION_BASE = /(?:^|\.)github\.io$|^localhost$|^127\./.test(location.hostname) ? location.origin + location.pathname.replace(/[^/]*$/, '') + 'valuation/' : 'https://lee200202.github.io/Stock/valuation/';
   var valMemo = {};
+  function valuationFromApi(code) {
+    return new Promise(function (resolve) {
+      google.script.run.withSuccessHandler(function (doc) {
+        resolve(doc && doc.code === code && Array.isArray(doc.history) ? doc : null);
+      }).withFailureHandler(function () { resolve(null); }).apiGetStockFundamentals(code, { valuationHistory: true });
+    });
+  }
   function loadValuation(code) {
     if (!valMemo[code] && window.fetch) {
-      valMemo[code] = fetch(VALUATION_BASE + encodeURIComponent(code) + '.json', { cache: 'no-cache' })
-        .then(function (r) { return r.ok ? r.json() : null; })
-        .catch(function () { return null; })
-        .then(function (d) { if (!d) { setTimeout(function () { delete valMemo[code]; }, 60000); } return d; });
+      function fromArchive() {
+        return fetch(VALUATION_BASE + encodeURIComponent(code) + '.json', { cache: 'no-cache' })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .catch(function () { return null; });
+      }
+      var onPages = location.origin === 'https://lee200202.github.io';
+      var primary = onPages ? fromArchive() : valuationFromApi(code);
+      valMemo[code] = primary.then(function (doc) {
+        if (doc && Array.isArray(doc.history)) { return doc; }
+        return (onPages ? valuationFromApi(code) : fromArchive()).then(function (fallback) { return fallback || doc; });
+      }).then(function (doc) {
+        if (!doc) { setTimeout(function () { delete valMemo[code]; }, 60000); }
+        return doc;
+      });
     }
     return valMemo[code] || Promise.resolve(null);
   }

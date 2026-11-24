@@ -397,8 +397,29 @@ function apiGetStockSummary(code) {
   });
 }
 
-function apiGetStockFundamentals(code) {
+function apiGetStockFundamentals(code, options) {
+  if (options && options.valuationHistory === true) {
+    return readValuationHistory_(code);
+  }
   try { return getFundamentals(code); } catch (e) { return null; }
+}
+
+function readValuationHistory_(code) {
+  code = String(code || '').trim();
+  if (!/^\d{4,6}[A-Z]?$/.test(code)) { return null; }
+  var book = getSS_(), index = book.getSheetByName('估值歷史索引');
+  if (!index) { return null; }
+  var active = index.getRange('A2:B2').getValues()[0];
+  if ((active[0] !== 'A' && active[0] !== 'B') || !(active[1] > 0)) { return null; }
+  var sheet = book.getSheetByName('估值歷史 ' + active[0]);
+  if (!sheet) { return null; }
+  var cell = sheet.getRange(2, 1, active[1], 1).createTextFinder(code).matchEntireCell(true).findNext();
+  if (!cell) { return null; }
+  var row = sheet.getRange(cell.getRow(), 1, 1, sheet.getLastColumn()).getValues()[0];
+  if (String(row[0]) !== code) { return null; }
+  var raw = Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(row.slice(5).join('')), 'application/gzip'));
+  var doc = JSON.parse(raw.getDataAsString('UTF-8'));
+  return doc.code === code && Array.isArray(doc.history) && doc.history.length === Number(row[4]) ? doc : null;
 }
 
 /** 小時K 的累積範圍，前端據此說明資料從哪天開始 */

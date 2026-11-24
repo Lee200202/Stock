@@ -539,7 +539,6 @@
           <div class="eyebrow" id="dCode">—</div>
           <h2 id="dName">—</h2>
           <div class="visitor-detail-actions" id="detailVisitorActions" hidden>
-            <button type="button" class="act ghost" id="detailTrackerJump">到持股追蹤找這檔</button>
             <button type="button" class="act ghost" id="detailFeedback">回報這檔內容</button>
           </div>
         </div>
@@ -558,8 +557,8 @@
     </nav>
     <div class="detail-body">
       <div class="sect" id="dSecHold">
-        <div class="sect-h"><h2>進場紀錄與查證</h2><a class="tide-source-link" href="#dSecRec" data-tide-evidence-link>每日紀錄與來源</a></div>
-        <div class="tide-feature" id="tideFeature"><div class="tide-segments" id="tideRounds" role="group" aria-label="選擇持有回合"></div></div>
+        <!-- 2026/11/24：右上角只列持有回合（第一回合 YYYY/MM/DD），沒有回合就整列不顯示；「每日紀錄與來源」移除。 -->
+        <div class="sect-h"><h2>歷史進場紀錄</h2><div class="tide-feature" id="tideFeature"><div class="tide-segments" id="tideRounds" role="group" aria-label="選擇持有回合"></div></div></div>
         <div class="kv-grid" id="dTracker"></div>
         <!-- 取價區間（v58）：進場日／出場日的當日最低～最高、採用價與張震明講價 -->
         <div class="pxrange" id="dPxRange" hidden></div>
@@ -586,8 +585,6 @@
             <button type="button" data-krange="3" aria-pressed="false">3月</button>
             <button type="button" data-krange="6" aria-pressed="false">6月</button>
             <button type="button" data-krange="12" aria-pressed="false">1年</button>
-            <button type="button" data-krange="36" aria-pressed="false">3年</button>
-            <button type="button" data-krange="60" aria-pressed="false">5年</button>
             <button type="button" data-krange="120" aria-pressed="false">10年</button>
             <button type="button" data-krange="all" aria-pressed="false">全部</button>
           </div>
@@ -606,8 +603,7 @@
         <div class="subcap" id="kdCap">KD　<span>9, 3, 3</span></div>
         <div id="kdChart"></div>
         <div class="subcap" id="tideRsiCap" hidden>RSI · 14 期</div><div id="tideRsi" hidden></div>
-        <div class="tide-segments" role="group" aria-label="副圖選擇"><button type="button" data-tide-pane="none" aria-pressed="false">無副圖</button><button type="button" data-tide-pane="volume" aria-pressed="true">成交量</button><button type="button" data-tide-pane="macd" aria-pressed="true">MACD</button><button type="button" data-tide-pane="rsi" aria-pressed="false">RSI</button><button type="button" data-tide-pane="kd" aria-pressed="true">KD</button></div>
-        <div class="tide-pan" aria-label="圖表平移與縮放"><button type="button" data-tide-nav="left" aria-label="向較早日期移動">←</button><button type="button" data-tide-nav="out" aria-label="縮小走勢圖">−</button><button type="button" data-tide-nav="in" aria-label="放大走勢圖">＋</button><button type="button" data-tide-nav="right" aria-label="向較近日期移動">→</button></div>
+        <div class="tide-segments" role="group" aria-label="副圖選擇"><button type="button" data-tide-pane="volume" aria-pressed="true">成交量</button><button type="button" data-tide-pane="macd" aria-pressed="true">MACD</button><button type="button" data-tide-pane="rsi" aria-pressed="false">RSI</button><button type="button" data-tide-pane="kd" aria-pressed="true">KD</button></div>
         <div class="readout" id="readout">
           <span><b>日期</b><i id="rDate">—</i></span>
           <span><b>開</b><i id="rOpen">—</i></span>
@@ -626,6 +622,8 @@
       <div class="sect" id="dSecFund">
         <div class="sect-h"><h2>估值與公司資料</h2></div>
         <div class="kv-grid" id="dFund"></div>
+        <!-- 2026/11/24：本益比、殖利率、股價淨值比的歷史區間條（近五年、依交易日排名分三段）。資料來自 history/valuation/代號.json。 -->
+        <div class="val-bands" id="dValBands" hidden></div>
         <p class="notice" id="dFundNote"></p>
       </div>
 

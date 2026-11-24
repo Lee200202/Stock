@@ -1,0 +1,66 @@
+name: valuation-history
+run-name: 本益比／殖利率／淨值比歷史區間 · 增量補抓與發布
+# 2026/11/24：個股頁的歷史區間條。封存與輸出放 valuation-history 分支，網站建置時複製到 /valuation/。
+on:
+  schedule:
+    - cron: '20 11 * * 1-5'     # 台北 19:20，兩個交易所都已公布當天資料
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: '每個市場的抓取預算分鐘；到時保存，下次續補'
+        type: number
+        default: 80
+permissions:
+  contents: write
+  actions: write
+concurrency:
+  group: valuation-history
+  cancel-in-progress: false
+jobs:
+  valuation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ github.token }}
+      MINUTES: ${{ inputs.minutes || 80 }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - run: pip install 'requests>=2.31,<3'
+      - name: 離線契約
+        run: python -m unittest scripts/test_valuation_history.py
+      - name: 取出封存分支（沒有就建立）
+        run: |
+          if git fetch -q origin valuation-history 2>/dev/null; then
+            git worktree add data FETCH_HEAD
+            git -C data checkout -q -B valuation-history
+          else
+            git worktree add --orphan -b valuation-history data
+          fi
+      - name: 補抓上市與上櫃（新的日期先抓）
+        run: |
+          set -o pipefail
+          python -u scripts/valuation_history.py fetch --archive data/archive --market tpex --deadline-min "$MINUTES" 2>&1 | tee tpex.log &
+          tpex=$!
+          ok=0
+          python -u scripts/valuation_history.py fetch --archive data/archive --market twse --deadline-min "$MINUTES" 2>&1 | tee twse.log || ok=1
+          wait "$tpex" || ok=1
+          exit $ok
+      - name: 產生近五年區間並檢查
+        if: always() && !cancelled()
+        run: |
+          python scripts/valuation_history.py build --archive data/archive --out data/valuation --years 5
+          python scripts/valuation_history.py check --out data/valuation
+      - name: 保存並觸發網站建置
+        if: always() && !cancelled()
+        run: |
+          cd data
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A archive valuation
+          if git diff --cached --quiet; then echo '沒有新資料'; exit 0; fi
+          git commit -q -m "valuation: $(date -u +%F) $(jq -r .to valuation/_meta.json)"
+          git push -q origin HEAD:valuation-history
+          gh workflow run public-site.yml --ref main

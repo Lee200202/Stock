@@ -26,8 +26,19 @@
 #p-subs .subs-empty{color:var(--muted);padding:18px 4px}
 #p-subs .subs-note{color:var(--muted);font-size:calc(13px * var(--rd-fs));margin:10px 0 0}
 #p-subs .subs-conv{grid-column:1/-1;display:grid;gap:8px;margin:4px 0 6px;padding:14px 16px;border-radius:16px;background:var(--panel-2)}
-#p-subs .subs-conv p{margin:0;line-height:1.7;overflow-wrap:anywhere}#p-subs .subs-conv time{color:var(--muted);font-size:calc(12.5px * var(--rd-fs));margin-right:8px;font-variant-numeric:tabular-nums}
-#p-subs .subs-conv .me{color:var(--beam)}
+#p-subs .chat-empty{margin:0;color:var(--muted)}
+#p-subs .chat-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:calc(13px * var(--rd-fs));color:var(--muted)}
+#p-subs .chat-head button{border-radius:999px;padding:6px 14px;min-height:36px}
+#p-subs .chat-list{display:flex;flex-direction:column;gap:12px;max-height:520px;overflow-y:auto;padding:4px 2px}
+#p-subs .chat-row{display:flex;align-items:flex-end;gap:8px}#p-subs .chat-row.is-user{justify-content:flex-end}
+#p-subs .chat-av{flex:none;display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;font-size:calc(13px * var(--rd-fs));font-weight:700}
+#p-subs .is-bot .chat-av{background:var(--panel);border:1px solid var(--rule);color:var(--ink)}#p-subs .is-user .chat-av{background:var(--beam);color:#fff}
+#p-subs .chat-body{max-width:min(78%,640px);min-width:0}#p-subs .chat-who{display:block;margin-bottom:3px;font-size:calc(12px * var(--rd-fs));color:var(--muted);font-weight:600}#p-subs .is-user .chat-who{text-align:right}
+#p-subs .chat-line{display:flex;align-items:flex-end;gap:8px}#p-subs .is-user .chat-line{flex-direction:row-reverse}
+#p-subs .chat-bubble{padding:9px 14px;border-radius:16px;line-height:1.6;overflow-wrap:anywhere;font-size:calc(14.5px * var(--rd-fs))}
+#p-subs .is-bot .chat-bubble{background:var(--panel);border:1px solid var(--rule);border-bottom-left-radius:4px}
+#p-subs .is-user .chat-bubble{background:var(--beam);color:#fff;border-bottom-right-radius:4px}
+#p-subs .chat-line time{flex:none;color:var(--muted);font-size:calc(12px * var(--rd-fs));font-variant-numeric:tabular-nums;white-space:nowrap}
 @media(max-width:760px){#p-subs .subs-row{grid-template-columns:minmax(0,1fr)}#p-subs .subs-act{justify-content:flex-start}#p-subs .subs-q{flex:1 1 100%;margin-left:0}}
 </style>
 <section class="panel" id="p-subs" role="tabpanel" hidden>
@@ -90,14 +101,22 @@
         (r.daily?'<span class="subs-tag on">每日總覽</span>':'')+(r.sms?'<span class="subs-tag on">盤中通知</span>':'')+'</div>'+
         '<div class="subs-meta">推送 '+(st.push||0)+'・收到 '+(st.received||0)+'・回覆 '+(st.replied||0)+'<small>'+h(years(st.years,[['daily','每日'],['sms','盤中'],['admin','管理者'],['other','其他']]))+'</small></div>'+
         '<div class="subs-act">'+((r.daily||r.sms)&&r.friend!=='blocked'?'<button type="button" class="danger" data-line-stop="'+h(r.uid)+'" data-name="'+h(r.name||r.id)+'">停止推送</button>':'')+'<button type="button" class="ghost" data-conv="'+h(r.uid)+'" aria-expanded="'+(open[r.uid]?'true':'false')+'">'+(open[r.uid]?'收起對話':'對話紀錄')+'</button></div>'+
-        (open[r.uid]?'<div class="subs-conv" id="conv-'+h(r.uid)+'">'+convHtml(open[r.uid])+'</div>':'')+'</div>';
+        (open[r.uid]?'<div class="subs-conv" id="conv-'+h(r.uid)+'">'+convHtml(open[r.uid],r.uid,r.name||r.id)+'</div>':'')+'</div>';
     }).join(''):'<p class="subs-empty">還沒有 LINE 好友紀錄。</p>';
     $s('subsLineNote').textContent=data?((data.lineStatsFrom?'統計自 '+data.lineStatsFrom+' 起，':'統計尚未累計，')+'每天 19:10 更新；對話保留一年。'):'';
   }
-  function convHtml(c){
-    if(c==='loading')return '<p>讀取中…</p>';
-    if(!c.length)return '<p>還沒有對話紀錄。</p>';
-    return c.map(function(x){return '<p'+(x.dir==='回覆'?' class="me"':'')+'><time>'+h(x.at.slice(0,16))+'</time>'+h(x.dir==='回覆'?'回覆：':'')+h(x.text)+'</p>';}).join('');
+  /* 2026/11/24：對話改成聊天視窗——由舊到新，預設最近 5 則；左邊是機器回覆，右邊是使用者；按鈕顯示中文名稱。 */
+  var BTN={adminformat:'裁示格式',adminpending:'待裁示',adminprogress:'裁示進度',adminreview:'今日稽核',adminsev:'看待確認',askstock:'查個股',chatno:'取消',chatok:'確認送出',chatretype:'重新輸入',chatsend:'送出',help:'使用說明',manage:'管理訂閱',qcustom:'自訂回答',qshow:'看這一題',ruleno:'取消',ruleok:'確認送出',rulepick:'裁示這一檔',rulequery:'當作一般查詢',sub:'訂閱每日總覽',today:'今日整理',tracker:'持股追蹤',unsub:'全部停止'};
+  var showAll={};
+  function userText(t){var m=/^（按鈕）(.*)$/.exec(t);if(!m)return t;var a=/(?:^|&)a=([a-z]+)/.exec(m[1]);return '按鈕：'+(a&&BTN[a[1]]?BTN[a[1]]:(a?a[1]:m[1]));}
+  function convHtml(c,uid,name){
+    if(c==='loading')return '<p class="chat-empty">讀取中…</p>';
+    if(!c.length)return '<p class="chat-empty">還沒有對話紀錄。</p>';
+    var all=c.slice().reverse(),list=showAll[uid]?all:all.slice(-5),who=String(name||'使用者');
+    return '<div class="chat-head"><span>顯示'+(showAll[uid]?'全部 ':'最近 ')+list.length+' 則・共 '+all.length+' 則</span>'+(all.length>5?'<button type="button" class="ghost" data-chat-all="'+h(uid)+'">'+(showAll[uid]?'只看最近 5 則':'顯示全部')+'</button>':'')+'</div>'+
+      '<div class="chat-list">'+list.map(function(x){var bot=x.dir==='回覆',t=bot?x.text:userText(x.text);
+        return '<div class="chat-row '+(bot?'is-bot':'is-user')+'">'+(bot?'<span class="chat-av">機</span>':'')+'<div class="chat-body"><span class="chat-who">'+(bot?'系統回覆':h(who))+'</span>'+
+          '<div class="chat-line"><div class="chat-bubble">'+h(t)+'</div><time>'+h(x.at.slice(5,16))+'</time></div></div>'+(bot?'':'<span class="chat-av">'+h(who.slice(0,1))+'</span>')+'</div>';}).join('')+'</div>';
   }
   function load(){
     if(busy||!window.KEY)return;busy=true;msg('warn','讀取中…');
@@ -126,6 +145,8 @@
         .withFailureHandler(function(err){stop.disabled=false;msg('err','失敗：'+(err&&err.message||err));}).apiAdminLineStop(KEY,stop.dataset.lineStop);
       return;
     }
+    var ca=e.target.closest('[data-chat-all]');
+    if(ca){var u=ca.dataset.chatAll;showAll[u]=!showAll[u];renderLine();return;}
     var c=e.target.closest('[data-conv]');
     if(c){
       var uid=c.dataset.conv;

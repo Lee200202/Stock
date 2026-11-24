@@ -3333,29 +3333,34 @@ function restatesEarlier_(key, earlier) {
         { k: 'yld', label: '殖利率', unit: '%', now: f && f.yld, loss: false },
         { k: 'pbr', label: '股價淨值比', unit: ' 倍', now: f && f.pbr, loss: false }
       ];
+      /* 2026/11/24 第四版：每項一張全版卡；長條只畫兩條三等分線，兩端寫低點與高點，
+         目前值與排名寫在標記上方的小膠囊（例：59.52 · 近5年2%），不再放說明長句、低中高字樣與 PR 標籤。 */
       var html = defs.map(function (d) {
         var m = doc[d.k];
-        if (!m || !m.q || m.q.length !== 101 || m.q[100] - m.q[0] < 0.01) {   // 沒有區間或區間沒有寬度（例如從未配息）：只寫目前值
-          var only = Number(d.now);
-          return isNaN(only) || d.now === null || d.now === undefined ? '' : '<div class="vb vb-flat"><div class="vb-h"><b>' + d.label + '</b><span class="vb-say">目前 ' + only.toFixed(2) + d.unit + '</span></div></div>';
-        }
         var fmt = function (x) { return Number(x).toFixed(2) + d.unit; };
-        var num = function (x) { return Number(x).toFixed(d.k === 'yld' ? 2 : 1) + (d.k === 'yld' ? '%' : ''); };
-        var span = valSpan(doc, m);
         if (d.loss) {
-          return '<div class="vb"><div class="vb-h"><b>' + d.label + '</b><span class="vb-say">近四季虧損，交易所不提供本益比。</span></div></div>';
+          return '<div class="vb vb-flat"><div class="vb-name">' + d.label + '</div><div class="vb-flat-v">近四季虧損，無本益比</div></div>';
+        }
+        if (!m || !m.q || m.q.length !== 101 || m.q[100] - m.q[0] < 0.01) {   // 沒有區間（例如從未配息）：只寫目前值
+          var only = Number(d.now);
+          return isNaN(only) || d.now === null || d.now === undefined ? '' :
+            '<div class="vb vb-flat"><div class="vb-name">' + d.label + '</div><div class="vb-flat-v">' + only.toFixed(2) + (d.k === 'yld' ? '%' : '') + '</div></div>';
         }
         var now = Number(d.now) || (d.k === 'yld' && d.now === 0 ? 0 : m.last);
         if (now === null || now === undefined || isNaN(now)) { return ''; }
         var r = valRank(m.q, now), pos = Math.max(0, Math.min(100, r));
+        var span = valSpan(doc, m), spanShort = /^近/.test(span) ? '近5年' : span.replace(' 以來', '起');
+        var val = d.k === 'yld' ? now.toFixed(2) + '%' : now.toFixed(2);
+        var pill = val + ' · ' + spanShort + Math.round(pos) + '%';
+        var edge = pos <= 12 ? ' at-l' : pos >= 88 ? ' at-r' : '';
         var seg = r < 100 / 3 ? '低段' : r < 200 / 3 ? '中段' : '高段';
-        var sp = /^\d/.test(span) ? ' ' + span + ' ' : span;
-        var say = r >= 100 ? '高於' + sp + '所有交易日' : r <= 0 ? '低於' + sp + '所有交易日' : '高於' + sp + (/^\d/.test(span) ? '' : ' ') + Math.round(r) + '% 的交易日';
-        var aria = d.label + '目前 ' + fmt(now) + '，' + say + '，落在' + seg + '。' + span + '低點 ' + fmt(m.q[0]) + '，三段分界 ' + fmt(m.q[33]) + '、' + fmt(m.q[67]) + '，高點 ' + fmt(m.q[100]);
-        return '<div class="vb"><div class="vb-h"><b>' + d.label + '</b><span class="vb-say">目前 ' + fmt(now) + '，' + say + '，落在' + seg + '</span></div>' +
-          '<div class="vb-track" role="img" aria-label="' + esc(aria) + '"><span class="vb-seg">低</span><span class="vb-seg">中</span><span class="vb-seg">高</span>' +
-          '<span class="vb-mark" style="left:' + pos.toFixed(1) + '%"></span></div>' +
-          '<div class="vb-ends" aria-hidden="true"><span><i>低點</i>' + num(m.q[0]) + '</span><span><i>PR33</i>' + num(m.q[33]) + '</span><span><i>PR67</i>' + num(m.q[67]) + '</span><span><i>高點</i>' + num(m.q[100]) + '</span></div></div>';
+        var aria = d.label + '目前 ' + fmt(now) + '，高於' + span + ' ' + Math.round(pos) + '% 的交易日，落在' + seg + '；低點 ' + fmt(m.q[0]) + '，高點 ' + fmt(m.q[100]);
+        var end = function (x) { return Number(x).toFixed(d.k === 'yld' ? 2 : 1) + (d.k === 'yld' ? '%' : ''); };
+        return '<div class="vb"><div class="vb-name">' + d.label + '</div>' +
+          '<div class="vb-stage" role="img" aria-label="' + esc(aria) + '">' +
+          '<span class="vb-pin' + edge + '" style="left:' + pos.toFixed(1) + '%"><span class="vb-pill">' + esc(pill) + '</span><span class="vb-stem"></span></span>' +
+          '<span class="vb-bar"><i class="vb-d1"></i><i class="vb-d2"></i></span></div>' +
+          '<div class="vb-ends" aria-hidden="true"><span>低點 ' + end(m.q[0]) + '</span><span>高點 ' + end(m.q[100]) + '</span></div></div>';
       }).join('');
       if (!html) { box.hidden = true; box.innerHTML = ''; $('dSecFund').classList.remove('has-bands'); return; }
       box.innerHTML = html;

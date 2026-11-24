@@ -305,10 +305,9 @@
         <p class="notice" style="margin:0 0 20px;">每個交易日影片整理完成後寄出，信末可隨時取消。</p>
         <div class="field">
           <label for="subEmail">Email</label>
-          <input type="email" id="subEmail" placeholder="you@example.com">
+          <div class="sub-row"><input type="email" id="subEmail" placeholder="you@example.com"><button class="act mui-shimmer" id="subBtn">建立訂閱</button></div>
         </div>
         <input type="checkbox" id="subDaily" checked hidden>
-        <button class="act mui-shimmer" id="subBtn">建立訂閱</button>
         <p class="notice" id="subMsg"></p>
       </div>
 
@@ -317,9 +316,8 @@
         <p class="notice" style="margin:0 0 16px;">填入訂閱時用的 Email，查看或停止訂閱。</p>
         <div class="field">
           <label for="unsubEmail">Email</label>
-          <input type="email" id="unsubEmail" placeholder="you@example.com">
+          <div class="sub-row"><input type="email" id="unsubEmail" placeholder="you@example.com"><button class="act" id="unsubBtn">查看我的訂閱</button></div>
         </div>
-        <button class="act" id="unsubBtn">查看我的訂閱</button>
         <p class="notice" id="unsubMsg"></p>
 
         <div id="mgPanel" hidden>
@@ -355,7 +353,7 @@
             </ul>
             <a class="act line-join-btn" id="lineJoinBtn" href="#" target="_blank" rel="noopener">加入 LINE 好友</a>
           </div>
-          <img class="line-join-qr" id="lineJoinQr" alt="用手機 LINE 掃描加入好友" width="148" height="148" hidden>
+          <img class="line-join-qr" id="lineJoinQr" alt="用手機 LINE 掃描加入好友" width="148" height="148" loading="eager" decoding="async" hidden>
         </div>
       </div>
 
@@ -617,8 +615,8 @@
 
       <div class="sect" id="dSecFund">
         <div class="sect-h"><h2>估值與公司資料</h2></div>
+        <div class="fund-info" id="dFundInfo"></div>
         <div class="kv-grid" id="dFund"></div>
-        <div class="fund-meta" id="dFundMeta"></div>
         <!-- 2026/11/24：本益比、殖利率、股價淨值比的歷史區間條（近五年、依交易日排名分三段）。資料來自 history/valuation/代號.json。 -->
         <div class="val-bands" id="dValBands" hidden></div>
         <p class="notice" id="dFundNote"></p>

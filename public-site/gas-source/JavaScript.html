@@ -874,7 +874,7 @@ function restatesEarlier_(key, earlier) {
       if (only) { var h = sect.querySelector('h2'); names.push(h ? h.firstChild.textContent.trim() : id); }
     });
     note.hidden = !names.length;
-    note.textContent = names.length ? '本日未提到：' + names.join('、') : '';
+    note.innerHTML = names.length ? '本日未提到' + names.map(function (n) { return '<span>' + esc(n) + '</span>'; }).join('') : '';
   }
   function emptyLine(text) {
     return '<p class="emptyline">' + esc(text) + '</p>';
@@ -2766,6 +2766,7 @@ function restatesEarlier_(key, earlier) {
       priceFormat: perfField === 'holding' ? { type: 'price', precision: 0, minMove: 1 }
         : { type: 'custom', minMove: 0.01, formatter: function (v) { return (Math.round(v * 100) / 100).toFixed(2) + '%'; } }
     });
+    perfSeries.applyOptions({ lastValueVisible: false });
     perfSeries.setData(pts);
     perfChart.applyOptions({ width: $('perfChart').clientWidth });
     perfChart.timeScale().fitContent();
@@ -2792,12 +2793,13 @@ function restatesEarlier_(key, earlier) {
   }
   function renderPerfTable() {
     var s = perfSlice().slice().reverse(), ak = perfKey_('avgReturn'), pk = perfKey_('positiveRatio');
+    var holdMax = Math.max.apply(null, s.map(function (r) { return Number(r.holding) || 0; }).concat([1]));
     $('perfTable').innerHTML = '<div class="card flush"><table><thead><tr>' +
       '<th>日期</th><th class="r">持有<span class="th-long">檔數</span></th>' +
       '<th class="r">平均<span class="th-long">報酬</span></th><th class="r">正報酬<span class="th-long">比例</span></th></tr></thead><tbody>' +
       s.map(function (r) {
         return '<tr><td class="code">' + esc(r.date) + '</td>' +
-          '<td class="px r">' + r.holding + '</td>' +
+          '<td class="px r hold-cell">' + perfCellBar_(r.holding, holdMax, '--hold') + r.holding + '</td>' +
           '<td class="px r ' + signCls(r[ak]) + '">' + perfCellBar_(r[ak], 50, r[ak] < 0 ? '--fall' : '--rise') + fmtRet(r[ak]) + '</td>' +
           // 算不出來的日子是 null，不能呼叫 toFixed（先前整張表會因此畫不出來）。
           '<td class="px r">' + (r[pk] == null ? '\u2014' : perfCellBar_(r[pk], 100, '--note') + r[pk].toFixed(1) + '%') + '</td></tr>';
@@ -3074,7 +3076,7 @@ function restatesEarlier_(key, earlier) {
     $('dFund').innerHTML = skelKv(4);
     $('dRecord').innerHTML = skel(4);
     $('dFundNote').textContent = '';
-    $('dValBands').hidden = true; $('dValBands').innerHTML = ''; $('dFundMeta').innerHTML = ''; $('dSecFund').classList.remove('has-bands');
+    $('dValBands').hidden = true; $('dValBands').innerHTML = ''; $('dFundInfo').innerHTML = ''; $('dSecFund').classList.remove('has-bands');
 
     /* 名稱與報價、持有回合、提到的紀錄合成一個請求（v54，Codex 規格 68）：後端共用同一份試算表快照，
        三塊各自成敗；基本面冷快取慢，仍然另外請求、到了再顯示，不拖住首屏。
@@ -3282,8 +3284,8 @@ function restatesEarlier_(key, earlier) {
       kv('股價淨值比', f.pbr ? f.pbr.toFixed(2) : '未提供', !f.pbr) +
       kv('殖利率', f.yld ? f.yld.toFixed(2) + '%' : '未提供', !f.yld) +
       '';
-    $('dFundMeta').innerHTML = [f.industry, f.listed ? f.listed + ' 上市櫃' : '', f.chairman ? '董事長 ' + f.chairman : '']
-      .filter(Boolean).map(function (t) { return '<span>' + esc(t) + '</span>'; }).join('');
+    $('dFundInfo').innerHTML = kv('產業別', f.industry || '未提供', !f.industry) +
+      kv('上市櫃日', f.listed || '未提供', !f.listed) + kv('董事長', f.chairman || '未提供', !f.chairman);
     $('dFundNote').textContent = f.source || '';
     renderValBands(currentCode, f);
   }
@@ -3353,7 +3355,7 @@ function restatesEarlier_(key, earlier) {
         return '<div class="vb"><div class="vb-h"><b>' + d.label + '</b><span class="vb-say">目前 ' + fmt(now) + '，' + say + '，落在' + seg + '</span></div>' +
           '<div class="vb-track" role="img" aria-label="' + esc(aria) + '"><span class="vb-seg">低</span><span class="vb-seg">中</span><span class="vb-seg">高</span>' +
           '<span class="vb-mark" style="left:' + pos.toFixed(1) + '%"></span></div>' +
-          '<div class="vb-ends" aria-hidden="true"><span>' + num(m.q[0]) + '</span><span>' + num(m.q[33]) + '</span><span>' + num(m.q[67]) + '</span><span>' + num(m.q[100]) + '</span></div></div>';
+          '<div class="vb-ends" aria-hidden="true"><span><i>低點</i>' + num(m.q[0]) + '</span><span><i>PR33</i>' + num(m.q[33]) + '</span><span><i>PR67</i>' + num(m.q[67]) + '</span><span><i>高點</i>' + num(m.q[100]) + '</span></div></div>';
       }).join('');
       if (!html) { box.hidden = true; box.innerHTML = ''; $('dSecFund').classList.remove('has-bands'); return; }
       box.innerHTML = html;
@@ -4607,8 +4609,11 @@ function restatesEarlier_(key, earlier) {
       google.script.run.withSuccessHandler(function (r) {
         if (!r || !r.enabled || !/^https:\/\/(?:line\.me|lin\.ee)\//.test(r.url || '')) { return; }
         $('lineJoinBtn').href = r.url;
-        if (r.qr && /^https:\/\/qr-official\.line\.me\//.test(r.qr)) { $('lineJoinQr').src = r.qr; $('lineJoinQr').hidden = false; }
-        box.hidden = false;
+        var show = function () { box.hidden = false; };
+        if (r.qr && /^https:\/\/qr-official\.line\.me\//.test(r.qr)) {
+          var pre = new Image(); var shown = false; var reveal = function () { if (shown) { return; } shown = true; $('lineJoinQr').src = r.qr; $('lineJoinQr').hidden = false; show(); };
+          pre.onload = reveal; pre.onerror = function () { shown = true; show(); }; pre.src = r.qr; setTimeout(reveal, 4000);
+        } else { show(); }
       }).withFailureHandler(function () { done = false; }).apiGetLineEntry();
     }
     var tabBtn = document.querySelector('button.tab[data-tab="subscribe"]');

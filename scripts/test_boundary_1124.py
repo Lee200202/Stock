@@ -129,7 +129,7 @@ class OrdinaryWords(unittest.TestCase):
 class Prompts(unittest.TestCase):
     def test_adjudicate_prompt_states_the_1124_boundaries(self):
         s = p.ADJUDICATE_SYSTEM
-        for key in ('你在賣什麼意思', 'holder_advice=hold_rebound', 'ADR', 'forward_view=rise', 'ETF', 'chase_lesson只限', 'open_position'):
+        for key in ('你在賣什麼意思', 'holder_advice=hold_rebound', 'ADR', 'forward_view=rise', 'ETF', '先跌後漲', 'open_position'):
             self.assertIn(key, s)
         self.assertTrue(p.VERDICT_VERSION.startswith('v49'))
 

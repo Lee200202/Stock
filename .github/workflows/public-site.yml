@@ -29,6 +29,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
   pages: write
   id-token: write
 
@@ -130,5 +131,16 @@ jobs:
       - uses: actions/upload-pages-artifact@v4
         with:
           path: _site
+      # 2026/11/24：上傳完立刻部署時 deploy-pages 連續四次「Found 0 artifact(s)」（事後 API 查得到），先等它可見
+      - name: 等待 Pages 產物可查到
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for i in $(seq 1 20); do
+            n=$(curl -s -H "Authorization: Bearer $GH_TOKEN" "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" | python -c "import sys,json;print(sum(a['name']=='github-pages' for a in json.load(sys.stdin).get('artifacts',[])))")
+            [ "$n" -ge 1 ] && { echo "產物已可查到（第 $i 次）"; sleep 5; exit 0; }
+            sleep 6
+          done
+          echo '產物仍查不到，照樣嘗試部署'
       - id: deployment
         uses: actions/deploy-pages@v4

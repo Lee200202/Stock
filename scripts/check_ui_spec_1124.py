@@ -3,8 +3,8 @@
   python scripts/check_ui_spec_1124.py [--base https://lee200202.github.io/Stock/] [--code 2327]
 
 逐項核對（桌機 1440、大字級、手機 375）：
-  1. 估值：本益比、殖利率、股價淨值比在「同一張大卡」裡（外框有邊框、三項本身沒有邊框）；
-     桌機三欄並排、欄距至少 28px；手機一欄；每個標記膠囊都在卡片內。
+  1. 估值：本益比、殖利率、股價淨值比在「同一張大卡」裡（外框有邊框、三項本身沒有左右邊框）；
+     任何寬度都由上而下各占一整列（不得並排），兩列之間至少 20px 間距；每個標記膠囊都在卡片內。
   2. 每日總覽「本日未提到」：標題字級、字重、行高與「觀望注意」章名完全相同（含大字級）。
   3. 估值、K 線還原切換、事件時間線、本日未提到：不得出現 emoji。
 任何一項不符就以非零結束，列出哪一項。
@@ -32,21 +32,29 @@ def check_valuation(page, base, code, width, fs, problems):
       const br = box.getBoundingClientRect();
       const pills = [...box.querySelectorAll('.vb-pill')].map(p => { const q = p.getBoundingClientRect(); return q.left >= br.left - 1 && q.right <= br.right + 1; });
       const cols = cs.gridTemplateColumns.split(' ').filter(Boolean).length;
+      const inner = br.width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      const rects = items.map(i => i.getBoundingClientRect());
+      const widths = rects.map(q => q.width / inner);
+      const gaps = rects.slice(1).map((q, k) => q.top - rects[k].bottom);
+      const stacked = rects.slice(1).every((q, k) => q.top >= rects[k].bottom - 1);
       const text = ['dSecFund', 'dSecK', 'corpTl'].map(id => (document.getElementById(id) || {}).innerText || '').join(' ');
-      return { boxBorder: parseFloat(cs.borderTopWidth), itemBorders: items.map(i => parseFloat(getComputedStyle(i).borderTopWidth) + parseFloat(getComputedStyle(i).borderLeftWidth)),
-               items: items.length, cols, colGap: parseFloat(cs.columnGap), pills, text };
+      const firstGap = items.length > 1 ? parseFloat(getComputedStyle(items[1]).marginTop) + parseFloat(getComputedStyle(items[1]).paddingTop) : 0;
+      return { boxBorder: parseFloat(cs.borderTopWidth), itemBorders: items.map(i => parseFloat(getComputedStyle(i).borderLeftWidth) + parseFloat(getComputedStyle(i).borderRightWidth)),
+               items: items.length, cols, widths, gaps, stacked, firstGap, pills, text };
     }""")
     tag = f'估值 {code} {width}px{" 字級" + fs if fs else ""}'
     if r['items'] != 3:
         problems.append(f'{tag}：應有 3 項，實際 {r["items"]}')
     if r['boxBorder'] < 1:
         problems.append(f'{tag}：外層不是一張有邊框的大卡')
-    if any(b > 0 for b in r['itemBorders'][:1]) or (width >= 900 and any(b > 0 for b in r['itemBorders'])):
+    if any(b > 0 for b in r['itemBorders']):
         problems.append(f'{tag}：三項各自有邊框（變成三張卡）')
-    if width >= 900 and (r['cols'] != 3 or r['colGap'] < 28):
-        problems.append(f'{tag}：桌機應三欄並排且欄距 ≥ 28px（目前 {r["cols"]} 欄、欄距 {r["colGap"]}px）')
-    if width < 900 and r['cols'] != 1:
-        problems.append(f'{tag}：手機應一欄（目前 {r["cols"]} 欄）')
+    if r['cols'] != 1 or not r['stacked']:
+        problems.append(f'{tag}：三項必須由上而下各占一整列，不得並排（目前 {r["cols"]} 欄）')
+    if any(w < 0.95 for w in r['widths']):
+        problems.append(f'{tag}：每一項都要拉到卡片全寬（目前寬度比 {[round(w, 2) for w in r["widths"]]}）')
+    if r['firstGap'] < 20:
+        problems.append(f'{tag}：兩項之間的間距不足 20px（目前 {r["firstGap"]}px）')
     if not all(r['pills']):
         problems.append(f'{tag}：有標記膠囊超出卡片')
     if EMOJI.search(r['text']):
@@ -100,7 +108,7 @@ def main():
         for x in problems:
             print('  -', x)
         return 1
-    print('11/24 規格：估值一張大卡（三欄、間距、膠囊在卡內）、本日未提到與觀望注意同字級、無 emoji，桌機／大字級／手機全部通過')
+    print('11/24 規格：估值一張大卡（三項上下各一整列、間距 ≥ 20px、膠囊在卡內）、本日未提到與觀望注意同字級、無 emoji，桌機／大字級／手機全部通過')
     return 0
 
 

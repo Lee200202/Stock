@@ -74,8 +74,11 @@ NOTE_FILLER = re.compile(
     r'|(?:展現|呈現)(?:出)?(?:強勁|穩健|強韌)(?:的)?(?:多頭)?(?:動能|態勢)|具備(?:明確|相當)(?:的)?[^，。；\d]{0,10}(?:潛力|空間)')
 
 
+NOTE_CN_NUMBER = re.compile(r'(?<![第幾數上近好成多])([一二兩三四五六七八九][零〇一二兩三四五六七八九十百千萬]*[十百千萬][零〇一二兩三四五六七八九十百千萬]*)')
+
+
 def note_suspicions(note, extra_filler=None):
-    """一則個股說明的疑點（不是錯誤判定）：少於 30 字、沒有數字也沒有立場、含套話。沒有疑點回空串列。"""
+    """一則個股說明的疑點（不是錯誤判定）：少於 30 字、沒有數字也沒有立場、含套話、價位寫成國字數字。沒有疑點回空串列。"""
     text = str(note or '').strip()
     flat = re.sub(r'[\s，,。！？!?；;：:「」（）()、．.…—\-*•]', '', text)
     out = []
@@ -83,6 +86,13 @@ def note_suspicions(note, extra_filler=None):
         out.append(f'少於 {NOTE_MIN_CHARS} 字（{len(flat)} 字）')
     if flat and not re.search(r'\d', flat) and not NOTE_STANCE.search(flat):
         out.append('沒有數字也沒有立場')
+    # 2026/11/24 管理者：「國巨在三百二十八以下」價位要用數字呈現。有位數結構的國字數字（三百二十八、二千二百八十）列疑點，
+    # 「三十年」「三天」這類後面接時間或次數的不算。
+    cn = [m.group(1) for m in NOTE_CN_NUMBER.finditer(text)
+          if text[m.end():m.end() + 1] not in '年月日天週周歲次分秒個' and not m.group(1).endswith('萬')
+          and not re.search(r'[一二兩三四五六七八九]{2}', m.group(1))]
+    if cn:
+        out.append('國字數字「' + '」「'.join(dict.fromkeys(cn)) + '」應寫阿拉伯數字')
     hits = [m.group(0) for m in NOTE_FILLER.finditer(text)]
     if extra_filler is not None:
         hits += [m.group(0) for m in extra_filler.finditer(text)]

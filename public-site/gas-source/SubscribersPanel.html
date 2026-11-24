@@ -1,0 +1,127 @@
+<!-- 2026/11/24 後台「訂閱者」：Email 訂閱名單（可取消、恢復、刪除）與 LINE 帳號（管理者端、歷年推送與對話）。
+     資料只經登入後的 apiAdminSubscribers／apiAdminLineConversation／apiAdminSubscriberRemove（Subscribers.gs）。 -->
+<style>
+#p-subs .subs-head{display:flex;justify-content:space-between;align-items:center;gap:12px 20px;flex-wrap:wrap}
+#p-subs .subs-head h2{margin:0}#p-subs .subs-count{color:var(--muted);font-size:calc(14px * var(--rd-fs))}
+#p-subs .subs-tools{display:flex;gap:10px 14px;flex-wrap:wrap;align-items:center;margin:16px 0 6px}
+#p-subs .subs-seg{display:flex;gap:4px;padding:4px;border:1px solid var(--rule);border-radius:999px;background:var(--panel-2);flex-wrap:wrap}
+#p-subs .subs-seg button{background:transparent;color:var(--ink);border:0;border-radius:999px;padding:8px 16px;min-height:40px;font-weight:500}
+#p-subs .subs-seg button[aria-pressed="true"]{background:var(--panel);color:var(--beam);font-weight:700;box-shadow:0 2px 8px #0001}
+#p-subs .subs-q{flex:1 1 220px;min-width:0;min-height:44px;border:1px solid var(--rule);border-radius:999px;padding:0 18px;background:var(--panel);color:var(--ink);font:inherit}
+#p-subs .subs-list{display:grid;margin-top:10px;border-top:1px solid var(--rule)}
+#p-subs .subs-row{display:grid;grid-template-columns:minmax(0,2.2fr) minmax(0,1.5fr) minmax(0,1.6fr) calc(220px * var(--rd-fs));gap:6px 18px;align-items:center;padding:14px 4px;border-bottom:1px solid var(--rule)}
+#p-subs .subs-row.off{color:var(--muted)}
+#p-subs .subs-main b{display:block;overflow-wrap:anywhere;font-size:calc(15.5px * var(--rd-fs))}
+#p-subs .subs-main small,#p-subs .subs-meta small{display:block;color:var(--muted);font-size:calc(13px * var(--rd-fs));margin-top:2px}
+#p-subs .subs-tags{display:flex;gap:6px;flex-wrap:wrap}
+#p-subs .subs-tag{display:inline-flex;align-items:center;min-height:28px;padding:2px 12px;border-radius:999px;border:1px solid var(--rule);font-size:calc(13px * var(--rd-fs));white-space:nowrap}
+#p-subs .subs-tag.on{border-color:var(--beam);color:var(--beam)}#p-subs .subs-tag.admin{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+#p-subs .subs-meta{font-size:calc(14px * var(--rd-fs));font-variant-numeric:tabular-nums}
+#p-subs .subs-act{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+#p-subs .subs-act button{border-radius:999px;padding:8px 16px;min-height:40px}
+#p-subs .subs-empty{color:var(--muted);padding:18px 4px}
+#p-subs .subs-note{color:var(--muted);font-size:calc(13px * var(--rd-fs));margin:10px 0 0}
+#p-subs .subs-conv{grid-column:1/-1;display:grid;gap:8px;margin:4px 0 6px;padding:14px 16px;border-radius:16px;background:var(--panel-2)}
+#p-subs .subs-conv p{margin:0;line-height:1.7;overflow-wrap:anywhere}#p-subs .subs-conv time{color:var(--muted);font-size:calc(12.5px * var(--rd-fs));margin-right:8px;font-variant-numeric:tabular-nums}
+#p-subs .subs-conv .me{color:var(--beam)}
+@media(max-width:760px){#p-subs .subs-row{grid-template-columns:minmax(0,1fr)}#p-subs .subs-act{justify-content:flex-start}}
+</style>
+<section class="panel" id="p-subs" role="tabpanel" hidden>
+  <div class="card">
+    <div class="subs-head"><h2>Email 訂閱</h2><span class="subs-count" id="subsEmailCount"></span></div>
+    <div class="subs-tools">
+      <div class="subs-seg" role="group" aria-label="篩選 Email 訂閱" id="subsEmailSeg">
+        <button type="button" data-f="all" aria-pressed="true">全部</button>
+        <button type="button" data-f="daily" aria-pressed="false">每日總覽</button>
+        <button type="button" data-f="sms" aria-pressed="false">盤中通知</button>
+        <button type="button" data-f="off" aria-pressed="false">已取消</button>
+      </div>
+      <input type="search" class="subs-q" id="subsEmailQ" placeholder="搜尋 Email" aria-label="搜尋 Email" spellcheck="false">
+      <button type="button" class="ghost" id="subsRefresh" style="border-radius:999px">重新整理</button>
+    </div>
+    <div class="amsg" id="subsMsg"></div>
+    <div class="subs-list" id="subsEmailList"><p class="subs-empty">開啟分頁後載入。</p></div>
+    <p class="subs-note" id="subsEmailNote"></p>
+  </div>
+  <div class="card">
+    <div class="subs-head"><h2>LINE 帳號</h2><span class="subs-count" id="subsLineCount"></span></div>
+    <div class="subs-list" id="subsLineList"><p class="subs-empty">開啟分頁後載入。</p></div>
+    <p class="subs-note" id="subsLineNote"></p>
+  </div>
+</section>
+<script>
+(function(){
+  var $s=function(id){return document.getElementById(id);};
+  var h=function(v){return String(v==null?'':v).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
+  var data=null,busy=false,filter='all',open={};
+  function msg(tone,text){var m=$s('subsMsg');m.className='amsg '+(text?tone:'');m.textContent=text||'';}
+  function years(y,keys){return Object.keys(y||{}).sort().reverse().map(function(k){var v=y[k];return k+'：'+keys.map(function(x){return v[x[0]]?x[1]+' '+v[x[0]]:'';}).filter(Boolean).join('、');}).filter(function(t){return !/：$/.test(t);}).join('；');}
+  function renderEmail(){
+    var rows=(data&&data.email)||[],q=$s('subsEmailQ').value.trim().toLowerCase();
+    var active=rows.filter(function(r){return r.active;});
+    $s('subsEmailCount').textContent='生效 '+active.length+' 位・每日總覽 '+active.filter(function(r){return r.daily;}).length+'・盤中通知 '+active.filter(function(r){return r.sms;}).length;
+    var list=rows.filter(function(r){
+      if(q&&r.email.toLowerCase().indexOf(q)<0)return false;
+      if(filter==='off')return !r.active; if(filter==='daily')return r.active&&r.daily; if(filter==='sms')return r.active&&r.sms; return true;
+    }).sort(function(a,b){return (b.active-a.active)||String(b.since).localeCompare(String(a.since));});
+    $s('subsEmailList').innerHTML=list.length?list.map(function(r){
+      var s=r.sent||{},i=rows.indexOf(r);
+      return '<div class="subs-row'+(r.active?'':' off')+'"><div class="subs-main"><b>'+h(r.email)+'</b><small>'+(r.since?'訂閱於 '+h(r.since):'訂閱日未記錄')+'</small></div>'+
+        '<div class="subs-tags">'+(r.active?(r.daily?'<span class="subs-tag on">每日總覽</span>':'')+(r.sms?'<span class="subs-tag on">盤中通知（會員簡訊）</span>':''):'<span class="subs-tag">已取消</span>')+'</div>'+
+        '<div class="subs-meta">寄出 '+(s.total||0)+' 封'+(s.last?'・最後 '+h(s.last):'')+'<small>'+h(years(s.years,[['daily','每日'],['sms','盤中'],['other','其他']]))+'</small></div>'+
+        '<div class="subs-act">'+(r.active?'<button type="button" class="ghost" data-sub-act="cancel" data-i="'+i+'">取消訂閱</button>':'<button type="button" class="ghost" data-sub-act="restore" data-i="'+i+'">恢復</button>')+
+        '<button type="button" class="danger" data-sub-act="delete" data-i="'+i+'">刪除</button></div></div>';
+    }).join(''):'<p class="subs-empty">沒有符合的訂閱。</p>';
+    $s('subsEmailNote').textContent=data&&data.emailLedgerFrom?'寄出統計自 '+data.emailLedgerFrom+' 起。刪除只移除訂閱，寄送帳本保留。':'';
+  }
+  function renderLine(){
+    var rows=(data&&data.line)||[];
+    $s('subsLineCount').textContent='好友 '+rows.filter(function(r){return r.friend!=='blocked';}).length+' 位・管理者端 '+rows.filter(function(r){return r.admin;}).length;
+    rows=rows.slice().sort(function(a,b){return (b.admin-a.admin)||String(b.lastSeen).localeCompare(String(a.lastSeen));});
+    $s('subsLineList').innerHTML=rows.length?rows.map(function(r){
+      var st=r.stats||{};
+      return '<div class="subs-row'+(r.friend==='blocked'?' off':'')+'"><div class="subs-main"><b>'+h(r.name||'未取得名稱')+'</b><small>'+h(r.id)+(r.since?'・加入 '+h(r.since):'')+(r.lastSeen?'・最後互動 '+h(r.lastSeen):'')+'</small></div>'+
+        '<div class="subs-tags">'+(r.admin?'<span class="subs-tag admin">管理者端'+(r.adminMode?'':'（已登出）')+'</span>':'')+(r.friend==='blocked'?'<span class="subs-tag">已封鎖</span>':'')+
+        (r.daily?'<span class="subs-tag on">每日總覽</span>':'')+(r.sms?'<span class="subs-tag on">盤中通知</span>':'')+'</div>'+
+        '<div class="subs-meta">推送 '+(st.push||0)+'・收到 '+(st.received||0)+'・回覆 '+(st.replied||0)+'<small>'+h(years(st.years,[['daily','每日'],['sms','盤中'],['admin','管理者'],['other','其他']]))+'</small></div>'+
+        '<div class="subs-act"><button type="button" class="ghost" data-conv="'+h(r.uid)+'" aria-expanded="'+(open[r.uid]?'true':'false')+'">'+(open[r.uid]?'收起對話':'對話紀錄')+'</button></div>'+
+        (open[r.uid]?'<div class="subs-conv" id="conv-'+h(r.uid)+'">'+convHtml(open[r.uid])+'</div>':'')+'</div>';
+    }).join(''):'<p class="subs-empty">還沒有 LINE 好友紀錄。</p>';
+    $s('subsLineNote').textContent=data?((data.lineStatsFrom?'統計自 '+data.lineStatsFrom+' 起，':'統計尚未累計，')+'每天 19:10 更新；對話保留一年。'):'';
+  }
+  function convHtml(c){
+    if(c==='loading')return '<p>讀取中…</p>';
+    if(!c.length)return '<p>還沒有對話紀錄。</p>';
+    return c.map(function(x){return '<p'+(x.dir==='回覆'?' class="me"':'')+'><time>'+h(x.at.slice(0,16))+'</time>'+h(x.dir==='回覆'?'回覆：':'')+h(x.text)+'</p>';}).join('');
+  }
+  function load(){
+    if(busy||!window.KEY)return;busy=true;msg('warn','讀取中…');
+    google.script.run.withSuccessHandler(function(r){busy=false;if(!r||!r.ok){msg('err','讀取失敗：'+((r&&r.reason)||'請稍後再試'));return;}data=r;msg('','');renderEmail();renderLine();})
+      .withFailureHandler(function(e){busy=false;msg('err','讀取失敗：'+(e&&e.message||e));}).apiAdminSubscribers(KEY);
+  }
+  $s('subsRefresh').addEventListener('click',load);
+  $s('subsEmailQ').addEventListener('input',renderEmail);
+  $s('subsEmailSeg').addEventListener('click',function(e){var b=e.target.closest('button[data-f]');if(!b)return;filter=b.dataset.f;this.querySelectorAll('button').forEach(function(x){x.setAttribute('aria-pressed',String(x===b));});renderEmail();});
+  $s('p-subs').addEventListener('click',function(e){
+    var b=e.target.closest('[data-sub-act]');
+    if(b&&data){
+      var r=data.email[Number(b.dataset.i)],act=b.dataset.subAct;if(!r)return;
+      var ask={cancel:'停止寄信給 '+r.email+'？之後可以恢復。',restore:'恢復寄信給 '+r.email+'？',delete:'永久刪除 '+r.email+' 的訂閱資料？無法復原；寄送帳本保留。'}[act];
+      if(!confirm(ask))return;
+      b.disabled=true;msg('warn','處理中…');
+      google.script.run.withSuccessHandler(function(x){b.disabled=false;if(!x||!x.ok){msg('err','失敗：'+((x&&x.reason)||'請重新登入後再試'));return;}msg('ok',{cancel:'已取消',restore:'已恢復',delete:'已刪除'}[act]+'：'+r.email);load();})
+        .withFailureHandler(function(err){b.disabled=false;msg('err','失敗：'+(err&&err.message||err));}).apiAdminSubscriberRemove(KEY,r.email,act);
+      return;
+    }
+    var c=e.target.closest('[data-conv]');
+    if(c){
+      var uid=c.dataset.conv;
+      if(open[uid]){delete open[uid];renderLine();return;}
+      open[uid]='loading';renderLine();
+      google.script.run.withSuccessHandler(function(x){open[uid]=x&&x.ok?x.rows:[];renderLine();})
+        .withFailureHandler(function(){open[uid]=[];renderLine();}).apiAdminLineConversation(KEY,uid,60);
+    }
+  });
+  window.__loadSubs=function(){if(!data)load();};
+})();
+</script>

@@ -1316,6 +1316,8 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
         <svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M9 11h6M9 14h4"/></svg>會員簡訊</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="ops">
         <svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M4 12h4l2-4 4 8 2-4h4"/></svg>自動化監控</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="subs">
+        訂閱者</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="line">
         <svg class="tab-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5c-5 0-9 3.1-9 7 0 2.4 1.5 4.5 3.9 5.8L6.5 20.5l3.7-2.3c.6.1 1.2.2 1.8.2 5 0 9-3.1 9-7s-4-6.9-9-6.9z"/><path d="M8 10.5v3M11 10.5v3M14 10.5v3h2"/></svg>LINE</button>
       <button class="tab" role="tab" id="reviewHistoryTab" data-tab="reviewhistory" aria-selected="false" aria-controls="p-reviewhistory">複核與修改紀錄</button>
@@ -2038,6 +2040,7 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
     <?!= include('ReviewHistoryViews'); ?>
     <?!= include('ReviewHistoryPanel'); ?>
     <?!= include('UsagePanel'); ?>
+    <?!= include('SubscribersPanel'); ?>
 <section class="panel" id="p-ver" role="tabpanel" hidden>
       <div class="card">
         <?!= include('Changelog'); ?>
@@ -2117,6 +2120,7 @@ window.__onLayoutChange = function (what) {
       if (btn.dataset.tab === 'post' && window.__loadToday) { window.__loadToday(); }
       if (btn.dataset.tab === 'ops' && window.__loadOps) { window.__loadOps(true); }
       if (btn.dataset.tab === 'line' && window.__loadLine) { window.__loadLine(); }
+      if (btn.dataset.tab === 'subs' && window.__loadSubs) { window.__loadSubs(); }
       if (btn.dataset.tab === 'smsadmin' && window.__loadSmsAdminDays) {
         window.__loadSmsAdminDays();
       }

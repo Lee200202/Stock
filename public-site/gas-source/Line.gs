@@ -345,6 +345,10 @@ function lineHandleEvent_(ev, channel, timing) {
     catch (e) { Logger.log('LINE 已回覆，一般活動紀錄暫時未寫入：' + e); }
   }
   lineLogEvent_(id, out.type, uid, redelivery, detail);
+  // 2026/11/24：對話紀錄（後台「訂閱者」）。回覆已送出後才寫，不拖慢回覆；寫不進去不影響事件處理。
+  if (uid && !redelivery && typeof lineConvLog_ === 'function') {
+    try { lineConvLog_(uid, ev, msgs, out); } catch (e) { Logger.log('LINE 對話紀錄寫不進去：' + e); }
+  }
   lineReleaseEvent_(id, true);
   return out;
   } catch (err) {
@@ -2041,6 +2045,10 @@ function linePruneJob_() {
       if (n > 0) { sh.deleteRows(2, n); }
     } catch (e) { Logger.log('LINE：清理 ' + x[0] + ' 失敗 ' + e); }
   });
+  // 2026/11/24：先把新紀錄累加進帳號月統計，再清一年前的對話（Subscribers.gs）
+  if (typeof lineAccountRollup_ === 'function') {
+    try { lineAccountRollup_(); } catch (e) { Logger.log('LINE：帳號月統計失敗 ' + e); }
+  }
 }
 
 /* ------------------------------------------------------------------ *

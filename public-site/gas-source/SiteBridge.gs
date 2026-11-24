@@ -79,7 +79,7 @@ function siteBridge_(e) {
       'apiAdminLineDiagnose apiAdminLineLookup apiAdminLineRetry apiAdminLineSaveConfig ' +
       'apiAdminLineSetupRichMenu apiAdminLineStatus apiAdminLineTestPush ' +
       'apiAdminLineValidate apiAdminListSms apiAdminLogin apiAdminManualDays ' +
-      'apiAdminSetSmsEmail ' +
+      'apiAdminSetSmsEmail apiAdminSubscribers apiAdminSubscriberRemove apiAdminLineConversation ' +
       'apiAdminManualEntry apiAdminMergeTranscripts apiAdminOpsDay apiAdminPreviewCleanup ' +
       'apiAdminRebuildMail apiAdminReclassify apiAdminResumeFullFix apiAdminResumeJob ' +
       'apiAdminRetryFullFixStep apiAdminRunInfo apiAdminSetDailyPushDefault apiAdminSetDailyPushStart ' +

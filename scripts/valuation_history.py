@@ -15,7 +15,7 @@
 archive/<market>/YYYY/YYYYMMDD.json.gz：{"date","market","stat":"ok"|"empty","rows":{代號:[本益比,殖利率,淨值比]}}
   休市日存 empty；三天內的 empty 下次重抓（當天資料晚上才公布）。
 out/<代號>.json：近 N 年每個指標的 101 個百分位點（p0…p100）與筆數，前端用來標出目前值的排名。
-  只放摘要不放逐日序列，全部上市櫃個股合計約數 MB。
+  發布檔另附逐日資料，用於前端自選年數。
 """
 import argparse
 import gzip
@@ -196,7 +196,7 @@ def quantiles(values):
     return out
 
 
-def build(archive, years, end=None):
+def build(archive, years, end=None, include_history=False):
     """讀封存 → {代號: 摘要}。兩個市場合併（同代號轉市場時以日期接續）。"""
     files = sorted(Path(archive).glob('*/*/*.json.gz'))
     recs = []
@@ -215,8 +215,11 @@ def build(archive, years, end=None):
         for code, vals in rec['rows'].items():
             s = series.setdefault(code, {'market': rec['market'], 'dates': [], 'vals': []})
             s['market'] = rec['market']
-            s['dates'].append(rec['date'])
-            s['vals'].append(vals)
+            if s['dates'] and s['dates'][-1] == rec['date']:
+                s['vals'][-1] = vals
+            else:
+                s['dates'].append(rec['date'])
+                s['vals'].append(vals)
     out = {}
     for code, s in series.items():
         item = {'code': code, 'market': '上市' if s['market'] == 'twse' else '上櫃', 'years': years,
@@ -227,13 +230,15 @@ def build(archive, years, end=None):
                 continue
             vals = [v for _, v in pts]
             item[m] = {'n': len(vals), 'from': pts[0][0], 'q': quantiles(vals), 'last': vals[-1], 'lastDate': pts[-1][0]}
-        if any(m in item for m in METRICS):
+        if include_history:
+            item['history'] = [[day, *vals] for day, vals in zip(s['dates'], s['vals'])]
+        if include_history or any(m in item for m in METRICS):
             out[code] = item
     return out
 
 
 def cmd_build(args):
-    data = build(args.archive, args.years)
+    data = build(args.archive, args.years, include_history=True)
     outdir = Path(args.out)
     outdir.mkdir(parents=True, exist_ok=True)
     keep = set()

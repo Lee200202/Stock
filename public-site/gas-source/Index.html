@@ -614,12 +614,18 @@
       </div>
 
       <div class="sect" id="dSecFund">
-        <div class="sect-h"><h2>估值與公司資料</h2></div>
+        <div class="sect-h">
+          <h2>估值與公司資料</h2>
+          <form id="dValYearsForm" class="val-years">
+            <label for="dValYears">近</label>
+            <input id="dValYears" type="number" inputmode="numeric" min="1" max="10" step="1" value="5" required aria-label="估值歷史年數（1 到 10）">
+            <span>年</span>
+            <button type="submit" class="pill">套用</button>
+          </form>
+        </div>
         <div class="fund-info" id="dFundInfo"></div>
-        <div class="kv-grid" id="dFund"></div>
-        <!-- 2026/11/24：本益比、殖利率、股價淨值比的歷史區間條（近五年、依交易日排名分三段）。資料來自 history/valuation/代號.json。 -->
         <div class="val-bands" id="dValBands" hidden></div>
-        <p class="notice" id="dFundNote"></p>
+        <p class="notice" id="dFundNote" role="status"></p>
       </div>
 
       <div class="sect" id="dSecRec">

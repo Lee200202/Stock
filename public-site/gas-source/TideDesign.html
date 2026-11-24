@@ -49,6 +49,17 @@ body :is(h1,h2) br{display:none}
 @media(max-width:600px){body[data-tab] .hero .hero-say h1,body[data-tab] .tech-story.tech-book .book-index h1{font-size:min(42px,calc(28px * var(--rd-fs,1)))}body[data-tab] .tech-story.tech-book .book-heading h2{font-size:min(38px,calc(25px * var(--rd-fs,1)))}}
 .detail-body .sect-h h2{font-size:min(34px,calc(24px * var(--rd-fs,1)));line-height:1.4}
 @media(max-width:600px){.detail-body .sect-h{display:flex;flex-wrap:wrap;gap:12px}.detail-body .sect-h>h2{flex-basis:100%;font-size:min(28px,calc(21px * var(--rd-fs,1)));margin:0}.detail-body .sect-h .k-fresh{max-width:100%}}
+/* 個股估值共用一張卡，三個指標保持可掃讀。 */
+#dValBands.val-bands{margin-top:18px;padding:clamp(16px,3vw,28px);gap:20px;border:1px solid var(--rule);border-radius:var(--r-md,16px);background:var(--panel)}
+#dValBands[hidden]{display:none}
+#dValBands .vb{padding:0;border:0;border-radius:0;background:transparent}
+#dValBands .vb-heading{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+#dValBands .vb-heading strong{font-variant-numeric:tabular-nums}
+#dValBands .vb-caption{color:var(--muted);font-size:calc(13px * var(--rd-fs,1))}
+#dValBands .vb-no-pin{padding-top:8px}
+.val-years{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.val-years input{box-sizing:border-box;width:4.25em;min-height:42px;padding:4px 8px;border:1px solid var(--rule);border-radius:12px;background:var(--panel);color:var(--ink);font:inherit;text-align:center}
+.val-years input:focus-visible{outline:2px solid var(--beam);outline-offset:2px}
 </style>
 
 <style id="quotePresentationV205">

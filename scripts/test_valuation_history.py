@@ -54,6 +54,11 @@ class BuildTest(unittest.TestCase):
             self.assertEqual(out['per']['n'], 30)
             self.assertNotIn('yld', out)                       # 不足 20 筆不出這個指標
             self.assertEqual(out['market'], '上市')
+            history = vh.build(tmp, 10, include_history=True)['1234']['history']
+            self.assertEqual(len(history), 31)
+            self.assertEqual(history[0], ['2019-01-02', 999.0, 1.0, 1.0])
+            self.assertEqual(history[-1][1:], [39.0, None, 1.0])
+
 
 
 if __name__ == '__main__':

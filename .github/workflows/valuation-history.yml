@@ -6,6 +6,10 @@ on:
     - cron: '20 11 * * 1-5'     # 台北 19:20，兩個交易所都已公布當天資料
   workflow_dispatch:
     inputs:
+      build_only:
+        description: 只用既有封存產生網站資料
+        type: boolean
+        default: false
       minutes:
         description: '每個市場的抓取預算分鐘；到時保存，下次續補'
         type: number
@@ -41,18 +45,19 @@ jobs:
             git worktree add --orphan -b valuation-history _vh
           fi
       - name: 補抓上市與上櫃（新的日期先抓）
+        if: inputs.build_only != true
         run: |
           set -o pipefail
-          python -u scripts/valuation_history.py fetch --archive _vh/archive --market tpex --deadline-min "$MINUTES" 2>&1 | tee tpex.log &
+          python -u scripts/valuation_history.py fetch --archive _vh/archive --years 10 --market tpex --deadline-min "$MINUTES" 2>&1 | tee tpex.log &
           tpex=$!
           ok=0
-          python -u scripts/valuation_history.py fetch --archive _vh/archive --market twse --deadline-min "$MINUTES" 2>&1 | tee twse.log || ok=1
+          python -u scripts/valuation_history.py fetch --archive _vh/archive --years 10 --market twse --deadline-min "$MINUTES" 2>&1 | tee twse.log || ok=1
           wait "$tpex" || ok=1
           exit $ok
-      - name: 產生近五年區間並檢查
+      - name: 產生個股估值資料並檢查
         if: always() && !cancelled()
         run: |
-          python scripts/valuation_history.py build --archive _vh/archive --out _vh/valuation --years 5
+          python scripts/valuation_history.py build --archive _vh/archive --out _vh/valuation --years 10
           python scripts/valuation_history.py check --out _vh/valuation
       - name: 保存並觸發網站建置
         if: always() && !cancelled()

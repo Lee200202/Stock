@@ -15285,6 +15285,10 @@ def verdict_settle(current, votes, last=False, open_position=False):
     got = [v for v in votes if v]
     if open_position and len(got) >= 2 and 'holdings' in got and set(got) <= {'holdings','watch_watch'}:
         return '定案', 'holdings', '本股正向分析已有共識，既有部位與有效續抱票採持股主列'
+    # 2026/11/24：紀錄上未出場、兩票都是觀望注意（今天有本股正向分析）也列會員持股——2026/10/21 起已核對未全出部位
+    # 且當天有本股分析的注意列發布為會員持股（self-classification §1）。11/24 重播台積電「觀望注意／觀望注意」落在注意。
+    if open_position and len(got) >= 2 and set(got) == {'watch_watch'}:
+        return '定案', 'holdings', '紀錄上未出場、有效票都是本股正向分析：依 10/21 政策列會員持股（持股／注意同組）'
     if current in _VERDICT_HIDDEN and len(got) >= 2 and set(got) <= {'ignored', 'history'}:
         return '定案', got[0], '兩輪有效票均為不公開（排除／回顧），不額外消耗第 3 輪'
     if got:

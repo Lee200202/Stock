@@ -104,6 +104,17 @@ class OpenPositionNamed(unittest.TestCase):
         self.assertEqual(p.open_position_named_holding(e, '我今天賣力積電，賣在40塊。', ['力積電']), '')
 
 
+class OpenPositionWatchVotes(unittest.TestCase):
+    def test_open_position_with_watch_votes_is_holdings(self):
+        self.assertEqual(p.verdict_settle('watch_watch', ['watch_watch', 'watch_watch'], open_position=True)[:2], ('定案', 'holdings'))
+
+    def test_without_record_stays_watch(self):
+        self.assertEqual(p.verdict_settle('watch_watch', ['watch_watch', 'watch_watch'], open_position=False)[1], 'watch_watch')
+
+    def test_avoid_votes_are_not_turned_into_holdings(self):
+        self.assertNotEqual(p.verdict_settle('watch_avoid', ['watch_avoid', 'watch_avoid'], open_position=True)[1], 'holdings')
+
+
 class Prompts(unittest.TestCase):
     def test_adjudicate_prompt_states_the_1124_boundaries(self):
         s = p.ADJUDICATE_SYSTEM

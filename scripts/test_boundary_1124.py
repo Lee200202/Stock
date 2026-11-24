@@ -115,6 +115,17 @@ class OpenPositionWatchVotes(unittest.TestCase):
         self.assertNotEqual(p.verdict_settle('watch_avoid', ['watch_avoid', 'watch_avoid'], open_position=True)[1], 'holdings')
 
 
+class OrdinaryWords(unittest.TestCase):
+    def test_reduplication_and_volume_talk_are_ordinary(self):
+        self.assertTrue(p._only_ordinary_word('安心', '1259', '沒有最壞的情況出現，安安心心，坐在那邊，抱著你的股票。'))
+        self.assertTrue(p._only_ordinary_word('大量', '3167', '他又把這一根大量站回去啊，底部暴大量，他把大量都站回去啦'))
+        self.assertFalse(p._only_ordinary_word('大量', '3167', '大量這一檔，季線翻揚'))
+        self.assertFalse(p._only_ordinary_word('國巨', '2327', '328以下你有國巨的就不用賣了'))
+
+    def test_prompt_marks_ordinary_words(self):
+        self.assertIn('安安心心', p.ADJUDICATE_SYSTEM)
+
+
 class Prompts(unittest.TestCase):
     def test_adjudicate_prompt_states_the_1124_boundaries(self):
         s = p.ADJUDICATE_SYSTEM

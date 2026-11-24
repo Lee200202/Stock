@@ -7449,7 +7449,14 @@ def _only_ordinary_word(heard, code, transcript):
     if code and (re.search(r'(?<!\d)' + re.escape(code) + r'[，,、的是叫做]{0,3}' + re.escape(heard), flat)
                  or re.search(re.escape(heard) + r'[，,、（(]?' + re.escape(code) + r'(?!\d)', flat)):
         return False
-    return all(_ORDINARY_BEFORE.search(flat[max(0, at - 3):at]) or _ORDINARY_AFTER.match(flat[at + 2:at + 8]) for at in spots)
+    # 2026/11/24：疊字（「安安心心」）與量的口語（「暴大量」「爆大量」「這一根大量」）也是日常用語（11/18 重播安心被列觀望注意）。
+    def ordinary_at(at):
+        if _ORDINARY_BEFORE.search(flat[max(0, at - 3):at]) or _ORDINARY_AFTER.match(flat[at + 2:at + 8]):
+            return True
+        if at > 0 and flat[at - 1] == heard[0] and flat[at + 2:at + 3] == heard[1]:
+            return True
+        return bool(re.search(r'(?:暴|爆|根|把)$', flat[max(0, at - 1):at])) and heard.endswith('量')
+    return all(ordinary_at(at) for at in spots)
 
 
 _DIRECTORY_NAME_CACHE = {}
@@ -14117,7 +14124,7 @@ now填buy_ok／conditional／not_yet／prohibit／none，與前述軸一致；to
 今天重提昨天給持有者的建議並接著講本股現況（「昨天有沒有跟你們講不要亂殺甲？甲現在要來回震盪打底」）：這是今天仍然有效的持有者建議，holder_advice=hold_rebound，不能因為句子裡有「昨天」就當成只回顧。
 forward_view是講者對本股今天之後的說法，只答事實，不是分類：rise＝說本股之後會漲、會再來到較高的價位、會彈回、會突破（「後面還會再來2,000」「會彈回去」）；fall＝說本股還會跌、會再來到較低的價位、會補下方缺口、會破；buy_sell_rule＝給本股的買賣價位規則（「來到800你賣、來到700你買」「幾塊以下買」）；none＝全文沒有本股今天之後的說法。只回顧過去在哪裡買、賣過幾次、會員過去照這個做過，不算向前說法；同一段既回顧過去、又說了之後會怎樣或價位規則，照向前說法填，content_role不填historical_only，past_trade照實填true，並在quotes.stance引那一句向前說法。程式依此決定：有向前說法的股票不因過去買賣列回顧，rise／fall決定偏多偏空，buy_sell_rule是等價位的進場條件（2026/11/18 管理者：判斷標準寫進流程）。
 view_basis是本股看法的依據，只答事實，不是分類：speaker_judgment＝講者對本股自己下了判斷、條件、建議或風險結論（想買、不買、等某價、會再跌、不能收破某價）；price_move_only＝只報本股漲跌、跌停、跌停打開、斷頭、融資清洗、法人買賣等行情或籌碼現象，講者沒有對本股下判斷；example_only＝只拿它示範算法或看圖方法、當教學圖例或舉例（例：拿本股K線示範找最大量、算融資斷頭價，「最大量K線以上買的人全部斷頭」，講者沒有說本股該怎麼做；這是方法示範，不是chase_lesson，entry_for_new與now填none，2026/11/18 管理者）；chase_lesson＝拿本股昨天大漲或漲停、今天大跌或跌停，教人別追高（「你昨天買什麼意思」「為什麼昨天叫你們不要買」，不要買可在同一串名單的段尾；只拿本股K線示範找最大量、算融資斷頭價不算，那是example_only），程式列觀望不碰（2026/11/18 管理者取消 11/03 問卷 E1）；只報跌停、沒有別追的教訓才是price_move_only。追高教訓可以在名單之前（「看到漲就受不了，就會出現…」）、之後或下一段（「我昨天如果叫你買，你只有爽一天」這種反事實句也是教訓）；一句並列多檔「昨天X漲停、今天X跌停」共用同一個教訓時，每一檔都填chase_lesson，content_role不是comparison_only（2026/11/20 週檢討）。只念今天跌停的名單、沒有昨天大漲或漲停的對照與教訓，仍是price_move_only。講者描述現象（誰在這裡買、誰被斷頭、跌停、跌停打開、融資清得差不多、量最大的K線在哪）不是對本股下判斷；判斷是講者說本股該怎麼做或接下來會怎樣（想買、不買、等某價、多看幾天、還會跌、會回到某價、不能收破某價）。同一檔兩種都有時，有任何一句講者對本股的判斷就填speaker_judgment。程式依此決定：沒有進場看法而依據不是speaker_judgment的不公開，不看語氣，所以不要為了公開改填依據。
-2026/11/24 管理者裁示（通用）：①對持有者用反問或否定說不要在這裡賣（「回到起漲點你還要再賣，你在賣什麼意思」「328以下你有甲的就不用賣了」），是持有者勿殺低：holder_advice=hold_rebound、tone=bullish，講者自己沒有部位也一樣。②拿本股ADR或海外掛牌的漲幅對照台股今天的漲幅，推論本股明天還會開高、還有高點（「甲ADR漲19%，今天甲才漲10%，所以明天都有高點」）：forward_view=rise、view_basis=speaker_judgment；同一句並列幾檔，每一檔都適用。只報ADR漲跌、沒有說本股之後怎樣，仍是price_move_only。③本股被ETF或法人在低點出清、隨後漲停，講者是在批評賣方的時機，不是本股風險；把一串高價股說成被ETF拱上去、「沒人要買、自己殺到最低點」是在描述市場，不是講者對本股的禁買，也不是追高教材：沒有其他本股判斷時view_basis=price_move_only、now=none、tone=neutral。chase_lesson只限本股自己先大漲或漲停、接著大跌或跌停，並教人別追。④紀錄上仍有未出場部位（open_position）的股票今天被點名，就算只說昨天講過、今天漲停，about_itself=true、content_role不填ordinary_word；分類由程式依紀錄決定。
+2026/11/24 管理者裁示（通用）：①對持有者用反問或否定說不要在這裡賣（「回到起漲點你還要再賣，你在賣什麼意思」「328以下你有甲的就不用賣了」），是持有者勿殺低：holder_advice=hold_rebound、tone=bullish，講者自己沒有部位也一樣。②拿本股ADR或海外掛牌的漲幅對照台股今天的漲幅，推論本股明天還會開高、還有高點（「甲ADR漲19%，今天甲才漲10%，所以明天都有高點」）：forward_view=rise、view_basis=speaker_judgment；同一句並列幾檔，每一檔都適用。只報ADR漲跌、沒有說本股之後怎樣，仍是price_move_only。③本股被ETF或法人在低點出清、隨後漲停，講者是在批評賣方的時機，不是本股風險；把一串高價股說成被ETF拱上去、「沒人要買、自己殺到最低點」是在描述市場，不是講者對本股的禁買，也不是追高教材：沒有其他本股判斷時view_basis=price_move_only、now=none、tone=neutral。chase_lesson只限本股自己先大漲或漲停、接著大跌或跌停，並教人別追。⑤名稱只出現在日常用語、疊字或技術用語裡（「安安心心抱著你的股票」「三線合一」「這一根大量」「最低點的數字」），不是在講那家公司：about_itself=false、content_role=ordinary_word，就算句子偏多也一樣。④紀錄上仍有未出場部位（open_position）的股票今天被點名，就算只說昨天講過、今天漲停，about_itself=true、content_role不填ordinary_word；分類由程式依紀錄決定。
 只輸出契約JSON verdicts陣列；每個輸入id都必須回覆，布林欄位填true或false，缺證據可填unsure，不使用語氣字詞表補造答案。
 另填independent_analysis：全篇有本股現在的向前技術位階解讀、量價／法人推論、風險判斷或具體低接節奏時true，quotes.analysis及quote_source_ids.analysis附其原句與編號。這不表示推薦買入；先說未推薦、後段再解析該股往季線的位階，也須讀後段再判。純報漲跌或碰均線位置、只是別股圖例、未持有清單且沒有本股獨立解讀均為false。原稿有本股獨立解析但沒有明確進場語氣時，now及tone可維持none／neutral，由程式保留為中性觀察；不必編造偏多。
 """

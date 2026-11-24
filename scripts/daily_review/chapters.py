@@ -116,6 +116,8 @@ def check_plan(plan_path, raw_path):
         except (ValueError, KeyError) as e:
             problems.append(str(e))
             continue
+        from preflight import public_text_problems
+        problems += public_text_problems(p.get('text', ''), '「' + p.get('text', '')[:16] + '…」')
         gone = missing_numbers(p.get('text', ''), ' '.join(p['evidence']))
         if gone:
             problems.append(f"「{p.get('text', '')[:24]}…」的數字不在自己的引句：{'、'.join(gone)}")

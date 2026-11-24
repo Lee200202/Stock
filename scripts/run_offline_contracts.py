@@ -61,6 +61,7 @@ SUITES = [
     'test_transcript_tail_1110',
     'test_delivery_guard_1113',
     'test_stance_basis_1118',
+    'test_boundary_1124',
 ]
 
 GUARD = r'''

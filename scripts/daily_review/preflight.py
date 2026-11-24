@@ -46,6 +46,25 @@ def quote_problems(raw, quotes, where):
     return out
 
 
+# 2026/11/24 管理者：公開說明與①③不用講者當主詞（「講者說」「張震指出」），價位用阿拉伯數字（不寫「三百二十八以下」）。
+SPEAKER_SUBJECT = re.compile(r'講者|老師|張震|張正|張總|分析師(?:說|指出|認為|提醒|表示)')
+CN_PRICE = re.compile(r'(?<![第幾數上近好成多])([一二兩三四五六七八九][零〇一二兩三四五六七八九十百千]*[十百千][零〇一二兩三四五六七八九十百千]*)'
+                      r'(?=以下|以上|附近|左右|上下|一帶|元|塊|點|張|價位|關卡)')
+
+
+def public_text_problems(text, where):
+    """純函式：公開文字（個股說明、通知理由、①③每一點）的寫法：不用講者當主詞、價位不寫國字數字。"""
+    out = []
+    text = str(text or '')
+    m = SPEAKER_SUBJECT.search(text)
+    if m:
+        out.append(f'{where}：公開文字不用「{m.group(0)}」當主詞，改成省略主詞（指出、認為、提醒）或直接寫事實')
+    cn = [x.group(1) for x in CN_PRICE.finditer(text) if not re.search(r'[一二兩三四五六七八九]{2}', x.group(1))]
+    if cn:
+        out.append(f'{where}：價位要寫阿拉伯數字，不寫「{"」「".join(cn)}」')
+    return out
+
+
 def check_notice_reason(plan, raw, day):
     from apply_notice_reason_fix import check_item, target
     out = []
@@ -70,6 +89,8 @@ def check_notice_reason(plan, raw, day):
             check_item(item, None, lambda r, q: None, raw)
         except ValueError as exc:
             out.append(f'notice-reason {code}：{exc}')
+        if item.get('text'):
+            out += public_text_problems(item['text'], 'notice-reason ' + code)
         if raw is not None:
             out += quote_problems(raw, item.get('quotes'), 'notice-reason ' + code)
     return out
@@ -84,6 +105,9 @@ def check_source_review(plan, raw, day):
         out.append('source-review：raw_sha256 與今天原稿不符')
     out += ['source-review ' + p for p in plan_problems(plan)]
     out += [f"source-review {i.get('code')}：缺 rationale" for i in plan.get('items', []) if not i.get('rationale')]
+    for item in plan.get('items', []):
+        if item.get('action') != 'delete' and item.get('text'):
+            out += public_text_problems(item['text'], 'source-review ' + str(item.get('code')))
     if raw is not None:
         for item in plan.get('items', []):
             if item.get('action') != 'delete':

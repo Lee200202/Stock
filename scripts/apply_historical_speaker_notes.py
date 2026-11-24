@@ -1,6 +1,7 @@
 """Apply reviewed wording changes to the historical public stock notes."""
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -24,22 +25,26 @@ def requests_for(sheets, values, plan):
         head, *rows = values[tab]
         col = head.index(FIELDS[tab])
         candidates = []
+        diagnostics = []
         for index, row in enumerate(rows, 1):
             record = dict(zip(head, row))
             if (pl.norm_date(record.get('日期')) != day
-                    or (str(record.get('代號') or '') != code and code != '代號待確認')
-                    or str(record.get('股票名稱') or '') != name
-                    or (kind != 'holdings' and record.get('方向') != LABEL[kind])):
+                    or (str(record.get('代號') or '').strip().removesuffix('.0') != code and code != '代號待確認')
+                    or str(record.get('股票名稱') or '').strip() != name
+                    or (kind != 'holdings' and LABEL[kind].removeprefix('觀望') not in record.get('方向', ''))):
                 continue
             old = record.get(FIELDS[tab], '')
-            if not all(old.count(phrase) == 1 for phrase, _ in substitutions):
-                continue
             new = old
             for phrase, replacement in substitutions:
-                new = new.replace(phrase, replacement, 1)
-            candidates.append((index, old, new))
+                pattern = r'\s*'.join(re.escape(c) for c in phrase if not c.isspace())
+                if len(re.findall(pattern, new)) != 1:
+                    diagnostics.append((index, '講者' in old, substitutions.index([phrase, replacement])))
+                    break
+                new = re.sub(pattern, lambda _: replacement, new, count=1)
+            else:
+                candidates.append((index, old, new))
         if len(candidates) != 1:
-            unmatched.append((day, kind, code, name, len(candidates)))
+            unmatched.append((day, kind, code, name, len(candidates), diagnostics))
             continue
         index, old, new = candidates[0]
         key = (tab, index, col)

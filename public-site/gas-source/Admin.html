@@ -4621,6 +4621,45 @@ var mergeTxFingerprint='';
 (function () {
   var busy = false, lastAt = 0, timer = null;
   var TONE_LABEL = { ok: '正常', warn: '留意', err: '需處理', idle: '待命' };
+  /* 2026/11/24：十幾張互相重疊的狀態卡併成四張流程卡（取稿 → 判讀與紀錄 → 寄送 → 資料與排程）。
+     每張卡的顏色取組內最嚴重的一項；每一項仍逐列寫出，說明只在需要處理（黃、紅）時展開，其他放在滑鼠提示。 */
+  var TODAY_GROUPS_ = [
+    ['取稿', ['今日狀態', '自動取稿', '逐字稿']],
+    ['判讀與紀錄', ['今日紀錄', '會員簡訊', 'Pipeline 稽核', '逐日編輯同步']],
+    ['寄送', ['每日推播', '每日郵件', '郵件投遞']],
+    ['資料與排程', ['補日K', '網站資料讀取', 'Apps Script 排程']]
+  ];
+  var TONE_RANK_ = { err: 4, warn: 3, ok: 2, idle: 1, closed: 1 };
+  function todayGroups_(items) {
+    var used = {};
+    var groups = TODAY_GROUPS_.map(function (g) {
+      var rows = items.filter(function (it) { return g[1].indexOf(it.label) >= 0; });
+      rows.forEach(function (it) { used[items.indexOf(it)] = 1; });
+      return [g[0], rows];
+    });
+    var rest = items.filter(function (it, i) { return !used[i]; });
+    if (rest.length) { groups[3][1] = groups[3][1].concat(rest); }
+    return '<div class="hflow">' + groups.filter(function (g) { return g[1].length; }).map(function (g, gi) {
+      var tone = g[1].reduce(function (t, it) { return (TONE_RANK_[it.tone] || 0) > (TONE_RANK_[t] || 0) ? it.tone : t; }, 'idle');
+      return '<section class="hgroup t-' + esc(tone) + '" style="--i:' + gi + '"><header><span class="hg-step">' + (gi + 1) + '</span><h3>' + esc(g[0]) + '</h3><i>' + (TONE_LABEL[tone] || '') + '</i></header>' +
+        g[1].map(function (it) {
+          var loud = it.tone === 'warn' || it.tone === 'err';
+          return '<div class="hrow t-' + esc(it.tone) + '"' + (it.hint && !loud ? ' title="' + esc(it.hint) + '"' : '') + '><span>' + esc(it.label) + '</span><b>' + esc(it.value) + '</b>' +
+            (loud && it.hint ? '<small>' + esc(it.hint) + '</small>' : '') + '</div>';
+        }).join('') + '</section>';
+    }).join('') + '</div>';
+  }
+  /* 後端讀取各段秒數：一條分段長條，最慢的一段標出來；laps 為「名稱 秒數」字串。 */
+  function todayLaps_(laps, ms) {
+    var parts = laps.map(function (t) { var m = String(t).match(/^(.*\S)\s+([\d.]+)$/); return m ? { n: m[1], s: Number(m[2]) } : null; }).filter(Boolean);
+    if (!parts.length) { return ''; }
+    var total = parts.reduce(function (a, p) { return a + p.s; }, 0) || 1, slow = parts.reduce(function (a, p) { return p.s > a.s ? p : a; }, parts[0]);
+    return '<div class="hlaps" role="img" aria-label="' + esc('後端讀取各段：' + laps.join('、')) + '"><div class="hlaps-bar">' +
+      parts.map(function (p, i) { return '<span class="' + (p === slow ? 'slow' : '') + '" style="flex:' + p.s + ' 1 0;--i:' + i + '" title="' + esc(p.n + ' ' + p.s.toFixed(1) + ' 秒') + '"></span>'; }).join('') +
+      '</div><div class="hlaps-key">' + parts.map(function (p) { return '<span' + (p === slow ? ' class="slow"' : '') + '>' + esc(p.n) + ' ' + p.s.toFixed(1) + '</span>'; }).join('') + '</div>' +
+      '<p class="hlaps-note">最慢：' + esc(slow.n) + ' ' + slow.s.toFixed(1) + ' 秒（佔 ' + Math.round(slow.s / total * 100) + '%）</p></div>';
+  }
+
   function load(force) {
     if (!KEY || busy) { return; }
     if (!force && Date.now() - lastAt < 30000) { return; }
@@ -4713,44 +4752,6 @@ var mergeTxFingerprint='';
   $('opsTimeToggle').addEventListener('click', function () { var opening = $('opsTimePanel').hidden; $('opsTimePanel').hidden = !opening; this.setAttribute('aria-expanded', String(opening)); });
   document.addEventListener('click', function (e) { if (!$('opsTimePicker').contains(e.target)) { closeOpsTime(); } });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('opsTimePanel').hidden) { closeOpsTime(); $('opsTimeToggle').focus(); } });
-  /* 2026/11/24：十幾張互相重疊的狀態卡併成四張流程卡（取稿 → 判讀與紀錄 → 寄送 → 資料與排程）。
-     每張卡的顏色取組內最嚴重的一項；每一項仍逐列寫出，說明只在需要處理（黃、紅）時展開，其他放在滑鼠提示。 */
-  var TODAY_GROUPS_ = [
-    ['取稿', ['今日狀態', '自動取稿', '逐字稿']],
-    ['判讀與紀錄', ['今日紀錄', '會員簡訊', 'Pipeline 稽核', '逐日編輯同步']],
-    ['寄送', ['每日推播', '每日郵件', '郵件投遞']],
-    ['資料與排程', ['補日K', '網站資料讀取', 'Apps Script 排程']]
-  ];
-  var TONE_RANK_ = { err: 4, warn: 3, ok: 2, idle: 1, closed: 1 };
-  function todayGroups_(items) {
-    var used = {};
-    var groups = TODAY_GROUPS_.map(function (g) {
-      var rows = items.filter(function (it) { return g[1].indexOf(it.label) >= 0; });
-      rows.forEach(function (it) { used[items.indexOf(it)] = 1; });
-      return [g[0], rows];
-    });
-    var rest = items.filter(function (it, i) { return !used[i]; });
-    if (rest.length) { groups[3][1] = groups[3][1].concat(rest); }
-    return '<div class="hflow">' + groups.filter(function (g) { return g[1].length; }).map(function (g, gi) {
-      var tone = g[1].reduce(function (t, it) { return (TONE_RANK_[it.tone] || 0) > (TONE_RANK_[t] || 0) ? it.tone : t; }, 'idle');
-      return '<section class="hgroup t-' + esc(tone) + '" style="--i:' + gi + '"><header><span class="hg-step">' + (gi + 1) + '</span><h3>' + esc(g[0]) + '</h3><i>' + (TONE_LABEL[tone] || '') + '</i></header>' +
-        g[1].map(function (it) {
-          var loud = it.tone === 'warn' || it.tone === 'err';
-          return '<div class="hrow t-' + esc(it.tone) + '"' + (it.hint && !loud ? ' title="' + esc(it.hint) + '"' : '') + '><span>' + esc(it.label) + '</span><b>' + esc(it.value) + '</b>' +
-            (loud && it.hint ? '<small>' + esc(it.hint) + '</small>' : '') + '</div>';
-        }).join('') + '</section>';
-    }).join('') + '</div>';
-  }
-  /* 後端讀取各段秒數：一條分段長條，最慢的一段標出來；laps 為「名稱 秒數」字串。 */
-  function todayLaps_(laps, ms) {
-    var parts = laps.map(function (t) { var m = String(t).match(/^(.*\S)\s+([\d.]+)$/); return m ? { n: m[1], s: Number(m[2]) } : null; }).filter(Boolean);
-    if (!parts.length) { return ''; }
-    var total = parts.reduce(function (a, p) { return a + p.s; }, 0) || 1, slow = parts.reduce(function (a, p) { return p.s > a.s ? p : a; }, parts[0]);
-    return '<div class="hlaps" role="img" aria-label="' + esc('後端讀取各段：' + laps.join('、')) + '"><div class="hlaps-bar">' +
-      parts.map(function (p, i) { return '<span class="' + (p === slow ? 'slow' : '') + '" style="flex:' + p.s + ' 1 0;--i:' + i + '" title="' + esc(p.n + ' ' + p.s.toFixed(1) + ' 秒') + '"></span>'; }).join('') +
-      '</div><div class="hlaps-key">' + parts.map(function (p) { return '<span' + (p === slow ? ' class="slow"' : '') + '>' + esc(p.n) + ' ' + p.s.toFixed(1) + '</span>'; }).join('') + '</div>' +
-      '<p class="hlaps-note">最慢：' + esc(slow.n) + ' ' + slow.s.toFixed(1) + ' 秒（佔 ' + Math.round(slow.s / total * 100) + '%）</p></div>';
-  }
   function card(title, value, detail, tone, actionHtml) {
     return '<article class="ops-card" data-tone="' + esc(tone || 'idle') + '"><h3>' + esc(title) + '</h3><strong>' + esc(value) + '</strong><p>' + esc(detail || '') + '</p>' + (actionHtml || '') + '</article>';
   }

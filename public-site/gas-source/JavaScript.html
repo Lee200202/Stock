@@ -546,6 +546,17 @@
   function wAvoid(d) { return (d && d.watchAvoid) ? d.watchAvoid : ((d && d.watch) ? d.watch : []); }
   function wWatch(d) { return (d && d.watchWatch) ? d.watchWatch : []; }
 
+  /* 2026/11/24：當天四類的比例條（買入、賣出、觀望不碰、觀望注意）。持股不是當天的分類，不放進比例。四類都是 0 就不畫。 */
+  function ledgerBar(d) {
+    if (!d) { return ''; }
+    var parts = [['buy', '買入', d.buy.length], ['sell', '賣出', d.sell.length], ['watch', '觀望不碰', wAvoid(d).length], ['note', '觀望注意', wWatch(d).length]];
+    var total = parts.reduce(function (s, p) { return s + p[2]; }, 0);
+    if (!total) { return ''; }
+    var say = parts.filter(function (p) { return p[2]; }).map(function (p) { return p[1] + ' ' + p[2]; }).join('、');
+    return '<div class="led-bar" role="img" aria-label="當天分類比例：' + esc(say) + '">' + parts.filter(function (p) { return p[2]; }).map(function (p, i) {
+      return '<span class="led-seg ' + p[0] + '" style="flex:' + p[2] + ' 1 0;--i:' + i + '"></span>';
+    }).join('') + '</div>';
+  }
   function renderLedger(d) {
     var box = $('ledger');
     box.innerHTML =
@@ -554,6 +565,8 @@
       ledgerRow('watch', '觀望不碰', d ? wAvoid(d).length : 0, 'tblWatchAvoid') +
       ledgerRow('note', '觀望注意', d ? wWatch(d).length : 0, 'tblWatchWatch') +
       ledgerRow('hold', '目前持有', d ? d.holdings.length : 0, 'tab:tracker');
+    var lb = $('ledBar'); if (!lb) { lb = document.createElement('div'); lb.id = 'ledBar'; box.insertAdjacentElement('afterend', lb); }
+    lb.innerHTML = ledgerBar(d);
     var oldRatio=document.getElementById('storyDailyRatio');if(oldRatio)oldRatio.remove();
     box.querySelectorAll('[data-jump]').forEach(function (b) {
       b.addEventListener('click', function () {
@@ -1716,27 +1729,43 @@ function restatesEarlier_(key, earlier) {
       return;
     }
     renderTrackerRows(t, trackerSorted_(showing));
+    filterTrackerRows_();
   }
+  /* 2026/11/24：持股追蹤搜尋，依代號或股名即時篩選卡片。 */
+  function filterTrackerRows_() {
+    var q = ($('trackerQ') && $('trackerQ').value || '').trim().toLowerCase(), shown = 0, cards = document.querySelectorAll('#trackerTable .tracker-card');
+    cards.forEach(function (c) { var key = ((c.dataset.code || '') + ' ' + c.textContent.trim().slice(0, 40)).toLowerCase(), hit = !q || key.indexOf(q) >= 0; c.hidden = !hit; if (hit) { shown++; } });
+    var none = $('trackerQNone'); if (none) { none.hidden = !(q && cards.length && !shown); }
+  }
+  if ($('trackerQ')) { $('trackerQ').addEventListener('input', filterTrackerRows_); }
 
   function renderTrackerSummary_(t) {
     var sum = trackerView === 'held' ? t.heldSummary : t.exitedSummary;
     var box = $('trackerSummary');
     if (box) {
       if (sum && sum.priced) {
+        /* 2026/11/24：三張摘要各配一條圖：持有與已出場的檔數比、以零為中心的平均報酬、正報酬比例。 */
+        var heldN = (t.heldSummary && t.heldSummary.total) || 0, exitN = (t.exitedSummary && t.exitedSummary.total) || 0;
+        var avg = Number(sum.avgReturn), avgW = isFinite(avg) ? Math.min(50, Math.abs(avg)) / 50 * 50 : 0;
+        var pos = sum.positiveRatio == null ? null : Number(sum.positiveRatio);
         box.innerHTML =
           '<div class="tsum">' +
           '<div class="tsum-i"><div class="k">' + (trackerView === 'held' ? '持有檔數' : '出場檔數') +
-            '</div><div class="v">' + sum.total + '</div></div>' +
+            '</div><div class="v">' + sum.total + (trackerView === 'exited' && sum.rounds ? '<small class="tsum-sub">共 ' + sum.rounds + ' 回合</small>' : '') + '</div>' +
+            '<div class="tsum-bar split" role="img" aria-label="持有 ' + heldN + ' 檔、已出場 ' + exitN + ' 檔"><span class="hold" style="flex:' + heldN + ' 1 0"></span><span class="exit" style="flex:' + exitN + ' 1 0"></span></div>' +
+            '<div class="tsum-cap"><span>持有 ' + heldN + '</span><span>已出場 ' + exitN + '</span></div></div>' +
           '<div class="tsum-i"><div class="k">' + (trackerView === 'held' ? '平均未實現報酬' : '平均已實現報酬') +
-            '</div><div class="v ' + signCls(sum.avgReturn) + '">' + fmtRet(sum.avgReturn) + '</div></div>' +
+            '</div><div class="v ' + signCls(sum.avgReturn) + '">' + fmtRet(sum.avgReturn) + '</div>' +
+            '<div class="tsum-bar zero" role="img" aria-label="平均報酬 ' + esc(fmtRet(sum.avgReturn)) + '，以零為中心、滿格為正負 50%"><span class="' + (avg < 0 ? 'neg' : 'posi') + '" style="width:' + avgW.toFixed(1) + '%"></span></div>' +
+            '<div class="tsum-cap"><span>-50%</span><span>0</span><span>+50%</span></div></div>' +
           '<div class="tsum-i"><div class="k">正報酬比例</div><div class="v">' +
-            (sum.positiveRatio == null ? '\u2014' : sum.positiveRatio.toFixed(1) + '%') + '</div></div>' +
+            (pos == null ? '\u2014' : pos.toFixed(1) + '%') + '</div>' +
+            (pos == null ? '' : '<div class="tsum-bar fill" role="img" aria-label="正報酬比例 ' + pos.toFixed(1) + '%"><span style="width:' + Math.max(0, Math.min(100, pos)).toFixed(1) + '%"></span></div><div class="tsum-cap"><span>0%</span><span>100%</span></div>') + '</div>' +
           '</div>' +
           /* 已實現報酬以回合計（v139）：同一檔買了又賣、賣了又買，每一個已經結束的回合各算一次；
              目前又持有中的股票，先前結束的回合也算。畫面只寫回合數，不逐檔列出（2026/10/07 管理者：不必要的資訊不放上來）。 */
           (trackerView === 'exited' && sum.rounds
-            ? '<p class="tsum-note">平均與正報酬比例以回合計，共 ' + sum.rounds + ' 個已結束的回合' +
-              (sum.pendingRounds ? '；另 ' + sum.pendingRounds + ' 個回合缺少有效高低價，未列入試算。' : '。') + '</p>'
+            ? (sum.pendingRounds ? '<p class="tsum-note">另 ' + sum.pendingRounds + ' 個回合缺少有效高低價，未列入試算。</p>' : '')
             : '');
         if (trackerPriceMode === 'lowHigh' && trackerView === 'held' && sum.priced < sum.total) {
           box.innerHTML += '<p class="tsum-note">平均與正報酬比例以 ' + sum.priced + ' / ' + sum.total + ' 檔有效行情計算；待補或報價待更新的標的未列入。</p>';
@@ -1933,7 +1962,9 @@ function restatesEarlier_(key, earlier) {
     var pts = rows.slice(i0, iEnd + 1);
     // 底部兩列：持有期間括弧（寫「持有 N 個交易日」）＋日期（v68：取代原本標題列的「提到 → 成交 → 持有」文字）
     var scale = readFontScale_();
-    var H = Math.round((W < 520 * scale ? 180 : 208) * scale), padL = Math.round(54 * scale), padR = Math.round(108 * scale), padT = Math.round(16 * scale), padB = Math.round(54 * scale);
+    var lbLen = function (t) { return String(t).replace(/[\u3000-\u9fff]/g, 'MM').length; };
+    var lbMax = Math.max(lbLen('進場 ' + pxShort(m.entry)), m.avgCost ? lbLen('平均成本 ' + pxShort(m.avgCost)) : 0, m.stated ? lbLen('明講 ' + pxShort(m.stated)) : 0, m.end > 0 ? lbLen('目前 ' + pxShort(m.end)) : 0);
+    var H = Math.round((W < 520 * scale ? 180 : 208) * scale), padL = Math.round(54 * scale), padR = Math.round(Math.max(108, lbMax * 7.6 + 16) * scale), padT = Math.round(16 * scale), padB = Math.round(54 * scale);
     var pw = W - padL - padR, ph = H - padT - padB;
     var vals = pts.map(function (p) { return p.close; }).concat([m.entry, m.avgCost, m.stated, m.end].filter(function (v) { return v > 0; }));
     var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), pad = (hi - lo) * 0.08 || hi * 0.01 || 1;
@@ -2486,7 +2517,9 @@ function restatesEarlier_(key, earlier) {
       onPick: function (d) { openTx(d); }
     });
     google.script.run.withSuccessHandler(function (list) {
-      txCal.setDates(list || []);
+      // 2026/11/24：和郵件查詢一樣，進來就打開最新一天，不留一片空白
+      var latest = txCal.setDates(list || []);
+      if (latest && !txCurDate && txCal.select(latest)) { openTx(latest); }
     }).withFailureHandler(function () {
       txCal.fail('載入失敗，請重新整理。');
     }).apiListTranscriptDates();
@@ -2500,7 +2533,7 @@ function restatesEarlier_(key, earlier) {
   function openTx(date) {
     txCurDate = date;
     delete $('txResult').dataset.feedbackDate;
-    $('txResult').innerHTML = '<p class="notice">載入中</p>';
+    $('txResult').innerHTML = '<div class="skel-lines">' + skel(6) + '</div>';
     google.script.run.withSuccessHandler(function (r) {
       if (date === txCurDate) renderTx(r);
     }).withFailureHandler(function () {
@@ -2608,7 +2641,7 @@ function restatesEarlier_(key, earlier) {
       }
       $('mailSubj').textContent = r.subject || ('[' + r.date + '] 每日整理');
       $('mailBody').dataset.feedbackDate = r.date || date;
-      $('mailMeta').textContent = '寄送狀態：' + (r.sent || '未寄送');
+      $('mailMeta').innerHTML = '<span class="state-pill ' + (/已寄/.test(r.sent || '') ? 'ok' : 'wait') + '">' + esc(r.sent || '未寄送') + '</span>';
       $('mailContent').innerHTML = r.html || '';
     }).withFailureHandler(function () {
       if (requestId !== mailRequestId) { return; }
@@ -2729,7 +2762,9 @@ function restatesEarlier_(key, earlier) {
       color: perfField === 'avgReturn'
                ? (last >= 0 ? css('--rise') : css('--fall'))
                : css('--note'),
-      priceFormat: { type: 'price', precision: perfField === 'holding' ? 0 : 2, minMove: perfField === 'holding' ? 1 : 0.01 }
+      // 2026/11/24：百分比指標的縱軸刻度帶 %
+      priceFormat: perfField === 'holding' ? { type: 'price', precision: 0, minMove: 1 }
+        : { type: 'custom', minMove: 0.01, formatter: function (v) { return (Math.round(v * 100) / 100).toFixed(2) + '%'; } }
     });
     perfSeries.setData(pts);
     perfChart.applyOptions({ width: $('perfChart').clientWidth });
@@ -2750,6 +2785,11 @@ function restatesEarlier_(key, earlier) {
     }
   }
 
+  /* 2026/11/24：儲存格內的淡色長條（由右往左），不用逐列讀數字也看得出高低。full＝滿格對應的數值。 */
+  function perfCellBar_(v, full, color) {
+    var n = Number(v); if (v === null || v === undefined || !isFinite(n)) { return ''; }
+    return '<span class="cell-bar" aria-hidden="true" style="width:' + (Math.min(full, Math.abs(n)) / full * 100).toFixed(1) + '%;--c:var(' + color + ')"></span>';
+  }
   function renderPerfTable() {
     var s = perfSlice().slice().reverse(), ak = perfKey_('avgReturn'), pk = perfKey_('positiveRatio');
     $('perfTable').innerHTML = '<div class="card flush"><table><thead><tr>' +
@@ -2758,9 +2798,9 @@ function restatesEarlier_(key, earlier) {
       s.map(function (r) {
         return '<tr><td class="code">' + esc(r.date) + '</td>' +
           '<td class="px r">' + r.holding + '</td>' +
-          '<td class="px r ' + signCls(r[ak]) + '">' + fmtRet(r[ak]) + '</td>' +
+          '<td class="px r ' + signCls(r[ak]) + '">' + perfCellBar_(r[ak], 50, r[ak] < 0 ? '--fall' : '--rise') + fmtRet(r[ak]) + '</td>' +
           // 算不出來的日子是 null，不能呼叫 toFixed（先前整張表會因此畫不出來）。
-          '<td class="px r">' + (r[pk] == null ? '\u2014' : r[pk].toFixed(1) + '%') + '</td></tr>';
+          '<td class="px r">' + (r[pk] == null ? '\u2014' : perfCellBar_(r[pk], 100, '--note') + r[pk].toFixed(1) + '%') + '</td></tr>';
       }).join('') + '</tbody></table></div>';
   }
 
@@ -3018,7 +3058,6 @@ function restatesEarlier_(key, earlier) {
     $('detail').dataset.code = code;
     $('detail').dataset.feedbackDate = context?.date || '';
     $('detail').dataset.feedbackSource = context?.source || '';
-    $('detailVisitorActions').hidden = !context;
     DETAIL = { code: code, tracker: undefined, record: undefined };
     document.dispatchEvent(new CustomEvent('tide:stock-reset'));
     $('detail').classList.add('open');
@@ -3035,7 +3074,7 @@ function restatesEarlier_(key, earlier) {
     $('dFund').innerHTML = skelKv(4);
     $('dRecord').innerHTML = skel(4);
     $('dFundNote').textContent = '';
-    $('dValBands').hidden = true; $('dValBands').innerHTML = '';
+    $('dValBands').hidden = true; $('dValBands').innerHTML = ''; $('dFundMeta').innerHTML = ''; $('dSecFund').classList.remove('has-bands');
 
     /* 名稱與報價、持有回合、提到的紀錄合成一個請求（v54，Codex 規格 68）：後端共用同一份試算表快照，
        三塊各自成敗；基本面冷快取慢，仍然另外請求、到了再顯示，不拖住首屏。
@@ -3242,9 +3281,9 @@ function restatesEarlier_(key, earlier) {
       kv('本益比', f.per ? f.per.toFixed(2) : '未提供', !f.per) +
       kv('股價淨值比', f.pbr ? f.pbr.toFixed(2) : '未提供', !f.pbr) +
       kv('殖利率', f.yld ? f.yld.toFixed(2) + '%' : '未提供', !f.yld) +
-      kv('產業別', f.industry || '未提供', !f.industry) +
-      kv('上市櫃日', f.listed || '未提供', !f.listed) +
-      kv('董事長', f.chairman || '未提供', !f.chairman);
+      '';
+    $('dFundMeta').innerHTML = [f.industry, f.listed ? f.listed + ' 上市櫃' : '', f.chairman ? '董事長 ' + f.chairman : '']
+      .filter(Boolean).map(function (t) { return '<span>' + esc(t) + '</span>'; }).join('');
     $('dFundNote').textContent = f.source || '';
     renderValBands(currentCode, f);
   }
@@ -3294,7 +3333,10 @@ function restatesEarlier_(key, earlier) {
       ];
       var html = defs.map(function (d) {
         var m = doc[d.k];
-        if (!m || !m.q || m.q.length !== 101 || m.q[100] - m.q[0] < 0.01) { return ''; }   // 區間沒有寬度（例如從未配息）不畫
+        if (!m || !m.q || m.q.length !== 101 || m.q[100] - m.q[0] < 0.01) {   // 沒有區間或區間沒有寬度（例如從未配息）：只寫目前值
+          var only = Number(d.now);
+          return isNaN(only) || d.now === null || d.now === undefined ? '' : '<div class="vb vb-flat"><div class="vb-h"><b>' + d.label + '</b><span class="vb-say">目前 ' + only.toFixed(2) + d.unit + '</span></div></div>';
+        }
         var fmt = function (x) { return Number(x).toFixed(2) + d.unit; };
         var num = function (x) { return Number(x).toFixed(d.k === 'yld' ? 2 : 1) + (d.k === 'yld' ? '%' : ''); };
         var span = valSpan(doc, m);
@@ -3313,9 +3355,10 @@ function restatesEarlier_(key, earlier) {
           '<span class="vb-mark" style="left:' + pos.toFixed(1) + '%"></span></div>' +
           '<div class="vb-ends" aria-hidden="true"><span>' + num(m.q[0]) + '</span><span>' + num(m.q[33]) + '</span><span>' + num(m.q[67]) + '</span><span>' + num(m.q[100]) + '</span></div></div>';
       }).join('');
-      if (!html) { box.hidden = true; box.innerHTML = ''; return; }
+      if (!html) { box.hidden = true; box.innerHTML = ''; $('dSecFund').classList.remove('has-bands'); return; }
       box.innerHTML = html;
       box.hidden = false;
+      $('dSecFund').classList.add('has-bands');
       $('dFundNote').textContent = '證交所、櫃買中心公開資料' + ((f && String(f.source || '').match(/更新於 ([^。]+)/) || [])[1] ? '，更新於 ' + String(f.source).match(/更新於 ([^。]+)/)[1] : '') + '。區間為' + valSpan(doc, doc.per || doc.pbr || doc.yld).replace(/^(\d.*以來)$/, ' $1 ') + '每日估值排名三等分（至 ' + valYmd(doc.to) + '），虧損期間不計本益比。';
     });
   }
@@ -4549,7 +4592,7 @@ function restatesEarlier_(key, earlier) {
       msg.textContent = '送出失敗，請稍後再試。';
     }).apiSubscribe({
       email: $('subEmail').value.trim(),
-      daily: $('subDaily').checked,
+      daily: true,   // 2026/11/24：只有每日總覽一種，不再讓人取消勾選後送出空訂閱
       sms: false
     });
   });

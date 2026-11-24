@@ -1,6 +1,7 @@
 <!-- 2026/11/24 後台「訂閱者」：Email 訂閱名單（可取消、恢復、刪除）與 LINE 帳號（管理者端、歷年推送與對話）。
      資料只經登入後的 apiAdminSubscribers／apiAdminLineConversation／apiAdminSubscriberRemove（Subscribers.gs）。 -->
 <style>
+/* 2026/11/24 全後台點選回彈（與前台相同曲線） */@media (prefers-reduced-motion:no-preference){.panel button:not(:disabled),.tab{transition:scale .38s cubic-bezier(.34,1.56,.64,1),opacity .2s,background-color .2s,color .2s}.panel button:not(:disabled):active,.tab:active{scale:.95;transition-duration:.08s}#p-subs .subs-row{animation:subsIn .5s cubic-bezier(.22,1,.36,1) both}}@keyframes subsIn{from{opacity:0;translate:0 8px}}
 #p-subs .subs-head{display:flex;justify-content:space-between;align-items:center;gap:12px 20px;flex-wrap:wrap}
 #p-subs .subs-head h2{margin:0}#p-subs .subs-count{color:var(--muted);font-size:calc(14px * var(--rd-fs))}
 #p-subs .subs-tools{display:flex;gap:10px 14px;flex-wrap:wrap;align-items:center;margin:16px 0 6px}

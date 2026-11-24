@@ -234,6 +234,7 @@
     <div class="sect">
       <div class="chartbar seg" id="trackerToggle" role="group" aria-label="持股狀態"></div>
       <div id="trackerSummary"></div>
+      <div class="tracker-search"><input type="search" id="trackerQ" placeholder="搜尋代號或股名" aria-label="搜尋持股追蹤" spellcheck="false" autocomplete="off"><p class="tsum-note" id="trackerQNone" hidden>沒有符合的標的。</p></div>
       <div class="tracker-controls">
         <div class="tracker-sortbar" id="trackerSortBar" hidden><span class="tracker-sort-k">排序</span><div class="chartbar seg" id="trackerSort" role="group" aria-label="排序方式"></div></div>
         <div class="tracker-calculation" id="trackerCalculationBar" hidden><span class="tracker-sort-k">計算方式</span><div class="chartbar seg" id="trackerCalculation" role="group" aria-label="報酬計算方式"></div></div>
@@ -294,28 +295,26 @@
   <!-- ============ 訂閱通知 ============ -->
   <section class="panel" id="p-subscribe" role="tabpanel" hidden>
     <div class="sect subgrid">
-      <div class="card mui-border-beam">
+      <!-- 2026/11/24：建立與管理訂閱放在同一個位置，用上方切換；只有每日總覽一種內容，不再放單一選項的勾選框。 -->
+      <div class="sub-switch" role="group" aria-label="訂閱通知">
+        <button type="button" data-subpane="new" aria-pressed="true">訂閱</button>
+        <button type="button" data-subpane="manage" aria-pressed="false">管理訂閱</button>
+      </div>
+      <div class="card mui-border-beam" data-subcard="new">
         <div class="sect-h"><h2>每天收一封整理</h2></div>
-        <p class="notice" style="margin:0 0 20px;">每封信底部都有取消訂閱連結，隨時可以停掉。</p>
+        <p class="notice" style="margin:0 0 20px;">每個交易日影片整理完成後寄出，信末可隨時取消。</p>
         <div class="field">
           <label for="subEmail">Email</label>
           <input type="email" id="subEmail" placeholder="you@example.com">
         </div>
-        <div class="field">
-          <label>通知內容</label>
-          <div class="optcards">
-            <label class="optcard"><input type="checkbox" id="subDaily" checked>
-              <span class="optcard-t">每日總覽</span>
-              <span class="optcard-d">每個交易日影片整理完成後寄出一封</span></label>
-          </div>
-        </div>
+        <input type="checkbox" id="subDaily" checked hidden>
         <button class="act mui-shimmer" id="subBtn">建立訂閱</button>
         <p class="notice" id="subMsg"></p>
       </div>
 
-      <div class="card" id="manage-subscription" tabindex="-1">
+      <div class="card" id="manage-subscription" tabindex="-1" data-subcard="manage" hidden>
         <div class="sect-h"><h2>管理現有訂閱</h2></div>
-        <p class="notice" style="margin:0 0 16px;">填入訂閱時用的 Email，下面會列出目前訂了什麼，逐項勾選後儲存即可。</p>
+        <p class="notice" style="margin:0 0 16px;">填入訂閱時用的 Email，查看或停止訂閱。</p>
         <div class="field">
           <label for="unsubEmail">Email</label>
           <input type="email" id="unsubEmail" placeholder="you@example.com">
@@ -538,9 +537,6 @@
         <div>
           <div class="eyebrow" id="dCode">—</div>
           <h2 id="dName">—</h2>
-          <div class="visitor-detail-actions" id="detailVisitorActions" hidden>
-            <button type="button" class="act ghost" id="detailFeedback">回報這檔內容</button>
-          </div>
         </div>
         <div class="p" id="dPrice">—</div>
         <div class="d" id="dChange">—</div>
@@ -622,6 +618,7 @@
       <div class="sect" id="dSecFund">
         <div class="sect-h"><h2>估值與公司資料</h2></div>
         <div class="kv-grid" id="dFund"></div>
+        <div class="fund-meta" id="dFundMeta"></div>
         <!-- 2026/11/24：本益比、殖利率、股價淨值比的歷史區間條（近五年、依交易日排名分三段）。資料來自 history/valuation/代號.json。 -->
         <div class="val-bands" id="dValBands" hidden></div>
         <p class="notice" id="dFundNote"></p>

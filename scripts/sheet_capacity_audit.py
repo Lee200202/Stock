@@ -6,6 +6,23 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
+def forecast(current, previous):
+    result = {}
+    elapsed = (datetime.fromisoformat(current['at']) - datetime.fromisoformat(previous['at'])).total_seconds() / 86400
+    for name, field in [('main', 'allocatedCells'), ('backup', 'cells')]:
+        now, before = current.get(name, {}), previous.get(name, {})
+        if now.get(field) is None or before.get(field) is None:
+            continue
+        delta = now[field] - before[field]
+        rate = delta / elapsed if elapsed > 0 else 0
+        remaining = max(0, 10_000_000 - now[field])
+        result[name] = {'sampleDays': round(elapsed, 4), 'netGrowthCells': delta,
+                        'cellsPerDay': round(rate, 2),
+                        'daysToCellLimit': round(remaining / rate, 2) if rate > 0 and elapsed >= 1 else None,
+                        'status': 'measured' if elapsed >= 1 and rate > 0 else 'insufficient-positive-daily-history'}
+    return result
+
+
 def inventory(book):
     meta = book.fetch_sheet_metadata()
     tabs = []
@@ -44,7 +61,16 @@ def main():
             report['backup'] = {'ok': False, 'reason': 'non-json-response', 'httpStatus': response.status_code}
     report['forecast'] = {'status': 'requires-two-timestamped-inventories',
                           'note': 'API latency cannot predict capacity exhaustion; measure cell and payload growth over time.'}
+    previous = Path('previous-capacity-report.json')
+    if previous.exists():
+        report['forecast'] = forecast(report, json.loads(previous.read_text(encoding='utf-8')))
+    # A cell forecast does not cover Google's separate document-size edit restriction.
+    report['limitsNote'] = 'The 10M-cell forecast does not establish safety against document-too-large errors.'
     Path('capacity-report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
+    for name, field in [('main', 'allocatedCells'), ('backup', 'cells')]:
+        value = report.get(name, {}).get(field)
+        if value is not None and value >= 8_000_000:
+            print(f'::warning::{name} spreadsheet allocated cells: {value:,}; prepare a new archive before writing.')
     print(json.dumps(report, ensure_ascii=False))
 
 

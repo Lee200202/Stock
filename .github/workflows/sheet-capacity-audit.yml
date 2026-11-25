@@ -1,8 +1,10 @@
 name: sheet-capacity-audit
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '17 1,9 * * *'
 permissions:
-  contents: read
+  contents: write
 concurrency:
   group: sheet-capacity-audit
   cancel-in-progress: false
@@ -16,6 +18,11 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install 'gspread>=6,<7' requests
+      - name: Load capacity baseline only
+        run: |
+          if git fetch --depth=1 origin capacity-history 2>/dev/null; then
+            git show FETCH_HEAD:latest.json > previous-capacity-report.json
+          fi
       - name: Read-only main and backup capacity inventory
         env:
           GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
@@ -23,6 +30,22 @@ jobs:
           APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
           ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
         run: python scripts/sheet_capacity_audit.py
+      - name: Save aggregate capacity history without cell contents
+        run: |
+          if git show-ref --verify --quiet refs/remotes/origin/capacity-history; then
+            git worktree add _capacity origin/capacity-history
+          else
+            git worktree add --orphan -b capacity-history _capacity
+          fi
+          cp capacity-report.json _capacity/latest.json
+          stamp=$(date -u +%Y%m%dT%H%M%SZ)
+          cp capacity-report.json "_capacity/$stamp.json"
+          cd _capacity
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add '*.json'
+          git diff --cached --quiet || git commit -m "capacity: $stamp"
+          git push origin HEAD:capacity-history
       - uses: actions/upload-artifact@v4
         with:
           name: sheet-capacity-report

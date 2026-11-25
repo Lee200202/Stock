@@ -18,7 +18,8 @@ def forecast(current, previous):
         remaining = max(0, 10_000_000 - now[field])
         result[name] = {'sampleDays': round(elapsed, 4), 'netGrowthCells': delta,
                         'cellsPerDay': round(rate, 2),
-                        'daysToCellLimit': round(remaining / rate, 2) if rate > 0 and elapsed >= 1 else None,
+                        'daysToProjectRotationThreshold': round(remaining / rate, 2) if rate > 0 and elapsed >= 1 else None,
+                        'daysToPublishedCellLimit': round(max(0, 20_000_000 - now[field]) / rate, 2) if rate > 0 and elapsed >= 1 else None,
                         'status': 'measured' if elapsed >= 1 and rate > 0 else 'insufficient-positive-daily-history'}
     return result
 
@@ -33,9 +34,10 @@ def inventory(book):
                      'columns': grid.get('columnCount', 0),
                      'cells': grid.get('rowCount', 0) * grid.get('columnCount', 0)})
     cells = sum(t['cells'] for t in tabs)
-    return {'allocatedCells': cells, 'cellLimit': 10_000_000,
-            'remainingCells': max(0, 10_000_000 - cells),
-            'utilization': round(cells / 10_000_000, 6),
+    return {'allocatedCells': cells, 'publishedCellLimit': 20_000_000,
+            'projectRotationThreshold': 10_000_000,
+            'remainingCellsToProjectThreshold': max(0, 10_000_000 - cells),
+            'publishedCellUtilization': round(cells / 20_000_000, 6),
             'tabs': sorted(tabs, key=lambda x: x['cells'], reverse=True)}
 
 
@@ -47,6 +49,15 @@ def main():
     client = gspread.service_account_from_dict(json.loads(raw))
     report = {'at': datetime.now(timezone.utc).isoformat(),
               'main': inventory(client.open_by_key(os.environ['SPREADSHEET_ID']))}
+    from google.auth.transport.requests import AuthorizedSession
+    drive = AuthorizedSession(client.http_client.auth)
+    meta = drive.get('https://www.googleapis.com/drive/v3/files/' + os.environ['SPREADSHEET_ID'],
+                     params={'fields': 'size,quotaBytesUsed', 'supportsAllDrives': 'true'}, timeout=60)
+    payload = meta.json() if meta.ok else {}
+    report['main']['driveSizeBytes'] = int(payload['size']) if payload.get('size') else None
+    report['main']['driveQuotaBytesUsed'] = int(payload['quotaBytesUsed']) if payload.get('quotaBytesUsed') else None
+    report['main']['driveSizeStatus'] = 'available' if payload.get('size') else 'not-reported' if meta.ok else 'metadata-unavailable'
+    report['main']['publishedSizeLimitMB'] = 100
     # Main metadata is cheap; backup status reports only aggregate capacity and retention.
     import requests
     endpoint, key = os.environ.get('APPS_SCRIPT_URL'), os.environ.get('ADMIN_KEY')
@@ -65,7 +76,7 @@ def main():
     if previous.exists():
         report['forecast'] = forecast(report, json.loads(previous.read_text(encoding='utf-8')))
     # A cell forecast does not cover Google's separate document-size edit restriction.
-    report['limitsNote'] = 'The 10M-cell forecast does not establish safety against document-too-large errors.'
+    report['limitsNote'] = 'Google publishes 20M cells or 100MB; project rotation stays conservative at 10M cells. Drive sizes may not equal the internal Sheets document-size calculation.'
     Path('capacity-report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
     for name, field in [('main', 'allocatedCells'), ('backup', 'cells')]:
         value = report.get(name, {}).get(field)

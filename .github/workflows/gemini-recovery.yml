@@ -1,0 +1,28 @@
+name: gemini-recovery-check
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: gemini-readonly-quality-replay
+  cancel-in-progress: false
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - run: python -m pip install requests
+      - name: Three spaced requests, no key rotation or site writes
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+        run: python scripts/probe_gemini_recovery.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gemini-recovery-${{ github.run_id }}
+          path: gemini-recovery.json
+          retention-days: 7

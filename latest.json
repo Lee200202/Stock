@@ -1,11 +1,11 @@
 {
-  "at": "2026-11-25T09:52:52.275230+00:00",
+  "at": "2026-11-25T10:01:18.807386+00:00",
   "main": {
-    "allocatedCells": 6433564,
+    "allocatedCells": 6433642,
     "publishedCellLimit": 20000000,
     "projectRotationThreshold": 10000000,
-    "remainingCellsToProjectThreshold": 3566436,
-    "publishedCellUtilization": 0.321678,
+    "remainingCellsToProjectThreshold": 3566358,
+    "publishedCellUtilization": 0.321682,
     "tabs": [
       {
         "name": "日K快取",
@@ -27,9 +27,9 @@
       },
       {
         "name": "使用紀錄",
-        "rows": 20977,
+        "rows": 20980,
         "columns": 26,
-        "cells": 545402
+        "cells": 545480
       },
       {
         "name": "股票對照表",
@@ -284,6 +284,49 @@
         "cells": 5980
       }
     ],
+    "dateColumnReadSeconds": 1.321,
+    "recentRowCounts": [
+      {
+        "name": "日K快取",
+        "rowsByDate": {
+          "2026-11-17": 249,
+          "2026-11-18": 250,
+          "2026-11-19": 250,
+          "2026-11-20": 250,
+          "2026-11-23": 249,
+          "2026-11-24": 249,
+          "2026-11-25": 249
+        }
+      },
+      {
+        "name": "小時K",
+        "rowsByDate": {
+          "2026-11-17": 1240,
+          "2026-11-18": 1240,
+          "2026-11-19": 1240,
+          "2026-11-20": 1240,
+          "2026-11-23": 1240,
+          "2026-11-24": 1240,
+          "2026-11-25": 500
+        }
+      },
+      {
+        "name": "盤中快照",
+        "rowsByDate": {}
+      },
+      {
+        "name": "使用紀錄",
+        "rowsByDate": {
+          "2026-11-19": 57,
+          "2026-11-20": 32,
+          "2026-11-21": 4,
+          "2026-11-22": 8,
+          "2026-11-23": 23,
+          "2026-11-24": 46,
+          "2026-11-25": 57
+        }
+      }
+    ],
     "driveSizeBytes": null,
     "driveQuotaBytesUsed": null,
     "driveSizeStatus": "metadata-unavailable",
@@ -301,15 +344,15 @@
   },
   "forecast": {
     "main": {
-      "sampleDays": 0.0007,
-      "netGrowthCells": 0,
-      "cellsPerDay": 0.0,
+      "sampleDays": 0.0076,
+      "netGrowthCells": 78,
+      "cellsPerDay": 10293.73,
       "daysToProjectRotationThreshold": null,
       "daysToPublishedCellLimit": null,
       "status": "insufficient-positive-daily-history"
     },
     "backup": {
-      "sampleDays": 0.0007,
+      "sampleDays": 0.0076,
       "netGrowthCells": 0,
       "cellsPerDay": 0.0,
       "daysToProjectRotationThreshold": null,

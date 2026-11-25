@@ -9482,6 +9482,11 @@ def gate_watch_conclusions(signals: dict) -> dict:
             if row.get('_manual_note_kept') or verdict.get('tier') == '人工裁決' or (named and watch_note_conclusion(text)):
                 kept.append(row)
                 continue
+            # 2026/11/25 v51 G1：觀望不碰的說明本身就是本股「昨天漲停／大漲、今天跌停／大跌」——追高反面教材的結論就是這件事
+            # （11/25 聯發科、鴻海，管理者裁示觀望不碰；10/29 大立光「昨日漲335元後今日跌300元」答案檔觀望不碰）。
+            if cat == 'watch_avoid' and named and _UP_THEN_DOWN.search(text):
+                kept.append(row)
+                continue
             if _ev_norm(text) and view:
                 kept.append(row)
                 gap = name + '說明偏短：說明沒有寫出本股的結論或條件（問卷有進場看法，保留公開）'
@@ -14085,7 +14090,7 @@ def _prev_trading_day(ss, date_str: str) -> str:
 # ---------------------------------------------------------------- #
 VERDICT_SHEET = "分類裁決"
 VERDICT_HEADERS = ["日期", "影片ID", "代號", "名稱", "分類", "判定方式", "依據", "問卷答案", "段落指紋", "基準版本", "時間", "人工裁決"]
-VERDICT_VERSION = "v50-20261125-forward-quote-chase-price-list-only"    # v50：向前說法要有向前的原句、昨天漲今天跌的本股原句＝追高教材、紀錄上持有只在多檔名單被點名不列（2026/11/25 管理者）； v49：持有者反問勿賣＝勿殺低、ADR推論明天有高點＝向前偏多、ETF低點出清不是本股風險、追高教材引句要有追高字樣、紀錄上持有被點名＝會員持股（2026/11/24 管理者）；v48：持有者勿殺低與明講不買並存時新進場以明講不買為準；追高名單的共同教訓可在下一段或為反事實句（2026/11/20 週檢討）；v47：依據答「只是示範方法」而沒有本股自己的指示原句，不列（2026/11/18 管理者：華新科、和生堂是方法示範）；v46：依據題加 chase_lesson（追高反面教材→觀望不碰，管理者取消 E1）；v45：問卷加「講者對本股今天之後的說法」事實題，有向前說法的股票不因過去買賣列回顧（2026/11/18 管理者：判斷標準寫進流程、明天同樣穩定）；v44：問卷加「本股看法的依據」事實題，沒有進場看法而依據只是行情或示範時由程式列不公開（2026/11/18）；v43： 執行時自動接上提示詞與答案格式指紋（見 verdict_response_schema 之後）；提示詞界線不含股名與預期分類；問卷的持有要有紀錄上的部位；問卷的持有要有紀錄上的部位；等待條件要附可核對的條件原句；重提昨天的持有者建議是今天的建議；相鄰連續引句、背景角色與獨立主張證明分開核對
+VERDICT_VERSION = "v51-20261125-flow-only-quotes-chase-note"    # v51：引句只有法人資金買賣不列、追高教材說明保留、「也才漲多少而已」算向前（同日重播修正）；v50：向前說法要有向前的原句、昨天漲今天跌的本股原句＝追高教材、紀錄上持有只在多檔名單被點名不列（2026/11/25 管理者）； v49：持有者反問勿賣＝勿殺低、ADR推論明天有高點＝向前偏多、ETF低點出清不是本股風險、追高教材引句要有追高字樣、紀錄上持有被點名＝會員持股（2026/11/24 管理者）；v48：持有者勿殺低與明講不買並存時新進場以明講不買為準；追高名單的共同教訓可在下一段或為反事實句（2026/11/20 週檢討）；v47：依據答「只是示範方法」而沒有本股自己的指示原句，不列（2026/11/18 管理者：華新科、和生堂是方法示範）；v46：依據題加 chase_lesson（追高反面教材→觀望不碰，管理者取消 E1）；v45：問卷加「講者對本股今天之後的說法」事實題，有向前說法的股票不因過去買賣列回顧（2026/11/18 管理者：判斷標準寫進流程、明天同樣穩定）；v44：問卷加「本股看法的依據」事實題，沒有進場看法而依據只是行情或示範時由程式列不公開（2026/11/18）；v43： 執行時自動接上提示詞與答案格式指紋（見 verdict_response_schema 之後）；提示詞界線不含股名與預期分類；問卷的持有要有紀錄上的部位；問卷的持有要有紀錄上的部位；等待條件要附可核對的條件原句；重提昨天的持有者建議是今天的建議；相鄰連續引句、背景角色與獨立主張證明分開核對
 VERDICT_VOTES = 3
 VERDICT_MAX_ROUNDS = 3                   # 一輪一個請求；額度是每分鐘 15 次、每天 500 次，不為了補不能用的答案多問
 VERDICT_DEFAULT_MODE = 'on'              # shadow＝只記錄不改分類；off＝不做
@@ -14897,7 +14902,9 @@ def _questionnaire_verified_quotes(answer, field, names=()):
 # 引句只是「政府基金這一波護盤三大買進標的…第二名是聯發科」——誰在買是行情，不是講者對本股之後的說法。
 # 這是核對引句撐不撐得起模型答的事實（同買賣、持有的引句核對），不是用字詞決定方向。
 _FORWARD_MARK = re.compile(r'會[^，。！？!?]{0,6}(?:漲|跌|來|回|上|下|彈|補|破|到|衝|噴|賺|解套)|還會|將會|後面|明天|後天|之後|接下來|下週|下禮拜'
-                           r'|上看|目標|彈回|彈上|站回|回到\s*[0-9一二三四五六七八九十百千]|來到\s*[0-9一二三四五六七八九十百千]|還有[^，。！？!?]{0,4}高點')
+                           r'|上看|目標|彈回|彈上|站回|回到\s*[0-9一二三四五六七八九十百千]|來到\s*[0-9一二三四五六七八九十百千]|還有[^，。！？!?]{0,4}高點'
+                           # 2026/11/25 v51 G3：11/24 聯電「聯電漲19%…今天漲，聯電也才10%而已」（下一句才說明天都有高點）：拿別的漲幅對照本股今天「才漲多少而已」
+                           r'|才(?:漲)?\s*[0-9一二三四五六七八九十]+\s*(?:%|％|趴|成)?\s*而已')
 _PRICE_RULE_MARK = re.compile(r'[0-9一二三四五六七八九十百千][^，。！？!?]{0,12}(?:買|賣|撿)|(?:買|賣|撿)[^，。！？!?]{0,12}[0-9一二三四五六七八九十百千]')
 
 
@@ -14912,7 +14919,7 @@ def forward_quote_ok(quote, kind):
 # 2026/11/25 v50 F2（管理者 11/25 裁示聯發科、鴻海；11/18 取消 E1）：本股自己的原句講「昨天漲（停）…今天跌（停）」，
 # 就是追高教材＝觀望不碰，模型把它答成「只報漲跌」也一樣。只報下跌、先跌後漲（11/06 Q5 創意「早上有沒有跌停」、
 # 11/24 創意「跌停 6 天…今天漲停」）不算。
-_UP_THEN_DOWN = re.compile(r'(?:昨天|前天|上週|上禮拜|上個禮拜)[^。！？!?]{0,14}(?:漲停|大漲|噴|漲\s*[0-9一二三四五六七八九十百千]|漲了)'
+_UP_THEN_DOWN = re.compile(r'(?:昨天|昨日|前天|上週|上禮拜|上個禮拜)[^。！？!?]{0,14}(?:漲停|大漲|噴|漲\s*[0-9一二三四五六七八九十百千]|漲了)'
                            r'[^！？!?]{0,60}?(?:今天|今日|現在|早上)[^。！？!?]{0,14}(?:跌停|大跌|重挫|跌\s*[0-9一二三四五六七八九十百千]|跌了|殺|吐回)')
 _OWN_TRADE_MARK = re.compile(r'(?:我|我們|會員)[^，。！？!?]{0,6}(?:買|賣|出清|出場)')
 
@@ -14921,6 +14928,25 @@ def up_then_down_quote(quote, own):
     """引句點到本股，而且是「昨天漲、今天跌」。"""
     text = _ev_norm(quote)
     return bool(own) and any(n in text for n in own) and bool(_UP_THEN_DOWN.search(str(quote or '')))
+
+
+# 2026/11/25 v51 G2（11/23 聯發科、聯電：重播兩次都答「現在可條件進場、偏多」，引句只是「政府基金這一波護盤三大買進標的…第二名是聯發科」
+# 「聯電竟然消化掉融資，早上聯電還有拉漲停」）：法人、政府基金、外資、ETF、融資買賣誰是行情（11/06 Q5），撐不起進場或偏多的答案。
+# 引句每一句都只是這種資金面的事、而且沒有任何講者對本股的看法字樣，就當成只報行情。核對的是引句撐不撐得起答案，不是用字詞決定方向。
+_FLOW_FACT = re.compile(r'法人|政府|國安基金|基金|外資|投信|自營商|ETF|主力|融資|融券|護盤|買超|賣超|拉(?!回)', re.I)
+_OWN_VIEW_CUE = re.compile(
+    r'看好|看壞|看多|看空|偏多|偏空|可以|可買|買點|賣點|進場|佈局|布局|低接|撿|抱|續抱|停損|停利|目標|上看|下看'
+    r'|會漲|會跌|還會|會再|後面|明天|之後|接下來|轉強|轉弱|背離|支撐|壓力|站上|站回|突破|跌破|季線|月線|年線|均線|頸線|缺口|拉回'
+    r'|等|回穩|止穩|不要|別|不碰|不能|不買|不會|風險|小心|危險|指標|對的|機會|值得|我會|我要|我們會|強勢|弱勢|便宜|貴|本益比|營收|EPS|獲利'
+    r'|題材|好股|有望|安全|沒事|擔心|注意|留意|關注|功課|名單|喜歡|愛', re.I)
+
+
+def flow_only_quotes(quotes):
+    """引句（至少一句）每一句都是法人／資金買賣的行情，而且沒有講者對本股的看法字樣。"""
+    sentences = [x for q in quotes for x in re.split(r'[。！？!?\n]+', str(q or '')) if _ev_norm(x)]
+    return (bool(sentences) and all(_FLOW_FACT.search(x) or len(_ev_norm(x)) < 6 for x in sentences)
+            and any(_FLOW_FACT.search(x) for x in sentences)
+            and not any(_OWN_VIEW_CUE.search(x) for x in sentences))
 
 
 def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=None):
@@ -15133,6 +15159,10 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
     # 2026/11/18 A（11/06 Q5、11/12）：依據是模型答的事實題，分類由程式決定。沒有進場看法
     # （空手進場、持有者建議、選股意向、現在立場都沒有），而依據只是報漲跌／斷頭或拿來示範，不管語氣一律不公開。
     # 買賣與持有事實在上面已先處理；沒答依據（舊快取）照舊走語氣。
+    _view_pool = list(stance) + list(real('analysis'))
+    if not forward_quoted and not chase_quoted and not past and flow_only_quotes(_view_pool) \
+            and answer.get('holder_advice') in (None, 'none') and answer.get('selection_intent') in (None, 'neutral'):
+        return VERDICT_NEUTRAL_CLASS, '引句只是法人／資金買賣的行情，沒有講者對本股的看法，不列：' + _view_pool[0][:40]
     if not forward_quoted and not chase_quoted and answer.get('view_basis') in ('price_move_only', 'example_only') \
             and answer.get('entry_for_new') in (None, 'none') and answer.get('now') in (None, 'none') \
             and answer.get('holder_advice') in (None, 'none') and answer.get('selection_intent') in (None, 'neutral'):

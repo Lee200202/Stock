@@ -50,7 +50,26 @@ class F1_ForwardNeedsAForwardQuote(unittest.TestCase):
 
     def test_prompt_says_buyers_are_price_facts(self):
         self.assertIn('法人、政府基金、外資、投信、ETF買了或賣了多少是行情', p.ADJUDICATE_SYSTEM)
-        self.assertTrue(p.VERDICT_VERSION.startswith('v50-'))
+        self.assertGreaterEqual(int(p.VERDICT_VERSION.split('-')[0][1:]), 51)
+
+    def test_flow_only_quotes_do_not_carry_a_positive_entry_answer(self):
+        """v51 G2：11/23 重播兩次都答 now=conditional／buy_ok、偏多，引句只有政府基金買誰、融資消化。"""
+        self.assertEqual(klass('聯發科', self.GOV, now='conditional', tone='bullish', forward_view='rise'), 'ignored')
+        pool = [self.UMC, '今天拉記憶體、聯電、力積電，啊至於被動元件啦、細晶圓啦。']
+        a = answer(self.UMC, now='buy_ok', tone='bullish', forward_view='rise', quotes={'stance': pool, 'analysis': []})
+        self.assertEqual(p.verdict_class(a, p._ev_norm(''.join(pool)), ['聯電'])[0], 'ignored')
+        # 引句裡有講者對本股的看法就照舊
+        raw = '外資連買三天甲公司，甲公司技術面轉強，等回到季線可以買。'
+        self.assertEqual(klass('甲公司', raw, entry_for_new='wait_condition', tone='bullish'), 'watch_watch')
+        raw = '政府基金護盤買甲公司，但甲公司我不碰。'
+        self.assertEqual(klass('甲公司', raw, entry_for_new='prohibit', tone='bearish'), 'watch_avoid')
+
+    def test_only_up_this_much_compared_is_forward(self):
+        """v51 G3：11/24 聯電「聯電漲19%…今天漲，聯電也才10%而已」，下一句才說明天都有高點（與日月光並列）。"""
+        raw = '聯電漲19%。好，所以今天漲完，台積電也才10%而已。今天漲，聯電也才10%而已。'
+        self.assertTrue(p.forward_quote_ok(raw, 'rise'))
+        self.assertEqual(klass('聯電', raw, forward_view='rise', content_role='comparison_only', tone='neutral'),
+                         'watch_watch')
 
 
 class F2_UpThenDownIsAChaseLesson(unittest.TestCase):
@@ -76,6 +95,25 @@ class F2_UpThenDownIsAChaseLesson(unittest.TestCase):
         a = answer(own, view_basis='price_move_only', past_trade=True,
                    quotes={'stance': [own], 'analysis': [], 'past_trade': [own]})
         self.assertNotEqual(p.verdict_class(a, p._ev_norm(own), ['甲公司'])[0], 'watch_avoid')
+
+
+class G1_ChaseNoteKeptByTheLastGate(unittest.TestCase):
+    """v51 G1：11/25 重播，聯發科、鴻海問卷已判觀望不碰，說明「昨天漲停…今天跌停，兩天加起來還是賠」被發布前關卡當成只有行情；
+    10/29 大立光「昨日漲335元後今日跌300元」（答案檔觀望不碰）也一樣。"""
+
+    def gate(self, cat, name, note):
+        sig = {cat: [{'code': '9999', 'name': name, 'reason': note}], '_verdicts': {}}
+        with mock.patch.object(p, 'note_decision'):
+            out = p.gate_watch_conclusions(sig)
+        return [r['name'] for r in out.get(cat, [])]
+
+    def test_up_then_down_avoid_note_is_kept(self):
+        self.assertEqual(self.gate('watch_avoid', '鴻海', '鴻海昨天漲停漲20.5元、今天跌停跌22.5元，兩天加起來其實是下跌的。'), ['鴻海'])
+        self.assertEqual(self.gate('watch_avoid', '大立光', '大立光昨日漲335元後今日跌300元。'), ['大立光'])
+
+    def test_other_price_only_notes_still_hidden(self):
+        self.assertEqual(self.gate('watch_avoid', '甲公司', '甲公司今天跌停。'), [])
+        self.assertEqual(self.gate('watch_watch', '甲公司', '甲公司昨天漲停、今天跌停。'), [])   # 只有觀望不碰才是追高教材
 
 
 class F3_OpenPositionNamedOnlyInAList(unittest.TestCase):

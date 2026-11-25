@@ -89,7 +89,8 @@ class A_ViewBasisQuestion(unittest.TestCase):
     def test_the_1118_votes_were_avoid_only_because_of_the_tone(self):
         # 11/18 日誌：兩檔問卷都答 now=none、tone=bearish → 觀望不碰。沒有依據欄的舊答案照舊（快取已因版號失效）
         self.assertEqual(klass('創意', ''.join(CHUANGYI), tone='bearish'), 'watch_avoid')
-        self.assertEqual(klass('華新科', ''.join(WALSIN), tone='bearish'), 'watch_avoid')
+        # 2026/11/25 v51 G2：華新科的原句只有融資斷頭的資金面行情、沒有講者對本股的看法，舊答案也不列（同 11/18 管理者「方法示範不列」）
+        self.assertEqual(klass('華新科', ''.join(WALSIN), tone='bearish'), 'ignored')
 
     def test_1118_kept_stocks_keep_their_class(self):
         self.assertEqual(klass('台達電', ''.join(DELTA), entry_for_new='wait_condition', now='conditional',

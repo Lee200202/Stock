@@ -132,7 +132,7 @@ class Prompts(unittest.TestCase):
         s = p.ADJUDICATE_SYSTEM
         for key in ('你在賣什麼意思', 'holder_advice=hold_rebound', 'ADR', 'forward_view=rise', 'ETF', '先跌後漲', 'open_position'):
             self.assertIn(key, s)
-        self.assertTrue(p.VERDICT_VERSION.startswith('v49'))
+        self.assertGreaterEqual(int(p.VERDICT_VERSION.split('-')[0][1:]), 49)
 
     def test_excluded_review_and_writing_prompts(self):
         self.assertIn('ADR', p.EXCLUDED_REVIEW_SYSTEM)

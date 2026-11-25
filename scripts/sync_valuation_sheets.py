@@ -97,15 +97,23 @@ def delete_sheets():
     if not targets:
         print('目前試算表內沒有任何估值相關分頁需要刪除。')
         return
-    deleted = []
-    for ws in targets:
-        print(f'正在刪除分頁：{ws.title}（列數: {ws.row_count}, 欄數: {ws.col_count}）...')
-        retry(book.del_worksheet, ws)
-        deleted.append(ws.title)
-        print(f'已成功刪除分頁：{ws.title}')
+    print(f'找到 {len(targets)} 個待刪除分頁：{[s.title for s in targets]}')
+    requests = [{'deleteSheet': {'sheetId': ws.id}} for ws in targets]
+    try:
+        print('正在發送單一 batchUpdate 同時刪除所有估值分頁...')
+        retry(book.batch_update, {'requests': requests})
+        print('單一 batchUpdate 刪除成功！')
+    except Exception as exc:
+        print(f'一次性 batchUpdate 遇到錯誤：{exc}，嘗試分步策略...')
+        for ws in sorted(targets, key=lambda s: s.row_count * s.col_count, reverse=True):
+            try:
+                print(f'單獨嘗試刪除分頁 {ws.title} (id={ws.id})...')
+                retry(book.del_worksheet, ws)
+                print(f'成功刪除 {ws.title}')
+            except Exception as e2:
+                print(f'刪除 {ws.title} 失敗：{e2}')
     remaining = retry(book.worksheets)
-    print(f'清理完成，共刪除 {len(deleted)} 個分頁：{deleted}')
-    print(f'剩餘 {len(remaining)} 個分頁：{[s.title for s in remaining]}')
+    print(f'清理程序完成。剩餘 {len(remaining)} 個分頁：{[s.title for s in remaining]}')
 
 
 if __name__ == '__main__':

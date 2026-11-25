@@ -1,8 +1,8 @@
 name: valuation-sheets-sync
+# 2026/11/25 停用自動觸發：估值歷史 A／B 兩份輪替副本（各約 6 千萬字）讓主資料試算表超過 Google 檔案上限，
+# 所有寫入（逐字稿、主流程、寄送帳本）都被拒絕（[400] This document is too large to continue editing）。
+# 改存到獨立試算表之前只能手動執行；手動執行前先確認主試算表總字數（scripts/sheet_size_report.py）。
 on:
-  workflow_run:
-    workflows: [valuation-history]
-    types: [completed]
   workflow_dispatch:
 
 permissions:

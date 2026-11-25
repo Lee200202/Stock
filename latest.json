@@ -1,10 +1,11 @@
 {
-  "at": "2026-11-25T09:51:49.479162+00:00",
+  "at": "2026-11-25T09:52:52.275230+00:00",
   "main": {
     "allocatedCells": 6433564,
-    "cellLimit": 10000000,
-    "remainingCells": 3566436,
-    "utilization": 0.643356,
+    "publishedCellLimit": 20000000,
+    "projectRotationThreshold": 10000000,
+    "remainingCellsToProjectThreshold": 3566436,
+    "publishedCellUtilization": 0.321678,
     "tabs": [
       {
         "name": "日K快取",
@@ -282,7 +283,11 @@
         "columns": 10,
         "cells": 5980
       }
-    ]
+    ],
+    "driveSizeBytes": null,
+    "driveQuotaBytesUsed": null,
+    "driveSizeStatus": "metadata-unavailable",
+    "publishedSizeLimitMB": 100
   },
   "backup": {
     "ok": true,
@@ -296,19 +301,21 @@
   },
   "forecast": {
     "main": {
-      "sampleDays": 0.001,
+      "sampleDays": 0.0007,
       "netGrowthCells": 0,
       "cellsPerDay": 0.0,
-      "daysToCellLimit": null,
+      "daysToProjectRotationThreshold": null,
+      "daysToPublishedCellLimit": null,
       "status": "insufficient-positive-daily-history"
     },
     "backup": {
-      "sampleDays": 0.001,
+      "sampleDays": 0.0007,
       "netGrowthCells": 0,
       "cellsPerDay": 0.0,
-      "daysToCellLimit": null,
+      "daysToProjectRotationThreshold": null,
+      "daysToPublishedCellLimit": null,
       "status": "insufficient-positive-daily-history"
     }
   },
-  "limitsNote": "The 10M-cell forecast does not establish safety against document-too-large errors."
+  "limitsNote": "Google publishes 20M cells or 100MB; project rotation stays conservative at 10M cells. Drive sizes may not equal the internal Sheets document-size calculation."
 }

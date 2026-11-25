@@ -1,5 +1,5 @@
 {
-  "at": "2026-11-25T09:50:24.117614+00:00",
+  "at": "2026-11-25T09:51:49.479162+00:00",
   "main": {
     "allocatedCells": 6433564,
     "cellLimit": 10000000,
@@ -295,8 +295,20 @@
     "oldest": "2026/11/18"
   },
   "forecast": {
-    "status": "requires-two-timestamped-inventories",
-    "note": "API latency cannot predict capacity exhaustion; measure cell and payload growth over time."
+    "main": {
+      "sampleDays": 0.001,
+      "netGrowthCells": 0,
+      "cellsPerDay": 0.0,
+      "daysToCellLimit": null,
+      "status": "insufficient-positive-daily-history"
+    },
+    "backup": {
+      "sampleDays": 0.001,
+      "netGrowthCells": 0,
+      "cellsPerDay": 0.0,
+      "daysToCellLimit": null,
+      "status": "insufficient-positive-daily-history"
+    }
   },
   "limitsNote": "The 10M-cell forecast does not establish safety against document-too-large errors."
 }

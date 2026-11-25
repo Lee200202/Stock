@@ -22,6 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 # 流程正本（pipeline／單日重判／發布候選）的契約。市場歷史另有自己的 workflow，不在這裡。
 SUITES = [
+    'test_work_completion',
     'test_q12_review_cases',
     'test_model_stance_contract',
     'test_source_identity_context',

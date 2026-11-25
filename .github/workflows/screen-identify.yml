@@ -3,21 +3,21 @@ run-name: 直播畫面辨識 ${{ inputs.date || '' }}
 
 # 2026/11/12 管理者：逐字稿只有聲音，「這檔」「你看這個」或聽錯的股名要看當時畫面才知道是哪一檔。
 # 回放好之後由 Gemini 直接讀 YouTube 片段（不下載影片），結果寫進複核紀錄「畫面辨識」，11:40 雲端複核核對。
-# 2026/11/16–17：GitHub 的 schedule 會延後好幾小時或整個不跑（11/12–11/17 的 11:32 排程都到晚上 7～8 點才跑，
-# 11:40 的雲端複核每天等滿 15 分鐘落空）。改成取稿 transcript-gemini（約 11:14–11:22 跑完）與主流程
-# daily-transcript-pipeline（約 11:28–11:39）每跑完一次就接著跑：取稿成功代表回放已處理好，
-# 約 4～5 分鐘內寫完畫面辨識，11:40 複核開始時通常已經有結果。主流程那一次是同一天的第二道保險。
-# 已經辨識過、回放還沒好、非交易日都會在幾秒內跳過，所以會員簡訊或晚間補跑觸發也不會重複呼叫 Gemini。
-# 原本的 schedule 留作備援。
+# 原稿就緒才由上游明確派發；不再訂閱每次成功事件或重複備援時點。
 on:
-  workflow_run:
-    workflows: ['transcript-gemini', 'daily-transcript-pipeline']
-    types: [completed]
-  schedule:
-    - cron: '32,47 3 * * 1-5'   # 台灣 11:32、11:47（備援；實際常延後）
-    - cron: '2,20 4 * * 1-5'    # 台灣 12:02、12:20（備援）
   workflow_dispatch:
     inputs:
+      source:
+        description: '上游就緒影片識別（不含原稿）'
+        default: ''
+      automatic:
+        description: '上游就緒派發；已完成直接略過'
+        type: boolean
+        default: false
+      check_only:
+        description: '唯讀核對既有完成狀態，不呼叫模型、不寫表'
+        type: boolean
+        default: false
       date:
         description: '目標日期 YYYY/MM/DD，留空＝今天'
         required: false
@@ -44,28 +44,41 @@ permissions:
 
 jobs:
   identify:
-    # 取稿或主流程失敗的那一次不接著跑（回放可能還沒好），等下一次取稿／主流程或備援排程
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
-      - name: 交易日預檢
-        id: calendar
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_run'
-        run: python scripts/screen_identify.py --trading-day-check >> "$GITHUB_OUTPUT"
+      - name: 工作日期
+        id: workday
+        env:
+          TARGET_DATE: ${{ inputs.date }}
+        run: python pipeline/work_completion.py date --date "$TARGET_DATE"
+      - uses: actions/cache/restore@v4
+        id: completed_cache
+        if: inputs.automatic && inputs.force != 'true' && inputs.dry_run != 'true'
+        with:
+          path: .work-completion/screen.json
+          key: work-complete-v1-screen-${{ steps.workday.outputs.day }}-${{ inputs.source }}
+      - name: 完成狀態預檢
+        id: completion
+        env:
+          TARGET_DATE: ${{ steps.workday.outputs.day }}
+          EXPECTED_SOURCE: ${{ inputs.source }}
+        run: python pipeline/work_completion.py check screen --date "$TARGET_DATE" --source "$EXPECTED_SOURCE"
       - uses: actions/setup-python@v6
-        if: github.event_name == 'workflow_dispatch' || steps.calendar.outputs.run == 'true'
+        if: steps.completion.outputs.complete != 'true'
         with:
           python-version: '3.11'
           cache: 'pip'
       - name: 安裝相依套件
-        if: github.event_name == 'workflow_dispatch' || steps.calendar.outputs.run == 'true'
+        if: steps.completion.outputs.complete != 'true'
         run: |
           python -m pip install -r requirements.txt cryptography cffi
       - name: 看畫面辨識股名
-        if: github.event_name == 'workflow_dispatch' || steps.calendar.outputs.run == 'true'
+        if: steps.completion.outputs.complete != 'true'
         env:
+          WORK_COMPLETION_KIND: screen
+          SCREEN_SOURCE: ${{ inputs.source }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
           GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
@@ -89,12 +102,26 @@ jobs:
           TARGET_DATE: ${{ inputs.date }}
           FORCE: ${{ inputs.force }}
           DRY_RUN: ${{ inputs.dry_run }}
+          CHECK_ONLY: ${{ inputs.check_only }}
         run: |
-          ARGS=""
-          if [ -n "$TARGET_DATE" ]; then ARGS="$ARGS --date $TARGET_DATE"; fi
-          if [ "$FORCE" = "true" ]; then ARGS="$ARGS --force"; fi
-          if [ "$DRY_RUN" = "true" ]; then ARGS="$ARGS --dry-run"; fi
-          python scripts/screen_identify.py $ARGS
+          ARGS=()
+          if [ -n "$TARGET_DATE" ]; then ARGS+=(--date "$TARGET_DATE"); fi
+          if [ "$FORCE" = "true" ]; then ARGS+=(--force); fi
+          if [ "$DRY_RUN" = "true" ]; then ARGS+=(--dry-run); fi
+          if [ "$CHECK_ONLY" = "true" ]; then ARGS+=(--check-only); fi
+          python scripts/screen_identify.py "${ARGS[@]}"
+
+      - name: 核對完成證據
+        id: receipt
+        if: success() && inputs.dry_run != 'true'
+        env:
+          TARGET_DATE: ${{ steps.workday.outputs.day }}
+        run: python pipeline/work_completion.py check screen --date "$TARGET_DATE"
+      - uses: actions/cache/save@v4
+        if: success() && steps.receipt.outputs.complete == 'true' && steps.completed_cache.outputs.cache-hit != 'true'
+        with:
+          path: .work-completion/screen.json
+          key: work-complete-v1-screen-${{ steps.workday.outputs.day }}-${{ steps.receipt.outputs.source }}
 
       - name: 保存匿名用量（不含逐字稿、觀測列或詞庫）
         if: always()

@@ -48,6 +48,10 @@ import sys
 import time
 from pathlib import Path
 import xml.etree.ElementTree as ET
+import importlib.util as _completion_ilu
+_completion_spec = _completion_ilu.spec_from_file_location('transcript_completion', Path(__file__).resolve().parent / 'pipeline/work_completion.py')
+work_completion = _completion_ilu.module_from_spec(_completion_spec)
+_completion_spec.loader.exec_module(work_completion)
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 
@@ -1761,11 +1765,13 @@ def tick(ss, target: date, force: bool, seen: dict = None) -> bool:
 
     if src in (SRC_MANUAL, SRC_HOLD):
         if raw:
+            work_completion.record_completion('transcript', date_str, source=str(row.get(COL_ID) or 'MANUAL-' + target.strftime('%Y%m%d')))
             raise Done(f"{date_str} 已有手動輸入的逐字稿 {len(raw)} 字"
                        f"（第 {idx} 列，來源「{src}」）。手動優先，自動化停止，不覆蓋。")
         raise Done(f"{date_str} 已標記為「{src}」，等人工貼稿。自動化停止，不介入。")
 
     if raw and len(raw) >= MIN_TRANSCRIPT:
+        work_completion.record_completion('transcript', date_str, source=str(row.get(COL_ID) or 'MANUAL-' + target.strftime('%Y%m%d')))
         raise Done(f"{date_str} 已有逐字稿 {len(raw)} 字"
                    f"（第 {idx} 列，來源「{src or '未標記'}」），不重抓。")
 
@@ -1844,6 +1850,7 @@ def tick(ss, target: date, force: bool, seen: dict = None) -> bool:
                     date_str, text, SRC_AUTO, note=tr.summary())
     write_status_log(ss, "逐字稿自動取得",
                      f"{date_str} {len(text)} 字　{tr.summary()}　{video.title}")
+    work_completion.record_completion('transcript', date_str, source=video.id)
     return True
 
 
@@ -1921,6 +1928,7 @@ def cmd_auto(args) -> int:
 
     if not args.force and already_marked_no_show(ss, date_str):
         log(f"{date_str} 稍早已判定今天沒有節目，這一棒不再探詢。")
+        work_completion.record_completion('transcript', date_str, status='no_video')
         return 0
 
     no_show_at = at_taipei(target, NO_SHOW_AFTER)
@@ -1959,6 +1967,7 @@ def cmd_auto(args) -> int:
                                  f"{date_str} 探詢 {round_no} 次，核對 uploads、直播、預告及回放，"
                                  f"未找到今日公開節目；已停止今天的自動取稿。"
                                  f"（休市日由 why_closed 另外擋掉，這是有開盤但沒有節目）")
+                work_completion.record_completion('transcript', date_str, status='no_video')
                 return 0
 
             if planned and seen.get("video") is False and not args.force:

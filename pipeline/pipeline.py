@@ -44,6 +44,13 @@ except ModuleNotFoundError:
     main_volumes = _ilu.module_from_spec(_mv_spec)
     _mv_spec.loader.exec_module(main_volumes)
 try:
+    import work_completion
+except ModuleNotFoundError:
+    import importlib.util as _ilu
+    _wc_spec = _ilu.spec_from_file_location('work_completion', os.path.join(os.path.dirname(__file__), 'work_completion.py'))
+    work_completion = _ilu.module_from_spec(_wc_spec)
+    _wc_spec.loader.exec_module(work_completion)
+try:
     from market_holidays import why_closed
 except ModuleNotFoundError:
     import importlib.util as _ilu
@@ -24485,6 +24492,8 @@ def main():
             if no_show == '今日無直播' or (no_show == '預告停播' and now_h < GIVE_UP_HOUR):
                 print(f'取稿流程已記錄「{no_show}」，當日無影片；每日判讀不再輪詢。')
                 write_preflight("false", no_show)
+                if no_show == '今日無直播':
+                    work_completion.record_completion('daily', today.strftime('%Y/%m/%d'), status='no_video')
                 return
             # 這裡要小心，不能一律「沒影片就跳過」。
             #
@@ -24513,6 +24522,7 @@ def main():
         if status == "完成":
             print(f"今日影片 {v['id']} 已處理完成，沒有事情要做。")
             write_preflight("false", "今日影片已完成")
+            work_completion.record_completion('daily', today.strftime('%Y/%m/%d'), source=v['id'])
             return
 
         print(f"今日影片 {v['id']} 狀態為「{status or '未處理'}」，需要執行。")
@@ -24647,6 +24657,17 @@ if __name__ == "__main__":
         if _SS is not None:
             write_status_log(_SS, "完成" if background_done else "背景待續跑",
                              f"本輪正常結束（未潤飾段數 {POLISH_DEGRADED}）" if background_done else '文章已更新；背景日K／績效尚未完成，已保存檢查點')
+            if background_done and not PREFLIGHT and os.environ.get('WORK_COMPLETION_KIND') == 'daily':
+                # 只在正式資料已完成且背景工作結束後記收據，綠燈／額度暫停不算完成。
+                try:
+                    _day = datetime.now(TAIPEI).date()
+                    _rows = video_rows(_SS)
+                    _ready = ready_transcript_video(_rows, _day)
+                    _, _selected = select_transcript_row(_rows, '', _day.strftime('%Y/%m/%d'))
+                    if _ready and (_selected or {}).get('處理狀態') == '完成':
+                        work_completion.record_completion('daily', _day.strftime('%Y/%m/%d'), source=_ready['id'])
+                except Exception as exc:
+                    print(f'完成標記暫未建立（{type(exc).__name__}）；下次仍核對正式來源，不影響已完成資料')
     except NotReadyYet as e:
         # 綠燈離開。VOD 還沒好不是壞掉，不該亮紅燈，也不該觸發失敗告警。
         print(f"本輪未取得逐字稿：{e}")

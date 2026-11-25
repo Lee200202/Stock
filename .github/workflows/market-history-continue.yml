@@ -4,8 +4,6 @@ on:
   workflow_run:
     workflows: [market-history]
     types: [completed]
-  schedule:
-    - cron: '17 * * * *'
   workflow_dispatch:
 permissions:
   contents: read

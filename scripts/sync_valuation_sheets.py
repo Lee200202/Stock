@@ -87,7 +87,36 @@ def sync(directory):
     print(f'試算表已同步 {len(rows)} 檔；資料至 {last}')
 
 
+def delete_sheets():
+    """刪除估值歷史 A、估值歷史 B 與估值歷史索引分頁，釋放主試算表空間。"""
+    import gspread
+    book = gspread.service_account_from_dict(service_credentials()).open_by_key(os.environ['SPREADSHEET_ID'])
+    worksheets = retry(book.worksheets)
+    print(f'連線成功：試算表目前共有 {len(worksheets)} 個分頁')
+    sheet_map = {sheet.title: sheet for sheet in worksheets}
+    deleted = []
+    for name in (TABS['A'], TABS['B'], INDEX):
+        if name in sheet_map:
+            ws = sheet_map[name]
+            print(f'正在刪除分頁：{name}（列數: {ws.row_count}, 欄數: {ws.col_count}）...')
+            retry(book.del_worksheet, ws)
+            deleted.append(name)
+            print(f'已成功刪除分頁：{name}')
+        else:
+            print(f'分頁不存在，略過：{name}')
+    remaining = retry(book.worksheets)
+    print(f'清理完成，共刪除 {len(deleted)} 個分頁。')
+    print(f'剩餘 {len(remaining)} 個分頁：{[s.title for s in remaining]}')
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('directory', type=Path)
-    sync(parser.parse_args().directory)
+    parser.add_argument('directory', nargs='?', type=Path)
+    parser.add_argument('--delete', action='store_true', help='刪除估值歷史 A/B 及索引分頁')
+    args = parser.parse_args()
+    if args.delete:
+        delete_sheets()
+    elif args.directory:
+        sync(args.directory)
+    else:
+        parser.error('必須指定 directory 或 --delete')

@@ -1,9 +1,16 @@
 name: valuation-sheets-sync
-# 2026/11/25 停用自動觸發：估值歷史 A／B 兩份輪替副本（各約 6 千萬字）讓主資料試算表超過 Google 檔案上限，
-# 所有寫入（逐字稿、主流程、寄送帳本）都被拒絕（[400] This document is too large to continue editing）。
-# 改存到獨立試算表之前只能手動執行；手動執行前先確認主試算表總字數（scripts/sheet_size_report.py）。
+# 2026/11/25 停用自動觸發：估值歷史 A／B 兩份輪替副本讓主資料試算表超過 Google 檔案上限。
+# 預設動作為 delete：清理主試算表的估值歷史 A/B 與索引分頁，恢復試算表正常寫入。
 on:
   workflow_dispatch:
+    inputs:
+      action:
+        description: '動作：delete（刪除估值歷史 A/B 及索引分頁，釋放空間）或 sync（同步）'
+        type: choice
+        options:
+          - delete
+          - sync
+        default: delete
 
 permissions:
   contents: read
@@ -13,8 +20,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  sync:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.head_branch == 'main'
+  manage:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -23,12 +29,19 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install 'gspread>=6,<7'
-      - name: 讀取與網站同一份正式估值資料
+      - name: 讀取與網站同一份正式估值資料（僅 sync 模式）
+        if: inputs.action == 'sync'
         run: |
           git fetch --depth=1 origin valuation-history
           git archive FETCH_HEAD valuation | tar -x
-      - name: 更新雲端試算表
+      - name: 執行試算表操作
         env:
           GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
-        run: python scripts/sync_valuation_sheets.py valuation
+          ACTION: ${{ inputs.action || 'delete' }}
+        run: |
+          if [ "$ACTION" = "delete" ]; then
+            python scripts/sync_valuation_sheets.py --delete
+          else
+            python scripts/sync_valuation_sheets.py valuation
+          fi

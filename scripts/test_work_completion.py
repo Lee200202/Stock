@@ -98,5 +98,15 @@ class ScreenCompletion(unittest.TestCase):
         reader.assert_not_called()
         log.return_value.worksheet.return_value.append_rows.assert_not_called()
 
+    def test_readonly_log_client_does_not_create_missing_tabs(self):
+        import common
+        with patch.dict(os.environ,REVIEW_LOG_ID='offline',GOOGLE_SHEETS_SERVICE_ACCOUNT='{}'), \
+             patch('gspread.authorize') as auth, \
+             patch('google.oauth2.service_account.Credentials.from_service_account_info') as credentials:
+            book=common.open_log(ensure_tabs=False)
+        credentials.assert_called_once_with({},scopes=['https://www.googleapis.com/auth/spreadsheets.readonly'])
+        book.worksheets.assert_not_called()
+        book.add_worksheet.assert_not_called()
+
 
 if __name__ == '__main__': unittest.main()

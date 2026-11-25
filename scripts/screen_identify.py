@@ -86,7 +86,7 @@ def main():
     from common import LOG_TABS, norm_day, now, open_log, rows_of
     day = norm_day(a.date) if a.date else now().strftime('%Y/%m/%d')
     target = datetime.strptime(day, '%Y/%m/%d').date()
-    log = None if a.dry_run else open_log()
+    log = None if a.dry_run else open_log(ensure_tabs=not a.check_only)
     ws = log.worksheet(TAB) if log else None
     if ws is not None and not a.force:
         head, rows = rows_of(ws)

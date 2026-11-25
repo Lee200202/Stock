@@ -180,11 +180,13 @@
   var PST={queued:'排隊中',ready:'待送',sending:'傳送中',done:'已送完',closed:'已結束',expired:'已過期',failed:'失敗',skipped:'略過',noshow:'未送出'};
   var RST={accepted:'已送達',pending:'待送',retryable:'重試中',failed:'失敗',unknown:'結果不明',skipped:'略過'};
   function pmsg(tone,text){var m=$s('pushMsg');m.className='amsg'+(text?' show '+tone:'');m.textContent=text||'';}
+  /* LINE 卡片的項目符號與文字是兩個元件，取出後會各占一行；接回同一行（•　文字）。 */
+  function pushText(t){return String(t).replace(/(^|\n)([•・‧●▪])\n/g,'$1$2 ');}
   function pushDetail(x){
     var o=pushOpen[x.id];if(!o)return '';
     var who=o.rows==='loading'?'<p class="chat-empty">讀取收件人…</p>':!o.rows.length?'<p class="chat-empty">這則沒有逐人紀錄。</p>':o.rows.map(function(r){
       return '<div class="push-to"><span><b>'+h(r.name||'未取得名稱')+'</b><br><small>'+h(r.id)+'</small></span><span class="'+(r.state==='failed'?'bad':'')+'">'+h(RST[r.state]||r.state)+(r.attempts>1?'<small>（第 '+r.attempts+' 次）</small>':'')+'</span><span>'+h(r.at||r.updated||'')+(r.error?'<br><small class="bad">'+h(r.error)+'</small>':'')+'</span></div>';}).join('');
-    return '<div class="subs-conv"><pre class="push-full">'+h(x.text||x.preview||'（沒有文字內容）')+'</pre><p class="push-sub">收件人</p>'+who+'</div>';
+    return '<div class="subs-conv"><pre class="push-full">'+h(pushText(x.text||x.preview||'（沒有文字內容）'))+'</pre><p class="push-sub">收件人</p>'+who+'</div>';
   }
   function renderPush(){
     var items=(push&&push.items)||[];

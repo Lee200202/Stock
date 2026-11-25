@@ -13919,6 +13919,19 @@ def public_number_digits(signals: dict) -> dict:
                 if isinstance(old, str) and old:
                     new = digits_for_reading(old)
                     if new != old:
+                        # 審閱已完成後的純數字寫法轉換，沿用該份審閱；過期紀錄不可復活。
+                        # 11/24 AES-KY「三倍」→「3倍」曾使唯讀重播誤報缺來源審閱。
+                        review = row.get('_source_attribution_review') or {}
+                        before_sha = hashlib.sha256(old.strip().encode()).hexdigest()
+                        if review.get('text_sha256') == before_sha:
+                            row['_source_attribution_review'] = dict(review,
+                                number_format_from_sha256=before_sha,
+                                text_sha256=hashlib.sha256(new.strip().encode()).hexdigest())
+                        repair = row.get('_claim_repair') or {}
+                        if repair.get('repaired_text_sha256') == before_sha:
+                            row['_claim_repair'] = dict(repair,
+                                number_format_from_sha256=before_sha,
+                                repaired_text_sha256=hashlib.sha256(new.strip().encode()).hexdigest())
                         row[field] = new
                         changed += 1
                     left = cn_number_leftovers(new)

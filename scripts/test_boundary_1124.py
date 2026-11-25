@@ -127,6 +127,21 @@ class OrdinaryWords(unittest.TestCase):
         self.assertIn('安安心心', p.ADJUDICATE_SYSTEM)
 
 
+class ChasePublicationGate(unittest.TestCase):
+    def test_already_classified_own_reversal_survives_final_gate(self):
+        for text in ('甲公司昨日漲335元後今日跌300元。', '甲公司昨天漲停，今天跌停。'):
+            row = {'name':'甲公司','code':'1111','reason':text}
+            out = p.gate_watch_conclusions({'watch_avoid':[row]})
+            self.assertEqual(out['watch_avoid'], [row])
+
+    def test_price_only_or_rebound_does_not_become_a_chase_conclusion(self):
+        for text in ('甲公司今天跌300元。', '甲公司昨天跌停，今天漲停。', '乙公司昨天漲停，今天跌停。'):
+            out = p.gate_watch_conclusions({'watch_avoid':[{'name':'甲公司','code':'1111','reason':text}]})
+            self.assertEqual(out['watch_avoid'], [])
+        out = p.gate_watch_conclusions({'watch_watch':[{'name':'甲公司','code':'1111','reason':'甲公司昨天漲停，今天跌停。'}]})
+        self.assertEqual(out['watch_watch'], [])
+
+
 class Prompts(unittest.TestCase):
     def test_adjudicate_prompt_states_the_1124_boundaries(self):
         s = p.ADJUDICATE_SYSTEM

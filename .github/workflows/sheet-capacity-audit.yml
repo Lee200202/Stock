@@ -1,0 +1,30 @@
+name: sheet-capacity-audit
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: sheet-capacity-audit
+  cancel-in-progress: false
+jobs:
+  inventory:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - run: pip install 'gspread>=6,<7' requests
+      - name: Read-only main and backup capacity inventory
+        env:
+          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
+        run: python scripts/sheet_capacity_audit.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sheet-capacity-report
+          path: capacity-report.json
+          retention-days: 30

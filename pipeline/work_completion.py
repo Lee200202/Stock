@@ -6,9 +6,22 @@ import os
 import re
 from pathlib import Path
 import subprocess
+import time
 from zoneinfo import ZoneInfo
 
 KINDS = ('transcript', 'daily', 'screen')
+SCREEN_MAX_ATTEMPTS = 3
+
+
+def screen_title(day, source, attempt):
+    return f"直播畫面辨識 {day_key(day).replace('-', '/')} {source} 第{attempt}次"
+
+
+def screen_runs():
+    repo = os.environ['GITHUB_REPOSITORY']
+    result = subprocess.run(['gh', 'api', f'repos/{repo}/actions/workflows/screen-identify.yml/runs?per_page=100'],
+                            check=True, capture_output=True)
+    return json.loads(result.stdout)['workflow_runs']
 
 
 def day_key(value=''):
@@ -70,24 +83,54 @@ def dispatch_screen(kind, day):
         return
     # The screen workflow rechecks its own receipt under its concurrency lock.
     repo = os.environ['GITHUB_REPOSITORY']
-    result = subprocess.run(['gh', 'api', f'repos/{repo}/actions/workflows/screen-identify.yml/runs?per_page=20'],
-                            check=True, capture_output=True)
-    if any(r['status'] != 'completed' for r in json.loads(result.stdout)['workflow_runs']):
+    runs = screen_runs()
+    if any(r['status'] != 'completed' for r in runs):
         print('Screen work already queued or running')
         return
+    if any(r.get('display_title') == screen_title(day, done['source'], SCREEN_MAX_ATTEMPTS)
+           and r.get('conclusion') == 'failure' for r in runs):
+        print('Screen retry limit reached for this day and source; inspect the failure or retry manually')
+        return
     body = {'ref': 'main', 'inputs': {'date': day_key(day).replace('-', '/'),
-                                    'source': done['source'], 'automatic': 'true'}}
+                                    'source': done['source'], 'automatic': 'true', 'attempt': '1'}}
     subprocess.run(['gh', 'api', f'repos/{repo}/actions/workflows/screen-identify.yml/dispatches',
                     '--method', 'POST', '--input', '-'], input=json.dumps(body).encode(), check=True)
     print('Dispatched screen identification for ready source')
 
 
+def retry_screen(day, source, attempt):
+    if not source or not re.fullmatch(r'[A-Za-z0-9_-]{1,100}', source):
+        raise ValueError('Retry needs the original ready source')
+    if not 1 <= attempt <= SCREEN_MAX_ATTEMPTS:
+        raise ValueError('Invalid retry attempt')
+    if attempt == SCREEN_MAX_ATTEMPTS:
+        print('Automatic retry limit reached; original failure remains visible')
+        return
+    if read_completion('screen', day, source):
+        print('Already complete; do not retry')
+        return
+    delay = 60 * attempt
+    print(f'Retry after {delay} seconds; next attempt {attempt + 1}/{SCREEN_MAX_ATTEMPTS}', flush=True)
+    time.sleep(delay)
+    current = str(os.environ.get('GITHUB_RUN_ID', ''))
+    runs = screen_runs()
+    if any(r['status'] != 'completed' and str(r.get('id')) != current for r in runs):
+        print('Another screen job is queued or running; do not duplicate it')
+        return
+    repo = os.environ['GITHUB_REPOSITORY']
+    body = {'ref': 'main', 'inputs': {'date': day_key(day).replace('-', '/'), 'source': source,
+                                    'automatic': 'true', 'attempt': str(attempt + 1)}}
+    subprocess.run(['gh', 'api', f'repos/{repo}/actions/workflows/screen-identify.yml/dispatches',
+                    '--method', 'POST', '--input', '-'], input=json.dumps(body).encode(), check=True)
+
+
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('mode', choices=('date', 'check', 'dispatch-screen'))
+    p.add_argument('mode', choices=('date', 'check', 'dispatch-screen', 'retry-screen'))
     p.add_argument('kind', nargs='?', choices=KINDS)
     p.add_argument('--date', default='')
     p.add_argument('--source', default='')
+    p.add_argument('--attempt', type=int, default=1)
     a = p.parse_args()
     day = day_key(a.date)
     if a.mode == 'date':
@@ -97,8 +140,10 @@ def main():
         output(complete=bool(done), source=(done or {}).get('source', ''))
         print('Already complete; initialization and model steps can be skipped' if done
               else 'No valid completion receipt; check the authoritative source')
-    else:
+    elif a.mode == 'dispatch-screen':
         dispatch_screen(a.kind, day)
+    else:
+        retry_screen(day, a.source, a.attempt)
 
 
 if __name__ == '__main__':

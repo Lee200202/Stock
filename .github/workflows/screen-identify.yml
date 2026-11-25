@@ -1,5 +1,5 @@
 name: screen-identify
-run-name: 直播畫面辨識 ${{ inputs.date || '' }}
+run-name: 直播畫面辨識 ${{ inputs.date }} ${{ inputs.source }} 第${{ inputs.attempt || '1' }}次
 
 # 2026/11/12 管理者：逐字稿只有聲音，「這檔」「你看這個」或聽錯的股名要看當時畫面才知道是哪一檔。
 # 回放好之後由 Gemini 直接讀 YouTube 片段（不下載影片），結果寫進複核紀錄「畫面辨識」，11:40 雲端複核核對。
@@ -7,6 +7,11 @@ run-name: 直播畫面辨識 ${{ inputs.date || '' }}
 on:
   workflow_dispatch:
     inputs:
+      attempt:
+        description: '自動延遲重試次數；同來源最多三次'
+        type: choice
+        options: ['1', '2', '3']
+        default: '1'
       source:
         description: '上游就緒影片識別（不含原稿）'
         default: ''
@@ -41,6 +46,7 @@ concurrency:
 
 permissions:
   contents: read
+  actions: write
 
 jobs:
   identify:
@@ -131,3 +137,11 @@ jobs:
           path: scratch/screen-identify/metrics.jsonl
           if-no-files-found: ignore
           retention-days: 7
+      - name: 失敗後延遲接續，成功不再派發
+        if: failure() && !cancelled() && inputs.automatic && !inputs.check_only && inputs.dry_run != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_DATE: ${{ inputs.date }}
+          SCREEN_SOURCE: ${{ inputs.source }}
+          ATTEMPT: ${{ inputs.attempt || '1' }}
+        run: python pipeline/work_completion.py retry-screen --date "$TARGET_DATE" --source "$SCREEN_SOURCE" --attempt "$ATTEMPT"

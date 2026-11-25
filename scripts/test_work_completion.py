@@ -57,7 +57,28 @@ class Completion(unittest.TestCase):
         with patch.object(c.subprocess,'run',side_effect=[SimpleNamespace(stdout=b'{"workflow_runs":[]}'),SimpleNamespace()]) as run:
             c.dispatch_screen('transcript','2026/11/26')
         body=json.loads(run.call_args.kwargs['input'])
-        self.assertEqual(body,{'ref':'main','inputs':{'date':'2026/11/26','source':'PUBLIC_VIDEO','automatic':'true'}})
+        self.assertEqual(body,{'ref':'main','inputs':{'date':'2026/11/26','source':'PUBLIC_VIDEO','automatic':'true','attempt':'1'}})
+
+    def test_failure_waits_then_retries_without_restarting_completed_work(self):
+        with patch.object(c.time,'sleep') as sleep,patch.object(c,'screen_runs',return_value=[]), \
+             patch.object(c.subprocess,'run') as run:
+            c.retry_screen('2026/11/25','PUBLIC_VIDEO',1)
+        sleep.assert_called_once_with(60)
+        self.assertEqual(json.loads(run.call_args.kwargs['input'])['inputs']['attempt'],'2')
+        with patch.object(c.time,'sleep') as sleep,patch.object(c.subprocess,'run') as run:
+            c.retry_screen('2026/11/25','PUBLIC_VIDEO',3)
+        sleep.assert_not_called();run.assert_not_called()
+
+    def test_retry_does_not_replace_other_pending_work_or_revive_after_limit(self):
+        with patch.object(c.time,'sleep'),patch.object(c,'screen_runs',return_value=[{'id':9,'status':'queued'}]), \
+             patch.object(c.subprocess,'run') as run:
+            c.retry_screen('2026/11/25','PUBLIC_VIDEO',1)
+        run.assert_not_called()
+        c.record_completion('transcript','2026/11/25','PUBLIC_VIDEO')
+        finished={'status':'completed','conclusion':'failure','display_title':c.screen_title('2026/11/25','PUBLIC_VIDEO',3)}
+        with patch.object(c,'screen_runs',return_value=[finished]),patch.object(c.subprocess,'run') as run:
+            c.dispatch_screen('transcript','2026/11/25')
+        run.assert_not_called()
 
     def test_corrupt_receipt_fails_open_for_recheck_not_finished(self):
         for bad in ('{bad','[]','null','{"version":1,"source":123}'):

@@ -101,12 +101,12 @@ def main():
     video = tx.find_video(target, require_details=True)
     if not video:
         print(f'{day} 找不到當天的直播影片；不辨識')
-        return 0
+        return 75 if expected_source else 0
     if expected_source and not expected_source.startswith('MANUAL-') and video.id != expected_source:
         raise RuntimeError('就緒來源與目前頻道影片不一致，未啟動辨識；下次重新核對')
     if not video.is_ready(datetime.now(tx.TAIPEI)):
         print(f'{day} 回放還沒處理好（{video.status_text(datetime.now(tx.TAIPEI))}）；下一輪再試')
-        return 0
+        return 75 if expected_source else 0
     url = f'https://www.youtube.com/watch?v={video.id}'
     plan = tx.plan_segments(video.duration_sec, SEGMENT_SECONDS)
     import vocab_learn as vl

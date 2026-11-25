@@ -3075,10 +3075,8 @@ function restatesEarlier_(key, earlier) {
     $('dChange').textContent = '';
     $('dTracker').innerHTML = skelKv(4);
     $('dRecord').innerHTML = skel(4);
-    valFund = null;
-    ++valRequest;
     $('dFundNote').textContent = '';
-    $('dValBands').hidden = true; $('dValBands').innerHTML = ''; $('dValMeta').hidden = true; $('corpTl').hidden = true; $('corpTl').innerHTML = ''; corpOpen = false; refreshCorp(code); $('dFundInfo').innerHTML = '';
+    $('dFund').innerHTML = skelKv(3); $('dFundNote').textContent = ''; $('corpTl').hidden = true; $('corpTl').innerHTML = ''; corpOpen = false; refreshCorp(code); $('dFundInfo').innerHTML = '';
 
     /* 名稱與報價、持有回合、提到的紀錄合成一個請求（v54，Codex 規格 68）：後端共用同一份試算表快照，
        三塊各自成敗；基本面冷快取慢，仍然另外請求、到了再顯示，不拖住首屏。
@@ -3274,148 +3272,22 @@ function restatesEarlier_(key, earlier) {
        t.timeline 仍然留在後端與試算表裡，郵件與稽核都還在用。 */
   }
 
-  var valYears = 5;
-  var valFund = null;
-  var valRequest = 0;
-  $('dValYearsForm').addEventListener('submit', function (event) {
-    event.preventDefault();
-    var years = $('dValYears').valueAsNumber;
-    if (!Number.isInteger(years) || years < 1 || years > 25) { return; }
-    valYears = years;
-    if (currentCode) { renderValBands(currentCode, valFund); }
-  });
-
+  /* 2026/11/25：估值只顯示最新一筆。歷史區間（valuation 歷史檔、試算表估值歷史分頁）已停用並刪除，
+     本益比、股價淨值比、殖利率三張卡讀基本面快取（rebuildFundamentalsJob 每天 14:30 更新）。 */
   function renderFundBlock(f) {
-    valFund = f;
-    $('dFundInfo').innerHTML = f ? kv('產業別', f.industry || '未提供', !f.industry) +
-      kv('上市櫃日', f.listed || '未提供', !f.listed) +
-      kv('董事長', f.chairman || '未提供', !f.chairman) : '';
-    renderValBands(currentCode, f);
-  }
-
-  // Pages 與本機預覽讀同一網址底下的檔案；Apps Script 原頁面（googleusercontent）讀 Pages。
-  var VALUATION_BASE = /(?:^|\.)github\.io$|^localhost$|^127\./.test(location.hostname) ? location.origin + location.pathname.replace(/[^/]*$/, '') + 'valuation/' : 'https://lee200202.github.io/Stock/valuation/';
-  var valMemo = {};
-  function valuationFromApi(code) {
-    return new Promise(function (resolve) {
-      google.script.run.withSuccessHandler(function (doc) {
-        resolve(doc && doc.code === code && Array.isArray(doc.history) ? doc : null);
-      }).withFailureHandler(function () { resolve(null); }).apiGetStockFundamentals(code, { valuationHistory: true });
-    });
-  }
-  function loadValuation(code) {
-    if (!valMemo[code] && window.fetch) {
-      function fromArchive() {
-        return fetch(VALUATION_BASE + encodeURIComponent(code) + '.json', { cache: 'no-cache' })
-          .then(function (r) { return r.ok ? r.json() : null; })
-          .catch(function () { return null; });
-      }
-      var onPages = location.origin === 'https://lee200202.github.io';
-      var primary = onPages ? fromArchive() : valuationFromApi(code);
-      valMemo[code] = primary.then(function (doc) {
-        if (doc && Array.isArray(doc.history)) { return doc; }
-        return (onPages ? valuationFromApi(code) : fromArchive()).then(function (fallback) { return fallback || doc; });
-      }).then(function (doc) {
-        if (!doc) { setTimeout(function () { delete valMemo[code]; }, 60000); }
-        return doc;
-      });
+    if (!f) {
+      $('dFund').innerHTML = '<div class="kv-cell"><div class="k">基本面</div><div class="v na">目前取不到</div></div>';
+      $('dFundInfo').innerHTML = '';
+      $('dFundNote').textContent = '';
+      return;
     }
-    return valMemo[code] || Promise.resolve(null);
-  }
-  function valRank(q, v) {
-    if (v <= q[0]) { return 0; }
-    if (v >= q[100]) { return 100; }
-    for (var k = 0; k < 100; k++) {
-      if (v <= q[k + 1]) {
-        if (q[k + 1] === q[k]) { var j = k; while (j < 100 && q[j + 1] === v) { j++; } return (k + j + 1) / 2; }
-        return k + (v - q[k]) / (q[k + 1] - q[k]);
-      }
-    }
-    return 100;
-  }
-  function valYmd(d) { return String(d || '').replace(/-/g, '/'); }
-  function valuationWindow(doc, years) {
-    if (!doc || !Array.isArray(doc.history)) { return null; }
-    var end = new Date(doc.to + 'T00:00:00Z');
-    var year = end.getUTCFullYear() - years;
-    var month = end.getUTCMonth();
-    var lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-    var cutoff = new Date(Date.UTC(year, month, Math.min(end.getUTCDate(), lastDay))).toISOString().slice(0, 10);
-    var rows = doc.history.filter(function (row) { return row[0] >= cutoff && row[0] <= doc.to; });
-    var metrics = ['per', 'yld', 'pbr'].map(function (_, index) {
-      var values = rows.map(function (row) { return row[index + 1]; }).filter(Number.isFinite);
-      if (!values.length) { return null; }
-      var last = values[values.length - 1];
-      values.sort(function (a, b) { return a - b; });
-      var q = [];
-      for (var i = 0; i <= 100; i++) {
-        var at = (values.length - 1) * i / 100;
-        var lo = Math.floor(at), hi = Math.ceil(at);
-        q.push(values[lo] + (values[hi] - values[lo]) * (at - lo));
-      }
-      return { q: q, last: last, n: values.length };
-    });
-    return { from: rows.length ? rows[0][0] : '', to: doc.to, metrics: metrics };
-  }
-
-  /* 2026/11/24：標記膠囊寫了數值後變寬，固定的靠邊門檻擋不住（手機上 84% 就超出卡片）。
-     改成量實際寬度：直線留在排名位置，只把膠囊往內推到剛好不超出。 */
-  function fitValPills() {
-    document.querySelectorAll('#dValBands .vb-pin').forEach(function (pin) {
-      var stage = pin.parentElement, pill = pin.querySelector('.vb-pill'), W = stage && stage.clientWidth;
-      if (!W || !pill) { return; }
-      pin.classList.remove('at-l', 'at-r');
-      var pos = parseFloat(pin.style.left) / 100 * W, pw = pill.offsetWidth, c = Math.min(Math.max(pos, pw / 2), W - pw / 2);
-      pill.style.translate = Math.round(c - pos) + 'px 0';
-    });
-  }
-  window.addEventListener('resize', fitValPills);
-  function renderValBands(code, f) {
-    var box = $('dValBands'), note = $('dFundNote'), request = ++valRequest, years = valYears;
-    note.textContent = '載入近 ' + years + ' 年估值…';
-    loadValuation(code).then(function (doc) {
-      if (request !== valRequest || code !== currentCode) { return; }
-      var range = valuationWindow(doc, years);
-      var legacy = !range && doc && Number(doc.years) === years;
-      var defs = [
-        { k: 'per', label: '本益比', unit: ' 倍' },
-        { k: 'yld', label: '殖利率', unit: '%' },
-        { k: 'pbr', label: '股價淨值比', unit: ' 倍' }
-      ];
-      box.innerHTML = defs.map(function (d, index) {
-        var m = range ? range.metrics[index] : legacy ? doc[d.k] : null;
-        var current = f && f[d.k];
-        var now = Number.isFinite(current) ? current : !f && m ? m.last : null;
-        var fmt = function (x) { return x.toFixed(2) + d.unit; };
-        var value = Number.isFinite(now) ? fmt(now) : '未提供';
-        var band = '';
-        if (m && m.n >= 20 && m.q[100] > m.q[0]) {
-          var rank = Number.isFinite(now) ? Math.round(valRank(m.q, now)) : null;
-          var edge = rank <= 14 ? ' at-l' : rank >= 86 ? ' at-r' : '';
-          var aria = d.label + '區間低點 ' + fmt(m.q[0]) + '，高點 ' + fmt(m.q[100]) +
-            (rank === null ? '' : '，百分位 ' + rank + '%');
-          band = '<div class="vb-stage' + (rank === null ? ' vb-no-pin' : '') + '" role="img" aria-label="' + esc(aria) + '">' +
-            (rank === null ? '' : '<span class="vb-pin' + edge + '" style="left:' + rank + '%"><span class="vb-pill">' + esc(value) + ' · 近' + years + '年' + rank +
-              '%</span><span class="vb-stem"></span></span>') +
-            '<span class="vb-bar"><i class="vb-d1"></i><i class="vb-d2"></i></span></div>' +
-            '<div class="vb-ends" aria-hidden="true"><span>低點 ' + fmt(m.q[0]) + '</span><span>高點 ' + fmt(m.q[100]) + '</span></div>';
-        } else if (m && m.n >= 20) {
-          band = '<div class="vb-caption">歷史值均為 ' + fmt(m.q[0]) + '</div>';
-        } else {
-          band = '<div class="vb-caption">區間資料不足</div>';
-        }
-        var pinned = band.indexOf('vb-pill') >= 0;
-        return '<div class="vb"><div class="vb-heading"><span class="vb-name">' + d.label +
-          '</span>' + (pinned ? '' : '<strong>' + esc(value) + '</strong>') + '</div>' + band + '</div>';
-      }).join('');
-      box.hidden = false;
-      fitValPills();
-      var from = range ? range.from : legacy ? doc.from : '';
-      $('dValMeta').hidden = true;
-      var rangeText = '區間為近 ' + years + ' 年（' + valYmd(from).slice(0, 7) + ' ～ ' + valYmd(doc.to).slice(0, 7) + '）每日估值排名三等分，虧損期間不計本益比。';
-      note.textContent = from ? (f ? (f.source || '') + ' ' + rangeText : '目前值為區間內最後可用值。' + rangeText) :
-        '近 ' + years + ' 年估值歷史目前無法取得。' + (f && f.source ? ' ' + f.source : '');
-    });
+    $('dFund').innerHTML =
+      kv('本益比', f.per ? f.per.toFixed(2) + ' 倍' : '未提供', !f.per) +
+      kv('股價淨值比', f.pbr ? f.pbr.toFixed(2) + ' 倍' : '未提供', !f.pbr) +
+      kv('殖利率', f.yld ? f.yld.toFixed(2) + '%' : '未提供', !f.yld);
+    $('dFundInfo').innerHTML = kv('產業別', f.industry || '未提供', !f.industry) +
+      kv('上市櫃日', f.listed || '未提供', !f.listed) + kv('董事長', f.chairman || '未提供', !f.chairman);
+    $('dFundNote').textContent = f.source || '';
   }
 
   function renderRecordBlock(r) {

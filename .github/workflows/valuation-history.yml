@@ -1,9 +1,8 @@
 name: valuation-history
 run-name: 本益比／殖利率／淨值比歷史區間 · 增量補抓與發布
 # 2026/11/24：個股頁的歷史區間條。封存與輸出放 valuation-history 分支，網站建置時複製到 /valuation/。
+# 2026/11/25：管理者決定不呈現估值歷史，停用每日排程（保留手動執行）。
 on:
-  schedule:
-    - cron: '20 11 * * 1-5'     # 台北 19:20，兩個交易所都已公布當天資料
   workflow_dispatch:
     inputs:
       build_only:

@@ -120,13 +120,6 @@ jobs:
           else
             echo '尚無 market-history 分支，略過'
           fi
-      - name: 附上本益比／殖利率／淨值比歷史區間（valuation-history 分支；沒有就不畫區間條）
-        run: |
-          if git fetch -q --depth=1 origin valuation-history 2>/dev/null; then
-            git archive FETCH_HEAD valuation | tar -x -C _site && echo "valuation：$(ls _site/valuation | wc -l) 個檔案"
-          else
-            echo '尚無 valuation-history 分支，略過'
-          fi
       - name: 附上除權息事件（corp-events 分支；沒有就不提供除權息還原）
         run: |
           if git fetch -q --depth=1 origin corp-events 2>/dev/null; then

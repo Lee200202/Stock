@@ -620,18 +620,10 @@
       </div>
 
       <div class="sect" id="dSecFund">
-        <div class="sect-h">
-          <h2>估值與公司資料</h2>
-          <form id="dValYearsForm" class="val-years">
-            <label for="dValYears">近</label>
-            <input id="dValYears" type="number" inputmode="numeric" min="1" max="25" step="1" value="5" required aria-label="估值歷史年數（1 到 25）">
-            <span>年</span>
-            <button type="submit" class="pill">套用</button>
-          </form>
-        </div>
+        <div class="sect-h"><h2>估值與公司資料</h2></div>
+        <!-- 2026/11/25：估值只呈現最新一筆（基本面快取每天更新），不再畫歷史區間；三張估值卡在上、三張公司資料卡在下。 -->
+        <div class="fund-info" id="dFund"></div>
         <div class="fund-info" id="dFundInfo"></div>
-        <p class="val-meta" id="dValMeta" hidden></p>
-        <div class="val-bands" id="dValBands" hidden></div>
         <p class="notice" id="dFundNote" role="status"></p>
       </div>
 

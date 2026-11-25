@@ -9467,6 +9467,12 @@ _ENTRY_VIEW_FACTS = (('entry_for_new', ('allow', 'wait_condition', 'prohibit', '
                      ('forward_view', ('rise', 'fall', 'buy_sell_rule')),
                      ('view_basis', ('chase_lesson',)))
 
+# 已裁決為觀望不碰的追高教材，不因書面化只保留先漲後跌的事實而被末關再次刪掉。
+# 不新增股票或改分類；來源主體與逐項證據仍須通過原有審閱。
+_GATE_CHASE_REVERSAL = re.compile(
+    r'(?:昨天|昨日|前天|上週|上禮拜|上個禮拜)[^。！？!?]{0,14}(?:漲停|大漲|噴|漲\s*[0-9一二三四五六七八九十百千]|漲了)'
+    r'[^！？!?]{0,60}?(?:今天|今日|現在|早上)[^。！？!?]{0,14}(?:跌停|大跌|重挫|跌\s*[0-9一二三四五六七八九十百千]|跌了|殺|吐回)')
+
 
 def stated_entry_view(row: dict, cat: str, verdicts: dict) -> bool:
     """結構化答案裡有沒有本股的進場看法：優先看投給最後分類的那一份問卷，沒有問卷才看擷取的立場欄。"""
@@ -9497,6 +9503,9 @@ def gate_watch_conclusions(signals: dict) -> dict:
             # 被認成安心，說明只有「遇到這種行情不用亂殺」）。點到本股或問卷有進場看法的照常。
             named = view or any(n in text for n in _signal_names(row) | {name, str(row.get('name') or '').replace('*', '')} if len(n) >= 2)
             if row.get('_manual_note_kept') or verdict.get('tier') == '人工裁決' or (named and watch_note_conclusion(text)):
+                kept.append(row)
+                continue
+            if cat == 'watch_avoid' and named and _GATE_CHASE_REVERSAL.search(text):
                 kept.append(row)
                 continue
             if _ev_norm(text) and view:

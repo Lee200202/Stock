@@ -790,7 +790,7 @@ function repairCodesJobRun_() {
 
 /** 快取裡已經有哪些 代號|年月 */
 function cachedKeys_() {
-  var rows = getSheet_('日K快取').getDataRange().getValues();
+  var rows = readVolumeValues_('日K快取').values;   // 分卷時含舊卷，舊卷已有的月份不重抓
   var have = {};
   for (var i = 1; i < rows.length; i++) {
     var c = String(rows[i][0]).trim();
@@ -2998,7 +2998,7 @@ function resetDailyKGhosts() {
 /** 追蹤宇宙裡，日K快取一列都沒有的代號。 */
 function missingDailyKCodes_() {
   var have = {};
-  var rows = getSheet_("日K快取").getDataRange().getValues();
+  var rows = readVolumeValues_('日K快取').values;   // 分卷時含舊卷
   for (var i = 1; i < rows.length; i++) {
     var c = String(rows[i][0]).trim();
     if (c) { have[c] = 1; }

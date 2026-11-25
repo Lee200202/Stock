@@ -16,7 +16,7 @@ const ADMIN_METHODS = ('apiAdminCancelCrawl apiAdminCancelDaySync apiAdminCancel
   'apiAdminLineDiagnose apiAdminLineLookup apiAdminLineRetry apiAdminLineSaveConfig ' +
   'apiAdminLineSetupRichMenu apiAdminLineStatus apiAdminLineTestPush ' +
   'apiAdminLineValidate apiAdminListSms apiAdminLogin apiAdminManualDays ' +
-  'apiAdminSetSmsEmail apiAdminSubscribers apiAdminSubscriberRemove apiAdminLineConversation apiAdminLineStop ' +
+  'apiAdminSetSmsEmail apiAdminSubscribers apiAdminSubscriberRemove apiAdminLineConversation apiAdminLineStop apiAdminLinePushLog apiAdminLinePushDetail ' +
   'apiAdminManualEntry apiAdminMergeTranscripts apiAdminOpsDay apiAdminPreviewCleanup ' +
   'apiAdminRebuildMail apiAdminReclassify apiAdminResumeFullFix apiAdminResumeJob ' +
   'apiAdminRetryFullFixStep apiAdminRunInfo apiAdminSetDailyPushDefault apiAdminSetDailyPushStart ' +

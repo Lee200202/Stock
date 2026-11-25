@@ -248,6 +248,8 @@ jobs:
           DAILYK_ONLY: ${{ github.event.schedule == '45 5 * * 1-5' && 'true' || '' }}
           GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
           YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID || vars.YOUTUBE_CHANNEL_ID }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           # 手動模式的旗標也要帶進來，探測才認得出「這是人手動觸發的」，

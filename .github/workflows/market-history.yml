@@ -25,6 +25,8 @@ jobs:
     timeout-minutes: 190
     env:
       SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+      APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+      ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
       GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
       GH_TOKEN: ${{ github.token }}
       YEARS: ${{ inputs.years || 0 }}

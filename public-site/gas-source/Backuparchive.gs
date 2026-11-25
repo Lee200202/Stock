@@ -169,7 +169,10 @@ function backupArchiveRotate_(force,incomingCells){
 function backupArchiveRequest_(key,op,namesJson,expectedSource){
   var expected=PropertiesService.getScriptProperties().getProperty('ADMIN_KEY');
   if(!expected||String(key)!==expected){throw new Error('未授權');}
-  if(expectedSource&&expectedSource!==getSS_().getId()){throw new Error('備份來源試算表與請求不符');}
+  // 2026/11/25 主資料分卷：GitHub 的 SPREADSHEET_ID 換卷後會是舊卷，分卷動作另外核對來源（Mainvolume.gs）
+  if(/^main-/.test(op)){return mainVolumeRequest_(op,JSON.parse(namesJson||'{}'),expectedSource);}
+  // 換卷後 GitHub 的 SPREADSHEET_ID 是舊卷：來源是使用中或任一舊卷都算同一個專案，備份一律備份使用中的一卷
+  if(expectedSource&&expectedSource!==getSS_().getId()&&mainVolumeState_().chain.map(function(v){return v.id;}).indexOf(expectedSource)<0){throw new Error('備份來源試算表與請求不符');}
   if(op==='status'){return backupArchiveStatus_();}
   if(/^history-(?:status|reserve|commit|route)$/.test(op)){
     return historyArchiveRequest_(op, JSON.parse(namesJson || '{}'));

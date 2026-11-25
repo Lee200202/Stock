@@ -36,6 +36,14 @@ from google.oauth2.service_account import Credentials
 # 同一個程序裡後面的 `from pipeline import ...` 就會找不到套件
 # （實測跑整套測試時就是這樣壞的）。改成直接依路徑載入，不動全域狀態。
 try:
+    import main_volumes  # 2026/11/25 主資料分卷（同目錄）
+except ModuleNotFoundError:
+    import importlib.util as _ilu
+    _mv_spec = _ilu.spec_from_file_location(
+        "main_volumes", os.path.join(os.path.dirname(os.path.abspath(__file__)), "main_volumes.py"))
+    main_volumes = _ilu.module_from_spec(_mv_spec)
+    _mv_spec.loader.exec_module(main_volumes)
+try:
     from market_holidays import why_closed
 except ModuleNotFoundError:
     import importlib.util as _ilu
@@ -1625,17 +1633,26 @@ def sheets_retry(fn, *args, **kwargs):
     一分鐘窗口才有意義，所以最長等到 70 秒，並加抖動避免同時醒來又一起撞。
     """
     last = None
-    for i, delay in enumerate((0, 10, 30, 70)):
-        if delay:
-            time.sleep(delay + random.uniform(0, 3))
+    relief = 0
+    delays = (0, 10, 30, 70)
+    i = 0
+    while i < len(delays):
+        if delays[i]:
+            time.sleep(delays[i] + random.uniform(0, 3))
+        call = main_volumes.rebind(fn)   # 2026/11/25 換卷後綁在舊卷的呼叫改到新卷同名分頁
         try:
-            return fn(*args, **kwargs)
+            return call(*args, **kwargs)
         except gspread.exceptions.APIError as e:
+            # 2026/11/25：主表「檔案太大、無法繼續編輯」→ 請 Apps Script 先清空白欄、不夠就整本換新，立刻重試
+            if relief < 2 and main_volumes.is_too_large(e) and main_volumes.relieve(str(e), main_volumes.id_of(call)):
+                relief += 1
+                continue
             code = getattr(getattr(e, "response", None), "status_code", None)
             if code not in TRANSIENT:
                 raise
             last = code
             print(f"Sheets 回傳 {code}，第 {i + 1} 次重試")
+            i += 1
     raise RuntimeError(f"Google Sheets 連續重試失敗，最後狀態 {last}")
 
 
@@ -1646,11 +1663,13 @@ def open_sheets():
         info, scopes=["https://www.googleapis.com/auth/spreadsheets"]
     )
     gc = gspread.authorize(creds)
+    main_volumes.remember(gc, who)
     # gspread 6 會把 HTTP 錯誤換成別的型別：403 變成內建的 PermissionError
     # （訊息是空的）、404 變成 SpreadsheetNotFound。不特別接的話，
     # 使用者看到的是一長串 traceback，看不出「要去把試算表分享給誰」。
     try:
-        return sheets_retry(gc.open_by_key, SPREADSHEET_ID)
+        # 2026/11/25 分卷：向 Apps Script 查目前使用中的一卷（查不到就是 SPREADSHEET_ID）
+        return sheets_retry(gc.open_by_key, main_volumes.active_id(SPREADSHEET_ID, who))
     except PermissionError:
         raise SystemExit(
             f"開不了試算表（HTTP 403）。\n"
@@ -23463,7 +23482,7 @@ def load_daily_k(ss) -> dict:
     快取是空的也不影響流程，只是少一道驗證。
     """
     try:
-        vals = sheets_retry(ss.worksheet("日K快取").get_all_values)
+        vals = main_volumes.merged_values(ss, "日K快取", ("代號", "日期"), sheets_retry)   # 分卷時含舊卷
     except Exception as e:
         print(f"  讀不到日K快取（{e}），本次略過價位區間驗證")
         return {}

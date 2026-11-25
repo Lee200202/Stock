@@ -165,6 +165,8 @@ jobs:
           YOUTUBE_CHANNEL_ID: ${{ vars.YOUTUBE_CHANNEL_ID }}
 
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
           GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
           # 2026/11/12：讀直播畫面辨識學到的詞（複核紀錄「詞庫學習」）加進聽打詞表；讀不到照常聽打。
           REVIEW_LOG_ID: ${{ vars.REVIEW_LOG_ID }}

@@ -55,6 +55,8 @@ jobs:
           GEMINI_RPM: ${{ vars.GEMINI_EVAL_RPM || '15' }}
           GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
           REPLAY_DATE: ${{ inputs.date }}
           FRESH_VERDICTS: ${{ inputs.fresh_verdicts }}
           INDEPENDENT_REVIEW: ${{ inputs.independent_review }}

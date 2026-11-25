@@ -3,6 +3,7 @@ import base64
 import json
 import os
 import re
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -49,7 +50,10 @@ def main():
     if not raw.startswith('{'):
         raw = base64.b64decode(raw + '=' * (-len(raw) % 4)).decode()
     client = gspread.service_account_from_dict(json.loads(raw))
-    book = client.open_by_key(os.environ['SPREADSHEET_ID'])
+    # 2026/11/25 分卷：盤點目前使用中的一卷（查不到就是 SPREADSHEET_ID）
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from pipeline import main_volumes
+    book = client.open_by_key(main_volumes.active_id(os.environ['SPREADSHEET_ID'], json.loads(raw).get('client_email', '')))
     report = {'at': datetime.now(timezone.utc).isoformat(), 'main': inventory(book)}
     # One batch, date columns only. No visitor identifiers, messages or contact fields are read.
     ranges = ["'日K快取'!B2:B", "'小時K'!A2:A", "'盤中快照'!A2:A", "'使用紀錄'!A2:A"]

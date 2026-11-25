@@ -104,6 +104,8 @@ jobs:
           GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
           REVIEW_LOG_ID: ${{ vars.REVIEW_LOG_ID }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
           GEMINI_API_KEY: offline
         run: |
           cd scripts/daily_review && python mark_fixed.py --date "$DAY"
@@ -111,6 +113,8 @@ jobs:
         env:
           GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
           GEMINI_API_KEY: offline
         run: |
           python scripts/daily_review/name_memo.py --date "$DAY"
@@ -121,6 +125,8 @@ jobs:
           GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
           REVIEW_LOG_ID: ${{ vars.REVIEW_LOG_ID }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
           GEMINI_API_KEY: offline
           BRANCH: ${{ github.ref_name }}
         run: |

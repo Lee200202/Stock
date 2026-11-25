@@ -56,6 +56,7 @@ import requests
 from google.oauth2.service_account import Credentials
 
 from pipeline.market_holidays import is_trading_day, why_closed
+from pipeline import main_volumes  # 2026/11/25 主資料分卷
 
 # ---------------------------------------------------------------- #
 # 設定
@@ -396,17 +397,26 @@ def sheets_retry(fn, *args, **kwargs):
     """Google Sheets 偶發 429 / 5xx。429 是每分鐘配額，退避要跨過整個
     一分鐘窗口才有意義，所以最長等到 70 秒，並加抖動避免重試又一起撞上去。"""
     last = None
-    for i, delay in enumerate((0, 10, 30, 70)):
-        if delay:
-            time.sleep(delay + random.uniform(0, 3))
+    relief = 0
+    delays = (0, 10, 30, 70)
+    i = 0
+    while i < len(delays):
+        if delays[i]:
+            time.sleep(delays[i] + random.uniform(0, 3))
+        call = main_volumes.rebind(fn)   # 2026/11/25 換卷後綁在舊卷的呼叫改到新卷同名分頁
         try:
-            return fn(*args, **kwargs)
+            return call(*args, **kwargs)
         except gspread.exceptions.APIError as e:
+            # 2026/11/25：主表「檔案太大、無法繼續編輯」→ 請 Apps Script 先清空白欄、不夠就整本換新，立刻重試
+            if relief < 2 and main_volumes.is_too_large(e) and main_volumes.relieve(str(e), main_volumes.id_of(call)):
+                relief += 1
+                continue
             code = getattr(getattr(e, "response", None), "status_code", None)
             if code not in TRANSIENT:
                 raise
             last = code
             log(f"Sheets 回傳 {code}，第 {i + 1} 次重試")
+            i += 1
     raise RuntimeError(f"Google Sheets 連續重試失敗，最後狀態 {last}")
 
 
@@ -454,6 +464,7 @@ def open_sheets():
         raise SystemExit("缺少 SPREADSHEET_ID。就是試算表網址中 /d/ 與 /edit 之間那一長串。")
     creds, who = _sheets_credentials()
     gc = gspread.authorize(creds)
+    main_volumes.remember(gc, who)
     def _blocked(code, extra=""):
         return SystemExit(
             f"開不了試算表（HTTP {code}）。\n"
@@ -473,7 +484,8 @@ def open_sheets():
     # 只接 APIError 的話這兩種最常見的狀況都會漏掉，使用者看到的是一長串
     # traceback 加一行 PermissionError，完全看不出「要去分享試算表給誰」。
     try:
-        return sheets_retry(gc.open_by_key, SPREADSHEET_ID)
+        # 2026/11/25 分卷：向 Apps Script 查目前使用中的一卷（查不到就是 SPREADSHEET_ID）
+        return sheets_retry(gc.open_by_key, main_volumes.active_id(SPREADSHEET_ID, who))
     except PermissionError as e:
         raise _blocked(403, str(e))
     except gspread.exceptions.SpreadsheetNotFound as e:

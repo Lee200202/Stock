@@ -2,6 +2,8 @@
 import base64
 import json
 import os
+import re
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -47,8 +49,23 @@ def main():
     if not raw.startswith('{'):
         raw = base64.b64decode(raw + '=' * (-len(raw) % 4)).decode()
     client = gspread.service_account_from_dict(json.loads(raw))
-    report = {'at': datetime.now(timezone.utc).isoformat(),
-              'main': inventory(client.open_by_key(os.environ['SPREADSHEET_ID']))}
+    book = client.open_by_key(os.environ['SPREADSHEET_ID'])
+    report = {'at': datetime.now(timezone.utc).isoformat(), 'main': inventory(book)}
+    # One batch, date columns only. No visitor identifiers, messages or contact fields are read.
+    ranges = ["'日K快取'!B2:B", "'小時K'!A2:A", "'盤中快照'!A2:A", "'使用紀錄'!A2:A"]
+    started = time.perf_counter()
+    batch = book.values_batch_get(ranges)
+    histograms = []
+    for name, values in zip(['日K快取','小時K','盤中快照','使用紀錄'], batch.get('valueRanges', [])):
+        counts = {}
+        for row in values.get('values', []):
+            match = re.search(r'(20\d{2})[-/](\d{1,2})[-/](\d{1,2})', str(row[0]) if row else '')
+            if match:
+                day = '%s-%02d-%02d' % (match[1], int(match[2]), int(match[3]))
+                counts[day] = counts.get(day, 0) + 1
+        histograms.append({'name': name, 'rowsByDate': dict(sorted(counts.items())[-7:])})
+    report['main']['dateColumnReadSeconds'] = round(time.perf_counter() - started, 3)
+    report['main']['recentRowCounts'] = histograms
     from google.auth.transport.requests import AuthorizedSession
     drive = AuthorizedSession(client.http_client.auth)
     meta = drive.get('https://www.googleapis.com/drive/v3/files/' + os.environ['SPREADSHEET_ID'],

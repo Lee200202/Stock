@@ -21,7 +21,8 @@ jobs:
       - name: Load capacity baseline only
         run: |
           if git fetch --depth=1 origin capacity-history 2>/dev/null; then
-            git show FETCH_HEAD:latest.json > previous-capacity-report.json
+            mkdir -p .capacity-samples
+            git archive FETCH_HEAD | tar -x -C .capacity-samples
           fi
       - name: Read-only main and backup capacity inventory
         env:

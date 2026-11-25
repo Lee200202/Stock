@@ -55,6 +55,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: 歷史分卷與窄版持股走勢
+        run: |
+          node scripts/check_history_archive.cjs
+          node scripts/check_backup_archive.js
+          node scripts/check_trend_narrow.cjs
       - name: 後台登入、裝置撤銷與安全介面契約（離線，不寄碼）
         run: |
           node --test scripts/test_admin_security.mjs

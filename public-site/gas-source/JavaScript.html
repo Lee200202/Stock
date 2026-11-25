@@ -1966,7 +1966,10 @@ function restatesEarlier_(key, earlier) {
     var lbLen = function (t) { return String(t).replace(/[\u3000-\u9fff]/g, 'MM').length; };
     var lbMax = Math.max(lbLen('進場 ' + pxShort(m.entry)), m.avgCost ? lbLen('平均成本 ' + pxShort(m.avgCost)) : 0, m.stated ? lbLen('明講 ' + pxShort(m.stated)) : 0, m.end > 0 ? lbLen('目前 ' + pxShort(m.end)) : 0);
     var H = Math.round((W < 520 * scale ? 180 : 208) * scale), padL = Math.round(54 * scale), padR = Math.round(Math.max(108, lbMax * 7.6 + 16) * scale), padT = Math.round(16 * scale), padB = Math.round(54 * scale);
+    var compact = W < 440 * scale;
+    if (compact) { padR = Math.round(12 * scale); }
     var pw = W - padL - padR, ph = H - padT - padB;
+    var svgH = H + (compact ? (1 + (m.stated ? 1 : 0) + (m.end > 0 ? 1 : 0)) * 23 * scale : 0);
     var vals = pts.map(function (p) { return p.close; }).concat([m.entry, m.avgCost, m.stated, m.end].filter(function (v) { return v > 0; }));
     var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), pad = (hi - lo) * 0.08 || hi * 0.01 || 1;
     lo -= pad; hi += pad;
@@ -1977,7 +1980,7 @@ function restatesEarlier_(key, earlier) {
     var yE = Y(m.avgCost || m.entry), yFirst = Y(m.firstEntry || m.entry), id = 'tr' + Math.random().toString(36).slice(2, 8);
     var line = pts.map(function (p, i) { return (i ? 'L' : 'M') + f1(X(i)) + ' ' + f1(Y(p.close)); }).join(' ');
     var area = line + ' L' + f1(X(pts.length - 1)) + ' ' + f1(yE) + ' L' + f1(X(0)) + ' ' + f1(yE) + ' Z';
-    var svg = '<svg class="trend-svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' +
+    var svg = '<svg class="trend-svg" width="' + W + '" height="' + svgH + '" viewBox="0 0 ' + W + ' ' + svgH + '" role="img" aria-label="' +
       esc('進場以來每日收盤走勢' + (pts.some(function(p){return p.preview;}) ? '及當日盤中報價' : '') + '，進場價 ' + pxShort(m.entry) + (m.stated ? '，明講 ' + pxShort(m.stated) : '') + (m.ret !== null && m.ret !== undefined ? '，報酬 ' + fmtRet(m.ret) : '')) + '">' +
       '<defs><clipPath id="' + id + 'u"><rect x="' + padL + '" y="0" width="' + pw + '" height="' + f1(Math.max(0, yE)) + '"/></clipPath>' +
       '<clipPath id="' + id + 'd"><rect x="' + padL + '" y="' + f1(yE) + '" width="' + pw + '" height="' + f1(Math.max(0, H - yE)) + '"/></clipPath></defs>';
@@ -1999,8 +2002,8 @@ function restatesEarlier_(key, earlier) {
     var labels = [{ y: yE, t: m.avgCost ? '平均成本 ' + pxShort(m.avgCost) : '進場 ' + pxShort(m.entry), c: 'lb-in' }];
     if (m.stated) { labels.push({ y: Y(m.stated), t: '明講 ' + pxShort(m.stated), c: 'lb-st' }); }
     if (m.end > 0) { labels.push({ y: endY, t: (m.held ? '目前 ' : '出場 ') + pxShort(m.end), c: 'lb-end ' + signCls(m.ret) }); }
-    spreadLabels(labels, padT + 4, padT + ph, 19 * scale).forEach(function (l) {
-      svg += '<text class="tr-lb ' + l.c + '" x="' + (padL + pw + 8) + '" y="' + f1(l.ly + 4) + '">' + esc(l.t) + '</text>';
+    spreadLabels(labels, padT + 4, padT + ph, 19 * scale).forEach(function (l, i) {
+      svg += '<text class="tr-lb ' + l.c + '" x="' + (compact ? 8 : padL + pw + 8) + '" y="' + f1(compact ? H + (i + 0.8) * 23 * scale : l.ly + 4) + '">' + esc(l.t) + '</text>';
     });
     // 日期記號與底部日期
     var xs = [];
@@ -2137,7 +2140,7 @@ function restatesEarlier_(key, earlier) {
     rows = detailTrendQuoteRows_(rows, DETAIL.header && DETAIL.header.quote, m.held);
     var cs = getComputedStyle(box);
     // 放大字體時讓小圖在自己的容器橫滑，不縮小字，也不撐開整頁。
-    var W = Math.max(Math.round(320 * readFontScale_()), Math.floor(box.clientWidth - parseFloat(cs.paddingLeft || 0) - parseFloat(cs.paddingRight || 0)));
+    var W = Math.max(200, Math.floor(box.clientWidth - parseFloat(cs.paddingLeft || 0) - parseFloat(cs.paddingRight || 0)));
     var tr = rows && rows.length ? trendSvg(m, rows, W) : null;
     var loading = !memo && candlePending[DETAIL.code];
     /* v68（管理者 9/25）：標題列不再寫「提到 → 成交 → 持有 N 天」，圖上已有日期記號與持有期間括弧；

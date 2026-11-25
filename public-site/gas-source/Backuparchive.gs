@@ -40,6 +40,8 @@ function archiveCopyVerified_(sheet,name,kind){
   }
   var copy=found?archive.getSheetById(Number(found[4])):null;
   if(!copy){
+    // 預檢本次新增量，防止目前未達門檻卻被一份大型快照直接撐爆。
+    if(backupArchiveCells_(archive)+sheet.getMaxRows()*sheet.getMaxColumns()>BACKUP_ARCHIVE_ROTATE_CELLS_){throw new Error('本次備份將超過分卷門檻，請換新備份檔後重試；來源與舊卷保留');}
     var title=name.slice(0,100);if(archive.getSheetByName(title)){title=name.slice(0,90)+'_'+before.hash.slice(0,8);}
     var orphan=archive.getSheetByName(title);
     if(orphan&&archiveSheetState_(orphan).hash===before.hash){copy=orphan;}
@@ -146,13 +148,13 @@ var BACKUP_ARCHIVE_ROTATE_CELLS_=9500000;
 function backupArchiveCells_(archive){
   return archive.getSheets().reduce(function(n,s){return n+s.getMaxRows()*s.getMaxColumns();},0);
 }
-function backupArchiveRotate_(force){
+function backupArchiveRotate_(force,incomingCells){
   var lock=LockService.getScriptLock();if(!lock.tryLock(10000)){throw new Error('備份鎖忙碌，稍後重試');}
   try{
     var p=PropertiesService.getScriptProperties(),source=getSS_(),old=p.getProperty('BACKUP_SPREADSHEET_ID')||'';
     if(old&&!force){
       var cells=0;try{cells=backupArchiveCells_(SpreadsheetApp.openById(old));}catch(e){cells=BACKUP_ARCHIVE_ROTATE_CELLS_;}
-      if(cells<BACKUP_ARCHIVE_ROTATE_CELLS_){return {ok:true,rotated:false,cells:cells};}
+      if(cells+(Number(incomingCells)||0)<BACKUP_ARCHIVE_ROTATE_CELLS_){return {ok:true,rotated:false,cells:cells};}
     }
     var book=SpreadsheetApp.create('盤勢有據－資料備份');
     book.setSpreadsheetTimeZone('Asia/Taipei');
@@ -169,6 +171,9 @@ function backupArchiveRequest_(key,op,namesJson,expectedSource){
   if(!expected||String(key)!==expected){throw new Error('未授權');}
   if(expectedSource&&expectedSource!==getSS_().getId()){throw new Error('備份來源試算表與請求不符');}
   if(op==='status'){return backupArchiveStatus_();}
+  if(/^history-(?:status|reserve|commit|route)$/.test(op)){
+    return historyArchiveRequest_(op, JSON.parse(namesJson || '{}'));
+  }
   if(op==='migrate'){return migrateBackupArchive_();}
   // 2026/11/12：prune-preview 只列會清哪些；prune 才真的刪（保留 7 天，每個分頁至少留最新一份）。
   if(op==='prune-preview'){return backupArchivePrune_(7,true);}
@@ -181,6 +186,67 @@ function backupArchiveRequest_(key,op,namesJson,expectedSource){
   if(!Array.isArray(names)||!names.length||names.length>5||names.some(function(n){return allowed.indexOf(n)<0;})||names.some(function(n,i){return names.indexOf(n)!==i;})){throw new Error('備份分頁不在允許範圍');}
   backupArchiveRotate_(false);
   var stamp=Utilities.formatDate(new Date(),'Asia/Taipei','MMdd_HHmmss'),out=[];
-  names.forEach(function(n){var sheet=source.getSheetByName(n);if(!sheet){throw new Error('來源分頁不存在：'+n);}out.push(archiveLiveSheet_(sheet,'備份_'+stamp+'_'+n));});
+  names.forEach(function(n){var sheet=source.getSheetByName(n);if(!sheet){throw new Error('來源分頁不存在：'+n);}var incoming=sheet.getMaxRows()*sheet.getMaxColumns();if(incoming>=BACKUP_ARCHIVE_ROTATE_CELLS_){throw new Error('單份備份過大，需分片，來源保留');}backupArchiveRotate_(false,incoming);out.push(archiveLiveSheet_(sheet,'備份_'+stamp+'_'+n));});
   return {ok:true,sourceId:source.getId(),verified:out};
+}
+
+/** 獨立歷史封存目錄。舊卷只封存，不刪分頁；主資料表不存歷史 payload。 */
+var HISTORY_ARCHIVE_HEAD_ = ['資料集','卷號','試算表ID','狀態','來源指紋','配置格數','文字bytes','更新時間'];
+var HISTORY_ARCHIVE_CELL_BUDGET_ = 2000000;
+var HISTORY_ARCHIVE_BYTE_BUDGET_ = 20000000;
+function historyArchiveDirectory_(create) {
+  var p=PropertiesService.getScriptProperties(), id=p.getProperty('HISTORY_ARCHIVE_DIRECTORY_ID');
+  if(id){return SpreadsheetApp.openById(id);}
+  if(!create){return null;}
+  var folder=DriveApp.createFolder('盤勢有據－歷史封存');
+  var book=SpreadsheetApp.create('盤勢有據－歷史封存目錄');
+  DriveApp.getFileById(book.getId()).moveTo(folder);
+  book.setSpreadsheetTimeZone('Asia/Taipei');
+  var sh=book.getSheets()[0];sh.setName('分卷目錄');
+  sh.getRange(1,1,1,HISTORY_ARCHIVE_HEAD_.length).setValues([HISTORY_ARCHIVE_HEAD_]);sh.setFrozenRows(1);
+  p.setProperties({HISTORY_ARCHIVE_DIRECTORY_ID:book.getId(),HISTORY_ARCHIVE_FOLDER_ID:folder.getId()});
+  return book;
+}
+function historyArchiveRequest_(op, opts) {
+  opts=opts||{};
+  var lock=LockService.getScriptLock();if(!lock.tryLock(10000)){throw new Error('封存目錄忙碌，稍後重試');}
+  try {
+    var book=historyArchiveDirectory_(op==='history-reserve');
+    if(!book){return {ok:true,configured:false,volumes:[]};}
+    var sh=book.getSheetByName('分卷目錄'), rows=sh.getDataRange().getValues();
+    if(op==='history-status'){
+      return {ok:true,configured:true,volumes:rows.slice(1).map(function(r){return {dataset:r[0],volume:r[1],bookId:r[2],state:r[3],sha:r[4],cells:r[5],bytes:r[6]};})};
+    }
+    var dataset=String(opts.dataset||'');
+    if(!/^[a-z][a-z0-9-]{0,60}$/.test(dataset)){throw new Error('封存資料集名稱不合法');}
+    if(op==='history-route'){
+      for(var j=rows.length-1;j>=1;j--){if(rows[j][0]===dataset&&rows[j][3]==='已核對'){return {ok:true,found:true,dataset:dataset,bookId:rows[j][2],volume:rows[j][1],sha:rows[j][4]};}}
+      return {ok:true,found:false};
+    }
+    if(op==='history-commit') {
+      var i=Number(opts.row), r=rows[i-1];
+      if(!r||r[0]!==dataset||String(r[2])!==String(opts.bookId)||r[3]!=='準備中'){throw new Error('封存提交來源不符');}
+      if(!/^[a-f0-9]{64}$/.test(String(opts.sha||''))){throw new Error('缺少讀回指紋');}
+      // 指紋在 Python 完整讀回後送入；目錄只公開已驗證版本。
+      var volume=SpreadsheetApp.openById(r[2]), cells=backupArchiveCells_(volume);
+      if(cells>HISTORY_ARCHIVE_CELL_BUDGET_||Number(opts.bytes)>HISTORY_ARCHIVE_BYTE_BUDGET_){throw new Error('封存卷超過保守容量門檻，舊卷保留');}
+      sh.getRange(i,4,1,5).setValues([['已核對',opts.sha,cells,Number(opts.bytes)||0,nowStamp_()]]);
+      return {ok:true,verified:true,volume:r[1],cells:cells};
+    }
+    var cells=Number(opts.cells), bytes=Number(opts.bytes), email=String(opts.serviceEmail||'');
+    if(!(cells>0&&cells<=HISTORY_ARCHIVE_CELL_BUDGET_)||!(bytes>0&&bytes<=HISTORY_ARCHIVE_BYTE_BUDGET_)){throw new Error('單卷資料過大，請按年份或代號分片');}
+    if(!/^[^@]+@[^@]+\.iam\.gserviceaccount\.com$/.test(email)){throw new Error('封存僅能沿用既有服務帳號');}
+    var allowed=getSS_().getEditors().some(function(u){return u.getEmail()===email;});
+    if(!allowed){throw new Error('服務帳號不是主表既有編輯者');}
+    if(!/^[a-f0-9]{64}$/.test(String(opts.sha||''))){throw new Error('缺少來源指紋');}
+    var match=-1;
+    for(var n=1;n<rows.length;n++){if(rows[n][0]===dataset&&rows[n][4]===opts.sha&&/^(已核對|準備中)$/.test(rows[n][3])){match=n;break;}}
+    if(match>=0){var found=rows[match];return {ok:true,unchanged:found[3]==='已核對',bookId:found[2],volume:found[1],row:match+1};}
+    var number=rows.length, volume=SpreadsheetApp.create('盤勢有據－歷史封存 '+number+' '+dataset);
+    volume.setSpreadsheetTimeZone('Asia/Taipei');
+    DriveApp.getFileById(volume.getId()).moveTo(DriveApp.getFolderById(PropertiesService.getScriptProperties().getProperty('HISTORY_ARCHIVE_FOLDER_ID')));
+    volume.addEditor(email);
+    sh.appendRow([dataset,number,volume.getId(),'準備中',opts.sha,cells,bytes,nowStamp_()]);
+    return {ok:true,unchanged:false,bookId:volume.getId(),volume:number,row:sh.getLastRow()};
+  } finally {lock.releaseLock();}
 }

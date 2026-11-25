@@ -1,0 +1,41 @@
+name: history-volume-sync
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        options: [status, sync]
+        default: status
+permissions:
+  contents: read
+concurrency:
+  group: history-volume-sync
+  cancel-in-progress: false
+jobs:
+  archive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - run: pip install 'gspread>=6,<7' requests
+      - name: Load existing public history archive
+        if: inputs.mode == 'sync'
+        run: |
+          git fetch --depth=1 origin valuation-history
+          git archive FETCH_HEAD valuation | tar -x
+      - name: Independent historical volumes, main workbook untouched
+        env:
+          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          if [ "$MODE" = sync ]; then
+            python scripts/history_volume_sync.py valuation
+          else
+            python scripts/history_volume_sync.py --status
+          fi

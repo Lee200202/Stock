@@ -73,6 +73,16 @@ def main():
     report['forecast'] = {'status': 'requires-two-timestamped-inventories',
                           'note': 'API latency cannot predict capacity exhaustion; measure cell and payload growth over time.'}
     previous = Path('previous-capacity-report.json')
+    samples = []
+    for sample in Path('.capacity-samples').glob('*.json'):
+        doc = json.loads(sample.read_text(encoding='utf-8'))
+        age = (datetime.fromisoformat(report['at']) - datetime.fromisoformat(doc['at'])).total_seconds()
+        if age > 0:
+            samples.append((age, doc))
+    if samples:
+        daily = sorted((x for x in samples if x[0] >= 86400), key=lambda x: x[0])
+        baseline = daily[0][1] if daily else max(samples, key=lambda x: x[0])[1]
+        previous.write_text(json.dumps(baseline), encoding='utf-8')
     if previous.exists():
         report['forecast'] = forecast(report, json.loads(previous.read_text(encoding='utf-8')))
     # A cell forecast does not cover Google's separate document-size edit restriction.

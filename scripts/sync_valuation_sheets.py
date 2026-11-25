@@ -88,24 +88,23 @@ def sync(directory):
 
 
 def delete_sheets():
-    """刪除估值歷史 A、估值歷史 B 與估值歷史索引分頁，釋放主試算表空間。"""
+    """刪除估值歷史 A、估值歷史 B、估值歷史索引，以及任何其他含有『估值』名稱的分頁，釋放主試算表空間。"""
     import gspread
     book = gspread.service_account_from_dict(service_credentials()).open_by_key(os.environ['SPREADSHEET_ID'])
     worksheets = retry(book.worksheets)
-    print(f'連線成功：試算表目前共有 {len(worksheets)} 個分頁')
-    sheet_map = {sheet.title: sheet for sheet in worksheets}
+    print(f'連線成功：試算表目前共有 {len(worksheets)} 個分頁：{[s.title for s in worksheets]}')
+    targets = [s for s in worksheets if '估值' in s.title or s.title in (TABS['A'], TABS['B'], INDEX)]
+    if not targets:
+        print('目前試算表內沒有任何估值相關分頁需要刪除。')
+        return
     deleted = []
-    for name in (TABS['A'], TABS['B'], INDEX):
-        if name in sheet_map:
-            ws = sheet_map[name]
-            print(f'正在刪除分頁：{name}（列數: {ws.row_count}, 欄數: {ws.col_count}）...')
-            retry(book.del_worksheet, ws)
-            deleted.append(name)
-            print(f'已成功刪除分頁：{name}')
-        else:
-            print(f'分頁不存在，略過：{name}')
+    for ws in targets:
+        print(f'正在刪除分頁：{ws.title}（列數: {ws.row_count}, 欄數: {ws.col_count}）...')
+        retry(book.del_worksheet, ws)
+        deleted.append(ws.title)
+        print(f'已成功刪除分頁：{ws.title}')
     remaining = retry(book.worksheets)
-    print(f'清理完成，共刪除 {len(deleted)} 個分頁。')
+    print(f'清理完成，共刪除 {len(deleted)} 個分頁：{deleted}')
     print(f'剩餘 {len(remaining)} 個分頁：{[s.title for s in remaining]}')
 
 

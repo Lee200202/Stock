@@ -1,0 +1,31 @@
+diff --git a/scripts/repairs/2026-11-19-source-review.json b/scripts/repairs/2026-11-19-source-review.json
+new file mode 100644
+index 000000000..9b0f147bf
+--- /dev/null
++++ b/scripts/repairs/2026-11-19-source-review.json
+@@ -0,0 +1,25 @@
++{
++  "date": "2026/11/19",
++  "video_id": "rtD25lWod4Q",
++  "raw_sha256": "72dc9b1b4b38dd4bf3cd9c492910eaaa62ad2dca4eddce5528cd9de2c00ca9c3",
++  "authorization": "管理者 LINE 裁示 R20261119120202984",
++  "review_basis": "回答複核問題 Q202611191150371：環球晶那段「從400塊漲4倍到1,600、今天400多」的圖是環球晶，說明補上400漲到1,600、今天400多。分類維持觀望不碰，其他列不動。",
++  "items": [
++    {
++      "code": "6488",
++      "name": "環球晶",
++      "category": "watch_avoid",
++      "previous_category": "watch_avoid",
++      "action": "update",
++      "previous_note_sha256": "73e0ac7de99cb23bec2844baadcbc8bc25d05025736be9d32d37d1edbbc9b8fc",
++      "text": "環球晶屬於矽晶圓族群。當時從400塊漲4倍到1,600塊，追高的人一路買，如今又打回原點、今天只剩400多塊。講者說這就是當時告訴大家不要亂碰的原因，目前亦不建議進場。",
++      "quotes": [
++        "所以，我為什麼不叫你們買 環球晶？",
++        "你看他當時從 400 塊漲 4 倍，漲到 1,600，你們就從這邊一路買，一路買，一路買，一路買，買到這邊，他又打回原點。",
++        "那今天 幾塊錢？今天幾塊錢？\n\n400 多。",
++        "所以當時政正為什麼告訴你們不要亂碰的原因"
++      ],
++      "rationale": "管理者回答 Q202611191150371：該段的圖是環球晶，說明補上400漲到1,600、今天400多；分類維持觀望不碰（本股自身漲多打回原形、明講不要亂碰）。"
++    }
++  ]
++}

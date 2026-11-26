@@ -5492,4 +5492,6 @@ html[data-view="mobile"] body[data-tab] .tsum-i { background: var(--panel); }
 /* 回到頂端置中（管理者 10/23）：先前固定在左下角 */
 .totop { left: 50%; right: auto; transform: translateX(-50%); }
 .totop:active { transform: translate(-50%, 1px); }
+/* 持有天數為一個完整詞組；空間不足時整組換行。 */
+.tx-out .tx-holding-days { display: inline-block; white-space: nowrap; overflow-wrap: normal; }
 </style>

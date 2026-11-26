@@ -1,6 +1,11 @@
 name: gemini-recovery-check
 on:
   workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        options: [short, configuration]
+        default: short
 permissions:
   contents: read
 concurrency:
@@ -20,7 +25,15 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
-        run: python scripts/probe_gemini_recovery.py
+          GEMINI_THINKING_LEVEL: ${{ vars.GEMINI_THINKING_LEVEL || 'auto' }}
+          GEMINI_MAX_OUT: ${{ vars.GEMINI_MAX_OUT }}
+          RECOVERY_MODE: ${{ inputs.mode }}
+        run: |
+          if [ "$RECOVERY_MODE" = configuration ]; then
+            python scripts/probe_gemini_configuration.py
+          else
+            python scripts/probe_gemini_recovery.py
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: gemini-recovery-${{ github.run_id }}

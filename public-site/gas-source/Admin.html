@@ -1234,6 +1234,10 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
 .held-toolbar .held-toggle,.held-toolbar .tracker-sortbar { margin:0; }
 .held-toolbar .tracker-sortbar { min-width:0; max-width:100%; }
 .held-toolbar .chartbar { flex-wrap:wrap; }
+.held-expiry { display:flex; align-items:center; gap:6px; margin:0; white-space:nowrap; font-size:calc(14px * var(--rd-fs)); }
+.held-expiry[hidden] { display:none; }
+.held-expiry input { width:4.5em; min-width:0; min-height:44px; padding:6px 10px; border-radius:var(--r-pill); text-align:center; }
+.held-expiry button { min-height:44px; }
 .hrow-view,.hrow-wrap.is-exited .hrow-view { grid-template-columns:minmax(0,1fr) minmax(180px,.75fr); grid-template-areas:"hn hp" "hd hc" "hx hx" "edit edit"; gap:20px 28px; }
 .hrow-view .hp { flex-direction:row; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:8px 12px; }
 .hrow-view .hp::before,.hrow-view .hd::before { display:none; }
@@ -1659,6 +1663,7 @@ html[data-view="mobile"] .hrow-view .hp { justify-content:flex-start; }
         <div class="held-toolbar"><div class="chartbar seg held-toggle" id="heldToggle" role="group" aria-label="持股狀態">
           <button type="button" class="pill" data-hk="held" aria-pressed="true">持有</button><button type="button" class="pill" data-hk="exited" aria-pressed="false">已出場</button>
         </div>
+        <form class="held-expiry" id="heldExpiry" hidden title="未提及超過指定交易日後結束追蹤；套用會重算全部歷史績效。"><label for="heldExpiryDays">未提</label><input id="heldExpiryDays" type="number" min="1" max="60" step="1" required inputmode="numeric" aria-label="未提及期限（交易日）"><span>日</span><button type="submit" class="pill" id="heldExpirySave">套用</button></form>
         <div class="tracker-sortbar" id="heldSortBar"><span class="tracker-sort-k">排序</span><div class="chartbar seg" id="heldSort" role="group" aria-label="排序方式"></div></div></div>
         <div class="amsg" id="heldMsg"></div>
         <div id="heldList" class="held-list"><div class="erow-empty">切到這一頁時讀取。</div></div>
@@ -5421,6 +5426,10 @@ var mergeTxFingerprint='';
     $('heldList').innerHTML = '<div class="erow-empty polish-list-loading" role="status"><span class="polish-spinner" aria-hidden="true"></span>讀取中…<i aria-hidden="true"></i></div>';
     google.script.run.withSuccessHandler(function (r) {
       if (!r || !r.ok) { $('heldList').innerHTML = '<div class="erow-empty">讀取失敗：' + esc(r ? r.reason : '沒有回應') + '</div>'; return; }
+      if (Number.isInteger(r.staleTradingDays)) {
+        $('heldExpiry').hidden = false;
+        $('heldExpiryDays').value = r.staleTradingDays;
+      }
       lists = { held: r.items || [], exited: r.exited || [] };
       drawRemoved(r.removed || []);
       applySort(); paintToggle(); draw();
@@ -5456,6 +5465,20 @@ var mergeTxFingerprint='';
     var b = e.target.closest ? e.target.closest('[data-hs]') : null;
     if (b) { setHeldSort(b.getAttribute('data-hs')); }
   }); }
+  $('heldExpiry').addEventListener('submit', function (e) {
+    e.preventDefault();
+    if ($('heldList').querySelector('.hrow-wrap.dirty')) { show($('heldMsg'), 'warn', '請先儲存或收起持股修改。'); return; }
+    var n = Number($('heldExpiryDays').value);
+    if (!Number.isInteger(n) || n < 1 || n > 60) { $('heldExpiryDays').reportValidity(); return; }
+    var b = $('heldExpirySave'); b.disabled = true; b.textContent = '套用中';
+    google.script.run.withSuccessHandler(function (r) {
+      b.disabled = false; b.textContent = '套用';
+      show($('heldMsg'), r && r.ok ? 'ok' : 'err', (r && (r.message || r.reason)) || '沒有回應');
+      if (r && r.ok) { $('heldExpiryDays').value = r.staleTradingDays; if (r.changed) { watch(true); } }
+    }).withFailureHandler(function () {
+      b.disabled = false; b.textContent = '套用'; show($('heldMsg'), 'err', '連線失敗，請重新讀取清單確認期限。');
+    }).apiAdminSetTrackerDays(KEY, n);
+  });
   if ($('heldLoadBtn')) { $('heldLoadBtn').addEventListener('click', load); }
   if ($('heldSaveTopBtn')) { $('heldSaveTopBtn').addEventListener('click', saveAllDirty); }
   if ($('heldSaveAll')) { $('heldSaveAll').addEventListener('click', saveAllDirty); }

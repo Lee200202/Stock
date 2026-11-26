@@ -970,6 +970,13 @@ function sortRecords_(list) {
 // 用交易日而不是日曆日，因為連假期間他本來就沒在講盤，
 // 用日曆日會讓中秋或農曆年前後的每一次不碰都被當成真的出場。
 // 十天與 STALE_TRADING_DAYS 一致：那是這個系統對「還在追蹤中」的一貫定義。
+/** 管理者可調整未提及逾期門檻；未設定時保留原來的 10 個交易日。 */
+function trackerStaleTradingDays_() {
+  var raw = PropertiesService.getScriptProperties().getProperty('TRACKER_STALE_TRADING_DAYS');
+  var n = Number(raw);
+  return raw !== null && /^\d+$/.test(String(raw)) && n >= 1 && n <= 60 ? n : 10;
+}
+
 var AVOID_REOPEN_TRADING_DAYS = 10;
 
 // 日曆日的上限，與上面那個一起看。
@@ -1472,7 +1479,7 @@ function rebuildHoldingsTrackerJobRun_(options) {
     for (var i = 0; i < tradingDays.length; i++) { if (tradingDays[i] > dateStr) { n++; } }
     return n;
   }
-  var STALE_TRADING_DAYS = 10;   // 超過這個交易日數沒再提及，自動視為已出場
+  var STALE_TRADING_DAYS = trackerStaleTradingDays_();   // 超過這個交易日數沒再提及，自動視為已出場
 
   Object.keys(groups).forEach(function (key) {
     var g = groups[key];

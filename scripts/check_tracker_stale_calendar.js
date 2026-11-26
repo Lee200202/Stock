@@ -5,7 +5,7 @@ const path = require('path');
 const assert = require('assert');
 const src = fs.readFileSync(path.join(__dirname, '..', 'public-site', 'gas-source', 'SheetService.gs'), 'utf8');
 const start = src.indexOf('  var tradingDays = (function () {');
-const end = src.indexOf('  var STALE_TRADING_DAYS = 10;', start);
+const end = src.indexOf('  var STALE_TRADING_DAYS =', start);
 assert(start > 0 && end > start, '找不到交易日曆區塊');
 const block = src.slice(start, end);
 

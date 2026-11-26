@@ -22,6 +22,7 @@ on:
       - scripts/build_secure_admin.py
       - scripts/check_ss_open_once.js
       - scripts/check_tracker_stale_calendar.js
+      - scripts/check_tracker_expiry.cjs
       - scripts/check_quote_flow.js
       - scripts/test_history_memory.cjs
       - scripts/check_main_volume.js
@@ -105,7 +106,9 @@ jobs:
       - name: 主資料試算表一次執行只開一次
         run: node scripts/check_ss_open_once.js
       - name: 持股追蹤交易日曆（今天的節目處理完也算一天）
-        run: node scripts/check_tracker_stale_calendar.js
+        run: |
+          node scripts/check_tracker_stale_calendar.js
+          node scripts/check_tracker_expiry.cjs
       - name: 分批買進與部分賣出的報酬（v227）
         run: node scripts/check_tracker_lots.js
       - name: 每週檢討結果卡（LINE Flex 結構）

@@ -1036,6 +1036,30 @@ function apiAdminKCoverage(key) {
  * 管理者填新的成本後寫進「持股成本覆寫」，排一輪同步（持股追蹤 → 歷史績效 → 目前績效），
  * 不必回到開倉那一天去改原始紀錄，也不會重寫郵件。
  * ------------------------------------------------------------------ */
+/** 更新全期間追蹤期限；只排既有持股／績效重算，不寄送通知。 */
+function apiAdminSetTrackerDays(key, value) {
+  try {
+    adminAuth_(key);
+    var raw = String(value == null ? '' : value).trim(), n = Number(raw);
+    if (!/^\d+$/.test(raw) || n < 1 || n > 60) { return { ok:false, reason:'請輸入 1 至 60 個交易日。' }; }
+    var changed = withLock_(function () {
+      var prev = trackerStaleTradingDays_();
+      if (prev === n) { return false; }
+      var st = daySyncState_();
+      if (st && ['處理中','等待續跑'].indexOf(st.status) >= 0) { throw new Error('有重算正在進行，完成後再調整期限。'); }
+      // 期限與重算佇列一起保存，避免設定改了、重算卻未排入。
+      var p = PropertiesService.getScriptProperties(), q = JSON.parse(p.getProperty('dayEditQueueV47') || '{}');
+      q['COST:' + PERFORMANCE_START_DATE] = Date.now();
+      p.setProperties({ TRACKER_STALE_TRADING_DAYS:String(n), dayEditQueueV47:JSON.stringify(q) });
+      return true;
+    });
+    if (!changed) { return { ok:true, changed:false, staleTradingDays:n, message:'期限未變更。' }; }
+    try { dayEditSyncTick_(); } catch (e) { Logger.log('追蹤期限已排重算，由既有排程接續：' + e.message); }
+    var sync = { queued:true, date:PERFORMANCE_START_DATE };
+    return { ok:true, changed:true, staleTradingDays:n, sync:sync, message:'已設為 ' + n + ' 個交易日，持股與歷史績效重算中。' };
+  } catch (e) { return { ok:false, reason:String(e.message || e) }; }
+}
+
 function apiAdminHeldList(key) {
   try {
     adminAuth_(key);
@@ -1054,7 +1078,7 @@ function apiAdminHeldList(key) {
       return out;
     };
     var removed = readTrackerExclusions_();
-    return { ok: true, removed: Object.keys(removed).sort().map(function (code) { return removed[code]; }), items: held.map(function (i) { return view(i, false); }),
+    return { ok: true, staleTradingDays:trackerStaleTradingDays_(), removed: Object.keys(removed).sort().map(function (code) { return removed[code]; }), items: held.map(function (i) { return view(i, false); }),
              exited: exited.map(function (i) { return view(i, true); }) };
   } catch (e) { return { ok: false, reason: String(e.message || e) }; }
 }

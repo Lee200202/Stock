@@ -83,7 +83,7 @@ function siteBridge_(e) {
       'apiAdminManualEntry apiAdminMergeTranscripts apiAdminOpsDay apiAdminPreviewCleanup ' +
       'apiAdminRebuildMail apiAdminReclassify apiAdminResumeFullFix apiAdminResumeJob ' +
       'apiAdminRetryFullFixStep apiAdminRunInfo apiAdminSetDailyPushDefault apiAdminSetDailyPushStart ' +
-      'apiAdminSetHoldingCost apiAdminSetTrackerExcluded apiAdminSmsDays apiAdminSmsState apiAdminStartDaySync ' +
+      'apiAdminSetHoldingCost apiAdminSetTrackerDays apiAdminSetTrackerExcluded apiAdminSmsDays apiAdminSmsState apiAdminStartDaySync ' +
       'apiAdminStartFullFix apiAdminStartRefreshFrom apiAdminStartSmsJob apiAdminSubmit ' +
       'apiAdminTodayStatus apiAdminUpdateRow').split(' ');
     if (adminNames.indexOf(method) < 0) { return { ok: false, error: 'method-not-allowed' }; }

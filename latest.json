@@ -1,23 +1,23 @@
 {
-  "at": "2026-11-25T10:01:18.807386+00:00",
+  "at": "2026-11-26T09:34:42.319183+00:00",
   "main": {
-    "allocatedCells": 6433642,
+    "allocatedCells": 6478820,
     "publishedCellLimit": 20000000,
     "projectRotationThreshold": 10000000,
-    "remainingCellsToProjectThreshold": 3566358,
-    "publishedCellUtilization": 0.321682,
+    "remainingCellsToProjectThreshold": 3521180,
+    "publishedCellUtilization": 0.323941,
     "tabs": [
       {
         "name": "日K快取",
-        "rows": 74022,
+        "rows": 74271,
         "columns": 26,
-        "cells": 1924572
+        "cells": 1931046
       },
       {
         "name": "小時K",
-        "rows": 71592,
+        "rows": 72842,
         "columns": 26,
-        "cells": 1861392
+        "cells": 1893892
       },
       {
         "name": "盤中快照",
@@ -27,9 +27,9 @@
       },
       {
         "name": "使用紀錄",
-        "rows": 20980,
+        "rows": 21168,
         "columns": 26,
-        "cells": 545480
+        "cells": 550368
       },
       {
         "name": "股票對照表",
@@ -39,27 +39,27 @@
       },
       {
         "name": "逐字稿判讀稽核",
-        "rows": 6267,
+        "rows": 6329,
         "columns": 6,
-        "cells": 37602
+        "cells": 37974
       },
       {
         "name": "操作紀錄",
-        "rows": 1400,
+        "rows": 1409,
         "columns": 26,
-        "cells": 36400
+        "cells": 36634
       },
       {
         "name": "判定歷程",
-        "rows": 4451,
+        "rows": 4494,
         "columns": 8,
-        "cells": 35608
+        "cells": 35952
       },
       {
         "name": "Yahoo分K",
-        "rows": 1248,
+        "rows": 1250,
         "columns": 26,
-        "cells": 32448
+        "cells": 32500
       },
       {
         "name": "會員簡訊稽核",
@@ -69,15 +69,15 @@
       },
       {
         "name": "會員持股",
-        "rows": 1098,
+        "rows": 1101,
         "columns": 26,
-        "cells": 28548
+        "cells": 28626
       },
       {
         "name": "簡訊內容同步",
-        "rows": 1043,
+        "rows": 1044,
         "columns": 26,
-        "cells": 27118
+        "cells": 27144
       },
       {
         "name": "市場總覽快取",
@@ -237,9 +237,9 @@
       },
       {
         "name": "系統狀態",
-        "rows": 4112,
+        "rows": 4143,
         "columns": 6,
-        "cells": 24672
+        "cells": 24858
       },
       {
         "name": "分類裁決",
@@ -261,15 +261,15 @@
       },
       {
         "name": "辨識日誌",
-        "rows": 1063,
+        "rows": 1064,
         "columns": 8,
-        "cells": 8504
+        "cells": 8512
       },
       {
         "name": "代號對照快取",
-        "rows": 1993,
+        "rows": 1997,
         "columns": 4,
-        "cells": 7972
+        "cells": 7988
       },
       {
         "name": "逐字稿刷新檢查點",
@@ -284,30 +284,30 @@
         "cells": 5980
       }
     ],
-    "dateColumnReadSeconds": 1.321,
+    "dateColumnReadSeconds": 0.967,
     "recentRowCounts": [
       {
         "name": "日K快取",
         "rowsByDate": {
-          "2026-11-17": 249,
           "2026-11-18": 250,
           "2026-11-19": 250,
           "2026-11-20": 250,
           "2026-11-23": 249,
           "2026-11-24": 249,
-          "2026-11-25": 249
+          "2026-11-25": 249,
+          "2026-11-26": 249
         }
       },
       {
         "name": "小時K",
         "rowsByDate": {
-          "2026-11-17": 1240,
           "2026-11-18": 1240,
           "2026-11-19": 1240,
           "2026-11-20": 1240,
           "2026-11-23": 1240,
           "2026-11-24": 1240,
-          "2026-11-25": 500
+          "2026-11-25": 500,
+          "2026-11-26": 1250
         }
       },
       {
@@ -317,13 +317,13 @@
       {
         "name": "使用紀錄",
         "rowsByDate": {
-          "2026-11-19": 57,
           "2026-11-20": 32,
           "2026-11-21": 4,
           "2026-11-22": 8,
           "2026-11-23": 23,
           "2026-11-24": 46,
-          "2026-11-25": 57
+          "2026-11-25": 111,
+          "2026-11-26": 134
         }
       }
     ],
@@ -335,26 +335,26 @@
   "backup": {
     "ok": true,
     "configured": true,
-    "archived": 64,
-    "cells": 1985956,
+    "archived": 71,
+    "cells": 2203244,
     "cellLimit": 10000000,
-    "prunable": 0,
-    "prunableCells": 0,
+    "prunable": 12,
+    "prunableCells": 364782,
     "oldest": "2026/11/18"
   },
   "forecast": {
     "main": {
-      "sampleDays": 0.0076,
-      "netGrowthCells": 78,
-      "cellsPerDay": 10293.73,
+      "sampleDays": 0.9891,
+      "netGrowthCells": 45256,
+      "cellsPerDay": 45754.75,
       "daysToProjectRotationThreshold": null,
       "daysToPublishedCellLimit": null,
       "status": "insufficient-positive-daily-history"
     },
     "backup": {
-      "sampleDays": 0.0076,
-      "netGrowthCells": 0,
-      "cellsPerDay": 0.0,
+      "sampleDays": 0.9891,
+      "netGrowthCells": 217288,
+      "cellsPerDay": 219682.64,
       "daysToProjectRotationThreshold": null,
       "daysToPublishedCellLimit": null,
       "status": "insufficient-positive-daily-history"

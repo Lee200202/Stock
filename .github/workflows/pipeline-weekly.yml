@@ -70,6 +70,8 @@ jobs:
           GEMINI_RPM: '10'
           GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
           FINAL_ATTEMPT: 'true'
         run: python scripts/weekly_review/workflow_steps.py replay .weekly/gate.json .weekly/replays.json
       - name: 本週未修正的明確錯誤：逐檔修正計畫（先預覽再套用）
@@ -105,6 +107,8 @@ jobs:
         env:
           GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
           REVIEW_LOG_ID: ${{ vars.REVIEW_LOG_ID }}
           GEMINI_API_KEY: offline
         run: |
@@ -115,6 +119,8 @@ jobs:
         env:
           GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
           REVIEW_LOG_ID: ${{ vars.REVIEW_LOG_ID }}
           GEMINI_API_KEY: offline
           GATE: ${{ steps.gate.outcome }}
@@ -140,6 +146,8 @@ jobs:
         env:
           GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
           REVIEW_LOG_ID: ${{ vars.REVIEW_LOG_ID }}
           GEMINI_API_KEY: offline
         run: |

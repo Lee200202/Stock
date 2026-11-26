@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from sync_valuation_sheets import encode, retry, service_credentials
@@ -47,6 +48,22 @@ def partitions(directory):
             size += n
         if batch:
             yield f'valuation-{year}-{shard:02d}', batch
+
+
+def paced_write(call, *args, **kwargs):
+    """2026/11/25：第一次同步寫到 2014 年撞上「每分鐘寫入次數」上限（429），而這個上限是正式排程共用的同一個服務帳號。
+    每次寫入後停 2 秒（每分鐘最多 30 次，留一半給正式工作）；仍撞到 429 就等 65 秒跨過一分鐘窗口再寫，最多三次。"""
+    from gspread.exceptions import APIError
+    for attempt in range(4):
+        try:
+            result = retry(call, *args, **kwargs)
+            time.sleep(2)
+            return result
+        except APIError as error:
+            if error.code != 429 or attempt == 3:
+                raise
+            print('寫入配額已滿，等 65 秒再寫')
+            time.sleep(65)
 
 
 def table_for(rows):
@@ -108,7 +125,7 @@ def main():
         # Every sheet stays under 20MB; old verified volumes are never overwritten.
         retry(sheet.resize, rows=len(table), cols=len(table[0]))
         for start in range(0, len(table), 40):
-            retry(sheet.update, table[start:start+40], f'A{start+1}', raw=True)
+            paced_write(sheet.update, table[start:start+40], f'A{start+1}', raw=True)
         read = retry(sheet.get_all_values)
         restored = []
         for i, row in enumerate(read):

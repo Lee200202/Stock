@@ -36,6 +36,21 @@ from google.oauth2.service_account import Credentials
 # 同一個程序裡後面的 `from pipeline import ...` 就會找不到套件
 # （實測跑整套測試時就是這樣壞的）。改成直接依路徑載入，不動全域狀態。
 try:
+    import main_volumes  # 2026/11/25 主資料分卷（同目錄）
+except ModuleNotFoundError:
+    import importlib.util as _ilu
+    _mv_spec = _ilu.spec_from_file_location(
+        "main_volumes", os.path.join(os.path.dirname(os.path.abspath(__file__)), "main_volumes.py"))
+    main_volumes = _ilu.module_from_spec(_mv_spec)
+    _mv_spec.loader.exec_module(main_volumes)
+try:
+    import work_completion
+except ModuleNotFoundError:
+    import importlib.util as _ilu
+    _wc_spec = _ilu.spec_from_file_location('work_completion', os.path.join(os.path.dirname(__file__), 'work_completion.py'))
+    work_completion = _ilu.module_from_spec(_wc_spec)
+    _wc_spec.loader.exec_module(work_completion)
+try:
     from market_holidays import why_closed
 except ModuleNotFoundError:
     import importlib.util as _ilu
@@ -1625,17 +1640,26 @@ def sheets_retry(fn, *args, **kwargs):
     一分鐘窗口才有意義，所以最長等到 70 秒，並加抖動避免同時醒來又一起撞。
     """
     last = None
-    for i, delay in enumerate((0, 10, 30, 70)):
-        if delay:
-            time.sleep(delay + random.uniform(0, 3))
+    relief = 0
+    delays = (0, 10, 30, 70)
+    i = 0
+    while i < len(delays):
+        if delays[i]:
+            time.sleep(delays[i] + random.uniform(0, 3))
+        call = main_volumes.rebind(fn)   # 2026/11/25 換卷後綁在舊卷的呼叫改到新卷同名分頁
         try:
-            return fn(*args, **kwargs)
+            return call(*args, **kwargs)
         except gspread.exceptions.APIError as e:
+            # 2026/11/25：主表「檔案太大、無法繼續編輯」→ 請 Apps Script 先清空白欄、不夠就整本換新，立刻重試
+            if relief < 2 and main_volumes.is_too_large(e) and main_volumes.relieve(str(e), main_volumes.id_of(call)):
+                relief += 1
+                continue
             code = getattr(getattr(e, "response", None), "status_code", None)
             if code not in TRANSIENT:
                 raise
             last = code
             print(f"Sheets 回傳 {code}，第 {i + 1} 次重試")
+            i += 1
     raise RuntimeError(f"Google Sheets 連續重試失敗，最後狀態 {last}")
 
 
@@ -1646,11 +1670,13 @@ def open_sheets():
         info, scopes=["https://www.googleapis.com/auth/spreadsheets"]
     )
     gc = gspread.authorize(creds)
+    main_volumes.remember(gc, who)
     # gspread 6 會把 HTTP 錯誤換成別的型別：403 變成內建的 PermissionError
     # （訊息是空的）、404 變成 SpreadsheetNotFound。不特別接的話，
     # 使用者看到的是一長串 traceback，看不出「要去把試算表分享給誰」。
     try:
-        return sheets_retry(gc.open_by_key, SPREADSHEET_ID)
+        # 2026/11/25 分卷：向 Apps Script 查目前使用中的一卷（查不到就是 SPREADSHEET_ID）
+        return sheets_retry(gc.open_by_key, main_volumes.active_id(SPREADSHEET_ID, who))
     except PermissionError:
         raise SystemExit(
             f"開不了試算表（HTTP 403）。\n"
@@ -9450,6 +9476,12 @@ _ENTRY_VIEW_FACTS = (('entry_for_new', ('allow', 'wait_condition', 'prohibit', '
                      ('forward_view', ('rise', 'fall', 'buy_sell_rule')),
                      ('view_basis', ('chase_lesson',)))
 
+# 已裁決為觀望不碰的追高教材，不因書面化只保留先漲後跌的事實而被末關再次刪掉。
+# 不新增股票或改分類；來源主體與逐項證據仍須通過原有審閱。
+_GATE_CHASE_REVERSAL = re.compile(
+    r'(?:昨天|昨日|前天|上週|上禮拜|上個禮拜)[^。！？!?]{0,14}(?:漲停|大漲|噴|漲\s*[0-9一二三四五六七八九十百千]|漲了)'
+    r'[^！？!?]{0,60}?(?:今天|今日|現在|早上)[^。！？!?]{0,14}(?:跌停|大跌|重挫|跌\s*[0-9一二三四五六七八九十百千]|跌了|殺|吐回)')
+
 
 def stated_entry_view(row: dict, cat: str, verdicts: dict) -> bool:
     """結構化答案裡有沒有本股的進場看法：優先看投給最後分類的那一份問卷，沒有問卷才看擷取的立場欄。"""
@@ -9482,9 +9514,9 @@ def gate_watch_conclusions(signals: dict) -> dict:
             if row.get('_manual_note_kept') or verdict.get('tier') == '人工裁決' or (named and watch_note_conclusion(text)):
                 kept.append(row)
                 continue
-            # 2026/11/25 v51 G1：觀望不碰的說明本身就是本股「昨天漲停／大漲、今天跌停／大跌」——追高反面教材的結論就是這件事
-            # （11/25 聯發科、鴻海，管理者裁示觀望不碰；10/29 大立光「昨日漲335元後今日跌300元」答案檔觀望不碰）。
-            if cat == 'watch_avoid' and named and _UP_THEN_DOWN.search(text):
+            # 2026/11/25 v51 G1（main 2c58f2c6e 同一修法）：觀望不碰的說明本身就是本股「昨天漲停／大漲、今天跌停／大跌」——
+            # 追高反面教材的結論就是這件事（11/25 聯發科、鴻海，管理者裁示觀望不碰；10/29 大立光「昨日漲335元後今日跌300元」）。
+            if cat == 'watch_avoid' and named and _GATE_CHASE_REVERSAL.search(text):
                 kept.append(row)
                 continue
             if _ev_norm(text) and view:
@@ -13907,6 +13939,19 @@ def public_number_digits(signals: dict) -> dict:
                 if isinstance(old, str) and old:
                     new = digits_for_reading(old)
                     if new != old:
+                        # 審閱已完成後的純數字寫法轉換，沿用該份審閱；過期紀錄不可復活。
+                        # 11/24 AES-KY「三倍」→「3倍」曾使唯讀重播誤報缺來源審閱。
+                        review = row.get('_source_attribution_review') or {}
+                        before_sha = hashlib.sha256(old.strip().encode()).hexdigest()
+                        if review.get('text_sha256') == before_sha:
+                            row['_source_attribution_review'] = dict(review,
+                                number_format_from_sha256=before_sha,
+                                text_sha256=hashlib.sha256(new.strip().encode()).hexdigest())
+                        repair = row.get('_claim_repair') or {}
+                        if repair.get('repaired_text_sha256') == before_sha:
+                            row['_claim_repair'] = dict(repair,
+                                number_format_from_sha256=before_sha,
+                                repaired_text_sha256=hashlib.sha256(new.strip().encode()).hexdigest())
                         row[field] = new
                         changed += 1
                     left = cn_number_leftovers(new)
@@ -23570,7 +23615,7 @@ def load_daily_k(ss) -> dict:
     快取是空的也不影響流程，只是少一道驗證。
     """
     try:
-        vals = sheets_retry(ss.worksheet("日K快取").get_all_values)
+        vals = main_volumes.merged_values(ss, "日K快取", ("代號", "日期"), sheets_retry)   # 分卷時含舊卷
     except Exception as e:
         print(f"  讀不到日K快取（{e}），本次略過價位區間驗證")
         return {}
@@ -24560,6 +24605,8 @@ def main():
             if no_show == '今日無直播' or (no_show == '預告停播' and now_h < GIVE_UP_HOUR):
                 print(f'取稿流程已記錄「{no_show}」，當日無影片；每日判讀不再輪詢。')
                 write_preflight("false", no_show)
+                if no_show == '今日無直播':
+                    work_completion.record_completion('daily', today.strftime('%Y/%m/%d'), status='no_video')
                 return
             # 這裡要小心，不能一律「沒影片就跳過」。
             #
@@ -24588,6 +24635,7 @@ def main():
         if status == "完成":
             print(f"今日影片 {v['id']} 已處理完成，沒有事情要做。")
             write_preflight("false", "今日影片已完成")
+            work_completion.record_completion('daily', today.strftime('%Y/%m/%d'), source=v['id'])
             return
 
         print(f"今日影片 {v['id']} 狀態為「{status or '未處理'}」，需要執行。")
@@ -24722,6 +24770,17 @@ if __name__ == "__main__":
         if _SS is not None:
             write_status_log(_SS, "完成" if background_done else "背景待續跑",
                              f"本輪正常結束（未潤飾段數 {POLISH_DEGRADED}）" if background_done else '文章已更新；背景日K／績效尚未完成，已保存檢查點')
+            if background_done and not PREFLIGHT and os.environ.get('WORK_COMPLETION_KIND') == 'daily':
+                # 只在正式資料已完成且背景工作結束後記收據，綠燈／額度暫停不算完成。
+                try:
+                    _day = datetime.now(TAIPEI).date()
+                    _rows = video_rows(_SS)
+                    _ready = ready_transcript_video(_rows, _day)
+                    _, _selected = select_transcript_row(_rows, '', _day.strftime('%Y/%m/%d'))
+                    if _ready and (_selected or {}).get('處理狀態') == '完成':
+                        work_completion.record_completion('daily', _day.strftime('%Y/%m/%d'), source=_ready['id'])
+                except Exception as exc:
+                    print(f'完成標記暫未建立（{type(exc).__name__}）；下次仍核對正式來源，不影響已完成資料')
     except NotReadyYet as e:
         # 綠燈離開。VOD 還沒好不是壞掉，不該亮紅燈，也不該觸發失敗告警。
         print(f"本輪未取得逐字稿：{e}")

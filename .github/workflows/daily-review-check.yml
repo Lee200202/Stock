@@ -43,6 +43,8 @@ jobs:
         env:
           GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
           REVIEW_LOG_ID: ${{ vars.REVIEW_LOG_ID }}
           GEMINI_API_KEY: offline
           DATE: ${{ inputs.date }}

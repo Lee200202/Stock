@@ -80,7 +80,8 @@ function usageAggregate190_(rows,days,now){
 function usageAnalytics190_(options){
  var days=[7,28,90].indexOf(Number(options.days))>=0?Number(options.days):28,includeAdmin=options.includeAdmin===true,key='usageAnalytics190r1:'+days+':'+includeAdmin,cache=CacheService.getScriptCache(),saved=cache.get(key);
  if(saved&&!options.refresh){var v=JSON.parse(saved);v.cached=true;return v;}
- var sh=getSheet_(USAGE_SHEET),last=sh.getLastRow(),n=Math.min(30000,Math.max(0,last-1)),rows=n?sh.getRange(last-n+1,1,n,18).getValues():[];
+ var rows,n,last;/* 2026/11/25 分卷：使用中一卷不足時從舊卷尾端補足（Mainvolume.gs）；沒有分卷模組時照舊只讀使用中一卷 */
+ if(typeof readVolumeTail_==='function'){rows=readVolumeTail_(USAGE_SHEET,30000,18);n=rows.length;last=(rows.total||n)+1;}else{var sh=getSheet_(USAGE_SHEET);last=sh.getLastRow();n=Math.min(30000,Math.max(0,last-1));rows=n?sh.getRange(last-n+1,1,n,18).getValues():[];}
  if(!includeAdmin)rows=rows.filter(function(r){return String(r[2]).indexOf('後台/')!==0&&r[6]!=='admin';});
  var out=usageAggregate190_(rows,days,nowStamp_());out.scanned=n;out.truncated=last-1>n;out.includeAdmin=includeAdmin;out.cached=false;
  try{var s=JSON.stringify(out);if(s.length<90000)cache.put(key,s,60);}catch(e){}return out;

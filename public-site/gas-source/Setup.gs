@@ -296,7 +296,23 @@ function opsTimed_(name, body, args, skipOnClosed) {
         return { skipped: true, reason: closed };
       }
     }
-    return body.apply(null, Array.prototype.slice.call(args || []));
+    try {
+      return body.apply(null, Array.prototype.slice.call(args || []));
+    } catch (e) {
+      /* 2026/11/25：主試算表「檔案太大、無法繼續編輯」時不讓當天卡住——先清空白欄重跑一次，還是不行就整本換到備用卷再重跑。
+         同一次執行只處理一次；換卷本身失敗就把原本的錯誤丟回去（系統狀態與 Actions 照舊看得到）。 */
+      if (MAIN_SWITCH_TRIED_ || typeof mainVolumeTooLarge_ !== 'function' || !mainVolumeTooLarge_(e)) { throw e; }
+      MAIN_SWITCH_TRIED_ = true;
+      var why = name + '：' + String(e.message || e).slice(0, 120);
+      var step = mainVolumeRelieve_(why, false);
+      try {
+        return body.apply(null, Array.prototype.slice.call(args || []));
+      } catch (e2) {
+        if (step.step !== 'trim' || !mainVolumeTooLarge_(e2)) { throw e2; }
+        mainVolumeRelieve_(why, true);
+        return body.apply(null, Array.prototype.slice.call(args || []));
+      }
+    }
   } finally {
     if (byTrigger) { opsRuntimeAdd_(name, Date.now() - t0, name === 'everyFiveMinJob' ? OPS_STAGE_SAMPLE_ : null); }
     if (name === 'everyFiveMinJob') { OPS_STAGE_SAMPLE_ = null; }
@@ -845,6 +861,7 @@ function ensureHeaders_(sh, name) {
       if (String(have[i]).trim() !== want[i]) { return; }
     }
     var add = want.slice(have.length);
+    if (sh.getMaxColumns && sh.getMaxColumns() < have.length + add.length) { sh.insertColumnsAfter(sh.getMaxColumns(), have.length + add.length - sh.getMaxColumns()); }
     sh.getRange(1, have.length + 1, 1, add.length).setValues([add])
       .setFontWeight('bold').setBackground('#EDF0EE');
     Logger.log('分頁「' + name + '」補上欄位：' + add.join('、'));
@@ -892,7 +909,8 @@ function readSheetObjects_(name) {
   return out;
 }
 function readSheetObjectsRaw_(name) {
-  var values = getSheet_(name).getDataRange().getValues();
+  // 2026/11/25 分卷：日K快取、小時K、使用紀錄有舊卷時舊卷在前、使用中在後合併（見 Mainvolume.gs）；其他分頁照舊單卷。
+  var values = (typeof mainVolumeIsSplit_ === 'function' && mainVolumeIsSplit_(name)) ? readVolumeValues_(name).values : getSheet_(name).getDataRange().getValues();
   if (values.length < 2) { return []; }
   var headers = values[0];
   return values.slice(1).map(function (row) {
@@ -1283,13 +1301,14 @@ function showDeployInfo() {
  * ================================================================== */
 
 // 這份檢查表對應的程式碼版本，必須與 Config.gs 的 GAS_BUILD 相同（測試會核對）。
-var PROJECT_BUILD_ = '2026-11-25-capacity-history-v230';
+var PROJECT_BUILD_ = '2026-11-25-main-volumes-v231';
 
 // names：該檔案宣告的函式或常數（缺了代表沒貼或貼成別的檔案）。
 // marker：[函式名, 這一版才有的字串]（找不到代表還是舊版）。
 var PROJECT_FILES_ = [
   { file: 'Feedback.gs', names: ['apiSubmitFeedback'] },
-  { file: 'Subscribers.gs', names: ['apiAdminSubscribers', 'apiAdminSubscriberRemove', 'apiAdminLineConversation', 'apiAdminLineStop', 'lineConvLog_', 'lineAccountRollup_'] },
+  { file: 'Subscribers.gs', names: ['apiAdminSubscribers', 'apiAdminSubscriberRemove', 'apiAdminLineConversation', 'apiAdminLineStop', 'lineConvLog_', 'lineAccountRollup_', 'apiAdminLinePushLog', 'apiAdminLinePushDetail'] },
+  { file: 'Mainvolume.gs', names: ['mainVolumeRequest_', 'readVolumeValues_', 'mainVolumeSwitch_', 'mainVolumeTooLarge_'] },
   { file: 'Adminauth.gs', names: ['adminSecurityEnabled_', 'adminMachineContext_', 'adminSecurityGrant_', 'adminSecurityEmail_', 'enableAdminSecurity_'] },
   { file: 'Reviewhistory.gs', names: ['apiAdminReviewHistory', 'apiAdminReviewHistorySave', 'reviewHistorySnapshot_'] },
   { file: 'UsageAnalytics.gs', names: ['usageWrite190_', 'usageAggregate190_', 'usageAnalytics190_'] },

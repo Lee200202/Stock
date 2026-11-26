@@ -55,6 +55,8 @@ jobs:
           GEMINI_RPM: ${{ vars.GEMINI_EVAL_RPM || '15' }}
           GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
           REPLAY_DATE: ${{ inputs.date }}
           FRESH_VERDICTS: ${{ inputs.fresh_verdicts }}
           INDEPENDENT_REVIEW: ${{ inputs.independent_review }}
@@ -64,6 +66,7 @@ jobs:
           if ! printf '%s' "$GEMINI_RPM" | grep -Eq '^([1-9]|1[0-5])$'; then
             echo "::error::GEMINI_EVAL_RPM 須為 1 至 15；重試與多工作合計仍須遵守同模型專案15RPM"; exit 1
           fi
+          REPLAY_DATE="${REPLAY_DATE//-/\/}"
           if ! printf '%s' "$REPLAY_DATE" | grep -Eq '^[0-9]{4}/[0-9]{1,2}/[0-9]{1,2}$'; then
             echo "::error::日期格式錯誤，要寫成 YYYY/MM/DD"; exit 1
           fi

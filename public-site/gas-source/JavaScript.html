@@ -2298,7 +2298,7 @@ function restatesEarlier_(key, earlier) {
       '<div class="tx-end tx-in"><small' + (rowLots ? ' class="tx-days"' : '') + '>' + esc(entryLabel) + '</small><b>' + fmtPx(entryShown) + '</b>' + (rowLots ? '<small class="tx-avg">平均成本</small>' : '') + '</div>' +
       '<div class="tx-mid" aria-label="' + (isHeld ? '未實現報酬 ' : sold ? '已實現報酬 ' : '追蹤期間變化 ') + esc(retTxt) + '"><span class="tx-line"></span>' +
         '<span class="tx-ret"'+(isHeld?' data-live-ret="'+esc(i.code)+'" data-entry="'+Number(i.entry)+'"'+trackerLotsAttr_(i):'')+'>' + retTxt + '</span>' + cum + '</div>' +
-      '<div class="tx-end tx-out"><small>' + esc(outDate) + (isHeld ? '' : sold ? ' 賣出' : /未再提及/.test(String(i.exitReason || '')) ? ' 最後提及' : ' 追蹤結束') + (Number(i.days) > 0 ? '・持有 ' + Number(i.days) + ' 天' : '') + '</small><b'+(isHeld?' data-live-price="'+esc(i.code)+'"':'')+'>' + fmtPx(i.current) + '</b>' +
+      '<div class="tx-end tx-out"><small>' + esc(outDate) + (isHeld ? '' : sold ? ' 賣出' : /未再提及/.test(String(i.exitReason || '')) ? ' 最後提及' : ' 追蹤結束') + (Number(i.days) > 0 ? '<span class="tx-holding-days">・持有 ' + Number(i.days) + ' 天</span>' : '') + '</small><b'+(isHeld?' data-live-price="'+esc(i.code)+'"':'')+'>' + fmtPx(i.current) + '</b>' +
         '</div>' +
       (i.ret === null && i.why ? '<div class="tx-why">' + esc(i.why) + '</div>' : '') +
     '</div>';

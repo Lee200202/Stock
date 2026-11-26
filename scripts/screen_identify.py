@@ -36,6 +36,30 @@ PASSES = max(1, int(os.environ.get('SCREEN_PASSES', '2')))
 # 純函式與模型介面拆開，方便離線測試；部署時須一起複製這兩個模組。
 from screen_contracts import hms, parse_report, check_codes, consensus, explicit, dedupe, not_listed
 from screen_runtime import Reader
+import importlib.util
+_completion_spec = importlib.util.spec_from_file_location('screen_completion', ROOT / 'pipeline/work_completion.py')
+work_completion = importlib.util.module_from_spec(_completion_spec)
+_completion_spec.loader.exec_module(work_completion)
+
+
+def completed_batch(rows, day, source=''):
+    """Only the latest dated batch counts; failed or partial attempts remain retryable."""
+    def same_day(row):
+        try:
+            return work_completion.day_key(str(row.get('日期') or '')) == work_completion.day_key(day)
+        except ValueError:
+            return False
+    matching = [r for r in rows if r.get('日期') and same_day(r)
+                and (not source or source.startswith('MANUAL-') or r.get('影片ID') == source)]
+    if not matching:
+        return None
+    stamp = max(str(r.get('建立時間') or '') for r in matching)
+    batch = [r for r in matching if str(r.get('建立時間') or '') == stamp]
+    if any(r.get('狀態') in ('失敗', '部分失敗') for r in batch):
+        return None
+    return next((r for r in batch if r.get('影片ID') and r.get('狀態') in
+                 ('待核對', '無', '已核對', '已採用', '已處理', '已確認', '完成',
+                  '已上網站', '網站已有', '待你決定', '不需處理')), None)
 
 
 def trading_day_check():
@@ -55,25 +79,34 @@ def main():
     ap.add_argument('--date', default='')
     ap.add_argument('--force', action='store_true', help='已經跑過也重跑（會再寫一批列）')
     ap.add_argument('--dry-run', action='store_true', help='只印結果，不寫複核紀錄')
+    ap.add_argument('--check-only', action='store_true', help='只核對完成狀態，不呼叫模型、不寫試算表')
     a = ap.parse_args()
+    expected_source = os.environ.get('SCREEN_SOURCE', '').strip()
     import transcript as tx
     from common import LOG_TABS, norm_day, now, open_log, rows_of
     day = norm_day(a.date) if a.date else now().strftime('%Y/%m/%d')
     target = datetime.strptime(day, '%Y/%m/%d').date()
-    log = None if a.dry_run else open_log()
+    log = None if a.dry_run else open_log(ensure_tabs=not a.check_only)
     ws = log.worksheet(TAB) if log else None
     if ws is not None and not a.force:
         head, rows = rows_of(ws)
-        if any(norm_day(r.get('日期')) == day for r in rows):
+        done = completed_batch(rows, day, expected_source)
+        if done:
+            work_completion.record_completion('screen', day, source=expected_source or done['影片ID'])
             print(f'{day} 已經辨識過（畫面辨識分頁已有列）；要重跑加 --force')
             return 0
+    if a.check_only:
+        print(f'{day} 尚無完整辨識結果；只查狀態，不執行模型')
+        return 0
     video = tx.find_video(target, require_details=True)
     if not video:
         print(f'{day} 找不到當天的直播影片；不辨識')
-        return 0
+        return 75 if expected_source else 0
+    if expected_source and not expected_source.startswith('MANUAL-') and video.id != expected_source:
+        raise RuntimeError('就緒來源與目前頻道影片不一致，未啟動辨識；下次重新核對')
     if not video.is_ready(datetime.now(tx.TAIPEI)):
         print(f'{day} 回放還沒處理好（{video.status_text(datetime.now(tx.TAIPEI))}）；下一輪再試')
-        return 0
+        return 75 if expected_source else 0
     url = f'https://www.youtube.com/watch?v={video.id}'
     plan = tx.plan_segments(video.duration_sec, SEGMENT_SECONDS)
     import vocab_learn as vl
@@ -151,6 +184,8 @@ def main():
         vws = log.worksheet(vl.TAB)
         vws.append_rows([[vocab_row(w, stamp, day).get(h, '') for h in vl.HEAD] for w in new_words], value_input_option='RAW')
         print(f'詞庫學習寫入 {len(new_words)} 列')
+    if not errors and ws is not None:
+        work_completion.record_completion('screen', day, source=expected_source or video.id)
     return 1 if errors else 0  # 部分失敗也必須在 Actions 顯示不完整
 
 

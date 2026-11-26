@@ -24,6 +24,8 @@ on:
       - scripts/check_tracker_stale_calendar.js
       - scripts/check_quote_flow.js
       - scripts/test_history_memory.cjs
+      - scripts/check_main_volume.js
+      - scripts/check_line_push_log.js
       - site-api/**
   workflow_dispatch:
 
@@ -110,6 +112,10 @@ jobs:
         run: |
           node scripts/check_line_weekly_card.js
           node scripts/check_line_uri_safe.js
+      - name: 主資料分卷（11/25 寫不進去會清空白欄、換新卷並重跑）與 LINE 推送紀錄（離線）
+        run: |
+          node scripts/check_main_volume.js
+          node scripts/check_line_push_log.js
       - name: 後端橋接實測（失敗就保留上一版網站）
         env:
           SITE_API_URL: ${{ vars.SITE_API_URL }}

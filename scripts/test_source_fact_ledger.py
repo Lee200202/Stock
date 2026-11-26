@@ -12,6 +12,20 @@ def ledger():
   {'id':'F1','subject_codes':['2222'],'source_quote':'乙公司股本比較小，拉起來速度比較快。','subject_quote':'乙公司股本比較小','statement':'乙公司股本較小且拉升較快'},
   {'id':'F2','subject_codes':['1111'],'source_quote':'甲公司尚未見低檔成交量，因此目前沒有買進。','subject_quote':'甲公司尚未見低檔成交量','statement':'甲公司尚待量能條件'}]},RAW,{'1111','2222'})
 class SourceFacts(unittest.TestCase):
+ def test_number_format_preserves_current_review_but_not_stale_review(self):
+  raw='甲公司上漲三倍。';old='甲公司上漲三倍。'
+  sha=lambda text:hashlib.sha256(text.encode()).hexdigest()
+  for current in (True,False):
+   review={'status':'supported','text_sha256':sha(old if current else '其他舊說明'),
+     'source_sha256':sha(raw),'notice_sha256':p.attribution_notice_sha(raw)}
+   row={'code':'1111','name':'甲公司','reason':old,'_source_attribution_review':review,
+     '_claim_repair':{'repaired_text_sha256':review['text_sha256'],'source_sha256':sha(raw)}}
+   p.public_number_digits({'watch_watch':[row]})
+   self.assertEqual(row['reason'],'甲公司上漲3倍。')
+   self.assertEqual(bool(p._current_source_review(row,raw,'reason')),current)
+   self.assertEqual(row['_claim_repair']['repaired_text_sha256']==sha(row['reason']),current)
+   self.assertFalse(p._current_source_review(row,raw+'來源已變','reason'))
+
  def test_notice_facts_are_original_and_expire_when_notice_changes(self):
   raw='甲公司今日名稱被聽錯。';notice='甲公司目前會員持股續抱。'
   context={'transcript_sha256':hashlib.sha256(raw.encode()).hexdigest(),'notices':[{'original':notice}]}

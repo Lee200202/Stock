@@ -41,6 +41,8 @@ jobs:
           GEMINI_THINKING_LEVEL: ${{ vars.GEMINI_THINKING_LEVEL || 'auto' }}
           GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
           AUDIT_DATE: ${{ inputs.date }}
           AUDIT_BASELINE: ${{ inputs.baseline }}
           AUDIT_ALIAS: ${{ inputs.alias }}

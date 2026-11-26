@@ -3,7 +3,7 @@ const enc = new TextEncoder();
 const READ_ADMIN = new Set(('apiAdminLogin apiAdminChainState apiAdminCrawlState apiAdminDayRows apiAdminReviewHistory '+
   'apiAdminDaySyncState apiAdminDecisions apiAdminFixState apiAdminFullFixState apiAdminHeldList apiAdminJobStatus '+
   'apiAdminKCoverage apiAdminLineDiagnose apiAdminLineLookup apiAdminLineStatus apiAdminListSms apiAdminManualDays '+
-  'apiAdminOpsDay apiAdminRunInfo apiAdminSmsDays apiAdminSmsState apiAdminTodayStatus apiAdminSubscribers apiAdminLineConversation').split(' '));
+  'apiAdminOpsDay apiAdminRunInfo apiAdminSmsDays apiAdminSmsState apiAdminTodayStatus apiAdminSubscribers apiAdminLineConversation apiAdminLinePushLog apiAdminLinePushDetail').split(' '));
 export const POLICY = Object.freeze({idle: 15 * 60000, public: 30 * 60000,
   trusted: 7 * 86400000, fresh: 5 * 60000, otp: 5 * 60000, ip: 7 * 86400000, audit: 90 * 86400000});
 export const COOKIE = Object.freeze({session: '__Host-psSession', trust: '__Host-psTrust', pre: '__Host-psPre'});

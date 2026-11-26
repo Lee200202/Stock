@@ -51,6 +51,8 @@ jobs:
         if: steps.calendar.outputs.run == 'true'
         env:
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
           GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
           YAHOO_DATA_ENABLED: ${{ vars.YAHOO_DATA_ENABLED || 'true' }}
           MODE: hours

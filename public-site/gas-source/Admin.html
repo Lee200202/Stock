@@ -1228,6 +1228,40 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
   .panel a.loglink, .panel a.admin-link { transition: none; }
   .panel a.loglink:hover, .panel a.admin-link:hover { transform: none; }
 }
+
+/* 持股核對：價格與報酬並列、時間軸與成本相鄰，編輯契約不變。 */
+.held-toolbar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px 24px; margin:20px 0; }
+.held-toolbar .held-toggle,.held-toolbar .tracker-sortbar { margin:0; }
+.held-toolbar .tracker-sortbar { min-width:0; max-width:100%; }
+.held-toolbar .chartbar { flex-wrap:wrap; }
+.hrow-view,.hrow-wrap.is-exited .hrow-view { grid-template-columns:minmax(0,1fr) minmax(180px,.75fr); grid-template-areas:"hn hp" "hd hc" "hx hx" "edit edit"; gap:20px 28px; }
+.hrow-view .hp { flex-direction:row; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:8px 12px; }
+.hrow-view .hp::before,.hrow-view .hd::before { display:none; }
+.hrow-view .hp-cur { font-size:calc(24px * var(--rd-fs)); line-height:1.3; }
+.hrow-view .hp-ret { margin:0; padding:4px 12px; white-space:nowrap; background:color-mix(in srgb,var(--muted) 10%,var(--panel)); }
+.hrow-view .hp-ret.up { background:color-mix(in srgb,var(--rise) 12%,var(--panel)); }
+.hrow-view .hp-ret.down { background:color-mix(in srgb,var(--fall) 12%,var(--panel)); }
+.hrow-view .held-timeline { position:relative; padding:2px 0; display:grid; gap:20px; }
+.held-timeline::after { content:""; position:absolute; left:5px; top:12px; bottom:28px; width:2px; background:var(--rule); }
+.held-event { position:relative; display:flex; gap:14px; align-items:baseline; z-index:1; }
+.held-event-dot { flex:0 0 12px; width:12px; height:12px; border:2px solid var(--beam); border-radius:50%; background:var(--panel); }
+.held-event-end .held-event-dot { background:var(--beam); }
+.is-exited .held-event-end .held-event-dot { border-color:var(--muted); background:var(--muted); }
+.held-event time { font-family:"IBM Plex Mono",monospace; font-size:calc(15px * var(--rd-fs)); }
+.held-event small { display:block; margin-top:4px; color:var(--muted); font:400 calc(13px * var(--rd-fs))/1.5 "Noto Sans TC",sans-serif; }
+.hrow-view .hc { align-self:start; padding:14px 18px; border-radius:var(--r-md); background:var(--panel-2); }
+.hrow-view .hc-val { font-size:calc(23px * var(--rd-fs)); }
+.held-cost-detail { margin-top:10px; font-size:calc(13px * var(--rd-fs)); }
+.held-cost-detail summary { cursor:pointer; color:var(--muted); }
+.hrow-view .held-row-actions { grid-area:edit; border-top:1px solid var(--rule); padding-top:14px; }
+@media(max-width:760px) {
+ .hrow-view,.hrow-wrap.is-exited .hrow-view,.hrow-wrap.dirty .hrow-view { grid-template-columns:minmax(0,1fr); grid-template-areas:"hn" "hp" "hd" "hc" "hx" "edit"; gap:18px; }
+ .hrow-view .hp { justify-content:flex-start; }
+ .held-toolbar { align-items:flex-start; }
+ .held-toolbar .tracker-sortbar { flex-wrap:wrap; }
+}
+html[data-view="mobile"] .hrow-view,html[data-view="mobile"] .hrow-wrap.is-exited .hrow-view { grid-template-columns:minmax(0,1fr); grid-template-areas:"hn" "hp" "hd" "hc" "hx" "edit"; }
+html[data-view="mobile"] .hrow-view .hp { justify-content:flex-start; }
 </style>
 </head>
 <body>
@@ -1622,10 +1656,10 @@ html[data-view="mobile"] .herow-card { padding: 20px 18px 20px 30px; }
           </div>
         </div>
         <p class="hint">按「修改」或在文字點兩下編輯；改完按「儲存變更並重算績效」。可移除持有或已出場股票的所有追蹤回合，原始紀錄保留，並可在下方還原。現價來自行情快取。</p>
-        <div class="chartbar seg held-toggle" id="heldToggle" role="group" aria-label="持股狀態">
+        <div class="held-toolbar"><div class="chartbar seg held-toggle" id="heldToggle" role="group" aria-label="持股狀態">
           <button type="button" class="pill" data-hk="held" aria-pressed="true">持有</button><button type="button" class="pill" data-hk="exited" aria-pressed="false">已出場</button>
         </div>
-        <div class="tracker-sortbar" id="heldSortBar"><span class="tracker-sort-k">排序</span><div class="chartbar seg" id="heldSort" role="group" aria-label="排序方式"></div></div>
+        <div class="tracker-sortbar" id="heldSortBar"><span class="tracker-sort-k">排序</span><div class="chartbar seg" id="heldSort" role="group" aria-label="排序方式"></div></div></div>
         <div class="amsg" id="heldMsg"></div>
         <div id="heldList" class="held-list"><div class="erow-empty">切到這一頁時讀取。</div></div>
         <details id="heldRemoved" hidden style="margin-top:18px"><summary>已移除的追蹤（可還原）</summary><div id="heldRemovedList" class="held-list" style="margin-top:12px"></div></details>
@@ -5026,14 +5060,16 @@ var mergeTxFingerprint='';
               (x.override ? '<em>已修正</em>' : '') +
               '<span class="tag wait h-dirty-tag" hidden>未儲存</span>' +
             '</span>' +
-            '<span class="hd" data-label="本回合開始">' + esc(x.roundStart) + '</span>' +
-            '<span class="hc" data-label="' + (closed ? '進場成本' : '目前成本') + '">' +
+            '<div class="hd held-timeline" aria-label="本回合時間軸">' +
+              '<div class="held-event"><span class="held-event-dot" aria-hidden="true"></span><div><time>' + esc(x.roundStart || '日期待補') + '</time><small>本回合開始</small></div></div>' +
+              '<div class="held-event held-event-end"><span class="held-event-dot" aria-hidden="true"></span><div><time>' + esc(closed ? (x.lastSell || '日期待補') : '目前') + '</time><small>' + (closed ? '已出場' : '持有中') + '</small></div></div></div>' +
+            '<div class="hc" data-label="' + (closed ? '進場成本' : '目前成本') + '">' +
               '<div class="hc-text">' +
                 '<b class="hc-val">' + fmt(x.entry) + '</b>' +
-                '<small class="hc-src" title="' + esc(costSrc(x)) + '">' + esc(costSrcShort(x)) + '</small>' +
+                '<details class="held-cost-detail"><summary>成本依據</summary><small class="hc-src" title="' + esc(costSrc(x)) + '">' + esc(costSrcShort(x)) + '</small></details>' +
               '</div>' +
-            '</span>' +
-            '<span class="hp" data-label="' + (closed ? '出場價／報酬' : '現價／報酬') + '">' +
+            '</div>' +
+            '<span class="hp" aria-label="' + (closed ? '出場價格與報酬' : '目前價格與報酬') + '">' +
               '<span class="hp-cur">' + fmt(x.current) + '</span>' +
               '<small class="hp-ret ' + (x.ret > 0 ? 'up' : x.ret < 0 ? 'down' : '') + '">' + ret + '</small>' +
             '</span>' +

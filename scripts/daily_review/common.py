@@ -118,7 +118,7 @@ def open_book(pl):
         raise SystemExit('試算表連線失敗：' + str(e) + chr(10) + key_diagnostics())
 
 
-def open_log():
+def open_log(ensure_tabs=True):
     """複核紀錄試算表；缺分頁就補表頭。"""
     import gspread
     from google.oauth2.service_account import Credentials
@@ -126,8 +126,11 @@ def open_log():
     if not log_id:
         raise SystemExit('缺少 REVIEW_LOG_ID（複核紀錄試算表 ID）')
     info = json.loads(os.environ['GOOGLE_SHEETS_SERVICE_ACCOUNT'])
-    creds = Credentials.from_service_account_info(info, scopes=['https://www.googleapis.com/auth/spreadsheets'])
+    scope = 'https://www.googleapis.com/auth/spreadsheets' + ('' if ensure_tabs else '.readonly')
+    creds = Credentials.from_service_account_info(info, scopes=[scope])
     book = gspread.authorize(creds).open_by_key(log_id)
+    if not ensure_tabs:
+        return book
     names = {ws.title for ws in book.worksheets()}
     for tab, head in LOG_TABS.items():
         if tab not in names:

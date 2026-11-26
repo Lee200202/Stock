@@ -977,7 +977,7 @@ function apiAdminKCoverage(key) {
     adminAuth_(key);
     var codes = trackedCodes_(), want = {};
     codes.forEach(function (c) { want[String(c)] = true; });
-    var vals = getSheet_('日K快取').getDataRange().getValues();
+    var vals = readVolumeValues_('日K快取').values;   // 分卷時含舊卷
     var head = (vals[0] || []).map(function (h) { return String(h).trim(); });
     var cCode = head.indexOf('代號'), cDate = head.indexOf('日期'), cClose = head.indexOf('收');
     // 同一交易日會重複數百列。格式化只做每個日期一次，避免數萬次服務呼叫。

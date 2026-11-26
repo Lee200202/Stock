@@ -1553,16 +1553,16 @@ function hourSlot_(value, display) {
 
 /** 小時K 整張表讀成 [{代號, 日期, 時段, 開, 高, 低, 收, 量}]，時段已正規化。 */
 function readHourlyRows_() {
-  var sh = getSheet_('小時K');
-  var last = sh.getLastRow(), width = sh.getLastColumn();
-  if (last < 2 || width < 1) { return []; }
-  var head = sh.getRange(1, 1, 1, width).getValues()[0].map(function (h) { return String(h).trim(); });
+  // 2026/11/25 分卷：有舊卷時舊卷在前、使用中在後合併，同一根以較新的一卷為準（Mainvolume.gs）
+  var all = readVolumeValues_('小時K', ['時段']);
+  if (all.values.length < 2) { return []; }
+  var head = all.values[0].map(function (h) { return String(h).trim(); });
   var col = function (n) { return head.indexOf(n); };
   var need = ['日期', '時段', '代號', '開', '高', '低', '收', '量'];
   var missing = need.filter(function (n) { return col(n) < 0; });
   if (missing.length) { throw new Error('小時K 缺欄位：' + missing.join('、')); }
-  var values = sh.getRange(2, 1, last - 1, width).getValues();
-  var shown = sh.getRange(2, col('時段') + 1, last - 1, 1).getDisplayValues();
+  var values = all.values.slice(1);
+  var shown = (all.display['時段'] || []).map(function (x) { return [x]; });
   var out = [];
   for (var i = 0; i < values.length; i++) {
     var row = values[i];

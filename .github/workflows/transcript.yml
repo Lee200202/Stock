@@ -87,6 +87,7 @@ concurrency:
 
 permissions:
   contents: read
+  actions: write
 
 jobs:
   transcript:
@@ -107,9 +108,22 @@ jobs:
 
       - uses: actions/checkout@v5
 
+      - name: 完成狀態的日期
+        id: workday
+        run: python pipeline/work_completion.py date
+      - uses: actions/cache/restore@v4
+        id: completed_cache
+        if: github.event_name == 'schedule'
+        with:
+          path: .work-completion/transcript.json
+          key: work-complete-v1-transcript-${{ steps.workday.outputs.day }}
+      - name: 已完成就略過初始化與查表
+        id: completion
+        run: python pipeline/work_completion.py check transcript
+
       - name: 交易日預檢
         id: calendar
-        if: github.event_name == 'schedule'
+        if: github.event_name == 'schedule' && steps.completion.outputs.complete != 'true'
         run: |
           python - <<'PY'
           from datetime import datetime
@@ -123,14 +137,14 @@ jobs:
           PY
 
       - uses: actions/setup-python@v6
-        if: github.event_name != 'schedule' || steps.calendar.outputs.run == 'true'
+        if: (github.event_name != 'schedule' || steps.calendar.outputs.run == 'true') && steps.completion.outputs.complete != 'true'
         with:
           python-version: '3.11'
           cache: 'pip'
 
       # 只要幾個純 Python 套件，十幾秒就裝完。不需要瀏覽器。
       - name: 安裝相依套件
-        if: github.event_name != 'schedule' || steps.calendar.outputs.run == 'true'
+        if: (github.event_name != 'schedule' || steps.calendar.outputs.run == 'true') && steps.completion.outputs.complete != 'true'
         run: |
           python -m pip install --upgrade pip
           if [ -f "requirements.txt" ]; then
@@ -140,15 +154,16 @@ jobs:
           fi
 
       - uses: actions/cache/restore@v4
-        if: github.event_name != 'schedule' || steps.calendar.outputs.run == 'true'
+        if: (github.event_name != 'schedule' || steps.calendar.outputs.run == 'true') && steps.completion.outputs.complete != 'true'
         with:
           path: .transcript-cache
           key: transcript-segments-v45-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: transcript-segments-v45-
 
       - name: 執行
-        if: github.event_name != 'schedule' || steps.calendar.outputs.run == 'true'
+        if: (github.event_name != 'schedule' || steps.calendar.outputs.run == 'true') && steps.completion.outputs.complete != 'true'
         env:
+          WORK_COMPLETION_KIND: transcript
           # Gemini。額度依 Google 專案與模型；同專案多把金鑰不增加配額：
           #   逗號分隔，或另外設 GEMINI_API_KEY_2、GEMINI_API_KEY_3。
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -165,6 +180,8 @@ jobs:
           YOUTUBE_CHANNEL_ID: ${{ vars.YOUTUBE_CHANNEL_ID }}
 
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
           GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
           # 2026/11/12：讀直播畫面辨識學到的詞（複核紀錄「詞庫學習」）加進聽打詞表；讀不到照常聽打。
           REVIEW_LOG_ID: ${{ vars.REVIEW_LOG_ID }}
@@ -244,3 +261,23 @@ jobs:
         with:
           path: .transcript-cache
           key: transcript-segments-v45-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: 核對本輪完成證據
+        id: receipt
+        if: success()
+        run: python pipeline/work_completion.py check transcript
+      - uses: actions/cache/save@v4
+        if: success() && steps.receipt.outputs.complete == 'true' && steps.completed_cache.outputs.cache-hit != 'true'
+        with:
+          path: .work-completion/transcript.json
+          key: work-complete-v1-transcript-${{ steps.workday.outputs.day }}
+      - uses: actions/cache/restore@v4
+        if: success() && steps.receipt.outputs.source != ''
+        with:
+          path: .work-completion/screen.json
+          key: work-complete-v1-screen-${{ steps.workday.outputs.day }}-${{ steps.receipt.outputs.source }}
+      - name: 原稿就緒且畫面尚未完成才派發
+        if: success() && steps.receipt.outputs.complete == 'true' && (github.event_name == 'schedule' || inputs.mode == 'auto' || inputs.mode == '')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python pipeline/work_completion.py dispatch-screen transcript

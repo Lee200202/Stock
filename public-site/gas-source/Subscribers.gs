@@ -230,6 +230,54 @@ function apiAdminLineConversation(key, uid, limit) {
   return { ok: true, rows: rows };
 }
 
+/* 2026/11/25 後台「LINE 推送紀錄」：每則推送（每日總覽、盤中通知、管理者通知…）的時間、內容、收件人與結果。
+   直接讀既有的「LINE 待送訊息」與「LINE 寄送帳本」（推送當下就寫入，所以是即時的）；只讀、不另外寫，也不多用 LINE 額度。 */
+var LINE_PUSH_KIND_ = { daily: '每日總覽', sms: '盤中通知', admin: '管理者通知' };
+function linePushTexts_(msgs) {
+  var out = [];
+  (function walk(n) {
+    if (Array.isArray(n)) { n.forEach(walk); return; }
+    if (!n || typeof n !== 'object') { return; }
+    if ((n.type === 'text' || n.type === 'span') && typeof n.text === 'string' && n.text.trim()) { out.push(n.text.trim()); }
+    Object.keys(n).forEach(function (k) { if (k !== 'action' && n[k] && typeof n[k] === 'object') { walk(n[k]); } });
+  })(msgs);
+  return out;
+}
+function apiAdminLinePushLog(key, days) {
+  try { adminAuth_(key); } catch (e) { return { ok: false, reason: String(e.message || e) }; }
+  days = [1, 7, 30].indexOf(Number(days)) >= 0 ? Number(days) : 7;
+  var today = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy/MM/dd');
+  var since = days === 1 ? lineParseTaipei_(today + ' 00:00:00') : Date.now() - days * 86400000;
+  var t = lineOutboxRead_();
+  var rows = t.rows.filter(function (r) { return (r.createdMs || 0) >= since; })
+    .sort(function (a, b) { return (b.createdMs || 0) - (a.createdMs || 0); }).slice(0, 80);
+  var payload = {};
+  if (rows.length && t.ci['內容JSON'] >= 0) {
+    var lo = Math.min.apply(null, rows.map(function (r) { return r.row; })), hi = Math.max.apply(null, rows.map(function (r) { return r.row; }));
+    t.sh.getRange(lo, t.ci['內容JSON'] + 1, hi - lo + 1, 1).getValues().forEach(function (v, i) { payload[lo + i] = v[0]; });
+  }
+  return { ok: true, at: nowStamp_(), days: days, items: rows.map(function (r) {
+    var msgs = []; try { msgs = JSON.parse(String(payload[r.row] || '[]')) || []; } catch (e) { msgs = []; }
+    var texts = linePushTexts_(msgs), first = msgs[0] || {};
+    return { id: r.id, kind: r.kind, kindLabel: LINE_PUSH_KIND_[r.kind] || '其他通知', date: r.date, created: subStamp_(r.created),
+      updated: subStamp_(r.updated), state: r.state, total: r.total, accepted: r.accepted, failed: r.failed, open: r.open,
+      note: r.note, preview: String(first.altText || texts[0] || '').slice(0, 160), text: texts.join('\n').slice(0, 6000) };
+  }) };
+}
+/** 某一則推送的每位收件人：名稱、遮蔽後的帳號、狀態、送達時間、錯誤。 */
+function apiAdminLinePushDetail(key, id) {
+  try { adminAuth_(key); } catch (e) { return { ok: false, reason: String(e.message || e) }; }
+  id = String(id || '');
+  if (!id || id.length > 160) { return { ok: false, reason: '訊息編號不對。' }; }
+  var led = lineLedgerFor_(id), names = {};
+  try { names = lineDisplayNames_(led.rows.map(function (x) { return x.uid; }), 25); } catch (e) { names = {}; }
+  return { ok: true, rows: led.rows.map(function (x) {
+    var v = led.vals[x.i] || [];
+    return { name: names[x.uid] || '', id: lineMask_(x.uid), state: x.state, attempts: x.attempt, error: x.err,
+      at: subStamp_(v[8]) || '', updated: subStamp_(v[7]) || '' };
+  }) };
+}
+
 /** 停止對這個 LINE 帳號推送：每日總覽與盤中通知都關。後台只能關；要再開由本人在 LINE 按訂閱（盤中通知需要本人同意）。 */
 function apiAdminLineStop(key, uid) {
   try { adminAuth_(key); } catch (e) { return { ok: false, reason: String(e.message || e) }; }

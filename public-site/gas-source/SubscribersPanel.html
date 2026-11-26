@@ -39,6 +39,12 @@
 #p-subs .is-bot .chat-bubble{background:var(--panel);border:1px solid var(--rule);border-bottom-left-radius:4px}
 #p-subs .is-user .chat-bubble{background:var(--beam);color:#fff;border-bottom-right-radius:4px}
 #p-subs .chat-line time{flex:none;color:var(--muted);font-size:calc(12px * var(--rd-fs));font-variant-numeric:tabular-nums;white-space:nowrap}
+#p-subs .push-text{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;font-size:calc(14px * var(--rd-fs));line-height:1.6}
+#p-subs .push-full{margin:0;font-family:inherit;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7;font-size:calc(14.5px * var(--rd-fs))}
+#p-subs .push-sub{margin:4px 0 0;font-weight:700;font-size:calc(14px * var(--rd-fs))}
+#p-subs .push-to{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,1.2fr);gap:4px 14px;padding:8px 0;border-top:1px solid var(--rule);font-size:calc(14px * var(--rd-fs));font-variant-numeric:tabular-nums}
+#p-subs .push-to small{color:var(--muted);font-size:calc(13px * var(--rd-fs))}#p-subs .push-to .bad{color:var(--down,#b42318)}
+@media(max-width:760px){#p-subs .push-to{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:760px){#p-subs .subs-row{grid-template-columns:minmax(0,1fr)}#p-subs .subs-act{justify-content:flex-start}#p-subs .subs-q{flex:1 1 100%;margin-left:0}}
 </style>
 <section class="panel" id="p-subs" role="tabpanel" hidden>
@@ -56,6 +62,19 @@
     <div class="amsg" id="subsMsg"></div>
     <div class="subs-list" id="subsEmailList"><p class="subs-empty">開啟分頁後載入。</p></div>
     <p class="subs-note" id="subsEmailNote"></p>
+  </div>
+  <div class="card">
+    <div class="subs-head"><h2>LINE 推送紀錄</h2><div class="subs-head-r"><span class="subs-count" id="pushCount"></span><button type="button" class="ghost" id="pushRefresh" style="border-radius:999px">重新整理</button></div></div>
+    <div class="subs-tools">
+      <div class="subs-seg" role="group" aria-label="推送紀錄期間" id="pushSeg">
+        <button type="button" data-d="1" aria-pressed="false">今天</button>
+        <button type="button" data-d="7" aria-pressed="true">近 7 天</button>
+        <button type="button" data-d="30" aria-pressed="false">近 30 天</button>
+      </div>
+    </div>
+    <div class="amsg" id="pushMsg"></div>
+    <div class="subs-list" id="pushList"><p class="subs-empty">開啟分頁後載入。</p></div>
+    <p class="subs-note" id="pushNote"></p>
   </div>
   <div class="card">
     <div class="subs-head"><h2>LINE 帳號</h2><span class="subs-count" id="subsLineCount"></span></div>
@@ -156,6 +175,45 @@
         .withFailureHandler(function(){open[uid]=[];renderLine();}).apiAdminLineConversation(KEY,uid,60);
     }
   });
-  window.__loadSubs=function(){if(!data)load();};
+  /* 2026/11/25 LINE 推送紀錄：每則推送的時間、內容與收件結果；分頁開著時每分鐘自動更新。 */
+  var push=null,pushDays=7,pushBusy=false,pushOpen={};
+  var PST={queued:'排隊中',ready:'待送',sending:'傳送中',done:'已送完',closed:'已結束',expired:'已過期',failed:'失敗',skipped:'略過',noshow:'未送出'};
+  var RST={accepted:'已送達',pending:'待送',retryable:'重試中',failed:'失敗',unknown:'結果不明',skipped:'略過'};
+  function pmsg(tone,text){var m=$s('pushMsg');m.className='amsg'+(text?' show '+tone:'');m.textContent=text||'';}
+  /* LINE 卡片的項目符號與文字是兩個元件，取出後會各占一行；接回同一行（•　文字）。 */
+  function pushText(t){return String(t).replace(/(^|\n)([•・‧●▪])\n/g,'$1$2 ');}
+  function pushDetail(x){
+    var o=pushOpen[x.id];if(!o)return '';
+    var who=o.rows==='loading'?'<p class="chat-empty">讀取收件人…</p>':!o.rows.length?'<p class="chat-empty">這則沒有逐人紀錄。</p>':o.rows.map(function(r){
+      return '<div class="push-to"><span><b>'+h(r.name||'未取得名稱')+'</b><br><small>'+h(r.id)+'</small></span><span class="'+(r.state==='failed'?'bad':'')+'">'+h(RST[r.state]||r.state)+(r.attempts>1?'<small>（第 '+r.attempts+' 次）</small>':'')+'</span><span>'+h(r.at||r.updated||'')+(r.error?'<br><small class="bad">'+h(r.error)+'</small>':'')+'</span></div>';}).join('');
+    return '<div class="subs-conv"><pre class="push-full">'+h(pushText(x.text||x.preview||'（沒有文字內容）'))+'</pre><p class="push-sub">收件人</p>'+who+'</div>';
+  }
+  function renderPush(){
+    var items=(push&&push.items)||[];
+    $s('pushCount').textContent=items.length?items.length+' 則・送達 '+items.reduce(function(n,x){return n+(x.accepted||0);},0)+' 人次':'';
+    $s('pushList').innerHTML=items.length?items.map(function(x){
+      return '<div class="subs-row"><div class="subs-main"><b>'+h(x.created.slice(5,16))+'　'+h(x.kindLabel)+'</b><small>'+(x.date?'內容日期 '+h(x.date)+'・':'')+h(PST[x.state]||x.state)+'</small></div>'+
+        '<div class="push-text">'+h(x.preview||'（沒有文字內容）')+'</div>'+
+        '<div class="subs-meta">收件 '+(x.total||0)+'・送達 '+(x.accepted||0)+(x.failed?'・失敗 '+x.failed:'')+(x.open?'・待送 '+x.open:'')+'<small>'+(x.updated?'更新 '+h(x.updated.slice(5,16)):'')+'</small></div>'+
+        '<div class="subs-act"><button type="button" class="ghost" data-push="'+h(x.id)+'" aria-expanded="'+(pushOpen[x.id]?'true':'false')+'">'+(pushOpen[x.id]?'收起':'內容與收件人')+'</button></div>'+pushDetail(x)+'</div>';
+    }).join(''):'<p class="subs-empty">'+(push?'這段期間沒有推送。':'讀取中…')+'</p>';
+    $s('pushNote').textContent=push?'讀取時間 '+push.at.slice(11,16)+'・分頁開著時每分鐘自動更新。':'';
+  }
+  function loadPush(quiet){
+    if(pushBusy||!window.KEY)return;pushBusy=true;if(!quiet)pmsg('warn','讀取中…');
+    google.script.run.withSuccessHandler(function(r){pushBusy=false;if(!r||!r.ok){pmsg('err','推送紀錄讀取失敗：'+why(r));return;}push=r;pmsg('','');renderPush();})
+      .withFailureHandler(function(e){pushBusy=false;pmsg('err','推送紀錄讀取失敗：'+(e&&e.message||e));}).apiAdminLinePushLog(KEY,pushDays);
+  }
+  $s('pushRefresh').addEventListener('click',function(){loadPush(false);});
+  $s('pushSeg').addEventListener('click',function(e){var b=e.target.closest('button[data-d]');if(!b)return;pushDays=Number(b.dataset.d);this.querySelectorAll('button').forEach(function(x){x.setAttribute('aria-pressed',String(x===b));});push=null;renderPush();loadPush(false);});
+  $s('pushList').addEventListener('click',function(e){
+    var b=e.target.closest('[data-push]');if(!b)return;
+    var id=b.dataset.push;if(pushOpen[id]){delete pushOpen[id];renderPush();return;}
+    pushOpen[id]={rows:'loading'};renderPush();
+    google.script.run.withSuccessHandler(function(x){pushOpen[id]={rows:x&&x.ok?x.rows:[]};renderPush();})
+      .withFailureHandler(function(){pushOpen[id]={rows:[]};renderPush();}).apiAdminLinePushDetail(KEY,id);
+  });
+  setInterval(function(){var p=$s('p-subs');if(p&&!p.hidden&&document.visibilityState==='visible'&&push)loadPush(true);},60000);
+  window.__loadSubs=function(){if(!data)load();if(!push)loadPush(false);};
 })();
 </script>

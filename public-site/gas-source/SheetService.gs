@@ -1251,7 +1251,7 @@ function repairLiwangExitPriceNow() { return repairMissingTrackerExitPrice('3529
  * 例：auditDailyKCoverage()、auditDailyKCoverage(['5269','9958'])
  */
 function auditDailyKCoverage(codes) {
-  var vals = getSheet_('日K快取').getDataRange().getValues();
+  var vals = readVolumeValues_('日K快取').values;   // 分卷時含舊卷
   if (vals.length < 2) { Logger.log('日K快取是空的'); return {}; }
   var head = vals[0].map(function (h) { return String(h).trim(); });
   var cCode = head.indexOf('代號'), cDate = head.indexOf('日期'), cClose = head.indexOf('收');

@@ -1,0 +1,38 @@
+name: main-volume
+# 2026/11/25 主資料分卷：建立備用卷、驗收讀寫與合併讀取、查狀態。只印數字，不印試算表 ID 或儲存格內容。
+# 換卷本身不在這裡觸發：寫入被 Google 拒絕（檔案太大）時，由 Apps Script 排程與 GitHub 寫入端自動處理。
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'status（狀態）／standby（建立或沿用備用卷）／selftest（實際讀寫驗收）／trim-preview（清空白欄可省多少，只算不刪）'
+        type: choice
+        options: [status, standby, selftest, trim-preview]
+        default: status
+  schedule:
+    - cron: '37 1 * * 1-5'   # 台北 09:37：備用卷表頭與主表對齊（主表新增分頁或欄位時跟著補）
+
+permissions:
+  contents: read
+
+concurrency:
+  group: main-volume
+  cancel-in-progress: false
+
+jobs:
+  volume:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - run: pip install 'gspread>=6,<7' requests
+      - name: 主資料分卷
+        env:
+          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
+        run: python -B scripts/main_volume_check.py ${{ inputs.mode || 'standby' }}

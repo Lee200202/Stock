@@ -5450,7 +5450,7 @@ var mergeTxFingerprint='';
       renderProgress({ box: 'heldProg', steps: 'heldSteps', bar: 'heldBar', note: 'heldNote',
         stepList: NAMES, state: { status: st.status, step: st.step, index: st.index, total: st.total,
           pct: st.status === '完成' ? 100 : Math.round((st.index || 0) / (st.total || 4) * 100),
-          note: (st.kind === 'cost' ? '成本修正後重算（' + st.date + ' 起）' : '逐日編輯同步（' + st.date + '）') +
+          note: (st.kind === 'cost' ? '持股與績效重算（' + st.date + ' 起）' : '逐日編輯同步（' + st.date + '）') +
                 (st.error ? '\n最近的問題：' + st.error : ''), startedAt: st.startedAt, updatedAt: st.updatedAt || '' } });
       if (['完成', '已取消'].indexOf(st.status) >= 0) { watch(false); if (st.status === '完成') { load(); } }
     }).apiAdminDaySyncState(KEY);
@@ -5470,7 +5470,7 @@ var mergeTxFingerprint='';
     if ($('heldList').querySelector('.hrow-wrap.dirty')) { show($('heldMsg'), 'warn', '請先儲存或收起持股修改。'); return; }
     var n = Number($('heldExpiryDays').value);
     if (!Number.isInteger(n) || n < 1 || n > 60) { $('heldExpiryDays').reportValidity(); return; }
-    var b = $('heldExpirySave'); b.disabled = true; b.textContent = '套用中';
+    var b = $('heldExpirySave'); b.disabled = true;
     google.script.run.withSuccessHandler(function (r) {
       b.disabled = false; b.textContent = '套用';
       show($('heldMsg'), r && r.ok ? 'ok' : 'err', (r && (r.message || r.reason)) || '沒有回應');

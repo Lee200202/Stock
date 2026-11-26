@@ -954,6 +954,9 @@ function restatesEarlier_(key, earlier) {
       el.className='px '+signCls(pct);el.title=v&&!v.readable?'報價待更新':v?'點選個股查看行情資料':'無可核對行情';
     });
     document.querySelectorAll('.quote-asof').forEach(function(el){el.remove();});
+    if (trackerPriceMode !== 'lowHigh' && window.__tracker) {
+      renderTrackerSummary_(trackerMidSummaryView_(window.__tracker));
+    }
     if (trackerPriceMode === 'lowHigh' && window.__tracker && Object.keys(q || {}).length) {
       var calculated = trackerLowHighView_(window.__tracker, trackerLivePrices_());
       renderTrackerSummary_(calculated);
@@ -1582,6 +1585,21 @@ function restatesEarlier_(key, earlier) {
     return {total: items.length, priced: vals.length,
       avgReturn: vals.length ? Math.round(vals.reduce(function(a,b) { return a+b; }, 0) / vals.length * 100) / 100 : null,
       positiveRatio: vals.length ? Math.round(vals.filter(function(v) { return v > 0; }).length / vals.length * 1000) / 10 : null};
+  }
+  // 與卡片共用報價有效性及分批／部分賣出算法，只更新持有摘要。
+  function trackerMidSummaryView_(source) {
+    var held = source.held || (source.items || []).filter(function(i) { return i.stillHeld; });
+    var priced = held.map(function(i) {
+      var v = quoteView(displayedQuotes[i.code]), ret = i.ret;
+      if (v && Number(i.entry) > 0) {
+        var spec = trackerRowLots_(i);
+        ret = !v.readable ? null : spec
+          ? trackerLotsLive_({dataset:{lots:JSON.stringify(spec)}}, v.last)
+          : (v.last - Number(i.entry)) / Number(i.entry) * 100;
+      }
+      return {ret:ret};
+    });
+    return Object.assign({}, source, {heldSummary:trackerCalculationSummary_(priced)});
   }
   function trackerLowHighView_(source, live) {
     var out = Object.assign({}, source);

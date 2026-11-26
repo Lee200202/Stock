@@ -114,3 +114,23 @@ for (let n = 0; n < 200; n++) {
 }
 assert(/平均成本 ' \+ pxShort\(m\.avgCost\)/.test(page) && /entryLabel/.test(page), '面板與清單要寫平均成本');
 console.log('v227r3 平均成本與合併報酬一致（200 組）');
+// 即時中點摘要與卡片共用算法；不覆寫已出場回合摘要。
+function frontFunction(name) {
+  const start = page.indexOf('function ' + name + '('); assert(start >= 0, name);
+  let d = 0, end = page.indexOf('{', start);
+  for (; end < page.length; end++) { if (page[end] === '{') d++; else if (page[end] === '}' && --d === 0) break; }
+  return page.slice(start, end + 1);
+}
+vm.runInContext(['trackerCalculationSummary_', 'trackerMidSummaryView_', 'trackerLotsLive_'].map(frontFunction).join('\n'), ctx);
+ctx.displayedQuotes = { A:{last:120,readable:true}, B:{last:90,readable:true}, C:{last:100,readable:false} };
+ctx.quoteView = q => q || null;
+ctx.trackerRowLots_ = i => i.testLots || null;
+ctx.summaryFixture = {held:[{code:'A',entry:100,ret:1},{code:'B',entry:100,ret:2}],exitedSummary:{avgReturn:5.66,rounds:38}};
+let fresh=run('trackerMidSummaryView_(summaryFixture)');
+assert.equal(fresh.heldSummary.avgReturn,5);assert.equal(fresh.heldSummary.positiveRatio,50);assert.equal(fresh.exitedSummary.avgReturn,5.66);assert.equal(ctx.summaryFixture.held[0].ret,1);
+ctx.summaryFixture.held.push({code:'C',entry:100,ret:10});fresh=run('trackerMidSummaryView_(summaryFixture)');assert.equal(fresh.heldSummary.priced,2);assert.equal(fresh.heldSummary.total,3);assert.equal(fresh.heldSummary.avgReturn,5);
+ctx.summaryFixture.held=[{code:'A',entry:100,ret:1,testLots:{l:[['2026/10/01',100],['2026/10/03',110]],s:[['2026/10/02',115,.5]]}}];
+fresh=run('trackerMidSummaryView_(summaryFixture)');
+const expected=run("trackerLotsReturn_([{date:'2026/10/01',price:100},{date:'2026/10/03',price:110}],[{date:'2026/10/02',price:115,fraction:.5}],120)");assert.equal(fresh.heldSummary.avgReturn,Math.round(expected*100)/100);
+assert(page.includes('renderTrackerSummary_(trackerMidSummaryView_(window.__tracker))'));
+console.log('即時中點摘要：報價更新、過期排除、分批與部分賣出、已出場保留及來源不變通過');

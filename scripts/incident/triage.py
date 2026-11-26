@@ -146,7 +146,7 @@ def notice(book, rows_of, item, urgent, dry_run=False):
 
 def cmd_triage(run_id, dry_run=False):
     run = gh('GET', f'/repos/{REPO}/actions/runs/{run_id}').json()
-    wf, concl = run.get('name', ''), run.get('conclusion', '')
+    wf, concl = rules.PATHS.get(run.get('path', ''), run.get('name', '')), run.get('conclusion', '')
     if wf not in rules.WATCHED:
         print(f'{wf} 不在事故處理範圍，略過')
         return 0

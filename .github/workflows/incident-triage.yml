@@ -29,8 +29,9 @@ permissions:
   contents: read
   actions: write
 
+# 每一件事故各自一組：同一組只保留一個等待中的執行，共用一組會讓同時發生的事故被 GitHub 取消掉（11/26 試跑實際發生）
 concurrency:
-  group: incident-triage
+  group: incident-${{ github.event.workflow_run.id || inputs.run_id || 'sweep' }}
   cancel-in-progress: false
 
 jobs:

@@ -42,6 +42,13 @@ for text, want in cases.items():
 check(rules.classify('', 'startup_failure') == 'github_infra', 'startup_failure')
 check(rules.classify('', 'timed_out') == 'network', 'timed_out')
 
+# 執行紀錄的 name 會是 run-name（例如「逐字稿自動抓取」），一律用檔案路徑認工作
+check(rules.PATHS['.github/workflows/transcript.yml'] == 'transcript-gemini', '用檔案路徑認工作')
+check(set(rules.PATHS.values()) == set(rules.WATCHED), '路徑對照涵蓋所有監看的工作')
+wf = (ROOT / '.github/workflows/incident-triage.yml').read_text(encoding='utf-8')
+check(all(n in wf for n in rules.WATCHED), 'workflow_run 清單涵蓋所有監看的工作')
+check("group: incident-${{ github.event.workflow_run.id" in wf, '每件事故各自一組，避免同時發生的事故被取消')
+
 # ---------- 指紋：數字與時間不同仍是同一種錯誤 ----------
 a = rules.fingerprint('daily-transcript-pipeline', '主流程', "2026-11-26T03:20:01Z KeyError: '代號' at row 1234")
 b = rules.fingerprint('daily-transcript-pipeline', '主流程', "2026-11-26T05:05:09Z KeyError: '代號' at row 98")

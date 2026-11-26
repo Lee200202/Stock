@@ -35,6 +35,12 @@ WATCHED = {
     'cloud-cleanup': None,
     'day-edit-sync': None,
 }
+# 工作流程檔 → 名稱。執行紀錄的 name 會顯示 run-name（例如「逐字稿自動抓取」），所以一律用檔案路徑認工作
+PATHS = {'.github/workflows/' + f + '.yml': n for f, n in (
+    ('transcript', 'transcript-gemini'), ('daily', 'daily-transcript-pipeline'), ('daily-review-apply', 'daily-review-apply'),
+    ('line-ruling-apply', 'line-ruling-apply'), ('screen-identify', 'screen-identify'), ('public-site', 'public-site-pages'),
+    ('sheet-capacity-audit', 'sheet-capacity-audit'), ('main-volume', 'main-volume'), ('market-data', 'stock-hourly-cache'),
+    ('market-history', 'market-history'), ('corp-events', 'corp-events'), ('cloud-cleanup', 'cloud-cleanup'), ('day-sync', 'day-edit-sync'))}
 RETRY_PER_DAY = 2          # 每個工作每天最多自動重跑幾次
 CONSECUTIVE_NOTIFY = 3     # 同一工作連續失敗幾次就重跑／通知（即使後面還有排程）
 RETRY_DELAY_MIN = 20

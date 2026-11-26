@@ -5063,13 +5063,13 @@ var mergeTxFingerprint='';
             '<div class="hd held-timeline" aria-label="本回合時間軸">' +
               '<div class="held-event"><span class="held-event-dot" aria-hidden="true"></span><div><time>' + esc(x.roundStart || '日期待補') + '</time><small>本回合開始</small></div></div>' +
               '<div class="held-event held-event-end"><span class="held-event-dot" aria-hidden="true"></span><div><time>' + esc(closed ? (x.lastSell || '日期待補') : '目前') + '</time><small>' + (closed ? '已出場' : '持有中') + '</small></div></div></div>' +
-            '<span class="hc" data-label="' + (closed ? '進場成本' : '目前成本') + '">' +
+            '<div class="hc" data-label="' + (closed ? '進場成本' : '目前成本') + '">' +
               '<div class="hc-text">' +
                 '<b class="hc-val">' + fmt(x.entry) + '</b>' +
                 '<details class="held-cost-detail"><summary>成本依據</summary><small class="hc-src" title="' + esc(costSrc(x)) + '">' + esc(costSrcShort(x)) + '</small></details>' +
               '</div>' +
-            '</span>' +
-            '<span class="hp" data-label="' + (closed ? '出場價格與報酬' : '目前價格與報酬') + '">' +
+            '</div>' +
+            '<span class="hp" aria-label="' + (closed ? '出場價格與報酬' : '目前價格與報酬') + '">' +
               '<span class="hp-cur">' + fmt(x.current) + '</span>' +
               '<small class="hp-ret ' + (x.ret > 0 ? 'up' : x.ret < 0 ? 'down' : '') + '">' + ret + '</small>' +
             '</span>' +

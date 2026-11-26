@@ -1,0 +1,93 @@
+name: incident-fix
+run-name: 事故修正 ${{ github.ref_name }}
+# 2026/11/26 自主事故處理：雲端「事故處理」排程把修正推到 claude/incident-YYYYMMDD-INC… 分支，這裡把關：
+# 守門（只准改該改的檔、AI 不能改自己的規則）→ 離線契約與網站檢查 → 改了 pipeline 就做真實模型重播（沿用每週檢討）→
+# 全部通過：前兩週（INCIDENT_AUTO_MERGE 不是 true）開 PR 等管理者核准；之後才自動合併。結果寫回「事故紀錄」並推 LINE。
+on:
+  push:
+    branches: ['claude/incident-*']
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: gemini-readonly-quality-replay
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      BRANCH: ${{ github.ref_name }}
+      GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
+      REVIEW_LOG_ID: ${{ vars.REVIEW_LOG_ID }}
+      APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: pip install -r requirements.txt pyyaml
+      - name: 守門（只准改事故該改的檔）
+        id: gate
+        run: |
+          set +e
+          git fetch -q origin main
+          python scripts/incident/fix_gate.py --base origin/main --branch "$BRANCH" --json .incident/gate.json
+          rc=$?
+          echo "pipeline=$(python -c "import json;print(str(json.load(open('.incident/gate.json')).get('pipeline_changed', False)).lower())" 2>/dev/null || echo false)" >> "$GITHUB_OUTPUT"
+          exit $rc
+      - name: 離線契約與網站檢查（分支程式，不呼叫模型）
+        id: offline
+        if: steps.gate.outcome == 'success'
+        env:
+          SPREADSHEET_ID: offline
+          GEMINI_API_KEY: offline
+        run: |
+          python scripts/run_offline_contracts.py
+          python scripts/check_original_parity.py
+          node scripts/check_project_manifest.cjs
+          node scripts/check_market_history.cjs
+          node scripts/test_history_memory.cjs
+          node scripts/check_line_admin.js
+          node scripts/check_tracker_lots.js
+          node scripts/check_main_volume.js
+          node scripts/check_line_push_log.js
+          python -B scripts/test_main_volumes.py
+          python -B scripts/test_incident_rules.py
+      - name: 真實模型重播（改了 pipeline 才做；唯讀，答案只在推論後評分）
+        id: replay
+        if: steps.gate.outcome == 'success' && steps.offline.outcome == 'success' && fromJSON(steps.gate.outputs.pipeline || 'false')
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+          GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          GEMINI_THINKING_LEVEL: ${{ vars.GEMINI_THINKING_LEVEL || 'auto' }}
+          GEMINI_SEMANTIC_AUDIT: ${{ vars.GEMINI_SEMANTIC_AUDIT || 'true' }}
+          GEMINI_COMBINED_ASSESSMENT: ${{ vars.GEMINI_COMBINED_ASSESSMENT || 'true' }}
+          GEMINI_ASSESSMENT_TOKEN_BUDGET: ${{ vars.GEMINI_ASSESSMENT_TOKEN_BUDGET || '150000' }}
+          GEMINI_CONTEXT_TOKENS: ${{ vars.GEMINI_CONTEXT_TOKENS || '1048576' }}
+          GEMINI_MAX_OUT: ${{ vars.GEMINI_MAX_OUT }}
+          GEMINI_RPM: '10'
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
+          FINAL_ATTEMPT: 'true'
+        run: python scripts/weekly_review/workflow_steps.py replay .incident/gate.json .incident/replays.json
+      - name: 結論、開 PR 或合併、寫回事故紀錄並推 LINE
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTO_MERGE: ${{ vars.INCIDENT_AUTO_MERGE }}
+          GATE: ${{ steps.gate.outcome }}
+          OFFLINE: ${{ steps.offline.outcome }}
+          REPLAY: ${{ steps.replay.outcome }}
+        run: python scripts/incident/fix_result.py

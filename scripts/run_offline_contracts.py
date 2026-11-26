@@ -63,6 +63,8 @@ SUITES = [
     'test_delivery_guard_1113',
     'test_stance_basis_1118',
     'test_boundary_1124',
+    'test_incident_rules',
+    'test_main_volumes',
 ]
 
 GUARD = r'''

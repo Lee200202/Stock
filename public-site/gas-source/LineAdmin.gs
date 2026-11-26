@@ -1430,6 +1430,25 @@ function lineAdminWeeklyFlex_(c) {
            contents: { type: 'carousel', contents: bubbles } };
 }
 
+/* 2026/11/26 自主事故處理（scripts/incident/triage.py）：同一小時的事故合併成一則「管理者通知」（種類＝事故），這裡畫成一張卡。
+   每件一列：時間、哪個工作、什麼問題、系統怎麼處理（交給下一輪／幾點重跑／等你處理／交雲端修正／已修正）。 */
+var LINE_INCIDENT_STATUS_ = { resolve: 'pass', record: 'infra', retry: 'infra', cloud: 'infra', notify: 'fail', stop: 'fail' };
+var LINE_INCIDENT_ACT_ = { record: '交給下一輪排程', retry: '自動重跑', cloud: '交雲端修正', notify: '需要你處理', stop: '已停下，需要你處理', resolve: '處理結果' };
+function lineAdminIncidentFlex_(c) {
+  var items = (c.items || []).slice(-8), need = items.filter(function (x) { return x.decision === 'notify' || x.decision === 'stop'; }).length;
+  var rows = items.map(function (x) {
+    var note = (LINE_INCIDENT_ACT_[x.decision] || x.decision) + (x.due ? '（' + x.due + '）' : '') + '：' + (x.why || '');
+    return lineAdminStatusRow_(LINE_INCIDENT_STATUS_[x.decision] || 'infra', (x.time || '') + '　' + x.workflow + '・' + (x.label || ''), lineClip_(note, 160));
+  });
+  var withRun = items.filter(function (x) { return x.runUrl; }).pop(), withBranch = items.filter(function (x) { return x.branch; }).pop();
+  var buttons = [withRun ? fxBtn_(lineAdminUri_('看執行紀錄', withRun.runUrl)) : null,
+                 withBranch ? fxBtn_(lineAdminUri_('看修正分支', 'https://github.com/Lee200202/Stock/compare/main...' + withBranch.branch), 'secondary') : null].filter(Boolean);
+  var bubble = lineAdminBubble_(fxHeader_('事故處理・' + (c.hour || '').slice(5) + ' 時', need ? '有 ' + need + ' 件需要你處理' : '系統已自動處理 ' + items.length + ' 件',
+      need ? LINE_ADMIN_SCALE_.deepRed : LINE_ADMIN_SCALE_.deepGreen),
+    rows.concat([fxNote_('紀錄在複核紀錄「事故紀錄」。自動重跑每個工作每天最多 2 次；雲端修正每天最多 1 件、每週 3 件，通過守門後由你核准合併。')]), buttons);
+  return { type: 'flex', altText: lineClip_('事故處理：' + items.map(function (x) { return x.workflow + ' ' + (x.label || ''); }).join('、'), 400), contents: bubble };
+}
+
 /** 五分鐘排程：「管理者通知」待推送的列推到管理者 LINE（每列一次）。 */
 function lineAdminNoticeTick_() {
   if (!lineAdminUids_().length) { return 'no-admin'; }
@@ -1444,9 +1463,9 @@ function lineAdminNoticeTick_() {
   fresh.slice(0, 3).forEach(function (r) {
     var card = null;
     try { card = JSON.parse(String(r['內容'] || '{}')); } catch (e) { card = null; }
-    if (!card || card.type !== 'weekly') { sh.getRange(r._row, colState).setValue('格式不明'); return; }
+    if (!card || (card.type !== 'weekly' && card.type !== 'incident')) { sh.getRange(r._row, colState).setValue('格式不明'); return; }
     var q = lineQueue_({ id: 'admin-notice|' + r['通知ID'], kind: 'admin', date: todayStr_(), source: '管理者通知 ' + r['通知ID'],
-      expiresAt: Date.now() + 48 * 3600 * 1000, messages: [lineAdminWeeklyFlex_(card)] });
+      expiresAt: Date.now() + 48 * 3600 * 1000, messages: [card.type === 'incident' ? lineAdminIncidentFlex_(card) : lineAdminWeeklyFlex_(card)] });
     sh.getRange(r._row, colPush).setValue(lineNow_());
     sh.getRange(r._row, colState).setValue('已推送');
     if (q.created) { lineDeliverTick_({ only: q.id, budgetMs: 30000 }); }

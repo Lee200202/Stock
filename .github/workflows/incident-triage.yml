@@ -1,0 +1,62 @@
+name: incident-triage
+run-name: 事故處理 ${{ github.event.workflow_run.name || inputs.mode || 'sweep' }}
+# 2026/11/26 自主事故處理（管理者核准方案）：正式工作失敗 → 立刻分類並決定（交給下一輪／延後重跑／通知管理者／交雲端修正）；
+# 每 30 分鐘掃一次：到期的重跑、重跑結果、整點彙整的 LINE 通知。規則見 scripts/incident/rules.py，作業說明 docs/incident/事故處理作業.md。
+on:
+  workflow_run:
+    workflows: [transcript-gemini, daily-transcript-pipeline, daily-review-apply, line-ruling-apply, screen-identify,
+                public-site-pages, sheet-capacity-audit, main-volume, stock-hourly-cache, market-history, corp-events,
+                cloud-cleanup, day-edit-sync]
+    types: [completed]
+  schedule:
+    - cron: '7,37 0-14 * * *'      # 台北 08:07–22:37，每 30 分鐘
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'sweep（到期重跑與通知）／triage（指定執行 ID 重新判斷）'
+        type: choice
+        options: [sweep, triage]
+        default: sweep
+      run_id:
+        description: 'triage 用：失敗的執行 ID'
+        required: false
+      dry_run:
+        description: '試跑：只印判斷，不寫紀錄、不重跑、不通知'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: incident-triage
+  cancel-in-progress: false
+
+jobs:
+  triage:
+    if: github.event_name != 'workflow_run' || contains(fromJSON('["failure","timed_out","startup_failure"]'), github.event.workflow_run.conclusion)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - run: pip install 'gspread>=6,<7' requests
+      - name: 事故分類與處理
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GOOGLE_SHEETS_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT }}
+          REVIEW_LOG_ID: ${{ vars.REVIEW_LOG_ID }}
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          EVENT: ${{ github.event_name }}
+          RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
+          MODE: ${{ inputs.mode }}
+          DRY: ${{ inputs.dry_run && '--dry-run' || '' }}
+        run: |
+          if [ "$EVENT" = workflow_run ] || [ "$MODE" = triage ]; then
+            python -B scripts/incident/triage.py triage --run-id "$RUN_ID" $DRY
+          else
+            python -B scripts/incident/triage.py sweep $DRY
+          fi

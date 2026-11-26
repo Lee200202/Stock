@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-os.environ.setdefault('SPREADSHEET_ID', 'MAIN')
+os.environ['SPREADSHEET_ID'] = 'MAIN'   # 測試自己的主表 ID（離線契約入口會放別的佔位值）
 
 import gspread  # noqa: E402
 from pipeline import main_volumes as mv  # noqa: E402

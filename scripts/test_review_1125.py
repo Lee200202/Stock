@@ -55,6 +55,13 @@ class F1_ForwardNeedsAForwardQuote(unittest.TestCase):
     def test_flow_only_quotes_do_not_carry_a_positive_entry_answer(self):
         """v51 G2：11/23 重播兩次都答 now=conditional／buy_ok、偏多，引句只有政府基金買誰、融資消化。"""
         self.assertEqual(klass('聯發科', self.GOV, now='conditional', tone='bullish', forward_view='rise'), 'ignored')
+        # 第二輪重播：同一句被讀成「正面候選」
+        gov2 = '政府基金這一波護盤三大買進標的，台達電、聯發科、台積電。'
+        self.assertEqual(klass('聯發科', gov2, now='conditional', tone='bullish', selection_intent='positive_candidate'),
+                         'ignored')
+        # 講者自己的名單照舊
+        mine = '外資在買甲公司，甲公司是我的口袋名單。'
+        self.assertEqual(klass('甲公司', mine, tone='bullish', selection_intent='positive_candidate'), 'watch_watch')
         pool = [self.UMC, '今天拉記憶體、聯電、力積電，啊至於被動元件啦、細晶圓啦。']
         a = answer(self.UMC, now='buy_ok', tone='bullish', forward_view='rise', quotes={'stance': pool, 'analysis': []})
         self.assertEqual(p.verdict_class(a, p._ev_norm(''.join(pool)), ['聯電'])[0], 'ignored')

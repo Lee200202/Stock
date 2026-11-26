@@ -14938,7 +14938,7 @@ _OWN_VIEW_CUE = re.compile(
     r'看好|看壞|看多|看空|偏多|偏空|可以|可買|買點|賣點|進場|佈局|布局|低接|撿|抱|續抱|停損|停利|目標|上看|下看'
     r'|會漲|會跌|還會|會再|後面|明天|之後|接下來|轉強|轉弱|背離|支撐|壓力|站上|站回|突破|跌破|季線|月線|年線|均線|頸線|缺口|拉回'
     r'|等|回穩|止穩|不要|別|不碰|不能|不買|不會|風險|小心|危險|指標|對的|機會|值得|我會|我要|我們會|強勢|弱勢|便宜|貴|本益比|營收|EPS|獲利'
-    r'|題材|好股|有望|安全|沒事|擔心|注意|留意|關注|功課|名單|喜歡|愛', re.I)
+    r'|題材|好股|有望|安全|沒事|擔心|注意|留意|關注|功課|名單|候選|口袋|剔除|排除|不考慮|喜歡|愛', re.I)
 
 
 def flow_only_quotes(quotes):
@@ -15161,7 +15161,9 @@ def verdict_class(answer, passages_norm, names=(), quote_zones=None, lead_zones=
     # 買賣與持有事實在上面已先處理；沒答依據（舊快取）照舊走語氣。
     _view_pool = list(stance) + list(real('analysis'))
     if not forward_quoted and not chase_quoted and not past and flow_only_quotes(_view_pool) \
-            and answer.get('holder_advice') in (None, 'none') and answer.get('selection_intent') in (None, 'neutral'):
+            and answer.get('holder_advice') in (None, 'none'):
+        # 選股意向答「正面候選」也一樣（11/25 第二輪重播：「政府基金…三大買進標的」被讀成講者的候選名單）；
+        # 講者自己的名單會有「名單、候選、功課、剔除」等字樣，不在這一條。
         return VERDICT_NEUTRAL_CLASS, '引句只是法人／資金買賣的行情，沒有講者對本股的看法，不列：' + _view_pool[0][:40]
     if not forward_quoted and not chase_quoted and answer.get('view_basis') in ('price_move_only', 'example_only') \
             and answer.get('entry_for_new') in (None, 'none') and answer.get('now') in (None, 'none') \

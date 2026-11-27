@@ -1,0 +1,364 @@
+{
+  "at": "2026-11-27T09:42:37.559866+00:00",
+  "main": {
+    "allocatedCells": 6519566,
+    "publishedCellLimit": 20000000,
+    "projectRotationThreshold": 10000000,
+    "remainingCellsToProjectThreshold": 3480434,
+    "publishedCellUtilization": 0.325978,
+    "tabs": [
+      {
+        "name": "日K快取",
+        "rows": 74520,
+        "columns": 26,
+        "cells": 1937520
+      },
+      {
+        "name": "小時K",
+        "rows": 74092,
+        "columns": 26,
+        "cells": 1926392
+      },
+      {
+        "name": "盤中快照",
+        "rows": 39950,
+        "columns": 26,
+        "cells": 1038700
+      },
+      {
+        "name": "使用紀錄",
+        "rows": 21184,
+        "columns": 26,
+        "cells": 550784
+      },
+      {
+        "name": "股票對照表",
+        "rows": 1997,
+        "columns": 26,
+        "cells": 51922
+      },
+      {
+        "name": "逐字稿判讀稽核",
+        "rows": 6401,
+        "columns": 6,
+        "cells": 38406
+      },
+      {
+        "name": "操作紀錄",
+        "rows": 1421,
+        "columns": 26,
+        "cells": 36946
+      },
+      {
+        "name": "判定歷程",
+        "rows": 4542,
+        "columns": 8,
+        "cells": 36336
+      },
+      {
+        "name": "Yahoo分K",
+        "rows": 1250,
+        "columns": 26,
+        "cells": 32500
+      },
+      {
+        "name": "會員簡訊稽核",
+        "rows": 1115,
+        "columns": 26,
+        "cells": 28990
+      },
+      {
+        "name": "會員持股",
+        "rows": 1103,
+        "columns": 26,
+        "cells": 28678
+      },
+      {
+        "name": "簡訊內容同步",
+        "rows": 1045,
+        "columns": 26,
+        "cells": 27170
+      },
+      {
+        "name": "市場總覽快取",
+        "rows": 1007,
+        "columns": 26,
+        "cells": 26182
+      },
+      {
+        "name": "LINE 帳號月統計",
+        "rows": 1000,
+        "columns": 26,
+        "cells": 26000
+      },
+      {
+        "name": "LINE 對話紀錄",
+        "rows": 1000,
+        "columns": 26,
+        "cells": 26000
+      },
+      {
+        "name": "觸發器耗時紀錄",
+        "rows": 1000,
+        "columns": 26,
+        "cells": 26000
+      },
+      {
+        "name": "行情代號驗證",
+        "rows": 1000,
+        "columns": 26,
+        "cells": 26000
+      },
+      {
+        "name": "LINE 寄送帳本",
+        "rows": 1000,
+        "columns": 26,
+        "cells": 26000
+      },
+      {
+        "name": "LINE 待送訊息",
+        "rows": 1000,
+        "columns": 26,
+        "cells": 26000
+      },
+      {
+        "name": "LINE 訂閱清單",
+        "rows": 1000,
+        "columns": 26,
+        "cells": 26000
+      },
+      {
+        "name": "自動工單",
+        "rows": 1000,
+        "columns": 26,
+        "cells": 26000
+      },
+      {
+        "name": "寄送帳本",
+        "rows": 1000,
+        "columns": 26,
+        "cells": 26000
+      },
+      {
+        "name": "分K歷史",
+        "rows": 1000,
+        "columns": 26,
+        "cells": 26000
+      },
+      {
+        "name": "人工補登",
+        "rows": 1000,
+        "columns": 26,
+        "cells": 26000
+      },
+      {
+        "name": "後台工單",
+        "rows": 1000,
+        "columns": 26,
+        "cells": 26000
+      },
+      {
+        "name": "今日影片候選",
+        "rows": 1000,
+        "columns": 26,
+        "cells": 26000
+      },
+      {
+        "name": "修正建議",
+        "rows": 1000,
+        "columns": 26,
+        "cells": 26000
+      },
+      {
+        "name": "基本面快取",
+        "rows": 1000,
+        "columns": 26,
+        "cells": 26000
+      },
+      {
+        "name": "每日績效",
+        "rows": 1000,
+        "columns": 26,
+        "cells": 26000
+      },
+      {
+        "name": "即時快取",
+        "rows": 1000,
+        "columns": 26,
+        "cells": 26000
+      },
+      {
+        "name": "持股追蹤",
+        "rows": 1000,
+        "columns": 26,
+        "cells": 26000
+      },
+      {
+        "name": "使用者訂閱清單",
+        "rows": 1000,
+        "columns": 26,
+        "cells": 26000
+      },
+      {
+        "name": "使用者上下文記憶",
+        "rows": 1000,
+        "columns": 26,
+        "cells": 26000
+      },
+      {
+        "name": "資料索引",
+        "rows": 1000,
+        "columns": 26,
+        "cells": 26000
+      },
+      {
+        "name": "持股成本覆寫",
+        "rows": 995,
+        "columns": 26,
+        "cells": 25870
+      },
+      {
+        "name": "每日推播內容",
+        "rows": 995,
+        "columns": 26,
+        "cells": 25870
+      },
+      {
+        "name": "影片清單",
+        "rows": 993,
+        "columns": 26,
+        "cells": 25818
+      },
+      {
+        "name": "會員簡訊",
+        "rows": 966,
+        "columns": 26,
+        "cells": 25116
+      },
+      {
+        "name": "系統狀態",
+        "rows": 4166,
+        "columns": 6,
+        "cells": 24996
+      },
+      {
+        "name": "分類裁決",
+        "rows": 2000,
+        "columns": 12,
+        "cells": 24000
+      },
+      {
+        "name": "LINE 事件帳本",
+        "rows": 803,
+        "columns": 26,
+        "cells": 20878
+      },
+      {
+        "name": "個股產業",
+        "rows": 2000,
+        "columns": 6,
+        "cells": 12000
+      },
+      {
+        "name": "辨識日誌",
+        "rows": 1065,
+        "columns": 8,
+        "cells": 8520
+      },
+      {
+        "name": "代號對照快取",
+        "rows": 1998,
+        "columns": 4,
+        "cells": 7992
+      },
+      {
+        "name": "逐字稿刷新檢查點",
+        "rows": 1000,
+        "columns": 6,
+        "cells": 6000
+      },
+      {
+        "name": "名稱判定紀錄",
+        "rows": 598,
+        "columns": 10,
+        "cells": 5980
+      }
+    ],
+    "dateColumnReadSeconds": 0.938,
+    "recentRowCounts": [
+      {
+        "name": "日K快取",
+        "rowsByDate": {
+          "2026-11-19": 250,
+          "2026-11-20": 250,
+          "2026-11-23": 249,
+          "2026-11-24": 249,
+          "2026-11-25": 249,
+          "2026-11-26": 249,
+          "2026-11-27": 249
+        }
+      },
+      {
+        "name": "小時K",
+        "rowsByDate": {
+          "2026-11-19": 1240,
+          "2026-11-20": 1240,
+          "2026-11-23": 1240,
+          "2026-11-24": 1240,
+          "2026-11-25": 500,
+          "2026-11-26": 1250,
+          "2026-11-27": 1250
+        }
+      },
+      {
+        "name": "盤中快照",
+        "rowsByDate": {}
+      },
+      {
+        "name": "使用紀錄",
+        "rowsByDate": {
+          "2026-11-21": 4,
+          "2026-11-22": 8,
+          "2026-11-23": 23,
+          "2026-11-24": 46,
+          "2026-11-25": 111,
+          "2026-11-26": 134,
+          "2026-11-27": 16
+        }
+      }
+    ],
+    "driveSizeBytes": null,
+    "driveQuotaBytesUsed": null,
+    "driveSizeStatus": "metadata-unavailable",
+    "publishedSizeLimitMB": 100
+  },
+  "backup": {
+    "ok": true,
+    "configured": true,
+    "archived": 78,
+    "cells": 2421630,
+    "cellLimit": 10000000,
+    "prunable": 19,
+    "prunableCells": 578948,
+    "oldest": "2026/11/18"
+  },
+  "forecast": {
+    "main": {
+      "sampleDays": 1.0055,
+      "netGrowthCells": 40746,
+      "cellsPerDay": 40523.1,
+      "daysToProjectRotationThreshold": 85.89,
+      "daysToPublishedCellLimit": 332.66,
+      "status": "measured"
+    },
+    "backup": {
+      "sampleDays": 1.0055,
+      "netGrowthCells": 218386,
+      "cellsPerDay": 217191.35,
+      "daysToProjectRotationThreshold": 34.89,
+      "daysToPublishedCellLimit": 80.93,
+      "status": "measured"
+    }
+  },
+  "limitsNote": "Google publishes 20M cells or 100MB; project rotation stays conservative at 10M cells. Drive sizes may not equal the internal Sheets document-size calculation."
+}

@@ -1,23 +1,23 @@
 {
-  "at": "2026-11-26T09:34:42.319183+00:00",
+  "at": "2026-11-27T09:42:37.559866+00:00",
   "main": {
-    "allocatedCells": 6478820,
+    "allocatedCells": 6519566,
     "publishedCellLimit": 20000000,
     "projectRotationThreshold": 10000000,
-    "remainingCellsToProjectThreshold": 3521180,
-    "publishedCellUtilization": 0.323941,
+    "remainingCellsToProjectThreshold": 3480434,
+    "publishedCellUtilization": 0.325978,
     "tabs": [
       {
         "name": "日K快取",
-        "rows": 74271,
+        "rows": 74520,
         "columns": 26,
-        "cells": 1931046
+        "cells": 1937520
       },
       {
         "name": "小時K",
-        "rows": 72842,
+        "rows": 74092,
         "columns": 26,
-        "cells": 1893892
+        "cells": 1926392
       },
       {
         "name": "盤中快照",
@@ -27,9 +27,9 @@
       },
       {
         "name": "使用紀錄",
-        "rows": 21168,
+        "rows": 21184,
         "columns": 26,
-        "cells": 550368
+        "cells": 550784
       },
       {
         "name": "股票對照表",
@@ -39,21 +39,21 @@
       },
       {
         "name": "逐字稿判讀稽核",
-        "rows": 6329,
+        "rows": 6401,
         "columns": 6,
-        "cells": 37974
+        "cells": 38406
       },
       {
         "name": "操作紀錄",
-        "rows": 1409,
+        "rows": 1421,
         "columns": 26,
-        "cells": 36634
+        "cells": 36946
       },
       {
         "name": "判定歷程",
-        "rows": 4494,
+        "rows": 4542,
         "columns": 8,
-        "cells": 35952
+        "cells": 36336
       },
       {
         "name": "Yahoo分K",
@@ -69,15 +69,15 @@
       },
       {
         "name": "會員持股",
-        "rows": 1101,
+        "rows": 1103,
         "columns": 26,
-        "cells": 28626
+        "cells": 28678
       },
       {
         "name": "簡訊內容同步",
-        "rows": 1044,
+        "rows": 1045,
         "columns": 26,
-        "cells": 27144
+        "cells": 27170
       },
       {
         "name": "市場總覽快取",
@@ -237,9 +237,9 @@
       },
       {
         "name": "系統狀態",
-        "rows": 4143,
+        "rows": 4166,
         "columns": 6,
-        "cells": 24858
+        "cells": 24996
       },
       {
         "name": "分類裁決",
@@ -261,15 +261,15 @@
       },
       {
         "name": "辨識日誌",
-        "rows": 1064,
+        "rows": 1065,
         "columns": 8,
-        "cells": 8512
+        "cells": 8520
       },
       {
         "name": "代號對照快取",
-        "rows": 1997,
+        "rows": 1998,
         "columns": 4,
-        "cells": 7988
+        "cells": 7992
       },
       {
         "name": "逐字稿刷新檢查點",
@@ -284,30 +284,30 @@
         "cells": 5980
       }
     ],
-    "dateColumnReadSeconds": 0.967,
+    "dateColumnReadSeconds": 0.938,
     "recentRowCounts": [
       {
         "name": "日K快取",
         "rowsByDate": {
-          "2026-11-18": 250,
           "2026-11-19": 250,
           "2026-11-20": 250,
           "2026-11-23": 249,
           "2026-11-24": 249,
           "2026-11-25": 249,
-          "2026-11-26": 249
+          "2026-11-26": 249,
+          "2026-11-27": 249
         }
       },
       {
         "name": "小時K",
         "rowsByDate": {
-          "2026-11-18": 1240,
           "2026-11-19": 1240,
           "2026-11-20": 1240,
           "2026-11-23": 1240,
           "2026-11-24": 1240,
           "2026-11-25": 500,
-          "2026-11-26": 1250
+          "2026-11-26": 1250,
+          "2026-11-27": 1250
         }
       },
       {
@@ -317,13 +317,13 @@
       {
         "name": "使用紀錄",
         "rowsByDate": {
-          "2026-11-20": 32,
           "2026-11-21": 4,
           "2026-11-22": 8,
           "2026-11-23": 23,
           "2026-11-24": 46,
           "2026-11-25": 111,
-          "2026-11-26": 134
+          "2026-11-26": 134,
+          "2026-11-27": 16
         }
       }
     ],
@@ -335,29 +335,29 @@
   "backup": {
     "ok": true,
     "configured": true,
-    "archived": 71,
-    "cells": 2203244,
+    "archived": 78,
+    "cells": 2421630,
     "cellLimit": 10000000,
-    "prunable": 12,
-    "prunableCells": 364782,
+    "prunable": 19,
+    "prunableCells": 578948,
     "oldest": "2026/11/18"
   },
   "forecast": {
     "main": {
-      "sampleDays": 0.9891,
-      "netGrowthCells": 45256,
-      "cellsPerDay": 45754.75,
-      "daysToProjectRotationThreshold": null,
-      "daysToPublishedCellLimit": null,
-      "status": "insufficient-positive-daily-history"
+      "sampleDays": 1.0055,
+      "netGrowthCells": 40746,
+      "cellsPerDay": 40523.1,
+      "daysToProjectRotationThreshold": 85.89,
+      "daysToPublishedCellLimit": 332.66,
+      "status": "measured"
     },
     "backup": {
-      "sampleDays": 0.9891,
-      "netGrowthCells": 217288,
-      "cellsPerDay": 219682.64,
-      "daysToProjectRotationThreshold": null,
-      "daysToPublishedCellLimit": null,
-      "status": "insufficient-positive-daily-history"
+      "sampleDays": 1.0055,
+      "netGrowthCells": 218386,
+      "cellsPerDay": 217191.35,
+      "daysToProjectRotationThreshold": 34.89,
+      "daysToPublishedCellLimit": 80.93,
+      "status": "measured"
     }
   },
   "limitsNote": "Google publishes 20M cells or 100MB; project rotation stays conservative at 10M cells. Drive sizes may not equal the internal Sheets document-size calculation."

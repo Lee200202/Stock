@@ -9149,7 +9149,12 @@ _FILLER_CLAUSE = re.compile(
     r'|評估資金調配與持股水位後?|落實資金集中管理[^，。；\d]{0,6}|資金循環利用的原則|在目前盤勢與族群位階下'
     r'|應?尋找更具優勢的標的|在[^，。；\d]{2,10}討論中(?:作為個例)?被點[到名]|作為個例被點[到名]'
     # 2026/11/18 台達電「若未破底則具備觀察價值，等待回穩與支撐確認後再行佈局」：原稿沒有的結論句。
-    r'|具備(?:一定(?:的)?|相當(?:的)?)?(?:觀察|參考|投資|留意)價值|再行(?:評估)?(?:佈局|布局|進場|介入)|再行評估|等待回穩與支撐確認')
+    r'|具備(?:一定(?:的)?|相當(?:的)?)?(?:觀察|參考|投資|留意)價值|再行(?:評估)?(?:佈局|布局|進場|介入)|再行評估|等待回穩與支撐確認'
+    # 2026/11/27 週檢討（裁示 10/09、10/28「不加原稿沒講的套話」、11/18 套話擋句）：11/23 聯電「具備正面觀察條件」、
+    # 11/25 世芯-KY「未來基本面與法人籌碼面具備潛力」、11/27 群聯「若有拉回可持續關注與布局」原稿都沒有。
+    # 「條件」要帶正面／良好才算套話（09/22 聯發科「不代表個股已具備進場條件」是實質內容）；「可持續關注」只在子句結尾才算
+    # （09/21 嘉澤「可持續關注等待賣壓解除後的買點」後面還有條件）。帶數字的子句照舊不動。
+    r'|具備(?:正面|良好)(?:的)?(?:觀察|投資)?條件|具備(?:成長|上漲|發展|投資)?潛力|可持續(?:關注|留意|追蹤)(?:與|並|及)?(?:佈局|布局)?\s*$')
 
 
 def strip_filler_clauses(text: str) -> str:
@@ -9490,6 +9495,18 @@ def stated_entry_view(row: dict, cat: str, verdicts: dict) -> bool:
     return bool(facts) and any(facts.get(k) in values for k, values in _ENTRY_VIEW_FACTS)
 
 
+def voted_comparison_only(row: dict, cat: str, verdicts: dict) -> bool:
+    """投給最後分類的那一份問卷，自己答本股只是陪襯（content_role=comparison_only，不是追高教材）。
+
+    2026/11/27 週檢討：11/23 聯發科只在「政府護盤三大買進標的」名單裡被點名，問卷答 comparison_only 卻又填
+    positive_candidate，說明也只有護盤買進（法人買賣是行情，11/06 Q5、11/18 發布前最後一關、11/24 ETF 裁示）。
+    問卷自己說是陪襯時，那份答案的進場欄不能再替「沒有本股結論」的說明作保。"""
+    entry = verdicts.get(str(row.get('code') or '')) or {}
+    voted = ((entry.get('answer') or {}).get(cat) or {}).get('answer')
+    return isinstance(voted, dict) and voted.get('content_role') == 'comparison_only' \
+        and voted.get('view_basis') != 'chase_lesson'
+
+
 def gate_watch_conclusions(signals: dict) -> dict:
     """觀望兩類的說明沒有任何本股結論或條件、問卷也沒有進場看法時改列不公開，原因記進判定歷程與稽核（ignored 列的 _publication_gate）。
 
@@ -9505,7 +9522,8 @@ def gate_watch_conclusions(signals: dict) -> dict:
             verdict = verdicts.get(str(row.get('code') or '')) or {}
             text = str(row.get('reason') or '')
             name = _display_name(row.get('name')) or str(row.get('name') or '')
-            view = stated_entry_view(row, cat, verdicts)
+            # 問卷自己答「只是陪襯」時不替說明作保（2026/11/27 週檢討，見 voted_comparison_only）
+            view = stated_entry_view(row, cat, verdicts) and not voted_comparison_only(row, cat, verdicts)
             # 說明一次都沒點到本股、問卷也沒有進場看法，就認不出那句結論是在講這一檔（11/18 重播：日常用語「安安心心」
             # 被認成安心，說明只有「遇到這種行情不用亂殺」）。點到本股或問卷有進場看法的照常。
             named = view or any(n in text for n in _signal_names(row) | {name, str(row.get('name') or '').replace('*', '')} if len(n) >= 2)

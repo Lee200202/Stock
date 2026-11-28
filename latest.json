@@ -1,11 +1,11 @@
 {
-  "at": "2026-11-27T09:42:37.559866+00:00",
+  "at": "2026-11-28T08:56:12.129393+00:00",
   "main": {
-    "allocatedCells": 6519566,
+    "allocatedCells": 6519596,
     "publishedCellLimit": 20000000,
     "projectRotationThreshold": 10000000,
-    "remainingCellsToProjectThreshold": 3480434,
-    "publishedCellUtilization": 0.325978,
+    "remainingCellsToProjectThreshold": 3480404,
+    "publishedCellUtilization": 0.32598,
     "tabs": [
       {
         "name": "日K快取",
@@ -237,9 +237,9 @@
       },
       {
         "name": "系統狀態",
-        "rows": 4166,
+        "rows": 4171,
         "columns": 6,
-        "cells": 24996
+        "cells": 25026
       },
       {
         "name": "分類裁決",
@@ -284,7 +284,7 @@
         "cells": 5980
       }
     ],
-    "dateColumnReadSeconds": 0.938,
+    "dateColumnReadSeconds": 1.765,
     "recentRowCounts": [
       {
         "name": "日K快取",
@@ -344,19 +344,19 @@
   },
   "forecast": {
     "main": {
-      "sampleDays": 1.0055,
-      "netGrowthCells": 40746,
-      "cellsPerDay": 40523.1,
-      "daysToProjectRotationThreshold": 85.89,
-      "daysToPublishedCellLimit": 332.66,
+      "sampleDays": 1.9733,
+      "netGrowthCells": 40776,
+      "cellsPerDay": 20664.26,
+      "daysToProjectRotationThreshold": 168.43,
+      "daysToPublishedCellLimit": 652.35,
       "status": "measured"
     },
     "backup": {
-      "sampleDays": 1.0055,
+      "sampleDays": 1.9733,
       "netGrowthCells": 218386,
-      "cellsPerDay": 217191.35,
-      "daysToProjectRotationThreshold": 34.89,
-      "daysToPublishedCellLimit": 80.93,
+      "cellsPerDay": 110672.6,
+      "daysToProjectRotationThreshold": 68.48,
+      "daysToPublishedCellLimit": 158.83,
       "status": "measured"
     }
   },

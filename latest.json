@@ -1,5 +1,5 @@
 {
-  "at": "2026-11-28T08:56:12.129393+00:00",
+  "at": "2026-11-28T17:36:22.629749+00:00",
   "main": {
     "allocatedCells": 6519596,
     "publishedCellLimit": 20000000,
@@ -284,7 +284,7 @@
         "cells": 5980
       }
     ],
-    "dateColumnReadSeconds": 1.765,
+    "dateColumnReadSeconds": 1.198,
     "recentRowCounts": [
       {
         "name": "日K快取",
@@ -344,20 +344,20 @@
   },
   "forecast": {
     "main": {
-      "sampleDays": 1.9733,
-      "netGrowthCells": 40776,
-      "cellsPerDay": 20664.26,
-      "daysToProjectRotationThreshold": 168.43,
-      "daysToPublishedCellLimit": 652.35,
+      "sampleDays": 1.329,
+      "netGrowthCells": 30,
+      "cellsPerDay": 22.57,
+      "daysToProjectRotationThreshold": 154181.19,
+      "daysToPublishedCellLimit": 597179.14,
       "status": "measured"
     },
     "backup": {
-      "sampleDays": 1.9733,
-      "netGrowthCells": 218386,
-      "cellsPerDay": 110672.6,
-      "daysToProjectRotationThreshold": 68.48,
-      "daysToPublishedCellLimit": 158.83,
-      "status": "measured"
+      "sampleDays": 1.329,
+      "netGrowthCells": 0,
+      "cellsPerDay": 0.0,
+      "daysToProjectRotationThreshold": null,
+      "daysToPublishedCellLimit": null,
+      "status": "insufficient-positive-daily-history"
     }
   },
   "limitsNote": "Google publishes 20M cells or 100MB; project rotation stays conservative at 10M cells. Drive sizes may not equal the internal Sheets document-size calculation."
